@@ -120,7 +120,7 @@ Parameters: `{pushes : List CompressionLean.Setup.Push}`.
 
 ## Ports
 
-`ports.json` has 585 entries: 529 Lean declarations transcribe 325 Rust items.
+`ports.json` has 585 entries: 529 Lean declarations transcribe 324 Rust items.
 
 | Lean module | Declarations |
 |---|---:|
@@ -170,14 +170,9 @@ Parameters: `{pushes : List CompressionLean.Setup.Push}`.
 |---|---:|
 | `crates/neo-math/src/ring.rs` | 3 |
 | `crates/neo-params/src/poseidon2_goldilocks.rs` | 2 |
-| `crates/neo-spartan/src/circuit/algebra.rs` | 24 |
-| `crates/neo-spartan/src/circuit/block.rs` | 2 |
 | `crates/neo-spartan/src/circuit/fold.rs` | 8 |
-| `crates/neo-spartan/src/circuit/hash.rs` | 13 |
-| `crates/neo-spartan/src/circuit/mod.rs` | 7 |
-| `crates/neo-spartan/src/circuit/poseidon2.rs` | 9 |
-| `crates/neo-spartan/src/circuit/r1cs.rs` | 1 |
-| `crates/neo-spartan/src/circuit/record.rs` | 39 |
+| `crates/neo-spartan/src/circuit/poseidon2.rs` | 1 |
+| `crates/neo-spartan/src/circuit/record.rs` | 4 |
 | `crates/neo-spartan/src/field.rs` | 4 |
 | `crates/neo-spartan/src/gkr.rs` | 10 |
 | `crates/neo-spartan/src/hash.rs` | 2 |
@@ -198,11 +193,18 @@ Parameters: `{pushes : List CompressionLean.Setup.Push}`.
 | `crates/neo-spartan/tests/internal/replay.rs` | 7 |
 | `crates/neo-spartan/tests/internal/setup_columns.rs` | 1 |
 | `crates/neo-transcript/src/poseidon2.rs` | 1 |
+| `crates/neo-verified/src/algebra.rs` | 24 |
+| `crates/neo-verified/src/backend.rs` | 4 |
+| `crates/neo-verified/src/block.rs` | 9 |
 | `crates/neo-verified/src/circuit.rs` | 6 |
 | `crates/neo-verified/src/degrees.rs` | 9 |
 | `crates/neo-verified/src/field.rs` | 17 |
+| `crates/neo-verified/src/hash.rs` | 13 |
 | `crates/neo-verified/src/layout.rs` | 14 |
+| `crates/neo-verified/src/native.rs` | 3 |
 | `crates/neo-verified/src/poseidon2.rs` | 1 |
+| `crates/neo-verified/src/r1cs.rs` | 1 |
+| `crates/neo-verified/src/record.rs` | 35 |
 | `crates/nightstream-fprime/src/package.rs` | 5 |
 | `crates/nightstream-fprime/src/package/r1cs.rs` | 3 |
 | `crates/nightstream-fprime/src/package/terminal.rs` | 2 |

@@ -9,7 +9,7 @@ use p3_field_v08::{BasedVectorSpace, PrimeCharacteristicRing as _, PrimeField64 
 use p3_sumcheck_v08::OpeningBatch;
 use p3_symmetric_v08::Permutation;
 
-use crate::circuit::{Backend, Native};
+use crate::circuit::{Backend, Fast};
 use crate::device::Accelerator;
 use crate::field::{as_words, gl, Ext, Gl};
 use crate::hash::{challenger, permutation, seed};
@@ -60,7 +60,7 @@ fn poseidon2_matches_the_workspace_permutation() {
     }
 }
 
-/// The verifier's permutation, `neo_verified::poseidon2::permute` behind `Native::permute`, is
+/// The verifier's permutation, `neo_verified::poseidon2::permute` behind `Fast::permute`, is
 /// Plonky3's on random states and on edge words, including words of `p` or more, which it reads
 /// mod p. It returns canonical words.
 #[test]
@@ -74,7 +74,7 @@ fn verified_permutation_matches_plonky3() {
     states.push(std::array::from_fn(|lane| edges[lane % edges.len()]));
     for state in states {
         let input = state.map(Gl::new);
-        let ours = Native.permute(input);
+        let ours = Fast.permute(input);
         let theirs = permutation()
             .permute(input)
             .map(|value| value.as_canonical_u64());

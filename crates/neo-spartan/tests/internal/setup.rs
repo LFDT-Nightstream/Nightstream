@@ -6,7 +6,7 @@ use p3_field_v08::{BasedVectorSpace, Field, PrimeCharacteristicRing, TwoAdicFiel
 
 use super::{word, Scratch};
 use crate::circuit::algebra::eq_eval;
-use crate::circuit::Native;
+use crate::circuit::Fast;
 use crate::field::{eq_table, Ext, Gl};
 use crate::hash::{compress, hash_leaf};
 use crate::setup::{build, check, fold, partials, query_point, Leaf, LeafView, Store};
@@ -33,7 +33,7 @@ fn bits(index: usize) -> Vec<Gl> {
 }
 
 fn point_of(index: usize) -> Vec<Ext> {
-    query_point(&mut Native, VARIABLES, &bits(index))
+    query_point(&mut Fast, VARIABLES, &bits(index))
 }
 
 /// The leaf check on plain values.
@@ -44,7 +44,7 @@ fn run_check(
     groups: &[Vec<Ext>],
     alpha: &[Ext; FOLD],
 ) -> Result<Vec<Ext>, Error> {
-    let b = &mut Native;
+    let b = &mut Fast;
     let view = LeafView::read(b, Some(leaf), COUNT, VARIABLES)?;
     check(b, *root, VARIABLES, &bits(index), &view, groups, alpha)
 }
@@ -158,7 +158,7 @@ fn honest_fold_accepts_and_tampering_rejects() {
             .sum();
         assert_eq!(
             moved - expected,
-            eq_eval(&mut Native, &alpha, &[Ext::ONE, Ext::ZERO, Ext::ONE])
+            eq_eval(&mut Fast, &alpha, &[Ext::ONE, Ext::ZERO, Ext::ONE])
         );
     }
 

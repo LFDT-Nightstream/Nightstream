@@ -15,9 +15,8 @@ use p3_field_v08::{PrimeCharacteristicRing, PrimeField64};
 use super::verifier::statement_input;
 use crate::circuit::algebra::{self, Kx, K};
 use crate::circuit::fold::FoldTranscript;
-use crate::circuit::hash::{compress, hash_leaf, merkle_root, Duplex};
-use crate::circuit::r1cs::R1cs;
-use crate::circuit::{Backend, Native};
+use crate::circuit::hash::{hash_leaf, merkle_root, Duplex};
+use crate::circuit::{Backend, Fast, Hint};
 use crate::field::{Ext, Gl};
 use crate::gkr::{self, GkrView, TreeShape};
 use crate::matrix::{Class, EarlyChallenges, EarlyOpenings, EarlyValues, LateOpenings, Structure};
@@ -27,7 +26,9 @@ use crate::setup::{self, LeafView};
 use crate::shrink::Program;
 use crate::verifier::{combine, early_shapes, from_coordinates, lane_value, observe_early, observe_pairs};
 use crate::whir::OpeningView;
+use crate::R1cs;
 use crate::{mle, norm, sumcheck, whir, Claim, ClaimWords, Error, Proof, Relation, LANE_VARIABLES};
+use neo_verified::hash::compress;
 
 /// Every branch of `record.rs`: merged, cancelled, zero-weight and long
 /// forms; constant sides of products; extension products by and from
@@ -89,7 +90,7 @@ impl Program for Edges {
         let low = b.bits(s, 8, "short split")?;
         let all = b.bits(five, 64, "full split")?;
         let chosen = b.select(low[0], u, w);
-        let hinted = b.hint(&[s], 2, &|values| vec![values[0] + 1, 9]);
+        let hinted = b.hint(&[s], 2, &Hint::Words(vec![6, 9]));
         let mut system = R1cs::new(4);
         system.push(&[(0, 1)], &[(0, 1)], &[(1, 1)]);
         system.push(&[(2, 3), (3, 1), (2, 1)], &[(2, 1)], &[(3, 5)]);
@@ -106,8 +107,8 @@ impl Program for Edges {
 }
 
 /// Every helper that the layer-1 verifier shares, over proof words: the
-/// algebra (`circuit/algebra.rs`), the hashes and the duplex
-/// (`circuit/hash.rs`), the fold transcript and its handoff
+/// algebra (`neo_verified::algebra`), the hashes and the duplex
+/// (`neo_verified::hash`), the fold transcript and its handoff
 /// (`circuit/fold.rs`) and `sumcheck::replay`. The duplex absorbs a full and
 /// a partial chunk, reads its output, and duplexes once with no input.
 /// `shared` in `CompressionLeanExe/Fixtures.lean` writes the same program.
@@ -126,7 +127,7 @@ impl Program for Shared {
         let words: Vec<B::F> = (0..14).map(|word| b.private(word)).collect();
         let x: Vec<B::E> = (0..4).map(|_| algebra::private_ext(b, Ext::ZERO)).collect();
         let scaled = algebra::scale(b, words[0], Gl::from_u64(3));
-        let lifted = algebra::lift(b, scaled);
+        let lifted = algebra::lift_word(b, scaled);
         let weighted = algebra::ext_scale_constant(b, lifted, Gl::from_u64(9));
         let dot = algebra::dot(b, &x[..2], &x[2..]);
         let eq = algebra::eq_eval(b, &x[..2], &x[2..]);
@@ -231,7 +232,7 @@ impl Program for Early {
         let [row, slot, coefficient] = early.setup;
         b.assert_ext_equal(slot, total, "slot")?;
         b.assert_ext_equal(row, coefficient, "setup")?;
-        b.assert_ext_equal(early.mult, claims[0].point[1], "mult")
+        Ok(b.assert_ext_equal(early.mult, claims[0].point[1], "mult")?)
     }
 }
 
@@ -255,7 +256,7 @@ impl<'a> Linear<'a> {
     /// on `proof`: the early stage's transcript calls, without its checks.
     pub(super) fn new(relation: &'a Relation<'a>, seed: [Gl; 4], claim: &Claim, proof: &'a Proof) -> Self {
         let statement = ClaimWords::new(&relation.shape, claim).unwrap();
-        let b = &mut Native;
+        let b = &mut Fast;
         let mut duplex = Duplex::new(b);
         duplex.observe_slice(b, &seed);
         for word in relation.words() {
@@ -370,7 +371,7 @@ impl Program for Linear<'_> {
         let lanes = lane_value(b, zeta, lane_part);
         let weighted = b.ext_mul(omega, lanes);
         let expected = b.ext_mul(weighted, z_value);
-        b.assert_ext_equal(last, expected, "linear claim")
+        Ok(b.assert_ext_equal(last, expected, "linear claim")?)
     }
 }
 
@@ -400,7 +401,7 @@ impl<'a> Honest<'a> {
     pub(super) fn new(relation: &'a Relation<'a>, seed: [Gl; 4], claim: &Claim, proof: &'a Proof) -> Self {
         let (shape, structure) = (&relation.shape, &relation.key.structure);
         let statement = ClaimWords::new(shape, claim).unwrap();
-        let b = &mut Native;
+        let b = &mut Fast;
         let mut duplex = Duplex::new(b);
         duplex.observe_slice(b, &seed);
         for word in relation.words() {
@@ -574,7 +575,7 @@ impl<'a> Late<'a> {
     /// `gkr::verify`.
     pub(super) fn new(relation: &'a Relation<'a>, seed: [Gl; 4], claim: &Claim, proof: &'a Proof) -> Self {
         let statement = ClaimWords::new(&relation.shape, claim).unwrap();
-        let b = &mut Native;
+        let b = &mut Fast;
         let mut duplex = Duplex::new(b);
         duplex.observe_slice(b, &seed);
         for word in relation.words() {
@@ -615,7 +616,10 @@ impl<'a> Late<'a> {
         whir::observe_root(b, &mut duplex, proof.p1.roots()[0]);
         let variables = relation.key.setup_variables();
         for _ in 0..relation.queries {
-            duplex.sample_bits(b, variables + 1 - FOLD).unwrap();
+            duplex
+                .sample_bits(b, variables + 1 - FOLD)
+                .map_err(Error::from)
+                .unwrap();
         }
         let output = duplex.output.len();
         assert_eq!(
@@ -762,7 +766,7 @@ impl<'a> Openings<'a> {
         let (key, shape) = (relation.key, &relation.shape);
         let structure = &key.structure;
         let statement = ClaimWords::new(shape, claim).unwrap();
-        let b = &mut Native;
+        let b = &mut Fast;
         let mut duplex = Duplex::new(b);
         duplex.observe_slice(b, &seed);
         for word in relation.words() {
@@ -815,7 +819,12 @@ impl<'a> Openings<'a> {
         let run_point = setup_point(b, &early.run_point, variables);
         whir::observe_root(b, &mut duplex, proof.p1.roots()[0]);
         let index_bits: Vec<Vec<Gl>> = (0..relation.queries)
-            .map(|_| duplex.sample_bits(b, variables + 1 - FOLD).unwrap())
+            .map(|_| {
+                duplex
+                    .sample_bits(b, variables + 1 - FOLD)
+                    .map_err(Error::from)
+                    .unwrap()
+            })
             .collect();
         let mut run_weights = vec![Ext::ONE];
         for _ in 1..RUN_ORACLES {

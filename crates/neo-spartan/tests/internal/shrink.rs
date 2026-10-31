@@ -253,13 +253,17 @@ fn cubes() -> R1cs {
 fn native_r1cs_accepts_its_rows_and_rejects_a_changed_column() {
     let s = Gl::from_u64(5);
     let columns = [s, s * s, s * s * s, Gl::ONE, Gl::from_u64(9)];
-    assert!(crate::Native.r1cs(&cubes(), &columns, "rows").is_ok());
+    assert!(crate::circuit::Fast
+        .r1cs(&cubes(), &columns, "rows")
+        .is_ok());
     // `t` is free: it enters only the identity row.
     for column in 0..4 {
         let mut changed = columns;
         changed[column] += Gl::ONE;
         assert!(
-            crate::Native.r1cs(&cubes(), &changed, "rows").is_err(),
+            crate::circuit::Fast
+                .r1cs(&cubes(), &changed, "rows")
+                .is_err(),
             "column {column}"
         );
         // The constraint reading notes the failure and records every row.
@@ -268,7 +272,7 @@ fn native_r1cs_accepts_its_rows_and_rejects_a_changed_column() {
             .iter()
             .map(|value| recorder.private(value.as_canonical_u64()))
             .collect();
-        recorder.r1cs(&cubes(), &forms, "rows").unwrap();
+        assert!(recorder.r1cs(&cubes(), &forms, "rows").is_ok());
         let (trace, failure) = recorder.finish();
         assert_eq!(failure, Some("rows"));
         assert_eq!(trace.rows.len(), cubes().rows());
@@ -282,13 +286,13 @@ impl Sink for RowByRow {
     fn row(&mut self, products: &[(Vec<Term>, Vec<Term>)], linear: &[Term]) {
         self.0.row(products, linear);
     }
-    fn cell(&mut self, value: Gl) {
+    fn cell(&mut self, value: neo_verified::field::Gl) {
         self.0.cell(value);
     }
-    fn block(&mut self, kind: Kind, cells: &[Gl]) {
-        self.0.block(kind, cells);
+    fn block(&mut self, kind: Kind, inputs: &[neo_verified::field::Gl]) -> Vec<neo_verified::field::Gl> {
+        self.0.block(kind, inputs)
     }
-    fn public(&mut self, value: Gl) {
+    fn public(&mut self, value: neo_verified::field::Gl) {
         self.0.public(value);
     }
 }
@@ -310,10 +314,10 @@ fn parallel_r1cs_rows_equal_the_default() {
         // `t` is free (it enters only the identity row), so `t + 3` holds.
         let three = b.constant(3);
         let t = b.add(t, three);
-        b.r1cs(&cubes(), &[shifted, square, cube, one, t], "rows")
-            .unwrap();
-        b.r1cs(&cubes(), &[s, square, cube, one, t], "rows")
-            .unwrap();
+        assert!(b
+            .r1cs(&cubes(), &[shifted, square, cube, one, t], "rows")
+            .is_ok());
+        assert!(b.r1cs(&cubes(), &[s, square, cube, one, t], "rows").is_ok());
         let (sink, failure) = b.finish();
         assert_eq!(failure, None);
         sink
@@ -333,9 +337,9 @@ fn parallel_r1cs_rows_equal_the_default() {
 fn failing_constant_checks_record_rows() {
     let mut b = Recorder::new(Trace::default());
     let five = b.constant(5);
-    b.assert_zero(five, "constant").unwrap();
+    assert!(b.assert_zero(five, "constant").is_ok());
     let zero = b.constant(0);
-    b.ext_inverse([zero; 3], "constant inverse").unwrap();
+    assert!(b.ext_inverse([zero; 3], "constant inverse").is_ok());
     let (trace, failure) = b.finish();
     assert_eq!(failure, Some("constant"));
     let failing = (0..trace.rows.len())

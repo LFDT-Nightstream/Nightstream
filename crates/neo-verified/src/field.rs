@@ -223,3 +223,21 @@ pub fn ext_pow(a: Ext, e: u64) -> Ext {
         }
     }
 }
+
+/// The inverse of a nonzero `a`, and zero for zero: the first column of the inverse of the
+/// matrix of multiplication by `a`, whose columns are `a`, `a·w = (a2, a0 + a2, a1)` and
+/// `a·w^2 = (a1, a1 + a2, a0 + a2)`, as cofactors over the determinant.
+pub fn ext_inv(a: Ext) -> Ext {
+    let s = gl_add(a.c0, a.c2);
+    let t = gl_add(a.c1, a.c2);
+    let c0 = gl_sub(gl_mul(s, s), gl_mul(t, a.c1));
+    let c1 = gl_sub(gl_mul(t, a.c2), gl_mul(a.c1, s));
+    let c2 = gl_sub(gl_mul(a.c1, a.c1), gl_mul(s, a.c2));
+    let det = gl_add(gl_add(gl_mul(a.c0, c0), gl_mul(a.c2, c1)), gl_mul(a.c1, c2));
+    let scale = gl_inv(det);
+    Ext {
+        c0: gl_mul(c0, scale),
+        c1: gl_mul(c1, scale),
+        c2: gl_mul(c2, scale),
+    }
+}

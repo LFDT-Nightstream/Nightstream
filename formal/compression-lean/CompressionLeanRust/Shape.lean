@@ -81,6 +81,7 @@ theorem glValues_injective {n : Usize} : Function.Injective (@glValues n) := by
 /-- The views that a `Sound` or `Complete` theorem may use. `CompressionLeanRustTests` checks
 that each has a theorem `<view>_injective`. -/
 def views : List Lean.Name :=
-  [``usizeValue, ``usizeValues, ``placeValue, ``glValue, ``extValue, ``optionValue, ``glValues]
+  [``usizeValue, ``usizeValues, ``placeValue, ``glValue, ``extValue, ``optionValue, ``glValues,
+    `CompressionLeanRust.built, `CompressionLeanRust.builtVec, `CompressionLeanRust.builtKx, `CompressionLeanRust.builtDigest]
 
 end CompressionLeanRust

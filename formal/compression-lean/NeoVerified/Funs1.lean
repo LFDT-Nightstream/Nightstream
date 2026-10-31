@@ -17,612 +17,11 @@ set_option linter.internalConstructors false
 
 namespace neo_verified
 
-/-- [neo_verified::circuit::WIDTH]
-    Source: 'crates/neo-verified/src/circuit.rs', lines 4:0-4:28
-    Visibility: public -/
-@[global_simps, irreducible] def circuit.WIDTH : Std.Usize := 16#usize
-
-/-- [neo_verified::circuit::SBOXES]
-    Source: 'crates/neo-verified/src/circuit.rs', lines 5:0-5:30
-    Visibility: public -/
-@[global_simps, irreducible] def circuit.SBOXES : Std.Usize := 150#usize
-
-/-- [neo_verified::circuit::CELLS]
-    Source: 'crates/neo-verified/src/circuit.rs', lines 7:0-7:48
-    Visibility: public -/
-@[global_simps, irreducible]
-def circuit.CELLS : Result Std.Usize := do
-  let i ← circuit.WIDTH + circuit.SBOXES
-  i + circuit.WIDTH
-
-/-- [neo_verified::circuit::ROWS]
-    Source: 'crates/neo-verified/src/circuit.rs', lines 9:0-9:39
-    Visibility: public -/
-@[global_simps, irreducible]
-def circuit.ROWS : Result Std.Usize := circuit.SBOXES + circuit.WIDTH
-
-/-- [neo_verified::circuit::MATRICES]
-    Source: 'crates/neo-verified/src/circuit.rs', lines 11:0-11:30
-    Visibility: public -/
-@[global_simps, irreducible] def circuit.MATRICES : Std.Usize := 8#usize
-
-/-- [neo_verified::circuit::{impl core::clone::Clone for neo_verified::circuit::Kind}::clone]:
-    Source: 'crates/neo-verified/src/circuit.rs', lines 13:9-13:14
-    Visibility: public -/
-def circuit.Kind.Insts.CoreCloneClone.clone
-  (self : circuit.Kind) : Result circuit.Kind := do
-  ok self
-
-/-- Trait implementation: [neo_verified::circuit::{impl core::clone::Clone for neo_verified::circuit::Kind}]
-    Source: 'crates/neo-verified/src/circuit.rs', lines 13:9-13:14 -/
-@[reducible]
-def circuit.Kind.Insts.CoreCloneClone : core.clone.Clone circuit.Kind := {
-  clone := circuit.Kind.Insts.CoreCloneClone.clone
-}
-
-/-- Trait implementation: [neo_verified::circuit::{impl core::marker::Copy for neo_verified::circuit::Kind}]
-    Source: 'crates/neo-verified/src/circuit.rs', lines 13:16-13:20 -/
-@[reducible]
-def circuit.Kind.Insts.CoreMarkerCopy : core.marker.Copy circuit.Kind := {
-  cloneInst := circuit.Kind.Insts.CoreCloneClone
-}
-
-/-- Trait implementation: [neo_verified::circuit::{impl core::marker::StructuralPartialEq for neo_verified::circuit::Kind}]
-    Source: 'crates/neo-verified/src/circuit.rs', lines 13:22-13:31 -/
-@[reducible]
-def circuit.Kind.Insts.CoreMarkerStructuralPartialEq :
-  core.marker.StructuralPartialEq circuit.Kind := {
-}
-
-/-- [neo_verified::circuit::{impl core::cmp::PartialEq<neo_verified::circuit::Kind> for neo_verified::circuit::Kind}::eq]:
-    Source: 'crates/neo-verified/src/circuit.rs', lines 13:22-13:31
-    Visibility: public -/
-def circuit.Kind.Insts.CoreCmpPartialEqKind.eq
-  (self : circuit.Kind) (other : circuit.Kind) : Result Bool := do
-  ok true
-
-/-- Trait implementation: [neo_verified::circuit::{impl core::cmp::PartialEq<neo_verified::circuit::Kind> for neo_verified::circuit::Kind}]
-    Source: 'crates/neo-verified/src/circuit.rs', lines 13:22-13:31 -/
-@[reducible]
-def circuit.Kind.Insts.CoreCmpPartialEqKind : core.cmp.PartialEq circuit.Kind
-  circuit.Kind := {
-  eq := circuit.Kind.Insts.CoreCmpPartialEqKind.eq
-}
-
-/-- [neo_verified::circuit::KINDS]
-    Source: 'crates/neo-verified/src/circuit.rs', lines 18:0-18:49
-    Visibility: public -/
-@[global_simps, irreducible]
-def circuit.KINDS : Array circuit.Kind 1#usize :=
-  Array.make 1#usize [ circuit.Kind.Permutation ]
-
-/-- [neo_verified::circuit::{neo_verified::circuit::Kind}::index]:
-    Source: 'crates/neo-verified/src/circuit.rs', lines 21:4-23:5
-    Visibility: public -/
-def circuit.Kind.index (self : circuit.Kind) : Result Std.Usize := do
-  let self1 := read_discriminant self
-  ok (IScalar.hcast .Usize self1)
-
-/-- [neo_verified::circuit::{neo_verified::circuit::Kind}::cells]:
-    Source: 'crates/neo-verified/src/circuit.rs', lines 25:4-29:5
-    Visibility: public -/
-def circuit.Kind.cells (self : circuit.Kind) : Result Std.Usize := do
-  circuit.CELLS
-
-/-- [neo_verified::circuit::{neo_verified::circuit::Kind}::rows]:
-    Source: 'crates/neo-verified/src/circuit.rs', lines 31:4-35:5
-    Visibility: public -/
-def circuit.Kind.rows (self : circuit.Kind) : Result Std.Usize := do
-  circuit.ROWS
-
-/-- [neo_verified::circuit::{impl core::clone::Clone for neo_verified::circuit::Wire}::clone]:
-    Source: 'crates/neo-verified/src/circuit.rs', lines 39:9-39:14
-    Visibility: public -/
-def circuit.Wire.Insts.CoreCloneClone.clone
-  (self : circuit.Wire) : Result circuit.Wire := do
-  ok self
-
-/-- Trait implementation: [neo_verified::circuit::{impl core::clone::Clone for neo_verified::circuit::Wire}]
-    Source: 'crates/neo-verified/src/circuit.rs', lines 39:9-39:14 -/
-@[reducible]
-def circuit.Wire.Insts.CoreCloneClone : core.clone.Clone circuit.Wire := {
-  clone := circuit.Wire.Insts.CoreCloneClone.clone
-}
-
-/-- Trait implementation: [neo_verified::circuit::{impl core::marker::Copy for neo_verified::circuit::Wire}]
-    Source: 'crates/neo-verified/src/circuit.rs', lines 39:16-39:20 -/
-@[reducible]
-def circuit.Wire.Insts.CoreMarkerCopy : core.marker.Copy circuit.Wire := {
-  cloneInst := circuit.Wire.Insts.CoreCloneClone
-}
-
-/-- Trait implementation: [neo_verified::circuit::{impl core::marker::StructuralPartialEq for neo_verified::circuit::Wire}]
-    Source: 'crates/neo-verified/src/circuit.rs', lines 39:22-39:31 -/
-@[reducible]
-def circuit.Wire.Insts.CoreMarkerStructuralPartialEq :
-  core.marker.StructuralPartialEq circuit.Wire := {
-}
-
-/-- [neo_verified::circuit::{impl core::cmp::PartialEq<neo_verified::circuit::Wire> for neo_verified::circuit::Wire}::eq]:
-    Source: 'crates/neo-verified/src/circuit.rs', lines 39:22-39:31
-    Visibility: public -/
-def circuit.Wire.Insts.CoreCmpPartialEqWire.eq
-  (self : circuit.Wire) (other : circuit.Wire) : Result Bool := do
-  let self1 := read_discriminant self
-  let other1 := read_discriminant other
-  if self1 = other1
-  then
-    match self with
-    | circuit.Wire.Glue __self_0 =>
-      match other with
-      | circuit.Wire.Glue __arg1_0 =>
-        lift (core.cmp.impls.PartialEqU32.eq __self_0 __arg1_0)
-      | circuit.Wire.Block _ _ _ => fail panic
-      | circuit.Wire.Public _ => fail panic
-    | circuit.Wire.Block __self_0 __self_1 __self_2 =>
-      match other with
-      | circuit.Wire.Glue _ => fail panic
-      | circuit.Wire.Block __arg1_0 __arg1_1 __arg1_2 =>
-        let b ← lift (core.cmp.impls.PartialEqU32.eq __self_1 __arg1_1)
-        if b
-        then
-          let b1 ← lift (core.cmp.impls.PartialEqU16.eq __self_2 __arg1_2)
-          if b1
-          then circuit.Kind.Insts.CoreCmpPartialEqKind.eq __self_0 __arg1_0
-          else ok false
-        else ok false
-      | circuit.Wire.Public _ => fail panic
-    | circuit.Wire.Public __self_0 =>
-      match other with
-      | circuit.Wire.Glue _ => fail panic
-      | circuit.Wire.Block _ _ _ => fail panic
-      | circuit.Wire.Public __arg1_0 =>
-        lift (core.cmp.impls.PartialEqU32.eq __self_0 __arg1_0)
-  else ok false
-
-/-- Trait implementation: [neo_verified::circuit::{impl core::cmp::PartialEq<neo_verified::circuit::Wire> for neo_verified::circuit::Wire}]
-    Source: 'crates/neo-verified/src/circuit.rs', lines 39:22-39:31 -/
-@[reducible]
-def circuit.Wire.Insts.CoreCmpPartialEqWire : core.cmp.PartialEq circuit.Wire
-  circuit.Wire := {
-  eq := circuit.Wire.Insts.CoreCmpPartialEqWire.eq
-}
-
-/-- [neo_verified::degrees::RUN_ORACLES]
-    Source: 'crates/neo-verified/src/degrees.rs', lines 13:0-13:33
-    Visibility: public -/
-@[global_simps, irreducible] def degrees.RUN_ORACLES : Std.Usize := 4#usize
-
-/-- [neo_verified::degrees::FOLD]
-    Source: 'crates/neo-verified/src/degrees.rs', lines 15:0-15:26
-    Visibility: public -/
-@[global_simps, irreducible] def degrees.FOLD : Std.Usize := 3#usize
-
-/-- [neo_verified::degrees::DEGREE]
-    Source: 'crates/neo-verified/src/degrees.rs', lines 17:0-17:28
-    Visibility: public -/
-@[global_simps, irreducible] def degrees.DEGREE : Std.Usize := 8#usize
-
-/-- [neo_verified::degrees::FIXED]
-    Source: 'crates/neo-verified/src/degrees.rs', lines 19:0-19:58
-    Visibility: public -/
-@[global_simps, irreducible]
-def degrees.FIXED : Result (Array Std.Usize 2#usize) := do
-  let i ← degrees.RUN_ORACLES - 1#usize
-  let i1 ← 2#usize * degrees.FOLD
-  ok (Array.make 2#usize [ i, i1 ])
-
-/-- [neo_verified::degrees::add]:
-    Source: 'crates/neo-verified/src/degrees.rs', lines 37:0-39:1 -/
-def degrees.add (a : Std.Usize) (b : Std.Usize) : Result Std.Usize := do
-  let o ← lift (Usize.checked_add a b)
-  core.option.Option.unwrap o
-
-/-- [neo_verified::degrees::sub]:
-    Source: 'crates/neo-verified/src/degrees.rs', lines 41:0-43:1 -/
-def degrees.sub (a : Std.Usize) (b : Std.Usize) : Result Std.Usize := do
-  let o ← lift (Usize.checked_sub a b)
-  core.option.Option.unwrap o
-
-/-- [neo_verified::degrees::mul]:
-    Source: 'crates/neo-verified/src/degrees.rs', lines 45:0-47:1 -/
-def degrees.mul (a : Std.Usize) (b : Std.Usize) : Result Std.Usize := do
-  let o ← lift (Usize.checked_mul a b)
-  core.option.Option.unwrap o
-
-/-- [neo_verified::degrees::exp2]:
-    Source: 'crates/neo-verified/src/degrees.rs', lines 49:0-53:1 -/
-def degrees.exp2 (v : Std.Usize) : Result Std.Usize := do
-  let i ← lift (UScalar.cast .Usize core.num.Usize.BITS)
-  let i1 ← degrees.sub i 1#usize
-  let _ ← degrees.sub i1 v
-  let i2 ← lift (UScalar.cast .U32 v)
-  ok (core.num.Usize.wrapping_shl 1#usize i2)
-
-/-- [neo_verified::degrees::row_count]:
-    Source: 'crates/neo-verified/src/degrees.rs', lines 56:0-58:1
-    Visibility: public -/
-def degrees.row_count
-  (kappa : Std.Usize) (matrices : Std.Usize) (public_blocks : Std.Usize) :
-  Result Std.Usize
-  := do
-  let i ← degrees.add kappa 2#usize
-  let i1 ← degrees.mul 2#usize matrices
-  let i2 ← degrees.add i i1
-  degrees.add i2 public_blocks
-
-/-- [neo_verified::degrees::gkr]: loop body 0:
-    Source: 'crates/neo-verified/src/degrees.rs', lines 67:4-71:5
-    Visibility: public -/
-@[rust_loop_body]
-def degrees.gkr_loop.body
-  (depths : Slice Std.Usize) (deepest : Std.Usize) (sum : Std.Usize)
-  (t : Std.Usize) :
-  Result (ControlFlow (Std.Usize × Std.Usize × Std.Usize) (Std.Usize ×
-    Std.Usize))
-  := do
-  let i := Slice.len depths
-  if t < i
-  then
-    let i1 ← Slice.index_usize depths t
-    let deepest1 ← lift (core.cmp.impls.OrdUsize.max deepest i1)
-    let sum1 ← degrees.add sum i1
-    let t1 ← degrees.add t 1#usize
-    ok (cont (deepest1, sum1, t1))
-  else ok (done (deepest, sum))
-
-/-- [neo_verified::degrees::gkr]: loop 0:
-    Source: 'crates/neo-verified/src/degrees.rs', lines 67:4-71:5
-    Visibility: public -/
-@[rust_loop]
-def degrees.gkr_loop
-  (depths : Slice Std.Usize) (deepest : Std.Usize) (sum : Std.Usize)
-  (t : Std.Usize) :
-  Result (Std.Usize × Std.Usize)
-  := do
-  loop
-    (fun (deepest1, sum1, t1) => degrees.gkr_loop.body depths deepest1 sum1 t1)
-    (deepest, sum, t)
-
-/-- [neo_verified::degrees::gkr]:
-    Source: 'crates/neo-verified/src/degrees.rs', lines 63:0-73:1
-    Visibility: public -/
-def degrees.gkr (depths : Slice Std.Usize) : Result Std.Usize := do
-  let (deepest, sum) ← degrees.gkr_loop depths 0#usize 0#usize 0#usize
-  let i ← degrees.add deepest 1#usize
-  let i1 ← degrees.mul deepest i
-  let i2 ← degrees.mul 2#usize i1
-  degrees.add i2 sum
-
-/-- [neo_verified::degrees::cube_variables]:
-    Source: 'crates/neo-verified/src/degrees.rs', lines 75:0-77:1 -/
-def degrees.cube_variables
-  (relation : degrees.Relation) : Result Std.Usize := do
-  degrees.add relation.lane_variables relation.block_variables
-
-/-- [neo_verified::degrees::early_terms]:
-    Source: 'crates/neo-verified/src/degrees.rs', lines 80:0-94:1
-    Visibility: public -/
-def degrees.early_terms
-  (relation : degrees.Relation) : Result (Array Std.Usize 5#usize) := do
-  let cube ← degrees.cube_variables relation
-  let pairs ← degrees.add relation.slot_variables relation.matrix_variables
-  let i ← degrees.exp2 cube
-  let i1 ← lift (UScalar.cast .Usize relation.norm_bound)
-  let i2 ← degrees.mul 2#usize i1
-  let i3 ← degrees.add i2 1#usize
-  let i4 ← degrees.add i i3
-  let i5 ← degrees.exp2 relation.run_variables
-  let i6 ← degrees.exp2 relation.row_variables
-  let i7 ← degrees.add i5 i6
-  let i8 ← degrees.mul 3#usize i7
-  let i9 ← degrees.exp2 pairs
-  let i10 ← degrees.add i5 i9
-  let i11 ← degrees.add i10 1#usize
-  let s ←
-    lift (Array.to_slice
-      (Array.make 5#usize [
-        cube, relation.run_variables, relation.row_variables,
-        relation.run_variables, pairs
-        ]))
-  let i12 ← degrees.gkr s
-  ok (Array.make 5#usize [ i4, i8, i11, i12, relation.run_variables ])
-
-/-- [neo_verified::degrees::linear_terms]:
-    Source: 'crates/neo-verified/src/degrees.rs', lines 97:0-104:1
-    Visibility: public -/
-def degrees.linear_terms
-  (relation : degrees.Relation) : Result (Array Std.Usize 3#usize) := do
-  let rows ←
-    degrees.row_count relation.kappa relation.matrices relation.public_blocks
-  let i ← degrees.sub rows 1#usize
-  let i1 ← degrees.sub relation.d 1#usize
-  let i2 ← degrees.mul 2#usize i1
-  let i3 ← degrees.cube_variables relation
-  let i4 ← degrees.mul 2#usize i3
-  ok (Array.make 3#usize [ i, i2, i4 ])
-
-/-- [neo_verified::degrees::late_terms]:
-    Source: 'crates/neo-verified/src/degrees.rs', lines 107:0-113:1
-    Visibility: public -/
-def degrees.late_terms
-  (relation : degrees.Relation) : Result (Array Std.Usize 2#usize) := do
-  let blocks ← degrees.add relation.slot_variables 1#usize
-  let i ← degrees.exp2 blocks
-  let i1 ← degrees.exp2 relation.block_variables
-  let i2 ← degrees.add i i1
-  let s ←
-    lift (Array.to_slice
-      (Array.make 2#usize [ blocks, relation.block_variables ]))
-  let i3 ← degrees.gkr s
-  ok (Array.make 2#usize [ i2, i3 ])
-
-/-- [neo_verified::layout::two_pow]:
-    Source: 'crates/neo-verified/src/layout.rs', lines 65:0-69:1 -/
-def layout.two_pow (k : Std.U32) : Result Std.Usize := do
-  let o ← lift (U32.checked_sub core.num.Usize.BITS 1#u32)
-  let i ← core.option.Option.unwrap o
-  let o1 ← lift (U32.checked_sub i k)
-  let _ ← core.option.Option.unwrap o1
-  ok (core.num.Usize.wrapping_shl 1#usize k)
-
-/-- [neo_verified::layout::ceil_log2]:
-    Source: 'crates/neo-verified/src/layout.rs', lines 59:0-63:1 -/
-def layout.ceil_log2 (n : Std.Usize) : Result Std.U32 := do
-  let o ← lift (Usize.checked_sub n 1#usize)
-  let i ← core.option.Option.unwrap o
-  let i1 ← lift (core.num.Usize.leading_zeros i)
-  let o1 ← lift (U32.checked_sub core.num.Usize.BITS i1)
-  core.option.Option.unwrap o1
-
-/-- [neo_verified::layout::floor_log2]:
-    Source: 'crates/neo-verified/src/layout.rs', lines 51:0-57:1 -/
-def layout.floor_log2 (n : Std.Usize) : Result Std.U32 := do
-  let o ← lift (U32.checked_sub core.num.Usize.BITS 1#u32)
-  let i ← core.option.Option.unwrap o
-  let i1 ← lift (core.num.Usize.leading_zeros n)
-  let o1 ← lift (U32.checked_sub i i1)
-  core.option.Option.unwrap o1
-
-/-- [neo_verified::layout::split]:
-    Source: 'crates/neo-verified/src/layout.rs', lines 33:0-41:1
-    Visibility: public -/
-def layout.split (size : Std.Usize) : Result (Array Std.Usize 2#usize) := do
-  let i ← layout.floor_log2 size
-  let wide ← layout.two_pow i
-  let o ← lift (Usize.checked_sub size wide)
-  let rest ← core.option.Option.unwrap o
-  if rest = 0#usize
-  then ok (Array.make 2#usize [ wide, 0#usize ])
-  else
-    let i1 ← layout.ceil_log2 rest
-    let i2 ← layout.two_pow i1
-    ok (Array.make 2#usize [ wide, i2 ])
-
-/-- [neo_verified::layout::place]:
-    Source: 'crates/neo-verified/src/layout.rs', lines 74:0-81:1
-    Visibility: public -/
-def layout.place
-  (size : Std.Usize) (count : Std.Usize) :
-  Result ((Array layout.Part 2#usize) × Std.Usize)
-  := do
-  let a ← layout.split size
-  let wide ← Array.index_usize a 0#usize
-  let narrow ← Array.index_usize a 1#usize
-  let o ← lift (Usize.checked_mul wide count)
-  let start ← core.option.Option.unwrap o
-  let o1 ← lift (Usize.checked_mul narrow count)
-  let i ← core.option.Option.unwrap o1
-  let o2 ← lift (Usize.checked_add start i)
-  let «end» ← core.option.Option.unwrap o2
-  ok
-    (Array.make 2#usize [
-       { start := 0#usize, stride := wide }, { start, stride := narrow }
-       ], «end»)
-
-/-- [neo_verified::layout::cells_end]:
-    Source: 'crates/neo-verified/src/layout.rs', lines 118:0-122:1 -/
-def layout.cells_end (shape : layout.Shape) : Result Std.Usize := do
-  let count ← Array.index_usize shape.blocks 0#usize
-  let i ← circuit.Kind.cells circuit.Kind.Permutation
-  let (_, «end») ← layout.place i count
-  ok «end»
-
-/-- [neo_verified::layout::variables]:
-    Source: 'crates/neo-verified/src/layout.rs', lines 43:0-49:1
-    Visibility: public -/
-def layout.variables (count : Std.Usize) : Result Std.Usize := do
-  if count <= 2#usize
-  then ok 1#usize
-  else let i ← layout.ceil_log2 count
-       ok (UScalar.cast .Usize i)
-
-/-- [neo_verified::layout::cell_variables]:
-    Source: 'crates/neo-verified/src/layout.rs', lines 134:0-137:1
-    Visibility: public -/
-def layout.cell_variables (shape : layout.Shape) : Result Std.Usize := do
-  let i ← layout.cells_end shape
-  let o ← lift (Usize.checked_add i shape.glue_cells)
-  let cells ← core.option.Option.unwrap o
-  let o1 ← lift (Usize.checked_add shape.publics 1#usize)
-  let i1 ← core.option.Option.unwrap o1
-  let i2 ← lift (core.cmp.impls.OrdUsize.max cells i1)
-  layout.variables i2
-
-/-- [neo_verified::layout::rows_end]:
-    Source: 'crates/neo-verified/src/layout.rs', lines 111:0-115:1 -/
-def layout.rows_end (shape : layout.Shape) : Result Std.Usize := do
-  let count ← Array.index_usize shape.blocks 0#usize
-  let i ← circuit.Kind.rows circuit.Kind.Permutation
-  let (_, «end») ← layout.place i count
-  ok «end»
-
-/-- [neo_verified::layout::row_variables]:
-    Source: 'crates/neo-verified/src/layout.rs', lines 129:0-131:1
-    Visibility: public -/
-def layout.row_variables (shape : layout.Shape) : Result Std.Usize := do
-  let i ← layout.rows_end shape
-  let o ← lift (Usize.checked_add i shape.glue_rows)
-  let i1 ← core.option.Option.unwrap o
-  layout.variables i1
-
-/-- [neo_verified::degrees::shrink_terms]:
-    Source: 'crates/neo-verified/src/degrees.rs', lines 116:0-120:1
-    Visibility: public -/
-def degrees.shrink_terms
-  (shape : layout.Shape) : Result (Array Std.Usize 4#usize) := do
-  let rows ← layout.row_variables shape
-  let cells ← layout.cell_variables shape
-  let i ← degrees.mul degrees.DEGREE rows
-  let i1 ← degrees.sub circuit.MATRICES 1#usize
-  let i2 ← degrees.add cells 1#usize
-  let i3 ← degrees.mul 2#usize i2
-  ok (Array.make 4#usize [ rows, i, i1, i3 ])
-
-/-- [neo_verified::degrees::early]:
-    Source: 'crates/neo-verified/src/degrees.rs', lines 122:0-125:1
-    Visibility: public -/
-def degrees.early (relation : degrees.Relation) : Result Std.Usize := do
-  let a ← degrees.early_terms relation
-  let norm ← Array.index_usize a 0#usize
-  let lookup ← Array.index_usize a 1#usize
-  let scatter ← Array.index_usize a 2#usize
-  let trees ← Array.index_usize a 3#usize
-  let test ← Array.index_usize a 4#usize
-  let i ← degrees.add norm lookup
-  let i1 ← degrees.add i scatter
-  let i2 ← degrees.add i1 trees
-  degrees.add i2 test
-
-/-- [neo_verified::degrees::linear]:
-    Source: 'crates/neo-verified/src/degrees.rs', lines 127:0-130:1
-    Visibility: public -/
-def degrees.linear (relation : degrees.Relation) : Result Std.Usize := do
-  let a ← degrees.linear_terms relation
-  let batching ← Array.index_usize a 0#usize
-  let quotient ← Array.index_usize a 1#usize
-  let sumcheck ← Array.index_usize a 2#usize
-  let i ← degrees.add batching quotient
-  degrees.add i sumcheck
-
-/-- [neo_verified::degrees::late]:
-    Source: 'crates/neo-verified/src/degrees.rs', lines 132:0-135:1
-    Visibility: public -/
-def degrees.late (relation : degrees.Relation) : Result Std.Usize := do
-  let a ← degrees.late_terms relation
-  let scatter ← Array.index_usize a 0#usize
-  let trees ← Array.index_usize a 1#usize
-  degrees.add scatter trees
-
-/-- [neo_verified::degrees::layer1]:
-    Source: 'crates/neo-verified/src/degrees.rs', lines 138:0-144:1
-    Visibility: public -/
-def degrees.layer1 (relation : degrees.Relation) : Result Std.Usize := do
-  let a ← degrees.FIXED
-  let run_group ← Array.index_usize a 0#usize
-  let fold_partials ← Array.index_usize a 1#usize
-  let i ← degrees.early relation
-  let i1 ← degrees.linear relation
-  let i2 ← degrees.add i i1
-  let i3 ← degrees.add i2 run_group
-  let i4 ← degrees.add i3 fold_partials
-  let i5 ← degrees.late relation
-  degrees.add i4 i5
-
-/-- [neo_verified::degrees::shrink]:
-    Source: 'crates/neo-verified/src/degrees.rs', lines 146:0-149:1
-    Visibility: public -/
-def degrees.shrink (shape : layout.Shape) : Result Std.Usize := do
-  let a ← degrees.shrink_terms shape
-  let point ← Array.index_usize a 0#usize
-  let outer ← Array.index_usize a 1#usize
-  let batching ← Array.index_usize a 2#usize
-  let inner ← Array.index_usize a 3#usize
-  let i ← degrees.add point outer
-  let i1 ← degrees.add i batching
-  degrees.add i1 inner
-
 /-- [neo_verified::field::MODULUS]
     Source: 'crates/neo-verified/src/field.rs', lines 17:0-17:47
     Visibility: public -/
 @[global_simps, irreducible]
 def field.MODULUS : Std.U64 := 18446744069414584321#u64
-
-/-- [neo_verified::field::{impl core::clone::Clone for neo_verified::field::Gl}::clone]:
-    Source: 'crates/neo-verified/src/field.rs', lines 20:9-20:14
-    Visibility: public -/
-def field.Gl.Insts.CoreCloneClone.clone
-  (self : field.Gl) : Result field.Gl := do
-  ok self
-
-/-- Trait implementation: [neo_verified::field::{impl core::clone::Clone for neo_verified::field::Gl}]
-    Source: 'crates/neo-verified/src/field.rs', lines 20:9-20:14 -/
-@[reducible]
-def field.Gl.Insts.CoreCloneClone : core.clone.Clone field.Gl := {
-  clone := field.Gl.Insts.CoreCloneClone.clone
-}
-
-/-- Trait implementation: [neo_verified::field::{impl core::marker::Copy for neo_verified::field::Gl}]
-    Source: 'crates/neo-verified/src/field.rs', lines 20:16-20:20 -/
-@[reducible]
-def field.Gl.Insts.CoreMarkerCopy : core.marker.Copy field.Gl := {
-  cloneInst := field.Gl.Insts.CoreCloneClone
-}
-
-/-- Trait implementation: [neo_verified::field::{impl core::marker::StructuralPartialEq for neo_verified::field::Gl}]
-    Source: 'crates/neo-verified/src/field.rs', lines 20:22-20:31 -/
-@[reducible]
-def field.Gl.Insts.CoreMarkerStructuralPartialEq :
-  core.marker.StructuralPartialEq field.Gl := {
-}
-
-/-- [neo_verified::field::{impl core::cmp::PartialEq<neo_verified::field::Gl> for neo_verified::field::Gl}::eq]:
-    Source: 'crates/neo-verified/src/field.rs', lines 20:22-20:31
-    Visibility: public -/
-def field.Gl.Insts.CoreCmpPartialEqGl.eq
-  (self : field.Gl) (other : field.Gl) : Result Bool := do
-  ok (self = other)
-
-/-- Trait implementation: [neo_verified::field::{impl core::cmp::PartialEq<neo_verified::field::Gl> for neo_verified::field::Gl}]
-    Source: 'crates/neo-verified/src/field.rs', lines 20:22-20:31 -/
-@[reducible]
-def field.Gl.Insts.CoreCmpPartialEqGl : core.cmp.PartialEq field.Gl field.Gl
-  := {
-  eq := field.Gl.Insts.CoreCmpPartialEqGl.eq
-}
-
-/-- [neo_verified::field::{impl core::cmp::Eq for neo_verified::field::Gl}::assert_fields_are_eq]:
-    Source: 'crates/neo-verified/src/field.rs', lines 20:33-20:35
-    Visibility: public -/
-def field.Gl.Insts.CoreCmpEq.assert_fields_are_eq
-  (self : field.Gl) : Result Unit := do
-  ok ()
-
-/-- Trait implementation: [neo_verified::field::{impl core::cmp::Eq for neo_verified::field::Gl}]
-    Source: 'crates/neo-verified/src/field.rs', lines 20:33-20:35 -/
-@[reducible]
-def field.Gl.Insts.CoreCmpEq : core.cmp.Eq field.Gl := {
-  partialEqInst := field.Gl.Insts.CoreCmpPartialEqGl
-  assert_fields_are_eq := field.Gl.Insts.CoreCmpEq.assert_fields_are_eq
-}
-
-/-- [neo_verified::field::GL_ZERO]
-    Source: 'crates/neo-verified/src/field.rs', lines 23:0-23:30
-    Visibility: public -/
-@[global_simps, irreducible] def field.GL_ZERO : field.Gl := 0#u64
-
-/-- [neo_verified::field::GL_ONE]
-    Source: 'crates/neo-verified/src/field.rs', lines 24:0-24:29
-    Visibility: public -/
-@[global_simps, irreducible] def field.GL_ONE : field.Gl := 1#u64
-
-/-- [neo_verified::field::canonical]:
-    Source: 'crates/neo-verified/src/field.rs', lines 27:0-33:1
-    Visibility: public -/
-def field.canonical (word : Std.U64) : Result (Option field.Gl) := do
-  if word < field.MODULUS
-  then ok (some word)
-  else ok none
 
 /-- [neo_verified::field::reduce_word]:
     Source: 'crates/neo-verified/src/field.rs', lines 46:0-52:1 -/
@@ -631,26 +30,485 @@ def field.reduce_word (word : Std.U64) : Result Std.U64 := do
   then ok word
   else ok (core.num.U64.wrapping_sub word field.MODULUS)
 
-/-- [neo_verified::field::reduce]:
-    Source: 'crates/neo-verified/src/field.rs', lines 36:0-38:1
-    Visibility: public -/
-def field.reduce (word : Std.U64) : Result field.Gl := do
-  let i ← field.reduce_word word
-  ok i
-
 /-- [neo_verified::field::gl_word]:
     Source: 'crates/neo-verified/src/field.rs', lines 41:0-43:1
     Visibility: public -/
 def field.gl_word (a : field.Gl) : Result Std.U64 := do
   field.reduce_word a
 
-/-- [neo_verified::field::add_words]:
-    Source: 'crates/neo-verified/src/field.rs', lines 55:0-62:1 -/
-def field.add_words (a : Std.U64) (b : Std.U64) : Result Std.U64 := do
-  let room ← lift (core.num.U64.wrapping_sub field.MODULUS b)
-  if a < room
-  then ok (core.num.U64.wrapping_add a b)
-  else ok (core.num.U64.wrapping_sub a room)
+/-- [neo_verified::algebra::constant]:
+    Source: 'crates/neo-verified/src/algebra.rs', lines 11:0-13:1
+    Visibility: public -/
+def algebra.constant
+  {B : Type _} {Clause0_F : Type _} {Clause0_E : Type _} (backendBackendInst :
+  backend.Backend B Clause0_F Clause0_E) (b : B) (value : field.Gl) :
+  Result (Clause0_F × B)
+  := do
+  let i ← field.gl_word value
+  backendBackendInst.constant b i
+
+/-- [neo_verified::algebra::private]:
+    Source: 'crates/neo-verified/src/algebra.rs', lines 16:0-18:1
+    Visibility: public -/
+def algebra.private
+  {B : Type _} {Clause0_F : Type _} {Clause0_E : Type _} (backendBackendInst :
+  backend.Backend B Clause0_F Clause0_E) (b : B) (value : field.Gl) :
+  Result (Clause0_F × B)
+  := do
+  let i ← field.gl_word value
+  backendBackendInst.«private» b i
+
+/-- [neo_verified::algebra::scale]:
+    Source: 'crates/neo-verified/src/algebra.rs', lines 21:0-23:1
+    Visibility: public -/
+def algebra.scale
+  {B : Type _} {Clause0_F : Type _} {Clause0_E : Type _} (backendBackendInst :
+  backend.Backend B Clause0_F Clause0_E) (b : B) (a : Clause0_F)
+  («by» : field.Gl) :
+  Result (Clause0_F × B)
+  := do
+  let i ← field.gl_word «by»
+  backendBackendInst.scale b a i
+
+/-- [neo_verified::algebra::ext_constant]:
+    Source: 'crates/neo-verified/src/algebra.rs', lines 26:0-28:1
+    Visibility: public -/
+def algebra.ext_constant
+  {B : Type _} {Clause0_F : Type _} {Clause0_E : Type _} (backendBackendInst :
+  backend.Backend B Clause0_F Clause0_E) (b : B) (value : field.Ext) :
+  Result (Clause0_E × B)
+  := do
+  let i ← field.gl_word value.c0
+  let i1 ← field.gl_word value.c1
+  let i2 ← field.gl_word value.c2
+  backendBackendInst.ext_constant b (Array.make 3#usize [ i, i1, i2 ])
+
+/-- [neo_verified::field::GL_ZERO]
+    Source: 'crates/neo-verified/src/field.rs', lines 23:0-23:30
+    Visibility: public -/
+@[global_simps, irreducible] def field.GL_ZERO : field.Gl := 0#u64
+
+/-- [neo_verified::field::EXT_ZERO]
+    Source: 'crates/neo-verified/src/field.rs', lines 151:0-155:2
+    Visibility: public -/
+@[global_simps, irreducible]
+def field.EXT_ZERO : field.Ext :=
+  { c0 := field.GL_ZERO, c1 := field.GL_ZERO, c2 := field.GL_ZERO }
+
+/-- [neo_verified::algebra::ext_zero]:
+    Source: 'crates/neo-verified/src/algebra.rs', lines 30:0-32:1
+    Visibility: public -/
+def algebra.ext_zero
+  {B : Type _} {Clause0_F : Type _} {Clause0_E : Type _} (backendBackendInst :
+  backend.Backend B Clause0_F Clause0_E) (b : B) :
+  Result (Clause0_E × B)
+  := do
+  algebra.ext_constant backendBackendInst b field.EXT_ZERO
+
+/-- [neo_verified::field::GL_ONE]
+    Source: 'crates/neo-verified/src/field.rs', lines 24:0-24:29
+    Visibility: public -/
+@[global_simps, irreducible] def field.GL_ONE : field.Gl := 1#u64
+
+/-- [neo_verified::field::EXT_ONE]
+    Source: 'crates/neo-verified/src/field.rs', lines 157:0-161:2
+    Visibility: public -/
+@[global_simps, irreducible]
+def field.EXT_ONE : field.Ext :=
+  { c0 := field.GL_ONE, c1 := field.GL_ZERO, c2 := field.GL_ZERO }
+
+/-- [neo_verified::algebra::ext_one]:
+    Source: 'crates/neo-verified/src/algebra.rs', lines 34:0-36:1
+    Visibility: public -/
+def algebra.ext_one
+  {B : Type _} {Clause0_F : Type _} {Clause0_E : Type _} (backendBackendInst :
+  backend.Backend B Clause0_F Clause0_E) (b : B) :
+  Result (Clause0_E × B)
+  := do
+  algebra.ext_constant backendBackendInst b field.EXT_ONE
+
+/-- [neo_verified::algebra::private_ext]:
+    Source: 'crates/neo-verified/src/algebra.rs', lines 39:0-44:1
+    Visibility: public -/
+def algebra.private_ext
+  {B : Type _} {Clause0_F : Type _} {Clause0_E : Type _} (backendBackendInst :
+  backend.Backend B Clause0_F Clause0_E) (b : B) (value : field.Ext) :
+  Result (Clause0_E × B)
+  := do
+  let (x, b1) ← algebra.private backendBackendInst b value.c0
+  let (y, b2) ← algebra.private backendBackendInst b1 value.c1
+  let (z, b3) ← algebra.private backendBackendInst b2 value.c2
+  backendBackendInst.ext b3 (Array.make 3#usize [ x, y, z ])
+
+/-- [neo_verified::algebra::lift_word]:
+    Source: 'crates/neo-verified/src/algebra.rs', lines 47:0-50:1
+    Visibility: public -/
+def algebra.lift_word
+  {B : Type _} {Clause0_F : Type _} {Clause0_E : Type _} (backendBackendInst :
+  backend.Backend B Clause0_F Clause0_E) (b : B) (value : Clause0_F) :
+  Result (Clause0_E × B)
+  := do
+  let (zero, b1) ← backendBackendInst.constant b 0#u64
+  backendBackendInst.ext b1 (Array.make 3#usize [ value, zero, zero ])
+
+/-- [neo_verified::algebra::ext_scale_constant]:
+    Source: 'crates/neo-verified/src/algebra.rs', lines 52:0-55:1
+    Visibility: public -/
+def algebra.ext_scale_constant
+  {B : Type _} {Clause0_F : Type _} {Clause0_E : Type _} (backendBackendInst :
+  backend.Backend B Clause0_F Clause0_E) (b : B) (a : Clause0_E)
+  («by» : field.Gl) :
+  Result (Clause0_E × B)
+  := do
+  let (by1, b1) ← algebra.constant backendBackendInst b «by»
+  backendBackendInst.ext_scale b1 a by1
+
+/-- [neo_verified::algebra::dot]: loop body 0:
+    Source: 'crates/neo-verified/src/algebra.rs', lines 61:4-65:5
+    Visibility: public -/
+@[rust_loop_body]
+def algebra.dot_loop.body
+  {B : Type _} {Clause0_F : Type _} {Clause0_E : Type _} (backendBackendInst :
+  backend.Backend B Clause0_F Clause0_E) (x : Slice Clause0_E)
+  (y : Slice Clause0_E) (b : B) (total : Clause0_E) (i : Std.Usize) :
+  Result (ControlFlow (B × Clause0_E × Std.Usize) (Clause0_E × B))
+  := do
+  let i1 := Slice.len x
+  if i < i1
+  then
+    let i2 := Slice.len y
+    if i < i2
+    then
+      let t ← Slice.index_usize x i
+      let t1 ← Slice.index_usize y i
+      let (term, b1) ← backendBackendInst.ext_mul b t t1
+      let (total1, b2) ← backendBackendInst.ext_add b1 total term
+      let i3 ← lift (core.num.Usize.wrapping_add i 1#usize)
+      ok (cont (b2, total1, i3))
+    else ok (done (total, b))
+  else ok (done (total, b))
+
+/-- [neo_verified::algebra::dot]: loop 0:
+    Source: 'crates/neo-verified/src/algebra.rs', lines 61:4-65:5
+    Visibility: public -/
+@[rust_loop]
+def algebra.dot_loop
+  {B : Type _} {Clause0_F : Type _} {Clause0_E : Type _} (backendBackendInst :
+  backend.Backend B Clause0_F Clause0_E) (b : B) (x : Slice Clause0_E)
+  (y : Slice Clause0_E) (total : Clause0_E) (i : Std.Usize) :
+  Result (Clause0_E × B)
+  := do
+  loop
+    (fun (b1, total1, i1) => algebra.dot_loop.body backendBackendInst x y b1
+      total1 i1)
+    (b, total, i)
+
+/-- [neo_verified::algebra::dot]:
+    Source: 'crates/neo-verified/src/algebra.rs', lines 58:0-67:1
+    Visibility: public -/
+def algebra.dot
+  {B : Type _} {Clause0_F : Type _} {Clause0_E : Type _} (backendBackendInst :
+  backend.Backend B Clause0_F Clause0_E) (b : B) (x : Slice Clause0_E)
+  (y : Slice Clause0_E) :
+  Result (Clause0_E × B)
+  := do
+  let (total, b1) ← algebra.ext_zero backendBackendInst b
+  algebra.dot_loop backendBackendInst b1 x y total 0#usize
+
+/-- [neo_verified::algebra::one_minus]:
+    Source: 'crates/neo-verified/src/algebra.rs', lines 70:0-73:1
+    Visibility: public -/
+def algebra.one_minus
+  {B : Type _} {Clause0_F : Type _} {Clause0_E : Type _} (backendBackendInst :
+  backend.Backend B Clause0_F Clause0_E) (b : B) (x : Clause0_E) :
+  Result (Clause0_E × B)
+  := do
+  let (one, b1) ← algebra.ext_one backendBackendInst b
+  backendBackendInst.ext_sub b1 one x
+
+/-- [neo_verified::algebra::eq1]:
+    Source: 'crates/neo-verified/src/algebra.rs', lines 76:0-83:1
+    Visibility: public -/
+def algebra.eq1
+  {B : Type _} {Clause0_F : Type _} {Clause0_E : Type _} (backendBackendInst :
+  backend.Backend B Clause0_F Clause0_E) (b : B) (x : Clause0_E)
+  (y : Clause0_E) :
+  Result (Clause0_E × B)
+  := do
+  let (both, b1) ← backendBackendInst.ext_mul b x y
+  let (twice, b2) ← backendBackendInst.ext_add b1 both both
+  let (one, b3) ← algebra.ext_one backendBackendInst b2
+  let (shifted, b4) ← backendBackendInst.ext_add b3 twice one
+  let (sum, b5) ← backendBackendInst.ext_add b4 x y
+  backendBackendInst.ext_sub b5 shifted sum
+
+/-- [neo_verified::algebra::eq_eval]: loop body 0:
+    Source: 'crates/neo-verified/src/algebra.rs', lines 89:4-93:5
+    Visibility: public -/
+@[rust_loop_body]
+def algebra.eq_eval_loop.body
+  {B : Type _} {Clause0_F : Type _} {Clause0_E : Type _} (backendBackendInst :
+  backend.Backend B Clause0_F Clause0_E) (x : Slice Clause0_E)
+  (y : Slice Clause0_E) (b : B) (total : Clause0_E) (t : Std.Usize) :
+  Result (ControlFlow (B × Clause0_E × Std.Usize) (Clause0_E × B))
+  := do
+  let i := Slice.len x
+  if t < i
+  then
+    let i1 := Slice.len y
+    if t < i1
+    then
+      let t1 ← Slice.index_usize x t
+      let t2 ← Slice.index_usize y t
+      let (factor, b1) ← algebra.eq1 backendBackendInst b t1 t2
+      let (total1, b2) ← backendBackendInst.ext_mul b1 total factor
+      let t3 ← lift (core.num.Usize.wrapping_add t 1#usize)
+      ok (cont (b2, total1, t3))
+    else ok (done (total, b))
+  else ok (done (total, b))
+
+/-- [neo_verified::algebra::eq_eval]: loop 0:
+    Source: 'crates/neo-verified/src/algebra.rs', lines 89:4-93:5
+    Visibility: public -/
+@[rust_loop]
+def algebra.eq_eval_loop
+  {B : Type _} {Clause0_F : Type _} {Clause0_E : Type _} (backendBackendInst :
+  backend.Backend B Clause0_F Clause0_E) (b : B) (x : Slice Clause0_E)
+  (y : Slice Clause0_E) (total : Clause0_E) (t : Std.Usize) :
+  Result (Clause0_E × B)
+  := do
+  loop
+    (fun (b1, total1, t1) => algebra.eq_eval_loop.body backendBackendInst x y
+      b1 total1 t1)
+    (b, total, t)
+
+/-- [neo_verified::algebra::eq_eval]:
+    Source: 'crates/neo-verified/src/algebra.rs', lines 86:0-95:1
+    Visibility: public -/
+def algebra.eq_eval
+  {B : Type _} {Clause0_F : Type _} {Clause0_E : Type _} (backendBackendInst :
+  backend.Backend B Clause0_F Clause0_E) (b : B) (x : Slice Clause0_E)
+  (y : Slice Clause0_E) :
+  Result (Clause0_E × B)
+  := do
+  let (total, b1) ← algebra.ext_one backendBackendInst b
+  algebra.eq_eval_loop backendBackendInst b1 x y total 0#usize
+
+/-- [neo_verified::algebra::eq_table]: loop body 1:
+    Source: 'crates/neo-verified/src/algebra.rs', lines 106:8-109:9
+    Visibility: public -/
+@[rust_loop_body]
+def algebra.eq_table_loop0_loop0.body
+  {B : Type _} {Clause0_F : Type _} {Clause0_E : Type _} (backendBackendInst :
+  backend.Backend B Clause0_F Clause0_E) (table : alloc.vec.Vec Clause0_E)
+  (low : Clause0_E) (b : B) (next : alloc.vec.Vec Clause0_E) (i : Std.Usize) :
+  Result (ControlFlow (B × (alloc.vec.Vec Clause0_E) × Std.Usize) (B ×
+    (alloc.vec.Vec Clause0_E)))
+  := do
+  let i1 := alloc.vec.Vec.len table
+  if i < i1
+  then
+    let t ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Clause0_E)
+        table i
+    let (t1, b1) ← backendBackendInst.ext_mul b t low
+    let next1 ← alloc.vec.Vec.push next t1
+    let i2 ← lift (core.num.Usize.wrapping_add i 1#usize)
+    ok (cont (b1, next1, i2))
+  else ok (done (b, next))
+
+/-- [neo_verified::algebra::eq_table]: loop 1:
+    Source: 'crates/neo-verified/src/algebra.rs', lines 106:8-109:9
+    Visibility: public -/
+@[rust_loop]
+def algebra.eq_table_loop0_loop0
+  {B : Type _} {Clause0_F : Type _} {Clause0_E : Type _} (backendBackendInst :
+  backend.Backend B Clause0_F Clause0_E) (b : B)
+  (table : alloc.vec.Vec Clause0_E) (low : Clause0_E)
+  (next : alloc.vec.Vec Clause0_E) (i : Std.Usize) :
+  Result (B × (alloc.vec.Vec Clause0_E))
+  := do
+  loop
+    (fun (b1, next1, i1) => algebra.eq_table_loop0_loop0.body
+      backendBackendInst table low b1 next1 i1)
+    (b, next, i)
+
+/-- [neo_verified::algebra::eq_table]: loop body 2:
+    Source: 'crates/neo-verified/src/algebra.rs', lines 111:8-114:9
+    Visibility: public -/
+@[rust_loop_body]
+def algebra.eq_table_loop0_loop1.body
+  {B : Type _} {Clause0_F : Type _} {Clause0_E : Type _} (backendBackendInst :
+  backend.Backend B Clause0_F Clause0_E) (table : alloc.vec.Vec Clause0_E)
+  (x : Clause0_E) (b : B) (next : alloc.vec.Vec Clause0_E) (i : Std.Usize) :
+  Result (ControlFlow (B × (alloc.vec.Vec Clause0_E) × Std.Usize) (B ×
+    (alloc.vec.Vec Clause0_E)))
+  := do
+  let i1 := alloc.vec.Vec.len table
+  if i < i1
+  then
+    let t ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Clause0_E)
+        table i
+    let (t1, b1) ← backendBackendInst.ext_mul b t x
+    let next1 ← alloc.vec.Vec.push next t1
+    let i2 ← lift (core.num.Usize.wrapping_add i 1#usize)
+    ok (cont (b1, next1, i2))
+  else ok (done (b, next))
+
+/-- [neo_verified::algebra::eq_table]: loop 2:
+    Source: 'crates/neo-verified/src/algebra.rs', lines 111:8-114:9
+    Visibility: public -/
+@[rust_loop]
+def algebra.eq_table_loop0_loop1
+  {B : Type _} {Clause0_F : Type _} {Clause0_E : Type _} (backendBackendInst :
+  backend.Backend B Clause0_F Clause0_E) (b : B)
+  (table : alloc.vec.Vec Clause0_E) (x : Clause0_E)
+  (next : alloc.vec.Vec Clause0_E) (i : Std.Usize) :
+  Result (B × (alloc.vec.Vec Clause0_E))
+  := do
+  loop
+    (fun (b1, next1, i1) => algebra.eq_table_loop0_loop1.body
+      backendBackendInst table x b1 next1 i1)
+    (b, next, i)
+
+/-- [neo_verified::algebra::eq_table]: loop body 0:
+    Source: 'crates/neo-verified/src/algebra.rs', lines 101:4-117:5
+    Visibility: public -/
+@[rust_loop_body]
+def algebra.eq_table_loop0.body
+  {B : Type _} {Clause0_F : Type _} {Clause0_E : Type _} (backendBackendInst :
+  backend.Backend B Clause0_F Clause0_E) (point : Slice Clause0_E) (b : B)
+  (table : alloc.vec.Vec Clause0_E) (t : Std.Usize) :
+  Result (ControlFlow (B × (alloc.vec.Vec Clause0_E) × Std.Usize)
+    ((alloc.vec.Vec Clause0_E) × B))
+  := do
+  let i := Slice.len point
+  if t < i
+  then
+    let x ← Slice.index_usize point t
+    let (low, b1) ← algebra.one_minus backendBackendInst b x
+    let (b2, next) ←
+      algebra.eq_table_loop0_loop0 backendBackendInst b1 table low
+        (alloc.vec.Vec.new Clause0_E) 0#usize
+    let (b3, next1) ←
+      algebra.eq_table_loop0_loop1 backendBackendInst b2 table x next 0#usize
+    let t1 ← lift (core.num.Usize.wrapping_add t 1#usize)
+    ok (cont (b3, next1, t1))
+  else ok (done (table, b))
+
+/-- [neo_verified::algebra::eq_table]: loop 0:
+    Source: 'crates/neo-verified/src/algebra.rs', lines 101:4-117:5
+    Visibility: public -/
+@[rust_loop]
+def algebra.eq_table_loop0
+  {B : Type _} {Clause0_F : Type _} {Clause0_E : Type _} (backendBackendInst :
+  backend.Backend B Clause0_F Clause0_E) (b : B) (point : Slice Clause0_E)
+  (table : alloc.vec.Vec Clause0_E) (t : Std.Usize) :
+  Result ((alloc.vec.Vec Clause0_E) × B)
+  := do
+  loop
+    (fun (b1, table1, t1) => algebra.eq_table_loop0.body backendBackendInst
+      point b1 table1 t1)
+    (b, table, t)
+
+/-- [neo_verified::algebra::eq_table]:
+    Source: 'crates/neo-verified/src/algebra.rs', lines 98:0-119:1
+    Visibility: public -/
+def algebra.eq_table
+  {B : Type _} {Clause0_F : Type _} {Clause0_E : Type _} (backendBackendInst :
+  backend.Backend B Clause0_F Clause0_E) (b : B) (point : Slice Clause0_E) :
+  Result ((alloc.vec.Vec Clause0_E) × B)
+  := do
+  let (t, b1) ← algebra.ext_one backendBackendInst b
+  let table ← alloc.vec.FromVecArray.from (Array.make 1#usize [ t ])
+  algebra.eq_table_loop0 backendBackendInst b1 point table 0#usize
+
+/-- [neo_verified::algebra::index_bit]:
+    Source: 'crates/neo-verified/src/algebra.rs', lines 122:0-124:1 -/
+def algebra.index_bit (index : Std.Usize) (t : Std.Usize) : Result Bool := do
+  let i ← lift (UScalar.cast .Usize core.num.Usize.BITS)
+  if t < i
+  then
+    let i1 ← lift (UScalar.cast .U32 t)
+    let i2 ← lift (core.num.Usize.wrapping_shr index i1)
+    let b ← core.num.Usize.is_multiple_of i2 2#usize
+    ok (¬ b)
+  else ok false
+
+/-- [neo_verified::algebra::eq_at]: loop body 0:
+    Source: 'crates/neo-verified/src/algebra.rs', lines 130:4-138:5
+    Visibility: public -/
+@[rust_loop_body]
+def algebra.eq_at_loop.body
+  {B : Type _} {Clause0_F : Type _} {Clause0_E : Type _} (backendBackendInst :
+  backend.Backend B Clause0_F Clause0_E) (point : Slice Clause0_E)
+  (index : Std.Usize) (b : B) (total : Clause0_E) (t : Std.Usize) :
+  Result (ControlFlow (B × Clause0_E × Std.Usize) (Clause0_E × B))
+  := do
+  let i := Slice.len point
+  if t < i
+  then
+    let b1 ← algebra.index_bit index t
+    let (b2, factor) ←
+      if b1
+      then do
+           let factor1 ← Slice.index_usize point t
+           ok (b, factor1)
+      else
+        do
+        let t1 ← Slice.index_usize point t
+        let (factor1, b3) ← algebra.one_minus backendBackendInst b t1
+        ok (b3, factor1)
+    let (total1, b3) ← backendBackendInst.ext_mul b2 total factor
+    let t1 ← lift (core.num.Usize.wrapping_add t 1#usize)
+    ok (cont (b3, total1, t1))
+  else ok (done (total, b))
+
+/-- [neo_verified::algebra::eq_at]: loop 0:
+    Source: 'crates/neo-verified/src/algebra.rs', lines 130:4-138:5
+    Visibility: public -/
+@[rust_loop]
+def algebra.eq_at_loop
+  {B : Type _} {Clause0_F : Type _} {Clause0_E : Type _} (backendBackendInst :
+  backend.Backend B Clause0_F Clause0_E) (b : B) (point : Slice Clause0_E)
+  (index : Std.Usize) (total : Clause0_E) (t : Std.Usize) :
+  Result (Clause0_E × B)
+  := do
+  loop
+    (fun (b1, total1, t1) => algebra.eq_at_loop.body backendBackendInst point
+      index b1 total1 t1)
+    (b, total, t)
+
+/-- [neo_verified::algebra::eq_at]:
+    Source: 'crates/neo-verified/src/algebra.rs', lines 127:0-140:1
+    Visibility: public -/
+def algebra.eq_at
+  {B : Type _} {Clause0_F : Type _} {Clause0_E : Type _} (backendBackendInst :
+  backend.Backend B Clause0_F Clause0_E) (b : B) (point : Slice Clause0_E)
+  (index : Std.Usize) :
+  Result (Clause0_E × B)
+  := do
+  let (total, b1) ← algebra.ext_one backendBackendInst b
+  algebra.eq_at_loop backendBackendInst b1 point index total 0#usize
+
+/-- [neo_verified::field::ext_of_gl]:
+    Source: 'crates/neo-verified/src/field.rs', lines 163:0-169:1
+    Visibility: public -/
+def field.ext_of_gl (a : field.Gl) : Result field.Ext := do
+  let i ← field.reduce_word a
+  ok { c0 := i, c1 := field.GL_ZERO, c2 := field.GL_ZERO }
+
+/-- [neo_verified::field::high_half]:
+    Source: 'crates/neo-verified/src/field.rs', lines 79:0-81:1 -/
+def field.high_half (word : Std.U64) : Result Std.U64 := do
+  ok (core.num.U64.wrapping_shr word 32#u32)
+
+/-- [neo_verified::field::low_half]:
+    Source: 'crates/neo-verified/src/field.rs', lines 74:0-76:1 -/
+def field.low_half (word : Std.U64) : Result Std.U64 := do
+  let i ← lift (UScalar.cast .U32 word)
+  ok (UScalar.cast .U64 i)
 
 /-- [neo_verified::field::sub_words]:
     Source: 'crates/neo-verified/src/field.rs', lines 65:0-71:1 -/
@@ -661,17 +519,6 @@ def field.sub_words (a : Std.U64) (b : Std.U64) : Result Std.U64 := do
     let i ← lift (core.num.U64.wrapping_sub b a)
     ok (core.num.U64.wrapping_sub field.MODULUS i)
 
-/-- [neo_verified::field::low_half]:
-    Source: 'crates/neo-verified/src/field.rs', lines 74:0-76:1 -/
-def field.low_half (word : Std.U64) : Result Std.U64 := do
-  let i ← lift (UScalar.cast .U32 word)
-  ok (UScalar.cast .U64 i)
-
-/-- [neo_verified::field::high_half]:
-    Source: 'crates/neo-verified/src/field.rs', lines 79:0-81:1 -/
-def field.high_half (word : Std.U64) : Result Std.U64 := do
-  ok (core.num.U64.wrapping_shr word 32#u32)
-
 /-- [neo_verified::field::fold_high]:
     Source: 'crates/neo-verified/src/field.rs', lines 85:0-88:1 -/
 def field.fold_high (word : Std.U64) : Result Std.U64 := do
@@ -680,6 +527,14 @@ def field.fold_high (word : Std.U64) : Result Std.U64 := do
   let i1 ← lift (core.num.U64.wrapping_sub i low)
   let i2 ← field.high_half word
   field.sub_words i1 i2
+
+/-- [neo_verified::field::add_words]:
+    Source: 'crates/neo-verified/src/field.rs', lines 55:0-62:1 -/
+def field.add_words (a : Std.U64) (b : Std.U64) : Result Std.U64 := do
+  let room ← lift (core.num.U64.wrapping_sub field.MODULUS b)
+  if a < room
+  then ok (core.num.U64.wrapping_add a b)
+  else ok (core.num.U64.wrapping_sub a room)
 
 /-- [neo_verified::field::mul_words]:
     Source: 'crates/neo-verified/src/field.rs', lines 92:0-106:1 -/
@@ -707,30 +562,6 @@ def field.mul_words (a : Std.U64) (b : Std.U64) : Result Std.U64 := do
   let i8 ← field.reduce_word low
   let i9 ← field.fold_high high
   field.add_words i8 i9
-
-/-- [neo_verified::field::gl_add]:
-    Source: 'crates/neo-verified/src/field.rs', lines 108:0-110:1
-    Visibility: public -/
-def field.gl_add (a : field.Gl) (b : field.Gl) : Result field.Gl := do
-  let i ← field.reduce_word a
-  let i1 ← field.reduce_word b
-  let i2 ← field.add_words i i1
-  ok i2
-
-/-- [neo_verified::field::gl_sub]:
-    Source: 'crates/neo-verified/src/field.rs', lines 112:0-114:1
-    Visibility: public -/
-def field.gl_sub (a : field.Gl) (b : field.Gl) : Result field.Gl := do
-  let i ← field.reduce_word a
-  let i1 ← field.reduce_word b
-  let i2 ← field.sub_words i i1
-  ok i2
-
-/-- [neo_verified::field::gl_neg]:
-    Source: 'crates/neo-verified/src/field.rs', lines 116:0-118:1
-    Visibility: public -/
-def field.gl_neg (a : field.Gl) : Result field.Gl := do
-  field.gl_sub field.GL_ZERO a
 
 /-- [neo_verified::field::gl_mul]:
     Source: 'crates/neo-verified/src/field.rs', lines 120:0-122:1
@@ -764,461 +595,614 @@ def field.gl_inv (a : field.Gl) : Result field.Gl := do
   let i ← lift (core.num.U64.wrapping_sub field.MODULUS 2#u64)
   field.gl_pow a i
 
-/-- [neo_verified::field::{impl core::clone::Clone for neo_verified::field::Ext}::clone]:
-    Source: 'crates/neo-verified/src/field.rs', lines 144:9-144:14
+/-- [neo_verified::field::gl_sub]:
+    Source: 'crates/neo-verified/src/field.rs', lines 112:0-114:1
     Visibility: public -/
-def field.Ext.Insts.CoreCloneClone.clone
-  (self : field.Ext) : Result field.Ext := do
-  ok self
-
-/-- Trait implementation: [neo_verified::field::{impl core::clone::Clone for neo_verified::field::Ext}]
-    Source: 'crates/neo-verified/src/field.rs', lines 144:9-144:14 -/
-@[reducible]
-def field.Ext.Insts.CoreCloneClone : core.clone.Clone field.Ext := {
-  clone := field.Ext.Insts.CoreCloneClone.clone
-}
-
-/-- Trait implementation: [neo_verified::field::{impl core::marker::Copy for neo_verified::field::Ext}]
-    Source: 'crates/neo-verified/src/field.rs', lines 144:16-144:20 -/
-@[reducible]
-def field.Ext.Insts.CoreMarkerCopy : core.marker.Copy field.Ext := {
-  cloneInst := field.Ext.Insts.CoreCloneClone
-}
-
-/-- Trait implementation: [neo_verified::field::{impl core::marker::StructuralPartialEq for neo_verified::field::Ext}]
-    Source: 'crates/neo-verified/src/field.rs', lines 144:22-144:31 -/
-@[reducible]
-def field.Ext.Insts.CoreMarkerStructuralPartialEq :
-  core.marker.StructuralPartialEq field.Ext := {
-}
-
-/-- [neo_verified::field::{impl core::cmp::PartialEq<neo_verified::field::Ext> for neo_verified::field::Ext}::eq]:
-    Source: 'crates/neo-verified/src/field.rs', lines 144:22-144:31
-    Visibility: public -/
-def field.Ext.Insts.CoreCmpPartialEqExt.eq
-  (self : field.Ext) (other : field.Ext) : Result Bool := do
-  let b ← field.Gl.Insts.CoreCmpPartialEqGl.eq self.c0 other.c0
-  if b
-  then
-    let b1 ← field.Gl.Insts.CoreCmpPartialEqGl.eq self.c1 other.c1
-    if b1
-    then field.Gl.Insts.CoreCmpPartialEqGl.eq self.c2 other.c2
-    else ok false
-  else ok false
-
-/-- Trait implementation: [neo_verified::field::{impl core::cmp::PartialEq<neo_verified::field::Ext> for neo_verified::field::Ext}]
-    Source: 'crates/neo-verified/src/field.rs', lines 144:22-144:31 -/
-@[reducible]
-def field.Ext.Insts.CoreCmpPartialEqExt : core.cmp.PartialEq field.Ext
-  field.Ext := {
-  eq := field.Ext.Insts.CoreCmpPartialEqExt.eq
-}
-
-/-- [neo_verified::field::{impl core::cmp::Eq for neo_verified::field::Ext}::assert_fields_are_eq]:
-    Source: 'crates/neo-verified/src/field.rs', lines 144:33-144:35
-    Visibility: public -/
-def field.Ext.Insts.CoreCmpEq.assert_fields_are_eq
-  (self : field.Ext) : Result Unit := do
-  ok ()
-
-/-- Trait implementation: [neo_verified::field::{impl core::cmp::Eq for neo_verified::field::Ext}]
-    Source: 'crates/neo-verified/src/field.rs', lines 144:33-144:35 -/
-@[reducible]
-def field.Ext.Insts.CoreCmpEq : core.cmp.Eq field.Ext := {
-  partialEqInst := field.Ext.Insts.CoreCmpPartialEqExt
-  assert_fields_are_eq := field.Ext.Insts.CoreCmpEq.assert_fields_are_eq
-}
-
-/-- [neo_verified::field::EXT_ZERO]
-    Source: 'crates/neo-verified/src/field.rs', lines 151:0-155:2
-    Visibility: public -/
-@[global_simps, irreducible]
-def field.EXT_ZERO : field.Ext :=
-  { c0 := field.GL_ZERO, c1 := field.GL_ZERO, c2 := field.GL_ZERO }
-
-/-- [neo_verified::field::EXT_ONE]
-    Source: 'crates/neo-verified/src/field.rs', lines 157:0-161:2
-    Visibility: public -/
-@[global_simps, irreducible]
-def field.EXT_ONE : field.Ext :=
-  { c0 := field.GL_ONE, c1 := field.GL_ZERO, c2 := field.GL_ZERO }
-
-/-- [neo_verified::field::ext_of_gl]:
-    Source: 'crates/neo-verified/src/field.rs', lines 163:0-169:1
-    Visibility: public -/
-def field.ext_of_gl (a : field.Gl) : Result field.Ext := do
+def field.gl_sub (a : field.Gl) (b : field.Gl) : Result field.Gl := do
   let i ← field.reduce_word a
-  ok { c0 := i, c1 := field.GL_ZERO, c2 := field.GL_ZERO }
+  let i1 ← field.reduce_word b
+  let i2 ← field.sub_words i i1
+  ok i2
 
-/-- [neo_verified::field::ext_add]:
-    Source: 'crates/neo-verified/src/field.rs', lines 171:0-177:1
+/-- [neo_verified::field::reduce]:
+    Source: 'crates/neo-verified/src/field.rs', lines 36:0-38:1
     Visibility: public -/
-def field.ext_add (a : field.Ext) (b : field.Ext) : Result field.Ext := do
-  let g ← field.gl_add a.c0 b.c0
-  let g1 ← field.gl_add a.c1 b.c1
-  let g2 ← field.gl_add a.c2 b.c2
-  ok { c0 := g, c1 := g1, c2 := g2 }
+def field.reduce (word : Std.U64) : Result field.Gl := do
+  let i ← field.reduce_word word
+  ok i
 
-/-- [neo_verified::field::ext_sub]:
-    Source: 'crates/neo-verified/src/field.rs', lines 179:0-185:1
+/-- [neo_verified::algebra::interpolate]: loop body 1:
+    Source: 'crates/neo-verified/src/algebra.rs', lines 151:8-159:9
     Visibility: public -/
-def field.ext_sub (a : field.Ext) (b : field.Ext) : Result field.Ext := do
-  let g ← field.gl_sub a.c0 b.c0
-  let g1 ← field.gl_sub a.c1 b.c1
-  let g2 ← field.gl_sub a.c2 b.c2
-  ok { c0 := g, c1 := g1, c2 := g2 }
-
-/-- [neo_verified::field::ext_neg]:
-    Source: 'crates/neo-verified/src/field.rs', lines 187:0-189:1
-    Visibility: public -/
-def field.ext_neg (a : field.Ext) : Result field.Ext := do
-  field.ext_sub field.EXT_ZERO a
-
-/-- [neo_verified::field::ext_mul]:
-    Source: 'crates/neo-verified/src/field.rs', lines 192:0-203:1
-    Visibility: public -/
-def field.ext_mul (a : field.Ext) (b : field.Ext) : Result field.Ext := do
-  let g ← field.gl_mul a.c1 b.c2
-  let g1 ← field.gl_mul a.c2 b.c1
-  let d3 ← field.gl_add g g1
-  let d4 ← field.gl_mul a.c2 b.c2
-  let g2 ← field.gl_mul a.c0 b.c0
-  let g3 ← field.gl_add g2 d3
-  let g4 ← field.gl_mul a.c0 b.c1
-  let g5 ← field.gl_mul a.c1 b.c0
-  let g6 ← field.gl_add g4 g5
-  let g7 ← field.gl_add g6 d3
-  let g8 ← field.gl_add g7 d4
-  let g9 ← field.gl_mul a.c0 b.c2
-  let g10 ← field.gl_mul a.c1 b.c1
-  let g11 ← field.gl_add g9 g10
-  let g12 ← field.gl_mul a.c2 b.c0
-  let g13 ← field.gl_add g11 g12
-  let g14 ← field.gl_add g13 d4
-  ok { c0 := g3, c1 := g8, c2 := g14 }
-
-/-- [neo_verified::field::ext_scale]:
-    Source: 'crates/neo-verified/src/field.rs', lines 205:0-211:1
-    Visibility: public -/
-def field.ext_scale
-  (a : field.Ext) («by» : field.Gl) : Result field.Ext := do
-  let g ← field.gl_mul a.c0 «by»
-  let g1 ← field.gl_mul a.c1 «by»
-  let g2 ← field.gl_mul a.c2 «by»
-  ok { c0 := g, c1 := g1, c2 := g2 }
-
-/-- [neo_verified::field::ext_pow]:
-    Source: 'crates/neo-verified/src/field.rs', lines 214:0-225:1
-    Visibility: public -/
-def field.ext_pow (a : field.Ext) (e : Std.U64) : Result field.Ext := do
-  if e = 0#u64
-  then ok field.EXT_ONE
-  else
-    let e1 ← field.ext_mul a a
-    let i ← lift (core.num.U64.wrapping_shr e 1#u32)
-    let half ← field.ext_pow e1 i
-    let b ← core.num.U64.is_multiple_of e 2#u64
-    if b
-    then ok half
-    else field.ext_mul half a
-partial_fixpoint
-
-/-- [neo_verified::layout::{impl core::clone::Clone for neo_verified::layout::Shape}::clone]:
-    Source: 'crates/neo-verified/src/layout.rs', lines 16:9-16:14
-    Visibility: public -/
-def layout.Shape.Insts.CoreCloneClone.clone
-  (self : layout.Shape) : Result layout.Shape := do
-  ok self
-
-/-- Trait implementation: [neo_verified::layout::{impl core::clone::Clone for neo_verified::layout::Shape}]
-    Source: 'crates/neo-verified/src/layout.rs', lines 16:9-16:14 -/
-@[reducible]
-def layout.Shape.Insts.CoreCloneClone : core.clone.Clone layout.Shape := {
-  clone := layout.Shape.Insts.CoreCloneClone.clone
-}
-
-/-- Trait implementation: [neo_verified::layout::{impl core::marker::Copy for neo_verified::layout::Shape}]
-    Source: 'crates/neo-verified/src/layout.rs', lines 16:16-16:20 -/
-@[reducible]
-def layout.Shape.Insts.CoreMarkerCopy : core.marker.Copy layout.Shape := {
-  cloneInst := layout.Shape.Insts.CoreCloneClone
-}
-
-/-- Trait implementation: [neo_verified::layout::{impl core::marker::StructuralPartialEq for neo_verified::layout::Shape}]
-    Source: 'crates/neo-verified/src/layout.rs', lines 16:22-16:31 -/
-@[reducible]
-def layout.Shape.Insts.CoreMarkerStructuralPartialEq :
-  core.marker.StructuralPartialEq layout.Shape := {
-}
-
-/-- [neo_verified::layout::{impl core::cmp::PartialEq<neo_verified::layout::Shape> for neo_verified::layout::Shape}::eq]:
-    Source: 'crates/neo-verified/src/layout.rs', lines 16:22-16:31
-    Visibility: public -/
-def layout.Shape.Insts.CoreCmpPartialEqShape.eq
-  (self : layout.Shape) (other : layout.Shape) : Result Bool := do
-  let b ←
-    core.array.equality.PartialEqArray.eq core.cmp.PartialEqUsize self.blocks
-      other.blocks
-  if b
+@[rust_loop_body]
+def algebra.interpolate_loop0_loop0.body
+  {B : Type _} {Clause0_F : Type _} {Clause0_E : Type _} (backendBackendInst :
+  backend.Backend B Clause0_F Clause0_E) (x : Clause0_E) (n : Std.Usize)
+  (i : Std.Usize) (b : B) (numerator : Clause0_E) (denominator : field.Gl)
+  (j : Std.Usize) :
+  Result (ControlFlow (B × Clause0_E × field.Gl × Std.Usize) (B × Clause0_E
+    × field.Gl))
+  := do
+  if j < n
   then
-    if self.glue_rows = other.glue_rows
-    then
-      if self.glue_cells = other.glue_cells
-      then ok (self.publics = other.publics)
-      else ok false
-    else ok false
-  else ok false
+    let (b1, numerator1, denominator1) ←
+      if i != j
+      then
+        do
+        let i1 ← lift (UScalar.cast .U64 j)
+        let g ← field.reduce i1
+        let e ← field.ext_of_gl g
+        let (node, b2) ← algebra.ext_constant backendBackendInst b e
+        let (factor, b3) ← backendBackendInst.ext_sub b2 x node
+        let (numerator2, b4) ← backendBackendInst.ext_mul b3 numerator factor
+        let i2 ← lift (UScalar.cast .U64 i)
+        let g1 ← field.reduce i2
+        let i3 ← lift (UScalar.cast .U64 j)
+        let g2 ← field.reduce i3
+        let g3 ← field.gl_sub g1 g2
+        let denominator2 ← field.gl_mul denominator g3
+        ok (b4, numerator2, denominator2)
+      else ok (b, numerator, denominator)
+    let j1 ← lift (core.num.Usize.wrapping_add j 1#usize)
+    ok (cont (b1, numerator1, denominator1, j1))
+  else ok (done (b, numerator, denominator))
 
-/-- Trait implementation: [neo_verified::layout::{impl core::cmp::PartialEq<neo_verified::layout::Shape> for neo_verified::layout::Shape}]
-    Source: 'crates/neo-verified/src/layout.rs', lines 16:22-16:31 -/
-@[reducible]
-def layout.Shape.Insts.CoreCmpPartialEqShape : core.cmp.PartialEq layout.Shape
-  layout.Shape := {
-  eq := layout.Shape.Insts.CoreCmpPartialEqShape.eq
-}
-
-/-- [neo_verified::layout::{impl core::clone::Clone for neo_verified::layout::Part}::clone]:
-    Source: 'crates/neo-verified/src/layout.rs', lines 27:9-27:14
+/-- [neo_verified::algebra::interpolate]: loop 1:
+    Source: 'crates/neo-verified/src/algebra.rs', lines 151:8-159:9
     Visibility: public -/
-def layout.Part.Insts.CoreCloneClone.clone
-  (self : layout.Part) : Result layout.Part := do
+@[rust_loop]
+def algebra.interpolate_loop0_loop0
+  {B : Type _} {Clause0_F : Type _} {Clause0_E : Type _} (backendBackendInst :
+  backend.Backend B Clause0_F Clause0_E) (b : B) (x : Clause0_E)
+  (n : Std.Usize) (i : Std.Usize) (numerator : Clause0_E)
+  (denominator : field.Gl) (j : Std.Usize) :
+  Result (B × Clause0_E × field.Gl)
+  := do
+  loop
+    (fun (b1, numerator1, denominator1, j1) =>
+      algebra.interpolate_loop0_loop0.body backendBackendInst x n i b1
+      numerator1 denominator1 j1)
+    (b, numerator, denominator, j)
+
+/-- [neo_verified::algebra::interpolate]: loop body 0:
+    Source: 'crates/neo-verified/src/algebra.rs', lines 147:4-164:5
+    Visibility: public -/
+@[rust_loop_body]
+def algebra.interpolate_loop0.body
+  {B : Type _} {Clause0_F : Type _} {Clause0_E : Type _} (backendBackendInst :
+  backend.Backend B Clause0_F Clause0_E) (values : Slice Clause0_E)
+  (x : Clause0_E) (n : Std.Usize) (b : B) (total : Clause0_E) (i : Std.Usize) :
+  Result (ControlFlow (B × Clause0_E × Std.Usize) (Clause0_E × B))
+  := do
+  if i < n
+  then
+    let (numerator, b1) ← algebra.ext_one backendBackendInst b
+    let (b2, numerator1, denominator) ←
+      algebra.interpolate_loop0_loop0 backendBackendInst b1 x n i numerator
+        field.GL_ONE 0#usize
+    let g ← field.gl_inv denominator
+    let (weight, b3) ←
+      algebra.ext_scale_constant backendBackendInst b2 numerator1 g
+    let t ← Slice.index_usize values i
+    let (term, b4) ← backendBackendInst.ext_mul b3 t weight
+    let (total1, b5) ← backendBackendInst.ext_add b4 total term
+    let i1 ← lift (core.num.Usize.wrapping_add i 1#usize)
+    ok (cont (b5, total1, i1))
+  else ok (done (total, b))
+
+/-- [neo_verified::algebra::interpolate]: loop 0:
+    Source: 'crates/neo-verified/src/algebra.rs', lines 147:4-164:5
+    Visibility: public -/
+@[rust_loop]
+def algebra.interpolate_loop0
+  {B : Type _} {Clause0_F : Type _} {Clause0_E : Type _} (backendBackendInst :
+  backend.Backend B Clause0_F Clause0_E) (b : B) (values : Slice Clause0_E)
+  (x : Clause0_E) (n : Std.Usize) (total : Clause0_E) (i : Std.Usize) :
+  Result (Clause0_E × B)
+  := do
+  loop
+    (fun (b1, total1, i1) => algebra.interpolate_loop0.body backendBackendInst
+      values x n b1 total1 i1)
+    (b, total, i)
+
+/-- [neo_verified::algebra::interpolate]:
+    Source: 'crates/neo-verified/src/algebra.rs', lines 143:0-166:1
+    Visibility: public -/
+def algebra.interpolate
+  {B : Type _} {Clause0_F : Type _} {Clause0_E : Type _} (backendBackendInst :
+  backend.Backend B Clause0_F Clause0_E) (b : B) (values : Slice Clause0_E)
+  (x : Clause0_E) :
+  Result (Clause0_E × B)
+  := do
+  let n := Slice.len values
+  let (total, b1) ← algebra.ext_zero backendBackendInst b
+  algebra.interpolate_loop0 backendBackendInst b1 values x n total 0#usize
+
+/-- [neo_verified::algebra::horner]: loop body 0:
+    Source: 'crates/neo-verified/src/algebra.rs', lines 172:4-176:5
+    Visibility: public -/
+@[rust_loop_body]
+def algebra.horner_loop.body
+  {B : Type _} {Clause0_F : Type _} {Clause0_E : Type _} (backendBackendInst :
+  backend.Backend B Clause0_F Clause0_E) (coefficients : Slice Clause0_E)
+  (x : Clause0_E) (b : B) (total : Clause0_E) (i : Std.Usize) :
+  Result (ControlFlow (B × Clause0_E × Std.Usize) (Clause0_E × B))
+  := do
+  if 0#usize < i
+  then
+    let i1 ← lift (core.num.Usize.wrapping_sub i 1#usize)
+    let (scaled, b1) ← backendBackendInst.ext_mul b total x
+    let t ← Slice.index_usize coefficients i1
+    let (total1, b2) ← backendBackendInst.ext_add b1 scaled t
+    ok (cont (b2, total1, i1))
+  else ok (done (total, b))
+
+/-- [neo_verified::algebra::horner]: loop 0:
+    Source: 'crates/neo-verified/src/algebra.rs', lines 172:4-176:5
+    Visibility: public -/
+@[rust_loop]
+def algebra.horner_loop
+  {B : Type _} {Clause0_F : Type _} {Clause0_E : Type _} (backendBackendInst :
+  backend.Backend B Clause0_F Clause0_E) (b : B)
+  (coefficients : Slice Clause0_E) (x : Clause0_E) (total : Clause0_E)
+  (i : Std.Usize) :
+  Result (Clause0_E × B)
+  := do
+  loop
+    (fun (b1, total1, i1) => algebra.horner_loop.body backendBackendInst
+      coefficients x b1 total1 i1)
+    (b, total, i)
+
+/-- [neo_verified::algebra::horner]:
+    Source: 'crates/neo-verified/src/algebra.rs', lines 169:0-178:1
+    Visibility: public -/
+def algebra.horner
+  {B : Type _} {Clause0_F : Type _} {Clause0_E : Type _} (backendBackendInst :
+  backend.Backend B Clause0_F Clause0_E) (b : B)
+  (coefficients : Slice Clause0_E) (x : Clause0_E) :
+  Result (Clause0_E × B)
+  := do
+  let (total, b1) ← algebra.ext_zero backendBackendInst b
+  let i := Slice.len coefficients
+  algebra.horner_loop backendBackendInst b1 coefficients x total i
+
+/-- [neo_verified::algebra::{impl core::clone::Clone for neo_verified::algebra::Kx<B, Clause0_F, Clause0_E>}::clone]:
+    Source: 'crates/neo-verified/src/algebra.rs', lines 190:4-192:5
+    Visibility: public -/
+def algebra.Kx.Insts.CoreCloneClone.clone
+  {B : Type _} {Clause0_F : Type _} {Clause0_E : Type _} (backendBackendInst :
+  backend.Backend B Clause0_F Clause0_E)
+  (self : algebra.Kx B Clause0_F Clause0_E) :
+  Result (algebra.Kx B Clause0_F Clause0_E)
+  := do
   ok self
 
-/-- Trait implementation: [neo_verified::layout::{impl core::clone::Clone for neo_verified::layout::Part}]
-    Source: 'crates/neo-verified/src/layout.rs', lines 27:9-27:14 -/
+/-- Trait implementation: [neo_verified::algebra::{impl core::clone::Clone for neo_verified::algebra::Kx<B, Clause0_F, Clause0_E>}]
+    Source: 'crates/neo-verified/src/algebra.rs', lines 189:0-193:1 -/
 @[reducible]
-def layout.Part.Insts.CoreCloneClone : core.clone.Clone layout.Part := {
-  clone := layout.Part.Insts.CoreCloneClone.clone
+def algebra.Kx.Insts.CoreCloneClone {B : Type _} {Clause0_F : Type _}
+  {Clause0_E : Type _} (backendBackendInst : backend.Backend B Clause0_F
+  Clause0_E) : core.clone.Clone (algebra.Kx B Clause0_F Clause0_E) := {
+  clone := algebra.Kx.Insts.CoreCloneClone.clone backendBackendInst
 }
 
-/-- Trait implementation: [neo_verified::layout::{impl core::marker::Copy for neo_verified::layout::Part}]
-    Source: 'crates/neo-verified/src/layout.rs', lines 27:16-27:20 -/
+/-- Trait implementation: [neo_verified::algebra::{impl core::marker::Copy for neo_verified::algebra::Kx<B, Clause0_F, Clause0_E>}]
+    Source: 'crates/neo-verified/src/algebra.rs', lines 195:0-195:34 -/
 @[reducible]
-def layout.Part.Insts.CoreMarkerCopy : core.marker.Copy layout.Part := {
-  cloneInst := layout.Part.Insts.CoreCloneClone
+def algebra.Kx.Insts.CoreMarkerCopy {B : Type _} {Clause0_F : Type _}
+  {Clause0_E : Type _} (backendBackendInst : backend.Backend B Clause0_F
+  Clause0_E) : core.marker.Copy (algebra.Kx B Clause0_F Clause0_E) := {
+  cloneInst := algebra.Kx.Insts.CoreCloneClone backendBackendInst
 }
 
-/-- [neo_verified::layout::slot]:
-    Source: 'crates/neo-verified/src/layout.rs', lines 84:0-96:1
+/-- [neo_verified::algebra::{neo_verified::algebra::Kx<B, Clause0_F, Clause0_E>}::zero]:
+    Source: 'crates/neo-verified/src/algebra.rs', lines 198:4-201:5
     Visibility: public -/
-def layout.slot
-  (size : Std.Usize) (count : Std.Usize) (b : Std.Usize) (k : Std.Usize) :
-  Result Std.Usize
+def algebra.Kx.zero
+  {B : Type _} {Clause0_F : Type _} {Clause0_E : Type _} (backendBackendInst :
+  backend.Backend B Clause0_F Clause0_E) (b : B) :
+  Result ((algebra.Kx B Clause0_F Clause0_E) × B)
   := do
-  let (a, _) ← layout.place size count
-  let wide ← Array.index_usize a 0#usize
-  let narrow ← Array.index_usize a 1#usize
-  let (part, «local») ←
-    if k < wide.stride
-    then ok (wide, k)
-    else
-      do
-      let o ← lift (Usize.checked_sub k wide.stride)
-      let i ← core.option.Option.unwrap o
-      ok (narrow, i)
-  let o ← lift (Usize.checked_mul b part.stride)
-  let i ← core.option.Option.unwrap o
-  let o1 ← lift (Usize.checked_add part.start i)
-  let i1 ← core.option.Option.unwrap o1
-  let o2 ← lift (Usize.checked_add i1 «local»)
-  core.option.Option.unwrap o2
+  let (zero, b1) ← algebra.ext_zero backendBackendInst b
+  ok ({ re := zero, im := zero }, b1)
 
-/-- [neo_verified::layout::block_row]:
-    Source: 'crates/neo-verified/src/layout.rs', lines 99:0-102:1
+/-- [neo_verified::algebra::{neo_verified::algebra::Kx<B, Clause0_F, Clause0_E>}::one]:
+    Source: 'crates/neo-verified/src/algebra.rs', lines 203:4-207:5
     Visibility: public -/
-def layout.block_row
-  (shape : layout.Shape) (kind : circuit.Kind) (b : Std.Usize) (k : Std.Usize)
-  :
-  Result Std.Usize
+def algebra.Kx.one
+  {B : Type _} {Clause0_F : Type _} {Clause0_E : Type _} (backendBackendInst :
+  backend.Backend B Clause0_F Clause0_E) (b : B) :
+  Result ((algebra.Kx B Clause0_F Clause0_E) × B)
   := do
-  let count ← Array.index_usize shape.blocks 0#usize
-  let i ← circuit.Kind.rows kind
-  layout.slot i count b k
+  let (one, b1) ← algebra.ext_one backendBackendInst b
+  let (zero, b2) ← algebra.ext_zero backendBackendInst b1
+  ok ({ re := one, im := zero }, b2)
 
-/-- [neo_verified::layout::block_cell]:
-    Source: 'crates/neo-verified/src/layout.rs', lines 105:0-108:1
+/-- [neo_verified::algebra::{neo_verified::algebra::Kx<B, Clause0_F, Clause0_E>}::from_k]:
+    Source: 'crates/neo-verified/src/algebra.rs', lines 209:4-213:5
     Visibility: public -/
-def layout.block_cell
-  (shape : layout.Shape) (kind : circuit.Kind) (b : Std.Usize) (k : Std.Usize)
-  :
-  Result Std.Usize
+def algebra.Kx.from_k
+  {B : Type _} {Clause0_F : Type _} {Clause0_E : Type _} (backendBackendInst :
+  backend.Backend B Clause0_F Clause0_E) (b : B)
+  (value : Array Clause0_F 2#usize) :
+  Result ((algebra.Kx B Clause0_F Clause0_E) × B)
   := do
-  let count ← Array.index_usize shape.blocks 0#usize
-  let i ← circuit.Kind.cells kind
-  layout.slot i count b k
+  let t ← Array.index_usize value 0#usize
+  let (re, b1) ← algebra.lift_word backendBackendInst b t
+  let t1 ← Array.index_usize value 1#usize
+  let (im, b2) ← algebra.lift_word backendBackendInst b1 t1
+  ok ({ re, im }, b2)
 
-/-- [neo_verified::layout::glue_row]:
-    Source: 'crates/neo-verified/src/layout.rs', lines 124:0-126:1
+/-- [neo_verified::algebra::{neo_verified::algebra::Kx<B, Clause0_F, Clause0_E>}::add]:
+    Source: 'crates/neo-verified/src/algebra.rs', lines 215:4-219:5
     Visibility: public -/
-def layout.glue_row
-  (shape : layout.Shape) (g : Std.Usize) : Result Std.Usize := do
-  let i ← layout.rows_end shape
-  let o ← lift (Usize.checked_add i g)
-  core.option.Option.unwrap o
-
-/-- [neo_verified::layout::one]:
-    Source: 'crates/neo-verified/src/layout.rs', lines 140:0-142:1
-    Visibility: public -/
-def layout.one (shape : layout.Shape) : Result Std.Usize := do
-  let i ← layout.cell_variables shape
-  let i1 ← lift (UScalar.cast .U32 i)
-  layout.two_pow i1
-
-/-- [neo_verified::layout::column]:
-    Source: 'crates/neo-verified/src/layout.rs', lines 145:0-151:1
-    Visibility: public -/
-def layout.column
-  (shape : layout.Shape) (wire : circuit.Wire) : Result Std.Usize := do
-  match wire with
-  | circuit.Wire.Glue cell =>
-    let i ← layout.cells_end shape
-    let i1 ← lift (UScalar.cast .Usize cell)
-    let o ← lift (Usize.checked_add i i1)
-    core.option.Option.unwrap o
-  | circuit.Wire.Block kind block cell =>
-    let i ← lift (UScalar.cast .Usize block)
-    let i1 ← lift (UScalar.cast .Usize cell)
-    layout.block_cell shape kind i i1
-  | circuit.Wire.Public index =>
-    let i ← layout.one shape
-    let i1 ← lift (UScalar.cast .Usize index)
-    let o ← lift (Usize.checked_add i i1)
-    core.option.Option.unwrap o
-
-/-- [neo_verified::layout::entry_column]:
-    Source: 'crates/neo-verified/src/layout.rs', lines 155:0-160:1
-    Visibility: public -/
-def layout.entry_column
-  (shape : layout.Shape) (kind : circuit.Kind) (b : Std.Usize)
-  (cell : Option Std.Usize) :
-  Result Std.Usize
+def algebra.Kx.add
+  {B : Type _} {Clause0_F : Type _} {Clause0_E : Type _} (backendBackendInst :
+  backend.Backend B Clause0_F Clause0_E)
+  (self : algebra.Kx B Clause0_F Clause0_E) (b : B)
+  (other : algebra.Kx B Clause0_F Clause0_E) :
+  Result ((algebra.Kx B Clause0_F Clause0_E) × B)
   := do
-  match cell with
-  | none => layout.one shape
-  | some cell1 => layout.block_cell shape kind b cell1
+  let (re, b1) ← backendBackendInst.ext_add b self.re other.re
+  let (im, b2) ← backendBackendInst.ext_add b1 self.im other.im
+  ok ({ re, im }, b2)
 
-/-- [neo_verified::poseidon2::HALF_FULL_ROUNDS]
-    Source: 'crates/neo-verified/src/poseidon2.rs', lines 20:0-20:38
+/-- [neo_verified::algebra::{neo_verified::algebra::Kx<B, Clause0_F, Clause0_E>}::mul]:
+    Source: 'crates/neo-verified/src/algebra.rs', lines 221:4-230:5
+    Visibility: public -/
+def algebra.Kx.mul
+  {B : Type _} {Clause0_F : Type _} {Clause0_E : Type _} (backendBackendInst :
+  backend.Backend B Clause0_F Clause0_E)
+  (self : algebra.Kx B Clause0_F Clause0_E) (b : B)
+  (other : algebra.Kx B Clause0_F Clause0_E) :
+  Result ((algebra.Kx B Clause0_F Clause0_E) × B)
+  := do
+  let (rr, b1) ← backendBackendInst.ext_mul b self.re other.re
+  let (ii, b2) ← backendBackendInst.ext_mul b1 self.im other.im
+  let g ← field.reduce 7#u64
+  let (seven, b3) ← algebra.ext_scale_constant backendBackendInst b2 ii g
+  let (ri, b4) ← backendBackendInst.ext_mul b3 self.re other.im
+  let (ir, b5) ← backendBackendInst.ext_mul b4 self.im other.re
+  let (re, b6) ← backendBackendInst.ext_add b5 rr seven
+  let (im, b7) ← backendBackendInst.ext_add b6 ri ir
+  ok ({ re, im }, b7)
+
+/-- [neo_verified::algebra::{neo_verified::algebra::Kx<B, Clause0_F, Clause0_E>}::scale]:
+    Source: 'crates/neo-verified/src/algebra.rs', lines 232:4-236:5
+    Visibility: public -/
+def algebra.Kx.scale
+  {B : Type _} {Clause0_F : Type _} {Clause0_E : Type _} (backendBackendInst :
+  backend.Backend B Clause0_F Clause0_E)
+  (self : algebra.Kx B Clause0_F Clause0_E) (b : B) («by» : Clause0_E) :
+  Result ((algebra.Kx B Clause0_F Clause0_E) × B)
+  := do
+  let (re, b1) ← backendBackendInst.ext_mul b self.re «by»
+  let (im, b2) ← backendBackendInst.ext_mul b1 self.im «by»
+  ok ({ re, im }, b2)
+
+/-- [neo_verified::algebra::{neo_verified::algebra::Kx<B, Clause0_F, Clause0_E>}::one_minus]:
+    Source: 'crates/neo-verified/src/algebra.rs', lines 239:4-244:5
+    Visibility: public -/
+def algebra.Kx.one_minus
+  {B : Type _} {Clause0_F : Type _} {Clause0_E : Type _} (backendBackendInst :
+  backend.Backend B Clause0_F Clause0_E)
+  (self : algebra.Kx B Clause0_F Clause0_E) (b : B) :
+  Result ((algebra.Kx B Clause0_F Clause0_E) × B)
+  := do
+  let (re, b1) ← algebra.one_minus backendBackendInst b self.re
+  let (zero, b2) ← algebra.ext_zero backendBackendInst b1
+  let (im, b3) ← backendBackendInst.ext_sub b2 zero self.im
+  ok ({ re, im }, b3)
+
+/-- [neo_verified::algebra::power_from_bits]: loop body 0:
+    Source: 'crates/neo-verified/src/algebra.rs', lines 252:4-259:5
+    Visibility: public -/
+@[rust_loop_body]
+def algebra.power_from_bits_loop.body
+  {B : Type _} {Clause0_F : Type _} {Clause0_E : Type _} (backendBackendInst :
+  backend.Backend B Clause0_F Clause0_E) (bits : Slice Clause0_F) (b : B)
+  (total : Clause0_F) (base : field.Gl) (i : Std.Usize) :
+  Result (ControlFlow (B × Clause0_F × field.Gl × Std.Usize) (Clause0_F ×
+    B))
+  := do
+  let i1 := Slice.len bits
+  if i < i1
+  then
+    let (one, b1) ← backendBackendInst.constant b 1#u64
+    let t ← Slice.index_usize bits i
+    let g ← field.gl_sub base field.GL_ONE
+    let (factor_minus, b2) ← algebra.scale backendBackendInst b1 t g
+    let (factor, b3) ← backendBackendInst.add b2 one factor_minus
+    let (total1, b4) ← backendBackendInst.mul b3 total factor
+    let base1 ← field.gl_mul base base
+    let i2 ← lift (core.num.Usize.wrapping_add i 1#usize)
+    ok (cont (b4, total1, base1, i2))
+  else ok (done (total, b))
+
+/-- [neo_verified::algebra::power_from_bits]: loop 0:
+    Source: 'crates/neo-verified/src/algebra.rs', lines 252:4-259:5
+    Visibility: public -/
+@[rust_loop]
+def algebra.power_from_bits_loop
+  {B : Type _} {Clause0_F : Type _} {Clause0_E : Type _} (backendBackendInst :
+  backend.Backend B Clause0_F Clause0_E) (b : B) (bits : Slice Clause0_F)
+  (total : Clause0_F) (base : field.Gl) (i : Std.Usize) :
+  Result (Clause0_F × B)
+  := do
+  loop
+    (fun (b1, total1, base1, i1) => algebra.power_from_bits_loop.body
+      backendBackendInst bits b1 total1 base1 i1)
+    (b, total, base, i)
+
+/-- [neo_verified::algebra::power_from_bits]:
+    Source: 'crates/neo-verified/src/algebra.rs', lines 248:0-261:1
+    Visibility: public -/
+def algebra.power_from_bits
+  {B : Type _} {Clause0_F : Type _} {Clause0_E : Type _} (backendBackendInst :
+  backend.Backend B Clause0_F Clause0_E) (b : B) (generator : field.Gl)
+  (bits : Slice Clause0_F) :
+  Result (Clause0_F × B)
+  := do
+  let (total, b1) ← backendBackendInst.constant b 1#u64
+  algebra.power_from_bits_loop backendBackendInst b1 bits total generator
+    0#usize
+
+/-- [neo_verified::backend::{impl core::clone::Clone for neo_verified::backend::Rejected}::clone]:
+    Source: 'crates/neo-verified/src/backend.rs', lines 21:9-21:14
+    Visibility: public -/
+def backend.Rejected.Insts.CoreCloneClone.clone
+  (self : backend.Rejected) : Result backend.Rejected := do
+  ok self
+
+/-- Trait implementation: [neo_verified::backend::{impl core::clone::Clone for neo_verified::backend::Rejected}]
+    Source: 'crates/neo-verified/src/backend.rs', lines 21:9-21:14 -/
+@[reducible]
+def backend.Rejected.Insts.CoreCloneClone : core.clone.Clone backend.Rejected
+  := {
+  clone := backend.Rejected.Insts.CoreCloneClone.clone
+}
+
+/-- Trait implementation: [neo_verified::backend::{impl core::marker::Copy for neo_verified::backend::Rejected}]
+    Source: 'crates/neo-verified/src/backend.rs', lines 21:16-21:20 -/
+@[reducible]
+def backend.Rejected.Insts.CoreMarkerCopy : core.marker.Copy backend.Rejected
+  := {
+  cloneInst := backend.Rejected.Insts.CoreCloneClone
+}
+
+/-- Trait implementation: [neo_verified::backend::{impl neo_verified::backend::Value for T}]
+    Source: 'crates/neo-verified/src/backend.rs', lines 29:0-29:28 -/
+@[reducible]
+def backend.Value.Blanket {T : Type _} (coremarkerCopyInst1 : core.marker.Copy
+  T) : backend.Value T := {
+  coremarkerCopyInst := coremarkerCopyInst1
+}
+
+/-- [neo_verified::field::{impl core::clone::Clone for neo_verified::field::Gl}::clone]:
+    Source: 'crates/neo-verified/src/field.rs', lines 20:9-20:14
+    Visibility: public -/
+def field.Gl.Insts.CoreCloneClone.clone
+  (self : field.Gl) : Result field.Gl := do
+  ok self
+
+/-- Trait implementation: [neo_verified::field::{impl core::clone::Clone for neo_verified::field::Gl}]
+    Source: 'crates/neo-verified/src/field.rs', lines 20:9-20:14 -/
+@[reducible]
+def field.Gl.Insts.CoreCloneClone : core.clone.Clone field.Gl := {
+  clone := field.Gl.Insts.CoreCloneClone.clone
+}
+
+/-- [neo_verified::paths::{impl core::clone::Clone for neo_verified::paths::Paths}::clone]:
+    Source: 'crates/neo-verified/src/paths.rs', lines 17:9-17:14
+    Visibility: public -/
+def paths.Paths.Insts.CoreCloneClone.clone
+  (self : paths.Paths) : Result paths.Paths := do
+  let v ←
+    alloc.vec.CloneVec.clone (core.clone.CloneArray 4#usize
+      field.Gl.Insts.CoreCloneClone) self.leaves
+  let v1 ←
+    alloc.vec.CloneVec.clone (core.clone.CloneArray 4#usize
+      field.Gl.Insts.CoreCloneClone) self.siblings
+  let i ← lift (core.clone.impls.CloneUsize.clone self.depth)
+  ok { leaves := v, siblings := v1, depth := i }
+
+/-- [neo_verified::backend::{impl core::clone::Clone for neo_verified::backend::Hint}::clone]:
+    Source: 'crates/neo-verified/src/backend.rs', lines 32:9-32:14
+    Visibility: public -/
+def backend.Hint.Insts.CoreCloneClone.clone
+  (self : backend.Hint) : Result backend.Hint := do
+  match self with
+  | backend.Hint.Inverse => ok backend.Hint.Inverse
+  | backend.Hint.Words __self_0 =>
+    let v ← alloc.vec.CloneVec.clone core.clone.CloneU64 __self_0
+    ok (backend.Hint.Words v)
+  | backend.Hint.Paths __self_0 =>
+    let p ← paths.Paths.Insts.CoreCloneClone.clone __self_0
+    ok (backend.Hint.Paths p)
+
+/-- Trait implementation: [neo_verified::backend::{impl core::clone::Clone for neo_verified::backend::Hint}]
+    Source: 'crates/neo-verified/src/backend.rs', lines 32:9-32:14 -/
+@[reducible]
+def backend.Hint.Insts.CoreCloneClone : core.clone.Clone backend.Hint := {
+  clone := backend.Hint.Insts.CoreCloneClone.clone
+}
+
+/-- [neo_verified::backend::Backend::assert_ext_zero]:
+    Source: 'crates/neo-verified/src/backend.rs', lines 86:4-91:5
+    Visibility: public -/
+@[trait_default]
+def backend.Backend.assert_ext_zero.default
+  {Self : Type _} {Clause0_F : Type _} {Clause0_E : Type _} (BackendInst :
+  backend.Backend Self Clause0_F Clause0_E) (self : Self) (a : Clause0_E)
+  (what : Str) :
+  Result ((core.result.Result Unit backend.Rejected) × Self)
+  := do
+  let (coordinates, self1) ← BackendInst.coordinates self a
+  let t ← Array.index_usize coordinates 0#usize
+  let (r, self2) ← BackendInst.assert_zero self1 t what
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue _ =>
+    let t1 ← Array.index_usize coordinates 1#usize
+    let (r1, self3) ← BackendInst.assert_zero self2 t1 what
+    let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r1
+    match cf1 with
+    | core.ops.control_flow.ControlFlow.Continue _ =>
+      let t2 ← Array.index_usize coordinates 2#usize
+      BackendInst.assert_zero self3 t2 what
+    | core.ops.control_flow.ControlFlow.Break residual =>
+      let r2 ←
+        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+          Unit (core.convert.FromSame backend.Rejected) residual
+      ok (r2, self3)
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    let r1 ←
+      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+        Unit (core.convert.FromSame backend.Rejected) residual
+    ok (r1, self2)
+
+/-- [neo_verified::backend::Backend::assert_equal]:
+    Source: 'crates/neo-verified/src/backend.rs', lines 93:4-96:5
+    Visibility: public -/
+@[trait_default]
+def backend.Backend.assert_equal.default
+  {Self : Type _} {Clause0_F : Type _} {Clause0_E : Type _} (BackendInst :
+  backend.Backend Self Clause0_F Clause0_E) (self : Self) (a : Clause0_F)
+  (b : Clause0_F) (what : Str) :
+  Result ((core.result.Result Unit backend.Rejected) × Self)
+  := do
+  let (difference, self1) ← BackendInst.sub self a b
+  BackendInst.assert_zero self1 difference what
+
+/-- [neo_verified::backend::Backend::assert_ext_equal]:
+    Source: 'crates/neo-verified/src/backend.rs', lines 98:4-101:5
+    Visibility: public -/
+@[trait_default]
+def backend.Backend.assert_ext_equal.default
+  {Self : Type _} {Clause0_F : Type _} {Clause0_E : Type _} (BackendInst :
+  backend.Backend Self Clause0_F Clause0_E) (self : Self) (a : Clause0_E)
+  (b : Clause0_E) (what : Str) :
+  Result ((core.result.Result Unit backend.Rejected) × Self)
+  := do
+  let (difference, self1) ← BackendInst.ext_sub self a b
+  BackendInst.assert_ext_zero self1 difference what
+
+/-- [neo_verified::block::X]
+    Source: 'crates/neo-verified/src/block.rs', lines 18:0-18:23
+    Visibility: public -/
+@[global_simps, irreducible] def block.X : Std.Usize := 0#usize
+
+/-- [neo_verified::block::C]
+    Source: 'crates/neo-verified/src/block.rs', lines 19:0-19:23
+    Visibility: public -/
+@[global_simps, irreducible] def block.C : Std.Usize := 7#usize
+
+/-- [neo_verified::circuit::SBOXES]
+    Source: 'crates/neo-verified/src/circuit.rs', lines 8:0-8:30
+    Visibility: public -/
+@[global_simps, irreducible] def circuit.SBOXES : Std.Usize := 150#usize
+
+/-- [neo_verified::circuit::WIDTH]
+    Source: 'crates/neo-verified/src/circuit.rs', lines 4:0-4:28
+    Visibility: public -/
+@[global_simps, irreducible] def circuit.WIDTH : Std.Usize := 16#usize
+
+/-- [neo_verified::block::OUTPUT]
+    Source: 'crates/neo-verified/src/block.rs', lines 21:0-21:41
     Visibility: public -/
 @[global_simps, irreducible]
-def poseidon2.HALF_FULL_ROUNDS : Std.Usize := 4#usize
+def block.OUTPUT : Result Std.Usize := circuit.WIDTH + circuit.SBOXES
 
-/-- [neo_verified::poseidon2::PARTIAL_ROUNDS]
-    Source: 'crates/neo-verified/src/poseidon2.rs', lines 21:0-21:37
+/-- [neo_verified::block::{impl core::clone::Clone for neo_verified::block::Entry}::clone]:
+    Source: 'crates/neo-verified/src/block.rs', lines 25:9-25:14
     Visibility: public -/
-@[global_simps, irreducible]
-def poseidon2.PARTIAL_ROUNDS : Std.Usize := 22#usize
+def block.Entry.Insts.CoreCloneClone.clone
+  (self : block.Entry) : Result block.Entry := do
+  ok self
 
-/-- [neo_verified::poseidon2::INITIAL]
-    Source: 'crates/neo-verified/src/poseidon2.rs', lines 24:0-97:2
-    Visibility: public -/
-@[global_simps, irreducible]
-def poseidon2.INITIAL : Array (Array Std.U64 16#usize) 4#usize :=
-  Array.make 4#usize [
-    Array.make 16#usize [
-      15504881536434223753#u64, 2212164856944708396#u64,
-      1885257220781225929#u64, 17531637481572944510#u64,
-      16769640728293682348#u64, 445908668462176974#u64,
-      1308472042479836079#u64, 17465001500823438575#u64,
-      1922033642430128704#u64, 2657514617275794404#u64,
-      17238706657248448792#u64, 7348277157222259646#u64,
-      10777112892842897939#u64, 1771261721914735482#u64,
-      9409693344407549465#u64, 16619731096074499912#u64
-      ],
-    Array.make 16#usize [
-      1922036059108268922#u64, 2681686362645798986#u64,
-      12432722052283819565#u64, 2826979200512189741#u64,
-      5080805286413226676#u64, 16827966425431695029#u64,
-      9196241087337510154#u64, 2350771591198563053#u64,
-      2989012136977041732#u64, 4359939046747977080#u64,
-      16089932437481530267#u64, 6601984573273403484#u64,
-      13005272261058756234#u64, 17128237926164276121#u64,
-      8240789415616872849#u64, 8676316357341090631#u64
-      ],
-    Array.make 16#usize [
-      16452552554259143025#u64, 17874550554210084887#u64,
-      3031715677034868367#u64, 18215520516675091549#u64,
-      18186005068527139405#u64, 11138995707668647102#u64,
-      15098195648006184282#u64, 2025927025270509469#u64,
-      9957669227203243937#u64, 11554336633716867616#u64,
-      9729067570563846225#u64, 4239770196713589268#u64,
-      4390607796152185292#u64, 17647511975646925721#u64,
-      7671337049037340193#u64, 4209452938403606590#u64
-      ],
-    Array.make 16#usize [
-      6593973666654839090#u64, 8390781086037206386#u64,
-      7324343054784993307#u64, 17780748563735894140#u64,
-      15974082699116886783#u64, 13213371256836887512#u64,
-      7312926934405385057#u64, 10393853239698468203#u64,
-      2710107888698774842#u64, 2801523468128575786#u64,
-      15894340394120906162#u64, 13510783799941644149#u64,
-      7917164295139071913#u64, 13839801071899888959#u64,
-      6672989303670154677#u64, 4519956214037211385#u64
-      ]
-    ]
+/-- Trait implementation: [neo_verified::block::{impl core::clone::Clone for neo_verified::block::Entry}]
+    Source: 'crates/neo-verified/src/block.rs', lines 25:9-25:14 -/
+@[reducible]
+def block.Entry.Insts.CoreCloneClone : core.clone.Clone block.Entry := {
+  clone := block.Entry.Insts.CoreCloneClone.clone
+}
 
-/-- [neo_verified::poseidon2::PARTIAL]
-    Source: 'crates/neo-verified/src/poseidon2.rs', lines 100:0-123:2
-    Visibility: public -/
-@[global_simps, irreducible]
-def poseidon2.PARTIAL : Array Std.U64 22#usize :=
-  Array.make 22#usize [
-    3785078240232899765#u64, 13753534232687663059#u64,
-    15164579152346391244#u64, 7188840087678967607#u64,
-    14466302407008998516#u64, 13002203018489042439#u64,
-    6216879054540921071#u64, 8639253411382064186#u64, 4983986534873630152#u64,
-    2915380551046574730#u64, 7837744426713061492#u64, 10524728973359902812#u64,
-    9778451922853050075#u64, 13310295482970625397#u64,
-    10551647698332907197#u64, 8509293821221348719#u64, 4319821126274335035#u64,
-    1417436523646501240#u64, 447570613036226838#u64, 16267896682506996530#u64,
-    14710998805405468930#u64, 3269000544927978862#u64
-    ]
+/-- Trait implementation: [neo_verified::block::{impl core::marker::Copy for neo_verified::block::Entry}]
+    Source: 'crates/neo-verified/src/block.rs', lines 25:16-25:20 -/
+@[reducible]
+def block.Entry.Insts.CoreMarkerCopy : core.marker.Copy block.Entry := {
+  cloneInst := block.Entry.Insts.CoreCloneClone
+}
 
-/-- [neo_verified::poseidon2::TERMINAL]
-    Source: 'crates/neo-verified/src/poseidon2.rs', lines 126:0-199:2
+/-- [neo_verified::block::{impl core::clone::Clone for neo_verified::block::Linear}::clone]:
+    Source: 'crates/neo-verified/src/block.rs', lines 34:9-34:14
     Visibility: public -/
-@[global_simps, irreducible]
-def poseidon2.TERMINAL : Array (Array Std.U64 16#usize) 4#usize :=
-  Array.make 4#usize [
-    Array.make 16#usize [
-      7482194551502142718#u64, 3471957803411196592#u64,
-      8846669050136897522#u64, 4431017908497072775#u64,
-      14382646627736292998#u64, 15636596632746594248#u64,
-      14521990061611210983#u64, 4351091752509404379#u64,
-      14119848206371842921#u64, 528205008764728916#u64,
-      15379406877060454284#u64, 13572057177474709483#u64,
-      780214424511389757#u64, 10591233664360718633#u64,
-      1849508423779478786#u64, 7345390174439848870#u64
-      ],
-    Array.make 16#usize [
-      14580881241235634775#u64, 8777273265976228774#u64,
-      1758781345554053863#u64, 9701442189086298420#u64,
-      15685565327448534444#u64, 5672331717709479627#u64,
-      7675233227955155107#u64, 8852669876726984824#u64,
-      1218164705289579190#u64, 13224810758441726241#u64,
-      557024023478380004#u64, 3923346290699247117#u64, 4196774554581694822#u64,
-      16262909137268628555#u64, 6531098975686849205#u64, 538070144030448988#u64
-      ],
-    Array.make 16#usize [
-      16157559630818414765#u64, 3330859574359708906#u64,
-      13312877616183741059#u64, 15699706004066187344#u64,
-      2181468677625794151#u64, 12293285838251430515#u64,
-      17109377825740910727#u64, 11746958123598489878#u64,
-      7654965179475073269#u64, 15178922343313110770#u64,
-      14240408894833620294#u64, 4224192993509995210#u64,
-      13093043512401634422#u64, 16636225261759530156#u64,
-      13489384640167770266#u64, 8105602514957866176#u64
-      ],
-    Array.make 16#usize [
-      13910460326211973254#u64, 13010277363854955001#u64,
-      8570865802160232388#u64, 14830753997593808291#u64,
-      16178721091989175194#u64, 10926358020058189153#u64,
-      8413180834413067310#u64, 1124528750616792490#u64,
-      16054199595598201491#u64, 729673474029476808#u64,
-      1545919217216143455#u64, 15484244716222357662#u64,
-      9149791094276206087#u64, 3342519128264714984#u64,
-      14246551315881547762#u64, 6145097356981870399#u64
-      ]
-    ]
+def block.Linear.Insts.CoreCloneClone.clone
+  (self : block.Linear) : Result block.Linear := do
+  let v ←
+    alloc.vec.CloneVec.clone (BuiltinClone (Std.Usize × field.Gl)) self.terms
+  let g ← field.Gl.Insts.CoreCloneClone.clone self.constant
+  ok { terms := v, constant := g }
+
+/-- Trait implementation: [neo_verified::block::{impl core::clone::Clone for neo_verified::block::Linear}]
+    Source: 'crates/neo-verified/src/block.rs', lines 34:9-34:14 -/
+@[reducible]
+def block.Linear.Insts.CoreCloneClone : core.clone.Clone block.Linear := {
+  clone := block.Linear.Insts.CoreCloneClone.clone
+}
+
+/-- [neo_verified::block::inputs]:
+    Source: 'crates/neo-verified/src/block.rs', lines 47:0-51:1
+    Visibility: public -/
+def block.inputs (kind : circuit.Kind) : Result Std.Usize := do
+  ok circuit.WIDTH
+
+/-- [neo_verified::block::of_cell]:
+    Source: 'crates/neo-verified/src/block.rs', lines 53:0-58:1 -/
+def block.of_cell (cell : Std.Usize) : Result block.Linear := do
+  let v ←
+    alloc.vec.FromVecArray.from (Array.make 1#usize [ (cell, field.GL_ONE) ])
+  ok { terms := v, constant := field.GL_ZERO }
+
+/-- [neo_verified::field::gl_add]:
+    Source: 'crates/neo-verified/src/field.rs', lines 108:0-110:1
+    Visibility: public -/
+def field.gl_add (a : field.Gl) (b : field.Gl) : Result field.Gl := do
+  let i ← field.reduce_word a
+  let i1 ← field.reduce_word b
+  let i2 ← field.add_words i i1
+  ok i2
+
+/-- [neo_verified::block::shifted]: loop body 0:
+    Source: 'crates/neo-verified/src/block.rs', lines 64:4-67:5 -/
+@[rust_loop_body]
+def block.shifted_loop.body
+  (form : block.Linear) (terms : alloc.vec.Vec (Std.Usize × field.Gl))
+  (k : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec (Std.Usize × field.Gl)) × Std.Usize)
+    (field.Gl × (alloc.vec.Vec (Std.Usize × field.Gl))))
+  := do
+  let i := alloc.vec.Vec.len form.terms
+  if k < i
+  then
+    let p ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice (Std.Usize ×
+        field.Gl)) form.terms k
+    let terms1 ← alloc.vec.Vec.push terms p
+    let k1 ← lift (core.num.Usize.wrapping_add k 1#usize)
+    ok (cont (terms1, k1))
+  else ok (done (form.constant, terms))
+
+/-- [neo_verified::block::shifted]: loop 0:
+    Source: 'crates/neo-verified/src/block.rs', lines 64:4-67:5 -/
+@[rust_loop]
+def block.shifted_loop
+  (form : block.Linear) (terms : alloc.vec.Vec (Std.Usize × field.Gl))
+  (k : Std.Usize) :
+  Result (field.Gl × (alloc.vec.Vec (Std.Usize × field.Gl)))
+  := do
+  loop
+    (fun (terms1, k1) => block.shifted_loop.body form terms1 k1)
+    (terms, k)
 
 end neo_verified

@@ -132,8 +132,8 @@ Rust, a claim is about a verifier, a program, a file or a check that Rust does n
 - The circuit programs and their lowering (`Ports/Circuit/`), with the parts of `Ports/Replay/`
   that the programs read: the data types (`Ports/Replay/Data.lean`), the fields
   (`Ports/Replay/Field.lean`, whose `Word` and `Ext` operations are proved equal to the field of
-  `neo-verified` in `CompressionLeanRust/Field.lean`; the verifier still computes with Plonky3's
-  field, except the inverse in `interpolate`), the bar transform (`Replay.bar`) and the GKR shape functions
+  `neo-verified` in `CompressionLeanRust/Field.lean`; the verifier's `Native` backend computes with
+  that field, and the prover's `Fast` backend with Plonky3's), the bar transform (`Replay.bar`) and the GKR shape functions
   (`layerCount`, `layerDegree`, `layerFactors`, `partFactors`, `activeTrees`).
 - The terminal loader (`Terminal.Package.load`). Its rows are F′'s row instantiation
   (`Producer.rows`); Rust pushes the rows of its templates (`expand_matrix`). The final program
@@ -165,8 +165,9 @@ Rust, a claim is about a verifier, a program, a file or a check that Rust does n
   hash that made the key root. Its permutation `Replay.permute` is F′'s `permute64`, which F′
   proves is `Poseidon2.permute` over F′'s constants. The native verifier's `Native::permute` runs
   the permutation of `neo-verified`, which `CompressionLeanRust/Poseidon2.lean` proves equal to
-  `Replay.permute`, constant tables included. The sponge, the compression and the Merkle hash of
-  layer 1 (`hash::permutation`) still draw their constants from `SEED`, and
+  `Replay.permute`, constant tables included, so the native verifier's sponge and compression run
+  the proved permutation too. The prover, the leaf hashes in hints and the trace digest use
+  `hash::permutation`, which draws its constants from `SEED`, and
   `verified_permutation_matches_plonky3` (`neo-spartan`) compares the two permutations.
   `exported_round_constants_match_fprime_lean_spec` (`neo-ccs`, `tests/poseidon2_round_constants.rs`)
   compares them with F′'s, and `exported_round_constants_rebuild_the_canonical_permutation` shows
@@ -207,8 +208,9 @@ These checks compare a transcription with its Rust:
 
 - Rust tests in CI pin digests that Lean computes from the lowered programs, so a change to the
   circuit's instruction stream fails CI.
-- For a port of Rust in `crates/neo-verified`, `ports.json` names two theorems in place of a
-  hash. Aeneas translates the crate (`scripts/aeneas_extract.sh`), and `CompressionLeanRust` proves
+- For a port of Rust in `crates/neo-verified` that has a proof, `ports.json` names two theorems
+  in place of a hash. The other ports of `neo-verified` code (`Recorder`, `Native`, `Duplex`, the
+  block template) keep a hash. Aeneas translates the crate (`scripts/aeneas_extract.sh`), and `CompressionLeanRust` proves
   the translation equal to the port. `Sound` has no premise: if the translated function returns,
   it returns the port's value. `Complete` gives a premise, an input that meets it, and a value on
   every input that meets it. `CompressionLeanRustTests` checks the shape of both. The `aeneas` CI

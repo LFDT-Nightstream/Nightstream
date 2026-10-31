@@ -17,7 +17,7 @@ use std::sync::OnceLock;
 use neo_ccs::crypto::poseidon2_goldilocks::WIDTH;
 use neo_ccs::SparsePoly;
 use neo_math::{D, F};
-use neo_spartan::{Backend, ClaimWords, Error, FoldTranscript, R1cs};
+use neo_spartan::{Backend, ClaimWords, Error, FoldTranscript, Hint, R1cs};
 use nightstream_fprime::{
     load_terminal_package, LoadedPackage, PackageError, PackageSparseMatrix, PiCcsV1_2EncodedInputs, TerminalOutputs,
     PI_CCS_V1_2_PRIOR_PUBLIC_INPUT_WORDS, PI_CCS_V1_2_STATE_PREIMAGE_WORDS,
@@ -197,7 +197,7 @@ impl Package {
         inputs: Option<&PiCcsV1_2EncodedInputs>,
     ) -> Result<(ClaimWords<B::F>, FoldTranscript<B>), Error> {
         assert_eq!(statement.len(), STATE_STATEMENT_WORDS);
-        let computed = b.hint(&[], self.computed.len(), &|_| self.execute(inputs));
+        let computed = b.hint(&[], self.computed.len(), &Hint::Words(self.execute(inputs)));
         let domain = STATE_DOMAIN_CHUNK;
         let private = |index: usize| inputs.map_or(0, |inputs| inputs.private_values()[index]);
         let public = |index: usize| inputs.map_or(0, |inputs| inputs.public_values()[index]);

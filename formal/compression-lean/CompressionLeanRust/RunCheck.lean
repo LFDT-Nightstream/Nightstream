@@ -247,6 +247,146 @@ def poseidon2Case : String → List ℕ → Option String
     outcome (Array.update (Aeneas.Std.Array.make 2#usize [usize x, usize y]) (usize i) (usize v)) values
   | _, _ => none
 
+open neo_verified in
+/-- Extension values from their words, three each. -/
+def extList : List ℕ → List field.Ext
+  | a :: b :: c :: rest => ⟨u64 a, u64 b, u64 c⟩ :: extList rest
+  | _ => []
+
+def sliceOf {α : Type} (xs : List α) : Option (Slice α) :=
+  if h : xs.length ≤ Usize.max then some (Slice.from xs h) else none
+
+def vecOf {α : Type} (xs : List α) : Option (alloc.vec.Vec α) :=
+  if h : xs.length ≤ Usize.max then some (alloc.vec.Vec.from xs h) else none
+
+open neo_verified in
+def extsWords (xs : List field.Ext) : String := " ".intercalate (xs.map extWords)
+
+open neo_verified in
+def glsWords (xs : List field.Gl) : String := " ".intercalate (xs.map value)
+
+open neo_verified in
+abbrev native : backend.Backend native.Native field.Gl field.Ext := native.Native.Insts.Neo_verifiedBackendBackendGlExt
+
+open neo_verified in
+def array4 (xs : List ℕ) : Option (Aeneas.Std.Array field.Gl 4#usize) :=
+  if h : (xs.map u64).length = 4 then some (Aeneas.Std.Array.make 4#usize (xs.map u64) (by simp [h])) else none
+
+open neo_verified in
+/-- The circuit helpers run on the translated `Native`, and the models that only the circuit core
+calls. -/
+def circuitCase : String → List ℕ → Option String
+  | "ext_inv", xs => (ext xs).map fun a => outcome (field.ext_inv a) extWords
+  | "eq_eval", n :: rest => do
+    let x ← sliceOf (extList (rest.take (3 * n)))
+    let y ← sliceOf (extList (rest.drop (3 * n)))
+    outcome (algebra.eq_eval native () x y) fun p => extWords p.1
+  | "dot", n :: rest => do
+    let x ← sliceOf (extList (rest.take (3 * n)))
+    let y ← sliceOf (extList (rest.drop (3 * n)))
+    outcome (algebra.dot native () x y) fun p => extWords p.1
+  | "interpolate", n :: rest => do
+    let v ← sliceOf (extList (rest.take (3 * n)))
+    let x ← ext (rest.drop (3 * n))
+    outcome (algebra.interpolate native () v x) fun p => extWords p.1
+  | "horner", n :: rest => do
+    let v ← sliceOf (extList (rest.take (3 * n)))
+    let x ← ext (rest.drop (3 * n))
+    outcome (algebra.horner native () v x) fun p => extWords p.1
+  | "eq_at", index :: rest => do
+    let point ← sliceOf (extList rest)
+    outcome (algebra.eq_at native () point (usize index)) fun p => extWords p.1
+  | "eq_table", rest => do
+    let point ← sliceOf (extList rest)
+    outcome (algebra.eq_table native () point) fun p => extsWords p.1.val
+  | "power_from_bits", g :: bits => do
+    let b ← sliceOf (bits.map u64)
+    outcome (algebra.power_from_bits native () (u64 g) b) fun p => value p.1
+  | "hash_leaf", xs => do
+    let v ← sliceOf (xs.map u64)
+    outcome (hash.hash_leaf native () v) fun p => glsWords p.1.val
+  | "compress", xs => do
+    let l ← array4 (xs.take 4)
+    let r ← array4 (xs.drop 4)
+    outcome (hash.compress native () l r) fun p => glsWords p.1.val
+  | "merkle_root", rest => do
+    let leaf ← array4 (rest.take 4)
+    let n := rest.getD 4 0
+    let bits ← sliceOf ((rest.drop 5).take n |>.map u64)
+    let path ← sliceOf (((List.range n).map fun k => (rest.drop (5 + n + 4 * k)).take 4).filterMap array4)
+    outcome (hash.merkle_root native () leaf bits path) fun p => glsWords p.1.val
+  | "alloc.vec.Vec.new", [] => s!"ok {glsWords (alloc.vec.Vec.new U64).val}"
+  | "alloc.vec.Vec.push", xs => do
+    let v ← vecOf ((xs.dropLast).map u64)
+    outcome (alloc.vec.Vec.push v (u64 (xs.getLastD 0))) fun w => glsWords w.val
+  | "alloc.vec.Vec.len", xs => (vecOf (xs.map u64)).map fun v => s!"ok {value (alloc.vec.Vec.len v)}"
+  | "alloc.vec.Vec.deref", xs => (vecOf (xs.map u64)).map fun v => s!"ok {glsWords (alloc.vec.Vec.deref v).val}"
+  | "alloc.vec.CloneVec.clone", xs =>
+    (vecOf (xs.map u64)).map fun v => outcome (alloc.vec.CloneVec.clone core.clone.CloneU64 v) fun w => glsWords w.val
+  | "alloc.vec.FromVecArray.from", [x, y] =>
+    outcome (alloc.vec.FromVecArray.from (Aeneas.Std.Array.make 2#usize [u64 x, u64 y])) fun w => glsWords w.val
+  | "alloc.vec.Vec.index", i :: xs => (vecOf (xs.map u64)).map fun v =>
+    outcome (alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice U64) v (usize i)) value
+  | "alloc.vec.Vec.index_mut", i :: x :: xs => (vecOf (xs.map u64)).map fun v =>
+    outcome (alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice U64) v (usize i)) fun p =>
+      glsWords (p.2 (u64 x)).val
+  | "core.slice.index.SliceIndexUsizeSlice", i :: xs => (sliceOf (xs.map u64)).map fun v =>
+    outcome ((core.slice.index.SliceIndexUsizeSlice U64).index (usize i) v) value
+  | "Array.index_mut_usize", [x, y, i, v] =>
+    outcome (Array.index_mut_usize (Aeneas.Std.Array.make 2#usize [u64 x, u64 y]) (usize i)) fun p =>
+      words64 (p.2 (u64 v))
+  | "core.slice.Slice.is_empty", xs => (sliceOf (xs.map u64)).map fun v => outcome (core.slice.Slice.is_empty v) toString
+  | "Array.empty", [] => s!"ok {(Std.Array.empty U64).val.length}"
+  | "Array.repeat", [x] => s!"ok {words64 (Array.repeat 3#usize (u64 x))}"
+  | "core.clone.CloneArray", xs =>
+    if h : (xs.map u64).length = 4 then
+      outcome ((core.clone.CloneArray 4#usize core.clone.CloneU64).clone
+        (Aeneas.Std.Array.make 4#usize (xs.map u64) (by simp [h]))) words64
+    else none
+  | "core.clone.CloneU64", [x] => outcome (core.clone.CloneU64.clone (u64 x)) value
+  | "core.clone.impls.CloneUsize.clone", [x] => s!"ok {value (core.clone.impls.CloneUsize.clone (usize x))}"
+  | "core.convert.FromSame", [x] => outcome ((core.convert.FromSame U64).from (u64 x)) value
+  | "core.num.U32.wrapping_add", [x, y] => s!"ok {value (core.num.U32.wrapping_add (u32 x) (u32 y))}"
+  | "core.num.Usize.is_multiple_of", [x, m] => outcome (core.num.Usize.is_multiple_of (usize x) (usize m)) toString
+  | "core.num.Usize.wrapping_shr", [x, k] => s!"ok {value (core.num.Usize.wrapping_shr (usize x) (u32 k))}"
+  | "core.num.Usize.wrapping_sub", [x, y] => s!"ok {value (core.num.Usize.wrapping_sub (usize x) (usize y))}"
+  | "core.cmp.PartialEq.ne.trait_default", [t, x, y, t', x', y'] => do
+    let a ← wire [t, x, y]
+    let b ← wire [t', x', y']
+    outcome (core.cmp.PartialEq.ne.trait_default circuit.Wire.Insts.CoreCmpPartialEqWire a b) toString
+  | "core.option.Option.is_none", [0] => s!"ok {core.option.Option.is_none (none : Option U64)}"
+  | "core.option.Option.is_none", [1, x] => s!"ok {core.option.Option.is_none (some (u64 x))}"
+  | "core.ops.control_flow.ControlFlow.Continue", [x] =>
+    match (core.ops.control_flow.ControlFlow.Continue (u64 x) : core.ops.control_flow.ControlFlow Unit U64) with
+    | .Continue v => s!"ok continue {value v}"
+    | .Break _ => "ok break"
+  | "core.ops.control_flow.ControlFlow.Break", [] =>
+    match (core.ops.control_flow.ControlFlow.Break () : core.ops.control_flow.ControlFlow Unit U64) with
+    | .Continue v => s!"ok continue {value v}"
+    | .Break _ => "ok break"
+  | "core.result.Result.Ok", [x] => resultCase (.Ok (u64 x))
+  | "core.result.Result.Err", [] => resultCase (.Err (toStr "x"))
+  | "core.result.Result.Insts.CoreOpsTry.branch", [1, x] => tryCase (.Ok (u64 x))
+  | "core.result.Result.Insts.CoreOpsTry.branch", [0] => tryCase (.Err (toStr "x"))
+  | "core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual", [] => tryCase (.Err (toStr "x"))
+  | _, _ => none
+where
+  resultWord (r : core.result.Result U64 backend.Rejected) : String :=
+    match r with
+    | .Ok v => s!"ok {value v}"
+    | .Err _ => "err"
+  resultCase (r : core.result.Result U64 backend.Rejected) : String := s!"ok {resultWord r}"
+  /-- `let v = r?; Ok(v)`, as the translation of `?` runs it. -/
+  tryCase (r : core.result.Result U64 backend.Rejected) : String :=
+    let run : Result (core.result.Result U64 backend.Rejected) := do
+      let flow ← core.result.Result.Insts.CoreOpsTry.branch r
+      match flow with
+      | core.ops.control_flow.ControlFlow.Break residual =>
+        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual U64
+          (core.convert.FromSame backend.Rejected) residual
+      | core.ops.control_flow.ControlFlow.Continue v => Result.ok (.Ok v)
+    outcome run resultWord
+
 def run : String → List ℕ → Option String
   | "split", [x] => outcome (neo_verified.layout.split (usize x)) fun a => " ".intercalate (a.val.map value)
   | "variables", [x] => outcome (neo_verified.layout.variables (usize x)) value
@@ -259,8 +399,9 @@ def run : String → List ℕ → Option String
   | "core.option.Option.unwrap.none", [] => outcome (core.option.Option.unwrap (none : Option Usize)) value
   | "core.num.Usize.BITS", [] => s!"ok {value core.num.Usize.BITS}"
   | "Array.make", [x, y] => s!"ok {" ".intercalate ((Aeneas.Std.Array.make 2#usize [usize x, usize y]).val.map value)}"
-  | case, words => ((((layoutCase case words).orElse fun _ => modelCase case words).orElse fun _ =>
-    degreesCase case words).orElse fun _ => fieldCase case words).orElse fun _ => poseidon2Case case words
+  | case, words => (((((layoutCase case words).orElse fun _ => modelCase case words).orElse fun _ =>
+    degreesCase case words).orElse fun _ => fieldCase case words).orElse fun _ => poseidon2Case case words).orElse
+    fun _ => circuitCase case words
 
 end CompressionLeanRust.RunCheck
 

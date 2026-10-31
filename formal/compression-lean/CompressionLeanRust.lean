@@ -5,3 +5,6 @@ import CompressionLeanRust.Positions
 import CompressionLeanRust.Degrees
 import CompressionLeanRust.Field
 import CompressionLeanRust.Poseidon2
+import CompressionLeanRust.Backend
+import CompressionLeanRust.Algebra
+import CompressionLeanRust.Hash

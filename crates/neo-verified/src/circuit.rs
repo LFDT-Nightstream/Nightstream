@@ -2,6 +2,9 @@
 
 /// The Poseidon2 state width. `neo-spartan` checks it against the workspace permutation.
 pub const WIDTH: usize = 16;
+/// The sponge and duplex rate, and the digest length.
+pub const RATE: usize = 12;
+pub const DIGEST_LEN: usize = 4;
 pub const SBOXES: usize = 150;
 /// A permutation block: its inputs, the S-box outputs in round order, and its outputs.
 pub const CELLS: usize = WIDTH + SBOXES + WIDTH;

@@ -34,15 +34,17 @@ use super::layer1::{relation_of, setup_toy, transcript};
 use super::lowering_stages::{Early, Edges, Honest, LaneSplit, Late, Linear, Openings, Shared};
 use super::replay::relation_json;
 use super::shrink::Layer1;
-use crate::circuit::r1cs::R1cs;
+use crate::circuit::r1cs::sides;
 use crate::circuit::record::{Form, Recorder, Trace};
-use crate::circuit::{Backend, Native};
+use crate::circuit::{Backend, Fast, Hint, Rejected};
 use crate::device::Accelerator;
 use crate::field::Gl;
 use crate::hash::seed;
 use crate::pcs::Pcs;
 use crate::shrink::{run_digest, Program, Shape, ShapeDef};
-use crate::{prove, Error, Key, Relation};
+use crate::R1cs;
+use crate::{prove, Key, Relation};
+use neo_verified::field::gl_word;
 
 /// A recorded value and its handle.
 #[derive(Clone, Copy)]
@@ -177,18 +179,18 @@ impl Backend for Log {
         std::array::from_fn(|i| self.mul(a[i], by))
     }
 
-    fn ext_inverse(&mut self, a: [Value; 3], what: &'static str) -> Result<[Value; 3], Error> {
+    fn ext_inverse(&mut self, a: [Value; 3], what: &'static str) -> Result<[Value; 3], Rejected> {
         let inverse = self.recorder.ext_inverse(a.map(|value| value.form), what)?;
         Ok(three(self.emit(format!("i{}", handles(&a)), &inverse)))
     }
 
-    fn assert_zero(&mut self, a: Value, what: &'static str) -> Result<(), Error> {
+    fn assert_zero(&mut self, a: Value, what: &'static str) -> Result<(), Rejected> {
         self.recorder.assert_zero(a.form, what)?;
         self.emit(format!("z {}", a.handle), &[]);
         Ok(())
     }
 
-    fn bits(&mut self, a: Value, count: usize, what: &'static str) -> Result<Vec<Value>, Error> {
+    fn bits(&mut self, a: Value, count: usize, what: &'static str) -> Result<Vec<Value>, Rejected> {
         let bits = self.recorder.bits(a.form, count, what)?;
         Ok(self.emit(format!("b {} {count}", a.handle), &bits))
     }
@@ -205,21 +207,21 @@ impl Backend for Log {
         std::array::from_fn(|lane| outputs[lane])
     }
 
-    fn hint(&mut self, inputs: &[Value], len: usize, compute: &dyn Fn(&[u64]) -> Vec<u64>) -> Vec<Value> {
+    fn hint(&mut self, inputs: &[Value], len: usize, hint: &Hint) -> Vec<Value> {
         let inputs: Vec<Form> = inputs.iter().map(|value| value.form).collect();
-        let outputs = self.recorder.hint(&inputs, len, compute);
+        let outputs = self.recorder.hint(&inputs, len, hint);
         self.emit(format!("h {len}"), &outputs)
     }
 
-    fn r1cs(&mut self, system: &R1cs, columns: &[Value], what: &'static str) -> Result<(), Error> {
+    fn r1cs(&mut self, system: &R1cs, columns: &[Value], what: &'static str) -> Result<(), Rejected> {
         let forms: Vec<Form> = columns.iter().map(|value| value.form).collect();
         self.recorder.r1cs(system, &forms, what)?;
         let mut line = format!("r {} {}{}", system.rows(), columns.len(), handles(columns));
         for row in 0..system.rows() {
-            for (columns, coefficients) in system.sides(row) {
+            for (columns, coefficients) in sides(system, row) {
                 write!(line, " {}", columns.len()).unwrap();
                 for (column, coefficient) in columns.iter().zip(coefficients) {
-                    write!(line, " {column} {}", coefficient.as_canonical_u64()).unwrap();
+                    write!(line, " {column} {}", gl_word(*coefficient)).unwrap();
                 }
             }
         }
@@ -381,18 +383,18 @@ fn lowering_matches_lean() {
     let layer1 = Layer1::new(&relation, seed(transcript(1)), &toy.claim, Some(&proof));
     let linear = Linear::new(&relation, seed(transcript(1)), &toy.claim, &proof);
     linear
-        .run(&mut Native)
+        .run(&mut Fast)
         .expect("the toy proof passes the linear claim");
     let honest = Honest::new(&relation, seed(transcript(1)), &toy.claim, &proof);
     honest
-        .run(&mut Native)
+        .run(&mut Fast)
         .expect("the toy proof passes the honest fold");
     let late = Late::new(&relation, seed(transcript(1)), &toy.claim, &proof);
-    late.run(&mut Native)
+    late.run(&mut Fast)
         .expect("the toy proof passes the late checks");
     let openings = Openings::new(&relation, seed(transcript(1)), &toy.claim, &proof);
     openings
-        .run(&mut Native)
+        .run(&mut Fast)
         .expect("the toy proof passes the openings");
     let input = workspace().join("target/lean-lowering/layer1.json");
     let linear_input = workspace().join("target/lean-lowering/linear.json");

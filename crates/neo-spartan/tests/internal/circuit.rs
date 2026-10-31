@@ -1,4 +1,4 @@
-//! The circuit core: `Native` equals Plonky3, recorded rows hold for honest
+//! The circuit core: `Fast` equals Plonky3 and `Native`, recorded rows hold for honest
 //! values, break under mutation, and do not depend on the values.
 
 use p3_challenger_v08::{CanObserve, CanSample, CanSampleBits, FieldChallenger};
@@ -12,15 +12,21 @@ use p3_field::PrimeCharacteristicRing as _;
 use p3_field::PrimeField64 as _;
 
 use super::word;
-use crate::circuit::block::{entries, inputs, outputs};
+use neo_verified::block::inputs;
+use neo_verified::circuit::CELLS;
+use neo_verified::hash::compress;
+use neo_verified::r1cs;
+
+use crate::circuit::block::entries;
 use crate::circuit::fold::FoldTranscript;
-use crate::circuit::hash::{compress, hash_leaf, merkle_root, Duplex};
+use crate::circuit::hash::{hash_leaf, merkle_root, Duplex};
 use crate::circuit::poseidon2::{self, OUTPUT};
 use crate::circuit::record::{Recorder, Trace};
-use crate::circuit::{algebra, Backend, Native};
-use crate::field::{Ext, Gl};
+use crate::circuit::{algebra, Backend, Fast, Hint, Native};
+use crate::field::{ext_from_verified, from_verified, to_verified, Ext, Gl};
 use crate::hash::permutation;
 use crate::Error;
+use crate::R1cs;
 
 fn gl(seed: u64, index: u64) -> Gl {
     Gl::from_u64(word(seed, index))
@@ -66,13 +72,12 @@ const TEMPLATE_DIGEST: [u64; 4] = [
 #[test]
 fn permutation_template_matches_lean() {
     let kind = Kind::Permutation;
-    let outputs = outputs(kind);
     let mut words: Vec<u64> = vec![
         kind.rows() as u64,
         kind.cells() as u64,
         inputs(kind) as u64,
-        outputs.start as u64,
-        outputs.end as u64,
+        OUTPUT as u64,
+        CELLS as u64,
         entries(kind).len() as u64,
     ];
     for entry in entries(kind) {
@@ -90,7 +95,7 @@ fn permutation_template_matches_lean() {
 
 #[test]
 fn fold_transcript_matches_neo_transcript() {
-    let b = &mut Native;
+    let b = &mut Fast;
     let mut theirs = neo_transcript::Poseidon2Transcript::new_v1_2();
     let mut ours = FoldTranscript::new(b);
     for (step, length) in [0usize, 1, 11, 12, 13, 30].into_iter().enumerate() {
@@ -126,28 +131,31 @@ fn fold_transcript_matches_neo_transcript() {
 
 #[test]
 fn native_duplex_matches_p3_challenger() {
-    let mut ours = Duplex::new(&mut Native);
+    let mut ours = Duplex::new(&mut Fast);
     let mut fresh = crate::hash::Challenger::new(permutation().clone());
     for step in 0..200u64 {
         match word(5, step) % 5 {
             0 | 1 => {
                 let value = gl(6, step);
-                ours.observe(&mut Native, value);
+                ours.observe(&mut Fast, value);
                 fresh.observe(value);
             }
             2 => assert_eq!(
-                ours.sample(&mut Native),
+                ours.sample(&mut Fast),
                 CanSample::<Gl>::sample(&mut fresh),
                 "step {step}"
             ),
             3 => {
                 let ext: Ext = fresh.sample_algebra_element();
-                assert_eq!(ours.sample_ext(&mut Native), ext, "step {step}");
+                assert_eq!(ours.sample_ext(&mut Fast), ext, "step {step}");
             }
             _ => {
                 let bits = 1 + (word(7, step) % 30) as usize;
                 let expected = fresh.sample_bits(bits);
-                let got = ours.sample_bits(&mut Native, bits).unwrap();
+                let got = ours
+                    .sample_bits(&mut Fast, bits)
+                    .map_err(Error::from)
+                    .unwrap();
                 let value = got
                     .iter()
                     .rev()
@@ -182,12 +190,10 @@ fn program<B: Backend>(b: &mut B, words: &[Gl]) -> Result<Vec<B::F>, Error> {
         .collect();
     let root = merkle_root(b, leaf, &bits, &siblings);
     let square = b.mul(inputs[0], inputs[1]);
-    let hinted = b.hint(&[square], 1, &|values| {
-        let value = Gl::from_u64(values[0]);
-        vec![(value * value).as_canonical_u64()]
-    });
-    let check = b.mul(square, square);
-    b.assert_equal(hinted[0], check, "hint")?;
+    let hinted = b.hint(&[square], 1, &Hint::Inverse);
+    let check = b.mul(square, hinted[0]);
+    let unit = b.constant(1);
+    b.assert_equal(check, unit, "hint")?;
     let mut outputs = b.coordinates(one).to_vec();
     outputs.extend(root);
     outputs.extend(b.coordinates(inverse));
@@ -202,12 +208,15 @@ fn words(seed: u64) -> Vec<Gl> {
 
 #[test]
 fn recorded_program_is_satisfied_and_matches_native() {
-    let expected = program(&mut Native, &words(1)).unwrap();
+    let expected = program(&mut Fast, &words(1)).unwrap();
     let mut recorder = Recorder::new(Trace::default());
     let outputs = program(&mut recorder, &words(1)).unwrap();
     let (trace, failure) = recorder.finish();
     assert_eq!(failure, None);
-    let values: Vec<Gl> = outputs.iter().map(|form| form.value()).collect();
+    let values: Vec<Gl> = outputs
+        .iter()
+        .map(|form| from_verified(form.value()))
+        .collect();
     assert_eq!(values, expected);
     for r in 0..trace.rows.len() {
         assert_eq!(trace.row_value(r), Gl::ZERO, "row {r}");
@@ -269,7 +278,7 @@ fn a_non_canonical_bit_split_breaks_a_row() {
     // then replace the bits by those of 5 + p.
     let mut recorder = Recorder::new(Trace::default());
     let five = recorder.private(5);
-    recorder.bits(five, 64, "bits").unwrap();
+    assert!(recorder.bits(five, 64, "bits").is_ok());
     let (mut trace, failure) = recorder.finish();
     assert_eq!(failure, None);
     let forged = 5u64 + 0xFFFF_FFFF_0000_0001;
@@ -288,27 +297,62 @@ fn a_non_canonical_bit_split_breaks_a_row() {
 fn recorder_notes_failed_checks_and_keeps_going() {
     let mut recorder = Recorder::new(Trace::default());
     let a = recorder.private(3);
-    recorder.assert_zero(a, "first").unwrap();
+    assert!(recorder.assert_zero(a, "first").is_ok());
     let x = recorder.ext([a, a, a]);
     let zero = recorder.ext_sub(x, x);
-    recorder.ext_inverse(zero, "second").unwrap();
+    assert!(recorder.ext_inverse(zero, "second").is_ok());
     recorder.mul(a, a);
     let (trace, failure) = recorder.finish();
     assert_eq!(failure, Some("first"));
     // The check row, the three rows of the constant zero's inverse (one
     // cannot hold), then the product: rows continue after a failed check.
     assert_eq!(trace.rows.len(), 5, "rows continue after a failed check");
-    assert!(Native.assert_zero(Gl::from_u64(3), "first").is_err());
-    assert!(Native.ext_inverse(Ext::ZERO, "zero").is_err());
+    assert!(Fast.assert_zero(Gl::from_u64(3), "first").is_err());
+    assert!(Fast.ext_inverse(Ext::ZERO, "zero").is_err());
 }
 
 #[test]
 fn compress_and_leaf_hash_match_the_layer_one_hash() {
     let values: Vec<Gl> = (0..29).map(|i| gl(9, i)).collect();
-    assert_eq!(hash_leaf(&mut Native, &values), crate::hash::hash_leaf(&values));
+    assert_eq!(hash_leaf(&mut Fast, &values), crate::hash::hash_leaf(&values));
     let left = std::array::from_fn(|i| gl(10, i as u64));
     let right = std::array::from_fn(|i| gl(11, i as u64));
-    assert_eq!(compress(&mut Native, left, right), crate::hash::compress(left, right));
+    assert_eq!(compress(&mut Fast, left, right), crate::hash::compress(left, right));
     let ext = Ext::from_basis_coefficients_fn(|i| gl(12, i as u64));
-    assert_eq!(Native.ext_inverse(ext, "x").unwrap(), ext.inverse());
+    assert_eq!(Fast.ext_inverse(ext, "x").map_err(Error::from).unwrap(), ext.inverse());
+    let inverse = Native
+        .ext_inverse(crate::field::ext_to_verified(ext), "x")
+        .map_err(Error::from)
+        .unwrap();
+    assert_eq!(ext_from_verified(inverse), ext.inverse());
+}
+
+#[test]
+fn native_runs_the_program_as_fast() {
+    for seed in 4..8 {
+        let expected = program(&mut Fast, &words(seed)).unwrap();
+        let outputs = program(&mut Native, &words(seed)).unwrap();
+        let outputs: Vec<Gl> = outputs.into_iter().map(from_verified).collect();
+        assert_eq!(outputs, expected, "seed {seed}");
+    }
+    let mut zero = words(9);
+    zero[0] = Gl::ZERO;
+    assert!(program(&mut Fast, &zero).is_err());
+    assert!(program(&mut Native, &zero).is_err());
+}
+
+#[test]
+fn parallel_r1cs_check_matches_the_verified_one() {
+    let mut system = R1cs::new(4);
+    system.push(&[(0, 1)], &[(0, 1)], &[(1, 1)]);
+    system.push(&[(2, 3), (3, 1), (2, 1)], &[(2, 1)], &[(3, 5)]);
+    for seed in 0..64u64 {
+        let values: Vec<Gl> = (0..4).map(|i| Gl::from_u64(word(seed, i) % 3)).collect();
+        let verified: Vec<_> = values.iter().map(|&value| to_verified(value)).collect();
+        assert_eq!(
+            crate::circuit::r1cs::fails(&system, &values),
+            r1cs::fails(&system, &verified),
+            "seed {seed}"
+        );
+    }
 }

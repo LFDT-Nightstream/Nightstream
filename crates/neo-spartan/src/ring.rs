@@ -23,7 +23,7 @@ use rayon::prelude::*;
 
 use crate::circuit::algebra;
 use crate::circuit::Backend;
-use crate::circuit::Native;
+use crate::circuit::Fast;
 use crate::device::Accelerator;
 use crate::field::{ext_words, from_word, gl, re_im, Ext, Gl};
 use crate::relation::Shape;
@@ -127,7 +127,7 @@ pub(crate) fn block_weights(
         .into_par_iter()
         .map(|block| {
             let weight: [Ext; D] = std::array::from_fn(|lane| {
-                project(&mut Native, re_im(chi.at(D * block + lane)), eval_k) + eval_a[block][lane]
+                project(&mut Fast, re_im(chi.at(D * block + lane)), eval_k) + eval_a[block][lane]
             });
             let mut out = key[block];
             for (row, terms) in bar.iter().enumerate() {

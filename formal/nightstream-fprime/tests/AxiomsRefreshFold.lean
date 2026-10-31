@@ -1,0 +1,13 @@
+import tests.AxiomAudit
+import NightstreamFPrime.Spec.Folding.Refresh.Security
+import NightstreamFPrime.Spec.Folding.Refresh.Completeness
+
+#audit_axioms NightstreamFPrime.Spec.Folding.Refresh.inputCheck_eq_true_iff
+#audit_axioms NightstreamFPrime.Spec.Folding.Refresh.verify_eq_some_iff
+#audit_axioms NightstreamFPrime.Spec.Folding.Refresh.addCases_runningSource
+#audit_axioms NightstreamFPrime.Spec.Folding.Refresh.addCases_freshSource
+#audit_axioms NightstreamFPrime.Spec.Folding.Refresh.runningInstance_eq_child
+#audit_axioms NightstreamFPrime.Spec.Folding.Refresh.ceHolds_iff
+#audit_axioms NightstreamFPrime.Spec.Folding.Refresh.accepted_implies_securityOutcome
+#audit_axioms NightstreamFPrime.Spec.Folding.Refresh.inputAttempt_honestSplit
+#audit_axioms NightstreamFPrime.Spec.Folding.Refresh.complete

@@ -1,5 +1,6 @@
 import tests.AxiomAudit
 import NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
+import NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthKnowledge
 
 open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 
@@ -21,6 +22,12 @@ open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 #audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth.refreshPeriod_count
 #audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth.runDepths_light_count
 #audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth.light_count_le
+#audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthKnowledge.Runs.acceptedFrom
+#audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthKnowledge.ValidHistory.head
+#audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthKnowledge.reverse_extracts
+#audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthKnowledge.reverse_extracts_within
+#audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthKnowledge.slot_runs
+#audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthKnowledge.execution_extracts
 
 /-- One refresh per period starves slot 1: it takes a light fold each time the light circuit
 follows the refresh circuit and is never refreshed. -/

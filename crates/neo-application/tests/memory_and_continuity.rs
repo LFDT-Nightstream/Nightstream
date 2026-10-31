@@ -1,3 +1,5 @@
+use std::num::NonZeroUsize;
+
 use neo_application::{
     check_continuity_rows, ColumnFamilySpec, ColumnRegistry, ColumnWidth, ContinuityCatalog, ContinuityCatalogError,
     ContinuityCheckError, ContinuityGroup, ContinuityLink, MemoryCatalog, MemoryCatalogError, MemoryKind,
@@ -82,10 +84,20 @@ fn read_port(activation: MemoryPortActivation) -> MemoryPortSpec {
     }
 }
 
-#[test]
-fn memory_catalog_preserves_memory_and_port_order() {
-    let columns = test_columns();
-    let catalog = MemoryCatalog::new(
+fn write_port(activation: MemoryPortActivation) -> MemoryPortSpec {
+    MemoryPortSpec {
+        address_columns: vec![ADDRESS],
+        value_column: VALUE,
+        kind: MemoryPortKind::Write {
+            value_before_column: Some(VALUE_BEFORE),
+        },
+        activation,
+    }
+}
+
+/// A ROM with one read, then a RAM with a read and a write.
+fn program_and_state() -> MemoryCatalog<TestMemory> {
+    MemoryCatalog::new(
         [
             MemorySpec {
                 id: TestMemory::Program,
@@ -97,21 +109,18 @@ fn memory_catalog_preserves_memory_and_port_order() {
                 kind: MemoryKind::Ram,
                 ports: vec![
                     read_port(MemoryPortActivation::Unless(ACTIVE)),
-                    MemoryPortSpec {
-                        address_columns: vec![ADDRESS],
-                        value_column: VALUE,
-                        kind: MemoryPortKind::Write {
-                            value_before_column: Some(VALUE_BEFORE),
-                        },
-                        activation: MemoryPortActivation::Always,
-                    },
+                    write_port(MemoryPortActivation::Always),
                 ],
             },
         ],
-        &columns,
+        &test_columns(),
     )
-    .expect("valid logical memories");
+    .expect("valid logical memories")
+}
 
+#[test]
+fn memory_catalog_preserves_memory_and_port_order() {
+    let catalog = program_and_state();
     assert_eq!(catalog.entries()[0].id, TestMemory::Program);
     assert_eq!(catalog.entries()[1].id, TestMemory::State);
     assert_eq!(
@@ -124,6 +133,57 @@ fn memory_catalog_preserves_memory_and_port_order() {
             value_before_column: Some(VALUE_BEFORE)
         }
     ));
+}
+
+/// Lean `Spec.Nebula.MemoryTrace.batchCatalog`: each memory keeps its id
+/// and kind and lists row 0's ports, then row 1's, each with every column
+/// moved to its row.
+#[test]
+fn batched_catalog_lists_memories_then_rows_then_ports() {
+    let column = |row: usize, c: usize| 100 + 10 * row + c;
+    let batched = program_and_state().batched(NonZeroUsize::new(2).unwrap(), column);
+    let read = |row, activation| MemoryPortSpec {
+        address_columns: vec![column(row, ADDRESS)],
+        value_column: column(row, VALUE),
+        kind: MemoryPortKind::Read,
+        activation,
+    };
+    let write = |row| MemoryPortSpec {
+        address_columns: vec![column(row, ADDRESS)],
+        value_column: column(row, VALUE),
+        kind: MemoryPortKind::Write {
+            value_before_column: Some(column(row, VALUE_BEFORE)),
+        },
+        activation: MemoryPortActivation::Always,
+    };
+    assert_eq!(
+        batched.entries(),
+        [
+            MemorySpec {
+                id: TestMemory::Program,
+                kind: MemoryKind::Rom,
+                ports: vec![
+                    read(0, MemoryPortActivation::When(column(0, ACTIVE))),
+                    read(1, MemoryPortActivation::When(column(1, ACTIVE))),
+                ],
+            },
+            MemorySpec {
+                id: TestMemory::State,
+                kind: MemoryKind::Ram,
+                ports: vec![
+                    read(0, MemoryPortActivation::Unless(column(0, ACTIVE))),
+                    write(0),
+                    read(1, MemoryPortActivation::Unless(column(1, ACTIVE))),
+                    write(1),
+                ],
+            },
+        ]
+    );
+    assert_eq!(
+        program_and_state().batched(NonZeroUsize::MIN, |_, c| c),
+        program_and_state(),
+        "one row with the identity map is the catalog"
+    );
 }
 
 #[test]

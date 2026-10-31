@@ -1,10 +1,11 @@
 import NightstreamFPrime.Lifecycle.Nebula.Framing
 import NightstreamFPrime.Spec.Nebula.Game
 
-/-! Owns the per-slot bound of the game that motivates security note A6, for
+/-! Owns the per-slot bound of the challenge game of the memory round
+(`SECURITY_MODEL.md`, trust item 7), for
 the concrete verifier context: over `K` with the Poseidon2 chains. Each retry
-disagreement is a Poseidon2 transcript collision. A6 itself is a premise of
-the end-to-end bound (`NebulaMemorySecurity.MemoryRound`); this bound only
+disagreement is a Poseidon2 transcript collision. The memory round is a premise
+of the end-to-end bound (`NebulaMemorySecurity.MemoryRound`); this bound only
 motivates the value of its error. -/
 
 namespace NightstreamFPrime.Lifecycle.Nebula
@@ -18,7 +19,7 @@ variable {p : Plan} {σ Coins : Type} [Fintype Coins] (app : Application p.toGeo
 
 theorem context_hash (p : Plan) : (context p).hash = hash := rfl
 
-/-- Security note Lemma 3 for segment slot `k` over `K`: the slot is bad at
+/-- The fingerprint bound for segment slot `k` over `K`: the slot is bad at
 most `2·m_mem/q²` plus its retry term of the time. -/
 theorem badAt_bound (valid : p.Valid) (k : Fin p.sMax) :
     freq (g.BadAt (context p) app k) ≤

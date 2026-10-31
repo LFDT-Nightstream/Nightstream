@@ -2,18 +2,19 @@ import NightstreamFPrime.Spec.Nebula.Soundness
 import NightstreamFPrime.Spec.Nebula.RetryAveraging
 
 /-! Owns the interactive memory game that motivates the value of the error of
-security note A6, and its per-slot bound. An outcome is the prover's coins
-and one fresh uniform challenge pair per segment slot. Before the challenge of
+the memory round (`SECURITY_MODEL.md`, trust item 7), and its per-slot bound.
+An outcome is the prover's coins and one fresh uniform challenge pair per
+segment slot. Before the challenge of
 segment `k`, the prover commits the transcript input of segment `k`; the
 commitment depends only on the coins and the earlier challenges. After the
-last challenge, the extractor of A1 and A4 returns a statement and a run.
+last challenge, the Stage 1 extractor returns a statement and a run.
 
 The bound is per slot: segment `k` of an accepted run, with the transcript
 input committed before slot `k`'s challenge, passes the product test with
 unbalanced multisets at most `2·m_mem/|E|` plus one retry-disagreement term of
 the time, and each disagreement exhibits a collision. Only slot `k` must be
-consistent, so a translation for slot `k` programs one challenge. A6 itself
-is a premise of the end-to-end bound (`NebulaMemorySecurity.MemoryRound`); this
+consistent, so a translation for slot `k` programs one challenge. The memory
+round is a premise of the end-to-end bound (`NebulaMemorySecurity.MemoryRound`); this
 game only motivates the value of its error. -/
 
 namespace NightstreamFPrime.Spec.Nebula
@@ -128,7 +129,7 @@ def BadAt (k : Fin ctx.plan.sMax) (q : Coins × (Fin ctx.plan.sMax → E × E)) 
   g.Accepted ctx app q ∧ g.ConsistentAt ctx k q ∧ k.val < (g.statement q.1 q.2).segments ∧
     BadChallenge (ctx.withChallenges q.2) (segmentView ctx (g.run q.1 q.2) k)
 
-/-- One call of the Lemma 3 game for segment `k` from the prefix `(c, e)`:
+/-- One call of the challenge game for segment `k` from the prefix `(c, e)`:
 the challenge of slot `k` and fresh challenges for the later slots. It
 returns the segment's records when the run is accepted and consistent at
 slot `k`. -/
@@ -139,13 +140,13 @@ noncomputable def play (k : Fin ctx.plan.sMax) (c : Coins) (e : Fin ctx.plan.sMa
     some (segmentView ctx (g.run c (splice k e x.1 x.2)) k).records
   else none
 
-/-- The Lemma 3 error predicate of a call: the multisets of the records,
+/-- The error predicate of a call: the multisets of the records,
 read against the committed transcript input, are not balanced. -/
 def Unbalanced (k : Fin ctx.plan.sMax) (c : Coins) (e : Fin ctx.plan.sMax → E × E)
     (z : List StepRecords) : Prop :=
   ¬ (((g.commit c e k).view k z).multisets ctx.plan.toGeometry).Balanced
 
-/-- The retry-disagreement term of Lemma 3 part 2 for segment `k` from the
+/-- The retry-disagreement term of the fingerprint bound for segment `k` from the
 prefix `(c, e)`. -/
 noncomputable def disagreement [Fintype E] (k : Fin ctx.plan.sMax) (c : Coins)
     (e : Fin ctx.plan.sMax → E × E) : ℚ≥0 :=
@@ -226,7 +227,7 @@ private theorem card_filter_prod {α β : Type} [Fintype α] [Fintype β] (p : �
     (Finset.univ.filter p).card = ∑ a, (Finset.univ.filter fun b => p (a, b)).card := by
   simp only [Finset.card_filter, Fintype.sum_prod_type]
 
-/-- Security note Lemma 3 for segment slot `k` of the game, averaged over the
+/-- The fingerprint bound for segment slot `k` of the game, averaged over the
 prefix: `Pr[bad slot k] ≤ 2·m_mem/|E| + E[retry disagreement]`. -/
 theorem badAt_frequency [IsDomain E] [Fintype E] [DecidableEq E] [CharP E goldilocksModulus]
     [Fintype Coins] (valid : ctx.plan.Valid) (k : Fin ctx.plan.sMax) :
@@ -245,7 +246,7 @@ theorem badAt_frequency [IsDomain E] [Fintype E] [DecidableEq E] [CharP E goldil
     rw [card_filter_prod, Finset.sum_mul, Fintype.sum_prod_type]
     refine Finset.sum_congr rfl fun c _ => ?_
     rw [spliced, ← splice_card k (fun e => g.BadAt ctx app k (c, e)), card_filter_prod]
-  -- Each spliced bad outcome is an erroneous call of Lemma 3.
+  -- Each spliced bad outcome is an erroneous call.
   have perPrefix : ∀ q : Coins × (Fin ctx.plan.sMax → E × E),
       ((Finset.univ.filter fun x : (E × E) × (Fin ctx.plan.sMax → E × E) =>
           g.BadAt ctx app k (q.1, splice k q.2 x.1 x.2)).card : ℚ≥0) ≤

@@ -2,7 +2,7 @@
 
 ## 1. Status and authority
 
-This document describes the protocol that the `nightstream` crate runs: Stage 1 recursion, which is HyperNova over SuperNeo v1.2 folding, and the compressed final proof. The Lean packages in `formal/nightstream-fprime/` and `formal/compression-lean/` are normative. This document restates them for readers outside the project, such as an auditor or a second implementer. It is not a second authority. Where the two differ, Lean is correct and this document has a defect.
+This document describes the protocol that the `nightstream` crate runs: Stage 1 recursion, which is HyperNova over SuperNeo v1.2 folding, Nebula memory checking (section 7), and the compressed final proof. The Lean packages in `formal/nightstream-fprime/` and `formal/compression-lean/` are normative. This document restates them for readers outside the project, such as an auditor or a second implementer. It is not a second authority. Where the two differ, Lean is correct and this document has a defect.
 
 Rust in `crates/` implements the protocol and is not proved. Lean emits the circuit packages, and Rust embeds them and pins their identifiers. A statement that only Rust fixes is marked "(not checked against Lean)".
 
@@ -14,6 +14,7 @@ Lean proves these results. `formal/nightstream-fprime/SECURITY_MODEL.md` gives t
 - A false history is accepted with probability at most the sum of the per-stage errors, under HyperNova errata Assumption 1 (`Export.Stage1.HyperNovaFalseAcceptance.probability_bound` (`4106ba4f56189715`), `Export.Stage1.HyperNovaVisitedSecurity.history_failure_le` (`ea7ead2ec7b3627d`)). With the errors that the random-oracle result motivates, this bound is useful for one or two folds only (`SECURITY_MODEL.md`, trust item 4).
 - The honest prover's first proof is accepted, and an accepted proof gives an accepted next proof, for a witness that the application accepts (`Export.Stage1.HyperNovaInitial.initial_accepted` (`cc4df317635879dd`), `Export.Stage1.HyperNovaAcceptedNext.base_extend` (`d7d06d7ddc3a8971`), `Export.Stage1.HyperNovaAcceptedNext.recursive_extend` (`b237776203d41507`)).
 - If the final verifier accepts, the F′ claim of the last fold is true, except with probability `calls / 2^t` in the state-restoration experiment at Rust's layer bits `t` (`CompressionLean.Claims.production_bound` (`ab6fab37dd9e07c1`)). For the reference application, each premise of this result is met by a Lean proof, a Lean check of Rust's files, Rust, or a Lean value that compiled code evaluates and the kernel does not check (`CompressionLean.Claims.poseidon2_bound` (`3974c561a95f556a`)). For another application, four premises are open: the parent shape, the honest setup, and that the setup fits and that the key describes it (`formal/compression-lean/STATUS.md`). Idealized WHIR openings, Poseidon2 as a random oracle, Fiat–Shamir inside the final program and a key root that is the honest root of the claims' setup are assumptions (`formal/compression-lean/TRUST.md`, sections 3 and 5).
+- If the memory verifier accepts, the history that the reverse extractor returns is one execution of the claimed memory statement, with memory that is sequentially consistent. The exceptions are the history terms of the fourth result, Poseidon2 collisions in the extracted run, and the error of the memory-round premise (`Export.Stage1.NebulaMemorySecurity.bad_le` (`b2c519e88f779c50`); `SECURITY_MODEL.md`, adversary 5 and trust item 7). Each honest execution has a history that the memory verifier accepts (`Lifecycle.Nebula.MemoryApp.history_of_execution` (`a1ef468b8bc6e701`)).
 
 Every audited theorem uses only the axioms `propext`, `Classical.choice` and `Quot.sound`. The repository claims no single security level for the system (`SECURITY_MODEL.md`, Out of scope).
 
@@ -35,6 +36,7 @@ Names of the F′ package omit its namespace `NightstreamFPrime`. A Lean path in
 | 4, encodings | `Lifecycle/XOut.lean`, `Lifecycle/VerifierContext.lean`, `Lifecycle/Stage1/VerificationKey.lean` |
 | 5, transcript | `Spec/Poseidon2.lean`, `Lifecycle/Transcript.lean`, `Lifecycle/ProductionKey.lean` |
 | 6, algorithms | `Spec/AjtaiSetupV1.lean`, `Spec/Folding/Nifs/PaperNonInteractive/Verifier.lean`, `Spec/HyperNova/Construction2/Paper.lean`, `Lifecycle/Stage1/`, `Final/` |
+| 7, Nebula memory | `Spec/Nebula/`, `Lifecycle/Nebula/`, `Export/Stage1/NebulaMemorySecurity.lean` |
 
 ## 2. Notation
 
@@ -399,7 +401,191 @@ These four rules join Algorithms 5 to 8. Rust keeps them, and no theorem covers 
 3. **An edited proof fails, and `extend` does not carry the edit forward.** Algorithm 6 rejects each of 41 changes to a two-step proof. A change to the fold digests, which Algorithm 6 does not read, changes nothing. Algorithm 8 rejects a final proof after a changed byte, with a wrong state and with a wrong key. On each engine, `extend` refuses a proof whose fresh commitment was edited, at the Π_DEC commitment check of its replay. Tests: `terminal_rejects_every_authoritative_envelope_change` in `crates/nightstream/tests/lifecycle_native/terminal_sweep.rs` (ignored), `committed_final_proof_verifies_and_rejects_changes` (CI), and `crates/nightstream/tests/extend_edited_proof.rs` (ignored, CPU and Metal).
 4. **A proof that verifies can be extended and finished, except at the last counter.** Algorithm 6 accepts `0 < i < q` (step 2). `extend` and `finish_with_spartan` also need the successor `i + 1 < q`, so they refuse a proof that Algorithm 6 accepts at `i = q − 1` (`crates/nightstream/src/lifecycle/extend.rs`, `crates/nightstream/src/lifecycle/step_inputs.rs`). A chain gets to `i = q − 1` only after `q − 2` calls to `extend`, which is about `2^64`. The tests of rules 1 and 2 extend and finish proofs that verify. No test covers the last counter.
 
-## 7. Differences from the papers
+## 7. Nebula memory
+
+Nebula memory checking (Nebula, Sections 3 and 4) gives an application public ROM and RAM. A memory application is a Stage 1 application: its step circuit holds the memory rows, three record chains, the memory carry and the application's own rows, which meet at fixed memory ports (`Lifecycle.Nebula.MemoryApp.program`). It adds no commitment, no claim, no evaluation and no field to the F′ state, so Algorithms 1 to 8 do not change. The memory carry is in the application state: the four state words of section 4.2 are a digest of the application words and the carry (section 7.5).
+
+The steps come in segments of `N` steps. At the start of a segment, the prover proposes two chain roots, and the relation derives the memory challenge `η` from them. Each step checks its memory accesses against fingerprint products and adds its own records to the chains. The step that completes the segment requires that the chains equal the proposed roots and that the products balance. The verifier then runs the Stage 1 terminal check and requires a closed segment (Algorithm 10). An accepted proof attests one execution of the application from the statement's initial words and the program's memory to the statement's final words, in which each memory access goes through a port and reads the last value written (`SECURITY_MODEL.md`, adversary 5).
+
+### 7.1 Geometry and program
+
+A geometry is seven integers (`Spec.Nebula.Geometry`). A program is two images: the ROM image of `R` words and the RAM image of `M` words, each word below `2^32` (`Spec.Nebula.Plan`).
+
+| Field | Meaning |
+|---|---|
+| `r`, `μ` | the ROM has `R = 2^r` cells and the RAM has `M = 2^μ` cells |
+| `W_ts` | the timestamp width in bits |
+| `B_ops` | the operation slots of a step, one for each memory port |
+| `B_scan` | the scan slots of a step |
+| `N` | the steps of a segment |
+| `S_max` | the largest segment count of a proof |
+
+A package is the relation of one application at one geometry. The relation reads no image, so one package and one setup serve every program of the geometry (`Lifecycle.Nebula.MemoryApp.program_eq_of_geometry` (`dbacc72f0440578a`)). The program enters a proof only through `D_init` (section 7.4), which the verifier computes from the images.
+
+Setup rejects a geometry that breaks one of these rules (`Spec.Nebula.Geometry.Valid`, `Spec.Nebula.Geometry.Secure`):
+
+1. **Exact cover:** `N · B_scan = R + M`.
+2. **Timestamp range:** `S_max · N · B_ops < 2^W_ts`.
+3. **Field encoding:** `W_ts ≤ 62`, `B_ops · (3 + μ + 64 + W_ts) < q` and `B_scan · (32 + W_ts) < q`. Then each timestamp and value is an integer below `q`, row O4 cannot wrap modulo `q`, and the length of each lane is one word.
+4. **Address width:** `r ≤ μ` and `R + M < q`.
+5. **Positive sizes:** `B_ops`, `B_scan`, `N` and `S_max` are at least 1.
+6. **Security:** `R + M + N · B_ops ≤ 139,509`. This holds exactly when the fingerprint error `2(R + M + N · B_ops)/q²` is at most `2^−109.91` (`Spec.Nebula.Geometry.secure_iff` (`fca657b92bff91b6`)), the floor of `decisions/nebula-memory-checking.md`.
+
+Every memory package that `lake exe emit` writes gets its relation from `Export.Stage1.NebulaMemoryPackage.application`, which takes the proofs of rules 1 to 6. The verifier rejects a program whose ROM image does not have `R` words or whose RAM image does not have `M` words before it computes `D_init` (`Spec.Nebula.Plan.Valid`). The segment counter uses `W_seg = ⌈log₂(S_max + 1)⌉` bits.
+
+The plan digest is `Digest("Nightstream/Nebula/v3/plan", [r, μ, W_ts, B_ops, B_scan, N, S_max])` (section 7.4, `Lifecycle.Nebula.planDigest`). The package rows hold it as a constant, as they hold the verifier-context digest.
+
+### 7.2 Memory model and records
+
+The global index of ROM address `a < R` is `a`, and of RAM address `a < M` is `R + a`. A cell holds a value and the timestamp of its last access. `ts` is the global timestamp: the number of active operations so far. It never resets. An active operation on a cell with value `v` and timestamp `rt` adds the read tuple `RS = (rt, g, v)` and the write tuple `WS = (ts + 1, g, v')`, and sets the cell to `(v', ts + 1)`. `v'` is `v` for a read and the new value for a write. A write to ROM is invalid. At the start of a segment, the initial snapshot `IS` has one tuple `(t, g, v)` for each cell, and at the end, the final snapshot `FS` has one tuple for each cell. An honest segment has `IS ∪ WS = RS ∪ FS` as multisets (`Spec.Nebula.MemOp`, `Spec.Nebula.Tuple`).
+
+An operation slot has these fields, in this order (`Spec.Nebula.OpSlot`):
+
+| Field | Bits | Meaning |
+|---|---|---|
+| `pad` | 1 | 1 for an inactive slot |
+| `is_write` | 1 | 0 for a read, 1 for a write |
+| `is_ram` | 1 | 0 for ROM, 1 for RAM |
+| `addr` | `μ` | the address |
+| `v_r` | 32 | the value read, or for a write the old value |
+| `v_w` | 32 | the value written, or for a read `v_r` |
+| `rt` | `W_ts` | the timestamp of the last access to the cell |
+
+An inactive slot has every other field zero, at any position. For slot `j` of a step with incoming timestamp `ts`: `cnt_j = Σ_{i ≤ j} (1 − pad_i)`, `wt_j = ts + cnt_j`, `g_j = addr_j + is_ram_j · R`, `RS_j = (rt_j, g_j, v_r_j)` and `WS_j = (wt_j, g_j, v_w_j)`.
+
+A scan slot is a value of 32 bits and a timestamp of `W_ts` bits (`Spec.Nebula.ScanSlot`). Each step has `B_scan` IS slots and `B_scan` FS slots, and slot `j` of step `idx` holds cell `idx · B_scan + j`. The relation computes this index, so a scan slot has no pad.
+
+A step has three lanes: the ops lane of its `B_ops` operation slots, and the IS and FS lanes of its scan slots (`Spec.Nebula.opsLane`, `Spec.Nebula.scanLane`). A lane is its slots in order, each slot its fields in order, each field its bits from the least significant, one bit to a coordinate. So the ops lane has `B_ops · (3 + μ + 64 + W_ts)` coordinates, and each scan lane has `B_scan · (32 + W_ts)`. `pack` splits a lane into chunks of 63 bits, the last one short, and turns each chunk into the word `Σ_k 2^k · b_k`, which is below `2^63 < q` (`Spec.Nebula.pack`). It is injective on the lanes of one length (`Spec.Nebula.pack_injective` (`958e936decf1f7b7`)).
+
+**Hash residency.** A fingerprint tuple and its pad gate read only the lane coordinates of their own step, the carry fields `ts` and `idx`, the counters `cnt_j` and constants. `η` and the products are only coefficients and accumulators of the fingerprints. The memory rows keep this rule. The application's rows read only its view (section 7.6), which has no word for `η`, a product or a carry word. Rust `nebula::Circuit::compile` rejects an application row that reads another variable (`crates/nightstream/src/nebula/circuit.rs`; not checked against Lean).
+
+### 7.3 Memory rows
+
+Each step evaluates these rows on its own assignment. They read `η`, the products `h`, `ts` and `idx` of the carry after the step's open action, if any (section 7.5).
+
+| # | Row, for operation slot `j` |
+|---|---|
+| O1 | every lane coordinate and auxiliary bit is 0 or 1 |
+| O2 | `cnt_j = cnt_{j−1} + (1 − pad_j)`, with `cnt_{−1} = 0` |
+| O3 | `(1 − is_write_j) · (v_w_j − v_r_j) = 0` |
+| O4 | `(1 − pad_j) · (wt_j − rt_j − 1 − diff_j) = 0`, with `diff_j` a `W_ts`-bit auxiliary word |
+| O5 | `is_write_j · (1 − is_ram_j) = 0` |
+| O6 | `(1 − is_ram_j) · addr_bit_{j,k} = 0` for each `k` from `r` to `μ − 1` |
+| O7 | `pad_j · w = 0` for each field `w` of the slot after `pad` |
+| O8 | `h_rs_j = h_rs_{j−1} · (pad_j + (1 − pad_j) · f(RS_j))` |
+| O9 | `h_ws_j = h_ws_{j−1} · (pad_j + (1 − pad_j) · f(WS_j))` |
+
+| # | Row, for scan slot `j` with cell `g = idx · B_scan + j` |
+|---|---|
+| S1 | every IS and FS coordinate and auxiliary bit is 0 or 1 |
+| S2 | `h_is_j = h_is_{j−1} · f(t^IS_j, g, v^IS_j)` |
+| S3 | `h_fs_j = h_fs_{j−1} · f(t^FS_j, g, v^FS_j)` |
+
+The fingerprint is `f(t, g, v) = g + η1 · v + η1² · t − η2` in `K` (`Spec.Nebula.fingerprint`), Nebula's `Hash` with the global index for the address. Each product starts from its carry value. The step's outputs are `ts + cnt_{B_ops−1}`, which must be below `2^W_ts`, the last value of each product, and `idx + 1`. Rule 3 keeps every term of O4 below `2^62`, so O4 is an integer equation and gives `rt_j < wt_j` (`Spec.Nebula.StepRows`, `Spec.Nebula.OpSlot.Rows`).
+
+### 7.4 Record chains and the memory challenge
+
+These hashes use a framing that section 5 does not use (`Lifecycle.Nebula.absorbBlock`, `Lifecycle.Nebula.squeezeDigest`). To absorb a block, absorb its length as one word, then its words, in chunks of 12 words, each chunk added to lanes 0 to 11 and followed by one permutation. `Digest(tag, blocks)` starts from the zero state, absorbs the tag as a block of one word for each ASCII byte, then each block, and outputs lanes 0 to 3.
+
+```text
+chain_ops(j, D, P) = Digest("Nightstream/Nebula/v3/chain-ops", [j, D], P)
+chain_mem(j, D, P) = Digest("Nightstream/Nebula/v3/chain-mem", [j, D], P)
+header_ops         = Digest("Nightstream/Nebula/v3/header-ops", [plan_digest])
+header_mem         = Digest("Nightstream/Nebula/v3/header-mem", [plan_digest])
+```
+
+The chain of lane `l` over the steps `0` to `N − 1` of a segment is `D[0] = header_l`, `D[j + 1] = chain_l(j, D[j], pack(lane l of step j))` and root `D[N]` (`Spec.Nebula.chainRoot`). The IS and FS lanes both use `chain_mem`, so the FS root of one segment equals the IS root of the next when the snapshots are equal. Equal roots give equal packed lanes or a Poseidon2 collision among the chain inputs (`Spec.Nebula.chainRoot_eq_or_collision` (`fcca3437c4c86e42`)). `D_init` is the IS root of the initial snapshot: the image words with timestamp 0 (`Spec.Nebula.Context.initRoot`).
+
+At the start of a segment, the prover proposes the ops root `D_pre.ops` and the FS root `D_pre.fs`. The IS root must be `D_mem` of the carry: the FS root of the last segment, or `D_init`. The challenge is
+
+```text
+absorb the block of the ASCII bytes of "Nightstream/Nebula/v3/eta"
+absorb [plan_digest], then [ts], then [D_pre.ops, D_mem, D_pre.fs]
+η1 ← read lane 0, permute, read lane 0, permute
+η2 ← read lane 0, permute, read lane 0
+```
+
+(`Lifecycle.Nebula.etaChallenges`). Each step evaluates it, and only a step that opens a segment keeps it. Canonical inputs that differ absorb different chunks (`Lifecycle.Nebula.etaInputBlocks_injective` (`fa605102ccb54dad`)). `D_mem` must be absorbed: without it, a prover could learn `η` first and then choose the last segment's final snapshot.
+
+### 7.5 Memory carry
+
+The carry is these fields, in order, as 39 words: each integer is one word, each element of `K` two words and each digest four words (`Lifecycle.Nebula.carryWords`).
+
+| Field | Content |
+|---|---|
+| `seg_idx` | the segments closed so far, at most `S_max` |
+| `idx` | the steps run in the current segment, at most `N` |
+| `ts` | the global timestamp |
+| `η1`, `η2` | the challenges of the current segment |
+| `h` | the four products: `rs`, `ws`, `is`, `fs` |
+| `D_pre` | the proposed ops and FS roots |
+| `D_seen` | the three chains of the current segment: ops, IS, FS |
+| `D_mem` | the FS root of the last closed segment, or `D_init` |
+
+The four state words are `Digest("Nightstream/Nebula/v3/state", app_words, carry_words)`, where `app_words` are the application's own words (`Lifecycle.Nebula.stateWords`). Between two steps, `1 ≤ idx ≤ N`, and `idx = N` means that the segment is closed. The start carry has `seg_idx = 0`, `idx = N`, `ts = 0`, `η = 0`, each product 1, and `D_init` in each digest field (`Spec.Nebula.startCarry`). It is closed, so the first step opens a segment.
+
+The actions on a carry `c` are (`Spec.Nebula.openSegment`, `Spec.Nebula.stepSegment`, `Spec.Nebula.closeSegment`):
+
+- **open**, with the prover's proposals: require `c.seg_idx < S_max`, set `D_pre` to the proposals, `η` by section 7.4, each product to 1, `D_seen` to `(header_ops, header_mem, header_mem)` and `idx` to 0.
+- **step**: add the step's packed lanes to the three chains of `D_seen` at index `idx`, set `ts` and `h` to the outputs of section 7.3, and add 1 to `idx`.
+- **close**, exactly when step sets `idx = N`: require `D_seen.ops = D_pre.ops`, `D_seen.is = D_mem`, `D_seen.fs = D_pre.fs` and `h_is · h_ws = h_rs · h_fs`. Then set `D_mem` to `D_pre.fs` and add 1 to `seg_idx`.
+
+### 7.6 Application ports
+
+An application gives its state words, its private words and its rows (`Lifecycle.Nebula.PortApp`). Its rows read only its view (`Lifecycle.Nebula.AppView`): the input and output state words, the private words, and the words of each of its `B_ops` operation slots. It proves two facts. Soundness: when its rows hold and each slot obeys O1, O3 and O7, the slots, read as ports, are one application step between the two states. Completeness: each application step has private words that satisfy its rows. An idle step, with every port inactive and the state unchanged, must be valid, because a segment has exactly `N` steps. The test application is a two-word machine with two ports (`Lifecycle.Nebula.Machine.portApp`). The free application has no row, so the memory rows are its only checks (`Lifecycle.Nebula.freeApp`).
+
+Rust `nebula::Circuit::compile` builds a memory relation for any `nebula::Application`. It rejects a geometry that breaks section 7.1, an application whose port count is not `B_ops`, and a row that reads outside the view. A read past the end of the view is zero, as in Lean (`crates/nightstream/src/nebula/`; not checked against Lean). For the machine at the geometries of the two Lean memory packages, its rows equal the Lean rows (`crates/nightstream/tests/nebula/parity.rs`). For another application or geometry, no Lean package fixes the memory rows, and the application's rows need their own soundness and completeness.
+
+**Catalog applications.** A catalog lists memories, each with an id, a kind (RAM or ROM) and ports, in the form of the Rocq proof of the WASM relation (`MemoryTrace.v` in `formal/wasm-rocq` on the `main` branch, copied in `Spec/Nebula/MemoryTrace.lean`). Each active port of a row gives one event. A binding (`Spec.Nebula.MemoryTrace.Binding`) gives each bound memory a region: a base address and one bit width for each address part, with the address `base + x₀ + 2^w₀ · (x₁ + 2^w₁ · …)`. A RAM memory is in the RAM space, and each other memory in the ROM space. Two memories of one space have disjoint regions (`Spec.Nebula.MemoryTrace.Binding.Disjoint`). A read event is a read access of its value. A write event is a write access of its value, which reads its prior value when it has one. The active slots, in order, must bind a reorder of the events that keeps each pair of one memory with a write in trace order (`Spec.Nebula.MemoryTrace.Reorders`). When the regions are disjoint, every event is in range and the initial state holds the program images (`Spec.Nebula.MemoryTrace.Binding.Initial`), an execution whose active ports bind such a reorder makes the trace memory consistent (`Spec.Nebula.MemoryTrace.memoryConsistent_of_executes` (`6c4718da6b0020b0`)).
+
+Rust `nebula::CatalogBinding` makes these rows for the checked memories, from a catalog, a region for each checked memory and a slot plan (`crates/nightstream/src/nebula/catalog.rs`; not checked against Lean). For a port `p`, `a_p` is its activation: 1, the column `c`, or `1 − c`.
+
+1. **Slot.** `1 − pad_j = Σ a_p`, `is_write_j = Σ a_p` over the write ports and `is_ram_j = Σ a_p` over the RAM ports, for the ports `p` of slot `j`, and `c · (c − 1) = 0` for each activation column `c`.
+2. **Order.** For each port `p` with a dependent port `p'` of a higher rank in an earlier slot, `a_p · Σ a_p' = 0`. Two ports are dependent when they are ports of one memory and one of them writes.
+3. **Address.** The slot address is the region's base plus the packed parts. The base of a region is a multiple of its size `2^Σw`, so the rows read each part from its run of the slot's address bits and the bits above the region from the base, and a part needs no other range check.
+4. **Values.** A read port has `v_r = value`. A write port has `v_w = value`, and `v_r = prior` when it names a prior column.
+5. **Host checks.** A memory without a region has no slot and no row. At build, the regions of one space are disjoint and inside the space, the plan has `B_ops` slots, and it names each checked port once.
+
+The slot plan changes only completeness and cost. `CatalogBinding::program` puts each preloaded cell of a checked memory at `base + packParts(a)` of its image and rejects a cell outside its region. No Lean result covers these rows (`SECURITY_MODEL.md`, Out of scope).
+
+### Algorithm 9. Memory step
+
+**Input.** The input state, the carry `c` and the application words that open it, the output application words, the private words, the step's lanes, and the proposals.
+
+**Output.** The output state.
+
+**Steps.**
+
+1. Require that the input state is the state digest of the input application words and `c`.
+2. If `c.idx = N`, run open with the proposals.
+3. Run the rows of section 7.3, then step.
+4. If `idx = N`, run close.
+5. Require the application's rows.
+6. Set the output state to the state digest of the output application words and the new carry.
+
+**Rejects.** The relation does not hold.
+
+**Source.** `Lifecycle.Nebula.MemoryApp.program`, the step `Spec.Nebula.invoke`. Rows that hold imply the program's step and validity predicates (`Lifecycle.Nebula.MemoryApp.soundness` (`f1f3e13012f71ac2`)). On a reachable input carry, they give one step of `invoke` (`Lifecycle.Nebula.StepWitness.RowsHold.invoke` (`fb47b498ac87650e`)), and an honest step satisfies the rows (`Lifecycle.Nebula.MemoryApp.completeness` (`292c1ed52f1fd1da`)). Each execution of `S · N` steps with `1 ≤ S ≤ S_max` has a step history whose statement passes Algorithm 10 (`Lifecycle.Nebula.MemoryApp.history_of_execution` (`a1ef468b8bc6e701`)). The first step is the Stage 1 base step (Algorithm 3, step 2).
+
+### Algorithm 10. Memory verifier
+
+**Input.** The package of the application at its geometry, a program, the statement and the final carry, and a Stage 1 proof or a final proof. The statement is the step count `T`, the initial and final application words, the segment count `S`, the final timestamp and the final memory root.
+
+**Output.** Accept or reject.
+
+**Steps.**
+
+1. Require that the program has the package's geometry and valid images, and compute `D_init`.
+2. Require that each state of the statement has the application's word count, and that each application word and the final timestamp is below `q`. Each other field and carry counter must equal a value below `q`.
+3. Compute the initial state as the state digest of the initial words and the start carry, and the final state as the state digest of the final words and the final carry.
+4. Require `idx = N` in the final carry, `1 ≤ S ≤ S_max`, `T = S · N` and `seg_idx = S`, and require that the final timestamp and the final memory root are `ts` and `D_mem` of the final carry. So `T = 0` is rejected.
+5. Run Algorithm 6 on `(T, initial state, final state)` and the Stage 1 proof, or Algorithm 8 on the final proof.
+
+**Rejects.** Each step's failure.
+
+**Source.** `nebula::Verifier::verify` and `nebula::Verifier::verify_final`, with steps 2 to 4 in `Context::terminal_states` (`crates/nightstream/src/nebula/mod.rs`; not checked against Lean). Steps 3 and 4 are `Lifecycle.Nebula.TerminalChecks`. A chain of valid steps with these checks gives a run that the memory model accepts, or a state-digest collision in the run (`Lifecycle.Nebula.accepts_or_collision` (`31d12d5e456bee76`)). Algorithm 6 alone does not make steps 2 to 4, so `nightstream::Verifier` refuses a memory relation: a pinned Lean memory package, a circuit from `nebula::Circuit::compile`, or a saved memory circuit, whose file starts with `NSMEM` (`crates/nightstream/src/circuit.rs`; not checked against Lean).
+
+## 8. Differences from the papers
 
 Each row is a place where Nightstream differs from SuperNeo v1.2 (ePrint 2026/242) or HyperNova.
 
@@ -411,10 +597,18 @@ Each row is a place where Nightstream differs from SuperNeo v1.2 (ePrint 2026/24
 | HyperNova Definitions 7 and 11 let the adversary or the IVC prover choose the structure. | The verifier's package fixes one application and its setup. | `decisions/fprime-stage1-per-application-packages.md` |
 | HyperNova's history result uses Definition 7 knowledge soundness of the NIFS. | Lean states the history result under errata Assumption 1, which adds the prior-state link and differs from Definition 7 in six named points. | `SECURITY_MODEL.md` trust item 4 |
 | SuperNeo samples each Π_RLC challenge uniformly from the strong set. | Each challenge is four sponge lanes reduced modulo `5^54` (section 5.3), within `2^−132` of uniform. | none |
+| Nebula Section 4.3 proves `F`, hashes the carried commitments into the challenges, proves `F_ops` and `F_scan` in a second layer, and folds the three proofs with `F_final`. | One F′ chain. At the start of a segment, the prover proposes the ops and FS roots, and `η` comes from them, `D_mem`, `plan_digest` and `ts` (section 7.4). The close of the segment makes the `F_final` checks: the chains equal the proposals, the memory continues, and the products balance. | `decisions/nebula-memory-checking.md`, `SECURITY_MODEL.md` trust item 7 |
+| Nebula Sections 4.2 and 4.3 take one challenge pair in the base field. | `η1` and `η2` are in `K`. Over `F_q`, the fingerprint error of a geometry at the rule 6 limit is about `2^−45.9`. | `decisions/nebula-memory-checking.md` |
+| Nebula Constructions 1 and 2 chain commitments to a split-committed witness. | The record chains are the hash chain of Nebula Section 3.1 over the packed lanes, computed inside F′, as in the generic construction of Section 3.2. | `decisions/nebula-memory-checking.md` |
+| In Nebula Section 4.3, a segment has as many steps as the proof, and the scan has that many chunks. | A segment has `N` steps and the scan has `B_scan = (R + M)/N` slots in each step. Idle steps fill the last segment. | `decisions/nebula-memory-checking.md` |
+| Nebula Section 4.2 has one memory. | ROM and RAM share one index space. O5 forbids a ROM write, and O6 keeps a ROM address below `R`. | `decisions/nebula-memory-checking.md` |
+| Nebula Construction 2 hashes the carried commitment as its own field of the state hash. | The memory carry is in the application-state digest, so the F′ state hash and layout do not change. | `decisions/nebula-memory-checking.md` |
+
+The `F_ops` checks of Nebula are O4 and the write timestamp `ts + cnt_j`, and the `F_scan` address check is the computed cell of a scan slot. The published `F_scan` has no timestamp range check, and Nightstream adds none: one segment is sequentially consistent without it (`Spec.Nebula.segment_sequential` (`b186065f1fe7272e`)).
 
 The scope choices that the papers leave open are records too: the reference application (`decisions/fprime-stage1-poseidon2-hash-chain-v1.md`), the 41-trit opening of field values in binding maps (`decisions/41-trit-encoding.md`) and the Poseidon2-only rule for protocol binding (`AGENTS.md`, Protocol).
 
-## 8. Conformance
+## 9. Conformance
 
 An implementation conforms when it reproduces these vectors and passes these checks. `SHA256SUMS` in each artifact folder pins the bytes of the Lean exports.
 
@@ -427,5 +621,8 @@ An implementation conforms when it reproduces these vectors and passes these che
 | the golden conformance run | `python3.12 -B scripts/golden_conformance_ci.py --directory DIRECTORY` | two fresh native folds checked by Lean, with proof bytes, caller values and witnesses (`scripts/GOLDEN_CONFORMANCE.md`) |
 | the independent Lean generation | `scripts/INDEPENDENT_GENERATION.md` | Π_CCS messages, Π_RLC and Π_DEC witnesses generated by Lean from the original openings |
 | the selected package identity | `bash scripts/validate.sh identity`, from `formal/nightstream-fprime/` | the emitted binding against the fixture and the Rust pins |
+| `formal/nightstream-fprime/artifacts/nightstream-fprime-stage2-nebula-memory-v1.json`, `formal/nightstream-fprime/artifacts/nightstream-fprime-stage2-nebula-memory-n1.json` | `cargo test -p nightstream --release --lib nebula::` (CI) | the Rust-built memory relation of the machine against both Lean memory packages, row for row; the catalog rows; reads past the view. Ignored tests prove both packages and check the rejection cases that need a bad witness (`crates/nightstream/tests/nebula/conformance.rs`) |
+| `crates/nightstream/tests/fixtures/nebula-memory-v1-terminal.json`, `crates/nightstream/tests/fixtures/nebula-memory-n1-terminal.json` | `cargo test -p nightstream --release --test nebula_memory` (CI) | Algorithm 10 against the Lean terminal checks, `D_init` against Lean, and statements that are not canonical or have another word count |
+| the WASM application | `cargo test -p neo-wasm --release` (CI) | the catalog rows of a WASM program; an ignored test proves it |
 
 These checks cover their recorded inputs. No theorem covers arbitrary Rust execution (`SECURITY_MODEL.md`, trust item 5).

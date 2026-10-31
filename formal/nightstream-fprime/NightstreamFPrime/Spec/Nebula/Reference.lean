@@ -2,15 +2,15 @@ import Mathlib.Logic.Function.Basic
 import NightstreamFPrime.Spec.Nebula.Packing
 import NightstreamFPrime.Spec.Nebula.Hash
 
-/-! Owns the reference memory semantics of spec §5 and §10: cells with a value
+/-! Owns the reference memory semantics of SPEC.md sections 7.2 and 7.6: cells with a value
 and the stamp of their last access, one global timestamp, the access rule, the
 application step relation with idle steps, and executions from the plan
-images. It also owns snapshots and the memory root of spec §9.2. `access` is
+images. It also owns snapshots and the memory root of SPEC.md section 7.4. `access` is
 the only memory update rule; nothing else defines a correct execution. -/
 
 namespace NightstreamFPrime.Spec.Nebula
 
-/-- A cell state `(v, t)` (spec §5). -/
+/-- A cell state `(v, t)` (SPEC.md section 7.2). -/
 structure Cell where
   value : ℕ
   stamp : ℕ
@@ -23,7 +23,7 @@ structure Machine where
   memory : Memory
   ts : ℕ
 
-/-- The plan images with every stamp zero (spec §5, chain start). -/
+/-- The plan images with every stamp zero (SPEC.md section 7.2, chain start). -/
 def initialMemory (p : Plan) : Memory := fun g =>
   if g < p.romSize then ⟨p.rom g, 0⟩ else ⟨p.ram (g - p.romSize), 0⟩
 
@@ -35,7 +35,7 @@ advances. -/
 def Machine.apply (p : Geometry) (m : Machine) (a : PortAccess) : Machine :=
   ⟨Function.update m.memory (a.globalIndex p) ⟨a.vw, m.ts + 1⟩, m.ts + 1⟩
 
-/-- One active access (spec §5): a valid access whose value matches the cell
+/-- One active access (SPEC.md section 7.2): a valid access whose value matches the cell
 applies. -/
 def access (p : Geometry) (m : Machine) (a : PortAccess) : Option Machine :=
   if a.Valid p ∧ (m.memory (a.globalIndex p)).value = a.vr then some (m.apply p a) else none
@@ -44,11 +44,11 @@ def access (p : Geometry) (m : Machine) (a : PortAccess) : Option Machine :=
 def accessAll (p : Geometry) (m : Machine) (as : List PortAccess) : Option Machine :=
   as.foldlM (access p) m
 
-/-- The ports of an idle step: all inactive (spec §10). -/
+/-- The ports of an idle step: all inactive (SPEC.md section 7.6). -/
 def idlePorts (p : Geometry) : List (Option PortAccess) := List.replicate p.bOps none
 
 /-- An application relation over states `σ`. Memory is reached only through
-ports (Ob7), and an idle step keeps the state (spec §10 MUST). -/
+ports (port coverage), and an idle step keeps the state (SPEC.md section 7.6). -/
 structure Application (p : Geometry) (σ : Type) where
   Step : σ → List (Option PortAccess) → σ → Prop
   idle : ∀ s, Step s (idlePorts p) s
@@ -63,7 +63,7 @@ inductive Executes {σ : Type} (p : Geometry) (app : Application p σ) :
       app.Step s ports s' → accessAll p m (ports.filterMap id) = some m' →
       Executes p app s' m' rest s'' m'' → Executes p app s m (ports :: rest) s'' m''
 
-/-- The snapshot of a memory: one tuple per cell (spec §5, IS and FS). -/
+/-- The snapshot of a memory: one tuple per cell (SPEC.md section 7.2, IS and FS). -/
 def snapshot (p : Geometry) (mem : Memory) : Multiset Tuple :=
   ((List.range p.cells).map fun g => ((mem g).stamp, g, (mem g).value) : List Tuple)
 
@@ -75,7 +75,7 @@ def scanOf (p : Geometry) (mem : Memory) (j : ℕ) : List ScanSlot :=
 def memoryLanes (p : Geometry) (mem : Memory) : List (List ℕ) :=
   (List.range p.n).map fun j => pack (scanLane p (scanOf p mem j))
 
-/-- The FS root of a memory (spec §9.2). `D_init` is the root of the initial
+/-- The FS root of a memory (SPEC.md section 7.4). `D_init` is the root of the initial
 memory. -/
 def memoryRoot {Digest : Type} (H : HashInput Digest → Digest) (p : Geometry) (pd : Digest)
     (mem : Memory) : Digest :=
@@ -165,7 +165,7 @@ theorem memoryRoot_congr {Digest : Type} (H : HashInput Digest → Digest) {p : 
   refine List.map_congr_left fun j hj => ?_
   rw [scanOf_congr valid agree (List.mem_range.mp hj)]
 
-/-- Spec §10: an execution extends by idle steps. -/
+/-- SPEC.md section 7.6: an execution extends by idle steps. -/
 theorem executes_padIdle {σ : Type} {p : Geometry} {app : Application p σ} {s₀ s : σ}
     {m₀ m : Machine} {steps : List (List (Option PortAccess))}
     (exec : Executes p app s₀ m₀ steps s m) (k : ℕ) :

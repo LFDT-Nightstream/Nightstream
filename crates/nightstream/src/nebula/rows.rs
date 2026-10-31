@@ -167,7 +167,7 @@ impl<'a> Sym<'a> {
         self.bits(j, Layout::op_diff, self.geometry.w_ts)
     }
 
-    /// The lane bits of operation slot `j` (spec §6.3).
+    /// The lane bits of operation slot `j` (SPEC.md section 7.2).
     pub(super) fn op_lane(&self, j: usize) -> Vec<Expr> {
         let mut lane = vec![self.pad(j), self.is_write(j), self.is_ram(j)];
         lane.extend(self.addr_bits(j));

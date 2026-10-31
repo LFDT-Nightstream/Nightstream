@@ -5,8 +5,8 @@ import NightstreamFPrime.Circuit.Sequence
 
 /-! Owns the circuit of a memory application as a Stage 1 application: its
 witness wires (the `Words` layout), nine sponge children (the two state
-digests of spec §11.1, the three record chains of §9.2, and the §9.3 challenge
-transcript with its three squeeze permutations), and the parent rows (digest
+digests of SPEC.md section 7.5, the three record chains and the challenge
+transcript of section 7.4 with its three squeeze permutations), and the parent rows (digest
 lanes against wires, the memory rows, and the application's rows). It also
 owns the exact step and validity predicate that the circuit proves. It does
 not own the proofs. -/
@@ -33,7 +33,7 @@ def decode (witness : List F) : StepWitness p app.toAppShape :=
   StepWitness.ofWords p app.toAppShape (wordOf witness)
 
 /-- The step function: the state digest of the output application words and
-the output carry words (spec §11.1). -/
+the output carry words (SPEC.md section 7.5). -/
 def step (_input witness : List F) : List F :=
   stateWords (List.ofFn fun k : Fin app.width => wordOf witness (Words.appOut p app.toAppShape k))
     (List.ofFn fun k : Fin 39 => wordOf witness (Words.carryOut k))

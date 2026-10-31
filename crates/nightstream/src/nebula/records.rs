@@ -1,4 +1,4 @@
-//! Typed memory records of spec §6 and their lane encoding and packing.
+//! Typed memory records of SPEC.md section 7.2 and their lane encoding and packing.
 //! Mirrors `Spec/Nebula/Records.lean` and `Spec/Nebula/Packing.lean`.
 
 use p3_field::PrimeCharacteristicRing;
@@ -6,7 +6,7 @@ use p3_goldilocks::Goldilocks as F;
 
 use super::geometry::Geometry;
 
-/// One port access of spec §10: `(is_write, is_ram, addr, v_r, v_w)`.
+/// One port access of SPEC.md section 7.6: `(is_write, is_ram, addr, v_r, v_w)`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct PortAccess {
     pub is_write: bool,
@@ -32,7 +32,7 @@ impl PortAccess {
             && (!self.is_write || self.is_ram)
     }
 
-    /// `g = addr + is_ram · R` (spec §6.1).
+    /// `g = addr + is_ram · R` (SPEC.md section 7.2).
     pub fn global_index(&self, geometry: &Geometry) -> usize {
         let addr = self.addr as usize;
         if self.is_ram {
@@ -43,7 +43,7 @@ impl PortAccess {
     }
 }
 
-/// Spec §6.1 operation slot. A pad slot is all zero.
+/// SPEC.md section 7.2 operation slot. A pad slot is all zero.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct OpSlot {
     pub pad: bool,
@@ -75,7 +75,7 @@ impl OpSlot {
         }
     }
 
-    /// Spec §6.3 encoding: field order, little-endian bits.
+    /// SPEC.md section 7.2 encoding: field order, little-endian bits.
     pub fn bits(&self, geometry: &Geometry) -> Vec<bool> {
         let mut bits = vec![self.pad, self.is_write, self.is_ram];
         push_bits(&mut bits, self.addr, geometry.mu);
@@ -86,7 +86,7 @@ impl OpSlot {
     }
 }
 
-/// Spec §6.2 scan slot: one cell's value and stamp.
+/// SPEC.md section 7.2 scan slot: one cell's value and stamp.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ScanSlot {
     pub value: u64,
@@ -116,7 +116,7 @@ pub fn scan_lane(geometry: &Geometry, scan: &[ScanSlot]) -> Vec<bool> {
     scan.iter().flat_map(|slot| slot.bits(geometry)).collect()
 }
 
-/// Spec §9.1 packing: chunks of 63 bits, each read little-endian.
+/// SPEC.md section 7.4 packing: chunks of 63 bits, each read little-endian.
 pub fn pack(bits: &[bool]) -> Vec<F> {
     bits.chunks(63)
         .map(|chunk| {

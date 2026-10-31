@@ -3,7 +3,7 @@ import NightstreamFPrime.Spec.HyperNova.Construction2.Paper
 import Mathlib.Probability.ProbabilityMassFunction.Constructions
 
 /-! Owns the end-to-end soundness of a memory application on the history
-that the Stage 1 extractor returns (security note §5, Lemma 6). No event or
+that the Stage 1 extractor returns (`SECURITY_MODEL.md`, adversary 5). No event or
 conclusion quantifies over other histories: for a compressing state digest,
 some other history of a statement always contains a collision.
 
@@ -17,7 +17,7 @@ some other history of a statement always contains a collision.
 * `bad_le_sum`: the same cover as a bound on the mass of any law.
 
 This module gives no term a number and states no premise about the memory
-round; `Export/Stage1/NebulaMemorySecurity` owns security note A6. -/
+round; `Export/Stage1/NebulaMemorySecurity` owns the memory round. -/
 
 namespace NightstreamFPrime.Lifecycle.Nebula.EndToEnd
 
@@ -35,7 +35,7 @@ def History (program : Application.Program) (statement : TerminalStatement AppSt
     ∀ i < statement.iteration,
       program.valid (z i) (witness i) ∧ z (i + 1) = program.step (z i) (witness i)
 
-/-- The memory fields of the spec §13 statement, with `width` application
+/-- The memory fields of the SPEC.md Algorithm 10 statement, with `width` application
 words, and the prover's final carry words. -/
 structure MemoryStatement (width : ℕ) where
   initialApp : Fin width → F
@@ -47,7 +47,7 @@ structure MemoryStatement (width : ℕ) where
 
 variable {p : Plan} {app : PortApp p.toGeometry}
 
-/-- The checks of the Rust `nebula::Verifier::verify` (spec §13) on a Stage 1
+/-- The checks of the Rust `nebula::Verifier::verify` (SPEC.md Algorithm 10) on a Stage 1
 statement: it opens to the memory statement's states, and the terminal checks
 hold. -/
 structure VerifierChecks {width : ℕ} (p : Plan) (statement : TerminalStatement AppState)
@@ -99,29 +99,29 @@ def claim (s : Sample) : Nebula.Statement app.State Digest :=
 def Attested (s : Sample) : Prop :=
   Attests (context p) app.model (x.claim app s) (x.run app s)
 
-/-- A state-digest collision between two inputs of the extracted run
-(security note Lemma 6 steps 2 and 6). Both sides are data of the sample: the
+/-- A state-digest collision between two inputs of the extracted run, at a
+state link or at the final words. Both sides are data of the sample: the
 extracted words, and the claimed final words. -/
 def StateLinkCollision (s : Sample) : Prop :=
   RunStateCollision (x.steps app s) (x.memory s).initialApp (x.memory s).finalApp
     (x.memory s).finalCarry (x.statement s).iteration
 
 /-- A Poseidon2 transcript collision among the chain inputs of the extracted
-run and the `D_init` chain (Lemma 2). -/
+run and the `D_init` chain (chain binding). -/
 def ChainCollision (s : Sample) : Prop :=
   ∃ a ∈ runInputs (context p) (x.run app s) (x.memory s).segments,
     ∃ b ∈ runInputs (context p) (x.run app s) (x.memory s).segments,
       TranscriptCollision (blocks a) (blocks b)
 
 /-- The model accepts the extracted run, and a claimed segment passes the
-product test with unbalanced multisets: the one event that A6 bounds, for all
+product test with unbalanced multisets: the one event that the memory round bounds, for all
 segment slots at once. -/
 def Unbalanced (s : Sample) : Prop :=
   Accepts (context p) app.model (x.claim app s) (x.run app s) ∧
     ∃ k < (x.memory s).segments, BadChallenge (context p) (segmentView (context p) (x.run app s) k)
 
-/-- An accepted sample that passes the spec §13 checks, but whose extracted
-history is not a history that attests the claim (security note §5). -/
+/-- An accepted sample that passes the SPEC.md Algorithm 10 checks, but whose extracted
+history is not a history that attests the claim (`SECURITY_MODEL.md`, adversary 5). -/
 def Bad (Accepted : Sample → Prop) (s : Sample) : Prop :=
   Accepted s ∧ VerifierChecks p (x.statement s) (x.memory s) ∧
     ¬ (History (MemoryApp.program p.toGeometry app) (x.statement s) (x.states s) (x.witness s) ∧
@@ -131,7 +131,7 @@ end Experiment
 
 variable {Sample : Type} {x : Experiment app.width Sample} {Accepted Failure : Sample → Prop}
 
-/-- The deterministic cover (security note Lemma 6 on the extracted run): a
+/-- The deterministic cover (deterministic memory soundness on the extracted run): a
 bad sample has a Stage 1 failure, a state-link collision, a chain collision,
 or an accepted extracted run with a claimed segment that passes the product
 test with unbalanced multisets. -/

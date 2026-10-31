@@ -1,11 +1,11 @@
 import NightstreamFPrime.Spec.Nebula.Fingerprint
 
-/-! Owns the per-step memory rows of spec §8 at the typed level and security
-note Lemma 4: the running products of rows O8, O9, S2, and S3 equal the
+/-! Owns the per-step memory rows of SPEC.md section 7.3 at the typed level and the
+row products: the running products of rows O8, O9, S2, and S3 equal the
 fingerprint products of the step's multisets, and every tuple is small. A
 relation that refines these rows proves their field-level meaning (for the
 first memory application, `Lifecycle/Nebula/StepRefinement`). The tuple
-functions take no challenge, which is hash residency (spec §6.4, Ob6). -/
+functions take no challenge, which is hash residency (SPEC.md section 7.2, hash residency). -/
 
 namespace NightstreamFPrime.Spec.Nebula
 
@@ -16,14 +16,14 @@ structure OpSlot.Rows (p : Geometry) (s : OpSlot) : Prop where
   romRange : s.isRam = false → s.addr < p.romSize
   padZero : s.pad = true → s = OpSlot.padSlot
 
-/-- All memory rows of one step entered with timestamp `ts` (spec §8). -/
+/-- All memory rows of one step entered with timestamp `ts` (SPEC.md section 7.3). -/
 structure StepRows (p : Geometry) (ts : ℕ) (z : StepRecords) : Prop where
   shaped : z.Shaped p
   slots : ∀ s ∈ z.ops, s.Rows p
   fresh : ∀ o ∈ activeOps ts z.ops, o.rt < o.wt
   boundary : ts + activeCount z < 2 ^ p.wTs
 
-/-- The four running products of the carry (spec §11.1). -/
+/-- The four running products of the carry (SPEC.md section 7.5). -/
 structure Products (E : Type) where
   read : E
   write : E
@@ -77,7 +77,7 @@ private theorem scanFactor_eq (η : E × E) (base : ℕ) (scan : List ScanSlot) 
   | nil => simp [scanFactor, scanTuplesFrom, product]
   | cons c rest ih => simp [scanFactor, scanTuplesFrom, ih, product_coe]
 
-/-- Security note Lemma 4: the rows compute the fingerprint products of the
+/-- The rows compute the fingerprint products of the
 step's multisets. -/
 theorem stepProducts_eq (p : Geometry) (η : E × E) (ts idx : ℕ) (z : StepRecords)
     (h : Products E) :
@@ -211,7 +211,7 @@ private theorem tuple_small {p : Geometry} (valid : p.Valid) {τ : Tuple} (ht : 
   have h32 : 2 ^ 32 < goldilocksModulus := by norm_num [goldilocksModulus]
   exact ⟨⟨ht.trans hts, hg.trans valid.belowModulus, hv.trans h32⟩, ht, hg, hv⟩
 
-/-- Security note Lemma 4, ranges: every tuple of a step whose rows hold is
+/-- Tuple ranges: every tuple of a step whose rows hold is
 small, with `t < 2 ^ W_ts`, `g < R + M`, and `v < 2 ^ 32`. -/
 theorem stepMultisets_small {p : Geometry} (valid : p.Valid) {ts idx : ℕ} {z : StepRecords}
     (rows : StepRows p ts z) (hidx : idx < p.n) :

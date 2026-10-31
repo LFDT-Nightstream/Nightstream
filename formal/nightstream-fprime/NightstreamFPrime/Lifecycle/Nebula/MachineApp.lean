@@ -5,8 +5,9 @@ import NightstreamFPrime.Lifecycle.Nebula.Machine
 /-! Owns the first memory application at the circuit level: the machine of
 `Machine` as a `PortApp` of a geometry with two ports. Its state words are
 `(pc, acc)`, its one private word is the idle flag, and its rows tie the fetch
-port and the data port to the instruction (spec §10). It owns the machine's
-Ob7 (`Machine.sound`) and its half of Ob5 (`Machine.complete`). It does not
+port and the data port to the instruction (SPEC.md section 7.6). It owns the machine's
+port coverage (`Machine.sound`) and its half of completeness
+(`Machine.complete`). It does not
 own the memory rows. -/
 
 namespace NightstreamFPrime.Lifecycle.Nebula
@@ -138,7 +139,7 @@ def isLoadi : F := instructionBit two v 0 * instructionBit two v 1
 /-- The instruction argument `v / 4`: bits 2–31 of the fetched word. -/
 def argument : F := chunkWord ((List.ofFn (v.ops (fetchSlot two)).vr).drop 2)
 
-/-- The machine's port rows (spec §10) and its next state. -/
+/-- The machine's port rows (SPEC.md section 7.6) and its next state. -/
 structure PortRows : Prop where
   idleBit : IsBit (idle v)
   fetchPad : (v.ops (fetchSlot two)).pad = idle v
@@ -291,7 +292,7 @@ theorem rows_iff : ConstraintsHold v.env (rows p) ↔ PortRows two v := by
   · rintro ⟨r0, r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11⟩
     exact ⟨r0, r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11⟩
 
-/-! ### Ob7 -/
+/-! ### Port coverage -/
 
 theorem ports_two (ops : Fin p.bOps → OpSlotBits p) :
     (List.ofFn fun j => (ops j).decode.port) =
@@ -319,7 +320,7 @@ theorem argument_val (vrBits : ∀ k, IsBit ((v.ops (fetchSlot two)).vr k)) :
   show _ = bitsNat (v.ops (fetchSlot two)).vr / 4
   omega
 
-/-- Ob7: on well-formed slots, the port rows give one machine step on the
+/-- Port coverage: on well-formed slots, the port rows give one machine step on the
 decoded ports. -/
 theorem sound (valid : p.Valid) (wf : ∀ j, (v.ops j).WellFormed) (rows : PortRows two v) :
     Step (State.ofWords v.appIn) (List.ofFn fun j => (v.ops j).decode.port)
@@ -452,7 +453,7 @@ theorem sound (valid : p.Valid) (wf : ∀ j, (v.ops j).WellFormed) (rows : PortR
     · rw [OpSlotBits.port_pad (fetchPad.trans idle), OpSlotBits.port_pad dataPad]
     · simp only [State.ofWords, pcOut, accOut]
 
-/-! ### Ob5 for the machine -/
+/-! ### Completeness of the machine -/
 
 /-- A bit whose `toBool` is known. -/
 private theorem bit_of_toBool {x : F} (bit : IsBit x) {b : Bool} (h : toBool x = b) :
@@ -461,7 +462,7 @@ private theorem bit_of_toBool {x : F} (bit : IsBit x) {b : Bool} (h : toBool x =
   · exact (StepWitness.toBool_false bit).mp h
   · exact StepWitness.toBool_true.mp h
 
-/-- Ob5 for the machine: every machine step has an idle flag that satisfies
+/-- Completeness of the machine: every machine step has an idle flag that satisfies
 the port rows, on well-formed slots whose decoded ports are the step's
 ports. -/
 theorem complete {s s' : State} {ports : List (Option PortAccess)} (ops : Fin p.bOps → OpSlotBits p)

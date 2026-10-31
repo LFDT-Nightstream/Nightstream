@@ -173,7 +173,7 @@ def program : Application.Program where
   constraintsSupported := fun i offset _ allowed _ inputs localSupport =>
     supported p app i offset allowed inputs localSupport
 
-/-- One setup per geometry (spec §4.3): the memory program takes a geometry and
+/-- One setup per geometry (SPEC.md section 7.1): the memory program takes a geometry and
 no image, so two plans with one geometry have the same memory program. -/
 theorem program_eq_of_geometry (appOf : (g : Geometry) → PortApp g) {plan plan' : Plan}
     (same : plan.toGeometry = plan'.toGeometry) :

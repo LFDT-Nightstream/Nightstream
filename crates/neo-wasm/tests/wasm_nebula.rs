@@ -1,4 +1,4 @@
-//! Enzo's WASM relation proved with Nebula memory checking (spec §10.1). One
+//! Enzo's WASM relation proved with Nebula memory checking (SPEC.md section 7.6). One
 //! trace row is one Nebula step: its private words are the row's witness `z`,
 //! its state is the continuity words (one per link, `_AFTER` of a row equal to
 //! `_BEFORE` of the next), and `nightstream::nebula::CatalogBinding` checks
@@ -311,7 +311,7 @@ fn regions(
 /// The smallest valid, secure geometry for the namespaces and `b_ops` slots:
 /// one segment of `n` steps.
 fn geometry(log2: [usize; 2], b_ops: usize, n: usize) -> Geometry {
-    // Spec §4.2 rule 4: the RAM is at least as large as the ROM.
+    // SPEC.md section 7.1, rule 4: the RAM is at least as large as the ROM.
     let (r, mu) = (log2[0], log2[0].max(log2[1]));
     Geometry {
         r,
@@ -459,7 +459,7 @@ fn honest_padded_traces_run_through_nebula() {
 /// `plan_wasm_memory_slots` puts the stack reads (ports 10 and 14) in slots 0
 /// and 1 and the stack writes (ports 8 and 9) in slots 6 and 7. Row 2 of the
 /// call trace (`local.get 0`) activates all four, so a stack read shows before
-/// a stack write that comes first in catalog order (spec §10.1 I2) and the
+/// a stack write that comes first in catalog order (SPEC.md section 7.6 I2) and the
 /// honest trace fails. The linear-memory trace runs: the pairs that its rows
 /// show out of catalog order are on distinct memories.
 #[test]

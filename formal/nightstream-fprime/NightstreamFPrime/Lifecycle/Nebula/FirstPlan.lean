@@ -1,7 +1,7 @@
 import NightstreamFPrime.Spec.Nebula.SetupCheck
 import NightstreamFPrime.Lifecycle.Nebula.MachineApp
 
-/-! Owns the geometry of the first memory-application package (spec §4) and
+/-! Owns the geometry of the first memory-application package (SPEC.md section 7.1) and
 its default program: ROM and RAM of four words each, two ports, segments of two
 steps with four scan slots each, at most four segments, and 5-bit timestamps.
 The default ROM holds the machine program `loadi 5; store 0; load 0; halt`,

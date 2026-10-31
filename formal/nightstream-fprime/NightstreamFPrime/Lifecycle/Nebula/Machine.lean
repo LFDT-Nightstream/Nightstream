@@ -3,7 +3,7 @@ import NightstreamFPrime.Spec.Nebula.Reference
 /-! Owns the semantics of the first Nebula memory application: a two-word
 machine `(pc, acc)` whose program is in ROM. A step fetches the instruction
 word `ROM[pc]` through port 0 and runs it; port 1 is its data port. An idle
-step uses no port and keeps the state (spec §10). It does not own the circuit
+step uses no port and keeps the state (SPEC.md section 7.6). It does not own the circuit
 or the memory rows.
 
 Instruction word `v`: `op = v mod 4`, `arg = v / 4`.

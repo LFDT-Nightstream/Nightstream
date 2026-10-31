@@ -1,6 +1,6 @@
 import NightstreamFPrime.Lifecycle.Nebula.HonestWitness
 
-/-! Owns the polynomial rows of the honest witness (Ob5 for the relation):
+/-! Owns the polynomial rows of the honest witness (completeness of the relation):
 for a reachable carry and an invocation that `invoke` accepts, every row of
 `StepWitness.PolyRows` holds on `Honest.witness`. It does not own the chains,
 the challenge transcript, the machine rows, or the word list. -/
@@ -743,7 +743,7 @@ theorem memOut_row (i : Fin 4) :
   · simp [h, bitWord]
   · simp [h, bitWord]
 
-/-- Ob5 for the polynomial rows: the honest witness satisfies every row of
+/-- Completeness of the polynomial rows: the honest witness satisfies every row of
 `StepWitness.PolyRows`. -/
 theorem polyRows (valid : p.Valid) (reach : Reach p c) (accepted : Accepted p c inv) :
     (witness p c inv appIn appOut aux).PolyRows where

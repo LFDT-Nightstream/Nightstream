@@ -1,20 +1,20 @@
 import NightstreamFPrime.Lifecycle.Nebula.Carry
 
 /-! Owns the witness of one invocation of a Nebula memory application and the
-field equations that the memory rows check: the rows of spec §8, the carry
-actions of §11.2 with the two arms of §12, the three record chains and the
-`η` transcript of §9, and the input state digest of §11.1. The witness also
+field equations that the memory rows check: the rows of SPEC.md section 7.3, the carry
+actions and the two arms of SPEC.md section 7.5 and Algorithm 9, the three
+record chains and the `η` transcript of section 7.4, and the input state digest. The witness also
 holds the application's state words and private words; the application's
-own rows (§10) are in `PortApp`. Every value the relation needs is a witness
+own rows (section 7.6) are in `PortApp`. Every value the relation needs is a witness
 word, so validity is exactly "these equations hold". The refinement to the
-typed model (Ob4) and the honest witness (Ob5) are proved elsewhere. -/
+typed model and the honest witness are proved elsewhere. -/
 
 namespace NightstreamFPrime.Lifecycle.Nebula
 
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Nebula
 
-/-- The bits of one operation slot (spec §6.1), and the O4 auxiliary word. -/
+/-- The bits of one operation slot (SPEC.md section 7.2), and the O4 auxiliary word. -/
 structure OpSlotBits (p : Geometry) where
   pad : F
   isWrite : F
@@ -25,12 +25,12 @@ structure OpSlotBits (p : Geometry) where
   rt : Fin p.wTs → F
   diff : Fin p.wTs → F
 
-/-- The bits of one scan slot (spec §6.2). -/
+/-- The bits of one scan slot (SPEC.md section 7.2). -/
 structure ScanSlotBits (p : Geometry) where
   value : Fin 32 → F
   stamp : Fin p.wTs → F
 
-/-- The lane bits of an operation slot in field order (spec §6.3). -/
+/-- The lane bits of an operation slot in field order (SPEC.md section 7.2). -/
 def OpSlotBits.lane {p : Geometry} (slot : OpSlotBits p) : List F :=
   [slot.pad, slot.isWrite, slot.isRam] ++ List.ofFn slot.addr ++ List.ofFn slot.vr ++
     List.ofFn slot.vw ++ List.ofFn slot.rt
@@ -39,7 +39,7 @@ def OpSlotBits.lane {p : Geometry} (slot : OpSlotBits p) : List F :=
 def ScanSlotBits.lane {p : Geometry} (slot : ScanSlotBits p) : List F :=
   List.ofFn slot.value ++ List.ofFn slot.stamp
 
-/-- The word counts of an application's circuit side (spec §10): its state
+/-- The word counts of an application's circuit side (SPEC.md section 7.6): its state
 words and its private words. -/
 structure AppShape where
   width : ℕ
@@ -87,7 +87,7 @@ def kOf (c0 c1 : F) : K := ⟨c0, c1⟩
 /-- A field word as an element of `K`. -/
 def embed (x : F) : K := ⟨x, 0⟩
 
-/-- The fingerprint of spec §8.2 over trunk `K` operations. -/
+/-- The fingerprint of SPEC.md section 7.3 over trunk `K` operations. -/
 def fingerprintK (η1 η2 η1sq : K) (t g v : F) : K :=
   K.sub (K.add (K.add (embed g) (K.mul η1 (embed v))) (K.mul η1sq (embed t))) η2
 
@@ -185,7 +185,7 @@ def scanLaneBits (slots : Fin p.bScan → ScanSlotBits p) : List F :=
 
 end StepWitness
 
-/-- Spec §9.1 packing of field bits: chunks of 63, each read little-endian. -/
+/-- SPEC.md section 7.4 packing of field bits: chunks of 63, each read little-endian. -/
 def packWords (bits : List F) : List F :=
   if _h : bits = [] then [] else chunkWord (bits.take 63) :: packWords (bits.drop 63)
 termination_by bits.length
@@ -197,7 +197,7 @@ decreasing_by
 /-- The four words of a Poseidon2 transcript digest over `blocks`. -/
 def digestOfBlocks (blocks : List (List F)) : Digest := squeezeDigest (absorbed blocks)
 
-/-- A chain link of spec §9.2 over field words. -/
+/-- A chain link of SPEC.md section 7.4 over field words. -/
 def chainLink (lane : Lane) (index : F) (previous : Digest) (packed : List F) : Digest :=
   digestOfBlocks [textWords (chainTag lane), index :: digestWords previous, packed]
 
@@ -207,8 +207,8 @@ def headerWords (p : Geometry) (i : ℕ) : F :=
   else hash (.header .mem (planDigest p)) ⟨i % 4, Nat.mod_lt _ (by decide)⟩
 
 /-- The polynomial equations of one memory-application invocation: the memory
-rows of spec §8 and the carry actions of §11.2 with the arms of §12. Indices
-follow spec §11.1 carry word order. -/
+rows of SPEC.md section 7.3 and the carry actions with the arms of section 7.5. Indices
+follow SPEC.md section 7.5 carry word order. -/
 structure StepWitness.PolyRows {p : Geometry} {a : AppShape} (w : StepWitness p a) : Prop where
   -- O1, S1, and the auxiliary bits
   opsBits : ∀ j, ∀ x ∈ (w.ops j).lane, IsBit x
@@ -219,10 +219,10 @@ structure StepWitness.PolyRows {p : Geometry} {a : AppShape} (w : StepWitness p 
   segBits : ∀ k, IsBit (w.segBits k)
   openBit : IsBit w.isOpen
   closeBit : IsBit w.isClose
-  -- §12 arm: reopen exactly when the input carry is closed
+  -- arm: reopen exactly when the input carry is closed
   openZero : (w.cIn 1 - natWord p.n) * w.isOpen = 0
   openTest : (w.cIn 1 - natWord p.n) * w.openInverse = 1 - w.isOpen
-  -- §11.2 open: S_max, then reset to the proposals, fresh challenges, headers
+  -- open: S_max, then reset to the proposals, fresh challenges, headers
   segRange : w.isOpen * (natWord (p.sMax - 1) - w.cIn 0 - bitsWord w.segBits) = 0
   idxEff : w.idxEff = (1 - w.isOpen) * w.cIn 1
   seenPrev : ∀ i : Fin 12,
@@ -230,7 +230,7 @@ structure StepWitness.PolyRows {p : Geometry} {a : AppShape} (w : StepWitness p 
   proposed : ∀ i : Fin 8, w.cOut (15 + i) = w.isOpen * w.proposal i + (1 - w.isOpen) * w.cIn (15 + i)
   eta : ∀ i : Fin 4, w.cOut (3 + i) = w.isOpen * w.etaFresh i + (1 - w.isOpen) * w.cIn (3 + i)
   square : w.eta1Sq = K.mul w.eta1 w.eta1
-  -- §8.1 operation rows
+  -- operation rows
   readKeeps : ∀ j, (1 - w.isWrite j) * (w.vw j - w.vr j) = 0
   fresh : ∀ j, (1 - w.pad j) * (w.wt j - w.rt j - 1 - w.diff j) = 0
   noRomWrite : ∀ j, w.isWrite j * (1 - w.isRam j) = 0
@@ -240,14 +240,14 @@ structure StepWitness.PolyRows {p : Geometry} {a : AppShape} (w : StepWitness p 
     (gatedK (w.pad j) (fingerprintK w.eta1 w.eta2 w.eta1Sq (w.rt j) (w.globalIndex j) (w.vr j)))
   writeProduct : ∀ j, w.opsProductAfter 1 (j.val + 1) = K.mul (w.opsProductAfter 1 j.val)
     (gatedK (w.pad j) (fingerprintK w.eta1 w.eta2 w.eta1Sq (w.wt j) (w.globalIndex j) (w.vw j)))
-  -- §8.3 scan rows
+  -- scan rows
   initialProduct : ∀ j, w.scanProductAfter 0 (j.val + 1) = K.mul (w.scanProductAfter 0 j.val)
     (fingerprintK w.eta1 w.eta2 w.eta1Sq (bitsWord (w.initial j).stamp) (w.scanIndex j)
       (bitsWord (w.initial j).value))
   finalProduct : ∀ j, w.scanProductAfter 1 (j.val + 1) = K.mul (w.scanProductAfter 1 j.val)
     (fingerprintK w.eta1 w.eta2 w.eta1Sq (bitsWord (w.final j).stamp) (w.scanIndex j)
       (bitsWord (w.final j).value))
-  -- §8.4 boundary rows
+  -- boundary rows
   tsOut : w.cOut 2 = w.cIn 2 + w.cntBefore p.bOps
   tsRange : w.cOut 2 = bitsWord w.tsBits
   idxOut : w.cOut 1 = w.idxEff + 1
@@ -255,7 +255,7 @@ structure StepWitness.PolyRows {p : Geometry} {a : AppShape} (w : StepWitness p 
     kOf (w.cOut 9) (w.cOut 10) = w.opsProductAfter 1 p.bOps ∧
     kOf (w.cOut 11) (w.cOut 12) = w.scanProductAfter 0 p.bScan ∧
     kOf (w.cOut 13) (w.cOut 14) = w.scanProductAfter 1 p.bScan
-  -- §11.2 close, exactly when the step sets idx = N
+  -- close, exactly when the step sets idx = N
   closeZero : (w.cOut 1 - natWord p.n) * w.isClose = 0
   closeTest : (w.cOut 1 - natWord p.n) * w.closeInverse = 1 - w.isClose
   closeOps : ∀ i : Fin 4, w.isClose * (w.cOut (23 + i) - w.cOut (15 + i)) = 0
@@ -270,7 +270,7 @@ structure StepWitness.PolyRows {p : Geometry} {a : AppShape} (w : StepWitness p 
 
 /-- Every equation that the circuit of one memory-application invocation
 checks, except the output state, which is the step function: the polynomial
-rows, the §9.2 chains, the §9.3 challenges, and the §11.1 input state `zIn`. -/
+rows, the record chains, the challenges, and the input state `zIn`. -/
 structure StepWitness.RowsHold {p : Geometry} {a : AppShape} (w : StepWitness p a) (zIn : List F) : Prop
     extends w.PolyRows where
   chainOps : StepWitness.carryDigest w.carryOut 23 =

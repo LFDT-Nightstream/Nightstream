@@ -1,19 +1,20 @@
 import NightstreamFPrime.Spec.Nebula.Rows
 import NightstreamFPrime.Spec.Nebula.Reference
 
-/-! Owns the memory carry of spec §11, the two memory arms of §12, and the
-public statement and terminal checks of §13, over an extracted run: one
+/-! Owns the memory carry of SPEC.md section 7.5, the two memory arms of Algorithm 9, and
+the public statement and terminal checks of Algorithm 10, over an extracted run: one
 invocation per step, each with its proposal, its records, and its next
 application state. The input carry selects the arm; no invocation field does.
 The run starts from the closed start carry, so the first invocation reopens.
 The carry transitions read a geometry's `Setup`; only `D_init` and the start
 carry read the program images. It also owns the segment views that the security proofs read, and the
-lifecycle theorem (Ob8): the trace closes every segment exactly when each
+lifecycle theorem: the trace closes every segment exactly when each
 segment view passes the close checks with its own challenges.
 
 The Stage 1 fold, the HyperNova state link, and the carry encoding are not
-owned here (A1–A4, Ob1). Guards use classical decisions, so the actions are
-total and deterministic but not executable. -/
+owned here (`SECURITY_MODEL.md`, adversaries 3 and 4, and the carry decoding).
+Guards use classical decisions, so the actions are total and deterministic but
+not executable. -/
 
 namespace NightstreamFPrime.Spec.Nebula
 
@@ -23,7 +24,7 @@ structure Roots (Digest : Type) where
   initial : Digest
   final : Digest
 
-/-- Spec §11.1 `MemoryCarry`. `proposed` is `D_pre = (ops, fs)`, `seen` is
+/-- SPEC.md section 7.5 `MemoryCarry`. `proposed` is `D_pre = (ops, fs)`, `seen` is
 `D_seen`, and `memRoot` is `D_mem`. -/
 structure Carry (E Digest : Type) where
   segIdx : ℕ
@@ -38,7 +39,7 @@ structure Carry (E Digest : Type) where
 /-- The verifier setup of a geometry: the geometry, the abstract hash, the
 challenges of each segment, and the package constant `plan_digest`. `eta k inp`
 is the challenge pair of segment `k` with transcript input `inp`: the
-Fiat–Shamir context reads only `inp` (§9.3); the game that motivates A6 samples
+Fiat–Shamir context reads only `inp`; the game that motivates the memory round samples
 one pair per segment. The carry transitions read only a setup, so they read no
 image. -/
 structure Setup (E Digest : Type) where
@@ -67,7 +68,7 @@ structure Invocation (σ Digest : Type) where
   records : StepRecords
   next : σ
 
-/-- The public statement of spec §13. -/
+/-- The public statement of SPEC.md Algorithm 10. -/
 structure Statement (σ Digest : Type) where
   steps : ℕ
   initial : σ
@@ -76,7 +77,7 @@ structure Statement (σ Digest : Type) where
   finalTs : ℕ
   finalRoot : Digest
 
-/-- The ports of an invocation: one per operation slot (spec §10, Ob7). -/
+/-- The ports of an invocation: one per operation slot (SPEC.md section 7.6). -/
 def Invocation.ports {σ Digest : Type} (inv : Invocation σ Digest) : List (Option PortAccess) :=
   inv.records.ops.map OpSlot.port
 
@@ -91,21 +92,21 @@ def finalPacked (p : Geometry) (z : StepRecords) : List ℕ := pack (scanLane p 
 
 variable {E Digest σ : Type} [CommRing E]
 
-/-- `D_init`: the IS root over the initial snapshot (spec §9.2). -/
+/-- `D_init`: the IS root over the initial snapshot (SPEC.md section 7.4). -/
 def Context.initRoot (ctx : Context E Digest) : Digest :=
   memoryRoot ctx.hash ctx.plan.toGeometry ctx.planDigest (initialMemory ctx.plan)
 
-/-- `header_l` of spec §9.2. -/
+/-- `header_l` of SPEC.md section 7.4. -/
 def Setup.header (s : Setup E Digest) (lane : Lane) : Digest :=
   s.hash (.header lane s.planDigest)
 
-/-- The start carry of spec §11.1: `seg_idx = 0`, `ts = 0`, `D_mem = D_init`,
+/-- The start carry of SPEC.md section 7.5: `seg_idx = 0`, `ts = 0`, `D_mem = D_init`,
 and closed (`idx = N`), so the first invocation reopens it. -/
 def startCarry (ctx : Context E Digest) : Carry E Digest :=
   ⟨0, ctx.plan.n, 0, (0, 0), ⟨1, 1, 1, 1⟩, (ctx.initRoot, ctx.initRoot),
     ⟨ctx.initRoot, ctx.initRoot, ctx.initRoot⟩, ctx.initRoot⟩
 
-/-- The carry that spec §11.2 `open` writes. -/
+/-- The carry that SPEC.md section 7.5 `open` writes. -/
 def openedCarry (s : Setup E Digest) (c : Carry E Digest) (proposal : Digest × Digest) :
     Carry E Digest :=
   { c with
@@ -115,7 +116,7 @@ def openedCarry (s : Setup E Digest) (c : Carry E Digest) (proposal : Digest × 
     seen := ⟨s.header .ops, s.header .mem, s.header .mem⟩
     idx := 0 }
 
-/-- The carry that spec §11.2 `step` writes: the three chain links over the
+/-- The carry that SPEC.md section 7.5 `step` writes: the three chain links over the
 step's own records, the products, the timestamp, and the index. -/
 def advance (s : Setup E Digest) (c : Carry E Digest) (z : StepRecords) : Carry E Digest :=
   { c with
@@ -126,20 +127,20 @@ def advance (s : Setup E Digest) (c : Carry E Digest) (z : StepRecords) : Carry 
     ts := c.ts + activeCount z
     idx := c.idx + 1 }
 
-/-- Spec §11.2 `open`. -/
+/-- SPEC.md section 7.5 `open`. -/
 def openSegment (s : Setup E Digest) (c : Carry E Digest) (proposal : Digest × Digest) :
     Option (Carry E Digest) :=
   if c.segIdx < s.geometry.sMax then some (openedCarry s c proposal) else none
 
 open Classical in
-/-- Spec §11.2 `step`: the §8 rows on the invocation's own records, then
+/-- SPEC.md section 7.5 `step`: the memory rows on the invocation's own records, then
 `advance`. -/
 noncomputable def stepSegment (s : Setup E Digest) (c : Carry E Digest) (z : StepRecords) :
     Option (Carry E Digest) :=
   if StepRows s.geometry c.ts z then some (advance s c z) else none
 
 open Classical in
-/-- Spec §11.2 `close`. -/
+/-- SPEC.md section 7.5 `close`. -/
 noncomputable def closeSegment (_s : Setup E Digest) (c : Carry E Digest) :
     Option (Carry E Digest) :=
   if c.seen.ops = c.proposed.1 ∧ c.seen.initial = c.memRoot ∧ c.seen.final = c.proposed.2 ∧
@@ -152,7 +153,7 @@ noncomputable def finishStep (s : Setup E Digest) (c : Carry E Digest) :
     Option (Carry E Digest) :=
   if c.idx = s.geometry.n then closeSegment s c else some c
 
-/-- Spec §12: the input carry selects the arm. A closed carry (`idx = N`)
+/-- SPEC.md Algorithm 9: the input carry selects the arm. A closed carry (`idx = N`)
 reopens; any other carry continues. -/
 noncomputable def invoke (s : Setup E Digest) (c : Carry E Digest)
     (inv : Invocation σ Digest) : Option (Carry E Digest) :=
@@ -166,7 +167,7 @@ noncomputable def continueRun (s : Setup E Digest) (c : Carry E Digest)
   run.foldlM (fun c inv => invoke s c inv) c
 
 /-- The final carry of a run, from the start carry. An empty run ends at the
-start carry, whose `seg_idx = 0` fails the terminal check (spec §13 rejects
+start carry, whose `seg_idx = 0` fails the terminal check (SPEC.md Algorithm 10 rejects
 `T = 0`). -/
 noncomputable def finalCarry (ctx : Context E Digest) (run : List (Invocation σ Digest)) :
     Option (Carry E Digest) :=
@@ -177,7 +178,7 @@ def AppThread {p : Geometry} (app : Application p σ) : σ → List (Invocation 
   | s, [], s' => s = s'
   | s, inv :: rest, s' => app.Step s inv.ports inv.next ∧ AppThread app inv.next rest s'
 
-/-- Spec §12 and §13 on an extracted run: the terminal checks, the final
+/-- SPEC.md Algorithms 9 and 10 on an extracted run: the terminal checks, the final
 carry, and the application thread. -/
 structure Accepts (ctx : Context E Digest) (app : Application ctx.plan.toGeometry σ)
     (stmt : Statement σ Digest) (run : List (Invocation σ Digest)) : Prop where
@@ -240,7 +241,7 @@ def SegmentRows (p : Geometry) : ℕ → List StepRecords → Prop
 
 namespace SegmentView
 
-/-- The §9.3 transcript input of the segment. -/
+/-- The challenge transcript input of the segment. -/
 def etaInput (ctx : Context E Digest) (v : SegmentView Digest) : EtaInput Digest :=
   ⟨ctx.planDigest, v.openTs, v.proposal.1, v.memIn, v.proposal.2⟩
 
@@ -263,7 +264,7 @@ def initialLanes (p : Geometry) (v : SegmentView Digest) : List (List ℕ) :=
 def finalLanes (p : Geometry) (v : SegmentView Digest) : List (List ℕ) :=
   v.records.map (finalPacked p)
 
-/-- The close checks of spec §11.2 on a whole segment, with challenges `η`. -/
+/-- The close checks of SPEC.md section 7.5 on a whole segment, with challenges `η`. -/
 structure ClosesAt (ctx : Context E Digest) (η : E × E) (v : SegmentView Digest) : Prop where
   length : v.records.length = ctx.plan.n
   rows : SegmentRows ctx.plan.toGeometry v.openTs v.records
@@ -280,7 +281,7 @@ def chainInputs (ctx : Context E Digest) (v : SegmentView Digest) : List (HashIn
 
 end SegmentView
 
-/-! ### Lifecycle theorem (Ob8) -/
+/-! ### Lifecycle theorem -/
 
 /-- `advance` over consecutive steps. -/
 private def runSteps (ctx : Context E Digest) (c : Carry E Digest) (zs : List StepRecords) :

@@ -1,7 +1,7 @@
 //! The per-step cost of the Rust-built memory relation for the free
 //! application (no state word, no private word, no row) with `B_ops = 21`, a
 //! ROM of `2^12` cells, and a RAM of `2^16` cells, at each feasible `N` with
-//! `S_max = 1` and the smallest `W_ts` that spec §4.2 rule 2 allows; and for
+//! `S_max = 1` and the smallest `W_ts` that SPEC.md section 7.1, rule 2 allows; and for
 //! the geometry, state words, and private words of the WASM test of
 //! `neo-wasm` (`tests/wasm_nebula.rs`), without its rows. A step's
 //! Stage 1 words are its witness words (the memory words of
@@ -56,7 +56,7 @@ impl Application for Free {
 
 /// Build the free relation of `N = n` and `S_max = s_max` with the smallest
 /// `W_ts`, print its counts, and return whether it fits; `None` for a
-/// geometry that breaks spec §4.2.
+/// geometry that breaks SPEC.md section 7.1.
 fn measure(n: usize, s_max: usize) -> Option<bool> {
     let (r, mu, b_ops) = (12, 16, 21);
     let cells = (1usize << r) + (1 << mu);
@@ -80,7 +80,7 @@ fn measure(n: usize, s_max: usize) -> Option<bool> {
 }
 
 /// Print the counts of the relation of `geometry` and `app`, and return
-/// whether it fits; `None` for a geometry that breaks spec §4.2.
+/// whether it fits; `None` for a geometry that breaks SPEC.md section 7.1.
 fn count(geometry: &Geometry, app: Free) -> Option<bool> {
     if !geometry.is_valid() || !geometry.is_secure() {
         return None;

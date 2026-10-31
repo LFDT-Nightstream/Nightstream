@@ -1,19 +1,19 @@
 import NightstreamFPrime.Spec.Nebula.Binding
 import NightstreamFPrime.Spec.Nebula.Consistency
 
-/-! Owns security note Lemma 6, deterministic form: an accepted extracted run
+/-! Owns deterministic memory soundness: an accepted extracted run
 refines the reference machine, or the hash has a collision among the run's own
 chain inputs and the `D_init` chain, or one segment's challenges passed the
-product test although its multisets are not balanced. A6 bounds the last
-event, and Lemma 3 (`Game.badAt_frequency`) motivates the value of its error.
-A1–A4, which turn verifier acceptance into `Accepts`, and A6 are not owned
-here. -/
+product test although its multisets are not balanced. The memory round bounds
+the last event, and the fingerprint bound (`Game.badAt_frequency`) motivates
+the value of its error. The Stage 1 premises, which turn verifier acceptance
+into `Accepts`, and the memory round are not owned here. -/
 
 namespace NightstreamFPrime.Spec.Nebula
 
 variable {E Digest σ : Type} [CommRing E]
 
-/-- What an accepted run attests (security note Lemma 6): one execution from
+/-- What an accepted run attests: one execution from
 the initial state and the plan images, over the run's ports, that ends in the
 statement's final state, timestamp, and memory root. -/
 structure Attests (ctx : Context E Digest) (app : Application ctx.plan.toGeometry σ)
@@ -78,7 +78,7 @@ private theorem snapshot_scanMemory {p : Geometry} (valid : p.Valid) {scans : Li
     snapshot p (scanMemory p scans) = chunkTuples p 0 scans := by
   rw [← chunkTuples_scansOf valid, scansOf_scanMemory valid length shaped fun _ _ => rfl]
 
-/-- Lemma 5 on one closing, balanced segment: from a machine that holds the IS
+/-- Sequential consistency on one closing, balanced segment: from a machine that holds the IS
 snapshot, the segment's accesses replay and end at the FS snapshot. -/
 theorem segment_replays {ctx : Context E Digest} {η : E × E} {v : SegmentView Digest}
     (valid : ctx.plan.Valid) (closes : v.ClosesAt ctx η)
@@ -171,7 +171,7 @@ private theorem segment_inputs_subset {ctx : Context E Digest} {run : List (Invo
   intro x member
   exact List.mem_append_right _ (List.mem_flatMap.2 ⟨k, List.mem_range.2 hk, member⟩)
 
-/-- Every hash input of an accepted run is canonical (Ob3 input range). -/
+/-- Every hash input of an accepted run is canonical (the input range of the framing). -/
 theorem runInputs_canonical {ctx : Context E Digest} {app : Application ctx.plan.toGeometry σ}
     {stmt : Statement σ Digest} {run : List (Invocation σ Digest)}
     (valid : ctx.plan.Valid) (accepted : Accepts ctx app stmt run) :
@@ -243,7 +243,7 @@ private theorem replay_prefix {ctx : Context E Digest} {run : List (Invocation �
       replay_segment valid (closes k (by omega)) (balanced k (by omega)) replay ts start
     exact ⟨m', replay', ts', by rw [join k hk]; exact agree⟩
 
-/-- Security note Lemma 6, deterministic form. -/
+/-- Deterministic memory soundness (`SECURITY_MODEL.md`, adversary 5). -/
 theorem soundness {ctx : Context E Digest} {app : Application ctx.plan.toGeometry σ}
     {stmt : Statement σ Digest} {run : List (Invocation σ Digest)}
     (valid : ctx.plan.Valid) (accepted : Accepts ctx app stmt run) :

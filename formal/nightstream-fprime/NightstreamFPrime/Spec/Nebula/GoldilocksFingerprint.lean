@@ -1,7 +1,7 @@
 import NightstreamFPrime.Spec.GoldilocksExtensionRing
 import NightstreamFPrime.Spec.Nebula.RetryAveraging
 
-/-! Owns security note Lemma 3 on the trunk challenge field
+/-! Owns the fingerprint bound on the trunk challenge field
 `K = F_q[U]/(U² − 7)`: part 1, `ε_test ≤ 2·m / q²`, and part 2 for one segment.
 The ring structure on `K` is the scoped instance block of
 `GoldilocksExtensionRing`. -/
@@ -11,7 +11,7 @@ namespace NightstreamFPrime.Spec.Nebula.GoldilocksFingerprint
 open scoped NightstreamFPrime.Spec.GoldilocksExtensionRing
 open NightstreamFPrime.Spec.GoldilocksExtensionRing (card_K)
 
-/-- Lemma 3 part 1 on `K`. -/
+/-- The first part of the fingerprint bound on `K`. -/
 theorem goldilocks_badChallenges_frequency {A B : Multiset Tuple} {m : ℕ} (different : A ≠ B)
     (small : ∀ τ ∈ A + B, τ.Small) (sizeA : Multiset.card A ≤ m)
     (sizeB : Multiset.card B ≤ m) :
@@ -21,7 +21,8 @@ theorem goldilocks_badChallenges_frequency {A B : Multiset Tuple} {m : ℕ} (dif
   rwa [card_K] at bound
 
 open Classical in
-/-- Lemma 3 part 2 on `K` for one segment of the game that motivates A6, with
+/-- The second part of the fingerprint bound on `K` for one segment of the
+challenge game, with
 `ε_test = 2·m_mem / q²`: `Pr[Err] ≤ ε_test + Pr[Err and the retry disagrees]`,
 and every disagreeing pair gives a collision among the two calls' chain
 inputs. -/

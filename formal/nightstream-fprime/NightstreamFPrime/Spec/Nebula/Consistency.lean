@@ -3,7 +3,7 @@ import Mathlib.Data.List.Induction
 import Mathlib.Data.Multiset.Range
 import NightstreamFPrime.Spec.Nebula.Reference
 
-/-! Owns security note Lemma 5 and its converse. Lemma 5: if the write stamps
+/-! Owns sequential consistency of one segment and its converse. If the write stamps
 are consecutive, every operation has `rt < wt` and is valid, and
 `IS ∪ WS = RS ∪ FS`, then the operations replay on the reference machine from
 the IS memory and end at the FS memory. The converse: an honest replay, with
@@ -58,7 +58,7 @@ private theorem coe_map_append (f : MemOp → Tuple) (ops : List MemOp) (o : Mem
   rw [List.map_append, ← Multiset.coe_add]
   rfl
 
-/-- Security note Lemma 5. -/
+/-- Sequential consistency of one segment. -/
 theorem segment_sequential (p : Geometry) {start : Machine} {final : Memory} {ops : List MemOp}
     (stamps : ∀ k (hk : k < ops.length), (ops.get ⟨k, hk⟩).wt = start.ts + k + 1)
     (fresh : ∀ o ∈ ops, o.rt < o.wt) (valid : ∀ o ∈ ops, o.access.Valid p)
@@ -138,7 +138,7 @@ def honestOps (p : Geometry) : Machine → List PortAccess → List MemOp
   | _, [] => []
   | m, a :: rest => ⟨a, (m.memory (a.globalIndex p)).stamp, m.ts + 1⟩ :: honestOps p (m.apply p a) rest
 
-/-- Converse of Lemma 5: an honest replay from a machine whose stamps do not
+/-- Converse of sequential consistency: an honest replay from a machine whose stamps do not
 exceed its timestamp is balanced, fresh, and has consecutive write stamps. -/
 theorem honest_balanced (p : Geometry) {start m : Machine} {as : List PortAccess}
     (below : ∀ g, (start.memory g).stamp ≤ start.ts)

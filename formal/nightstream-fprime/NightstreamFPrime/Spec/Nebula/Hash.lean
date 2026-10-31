@@ -1,11 +1,11 @@
 import Mathlib.Data.List.Basic
 
-/-! Owns the record chains of spec §9.2 over an abstract hash, the challenge
-transcript input of §9.3, and security note Lemma 2 (chain binding). A hash is
+/-! Owns the record chains of SPEC.md section 7.4 over an abstract hash, the challenge
+challenge transcript input, and chain binding. A hash is
 any function. A collision is always a pair of inputs from explicit, finite
 input lists that a run determines, so a reduction can find it by search; a
 collision "somewhere" would say nothing for a hash with finite output. The
-concrete Poseidon2 framing (obligation Ob3) is in `Lifecycle/Nebula/Framing`. -/
+concrete Poseidon2 framing (the transcript framing) is in `Lifecycle/Nebula/Framing`. -/
 
 namespace NightstreamFPrime.Spec.Nebula
 
@@ -16,12 +16,12 @@ inductive Lane
 deriving DecidableEq
 
 /-- Every hash input of the memory phase. The constructor and the lane are the
-domain tag of spec §9.2. -/
+domain tag of SPEC.md section 7.4. -/
 inductive HashInput (Digest : Type) where
   | header (lane : Lane) (planDigest : Digest)
   | chain (lane : Lane) (index : ℕ) (previous : Digest) (packed : List ℕ)
 
-/-- The §9.3 transcript input, in absorb order. -/
+/-- The challenge transcript input, in absorb order. -/
 structure EtaInput (Digest : Type) where
   planDigest : Digest
   ts : ℕ
@@ -40,7 +40,7 @@ theorem CollisionIn.mono {Digest : Type} {H : HashInput Digest → Digest}
   obtain ⟨a, ha, b, hb, ne, eq⟩ := collision
   exact ⟨a, hx ha, b, hy hb, ne, eq⟩
 
-/-- Spec §9.2: `D[0] = header`, `D[j+1] = chain(j, D[j], P[j])`. The pair
+/-- SPEC.md section 7.4: `D[0] = header`, `D[j+1] = chain(j, D[j], P[j])`. The pair
 carries the current digest and the next index. -/
 def chainState {Digest : Type} (H : HashInput Digest → Digest) (lane : Lane) (pd : Digest)
     (packed : List (List ℕ)) : Digest × ℕ :=
@@ -155,7 +155,7 @@ private theorem eq_or_collision_of_length {Digest : Type} (H : HashInput Digest 
       · exact Or.inr (collision.mono inputs_subset inputs_subset)
     · exact Or.inr ⟨_, last_mem, _, last_mem, links, same⟩
 
-/-- Security note Lemma 2: equal roots give equal packed lanes, or a collision
+/-- Chain binding: equal roots give equal packed lanes, or a collision
 between the two chains' own inputs. -/
 theorem chainRoot_eq_or_collision {Digest : Type} (H : HashInput Digest → Digest)
     (lane : Lane) (pd : Digest) {ps qs : List (List ℕ)}
@@ -165,7 +165,7 @@ theorem chainRoot_eq_or_collision {Digest : Type} (H : HashInput Digest → Dige
 
 /-- A chain input whose words are canonical: its index is below `indexBound`,
 its packed lane has the plan's length for its lane, and every packed element is
-below `2 ^ 63` (Lemma 1). A header input is always canonical. -/
+below `2 ^ 63`. A header input is always canonical. -/
 def HashInput.Canonical {Digest : Type} (laneLength : Lane → ℕ) (indexBound : ℕ) :
     HashInput Digest → Prop
   | .header _ _ => True

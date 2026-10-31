@@ -1,4 +1,4 @@
-//! The memory geometry of spec §4, its validity, and its derived widths.
+//! The memory geometry of SPEC.md section 7.1, its validity, and its derived widths.
 //! Mirrors `Geometry` in `Spec/Nebula/Plan.lean`; `FirstPlan.lean` and
 //! `SecondPlan.lean` own the package geometries. A geometry has no image, so
 //! the relation, the plan digest, and the witness layout read no program.
@@ -6,7 +6,7 @@
 use p3_field::PrimeField64;
 use p3_goldilocks::Goldilocks as F;
 
-/// Spec §4.1 without the images.
+/// SPEC.md section 7.1 without the images.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Geometry {
     pub r: usize,
@@ -34,7 +34,7 @@ impl Geometry {
         }
     }
 
-    /// The second package (`SecondPlan.lean`), for the spec §14 cases that
+    /// The second package (`SecondPlan.lean`), for the SPEC.md section 9 cases that
     /// the first geometry cannot reach: ROM of four words and RAM of eight
     /// (`r < μ`), segments of one step, at most four segments, and 4-bit
     /// timestamps.
@@ -50,7 +50,7 @@ impl Geometry {
         }
     }
 
-    /// Lean `Geometry.Valid`: spec §4.2 rules 1–5 and positive counts. The
+    /// Lean `Geometry.Valid`: SPEC.md section 7.1, rules 1 to 5 and positive counts. The
     /// memory theorems hold only for a valid geometry. `μ ≥ 64` breaks
     /// `R + M < q`, so the shifts below cannot overflow.
     pub fn is_valid(&self) -> bool {
@@ -74,7 +74,7 @@ impl Geometry {
                 .all(|count| *count > 0)
     }
 
-    /// Lean `Geometry.Secure`, spec §4.2 rule 6, for a valid geometry:
+    /// Lean `Geometry.Secure`, SPEC.md section 7.1, rule 6, for a valid geometry:
     /// `m_mem ≤ 139,509`, so the memory fingerprint error is at most
     /// `2^−109.91` (Lean `Geometry.secure_iff`).
     pub(super) fn is_secure(&self) -> bool {
@@ -98,19 +98,19 @@ impl Geometry {
         self.cells() + self.n * self.b_ops
     }
 
-    /// `-log2` of the memory fingerprint error `2·m_mem/q²` (security note
-    /// §5). Spec §4.2 rule 6 requires at least 109.91 bits (Lean
+    /// `-log2` of the memory fingerprint error `2·m_mem/q²` (`SECURITY_MODEL.md`,
+    /// adversary 5). SPEC.md section 7.1, rule 6 requires at least 109.91 bits (Lean
     /// `Geometry.secure_iff`).
     pub fn memory_security_bits(&self) -> f64 {
         2.0 * (F::ORDER_U64 as f64).log2() - (2.0 * self.max_tuples() as f64).log2()
     }
 
-    /// Bits of one operation slot (spec §6.1).
+    /// Bits of one operation slot (SPEC.md section 7.2).
     pub fn op_width(&self) -> usize {
         3 + self.mu + 64 + self.w_ts
     }
 
-    /// Bits of one scan slot (spec §6.2).
+    /// Bits of one scan slot (SPEC.md section 7.2).
     pub fn scan_width(&self) -> usize {
         32 + self.w_ts
     }

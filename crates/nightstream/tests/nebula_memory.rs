@@ -1,6 +1,6 @@
-//! The first Nebula memory application: native segment runs and spec §13
+//! The first Nebula memory application: native segment runs and SPEC.md Algorithm 10
 //! terminal checks, the generic runner's checks on an application, and
-//! (ignored, production profile) spec §14 conformance proofs over the
+//! (ignored, production profile) SPEC.md section 9 conformance proofs over the
 //! Lean-emitted packages and the Rust-built circuit.
 
 use neo_math::K;
@@ -76,9 +76,10 @@ fn native_run_closes_every_segment_and_passes_the_terminal() {
     );
 }
 
-/// Ob1 (security note §3): an integer of the statement that becomes a field
-/// word must be below `q`. Otherwise `v` and `v + q` give one word, and the
-/// proof of the honest statement also verifies the second one.
+/// Canonical decoding (SPEC.md Algorithm 10, step 2): an integer of the
+/// statement that becomes a field word must be below `q`. Otherwise `v` and
+/// `v + q` give one word, and the proof of the honest statement also verifies
+/// the second one.
 #[test]
 fn terminal_rejects_statement_integers_at_or_above_q() {
     let mut run = program_run();
@@ -176,7 +177,7 @@ fn programs_of_one_package_have_their_own_initial_state() {
     assert_ne!(other, runs[0].initial_state());
 }
 
-/// The verifier's `D_init` (spec §9.2), from which it computes the start
+/// The verifier's `D_init` (SPEC.md section 7.4), from which it computes the start
 /// carry and `z0`, equals the value that Lean computes for the same plan
 /// (`emit --application-start`). It binds the plan digest and the images.
 /// `FirstPlan.otherPlan` has a distinct nonzero word in every cell, so a
@@ -249,7 +250,7 @@ struct TerminalChecks {
     root: bool,
 }
 
-/// The carry of 39 words in spec §11.1 order (Lean `decodeCarry`).
+/// The carry of 39 words in SPEC.md section 7.5 order (Lean `decodeCarry`).
 fn decode_carry(words: &[u64]) -> Carry {
     let f = |i: usize| F::from_u64(words[i]);
     let k = |i: usize| K::from_basis_coefficients_slice(&[f(i), f(i + 1)]).unwrap();
@@ -275,11 +276,11 @@ fn canonical_words(words: &[F]) -> Vec<u64> {
     words.iter().map(|word| word.as_canonical_u64()).collect()
 }
 
-/// The spec §13 terminal check agrees with Lean's `TerminalChecks` on every
+/// The SPEC.md Algorithm 10 terminal check agrees with Lean's `TerminalChecks` on every
 /// case of `emit --application-terminal`. It accepts exactly when every
 /// statement integer is below `q` and every check holds, with Lean's final
 /// state words. Otherwise it fails at the first false check in its own order:
-/// Ob1, closed carry, segment range, step count, then the carry fields.
+/// Canonical decoding, closed carry, segment range, step count, then the carry fields.
 #[test]
 fn terminal_checks_match_lean() {
     for (package, fixture) in [
@@ -333,7 +334,7 @@ fn terminal_checks_match_lean() {
     }
 }
 
-/// Spec §4.2 rule 6: the memory fingerprint error `2·m_mem/q²` is at most
+/// SPEC.md section 7.1, rule 6: the memory fingerprint error `2·m_mem/q²` is at most
 /// `2^−109.91` exactly when `m_mem ≤ 139,509` (Lean `Geometry.secure_iff`).
 #[test]
 fn memory_security_bits_match_the_lean_setup_boundary() {
@@ -405,7 +406,7 @@ fn n1_native_run_reaches_every_counter_maximum() {
     assert_eq!(initial, run.initial_state());
 }
 
-/// The spec §14 accept cases of the second plan through the memory verifier:
+/// The SPEC.md section 9 accept cases of the second plan through the memory verifier:
 /// `N = 1`, and `S = S_max` with every counter at its largest value.
 fn n1_accept(engine: nightstream::Engine) {
     let circuit = Package::N1
@@ -450,7 +451,7 @@ fn n1_accept_on_metal() {
     n1_accept(nightstream::Engine::Metal);
 }
 
-/// The spec §14 accept cases that the first plan reaches, and the rejections
+/// The SPEC.md section 9 accept cases that the first plan reaches, and the rejections
 /// that need no invalid witness, through the memory verifier. One run of four
 /// segments (`S = S_max`) has continue arms (`N = 2`), writes RAM in the first
 /// segment and reads it in the second, and ends with an idle segment.
@@ -510,7 +511,7 @@ fn memory_conformance(engine: nightstream::Engine) {
         .unwrap();
     eprintln!("memory verification elapsed={:?}", verifying.elapsed());
 
-    // Ob1: an application integer at or above `q` has the word of a smaller
+    // Canonical decoding: an application integer at or above `q` has the word of a smaller
     // integer, so the honest proof would verify it. Reject it at the terminal.
     let mut alias = statement.clone();
     alias.final_.acc += F::ORDER_U64;
@@ -540,7 +541,7 @@ fn memory_conformance(engine: nightstream::Engine) {
         Err(VerifyError::Terminal(TerminalError::OpenCarry))
     ));
 
-    // The Stage 1 initial envelope (`T = 0`): reject (spec §13).
+    // The Stage 1 initial envelope (`T = 0`): reject (SPEC.md Algorithm 10).
     let mut empty = statement.clone();
     empty.steps = 0;
     empty.segments = 0;
@@ -581,7 +582,7 @@ fn memory_conformance_on_metal() {
     memory_conformance(nightstream::Engine::Metal);
 }
 
-/// One package serves two programs (spec §14): the loaded V1 package proves a
+/// One package serves two programs (SPEC.md section 9): the loaded V1 package proves a
 /// segment of the default program and of a second program, and each proof
 /// verifies with its own program. A verifier given the other program rejects
 /// it: the other `D_init` opens another initial state, so the Stage 1 state
@@ -765,7 +766,7 @@ fn invalid_geometries_make_no_program_and_no_circuit() {
     }
 }
 
-/// Spec §4.2 rule 6 (Lean `Geometry.Secure`): setup rejects a valid geometry
+/// SPEC.md section 7.1, rule 6 (Lean `Geometry.Secure`): setup rejects a valid geometry
 /// with `m_mem > 139,509`. This one has one port and one scan slot, so its
 /// relation is small, but `m_mem = R + M + N · B_ops = 2^18`.
 #[test]
@@ -784,7 +785,9 @@ fn insecure_geometry_makes_no_circuit() {
     let reference = package("nightstream-fprime-stage1-poseidon2-hash-chain-v1.json");
     assert!(matches!(
         nightstream::nebula::Circuit::compile(&reference, insecure, Machine),
-        Err(nightstream::Error::Circuit("the memory geometry breaks spec §4.2"))
+        Err(nightstream::Error::Circuit(
+            "the memory geometry breaks SPEC.md section 7.1"
+        ))
     ));
 }
 

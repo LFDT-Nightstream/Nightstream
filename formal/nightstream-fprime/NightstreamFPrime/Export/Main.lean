@@ -687,7 +687,7 @@ def emitNebulaMemoryRows (ranges : List (String × ℕ × ℕ)) (path : System.F
   IO.FS.writeFile path ("[" ++ ",".intercalate entries ++ "]\n")
   IO.println s!"emitted_application_rows={path}"
 
-/-- Write `D_init` of `plan` (spec §9.2, the start carry's `D_mem`) as
+/-- Write `D_init` of `plan` (SPEC.md section 7.4, the start carry's `D_mem`) as
 `{"d_init":[...]}`. `ofWords_initRootWords`: the words are
 `(context plan).initRoot`. Rust tests compare their own value with it. -/
 def emitNebulaMemoryStart (plan : Spec.Nebula.Plan) (path : System.FilePath) : IO Unit := do
@@ -695,7 +695,7 @@ def emitNebulaMemoryStart (plan : Spec.Nebula.Plan) (path : System.FilePath) : I
   IO.FS.writeFile path ("{\"d_init\":[" ++ ",".intercalate words ++ "]}\n")
   IO.println s!"emitted_application_start={path}"
 
-/-- Write the spec §13 terminal-check cases of `plan` with the decided
+/-- Write the SPEC.md Algorithm 10 terminal-check cases of `plan` with the decided
 `TerminalChecks` fields (`NebulaMemoryTerminal.fixture`). Rust tests require
 their own terminal check to agree on each case. -/
 def emitNebulaMemoryTerminal (plan : Spec.Nebula.Plan) (path : System.FilePath) : IO Unit := do

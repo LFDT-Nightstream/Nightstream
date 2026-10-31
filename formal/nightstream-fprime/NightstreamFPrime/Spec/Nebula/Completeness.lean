@@ -1,7 +1,7 @@
 import NightstreamFPrime.Spec.Nebula.Binding
 import NightstreamFPrime.Spec.Nebula.Consistency
 
-/-! Owns completeness (Ob5): every reference execution of `S · N` steps, with
+/-! Owns completeness: every reference execution of `S · N` steps, with
 `1 ≤ S ≤ S_max` and one port list of width `B_ops` per step, has a run that
 passes every check, for every hash function and every challenge function. The
 honest run puts each access's current cell stamp in `rt`, the open and close
@@ -586,7 +586,7 @@ private theorem honest_closes (valid : ctx.plan.Valid)
 
 end Closes
 
-/-- Ob5. -/
+/-- Completeness of the model. -/
 theorem completeness {ctx : Context E Digest} {app : Application ctx.plan.toGeometry σ}
     {s₀ s : σ} {final : Machine} {steps : List (List (Option PortAccess))} {segments : ℕ}
     (valid : ctx.plan.Valid) (width : ∀ ports ∈ steps, ports.length = ctx.plan.bOps)

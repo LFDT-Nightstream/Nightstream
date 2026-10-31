@@ -16,7 +16,7 @@ namespace Words
 
 variable (p : Geometry)
 
-/-- Words of one operation slot: the lane bits of spec §6.3, then the O4
+/-- Words of one operation slot: the lane bits of SPEC.md section 7.2, then the O4
 difference bits. -/
 def opWords : ℕ := p.opWidth + p.wTs
 

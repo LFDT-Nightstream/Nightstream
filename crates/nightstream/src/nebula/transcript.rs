@@ -1,4 +1,4 @@
-//! Native Poseidon2 transcript of spec §9 over the v1.1 framing: a block is
+//! Native Poseidon2 transcript of SPEC.md section 7.4 over the v1.1 framing: a block is
 //! its length, then its words; a block is absorbed in rate chunks, each added
 //! to the rate lanes and permuted; a digest is the first four lanes.
 //! Mirrors `Lifecycle/Transcript.lean` and `Lifecycle/Nebula/Framing.lean`.
@@ -13,7 +13,7 @@ use super::geometry::Geometry;
 pub type Digest = [F; 4];
 pub type State = [F; WIDTH];
 
-/// The two lanes of spec §9.2.
+/// The two lanes of SPEC.md section 7.4.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Lane {
     Ops,
@@ -78,7 +78,7 @@ pub(super) fn chain_tag(lane: Lane) -> &'static str {
     }
 }
 
-/// Spec §4.3 `plan_digest`: the geometry only. The images enter through
+/// SPEC.md section 7.1 `plan_digest`: the geometry only. The images enter through
 /// `D_init`.
 pub fn plan_digest(geometry: &Geometry) -> Digest {
     let fields: Vec<F> = [
@@ -96,12 +96,12 @@ pub fn plan_digest(geometry: &Geometry) -> Digest {
     digest(&absorbed(&[&text("Nightstream/Nebula/v3/plan"), &fields]))
 }
 
-/// `header_l` of spec §9.2.
+/// `header_l` of SPEC.md section 7.4.
 pub fn header(lane: Lane, plan_digest: &Digest) -> Digest {
     digest(&absorbed(&[&text(header_tag(lane)), plan_digest]))
 }
 
-/// One chain link of spec §9.2 over packed lane words.
+/// One chain link of SPEC.md section 7.4 over packed lane words.
 pub fn chain_link(lane: Lane, index: usize, previous: &Digest, packed: &[F]) -> Digest {
     let mut prefix = Vec::with_capacity(5);
     prefix.push(F::from_usize(index));
@@ -119,7 +119,7 @@ pub fn chain_root(lane: Lane, plan_digest: &Digest, packed: &[Vec<F>]) -> Digest
         })
 }
 
-/// Spec §9.3: the two memory challenges of a segment.
+/// SPEC.md section 7.4: the two memory challenges of a segment.
 pub fn eta_challenges(
     plan_digest: &Digest,
     ts: F,
@@ -137,7 +137,7 @@ pub fn eta_challenges(
     (eta1, eta2)
 }
 
-/// The four Stage 1 application-state words: the spec §11.1 state digest of
+/// The four Stage 1 application-state words: the SPEC.md section 7.5 state digest of
 /// the application words and the carry words.
 pub fn state_words(app: &[F], carry: &[F]) -> Digest {
     digest(&absorbed(&[&text(STATE_TAG), app, carry]))

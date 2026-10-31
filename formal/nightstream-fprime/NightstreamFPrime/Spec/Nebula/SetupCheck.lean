@@ -1,7 +1,7 @@
 import Mathlib.Analysis.SpecialFunctions.Pow.Real
 import NightstreamFPrime.Spec.Nebula.Plan
 
-/-! Owns spec §4.2 rule 6, the setup check of security note §5: a geometry passes
+/-! Owns SPEC.md section 7.1, rule 6, the memory setup check: a geometry passes
 exactly when one fingerprint check over `K` has error at most the
 owner-approved floor `2^−109.91`, that is, when `R + M + N · B_ops ≤ 139,509`.
 The check bounds the per-check value; it does not own the Fiat–Shamir query
@@ -9,7 +9,7 @@ loss. -/
 
 namespace NightstreamFPrime.Spec.Nebula
 
-/-- Spec §4.2 rule 6: `m_mem = R + M + N · B_ops ≤ 139,509`. -/
+/-- SPEC.md section 7.1, rule 6: `m_mem = R + M + N · B_ops ≤ 139,509`. -/
 def Geometry.Secure (p : Geometry) : Prop := p.maxTuples ≤ 139509
 
 /-- The integer form of `2·m/q² ≤ 2^−109.91`. -/
@@ -28,7 +28,7 @@ private theorem floor_nat_iff (m : ℕ) :
     have edge : (2 * 139509) ^ 100 * 2 ^ 10991 ≤ goldilocksModulus ^ 200 := by decide +kernel
     omega
 
-/-- Security note §5: rule 6 holds exactly when
+/-- Rule 6 holds exactly when
 `ε_test = 2·m_mem/q² ≤ 2^−109.91`. -/
 theorem Geometry.secure_iff (p : Geometry) :
     p.Secure ↔

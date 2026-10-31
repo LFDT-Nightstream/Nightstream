@@ -1,4 +1,4 @@
-//! The memory carry of spec §11.1 and its 39 words. Mirrors
+//! The memory carry of SPEC.md section 7.5 and its 39 words. Mirrors
 //! `Lifecycle/Nebula/Carry.lean` (`carryVector`).
 
 use neo_math::K;
@@ -27,7 +27,7 @@ impl Products {
     }
 }
 
-/// Spec §11.1 `MemoryCarry`.
+/// SPEC.md section 7.5 `MemoryCarry`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Carry {
     pub seg_idx: u64,
@@ -46,7 +46,7 @@ pub fn k_words(value: K) -> [F; 2] {
 }
 
 impl Carry {
-    /// The closed start carry of spec §11.1: `idx = N`, every root `D_init`.
+    /// The closed start carry of SPEC.md section 7.5: `idx = N`, every root `D_init`.
     pub fn start(n: usize, d_init: Digest) -> Self {
         Self {
             seg_idx: 0,
@@ -60,7 +60,7 @@ impl Carry {
         }
     }
 
-    /// The 39 carry words in spec §11.1 order.
+    /// The 39 carry words in SPEC.md section 7.5 order.
     pub fn words(&self) -> [F; 39] {
         let mut words = Vec::with_capacity(39);
         words.push(F::from_u64(self.seg_idx));

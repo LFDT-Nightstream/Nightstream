@@ -89,7 +89,7 @@ fn enforced_supports() -> BTreeMap<usize, BTreeSet<usize>> {
     supports
 }
 
-/// Spec §10.1 I1 and I2 accept a row whose active ports sit in distinct
+/// SPEC.md section 7.6 I1 and I2 accept a row whose active ports sit in distinct
 /// slots, with each pair of one memory and a write in catalog order. So two
 /// ports that the relation lets be active together must sit in distinct
 /// slots, and in increasing slots when they are such a pair. The ports whose

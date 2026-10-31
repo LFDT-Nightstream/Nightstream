@@ -3,7 +3,7 @@ import NightstreamFPrime.Lifecycle.Nebula.StepRows
 /-! Owns the decoding of a step witness's field bits into the typed records
 of the model: bits to Booleans, bit words to natural values below their
 width, slots to `OpSlot` and `ScanSlot`, and field-bit packing to the model's
-`pack` (Lemma 1's packing over field words, Ob2). -/
+`pack` (the packing over field words). -/
 
 namespace NightstreamFPrime.Lifecycle.Nebula
 
@@ -70,7 +70,7 @@ theorem bitsLE_bitsNat {n : ℕ} (bits : Fin n → F) :
   have := bitsLE_chunkValue ((List.ofFn bits).map toBool)
   rwa [List.length_map, List.length_ofFn] at this
 
-/-- Spec §9.1 packing of field bits is the model's packing of their Booleans. -/
+/-- SPEC.md section 7.4 packing of field bits is the model's packing of their Booleans. -/
 theorem packWords_eq {bits : List F} (allBits : ∀ x ∈ bits, IsBit x) :
     packWords bits = (pack (bits.map toBool)).map natWord := by
   induction bits using packWords.induct with
@@ -86,7 +86,7 @@ namespace OpSlotBits
 
 variable {p : Geometry} (slot : OpSlotBits p)
 
-/-- The typed operation slot of spec §6.1. -/
+/-- The typed operation slot of SPEC.md section 7.2. -/
 def decode : OpSlot :=
   ⟨toBool slot.pad, toBool slot.isWrite, toBool slot.isRam, bitsNat slot.addr, bitsNat slot.vr,
     bitsNat slot.vw, bitsNat slot.rt⟩
@@ -94,7 +94,7 @@ def decode : OpSlot :=
 theorem decode_fits : slot.decode.Fits p :=
   ⟨bitsNat_lt _, bitsNat_lt _, bitsNat_lt _, bitsNat_lt _⟩
 
-/-- The spec §6.3 encoding of the decoded slot is its lane bits. -/
+/-- The SPEC.md section 7.2 encoding of the decoded slot is its lane bits. -/
 theorem decode_bits : slot.decode.bits p = slot.lane.map toBool := by
   simp only [decode, OpSlot.bits, lane, bitsLE_bitsNat, List.map_append, List.map_cons,
     List.cons_append, List.nil_append]
@@ -105,7 +105,7 @@ namespace ScanSlotBits
 
 variable {p : Geometry} (slot : ScanSlotBits p)
 
-/-- The typed scan slot of spec §6.2. -/
+/-- The typed scan slot of SPEC.md section 7.2. -/
 def decode : ScanSlot := ⟨bitsNat slot.value, bitsNat slot.stamp⟩
 
 theorem decode_fits : slot.decode.Fits p := ⟨bitsNat_lt _, bitsNat_lt _⟩

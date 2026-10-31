@@ -1,8 +1,8 @@
 import NightstreamFPrime.Spec.Nebula.MemoryTrace
 import NightstreamFPrime.Spec.Nebula.Reference
 
-/-! Owns the binding of catalog memory events to Nebula port accesses (spec
-§10.1) and the bridge from a Nebula execution to `MemoryConsistent`. A binding
+/-! Owns the binding of catalog memory events to Nebula port accesses (SPEC.md
+section 7.6) and the bridge from a Nebula execution to `MemoryConsistent`. A binding
 gives each bound memory a region in its namespace: RAM for a memory that the
 catalog declares RAM, ROM otherwise. An access binds an event when it names
 the event's packed address, a read reads the event value, and a write writes
@@ -139,7 +139,7 @@ theorem packParts_injective {ws : List ℕ} {xs ys : Address}
 
 /-! ### Simulation -/
 
-/-- The global index (spec §6.1 `g`) of an address in region `r` of `memory`. -/
+/-- The global index (SPEC.md section 7.2 `g`) of an address in region `r` of `memory`. -/
 private def cellIndex (p : Geometry) (catalog : List MemorySpec) (memory : ℕ) (r : Region)
     (address : Address) : ℕ :=
   if isRam catalog memory then p.romSize + r.addr address else r.addr address

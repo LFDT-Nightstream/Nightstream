@@ -7,6 +7,7 @@ import NightstreamFPrime.Spec.HyperNova.Construction2.OptionBKeys
 import NightstreamFPrime.Lifecycle.OptionB.State
 import NightstreamFPrime.Lifecycle.OptionB.Keys
 import NightstreamFPrime.Lifecycle.OptionB.Step
+import NightstreamFPrime.Lifecycle.OptionB.StateHashGadget
 
 open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 
@@ -115,6 +116,14 @@ open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.StepHolds
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.accepts_iff
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.stepHolds_iff
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.gadgetDigest_eq
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.statePreimage_of_gadgets
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.output_stateHash
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.prior_publicInput
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.builder_implies_output
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.builder_implies_prior
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.slotGadget_hashLength
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.stateGadget_hashLength
 
 /-- One refresh per period starves slot 1: it takes a light fold each time the light circuit
 follows the refresh circuit and is never refreshed. -/

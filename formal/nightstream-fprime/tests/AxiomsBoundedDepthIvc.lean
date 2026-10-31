@@ -1,6 +1,7 @@
 import tests.AxiomAudit
 import NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 import NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthKnowledge
+import NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthSecurity
 
 open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 
@@ -28,6 +29,21 @@ open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 #audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthKnowledge.reverse_extracts_within
 #audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthKnowledge.slot_runs
 #audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthKnowledge.execution_extracts
+#audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthReverse.attempts_take
+#audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthReverse.fails_take
+#audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthReverse.returned_of_no_failure
+#audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthSecurity.event_ne_top
+#audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthSecurity.Stage.next_marginal
+#audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthSecurity.reverseExtractor_error
+#audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthSecurity.reverseStages_succ
+#audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthSecurity.results_length
+#audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthSecurity.reverseStages_marginal
+#audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthSecurity.stage_event
+#audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthSecurity.start_event
+#audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthSecurity.failure_term
+#audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthSecurity.input_bound
+#audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthSecurity.per_tape
+#audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthSecurity.history_failure_le
 
 /-- One refresh per period starves slot 1: it takes a light fold each time the light circuit
 follows the refresh circuit and is never refreshed. -/

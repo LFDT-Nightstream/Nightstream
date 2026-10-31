@@ -3,6 +3,7 @@ import NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 import NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthKnowledge
 import NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthSecurity
 import NightstreamFPrime.Spec.HyperNova.Construction2.OptionBFolds
+import NightstreamFPrime.Lifecycle.OptionB.State
 
 open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 
@@ -54,6 +55,15 @@ open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 #audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.OptionBFolds.refresh_rejects_light_proof
 #audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.OptionBFolds.toLightRunning_fromLight
 #audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.OptionBFolds.toLightRunning_isSome
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.domainChunks_distinct
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.natWord_injective
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.serializePoint_injective
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.serializeSlot_length
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.serializeSlot_length_eq
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.statePreimage_length
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.serializeSlot_injective
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.statePreimage_injective
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.stateHash_collision
 
 /-- One refresh per period starves slot 1: it takes a light fold each time the light circuit
 follows the refresh circuit and is never refreshed. -/

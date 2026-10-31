@@ -31,4 +31,5 @@ import NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 import NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthKnowledge
 import NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthSecurity
 import NightstreamFPrime.Spec.HyperNova.Construction2.OptionBFolds
+import NightstreamFPrime.Lifecycle.OptionB.State
 import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.ChainBinding

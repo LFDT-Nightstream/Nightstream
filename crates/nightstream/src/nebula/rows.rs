@@ -434,7 +434,8 @@ impl<'a> Sym<'a> {
 /// The values that an application's rows read (Lean `AppView.env`): its input
 /// and output state words, its private words, and each operation slot. Local
 /// variable `k` is witness word `Layout::app_var(k)`, so a slot past `B_ops`
-/// reads zero, as in Lean.
+/// reads zero, as in Lean. The index sums saturate: an index past the witness
+/// reads zero, as a Lean natural number does, and never wraps onto a word.
 pub struct View<'a> {
     sym: &'a Sym<'a>,
 }
@@ -473,12 +474,12 @@ impl<'a> View<'a> {
 
     /// Output state word `i`.
     pub fn output(&self, i: usize) -> Expr {
-        self.local(self.sym.layout.width() + i)
+        self.local(self.sym.layout.width().saturating_add(i))
     }
 
     /// Private word `i`.
     pub fn aux(&self, i: usize) -> Expr {
-        self.local(2 * self.sym.layout.width() + i)
+        self.local((2 * self.sym.layout.width()).saturating_add(i))
     }
 
     /// The pad bit of operation slot `j`: one for an inactive slot.

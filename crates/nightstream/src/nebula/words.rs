@@ -108,7 +108,9 @@ impl Layout {
     /// The application's local variable of word `k` of operation slot `j`
     /// (Lean `AppView.slotStart + j · opWords + k`).
     pub fn slot_local(&self, j: usize, k: usize) -> usize {
-        2 * self.width + self.aux + j * self.op_words + k
+        (2 * self.width + self.aux)
+            .saturating_add(j.saturating_mul(self.op_words))
+            .saturating_add(k)
     }
 
     /// The witness word of the application's local variable `k`
@@ -123,7 +125,7 @@ impl Layout {
         if j < self.b_ops {
             self.op(j, i)
         } else {
-            self.count() + k
+            self.count().saturating_add(k)
         }
     }
 

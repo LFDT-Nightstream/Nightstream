@@ -4,7 +4,7 @@
 //! instructions; Rust: one recipe per variable), so the identifiers differ.
 //! The Rust-built circuit also saves and loads.
 
-use std::{fs, path::PathBuf};
+use std::{cell::RefCell, collections::BTreeSet, fs, path::PathBuf};
 
 use nightstream_fprime::{
     load_per_application_package, LoadedPerApplicationPackage, LogicalMatrixRow, StructuralIdentifier,
@@ -13,7 +13,10 @@ use nightstream_fprime::{
 use crate::{
     application::ApplicationCircuit,
     assembly,
-    nebula::{Circuit, Context, Machine, MachineState, Package, Program, Run, Step},
+    nebula::{
+        Application, Circuit, Context, Expr, Machine, MachineState, Memory, Package, Program, Run, Step, Transition,
+        View,
+    },
 };
 
 fn artifact(name: &str) -> Vec<u8> {
@@ -174,4 +177,58 @@ fn rust_built_circuit_writes_and_loads() {
         &Package::V1.program(),
         &[&execute, &execute, &idle, &idle],
     );
+}
+
+/// Lean indexes the view with natural numbers, so an index past the witness
+/// reads zero. An application that reads its words at `usize::MAX` must get
+/// zero too, not a witness word after the index sum wraps.
+#[test]
+fn view_reads_past_the_witness_are_zero() {
+    struct Probe(RefCell<Vec<&'static str>>);
+
+    impl Application for Probe {
+        type Input = ();
+        type State = ();
+        type Error = std::convert::Infallible;
+
+        fn width(&self) -> usize {
+            1
+        }
+        fn aux(&self) -> usize {
+            1
+        }
+        fn port_count(&self) -> usize {
+            Package::V1.geometry().b_ops
+        }
+        fn words(&self, _: &()) -> Vec<u64> {
+            vec![0]
+        }
+        fn rows(&self, view: &View) -> Result<Vec<Expr>, crate::Error> {
+            let far = usize::MAX;
+            let reads = [
+                ("input", view.input(far)),
+                ("output", view.output(far)),
+                ("aux", view.aux(far)),
+                ("pad", view.pad(far)),
+                ("is_write", view.is_write(far)),
+                ("is_ram", view.is_ram(far)),
+                ("addr", view.addr(far)),
+                ("vr", view.vr(far)),
+                ("vw", view.vw(far)),
+            ];
+            for (name, read) in reads {
+                if read.variable_outside(&BTreeSet::new()).is_some() {
+                    self.0.borrow_mut().push(name);
+                }
+            }
+            Ok(Vec::new())
+        }
+        fn step(&self, _: &(), _: &(), _: &Memory) -> Result<Transition<()>, Self::Error> {
+            unreachable!("the probe runs no step")
+        }
+    }
+
+    let probe = Probe(RefCell::new(Vec::new()));
+    super::memory_circuit(&Package::V1.geometry(), &probe).unwrap();
+    assert_eq!(*probe.0.borrow(), Vec::<&str>::new(), "reads that give a witness word");
 }

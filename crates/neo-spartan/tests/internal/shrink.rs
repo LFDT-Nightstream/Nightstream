@@ -6,6 +6,7 @@ use std::time::Instant;
 use neo_ccs::crypto::poseidon2_goldilocks::WIDTH;
 use neo_math::D;
 use neo_verified::circuit::{Kind, KINDS, MATRICES};
+use neo_verified::diagonal::Track;
 use neo_verified::layout::{block_row, cell_variables, entry_column, row_variables, Shape};
 use p3_challenger_v08::{CanObserve, FieldChallenger};
 use p3_field_v08::{BasedVectorSpace, PrimeCharacteristicRing, PrimeField64};
@@ -18,9 +19,9 @@ use crate::circuit::block::{entries, C, X};
 use crate::circuit::record::{Recorder, Sink, Term, Trace};
 use crate::circuit::{algebra, Backend};
 use crate::device::Accelerator;
-use crate::field::{eq_table, fold_low, Ext, Gl};
+use crate::field::{eq_table, ext_from_verified, exts_to_verified, fold_low, Ext, Gl};
 use crate::hash::{permutation, seed, Challenger};
-use crate::shrink::layout::{block_part, diagonal};
+use crate::shrink::layout::block_part;
 use crate::shrink::{prove, prove_outer, shape_of, verify, Program, Shrink, ShrinkProof};
 use crate::sumcheck;
 use crate::verifier::ProofView;
@@ -41,6 +42,17 @@ fn eq_at(point: &[Ext], index: u64) -> Ext {
         return Ext::ZERO;
     }
     eq_table(point)[index as usize]
+}
+
+fn diagonal(tracks: &[(&[Ext], u64)], count: u64) -> Ext {
+    let tracks: Vec<Track> = tracks
+        .iter()
+        .map(|&(point, offset)| Track {
+            point: exts_to_verified(point),
+            offset: offset as usize,
+        })
+        .collect();
+    ext_from_verified(neo_verified::diagonal::diagonal(&tracks, count as usize))
 }
 
 #[test]

@@ -288,6 +288,547 @@ def degrees.shrink (shape : layout.Shape) : Result Std.Usize := do
   let i1 ← degrees.add i batching
   degrees.add i1 inner
 
+/-- [neo_verified::field::{impl core::clone::Clone for neo_verified::field::Ext}::clone]:
+    Source: 'crates/neo-verified/src/field.rs', lines 144:9-144:14
+    Visibility: public -/
+def field.Ext.Insts.CoreCloneClone.clone
+  (self : field.Ext) : Result field.Ext := do
+  ok self
+
+/-- Trait implementation: [neo_verified::field::{impl core::clone::Clone for neo_verified::field::Ext}]
+    Source: 'crates/neo-verified/src/field.rs', lines 144:9-144:14 -/
+@[reducible]
+def field.Ext.Insts.CoreCloneClone : core.clone.Clone field.Ext := {
+  clone := field.Ext.Insts.CoreCloneClone.clone
+}
+
+/-- [neo_verified::diagonal::{impl core::clone::Clone for neo_verified::diagonal::Track}::clone]:
+    Source: 'crates/neo-verified/src/diagonal.rs', lines 13:9-13:14
+    Visibility: public -/
+def diagonal.Track.Insts.CoreCloneClone.clone
+  (self : diagonal.Track) : Result diagonal.Track := do
+  let v ← alloc.vec.CloneVec.clone field.Ext.Insts.CoreCloneClone self.point
+  let i ← lift (core.clone.impls.CloneUsize.clone self.offset)
+  ok { point := v, offset := i }
+
+/-- Trait implementation: [neo_verified::diagonal::{impl core::clone::Clone for neo_verified::diagonal::Track}]
+    Source: 'crates/neo-verified/src/diagonal.rs', lines 13:9-13:14 -/
+@[reducible]
+def diagonal.Track.Insts.CoreCloneClone : core.clone.Clone diagonal.Track := {
+  clone := diagonal.Track.Insts.CoreCloneClone.clone
+}
+
+/-- [neo_verified::diagonal::bit_length]:
+    Source: 'crates/neo-verified/src/diagonal.rs', lines 20:0-22:1 -/
+def diagonal.bit_length (value : Std.Usize) : Result Std.Usize := do
+  let i ← lift (UScalar.cast .Usize core.num.Usize.BITS)
+  let i1 ← lift (core.num.Usize.leading_zeros value)
+  let i2 ← lift (UScalar.cast .Usize i1)
+  ok (core.num.Usize.wrapping_sub i i2)
+
+/-- [neo_verified::diagonal::bit_at]:
+    Source: 'crates/neo-verified/src/diagonal.rs', lines 25:0-31:1 -/
+def diagonal.bit_at
+  (value : Std.Usize) (t : Std.Usize) : Result Std.Usize := do
+  let b ← algebra.index_bit value t
+  if b
+  then ok 1#usize
+  else ok 0#usize
+
+/-- [neo_verified::diagonal::carry_states]: loop body 0:
+    Source: 'crates/neo-verified/src/diagonal.rs', lines 37:4-40:5 -/
+@[rust_loop_body]
+def diagonal.carry_states_loop.body
+  (tracks : Slice diagonal.Track) (states : Std.Usize) (i : Std.Usize) :
+  Result (ControlFlow (Std.Usize × Std.Usize) Std.Usize)
+  := do
+  let i1 := Slice.len tracks
+  if i < i1
+  then
+    let o ← lift (Usize.checked_mul states 2#usize)
+    let states1 ← core.option.Option.unwrap o
+    let i2 ← lift (core.num.Usize.wrapping_add i 1#usize)
+    ok (cont (states1, i2))
+  else ok (done states)
+
+/-- [neo_verified::diagonal::carry_states]: loop 0:
+    Source: 'crates/neo-verified/src/diagonal.rs', lines 37:4-40:5 -/
+@[rust_loop]
+def diagonal.carry_states_loop
+  (tracks : Slice diagonal.Track) (states : Std.Usize) (i : Std.Usize) :
+  Result Std.Usize
+  := do
+  loop
+    (fun (states1, i1) => diagonal.carry_states_loop.body tracks states1 i1)
+    (states, i)
+
+/-- [neo_verified::diagonal::carry_states]:
+    Source: 'crates/neo-verified/src/diagonal.rs', lines 34:0-42:1 -/
+@[reducible]
+def diagonal.carry_states
+  (tracks : Slice diagonal.Track) : Result Std.Usize := do
+  diagonal.carry_states_loop tracks 1#usize 0#usize
+
+/-- [neo_verified::diagonal::walk_bits]: loop body 0:
+    Source: 'crates/neo-verified/src/diagonal.rs', lines 48:4-55:5
+    Visibility: public -/
+@[rust_loop_body]
+def diagonal.walk_bits_loop.body
+  (tracks : Slice diagonal.Track) (bits : Std.Usize) (i : Std.Usize) :
+  Result (ControlFlow (Std.Usize × Std.Usize) Std.Usize)
+  := do
+  if 0#usize < i
+  then
+    let i1 ← lift (core.num.Usize.wrapping_sub i 1#usize)
+    let t ← Slice.index_usize tracks i1
+    let i2 := alloc.vec.Vec.len t.point
+    let i3 ← diagonal.bit_length t.offset
+    let i4 ← lift (core.cmp.impls.OrdUsize.max i2 i3)
+    let bits1 ← lift (core.cmp.impls.OrdUsize.max i4 bits)
+    ok (cont (bits1, i1))
+  else ok (done bits)
+
+/-- [neo_verified::diagonal::walk_bits]: loop 0:
+    Source: 'crates/neo-verified/src/diagonal.rs', lines 48:4-55:5
+    Visibility: public -/
+@[rust_loop]
+def diagonal.walk_bits_loop
+  (tracks : Slice diagonal.Track) (bits : Std.Usize) (i : Std.Usize) :
+  Result Std.Usize
+  := do
+  loop
+    (fun (bits1, i1) => diagonal.walk_bits_loop.body tracks bits1 i1)
+    (bits, i)
+
+/-- [neo_verified::diagonal::walk_bits]:
+    Source: 'crates/neo-verified/src/diagonal.rs', lines 45:0-57:1
+    Visibility: public -/
+def diagonal.walk_bits
+  (tracks : Slice diagonal.Track) (count : Std.Usize) : Result Std.Usize := do
+  let bits ← diagonal.bit_length count
+  let i := Slice.len tracks
+  diagonal.walk_bits_loop tracks bits i
+
+/-- [neo_verified::field::ext_sub]:
+    Source: 'crates/neo-verified/src/field.rs', lines 188:0-194:1
+    Visibility: public -/
+def field.ext_sub (a : field.Ext) (b : field.Ext) : Result field.Ext := do
+  let g ← field.gl_sub a.c0 b.c0
+  let g1 ← field.gl_sub a.c1 b.c1
+  let g2 ← field.gl_sub a.c2 b.c2
+  ok { c0 := g, c1 := g1, c2 := g2 }
+
+/-- [neo_verified::field::ext_reduce]:
+    Source: 'crates/neo-verified/src/field.rs', lines 164:0-170:1
+    Visibility: public -/
+def field.ext_reduce (a : field.Ext) : Result field.Ext := do
+  let i := a.c0
+  let i1 ← field.reduce_word i
+  let i2 := a.c1
+  let i3 ← field.reduce_word i2
+  let i4 := a.c2
+  let i5 ← field.reduce_word i4
+  ok { c0 := i1, c1 := i3, c2 := i5 }
+
+/-- [neo_verified::diagonal::track_factor]:
+    Source: 'crates/neo-verified/src/diagonal.rs', lines 61:0-73:1
+    Visibility: public -/
+def diagonal.track_factor
+  (point : Slice field.Ext) (t : Std.Usize) (bit : Std.Usize) :
+  Result field.Ext
+  := do
+  let i := Slice.len point
+  if t < i
+  then
+    if bit = 1#usize
+    then let e ← Slice.index_usize point t
+         field.ext_reduce e
+    else let e ← Slice.index_usize point t
+         field.ext_sub field.EXT_ONE e
+  else if bit = 1#usize
+       then ok field.EXT_ZERO
+       else ok field.EXT_ONE
+
+/-- [neo_verified::field::ext_mul]:
+    Source: 'crates/neo-verified/src/field.rs', lines 201:0-212:1
+    Visibility: public -/
+def field.ext_mul (a : field.Ext) (b : field.Ext) : Result field.Ext := do
+  let g ← field.gl_mul a.c1 b.c2
+  let g1 ← field.gl_mul a.c2 b.c1
+  let d3 ← field.gl_add g g1
+  let d4 ← field.gl_mul a.c2 b.c2
+  let g2 ← field.gl_mul a.c0 b.c0
+  let g3 ← field.gl_add g2 d3
+  let g4 ← field.gl_mul a.c0 b.c1
+  let g5 ← field.gl_mul a.c1 b.c0
+  let g6 ← field.gl_add g4 g5
+  let g7 ← field.gl_add g6 d3
+  let g8 ← field.gl_add g7 d4
+  let g9 ← field.gl_mul a.c0 b.c2
+  let g10 ← field.gl_mul a.c1 b.c1
+  let g11 ← field.gl_add g9 g10
+  let g12 ← field.gl_mul a.c2 b.c0
+  let g13 ← field.gl_add g11 g12
+  let g14 ← field.gl_add g13 d4
+  ok { c0 := g3, c1 := g8, c2 := g14 }
+
+/-- [neo_verified::diagonal::tracks_step]: loop body 0:
+    Source: 'crates/neo-verified/src/diagonal.rs', lines 81:4-94:5
+    Visibility: public -/
+@[rust_loop_body]
+def diagonal.tracks_step_loop.body
+  (tracks : Slice diagonal.Track) (t : Std.Usize) (b : Std.Usize)
+  (carry : Std.Usize) (factor : field.Ext) (next_carry : Std.Usize)
+  (i : Std.Usize) :
+  Result (ControlFlow (field.Ext × Std.Usize × Std.Usize) (field.Ext ×
+    Std.Usize))
+  := do
+  if 0#usize < i
+  then
+    let i1 ← lift (core.num.Usize.wrapping_sub i 1#usize)
+    let t1 ← Slice.index_usize tracks i1
+    let i2 ← diagonal.bit_at t1.offset t
+    let o ← lift (Usize.checked_add i2 b)
+    let i3 ← core.option.Option.unwrap o
+    let i4 ← diagonal.bit_at carry i1
+    let o1 ← lift (Usize.checked_add i3 i4)
+    let sum ← core.option.Option.unwrap o1
+    let b1 ← core.num.Usize.is_multiple_of sum 2#usize
+    let bit ← if b1
+                then ok 0#usize
+                else ok 1#usize
+    let s := alloc.vec.Vec.deref t1.point
+    let e ← diagonal.track_factor s t bit
+    let factor1 ← field.ext_mul e factor
+    let i5 ← lift (core.num.Usize.wrapping_shr sum 1#u32)
+    let o2 ← lift (Usize.checked_mul next_carry 2#usize)
+    let i6 ← core.option.Option.unwrap o2
+    let o3 ← lift (Usize.checked_add i5 i6)
+    let next_carry1 ← core.option.Option.unwrap o3
+    ok (cont (factor1, next_carry1, i1))
+  else ok (done (factor, next_carry))
+
+/-- [neo_verified::diagonal::tracks_step]: loop 0:
+    Source: 'crates/neo-verified/src/diagonal.rs', lines 81:4-94:5
+    Visibility: public -/
+@[rust_loop]
+def diagonal.tracks_step_loop
+  (tracks : Slice diagonal.Track) (t : Std.Usize) (b : Std.Usize)
+  (carry : Std.Usize) (factor : field.Ext) (next_carry : Std.Usize)
+  (i : Std.Usize) :
+  Result (field.Ext × Std.Usize)
+  := do
+  loop
+    (fun (factor1, next_carry1, i1) => diagonal.tracks_step_loop.body tracks t
+      b carry factor1 next_carry1 i1)
+    (factor, next_carry, i)
+
+/-- [neo_verified::diagonal::tracks_step]:
+    Source: 'crates/neo-verified/src/diagonal.rs', lines 77:0-96:1
+    Visibility: public -/
+def diagonal.tracks_step
+  (tracks : Slice diagonal.Track) (t : Std.Usize) (b : Std.Usize)
+  (carry : Std.Usize) :
+  Result (field.Ext × Std.Usize)
+  := do
+  let i := Slice.len tracks
+  diagonal.tracks_step_loop tracks t b carry field.EXT_ONE 0#usize i
+
+/-- [neo_verified::diagonal::next_below]:
+    Source: 'crates/neo-verified/src/diagonal.rs', lines 99:0-107:1
+    Visibility: public -/
+def diagonal.next_below
+  (count_bit : Std.Usize) (b : Std.Usize) (below : Std.Usize) :
+  Result Std.Usize
+  := do
+  if b < count_bit
+  then ok 1#usize
+  else if count_bit < b
+       then ok 0#usize
+       else ok below
+
+/-- [neo_verified::field::ext_add]:
+    Source: 'crates/neo-verified/src/field.rs', lines 180:0-186:1
+    Visibility: public -/
+def field.ext_add (a : field.Ext) (b : field.Ext) : Result field.Ext := do
+  let g ← field.gl_add a.c0 b.c0
+  let g1 ← field.gl_add a.c1 b.c1
+  let g2 ← field.gl_add a.c2 b.c2
+  ok { c0 := g, c1 := g1, c2 := g2 }
+
+/-- [neo_verified::diagonal::step_sum]: loop body 2:
+    Source: 'crates/neo-verified/src/diagonal.rs', lines 125:12-131:13 -/
+@[rust_loop_body]
+def diagonal.step_sum_loop0_loop0_loop0.body
+  (tracks : Slice diagonal.Track) (count_bit : Std.Usize) (t : Std.Usize)
+  (states : Slice (Array field.Ext 2#usize)) (target : Std.Usize)
+  (target_below : Std.Usize) (carry : Std.Usize) (below : Std.Usize)
+  (total : field.Ext) (b : Std.Usize) :
+  Result (ControlFlow (field.Ext × Std.Usize) field.Ext)
+  := do
+  if b < 2#usize
+  then
+    let (factor, next_carry) ← diagonal.tracks_step tracks t b carry
+    let total1 ←
+      if next_carry = target
+      then
+        do
+        let i ← diagonal.next_below count_bit b below
+        if i = target_below
+        then
+          let a ← Slice.index_usize states carry
+          let e ← Array.index_usize a below
+          let e1 ← field.ext_mul e factor
+          field.ext_add total e1
+        else ok total
+      else ok total
+    let b1 ← lift (core.num.Usize.wrapping_add b 1#usize)
+    ok (cont (total1, b1))
+  else ok (done total)
+
+/-- [neo_verified::diagonal::step_sum]: loop 2:
+    Source: 'crates/neo-verified/src/diagonal.rs', lines 125:12-131:13 -/
+@[rust_loop]
+def diagonal.step_sum_loop0_loop0_loop0
+  (tracks : Slice diagonal.Track) (count_bit : Std.Usize) (t : Std.Usize)
+  (states : Slice (Array field.Ext 2#usize)) (target : Std.Usize)
+  (target_below : Std.Usize) (total : field.Ext) (carry : Std.Usize)
+  (below : Std.Usize) (b : Std.Usize) :
+  Result field.Ext
+  := do
+  loop
+    (fun (total1, b1) => diagonal.step_sum_loop0_loop0_loop0.body tracks
+      count_bit t states target target_below carry below total1 b1)
+    (total, b)
+
+/-- [neo_verified::diagonal::step_sum]: loop body 1:
+    Source: 'crates/neo-verified/src/diagonal.rs', lines 123:8-133:9 -/
+@[rust_loop_body]
+def diagonal.step_sum_loop0_loop0.body
+  (tracks : Slice diagonal.Track) (count_bit : Std.Usize) (t : Std.Usize)
+  (states : Slice (Array field.Ext 2#usize)) (target : Std.Usize)
+  (target_below : Std.Usize) (carry : Std.Usize) (total : field.Ext)
+  (below : Std.Usize) :
+  Result (ControlFlow (field.Ext × Std.Usize) field.Ext)
+  := do
+  if below < 2#usize
+  then
+    let total1 ←
+      diagonal.step_sum_loop0_loop0_loop0 tracks count_bit t states target
+        target_below total carry below 0#usize
+    let below1 ← lift (core.num.Usize.wrapping_add below 1#usize)
+    ok (cont (total1, below1))
+  else ok (done total)
+
+/-- [neo_verified::diagonal::step_sum]: loop 1:
+    Source: 'crates/neo-verified/src/diagonal.rs', lines 123:8-133:9 -/
+@[rust_loop]
+def diagonal.step_sum_loop0_loop0
+  (tracks : Slice diagonal.Track) (count_bit : Std.Usize) (t : Std.Usize)
+  (states : Slice (Array field.Ext 2#usize)) (target : Std.Usize)
+  (target_below : Std.Usize) (total : field.Ext) (carry : Std.Usize)
+  (below : Std.Usize) :
+  Result field.Ext
+  := do
+  loop
+    (fun (total1, below1) => diagonal.step_sum_loop0_loop0.body tracks
+      count_bit t states target target_below carry total1 below1)
+    (total, below)
+
+/-- [neo_verified::diagonal::step_sum]: loop body 0:
+    Source: 'crates/neo-verified/src/diagonal.rs', lines 121:4-135:5 -/
+@[rust_loop_body]
+def diagonal.step_sum_loop0.body
+  (tracks : Slice diagonal.Track) (count_bit : Std.Usize) (t : Std.Usize)
+  (states : Slice (Array field.Ext 2#usize)) (target : Std.Usize)
+  (target_below : Std.Usize) (carries : Std.Usize) (total : field.Ext)
+  (carry : Std.Usize) :
+  Result (ControlFlow (field.Ext × Std.Usize) field.Ext)
+  := do
+  if carry < carries
+  then
+    let total1 ←
+      diagonal.step_sum_loop0_loop0 tracks count_bit t states target
+        target_below total carry 0#usize
+    let carry1 ← lift (core.num.Usize.wrapping_add carry 1#usize)
+    ok (cont (total1, carry1))
+  else ok (done total)
+
+/-- [neo_verified::diagonal::step_sum]: loop 0:
+    Source: 'crates/neo-verified/src/diagonal.rs', lines 121:4-135:5 -/
+@[rust_loop]
+def diagonal.step_sum_loop0
+  (tracks : Slice diagonal.Track) (count_bit : Std.Usize) (t : Std.Usize)
+  (states : Slice (Array field.Ext 2#usize)) (target : Std.Usize)
+  (target_below : Std.Usize) (carries : Std.Usize) (total : field.Ext)
+  (carry : Std.Usize) :
+  Result field.Ext
+  := do
+  loop
+    (fun (total1, carry1) => diagonal.step_sum_loop0.body tracks count_bit t
+      states target target_below carries total1 carry1)
+    (total, carry)
+
+/-- [neo_verified::diagonal::step_sum]:
+    Source: 'crates/neo-verified/src/diagonal.rs', lines 110:0-137:1 -/
+def diagonal.step_sum
+  (tracks : Slice diagonal.Track) (count_bit : Std.Usize) (t : Std.Usize)
+  (states : Slice (Array field.Ext 2#usize)) (target : Std.Usize)
+  (target_below : Std.Usize) :
+  Result field.Ext
+  := do
+  let carries ← diagonal.carry_states tracks
+  diagonal.step_sum_loop0 tracks count_bit t states target target_below carries
+    field.EXT_ZERO 0#usize
+
+/-- [neo_verified::diagonal::walk_step]: loop body 0:
+    Source: 'crates/neo-verified/src/diagonal.rs', lines 145:4-150:5
+    Visibility: public -/
+@[rust_loop_body]
+def diagonal.walk_step_loop.body
+  (tracks : Slice diagonal.Track) (t : Std.Usize)
+  (states : Slice (Array field.Ext 2#usize)) (carries : Std.Usize)
+  (count_bit : Std.Usize) (next : alloc.vec.Vec (Array field.Ext 2#usize))
+  (target : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec (Array field.Ext 2#usize)) × Std.Usize)
+    (alloc.vec.Vec (Array field.Ext 2#usize)))
+  := do
+  if target < carries
+  then
+    let «at» ← diagonal.step_sum tracks count_bit t states target 0#usize
+    let below ← diagonal.step_sum tracks count_bit t states target 1#usize
+    let next1 ←
+      alloc.vec.Vec.push next (Array.make 2#usize [ «at», below ] : Array
+        field.Ext 2#usize)
+    let target1 ← lift (core.num.Usize.wrapping_add target 1#usize)
+    ok (cont (next1, target1))
+  else ok (done next)
+
+/-- [neo_verified::diagonal::walk_step]: loop 0:
+    Source: 'crates/neo-verified/src/diagonal.rs', lines 145:4-150:5
+    Visibility: public -/
+@[rust_loop]
+def diagonal.walk_step_loop
+  (tracks : Slice diagonal.Track) (t : Std.Usize)
+  (states : Slice (Array field.Ext 2#usize)) (carries : Std.Usize)
+  (count_bit : Std.Usize) (next : alloc.vec.Vec (Array field.Ext 2#usize))
+  (target : Std.Usize) :
+  Result (alloc.vec.Vec (Array field.Ext 2#usize))
+  := do
+  loop
+    (fun (next1, target1) => diagonal.walk_step_loop.body tracks t states
+      carries count_bit next1 target1)
+    (next, target)
+
+/-- [neo_verified::diagonal::walk_step]:
+    Source: 'crates/neo-verified/src/diagonal.rs', lines 140:0-152:1
+    Visibility: public -/
+def diagonal.walk_step
+  (tracks : Slice diagonal.Track) (count : Std.Usize) (t : Std.Usize)
+  (states : Slice (Array field.Ext 2#usize)) :
+  Result (alloc.vec.Vec (Array field.Ext 2#usize))
+  := do
+  let carries ← diagonal.carry_states tracks
+  let count_bit ← diagonal.bit_at count t
+  diagonal.walk_step_loop tracks t states carries count_bit (alloc.vec.Vec.new
+    (Array field.Ext 2#usize)) 0#usize
+
+/-- [neo_verified::diagonal::walk_states]: loop body 0:
+    Source: 'crates/neo-verified/src/diagonal.rs', lines 159:4-166:5
+    Visibility: public -/
+@[rust_loop_body]
+def diagonal.walk_states_loop0.body
+  (carries : Std.Usize) (states : alloc.vec.Vec (Array field.Ext 2#usize))
+  (carry : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec (Array field.Ext 2#usize)) × Std.Usize)
+    (alloc.vec.Vec (Array field.Ext 2#usize)))
+  := do
+  if carry < carries
+  then
+    let states1 ←
+      if carry = 0#usize
+      then
+        alloc.vec.Vec.push states
+          (Array.make 2#usize [ field.EXT_ONE, field.EXT_ZERO ] : Array
+          field.Ext 2#usize)
+      else
+        let a := Array.repeat 2#usize field.EXT_ZERO
+        alloc.vec.Vec.push states a
+    let carry1 ← lift (core.num.Usize.wrapping_add carry 1#usize)
+    ok (cont (states1, carry1))
+  else ok (done states)
+
+/-- [neo_verified::diagonal::walk_states]: loop 0:
+    Source: 'crates/neo-verified/src/diagonal.rs', lines 159:4-166:5
+    Visibility: public -/
+@[rust_loop]
+def diagonal.walk_states_loop0
+  (carries : Std.Usize) (states : alloc.vec.Vec (Array field.Ext 2#usize))
+  (carry : Std.Usize) :
+  Result (alloc.vec.Vec (Array field.Ext 2#usize))
+  := do
+  loop
+    (fun (states1, carry1) => diagonal.walk_states_loop0.body carries states1
+      carry1)
+    (states, carry)
+
+/-- [neo_verified::diagonal::walk_states]: loop body 1:
+    Source: 'crates/neo-verified/src/diagonal.rs', lines 168:4-171:5
+    Visibility: public -/
+@[rust_loop_body]
+def diagonal.walk_states_loop1.body
+  (tracks : Slice diagonal.Track) (count : Std.Usize) (width : Std.Usize)
+  (states : alloc.vec.Vec (Array field.Ext 2#usize)) (t : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec (Array field.Ext 2#usize)) × Std.Usize)
+    (alloc.vec.Vec (Array field.Ext 2#usize)))
+  := do
+  if t < width
+  then
+    let s := alloc.vec.Vec.deref states
+    let states1 ← diagonal.walk_step tracks count t s
+    let t1 ← lift (core.num.Usize.wrapping_add t 1#usize)
+    ok (cont (states1, t1))
+  else ok (done states)
+
+/-- [neo_verified::diagonal::walk_states]: loop 1:
+    Source: 'crates/neo-verified/src/diagonal.rs', lines 168:4-171:5
+    Visibility: public -/
+@[rust_loop]
+def diagonal.walk_states_loop1
+  (tracks : Slice diagonal.Track) (count : Std.Usize) (width : Std.Usize)
+  (states : alloc.vec.Vec (Array field.Ext 2#usize)) (t : Std.Usize) :
+  Result (alloc.vec.Vec (Array field.Ext 2#usize))
+  := do
+  loop
+    (fun (states1, t1) => diagonal.walk_states_loop1.body tracks count width
+      states1 t1)
+    (states, t)
+
+/-- [neo_verified::diagonal::walk_states]:
+    Source: 'crates/neo-verified/src/diagonal.rs', lines 155:0-173:1
+    Visibility: public -/
+def diagonal.walk_states
+  (tracks : Slice diagonal.Track) (count : Std.Usize) (width : Std.Usize) :
+  Result (alloc.vec.Vec (Array field.Ext 2#usize))
+  := do
+  let carries ← diagonal.carry_states tracks
+  let states ←
+    diagonal.walk_states_loop0 carries (alloc.vec.Vec.new (Array field.Ext
+      2#usize)) 0#usize
+  diagonal.walk_states_loop1 tracks count width states 0#usize
+
+/-- [neo_verified::diagonal::diagonal]:
+    Source: 'crates/neo-verified/src/diagonal.rs', lines 177:0-180:1
+    Visibility: public -/
+def diagonal.diagonal
+  (tracks : Slice diagonal.Track) (count : Std.Usize) : Result field.Ext := do
+  let i ← diagonal.walk_bits tracks count
+  let states ← diagonal.walk_states tracks count i
+  let a ←
+    alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice (Array field.Ext
+      2#usize)) states 0#usize
+  Array.index_usize a 1#usize
+
 /-- Trait implementation: [neo_verified::field::{impl core::marker::Copy for neo_verified::field::Gl}]
     Source: 'crates/neo-verified/src/field.rs', lines 20:16-20:20 -/
 @[reducible]
@@ -324,20 +865,6 @@ def field.canonical (word : Std.U64) : Result (Option field.Gl) := do
   if word < field.MODULUS
   then ok (some word)
   else ok none
-
-/-- [neo_verified::field::{impl core::clone::Clone for neo_verified::field::Ext}::clone]:
-    Source: 'crates/neo-verified/src/field.rs', lines 144:9-144:14
-    Visibility: public -/
-def field.Ext.Insts.CoreCloneClone.clone
-  (self : field.Ext) : Result field.Ext := do
-  ok self
-
-/-- Trait implementation: [neo_verified::field::{impl core::clone::Clone for neo_verified::field::Ext}]
-    Source: 'crates/neo-verified/src/field.rs', lines 144:9-144:14 -/
-@[reducible]
-def field.Ext.Insts.CoreCloneClone : core.clone.Clone field.Ext := {
-  clone := field.Ext.Insts.CoreCloneClone.clone
-}
 
 /-- Trait implementation: [neo_verified::field::{impl core::marker::Copy for neo_verified::field::Ext}]
     Source: 'crates/neo-verified/src/field.rs', lines 144:16-144:20 -/
@@ -391,55 +918,14 @@ def field.Ext.Insts.CoreCmpEq : core.cmp.Eq field.Ext := {
   assert_fields_are_eq := field.Ext.Insts.CoreCmpEq.assert_fields_are_eq
 }
 
-/-- [neo_verified::field::ext_add]:
-    Source: 'crates/neo-verified/src/field.rs', lines 171:0-177:1
-    Visibility: public -/
-def field.ext_add (a : field.Ext) (b : field.Ext) : Result field.Ext := do
-  let g ← field.gl_add a.c0 b.c0
-  let g1 ← field.gl_add a.c1 b.c1
-  let g2 ← field.gl_add a.c2 b.c2
-  ok { c0 := g, c1 := g1, c2 := g2 }
-
-/-- [neo_verified::field::ext_sub]:
-    Source: 'crates/neo-verified/src/field.rs', lines 179:0-185:1
-    Visibility: public -/
-def field.ext_sub (a : field.Ext) (b : field.Ext) : Result field.Ext := do
-  let g ← field.gl_sub a.c0 b.c0
-  let g1 ← field.gl_sub a.c1 b.c1
-  let g2 ← field.gl_sub a.c2 b.c2
-  ok { c0 := g, c1 := g1, c2 := g2 }
-
 /-- [neo_verified::field::ext_neg]:
-    Source: 'crates/neo-verified/src/field.rs', lines 187:0-189:1
+    Source: 'crates/neo-verified/src/field.rs', lines 196:0-198:1
     Visibility: public -/
 def field.ext_neg (a : field.Ext) : Result field.Ext := do
   field.ext_sub field.EXT_ZERO a
 
-/-- [neo_verified::field::ext_mul]:
-    Source: 'crates/neo-verified/src/field.rs', lines 192:0-203:1
-    Visibility: public -/
-def field.ext_mul (a : field.Ext) (b : field.Ext) : Result field.Ext := do
-  let g ← field.gl_mul a.c1 b.c2
-  let g1 ← field.gl_mul a.c2 b.c1
-  let d3 ← field.gl_add g g1
-  let d4 ← field.gl_mul a.c2 b.c2
-  let g2 ← field.gl_mul a.c0 b.c0
-  let g3 ← field.gl_add g2 d3
-  let g4 ← field.gl_mul a.c0 b.c1
-  let g5 ← field.gl_mul a.c1 b.c0
-  let g6 ← field.gl_add g4 g5
-  let g7 ← field.gl_add g6 d3
-  let g8 ← field.gl_add g7 d4
-  let g9 ← field.gl_mul a.c0 b.c2
-  let g10 ← field.gl_mul a.c1 b.c1
-  let g11 ← field.gl_add g9 g10
-  let g12 ← field.gl_mul a.c2 b.c0
-  let g13 ← field.gl_add g11 g12
-  let g14 ← field.gl_add g13 d4
-  ok { c0 := g3, c1 := g8, c2 := g14 }
-
 /-- [neo_verified::field::ext_scale]:
-    Source: 'crates/neo-verified/src/field.rs', lines 205:0-211:1
+    Source: 'crates/neo-verified/src/field.rs', lines 214:0-220:1
     Visibility: public -/
 def field.ext_scale
   (a : field.Ext) («by» : field.Gl) : Result field.Ext := do
@@ -449,7 +935,7 @@ def field.ext_scale
   ok { c0 := g, c1 := g1, c2 := g2 }
 
 /-- [neo_verified::field::ext_pow]:
-    Source: 'crates/neo-verified/src/field.rs', lines 214:0-225:1
+    Source: 'crates/neo-verified/src/field.rs', lines 223:0-234:1
     Visibility: public -/
 def field.ext_pow (a : field.Ext) (e : Std.U64) : Result field.Ext := do
   if e = 0#u64
@@ -465,7 +951,7 @@ def field.ext_pow (a : field.Ext) (e : Std.U64) : Result field.Ext := do
 partial_fixpoint
 
 /-- [neo_verified::field::ext_inv]:
-    Source: 'crates/neo-verified/src/field.rs', lines 230:0-243:1
+    Source: 'crates/neo-verified/src/field.rs', lines 239:0-252:1
     Visibility: public -/
 def field.ext_inv (a : field.Ext) : Result field.Ext := do
   let s ← field.gl_add a.c0 a.c2
@@ -719,491 +1205,5 @@ def hash.Duplex.observe_slice
   Result ((hash.Duplex B Clause0_F Clause0_E) × B)
   := do
   hash.Duplex.observe_slice_loop backendBackendInst self b values 0#usize
-
-/-- [neo_verified::hash::{neo_verified::hash::Duplex<B, Clause0_F, Clause0_E>}::observe_ext]:
-    Source: 'crates/neo-verified/src/hash.rs', lines 49:4-54:5
-    Visibility: public -/
-def hash.Duplex.observe_ext
-  {B : Type _} {Clause0_F : Type _} {Clause0_E : Type _} (backendBackendInst :
-  backend.Backend B Clause0_F Clause0_E)
-  (self : hash.Duplex B Clause0_F Clause0_E) (b : B) (value : Clause0_E) :
-  Result ((hash.Duplex B Clause0_F Clause0_E) × B)
-  := do
-  let (coordinates, b1) ← backendBackendInst.coordinates b value
-  let t ← Array.index_usize coordinates 0#usize
-  let (self1, b2) ← hash.Duplex.observe backendBackendInst self b1 t
-  let t1 ← Array.index_usize coordinates 1#usize
-  let (self2, b3) ← hash.Duplex.observe backendBackendInst self1 b2 t1
-  let t2 ← Array.index_usize coordinates 2#usize
-  hash.Duplex.observe backendBackendInst self2 b3 t2
-
-/-- [neo_verified::hash::{neo_verified::hash::Duplex<B, Clause0_F, Clause0_E>}::sample]: loop body 0:
-    Source: 'crates/neo-verified/src/hash.rs', lines 64:8-67:9
-    Visibility: public -/
-@[rust_loop_body]
-def hash.Duplex.sample_loop.body
-  {Clause0_F : Type _} (v : alloc.vec.Vec Clause0_F) (last : Std.Usize)
-  (rest : alloc.vec.Vec Clause0_F) (i : Std.Usize) :
-  Result (ControlFlow ((alloc.vec.Vec Clause0_F) × Std.Usize) (alloc.vec.Vec
-    Clause0_F))
-  := do
-  if i < last
-  then
-    let t ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Clause0_F) v i
-    let rest1 ← alloc.vec.Vec.push rest t
-    let i1 ← lift (core.num.Usize.wrapping_add i 1#usize)
-    ok (cont (rest1, i1))
-  else ok (done rest)
-
-/-- [neo_verified::hash::{neo_verified::hash::Duplex<B, Clause0_F, Clause0_E>}::sample]: loop 0:
-    Source: 'crates/neo-verified/src/hash.rs', lines 64:8-67:9
-    Visibility: public -/
-@[rust_loop]
-def hash.Duplex.sample_loop
-  {Clause0_F : Type _} (v : alloc.vec.Vec Clause0_F) (last : Std.Usize)
-  (rest : alloc.vec.Vec Clause0_F) (i : Std.Usize) :
-  Result (alloc.vec.Vec Clause0_F)
-  := do
-  loop
-    (fun (rest1, i1) => hash.Duplex.sample_loop.body v last rest1 i1)
-    (rest, i)
-
-/-- [neo_verified::hash::{neo_verified::hash::Duplex<B, Clause0_F, Clause0_E>}::sample]:
-    Source: 'crates/neo-verified/src/hash.rs', lines 56:4-70:5
-    Visibility: public -/
-def hash.Duplex.sample
-  {B : Type _} {Clause0_F : Type _} {Clause0_E : Type _} (backendBackendInst :
-  backend.Backend B Clause0_F Clause0_E)
-  (self : hash.Duplex B Clause0_F Clause0_E) (b : B) :
-  Result (Clause0_F × (hash.Duplex B Clause0_F Clause0_E) × B)
-  := do
-  let s := alloc.vec.Vec.deref self.input
-  let b1 ← core.slice.Slice.is_empty s
-  let (self1, b2) ←
-    if b1
-    then
-      do
-      let s1 := alloc.vec.Vec.deref self.output
-      let b3 ← core.slice.Slice.is_empty s1
-      if b3
-      then hash.Duplex.duplex backendBackendInst self b
-      else ok (self, b)
-    else hash.Duplex.duplex backendBackendInst self b
-  let i := alloc.vec.Vec.len self1.output
-  let last ← lift (core.num.Usize.wrapping_sub i 1#usize)
-  let value ←
-    alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Clause0_F)
-      self1.output last
-  let rest ←
-    hash.Duplex.sample_loop self1.output last (alloc.vec.Vec.new Clause0_F)
-      0#usize
-  ok (value, { self1 with output := rest }, b2)
-
-/-- [neo_verified::hash::{neo_verified::hash::Duplex<B, Clause0_F, Clause0_E>}::sample_ext]:
-    Source: 'crates/neo-verified/src/hash.rs', lines 73:4-78:5
-    Visibility: public -/
-def hash.Duplex.sample_ext
-  {B : Type _} {Clause0_F : Type _} {Clause0_E : Type _} (backendBackendInst :
-  backend.Backend B Clause0_F Clause0_E)
-  (self : hash.Duplex B Clause0_F Clause0_E) (b : B) :
-  Result (Clause0_E × (hash.Duplex B Clause0_F Clause0_E) × B)
-  := do
-  let (x, self1, b1) ← hash.Duplex.sample backendBackendInst self b
-  let (y, self2, b2) ← hash.Duplex.sample backendBackendInst self1 b1
-  let (z, self3, b3) ← hash.Duplex.sample backendBackendInst self2 b2
-  let (t, b4) ← backendBackendInst.ext b3 (Array.make 3#usize [ x, y, z ])
-  ok (t, self3, b4)
-
-/-- [neo_verified::hash::{neo_verified::hash::Duplex<B, Clause0_F, Clause0_E>}::sample_bits]: loop body 0:
-    Source: 'crates/neo-verified/src/hash.rs', lines 86:8-89:9
-    Visibility: public -/
-@[rust_loop_body]
-def hash.Duplex.sample_bits_loop.body
-  {Clause0_F : Type _} (bits : Std.Usize) (all : alloc.vec.Vec Clause0_F)
-  (low : alloc.vec.Vec Clause0_F) (i : Std.Usize) :
-  Result (ControlFlow ((alloc.vec.Vec Clause0_F) × Std.Usize) (alloc.vec.Vec
-    Clause0_F))
-  := do
-  if i < bits
-  then
-    let i1 := alloc.vec.Vec.len all
-    if i < i1
-    then
-      let t ←
-        alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Clause0_F)
-          all i
-      let low1 ← alloc.vec.Vec.push low t
-      let i2 ← lift (core.num.Usize.wrapping_add i 1#usize)
-      ok (cont (low1, i2))
-    else ok (done low)
-  else ok (done low)
-
-/-- [neo_verified::hash::{neo_verified::hash::Duplex<B, Clause0_F, Clause0_E>}::sample_bits]: loop 0:
-    Source: 'crates/neo-verified/src/hash.rs', lines 86:8-89:9
-    Visibility: public -/
-@[rust_loop]
-def hash.Duplex.sample_bits_loop
-  {Clause0_F : Type _} (bits : Std.Usize) (all : alloc.vec.Vec Clause0_F)
-  (low : alloc.vec.Vec Clause0_F) (i : Std.Usize) :
-  Result (alloc.vec.Vec Clause0_F)
-  := do
-  loop
-    (fun (low1, i1) => hash.Duplex.sample_bits_loop.body bits all low1 i1)
-    (low, i)
-
-/-- [neo_verified::hash::{neo_verified::hash::Duplex<B, Clause0_F, Clause0_E>}::sample_bits]:
-    Source: 'crates/neo-verified/src/hash.rs', lines 81:4-91:5
-    Visibility: public -/
-def hash.Duplex.sample_bits
-  {B : Type _} {Clause0_F : Type _} {Clause0_E : Type _} (backendBackendInst :
-  backend.Backend B Clause0_F Clause0_E)
-  (self : hash.Duplex B Clause0_F Clause0_E) (b : B) (bits : Std.Usize) :
-  Result ((core.result.Result (alloc.vec.Vec Clause0_F) backend.Rejected) ×
-    (hash.Duplex B Clause0_F Clause0_E) × B)
-  := do
-  let (sample, self1, b1) ← hash.Duplex.sample backendBackendInst self b
-  let (r, b2) ←
-    backendBackendInst.bits b1 sample 64#usize (toStr "sampled bits")
-  let cf ← core.result.Result.Insts.CoreOpsTry.branch r
-  match cf with
-  | core.ops.control_flow.ControlFlow.Continue val =>
-    let low ←
-      hash.Duplex.sample_bits_loop bits val (alloc.vec.Vec.new Clause0_F)
-        0#usize
-    ok (core.result.Result.Ok low, self1, b2)
-  | core.ops.control_flow.ControlFlow.Break residual =>
-    let r1 ←
-      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-        (alloc.vec.Vec Clause0_F) (core.convert.FromSame backend.Rejected)
-        residual
-    ok (r1, self1, b2)
-
-/-- [neo_verified::hash::hash_leaf]: loop body 1:
-    Source: 'crates/neo-verified/src/hash.rs', lines 129:8-132:9
-    Visibility: public -/
-@[rust_loop_body]
-def hash.hash_leaf_loop0_loop0.body
-  {Clause0_F : Type _} (values : Slice Clause0_F) (start : Std.Usize)
-  (state : Array Clause0_F 16#usize) (lane : Std.Usize) :
-  Result (ControlFlow ((Array Clause0_F 16#usize) × Std.Usize) ((Array
-    Clause0_F 16#usize) × Std.Usize))
-  := do
-  if lane < circuit.RATE
-  then
-    let i := Slice.len values
-    let i1 ← lift (core.num.Usize.wrapping_sub i start)
-    if lane < i1
-    then
-      let i2 ← lift (core.num.Usize.wrapping_add start lane)
-      let t ← Slice.index_usize values i2
-      let a ← Array.update state lane t
-      let lane1 ← lift (core.num.Usize.wrapping_add lane 1#usize)
-      ok (cont (a, lane1))
-    else ok (done (state, lane))
-  else ok (done (state, lane))
-
-/-- [neo_verified::hash::hash_leaf]: loop 1:
-    Source: 'crates/neo-verified/src/hash.rs', lines 129:8-132:9
-    Visibility: public -/
-@[rust_loop]
-def hash.hash_leaf_loop0_loop0
-  {Clause0_F : Type _} (values : Slice Clause0_F)
-  (state : Array Clause0_F 16#usize) (start : Std.Usize) (lane : Std.Usize) :
-  Result ((Array Clause0_F 16#usize) × Std.Usize)
-  := do
-  loop
-    (fun (state1, lane1) => hash.hash_leaf_loop0_loop0.body values start state1
-      lane1)
-    (state, lane)
-
-/-- [neo_verified::hash::hash_leaf]: loop body 0:
-    Source: 'crates/neo-verified/src/hash.rs', lines 127:4-135:5
-    Visibility: public -/
-@[rust_loop_body]
-def hash.hash_leaf_loop0.body
-  {B : Type _} {Clause0_F : Type _} {Clause0_E : Type _} (backendBackendInst :
-  backend.Backend B Clause0_F Clause0_E) (values : Slice Clause0_F) (b : B)
-  (state : Array Clause0_F 16#usize) (start : Std.Usize) :
-  Result (ControlFlow (B × (Array Clause0_F 16#usize) × Std.Usize) (B ×
-    (Array Clause0_F 16#usize)))
-  := do
-  let i := Slice.len values
-  if start < i
-  then
-    let (state1, lane) ←
-      hash.hash_leaf_loop0_loop0 values state start 0#usize
-    let (state2, b1) ← backendBackendInst.permute b state1
-    let start1 ← lift (core.num.Usize.wrapping_add start lane)
-    ok (cont (b1, state2, start1))
-  else ok (done (b, state))
-
-/-- [neo_verified::hash::hash_leaf]: loop 0:
-    Source: 'crates/neo-verified/src/hash.rs', lines 127:4-135:5
-    Visibility: public -/
-@[rust_loop]
-def hash.hash_leaf_loop0
-  {B : Type _} {Clause0_F : Type _} {Clause0_E : Type _} (backendBackendInst :
-  backend.Backend B Clause0_F Clause0_E) (b : B) (values : Slice Clause0_F)
-  (state : Array Clause0_F 16#usize) (start : Std.Usize) :
-  Result (B × (Array Clause0_F 16#usize))
-  := do
-  loop
-    (fun (b1, state1, start1) => hash.hash_leaf_loop0.body backendBackendInst
-      values b1 state1 start1)
-    (b, state, start)
-
-/-- [neo_verified::hash::hash_leaf]:
-    Source: 'crates/neo-verified/src/hash.rs', lines 123:0-137:1
-    Visibility: public -/
-def hash.hash_leaf
-  {B : Type _} {Clause0_F : Type _} {Clause0_E : Type _} (backendBackendInst :
-  backend.Backend B Clause0_F Clause0_E) (b : B) (values : Slice Clause0_F) :
-  Result ((Array Clause0_F 4#usize) × B)
-  := do
-  let (zero, b1) ← backendBackendInst.constant b 0#u64
-  let state := Array.repeat 16#usize zero
-  let (b2, state1) ←
-    hash.hash_leaf_loop0 backendBackendInst b1 values state 0#usize
-  let t ← Array.index_usize state1 0#usize
-  let t1 ← Array.index_usize state1 1#usize
-  let t2 ← Array.index_usize state1 2#usize
-  let t3 ← Array.index_usize state1 3#usize
-  ok (Array.make 4#usize [ t, t1, t2, t3 ], b2)
-
-/-- [neo_verified::hash::compress]: loop body 0:
-    Source: 'crates/neo-verified/src/hash.rs', lines 144:4-148:5
-    Visibility: public -/
-@[rust_loop_body]
-def hash.compress_loop.body
-  {Clause0_F : Type _} (left : Array Clause0_F 4#usize)
-  (right : Array Clause0_F 4#usize) (state : Array Clause0_F 16#usize)
-  (lane : Std.Usize) :
-  Result (ControlFlow ((Array Clause0_F 16#usize) × Std.Usize) (Array
-    Clause0_F 16#usize))
-  := do
-  if lane < circuit.DIGEST_LEN
-  then
-    let t ← Array.index_usize left lane
-    let state1 ← Array.update state lane t
-    let t1 ← Array.index_usize right lane
-    let i ← lift (core.num.Usize.wrapping_add circuit.DIGEST_LEN lane)
-    let a ← Array.update state1 i t1
-    let lane1 ← lift (core.num.Usize.wrapping_add lane 1#usize)
-    ok (cont (a, lane1))
-  else ok (done state)
-
-/-- [neo_verified::hash::compress]: loop 0:
-    Source: 'crates/neo-verified/src/hash.rs', lines 144:4-148:5
-    Visibility: public -/
-@[rust_loop]
-def hash.compress_loop
-  {Clause0_F : Type _} (left : Array Clause0_F 4#usize)
-  (right : Array Clause0_F 4#usize) (state : Array Clause0_F 16#usize)
-  (lane : Std.Usize) :
-  Result (Array Clause0_F 16#usize)
-  := do
-  loop
-    (fun (state1, lane1) => hash.compress_loop.body left right state1 lane1)
-    (state, lane)
-
-/-- [neo_verified::hash::compress]:
-    Source: 'crates/neo-verified/src/hash.rs', lines 140:0-151:1
-    Visibility: public -/
-def hash.compress
-  {B : Type _} {Clause0_F : Type _} {Clause0_E : Type _} (backendBackendInst :
-  backend.Backend B Clause0_F Clause0_E) (b : B)
-  (left : Array Clause0_F 4#usize) (right : Array Clause0_F 4#usize) :
-  Result ((Array Clause0_F 4#usize) × B)
-  := do
-  let (zero, b1) ← backendBackendInst.constant b 0#u64
-  let state := Array.repeat 16#usize zero
-  let state1 ← hash.compress_loop left right state 0#usize
-  let (state2, b2) ← backendBackendInst.permute b1 state1
-  let t ← Array.index_usize state2 0#usize
-  let t1 ← Array.index_usize state2 1#usize
-  let t2 ← Array.index_usize state2 2#usize
-  let t3 ← Array.index_usize state2 3#usize
-  ok (Array.make 4#usize [ t, t1, t2, t3 ], b2)
-
-/-- [neo_verified::hash::merkle_root]: loop body 1:
-    Source: 'crates/neo-verified/src/hash.rs', lines 164:8-169:9
-    Visibility: public -/
-@[rust_loop_body]
-def hash.merkle_root_loop0_loop0.body
-  {B : Type _} {Clause0_F : Type _} {Clause0_E : Type _} (backendBackendInst :
-  backend.Backend B Clause0_F Clause0_E) (node : Array Clause0_F 4#usize)
-  (bit : Clause0_F) (sibling : Array Clause0_F 4#usize) (b : B)
-  (left : Array Clause0_F 4#usize) (right : Array Clause0_F 4#usize)
-  (lane : Std.Usize) :
-  Result (ControlFlow (B × (Array Clause0_F 4#usize) × (Array Clause0_F
-    4#usize) × Std.Usize) (B × (Array Clause0_F 4#usize) × (Array Clause0_F
-    4#usize)))
-  := do
-  if lane < circuit.DIGEST_LEN
-  then
-    let t ← Array.index_usize node lane
-    let t1 ← Array.index_usize sibling lane
-    let (t2, b1) ← backendBackendInst.select b bit t t1
-    let left1 ← Array.update left lane t2
-    let (both, b2) ← backendBackendInst.add b1 t t1
-    let t3 ← Array.index_usize left1 lane
-    let (t4, b3) ← backendBackendInst.sub b2 both t3
-    let a ← Array.update right lane t4
-    let lane1 ← lift (core.num.Usize.wrapping_add lane 1#usize)
-    ok (cont (b3, left1, a, lane1))
-  else ok (done (b, left, right))
-
-/-- [neo_verified::hash::merkle_root]: loop 1:
-    Source: 'crates/neo-verified/src/hash.rs', lines 164:8-169:9
-    Visibility: public -/
-@[rust_loop]
-def hash.merkle_root_loop0_loop0
-  {B : Type _} {Clause0_F : Type _} {Clause0_E : Type _} (backendBackendInst :
-  backend.Backend B Clause0_F Clause0_E) (b : B)
-  (node : Array Clause0_F 4#usize) (bit : Clause0_F)
-  (sibling : Array Clause0_F 4#usize) (left : Array Clause0_F 4#usize)
-  (right : Array Clause0_F 4#usize) (lane : Std.Usize) :
-  Result (B × (Array Clause0_F 4#usize) × (Array Clause0_F 4#usize))
-  := do
-  loop
-    (fun (b1, left1, right1, lane1) => hash.merkle_root_loop0_loop0.body
-      backendBackendInst node bit sibling b1 left1 right1 lane1)
-    (b, left, right, lane)
-
-/-- [neo_verified::hash::merkle_root]: loop body 0:
-    Source: 'crates/neo-verified/src/hash.rs', lines 158:4-172:5
-    Visibility: public -/
-@[rust_loop_body]
-def hash.merkle_root_loop0.body
-  {B : Type _} {Clause0_F : Type _} {Clause0_E : Type _} (backendBackendInst :
-  backend.Backend B Clause0_F Clause0_E) (bits : Slice Clause0_F)
-  (path : Slice (Array Clause0_F 4#usize)) (b : B)
-  (node : Array Clause0_F 4#usize) (level : Std.Usize) :
-  Result (ControlFlow (B × (Array Clause0_F 4#usize) × Std.Usize) ((Array
-    Clause0_F 4#usize) × B))
-  := do
-  let i := Slice.len bits
-  if level < i
-  then
-    let i1 := Slice.len path
-    if level < i1
-    then
-      let bit ← Slice.index_usize bits level
-      let sibling ← Slice.index_usize path level
-      let (b1, left, right) ←
-        hash.merkle_root_loop0_loop0 backendBackendInst b node bit sibling node
-          node 0#usize
-      let (node1, b2) ← hash.compress backendBackendInst b1 left right
-      let level1 ← lift (core.num.Usize.wrapping_add level 1#usize)
-      ok (cont (b2, node1, level1))
-    else ok (done (node, b))
-  else ok (done (node, b))
-
-/-- [neo_verified::hash::merkle_root]: loop 0:
-    Source: 'crates/neo-verified/src/hash.rs', lines 158:4-172:5
-    Visibility: public -/
-@[rust_loop]
-def hash.merkle_root_loop0
-  {B : Type _} {Clause0_F : Type _} {Clause0_E : Type _} (backendBackendInst :
-  backend.Backend B Clause0_F Clause0_E) (b : B) (bits : Slice Clause0_F)
-  (path : Slice (Array Clause0_F 4#usize)) (node : Array Clause0_F 4#usize)
-  (level : Std.Usize) :
-  Result ((Array Clause0_F 4#usize) × B)
-  := do
-  loop
-    (fun (b1, node1, level1) => hash.merkle_root_loop0.body backendBackendInst
-      bits path b1 node1 level1)
-    (b, node, level)
-
-/-- [neo_verified::hash::merkle_root]:
-    Source: 'crates/neo-verified/src/hash.rs', lines 155:0-174:1
-    Visibility: public -/
-@[reducible]
-def hash.merkle_root
-  {B : Type _} {Clause0_F : Type _} {Clause0_E : Type _} (backendBackendInst :
-  backend.Backend B Clause0_F Clause0_E) (b : B)
-  (leaf : Array Clause0_F 4#usize) (bits : Slice Clause0_F)
-  (path : Slice (Array Clause0_F 4#usize)) :
-  Result ((Array Clause0_F 4#usize) × B)
-  := do
-  hash.merkle_root_loop0 backendBackendInst b bits path leaf 0#usize
-
-/-- [neo_verified::layout::{impl core::clone::Clone for neo_verified::layout::Shape}::clone]:
-    Source: 'crates/neo-verified/src/layout.rs', lines 16:9-16:14
-    Visibility: public -/
-def layout.Shape.Insts.CoreCloneClone.clone
-  (self : layout.Shape) : Result layout.Shape := do
-  ok self
-
-/-- Trait implementation: [neo_verified::layout::{impl core::clone::Clone for neo_verified::layout::Shape}]
-    Source: 'crates/neo-verified/src/layout.rs', lines 16:9-16:14 -/
-@[reducible]
-def layout.Shape.Insts.CoreCloneClone : core.clone.Clone layout.Shape := {
-  clone := layout.Shape.Insts.CoreCloneClone.clone
-}
-
-/-- Trait implementation: [neo_verified::layout::{impl core::marker::Copy for neo_verified::layout::Shape}]
-    Source: 'crates/neo-verified/src/layout.rs', lines 16:16-16:20 -/
-@[reducible]
-def layout.Shape.Insts.CoreMarkerCopy : core.marker.Copy layout.Shape := {
-  cloneInst := layout.Shape.Insts.CoreCloneClone
-}
-
-/-- Trait implementation: [neo_verified::layout::{impl core::marker::StructuralPartialEq for neo_verified::layout::Shape}]
-    Source: 'crates/neo-verified/src/layout.rs', lines 16:22-16:31 -/
-@[reducible]
-def layout.Shape.Insts.CoreMarkerStructuralPartialEq :
-  core.marker.StructuralPartialEq layout.Shape := {
-}
-
-/-- [neo_verified::layout::{impl core::cmp::PartialEq<neo_verified::layout::Shape> for neo_verified::layout::Shape}::eq]:
-    Source: 'crates/neo-verified/src/layout.rs', lines 16:22-16:31
-    Visibility: public -/
-def layout.Shape.Insts.CoreCmpPartialEqShape.eq
-  (self : layout.Shape) (other : layout.Shape) : Result Bool := do
-  let b ←
-    core.array.equality.PartialEqArray.eq core.cmp.PartialEqUsize self.blocks
-      other.blocks
-  if b
-  then
-    if self.glue_rows = other.glue_rows
-    then
-      if self.glue_cells = other.glue_cells
-      then ok (self.publics = other.publics)
-      else ok false
-    else ok false
-  else ok false
-
-/-- Trait implementation: [neo_verified::layout::{impl core::cmp::PartialEq<neo_verified::layout::Shape> for neo_verified::layout::Shape}]
-    Source: 'crates/neo-verified/src/layout.rs', lines 16:22-16:31 -/
-@[reducible]
-impl_def layout.Shape.Insts.CoreCmpPartialEqShape : core.cmp.PartialEq
-  layout.Shape layout.Shape := {
-  eq := layout.Shape.Insts.CoreCmpPartialEqShape.eq
-  ne := core.cmp.PartialEq.ne.trait_default
-    layout.Shape.Insts.CoreCmpPartialEqShape
-}
-
-/-- [neo_verified::layout::{impl core::clone::Clone for neo_verified::layout::Part}::clone]:
-    Source: 'crates/neo-verified/src/layout.rs', lines 27:9-27:14
-    Visibility: public -/
-def layout.Part.Insts.CoreCloneClone.clone
-  (self : layout.Part) : Result layout.Part := do
-  ok self
-
-/-- Trait implementation: [neo_verified::layout::{impl core::clone::Clone for neo_verified::layout::Part}]
-    Source: 'crates/neo-verified/src/layout.rs', lines 27:9-27:14 -/
-@[reducible]
-def layout.Part.Insts.CoreCloneClone : core.clone.Clone layout.Part := {
-  clone := layout.Part.Insts.CoreCloneClone.clone
-}
-
-/-- Trait implementation: [neo_verified::layout::{impl core::marker::Copy for neo_verified::layout::Part}]
-    Source: 'crates/neo-verified/src/layout.rs', lines 27:16-27:20 -/
-@[reducible]
-def layout.Part.Insts.CoreMarkerCopy : core.marker.Copy layout.Part := {
-  cloneInst := layout.Part.Insts.CoreCloneClone
-}
 
 end neo_verified

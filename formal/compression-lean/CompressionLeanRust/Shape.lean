@@ -84,6 +84,7 @@ def views : List Lean.Name :=
   [``usizeValue, ``usizeValues, ``placeValue, ``glValue, ``extValue, ``optionValue, ``glValues,
     `CompressionLeanRust.built, `CompressionLeanRust.builtVec, `CompressionLeanRust.builtKx, `CompressionLeanRust.builtDigest,
     `CompressionLeanRust.builtNew, `CompressionLeanRust.builtStep, `CompressionLeanRust.builtSample,
-    `CompressionLeanRust.builtBits, `CompressionLeanRust.nativeValues]
+    `CompressionLeanRust.builtBits, `CompressionLeanRust.nativeValues, `CompressionLeanRust.nativeExt,
+    `CompressionLeanRust.nativeExts, `CompressionLeanRust.extUsizeValue, `CompressionLeanRust.statesValue]
 
 end CompressionLeanRust

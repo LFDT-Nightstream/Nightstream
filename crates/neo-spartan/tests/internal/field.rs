@@ -1,8 +1,10 @@
+use neo_verified::algebra;
 use neo_verified::field as verified;
+use neo_verified::native::Native;
 use p3_field_v08::{BasedVectorSpace, Field, PrimeCharacteristicRing, PrimeField64};
 
 use super::word;
-use crate::field::{ext_words, from_verified, from_word, to_verified, Ext, Gl};
+use crate::field::{eq_table, ext_words, exts_to_verified, from_verified, from_word, to_verified, Ext, Gl};
 
 const P: u64 = verified::MODULUS;
 const EPSILON: u64 = 0xffff_ffff;
@@ -166,6 +168,28 @@ fn conversion_reads_non_canonical_words_by_their_value() {
         match verified::canonical(w) {
             Some(g) => assert!(w < P && verified::gl_word(g) == w, "canonical {w}"),
             None => assert!(w >= P, "canonical refused {w}"),
+        }
+    }
+}
+
+/// The prover's parallel `eq_table` against the one that the verifier runs, word for word.
+#[test]
+fn parallel_eq_table_matches_the_verified_one() {
+    let edges: Vec<Ext> = EDGES
+        .chunks_exact(3)
+        .map(|w| Ext::from_basis_coefficients_fn(|i| plonky3(w[i])))
+        .collect();
+    let mut points: Vec<Vec<Ext>> = (0..=10)
+        .map(|len| (0..len).map(|i| ext(0x6571_7461, i)).collect())
+        .collect();
+    points.push(edges);
+    for point in points {
+        let parallel = eq_table(&point);
+        let verified = algebra::eq_table(&mut Native, &exts_to_verified(&point));
+        assert_eq!(parallel.len(), 1 << point.len());
+        assert_eq!(verified.len(), parallel.len());
+        for (index, (&v, &p)) in verified.iter().zip(&parallel).enumerate() {
+            assert!(same_ext(v, p), "point of {} coordinates, index {index}", point.len());
         }
     }
 }

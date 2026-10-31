@@ -119,7 +119,7 @@ pub fn eq_table<B: Backend>(b: &mut B, point: &[B::E]) -> Vec<B::E> {
 }
 
 /// Bit `t` of `index`.
-fn index_bit(index: usize, t: usize) -> bool {
+pub fn index_bit(index: usize, t: usize) -> bool {
     t < usize::BITS as usize && !index.wrapping_shr(t as u32).is_multiple_of(2)
 }
 

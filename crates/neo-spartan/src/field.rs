@@ -11,7 +11,9 @@
 //! prover reads back from its own files.
 
 use neo_math::{KExtensions, F, K};
+use neo_verified::algebra;
 use neo_verified::field as verified;
+use neo_verified::native::Native;
 use p3_field::PrimeField64;
 use p3_field_v08::extension::CubicTrinomialExtensionField;
 use p3_field_v08::{BasedVectorSpace, PrimeCharacteristicRing, PrimeField64 as _};
@@ -79,6 +81,11 @@ pub(crate) fn ext_to_verified(value: Ext) -> verified::Ext {
     verified::Ext { c0, c1, c2 }
 }
 
+/// `values` in `neo_verified`, coordinate by coordinate.
+pub(crate) fn exts_to_verified(values: &[Ext]) -> Vec<verified::Ext> {
+    values.iter().map(|&value| ext_to_verified(value)).collect()
+}
+
 pub(crate) fn ext_from_verified(value: verified::Ext) -> Ext {
     let coordinates = [value.c0, value.c1, value.c2].map(from_verified);
     Ext::from_basis_coefficients_fn(|i| coordinates[i])
@@ -119,8 +126,17 @@ pub(crate) fn signed(value: i64) -> Gl {
     }
 }
 
+/// `eq_table` of `neo_verified` on `Native`, which the verifier runs.
+pub(crate) fn verified_eq_table(point: &[Ext]) -> Vec<Ext> {
+    algebra::eq_table(&mut Native, &exts_to_verified(point))
+        .into_iter()
+        .map(ext_from_verified)
+        .collect()
+}
+
 /// `eq(point, x)` for every `x < 2^point.len()`; index bit `t` pairs with
-/// `point[t]` (low bit first, as everywhere in Nightstream).
+/// `point[t]` (low bit first, as everywhere in Nightstream). The prover's
+/// table, in parallel; the verifier runs `verified_eq_table`.
 pub(crate) fn eq_table(point: &[Ext]) -> Vec<Ext> {
     let mut table = vec![Ext::ONE];
     for &coordinate in point {

@@ -5,9 +5,12 @@ use neo_verified::degrees::{
     early, early_terms, gkr, late, late_terms, layer1, linear, linear_terms, row_count, shrink, shrink_terms, Relation,
     FIXED,
 };
+use neo_verified::diagonal::{
+    diagonal, next_below, track_factor, tracks_step, walk_bits, walk_states, walk_step, Track,
+};
 use neo_verified::field::{
-    canonical, ext_add, ext_mul, ext_neg, ext_of_gl, ext_pow, ext_scale, ext_sub, gl_add, gl_inv, gl_mul, gl_neg,
-    gl_pow, gl_sub, gl_word, reduce, Ext, EXT_ONE, EXT_ZERO, GL_ONE, GL_ZERO, MODULUS,
+    canonical, ext_add, ext_mul, ext_neg, ext_of_gl, ext_pow, ext_reduce, ext_scale, ext_sub, gl_add, gl_inv, gl_mul,
+    gl_neg, gl_pow, gl_sub, gl_word, reduce, Ext, EXT_ONE, EXT_ZERO, GL_ONE, GL_ZERO, MODULUS,
 };
 use neo_verified::field::{ext_inv, Gl};
 use neo_verified::hash::{compress, hash_leaf, merkle_root};
@@ -17,6 +20,7 @@ use neo_verified::layout::{
 };
 use neo_verified::native::Native;
 use neo_verified::poseidon2::{permute, DIAGONAL, HALF_FULL_ROUNDS, INITIAL, PARTIAL, PARTIAL_ROUNDS, TERMINAL};
+use neo_verified::sumcheck::{replay_claim, round_claim};
 use std::ops::ControlFlow;
 use std::panic::{catch_unwind, UnwindSafe};
 use std::path::Path;
@@ -213,6 +217,7 @@ fn cases() -> Vec<String> {
     field_cases(&mut case);
     poseidon2_cases(&mut case);
     circuit_cases(&mut case);
+    shrink_cases(&mut case);
     cases
 }
 
@@ -1067,4 +1072,155 @@ fn circuit_cases(case: &mut impl FnMut(&str, &[u64], String)) {
         &[],
         show_result(rejected(try_twice(Err(Rejected("x"))))),
     );
+}
+
+/// A sequence of extension values: its length, then three words per value.
+fn ext_seq(values: &[Ext]) -> Vec<u64> {
+    let words: Vec<u64> = values.iter().flat_map(|&e| ext_words(e)).collect();
+    [&[values.len() as u64][..], &words].concat()
+}
+
+/// Tracks: their number, then each point as a sequence and its offset.
+fn track_words(tracks: &[Track]) -> Vec<u64> {
+    let mut words = vec![tracks.len() as u64];
+    for track in tracks {
+        words.extend(ext_seq(&track.point));
+        words.push(track.offset as u64);
+    }
+    words
+}
+
+fn show_states(states: &[[Ext; 2]]) -> String {
+    let words: Vec<u64> = states
+        .iter()
+        .flatten()
+        .flat_map(|&e| ext_words(e))
+        .collect();
+    show(&words)
+}
+
+/// The sum-check rounds and the diagonal walk of the shrink verifier, with messages shorter than
+/// `degree`, fewer challenges than rounds, bits past a point and a sum that overflows.
+fn shrink_cases(case: &mut impl FnMut(&str, &[u64], String)) {
+    let pool = field_words();
+    let values = exts(&pool);
+    let at = |k: usize| values[k % values.len()];
+    for (i, &a) in values.iter().enumerate() {
+        case("ext_reduce", &ext_words(a), show_ext(ext_reduce(a)));
+        let degree = i % 4;
+        let message: Vec<Ext> = (0..i % 5).map(|k| at(i + 2 * k)).collect();
+        let (claim, r) = (at(3 * i + 1), at(7 * i + 2));
+        let m = message.clone();
+        case(
+            "round_claim",
+            &[
+                &[degree as u64][..],
+                &ext_seq(&message),
+                &ext_words(claim),
+                &ext_words(r),
+            ]
+            .concat(),
+            outcome(move || round_claim(degree, &m, claim, r), |e| show(&ext_words(e))),
+        );
+        let rounds: Vec<Vec<Ext>> = (0..i % 4)
+            .map(|k| (0..1 + (i + k) % 3).map(|l| at(i + 5 * k + l)).collect())
+            .collect();
+        let short = usize::from(i % 7 == 0);
+        let point: Vec<Ext> = (0..rounds.len().saturating_sub(short))
+            .map(|k| at(11 * i + k))
+            .collect();
+        let round_words: Vec<u64> = rounds.iter().flat_map(|m| ext_seq(m)).collect();
+        let (rs, p) = (rounds.clone(), point.clone());
+        case(
+            "replay_claim",
+            &[
+                &[degree as u64, rounds.len() as u64][..],
+                &round_words,
+                &ext_words(claim),
+                &ext_seq(&point),
+            ]
+            .concat(),
+            outcome(move || replay_claim(degree, &rs, claim, &p), |e| show(&ext_words(e))),
+        );
+    }
+    // The interpreter runs every step of a walk, so the walks keep to two tracks and few bits.
+    let offsets = [0usize, 1, 2, 3, 5, 7, 12, 40, 1 << 20, usize::MAX];
+    for i in 0..60 {
+        let tracks_of = |count: usize, offsets: &[usize], coordinates: usize| -> Vec<Track> {
+            (0..count)
+                .map(|k| Track {
+                    point: (0..(i + k) % coordinates)
+                        .map(|l| at(i + 3 * k + l))
+                        .collect(),
+                    offset: offsets[(i + 2 * k) % offsets.len()],
+                })
+                .collect()
+        };
+        let wide = tracks_of(i % 4, &offsets, 5);
+        let count = [0usize, 1, 2, 5, 11, 40][i % 6];
+        case(
+            "walk_bits",
+            &[&[count as u64][..], &track_words(&wide)].concat(),
+            format!("ok {}", walk_bits(&wide, count)),
+        );
+        let tracks = tracks_of(i % 3, &offsets[..6], 4);
+        let count = count % 12;
+        let tw = track_words(&tracks);
+        case(
+            "diagonal",
+            &[&[count as u64][..], &tw].concat(),
+            show_ext(diagonal(&tracks, count)),
+        );
+        let width = i % 5;
+        case(
+            "walk_states",
+            &[&[count as u64, width as u64][..], &tw].concat(),
+            format!("ok {}", show_states(&walk_states(&tracks, count, width))),
+        );
+        let t = i % 6;
+        let carries = 1usize << tracks.len();
+        let states: Vec<[Ext; 2]> = (0..carries + i % 2)
+            .map(|k| [at(i + k), at(i + 2 * k + 1)])
+            .collect();
+        let state_words: Vec<u64> = states
+            .iter()
+            .flatten()
+            .flat_map(|&e| ext_words(e))
+            .collect();
+        case(
+            "walk_step",
+            &[&[count as u64, t as u64][..], &tw, &[states.len() as u64], &state_words].concat(),
+            format!("ok {}", show_states(&walk_step(&tracks, count, t, &states))),
+        );
+        for (b, carry) in [(0usize, 0usize), (1, 3), (2, 1), (usize::MAX, 0), (0, usize::MAX)] {
+            let tr = wide.clone();
+            case(
+                "tracks_step",
+                &[&[t as u64, b as u64, carry as u64][..], &track_words(&wide)].concat(),
+                outcome(
+                    move || tracks_step(&tr, t, b, carry),
+                    |(f, c)| format!("{} {c}", show(&ext_words(f))),
+                ),
+            );
+        }
+        let point: Vec<Ext> = (0..i % 5).map(|l| at(2 * i + l)).collect();
+        for bit in [0usize, 1, 2] {
+            case(
+                "track_factor",
+                &[&[t as u64, bit as u64][..], &ext_seq(&point)].concat(),
+                show_ext(track_factor(&point, t, bit)),
+            );
+        }
+    }
+    for cb in [0usize, 1, 2] {
+        for b in [0usize, 1, 2] {
+            for below in [0usize, 1, 7] {
+                case(
+                    "next_below",
+                    &words(&[cb, b, below]),
+                    format!("ok {}", next_below(cb, b, below)),
+                );
+            }
+        }
+    }
 }

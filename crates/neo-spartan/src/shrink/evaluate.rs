@@ -12,7 +12,7 @@ use neo_verified::r1cs::R1cs;
 use crate::circuit::block::C;
 use crate::circuit::r1cs::{sides, Side};
 use crate::circuit::record::{evaluate, Form, Sink, Term};
-use crate::field::{eq_table, from_verified, Ext, Gl};
+use crate::field::{from_verified, verified_eq_table, Ext, Gl};
 
 /// `eq(point, i)` from a low and a high table.
 pub(crate) struct SplitEq {
@@ -25,8 +25,8 @@ impl SplitEq {
     pub(crate) fn new(point: &[Ext]) -> Self {
         let bits = point.len() / 2;
         Self {
-            low: eq_table(&point[..bits]),
-            high: eq_table(&point[bits..]),
+            low: verified_eq_table(&point[..bits]),
+            high: verified_eq_table(&point[bits..]),
             bits,
         }
     }

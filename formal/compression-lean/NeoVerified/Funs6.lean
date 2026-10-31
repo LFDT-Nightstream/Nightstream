@@ -17,6 +17,503 @@ set_option linter.internalConstructors false
 
 
 namespace neo_verified
+/-- [neo_verified::record::add_term]: loop body 0:
+    Source: 'crates/neo-verified/src/record.rs', lines 101:4-106:5 -/
+@[rust_loop_body]
+def record.add_term_loop.body
+  (terms : alloc.vec.Vec (circuit.Wire × field.Gl)) (wire : circuit.Wire)
+  (found : Std.Usize) (k : Std.Usize) :
+  Result (ControlFlow (Std.Usize × Std.Usize) Std.Usize)
+  := do
+  let i := alloc.vec.Vec.len terms
+  if k < i
+  then
+    let i1 := alloc.vec.Vec.len terms
+    let found1 ←
+      if found = i1
+      then
+        do
+        let (w, _) ←
+          alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+            (circuit.Wire × field.Gl)) terms k
+        let b ← circuit.Wire.Insts.CoreCmpPartialEqWire.eq w wire
+        if b
+        then ok k
+        else ok found
+      else ok found
+    let k1 ← lift (core.num.Usize.wrapping_add k 1#usize)
+    ok (cont (found1, k1))
+  else ok (done found)
+
+/-- [neo_verified::record::add_term]: loop 0:
+    Source: 'crates/neo-verified/src/record.rs', lines 101:4-106:5 -/
+@[rust_loop]
+def record.add_term_loop
+  (terms : alloc.vec.Vec (circuit.Wire × field.Gl)) (wire : circuit.Wire)
+  (found : Std.Usize) (k : Std.Usize) :
+  Result Std.Usize
+  := do
+  loop
+    (fun (found1, k1) => record.add_term_loop.body terms wire found1 k1)
+    (found, k)
+
+/-- [neo_verified::record::add_term]:
+    Source: 'crates/neo-verified/src/record.rs', lines 98:0-112:1 -/
+def record.add_term
+  (terms : alloc.vec.Vec (circuit.Wire × field.Gl)) (wire : circuit.Wire)
+  (coefficient : field.Gl) :
+  Result (alloc.vec.Vec (circuit.Wire × field.Gl))
+  := do
+  let found := alloc.vec.Vec.len terms
+  let found1 ← record.add_term_loop terms wire found 0#usize
+  let i := alloc.vec.Vec.len terms
+  if found1 < i
+  then
+    let (_, g) ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice (circuit.Wire
+        × field.Gl)) terms found1
+    let g1 ← field.gl_add g coefficient
+    let ((w, _), index_mut_back) ←
+      alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice
+        (circuit.Wire × field.Gl)) terms found1
+    ok (index_mut_back (w, g1))
+  else alloc.vec.Vec.push terms (wire, coefficient)
+
+/-- [neo_verified::record::combine]: loop body 1:
+    Source: 'crates/neo-verified/src/record.rs', lines 125:8-129:9 -/
+@[rust_loop_body]
+def record.combine_loop0_loop0.body
+  (a : Array (circuit.Wire × field.Gl) 4#usize) (i : Std.U8) (g : field.Gl)
+  (g1 : field.Gl) (weight : field.Gl)
+  (merged : alloc.vec.Vec (circuit.Wire × field.Gl)) (k : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec (circuit.Wire × field.Gl)) × Std.Usize)
+    (alloc.vec.Vec (circuit.Wire × field.Gl)))
+  := do
+  let i1 ←
+    record.Form.term_count { terms := a, len := i, constant := g, value := g1 }
+  if k < i1
+  then
+    let p ← Array.index_usize a k
+    let (wire, _) := p
+    let (_, coefficient) := p
+    let g2 ← field.gl_mul coefficient weight
+    let merged1 ← record.add_term merged wire g2
+    let k1 ← lift (core.num.Usize.wrapping_add k 1#usize)
+    ok (cont (merged1, k1))
+  else ok (done merged)
+
+/-- [neo_verified::record::combine]: loop 1:
+    Source: 'crates/neo-verified/src/record.rs', lines 125:8-129:9 -/
+@[rust_loop]
+def record.combine_loop0_loop0
+  (merged : alloc.vec.Vec (circuit.Wire × field.Gl))
+  (a : Array (circuit.Wire × field.Gl) 4#usize) (i : Std.U8) (g : field.Gl)
+  (g1 : field.Gl) (weight : field.Gl) (k : Std.Usize) :
+  Result (alloc.vec.Vec (circuit.Wire × field.Gl))
+  := do
+  loop
+    (fun (merged1, k1) => record.combine_loop0_loop0.body a i g g1 weight
+      merged1 k1)
+    (merged, k)
+
+/-- [neo_verified::record::combine]: loop body 0:
+    Source: 'crates/neo-verified/src/record.rs', lines 120:4-131:5 -/
+@[rust_loop_body]
+def record.combine_loop0.body
+  (parts : Slice (record.Form × field.Gl))
+  (merged : alloc.vec.Vec (circuit.Wire × field.Gl)) (constant : field.Gl)
+  (value : field.Gl) (p : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec (circuit.Wire × field.Gl)) × field.Gl
+    × field.Gl × Std.Usize) ((alloc.vec.Vec (circuit.Wire × field.Gl)) ×
+    field.Gl × field.Gl))
+  := do
+  let i := Slice.len parts
+  if p < i
+  then
+    let p1 ← Slice.index_usize parts p
+    let (form, _) := p1
+    let (_, weight) := p1
+    let g ← field.gl_mul form.constant weight
+    let constant1 ← field.gl_add constant g
+    let g1 ← field.gl_mul form.value weight
+    let value1 ← field.gl_add value g1
+    let merged1 ←
+      record.combine_loop0_loop0 merged form.terms form.len form.constant
+        form.value weight 0#usize
+    let p2 ← lift (core.num.Usize.wrapping_add p 1#usize)
+    ok (cont (merged1, constant1, value1, p2))
+  else ok (done (merged, constant, value))
+
+/-- [neo_verified::record::combine]: loop 0:
+    Source: 'crates/neo-verified/src/record.rs', lines 120:4-131:5 -/
+@[rust_loop]
+def record.combine_loop0
+  (parts : Slice (record.Form × field.Gl))
+  (merged : alloc.vec.Vec (circuit.Wire × field.Gl)) (constant : field.Gl)
+  (value : field.Gl) (p : Std.Usize) :
+  Result ((alloc.vec.Vec (circuit.Wire × field.Gl)) × field.Gl × field.Gl)
+  := do
+  loop
+    (fun (merged1, constant1, value1, p1) => record.combine_loop0.body parts
+      merged1 constant1 value1 p1)
+    (merged, constant, value, p)
+
+/-- [neo_verified::record::combine]: loop body 2:
+    Source: 'crates/neo-verified/src/record.rs', lines 134:4-139:5 -/
+@[rust_loop_body]
+def record.combine_loop1.body
+  (merged : alloc.vec.Vec (circuit.Wire × field.Gl))
+  (terms : alloc.vec.Vec (circuit.Wire × field.Gl)) (k : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec (circuit.Wire × field.Gl)) × Std.Usize)
+    (alloc.vec.Vec (circuit.Wire × field.Gl)))
+  := do
+  let i := alloc.vec.Vec.len merged
+  if k < i
+  then
+    let (w, g) ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice (circuit.Wire
+        × field.Gl)) merged k
+    let b ←
+      core.cmp.PartialEq.ne.trait_default field.Gl.Insts.CoreCmpPartialEqGl g
+        field.GL_ZERO
+    let terms1 ←
+      if b
+      then let p := (w, g)
+           alloc.vec.Vec.push terms p
+      else ok terms
+    let k1 ← lift (core.num.Usize.wrapping_add k 1#usize)
+    ok (cont (terms1, k1))
+  else ok (done terms)
+
+/-- [neo_verified::record::combine]: loop 2:
+    Source: 'crates/neo-verified/src/record.rs', lines 134:4-139:5 -/
+@[rust_loop]
+def record.combine_loop1
+  (merged : alloc.vec.Vec (circuit.Wire × field.Gl))
+  (terms : alloc.vec.Vec (circuit.Wire × field.Gl)) (k : Std.Usize) :
+  Result (alloc.vec.Vec (circuit.Wire × field.Gl))
+  := do
+  loop
+    (fun (terms1, k1) => record.combine_loop1.body merged terms1 k1)
+    (terms, k)
+
+/-- [neo_verified::record::combine]:
+    Source: 'crates/neo-verified/src/record.rs', lines 115:0-141:1 -/
+def record.combine
+  (parts : Slice (record.Form × field.Gl)) :
+  Result ((alloc.vec.Vec (circuit.Wire × field.Gl)) × field.Gl × field.Gl)
+  := do
+  let (merged, constant, value) ←
+    record.combine_loop0 parts (alloc.vec.Vec.new (circuit.Wire × field.Gl))
+      field.GL_ZERO field.GL_ZERO 0#usize
+  let terms ←
+    record.combine_loop1 merged (alloc.vec.Vec.new (circuit.Wire × field.Gl))
+      0#usize
+  ok (terms, constant, value)
+
+/-- [neo_verified::record::expand]: loop body 1:
+    Source: 'crates/neo-verified/src/record.rs', lines 154:8-158:9
+    Visibility: public -/
+@[rust_loop_body]
+def record.expand_loop0_loop0.body
+  (form : record.Form) (coefficient : field.Gl)
+  (terms : alloc.vec.Vec (circuit.Wire × field.Gl)) (t : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec (circuit.Wire × field.Gl)) × Std.Usize)
+    ((alloc.vec.Vec (circuit.Wire × field.Gl)) × record.Form))
+  := do
+  let i ← record.Form.term_count form
+  if t < i
+  then
+    let p ← Array.index_usize form.terms t
+    let (wire, _) := p
+    let (_, c) := p
+    let g ← field.gl_mul c coefficient
+    let terms1 ← alloc.vec.Vec.push terms (wire, g)
+    let t1 ← lift (core.num.Usize.wrapping_add t 1#usize)
+    ok (cont (terms1, t1))
+  else ok (done (terms, form))
+
+/-- [neo_verified::record::expand]: loop 1:
+    Source: 'crates/neo-verified/src/record.rs', lines 154:8-158:9
+    Visibility: public -/
+@[rust_loop]
+def record.expand_loop0_loop0
+  (terms : alloc.vec.Vec (circuit.Wire × field.Gl)) (form : record.Form)
+  (coefficient : field.Gl) (t : Std.Usize) :
+  Result ((alloc.vec.Vec (circuit.Wire × field.Gl)) × record.Form)
+  := do
+  loop
+    (fun (terms1, t1) => record.expand_loop0_loop0.body form coefficient terms1
+      t1)
+    (terms, t)
+
+/-- [neo_verified::record::expand]: loop body 0:
+    Source: 'crates/neo-verified/src/record.rs', lines 150:4-163:5
+    Visibility: public -/
+@[rust_loop_body]
+def record.expand_loop0.body
+  («to» : Std.Usize) (columns : Slice record.Form)
+  (column_of : Slice Std.U32) (coefficient_of : Slice field.Gl)
+  (terms : alloc.vec.Vec (circuit.Wire × field.Gl)) (k : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec (circuit.Wire × field.Gl)) × Std.Usize)
+    (alloc.vec.Vec (circuit.Wire × field.Gl)))
+  := do
+  if k < «to»
+  then
+    let i ← Slice.index_usize column_of k
+    let i1 ← lift (UScalar.cast .Usize i)
+    let form ← Slice.index_usize columns i1
+    let coefficient ← Slice.index_usize coefficient_of k
+    let (terms1, form1) ←
+      record.expand_loop0_loop0 terms form coefficient 0#usize
+    let b ←
+      core.cmp.PartialEq.ne.trait_default field.Gl.Insts.CoreCmpPartialEqGl
+        form1.constant field.GL_ZERO
+    let terms2 ←
+      if b
+      then
+        do
+        let g ← field.gl_mul form1.constant coefficient
+        alloc.vec.Vec.push terms1 (record.ONE, g)
+      else ok terms1
+    let k1 ← lift (core.num.Usize.wrapping_add k 1#usize)
+    ok (cont (terms2, k1))
+  else ok (done terms)
+
+/-- [neo_verified::record::expand]: loop 0:
+    Source: 'crates/neo-verified/src/record.rs', lines 150:4-163:5
+    Visibility: public -/
+@[rust_loop]
+def record.expand_loop0
+  («to» : Std.Usize) (columns : Slice record.Form)
+  (column_of : Slice Std.U32) (coefficient_of : Slice field.Gl)
+  (terms : alloc.vec.Vec (circuit.Wire × field.Gl)) (k : Std.Usize) :
+  Result (alloc.vec.Vec (circuit.Wire × field.Gl))
+  := do
+  loop
+    (fun (terms1, k1) => record.expand_loop0.body «to» columns column_of
+      coefficient_of terms1 k1)
+    (terms, k)
+
+/-- [neo_verified::record::expand]:
+    Source: 'crates/neo-verified/src/record.rs', lines 145:0-165:1
+    Visibility: public -/
+def record.expand
+  (system : r1cs.R1cs) («from» : Std.Usize) («to» : Std.Usize)
+  (columns : Slice record.Form) :
+  Result (alloc.vec.Vec (circuit.Wire × field.Gl))
+  := do
+  let column_of ← r1cs.R1cs.term_columns system
+  let coefficient_of ← r1cs.R1cs.term_coefficients system
+  record.expand_loop0 «to» columns column_of coefficient_of
+    (alloc.vec.Vec.new (circuit.Wire × field.Gl)) «from»
+
+/-- [neo_verified::record::Sink::r1cs]: loop body 0:
+    Source: 'crates/neo-verified/src/record.rs', lines 179:8-186:9
+    Visibility: public -/
+@[rust_loop_body, trait_default]
+def record.Sink.r1cs.default_loop.body
+  {Self : Type _} (SinkInst : record.Sink Self) (system : r1cs.R1cs)
+  (columns : Slice record.Form) (self : Self) (row : Std.Usize) :
+  Result (ControlFlow (Self × Std.Usize) Self)
+  := do
+  let i ← r1cs.R1cs.rows system
+  if row < i
+  then
+    let (start, ends) ← r1cs.R1cs.bounds system row
+    let i1 ← Array.index_usize ends 0#usize
+    let a ← record.expand system start i1 columns
+    let i2 ← Array.index_usize ends 1#usize
+    let b ← record.expand system i1 i2 columns
+    let i3 ← Array.index_usize ends 2#usize
+    let c ← record.expand system i2 i3 columns
+    let s ← lift (Array.to_slice (Array.make 1#usize [ (a, b) ]))
+    let s1 := alloc.vec.Vec.deref c
+    let self1 ← SinkInst.row self s s1
+    let row1 ← lift (core.num.Usize.wrapping_add row 1#usize)
+    ok (cont (self1, row1))
+  else ok (done self)
+
+/-- [neo_verified::record::Sink::r1cs]: loop 0:
+    Source: 'crates/neo-verified/src/record.rs', lines 179:8-186:9
+    Visibility: public -/
+@[rust_loop, trait_default]
+def record.Sink.r1cs.default_loop
+  {Self : Type _} (SinkInst : record.Sink Self) (self : Self)
+  (system : r1cs.R1cs) (columns : Slice record.Form) (row : Std.Usize) :
+  Result Self
+  := do
+  loop
+    (fun (self1, row1) => record.Sink.r1cs.default_loop.body SinkInst system
+      columns self1 row1)
+    (self, row)
+
+/-- [neo_verified::record::Sink::r1cs]:
+    Source: 'crates/neo-verified/src/record.rs', lines 177:4-187:5
+    Visibility: public -/
+@[reducible, trait_default]
+def record.Sink.r1cs.default
+  {Self : Type _} (SinkInst : record.Sink Self) (self : Self)
+  (system : r1cs.R1cs) (columns : Slice record.Form) :
+  Result Self
+  := do
+  record.Sink.r1cs.default_loop SinkInst self system columns 0#usize
+
+/-- [neo_verified::record::Sink::values]:
+    Source: 'crates/neo-verified/src/record.rs', lines 190:4-192:5
+    Visibility: public -/
+@[trait_default]
+def record.Sink.values.default
+  {Self : Type _} (self : Self) : Result Bool := do
+  ok true
+
+/-- [neo_verified::record::ext_value]:
+    Source: 'crates/neo-verified/src/record.rs', lines 205:0-211:1 -/
+def record.ext_value (a : Array record.Form 3#usize) : Result field.Ext := do
+  let f ← Array.index_usize a 0#usize
+  let f1 ← Array.index_usize a 1#usize
+  let f2 ← Array.index_usize a 2#usize
+  ok { c0 := f.value, c1 := f1.value, c2 := f2.value }
+
+/-- [neo_verified::record::ext_coordinates]:
+    Source: 'crates/neo-verified/src/record.rs', lines 213:0-215:1 -/
+def record.ext_coordinates
+  (value : field.Ext) : Result (Array field.Gl 3#usize) := do
+  ok (Array.make 3#usize [ value.c0, value.c1, value.c2 ])
+
+/-- [neo_verified::record::all_constant]:
+    Source: 'crates/neo-verified/src/record.rs', lines 217:0-219:1 -/
+def record.all_constant (a : Array record.Form 3#usize) : Result Bool := do
+  let f ← Array.index_usize a 0#usize
+  let b ← record.Form.is_constant f
+  if b
+  then
+    let f1 ← Array.index_usize a 1#usize
+    let b1 ← record.Form.is_constant f1
+    if b1
+    then let f2 ← Array.index_usize a 2#usize
+         record.Form.is_constant f2
+    else ok false
+  else ok false
+
+/-- [neo_verified::record::sum_terms]: loop body 0:
+    Source: 'crates/neo-verified/src/record.rs', lines 225:4-228:5 -/
+@[rust_loop_body]
+def record.sum_terms_loop.body
+  (forms : Slice record.Form) (parts : alloc.vec.Vec (record.Form × field.Gl))
+  (k : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec (record.Form × field.Gl)) × Std.Usize)
+    (alloc.vec.Vec (record.Form × field.Gl)))
+  := do
+  let i := Slice.len forms
+  if k < i
+  then
+    let f ← Slice.index_usize forms k
+    let parts1 ← alloc.vec.Vec.push parts (f, field.GL_ONE)
+    let k1 ← lift (core.num.Usize.wrapping_add k 1#usize)
+    ok (cont (parts1, k1))
+  else ok (done parts)
+
+/-- [neo_verified::record::sum_terms]: loop 0:
+    Source: 'crates/neo-verified/src/record.rs', lines 225:4-228:5 -/
+@[rust_loop]
+def record.sum_terms_loop
+  (forms : Slice record.Form) (parts : alloc.vec.Vec (record.Form × field.Gl))
+  (k : Std.Usize) :
+  Result (alloc.vec.Vec (record.Form × field.Gl))
+  := do
+  loop
+    (fun (parts1, k1) => record.sum_terms_loop.body forms parts1 k1)
+    (parts, k)
+
+/-- [neo_verified::record::sum_terms]:
+    Source: 'crates/neo-verified/src/record.rs', lines 222:0-234:1 -/
+def record.sum_terms
+  (forms : Slice record.Form) :
+  Result (alloc.vec.Vec (circuit.Wire × field.Gl))
+  := do
+  let parts ←
+    record.sum_terms_loop forms (alloc.vec.Vec.new (record.Form × field.Gl))
+      0#usize
+  let s := alloc.vec.Vec.deref parts
+  let (terms, constant, _) ← record.combine s
+  let b ←
+    core.cmp.PartialEq.ne.trait_default field.Gl.Insts.CoreCmpPartialEqGl
+      constant field.GL_ZERO
+  if b
+  then alloc.vec.Vec.push terms (record.ONE, constant)
+  else ok terms
+
+/-- [neo_verified::record::ext_rows]:
+    Source: 'crates/neo-verified/src/record.rs', lines 238:0-255:1 -/
+def record.ext_rows
+  (a : Array record.Form 3#usize) (b : Array record.Form 3#usize) :
+  Result (Array (alloc.vec.Vec ((alloc.vec.Vec (circuit.Wire × field.Gl)) ×
+    (alloc.vec.Vec (circuit.Wire × field.Gl)))) 3#usize)
+  := do
+  let f ← Array.index_usize a 0#usize
+  let v ← record.Form.row_terms f
+  let f1 ← Array.index_usize b 0#usize
+  let s ← lift (Array.to_slice (Array.make 1#usize [ f1 ]))
+  let v1 ← record.sum_terms s
+  let f2 ← Array.index_usize a 1#usize
+  let v2 ← record.Form.row_terms f2
+  let f3 ← Array.index_usize b 2#usize
+  let s1 ← lift (Array.to_slice (Array.make 1#usize [ f3 ]))
+  let v3 ← record.sum_terms s1
+  let f4 ← Array.index_usize a 2#usize
+  let v4 ← record.Form.row_terms f4
+  let f5 ← Array.index_usize b 1#usize
+  let s2 ← lift (Array.to_slice (Array.make 1#usize [ f5 ]))
+  let v5 ← record.sum_terms s2
+  let row0 ←
+    alloc.vec.FromVecArray.from
+      (Array.make 3#usize [ (v, v1), (v2, v3), (v4, v5) ])
+  let v6 ← record.Form.row_terms f
+  let s3 ← lift (Array.to_slice (Array.make 1#usize [ f5 ]))
+  let v7 ← record.sum_terms s3
+  let v8 ← record.Form.row_terms f2
+  let s4 ← lift (Array.to_slice (Array.make 2#usize [ f1, f3 ]))
+  let v9 ← record.sum_terms s4
+  let v10 ← record.Form.row_terms f4
+  let s5 ← lift (Array.to_slice (Array.make 2#usize [ f5, f3 ]))
+  let v11 ← record.sum_terms s5
+  let row1 ←
+    alloc.vec.FromVecArray.from
+      (Array.make 3#usize [ (v6, v7), (v8, v9), (v10, v11) ])
+  let v12 ← record.Form.row_terms f
+  let s6 ← lift (Array.to_slice (Array.make 1#usize [ f3 ]))
+  let v13 ← record.sum_terms s6
+  let v14 ← record.Form.row_terms f2
+  let s7 ← lift (Array.to_slice (Array.make 1#usize [ f5 ]))
+  let v15 ← record.sum_terms s7
+  let v16 ← record.Form.row_terms f4
+  let s8 ← lift (Array.to_slice (Array.make 2#usize [ f1, f3 ]))
+  let v17 ← record.sum_terms s8
+  let row2 ←
+    alloc.vec.FromVecArray.from
+      (Array.make 3#usize [ (v12, v13), (v14, v15), (v16, v17) ])
+  ok (Array.make 3#usize [ row0, row1, row2 ])
+
+/-- [neo_verified::record::{neo_verified::record::Recorder<S>}::new]:
+    Source: 'crates/neo-verified/src/record.rs', lines 258:4-266:5
+    Visibility: public -/
+def record.Recorder.new
+  {S : Type _} (SinkInst : record.Sink S) (sink : S) :
+  Result (record.Recorder S)
+  := do
+  let a := Array.repeat 1#usize 0#u32
+  ok { sink, glue := 0#u32, blocks := a, publics := 1#u32, failure := none }
+
+/-- [neo_verified::record::{neo_verified::record::Recorder<S>}::finish]:
+    Source: 'crates/neo-verified/src/record.rs', lines 269:4-271:5
+    Visibility: public -/
+def record.Recorder.finish
+  {S : Type _} (SinkInst : record.Sink S) (self : record.Recorder S) :
+  Result (S × (Option Str))
+  := do
+  ok (self.sink, self.failure)
+
 /-- [neo_verified::record::{neo_verified::record::Recorder<S>}::fail]:
     Source: 'crates/neo-verified/src/record.rs', lines 273:4-277:5 -/
 def record.Recorder.fail
@@ -704,500 +1201,5 @@ def
   else
     ok (done (self.sink, self.glue, self.blocks, self.publics, self.failure,
       outputs))
-
-/-- [neo_verified::record::{impl neo_verified::backend::Backend<neo_verified::record::Form, [neo_verified::record::Form; 3usize]> for neo_verified::record::Recorder<S>}::hint]: loop 1:
-    Source: 'crates/neo-verified/src/record.rs', lines 642:8-646:9
-    Visibility: public -/
-@[rust_loop]
-def record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3.hint_loop1
-  {S : Type _} (SinkInst : record.Sink S) (self : record.Recorder S)
-  (len : Std.Usize) (words : alloc.vec.Vec Std.U64)
-  (outputs : alloc.vec.Vec record.Form) (k : Std.Usize) :
-  Result (S × Std.U32 × (Array Std.U32 1#usize) × Std.U32 × (Option Str) ×
-    (alloc.vec.Vec record.Form))
-  := do
-  loop
-    (fun (self1, outputs1, k1) =>
-      record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3.hint_loop1.body
-      SinkInst len words self1 outputs1 k1)
-    (self, outputs, k)
-
-/-- [neo_verified::record::{impl neo_verified::backend::Backend<neo_verified::record::Form, [neo_verified::record::Form; 3usize]> for neo_verified::record::Recorder<S>}::hint]:
-    Source: 'crates/neo-verified/src/record.rs', lines 632:4-648:5
-    Visibility: public -/
-def record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3.hint
-  {S : Type _} (SinkInst : record.Sink S) (self : record.Recorder S)
-  (inputs : Slice record.Form) (len : Std.Usize) (hint : backend.Hint) :
-  Result ((alloc.vec.Vec record.Form) × (record.Recorder S))
-  := do
-  let values ←
-    record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3.hint_loop0
-      inputs (alloc.vec.Vec.new Std.U64) 0#usize
-  let s := alloc.vec.Vec.deref values
-  let words ← native.hint_words hint s
-  let (t, i, a, i1, o, outputs) ←
-    record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3.hint_loop1
-      SinkInst self len words (alloc.vec.Vec.new record.Form) 0#usize
-  ok (outputs,
-    { sink := t, glue := i, blocks := a, publics := i1, failure := o })
-
-/-- [neo_verified::record::{impl neo_verified::backend::Backend<neo_verified::record::Form, [neo_verified::record::Form; 3usize]> for neo_verified::record::Recorder<S>}::permute]: loop body 0:
-    Source: 'crates/neo-verified/src/record.rs', lines 625:8-628:9
-    Visibility: public -/
-@[rust_loop_body]
-def
-  record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3.permute_loop.body
-  {S : Type _} (self : record.Recorder S) (outputs : alloc.vec.Vec record.Form)
-  (lanes : Array record.Form 16#usize) (lane : Std.Usize) :
-  Result (ControlFlow ((Array record.Form 16#usize) × Std.Usize) (S × Std.U32
-    × (Array Std.U32 1#usize) × Std.U32 × (Option Str) × (Array record.Form
-    16#usize)))
-  := do
-  if lane < circuit.WIDTH
-  then
-    let f ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice record.Form)
-        outputs lane
-    let a ← Array.update lanes lane f
-    let lane1 ← lift (core.num.Usize.wrapping_add lane 1#usize)
-    ok (cont (a, lane1))
-  else
-    ok (done (self.sink, self.glue, self.blocks, self.publics, self.failure,
-      lanes))
-
-/-- [neo_verified::record::{impl neo_verified::backend::Backend<neo_verified::record::Form, [neo_verified::record::Form; 3usize]> for neo_verified::record::Recorder<S>}::permute]: loop 0:
-    Source: 'crates/neo-verified/src/record.rs', lines 625:8-628:9
-    Visibility: public -/
-@[rust_loop]
-def record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3.permute_loop
-  {S : Type _} (self : record.Recorder S) (outputs : alloc.vec.Vec record.Form)
-  (lanes : Array record.Form 16#usize) (lane : Std.Usize) :
-  Result (S × Std.U32 × (Array Std.U32 1#usize) × Std.U32 × (Option Str) ×
-    (Array record.Form 16#usize))
-  := do
-  loop
-    (fun (lanes1, lane1) =>
-      record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3.permute_loop.body
-      self outputs lanes1 lane1)
-    (lanes, lane)
-
-/-- [neo_verified::record::{impl neo_verified::backend::Backend<neo_verified::record::Form, [neo_verified::record::Form; 3usize]> for neo_verified::record::Recorder<S>}::permute]:
-    Source: 'crates/neo-verified/src/record.rs', lines 621:4-630:5
-    Visibility: public -/
-def record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3.permute
-  {S : Type _} (SinkInst : record.Sink S) (self : record.Recorder S)
-  (state : Array record.Form 16#usize) :
-  Result ((Array record.Form 16#usize) × (record.Recorder S))
-  := do
-  let s ← lift (Array.to_slice state)
-  let (outputs, self1) ←
-    record.Recorder.block SinkInst self circuit.Kind.Permutation s
-  let (t, i, a, i1, o, lanes) ←
-    record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3.permute_loop
-      self1 outputs state 0#usize
-  ok (lanes,
-    { sink := t, glue := i, blocks := a, publics := i1, failure := o })
-
-/-- [neo_verified::record::{impl neo_verified::backend::Backend<neo_verified::record::Form, [neo_verified::record::Form; 3usize]> for neo_verified::record::Recorder<S>}::mul]:
-    Source: 'crates/neo-verified/src/record.rs', lines 452:4-463:5
-    Visibility: public -/
-def record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3.mul
-  {S : Type _} (SinkInst : record.Sink S) (self : record.Recorder S)
-  (a : record.Form) (b : record.Form) :
-  Result (record.Form × (record.Recorder S))
-  := do
-  let b1 ← record.Form.is_constant a
-  if b1
-  then
-    let s ← lift (Array.to_slice (Array.make 1#usize [ (b, a.constant) ]))
-    record.Recorder.linear SinkInst self s
-  else
-    let b2 ← record.Form.is_constant b
-    if b2
-    then
-      let s ← lift (Array.to_slice (Array.make 1#usize [ (a, b.constant) ]))
-      record.Recorder.linear SinkInst self s
-    else
-      let g ← field.gl_mul a.value b.value
-      let (product, self1) ← record.Recorder.cell SinkInst self g
-      let v ← record.Form.row_terms a
-      let v1 ← record.Form.row_terms b
-      let s ← lift (Array.to_slice (Array.make 1#usize [ (v, v1) ]))
-      let v2 ← record.Form.wire_terms product
-      let s1 := alloc.vec.Vec.deref v2
-      let t ← SinkInst.row self1.sink s s1
-      ok (product, { self1 with sink := t })
-
-/-- [neo_verified::record::{impl neo_verified::backend::Backend<neo_verified::record::Form, [neo_verified::record::Form; 3usize]> for neo_verified::record::Recorder<S>}::sub]:
-    Source: 'crates/neo-verified/src/record.rs', lines 444:4-446:5
-    Visibility: public -/
-def record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3.sub
-  {S : Type _} (SinkInst : record.Sink S) (self : record.Recorder S)
-  (a : record.Form) (b : record.Form) :
-  Result (record.Form × (record.Recorder S))
-  := do
-  let g ← field.gl_neg field.GL_ONE
-  let s ←
-    lift (Array.to_slice (Array.make 2#usize [ (a, field.GL_ONE), (b, g) ]))
-  record.Recorder.linear SinkInst self s
-
-/-- [neo_verified::record::{impl neo_verified::backend::Backend<neo_verified::record::Form, [neo_verified::record::Form; 3usize]> for neo_verified::record::Recorder<S>}::add]:
-    Source: 'crates/neo-verified/src/record.rs', lines 440:4-442:5
-    Visibility: public -/
-def record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3.add
-  {S : Type _} (SinkInst : record.Sink S) (self : record.Recorder S)
-  (a : record.Form) (b : record.Form) :
-  Result (record.Form × (record.Recorder S))
-  := do
-  let s ←
-    lift (Array.to_slice
-      (Array.make 2#usize [ (a, field.GL_ONE), (b, field.GL_ONE) ]))
-  record.Recorder.linear SinkInst self s
-
-/-- [neo_verified::record::{impl neo_verified::backend::Backend<neo_verified::record::Form, [neo_verified::record::Form; 3usize]> for neo_verified::record::Recorder<S>}::select]:
-    Source: 'crates/neo-verified/src/record.rs', lines 615:4-619:5
-    Visibility: public -/
-def record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3.select
-  {S : Type _} (SinkInst : record.Sink S) (self : record.Recorder S)
-  (bit : record.Form) (zero : record.Form) (one : record.Form) :
-  Result (record.Form × (record.Recorder S))
-  := do
-  let (difference, self1) ←
-    record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3.sub SinkInst
-      self one zero
-  let (chosen, self2) ←
-    record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3.mul SinkInst
-      self1 bit difference
-  record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3.add SinkInst
-    self2 zero chosen
-
-/-- [neo_verified::record::{impl neo_verified::backend::Backend<neo_verified::record::Form, [neo_verified::record::Form; 3usize]> for neo_verified::record::Recorder<S>}::bits]: loop body 0:
-    Source: 'crates/neo-verified/src/record.rs', lines 572:8-576:9
-    Visibility: public -/
-@[rust_loop_body]
-def
-  record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3.bits_loop0.body
-  {S : Type _} (SinkInst : record.Sink S) (count : Std.Usize) (value : Std.U64)
-  (self : record.Recorder S) (bits : alloc.vec.Vec record.Form) (i : Std.Usize)
-  :
-  Result (ControlFlow ((record.Recorder S) × (alloc.vec.Vec record.Form) ×
-    Std.Usize) (S × Std.U32 × (Array Std.U32 1#usize) × Std.U32 × (Option
-    Str) × (alloc.vec.Vec record.Form)))
-  := do
-  if i < count
-  then
-    let bit ←
-      if i < 64#usize
-      then
-        do
-        let i1 ← lift (UScalar.cast .U32 i)
-        let i2 ← lift (core.num.U64.wrapping_shr value i1)
-        ok (i2 &&& 1#u64)
-      else ok 0#u64
-    let g ← field.reduce bit
-    let (f, self1) ← record.Recorder.cell SinkInst self g
-    let bits1 ← alloc.vec.Vec.push bits f
-    let i1 ← lift (core.num.Usize.wrapping_add i 1#usize)
-    ok (cont (self1, bits1, i1))
-  else
-    ok (done (self.sink, self.glue, self.blocks, self.publics, self.failure,
-      bits))
-
-/-- [neo_verified::record::{impl neo_verified::backend::Backend<neo_verified::record::Form, [neo_verified::record::Form; 3usize]> for neo_verified::record::Recorder<S>}::bits]: loop 0:
-    Source: 'crates/neo-verified/src/record.rs', lines 572:8-576:9
-    Visibility: public -/
-@[rust_loop]
-def record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3.bits_loop0
-  {S : Type _} (SinkInst : record.Sink S) (self : record.Recorder S)
-  (count : Std.Usize) (value : Std.U64) (bits : alloc.vec.Vec record.Form)
-  (i : Std.Usize) :
-  Result (S × Std.U32 × (Array Std.U32 1#usize) × Std.U32 × (Option Str) ×
-    (alloc.vec.Vec record.Form))
-  := do
-  loop
-    (fun (self1, bits1, i1) =>
-      record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3.bits_loop0.body
-      SinkInst count value self1 bits1 i1)
-    (self, bits, i)
-
-/-- [neo_verified::record::{impl neo_verified::backend::Backend<neo_verified::record::Form, [neo_verified::record::Form; 3usize]> for neo_verified::record::Recorder<S>}::bits]: loop body 1:
-    Source: 'crates/neo-verified/src/record.rs', lines 578:8-583:9
-    Visibility: public -/
-@[rust_loop_body]
-def
-  record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3.bits_loop1.body
-  {S : Type _} (SinkInst : record.Sink S) (bits : alloc.vec.Vec record.Form)
-  (t : S) (i : Std.Usize) :
-  Result (ControlFlow (S × Std.Usize) S)
-  := do
-  let i1 := alloc.vec.Vec.len bits
-  if i < i1
-  then
-    let f ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice record.Form)
-        bits i
-    let wire ← record.Form.wire_terms f
-    let v ← record.Form.wire_terms f
-    let v1 ← record.Form.wire_terms f
-    let s ← lift (Array.to_slice (Array.make 1#usize [ (v, v1) ]))
-    let s1 := alloc.vec.Vec.deref wire
-    let t1 ← SinkInst.row t s s1
-    let i2 ← lift (core.num.Usize.wrapping_add i 1#usize)
-    ok (cont (t1, i2))
-  else ok (done t)
-
-/-- [neo_verified::record::{impl neo_verified::backend::Backend<neo_verified::record::Form, [neo_verified::record::Form; 3usize]> for neo_verified::record::Recorder<S>}::bits]: loop 1:
-    Source: 'crates/neo-verified/src/record.rs', lines 578:8-583:9
-    Visibility: public -/
-@[rust_loop]
-def record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3.bits_loop1
-  {S : Type _} (SinkInst : record.Sink S) (t : S)
-  (bits : alloc.vec.Vec record.Form) (i : Std.Usize) :
-  Result S
-  := do
-  loop
-    (fun (t1, i1) =>
-      record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3.bits_loop1.body
-      SinkInst bits t1 i1)
-    (t, i)
-
-/-- [neo_verified::record::{impl neo_verified::backend::Backend<neo_verified::record::Form, [neo_verified::record::Form; 3usize]> for neo_verified::record::Recorder<S>}::bits]: loop body 2:
-    Source: 'crates/neo-verified/src/record.rs', lines 587:8-592:9
-    Visibility: public -/
-@[rust_loop_body]
-def
-  record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3.bits_loop2.body
-  (bits : alloc.vec.Vec record.Form)
-  (linear : alloc.vec.Vec (circuit.Wire × field.Gl)) (sum : field.Gl)
-  (i : Std.Usize) :
-  Result (ControlFlow ((alloc.vec.Vec (circuit.Wire × field.Gl)) × field.Gl
-    × Std.Usize) ((alloc.vec.Vec (circuit.Wire × field.Gl)) × field.Gl))
-  := do
-  let i1 := alloc.vec.Vec.len bits
-  if i < i1
-  then
-    let i2 ← lift (UScalar.cast .U32 i)
-    let i3 ← lift (core.num.U64.wrapping_shl 1#u64 i2)
-    let weight ← field.reduce i3
-    let f ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice record.Form)
-        bits i
-    let (w, _) ← Array.index_usize f.terms 0#usize
-    let g ← field.gl_neg weight
-    let linear1 ← alloc.vec.Vec.push linear (w, g)
-    let g1 ← field.gl_mul weight f.value
-    let sum1 ← field.gl_add sum g1
-    let i4 ← lift (core.num.Usize.wrapping_add i 1#usize)
-    ok (cont (linear1, sum1, i4))
-  else ok (done (linear, sum))
-
-/-- [neo_verified::record::{impl neo_verified::backend::Backend<neo_verified::record::Form, [neo_verified::record::Form; 3usize]> for neo_verified::record::Recorder<S>}::bits]: loop 2:
-    Source: 'crates/neo-verified/src/record.rs', lines 587:8-592:9
-    Visibility: public -/
-@[rust_loop]
-def record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3.bits_loop2
-  (bits : alloc.vec.Vec record.Form)
-  (linear : alloc.vec.Vec (circuit.Wire × field.Gl)) (sum : field.Gl)
-  (i : Std.Usize) :
-  Result ((alloc.vec.Vec (circuit.Wire × field.Gl)) × field.Gl)
-  := do
-  loop
-    (fun (linear1, sum1, i1) =>
-      record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3.bits_loop2.body
-      bits linear1 sum1 i1)
-    (linear, sum, i)
-
-/-- [neo_verified::record::{impl neo_verified::backend::Backend<neo_verified::record::Form, [neo_verified::record::Form; 3usize]> for neo_verified::record::Recorder<S>}::bits]: loop body 3:
-    Source: 'crates/neo-verified/src/record.rs', lines 598:12-601:13
-    Visibility: public -/
-@[rust_loop_body]
-def
-  record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3.bits_loop3.body
-  {S : Type _} (SinkInst : record.Sink S) (bits : alloc.vec.Vec record.Form)
-  (self : record.Recorder S) (high : record.Form) (i : Std.Usize) :
-  Result (ControlFlow ((record.Recorder S) × record.Form × Std.Usize) (S ×
-    Std.U32 × (Array Std.U32 1#usize) × Std.U32 × (Option Str) ×
-    record.Form))
-  := do
-  if i < 64#usize
-  then
-    let f ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice record.Form)
-        bits i
-    let (high1, self1) ←
-      record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3.mul
-        SinkInst self high f
-    let i1 ← lift (core.num.Usize.wrapping_add i 1#usize)
-    ok (cont (self1, high1, i1))
-  else
-    ok (done (self.sink, self.glue, self.blocks, self.publics, self.failure,
-      high))
-
-/-- [neo_verified::record::{impl neo_verified::backend::Backend<neo_verified::record::Form, [neo_verified::record::Form; 3usize]> for neo_verified::record::Recorder<S>}::bits]: loop 3:
-    Source: 'crates/neo-verified/src/record.rs', lines 598:12-601:13
-    Visibility: public -/
-@[rust_loop]
-def record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3.bits_loop3
-  {S : Type _} (SinkInst : record.Sink S) (self : record.Recorder S)
-  (bits : alloc.vec.Vec record.Form) (high : record.Form) (i : Std.Usize) :
-  Result (S × Std.U32 × (Array Std.U32 1#usize) × Std.U32 × (Option Str) ×
-    record.Form)
-  := do
-  loop
-    (fun (self1, high1, i1) =>
-      record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3.bits_loop3.body
-      SinkInst bits self1 high1 i1)
-    (self, high, i)
-
-/-- [neo_verified::record::{impl neo_verified::backend::Backend<neo_verified::record::Form, [neo_verified::record::Form; 3usize]> for neo_verified::record::Recorder<S>}::bits]: loop body 4:
-    Source: 'crates/neo-verified/src/record.rs', lines 605:12-609:13
-    Visibility: public -/
-@[rust_loop_body]
-def
-  record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3.bits_loop4.body
-  (bits : alloc.vec.Vec record.Form)
-  (low : alloc.vec.Vec (circuit.Wire × field.Gl)) (low_value : field.Gl)
-  (i : Std.Usize) :
-  Result (ControlFlow ((alloc.vec.Vec (circuit.Wire × field.Gl)) × field.Gl
-    × Std.Usize) ((alloc.vec.Vec (circuit.Wire × field.Gl)) × field.Gl))
-  := do
-  if i < 32#usize
-  then
-    let f ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice record.Form)
-        bits i
-    let p ← Array.index_usize f.terms 0#usize
-    let low1 ← alloc.vec.Vec.push low p
-    let low_value1 ← field.gl_add low_value f.value
-    let i1 ← lift (core.num.Usize.wrapping_add i 1#usize)
-    ok (cont (low1, low_value1, i1))
-  else ok (done (low, low_value))
-
-/-- [neo_verified::record::{impl neo_verified::backend::Backend<neo_verified::record::Form, [neo_verified::record::Form; 3usize]> for neo_verified::record::Recorder<S>}::bits]: loop 4:
-    Source: 'crates/neo-verified/src/record.rs', lines 605:12-609:13
-    Visibility: public -/
-@[rust_loop]
-def record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3.bits_loop4
-  (bits : alloc.vec.Vec record.Form)
-  (low : alloc.vec.Vec (circuit.Wire × field.Gl)) (low_value : field.Gl)
-  (i : Std.Usize) :
-  Result ((alloc.vec.Vec (circuit.Wire × field.Gl)) × field.Gl)
-  := do
-  loop
-    (fun (low1, low_value1, i1) =>
-      record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3.bits_loop4.body
-      bits low1 low_value1 i1)
-    (low, low_value, i)
-
-/-- [neo_verified::record::{impl neo_verified::backend::Backend<neo_verified::record::Form, [neo_verified::record::Form; 3usize]> for neo_verified::record::Recorder<S>}::bits]:
-    Source: 'crates/neo-verified/src/record.rs', lines 568:4-613:5
-    Visibility: public -/
-def record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3.bits
-  {S : Type _} (SinkInst : record.Sink S) (self : record.Recorder S)
-  (a : record.Form) (count : Std.Usize) (what : Str) :
-  Result ((core.result.Result (alloc.vec.Vec record.Form) backend.Rejected) ×
-    (record.Recorder S))
-  := do
-  let value ← field.gl_word a.value
-  let (t, i, a1, i1, o, bits) ←
-    record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3.bits_loop0
-      SinkInst self count value (alloc.vec.Vec.new record.Form) 0#usize
-  let t1 ←
-    record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3.bits_loop1
-      SinkInst t bits 0#usize
-  let linear ← record.Form.row_terms a
-  let (linear1, sum) ←
-    record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3.bits_loop2
-      bits linear field.GL_ZERO 0#usize
-  let s ←
-    lift (Array.to_slice
-      (Std.Array.empty
-        ((alloc.vec.Vec
-        (circuit.Wire
-        ×
-        field.Gl))
-        ×
-        (alloc.vec.Vec
-        (circuit.Wire
-        ×
-        field.Gl)))))
-  let s1 := alloc.vec.Vec.deref linear1
-  let g ← field.gl_sub a.value sum
-  let self1 ←
-    record.Recorder.row SinkInst
-      { sink := t1, glue := i, blocks := a1, publics := i1, failure := o } s s1
-      g what
-  if count = 64#usize
-  then
-    let high ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice record.Form)
-        bits 32#usize
-    let (t2, i2, a2, i3, o1, high1) ←
-      record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3.bits_loop3
-        SinkInst self1 bits high 33#usize
-    let (low, low_value) ←
-      record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3.bits_loop4
-        bits (alloc.vec.Vec.new (circuit.Wire × field.Gl)) field.GL_ZERO
-        0#usize
-    let v ← record.Form.row_terms high1
-    let s2 ← lift (Array.to_slice (Array.make 1#usize [ (v, low) ]))
-    let s3 ←
-      lift (Array.to_slice (Std.Array.empty (circuit.Wire × field.Gl)))
-    let g1 ← field.gl_mul high1.value low_value
-    let self2 ←
-      record.Recorder.row SinkInst
-        { sink := t2, glue := i2, blocks := a2, publics := i3, failure := o1 }
-        s2 s3 g1 what
-    ok (core.result.Result.Ok bits, self2)
-  else ok (core.result.Result.Ok bits, self1)
-
-/-- [neo_verified::record::{impl neo_verified::backend::Backend<neo_verified::record::Form, [neo_verified::record::Form; 3usize]> for neo_verified::record::Recorder<S>}::assert_zero]:
-    Source: 'crates/neo-verified/src/record.rs', lines 559:4-566:5
-    Visibility: public -/
-def record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3.assert_zero
-  {S : Type _} (SinkInst : record.Sink S) (self : record.Recorder S)
-  (a : record.Form) (what : Str) :
-  Result ((core.result.Result Unit backend.Rejected) × (record.Recorder S))
-  := do
-  let b ← record.Form.is_constant a
-  if b
-  then
-    let b1 ← field.Gl.Insts.CoreCmpPartialEqGl.eq a.constant field.GL_ZERO
-    if b1
-    then ok (core.result.Result.Ok (), self)
-    else
-      let s ←
-        lift (Array.to_slice
-          (Std.Array.empty
-            ((alloc.vec.Vec
-            (circuit.Wire
-            ×
-            field.Gl))
-            ×
-            (alloc.vec.Vec
-            (circuit.Wire
-            ×
-            field.Gl)))))
-      let v ← record.Form.row_terms a
-      let s1 := alloc.vec.Vec.deref v
-      let self1 ← record.Recorder.row SinkInst self s s1 a.value what
-      ok (core.result.Result.Ok (), self1)
-  else
-    let s ←
-      lift (Array.to_slice
-        (Std.Array.empty
-          ((alloc.vec.Vec
-          (circuit.Wire
-          ×
-          field.Gl))
-          ×
-          (alloc.vec.Vec
-          (circuit.Wire
-          ×
-          field.Gl)))))
-    let v ← record.Form.row_terms a
-    let s1 := alloc.vec.Vec.deref v
-    let self1 ← record.Recorder.row SinkInst self s s1 a.value what
-    ok (core.result.Result.Ok (), self1)
 
 end neo_verified

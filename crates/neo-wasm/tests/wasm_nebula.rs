@@ -9,22 +9,21 @@
 
 mod common;
 
-use std::sync::Arc;
-
-use neo_ccs::CcsMatrix;
 use neo_math::F;
-use neo_wasm::batch::{build_batched_wasm_ccs, build_batched_witness};
 use neo_wasm::host_event_bindings::HostEventBindings;
 use neo_wasm::memory_semantics::preload_host_event_tables;
+use neo_wasm::nebula::{
+    is_active, smallest_geometry, smallest_regions, state_words, step_inputs, WasmApplication, WasmStepError,
+};
 use neo_wasm::{
-    build_wasm_relation_layout, continuity_words, plan_ordered_wasm_memory_slots, plan_wasm_memory_slots,
-    preload_from_program_artifacts, top_level_initial_state, WasmMemoryId, WasmMemoryPreload,
+    build_wasm_relation_layout, plan_ordered_wasm_memory_slots, plan_wasm_memory_slots, preload_from_program_artifacts,
+    top_level_initial_state, WasmMemoryId, WasmMemoryPreload,
 };
 use nightstream::nebula::{
-    Application, CatalogBinding, CatalogRowError, Context, Expr, Geometry, Memory, MemoryCatalog, MemoryKind,
-    MemoryPortActivation, MemoryPortKind, Program, Region, Run, SegmentError, Transition, View,
+    Application, CatalogRowError, Context, Expr, Geometry, Memory, MemoryPortActivation, MemoryPortKind, Program,
+    Region, Run, SegmentError, Transition, View,
 };
-use p3_field::{PrimeCharacteristicRing, PrimeField64};
+use p3_field::PrimeCharacteristicRing;
 
 /// Stack and linear-memory traffic: store 42 at address 0, then load it.
 const LINEAR_MEMORY: &str = r#"(module
@@ -84,137 +83,6 @@ fn fib_wat(n: u32) -> String {
 /// rows and 2 padding rows.
 const N: usize = 8;
 
-/// The terms `(column, coefficient)` of one row of a sparse matrix.
-type Terms = Vec<(usize, F)>;
-
-/// The WASM relation as a Nebula application.
-#[derive(Clone)]
-struct Wasm {
-    /// `[A_i, B_i, C_i]` of each rank-one row `(A_i·z)(B_i·z) = C_i·z`.
-    relation: Arc<Vec<[Terms; 3]>>,
-    /// The `(_AFTER, _BEFORE)` columns of each continuity link, in link order.
-    links: Arc<Vec<(usize, usize)>>,
-    columns: usize,
-    binding: CatalogBinding<WasmMemoryId>,
-}
-
-#[derive(Debug, thiserror::Error)]
-enum WasmStepError {
-    #[error("the row does not start from the state")]
-    State,
-    #[error(transparent)]
-    Row(#[from] CatalogRowError),
-}
-
-impl Wasm {
-    fn words(&self, z: &[F], column: fn(&(usize, usize)) -> usize) -> Vec<u64> {
-        self.links
-            .iter()
-            .map(|link| z[column(link)].as_canonical_u64())
-            .collect()
-    }
-}
-
-fn after(link: &(usize, usize)) -> usize {
-    link.0
-}
-
-fn before(link: &(usize, usize)) -> usize {
-    link.1
-}
-
-impl Application for Wasm {
-    type Input = Vec<F>;
-    type State = Vec<u64>;
-    type Error = WasmStepError;
-
-    fn width(&self) -> usize {
-        self.links.len()
-    }
-
-    fn aux(&self) -> usize {
-        self.columns
-    }
-
-    fn port_count(&self) -> usize {
-        self.binding.port_count()
-    }
-
-    fn words(&self, state: &Vec<u64>) -> Vec<u64> {
-        state.clone()
-    }
-
-    /// Each R1CS row as `C·z − (A·z)(B·z)`, one rank-one row each; `z[0] = 1`;
-    /// the `_BEFORE` columns equal the input state and the `_AFTER` columns
-    /// the output state; then the binding rows.
-    fn rows(&self, view: &View) -> Result<Vec<Expr>, nightstream::Error> {
-        let z: Vec<Expr> = (0..self.columns).map(|column| view.aux(column)).collect();
-        let affine = |terms: &Terms| {
-            terms
-                .iter()
-                .fold(Expr::constant(0), |sum, (column, coefficient)| {
-                    sum + Expr::Const(*coefficient) * z[*column].clone()
-                })
-        };
-        let mut rows: Vec<Expr> = self
-            .relation
-            .iter()
-            .map(|[a, b, c]| affine(c) - affine(a) * affine(b))
-            .collect();
-        rows.push(z[0].clone() - Expr::constant(1));
-        for (k, link) in self.links.iter().enumerate() {
-            rows.push(z[before(link)].clone() - view.input(k));
-            rows.push(z[after(link)].clone() - view.output(k));
-        }
-        rows.extend(self.binding.rows(view, &z)?);
-        Ok(rows)
-    }
-
-    fn step(&self, state: &Vec<u64>, z: &Vec<F>, memory: &Memory) -> Result<Transition<Vec<u64>>, WasmStepError> {
-        if self.words(z, before) != *state {
-            return Err(WasmStepError::State);
-        }
-        Ok(Transition {
-            next: self.words(z, after),
-            ports: self.binding.ports(z, memory)?,
-            aux: z.clone(),
-        })
-    }
-}
-
-/// The rows of `A`, `B`, and `C` of one trace row's relation, lookup rows
-/// included (`build_batched_wasm_ccs(1)` has no link rows).
-fn relation() -> (Vec<[Terms; 3]>, usize) {
-    let r1cs = build_batched_wasm_ccs(1)
-        .expect("the WASM relation")
-        .sparse_r1cs;
-    let mut rows = vec![[Terms::new(), Terms::new(), Terms::new()]; r1cs.n];
-    for (k, matrix) in [&r1cs.a, &r1cs.b, &r1cs.c].into_iter().enumerate() {
-        let CcsMatrix::Csc(csc) = matrix else {
-            panic!("the batch builds CSC matrices");
-        };
-        for column in 0..csc.ncols() {
-            for entry in csc.column_range(column) {
-                rows[csc.row_index(entry)][k].push((column, csc.vals()[entry]));
-            }
-        }
-    }
-    (rows, r1cs.m)
-}
-
-/// Lean `active`.
-fn active(z: &[F], activation: MemoryPortActivation) -> bool {
-    match activation {
-        MemoryPortActivation::Always => true,
-        MemoryPortActivation::When(column) => z[column] == F::ONE,
-        MemoryPortActivation::Unless(column) => z[column] == F::ZERO,
-    }
-}
-
-fn bits(value: u64) -> usize {
-    (u64::BITS - value.leading_zeros()) as usize
-}
-
 /// A test program as its verifier and prover see it.
 struct Traced {
     /// The witness of each trace row, then of each padding row, one segment
@@ -241,86 +109,11 @@ fn traced(wat: &str, n: usize) -> Traced {
         &mut preload,
         &HostEventBindings::import_free(u32::try_from(export_fref).unwrap()),
     );
-    let initial = continuity_words(top_level_initial_state(tables, entry_pc))
-        .iter()
-        .map(F::as_canonical_u64)
-        .collect();
-    let real = checked.trace.len();
-    assert!(real <= n, "the trace fits one segment");
-    let batch = build_batched_witness(&checked.trace, n, 0);
     Traced {
-        rows: batch.chunks(batch.len() / n).map(<[F]>::to_vec).collect(),
-        real,
+        rows: step_inputs(&checked.trace, n).expect("the trace fits one segment"),
+        real: checked.trace.len(),
         preload,
-        initial,
-    }
-}
-
-/// One region per memory. Each part's width holds the largest part of that
-/// memory in the preloads and in the active ports of the rows. In each
-/// namespace the regions go from the largest to the smallest, so each base is
-/// a multiple of its size. Returns the regions and the `log2` size of the ROM
-/// and of the RAM that hold them.
-fn regions(
-    catalog: &MemoryCatalog<WasmMemoryId>,
-    preloads: &[&WasmMemoryPreload],
-    rows: &[Vec<F>],
-) -> (Vec<(WasmMemoryId, Region)>, [usize; 2]) {
-    let mut needs: Vec<(WasmMemoryId, bool, Vec<usize>)> = catalog
-        .entries()
-        .iter()
-        .map(|memory| {
-            let mut largest = vec![0; memory.ports[0].address_columns.len()];
-            let mut see = |parts: Vec<u64>| {
-                for (largest, part) in largest.iter_mut().zip(parts) {
-                    *largest = part.max(*largest);
-                }
-            };
-            for (id, address, _) in preloads.iter().flat_map(|preload| preload.entries()) {
-                if id == memory.id {
-                    see(address.into_iter().map(u64::from).collect());
-                }
-            }
-            for port in &memory.ports {
-                for z in rows.iter().filter(|z| active(z, port.activation)) {
-                    see(port
-                        .address_columns
-                        .iter()
-                        .map(|column| z[*column].as_canonical_u64())
-                        .collect());
-                }
-            }
-            let widths = largest.into_iter().map(bits).collect();
-            (memory.id, memory.kind == MemoryKind::Ram, widths)
-        })
-        .collect();
-    needs.sort_by_key(|(_, is_ram, widths)| (*is_ram, std::cmp::Reverse(widths.iter().sum::<usize>())));
-    let mut used = [0u64; 2];
-    let regions = needs
-        .into_iter()
-        .map(|(id, is_ram, widths)| {
-            let next = &mut used[usize::from(is_ram)];
-            let base = *next;
-            *next += 1 << widths.iter().sum::<usize>();
-            (id, Region { base, widths })
-        })
-        .collect();
-    (regions, used.map(|cells| bits(cells - 1)))
-}
-
-/// The smallest valid, secure geometry for the namespaces and `b_ops` slots:
-/// one segment of `n` steps.
-fn geometry(log2: [usize; 2], b_ops: usize, n: usize) -> Geometry {
-    // SPEC.md section 7.1, rule 4: the RAM is at least as large as the ROM.
-    let (r, mu) = (log2[0], log2[0].max(log2[1]));
-    Geometry {
-        r,
-        mu,
-        w_ts: bits((n * b_ops) as u64),
-        b_ops,
-        b_scan: ((1 << r) + (1 << mu)) / n,
-        n,
-        s_max: 1,
+        initial: state_words(top_level_initial_state(tables, entry_pc)),
     }
 }
 
@@ -342,8 +135,7 @@ impl Setup {
     /// One circuit for `programs`, each traced to one segment of `n` steps.
     fn of(programs: Vec<Traced>, n: usize) -> Setup {
         let catalog = &build_wasm_relation_layout().auxiliary.memory;
-        let (regions, log2) = regions(
-            catalog,
+        let (regions, log2) = smallest_regions(
             &programs
                 .iter()
                 .map(|traced| &traced.preload)
@@ -367,36 +159,20 @@ impl Setup {
     }
 
     /// The application and geometry of a slot plan.
-    fn app(&self, slots: &[Vec<usize>]) -> (Wasm, Geometry) {
-        let layout = build_wasm_relation_layout();
-        let geometry = geometry(self.log2, slots.len(), self.n);
-        let (relation, columns) = relation();
-        let app = Wasm {
-            relation: Arc::new(relation),
-            links: Arc::new(
-                layout
-                    .auxiliary
-                    .continuity
-                    .links()
-                    .map(|link| (link.previous_step_column, link.next_step_column))
-                    .collect(),
-            ),
-            columns,
-            binding: CatalogBinding::new(&layout.auxiliary.memory, &geometry, self.regions.clone(), slots)
-                .expect("a binding"),
-        };
+    fn app(&self, slots: &[Vec<usize>]) -> (WasmApplication, Geometry) {
+        let geometry = smallest_geometry(self.log2, slots.len(), self.n, 1);
+        let app = WasmApplication::with_slots(&geometry, self.regions.clone(), slots).expect("an application");
         (app, geometry)
     }
 
     /// The application of the static plan that keeps each dependent pair in
     /// catalog order.
-    fn complete(&self) -> (Wasm, Geometry) {
+    fn complete(&self) -> (WasmApplication, Geometry) {
         self.app(&plan_ordered_wasm_memory_slots(build_wasm_relation_layout().auxiliary.memory.entries()).slots)
     }
 
-    fn run(&self, app: &Wasm, traced: &Traced) -> (Program, Run<Wasm>) {
+    fn run(&self, app: &WasmApplication, traced: &Traced) -> (Program, Run<WasmApplication>) {
         let program = app
-            .binding
             .program(&traced.preload)
             .expect("the regions hold the preload");
         let run = Run::new(Context::new(app.clone(), &program), traced.initial.clone());
@@ -413,7 +189,7 @@ impl Setup {
 fn honest_padded_traces_run_through_nebula() {
     let setup = setup();
     let (app, geometry) = setup.complete();
-    assert!(app.binding.host_checked().is_empty(), "every memory is checked");
+    assert!(app.binding().host_checked().is_empty(), "every memory is checked");
     eprintln!("geometry {geometry:?}");
     for (id, region) in &setup.regions {
         eprintln!("region {id} base={} widths={:?}", region.base, region.widths);
@@ -424,7 +200,7 @@ fn honest_padded_traces_run_through_nebula() {
         let statement = run.statement();
         assert_eq!(
             statement.final_,
-            app.words(&traced.rows[traced.real - 1], after),
+            app.output_words(&traced.rows[traced.real - 1]),
             "padding keeps the state of the last trace row"
         );
         for z in &traced.rows[traced.real..] {
@@ -432,7 +208,7 @@ fn honest_padded_traces_run_through_nebula() {
                 setup
                     .activations
                     .iter()
-                    .all(|activation| !active(z, *activation)),
+                    .all(|activation| !is_active(z, *activation)),
                 "a padding row activates no port"
             );
         }
@@ -443,7 +219,7 @@ fn honest_padded_traces_run_through_nebula() {
                 setup
                     .activations
                     .iter()
-                    .filter(|activation| active(z, **activation))
+                    .filter(|activation| is_active(z, **activation))
                     .count() as u64
             })
             .sum::<u64>();
@@ -495,6 +271,27 @@ fn runner_rejects_a_load_of_another_value() {
     assert!(matches!(run.segment(&rows), Err(SegmentError::Access)));
 }
 
+/// A run has room for the trace only when it has at least one step per row.
+#[test]
+fn step_inputs_reject_a_trace_longer_than_the_run() {
+    let checked = common::checked_main(LINEAR_MEMORY);
+    let rows = checked.trace.len();
+    assert!(matches!(
+        step_inputs(&checked.trace, rows - 1),
+        Err(neo_wasm::nebula::WasmApplicationError::Steps { .. })
+    ));
+    assert_eq!(step_inputs(&checked.trace, rows).unwrap().len(), rows);
+}
+
+/// Small memories and a long segment: the geometry still covers both
+/// namespaces in `n` steps, so a program of it exists.
+#[test]
+fn smallest_geometry_covers_small_memories_in_a_long_segment() {
+    let geometry = smallest_geometry([1, 2], 3, 64, 2);
+    assert_eq!((geometry.r, geometry.mu), (6, 6));
+    assert!(Program::new(geometry, vec![0; 1 << geometry.r], vec![0; 1 << geometry.mu]).is_ok());
+}
+
 /// The row and value column of the first active `linear_memory` read.
 fn load(traced: &Traced) -> (usize, usize) {
     let catalog = &build_wasm_relation_layout().auxiliary.memory;
@@ -511,7 +308,7 @@ fn load(traced: &Traced) -> (usize, usize) {
             memory
                 .ports
                 .iter()
-                .find(|port| port.kind == MemoryPortKind::Read && active(z, port.activation))
+                .find(|port| port.kind == MemoryPortKind::Read && is_active(z, port.activation))
                 .map(|port| (row, port.value_column))
         })
         .expect("the trace loads")
@@ -567,15 +364,11 @@ fn wasm_proof_verifies_and_rejects_a_changed_load_on_cpu() {
 
     let (row, column) = load(traced);
     let mut words = invocations[row].words.clone();
-    let start = words.len() - app.columns;
+    let start = words.len() - app.aux();
     words[start + column] += F::ONE;
     assert!(prover.extend(&proofs[row - 1], &words).is_err());
 
-    let pc = app
-        .links
-        .iter()
-        .position(|link| after(link) == neo_wasm::layout::COL_PC_AFTER)
-        .unwrap();
+    let pc = app.state_position(neo_wasm::layout::COL_PC_AFTER).unwrap();
     let mut changed = statement.clone();
     changed.final_[pc] += 1;
     assert!(matches!(
@@ -642,7 +435,6 @@ fn fibonacci_proof_times_on_metal() {
     let traced = &setup.programs[0];
     eprintln!("fib({FIB_ROUNDS}) rows={}", traced.real);
     let program = app
-        .binding
         .program(&traced.preload)
         .expect("the regions hold the preload");
     time_on_metal(app, geometry, &program, traced.initial.clone(), &traced.rows);
@@ -699,7 +491,7 @@ fn idle_proof_times_on_metal() {
     let setup = Setup::of(vec![traced(&fib_wat(FIB_ROUNDS), FIB_STEPS)], FIB_STEPS);
     let (wasm, geometry) = setup.complete();
     let app = Idle {
-        width: wasm.links.len(),
+        width: wasm.width(),
         b_ops: geometry.b_ops,
     };
     let program = Program::new(geometry, vec![0; 1 << geometry.r], vec![0; 1 << geometry.mu]).unwrap();
@@ -728,7 +520,7 @@ fn fibonacci_step_size_for_the_breakdown_chart() {
         match part.name {
             "Application rows" => {
                 assert_eq!(part.size.local_words, 0, "the WASM rows are rank-one rows");
-                let (relation, links) = (wasm.relation.len(), 1 + 2 * wasm.links.len());
+                let (relation, links) = (wasm.relation_rows(), 1 + 2 * wasm.width());
                 parts.push(("WASM step / Relation rows".into(), rows(relation)));
                 parts.push(("WASM step / Constant and continuity rows".into(), rows(links)));
                 parts.push((

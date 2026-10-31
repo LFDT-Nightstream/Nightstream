@@ -601,15 +601,21 @@ fn proof_verifies_and_rejects_a_changed_load_on_cpu(per_step: NonZeroUsize) {
 
     let (program, mut run) = setup.run(&app, traced);
     let invocations = run.segment(&traced.inputs).unwrap();
+    let (row, column) = access(traced, false);
+    let (step, position) = setup.position(traced, row, column);
     let proving = std::time::Instant::now();
-    let mut proofs = vec![prover
+    // A prover keeps only its last proof. The test also keeps the proof that
+    // the step of the changed load extends.
+    let mut last = prover
         .prove(run.initial_state(), &invocations[0].words)
-        .unwrap()];
-    for invocation in &invocations[1..] {
-        let next = prover
-            .extend(proofs.last().unwrap(), &invocation.words)
-            .unwrap();
-        proofs.push(next);
+        .unwrap();
+    let mut before_load = None;
+    for (k, invocation) in invocations.iter().enumerate().skip(1) {
+        let next = prover.extend(&last, &invocation.words).unwrap();
+        let previous = std::mem::replace(&mut last, next);
+        if k == step {
+            before_load = Some(previous);
+        }
     }
     eprintln!(
         "wasm {} steps of {per_step} rows elapsed={:?}",
@@ -619,22 +625,21 @@ fn proof_verifies_and_rejects_a_changed_load_on_cpu(per_step: NonZeroUsize) {
     let statement = run.statement();
     let verifying = std::time::Instant::now();
     verifier
-        .verify(&program, &statement, run.carry(), &proofs[setup.n - 1])
+        .verify(&program, &statement, run.carry(), &last)
         .unwrap();
     eprintln!("wasm verify elapsed={:?}", verifying.elapsed());
 
-    let (row, column) = access(traced, false);
-    let (step, position) = setup.position(traced, row, column);
     let mut words = invocations[step].words.clone();
     let start = words.len() - app.aux();
     words[start + position] += F::ONE;
-    assert!(prover.extend(&proofs[step - 1], &words).is_err());
+    let before_load = before_load.expect("the load is after the first step");
+    assert!(prover.extend(&before_load, &words).is_err());
 
     let pc = app.state_position(neo_wasm::layout::COL_PC_AFTER).unwrap();
     let mut changed = statement.clone();
     changed.final_[pc] += 1;
     assert!(matches!(
-        verifier.verify(&program, &changed, run.carry(), &proofs[setup.n - 1]),
+        verifier.verify(&program, &changed, run.carry(), &last),
         Err(VerifyError::Proof(_))
     ));
     eprintln!("wasm elapsed={:?}", started.elapsed());
@@ -672,6 +677,7 @@ fn time_on_metal<A: Application + Clone>(
     eprintln!("{geometry:?}");
     let circuit = Circuit::compile(&reference(), geometry, app.clone()).unwrap();
     eprintln!("compile elapsed={:?}", started.elapsed());
+    eprintln!("application size={:?}", circuit.application_size().unwrap());
     let prover = circuit.prover(engine, 114).unwrap();
     let verifier = Verifier::new(&circuit, engine, 114).unwrap();
     eprintln!("setup elapsed={:?}", started.elapsed());
@@ -680,44 +686,80 @@ fn time_on_metal<A: Application + Clone>(
     let invocations = run.segment(inputs).unwrap();
     eprintln!("witness words per step={}", invocations[0].words.len());
     let proving = Instant::now();
-    let mut proofs: Vec<nightstream::Proof> = Vec::with_capacity(invocations.len());
+    // A prover keeps only its last proof.
+    let mut last: Option<nightstream::Proof> = None;
     for (k, invocation) in invocations.iter().enumerate() {
         let step = Instant::now();
-        let proof = match proofs.last() {
+        let proof = match &last {
             None => prover.prove(run.initial_state(), &invocation.words),
             Some(last) => prover.extend(last, &invocation.words),
         }
         .unwrap();
         eprintln!("step {k} elapsed={:?}", step.elapsed());
-        proofs.push(proof);
+        last = Some(proof);
     }
-    eprintln!("prove {} steps elapsed={:?}", proofs.len(), proving.elapsed());
+    eprintln!("prove {} steps elapsed={:?}", invocations.len(), proving.elapsed());
     let verifying = Instant::now();
     verifier
-        .verify(program, &run.statement(), run.carry(), proofs.last().unwrap())
+        .verify(program, &run.statement(), run.carry(), last.as_ref().unwrap())
         .unwrap();
     eprintln!("verify elapsed={:?}", verifying.elapsed());
     eprintln!("total elapsed={:?}", started.elapsed());
 }
 
-/// Enzo's Fibonacci program proved and verified on Metal in one segment.
-#[test]
-#[ignore = "Metal timing run; build with --features nightstream/metal and run separately under the 300-second cap."]
-fn fibonacci_proof_times_on_metal() {
-    let setup = Setup::of(
-        vec![traced(&fib_wat(FIB_ROUNDS), FIB_STEPS, NonZeroUsize::MIN)],
-        FIB_STEPS,
-        NonZeroUsize::MIN,
-    );
+/// Enzo's Fibonacci program proved and verified on Metal in one segment of
+/// `steps` steps of `per_step` rows: the largest `fib(n)` whose trace fits.
+fn fibonacci_proof_times_on_metal(steps: usize, per_step: NonZeroUsize) {
+    let capacity = steps * per_step.get();
+    let rounds = (1..)
+        .take_while(|n| common::checked_main(&fib_wat(*n)).trace.len() <= capacity)
+        .last()
+        .expect("fib(1) fits the segment");
+    let setup = Setup::of(vec![traced(&fib_wat(rounds), steps, per_step)], steps, per_step);
     let (app, geometry) = setup.complete();
     let traced = &setup.programs[0];
-    eprintln!("fib({FIB_ROUNDS}) rows={}", traced.real);
+    eprintln!(
+        "fib({rounds}) rows={} of {capacity}, {per_step} rows per step",
+        traced.real
+    );
     let program = app
         .program(&traced.preload)
         .expect("the regions hold the preload");
     time_on_metal(app, geometry, &program, traced.initial.clone(), &traced.inputs);
 }
 
+/// `fib(2)` at one row per step: 32 steps.
+#[test]
+#[ignore = "Metal timing run; build with --features nightstream/metal and run separately under the 300-second cap."]
+fn fibonacci_proof_times_on_metal_at_one_row_per_step() {
+    fibonacci_proof_times_on_metal(FIB_STEPS, NonZeroUsize::MIN);
+}
+
+/// 16 steps of 2, 4 and 8 rows: one segment geometry, so only the rows per
+/// step change between the three runs.
+#[test]
+#[ignore = "Metal timing run; build with --features nightstream/metal and run separately under the 300-second cap."]
+fn fibonacci_proof_times_on_metal_at_two_rows_per_step() {
+    fibonacci_proof_times_on_metal(16, per_step(2));
+}
+
+#[test]
+#[ignore = "Metal timing run; build with --features nightstream/metal and run separately under the 300-second cap."]
+fn fibonacci_proof_times_on_metal_at_four_rows_per_step() {
+    fibonacci_proof_times_on_metal(16, per_step(4));
+}
+
+#[test]
+#[ignore = "Metal timing run; build with --features nightstream/metal and run separately under the 300-second cap."]
+fn fibonacci_proof_times_on_metal_at_eight_rows_per_step() {
+    fibonacci_proof_times_on_metal(16, per_step(8));
+}
+
+#[test]
+#[ignore = "Metal timing run; build with --features nightstream/metal and run separately under the 300-second cap."]
+fn fibonacci_proof_times_on_metal_at_sixteen_rows_per_step() {
+    fibonacci_proof_times_on_metal(16, per_step(16));
+}
 /// The memory rows of a geometry with `width` state words and no private word
 /// or row. Every step is idle.
 #[derive(Clone)]

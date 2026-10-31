@@ -1,10 +1,13 @@
 import NightstreamFPrime.Spec.Folding.Light.Extraction
 import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkBinding
+import NightstreamFPrime.Spec.Folding.PiRLC.ChainBinding
 
 /-! SuperNeo v1.2 Definition 7 for the light Π_RLC. Two light forks on one fresh commitment
 whose extracted fresh witnesses differ give SuperNeo's relaxed binding collision. When both
 outputs are bounded by `B`, the openings are bounded by `2B`, so the MSIS norm `8TB` of
-SuperNeo v1.2 Section 8 applies unchanged. -/
+SuperNeo v1.2 Section 8 applies unchanged. `collisionAbove` drops the bound `B`: a chain
+extracts light outputs at up to `B + cap · T · (b − 1)`, and the openings then stay below twice
+that bound. -/
 
 set_option autoImplicit false
 
@@ -15,6 +18,8 @@ open NightstreamFPrime.Spec.Folding
 open NightstreamFPrime.Spec.Folding.PiRLC.PaperForkAlgebra
 open NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtraction (ExtractionAlgebra StrongSetUnits)
 open NightstreamFPrime.Spec.Folding.PiRLC.PaperForkBinding (Compatible)
+open NightstreamFPrime.Spec.Folding.PiRLC.NormFreeFork (normFree normFreeAlgebra normFreeLaws)
+open NightstreamFPrime.Spec.Folding.PiRLC.ChainBinding (CollisionAt normFreeCompatible)
 
 universe uStructure uAssignment uPublicInput uPoint uEvaluation uCommitment uScalar
 
@@ -107,5 +112,44 @@ def collisionAt
     rw [compatible.assignmentAction] at cross
     exact inverse_cross_eq laws _ _ (left.unit laws strongSet) (right.unit laws strongSet)
       _ _ cross
+
+/-- A light fork is a light fork of the relation without norms. -/
+def Fork.forgetNorms {fresh running : CE.Instance Structure PublicInput Point Evaluation Commitment}
+    (fork : Fork algebra one bound system point fresh running) :
+    Fork (normFreeAlgebra algebra) one bound system point fresh running where
+  baseChallenge := fork.baseChallenge
+  forkChallenge := fork.forkChallenge
+  baseAssignment := fork.baseAssignment
+  forkAssignment := fork.forkAssignment
+  baseValid := fork.baseValid
+  forkValid := fork.forkValid
+  changed := fork.changed
+  baseHolds := And.intro (And.intro fork.baseHolds.1.1 (And.intro fork.baseHolds.1.2.1 trivial))
+    fork.baseHolds.2
+  forkHolds := And.intro (And.intro fork.forkHolds.1.1 (And.intro fork.forkHolds.1.2.1 trivial))
+    fork.forkHolds.2
+
+/-- SuperNeo v1.2 Definition 7 for two light forks whose outputs open at `bound`, which may be
+above `B`. -/
+def collisionAbove
+    {leftFresh leftRunning rightFresh rightRunning :
+      CE.Instance Structure PublicInput Point Evaluation Commitment}
+    (laws : ExtractionAlgebra semantics params algebra)
+    (ops : PiRLC.RelaxedBindingOps Assignment Commitment Scalar)
+    (compatible : Compatible laws ops)
+    (strongSet : StrongSetUnits laws.ring algebra.challengeValid)
+    (oneEq : one = laws.ring.one)
+    (differenceBounded : ∀ left right, semantics.normBounded bound left →
+      semantics.normBounded bound right →
+      semantics.normBounded (2 * bound) (laws.assignmentModule.sub left right))
+    (left : Fork algebra one bound system point leftFresh leftRunning)
+    (right : Fork algebra one bound system point rightFresh rightRunning)
+    (sameFresh : leftFresh.commitment = rightFresh.commitment)
+    (different : left.freshAssignment laws strongSet ≠ right.freshAssignment laws strongSet) :
+    CollisionAt semantics params ops (2 * bound) leftFresh.commitment where
+  collision := collisionAt (normFreeLaws laws) ops (normFreeCompatible laws ops compatible)
+    strongSet oneEq (fun _ _ => trivial) left.forgetNorms right.forgetNorms sameFresh different
+  firstNorm := differenceBounded _ _ left.baseHolds.1.2.2 left.forkHolds.1.2.2
+  secondNorm := differenceBounded _ _ right.baseHolds.1.2.2 right.forkHolds.1.2.2
 
 end NightstreamFPrime.Spec.Folding.Light.Rlc

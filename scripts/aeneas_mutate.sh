@@ -2,7 +2,8 @@
 # Plants one change at a time in crates/neo-verified and confirms that a theorem of
 # formal/compression-lean/CompressionLeanRust no longer builds. A change that still builds
 # is behavior that no theorem pins. Each change costs one translation and one Lean build, so
-# run it once per phase of .audit/aeneas-plan.md, not in CI.
+# run it once per phase of .audit/aeneas-plan.md, not in CI. With file names, such as
+# `scripts/aeneas_mutate.sh field.rs`, it runs only the changes in those files.
 set -euo pipefail
 
 root=$(cd "$(dirname "$0")/.." && pwd)
@@ -99,6 +100,7 @@ mutations=(
 )
 survived=0
 for mutation in "${mutations[@]}"; do
+  if [ "$#" -gt 0 ] && [[ " $* " != *" ${mutation%%|*} "* ]]; then continue; fi
   file=$src/${mutation%%|*}
   expression=${mutation#*|}
   cp "$backup"/*.rs "$src/"

@@ -8,6 +8,9 @@ import NightstreamFPrime.Spec.Folding.Refresh.Completeness
 #audit_axioms NightstreamFPrime.Spec.Folding.Refresh.addCases_freshSource
 #audit_axioms NightstreamFPrime.Spec.Folding.Refresh.runningInstance_eq_child
 #audit_axioms NightstreamFPrime.Spec.Folding.Refresh.ceHolds_iff
+#audit_axioms NightstreamFPrime.Spec.Folding.PiRLC.NormFreeFork.success_at
+#audit_axioms NightstreamFPrime.Spec.Folding.PiRLC.NormFreeFork.correctedAmbientHolds
+#audit_axioms NightstreamFPrime.Spec.Folding.Refresh.forkWitness_ambient
 #audit_axioms NightstreamFPrime.Spec.Folding.Refresh.accepted_implies_securityOutcome
 #audit_axioms NightstreamFPrime.Spec.Folding.Refresh.inputAttempt_honestSplit
 #audit_axioms NightstreamFPrime.Spec.Folding.Refresh.complete

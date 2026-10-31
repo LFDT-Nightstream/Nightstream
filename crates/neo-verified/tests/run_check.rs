@@ -1,4 +1,8 @@
 use neo_verified::circuit::{Kind, Wire};
+use neo_verified::degrees::{
+    early, early_terms, gkr, late, late_terms, layer1, linear, linear_terms, row_count, shrink, shrink_terms, Relation,
+    FIXED,
+};
 use neo_verified::layout::{
     block_cell, block_row, cell_variables, column, entry_column, glue_row, one, place, row_variables, slot, split,
     variables, Part, Shape,
@@ -194,6 +198,7 @@ fn cases() -> Vec<String> {
     case("Array.make", &[0, u64::MAX], format!("ok 0 {}", u64::MAX));
     layout_cases(&mut case);
     model_cases(&mut case);
+    degrees_cases(&mut case);
     cases
 }
 
@@ -387,6 +392,179 @@ fn model_cases(case: &mut impl FnMut(&str, &[u64], String)) {
         }
     }
     case("core.clone.Clone.clone.part", &[3, 4], "ok 3 4".to_string());
+}
+
+fn relation_words(r: &Relation) -> Vec<u64> {
+    vec![
+        r.d as u64,
+        r.lane_variables as u64,
+        r.block_variables as u64,
+        r.kappa as u64,
+        r.matrices as u64,
+        r.public_blocks as u64,
+        r.norm_bound.into(),
+        r.run_variables as u64,
+        r.row_variables as u64,
+        r.slot_variables as u64,
+        r.matrix_variables as u64,
+    ]
+}
+
+/// A relation from its fields in declaration order; the norm bound is the seventh.
+fn relation(w: [usize; 11]) -> Relation {
+    Relation {
+        d: w[0],
+        lane_variables: w[1],
+        block_variables: w[2],
+        kappa: w[3],
+        matrices: w[4],
+        public_blocks: w[5],
+        norm_bound: w[6] as u32,
+        run_variables: w[7],
+        row_variables: w[8],
+        slot_variables: w[9],
+        matrix_variables: w[10],
+    }
+}
+
+/// Relations at the edges of the layer-1 charges: a production-sized one, zero counts,
+/// `D = 0`, exponents of 63 and 64, a norm bound of `u32::MAX`, and sums that overflow.
+fn relations() -> Vec<Relation> {
+    let mut relations = vec![
+        relation([54, 6, 5, 16, 3, 1, 1 << 15, 20, 20, 18, 2]),
+        relation([1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+        relation([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+        relation([54, 6, 57, 0, 0, 0, 1, 1, 1, 1, 1]),
+        relation([54, 6, 58, 0, 0, 0, 1, 1, 1, 1, 1]),
+        relation([54, 0, 0, 0, 0, 0, u32::MAX as usize, 0, 0, 0, 0]),
+        relation([54, 0, 0, 0, 0, 0, 0, 62, 0, 0, 0]),
+        relation([54, 0, 0, 0, 0, 0, 0, 0, 0, 62, 1]),
+        relation([54, 0, 63, 0, 0, 0, 0, 0, 0, 62, 0]),
+        relation([54, 0, 0, 0, 0, 0, 0, 0, 0, 63, 0]),
+        relation([usize::MAX, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+        relation([54, usize::MAX, 1, 0, 0, 0, 0, 0, 0, 0, 0]),
+        relation([54, 6, 5, usize::MAX - 2, 0, 0, 0, 0, 0, 0, 0]),
+        relation([54, 6, 5, usize::MAX - 3, 0, 0, 0, 0, 0, 0, 0]),
+        relation([54, 6, 5, 0, usize::MAX / 2, 0, 0, 0, 0, 0, 0]),
+        relation([54, 6, 5, 0, 0, usize::MAX, 0, 0, 0, 0, 0]),
+    ];
+    let mut state: u64 = 0x510e_527f_ade6_82d1;
+    for _ in 0..80 {
+        let mut words: [usize; 11] = std::array::from_fn(|_| random(&mut state) % 70);
+        words[6] = random(&mut state) >> 32;
+        relations.push(relation(words));
+    }
+    relations
+}
+
+fn show_values(values: &[usize]) -> String {
+    show(&words(values))
+}
+
+/// The degrees that the layer-1 and shrink charges read, and the models that only they call.
+fn degrees_cases(case: &mut impl FnMut(&str, &[u64], String)) {
+    let counts = [
+        0,
+        1,
+        2,
+        16,
+        (1 << 32) - 1,
+        usize::MAX / 2 - 1,
+        usize::MAX / 2,
+        usize::MAX - 2,
+        usize::MAX,
+    ];
+    for kappa in counts {
+        for matrices in counts {
+            for publics in [0, 1, usize::MAX / 2, usize::MAX] {
+                case(
+                    "row_count",
+                    &words(&[kappa, matrices, publics]),
+                    outcome(|| row_count(kappa, matrices, publics), |v| v.to_string()),
+                );
+            }
+        }
+    }
+    let mut depth_lists: Vec<Vec<usize>> = vec![
+        vec![],
+        vec![0],
+        vec![1],
+        vec![0, 0, 0],
+        vec![3, 1, 2],
+        vec![25, 20, 20, 20, 20],
+        vec![19, 5],
+        vec![1 << 31],
+        vec![(1 << 31) - 1, 1 << 20],
+        vec![1 << 32],
+        vec![usize::MAX],
+        vec![usize::MAX / 2, usize::MAX / 2 + 2],
+    ];
+    let mut state: u64 = 0x1f83_d9ab_fb41_bd6b;
+    for _ in 0..60 {
+        let length = random(&mut state) % 7;
+        depth_lists.push((0..length).map(|_| random(&mut state) % 100).collect());
+    }
+    for depths in &depth_lists {
+        case("gkr", &words(depths), outcome(|| gkr(depths), |v| v.to_string()));
+        case("Slice.len", &words(depths), format!("ok {}", depths.len()));
+        for i in [0, 1, 4, usize::MAX] {
+            case(
+                "Slice.index_usize",
+                &words(&[[i].as_slice(), depths].concat()),
+                outcome(|| depths[i], |v| v.to_string()),
+            );
+        }
+    }
+    for x in [0, 7, usize::MAX] {
+        case(
+            "Array.to_slice",
+            &words(&[x, 1, 2]),
+            format!("ok {}", show_values([x, 1, 2].as_slice())),
+        );
+    }
+    for x in EDGES {
+        case("UScalar.cast.u32", &[x as u64], format!("ok {}", x as u32));
+        for y in [0, 1, 2, 3, 8, usize::MAX] {
+            let args = words(&[x, y]);
+            case("add", &args, outcome(|| x.checked_add(y).unwrap(), |v| v.to_string()));
+            case("sub", &args, outcome(|| x.checked_sub(y).unwrap(), |v| v.to_string()));
+            case("mul", &args, outcome(|| x.checked_mul(y).unwrap(), |v| v.to_string()));
+        }
+    }
+    for v in (0..70).chain([1 << 32, usize::MAX]) {
+        let rust = if v < 64 {
+            format!("ok {}", 1usize << v)
+        } else {
+            "fail".to_string()
+        };
+        case("exp2", &[v as u64], rust);
+    }
+    case("FIXED", &[], format!("ok {}", show_values(&FIXED)));
+    for r in relations() {
+        let args = relation_words(&r);
+        let cube = r.lane_variables.checked_add(r.block_variables);
+        case(
+            "cube_variables",
+            &args,
+            cube.map_or("fail".to_string(), |v| format!("ok {v}")),
+        );
+        case("early_terms", &args, outcome(|| early_terms(&r), |v| show_values(&v)));
+        case("linear_terms", &args, outcome(|| linear_terms(&r), |v| show_values(&v)));
+        case("late_terms", &args, outcome(|| late_terms(&r), |v| show_values(&v)));
+        case("early", &args, outcome(|| early(&r), |v| v.to_string()));
+        case("linear", &args, outcome(|| linear(&r), |v| v.to_string()));
+        case("late", &args, outcome(|| late(&r), |v| v.to_string()));
+        case("layer1", &args, outcome(|| layer1(&r), |v| v.to_string()));
+    }
+    for shape in shapes() {
+        let s = shape_words(&shape);
+        case(
+            "shrink_terms",
+            &s,
+            outcome(|| shrink_terms(&shape), |v| show_values(&v)),
+        );
+        case("shrink", &s, outcome(|| shrink(&shape), |v| v.to_string()));
+    }
 }
 
 fn show(words: &[u64]) -> String {

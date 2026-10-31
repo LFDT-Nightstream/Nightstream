@@ -1,6 +1,7 @@
 //! Honest setup oracles at toy size: the streaming root against a direct
 //! encoding, the store round trip, and the honest fold with tampering.
 
+use neo_verified::degrees::FOLD;
 use p3_field_v08::{BasedVectorSpace, Field, PrimeCharacteristicRing, TwoAdicField};
 
 use super::{word, Scratch};
@@ -8,7 +9,7 @@ use crate::circuit::algebra::eq_eval;
 use crate::circuit::Native;
 use crate::field::{eq_table, Ext, Gl};
 use crate::hash::{compress, hash_leaf};
-use crate::setup::{build, check, fold, partials, query_point, Leaf, LeafView, Store, FOLD};
+use crate::setup::{build, check, fold, partials, query_point, Leaf, LeafView, Store};
 use crate::sumcheck::evaluate;
 use crate::Error;
 

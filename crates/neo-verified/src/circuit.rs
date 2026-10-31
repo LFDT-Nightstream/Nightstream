@@ -7,6 +7,8 @@ pub const SBOXES: usize = 150;
 pub const CELLS: usize = WIDTH + SBOXES + WIDTH;
 /// A permutation block: one row per S-box and one per output.
 pub const ROWS: usize = SBOXES + WIDTH;
+/// The CCS matrices that a block row reads: `X, A_0, B_0, A_1, B_1, A_2, B_2, C`.
+pub const MATRICES: usize = 8;
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum Kind {

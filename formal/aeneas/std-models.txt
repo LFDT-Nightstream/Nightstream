@@ -3,6 +3,9 @@
 # case for each one.
 Array.index_usize
 Array.make
+Array.to_slice
+Slice.index_usize
+Slice.len
 U32.checked_sub
 UScalar.cast
 Usize.checked_add

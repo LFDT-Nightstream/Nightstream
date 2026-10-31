@@ -8,6 +8,7 @@
 use neo_ccs::Mat;
 use neo_math::{D, F};
 use neo_transcript::Poseidon2Transcript;
+use neo_verified::degrees::{FOLD, RUN_ORACLES};
 use p3_challenger_v08::{CanObserve, FieldChallenger};
 use p3_field_v08::PrimeCharacteristicRing;
 use rayon::prelude::*;
@@ -20,8 +21,8 @@ use crate::hash::{self, Challenger};
 use crate::matrix::{EarlyChallenges, EarlyValues, Tables};
 use crate::relation::{p1_points, setup_point, Relation, Shape};
 use crate::ring::{self, Mixing};
-use crate::setup::{self, FOLD};
-use crate::{mle, norm, sumcheck, Claim, ClaimWords, Error, Proof, Setup, LANES, LANE_VARIABLES, RUN_ORACLES};
+use crate::setup;
+use crate::{mle, norm, sumcheck, Claim, ClaimWords, Error, Proof, Setup, LANES, LANE_VARIABLES};
 
 /// Prove `claim` for `witness` (54 × blocks), continuing `transcript`. The
 /// Merkle leaves hash on `accelerator`.

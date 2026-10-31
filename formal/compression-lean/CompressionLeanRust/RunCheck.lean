@@ -110,6 +110,48 @@ def modelCase : String → List ℕ → Option String
       fun p => s!"{value p.start} {value p.stride}"
   | _, _ => none
 
+open neo_verified in
+def relation : List ℕ → Option degrees.Relation
+  | [d, l, b, k, m, p, n, u, o, s, x] =>
+    some ⟨usize d, usize l, usize b, usize k, usize m, usize p, u32 n, usize u, usize o, usize s, usize x⟩
+  | _ => none
+
+/-- The slice of `xs`, or none when it is longer than a slice can be. -/
+def slice (xs : List ℕ) : Option (Slice Usize) :=
+  if h : (xs.map usize).length ≤ Usize.max then some (Slice.from (xs.map usize) h) else none
+
+def values {n : Usize} (a : Aeneas.Std.Array Usize n) : String := " ".intercalate (a.val.map value)
+
+open neo_verified in
+/-- The translated degrees: `relation` reads the eleven fields of a `degrees::Relation` in order. -/
+def degreesCase : String → List ℕ → Option String
+  | "row_count", [k, m, p] => outcome (degrees.row_count (usize k) (usize m) (usize p)) value
+  | "gkr", xs => (slice xs).map fun d => outcome (degrees.gkr d) value
+  | "add", [x, y] => outcome (degrees.add (usize x) (usize y)) value
+  | "sub", [x, y] => outcome (degrees.sub (usize x) (usize y)) value
+  | "mul", [x, y] => outcome (degrees.mul (usize x) (usize y)) value
+  | "exp2", [x] => outcome (degrees.exp2 (usize x)) value
+  | "FIXED", [] => outcome degrees.FIXED values
+  | "cube_variables", xs => (relation xs).map fun r => outcome (degrees.cube_variables r) value
+  | "early_terms", xs => (relation xs).map fun r => outcome (degrees.early_terms r) values
+  | "linear_terms", xs => (relation xs).map fun r => outcome (degrees.linear_terms r) values
+  | "late_terms", xs => (relation xs).map fun r => outcome (degrees.late_terms r) values
+  | "early", xs => (relation xs).map fun r => outcome (degrees.early r) value
+  | "linear", xs => (relation xs).map fun r => outcome (degrees.linear r) value
+  | "late", xs => (relation xs).map fun r => outcome (degrees.late r) value
+  | "layer1", xs => (relation xs).map fun r => outcome (degrees.layer1 r) value
+  | "shrink_terms", [b, r, c, p] => outcome (degrees.shrink_terms (shape b r c p)) values
+  | "shrink", [b, r, c, p] => outcome (degrees.shrink (shape b r c p)) value
+  | "Array.to_slice", xs =>
+    if h : xs.length = 3 then
+      some s!"ok {" ".intercalate ((Array.to_slice (Aeneas.Std.Array.make 3#usize (xs.map usize)
+        (by simp [h]))).val.map value)}"
+    else none
+  | "Slice.len", xs => (slice xs).map fun d => s!"ok {value (Slice.len d)}"
+  | "Slice.index_usize", i :: xs => (slice xs).map fun d => outcome (Slice.index_usize d (usize i)) value
+  | "UScalar.cast.u32", [x] => s!"ok {value (UScalar.cast .U32 (usize x))}"
+  | _, _ => none
+
 def run : String → List ℕ → Option String
   | "split", [x] => outcome (neo_verified.layout.split (usize x)) fun a => " ".intercalate (a.val.map value)
   | "variables", [x] => outcome (neo_verified.layout.variables (usize x)) value
@@ -122,7 +164,8 @@ def run : String → List ℕ → Option String
   | "core.option.Option.unwrap.none", [] => outcome (core.option.Option.unwrap (none : Option Usize)) value
   | "core.num.Usize.BITS", [] => s!"ok {value core.num.Usize.BITS}"
   | "Array.make", [x, y] => s!"ok {" ".intercalate ((Aeneas.Std.Array.make 2#usize [usize x, usize y]).val.map value)}"
-  | case, words => (layoutCase case words).orElse fun _ => modelCase case words
+  | case, words => ((layoutCase case words).orElse fun _ => modelCase case words).orElse fun _ =>
+    degreesCase case words
 
 end CompressionLeanRust.RunCheck
 

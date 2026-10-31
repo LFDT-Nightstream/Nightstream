@@ -17,20 +17,43 @@ set_option linter.internalConstructors false
 namespace neo_verified
 
 /-- [neo_verified::circuit::Kind]
-    Source: 'crates/neo-verified/src/circuit.rs', lines 12:0-14:1
+    Source: 'crates/neo-verified/src/circuit.rs', lines 14:0-16:1
     Visibility: public -/
 @[discriminant isize]
 inductive circuit.Kind where
 | Permutation : circuit.Kind
 
 /-- [neo_verified::circuit::Wire]
-    Source: 'crates/neo-verified/src/circuit.rs', lines 38:0-43:1
+    Source: 'crates/neo-verified/src/circuit.rs', lines 40:0-45:1
     Visibility: public -/
 @[discriminant isize]
 inductive circuit.Wire where
 | Glue : Std.U32 → circuit.Wire
 | Block : circuit.Kind → Std.U32 → Std.U16 → circuit.Wire
 | Public : Std.U32 → circuit.Wire
+
+/-- [neo_verified::degrees::Relation]
+    Source: 'crates/neo-verified/src/degrees.rs', lines 22:0-35:1
+    Visibility: public -/
+structure degrees.Relation where
+  d : Std.Usize
+  lane_variables : Std.Usize
+  block_variables : Std.Usize
+  kappa : Std.Usize
+  matrices : Std.Usize
+  public_blocks : Std.Usize
+  norm_bound : Std.U32
+  run_variables : Std.Usize
+  row_variables : Std.Usize
+  slot_variables : Std.Usize
+  matrix_variables : Std.Usize
+
+/-- [neo_verified::layout::Part]
+    Source: 'crates/neo-verified/src/layout.rs', lines 28:0-31:1
+    Visibility: public -/
+structure layout.Part where
+  start : Std.Usize
+  stride : Std.Usize
 
 /-- [neo_verified::layout::Shape]
     Source: 'crates/neo-verified/src/layout.rs', lines 17:0-24:1
@@ -40,12 +63,5 @@ structure layout.Shape where
   glue_rows : Std.Usize
   glue_cells : Std.Usize
   publics : Std.Usize
-
-/-- [neo_verified::layout::Part]
-    Source: 'crates/neo-verified/src/layout.rs', lines 28:0-31:1
-    Visibility: public -/
-structure layout.Part where
-  start : Std.Usize
-  stride : Std.Usize
 
 end neo_verified

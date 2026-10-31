@@ -18,6 +18,7 @@ use std::io::{BufWriter, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 
 use neo_ccs::crypto::poseidon2_goldilocks::{RATE, WIDTH};
+use neo_verified::degrees::FOLD;
 use p3_dft_v08::{Radix2DFTSmallBatch, TwoAdicSubgroupDft};
 use p3_field_v08::{Field, PrimeCharacteristicRing, PrimeField64, TwoAdicField};
 use rayon::prelude::*;
@@ -30,8 +31,6 @@ use crate::field::{eq_table, Ext, Gl};
 use crate::hash::{absorb, compress, squeeze};
 use crate::Error;
 
-/// Variables folded per proof; a leaf holds `2^FOLD` values per oracle.
-pub(crate) const FOLD: usize = 3;
 const LEAF: usize = 1 << FOLD;
 const WORD: usize = 8;
 

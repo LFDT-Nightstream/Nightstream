@@ -13,6 +13,7 @@ import NightstreamFPrime.Lifecycle.OptionB.LightPublicInput
 import NightstreamFPrime.Lifecycle.OptionB.LightEvaluation
 import NightstreamFPrime.Lifecycle.OptionB.LightSampler
 import NightstreamFPrime.Lifecycle.OptionB.DepthGuard
+import NightstreamFPrime.Lifecycle.OptionB.LightPiCCS
 import NightstreamFPrime.Spec.Folding.Light.RlcModule
 
 open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
@@ -151,6 +152,10 @@ open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.DepthGuard.word_lt_cap
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.DepthGuard.next_word
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.DepthGuard.light_terms
+#audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_2.InitialClaim.spec_implies_initial
+#audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_2.InitialClaim.spec_implies_keyInitial
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.LightPiCCS.initial_eq
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.LightPiCCS.light_coefficientCount
 
 /-- One refresh per period starves slot 1: it takes a light fold each time the light circuit
 follows the refresh circuit and is never refreshed. -/

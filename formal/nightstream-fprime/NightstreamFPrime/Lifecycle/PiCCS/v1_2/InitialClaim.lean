@@ -30,41 +30,49 @@ open NightstreamFPrime.Gadgets.Polynomial
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
 
-structure Interface where
+/-- The leaf's inputs for a Π_CCS shape: the production shape, or option B's light shape with
+one running source. -/
+structure ShapeInterface (shape : Shape) where
   gamma : Nat → KExpr
-  eval_K : Nat → PadCoordinate productionShape → KExpr
-  eval_A : Nat → MatrixCoordinate productionShape → KExpr
+  eval_K : Nat → PadCoordinate shape → KExpr
+  eval_A : Nat → MatrixCoordinate shape → KExpr
 
-def coefficientExprs (interface : Interface) (offset : Nat) : List KExpr :=
-  (canonicalPadCoordinates productionShape).map (interface.eval_K offset) ++
-    (canonicalMatrixCoordinates productionShape).map (interface.eval_A offset)
+abbrev Interface := ShapeInterface productionShape
 
-def ownedInterface (interface : Interface) : Horner.Owned.Interface where
+section Shape
+
+variable {shape : Shape}
+
+def coefficientExprs (interface : ShapeInterface shape) (offset : Nat) : List KExpr :=
+  (canonicalPadCoordinates shape).map (interface.eval_K offset) ++
+    (canonicalMatrixCoordinates shape).map (interface.eval_A offset)
+
+def ownedInterface (interface : ShapeInterface shape) : Horner.Owned.Interface where
   point := interface.gamma
   coefficients := coefficientExprs interface
 
-def program (interface : Interface) (offset : Nat) : Horner.Program :=
+def program (interface : ShapeInterface shape) (offset : Nat) : Horner.Program :=
   Horner.Owned.program (ownedInterface interface) offset
 
-def output (interface : Interface) (offset : Nat) : KExpr :=
+def output (interface : ShapeInterface shape) (offset : Nat) : KExpr :=
   Horner.Owned.output (ownedInterface interface) offset
 
-abbrev Assumptions (interface : Interface) (offset : Nat) (env : Env) : Prop :=
+abbrev Assumptions (interface : ShapeInterface shape) (offset : Nat) (env : Env) : Prop :=
   Horner.Owned.Assumptions (ownedInterface interface) offset env
 
-abbrev SpecHolds (interface : Interface) (offset : Nat) (env : Env) : Prop :=
+abbrev SpecHolds (interface : ShapeInterface shape) (offset : Nat) (env : Env) : Prop :=
   Horner.Owned.SpecHolds (ownedInterface interface) offset env
 
-def circuit (interface : Interface) : FormalCircuit :=
+def circuit (interface : ShapeInterface shape) : FormalCircuit :=
   Horner.Owned.circuit (ownedInterface interface)
 
-theorem soundness (interface : Interface) (env : Env) (offset : Nat)
+theorem soundness (interface : ShapeInterface shape) (env : Env) (offset : Nat)
     (assumptions : Assumptions interface offset env)
     (rows : holds env (Circuit.ops (circuit interface).main offset)) :
     SpecHolds interface offset env :=
   Horner.Owned.soundness (ownedInterface interface) env offset assumptions rows
 
-theorem build (interface : Interface) (env : Env) (offset : Nat)
+theorem build (interface : ShapeInterface shape) (env : Env) (offset : Nat)
     (assumptions : Assumptions interface offset env) :
     ∃ completed,
       AgreesOutside env completed offset
@@ -72,7 +80,7 @@ theorem build (interface : Interface) (env : Env) (offset : Nat)
       holdsFlat completed (Circuit.ops (circuit interface).main offset) :=
   Horner.Owned.build (ownedInterface interface) env offset assumptions
 
-theorem completeness (interface : Interface) (env : Env) (offset : Nat)
+theorem completeness (interface : ShapeInterface shape) (env : Env) (offset : Nat)
     (assumptions : Assumptions interface offset env)
     (_specification : SpecHolds interface offset env) :
     ∃ completed,
@@ -81,7 +89,7 @@ theorem completeness (interface : Interface) (env : Env) (offset : Nat)
       holdsFlat completed (Circuit.ops (circuit interface).main offset) :=
   build interface env offset assumptions
 
-theorem flatConstraints_varsBelow (interface : Interface) (offset : Nat)
+theorem flatConstraints_varsBelow (interface : ShapeInterface shape) (offset : Nat)
     (env : Env) (assumptions : Assumptions interface offset env) :
     ∀ expression ∈ flatConstraints
       (Circuit.ops (circuit interface).main offset),
@@ -89,6 +97,41 @@ theorem flatConstraints_varsBelow (interface : Interface) (offset : Nat)
         (offset + localLength (Circuit.ops (circuit interface).main offset)) := by
   exact Horner.Owned.flatConstraints_varsBelow
     (ownedInterface interface) offset env assumptions
+
+/-- The leaf's output is the claimed sum `T` of SuperNeo v1.2 Section 7.3, Step 2, for any
+verifier input whose claimed coefficients and `γ` the leaf's inputs carry. -/
+theorem spec_implies_initial (interface : ShapeInterface shape) (offset : Nat) (env : Env)
+    (input : ProtocolPolynomial.VerifierInput K shape) (gamma : K)
+    (gamma_eq : (interface.gamma offset).eval env = gamma)
+    (eval_K_eq : ∀ coordinate,
+      (interface.eval_K offset coordinate).eval env = input.claimedPadCoefficient coordinate)
+    (eval_A_eq : ∀ coordinate,
+      (interface.eval_A offset coordinate).eval env = input.claimedMatrixCoefficient coordinate)
+    (specification : SpecHolds interface offset env) :
+    (output interface offset).eval env = input.initial extensionOps gamma := by
+  have coefficients_eq :
+      (coefficientExprs interface offset).map (KExpr.eval env) =
+        NightstreamFPrime.Spec.Folding.PiCCS.FinalIdentity.targetCoefficientList input := by
+    unfold coefficientExprs
+      NightstreamFPrime.Spec.Folding.PiCCS.FinalIdentity.targetCoefficientList
+    rw [List.map_append, List.map_map, List.map_map]
+    apply congrArg₂ List.append
+    · apply List.map_congr_left
+      intro coordinate _
+      exact eval_K_eq coordinate
+    · apply List.map_congr_left
+      intro coordinate _
+      exact eval_A_eq coordinate
+  change (output interface offset).eval env =
+    SumCheck.Finite.Message.evaluateCoefficients extensionOps.toOps
+      ((interface.gamma offset).eval env)
+      ((coefficientExprs interface offset).map (KExpr.eval env)) at specification
+  rw [gamma_eq, coefficients_eq] at specification
+  exact specification.trans
+    (NightstreamFPrime.Spec.Folding.PiCCS.FinalIdentity.evaluateTargetCoefficients_eq_initial
+      extensionOps extensionLaws input gamma)
+
+end Shape
 
 theorem coefficientExprs_length (interface : Interface) (offset : Nat) :
     (coefficientExprs interface offset).length = 4320 := by

@@ -42,4 +42,5 @@ import NightstreamFPrime.Lifecycle.OptionB.LightPublicInput
 import NightstreamFPrime.Lifecycle.OptionB.LightEvaluation
 import NightstreamFPrime.Lifecycle.OptionB.LightSampler
 import NightstreamFPrime.Lifecycle.OptionB.DepthGuard
+import NightstreamFPrime.Lifecycle.OptionB.LightPiCCS
 import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.ChainBinding

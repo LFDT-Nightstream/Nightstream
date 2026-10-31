@@ -154,7 +154,7 @@ theorem stage1Assignment : Stage1Assignment := by
   exact ActualPiDECOutput.selectedRowsAndPublic_imply_step
     application fits ajtai assignment digest publicEqual rows fixed
 
-#audit_axioms stage1Assignment
+#audit_axioms LeanGraph.Targets.stage1Assignment
 
 def Stage1TerminalAssignment : Prop :=
   ∀ (application : Lifecycle.Stage1.Application.Program)
@@ -183,7 +183,7 @@ def Stage1TerminalAssignment : Prop :=
 theorem stage1TerminalAssignment : Stage1TerminalAssignment :=
   ActualContextSecurity.terminal_implies_matchingStepOrCollision
 
-#audit_axioms stage1TerminalAssignment
+#audit_axioms LeanGraph.Targets.stage1TerminalAssignment
 
 def Stage1TerminalParent : Prop :=
   ∀ (application : Lifecycle.Stage1.Application.Program)
@@ -214,12 +214,12 @@ def Stage1TerminalParent : Prop :=
 theorem stage1TerminalParent : Stage1TerminalParent :=
   ActualTerminalSecurity.terminal_implies_parentOrBaseOrCollision
 
-#audit_axioms stage1TerminalParent
+#audit_axioms LeanGraph.Targets.stage1TerminalParent
 
-#audit_axioms piCCSPublicAssignment
+#audit_axioms LeanGraph.Targets.piCCSPublicAssignment
 
-#audit_axioms pilotAssignment
-#audit_axioms piCCSAssignment
+#audit_axioms LeanGraph.Targets.pilotAssignment
+#audit_axioms LeanGraph.Targets.piCCSAssignment
 
 section HyperNovaSecurity
 
@@ -258,7 +258,7 @@ theorem hyperNovaLinearSecurity : HyperNovaLinearSecurity :=
       HyperNovaVisitedSecurity.history_failure_le assumption closed adversary admitted depth
         depthBound⟩
 
-#audit_axioms hyperNovaLinearSecurity
+#audit_axioms LeanGraph.Targets.hyperNovaLinearSecurity
 
 /-- HyperNova errata Assumption 1 and Lemma 17. -/
 def HyperNovaTerminalFalseAcceptance : Prop :=
@@ -285,7 +285,7 @@ theorem hyperNovaTerminalFalseAcceptance : HyperNovaTerminalFalseAcceptance :=
     HyperNovaFalseAcceptance.probability_bound application fits setup assumption closed adversary
       admitted depth depthBound
 
-#audit_axioms hyperNovaTerminalFalseAcceptance
+#audit_axioms LeanGraph.Targets.hyperNovaTerminalFalseAcceptance
 
 end HyperNovaSecurity
 
@@ -332,7 +332,7 @@ theorem romKnowledgeSoundness : RomKnowledgeSoundness :=
     Export.Stage1.RandomOracleSetup.production_knowledge_error_lt application fits adversary claim
       prior contextDigest bounded
 
-#audit_axioms romKnowledgeSoundness
+#audit_axioms LeanGraph.Targets.romKnowledgeSoundness
 
 end RomKnowledge
 
@@ -353,7 +353,7 @@ def PiRLCWitnessReplay : Prop :=
 theorem piRLCWitnessReplay : PiRLCWitnessReplay :=
   fun _ => PiRLCWitnessBlock.preparedWitnessBlockPartials_getLast?
 
-#audit_axioms piRLCWitnessReplay
+#audit_axioms LeanGraph.Targets.piRLCWitnessReplay
 
 def PiDECWitnessReplay : Prop :=
   ∀ (width : Nat) (parent : Spec.Folding.Nifs.StoredAssignmentArithmetic.StoredAssignment width),
@@ -368,7 +368,7 @@ def PiDECWitnessReplay : Prop :=
 theorem piDECWitnessReplay : PiDECWitnessReplay :=
   fun _ => Phi81Relation.PiDECAlgebra.StoredSplit.kernel_eq_spec
 
-#audit_axioms piDECWitnessReplay
+#audit_axioms LeanGraph.Targets.piDECWitnessReplay
 
 def PiDECCommitmentReplay : Prop :=
   let shape := PaperAlgebra.FullShape
@@ -397,7 +397,7 @@ theorem piDECCommitmentReplay : PiDECCommitmentReplay := by
   exact PiDECCommitmentHonestMessages.sum_contributions_honestMessages
     parent parentWitness childWitnesses success child row
 
-#audit_axioms piDECCommitmentReplay
+#audit_axioms LeanGraph.Targets.piDECCommitmentReplay
 
 def PiDECChildEvaluationReplay : Prop :=
   let shape := PaperAlgebra.FullShape
@@ -420,7 +420,7 @@ theorem piDECChildEvaluationReplay : PiDECChildEvaluationReplay := by
   dsimp only [PiDECChildEvaluationReplay]
   exact PiDECEvaluationFromBlocks.familyFromBlocks_honestMessages
 
-#audit_axioms piDECChildEvaluationReplay
+#audit_axioms LeanGraph.Targets.piDECChildEvaluationReplay
 
 def PiCCSFirstRoundKernel : Prop :=
   ∀ (data : ProtocolPolynomial.Data K Lifecycle.productionShape)
@@ -435,7 +435,7 @@ theorem piCCSFirstRoundKernel : PiCCSFirstRoundKernel :=
   fun data alpha gamma value => PiCCSFirstRound.firstRound_evaluate
     ConcreteCarrier.extensionOps ConcreteCarrier.extensionLaws data alpha gamma (by decide) value
 
-#audit_axioms piCCSFirstRoundKernel
+#audit_axioms LeanGraph.Targets.piCCSFirstRoundKernel
 
 def PiCCSOriginalImages : Prop :=
   let relation := PerApplicationFixedPoint.relation Poseidon2HashChainV1Package.application
@@ -628,7 +628,7 @@ def PiCCSFirstRoundSourceCoefficients : Prop :=
 theorem piCCSFirstRoundSourceCoefficients : PiCCSFirstRoundSourceCoefficients :=
   PiCCSFirstRoundComposition.coefficients_eq_firstRound
 
-#audit_axioms piCCSFirstRoundSourceCoefficients
+#audit_axioms LeanGraph.Targets.piCCSFirstRoundSourceCoefficients
 
 def PiCCSFirstRoundReplayKernel : Prop :=
   PiCCSFirstRoundKernel ∧ PiCCSOriginalImages ∧ PiCCSPreparedPairKernel ∧
@@ -640,14 +640,14 @@ theorem piCCSFirstRoundReplayKernel : PiCCSFirstRoundReplayKernel :=
     piCCSAggregatedEndpoints, piCCSStoredInvocation, piCCSCachedPairKernel,
     piCCSCompleteNormKernel, piCCSCompleteFreshKernel⟩
 
-#audit_axioms piCCSOriginalImages
-#audit_axioms piCCSPreparedPairKernel
-#audit_axioms piCCSAggregatedEndpoints
-#audit_axioms piCCSStoredInvocation
-#audit_axioms piCCSCompleteNormKernel
-#audit_axioms piCCSCompleteFreshKernel
-#audit_axioms piCCSCachedPairKernel
-#audit_axioms piCCSFirstRoundReplayKernel
+#audit_axioms LeanGraph.Targets.piCCSOriginalImages
+#audit_axioms LeanGraph.Targets.piCCSPreparedPairKernel
+#audit_axioms LeanGraph.Targets.piCCSAggregatedEndpoints
+#audit_axioms LeanGraph.Targets.piCCSStoredInvocation
+#audit_axioms LeanGraph.Targets.piCCSCompleteNormKernel
+#audit_axioms LeanGraph.Targets.piCCSCompleteFreshKernel
+#audit_axioms LeanGraph.Targets.piCCSCachedPairKernel
+#audit_axioms LeanGraph.Targets.piCCSFirstRoundReplayKernel
 
 def PiCCSNormPrefixKernel : Prop :=
   ∀ (firstChallenge secondChallenge : K) (codes : Nat → Fin 3) (start count : Nat),
@@ -664,7 +664,7 @@ def PiCCSNormPrefixKernel : Prop :=
 theorem piCCSNormPrefixKernel : PiCCSNormPrefixKernel :=
   PiCCSPrefixCodeFold.decode_quadCodes_twoFolds
 
-#audit_axioms piCCSNormPrefixKernel
+#audit_axioms LeanGraph.Targets.piCCSNormPrefixKernel
 
 def PiCCSPrefixNormAccumulation : Prop :=
   (∀ (codeCount : Nat) (values : Vector K codeCount)
@@ -690,7 +690,7 @@ theorem piCCSPrefixNormAccumulation : PiCCSPrefixNormAccumulation :=
   ⟨@PiCCSPrefixNormBuckets.finish_accumulate_eq_add_range,
     @PiCCSPrefixNormBuckets.accumulate_append⟩
 
-#audit_axioms piCCSPrefixNormAccumulation
+#audit_axioms LeanGraph.Targets.piCCSPrefixNormAccumulation
 
 def PiCCSRetainedPrefixKernel : Prop :=
   (∀ (values : Array K) (challenges : List K) (remaining : Nat)
@@ -716,7 +716,7 @@ theorem piCCSRetainedPrefixKernel : PiCCSRetainedPrefixKernel := by
   · intro matrixCount rows challenge port
     exact PiCCSFreshPrefix.portValues_foldRows rows challenge port
 
-#audit_axioms piCCSRetainedPrefixKernel
+#audit_axioms LeanGraph.Targets.piCCSRetainedPrefixKernel
 
 
 def PiCCSOriginalEvaluationKernel : Prop :=
@@ -784,7 +784,7 @@ theorem piCCSOriginalEvaluationKernel : PiCCSOriginalEvaluationKernel := by
     exact PiCCSOriginalMatrixSupported.invocations_isZero_source_port
       tables masks firstRow point interfaces source port
 
-#audit_axioms piCCSOriginalEvaluationKernel
+#audit_axioms LeanGraph.Targets.piCCSOriginalEvaluationKernel
 
 def PiCCSAllRoundSourceCoefficients : Prop :=
   PiCCSFirstRoundSourceCoefficients ∧
@@ -825,7 +825,7 @@ theorem piCCSAllRoundSourceCoefficients : PiCCSAllRoundSourceCoefficients := by
   · intro input masks loaded first second remaining dimension
     exact PiCCSPrefixComplete.bucketCoefficients_eq_roundPolynomial input masks loaded first second dimension
 
-#audit_axioms piCCSAllRoundSourceCoefficients
+#audit_axioms LeanGraph.Targets.piCCSAllRoundSourceCoefficients
 
 
 end LeanGraph.Targets

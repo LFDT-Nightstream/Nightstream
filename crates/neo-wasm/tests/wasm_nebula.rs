@@ -470,6 +470,28 @@ fn enzo_slot_plan_breaks_a_dependent_pair_on_an_honest_row() {
     ));
 }
 
+/// One segment of step inputs of another number of rows than the
+/// application's: the step rejects them, in both directions.
+#[test]
+fn a_step_input_of_another_row_count_is_rejected() {
+    for (app_rows, input_rows) in [(2, 1), (1, 2)] {
+        let setup = setup(per_step(app_rows));
+        let (app, _) = setup.complete();
+        let linear = &setup.programs[0];
+        let checked = common::checked_main(LINEAR_MEMORY);
+        let mut inputs = step_inputs(&checked.trace, N, per_step(input_rows)).unwrap();
+        inputs.truncate(setup.n);
+        let (_, mut run) = setup.run(&app, linear);
+        let Err(SegmentError::Application(error)) = run.segment(&inputs) else {
+            panic!("a step input of {input_rows} rows fails an application of {app_rows} rows");
+        };
+        assert!(matches!(
+            error.downcast_ref::<WasmStepError>(),
+            Some(WasmStepError::Width { .. })
+        ));
+    }
+}
+
 /// The `i32.load` row with a load value that its cell does not hold. Every
 /// row still binds, and the runner rejects the port.
 #[test]

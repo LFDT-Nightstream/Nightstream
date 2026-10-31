@@ -513,7 +513,13 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
 - A program that the adversary chooses after it sees the setup. Adversary 5
   fixes the program before the adversary runs.
 - The Rust-built memory relation of an application or geometry that no Lean
-  package fixes, and the binding rows of the Rust catalog backend
-  (`SPEC.md` section 7.6). Tests check them on fixed inputs (trust item 5).
+  package fixes, the binding rows of the Rust catalog backend, and the
+  relation that links the rows of a batched WASM step (`SPEC.md` section
+  7.6). Lean proves what the slot plan conditions give
+  (`Spec.Nebula.MemoryTrace.reorders_of_slotOrder`) and that batched steps
+  are memory consistent exactly when their rows are
+  (`Spec.Nebula.MemoryTrace.memoryConsistent_batchCatalog_iff`), but not
+  that the Rust rows enforce those conditions. Tests check the rows on fixed
+  inputs (trust item 5).
 - Values for the adversary time and the query counts `Q` and `Q_η`. They
   stay symbolic (`decisions/nebula-memory-checking.md`).

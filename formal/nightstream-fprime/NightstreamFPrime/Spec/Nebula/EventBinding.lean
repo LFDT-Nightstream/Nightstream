@@ -399,6 +399,127 @@ private theorem Reorders.mem {events order : List Event} (reorders : Reorders ev
   obtain ⟨a, inTagged, rfl⟩ := List.mem_map.mp member
   exact List.fst_mem_of_mem_zipIdx (perm.subset inTagged)
 
+/-- The empty list reorders itself. -/
+theorem Reorders.nil : Reorders [] [] := ⟨[], .nil, .nil, rfl⟩
+
+/-- Concatenated reorders reorder the concatenation. -/
+theorem Reorders.append {events order events' order' : List Event} (first : Reorders events order)
+    (second : Reorders events' order') : Reorders (events ++ events') (order ++ order') := by
+  obtain ⟨tagged, perm, keeps, rfl⟩ := first
+  obtain ⟨tagged', perm', keeps', rfl⟩ := second
+  let lift : Event × ℕ → Event × ℕ := fun a => (a.1, events.length + a.2)
+  refine ⟨tagged ++ tagged'.map lift, ?_, ?_, ?_⟩
+  · rw [List.zipIdx_append, Nat.zero_add, List.zipIdx_eq_map_add (i := events.length)]
+    exact perm.append (perm'.map _)
+  · rw [List.pairwise_append, List.pairwise_map]
+    refine ⟨keeps, keeps'.imp fun before dependent => by simpa [lift] using before dependent, ?_⟩
+    rintro ⟨x, i⟩ member c lifted -
+    obtain ⟨⟨y, j⟩, -, rfl⟩ := List.mem_map.mp lifted
+    have := (List.mem_zipIdx (perm.subset member)).2.1
+    simp only [lift]
+    omega
+  · simp [List.map_map, Function.comp_def, lift]
+
+/-- An event first in the order keeps a reorder when it is independent of
+each event before it in the list. -/
+private theorem Reorders.insert {pre post order : List Event} {e : Event}
+    (reorders : Reorders (pre ++ post) order) (independent : ∀ x ∈ pre, ¬ e.Dependent x) :
+    Reorders (pre ++ e :: post) (e :: order) := by
+  obtain ⟨tagged, perm, keeps, rfl⟩ := reorders
+  let lift : Event × ℕ → Event × ℕ :=
+    fun a => (a.1, if a.2 < pre.length then a.2 else a.2 + 1)
+  have lifted : ((pre ++ post).zipIdx).map lift = pre.zipIdx ++ post.zipIdx (pre.length + 1) := by
+    rw [List.zipIdx_append, List.map_append, Nat.zero_add]
+    congr 1
+    · refine (List.map_congr_left fun ⟨x, i⟩ member => ?_).trans (List.map_id _)
+      have := (List.mem_zipIdx member).2.1
+      simp only [lift, Nat.zero_add] at this ⊢
+      rw [ite_eq_left this]
+      rfl
+    · rw [List.zipIdx_eq_map_add (i := pre.length), List.zipIdx_eq_map_add (i := pre.length + 1),
+        List.map_map]
+      refine List.map_congr_left fun ⟨x, i⟩ _ => ?_
+      simp only [Function.comp_apply, lift]
+      rw [ite_eq_right (by omega)]
+      congr 1
+      omega
+  refine ⟨(e, pre.length) :: tagged.map lift, ?_, ?_, ?_⟩
+  · rw [List.zipIdx_append, List.zipIdx_cons, Nat.zero_add]
+    exact ((perm.map lift).trans (lifted ▸ List.Perm.refl _)).cons _ |>.trans List.perm_middle.symm
+  · rw [List.pairwise_cons, List.pairwise_map]
+    refine ⟨?_, keeps.imp fun {a c} before dependent => ?_⟩
+    · intro c lifted dependent
+      obtain ⟨⟨x, i⟩, member, rfl⟩ := List.mem_map.mp lifted
+      have listed := perm.subset member
+      rw [List.zipIdx_append, List.mem_append] at listed
+      simp only [lift] at dependent ⊢
+      rcases listed with early | late
+      · exact absurd dependent (independent x (List.fst_mem_of_mem_zipIdx early))
+      · have := (List.mem_zipIdx late).1
+        split_ifs <;> omega
+    · have := before dependent
+      simp only [lift]
+      split_ifs <;> omega
+  · simp [List.map_map, Function.comp_def, lift]
+
+/-- Two lists that have each memory's events in the same order: the second is
+a reorder of the first. -/
+theorem reorders_of_filter_eq {events order : List Event}
+    (same : ∀ memory, events.filter (·.memory == memory) = order.filter (·.memory == memory)) :
+    Reorders events order := by
+  induction order generalizing events with
+  | nil =>
+    have empty : events = [] := List.eq_nil_iff_forall_not_mem.mpr fun e member => by
+      have none := same e.memory
+      rw [List.filter_nil, List.filter_eq_nil_iff] at none
+      exact none e member (by simp)
+    subst empty
+    exact Reorders.nil
+  | cons f order ih =>
+    have first := same f.memory
+    rw [List.filter_cons_of_pos (by simp)] at first
+    obtain ⟨pre, post, rfl, before, -, rest⟩ := List.filter_eq_cons_iff.mp first
+    refine Reorders.insert (ih fun memory => ?_) fun x member dependent =>
+      before x member (by simp [dependent.1])
+    by_cases own : f.memory = memory
+    · subst own
+      rw [List.filter_append, List.filter_eq_nil_iff.mpr before, rest, List.nil_append]
+    · have other := same memory
+      rw [List.filter_append, List.filter_cons_of_neg (by simpa using own),
+        List.filter_cons_of_neg (by simpa using own)] at other
+      rw [List.filter_append]
+      exact other
+
+/-- The events of increasing ranks `source`, listed in the rank order `order`
+(a permutation of `source`), are a reorder when each dependent pair comes in
+increasing rank. -/
+theorem reorders_filterMap (event : ℕ → Option Event) {source order : List ℕ}
+    (sorted : source.Pairwise (· < ·)) (perm : order.Perm source)
+    (keeps : order.Pairwise fun r r' => ∀ e ∈ event r, ∀ e' ∈ event r', e.Dependent e' → r < r') :
+    Reorders (source.filterMap event) (order.filterMap event) := by
+  induction order generalizing source with
+  | nil =>
+    rw [List.nil_perm.mp perm]
+    exact Reorders.nil
+  | cons r order ih =>
+    obtain ⟨pre, post, rfl⟩ := List.append_of_mem (perm.subset List.mem_cons_self)
+    have rest : order.Perm (pre ++ post) := (perm.trans List.perm_middle).cons_inv
+    rw [List.pairwise_cons] at keeps
+    have next := ih (sorted.sublist ((List.sublist_cons_self r post).append_left pre)) rest keeps.2
+    rw [List.filterMap_append] at next ⊢
+    cases shown : event r with
+    | none =>
+      rw [List.filterMap_cons_none shown, List.filterMap_cons_none shown]
+      exact next
+    | some e =>
+      rw [List.filterMap_cons_some shown, List.filterMap_cons_some shown]
+      refine Reorders.insert next fun x member dependent => ?_
+      obtain ⟨r', inPre, shown'⟩ := List.mem_filterMap.mp member
+      have lt : r' < r := (List.pairwise_append.mp sorted).2.2 r' inPre r List.mem_cons_self
+      have gt := keeps.1 r' (rest.symm.subset (List.mem_append_left post inPre)) e shown x shown'
+        dependent
+      omega
+
 /-! ### The bridge -/
 
 /-- If every event of the trace is in range, the initial state holds the plan

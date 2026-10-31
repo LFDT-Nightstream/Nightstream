@@ -1,5 +1,7 @@
 //! Logical memory declarations over application witness columns.
 
+use std::num::NonZeroUsize;
+
 use crate::{ColumnRegistry, ColumnWidth};
 
 /// Whether a logical memory may be mutated by application rows.
@@ -135,6 +137,51 @@ impl<Id: Eq> MemoryCatalog<Id> {
 impl<Id> MemoryCatalog<Id> {
     pub fn entries(&self) -> &[MemorySpec<Id>] {
         &self.memories
+    }
+}
+
+impl<Id: Clone> MemoryCatalog<Id> {
+    /// The catalog of `rows` rows in one witness (Lean
+    /// `Spec.Nebula.MemoryTrace.batchCatalog`): each memory keeps its id and
+    /// kind, in catalog order, and lists the ports of row 0, then of row 1,
+    /// and so on, each row in port order. `column(row, c)` is the column of
+    /// the one-row column `c` in row `row`. No registry checks the new
+    /// columns: the binding rows bit-check each activation and range-check
+    /// each address (`SPEC.md` section 7.6 rules 1 and 3).
+    pub fn batched(&self, rows: NonZeroUsize, column: impl Fn(usize, usize) -> usize) -> Self {
+        let port = |row: usize, port: &MemoryPortSpec| MemoryPortSpec {
+            address_columns: port
+                .address_columns
+                .iter()
+                .map(|c| column(row, *c))
+                .collect(),
+            value_column: column(row, port.value_column),
+            kind: match port.kind {
+                MemoryPortKind::Read => MemoryPortKind::Read,
+                MemoryPortKind::Write { value_before_column } => MemoryPortKind::Write {
+                    value_before_column: value_before_column.map(|c| column(row, c)),
+                },
+            },
+            activation: match port.activation {
+                MemoryPortActivation::Always => MemoryPortActivation::Always,
+                MemoryPortActivation::When(c) => MemoryPortActivation::When(column(row, c)),
+                MemoryPortActivation::Unless(c) => MemoryPortActivation::Unless(column(row, c)),
+            },
+        };
+        Self {
+            memories: self
+                .memories
+                .iter()
+                .map(|memory| MemorySpec {
+                    id: memory.id.clone(),
+                    kind: memory.kind,
+                    ports: (0..rows.get())
+                        .flat_map(|row| memory.ports.iter().map(move |spec| (row, spec)))
+                        .map(|(row, spec)| port(row, spec))
+                        .collect(),
+                })
+                .collect(),
+        }
     }
 }
 

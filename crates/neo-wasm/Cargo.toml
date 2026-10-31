@@ -38,6 +38,7 @@ required-features = ["audit-html"]
 
 [dependencies]
 neo-application = { path = "../neo-application" }
+nightstream = { path = "../nightstream" }
 neo-ccs = { path = "../neo-ccs" }
 neo-math = { path = "../neo-math" }
 futures = "0.3"
@@ -57,6 +58,5 @@ wasmtime = { version = "50", default-features = false, features = [
 ] }
 
 [dev-dependencies]
-nightstream = { path = "../nightstream" }
 serde_json = { workspace = true }
 wat = "1"

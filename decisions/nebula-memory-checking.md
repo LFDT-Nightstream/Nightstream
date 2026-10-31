@@ -47,3 +47,15 @@ protocol, and section 8 lists the differences from Nebula.
 6. **Packages.** Lean emits two test packages for the machine application.
    A package for a production geometry waits for the production application
    (2026-10-12).
+7. **Several trace rows in one step** (owner, 2026-10-31). A catalog
+   application can prove a fixed number of trace rows in each step, so that
+   the rows share the fixed F′ cost of a fold. The step uses the batched
+   catalog of `SPEC.md` section 7.6, and Lean proves that batched steps are
+   memory consistent exactly when their rows are. The protocol, the F′
+   relation and the memory rows do not change. On Metal, with the memory
+   scan of a segment of 32 steps, a fold of 2 rows took 4.31 s and a fold
+   of 1 row 4.28 s. In segments of 16 steps, a row took 2.72 s at 2 rows in
+   each step, 0.80 s at 8 rows and 0.57 s at 16 rows (medians of 3 runs of
+   `fib`). A fold of 8 rows has 63.8M coordinates, which is above the 60.5M
+   at which the Metal prover keeps the commitment key, and a fold of 16
+   rows has 87.9M. The caller selects the rows for each step.

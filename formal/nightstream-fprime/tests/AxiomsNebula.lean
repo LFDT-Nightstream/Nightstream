@@ -629,8 +629,9 @@ packages' bounds. -/
 #audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemoryN1Package.fits
 #audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemoryTerminal.terminalChecks_iff
 
-/-! Memory events of catalog applications (`MemoryTrace`, `EventBinding`) and the
-free application (`FreeApp`). -/
+/-! Memory events of catalog applications (`MemoryTrace`, `EventBinding`), slot
+plans (`SlotPlan`), batched catalogs (`Batch`) and the free application
+(`FreeApp`). -/
 
 #audit_axioms NightstreamFPrime.Spec.Nebula.MemoryTrace.packParts_lt
 #audit_axioms NightstreamFPrime.Spec.Nebula.MemoryTrace.packParts_injective
@@ -638,6 +639,21 @@ free application (`FreeApp`). -/
 #audit_axioms NightstreamFPrime.Spec.Nebula.MemoryTrace.memoryConsistent_of_accessAll
 #audit_axioms NightstreamFPrime.Spec.Nebula.MemoryTrace.executes_accessAll
 #audit_axioms NightstreamFPrime.Spec.Nebula.MemoryTrace.memoryConsistent_of_executes
+#audit_axioms NightstreamFPrime.Spec.Nebula.MemoryTrace.Reorders.nil
+#audit_axioms NightstreamFPrime.Spec.Nebula.MemoryTrace.Reorders.append
+#audit_axioms NightstreamFPrime.Spec.Nebula.MemoryTrace.reorders_of_filter_eq
+#audit_axioms NightstreamFPrime.Spec.Nebula.MemoryTrace.reorders_filterMap
+#audit_axioms NightstreamFPrime.Spec.Nebula.MemoryTrace.eventsForRow_eq
+#audit_axioms NightstreamFPrime.Spec.Nebula.MemoryTrace.reorders_of_slotOrder
+#audit_axioms NightstreamFPrime.Spec.Nebula.MemoryTrace.portEvent_shift
+#audit_axioms NightstreamFPrime.Spec.Nebula.MemoryTrace.portEvent_memory
+#audit_axioms NightstreamFPrime.Spec.Nebula.MemoryTrace.filter_eventsForRow_batchCatalog
+#audit_axioms NightstreamFPrime.Spec.Nebula.MemoryTrace.reorders_batchCatalog
+#audit_axioms NightstreamFPrime.Spec.Nebula.MemoryTrace.filter_eventsForTrace_batchCatalog
+#audit_axioms NightstreamFPrime.Spec.Nebula.MemoryTrace.memoryConsistent_batchCatalog_iff
+#audit_axioms NightstreamFPrime.Spec.Nebula.MemoryTrace.isRam_batchCatalog
+#audit_axioms NightstreamFPrime.Spec.Nebula.MemoryTrace.memoryConsistent_of_batched_executes
+#audit_axioms NightstreamFPrime.Spec.Nebula.MemoryTrace.memoryConsistent_of_slotOrder_executes
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.freeApp
 
 /-! End-to-end bound over the HyperNova reverse extractor (`NebulaMemorySecurity`). -/

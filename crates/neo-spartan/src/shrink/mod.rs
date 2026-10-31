@@ -32,12 +32,15 @@ use self::evaluate::Evaluate;
 use self::layout::{block_part, cell_parts, row_parts, words};
 use neo_verified::field as verified;
 use neo_verified::r1cs::R1cs;
+use neo_verified::sumcheck::replay_claim;
 
 use crate::circuit::block::{entries, Entry, C, X};
 use crate::circuit::record::{Form, Recorder, Sink, Term, Trace};
 use crate::circuit::{algebra, Backend, Native};
 use crate::device::Accelerator;
-use crate::field::{eq_table, ext_from_verified, ext_to_verified, fold_low, from_verified, gl, Ext, Gl};
+use crate::field::{
+    eq_table, ext_from_verified, ext_to_verified, exts_to_verified, fold_low, from_verified, gl, Ext, Gl,
+};
 use crate::hash::{permutation, Challenger};
 use crate::pcs::{self, Pcs, TablePlan};
 use crate::{sumcheck, Error};
@@ -262,15 +265,16 @@ pub fn verify(shrink: &Shrink, program: &impl Program, proof: &ShrinkProof) -> R
     let tau: Vec<Ext> = (0..m)
         .map(|_| challenger.sample_algebra_element())
         .collect();
-    let (rx, last) = replay(&proof.outer, Ext::ZERO, &mut challenger);
+    let (rx, last) = replay(DEGREE, &proof.outer, Ext::ZERO, &mut challenger);
     let v = proof.values;
-    if last != eq(&tau, &rx) * constraint(&v) {
+    let eq = algebra::eq_eval(&mut Native, &exts_to_verified(&tau), &exts_to_verified(&rx));
+    if last != ext_from_verified(eq) * constraint(&v) {
         return Err(Error::Rejected("shrink outer sum-check"));
     }
     challenger.observe_algebra_slice(&v);
     let rho = powers(challenger.sample_algebra_element());
     let claim = rho.iter().zip(&v).map(|(&r, &value)| r * value).sum();
-    let (ry, last) = replay(&proof.inner, claim, &mut challenger);
+    let (ry, last) = replay(2, &proof.inner, claim, &mut challenger);
     let opened = shrink
         .pcs
         .verify(&proof.commitment, &proof.opening, &[ry[..n].to_vec()], &mut challenger)?;
@@ -291,10 +295,11 @@ pub fn verify(shrink: &Shrink, program: &impl Program, proof: &ShrinkProof) -> R
     let matrices = sink.total + block_part(shape, &rx, &ry, &rho);
     let mut public = vec![Gl::ONE];
     public.extend(&statement);
+    let cells = exts_to_verified(&ry[..n]);
     let x: Ext = public
         .iter()
         .enumerate()
-        .map(|(index, &value)| eq_at(&ry[..n], index) * value)
+        .map(|(index, &value)| ext_from_verified(algebra::eq_at(&mut Native, &cells, index)) * value)
         .sum();
     let z = (Ext::ONE - ry[n]) * w + ry[n] * x;
     if last != matrices * z {
@@ -313,34 +318,19 @@ fn powers(rho: Ext) -> [Ext; MATRICES] {
     })
 }
 
-/// `eq(point, index)` for one index.
-fn eq_at(point: &[Ext], index: usize) -> Ext {
-    point
+/// Replay sum-check rounds (`h(0), h(2), ..., h(degree)`) on the native challenger. The
+/// challenges depend only on the messages, so they are drawn first.
+fn replay(degree: usize, rounds: &[Vec<Ext>], claim: Ext, challenger: &mut Challenger) -> (Vec<Ext>, Ext) {
+    let point: Vec<Ext> = rounds
         .iter()
-        .enumerate()
-        .map(|(t, &x)| if (index >> t) & 1 == 1 { x } else { Ext::ONE - x })
-        .product()
-}
-
-fn eq(a: &[Ext], b: &[Ext]) -> Ext {
-    a.iter()
-        .zip(b)
-        .map(|(&x, &y)| x * y + (Ext::ONE - x) * (Ext::ONE - y))
-        .product()
-}
-
-/// Replay sum-check rounds (`h(0), h(2), ..., h(d)`) on the native challenger.
-fn replay(rounds: &[Vec<Ext>], mut claim: Ext, challenger: &mut Challenger) -> (Vec<Ext>, Ext) {
-    let mut point = Vec::with_capacity(rounds.len());
-    for message in rounds {
-        let mut values = vec![message[0], claim - message[0]];
-        values.extend_from_slice(&message[1..]);
-        let r = sumcheck::send(message, challenger);
-        let values: Vec<verified::Ext> = values.into_iter().map(ext_to_verified).collect();
-        claim = ext_from_verified(algebra::interpolate(&mut Native, &values, ext_to_verified(r)));
-        point.push(r);
-    }
-    (point, claim)
+        .map(|message| sumcheck::send(message, challenger))
+        .collect();
+    let messages: Vec<Vec<verified::Ext>> = rounds
+        .iter()
+        .map(|message| exts_to_verified(message))
+        .collect();
+    let claim = replay_claim(degree, &messages, ext_to_verified(claim), &exts_to_verified(&point));
+    (point, ext_from_verified(claim))
 }
 
 /// `z = (w, 1, x)` on `2^(n+1)` cells.

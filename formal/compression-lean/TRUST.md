@@ -127,8 +127,9 @@ Rust, a claim is about a verifier, a program, a file or a check that Rust does n
   (`Game.sumcheck`, `Lib.roundValues`, `Lib.eqAt`, `Lib.eqEval`). These four and the two
   readers below are the only `ports.json` entries outside `Ports/` (`portsOutside`): `Layer1/`,
   which sits below `Ports/`, reads these four too. `Lib.eqAt` puts
-  coordinate `t` with bit `t` of the index, as `eq_at` and `eq_table` (`field.rs`) do; `ports.json`
-  pins it to both.
+  coordinate `t` with bit `t` of the index, as `eq_at` and `eq_table` of `neo-verified`
+  (`algebra.rs`) do; `ports.json` names the proofs for both. The verifier runs them on `Native`;
+  the prover's parallel `eq_table` (`field.rs`) has a test against them.
 - The circuit programs and their lowering (`Ports/Circuit/`), with the parts of `Ports/Replay/`
   that the programs read: the data types (`Ports/Replay/Data.lean`), the fields
   (`Ports/Replay/Field.lean`, whose `Word` and `Ext` operations are proved equal to the field of
@@ -213,7 +214,8 @@ These checks compare a transcription with its Rust:
   circuit's instruction stream fails CI.
 - For a port of Rust in `crates/neo-verified` that has a proof, `ports.json` names two theorems
   in place of a hash. The other ports of `neo-verified` code (`Recorder`, `Native`, the block
-  template, the Replay duplex and transcript, and `Replay.pathOk`) keep a hash. Aeneas translates the crate (`scripts/aeneas_extract.sh`), and `CompressionLeanRust` proves
+  template, `Shrink.Track`, the Replay duplex and transcript, the `Replay.eqAt` family, and
+  `Replay.pathOk`) keep a hash. Aeneas translates the crate (`scripts/aeneas_extract.sh`), and `CompressionLeanRust` proves
   the translation equal to the port. `Sound` has no premise: if the translated function returns,
   it returns the port's value. `Complete` gives a premise, an input that meets it, and a value on
   every input that meets it. `CompressionLeanRustTests` checks the shape of both. The `aeneas` CI

@@ -10,3 +10,6 @@ import CompressionLeanRust.Algebra
 import CompressionLeanRust.Hash
 import CompressionLeanRust.Duplex
 import CompressionLeanRust.Native
+import CompressionLeanRust.Cube
+import CompressionLeanRust.Rounds
+import CompressionLeanRust.Diagonal

@@ -387,6 +387,84 @@ where
       | core.ops.control_flow.ControlFlow.Continue v => Result.ok (.Ok v)
     outcome run resultWord
 
+open neo_verified in
+/-- A sequence of extension values: its length, then three words per value; and the words after it. -/
+def extSeq : List ℕ → Option (List field.Ext × List ℕ)
+  | n :: rest => if 3 * n ≤ rest.length then some (extList (rest.take (3 * n)), rest.drop (3 * n)) else none
+  | [] => none
+
+open neo_verified in
+/-- `k` tracks: each point as a sequence and its offset; and the words after them. -/
+def tracksIn : ℕ → List ℕ → Option (List diagonal.Track × List ℕ)
+  | 0, rest => some ([], rest)
+  | k + 1, rest => do
+    let (pts, rest) ← extSeq rest
+    let off :: rest := rest | none
+    let point ← vecOf pts
+    let (more, rest) ← tracksIn k rest
+    pure (⟨point, usize off⟩ :: more, rest)
+
+open neo_verified in
+def tracksAll : List ℕ → Option (Slice diagonal.Track)
+  | k :: rest => do
+    let (tracks, []) ← tracksIn k rest | none
+    sliceOf tracks
+  | [] => none
+
+open neo_verified in
+def statesWords (states : List (Aeneas.Std.Array field.Ext 2#usize)) : String :=
+  " ".intercalate (states.map fun a => extsWords a.val)
+
+open neo_verified in
+def statesIn (words : List ℕ) : List (Aeneas.Std.Array field.Ext 2#usize) :=
+  (List.range (words.length / 6)).map fun k =>
+    let e := extList ((words.drop (6 * k)).take 6)
+    Aeneas.Std.Array.make 2#usize [e.getD 0 field.EXT_ZERO, e.getD 1 field.EXT_ZERO]
+
+open neo_verified in
+/-- The sum-check rounds and the diagonal walk of the shrink verifier. -/
+def shrinkCase : String → List ℕ → Option String
+  | "ext_reduce", xs => (ext xs).map fun a => outcome (field.ext_reduce a) extWords
+  | "round_claim", degree :: rest => do
+    let (message, rest) ← extSeq rest
+    let m ← sliceOf message
+    let claim ← ext (rest.take 3)
+    let r ← ext (rest.drop 3)
+    outcome (sumcheck.round_claim (usize degree) m claim r) extWords
+  | "replay_claim", degree :: count :: rest => do
+    let (rounds, rest) ← (List.range count).foldlM (fun (acc : List (alloc.vec.Vec field.Ext) × List ℕ) _ => do
+      let (m, rest) ← extSeq acc.2
+      let v ← vecOf m
+      pure (acc.1 ++ [v], rest)) ([], rest)
+    let r ← sliceOf rounds
+    let claim ← ext (rest.take 3)
+    let (point, []) ← extSeq (rest.drop 3) | none
+    let p ← sliceOf point
+    outcome (sumcheck.replay_claim (usize degree) r claim p) extWords
+  | "walk_bits", count :: rest => do
+    let tracks ← tracksAll rest
+    outcome (diagonal.walk_bits tracks (usize count)) value
+  | "diagonal", count :: rest => do
+    let tracks ← tracksAll rest
+    outcome (diagonal.diagonal tracks (usize count)) extWords
+  | "walk_states", count :: width :: rest => do
+    let tracks ← tracksAll rest
+    outcome (diagonal.walk_states tracks (usize count) (usize width)) fun v => statesWords v.val
+  | "walk_step", count :: t :: k :: rest => do
+    let (tracks, n :: words) ← tracksIn k rest | none
+    let tr ← sliceOf tracks
+    let st ← sliceOf (statesIn (words.take (6 * n)))
+    outcome (diagonal.walk_step tr (usize count) (usize t) st) fun v => statesWords v.val
+  | "tracks_step", t :: b :: carry :: rest => do
+    let tracks ← tracksAll rest
+    outcome (diagonal.tracks_step tracks (usize t) (usize b) (usize carry)) fun p => s!"{extWords p.1} {value p.2}"
+  | "track_factor", t :: bit :: rest => do
+    let (point, []) ← extSeq rest | none
+    let pt ← sliceOf point
+    outcome (diagonal.track_factor pt (usize t) (usize bit)) extWords
+  | "next_below", [cb, b, below] => outcome (diagonal.next_below (usize cb) (usize b) (usize below)) value
+  | _, _ => none
+
 def run : String → List ℕ → Option String
   | "split", [x] => outcome (neo_verified.layout.split (usize x)) fun a => " ".intercalate (a.val.map value)
   | "variables", [x] => outcome (neo_verified.layout.variables (usize x)) value
@@ -401,7 +479,7 @@ def run : String → List ℕ → Option String
   | "Array.make", [x, y] => s!"ok {" ".intercalate ((Aeneas.Std.Array.make 2#usize [usize x, usize y]).val.map value)}"
   | case, words => (((((layoutCase case words).orElse fun _ => modelCase case words).orElse fun _ =>
     degreesCase case words).orElse fun _ => fieldCase case words).orElse fun _ => poseidon2Case case words).orElse
-    fun _ => circuitCase case words
+    fun _ => (circuitCase case words).orElse fun _ => shrinkCase case words
 
 end CompressionLeanRust.RunCheck
 

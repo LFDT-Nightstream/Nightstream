@@ -17,6 +17,492 @@ set_option linter.internalConstructors false
 
 
 namespace neo_verified
+/-- [neo_verified::hash::{neo_verified::hash::Duplex<B, Clause0_F, Clause0_E>}::observe_ext]:
+    Source: 'crates/neo-verified/src/hash.rs', lines 49:4-54:5
+    Visibility: public -/
+def hash.Duplex.observe_ext
+  {B : Type _} {Clause0_F : Type _} {Clause0_E : Type _} (backendBackendInst :
+  backend.Backend B Clause0_F Clause0_E)
+  (self : hash.Duplex B Clause0_F Clause0_E) (b : B) (value : Clause0_E) :
+  Result ((hash.Duplex B Clause0_F Clause0_E) × B)
+  := do
+  let (coordinates, b1) ← backendBackendInst.coordinates b value
+  let t ← Array.index_usize coordinates 0#usize
+  let (self1, b2) ← hash.Duplex.observe backendBackendInst self b1 t
+  let t1 ← Array.index_usize coordinates 1#usize
+  let (self2, b3) ← hash.Duplex.observe backendBackendInst self1 b2 t1
+  let t2 ← Array.index_usize coordinates 2#usize
+  hash.Duplex.observe backendBackendInst self2 b3 t2
+
+/-- [neo_verified::hash::{neo_verified::hash::Duplex<B, Clause0_F, Clause0_E>}::sample]: loop body 0:
+    Source: 'crates/neo-verified/src/hash.rs', lines 64:8-67:9
+    Visibility: public -/
+@[rust_loop_body]
+def hash.Duplex.sample_loop.body
+  {Clause0_F : Type _} (v : alloc.vec.Vec Clause0_F) (last : Std.Usize)
+  (rest : alloc.vec.Vec Clause0_F) (i : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec Clause0_F) × Std.Usize) (alloc.vec.Vec
+    Clause0_F))
+  := do
+  if i < last
+  then
+    let t ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Clause0_F) v i
+    let rest1 ← alloc.vec.Vec.push rest t
+    let i1 ← lift (core.num.Usize.wrapping_add i 1#usize)
+    ok (cont (rest1, i1))
+  else ok (done rest)
+
+/-- [neo_verified::hash::{neo_verified::hash::Duplex<B, Clause0_F, Clause0_E>}::sample]: loop 0:
+    Source: 'crates/neo-verified/src/hash.rs', lines 64:8-67:9
+    Visibility: public -/
+@[rust_loop]
+def hash.Duplex.sample_loop
+  {Clause0_F : Type _} (v : alloc.vec.Vec Clause0_F) (last : Std.Usize)
+  (rest : alloc.vec.Vec Clause0_F) (i : Std.Usize) :
+  Result (alloc.vec.Vec Clause0_F)
+  := do
+  loop
+    (fun (rest1, i1) => hash.Duplex.sample_loop.body v last rest1 i1)
+    (rest, i)
+
+/-- [neo_verified::hash::{neo_verified::hash::Duplex<B, Clause0_F, Clause0_E>}::sample]:
+    Source: 'crates/neo-verified/src/hash.rs', lines 56:4-70:5
+    Visibility: public -/
+def hash.Duplex.sample
+  {B : Type _} {Clause0_F : Type _} {Clause0_E : Type _} (backendBackendInst :
+  backend.Backend B Clause0_F Clause0_E)
+  (self : hash.Duplex B Clause0_F Clause0_E) (b : B) :
+  Result (Clause0_F × (hash.Duplex B Clause0_F Clause0_E) × B)
+  := do
+  let s := alloc.vec.Vec.deref self.input
+  let b1 ← core.slice.Slice.is_empty s
+  let (self1, b2) ←
+    if b1
+    then
+      do
+      let s1 := alloc.vec.Vec.deref self.output
+      let b3 ← core.slice.Slice.is_empty s1
+      if b3
+      then hash.Duplex.duplex backendBackendInst self b
+      else ok (self, b)
+    else hash.Duplex.duplex backendBackendInst self b
+  let i := alloc.vec.Vec.len self1.output
+  let last ← lift (core.num.Usize.wrapping_sub i 1#usize)
+  let value ←
+    alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Clause0_F)
+      self1.output last
+  let rest ←
+    hash.Duplex.sample_loop self1.output last (alloc.vec.Vec.new Clause0_F)
+      0#usize
+  ok (value, { self1 with output := rest }, b2)
+
+/-- [neo_verified::hash::{neo_verified::hash::Duplex<B, Clause0_F, Clause0_E>}::sample_ext]:
+    Source: 'crates/neo-verified/src/hash.rs', lines 73:4-78:5
+    Visibility: public -/
+def hash.Duplex.sample_ext
+  {B : Type _} {Clause0_F : Type _} {Clause0_E : Type _} (backendBackendInst :
+  backend.Backend B Clause0_F Clause0_E)
+  (self : hash.Duplex B Clause0_F Clause0_E) (b : B) :
+  Result (Clause0_E × (hash.Duplex B Clause0_F Clause0_E) × B)
+  := do
+  let (x, self1, b1) ← hash.Duplex.sample backendBackendInst self b
+  let (y, self2, b2) ← hash.Duplex.sample backendBackendInst self1 b1
+  let (z, self3, b3) ← hash.Duplex.sample backendBackendInst self2 b2
+  let (t, b4) ← backendBackendInst.ext b3 (Array.make 3#usize [ x, y, z ])
+  ok (t, self3, b4)
+
+/-- [neo_verified::hash::{neo_verified::hash::Duplex<B, Clause0_F, Clause0_E>}::sample_bits]: loop body 0:
+    Source: 'crates/neo-verified/src/hash.rs', lines 86:8-89:9
+    Visibility: public -/
+@[rust_loop_body]
+def hash.Duplex.sample_bits_loop.body
+  {Clause0_F : Type _} (bits : Std.Usize) (all : alloc.vec.Vec Clause0_F)
+  (low : alloc.vec.Vec Clause0_F) (i : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec Clause0_F) × Std.Usize) (alloc.vec.Vec
+    Clause0_F))
+  := do
+  if i < bits
+  then
+    let i1 := alloc.vec.Vec.len all
+    if i < i1
+    then
+      let t ←
+        alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Clause0_F)
+          all i
+      let low1 ← alloc.vec.Vec.push low t
+      let i2 ← lift (core.num.Usize.wrapping_add i 1#usize)
+      ok (cont (low1, i2))
+    else ok (done low)
+  else ok (done low)
+
+/-- [neo_verified::hash::{neo_verified::hash::Duplex<B, Clause0_F, Clause0_E>}::sample_bits]: loop 0:
+    Source: 'crates/neo-verified/src/hash.rs', lines 86:8-89:9
+    Visibility: public -/
+@[rust_loop]
+def hash.Duplex.sample_bits_loop
+  {Clause0_F : Type _} (bits : Std.Usize) (all : alloc.vec.Vec Clause0_F)
+  (low : alloc.vec.Vec Clause0_F) (i : Std.Usize) :
+  Result (alloc.vec.Vec Clause0_F)
+  := do
+  loop
+    (fun (low1, i1) => hash.Duplex.sample_bits_loop.body bits all low1 i1)
+    (low, i)
+
+/-- [neo_verified::hash::{neo_verified::hash::Duplex<B, Clause0_F, Clause0_E>}::sample_bits]:
+    Source: 'crates/neo-verified/src/hash.rs', lines 81:4-91:5
+    Visibility: public -/
+def hash.Duplex.sample_bits
+  {B : Type _} {Clause0_F : Type _} {Clause0_E : Type _} (backendBackendInst :
+  backend.Backend B Clause0_F Clause0_E)
+  (self : hash.Duplex B Clause0_F Clause0_E) (b : B) (bits : Std.Usize) :
+  Result ((core.result.Result (alloc.vec.Vec Clause0_F) backend.Rejected) ×
+    (hash.Duplex B Clause0_F Clause0_E) × B)
+  := do
+  let (sample, self1, b1) ← hash.Duplex.sample backendBackendInst self b
+  let (r, b2) ←
+    backendBackendInst.bits b1 sample 64#usize (toStr "sampled bits")
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue val =>
+    let low ←
+      hash.Duplex.sample_bits_loop bits val (alloc.vec.Vec.new Clause0_F)
+        0#usize
+    ok (core.result.Result.Ok low, self1, b2)
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    let r1 ←
+      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+        (alloc.vec.Vec Clause0_F) (core.convert.FromSame backend.Rejected)
+        residual
+    ok (r1, self1, b2)
+
+/-- [neo_verified::hash::hash_leaf]: loop body 1:
+    Source: 'crates/neo-verified/src/hash.rs', lines 129:8-132:9
+    Visibility: public -/
+@[rust_loop_body]
+def hash.hash_leaf_loop0_loop0.body
+  {Clause0_F : Type _} (values : Slice Clause0_F) (start : Std.Usize)
+  (state : Array Clause0_F 16#usize) (lane : Std.Usize) :
+  Result (ControlFlow ((Array Clause0_F 16#usize) × Std.Usize) ((Array
+    Clause0_F 16#usize) × Std.Usize))
+  := do
+  if lane < circuit.RATE
+  then
+    let i := Slice.len values
+    let i1 ← lift (core.num.Usize.wrapping_sub i start)
+    if lane < i1
+    then
+      let i2 ← lift (core.num.Usize.wrapping_add start lane)
+      let t ← Slice.index_usize values i2
+      let a ← Array.update state lane t
+      let lane1 ← lift (core.num.Usize.wrapping_add lane 1#usize)
+      ok (cont (a, lane1))
+    else ok (done (state, lane))
+  else ok (done (state, lane))
+
+/-- [neo_verified::hash::hash_leaf]: loop 1:
+    Source: 'crates/neo-verified/src/hash.rs', lines 129:8-132:9
+    Visibility: public -/
+@[rust_loop]
+def hash.hash_leaf_loop0_loop0
+  {Clause0_F : Type _} (values : Slice Clause0_F)
+  (state : Array Clause0_F 16#usize) (start : Std.Usize) (lane : Std.Usize) :
+  Result ((Array Clause0_F 16#usize) × Std.Usize)
+  := do
+  loop
+    (fun (state1, lane1) => hash.hash_leaf_loop0_loop0.body values start state1
+      lane1)
+    (state, lane)
+
+/-- [neo_verified::hash::hash_leaf]: loop body 0:
+    Source: 'crates/neo-verified/src/hash.rs', lines 127:4-135:5
+    Visibility: public -/
+@[rust_loop_body]
+def hash.hash_leaf_loop0.body
+  {B : Type _} {Clause0_F : Type _} {Clause0_E : Type _} (backendBackendInst :
+  backend.Backend B Clause0_F Clause0_E) (values : Slice Clause0_F) (b : B)
+  (state : Array Clause0_F 16#usize) (start : Std.Usize) :
+  Result (ControlFlow (B × (Array Clause0_F 16#usize) × Std.Usize) (B ×
+    (Array Clause0_F 16#usize)))
+  := do
+  let i := Slice.len values
+  if start < i
+  then
+    let (state1, lane) ←
+      hash.hash_leaf_loop0_loop0 values state start 0#usize
+    let (state2, b1) ← backendBackendInst.permute b state1
+    let start1 ← lift (core.num.Usize.wrapping_add start lane)
+    ok (cont (b1, state2, start1))
+  else ok (done (b, state))
+
+/-- [neo_verified::hash::hash_leaf]: loop 0:
+    Source: 'crates/neo-verified/src/hash.rs', lines 127:4-135:5
+    Visibility: public -/
+@[rust_loop]
+def hash.hash_leaf_loop0
+  {B : Type _} {Clause0_F : Type _} {Clause0_E : Type _} (backendBackendInst :
+  backend.Backend B Clause0_F Clause0_E) (b : B) (values : Slice Clause0_F)
+  (state : Array Clause0_F 16#usize) (start : Std.Usize) :
+  Result (B × (Array Clause0_F 16#usize))
+  := do
+  loop
+    (fun (b1, state1, start1) => hash.hash_leaf_loop0.body backendBackendInst
+      values b1 state1 start1)
+    (b, state, start)
+
+/-- [neo_verified::hash::hash_leaf]:
+    Source: 'crates/neo-verified/src/hash.rs', lines 123:0-137:1
+    Visibility: public -/
+def hash.hash_leaf
+  {B : Type _} {Clause0_F : Type _} {Clause0_E : Type _} (backendBackendInst :
+  backend.Backend B Clause0_F Clause0_E) (b : B) (values : Slice Clause0_F) :
+  Result ((Array Clause0_F 4#usize) × B)
+  := do
+  let (zero, b1) ← backendBackendInst.constant b 0#u64
+  let state := Array.repeat 16#usize zero
+  let (b2, state1) ←
+    hash.hash_leaf_loop0 backendBackendInst b1 values state 0#usize
+  let t ← Array.index_usize state1 0#usize
+  let t1 ← Array.index_usize state1 1#usize
+  let t2 ← Array.index_usize state1 2#usize
+  let t3 ← Array.index_usize state1 3#usize
+  ok (Array.make 4#usize [ t, t1, t2, t3 ], b2)
+
+/-- [neo_verified::hash::compress]: loop body 0:
+    Source: 'crates/neo-verified/src/hash.rs', lines 144:4-148:5
+    Visibility: public -/
+@[rust_loop_body]
+def hash.compress_loop.body
+  {Clause0_F : Type _} (left : Array Clause0_F 4#usize)
+  (right : Array Clause0_F 4#usize) (state : Array Clause0_F 16#usize)
+  (lane : Std.Usize) :
+  Result (ControlFlow ((Array Clause0_F 16#usize) × Std.Usize) (Array
+    Clause0_F 16#usize))
+  := do
+  if lane < circuit.DIGEST_LEN
+  then
+    let t ← Array.index_usize left lane
+    let state1 ← Array.update state lane t
+    let t1 ← Array.index_usize right lane
+    let i ← lift (core.num.Usize.wrapping_add circuit.DIGEST_LEN lane)
+    let a ← Array.update state1 i t1
+    let lane1 ← lift (core.num.Usize.wrapping_add lane 1#usize)
+    ok (cont (a, lane1))
+  else ok (done state)
+
+/-- [neo_verified::hash::compress]: loop 0:
+    Source: 'crates/neo-verified/src/hash.rs', lines 144:4-148:5
+    Visibility: public -/
+@[rust_loop]
+def hash.compress_loop
+  {Clause0_F : Type _} (left : Array Clause0_F 4#usize)
+  (right : Array Clause0_F 4#usize) (state : Array Clause0_F 16#usize)
+  (lane : Std.Usize) :
+  Result (Array Clause0_F 16#usize)
+  := do
+  loop
+    (fun (state1, lane1) => hash.compress_loop.body left right state1 lane1)
+    (state, lane)
+
+/-- [neo_verified::hash::compress]:
+    Source: 'crates/neo-verified/src/hash.rs', lines 140:0-151:1
+    Visibility: public -/
+def hash.compress
+  {B : Type _} {Clause0_F : Type _} {Clause0_E : Type _} (backendBackendInst :
+  backend.Backend B Clause0_F Clause0_E) (b : B)
+  (left : Array Clause0_F 4#usize) (right : Array Clause0_F 4#usize) :
+  Result ((Array Clause0_F 4#usize) × B)
+  := do
+  let (zero, b1) ← backendBackendInst.constant b 0#u64
+  let state := Array.repeat 16#usize zero
+  let state1 ← hash.compress_loop left right state 0#usize
+  let (state2, b2) ← backendBackendInst.permute b1 state1
+  let t ← Array.index_usize state2 0#usize
+  let t1 ← Array.index_usize state2 1#usize
+  let t2 ← Array.index_usize state2 2#usize
+  let t3 ← Array.index_usize state2 3#usize
+  ok (Array.make 4#usize [ t, t1, t2, t3 ], b2)
+
+/-- [neo_verified::hash::merkle_root]: loop body 1:
+    Source: 'crates/neo-verified/src/hash.rs', lines 164:8-169:9
+    Visibility: public -/
+@[rust_loop_body]
+def hash.merkle_root_loop0_loop0.body
+  {B : Type _} {Clause0_F : Type _} {Clause0_E : Type _} (backendBackendInst :
+  backend.Backend B Clause0_F Clause0_E) (node : Array Clause0_F 4#usize)
+  (bit : Clause0_F) (sibling : Array Clause0_F 4#usize) (b : B)
+  (left : Array Clause0_F 4#usize) (right : Array Clause0_F 4#usize)
+  (lane : Std.Usize) :
+  Result (ControlFlow (B × (Array Clause0_F 4#usize) × (Array Clause0_F
+    4#usize) × Std.Usize) (B × (Array Clause0_F 4#usize) × (Array Clause0_F
+    4#usize)))
+  := do
+  if lane < circuit.DIGEST_LEN
+  then
+    let t ← Array.index_usize node lane
+    let t1 ← Array.index_usize sibling lane
+    let (t2, b1) ← backendBackendInst.select b bit t t1
+    let left1 ← Array.update left lane t2
+    let (both, b2) ← backendBackendInst.add b1 t t1
+    let t3 ← Array.index_usize left1 lane
+    let (t4, b3) ← backendBackendInst.sub b2 both t3
+    let a ← Array.update right lane t4
+    let lane1 ← lift (core.num.Usize.wrapping_add lane 1#usize)
+    ok (cont (b3, left1, a, lane1))
+  else ok (done (b, left, right))
+
+/-- [neo_verified::hash::merkle_root]: loop 1:
+    Source: 'crates/neo-verified/src/hash.rs', lines 164:8-169:9
+    Visibility: public -/
+@[rust_loop]
+def hash.merkle_root_loop0_loop0
+  {B : Type _} {Clause0_F : Type _} {Clause0_E : Type _} (backendBackendInst :
+  backend.Backend B Clause0_F Clause0_E) (b : B)
+  (node : Array Clause0_F 4#usize) (bit : Clause0_F)
+  (sibling : Array Clause0_F 4#usize) (left : Array Clause0_F 4#usize)
+  (right : Array Clause0_F 4#usize) (lane : Std.Usize) :
+  Result (B × (Array Clause0_F 4#usize) × (Array Clause0_F 4#usize))
+  := do
+  loop
+    (fun (b1, left1, right1, lane1) => hash.merkle_root_loop0_loop0.body
+      backendBackendInst node bit sibling b1 left1 right1 lane1)
+    (b, left, right, lane)
+
+/-- [neo_verified::hash::merkle_root]: loop body 0:
+    Source: 'crates/neo-verified/src/hash.rs', lines 158:4-172:5
+    Visibility: public -/
+@[rust_loop_body]
+def hash.merkle_root_loop0.body
+  {B : Type _} {Clause0_F : Type _} {Clause0_E : Type _} (backendBackendInst :
+  backend.Backend B Clause0_F Clause0_E) (bits : Slice Clause0_F)
+  (path : Slice (Array Clause0_F 4#usize)) (b : B)
+  (node : Array Clause0_F 4#usize) (level : Std.Usize) :
+  Result (ControlFlow (B × (Array Clause0_F 4#usize) × Std.Usize) ((Array
+    Clause0_F 4#usize) × B))
+  := do
+  let i := Slice.len bits
+  if level < i
+  then
+    let i1 := Slice.len path
+    if level < i1
+    then
+      let bit ← Slice.index_usize bits level
+      let sibling ← Slice.index_usize path level
+      let (b1, left, right) ←
+        hash.merkle_root_loop0_loop0 backendBackendInst b node bit sibling node
+          node 0#usize
+      let (node1, b2) ← hash.compress backendBackendInst b1 left right
+      let level1 ← lift (core.num.Usize.wrapping_add level 1#usize)
+      ok (cont (b2, node1, level1))
+    else ok (done (node, b))
+  else ok (done (node, b))
+
+/-- [neo_verified::hash::merkle_root]: loop 0:
+    Source: 'crates/neo-verified/src/hash.rs', lines 158:4-172:5
+    Visibility: public -/
+@[rust_loop]
+def hash.merkle_root_loop0
+  {B : Type _} {Clause0_F : Type _} {Clause0_E : Type _} (backendBackendInst :
+  backend.Backend B Clause0_F Clause0_E) (b : B) (bits : Slice Clause0_F)
+  (path : Slice (Array Clause0_F 4#usize)) (node : Array Clause0_F 4#usize)
+  (level : Std.Usize) :
+  Result ((Array Clause0_F 4#usize) × B)
+  := do
+  loop
+    (fun (b1, node1, level1) => hash.merkle_root_loop0.body backendBackendInst
+      bits path b1 node1 level1)
+    (b, node, level)
+
+/-- [neo_verified::hash::merkle_root]:
+    Source: 'crates/neo-verified/src/hash.rs', lines 155:0-174:1
+    Visibility: public -/
+@[reducible]
+def hash.merkle_root
+  {B : Type _} {Clause0_F : Type _} {Clause0_E : Type _} (backendBackendInst :
+  backend.Backend B Clause0_F Clause0_E) (b : B)
+  (leaf : Array Clause0_F 4#usize) (bits : Slice Clause0_F)
+  (path : Slice (Array Clause0_F 4#usize)) :
+  Result ((Array Clause0_F 4#usize) × B)
+  := do
+  hash.merkle_root_loop0 backendBackendInst b bits path leaf 0#usize
+
+/-- [neo_verified::layout::{impl core::clone::Clone for neo_verified::layout::Shape}::clone]:
+    Source: 'crates/neo-verified/src/layout.rs', lines 16:9-16:14
+    Visibility: public -/
+def layout.Shape.Insts.CoreCloneClone.clone
+  (self : layout.Shape) : Result layout.Shape := do
+  ok self
+
+/-- Trait implementation: [neo_verified::layout::{impl core::clone::Clone for neo_verified::layout::Shape}]
+    Source: 'crates/neo-verified/src/layout.rs', lines 16:9-16:14 -/
+@[reducible]
+def layout.Shape.Insts.CoreCloneClone : core.clone.Clone layout.Shape := {
+  clone := layout.Shape.Insts.CoreCloneClone.clone
+}
+
+/-- Trait implementation: [neo_verified::layout::{impl core::marker::Copy for neo_verified::layout::Shape}]
+    Source: 'crates/neo-verified/src/layout.rs', lines 16:16-16:20 -/
+@[reducible]
+def layout.Shape.Insts.CoreMarkerCopy : core.marker.Copy layout.Shape := {
+  cloneInst := layout.Shape.Insts.CoreCloneClone
+}
+
+/-- Trait implementation: [neo_verified::layout::{impl core::marker::StructuralPartialEq for neo_verified::layout::Shape}]
+    Source: 'crates/neo-verified/src/layout.rs', lines 16:22-16:31 -/
+@[reducible]
+def layout.Shape.Insts.CoreMarkerStructuralPartialEq :
+  core.marker.StructuralPartialEq layout.Shape := {
+}
+
+/-- [neo_verified::layout::{impl core::cmp::PartialEq<neo_verified::layout::Shape> for neo_verified::layout::Shape}::eq]:
+    Source: 'crates/neo-verified/src/layout.rs', lines 16:22-16:31
+    Visibility: public -/
+def layout.Shape.Insts.CoreCmpPartialEqShape.eq
+  (self : layout.Shape) (other : layout.Shape) : Result Bool := do
+  let b ←
+    core.array.equality.PartialEqArray.eq core.cmp.PartialEqUsize self.blocks
+      other.blocks
+  if b
+  then
+    if self.glue_rows = other.glue_rows
+    then
+      if self.glue_cells = other.glue_cells
+      then ok (self.publics = other.publics)
+      else ok false
+    else ok false
+  else ok false
+
+/-- Trait implementation: [neo_verified::layout::{impl core::cmp::PartialEq<neo_verified::layout::Shape> for neo_verified::layout::Shape}]
+    Source: 'crates/neo-verified/src/layout.rs', lines 16:22-16:31 -/
+@[reducible]
+impl_def layout.Shape.Insts.CoreCmpPartialEqShape : core.cmp.PartialEq
+  layout.Shape layout.Shape := {
+  eq := layout.Shape.Insts.CoreCmpPartialEqShape.eq
+  ne := core.cmp.PartialEq.ne.trait_default
+    layout.Shape.Insts.CoreCmpPartialEqShape
+}
+
+/-- [neo_verified::layout::{impl core::clone::Clone for neo_verified::layout::Part}::clone]:
+    Source: 'crates/neo-verified/src/layout.rs', lines 27:9-27:14
+    Visibility: public -/
+def layout.Part.Insts.CoreCloneClone.clone
+  (self : layout.Part) : Result layout.Part := do
+  ok self
+
+/-- Trait implementation: [neo_verified::layout::{impl core::clone::Clone for neo_verified::layout::Part}]
+    Source: 'crates/neo-verified/src/layout.rs', lines 27:9-27:14 -/
+@[reducible]
+def layout.Part.Insts.CoreCloneClone : core.clone.Clone layout.Part := {
+  clone := layout.Part.Insts.CoreCloneClone.clone
+}
+
+/-- Trait implementation: [neo_verified::layout::{impl core::marker::Copy for neo_verified::layout::Part}]
+    Source: 'crates/neo-verified/src/layout.rs', lines 27:16-27:20 -/
+@[reducible]
+def layout.Part.Insts.CoreMarkerCopy : core.marker.Copy layout.Part := {
+  cloneInst := layout.Part.Insts.CoreCloneClone
+}
+
 /-- [neo_verified::layout::slot]:
     Source: 'crates/neo-verified/src/layout.rs', lines 84:0-96:1
     Visibility: public -/
@@ -714,497 +1200,5 @@ def paths.insert_loop
     (fun (sorted1, placed1, k1) => paths.insert_loop.body nodes index node
       sorted1 placed1 k1)
     (sorted, placed, k)
-
-/-- [neo_verified::paths::insert]:
-    Source: 'crates/neo-verified/src/paths.rs', lines 38:0-57:1 -/
-def paths.insert
-  (nodes : alloc.vec.Vec (Std.Usize × (Array field.Gl 4#usize)))
-  (index : Std.Usize) (node : Array field.Gl 4#usize) :
-  Result (alloc.vec.Vec (Std.Usize × (Array field.Gl 4#usize)))
-  := do
-  let (sorted, placed) ←
-    paths.insert_loop nodes index node (alloc.vec.Vec.new (Std.Usize × (Array
-      field.Gl 4#usize))) false 0#usize
-  if placed
-  then ok sorted
-  else alloc.vec.Vec.push sorted (index, node)
-
-/-- [neo_verified::paths::path_words]: loop body 0:
-    Source: 'crates/neo-verified/src/paths.rs', lines 130:4-133:5
-    Visibility: public -/
-@[rust_loop_body]
-def paths.path_words_loop0.body
-  (proof : paths.Paths) (indices : Slice Std.U64)
-  (known : alloc.vec.Vec (Std.Usize × (Array field.Gl 4#usize)))
-  (q : Std.Usize) :
-  Result (ControlFlow ((alloc.vec.Vec (Std.Usize × (Array field.Gl 4#usize)))
-    × Std.Usize) (paths.Paths × (alloc.vec.Vec (Std.Usize × (Array field.Gl
-    4#usize)))))
-  := do
-  let i := Slice.len indices
-  if q < i
-  then
-    let i1 := alloc.vec.Vec.len proof.leaves
-    if q < i1
-    then
-      let i2 ← Slice.index_usize indices q
-      let i3 ← lift (UScalar.cast .Usize i2)
-      let a ←
-        alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice (Array
-          field.Gl 4#usize)) proof.leaves q
-      let known1 ← paths.insert known i3 a
-      let q1 ← lift (core.num.Usize.wrapping_add q 1#usize)
-      ok (cont (known1, q1))
-    else ok (done (proof, known))
-  else ok (done (proof, known))
-
-/-- [neo_verified::paths::path_words]: loop 0:
-    Source: 'crates/neo-verified/src/paths.rs', lines 130:4-133:5
-    Visibility: public -/
-@[rust_loop]
-def paths.path_words_loop0
-  (proof : paths.Paths) (indices : Slice Std.U64)
-  (known : alloc.vec.Vec (Std.Usize × (Array field.Gl 4#usize)))
-  (q : Std.Usize) :
-  Result (paths.Paths × (alloc.vec.Vec (Std.Usize × (Array field.Gl
-    4#usize))))
-  := do
-  loop
-    (fun (known1, q1) => paths.path_words_loop0.body proof indices known1 q1)
-    (known, q)
-
-/-- [neo_verified::paths::path_words]: loop body 1:
-    Source: 'crates/neo-verified/src/paths.rs', lines 138:4-150:5
-    Visibility: public -/
-@[rust_loop_body]
-def paths.path_words_loop1.body
-  (v : alloc.vec.Vec (Array field.Gl 4#usize)) (i : Std.Usize)
-  (known : alloc.vec.Vec (Std.Usize × (Array field.Gl 4#usize)))
-  (levels : alloc.vec.Vec ((alloc.vec.Vec (Std.Usize × (Array field.Gl
-  4#usize))) × (alloc.vec.Vec (Std.Usize × (Array field.Gl 4#usize)))))
-  (next : Std.Usize) (complete : Bool) (level : Std.Usize) :
-  Result (ControlFlow ((alloc.vec.Vec (Std.Usize × (Array field.Gl 4#usize)))
-    × (alloc.vec.Vec ((alloc.vec.Vec (Std.Usize × (Array field.Gl 4#usize)))
-    × (alloc.vec.Vec (Std.Usize × (Array field.Gl 4#usize))))) × Std.Usize
-    × Bool × Std.Usize) ((alloc.vec.Vec ((alloc.vec.Vec (Std.Usize × (Array
-    field.Gl 4#usize))) × (alloc.vec.Vec (Std.Usize × (Array field.Gl
-    4#usize))))) × Std.Usize × Bool))
-  := do
-  if level < i
-  then
-    if complete
-    then
-      let s := alloc.vec.Vec.deref v
-      let (o, next1) ← paths.walk known s next
-      let (known1, levels1, complete1) ←
-        match o with
-        | none =>
-          ok (alloc.vec.Vec.new (Std.Usize × (Array field.Gl 4#usize)),
-            levels, false)
-        | some walked =>
-          do
-          let levels2 ←
-            alloc.vec.Vec.push levels (walked.fetched, walked.known)
-          ok (walked.parents, levels2, complete)
-      let level1 ← lift (core.num.Usize.wrapping_add level 1#usize)
-      ok (cont (known1, levels1, next1, complete1, level1))
-    else ok (done (levels, next, complete))
-  else ok (done (levels, next, complete))
-
-/-- [neo_verified::paths::path_words]: loop 1:
-    Source: 'crates/neo-verified/src/paths.rs', lines 138:4-150:5
-    Visibility: public -/
-@[rust_loop]
-def paths.path_words_loop1
-  (v : alloc.vec.Vec (Array field.Gl 4#usize)) (i : Std.Usize)
-  (known : alloc.vec.Vec (Std.Usize × (Array field.Gl 4#usize)))
-  (levels : alloc.vec.Vec ((alloc.vec.Vec (Std.Usize × (Array field.Gl
-  4#usize))) × (alloc.vec.Vec (Std.Usize × (Array field.Gl 4#usize)))))
-  (next : Std.Usize) (complete : Bool) (level : Std.Usize) :
-  Result ((alloc.vec.Vec ((alloc.vec.Vec (Std.Usize × (Array field.Gl
-    4#usize))) × (alloc.vec.Vec (Std.Usize × (Array field.Gl 4#usize))))) ×
-    Std.Usize × Bool)
-  := do
-  loop
-    (fun (known1, levels1, next1, complete1, level1) =>
-      paths.path_words_loop1.body v i known1 levels1 next1 complete1 level1)
-    (known, levels, next, complete, level)
-
-/-- [neo_verified::paths::path_words]: loop body 4:
-    Source: 'crates/neo-verified/src/paths.rs', lines 166:20-169:21
-    Visibility: public -/
-@[rust_loop_body]
-def paths.path_words_loop2_loop0_loop0.body
-  (node : Array field.Gl 4#usize) (words : alloc.vec.Vec Std.U64)
-  (lane : Std.Usize) :
-  Result (ControlFlow ((alloc.vec.Vec Std.U64) × Std.Usize) (alloc.vec.Vec
-    Std.U64))
-  := do
-  if lane < circuit.DIGEST_LEN
-  then
-    let g ← Array.index_usize node lane
-    let i ← field.gl_word g
-    let words1 ← alloc.vec.Vec.push words i
-    let lane1 ← lift (core.num.Usize.wrapping_add lane 1#usize)
-    ok (cont (words1, lane1))
-  else ok (done words)
-
-/-- [neo_verified::paths::path_words]: loop 4:
-    Source: 'crates/neo-verified/src/paths.rs', lines 166:20-169:21
-    Visibility: public -/
-@[rust_loop]
-def paths.path_words_loop2_loop0_loop0
-  (words : alloc.vec.Vec Std.U64) (node : Array field.Gl 4#usize)
-  (lane : Std.Usize) :
-  Result (alloc.vec.Vec Std.U64)
-  := do
-  loop
-    (fun (words1, lane1) => paths.path_words_loop2_loop0_loop0.body node words1
-      lane1)
-    (words, lane)
-
-/-- [neo_verified::paths::path_words]: loop body 3:
-    Source: 'crates/neo-verified/src/paths.rs', lines 156:8-174:9
-    Visibility: public -/
-@[rust_loop_body]
-def paths.path_words_loop2_loop0.body
-  (indices : Slice Std.U64)
-  (levels : alloc.vec.Vec ((alloc.vec.Vec (Std.Usize × (Array field.Gl
-  4#usize))) × (alloc.vec.Vec (Std.Usize × (Array field.Gl 4#usize)))))
-  (q : Std.Usize) (complete : Bool) (words : alloc.vec.Vec Std.U64)
-  (level : Std.Usize) :
-  Result (ControlFlow (Bool × (alloc.vec.Vec Std.U64) × Std.Usize) (Bool ×
-    (alloc.vec.Vec Std.U64)))
-  := do
-  let i := alloc.vec.Vec.len levels
-  if level < i
-  then
-    if complete
-    then
-      let (fetched, known) ←
-        alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-          ((alloc.vec.Vec (Std.Usize × (Array field.Gl 4#usize))) ×
-          (alloc.vec.Vec (Std.Usize × (Array field.Gl 4#usize))))) levels
-          level
-      let i1 ← Slice.index_usize indices q
-      let i2 ← lift (UScalar.cast .Usize i1)
-      let i3 ← lift (UScalar.cast .U32 level)
-      let i4 ← lift (core.num.Usize.wrapping_shr i2 i3)
-      let sibling ← lift (i4 ^^^ 1#usize)
-      let s := alloc.vec.Vec.deref fetched
-      let o ← paths.find s sibling
-      let node ←
-        match o with
-        | none => let s1 := alloc.vec.Vec.deref known
-                  paths.find s1 sibling
-        | some _ => ok o
-      match node with
-      | none =>
-        let level1 ← lift (core.num.Usize.wrapping_add level 1#usize)
-        ok (cont (false, words, level1))
-      | some node1 =>
-        let words1 ← paths.path_words_loop2_loop0_loop0 words node1 0#usize
-        let level1 ← lift (core.num.Usize.wrapping_add level 1#usize)
-        ok (cont (complete, words1, level1))
-    else ok (done (complete, words))
-  else ok (done (complete, words))
-
-/-- [neo_verified::paths::path_words]: loop 3:
-    Source: 'crates/neo-verified/src/paths.rs', lines 156:8-174:9
-    Visibility: public -/
-@[rust_loop]
-def paths.path_words_loop2_loop0
-  (indices : Slice Std.U64)
-  (levels : alloc.vec.Vec ((alloc.vec.Vec (Std.Usize × (Array field.Gl
-  4#usize))) × (alloc.vec.Vec (Std.Usize × (Array field.Gl 4#usize)))))
-  (complete : Bool) (words : alloc.vec.Vec Std.U64) (q : Std.Usize)
-  (level : Std.Usize) :
-  Result (Bool × (alloc.vec.Vec Std.U64))
-  := do
-  loop
-    (fun (complete1, words1, level1) => paths.path_words_loop2_loop0.body
-      indices levels q complete1 words1 level1)
-    (complete, words, level)
-
-/-- [neo_verified::paths::path_words]: loop body 2:
-    Source: 'crates/neo-verified/src/paths.rs', lines 154:4-176:5
-    Visibility: public -/
-@[rust_loop_body]
-def paths.path_words_loop2.body
-  (indices : Slice Std.U64)
-  (levels : alloc.vec.Vec ((alloc.vec.Vec (Std.Usize × (Array field.Gl
-  4#usize))) × (alloc.vec.Vec (Std.Usize × (Array field.Gl 4#usize)))))
-  (complete : Bool) (words : alloc.vec.Vec Std.U64) (q : Std.Usize) :
-  Result (ControlFlow (Bool × (alloc.vec.Vec Std.U64) × Std.Usize) (Bool ×
-    (alloc.vec.Vec Std.U64)))
-  := do
-  let i := Slice.len indices
-  if q < i
-  then
-    if complete
-    then
-      let (complete1, words1) ←
-        paths.path_words_loop2_loop0 indices levels complete words q 0#usize
-      let q1 ← lift (core.num.Usize.wrapping_add q 1#usize)
-      ok (cont (complete1, words1, q1))
-    else ok (done (complete, words))
-  else ok (done (complete, words))
-
-/-- [neo_verified::paths::path_words]: loop 2:
-    Source: 'crates/neo-verified/src/paths.rs', lines 154:4-176:5
-    Visibility: public -/
-@[rust_loop]
-def paths.path_words_loop2
-  (indices : Slice Std.U64)
-  (levels : alloc.vec.Vec ((alloc.vec.Vec (Std.Usize × (Array field.Gl
-  4#usize))) × (alloc.vec.Vec (Std.Usize × (Array field.Gl 4#usize)))))
-  (complete : Bool) (words : alloc.vec.Vec Std.U64) (q : Std.Usize) :
-  Result (Bool × (alloc.vec.Vec Std.U64))
-  := do
-  loop
-    (fun (complete1, words1, q1) => paths.path_words_loop2.body indices levels
-      complete1 words1 q1)
-    (complete, words, q)
-
-/-- [neo_verified::paths::path_words]:
-    Source: 'crates/neo-verified/src/paths.rs', lines 127:0-182:1
-    Visibility: public -/
-def paths.path_words
-  (proof : paths.Paths) (indices : Slice Std.U64) :
-  Result (alloc.vec.Vec Std.U64)
-  := do
-  let (proof1, known) ←
-    paths.path_words_loop0 proof indices (alloc.vec.Vec.new (Std.Usize ×
-      (Array field.Gl 4#usize))) 0#usize
-  let i := Slice.len indices
-  let i1 := alloc.vec.Vec.len proof1.leaves
-  let (levels, next, complete) ←
-    paths.path_words_loop1 proof1.siblings proof1.depth known
-      (alloc.vec.Vec.new ((alloc.vec.Vec (Std.Usize × (Array field.Gl
-      4#usize))) × (alloc.vec.Vec (Std.Usize × (Array field.Gl 4#usize)))))
-      0#usize (i = i1) 0#usize
-  let complete1 ←
-    if complete
-    then let i2 := alloc.vec.Vec.len proof1.siblings
-         ok (next = i2)
-    else ok false
-  let (complete2, words) ←
-    paths.path_words_loop2 indices levels complete1 (alloc.vec.Vec.new Std.U64)
-      0#usize
-  if complete2
-  then ok words
-  else ok (alloc.vec.Vec.new Std.U64)
-
-/-- [neo_verified::native::hint_words]:
-    Source: 'crates/neo-verified/src/native.rs', lines 22:0-37:1
-    Visibility: public -/
-def native.hint_words
-  (hint : backend.Hint) (inputs : Slice Std.U64) :
-  Result (alloc.vec.Vec Std.U64)
-  := do
-  match hint with
-  | backend.Hint.Inverse =>
-    let b ← core.slice.Slice.is_empty inputs
-    let word ←
-      if b
-      then ok 0#u64
-      else
-        do
-        let i ← Slice.index_usize inputs 0#usize
-        let g ← field.reduce i
-        let g1 ← field.gl_inv g
-        field.gl_word g1
-    alloc.vec.Vec.push (alloc.vec.Vec.new Std.U64) word
-  | backend.Hint.Words words =>
-    alloc.vec.CloneVec.clone core.clone.CloneU64 words
-  | backend.Hint.Paths proof => paths.path_words proof inputs
-
-/-- [neo_verified::r1cs::{neo_verified::r1cs::R1cs}::side_value]: loop body 0:
-    Source: 'crates/neo-verified/src/r1cs.rs', lines 107:8-110:9 -/
-@[rust_loop_body]
-def r1cs.R1cs.side_value_loop.body
-  (self : r1cs.R1cs) (values : Slice field.Gl) («to» : Std.Usize)
-  (sum : field.Gl) (k : Std.Usize) :
-  Result (ControlFlow (field.Gl × Std.Usize) field.Gl)
-  := do
-  if k < «to»
-  then
-    let g ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice field.Gl)
-        self.coefficient k
-    let i ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32)
-        self.column k
-    let i1 ← lift (UScalar.cast .Usize i)
-    let g1 ← Slice.index_usize values i1
-    let g2 ← field.gl_mul g g1
-    let sum1 ← field.gl_add sum g2
-    let k1 ← lift (core.num.Usize.wrapping_add k 1#usize)
-    ok (cont (sum1, k1))
-  else ok (done sum)
-
-/-- [neo_verified::r1cs::{neo_verified::r1cs::R1cs}::side_value]: loop 0:
-    Source: 'crates/neo-verified/src/r1cs.rs', lines 107:8-110:9 -/
-@[rust_loop]
-def r1cs.R1cs.side_value_loop
-  (self : r1cs.R1cs) (values : Slice field.Gl) («to» : Std.Usize)
-  (sum : field.Gl) (k : Std.Usize) :
-  Result field.Gl
-  := do
-  loop
-    (fun (sum1, k1) => r1cs.R1cs.side_value_loop.body self values «to» sum1
-      k1)
-    (sum, k)
-
-/-- [neo_verified::r1cs::{neo_verified::r1cs::R1cs}::side_value]:
-    Source: 'crates/neo-verified/src/r1cs.rs', lines 104:4-112:5 -/
-@[reducible]
-def r1cs.R1cs.side_value
-  (self : r1cs.R1cs) (values : Slice field.Gl) («from» : Std.Usize)
-  («to» : Std.Usize) :
-  Result field.Gl
-  := do
-  r1cs.R1cs.side_value_loop self values «to» field.GL_ZERO «from»
-
-/-- [neo_verified::r1cs::{neo_verified::r1cs::R1cs}::bounds]:
-    Source: 'crates/neo-verified/src/r1cs.rs', lines 64:4-72:5
-    Visibility: public -/
-def r1cs.R1cs.bounds
-  (self : r1cs.R1cs) (row : Std.Usize) :
-  Result (Std.Usize × (Array Std.Usize 3#usize))
-  := do
-  let (self1, start) ←
-    if row = 0#usize
-    then ok (self, 0#usize)
-    else
-      do
-      let i ← lift (core.num.Usize.wrapping_sub row 1#usize)
-      let a ←
-        alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice (Array
-          Std.U32 3#usize)) self.ends i
-      let i1 ← Array.index_usize a 2#usize
-      let start1 ← lift (UScalar.cast .Usize i1)
-      ok (self, start1)
-  let a ←
-    alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice (Array Std.U32
-      3#usize)) self1.ends row
-  let a1 ← Array.index_usize a 0#usize
-  let b ← Array.index_usize a 1#usize
-  let c ← Array.index_usize a 2#usize
-  let i ← lift (UScalar.cast .Usize a1)
-  let i1 ← lift (UScalar.cast .Usize b)
-  let i2 ← lift (UScalar.cast .Usize c)
-  ok (start, Array.make 3#usize [ i, i1, i2 ])
-
-/-- [neo_verified::r1cs::{neo_verified::r1cs::R1cs}::rows]:
-    Source: 'crates/neo-verified/src/r1cs.rs', lines 59:4-61:5
-    Visibility: public -/
-def r1cs.R1cs.rows (self : r1cs.R1cs) : Result Std.Usize := do
-  ok (alloc.vec.Vec.len self.ends)
-
-/-- [neo_verified::r1cs::fails]: loop body 0:
-    Source: 'crates/neo-verified/src/r1cs.rs', lines 119:4-124:5
-    Visibility: public -/
-@[rust_loop_body]
-def r1cs.fails_loop.body
-  (system : r1cs.R1cs) (values : Slice field.Gl) (failed : Bool)
-  (row : Std.Usize) :
-  Result (ControlFlow (Bool × Std.Usize) Bool)
-  := do
-  let i ← r1cs.R1cs.rows system
-  if row < i
-  then
-    if failed
-    then ok (done failed)
-    else
-      let (start, a) ← r1cs.R1cs.bounds system row
-      let a1 ← Array.index_usize a 0#usize
-      let b ← Array.index_usize a 1#usize
-      let c ← Array.index_usize a 2#usize
-      let g ← r1cs.R1cs.side_value system values start a1
-      let g1 ← r1cs.R1cs.side_value system values a1 b
-      let left ← field.gl_mul g g1
-      let i1 ← field.gl_word left
-      let g2 ← r1cs.R1cs.side_value system values b c
-      let i2 ← field.gl_word g2
-      let row1 ← lift (core.num.Usize.wrapping_add row 1#usize)
-      ok (cont (i1 != i2, row1))
-  else ok (done failed)
-
-/-- [neo_verified::r1cs::fails]: loop 0:
-    Source: 'crates/neo-verified/src/r1cs.rs', lines 119:4-124:5
-    Visibility: public -/
-@[rust_loop]
-def r1cs.fails_loop
-  (system : r1cs.R1cs) (values : Slice field.Gl) (failed : Bool)
-  (row : Std.Usize) :
-  Result Bool
-  := do
-  loop
-    (fun (failed1, row1) => r1cs.fails_loop.body system values failed1 row1)
-    (failed, row)
-
-/-- [neo_verified::r1cs::fails]:
-    Source: 'crates/neo-verified/src/r1cs.rs', lines 116:0-126:1
-    Visibility: public -/
-@[reducible]
-def r1cs.fails
-  (system : r1cs.R1cs) (values : Slice field.Gl) : Result Bool := do
-  r1cs.fails_loop system values false 0#usize
-
-/-- [neo_verified::r1cs::{neo_verified::r1cs::R1cs}::columns]:
-    Source: 'crates/neo-verified/src/r1cs.rs', lines 55:4-57:5
-    Visibility: public -/
-def r1cs.R1cs.impl.columns (self : r1cs.R1cs) : Result Std.Usize := do
-  ok self.columns
-
-/-- [neo_verified::native::{impl neo_verified::backend::Backend<neo_verified::field::Gl, neo_verified::field::Ext> for neo_verified::native::Native}::r1cs]:
-    Source: 'crates/neo-verified/src/native.rs', lines 169:4-176:5
-    Visibility: public -/
-def native.Native.Insts.Neo_verifiedBackendBackendGlExt.r1cs
-  (self : native.Native) (system : r1cs.R1cs) (columns : Slice field.Gl)
-  (what : Str) :
-  Result ((core.result.Result Unit backend.Rejected) × native.Native)
-  := do
-  let i := Slice.len columns
-  let i1 ← r1cs.R1cs.impl.columns system
-  massert (i = i1)
-  let b ← r1cs.fails system columns
-  if b
-  then ok (core.result.Result.Err what, self)
-  else ok (core.result.Result.Ok (), self)
-
-/-- [neo_verified::native::{impl neo_verified::backend::Backend<neo_verified::field::Gl, neo_verified::field::Ext> for neo_verified::native::Native}::hint]: loop body 0:
-    Source: 'crates/neo-verified/src/native.rs', lines 154:8-157:9
-    Visibility: public -/
-@[rust_loop_body]
-def native.Native.Insts.Neo_verifiedBackendBackendGlExt.hint_loop0.body
-  (inputs : Slice field.Gl) (values : alloc.vec.Vec Std.U64) (k : Std.Usize) :
-  Result (ControlFlow ((alloc.vec.Vec Std.U64) × Std.Usize) (alloc.vec.Vec
-    Std.U64))
-  := do
-  let i := Slice.len inputs
-  if k < i
-  then
-    let g ← Slice.index_usize inputs k
-    let i1 ← field.gl_word g
-    let values1 ← alloc.vec.Vec.push values i1
-    let k1 ← lift (core.num.Usize.wrapping_add k 1#usize)
-    ok (cont (values1, k1))
-  else ok (done values)
-
-/-- [neo_verified::native::{impl neo_verified::backend::Backend<neo_verified::field::Gl, neo_verified::field::Ext> for neo_verified::native::Native}::hint]: loop 0:
-    Source: 'crates/neo-verified/src/native.rs', lines 154:8-157:9
-    Visibility: public -/
-@[rust_loop]
-def native.Native.Insts.Neo_verifiedBackendBackendGlExt.hint_loop0
-  (inputs : Slice field.Gl) (values : alloc.vec.Vec Std.U64) (k : Std.Usize) :
-  Result (alloc.vec.Vec Std.U64)
-  := do
-  loop
-    (fun (values1, k1) =>
-      native.Native.Insts.Neo_verifiedBackendBackendGlExt.hint_loop0.body
-      inputs values1 k1)
-    (values, k)
 
 end neo_verified

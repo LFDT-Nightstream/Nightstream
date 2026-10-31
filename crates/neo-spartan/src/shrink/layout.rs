@@ -3,14 +3,16 @@
 //! and the block part of the matrix MLEs in closed form.
 //!
 //! Owns: the sum of the block template entries over all blocks at a point
-//! pair. Does not own the positions (`neo_verified::layout`), the templates
-//! (`circuit/block.rs`), the recording or the sum-checks.
+//! pair. Does not own the positions (`neo_verified::layout`), the diagonal
+//! sums (`neo_verified::diagonal`), the templates (`circuit/block.rs`), the
+//! recording or the sum-checks.
 
 use serde::{Deserialize, Serialize};
 
 use crate::circuit::block::entries;
-use crate::field::{eq_table, Ext, Gl};
+use crate::field::{ext_from_verified, exts_to_verified, verified_eq_table, Ext, Gl};
 use neo_verified::circuit::{Kind, KINDS, MATRICES};
+use neo_verified::diagonal::{diagonal, Track};
 use neo_verified::layout::{cell_variables, place, row_variables, Part, Shape};
 use p3_field_v08::PrimeCharacteristicRing;
 
@@ -81,8 +83,8 @@ pub(crate) fn block_part(shape: &Shape, rx: &[Ext], ry: &[Ext], rho: &[Ext; MATR
             continue;
         }
         let (rows, cells) = parts(shape, kind);
-        let row_low = rows.map(|part| eq_table(&rx[..bits(part.stride)]));
-        let cell_low = cells.map(|part| eq_table(&ry[..bits(part.stride)]));
+        let row_low = rows.map(|part| verified_eq_table(&rx[..bits(part.stride)]));
+        let cell_low = cells.map(|part| verified_eq_table(&ry[..bits(part.stride)]));
         // sums[row part][cell part]; cell part 2 is the constant one.
         let mut sums = [[Ext::ZERO; 3]; 2];
         for entry in entries(kind) {
@@ -103,72 +105,27 @@ pub(crate) fn block_part(shape: &Shape, rx: &[Ext], ry: &[Ext], rho: &[Ext; MATR
             if row.stride == 0 {
                 continue;
             }
-            let x = (&rx[bits(row.stride)..], (row.start / row.stride) as u64);
+            let x = Track {
+                point: exts_to_verified(&rx[bits(row.stride)..]),
+                offset: row.start / row.stride,
+            };
             for (cell_part, &sum) in row_sums.iter().enumerate() {
                 if sum == Ext::ZERO {
                     continue;
                 }
                 let diagonal = if cell_part == 2 {
-                    one_column * diagonal(&[x], count as u64)
+                    one_column * ext_from_verified(diagonal(std::slice::from_ref(&x), count))
                 } else {
                     let cell = cells[cell_part];
-                    let y = (&ry[bits(cell.stride)..n], (cell.start / cell.stride) as u64);
-                    w_half * diagonal(&[x, y], count as u64)
+                    let y = Track {
+                        point: exts_to_verified(&ry[bits(cell.stride)..n]),
+                        offset: cell.start / cell.stride,
+                    };
+                    w_half * ext_from_verified(diagonal(&[x.clone(), y], count))
                 };
                 total += sum * diagonal;
             }
         }
     }
     total
-}
-
-/// `Σ_{b < count} Π_tracks eq(point, offset + b)`, by a carry walk over the
-/// bits of `b`, low bit first. The state is each track's carry and whether
-/// the low bits of `b` are below those of `count`. A track's value must fit
-/// in its point's coordinates.
-pub(crate) fn diagonal(tracks: &[(&[Ext], u64)], count: u64) -> Ext {
-    let bits = tracks
-        .iter()
-        .map(|(point, offset)| point.len().max(64 - offset.leading_zeros() as usize))
-        .chain(std::iter::once(64 - count.leading_zeros() as usize))
-        .max()
-        .unwrap_or(0);
-    let carries = 1usize << tracks.len();
-    // states[carry bits][below]
-    let mut states = vec![[Ext::ZERO; 2]; carries];
-    states[0][0] = Ext::ONE;
-    for t in 0..bits {
-        let count_bit = (count >> t) & 1;
-        let mut next = vec![[Ext::ZERO; 2]; carries];
-        for (carry, values) in states.iter().enumerate() {
-            for (below, &value) in values.iter().enumerate() {
-                if value == Ext::ZERO {
-                    continue;
-                }
-                'bit: for b in 0..2u64 {
-                    let next_below = match b.cmp(&count_bit) {
-                        std::cmp::Ordering::Less => 1,
-                        std::cmp::Ordering::Greater => 0,
-                        std::cmp::Ordering::Equal => below,
-                    };
-                    let mut factor = value;
-                    let mut next_carry = 0;
-                    for (i, &(point, offset)) in tracks.iter().enumerate() {
-                        let sum = ((offset >> t) & 1) + b + ((carry >> i) & 1) as u64;
-                        let bit = sum & 1;
-                        next_carry |= ((sum >> 1) as usize) << i;
-                        factor *= match point.get(t) {
-                            Some(&x) if bit == 1 => x,
-                            Some(&x) => Ext::ONE - x,
-                            None if bit == 1 => continue 'bit,
-                            None => Ext::ONE,
-                        };
-                    }
-                    next[next_carry][next_below] += factor;
-                }
-            }
-        }
-        states = next;
-    }
-    states[0][1]
 }

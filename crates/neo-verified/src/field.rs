@@ -160,6 +160,15 @@ pub const EXT_ONE: Ext = Ext {
     c2: GL_ZERO,
 };
 
+/// `a` with canonical words.
+pub fn ext_reduce(a: Ext) -> Ext {
+    Ext {
+        c0: Gl(reduce_word(a.c0.0)),
+        c1: Gl(reduce_word(a.c1.0)),
+        c2: Gl(reduce_word(a.c2.0)),
+    }
+}
+
 pub fn ext_of_gl(a: Gl) -> Ext {
     Ext {
         c0: Gl(reduce_word(a.0)),

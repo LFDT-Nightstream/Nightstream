@@ -194,6 +194,13 @@ structure layout.Shape where
   glue_cells : Std.Usize
   publics : Std.Usize
 
+/-- [neo_verified::diagonal::Track]
+    Source: 'crates/neo-verified/src/diagonal.rs', lines 14:0-17:1
+    Visibility: public -/
+structure diagonal.Track where
+  point : alloc.vec.Vec field.Ext
+  offset : Std.Usize
+
 /-- [neo_verified::hash::Duplex]
     Source: 'crates/neo-verified/src/hash.rs', lines 16:0-20:1
     Visibility: public -/

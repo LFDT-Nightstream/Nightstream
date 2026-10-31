@@ -120,7 +120,7 @@ Parameters: `{pushes : List CompressionLean.Setup.Push}`.
 
 ## Ports
 
-`ports.json` has 585 entries: 529 Lean declarations transcribe 324 Rust items.
+`ports.json` has 585 entries: 529 Lean declarations transcribe 329 Rust items.
 
 | Lean module | Declarations |
 |---|---:|
@@ -173,7 +173,7 @@ Parameters: `{pushes : List CompressionLean.Setup.Push}`.
 | `crates/neo-spartan/src/circuit/fold.rs` | 8 |
 | `crates/neo-spartan/src/circuit/poseidon2.rs` | 1 |
 | `crates/neo-spartan/src/circuit/record.rs` | 4 |
-| `crates/neo-spartan/src/field.rs` | 4 |
+| `crates/neo-spartan/src/field.rs` | 3 |
 | `crates/neo-spartan/src/gkr.rs` | 10 |
 | `crates/neo-spartan/src/hash.rs` | 2 |
 | `crates/neo-spartan/src/lib.rs` | 12 |
@@ -184,8 +184,8 @@ Parameters: `{pushes : List CompressionLean.Setup.Push}`.
 | `crates/neo-spartan/src/ring.rs` | 11 |
 | `crates/neo-spartan/src/setup.rs` | 5 |
 | `crates/neo-spartan/src/shrink/evaluate.rs` | 8 |
-| `crates/neo-spartan/src/shrink/layout.rs` | 2 |
-| `crates/neo-spartan/src/shrink/mod.rs` | 13 |
+| `crates/neo-spartan/src/shrink/layout.rs` | 1 |
+| `crates/neo-spartan/src/shrink/mod.rs` | 10 |
 | `crates/neo-spartan/src/sumcheck.rs` | 1 |
 | `crates/neo-spartan/src/verifier.rs` | 9 |
 | `crates/neo-spartan/src/whir/mod.rs` | 22 |
@@ -198,6 +198,7 @@ Parameters: `{pushes : List CompressionLean.Setup.Push}`.
 | `crates/neo-verified/src/block.rs` | 9 |
 | `crates/neo-verified/src/circuit.rs` | 6 |
 | `crates/neo-verified/src/degrees.rs` | 9 |
+| `crates/neo-verified/src/diagonal.rs` | 8 |
 | `crates/neo-verified/src/field.rs` | 17 |
 | `crates/neo-verified/src/hash.rs` | 13 |
 | `crates/neo-verified/src/layout.rs` | 14 |
@@ -205,6 +206,7 @@ Parameters: `{pushes : List CompressionLean.Setup.Push}`.
 | `crates/neo-verified/src/poseidon2.rs` | 1 |
 | `crates/neo-verified/src/r1cs.rs` | 1 |
 | `crates/neo-verified/src/record.rs` | 35 |
+| `crates/neo-verified/src/sumcheck.rs` | 2 |
 | `crates/nightstream-fprime/src/package.rs` | 5 |
 | `crates/nightstream-fprime/src/package/r1cs.rs` | 3 |
 | `crates/nightstream-fprime/src/package/terminal.rs` | 2 |

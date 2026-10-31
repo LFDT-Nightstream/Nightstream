@@ -425,7 +425,8 @@ def algebra.eq_table
   algebra.eq_table_loop0 backendBackendInst b1 point table 0#usize
 
 /-- [neo_verified::algebra::index_bit]:
-    Source: 'crates/neo-verified/src/algebra.rs', lines 122:0-124:1 -/
+    Source: 'crates/neo-verified/src/algebra.rs', lines 122:0-124:1
+    Visibility: public -/
 def algebra.index_bit (index : Std.Usize) (t : Std.Usize) : Result Bool := do
   let i ← lift (UScalar.cast .Usize core.num.Usize.BITS)
   if t < i
@@ -493,7 +494,7 @@ def algebra.eq_at
   algebra.eq_at_loop backendBackendInst b1 point index total 0#usize
 
 /-- [neo_verified::field::ext_of_gl]:
-    Source: 'crates/neo-verified/src/field.rs', lines 163:0-169:1
+    Source: 'crates/neo-verified/src/field.rs', lines 172:0-178:1
     Visibility: public -/
 def field.ext_of_gl (a : field.Gl) : Result field.Ext := do
   let i ← field.reduce_word a

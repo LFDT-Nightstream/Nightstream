@@ -35,7 +35,7 @@ leanOptions = { autoImplicit = false, relaxedAutoImplicit = false, warningAsErro
 [[lean_lib]]
 name = "NeoVerified"
 roots = ["NeoVerified.Types", "NeoVerified.Funs1", "NeoVerified.Funs2", "NeoVerified.Funs3", "NeoVerified.Funs4",
-  "NeoVerified.Funs5", "NeoVerified.Funs6", "NeoVerified.Funs"]
+  "NeoVerified.Funs5", "NeoVerified.Funs6", "NeoVerified.Funs7", "NeoVerified.Funs"]
 
 [[lean_lib]]
 name = "CompressionLeanRust"

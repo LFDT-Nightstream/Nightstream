@@ -273,6 +273,34 @@ def array4 (xs : List ℕ) : Option (Aeneas.Std.Array field.Gl 4#usize) :=
   if h : (xs.map u64).length = 4 then some (Aeneas.Std.Array.make 4#usize (xs.map u64) (by simp [h])) else none
 
 open neo_verified in
+def verdict (r : core.result.Result Unit backend.Rejected) : String :=
+  match r with
+  | .Ok _ => "ok"
+  | .Err _ => "err"
+
+open neo_verified in
+/-- A root, a bit count and its bits, a value count and its values, and one path node per bit. -/
+def leafArgs (rest : List ℕ) : Option (Aeneas.Std.Array field.Gl 4#usize × Slice field.Gl × Slice field.Gl ×
+    Slice (Aeneas.Std.Array field.Gl 4#usize)) := do
+  let root ← array4 (rest.take 4)
+  let n := rest.getD 4 0
+  let bits ← sliceOf ((rest.drop 5).take n |>.map u64)
+  let m := rest.getD (5 + n) 0
+  let values ← sliceOf ((rest.drop (6 + n)).take m |>.map u64)
+  let path ← sliceOf (((List.range n).map fun k => (rest.drop (6 + n + m + 4 * k)).take 4).filterMap array4)
+  pure (root, bits, values, path)
+
+open neo_verified in
+/-- `count` groups, each a length and three words per value, and the words after them. -/
+def groupArgs : ℕ → List ℕ → Option (List (alloc.vec.Vec field.Ext) × List ℕ)
+  | 0, rest => some ([], rest)
+  | count + 1, len :: rest => do
+    let group ← vecOf (extList (rest.take (3 * len)))
+    let (groups, tail) ← groupArgs count (rest.drop (3 * len))
+    pure (group :: groups, tail)
+  | _, [] => none
+
+open neo_verified in
 /-- The circuit helpers run on the translated `Native`, and the models that only the circuit core
 calls. -/
 def circuitCase : String → List ℕ → Option String
@@ -315,6 +343,21 @@ def circuitCase : String → List ℕ → Option String
     let bits ← sliceOf ((rest.drop 5).take n |>.map u64)
     let path ← sliceOf (((List.range n).map fun k => (rest.drop (5 + n + 4 * k)).take 4).filterMap array4)
     outcome (hash.merkle_root native () leaf bits path) fun p => glsWords p.1.val
+  | "two_adic_generator", [b] => outcome (field.two_adic_generator (usize b)) value
+  | "path_ok", rest => do
+    let (root, bits, values, path) ← leafArgs rest
+    outcome (setup.path_ok native () root bits values path) fun p => verdict p.1
+  | "check", vars :: rest => do
+    let (root, bits, values, path) ← leafArgs rest
+    let n := rest.getD 4 0
+    let m := rest.getD (5 + n) 0
+    let (groups, alpha) ← groupArgs (rest.getD (6 + n + m + 4 * n) 0) (rest.drop (7 + n + m + 4 * n))
+    let groups ← sliceOf groups
+    let alpha ← if h : (extList alpha).length = 3 then some (Aeneas.Std.Array.make 3#usize (extList alpha) h) else none
+    outcome (setup.check native () root (usize vars) bits values path groups alpha) fun p =>
+      match p.1 with
+      | .Ok v => s!"ok {extsWords v.val}"
+      | .Err _ => "err"
   | "alloc.vec.Vec.new", [] => s!"ok {glsWords (alloc.vec.Vec.new U64).val}"
   | "alloc.vec.Vec.push", xs => do
     let v ← vecOf ((xs.dropLast).map u64)

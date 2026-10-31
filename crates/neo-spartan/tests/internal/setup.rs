@@ -9,7 +9,7 @@ use crate::circuit::algebra::eq_eval;
 use crate::circuit::Fast;
 use crate::field::{eq_table, Ext, Gl};
 use crate::hash::{compress, hash_leaf};
-use crate::setup::{build, check, fold, partials, query_point, Leaf, LeafView, Store};
+use crate::setup::{build, fold, partials, query_point, Leaf, LeafView, Store};
 use crate::sumcheck::evaluate;
 use crate::Error;
 
@@ -46,7 +46,16 @@ fn run_check(
 ) -> Result<Vec<Ext>, Error> {
     let b = &mut Fast;
     let view = LeafView::read(b, Some(leaf), COUNT, VARIABLES)?;
-    check(b, *root, VARIABLES, &bits(index), &view, groups, alpha)
+    Ok(neo_verified::setup::check(
+        b,
+        *root,
+        VARIABLES,
+        &bits(index),
+        &view.values,
+        &view.path,
+        groups,
+        alpha,
+    )?)
 }
 
 fn lift(values: &[Gl]) -> Vec<Ext> {

@@ -38,7 +38,7 @@ def notPorts : List (String × List Name) := [
       ``CompressionLean.Terminal.Package.Numbering]),
   ("a literal, the equality of canonical words, a default, a Plonky3 constant, or a map between words and fields for the proofs; `ports.json` names items of this repository's crates",
     [``CompressionLean.Replay.Word.toNat, ``CompressionLean.Replay.Word.toF, ``CompressionLean.Replay.Word.cast,
-      ``CompressionLean.Replay.generator, ``CompressionLean.Replay.twoAdicGenerator,
+      ``CompressionLean.Replay.generator,
       ``CompressionLean.Replay.Word.instOfNat, ``CompressionLean.Replay.Word.instBEq,
       ``CompressionLean.Replay.Word.instInhabited, ``CompressionLean.Replay.Ext.instOfNat,
       ``CompressionLean.Replay.Ext.instBEq]),

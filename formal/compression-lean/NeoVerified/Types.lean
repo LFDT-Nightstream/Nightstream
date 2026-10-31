@@ -102,7 +102,7 @@ structure backend.Backend (Self : Type _) (Self_F : Type _) (Self_E : Type _)
     ((core.result.Result Unit backend.Rejected) × Self)
 
 /-- [neo_verified::field::Ext]
-    Source: 'crates/neo-verified/src/field.rs', lines 145:0-149:1
+    Source: 'crates/neo-verified/src/field.rs', lines 157:0-161:1
     Visibility: public -/
 structure field.Ext where
   c0 : field.Gl

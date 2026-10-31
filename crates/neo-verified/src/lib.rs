@@ -21,4 +21,5 @@ pub mod paths;
 pub mod poseidon2;
 pub mod r1cs;
 pub mod record;
+pub mod setup;
 pub mod sumcheck;

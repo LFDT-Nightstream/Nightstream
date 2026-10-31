@@ -17,6 +17,35 @@ set_option linter.internalConstructors false
 
 
 namespace neo_verified
+/-- [neo_verified::hash::{neo_verified::hash::Duplex<B, Clause0_F, Clause0_E>}::observe_slice]: loop 0:
+    Source: 'crates/neo-verified/src/hash.rs', lines 42:8-45:9
+    Visibility: public -/
+@[rust_loop]
+def hash.Duplex.observe_slice_loop
+  {B : Type _} {Clause0_F : Type _} {Clause0_E : Type _} (backendBackendInst :
+  backend.Backend B Clause0_F Clause0_E)
+  (self : hash.Duplex B Clause0_F Clause0_E) (b : B) (values : Slice Clause0_F)
+  (i : Std.Usize) :
+  Result ((hash.Duplex B Clause0_F Clause0_E) × B)
+  := do
+  loop
+    (fun (self1, b1, i1) => hash.Duplex.observe_slice_loop.body
+      backendBackendInst values self1 b1 i1)
+    (self, b, i)
+
+/-- [neo_verified::hash::{neo_verified::hash::Duplex<B, Clause0_F, Clause0_E>}::observe_slice]:
+    Source: 'crates/neo-verified/src/hash.rs', lines 40:4-46:5
+    Visibility: public -/
+@[reducible]
+def hash.Duplex.observe_slice
+  {B : Type _} {Clause0_F : Type _} {Clause0_E : Type _} (backendBackendInst :
+  backend.Backend B Clause0_F Clause0_E)
+  (self : hash.Duplex B Clause0_F Clause0_E) (b : B) (values : Slice Clause0_F)
+  :
+  Result ((hash.Duplex B Clause0_F Clause0_E) × B)
+  := do
+  hash.Duplex.observe_slice_loop backendBackendInst self b values 0#usize
+
 /-- [neo_verified::hash::{neo_verified::hash::Duplex<B, Clause0_F, Clause0_E>}::observe_ext]:
     Source: 'crates/neo-verified/src/hash.rs', lines 49:4-54:5
     Visibility: public -/
@@ -1185,20 +1214,5 @@ def paths.insert_loop.body
     let k1 ← lift (core.num.Usize.wrapping_add k 1#usize)
     ok (cont (sorted2, placed1, k1))
   else ok (done (sorted, placed))
-
-/-- [neo_verified::paths::insert]: loop 0:
-    Source: 'crates/neo-verified/src/paths.rs', lines 42:4-52:5 -/
-@[rust_loop]
-def paths.insert_loop
-  (nodes : alloc.vec.Vec (Std.Usize × (Array field.Gl 4#usize)))
-  (index : Std.Usize) (node : Array field.Gl 4#usize)
-  (sorted : alloc.vec.Vec (Std.Usize × (Array field.Gl 4#usize)))
-  (placed : Bool) (k : Std.Usize) :
-  Result ((alloc.vec.Vec (Std.Usize × (Array field.Gl 4#usize))) × Bool)
-  := do
-  loop
-    (fun (sorted1, placed1, k1) => paths.insert_loop.body nodes index node
-      sorted1 placed1 k1)
-    (sorted, placed, k)
 
 end neo_verified

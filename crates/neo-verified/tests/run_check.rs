@@ -12,7 +12,7 @@ use neo_verified::field::{
     canonical, ext_add, ext_mul, ext_neg, ext_of_gl, ext_pow, ext_reduce, ext_scale, ext_sub, gl_add, gl_inv, gl_mul,
     gl_neg, gl_pow, gl_sub, gl_word, reduce, Ext, EXT_ONE, EXT_ZERO, GL_ONE, GL_ZERO, MODULUS,
 };
-use neo_verified::field::{ext_inv, Gl};
+use neo_verified::field::{ext_inv, two_adic_generator, Gl};
 use neo_verified::hash::{compress, hash_leaf, merkle_root};
 use neo_verified::layout::{
     block_cell, block_row, cell_variables, column, entry_column, glue_row, one, place, row_variables, slot, split,
@@ -20,6 +20,7 @@ use neo_verified::layout::{
 };
 use neo_verified::native::Native;
 use neo_verified::poseidon2::{permute, DIAGONAL, HALF_FULL_ROUNDS, INITIAL, PARTIAL, PARTIAL_ROUNDS, TERMINAL};
+use neo_verified::setup::{check, path_ok};
 use neo_verified::sumcheck::{replay_claim, round_claim};
 use std::ops::ControlFlow;
 use std::panic::{catch_unwind, UnwindSafe};
@@ -850,6 +851,87 @@ fn translation_runs_as_rust() {
     assert_eq!(stdout.trim(), format!("rustCheck: {} cases agree", cases.len()));
 }
 
+/// The setup leaf check on `Native`: valid paths, a changed root lane, groups that do not cover
+/// the leaf, and the generator past 32 bits. A leaf is its length, then its words; the groups are
+/// their count, then each group's length and extension values.
+fn setup_cases(case: &mut impl FnMut(&str, &[u64], String), pool: &[u64], values: &[Ext]) {
+    for bits in [0usize, 1, 3, 31, 32, 33, 64, usize::MAX] {
+        case(
+            "two_adic_generator",
+            &[bits as u64],
+            outcome(move || gl_word(two_adic_generator(bits)), |w| w.to_string()),
+        );
+    }
+    for i in 0..16 {
+        let oracles = 2 + i % 3;
+        let leaf: Vec<Gl> = (0..8 * oracles)
+            .map(|k| reduce(pool[(i + k) % pool.len()]))
+            .collect();
+        let depth = 1 + i % 4;
+        let bits: Vec<Gl> = (0..depth).map(|k| reduce(((i >> k) & 1) as u64)).collect();
+        let path: Vec<[Gl; 4]> = (0..depth)
+            .map(|k| std::array::from_fn(|l| reduce(pool[(3 * i + k + l) % pool.len()])))
+            .collect();
+        let digest = hash_leaf(&mut Native, &leaf);
+        let mut root = merkle_root(&mut Native, digest, &bits, &path);
+        if i % 4 == 3 {
+            root[i % 4] = gl_add(root[i % 4], GL_ONE);
+        }
+        let words = |gs: &[Gl]| gs.iter().map(|&g| gl_word(g)).collect::<Vec<u64>>();
+        let path_words: Vec<u64> = path.iter().flat_map(|node| words(node)).collect();
+        let leaf_args = [
+            &words(&root)[..],
+            &[depth as u64],
+            &words(&bits),
+            &[leaf.len() as u64],
+            &words(&leaf),
+            &path_words,
+        ]
+        .concat();
+        let verdict = |r: Result<(), Rejected>| if r.is_ok() { "ok" } else { "err" }.to_string();
+        case(
+            "path_ok",
+            &leaf_args,
+            format!("ok {}", verdict(path_ok(&mut Native, root, &bits, &leaf, &path))),
+        );
+        let first = 1 + i % (oracles - 1);
+        let second = if i % 5 == 4 {
+            oracles - first + 1
+        } else {
+            oracles - first
+        };
+        let groups: Vec<Vec<Ext>> = [first, second]
+            .iter()
+            .enumerate()
+            .map(|(g, &n)| {
+                (0..n)
+                    .map(|k| values[(i + 7 * g + k) % values.len()])
+                    .collect()
+            })
+            .collect();
+        let alpha: [Ext; 3] = std::array::from_fn(|k| values[(5 * i + k) % values.len()]);
+        let variables = [2usize, 5, 31, 32][(i / 3) % 4];
+        let mut group_args = vec![groups.len() as u64];
+        for group in &groups {
+            group_args.push(group.len() as u64);
+            group_args.extend(group.iter().flat_map(|&e| ext_words(e)));
+        }
+        let alpha_args: Vec<u64> = alpha.iter().flat_map(|&e| ext_words(e)).collect();
+        let (bits, leaf, path) = (bits.clone(), leaf.clone(), path.clone());
+        case(
+            "check",
+            &[&[variables as u64][..], &leaf_args, &group_args, &alpha_args].concat(),
+            outcome(
+                move || check(&mut Native, root, variables, &bits, &leaf, &path, &groups, &alpha),
+                |r| match r {
+                    Ok(folded) => format!("ok {}", show_exts(&folded)),
+                    Err(_) => "err".to_string(),
+                },
+            ),
+        );
+    }
+}
+
 fn show_exts(values: &[Ext]) -> String {
     let words: Vec<u64> = values.iter().flat_map(|&e| ext_words(e)).collect();
     show(&words)
@@ -935,6 +1017,7 @@ fn circuit_cases(case: &mut impl FnMut(&str, &[u64], String)) {
             format!("ok {}", show_gls(&merkle_root(&mut Native, left, &bits, &path))),
         );
     }
+    setup_cases(case, &pool, &values);
     let list = [3u64, 0, u64::MAX, 7];
     case("alloc.vec.Vec.new", &[], "ok ".to_string());
     case("alloc.vec.Vec.push", &list, format!("ok {}", show(&list)));

@@ -1,0 +1,11 @@
+# The Aeneas models of Rust standard items that the translation calls. The proofs trust
+# them. scripts/aeneas_extract.sh fails when this list changes, and the run check needs a
+# case for each one.
+Array.make
+U32.checked_sub
+UScalar.cast
+Usize.checked_sub
+core.num.Usize.BITS
+core.num.Usize.leading_zeros
+core.num.Usize.wrapping_shl
+core.option.Option.unwrap

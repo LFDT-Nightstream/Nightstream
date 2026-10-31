@@ -2,6 +2,7 @@ import tests.AxiomAudit
 import NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 import NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthKnowledge
 import NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthSecurity
+import NightstreamFPrime.Spec.HyperNova.Construction2.OptionBFolds
 
 open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 
@@ -47,6 +48,12 @@ open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 #audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthSecurity.runsBack_append
 #audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthSecurity.runsBack_of_runs
 #audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthSecurity.slot_accepted
+#audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.OptionBFolds.light_eq_some_iff
+#audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.OptionBFolds.refresh_eq
+#audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.OptionBFolds.light_rejects_refresh_proof
+#audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.OptionBFolds.refresh_rejects_light_proof
+#audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.OptionBFolds.toLightRunning_fromLight
+#audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.OptionBFolds.toLightRunning_isSome
 
 /-- One refresh per period starves slot 1: it takes a light fold each time the light circuit
 follows the refresh circuit and is never refreshed. -/

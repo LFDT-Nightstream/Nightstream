@@ -30,4 +30,5 @@ import NightstreamFPrime.Spec.Folding.Schedule
 import NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 import NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthKnowledge
 import NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthSecurity
+import NightstreamFPrime.Spec.HyperNova.Construction2.OptionBFolds
 import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.ChainBinding

@@ -32,8 +32,10 @@ import NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthKnowledge
 import NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthSecurity
 import NightstreamFPrime.Spec.HyperNova.Construction2.OptionBFolds
 import NightstreamFPrime.Spec.HyperNova.Construction2.OptionBKeys
+import NightstreamFPrime.Spec.Folding.Light.RlcModule
 import NightstreamFPrime.Lifecycle.OptionB.State
 import NightstreamFPrime.Lifecycle.OptionB.Keys
 import NightstreamFPrime.Lifecycle.OptionB.Step
 import NightstreamFPrime.Lifecycle.OptionB.StateHashGadget
+import NightstreamFPrime.Lifecycle.OptionB.LightCommitment
 import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.ChainBinding

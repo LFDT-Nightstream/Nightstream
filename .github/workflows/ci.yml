@@ -102,3 +102,56 @@ jobs:
         timeout --signal=KILL 300 python3 -B -m unittest scripts.tests.test_golden_conformance_ci scripts.tests.test_golden_conformance_changes scripts.lean_graph.tests.test_guard scripts.lean_graph.tests.test_replay_coverage scripts.tests.test_check_spec
         timeout --signal=KILL 300 python3 -B -m unittest discover -s crates/nightstream/tests -p 'test_*.py'
         timeout --signal=KILL 300 python3 -B -m unittest discover -s formal/nightstream-fprime/tests -p 'test_*.py'
+
+  aeneas:
+    name: Aeneas translation of neo-verified and its proofs
+    runs-on: [self-hosted, Linux, X64, nico-runner]
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install Rust, and the nightly that Charon needs
+      run: |
+        rustup toolchain install "$(sed -n 's/^channel = "\(.*\)"/\1/p' rust-toolchain.toml)" --profile minimal --component clippy
+        rustup toolchain install "$(sed -n 's/^RUST_NIGHTLY=//p' formal/aeneas/versions)" --profile minimal --component rustc-dev,llvm-tools,rust-src
+
+    - name: Install the pinned Charon and Aeneas
+      run: |
+        tag=$(sed -n 's/^AENEAS_TAG=//p' formal/aeneas/versions)
+        dir="$HOME/.cache/aeneas/$tag"
+        if [ ! -x "$dir/aeneas" ]; then
+          mkdir -p "$dir"
+          curl -fsSL "https://github.com/AeneasVerif/aeneas/releases/download/$tag/aeneas-linux-x86_64.tar.gz" | tar -xz -C "$dir"
+        fi
+        echo "$dir" >> "$GITHUB_PATH"
+
+    - name: Install Lean
+      run: |
+        if [ ! -x "$HOME/.elan/bin/elan" ]; then
+          curl -fsSL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh | sh -s -- -y --default-toolchain none
+        fi
+        echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+
+    - name: Translate neo-verified and check its code rules
+      run: timeout --signal=KILL 600 scripts/aeneas_extract.sh
+
+    - name: Fail when the committed translation differs
+      run: |
+        git status --porcelain -- formal/compression-lean/NeoVerified
+        test -z "$(git status --porcelain -- formal/compression-lean/NeoVerified)"
+
+    - name: Build the translation, the proofs and their check
+      working-directory: formal/compression-lean
+      run: |
+        timeout --signal=KILL 1500 lake exe cache get
+        timeout --signal=KILL 1500 lake build NeoVerified CompressionLeanRust CompressionLeanRustTests
+
+    - name: Recheck the proofs and everything they import in a fresh kernel
+      working-directory: formal/compression-lean
+      run: timeout --signal=KILL 1500 lake env leanchecker --fresh CompressionLeanRust
+
+    - name: Run the translation against Rust
+      run: |
+        timeout --signal=KILL 300 cargo test -p neo-verified --release --locked \
+          --config 'profile.release.lto="off"' --config profile.release.codegen-units=16 -- --ignored

@@ -1,10 +1,22 @@
 # The Aeneas models of Rust standard items that the translation calls. The proofs trust
 # them. scripts/aeneas_extract.sh fails when this list changes, and the run check needs a
 # case for each one.
+Array.index_usize
 Array.make
 U32.checked_sub
 UScalar.cast
+Usize.checked_add
+Usize.checked_mul
 Usize.checked_sub
+core.array.equality.PartialEqArray.eq
+core.clone.Clone
+core.cmp.PartialEq
+core.cmp.PartialEqUsize
+core.cmp.impls.OrdUsize.max
+core.cmp.impls.PartialEqU16.eq
+core.cmp.impls.PartialEqU32.eq
+core.marker.Copy
+core.marker.StructuralPartialEq
 core.num.Usize.BITS
 core.num.Usize.leading_zeros
 core.num.Usize.wrapping_shl

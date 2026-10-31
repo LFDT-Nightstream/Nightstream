@@ -12,24 +12,16 @@
 //! the rows never depend on the values.
 
 use neo_ccs::crypto::poseidon2_goldilocks::WIDTH;
+use neo_verified::circuit::{Kind, Wire, KINDS};
 use p3_field_v08::{BasedVectorSpace, Field, PrimeCharacteristicRing, PrimeField64};
 use rayon::prelude::*;
 
-use super::block::{Kind, KINDS};
+use super::block::{outputs, trace};
 use super::r1cs::{self, R1cs, Side};
 use super::Backend;
 use crate::field::{Ext, Gl};
 use crate::hash::{absorb, squeeze};
 use crate::Error;
-
-/// A witness cell or a public word. `Public(0)` is the constant one.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub(crate) enum Wire {
-    Glue(u32),
-    /// Kind, block, cell.
-    Block(Kind, u32, u16),
-    Public(u32),
-}
 
 pub(crate) const ONE: Wire = Wire::Public(0);
 pub(crate) type Term = (Wire, Gl);
@@ -38,7 +30,7 @@ pub(crate) type Term = (Wire, Gl);
 const FORM_TERMS: usize = 4;
 
 /// `Σ coefficient·wire + constant`, and its value.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy)]
 pub(crate) struct Form {
     terms: [Term; FORM_TERMS],
     len: u8,
@@ -231,7 +223,7 @@ impl<S: Sink> Recorder<S> {
         self.blocks[kind.index()] += 1;
         let cells = if self.sink.values() {
             let values: Vec<Gl> = inputs.iter().map(Form::value).collect();
-            kind.trace(&values)
+            trace(kind, &values)
         } else {
             Vec::new()
         };
@@ -241,7 +233,7 @@ impl<S: Sink> Recorder<S> {
             linear.extend(form.row_terms().into_iter().map(|(wire, c)| (wire, -c)));
             self.row(&[], &linear, Gl::ZERO, "block input");
         }
-        kind.outputs()
+        outputs(kind)
             .map(|cell| {
                 let value = cells.get(cell).copied().unwrap_or(Gl::ZERO);
                 Form::wire(Wire::Block(kind, block, cell as u16), value)
@@ -475,7 +467,7 @@ impl<S: Sink> Backend for Recorder<S> {
 }
 
 /// Every row, cell and block of a run, for the shrink prover and for tests.
-#[derive(Default, Debug, PartialEq)]
+#[derive(Default, PartialEq)]
 pub(crate) struct Trace {
     /// Glue cell values.
     pub(crate) glue: Vec<Gl>,
@@ -655,6 +647,6 @@ impl Trace {
     #[cfg(test)]
     pub(crate) fn block_failure(&self, kind: Kind, block: usize) -> Option<usize> {
         let cells = kind.cells();
-        kind.failure(&self.blocks[kind.index()][block * cells..(block + 1) * cells])
+        super::block::failure(kind, &self.blocks[kind.index()][block * cells..(block + 1) * cells])
     }
 }

@@ -5,6 +5,8 @@ use std::time::Instant;
 
 use neo_ccs::crypto::poseidon2_goldilocks::WIDTH;
 use neo_math::D;
+use neo_verified::circuit::{Kind, KINDS};
+use neo_verified::layout::{block_row, cell_variables, entry_column, row_variables, Shape};
 use p3_challenger_v08::{CanObserve, FieldChallenger};
 use p3_field_v08::{BasedVectorSpace, PrimeCharacteristicRing, PrimeField64};
 use p3_symmetric_v08::Permutation;
@@ -12,15 +14,14 @@ use p3_symmetric_v08::Permutation;
 use super::layer1::{relation_of, setup_toy, transcript};
 use super::verifier::statement_input;
 use super::word;
-use crate::circuit::block::Kind;
-use crate::circuit::block::{C, KINDS, MATRICES, X};
+use crate::circuit::block::{entries, C, MATRICES, X};
 use crate::circuit::record::{Recorder, Sink, Term, Trace};
 use crate::circuit::{algebra, Backend};
 use crate::device::Accelerator;
 use crate::field::{eq_table, fold_low, Ext, Gl};
 use crate::hash::{permutation, seed, Challenger};
-use crate::shrink::layout::{diagonal, Layout, Shape};
-use crate::shrink::{prove, prove_outer, verify, Program, Shrink, ShrinkProof};
+use crate::shrink::layout::{block_part, diagonal};
+use crate::shrink::{prove, prove_outer, shape_of, verify, Program, Shrink, ShrinkProof};
 use crate::sumcheck;
 use crate::verifier::ProofView;
 use crate::{Claim, ClaimWords, Proof, R1cs, Relation};
@@ -67,35 +68,34 @@ fn block_part_matches_every_entry() {
         glue_cells: 90,
         publics: 5,
     };
-    let layout = Layout::new(shape);
-    let rx = points(3, layout.row_variables);
-    let ry = points(4, layout.cell_variables + 1);
+    let rx = points(3, row_variables(&shape));
+    let ry = points(4, cell_variables(&shape) + 1);
     let rho: [Ext; MATRICES] = std::array::from_fn(|j| ext(5, j as u64));
     let (rows, columns) = (eq_table(&rx), eq_table(&ry));
     let mut direct = Ext::ZERO;
     for kind in KINDS {
         for block in 0..shape.blocks[kind.index()] {
-            for entry in kind.entries() {
+            for entry in entries(kind) {
                 direct += rho[entry.matrix]
-                    * rows[layout.block_row(kind, block, entry.row)]
-                    * columns[layout.entry_column(kind, block, entry.cell)]
+                    * rows[block_row(&shape, kind, block, entry.row)]
+                    * columns[entry_column(&shape, kind, block, entry.cell)]
                     * entry.coefficient;
             }
         }
     }
-    assert_eq!(layout.block_part(&rx, &ry, &rho), direct);
+    assert_eq!(block_part(&shape, &rx, &ry, &rho), direct);
     // Control: one block fewer on the same cubes.
-    let fewer = Layout::new(Shape {
+    let fewer = Shape {
         blocks: [2],
         glue_rows: shape.glue_rows + 192,
         glue_cells: shape.glue_cells + 192,
         ..shape
-    });
+    };
     assert_eq!(
-        (fewer.row_variables, fewer.cell_variables),
-        (layout.row_variables, layout.cell_variables)
+        (row_variables(&fewer), cell_variables(&fewer)),
+        (row_variables(&shape), cell_variables(&shape))
     );
-    assert_ne!(fewer.block_part(&rx, &ry, &rho), direct);
+    assert_ne!(block_part(&fewer, &rx, &ry, &rho), direct);
 }
 
 /// The outer sum-check summed directly: the full `eq` table, every table in
@@ -324,7 +324,7 @@ fn parallel_r1cs_rows_equal_the_default() {
         .entries
         .iter()
         .any(|&(wire, _)| wire == crate::circuit::record::ONE));
-    assert_eq!(parallel, record(RowByRow(Trace::default())).0);
+    assert!(parallel == record(RowByRow(Trace::default())).0);
 }
 
 /// A check that fails between constants records rows that cannot hold, so
@@ -345,7 +345,7 @@ fn failing_constant_checks_record_rows() {
 }
 
 fn shrink_of(program: &impl Program) -> Shrink {
-    Shrink::new(Shape::derive(program).unwrap(), BITS).unwrap()
+    Shrink::new(shape_of(program).unwrap(), BITS).unwrap()
 }
 
 fn mutations(proof: &ShrinkProof) -> Vec<(&'static str, ShrinkProof)> {
@@ -374,7 +374,7 @@ fn mutations(proof: &ShrinkProof) -> Vec<(&'static str, ShrinkProof)> {
 fn toy_program_proves_verifies_and_rejects_mutations() {
     let (prover, verifier) = Toy::honest(17, 4);
     let shrink = shrink_of(&verifier);
-    assert_eq!(Shape::derive(&prover).unwrap(), Shape::derive(&verifier).unwrap());
+    assert!(shape_of(&prover).unwrap() == shape_of(&verifier).unwrap());
     assert!(shrink.security_bits() >= BITS);
     let started = Instant::now();
     let proof = prove(&shrink, &prover, &Accelerator::cpu()).unwrap();
@@ -396,7 +396,7 @@ fn toy_program_proves_verifies_and_rejects_mutations() {
         key: vec![1, 3],
         ..Toy::honest(17, 4).1
     };
-    assert_eq!(Shape::derive(&other_key).unwrap(), Shape::derive(&verifier).unwrap());
+    assert!(shape_of(&other_key).unwrap() == shape_of(&verifier).unwrap());
     assert!(verify(&shrink, &other_key, &proof).is_err(), "other key");
     // A false statement has no witness.
     let false_statement = Toy {
@@ -542,18 +542,22 @@ fn layer1_verifier_shrinks() {
     let honest = seed(transcript(1));
     let prover = Layer1::new(&relation, honest, &toy.claim, Some(&inner));
     let verifier = Layer1::new(&relation, honest, &toy.claim, None);
-    let shape = Shape::derive(&verifier).unwrap();
+    let shape = shape_of(&verifier).unwrap();
     let shrink = Shrink::new(shape, BITS).unwrap();
     let started = Instant::now();
     let proof = prove(&shrink, &prover, &Accelerator::cpu()).unwrap();
     let proved = started.elapsed();
     let started = Instant::now();
     verify(&shrink, &verifier, &proof).unwrap();
-    let layout = Layout::new(shape);
     eprintln!(
-        "layer-1 shrink: {shape:?}, 2^{} rows, 2^{} cells, prove {proved:?}, verify {:?}, {} bytes",
-        layout.row_variables,
-        layout.cell_variables,
+        "layer-1 shrink: {:?} blocks, {} glue rows, {} glue cells, {} publics, 2^{} rows, 2^{} cells, \
+         prove {proved:?}, verify {:?}, {} bytes",
+        shape.blocks,
+        shape.glue_rows,
+        shape.glue_cells,
+        shape.publics,
+        row_variables(&shape),
+        cell_variables(&shape),
         started.elapsed(),
         bincode::serialize(&proof).unwrap().len()
     );

@@ -8,18 +8,18 @@ open Aeneas Aeneas.Std Result
 open CompressionLean.Shrink (wide narrow variablesFor)
 open neo_verified
 
-private theorem numBits_eq : UScalarTy.Usize.numBits = System.Platform.numBits := by simp
+theorem numBits_eq : UScalarTy.Usize.numBits = System.Platform.numBits := by simp
 
-private theorem numBits_le : UScalarTy.Usize.numBits ≤ 64 := by
+theorem numBits_le : UScalarTy.Usize.numBits ≤ 64 := by
   cases System.Platform.numBits_eq <;> simp_all
 
-private theorem numBits_pos : 1 ≤ UScalarTy.Usize.numBits := by
+theorem numBits_pos : 1 ≤ UScalarTy.Usize.numBits := by
   cases System.Platform.numBits_eq <;> simp_all
 
-private theorem bits_val : core.num.Usize.BITS.val = UScalarTy.Usize.numBits := by
+theorem bits_val : core.num.Usize.BITS.val = UScalarTy.Usize.numBits := by
   simp [core.num.Usize.BITS]
 
-private theorem leading_zeros_val (x : Usize) (h : 0 < x.val) :
+theorem leading_zeros_val (x : Usize) (h : 0 < x.val) :
     (core.num.Usize.leading_zeros x).val = UScalarTy.Usize.numBits - Nat.log 2 x.val - 1 := by
   have hb : x.bv ≠ 0 := by
     intro e; simp [UScalar.val, e] at h
@@ -31,7 +31,7 @@ private theorem leading_zeros_val (x : Usize) (h : 0 < x.val) :
   apply Nat.mod_eq_of_lt
   omega
 
-private theorem leading_zeros_zero (x : Usize) (h : x.val = 0) :
+theorem leading_zeros_zero (x : Usize) (h : x.val = 0) :
     (core.num.Usize.leading_zeros x).val = UScalarTy.Usize.numBits := by
   have hn := numBits_le
   have he := numBits_eq
@@ -40,12 +40,12 @@ private theorem leading_zeros_zero (x : Usize) (h : x.val = 0) :
     BitVec.natCast_eq_ofNat, BitVec.toNat_ofNat, UScalarTy.U32_numBits_eq, UScalarTy.Usize_numBits_eq]
   exact Nat.mod_eq_of_lt (by omega)
 
-private theorem usize_eq_zero (r : Usize) : r = 0#usize ↔ r.val = 0 := by
+theorem usize_eq_zero (r : Usize) : r = 0#usize ↔ r.val = 0 := by
   constructor
   · rintro rfl; rfl
   · intro e; exact UScalar.val_eq_imp _ _ (by simp [e])
 
-private theorem clog_eq_log_pred {n : ℕ} (h : 2 ≤ n) : Nat.clog 2 n = Nat.log 2 (n - 1) + 1 := by
+theorem clog_eq_log_pred {n : ℕ} (h : 2 ≤ n) : Nat.clog 2 n = Nat.log 2 (n - 1) + 1 := by
   apply le_antisymm
   · apply Nat.clog_le_of_le_pow
     have := Nat.lt_pow_succ_log_self (by decide : 1 < 2) (n - 1)
@@ -55,23 +55,23 @@ private theorem clog_eq_log_pred {n : ℕ} (h : 2 ≤ n) : Nat.clog 2 n = Nat.lo
     have := (Nat.lt_clog_iff_pow_lt (by decide : 1 < 2)).mpr (show 2 ^ Nat.log 2 (n - 1) < n by omega)
     omega
 
-private theorem checked_sub_some {ty : UScalarTy} (x y : UScalar ty) (h : y.val ≤ x.val) :
+theorem checked_sub_some {ty : UScalarTy} (x y : UScalar ty) (h : y.val ≤ x.val) :
     ∃ z : UScalar ty, core.num.checked_sub_UScalar x y = some z ∧ z.val = x.val - y.val := by
   have := core.num.checked_sub_UScalar_bv_spec x y
   split at this
   · rename_i z hz; exact ⟨z, hz, this.2.1⟩
   · omega
 
-private theorem checked_sub_none {ty : UScalarTy} (x y : UScalar ty) (h : x.val < y.val) :
+theorem checked_sub_none {ty : UScalarTy} (x y : UScalar ty) (h : x.val < y.val) :
     core.num.checked_sub_UScalar x y = none := by
   have := core.num.checked_sub_UScalar_bv_spec x y
   split at this
   · omega
   · assumption
 
-private theorem unwrap_some {T : Type} (z : T) : core.option.Option.unwrap (some z) = ok z := rfl
+theorem unwrap_some {T : Type} (z : T) : core.option.Option.unwrap (some z) = ok z := rfl
 
-private theorem unwrap_none {T : Type} : core.option.Option.unwrap (none : Option T) = fail .panic := rfl
+theorem unwrap_none {T : Type} : core.option.Option.unwrap (none : Option T) = fail .panic := rfl
 
 theorem floor_log2_eq (n : Usize) (h : 0 < n.val) :
     ∃ r, layout.floor_log2 n = ok r ∧ r.val = Nat.log 2 n.val := by
@@ -122,7 +122,13 @@ theorem ceil_log2_eq (n : Usize) (h : 0 < n.val) :
 
 theorem two_pow_eq (k : U32) (h : k.val < UScalarTy.Usize.numBits) :
     ∃ p, layout.two_pow k = ok p ∧ p.val = 2 ^ k.val := by
-  refine ⟨_, rfl, ?_⟩
+  have hn := numBits_pos
+  have h1 : (1#u32).val = 1 := rfl
+  have hbits := bits_val
+  obtain ⟨a, ha, hav⟩ := checked_sub_some core.num.Usize.BITS 1#u32 (by omega)
+  obtain ⟨c, hc, -⟩ := checked_sub_some a k (by omega)
+  refine ⟨core.num.Usize.wrapping_shl 1#usize k,
+    by simp only [layout.two_pow, U32.checked_sub, lift, bind_ok, ha, hc, unwrap_some], ?_⟩
   have he := numBits_eq
   have hk : k.val % System.Platform.numBits = k.val := Nat.mod_eq_of_lt (by omega)
   have hlt : 2 ^ k.val < 2 ^ System.Platform.numBits := Nat.pow_lt_pow_right (by decide) (by omega)

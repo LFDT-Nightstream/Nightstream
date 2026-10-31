@@ -64,6 +64,59 @@ def honestWitness
   assignments := Fin.addCases freshWitness fun running =>
     key.piDecAlgebra.splitAssignment assignment (Fin.cast key.runningCount_eq_outputCount running)
 
+/-- The honest split passes Π_DEC, and the honest sources satisfy the Π_CCS input relation. -/
+theorem honest_inputs
+    (key : Key K Commitment PublicInput Scalar State shape columns blockCount degreeBound)
+    (accumulator : Accumulator Commitment PublicInput shape columns blockCount)
+    (fresh : Fresh Commitment PublicInput shape)
+    (assignment : PaperLinearAlgebra.Assignment F columns)
+    (freshWitness : Fin shape.freshCount -> PaperLinearAlgebra.Assignment F columns)
+    (system : accumulator.constraintSystem = key.relationSource)
+    (combined : accumulator.stage = .combined)
+    (accumulatorHolds : CE.Holds key.piRlcSemantics key.params accumulator assignment)
+    (freshHolds : ∀ source, CCS.Holds
+      (paperRelationSemantics key.baseOps key.extensionOps key.lift key.openingMaps) key.params
+      (SourceMembership.freshInstance
+        (key.statement (children key accumulator (honestSplit key accumulator assignment)) fresh)
+        source)
+      (freshWitness source)) :
+    PiDEC.PaperVerifier.Accepted key.piDecAlgebra key.piDecPublicInputSplit
+        key.piDecEvaluationArity (inputAttempt key accumulator (honestSplit key accumulator assignment)) ∧
+      SourceHolds key.extensionOps key.lift key.openingMaps key.params
+        (key.statement (children key accumulator (honestSplit key accumulator assignment)) fresh)
+        (honestWitness key assignment freshWitness) := by
+  let split := honestSplit key accumulator assignment
+  let running := children key accumulator split
+  obtain ⟨inputAccepted, childrenHold⟩ := PiDEC.PaperVerifier.complete key.piRlcSemantics
+    key.params key.piDecAlgebra key.piDecPublicInputSplit key.piDecEvaluationArity
+    accumulator assignment combined accumulatorHolds
+  rw [← inputAttempt_honestSplit key accumulator assignment] at inputAccepted childrenHold
+  let witness := honestWitness key assignment freshWitness
+  refine ⟨inputAccepted, ?_⟩
+  apply (SourceMembership.sourceHolds_iff_memberships key.extensionOps key.extensionLaws
+    key.lift key.openingMaps key.params key.freshBound (key.statement running fresh)
+    witness).mpr
+  constructor
+  · intro source
+    have value : witness.assignments (freshSourceIndex source) = freshWitness source :=
+      addCases_freshSource freshWitness
+        (fun running => key.piDecAlgebra.splitAssignment assignment
+          (Fin.cast key.runningCount_eq_outputCount running)) source
+    rw [value]
+    exact freshHolds source
+  · intro index
+    have value : witness.assignments (runningSourceIndex index) =
+        key.piDecAlgebra.splitAssignment assignment
+          (Fin.cast key.runningCount_eq_outputCount index) :=
+      addCases_runningSource freshWitness
+        (fun running => key.piDecAlgebra.splitAssignment assignment
+          (Fin.cast key.runningCount_eq_outputCount running)) index
+    rw [value, runningInstance_eq_child key accumulator fresh split system index]
+    exact (ceHolds_iff key
+      (PiDEC.PaperVerifier.children key.piDecPublicInputSplit
+        (inputAttempt key accumulator split) (Fin.cast key.runningCount_eq_outputCount index))
+      system _).mpr (childrenHold (Fin.cast key.runningCount_eq_outputCount index))
+
 /-- SuperNeo v1.2 Theorem 13 and Lemmas 10 and 11 for the refresh fold. -/
 theorem complete
     (key : Key K Commitment PublicInput Scalar State shape columns blockCount degreeBound)
@@ -99,36 +152,9 @@ theorem complete
           CE.Holds key.piRlcSemantics key.params parent parentWitness := by
   intro running
   let split := honestSplit key accumulator assignment
-  obtain ⟨inputAccepted, childrenHold⟩ := PiDEC.PaperVerifier.complete key.piRlcSemantics
-    key.params key.piDecAlgebra key.piDecPublicInputSplit key.piDecEvaluationArity
-    accumulator assignment combined accumulatorHolds
-  rw [← inputAttempt_honestSplit key accumulator assignment] at inputAccepted childrenHold
+  obtain ⟨inputAccepted, valid⟩ := honest_inputs key accumulator fresh assignment freshWitness
+    system combined accumulatorHolds freshHolds
   let witness := honestWitness key assignment freshWitness
-  have valid : SourceHolds key.extensionOps key.lift key.openingMaps key.params
-      (key.statement running fresh) witness := by
-    apply (SourceMembership.sourceHolds_iff_memberships key.extensionOps key.extensionLaws
-      key.lift key.openingMaps key.params key.freshBound (key.statement running fresh)
-      witness).mpr
-    constructor
-    · intro source
-      have value : witness.assignments (freshSourceIndex source) = freshWitness source :=
-        addCases_freshSource freshWitness
-          (fun running => key.piDecAlgebra.splitAssignment assignment
-            (Fin.cast key.runningCount_eq_outputCount running)) source
-      rw [value]
-      exact freshHolds source
-    · intro index
-      have value : witness.assignments (runningSourceIndex index) =
-          key.piDecAlgebra.splitAssignment assignment
-            (Fin.cast key.runningCount_eq_outputCount index) :=
-        addCases_runningSource freshWitness
-          (fun running => key.piDecAlgebra.splitAssignment assignment
-            (Fin.cast key.runningCount_eq_outputCount running)) index
-      rw [value, runningInstance_eq_child key accumulator fresh split system index]
-      exact (ceHolds_iff key
-        (PiDEC.PaperVerifier.children key.piDecPublicInputSplit
-          (inputAttempt key accumulator split) (Fin.cast key.runningCount_eq_outputCount index))
-        system _).mpr (childrenHold (Fin.cast key.runningCount_eq_outputCount index))
   obtain ⟨messages, fullOutput, _, _, suffix⟩ :=
     Nifs.PaperNonInteractive.Completeness.exists_honest_proof_of_sampler_success key running fresh
       witness valid

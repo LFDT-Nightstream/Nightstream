@@ -160,6 +160,16 @@ open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 #audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_2.OutputBinding.spec_implies_absorb
 #audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_2.OutputBinding.spec_implies_keyOutgoingState
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.LightPiCCS.outgoing_eq
+#audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_2.EvalKTerminal.spec_implies_padAtMessage
+#audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_2.EvalKTerminal.spec_implies_keyPadAtMessage
+#audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_2.EvalATerminal.spec_implies_matrixAtMessage
+#audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_2.EvalATerminal.spec_implies_keyMatrixAtMessage
+#audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_2.NormTerminal.spec_implies_normAtMessage
+#audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_2.NormTerminal.spec_implies_keyNormAtMessage
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.LightPiCCS.padAtMessage_eq
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.LightPiCCS.matrixAtMessage_eq
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.LightPiCCS.normAtMessage_eq
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.LightPiCCS.ccsAtMessage_eq_singleFresh
 
 /-- One refresh per period starves slot 1: it takes a light fold each time the light circuit
 follows the refresh circuit and is never refreshed. -/

@@ -35,48 +35,127 @@ open NightstreamFPrime.Spec.Folding.Nifs.PaperNonInteractive
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
 
-structure Interface where
-  roundPoint : Nat → Fin productionShape.cubeVariables → KExpr
-  priorPoint : Nat → Fin productionShape.cubeVariables → KExpr
+/-- The leaf's inputs for a Π_CCS shape: the production shape, or option B's light shape. -/
+structure ShapeInterface (shape : Shape) where
+  roundPoint : Nat → Fin shape.cubeVariables → KExpr
+  priorPoint : Nat → Fin shape.cubeVariables → KExpr
   gamma : Nat → KExpr
-  outputEval_A : Nat → MatrixCoordinate productionShape → KExpr
+  outputEval_A : Nat → MatrixCoordinate shape → KExpr
 
-def coefficientExprs (interface : Interface) (offset : Nat) : List KExpr :=
-  (canonicalMatrixCoordinates productionShape).map
+abbrev Interface := ShapeInterface productionShape
+
+section Shape
+
+variable {shape : Shape}
+
+def coefficientExprs (interface : ShapeInterface shape) (offset : Nat) : List KExpr :=
+  (canonicalMatrixCoordinates shape).map
     (interface.outputEval_A offset)
 
-def coreInterface (interface : Interface) :
-    PointWeightedHorner.Owned.Interface productionShape.cubeVariables where
+def coreInterface (interface : ShapeInterface shape) :
+    PointWeightedHorner.Owned.Interface shape.cubeVariables where
   left := interface.roundPoint
   right := interface.priorPoint
   hornerPoint := interface.gamma
   coefficients := coefficientExprs interface
 
-def output (interface : Interface) (offset : Nat) : KExpr :=
+def output (interface : ShapeInterface shape) (offset : Nat) : KExpr :=
   PointWeightedHorner.Owned.output (coreInterface interface) offset
 
-def pointInterfaceAt (interface : Interface) (parentOffset : Nat) :=
+def pointInterfaceAt (interface : ShapeInterface shape) (parentOffset : Nat) :=
   PointWeightedHorner.Owned.pointInterfaceAt
     (coreInterface interface) parentOffset
 
-def hornerInterfaceAt (interface : Interface) (parentOffset : Nat) :=
+def hornerInterfaceAt (interface : ShapeInterface shape) (parentOffset : Nat) :=
   PointWeightedHorner.Owned.hornerInterfaceAt
     (coreInterface interface) parentOffset
 
-def pointLength (interface : Interface) (offset : Nat) : Nat :=
+def pointLength (interface : ShapeInterface shape) (offset : Nat) : Nat :=
   PointWeightedHorner.Owned.pointLength (coreInterface interface) offset
 
-def hornerLength (interface : Interface) (offset : Nat) : Nat :=
+def hornerLength (interface : ShapeInterface shape) (offset : Nat) : Nat :=
   PointWeightedHorner.Owned.hornerLength (coreInterface interface) offset
+
+abbrev Assumptions (interface : ShapeInterface shape) (offset : Nat) (env : Env) : Prop :=
+  PointWeightedHorner.Owned.Assumptions (coreInterface interface) offset env
+
+abbrev SpecHolds (interface : ShapeInterface shape) (offset : Nat) (env : Env) : Prop :=
+  PointWeightedHorner.Owned.SpecHolds (coreInterface interface) offset env
+
+/-- The leaf's output is `matrixAtMessage` of SuperNeo v1.2 Section 7.3 for any verifier input,
+`γ`, round point and output message that the leaf's inputs carry. -/
+theorem spec_implies_matrixAtMessage (interface : ShapeInterface shape) (offset : Nat) (env : Env)
+    (input : ProtocolPolynomial.VerifierInput K shape) (gamma : K)
+    (roundPoint : CubePoint K shape.cubeVariables)
+    (message : ProtocolPolynomial.OutputMessage K shape)
+    (roundPointEq : PointEquality.Owned.evalLeftPoint
+      (pointInterfaceAt interface offset) offset env = roundPoint)
+    (priorPointEq : PointEquality.Owned.evalRightPoint
+      (pointInterfaceAt interface offset) offset env = input.priorPoint)
+    (gammaEq : (interface.gamma offset).eval env = gamma)
+    (outputEvalEq : ∀ coordinate,
+      (interface.outputEval_A offset coordinate).eval env = message.matrixImage coordinate)
+    (specification : SpecHolds interface offset env) :
+    (output interface offset).eval env =
+      ProtocolPolynomial.matrixAtMessage extensionOps input gamma roundPoint message := by
+  have coefficientsEq :
+      (coefficientExprs interface offset).map (KExpr.eval env) =
+        NightstreamFPrime.Spec.Folding.PiCCS.FinalIdentity.outputMatrixCoefficientList
+          message := by
+    unfold coefficientExprs
+      NightstreamFPrime.Spec.Folding.PiCCS.FinalIdentity.outputMatrixCoefficientList
+    rw [List.map_map]
+    apply List.map_congr_left
+    intro coordinate _
+    exact outputEvalEq coordinate
+  have pointEq := specification.point
+  unfold PointEquality.Owned.SpecHolds at pointEq
+  change PointEquality.Owned.evalLeftPoint
+      (PointWeightedHorner.Owned.pointInterfaceAt
+        (coreInterface interface) offset)
+        offset env = roundPoint at roundPointEq
+  change PointEquality.Owned.evalRightPoint
+      (PointWeightedHorner.Owned.pointInterfaceAt
+        (coreInterface interface) offset)
+        offset env = input.priorPoint at priorPointEq
+  rw [roundPointEq, priorPointEq] at pointEq
+  have pointValueEq :
+      (PointWeightedHorner.Owned.pointOutput
+        (coreInterface interface) offset).eval env =
+      SumCheckTruthPath.pointEquality extensionOps roundPoint input.priorPoint := by
+    simpa [pointInterfaceAt, PointWeightedHorner.Owned.pointOutput,
+      PointWeightedHorner.Owned.pointInterfaceAt, coreInterface] using pointEq
+  have hornerEq := specification.horner
+  unfold Horner.Owned.SpecHolds at hornerEq
+  change (PointWeightedHorner.Owned.weightedSum
+    (coreInterface interface) offset).eval env =
+    SumCheck.Finite.Message.evaluateCoefficients extensionOps.toOps
+      ((interface.gamma offset).eval env)
+      ((coefficientExprs interface offset).map (KExpr.eval env)) at hornerEq
+  rw [gammaEq, coefficientsEq] at hornerEq
+  calc
+    (output interface offset).eval env =
+        K.mul
+          ((PointWeightedHorner.Owned.pointOutput
+            (coreInterface interface) offset).eval env)
+          ((PointWeightedHorner.Owned.weightedSum
+            (coreInterface interface) offset).eval env) := by
+      rfl
+    _ = extensionOps.mul
+        (SumCheckTruthPath.pointEquality extensionOps roundPoint input.priorPoint)
+        (SumCheck.Finite.Message.evaluateCoefficients extensionOps.toOps gamma
+          (NightstreamFPrime.Spec.Folding.PiCCS.FinalIdentity.outputMatrixCoefficientList
+            message)) := by
+      rw [pointValueEq, hornerEq]
+      rfl
+    _ = ProtocolPolynomial.matrixAtMessage extensionOps input gamma roundPoint message :=
+      (NightstreamFPrime.Spec.Folding.PiCCS.FinalIdentity.matrixAtMessage_eq_pointEquality_mul_horner
+        extensionOps extensionLaws input gamma roundPoint message).symm
+
+end Shape
 
 private theorem cubeVariables_positive : 0 < productionShape.cubeVariables := by
   norm_num [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]
-
-abbrev Assumptions (interface : Interface) (offset : Nat) (env : Env) : Prop :=
-  PointWeightedHorner.Owned.Assumptions (coreInterface interface) offset env
-
-abbrev SpecHolds (interface : Interface) (offset : Nat) (env : Env) : Prop :=
-  PointWeightedHorner.Owned.SpecHolds (coreInterface interface) offset env
 
 def circuit (interface : Interface) : FormalCircuit :=
   PointWeightedHorner.Owned.circuit

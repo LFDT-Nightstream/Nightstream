@@ -16,3 +16,6 @@ import NightstreamFPrime.Lifecycle
 import NightstreamFPrime.Lifecycle.PiDEC.v1_2.OutputWitnessConsumer
 import NightstreamFPrime.Layout
 import NightstreamFPrime.Export
+import NightstreamFPrime.Spec.Folding.Light.Bound
+import NightstreamFPrime.Spec.Folding.Light.Completeness
+import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.LightNorm

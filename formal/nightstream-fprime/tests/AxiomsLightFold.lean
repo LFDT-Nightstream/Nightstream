@@ -2,6 +2,7 @@ import tests.AxiomAudit
 import NightstreamFPrime.Spec.Folding.Light.Bound
 import NightstreamFPrime.Spec.Folding.Light.PiCCSCompleteness
 import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.LightNorm
+import NightstreamFPrime.Spec.Folding.Light.Completeness
 
 #audit_axioms NightstreamFPrime.Spec.GlobalParams.accumulatorBound_lt_bigB
 #audit_axioms NightstreamFPrime.Spec.GlobalParams.production_accumulatorBound_lt_bigB
@@ -14,3 +15,5 @@ import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.LightNorm
 #audit_axioms NightstreamFPrime.Spec.Folding.Light.Rlc.complete
 #audit_axioms NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.LightNorm.act_one
 #audit_axioms NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.LightNorm.norm_law
+#audit_axioms NightstreamFPrime.Spec.Folding.Light.Key.statement_sumcheckDegreeBound_eq
+#audit_axioms NightstreamFPrime.Spec.Folding.Light.complete

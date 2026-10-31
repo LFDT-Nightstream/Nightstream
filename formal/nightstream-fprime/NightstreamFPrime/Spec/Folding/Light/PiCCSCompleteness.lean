@@ -27,15 +27,22 @@ def maskMessage {Field : Type uField} {shape : Shape} (ops : InterpolationOps Fi
       if source.val < shape.freshCount then message.sourceAssignment source else ops.zero }
 
 /-- The light Π_CCS check: SuperNeo v1.2 Section 7.3, Step 4, on the masked message. -/
+def check {Commitment : Type uCommitment} {PublicInput : Type uPublicInput}
+    {shape : Shape} {columns blockCount : Nat} {baseOps : InterpolationOps F}
+    (extensionOps : InterpolationOps K) (lift : F -> K)
+    (statement : Statement K Commitment PublicInput shape columns blockCount baseOps)
+    (width : Nat) (probe : Probe K shape) : Bool :=
+  ProtocolPolynomial.FixedWidth.check extensionOps width (statement.verifierInput lift)
+    probe.coins.alpha probe.coins.gamma probe.coins.roundPoint
+    (maskMessage extensionOps (statement.projectOutput probe.response.fullOutput))
+    probe.response.rounds
+
 def Accepted {Commitment : Type uCommitment} {PublicInput : Type uPublicInput}
     {shape : Shape} {columns blockCount : Nat} {baseOps : InterpolationOps F}
     (extensionOps : InterpolationOps K) (lift : F -> K)
     (statement : Statement K Commitment PublicInput shape columns blockCount baseOps)
     (width : Nat) (probe : Probe K shape) : Prop :=
-  ProtocolPolynomial.FixedWidth.check extensionOps width (statement.verifierInput lift)
-    probe.coins.alpha probe.coins.gamma probe.coins.roundPoint
-    (maskMessage extensionOps (statement.projectOutput probe.response.fullOutput))
-    probe.response.rounds = true
+  check extensionOps lift statement width probe = true
 
 theorem evaluateCoordinates_tabulate_zero {Field : Type uField}
     (ops : InterpolationOps Field)
@@ -203,7 +210,7 @@ theorem exists_honest_prover
         ∃ probe : Probe K shape,
           CausalExecution.run prover alpha gamma point = some (probe, witness) ∧
           Accepted extensionOps lift statement width probe ∧
-          probe.coins.roundPoint = point ∧
+          probe.coins = ({ alpha, gamma, roundPoint := point } : PublicCoins K shape) ∧
           probe.response.fullOutput =
             FullOutputCoordinates.FullOutput.honestAt baseOps extensionOps lift
               (statement.sourceConnectedInputs witness) point := by

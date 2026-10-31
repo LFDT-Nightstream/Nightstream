@@ -79,6 +79,6 @@ def CheckedRecursiveReplay : Prop :=
 theorem checkedRecursiveReplay : CheckedRecursiveReplay :=
   CheckedReplayComposition.accepted_and_handoff
 
-#audit_axioms checkedRecursiveReplay
+#audit_axioms LeanGraph.Targets.checkedRecursiveReplay
 
 end LeanGraph.Targets

@@ -14,9 +14,9 @@ theorem assembled : Target := fun n => conditional n rfl
 
 #evidence_closed Target by direct
 #evidence_closed Target by assembled
-#audit_axioms conditional
-#audit_axioms direct
-#audit_axioms assembled
+#audit_axioms LeanGraph.Checks.conditional
+#audit_axioms LeanGraph.Checks.direct
+#audit_axioms LeanGraph.Checks.assembled
 
 def Meaning : Nat := 2
 def MeaningTarget : Prop := Meaning = 2

@@ -18,16 +18,22 @@ open NightstreamFPrime.Lifecycle.PaperAlgebra
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth}
 
-/-- The data a slot carries: one accumulator claim and its depth. The key fixes the constraint
-system and the norm stage, so they are not hashed. -/
-structure SlotData (logicalWidth : Nat)
+/-- A slot's accumulator claim. The slot's key fixes the constraint system and the norm stage,
+so the claim does not carry them. -/
+structure SlotClaim (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth)
     where
   commitment : PaperAlgebra.Commitment
   publicInput : PaperAlgebra.PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits)
   point : CubePoint K cubeVariables
   evaluations : EvaluationFamily K productionShape
-  depth : Nat
+
+/-- A slot: its claim and its depth, the light folds since its last refresh
+(`BoundedDepth.Running`). -/
+abbrev SlotData (logicalWidth : Nat)
+    (publicFits :
+      ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth) :=
+  SlotClaim logicalWidth publicFits × Nat
 
 /-- Twelve words: the ASCII bytes of `label`, packed eight to a word (SPEC.md 4.2). -/
 def domainChunk (label : String) : List F :=
@@ -39,9 +45,9 @@ def slotDomainChunk : List F := domainChunk "HyperNova/NIVC/slot/v3"
 def stateDomainChunk : List F := domainChunk "HyperNova/NIVC/state/v3"
 
 def serializeSlot (slot : SlotData logicalWidth publicFits) : List F :=
-  serializeCommitment slot.commitment ++ serializeEvaluations slot.evaluations ++
-    serializePoint slot.point ++ serializePublicInput (publicFits := publicFits) slot.publicInput ++
-    [natWord slot.depth]
+  serializeCommitment slot.1.commitment ++ serializeEvaluations slot.1.evaluations ++
+    serializePoint slot.1.point ++
+    serializePublicInput (publicFits := publicFits) slot.1.publicInput ++ [natWord slot.2]
 
 def slotDigest (slot : SlotData logicalWidth publicFits) : Digest :=
   Poseidon2.hash (slotDomainChunk ++ serializeSlot slot)
@@ -72,7 +78,7 @@ structure State.WellFormed (state : State logicalWidth publicFits) : Prop where
   current : state.current.length = 4
   iteration : state.iteration < goldilocksModulus
   pc : state.pc < goldilocksModulus
-  depth : ∀ slot, (state.slots slot).depth < goldilocksModulus
+  depth : ∀ slot, (state.slots slot).2 < goldilocksModulus
 
 theorem domainChunks_distinct :
     slotDomainChunk ≠ stateDomainChunk ∧ slotDomainChunk ≠ Lifecycle.stateDomainChunk ∧
@@ -119,7 +125,7 @@ theorem statePreimage_length {state : State logicalWidth publicFits} (well : sta
   rfl
 
 theorem serializeSlot_injective {left right : SlotData logicalWidth publicFits}
-    (leftDepth : left.depth < goldilocksModulus) (rightDepth : right.depth < goldilocksModulus)
+    (leftDepth : left.2 < goldilocksModulus) (rightDepth : right.2 < goldilocksModulus)
     (same : serializeSlot left = serializeSlot right) : left = right := by
   unfold serializeSlot at same
   obtain ⟨rest, depthWords⟩ := List.append_inj' same rfl
@@ -131,8 +137,8 @@ theorem serializeSlot_injective {left right : SlotData logicalWidth publicFits}
   have point := serializePoint_injective pointWords
   have commitment := serializeCommitment_injective commitmentWords
   have evaluations := serializeEvaluations_injective evaluationWords
-  cases left
-  cases right
+  obtain ⟨⟨_, _, _, _⟩, _⟩ := left
+  obtain ⟨⟨_, _, _, _⟩, _⟩ := right
   simp only at depth publicInput point commitment evaluations
   subst depth publicInput point commitment evaluations
   rfl

@@ -401,6 +401,61 @@ theorem keys_coherent :
         algebraToLight (keys refresh freshCount parts).refresh.piRlcAlgebra :=
   ⟨rfl, rfl, rfl, rfl, rfl⟩
 
+theorem light_verify_output
+    {light : Light.Key Commitment PublicInput Scalar State (lightShape shape) columns blockCount
+      degreeBound}
+    {running : Running K Commitment PublicInput (lightShape shape)}
+    {fresh : Fresh Commitment PublicInput (lightShape shape)}
+    {proof : Light.Proof (lightShape shape) degreeBound}
+    {output : CE.Instance (RelationSource (lightShape shape) columns blockCount) PublicInput
+      (CubePoint K (lightShape shape).cubeVariables) (EvaluationFamily K (lightShape shape))
+      Commitment}
+    (accepted : Light.verify light running fresh proof = some output) :
+    output.constraintSystem = light.relationSource ∧ output.stage = .combined := by
+  unfold Light.verify at accepted
+  split at accepted
+  · obtain ⟨_, _, rfl⟩ := Option.map_eq_some_iff.mp accepted
+    exact ⟨rfl, rfl⟩
+  · cases accepted
+
+theorem refresh_verify_output
+    {accumulator : Claim Commitment PublicInput shape columns blockCount}
+    {fresh : Fresh Commitment PublicInput shape}
+    {proof : Refresh.Proof Commitment shape degreeBound}
+    {output : Claim Commitment PublicInput shape columns blockCount}
+    (accepted : Refresh.verify refresh accumulator fresh proof = some output) :
+    output.constraintSystem = refresh.relationSource ∧ output.stage = .combined := by
+  obtain ⟨_, _, parent⟩ :=
+    (Refresh.verify_eq_some_iff refresh accumulator fresh proof output).mp accepted
+  simp only [Nifs.PaperNonInteractive.Key.parent, Option.map_eq_some_iff] at parent
+  obtain ⟨_, _, rfl⟩ := parent
+  exact ⟨rfl, rfl⟩
+
+/-- Every option-B fold output is a claim of the refresh key's constraint system at stage
+`combined`, so a slot can carry it without its constraint system and stage. -/
+theorem folds_output {step : Folding.Schedule.Step}
+    {claim : Claim Commitment PublicInput shape columns blockCount}
+    {fresh : Fresh Commitment PublicInput shape}
+    {proof : FoldProof Commitment shape degreeBound degreeBound}
+    {output : Claim Commitment PublicInput shape columns blockCount}
+    (accepted : folds step (keys refresh freshCount parts) claim fresh proof = some output) :
+    output.constraintSystem = refresh.relationSource ∧ output.stage = .combined := by
+  match step, proof, accepted with
+  | .light, .light proof, accepted =>
+      obtain ⟨_, lightOutput, _, verified, rfl⟩ := (light_eq_some_iff _ _ _ _ _).mp accepted
+      have shape := light_verify_output verified
+      simp only [fromLight, shape.1, shape.2]
+      exact ⟨rfl, trivial⟩
+  | .refresh, .refresh proof, accepted =>
+      rw [refresh_eq] at accepted
+      exact refresh_verify_output refresh accepted
+  | .light, .refresh _, accepted =>
+      rw [light_rejects_refresh_proof] at accepted
+      cases accepted
+  | .refresh, .light _, accepted =>
+      rw [refresh_rejects_light_proof] at accepted
+      cases accepted
+
 end Keys
 
 end NightstreamFPrime.Spec.HyperNova.Construction2.OptionBKeys

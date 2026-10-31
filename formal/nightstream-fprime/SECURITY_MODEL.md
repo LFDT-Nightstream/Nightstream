@@ -220,7 +220,8 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
   after any number of folds, up to a symbolic depth, for a fixed application
   and commitment setup. The adversary must be admitted (trust item 4).
 - **Wins:** the terminal is accepted, and no valid history exists: no
-  application witnesses of the circuit's witness length take `z0` to `zi` in
+  application witnesses of the circuit's witness length satisfy the
+  application's validity predicate at each step and take `z0` to `zi` in
   `iteration` steps (`Export.Stage1.HyperNovaFalseAcceptance.FalseAcceptance`).
   Every history that the reverse run returns has that length
   (`Export.Stage1.HyperNovaHistory.run_witness_length`).

@@ -9,7 +9,7 @@ namespace NightstreamFPrime.Export.Stage1.HyperNovaFalseAcceptance
 open scoped BigOperators ENNReal
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Lifecycle
-open HyperNovaHistory (Statement Envelope)
+open HyperNovaHistory (Statement Envelope ValidAdvice)
 open HyperNovaHistoryProbability (Sample Accepted AdviceReturned)
 open HyperNovaFirstFailure (MarkedHashCollision)
 open HyperNovaVisitedSecurity (event_ne_top NifsAdversary NifsExtractor Assumption1 Closed IvcAdversary
@@ -23,14 +23,15 @@ def FalseAcceptance (input : Statement × Envelope application) : Prop :=
     ¬ ∃ advice : List AppWitness,
       (∀ witness ∈ advice, witness.length = application.witnessWordCount) ∧
       advice.length = input.1.iteration ∧
-      advice.foldl application.step input.1.z0 = input.1.zi
+      advice.foldl application.step input.1.z0 = input.1.zi ∧
+      ValidAdvice application input.1.z0 advice
 
 theorem falseAcceptance_not_adviceReturned (sample : Sample application)
     (invalid : FalseAcceptance application fits setup (sample.1, sample.2.1)) :
     ¬ AdviceReturned application fits sample := by
-  rintro ⟨advice, _unused, returned, length, evaluated, _valid⟩
+  rintro ⟨advice, _unused, returned, length, evaluated, valid⟩
   exact invalid.2 ⟨advice, HyperNovaHistory.run_witness_length application fits _ _ _ returned,
-    length, evaluated⟩
+    length, evaluated, valid⟩
 
 variable {Admitted : NifsAdversary application fits setup → Prop} {StageAdmitted : Stage application fits setup → Prop}
   {Efficient : (adversary : NifsAdversary application fits setup) → NifsExtractor adversary → Prop}

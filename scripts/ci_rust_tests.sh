@@ -24,6 +24,8 @@ groups=(
   '-p nightstream-fprime --lib package::matrix_program'
   '-p nightstream-fprime --lib package::assignment_transport::quotient_tests'
   '-p nightstream-fprime --lib package::sealed::sealed_tests'
+  '-p neo-application'
+  '-p neo-wasm'
 )
 
 common=(

@@ -77,8 +77,19 @@ impl From<CompressionError> for Error {
     }
 }
 
+/// The verifier that a circuit configures. A memory relation proves only
+/// steps: the SPEC.md Algorithm 10 terminal checks of `nebula::Verifier` give its claim.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Role {
+    Stage1,
+    Memory,
+}
+
 struct CompiledCircuit {
-    application: ApplicationCircuit,
+    role: Role,
+    /// The Rust application, or `None` for a Lean-emitted package whose own
+    /// witness program fills the application's local variables.
+    application: Option<ApplicationCircuit>,
     package: Arc<LoadedPerApplicationPackage>,
     binding: Stage1VerifierBinding,
     /// The package's complete matrix window, shared by every lifecycle.
@@ -97,6 +108,17 @@ impl CompiledCircuit {
     }
 }
 
+/// The size of an application in the F′ step. These are the three numbers
+/// that the shared verifier's row and width formulas take
+/// (`artifacts/shared-verifier-v1.json`), so they set the step's cost.
+/// `scripts/fprime_breakdown.py` charts the step from them.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ApplicationSize {
+    pub witness_words: usize,
+    pub local_words: usize,
+    pub rows: usize,
+}
+
 /// Reusable circuit data and bindings, independent of the execution engine.
 /// The caller chooses whether this package is its expected verifier configuration.
 pub struct Circuit {
@@ -105,6 +127,15 @@ pub struct Circuit {
 
 impl Circuit {
     pub fn compile(reference_bytes: &[u8], application: ApplicationCircuit) -> Result<Self, Error> {
+        Self::compile_as(Role::Stage1, reference_bytes, application)
+    }
+
+    /// `compile` for a memory relation (`nebula::Circuit::compile`).
+    pub(crate) fn compile_memory(reference_bytes: &[u8], application: ApplicationCircuit) -> Result<Self, Error> {
+        Self::compile_as(Role::Memory, reference_bytes, application)
+    }
+
+    fn compile_as(role: Role, reference_bytes: &[u8], application: ApplicationCircuit) -> Result<Self, Error> {
         let (package, binding) = assembly::prepare(reference_bytes, &application)?;
         crate::lifecycle::validate_key_prefix(
             package.logical_column_count(),
@@ -112,7 +143,39 @@ impl Circuit {
         )?;
         Ok(Self {
             compiled: Arc::new(CompiledCircuit {
-                application,
+                role,
+                application: Some(application),
+                package: Arc::new(package),
+                binding,
+                matrix_window: Arc::default(),
+            }),
+        })
+    }
+
+    /// Load a Lean-emitted sealed per-application package and require its
+    /// structural identifier. The caller pins the identifier; the package's
+    /// own witness program computes the application's local variables, so a
+    /// prover supplies the witness words and the output state
+    /// (`Prover::extend_with_output`).
+    pub fn load_package(bytes: &[u8], expected_structural_identifier: [u64; 4]) -> Result<Self, Error> {
+        let package = nightstream_fprime::load_per_application_package(
+            bytes,
+            nightstream_fprime::StructuralIdentifier::from_words(expected_structural_identifier),
+        )?;
+        let binding = package.production_verifier_binding()?;
+        crate::lifecycle::validate_key_prefix(
+            package.logical_column_count(),
+            binding.verifier_context().commitment_key_words(),
+        )?;
+        let role = if crate::nebula::Package::pinned(expected_structural_identifier) {
+            Role::Memory
+        } else {
+            Role::Stage1
+        };
+        Ok(Self {
+            compiled: Arc::new(CompiledCircuit {
+                role,
+                application: None,
                 package: Arc::new(package),
                 binding,
                 matrix_window: Arc::default(),
@@ -133,6 +196,31 @@ impl Circuit {
         Ok(Self {
             compiled: Arc::new(storage::read(path.as_ref())?),
         })
+    }
+
+    /// The package rows of the application, for conformance tests that name
+    /// the check a rejected step fails.
+    #[cfg(test)]
+    pub(crate) fn application_rows(&self) -> std::ops::Range<usize> {
+        self.compiled.package.application().row_range()
+    }
+
+    /// The Rust application, for tests that execute a loaded circuit.
+    #[cfg(test)]
+    pub(crate) fn application(&self) -> Option<&ApplicationCircuit> {
+        self.compiled.application.as_ref()
+    }
+
+    /// The size of the Rust application, or `None` for a Lean-emitted package.
+    pub fn application_size(&self) -> Option<ApplicationSize> {
+        self.compiled
+            .application
+            .as_ref()
+            .map(|application| ApplicationSize {
+                witness_words: application.private_input_count(),
+                local_words: application.generated_range().len(),
+                rows: application.row_count(),
+            })
     }
 
     /// Return the package's claimed circuit identifier.
@@ -183,6 +271,8 @@ impl Prover {
         let witness = self
             .compiled
             .application
+            .as_ref()
+            .ok_or(ApplicationError::NoApplication)?
             .execute(proof.state().current(), private_inputs)?;
         let words: Vec<_> = private_inputs
             .iter()
@@ -194,6 +284,34 @@ impl Prover {
             witness.output_state(),
             Some(witness.values()),
         )?)
+    }
+
+    /// The first proof for a Lean-emitted package (`extend_with_output`).
+    pub fn prove_with_output(
+        &self,
+        initial_state: [F; 4],
+        private_inputs: &[F],
+        output: [F; 4],
+    ) -> Result<Stage1Envelope, Error> {
+        self.extend_with_output(&Stage1Envelope::initial(initial_state), private_inputs, output)
+    }
+
+    /// Construct the next proof for a Lean-emitted package: the caller supplies
+    /// the application's witness words and output state; the package's own
+    /// witness program fills every application-local variable.
+    pub fn extend_with_output(
+        &self,
+        proof: &Stage1Envelope,
+        private_inputs: &[F],
+        output: [F; 4],
+    ) -> Result<Stage1Envelope, Error> {
+        let words: Vec<_> = private_inputs
+            .iter()
+            .map(PrimeField64::as_canonical_u64)
+            .collect();
+        Ok(self
+            .lifecycle
+            .extend_with_output(proof.snapshot(), &words, output, None)?)
     }
 
     /// The circuit's strict byte encoding of `proof`, for `Verifier::decode_proof`.
@@ -233,8 +351,21 @@ pub struct Verifier {
 impl Verifier {
     /// Use the caller-selected package as the expected circuit configuration.
     /// This does not establish the package's provenance.
-    /// Reject a profile below the caller's positive statistical minimum.
+    /// Reject a profile below the caller's positive statistical minimum, and
+    /// a memory relation, whose verifier is `nebula::Verifier`.
     pub fn from_package(package: &Circuit, engine: Engine, minimum_security_bits: u32) -> Result<Self, Error> {
+        if package.compiled.role == Role::Memory {
+            return Err(Error::Circuit("a memory relation needs nebula::Verifier"));
+        }
+        Self::configured(package, engine, minimum_security_bits)
+    }
+
+    /// The Stage 1 verifier inside `nebula::Verifier`.
+    pub(crate) fn of_memory(package: &Circuit, engine: Engine, minimum_security_bits: u32) -> Result<Self, Error> {
+        Self::configured(package, engine, minimum_security_bits)
+    }
+
+    fn configured(package: &Circuit, engine: Engine, minimum_security_bits: u32) -> Result<Self, Error> {
         Ok(Self {
             lifecycle: package
                 .compiled

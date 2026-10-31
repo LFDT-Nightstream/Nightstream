@@ -12,6 +12,8 @@ members = [
   "crates/nightstream-fprime",
   "crates/neo-verified",
   "crates/neo-spartan",
+  "crates/neo-application",
+  "crates/neo-wasm",
   "crates/nightstream",
 ]
 exclude = [

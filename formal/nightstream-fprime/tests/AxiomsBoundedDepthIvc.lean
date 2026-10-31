@@ -3,7 +3,9 @@ import NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 import NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthKnowledge
 import NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthSecurity
 import NightstreamFPrime.Spec.HyperNova.Construction2.OptionBFolds
+import NightstreamFPrime.Spec.HyperNova.Construction2.OptionBKeys
 import NightstreamFPrime.Lifecycle.OptionB.State
+import NightstreamFPrime.Lifecycle.OptionB.Keys
 
 open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 
@@ -64,6 +66,41 @@ open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.serializeSlot_injective
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.statePreimage_injective
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.stateHash_collision
+#audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.OptionBKeys.map_toLight_eq_iff
+#audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.OptionBKeys.fromLight_claimToLight
+#audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.OptionBKeys.semanticsToLight
+#audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.OptionBKeys.algebraToLight
+#audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.OptionBKeys.holds_fromLight_iff
+#audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.OptionBKeys.boundHolds_fromLight_iff
+#audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.OptionBKeys.holds_claimToLight_iff
+#audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.OptionBKeys.boundHolds_claimToLight_iff
+#audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.OptionBKeys.evaluationLawsToLight
+#audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.OptionBKeys.linearCombination_toLight
+#audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.OptionBKeys.getD_map
+#audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.OptionBKeys.linearMapToLight
+#audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.OptionBKeys.combineEvaluations_getD_toLight
+#audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.OptionBKeys.extractionToLight
+#audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.OptionBKeys.extractionNormLawToLight
+#audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.OptionBKeys.lightKey
+#audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.OptionBKeys.keys
+#audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.OptionBKeys.keys_coherent
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.foldDomainChunks_distinct
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.childBlock_length
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.childWords_length
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.finRange_flatMap_eq
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.childWords_injective
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.refreshWords_children
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.withRefreshTranscript_relation
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.refreshKey
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.refreshKey_relation
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.lightPiCcsOracle
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.lightChallenge_valid
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.lightNormLaw
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.lightParts
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.keys
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.lightExtraction
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.lightExtractionNormLaw
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.keys_coherent
 
 /-- One refresh per period starves slot 1: it takes a light fold each time the light circuit
 follows the refresh circuit and is never refreshed. -/

@@ -8,6 +8,8 @@ drops one thing and fails the statement, so the statement is not vacuous:
 - `skipsOpening` accepts when the WHIR opening fails: not `Sound`.
 - `skipsFinal` skips the final check of the inner rounds: not `Sound`.
 - `skipsObserve` draws the batching challenge without observing the matrix values: not `Sound`.
+- `skipsPublics` skips the check that the statement is the program's public words: not `Sound`.
+- `skipsCounts` skips the check that the program's counts are the shape's: not `Sound`.
 - `rejectsAll` rejects: not `Complete`. -/
 
 namespace CompressionLeanRust.Verifier
@@ -68,6 +70,22 @@ noncomputable def skipsOpening (T : Template Gl) : VerifyFn := model T schedule 
 noncomputable def skipsFinal (T : Template Gl) : VerifyFn := model T schedule true false
 
 noncomputable def skipsObserve (T : Template Gl) : VerifyFn := model T scheduleBlind true true
+
+/-- The shape run `ev` with the statement as its public words. -/
+def withPublics (ev : Evaluate) (stmt : List field.Gl) : Evaluate :=
+  fun rx ry ρ => ((ev rx ry ρ).1, (ev rx ry ρ).2.1, stmt.map glOf)
+
+/-- `honest` without the check that the statement is the program's public words. -/
+noncomputable def skipsPublics (T : Template Gl) : VerifyFn := fun ch ev s stmt π st =>
+  honest T ch (withPublics ev stmt) s stmt π st
+
+/-- The shape run `ev` with the shape's counts `s` as its counts. -/
+def withCounts (ev : Evaluate) (s : Counts) : Evaluate :=
+  fun rx ry ρ => ((ev rx ry ρ).1, s, (ev rx ry ρ).2.2)
+
+/-- `honest` without the check that the program's counts are the shape's. -/
+noncomputable def skipsCounts (T : Template Gl) : VerifyFn := fun ch ev s stmt π st =>
+  honest T ch (withCounts ev s) s stmt π st
 
 def acceptsAll (T : Template Gl) : VerifyFn := fun ch _ s stmt π st => do
   let run ← schedule ch (Layout.rowVars T s) (Layout.cellVars T s) stmt π st
@@ -216,9 +234,8 @@ theorem zero_outer (d : Draws) : OuterOk zeroRounds d := by
     rw [this, messageOf_zeros]
   rw [OuterOk, outerLast, claimAfter_zeros 7 _ pairs, valuesOf_zero, constraint_zero, mul_zero]
 
-theorem zero_checks (T : Template Gl) (d : Draws) (w : Cubic) (final : Bool) :
-    Checks T (evalOf T emptyCounts emptyRun) emptyCounts [] zeroRounds d w final := by
-  refine ⟨zero_fit T, zero_outer d, emptyRun_counts, rfl, fun _ => ?_⟩
+theorem zero_inner (T : Template Gl) (stmt : List field.Gl) (d : Draws) (w : Cubic) :
+    InnerOk T (evalOf T emptyCounts emptyRun) emptyCounts stmt zeroRounds d w := by
   have pairs : ∀ p ∈ innerPairs zeroRounds d, p.1 = fun _ => 0 := by
     intro p member
     simp only [innerPairs, zeroRounds, List.mem_map] at member
@@ -228,6 +245,10 @@ theorem zero_checks (T : Template Gl) (d : Draws) (w : Cubic) (final : Bool) :
     rcases this with same | same <;>
       rw [same, show [field.EXT_ZERO, field.EXT_ZERO] = List.replicate 2 field.EXT_ZERO from rfl, messageOf_zeros]
   rw [InnerOk, innerLast, valuesOf_zero, batch_zero, claimAfter_zeros 1 _ pairs, matrices_empty, zero_mul]
+
+theorem zero_checks (T : Template Gl) (d : Draws) (w : Cubic) (final : Bool) :
+    Checks T (evalOf T emptyCounts emptyRun) emptyCounts [] zeroRounds d w final :=
+  ⟨zero_fit T, zero_outer d, emptyRun_counts, rfl, fun _ => zero_inner T [] d w⟩
 
 theorem small_empty (T : Template Gl) : Small T emptyCounts [] := by
   refine ⟨?_, ?_, ?_, by simp⟩
@@ -455,6 +476,47 @@ theorem skipsObserve_not_sound (T : Template Gl) : ¬ Sound (skipsObserve T) T :
   simp only [scheduled, scheduledBlind, List.length_append, List.length_cons, List.length_nil, List.length_map,
     sent_length, List.length_zip, len_tau, len_rx, len_ry, len_tau', len_rx', len_ry'] at lengths
   omega
+
+/-- `skipsPublics` accepts the zero run with the statement `[0]`, but the empty program has no
+public word, which `Sound` forbids. -/
+theorem skipsPublics_not_sound (T : Template Gl) : ¬ Sound (skipsPublics T) T := by
+  intro sound
+  obtain ⟨d, run, -, -, -, -, h', hopened⟩ := schedule_recorder zeroOracle zeroOpening
+    (Layout.rowVars T emptyCounts) (Layout.cellVars T emptyCounts) [field.GL_ZERO] zeroRounds
+  have accepts : skipsPublics T (recorder zeroOracle zeroOpening) (evalOf T emptyCounts emptyRun) emptyCounts
+      [field.GL_ZERO] zeroRounds [] = ok (true, scheduled [field.GL_ZERO] zeroRounds (Layout.cellVars T emptyCounts) d) := by
+    simp only [skipsPublics, honest, model, run, bind_ok, hopened, zeroOpening, Result.ok.injEq, Prod.mk.injEq,
+      decide_eq_true_eq, and_true]
+    exact ⟨zero_fit T, zero_outer d, emptyRun_counts, rfl, fun _ => zero_inner T [field.GL_ZERO] d _⟩
+  obtain ⟨-, -, -, -, publics, -⟩ := sound (fun _ : Unit => emptyRun) emptyCounts 1 () [field.GL_ZERO] zeroRounds
+    ⟨[zeroTable], by simp⟩ zeroOracle zeroOpening _ whir_zero accepts
+  simp [emptyRun] at publics
+
+/-- The empty run with one glue cell. -/
+def cellRun : Run Gl := ⟨[], 1, 0, []⟩
+
+/-- `skipsCounts` accepts the zero run for the empty shape, but the program has one glue cell, so
+`shrinkGame` rejects the play, which `Sound` forbids. -/
+theorem skipsCounts_not_sound (T : Template Gl) : ¬ Sound (skipsCounts T) T := by
+  intro sound
+  obtain ⟨d, run, len_tau, len_rx, len_ry, -, h', hopened⟩ := schedule_recorder zeroOracle zeroOpening
+    (Layout.rowVars T emptyCounts) (Layout.cellVars T emptyCounts) [] zeroRounds
+  have accepts : skipsCounts T (recorder zeroOracle zeroOpening) (evalOf T emptyCounts cellRun) emptyCounts []
+      zeroRounds [] = ok (true, scheduled [] zeroRounds (Layout.cellVars T emptyCounts) d) := by
+    simp only [skipsCounts, honest, model, run, bind_ok, hopened, zeroOpening, Result.ok.injEq, Prod.mk.injEq,
+      decide_eq_true_eq, and_true]
+    exact ⟨zero_fit T, zero_outer d, rfl, rfl, fun _ => zero_inner T [] d _⟩
+  obtain ⟨d', w, run', -, -, tr, reach⟩ := sound (fun _ : Unit => cellRun) emptyCounts 1 () [] zeroRounds
+    ⟨[zeroTable], by simp⟩ zeroOracle zeroOpening _ whir_zero accepts
+  rw [run] at run'
+  simp only [Result.ok.injEq, Prod.mk.injEq] at run'
+  obtain ⟨rfl, -⟩ := run'
+  have path := run_path T emptyCounts (fun _ : Unit => cellRun) 1 () ⟨[zeroTable], by simp⟩ zeroRounds d (cubicOf w)
+    ⟨(zero_fit T).1, (zero_fit T).2.2.1, len_tau, len_rx, len_ry⟩ (zero_outer d)
+  have same := reaches_unique path reach
+  split_ifs at same with final
+  obtain ⟨counts, -⟩ := final
+  simp [Run.counts, Run.rows, cellRun, emptyCounts] at counts
 
 /-- `rejectsAll` is `Sound` but not `Complete`. -/
 theorem rejectsAll_not_complete (T : Template Gl) : ¬ Complete rejectsAll T := by

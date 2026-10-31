@@ -64,13 +64,22 @@ def Simulates (verify : VerifyFn) (T : Template Gl) : Prop := Sound verify T ∧
 p and are the program's public words, that the rounds have the lengths that the shape fixes
 (`RoundsFit`), that the opening returns a value, and that `shrinkGame` accepts the play.
 
-Step 4 must prove `Simulates (adapt neo_verified.shrink.verify) poseidonTemplate`, where `adapt`
-turns slices into lists and the Lean channel into Aeneas's `shrink.Channel` structure.
+Step 4 must prove `Simulates (adapt neo_verified.shrink.verify) poseidonTemplate`. `adapt` is glue
+between the two types, and it may do only these things:
+
+- turn each list into a slice, the Lean channel into Aeneas's `shrink.Channel` structure, and the
+  `Evaluate` function into a `shrink.ShapeRun`;
+- fail when a size does not fit the Rust integers, that is, when `Small` is false;
+- map `Ok(())` to `true` and each `Err` to `false`.
+
+It changes nothing else. It does not read the proof, the statement or the channel answers, and it
+does not choose the verdict. The step-4 reviewer checks `adapt` against this list, so that the glue
+cannot move the verdict.
 
 ## What is proved
 
 All files are in `formal/compression-lean`. Every theorem uses only `propext`, `Classical.choice`,
-and `Quot.sound`. `#check_rust_axioms` in `CompressionLeanRustTests.lean` checks this for the 2,059
+and `Quot.sound`. `#check_rust_axioms` in `CompressionLeanRustTests.lean` checks this for the 2,065
 theorems of `CompressionLeanRust`. A planted theorem that uses a new axiom fails it. A `#guard_msgs` pin in
 `CompressionLeanRustClaims.lean` checks the claim below.
 
@@ -97,6 +106,12 @@ verifiers and proves:
 - `skipsObserve_not_sound`: a model that makes every check but draws the batching challenge
   without observing the matrix values is not `Sound`. The game alone cannot see this
   Fiat–Shamir error. The `schedule` part of `Sound` sees it.
+- `skipsPublics_not_sound`: a model that makes every check but does not check that the statement
+  words are the program's public words (the conjunct `(ev …).2.2 = stmt.map glOf`) is not
+  `Sound`. It accepts the statement `[0]` for a program with no public word.
+- `skipsCounts_not_sound`: a model that makes every check but does not check that the program's
+  counts are the shape's is not `Sound`. It accepts the empty shape for a program with one glue
+  cell, and `shrinkGame` rejects that play.
 - `rejectsAll_not_complete`: a model that rejects everything is `Sound` (`rejectsAll_sound`) but
   not `Complete`.
 
@@ -151,8 +166,14 @@ transcript and the proof bytes do not change. Its `ShapeRun` runs the program on
 `Recorder<Evaluate>`. `Reject` has no strings, because Aeneas turns a string literal into an
 axiom, and `neo-spartan` maps each variant to today's error message.
 
-The pinned Charon and Aeneas translate a scratch copy of `neo-verified` with this signature and a
-sketch body. They report no error and add no axiom. The translation is:
+The pinned Charon (0.1.301) and Aeneas (nightly-2026.10.30-de16f3c) translate a scratch copy of
+`neo-verified` with this signature and a sketch body. They report no error, and the axioms of the
+output are exactly the axioms in `formal/aeneas/axioms.txt`. The sketch is not in the repository.
+It was run again on 2026-10-31, outside the repository, with the flags of
+`scripts/aeneas_extract.sh`. The sketch is a copy of `crates/neo-verified/src` at commit
+`f4bbca1ac`, with a new `src/shrink.rs` (the signature above, and a body that makes the checks of
+today's `verify` with `block_part` as a stub that returns zero) and `pub mod shrink;` in `lib.rs`.
+Its `Cargo.toml` is standalone. The translation is:
 
 ```lean
 def shrink.verify {C : Type _} {P : Type _} (ChannelInst : shrink.Channel C) (ShapeRunInst : shrink.ShapeRun P)
@@ -176,8 +197,10 @@ def shrink.verify {C : Type _} {P : Type _} (ChannelInst : shrink.Channel C) (Sh
    Prove `Simulates` for the adapted translation along the path of `honest_sound` and
    `honest_complete`. Prove the ports `Ccs.publicValue`, `Ccs.publicTable`, `batch`,
    `Ports/Shrink/Evaluate.lean`, and `Ports/Shrink/BlockPart.lean`. Prove that
-   `(shrinkRun key loaded context x).publics = List.ofFn x`, so the observed statement binds the
-   instance. Give `ports.json` a proof kind for the verifier and teach the shape check and the
+   `(shrinkRun key loaded context x).publics = List.ofFn x`. This fact serves the Fiat–Shamir
+   prefix injectivity: the Rust transcript carries the statement words, and the game position
+   carries the instance `x`, so the two must determine each other. `poseidon2_bound_rust` does not
+   use this fact. Give `ports.json` a proof kind for the verifier and teach the shape check and the
    `lean_ports` test about it. Update TRUST.md section 5. Risk: medium. The theorem shape is no
    longer the unknown. The unknowns are loops that call the channel, the proof of `Evaluate`
    against `glueTotal`, and whether `Small` covers the `Complete` premises of the translated
@@ -206,6 +229,12 @@ def shrink.verify {C : Type _} {P : Type _} (ChannelInst : shrink.Channel C) (Sh
   answers. Lean does not check this step. A Lean function that looks at its channel type with
   classical logic could meet `Simulates` and act differently elsewhere. The Aeneas translation of
   Rust cannot do that.
+- `commit` carries no words, and the words that `neo-spartan` observes before it calls `verify`
+  (the domain, shape, profile and key words) are not in the history at all. So `Sound` does not
+  bind the challenges to the WHIR commitment, the key or the shape. That binding comes from the
+  `Channel` implementation in `neo-spartan`, where `commit` calls `Pcs::observe`
+  (`crates/neo-spartan/src/pcs.rs`) and the transcript starts as `Shrink::start` starts it, and
+  from the Fiat–Shamir and WHIR assumptions in TRUST.md section 3. It does not come from `Sound`.
 - `evalOf` reads the shape run from the Lean `Run`. That the Rust program records the same rows
   stays an assumption (TRUST.md section 5, the circuit programs).
 - `Small` is a guess at the premises that the translated helpers need. Step 4 can tighten it.

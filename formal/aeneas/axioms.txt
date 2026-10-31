@@ -1,0 +1,2 @@
+# The axioms that the Aeneas translation may contain, one Lean name per line.
+# scripts/aeneas_extract.sh rejects any other.

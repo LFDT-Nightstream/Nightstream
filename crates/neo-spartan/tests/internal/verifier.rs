@@ -4,12 +4,12 @@
 //! depend on the proof. `Native` rejects every moved hint word.
 
 use neo_ccs::crypto::poseidon2_goldilocks::WIDTH;
+use neo_verified::circuit::Kind;
 use p3_field_v08::{BasedVectorSpace, PrimeCharacteristicRing, PrimeField64};
 use rayon::prelude::*;
 
 use super::layer1::{claim_mutations, proof_mutations, relation_of, setup_toy, transcript, whir_mutations};
 use super::shrink::Layer1;
-use crate::circuit::block::Kind;
 use crate::circuit::r1cs::R1cs;
 use crate::circuit::record::{Form, Recorder, Trace};
 use crate::circuit::{Backend, Native};
@@ -247,7 +247,7 @@ fn recorded_layer1_verifier_holds_rejects_and_keeps_its_shape() {
     for r in 0..honest.rows.len() {
         assert_eq!(honest.row_value(r), Gl::ZERO, "row {r}");
     }
-    assert_eq!(honest.failing_block(), None);
+    assert!(honest.failing_block().is_none());
     eprintln!(
         "layer-1 verifier: {} rows, {} glue cells, {} permutations",
         honest.rows.len(),
@@ -257,7 +257,7 @@ fn recorded_layer1_verifier_holds_rejects_and_keeps_its_shape() {
 
     let (shape, _) = record(&Layer1::new(&relation, honest_seed, &toy.claim, None));
     assert_eq!(honest.rows, shape.rows);
-    assert_eq!(honest.entries, shape.entries);
+    assert!(honest.entries == shape.entries);
     assert_eq!(honest.glue.len(), shape.glue.len());
     assert_eq!(
         honest.blocks.each_ref().map(Vec::len),

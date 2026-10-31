@@ -17,13 +17,258 @@ set_option linter.internalConstructors false
 
 namespace neo_verified
 
+/-- [neo_verified::circuit::WIDTH]
+    Source: 'crates/neo-verified/src/circuit.rs', lines 4:0-4:28
+    Visibility: public -/
+@[global_simps, irreducible] def circuit.WIDTH : Std.Usize := 16#usize
+
+/-- [neo_verified::circuit::SBOXES]
+    Source: 'crates/neo-verified/src/circuit.rs', lines 5:0-5:30
+    Visibility: public -/
+@[global_simps, irreducible] def circuit.SBOXES : Std.Usize := 150#usize
+
+/-- [neo_verified::circuit::CELLS]
+    Source: 'crates/neo-verified/src/circuit.rs', lines 7:0-7:48
+    Visibility: public -/
+@[global_simps, irreducible]
+def circuit.CELLS : Result Std.Usize := do
+  let i ← circuit.WIDTH + circuit.SBOXES
+  i + circuit.WIDTH
+
+/-- [neo_verified::circuit::ROWS]
+    Source: 'crates/neo-verified/src/circuit.rs', lines 9:0-9:39
+    Visibility: public -/
+@[global_simps, irreducible]
+def circuit.ROWS : Result Std.Usize := circuit.SBOXES + circuit.WIDTH
+
+/-- [neo_verified::circuit::{impl core::clone::Clone for neo_verified::circuit::Kind}::clone]:
+    Source: 'crates/neo-verified/src/circuit.rs', lines 11:9-11:14
+    Visibility: public -/
+def circuit.Kind.Insts.CoreCloneClone.clone
+  (self : circuit.Kind) : Result circuit.Kind := do
+  ok self
+
+/-- Trait implementation: [neo_verified::circuit::{impl core::clone::Clone for neo_verified::circuit::Kind}]
+    Source: 'crates/neo-verified/src/circuit.rs', lines 11:9-11:14 -/
+@[reducible]
+def circuit.Kind.Insts.CoreCloneClone : core.clone.Clone circuit.Kind := {
+  clone := circuit.Kind.Insts.CoreCloneClone.clone
+}
+
+/-- Trait implementation: [neo_verified::circuit::{impl core::marker::Copy for neo_verified::circuit::Kind}]
+    Source: 'crates/neo-verified/src/circuit.rs', lines 11:16-11:20 -/
+@[reducible]
+def circuit.Kind.Insts.CoreMarkerCopy : core.marker.Copy circuit.Kind := {
+  cloneInst := circuit.Kind.Insts.CoreCloneClone
+}
+
+/-- Trait implementation: [neo_verified::circuit::{impl core::marker::StructuralPartialEq for neo_verified::circuit::Kind}]
+    Source: 'crates/neo-verified/src/circuit.rs', lines 11:22-11:31 -/
+@[reducible]
+def circuit.Kind.Insts.CoreMarkerStructuralPartialEq :
+  core.marker.StructuralPartialEq circuit.Kind := {
+}
+
+/-- [neo_verified::circuit::{impl core::cmp::PartialEq<neo_verified::circuit::Kind> for neo_verified::circuit::Kind}::eq]:
+    Source: 'crates/neo-verified/src/circuit.rs', lines 11:22-11:31
+    Visibility: public -/
+def circuit.Kind.Insts.CoreCmpPartialEqKind.eq
+  (self : circuit.Kind) (other : circuit.Kind) : Result Bool := do
+  ok true
+
+/-- Trait implementation: [neo_verified::circuit::{impl core::cmp::PartialEq<neo_verified::circuit::Kind> for neo_verified::circuit::Kind}]
+    Source: 'crates/neo-verified/src/circuit.rs', lines 11:22-11:31 -/
+@[reducible]
+def circuit.Kind.Insts.CoreCmpPartialEqKind : core.cmp.PartialEq circuit.Kind
+  circuit.Kind := {
+  eq := circuit.Kind.Insts.CoreCmpPartialEqKind.eq
+}
+
+/-- [neo_verified::circuit::KINDS]
+    Source: 'crates/neo-verified/src/circuit.rs', lines 16:0-16:49
+    Visibility: public -/
+@[global_simps, irreducible]
+def circuit.KINDS : Array circuit.Kind 1#usize :=
+  Array.make 1#usize [ circuit.Kind.Permutation ]
+
+/-- [neo_verified::circuit::{neo_verified::circuit::Kind}::index]:
+    Source: 'crates/neo-verified/src/circuit.rs', lines 19:4-21:5
+    Visibility: public -/
+def circuit.Kind.index (self : circuit.Kind) : Result Std.Usize := do
+  let self1 := read_discriminant self
+  ok (IScalar.hcast .Usize self1)
+
+/-- [neo_verified::circuit::{neo_verified::circuit::Kind}::cells]:
+    Source: 'crates/neo-verified/src/circuit.rs', lines 23:4-27:5
+    Visibility: public -/
+def circuit.Kind.cells (self : circuit.Kind) : Result Std.Usize := do
+  circuit.CELLS
+
+/-- [neo_verified::circuit::{neo_verified::circuit::Kind}::rows]:
+    Source: 'crates/neo-verified/src/circuit.rs', lines 29:4-33:5
+    Visibility: public -/
+def circuit.Kind.rows (self : circuit.Kind) : Result Std.Usize := do
+  circuit.ROWS
+
+/-- [neo_verified::circuit::{impl core::clone::Clone for neo_verified::circuit::Wire}::clone]:
+    Source: 'crates/neo-verified/src/circuit.rs', lines 37:9-37:14
+    Visibility: public -/
+def circuit.Wire.Insts.CoreCloneClone.clone
+  (self : circuit.Wire) : Result circuit.Wire := do
+  ok self
+
+/-- Trait implementation: [neo_verified::circuit::{impl core::clone::Clone for neo_verified::circuit::Wire}]
+    Source: 'crates/neo-verified/src/circuit.rs', lines 37:9-37:14 -/
+@[reducible]
+def circuit.Wire.Insts.CoreCloneClone : core.clone.Clone circuit.Wire := {
+  clone := circuit.Wire.Insts.CoreCloneClone.clone
+}
+
+/-- Trait implementation: [neo_verified::circuit::{impl core::marker::Copy for neo_verified::circuit::Wire}]
+    Source: 'crates/neo-verified/src/circuit.rs', lines 37:16-37:20 -/
+@[reducible]
+def circuit.Wire.Insts.CoreMarkerCopy : core.marker.Copy circuit.Wire := {
+  cloneInst := circuit.Wire.Insts.CoreCloneClone
+}
+
+/-- Trait implementation: [neo_verified::circuit::{impl core::marker::StructuralPartialEq for neo_verified::circuit::Wire}]
+    Source: 'crates/neo-verified/src/circuit.rs', lines 37:22-37:31 -/
+@[reducible]
+def circuit.Wire.Insts.CoreMarkerStructuralPartialEq :
+  core.marker.StructuralPartialEq circuit.Wire := {
+}
+
+/-- [neo_verified::circuit::{impl core::cmp::PartialEq<neo_verified::circuit::Wire> for neo_verified::circuit::Wire}::eq]:
+    Source: 'crates/neo-verified/src/circuit.rs', lines 37:22-37:31
+    Visibility: public -/
+def circuit.Wire.Insts.CoreCmpPartialEqWire.eq
+  (self : circuit.Wire) (other : circuit.Wire) : Result Bool := do
+  let self1 := read_discriminant self
+  let other1 := read_discriminant other
+  if self1 = other1
+  then
+    match self with
+    | circuit.Wire.Glue __self_0 =>
+      match other with
+      | circuit.Wire.Glue __arg1_0 =>
+        lift (core.cmp.impls.PartialEqU32.eq __self_0 __arg1_0)
+      | circuit.Wire.Block _ _ _ => fail panic
+      | circuit.Wire.Public _ => fail panic
+    | circuit.Wire.Block __self_0 __self_1 __self_2 =>
+      match other with
+      | circuit.Wire.Glue _ => fail panic
+      | circuit.Wire.Block __arg1_0 __arg1_1 __arg1_2 =>
+        let b ← lift (core.cmp.impls.PartialEqU32.eq __self_1 __arg1_1)
+        if b
+        then
+          let b1 ← lift (core.cmp.impls.PartialEqU16.eq __self_2 __arg1_2)
+          if b1
+          then circuit.Kind.Insts.CoreCmpPartialEqKind.eq __self_0 __arg1_0
+          else ok false
+        else ok false
+      | circuit.Wire.Public _ => fail panic
+    | circuit.Wire.Public __self_0 =>
+      match other with
+      | circuit.Wire.Glue _ => fail panic
+      | circuit.Wire.Block _ _ _ => fail panic
+      | circuit.Wire.Public __arg1_0 =>
+        lift (core.cmp.impls.PartialEqU32.eq __self_0 __arg1_0)
+  else ok false
+
+/-- Trait implementation: [neo_verified::circuit::{impl core::cmp::PartialEq<neo_verified::circuit::Wire> for neo_verified::circuit::Wire}]
+    Source: 'crates/neo-verified/src/circuit.rs', lines 37:22-37:31 -/
+@[reducible]
+def circuit.Wire.Insts.CoreCmpPartialEqWire : core.cmp.PartialEq circuit.Wire
+  circuit.Wire := {
+  eq := circuit.Wire.Insts.CoreCmpPartialEqWire.eq
+}
+
+/-- [neo_verified::layout::{impl core::clone::Clone for neo_verified::layout::Shape}::clone]:
+    Source: 'crates/neo-verified/src/layout.rs', lines 16:9-16:14
+    Visibility: public -/
+def layout.Shape.Insts.CoreCloneClone.clone
+  (self : layout.Shape) : Result layout.Shape := do
+  ok self
+
+/-- Trait implementation: [neo_verified::layout::{impl core::clone::Clone for neo_verified::layout::Shape}]
+    Source: 'crates/neo-verified/src/layout.rs', lines 16:9-16:14 -/
+@[reducible]
+def layout.Shape.Insts.CoreCloneClone : core.clone.Clone layout.Shape := {
+  clone := layout.Shape.Insts.CoreCloneClone.clone
+}
+
+/-- Trait implementation: [neo_verified::layout::{impl core::marker::Copy for neo_verified::layout::Shape}]
+    Source: 'crates/neo-verified/src/layout.rs', lines 16:16-16:20 -/
+@[reducible]
+def layout.Shape.Insts.CoreMarkerCopy : core.marker.Copy layout.Shape := {
+  cloneInst := layout.Shape.Insts.CoreCloneClone
+}
+
+/-- Trait implementation: [neo_verified::layout::{impl core::marker::StructuralPartialEq for neo_verified::layout::Shape}]
+    Source: 'crates/neo-verified/src/layout.rs', lines 16:22-16:31 -/
+@[reducible]
+def layout.Shape.Insts.CoreMarkerStructuralPartialEq :
+  core.marker.StructuralPartialEq layout.Shape := {
+}
+
+/-- [neo_verified::layout::{impl core::cmp::PartialEq<neo_verified::layout::Shape> for neo_verified::layout::Shape}::eq]:
+    Source: 'crates/neo-verified/src/layout.rs', lines 16:22-16:31
+    Visibility: public -/
+def layout.Shape.Insts.CoreCmpPartialEqShape.eq
+  (self : layout.Shape) (other : layout.Shape) : Result Bool := do
+  let b ←
+    core.array.equality.PartialEqArray.eq core.cmp.PartialEqUsize self.blocks
+      other.blocks
+  if b
+  then
+    if self.glue_rows = other.glue_rows
+    then
+      if self.glue_cells = other.glue_cells
+      then ok (self.publics = other.publics)
+      else ok false
+    else ok false
+  else ok false
+
+/-- Trait implementation: [neo_verified::layout::{impl core::cmp::PartialEq<neo_verified::layout::Shape> for neo_verified::layout::Shape}]
+    Source: 'crates/neo-verified/src/layout.rs', lines 16:22-16:31 -/
+@[reducible]
+def layout.Shape.Insts.CoreCmpPartialEqShape : core.cmp.PartialEq layout.Shape
+  layout.Shape := {
+  eq := layout.Shape.Insts.CoreCmpPartialEqShape.eq
+}
+
+/-- [neo_verified::layout::{impl core::clone::Clone for neo_verified::layout::Part}::clone]:
+    Source: 'crates/neo-verified/src/layout.rs', lines 27:9-27:14
+    Visibility: public -/
+def layout.Part.Insts.CoreCloneClone.clone
+  (self : layout.Part) : Result layout.Part := do
+  ok self
+
+/-- Trait implementation: [neo_verified::layout::{impl core::clone::Clone for neo_verified::layout::Part}]
+    Source: 'crates/neo-verified/src/layout.rs', lines 27:9-27:14 -/
+@[reducible]
+def layout.Part.Insts.CoreCloneClone : core.clone.Clone layout.Part := {
+  clone := layout.Part.Insts.CoreCloneClone.clone
+}
+
+/-- Trait implementation: [neo_verified::layout::{impl core::marker::Copy for neo_verified::layout::Part}]
+    Source: 'crates/neo-verified/src/layout.rs', lines 27:16-27:20 -/
+@[reducible]
+def layout.Part.Insts.CoreMarkerCopy : core.marker.Copy layout.Part := {
+  cloneInst := layout.Part.Insts.CoreCloneClone
+}
+
 /-- [neo_verified::layout::two_pow]:
-    Source: 'crates/neo-verified/src/layout.rs', lines 33:0-35:1 -/
+    Source: 'crates/neo-verified/src/layout.rs', lines 65:0-69:1 -/
 def layout.two_pow (k : Std.U32) : Result Std.Usize := do
+  let o ← lift (U32.checked_sub core.num.Usize.BITS 1#u32)
+  let i ← core.option.Option.unwrap o
+  let o1 ← lift (U32.checked_sub i k)
+  let _ ← core.option.Option.unwrap o1
   ok (core.num.Usize.wrapping_shl 1#usize k)
 
 /-- [neo_verified::layout::ceil_log2]:
-    Source: 'crates/neo-verified/src/layout.rs', lines 27:0-31:1 -/
+    Source: 'crates/neo-verified/src/layout.rs', lines 59:0-63:1 -/
 def layout.ceil_log2 (n : Std.Usize) : Result Std.U32 := do
   let o ← lift (Usize.checked_sub n 1#usize)
   let i ← core.option.Option.unwrap o
@@ -32,7 +277,7 @@ def layout.ceil_log2 (n : Std.Usize) : Result Std.U32 := do
   core.option.Option.unwrap o1
 
 /-- [neo_verified::layout::floor_log2]:
-    Source: 'crates/neo-verified/src/layout.rs', lines 19:0-25:1 -/
+    Source: 'crates/neo-verified/src/layout.rs', lines 51:0-57:1 -/
 def layout.floor_log2 (n : Std.Usize) : Result Std.U32 := do
   let o ← lift (U32.checked_sub core.num.Usize.BITS 1#u32)
   let i ← core.option.Option.unwrap o
@@ -41,7 +286,7 @@ def layout.floor_log2 (n : Std.Usize) : Result Std.U32 := do
   core.option.Option.unwrap o1
 
 /-- [neo_verified::layout::split]:
-    Source: 'crates/neo-verified/src/layout.rs', lines 1:0-9:1
+    Source: 'crates/neo-verified/src/layout.rs', lines 33:0-41:1
     Visibility: public -/
 def layout.split (size : Std.Usize) : Result (Array Std.Usize 2#usize) := do
   let i ← layout.floor_log2 size
@@ -56,12 +301,169 @@ def layout.split (size : Std.Usize) : Result (Array Std.Usize 2#usize) := do
     ok (Array.make 2#usize [ wide, i2 ])
 
 /-- [neo_verified::layout::variables]:
-    Source: 'crates/neo-verified/src/layout.rs', lines 11:0-17:1
+    Source: 'crates/neo-verified/src/layout.rs', lines 43:0-49:1
     Visibility: public -/
 def layout.variables (count : Std.Usize) : Result Std.Usize := do
   if count <= 2#usize
   then ok 1#usize
   else let i ← layout.ceil_log2 count
        ok (UScalar.cast .Usize i)
+
+/-- [neo_verified::layout::place]:
+    Source: 'crates/neo-verified/src/layout.rs', lines 74:0-81:1
+    Visibility: public -/
+def layout.place
+  (size : Std.Usize) (count : Std.Usize) :
+  Result ((Array layout.Part 2#usize) × Std.Usize)
+  := do
+  let a ← layout.split size
+  let wide ← Array.index_usize a 0#usize
+  let narrow ← Array.index_usize a 1#usize
+  let o ← lift (Usize.checked_mul wide count)
+  let start ← core.option.Option.unwrap o
+  let o1 ← lift (Usize.checked_mul narrow count)
+  let i ← core.option.Option.unwrap o1
+  let o2 ← lift (Usize.checked_add start i)
+  let «end» ← core.option.Option.unwrap o2
+  ok
+    (Array.make 2#usize [
+       { start := 0#usize, stride := wide }, { start, stride := narrow }
+       ], «end»)
+
+/-- [neo_verified::layout::slot]:
+    Source: 'crates/neo-verified/src/layout.rs', lines 84:0-96:1
+    Visibility: public -/
+def layout.slot
+  (size : Std.Usize) (count : Std.Usize) (b : Std.Usize) (k : Std.Usize) :
+  Result Std.Usize
+  := do
+  let (a, _) ← layout.place size count
+  let wide ← Array.index_usize a 0#usize
+  let narrow ← Array.index_usize a 1#usize
+  let (part, «local») ←
+    if k < wide.stride
+    then ok (wide, k)
+    else
+      do
+      let o ← lift (Usize.checked_sub k wide.stride)
+      let i ← core.option.Option.unwrap o
+      ok (narrow, i)
+  let o ← lift (Usize.checked_mul b part.stride)
+  let i ← core.option.Option.unwrap o
+  let o1 ← lift (Usize.checked_add part.start i)
+  let i1 ← core.option.Option.unwrap o1
+  let o2 ← lift (Usize.checked_add i1 «local»)
+  core.option.Option.unwrap o2
+
+/-- [neo_verified::layout::block_row]:
+    Source: 'crates/neo-verified/src/layout.rs', lines 99:0-102:1
+    Visibility: public -/
+def layout.block_row
+  (shape : layout.Shape) (kind : circuit.Kind) (b : Std.Usize) (k : Std.Usize)
+  :
+  Result Std.Usize
+  := do
+  let count ← Array.index_usize shape.blocks 0#usize
+  let i ← circuit.Kind.rows kind
+  layout.slot i count b k
+
+/-- [neo_verified::layout::block_cell]:
+    Source: 'crates/neo-verified/src/layout.rs', lines 105:0-108:1
+    Visibility: public -/
+def layout.block_cell
+  (shape : layout.Shape) (kind : circuit.Kind) (b : Std.Usize) (k : Std.Usize)
+  :
+  Result Std.Usize
+  := do
+  let count ← Array.index_usize shape.blocks 0#usize
+  let i ← circuit.Kind.cells kind
+  layout.slot i count b k
+
+/-- [neo_verified::layout::rows_end]:
+    Source: 'crates/neo-verified/src/layout.rs', lines 111:0-115:1 -/
+def layout.rows_end (shape : layout.Shape) : Result Std.Usize := do
+  let count ← Array.index_usize shape.blocks 0#usize
+  let i ← circuit.Kind.rows circuit.Kind.Permutation
+  let (_, «end») ← layout.place i count
+  ok «end»
+
+/-- [neo_verified::layout::cells_end]:
+    Source: 'crates/neo-verified/src/layout.rs', lines 118:0-122:1 -/
+def layout.cells_end (shape : layout.Shape) : Result Std.Usize := do
+  let count ← Array.index_usize shape.blocks 0#usize
+  let i ← circuit.Kind.cells circuit.Kind.Permutation
+  let (_, «end») ← layout.place i count
+  ok «end»
+
+/-- [neo_verified::layout::glue_row]:
+    Source: 'crates/neo-verified/src/layout.rs', lines 124:0-126:1
+    Visibility: public -/
+def layout.glue_row
+  (shape : layout.Shape) (g : Std.Usize) : Result Std.Usize := do
+  let i ← layout.rows_end shape
+  let o ← lift (Usize.checked_add i g)
+  core.option.Option.unwrap o
+
+/-- [neo_verified::layout::row_variables]:
+    Source: 'crates/neo-verified/src/layout.rs', lines 129:0-131:1
+    Visibility: public -/
+def layout.row_variables (shape : layout.Shape) : Result Std.Usize := do
+  let i ← layout.rows_end shape
+  let o ← lift (Usize.checked_add i shape.glue_rows)
+  let i1 ← core.option.Option.unwrap o
+  layout.variables i1
+
+/-- [neo_verified::layout::cell_variables]:
+    Source: 'crates/neo-verified/src/layout.rs', lines 134:0-137:1
+    Visibility: public -/
+def layout.cell_variables (shape : layout.Shape) : Result Std.Usize := do
+  let i ← layout.cells_end shape
+  let o ← lift (Usize.checked_add i shape.glue_cells)
+  let cells ← core.option.Option.unwrap o
+  let o1 ← lift (Usize.checked_add shape.publics 1#usize)
+  let i1 ← core.option.Option.unwrap o1
+  let i2 ← lift (core.cmp.impls.OrdUsize.max cells i1)
+  layout.variables i2
+
+/-- [neo_verified::layout::one]:
+    Source: 'crates/neo-verified/src/layout.rs', lines 140:0-142:1
+    Visibility: public -/
+def layout.one (shape : layout.Shape) : Result Std.Usize := do
+  let i ← layout.cell_variables shape
+  let i1 ← lift (UScalar.cast .U32 i)
+  layout.two_pow i1
+
+/-- [neo_verified::layout::column]:
+    Source: 'crates/neo-verified/src/layout.rs', lines 145:0-151:1
+    Visibility: public -/
+def layout.column
+  (shape : layout.Shape) (wire : circuit.Wire) : Result Std.Usize := do
+  match wire with
+  | circuit.Wire.Glue cell =>
+    let i ← layout.cells_end shape
+    let i1 ← lift (UScalar.cast .Usize cell)
+    let o ← lift (Usize.checked_add i i1)
+    core.option.Option.unwrap o
+  | circuit.Wire.Block kind block cell =>
+    let i ← lift (UScalar.cast .Usize block)
+    let i1 ← lift (UScalar.cast .Usize cell)
+    layout.block_cell shape kind i i1
+  | circuit.Wire.Public index =>
+    let i ← layout.one shape
+    let i1 ← lift (UScalar.cast .Usize index)
+    let o ← lift (Usize.checked_add i i1)
+    core.option.Option.unwrap o
+
+/-- [neo_verified::layout::entry_column]:
+    Source: 'crates/neo-verified/src/layout.rs', lines 155:0-160:1
+    Visibility: public -/
+def layout.entry_column
+  (shape : layout.Shape) (kind : circuit.Kind) (b : Std.Usize)
+  (cell : Option Std.Usize) :
+  Result Std.Usize
+  := do
+  match cell with
+  | none => layout.one shape
+  | some cell1 => layout.block_cell shape kind b cell1
 
 end neo_verified

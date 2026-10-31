@@ -1,4 +1,5 @@
-import Aeneas
+import NeoVerified.Types
+import CompressionLean.Ports.Shrink.BlockPart
 
 namespace CompressionLeanRust
 
@@ -25,8 +26,27 @@ theorem usizeValues_injective {n : Usize} : Function.Injective (@usizeValues n) 
   exact Aeneas.Std.Array.ext a b ((List.map_injective_iff.mpr usizeValue_injective)
     (show List.map usizeValue a.val = List.map usizeValue b.val from h))
 
+/-- A translated part as the copy's part. -/
+def partValue (p : neo_verified.layout.Part) : CompressionLean.Shrink.Part := ⟨p.start.val, p.stride.val⟩
+
+/-- The parts and their end, as `place` returns them. -/
+def placeValue (r : Aeneas.Std.Array neo_verified.layout.Part 2#usize × Usize) :
+    List CompressionLean.Shrink.Part × ℕ :=
+  (r.1.val.map partValue, r.2.val)
+
+theorem partValue_injective : Function.Injective partValue := by
+  rintro ⟨a, b⟩ ⟨c, d⟩ h
+  simp only [partValue, CompressionLean.Shrink.Part.mk.injEq] at h
+  rw [usizeValue_injective h.1, usizeValue_injective h.2]
+
+theorem placeValue_injective : Function.Injective placeValue := by
+  rintro ⟨a, x⟩ ⟨b, y⟩ h
+  simp only [placeValue, Prod.mk.injEq] at h
+  rw [Aeneas.Std.Array.ext a b ((List.map_injective_iff.mpr partValue_injective) h.1),
+    usizeValue_injective h.2]
+
 /-- The views that a `Sound` or `Complete` theorem may use. `CompressionLeanRustTests` checks
 that each has a theorem `<view>_injective`. -/
-def views : List Lean.Name := [``usizeValue, ``usizeValues]
+def views : List Lean.Name := [``usizeValue, ``usizeValues, ``placeValue]
 
 end CompressionLeanRust

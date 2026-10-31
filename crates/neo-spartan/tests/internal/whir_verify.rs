@@ -195,10 +195,10 @@ fn recorded_verification_holds_and_does_not_depend_on_the_proof() {
     for r in 0..honest.rows.len() {
         assert_eq!(honest.row_value(r), Gl::ZERO, "row {r}");
     }
-    assert_eq!(honest.failing_block(), None);
+    assert!(honest.failing_block().is_none());
     let (shape, _) = record(&case, None);
     assert_eq!(honest.rows, shape.rows);
-    assert_eq!(honest.entries, shape.entries);
+    assert!(honest.entries == shape.entries);
     assert_eq!(honest.glue.len(), shape.glue.len());
     assert_eq!(
         honest.blocks.each_ref().map(Vec::len),

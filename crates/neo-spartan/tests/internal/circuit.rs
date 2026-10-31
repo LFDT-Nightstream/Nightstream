@@ -7,11 +7,12 @@ use p3_symmetric_v08::Permutation;
 
 use neo_ccs::crypto::poseidon2_goldilocks::poseidon2_hash;
 use neo_math::F;
+use neo_verified::circuit::{Kind, KINDS};
 use p3_field::PrimeCharacteristicRing as _;
 use p3_field::PrimeField64 as _;
 
 use super::word;
-use crate::circuit::block::{Kind, KINDS};
+use crate::circuit::block::{entries, inputs, outputs};
 use crate::circuit::fold::FoldTranscript;
 use crate::circuit::hash::{compress, hash_leaf, merkle_root, Duplex};
 use crate::circuit::poseidon2::{self, OUTPUT};
@@ -65,16 +66,16 @@ const TEMPLATE_DIGEST: [u64; 4] = [
 #[test]
 fn permutation_template_matches_lean() {
     let kind = Kind::Permutation;
-    let outputs = kind.outputs();
+    let outputs = outputs(kind);
     let mut words: Vec<u64> = vec![
         kind.rows() as u64,
         kind.cells() as u64,
-        kind.inputs() as u64,
+        inputs(kind) as u64,
         outputs.start as u64,
         outputs.end as u64,
-        kind.entries().len() as u64,
+        entries(kind).len() as u64,
     ];
-    for entry in kind.entries() {
+    for entry in entries(kind) {
         words.extend([
             entry.matrix as u64,
             entry.row as u64,
@@ -211,7 +212,7 @@ fn recorded_program_is_satisfied_and_matches_native() {
     for r in 0..trace.rows.len() {
         assert_eq!(trace.row_value(r), Gl::ZERO, "row {r}");
     }
-    assert_eq!(trace.failing_block(), None);
+    assert!(trace.failing_block().is_none());
 }
 
 #[test]
@@ -224,7 +225,7 @@ fn rows_do_not_depend_on_values() {
     let honest = record(&words(2));
     let zero = record(&vec![Gl::ZERO; 47]);
     assert_eq!(honest.rows, zero.rows);
-    assert_eq!(honest.entries, zero.entries);
+    assert!(honest.entries == zero.entries);
     assert_eq!(honest.glue.len(), zero.glue.len());
     assert_eq!(KINDS.map(|kind| honest.count(kind)), KINDS.map(|kind| zero.count(kind)));
 }

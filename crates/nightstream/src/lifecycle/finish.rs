@@ -95,7 +95,7 @@ impl FinalProof {
 /// checks a proof with it. Authority: derived from the circuit
 /// (`Verifier::compression_key`) or a pinned copy. Never take a key from a
 /// prover.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct CompressionKey {
     layer1: neo_spartan::Key,
     /// The circuit's verifier context digest.
@@ -105,6 +105,7 @@ pub struct CompressionKey {
     bound: u32,
     /// `-log2` of the error each compression layer (layer 1, shrink) may add.
     layer_bits: f64,
+    #[serde(with = "shrink::ShapeDef")]
     shape: Shape,
 }
 
@@ -350,12 +351,17 @@ impl PreparedLifecycle {
             context: self.binding.verifier_context().digest(),
             bound: self.compression_bound(),
             layer_bits,
-            shape: Shape::default(),
+            shape: Shape {
+                blocks: Default::default(),
+                glue_rows: 0,
+                glue_cells: 0,
+                publics: 0,
+            },
         };
         let shape = {
             let relation = key.relation()?;
             let state = Stage1State::new(1, [F::ZERO; 4], [F::ZERO; 4]);
-            Shape::derive(&key.program(&relation, package, &state, None))?
+            shrink::shape_of(&key.program(&relation, package, &state, None))?
         };
         key.shape = shape;
         Ok(key)

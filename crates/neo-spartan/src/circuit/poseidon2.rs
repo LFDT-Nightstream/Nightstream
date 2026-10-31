@@ -12,14 +12,14 @@
 use std::sync::OnceLock;
 
 use neo_ccs::crypto::poseidon2_goldilocks::{round_constants, WIDTH};
+use neo_verified::circuit::{CELLS, ROWS, SBOXES};
 use p3_field_v08::PrimeCharacteristicRing;
 
 use super::block::{Entry, C, X};
 use crate::field::{from_word, Gl};
 
-pub(crate) const SBOXES: usize = 150;
-pub(crate) const CELLS: usize = WIDTH + SBOXES + WIDTH;
-pub(crate) const ROWS: usize = SBOXES + WIDTH;
+const _: () = assert!(neo_verified::circuit::WIDTH == WIDTH);
+
 /// The first output cell.
 pub(crate) const OUTPUT: usize = WIDTH + SBOXES;
 

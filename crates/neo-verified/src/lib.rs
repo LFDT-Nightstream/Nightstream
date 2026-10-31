@@ -6,4 +6,5 @@
 #![forbid(unsafe_code)]
 #![deny(clippy::arithmetic_side_effects)]
 
+pub mod circuit;
 pub mod layout;

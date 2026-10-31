@@ -25,6 +25,7 @@ use std::process::Command;
 
 use neo_ccs::crypto::poseidon2_goldilocks::WIDTH;
 use neo_math::D;
+use neo_verified::circuit::Kind;
 use p3_field_v08::{PrimeCharacteristicRing, PrimeField64};
 use p3_sumcheck_v08::layout::plan_stacked_layout;
 use p3_whir::transcript::WhirShape;
@@ -33,7 +34,6 @@ use super::layer1::{relation_of, setup_toy, transcript};
 use super::lowering_stages::{Early, Edges, Honest, LaneSplit, Late, Linear, Openings, Shared};
 use super::replay::relation_json;
 use super::shrink::Layer1;
-use crate::circuit::block::Kind;
 use crate::circuit::r1cs::R1cs;
 use crate::circuit::record::{Form, Recorder, Trace};
 use crate::circuit::{Backend, Native};
@@ -41,7 +41,7 @@ use crate::device::Accelerator;
 use crate::field::Gl;
 use crate::hash::seed;
 use crate::pcs::Pcs;
-use crate::shrink::{run_digest, Program, Shape};
+use crate::shrink::{run_digest, Program, Shape, ShapeDef};
 use crate::{prove, Error, Key, Relation};
 
 /// A recorded value and its handle.
@@ -509,12 +509,14 @@ fn lower_check(name: &str, path: &Path, program: &[PathBuf]) -> String {
 pub(super) fn production_key() -> (Key, u32, f64) {
     let path = workspace().join("crates/nightstream/tests/fixtures/compression/key.bin");
     let bytes = std::fs::read(&path).unwrap_or_else(|error| panic!("{}: {error}", path.display()));
-    let fields: (Key, [u64; 4], u32, f64, Shape) = bincode::deserialize(&bytes).unwrap();
+    #[derive(serde::Serialize, serde::Deserialize)]
+    struct Fields(Key, [u64; 4], u32, f64, #[serde(with = "ShapeDef")] Shape);
+    let fields: Fields = bincode::deserialize(&bytes).unwrap();
     assert!(
         bincode::serialize(&fields).unwrap() == bytes,
         "the fields are the whole key"
     );
-    let (key, _, bound, bits, _) = fields;
+    let Fields(key, _, bound, bits, _) = fields;
     (key, bound, bits)
 }
 

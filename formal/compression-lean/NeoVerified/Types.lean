@@ -16,4 +16,36 @@ set_option linter.internalConstructors false
 
 namespace neo_verified
 
+/-- [neo_verified::circuit::Kind]
+    Source: 'crates/neo-verified/src/circuit.rs', lines 12:0-14:1
+    Visibility: public -/
+@[discriminant isize]
+inductive circuit.Kind where
+| Permutation : circuit.Kind
+
+/-- [neo_verified::circuit::Wire]
+    Source: 'crates/neo-verified/src/circuit.rs', lines 38:0-43:1
+    Visibility: public -/
+@[discriminant isize]
+inductive circuit.Wire where
+| Glue : Std.U32 → circuit.Wire
+| Block : circuit.Kind → Std.U32 → Std.U16 → circuit.Wire
+| Public : Std.U32 → circuit.Wire
+
+/-- [neo_verified::layout::Shape]
+    Source: 'crates/neo-verified/src/layout.rs', lines 17:0-24:1
+    Visibility: public -/
+structure layout.Shape where
+  blocks : Array Std.Usize 1#usize
+  glue_rows : Std.Usize
+  glue_cells : Std.Usize
+  publics : Std.Usize
+
+/-- [neo_verified::layout::Part]
+    Source: 'crates/neo-verified/src/layout.rs', lines 28:0-31:1
+    Visibility: public -/
+structure layout.Part where
+  start : Std.Usize
+  stride : Std.Usize
+
 end neo_verified

@@ -185,8 +185,10 @@ def program : Application.Program where
   witnessWordCount := messageWordCount
   step := step
   step_length := fun state message _ => step_output_length state message
+  valid := fun _ _ => True
   circuit := circuit
-  spec_iff := spec_iff
+  spec_iff := fun interface offset env =>
+    (spec_iff interface offset env).trans (and_true _).symm.to_iff
   assumptions_of_inputsBelow := assumptions_of_inputsBelow
   constraintsSupported := constraintsSupported
 

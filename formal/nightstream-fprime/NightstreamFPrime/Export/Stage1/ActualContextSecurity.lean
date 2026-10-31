@@ -348,4 +348,40 @@ theorem terminal_implies_matchingStepOrCollision
     · exact False.elim (collision.1 (congrArg serializePreimage same))
   · exact Or.inr collision
 
+/-- The accepted terminal opening's decoded application step satisfies the
+application's validity predicate. No state-hash premise is needed: the
+checked public input fixes the constant column. -/
+theorem terminal_implies_valid
+    (statement : TerminalStatement AppState) (payload : TerminalPayload application)
+    (terminal : Stage1.Terminal.HoldsFor (PerApplicationFixedPoint.relation application fits)
+      (PerApplicationCanonicalPackage.commitmentKey commitmentSetup)
+      (PerApplicationCanonicalPackage.verifierContextDigest fits commitmentSetup)
+      application statement (.recursive payload)) :
+    let assignment := ProductionRelation.Plan.logicalAssignment payload.freshWitness
+    let input := ActualStep.input application fits assignment
+      (ActualStep.decodedFresh application assignment)
+      (ActualPiDECMessages.proof application fits assignment)
+    application.valid input.zi input.witness := by
+  let assignment := ProductionRelation.Plan.logicalAssignment payload.freshWitness
+  let geometry := PerApplicationFixedPoint.geometry application
+  have accepted := terminal_implies_rowsAndPublic application fits commitmentSetup
+    statement payload terminal
+  rcases (Stage1.Terminal.holdsFor_recursive_iff
+    (PerApplicationFixedPoint.relation application fits)
+    (PerApplicationCanonicalPackage.commitmentKey commitmentSetup)
+    (PerApplicationCanonicalPackage.verifierContextDigest fits commitmentSetup)
+    application statement payload).mp terminal with
+    ⟨_statementValid, _canonical, _pcValid, _positive, publicLink, _runningValid, _freshValid⟩
+  let expected := terminalPreimage application fits commitmentSetup statement payload
+  change payload.fresh.publicInputs ⟨0, by decide⟩ = encHash (stateHash expected) at publicLink
+  have publicBound : RecursivePublicOutputPlan.publicInput geometry assignment =
+      encHash (publicFits := RecursivePublicOutputPlan.carrierPublicFits geometry)
+        (stateHash expected) := by
+    rw [RecursivePublicOutputPlan.publicInput_eq_projectPublicInput]
+    exact accepted.2.trans publicLink
+  exact ActualApplicationStep.selectedRowsZero_implies_decodedValid application fits assignment
+    (RecursivePublicOutputPlan.publicEqual_implies_one geometry assignment (stateHash expected)
+      publicBound)
+    accepted.1
+
 end NightstreamFPrime.Export.Stage1.ActualContextSecurity

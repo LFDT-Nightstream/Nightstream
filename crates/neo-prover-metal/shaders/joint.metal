@@ -237,6 +237,15 @@ inline void joint_poly_mul_affine(
     degree += 1;
 }
 
+// -1, 0 or 1 for a base-field digit, else 2.
+inline int joint_trit(Kx value) {
+    if (value.c1 != 0) return 2;
+    if (value.c0 == 0) return 0;
+    if (value.c0 == 1) return 1;
+    if (value.c0 == GOLDILOCKS_MODULUS - 1) return -1;
+    return 2;
+}
+
 kernel void joint_round_partials(
     device const ulong *application_tables [[buffer(0)]],
     device const ulong *assignments_or_masks [[buffer(1)]],
@@ -330,6 +339,14 @@ kernel void joint_round_partials(
             }
         }
 
+        // In the base round with b = 2, each unequal digit pair adds one of
+        // six fixed cubics times its weight. Three signed weight sums give
+        // the same coefficients as the per-source products below (Lean
+        // `PiCCSNormTritSums.finish_sums`).
+        bool trit_round = base_round && range_base == 2;
+        Kx acc_u = Kx{0, 0};
+        Kx acc_v = Kx{0, 0};
+        Kx acc_w = Kx{0, 0};
         for (ulong source = 0; source < assignment_count; ++source) {
             Kx low = joint_assignment_value(
                 assignments_or_masks,
@@ -351,11 +368,26 @@ kernel void joint_round_partials(
                 blocks,
                 range_base - 1,
                 assignment_len);
-            Kx slope = kx_sub(high, low);
             if ((base_round && low.c0 == high.c0 && low.c1 == high.c1)
                 || ((low.c0 | low.c1 | high.c0 | high.c1) == 0)) {
                 continue;
             }
+            if (trit_round) {
+                int l = joint_trit(low);
+                int h = joint_trit(high);
+                if (l != 2 && h != 2) {
+                    Kx weight = load_k(weights, fresh_count + source);
+                    if (h == 0) {
+                        acc_u = l < 0 ? kx_add(acc_u, weight) : kx_sub(acc_u, weight);
+                    } else if (l == 0) {
+                        acc_w = h < 0 ? kx_add(acc_w, weight) : kx_sub(acc_w, weight);
+                    } else {
+                        acc_v = h > 0 ? kx_add(acc_v, weight) : kx_sub(acc_v, weight);
+                    }
+                    continue;
+                }
+            }
+            Kx slope = kx_sub(high, low);
             Kx polynomial[SUMCHECK_MAX_COEFFS];
             for (uint coefficient = 0; coefficient < SUMCHECK_MAX_COEFFS; ++coefficient) {
                 polynomial[coefficient] = Kx{0, 0};
@@ -369,6 +401,17 @@ kernel void joint_round_partials(
             for (uint coefficient = 0; coefficient <= degree; ++coefficient) {
                 inner[coefficient] = kx_add(inner[coefficient], polynomial[coefficient]);
             }
+        }
+        if (trit_round) {
+            // (-1,0)=X^3-3X^2+2X, (-1,1)=8X^3-12X^2+4X, (0,-1)=X-X^3, and the
+            // negated mirrors: inner += (2u+4v+w)X + (-3u-12v)X^2 + (u+8v-w)X^3.
+            Kx two_u = kx_add(acc_u, acc_u);
+            Kx two_v = kx_add(acc_v, acc_v);
+            Kx four_v = kx_add(two_v, two_v);
+            Kx eight_v = kx_add(four_v, four_v);
+            inner[1] = kx_add(inner[1], kx_add(kx_add(two_u, four_v), acc_w));
+            inner[2] = kx_sub(inner[2], kx_add(kx_add(two_u, acc_u), kx_add(eight_v, four_v)));
+            inner[3] = kx_add(inner[3], kx_sub(kx_add(acc_u, eight_v), acc_w));
         }
 
         Kx equality_suffix = joint_equality_suffix(equality_chunks, chunks_per_round, round, pair);

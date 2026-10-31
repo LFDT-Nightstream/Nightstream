@@ -19,6 +19,7 @@ use serde::{Deserialize, Serialize};
 use crate::circuit::block::{Kind, KINDS, MATRICES};
 use crate::circuit::record::Wire;
 use crate::field::{eq_table, Ext, Gl};
+use neo_verified::layout::{split, variables};
 use p3_field_v08::PrimeCharacteristicRing;
 
 /// The counts of one program's recording. Authority: derived from the
@@ -53,13 +54,6 @@ struct Part {
     stride: usize,
 }
 
-/// The wide and narrow sizes of `size` template indices.
-fn split(size: usize) -> [usize; 2] {
-    let wide = 1 << (usize::BITS - 1 - size.leading_zeros());
-    let rest = size - wide;
-    [wide, if rest == 0 { 0 } else { rest.next_power_of_two() }]
-}
-
 /// Place the parts of every kind; returns the parts and their end.
 fn place(size: impl Fn(Kind) -> usize, counts: &[usize; KINDS.len()]) -> ([[Part; 2]; KINDS.len()], usize) {
     let mut slots: Vec<(usize, Kind, usize)> = Vec::new();
@@ -78,10 +72,6 @@ fn place(size: impl Fn(Kind) -> usize, counts: &[usize; KINDS.len()]) -> ([[Part
         start += stride * counts[kind.index()];
     }
     (parts, start)
-}
-
-fn variables(count: usize) -> usize {
-    (count.next_power_of_two().trailing_zeros() as usize).max(1)
 }
 
 /// The positions of one shape.

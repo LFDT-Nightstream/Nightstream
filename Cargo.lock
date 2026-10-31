@@ -606,6 +606,7 @@ dependencies = [
  "neo-params",
  "neo-reductions",
  "neo-transcript",
+ "neo-verified",
  "p3-challenger 0.8.0",
  "p3-commit",
  "p3-dft 0.8.0",
@@ -635,6 +636,10 @@ dependencies = [
  "p3-goldilocks 0.5.3",
  "p3-symmetric 0.5.3",
 ]
+
+[[package]]
+name = "neo-verified"
+version = "0.1.0"
 
 [[package]]
 name = "nightstream"

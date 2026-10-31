@@ -82,6 +82,8 @@ theorem glValues_injective {n : Usize} : Function.Injective (@glValues n) := by
 that each has a theorem `<view>_injective`. -/
 def views : List Lean.Name :=
   [``usizeValue, ``usizeValues, ``placeValue, ``glValue, ``extValue, ``optionValue, ``glValues,
-    `CompressionLeanRust.built, `CompressionLeanRust.builtVec, `CompressionLeanRust.builtKx, `CompressionLeanRust.builtDigest]
+    `CompressionLeanRust.built, `CompressionLeanRust.builtVec, `CompressionLeanRust.builtKx, `CompressionLeanRust.builtDigest,
+    `CompressionLeanRust.builtNew, `CompressionLeanRust.builtStep, `CompressionLeanRust.builtSample,
+    `CompressionLeanRust.builtBits, `CompressionLeanRust.nativeValues]
 
 end CompressionLeanRust

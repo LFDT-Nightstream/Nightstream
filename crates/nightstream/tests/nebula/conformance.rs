@@ -1,4 +1,4 @@
-//! Spec §14 rejection cases that need an invalid witness. Each case changes
+//! SPEC.md section 9 rejection cases that need an invalid witness. Each case changes
 //! one record or word of an honest run and keeps every other value
 //! consistent. The faulty invocation is proved last without the prover's
 //! assertion check. Two results are required: the verifier rejects the proof
@@ -300,7 +300,7 @@ fn memory_rejections_on_metal() {
     conformance(Engine::Metal);
 }
 
-/// Spec §9.1: the native packing that the chains read puts at most 63 bits
+/// SPEC.md section 7.4: the native packing that the chains read puts at most 63 bits
 /// into one element.
 #[test]
 fn packing_puts_at_most_63_bits_in_one_element() {

@@ -4,24 +4,25 @@ import Mathlib.Algebra.Polynomial.Roots
 import Mathlib.Algebra.CharP.Basic
 import NightstreamFPrime.Spec.Nebula.Records
 
-/-! Owns the fingerprint of spec §8.2 and security note Lemma 3 part 1: for
+/-! Owns the fingerprint of SPEC.md section 7.3 and the first part of the
+fingerprint bound: for
 fixed multisets `A ≠ B` of small tuples, at most `2·m·|E|` challenge pairs make
 the two fingerprint products equal. The carrier `E` is any finite domain of
 characteristic `q`; the Goldilocks instance is in `GoldilocksExtensionRing`.
-It does not own how the multisets arise (Lemma 4) or the retry argument. -/
+It does not own how the multisets arise (the row products) or the retry argument. -/
 
 namespace NightstreamFPrime.Spec.Nebula
 
 variable {E : Type} [CommRing E]
 
-/-- Spec §8.2: `f_η(t, g, v) = g + η1 · v + η1² · t − η2`. -/
+/-- SPEC.md section 7.3: `f_η(t, g, v) = g + η1 · v + η1² · t − η2`. -/
 def fingerprint (η : E × E) (τ : Tuple) : E :=
   (τ.2.1 : E) + η.1 * (τ.2.2 : E) + η.1 ^ 2 * (τ.1 : E) - η.2
 
 /-- The fingerprint product of a multiset. -/
 def product (η : E × E) (A : Multiset Tuple) : E := (A.map (fingerprint η)).prod
 
-/-- The close product equation of spec §11.2. -/
+/-- The close product equation of SPEC.md section 7.5. -/
 def Multisets.ProductEq (η : E × E) (m : Multisets) : Prop :=
   product η m.initial * product η m.write = product η m.read * product η m.final
 
@@ -38,7 +39,7 @@ theorem productEq_of_balanced (η : E × E) {m : Multisets} (balanced : m.Balanc
     m.ProductEq η :=
   (productEq_iff η m).mpr (congrArg (product η) balanced)
 
-/-- Every component below `q`, so the field encoding is injective (spec §4.2
+/-- Every component below `q`, so the field encoding is injective (SPEC.md section 7.1
 rules 3 and 4). -/
 def Tuple.Small (τ : Tuple) : Prop :=
   τ.1 < goldilocksModulus ∧ τ.2.1 < goldilocksModulus ∧ τ.2.2 < goldilocksModulus
@@ -153,7 +154,7 @@ variable [IsDomain E] [Fintype E] [DecidableEq E] [CharP E goldilocksModulus]
 def BadChallenges (A B : Multiset Tuple) : Finset (E × E) :=
   Finset.univ.filter fun η => product η A = product η B
 
-/-- Security note Lemma 3 part 1, as a count. -/
+/-- The fingerprint bound, as a count. -/
 theorem badChallenges_card {A B : Multiset Tuple} {m : ℕ} (different : A ≠ B)
     (small : ∀ τ ∈ A + B, τ.Small) (sizeA : Multiset.card A ≤ m)
     (sizeB : Multiset.card B ≤ m) :
@@ -187,7 +188,7 @@ theorem badChallenges_card {A B : Multiset Tuple} {m : ℕ} (different : A ≠ B
     exact_mod_cast le_of_mul_le_mul_right schwartzZippel positive
   exact toZeros.trans (bound.trans (Nat.mul_le_mul_right _ degree))
 
-/-- Security note Lemma 3 part 1, as a frequency: `ε_test ≤ 2·m / |E|`. -/
+/-- The fingerprint bound, as a frequency: `ε_test ≤ 2·m / |E|`. -/
 theorem badChallenges_frequency {A B : Multiset Tuple} {m : ℕ} (different : A ≠ B)
     (small : ∀ τ ∈ A + B, τ.Small) (sizeA : Multiset.card A ≤ m)
     (sizeB : Multiset.card B ≤ m) :

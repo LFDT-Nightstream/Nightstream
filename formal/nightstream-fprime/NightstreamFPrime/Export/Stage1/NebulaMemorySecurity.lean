@@ -2,7 +2,7 @@ import NightstreamFPrime.Export.Stage1.HyperNovaVisitedSecurity
 import NightstreamFPrime.Lifecycle.Nebula.EndToEnd
 
 /-!
-Owns the end-to-end security bound of a memory application (security note §5)
+Owns the end-to-end security bound of a memory application (`SECURITY_MODEL.md`, adversary 5)
 on the joint law of the memory statement that an adversary claims and the
 HyperNova reverse extractor's sample.
 
@@ -11,11 +11,12 @@ HyperNova reverse extractor's sample.
 * `stage1Extraction`: Stage 1 extraction for the memory program, proved from
   `HyperNovaHistory.run_correct` with no premise. Its failure is the event
   that `HyperNovaVisitedSecurity.history_failure_le` bounds.
-* `MemoryRound`: security note A6 in the form of HyperNova errata
-  Assumption 1, for the stages that Stage 1 admits. It is not a theorem here.
+* `MemoryRound`: the memory round (`SECURITY_MODEL.md`, trust item 7) in the
+  form of HyperNova errata Assumption 1, for the stages that Stage 1 admits.
+  It is not a theorem here.
 * `adversaryTape`: the IVC adversary's tape inside a reverse stage's tape.
-* `badBound`: the right side of security note §5: the Stage 1 history terms,
-  the state-link and chain collision masses, and the A6 error.
+* `badBound`: the right side of the bound of adversary 5: the Stage 1 history terms,
+  the state-link and chain collision masses, and the memory-round error.
 * `bad_le`: on the claim that the adversary's tape gives, the bad mass is at
   most `badBound` at the adversary's step bound.
 * `bad_le_clamp`: the same for an adversary whose outputs can be longer than
@@ -117,7 +118,7 @@ theorem stage1Extraction :
         exact steps_of_validAdvice _ _ list valid i (by rw [length]; exact below)
     · exact Or.inr ⟨accepted, returned⟩
 
-/-! ## Security note A6 -/
+/-! ## The memory round -/
 
 /-- A reverse stage of the HyperNova extractor, with a memory statement that
 its tape gives. `bad_le` uses the claim that reads only the IVC adversary's
@@ -157,12 +158,12 @@ theorem ClaimedStage.law_snd (c : ClaimedStage app fits setup) :
   rw [ClaimedStage.sampleAt, PMF.map_comp]
   exact PMF.map_id _
 
-/-- Security note A6 for the memory round, in the form of HyperNova errata
+/-- The memory round (`SECURITY_MODEL.md`, trust item 7), in the form of HyperNova errata
 Assumption 1: for every claimed stage whose stage is admitted, the mass of
 samples whose extracted run the model accepts with a claimed segment that
 passes the product test with unbalanced multisets is at most `error c`, one
-term for all segment slots. `StageAdmitted` is the class of `Closed`, so A6
-and Assumption 1 cover the same stages. The relation computes `η` with
+term for all segment slots. `StageAdmitted` is the class of `Closed`, so the
+memory round and Assumption 1 cover the same stages. The relation computes `η` with
 Poseidon2, so no random-oracle model covers it. The per-slot game bound
 `Lifecycle.Nebula.badAt_bound` (`2·m/q²` per slot plus the retry term)
 motivates the value of `error`; it does not prove this premise. `bad_le`
@@ -175,16 +176,16 @@ def MemoryRound (StageAdmitted : Stage (MemoryApp.program p.toGeometry app) fits
 
 /-! ## The end-to-end bound -/
 
-/-- The samples of security note §5: the memory verifier accepts (Stage 1
-terminal and spec §13 checks), but the extracted history does not attest the
+/-- The samples of adversary 5: the memory verifier accepts (Stage 1
+terminal and SPEC.md Algorithm 10 checks), but the extracted history does not attest the
 claim. -/
 def badSamples : Set (Sample app) :=
   {s | (experiment app fits).Bad app (fun s => Accepted (MemoryApp.program p.toGeometry app) fits setup s.2) s}
 
-/-- The right side of security note §5 for the reverse stages `stage` run to
-`depth`, the claimed stage `c`, and its A6 error `memoryError`: the Stage 1
-history terms, the state-link and chain collision masses, and the A6 error. It
-is the §5 bound only when `c.stage` is `stage depth`, as in `bad_le` and
+/-- The right side of the bound of adversary 5 for the reverse stages `stage` run to
+`depth`, the claimed stage `c`, and its memory-round error `memoryError`: the Stage 1
+history terms, the state-link and chain collision masses, and the memory-round
+error. It is the bound of `bad_le` only when `c.stage` is `stage depth`, as in `bad_le` and
 `bad_le_clamp`. -/
 noncomputable def badBound (error : NifsAdversary (MemoryApp.program p.toGeometry app) fits setup → ℝ)
     (stage : ℕ → Stage (MemoryApp.program p.toGeometry app) fits setup) (depth : ℕ)
@@ -241,14 +242,14 @@ theorem tape_map_adversaryTape (j : ℕ) :
     exact PMF.map_const (HyperNovaVisitedSecurity.reverseExtractor assumption closed adversary admitted j).coins
       (adversaryTape app fits setup assumption closed adversary admitted j tape)
 
-/-- Security note §5 for a memory application: on the joint law of the
+/-- The bound of adversary 5 for a memory application: on the joint law of the
 memory statement that the adversary claims from its own tape and the reverse
 extractor's sample, the mass of samples that the memory verifier accepts
-(Stage 1 terminal and spec §13 checks) but whose extracted history does not
+(Stage 1 terminal and SPEC.md Algorithm 10 checks) but whose extracted history does not
 attest the claim is at most the Stage 1 history terms of
 `history_failure_le`, the state-link and chain collision masses of the
-extracted runs, and the A6 error of the last stage. A6 holds for the stages
-that `closed` admits. -/
+extracted runs, and the memory-round error of the last stage. The memory
+round holds for the stages that `closed` admits. -/
 theorem bad_le (valid : p.Valid) (depth : ℕ)
     (depthBound : ∀ tape ∈ adversary.tape.support, (adversary.output tape).1.iteration ≤ depth)
     (claim : adversary.Tape → MemoryStatement app.width)
@@ -300,7 +301,7 @@ theorem clampOutput_iteration_le (bound : ℕ)
   · assumption
   · exact Nat.zero_le bound
 
-/-- A clamped output that passes the spec §13 checks is unchanged: the memory
+/-- A clamped output that passes the SPEC.md Algorithm 10 checks is unchanged: the memory
 verifier rejects iteration `0`. -/
 theorem clampOutput_eq_of_checks (valid : p.Valid) (bound : ℕ)
     (x : HyperNovaHistory.Statement × HyperNovaHistory.Envelope (MemoryApp.program p.toGeometry app))
@@ -313,7 +314,7 @@ theorem clampOutput_eq_of_checks (valid : p.Valid) (bound : ℕ)
     have : 0 < m.segments * p.n := Nat.mul_pos checks.terminal.segmentsRange.1 valid.positive.2.2.1
     omega
 
-/-- With `S_max · N ≤ bound`, an output that passes the spec §13 checks is
+/-- With `S_max · N ≤ bound`, an output that passes the SPEC.md Algorithm 10 checks is
 unchanged by the clamp. -/
 theorem clampOutput_eq_of_input_checks (bound : ℕ) (below : p.sMax * p.n ≤ bound)
     (x : HyperNovaHistory.Statement × HyperNovaHistory.Envelope (MemoryApp.program p.toGeometry app))
@@ -326,7 +327,7 @@ theorem clampOutput_eq_of_input_checks (bound : ℕ) (below : p.sMax * p.n ≤ b
   rw [ite_eq_left short]
 
 /-- The adversary on its own tape with clamped outputs. With
-`S_max · N ≤ bound`, a clamped output passes the spec §13 checks exactly when
+`S_max · N ≤ bound`, a clamped output passes the SPEC.md Algorithm 10 checks exactly when
 the adversary's output does, and the two are then equal
 (`clampOutput_eq_of_checks`, `clampOutput_eq_of_input_checks`). -/
 def clamp (bound : ℕ) : IvcAdversary (MemoryApp.program p.toGeometry app) fits setup :=
@@ -341,7 +342,7 @@ theorem clamp_depthBound (bound : ℕ) :
 /-- On the clamped adversary's reverse stages at depth `S_max · N`, the bad
 mass with the adversary's own outputs as terminal inputs equals the bad mass
 of the clamped run: on each tape the two outputs are equal when either passes
-the spec §13 checks, and neither is bad otherwise. -/
+the SPEC.md Algorithm 10 checks, and neither is bad otherwise. -/
 private theorem clamp_bad_eq (valid : p.Valid)
     (clampedAdmitted : StageAdmitted (Stage.start (clamp app fits setup adversary (p.sMax * p.n))))
     (claim : adversary.Tape → MemoryStatement app.width) :
@@ -380,8 +381,8 @@ private theorem clamp_bad_eq (valid : p.Valid)
         (clampOutput_eq_of_input_checks app _ le_rfl _ checks)),
       zero tape _ (fun checks => same (clampOutput_eq_of_checks app valid _ _ checks))]
 
-/-- Security note §5 for an adversary whose outputs can be longer than
-`S_max · N` steps (note A4): with the reverse extractor of its clamped form at
+/-- The bound of adversary 5 for an adversary whose outputs can be longer than
+`S_max · N` steps: with the reverse extractor of its clamped form at
 depth `S_max · N`, the mass of samples where the memory verifier accepts the
 adversary's own output but the extracted history does not attest the claim is
 at most `badBound` of the clamped form, the bound of `bad_le` for it. The

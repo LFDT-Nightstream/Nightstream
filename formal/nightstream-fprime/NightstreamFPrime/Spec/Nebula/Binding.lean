@@ -1,6 +1,6 @@
 import NightstreamFPrime.Spec.Nebula.Lifecycle
 
-/-! Owns security note Lemmas 1 and 2 at the segment level: equal chain roots
+/-! Owns packing and chain binding at the segment level: equal chain roots
 over shaped records give equal records, or a collision between the two chain
 computations. It also owns the scan memory, the memory that the IS or FS
 chunks of a segment describe. -/
@@ -30,7 +30,7 @@ def ScansShaped (p : Geometry) (scans : List (List ScanSlot)) : Prop :=
 def OpsShaped (p : Geometry) (ops : List (List OpSlot)) : Prop :=
   ∀ c ∈ ops, c.length = p.bOps ∧ ∀ s ∈ c, s.Fits p
 
-/-- The number of packed elements of each lane of a step (spec §6.3, §9.1). -/
+/-- The number of packed elements of each lane of a step (SPEC.md section 7.2 and section 7.4). -/
 def Geometry.laneLength (p : Geometry) : Lane → ℕ
   | .ops => packedLength (p.bOps * p.opWidth)
   | .mem => packedLength (p.bScan * p.scanWidth)
@@ -313,7 +313,7 @@ theorem opsLanes_shape {p : Geometry} {ops : List (List OpSlot)} (shaped : OpsSh
   rw [pack_length, opsLane_length, (shaped c hc).1]
   rfl
 
-/-- Lemmas 1 and 2 for scan chunks. -/
+/-- Packing and chain binding for scan chunks. -/
 theorem scans_eq_or_collision (H : HashInput Digest → Digest) (p : Geometry) (pd : Digest)
     {xs ys : List (List ScanSlot)} (shapedX : ScansShaped p xs) (shapedY : ScansShaped p ys)
     (same : chainRoot H .mem pd (xs.map fun c => pack (scanLane p c)) =
@@ -327,7 +327,7 @@ theorem scans_eq_or_collision (H : HashInput Digest → Digest) (p : Geometry) (
   exact scanLane_injective fitA fitB (lengthA.trans lengthB.symm)
     (pack_injective (by rw [scanLane_length, scanLane_length, lengthA, lengthB]) packed)
 
-/-- Lemmas 1 and 2 for operation lanes. -/
+/-- Packing and chain binding for operation lanes. -/
 theorem ops_eq_or_collision (H : HashInput Digest → Digest) (p : Geometry) (pd : Digest)
     {xs ys : List (List OpSlot)} (shapedX : OpsShaped p xs) (shapedY : OpsShaped p ys)
     (same : chainRoot H .ops pd (xs.map fun c => pack (opsLane p c)) =
@@ -412,7 +412,7 @@ private theorem finalInputs_subset {ctx : Context E Digest} (v : SegmentView Dig
 
 end SegmentView
 
-/-- Every chain input of a closing segment is canonical (Ob3 input range). -/
+/-- Every chain input of a closing segment is canonical (the input range of the framing). -/
 theorem SegmentView.ClosesAt.chainInputs_canonical {ctx : Context E Digest} {η : E × E}
     {v : SegmentView Digest} (closes : v.ClosesAt ctx η) :
     ∀ x ∈ v.chainInputs ctx, x.Canonical ctx.plan.laneLength ctx.plan.n := by
@@ -485,7 +485,8 @@ private theorem records_ext : ∀ {xs ys : List StepRecords},
     rw [h₁.1, h₂.1, h₃.1, records_ext h₁.2 h₂.2 h₃.2]
 
 /-- Two closing record sets for the same transcript input are equal, or their
-chains collide (Lemma 3 part 2, disagreeing branch). -/
+chains collide (the disagreeing branch of the second part of the fingerprint
+bound). -/
 theorem records_eq_or_collision {ctx : Context E Digest} {v w : SegmentView Digest}
     {η η' : E × E} (closesV : v.ClosesAt ctx η) (closesW : w.ClosesAt ctx η')
     (same : v.etaInput ctx = w.etaInput ctx) :

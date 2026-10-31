@@ -2,13 +2,13 @@ import Mathlib.Data.Fintype.Prod
 import Mathlib.Data.NNRat.Lemmas
 import NightstreamFPrime.Spec.Nebula.Binding
 
-/-! Owns security note Lemma 3 part 2: the records come after `η`, so they can
-depend on it. One call of the game that motivates A6 runs from a fixed
+/-! Owns the second part of the fingerprint bound: the records come after `η`,
+so they can depend on it. One call of the challenge game runs from a fixed
 transcript input with fresh uniform coins `(η, rest)` and returns closing
 records or nothing. The uniqueness adversary of SuperNeo v1.2 Appendix B
 repeats calls after an erroneous one until one succeeds. The averaging is a
-count: agreeing retries lie in the fiber of the erroneous records, which part
-1 bounds, and disagreeing retries give a collision among the two calls' own
+count: agreeing retries lie in the fiber of the erroneous records, which the first
+part bounds, and disagreeing retries give a collision among the two calls' own
 chain inputs. The game itself and its uniformity stay premises. -/
 
 namespace NightstreamFPrime.Spec.Nebula
@@ -214,7 +214,7 @@ private theorem mem_filter_any {α : Type} {p : α → Prop} {inst : DecidablePr
 
 variable [IsDomain E] [Fintype E] [DecidableEq E] [CharP E goldilocksModulus]
 
-/-- Security note Lemma 3 for one segment of the game that motivates A6:
+/-- The fingerprint bound for one segment of the challenge game:
 `Pr[Err] ≤ 2·m_mem/|E| + Pr[Err and the retry disagrees]`, and every
 disagreeing pair gives a collision among the two calls' chain inputs. -/
 theorem segment_fingerprint_bound {ctx : Context E Digest} (valid : ctx.plan.Valid)

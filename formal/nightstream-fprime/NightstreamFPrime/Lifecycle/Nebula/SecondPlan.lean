@@ -2,7 +2,7 @@ import NightstreamFPrime.Spec.Nebula.SetupCheck
 import NightstreamFPrime.Lifecycle.Nebula.MachineApp
 
 /-! Owns the geometry of the second memory-application test package and its
-default program, for the spec §14 cases that the first geometry cannot reach.
+default program, for the SPEC.md section 9 cases that the first geometry cannot reach.
 ROM has four words and RAM eight, so `r < μ` and rows O6 exist. A segment has
 one step (`N = 1`), there are at most four segments, and timestamps have 4
 bits. The default ROM holds `load 0; store 1; load 1; store 0`, so every step

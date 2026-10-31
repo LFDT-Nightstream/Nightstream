@@ -1,7 +1,7 @@
 import NightstreamFPrime.Lifecycle.Nebula.StepRefinement
 
-/-! Owns the assembly of Ob4 for one invocation: the step rows give the
-model's `step` (spec §11.2) on the step-start carry, the close rows give
+/-! Owns the refinement of one invocation: the step rows give the
+model's `step` (SPEC.md section 7.5) on the step-start carry, the close rows give
 `close` exactly when the step sets `idx = N`, and so `invoke` maps the decoded
 input carry to the decoded output carry, which is reachable again. It does
 not own the machine rows or the circuit. -/
@@ -91,7 +91,7 @@ theorem RowsHold.idxOut_val (valid : p.Valid) (rows : w.RowsHold zIn)
   rw [rows.idxOut, ← natWord_of_val w.idxEff, ← natWord_one, ← natWord_add, natWord_val small,
     natWord_of_val]
 
-/-- Row §8.4 in values: the output timestamp. -/
+/-- The boundary row in values: the output timestamp. -/
 theorem RowsHold.tsOut_val (valid : p.Valid) (rows : w.RowsHold zIn)
     (reach : Reach p w.inCarry) :
     (w.cOut 2).val = (w.cIn 2).val + activeCount w.records ∧
@@ -101,7 +101,7 @@ theorem RowsHold.tsOut_val (valid : p.Valid) (rows : w.RowsHold zIn)
   rw [boundary.2, natWord_val (lt_of_lt_of_le boundary.1
     (le_trans (Geometry.wTs_small valid) (two_pow_lt_modulus (by norm_num)).le))]
 
-/-- The rows of spec §8 hold, so `step` runs. -/
+/-- The rows of SPEC.md section 7.3 hold, so `step` runs. -/
 theorem RowsHold.stepped (valid : p.Valid) (rows : w.RowsHold zIn) (reach : Reach p w.inCarry) :
     stepSegment (setup p) w.stepStart w.records =
       some (advance (setup p) w.stepStart w.records) := by
@@ -111,7 +111,7 @@ theorem RowsHold.stepped (valid : p.Valid) (rows : w.RowsHold zIn) (reach : Reac
     exact rows.stepRows w valid (inTs_lt reach)
   rw [stepSegment, ite_eq_left holds]
 
-/-- Spec §11.2 `step`: the chain rows, the product rows, and the boundary rows
+/-- SPEC.md section 7.5 `step`: the chain rows, the product rows, and the boundary rows
 give the model's `advance` on the step-start carry. -/
 theorem RowsHold.advanced (valid : p.Valid) (rows : w.RowsHold zIn)
     (reach : Reach p w.inCarry) :
@@ -157,7 +157,7 @@ theorem RowsHold.advanced (valid : p.Valid) (rows : w.RowsHold zIn)
         scanLane_ofFn w.final]
   · rfl
 
-/-- Spec §11.2 `close`, exactly when the step sets `idx = N`: the close rows
+/-- SPEC.md section 7.5 `close`, exactly when the step sets `idx = N`: the close rows
 give `finishStep`. -/
 theorem RowsHold.finished (valid : p.Valid) (rows : w.RowsHold zIn)
     (reach : Reach p w.inCarry) : finishStep (setup p) w.stepEnd = some w.outCarry := by
@@ -253,7 +253,7 @@ theorem RowsHold.reachOut (valid : p.Valid) (rows : w.RowsHold zIn)
     have closed : (w.cOut 1).val = p.n := by rw [zero, natWord_val (Geometry.n_lt valid)]
     exact ⟨by omega, by omega, fun open_ => absurd (outIdx.trans closed) open_, by omega⟩
 
-/-- Ob4 for one invocation: when the rows hold on a reachable input carry, the
+/-- Refinement of one invocation: when the rows hold on a reachable input carry, the
 model's `invoke` on the decoded records maps the decoded input carry to the
 decoded output carry, which is reachable. -/
 theorem RowsHold.invoke {σ : Type} (valid : p.Valid) (rows : w.RowsHold zIn)

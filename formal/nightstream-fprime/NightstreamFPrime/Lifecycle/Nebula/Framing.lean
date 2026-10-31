@@ -2,11 +2,11 @@ import NightstreamFPrime.Lifecycle.Transcript
 import NightstreamFPrime.Spec.Nebula
 
 /-! Owns the concrete Poseidon2 framing of the Nebula memory phase: the
-framed-block transcript of spec §3 over the Stage 1 sponge absorb, the
-record-chain digests of §9.1–§9.2, the plan digest of §4.3, the `η` transcript
-of §9.3, the concrete verifier context, and `D_init` over word lists for
+framed-block transcript of SPEC.md section 7.4 over the Stage 1 sponge absorb, the
+record-chain digests and the `η` transcript of SPEC.md section 7.4, the plan
+digest of section 7.1, the concrete verifier context, and `D_init` over word lists for
 executable code.
-It also owns obligation Ob3: canonical chain inputs and canonical challenge
+It also owns the transcript framing: canonical chain inputs and canonical challenge
 inputs absorb different padded chunk sequences, so a collision among the chain
 inputs of an accepted run is a Poseidon2 transcript collision. -/
 
@@ -15,31 +15,31 @@ namespace NightstreamFPrime.Lifecycle.Nebula
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Nebula
 
-/-- A digest: four field words (spec §3). -/
+/-- A digest: four field words (SPEC.md section 7.4). -/
 abbrev Digest := Fin 4 → F
 
 /-- The words of a digest, in lane order. -/
 def digestWords (d : Digest) : List F := List.ofFn d
 
-/-- ASCII text as field words, one per byte (spec §9.1). -/
+/-- ASCII text as field words, one per byte (SPEC.md section 7.4). -/
 def textWords (text : String) : List F := text.toList.map fun c => natWord c.toNat
 
-/-- The header tags of spec §9.2. -/
+/-- The header tags of SPEC.md section 7.4. -/
 def headerTag : Lane → String
   | .ops => "Nightstream/Nebula/v3/header-ops"
   | .mem => "Nightstream/Nebula/v3/header-mem"
 
-/-- The chain tags of spec §9.2. -/
+/-- The chain tags of SPEC.md section 7.4. -/
 def chainTag : Lane → String
   | .ops => "Nightstream/Nebula/v3/chain-ops"
   | .mem => "Nightstream/Nebula/v3/chain-mem"
 
-/-- The absorbed blocks of `Digest(tag, block_1, …, block_n)` (spec §9.1). -/
+/-- The absorbed blocks of `Digest(tag, block_1, …, block_n)` (SPEC.md section 7.4). -/
 def blocks : HashInput Digest → List (List F)
   | .header lane pd => [textWords (headerTag lane), digestWords pd]
   | .chain lane j D P => [textWords (chainTag lane), natWord j :: digestWords D, P.map natWord]
 
-/-- `absorb_block_v1_1` (spec §3): the block's length, then its words. The
+/-- `absorb_block_v1_1` (SPEC.md section 7.4): the block's length, then its words. The
 Stage 1 fold transcript has no framed blocks, so this file owns them. -/
 def absorbBlock (s : Poseidon2.State) (xs : List F) : Poseidon2.State :=
   Transcript.absorb s (block xs)
@@ -51,7 +51,7 @@ def absorbBlocks (s : Poseidon2.State) (bs : List (List F)) : Poseidon2.State :=
 /-- Lane 0, then one permutation. -/
 def squeezeF (s : Poseidon2.State) : F × Poseidon2.State := (s.getD 0 0, Poseidon2.permute s)
 
-/-- `squeeze_extension_v1_1` (spec §3): one `K` element from two lane-0 reads. -/
+/-- `squeeze_extension_v1_1` (SPEC.md section 7.4): one `K` element from two lane-0 reads. -/
 def squeezeK (s : Poseidon2.State) : K × Poseidon2.State :=
   let (c0, s) := squeezeF s
   let (c1, s) := squeezeF s
@@ -65,29 +65,29 @@ def absorbed (bs : List (List F)) : Poseidon2.State :=
 /-- `squeeze_digest_v1_1`: the first four lanes. -/
 def squeezeDigest (s : Poseidon2.State) : Digest := fun i => s.getD i 0
 
-/-- The spec §9.1 digest of a record-chain input. -/
+/-- The SPEC.md section 7.4 digest of a record-chain input. -/
 def hash (x : HashInput Digest) : Digest := squeezeDigest (absorbed (blocks x))
 
-/-- Spec §4.3 `plan_digest`: the geometry only. The images enter through
+/-- SPEC.md section 7.1 `plan_digest`: the geometry only. The images enter through
 `D_init` (`Context.initRoot`), so one package serves every program of a
 geometry. -/
 def planDigest (p : Geometry) : Digest :=
   squeezeDigest (absorbed [textWords "Nightstream/Nebula/v3/plan",
     [p.r, p.μ, p.wTs, p.bOps, p.bScan, p.n, p.sMax].map natWord])
 
-/-- The absorbed blocks of the spec §9.3 challenge transcript. -/
+/-- The absorbed blocks of the SPEC.md section 7.4 challenge transcript. -/
 def etaInputBlocks (inp : EtaInput Digest) : List (List F) :=
   [textWords "Nightstream/Nebula/v3/eta", digestWords inp.planDigest, [natWord inp.ts],
     digestWords inp.opsRoot ++ digestWords inp.memRoot ++ digestWords inp.finalRoot]
 
-/-- Spec §9.3: the two memory challenges of a segment. -/
+/-- SPEC.md section 7.4: the two memory challenges of a segment. -/
 def etaChallenges (inp : EtaInput Digest) : K × K :=
   let s := absorbed (etaInputBlocks inp)
   let (η1, s) := squeezeK s
   let (η2, _) := squeezeK s
   (η1, η2)
 
-/-- The verifier setup of a geometry: Poseidon2 chains, the §9.3 transcript,
+/-- The verifier setup of a geometry: Poseidon2 chains, the challenge transcript,
 and the plan digest that the verifier computes. -/
 def setup (p : Geometry) : Setup K Digest := ⟨p, hash, fun _ => etaChallenges, planDigest p⟩
 
@@ -264,10 +264,10 @@ theorem blockChunks_injective : ∀ {bs bs' : List (List F)},
     rw [equal.2, blockChunks_injective (fun x hx => small x (by simp [hx]))
       (fun x hx => small' x (by simp [hx])) rest]
 
-/-! ### Ob3 for the challenge transcript -/
+/-! ### Framing of the challenge transcript -/
 
-/-- Ob3 for the spec §9.3 transcript: canonical inputs (`ts < q`) that differ
-absorb different padded chunk sequences. -/
+/-- Framing of the challenge transcript (SPEC.md section 7.4): canonical inputs
+(`ts < q`) that differ absorb different padded chunk sequences. -/
 theorem etaInputBlocks_injective {inp inp' : EtaInput Digest}
     (small : inp.ts < goldilocksModulus) (small' : inp'.ts < goldilocksModulus)
     (same : blockChunks (etaInputBlocks inp) = blockChunks (etaInputBlocks inp')) :
@@ -289,7 +289,7 @@ theorem etaInputBlocks_injective {inp inp' : EtaInput Digest}
   exact ⟨List.ofFn_injective plan, natWord_injective small small' ts, List.ofFn_injective ops,
     List.ofFn_injective mem, List.ofFn_injective final⟩
 
-/-! ### Ob3 for the record chains -/
+/-! ### Framing of the record chains -/
 
 private theorem headerTag_injective {l l' : Lane}
     (same : textWords (headerTag l) = textWords (headerTag l')) : l = l' := by
@@ -331,7 +331,7 @@ private theorem blocks_small {p : Geometry} (valid : p.Valid) {x : HashInput Dig
     · rw [List.length_map, length]
       exact Geometry.laneLength_lt valid lane
 
-/-- The framing separates canonical inputs (Ob3). -/
+/-- The framing separates canonical inputs. -/
 theorem blocks_injective {p : Geometry} (valid : p.Valid) {x y : HashInput Digest}
     (canonicalX : x.Canonical p.laneLength p.n) (canonicalY : y.Canonical p.laneLength p.n)
     (same : blocks x = blocks y) : x = y := by
@@ -361,7 +361,7 @@ theorem blocks_injective {p : Geometry} (valid : p.Valid) {x y : HashInput Diges
 
 open scoped NightstreamFPrime.Spec.GoldilocksExtensionRing
 
-/-- Ob3 for two input lists: if every input is canonical, a collision of the
+/-- Framing of two input lists: if every input is canonical, a collision of the
 Poseidon2 chains between the lists is a Poseidon2 transcript collision. -/
 theorem collision_transcript {ctx : Context K Digest} (concrete : ctx.hash = hash)
     (valid : ctx.plan.Valid) {xs ys : List (HashInput Digest)}
@@ -379,7 +379,7 @@ theorem collision_transcript {ctx : Context K Digest} (concrete : ctx.hash = has
 variable {σ : Type} {ctx : Context K Digest} {app : Application ctx.plan.toGeometry σ}
   {stmt : Statement σ Digest} {run : List (Invocation σ Digest)}
 
-/-- Ob3 for the record chains: when the context uses the Poseidon2 chains, a
+/-- Framing of the record chains: when the context uses the Poseidon2 chains, a
 collision among the hash inputs of an accepted run is a Poseidon2 transcript
 collision. -/
 theorem runCollision_transcript (concrete : ctx.hash = hash) (valid : ctx.plan.Valid)
@@ -389,7 +389,7 @@ theorem runCollision_transcript (concrete : ctx.hash = hash) (valid : ctx.plan.V
   collision_transcript concrete valid (runInputs_canonical valid accepted)
     (runInputs_canonical valid accepted) collision
 
-/-- Security note Lemma 6 with the Poseidon2 chains: an accepted run gives an
+/-- Deterministic memory soundness with the Poseidon2 chains: an accepted run gives an
 execution, or a Poseidon2 transcript collision among its own chain inputs, or a
 segment whose challenges pass the product test with unbalanced multisets. -/
 theorem poseidon2_soundness (concrete : ctx.hash = hash) (valid : ctx.plan.Valid)

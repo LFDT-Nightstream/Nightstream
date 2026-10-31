@@ -1,7 +1,7 @@
 import NightstreamFPrime.Lifecycle.Nebula.Framing
 
-/-! Owns the memory carry of spec §11.1 over `K` and four-word digests: its 39
-words, their canonical decoding (Ob1), and the state digest that binds the
+/-! Owns the memory carry of SPEC.md section 7.5 over `K` and four-word digests: its 39
+words, their canonical decoding, and the state digest that binds the
 application words and the carry words into the four Stage 1 application-state
 words. It does not own the memory rows or the carry actions. -/
 
@@ -13,7 +13,7 @@ open NightstreamFPrime.Spec.Nebula
 /-- The memory carry over the trunk challenge field and four-word digests. -/
 abbrev MemoryCarry := Carry K Digest
 
-/-- The 39 carry words of spec §11.1, in field order: each counter as one
+/-- The 39 carry words of SPEC.md section 7.5, in field order: each counter as one
 word, each `K` element as `(c0, c1)`, each digest as four words. -/
 def carryVector (c : MemoryCarry) : Fin 39 → F :=
   ![natWord c.segIdx, natWord c.idx, natWord c.ts,
@@ -37,7 +37,7 @@ theorem carryWords_length (c : MemoryCarry) : (carryWords c).length = 39 := by
 def readDigest (v : Fin 39 → F) (start : ℕ) (fits : start + 3 < 39) : Digest :=
   fun i => v ⟨start + i, by omega⟩
 
-/-- Spec §11.1 decoding of the 39 carry words. Every counter is the canonical
+/-- SPEC.md section 7.5 decoding of the 39 carry words. Every counter is the canonical
 value of its word. -/
 def decodeCarry (v : Fin 39 → F) : MemoryCarry where
   segIdx := (v 0).val
@@ -77,7 +77,7 @@ private theorem digest_ext {d : Digest} (start : ℕ) (fits : start + 3 < 39)
   · exact at2
   · exact at3
 
-/-- Ob1: decoding inverts the encoding on canonical carries. -/
+/-- Canonical decoding: decoding inverts the encoding on canonical carries. -/
 theorem decodeCarry_carryVector {c : MemoryCarry} (canonical : c.Canonical) :
     decodeCarry (carryVector c) = c := by
   obtain ⟨segIdx, idx, ts, ⟨η1, η2⟩, ⟨rd, wr, ini, fin⟩, ⟨pOps, pFs⟩, ⟨sOps, sIni, sFin⟩,
@@ -92,12 +92,12 @@ theorem decodeCarry_carryVector {c : MemoryCarry} (canonical : c.Canonical) :
   · congr 1 <;> exact digest_ext _ _ _ rfl rfl rfl rfl
   · exact digest_ext _ _ _ rfl rfl rfl rfl
 
-/-- Ob1: every word vector is the encoding of its canonical decoding. -/
+/-- Canonical decoding: every word vector is the encoding of its canonical decoding. -/
 theorem carryVector_decodeCarry (v : Fin 39 → F) : carryVector (decodeCarry v) = v := by
   funext i
   fin_cases i <;> first | exact natWord_of_val _ | rfl
 
-/-- Ob1: the encoding is injective on canonical carries. -/
+/-- Canonical decoding: the encoding is injective on canonical carries. -/
 theorem carryVector_injective {c c' : MemoryCarry} (canonical : c.Canonical)
     (canonical' : c'.Canonical) (same : carryVector c = carryVector c') : c = c' := by
   rw [← decodeCarry_carryVector canonical, ← decodeCarry_carryVector canonical', same]
@@ -107,7 +107,7 @@ theorem decodeCarry_canonical (v : Fin 39 → F) : (decodeCarry v).Canonical :=
   ⟨(v 0).isLt, (v 1).isLt, (v 2).isLt⟩
 
 /-- The four Stage 1 application-state words of a memory application: the
-spec §11.1 state digest of the application words and the carry words. -/
+SPEC.md section 7.5 state digest of the application words and the carry words. -/
 def stateWords (app carry : List F) : List F :=
   digestWords (squeezeDigest (absorbed [textWords "Nightstream/Nebula/v3/state", app, carry]))
 

@@ -92,7 +92,7 @@ theorem eval_bits (env : Env) {n : ℕ} (f : Fin n → Circuit.Expr) :
   rw [bits, eval_chunk, List.map_ofFn]
   rfl
 
-/-- Spec §9.1 packing of bit expressions: chunks of 63. -/
+/-- SPEC.md section 7.4 packing of bit expressions: chunks of 63. -/
 def pack (l : List Circuit.Expr) : List Circuit.Expr :=
   if _h : l = [] then [] else chunk (l.take 63) :: pack (l.drop 63)
 termination_by l.length
@@ -127,7 +127,7 @@ def kOfE (a b : Circuit.Expr) : KExpr := ⟨a, b⟩
 theorem eval_kOfE (env : Env) (a b : Circuit.Expr) : (kOfE a b).eval env = kOf (a.eval env) (b.eval env) :=
   rfl
 
-/-- The symbolic fingerprint of spec §8.2. -/
+/-- The symbolic fingerprint of SPEC.md section 7.3. -/
 def fingerprintE (η1 η2 η1sq : KExpr) (t g v : Circuit.Expr) : KExpr :=
   KExpr.sub (KExpr.add (KExpr.add (embedE g) (KExpr.mul η1 (embedE v)))
     (KExpr.mul η1sq (embedE t))) η2
@@ -183,7 +183,7 @@ def vw (j : ℕ) : Circuit.Expr := Expr.bits fun k : Fin 32 => vwBit p j k
 def rt (j : ℕ) : Circuit.Expr := Expr.bits fun k : Fin p.wTs => rtBit p j k
 def diff (j : ℕ) : Circuit.Expr := Expr.bits fun k : Fin p.wTs => diffBit p j k
 
-/-- The lane bits of operation slot `j`, in spec §6.3 order. -/
+/-- The lane bits of operation slot `j`, in SPEC.md section 7.2 order. -/
 def opLane (j : ℕ) : List Circuit.Expr :=
   [pad p j, isWrite p j, isRam p j] ++ List.ofFn (fun k : Fin p.μ => addrBit p j k) ++
     List.ofFn (fun k : Fin 32 => vrBit p j k) ++ List.ofFn (fun k : Fin 32 => vwBit p j k) ++

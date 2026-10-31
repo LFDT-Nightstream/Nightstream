@@ -98,7 +98,7 @@ open _root_.NightstreamFPrime.Lifecycle.Nebula.Sym (word cIn cOut eta1 eta2 eta1
   isWrite isRam addrBit vrBit vwBit rtBit diffBit addr vr vw rt diff opLane scanValue scanStamp
   scanLane tsWord segWord cntBefore wt globalIndex scanIndex opsProductAfter scanProductAfter)
 
-/-! ### §8 bits and the flags -/
+/-! ### Bits and flags -/
 
 def bitChecks : Checks :=
   [("O1 operation lanes",
@@ -116,7 +116,7 @@ def bitChecks : Checks :=
 
 def bitRows : List Circuit.Expr := joinChecks (bitChecks p)
 
-/-! ### §12 arm and §11.2 open -/
+/-! ### Arm and open -/
 
 def armChecks : Checks :=
   [("arm open flag", [(cIn 1 - constE (natWord p.n)) * isOpen,
@@ -133,7 +133,7 @@ def armChecks : Checks :=
 
 def armRows : List Circuit.Expr := joinChecks (armChecks p)
 
-/-! ### §8.1 operation rows -/
+/-! ### Operation rows -/
 
 def slotChecks (j : Fin p.bOps) : Checks :=
   [(s!"O3 slot {j.val}", [(1 - isWrite p j) * (vw p j - vr p j)]),
@@ -151,7 +151,7 @@ def slotChecks (j : Fin p.bOps) : Checks :=
 
 def slotRows (j : Fin p.bOps) : List Circuit.Expr := joinChecks (slotChecks p j)
 
-/-! ### §8.3 scan rows -/
+/-! ### Scan rows -/
 
 def scanChecks (j : Fin p.bScan) : Checks :=
   [(s!"S2 slot {j.val}", KExpr.equalities (scanProductAfter p 0 (j.val + 1))
@@ -165,7 +165,7 @@ def scanChecks (j : Fin p.bScan) : Checks :=
 
 def scanRows (j : Fin p.bScan) : List Circuit.Expr := joinChecks (scanChecks p j)
 
-/-! ### §8.4 boundary and §11.2 close -/
+/-! ### Boundary rows and close -/
 
 def closeChecks : Checks :=
   [("boundary ts", [cOut 2 - (cIn 2 + cntBefore p p.bOps)]),
@@ -198,7 +198,7 @@ def memoryRows : List Circuit.Expr :=
   bitRows p ++ armRows p ++ (List.finRange p.bOps).flatMap (slotRows p) ++
     (List.finRange p.bScan).flatMap (scanRows p) ++ closeRows p
 
-/-! ### §10 application rows -/
+/-! ### Application rows -/
 
 /-- The application's rows over the witness words. -/
 def appRows (app : PortApp p) : List Circuit.Expr :=

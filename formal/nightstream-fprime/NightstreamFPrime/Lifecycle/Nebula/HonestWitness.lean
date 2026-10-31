@@ -4,7 +4,7 @@ import NightstreamFPrime.Lifecycle.Nebula.StepInvoke
 words that an honest prover writes for a reachable carry, an invocation that
 the model's `invoke` accepts, and the application's words. It also
 owns the inversion of `invoke` into the checks it makes. The row proofs
-(Ob5 for the relation) are in `HonestRows` and `HonestStep`. -/
+(completeness of the relation) are in `HonestRows` and `HonestStep`. -/
 
 namespace NightstreamFPrime.Lifecycle.Nebula
 
@@ -183,7 +183,7 @@ def writeStamp (j : ℕ) : ℕ := c.ts + activeLength (inv.records.ops.take (j +
 /-- The O4 difference word of slot `j`. -/
 def diff (j : ℕ) : ℕ := writeStamp c inv j - (opSlot inv j).rt - 1
 
-/-- The challenges that an open draws (spec §9.3). -/
+/-- The challenges that an open draws (SPEC.md section 7.4). -/
 def fresh : K × K :=
   etaChallenges ⟨planDigest p, c.ts, inv.proposal.1, c.memRoot, inv.proposal.2⟩
 

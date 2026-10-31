@@ -1,6 +1,6 @@
 import NightstreamFPrime.Lifecycle.Nebula.PortApp
 
-/-! Owns Ob4 for the memory rows of one invocation: when the rows of
+/-! Owns the refinement of the memory rows of one invocation: when the rows of
 `StepWitness.RowsHold` hold and the input carry is reachable, the model's
 `invoke` maps the decoded input carry and the decoded records to the decoded
 output carry, which is reachable again. It does not own the machine rows or
@@ -79,7 +79,7 @@ theorem cOut_eq {k : ℕ} (h : k < 39) : w.cOut k = w.carryOut ⟨k, h⟩ := by
 
 variable {w} {zIn : List F}
 
-/-- Spec §12: the rows select the reopen arm exactly when the input carry is
+/-- SPEC.md Algorithm 9: the rows select the reopen arm exactly when the input carry is
 closed. -/
 theorem RowsHold.arm (valid : p.Valid) (rows : w.RowsHold zIn) :
     (w.isOpen = 1 ∧ w.inCarry.idx = p.n) ∨ (w.isOpen = 0 ∧ w.inCarry.idx ≠ p.n) := by
@@ -312,7 +312,7 @@ theorem RowsHold.activeFresh (valid : p.Valid) (rows : w.RowsHold zIn)
 
 theorem activeCount_records : activeCount w.records = activeLength w.records.ops := rfl
 
-/-- Row §8.4: the output timestamp is `ts + cnt`, below `2 ^ W_ts`. -/
+/-- The boundary row: the output timestamp is `ts + cnt`, below `2 ^ W_ts`. -/
 theorem RowsHold.boundary (valid : p.Valid) (rows : w.RowsHold zIn)
     (tsRange : (w.cIn 2).val < 2 ^ p.wTs) :
     (w.cIn 2).val + activeCount w.records < 2 ^ p.wTs ∧
@@ -335,7 +335,7 @@ theorem RowsHold.boundary (valid : p.Valid) (rows : w.RowsHold zIn)
     (by unfold goldilocksModulus; omega) range
   omega
 
-/-- The rows give the typed step rows of spec §8 (Lemma 4's premise). -/
+/-- The rows give the typed step rows of SPEC.md section 7.3 (the premise of the row products). -/
 theorem RowsHold.stepRows (valid : p.Valid) (rows : w.RowsHold zIn)
     (tsRange : (w.cIn 2).val < 2 ^ p.wTs) : StepRows p (w.cIn 2).val w.records where
   shaped := w.records_shaped
@@ -409,7 +409,7 @@ theorem RowsHold.segBelow (valid : p.Valid) (rows : w.RowsHold zIn)
     omega
   · exact reach.openSeg notClosed
 
-/-- The arm's open (spec §11.2) gives the step-start carry. -/
+/-- The arm's open (SPEC.md section 7.5) gives the step-start carry. -/
 theorem RowsHold.opened (valid : p.Valid) (rows : w.RowsHold zIn)
     (reach : Reach p w.inCarry) :
     (if w.inCarry.idx = p.n then Spec.Nebula.openSegment (setup p) w.inCarry w.proposals
@@ -588,7 +588,7 @@ theorem RowsHold.globalIndex_val (valid : p.Valid) (rows : w.RowsHold zIn) (j : 
 theorem RowsHold.squareEq (rows : w.RowsHold zIn) : w.eta1Sq = w.eta1 * w.eta1 := by
   rw [rows.square, GoldilocksExtensionRing.mul_eq]
 
-/-- The write stamp of an active slot (rows O2 and §6.1). -/
+/-- The write stamp of an active slot (row O2 and `wt_j = ts + cnt_j`). -/
 theorem RowsHold.wt_val (valid : p.Valid) (rows : w.RowsHold zIn) (j : Fin p.bOps)
     (active : (w.ops j).pad = 0) (tsRange : (w.cIn 2).val < 2 ^ p.wTs) :
     (w.wt j).val = (w.cIn 2).val + activeLength (w.records.ops.take j.val) + 1 := by

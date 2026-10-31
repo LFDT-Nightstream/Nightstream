@@ -2,7 +2,7 @@ import NightstreamFPrime.Lifecycle.Nebula.MemoryCircuit
 
 /-! Owns the inverse of the witness word layout: the word vector of a step
 witness, which `MemoryApp.decode` reads back as the same witness. Completeness
-of the relation (Ob5) uses it to turn an honest step witness into witness
+of the relation uses it to turn an honest step witness into witness
 words. It does not own any row. -/
 
 namespace NightstreamFPrime.Lifecycle.Nebula

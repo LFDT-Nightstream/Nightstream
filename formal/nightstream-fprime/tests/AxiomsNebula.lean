@@ -14,7 +14,7 @@ import NightstreamFPrime.Export.Stage1.NebulaMemoryTerminal
 
 /-! Axiom audits for the Nebula memory-phase model (`Spec/Nebula`) and its
 memory application layer (`Lifecycle/Nebula`): framing, carry, step rows,
-their refinement to the model, the honest witness (Ob5), and the memory
+their refinement to the model, the honest witness (completeness), and the memory
 packages' bounds. -/
 
 #audit_axioms NightstreamFPrime.Spec.Nebula.Geometry.romSize_le_ramSize

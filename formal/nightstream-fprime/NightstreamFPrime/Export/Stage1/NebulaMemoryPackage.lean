@@ -22,7 +22,7 @@ open NightstreamFPrime.Spec
 
 variable (geometry : Spec.Nebula.Geometry) (app : PortApp geometry)
 
-/-- Spec §4.2 setup: the memory relation of a package, for a geometry that
+/-- SPEC.md section 7.1 setup: the memory relation of a package, for a geometry that
 passes rules 1–5 (`Geometry.Valid`) and rule 6 (`Geometry.Secure`). Both memory
 packages that `lake exe emit` writes select their relation here. The relation
 `MemoryApp.program` is defined for every geometry, so the rule binds these

@@ -1,4 +1,4 @@
-//! The memory backend of catalog applications (spec §10.1). A
+//! The memory backend of catalog applications (SPEC.md section 7.6). A
 //! `CatalogBinding` maps the events of the checked memories of a
 //! `MemoryCatalog` to the operation slots of a geometry, as Lean
 //! `MemoryTrace.Binding` (`Spec/Nebula/EventBinding.lean`) needs: it gives the
@@ -57,7 +57,7 @@ impl Region {
 /// program.
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 pub enum CatalogBindingError {
-    #[error("the geometry breaks spec §4.2")]
+    #[error("the geometry breaks SPEC.md section 7.1")]
     Geometry,
     #[error("a region names a memory that the catalog does not have")]
     UnknownMemory,
@@ -369,7 +369,7 @@ impl<Id: Clone + Eq> CatalogBinding<Id> {
     /// The binding rows over `view` and the expression of each catalog
     /// column (`columns[c]` for column `c`). Each row is zero on an honest
     /// step and is one rank-one constraint, and the rows add no witness word.
-    /// When the step's rows hold (spec §10.1 rules I1 to I4):
+    /// When the step's rows hold (SPEC.md section 7.6, backend rules 1 to 4):
     ///
     /// - I1: the slot is active exactly when one of its ports is active, and
     ///   then it shows that port: its namespace, mode, address, and values;

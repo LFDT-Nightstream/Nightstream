@@ -44,9 +44,11 @@ draws the key inside its game. `Poseidon2HashChainV1` is the reference
 application of the golden runs and the executables.
 
 No adversary chooses the application or the setup: the verifier's package
-fixes both before the adversary runs. The verifier-context digest hashes the
-relation, the application, the NIFS key and the setup authority (setup
-identifier, dimensions and seed)
+fixes both before the adversary runs. A memory application (adversary 5) is
+such an application: its package also fixes the memory geometry, and the
+verifier takes the program, which the adversary does not choose. The
+verifier-context digest hashes the relation, the application, the NIFS key
+and the setup authority (setup identifier, dimensions and seed)
 (`Export.Stage1.PerApplicationCanonicalPackage.verifierContextDescriptor`),
 and every state hash carries it. So when one application's verifier accepts a
 proof, adversary 2's result gives that application's context or a state-hash
@@ -231,6 +233,44 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
   false-acceptance bound above follows from this one.
 - **Depth:** with the error that adversary 3 motivates, the bound is useful
   only for one or two folds (trust item 4, *Concrete depth*).
+
+### 5. Memory adversary
+
+- **Controls:** what adversary 4 controls, for a memory application at a
+  fixed geometry and program, and from the same tape a claimed memory
+  statement and the final carry. The adversary must be admitted (trust
+  item 4).
+- **Wins:** the memory verifier accepts (`SPEC.md` Algorithm 10), and the
+  history that the reverse extractor returns does not attest the claim: it
+  is not an execution from the claim's initial words and the program's
+  memory to its final words in which each memory access reads the last value
+  written.
+- **Result:** under Assumption 1, the closure premise and the memory round
+  (trust item 7), the mass of wins on the joint law of the claim and the
+  extractor's sample is at most `badBound`: the Stage 1 history terms of
+  adversary 4, the Poseidon2 collision masses of the extracted run's state
+  links and record chains, and the memory-round error of the last stage
+  (`Export.Stage1.NebulaMemorySecurity.bad_le`). The claim and the Stage 1
+  statement read the adversary's own tape
+  (`Export.Stage1.NebulaMemorySecurity.input_adversaryTape`). For an
+  adversary whose outputs can have more than `S_max · N` steps, the same
+  bound holds for its clamped form
+  (`Export.Stage1.NebulaMemorySecurity.bad_le_clamp`).
+- **Deterministic part:** an accepted run gives an execution, a Poseidon2
+  collision among the run's own chain inputs and the `D_init` chain, or a
+  segment that passes the product test with unbalanced multisets
+  (`Spec.Nebula.soundness`). With the state links, an accepted chain of
+  valid steps gives such a run or a state-digest collision
+  (`Lifecycle.Nebula.accepts_or_collision`, joined in
+  `Lifecycle.Nebula.EndToEnd.bad_subset`).
+- **Challenge game:** in the interactive game where `η` comes after the
+  roots and `ts`, segment slot `k` is bad with frequency at most
+  `2 · m_mem/q²` and a retry term, and each retry disagreement is a Poseidon2
+  transcript collision (`Lifecycle.Nebula.badAt_bound`). Here
+  `m_mem = R + M + N · B_ops`, and setup rule 6 keeps `2 · m_mem/q²` at most
+  `2^−109.91` (`Spec.Nebula.Geometry.secure_iff`).
+- **Depth:** the depth is `S_max · N`, so the depth limit of adversary 4
+  applies.
 
 ## What you trust
 
@@ -419,6 +459,21 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
    and the recorded native evidence cover their recorded inputs. No theorem
    covers arbitrary Rust execution.
 6. **Runtime checks.** The verifier's identity and setup checks stay necessary.
+7. **The memory round.** `Export.Stage1.NebulaMemorySecurity.MemoryRound`
+   states that, for each stage that trust item 4 admits and the memory
+   statement of its tape, the extracted run is accepted and has a segment
+   that passes the product test with unbalanced multisets with probability at
+   most `error_mem` of that stage. One term covers all segment slots. Lean
+   proves the premise when `error_mem` is the probability of the event, so
+   its content is that `error_mem` is small. The relation computes `η` with
+   Poseidon2 inside the proven step, so no random-oracle proof covers it, as
+   for the challenges of trust item 4. The challenge game of adversary 5
+   motivates the target `(Q_η + 1) · (2 · m_mem/q² + ε_coll(t_1))`, where
+   `Q_η` counts the evaluations of the `η` transcript, in the circuit and
+   outside it, and `ε_coll(t_1)` is the Poseidon2 collision probability at
+   twice the time of one run. The owner chose this form
+   (`decisions/nebula-memory-checking.md`). The record chains need only
+   Poseidon2 collision resistance.
 
 ## Out of scope
 
@@ -455,3 +510,10 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
   only for one or two folds (trust item 4, *Concrete depth*).
 - Lean states no machine running time and no Rust execution result beyond the
   recorded inputs.
+- A program that the adversary chooses after it sees the setup. Adversary 5
+  fixes the program before the adversary runs.
+- The Rust-built memory relation of an application or geometry that no Lean
+  package fixes, and the binding rows of the Rust catalog backend
+  (`SPEC.md` section 7.6). Tests check them on fixed inputs (trust item 5).
+- Values for the adversary time and the query counts `Q` and `Q_η`. They
+  stay symbolic (`decisions/nebula-memory-checking.md`).

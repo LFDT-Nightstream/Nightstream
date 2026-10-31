@@ -76,7 +76,7 @@ fn logical_row(package: &LoadedPerApplicationPackage, index: usize) -> LogicalMa
     found.unwrap()
 }
 
-/// A Stage 1 verifier checks no spec §13 terminal condition, so it would
+/// A Stage 1 verifier checks no SPEC.md Algorithm 10 terminal condition, so it would
 /// accept a state inside an open segment, whose reads no product test has
 /// checked. A memory package makes only the memory verifier.
 #[test]

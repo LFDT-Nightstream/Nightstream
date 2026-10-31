@@ -1,5 +1,5 @@
 //! Native execution of one memory segment of an application and the witness
-//! words of its invocations (spec §8–§12, segment-level prover input of
+//! words of its invocations (SPEC.md section 7, segment-level prover input of
 //! decision D3). The segment runs first, so the opening invocation knows the
 //! proposed ops and FS roots. Each step's words satisfy `RowsHold` of
 //! `Lifecycle/Nebula/StepRows.lean` and the application's rows.
@@ -32,7 +32,7 @@ pub enum SegmentError {
     Timestamp,
     #[error("the segment's IS chain differs from the carried memory root")]
     MemoryRoot,
-    #[error("the close checks of spec §11.2 fail")]
+    #[error("the close checks of SPEC.md section 7.5 fail")]
     Close,
 }
 
@@ -91,7 +91,7 @@ impl<A: Application> Context<A> {
     }
 }
 
-/// The spec §11.1 state digest of application state words and a carry.
+/// The SPEC.md section 7.5 state digest of application state words and a carry.
 pub(super) fn state_digest(words: &[u64], carry: &Carry) -> Digest {
     state_words(&field_words(words), &carry.words())
 }
@@ -100,7 +100,7 @@ fn field_words(words: &[u64]) -> Vec<F> {
     words.iter().map(|word| F::from_u64(*word)).collect()
 }
 
-/// The images with every stamp zero (spec §5): ROM cells, then RAM cells.
+/// The images with every stamp zero (SPEC.md section 7.2): ROM cells, then RAM cells.
 pub(crate) fn initial_memory(rom: &[u32], ram: &[u32]) -> Vec<Cell> {
     rom.iter()
         .chain(ram)
@@ -111,7 +111,7 @@ pub(crate) fn initial_memory(rom: &[u32], ram: &[u32]) -> Vec<Cell> {
         .collect()
 }
 
-/// `D_init`: the IS root of the images (spec §9.2).
+/// `D_init`: the IS root of the images (SPEC.md section 7.4).
 pub(super) fn initial_root(geometry: &Geometry, rom: &[u32], ram: &[u32]) -> Digest {
     let memory = initial_memory(rom, ram);
     chain_root(Lane::Mem, &plan_digest(geometry), &memory_lanes(geometry, &memory))
@@ -135,7 +135,7 @@ fn memory_lanes(geometry: &Geometry, memory: &[Cell]) -> Vec<Vec<F>> {
         .collect()
 }
 
-/// The spec §8.2 fingerprint `g + η1·v + η1²·t − η2`.
+/// The SPEC.md section 7.3 fingerprint `g + η1·v + η1²·t − η2`.
 fn fingerprint(eta: (K, K), t: u64, g: u64, v: u64) -> K {
     K::from(F::from_u64(g)) + eta.0 * K::from(F::from_u64(v)) + eta.0.square() * K::from(F::from_u64(t)) - eta.1
 }
@@ -306,7 +306,7 @@ impl<A: Application> Context<A> {
         })
     }
 
-    /// Spec §11.2 `open` proposals: the ops and FS roots of an executed
+    /// SPEC.md section 7.5 `open` proposals: the ops and FS roots of an executed
     /// segment.
     fn proposal(&self, executed: &[Executed], final_memory: &[Cell]) -> (Digest, Digest) {
         let ops: Vec<Vec<F>> = executed
@@ -447,7 +447,7 @@ impl<A: Application> Context<A> {
             set_k(&mut w, layout.scan_products(j, 0), is_product);
             set_k(&mut w, layout.scan_products(j, 2), fs_product);
         }
-        // Spec §11.2 step, then close exactly when idx reaches N.
+        // SPEC.md section 7.5 step, then close exactly when idx reaches N.
         let advanced = Carry {
             seen: [
                 chain_link(Lane::Ops, idx as usize, &effective.seen[0], packed[0]),

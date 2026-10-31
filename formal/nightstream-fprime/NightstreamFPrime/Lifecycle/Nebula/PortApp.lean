@@ -2,13 +2,13 @@ import NightstreamFPrime.Lifecycle.Nebula.StepDecode
 import NightstreamFPrime.Lifecycle.Nebula.WitnessWords
 import NightstreamFPrime.Circuit.Basic
 
-/-! Owns the interface between the memory rows and an application (spec §10).
+/-! Owns the interface between the memory rows and an application (SPEC.md section 7.6).
 The memory rows own the operation slots and the carry. An application owns
 its state words, its private words, and its rows. Its rows read those words
 and the slots through local variables (`AppView.env`): the input words, the
 output words, the private words, then each slot in the `Words.op` layout.
-The contract is Ob7 (`PortApp.sound`) and the application half of Ob5
-(`PortApp.complete`), both over the decoded ports. It does not own any memory
+The contract is port coverage (`PortApp.sound`) and the application half of
+completeness (`PortApp.complete`), both over the decoded ports. It does not own any memory
 row or any application. -/
 
 namespace NightstreamFPrime.Lifecycle.Nebula
@@ -21,7 +21,7 @@ variable {p : Geometry}
 
 /-! ### Slot words -/
 
-/-- Word `i` of an operation slot: the lane bits of spec §6.3, then the O4
+/-- Word `i` of an operation slot: the lane bits of SPEC.md section 7.2, then the O4
 difference bits; `0` past the slot. -/
 def OpSlotBits.word (slot : OpSlotBits p) (i : ℕ) : F :=
   if i = 0 then slot.pad
@@ -197,23 +197,23 @@ theorem env_appVar {a : AppShape} (v : ℕ → F) (zero : ∀ k, Words.count p a
 
 /-! ### The interface -/
 
-/-- An application of the memory phase at the circuit level (spec §10): the
+/-- An application of the memory phase at the circuit level (SPEC.md section 7.6): the
 model application over its state words, its private words, and its rows over
 `AppView.env`. The state is the state words, so a claim names the words that
 the statement carries, and completeness and soundness name the same state. -/
 structure PortApp (p : Geometry) extends AppShape where
   model : Application p (Fin width → F)
   rows : List Circuit.Expr
-  /-- The state words fit the length word of the §11.1 state digest. -/
+  /-- The state words fit the length word of the state digest. -/
   width_lt : width < goldilocksModulus
   /-- Every step uses one port list of width `B_ops`. -/
   portsLength : ∀ {s ports s'}, model.Step s ports s' → ports.length = p.bOps
-  /-- Ob7: rows that hold on well-formed slots are one model step on the
+  /-- Port coverage: rows that hold on well-formed slots are one model step on the
   decoded ports. -/
   sound : p.Valid → ∀ v : AppView p ⟨width, aux⟩, (∀ j, (v.ops j).WellFormed) →
     ConstraintsHold v.env rows →
     model.Step v.appIn (List.ofFn fun j => (v.ops j).decode.port) v.appOut
-  /-- Ob5 for the application: every model step has private words that
+  /-- Completeness for the application: every model step has private words that
   satisfy the rows, on well-formed slots with its ports. -/
   complete : p.Valid → ∀ {s ports s'} (ops : Fin p.bOps → OpSlotBits p),
     model.Step s ports s' → (∀ j, (ops j).WellFormed) →

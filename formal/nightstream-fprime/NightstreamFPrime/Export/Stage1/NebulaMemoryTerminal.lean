@@ -1,9 +1,9 @@
 import NightstreamFPrime.Lifecycle.Nebula.RunLink
 
-/-! Owns the spec §13 terminal-check fixture that the Rust memory verifier
+/-! Owns the SPEC.md Algorithm 10 terminal-check fixture that the Rust memory verifier
 must match: a fixed list of statements and final carries per plan, with each
 `TerminalChecks` field decided (`terminalChecks_iff`), whether every statement
-integer that becomes a field word is below `q` (Ob1), and the final state
+integer that becomes a field word is below `q` (canonical decoding), and the final state
 words. It does not own the checks (`Lifecycle/Nebula/RunLink.lean`). -/
 
 namespace NightstreamFPrime.Export.Stage1.NebulaMemoryTerminal

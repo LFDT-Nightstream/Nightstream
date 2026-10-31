@@ -1,4 +1,4 @@
-//! The contract between Nebula memory checking and an application (spec §10),
+//! The contract between Nebula memory checking and an application (SPEC.md section 7.6),
 //! the Rust mirror of Lean `PortApp` (`Lifecycle/Nebula/PortApp.lean`). The
 //! memory rows own the operation slots and the carry. An application owns its
 //! state words, its private words, its rows over a `View`, and its native
@@ -17,8 +17,8 @@ use super::segment::Cell;
 
 /// An application of the memory phase: the toy `Machine` now, and next the
 /// WASM relation and the Starstream interleaving circuit. Lean proves the
-/// memory rows for any `PortApp`; an application's own rows need its own Ob7
-/// and Ob5 (`PortApp.sound`, `PortApp.complete`).
+/// memory rows for any `PortApp`; an application's own rows need their own
+/// soundness and completeness (`PortApp.sound`, `PortApp.complete`).
 pub trait Application {
     /// The host's choice for one step.
     type Input;
@@ -40,10 +40,10 @@ pub trait Application {
     fn port_count(&self) -> usize;
 
     /// The `width` state words of `state`. The terminal checks reject a
-    /// statement with a word at or above `q` (Ob1).
+    /// statement with a word at or above `q` (canonical decoding).
     fn words(&self, state: &Self::State) -> Vec<u64>;
 
-    /// The application's rows over the step's view (Ob7). Each row is zero
+    /// The application's rows over the step's view (port coverage). Each row is zero
     /// on an honest step and reads only the view's words (Lean `AppView`);
     /// a memory circuit rejects a row with any other variable. An error
     /// means the application has no rows for the view's geometry.

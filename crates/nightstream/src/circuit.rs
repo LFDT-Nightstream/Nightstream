@@ -78,7 +78,7 @@ impl From<CompressionError> for Error {
 }
 
 /// The verifier that a circuit configures. A memory relation proves only
-/// steps: the spec §13 terminal checks of `nebula::Verifier` give its claim.
+/// steps: the SPEC.md Algorithm 10 terminal checks of `nebula::Verifier` give its claim.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Role {
     Stage1,

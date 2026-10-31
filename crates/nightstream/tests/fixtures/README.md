@@ -79,9 +79,9 @@ by `Circuit::compile`, `load`, `prove`, `extend`, or `verify`.
 `nebula-memory-v1-rows.json` and `nebula-memory-n1-rows.json` name the
 assertion rows of the two Nebula memory packages as `[name, first, end]`,
 counted from the application's first package row. Each name comes from the
-same spec §8–§11 check group that defines its rows (`Checks` in
+same SPEC.md section 7 check group that defines its rows (`Checks` in
 `Lifecycle/Nebula/RowList.lean` and `MemoryCircuit.lean`).
-The spec §14 rejection tests (`tests/nebula/conformance.rs`) use it to name the
+The SPEC.md section 9 rejection tests (`tests/nebula/conformance.rs`) use it to name the
 check that a faulty step fails.
 
 `nebula-memory-v1-start.json` and `nebula-memory-n1-start.json` hold `D_init`
@@ -92,7 +92,7 @@ nonzero word in every ROM and RAM cell. `tests/nebula_memory.rs` compares the
 verifier's own `D_init` with each.
 
 `nebula-memory-v1-terminal.json` and `nebula-memory-n1-terminal.json` hold
-spec §13 terminal-check cases of each plan (`NebulaMemoryTerminal.cases`):
+SPEC.md Algorithm 10 terminal-check cases of each plan (`NebulaMemoryTerminal.cases`):
 the statement, the final carry words, whether every statement integer that
 becomes a field word is below `q`, each `TerminalChecks` field as Lean decides
 it (`terminalChecks_iff`), and the final state words.

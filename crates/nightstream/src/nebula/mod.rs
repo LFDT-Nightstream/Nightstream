@@ -1,7 +1,7 @@
-//! Native side of Nebula memory checking (spec §4–§13) for any application of
+//! Native side of Nebula memory checking (SPEC.md section 7) for any application of
 //! the `Application` contract: the geometry and the program, the record
 //! chains and challenge transcript, the carry, the segment runner that writes
-//! each invocation's witness words, the spec §13 terminal checks, the memory
+//! each invocation's witness words, the SPEC.md Algorithm 10 terminal checks, the memory
 //! circuit, the memory verifier, and the memory backend of catalog
 //! applications (`CatalogBinding`). `Machine` is the first application.
 //! A memory circuit comes from a pinned Lean-emitted package (`Package::load`)
@@ -115,8 +115,8 @@ impl Package {
 }
 
 /// A program of a memory geometry: its ROM and RAM images of 32-bit words
-/// (spec §4.1). The program enters a proof only through `D_init`, its key,
-/// which `Program::new` computes once from the images (spec §9.2). One
+/// (SPEC.md section 7.1). The program enters a proof only through `D_init`, its key,
+/// which `Program::new` computes once from the images (SPEC.md section 7.4). One
 /// circuit serves every program of its geometry.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Program {
@@ -129,7 +129,7 @@ pub struct Program {
 /// Why images are not a program of a geometry.
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 pub enum ProgramError {
-    #[error("the geometry breaks spec §4.2")]
+    #[error("the geometry breaks SPEC.md section 7.1")]
     Geometry,
     #[error("the ROM image needs 2^r words and the RAM image 2^μ words")]
     Size,
@@ -155,13 +155,13 @@ impl Program {
         })
     }
 
-    /// `D_init`: the IS root of the images (spec §9.2), the program's key.
+    /// `D_init`: the IS root of the images (SPEC.md section 7.4), the program's key.
     pub fn d_init(&self) -> Digest {
         self.d_init
     }
 }
 
-/// The spec §13 public statement of a memory proof over application states `S`.
+/// The SPEC.md Algorithm 10 public statement of a memory proof over application states `S`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Statement<S> {
     pub steps: u64,
@@ -174,8 +174,9 @@ pub struct Statement<S> {
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 pub enum TerminalError {
-    /// Ob1: an integer of the statement that becomes a field word is not
-    /// below `q`, so it has the word of a smaller integer.
+    /// Canonical decoding (SPEC.md Algorithm 10, step 2): an integer of the
+    /// statement that becomes a field word is not below `q`, so it has the
+    /// word of a smaller integer.
     #[error("a statement integer is not a canonical field element")]
     NonCanonical,
     /// A state of the statement has another number of words than the
@@ -215,7 +216,7 @@ pub struct SizePart {
 /// `scripts/fprime_breakdown.py` charts them. It builds no Stage 1 package.
 pub fn size_parts<A: Application>(geometry: &Geometry, app: &A) -> Result<Vec<SizePart>, crate::Error> {
     if !geometry.is_valid() {
-        return Err(crate::Error::Circuit("the memory geometry breaks spec §4.2"));
+        return Err(crate::Error::Circuit("the memory geometry breaks SPEC.md section 7.1"));
     }
     check_port_count(geometry, app)?;
     let (_, phases) = circuit::memory_circuit_phases(geometry, app)?;
@@ -262,7 +263,7 @@ impl<A: Application> Circuit<A> {
     /// `b_ops` ports (Lean `PortApp.portsLength`).
     pub fn compile(reference_bytes: &[u8], geometry: Geometry, app: A) -> Result<Self, crate::Error> {
         if !geometry.is_valid() || !geometry.is_secure() {
-            return Err(crate::Error::Circuit("the memory geometry breaks spec §4.2"));
+            return Err(crate::Error::Circuit("the memory geometry breaks SPEC.md section 7.1"));
         }
         check_port_count(&geometry, &app)?;
         let application = circuit::memory_circuit(&geometry, &app)?;
@@ -318,7 +319,7 @@ pub enum VerifyError {
     Proof(#[from] crate::Error),
 }
 
-/// The memory verifier of one circuit: the spec §13 terminal checks, then
+/// The memory verifier of one circuit: the SPEC.md Algorithm 10 terminal checks, then
 /// the Stage 1 verifier of the circuit's relation. It verifies proofs of
 /// every program of the circuit's geometry.
 pub struct Verifier<A> {
@@ -345,7 +346,7 @@ impl<A: Application + Clone> Verifier<A> {
         self.stage1.decode_proof(bytes)
     }
 
-    /// Verify a memory proof of `program` (spec §13): the terminal checks on
+    /// Verify a memory proof of `program` (SPEC.md Algorithm 10): the terminal checks on
     /// the final carry, then the Stage 1 verification of `proof` with the
     /// initial and final states that the statement and the carry open. The
     /// initial state opens the start carry, which holds the program's
@@ -393,7 +394,7 @@ impl<A: Application + Clone> Verifier<A> {
 }
 
 impl<A: Application> Context<A> {
-    /// Spec §13: check the final carry against the statement and return the
+    /// SPEC.md Algorithm 10: check the final carry against the statement and return the
     /// initial and final Stage 1 states for the Stage 1 terminal check.
     pub fn terminal_states(
         &self,
@@ -410,7 +411,7 @@ fn terminal_states<A: Application>(
     statement: &Statement<A::State>,
     final_carry: &Carry,
 ) -> Result<(Digest, Digest), TerminalError> {
-    // Ob1: an integer that becomes a field word must be below `q`, as Lean
+    // Canonical decoding: an integer that becomes a field word must be below `q`, as Lean
     // reads each word with `.val`. The pattern names every field, so a new
     // field does not compile until it is classified here. `steps`,
     // `segments`, and the carry counters must equal values below `q`
@@ -508,7 +509,7 @@ impl<A: Application> Run<A> {
         Ok(segment.invocations)
     }
 
-    /// The spec §13 statement of the run so far.
+    /// The SPEC.md Algorithm 10 statement of the run so far.
     pub fn statement(&self) -> Statement<A::State> {
         Statement {
             steps: self.steps,

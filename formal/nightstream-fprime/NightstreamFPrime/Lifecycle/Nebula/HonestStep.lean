@@ -1,7 +1,7 @@
 import NightstreamFPrime.Lifecycle.Nebula.HonestRows
 import NightstreamFPrime.Lifecycle.Nebula.WitnessEncoding
 
-/-! Owns Ob5 for the relation of a memory application: every step that the
+/-! Owns completeness of the relation of a memory application: every step that the
 model's `invoke` accepts from a reachable carry, with one application step on
 its ports, has witness words that satisfy the memory program's validity
 predicate, and the program's step function gives the state digest of the
@@ -122,7 +122,7 @@ theorem freshEta_row (valid : p.Valid) (reach : Reach p c) :
   rw [ts, first, second, root]
   rfl
 
-/-- The memory rows of spec §8–§11 and the input state hold on the honest
+/-- The memory rows of SPEC.md section 7 and the input state hold on the honest
 witness. -/
 theorem rowsHold (valid : p.Valid) (reach : Reach p c) (accepted : Accepted p c inv) :
     (witness p c inv appIn appOut aux).RowsHold (stateWords (List.ofFn appIn) (carryWords c)) :=
@@ -166,7 +166,7 @@ theorem honest_slots (valid : p.Valid) {c : MemoryCarry} (reach : Reach p c)
   rw [Invocation.ports, ← Honest.ofFn_getD inv.records.ops OpSlot.padSlot length, List.map_ofFn]
   rfl
 
-/-- Ob5 for the relation: a step that the model accepts from a reachable carry,
+/-- Completeness of the relation: a step that the model accepts from a reachable carry,
 with one application step on its ports, has witness words that satisfy the
 memory program's validity predicate, and the program's step function gives
 the state digest of the output state and the output carry. -/

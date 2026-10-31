@@ -2,9 +2,9 @@ import Mathlib.Algebra.CharP.Basic
 import Mathlib.Data.List.TakeDrop
 import NightstreamFPrime.Spec.Nebula.Records
 
-/-! Owns the packing of spec §9.1 and security note Lemma 1: a lane's bits in
+/-! Owns the packing of SPEC.md section 7.2 and its injectivity: a lane's bits in
 chunks of at most 63, each read as a little-endian natural number below
-`2 ^ 63`. It also owns the injectivity of the slot encodings of §6.3. It does
+`2 ^ 63`. It also owns the injectivity of the slot encodings. It does
 not own the hash chains. -/
 
 namespace NightstreamFPrime.Spec.Nebula
@@ -14,7 +14,7 @@ def chunkValue : List Bool → ℕ
   | [] => 0
   | b :: bs => b.toNat + 2 * chunkValue bs
 
-/-- Spec §9.1: consecutive chunks of 63 bits; only the last can be shorter. -/
+/-- SPEC.md section 7.4: consecutive chunks of 63 bits; only the last can be shorter. -/
 def pack (bits : List Bool) : List ℕ :=
   if _h : bits = [] then [] else chunkValue (bits.take 63) :: pack (bits.drop 63)
 termination_by bits.length
@@ -76,7 +76,7 @@ theorem pack_length (bits : List Bool) : (pack bits).length = packedLength bits.
     unfold packedLength
     omega
 
-/-- Lemma 1, over the natural numbers: equal packings of equal-length bit
+/-- Packing injectivity, over the natural numbers: equal packings of equal-length bit
 strings come from equal bit strings. -/
 theorem pack_injective {xs ys : List Bool} (length : xs.length = ys.length)
     (same : pack xs = pack ys) : xs = ys := by
@@ -105,7 +105,7 @@ private theorem map_cast_injective {R : Type} [AddGroupWithOne R] [CharP R goldi
     rw [heads, map_cast_injective (fun x mem => small₁ x (by simp [mem]))
       (fun x mem => small₂ x (by simp [mem])) same.2]
 
-/-- Lemma 1, over a ring of characteristic `q`: the field values of the
+/-- Packing injectivity, over a ring of characteristic `q`: the field values of the
 packed elements determine the bit string. -/
 theorem pack_cast_injective {R : Type} [AddGroupWithOne R] [CharP R goldilocksModulus]
     {xs ys : List Bool} (length : xs.length = ys.length)
@@ -180,13 +180,13 @@ private theorem flatMap_injective {α : Type} {encode : α → List Bool} {width
       flatMap_injective fixed injective (fun x mem => fitA x (by simp [mem]))
         (fun y mem => fitB y (by simp [mem])) (by simpa using length) tails]
 
-/-- The §6.3 encoding of operation slots is injective on slots that fit. -/
+/-- The lane encoding of operation slots is injective on slots that fit. -/
 theorem opsLane_injective {p : Geometry} {a b : List OpSlot}
     (fitA : ∀ s ∈ a, s.Fits p) (fitB : ∀ s ∈ b, s.Fits p)
     (length : a.length = b.length) (same : opsLane p a = opsLane p b) : a = b :=
   flatMap_injective (OpSlot.bits_length p) opSlot_bits_injective fitA fitB length same
 
-/-- The §6.3 encoding of scan slots is injective on slots that fit. -/
+/-- The lane encoding of scan slots is injective on slots that fit. -/
 theorem scanLane_injective {p : Geometry} {a b : List ScanSlot}
     (fitA : ∀ c ∈ a, c.Fits p) (fitB : ∀ c ∈ b, c.Fits p)
     (length : a.length = b.length) (same : scanLane p a = scanLane p b) : a = b :=

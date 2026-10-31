@@ -1,12 +1,12 @@
 import NightstreamFPrime.Lifecycle.Nebula.PortApp
 
-/-! Owns the free application of a geometry (spec §10.1): any number of state
+/-! Owns the free application of a geometry (SPEC.md section 7.6): any number of state
 words, no private words, no rows, and a model that takes every step of `B_ops`
 ports to any state. The memory rows are its only checks, so an execution of it
 is a replay of its active ports (`MemoryTrace.executes_accessAll`), and with a
 binding it gives `MemoryConsistent` for a catalog
-(`MemoryTrace.memoryConsistent_of_executes`). It owns the free app's Ob7 and
-its half of Ob5. -/
+(`MemoryTrace.memoryConsistent_of_executes`). It owns the free app's port coverage
+and its half of completeness. -/
 
 namespace NightstreamFPrime.Lifecycle.Nebula
 

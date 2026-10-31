@@ -13,7 +13,7 @@ open NightstreamFPrime.Spec
 open NightstreamFPrime.Circuit
 open NightstreamFPrime.Gadgets.Poseidon2
 
-/-- A self-delimiting block of word expressions (spec §9.1): its length, then
+/-- A self-delimiting block of word expressions (SPEC.md section 7.4): its length, then
 its words. -/
 def blockE (words : List Circuit.Expr) : List Circuit.Expr :=
   .const (natWord words.length) :: words

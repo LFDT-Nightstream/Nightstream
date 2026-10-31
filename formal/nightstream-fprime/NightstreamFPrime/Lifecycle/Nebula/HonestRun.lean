@@ -1,10 +1,10 @@
 import NightstreamFPrime.Lifecycle.Nebula.HonestStep
 import NightstreamFPrime.Lifecycle.Nebula.EndToEnd
 
-/-! Owns Ob5 for runs of a memory application: the model's `invoke` keeps a
+/-! Owns completeness for runs of a memory application: the model's `invoke` keeps a
 carry reachable, a run that the model accepts is a Stage 1 step history of the
 memory program, and every execution of the application has such a history
-whose statement passes the spec §13 checks. It does not own the per-step
+whose statement passes the SPEC.md Algorithm 10 checks. It does not own the per-step
 witness (`HonestStep`) or the Stage 1 fold. -/
 
 namespace NightstreamFPrime.Lifecycle.Nebula
@@ -112,10 +112,10 @@ private theorem executes_width {s s' : app.State} {m m' : Machine}
 
 end Geometry
 
-/-- Ob5 for a memory application at the run level: every execution of
+/-- Completeness of a memory application at the run level: every execution of
 `S · N` steps with `1 ≤ S ≤ S_max` has a Stage 1 step history of the memory
 program for the statement that the verifier computes, and that statement
-passes the spec §13 checks. This includes `S = S_max`, idle steps, and every
+passes the SPEC.md Algorithm 10 checks. This includes `S = S_max`, idle steps, and every
 reachable counter value. -/
 theorem MemoryApp.history_of_execution {p : Plan} {app : PortApp p.toGeometry} (valid : p.Valid)
     {s₀ s : app.State} {final : Machine} {steps : List (List (Option PortAccess))}

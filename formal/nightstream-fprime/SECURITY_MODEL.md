@@ -387,6 +387,14 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
    This excludes that paper's repeated-diagonal infinite linear trail here.
    It does not exclude nonlinear trails, settle the full permutation's
    algebraic cost, or justify the concrete transcript as a random oracle.
+   Bak, Bariant, Boeuf, Hostettler and Jazeron (ePrint 2026/150, Tables 1–3)
+   analyze a Goldilocks Poseidon2 instance with width eight and `x^7`:
+   their concrete bounty targets have six full and at most 13 partial rounds,
+   while their 8-full/22-partial CICO-1 estimate is for width eight, not the
+   selected width 16. Sanso and Vitto (ePrint 2025/937, Table 2) solve the
+   width-eight 6-full/7-partial Goldilocks bounty instance. Neither result
+   gives a preimage, collision, or cost for this selected 16-word permutation
+   or its multi-read transcript.
    The same sponge also computes the state hash, which the theorem
    treats as a concrete function. The state hash is a four-lane read after its
    own call list (`Lifecycle.TranscriptCoverage.stateHash_eq_run`), and the

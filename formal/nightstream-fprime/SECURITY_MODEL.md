@@ -843,6 +843,16 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
   gives no identified public false-proof path. The Merkle binding premise is
   for these fixed shapes; a profile with eight-word leaves would need another
   argument (`formal/compression-lean/TRUST.md`, Merkle binding).
+- SP1 advisories GHSA-p7v2-jjv3-8p8f and GHSA-63x8-x938-vx33 show that a
+  prover-controlled tensor length or separate commitment and evaluation
+  shapes can make a native or recursive verifier accept false data. The
+  selected Stage 1 proof decoder derives all matrix sizes from its verifier
+  package and carries no shape words in the proof. `Mat` deserialization
+  checks dense `rows × cols` and packed mask counts. The custom compression
+  verifier checks GKR and WHIR proof lengths against its configured shape;
+  shrink compares the recorded run shape and public words with its layout and
+  statement. No analogous proof-controlled shape split was identified in
+  these public paths. This check is not a general Rust-to-Lean refinement.
 - Fenzi and Sanso (ePrint 2025/2197, Lemma 4.4) give a large-list adversary
   against a toy hash-based argument and say that finding its chosen list
   member appears computationally infeasible. Their high-list estimates use

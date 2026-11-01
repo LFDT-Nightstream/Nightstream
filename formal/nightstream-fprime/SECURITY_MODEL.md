@@ -353,10 +353,17 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
    subspace attacks to nonlinear trails. Their `p ≈ 2^64` sponge estimates use
    a cubic S-box and six full rounds; their highlighted `x^7` cases use
    `p ≈ 2^256`. Neither matches this 16-word Goldilocks, `x^7`, eight-full,
-   22-partial-round profile. Their CICO preimage model also does not analyze
-   the additive duplex's intermediate challenge reads. Its improved method
-   remains relevant, but its reported round counts do not give a selected
-   attack cost or prove the oracle premise here.
+   22-partial-round profile. The method itself does reach the selected
+   internal linear layer: with four capacity words and a four-word digest,
+   its sponge CICO budget is `E_c = 16 - 4 - 4 = 8`. The Appendix B.7 even-
+   construction core `N_e` is `7 × 7`; direct arithmetic modulo Goldilocks
+   with the pinned internal diagonal gives
+   `det(N_e) = 2691752801020228242 ≠ 0`. Thus the matrix-level balancing
+   check supports that paper's 16-partial-round trail here. The selected
+   permutation has 22 partial rounds and eight full rounds. The paper gives
+   no cost for this selected tuple, and its CICO preimage model does not
+   analyze the additive duplex's intermediate challenge reads. This check
+   does not prove a break or the oracle premise.
    The same sponge also computes the state hash, which the theorem
    treats as a concrete function. The state hash is a four-lane read after its
    own call list (`Lifecycle.TranscriptCoverage.stateHash_eq_run`), and the

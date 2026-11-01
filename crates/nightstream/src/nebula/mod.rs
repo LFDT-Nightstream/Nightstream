@@ -289,7 +289,10 @@ impl<A: Application> Circuit<A> {
     }
 
     /// The prover of the circuit. `minimum_security_bits` bounds the folding
-    /// profile and the memory fingerprint term (`Geometry::memory_security_bits`).
+    /// profile and one segment's memory fingerprint term
+    /// (`Geometry::memory_security_bits`, SPEC.md section 7.1). Total error
+    /// also depends on challenge evaluations and history depth
+    /// (`SECURITY_MODEL.md`, trust item 7).
     pub fn prover(&self, engine: crate::Engine, minimum_security_bits: u32) -> Result<crate::Prover, crate::Error> {
         self.check_memory_security(minimum_security_bits)?;
         self.circuit.prover(engine, minimum_security_bits)
@@ -330,8 +333,11 @@ pub struct Verifier<A> {
 
 impl<A: Application + Clone> Verifier<A> {
     /// The verifier of a memory circuit. It may share the prover's circuit.
-    /// `minimum_security_bits` bounds the folding profile and the memory
-    /// fingerprint term (`Geometry::memory_security_bits`).
+    /// `minimum_security_bits` bounds the folding profile and one segment's
+    /// memory fingerprint term (`Geometry::memory_security_bits`, SPEC.md
+    /// section 7.1). Total error also depends on challenge evaluations and
+    /// history depth
+    /// (`SECURITY_MODEL.md`, trust item 7).
     pub fn new(circuit: &Circuit<A>, engine: crate::Engine, minimum_security_bits: u32) -> Result<Self, crate::Error> {
         circuit.check_memory_security(minimum_security_bits)?;
         Ok(Self {

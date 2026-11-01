@@ -673,9 +673,15 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
      Neither theorem supplies special soundness or those binding premises for
      this rewind-based SuperNeo NIFS or the multilinear WHIR compression.
      Thus this compiler result does not give a 64-fold history bound here.
-5. **Rust and Lean agree on recorded inputs only.** The golden conformance runs
-   and the recorded native evidence cover their recorded inputs. No theorem
-   covers arbitrary Rust execution. In particular,
+5. **Rust-to-Lean coverage.** The golden conformance runs and recorded native
+   evidence cover their recorded inputs. For the two pinned memory packages,
+   executed tests compare every logical matrix row against the Lean artifact.
+   No theorem covers arbitrary Rust execution. HyperNova Definition 12
+   requires witness-independent, efficiently invertible structure and instance
+   encodings, monotonicity, and default satisfying instances for its NIVC
+   compiler. The selected base case has Lean proofs, but no theorem shows that
+   every public Rust-built application meets those compiler premises. In
+   particular,
    `Lifecycle.Stage1.Application.Program.spec_iff` is a premise of the Lean
    application interface: it makes circuit satisfaction imply both the step
    output and `valid`, which

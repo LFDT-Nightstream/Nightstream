@@ -31,7 +31,7 @@ fn minimum_110_rejects_64_segment_fingerprint_loss() {
 }
 
 #[test]
-fn memory_security_boundary_rejects_exact_error_above_minimum() {
+fn memory_security_boundary_rejects_exact_bound_above_minimum() {
     let geometry = Geometry {
         r: 0,
         mu: 0,
@@ -55,6 +55,6 @@ fn memory_security_boundary_rejects_exact_error_above_minimum() {
     let circuit = Circuit::compile(&reference, geometry, Machine).unwrap();
     assert!(
         Verifier::new(&circuit, Engine::Optimized, claimed_bits).is_err(),
-        "public verifier accepts a profile with memory error above 2^-{claimed_bits}"
+        "public verifier accepts a profile with a memory error bound above 2^-{claimed_bits}"
     );
 }

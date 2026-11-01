@@ -520,6 +520,17 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
   are outside every random-oracle model; the verifier's package key fixes the
   relation.
 - The adversary is a classical algorithm. Quantum adversaries are not modelled.
+  The four-field Poseidon2 state digest has about 256 output bits. A generic
+  quantum collision search for an ideal uniform digest takes about
+  `|F|^(4/3) = 2^85.33` queries, below the selected Ajtai component's
+  roughly 110-bit quantum cost (ePrint 2021/1578 and 2026/2135;
+  `decisions/piccs-prior-state-digest.md`). A collision between a valid
+  one-step state `(1, z, z)` and a false one-step state
+  `(1, z', z' + (1, 0, 0, 0))` for the same zero-private-input identity
+  application would let a prover substitute the false outer state in a
+  public proof: terminal verification checks that state through the digest.
+  This is an idealized cost and a conditional attack path, not a concrete
+  Poseidon2 collision or a produced false proof.
 - No adversary chooses the application or the setup (Applications and
   setups). An application chosen from the adversary's coins, or after the
   setup chunks, is outside the results for adversaries 3 and 4.

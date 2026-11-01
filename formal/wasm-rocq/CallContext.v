@@ -170,13 +170,15 @@ Qed.
 
 (* BLOCK and br_if rows never touch the call stack. *)
 Lemma full_block_selector_quiet : forall (w : Witness) chosen,
-  fieldPrime -> FullRelation.satFull w -> (chosen = COL_SEL_BLOCK \/ chosen = COL_SEL_BR_IF_EQZ) -> w chosen = 1 ->
+  fieldPrime -> FullRelation.satFull w ->
+  (chosen = COL_SEL_BLOCK \/ chosen = COL_SEL_BR_IF_EQZ \/ chosen = COL_SEL_LOOP \/ chosen = COL_SEL_IF \/
+    chosen = COL_SEL_ELSE) -> w chosen = 1 ->
   w COL_CALL_STACK_PUSH_PRESENT = 0 /\ w COL_CALL_STACK_POP_PRESENT = 0.
 Proof.
   intros w chosen Hprime Hfull Hkind Hchosen.
-  assert (Hin : In chosen selectorColumns) by (destruct Hkind as [-> | ->]; vm_compute; tauto).
+  assert (Hin : In chosen selectorColumns) by (destruct Hkind as [-> | [-> | [-> | [-> | ->]]]]; vm_compute; tauto).
   pose proof (proj1 Hfull) as Hone.
-  destruct Hkind as [-> | ->];
+  destruct Hkind as [-> | [-> | [-> | [-> | ->]]]];
     match goal with Hchosen : value w ?chosen = 1 |- _ =>
       split;
       [ selected_row chosen callStackPushRow Hrow; pose proof (value_bound w COL_CALL_STACK_PUSH_PRESENT); field_linear Hrow

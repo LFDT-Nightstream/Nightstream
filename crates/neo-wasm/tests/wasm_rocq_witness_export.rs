@@ -93,6 +93,21 @@ const BR_TABLES: &str = r#"(module
       br_table 0 0
     end))"#;
 
+/// Three ifs: a zero condition takes the else-body, a nonzero one the then-body,
+/// whose ELSE jumps past the else-body; a zero condition skips an if with no
+/// else-body.
+const IFS: &str = r#"(module
+  (func (export "main") (param i32 i32) (result i32)
+    local.get 0
+    local.get 1
+    if (result i32) local.get 1 else local.get 0 end
+    i32.add
+    local.get 0
+    if (result i32) local.get 0 else local.get 1 end
+    i32.add
+    local.get 1
+    if local.get 0 local.set 1 end))"#;
+
 /// The longest run of program, zero and move rows ending just before the final END,
 /// which finishes the activation, as `name`, one dense row per trace row.
 fn export_witness(wat: &str, params: &[i32], name: &str, file: &str) {
@@ -154,4 +169,5 @@ fn export_witnesses() {
     export_witness(RESULT_BLOCKS, &[7, 9], "resultBlockRows", "ResultBlockTrace.v");
     export_witness(BR_OUT, &[7, 9], "brRows", "BrTrace.v");
     export_witness(BR_TABLES, &[7, 1], "brTableRows", "BrTableTrace.v");
+    export_witness(IFS, &[7, 0], "ifRows", "IfTrace.v");
 }

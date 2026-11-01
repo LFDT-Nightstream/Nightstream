@@ -58,6 +58,11 @@ Definition instructionAtPC (program : Program) (pc : Z) : option (funcinst * opt
   | None => None
   end.
 
+(* The entry pc of the function an encoded pc belongs to: slots' targets are
+   relative to it. *)
+Definition pcEntry (program : Program) (pc : Z) : Z :=
+  match locatePC program (Z.to_nat pc) with Some (function, _) => functionEntry program function | None => 0 end.
+
 Definition callAddress (f : funcinst) (index : idx) : option N :=
   nth_error (FUNCS (funcinst_MODULE f)) (N.to_nat (index :> N)).
 
@@ -67,40 +72,49 @@ Definition instructionRom (program : Program) (memory : nat) (pc : Z) (choice : 
   | Some (f, slot) =>
       if Nat.eqb memory pcRomId then
         match slot with
-        | Some (flatInstruction (Some (CALL index)) _) =>
+        | Some (flatInstruction (opInstr (CALL index)) _) =>
             if choice =? 1 then Some (pc + 1) else if choice =? 0 then
               option_map (fun address => functionEntry program (N.to_nat address)) (callAddress f index)
             else None
-        | Some (flatInstruction (Some (BR_IF _)) [Some distance]) =>
-            if choice =? 0 then Some (pc + 1) else if choice =? 1 then Some (pc + Z.of_nat distance) else None
-        | Some (flatInstruction (Some (BR _ | BR_TABLE _ _)) distances) =>
+        | Some (flatInstruction (opInstr (BR_IF _)) [Some target]) =>
+            if choice =? 0 then Some (pc + 1) else if choice =? 1 then Some (pcEntry program pc + Z.of_nat target)
+            else None
+        | Some (flatInstruction (opInstr (IFELSE _ _ _)) [Some target]) =>
+            if choice =? 1 then Some (pc + 1) else if choice =? 0 then Some (pcEntry program pc + Z.of_nat target)
+            else None
+        | Some (flatInstruction (opInstr (BR _ | BR_TABLE _ _)) targets) | Some (flatInstruction opElse targets) =>
             if choice <? 0 then None else
-            match nth_error distances (Z.to_nat choice) with Some (Some distance) => Some (pc + Z.of_nat distance)
-            | _ => None end
-        | Some (flatInstruction (Some RETURN) _) => None
+            match nth_error targets (Z.to_nat choice) with
+            | Some (Some target) => Some (pcEntry program pc + Z.of_nat target)
+            | _ => None
+            end
+        | Some (flatInstruction (opInstr RETURN) _) => None
         | Some _ => if choice =? 0 then Some (pc + 1) else None
         | None => None end
       else if Nat.eqb memory programOpcodeId then
         match slot with
-        | Some (flatInstruction (Some (CALL _)) _) => Some CODE_CALL
-        | Some (flatInstruction (Some (BLOCK _ _)) _) => Some CODE_BLOCK
-        | Some (flatInstruction (Some (BR_IF _)) _) => Some CODE_BR_IF
-        | Some (flatInstruction (Some (BR _)) _) => Some CODE_BR
-        | Some (flatInstruction (Some (BR_TABLE _ _)) _) => Some CODE_BR_TABLE
-        | Some (flatInstruction (Some RETURN) _) => Some CODE_RETURN
-        | Some (flatInstruction (Some i) _) => encodedOpcode i
+        | Some (flatInstruction (opInstr (CALL _)) _) => Some CODE_CALL
+        | Some (flatInstruction (opInstr (BLOCK _ _)) _) => Some CODE_BLOCK
+        | Some (flatInstruction (opInstr (LOOP _ _)) _) => Some CODE_LOOP
+        | Some (flatInstruction (opInstr (IFELSE _ _ _)) _) => Some CODE_IF
+        | Some (flatInstruction opElse _) => Some CODE_ELSE
+        | Some (flatInstruction (opInstr (BR_IF _)) _) => Some CODE_BR_IF
+        | Some (flatInstruction (opInstr (BR _)) _) => Some CODE_BR
+        | Some (flatInstruction (opInstr (BR_TABLE _ _)) _) => Some CODE_BR_TABLE
+        | Some (flatInstruction (opInstr RETURN) _) => Some CODE_RETURN
+        | Some (flatInstruction (opInstr i) _) => encodedOpcode i
         | _ => Some CODE_END end
       else if Nat.eqb memory pcEdgeKindId then
-        match slot with Some (flatInstruction (Some RETURN) _) | None => Some 1 | Some _ => Some 0 end
+        match slot with Some (flatInstruction (opInstr RETURN) _) | None => Some 1 | Some _ => Some 0 end
       else if Nat.eqb memory programLocalIndexId then
         match slot with
-        | Some (flatInstruction (Some (LOCAL_GET x)) _)
-        | Some (flatInstruction (Some (LOCAL_SET x)) _) => Some (Z.of_N (x :> N))
+        | Some (flatInstruction (opInstr (LOCAL_GET x)) _)
+        | Some (flatInstruction (opInstr (LOCAL_SET x)) _) => Some (Z.of_N (x :> N))
         | _ => Some 0 end
       else if Nat.eqb memory programBrTableLenId then
-        match slot with Some (flatInstruction (Some (BR_TABLE ls _)) _) => Some (Z.of_nat (length ls)) | _ => None end
+        match slot with Some (flatInstruction (opInstr (BR_TABLE ls _)) _) => Some (Z.of_nat (length ls)) | _ => None end
       else if Nat.eqb memory callTargetId then
-        match slot with Some (flatInstruction (Some (CALL x)) _) =>
+        match slot with Some (flatInstruction (opInstr (CALL x)) _) =>
           option_map (fun address => Z.of_N address + 1) (callAddress f x) | _ => None end
       else None
   end.
@@ -142,15 +156,22 @@ Definition SlotContext : Type := (list nat * list nat * nat)%type.
 
 Fixpoint instructionContexts (callees : CalleeEnvironment) (heights arities : list nat) (height : option nat)
     (i : instr) : list (option SlotContext) :=
+  let bodyContexts := fix bodyContexts (heights arities : list nat) (code : list instr) (h : option nat)
+      : list (option SlotContext) :=
+    match code with
+    | [] => []
+    | j :: rest => instructionContexts callees heights arities h j ++
+        bodyContexts heights arities rest (match h with Some h => sourceHeight callees j h | None => None end)
+    end in
+  let innerHeights := (labelBase i (match height with Some h => h | None => 0 end) :: heights)%nat in
+  let entered := option_map (fun _ => 0%nat) height in
   match i with
-  | BLOCK bt body =>
-      let innerHeights := (match height with Some h => h | None => 0 end :: heights)%nat in
-      None :: (fix bodyContexts (code : list instr) (h : option nat) : list (option SlotContext) :=
-        match code with
-        | [] => []
-        | j :: rest => instructionContexts callees innerHeights (blockResults bt :: arities) h j ++
-            bodyContexts rest (match h with Some h => sourceHeight callees j h | None => None end)
-        end) body (option_map (fun _ => 0%nat) height) ++ [None]
+  | BLOCK _ body | LOOP _ body =>
+      None :: bodyContexts innerHeights (labelArity i :: arities) body entered ++ [None]
+  | IFELSE _ t e =>
+      None :: bodyContexts innerHeights (labelArity i :: arities) t entered ++
+        match e with [] => [] | _ => None :: bodyContexts innerHeights (labelArity i :: arities) e entered end ++
+        [None]
   | _ => [option_map (fun h => (heights, arities, h)) height]
   end.
 
@@ -182,7 +203,7 @@ Definition functionSlide (program : Program) (memory : nat) (f : GuestFunction) 
   let contexts := codeContexts (programCallees program (guestModule f)) (guestResults f) (guestBody f) (Some 0%nat) in
   match nth_error (flattenCode (guestBody f)) offset, nth_error contexts offset with
   | None, _ => if choice =? 0 then Some (slideWord remaining (guestResults f) frame) else None
-  | Some (flatInstruction (Some i) _), Some (Some (heights, arities, h)) =>
+  | Some (flatInstruction (opInstr i) _), Some (Some (heights, arities, h)) =>
       match i with
       | RETURN => if choice =? 0 then word frame (labelSlide heights arities h (length arities - 1)) else None
       | BR l => if choice =? 0 then word 0%nat (labelSlide heights arities h (N.to_nat (l :> N))) else None

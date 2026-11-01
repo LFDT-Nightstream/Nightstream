@@ -14,11 +14,11 @@ Local Notation "'let?' x ':=' e 'in' k" := (match e with Some x => k | None => N
   (at level 200, x ident, e at level 100, k at level 200).
 Local Notation "'check' b 'in' k" := (if b then k else None) (at level 200, b at level 100, k at level 200).
 
-(* A function, the offsets of the BLOCKs enclosing a position (outermost first),
-   and the offset in the innermost body. *)
+(* A function, the labels enclosing a position (outermost first), and the offset
+   in the innermost body. *)
 Record CodePosition := codePosition {
   positionFunction : nat;
-  positionLabels : list nat;
+  positionLabels : list LabelSite;
   positionOffset : nat
 }.
 
@@ -71,14 +71,15 @@ Definition activeFrame (f : GuestFunction) (locals : list Z) : frame :=
 
 (* The operand height below each enclosing label, and in the innermost code at
    the offset, from the code's stack effects. *)
-Fixpoint pathHeights (callees : CalleeEnvironment) (code : list instr) (labels : list nat) (offset : nat)
+Fixpoint pathHeights (callees : CalleeEnvironment) (code : list instr) (labels : list LabelSite) (offset : nat)
     : option (list nat * nat) :=
   match labels with
   | [] => option_map (fun top => ([], top)) (sourceHeights callees (firstn offset code) 0)
-  | b :: rest =>
-      match nth_error code b, sourceHeights callees (firstn b code) 0 with
-      | Some (BLOCK _ body), Some below =>
-          option_map (fun heights => (below :: fst heights, snd heights)) (pathHeights callees body rest offset)
+  | s :: rest =>
+      match siteEntry code s, sourceHeights callees (firstn (siteOffset s) code) 0 with
+      | Some (i, body), Some height =>
+          option_map (fun heights => (labelBase i height :: fst heights, snd heights))
+            (pathHeights callees body rest offset)
       | _, _ => None
       end
   end.
@@ -86,11 +87,10 @@ Fixpoint pathHeights (callees : CalleeEnvironment) (code : list instr) (labels :
 Definition totalHeight (heights : list nat * nat) : nat := fold_right Nat.add (snd heights) (fst heights).
 
 (* The arity of each enclosing label, outermost first. *)
-Fixpoint pathArities (code : list instr) (labels : list nat) : list nat :=
+Fixpoint pathArities (code : list instr) (labels : list LabelSite) : list nat :=
   match labels with
   | [] => []
-  | b :: rest => match nth_error code b with
-      | Some (BLOCK bt body) => blockResults bt :: pathArities body rest | _ => [] end
+  | s :: rest => match siteEntry code s with Some (i, body) => labelArity i :: pathArities body rest | None => [] end
   end.
 
 (* The operands below each label, then the innermost ones. *)
@@ -102,14 +102,14 @@ Fixpoint splitSegments (heights : list nat) (values : list Z) : list (list Z) * 
 
 (* A configuration inside its enclosing labels: each label's operands and the
    code after its END stay outside its LABEL_. *)
-Fixpoint wrapLabels (code : list instr) (labels : list nat) (segments : list (list Z)) (c : config) : config :=
+Fixpoint wrapLabels (code : list instr) (labels : list LabelSite) (segments : list (list Z)) (c : config) : config :=
   match labels, segments with
-  | b :: rest, segment :: more =>
-      match nth_error code b with
-      | Some (BLOCK bt body) =>
-          stackPrefix segment (instructionSuffix (skipn (S b) code)
-            (blockContext (blockResults bt) (wrapLabels body rest more c)))
-      | _ => c
+  | s :: rest, segment :: more =>
+      match siteEntry code s with
+      | Some (i, body) =>
+          stackPrefix segment (instructionSuffix (skipn (S (siteOffset s)) code)
+            (blockContext (labelArity i) (wrapLabels body rest more c)))
+      | None => c
       end
   | _, _ => c
   end.

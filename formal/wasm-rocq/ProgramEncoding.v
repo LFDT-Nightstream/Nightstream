@@ -150,7 +150,7 @@ Lemma encoded_function_end : forall program memory index f,
 Proof.
   intros program memory index f Hloaded Hf.
   pose proof (instruction_at_function_pc _ _ _ (codeSize (guestBody f)) Hf ltac:(lia)) as Hpc.
-  assert (Hnone : nth_error (flattenCode (guestBody f)) (codeSize (guestBody f)) = None) by (apply nth_error_None; unfold codeSize; lia).
+  assert (Hnone : nth_error (flattenCode (guestBody f)) (codeSize (guestBody f)) = None) by (apply nth_error_None; rewrite flatten_code_length; lia).
   rewrite Hnone in Hpc. split; program_cell Hloaded; unfold encodeProgram;
     cbn [Nat.eqb pcRomId pcFunctionRefId functionEntryId functionLocalCountId functionCallMetadataId orb];
     unfold instructionRom; rewrite Hpc; reflexivity.
@@ -179,10 +179,21 @@ Lemma encoded_end_slide : forall program memory index f choice,
 Proof.
   intros program memory index f choice Hloaded Hf pc frame.
   assert (Hnone : nth_error (flattenCode (guestBody f)) (codeSize (guestBody f)) = None)
-    by (apply nth_error_None; unfold codeSize; lia).
+    by (apply nth_error_None; rewrite flatten_code_length; lia).
   split; program_cell Hloaded; unfold encodeProgram; cbn [Nat.eqb pcRomId frameSlideRemainingId frameSlideDistanceId orb];
     unfold pc; rewrite (slide_at_function_pc _ _ _ _ (codeSize (guestBody f)) choice Hf ltac:(lia));
     unfold functionSlide; rewrite Hnone; destruct (choice =? 0); try reflexivity;
     unfold slideWord, frame; cbn [Nat.eqb frameSlideRemainingId frameSlideDistanceId];
     destruct (guestParams f + guestLocals f)%nat; reflexivity.
+Qed.
+
+Lemma pc_entry_function : forall program index f offset,
+  functionAt program index = Some f -> (offset <= codeSize (guestBody f))%nat ->
+  pcEntry program (guestEntry f + Z.of_nat offset) = guestEntry f.
+Proof.
+  intros program index f offset Hf Hoffset.
+  destruct (function_at_sound _ _ _ Hf) as [Hlookup [_ Hentry]].
+  unfold pcEntry. rewrite Hentry, (locate_function_pc _ _ _ offset Hlookup
+    ltac:(unfold functionSize; cbn [functionBody i32Function CODE]; lia)).
+  reflexivity.
 Qed.

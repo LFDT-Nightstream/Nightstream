@@ -101,6 +101,34 @@ Proof.
     exact (steps_with_instruction_suffix rest _ _ Hrest (one_spec_step _ _ Hb Hbr Hstep)).
 Qed.
 
+(* An if with an i32 condition becomes a block of the arm it picks: the
+   then-body on a nonzero condition, the else-body on zero. *)
+Lemma if_steps : forall z condition bt t e rest,
+  wf_state z -> 0 <= condition < i32Modulus -> wf_instr (IFELSE bt t e) -> Forall wf_instr rest ->
+  Steps (stackConfig z [condition] (IFELSE bt t e :: rest))
+    (stackConfig z [] (BLOCK bt (if Z.eqb condition 0 then e else t) :: rest)).
+Proof.
+  intros z condition bt t e rest Hz Hbound Hw Hrest.
+  assert (Hbt : wf_blocktype bt) by (inversion Hw; assumption).
+  assert (Ht : Forall wf_instr t) by (inversion Hw; assumption).
+  assert (He : Forall wf_instr e) by (inversion Hw; assumption).
+  assert (Hb : wf_config (stackConfig z [condition] [IFELSE bt t e])).
+  { apply stack_config_wf; [exact Hz | constructor; [exact Hbound | constructor] | ].
+    constructor; [exact Hw | constructor]. }
+  assert (Ha : wf_config (stackConfig z [] [BLOCK bt (if Z.eqb condition 0 then e else t)])).
+  { apply stack_config_wf; [exact Hz | constructor | ].
+    constructor; [ | constructor]. destruct (Z.eqb condition 0); constructor; assumption. }
+  assert (Hstep : Step (stackConfig z [condition] [IFELSE bt t e])
+      (stackConfig z [] [BLOCK bt (if Z.eqb condition 0 then e else t)])).
+  { apply pure. destruct (Z.eqb condition 0) eqn:Hcondition.
+    - apply Z.eqb_eq in Hcondition. subst condition. apply if_false; reflexivity.
+    - apply Z.eqb_neq in Hcondition. apply if_true; [reflexivity | ].
+      change (is_true (negb (eq_op (Z.to_N condition) 0%N))).
+      apply negb_true_iff. apply (introF eqP). intro Heq. apply (f_equal Z.of_N) in Heq.
+      rewrite Z2N.id in Heq by lia. cbn in Heq. contradiction. }
+  exact (steps_with_instruction_suffix rest _ _ Hrest (one_spec_step _ _ Hb Ha Hstep)).
+Qed.
+
 (* br_table's target for an index: the arm it names, or the default beyond the arms. *)
 Definition brTableTarget (ls : list labelidx) (l : labelidx) (index : Z) : labelidx :=
   if index <? Z.of_nat (length ls) then nth (Z.to_nat index) ls l else l.

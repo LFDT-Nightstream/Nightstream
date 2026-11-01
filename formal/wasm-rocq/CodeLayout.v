@@ -1,16 +1,19 @@
-(* Flatten blocks into instruction addresses, recursively: a BLOCK, its body, then
-   its END, as the Rust preprocessing numbers operators. A branch inside a block
-   body stores, per edge, its distance to the instruction after its target block's
-   END. A
-   block is laid out knowing, for each block around it, the distance from the
-   instruction after its own END to the instruction after that block's END. *)
+(* Flatten structured code into instruction addresses, recursively, as the Rust
+   preprocessing numbers operators: a block or loop, its body, then its END; an
+   if, its then-body, an ELSE when it has an else-body, that body, then its END.
+   Each slot records, per edge, the function-relative address it jumps to: a
+   branch lands where its target label continues (after a block's or if's END, at
+   a loop's body), and an if's false edge at its else-body, or after its END. *)
 From Stdlib Require Import List Arith NArith Lia.
 Require Import Wasm2 StraightLineSpec StraightLineInstructions StackSimulation.
 Import ListNotations.
 
+(* A slot holds an instruction or one of the markers that delimit structured code. *)
+Inductive FlatOp := opInstr (i : instr) | opElse | opEnd.
+
 Record FlatInstruction := flatInstruction {
-  flatOpcode : option instr;
-  flatBranchDistances : list (option nat)
+  flatOpcode : FlatOp;
+  flatTargets : list (option nat)
 }.
 
 (* A branch's targets, one per edge: br_table's default first, then its arms, as
@@ -18,110 +21,155 @@ Record FlatInstruction := flatInstruction {
 Definition branchTargets (i : instr) : list labelidx :=
   match i with BR_IF l | BR l => [l] | BR_TABLE ls l => l :: ls | _ => [] end.
 
-(* A branch tail instructions before its block's END, to label l: the enclosing
-   blocks' distances, `outer`, continue past this block's. *)
-Definition branchDistance (outer : list nat) (l : labelidx) (tail : nat) : option nat :=
-  Datatypes.option_map (Nat.add (S (S tail))) (nth_error (0 :: outer) (N.to_nat (l :> N))).
-
-(* A branch's distance per edge; other instructions have no edges here. *)
-Definition branchDistances (outer : list nat) (i : instr) (tail : nat) : list (option nat) :=
-  map (fun l => branchDistance outer l tail) (branchTargets i).
-
-Fixpoint flattenInstruction (outer : list nat) (i : instr) : list FlatInstruction :=
+Fixpoint instructionSize (i : instr) : nat :=
+  let codeSize := fix codeSize (code : list instr) : nat :=
+    match code with [] => 0 | j :: rest => instructionSize j + codeSize rest end in
   match i with
-  | BLOCK _ body =>
-      flatInstruction (Some i) [] ::
-        (fix blockCode (code : list instr) : list FlatInstruction :=
-           match code with
-           | [] => []
-           | j :: rest =>
-               let tail := blockCode rest in
-               match j with
-               | BR_IF _ | BR _ | BR_TABLE _ _ =>
-                   flatInstruction (Some j) (map (fun l => branchDistance outer l (length tail)) (branchTargets j)) :: tail
-               | _ => flattenInstruction (map (Nat.add (S (length tail))) (0 :: outer)) j ++ tail
-               end
-           end) body ++ [flatInstruction None []]
-  | _ => [flatInstruction (Some i) []]
+  | BLOCK _ body | LOOP _ body => S (S (codeSize body))
+  | IFELSE _ t e => S (S (codeSize t + match e with [] => 0 | _ => S (codeSize e) end))
+  | _ => 1
   end.
 
-(* A block body, as flattenInstruction lays it out. *)
-Definition blockCode (outer : list nat) : list instr -> list FlatInstruction :=
-  fix blockCode (code : list instr) : list FlatInstruction :=
-    match code with
-    | [] => []
-    | j :: rest =>
-        let tail := blockCode rest in
-        match j with
-        | BR_IF _ | BR _ | BR_TABLE _ _ =>
-            flatInstruction (Some j) (map (fun l => branchDistance outer l (length tail)) (branchTargets j)) :: tail
-        | _ => flattenInstruction (map (Nat.add (S (length tail))) (0 :: outer)) j ++ tail
-        end
-    end.
+Fixpoint codeSize (code : list instr) : nat :=
+  match code with [] => 0 | j :: rest => instructionSize j + codeSize rest end.
 
-(* A function body has no enclosing block. *)
-Definition flattenCode (code : list instr) := flat_map (flattenInstruction []) code.
-Definition instructionSize (i : instr) := length (flattenInstruction [] i).
-Definition codeSize (code : list instr) := length (flattenCode code).
 Definition codeOffset (code : list instr) (offset : nat) := codeSize (firstn offset code).
 
-(* A position inside nested blocks: the offsets of the enclosing BLOCKs, outermost
-   first. pathCode is the innermost body; pathOffset is the flattened address of an
-   offset in it, relative to the start of code. *)
-Fixpoint pathCode (code : list instr) (labels : list nat) : option (list instr) :=
-  match labels with
-  | [] => Some code
-  | b :: rest => match nth_error code b with
-      | Some (BLOCK _ body) => pathCode body rest | _ => None end
-  end.
+(* Where branches to an instruction's label land, relative to the instruction: a
+   loop's body, otherwise after its END. *)
+Definition labelTarget (i : instr) : nat := match i with LOOP _ _ => 1 | _ => instructionSize i end.
 
-Fixpoint pathOffset (code : list instr) (labels : list nat) (offset : nat) : nat :=
-  match labels with
-  | [] => codeOffset code offset
-  | b :: rest => match nth_error code b with
-      | Some (BLOCK _ body) => codeOffset code b + S (pathOffset body rest offset) | _ => 0 end
-  end.
-
-Lemma flatten_block : forall outer bt body,
-  flattenInstruction outer (BLOCK bt body) =
-    flatInstruction (Some (BLOCK bt body)) [] :: blockCode outer body ++ [flatInstruction None []].
-Proof. reflexivity. Qed.
-
-Lemma block_code_unfold : forall outer j rest, blockCode outer (j :: rest) =
-  match j with
+(* An instruction's slots at function address `base`; `labels` holds, innermost
+   first, where each enclosing label's branches land. An if's false edge lands
+   past its then-body and ELSE: at its else-body, or after its END. *)
+Fixpoint flattenAt (labels : list nat) (base : nat) (i : instr) {struct i} : list FlatInstruction :=
+  let bodyAt := fix bodyAt (labels : list nat) (base : nat) (code : list instr) : list FlatInstruction :=
+    match code with
+    | [] => []
+    | j :: rest => flattenAt labels base j ++ bodyAt labels (base + instructionSize j) rest
+    end in
+  let inner := (base + labelTarget i :: labels)%nat in
+  match i with
+  | BLOCK _ body | LOOP _ body =>
+      flatInstruction (opInstr i) [] :: bodyAt inner (S base) body ++ [flatInstruction opEnd []]
+  | IFELSE _ t e =>
+      flatInstruction (opInstr i) [Some (base + S (S (codeSize t)))] ::
+        bodyAt inner (S base) t ++
+        match e with
+        | [] => []
+        | _ => flatInstruction opElse [Some (base + instructionSize i)] :: bodyAt inner (base + S (S (codeSize t))) e
+        end ++ [flatInstruction opEnd []]
   | BR_IF _ | BR _ | BR_TABLE _ _ =>
-      flatInstruction (Some j) (map (fun l => branchDistance outer l (length (blockCode outer rest))) (branchTargets j))
-        :: blockCode outer rest
-  | _ => flattenInstruction (map (Nat.add (S (length (blockCode outer rest)))) (0 :: outer)) j ++ blockCode outer rest
+      [flatInstruction (opInstr i) (map (fun l => nth_error labels (N.to_nat (l :> N))) (branchTargets i))]
+  | _ => [flatInstruction (opInstr i) []]
   end.
+
+Fixpoint bodyAt (labels : list nat) (base : nat) (code : list instr) : list FlatInstruction :=
+  match code with
+  | [] => []
+  | j :: rest => flattenAt labels base j ++ bodyAt labels (base + instructionSize j) rest
+  end.
+
+(* A function body has no enclosing label. *)
+Definition flattenCode (code : list instr) := bodyAt [] 0 code.
+
+(* An instruction's first slot. *)
+Definition slotTargets (labels : list nat) (base : nat) (i : instr) : list (option nat) :=
+  match i with
+  | IFELSE _ t _ => [Some (base + S (S (codeSize t)))]
+  | BR_IF _ | BR _ | BR_TABLE _ _ => map (fun l => nth_error labels (N.to_nat (l :> N))) (branchTargets i)
+  | _ => []
+  end.
+
+Lemma flatten_head : forall labels base i, exists more,
+  flattenAt labels base i = flatInstruction (opInstr i) (slotTargets labels base i) :: more.
+Proof. intros labels base i. destruct i; eexists; reflexivity. Qed.
+
+Lemma body_at_cons : forall labels base j rest,
+  bodyAt labels base (j :: rest) = flattenAt labels base j ++ bodyAt labels (base + instructionSize j) rest.
 Proof. reflexivity. Qed.
 
-(* Distances never change how many addresses an instruction takes. *)
-Fixpoint flatten_length_any (i : instr) {struct i} :
-  forall o o', length (flattenInstruction o i) = length (flattenInstruction o' i).
-Proof.
-  destruct i; intros outer outer'; try reflexivity.
-  rewrite !flatten_block. cbn [length]. rewrite !length_app. f_equal. f_equal.
-  match goal with |- context [blockCode _ ?body] => revert outer outer'; generalize body end.
-  refine (fix go (code : list instr) : forall o o', length (blockCode o code) = length (blockCode o' code) := _).
-  destruct code as [ | j rest]; intros o o'; [reflexivity | ].
-  pose proof (flatten_length_any j) as Hj. pose proof (go rest o o') as Hrest.
-  rewrite !block_code_unfold. destruct j; cbn [length]; rewrite ?length_app, ?Hrest; try reflexivity.
-  all: f_equal; apply Hj.
-Qed.
-
-Lemma flatten_length : forall outer i, length (flattenInstruction outer i) = instructionSize i.
-Proof. intros. apply flatten_length_any. Qed.
+Lemma code_size_cons : forall i rest, codeSize (i :: rest) = instructionSize i + codeSize rest.
+Proof. reflexivity. Qed.
 
 Lemma code_size_app : forall a b, codeSize (a ++ b) = codeSize a + codeSize b.
-Proof. intros; unfold codeSize, flattenCode; rewrite flat_map_app, length_app; reflexivity. Qed.
-Lemma code_size_cons : forall i rest, codeSize (i :: rest) = instructionSize i + codeSize rest.
-Proof. intros; unfold codeSize, flattenCode; cbn [flat_map]; apply length_app. Qed.
+Proof. induction a as [ | i a IH]; intros b; cbn [app codeSize]; [reflexivity | rewrite IH; lia]. Qed.
+
+Lemma block_instruction_size : forall bt body, instructionSize (BLOCK bt body) = (codeSize body + 2)%nat.
+Proof. intros. change (S (S (codeSize body)) = codeSize body + 2)%nat. lia. Qed.
+
+Lemma loop_instruction_size : forall bt body, instructionSize (LOOP bt body) = (codeSize body + 2)%nat.
+Proof. intros. change (S (S (codeSize body)) = codeSize body + 2)%nat. lia. Qed.
+
+Lemma if_instruction_size : forall bt t e,
+  instructionSize (IFELSE bt t e) = (S (S (codeSize t)) + match e with [] => 0 | _ => S (codeSize e) end)%nat.
+Proof. intros. change (S (S (codeSize t + match e with [] => 0 | _ => S (codeSize e) end)) =
+  S (S (codeSize t)) + match e with [] => 0 | _ => S (codeSize e) end)%nat. lia. Qed.
+
+Lemma flatten_block : forall labels base bt body,
+  flattenAt labels base (BLOCK bt body) = flatInstruction (opInstr (BLOCK bt body)) [] ::
+    bodyAt (base + labelTarget (BLOCK bt body) :: labels) (S base) body ++ [flatInstruction opEnd []].
+Proof. reflexivity. Qed.
+
+Lemma flatten_loop : forall labels base bt body,
+  flattenAt labels base (LOOP bt body) = flatInstruction (opInstr (LOOP bt body)) [] ::
+    bodyAt (base + labelTarget (LOOP bt body) :: labels) (S base) body ++ [flatInstruction opEnd []].
+Proof. reflexivity. Qed.
+
+Lemma flatten_if : forall labels base bt t e,
+  flattenAt labels base (IFELSE bt t e) =
+    flatInstruction (opInstr (IFELSE bt t e)) [Some (base + S (S (codeSize t)))] ::
+      bodyAt (base + labelTarget (IFELSE bt t e) :: labels) (S base) t ++
+      match e with
+      | [] => []
+      | _ => flatInstruction opElse [Some (base + instructionSize (IFELSE bt t e))] ::
+          bodyAt (base + labelTarget (IFELSE bt t e) :: labels) (base + S (S (codeSize t))) e
+      end ++ [flatInstruction opEnd []].
+Proof. reflexivity. Qed.
+
+Lemma instruction_size_pos : forall i, (1 <= instructionSize i)%nat.
+Proof. destruct i; cbn; lia. Qed.
+
+(* By the size of the code: a body's instructions are smaller than it. *)
+Lemma flatten_body_length : forall n,
+  (forall i labels base, (instructionSize i <= n)%nat -> length (flattenAt labels base i) = instructionSize i) /\
+  (forall code labels base, (codeSize code <= n)%nat -> length (bodyAt labels base code) = codeSize code).
+Proof.
+  induction n as [ | n [IHi IHc]].
+  - split; [intros i labels base H; pose proof (instruction_size_pos i); lia | ].
+    intros [ | j rest] labels base H; [reflexivity | ]. pose proof (instruction_size_pos j). cbn [codeSize] in H. lia.
+  - assert (Hi : forall i labels base, (instructionSize i <= S n)%nat ->
+        length (flattenAt labels base i) = instructionSize i).
+    { intros i labels base H. destruct i; try reflexivity.
+      - rewrite flatten_block. rewrite block_instruction_size in *. cbn [length].
+        rewrite length_app, IHc by lia. cbn [length]. lia.
+      - rewrite flatten_loop. rewrite loop_instruction_size in *. cbn [length].
+        rewrite length_app, IHc by lia. cbn [length]. lia.
+      - rewrite flatten_if. rewrite if_instruction_size in *. cbn [length].
+        rewrite !length_app, IHc by lia.
+        match goal with |- context [match ?e with [] => _ | _ => _ end] => destruct e end;
+          cbn [length codeSize] in *; rewrite ?IHc by (cbn [codeSize]; lia); cbn [codeSize]; lia. }
+    split; [exact Hi | ].
+    induction code as [ | j rest IH]; intros labels base H; [reflexivity | ].
+    rewrite body_at_cons, length_app. cbn [codeSize] in H |- *. pose proof (instruction_size_pos j).
+    rewrite Hi, IH by lia. reflexivity.
+Qed.
+
+Lemma flatten_length : forall i labels base, length (flattenAt labels base i) = instructionSize i.
+Proof. intros. exact (proj1 (flatten_body_length (instructionSize i)) i labels base (le_n _)). Qed.
+
+Lemma body_length : forall code labels base, length (bodyAt labels base code) = codeSize code.
+Proof. intros. exact (proj2 (flatten_body_length (codeSize code)) code labels base (le_n _)). Qed.
+
+Lemma flatten_code_length : forall code, length (flattenCode code) = codeSize code.
+Proof. intros. apply body_length. Qed.
+
 Lemma ordinary_instruction_size : forall i,
   (exists op, encodedOpcode i = Some op) -> instructionSize i = 1.
 Proof.
   intros i [op H]. destruct (encoded_opcode_cases _ _ H) as [[-> _] | [[-> _] | [[x [-> _]] | [x [-> _]]]]]; reflexivity.
 Qed.
+
 Lemma firstn_at_instruction : forall (code : list instr) offset i,
   nth_error code offset = Some i -> firstn (S offset) code = firstn offset code ++ [i].
 Proof.
@@ -130,249 +178,320 @@ Proof.
   - change (a :: firstn (S offset) code = a :: (firstn offset code ++ [i])).
     f_equal. apply IH. exact H.
 Qed.
+
 Lemma code_offset_next : forall code offset i,
   nth_error code offset = Some i -> codeOffset code (S offset) = codeOffset code offset + instructionSize i.
 Proof.
   intros code offset i H. unfold codeOffset.
-  rewrite (firstn_at_instruction code offset i H), code_size_app, code_size_cons.
-  change (codeSize (firstn offset code) + (instructionSize i + 0) = codeSize (firstn offset code) + instructionSize i).
-  lia.
+  rewrite (firstn_at_instruction code offset i H), code_size_app. cbn [codeSize]. lia.
 Qed.
+
 Lemma code_offset_end : forall code, codeOffset code (length code) = codeSize code.
 Proof. intros; unfold codeOffset; now rewrite firstn_all. Qed.
-
-Lemma flatten_within_instruction : forall code offset i inner slot,
-  nth_error code offset = Some i -> nth_error (flattenInstruction [] i) inner = Some slot ->
-  nth_error (flattenCode code) (codeOffset code offset + inner) = Some slot.
-Proof.
-  intros code offset i inner slot Hsource Hslot.
-  rewrite <- (firstn_skipn offset code) at 1. unfold flattenCode at 1. rewrite flat_map_app.
-  rewrite nth_error_app2 by (unfold codeOffset, codeSize, flattenCode; lia).
-  replace (codeOffset code offset + inner - length (flat_map (flattenInstruction []) (firstn offset code)))
-    with inner by (unfold codeOffset, codeSize, flattenCode; lia).
-  rewrite (skipn_at_instruction code offset i Hsource). cbn [flat_map].
-  rewrite nth_error_app1; [exact Hslot | apply nth_error_Some; rewrite Hslot; discriminate].
-Qed.
 
 Lemma code_size_split : forall code offset, codeSize code = codeOffset code offset + codeSize (skipn offset code).
 Proof. intros. unfold codeOffset. rewrite <- code_size_app, firstn_skipn. reflexivity. Qed.
 
-(* One instruction of a block body: a branch carries its distance to its target;
-   a nested block learns the distances around it. *)
-Definition blockSlot (outer : list nat) (i : instr) (rest : list instr) : list FlatInstruction :=
+(* A body's instruction's slots, at its offset in the body. *)
+Lemma body_at_instruction : forall labels code base offset i k,
+  nth_error code offset = Some i -> (k < instructionSize i)%nat ->
+  nth_error (bodyAt labels base code) (codeOffset code offset + k) =
+    nth_error (flattenAt labels (base + codeOffset code offset) i) k.
+Proof.
+  intros labels. induction code as [ | j rest IH]; intros base [ | offset] i k Hi Hk; try discriminate.
+  - injection Hi as <-. rewrite body_at_cons. change (codeOffset (j :: rest) 0) with 0%nat.
+    rewrite nth_error_app1 by (rewrite flatten_length; exact Hk). rewrite !Nat.add_0_r. reflexivity.
+  - cbn [nth_error] in Hi. rewrite body_at_cons.
+    replace (codeOffset (j :: rest) (S offset) + k)%nat with
+      (length (flattenAt labels base j) + (codeOffset rest offset + k))%nat
+      by (rewrite flatten_length; unfold codeOffset; cbn [firstn codeSize]; lia).
+    rewrite nth_error_app2 by lia.
+    replace (length (flattenAt labels base j) + (codeOffset rest offset + k) - length (flattenAt labels base j))%nat
+      with (codeOffset rest offset + k) by lia.
+    rewrite (IH _ _ _ _ Hi Hk). f_equal. f_equal. unfold codeOffset. cbn [firstn codeSize]. lia.
+Qed.
+
+(* A position inside nested structured code: the enclosing labels, outermost first,
+   each the structured instruction at `siteOffset` entered through arm `siteArm`. A
+   block's or loop's body is arm 0; an if's then- and else-bodies are arms 0 and 1.
+   An empty else-body is never entered: the if's false edge skips it. *)
+Record LabelSite := labelSite { siteOffset : nat; siteArm : nat }.
+
+Definition instrArm (i : instr) (arm : nat) : option (list instr) :=
   match i with
-  | BR_IF _ | BR _ | BR_TABLE _ _ => [flatInstruction (Some i) (branchDistances outer i (codeSize rest))]
-  | _ => flattenInstruction (map (Nat.add (S (codeSize rest))) (0 :: outer)) i
+  | BLOCK _ body | LOOP _ body => match arm with O => Some body | _ => None end
+  | IFELSE _ t e => match arm with O => Some t | 1 => match e with [] => None | _ => Some e end | _ => None end
+  | _ => None
   end.
 
-Lemma block_slot_length : forall outer i rest, length (blockSlot outer i rest) = instructionSize i.
-Proof. intros outer i rest. destruct i; try reflexivity; apply flatten_length. Qed.
+(* Where an arm's body starts, relative to its instruction. *)
+Definition armStart (i : instr) (arm : nat) : nat :=
+  match i, arm with IFELSE _ t _, 1 => S (S (codeSize t)) | _, _ => 1 end.
 
-Lemma block_slot_head : forall outer i rest, exists more,
-  blockSlot outer i rest = flatInstruction (Some i)
-    (branchDistances outer i (codeSize rest)) :: more.
-Proof. intros outer i rest. destruct i; eexists; reflexivity. Qed.
+(* An arm's last slot: an if's then-body ends at its ELSE when it has an
+   else-body; every other arm ends at its instruction's END. *)
+Definition armEnd (i : instr) (arm : nat) (after : nat) : FlatInstruction :=
+  match i, arm with
+  | IFELSE _ _ (_ :: _), O => flatInstruction opElse [Some after]
+  | _, _ => flatInstruction opEnd []
+  end.
 
-Lemma block_code_length : forall outer code, length (blockCode outer code) = codeSize code.
+(* An arm's body and last slot lie inside its instruction. *)
+Lemma arm_inside : forall i arm body,
+  instrArm i arm = Some body -> (armStart i arm + codeSize body < instructionSize i)%nat.
 Proof.
-  intros outer. induction code as [ | j rest IH]; [reflexivity | ].
-  rewrite block_code_unfold, code_size_cons, <- IH.
-  destruct j; cbn [length]; rewrite ?length_app, ?flatten_length; reflexivity.
+  intros i arm body Harm.
+  destruct i; try discriminate; destruct arm as [ | [ | arm]]; try discriminate; try (injection Harm as Hbody; subst);
+    rewrite ?block_instruction_size, ?loop_instruction_size, ?if_instruction_size; cbn [armStart].
+  - lia.
+  - lia.
+  - match goal with |- context [match ?e with [] => _ | _ => _ end] => destruct e end; cbv iota; lia.
+  - cbn [instrArm] in Harm.
+    match type of Harm with context [match ?e with [] => _ | _ :: _ => _ end] => destruct e end; [discriminate | ].
+    injection Harm as Hbody; subst. lia.
 Qed.
 
-Lemma block_code_cons : forall outer j rest,
-  blockCode outer (j :: rest) = blockSlot outer j rest ++ blockCode outer rest.
-Proof. intros outer j rest. rewrite block_code_unfold, block_code_length. destruct j; reflexivity. Qed.
+(* The structured instruction at a site and the body its arm enters. *)
+Definition siteEntry (code : list instr) (s : LabelSite) : option (instr * list instr) :=
+  match nth_error code (siteOffset s) with
+  | Some i => option_map (fun body => (i, body)) (instrArm i (siteArm s))
+  | None => None
+  end.
 
-Lemma block_instruction_size : forall bt body, instructionSize (BLOCK bt body) = (codeSize body + 2)%nat.
-Proof.
-  intros. unfold instructionSize. rewrite flatten_block. cbn [length]. rewrite length_app, block_code_length. cbn. lia.
-Qed.
-
-Lemma block_code_at : forall outer code offset i k s,
-  nth_error code offset = Some i -> nth_error (blockSlot outer i (skipn (S offset) code)) k = Some s ->
-  nth_error (blockCode outer code) (codeOffset code offset + k) = Some s.
-Proof.
-  intros outer. induction code as [ | j rest IH]; intros [ | offset] i k s Hi Hs; try discriminate.
-  - injection Hi as <-. cbn [skipn] in Hs. rewrite block_code_cons. change (codeOffset (j :: rest) 0) with 0%nat.
-    cbn [Nat.add].
-    rewrite nth_error_app1 by (apply nth_error_Some; rewrite Hs; discriminate). exact Hs.
-  - rewrite block_code_cons. unfold codeOffset. cbn [firstn]. rewrite code_size_cons.
-    rewrite nth_error_app2 by (rewrite block_slot_length; lia). rewrite block_slot_length.
-    replace (instructionSize j + codeSize (firstn offset rest) + k - instructionSize j)
-      with (codeOffset rest offset + k) by (unfold codeOffset; lia).
-    exact (IH _ _ _ _ Hi ltac:(cbn [skipn] in Hs |- *; exact Hs)).
-Qed.
-
-Lemma flatten_block_inner : forall outer bt body inner,
-  nth_error (flattenInstruction outer (BLOCK bt body)) (S inner) =
-    nth_error (blockCode outer body ++ [flatInstruction None []]) inner.
-Proof. reflexivity. Qed.
-
-(* The distances a body at a path is laid out with. *)
-Fixpoint bodyOuter (outer : list nat) (body : list instr) (labels : list nat) : list nat :=
+Fixpoint pathCode (code : list instr) (labels : list LabelSite) : option (list instr) :=
   match labels with
-  | [] => outer
-  | b :: rest => match nth_error body b with
-      | Some (BLOCK _ nested) => bodyOuter (map (Nat.add (S (codeSize (skipn (S b) body)))) (0 :: outer)) nested rest
-      | _ => outer
+  | [] => Some code
+  | s :: rest => match siteEntry code s with Some (_, body) => pathCode body rest | None => None end
+  end.
+
+(* The address of an offset in the innermost body, relative to code's start. *)
+Fixpoint pathOffset (code : list instr) (labels : list LabelSite) (offset : nat) : nat :=
+  match labels with
+  | [] => codeOffset code offset
+  | s :: rest => match siteEntry code s with
+      | Some (i, body) => codeOffset code (siteOffset s) + armStart i (siteArm s) + pathOffset body rest offset
+      | None => 0
       end
   end.
 
-(* Slots of a body at any depth of nesting, within the enclosing block's layout. *)
-Lemma block_path_slot : forall labels body outer inner offset i k s,
-  pathCode body labels = Some inner -> nth_error inner offset = Some i ->
-  nth_error (blockSlot (bodyOuter outer body labels) i (skipn (S offset) inner)) k = Some s ->
-  nth_error (blockCode outer body) (pathOffset body labels offset + k) = Some s.
-Proof.
-  induction labels as [ | b rest IH]; intros body outer inner offset i k s Hpath Hi Hs.
-  - injection Hpath as <-. exact (block_code_at _ _ _ _ _ _ Hi Hs).
-  - cbn [pathCode pathOffset bodyOuter] in *. destruct (nth_error body b) as [j | ] eqn:Hb; [ | discriminate].
-    destruct j; try discriminate.
-    match goal with |- context [codeOffset body b + S (pathOffset ?nested rest offset) + k] =>
-      replace (codeOffset body b + S (pathOffset nested rest offset) + k)
-        with (codeOffset body b + S (pathOffset nested rest offset + k)) by lia end.
-    apply (block_code_at _ _ _ _ _ _ Hb). cbn [blockSlot]. rewrite flatten_block_inner.
-    pose proof (IH _ _ _ _ _ _ _ Hpath Hi Hs) as Hinner.
-    rewrite nth_error_app1 by (apply nth_error_Some; rewrite Hinner; discriminate). exact Hinner.
-Qed.
-
-Lemma block_path_end : forall labels body outer inner,
-  pathCode body labels = Some inner ->
-  nth_error (blockCode outer body ++ [flatInstruction None []]) (pathOffset body labels (length inner)) =
-    Some (flatInstruction None []).
-Proof.
-  induction labels as [ | b rest IH]; intros body outer inner Hpath.
-  - injection Hpath as <-. cbn [pathOffset]. rewrite code_offset_end, <- (block_code_length outer).
-    rewrite nth_error_app2, Nat.sub_diag by lia. reflexivity.
-  - cbn [pathCode pathOffset] in *. destruct (nth_error body b) as [j | ] eqn:Hb; [ | discriminate].
-    destruct j; try discriminate.
-    match goal with |- context [codeOffset body b + S (pathOffset ?nested rest (length inner))] =>
-      assert (Hslot : nth_error (blockCode outer body) (codeOffset body b + S (pathOffset nested rest (length inner))) =
-          Some (flatInstruction None [])) end.
-    { apply (block_code_at _ _ _ _ _ _ Hb). cbn [blockSlot]. rewrite flatten_block_inner. exact (IH _ _ _ Hpath). }
-    rewrite nth_error_app1 by (apply nth_error_Some; rewrite Hslot; discriminate). exact Hslot.
-Qed.
-
-(* The distances the innermost body at a function's code path is laid out with. *)
-Definition pathOuter (code : list instr) (labels : list nat) : list nat :=
+(* Where each enclosing label's branches land, innermost first, relative to code's start. *)
+Fixpoint pathTargets (code : list instr) (labels : list LabelSite) : list nat :=
   match labels with
   | [] => []
-  | b :: rest => match nth_error code b with Some (BLOCK _ body) => bodyOuter [] body rest | _ => [] end
+  | s :: rest => match siteEntry code s with
+      | Some (i, body) =>
+          map (Nat.add (codeOffset code (siteOffset s) + armStart i (siteArm s))) (pathTargets body rest) ++
+            [codeOffset code (siteOffset s) + labelTarget i]
+      | None => []
+      end
   end.
 
-(* The same slots within a function body, below a top-level BLOCK. *)
-Lemma flatten_in_block : forall code b bt body labels inner offset i k s,
-  nth_error code b = Some (BLOCK bt body) -> pathCode body labels = Some inner -> nth_error inner offset = Some i ->
-  nth_error (blockSlot (bodyOuter [] body labels) i (skipn (S offset) inner)) k = Some s ->
-  nth_error (flattenCode code) (pathOffset code (b :: labels) offset + k) = Some s.
+(* An arm's slots inside its instruction's, then the arm's last slot. *)
+Lemma flatten_arm : forall labels base i arm body k,
+  instrArm i arm = Some body -> (k <= codeSize body)%nat ->
+  nth_error (flattenAt labels base i) (armStart i arm + k) =
+    nth_error (bodyAt (base + labelTarget i :: labels) (base + armStart i arm) body ++
+      [armEnd i arm (base + instructionSize i)]) k.
 Proof.
-  intros code b bt body labels inner offset i k s Hb Hpath Hi Hs. cbn [pathOffset]. rewrite Hb.
-  replace (codeOffset code b + S (pathOffset body labels offset) + k)
-    with (codeOffset code b + S (pathOffset body labels offset + k)) by lia.
-  apply (flatten_within_instruction _ _ _ _ _ Hb). rewrite flatten_block_inner.
-  pose proof (block_path_slot _ _ _ _ _ _ _ _ Hpath Hi Hs) as Hinner.
-  rewrite nth_error_app1 by (apply nth_error_Some; rewrite Hinner; discriminate). exact Hinner.
+  intros labels base i arm body k Harm Hk.
+  destruct i; try discriminate; destruct arm as [ | [ | arm]]; try discriminate; try (injection Harm as Hbody; subst).
+  - rewrite flatten_block. cbn [armStart armEnd]. replace (1 + k)%nat with (S k) by lia. cbn [nth_error].
+    cbn [labelTarget]. rewrite ?Nat.add_1_r. reflexivity.
+  - rewrite flatten_loop. cbn [armStart armEnd]. replace (1 + k)%nat with (S k) by lia. cbn [nth_error].
+    cbn [labelTarget]. rewrite ?Nat.add_1_r. reflexivity.
+  - rewrite flatten_if. cbn [armStart]. replace (1 + k)%nat with (S k) by lia. cbn [nth_error].
+    cbn [labelTarget]. rewrite ?Nat.add_1_r.
+    match goal with |- context [armEnd (IFELSE _ _ ?e)] => destruct e as [ | e0 e] end; cbv beta iota; cbn [armEnd].
+    + reflexivity.
+    + destruct (Nat.lt_ge_cases k (codeSize body)) as [Hlt | Hge].
+      * rewrite !nth_error_app1 by (rewrite body_length; lia). reflexivity.
+      * replace k with (codeSize body) by lia.
+        assert (Hat : forall (xs ys : list FlatInstruction), nth_error (xs ++ ys) (length xs) = nth_error ys 0)
+          by (intros; rewrite nth_error_app2, Nat.sub_diag by lia; reflexivity).
+        match goal with |- context [bodyAt ?ls (S base) body] => rewrite <- (body_length body ls (S base)) end.
+        rewrite !Hat. reflexivity.
+  - cbn [instrArm] in Harm.
+    match type of Harm with context [match ?e with [] => _ | _ :: _ => _ end] => destruct e as [ | e0 e] end;
+      [discriminate | ].
+    injection Harm as Hbody; subst.
+    rewrite flatten_if. cbv beta iota. cbn [armStart armEnd].
+    match goal with |- context [S (S (codeSize ?t))] =>
+      replace (S (S (codeSize t)) + k)%nat with (S (codeSize t + S k))%nat by lia end.
+    cbn [nth_error]. rewrite nth_error_app2 by (rewrite body_length; lia).
+    rewrite body_length. match goal with |- context [(codeSize ?t + S k - codeSize ?t)%nat] =>
+      replace (codeSize t + S k - codeSize t)%nat with (S k) by lia end. reflexivity.
 Qed.
 
-Lemma flatten_block_end : forall code b bt body labels inner,
-  nth_error code b = Some (BLOCK bt body) -> pathCode body labels = Some inner ->
-  nth_error (flattenCode code) (pathOffset code (b :: labels) (length inner)) = Some (flatInstruction None []).
+(* An instruction's head slot at a code path. *)
+Lemma path_slot : forall code labels inner offset i targets base,
+  pathCode code labels = Some inner -> nth_error inner offset = Some i ->
+  nth_error (bodyAt targets base code) (pathOffset code labels offset) =
+    Some (flatInstruction (opInstr i) (slotTargets
+      (map (Nat.add base) (pathTargets code labels) ++ targets) (base + pathOffset code labels offset) i)).
 Proof.
-  intros code b bt body labels inner Hb Hpath. cbn [pathOffset]. rewrite Hb.
-  apply (flatten_within_instruction _ _ _ _ _ Hb). rewrite flatten_block_inner. exact (block_path_end _ _ _ _ Hpath).
+  intros code labels. revert code. induction labels as [ | s rest IH]; intros code inner offset i targets base Hpath Hi.
+  - injection Hpath as Heq. subst code. cbn [pathOffset pathTargets map app].
+    destruct (flatten_head targets (base + codeOffset inner offset) i) as [more Hhead].
+    rewrite <- (Nat.add_0_r (codeOffset inner offset)), (body_at_instruction _ _ _ _ _ 0 Hi)
+      by exact (instruction_size_pos i).
+    rewrite Nat.add_0_r, Hhead. reflexivity.
+  - cbn [pathCode pathOffset pathTargets] in *. unfold siteEntry in *.
+    destruct (nth_error code (siteOffset s)) as [j | ] eqn:Hj; [ | discriminate].
+    destruct (instrArm j (siteArm s)) as [body | ] eqn:Harm; [ | discriminate]. cbn [option_map] in *.
+    pose proof (IH _ _ _ _ (base + codeOffset code (siteOffset s) + labelTarget j :: targets)
+      (base + codeOffset code (siteOffset s) + armStart j (siteArm s)) Hpath Hi) as Hinner.
+    assert (Hlen : (pathOffset body rest offset < codeSize body)%nat).
+    { rewrite <- (body_length body (base + codeOffset code (siteOffset s) + labelTarget j :: targets)
+        (base + codeOffset code (siteOffset s) + armStart j (siteArm s))).
+      apply nth_error_Some. rewrite Hinner. discriminate. }
+    assert (Hsize : (armStart j (siteArm s) + pathOffset body rest offset < instructionSize j)%nat).
+    { pose proof (arm_inside _ _ _ Harm). lia. }
+    rewrite <- Nat.add_assoc, (body_at_instruction _ _ _ _ _ _ Hj Hsize).
+    rewrite (flatten_arm _ _ _ _ _ (pathOffset body rest offset) Harm ltac:(lia)), nth_error_app1
+      by (rewrite body_length; exact Hlen).
+    rewrite Hinner. f_equal. f_equal.
+    rewrite map_app, <- app_assoc, map_map. cbn [map app].
+    f_equal; [f_equal; [apply map_ext; intros; lia | f_equal; lia] | lia].
 Qed.
+
+(* The last slot of the innermost arm at a code path. *)
+Lemma path_arm_end : forall code pre s inner targets base,
+  pathCode code (pre ++ [s]) = Some inner ->
+  exists i, siteEntry (match pathCode code pre with Some outer => outer | None => [] end) s = Some (i, inner) /\
+    nth_error (bodyAt targets base code) (pathOffset code (pre ++ [s]) (length inner)) =
+      Some (armEnd i (siteArm s) (base + pathOffset code pre (siteOffset s) + instructionSize i)).
+Proof.
+  intros code pre. revert code. induction pre as [ | s0 pre IH]; intros code s inner targets base Hpath;
+    cbn [app pathCode pathOffset] in *.
+  - unfold siteEntry in *. destruct (nth_error code (siteOffset s)) as [i | ] eqn:Hi; [ | discriminate].
+    destruct (instrArm i (siteArm s)) as [body | ] eqn:Harm; [ | discriminate]. cbn [option_map] in *.
+    injection Hpath as <-. exists i. split; [reflexivity | ].
+    rewrite code_offset_end.
+    assert (Hsize : (armStart i (siteArm s) + codeSize body < instructionSize i)%nat).
+    { pose proof (arm_inside _ _ _ Harm). lia. }
+    rewrite <- Nat.add_assoc, (body_at_instruction _ _ _ _ _ _ Hi Hsize).
+    rewrite (flatten_arm _ _ _ _ _ (codeSize body) Harm ltac:(lia)), nth_error_app2, body_length, Nat.sub_diag
+      by (rewrite body_length; lia).
+    cbn [pathOffset]. reflexivity.
+  - unfold siteEntry in Hpath at 1 |- *. destruct (nth_error code (siteOffset s0)) as [j | ] eqn:Hj; [ | discriminate].
+    destruct (instrArm j (siteArm s0)) as [body | ] eqn:Harm; [ | discriminate]. cbn [option_map] in *.
+    destruct (IH _ _ _ (base + codeOffset code (siteOffset s0) + labelTarget j :: targets)
+      (base + codeOffset code (siteOffset s0) + armStart j (siteArm s0)) Hpath) as [i [Hentry Hend]].
+    exists i. split; [exact Hentry | ].
+    assert (Hlen : (pathOffset body (pre ++ [s]) (length inner) < codeSize body)%nat).
+    { rewrite <- (body_length body (base + codeOffset code (siteOffset s0) + labelTarget j :: targets)
+        (base + codeOffset code (siteOffset s0) + armStart j (siteArm s0))).
+      apply nth_error_Some. rewrite Hend. discriminate. }
+    assert (Hsize : (armStart j (siteArm s0) + pathOffset body (pre ++ [s]) (length inner) < instructionSize j)%nat).
+    { pose proof (arm_inside _ _ _ Harm). lia. }
+    rewrite <- Nat.add_assoc, (body_at_instruction _ _ _ _ _ _ Hj Hsize).
+    rewrite (flatten_arm _ _ _ _ _ (pathOffset body (pre ++ [s]) (length inner)) Harm ltac:(lia)), nth_error_app1
+      by (rewrite body_length; exact Hlen).
+    rewrite Hend. f_equal. f_equal. lia.
+Qed.
+
+(* A function's slots: an instruction's head slot at a code path, carrying where
+   each of its edges lands, and the last slot of the innermost arm. *)
+Lemma flatten_at_path : forall code labels inner offset i,
+  pathCode code labels = Some inner -> nth_error inner offset = Some i ->
+  nth_error (flattenCode code) (pathOffset code labels offset) =
+    Some (flatInstruction (opInstr i) (slotTargets (pathTargets code labels) (pathOffset code labels offset) i)).
+Proof.
+  intros code labels inner offset i Hpath Hi. unfold flattenCode.
+  rewrite (path_slot _ _ _ _ _ [] 0 Hpath Hi), app_nil_r.
+  replace (map (Nat.add 0) (pathTargets code labels)) with (pathTargets code labels)
+    by (rewrite <- (map_id (pathTargets code labels)) at 1; apply map_ext; reflexivity).
+  reflexivity.
+Qed.
+
+Lemma flatten_arm_end : forall code pre s inner,
+  pathCode code (pre ++ [s]) = Some inner ->
+  exists i, siteEntry (match pathCode code pre with Some outer => outer | None => [] end) s = Some (i, inner) /\
+    nth_error (flattenCode code) (pathOffset code (pre ++ [s]) (length inner)) =
+      Some (armEnd i (siteArm s) (pathOffset code pre (siteOffset s) + instructionSize i)).
+Proof. intros code pre s inner Hpath. exact (path_arm_end code pre s inner [] 0 Hpath). Qed.
 
 Lemma path_offset_shift : forall labels code inner offset,
   pathCode code labels = Some inner -> pathOffset code labels offset = pathOffset code labels 0 + codeOffset inner offset.
 Proof.
-  induction labels as [ | b rest IH]; intros code inner offset Hpath.
+  induction labels as [ | s rest IH]; intros code inner offset Hpath.
   - injection Hpath as <-. reflexivity.
-  - cbn [pathCode pathOffset] in *. destruct (nth_error code b) as [j | ]; [ | discriminate].
-    destruct j; try discriminate. rewrite (IH _ _ offset Hpath), (IH _ _ 0 Hpath). cbn. lia.
+  - cbn [pathCode pathOffset] in *. destruct (siteEntry code s) as [[i body] | ]; [ | discriminate].
+    rewrite (IH _ _ offset Hpath), (IH _ _ 0 Hpath). lia.
 Qed.
 
-(* Where a branch from a body at a path can land, innermost block first, relative
-   to the body's start: after each enclosing block's END, then after the body's
-   own block's END, then the distances around it. *)
-Fixpoint bodyExits (outer : list nat) (body : list instr) (labels : list nat) : list nat :=
-  match labels with
-  | [] => map (Nat.add (S (codeSize body))) (0 :: outer)
-  | b :: rest => match nth_error body b with
-      | Some (BLOCK _ nested) =>
-          map (Nat.add (S (codeOffset body b))) (bodyExits (map (Nat.add (S (codeSize (skipn (S b) body)))) (0 :: outer)) nested rest)
-      | _ => []
-      end
-  end.
-
-Lemma block_branch_distance : forall labels body outer inner offset i l t,
-  pathCode body labels = Some inner -> nth_error inner offset = Some i -> In l (branchTargets i) ->
-  nth_error (bodyExits outer body labels) (N.to_nat (l :> N)) = Some t ->
-  exists d, branchDistance (bodyOuter outer body labels) l (codeSize (skipn (S offset) inner)) = Some d /\
-    pathOffset body labels offset + d = t.
+Lemma path_targets_length : forall labels code inner,
+  pathCode code labels = Some inner -> length (pathTargets code labels) = length labels.
 Proof.
-  induction labels as [ | b rest IH]; intros body outer inner offset i l t Hpath Hi Hbranch Ht.
-  - injection Hpath as <-. cbn [bodyExits bodyOuter pathOffset] in *. unfold branchDistance.
-    rewrite nth_error_map in Ht.
-    destruct (nth_error (0 :: outer) (N.to_nat (l :> N))) as [e | ]; cbn [Datatypes.option_map] in Ht |- *; [ | discriminate].
-    injection Ht as <-. eexists. split; [reflexivity | ].
-    pose proof (code_size_split body (S offset)) as Hsplit. rewrite (code_offset_next _ _ _ Hi) in Hsplit.
-    replace (instructionSize i) with 1 in Hsplit
-      by (destruct i; cbn [branchTargets In] in Hbranch; try contradiction; reflexivity). lia.
-  - cbn [pathCode bodyExits bodyOuter pathOffset] in *.
-    destruct (nth_error body b) as [j | ] eqn:Hb; [ | discriminate]. destruct j; try discriminate.
-    rewrite nth_error_map in Ht.
-    match goal with H : Datatypes.option_map _ (nth_error ?exits _) = _ |- _ =>
-      destruct (nth_error exits (N.to_nat (l :> N))) as [t2 | ] eqn:Ht2; cbn in H; [ | discriminate];
-      injection H as <- end.
-    destruct (IH _ _ _ _ _ _ _ Hpath Hi Hbranch Ht2) as [d [Hd Hsum]]. exists d. split; [exact Hd | lia].
+  induction labels as [ | s rest IH]; intros code inner Hpath; [reflexivity | ].
+  cbn [pathCode pathTargets] in *. destruct (siteEntry code s) as [[i body] | ]; [ | discriminate].
+  rewrite length_app, length_map, (IH _ _ Hpath). cbn [length]. lia.
 Qed.
 
-Lemma body_exits_beyond : forall labels body outer inner k,
-  pathCode body labels = Some inner ->
-  nth_error (bodyExits outer body labels) (length labels + k) =
-    Datatypes.option_map (Nat.add (S (codeSize body))) (nth_error (0 :: outer) k).
+(* The branches of a body at a path to its label at `s` after `pre` land at the
+   label's target. *)
+Lemma path_target : forall code pre s post inner outer i body,
+  pathCode code (pre ++ s :: post) = Some inner -> pathCode code pre = Some outer ->
+  siteEntry outer s = Some (i, body) ->
+  nth_error (pathTargets code (pre ++ s :: post)) (length post) =
+    Some (pathOffset code pre (siteOffset s) + labelTarget i).
 Proof.
-  induction labels as [ | b rest IH]; intros body outer inner k Hpath.
-  - cbn [bodyExits length Nat.add]. apply nth_error_map.
-  - cbn [pathCode bodyExits length] in *. destruct (nth_error body b) as [j | ] eqn:Hb; [ | discriminate].
-    destruct j; try discriminate. rewrite nth_error_map.
-    replace (S (length rest) + k)%nat with (length rest + S k)%nat by lia.
-    rewrite (IH _ _ _ _ Hpath). cbn [nth_error]. rewrite nth_error_map.
-    pose proof (code_size_split body b) as Hsplit. rewrite (skipn_at_instruction _ _ _ Hb), code_size_cons,
-      block_instruction_size in Hsplit.
-    destruct (nth_error (0 :: outer) k) as [e | ]; cbn [Datatypes.option_map]; [f_equal; lia | reflexivity].
+  intros code pre. revert code. induction pre as [ | s0 pre IH]; intros code s post inner outer i body Hpath Hpre Hentry;
+    cbn [app pathCode pathTargets pathOffset] in *.
+  - injection Hpre as <-. rewrite Hentry in Hpath |- *.
+    rewrite nth_error_app2; rewrite length_map, (path_targets_length _ _ _ Hpath); [ | lia].
+    rewrite Nat.sub_diag. reflexivity.
+  - destruct (siteEntry code s0) as [[j nested] | ]; [ | discriminate].
+    rewrite nth_error_app1.
+    + rewrite nth_error_map, (IH _ _ _ _ _ _ _ Hpath Hpre Hentry). cbn [Datatypes.option_map]. f_equal. lia.
+    + rewrite length_map, (path_targets_length _ _ _ Hpath), length_app. cbn [length]. lia.
 Qed.
 
-Lemma body_exits_prefix : forall pre b post body outer inner,
-  pathCode body (pre ++ b :: post) = Some inner ->
-  nth_error (bodyExits outer body (pre ++ b :: post)) (length post) = Some (pathOffset body pre (S b)).
+Lemma path_offset_next : forall code labels inner offset i,
+  pathCode code labels = Some inner -> nth_error inner offset = Some i ->
+  pathOffset code labels (S offset) = pathOffset code labels offset + instructionSize i.
 Proof.
-  induction pre as [ | b0 pre IH]; intros b post body outer inner Hpath; cbn [app] in *.
-  - cbn [pathCode bodyExits] in *. destruct (nth_error body b) as [j | ] eqn:Hb; [ | discriminate].
-    destruct j; try discriminate. rewrite nth_error_map.
-    rewrite <- (Nat.add_0_r (length post)), (body_exits_beyond _ _ _ _ 0 Hpath). cbn [nth_error Datatypes.option_map].
-    cbn [pathOffset]. rewrite (code_offset_next _ _ _ Hb), block_instruction_size. f_equal. lia.
-  - cbn [pathCode bodyExits pathOffset] in *. destruct (nth_error body b0) as [j | ] eqn:Hb; [ | discriminate].
-    destruct j; try discriminate. rewrite nth_error_map, (IH _ _ _ _ _ Hpath). cbn [Datatypes.option_map]. f_equal. lia.
+  intros code labels inner offset i Hpath Hi.
+  rewrite (path_offset_shift _ _ _ (S offset) Hpath), (path_offset_shift _ _ _ offset Hpath),
+    (code_offset_next _ _ _ Hi). lia.
 Qed.
 
-(* A branch at a function's code path, to the block at b after pre: its distance
-   lands just after that block. *)
-Lemma flatten_branch_target : forall code labels inner offset i l pre b post,
-  pathCode code labels = Some inner -> nth_error inner offset = Some i -> In l (branchTargets i) ->
-  labels = pre ++ b :: post -> N.to_nat (l :> N) = length post ->
-  exists d, branchDistance (pathOuter code labels) l (codeSize (skipn (S offset) inner)) = Some d /\
-    pathOffset code labels offset + d = pathOffset code pre (S b).
+(* A path one label deeper. *)
+Lemma path_snoc : forall labels code s outer i body,
+  pathCode code labels = Some outer -> siteEntry outer s = Some (i, body) ->
+  pathCode code (labels ++ [s]) = Some body /\
+  forall offset, pathOffset code (labels ++ [s]) offset =
+    pathOffset code labels (siteOffset s) + armStart i (siteArm s) + codeOffset body offset.
 Proof.
-  intros code labels inner offset i l pre b post Hpath Hi Hbranch -> Hl.
-  destruct pre as [ | b0 pre]; cbn [app pathCode pathOuter pathOffset] in *.
-  - destruct (nth_error code b) as [j | ] eqn:Hb; [ | discriminate]. destruct j; try discriminate.
-    pose proof (body_exits_beyond _ _ [] _ 0 Hpath) as Ht. rewrite Nat.add_0_r, <- Hl in Ht. cbn in Ht.
-    destruct (block_branch_distance _ _ _ _ _ _ _ _ Hpath Hi Hbranch Ht) as [d [Hd Hsum]].
-    exists d. split; [exact Hd | ]. rewrite (code_offset_next _ _ _ Hb), block_instruction_size. lia.
-  - destruct (nth_error code b0) as [j | ] eqn:Hb; [ | discriminate]. destruct j; try discriminate.
-    pose proof (body_exits_prefix _ _ _ _ [] _ Hpath) as Ht. rewrite <- Hl in Ht.
-    destruct (block_branch_distance _ _ _ _ _ _ _ _ Hpath Hi Hbranch Ht) as [d [Hd Hsum]].
-    exists d. split; [exact Hd | lia].
+  induction labels as [ | s0 rest IH]; intros code s outer i body Hpath Hentry; cbn [app pathCode pathOffset] in *.
+  - injection Hpath as <-. rewrite Hentry. split; [reflexivity | intros; reflexivity].
+  - destruct (siteEntry code s0) as [[j nested] | ]; [ | discriminate].
+    destruct (IH _ _ _ _ _ Hpath Hentry) as [Hcode Hoffset]. split; [exact Hcode | ].
+    intros offset. rewrite Hoffset. lia.
+Qed.
+
+Lemma site_entry_split : forall code s i body,
+  siteEntry code s = Some (i, body) -> nth_error code (siteOffset s) = Some i /\ instrArm i (siteArm s) = Some body.
+Proof.
+  intros code s i body H. unfold siteEntry in H. destruct (nth_error code (siteOffset s)) as [j | ]; [ | discriminate].
+  destruct (instrArm j (siteArm s)) as [arm | ] eqn:Harm; [ | discriminate]. cbn in H. injection H as <- <-.
+  split; [reflexivity | exact Harm].
+Qed.
+
+Lemma arm_wf : forall i arm body, wf_instr i -> instrArm i arm = Some body -> Forall wf_instr body.
+Proof.
+  intros i arm body Hw Harm.
+  destruct i; try discriminate; destruct arm as [ | [ | arm]]; try discriminate; cbn [instrArm] in Harm;
+    inversion Hw; subst.
+  - injection Harm as <-. assumption.
+  - injection Harm as <-. assumption.
+  - injection Harm as <-. assumption.
+  - match type of Harm with match ?e with [] => _ | _ :: _ => _ end = _ => destruct e end; [discriminate | ].
+    injection Harm as <-. assumption.
+Qed.
+
+Lemma site_wf : forall code s i body, Forall wf_instr code -> siteEntry code s = Some (i, body) -> Forall wf_instr body.
+Proof.
+  intros code s i body Hwf Hentry. destruct (site_entry_split _ _ _ _ Hentry) as [Hi Harm].
+  exact (arm_wf _ _ _ (proj1 (Forall_forall _ _) Hwf _ (nth_error_In _ _ Hi)) Harm).
 Qed.

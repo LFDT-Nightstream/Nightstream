@@ -30,6 +30,25 @@ Fixpoint instrFacts (localCount resultCount : nat) (arities : list nat) (callees
              match sourceHeight callees j h with
              | Some next => bodyFacts localCount resultCount arities callees next rest | None => Forall wf_instr rest end
          end) localCount resultCount (blockResults bt :: arities) callees 0 body
+  (* An if pops its condition; each arm runs like a block's body. *)
+  | IFELSE bt t e => wf_instr i /\ (1 <= height)%nat /\
+      endsAt callees t 0 (blockResults bt) /\ endsAt callees e 0 (blockResults bt) /\
+      (fix bodyFacts (localCount resultCount : nat) (arities : list nat) (callees : CalleeEnvironment) (h : nat)
+          (code : list instr) : Prop :=
+         match code with
+         | [] => True
+         | j :: rest => instrFacts localCount resultCount arities callees j h /\
+             match sourceHeight callees j h with
+             | Some next => bodyFacts localCount resultCount arities callees next rest | None => Forall wf_instr rest end
+         end) localCount resultCount (blockResults bt :: arities) callees 0 t /\
+      (fix bodyFacts (localCount resultCount : nat) (arities : list nat) (callees : CalleeEnvironment) (h : nat)
+          (code : list instr) : Prop :=
+         match code with
+         | [] => True
+         | j :: rest => instrFacts localCount resultCount arities callees j h /\
+             match sourceHeight callees j h with
+             | Some next => bodyFacts localCount resultCount arities callees next rest | None => Forall wf_instr rest end
+         end) localCount resultCount (blockResults bt :: arities) callees 0 e
   | CALL x => wf_instr i /\ exists g, callees (x :> N) = Some g /\ (guestParams g <= height)%nat
   (* A return consumes the results from its own block's operands. *)
   | RETURN => wf_instr i /\ (resultCount <= height)%nat
@@ -60,6 +79,14 @@ Proof. reflexivity. Qed.
 
 Definition i32Results (n : nat) : res_list valtype := mk_list _ (repeat valtype_I32 n).
 
+Lemma if_facts : forall localCount resultCount arities callees bt t e height,
+  instrFacts localCount resultCount arities callees (IFELSE bt t e) height <->
+  wf_instr (IFELSE bt t e) /\ (1 <= height)%nat /\
+    endsAt callees t 0 (blockResults bt) /\ endsAt callees e 0 (blockResults bt) /\
+    codeFacts localCount resultCount (blockResults bt :: arities) callees 0 t /\
+    codeFacts localCount resultCount (blockResults bt :: arities) callees 0 e.
+Proof. reflexivity. Qed.
+
 (* The typing context matches the frame's locals, results, labels and callees. *)
 Definition contextFits (C : context) (localCount resultCount : nat) (arities : list nat)
     (callees : CalleeEnvironment) : Prop :=
@@ -72,10 +99,10 @@ Lemma source_heights_app : forall callees a b h,
 Proof. intros callees a; induction a; intros; cbn; [reflexivity | ]. destruct (sourceHeight callees a h); auto. Qed.
 
 Lemma block_size : forall bt body, codeSize [BLOCK bt body] = (codeSize body + 2)%nat.
-Proof.
-  intros. rewrite code_size_cons. unfold instructionSize. rewrite flatten_block. cbn [length].
-  rewrite length_app, block_code_length. cbn [length codeSize flattenCode flat_map]. lia.
-Qed.
+Proof. intros. rewrite code_size_cons, block_instruction_size. cbn [codeSize]. lia. Qed.
+
+Lemma if_size : forall bt t e, (codeSize t < codeSize [IFELSE bt t e] /\ codeSize e < codeSize [IFELSE bt t e])%nat.
+Proof. intros. rewrite code_size_cons, if_instruction_size. cbn [codeSize]. destruct e; cbn [codeSize]; lia. Qed.
 
 Lemma label_fits : forall C localCount resultCount arities callees n,
   contextFits C localCount resultCount arities callees ->
@@ -91,18 +118,19 @@ Qed.
 Lemma flat_instruction_facts : forall C i inputs outputs localCount resultCount arities callees,
   Instr_ok C i (mk_functype (mk_list _ inputs) (mk_list _ outputs)) -> wf_instr i ->
   contextFits C localCount resultCount arities callees -> Supported callees i ->
-  (forall bt body, i <> BLOCK bt body) ->
+  (forall bt body, i <> BLOCK bt body) -> (forall bt t e, i <> IFELSE bt t e) ->
   (forall extra, instrFacts localCount resultCount arities callees i (extra + length inputs)) /\
   (forall extra, sourceHeight callees i (extra + length inputs) = Some (extra + length outputs)%nat \/
     sourceHeight callees i (extra + length inputs) = None).
 Proof.
-  intros C i inputs outputs localCount resultCount arities callees Hi Hw [Hlocals [Hreturn [Hlabels Htypes]]] Hsupport Hnot.
+  intros C i inputs outputs localCount resultCount arities callees Hi Hw [Hlocals [Hreturn [Hlabels Htypes]]] Hsupport
+    Hnot Hnot'.
   assert (Hordinary : (exists op, encodedOpcode i = Some op) -> forall extra,
       wf_instr i /\ programTyped localCount (extra + length inputs) [i]).
   { intros Hop extra. split; [exact Hw | ].
     pose proof (proj1 (validated_instruction_height _ _ _ _ Hi Hop) extra [] I) as H.
     rewrite Hlocals, repeat_length in H. exact H. }
-  inversion Hsupport as [ | | | | x f Hf Hp Hr | result body | l | l | ls l | ]; subst.
+  inversion Hsupport as [ | | | | x f Hf Hp Hr | result body | l | l | ls l | | result t e]; subst.
   - split; [exact (Hordinary ltac:(eexists; reflexivity)) | ].
     inversion Hi; subst. intros extra. left. cbn [length]. rewrite Nat.add_comm. cbn. f_equal; lia.
   - split; [exact (Hordinary ltac:(eexists; reflexivity)) | ].
@@ -181,10 +209,12 @@ Proof.
     assert (Hlength : forall (xs ys : list valtype), length (seq.cat xs ys) = (length xs + length ys)%nat)
       by (intros xs ys; induction xs as [ | x xs IH]; [reflexivity | cbn; rewrite IH; reflexivity]).
     rewrite Hlength, <- Hresults, repeat_length. lia.
+  - exfalso. eapply Hnot'. reflexivity.
 Qed.
 
-Lemma instr_block_cases : forall i, (exists bt body, i = BLOCK bt body) \/ (forall bt body, i <> BLOCK bt body).
-Proof. destruct i; try (right; intros; discriminate). left; eauto. Qed.
+Lemma instr_structured_cases : forall i, (exists bt body, i = BLOCK bt body) \/ (exists bt t e, i = IFELSE bt t e) \/
+  ((forall bt body, i <> BLOCK bt body) /\ (forall bt t e, i <> IFELSE bt t e)).
+Proof. destruct i; try (right; right; split; intros; discriminate); [left | right; left]; eauto. Qed.
 
 Lemma instr_facts_wf : forall localCount resultCount arities callees i h, instrFacts localCount resultCount arities callees i h -> wf_instr i.
 Proof. intros localCount resultCount arities callees i h H. destruct i; try exact (proj1 H); exact H. Qed.
@@ -212,8 +242,8 @@ Proof.
     split; [intros extra h' H; injection H as <-; reflexivity | constructor].
   - intros Hsize localCount resultCount arities callees Hfits Hsupport.
     pose proof (Forall_inv Hsupport) as Hsup.
-    destruct (instr_block_cases i) as [[bt [body ->]] | Hnot].
-    + inversion Hsup as [ | | | | | result body' Hbody' Hresult | | | | ]; subst. inversion Hi; subst.
+    destruct (instr_structured_cases i) as [[bt [body ->]] | [[bt [t [e ->]]] | [Hnot Hnot']]].
+    + inversion Hsup as [ | | | | | result body' Hbody' Hresult | | | | | ]; subst. inversion Hi; subst.
       match goal with Hbt : Blocktype_ok _ _ _ |- _ => inversion Hbt; subst end.
       rewrite block_size in Hsize.
       match goal with Hbody : Instrs_ok _ body _ |- _ => pose proof (IHn _ _ _ Hbody ltac:(lia)) as Hinner end.
@@ -231,8 +261,34 @@ Proof.
         -- pose proof (Hbody 0%nat [] I) as Hb. rewrite app_nil_r in Hb. exact Hb.
       * intros extra h' H. cbn [sourceHeights sourceHeight] in H. injection H as <-.
         cbn [length option_to_list]. rewrite Hlabel, repeat_length. destruct result; cbn; lia.
-    + destruct (flat_instruction_facts C i inputs outputs localCount resultCount arities callees Hi Hw Hfits Hsup Hnot)
-        as [Hfact Hheight].
+    + (* An if: each arm like a block's body, above the condition. *)
+      inversion Hsup as [ | | | | | | | | | | result t' e' Ht He Hresult]; subst. inversion Hi; subst.
+      match goal with Hbt : Blocktype_ok _ _ _ |- _ => inversion Hbt; subst end.
+      destruct (if_size (_RESULT result) t e) as [Hst Hse].
+      assert (Hlabel : option_to_list result = repeat valtype_I32 (blockResults (_RESULT result)))
+        by (destruct Hresult as [-> | ->]; reflexivity).
+      match goal with Hthen : Instrs_ok _ t _, Helse : Instrs_ok _ e _ |- _ =>
+        pose proof (IHn _ _ _ Hthen ltac:(lia)) as Hinner1; pose proof (IHn _ _ _ Helse ltac:(lia)) as Hinner2 end.
+      cbn [option_to_list] in Hinner1, Hinner2. rewrite Hlabel in Hinner1, Hinner2.
+      cbn [length] in Hinner1, Hinner2. rewrite repeat_length in Hinner1, Hinner2.
+      destruct (Hinner1 localCount resultCount (blockResults (_RESULT result) :: arities) callees
+        (label_fits _ _ _ _ _ _ Hfits) Ht) as [Hbody1 [Hheights1 _]].
+      destruct (Hinner2 localCount resultCount (blockResults (_RESULT result) :: arities) callees
+        (label_fits _ _ _ _ _ _ Hfits) He) as [Hbody2 [Hheights2 _]].
+      assert (Hin : length (seq.cat [] [valtype_I32]) = 1%nat) by reflexivity.
+      split; [ | split; [ | constructor; [exact Hw | constructor]]].
+      * intros extra suffix Hsuffix. rewrite Hin. cbn [app codeFacts]. rewrite Nat.add_1_r.
+        cbn [length option_to_list] in Hsuffix. rewrite Hlabel, repeat_length in Hsuffix.
+        split.
+        -- apply if_facts. split; [assumption | ]. split; [lia | ].
+           split; [exact (Hheights1 0%nat) | ]. split; [exact (Hheights2 0%nat) | ].
+           pose proof (Hbody1 0%nat [] I) as Hb1. pose proof (Hbody2 0%nat [] I) as Hb2.
+           rewrite app_nil_r in Hb1, Hb2. split; assumption.
+        -- exact Hsuffix.
+      * intros extra h' H. rewrite Hin, Nat.add_1_r in H. cbn [sourceHeights sourceHeight] in H.
+        injection H as <-. cbn [length option_to_list]. rewrite Hlabel, repeat_length. destruct result; cbn; lia.
+    + destruct (flat_instruction_facts C i inputs outputs localCount resultCount arities callees Hi Hw Hfits Hsup
+        Hnot Hnot') as [Hfact Hheight].
       split; [ | split; [ | constructor; [exact Hw | constructor]]].
       * intros extra suffix Hsuffix. cbn [app codeFacts]. split; [exact (Hfact extra) | ].
         destruct (Hheight extra) as [-> | ->]; [exact Hsuffix | exact (code_facts_wf _ _ _ _ _ _ Hsuffix)].

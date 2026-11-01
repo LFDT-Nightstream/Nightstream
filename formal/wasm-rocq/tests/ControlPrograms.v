@@ -152,7 +152,7 @@ Definition computedInteriorConfig := stackPrefix []
 
 (* Inside the label, the decoder splits the operand stack at the block's height. *)
 Example computed_interior_config :
-  CircuitConfig computedProgram computedStore 0 (controlShape [] (siteCode (codePosition 0 [0%nat] 3)))
+  CircuitConfig computedProgram computedStore 0 (controlShape [] (siteCode (codePosition 0 [labelSite 0 0] 3)))
     computedInteriorMemory (mkBoundary 4 10 9 7 0 0 0 0 0 0) computedInteriorConfig.
 Proof.
   split; [reflexivity | ]. split; [exact computed_store_wf | ]. split; [exact computed_program_validated | ].
@@ -181,21 +181,22 @@ Proof.
 Qed.
 
 Lemma no_block_path : forall code b rest,
-  Forall (fun i => forall bt body, i <> BLOCK bt body) code -> pathCode code (b :: rest) = None.
+  Forall (fun i => forall arm, instrArm i arm = None) code -> pathCode code (b :: rest) = None.
 Proof.
-  intros code b rest H. cbn [pathCode].
-  destruct (nth_error code b) as [i | ] eqn:Hb; [ | reflexivity]. destruct i; try reflexivity.
-  exfalso. eapply (proj1 (Forall_forall _ _) H); [eapply nth_error_In; exact Hb | reflexivity].
+  intros code b rest H. cbn [pathCode]. unfold siteEntry.
+  destruct (nth_error code (siteOffset b)) as [i | ] eqn:Hb; [ | reflexivity].
+  rewrite (proj1 (Forall_forall _ _) H _ (nth_error_In _ _ Hb)). reflexivity.
 Qed.
 
 (* The only code paths: the function body and the block body. *)
 Lemma computed_paths : forall labels,
-  pathCode computedCode labels = None \/ labels = [] \/ labels = [0%nat].
+  pathCode computedCode labels = None \/ labels = [] \/ labels = [labelSite 0 0].
 Proof.
-  intros [ | [ | b] more]; [right; left; reflexivity | | left].
-  - destruct more as [ | b' more]; [right; right; reflexivity | left].
+  intros [ | [[ | b] arm] more]; [right; left; reflexivity | | left].
+  - destruct arm as [ | arm]; [ | left; reflexivity].
+    destruct more as [ | b' more]; [right; right; reflexivity | left].
     change (pathCode computedBranches (b' :: more) = None). apply no_block_path.
-    repeat constructor; intros ? ? ?; discriminate.
+    repeat constructor.
   - destruct b as [ | b]; [reflexivity | destruct b; reflexivity].
 Qed.
 
@@ -213,7 +214,7 @@ Qed.
 (* At pc 4 the frame is at the first br_if, inside the block. *)
 Lemma computed_pc_four_shape : forall cursor memory boundary c,
   ControlState computedProgram computedStore 0 cursor memory boundary c -> boundaryPC boundary = 4 ->
-  shapeOf cursor = controlShape [] (siteCode (codePosition 0 [0%nat] 3)).
+  shapeOf cursor = controlShape [] (siteCode (codePosition 0 [labelSite 0 0] 3)).
 Proof.
   intros [stack active] memory boundary c [f [inner [Hf [Hactive [Hsusp [_ [_ ->]]]]]]] Hpc.
   cbn [activePosition suspendedCalls] in *.
@@ -246,7 +247,7 @@ Example computed_split_before_branch : forall firstRows lastRows final,
   runFragment (rowsFinalBoundary (mkBoundary 0 9 9 7 0 0 0 0 0 0) firstRows) 0 lastRows ->
   boundaryPC (rowsFinalBoundary (mkBoundary 0 9 9 7 0 0 0 0 0 0) firstRows) = 4 ->
   exists between c1 shape c,
-    CircuitConfig computedProgram computedStore 0 (controlShape [] (siteCode (codePosition 0 [0%nat] 3)))
+    CircuitConfig computedProgram computedStore 0 (controlShape [] (siteCode (codePosition 0 [labelSite 0 0] 3)))
       between (rowsFinalBoundary (mkBoundary 0 9 9 7 0 0 0 0 0 0) firstRows) c1 /\
     Steps (stackConfig (computedState 7) [] computedCode) c1 /\ Steps c1 c /\
     programLoaded computedProgram final /\

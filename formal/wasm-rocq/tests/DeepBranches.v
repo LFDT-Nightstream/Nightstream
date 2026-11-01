@@ -117,7 +117,7 @@ Definition branchMemory := loadProgram deepProgram (fun memory address =>
   else deepRam 7 memory address).
 
 Example deep_branch_site_config :
-  CircuitConfig deepProgram deepStore 0 (controlShape [] (siteCode (codePosition 0 [0; 0]%nat 1)))
+  CircuitConfig deepProgram deepStore 0 (controlShape [] (siteCode (codePosition 0 [labelSite 0 0; labelSite 0 0] 1)))
     branchMemory (mkBoundary 3 10 9 7 0 0 0 0 0 0)
     (mk_config (deepState 7)
       [LABEL_ 0%N [] [LABEL_ 0%N [] (i32Constant 7 :: List.map admininstr_instr (skipn 1 innerBody));
@@ -130,6 +130,6 @@ Qed.
 
 (* A pc that is not the branch's does not decode at this position. *)
 Example deep_branch_wrong_pc_rejected :
-  decodeControl deepProgram deepStore 0 (controlShape [] (siteCode (codePosition 0 [0; 0]%nat 1)))
+  decodeControl deepProgram deepStore 0 (controlShape [] (siteCode (codePosition 0 [labelSite 0 0; labelSite 0 0] 1)))
     branchMemory (mkBoundary 4 10 9 7 0 0 0 0 0 0) = None.
 Proof. vm_compute. reflexivity. Qed.

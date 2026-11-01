@@ -109,7 +109,7 @@ Definition zeroFrame := MKframe [i32Value 0] blockModule.
    caller's local.set waits inside the inner label and its local.get after both. *)
 Example block_suspended_call_decodes :
   option_map fst (decodeControl blockProgram blockStore 0
-    (controlShape [codePosition 1 [0; 0]%nat 0] (siteCode (codePosition 0 [] 0)))
+    (controlShape [codePosition 1 [labelSite 0 0; labelSite 0 0] 0] (siteCode (codePosition 0 [] 0)))
     blockMemory (mkBoundary 0 9 9 8 1 0 0 0 0 0)) =
   Some (mk_config (mk_state blockStore callerFrame)
     [LABEL_ 0%N [] [LABEL_ 0%N []
@@ -121,7 +121,7 @@ Proof. vm_compute. reflexivity. Qed.
 (* A return pc off the CALL's successor does not decode. *)
 Example block_wrong_return_rejected :
   decodeControl blockProgram blockStore 0
-    (controlShape [codePosition 1 [0; 0]%nat 0] (siteCode (codePosition 0 [] 0)))
+    (controlShape [codePosition 1 [labelSite 0 0; labelSite 0 0] 0] (siteCode (codePosition 0 [] 0)))
     (update blockMemory callStackReturnPcId [0] 8) (mkBoundary 0 9 9 8 1 0 0 0 0 0) = None.
 Proof. vm_compute. reflexivity. Qed.
 

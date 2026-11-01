@@ -212,7 +212,7 @@ Proof.
     cbn [activeFunction viewPosition positionFunction positionLabels positionOffset] in *.
     rewrite Hf in Hf'. injection Hf' as <-.
     destruct index as [ | [ | index]]; [ | | destruct index; discriminate]; injection Hf as <-;
-      (destruct labels as [ | b more]; [ | destruct b as [ | [ | [ | [ | b]]]]; discriminate]);
+      (destruct labels as [ | b more]; [ | destruct b as [[ | [ | [ | [ | b]]]] arm]; discriminate]);
       unfold innerCode in Hoffset; cbn in Hoffset, Hpos.
     + destruct offset as [ | [ | offset]]; cbn in Hpos; lia.
     + destruct offset as [ | [ | [ | [ | offset]]]]; cbn in Hpos; try lia.
@@ -221,7 +221,7 @@ Proof.
       destruct (callView top) as [[[ | [ | caller]] glabels goffset] gsegments gvalues glocals];
         cbn [viewPosition positionFunction positionLabels positionOffset] in Hg, Hcall, Hcallee;
         [ | | destruct caller; discriminate]; cbn in Hg; injection Hg as Hg; rewrite <- Hg in Hcall, Hcallee;
-        unfold innerCode in Hcall; (destruct glabels as [ | b more']; [ | destruct b as [ | [ | [ | [ | b]]]]; cbn in Hcall; destruct goffset; discriminate]);
+        unfold innerCode in Hcall; (destruct glabels as [ | b more']; [ | destruct b as [[ | [ | [ | [ | b]]]] arm]; cbn in Hcall; destruct goffset; discriminate]);
         cbn in Hcall.
       * destruct goffset as [ | [ | goffset]]; try discriminate; destruct goffset; discriminate.
       * destruct goffset as [ | [ | [ | goffset]]]; try discriminate; [ | destruct goffset; discriminate].

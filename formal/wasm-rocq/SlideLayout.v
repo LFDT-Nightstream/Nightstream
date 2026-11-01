@@ -1,6 +1,7 @@
-(* Where the slide encoder's branch drops sit: aligned with the flattened layout, a
-   br_if's slot holds the drop that the decoder's static heights give, and the
-   program ROM serves it at the br_if's pc. *)
+(* Where the slide encoder's slot contexts sit: aligned with the flattened layout,
+   an instruction's slot holds the label context that the decoder's static heights
+   and the code path's arities give, and the program ROM serves its slides at the
+   instruction's pc. *)
 From Stdlib Require Import List ZArith Arith Bool Lia.
 Require Import Wasm2 MemoryTrace MemoryCatalog CallerSpec CodeLayout Fragment ProgramSpec ProgramEncoding
   BlockEncoding ControlDecode.
@@ -12,51 +13,87 @@ Definition nextHeight (callees : CalleeEnvironment) (h : option nat) (j : instr)
 Definition heightsFrom (callees : CalleeEnvironment) (code : list instr) (h : option nat) : option nat :=
   match h with Some h => sourceHeights callees code h | None => None end.
 
-(* A block body's slides, as instructionContexts lays them out. *)
-Definition bodyContexts (callees : CalleeEnvironment) (heights arities : list nat)
-    : list instr -> option nat -> list (option SlotContext) :=
-  fix bodyContexts (code : list instr) (h : option nat) : list (option SlotContext) :=
-    match code with
-    | [] => []
-    | j :: rest => instructionContexts callees heights arities h j ++ bodyContexts rest (nextHeight callees h j)
-    end.
+(* A body's slot contexts, as instructionContexts lays them out. *)
+Fixpoint bodyContexts (callees : CalleeEnvironment) (heights arities : list nat) (code : list instr) (h : option nat)
+    : list (option SlotContext) :=
+  match code with
+  | [] => []
+  | j :: rest => instructionContexts callees heights arities h j ++
+      bodyContexts callees heights arities rest (nextHeight callees h j)
+  end.
 
 Lemma code_contexts_body : forall callees results code h,
   codeContexts callees results code h = bodyContexts callees [0%nat] [results] code h.
-Proof. reflexivity. Qed.
+Proof. intros callees results code. induction code as [ | j rest IH]; intros h; [reflexivity | ].
+  cbn [bodyContexts]. rewrite <- IH. reflexivity. Qed.
 
 Lemma body_contexts_cons : forall callees heights arities j rest h,
   bodyContexts callees heights arities (j :: rest) h =
     instructionContexts callees heights arities h j ++ bodyContexts callees heights arities rest (nextHeight callees h j).
 Proof. reflexivity. Qed.
 
-Lemma instruction_contexts_block : forall callees heights arities height bt body,
-  instructionContexts callees heights arities height (BLOCK bt body) =
-    None :: bodyContexts callees (match height with Some h => h | None => 0 end :: heights)%nat
-      (blockResults bt :: arities) body (option_map (fun _ => 0%nat) height) ++ [None].
-Proof. reflexivity. Qed.
-
-Fixpoint instruction_contexts_length (callees : CalleeEnvironment) (i : instr) {struct i} :
-  forall heights arities h, length (instructionContexts callees heights arities h i) = instructionSize i.
+(* A structured instruction's slots: each arm's body runs inside the instruction's label. *)
+Lemma instruction_contexts_arms : forall callees heights arities height i,
+  let inner := (labelBase i (match height with Some h => h | None => 0 end) :: heights)%nat in
+  let entered := option_map (fun _ => 0%nat) height in
+  (forall bt body, i = BLOCK bt body \/ i = LOOP bt body ->
+    instructionContexts callees heights arities height i =
+      None :: bodyContexts callees inner (labelArity i :: arities) body entered ++ [None]) /\
+  (forall bt t e, i = IFELSE bt t e ->
+    instructionContexts callees heights arities height i =
+      None :: bodyContexts callees inner (labelArity i :: arities) t entered ++
+        match e with [] => [] | _ => None :: bodyContexts callees inner (labelArity i :: arities) e entered end ++
+        [None]).
 Proof.
-  destruct i; intros heights arities h; try reflexivity.
-  rewrite instruction_contexts_block, block_instruction_size. cbn [length]. rewrite length_app. cbn [length].
-  match goal with |- context [codeSize ?body] =>
-    enough (Hbody : forall heights' arities' h', length (bodyContexts callees heights' arities' body h') = codeSize body)
-      by (rewrite Hbody; lia);
-    clear heights arities h; generalize body end.
-  refine (fix go (code : list instr) : forall heights' arities' h',
-    length (bodyContexts callees heights' arities' code h') = codeSize code := _).
-  destruct code as [ | j rest]; intros heights' arities' h'; [reflexivity | ].
-  rewrite body_contexts_cons, length_app, code_size_cons, (instruction_contexts_length callees j), go. reflexivity.
+  intros callees heights arities height i inner entered.
+  assert (Hfix : forall hs ars code h, (fix bodyContexts (heights arities : list nat) (code : list instr)
+      (h : option nat) : list (option SlotContext) :=
+      match code with
+      | [] => []
+      | j :: rest => instructionContexts callees heights arities h j ++
+          bodyContexts heights arities rest (match h with Some h => sourceHeight callees j h | None => None end)
+      end) hs ars code h = bodyContexts callees hs ars code h).
+  { intros hs ars code. induction code as [ | j rest IH]; intros h; [reflexivity | ].
+    cbn [bodyContexts]. rewrite <- IH. reflexivity. }
+  split.
+  - intros bt body [-> | ->]; cbn [instructionContexts]; cbv zeta; rewrite Hfix; reflexivity.
+  - intros bt t e ->. cbn [instructionContexts]. cbv zeta. rewrite !Hfix. reflexivity.
 Qed.
+
+Lemma contexts_body_length : forall callees n,
+  (forall i heights arities h, (instructionSize i <= n)%nat ->
+    length (instructionContexts callees heights arities h i) = instructionSize i) /\
+  (forall code heights arities h, (codeSize code <= n)%nat ->
+    length (bodyContexts callees heights arities code h) = codeSize code).
+Proof.
+  intros callees. induction n as [ | n [IHi IHc]].
+  - split; [intros i heights arities h H; pose proof (instruction_size_pos i); lia | ].
+    intros [ | j rest] heights arities h H; [reflexivity | ]. pose proof (instruction_size_pos j). cbn [codeSize] in H. lia.
+  - assert (Hi : forall i heights arities h, (instructionSize i <= S n)%nat ->
+        length (instructionContexts callees heights arities h i) = instructionSize i).
+    { intros i heights arities h H. destruct (instruction_contexts_arms callees heights arities h i) as [Hblock Hif].
+      destruct i; try reflexivity.
+      - rewrite (Hblock _ _ (or_introl Logic.eq_refl)). rewrite block_instruction_size in *. cbn [length].
+        rewrite length_app, IHc by lia. cbn [length]. lia.
+      - rewrite (Hblock _ _ (or_intror Logic.eq_refl)). rewrite loop_instruction_size in *. cbn [length].
+        rewrite length_app, IHc by lia. cbn [length]. lia.
+      - rewrite (Hif _ _ _ Logic.eq_refl). rewrite if_instruction_size in *. cbn [length].
+        rewrite !length_app, IHc by lia.
+        match goal with |- context [match ?e with [] => _ | _ :: _ => _ end] => destruct e end;
+          cbn [length codeSize] in *; rewrite ?IHc by (cbn [codeSize]; lia); cbn [codeSize]; lia. }
+    split; [exact Hi | ].
+    induction code as [ | j rest IH]; intros heights arities h H; [reflexivity | ].
+    rewrite body_contexts_cons, length_app. cbn [codeSize] in H |- *. pose proof (instruction_size_pos j).
+    rewrite Hi, IH by lia. reflexivity.
+Qed.
+
+Lemma instruction_contexts_length : forall callees i heights arities h,
+  length (instructionContexts callees heights arities h i) = instructionSize i.
+Proof. intros. exact (proj1 (contexts_body_length callees (instructionSize i)) i heights arities h (le_n _)). Qed.
 
 Lemma body_contexts_length : forall callees heights arities code h,
   length (bodyContexts callees heights arities code h) = codeSize code.
-Proof.
-  induction code as [ | j rest IH]; intros h; [reflexivity | ].
-  rewrite body_contexts_cons, length_app, code_size_cons, instruction_contexts_length, IH. reflexivity.
-Qed.
+Proof. intros. exact (proj2 (contexts_body_length callees (codeSize code)) code heights arities h (le_n _)). Qed.
 
 Lemma body_contexts_at : forall callees heights arities code h offset i k,
   nth_error code offset = Some i -> (k < instructionSize i)%nat ->
@@ -65,60 +102,86 @@ Lemma body_contexts_at : forall callees heights arities code h offset i k,
 Proof.
   intros callees heights arities code. induction code as [ | a rest IH]; intros h [ | offset] i k Hi Hk;
     try discriminate.
-  - injection Hi as <-. rewrite body_contexts_cons. unfold codeOffset. cbn [firstn codeSize flattenCode flat_map length].
+  - injection Hi as <-. rewrite body_contexts_cons. change (codeOffset (a :: rest) 0) with 0%nat.
     rewrite nth_error_app1 by (rewrite instruction_contexts_length; exact Hk).
     destruct h; reflexivity.
   - cbn [nth_error] in Hi. rewrite body_contexts_cons.
     replace (codeOffset (a :: rest) (S offset) + k)%nat with
       (length (instructionContexts callees heights arities h a) + (codeOffset rest offset + k))%nat
-      by (rewrite instruction_contexts_length; unfold codeOffset; cbn [firstn]; rewrite code_size_cons; lia).
-    rewrite nth_error_app2, Nat.add_comm, Nat.add_sub by lia.
+      by (rewrite instruction_contexts_length; unfold codeOffset; cbn [firstn codeSize]; lia).
+    rewrite nth_error_app2 by lia.
+    replace (length (instructionContexts callees heights arities h a) + (codeOffset rest offset + k) -
+      length (instructionContexts callees heights arities h a))%nat with (codeOffset rest offset + k)%nat by lia.
     rewrite (IH (nextHeight callees h a) offset i k Hi Hk).
     destruct h as [h | ]; [ | reflexivity]. cbn [firstn heightsFrom sourceHeights nextHeight].
     destruct (sourceHeight callees a h); reflexivity.
 Qed.
 
-(* At an instruction other than a block on a code path, its first slot's slide at
-   the heights and arities the code path gives. `heights0` and `arities0` describe
-   the labels around `code`, innermost first. *)
+(* An arm's slot contexts inside its instruction's. *)
+Lemma instruction_contexts_arm : forall callees heights arities height i arm body k,
+  instrArm i arm = Some body -> (k < codeSize body)%nat ->
+  nth_error (instructionContexts callees heights arities height i) (armStart i arm + k) =
+    nth_error (bodyContexts callees (labelBase i (match height with Some h => h | None => 0 end) :: heights)%nat
+      (labelArity i :: arities) body (option_map (fun _ => 0%nat) height)) k.
+Proof.
+  intros callees heights arities height i arm body k Harm Hk.
+  destruct (instruction_contexts_arms callees heights arities height i) as [Hblock Hif].
+  destruct i; try discriminate; destruct arm as [ | [ | arm]]; try discriminate; cbn [instrArm] in Harm.
+  - injection Harm as <-. rewrite (Hblock _ _ (or_introl Logic.eq_refl)). cbn [armStart].
+    replace (1 + k)%nat with (S k) by lia. cbn [nth_error].
+    rewrite nth_error_app1 by (rewrite body_contexts_length; exact Hk). reflexivity.
+  - injection Harm as <-. rewrite (Hblock _ _ (or_intror Logic.eq_refl)). cbn [armStart].
+    replace (1 + k)%nat with (S k) by lia. cbn [nth_error].
+    rewrite nth_error_app1 by (rewrite body_contexts_length; exact Hk). reflexivity.
+  - injection Harm as <-. rewrite (Hif _ _ _ Logic.eq_refl). cbn [armStart].
+    replace (1 + k)%nat with (S k) by lia. cbn [nth_error].
+    rewrite nth_error_app1 by (rewrite body_contexts_length; exact Hk). reflexivity.
+  - match type of Harm with match ?e with [] => _ | _ :: _ => _ end = _ => destruct e as [ | e0 e] end;
+      [discriminate | ].
+    injection Harm as <-. rewrite (Hif _ _ _ Logic.eq_refl). cbn [armStart].
+    match goal with |- context [S (S (codeSize ?t))] =>
+      replace (S (S (codeSize t)) + k)%nat with (S (codeSize t + S k))%nat by lia end.
+    cbn [nth_error]. rewrite nth_error_app2 by (rewrite body_contexts_length; lia).
+    rewrite body_contexts_length.
+    match goal with |- context [(codeSize ?t + S k - codeSize ?t)%nat] =>
+      replace (codeSize t + S k - codeSize t)%nat with (S k) by lia end.
+    cbn [nth_error app]. rewrite nth_error_app1 by (rewrite body_contexts_length; exact Hk). reflexivity.
+Qed.
+
+(* At a one-slot instruction on a code path, its slot context: the heights and
+   arities the code path gives. `heights0` and `arities0` describe the labels
+   around `code`, innermost first. *)
 Lemma contexts_at_path : forall callees labels code inner offset i hs top heights0 arities0,
-  pathCode code labels = Some inner -> nth_error inner offset = Some i -> (forall bt body, i <> BLOCK bt body) ->
+  pathCode code labels = Some inner -> nth_error inner offset = Some i -> instructionSize i = 1%nat ->
   pathHeights callees code labels offset = Some (hs, top) ->
   nth_error (bodyContexts callees heights0 arities0 code (Some 0%nat)) (pathOffset code labels offset) =
     nth_error (instructionContexts callees (rev hs ++ heights0) (rev (pathArities code labels) ++ arities0) (Some top) i) 0.
 Proof.
-  intros callees labels. induction labels as [ | b rest IH];
-    intros code inner offset i hs top heights0 arities0 Hpath Hi Hflat Hheights.
-  - injection Hpath as <-. cbn [pathHeights] in Hheights.
-    destruct (sourceHeights callees (firstn offset code) 0) as [h | ] eqn:Hh; [ | discriminate].
+  intros callees labels. induction labels as [ | s rest IH];
+    intros code inner offset i hs top heights0 arities0 Hpath Hi Hsize Hheights.
+  - injection Hpath as Heq. subst code. cbn [pathHeights] in Hheights.
+    destruct (sourceHeights callees (firstn offset inner) 0) as [h | ] eqn:Hh; [ | discriminate].
     injection Hheights as <- <-. cbn [pathOffset].
-    assert (Hsize : instructionSize i = 1%nat).
-    { destruct i; try reflexivity. exfalso. eapply Hflat. reflexivity. }
-    rewrite <- (Nat.add_0_r (codeOffset code offset)), (body_contexts_at _ _ _ _ _ _ _ 0 Hi ltac:(lia)).
+    rewrite <- (Nat.add_0_r (codeOffset inner offset)), (body_contexts_at _ _ _ _ _ _ _ 0 Hi ltac:(lia)).
     cbn [heightsFrom]. rewrite Hh. reflexivity.
-  - cbn [pathCode] in Hpath. cbn [pathHeights] in Hheights. cbn [pathOffset].
-    destruct (nth_error code b) as [j | ] eqn:Hb; [ | discriminate].
-    destruct j; try discriminate.
-    match goal with Hb : nth_error code b = Some (BLOCK _ ?inside) |- _ => rename inside into body end.
-    destruct (sourceHeights callees (firstn b code) 0) as [below | ] eqn:Hbelow; [ | discriminate].
+  - cbn [pathCode pathHeights pathOffset pathArities] in *.
+    destruct (siteEntry code s) as [[j body] | ] eqn:Hentry; [ | discriminate].
+    destruct (sourceHeights callees (firstn (siteOffset s) code) 0) as [height | ] eqn:Hheight; [ | discriminate].
     destruct (pathHeights callees body rest offset) as [[hs' top'] | ] eqn:Hinner; [ | discriminate].
     injection Hheights as <- <-.
-    match goal with Hb : nth_error code b = Some (BLOCK ?blocktype _) |- _ => rename blocktype into bt end.
-    pose proof (IH body inner offset i hs' top' (below :: heights0) (blockResults bt :: arities0) Hpath Hi Hflat Hinner)
-      as Hdrop.
-    assert (Hslot : nth_error (instructionContexts callees (rev hs' ++ below :: heights0)
-        (rev (pathArities body rest) ++ blockResults bt :: arities0) (Some top') i) 0 <> None).
-    { assert (Hsize : instructionSize i = 1%nat).
-      { destruct i; try reflexivity. exfalso. eapply Hflat. reflexivity. }
-      apply nth_error_Some. rewrite instruction_contexts_length. lia. }
+    unfold siteEntry in Hentry. destruct (nth_error code (siteOffset s)) as [j' | ] eqn:Hj; [ | discriminate].
+    destruct (instrArm j' (siteArm s)) as [body' | ] eqn:Harm; [ | discriminate].
+    cbn [option_map] in Hentry. injection Hentry as Hjj Hbb. subst j' body'.
+    pose proof (IH body inner offset i hs' top' (labelBase j height :: heights0) (labelArity j :: arities0)
+      Hpath Hi Hsize Hinner) as Hctx.
     assert (Hp : (pathOffset body rest offset < codeSize body)%nat).
-    { rewrite <- (body_contexts_length callees (below :: heights0) (blockResults bt :: arities0) body (Some 0%nat)).
-      apply nth_error_Some. rewrite Hdrop. exact Hslot. }
-    rewrite (body_contexts_at _ _ _ _ _ _ _ (S (pathOffset body rest offset)) Hb
-      ltac:(rewrite block_instruction_size; lia)).
-    cbn [heightsFrom]. rewrite Hbelow, instruction_contexts_block. cbn [nth_error option_map].
-    rewrite nth_error_app1 by (rewrite body_contexts_length; exact Hp).
-    rewrite Hdrop. cbn [pathArities]. rewrite Hb. cbn [rev]. rewrite <- !app_assoc. reflexivity.
+    { rewrite <- (body_contexts_length callees (labelBase j height :: heights0) (labelArity j :: arities0) body
+        (Some 0%nat)).
+      apply nth_error_Some. rewrite Hctx. apply nth_error_Some. rewrite instruction_contexts_length. lia. }
+    pose proof (arm_inside _ _ _ Harm) as Hinside.
+    rewrite <- Nat.add_assoc, (body_contexts_at _ _ _ _ _ _ _ (armStart j (siteArm s) + pathOffset body rest offset) Hj ltac:(lia)).
+    cbn [heightsFrom]. rewrite Hheight, (instruction_contexts_arm _ _ _ _ _ _ _ _ Harm Hp).
+    cbn [option_map]. rewrite Hctx. cbn [rev]. rewrite <- !app_assoc. reflexivity.
 Qed.
 
 Lemma sum_rev : forall hs top, (top + fold_right Nat.add 0 (rev hs))%nat = totalHeight (hs, top).
@@ -133,13 +196,12 @@ Qed.
 Lemma path_arities_length : forall callees labels code offset hs top,
   pathHeights callees code labels offset = Some (hs, top) -> length (pathArities code labels) = length hs.
 Proof.
-  intros callees. induction labels as [ | b rest IH]; intros code offset hs top H; cbn [pathHeights] in H.
+  intros callees. induction labels as [ | s rest IH]; intros code offset hs top H; cbn [pathHeights pathArities] in *.
   - destruct (sourceHeights callees (firstn offset code) 0); cbn in H; [ | discriminate]. now injection H as <- _.
-  - cbn [pathArities]. destruct (nth_error code b) as [i | ]; [ | discriminate]. destruct i; try discriminate.
-    destruct (sourceHeights callees (firstn b code) 0); [ | discriminate].
-    match goal with H : option_map _ (pathHeights callees ?nested rest offset) = _ |- _ =>
-      destruct (pathHeights callees nested rest offset) as [[hs' t] | ] eqn:Hin; cbn in H; [ | discriminate];
-      injection H as <- _; cbn; f_equal; exact (IH _ _ _ _ Hin) end.
+  - destruct (siteEntry code s) as [[i body] | ]; [ | discriminate].
+    destruct (sourceHeights callees (firstn (siteOffset s) code) 0); [ | discriminate].
+    destruct (pathHeights callees body rest offset) as [[hs' t] | ] eqn:Hin; cbn in H; [ | discriminate].
+    injection H as <- _. cbn [length]. f_equal. exact (IH _ _ _ _ Hin).
 Qed.
 
 (* A slide ROM word, for a slot that may not slide. *)
@@ -159,14 +221,13 @@ Lemma encoded_branch_slide : forall program memory index f labels inner offset l
   memory frameSlideDistanceId [pc; choice] = Some (if (choice =? 1)%Z then slideEntry false slide else 0%Z).
 Proof.
   intros program memory index f labels inner offset l hs top choice Hloaded Hf Hpath Hi Hheights pc slide.
-  destruct (path_slot_head (guestBody f) labels (BR_IF l) (skipn (S offset) inner)) as [more Hhead].
-  pose proof (flatten_at_path _ _ _ _ _ 0 _ Hpath Hi ltac:(rewrite Hhead; reflexivity)) as Hslot.
-  rewrite Nat.add_0_r in Hslot.
+  pose proof (flatten_at_path _ _ _ _ _ Hpath Hi) as Hslot.
   assert (Hbound : (pathOffset (guestBody f) labels offset <= codeSize (guestBody f))%nat).
-  { assert (pathOffset (guestBody f) labels offset < length (flattenCode (guestBody f)))%nat
+  { rewrite <- flatten_code_length.
+    assert (pathOffset (guestBody f) labels offset < length (flattenCode (guestBody f)))%nat
       by (apply nth_error_Some; rewrite Hslot; discriminate).
-    unfold codeSize. lia. }
-  pose proof (contexts_at_path _ _ _ _ _ _ _ _ [0%nat] [guestResults f] Hpath Hi ltac:(discriminate) Hheights) as Hdrop.
+    lia. }
+  pose proof (contexts_at_path _ _ _ _ _ _ _ _ [0%nat] [guestResults f] Hpath Hi Logic.eq_refl Hheights) as Hdrop.
   rewrite <- code_contexts_body in Hdrop. cbn [instructionContexts nth_error option_map] in Hdrop.
   split; program_cell Hloaded; unfold encodeProgram; cbn [Nat.eqb pcRomId frameSlideRemainingId frameSlideDistanceId orb];
     unfold pc; rewrite (slide_at_function_pc _ _ _ _ _ choice Hf Hbound); unfold functionSlide; cbv zeta;
@@ -193,14 +254,13 @@ Lemma encoded_return_slide : forall program memory index f labels inner offset h
     Some (if fits then slideWord false (guestResults f) distance else 0%Z).
 Proof.
   intros program memory index f labels inner offset hs top choice Hloaded Hf Hpath Hi Hheights pc total distance fits.
-  destruct (path_slot_head (guestBody f) labels RETURN (skipn (S offset) inner)) as [more Hhead].
-  pose proof (flatten_at_path _ _ _ _ _ 0 _ Hpath Hi ltac:(rewrite Hhead; reflexivity)) as Hslot.
-  rewrite Nat.add_0_r in Hslot.
+  pose proof (flatten_at_path _ _ _ _ _ Hpath Hi) as Hslot.
   assert (Hbound : (pathOffset (guestBody f) labels offset <= codeSize (guestBody f))%nat).
-  { assert (pathOffset (guestBody f) labels offset < length (flattenCode (guestBody f)))%nat
+  { rewrite <- flatten_code_length.
+    assert (pathOffset (guestBody f) labels offset < length (flattenCode (guestBody f)))%nat
       by (apply nth_error_Some; rewrite Hslot; discriminate).
-    unfold codeSize. lia. }
-  pose proof (contexts_at_path _ _ _ _ _ _ _ _ [0%nat] [guestResults f] Hpath Hi ltac:(discriminate) Hheights) as Hdrop.
+    lia. }
+  pose proof (contexts_at_path _ _ _ _ _ _ _ _ [0%nat] [guestResults f] Hpath Hi Logic.eq_refl Hheights) as Hdrop.
   rewrite <- code_contexts_body in Hdrop. cbn [instructionContexts nth_error option_map] in Hdrop.
   (* The function's label is the outermost one: below it nothing, and it keeps the results. *)
   assert (Hlen : length (pathArities (guestBody f) labels) = length hs) by exact (path_arities_length _ _ _ _ _ _ Hheights).
@@ -233,14 +293,13 @@ Lemma encoded_br_slide : forall program memory index f labels inner offset l hs 
   memory frameSlideDistanceId [pc; choice] = Some (if (choice =? 0)%Z then slideEntry false slide else 0%Z).
 Proof.
   intros program memory index f labels inner offset l hs top choice Hloaded Hf Hpath Hi Hheights pc slide.
-  destruct (path_slot_head (guestBody f) labels (BR l) (skipn (S offset) inner)) as [more Hhead].
-  pose proof (flatten_at_path _ _ _ _ _ 0 _ Hpath Hi ltac:(rewrite Hhead; reflexivity)) as Hslot.
-  rewrite Nat.add_0_r in Hslot.
+  pose proof (flatten_at_path _ _ _ _ _ Hpath Hi) as Hslot.
   assert (Hbound : (pathOffset (guestBody f) labels offset <= codeSize (guestBody f))%nat).
-  { assert (pathOffset (guestBody f) labels offset < length (flattenCode (guestBody f)))%nat
+  { rewrite <- flatten_code_length.
+    assert (pathOffset (guestBody f) labels offset < length (flattenCode (guestBody f)))%nat
       by (apply nth_error_Some; rewrite Hslot; discriminate).
-    unfold codeSize. lia. }
-  pose proof (contexts_at_path _ _ _ _ _ _ _ _ [0%nat] [guestResults f] Hpath Hi ltac:(discriminate) Hheights) as Hdrop.
+    lia. }
+  pose proof (contexts_at_path _ _ _ _ _ _ _ _ [0%nat] [guestResults f] Hpath Hi Logic.eq_refl Hheights) as Hdrop.
   rewrite <- code_contexts_body in Hdrop. cbn [instructionContexts nth_error option_map] in Hdrop.
   split; program_cell Hloaded; unfold encodeProgram; cbn [Nat.eqb pcRomId frameSlideRemainingId frameSlideDistanceId orb];
     unfold pc; rewrite (slide_at_function_pc _ _ _ _ _ choice Hf Hbound); unfold functionSlide; cbv zeta;
@@ -263,14 +322,13 @@ Lemma encoded_br_table_slide : forall program memory index f labels inner offset
   memory frameSlideDistanceId [pc; Z.of_nat k] = Some (slideEntry false slide).
 Proof.
   intros program memory index f labels inner offset ls l hs top k target Hloaded Hf Hpath Hi Hheights Hk pc slide.
-  destruct (path_slot_head (guestBody f) labels (BR_TABLE ls l) (skipn (S offset) inner)) as [more Hhead].
-  pose proof (flatten_at_path _ _ _ _ _ 0 _ Hpath Hi ltac:(rewrite Hhead; reflexivity)) as Hslot.
-  rewrite Nat.add_0_r in Hslot.
+  pose proof (flatten_at_path _ _ _ _ _ Hpath Hi) as Hslot.
   assert (Hbound : (pathOffset (guestBody f) labels offset <= codeSize (guestBody f))%nat).
-  { assert (pathOffset (guestBody f) labels offset < length (flattenCode (guestBody f)))%nat
+  { rewrite <- flatten_code_length.
+    assert (pathOffset (guestBody f) labels offset < length (flattenCode (guestBody f)))%nat
       by (apply nth_error_Some; rewrite Hslot; discriminate).
-    unfold codeSize. lia. }
-  pose proof (contexts_at_path _ _ _ _ _ _ _ _ [0%nat] [guestResults f] Hpath Hi ltac:(discriminate) Hheights) as Hdrop.
+    lia. }
+  pose proof (contexts_at_path _ _ _ _ _ _ _ _ [0%nat] [guestResults f] Hpath Hi Logic.eq_refl Hheights) as Hdrop.
   rewrite <- code_contexts_body in Hdrop. cbn [instructionContexts nth_error option_map] in Hdrop.
   split; program_cell Hloaded; unfold encodeProgram; cbn [Nat.eqb pcRomId frameSlideRemainingId frameSlideDistanceId orb];
     unfold pc; rewrite (slide_at_function_pc _ _ _ _ _ (Z.of_nat k) Hf Hbound); unfold functionSlide; cbv zeta;

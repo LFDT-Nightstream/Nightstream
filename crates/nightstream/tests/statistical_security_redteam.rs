@@ -13,7 +13,7 @@ fn minimum_110_rejects_the_selected_profile() {
     .unwrap();
     let circuit = Circuit::compile(&reference, poseidon2_hash_chain_v1().unwrap()).unwrap();
 
-    // The requested 110-bit end-to-end minimum cannot be met by this profile.
+    // The current formal bound cannot certify the requested 110-bit minimum.
     // Even with zero adversarial oracle queries, the 74 test challenges alone
     // contribute 74 * 4589 / q^2
     // (`Lifecycle.RandomOracleKnowledge.statisticalError` and

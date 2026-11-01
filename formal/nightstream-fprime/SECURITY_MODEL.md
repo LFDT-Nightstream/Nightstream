@@ -318,6 +318,12 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
    `Poseidon2Transcript::absorb_v1_2` instead adds each chunk to the rate lanes
    and permutes after it, starting from zero. Their bound does not apply to
    this selected transcript without a new reduction for its exact schedule.
+   Ashur and Bhati (ePrint 2024/911, Sections 5 and 6) include additive
+   chaining over prime fields in their generalized sponge model. Their
+   random-oracle analysis requires injective padding and treats one hash
+   invocation. It does not directly justify this transcript's intermediate
+   challenge reads, including several lane pairs from one state and the
+   zero-chunk transition after the sixth pair.
    The same sponge also computes the state hash, which the theorem
    treats as a concrete function. The state hash is a four-lane read after its
    own call list (`Lifecycle.TranscriptCoverage.stateHash_eq_run`), and the

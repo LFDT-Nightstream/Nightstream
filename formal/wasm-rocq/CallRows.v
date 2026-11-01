@@ -16,9 +16,6 @@ Lemma stack_config_rejoin : forall z values results code,
     stackConfig z (values ++ results) code.
 Proof. intros. unfold stackPrefix, instructionSuffix, stackConfig. rewrite map_app, <- app_assoc. reflexivity. Qed.
 
-Lemma steps_refl_wf : forall c, wf_config c -> Steps c c.
-Proof. intros [z code] H. apply Steps__refl. exact H. Qed.
-
 Lemma entered_frame_locals : forall f arguments,
   enteredFrame (guestModule f) arguments (guestLocals f) = activeFrame f (arguments ++ repeat 0 (guestLocals f)).
 Proof. intros. unfold enteredFrame, activeFrame. rewrite map_app, map_repeat. reflexivity. Qed.

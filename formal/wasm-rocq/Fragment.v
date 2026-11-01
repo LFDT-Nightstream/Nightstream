@@ -19,12 +19,20 @@ Definition labelBase (i : instr) (height : nat) : nat :=
 Definition labelArity (i : instr) : nat :=
   match i with BLOCK bt _ | IFELSE bt _ _ => blockResults bt | _ => 0 end.
 
+(* The operands a structured instruction leaves when control falls out of it. *)
+Definition labelResults (i : instr) : nat :=
+  match i with BLOCK bt _ | LOOP bt _ | IFELSE bt _ _ => blockResults bt | _ => 0 end.
+
+(* What a branch to a structured instruction's label runs next: a loop again. *)
+Definition labelContinuation (i : instr) : list instr :=
+  match i with LOOP bt body => [LOOP bt body] | _ => [] end.
+
 (* The operand height at the next instruction in program order, when control falls
    through to it. None where nothing falls through (after a return), or where the
    operands would underflow, which validation rules out. *)
 Definition sourceHeight (callees : CalleeEnvironment) (i : instr) (height : nat) : option nat :=
   match i with
-  | BLOCK bt _ => Some (height + blockResults bt)%nat
+  | BLOCK bt _ | LOOP bt _ => Some (height + blockResults bt)%nat
   | IFELSE bt _ _ => match height with S below => Some (below + blockResults bt)%nat | O => None end
   | RETURN | BR _ | BR_TABLE _ _ => None
   | CALL x => match callees (x :> N) with
@@ -42,14 +50,14 @@ Fixpoint sourceHeights (callees : CalleeEnvironment) (code : list instr) (height
       | Some next => sourceHeights callees rest next | None => None end
   end.
 
-(* A br, br_if or br_table leaves an enclosing block, never the function: `exits`
-   counts the enclosing blocks. A taken branch discards the operands above its target's base.
+(* A br, br_if or br_table targets an enclosing label, never the function's:
+   `exits` counts the enclosing labels. A taken branch discards the operands above its target's base.
    Code nothing falls through to is dead and unconstrained. *)
 Fixpoint instrBranches (callees : CalleeEnvironment) (i : instr) (height exits : nat) : Prop :=
   match i with
   | BR_IF l | BR l => (N.to_nat (l :> N) < exits)%nat
   | BR_TABLE ls l => Forall (fun target => N.to_nat (target :> N) < exits)%nat (l :: ls)
-  | BLOCK _ body =>
+  | BLOCK _ body | LOOP _ body =>
       (fix bodyBranches (code : list instr) (h : nat) : Prop :=
          match code with
          | [] => True
@@ -92,14 +100,17 @@ Inductive Supported (callees : CalleeEnvironment) : instr -> Prop :=
 (* Blocks without parameters and with at most one i32 result, nested to any depth. *)
 | supported_block : forall result body, Forall (Supported callees) body ->
     (result = None \/ result = Some valtype_I32) -> Supported callees (BLOCK (_RESULT result) body)
-(* Branches to an enclosing block, where codeBranches allows them. *)
+(* Branches to an enclosing label, where codeBranches allows them. *)
 | supported_br_if : forall l, Supported callees (BR_IF l)
 | supported_br : forall l, Supported callees (BR l)
 | supported_br_table : forall ls l, Supported callees (BR_TABLE ls l)
-(* Returns from any depth of blocks, discarding the operands below the results. *)
+(* Returns from any depth of labels, discarding the operands below the results. *)
 | supported_return : Supported callees RETURN
 (* Ifs like blocks, each arm in the fragment. *)
 | supported_if : forall result t e, Forall (Supported callees) t -> Forall (Supported callees) e ->
-    (result = None \/ result = Some valtype_I32) -> Supported callees (IFELSE (_RESULT result) t e).
+    (result = None \/ result = Some valtype_I32) -> Supported callees (IFELSE (_RESULT result) t e)
+(* Loops like blocks: branches to a loop's label keep nothing and run it again. *)
+| supported_loop : forall result body, Forall (Supported callees) body ->
+    (result = None \/ result = Some valtype_I32) -> Supported callees (LOOP (_RESULT result) body).
 
 Definition supportedCode (callees : CalleeEnvironment) (code : list instr) : Prop := Forall (Supported callees) code.

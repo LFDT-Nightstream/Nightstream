@@ -108,6 +108,25 @@ const IFS: &str = r#"(module
     local.get 1
     if local.get 0 local.set 1 end))"#;
 
+/// A loop summing n, n - 1, ..., 1 for main(n, 1): each taken br_if drops the
+/// running sum it pushed and runs the loop again; the last iteration falls out of
+/// the loop with the sum as its result.
+const LOOPS: &str = r#"(module
+  (func (export "main") (param i32 i32) (result i32) (local i32)
+    loop (result i32)
+      local.get 2
+      local.get 0
+      i32.add
+      local.set 2
+      local.get 0
+      local.get 1
+      i32.sub
+      local.set 0
+      local.get 2
+      local.get 0
+      br_if 0
+    end))"#;
+
 /// The longest run of program, zero and move rows ending just before the final END,
 /// which finishes the activation, as `name`, one dense row per trace row.
 fn export_witness(wat: &str, params: &[i32], name: &str, file: &str) {
@@ -170,4 +189,5 @@ fn export_witnesses() {
     export_witness(BR_OUT, &[7, 9], "brRows", "BrTrace.v");
     export_witness(BR_TABLES, &[7, 1], "brTableRows", "BrTableTrace.v");
     export_witness(IFS, &[7, 0], "ifRows", "IfTrace.v");
+    export_witness(LOOPS, &[3, 1], "loopRows", "LoopTrace.v");
 }

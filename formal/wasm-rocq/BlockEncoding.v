@@ -109,6 +109,15 @@ Proof.
   unfold controlImage; repeat split; try intro choice; pc_cell Hpc; try reflexivity; destruct (choice =? 0); reflexivity.
 Qed.
 
+Lemma encoded_path_loop_entry : forall labels inner offset bt body,
+  pathCode (guestBody f) labels = Some inner -> nth_error inner offset = Some (LOOP bt body) ->
+  controlImage memory (pathPC labels offset) CODE_LOOP (pathPC labels offset + 1).
+Proof.
+  intros labels inner offset bt body Hpath Hi.
+  pose proof (encoded_path_head _ _ _ _ Hpath Hi) as Hpc. cbn [slotTargets] in Hpc.
+  unfold controlImage; repeat split; try intro choice; pc_cell Hpc; try reflexivity; destruct (choice =? 0); reflexivity.
+Qed.
+
 (* An if's head: its true edge enters the then-body; its false edge lands past
    the then-body and ELSE, at the else-body or after the if's END. *)
 Lemma encoded_path_if : forall labels inner offset bt t e,

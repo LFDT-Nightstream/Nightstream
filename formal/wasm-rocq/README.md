@@ -2,9 +2,9 @@
 
 `run_refinement` proves circuit traces against SpecTec's Wasm 2.0 semantics for
 `i32.add/sub`, `local.get/set`, direct guest calls, `return` from any depth of
-blocks, and blocks and `if`s with no or one i32 result with `br`, `br_if` and `br_table` to any enclosing block or
-`if`. Blocks and `if`s nest to any depth, calls nest to any depth, and any supported instruction, calls included,
-may appear inside them.
+blocks, and blocks, loops and `if`s with no or one i32 result with `br`, `br_if` and `br_table` to any enclosing
+label: a branch to a block or an `if` leaves it, a branch to a loop runs it again. Blocks, loops and `if`s nest to any
+depth, calls nest to any depth, and any supported instruction, calls included, may appear inside them.
 Conditions may be computed, with multiple branches per block; a taken branch
 keeps its target block's results and discards every other operand above the
 block's base, as the circuit's frame slide does; a `return` likewise keeps only
@@ -20,7 +20,7 @@ every function in the store must pass SpecTec validation. A run may stop anywher
 in its base frame, including inside blocks, inside calls, or during a callee's
 frame initialization; the final shape resumes the next run. The store is an input:
 the circuit does not hold it. A run's activation never finishes (no export return
-or trap). Padding is supported. Host rows, indirect calls, loops, blocks with parameters or typed by index, branches
+or trap). Padding is supported. Host rows, indirect calls, blocks and loops with parameters or typed by index, branches
 to the function's own label and returning out of the base frame are excluded.
 Selected zero-test steps are also proved.
 Field primality and memory-event consistency are assumed; the offline memory

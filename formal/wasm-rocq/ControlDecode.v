@@ -1,5 +1,5 @@
 (* The SpecTec configuration a circuit state denotes. A static control shape says
-   where each frame is: a code path through nested blocks. The decoder computes the
+   where each frame is: a code path through nested labels. The decoder computes the
    operand height below each enclosing label from the code, reads operand values
    and locals from memory and callers from the saved call contexts, and fails when
    a register or cell disagrees. The store is not in circuit memory, so it is an
@@ -108,7 +108,7 @@ Fixpoint wrapLabels (code : list instr) (labels : list LabelSite) (segments : li
       match siteEntry code s with
       | Some (i, body) =>
           stackPrefix segment (instructionSuffix (skipn (S (siteOffset s)) code)
-            (blockContext (labelArity i) (wrapLabels body rest more c)))
+            (blockContext (labelArity i) (labelContinuation i) (wrapLabels body rest more c)))
       | None => c
       end
   | _, _ => c

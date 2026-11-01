@@ -90,5 +90,7 @@ tests/BrTableTrace.v
 tests/BrTableWitness.v
 tests/IfTrace.v
 tests/IfWitness.v
+tests/LoopTrace.v
+tests/LoopWitness.v
 tests/DeepBranches.v
 tests/RangeSearch.v

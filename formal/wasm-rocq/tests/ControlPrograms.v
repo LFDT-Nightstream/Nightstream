@@ -148,7 +148,7 @@ Definition computedInteriorMemory := loadProgram computedProgram (fun memory add
   else computedRam 7 memory address).
 Definition computedInteriorConfig := stackPrefix []
   (instructionSuffix [LOCAL_GET (mk_uN 1)]
-    (SpecTecBranches.blockContext 0 (stackConfig (computedState 7) [4294967294] (skipn 3 computedBranches)))).
+    (SpecTecBranches.blockContext 0 [] (stackConfig (computedState 7) [4294967294] (skipn 3 computedBranches)))).
 
 (* Inside the label, the decoder splits the operand stack at the block's height. *)
 Example computed_interior_config :

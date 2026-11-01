@@ -58,7 +58,8 @@ Lemma wrap_labels_snoc : forall labels code inner s i body segments segment c,
   length segments = length labels ->
   wrapLabels code (labels ++ [s]) (segments ++ [segment]) c =
     wrapLabels code labels segments
-      (stackPrefix segment (instructionSuffix (skipn (S (siteOffset s)) inner) (blockContext (labelArity i) c))).
+      (stackPrefix segment (instructionSuffix (skipn (S (siteOffset s)) inner)
+        (blockContext (labelArity i) (labelContinuation i) c))).
 Proof.
   induction labels as [ | s' rest IH]; intros code inner s i body segments segment c Hpath Hs Hlen.
   - destruct segments; [ | discriminate]. injection Hpath as <-. cbn [app wrapLabels]. rewrite Hs. reflexivity.
@@ -147,7 +148,10 @@ Fixpoint LabelsReady (code : list instr) (labels : list LabelSite) (segments : l
   match labels, segments with
   | s :: rest, segment :: more =>
       Forall (fun value => 0 <= value < i32Modulus)%Z segment /\ Forall wf_instr (skipn (S (siteOffset s)) code) /\
-      match siteEntry code s with Some (_, body) => LabelsReady body rest more | None => True end
+      match siteEntry code s with
+      | Some (i, body) => Forall wf_instr (labelContinuation i) /\ LabelsReady body rest more
+      | None => True
+      end
   | _, _ => True
   end.
 
@@ -166,6 +170,14 @@ Proof.
     exact (IH _ _ (site_wf _ _ _ _ Hwf Hs) Hpath).
 Qed.
 
+Lemma continuation_wf : forall code s i body,
+  Forall wf_instr code -> siteEntry code s = Some (i, body) -> Forall wf_instr (labelContinuation i).
+Proof.
+  intros code s i body Hwf Hentry. destruct (site_entry_split _ _ _ _ Hentry) as [Hi _].
+  pose proof (proj1 (Forall_forall _ _) Hwf _ (nth_error_In _ _ Hi)) as Hw.
+  destruct i; cbn [labelContinuation]; constructor; [exact Hw | constructor].
+Qed.
+
 Lemma labels_ready : forall labels code inner segments,
   Forall wf_instr code -> pathCode code labels = Some inner -> length segments = length labels ->
   Forall (fun value => 0 <= value < i32Modulus)%Z (concat segments) -> LabelsReady code labels segments.
@@ -175,6 +187,7 @@ Proof.
   cbn [pathCode] in Hpath. cbn [LabelsReady].
   split; [exact (proj1 Hvalues) | ]. split; [apply forall_skipn; exact Hwf | ].
   destruct (siteEntry code s) as [[i body] | ] eqn:Hs; [ | discriminate].
+  split; [exact (continuation_wf _ _ _ _ Hwf Hs) | ].
   exact (IH _ _ more (site_wf _ _ _ _ Hwf Hs) Hpath ltac:(cbn in Hlen; lia) (proj2 Hvalues)).
 Qed.
 
@@ -184,9 +197,9 @@ Lemma steps_in_labels : forall labels code segments before after,
 Proof.
   induction labels as [ | s rest IH]; intros code segments before after Hready Hsteps; [exact Hsteps | ].
   destruct segments as [ | seg more]; [exact Hsteps | ]. destruct Hready as [Hseg [Hcont Hinner]].
-  cbn [wrapLabels]. destruct (siteEntry code s) as [[i body] | ]; [ | exact Hsteps].
+  cbn [wrapLabels]. destruct (siteEntry code s) as [[i body] | ]; [ | exact Hsteps]. destruct Hinner as [Hk Hinner].
   apply steps_with_stack_prefix; [exact Hseg | ]. apply steps_with_instruction_suffix; [exact Hcont | ].
-  apply steps_in_block. exact (IH _ _ _ _ Hinner Hsteps).
+  apply steps_in_block; [exact Hk | ]. exact (IH _ _ _ _ Hinner Hsteps).
 Qed.
 
 Lemma wrap_labels_wf : forall labels code segments c,
@@ -194,11 +207,11 @@ Lemma wrap_labels_wf : forall labels code segments c,
 Proof.
   induction labels as [ | s rest IH]; intros code segments c Hready Hwf; [exact Hwf | ].
   destruct segments as [ | seg more]; [exact Hwf | ]. destruct Hready as [Hseg [Hcont Hinner]].
-  cbn [wrapLabels]. destruct (siteEntry code s) as [[i body] | ]; [ | exact Hwf].
+  cbn [wrapLabels]. destruct (siteEntry code s) as [[i body] | ]; [ | exact Hwf]. destruct Hinner as [Hk Hinner].
   apply stack_prefix_wf; [exact Hseg | ]. apply instruction_suffix_wf; [exact Hcont | ].
   pose proof (IH _ _ _ Hinner Hwf) as H.
   match type of H with wf_config ?inner => destruct inner as [z code'] end.
-  apply block_context_wf. exact H.
+  apply block_context_wf; [exact Hk | exact H].
 Qed.
 
 (* A branch out of labels: br k+n inside n labels leaves them as br k, carrying
@@ -217,21 +230,21 @@ Proof.
     constructor; [constructor; exact Hl | exact Hrest].
   - destruct segments as [ | seg segments]; [discriminate | ].
     destruct Hready as [Hseg [Hcont Hinner]]. cbn [pathCode wrapLabels concat] in *.
-    destruct (siteEntry code s) as [[i body] | ]; [ | discriminate].
+    destruct (siteEntry code s) as [[i body] | ]; [ | discriminate]. destruct Hinner as [Hk Hinner].
     replace (length (s :: more) + m) with (length more + S m) in * by (cbn; lia).
     rewrite <- app_assoc in Hbounds. apply Forall_app in Hbounds as [_ Hcarried].
     destruct (IH _ _ segments z values (S m) rest Hpath ltac:(cbn in Hlen; lia) Hinner Hz Hcarried Hl Hrest)
       as [rest' [Hrest' Hsteps]].
     replace (N.of_nat (S m)) with (N.of_nat m + 1)%N in Hsteps by lia.
-    assert (Hk : wf_uN 32%N (mk_uN (N.of_nat m + 1)%N)) by (eapply wf_label_le; [ | exact Hl]; lia).
+    assert (Hk' : wf_uN 32%N (mk_uN (N.of_nat m + 1)%N)) by (eapply wf_label_le; [ | exact Hl]; lia).
     exists (skipn (S (siteOffset s)) code). split; [exact Hcont | ].
     rewrite <- app_assoc, <- stack_prefix_config.
     replace (BR (mk_uN (N.of_nat m)) :: skipn (S (siteOffset s)) code)
       with ([BR (mk_uN (N.of_nat m))] ++ skipn (S (siteOffset s)) code) by reflexivity.
     rewrite <- instruction_suffix_config.
     apply (steps_with_stack_prefix seg _ _ Hseg). apply (steps_with_instruction_suffix _ _ _ Hcont).
-    eapply spec_steps_transitive; [exact (steps_in_block _ _ _ Hsteps) | ].
-    exact (br_exit_label_carrying _ z _ (N.of_nat m) rest' Hz Hcarried Hk Hrest').
+    eapply spec_steps_transitive; [exact (steps_in_block _ _ _ _ Hk Hsteps) | ].
+    exact (br_exit_label_carrying _ _ z _ (N.of_nat m) rest' Hk Hz Hcarried Hk' Hrest').
 Qed.
 
 (* A return inside labels leaves them all, carrying their operands out and
@@ -248,7 +261,7 @@ Proof.
     apply Steps__refl. apply stack_config_wf; [exact Hz | exact Hbounds | ]. constructor; [constructor | exact Hrest].
   - destruct segments as [ | seg segments]; [discriminate | ].
     destruct Hready as [Hseg [Hcont Hinner]]. cbn [pathCode wrapLabels concat] in *.
-    destruct (siteEntry code s) as [[i body] | ]; [ | discriminate].
+    destruct (siteEntry code s) as [[i body] | ]; [ | discriminate]. destruct Hinner as [Hk Hinner].
     rewrite <- app_assoc in Hbounds. apply Forall_app in Hbounds as [_ Hcarried].
     destruct (IH _ _ segments z values rest Hpath ltac:(cbn in Hlen; lia) Hinner Hz Hcarried Hrest)
       as [rest' [Hrest' Hsteps]].
@@ -257,8 +270,8 @@ Proof.
     replace (RETURN :: skipn (S (siteOffset s)) code) with ([RETURN] ++ skipn (S (siteOffset s)) code) by reflexivity.
     rewrite <- instruction_suffix_config.
     apply (steps_with_stack_prefix seg _ _ Hseg). apply (steps_with_instruction_suffix _ _ _ Hcont).
-    eapply spec_steps_transitive; [exact (steps_in_block _ _ _ Hsteps) | ].
-    exact (return_label_carrying _ z _ rest' Hz Hcarried Hrest').
+    eapply spec_steps_transitive; [exact (steps_in_block _ _ _ _ Hk Hsteps) | ].
+    exact (return_label_carrying _ _ z _ rest' Hk Hz Hcarried Hrest').
 Qed.
 
 Lemma path_heights_length : forall callees labels code offset heights top,
@@ -326,24 +339,44 @@ Proof.
 Qed.
 
 (* An arm's facts, from its instruction's: its body runs inside the instruction's
-   label from height 0 and ends at the label's arity. *)
+   label from height 0 and ends at the instruction's results. *)
 Lemma arm_facts : forall localCount resultCount arities callees i h exits arm body,
   instrFacts localCount resultCount arities callees i h -> instrBranches callees i h exits ->
   Supported callees i -> instrArm i arm = Some body ->
   codeFacts localCount resultCount (labelArity i :: arities) callees 0 body /\
-  endsAt callees body 0 (labelArity i) /\ codeBranches callees (S exits) body 0 /\ supportedCode callees body.
+  endsAt callees body 0 (labelResults i) /\ codeBranches callees (S exits) body 0 /\ supportedCode callees body.
 Proof.
   intros localCount resultCount arities callees i h exits arm body Hfacts Hbr Hsup Harm.
   destruct i; try discriminate; destruct arm as [ | [ | arm]]; try discriminate; cbn [instrArm] in Harm.
   - injection Harm as <-. destruct (proj1 (block_facts _ _ _ _ _ _ _) Hfacts) as [_ [Hend Hbody]].
     apply (proj1 (block_branches _ _ _ _ _)) in Hbr.
     inversion Hsup; subst. cbn [labelArity]. unfold supportedCode. split; [ | split; [ | split]]; assumption.
-  - inversion Hsup.
+  - injection Harm as <-. destruct (proj1 (loop_facts _ _ _ _ _ _ _) Hfacts) as [_ [Hend Hbody]].
+    inversion Hsup; subst. cbn [labelArity labelResults]. unfold supportedCode. split; [ | split; [ | split]]; assumption.
   - injection Harm as <-. destruct (proj1 (if_facts _ _ _ _ _ _ _ _) Hfacts) as [_ [_ [Hend [_ [Hbody _]]]]].
     destruct Hbr as [Hbr _]. inversion Hsup; subst. cbn [labelArity]. unfold supportedCode. split; [ | split; [ | split]]; assumption.
   - match type of Harm with match ?e with [] => _ | _ :: _ => _ end = _ => destruct e end; [discriminate | ].
     injection Harm as <-. destruct (proj1 (if_facts _ _ _ _ _ _ _ _) Hfacts) as [_ [_ [_ [Hend [_ Hbody]]]]].
     destruct Hbr as [_ Hbr]. inversion Hsup; subst. cbn [labelArity]. unfold supportedCode. split; [ | split; [ | split]]; assumption.
+Qed.
+
+(* The results of the innermost label's instruction at a path. *)
+Fixpoint pathResults (code : list instr) (labels : list LabelSite) : nat :=
+  match labels with
+  | [] => 0
+  | s :: rest => match siteEntry code s with
+      | Some (i, body) => match rest with [] => labelResults i | _ => pathResults body rest end
+      | None => 0
+      end
+  end.
+
+Lemma path_results_snoc : forall pre code outer s i body,
+  pathCode code pre = Some outer -> siteEntry outer s = Some (i, body) -> pathResults code (pre ++ [s]) = labelResults i.
+Proof.
+  induction pre as [ | s' rest IH]; intros code outer s i body Hpath Hs; cbn [app pathCode pathResults] in *.
+  - injection Hpath as <-. rewrite Hs. reflexivity.
+  - destruct (siteEntry code s') as [[j nested] | ]; [ | discriminate].
+    destruct (rest ++ [s]) eqn:Hrest; [destruct rest; discriminate | ]. rewrite <- Hrest. exact (IH _ _ _ _ _ Hpath Hs).
 Qed.
 
 (* Facts of the code at a path, from the enclosing code's. *)
@@ -354,7 +387,7 @@ Lemma path_facts : forall localCount resultCount arities callees labels code exi
   codeFacts localCount resultCount (rev (pathArities code labels) ++ arities) callees top (skipn offset inner) /\
   supportedCode callees (skipn offset inner) /\
   codeBranches callees (exits + length heights) (skipn offset inner) top /\
-  (labels <> [] -> endsAt callees inner 0 (last (pathArities code labels) 0)).
+  (labels <> [] -> endsAt callees inner 0 (pathResults code labels)).
 Proof.
   intros localCount resultCount arities callees labels. revert arities. induction labels as [ | s rest IH];
     intros arities code exits inner offset heights top Hfacts Hsupport Hbranches Hpath Hheights;
@@ -378,11 +411,9 @@ Proof.
     destruct (IH _ body _ inner offset hs t Hbody Hsupport' Hbranches' Hpath Hin) as [Hf [Hsp [Hbranch Hdeeper]]].
     cbn [rev]. rewrite <- app_assoc.
     split; [exact Hf | ]. split; [exact Hsp | ]. split; [cbn [length]; rewrite <- Nat.add_succ_comm; exact Hbranch | ].
-    intros _. destruct rest as [ | s2 rest2].
+    intros _. cbn [pathResults]. rewrite Hs. destruct rest as [ | s2 rest2].
     + cbn [pathCode] in Hpath. injection Hpath as <-. exact Hend.
-    + cbn [pathCode] in Hpath. cbn [pathArities] in Hdeeper |- *.
-      destruct (siteEntry body s2) as [[j nested] | ]; [ | discriminate].
-      exact (Hdeeper ltac:(discriminate)).
+    + exact (Hdeeper ltac:(discriminate)).
 Qed.
 
 (* What a frame at its position inherits from the program's validation. *)
@@ -397,7 +428,7 @@ Lemma view_facts : forall program s memory base fbp pending moved distance f vie
   (supportedCode callees rest /\
     codeBranches callees (length (viewSegments view)) rest (length (viewValues view) + pending)) /\
   (positionLabels position <> [] ->
-    endsAt callees (innerCode f position) 0 (last (pathArities (guestBody f) (positionLabels position)) 0)) /\
+    endsAt callees (innerCode f position) 0 (pathResults (guestBody f) (positionLabels position))) /\
   (positionLabels position = [] -> endsAt callees (innerCode f position) 0 (guestResults f)) /\
   LabelsReady (guestBody f) (positionLabels position) (viewSegments view) /\
   Forall wf_instr (innerCode f position).

@@ -113,6 +113,18 @@ The claims bound a probability. They take these as part of the model, not as Lea
   its node truncates one permutation without feed-forward (`hash.rs`). The
   paper reports no break of its analyzed 128-bit sets, but does not certify
   this exact leaf/node pair.
+  Li, Liu and Wang (ePrint 2026/1792, Appendix B.7) give nonlinear
+  subspace trails. The selected internal Poseidon2 matrix passes their
+  even-construction balancing check: over Goldilocks, the core determinant
+  is `2691752801020228242` for `E_c = 8`, as in a twelve-rate, four-digest
+  sponge model. This supports a 16-partial-round trail at the matrix level.
+  Their unconstrained compression budget `E_c = t - d = 12` is not the node's
+  input geometry: `TruncatedPermutation` supplies eight child words and
+  eight fixed zeros. Treating those zero lanes as input constraints gives a
+  nominal budget of four; its `3 × 3` even core also has nonzero determinant
+  (`1053191533457625632` modulo Goldilocks). Their single-permutation CICO
+  preimage estimates do not price collisions in this fixed-input node or the
+  multi-block overwrite-sponge leaf.
 - **Query indices.** The model draws each query leaf as a uniform Goldilocks word modulo the leaf
   count, as `sample_bits` does (`Layer1/HonestStage.lean`, `Layer1/Queries.lean`). The budget needs
   at most 35 setup variables (`query_half`), and the replay bridge at most 31. `Relation::new`

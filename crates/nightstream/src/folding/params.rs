@@ -22,12 +22,30 @@ impl Params {
         matrix_count: usize,
         poly_degree: u32,
         minimum_security_bits: u32,
-    ) -> Result<Self, neo_params::ParamsError> {
+    ) -> Result<Self, crate::Error> {
         if minimum_security_bits == 0 {
-            return Err(neo_params::ParamsError::Invalid(
-                "minimum statistical security must be positive",
-            ));
+            return Err(neo_params::ParamsError::Invalid("minimum statistical security must be positive").into());
         }
+        let params = Self::of_shape(rows, columns, matrix_count, poly_degree)?;
+        let available = params.security_bits();
+        if available < minimum_security_bits {
+            return Err(crate::Error::InsufficientSecurity {
+                required: minimum_security_bits,
+                available,
+            });
+        }
+        Ok(Self {
+            minimum_security_bits,
+            ..params
+        })
+    }
+    /// The parameters of a CCS shape at the largest minimum it accepts.
+    pub(crate) fn of_shape(
+        rows: usize,
+        columns: usize,
+        matrix_count: usize,
+        poly_degree: u32,
+    ) -> Result<Self, neo_params::ParamsError> {
         let inner = NeoParams::nightstream_goldilocks_k16();
         let summary = inner.padded_row_security_summary_for_shape(
             rows,
@@ -50,18 +68,15 @@ impl Params {
             .lambda()
             .min(summary.security_bits)
             .min(fold_error_bits.floor() as u32);
-        if available < minimum_security_bits {
-            return Err(neo_params::ParamsError::InsufficientStatisticalSecurity {
-                required: minimum_security_bits,
-                available,
-            });
-        }
-        let inner = inner.with_lambda(available)?;
         Ok(Self {
-            inner,
-            minimum_security_bits,
+            inner: inner.with_lambda(available)?,
+            minimum_security_bits: available,
             fold_error_bits,
         })
+    }
+    /// The largest caller minimum these parameters accept.
+    pub(crate) fn security_bits(&self) -> u32 {
+        self.inner.lambda()
     }
     /// `-log2` of the error the compression argument may add after a final
     /// fold, so that the total stays within the caller's minimum.

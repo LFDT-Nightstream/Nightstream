@@ -2,7 +2,7 @@
 
 use std::{fs, path::PathBuf};
 
-use nightstream::{application::poseidon2_hash_chain_v1, Circuit, Engine, Verifier};
+use nightstream::{application::poseidon2_hash_chain_v1, Circuit, Engine, Error, Verifier};
 
 #[test]
 fn minimum_110_rejects_the_selected_profile() {
@@ -21,8 +21,15 @@ fn minimum_110_rejects_the_selected_profile() {
     let q = 18_446_744_069_414_584_321_f64;
     let one_step_test_bits = 2.0 * q.log2() - (74.0_f64 * 4589.0).log2();
     assert!(one_step_test_bits < 110.0);
+    assert_eq!(circuit.security_bits().unwrap(), 109);
     assert!(
-        Verifier::from_package(&circuit, Engine::Optimized, 110).is_err(),
+        matches!(
+            Verifier::from_package(&circuit, Engine::Optimized, 110),
+            Err(Error::InsufficientSecurity {
+                required: 110,
+                available: 109
+            })
+        ),
         "the verifier accepts a 110-bit minimum, but the formal one-step test term has only {one_step_test_bits:.3} bits"
     );
     assert!(Verifier::from_package(&circuit, Engine::Optimized, 109).is_ok());

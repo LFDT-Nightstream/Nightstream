@@ -1,5 +1,5 @@
 use nightstream::nebula::{Circuit, Geometry, Machine, Verifier};
-use nightstream::Engine;
+use nightstream::{Engine, Error};
 use std::{fs, path::PathBuf};
 
 #[test]
@@ -23,8 +23,15 @@ fn minimum_110_rejects_64_segment_fingerprint_loss() {
     )
     .unwrap();
     let circuit = Circuit::compile(&reference, geometry, Machine).unwrap();
+    assert_eq!(circuit.security_bits().unwrap(), 109);
     assert!(
-        Verifier::new(&circuit, Engine::Optimized, 110).is_err(),
+        matches!(
+            Verifier::new(&circuit, Engine::Optimized, 110),
+            Err(Error::InsufficientSecurity {
+                required: 110,
+                available: 109
+            })
+        ),
         "public verifier accepts 110 bits with a {segment_bits:.3}-bit one-segment fingerprint bound and only {chain_bits:.3} bits across 64 allowed segments"
     );
     assert!(Verifier::new(&circuit, Engine::Optimized, 109).is_ok());

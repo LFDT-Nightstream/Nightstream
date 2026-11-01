@@ -46,7 +46,9 @@ relation.
 Prover and verifier creation require an explicit, positive statistical-security
 minimum. Preparation rejects a profile below that minimum. The gate charges
 one fold's zero-query statistical error from the Lean random-oracle result, so
-the current stored Poseidon2 profile accepts at most 109 bits. Oracle queries,
+the current stored Poseidon2 profile accepts at most 109 bits.
+`circuit.security_bits()` returns that largest accepted minimum, and a higher
+minimum fails with `Error::InsufficientSecurity`. Oracle queries,
 fold depth and the computational assumptions add to this error, so it is not a
 claim about the complete system's security. The application selects its
 own acceptance policy. Compilation and loading do not change that policy.

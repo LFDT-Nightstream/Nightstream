@@ -75,16 +75,23 @@ fn compiled_fixture() -> &'static Circuit {
 #[test]
 fn security_minimum_is_explicit_and_cannot_be_lowered_by_preparation() {
     let circuit = compiled_fixture();
-    for minimum in [0, 125] {
-        assert!(matches!(
-            circuit.prover(Engine::Optimized, minimum),
-            Err(Error::Parameters(_))
-        ));
-        assert!(matches!(
-            Verifier::from_package(circuit, Engine::Optimized, minimum),
-            Err(Error::Parameters(_))
-        ));
-    }
+    assert!(matches!(
+        circuit.prover(Engine::Optimized, 0),
+        Err(Error::Parameters(_))
+    ));
+    assert!(matches!(
+        Verifier::from_package(circuit, Engine::Optimized, 0),
+        Err(Error::Parameters(_))
+    ));
+    let above = circuit.security_bits().unwrap() + 1;
+    assert!(matches!(
+        circuit.prover(Engine::Optimized, above),
+        Err(Error::InsufficientSecurity { .. })
+    ));
+    assert!(matches!(
+        Verifier::from_package(circuit, Engine::Optimized, above),
+        Err(Error::InsufficientSecurity { .. })
+    ));
     assert!(circuit.prover(Engine::Optimized, 109).is_ok());
     assert!(Verifier::from_package(circuit, Engine::Optimized, 109).is_ok());
 }

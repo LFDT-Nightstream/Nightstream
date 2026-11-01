@@ -298,16 +298,35 @@ impl<A: Application> Circuit<A> {
         self.circuit.prover(engine, minimum_security_bits)
     }
 
-    /// Each of the `S_max` segments adds its own fingerprint term
-    /// (`SECURITY_MODEL.md`, adversary 5).
+    /// The largest `minimum_security_bits` that `prover` and `Verifier::new`
+    /// accept: the lower of the folding profile's
+    /// (`crate::Circuit::security_bits`) and the memory term's.
+    pub fn security_bits(&self) -> Result<u32, crate::Error> {
+        Ok(self
+            .circuit
+            .security_bits()?
+            .min(self.memory_security_bits()))
+    }
+
+    /// The largest `k` with `S_max · 2 · m_mem / q² ≤ 2^-k`: each of the
+    /// `S_max` segments adds its own fingerprint term (`SECURITY_MODEL.md`,
+    /// adversary 5). Exact integers, so no rounding accepts a larger `k`.
+    fn memory_security_bits(&self) -> u32 {
+        let q = u128::from(F::ORDER_U64);
+        (2 * self.geometry.max_tuples() as u128)
+            .checked_mul(self.geometry.s_max as u128)
+            .and_then(|error| (q * q).checked_div(error))
+            .and_then(u128::checked_ilog2)
+            .unwrap_or(0)
+    }
+
     fn check_memory_security(&self, minimum_security_bits: u32) -> Result<(), crate::Error> {
-        let available = self.geometry.memory_security_bits() - (self.geometry.s_max as f64).log2();
-        if available < f64::from(minimum_security_bits) {
-            return Err(neo_params::ParamsError::InsufficientStatisticalSecurity {
+        let available = self.memory_security_bits();
+        if available < minimum_security_bits {
+            return Err(crate::Error::InsufficientSecurity {
                 required: minimum_security_bits,
-                available: available.floor() as u32,
-            }
-            .into());
+                available,
+            });
         }
         Ok(())
     }

@@ -47,6 +47,9 @@ pub enum Error {
     ProofBytes(#[from] ProofCodecError),
     #[error(transparent)]
     Parameters(#[from] neo_params::ParamsError),
+    /// The caller's minimum is above the circuit's `security_bits`.
+    #[error("the circuit gives at most {available} bits of statistical security, below the minimum of {required}")]
+    InsufficientSecurity { required: u32, available: u32 },
 }
 
 impl From<ExtendError> for Error {
@@ -209,6 +212,23 @@ impl Circuit {
     #[cfg(test)]
     pub(crate) fn application(&self) -> Option<&ApplicationCircuit> {
         self.compiled.application.as_ref()
+    }
+
+    /// The largest `minimum_security_bits` that `prover`, `Prover::load` and
+    /// `Verifier::from_package` accept for this circuit. It is the
+    /// zero-query error of one fold
+    /// (`Lifecycle.RandomOracleKnowledge.statisticalError`); oracle queries
+    /// and fold depth add to it
+    /// (`Export.Stage1.HyperNovaFalseAcceptance.probability_bound`).
+    pub fn security_bits(&self) -> Result<u32, Error> {
+        let structure = self.compiled.package.ccs_structure_header()?;
+        let params = crate::folding::Params::of_shape(
+            structure.domain_rows(),
+            structure.m(),
+            structure.t(),
+            structure.max_degree(),
+        )?;
+        Ok(params.security_bits())
     }
 
     /// The size of the Rust application, or `None` for a Lean-emitted package.

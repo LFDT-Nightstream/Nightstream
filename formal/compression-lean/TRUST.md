@@ -75,6 +75,10 @@ The claims bound a probability. They take these as part of the model, not as Lea
   state-restoration soundness and state-restoration function binding. This
   theorem does not establish the latter property for this WHIR instance or
   remove the ideal-opening premise above.
+  Holmgren (ePrint 2019/1261, Theorem 1.2) gives a public-coin protocol whose
+  random-oracle Fiat–Shamir transform is sound although the protocol is not
+  sound against state restoration. Thus a Fiat–Shamir bound alone cannot
+  supply this WHIR state-restoration premise.
   Bartusek, Bronfman, Holmgren, Ma and Rothblum (ePrint 2019/997,
   Theorems 3.5 and 4.1) construct a collision-resistant hash or an IOP for
   which the Kilian–Micali Fiat–Shamir compilation is unsound. Their choices

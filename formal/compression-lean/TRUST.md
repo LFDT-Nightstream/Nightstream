@@ -65,6 +65,13 @@ The claims bound a probability. They take these as part of the model, not as Lea
   terminal assignment. That such a run implies a true claim is layer 1 under Fiat–Shamir with
   Poseidon2 inside the program, which the claims assume and do not bound. The openings inside the
   program follow the WHIR model (`WhirOpens`).
+  Khovratovich, Rothblum and Soukhanov (ePrint 2025/118, Theorems 1 and 2) attack a
+  GKR–MLPCS Fiat–Shamir protocol that does not commit to the complete computation trace
+  before its first challenge. Layer 1 commits its full F′ witness table as P0 before `β`
+  (`neo-spartan/src/prover.rs`), and the shrink layer commits its program trace before `τ`
+  (`neo-spartan/src/shrink/mod.rs`). Their stated trace-timing attack does not directly
+  apply to either layer. This does not prove the read condition or concrete Poseidon2
+  Fiat–Shamir soundness for an application that computes the hash inside its circuit.
 - **Merkle binding.** A setup leaf that reaches the key root at an index below the leaf count
   `2^(n-2)` holds the setup's codeword on that index's coset (`MerkleBinds`). The bound is part
   of the assumption: the path reads only the low `n - 2` bits of an index, so without it the

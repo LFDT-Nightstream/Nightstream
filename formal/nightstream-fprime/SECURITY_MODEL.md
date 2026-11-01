@@ -761,6 +761,13 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
   gives no identified public false-proof path. The Merkle binding premise is
   for these fixed shapes; a profile with eight-word leaves would need another
   argument (`formal/compression-lean/TRUST.md`, Merkle binding).
+- Fenzi and Sanso (ePrint 2025/2197, Lemma 4.4) give a large-list adversary
+  against a toy hash-based argument and say that finding its chosen list
+  member appears computationally infeasible. Their high-list estimates use
+  proximity near capacity. This verifier selects `JohnsonBound` with a
+  positive margin and an explicit list-size charge (`neo-spartan/src/pcs.rs`,
+  `p3-security` 0.8.0), so the paper gives no public false proof for this
+  profile. WHIR's numeric report remains an unproved Rust-to-Lean premise.
 - Completeness does not follow from a knowledge bound: a bound on the
   adversary is not evidence that an honest proof is accepted. The honest
   prover has separate results, for every application that fits the `2^28`

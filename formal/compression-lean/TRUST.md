@@ -47,7 +47,12 @@ The claims bound a probability. They take these as part of the model, not as Lea
   the Johnson boundary by `sqrt(rho) / 20`; it does not use the exact endpoint.
   Crites and Stewart (ePrint 2025/2046) disprove the stronger up-to-capacity mutual
   correlated-agreement conjecture; their counterexamples do not refute the selected
-  Johnson-bound claim. No Lean proof checks the WHIR figures. This is the weakest numeric layer.
+  Johnson-bound claim. Fenzi and Sanso (ePrint 2025/2197, Lemma 4.4) give a
+  list-decoding attack on a toy hash-based argument near capacity. They do not
+  give an efficient prover for that attack. The selected Johnson margin and
+  its list-size charge exclude the paper's stated high-list regime; its toy
+  protocol is not this WHIR verifier. No Lean proof checks the WHIR figures.
+  This is the weakest numeric layer.
   The candidates are tables over the base field; candidates over `Ext` are not modeled.
   WHIR's own Fiat–Shamir step is part of its error.
   Chiesa, Guan, Knabenhans and Yu (ePrint 2025/902, Theorem 7.1) derive

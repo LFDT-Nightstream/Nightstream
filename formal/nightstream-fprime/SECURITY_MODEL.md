@@ -404,6 +404,16 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
      group symmetry of the target module; a kernel of a uniform matrix is
      not generally fixed by those automorphisms. This paper gives no cost
      for the selected random module-SIS kernel.
+     De Perthuis and Trenkić (ePrint 2026/2527, Theorem 1) show that the
+     relative coefficient and canonical embeddings agree up to scaling for
+     `Q(ζ₈₁)` over its degree-two subfield `Q(ζ₃)`: their condition holds
+     because `rad(81) / rad(3) = 1`. Their module-BKZ analysis (Lemma 7)
+     identifies such subfields as favorable under its uSVP heuristics. This
+     is a separate structured attack route that does not need the symmetry
+     used in ePrint 2021/600. The paper's concrete NTRU+ estimates concern
+     a short secret sampled in coefficient geometry; they do not price a
+     short kernel of this uniform matrix under the coefficient infinity
+     bound `8TB`. The selected module-SIS cost remains open.
    - If Poseidon2 state-hash collisions are hard to find, then
      `hashCollisions` is small. Collision hardness is also stated for
      algorithms with a strict time bound. Eighteen finders with a strict

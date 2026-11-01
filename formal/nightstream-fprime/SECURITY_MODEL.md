@@ -359,6 +359,9 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
      MSIS solution for a uniform matrix, with error below `2^-190`.
      For the selected Goldilocks prime, `q mod 81 = 4` and
      `ord_81(q) = 27`; thus `Φ₈₁` has two degree-27 factors over `F_q`.
+     At the selected MSIS norm `8TB = 113,246,208`, `3(8TB)² < q`.
+     `Spec.Phi81StrongSet.lowNormInvertibility` therefore rules out a
+     nonzero short ring word that vanishes in only one CRT factor.
      The unstructured lattice estimate does not price attacks that use this
      CRT split. The Module-SIS algorithm of ePrint 2026/2420 is proved for
      power-of-two cyclotomic rings and does not give a cost for this profile.

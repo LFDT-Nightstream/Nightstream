@@ -849,7 +849,14 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
    `squeeze_k` takes lane zero from four consecutive Poseidon2 permutation
    states to form that pair; the circuit constrains the same states. Collision
    resistance alone does not establish their joint distribution, including
-   when the prover chooses and retries roots. The challenge game of adversary 5
+   when the prover chooses and retries roots. Degabriele, Fischlin and
+   Govinden (ePrint 2026/1275, Theorems 6.1 and B.4) prove online-random-oracle
+   indifferentiability for a duplex that XORs encoded rate bits into its
+   state. This sponge adds Goldilocks words instead. The one-lane reads can
+   discard part of a full-rate output, but the field-additive absorption is
+   outside that theorem's stated XOR mode. It does not directly establish the
+   selected `η` game.
+   The challenge game of adversary 5
    motivates the target `(Q_η + 1) · (2 · m_mem/q² + ε_coll(t_1))`, where
    `Q_η` counts the evaluations of the `η` transcript, in the circuit and
    outside it, and `ε_coll(t_1)` is the Poseidon2 collision probability at

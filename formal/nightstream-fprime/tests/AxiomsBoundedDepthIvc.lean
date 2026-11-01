@@ -178,6 +178,7 @@ open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 #audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_2.FinalIdentity.soundness
 #audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_2.FinalIdentity.spec_implies_terminal
 #audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_2.FinalIdentity.spec_implies_keyTerminal
+#audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_2.FinalIdentity.shapeCompleteness
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.LightPiCCS.light_exponents
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.LightPiCCS.terminal_eq
 #audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_2.StatementAbsorption.publicInputActions_eq_domain

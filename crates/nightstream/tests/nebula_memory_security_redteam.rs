@@ -29,3 +29,32 @@ fn minimum_110_rejects_64_segment_fingerprint_loss() {
     );
     assert!(Verifier::new(&circuit, Engine::Optimized, 109).is_ok());
 }
+
+#[test]
+fn memory_security_boundary_rejects_exact_error_above_minimum() {
+    let geometry = Geometry {
+        r: 0,
+        mu: 0,
+        w_ts: 49,
+        b_ops: 2,
+        b_scan: 2,
+        n: 1,
+        s_max: 140_737_488_289_793,
+    };
+    assert!(geometry.is_valid());
+    let m = geometry.max_tuples() as u128;
+    let q = (1u128 << 64) - (1u128 << 32) + 1;
+    let claimed_bits = 78;
+    assert!(2 * m * geometry.s_max as u128 * (1u128 << claimed_bits) > q * q);
+
+    let reference = fs::read(
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1.json"),
+    )
+    .unwrap();
+    let circuit = Circuit::compile(&reference, geometry, Machine).unwrap();
+    assert!(
+        Verifier::new(&circuit, Engine::Optimized, claimed_bits).is_err(),
+        "public verifier accepts a profile with memory error above 2^-{claimed_bits}"
+    );
+}

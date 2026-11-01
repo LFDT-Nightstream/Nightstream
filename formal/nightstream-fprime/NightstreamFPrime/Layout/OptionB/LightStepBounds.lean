@@ -98,6 +98,89 @@ variable (offset : Nat) (below : InputsBelow interface offset) (env : Env)
 
 include below
 
+/-- The light Π_CCS layout's inputs lie below its offset. -/
+theorem piccsBelow : LightPiCCSBounds.InputsBelow (piccsInterface program interface)
+    (piccsOffset program circuit interface offset) := by
+  have le := fun (child : FormalCircuit) (start : Nat) =>
+    (Nat.le_add_right start _ : start ≤ Formal.nextOffset child start)
+  have rangeLe : offset ≤ rangeOffset program interface offset := le _ _
+  have priorZeroLe : offset ≤ priorSlotZeroOffset program interface offset :=
+    Nat.le_trans rangeLe (Nat.le_trans (le _ _) (le _ _))
+  have priorOneLe : offset ≤ priorSlotOneOffset program interface offset :=
+    Nat.le_trans priorZeroLe (le _ _)
+  have priorStateLe : offset ≤ priorStateOffset program interface offset :=
+    Nat.le_trans priorOneLe (le _ _)
+  have nextZeroLe : offset ≤ nextSlotZeroOffset program interface offset :=
+    Nat.le_trans priorStateLe (le _ _)
+  have nextOneLe : offset ≤ nextSlotOneOffset program interface offset :=
+    Nat.le_trans nextZeroLe (le _ _)
+  have nextStateLe : offset ≤ nextStateOffset program interface offset :=
+    Nat.le_trans nextOneLe (le _ _)
+  have piccsLe : offset ≤ piccsOffset program circuit interface offset :=
+    Nat.le_trans nextStateLe (le _ _)
+  exact
+    ⟨fun coordinate => KExpr.varsBelow_mono _ (below.activePoint coordinate) piccsLe,
+      fun coefficient => KExpr.varsBelow_mono _ (below.activePad coefficient) piccsLe,
+      fun matrix coefficient => KExpr.varsBelow_mono _ (below.activeMatrix matrix coefficient)
+        piccsLe,
+      fun source row lane => Expr.VarsBelow.mono _ (below.freshCommitment source row lane) piccsLe,
+      fun source column => Expr.VarsBelow.mono _ (below.freshPublicInput source column) piccsLe,
+      fun roundIndex coefficient => KExpr.varsBelow_mono _ (below.round roundIndex coefficient)
+        piccsLe,
+      fun source coefficient => KExpr.varsBelow_mono _ (below.outputPad source coefficient) piccsLe,
+      fun source matrix coefficient =>
+        KExpr.varsBelow_mono _ (below.outputMatrix source matrix coefficient) piccsLe⟩
+
+/-- The light Π_RLC layout's inputs lie below its offset. -/
+theorem rlcBelow : LightRlcBounds.InputsBelow (piccsLeaves program relation circuit interface offset)
+    (rlcInterface program interface) (rlcOffset program relation circuit interface offset) := by
+  have le := fun (child : FormalCircuit) (start : Nat) =>
+    (Nat.le_add_right start _ : start ≤ Formal.nextOffset child start)
+  have rangeLe : offset ≤ rangeOffset program interface offset := le _ _
+  have priorZeroLe : offset ≤ priorSlotZeroOffset program interface offset :=
+    Nat.le_trans rangeLe (Nat.le_trans (le _ _) (le _ _))
+  have priorOneLe : offset ≤ priorSlotOneOffset program interface offset :=
+    Nat.le_trans priorZeroLe (le _ _)
+  have priorStateLe : offset ≤ priorStateOffset program interface offset :=
+    Nat.le_trans priorOneLe (le _ _)
+  have nextZeroLe : offset ≤ nextSlotZeroOffset program interface offset :=
+    Nat.le_trans priorStateLe (le _ _)
+  have nextOneLe : offset ≤ nextSlotOneOffset program interface offset :=
+    Nat.le_trans nextZeroLe (le _ _)
+  have nextStateLe : offset ≤ nextStateOffset program interface offset :=
+    Nat.le_trans nextOneLe (le _ _)
+  have piccsLe : offset ≤ piccsOffset program circuit interface offset :=
+    Nat.le_trans nextStateLe (le _ _)
+  have piccsBelow := piccsBelow program circuit interface offset below
+  have outputLe : piccsOffset program circuit interface offset ≤
+      LightPiCCSLayout.outputOffset relation (piccsInterface program interface)
+        (piccsOffset program circuit interface offset) := by
+    exact Nat.le_trans (LightPiCCSBounds.challenge_le _ _) (Nat.le_trans
+      (LightPiCCSBounds.rounds_le _ _) (Nat.le_trans (LightPiCCSBounds.initial_le _ _)
+        (Nat.le_trans (LightPiCCSBounds.sumcheck_le _ _) (Nat.le_trans
+          (LightPiCCSBounds.evalK_le _ _) (Nat.le_trans (LightPiCCSBounds.evalA_le _ _)
+            (Nat.le_trans (LightPiCCSBounds.ccs_le _ _) (Nat.le_trans
+              (LightPiCCSBounds.norm_le relation _ _) (Nat.le_trans
+                (LightPiCCSBounds.finalIdentity_le relation _ _)
+                (LightPiCCSBounds.output_le relation _ _)))))))))
+  have rlcLe : offset ≤ rlcOffset program relation circuit interface offset :=
+    Nat.le_trans piccsLe (Nat.le_trans outputLe (le _ _))
+  exact
+    ⟨fun lane => OutputBinding.finalState_varsBelow
+        (LightPiCCSLayout.outputInterface (piccsInterface program interface)
+          (piccsOffset program circuit interface offset))
+        (LightPiCCSLayout.outputOffset relation (piccsInterface program interface)
+          (piccsOffset program circuit interface offset)) (fun _ => 0)
+        (LightPiCCSBounds.output relation (piccsInterface program interface)
+          (piccsOffset program circuit interface offset) piccsBelow (fun _ => 0)) lane,
+      fun source coefficient => KExpr.varsBelow_mono _ (below.outputPad source coefficient) rlcLe,
+      fun source matrix coefficient =>
+        KExpr.varsBelow_mono _ (below.outputMatrix source matrix coefficient) rlcLe,
+      fun row lane => Expr.VarsBelow.mono _ (below.activeCommitment row lane) rlcLe,
+      fun column => Expr.VarsBelow.mono _ (below.activePublicInput column) rlcLe,
+      fun source row lane => Expr.VarsBelow.mono _ (below.freshCommitment source row lane) rlcLe,
+      fun source column => Expr.VarsBelow.mono _ (below.freshPublicInput source column) rlcLe⟩
+
 /-- Input scoping of the light step layout. -/
 theorem assumptions :
     LightStepLayout.Assumptions program relation circuit interface offset env := by
@@ -118,48 +201,8 @@ theorem assumptions :
     Nat.le_trans nextOneLe (le _ _)
   have piccsLe : offset ≤ piccsOffset program circuit interface offset :=
     Nat.le_trans nextStateLe (le _ _)
-  have piccsBelow : LightPiCCSBounds.InputsBelow (piccsInterface program interface)
-      (piccsOffset program circuit interface offset) :=
-    ⟨fun coordinate => KExpr.varsBelow_mono _ (below.activePoint coordinate) piccsLe,
-      fun coefficient => KExpr.varsBelow_mono _ (below.activePad coefficient) piccsLe,
-      fun matrix coefficient => KExpr.varsBelow_mono _ (below.activeMatrix matrix coefficient)
-        piccsLe,
-      fun source row lane => Expr.VarsBelow.mono _ (below.freshCommitment source row lane) piccsLe,
-      fun source column => Expr.VarsBelow.mono _ (below.freshPublicInput source column) piccsLe,
-      fun roundIndex coefficient => KExpr.varsBelow_mono _ (below.round roundIndex coefficient)
-        piccsLe,
-      fun source coefficient => KExpr.varsBelow_mono _ (below.outputPad source coefficient) piccsLe,
-      fun source matrix coefficient =>
-        KExpr.varsBelow_mono _ (below.outputMatrix source matrix coefficient) piccsLe⟩
-  have outputLe : piccsOffset program circuit interface offset ≤
-      LightPiCCSLayout.outputOffset relation (piccsInterface program interface)
-        (piccsOffset program circuit interface offset) := by
-    exact Nat.le_trans (LightPiCCSBounds.challenge_le _ _) (Nat.le_trans
-      (LightPiCCSBounds.rounds_le _ _) (Nat.le_trans (LightPiCCSBounds.initial_le _ _)
-        (Nat.le_trans (LightPiCCSBounds.sumcheck_le _ _) (Nat.le_trans
-          (LightPiCCSBounds.evalK_le _ _) (Nat.le_trans (LightPiCCSBounds.evalA_le _ _)
-            (Nat.le_trans (LightPiCCSBounds.ccs_le _ _) (Nat.le_trans
-              (LightPiCCSBounds.norm_le relation _ _) (Nat.le_trans
-                (LightPiCCSBounds.finalIdentity_le relation _ _)
-                (LightPiCCSBounds.output_le relation _ _)))))))))
-  have rlcLe : offset ≤ rlcOffset program relation circuit interface offset :=
-    Nat.le_trans piccsLe (Nat.le_trans outputLe (le _ _))
-  have rlcBelow : LightRlcBounds.InputsBelow (piccsLeaves program relation circuit interface offset)
-      (rlcInterface program interface) (rlcOffset program relation circuit interface offset) :=
-    ⟨fun lane => OutputBinding.finalState_varsBelow
-        (LightPiCCSLayout.outputInterface (piccsInterface program interface)
-          (piccsOffset program circuit interface offset))
-        (LightPiCCSLayout.outputOffset relation (piccsInterface program interface)
-          (piccsOffset program circuit interface offset)) env
-        (LightPiCCSBounds.output relation (piccsInterface program interface)
-          (piccsOffset program circuit interface offset) piccsBelow env) lane,
-      fun source coefficient => KExpr.varsBelow_mono _ (below.outputPad source coefficient) rlcLe,
-      fun source matrix coefficient =>
-        KExpr.varsBelow_mono _ (below.outputMatrix source matrix coefficient) rlcLe,
-      fun row lane => Expr.VarsBelow.mono _ (below.activeCommitment row lane) rlcLe,
-      fun column => Expr.VarsBelow.mono _ (below.activePublicInput column) rlcLe,
-      fun source row lane => Expr.VarsBelow.mono _ (below.freshCommitment source row lane) rlcLe,
-      fun source column => Expr.VarsBelow.mono _ (below.freshPublicInput source column) rlcLe⟩
+  have piccsBelow := piccsBelow program circuit interface offset below
+  have rlcBelow := rlcBelow program relation circuit interface offset below
   have keysAt := fun (bound : Nat) (le : offset ≤ bound) key lane =>
     Expr.VarsBelow.mono _ (below.verifierKeys key lane) le
   have initialAt := fun (bound : Nat) (le : offset ≤ bound) lane =>

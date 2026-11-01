@@ -92,6 +92,60 @@ private theorem natWord_succ (count : Nat) : natWord (count + 1) = natWord count
 
 private theorem eval_one (env : Env) : (1 : Expr).eval env = 1 := rfl
 
+/-- The step's words carry what the light Π_CCS layout reads: the active slot's claim as the
+running claim, the fresh instance and the light proof. -/
+theorem piccsRepresents
+    (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (circuitKeys : Fin 2 → CircuitKey logicalWidth publicFits) (circuit : Fin 2)
+    (input : StepInput logicalWidth publicFits) (output : StepOutput logicalWidth publicFits)
+    (proof : Spec.Folding.Light.Proof LightShape 8) (env : Env)
+    (represents : StepRepresents program interface ajtai circuitKeys circuit input output proof
+      env)
+    (selected : Fin 2) (activeValue : interface.active.value env = input.running selected)
+    (offset : Nat) :
+    LightPiCCSLayout.Represents (LightFold.lightRunning (input.running selected).1)
+      (OptionBFolds.freshToLight input.fresh) proof (piccsInterface program interface) offset
+      env where
+  fresh := represents.fresh
+  runningPoint := by
+    rw [← activeValue]
+    simp [canonicalFinIndices, List.map_ofFn, LightFold.lightRunning, SlotExpr.value,
+      StatementAbsorption.evalPoint]
+    rfl
+  runningPad := fun coefficient => by
+    rw [← activeValue]
+    rfl
+  runningMatrix := fun matrix coefficient => by
+    rw [← activeValue]
+    rfl
+  rounds := represents.rounds
+  outputPad := represents.outputPad
+  outputMatrix := represents.outputMatrix
+
+/-- The step's words carry what the light Π_RLC layout reads: the active slot's commitment and
+public input, the fresh instance and the light proof's Π_CCS output. -/
+theorem rlcRepresents (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (circuit : Fin 2) (offset : Nat)
+    (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (circuitKeys : Fin 2 → CircuitKey logicalWidth publicFits)
+    (input : StepInput logicalWidth publicFits) (output : StepOutput logicalWidth publicFits)
+    (proof : Spec.Folding.Light.Proof LightShape 8) (env : Env)
+    (represents : StepRepresents program interface ajtai circuitKeys circuit input output proof
+      env)
+    (selected : Fin 2) (activeValue : interface.active.value env = input.running selected) :
+    LightRlcLayout.Represents (piccsLeaves program relation circuit interface offset)
+      (rlcInterface program interface) (rlcOffset program relation circuit interface offset)
+      (input.running selected).1 input.fresh proof.piCcsOutput env where
+  runningCommitment := by
+    rw [← activeValue]
+    rfl
+  runningPublicInput := by
+    rw [← activeValue]
+    rfl
+  freshWords := represents.fresh
+  outputPad := represents.outputPad
+  outputMatrix := represents.outputMatrix
+
 /-- Soundness of the light step circuit: its rows and the values of its shared words give the
 step relation of a light circuit (`stepHolds_iff`) at the production cap. The application program
 computes `step`, and its validity predicate implies the dispatch. -/
@@ -166,32 +220,10 @@ theorem rows_implies_stepHolds
       represents.initialState, represents.nextState, represents.verifierKeys 0,
       represents.verifierKeys 1, Expr.eval_const, ← represents.pcNext]
     rfl
-  · exact {
-      fresh := represents.fresh
-      runningPoint := by
-        rw [← activeValue]
-        simp [canonicalFinIndices, List.map_ofFn, LightFold.lightRunning, SlotExpr.value,
-          StatementAbsorption.evalPoint]
-        rfl
-      runningPad := fun coefficient => by
-        rw [← activeValue]
-        rfl
-      runningMatrix := fun matrix coefficient => by
-        rw [← activeValue]
-        rfl
-      rounds := represents.rounds
-      outputPad := represents.outputPad
-      outputMatrix := represents.outputMatrix }
-  · exact {
-      runningCommitment := by
-        rw [← activeValue]
-        rfl
-      runningPublicInput := by
-        rw [← activeValue]
-        rfl
-      freshWords := represents.fresh
-      outputPad := represents.outputPad
-      outputMatrix := represents.outputMatrix }
+  · exact piccsRepresents program interface ajtai circuitKeys circuit input output proof env
+      represents selected activeValue _
+  · exact rlcRepresents program interface relation circuit offset ajtai circuitKeys input output
+      proof env represents selected activeValue
   · rw [← activeValue]
     exact (SlotExpr.natWord_val _).symm
 

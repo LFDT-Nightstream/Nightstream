@@ -218,4 +218,43 @@ theorem spec_implies_fold (relation : ProductionKey.LogicalRelation logicalWidth
     simp only [List.map_toArray, List.map_cons, List.map_nil]
     rfl
 
+/-- An accepted light fold passed the light Π_CCS check: `Light.verify` returns nothing
+otherwise. -/
+theorem check_of_folds (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (system : PaperAlgebra.Structure logicalWidth) (slot : SlotClaim logicalWidth publicFits)
+    (fresh : StepFresh logicalWidth publicFits)
+    (proof : Spec.Folding.Light.Proof LightShape (ProductionKey.degreeBound relation))
+    (result : StepClaim logicalWidth publicFits)
+    (accepted : HyperNova.Construction2.OptionBFolds.folds .light (keys relation ajtai)
+      (toClaim system slot) fresh (.light proof) = some result) :
+    Spec.Folding.Light.PiCCS.check (keys relation ajtai).light.extensionOps
+      (keys relation ajtai).light.lift
+      ((keys relation ajtai).light.statement (lightRunning slot)
+        (HyperNova.Construction2.OptionBFolds.freshToLight fresh))
+      (ProductionKey.degreeBound relation)
+      ((keys relation ajtai).light.probe (lightRunning slot)
+        (HyperNova.Construction2.OptionBFolds.freshToLight fresh) proof) = true := by
+  simp only [HyperNova.Construction2.OptionBFolds.folds, toLightRunning_toClaim,
+    Option.bind_some] at accepted
+  unfold Spec.Folding.Light.verify at accepted
+  by_cases checked : Spec.Folding.Light.PiCCS.check (keys relation ajtai).light.extensionOps
+      (keys relation ajtai).light.lift
+      ((keys relation ajtai).light.statement (lightRunning slot)
+        (HyperNova.Construction2.OptionBFolds.freshToLight fresh))
+      (ProductionKey.degreeBound relation)
+      ((keys relation ajtai).light.probe (lightRunning slot)
+        (HyperNova.Construction2.OptionBFolds.freshToLight fresh) proof) = true
+  · exact checked
+  · simp only [checked] at accepted
+    simp at accepted
+
+/-- `toClaim` keeps every field of the slot claim. -/
+theorem toClaim_injective (system : PaperAlgebra.Structure logicalWidth)
+    {left right : SlotClaim logicalWidth publicFits}
+    (same : toClaim system left = toClaim system right) : left = right := by
+  have back := congrArg fromClaim same
+  rw [fromClaim_toClaim, fromClaim_toClaim] at back
+  exact Option.some.inj back
+
 end NightstreamFPrime.Lifecycle.OptionB.LightFold

@@ -43,11 +43,18 @@ The claims bound a probability. They take these as part of the model, not as Lea
   Rust, `Pcs::new` charges WHIR's terms from Plonky3's Johnson-bound report (`pcs.rs`) together
   with the terms that the premises `p0`, `p1` and `rust` state, which Rust meets.
   `pcs.rs` selects `SecurityAssumption::JohnsonBound`, not a capacity estimate.
+  In the pinned `p3-security` 0.8.0 code, this sets the tested proximity below
+  the Johnson boundary by `sqrt(rho) / 20`; it does not use the exact endpoint.
   Crites and Stewart (ePrint 2025/2046) disprove the stronger up-to-capacity mutual
   correlated-agreement conjecture; their counterexamples do not refute the selected
   Johnson-bound claim. No Lean proof checks the WHIR figures. This is the weakest numeric layer.
   The candidates are tables over the base field; candidates over `Ext` are not modeled.
   WHIR's own Fiat–Shamir step is part of its error.
+  Chiesa, Guan, Knabenhans and Yu (ePrint 2025/902, Theorem 7.1) derive
+  Fiat–Shamir security for a functional IOP plus commitment from
+  state-restoration soundness and state-restoration function binding. This
+  theorem does not establish the latter property for this WHIR instance or
+  remove the ideal-opening premise above.
 - **Fiat–Shamir.** Poseidon2 acts as a random oracle, and the transcript encoding is injective on
   prefixes (`Game/Restoration.lean`, `Game/Compose.lean`). One permutation call can give `k`
   challenges, so `Q` calls and the `R` draws of one path are at most `k·Q + R` queries of the

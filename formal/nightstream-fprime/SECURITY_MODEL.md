@@ -646,6 +646,20 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
      verifier-context digest. This is the cause of the difference above. So
      `Assumption1` is a premise about the Nightstream transcript, not the
      paper's premise about Construction 3.
+   - SuperNeo v1.2 Lemma 8 makes Π_RLC weak with the full source commitment
+     tuple as its projection: its source-opening extraction compares forks
+     whose projected commitments agree. Lean uses that projection
+     (`Spec.Folding.PiRLC.phi`) and preserves it across Π_CCS outputs
+     (`Spec.Folding.PiCCS.PaperJoint.StrongReduction.repeatedPublicOutputs_same_phi`).
+     The fresh commitment enters the selected transcript directly, but the
+     running commitments enter through the prior-state digest. Applying
+     Lemma 8 to a modified prover that changes those commitments between
+     forks therefore needs the prior-link check and the state-hash collision
+     premise above; a sampled `ρ` alone does not fix the tuple. Lean proves
+     the running-commitment serialization injective
+     (`Layout.Stage1.StateEncoding.serializeRunningFields_injective`), and
+     Rust recomputes the digest from those commitments at the terminal
+     (`lifecycle/inputs.rs`, `lifecycle/verify.rs`).
    - This joint form implies Definition 7's difference form
      `Pr[success] − Pr[extraction] ≤ error`. The converse needs an adversary
      that stops when its own success check fails.

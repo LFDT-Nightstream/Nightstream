@@ -738,6 +738,16 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
    uses. The public Rust `ApplicationBuilder` writes R1CS records and output
    rows, but no theorem constructs that Lean `Program` from every Rust-built
    application or identifies every Rust row check with Lean `RowsZero`.
+   Ozdemir, Wahby, Brown and Barrett (ePrint 2023/778, Appendix G) find a
+   field-blasting comparison bug where a prover can choose inconsistent
+   decomposition bits to make a range test return false. The selected F′
+   `CanonicalU64` gadget constrains all 64 bits, their recomposition and the
+   exceptional high-word case (`Gadgets.Range.CanonicalU64.soundness`). The
+   memory rows constrain operation, timestamp-difference and scan bits, and
+   the catalog gates active addresses to those bits (`Lifecycle.Nebula.Rows.slotRows_iff`,
+   `nebula/rows.rs`, `nebula/catalog.rs`). This sampled check finds no such
+   false comparison in those paths; it does not prove the general Rust-built
+   application interface correct.
 6. **Runtime checks.** The verifier's identity and setup checks stay necessary.
 7. **The memory round.** `Export.Stage1.NebulaMemorySecurity.MemoryRound`
    states that, for each stage that trust item 4 admits and the memory

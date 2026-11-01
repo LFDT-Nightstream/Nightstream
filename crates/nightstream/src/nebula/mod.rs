@@ -289,7 +289,7 @@ impl<A: Application> Circuit<A> {
     }
 
     /// The prover of the circuit. `minimum_security_bits` bounds the folding
-    /// profile and one segment's memory fingerprint term
+    /// profile and the memory fingerprint term of all `S_max` segments
     /// (`Geometry::memory_security_bits`, SPEC.md section 7.1). Total error
     /// also depends on challenge evaluations and history depth
     /// (`SECURITY_MODEL.md`, trust item 7).
@@ -298,8 +298,10 @@ impl<A: Application> Circuit<A> {
         self.circuit.prover(engine, minimum_security_bits)
     }
 
+    /// Each of the `S_max` segments adds its own fingerprint term
+    /// (`SECURITY_MODEL.md`, adversary 5).
     fn check_memory_security(&self, minimum_security_bits: u32) -> Result<(), crate::Error> {
-        let available = self.geometry.memory_security_bits();
+        let available = self.geometry.memory_security_bits() - (self.geometry.s_max as f64).log2();
         if available < f64::from(minimum_security_bits) {
             return Err(neo_params::ParamsError::InsufficientStatisticalSecurity {
                 required: minimum_security_bits,
@@ -333,10 +335,10 @@ pub struct Verifier<A> {
 
 impl<A: Application + Clone> Verifier<A> {
     /// The verifier of a memory circuit. It may share the prover's circuit.
-    /// `minimum_security_bits` bounds the folding profile and one segment's
-    /// memory fingerprint term (`Geometry::memory_security_bits`, SPEC.md
-    /// section 7.1). Total error also depends on challenge evaluations and
-    /// history depth
+    /// `minimum_security_bits` bounds the folding profile and the memory
+    /// fingerprint term of all `S_max` segments
+    /// (`Geometry::memory_security_bits`, SPEC.md section 7.1). Total error
+    /// also depends on challenge evaluations and history depth
     /// (`SECURITY_MODEL.md`, trust item 7).
     pub fn new(circuit: &Circuit<A>, engine: crate::Engine, minimum_security_bits: u32) -> Result<Self, crate::Error> {
         circuit.check_memory_security(minimum_security_bits)?;

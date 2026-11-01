@@ -25,4 +25,5 @@ fn minimum_110_rejects_the_selected_profile() {
         Verifier::from_package(&circuit, Engine::Optimized, 110).is_err(),
         "the verifier accepts a 110-bit minimum, but the formal one-step test term has only {one_step_test_bits:.3} bits"
     );
+    assert!(Verifier::from_package(&circuit, Engine::Optimized, 109).is_ok());
 }

@@ -251,7 +251,7 @@ honest prover algorithm.
   by that duplex game. Its field-lane coin reads need no reduction into a
   smaller challenge field, but this does not identify the two games. The
   paper's `25t² / |Σ|^c` ideal-permutation term and extractor theorem cannot
-  certify the fixed Poseidon2 transcript or the 110-bit public minimum.
+  certify the fixed Poseidon2 transcript or a 110-bit public minimum.
   The raw additive absorb also gives one state to distinct variable-length
   lists such as `[a]` and `[a, 0]`. The selected public ΠCCS verifier fixes
   one fresh claim, its 270-word input, every round length, and the output
@@ -343,10 +343,10 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
   `B_scan = 3072` and `S_max = 64` has `m_mem = 3074` and passes setup.
   Its one-segment term has 115.414 bits; charging that term over the 64
   allowed segments gives 109.414 bits before transcript-query, collision,
-  and Stage 1 history errors. `nebula::Verifier::new(..., 110)` accepts this
-  circuit because its numeric gate checks only one segment. This is a
-  security-budget mismatch against a 110-bit whole-run requirement, not a
-  produced false proof or an exact attack success probability.
+  and Stage 1 history errors. The numeric gate of `nebula::Verifier::new`
+  and `nebula::Circuit::prover` charges the term over all `S_max` segments,
+  so it rejects a 110-bit minimum for this geometry
+  (`nebula_memory_security_redteam`).
 - **Depth:** the depth is `S_max · N`, so the depth limit of adversary 4
   applies.
 
@@ -1063,13 +1063,12 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
   This is not the current theorem. Even its optimistic sum over 64 folds
   would be about `2^-104.003` before the other errors, below the requested
   110-bit level.
-  Rust's profile gate computes one Π_CCS test term and one coordinate-fork
-  term (`Params::for_ccs_shape`), and `compression_security_bits` subtracts
-  that same estimate from the requested budget. It does not charge the 74
-  tests in the random-oracle extraction result. Thus a public verifier can
-  accept the 110-bit minimum and derive a compression key even though this
-  Lean proof bound already exceeds the requested error budget. This is a
-  proof-budget mismatch, not a demonstrated false proof.
+  Rust's profile gate (`Params::for_ccs_shape`) charges this `Q = 0` term:
+  `ε_test` at the 74 challenges and the Π_RLC sample error 17² times. The
+  selected profile thus accepts at most a 109-bit minimum, and
+  `compression_security_bits` subtracts the same term from the requested
+  budget (`statistical_security_redteam`). Oracle queries, fold depth and the
+  computational terms are not in this gate.
 - Concrete attacks on Poseidon2 as a random oracle, or on the additive duplex,
   are outside the model. Attacks that use the hash inside the circuit (KRS)
   are outside every random-oracle model; the verifier's package key fixes the

@@ -11,7 +11,7 @@ fn unavailable_engines_fail_before_loading_the_circuit() {
         let result = Prover::load(
             std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("Cargo.toml"),
             engine,
-            114,
+            109,
         );
         assert!(
             matches!(result, Err(Error::Engine(EngineError::Unavailable { engine: actual, .. })) if actual == engine)
@@ -26,7 +26,7 @@ fn explicit_cpu_selection_keeps_circuit_validation() {
             Prover::load(
                 std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("Cargo.toml"),
                 engine,
-                114
+                109
             ),
             Err(Error::Circuit("compiled circuit file version"))
         ));

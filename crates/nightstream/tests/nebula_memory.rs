@@ -412,8 +412,8 @@ fn n1_accept(engine: nightstream::Engine) {
     let circuit = Package::N1
         .load(&package("nightstream-fprime-stage2-nebula-memory-n1.json"))
         .expect("pinned memory package");
-    let prover = circuit.prover(engine, 114).unwrap();
-    let verifier = nightstream::nebula::Verifier::new(&circuit, engine, 114).unwrap();
+    let prover = circuit.prover(engine, 109).unwrap();
+    let verifier = nightstream::nebula::Verifier::new(&circuit, engine, 109).unwrap();
     let mut run = n1_run();
     let z0 = run.initial_state();
     let mut proof: Option<nightstream::Proof> = None;
@@ -461,8 +461,8 @@ fn memory_conformance(engine: nightstream::Engine) {
     let circuit = Package::V1
         .load(&memory_package())
         .expect("pinned memory package");
-    let prover = circuit.prover(engine, 114).unwrap();
-    let verifier = nebula::Verifier::new(&circuit, engine, 114).unwrap();
+    let prover = circuit.prover(engine, 109).unwrap();
+    let verifier = nebula::Verifier::new(&circuit, engine, 109).unwrap();
     let program = Package::V1.program();
     eprintln!("memory preparation elapsed={:?}", started.elapsed());
 
@@ -596,8 +596,8 @@ fn each_program_verifies_only_its_own_proof_on_cpu() {
     let circuit = Package::V1
         .load(&memory_package())
         .expect("pinned memory package");
-    let prover = circuit.prover(engine, 114).unwrap();
-    let verifier = nebula::Verifier::new(&circuit, engine, 114).unwrap();
+    let prover = circuit.prover(engine, 109).unwrap();
+    let verifier = nebula::Verifier::new(&circuit, engine, 109).unwrap();
     let prove = |program: &Program| {
         let mut run = Run::new(Context::new(Machine, program), MachineState::default());
         let z0 = run.initial_state();
@@ -962,10 +962,10 @@ fn rust_built(engine: nightstream::Engine) {
         .unwrap()
         .write(&path)
         .unwrap();
-    let prover = nightstream::Prover::load(&path, engine, 114);
+    let prover = nightstream::Prover::load(&path, engine, 109);
     std::fs::remove_file(&path).unwrap();
     let prover = prover.unwrap();
-    let verifier = Verifier::new(&Circuit::compile(&reference, geometry, Machine).unwrap(), engine, 114).unwrap();
+    let verifier = Verifier::new(&Circuit::compile(&reference, geometry, Machine).unwrap(), engine, 109).unwrap();
     let changed = Circuit::compile(&reference, geometry, Changed::Row).unwrap();
     eprintln!("rust-built setup elapsed={:?}", started.elapsed());
     let program = Package::V1.program();
@@ -974,7 +974,7 @@ fn rust_built(engine: nightstream::Engine) {
     verifier
         .verify(&program, &statement, &carry, &proof)
         .unwrap();
-    let (statement, carry, proof) = prove_segment(&changed.prover(engine, 114).unwrap(), Changed::Row);
+    let (statement, carry, proof) = prove_segment(&changed.prover(engine, 109).unwrap(), Changed::Row);
     assert!(matches!(
         verifier.verify(&program, &statement, &carry, &proof),
         Err(VerifyError::Proof(_))

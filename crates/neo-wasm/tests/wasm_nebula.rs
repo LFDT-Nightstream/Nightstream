@@ -595,8 +595,8 @@ fn proof_verifies_and_rejects_a_changed_load_on_cpu(per_step: NonZeroUsize) {
     let traced = &setup.programs[0];
     let engine = nightstream::Engine::Optimized;
     let circuit = Circuit::compile(&reference(), geometry, app.clone()).unwrap();
-    let prover = circuit.prover(engine, 114).unwrap();
-    let verifier = Verifier::new(&circuit, engine, 114).unwrap();
+    let prover = circuit.prover(engine, 109).unwrap();
+    let verifier = Verifier::new(&circuit, engine, 109).unwrap();
     eprintln!("wasm setup elapsed={:?}", started.elapsed());
 
     let (program, mut run) = setup.run(&app, traced);
@@ -678,8 +678,8 @@ fn time_on_metal<A: Application + Clone>(
     let circuit = Circuit::compile(&reference(), geometry, app.clone()).unwrap();
     eprintln!("compile elapsed={:?}", started.elapsed());
     eprintln!("application size={:?}", circuit.application_size().unwrap());
-    let prover = circuit.prover(engine, 114).unwrap();
-    let verifier = Verifier::new(&circuit, engine, 114).unwrap();
+    let prover = circuit.prover(engine, 109).unwrap();
+    let verifier = Verifier::new(&circuit, engine, 109).unwrap();
     eprintln!("setup elapsed={:?}", started.elapsed());
 
     let mut run = Run::new(Context::new(app, program), initial);

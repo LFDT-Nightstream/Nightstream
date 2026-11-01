@@ -11,7 +11,7 @@ fn base_extension_matches_full_lean_assignment_and_terminal() {
     let source = load_poseidon2_hash_chain_v1_package(&bytes).unwrap();
     let binding = source.production_verifier_binding().unwrap();
     let package =
-        PreparedLifecycle::from_package(source.into(), binding, crate::engine::Backend::Optimized, 114).unwrap();
+        PreparedLifecycle::from_package(source.into(), binding, crate::engine::Backend::Optimized, 109).unwrap();
     let loaded = load_poseidon2_hash_chain_v1_package(&bytes).unwrap();
     let reference: Value =
         serde_json::from_slice(&fs::read(artifact("nightstream-fprime-stage1-base-step-fixture-v1.json")).unwrap())

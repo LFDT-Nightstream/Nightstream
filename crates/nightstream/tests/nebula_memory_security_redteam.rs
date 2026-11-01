@@ -27,4 +27,5 @@ fn minimum_110_rejects_64_segment_fingerprint_loss() {
         Verifier::new(&circuit, Engine::Optimized, 110).is_err(),
         "public verifier accepts 110 bits with a {segment_bits:.3}-bit one-segment fingerprint bound and only {chain_bits:.3} bits across 64 allowed segments"
     );
+    assert!(Verifier::new(&circuit, Engine::Optimized, 109).is_ok());
 }

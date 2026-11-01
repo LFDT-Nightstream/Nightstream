@@ -232,9 +232,10 @@ impl Circuit {
     }
 
     /// Require the selected profile to meet the caller's positive statistical minimum.
-    /// The total error also depends on oracle queries and fold depth
-    /// (`Lifecycle.RandomOracleKnowledge.statisticalError`,
-    /// `Export.Stage1.HyperNovaFalseAcceptance.probability_bound`).
+    /// The profile's error is the zero-query error of one fold
+    /// (`Lifecycle.RandomOracleKnowledge.statisticalError`); oracle queries
+    /// and fold depth add to it
+    /// (`Export.Stage1.HyperNovaFalseAcceptance.probability_bound`).
     pub fn prover(&self, engine: Engine, minimum_security_bits: u32) -> Result<Prover, Error> {
         Prover::new(Arc::clone(&self.compiled), Backend::new(engine)?, minimum_security_bits)
     }
@@ -356,9 +357,10 @@ impl Verifier {
     /// This does not establish the package's provenance.
     /// Reject a profile below the caller's positive statistical minimum, and
     /// a memory relation, whose verifier is `nebula::Verifier`.
-    /// The total error also depends on oracle queries and fold depth
-    /// (`Lifecycle.RandomOracleKnowledge.statisticalError`,
-    /// `Export.Stage1.HyperNovaFalseAcceptance.probability_bound`).
+    /// The profile's error is the zero-query error of one fold
+    /// (`Lifecycle.RandomOracleKnowledge.statisticalError`); oracle queries
+    /// and fold depth add to it
+    /// (`Export.Stage1.HyperNovaFalseAcceptance.probability_bound`).
     pub fn from_package(package: &Circuit, engine: Engine, minimum_security_bits: u32) -> Result<Self, Error> {
         if package.compiled.role == Role::Memory {
             return Err(Error::Circuit("a memory relation needs nebula::Verifier"));

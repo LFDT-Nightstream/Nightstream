@@ -85,13 +85,13 @@ fn security_minimum_is_explicit_and_cannot_be_lowered_by_preparation() {
             Err(Error::Parameters(_))
         ));
     }
-    assert!(circuit.prover(Engine::Optimized, 114).is_ok());
-    assert!(Verifier::from_package(circuit, Engine::Optimized, 114).is_ok());
+    assert!(circuit.prover(Engine::Optimized, 109).is_ok());
+    assert!(Verifier::from_package(circuit, Engine::Optimized, 109).is_ok());
 }
 
 #[test]
 fn extension_errors_leave_the_supplied_proof_unchanged() {
-    let prover = compiled_fixture().prover(Engine::Optimized, 114).unwrap();
+    let prover = compiled_fixture().prover(Engine::Optimized, 109).unwrap();
     let original = Stage1Envelope::initial([F::ZERO; 4]);
     assert!(matches!(prover.extend(&original, &[]), Err(Error::Application(_))));
     assert!(original.active_parts().is_none());
@@ -417,7 +417,7 @@ fn metal_verifier_rejects_changed_constraint_with_original_cached_identity_and_s
     drop(changed);
     copy_cached_identity_components(&original_path, &changed_path);
 
-    let prover = Prover::load(&changed_path, Engine::Metal, 114).unwrap();
+    let prover = Prover::load(&changed_path, Engine::Metal, 109).unwrap();
     assert_eq!(prover.engine(), Engine::Metal);
     assert_eq!(
         prover.compiled.binding, original.compiled.binding,
@@ -429,7 +429,7 @@ fn metal_verifier_rejects_changed_constraint_with_original_cached_identity_and_s
     drop(prover);
     eprintln!("changed-package Metal proof built elapsed={:?}", started.elapsed());
 
-    let verifier = Verifier::from_package(&original, Engine::Metal, 114).unwrap();
+    let verifier = Verifier::from_package(&original, Engine::Metal, 109).unwrap();
     assert_eq!(verifier.engine(), Engine::Metal);
     match verifier.verify(&expected, &proof) {
         Err(Error::Verify(VerifyError::FreshRelation(SuperneoCachedRelationError::UnsatisfiedRow { row }))) => {
@@ -514,8 +514,8 @@ fn proof_offsets(prover: &Prover) -> (usize, usize, usize) {
 
 #[test]
 fn proof_bytes_round_trip_exactly() {
-    let prover = compiled_fixture().prover(Engine::Optimized, 114).unwrap();
-    let verifier = Verifier::from_package(compiled_fixture(), Engine::Optimized, 114).unwrap();
+    let prover = compiled_fixture().prover(Engine::Optimized, 109).unwrap();
+    let verifier = Verifier::from_package(compiled_fixture(), Engine::Optimized, 109).unwrap();
     let public_width = prover.compiled.package.logical_public_input_count();
     let (header, claim, witness) = proof_offsets(&prover);
 
@@ -558,8 +558,8 @@ fn proof_bytes_round_trip_exactly() {
 
 #[test]
 fn proof_decoder_rejects_resized_and_noncanonical_bytes() {
-    let prover = compiled_fixture().prover(Engine::Optimized, 114).unwrap();
-    let verifier = Verifier::from_package(compiled_fixture(), Engine::Optimized, 114).unwrap();
+    let prover = compiled_fixture().prover(Engine::Optimized, 109).unwrap();
+    let verifier = Verifier::from_package(compiled_fixture(), Engine::Optimized, 109).unwrap();
     let (header, claim, _) = proof_offsets(&prover);
     let mut bytes = prover.encode_proof(&shaped_proof(&prover)).unwrap();
     let rejects = |bytes: &[u8]| matches!(verifier.decode_proof(bytes), Err(Error::ProofBytes(_)));
@@ -587,7 +587,7 @@ fn proof_decoder_rejects_resized_and_noncanonical_bytes() {
 
 #[test]
 fn proof_encoder_rejects_values_outside_the_selected_shape() {
-    let prover = compiled_fixture().prover(Engine::Optimized, 114).unwrap();
+    let prover = compiled_fixture().prover(Engine::Optimized, 109).unwrap();
     let parts = |proof: Stage1Envelope| {
         let (running, fresh) = proof.active_parts().unwrap();
         (*proof.state(), running.clone(), fresh.clone())
@@ -620,8 +620,8 @@ fn proof_encoder_rejects_values_outside_the_selected_shape() {
 
 #[test]
 fn verifier_requires_the_padded_evaluation_width() {
-    let prover = compiled_fixture().prover(Engine::Optimized, 114).unwrap();
-    let verifier = Verifier::from_package(compiled_fixture(), Engine::Optimized, 114).unwrap();
+    let prover = compiled_fixture().prover(Engine::Optimized, 109).unwrap();
+    let verifier = Verifier::from_package(compiled_fixture(), Engine::Optimized, 109).unwrap();
     let proof = shaped_proof(&prover);
     let state = *proof.state();
     let (running, fresh) = proof.active_parts().unwrap();
@@ -730,7 +730,7 @@ fn verifier_rejects_a_witness_outside_the_signed_units() {
         #[cfg(feature = "metal")]
         Engine::Metal,
     ] {
-        let verifier = Verifier::from_package(circuit, engine, 114).unwrap();
+        let verifier = Verifier::from_package(circuit, engine, 109).unwrap();
         let structure = verifier.lifecycle.structure();
         let columns = structure.m().div_ceil(D);
         let evaluations = vec![K::ZERO; D.next_power_of_two()];

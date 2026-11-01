@@ -834,6 +834,17 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
    rejects changes to an input, output, private input and intermediate word.
    Those four tests passed on 2026-11-01. They do not establish consistency
    for every Rust-built application or every input.
+   Kolozyan et al. (ePrint 2025/2120, Section 3.2) show a second way a
+   deterministic output can be false: the constraints may admit an input
+   outside the program's range, Boolean, or other preconditions. The public
+   `ApplicationBuilder` exposes field arithmetic and explicit equality rows;
+   it does not infer an application's intended preconditions. Its `finish`
+   adds an equality row for each output, and `execute` assigns each generated
+   value from its row, so the sampled builder path has no free output. The
+   selected Nebula memory rows constrain operation and control bits, and
+   `Geometry.is_valid` checks their field-width bounds. These observations
+   do not establish that every caller-built application supplies all of its
+   semantic preconditions or meets `Program.spec_iff`.
 6. **Runtime checks.** The verifier's identity and setup checks stay necessary.
    `Circuit::load_package` takes an identifier pinned by the caller. Its
    loader recomputes that identifier from the fixed package and the digest of

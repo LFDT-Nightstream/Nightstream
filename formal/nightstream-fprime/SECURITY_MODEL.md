@@ -347,6 +347,12 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
   and `nebula::Circuit::prover` charges the term over all `S_max` segments,
   so it rejects a 110-bit minimum for this geometry
   (`nebula_memory_security_redteam`).
+  Adding the reference application's conservative one-fold `Q = 0` profile
+  term to that 64-segment term gives
+  `74·5161/q² + 17²·(1/5^54 + 2^−132) + 64·2·3074/q² ≈ 2^−108.43`.
+  The two terms come from different idealized games. This sum is a budget
+  illustration, not a theorem for the deployed verifier. It shows that
+  checking each term against 109 bits does not certify a 109-bit total.
 - **Depth:** the depth is `S_max · N`, so the depth limit of adversary 4
   applies.
 

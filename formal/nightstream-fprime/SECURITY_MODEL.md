@@ -313,7 +313,12 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
    idealizes one hash call on the whole transcript. The standard
    justification would be duplex-sponge Fiat–Shamir in the ideal-permutation
    model, where the rate lanes of one permutation output are independent;
-   Lean does not prove it. The same sponge also computes the state hash, which the theorem
+   Lean does not prove it. Chiesa and Orrù (ePrint 2025/536, Theorems 6.1 and
+   6.2) bound an overwrite-mode duplex with a separate random input hash.
+   `Poseidon2Transcript::absorb_v1_2` instead adds each chunk to the rate lanes
+   and permutes after it, starting from zero. Their bound does not apply to
+   this selected transcript without a new reduction for its exact schedule.
+   The same sponge also computes the state hash, which the theorem
    treats as a concrete function. The state hash is a four-lane read after its
    own call list (`Lifecycle.TranscriptCoverage.stateHash_eq_run`), and the
    only common prefix of a challenge's call list and a state hash's call list

@@ -855,9 +855,14 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
    state. This sponge adds Goldilocks words instead. The one-lane reads can
    discard part of a full-rate output, but the field-additive absorption is
    outside that theorem's stated XOR mode. It does not directly establish the
-   selected `η` game.
-   The challenge game of adversary 5
-   motivates the target `(Q_η + 1) · (2 · m_mem/q² + ε_coll(t_1))`, where
+   selected `η` game. Khovratovich, Marhuenda Beltrán and Mennink (ePrint
+   2023/520, Theorem 2) analyze a field-additive sponge with multiple outputs.
+   Their SAFECore starts its capacity with an independent hash of the IO
+   pattern and domain, and uses `SAFECorePad`. This transcript instead starts
+   from zero and absorbs length-framed blocks through the rate, so their bound
+   also needs a reduction before it applies here. The challenge game of
+   adversary 5 motivates the target
+   `(Q_η + 1) · (2 · m_mem/q² + ε_coll(t_1))`, where
    `Q_η` counts the evaluations of the `η` transcript, in the circuit and
    outside it, and `ε_coll(t_1)` is the Poseidon2 collision probability at
    twice the time of one run. The owner chose this form

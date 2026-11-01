@@ -119,6 +119,15 @@ The claims bound a probability. They take these as part of the model, not as Lea
   preimage bounds for PA/PAX compression with feed-forward. The selected
   `TruncatedPermutation` node has no feed-forward, so those bounds do not
   apply to it.
+  The two hash modes also have no domain tag. An eight-word leaf consisting
+  of two four-word digests hashes exactly as their parent node: both permute
+  those eight words followed by eight zeros and return four words. This is a
+  structural equality, not a Poseidon2 collision. It does not instantiate a
+  selected proof leaf: the setup uses `(κ + 4)·8 = 208` words, and the fixed
+  WHIR folding schedules give at least sixteen base words (or 48 extension
+  words) in each queried row. The verifier fixes those widths and the path
+  length. A change that permits eight-word leaves needs a new Merkle binding
+  argument; the current collision premise alone would not cover it.
   Merz and Rodríguez García (ePrint 2026/306) show that Poseidon2 attack
   cost can depend on its hash mode, beyond the permutation's CICO estimate.
   Their analyzed sponge adds input blocks and their compression uses a

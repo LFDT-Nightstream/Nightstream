@@ -753,6 +753,14 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
   its next transcript state (`CompressionLean.Circuit.Whir.queryIndex`,
   `decisions/whir-query-redraws.md`). No numerical bound for this failure
   event is proved for the concrete Poseidon2 transcript.
+- The layer-1 leaf sponge and node compression have an exact cross-mode alias
+  on an eight-word leaf: hashing two four-word digests as a leaf equals
+  compressing them as a node. The selected setup leaf has 208 words, and the
+  selected WHIR leaf has at least sixteen base words or 48 extension words.
+  The public verifier fixes these lengths and the path depth, so this alias
+  gives no identified public false-proof path. The Merkle binding premise is
+  for these fixed shapes; a profile with eight-word leaves would need another
+  argument (`formal/compression-lean/TRUST.md`, Merkle binding).
 - Completeness does not follow from a knowledge bound: a bound on the
   adversary is not evidence that an honest proof is accepted. The honest
   prover has separate results, for every application that fits the `2^28`

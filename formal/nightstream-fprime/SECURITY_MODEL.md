@@ -421,12 +421,17 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
      this kernel either.
      Bollauf, Pouly and Shen (ePrint 2026/225, Theorem 5) give a Gaussian-
      sampling algorithm for SIS in the infinity norm when the bound is below
-     `q/2`, as `8TB` is here. Their success estimate samples a uniform flat
-     `n × m` matrix. The coefficient expansion of this ring matrix has
-     correlated rows, so that estimate does not directly apply. Their
-     reported 50-bit gain compares with an older provable Wagner algorithm,
-     not with the heuristic BKZ/sieving model used for this profile. No
-     selected-parameter cost follows from their Dilithium examples.
+     `q/2`, as `8TB` is here. The full coefficient expansion of this ring
+     matrix has correlated rows. However, restricting each witness ring word
+     to a constant coefficient gives a flat `22 · 54 × blockCount` matrix:
+     its columns are independent and uniform in the uniform-ring-key game.
+     A nonzero integer kernel vector below `8TB` for this flat matrix is a
+     module-SIS kernel by using those integers as constant ring words.
+     Thus their random-matrix attack applies to this restricted subproblem
+     in that game. Their reported 50-bit gain compares with an older
+     provable Wagner algorithm, not with the heuristic BKZ/sieving model
+     used for this profile. Their Dilithium examples give no cost for the
+     `1,188 × blockCount` subproblem or the fixed SHAKE128-expanded key.
    - If Poseidon2 state-hash collisions are hard to find, then
      `hashCollisions` is small. Collision hardness is also stated for
      algorithms with a strict time bound. Eighteen finders with a strict

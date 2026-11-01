@@ -79,6 +79,12 @@ The claims bound a probability. They take these as part of the model, not as Lea
   the path length and the value count. `honest_leaves_bind` shows that honest leaves pass at their
   own index. That the shipped key's root is `honestRoot` of the claims' setup is not proved
   (section 5).
+  Coratger et al. (ePrint 2026/089, Theorem 3) prove extractability for a
+  same-permutation overwrite-sponge leaf hash and a full-width two-child
+  compression permutation. Nightstream's node feeds eight child words and
+  eight fixed zeros to a sixteen-word Poseidon2 permutation, then reads four
+  words; its leaf sponge has rate twelve. That theorem does not give a bound
+  for this selected pair of hash modes.
 - **Query indices.** The model draws each query leaf as a uniform Goldilocks word modulo the leaf
   count, as `sample_bits` does (`Layer1/HonestStage.lean`, `Layer1/Queries.lean`). The budget needs
   at most 35 setup variables (`query_half`), and the replay bridge at most 31. `Relation::new`

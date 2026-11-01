@@ -645,6 +645,14 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
      adversary on changed oracle answers, so it is not straightline. Their
      theorem therefore does not remove this query growth or justify the
      provisional 64-fold case.
+     Külaots, Lipmaa, Parisella and Siim (ePrint 2026/326, Theorems 6 and 13)
+     obtain tight Fiat–Shamir knowledge soundness from a special-sound
+     univariate polynomial IOP and a polynomial commitment with the stated
+     evaluation- and degree-binding properties. Theorem 13 treats an
+     interactive univariate PCS with corresponding special-binding notions.
+     Neither theorem supplies special soundness or those binding premises for
+     this rewind-based SuperNeo NIFS or the multilinear WHIR compression.
+     Thus this compiler result does not give a 64-fold history bound here.
 5. **Rust and Lean agree on recorded inputs only.** The golden conformance runs
    and the recorded native evidence cover their recorded inputs. No theorem
    covers arbitrary Rust execution. In particular,

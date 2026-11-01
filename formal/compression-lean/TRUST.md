@@ -68,6 +68,14 @@ The claims bound a probability. They take these as part of the model, not as Lea
   `1/(2η sqrt(k/N))` list size. This checks the interleaving factor, not
   the full numeric report, extension-field assumptions or concrete
   Fiat–Shamir security.
+  Manzur (ePrint 2026/2617, Theorems 9.1 and 10.1) separates list
+  decodability from affine-line MCA for general linear codes. The pinned
+  Johnson report does not derive MCA from its list-size estimate alone:
+  `p3-security` 0.8.0 uses the Reed–Solomon-specific line-MCA bound of
+  Dao, Kominers and Thaler (ePrint 2026/2056, Theorem 5.12), while Jo's
+  interleaving result is needed for the row code above. Manzur's general-code
+  examples do not refute those selected premises. The exact numeric
+  application of both results to this verifier is still outside Lean.
   The candidates are tables over the base field; candidates over `Ext` are not modeled.
   WHIR's own Fiat–Shamir step is part of its error.
   Chiesa, Guan, Knabenhans and Yu (ePrint 2025/902, Theorem 7.1) derive

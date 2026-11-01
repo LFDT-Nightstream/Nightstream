@@ -137,9 +137,9 @@ theorem matrixAtMessage_eq (interface : EvalATerminal.ShapeInterface LightShape)
 
 end Terminals
 
-/-- The norm terms of the light Π_CCS over its two sources. The light verifier checks the same
-terms as production; the running source's zero norm term is a prover-side fact
-(`Spec/Folding/Light/PiCCS.lean`). -/
+/-- The norm terms of the light Π_CCS for any output message. The light check reads the message
+through `Light.PiCCS.maskMessage`, which sets the running source's norm input to zero, so a light
+circuit feeds the constant 0 as the running source's assignment. -/
 theorem normAtMessage_eq (interface : NormTerminal.ShapeInterface LightShape) (offset : Nat)
     (env : Env) (gamma : K) (message : ProtocolPolynomial.OutputMessage K LightShape)
     (gammaEq : (interface.gamma offset).eval env = gamma)
@@ -151,7 +151,8 @@ theorem normAtMessage_eq (interface : NormTerminal.ShapeInterface LightShape) (o
   NormTerminal.spec_implies_normAtMessage interface offset env gamma message gammaEq
     sourceAssignmentEq specification
 
-private def lightFreshIndex : Fin LightShape.freshCount := ⟨0, by decide⟩
+/-- The light Π_CCS's one fresh source. -/
+def lightFreshIndex : Fin LightShape.freshCount := ⟨0, by decide⟩
 
 /-- The light Π_CCS has one fresh source, so its CCS term is the constraint polynomial at that
 source's matrix evaluations. -/
@@ -166,6 +167,36 @@ theorem ccsAtMessage_eq_singleFresh (input : ProtocolPolynomial.VerifierInput K 
     HyperNova.Construction2.OptionBFolds.lightShape, productionShape,
     productionProfile, Phi81MatrixSource.phi81Shape, lightFreshIndex,
     extensionLaws.one_mul, extensionLaws.add_zero]
+
+/-- The light Π_CCS CCS term from today's CCS terminal. The light shape keeps the four matrices
+and the one fresh source, so the terminal circuit is unchanged: 23 rows. -/
+theorem ccsAtMessage_eq (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (running : Spec.Folding.Nifs.PaperNonInteractive.Running K PaperAlgebra.Commitment
+      (PaperAlgebra.PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits))
+      LightShape)
+    (fresh : Spec.Folding.Nifs.PaperNonInteractive.Fresh PaperAlgebra.Commitment
+      (PaperAlgebra.PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits))
+      LightShape)
+    (interface : CcsTerminal.Interface) (offset : Nat) (env : Env) (gamma : K)
+    (message : ProtocolPolynomial.OutputMessage K LightShape)
+    (freshMatrixEq : ∀ matrix,
+      (interface.freshMatrix offset matrix).eval env =
+        message.freshMatrixImage lightFreshIndex matrix)
+    (specification : CcsTerminal.SpecHolds relation interface offset env) :
+    (CcsTerminal.output relation interface offset).eval env =
+      ProtocolPolynomial.ccsAtMessage extensionOps (lightInput relation ajtai running fresh)
+        gamma message := by
+  have pointEq : (fun matrix => (interface.freshMatrix offset matrix).eval env) =
+      message.freshMatrixImage lightFreshIndex :=
+    funext freshMatrixEq
+  have value : (CcsTerminal.output relation interface offset).eval env =
+      CCSResidualTable.evaluatePolynomial extensionOps
+        (lightInput relation ajtai running fresh).constraintPolynomial
+        (fun matrix => (interface.freshMatrix offset matrix).eval env) :=
+    specification
+  exact (value.trans (congrArg _ pointEq)).trans
+    (ccsAtMessage_eq_singleFresh _ gamma message).symm
 
 /-- The light final identity's `γ` exponents: 54 for `E_A` and 270 = 54 × 5 for the constraint
 terms, against 864 and 4,320 today (`FinalIdentity.matrixExponent_eq`,

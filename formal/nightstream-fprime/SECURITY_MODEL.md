@@ -762,6 +762,13 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
   certify a 110-bit total error before the other terms. The other terms
   depend on MSIS at the solver's work and on Poseidon2 collisions. 128-bit
   security needs a larger challenge field for `γ`.
+  The 74 include 17 Π_RLC challenges. `RandomOracleTest.coinBad` assigns
+  them the empty bad set, but `RandomOracleUniqueness.checked` queries all
+  74 to locate its stopping point. A separate proof that charged only the
+  57 Π_CCS challenges might give a `Q = 0` test term of about `2^-110.003`.
+  This is not the current theorem. Even its optimistic sum over 64 folds
+  would be about `2^-104.003` before the other errors, below the requested
+  110-bit level.
   Rust's profile gate computes one Π_CCS test term and one coordinate-fork
   term (`Params::for_ccs_shape`), and `compression_security_bits` subtracts
   that same estimate from the requested budget. It does not charge the 74

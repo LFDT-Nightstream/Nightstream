@@ -7,6 +7,9 @@ import NightstreamFPrime.Lifecycle.PiCCS.v1_2.NormTerminal
 import NightstreamFPrime.Lifecycle.PiCCS.v1_2.CcsTerminal
 import NightstreamFPrime.Lifecycle.PiCCS.v1_2.FinalIdentity
 import NightstreamFPrime.Lifecycle.PiCCS.v1_2.StatementAbsorption
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.ChallengeDerivation
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.RoundTranscript
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.SumcheckChain
 
 /-! The light Π_CCS leaves (CW-2.2), one per production leaf made generic in the shape. Each
 bridge gives a value of the production light key's Π_CCS statement from the leaf's rows. -/
@@ -232,5 +235,179 @@ theorem statementState_eq (relation : ProductionKey.LogicalRelation logicalWidth
   rw [StatementAbsorption.domainTrace_eq lightFoldDomainChunk interface offset env final trace,
     freshWords]
   rfl
+
+section Transcript
+
+/-- A light Π_CCS challenge label as the production label at the same coin position. -/
+def labelToProduction :
+    FiatShamir.ChallengeLabel LightShape → FiatShamir.ChallengeLabel productionShape
+  | .alpha coordinate => .alpha coordinate
+  | .gamma => .gamma
+  | .sumcheck round => .sumcheck round
+
+/-- The light oracle squeezes at the production coin positions (`lightCoinPosition`). -/
+theorem squeeze_eq (state : Transcript.State) (label : FiatShamir.ChallengeLabel LightShape) :
+    lightPiCcsOracle.transcript.squeeze state label =
+      Transcript.piCcsOracle.transcript.squeeze state (labelToProduction label) := by
+  cases label <;> rfl
+
+theorem squeezeMany_eq : ∀ (state : Transcript.State)
+    (labels : List (FiatShamir.ChallengeLabel LightShape)),
+    FiatShamir.squeezeMany lightPiCcsOracle.transcript state labels =
+      FiatShamir.squeezeMany Transcript.piCcsOracle.transcript state
+        (labels.map labelToProduction)
+  | _, [] => rfl
+  | state, label :: labels => by
+      simp only [FiatShamir.squeezeMany, List.map_cons, squeeze_eq]
+      rw [squeezeMany_eq _ labels]
+
+theorem alphaLabels_eq :
+    (FiatShamir.alphaLabels LightShape).map labelToProduction =
+      FiatShamir.alphaLabels productionShape := by
+  simp only [FiatShamir.alphaLabels, List.map_map]
+  rfl
+
+/-- From one transcript state, the light and the production oracles derive the same `α`, `γ`
+and state (SuperNeo v1.2 Section 7.3, Step 1). -/
+theorem deriveFromState_eq (state : Transcript.State) :
+    (Spec.Folding.PiCCS.Transcript.deriveFromState lightPiCcsOracle.transcript
+        state).alpha.coordinates =
+      (Spec.Folding.PiCCS.Transcript.deriveFromState Transcript.piCcsOracle.transcript
+        state).alpha.coordinates ∧
+    (Spec.Folding.PiCCS.Transcript.deriveFromState lightPiCcsOracle.transcript state).gamma =
+      (Spec.Folding.PiCCS.Transcript.deriveFromState Transcript.piCcsOracle.transcript
+        state).gamma ∧
+    (Spec.Folding.PiCCS.Transcript.deriveFromState lightPiCcsOracle.transcript state).state =
+      (Spec.Folding.PiCCS.Transcript.deriveFromState Transcript.piCcsOracle.transcript
+        state).state := by
+  simp only [Spec.Folding.PiCCS.Transcript.deriveFromState, squeezeMany_eq, alphaLabels_eq,
+    squeeze_eq, labelToProduction]
+  refine ⟨?_, ?_, ?_⟩ <;> trivial
+
+/-- Round by round, the light and the production oracles absorb and squeeze alike. -/
+theorem deriveRoundsFrom_eq (rounds : Fin LightShape.cubeVariables → SumCheck.Finite.Message K) :
+    ∀ (state : Transcript.State) (indices : List (Fin LightShape.cubeVariables)),
+    FiatShamir.deriveRoundsFrom lightPiCcsOracle.transcript rounds state indices =
+      FiatShamir.deriveRoundsFrom Transcript.piCcsOracle.transcript rounds state indices
+  | _, [] => rfl
+  | state, round :: remaining => by
+      simp only [FiatShamir.deriveRoundsFrom]
+      rw [deriveRoundsFrom_eq rounds _ remaining]
+      rfl
+
+variable (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+  (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
+  (running : Spec.Folding.Nifs.PaperNonInteractive.Running K PaperAlgebra.Commitment
+    (PaperAlgebra.PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits))
+    LightShape)
+  (fresh : Spec.Folding.Nifs.PaperNonInteractive.Fresh PaperAlgebra.Commitment
+    (PaperAlgebra.PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits))
+    LightShape)
+  (rounds : Fin LightShape.cubeVariables →
+    SumCheck.Finite.FixedPolynomial K (ProductionKey.degreeBound relation))
+
+/-- The light key's Fiat–Shamir coins for the given round polynomials. -/
+noncomputable abbrev lightCoins := (keys relation ajtai).light.coins running fresh rounds
+
+/-- The light transcript state after `α` and `γ`, where the SumCheck rounds start. -/
+noncomputable abbrev lightPreState :=
+  (FiatShamir.derivePreSumcheck (keys relation ajtai).light.oracle.transcript
+    ((keys relation ajtai).light.transcriptStatement running fresh)).state
+
+/-- The challenge-derivation rows give the light key's `α` and `γ` and the state the SumCheck
+rounds start from. -/
+theorem challenges_eq (interface : ChallengeDerivation.Interface) (offset : Nat) (env : Env)
+    (initialEq : ChallengeDerivation.evalState env (interface.initialState offset) =
+      (keys relation ajtai).light.absorbPublicInput
+        (keys relation ajtai).light.initialTranscriptState running fresh)
+    (specification : ChallengeDerivation.SpecHolds interface offset env) :
+    (ChallengeDerivation.evalAlpha interface offset env).coordinates =
+        (lightCoins relation ajtai running fresh rounds).alpha.coordinates ∧
+      ChallengeDerivation.evalGamma interface offset env =
+        (lightCoins relation ajtai running fresh rounds).gamma ∧
+      ChallengeDerivation.evalState env (ChallengeDerivation.finalState interface offset) =
+        lightPreState relation ajtai running fresh := by
+  obtain ⟨alphaEq, gammaEq, finalEq⟩ := specification
+  rw [initialEq] at alphaEq gammaEq finalEq
+  have same := deriveFromState_eq ((keys relation ajtai).light.absorbPublicInput
+    (keys relation ajtai).light.initialTranscriptState running fresh)
+  refine ⟨?_, ?_, ?_⟩
+  · rw [alphaEq]
+    exact same.1.symm
+  · rw [gammaEq]
+    exact same.2.1.symm
+  · rw [finalEq]
+    exact same.2.2.symm
+
+/-- The round-transcript rows give the light key's SumCheck point and final state. -/
+theorem roundPoint_eq (interface : RoundTranscript.Interface (ProductionKey.degreeBound relation))
+    (offset : Nat) (env : Env)
+    (initialEq : RoundTranscript.evalState env (interface.initialState offset) =
+      lightPreState relation ajtai running fresh)
+    (roundsEq : ∀ roundIndex,
+      (interface.round offset roundIndex).semanticPolynomial env = rounds roundIndex)
+    (specification : RoundTranscript.SpecHolds interface offset env) :
+    (RoundTranscript.evalRoundPoint interface offset env).coordinates =
+        (lightCoins relation ajtai running fresh rounds).roundPoint.coordinates ∧
+      RoundTranscript.evalState env (RoundTranscript.finalState interface offset) =
+        (lightCoins relation ajtai running fresh rounds).finalState := by
+  obtain ⟨pointEq, finalEq⟩ := specification
+  have semantic : RoundTranscript.semanticRounds interface offset env =
+      fun roundIndex => (rounds roundIndex).toMessage :=
+    funext fun roundIndex =>
+      congrArg SumCheck.Finite.FixedPolynomial.toMessage (roundsEq roundIndex)
+  rw [initialEq, semantic] at pointEq finalEq
+  have holds := Spec.Folding.PiCCS.Transcript.derive_rounds_holds
+    (keys relation ajtai).light.oracle.transcript
+    ((keys relation ajtai).light.transcriptStatement running fresh)
+    { rounds := fun roundIndex => (rounds roundIndex).toMessage }
+  have oracleEq : (keys relation ajtai).light.oracle.transcript = lightPiCcsOracle.transcript :=
+    rfl
+  have pointCoins : (lightCoins relation ajtai running fresh rounds).roundPoint.coordinates =
+      (FiatShamir.deriveRoundsFrom Transcript.piCcsOracle.transcript
+        (fun roundIndex => (rounds roundIndex).toMessage)
+        (lightPreState relation ajtai running fresh)
+        (canonicalFinIndices LightShape.cubeVariables)).1 := by
+    have point := holds.roundPoint_eq
+    rw [oracleEq, deriveRoundsFrom_eq] at point
+    exact point
+  have finalCoins : (lightCoins relation ajtai running fresh rounds).finalState =
+      (FiatShamir.deriveRoundsFrom Transcript.piCcsOracle.transcript
+        (fun roundIndex => (rounds roundIndex).toMessage)
+        (lightPreState relation ajtai running fresh)
+        (canonicalFinIndices LightShape.cubeVariables)).2 := by
+    have final := holds.finalState_eq
+    rw [oracleEq, deriveRoundsFrom_eq] at final
+    exact final
+  exact ⟨pointEq.trans pointCoins.symm, finalEq.trans finalCoins.symm⟩
+
+/-- The SumCheck chain rows give the fixed chain of the light Π_CCS from `T` to `Q(r')`. -/
+theorem chain_eq (interface : SumcheckChain.Interface (ProductionKey.degreeBound relation))
+    (offset : Nat) (env : Env) (message : ProtocolPolynomial.OutputMessage K LightShape)
+    (initialEq : (interface.initial offset).eval env =
+      (lightInput relation ajtai running fresh).initial extensionOps
+        (lightCoins relation ajtai running fresh rounds).gamma)
+    (roundsEq : ∀ roundIndex,
+      (interface.round offset roundIndex).semanticPolynomial env = rounds roundIndex)
+    (pointEq : (SumcheckChain.evalRoundPoint interface offset env).coordinates =
+      (lightCoins relation ajtai running fresh rounds).roundPoint.coordinates)
+    (terminalEq : (SumcheckChain.output interface offset).eval env =
+      ProtocolPolynomial.terminalFromMessage extensionOps (lightInput relation ajtai running fresh)
+        (lightCoins relation ajtai running fresh rounds).alpha
+        (lightCoins relation ajtai running fresh rounds).gamma
+        (lightCoins relation ajtai running fresh rounds).roundPoint message)
+    (specification : SumcheckChain.SpecHolds interface offset env) :
+    SumCheck.Finite.FixedPhase.Chain extensionOps.toOps
+      ((lightInput relation ajtai running fresh).initial extensionOps
+        (lightCoins relation ajtai running fresh rounds).gamma)
+      (List.ofFn rounds) (lightCoins relation ajtai running fresh rounds).roundPoint.coordinates
+      (ProtocolPolynomial.terminalFromMessage extensionOps (lightInput relation ajtai running fresh)
+        (lightCoins relation ajtai running fresh rounds).alpha
+        (lightCoins relation ajtai running fresh rounds).gamma
+        (lightCoins relation ajtai running fresh rounds).roundPoint message) :=
+  SumcheckChain.spec_implies_chain interface offset env _ rounds _ _ initialEq roundsEq pointEq
+    terminalEq specification
+
+end Transcript
 
 end NightstreamFPrime.Lifecycle.OptionB.LightPiCCS

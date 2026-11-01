@@ -163,6 +163,43 @@ theorem output_varsBelow {degree : Nat} (interface : Interface degree)
   FixedChain.Owned.output_varsBelow (coreInterface interface offset) offset
     assumptions
 
+/-- The rows give the fixed SumCheck chain (SuperNeo v1.2 Section 7.3, `SumCheck(T; Q)`) for any
+claimed sum, round polynomials, challenges and terminal claim that the leaf's inputs carry. -/
+theorem spec_implies_chain {degree : Nat} (interface : Interface degree) (offset : Nat)
+    (env : Env) (initial : K)
+    (rounds : Fin productionShape.cubeVariables →
+      SumCheck.Finite.FixedPolynomial K degree)
+    (point : List K) (terminal : K)
+    (initialEq : (interface.initial offset).eval env = initial)
+    (roundsEq : ∀ roundIndex,
+      (interface.round offset roundIndex).semanticPolynomial env = rounds roundIndex)
+    (pointEq : (evalRoundPoint interface offset env).coordinates = point)
+    (terminalEq : (output interface offset).eval env = terminal)
+    (specification : SpecHolds interface offset env) :
+    SumCheck.Finite.FixedPhase.Chain extensionOps.toOps initial (List.ofFn rounds) point
+      terminal := by
+  have roundsListEq :
+      (coreInterface interface offset).rounds.map
+          (FixedChain.Round.semanticPolynomial env) = List.ofFn rounds := by
+    change (List.ofFn (interface.round offset)).map
+        (FixedChain.Round.semanticPolynomial env) = List.ofFn rounds
+    rw [List.map_ofFn]
+    apply congrArg List.ofFn
+    funext roundIndex
+    exact roundsEq roundIndex
+  have challengeListEq :
+      (coreInterface interface offset).rounds.map
+          (fun round => round.challenge.eval env) = point := by
+    simpa [evalRoundPoint] using pointEq
+  have initialCoreEq : (coreInterface interface offset).initial.eval env = initial := by
+    simpa [coreInterface] using initialEq
+  have terminalCoreEq :
+      (FixedChain.Owned.output (coreInterface interface offset) offset).eval env = terminal := by
+    simpa [output] using terminalEq
+  unfold SpecHolds FixedChain.Owned.SpecHolds at specification
+  rw [initialCoreEq, roundsListEq, challengeListEq, terminalCoreEq] at specification
+  exact specification
+
 theorem spec_implies_keyChain
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤

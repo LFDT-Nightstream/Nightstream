@@ -921,4 +921,50 @@ theorem spec_implies_keyInitialState
     _ = key.oracle.transcript.initialState context := oracleStateEq.symm
     _ = _ := by rfl
 
+/-- The statement absorption of a fold transcript that starts from `domain`: the domain chunk,
+then the prior digest and the fresh blocks. Option B's light and refresh transcripts start from
+their own domains (`OptionB.foldDomainChunks_distinct`). -/
+def domainActions {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (domain : List F) (interface : Interface logicalWidth publicFits) (offset : Nat) :
+    List Formal.Action :=
+  [.absorb (constantWords domain), .absorb (publicInputBlocks interface offset).flatten]
+
+theorem publicInputActions_eq_domain {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (interface : Interface logicalWidth publicFits) (offset : Nat) :
+    publicInputActions interface offset =
+      domainActions NightstreamFPrime.Lifecycle.Transcript.foldDomainChunk interface offset :=
+  rfl
+
+/-- A duplex trace of `domainActions domain` from the zero state ends in the transcript state
+after absorbing `domain` and then the fresh statement blocks (SuperNeo v1.2 Section 7.3). -/
+theorem domainTrace_eq {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (domain : List F) (interface : Interface logicalWidth publicFits) (offset : Nat)
+    (env : Env) (final : NightstreamFPrime.Lifecycle.Transcript.State)
+    (trace : Formal.TraceHolds (evalState env Hash.zeroE)
+      ((domainActions domain interface offset).map (Formal.Action.eval env)) final) :
+    final = NightstreamFPrime.Lifecycle.Transcript.absorb
+      (NightstreamFPrime.Lifecycle.Transcript.absorb
+        NightstreamFPrime.Lifecycle.Transcript.initialState domain)
+      (ProductionKey.publicInputBlocks (evalFresh (interface.fresh offset) env)).flatten := by
+  change Formal.TraceHolds
+      (Absorb.reference
+        (Absorb.reference (evalState env Hash.zeroE)
+          (Hash.evalList env (constantWords domain)))
+        (Hash.evalList env (publicInputBlocks interface offset).flatten))
+      [] final at trace
+  have flatEval : Hash.evalList env (publicInputBlocks interface offset).flatten =
+      (ProductionKey.publicInputBlocks (evalFresh (interface.fresh offset) env)).flatten := by
+    rw [← absorbedBlocks_eval interface offset env]
+    simp [Hash.evalList, absorbedBlocks, List.map_flatten]
+    rfl
+  rw [constantWords_eval, eval_zeroE_eq_initialState, reference_eq_absorb,
+    reference_eq_absorb, flatEval] at trace
+  exact trace.symm
+
 end NightstreamFPrime.Lifecycle.PiCCS.v1_2.StatementAbsorption

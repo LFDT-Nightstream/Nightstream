@@ -6,6 +6,7 @@ import NightstreamFPrime.Lifecycle.PiCCS.v1_2.EvalATerminal
 import NightstreamFPrime.Lifecycle.PiCCS.v1_2.NormTerminal
 import NightstreamFPrime.Lifecycle.PiCCS.v1_2.CcsTerminal
 import NightstreamFPrime.Lifecycle.PiCCS.v1_2.FinalIdentity
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.StatementAbsorption
 
 /-! The light Π_CCS leaves (CW-2.2), one per production leaf made generic in the shape. Each
 bridge gives a value of the production light key's Π_CCS statement from the leaf's rows. -/
@@ -206,5 +207,30 @@ theorem terminal_eq (relation : ProductionKey.LogicalRelation logicalWidth publi
         (lightInput relation ajtai running fresh) alpha gamma roundPoint message :=
   FinalIdentity.spec_implies_terminal interface offset env rfl _ alpha roundPoint gamma message
     roundPointEq alphaEq gammaEq evalKEq evalAEq ccsEq normEq specification
+
+/-- The light Π_CCS statement absorption (SuperNeo v1.2 Section 7.3): the generic absorption from
+the light fold domain ends in the light key's prior transcript state, the state its Π_CCS
+challenges start from. The absorbed statement is today's: the prior digest and the fresh blocks,
+1,462 words. -/
+theorem statementState_eq (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (running : Spec.Folding.Nifs.PaperNonInteractive.Running K PaperAlgebra.Commitment
+      (PaperAlgebra.PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits))
+      LightShape)
+    (fresh : Spec.Folding.Nifs.PaperNonInteractive.Fresh PaperAlgebra.Commitment
+      (PaperAlgebra.PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits))
+      LightShape)
+    (interface : StatementAbsorption.Interface logicalWidth publicFits) (offset : Nat)
+    (env : Env) (final : Transcript.State)
+    (freshWords : StatementAbsorption.evalFresh (interface.fresh offset) env =
+      ⟨fresh.commitments, fresh.publicInputs⟩)
+    (trace : Duplex.Formal.TraceHolds (StatementAbsorption.evalState env Hash.zeroE)
+      ((StatementAbsorption.domainActions lightFoldDomainChunk interface offset).map
+        (Duplex.Formal.Action.eval env)) final) :
+    final = (keys relation ajtai).light.absorbPublicInput
+      (keys relation ajtai).light.initialTranscriptState running fresh := by
+  rw [StatementAbsorption.domainTrace_eq lightFoldDomainChunk interface offset env final trace,
+    freshWords]
+  rfl
 
 end NightstreamFPrime.Lifecycle.OptionB.LightPiCCS

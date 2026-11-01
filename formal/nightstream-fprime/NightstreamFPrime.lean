@@ -44,4 +44,5 @@ import NightstreamFPrime.Lifecycle.OptionB.LightSampler
 import NightstreamFPrime.Lifecycle.OptionB.DepthGuard
 import NightstreamFPrime.Lifecycle.OptionB.LightPiCCS
 import NightstreamFPrime.Lifecycle.OptionB.LightPiCCSPhase
+import NightstreamFPrime.Lifecycle.OptionB.LightFold
 import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.ChainBinding

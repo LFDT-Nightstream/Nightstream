@@ -621,6 +621,19 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
      provable Wagner algorithm, not with the heuristic BKZ/sieving model
      used for this profile. Their Dilithium examples give no cost for the
      `1,188 × blockCount` subproblem or the fixed SHAKE128-expanded key.
+     Ding (ePrint 2010/581, Section 2) proposes a polynomial-time
+     linearization for a near-square flat SIS matrix under its stated
+     `w ≥ binom(w − r + 2β + 1, 2β + 1)` condition, with `r` rows, `w`
+     chosen columns and coefficient bound `β`. Here `r = 1,188`.
+     At `β = 8TB − 1 = 113,246,207`, even `w − r = 1` would require
+     `w ≥ 226,492,416`, beyond the 4,708,530-column Rust cap.
+     Choosing a smaller `β` does not make this condition a useful
+     uniform-key attack: it implies `w − r ≤ 17`, `w ≤ 1,205` and
+     `β ≤ 601`. A union bound over every such column subset and nonzero
+     bounded vector has probability below `2^-47,581` for the uniform flat
+     matrix at the Rust cap (arithmetic outside Lean). This excludes that
+     stated near-square regime in the uniform-key game; it neither prices
+     other high-density algorithms nor bounds the fixed SHAKE128 key.
    - If Poseidon2 state-hash collisions are hard to find, then
      `hashCollisions` is small. Collision hardness is also stated for
      algorithms with a strict time bound. Eighteen finders with a strict

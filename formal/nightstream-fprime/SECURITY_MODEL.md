@@ -153,6 +153,10 @@ honest prover algorithm.
     (`Lifecycle.RandomOracleKnowledge.statisticalError_le`), so at `Q = 2^64`
     it is below `2^-51` (about `2^-51.80`;
     `Lifecycle.RandomOracleKnowledge.statisticalError_two_pow_64`).
+    At `Q = 41`, the positive test term alone is
+    `115 · 4589/p² > 2^-109`. Thus this theorem cannot certify a 109-bit
+    one-fold statistical bound for that query budget. This is a limit of
+    the bound, not a 41-query forgery.
   - `Export.Stage1.RandomOracleSetup.msisAdvantage`: the success of an
     explicit MSIS solver on a uniform matrix. It runs the binding reduction
     `Lifecycle.RandomOracleBinding.rerunKernel`, which computes a nonzero

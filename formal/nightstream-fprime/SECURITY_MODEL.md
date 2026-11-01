@@ -762,6 +762,11 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
      adversary on changed oracle answers, so it is not straightline. Their
      theorem therefore does not remove this query growth or justify the
      provisional 64-fold case.
+     Block, Garreta, Tiwari and Zając (ePrint 2023/1256, Theorem 1.3) show
+     that even special soundness of a multi-round IOP need not imply
+     round-by-round knowledge soundness. Thus a one-fold extraction argument
+     alone cannot be used as that stronger history premise. Their separation
+     does not give a forgery for this fixed SuperNeo and HyperNova path.
      Chiesa, Guan, Wang and Wu (ePrint 2026/2209, Theorems 1 and 2) show a
      strict-time black-box rewinding barrier for Kilian-style arguments and
      give an expected-time analysis for interactive, multi-round

@@ -270,4 +270,112 @@ theorem rows_implies_select (env : Env) (input : StepInput logicalWidth publicFi
         | 0, _ => exact priorValue 0 ((nextZero.2 recursiveOne).trans (innerZero.1 selectedZero))
         | 1, other => exact absurd rfl other
 
+/-- The converse of `rows_implies_select`: words with the honest flags and the honest slot
+selections satisfy every slot-select row. The recursive flag is 0 at iteration 0 and 1 with an
+inverse otherwise; the active slot is the selected prior slot; the selected slot's inner words are
+the new claim and the other slot's are its prior words; the next slots are the default slot at
+iteration 0 and the inner words otherwise. -/
+theorem rows_of_select (env : Env)
+    (flags : ((interface.iteration offset).eval env = 0 ∧
+        (interface.recursive offset).eval env = 0) ∨
+      ((interface.iteration offset).eval env * (interface.inverse offset).eval env = 1 ∧
+        (interface.recursive offset).eval env = 1))
+    (selectorBit : (interface.selector offset).eval env = 0 ∨
+      (interface.selector offset).eval env = 1)
+    (pcLink : (interface.recursive offset).eval env = 1 →
+      (interface.priorPc offset).eval env = (interface.selector offset).eval env + 1)
+    (baseState : (interface.recursive offset).eval env = 0 → ∀ index,
+      (interface.initialState offset index).eval env =
+        (interface.currentState offset index).eval env)
+    (activeWords : Hash.evalList env (interface.active offset).words =
+      Hash.evalList env (interface.prior offset (selected interface offset env)).words)
+    (innerSelected : Hash.evalList env (interface.inner offset (selected interface offset env)).words =
+      Hash.evalList env (interface.new offset).words)
+    (innerOther : ∀ slot, slot ≠ selected interface offset env →
+      Hash.evalList env (interface.inner offset slot).words =
+        Hash.evalList env (interface.prior offset slot).words)
+    (nextBase : (interface.recursive offset).eval env = 0 → ∀ slot,
+      Hash.evalList env (interface.next offset slot).words =
+        Hash.evalList env (defaultWords (publicFits := publicFits)))
+    (nextRecursive : (interface.recursive offset).eval env = 1 → ∀ slot,
+      Hash.evalList env (interface.next offset slot).words =
+        Hash.evalList env (interface.inner offset slot).words) :
+    ConstraintsHold env (rows interface offset) := by
+  have length := fun slot : SlotExpr logicalWidth publicFits => slot.words_length
+  have recursiveBit : (interface.recursive offset).eval env = 0 ∨
+      (interface.recursive offset).eval env = 1 := by
+    rcases flags with ⟨_, zero⟩ | ⟨_, one⟩
+    · exact Or.inl zero
+    · exact Or.inr one
+  have selectedZero : (interface.selector offset).eval env = 0 →
+      selected interface offset env = 0 := fun zero => by
+    unfold selected
+    rw [zero]
+    decide
+  have selectedOne : (interface.selector offset).eval env = 1 →
+      selected interface offset env = 1 := fun one => by
+    unfold selected
+    rw [one]
+    decide
+  refine (constraintsHold_append env _ _).mpr
+    ⟨(constraintsHold_append env _ _).mpr ⟨?_, ?_⟩, ?_⟩
+  · intro row member
+    simp only [flagRows, List.mem_cons, List.not_mem_nil, or_false] at member
+    rcases member with rfl | rfl | rfl | rfl <;>
+      simp only [Expr.eval_sub, Expr.eval_hmul, eval_one]
+    · rcases flags with ⟨zero, recursiveZero⟩ | ⟨product, recursiveOne⟩
+      · rw [zero, recursiveZero, zero_mul, sub_zero]
+      · rw [product, recursiveOne, sub_self]
+    · rcases flags with ⟨zero, _⟩ | ⟨_, recursiveOne⟩
+      · rw [zero, zero_mul]
+      · rw [recursiveOne, sub_self, mul_zero]
+    · rcases selectorBit with zero | one
+      · rw [zero, zero_mul]
+      · rw [one, sub_self, mul_zero]
+    · rcases recursiveBit with zero | one
+      · rw [zero, zero_mul]
+      · rw [one, pcLink one, one_mul, add_sub_cancel_left, sub_self]
+  · intro row member
+    obtain ⟨index, rfl⟩ := (List.mem_ofFn ..).mp member
+    simp only [Expr.eval_hmul, Expr.eval_sub, eval_one]
+    rcases recursiveBit with zero | one
+    · rw [zero, baseState zero index, sub_self, mul_zero]
+    · rw [one, sub_self, zero_mul]
+  · have select := fun (condition : Expr) (left right out : List Expr)
+        (leftLength : left.length = out.length) (rightLength : right.length = out.length) =>
+      selectRows_holds env condition left right out leftLength rightLength
+    refine (constraintsHold_append env _ _).mpr ⟨(constraintsHold_append env _ _).mpr
+      ⟨(constraintsHold_append env _ _).mpr ⟨(constraintsHold_append env _ _).mpr
+        ⟨?_, ?_⟩, ?_⟩, ?_⟩, ?_⟩
+    · apply select _ _ _ _ (by rw [length, length]) (by rw [length, length])
+      rcases selectorBit with zero | one
+      · refine Or.inl ⟨zero, ?_⟩
+        rw [activeWords, selectedZero zero]
+      · refine Or.inr ⟨one, ?_⟩
+        rw [activeWords, selectedOne one]
+    · apply select _ _ _ _ (by rw [length, length]) (by rw [length, length])
+      rcases selectorBit with zero | one
+      · refine Or.inr ⟨by simp [isSelected, zero, eval_one], ?_⟩
+        have words := innerSelected
+        rw [selectedZero zero] at words
+        exact words
+      · refine Or.inl ⟨by simp [isSelected, one, eval_one], ?_⟩
+        exact innerOther 0 (by rw [selectedOne one]; decide)
+    · apply select _ _ _ _ (by rw [length, length]) (by rw [length, length])
+      rcases selectorBit with zero | one
+      · refine Or.inl ⟨by simp [isSelected, zero], ?_⟩
+        exact innerOther 1 (by rw [selectedZero zero]; decide)
+      · refine Or.inr ⟨by simp [isSelected, one], ?_⟩
+        have words := innerSelected
+        rw [selectedOne one] at words
+        exact words
+    · apply select _ _ _ _ (by rw [defaultWords_length, length]) (by rw [length, length])
+      rcases recursiveBit with zero | one
+      · exact Or.inl ⟨zero, nextBase zero 0⟩
+      · exact Or.inr ⟨one, nextRecursive one 0⟩
+    · apply select _ _ _ _ (by rw [defaultWords_length, length]) (by rw [length, length])
+      rcases recursiveBit with zero | one
+      · exact Or.inl ⟨zero, nextBase zero 1⟩
+      · exact Or.inr ⟨one, nextRecursive one 1⟩
+
 end NightstreamFPrime.Lifecycle.OptionB.SlotSelect

@@ -58,4 +58,5 @@ import NightstreamFPrime.Layout.OptionB.LightPiCCSCompleteness
 import NightstreamFPrime.Layout.OptionB.LightRlcBounds
 import NightstreamFPrime.Layout.OptionB.LightRlcCompleteness
 import NightstreamFPrime.Layout.OptionB.LightStepBounds
+import NightstreamFPrime.Layout.OptionB.LightStepCompleteness
 import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.ChainBinding

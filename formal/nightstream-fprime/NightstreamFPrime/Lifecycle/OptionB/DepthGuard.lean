@@ -52,6 +52,39 @@ theorem word_lt_cap (interface : CanonicalU64.Interface) (env : Env) (offset : N
   simp only [productionLightFoldCap]
   omega
 
+/-- The converse of `weightedValue_zero`: a zero weighted value has zero bits. -/
+theorem bits_zero_of_weightedValue_zero (env : Env) (offset start : Nat) :
+    ∀ count, CanonicalU64.weightedValue env offset start count = 0 →
+      ∀ index, index < count → CanonicalU64.bitValue env offset (start + index) = 0
+  | 0, _, _, bound => absurd bound (Nat.not_lt_zero _)
+  | count + 1, zero, index, bound => by
+      simp only [CanonicalU64.weightedValue, List.range_succ, List.foldl_append,
+        List.foldl_cons, List.foldl_nil] at zero
+      obtain ⟨lower, top⟩ := Nat.add_eq_zero_iff.mp zero
+      rcases Nat.lt_succ_iff_lt_or_eq.mp bound with below | rfl
+      · exact bits_zero_of_weightedValue_zero env offset start count lower index below
+      · rcases Nat.mul_eq_zero.mp top with power | bit
+        · exact absurd power (Nat.pow_pos (by decide)).ne'
+        · exact bit
+
+/-- The converse of `word_lt_cap`: a word below the cap has zero bits 6 to 63 in a canonical
+decomposition, so an honest depth word satisfies the high-bit rows. -/
+theorem highBitsZero_of_lt (interface : CanonicalU64.Interface) (env : Env) (offset : Nat)
+    (spec : CanonicalU64.SpecHolds interface offset env)
+    (small : ((interface.source offset).eval env).val < productionLightFoldCap) :
+    HighBitsZero offset env := by
+  have window := CanonicalU64.windowValue_eq interface env offset 6 58 spec (by decide)
+  have smallPower : ((interface.source offset).eval env).val < 2 ^ 6 := by
+    simpa [productionLightFoldCap] using small
+  rw [Nat.div_eq_of_lt smallPower, Nat.zero_mod] at window
+  intro index low high
+  have bit := bits_zero_of_weightedValue_zero env offset 6 58 window (index - 6) (by
+    simp only [CanonicalU64.bitCount] at high
+    omega)
+  rw [Nat.add_sub_cancel' low] at bit
+  apply Fin.ext
+  simpa [CanonicalU64.bitValue] using bit
+
 /-- After a light fold the depth word grows by one; after a refresh it is zero. -/
 theorem next_word (depth : Nat) (step : Step) :
     natWord (nextDepth depth step) =
@@ -91,6 +124,16 @@ private theorem highBit_member (rangeOffset index : Nat) (low : 6 ≤ index)
   · simp only [CanonicalU64.bitCount] at high
     omega
   · rw [Nat.sub_add_cancel low]
+
+theorem highBitOps_varsBelow (rangeOffset : Nat) :
+    ∀ expression ∈ flatConstraints (highBitOps rangeOffset),
+      expression.VarsBelow (rangeOffset + CanonicalU64.bitCount) := by
+  intro expression member
+  simp only [flatConstraints, highBitOps, List.flatMap_map, List.mem_flatMap, List.mem_range,
+    Op.flatConstraints, List.mem_singleton] at member
+  obtain ⟨index, bound, rfl⟩ := member
+  simp only [Expr.VarsBelow, CanonicalU64.bitCount]
+  omega
 
 def highBitsCircuit (rangeOffset : Nat) : FormalCircuit where
   main := fun offset => ((), offset, highBitOps rangeOffset)

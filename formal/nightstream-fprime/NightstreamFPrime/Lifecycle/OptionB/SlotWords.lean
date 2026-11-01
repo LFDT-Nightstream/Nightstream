@@ -114,4 +114,32 @@ theorem selectRows_eval (env : Env) (condition : Expr) :
   | [], _, _ :: _, leftLength, _, _ => by simp at leftLength
   | _ :: _, [], _ :: _, _, rightLength, _ => by simp at rightLength
 
+/-- The converse of `selectRows_eval`: words that copy `left` under a 0 condition, or `right`
+under a 1 condition, satisfy the select rows. -/
+theorem selectRows_holds (env : Env) (condition : Expr) :
+    ∀ (left right out : List Expr), left.length = out.length → right.length = out.length →
+      (condition.eval env = 0 ∧ Hash.evalList env out = Hash.evalList env left) ∨
+        (condition.eval env = 1 ∧ Hash.evalList env out = Hash.evalList env right) →
+      ConstraintsHold env (selectRows condition left right out)
+  | [], [], [], _, _, _ => fun _ member => by simp [selectRows] at member
+  | leftWord :: left, rightWord :: right, outWord :: out, leftLength, rightLength, copy => by
+      simp only [Hash.evalList, List.map_cons, List.cons.injEq] at copy
+      have tail := selectRows_holds env condition left right out
+        (Nat.succ.inj leftLength) (Nat.succ.inj rightLength) (by
+          rcases copy with ⟨zero, _, words⟩ | ⟨one, _, words⟩
+          · exact Or.inl ⟨zero, words⟩
+          · exact Or.inr ⟨one, words⟩)
+      intro row member
+      simp only [selectRows, List.zip_cons_cons, List.map_cons, List.mem_cons] at member
+      rcases member with rfl | member
+      · simp only [Expr.eval_sub, Expr.eval_hmul]
+        rcases copy with ⟨zero, head, _⟩ | ⟨one, head, _⟩
+        · rw [zero, head, zero_mul, sub_zero, sub_self]
+        · rw [one, head, one_mul, sub_self]
+      · exact tail row member
+  | [], _ :: _, [], _, rightLength, _ => by simp at rightLength
+  | _ :: _, _, [], leftLength, _, _ => by simp at leftLength
+  | [], _, _ :: _, leftLength, _, _ => by simp at leftLength
+  | _ :: _, [], _ :: _, _, rightLength, _ => by simp at rightLength
+
 end NightstreamFPrime.Lifecycle.OptionB.SlotWords

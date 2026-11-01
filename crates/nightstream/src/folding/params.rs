@@ -5,7 +5,7 @@ pub(crate) struct Params {
     inner: NeoParams,
     /// The caller's statistical minimum, in bits.
     minimum_security_bits: u32,
-    /// `-log2` of one fold's zero-query statistical error (not floored).
+    /// `-log2` of a conservative one-fold zero-query statistical error (not floored).
     fold_error_bits: f64,
 }
 impl Params {
@@ -36,8 +36,9 @@ impl Params {
             poly_degree,
             neo_params::goldilocks_paper_b2::CHALLENGE_ALPHABET.len() as u32,
         )?;
-        // Lean `RandomOracleKnowledge.statisticalError 0`: the Π_CCS test
-        // error at each of the 2ℓ + 1 + sources transcript challenges
+        // Upper bound for Lean `RandomOracleKnowledge.statisticalError 0`:
+        // the generic field numerator at each of the 2ℓ + 1 + sources
+        // transcript challenges
         // (`RandomOracleUniqueness.challenges_length`), and the Π_RLC sample
         // error `1/|C| + 2^-132` sources² times (`PiRlcSampler.distance_lt`).
         let sources = nightstream_fprime::PI_CCS_V1_2_SOURCE_COUNT as f64;

@@ -1063,8 +1063,12 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
   This is not the current theorem. Even its optimistic sum over 64 folds
   would be about `2^-104.003` before the other errors, below the requested
   110-bit level.
-  Rust's profile gate (`Params::for_ccs_shape`) charges this `Q = 0` term:
-  `ε_test` at the 74 challenges and the Π_RLC sample error 17² times. The
+  For the reference application, Rust's profile gate (`Params::for_ccs_shape`)
+  charges a conservative upper bound on this `Q = 0` term. Its generic field
+  numerator is `5161`, rather than the selected `ε_test` numerator `4589`,
+  at the 74 challenges. It also charges an upper bound on the Π_RLC sample
+  error 17² times. The gate gives
+  about 109.45 bits against Lean's selected bound of about 109.62 bits. The
   selected profile thus accepts at most a 109-bit minimum, and
   `compression_security_bits` subtracts the same term from the requested
   budget (`statistical_security_redteam`). Oracle queries, fold depth and the

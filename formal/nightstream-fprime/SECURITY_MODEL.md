@@ -363,6 +363,22 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
    scalar is the existing sampler applied to an oracle answer; its law is
    within `2^-132` of uniform on the strong set
    (`Spec.Folding.Nifs.NonInteractive.PiRlcSampler.distance_lt`).
+   The F′ circuit also computes Poseidon2 while it checks the prior Π_CCS
+   fold (`Lifecycle.Stage1.Formal.piCcsChild`), and the reference application
+   computes Poseidon2 (`Lifecycle.Stage1.Poseidon2HashChainV1.step`). The
+   random-oracle theorem fixes `ProductionKey.LogicalRelation` before drawing
+   the ideal challenge oracle (`Lifecycle.RandomOracleKnowledge`); it does not
+   model a circuit that queries that same ideal oracle. Arnon and Yogev
+   (ePrint 2025/329, Section 2.4) and Ghosal et al. (ePrint 2026/2114,
+   Section 2.1) explain how a computation that evaluates its own
+   Fiat–Shamir hash can predict a challenge in diagonalization attacks on
+   recursive proof systems. Their examples also need a way to turn that
+   prediction into an accepted false output. No such path has been found in
+   the fixed F′ or reference application, but the theorem above does not
+   prove soundness when the ideal oracle is instantiated by the same
+   Poseidon2 that the circuit computes. This concrete recursive
+   Fiat–Shamir premise remains open even with the state-hash domain
+   separation proved above.
 2. **SHAKE128 as a random oracle (premise P1).** For every setup, each key
    coefficient is one SHAKE128 output chunk reduced modulo `p`
    (`Spec.AjtaiSetupV1.Programming.verifierKey_eq`). The

@@ -5,6 +5,7 @@ import NightstreamFPrime.Lifecycle.PiCCS.v1_2.EvalKTerminal
 import NightstreamFPrime.Lifecycle.PiCCS.v1_2.EvalATerminal
 import NightstreamFPrime.Lifecycle.PiCCS.v1_2.NormTerminal
 import NightstreamFPrime.Lifecycle.PiCCS.v1_2.CcsTerminal
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.FinalIdentity
 
 /-! The light Π_CCS leaves (CW-2.2), one per production leaf made generic in the shape. Each
 bridge gives a value of the production light key's Π_CCS statement from the leaf's rows. -/
@@ -89,7 +90,8 @@ variable (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
 
 /-- The light statement's verifier input (SuperNeo v1.2 Section 7.3). -/
 noncomputable abbrev lightInput :=
-  ((keys relation ajtai).light.statement running fresh).verifierInput (keys relation ajtai).light.lift
+  ((keys relation ajtai).light.statement running fresh).verifierInput
+    (keys relation ajtai).light.lift
 
 /-- `E_K` of the light Π_CCS from the generic `Eval_K` terminal: 54 output coefficients. -/
 theorem padAtMessage_eq (interface : EvalKTerminal.ShapeInterface LightShape) (offset : Nat)
@@ -160,5 +162,49 @@ theorem ccsAtMessage_eq_singleFresh (input : ProtocolPolynomial.VerifierInput K 
     HyperNova.Construction2.OptionBFolds.lightShape, productionShape,
     productionProfile, Phi81MatrixSource.phi81Shape, lightFreshIndex,
     extensionLaws.one_mul, extensionLaws.add_zero]
+
+/-- The light final identity's `γ` exponents: 54 for `E_A` and 270 = 54 × 5 for the constraint
+terms, against 864 and 4,320 today (`FinalIdentity.matrixExponent_eq`,
+`FinalIdentity.constraintExponent_eq`). -/
+theorem light_exponents :
+    FinalIdentity.matrixExponentOf LightShape = 54 ∧
+      FinalIdentity.constraintExponentOf LightShape = 270 :=
+  ⟨rfl, rfl⟩
+
+/-- The light Π_CCS terminal `v = Q(r')` (SuperNeo v1.2 Section 7.3, Step 4) from the generic
+final identity. -/
+theorem terminal_eq (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (running : Spec.Folding.Nifs.PaperNonInteractive.Running K PaperAlgebra.Commitment
+      (PaperAlgebra.PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits))
+      LightShape)
+    (fresh : Spec.Folding.Nifs.PaperNonInteractive.Fresh PaperAlgebra.Commitment
+      (PaperAlgebra.PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits))
+      LightShape)
+    (interface : FinalIdentity.ShapeInterface LightShape) (offset : Nat) (env : Env)
+    (alpha roundPoint : CubePoint K LightShape.cubeVariables) (gamma : K)
+    (message : ProtocolPolynomial.OutputMessage K LightShape)
+    (roundPointEq : PointEquality.Owned.evalLeftPoint
+      (FinalIdentity.pointInterfaceAt interface offset) offset env = roundPoint)
+    (alphaEq : PointEquality.Owned.evalRightPoint
+      (FinalIdentity.pointInterfaceAt interface offset) offset env = alpha)
+    (gammaEq : (interface.gamma offset).eval env = gamma)
+    (evalKEq : (interface.eval_K offset).eval env =
+      ProtocolPolynomial.padAtMessage extensionOps (lightInput relation ajtai running fresh)
+        gamma roundPoint message)
+    (evalAEq : (interface.eval_A offset).eval env =
+      ProtocolPolynomial.matrixAtMessage extensionOps (lightInput relation ajtai running fresh)
+        gamma roundPoint message)
+    (ccsEq : (interface.ccs offset).eval env =
+      ProtocolPolynomial.ccsAtMessage extensionOps (lightInput relation ajtai running fresh)
+        gamma message)
+    (normEq : (interface.norm offset).eval env =
+      ProtocolPolynomial.normAtMessage extensionOps gamma message)
+    (specification : FinalIdentity.SpecHolds interface offset env) :
+    (interface.terminal offset).eval env =
+      ProtocolPolynomial.terminalFromMessage extensionOps
+        (lightInput relation ajtai running fresh) alpha gamma roundPoint message :=
+  FinalIdentity.spec_implies_terminal interface offset env rfl _ alpha roundPoint gamma message
+    roundPointEq alphaEq gammaEq evalKEq evalAEq ccsEq normEq specification
 
 end NightstreamFPrime.Lifecycle.OptionB.LightPiCCS

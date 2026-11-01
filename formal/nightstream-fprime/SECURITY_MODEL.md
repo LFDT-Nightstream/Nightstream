@@ -349,6 +349,14 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
    (ePrint 2026/409) report no forgery from their coupled Poseidon and
    Fiat–Shamir algebraic experiments, even with reduced rounds. Those
    negative experiments are not a security reduction for this transcript.
+   Li, Liu and Wang (ePrint 2026/1792, Sections 4.2–4.3) extend algebraic
+   subspace attacks to nonlinear trails. Their `p ≈ 2^64` sponge estimates use
+   a cubic S-box and six full rounds; their highlighted `x^7` cases use
+   `p ≈ 2^256`. Neither matches this 16-word Goldilocks, `x^7`, eight-full,
+   22-partial-round profile. Their CICO preimage model also does not analyze
+   the additive duplex's intermediate challenge reads. Its improved method
+   remains relevant, but its reported round counts do not give a selected
+   attack cost or prove the oracle premise here.
    The same sponge also computes the state hash, which the theorem
    treats as a concrete function. The state hash is a four-lane read after its
    own call list (`Lifecycle.TranscriptCoverage.stateHash_eq_run`), and the

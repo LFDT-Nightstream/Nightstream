@@ -1,5 +1,6 @@
 import NightstreamFPrime.Lifecycle.OptionB.LightRlcLayout
 import NightstreamFPrime.Lifecycle.OptionB.SlotSelect
+import NightstreamFPrime.Lifecycle.OptionB.LightStep
 
 /-! The light step circuit's layout (CW-2.5d, d5a). The step's shared words (the counters and
 selector, the key digests, the states and the application witness, the prior, active, inner and

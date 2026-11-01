@@ -177,7 +177,7 @@ theorem rows_implies_stepHolds
     (LightStepLayout.selectOffset program relation circuit interface offset) env input output
     selectRows represents.iteration represents.iterationBound represents.priorPc
     represents.priorPcBound represents.initialState represents.currentState represents.priorSlots
-    represents.priorDepth represents.nextSlots represents.nextDepth rfl
+    represents.priorDepth represents.nextSlots represents.nextDepth
   have nextEq : (((LightStepLayout.selectInterface program relation circuit interface offset).new
       (LightStepLayout.selectOffset program relation circuit interface offset)).value env).1 =
       LightFold.nextSlot (piccsLeaves program relation circuit interface offset)

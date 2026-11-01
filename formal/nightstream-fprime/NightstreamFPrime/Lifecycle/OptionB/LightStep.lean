@@ -7,9 +7,8 @@ import NightstreamFPrime.Lifecycle.Stage1.Application
 words that represent the step's input and output, and the slot-select spec give the light case
 of `stepHolds_iff` (HyperNova Construction 2 with option B's two slots). The application gadget
 is today's (`Stage1.Application`); its validity predicate is the dispatch `control zi w =
-circuit`. `SelectSpec` is the spec of the slot-select rows that CW-2.5d builds: at iteration 0
-they output the initial state and the default slots; otherwise they write the fold's claim and
-the incremented depth word into the prior circuit's slot and copy the other slot. -/
+circuit`. The slot-select rows give `SelectSpec` with the incremented depth word as the next
+depth. -/
 
 namespace NightstreamFPrime.Lifecycle.OptionB.LightStep
 
@@ -112,19 +111,6 @@ structure Represents (leaves : Leaves logicalWidth publicFits witnessWordCount) 
   recursive : input.iteration ≠ 0 →
     input.nifsProof = .light proof ∧ (input.running selected).2 < goldilocksModulus
 
-/-- The spec of the slot-select rows (CW-2.5d): at iteration 0 the initial state is the
-current state and both slots are the default slot at depth 0; otherwise the prior circuit is
-`selected`, its slot takes `next` and the value of the incremented depth word, and the other
-slot is copied. -/
-structure SelectSpec (selected : Fin 2) (next : SlotClaim logicalWidth publicFits)
-    (depthWord : F) : Prop where
-  base : input.iteration = 0 →
-    input.z0 = input.zi ∧ output.runningNext = fun _ => (defaultSlot, 0)
-  recursive : input.iteration ≠ 0 →
-    input.priorPc = selected.val + 1 ∧ (output.runningNext selected).1 = next ∧
-      (output.runningNext selected).2 = (depthWord + 1).val ∧
-      ∀ slot, slot ≠ selected → output.runningNext slot = input.running slot
-
 /-- Soundness of the light step circuit: its rows, its words and the slot select give the step
 relation of a light circuit (`stepHolds_iff`) at the production cap. -/
 theorem spec_implies_stepHolds (light : BoundedDepth.circuitStep circuit = .light)
@@ -133,7 +119,7 @@ theorem spec_implies_stepHolds (light : BoundedDepth.circuitStep circuit = .ligh
     (specification : SpecHolds (circuitKeys selected).relation step control circuit leaves env)
     (represents : Represents ajtai circuitKeys circuit input output leaves selected proof env)
     (select : SelectSpec input output selected (LightFold.nextSlot leaves.piccs leaves.rlc env)
-      ((leaves.depth.source leaves.depthOffset).eval env)) :
+      ((leaves.depth.source leaves.depthOffset).eval env + 1).val) :
     StepHolds Folding.Schedule.productionLightFoldCap ajtai circuitKeys step control circuit input
       output := by
   rw [stepHolds_iff]

@@ -1,5 +1,5 @@
 import NightstreamFPrime.Lifecycle.OptionB.SlotWords
-import NightstreamFPrime.Lifecycle.OptionB.LightStep
+import NightstreamFPrime.Lifecycle.OptionB.Step
 import NightstreamFPrime.Spec.GoldilocksPrime
 
 /-! The slot-select gadget of the light step (CW-2.5d, d4b). It allocates no variables: the step
@@ -10,7 +10,7 @@ selector `s`, the prior pc `r · (pc - s - 1) = 0`, the base state `(1 - r) · (
 five word selections: the active slot from the prior slots, each slot's inner words (the new
 claim for the selected slot, the prior slot otherwise), and each next slot (the default slot at
 iteration 0, the inner words otherwise). That is 5 × 2,055 + 8 rows. `rows_implies_select` gives
-`LightStep.SelectSpec` and the active slot from the rows and the words' values. -/
+`SelectSpec` and the active slot from the rows and the words' values. -/
 
 namespace NightstreamFPrime.Lifecycle.OptionB.SlotSelect
 
@@ -149,8 +149,8 @@ private theorem natWord_eq_zero {count : Nat} (bound : count < goldilocksModulus
   · rintro rfl
     rfl
 
-/-- The slot-select rows, with the words' values, give `LightStep.SelectSpec` for the selected
-slot and show that the active slot is the selected prior slot. -/
+/-- The slot-select rows, with the words' values, give `SelectSpec` for the selected slot, with
+the new slot's claim and depth, and show that the active slot is the selected prior slot. -/
 theorem rows_implies_select (env : Env) (input : StepInput logicalWidth publicFits)
     (output : StepOutput logicalWidth publicFits)
     (holds : ConstraintsHold env (rows interface offset))
@@ -167,10 +167,9 @@ theorem rows_implies_select (env : Env) (input : StepInput logicalWidth publicFi
     (priorDepth : ∀ slot, (input.running slot).2 < goldilocksModulus)
     (nextWords : ∀ slot, Hash.evalList env (interface.next offset slot).words =
       serializeSlot (output.runningNext slot))
-    (nextDepth : ∀ slot, (output.runningNext slot).2 < goldilocksModulus)
-    (newDepth : (interface.new offset).depth = (interface.active offset).depth + 1) :
-    LightStep.SelectSpec input output (selected interface offset env)
-        ((interface.new offset).value env).1 ((interface.active offset).depth.eval env) ∧
+    (nextDepth : ∀ slot, (output.runningNext slot).2 < goldilocksModulus) :
+    SelectSpec input output (selected interface offset env)
+        ((interface.new offset).value env).1 ((interface.new offset).value env).2 ∧
       (interface.active offset).value env = input.running (selected interface offset env) := by
   obtain ⟨front, wordHolds⟩ := (constraintsHold_append env _ _).mp holds
   obtain ⟨flagHolds, baseHolds⟩ := (constraintsHold_append env _ _).mp front
@@ -244,13 +243,10 @@ theorem rows_implies_select (env : Env) (input : StepInput logicalWidth publicFi
       have selectedOne : (isSelected interface offset 1).eval env = 0 := by
         simp [isSelected, zero]
       have nextValue := newValue 0 ((nextZero.2 recursiveOne).trans (innerZero.2 selectedZero))
-      refine ⟨?_, congrArg Prod.fst nextValue, ?_, fun slot other => ?_⟩
+      refine ⟨?_, congrArg Prod.fst nextValue, congrArg Prod.snd nextValue,
+        fun slot other => ?_⟩
       · rw [zero, zero_add] at pc
         exact natWord_injective pcBound (by decide) (pc.trans rfl)
-      · rw [congrArg Prod.snd nextValue]
-        change ((interface.new offset).depth.eval env).val = _
-        rw [newDepth]
-        rfl
       · match slot, other with
         | 1, _ => exact priorValue 1 ((nextOne.2 recursiveOne).trans (innerOne.1 selectedOne))
     · rw [show selected interface offset env = 1 by unfold selected; rw [one]; decide]
@@ -259,13 +255,10 @@ theorem rows_implies_select (env : Env) (input : StepInput logicalWidth publicFi
       have selectedOne : (isSelected interface offset 1).eval env = 1 := by
         simp [isSelected, one]
       have nextValue := newValue 1 ((nextOne.2 recursiveOne).trans (innerOne.2 selectedOne))
-      refine ⟨?_, congrArg Prod.fst nextValue, ?_, fun slot other => ?_⟩
+      refine ⟨?_, congrArg Prod.fst nextValue, congrArg Prod.snd nextValue,
+        fun slot other => ?_⟩
       · rw [one] at pc
         exact natWord_injective pcBound (by decide) (pc.trans rfl)
-      · rw [congrArg Prod.snd nextValue]
-        change ((interface.new offset).depth.eval env).val = _
-        rw [newDepth]
-        rfl
       · match slot, other with
         | 0, _ => exact priorValue 0 ((nextZero.2 recursiveOne).trans (innerZero.1 selectedZero))
         | 1, other => exact absurd rfl other

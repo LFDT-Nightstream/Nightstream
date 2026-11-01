@@ -190,6 +190,20 @@ abbrev StepOutput (logicalWidth : Nat)
       ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth) :=
   Paper.Output Digest AppState (SlotData logicalWidth publicFits) 2
 
+/-- The spec of the slot-select rows: at iteration 0 the initial state is the current state and
+both slots are the default slot at depth 0; otherwise the prior circuit is `selected`, its slot
+takes the fold's claim `next` at depth `nextDepth`, and the other slot is copied. The light step
+writes the incremented depth word and the refresh step writes 0. -/
+structure SelectSpec (input : StepInput logicalWidth publicFits)
+    (output : StepOutput logicalWidth publicFits) (selected : Fin 2)
+    (next : SlotClaim logicalWidth publicFits) (nextDepth : Nat) : Prop where
+  base : input.iteration = 0 →
+    input.z0 = input.zi ∧ output.runningNext = fun _ => (defaultSlot, 0)
+  recursive : input.iteration ≠ 0 →
+    input.priorPc = selected.val + 1 ∧ (output.runningNext selected).1 = next ∧
+      (output.runningNext selected).2 = nextDepth ∧
+      ∀ slot, slot ≠ selected → output.runningNext slot = input.running slot
+
 /-- Option B's step relation for circuit `circuit`. -/
 noncomputable def StepHolds (cap : Nat)
     (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))

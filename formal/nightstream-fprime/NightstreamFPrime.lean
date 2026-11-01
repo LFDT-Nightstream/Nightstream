@@ -55,6 +55,7 @@ import NightstreamFPrime.Lifecycle.OptionB.LightStepSoundness
 import NightstreamFPrime.Layout.OptionB.LightAssembler
 import NightstreamFPrime.Layout.OptionB.LightAssemblerSource
 import NightstreamFPrime.Layout.OptionB.LightAssemblerCompleteness
+import NightstreamFPrime.Layout.OptionB.LightAssemblerCircuit
 import NightstreamFPrime.Layout.OptionB.LightPiCCSBounds
 import NightstreamFPrime.Layout.OptionB.LightPiCCSCompleteness
 import NightstreamFPrime.Layout.OptionB.LightRlcBounds

@@ -142,4 +142,33 @@ theorem selectRows_holds (env : Env) (condition : Expr) :
   | [], _, _ :: _, leftLength, _, _ => by simp at leftLength
   | _ :: _, [], _ :: _, _, rightLength, _ => by simp at rightLength
 
+/-- The select rows read only the condition and the three word lists, so they hold again when
+those keep their values. -/
+theorem selectRows_congr (left right : Env) (condition : Expr)
+    (conditionEq : condition.eval right = condition.eval left) :
+    ∀ (first second out : List Expr),
+      Hash.evalList right first = Hash.evalList left first →
+      Hash.evalList right second = Hash.evalList left second →
+      Hash.evalList right out = Hash.evalList left out →
+      ConstraintsHold left (selectRows condition first second out) →
+      ConstraintsHold right (selectRows condition first second out)
+  | firstWord :: first, secondWord :: second, outWord :: out, firstEq, secondEq, outEq, holds => by
+      simp only [Hash.evalList, List.map_cons, List.cons.injEq] at firstEq secondEq outEq
+      have tail := selectRows_congr left right condition conditionEq first second out
+        firstEq.2 secondEq.2 outEq.2
+        (fun row member => holds row (by
+          simp only [selectRows, List.zip_cons_cons, List.map_cons, List.mem_cons]
+          exact Or.inr member))
+      intro row member
+      simp only [selectRows, List.zip_cons_cons, List.map_cons, List.mem_cons] at member
+      rcases member with rfl | member
+      · have head := holds _ (List.mem_cons_self ..)
+        simp only [Expr.eval_sub, Expr.eval_hmul] at head ⊢
+        rw [conditionEq, firstEq.1, secondEq.1, outEq.1]
+        exact head
+      · exact tail row member
+  | [], _, _, _, _, _, _ => fun _ member => by simp [selectRows] at member
+  | _ :: _, [], _, _, _, _, _ => fun _ member => by simp [selectRows] at member
+  | _ :: _, _ :: _, [], _, _, _, _ => fun _ member => by simp [selectRows] at member
+
 end NightstreamFPrime.Lifecycle.OptionB.SlotWords

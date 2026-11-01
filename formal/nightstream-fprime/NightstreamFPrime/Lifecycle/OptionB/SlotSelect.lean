@@ -378,4 +378,73 @@ theorem rows_of_select (env : Env)
       · exact Or.inl ⟨zero, nextBase zero 1⟩
       · exact Or.inr ⟨one, nextRecursive one 1⟩
 
+/-- The slot-select rows hold again on values that keep every word the rows read: the counters,
+the selector, the states and every slot's words. -/
+theorem rows_congr (left right : Env)
+    (iterationEq : (interface.iteration offset).eval right = (interface.iteration offset).eval left)
+    (inverseEq : (interface.inverse offset).eval right = (interface.inverse offset).eval left)
+    (recursiveEq : (interface.recursive offset).eval right = (interface.recursive offset).eval left)
+    (pcEq : (interface.priorPc offset).eval right = (interface.priorPc offset).eval left)
+    (selectorEq : (interface.selector offset).eval right = (interface.selector offset).eval left)
+    (initialEq : ∀ index,
+      (interface.initialState offset index).eval right =
+        (interface.initialState offset index).eval left)
+    (currentEq : ∀ index,
+      (interface.currentState offset index).eval right =
+        (interface.currentState offset index).eval left)
+    (priorEq : ∀ slot, Hash.evalList right (interface.prior offset slot).words =
+      Hash.evalList left (interface.prior offset slot).words)
+    (activeEq : Hash.evalList right (interface.active offset).words =
+      Hash.evalList left (interface.active offset).words)
+    (newEq : Hash.evalList right (interface.new offset).words =
+      Hash.evalList left (interface.new offset).words)
+    (innerEq : ∀ slot, Hash.evalList right (interface.inner offset slot).words =
+      Hash.evalList left (interface.inner offset slot).words)
+    (nextEq : ∀ slot, Hash.evalList right (interface.next offset slot).words =
+      Hash.evalList left (interface.next offset slot).words)
+    (holds : ConstraintsHold left (rows interface offset)) :
+    ConstraintsHold right (rows interface offset) := by
+  obtain ⟨front, wordHolds⟩ := (constraintsHold_append left _ _).mp holds
+  obtain ⟨flagHolds, baseHolds⟩ := (constraintsHold_append left _ _).mp front
+  have defaultEq : Hash.evalList right (defaultWords (publicFits := publicFits)) =
+      Hash.evalList left (defaultWords (publicFits := publicFits)) := by
+    rw [defaultWords_eval, defaultWords_eval]
+  have isSelectedEq : ∀ slot, (isSelected interface offset slot).eval right =
+      (isSelected interface offset slot).eval left := by
+    intro slot
+    unfold isSelected
+    split_ifs
+    · simp only [Expr.eval_sub, eval_one, selectorEq]
+    · exact selectorEq
+  refine (constraintsHold_append right _ _).mpr
+    ⟨(constraintsHold_append right _ _).mpr ⟨?_, ?_⟩, ?_⟩
+  · intro row member
+    have holdsRow := flagHolds row member
+    simp only [flagRows, List.mem_cons, List.not_mem_nil, or_false] at member
+    rcases member with rfl | rfl | rfl | rfl <;>
+      simp only [Expr.eval_sub, Expr.eval_hmul, eval_one, iterationEq, inverseEq, recursiveEq,
+        pcEq, selectorEq] at holdsRow ⊢ <;>
+      exact holdsRow
+  · intro row member
+    have holdsRow := baseHolds row member
+    obtain ⟨index, rfl⟩ := (List.mem_ofFn ..).mp member
+    simp only [Expr.eval_sub, Expr.eval_hmul, eval_one, recursiveEq, initialEq index,
+      currentEq index] at holdsRow ⊢
+    exact holdsRow
+  · have select := fun (condition : Expr) (conditionEq : condition.eval right = condition.eval left)
+        (first second out : List Expr) => selectRows_congr left right condition conditionEq first
+        second out
+    obtain ⟨first, nextOneRows⟩ := (constraintsHold_append left _ _).mp wordHolds
+    obtain ⟨second, nextZeroRows⟩ := (constraintsHold_append left _ _).mp first
+    obtain ⟨third, innerOneRows⟩ := (constraintsHold_append left _ _).mp second
+    obtain ⟨activeRows, innerZeroRows⟩ := (constraintsHold_append left _ _).mp third
+    refine (constraintsHold_append right _ _).mpr ⟨(constraintsHold_append right _ _).mpr
+      ⟨(constraintsHold_append right _ _).mpr ⟨(constraintsHold_append right _ _).mpr
+        ⟨?_, ?_⟩, ?_⟩, ?_⟩, ?_⟩
+    · exact select _ selectorEq _ _ _ (priorEq 0) (priorEq 1) activeEq activeRows
+    · exact select _ (isSelectedEq 0) _ _ _ (priorEq 0) newEq (innerEq 0) innerZeroRows
+    · exact select _ (isSelectedEq 1) _ _ _ (priorEq 1) newEq (innerEq 1) innerOneRows
+    · exact select _ recursiveEq _ _ _ defaultEq (innerEq 0) (nextEq 0) nextZeroRows
+    · exact select _ recursiveEq _ _ _ defaultEq (innerEq 1) (nextEq 1) nextOneRows
+
 end NightstreamFPrime.Lifecycle.OptionB.SlotSelect

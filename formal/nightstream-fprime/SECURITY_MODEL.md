@@ -446,6 +446,14 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
    width-eight 6-full/7-partial Goldilocks bounty instance. Neither result
    gives a preimage, collision, or cost for this selected 16-word permutation
    or its multi-read transcript.
+   Bak and Hostettler (ePrint 2026/1905, Table 2) improve the bivariate
+   resultant method for CICO-2 under stated heuristics. Their 128-bit table
+   estimates about `2^169` field operations for an eight-word Poseidon2
+   instance with `x^7`, eight full rounds and 22 partial rounds. Its width,
+   two-coordinate CICO experiment and single-permutation mode differ from
+   this selected 16-word additive transcript with intermediate reads. The
+   table neither gives an attack below 110 bits here nor certifies the
+   selected transcript's concrete security.
    Zhao, Sanso, Vitto and Ding (ePrint 2025/1916, Section 4.2 and Table 3)
    speed up Graeffe-based CICO-1 root finding and solve width-eight Goldilocks
    Poseidon2 targets with six full and 7, 8 or 10 partial rounds. Their

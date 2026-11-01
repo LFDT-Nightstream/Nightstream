@@ -844,7 +844,12 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
    proves the premise when `error_mem` is the probability of the event, so
    its content is that `error_mem` is small. The relation computes `η` with
    Poseidon2 inside the proven step, so no random-oracle proof covers it, as
-   for the challenges of trust item 4. The challenge game of adversary 5
+   for the challenges of trust item 4. The `2 · m_mem/q²` term needs the two
+   `K` challenges to be jointly uniform after the roots are fixed. Rust
+   `squeeze_k` takes lane zero from four consecutive Poseidon2 permutation
+   states to form that pair; the circuit constrains the same states. Collision
+   resistance alone does not establish their joint distribution, including
+   when the prover chooses and retries roots. The challenge game of adversary 5
    motivates the target `(Q_η + 1) · (2 · m_mem/q² + ε_coll(t_1))`, where
    `Q_η` counts the evaluations of the `η` transcript, in the circuit and
    outside it, and `ε_coll(t_1)` is the Poseidon2 collision probability at

@@ -714,6 +714,15 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
      adversary on changed oracle answers, so it is not straightline. Their
      theorem therefore does not remove this query growth or justify the
      provisional 64-fold case.
+     Chiesa, Guan, Wang and Wu (ePrint 2026/2209, Theorems 1 and 2) show a
+     strict-time black-box rewinding barrier for Kilian-style arguments and
+     give an expected-time analysis for interactive, multi-round
+     commit-and-open IOP arguments with position-binding commitments. The
+     positive theorem does not analyze the Fiat–Shamir transform, this
+     Ajtai/Poseidon2 NIFS inside F′, or repeated recursive extraction. It
+     therefore supplies no concrete 64-fold bound; its expected-time model
+     is consistent with, but does not prove, `StageAdmitted`'s intended
+     reading.
      Külaots, Lipmaa, Parisella and Siim (ePrint 2026/326, Theorems 6 and 13)
      obtain tight Fiat–Shamir knowledge soundness from a special-sound
      univariate polynomial IOP and a polynomial commitment with the stated
@@ -776,6 +785,15 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
 
 ## Out of scope
 
+- Campanelli, Chakraborty and Ganesh (ePrint 2026/2631, Theorem 5.10)
+  attack simulation soundness of zero-knowledge IVCs whose proofs can be
+  merged after the fact. This review's soundness game asks whether the
+  official verifier accepts a false state; it makes no simulation-soundness
+  or proof-non-malleability claim. The selected HyperNova step links one
+  previous running family to one fresh step (`SPEC.md`, Algorithm 3), and
+  no proof-merging relation is selected. The paper gives no false-state
+  proof for this verifier. A caller that needs non-malleability needs a
+  separate security argument.
 - The layer-1 WHIR query sampler permits two redraws. It fails if the first
   sample and both redraws equal `p − 1` at one query. This is a completeness
   limit. Successful queries consume the same words as Plonky3 and preserve

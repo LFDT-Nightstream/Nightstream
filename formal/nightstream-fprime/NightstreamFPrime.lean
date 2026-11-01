@@ -44,6 +44,8 @@ import NightstreamFPrime.Lifecycle.OptionB.LightSampler
 import NightstreamFPrime.Lifecycle.OptionB.DepthGuard
 import NightstreamFPrime.Lifecycle.OptionB.LightPiCCS
 import NightstreamFPrime.Lifecycle.OptionB.LightPiCCSPhase
+import NightstreamFPrime.Lifecycle.OptionB.RefreshPiCCS
+import NightstreamFPrime.Lifecycle.OptionB.RefreshPiCCSPhase
 import NightstreamFPrime.Lifecycle.OptionB.LightFold
 import NightstreamFPrime.Lifecycle.OptionB.LightStep
 import NightstreamFPrime.Lifecycle.OptionB.LightPiCCSLayout

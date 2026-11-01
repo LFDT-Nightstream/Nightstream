@@ -392,7 +392,10 @@ Each step proves one instance of HyperNova Construction 2's augmented step (`Lif
 
 **Steps.**
 
-1. Require that the key is the key of the verifier's circuit and meets the verifier's security minimum.
+1. Use a key derived from the verifier's circuit or a trusted pin. Check its
+   verifier context, guard bound, matrix size and security minimum. The
+   verifier does not recompute the key's setup root; the caller must not take
+   the key from a prover.
 2. Require that the proof's state is the expected state, and `0 < i < q`.
 3. Verify the shrink proof for the final program of the key and the state.
 

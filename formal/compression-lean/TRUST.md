@@ -55,12 +55,19 @@ The claims bound a probability. They take these as part of the model, not as Lea
   This is the weakest numeric layer.
   Jo (ePrint 2026/891, Corollary 4.6) proves that row-wise interleaving adds
   no affine-line MCA loss, while its separate list-size term remains. The
-  pinned `PrefixProver` calls its witness layout `new_interleaved`, but that
-  constructor places all table columns in one `Poly<F>` using selector bits;
-  `Layout::commit` encodes and commits that single stacked polynomial. Thus
-  the multiple tables do not by themselves create the paper's row-wise
-  interleaved code with an uncharged list size. This does not prove the
-  numeric report or its extension-field and concrete Fiat–Shamir premises.
+  pinned `PrefixProver` first places all table columns in one `Poly<F>` using
+  selector bits. `Layout::commit` then forms a matrix of `2^folding` columns
+  and Reed–Solomon-encodes each column; later WHIR rounds do the same over
+  `Ext` (`p3-sumcheck` 0.8.0 `commit_base`, `p3-whir` 0.8.0
+  `commit_extension`). These rows are a row-wise interleaved code. Each
+  column has at most `k − 1` zeros on a domain of `N = k·2^log_inv_rate`
+  points, so two distinct codewords differ on at least `N − k + 1` rows.
+  The classical Johnson list bound at the selected radius
+  `1 − sqrt(k/N) − sqrt(k/N)/20` therefore applies to this vector alphabet
+  without a width factor; the report charges the conservative
+  `1/(2η sqrt(k/N))` list size. This checks the interleaving factor, not
+  the full numeric report, extension-field assumptions or concrete
+  Fiat–Shamir security.
   The candidates are tables over the base field; candidates over `Ext` are not modeled.
   WHIR's own Fiat–Shamir step is part of its error.
   Chiesa, Guan, Knabenhans and Yu (ePrint 2025/902, Theorem 7.1) derive

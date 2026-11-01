@@ -828,10 +828,14 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
   `p3-security` 0.8.0), so the paper gives no public false proof for this
   profile. Jo (ePrint 2026/891, Corollary 4.6) leaves list size separate for
   row-wise interleaved codes. The selected WHIR witness stacks its tables
-  into one polynomial before encoding and commitment, so that separate
-  interleaved-code list term is not triggered by table count alone
-  (`p3-sumcheck` 0.8.0, `Witness::new_interleaved` and `Layout::commit`).
-  WHIR's numeric report remains an unproved Rust-to-Lean premise.
+  into one polynomial, but each commitment encodes `2^folding` columns as
+  a row-wise interleaved Reed–Solomon code (`p3-sumcheck` 0.8.0
+  `commit_base`, `p3-whir` 0.8.0 `commit_extension`). Its relative minimum
+  row distance is at least `1 − (k − 1)/N` for column degree below `k` and
+  domain height `N`. The classical Johnson list bound is independent of
+  this vector alphabet at the selected below-Johnson radius, so the width
+  does not itself add an uncharged list-size factor. This algebraic check
+  does not prove WHIR's numeric report or its Rust-to-Lean premise.
 - Completeness does not follow from a knowledge bound: a bound on the
   adversary is not evidence that an honest proof is accepted. The honest
   prover has separate results, for every application that fits the `2^28`

@@ -1,14 +1,70 @@
-import NightstreamFPrime.Export.Stage1.PerApplicationStreamingIdentity
+import NightstreamFPrime.Export.NativePoseidon2
+import NightstreamFPrime.Export.Stage1.ApplicationPackage
+import NightstreamFPrime.Export.StreamingIdentity
 
 namespace NightstreamFPrime.Export.Stage1.PerApplicationVerifierContextStreaming
 
 open NightstreamFPrime.Export
 open NightstreamFPrime.Export.Codec
+open NightstreamFPrime.Export.Package
+open NightstreamFPrime.Circuit
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Spec
 
+@[specialize push] def processApplicationPlanWith {State : Type}
+    (push : State → StreamingIdentity.Node → State) (state : State)
+    (plan : ApplicationPackage.Plan) : State :=
+  let state := push state ⟨1, 16⟩
+  let state := push state ⟨0, plan.schemaVersion⟩
+  let state := push state ⟨0, plan.witnessWordCount⟩
+  let state := StreamingIdentity.processEncodedListWith push state nat
+    plan.inputColumns
+  let state := StreamingIdentity.processEncodedListWith push state nat
+    plan.witnessColumns
+  let state := StreamingIdentity.processEncodedListWith push state nat
+    plan.outputColumns
+  let state := push state ⟨0, plan.privateStart⟩
+  let state := push state ⟨0, plan.privateCount⟩
+  let state := push state ⟨0, plan.rowStart⟩
+  let state := push state ⟨0, plan.rowCount⟩
+  let state := StreamingIdentity.processEncodedListWith push state
+    HashChain.format plan.hashChains
+  let state := StreamingIdentity.processEncodedListWith push state
+    PermutationInvocation.format plan.permutationInvocations
+  let state := StreamingIdentity.processEncodedListWith push state
+    CompactRowTemplate.format plan.compactRowTemplates
+  let state := StreamingIdentity.processEncodedListWith push state
+    CompactRowInvocation.format plan.compactRowInvocations
+  let state := StreamingIdentity.processEncodedListWith push state
+    WitnessBatch.format plan.witnessBatches
+  let state := StreamingIdentity.processEncodedListWith push state
+    WitnessInstruction.format plan.witnessInstructions
+  StreamingIdentity.processEncodedListWith push state SparseRow.format
+    plan.assertionRows
+
+theorem processApplicationPlanWith_eq_processValueWith {State : Type}
+    (push : State → StreamingIdentity.Node → State) (state : State)
+    (plan : ApplicationPackage.Plan) :
+    processApplicationPlanWith push state plan =
+      StreamingIdentity.processValueWith push
+        (ApplicationPackage.Plan.format.encode plan) state := by
+  cases plan
+  dsimp only [processApplicationPlanWith, ApplicationPackage.Plan.format]
+  rw [StreamingIdentity.processEncodedListWith_eq_processValueWith,
+    StreamingIdentity.processEncodedListWith_eq_processValueWith,
+    StreamingIdentity.processEncodedListWith_eq_processValueWith,
+    StreamingIdentity.processEncodedListWith_eq_processValueWith,
+    StreamingIdentity.processEncodedListWith_eq_processValueWith,
+    StreamingIdentity.processEncodedListWith_eq_processValueWith,
+    StreamingIdentity.processEncodedListWith_eq_processValueWith,
+    StreamingIdentity.processEncodedListWith_eq_processValueWith,
+    StreamingIdentity.processEncodedListWith_eq_processValueWith,
+    StreamingIdentity.processEncodedListWith_eq_processValueWith]
+  simp only [StreamingIdentity.processValueWith, List.foldl_cons,
+    List.foldl_nil, List.length_cons, List.length_nil]
+
 def applicationPlanNodeCount (plan : ApplicationPackage.Plan) : Nat :=
-  PerApplicationStreamingIdentity.processApplicationPlanWith
+  processApplicationPlanWith
     StreamingIdentity.countNode 0 plan
 
 theorem applicationPlanNodeCount_eq_nodes_length
@@ -17,7 +73,7 @@ theorem applicationPlanNodeCount_eq_nodes_length
       (StreamingIdentity.nodes
         (ApplicationPackage.Plan.format.encode plan)).length := by
   unfold applicationPlanNodeCount
-  rw [PerApplicationStreamingIdentity.processApplicationPlanWith_eq_processValueWith]
+  rw [processApplicationPlanWith_eq_processValueWith]
   simpa using StreamingIdentity.processValueWith_countNode
     (ApplicationPackage.Plan.format.encode plan) 0
 
@@ -85,13 +141,13 @@ theorem componentInitialState64_denote (component wordCount : Nat) :
 
 def applicationComponentState64 (plan : ApplicationPackage.Plan) :
     NativePoseidon2.HashState64 :=
-  PerApplicationStreamingIdentity.processApplicationPlanWith
+  processApplicationPlanWith
     NativePoseidon2.pushNode64
     (componentInitialState64 2 (applicationAuthorityWordCount plan)) plan
 
 def applicationComponentState (plan : ApplicationPackage.Plan) :
     StreamingIdentity.HashState :=
-  PerApplicationStreamingIdentity.processApplicationPlanWith
+  processApplicationPlanWith
     StreamingIdentity.pushNode
     (componentInitialState 2 (applicationAuthorityWordCount plan)) plan
 
@@ -99,8 +155,8 @@ theorem applicationComponentState64_denote (plan : ApplicationPackage.Plan) :
     (applicationComponentState64 plan).denote =
       applicationComponentState plan := by
   unfold applicationComponentState64 applicationComponentState
-  rw [PerApplicationStreamingIdentity.processApplicationPlanWith_eq_processValueWith,
-    PerApplicationStreamingIdentity.processApplicationPlanWith_eq_processValueWith]
+  rw [processApplicationPlanWith_eq_processValueWith,
+    processApplicationPlanWith_eq_processValueWith]
   have simulation := StreamingIdentity.processValueWith_simulates
     NativePoseidon2.HashState64.denote NativePoseidon2.pushNode64
     StreamingIdentity.pushNode NativePoseidon2.pushNode64_denote
@@ -137,7 +193,7 @@ private theorem applicationComponentStreamedAbsorbed
       (by simp [Poseidon2.rate]) (by simp [Poseidon2.rate])
       (by simp [Poseidon2.rate])]
   unfold applicationComponentState
-  rw [PerApplicationStreamingIdentity.processApplicationPlanWith_eq_processValueWith]
+  rw [processApplicationPlanWith_eq_processValueWith]
   rfl
 
 @[inline] def applicationComponentDigestDirect

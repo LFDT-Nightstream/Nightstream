@@ -9,12 +9,12 @@ Rust in `crates/` implements the protocol and is not proved. Lean emits the circ
 Lean proves these results. `formal/nightstream-fprime/SECURITY_MODEL.md` gives the adversary of each result and what you must trust.
 
 - If the rows of the step circuit hold and the public input matches, the typed step holds (`Export.Stage1.ActualPiDECOutput.selectedRowsAndPublic_imply_step` (`3aad9b2575f40242`)). No hardness premise is used.
-- If the terminal predicate accepts, the opened step is the authenticated NIFS step, or the base step, or a named Poseidon2 state-hash collision occurred (`Export.Stage1.ActualTerminalSecurity.terminal_implies_nifsOrBaseOrCollision` (`455f5269f7b739ba`)).
+- If the terminal predicate accepts, the opened step is the authenticated NIFS step, or the base step, or a named Poseidon2 state-hash collision occurred (`Export.Stage1.ActualTerminalSecurity.terminal_implies_nifsOrBaseOrCollision` (`465547c4110ece83`)).
 - One fold is knowledge sound in the random-oracle model (`Export.Stage1.RandomOracleSetup.production_knowledge_error_lt` (`709bb7698524ce34`)).
-- A false history is accepted with probability at most the sum of the per-stage errors, under HyperNova errata Assumption 1 (`Export.Stage1.HyperNovaFalseAcceptance.probability_bound` (`4106ba4f56189715`), `Export.Stage1.HyperNovaVisitedSecurity.history_failure_le` (`ea7ead2ec7b3627d`)). With the errors that the random-oracle result motivates, this bound is useful for one or two folds only (`SECURITY_MODEL.md`, trust item 4).
-- The honest prover's first proof is accepted, and an accepted proof gives an accepted next proof, for a witness that the application accepts (`Export.Stage1.HyperNovaInitial.initial_accepted` (`cc4df317635879dd`), `Export.Stage1.HyperNovaAcceptedNext.base_extend` (`d7d06d7ddc3a8971`), `Export.Stage1.HyperNovaAcceptedNext.recursive_extend` (`b237776203d41507`)).
+- A false history is accepted with probability at most the sum of the per-stage errors, under HyperNova errata Assumption 1 (`Export.Stage1.HyperNovaFalseAcceptance.probability_bound` (`458fd9cf383f0b1c`), `Export.Stage1.HyperNovaVisitedSecurity.history_failure_le` (`d2f2270875eaf534`)). With the errors that the random-oracle result motivates, this bound is useful for one or two folds only (`SECURITY_MODEL.md`, trust item 4).
+- The honest prover's first proof is accepted, and an accepted proof gives an accepted next proof, for a witness that the application accepts (`Export.Stage1.HyperNovaInitial.initial_accepted` (`4c416aa1688975ec`), `Export.Stage1.HyperNovaAcceptedNext.base_extend` (`3a3740a422af2768`), `Export.Stage1.HyperNovaAcceptedNext.recursive_extend` (`2df5324c2467b676`)).
 - If the final verifier accepts, the F′ claim of the last fold is true, except with probability `calls / 2^t` in the state-restoration experiment at Rust's layer bits `t` (`CompressionLean.Claims.production_bound` (`ab6fab37dd9e07c1`)). For the reference application, each premise of this result is met by a Lean proof, a Lean check of Rust's files, Rust, or a Lean value that compiled code evaluates and the kernel does not check (`CompressionLean.Claims.poseidon2_bound` (`3974c561a95f556a`)). For another application, four premises are open: the parent shape, the honest setup, and that the setup fits and that the key describes it (`formal/compression-lean/STATUS.md`). Idealized WHIR openings, Poseidon2 as a random oracle, Fiat–Shamir inside the final program and a key root that is the honest root of the claims' setup are assumptions (`formal/compression-lean/TRUST.md`, sections 3 and 5).
-- If the memory verifier accepts, the history that the reverse extractor returns is one execution of the claimed memory statement, with memory that is sequentially consistent. The exceptions are the history terms of the fourth result, Poseidon2 collisions in the extracted run, and the error of the memory-round premise (`Export.Stage1.NebulaMemorySecurity.bad_le` (`b2c519e88f779c50`); `SECURITY_MODEL.md`, adversary 5 and trust item 7). Each honest execution has a history that the memory verifier accepts (`Lifecycle.Nebula.MemoryApp.history_of_execution` (`a1ef468b8bc6e701`)).
+- If the memory verifier accepts, the history that the reverse extractor returns is one execution of the claimed memory statement, with memory that is sequentially consistent. The exceptions are the history terms of the fourth result, Poseidon2 collisions in the extracted run, and the error of the memory-round premise (`Export.Stage1.NebulaMemorySecurity.bad_le` (`668998a96f194bd1`); `SECURITY_MODEL.md`, adversary 5 and trust item 7). Each honest execution has a history that the memory verifier accepts (`Lifecycle.Nebula.MemoryApp.history_of_execution` (`a1ef468b8bc6e701`)).
 
 Every audited theorem uses only the axioms `propext`, `Classical.choice` and `Quot.sound`. The repository claims no single security level for the system (`SECURITY_MODEL.md`, Out of scope).
 
@@ -145,6 +145,7 @@ Lean hashes and absorbs field elements, called words. A natural number `n` becom
 - A public input is its 270 words (`Lifecycle.serializePublicInput`). A point of `K^ℓ` is its coordinates in order, `2ℓ` words (`Lifecycle.serializePoint`).
 - An evaluation family is `Eval_K`, 54 elements of `K`, then `Eval_A` matrix by matrix, each 54 elements of `K`: `2 · 5 · d = 540` words (`Lifecycle.serializeEvaluations`).
 - A framed list is its length as one word, then the list (`Lifecycle.VerifierContext.framed`).
+- A package value is its nodes in tree order. Each node is four words: the tag (0 for a number, 1 for an array), then the number or the array length as its low 32 bits, its next 32 bits and the rest (`Export.Package.valuePreimage`).
 
 ### 4.2 The state-hash preimage
 
@@ -172,6 +173,13 @@ A fresh claim's public input encodes a four-word digest in 270 cells (`Lifecycle
 ### 4.4 The verifier context and the verification key
 
 The verifier context binds the relation, the application, the NIFS key and the commitment-key authority (`Lifecycle.VerifierContext.Authority`, `Export.Stage1.PerApplicationCanonicalPackage.verifierContextDescriptor`). Component `i` has the digest `Poseidon2.hash(componentDomain(i) ++ framed(words_i))`, where `componentDomain(i)` is the ASCII bytes of `Nightstream/FPrime/context/v1_1`, one word each, then `i` (`Lifecycle.VerifierContext.componentDigest`). The components are 1 for the relation, 2 for the application, 3 for the NIFS key and 4 for the commitment key.
+
+The application words are the words of the application plan, index 3 of the sealed envelope (`Export.Stage1.PerApplicationCanonicalPackage.applicationAuthorityWords`). Their component digest is the application digest, and it is the only hash of the application (`Export.Stage1.PerApplicationCanonicalPackage.applicationDigest`). The relation words are the words of the relation shape, then the structural identity (`Export.Stage1.PerApplicationCanonicalPackage.relationAuthorityWords`). The structural identity is the Poseidon2 hash of the 29 bytes of `Nightstream/FPrime/package/v2`, one word each, then the words of the structural value (`Export.Package.relationIdentifierValue`, `Export.Stage1.PerApplicationCanonicalPackage.structuralPackageIdentity`). The structural value is the sealed envelope with two changes (`Export.Stage1.PerApplicationCanonicalPackage.structuralValue`):
+
+1. Index 1 holds the fixed package: the package without the witness batches, witness instructions and assertion rows of the application plan (`Export.Stage1.PerApplicationCanonicalPackage.fixedPackage`).
+2. Index 3 holds the application digest as an array of four numbers.
+
+The package is the fixed package with the plan's batches and witness instructions at the end and the plan's rows before the last 5 rows (`Export.Stage1.PerApplicationCanonicalPackage.reassemble_fixedPackage` (`efc7384d709d68a3`)). So the structural value and the plan give the sealed envelope (`Export.Stage1.PerApplicationCanonicalPackage.sealedPackageValue_eq_of_structuralValue_eq` (`54765c0044254dea`)). Equal structural identities give equal envelopes, two structural values with one hash, or two plans with one application digest (`Export.Stage1.PerApplicationSecurity.structuralPackageIdentity_identifies_sealedPackage_or_collision` (`b6e91be13975f6bc`)). Record `decisions/fprime-structural-identity-application-digest.md`.
 
 The descriptor is these words, and its digest `vk` is their Poseidon2 hash (`Lifecycle.VerifierContext.Descriptor.serialize`, `Lifecycle.VerifierContext.digest`). Each byte of a label is one word.
 
@@ -339,7 +347,7 @@ Each step proves one instance of HyperNova Construction 2's augmented step (`Lif
 
 **Rejects.** None. A prover that fails returns an error and leaves the supplied proof unchanged.
 
-**Source.** `crates/nightstream/src/lifecycle/` (not checked against Lean). Lean proves that the honest step is accepted when the application accepts its witness (`Export.Stage1.HyperNovaInitial.initial_accepted` (`cc4df317635879dd`), `Export.Stage1.HyperNovaAcceptedNext.base_extend` (`d7d06d7ddc3a8971`), `Export.Stage1.HyperNovaAcceptedNext.recursive_extend` (`b237776203d41507`)).
+**Source.** `crates/nightstream/src/lifecycle/` (not checked against Lean). Lean proves that the honest step is accepted when the application accepts its witness (`Export.Stage1.HyperNovaInitial.initial_accepted` (`4c416aa1688975ec`), `Export.Stage1.HyperNovaAcceptedNext.base_extend` (`3a3740a422af2768`), `Export.Stage1.HyperNovaAcceptedNext.recursive_extend` (`2df5324c2467b676`)).
 
 ### Algorithm 6. Terminal verifier
 
@@ -357,7 +365,7 @@ Each step proves one instance of HyperNova Construction 2's augmented step (`Lif
 
 **Rejects.** Each step's failure. Rust checks them in this order: the state, the counter, the claim shapes, the public projections, the state hash, the commitments, then the openings and the fresh relation (`crates/nightstream/src/lifecycle/verify.rs`; not checked against Lean).
 
-**Source.** `Lifecycle.Stage1.Terminal.HoldsFor`, the terminal check of HyperNova Construction 2 (`Spec.HyperNova.Construction2.Paper.OuterTerminalTransition`). The initial proof is accepted exactly at `i = 0` and `zi = z0` (`Lifecycle.Stage1.Terminal.holdsFor_bottom_iff` (`8838d0b9d5350a57`)). Acceptance implies the authenticated NIFS step, the base step or a state-hash collision (`Export.Stage1.ActualTerminalSecurity.terminal_implies_nifsOrBaseOrCollision` (`455f5269f7b739ba`)).
+**Source.** `Lifecycle.Stage1.Terminal.HoldsFor`, the terminal check of HyperNova Construction 2 (`Spec.HyperNova.Construction2.Paper.OuterTerminalTransition`). The initial proof is accepted exactly at `i = 0` and `zi = z0` (`Lifecycle.Stage1.Terminal.holdsFor_bottom_iff` (`8838d0b9d5350a57`)). Acceptance implies the authenticated NIFS step, the base step or a state-hash collision (`Export.Stage1.ActualTerminalSecurity.terminal_implies_nifsOrBaseOrCollision` (`465547c4110ece83`)).
 
 ### Algorithm 7. Finish
 

@@ -3,7 +3,7 @@
 From Stdlib Require Import List ZArith Lia.
 Require Import R1CS Columns FullRelation Range MemoryTrace MemoryCatalog TraceRefinement Wasm2
   StraightLineSpec StackSimulation SpecTecCalls CallerSpec CallerRefinement ProgramSpec ProgramEncoding CallContext CallScope Fragment
-  ControlDecode ControlInvariant FrameFacts ControlBridge FrameRows CallRows.
+  ControlDecode ControlInvariant FrameFacts ControlBridge FrameRows BranchRows CallRows.
 Import ListNotations.
 Open Scope Z_scope.
 

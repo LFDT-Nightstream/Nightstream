@@ -363,6 +363,20 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
    (ePrint 2026/409) report no forgery from their coupled Poseidon and
    Fiat–Shamir algebraic experiments, even with reduced rounds. Those
    negative experiments are not a security reduction for this transcript.
+   Grassi, Koschatko and Rechberger (ePrint 2025/954, Section 7.2 and
+   Table 3) analyze Poseidon2 sponge subspace attacks near `p = 2^64` with
+   width 16, capacity four and digest four. Their table fixes a cubic S-box
+   and six full rounds, unlike this `x^7`, eight-full-round profile, and they
+   report no break of the instances they analyze. Their estimated costs do
+   not price this selected tuple or its intermediate transcript reads.
+   Vitto (ePrint 2026/1579, revised 2026-09-18, Sections 5.2 and 6.2)
+   constructs a weak Poseidon matrix after seeing the round constants. The
+   selected Poseidon2 external and internal matrices are fixed independently
+   of the seed-derived constants. For the paper's direct, jointly independent
+   four-full-round CICO-4 prefix construction, Proposition 4 requires
+   `4 · (4 + 1) = 20` matrix actions at width 16, so that construction cannot
+   fit. The paper does not rule out dependent constructions, and neither
+   result bounds this additive duplex with intermediate challenge reads.
    Li, Liu and Wang (ePrint 2026/1792, Sections 4.2–4.3) extend algebraic
    subspace attacks to nonlinear trails. Their `p ≈ 2^64` sponge estimates use
    a cubic S-box and six full rounds; their highlighted `x^7` cases use

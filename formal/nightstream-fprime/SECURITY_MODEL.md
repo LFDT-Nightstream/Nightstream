@@ -663,6 +663,12 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
      boost depth by constructing a different scheme from short chains.
      Neither result shows this protocol is insecure at 64 folds or gives it
      a 64-fold security bound.
+     Maller, Mohnblatt and Zapico (ePrint 2025/1663, Theorem 4) prove
+     polynomial-depth HyperNova knowledge soundness in their open-and-sign
+     random-oracle model, over a two-curve cycle. Its oracle records
+     decompositions of elliptic-curve commitments, and the paper does not
+     instantiate it from a plain hash. This Ajtai and Poseidon2 path has no
+     such oracle, so that theorem supplies no 64-fold bound here.
      Chiesa, Guan, Samocha and Yogev (ePrint 2023/1646, Theorem 1) give a
      small recursion loss for PCD from a relativized argument with a
      straightline knowledge extractor, including oracle calls in the proved

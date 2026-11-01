@@ -889,6 +889,13 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
   are outside the model. Attacks that use the hash inside the circuit (KRS)
   are outside every random-oracle model; the verifier's package key fixes the
   relation.
+  Benedikt and Fischlin (ePrint 2025/1846, Section 8.3) study cheaper
+  multiple forgeries of Fiat–Shamir signatures when a sponge hashes the
+  message before the signer's commitment. The selected Π_CCS transcript
+  absorbs its fixed domain, prior-state digest, fresh commitment and public
+  input before its first challenge (`bind_and_sample_with_trace`). The paper's
+  signature game and hash-order result neither give a false proof for this
+  fixed relation nor bound this transcript's concrete multi-proof security.
 - The adversary is a classical algorithm. Quantum adversaries are not modelled.
   The four-field Poseidon2 state digest has about 256 output bits. A generic
   quantum collision search for an ideal uniform digest takes about

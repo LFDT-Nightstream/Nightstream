@@ -379,6 +379,14 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
      The unstructured lattice estimate does not price attacks that use this
      CRT split. The Module-SIS algorithm of ePrint 2026/2420 is proved for
      power-of-two cyclotomic rings and does not give a cost for this profile.
+     Porter, Mendelsohn and Ling (ePrint 2021/600, Theorem 8) reduce SVP in
+     either prime ideal above `q` to a two-dimensional subfield problem here:
+     `v₃(q − 1) = 1`, so their parameter `r` is zero and `φ(3) = 2`.
+     This does not yield a short word under `8TB`, by the Lean invertibility
+     bound above. Their module extension (Section 6) requires decomposition
+     group symmetry of the target module; a kernel of a uniform matrix is
+     not generally fixed by those automorphisms. This paper gives no cost
+     for the selected random module-SIS kernel.
    - If Poseidon2 state-hash collisions are hard to find, then
      `hashCollisions` is small. Collision hardness is also stated for
      algorithms with a strict time bound. Eighteen finders with a strict

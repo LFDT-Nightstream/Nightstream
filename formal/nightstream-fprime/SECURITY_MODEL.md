@@ -493,6 +493,13 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
      game for the reference application,
      `Export.Stage1.Poseidon2HashChainV1Setup.production_binding_lt_solver` gives an
      MSIS solution for a uniform matrix, with error below `2^-190`.
+     Wee and Wu (ePrint 2024/028, Section 4) attack extractability of other
+     lattice functional commitments by deriving a short-preimage basis from
+     their published setup. This setup publishes a matrix description, not
+     those short preimages, and this theorem uses MSIS binding plus a
+     rewind-based protocol extractor rather than an extractable Ajtai
+     commitment premise. Their attack gives no false proof for this
+     selected verifier and does not close this extractor's recursion bound.
      For the selected Goldilocks prime, `q mod 81 = 4` and
      `ord_81(q) = 27`; thus `Φ₈₁` has two degree-27 factors over `F_q`.
      At the selected MSIS norm `8TB = 113,246,208`, `3(8TB)² < q`.

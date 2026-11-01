@@ -17,6 +17,21 @@ pub(crate) fn private<B: Backend>(b: &mut B, value: Gl) -> B::F {
     b.private(value.as_canonical_u64())
 }
 
+/// The constrained zero bit of `CompressionLean.Circuit.Algebra.isZero`.
+pub(crate) fn is_zero<B: Backend>(b: &mut B, value: B::F) -> Result<B::F, crate::Error> {
+    let inverse = b.hint(&[value], 1, &|words| {
+        vec![Gl::from_u64(words[0])
+            .try_inverse()
+            .map_or(0, |value| value.as_canonical_u64())]
+    })[0];
+    let one = b.constant(1);
+    let product = b.mul(value, inverse);
+    let result = b.sub(one, product);
+    let check = b.mul(value, result);
+    b.assert_zero(check, "zero test")?;
+    Ok(result)
+}
+
 /// `a·by` for a layer-1 field constant.
 pub(crate) fn scale<B: Backend>(b: &mut B, a: B::F, by: Gl) -> B::F {
     b.scale(a, by.as_canonical_u64())

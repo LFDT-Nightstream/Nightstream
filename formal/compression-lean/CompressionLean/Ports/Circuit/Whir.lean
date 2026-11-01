@@ -157,7 +157,13 @@ def weight (c : Constraint) (powers randomness : Array ExtVar) : Build ExtVar :=
 end Constraint
 
 def queryIndex (width : ℕ) : Transcript (Array Var × Var) := do
-  let sample ← Duplex.sample
+  let mut sample ← Duplex.sample
+  for _ in [0:2] do
+    let one ← Build.const 1
+    let shifted ← Build.add sample one
+    let rejected ← Algebra.isZero shifted
+    let next ← Duplex.sampleIf rejected
+    sample ← Build.select rejected sample next
   let one ← Build.const 1
   let shifted ← Build.add sample one
   let zeroWord ← Build.const 0

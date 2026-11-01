@@ -20,10 +20,18 @@ def whirSumcheck (shape : SumcheckShape) (pairs : Array (Ext × Ext)) : ReplayM 
       observeExts #[pair.1, pair.2]
       let _ ← sampleExt
 
+def querySample : Nat → ReplayM Word
+  | 0 => do
+      let word ← sampleWord
+      ensure (!(word + 1 == 0)) "WHIR query retry limit"
+      pure word
+  | retries + 1 => do
+      let word ← sampleWord
+      if word + 1 == 0 then querySample retries else pure word
+
 def whirQueries (draws : Nat) : ReplayM Unit :=
   (List.range draws).forM fun _ => do
-    let word ← sampleWord
-    ensure (!(word + 1 == 0)) "WHIR query sample p - 1"
+    let word ← querySample 2
     record (.sample word)
 
 def whirTranscript (shape : WhirShape) (o : Opening) : ReplayM Unit := do

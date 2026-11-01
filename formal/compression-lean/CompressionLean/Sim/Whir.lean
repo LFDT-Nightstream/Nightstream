@@ -233,32 +233,80 @@ theorem Whir.absorb_tracks (hp : Permutes c.perm) (words : Array Word) :
   unfold Whir.absorb
   exact Tracks.bindLast (Duplex.observeConsts_tracks hp words) fun _ _ _ _ _ => Tracks.pure trivial
 
+private inductive QueryCandidate : ℕ → Replay.Duplex → Word → Replay.Duplex → Prop where
+  | first (d : Replay.Duplex) : QueryCandidate 0 d d.sample.1 d.sample.2
+  | reject {k : ℕ} {d : Replay.Duplex} {word : Word} {next : Replay.Duplex}
+      (rejected : (d.sample.1 + 1 == 0) = true)
+      (rest : QueryCandidate k d.sample.2 word next) : QueryCandidate (k + 1) d word next
+
+private theorem QueryCandidate.redraw {k : ℕ} {d next : Replay.Duplex} {word : Word}
+    (h : QueryCandidate k d word next) (rejected : (word + 1 == 0) = true) :
+    QueryCandidate (k + 1) d next.sample.1 next.sample.2 := by
+  induction h with
+  | first _ => exact .reject rejected (.first _)
+  | reject earlier _ ih => exact .reject earlier (ih rejected)
+
+private theorem QueryCandidate.accepted {k : ℕ} {d next : Replay.Duplex} {word : Word}
+    (h : QueryCandidate k d word next) (accepted : (word + 1 == 0) = false) :
+    Bridge.QueryPrefix k d word next := by
+  induction h with
+  | first _ => exact .accept _ accepted
+  | reject earlier _ ih => exact .reject earlier (ih accepted)
+
 private theorem Whir.queryIndex_tracks (hp : Permutes c.perm) (width : ℕ) :
     Tracks c n (Whir.queryIndex width) (do
-        let word ← Replay.sampleWord
-        Replay.ensure (!(word + 1 == 0)) "WHIR query sample p - 1"
+        let word ← Replay.querySample 2
         Replay.record (.sample word)) fun _ _ _ => True := by
   intro d t hd
   unfold Whir.queryIndex
-  refine Ensures.tbind (Duplex.sample_ensures hp hd) fun s e₁ _ _ hs => ?_
-  obtain ⟨hs, hd₁⟩ := hs
-  refine Ensures.liftBind (const_ensures 1) fun one _ _ hone => ?_
-  refine Ensures.liftBind (add_ensures hs.mono hone) fun shifted _ _ hshifted => ?_
-  refine Ensures.liftBind (const_ensures 0) fun z _ _ hz => ?_
-  refine Ensures.liftBind (extInv_ensures (ga := ⟨t.duplex.sample.1 + 1, 0, 0⟩) fun k => ?_)
-    fun _ _ _ hne => ?_
-  · fin_cases k
-    · exact hshifted.mono
-    · exact hz
-    · exact hz
-  refine Ensures.post Ensures.keeps fun r m h => ?_
-  obtain ⟨le, e⟩ := h
-  have hne' : t.duplex.sample.1 + 1 ≠ 0 := fun e => hne.1 (by rw [e]; rfl)
-  refine ⟨(), { duplex := t.duplex.sample.2, draws := t.draws.push (.sample t.duplex.sample.1) },
-    Bridge.runs_bind (Bridge.runs_sampleWord t) (Bridge.runs_bind (Bridge.runs_ensure ?_ _ _) (Bridge.runs_record _ _)),
-    by rw [e]; exact hd₁.mono, trivial⟩
-  rw [Bool.not_eq_true', Bool.eq_false_iff]
-  exact fun hb => hne' (Replay.Word.eq_of_beq hb)
+  refine Ensures.tbind (Duplex.sample_ensures hp hd) fun sample e₁ _ _ hs₁ => ?_
+  let I (k : ℕ) (sample : Var) (d : Duplex) (m : ℕ) : Prop :=
+    ∃ word next skipped, skipped ≤ k ∧ QueryCandidate skipped t.duplex word next ∧
+      IsWord c m sample word ∧ IsDuplex c m d next ∧ next.input = #[]
+  refine Ensures.tbind (Q := fun r m => I 2 r.1 r.2 m) ?_ fun sample e₂ _ _ hI => ?_
+  · rw [Std.Legacy.Range.forIn_eq_forIn_range']
+    refine (Ensures.loopT I ?_ ?_).post fun _ _ h => by simpa [Std.Legacy.Range.size] using h
+    · exact ⟨t.duplex.sample.1, t.duplex.sample.2, 0, le_rfl, .first _, hs₁.1, hs₁.2,
+        sample_input_empty _⟩
+    · intro k _ sample e m _ hI
+      obtain ⟨word, next, skipped, bound, candidate, hs, hd, empty⟩ := hI
+      refine Ensures.liftBind (const_ensures 1) fun one _ _ hone => ?_
+      refine Ensures.liftBind (add_ensures hs.mono hone) fun shifted _ _ hshifted => ?_
+      refine Ensures.liftBind (isZero_ensures hshifted) fun rejected _ _ hrejected => ?_
+      refine Ensures.tbind (Duplex.sampleIf_ensures (take := word + 1 == 0) hp hd.mono hrejected empty)
+        fun drawn e' _ _ hdrawn => ?_
+      refine Ensures.liftBind (select_ensures hrejected.mono hs.mono hdrawn.1)
+        fun chosen _ _ hchosen => ?_
+      rw [StateT.run_pure]
+      refine Ensures.pure ⟨rfl, ?_⟩
+      by_cases rejected : (word + 1 == 0) = true
+      · refine ⟨next.sample.1, next.sample.2, skipped + 1, by omega, candidate.redraw rejected,
+          ?_, ?_, sample_input_empty _⟩
+        · simpa [rejected] using hchosen
+        · simpa [rejected] using hdrawn.2.mono
+      · refine ⟨word, next, skipped, by omega, candidate, ?_, ?_, empty⟩
+        · simpa [rejected] using hchosen
+        · simpa [rejected] using hdrawn.2.mono
+  · obtain ⟨word, next, skipped, bound, candidate, hs, hd, _⟩ := hI
+    refine Ensures.liftBind (const_ensures 1) fun one _ _ hone => ?_
+    refine Ensures.liftBind (add_ensures hs.mono hone) fun shifted _ _ hshifted => ?_
+    refine Ensures.liftBind (const_ensures 0) fun z _ _ hz => ?_
+    refine Ensures.liftBind (extInv_ensures (ga := ⟨word + 1, 0, 0⟩) fun k => ?_)
+      fun _ _ _ hne => ?_
+    · fin_cases k
+      · exact hshifted.mono
+      · exact hz
+      · exact hz
+    refine Ensures.post Ensures.keeps fun r m h => ?_
+    obtain ⟨_, e⟩ := h
+    have hne' : word + 1 ≠ 0 := fun e => hne.1 (by rw [e]; rfl)
+    have accepted : (word + 1 == 0) = false :=
+      Bool.eq_false_iff.mpr fun hb => hne' (Replay.Word.eq_of_beq hb)
+    refine ⟨(), { duplex := next, draws := t.draws.push (.sample word) },
+      Bridge.runs_bind (Bridge.runs_querySample_prefix (candidate.accepted accepted) bound t.draws)
+        (Bridge.runs_record _ _), ?_, trivial⟩
+    rw [e]
+    exact hd.mono
 
 private theorem Whir.stir_tracks (hp : Permutes c.perm) (queries : Array (Array Var))
     (draws indexBits logFoldedDomain : ℕ) (root : DigestVar) (folding : Array ExtVar) (base : Bool) :

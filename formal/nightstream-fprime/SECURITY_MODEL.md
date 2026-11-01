@@ -845,6 +845,17 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
    `Geometry.is_valid` checks their field-width bounds. These observations
    do not establish that every caller-built application supplies all of its
    semantic preconditions or meets `Program.spec_iff`.
+   Liu et al. (ePrint 2026/2235, Section 3.2) construct satisfying
+   null-branch witnesses for a different proof relation even with public
+   output rows: a zero factor removes a semantic equation, and later rows
+   can still be completed. In the selected Lean F′ relation,
+   `Lifecycle.Stage1.RunningTransition.soundness` derives the base and
+   recursive output from any row-satisfying assignment, including zero
+   iteration, while `Gadgets.Poseidon2.Permutation.sboxRows_sound` fixes each
+   `x^7` output even at zero input. These theorems exclude those two sampled
+   null branches in the Lean relation. They do not establish the complete
+   Rust-to-Lean application correspondence above or a concrete proof-system
+   bound.
 6. **Runtime checks.** The verifier's identity and setup checks stay necessary.
    `Circuit::load_package` takes an identifier pinned by the caller. Its
    loader recomputes that identifier from the fixed package and the digest of

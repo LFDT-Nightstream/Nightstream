@@ -438,6 +438,11 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
    width-eight 6-full/7-partial Goldilocks bounty instance. Neither result
    gives a preimage, collision, or cost for this selected 16-word permutation
    or its multi-read transcript.
+   Zhao, Sanso, Vitto and Ding (ePrint 2025/1916, Section 4.2 and Table 3)
+   speed up Graeffe-based CICO-1 root finding and solve width-eight Goldilocks
+   Poseidon2 targets with six full and 7, 8 or 10 partial rounds. Their
+   measured and estimated costs do not cover the selected width-16,
+   eight-full, 22-partial-round permutation or this transcript mode.
    Sanso and Vitto (ePrint 2026/1254, Sections 3–4) introduce degree
    annihilation for cubic Poseidon, with a reduced-round CICO-2 proof of
    concept. They identify FFT-friendly width-16 settings as natural further

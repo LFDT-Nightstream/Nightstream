@@ -241,6 +241,23 @@ honest prover algorithm.
   draws the chunks after the adversary is fixed, but the deployed seed is
   fixed and public. An adversary that is precomputed for that seed, or an
   application that is chosen after it, is outside the model.
+  Chiesa and Orrù (ePrint 2025/536, revised 2026-03-27, Construction 3.3
+  and Theorem 1) bound Fiat–Shamir soundness and knowledge error for an
+  *ideal-permutation* duplex with an independent random instance hash,
+  overwrite absorption, and an explicit challenge-decoding bias. Their
+  adversary may also query the inverse permutation. The selected F′
+  transcript starts from a zero state and adds inputs to its rate lanes;
+  its 74 oracle addresses are modeled by a uniform random function, not
+  by that duplex game. Its field-lane coin reads need no reduction into a
+  smaller challenge field, but this does not identify the two games. The
+  paper's `25t² / |Σ|^c` ideal-permutation term and extractor theorem cannot
+  certify the fixed Poseidon2 transcript or the 110-bit public minimum.
+  The raw additive absorb also gives one state to distinct variable-length
+  lists such as `[a]` and `[a, 0]`. The selected public ΠCCS verifier fixes
+  one fresh claim, its 270-word input, every round length, and the output
+  length, so this alias alone gives no accepted false proof. The oracle game
+  permits arbitrary call lists, however, and one-execution sponge fidelity
+  does not prove independent answers for all such lists.
 
 The proof follows the interactive SuperNeo v1.2 extraction and replaces each
 fresh verifier coin by an oracle read. The Lean column names the declaration for each step:

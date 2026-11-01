@@ -206,6 +206,16 @@ honest prover algorithm.
   unannounced restriction on malicious prover outputs can hide a missing
   verifier check. This restriction is explicit here, but it must not be
   treated as unconditional public-verifier soundness.
+  Parno (ePrint 2015/437, Section 3) reuses a QAP proof for a false public
+  statement when the verifier checks only a linearly dependent projection of
+  its input/output values. The selected terminal verifier compares the whole
+  externally expected state, recomputes the state hash from the running
+  claims, requires the children's canonical split of their parent, and checks
+  every fresh witness public coordinate. The compressed terminal also enters
+  the whole state as public circuit words (`lifecycle/verify.rs`,
+  `lifecycle/inputs.rs`, `lifecycle/terminal/mod.rs`). The paper's projection
+  substitution therefore has no identified path here; Poseidon2 binding and
+  the Rust-to-Lean refinement remain separate premises.
   The deployed system checks every fold only inside the step circuit of
   `F′`, with Poseidon2. The Rust terminal verifier checks the final openings
   and the state-hash link, and runs no fold

@@ -510,7 +510,12 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
      `Q_0 = 2^30`. So, with these values, the bound is useful only for a depth
      of one or two folds, and it gives no concrete security for long chains.
      This is the constant-depth limit of Lemma 17; the Lean statement is
-     correct for every depth.
+     correct for every depth. As a provisional 64-fold planning case, even
+     assigning each fold only the `Q = 0` one-fold test term gives the
+     arithmetic sum `64 · 74 · 4589 / p² ≈ 2^-103.63`. This is not a
+     recursive-history bound: it omits oracle queries, state-hash collisions,
+     MSIS and the extractor's growing cost. A production fold cap is not yet
+     fixed.
 5. **Rust and Lean agree on recorded inputs only.** The golden conformance runs
    and the recorded native evidence cover their recorded inputs. No theorem
    covers arbitrary Rust execution. In particular,

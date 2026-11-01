@@ -414,6 +414,19 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
      a short secret sampled in coefficient geometry; they do not price a
      short kernel of this uniform matrix under the coefficient infinity
      bound `8TB`. The selected module-SIS cost remains open.
+     Ducas, Engelberts and de Perthuis (ePrint 2025/1904) predict
+     module-BKZ slope gains for odd-conductor cyclotomic fields, but state
+     that translating a slope gain into a module-SIS attack cost remains an
+     open question. Their asymptotic block-size formula is not a cost for
+     this kernel either.
+     Bollauf, Pouly and Shen (ePrint 2026/225, Theorem 5) give a Gaussian-
+     sampling algorithm for SIS in the infinity norm when the bound is below
+     `q/2`, as `8TB` is here. Their success estimate samples a uniform flat
+     `n × m` matrix. The coefficient expansion of this ring matrix has
+     correlated rows, so that estimate does not directly apply. Their
+     reported 50-bit gain compares with an older provable Wagner algorithm,
+     not with the heuristic BKZ/sieving model used for this profile. No
+     selected-parameter cost follows from their Dilithium examples.
    - If Poseidon2 state-hash collisions are hard to find, then
      `hashCollisions` is small. Collision hardness is also stated for
      algorithms with a strict time bound. Eighteen finders with a strict

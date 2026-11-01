@@ -340,6 +340,15 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
    its first challenge. The paper's delayed-statement attack therefore needs
    a state-hash collision or a change to verifier-owned authority here; this
    does not settle the concrete Poseidon2 random-oracle premise.
+   Merz and Rodríguez García (ePrint 2026/306) give faster algebraic attacks
+   on Poseidon2's linear layers and on some sponge and compression modes,
+   while reporting no break of the 128-bit sets they analyze. The selected
+   permutation uses 16 Goldilocks words, `x^7`, eight full rounds and 22
+   partial rounds. Their mode estimates do not bound this additive duplex's
+   repeated intermediate lane reads. Hovhannisyan, Asaturyan and Hovhannisyan
+   (ePrint 2026/409) report no forgery from their coupled Poseidon and
+   Fiat–Shamir algebraic experiments, even with reduced rounds. Those
+   negative experiments are not a security reduction for this transcript.
    The same sponge also computes the state hash, which the theorem
    treats as a concrete function. The state hash is a four-lane read after its
    own call list (`Lifecycle.TranscriptCoverage.stateHash_eq_run`), and the

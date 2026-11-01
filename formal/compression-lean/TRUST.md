@@ -75,6 +75,13 @@ The claims bound a probability. They take these as part of the model, not as Lea
   (`neo-spartan/src/shrink/mod.rs`). Their stated trace-timing attack does not directly
   apply to either layer. This does not prove the read condition or concrete Poseidon2
   Fiat–Shamir soundness for an application that computes the hash inside its circuit.
+  Ciobotaru, Peter and Velichkov (ePrint 2024/398, Section 4) forge a batched
+  KZG proof when its final challenge omits two evaluation proofs. This path
+  uses WHIR, not KZG. In the custom WHIR verifier, opened values enter the
+  transcript before `α`, and each queried row is checked against a Merkle
+  root fixed before the following `β`. That attack's two free proof elements
+  have no direct analogue here. This check still relies on Merkle binding and
+  does not prove the concrete Fiat–Shamir premise.
 - **Merkle binding.** A setup leaf that reaches the key root at an index below the leaf count
   `2^(n-2)` holds the setup's codeword on that index's coset (`MerkleBinds`). The bound is part
   of the assumption: the path reads only the low `n - 2` bits of an index, so without it the
@@ -95,6 +102,17 @@ The claims bound a probability. They take these as part of the model, not as Lea
   eight fixed zeros to a sixteen-word Poseidon2 permutation, then reads four
   words; its leaf sponge has rate twelve. That theorem does not give a bound
   for this selected pair of hash modes.
+  Trevisani et al. (ePrint 2026/1271, Theorems 1–4) prove collision and
+  preimage bounds for PA/PAX compression with feed-forward. The selected
+  `TruncatedPermutation` node has no feed-forward, so those bounds do not
+  apply to it.
+  Merz and Rodríguez García (ePrint 2026/306) show that Poseidon2 attack
+  cost can depend on its hash mode, beyond the permutation's CICO estimate.
+  Their analyzed sponge adds input blocks and their compression uses a
+  feed-forward value. This layer's leaf sponge overwrites rate lanes, while
+  its node truncates one permutation without feed-forward (`hash.rs`). The
+  paper reports no break of its analyzed 128-bit sets, but does not certify
+  this exact leaf/node pair.
 - **Query indices.** The model draws each query leaf as a uniform Goldilocks word modulo the leaf
   count, as `sample_bits` does (`Layer1/HonestStage.lean`, `Layer1/Queries.lean`). The budget needs
   at most 35 setup variables (`query_half`), and the replay bridge at most 31. `Relation::new`

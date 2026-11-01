@@ -696,6 +696,15 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
      extended algebraic group model and a general zero-testing hash premise.
      Neither premise has been established for this Ajtai and Poseidon2
      instantiation, so that result does not close this depth gap.
+     Hall-Andersen and Nielsen, ePrint 2022/542 (Theorem 1), show that a
+     succinct random-oracle IVC cannot have their stated knowledge-sound and
+     zero-knowledge guarantees for every nondeterministic transition while
+     keeping sublinear verification. Their theorem constructs a transition
+     function and concerns sufficiently long polynomial depth. This verifier
+     fixes one application, claims no zero-knowledge guarantee, and has only a
+     provisional 64-fold planning case. The theorem therefore gives neither
+     a forgery for this application nor a 64-fold bound; it reinforces the
+     need to state the exact recursion and oracle assumptions above.
      Nguyen, Boneh and Setty (ePrint 2023/969, Appendix B) break an older
      two-curve Nova verifier by splicing valid current pairs from separate
      chains: its checks do not link a prior fresh pair in one curve to the

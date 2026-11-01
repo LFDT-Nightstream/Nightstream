@@ -20,12 +20,13 @@ use crate::{Error, Key, Relation};
 fn whir_query_redraws_max_field_sample() {
     // SPEC.md Algorithm 8: the honest WHIR challenger redraws p - 1.
     // The second word is the next sample from the same duplex output block.
+    // Width 25 is the first P0 query width in the production layer-1 shape.
     let b = &mut crate::circuit::Native;
     let mut duplex = crate::circuit::hash::Duplex::new(b);
     duplex.output = vec![Gl::from_u64(7), Gl::from_u64(F::ORDER_U64 - 1)];
 
     let (_, index) =
-        crate::whir::query_index(b, &mut duplex, 6).expect("the verifier must redraw a rejected WHIR query sample");
+        crate::whir::query_index(b, &mut duplex, 25).expect("the verifier must redraw a rejected WHIR query sample");
     assert_eq!(index, Gl::from_u64(7));
 }
 

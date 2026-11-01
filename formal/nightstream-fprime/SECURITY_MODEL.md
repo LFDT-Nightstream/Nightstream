@@ -657,6 +657,12 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
      extended algebraic group model and a general zero-testing hash premise.
      Neither premise has been established for this Ajtai and Poseidon2
      instantiation, so that result does not close this depth gap.
+     Campanelli, Fiore and Pancholi (ePrint 2025/1413, revised 2026-10-16,
+     Theorems 2 and 6) show that an IVC already insecure beyond constant
+     depth has no general graceful soundness degradation, and give a way to
+     boost depth by constructing a different scheme from short chains.
+     Neither result shows this protocol is insecure at 64 folds or gives it
+     a 64-fold security bound.
      Chiesa, Guan, Samocha and Yogev (ePrint 2023/1646, Theorem 1) give a
      small recursion loss for PCD from a relativized argument with a
      straightline knowledge extractor, including oracle calls in the proved

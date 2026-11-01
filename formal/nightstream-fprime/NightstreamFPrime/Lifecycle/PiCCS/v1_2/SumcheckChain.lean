@@ -200,6 +200,47 @@ theorem spec_implies_chain {degree : Nat} (interface : Interface degree) (offset
   rw [initialCoreEq, roundsListEq, challengeListEq, terminalCoreEq] at specification
   exact specification
 
+/-- The converse of `spec_implies_chain`: when the leaf's inputs carry a fixed SumCheck chain
+(SuperNeo v1.2 Section 7.3, `SumCheck(T; Q)`), the rows can be filled, and the terminal word
+carries the chain's terminal claim. -/
+theorem chain_build {degree : Nat} (interface : Interface degree) (offset : Nat) (env : Env)
+    (assumptions : Assumptions interface offset env) (initial : K)
+    (rounds : Fin productionShape.cubeVariables →
+      SumCheck.Finite.FixedPolynomial K degree)
+    (point : List K) (terminal : K)
+    (initialEq : (interface.initial offset).eval env = initial)
+    (roundsEq : ∀ roundIndex,
+      (interface.round offset roundIndex).semanticPolynomial env = rounds roundIndex)
+    (pointEq : (evalRoundPoint interface offset env).coordinates = point)
+    (chain : SumCheck.Finite.FixedPhase.Chain extensionOps.toOps initial (List.ofFn rounds)
+      point terminal) :
+    ∃ completed,
+      AgreesOutside env completed offset
+        (localLength (Circuit.ops (circuit interface).main offset)) ∧
+      holdsFlat completed (Circuit.ops (circuit interface).main offset) ∧
+      (output interface offset).eval completed = terminal := by
+  have roundsListEq :
+      (coreInterface interface offset).rounds.map
+          (FixedChain.Round.semanticPolynomial env) = List.ofFn rounds := by
+    change (List.ofFn (interface.round offset)).map
+        (FixedChain.Round.semanticPolynomial env) = List.ofFn rounds
+    rw [List.map_ofFn]
+    apply congrArg List.ofFn
+    funext roundIndex
+    exact roundsEq roundIndex
+  have challengeListEq :
+      (coreInterface interface offset).rounds.map
+          (fun round => round.challenge.eval env) = point := by
+    simpa [evalRoundPoint] using pointEq
+  have initialCoreEq : (coreInterface interface offset).initial.eval env = initial := by
+    simpa [coreInterface] using initialEq
+  rw [← initialCoreEq, ← roundsListEq, ← challengeListEq] at chain
+  have built := FixedChain.Owned.build (coreInterface interface offset) env offset assumptions
+    terminal chain
+  rw [FixedChain.Owned.main_ops] at built
+  rw [circuit_ops]
+  exact built
+
 theorem spec_implies_keyChain
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤

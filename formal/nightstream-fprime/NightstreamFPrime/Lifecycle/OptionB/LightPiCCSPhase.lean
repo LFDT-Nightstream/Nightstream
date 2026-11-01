@@ -211,6 +211,28 @@ theorem check_of_chain
     ProtocolPolynomial.FixedWidth.check, SumCheck.Finite.FixedPhase.RawCertificate.check_encode]
   exact (SumCheck.Finite.FixedPhase.checkChain_eq_true_iff _ _ _ _ _).mpr chain
 
+/-- The converse of `check_of_chain`: an accepting light Π_CCS check gives the SumCheck chain from
+`T` to `Q(r')` on the masked output. -/
+theorem chain_of_check
+    (accepted : Spec.Folding.Light.PiCCS.check (keys relation ajtai).light.extensionOps
+      (keys relation ajtai).light.lift ((keys relation ajtai).light.statement running fresh)
+      (ProductionKey.degreeBound relation) ((keys relation ajtai).light.probe running fresh proof) =
+        true) :
+    SumCheck.Finite.FixedPhase.Chain extensionOps.toOps
+      ((lightInput relation ajtai running fresh).initial extensionOps
+        (lightCoins relation ajtai running fresh proof.piCcsRounds).gamma)
+      (List.ofFn proof.piCcsRounds)
+      (lightCoins relation ajtai running fresh proof.piCcsRounds).roundPoint.coordinates
+      (ProtocolPolynomial.terminalFromMessage extensionOps (lightInput relation ajtai running fresh)
+        (lightCoins relation ajtai running fresh proof.piCcsRounds).alpha
+        (lightCoins relation ajtai running fresh proof.piCcsRounds).gamma
+        (lightCoins relation ajtai running fresh proof.piCcsRounds).roundPoint
+        (lightMessage relation ajtai running fresh proof)) := by
+  simp only [Spec.Folding.Light.PiCCS.check, Spec.Folding.Light.Key.probe,
+    ProtocolPolynomial.FixedWidth.check, SumCheck.Finite.FixedPhase.RawCertificate.check_encode]
+    at accepted
+  exact (SumCheck.Finite.FixedPhase.checkChain_eq_true_iff _ _ _ _ _).mp accepted
+
 private theorem point_eq {count : Nat} {left right : CubePoint K count}
     (coordinates : left.coordinates = right.coordinates) : left = right := by
   cases left

@@ -835,8 +835,9 @@ private theorem constraintLength_eq (interface : Interface) (offset : Nat) :
     constraintLength interface offset = 15 := by
   rw [constraintLength_eq_mul, constraintFactor_eq]
 
-private theorem pointOutput_varsBelow (interface : Interface) (offset : Nat)
-    (env : Env) (assumptions : Assumptions interface offset env) :
+private theorem shapePointOutput_varsBelow (interface : ShapeInterface shape)
+    (positive : 0 < shape.cubeVariables) (offset : Nat) (env : Env)
+    (assumptions : Assumptions interface offset env) :
     (pointEqualityOutput interface offset).VarsBelow
       (matrixOffset interface offset) := by
   have below := PointEquality.Owned.output_varsBelow
@@ -844,41 +845,36 @@ private theorem pointOutput_varsBelow (interface : Interface) (offset : Nat)
   unfold pointEqualityOutput
   apply KExpr.varsBelow_mono _ below
   rw [PointEquality.Owned.localLength_eq_of_positive
-    (pointInterfaceAt interface offset) offset (by
-      norm_num [productionShape, Phi81MatrixSource.phi81Shape,
-        cubeVariables])]
+    (pointInterfaceAt interface offset) offset positive]
   unfold matrixOffset
-  rw [pointLength_eq]
-  norm_num [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]
+  rw [pointLength_eq_of_positive interface offset positive]
 
-private theorem matrixOutput_varsBelow (interface : Interface) (offset : Nat)
-    (env : Env) (assumptions : Assumptions interface offset env) :
+private theorem shapeMatrixOutput_varsBelow (interface : ShapeInterface shape)
+    (offset : Nat) (env : Env) (assumptions : Assumptions interface offset env) :
     (gammaMatrixOutput interface offset).VarsBelow
       (constraintOffset interface offset) := by
-  have below := Power.output_varsBelow (matrixExponentOf productionShape)
+  have below := Power.output_varsBelow (matrixExponentOf shape)
     (matrixPowerInterfaceAt interface offset) (matrixOffset interface offset)
       env (matrixAssumptionsAt interface offset env assumptions)
   apply KExpr.varsBelow_mono _ below
-  rw [matrixExponent_eq]
   unfold constraintOffset
-  rw [matrixLength_eq]
+  rw [matrixLength_eq_mul]
 
-private theorem constraintOutput_varsBelow (interface : Interface)
-    (offset : Nat) (env : Env)
-    (assumptions : Assumptions interface offset env) :
+private theorem shapeConstraintOutput_varsBelow (interface : ShapeInterface shape)
+    (offset : Nat) (env : Env) (assumptions : Assumptions interface offset env) :
     (gammaConstraintOutput interface offset).VarsBelow
       (finalOffset interface offset) := by
-  have below := Power.output_varsBelow (constraintFactorOf productionShape)
+  have below := Power.output_varsBelow (constraintFactorOf shape)
     (constraintPowerInterfaceAt interface offset)
       (constraintOffset interface offset) env
       (constraintAssumptionsAt interface offset env assumptions)
   apply KExpr.varsBelow_mono _ below
-  rw [constraintFactor_eq]
   unfold finalOffset
-  rw [constraintLength_eq]
+  rw [constraintLength_eq_mul]
 
-private theorem terminalExpr_varsBelow (interface : Interface) (offset : Nat)
-    (env : Env) (assumptions : Assumptions interface offset env) :
+private theorem shapeTerminalExpr_varsBelow (interface : ShapeInterface shape)
+    (positive : 0 < shape.cubeVariables) (offset : Nat) (env : Env)
+    (assumptions : Assumptions interface offset env) :
     (terminalExpr interface offset).VarsBelow (finalOffset interface offset) := by
   have offsetLe : offset ≤ finalOffset interface offset := by
     unfold finalOffset constraintOffset matrixOffset
@@ -890,15 +886,15 @@ private theorem terminalExpr_varsBelow (interface : Interface) (offset : Nat)
   · apply KExpr.add_varsBelow
     · exact KExpr.mul_varsBelow _ _ _
         (KExpr.varsBelow_mono _
-          (matrixOutput_varsBelow interface offset env assumptions)
+          (shapeMatrixOutput_varsBelow interface offset env assumptions)
           (by unfold finalOffset; omega))
         ((interface.eval_A offset).varsBelow_mono assumptions.eval_ABelow
           offsetLe)
     · apply KExpr.mul_varsBelow
-      · exact constraintOutput_varsBelow interface offset env assumptions
+      · exact shapeConstraintOutput_varsBelow interface offset env assumptions
       · apply KExpr.mul_varsBelow
         · exact KExpr.varsBelow_mono _
-            (pointOutput_varsBelow interface offset env assumptions) (by
+            (shapePointOutput_varsBelow interface positive offset env assumptions) (by
               unfold finalOffset constraintOffset matrixOffset
               omega)
         · apply KExpr.add_varsBelow
@@ -910,15 +906,19 @@ private theorem terminalExpr_varsBelow (interface : Interface) (offset : Nat)
               ((interface.norm offset).varsBelow_mono assumptions.normBelow
                 offsetLe)
 
-theorem flatConstraints_varsBelow (interface : Interface) (offset : Nat)
-    (env : Env) (assumptions : Assumptions interface offset env) :
-    ∀ expression ∈ flatConstraints
-      (Circuit.ops (circuit interface).main offset),
+/-- Every row of the final identity at any shape reads only words below its end. -/
+theorem shapeFlatConstraints_varsBelow (interface : ShapeInterface shape)
+    (positive : 0 < shape.cubeVariables) (offset : Nat) (env : Env)
+    (assumptions : Assumptions interface offset env) :
+    ∀ expression ∈ flatConstraints (Circuit.ops (main interface) offset),
       expression.VarsBelow
-        (offset + localLength (Circuit.ops (circuit interface).main offset)) := by
+        (offset + localLength (Circuit.ops (main interface) offset)) := by
   change ∀ expression ∈ flatConstraints (opsAt interface offset),
     expression.VarsBelow (offset + localLength (opsAt interface offset))
   rw [flatConstraints_opsAt, opsAt_localLength]
+  have pointLengthEq := pointLength_eq_of_positive interface offset positive
+  have matrixLengthEq := matrixLength_eq_mul interface offset
+  have constraintLengthEq := constraintLength_eq_mul interface offset
   intro expression member
   rcases List.mem_append.mp member with coreMember | terminalMember
   · rcases List.mem_append.mp coreMember with firstTwoMember |
@@ -930,31 +930,24 @@ theorem flatConstraints_varsBelow (interface : Interface) (offset : Nat)
             expression pointMember
         apply Expr.VarsBelow.mono expression below
         rw [PointEquality.Owned.program_recipes_length_of_positive
-          (pointInterfaceAt interface offset) offset (by
-            norm_num [productionShape, Phi81MatrixSource.phi81Shape,
-              cubeVariables])]
-        rw [pointLength_eq, matrixLength_eq, constraintLength_eq]
-        norm_num [productionShape, Phi81MatrixSource.phi81Shape,
-          cubeVariables]
-      · have below := Power.flatConstraints_varsBelow_exact (matrixExponentOf productionShape)
+          (pointInterfaceAt interface offset) offset positive]
+        omega
+      · have below := Power.flatConstraints_varsBelow_exact (matrixExponentOf shape)
           (matrixPowerInterfaceAt interface offset)
             (matrixOffset interface offset) env
             (matrixAssumptionsAt interface offset env assumptions)
             expression matrixMember
         apply Expr.VarsBelow.mono expression below
         unfold matrixOffset
-        rw [matrixExponent_eq, pointLength_eq, matrixLength_eq,
-          constraintLength_eq]
         omega
-    · have below := Power.flatConstraints_varsBelow_exact (constraintFactorOf productionShape)
+    · have below := Power.flatConstraints_varsBelow_exact (constraintFactorOf shape)
         (constraintPowerInterfaceAt interface offset)
           (constraintOffset interface offset) env
           (constraintAssumptionsAt interface offset env assumptions)
           expression constraintMember
       apply Expr.VarsBelow.mono expression below
       unfold constraintOffset matrixOffset
-      rw [constraintFactor_eq, pointLength_eq, matrixLength_eq,
-        constraintLength_eq]
+      omega
   · exact KExpr.equalities_varsBelow (interface.terminal offset)
       (terminalExpr interface offset)
       (offset + (pointLength interface offset + matrixLength interface offset +
@@ -962,11 +955,19 @@ theorem flatConstraints_varsBelow (interface : Interface) (offset : Nat)
       ((interface.terminal offset).varsBelow_mono assumptions.terminalBelow
         (by omega))
       (by
-        have below := terminalExpr_varsBelow interface offset env assumptions
+        have below := shapeTerminalExpr_varsBelow interface positive offset env assumptions
         apply KExpr.varsBelow_mono _ below
         unfold finalOffset constraintOffset matrixOffset
         omega)
       expression terminalMember
+
+theorem flatConstraints_varsBelow (interface : Interface) (offset : Nat)
+    (env : Env) (assumptions : Assumptions interface offset env) :
+    ∀ expression ∈ flatConstraints
+      (Circuit.ops (circuit interface).main offset),
+      expression.VarsBelow
+        (offset + localLength (Circuit.ops (circuit interface).main offset)) :=
+  shapeFlatConstraints_varsBelow interface cubeVariables_positive offset env assumptions
 
 def privateCount : Nat := 2717
 
@@ -1037,6 +1038,36 @@ theorem spec_implies_terminal (interface : ShapeInterface shape) (offset : Nat) 
   unfold SignedJointIdentity.gammaTerm
   rw [gammaFreshPower_of_one freshOne]
   simpa [matrixExponentOf, constraintExponentOf] using! specification
+
+/-- The converse of `spec_implies_terminal`: when the terminal word carries the verifier's
+terminal value (SuperNeo v1.2 Section 7.3, Step 4), the final identity holds. -/
+theorem terminal_implies_spec (interface : ShapeInterface shape) (offset : Nat) (env : Env)
+    (freshOne : shape.freshCount = 1) (input : ProtocolPolynomial.VerifierInput K shape)
+    (alpha roundPoint : CubePoint K shape.cubeVariables) (gamma : K)
+    (message : ProtocolPolynomial.OutputMessage K shape)
+    (roundPointEq : PointEquality.Owned.evalLeftPoint
+      (pointInterfaceAt interface offset) offset env = roundPoint)
+    (alphaEq : PointEquality.Owned.evalRightPoint
+      (pointInterfaceAt interface offset) offset env = alpha)
+    (gammaEq : (interface.gamma offset).eval env = gamma)
+    (evalKEq : (interface.eval_K offset).eval env =
+      ProtocolPolynomial.padAtMessage extensionOps input gamma roundPoint message)
+    (evalAEq : (interface.eval_A offset).eval env =
+      ProtocolPolynomial.matrixAtMessage extensionOps input gamma roundPoint message)
+    (ccsEq : (interface.ccs offset).eval env =
+      ProtocolPolynomial.ccsAtMessage extensionOps input gamma message)
+    (normEq : (interface.norm offset).eval env =
+      ProtocolPolynomial.normAtMessage extensionOps gamma message)
+    (terminalEq : (interface.terminal offset).eval env =
+      ProtocolPolynomial.terminalFromMessage extensionOps input alpha gamma roundPoint
+        message) :
+    SpecHolds interface offset env := by
+  unfold SpecHolds referenceTerminal
+  rw [roundPointEq, alphaEq, gammaEq, evalKEq, evalAEq, ccsEq, normEq, terminalEq]
+  rw [NightstreamFPrime.Spec.Folding.PiCCS.FinalIdentity.terminal_eq_eval_K_add_shifted_eval_A_add_constraints]
+  unfold SignedJointIdentity.gammaTerm
+  rw [gammaFreshPower_of_one freshOne]
+  simp [extensionOps, matrixExponentOf, constraintExponentOf]
 
 theorem spec_implies_keyTerminal
     {logicalWidth : Nat}

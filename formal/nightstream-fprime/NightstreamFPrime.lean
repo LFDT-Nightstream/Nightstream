@@ -54,6 +54,7 @@ import NightstreamFPrime.Lifecycle.OptionB.LightStepLayout
 import NightstreamFPrime.Lifecycle.OptionB.LightStepSoundness
 import NightstreamFPrime.Layout.OptionB.LightAssembler
 import NightstreamFPrime.Layout.OptionB.LightPiCCSBounds
+import NightstreamFPrime.Layout.OptionB.LightPiCCSCompleteness
 import NightstreamFPrime.Layout.OptionB.LightRlcBounds
 import NightstreamFPrime.Layout.OptionB.LightStepBounds
 import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.ChainBinding

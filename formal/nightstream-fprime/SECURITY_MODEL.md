@@ -63,6 +63,11 @@ one component digest, or two final preimages with one package identity
 The structural identity takes the application only through its application
 digest (`Export.Stage1.PerApplicationCanonicalPackage.structuralValue`).
 
+The adversary may replace all prover code, including witness generation and proof
+serialization. Only the verifier's code and package are fixed. The Lean games
+read arbitrary assignments, proof messages and envelopes, not outputs of an
+honest prover algorithm.
+
 ## Adversaries
 
 ### 1. Malicious step assignment
@@ -421,9 +426,13 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
    so far, as one algorithm. An admitted stage gives an admitted NIFS
    adversary, and one reverse step of an admitted stage with an efficient
    extractor is again an admitted stage. The IVC adversary is the start stage,
-   which must be admitted. `Admitted`, `StageAdmitted` and `Efficient` are
-   abstract; their intended meaning is expected polynomial time. Lean has no
-   running-time model, so it states no false claim about running time, and
+   which must be admitted. To cover a modified prover, `StageAdmitted` must
+   include its arbitrary efficient output algorithm, and `Admitted` must
+   include each NIFS algorithm derived from that output. Neither class may
+   require proof messages to come from the official prover. `Admitted`,
+   `StageAdmitted` and `Efficient` are abstract; their intended meaning is
+   expected polynomial time. Lean has no running-time model, so it states no
+   false claim about running time, and
    the closure property is a premise. A `goodActive` visit is a real success
    (`Export.Stage1.HyperNovaVisitedSecurity.realSuccess_of_goodActive`).
    Assumption 1 is the paper's plain-model premise, not a theorem. The step

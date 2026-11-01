@@ -16,6 +16,19 @@ use crate::matrix::Structure;
 use crate::pcs::{Pcs, TablePlan};
 use crate::{Error, Key, Relation};
 
+#[test]
+fn whir_query_redraws_max_field_sample() {
+    // SPEC.md Algorithm 8: the honest WHIR challenger redraws p - 1.
+    // The second word is the next sample from the same duplex output block.
+    let b = &mut crate::circuit::Native;
+    let mut duplex = crate::circuit::hash::Duplex::new(b);
+    duplex.output = vec![Gl::from_u64(7), Gl::from_u64(F::ORDER_U64 - 1)];
+
+    let (_, index) =
+        crate::whir::query_index(b, &mut duplex, 6).expect("the verifier must redraw a rejected WHIR query sample");
+    assert_eq!(index, Gl::from_u64(7));
+}
+
 /// Deterministic pseudo-random words; the tests need variety, not secrecy.
 fn word(seed: u64, index: u64) -> u64 {
     let mut x = seed.wrapping_mul(0x9e37_79b9_7f4a_7c15) ^ index.wrapping_mul(0xbf58_476d_1ce4_e5b9);

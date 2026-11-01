@@ -399,7 +399,11 @@ impl<B: Backend> Constraint<B> {
 
 /// Draw one query index of `width` bits: reject the sample p − 1, take the low
 /// bits of the canonical value. Returns the bits and the index as a word.
-fn query_index<B: Backend>(b: &mut B, duplex: &mut Duplex<B>, width: usize) -> Result<(Vec<B::F>, B::F), Error> {
+pub(crate) fn query_index<B: Backend>(
+    b: &mut B,
+    duplex: &mut Duplex<B>,
+    width: usize,
+) -> Result<(Vec<B::F>, B::F), Error> {
     let sample = duplex.sample(b);
     let one = b.constant(1);
     let shifted = b.add(sample, one);

@@ -988,6 +988,18 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
   this vector alphabet at the selected below-Johnson radius, so the width
   does not itself add an uncharged list-size factor. This algebraic check
   does not prove WHIR's numeric report or its Rust-to-Lean premise.
+- Block et al. (ePrint 2023/1071, Theorem 4.2 and Corollary 4.4) give
+  round-by-round and Fiat–Shamir bounds for batched FRI. Their latter bound
+  charges `Q · ε_rbr + 3(Q² + 1)/2^κ` for `Q` oracle queries and a `κ`-bit
+  oracle; their Section 1.2 notes an extra batch-size factor when one
+  challenge's powers combine the claims. The pinned `p3-security` 0.8.0
+  `initial_claims_error` charges `(N − 1) · L/|Ext|` for its initial
+  power-batched claims, and `p3-whir` 0.8.0 counts every opening claim and
+  commitment OOD sample in `N`. This addresses that initial batch-size
+  factor in the selected report. `Pcs::new` has no adaptive oracle-query
+  budget `Q`, and Block et al.'s theorem is for FRI, not this WHIR verifier.
+  It therefore does not establish an adaptive-query or concrete Poseidon2
+  bound for the selected compression proof.
 - Completeness does not follow from a knowledge bound: a bound on the
   adversary is not evidence that an honest proof is accepted. The honest
   prover has separate results, for every application that fits the `2^28`

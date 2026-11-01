@@ -657,6 +657,16 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
      extended algebraic group model and a general zero-testing hash premise.
      Neither premise has been established for this Ajtai and Poseidon2
      instantiation, so that result does not close this depth gap.
+     Nguyen, Boneh and Setty (ePrint 2023/969, Appendix B) break an older
+     two-curve Nova verifier by splicing valid current pairs from separate
+     chains: its checks do not link a prior fresh pair in one curve to the
+     corresponding running pair in the other. The selected Nightstream
+     relation has one running family. Its F′ step checks the fresh public
+     input against `stateHash(vk, i, z0, zi, U_i)` and checks the NIFS
+     transition from that `U_i` to `U_{i+1}`; the terminal binds the current
+     state to the running family (`SPEC.md`, Algorithms 3 and 6). This
+     excludes that missing-link splice, but is not a separate proof of
+     concrete security at depth 64.
      Campanelli, Fiore and Pancholi (ePrint 2025/1413, revised 2026-10-16,
      Theorems 2 and 6) show that an IVC already insecure beyond constant
      depth has no general graceful soundness degradation, and give a way to

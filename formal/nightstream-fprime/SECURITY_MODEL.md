@@ -866,8 +866,11 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
    `Q_η` counts the evaluations of the `η` transcript, in the circuit and
    outside it, and `ε_coll(t_1)` is the Poseidon2 collision probability at
    twice the time of one run. The owner chose this form
-   (`decisions/nebula-memory-checking.md`). The record chains need only
-   Poseidon2 collision resistance.
+   (`decisions/nebula-memory-checking.md`). It is conditional on the uniform
+   challenge game. A concrete instantiation needs a separate bound for the
+   selected sponge's challenge distribution and its adaptive evaluations;
+   that error is absent from the displayed target and cannot be charged to
+   `ε_coll`. The record chains need only Poseidon2 collision resistance.
 
 ## Out of scope
 

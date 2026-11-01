@@ -357,6 +357,11 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
      game for the reference application,
      `Export.Stage1.Poseidon2HashChainV1Setup.production_binding_lt_solver` gives an
      MSIS solution for a uniform matrix, with error below `2^-190`.
+     For the selected Goldilocks prime, `q mod 81 = 4` and
+     `ord_81(q) = 27`; thus `Φ₈₁` has two degree-27 factors over `F_q`.
+     The unstructured lattice estimate does not price attacks that use this
+     CRT split. The Module-SIS algorithm of ePrint 2026/2420 is proved for
+     power-of-two cyclotomic rings and does not give a cost for this profile.
    - If Poseidon2 state-hash collisions are hard to find, then
      `hashCollisions` is small. Collision hardness is also stated for
      algorithms with a strict time bound. Eighteen finders with a strict

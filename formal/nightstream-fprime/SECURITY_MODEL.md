@@ -650,7 +650,10 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
      arithmetic sum `64 · 74 · 4589 / p² ≈ 2^-103.63`. This is not a
      recursive-history bound: it omits oracle queries, state-hash collisions,
      MSIS and the extractor's growing cost. A production fold cap is not yet
-     fixed.
+     fixed. Even a hypothetical charge of one `4589/p²` test term per fold
+     gives `64 · 4589/p² ≈ 2^-109.84`, so this simple additive accounting
+     cannot certify 110 bits at depth 64. This is not a lower bound on an
+     attack's success probability.
      Lee and Seo, ePrint 2024/232 (revised 2026-02-13), give an artificial
      IVC scheme that meets bounded-depth knowledge soundness but is forgeable
      at polynomial depth. Their polynomial-depth result for Nova uses the

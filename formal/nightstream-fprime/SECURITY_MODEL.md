@@ -508,7 +508,11 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
   than `87 · 2^115 / 50 ≈ 2^115.79` oracle queries (addresses) for each unit
   of success, linear in `Q` (`Lifecycle.RandomOracleKnowledge.statisticalError_le`). One
   Poseidon2 state answers up to six addresses, so in permutation calls this
-  is about `2^113.2` (computed outside Lean). The other terms
+  is about `2^113.2` (computed outside Lean). Even at `Q = 0`, the 74 test
+  challenges contribute `74 · 4589/p² ≈ 2^-109.63` to this proof bound
+  (`Lifecycle.RandomOracleUniqueness.challenges_length`,
+  `Lifecycle.Nifs.VerifierErrorBudget.test_error_eq`). This bound cannot
+  certify a 110-bit total error before the other terms. The other terms
   depend on MSIS at the solver's work and on Poseidon2 collisions. 128-bit
   security needs a larger challenge field for `γ`.
 - Concrete attacks on Poseidon2 as a random oracle, or on the additive duplex,

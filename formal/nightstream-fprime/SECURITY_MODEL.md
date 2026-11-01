@@ -465,6 +465,13 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
      The unstructured lattice estimate does not price attacks that use this
      CRT split. The Module-SIS algorithm of ePrint 2026/2420 is proved for
      power-of-two cyclotomic rings and does not give a cost for this profile.
+     Koo, Lee, Lee, No and Kim (ePrint 2020/1257, Theorem 3) give a
+     same-prime-modulus reduction from module-SIS to ring-SIS, conditional on
+     a ring-SIS solver and their rank and norm premises. For rank 22, its
+     output Euclidean norm is `(t σ √n · m)^21 β^22`, where `m` is the number
+     of ring columns and `β` is the assumed ring-SIS solution norm. This is
+     not the selected coefficient-infinity bound `8TB`, and the theorem gives
+     no fixed-key attack or cost for it.
      Porter, Mendelsohn and Ling (ePrint 2021/600, Theorem 8) reduce SVP in
      either prime ideal above `q` to a two-dimensional subfield problem here:
      `v₃(q − 1) = 1`, so their parameter `r` is zero and `φ(3) = 2`.

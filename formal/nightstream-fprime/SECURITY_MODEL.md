@@ -449,6 +449,14 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
      group symmetry of the target module; a kernel of a uniform matrix is
      not generally fixed by those automorphisms. This paper gives no cost
      for the selected random module-SIS kernel.
+     Cramer, van Gent, Lesavourey and Pellet-Mary (ePrint 2026/1805,
+     Theorems 3–4) likewise reduce module-lattice dimension only when a
+     nontrivial Galois group fixes the module coordinate-wise as a set, under
+     their unramified-discriminant premise. The indexed SHAKE128 key-generation
+     rule imposes no such symmetry. The paper notes that
+     random module instances are unlikely to have it, but this is not a
+     certificate for the fixed public key. Its dimension reduction does not
+     give a cost for this kernel without that stabilizer condition.
      De Perthuis and Trenkić (ePrint 2026/2527, Theorem 1) show that the
      relative coefficient and canonical embeddings agree up to scaling for
      `Q(ζ₈₁)` over its degree-two subfield `Q(ζ₃)`: their condition holds

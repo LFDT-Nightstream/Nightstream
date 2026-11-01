@@ -378,6 +378,15 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
    no cost for this selected tuple, and its CICO preimage model does not
    analyze the additive duplex's intermediate challenge reads. This check
    does not prove a break or the oracle premise.
+   Li and Wang (ePrint 2026/967, Section 4, Proposition 3) show that the
+   `diag(λ) + J` internal layer has no infinite linear subspace trail of
+   their type when its 15 inactive-coordinate diagonal entries are pairwise
+   distinct; the finite linear trail has length at most 15. The pinned
+   Goldilocks diagonal has 15 distinct inactive entries, and their
+   Vandermonde determinant is `11457322283648754730` modulo `p`, not zero.
+   This excludes that paper's repeated-diagonal infinite linear trail here.
+   It does not exclude nonlinear trails, settle the full permutation's
+   algebraic cost, or justify the concrete transcript as a random oracle.
    The same sponge also computes the state hash, which the theorem
    treats as a concrete function. The state hash is a four-lane read after its
    own call list (`Lifecycle.TranscriptCoverage.stateHash_eq_run`), and the

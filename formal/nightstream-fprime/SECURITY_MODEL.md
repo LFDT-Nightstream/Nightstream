@@ -751,6 +751,13 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
      therefore supplies no concrete 64-fold bound; its expected-time model
      is consistent with, but does not prove, `StageAdmitted`'s intended
      reading.
+     Abe, Balbás, Bui, Ohkubo, Shang, Takahashi and Tibouchi
+     (ePrint 2026/1679, Appendix B.4, Lemma 10) give a critical-round tree
+     extractor for Spartan's sumcheck sub-protocol with Pedersen commitments
+     and a dot-product Sigma proof. Its own statement requires surrounding
+     sub-protocols to link extracted openings to the statement. The selected
+     final compression uses WHIR, and recursive folds use SuperNeo/Ajtai.
+     That result supplies no extractor or 64-fold bound for this path.
      Külaots, Lipmaa, Parisella and Siim (ePrint 2026/326, Theorems 6 and 13)
      obtain tight Fiat–Shamir knowledge soundness from a special-sound
      univariate polynomial IOP and a polynomial commitment with the stated

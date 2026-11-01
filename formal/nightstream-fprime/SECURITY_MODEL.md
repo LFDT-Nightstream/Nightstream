@@ -516,6 +516,12 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
      recursive-history bound: it omits oracle queries, state-hash collisions,
      MSIS and the extractor's growing cost. A production fold cap is not yet
      fixed.
+     Lee and Seo, ePrint 2024/232 (revised 2026-02-13), give an artificial
+     IVC scheme that meets bounded-depth knowledge soundness but is forgeable
+     at polynomial depth. Their polynomial-depth result for Nova uses the
+     extended algebraic group model and a general zero-testing hash premise.
+     Neither premise has been established for this Ajtai and Poseidon2
+     instantiation, so that result does not close this depth gap.
 5. **Rust and Lean agree on recorded inputs only.** The golden conformance runs
    and the recorded native evidence cover their recorded inputs. No theorem
    covers arbitrary Rust execution. In particular,

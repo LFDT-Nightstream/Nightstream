@@ -583,6 +583,14 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
      extended algebraic group model and a general zero-testing hash premise.
      Neither premise has been established for this Ajtai and Poseidon2
      instantiation, so that result does not close this depth gap.
+     Chiesa, Guan, Samocha and Yogev (ePrint 2023/1646, Theorem 1) give a
+     small recursion loss for PCD from a relativized argument with a
+     straightline knowledge extractor, including oracle calls in the proved
+     computation. The extractor used by
+     `Lifecycle.RandomOracleKnowledge.knowledge_error_le` reruns the
+     adversary on changed oracle answers, so it is not straightline. Their
+     theorem therefore does not remove this query growth or justify the
+     provisional 64-fold case.
 5. **Rust and Lean agree on recorded inputs only.** The golden conformance runs
    and the recorded native evidence cover their recorded inputs. No theorem
    covers arbitrary Rust execution. In particular,

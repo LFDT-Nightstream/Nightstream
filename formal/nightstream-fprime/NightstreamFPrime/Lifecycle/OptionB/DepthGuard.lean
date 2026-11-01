@@ -78,4 +78,33 @@ theorem light_terms (interface : CanonicalU64.Interface) (env : Env) (offset : N
   rw [word]
   exact ⟨below, next_word depth .light⟩
 
+/-- The high-bit rows: one `assertZero` for each of bits 6 to 63 of the decomposition at
+`rangeOffset`. They add 58 rows and no variables. -/
+def highBitOps (rangeOffset : Nat) : List Op :=
+  (List.range 58).map fun index => Op.assertZero (Expr.var (rangeOffset + (index + 6)))
+
+private theorem highBit_member (rangeOffset index : Nat) (low : 6 ≤ index)
+    (high : index < CanonicalU64.bitCount) :
+    Op.assertZero (Expr.var (rangeOffset + index)) ∈ highBitOps rangeOffset := by
+  simp only [highBitOps, List.mem_map, List.mem_range]
+  refine ⟨index - 6, ?_, ?_⟩
+  · simp only [CanonicalU64.bitCount] at high
+    omega
+  · rw [Nat.sub_add_cancel low]
+
+def highBitsCircuit (rangeOffset : Nat) : FormalCircuit where
+  main := fun offset => ((), offset, highBitOps rangeOffset)
+  spec := fun _ env => HighBitsZero rangeOffset env
+  soundness := by
+    intro env _ _ rows index low high
+    exact rows _ (highBit_member rangeOffset index low high)
+  completeness := by
+    intro env _ _ zero
+    refine ⟨env, fun _ _ => rfl, ?_⟩
+    intro row member
+    simp only [Circuit.ops, flatConstraints, highBitOps, List.flatMap_map, List.mem_flatMap,
+      List.mem_range, Op.flatConstraints, List.mem_singleton] at member
+    obtain ⟨index, bound, rfl⟩ := member
+    exact zero (index + 6) (by omega) (by simp only [CanonicalU64.bitCount]; omega)
+
 end NightstreamFPrime.Lifecycle.OptionB.DepthGuard

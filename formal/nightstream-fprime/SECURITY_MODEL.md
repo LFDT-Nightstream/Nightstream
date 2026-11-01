@@ -534,9 +534,15 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
 3. **Two hardness terms.**
    - If MSIS is hard for a uniform matrix of `22 × blockCount` elements of
      `F_p[X]/Φ₈₁` (degree 54) at norm `8TB`, at the solver's work, then
-     `msisAdvantage` is small. `blockCount` is at most 4,971,027 for every
-     application that fits, and 814,144 for `Poseidon2HashChainV1`. MSIS
-     hardness is stated for solvers with a strict time bound. The solver
+     `msisAdvantage` is small.
+     `Export.Stage1.PerApplicationFixedPoint.FitsTwoPow28.carrier` and the
+     54-coefficient ring layout limit `blockCount` to 4,971,026 for every
+     fitting Lean application. The proof
+     `Export.Stage1.RandomOracleSetup.programmingError_lt_of_fits` uses the
+     conservative upper bound 4,971,027. The public Rust setup caps proofs
+     at 4,708,530 columns (`MAX_MESSAGE_COLUMNS`); `Poseidon2HashChainV1`
+     uses 814,144. MSIS hardness is stated for solvers with a strict time
+     bound. The solver
      `Lifecycle.RandomOracleReduction.solve` with a strict budget of `T`
      adversary runs loses at most `(35 Q + 653) / T`:
      `msisAdvantage ≤ solverAdvantage T + (35 Q + 653) / T`
@@ -561,8 +567,20 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
      `Spec.Phi81StrongSet.lowNormInvertibility` therefore rules out a
      nonzero short ring word that vanishes in only one CRT factor.
      The unstructured lattice estimate does not price attacks that use this
-     CRT split. The Module-SIS algorithm of ePrint 2026/2420 is proved for
-     power-of-two cyclotomic rings and does not give a cost for this profile.
+     CRT split. Youmans (ePrint 2026/2420, Theorem 1 and Section 8) proves a
+     subexponential uniform-key Module-SIS algorithm for power-of-two
+     cyclotomic rings and a coefficient bound `q/(ln n)^c` for fixed `c > 0`.
+     Theorem 1 assumes fixed module ranks and a specified asymptotic modulus
+     growth rate. Its proof and concrete cost do not cover this degree-54
+     `Φ₈₁` ring or the selected fixed key. The constant-coefficient
+     restriction below gives an independent uniform flat-SIS subproblem in
+     the uniform-key game, so a related unstructured SIS route remains open.
+     The authors' published `sis_grid.py` is a heuristic diagnostic, not an
+     implemented attack or a lower bound. At `n = 1,188`,
+     `q = 18,446,744,069,414,584,321`, `β = 113,246,207`, and both the
+     reference width 814,144 and Rust cap 4,708,530, it reports no modeled
+     hit on list-exponent grid points 0.1 through 110 in steps of 0.1.
+     This finite result does not establish 110-bit selected-key security.
      Zhang, Zhou and Qu (ePrint 2026/607, revised 2026-10-16, Section 6)
      refine a generic q-ary Approx-SVP estimate for MSIS. Their numerical
      model reduces Dilithium's classical Core-SVP estimates by 3.65 to 6.09

@@ -35,6 +35,9 @@ Fixpoint instrFacts (localCount resultCount : nat) (arities : list nat) (callees
   | RETURN => wf_instr i /\ (resultCount <= height)%nat
   (* A br_if's operands hold its target's results below the condition. *)
   | BR_IF l => wf_instr i /\ exists n, nth_error arities (N.to_nat (l :> N)) = Some n /\ (S n <= height)%nat
+  (* A br_table's operands hold its targets' common results below the index. *)
+  | BR_TABLE ls l => wf_instr i /\ exists n,
+      Forall (fun target => nth_error arities (N.to_nat (target :> N)) = Some n) (l :: ls) /\ (S n <= height)%nat
   (* A br's operands hold its target's results. *)
   | BR l => wf_instr i /\ exists n, nth_error arities (N.to_nat (l :> N)) = Some n /\ (n <= height)%nat
   | _ => wf_instr i /\ programTyped localCount height [i]
@@ -99,7 +102,7 @@ Proof.
   { intros Hop extra. split; [exact Hw | ].
     pose proof (proj1 (validated_instruction_height _ _ _ _ Hi Hop) extra [] I) as H.
     rewrite Hlocals, repeat_length in H. exact H. }
-  inversion Hsupport as [ | | | | x f Hf Hp Hr | result body | l | l | ]; subst.
+  inversion Hsupport as [ | | | | x f Hf Hp Hr | result body | l | l | ls l | ]; subst.
   - split; [exact (Hordinary ltac:(eexists; reflexivity)) | ].
     inversion Hi; subst. intros extra. left. cbn [length]. rewrite Nat.add_comm. cbn. f_equal; lia.
   - split; [exact (Hordinary ltac:(eexists; reflexivity)) | ].
@@ -148,6 +151,30 @@ Proof.
       by (intros xs ys; induction xs as [ | x xs IH]; [reflexivity | cbn; rewrite IH; reflexivity]).
     rewrite Hlength, repeat_length. lia.
   - inversion Hi; subst.
+    assert (Hsize : forall (A : Type) (xs : list A), seq.size xs = length xs)
+      by (intros A xs; induction xs as [ | x xs IH]; [reflexivity | cbn; rewrite IH; reflexivity]).
+    assert (Hlength : forall (xs ys : list valtype), length (seq.cat xs ys) = (length xs + length ys)%nat)
+      by (intros xs ys; induction xs as [ | x xs IH]; [reflexivity | cbn; rewrite IH; reflexivity]).
+    (* Each target's label holds as many results as the operands the table keeps. *)
+    match goal with Hs : Resulttype_sub (mk_list _ ?ts) _ |- _ => set (kept := ts) in * end.
+    match goal with Hs : Resulttype_sub _ (@lookup_total _ ?inst _ _) |- _ =>
+      assert (Htarget : forall target : labelidx, is_true ((target :> N) <? (|LABELS C|))%BN ->
+        Resulttype_sub (mk_list _ kept) (@lookup_total _ inst (LABELS C) (target :> N)) ->
+        nth_error arities (N.to_nat (target :> N)) = Some (length kept)) end.
+    { intros target Hb Hs. rewrite Hlabels in Hb, Hs. apply N.ltb_lt in Hb. rewrite Hsize, length_map in Hb.
+      destruct (nth_error arities (N.to_nat (target :> N))) as [m | ] eqn:Hm; [ | apply nth_error_None in Hm; lia].
+      erewrite spec_lookup_from_nth_error in Hs; [ | rewrite nth_error_map, Hm; reflexivity].
+      inversion Hs as [t1 t2 Hlen _]; subst. apply (elimT eqP) in Hlen.
+      rewrite !Hsize, repeat_length in Hlen. f_equal. lia. }
+    split; [intros extra; split; [exact Hw | exists (length kept); split] | intros extra; right; reflexivity].
+    + constructor; [apply (Htarget l); assumption | ].
+      apply Forall_forall. intros target Hin.
+      apply (Htarget target).
+      * match goal with HF : Forall (fun _ => is_true _) ls |- _ => exact (proj1 (Forall_forall _ _) HF _ Hin) end.
+      * match goal with HF : Forall (fun _ => Resulttype_sub _ _) ls |- _ =>
+          exact (proj1 (Forall_forall _ _) HF _ Hin) end.
+    + rewrite !Hlength. cbn [length]. lia.
+  - inversion Hi; subst.
     match goal with H : is_true (_ == _) |- _ => apply (elimT eqP) in H end.
     rewrite Hreturn in *. match goal with H : Some _ = Some _ |- _ => injection H as Hresults end.
     split; [intros extra; split; [exact Hw | ] | intros extra; right; reflexivity].
@@ -186,7 +213,7 @@ Proof.
   - intros Hsize localCount resultCount arities callees Hfits Hsupport.
     pose proof (Forall_inv Hsupport) as Hsup.
     destruct (instr_block_cases i) as [[bt [body ->]] | Hnot].
-    + inversion Hsup as [ | | | | | result body' Hbody' Hresult | | | ]; subst. inversion Hi; subst.
+    + inversion Hsup as [ | | | | | result body' Hbody' Hresult | | | | ]; subst. inversion Hi; subst.
       match goal with Hbt : Blocktype_ok _ _ _ |- _ => inversion Hbt; subst end.
       rewrite block_size in Hsize.
       match goal with Hbody : Instrs_ok _ body _ |- _ => pose proof (IHn _ _ _ Hbody ltac:(lia)) as Hinner end.

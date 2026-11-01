@@ -85,5 +85,7 @@ tests/ResultBlockTrace.v
 tests/ResultBlockWitness.v
 tests/BrTrace.v
 tests/BrWitness.v
+tests/BrTableTrace.v
+tests/BrTableWitness.v
 tests/DeepBranches.v
 tests/RangeSearch.v

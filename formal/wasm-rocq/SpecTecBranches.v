@@ -101,6 +101,43 @@ Proof.
     exact (steps_with_instruction_suffix rest _ _ Hrest (one_spec_step _ _ Hb Hbr Hstep)).
 Qed.
 
+(* br_table's target for an index: the arm it names, or the default beyond the arms. *)
+Definition brTableTarget (ls : list labelidx) (l : labelidx) (index : Z) : labelidx :=
+  if index <? Z.of_nat (length ls) then nth (Z.to_nat index) ls l else l.
+
+(* br_table with an i32 index becomes a br to its target. *)
+Lemma br_table_steps : forall z index ls l rest,
+  wf_state z -> 0 <= index < i32Modulus -> wf_instr (BR_TABLE ls l) -> Forall wf_instr rest ->
+  Steps (stackConfig z [index] (BR_TABLE ls l :: rest)) (stackConfig z [] (BR (brTableTarget ls l index) :: rest)).
+Proof.
+  intros z index ls l rest Hz Hbound Hw Hrest.
+  assert (Hls : Forall (wf_uN 32%N) ls) by (inversion Hw; assumption).
+  assert (Hl : wf_uN 32%N l) by (inversion Hw; assumption).
+  assert (Htarget : wf_uN 32%N (brTableTarget ls l index)).
+  { unfold brTableTarget. destruct (index <? Z.of_nat (length ls)) eqn:Hlt; [ | exact Hl].
+    apply Z.ltb_lt in Hlt. apply (proj1 (Forall_forall _ _) Hls). apply nth_In. lia. }
+  assert (Hb : wf_config (stackConfig z [index] [BR_TABLE ls l])).
+  { apply stack_config_wf; [exact Hz | constructor; [exact Hbound | constructor] | ]. repeat constructor; assumption. }
+  assert (Ha : wf_config (stackConfig z [] [BR (brTableTarget ls l index)])).
+  { apply stack_config_wf; [exact Hz | constructor | ]. constructor; [constructor; exact Htarget | constructor]. }
+  assert (Hstep : Step (stackConfig z [index] [BR_TABLE ls l]) (stackConfig z [] [BR (brTableTarget ls l index)])).
+  { apply pure. unfold brTableTarget. destruct (index <? Z.of_nat (length ls)) eqn:Hlt.
+    - apply Z.ltb_lt in Hlt.
+      replace (nth (Z.to_nat index) ls l) with (lookup_total ls (Z.to_N index)).
+      + apply br_table_lt; [ | reflexivity].
+        change (is_true (N.ltb (Z.to_N index) (N.of_nat (seq.size ls)))). apply N.ltb_lt.
+        assert (Hsize : seq.size ls = length ls)
+          by (clear; induction ls as [ | x ls IH]; [reflexivity | cbn; rewrite IH; reflexivity]).
+        rewrite Hsize. lia.
+      + apply spec_lookup_from_nth_error. rewrite Z_N_nat. apply nth_error_nth'. lia.
+    - apply Z.ltb_ge in Hlt. apply br_table_ge; [reflexivity | ].
+      change (is_true (N_geb (Z.to_N index) (N.of_nat (seq.size ls)))).
+      assert (Hsize : seq.size ls = length ls)
+        by (clear; induction ls as [ | x ls IH]; [reflexivity | cbn; rewrite IH; reflexivity]).
+      rewrite Hsize. unfold N_geb. apply N.leb_le. lia. }
+  exact (steps_with_instruction_suffix rest _ _ Hrest (one_spec_step _ _ Hb Ha Hstep)).
+Qed.
+
 (* With operands below: the same steps, under them. *)
 Lemma stack_prefix_config : forall z values more code,
   stackPrefix values (stackConfig z more code) = stackConfig z (values ++ more) code.

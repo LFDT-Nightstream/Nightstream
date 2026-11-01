@@ -65,6 +65,7 @@ Definition pcEdgeKindId : nat := 27%nat.
 Definition pcRomId : nat := 36%nat.
 Definition frameSlideRemainingId : nat := 37%nat.
 Definition frameSlideDistanceId : nat := 38%nat.
+Definition programBrTableLenId : nat := 39%nat.
 
 Definition continuityLinks : list ContinuityLink :=
   [(355%nat, 354%nat);

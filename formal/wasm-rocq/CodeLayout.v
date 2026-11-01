@@ -1,6 +1,7 @@
 (* Flatten blocks into instruction addresses, recursively: a BLOCK, its body, then
    its END, as the Rust preprocessing numbers operators. A branch inside a block
-   body stores its distance to the instruction after its target block's END. A
+   body stores, per edge, its distance to the instruction after its target block's
+   END. A
    block is laid out knowing, for each block around it, the distance from the
    instruction after its own END to the instruction after that block's END. *)
 From Stdlib Require Import List Arith NArith Lia.
@@ -9,29 +10,39 @@ Import ListNotations.
 
 Record FlatInstruction := flatInstruction {
   flatOpcode : option instr;
-  flatBranchDistance : option nat
+  flatBranchDistances : list (option nat)
 }.
+
+(* A branch's targets, one per edge: br_table's default first, then its arms, as
+   the circuit numbers its control choices. *)
+Definition branchTargets (i : instr) : list labelidx :=
+  match i with BR_IF l | BR l => [l] | BR_TABLE ls l => l :: ls | _ => [] end.
 
 (* A branch tail instructions before its block's END, to label l: the enclosing
    blocks' distances, `outer`, continue past this block's. *)
 Definition branchDistance (outer : list nat) (l : labelidx) (tail : nat) : option nat :=
   Datatypes.option_map (Nat.add (S (S tail))) (nth_error (0 :: outer) (N.to_nat (l :> N))).
 
+(* A branch's distance per edge; other instructions have no edges here. *)
+Definition branchDistances (outer : list nat) (i : instr) (tail : nat) : list (option nat) :=
+  map (fun l => branchDistance outer l tail) (branchTargets i).
+
 Fixpoint flattenInstruction (outer : list nat) (i : instr) : list FlatInstruction :=
   match i with
   | BLOCK _ body =>
-      flatInstruction (Some i) None ::
+      flatInstruction (Some i) [] ::
         (fix blockCode (code : list instr) : list FlatInstruction :=
            match code with
            | [] => []
            | j :: rest =>
                let tail := blockCode rest in
                match j with
-               | BR_IF l | BR l => flatInstruction (Some j) (branchDistance outer l (length tail)) :: tail
+               | BR_IF _ | BR _ | BR_TABLE _ _ =>
+                   flatInstruction (Some j) (map (fun l => branchDistance outer l (length tail)) (branchTargets j)) :: tail
                | _ => flattenInstruction (map (Nat.add (S (length tail))) (0 :: outer)) j ++ tail
                end
-           end) body ++ [flatInstruction None None]
-  | _ => [flatInstruction (Some i) None]
+           end) body ++ [flatInstruction None []]
+  | _ => [flatInstruction (Some i) []]
   end.
 
 (* A block body, as flattenInstruction lays it out. *)
@@ -42,7 +53,8 @@ Definition blockCode (outer : list nat) : list instr -> list FlatInstruction :=
     | j :: rest =>
         let tail := blockCode rest in
         match j with
-        | BR_IF l | BR l => flatInstruction (Some j) (branchDistance outer l (length tail)) :: tail
+        | BR_IF _ | BR _ | BR_TABLE _ _ =>
+            flatInstruction (Some j) (map (fun l => branchDistance outer l (length tail)) (branchTargets j)) :: tail
         | _ => flattenInstruction (map (Nat.add (S (length tail))) (0 :: outer)) j ++ tail
         end
     end.
@@ -72,13 +84,14 @@ Fixpoint pathOffset (code : list instr) (labels : list nat) (offset : nat) : nat
 
 Lemma flatten_block : forall outer bt body,
   flattenInstruction outer (BLOCK bt body) =
-    flatInstruction (Some (BLOCK bt body)) None :: blockCode outer body ++ [flatInstruction None None].
+    flatInstruction (Some (BLOCK bt body)) [] :: blockCode outer body ++ [flatInstruction None []].
 Proof. reflexivity. Qed.
 
 Lemma block_code_unfold : forall outer j rest, blockCode outer (j :: rest) =
   match j with
-  | BR_IF l | BR l =>
-      flatInstruction (Some j) (branchDistance outer l (length (blockCode outer rest))) :: blockCode outer rest
+  | BR_IF _ | BR _ | BR_TABLE _ _ =>
+      flatInstruction (Some j) (map (fun l => branchDistance outer l (length (blockCode outer rest))) (branchTargets j))
+        :: blockCode outer rest
   | _ => flattenInstruction (map (Nat.add (S (length (blockCode outer rest)))) (0 :: outer)) j ++ blockCode outer rest
   end.
 Proof. reflexivity. Qed.
@@ -148,7 +161,7 @@ Proof. intros. unfold codeOffset. rewrite <- code_size_app, firstn_skipn. reflex
    a nested block learns the distances around it. *)
 Definition blockSlot (outer : list nat) (i : instr) (rest : list instr) : list FlatInstruction :=
   match i with
-  | BR_IF l | BR l => [flatInstruction (Some i) (branchDistance outer l (codeSize rest))]
+  | BR_IF _ | BR _ | BR_TABLE _ _ => [flatInstruction (Some i) (branchDistances outer i (codeSize rest))]
   | _ => flattenInstruction (map (Nat.add (S (codeSize rest))) (0 :: outer)) i
   end.
 
@@ -157,7 +170,7 @@ Proof. intros outer i rest. destruct i; try reflexivity; apply flatten_length. Q
 
 Lemma block_slot_head : forall outer i rest, exists more,
   blockSlot outer i rest = flatInstruction (Some i)
-    (match i with BR_IF l | BR l => branchDistance outer l (codeSize rest) | _ => None end) :: more.
+    (branchDistances outer i (codeSize rest)) :: more.
 Proof. intros outer i rest. destruct i; eexists; reflexivity. Qed.
 
 Lemma block_code_length : forall outer code, length (blockCode outer code) = codeSize code.
@@ -193,7 +206,7 @@ Qed.
 
 Lemma flatten_block_inner : forall outer bt body inner,
   nth_error (flattenInstruction outer (BLOCK bt body)) (S inner) =
-    nth_error (blockCode outer body ++ [flatInstruction None None]) inner.
+    nth_error (blockCode outer body ++ [flatInstruction None []]) inner.
 Proof. reflexivity. Qed.
 
 (* The distances a body at a path is laid out with. *)
@@ -226,8 +239,8 @@ Qed.
 
 Lemma block_path_end : forall labels body outer inner,
   pathCode body labels = Some inner ->
-  nth_error (blockCode outer body ++ [flatInstruction None None]) (pathOffset body labels (length inner)) =
-    Some (flatInstruction None None).
+  nth_error (blockCode outer body ++ [flatInstruction None []]) (pathOffset body labels (length inner)) =
+    Some (flatInstruction None []).
 Proof.
   induction labels as [ | b rest IH]; intros body outer inner Hpath.
   - injection Hpath as <-. cbn [pathOffset]. rewrite code_offset_end, <- (block_code_length outer).
@@ -236,7 +249,7 @@ Proof.
     destruct j; try discriminate.
     match goal with |- context [codeOffset body b + S (pathOffset ?nested rest (length inner))] =>
       assert (Hslot : nth_error (blockCode outer body) (codeOffset body b + S (pathOffset nested rest (length inner))) =
-          Some (flatInstruction None None)) end.
+          Some (flatInstruction None [])) end.
     { apply (block_code_at _ _ _ _ _ _ Hb). cbn [blockSlot]. rewrite flatten_block_inner. exact (IH _ _ _ Hpath). }
     rewrite nth_error_app1 by (apply nth_error_Some; rewrite Hslot; discriminate). exact Hslot.
 Qed.
@@ -264,7 +277,7 @@ Qed.
 
 Lemma flatten_block_end : forall code b bt body labels inner,
   nth_error code b = Some (BLOCK bt body) -> pathCode body labels = Some inner ->
-  nth_error (flattenCode code) (pathOffset code (b :: labels) (length inner)) = Some (flatInstruction None None).
+  nth_error (flattenCode code) (pathOffset code (b :: labels) (length inner)) = Some (flatInstruction None []).
 Proof.
   intros code b bt body labels inner Hb Hpath. cbn [pathOffset]. rewrite Hb.
   apply (flatten_within_instruction _ _ _ _ _ Hb). rewrite flatten_block_inner. exact (block_path_end _ _ _ _ Hpath).
@@ -293,7 +306,7 @@ Fixpoint bodyExits (outer : list nat) (body : list instr) (labels : list nat) : 
   end.
 
 Lemma block_branch_distance : forall labels body outer inner offset i l t,
-  pathCode body labels = Some inner -> nth_error inner offset = Some i -> (i = BR_IF l \/ i = BR l) ->
+  pathCode body labels = Some inner -> nth_error inner offset = Some i -> In l (branchTargets i) ->
   nth_error (bodyExits outer body labels) (N.to_nat (l :> N)) = Some t ->
   exists d, branchDistance (bodyOuter outer body labels) l (codeSize (skipn (S offset) inner)) = Some d /\
     pathOffset body labels offset + d = t.
@@ -304,7 +317,8 @@ Proof.
     destruct (nth_error (0 :: outer) (N.to_nat (l :> N))) as [e | ]; cbn [Datatypes.option_map] in Ht |- *; [ | discriminate].
     injection Ht as <-. eexists. split; [reflexivity | ].
     pose proof (code_size_split body (S offset)) as Hsplit. rewrite (code_offset_next _ _ _ Hi) in Hsplit.
-    replace (instructionSize i) with 1 in Hsplit by (destruct Hbranch as [-> | ->]; reflexivity). lia.
+    replace (instructionSize i) with 1 in Hsplit
+      by (destruct i; cbn [branchTargets In] in Hbranch; try contradiction; reflexivity). lia.
   - cbn [pathCode bodyExits bodyOuter pathOffset] in *.
     destruct (nth_error body b) as [j | ] eqn:Hb; [ | discriminate]. destruct j; try discriminate.
     rewrite nth_error_map in Ht.
@@ -346,7 +360,7 @@ Qed.
 (* A branch at a function's code path, to the block at b after pre: its distance
    lands just after that block. *)
 Lemma flatten_branch_target : forall code labels inner offset i l pre b post,
-  pathCode code labels = Some inner -> nth_error inner offset = Some i -> (i = BR_IF l \/ i = BR l) ->
+  pathCode code labels = Some inner -> nth_error inner offset = Some i -> In l (branchTargets i) ->
   labels = pre ++ b :: post -> N.to_nat (l :> N) = length post ->
   exists d, branchDistance (pathOuter code labels) l (codeSize (skipn (S offset) inner)) = Some d /\
     pathOffset code labels offset + d = pathOffset code pre (S b).

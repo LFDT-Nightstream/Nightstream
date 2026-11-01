@@ -53,17 +53,17 @@ Proof.
 Qed.
 
 Lemma full_branch_fbp_unchanged : forall (w : Witness) chosen,
-  fieldPrime -> FullRelation.satFull w -> In chosen [COL_SEL_BR; COL_SEL_BR_IF_EQZ] -> w chosen = 1 ->
+  fieldPrime -> FullRelation.satFull w -> In chosen [COL_SEL_BR; COL_SEL_BR_IF_EQZ; COL_SEL_BR_TABLE] -> w chosen = 1 ->
   w COL_LOCALS_FBP_AFTER = w COL_LOCALS_FBP_BEFORE.
 Proof.
   intros w chosen Hprime Hfull Hbranch Hchosen.
-  assert (Hin : In chosen selectorColumns) by (destruct Hbranch as [<- | [<- | []]]; vm_compute; tauto).
+  assert (Hin : In chosen selectorColumns) by (destruct Hbranch as [<- | [<- | [<- | []]]]; vm_compute; tauto).
   pose proof (proj1 Hfull) as Hone.
-  destruct (full_branch_frame w chosen Hprime Hfull Hin Hchosen
-    ltac:(destruct Hbranch as [<- | [<- | []]]; cbn; tauto)) as [Hpop Hpush _ Hturn _].
+  destruct (full_branch_frame w chosen Hprime Hfull Hin Hchosen Hbranch) as [Hpop Hpush _ Hturn _].
   pose proof (value_bound w COL_LOCALS_FBP_BEFORE). pose proof (value_bound w COL_LOCALS_FBP_AFTER).
-  destruct Hbranch as [<- | [<- | []]];
-    [selected_row COL_SEL_BR localsBasePreservedRow Hrow | selected_row COL_SEL_BR_IF_EQZ localsBasePreservedRow Hrow];
+  destruct Hbranch as [<- | [<- | [<- | []]]];
+    [selected_row COL_SEL_BR localsBasePreservedRow Hrow | selected_row COL_SEL_BR_IF_EQZ localsBasePreservedRow Hrow
+    | selected_row COL_SEL_BR_TABLE localsBasePreservedRow Hrow];
     zero_host_switch Hrow; rewrite Hone, Hpush, Hpop, Hturn in Hrow; field_linear Hrow.
 Qed.
 
@@ -86,6 +86,64 @@ Proof.
     pose proof (value_bound w COL_STACK_FRAME_BASE_AFTER). field_linear Hrow.
   - rewrite stack_writes_in_row. unfold stackPortWrites, writeIf.
     rewrite Hwrite, HwriteHi, HlocalWrite, HgatherLocal, HgatherLocalLo. reflexivity.
+Qed.
+
+(* A br_table pops its index and slides by its distance. *)
+Theorem full_br_table_stack_shape : forall (w : Witness),
+  fieldPrime -> FullRelation.satFull w -> w COL_SEL_BR_TABLE = 1 ->
+  1 <= w COL_SP_BEFORE -> UnaryStackShape w true false.
+Proof.
+  unary_stack_facts COL_SEL_BR_TABLE 1 0 0.
+  assert (HlocalGet : w COL_SEL_LOCAL_GET = 0).
+  { refine (full_opcode_selector_exclusive w COL_SEL_BR_TABLE COL_SEL_LOCAL_GET Hprime Hfull Hchosen Hin _ _);
+      [vm_compute; tauto | discriminate]. }
+  constructor; try assumption; try (intro H; discriminate H).
+  - intro H. selected_row COL_SEL_BR_TABLE unaryReadAddressRow Hrow. rewrite Hone in Hrow.
+    pose proof (value_bound w (nth 0%nat COL_STACK_READ_ADDR_LO 0%nat)). field_linear Hrow.
+  - selected_row COL_SEL_BR_TABLE stackPointerBalanceRow Hrow. zero_host_switch Hrow. zero_gather_kinds Hkinds Hrow.
+    rewrite Hone, Hreads, Hwrites, Hdiscard, Hlocal, Houtput, Hcapture, Hparams in Hrow.
+    change (w COL_SP_AFTER = w COL_SP_BEFORE + -1 - w COL_FRAME_MOVE_DISTANCE_AFTER).
+    circuit_range COL_SP_AFTER Hspa. circuit_range COL_SP_BEFORE Hspb. circuit_range COL_FRAME_MOVE_DISTANCE_AFTER Hd.
+    field_linear Hrow.
+  - selected_row COL_SEL_BR_TABLE stackFrameBasePreservedRow Hrow. zero_host_switch Hrow.
+    rewrite Hone, Hguest, Hturn, Hpop in Hrow.
+    pose proof (value_bound w COL_STACK_FRAME_BASE_BEFORE).
+    pose proof (value_bound w COL_STACK_FRAME_BASE_AFTER). field_linear Hrow.
+Qed.
+
+(* A br_table's edge: arm `index` (choice index + 1) for an index below the arm
+   count, the default (choice 0) otherwise. *)
+Theorem full_br_table_choice : forall (w : Witness),
+  fieldPrime -> FullRelation.satFull w -> w COL_SEL_BR_TABLE = 1 ->
+  w COL_CONTROL_CHOICE =
+    (if Z.ltb (w (nth 0%nat COL_STACK_READ_VALUE_LO 0%nat)) (w COL_BR_TABLE_LEN)
+     then w (nth 0%nat COL_STACK_READ_VALUE_LO 0%nat) + 1 else 0).
+Proof.
+  intros w Hprime Hfull Hchosen.
+  pose proof (proj1 Hfull) as Hone.
+  pose proof (full_read0_u32 w Hprime Hfull) as Hindex.
+  circuit_range COL_BR_TABLE_LEN Hlen. circuit_range COL_CMP_LOW Hlow. circuit_boolean COL_CMP_GE Hge.
+  circuit_boolean COL_BR_TABLE_IN_BOUNDS Hbounds.
+  pose proof (value_bound w COL_CONTROL_CHOICE).
+  (* index - len + 2^32 = low + ge * 2^32, so ge says index >= len. *)
+  circuit_row ([(COL_SEL_BR_TABLE, 1)], [(nth 0%nat COL_STACK_READ_VALUE_LO 0%nat, 1); (COL_BR_TABLE_LEN, -1);
+    (COL_ONE, 4294967296); (COL_CMP_LOW, -1); (COL_CMP_GE, -4294967296)], ([] : SparseRow)) Hcmp.
+  circuit_row ([(COL_SEL_BR_TABLE, 1)], [(COL_ONE, 1); (COL_CMP_GE, -1)], [(COL_BR_TABLE_IN_BOUNDS, 1)]) Hin.
+  circuit_row ([(COL_BR_TABLE_IN_BOUNDS, 1)],
+    [(COL_CONTROL_CHOICE, 1); (nth 0%nat COL_STACK_READ_VALUE_LO 0%nat, -1); (COL_ONE, -1)], ([] : SparseRow)) Harm.
+  circuit_row ([(COL_SEL_BR_TABLE, 1); (COL_BR_TABLE_IN_BOUNDS, -1)], [(COL_CONTROL_CHOICE, 1)], ([] : SparseRow))
+    Hdefault.
+  expand_row Hcmp. expand_row Hin. expand_row Harm. expand_row Hdefault.
+  rewrite Hone, Hchosen in *.
+  destruct Hge as [Hge | Hge]; rewrite Hge in *.
+  - assert (Hinside : w COL_BR_TABLE_IN_BOUNDS = 1) by field_linear Hin.
+    normalize_columns. rewrite Hinside in Harm.
+    assert (Hlt : w (nth 0%nat COL_STACK_READ_VALUE_LO 0%nat) < w COL_BR_TABLE_LEN) by field_linear Hcmp.
+    replace (Z.ltb _ _) with true by (symmetry; apply Z.ltb_lt; exact Hlt). field_linear Harm.
+  - assert (Houtside : w COL_BR_TABLE_IN_BOUNDS = 0) by field_linear Hin.
+    normalize_columns. rewrite Houtside in Hdefault.
+    assert (Hge' : w COL_BR_TABLE_LEN <= w (nth 0%nat COL_STACK_READ_VALUE_LO 0%nat)) by field_linear Hcmp.
+    replace (Z.ltb _ _) with false by (symmetry; apply Z.ltb_ge; exact Hge'). field_linear Hdefault.
 Qed.
 
 Definition branchImage (memory : MemoryState) (pc fallthrough target : Z) : Prop :=

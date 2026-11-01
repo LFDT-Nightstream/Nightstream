@@ -80,6 +80,19 @@ const BR_OUT: &str = r#"(module
       block local.get 1 br 1 end
     end))"#;
 
+/// Two br_tables: index 1 takes an arm out of a zero-result block; index 7 is past
+/// the arms and takes the default out of a result block, which keeps its result and
+/// drops the operand below it, so the result moves down.
+const BR_TABLES: &str = r#"(module
+  (func (export "main") (param i32 i32) (result i32)
+    block (result i32)
+      local.get 0
+      block local.get 1 br_table 0 0 0 end
+      local.get 1
+      local.get 0
+      br_table 0 0
+    end))"#;
+
 /// The longest run of program, zero and move rows ending just before the final END,
 /// which finishes the activation, as `name`, one dense row per trace row.
 fn export_witness(wat: &str, params: &[i32], name: &str, file: &str) {
@@ -140,4 +153,5 @@ fn export_witnesses() {
     export_witness(EARLY_RETURN, &[7], "earlyReturnRows", "EarlyReturnTrace.v");
     export_witness(RESULT_BLOCKS, &[7, 9], "resultBlockRows", "ResultBlockTrace.v");
     export_witness(BR_OUT, &[7, 9], "brRows", "BrTrace.v");
+    export_witness(BR_TABLES, &[7, 1], "brTableRows", "BrTableTrace.v");
 }

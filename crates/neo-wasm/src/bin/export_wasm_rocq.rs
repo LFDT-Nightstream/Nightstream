@@ -381,6 +381,7 @@ fn emit_rocq_memory_catalog() -> String {
         (WasmMemoryId::PcRom, "pcRomId"),
         (WasmMemoryId::FrameSlideRemaining, "frameSlideRemainingId"),
         (WasmMemoryId::FrameSlideDistance, "frameSlideDistanceId"),
+        (WasmMemoryId::ProgramBrTableLen, "programBrTableLenId"),
     ] {
         let index = memories
             .iter()

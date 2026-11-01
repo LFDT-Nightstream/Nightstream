@@ -24,14 +24,14 @@ Qed.
 Definition pathSlot (code : list instr) (labels : list nat) (i : instr) (rest : list instr) : list FlatInstruction :=
   match labels with [] => flattenInstruction [] i | _ :: _ => blockSlot (pathOuter code labels) i rest end.
 
-Definition pathBranch (code : list instr) (labels : list nat) (i : instr) (rest : list instr) : option nat :=
-  match labels, i with _ :: _, (BR_IF l | BR l) => branchDistance (pathOuter code labels) l (codeSize rest) | _, _ => None end.
+Definition pathBranches (code : list instr) (labels : list nat) (i : instr) (rest : list instr) : list (option nat) :=
+  match labels with [] => [] | _ :: _ => branchDistances (pathOuter code labels) i (codeSize rest) end.
 
 Lemma path_slot_head : forall code labels i rest, exists more,
-  pathSlot code labels i rest = flatInstruction (Some i) (pathBranch code labels i rest) :: more.
+  pathSlot code labels i rest = flatInstruction (Some i) (pathBranches code labels i rest) :: more.
 Proof.
   intros code [ | b labels] i rest; [destruct i; eexists; reflexivity | ].
-  destruct (block_slot_head (pathOuter code (b :: labels)) i rest) as [more H]. exists more. destruct i; exact H.
+  destruct (block_slot_head (pathOuter code (b :: labels)) i rest) as [more H]. exists more. exact H.
 Qed.
 
 Lemma flatten_at_path : forall code labels inner offset i k s,
@@ -48,7 +48,7 @@ Qed.
 
 Lemma flatten_end_at_path : forall code labels inner,
   labels <> [] -> pathCode code labels = Some inner ->
-  nth_error (flattenCode code) (pathOffset code labels (length inner)) = Some (flatInstruction None None).
+  nth_error (flattenCode code) (pathOffset code labels (length inner)) = Some (flatInstruction None []).
 Proof.
   intros code [ | b labels] inner Hne Hpath; [contradiction | ].
   cbn [pathCode] in Hpath. destruct (nth_error code b) as [j | ] eqn:Hb; [ | discriminate].
@@ -68,7 +68,7 @@ Lemma encoded_path_head : forall labels inner offset i,
   instructionAtPC program (pathPC labels offset) =
     Some (SpecTecCalls.i32Function (guestModule f) (guestTypeIndex f) (guestParams f)
       (guestResults f) (guestLocals f) (guestBody f),
-      Some (flatInstruction (Some i) (pathBranch (guestBody f) labels i (skipn (S offset) inner)))).
+      Some (flatInstruction (Some i) (pathBranches (guestBody f) labels i (skipn (S offset) inner)))).
 Proof.
   intros labels inner offset i Hpath Hi.
   destruct (path_slot_head (guestBody f) labels i (skipn (S offset) inner)) as [more Hhead].
@@ -82,7 +82,7 @@ Lemma encoded_path_ordinary : forall labels inner offset i,
 Proof.
   intros labels inner offset i Hpath Hi [op Hop].
   pose proof (encoded_path_head _ _ _ _ Hpath Hi) as Hpc.
-  assert (Hplain : pathBranch (guestBody f) labels i (skipn (S offset) inner) = None).
+  assert (Hplain : pathBranches (guestBody f) labels i (skipn (S offset) inner) = []).
   { destruct labels; [reflexivity | ].
     destruct (encoded_opcode_cases _ _ Hop) as [[-> _] | [[-> _] | [[x [-> _]] | [x [-> _]]]]]; reflexivity. }
   rewrite Hplain in Hpc.
@@ -127,8 +127,9 @@ Proof.
   intros labels inner offset l pre b post Hpath Hi Hsplit Hl.
   pose proof (encoded_path_head _ _ _ _ Hpath Hi) as Hpc.
   destruct (flatten_branch_target _ _ _ _ _ _ _ _ _ Hpath Hi (or_introl Logic.eq_refl) Hsplit Hl) as [d [Hd Htarget]].
-  assert (Hbranch : pathBranch (guestBody f) labels (BR_IF l) (skipn (S offset) inner) = Some d)
-    by (subst labels; destruct pre; exact Hd).
+  assert (Hbranch : pathBranches (guestBody f) labels (BR_IF l) (skipn (S offset) inner) = [Some d])
+    by (subst labels; destruct pre; unfold pathBranches, branchDistances; cbn [branchTargets map]; rewrite Hd;
+        reflexivity).
   rewrite Hbranch in Hpc.
   assert (Hpcs : pathPC pre (S b) = pathPC labels offset + Z.of_nat d) by (unfold pathPC; rewrite <- Htarget; lia).
   rewrite Hpcs.
@@ -148,16 +149,52 @@ Lemma encoded_path_br : forall labels inner offset l pre b post,
 Proof.
   intros labels inner offset l pre b post Hpath Hi Hsplit Hl.
   pose proof (encoded_path_head _ _ _ _ Hpath Hi) as Hpc.
-  destruct (flatten_branch_target _ _ _ _ _ _ _ _ _ Hpath Hi (or_intror Logic.eq_refl) Hsplit Hl) as [d [Hd Htarget]].
-  assert (Hbranch : pathBranch (guestBody f) labels (BR l) (skipn (S offset) inner) = Some d)
-    by (subst labels; destruct pre; exact Hd).
+  destruct (flatten_branch_target _ _ _ _ _ _ _ _ _ Hpath Hi (or_introl Logic.eq_refl) Hsplit Hl) as [d [Hd Htarget]].
+  assert (Hbranch : pathBranches (guestBody f) labels (BR l) (skipn (S offset) inner) = [Some d])
+    by (subst labels; destruct pre; unfold pathBranches, branchDistances; cbn [branchTargets map]; rewrite Hd;
+        reflexivity).
   rewrite Hbranch in Hpc.
   assert (Hpcs : pathPC pre (S b) = pathPC labels offset + Z.of_nat d) by (unfold pathPC; rewrite <- Htarget; lia).
   rewrite Hpcs.
   unfold controlImage. repeat split; try intro choice; program_cell Hloaded; unfold encodeProgram;
     cbn [Nat.eqb pcRomId pcFunctionRefId functionEntryId functionLocalCountId functionCallMetadataId orb];
     unfold instructionRom; rewrite Hpc; try reflexivity.
-  destruct (choice =? 0); reflexivity.
+  destruct (Z.ltb_spec choice 0) as [Hneg | Hnonneg].
+  - replace (choice =? 0) with false by (symmetry; apply Z.eqb_neq; lia). reflexivity.
+  - destruct (Z.eqb_spec choice 0) as [-> | Hne]; [reflexivity | ].
+    replace (Z.to_nat choice) with (S (Z.to_nat choice - 1)) by lia. destruct (Z.to_nat choice - 1)%nat; reflexivity.
+Qed.
+
+(* A br_table's ROM image: its opcode, a static edge, its arm count, and each
+   edge's target, the instruction after the target block: the default at choice
+   0, arm k at choice k + 1. *)
+Lemma encoded_path_br_table : forall labels inner offset ls l,
+  pathCode (guestBody f) labels = Some inner -> nth_error inner offset = Some (BR_TABLE ls l) ->
+  memory programOpcodeId [pathPC labels offset] = Some CODE_BR_TABLE /\
+  memory pcEdgeKindId [pathPC labels offset] = Some 0 /\
+  memory programBrTableLenId [pathPC labels offset] = Some (Z.of_nat (length ls)) /\
+  forall k target pre b post, nth_error (l :: ls) k = Some target ->
+    labels = pre ++ b :: post -> N.to_nat (target :> N) = length post ->
+    memory pcRomId [pathPC labels offset; Z.of_nat k] = Some (pathPC pre (S b)).
+Proof.
+  intros labels inner offset ls l Hpath Hi.
+  pose proof (encoded_path_head _ _ _ _ Hpath Hi) as Hpc.
+  split; [ | split; [ | split]].
+  1-3: program_cell Hloaded; unfold encodeProgram;
+    cbn [Nat.eqb pcRomId pcFunctionRefId functionEntryId functionLocalCountId functionCallMetadataId orb];
+    unfold instructionRom; rewrite Hpc; reflexivity.
+  intros k target pre b post Hk Hsplit Htarget.
+  destruct (flatten_branch_target _ _ _ _ _ _ _ _ _ Hpath Hi (nth_error_In _ _ Hk) Hsplit Htarget)
+    as [d [Hd Hend]].
+  assert (Hdistance : nth_error (pathBranches (guestBody f) labels (BR_TABLE ls l) (skipn (S offset) inner)) k =
+      Some (Some d)).
+  { rewrite Hsplit in Hd |- *. destruct pre; cbn [app pathBranches] in Hd |- *; unfold branchDistances; rewrite nth_error_map; cbn [branchTargets]; rewrite Hk;
+      cbn [Datatypes.option_map]; rewrite Hd; reflexivity. }
+  program_cell Hloaded. unfold encodeProgram.
+  cbn [Nat.eqb pcRomId pcFunctionRefId functionEntryId functionLocalCountId functionCallMetadataId orb].
+  unfold instructionRom. rewrite Hpc.
+  replace (Z.of_nat k <? 0) with false by (symmetry; apply Z.ltb_ge; lia). rewrite Nat2Z.id, Hdistance.
+  unfold pathPC. rewrite <- Hend, Nat.eqb_refl. cbn iota. f_equal. lia.
 Qed.
 
 (* A direct call's ROM image at a code path: target, return pc and callee metadata. *)
@@ -175,7 +212,7 @@ Proof.
   pose proof (encoded_path_head _ _ _ _ Hpath Hi) as Hpc0.
   assert (Hpc : instructionAtPC program (pathPC labels offset) =
       Some (SpecTecCalls.i32Function (guestModule f) (guestTypeIndex f) (guestParams f)
-        (guestResults f) (guestLocals f) (guestBody f), Some (flatInstruction (Some (CALL x)) None)))
+        (guestResults f) (guestLocals f) (guestBody f), Some (flatInstruction (Some (CALL x)) [])))
     by (destruct labels; exact Hpc0).
   assert (Hbound : (pathOffset (guestBody f) labels offset <= codeSize (guestBody f))%nat).
   { destruct (path_slot_head (guestBody f) labels (CALL x) (skipn (S offset) inner)) as [more Hhead].

@@ -49,4 +49,5 @@ import NightstreamFPrime.Lifecycle.OptionB.LightStep
 import NightstreamFPrime.Lifecycle.OptionB.LightPiCCSLayout
 import NightstreamFPrime.Lifecycle.OptionB.LightRlcLayout
 import NightstreamFPrime.Lifecycle.OptionB.SlotWords
+import NightstreamFPrime.Lifecycle.OptionB.SlotSelect
 import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.ChainBinding

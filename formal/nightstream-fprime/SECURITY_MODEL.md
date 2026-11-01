@@ -477,10 +477,16 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
      Theorems 3–4) likewise reduce module-lattice dimension only when a
      nontrivial Galois group fixes the module coordinate-wise as a set, under
      their unramified-discriminant premise. The indexed SHAKE128 key-generation
-     rule imposes no such symmetry. The paper notes that
-     random module instances are unlikely to have it, but this is not a
-     certificate for the fixed public key. Its dimension reduction does not
-     give a cost for this kernel without that stabilizer condition.
+     rule imposes no such symmetry. For the selected fixed key, let `A₀` be
+     its first 22 rows and blocks 0–21 over `R_q`, let `b` be block 22, and
+     solve `A₀x = b` by unit-pivot elimination. Independent Python and Rust
+     ring calculations confirmed that `(x, -1)` is in all 22 kernel rows.
+     For each of the 53 nonidentity automorphisms `σ_a: X ↦ X^a` of
+     `Q(ζ₈₁)`, the constant coefficient of row 0 of `Aσ_a(x, -1)` is nonzero;
+     the product of these 53 coefficients modulo `q` is
+     `11665745737130300385`. Thus no nontrivial Galois automorphism fixes
+     this selected q-ary kernel as a set. This excludes the cited dimension
+     reduction for this key; it does not bound other module-SIS attacks.
      De Perthuis and Trenkić (ePrint 2026/2527, Theorem 1) show that the
      relative coefficient and canonical embeddings agree up to scaling for
      `Q(ζ₈₁)` over its degree-two subfield `Q(ζ₃)`: their condition holds

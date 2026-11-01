@@ -870,6 +870,16 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
    null branches in the Lean relation. They do not establish the complete
    Rust-to-Lean application correspondence above or a concrete proof-system
    bound.
+   A public `nebula::CatalogBinding` can leave a catalog memory without a
+   region. `CatalogBinding::program` omits its preload, and `rows` adds no
+   slot or row for its events. The Lean result
+   `Spec.Nebula.MemoryTrace.memoryConsistent_of_executes` requires `InRange`
+   for every event of the claimed trace, which entails a region for that
+   event's memory. A modified prover can bypass a host check, so this result
+   cannot certify an active host-only memory. The selected `Machine` uses
+   the memory slots for both of its ports; this catalog limit adds no
+   identified false proof for it. An application that claims consistency
+   of a host-only memory needs its own verifier check or a bound region.
 6. **Runtime checks.** The verifier's identity and setup checks stay necessary.
    `Circuit::load_package` takes an identifier pinned by the caller. Its
    loader recomputes that identifier from the fixed package and the digest of

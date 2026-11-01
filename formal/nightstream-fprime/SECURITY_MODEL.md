@@ -192,6 +192,20 @@ honest prover algorithm.
   points of one execution as the sponge does, the two agree
   (`Lifecycle.RandomOracleFidelity.accepts_iff_verify`), and every execution
   has such an oracle (`Lifecycle.RandomOracleFidelity.deployedOracle_deployed`).
+  `Lifecycle.RandomOracleExtraction.Claim` contains an assignment for each
+  child, and its `Accepts` event requires every child assignment to satisfy
+  `CE.Holds`. The public NIFS proof does not carry those assignments. The
+  adversary algorithm in this game can be arbitrary, but its success event is
+  conditional on valid child openings; this theorem alone does not bound all
+  proofs that the official verifier can receive. The reverse history walk
+  obtains child openings from its current source result
+  (`Export.Stage1.HyperNovaVisitedSecurity.Stage.nifs`) and then uses its
+  separate Assumption 1 to extract the preceding source. Neither step follows
+  from this one-fold oracle theorem alone.
+  Oechsner, Pereira and Scholl (ePrint 2025/1835, Section 3.3) show how an
+  unannounced restriction on malicious prover outputs can hide a missing
+  verifier check. This restriction is explicit here, but it must not be
+  treated as unconditional public-verifier soundness.
   The deployed system checks every fold only inside the step circuit of
   `F′`, with Poseidon2. The Rust terminal verifier checks the final openings
   and the state-hash link, and runs no fold

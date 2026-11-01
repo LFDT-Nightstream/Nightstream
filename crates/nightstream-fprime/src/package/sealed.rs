@@ -21,15 +21,14 @@ use super::matrix_program::{MatrixProgram, MatrixRun, RowForms, MEANINGFUL_PORTS
 use super::native_application::PreparedApplication;
 use super::wire::RawPackage;
 use super::{
-    canonical_field, relation_identifier, require_input_length, word_to_usize, IdentityKind, Layout,
-    LoadedAssignmentPlan, LoadedPackage, LoadedTerminalLayout, LogicalAssignment, PackageError, PackageR1cs,
-    PiCcsV1_2EncodedInputs, PiCcsV1_2OutputEvaluations, PiCcsV1_2PackageInputs, PiDecV1_2PackageInputs,
-    PI_CCS_V1_2_PRIOR_PUBLIC_INPUT_WORDS,
+    canonical_field, require_input_length, word_to_usize, IdentityKind, Layout, LoadedAssignmentPlan, LoadedPackage,
+    LoadedTerminalLayout, LogicalAssignment, PackageError, PackageR1cs, PiCcsV1_2EncodedInputs,
+    PiCcsV1_2OutputEvaluations, PiCcsV1_2PackageInputs, PiDecV1_2PackageInputs, PI_CCS_V1_2_PRIOR_PUBLIC_INPUT_WORDS,
 };
 use crate::application_records::{ApplicationRecords, PrivateSnapshot};
 use crate::identity::{
-    native_application_identity, native_relation_identifier, stage1_verifier_binding, value_preimage_words,
-    visit_native_application_words, ApplicationIdentity, StructuralIdentifier,
+    native_application_identity, stage1_verifier_binding, structural_identifier, value_preimage_words,
+    visit_native_application_words, ApplicationEntries, ApplicationIdentity, StructuralIdentifier, NEXT_PREIMAGE_ROWS,
     POSEIDON2_HASH_CHAIN_V1_PACKAGE_IDENTITY, POSEIDON2_HASH_CHAIN_V1_STRUCTURAL_IDENTIFIER,
     POSEIDON2_HASH_CHAIN_V1_VERIFICATION_KEY_DIGEST,
 };
@@ -41,7 +40,6 @@ pub(super) const INNER_PACKAGE_SCHEMA: u64 = 8;
 const MATRIX_COUNT: usize = super::PI_CCS_V1_2_MATRIX_COUNT;
 const APPLICATION_PLAN_SCHEMA: u64 = 1;
 const APPLICATION_STATE_WORDS: usize = 4;
-const NEXT_PREIMAGE_ROW_COUNT: usize = 5;
 pub(super) const APPLICATION_WITNESS_ROLE: u64 = 17;
 pub(super) const APPLICATION_LOCAL_ROLE: u64 = 18;
 const CIRCUIT_WITNESS_BATCHES: usize = 10;
@@ -494,7 +492,13 @@ pub fn load_per_application_package(
         return Err(PackageError::NonCanonicalBytes);
     }
 
-    let computed = StructuralIdentifier::from_words(relation_identifier(&value)?);
+    let application_words = value_preimage_words(
+        value
+            .get(3)
+            .ok_or(PackageError::Malformed("sealed application plan"))?,
+    )?;
+    let application_identity = ApplicationIdentity::from_words(&application_words)?;
+    let computed = structural_identifier(&value, &application_identity, application_entries(&value)?)?;
     if computed != expected_structural_identifier {
         return Err(PackageError::IdentityMismatch {
             kind: IdentityKind::Relation,
@@ -503,7 +507,32 @@ pub fn load_per_application_package(
         });
     }
 
-    decode_per_application_value(&value, computed)
+    let sealed = decode_sealed(&value, None)?;
+    Ok(sealed.bind(
+        computed,
+        application_identity,
+        ApplicationSource::Words(application_words),
+    ))
+}
+
+/// The counts of the plan's witness batches, witness instructions and
+/// assertion rows in a complete envelope. `decode_application_plan` later
+/// checks that the package ends with exactly these entries.
+fn application_entries(value: &Value) -> Result<ApplicationEntries, PackageError> {
+    let plan = value
+        .get(3)
+        .and_then(Value::as_array)
+        .filter(|fields| fields.len() == 16)
+        .ok_or(PackageError::Malformed("sealed application plan"))?;
+    let [batches, instructions, rows] = [13, 14, 15].map(|field| plan[field].as_array().map(Vec::len));
+    let (Some(batches), Some(instructions), Some(rows)) = (batches, instructions, rows) else {
+        return Err(PackageError::Malformed("sealed application plan"));
+    };
+    Ok(ApplicationEntries {
+        batches,
+        instructions,
+        rows,
+    })
 }
 
 pub fn load_prepared_application_records(
@@ -511,8 +540,8 @@ pub fn load_prepared_application_records(
     records: Arc<ApplicationRecords>,
 ) -> Result<LoadedPerApplicationPackage, PackageError> {
     let decoded = decode_native_application_records(&fixed_envelope, records)?;
-    let computed = native_relation_identifier(&fixed_envelope, decoded.application())?;
     let application_identity = native_application_identity(decoded.application())?;
+    let computed = structural_identifier(&fixed_envelope, &application_identity, ApplicationEntries::default())?;
     let source = super::prepared::snapshot(&fixed_envelope)?;
     Ok(decoded.bind(computed, application_identity, source))
 }
@@ -719,20 +748,6 @@ pub(super) fn prepared_record_counts(fixed: &Value) -> Result<(usize, usize), Pa
     Ok((application.row_range().len(), application.private_range().len()))
 }
 
-fn decode_per_application_value(
-    value: &Value,
-    structural_identifier: StructuralIdentifier,
-) -> Result<LoadedPerApplicationPackage, PackageError> {
-    let sealed = decode_sealed(value, None)?;
-    let application_words = value_preimage_words(&value[3])?;
-    let application_identity = ApplicationIdentity::from_words(&application_words)?;
-    Ok(sealed.bind(
-        structural_identifier,
-        application_identity,
-        ApplicationSource::Words(application_words),
-    ))
-}
-
 pub fn load_poseidon2_hash_chain_v1_package(bytes: &[u8]) -> Result<LoadedPerApplicationPackage, PackageError> {
     let package = load_per_application_package(bytes, POSEIDON2_HASH_CHAIN_V1_STRUCTURAL_IDENTIFIER)?;
     let binding = package.production_verifier_binding()?;
@@ -760,7 +775,7 @@ fn decode_next_preimage_range(raw: RawRowRange, layout: &Layout) -> Result<std::
     let row_end = row_start
         .checked_add(row_count)
         .ok_or(PackageError::Malformed("next preimage row range"))?;
-    if row_count != NEXT_PREIMAGE_ROW_COUNT || row_end != layout.row_count {
+    if row_count != NEXT_PREIMAGE_ROWS || row_end != layout.row_count {
         return Err(PackageError::Malformed("next preimage row range"));
     }
     Ok(row_start..row_end)

@@ -125,9 +125,11 @@ theorem expectedBindingAndRowsZero_implies_securityOrCollision
                   claimedFits claimedSetup)
                 (PerApplicationSecurity.productionStrongSet
                   claimedFits claimedSetup))))) ∨
-      PerApplicationSecurity.StructuralPackageCollision
+      PerApplicationSecurity.StructuralValueCollision
         Poseidon2HashChainV1Package.application claimedProgram
         Poseidon2HashChainV1Package.fits claimedFits ∨
+      PerApplicationSecurity.ApplicationDigestCollision
+        Poseidon2HashChainV1Package.application claimedProgram ∨
       Layout.Stage1.PiCCSSecurity.AuthorityComponentDigestCollision
         (PerApplicationCanonicalPackage.authority
           Poseidon2HashChainV1Package.fits

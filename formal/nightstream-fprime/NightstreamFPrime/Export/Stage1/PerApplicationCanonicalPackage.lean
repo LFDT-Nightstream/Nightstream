@@ -268,24 +268,6 @@ def sealedPackageValue (program : Program)
     MatrixProgram.IndexRange.format.encode (nextPreimageRange program),
     .atom logicalPublicInputCount]
 
-def structuralPackageIdentity (program : Program)
-    (fits : FitsTwoPow28 program) : VerifierContext.Digest4 :=
-  VerifierContext.Digest4.ofList
-    (Package.relationIdentifierValue (sealedPackageValue program fits))
-
-def structuralPackageIdentityFast (program : Program)
-    (fits : FitsTwoPow28 program) : VerifierContext.Digest4 :=
-  VerifierContext.Digest4.ofList
-    (StreamingIdentity.relationIdentifierValueFast
-      (sealedPackageValue program fits))
-
-theorem structuralPackageIdentityFast_eq (program : Program)
-    (fits : FitsTwoPow28 program) :
-    structuralPackageIdentityFast program fits =
-      structuralPackageIdentity program fits := by
-  unfold structuralPackageIdentityFast structuralPackageIdentity
-  rw [StreamingIdentity.relationIdentifierValueFast_eq]
-
 theorem sealedPackageValue_exact (program : Program)
     (fits : FitsTwoPow28 program) :
     sealedPackageValue program fits = .array [
@@ -372,12 +354,266 @@ theorem sealedPackageValue_components
           simpa [sealedPackageValue,
             MatrixProgram.IndexRange.format.decode_encode] using decoded
 
+def applicationAuthorityWords (program : Program) : List F :=
+  ApplicationPackage.authorityWords
+    (PerApplicationPackage.applicationPlan program)
+
+/-- The application component of the verifier context. It is the only hash
+of the application plan: the structural identity takes it in place of the
+plan. -/
+def applicationDigest (program : Program) : VerifierContext.Digest4 :=
+  VerifierContext.componentDigest 2 (applicationAuthorityWords program)
+
+def digestValue (digest : VerifierContext.Digest4) : Value :=
+  .array (digest.toList.map fun word => .atom word.val)
+
+theorem digestValue_injective : Function.Injective digestValue := by
+  intro left right equal
+  rcases left with ⟨left0, left1, left2, left3⟩
+  rcases right with ⟨right0, right1, right2, right3⟩
+  simp only [digestValue, VerifierContext.Digest4.toList, List.map_cons,
+    List.map_nil, Value.array.injEq, List.cons.injEq, Value.atom.injEq,
+    Fin.val_inj, and_true] at equal
+  obtain ⟨same0, same1, same2, same3⟩ := equal
+  rw [same0, same1, same2, same3]
+
+/-- The package without the application witness batches, witness
+instructions and assertion rows. -/
+def fixedPackage (program : Program) (fits : FitsTwoPow28 program) :
+    CircuitPackage :=
+  { package program fits with
+    witnessBatches := PerApplicationPackage.basePackage.witnessBatches.map
+      (PerApplicationPackage.shiftBatch program)
+    witnessInstructions :=
+      PerApplicationPackage.basePackage.witnessInstructions.map
+        (PerApplicationPackage.shiftWitnessInstruction program)
+    assertionRows :=
+      PerApplicationPackage.basePackage.assertionRows.map
+          (PerApplicationPackage.shiftSparseRow program) ++
+        NextPreimagePackage.assertionRows
+          (PerApplicationPackage.nextPreimageRowStart program) }
+
+private theorem encode_withLists (source : CircuitPackage)
+    (batches : List Circuit.WitnessBatch)
+    (instructions : List WitnessInstruction) (rows : List SparseRow) :
+    CircuitPackage.format.encode { source with
+        witnessBatches := batches
+        witnessInstructions := instructions
+        assertionRows := rows } =
+      .array [
+        .atom source.schemaVersion,
+        Profile.format.encode source.profile,
+        PoseidonSchedule.format.encode source.poseidon,
+        PhysicalLayout.format.encode source.layout,
+        CcsRelation.format.encode source.relation,
+        PermutationTemplate.format.encode source.permutation,
+        (list HashChain.format).encode source.hashChains,
+        (list PermutationInvocation.format).encode source.permutationInvocations,
+        (list CompactRowTemplate.format).encode source.compactRowTemplates,
+        (list CompactRowInvocation.format).encode source.compactRowInvocations,
+        (list WitnessBatch.format).encode batches,
+        (list WitnessInstruction.format).encode instructions,
+        (list SparseRow.format).encode rows,
+        (option TerminalLayout.format).encode source.terminal] := by
+  rfl
+
+/-- The encoding of `fixedPackage`, field by field. -/
+theorem fixedPackage_encode (program : Program) (fits : FitsTwoPow28 program) :
+    CircuitPackage.format.encode (fixedPackage program fits) =
+      .array [
+        .atom (package program fits).schemaVersion,
+        Profile.format.encode (package program fits).profile,
+        PoseidonSchedule.format.encode (package program fits).poseidon,
+        PhysicalLayout.format.encode (package program fits).layout,
+        CcsRelation.format.encode (package program fits).relation,
+        PermutationTemplate.format.encode (package program fits).permutation,
+        (list HashChain.format).encode (package program fits).hashChains,
+        (list PermutationInvocation.format).encode
+          (package program fits).permutationInvocations,
+        (list CompactRowTemplate.format).encode
+          (package program fits).compactRowTemplates,
+        (list CompactRowInvocation.format).encode
+          (package program fits).compactRowInvocations,
+        (list WitnessBatch.format).encode
+          (PerApplicationPackage.basePackage.witnessBatches.map
+            (PerApplicationPackage.shiftBatch program)),
+        (list WitnessInstruction.format).encode
+          (PerApplicationPackage.basePackage.witnessInstructions.map
+            (PerApplicationPackage.shiftWitnessInstruction program)),
+        (list SparseRow.format).encode
+          (PerApplicationPackage.basePackage.assertionRows.map
+              (PerApplicationPackage.shiftSparseRow program) ++
+            NextPreimagePackage.assertionRows
+              (PerApplicationPackage.nextPreimageRowStart program)),
+        (option TerminalLayout.format).encode (package program fits).terminal] := by
+  unfold fixedPackage
+  exact encode_withLists (package program fits) _ _ _
+
+/-- The rows of `NextPreimagePackage.assertionRows`, the last package rows. -/
+def nextPreimageRowCount : Nat := 5
+
+/-- The package of a fixed package and an application plan. The plan batches
+and witness instructions go last. The plan rows go before the last
+`nextPreimageRowCount` rows. -/
+def reassemble (fixed : CircuitPackage) (plan : ApplicationPackage.Plan) :
+    CircuitPackage :=
+  { fixed with
+    witnessBatches := fixed.witnessBatches ++ plan.witnessBatches
+    witnessInstructions :=
+      fixed.witnessInstructions ++ plan.witnessInstructions
+    assertionRows :=
+      (fixed.assertionRows.take
+          (fixed.assertionRows.length - nextPreimageRowCount) ++
+        plan.assertionRows) ++
+      fixed.assertionRows.drop
+        (fixed.assertionRows.length - nextPreimageRowCount) }
+
+private theorem reassemble_parts (source : CircuitPackage)
+    (plan : ApplicationPackage.Plan) (batches : List Circuit.WitnessBatch)
+    (instructions : List WitnessInstruction) (rows next : List SparseRow)
+    (batchesSplit : source.witnessBatches = batches ++ plan.witnessBatches)
+    (instructionsSplit :
+      source.witnessInstructions = instructions ++ plan.witnessInstructions)
+    (rowsSplit : source.assertionRows = (rows ++ plan.assertionRows) ++ next)
+    (nextLength : next.length = nextPreimageRowCount) :
+    reassemble { source with
+        witnessBatches := batches
+        witnessInstructions := instructions
+        assertionRows := rows ++ next } plan = source := by
+  have split : (rows ++ next).length - nextPreimageRowCount = rows.length := by
+    rw [List.length_append, nextLength, Nat.add_sub_cancel]
+  cases source
+  dsimp only at batchesSplit instructionsSplit rowsSplit
+  subst batchesSplit instructionsSplit rowsSplit
+  unfold reassemble
+  simp only [split, List.take_left, List.drop_left]
+
+@[simp] theorem replaceRelation_witnessBatches (source : CircuitPackage)
+    (relation : CcsRelation) :
+    (replaceRelation source relation).witnessBatches =
+      source.witnessBatches := by
+  rfl
+
+private theorem install_witnessBatches (source : CircuitPackage) :
+    (TerminalPackage.install source).witnessBatches =
+      source.witnessBatches := by
+  rfl
+
+theorem reassemble_fixedPackage (program : Program)
+    (fits : FitsTwoPow28 program) :
+    reassemble (fixedPackage program fits)
+        (PerApplicationPackage.applicationPlan program) =
+      package program fits := by
+  unfold fixedPackage
+  refine reassemble_parts (package program fits)
+    (PerApplicationPackage.applicationPlan program) _ _ _ _ ?_ ?_ ?_ ?_
+  · rw [package, install_witnessBatches, replaceRelation_witnessBatches]
+    exact PerApplicationPackage.package_witnessBatches program
+  · rw [package, TerminalPackage.install_witnessInstructions,
+      replaceRelation_witnessInstructions]
+    exact PerApplicationPackage.package_witnessInstructions program
+  · rw [package, TerminalPackage.install_assertionRows,
+      replaceRelation_assertionRows]
+    exact PerApplicationPackage.package_assertionRows program
+  · exact NextPreimagePackage.assertionRows_length _
+
+theorem package_eq_of_fixedPackage_eq {leftProgram rightProgram : Program}
+    (leftFits : FitsTwoPow28 leftProgram)
+    (rightFits : FitsTwoPow28 rightProgram)
+    (fixedSame : fixedPackage leftProgram leftFits =
+      fixedPackage rightProgram rightFits)
+    (planSame : PerApplicationPackage.applicationPlan leftProgram =
+      PerApplicationPackage.applicationPlan rightProgram) :
+    package leftProgram leftFits = package rightProgram rightFits := by
+  rw [← reassemble_fixedPackage leftProgram leftFits,
+    ← reassemble_fixedPackage rightProgram rightFits, fixedSame, planSame]
+
+/-- The value that the structural identity hashes: `sealedPackageValue` with
+the fixed package in place of the package and the application digest in
+place of the application plan. -/
+def structuralValue (program : Program) (fits : FitsTwoPow28 program) :
+    Value :=
+  .array [
+    .atom sealedPackageSchema,
+    CircuitPackage.format.encode (fixedPackage program fits),
+    MatrixProgram.Program.format.encode
+      (PerApplicationMatrixProgram.matrixProgram program),
+    digestValue (applicationDigest program),
+    PerApplicationAssignmentTransport.Plan.format.encode
+      (PerApplicationAssignmentTransport.canonical program),
+    MatrixProgram.IndexRange.format.encode (nextPreimageRange program),
+    .atom logicalPublicInputCount]
+
+private theorem encode_injective {Alpha : Type} (format : Format Alpha) :
+    Function.Injective format.encode := by
+  intro left right equal
+  have decoded := congrArg format.decode equal
+  rw [format.decode_encode, format.decode_encode] at decoded
+  exact Except.ok.inj decoded
+
+theorem structuralValue_components
+    (leftProgram rightProgram : Program)
+    (leftFits : FitsTwoPow28 leftProgram)
+    (rightFits : FitsTwoPow28 rightProgram)
+    (same : structuralValue leftProgram leftFits =
+      structuralValue rightProgram rightFits) :
+    fixedPackage leftProgram leftFits = fixedPackage rightProgram rightFits ∧
+      PerApplicationMatrixProgram.matrixProgram leftProgram =
+        PerApplicationMatrixProgram.matrixProgram rightProgram ∧
+      applicationDigest leftProgram = applicationDigest rightProgram ∧
+      PerApplicationAssignmentTransport.canonical leftProgram =
+        PerApplicationAssignmentTransport.canonical rightProgram ∧
+      nextPreimageRange leftProgram = nextPreimageRange rightProgram := by
+  have values := Value.array.inj same
+  simp only [List.cons.injEq] at values
+  obtain ⟨_, fixed, matrix, digest, assignment, nextPreimage, _⟩ := values
+  exact ⟨encode_injective _ fixed, encode_injective _ matrix,
+    digestValue_injective digest, encode_injective _ assignment,
+    encode_injective _ nextPreimage⟩
+
+/-- The structural value and the application plan fix the sealed package
+value. -/
+theorem sealedPackageValue_eq_of_structuralValue_eq
+    {leftProgram rightProgram : Program}
+    (leftFits : FitsTwoPow28 leftProgram)
+    (rightFits : FitsTwoPow28 rightProgram)
+    (structuralSame : structuralValue leftProgram leftFits =
+      structuralValue rightProgram rightFits)
+    (planSame : PerApplicationPackage.applicationPlan leftProgram =
+      PerApplicationPackage.applicationPlan rightProgram) :
+    sealedPackageValue leftProgram leftFits =
+      sealedPackageValue rightProgram rightFits := by
+  obtain ⟨fixed, matrix, _, assignment, nextPreimage⟩ :=
+    structuralValue_components leftProgram rightProgram leftFits rightFits
+      structuralSame
+  unfold sealedPackageValue
+  rw [package_eq_of_fixedPackage_eq leftFits rightFits fixed planSame,
+    matrix, planSame, assignment, nextPreimage]
+
+def structuralPackageIdentity (program : Program)
+    (fits : FitsTwoPow28 program) : VerifierContext.Digest4 :=
+  VerifierContext.Digest4.ofList
+    (Package.relationIdentifierValue (structuralValue program fits))
+
+def structuralPackageIdentityFast (program : Program)
+    (fits : FitsTwoPow28 program) : VerifierContext.Digest4 :=
+  VerifierContext.Digest4.ofList
+    (StreamingIdentity.relationIdentifierValueFast
+      (structuralValue program fits))
+
+theorem structuralPackageIdentityFast_eq (program : Program)
+    (fits : FitsTwoPow28 program) :
+    structuralPackageIdentityFast program fits =
+      structuralPackageIdentity program fits := by
+  unfold structuralPackageIdentityFast structuralPackageIdentity
+  rw [StreamingIdentity.relationIdentifierValueFast_eq]
+
 theorem structuralPackageIdentity_recomputed (program : Program)
     (fits : FitsTwoPow28 program) :
     (structuralPackageIdentity program fits).toList =
       (VerifierContext.Digest4.ofList
         (Package.relationIdentifierValue
-          (sealedPackageValue program fits))).toList := by
+          (structuralValue program fits))).toList := by
   rfl
 
 def relationShapeValue (program : Program)
@@ -409,10 +645,6 @@ def relationAuthorityWordsFromStructural (program : Program)
         (structuralPackageIdentity program fits) =
       relationAuthorityWords program fits := by
   rfl
-
-def applicationAuthorityWords (program : Program) : List F :=
-  ApplicationPackage.authorityWords
-    (PerApplicationPackage.applicationPlan program)
 
 def nifsKeyDomain : List F :=
   ([78, 105, 103, 104, 116, 115, 116, 114, 101, 97, 109, 47,

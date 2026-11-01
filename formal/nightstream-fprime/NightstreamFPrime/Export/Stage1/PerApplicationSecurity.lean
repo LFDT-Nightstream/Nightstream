@@ -430,14 +430,42 @@ theorem verifierBoundRowsZero_implies_base_or_securityOutcome
   exact PerApplicationFixedPointSoundness.verifierBoundRowsZero_implies_stepHoldsFor
     program fits commitmentSetup raw accepted
 
-def StructuralPackageCollision
+/-- Two structural values with one structural identity. -/
+def StructuralValueCollision
     (leftProgram rightProgram : Program)
     (leftFits : FitsTwoPow28 leftProgram)
     (rightFits : FitsTwoPow28 rightProgram) : Prop :=
-  sealedPackageValue leftProgram leftFits ≠
-      sealedPackageValue rightProgram rightFits ∧
+  structuralValue leftProgram leftFits ≠
+      structuralValue rightProgram rightFits ∧
     structuralPackageIdentity leftProgram leftFits =
       structuralPackageIdentity rightProgram rightFits
+
+/-- Two application plans with one application digest. -/
+def ApplicationDigestCollision (leftProgram rightProgram : Program) : Prop :=
+  PerApplicationPackage.applicationPlan leftProgram ≠
+      PerApplicationPackage.applicationPlan rightProgram ∧
+    applicationDigest leftProgram = applicationDigest rightProgram
+
+theorem structuralPackageIdentity_identifies_sealedPackage_or_collision
+    {leftProgram rightProgram : Program}
+    (leftFits : FitsTwoPow28 leftProgram)
+    (rightFits : FitsTwoPow28 rightProgram)
+    (identityEqual : structuralPackageIdentity leftProgram leftFits =
+      structuralPackageIdentity rightProgram rightFits) :
+    sealedPackageValue leftProgram leftFits =
+        sealedPackageValue rightProgram rightFits ∨
+      StructuralValueCollision leftProgram rightProgram leftFits rightFits ∨
+      ApplicationDigestCollision leftProgram rightProgram := by
+  by_cases valueSame : structuralValue leftProgram leftFits =
+      structuralValue rightProgram rightFits
+  · by_cases planSame : PerApplicationPackage.applicationPlan leftProgram =
+        PerApplicationPackage.applicationPlan rightProgram
+    · exact Or.inl (sealedPackageValue_eq_of_structuralValue_eq
+        leftFits rightFits valueSame planSame)
+    · exact Or.inr (Or.inr ⟨planSame,
+        (structuralValue_components leftProgram rightProgram leftFits
+          rightFits valueSame).2.2.1⟩)
+  · exact Or.inr (Or.inl ⟨valueSame, identityEqual⟩)
 
 def FinalPackageBindingCollision
     {leftProgram rightProgram : Program}
@@ -461,7 +489,8 @@ theorem packageIdentity_identifies_package_authority_or_collision
     (sealedPackageValue leftProgram leftFits =
         sealedPackageValue rightProgram rightFits ∧
       authority leftFits leftSetup = authority rightFits rightSetup) ∨
-      StructuralPackageCollision leftProgram rightProgram leftFits rightFits ∨
+      StructuralValueCollision leftProgram rightProgram leftFits rightFits ∨
+      ApplicationDigestCollision leftProgram rightProgram ∨
       AuthorityComponentDigestCollision
         (authority leftFits leftSetup) (authority rightFits rightSetup) ∨
       FinalPackageBindingCollision leftFits rightFits leftSetup rightSetup := by
@@ -472,12 +501,14 @@ theorem packageIdentity_identifies_package_authority_or_collision
     rcases descriptor_identifies_authority_or_component_collision
         (authority leftFits leftSetup) (authority rightFits rightSetup)
         components.2 with authoritySame | componentCollision
-    · by_cases packageSame : sealedPackageValue leftProgram leftFits =
-          sealedPackageValue rightProgram rightFits
+    · rcases structuralPackageIdentity_identifies_sealedPackage_or_collision
+          leftFits rightFits components.1 with
+        packageSame | valueCollision | applicationCollision
       · exact Or.inl ⟨packageSame, authoritySame⟩
-      · exact Or.inr (Or.inl ⟨packageSame, components.1⟩)
-    · exact Or.inr (Or.inr (Or.inl componentCollision))
-  · exact Or.inr (Or.inr (Or.inr ⟨preimageSame, identityEqual⟩))
+      · exact Or.inr (Or.inl valueCollision)
+      · exact Or.inr (Or.inr (Or.inl applicationCollision))
+    · exact Or.inr (Or.inr (Or.inr (Or.inl componentCollision)))
+  · exact Or.inr (Or.inr (Or.inr (Or.inr ⟨preimageSame, identityEqual⟩)))
 
 theorem verificationKeyBinding_identifies_package_authority_or_collision
     {leftProgram rightProgram : Program}
@@ -490,7 +521,8 @@ theorem verificationKeyBinding_identifies_package_authority_or_collision
     (sealedPackageValue leftProgram leftFits =
         sealedPackageValue rightProgram rightFits ∧
       authority leftFits leftSetup = authority rightFits rightSetup) ∨
-      StructuralPackageCollision leftProgram rightProgram leftFits rightFits ∨
+      StructuralValueCollision leftProgram rightProgram leftFits rightFits ∨
+      ApplicationDigestCollision leftProgram rightProgram ∨
       AuthorityComponentDigestCollision
         (authority leftFits leftSetup) (authority rightFits rightSetup) ∨
       FinalPackageBindingCollision leftFits rightFits leftSetup rightSetup := by
@@ -535,8 +567,9 @@ theorem verificationKeyBindingAndRowsZero_implies_securityOrCollision
                 (selectedRunning input) input.fresh input.nifsProof
                 (productionExtractionAlgebra claimedFits claimedSetup)
                 (productionStrongSet claimedFits claimedSetup))))) ∨
-      StructuralPackageCollision expectedProgram claimedProgram
+      StructuralValueCollision expectedProgram claimedProgram
         expectedFits claimedFits ∨
+      ApplicationDigestCollision expectedProgram claimedProgram ∨
       AuthorityComponentDigestCollision
         (authority expectedFits expectedSetup)
         (authority claimedFits claimedSetup) ∨
@@ -544,12 +577,14 @@ theorem verificationKeyBindingAndRowsZero_implies_securityOrCollision
         expectedSetup claimedSetup := by
   rcases verificationKeyBinding_identifies_package_authority_or_collision
       expectedFits claimedFits expectedSetup claimedSetup bindingEqual with
-    identified | structuralCollision | componentCollision | finalCollision
+    identified | valueCollision | applicationCollision | componentCollision |
+      finalCollision
   · exact Or.inl ⟨identified,
       verifierBoundRowsZero_implies_base_or_securityOutcome
         claimedFits claimedSetup raw accepted⟩
-  · exact Or.inr (Or.inl structuralCollision)
-  · exact Or.inr (Or.inr (Or.inl componentCollision))
-  · exact Or.inr (Or.inr (Or.inr finalCollision))
+  · exact Or.inr (Or.inl valueCollision)
+  · exact Or.inr (Or.inr (Or.inl applicationCollision))
+  · exact Or.inr (Or.inr (Or.inr (Or.inl componentCollision)))
+  · exact Or.inr (Or.inr (Or.inr (Or.inr finalCollision)))
 
 end NightstreamFPrime.Export.Stage1.PerApplicationSecurity

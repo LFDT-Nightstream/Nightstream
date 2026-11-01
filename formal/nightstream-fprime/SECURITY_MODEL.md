@@ -54,6 +54,15 @@ and every state hash carries it. So when one application's verifier accepts a
 proof, adversary 2's result gives that application's context or a state-hash
 collision.
 
+The verifier pins the package identity. Two packages with one package
+identity have the same sealed envelope and the same authority, or one of four
+named collisions: two structural values with one structural identity, two
+application plans with one application digest, two authority components with
+one component digest, or two final preimages with one package identity
+(`Export.Stage1.PerApplicationSecurity.packageIdentity_identifies_package_authority_or_collision`).
+The structural identity takes the application only through its application
+digest (`Export.Stage1.PerApplicationCanonicalPackage.structuralValue`).
+
 ## Adversaries
 
 ### 1. Malicious step assignment

@@ -508,7 +508,7 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
    within `2^-132` of uniform on the strong set
    (`Spec.Folding.Nifs.NonInteractive.PiRlcSampler.distance_lt`).
    The F′ circuit also computes Poseidon2 while it checks the prior Π_CCS
-   fold (`Lifecycle.Stage1.Formal.piCcsChild`), and the reference application
+   fold (`Lifecycle.Stage1.piCcsChild`), and the reference application
    computes Poseidon2 (`Lifecycle.Stage1.Poseidon2HashChainV1.step`). The
    random-oracle theorem fixes `ProductionKey.LogicalRelation` before drawing
    the ideal challenge oracle (`Lifecycle.RandomOracleKnowledge`); it does not

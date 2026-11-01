@@ -60,6 +60,15 @@ The claims bound a probability. They take these as part of the model, not as Lea
   state-restoration soundness and state-restoration function binding. This
   theorem does not establish the latter property for this WHIR instance or
   remove the ideal-opening premise above.
+  Bartusek, Bronfman, Holmgren, Ma and Rothblum (ePrint 2019/997,
+  Theorems 3.5 and 4.1) construct a collision-resistant hash or an IOP for
+  which the Kilian–Micali Fiat–Shamir compilation is unsound. Their choices
+  are contrived and give no forgery for this fixed WHIR protocol. Guan and
+  Yogev (ePrint 2025/2328, Theorem 1) obtain a positive standard-model
+  result with a function statistically binding vector commitment and a
+  shadow PCP. The selected Merkle/WHIR pair has neither proved premise.
+  Thus Merkle collision resistance alone cannot close this concrete
+  Fiat–Shamir and state-restoration obligation.
 - **Fiat–Shamir.** Poseidon2 acts as a random oracle, and the transcript encoding is injective on
   prefixes (`Game/Restoration.lean`, `Game/Compose.lean`). One permutation call can give `k`
   challenges, so `Q` calls and the `R` draws of one path are at most `k·Q + R` queries of the

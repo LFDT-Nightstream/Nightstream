@@ -216,6 +216,18 @@ honest prover algorithm.
   `lifecycle/inputs.rs`, `lifecycle/terminal/mod.rs`). The paper's projection
   substitution therefore has no identified path here; Poseidon2 binding and
   the Rust-to-Lean refinement remain separate premises.
+  Tang et al. (ePrint 2024/514, Section 2.2) describe an unused-public-input
+  replay and a prover assignment that has no matching constraint. The
+  selected fresh public input equals the rehashed terminal state and every
+  coordinate equals its witness projection (`lifecycle/verify.rs`). The
+  compressed terminal has nine fixed external statement words; `Shrink::start`
+  absorbs all of them before the commitment, and `shrink::verify` includes
+  all of them in its public-input evaluation and checks the shape-run public
+  words against the statement. Lean's
+  `CompressionLean.Terminal.circuitPackage_implies_terminal` connects the
+  selected terminal circuit to the terminal check under its opening premise.
+  This check finds no omitted external state word in that path; the concrete
+  WHIR and Rust-to-Lean premises remain.
   The deployed system checks every fold only inside the step circuit of
   `F′`, with Poseidon2. The Rust terminal verifier checks the final openings
   and the state-hash link, and runs no fold

@@ -324,6 +324,14 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
    invocation. It does not directly justify this transcript's intermediate
    challenge reads, including several lane pairs from one state and the
    zero-chunk transition after the sixth pair.
+   Fenzi (ePrint 2026/1838) attacks generated R1CS when the first
+   Fiat–Shamir challenge does not bind the generated statement. The first
+   Π_CCS absorb includes the fresh public input, which the verifier requires
+   to contain the state hash of the configured relation and application
+   context. Layer 1 absorbs its trusted matrix-root key and statement before
+   its first challenge. The paper's delayed-statement attack therefore needs
+   a state-hash collision or a change to verifier-owned authority here; this
+   does not settle the concrete Poseidon2 random-oracle premise.
    The same sponge also computes the state hash, which the theorem
    treats as a concrete function. The state hash is a four-lane read after its
    own call list (`Lifecycle.TranscriptCoverage.stateHash_eq_run`), and the

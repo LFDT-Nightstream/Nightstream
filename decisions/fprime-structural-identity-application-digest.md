@@ -11,17 +11,17 @@ verifier context hashed the plan a third time for its application component.
 Each hash is one sequential Poseidon2 sponge over all application rows, so the
 compile time of a large application was mostly identity hashing.
 
-## SuperNeo
-
-SuperNeo v1.2 does not fix how an implementation identifies its relation or
-its static key material. HyperNova Construction 2 needs only a verifier key
-that binds the step relation.
-
 Commit `620247d88` (2026-08-30) chose raw words for each binding: the
 relation identifier, the application component of the verifier context, the
 package identity and the verification key each hash raw words, and the
 component digests are only recomputed compression. Each binding proof then
 had one collision case.
+
+## SuperNeo
+
+SuperNeo v1.2 does not fix how an implementation identifies its relation or
+its static key material. HyperNova Construction 2 needs only a verifier key
+that binds the step relation.
 
 ## Decision
 

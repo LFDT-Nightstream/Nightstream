@@ -3,16 +3,15 @@ set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
-# xargs starts the groups in this order, so the slowest come first. The
+# xargs starts the groups in this order, so the four slowest come first. The
 # nightstream tests are split by name, so each run stays under the 300-second
 # cap; the third group runs the rest.
 groups=(
   '-p nightstream lifecycle::'
   '-p nightstream engine::'
   '-p nightstream -- --skip lifecycle:: --skip engine:: --skip nebula::'
-  '-p nightstream nebula:: -- --skip nebula::circuit::parity::memory_packages --skip nebula::circuit::parity::view_reads_past_the_witness_are_zero'
+  '-p nightstream nebula:: -- --skip nebula::circuit::parity::memory_packages'
   '-p nightstream nebula::circuit::parity::memory_packages'
-  '-p nightstream nebula::circuit::parity::view_reads_past_the_witness_are_zero'
   '-p nightstream-fprime --test component_forms --test package_loader --test per_application_logical_matrix_conformance --test pi_ccs_opening_arithmetic --test pi_ccs_opening_values --test pilot_lean_nonzero_parity --test production_binding --test statement_binding_rows'
   '-p neo-spartan'
   '-p neo-ccs --test packed_witness --test red_team --test poseidon2_round_constants'

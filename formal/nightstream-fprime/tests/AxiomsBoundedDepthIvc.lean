@@ -22,7 +22,7 @@ import NightstreamFPrime.Lifecycle.OptionB.LightRlcLayout
 import NightstreamFPrime.Lifecycle.OptionB.SlotWords
 import NightstreamFPrime.Lifecycle.OptionB.SlotSelect
 import NightstreamFPrime.Lifecycle.OptionB.LightStepSoundness
-import NightstreamFPrime.Lifecycle.OptionB.LightAssembler
+import NightstreamFPrime.Layout.OptionB.LightAssembler
 import NightstreamFPrime.Spec.Folding.Light.RlcModule
 
 open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
@@ -224,7 +224,13 @@ open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.LightStepSoundness.statePreimageExpr_eval
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.LightStepSoundness.newSlot_value
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.LightStepSoundness.rows_implies_stepHolds
-#audit_axioms NightstreamFPrime.Lifecycle.OptionB.LightAssembler.sharedEnd_eq
+#audit_axioms NightstreamFPrime.Layout.OptionB.LightAssembler.sharedEnd_eq
+#audit_axioms NightstreamFPrime.Layout.OptionB.LightPiCCSBounds.assumptions
+#audit_axioms NightstreamFPrime.Layout.OptionB.LightRlcBounds.assumptions
+#audit_axioms NightstreamFPrime.Layout.OptionB.LightStepBounds.assumptions
+#audit_axioms NightstreamFPrime.Layout.OptionB.LightAssembler.slotAt_below
+#audit_axioms NightstreamFPrime.Layout.OptionB.LightAssembler.inputsBelow
+#audit_axioms NightstreamFPrime.Layout.OptionB.LightAssembler.rows_implies_stepHolds
 
 /-- One refresh per period starves slot 1: it takes a light fold each time the light circuit
 follows the refresh circuit and is never refreshed. -/

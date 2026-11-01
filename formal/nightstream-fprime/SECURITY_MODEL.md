@@ -689,6 +689,13 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
   certify a 110-bit total error before the other terms. The other terms
   depend on MSIS at the solver's work and on Poseidon2 collisions. 128-bit
   security needs a larger challenge field for `γ`.
+  Rust's profile gate computes one Π_CCS test term and one coordinate-fork
+  term (`Params::for_ccs_shape`), and `compression_security_bits` subtracts
+  that same estimate from the requested budget. It does not charge the 74
+  tests in the random-oracle extraction result. Thus a public verifier can
+  accept the 110-bit minimum and derive a compression key even though this
+  Lean proof bound already exceeds the requested error budget. This is a
+  proof-budget mismatch, not a demonstrated false proof.
 - Concrete attacks on Poseidon2 as a random oracle, or on the additive duplex,
   are outside the model. Attacks that use the hash inside the circuit (KRS)
   are outside every random-oracle model; the verifier's package key fixes the

@@ -52,4 +52,5 @@ import NightstreamFPrime.Lifecycle.OptionB.SlotWords
 import NightstreamFPrime.Lifecycle.OptionB.SlotSelect
 import NightstreamFPrime.Lifecycle.OptionB.LightStepLayout
 import NightstreamFPrime.Lifecycle.OptionB.LightStepSoundness
+import NightstreamFPrime.Lifecycle.OptionB.LightAssembler
 import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.ChainBinding

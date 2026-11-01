@@ -324,6 +324,14 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
    invocation. It does not directly justify this transcript's intermediate
    challenge reads, including several lane pairs from one state and the
    zero-chunk transition after the sixth pair.
+   Dao, Miller, Wright and Grubbs (ePrint 2023/691, Section VI) break a weak
+   Fiat–Shamir Spartan transcript by choosing one public input after its
+   challenges. In Nightstream, `bind_and_sample_with_trace` absorbs the fresh
+   public input before `α`; the official F′ constraints check that its prior
+   digest matches the running claims. Layer 1 starts from its key and claim,
+   and shrink starts from its key and state, before either first challenge.
+   The paper's late-public-input attack does not directly apply to these
+   configured paths. It does not prove the concrete transcript secure.
    Fenzi (ePrint 2026/1838) attacks generated R1CS when the first
    Fiat–Shamir challenge does not bind the generated statement. The first
    Π_CCS absorb includes the fresh public input, which the verifier requires

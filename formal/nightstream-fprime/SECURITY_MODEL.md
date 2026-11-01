@@ -395,6 +395,13 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
    width-eight 6-full/7-partial Goldilocks bounty instance. Neither result
    gives a preimage, collision, or cost for this selected 16-word permutation
    or its multi-read transcript.
+   Sanso and Vitto (ePrint 2026/1254, Sections 3–4) introduce degree
+   annihilation for cubic Poseidon, with a reduced-round CICO-2 proof of
+   concept. They identify FFT-friendly width-16 settings as natural further
+   targets, but do not give control equations, a solution or an attack cost
+   for this `x^7` Poseidon2 instance with eight full rounds. Their reported
+   full-round estimates do not fall below the claimed security levels of the
+   parameter sets they consider; this is not a bound for the selected tuple.
    The same sponge also computes the state hash, which the theorem
    treats as a concrete function. The state hash is a four-lane read after its
    own call list (`Lifecycle.TranscriptCoverage.stateHash_eq_run`), and the

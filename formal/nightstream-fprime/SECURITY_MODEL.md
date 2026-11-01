@@ -513,7 +513,14 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
      correct for every depth.
 5. **Rust and Lean agree on recorded inputs only.** The golden conformance runs
    and the recorded native evidence cover their recorded inputs. No theorem
-   covers arbitrary Rust execution.
+   covers arbitrary Rust execution. In particular,
+   `Lifecycle.Stage1.Application.Program.spec_iff` is a premise of the Lean
+   application interface: it makes circuit satisfaction imply both the step
+   output and `valid`, which
+   `Export.Stage1.ActualApplicationStep.selectedRowsZero_implies_decodedValid`
+   uses. The public Rust `ApplicationBuilder` writes R1CS records and output
+   rows, but no theorem constructs that Lean `Program` from every Rust-built
+   application or identifies every Rust row check with Lean `RowsZero`.
 6. **Runtime checks.** The verifier's identity and setup checks stay necessary.
 7. **The memory round.** `Export.Stage1.NebulaMemorySecurity.MemoryRound`
    states that, for each stage that trust item 4 admits and the memory

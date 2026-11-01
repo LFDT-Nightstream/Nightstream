@@ -536,6 +536,17 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
      The unstructured lattice estimate does not price attacks that use this
      CRT split. The Module-SIS algorithm of ePrint 2026/2420 is proved for
      power-of-two cyclotomic rings and does not give a cost for this profile.
+     Zhang, Zhou and Qu (ePrint 2026/607, revised 2026-10-16, Section 6)
+     refine a generic q-ary Approx-SVP estimate for MSIS. Their numerical
+     model reduces Dilithium's classical Core-SVP estimates by 3.65 to 6.09
+     bits. It expands Module-SIS to a generic q-ary lattice and does not
+     exploit module structure; it gives no cost for this degree-54 Φ₈₁ key,
+     its 64-bit modulus, selected `8TB` norm, column count or the owner's
+     ADPS16 quantum model. The Dilithium bit changes cannot be subtracted
+     from the selected setup's 110.685-bit post-allowance quantum estimate
+     (`decisions/fprime-stage1-main-ajtai-setup.md`). That narrow estimate
+     remains conditional on its Core-SVP model; no refined selected-key
+     estimate establishes its margin.
      Koo, Lee, Lee, No and Kim (ePrint 2020/1257, Theorem 3) give a
      same-prime-modulus reduction from module-SIS to ring-SIS, conditional on
      a ring-SIS solver and their rank and norm premises. For rank 22, its

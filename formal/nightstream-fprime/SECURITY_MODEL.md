@@ -748,6 +748,15 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
    `nebula/rows.rs`, `nebula/catalog.rs`). This sampled check finds no such
    false comparison in those paths; it does not prove the general Rust-built
    application interface correct.
+   Stephens, Pailoor and Dillig (ePrint 2025/916, Section 10.5) show that a
+   deterministic circuit can still accept inputs that its witness generator
+   does not produce. For the selected Poseidon2 hash-chain application,
+   `Lifecycle.Stage1.Poseidon2HashChainV1.spec_iff` states the exact step
+   relation. The Rust release test `application_poseidon2` compares its rows
+   and witness values with the saved Lean program on the recorded case and
+   rejects changes to an input, output, private input and intermediate word.
+   Those four tests passed on 2026-11-01. They do not establish consistency
+   for every Rust-built application or every input.
 6. **Runtime checks.** The verifier's identity and setup checks stay necessary.
 7. **The memory round.** `Export.Stage1.NebulaMemorySecurity.MemoryRound`
    states that, for each stage that trust item 4 admits and the memory

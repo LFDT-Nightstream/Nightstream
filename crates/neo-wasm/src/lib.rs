@@ -17,6 +17,7 @@ mod memory_activation;
 mod memory_id;
 mod memory_routing;
 pub mod memory_semantics;
+pub mod nebula;
 #[doc(hidden)]
 pub mod preprocess;
 pub mod range_check;

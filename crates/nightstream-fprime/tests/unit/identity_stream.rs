@@ -170,25 +170,12 @@ fn recipe_nodes(value: &Value, inverse: &BTreeMap<usize, usize>, nodes: &mut Vec
     }
 }
 
-fn assert_native_preimage(original: &Value, fixed: &Value, application: &PreparedApplication) {
+/// The application words are the plan's preimage, and the structural
+/// identifier hashes the fixed envelope with the application digest at index 3.
+fn assert_native_identity(original: &Value, fixed: &Value, application: &PreparedApplication) -> StructuralIdentifier {
     let mut expected = Vec::new();
-    independent_preimage(original, &mut expected);
-    let mut offset = 0;
-    native::visit_native_preimage_words(fixed, application, &mut |words| {
-        let end = offset + words.len();
-        assert_eq!(
-            words,
-            &expected[offset..end],
-            "native envelope preimage at word {offset}"
-        );
-        offset = end;
-        Ok(())
-    })
-    .unwrap();
-    assert_eq!(offset, expected.len());
-    expected.clear();
     independent_preimage(&original[3], &mut expected);
-    offset = 0;
+    let mut offset = 0;
     visit_native_application_words(application, &mut |words| {
         let end = offset + words.len();
         assert_eq!(
@@ -203,18 +190,40 @@ fn assert_native_preimage(original: &Value, fixed: &Value, application: &Prepare
     assert_eq!(offset, expected.len());
     let identity = native_application_identity(application).unwrap();
     assert_eq!(identity, ApplicationIdentity::from_words(&expected).unwrap());
+
+    let mut structural = fixed.clone();
+    structural[3] = json!(identity.digest);
+    let mut words = IDENTITY_DOMAIN.to_vec();
+    independent_preimage(&structural, &mut words);
+    let fields: Vec<_> = words.into_iter().map(Goldilocks::from_u64).collect();
+    let computed = structural_identifier(fixed, &identity, ApplicationEntries::default()).unwrap();
+    assert_eq!(
+        computed.words(),
+        poseidon2::poseidon2_hash(&fields).map(|value| value.as_canonical_u64())
+    );
+    computed
 }
 
 #[test]
-fn native_records_preserve_complete_frozen_envelope_preimage_and_binding() {
+fn native_records_and_complete_envelope_share_the_pinned_binding() {
     let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../nightstream/artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1.json");
     let original: Value = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
     let (fixed, application) = fixture_records(&original);
-    assert_native_preimage(&original, &fixed, &application);
-    let structural = native_relation_identifier(&fixed, &application).unwrap();
+    let structural = assert_native_identity(&original, &fixed, &application);
     assert_eq!(structural, POSEIDON2_HASH_CHAIN_V1_STRUCTURAL_IDENTIFIER);
     let identity = native_application_identity(&application).unwrap();
+    let plan = original[3].as_array().unwrap();
+    let entries = ApplicationEntries {
+        batches: plan[13].as_array().unwrap().len(),
+        instructions: plan[14].as_array().unwrap().len(),
+        rows: plan[15].as_array().unwrap().len(),
+    };
+    assert_eq!(
+        structural_identifier(&original, &identity, entries).unwrap(),
+        structural,
+        "the complete envelope and the native records have one identity"
+    );
     let relation = value_preimage_words(&original[1][4]).unwrap();
     let formulas =
         std::fs::read(std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("artifacts/shared-formulas-v1.json"))
@@ -291,8 +300,7 @@ fn native_records_preserve_duplicate_zero_terms_and_recipe_tree_order() {
         ]);
         let original = json!([6, source, [], application, [], [12, 1], 0]);
         let (fixed, application) = fixture_records(&original);
-        assert_native_preimage(&original, &fixed, &application);
-        identities.push(native_relation_identifier(&fixed, &application).unwrap());
+        identities.push(assert_native_identity(&original, &fixed, &application));
     }
     assert_ne!(identities[0], identities[1]);
 }
@@ -321,5 +329,5 @@ fn native_records_without_recipes_do_not_insert_a_batch() {
     let source = json!([8, [], [], [], [], [], [], [], [], [], [], [], [row], []]);
     let original = json!([6, source, [], application, [], [12, 1], 0]);
     let (fixed, application) = fixture_records(&original);
-    assert_native_preimage(&original, &fixed, &application);
+    assert_native_identity(&original, &fixed, &application);
 }

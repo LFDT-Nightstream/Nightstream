@@ -1,7 +1,7 @@
 import NightstreamFPrime.Export.Codec
 import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Package
 import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Setup
-import NightstreamFPrime.Export.Stage1.PerApplicationVerifierContextStreaming
+import NightstreamFPrime.Export.Stage1.PerApplicationStreamingIdentity
 
 namespace NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1BindingParity
 

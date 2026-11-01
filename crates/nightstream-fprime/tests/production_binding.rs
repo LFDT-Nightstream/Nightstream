@@ -184,9 +184,31 @@ fn setup_authority(seed: &[u8; 32]) -> Vec<u64> {
     result
 }
 
+/// Lean `PerApplicationCanonicalPackage.structuralValue`: the sealed value
+/// with the application digest at index 3 and the package without the plan's
+/// witness batches, witness instructions and assertion rows. The plan's rows
+/// sit before the last five rows.
 fn independent_structural_identifier(sealed: &Value) -> [u64; 4] {
+    let plan = sealed[3].as_array().expect("application plan");
+    let mut application_words = Vec::new();
+    append_value_preimage(&sealed[3], &mut application_words);
+    let mut structural = sealed.clone();
+    let package = structural[1].as_array_mut().expect("sealed package");
+    for (field, plan_field, kept) in [(10, 13, 0), (11, 14, 0), (12, 15, 5)] {
+        let entries = plan[plan_field].as_array().expect("plan entries");
+        let list = package[field].as_array_mut().expect("package entries");
+        let end = list.len() - kept;
+        let start = end - entries.len();
+        assert_eq!(
+            &list[start..end],
+            entries.as_slice(),
+            "the plan's entries sit in the package"
+        );
+        list.drain(start..end);
+    }
+    structural[3] = Value::from(component(2, &application_words).to_vec());
     let mut preimage = words(b"Nightstream/FPrime/package/v2");
-    append_value_preimage(sealed, &mut preimage);
+    append_value_preimage(&structural, &mut preimage);
     hash(&preimage)
 }
 

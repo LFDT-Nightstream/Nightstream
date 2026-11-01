@@ -24,11 +24,13 @@ theorem packageIdentity_identifies_selected_setup_or_collision
   have result := PerApplicationSecurity.packageIdentity_identifies_package_authority_or_collision
     Poseidon2HashChainV1Package.fits Poseidon2HashChainV1Package.fits
     candidate productionSetup sameIdentity
-  rcases result with same | structural | component | finalCollision
+  rcases result with same | structural | application | component |
+    finalCollision
   · left
     apply authorityWords_injective
     exact congrArg VerifierContext.Authority.commitmentKeyWords same.2
   · exact False.elim (structural.1 rfl)
+  · exact False.elim (application.1 rfl)
   · exact Or.inr (Or.inl component)
   · exact Or.inr (Or.inr finalCollision)
 

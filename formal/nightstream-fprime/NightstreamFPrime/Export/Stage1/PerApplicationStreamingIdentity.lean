@@ -2,6 +2,7 @@ import NightstreamFPrime.Export.Stage1.OrdinaryRowPlan
 import NightstreamFPrime.Export.Stage1.PackagePlan
 import NightstreamFPrime.Export.Stage1.PerApplicationCachedShift
 import NightstreamFPrime.Export.Stage1.PerApplicationCanonicalPackage
+import NightstreamFPrime.Export.Stage1.PerApplicationVerifierContextStreaming
 import NightstreamFPrime.Export.Stage1.PiCCSPackets
 import NightstreamFPrime.Export.NativePoseidon2
 import NightstreamFPrime.Export.MatrixProgram.Program
@@ -321,32 +322,6 @@ def directWitnessBatches (context : PerApplicationCachedShift.Context)
       (PerApplicationCachedShift.shiftBatch context) ++
     application.witnessBatches
 
-theorem directWitnessBatches_eq
-    (context : PerApplicationCachedShift.Context) :
-    directWitnessBatches context
-        (PerApplicationPackage.directApplicationPlan context.program) =
-      (PerApplicationPackage.package context.program).witnessBatches := by
-  calc
-    directWitnessBatches context
-        (PerApplicationPackage.directApplicationPlan context.program) =
-      (directBaseWitnessBatches ()).map
-          (PerApplicationPackage.shiftBatch context.program) ++
-        (PerApplicationPackage.directApplicationPlan
-          context.program).witnessBatches := by
-      unfold directWitnessBatches
-      exact congrArg₂ (fun left right => left ++ right)
-        (map_eq_of_pointwise _ _ _
-          (PerApplicationCachedShift.shiftBatch_eq context)) rfl
-    _ = (Data.circuitPackage ()).witnessBatches.map
-          (PerApplicationPackage.shiftBatch context.program) ++
-        (PerApplicationPackage.applicationPlan
-          context.program).witnessBatches := by
-      rw [directBaseWitnessBatches_eq,
-        PerApplicationPackage.directApplicationPlan_eq_applicationPlan]
-    _ = (PerApplicationPackage.package context.program).witnessBatches := by
-      simpa only [PerApplicationPackage.basePackage] using
-        (PerApplicationPackage.package_witnessBatches context.program).symm
-
 def directWitnessInstructions (context : PerApplicationCachedShift.Context)
     (application : ApplicationPackage.Plan) : List WitnessInstruction :=
   (directBaseWitnessInstructions ()).map
@@ -368,34 +343,6 @@ private theorem directWitnessInstructions_segments
   unfold directWitnessInstructions directBaseWitnessInstructions
   rw [map_liftPilotInstructions_append]
   exact List.append_assoc _ _ _
-
-theorem directWitnessInstructions_eq
-    (context : PerApplicationCachedShift.Context) :
-    directWitnessInstructions context
-        (PerApplicationPackage.directApplicationPlan context.program) =
-      (PerApplicationPackage.package context.program).witnessInstructions := by
-  calc
-    directWitnessInstructions context
-        (PerApplicationPackage.directApplicationPlan context.program) =
-      (directBaseWitnessInstructions ()).map
-          (PerApplicationPackage.shiftWitnessInstruction context.program) ++
-        (PerApplicationPackage.directApplicationPlan
-          context.program).witnessInstructions := by
-      unfold directWitnessInstructions
-      exact congrArg₂ (fun left right => left ++ right)
-        (map_eq_of_pointwise _ _ _
-          (PerApplicationCachedShift.shiftWitnessInstruction_eq context)) rfl
-    _ = (Data.circuitPackage ()).witnessInstructions.map
-          (PerApplicationPackage.shiftWitnessInstruction context.program) ++
-        (PerApplicationPackage.applicationPlan
-          context.program).witnessInstructions := by
-      rw [directBaseWitnessInstructions_eq,
-        PerApplicationPackage.directApplicationPlan_eq_applicationPlan]
-    _ = (PerApplicationPackage.package
-          context.program).witnessInstructions := by
-      simpa only [PerApplicationPackage.basePackage] using
-        (PerApplicationPackage.package_witnessInstructions
-          context.program).symm
 
 def directAssertionRows (context : PerApplicationCachedShift.Context)
     (application : ApplicationPackage.Plan) : List SparseRow :=
@@ -425,39 +372,6 @@ private theorem directAssertionRows_segments
   rw [← map_compose _ Data.liftPilotRow
     (PerApplicationCachedShift.shiftSparseRow context)]
   simp only [List.append_assoc]
-
-theorem directAssertionRows_eq
-    (context : PerApplicationCachedShift.Context) :
-    directAssertionRows context
-        (PerApplicationPackage.directApplicationPlan context.program) =
-      (PerApplicationPackage.package context.program).assertionRows := by
-  calc
-    directAssertionRows context
-        (PerApplicationPackage.directApplicationPlan context.program) =
-      ((directBaseAssertionRows ()).map
-          (PerApplicationPackage.shiftSparseRow context.program) ++
-        (PerApplicationPackage.directApplicationPlan
-          context.program).assertionRows) ++
-        NextPreimagePackage.assertionRows
-          (PerApplicationPackage.directNextPreimageRowStart
-            context.program) := by
-      unfold directAssertionRows
-      exact congrArg₂ (fun left right => left ++ right)
-        (congrArg₂ (fun left right => left ++ right)
-          (map_eq_of_pointwise _ _ _
-            (PerApplicationCachedShift.shiftSparseRow_eq context)) rfl) rfl
-    _ = ((Data.circuitPackage ()).assertionRows.map
-          (PerApplicationPackage.shiftSparseRow context.program) ++
-        (PerApplicationPackage.applicationPlan
-          context.program).assertionRows) ++
-        NextPreimagePackage.assertionRows
-          (PerApplicationPackage.nextPreimageRowStart context.program) := by
-      rw [directBaseAssertionRows_eq,
-        PerApplicationPackage.directApplicationPlan_eq_applicationPlan,
-        PerApplicationPackage.directNextPreimageRowStart_eq_nextPreimageRowStart]
-    _ = (PerApplicationPackage.package context.program).assertionRows := by
-      simpa only [PerApplicationPackage.basePackage] using
-        (PerApplicationPackage.package_assertionRows context.program).symm
 
 def directWitnessBatchCount (application : ApplicationPackage.Plan) : Nat :=
   (PilotData.priorWordBatches ()).length +
@@ -680,6 +594,66 @@ theorem processAssertionRowsWith_eq_processValueWith {State : Type}
   exact processEncodedItemsWith_header_eq_processValueWith
     push state SparseRow.format _
 
+/-- A plan without witness batches, witness instructions or assertion rows.
+The streams above read only these lists of the plan, so for this plan they
+give the fixed package. -/
+def noEntries : ApplicationPackage.Plan where
+  schemaVersion := 0
+  witnessWordCount := 0
+  inputColumns := []
+  witnessColumns := []
+  outputColumns := []
+  privateStart := 0
+  privateCount := 0
+  rowStart := 0
+  rowCount := 0
+  hashChains := []
+  permutationInvocations := []
+  compactRowTemplates := []
+  compactRowInvocations := []
+  witnessBatches := []
+  witnessInstructions := []
+  assertionRows := []
+
+theorem directWitnessBatches_noEntries
+    (context : PerApplicationCachedShift.Context) :
+    directWitnessBatches context noEntries =
+      PerApplicationPackage.basePackage.witnessBatches.map
+        (PerApplicationPackage.shiftBatch context.program) := by
+  simp only [directWitnessBatches, noEntries, List.append_nil]
+  exact (map_eq_of_pointwise _ _ _
+      (PerApplicationCachedShift.shiftBatch_eq context)).trans
+    (congrArg (List.map (PerApplicationPackage.shiftBatch context.program))
+      directBaseWitnessBatches_eq)
+
+theorem directWitnessInstructions_noEntries
+    (context : PerApplicationCachedShift.Context) :
+    directWitnessInstructions context noEntries =
+      PerApplicationPackage.basePackage.witnessInstructions.map
+        (PerApplicationPackage.shiftWitnessInstruction context.program) := by
+  simp only [directWitnessInstructions, noEntries, List.append_nil]
+  exact (map_eq_of_pointwise _ _ _
+      (PerApplicationCachedShift.shiftWitnessInstruction_eq context)).trans
+    (congrArg
+      (List.map (PerApplicationPackage.shiftWitnessInstruction context.program))
+      directBaseWitnessInstructions_eq)
+
+theorem directAssertionRows_noEntries
+    (context : PerApplicationCachedShift.Context) :
+    directAssertionRows context noEntries =
+      PerApplicationPackage.basePackage.assertionRows.map
+          (PerApplicationPackage.shiftSparseRow context.program) ++
+        NextPreimagePackage.assertionRows
+          (PerApplicationPackage.nextPreimageRowStart context.program) := by
+  simp only [directAssertionRows, noEntries, List.append_nil]
+  rw [PerApplicationPackage.directNextPreimageRowStart_eq_nextPreimageRowStart]
+  exact congrArg (fun rows => rows ++ NextPreimagePackage.assertionRows
+      (PerApplicationPackage.nextPreimageRowStart context.program))
+    ((map_eq_of_pointwise _ _ _
+        (PerApplicationCachedShift.shiftSparseRow_eq context)).trans
+      (congrArg (List.map (PerApplicationPackage.shiftSparseRow context.program))
+        directBaseAssertionRows_eq))
+
 @[inline, specialize push] def processHashChainsWith {State : Type}
     (push : State → StreamingIdentity.Node → State) (state : State)
     (context : PerApplicationCachedShift.Context) : State :=
@@ -738,58 +712,6 @@ theorem processCompactRowInvocationsWith_eq_processValueWith
     (PerApplicationCachedShift.shiftCompactRowInvocation context)
     PackagePlan.CompactInvocationBlock.expand
     PackagePlan.canonicalCompactBlocks
-
-@[specialize push] def processApplicationPlanWith {State : Type}
-    (push : State → StreamingIdentity.Node → State) (state : State)
-    (plan : ApplicationPackage.Plan) : State :=
-  let state := push state ⟨1, 16⟩
-  let state := push state ⟨0, plan.schemaVersion⟩
-  let state := push state ⟨0, plan.witnessWordCount⟩
-  let state := StreamingIdentity.processEncodedListWith push state nat
-    plan.inputColumns
-  let state := StreamingIdentity.processEncodedListWith push state nat
-    plan.witnessColumns
-  let state := StreamingIdentity.processEncodedListWith push state nat
-    plan.outputColumns
-  let state := push state ⟨0, plan.privateStart⟩
-  let state := push state ⟨0, plan.privateCount⟩
-  let state := push state ⟨0, plan.rowStart⟩
-  let state := push state ⟨0, plan.rowCount⟩
-  let state := StreamingIdentity.processEncodedListWith push state
-    HashChain.format plan.hashChains
-  let state := StreamingIdentity.processEncodedListWith push state
-    PermutationInvocation.format plan.permutationInvocations
-  let state := StreamingIdentity.processEncodedListWith push state
-    CompactRowTemplate.format plan.compactRowTemplates
-  let state := StreamingIdentity.processEncodedListWith push state
-    CompactRowInvocation.format plan.compactRowInvocations
-  let state := StreamingIdentity.processEncodedListWith push state
-    WitnessBatch.format plan.witnessBatches
-  let state := StreamingIdentity.processEncodedListWith push state
-    WitnessInstruction.format plan.witnessInstructions
-  StreamingIdentity.processEncodedListWith push state SparseRow.format
-    plan.assertionRows
-
-theorem processApplicationPlanWith_eq_processValueWith {State : Type}
-    (push : State → StreamingIdentity.Node → State) (state : State)
-    (plan : ApplicationPackage.Plan) :
-    processApplicationPlanWith push state plan =
-      StreamingIdentity.processValueWith push
-        (ApplicationPackage.Plan.format.encode plan) state := by
-  cases plan
-  dsimp only [processApplicationPlanWith, ApplicationPackage.Plan.format]
-  rw [StreamingIdentity.processEncodedListWith_eq_processValueWith,
-    StreamingIdentity.processEncodedListWith_eq_processValueWith,
-    StreamingIdentity.processEncodedListWith_eq_processValueWith,
-    StreamingIdentity.processEncodedListWith_eq_processValueWith,
-    StreamingIdentity.processEncodedListWith_eq_processValueWith,
-    StreamingIdentity.processEncodedListWith_eq_processValueWith,
-    StreamingIdentity.processEncodedListWith_eq_processValueWith,
-    StreamingIdentity.processEncodedListWith_eq_processValueWith,
-    StreamingIdentity.processEncodedListWith_eq_processValueWith,
-    StreamingIdentity.processEncodedListWith_eq_processValueWith]
-  simp only [StreamingIdentity.processValueWith, List.foldl_cons,
-    List.foldl_nil, List.length_cons, List.length_nil]
 
 @[inline, specialize push] def processMatrixProgramWith {State : Type}
     (push : State → StreamingIdentity.Node → State) (state : State)
@@ -940,14 +862,6 @@ private theorem installedReplaced_compactRowInvocations
   cases source
   rfl
 
-private theorem installedReplaced_witnessBatches (source : CircuitPackage)
-    (relation : CcsRelation) :
-    (TerminalPackage.install
-      (PerApplicationCanonicalPackage.replaceRelation
-        source relation)).witnessBatches = source.witnessBatches := by
-  cases source
-  rfl
-
 private theorem canonicalPackage_hashChains_eq_source
     (program : Program) (fits : FitsTwoPow28 program) :
     (PerApplicationCanonicalPackage.package program fits).hashChains =
@@ -982,42 +896,6 @@ private theorem canonicalPackage_compactRowInvocations_eq_source
         (PerApplicationCanonicalPackage.recursiveRelation
           program fits))).compactRowInvocations = _
   exact installedReplaced_compactRowInvocations _ _
-
-private theorem canonicalPackage_witnessBatches_eq_source
-    (program : Program) (fits : FitsTwoPow28 program) :
-    (PerApplicationCanonicalPackage.package program fits).witnessBatches =
-      (PerApplicationPackage.package program).witnessBatches := by
-  change (TerminalPackage.install
-      (PerApplicationCanonicalPackage.replaceRelation
-        (PerApplicationPackage.package program)
-        (PerApplicationCanonicalPackage.recursiveRelation
-          program fits))).witnessBatches = _
-  exact installedReplaced_witnessBatches _ _
-
-private theorem canonicalPackage_witnessInstructions_eq_source
-    (program : Program) (fits : FitsTwoPow28 program) :
-    (PerApplicationCanonicalPackage.package
-        program fits).witnessInstructions =
-      (PerApplicationPackage.package program).witnessInstructions := by
-  change (TerminalPackage.install
-      (PerApplicationCanonicalPackage.replaceRelation
-        (PerApplicationPackage.package program)
-        (PerApplicationCanonicalPackage.recursiveRelation
-          program fits))).witnessInstructions = _
-  exact (TerminalPackage.install_witnessInstructions _).trans
-    (PerApplicationCanonicalPackage.replaceRelation_witnessInstructions _ _)
-
-private theorem canonicalPackage_assertionRows_eq_source
-    (program : Program) (fits : FitsTwoPow28 program) :
-    (PerApplicationCanonicalPackage.package program fits).assertionRows =
-      (PerApplicationPackage.package program).assertionRows := by
-  change (TerminalPackage.install
-      (PerApplicationCanonicalPackage.replaceRelation
-        (PerApplicationPackage.package program)
-        (PerApplicationCanonicalPackage.recursiveRelation
-          program fits))).assertionRows = _
-  exact (TerminalPackage.install_assertionRows _).trans
-    (PerApplicationCanonicalPackage.replaceRelation_assertionRows _ _)
 
 private theorem directHashChains_eq_canonical
     (context : PerApplicationCachedShift.Context)
@@ -1055,37 +933,6 @@ private theorem directCompactRowInvocations_eq_canonical
     (canonicalPackage_compactRowInvocations_eq_source
       context.program fits).symm
 
-private theorem directWitnessBatches_eq_canonical
-    (context : PerApplicationCachedShift.Context)
-    (fits : FitsTwoPow28 context.program) :
-    directWitnessBatches context
-        (PerApplicationPackage.directApplicationPlan context.program) =
-      (PerApplicationCanonicalPackage.package
-        context.program fits).witnessBatches := by
-  exact (directWitnessBatches_eq context).trans
-    (canonicalPackage_witnessBatches_eq_source context.program fits).symm
-
-private theorem directWitnessInstructions_eq_canonical
-    (context : PerApplicationCachedShift.Context)
-    (fits : FitsTwoPow28 context.program) :
-    directWitnessInstructions context
-        (PerApplicationPackage.directApplicationPlan context.program) =
-      (PerApplicationCanonicalPackage.package
-        context.program fits).witnessInstructions := by
-  exact (directWitnessInstructions_eq context).trans
-    (canonicalPackage_witnessInstructions_eq_source
-      context.program fits).symm
-
-private theorem directAssertionRows_eq_canonical
-    (context : PerApplicationCachedShift.Context)
-    (fits : FitsTwoPow28 context.program) :
-    directAssertionRows context
-        (PerApplicationPackage.directApplicationPlan context.program) =
-      (PerApplicationCanonicalPackage.package
-        context.program fits).assertionRows := by
-  exact (directAssertionRows_eq context).trans
-    (canonicalPackage_assertionRows_eq_source context.program fits).symm
-
 private theorem directTerminal_eq
     (program : Program) (fits : FitsTwoPow28 program) :
     some (PerApplicationCanonicalPackage.directTerminalLayout program) =
@@ -1093,22 +940,21 @@ private theorem directTerminal_eq
   rw [PerApplicationCanonicalPackage.package_terminal,
     PerApplicationCanonicalPackage.directTerminalLayout_eq_layoutFor_package]
 
-theorem directInnerValue_eq
+theorem directInnerValue_noEntries
     (context : PerApplicationCachedShift.Context)
     (fits : FitsTwoPow28 context.program) :
-    directInnerValue context
-        (PerApplicationPackage.directApplicationPlan context.program) =
+    directInnerValue context noEntries =
       CircuitPackage.format.encode
-        (PerApplicationCanonicalPackage.package context.program fits) := by
-  unfold directInnerValue CircuitPackage.format
+        (PerApplicationCanonicalPackage.fixedPackage context.program fits) := by
+  rw [PerApplicationCanonicalPackage.fixedPackage_encode]
+  unfold directInnerValue
   rw [directSchemaVersion_eq, directProfile_eq, directPoseidon_eq,
     directLayout_eq, directRelation_eq, directPermutation_eq,
     directHashChains_eq_canonical, directPermutationInvocations_eq_canonical,
     directCompactRowTemplates_eq,
     directCompactRowInvocations_eq_canonical,
-    directWitnessBatches_eq_canonical,
-    directWitnessInstructions_eq_canonical,
-    directAssertionRows_eq_canonical, directTerminal_eq]
+    directWitnessBatches_noEntries, directWitnessInstructions_noEntries,
+    directAssertionRows_noEntries, directTerminal_eq]
 
 @[specialize push] def processInnerPackageWith {State : Type}
     (push : State → StreamingIdentity.Node → State) (state : State)
@@ -1146,12 +992,12 @@ theorem processInnerPackageWith_eq_processValueWith {State : Type}
     (push : State → StreamingIdentity.Node → State) (state : State)
     (context : PerApplicationCachedShift.Context)
     (fits : FitsTwoPow28 context.program) :
-    processInnerPackageWith push state context
-        (PerApplicationPackage.directApplicationPlan context.program) =
+    processInnerPackageWith push state context noEntries =
       StreamingIdentity.processValueWith push
         (CircuitPackage.format.encode
-          (PerApplicationCanonicalPackage.package context.program fits)) state := by
-  rw [← directInnerValue_eq context fits]
+          (PerApplicationCanonicalPackage.fixedPackage context.program fits))
+        state := by
+  rw [← directInnerValue_noEntries context fits]
   dsimp only [processInnerPackageWith]
   rw [processHashChainsWith_eq_processValueWith,
     processPermutationInvocationsWith_eq_processValueWith,
@@ -1168,27 +1014,29 @@ theorem processInnerPackageOfProgramWith_eq_processValueWith {State : Type}
     (push : State → StreamingIdentity.Node → State) (state : State)
     (program : Program) (fits : FitsTwoPow28 program) :
     processInnerPackageWith push state
-        (PerApplicationCachedShift.Context.ofProgram program)
-        (PerApplicationPackage.directApplicationPlan program) =
+        (PerApplicationCachedShift.Context.ofProgram program) noEntries =
       StreamingIdentity.processValueWith push
         (CircuitPackage.format.encode
-          (PerApplicationCanonicalPackage.package program fits)) state := by
+          (PerApplicationCanonicalPackage.fixedPackage program fits)) state := by
   simpa only [PerApplicationCachedShift.Context.ofProgram] using
     (processInnerPackageWith_eq_processValueWith push state
       (PerApplicationCachedShift.Context.ofProgram program) fits)
 
+/-- The structural value stream with `application` in place of the
+application digest. -/
 @[specialize push] def directStateWith {State : Type}
     (push : State → StreamingIdentity.Node → State) (initial : State)
-    (program : Program) : State :=
+    (program : Program) (application : VerifierContext.Digest4) : State :=
   let context := PerApplicationCachedShift.Context.ofProgram program
-  let application := PerApplicationPackage.directApplicationPlan program
   let state := push initial ⟨1, 7⟩
   let state := StreamingIdentity.processValueWith push
     (.atom PerApplicationCanonicalPackage.sealedPackageSchema) state
-  let state := processInnerPackageWith push state context application
+  let state := processInnerPackageWith push state context
+    noEntries
   let state := processMatrixProgramWith push state
     (PerApplicationMatrixProgram.matrixProgram program)
-  let state := processApplicationPlanWith push state application
+  let state := StreamingIdentity.processValueWith push
+    (PerApplicationCanonicalPackage.digestValue application) state
   let state := processAssignmentTransportWith push state program
   let state := StreamingIdentity.processValueWith push
     (MatrixProgram.IndexRange.format.encode
@@ -1199,28 +1047,29 @@ theorem processInnerPackageOfProgramWith_eq_processValueWith {State : Type}
 theorem directStateWith_eq_processValueWith {State : Type}
     (push : State → StreamingIdentity.Node → State) (initial : State)
     (program : Program) (fits : FitsTwoPow28 program) :
-    directStateWith push initial program =
+    directStateWith push initial program
+        (PerApplicationCanonicalPackage.applicationDigest program) =
       StreamingIdentity.processValueWith push
-        (PerApplicationCanonicalPackage.sealedPackageValue program fits)
+        (PerApplicationCanonicalPackage.structuralValue program fits)
         initial := by
   dsimp only [directStateWith]
   rw [processInnerPackageOfProgramWith_eq_processValueWith,
     processMatrixProgramWith_eq_processValueWith,
-    processApplicationPlanWith_eq_processValueWith,
     processAssignmentTransportWith_eq_processValueWith]
-  unfold PerApplicationCanonicalPackage.sealedPackageValue
+  unfold PerApplicationCanonicalPackage.structuralValue
   rw [processValueWith_array]
   rfl
 
 def semanticState (program : Program) : StreamingIdentity.HashState :=
   directStateWith StreamingIdentity.pushNode
     StreamingIdentity.initialState program
+    (PerApplicationCanonicalPackage.applicationDigest program)
 
 theorem semanticState_eq
     (program : Program) (fits : FitsTwoPow28 program) :
     semanticState program =
       StreamingIdentity.processValue
-        (PerApplicationCanonicalPackage.sealedPackageValue program fits)
+        (PerApplicationCanonicalPackage.structuralValue program fits)
         StreamingIdentity.initialState := by
   unfold semanticState StreamingIdentity.processValue
   exact directStateWith_eq_processValueWith
@@ -1240,23 +1089,36 @@ theorem structuralPackageIdentityStream_eq
   rw [semanticState_eq program fits]
   change VerifierContext.Digest4.ofList
       (StreamingIdentity.relationIdentifierValueFast
-        (PerApplicationCanonicalPackage.sealedPackageValue program fits)) = _
+        (PerApplicationCanonicalPackage.structuralValue program fits)) = _
   rw [StreamingIdentity.relationIdentifierValueFast_eq]
   rfl
 
-def directState (program : Program) : NativePoseidon2.HashState64 :=
+/-- The application digest by one stream of the application plan. -/
+def directApplicationDigest (program : Program) : VerifierContext.Digest4 :=
+  PerApplicationVerifierContextStreaming.applicationComponentDigestDirect
+    (PerApplicationPackage.directApplicationPlan program)
+
+theorem directApplicationDigest_eq (program : Program) :
+    directApplicationDigest program =
+      PerApplicationCanonicalPackage.applicationDigest program := by
+  unfold directApplicationDigest
+  rw [PerApplicationVerifierContextStreaming.applicationComponentDigestDirect_eq,
+    PerApplicationPackage.directApplicationPlan_eq_applicationPlan]
+  rfl
+
+def directState (program : Program) (application : VerifierContext.Digest4) :
+    NativePoseidon2.HashState64 :=
   let context := PerApplicationCachedShift.Context.ofProgram program
-  let application := PerApplicationPackage.directApplicationPlan program
   let state := NativePoseidon2.pushNode64 NativePoseidon2.initialState64
     ⟨1, 7⟩
   let state := StreamingIdentity.processValueWith NativePoseidon2.pushNode64
     (.atom PerApplicationCanonicalPackage.sealedPackageSchema) state
   let state := processInnerPackageWith NativePoseidon2.pushNode64 state context
-    application
+    noEntries
   let state := processMatrixProgramWith NativePoseidon2.pushNode64 state
     (PerApplicationMatrixProgram.matrixProgram program)
-  let state := processApplicationPlanWith NativePoseidon2.pushNode64 state
-    application
+  let state := StreamingIdentity.processValueWith NativePoseidon2.pushNode64
+    (PerApplicationCanonicalPackage.digestValue application) state
   let state := processAssignmentTransportWith NativePoseidon2.pushNode64 state
     program
   let state := StreamingIdentity.processValueWith NativePoseidon2.pushNode64
@@ -1265,14 +1127,17 @@ def directState (program : Program) : NativePoseidon2.HashState64 :=
   StreamingIdentity.processValueWith NativePoseidon2.pushNode64
     (.atom PerApplicationCanonicalPackage.logicalPublicInputCount) state
 
-private theorem directState_eq_directStateWith (program : Program) :
-    directState program =
+private theorem directState_eq_directStateWith (program : Program)
+    (application : VerifierContext.Digest4) :
+    directState program application =
       directStateWith NativePoseidon2.pushNode64
-        NativePoseidon2.initialState64 program := by
+        NativePoseidon2.initialState64 program application := by
   rfl
 
 theorem directState_denote (program : Program) (fits : FitsTwoPow28 program) :
-    (directState program).denote = semanticState program := by
+    (directState program
+        (PerApplicationCanonicalPackage.applicationDigest program)).denote =
+      semanticState program := by
   rw [directState_eq_directStateWith]
   unfold semanticState
   rw [directStateWith_eq_processValueWith NativePoseidon2.pushNode64
@@ -1282,7 +1147,7 @@ theorem directState_denote (program : Program) (fits : FitsTwoPow28 program) :
   have simulation := StreamingIdentity.processValueWith_simulates
     NativePoseidon2.HashState64.denote NativePoseidon2.pushNode64
     StreamingIdentity.pushNode NativePoseidon2.pushNode64_denote
-    (PerApplicationCanonicalPackage.sealedPackageValue program fits)
+    (PerApplicationCanonicalPackage.structuralValue program fits)
     NativePoseidon2.initialState64
   rw [NativePoseidon2.initialState64_denote] at simulation
   exact simulation
@@ -1290,14 +1155,16 @@ theorem directState_denote (program : Program) (fits : FitsTwoPow28 program) :
 @[inline] def structuralPackageIdentityDirect (program : Program)
     (_fits : FitsTwoPow28 program) : VerifierContext.Digest4 :=
   VerifierContext.Digest4.ofList
-    (NativePoseidon2.finalize64 (directState program)).denote
+    (NativePoseidon2.finalize64
+      (directState program (directApplicationDigest program))).denote
 
 theorem structuralPackageIdentityDirect_eq
     (program : Program) (fits : FitsTwoPow28 program) :
     structuralPackageIdentityDirect program fits =
       PerApplicationCanonicalPackage.structuralPackageIdentity program fits := by
   unfold structuralPackageIdentityDirect
-  rw [NativePoseidon2.finalize64_denote, directState_denote program fits]
+  rw [directApplicationDigest_eq, NativePoseidon2.finalize64_denote,
+    directState_denote program fits]
   exact structuralPackageIdentityStream_eq program fits
 
 @[csimp] theorem structuralPackageIdentityFast_eq_direct :

@@ -14,8 +14,8 @@ use crate::package::{
 
 mod native;
 pub(crate) use native::{
-    native_application_identity, native_application_word_count, native_relation_identifier,
-    visit_native_application_words,
+    native_application_identity, native_application_word_count, structural_identifier, visit_native_application_words,
+    ApplicationEntries, NEXT_PREIMAGE_ROWS,
 };
 
 const IDENTITY_DOMAIN: [u64; 29] = [
@@ -95,22 +95,22 @@ impl VerificationKeyDigest {
 }
 
 pub const POSEIDON2_HASH_CHAIN_V1_STRUCTURAL_IDENTIFIER: StructuralIdentifier = StructuralIdentifier([
-    5_156_750_079_506_471_084,
-    25_954_936_854_723_981,
-    3_766_112_621_299_948_091,
-    2_357_000_593_782_310_184,
+    13_357_358_602_320_623_580,
+    6_849_112_400_539_765_147,
+    9_900_404_046_426_781_280,
+    17_199_716_993_864_633_578,
 ]);
 pub const POSEIDON2_HASH_CHAIN_V1_PACKAGE_IDENTITY: PackageIdentity = PackageIdentity([
-    2_750_965_380_250_823_418,
-    16_409_890_074_304_069_397,
-    11_068_150_825_855_552_703,
-    3_665_459_373_282_535_041,
+    1_976_096_400_667_016_188,
+    11_940_451_206_530_000_970,
+    1_351_020_060_958_716_848,
+    1_336_463_872_620_604_566,
 ]);
 pub const POSEIDON2_HASH_CHAIN_V1_VERIFICATION_KEY_DIGEST: VerificationKeyDigest = VerificationKeyDigest([
-    8_981_812_563_576_989_885,
-    255_848_964_154_363_374,
-    4_393_268_563_461_410_284,
-    7_044_842_614_397_459_900,
+    2_351_201_096_158_848_273,
+    10_583_809_648_693_885_569,
+    12_290_622_224_268_110_653,
+    10_057_364_961_546_130_345,
 ]);
 
 #[derive(Clone, Debug, PartialEq, Eq)]

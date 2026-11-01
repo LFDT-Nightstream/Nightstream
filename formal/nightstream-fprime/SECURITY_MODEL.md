@@ -826,7 +826,12 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
   proximity near capacity. This verifier selects `JohnsonBound` with a
   positive margin and an explicit list-size charge (`neo-spartan/src/pcs.rs`,
   `p3-security` 0.8.0), so the paper gives no public false proof for this
-  profile. WHIR's numeric report remains an unproved Rust-to-Lean premise.
+  profile. Jo (ePrint 2026/891, Corollary 4.6) leaves list size separate for
+  row-wise interleaved codes. The selected WHIR witness stacks its tables
+  into one polynomial before encoding and commitment, so that separate
+  interleaved-code list term is not triggered by table count alone
+  (`p3-sumcheck` 0.8.0, `Witness::new_interleaved` and `Layout::commit`).
+  WHIR's numeric report remains an unproved Rust-to-Lean premise.
 - Completeness does not follow from a knowledge bound: a bound on the
   adversary is not evidence that an honest proof is accepted. The honest
   prover has separate results, for every application that fits the `2^28`

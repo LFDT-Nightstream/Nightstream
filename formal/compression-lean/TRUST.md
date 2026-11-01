@@ -53,6 +53,14 @@ The claims bound a probability. They take these as part of the model, not as Lea
   its list-size charge exclude the paper's stated high-list regime; its toy
   protocol is not this WHIR verifier. No Lean proof checks the WHIR figures.
   This is the weakest numeric layer.
+  Jo (ePrint 2026/891, Corollary 4.6) proves that row-wise interleaving adds
+  no affine-line MCA loss, while its separate list-size term remains. The
+  pinned `PrefixProver` calls its witness layout `new_interleaved`, but that
+  constructor places all table columns in one `Poly<F>` using selector bits;
+  `Layout::commit` encodes and commits that single stacked polynomial. Thus
+  the multiple tables do not by themselves create the paper's row-wise
+  interleaved code with an uncharged list size. This does not prove the
+  numeric report or its extension-field and concrete Fiat–Shamir premises.
   The candidates are tables over the base field; candidates over `Ext` are not modeled.
   WHIR's own Fiat–Shamir step is part of its error.
   Chiesa, Guan, Knabenhans and Yu (ePrint 2025/902, Theorem 7.1) derive

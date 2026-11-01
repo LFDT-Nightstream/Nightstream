@@ -75,6 +75,12 @@ The claims bound a probability. They take these as part of the model, not as Lea
   terminal assignment. That such a run implies a true claim is layer 1 under Fiat–Shamir with
   Poseidon2 inside the program, which the claims assume and do not bound. The openings inside the
   program follow the WHIR model (`WhirOpens`).
+  Bünz, Chen and Guan (ePrint 2026/2326, Sections 1.1–2.2) distinguish
+  challenge-grinding proof of work from the strong proof of work used in
+  extended Fiat–Shamir against diagonalization. Layer 1 has no grinding;
+  shrink's 20-bit grinding does not establish this read condition. Their
+  two-PoW theorem concerns relativized Sigma protocols and does not give a
+  soundness bound for this recursion.
   Khovratovich, Rothblum and Soukhanov (ePrint 2025/118, Theorems 1 and 2) attack a
   GKR–MLPCS Fiat–Shamir protocol that does not commit to the complete computation trace
   before its first challenge. Layer 1 commits its full F′ witness table as P0 before `β`

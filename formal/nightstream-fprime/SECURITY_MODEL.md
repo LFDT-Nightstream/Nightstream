@@ -399,6 +399,13 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
    `4 · (4 + 1) = 20` matrix actions at width 16, so that construction cannot
    fit. The paper does not rule out dependent constructions, and neither
    result bounds this additive duplex with intermediate challenge reads.
+   Jo (ePrint 2026/1760, Theorem 1) gives a full 28-round Poseidon
+   feed-forward compression collision over KoalaBear after selecting its MDS
+   matrix from the round constants. The selected construction instead fixes
+   Poseidon2's Goldilocks external and internal layers independently of its
+   round constants, uses `x^7` and 22 partial rounds, and does not use that
+   feed-forward compression. Thus the stated collision construction does not
+   instantiate here; it also supplies no security bound for this transcript.
    Li, Liu and Wang (ePrint 2026/1792, Sections 4.2–4.3) extend algebraic
    subspace attacks to nonlinear trails. Their `p ≈ 2^64` sponge estimates use
    a cubic S-box and six full rounds; their highlighted `x^7` cases use

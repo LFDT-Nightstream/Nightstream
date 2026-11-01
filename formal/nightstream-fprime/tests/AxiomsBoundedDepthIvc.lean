@@ -18,6 +18,7 @@ import NightstreamFPrime.Lifecycle.OptionB.LightPiCCSPhase
 import NightstreamFPrime.Lifecycle.OptionB.LightFold
 import NightstreamFPrime.Lifecycle.OptionB.LightStep
 import NightstreamFPrime.Lifecycle.OptionB.LightPiCCSLayout
+import NightstreamFPrime.Lifecycle.OptionB.LightRlcLayout
 import NightstreamFPrime.Spec.Folding.Light.RlcModule
 
 open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
@@ -204,6 +205,9 @@ open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.LightPiCCSLayout.soundness
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.LightPiCCSLayout.wired
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.LightPiCCSLayout.phaseHolds
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.LightRlcLayout.soundness
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.LightRlcLayout.wired
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.LightRlcLayout.foldHolds
 
 /-- One refresh per period starves slot 1: it takes a light fold each time the light circuit
 follows the refresh circuit and is never refreshed. -/

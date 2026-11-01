@@ -802,6 +802,15 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
    Those four tests passed on 2026-11-01. They do not establish consistency
    for every Rust-built application or every input.
 6. **Runtime checks.** The verifier's identity and setup checks stay necessary.
+   `Circuit::load_package` takes an identifier pinned by the caller. Its
+   loader recomputes that identifier from the fixed package and the digest of
+   the application plan, including its assertion rows. The package's
+   application rows, witness instructions and batches must equal the plan's
+   corresponding suffixes (`decode_application_plan`). A changed application
+   row with a newly computed plan digest therefore still needs a collision
+   against the pinned identifier; a changed package suffix without the plan
+   change is rejected. This check assumes Poseidon2 binding and a trusted
+   caller pin. It does not make an unpinned package authoritative.
 7. **The memory round.** `Export.Stage1.NebulaMemorySecurity.MemoryRound`
    states that, for each stage that trust item 4 admits and the memory
    statement of its tape, the extracted run is accepted and has a segment

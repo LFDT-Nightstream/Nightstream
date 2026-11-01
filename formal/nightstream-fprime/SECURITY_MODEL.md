@@ -322,6 +322,14 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
   transcript collision (`Lifecycle.Nebula.badAt_bound`). Here
   `m_mem = R + M + N · B_ops`, and setup rule 6 keeps `2 · m_mem/q²` at most
   `2^−109.91` (`Spec.Nebula.Geometry.secure_iff`).
+  A public Rust-built geometry with `r = 10`, `μ = 11`, `N = 1`, `B_ops = 2`,
+  `B_scan = 3072` and `S_max = 64` has `m_mem = 3074` and passes setup.
+  Its one-segment term has 115.414 bits; charging that term over the 64
+  allowed segments gives 109.414 bits before transcript-query, collision,
+  and Stage 1 history errors. `nebula::Verifier::new(..., 110)` accepts this
+  circuit because its numeric gate checks only one segment. This is a
+  security-budget mismatch against a 110-bit whole-run requirement, not a
+  produced false proof or an exact attack success probability.
 - **Depth:** the depth is `S_max · N`, so the depth limit of adversary 4
   applies.
 

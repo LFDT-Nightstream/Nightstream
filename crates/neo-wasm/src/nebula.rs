@@ -1,49 +1,33 @@
 //! Enzo's WASM relation as a Nebula memory application (`SPEC.md` section
-//! 7.6). One Nebula step proves `rows` consecutive trace rows, so the rows
-//! share the fixed F′ cost of a fold. Its private words are the witnesses
-//! `z` of its rows, one block of the one-row width each (`build_batched_witness`),
-//! and its relation is `build_batched_wasm_ccs(rows)`, which links each row's
-//! `_AFTER` columns to the next row's `_BEFORE` columns. Its state is the
-//! continuity words, one per link: the `_BEFORE` columns of its first row in,
-//! the `_AFTER` columns of its last row out. `CatalogBinding` checks every
-//! memory of the batched catalog (Lean `Spec.Nebula.MemoryTrace.batchCatalog`)
-//! in the regions that the caller gives, so one circuit serves every program
-//! whose memories fit those regions.
+//! 7.6): `nightstream::nebula::R1csApplication` of the one-row WASM relation
+//! with its operation-table rows, its continuity links, and its memory
+//! catalog. One Nebula step proves `rows` consecutive trace rows. Its private
+//! words are the witnesses `z` of its rows (`build_batched_witness`), and its
+//! state is the continuity words. One circuit serves every program whose
+//! memories fit the regions that the caller gives.
 
 use std::num::NonZeroUsize;
-use std::sync::Arc;
 
 use neo_ccs::CcsMatrix;
 use neo_math::F;
+pub use nightstream::nebula::R1csStepError as WasmStepError;
 use nightstream::nebula::{
-    Application, CatalogBinding, CatalogBindingError, CatalogRowError, Expr, Geometry, Memory, MemoryKind,
-    MemoryPortActivation, Program, Region, Transition, View,
+    batched_slots, Application, CatalogBinding, CatalogBindingError, Expr, Geometry, Memory, MemoryKind,
+    MemoryPortActivation, Program, R1csApplication, R1csApplicationError, Region, RowRelation, Size, Terms, Transition,
+    View,
 };
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
-use crate::batch::{build_batched_wasm_ccs, build_batched_witness, BatchError};
+use crate::batch::{build_batched_witness, single_wasm_relation, BatchError};
 use crate::ir::{WasmStepState, WasmVmStep};
 use crate::layout::COL_ONE;
 use crate::{
     build_wasm_relation_layout, continuity_words, plan_ordered_wasm_memory_slots, WasmMemoryId, WasmMemoryPreload,
 };
 
-/// The terms `(column, coefficient)` of one row of a sparse matrix.
-type Terms = Vec<(usize, F)>;
-
 /// The WASM relation as a Nebula application.
 #[derive(Clone)]
-pub struct WasmApplication {
-    /// `[A_i, B_i, C_i]` of each rank-one row `(A_i·z)(B_i·z) = C_i·z`.
-    relation: Arc<Vec<[Terms; 3]>>,
-    /// The one-row `(_AFTER, _BEFORE)` columns of each continuity link, in
-    /// link order.
-    links: Arc<Vec<(usize, usize)>>,
-    rows: NonZeroUsize,
-    /// The witness width of one trace row.
-    row_width: usize,
-    binding: CatalogBinding<WasmMemoryId>,
-}
+pub struct WasmApplication(R1csApplication<WasmMemoryId>);
 
 #[derive(Debug, thiserror::Error)]
 pub enum WasmApplicationError {
@@ -61,62 +45,21 @@ pub enum WasmApplicationError {
     },
 }
 
-#[derive(Debug, thiserror::Error)]
-pub enum WasmStepError {
-    #[error("the step input has {words} words, not the {expected} words of its rows")]
-    Width { words: usize, expected: usize },
-    #[error("the first row does not start from the state")]
-    State,
-    #[error(transparent)]
-    Row(#[from] CatalogRowError),
-}
-
-fn after(link: &(usize, usize)) -> usize {
-    link.0
-}
-
-fn before(link: &(usize, usize)) -> usize {
-    link.1
-}
-
-/// The column of the one-row column `column` in row `row` of a step, as
-/// `build_batched_wasm_ccs` maps it: every row shares `z[COL_ONE] = 1`.
-fn row_column(row_width: usize, row: usize, column: usize) -> usize {
-    if column == COL_ONE {
-        column
-    } else {
-        column + row * row_width
+impl From<R1csApplicationError> for WasmApplicationError {
+    fn from(error: R1csApplicationError) -> Self {
+        match error {
+            R1csApplicationError::Binding(error) => Self::Binding(error),
+        }
     }
 }
 
-/// The slot plan of `WasmApplication::new`: the one-row plan of
-/// `plan_ordered_wasm_memory_slots` for row 0, then for row 1, and so on. Each
-/// one-row rank `s` of memory `m` becomes the batched rank
-/// `rows · offset_m + row · P_m + (s − offset_m)`, where `offset_m` is the
-/// first one-row rank of `m` and `P_m` its port count. Inside one memory the
-/// batched ranks are in trace order, and two dependent ports share a memory,
-/// so the plan keeps each dependent pair in order (`SPEC.md` section 7.6
-/// rule 2). It has `rows` times the one-row slots.
+/// The slot plan of `WasmApplication::new`: `batched_slots` of the one-row
+/// plan of `plan_ordered_wasm_memory_slots`, so each dependent pair stays in
+/// order (`SPEC.md` section 7.6 rule 2). It has `rows` times the one-row
+/// slots.
 pub fn plan_ordered_slots(rows: NonZeroUsize) -> Vec<Vec<usize>> {
-    let layout = build_wasm_relation_layout();
-    let memories = layout.auxiliary.memory.entries();
-    let mut offsets = Vec::with_capacity(memories.len());
-    let mut ranks = 0;
-    for memory in memories {
-        offsets.push(ranks);
-        ranks += memory.ports.len();
-    }
-    let rank = |row: usize, s: usize| {
-        let m = offsets.partition_point(|offset| *offset <= s) - 1;
-        rows.get() * offsets[m] + row * memories[m].ports.len() + (s - offsets[m])
-    };
-    let plan = plan_ordered_wasm_memory_slots(memories).slots;
-    (0..rows.get())
-        .flat_map(|row| {
-            plan.iter()
-                .map(move |slot| slot.iter().map(|s| rank(row, *s)).collect())
-        })
-        .collect()
+    let catalog = &build_wasm_relation_layout().auxiliary.memory;
+    batched_slots(catalog, &plan_ordered_wasm_memory_slots(catalog.entries()).slots, rows)
 }
 
 impl WasmApplication {
@@ -141,65 +84,45 @@ impl WasmApplication {
         slots: &[Vec<usize>],
     ) -> Result<Self, WasmApplicationError> {
         let layout = build_wasm_relation_layout();
-        let (relation, columns) = relation(rows)?;
-        let row_width = columns / rows.get();
-        let catalog = layout
-            .auxiliary
-            .memory
-            .batched(rows, |row, column| row_column(row_width, row, column));
-        Ok(Self {
-            relation: Arc::new(relation),
-            links: Arc::new(
-                layout
-                    .auxiliary
-                    .continuity
-                    .links()
-                    .map(|link| (link.previous_step_column, link.next_step_column))
-                    .collect(),
-            ),
+        let size = Size {
+            geometry: *geometry,
             rows,
-            row_width,
-            binding: CatalogBinding::new(&catalog, geometry, regions, slots)?,
-        })
+            regions,
+            slots: slots.to_vec(),
+        };
+        Ok(Self(R1csApplication::new(
+            relation()?,
+            &layout.auxiliary.continuity,
+            &layout.auxiliary.memory,
+            size,
+        )?))
     }
 
     pub fn binding(&self) -> &CatalogBinding<WasmMemoryId> {
-        &self.binding
+        self.0.binding()
     }
 
     /// The program images of a preload, in the application's regions.
     pub fn program(&self, preload: &WasmMemoryPreload) -> Result<Program, CatalogBindingError> {
-        self.binding.program(preload)
+        self.0.program(preload)
     }
 
     /// The rank-one rows of one step's relation: the rows of each trace row,
     /// then the continuity rows between neighbor rows.
     pub fn relation_rows(&self) -> usize {
-        self.relation.len()
+        self.0.relation_rows()
     }
 
     /// The state words that step input `z` ends in: the `_AFTER` columns of
     /// its last row.
     pub fn output_words(&self, z: &[F]) -> Vec<u64> {
-        self.link_words(z, self.rows.get() - 1, after)
+        self.0.output_words(z)
     }
 
     /// The position in the state words of the link whose one-row `_AFTER`
     /// column is `column`.
     pub fn state_position(&self, column: usize) -> Option<usize> {
-        self.links.iter().position(|link| after(link) == column)
-    }
-
-    /// The column of the one-row column `column` of row `row` in a step input.
-    fn column(&self, row: usize, column: usize) -> usize {
-        row_column(self.row_width, row, column)
-    }
-
-    fn link_words(&self, z: &[F], row: usize, column: fn(&(usize, usize)) -> usize) -> Vec<u64> {
-        self.links
-            .iter()
-            .map(|link| z[self.column(row, column(link))].as_canonical_u64())
-            .collect()
+        self.0.state_position(column)
     }
 }
 
@@ -209,72 +132,34 @@ impl Application for WasmApplication {
     type Error = WasmStepError;
 
     fn width(&self) -> usize {
-        self.links.len()
+        self.0.width()
     }
 
     fn aux(&self) -> usize {
-        self.rows.get() * self.row_width
+        self.0.aux()
     }
 
     fn port_count(&self) -> usize {
-        self.binding.port_count()
+        self.0.port_count()
     }
 
     fn words(&self, state: &Vec<u64>) -> Vec<u64> {
-        state.clone()
+        self.0.words(state)
     }
 
-    /// Each R1CS row as `C·z − (A·z)(B·z)`, one rank-one row each; `z[0] = 1`;
-    /// the `_BEFORE` columns of the first row equal the input state and the
-    /// `_AFTER` columns of the last row the output state; then the binding
-    /// rows.
     fn rows(&self, view: &View) -> Result<Vec<Expr>, nightstream::Error> {
-        let z: Vec<Expr> = (0..self.aux()).map(|column| view.aux(column)).collect();
-        let affine = |terms: &Terms| {
-            terms
-                .iter()
-                .fold(Expr::constant(0), |sum, (column, coefficient)| {
-                    sum + Expr::Const(*coefficient) * z[*column].clone()
-                })
-        };
-        let mut rows: Vec<Expr> = self
-            .relation
-            .iter()
-            .map(|[a, b, c]| affine(c) - affine(a) * affine(b))
-            .collect();
-        rows.push(z[COL_ONE].clone() - Expr::constant(1));
-        let last = self.rows.get() - 1;
-        for (k, link) in self.links.iter().enumerate() {
-            rows.push(z[self.column(0, before(link))].clone() - view.input(k));
-            rows.push(z[self.column(last, after(link))].clone() - view.output(k));
-        }
-        rows.extend(self.binding.rows(view, &z)?);
-        Ok(rows)
+        self.0.rows(view)
     }
 
     fn step(&self, state: &Vec<u64>, z: &Vec<F>, memory: &Memory) -> Result<Transition<Vec<u64>>, WasmStepError> {
-        if z.len() != self.aux() {
-            return Err(WasmStepError::Width {
-                words: z.len(),
-                expected: self.aux(),
-            });
-        }
-        if self.link_words(z, 0, before) != *state {
-            return Err(WasmStepError::State);
-        }
-        Ok(Transition {
-            next: self.output_words(z),
-            ports: self.binding.ports(z, memory)?,
-            aux: z.clone(),
-        })
+        self.0.step(state, z, memory)
     }
 }
 
-/// The rows of `A`, `B`, and `C` of one step's relation, lookup rows and the
-/// continuity rows between neighbor rows included
-/// (`build_batched_wasm_ccs(rows)`), and its column count.
-fn relation(rows: NonZeroUsize) -> Result<(Vec<[Terms; 3]>, usize), WasmApplicationError> {
-    let r1cs = build_batched_wasm_ccs(rows.get())?.sparse_r1cs;
+/// The one-row WASM relation with its operation-table rows
+/// (`build_batched_wasm_ccs(1)` without the batch).
+fn relation() -> Result<RowRelation, WasmApplicationError> {
+    let r1cs = single_wasm_relation()?.relation;
     let mut terms = vec![[Terms::new(), Terms::new(), Terms::new()]; r1cs.n];
     for (k, matrix) in [&r1cs.a, &r1cs.b, &r1cs.c].into_iter().enumerate() {
         let CcsMatrix::Csc(csc) = matrix else {
@@ -286,7 +171,11 @@ fn relation(rows: NonZeroUsize) -> Result<(Vec<[Terms; 3]>, usize), WasmApplicat
             }
         }
     }
-    Ok((terms, r1cs.m))
+    Ok(RowRelation {
+        rows: terms,
+        width: r1cs.m,
+        one: COL_ONE,
+    })
 }
 
 /// The state words of `state`: its continuity words.

@@ -2,8 +2,9 @@
 //! the `Application` contract: the geometry and the program, the record
 //! chains and challenge transcript, the carry, the segment runner that writes
 //! each invocation's witness words, the SPEC.md Algorithm 10 terminal checks, the memory
-//! circuit, the memory verifier, and the memory backend of catalog
-//! applications (`CatalogBinding`). `Machine` is the first application.
+//! circuit, the memory verifier, the memory backend of catalog
+//! applications (`CatalogBinding`), and the application of an R1CS relation
+//! of one row (`R1csApplication`). `Machine` is the first application.
 //! A memory circuit comes from a pinned Lean-emitted package (`Package::load`)
 //! or from the Rust-built relation (`Circuit::compile`), and
 //! `tests/nebula/parity.rs` requires the machine's Rust relation to equal each
@@ -16,6 +17,7 @@ mod circuit;
 mod expr;
 mod geometry;
 mod machine;
+mod r1cs;
 mod records;
 mod rows;
 mod segment;
@@ -35,6 +37,7 @@ pub use neo_application::{
     ColumnFamilySpec, ColumnRegistry, ColumnRegistryError, ColumnWidth, MemoryCatalog, MemoryCatalogError, MemoryKind,
     MemoryPortActivation, MemoryPortKind, MemoryPortSpec, MemoryPreload, MemorySpec,
 };
+pub use r1cs::{batched_slots, R1csApplication, R1csApplicationError, R1csStepError, RowRelation, Size, Terms};
 pub use records::PortAccess;
 pub use rows::View;
 use segment::Cell;

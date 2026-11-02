@@ -7,7 +7,7 @@ import NightstreamFPrime.Lifecycle.Stage1.Poseidon2HashChainV1
 circuits for today's fixture application (`Poseidon2HashChainV1.program`). For each circuit it
 prints the constraints, the unpacked R1CS rows of `LogicalPlan.rows`, the largest column, the
 Poseidon2 blocks that `Pieces.split` recognizes, and the rows after packing each block into 150
-CCS rows. -/
+CCS rows; then the same counts for each top-level child, largest first. -/
 
 namespace NightstreamFPrime.Export.OptionB.EmitMain
 
@@ -51,17 +51,40 @@ def census (name : String) (ops : List Op) (offset : Nat) (digestColumn : Fin 4 
     {genericRows} other rows, {genericRows + 150 * permutations} packed rows \
     ({(← IO.monoMsNow) - start} ms)"
 
+/-- One line per top-level child: its name, Poseidon2 blocks, other constraints and their R1CS
+rows, largest first. -/
+def childCensus (name : String) (ops : List Op) : IO Unit := do
+  let canonical := PilotData.canonicalConstraints ()
+  let lines := ops.map fun op =>
+    let label := match op with
+      | .subcircuit child => child.name
+      | .witness _ => "witness"
+      | .assertZero _ => "assertion"
+    let pieces := Pieces.split canonical op.flatConstraints
+    let permutations := (pieces.filter fun | .permutation .. => true | _ => false).length
+    let generic := Pieces.genericConstraints pieces
+    (label, permutations, generic.length,
+      (Stage1.Rows.lowerConstraintsTR generic 0).rows.length)
+  let sorted := lines.toArray.qsort (fun left right => left.2.2.2 > right.2.2.2)
+  for (label, permutations, constraints, rows) in sorted do
+    IO.println s!"{name} child {label}: {permutations} blocks, {constraints} other constraints, \
+      {rows} other rows"
+
 def main : IO Unit := do
   let base := StepRelation.base
   let words := program.witnessWordCount
   let lightOffset := LightAssembler.sharedEnd base words
-  census "light" (Circuit.ops (OptionB.LightStepLayout.main program relation 0
+  let lightOps := Circuit.ops (OptionB.LightStepLayout.main program relation 0
       (LightAssembler.interface (logicalWidth := width) (publicFits := publicFits) base words))
-      lightOffset) lightOffset (StepRelation.lightDigestColumn program)
+      lightOffset
+  census "light" lightOps lightOffset (StepRelation.lightDigestColumn program)
+  childCensus "light" lightOps
   let refreshOffset := RefreshAssembler.sharedEnd base words
-  census "refresh" (Circuit.ops (OptionB.RefreshStepLayout.main program relation 1
+  let refreshOps := Circuit.ops (OptionB.RefreshStepLayout.main program relation 1
       (RefreshAssembler.interface (logicalWidth := width) (publicFits := publicFits) base words))
-      refreshOffset) refreshOffset (StepRelation.refreshDigestColumn program)
+      refreshOffset
+  census "refresh" refreshOps refreshOffset (StepRelation.refreshDigestColumn program)
+  childCensus "refresh" refreshOps
 
 end NightstreamFPrime.Export.OptionB.EmitMain
 

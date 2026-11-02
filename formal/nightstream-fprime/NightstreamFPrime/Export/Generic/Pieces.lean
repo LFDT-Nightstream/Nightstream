@@ -364,7 +364,8 @@ theorem mem_genericConstraints {expression : Expr} :
 /-- The constraints hold when every permutation piece's constraints hold and the other
 constraints hold. -/
 theorem split_sound (canonical constraints : List Expr) (env : Env)
-    (permutations : ∀ start lanes, Piece.permutation start lanes ∈ split canonical constraints →
+    (permutations : ∀ start lanes,
+      Piece.permutation start lanes ∈ split canonical constraints →
       ConstraintsHold env ((Piece.permutation start lanes).constraints canonical))
     (generic : ConstraintsHold env (genericConstraints (split canonical constraints))) :
     ConstraintsHold env constraints := by

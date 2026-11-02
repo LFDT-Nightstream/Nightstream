@@ -334,6 +334,9 @@ open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 #audit_axioms NightstreamFPrime.Export.OptionB.StepRelation.light_stepHolds
 #audit_axioms NightstreamFPrime.Export.OptionB.StepRelation.refreshRepresents
 #audit_axioms NightstreamFPrime.Export.OptionB.StepRelation.refresh_stepHolds
+#audit_axioms NightstreamFPrime.Export.OptionB.StepRelation.publicInput_eq_project
+#audit_axioms NightstreamFPrime.Export.OptionB.StepRelation.light_freshHolds
+#audit_axioms NightstreamFPrime.Export.OptionB.StepRelation.refresh_freshHolds
 
 /-- One refresh per period starves slot 1: it takes a light fold each time the light circuit
 follows the refresh circuit and is never refreshed. -/

@@ -3,6 +3,8 @@
 //! A row has four port forms over the logical columns: A, B, C and the S-box
 //! input. An R1CS row fills A, B and C, and its constant reads column 0.
 
+use std::ops::Range;
+
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks;
 
@@ -23,6 +25,8 @@ const FINAL_SBOX: usize = 134;
 /// coefficients are not stored.
 pub struct PlanRows {
     ordinary: usize,
+    binding: usize,
+    rings: Vec<Range<usize>>,
     offsets: Vec<usize>,
     columns: Vec<u32>,
     coefficients: Vec<Goldilocks>,
@@ -40,6 +44,33 @@ impl PlanRows {
 
     pub fn entry_count(&self) -> usize {
         self.columns.len()
+    }
+
+    /// The rows of each ring piece.
+    pub fn ring_rows(&self) -> &[Range<usize>] {
+        &self.rings
+    }
+
+    /// The blocks' binding rows, the last relation rows.
+    pub fn binding_rows(&self) -> Range<usize> {
+        self.binding..self.ordinary
+    }
+
+    pub fn sbox_rows(&self) -> Range<usize> {
+        self.ordinary..self.row_count()
+    }
+
+    pub fn evaluate(&self, row: usize, port: usize, columns: &[Goldilocks]) -> Goldilocks {
+        self.port(row, port)
+            .fold(Goldilocks::ZERO, |sum, (column, coefficient)| {
+                sum + coefficient * columns[column]
+            })
+    }
+
+    /// The row's constraint `A * B - C + S^7` on `columns`.
+    pub fn residual(&self, row: usize, columns: &[Goldilocks]) -> Goldilocks {
+        self.evaluate(row, 0, columns) * self.evaluate(row, 1, columns) - self.evaluate(row, 2, columns)
+            + self.evaluate(row, 3, columns).exp_u64(7)
     }
 
     pub fn port(&self, row: usize, port: usize) -> impl Iterator<Item = (usize, Goldilocks)> + '_ {
@@ -65,7 +96,7 @@ impl PlanRows {
     }
 }
 
-fn mix(unit: u64, column: u64) -> Goldilocks {
+pub(super) fn mix(unit: u64, column: u64) -> Goldilocks {
     let point = Goldilocks::from_u64(unit * 16_777_259 + column + 1);
     point * point * point + Goldilocks::from_u64(unit)
 }
@@ -119,12 +150,15 @@ impl Builder {
         for cell in 0..cells {
             for node in 0..RING_NODES {
                 let point = Goldilocks::from_u64(node as u64);
-                let powers: Vec<Goldilocks> = std::iter::successors(Some(Goldilocks::ONE), |power| Some(*power * point))
-                    .take(RING_DEGREE)
-                    .collect();
+                let powers: Vec<Goldilocks> =
+                    std::iter::successors(Some(Goldilocks::ONE), |power| Some(*power * point))
+                        .take(RING_DEGREE)
+                        .collect();
                 let modulus = point.exp_u64(RING_DEGREE as u64) + point.exp_u64(RING_MIDDLE_DEGREE) + Goldilocks::ONE;
                 let evaluation = |lane_of: &dyn Fn(usize) -> Linear| {
-                    (0..RING_DEGREE).fold(Linear::default(), |sum, lane| sum.plus(lane_of(lane).scale(powers[lane])))
+                    (0..RING_DEGREE).fold(Linear::default(), |sum, lane| {
+                        sum.plus(lane_of(lane).scale(powers[lane]))
+                    })
                 };
                 let variable = |column: usize| Linear {
                     constant: Goldilocks::ZERO,
@@ -159,6 +193,8 @@ impl StepPackage {
             width: self.width,
             rows: PlanRows {
                 ordinary: 0,
+                binding: 0,
+                rings: Vec::new(),
                 offsets: vec![0],
                 columns: Vec::new(),
                 coefficients: Vec::new(),
@@ -177,7 +213,11 @@ impl StepPackage {
                     start,
                     quotient,
                     lanes,
-                } => builder.push_ring(*cells, *start, *quotient, lanes)?,
+                } => {
+                    let first = builder.rows.row_count();
+                    builder.push_ring(*cells, *start, *quotient, lanes)?;
+                    builder.rows.rings.push(first..builder.rows.row_count());
+                }
                 Piece::Block { start, lanes } => {
                     if lanes.len() != BLOCK_LANES {
                         return Err(PackageError::Malformed("option-B block lane count"));
@@ -186,12 +226,22 @@ impl StepPackage {
                 }
             }
         }
+        builder.rows.binding = builder.rows.row_count();
         for (index, &(start, _)) in blocks.iter().enumerate() {
             let sbox = self.sbox_start + index * SBOX_ROWS;
-            let finals: Vec<usize> = (0..BLOCK_LANES).map(|lane| sbox + FINAL_SBOX + lane).collect();
-            for (lane, output) in external_outputs(&finals, self.width)?.into_iter().enumerate() {
+            let finals: Vec<usize> = (0..BLOCK_LANES)
+                .map(|lane| sbox + FINAL_SBOX + lane)
+                .collect();
+            for (lane, output) in external_outputs(&finals, self.width)?
+                .into_iter()
+                .enumerate()
+            {
                 let mut a = vec![(start + BLOCK_OUTPUTS + lane, Goldilocks::ONE)];
-                a.extend(output.into_iter().map(|(column, coefficient)| (column, -coefficient)));
+                a.extend(
+                    output
+                        .into_iter()
+                        .map(|(column, coefficient)| (column, -coefficient)),
+                );
                 builder.push_entries(&a)?;
                 builder.push_entries(&[(0, Goldilocks::ONE)])?;
                 builder.push_entries(&[])?;
@@ -202,7 +252,11 @@ impl StepPackage {
         for (index, &(_, lanes)) in blocks.iter().enumerate() {
             let forms: Vec<Entries> = lanes
                 .iter()
-                .map(|lane| std::iter::once((0, lane.constant)).chain(lane.terms.iter().copied()).collect())
+                .map(|lane| {
+                    std::iter::once((0, lane.constant))
+                        .chain(lane.terms.iter().copied())
+                        .collect()
+                })
                 .collect();
             let rows = &mut builder;
             permutation_rows(&forms, self.sbox_start + index * SBOX_ROWS, self.width, |ports| {

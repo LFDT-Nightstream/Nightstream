@@ -141,8 +141,8 @@ def main (arguments : List String) : IO Unit := do
         LogicalPlan.decodeConstraints (StepRelation.refreshDigestColumn program)))
   let refresh ← emitPackage "refresh" 1 refreshOps refreshOffset refreshPieces
   say s!"packages written ({(← IO.monoMsNow) - start} ms)"
-  let parity := Parity.parity width (lightPieces, light.firstFresh)
-    (refreshPieces, refresh.firstFresh)
+  let parity := Parity.parity width (lightPieces, light.firstFresh, lightOffset, witnesses lightOps)
+    (refreshPieces, refresh.firstFresh, refreshOffset, witnesses refreshOps)
   let parityPath := "artifacts/nightstream-fprime-option-b-parity-v1.json"
   IO.FS.writeFile parityPath (parity.render ++ "\n")
   match parity with

@@ -46,7 +46,9 @@ pub use sealed::{
 pub use terminal::{load_terminal_package, TerminalOutputs};
 mod pi_ccs_v1_2_transcript;
 mod source_row;
-pub use pi_ccs_v1_2_transcript::{derive_pi_ccs_v1_2_transcript, PiCcsV1_2Transcript};
+pub use pi_ccs_v1_2_transcript::{
+    derive_light_transcript, derive_pi_ccs_v1_2_transcript, derive_refresh_transcript, PiCcsV1_2Transcript,
+};
 
 const MAX_JOINT_DOMAIN_VARIABLES: u32 = 28;
 const MAX_JOINT_DOMAIN: usize = 1usize << MAX_JOINT_DOMAIN_VARIABLES;

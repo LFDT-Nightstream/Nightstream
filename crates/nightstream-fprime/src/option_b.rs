@@ -7,6 +7,7 @@
 //! own the relation's meaning, the witness program or the fold.
 
 mod expand;
+mod witness;
 
 pub use expand::PlanRows;
 
@@ -167,7 +168,9 @@ impl Block<'_> {
             .map(|lane| {
                 lane.terms
                     .iter()
-                    .fold(lane.constant, |sum, &(column, coefficient)| sum + coefficient * assignment[column])
+                    .fold(lane.constant, |sum, &(column, coefficient)| {
+                        sum + coefficient * assignment[column]
+                    })
             })
             .collect()
     }
@@ -248,7 +251,11 @@ pub fn parse_atoms(bytes: &[u8]) -> Result<Value, PackageError> {
         match byte {
             b'[' => stack.push(Vec::new()),
             b']' => {
-                let finished = Value::Array(stack.pop().ok_or(PackageError::Malformed("unbalanced array"))?);
+                let finished = Value::Array(
+                    stack
+                        .pop()
+                        .ok_or(PackageError::Malformed("unbalanced array"))?,
+                );
                 match stack.last_mut() {
                     Some(parent) => parent.push(finished),
                     None if done.is_none() => done = Some(finished),
@@ -358,7 +365,10 @@ fn constant_node(value: &Value) -> Result<Option<Goldilocks>, PackageError> {
 }
 
 fn decode_lanes(value: &Value) -> Result<Vec<Linear>, PackageError> {
-    array(value, "option-B lanes")?.iter().map(decode_linear).collect()
+    array(value, "option-B lanes")?
+        .iter()
+        .map(decode_linear)
+        .collect()
 }
 
 fn decode_piece(value: &Value) -> Result<Piece, PackageError> {

@@ -8,16 +8,19 @@ use std::path::PathBuf;
 
 use neo_ccs::crypto::poseidon2_goldilocks::permute_state;
 use nightstream_fprime::{
-    load_option_b_packages, option_b_identity, parse_atoms, OptionBPackages, PackageError, PlanRows,
-    OPTION_B_PACKAGES_IDENTITY,
+    load_option_b_packages, option_b_identity, parse_atoms, OptionBPackages, PackageError, OPTION_B_PACKAGES_IDENTITY,
 };
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks;
 use serde_json::Value;
 
 fn artifact(name: &str) -> Vec<u8> {
-    fs::read(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../formal/nightstream-fprime/artifacts").join(name))
-        .unwrap_or_else(|error| panic!("read {name}: {error}"))
+    fs::read(
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../formal/nightstream-fprime/artifacts")
+            .join(name),
+    )
+    .unwrap_or_else(|error| panic!("read {name}: {error}"))
 }
 
 fn parity() -> Vec<Value> {
@@ -45,9 +48,17 @@ fn words(value: &Value) -> Vec<u64> {
         .collect()
 }
 
-fn evaluate(rows: &PlanRows, row: usize, port: usize, assignment: &[Goldilocks]) -> Goldilocks {
-    rows.port(row, port)
-        .fold(Goldilocks::ZERO, |sum, (column, coefficient)| sum + coefficient * assignment[column])
+/// Lean `Parity.sharedWord`.
+fn shared_word(column: usize) -> Goldilocks {
+    if column == 0 {
+        return Goldilocks::ONE;
+    }
+    let q = u128::from(Goldilocks::ORDER_U64);
+    Goldilocks::from_u64(((column as u128 * 6_364_136_223_846_793_005 + 1_442_695_040_888_963_407) % q) as u64)
+}
+
+fn shared_columns(summary: &Value) -> Vec<Goldilocks> {
+    (0..words(summary)[3] as usize).map(shared_word).collect()
 }
 
 #[test]
@@ -65,15 +76,23 @@ fn relation_rows_match_the_lean_checksum() {
         (packages.light(), &fields[1], 184_830),
         (packages.refresh(), &fields[2], 796_563),
     ] {
-        let [ordinary, sbox, checksum] = words(summary)[..] else {
-            panic!("a summary has three words");
+        let [ordinary, sbox, checksum, _, _] = words(summary)[..] else {
+            panic!("a summary has five words");
         };
         let rows = package.plan_rows().expect("plan rows");
         let circuit = package.circuit();
-        assert_eq!(rows.ordinary_row_count() as u64, ordinary, "relation rows of circuit {circuit}");
+        assert_eq!(
+            rows.ordinary_row_count() as u64,
+            ordinary,
+            "relation rows of circuit {circuit}"
+        );
         assert_eq!((rows.row_count() - rows.ordinary_row_count()) as u64, sbox);
         assert_eq!(rows.row_count(), logical_rows, "census rows of circuit {circuit}");
-        assert_eq!(rows.ordinary_checksum(), checksum, "relation-row checksum of circuit {circuit}");
+        assert_eq!(
+            rows.ordinary_checksum(),
+            checksum,
+            "relation-row checksum of circuit {circuit}"
+        );
     }
 }
 
@@ -101,7 +120,9 @@ fn block_rows_compute_the_native_permutation() {
     let mut state = 0x9e37_79b9_7f4a_7c15u64;
     let mut assignment: Vec<Goldilocks> = (0..width)
         .map(|_| {
-            state = state.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1_442_695_040_888_963_407);
+            state = state
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
             Goldilocks::from_u64(state >> 1)
         })
         .collect();
@@ -115,13 +136,58 @@ fn block_rows_compute_the_native_permutation() {
             panic!("an S-box row's C port is one S-box column");
         };
         assert_eq!(coefficient, Goldilocks::ONE);
-        assignment[column] = evaluate(&rows, row, 3, &assignment).exp_u64(7);
+        assignment[column] = rows.evaluate(row, 3, &assignment).exp_u64(7);
     }
-    let binding = rows.ordinary_row_count() - 16 * light.block_count();
-    for row in binding..rows.row_count() {
-        let residual = evaluate(&rows, row, 0, &assignment) * evaluate(&rows, row, 1, &assignment)
-            - evaluate(&rows, row, 2, &assignment)
-            + evaluate(&rows, row, 3, &assignment).exp_u64(7);
-        assert_eq!(residual.as_canonical_u64(), 0, "row {row}");
+    for row in rows.binding_rows().start..rows.row_count() {
+        assert_eq!(rows.residual(row, &assignment).as_canonical_u64(), 0, "row {row}");
+    }
+}
+
+/// Rust's witness program and native ranges give the columns that Lean's
+/// recipes give, on the same shared columns.
+#[test]
+fn circuit_columns_match_the_lean_witness() {
+    let fields = parity();
+    let packages = packages();
+    for (package, summary) in [(packages.light(), &fields[1]), (packages.refresh(), &fields[2])] {
+        let columns = package
+            .circuit_columns(&shared_columns(summary))
+            .expect("circuit columns");
+        assert_eq!(
+            package.witness_checksum(&columns),
+            words(summary)[4],
+            "witness of circuit {}",
+            package.circuit()
+        );
+    }
+}
+
+/// The fresh columns make every ring, binding and S-box row hold, whatever
+/// the shared columns are.
+#[test]
+fn fresh_columns_satisfy_the_rows_that_define_them() {
+    let fields = parity();
+    let packages = packages();
+    for (package, summary) in [(packages.light(), &fields[1]), (packages.refresh(), &fields[2])] {
+        let rows = package.plan_rows().expect("plan rows");
+        let columns = package
+            .circuit_columns(&shared_columns(summary))
+            .expect("circuit columns");
+        let columns = package
+            .relation_columns(columns, &rows)
+            .expect("relation columns");
+        let defining = rows
+            .ring_rows()
+            .iter()
+            .cloned()
+            .chain([rows.binding_rows(), rows.sbox_rows()]);
+        for row in defining.flatten() {
+            assert_eq!(
+                rows.residual(row, &columns).as_canonical_u64(),
+                0,
+                "circuit {} row {row}",
+                package.circuit()
+            );
+        }
     }
 }

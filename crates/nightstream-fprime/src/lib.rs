@@ -26,22 +26,23 @@ pub use identity::{
     POSEIDON2_HASH_CHAIN_V1_PACKAGE_IDENTITY, POSEIDON2_HASH_CHAIN_V1_STRUCTURAL_IDENTIFIER,
     POSEIDON2_HASH_CHAIN_V1_VERIFICATION_KEY_DIGEST,
 };
-pub use package::{
-    derive_pi_ccs_v1_2_transcript, load_per_application_package, load_poseidon2_hash_chain_v1_package,
-    load_prepared_application_records, load_prepared_package, load_terminal_package, CcsMatrixSource, IdentityKind,
-    LoadedApplicationPlan, LoadedAssignmentPlan, LoadedPackage, LoadedPerApplicationPackage, LoadedTerminalLayout,
-    LogicalAssignment, LogicalMatrixEntry, LogicalMatrixRow, MatrixRun, PackageCcsRelation, PackageError,
-    PackagePolynomialTerm, PackageR1cs, PackageSparseMatrix, PiCcsV1_2EncodedInputs, PiCcsV1_2OutputEvaluations,
-    PiCcsV1_2PackageInputs, PiCcsV1_2Transcript, PiDecV1_2PackageInputs, TerminalOutputs, DECOMPOSITION_BASE,
-    DECOMPOSITION_K_RHO, DECOMPOSITION_NORM_BOUND, PI_CCS_V1_2_COEFFICIENT_COUNT, PI_CCS_V1_2_FRESH_COMMITMENT_WORDS,
-    PI_CCS_V1_2_MATRIX_COUNT, PI_CCS_V1_2_PRIOR_CHILDREN_WORDS, PI_CCS_V1_2_PRIOR_PUBLIC_INPUT_WORDS,
-    PI_CCS_V1_2_ROUND_COEFFICIENT_COUNT, PI_CCS_V1_2_ROUND_COUNT, PI_CCS_V1_2_SOURCE_COUNT,
-    PI_CCS_V1_2_STATE_PREIMAGE_WORDS, PI_CCS_V1_2_VERIFIER_CONTEXT_WORDS, PI_DEC_V1_2_CHILD_COUNT,
-    PI_DEC_V1_2_COMMITMENT_WORDS_PER_CHILD, PI_DEC_V1_2_EVAL_A_MATRICES_PER_CHILD, PI_DEC_V1_2_EVAL_K_VALUES_PER_CHILD,
-    PI_DEC_V1_2_PUBLIC_INPUT_WORDS_PER_CHILD, PREPARED_FIXED_SOURCE_NODE_LIMIT,
-};
 pub use option_b::{
     load_option_b_packages, option_b_identity, parse_atoms, Block, OptionBPackages, PlanRows, StepPackage,
     OPTION_B_PACKAGES_IDENTITY,
+};
+pub use package::{
+    derive_light_transcript, derive_pi_ccs_v1_2_transcript, derive_refresh_transcript, load_per_application_package,
+    load_poseidon2_hash_chain_v1_package, load_prepared_application_records, load_prepared_package,
+    load_terminal_package, CcsMatrixSource, IdentityKind, LoadedApplicationPlan, LoadedAssignmentPlan, LoadedPackage,
+    LoadedPerApplicationPackage, LoadedTerminalLayout, LogicalAssignment, LogicalMatrixEntry, LogicalMatrixRow,
+    MatrixRun, PackageCcsRelation, PackageError, PackagePolynomialTerm, PackageR1cs, PackageSparseMatrix,
+    PiCcsV1_2EncodedInputs, PiCcsV1_2OutputEvaluations, PiCcsV1_2PackageInputs, PiCcsV1_2Transcript,
+    PiDecV1_2PackageInputs, TerminalOutputs, DECOMPOSITION_BASE, DECOMPOSITION_K_RHO, DECOMPOSITION_NORM_BOUND,
+    PI_CCS_V1_2_COEFFICIENT_COUNT, PI_CCS_V1_2_FRESH_COMMITMENT_WORDS, PI_CCS_V1_2_MATRIX_COUNT,
+    PI_CCS_V1_2_PRIOR_CHILDREN_WORDS, PI_CCS_V1_2_PRIOR_PUBLIC_INPUT_WORDS, PI_CCS_V1_2_ROUND_COEFFICIENT_COUNT,
+    PI_CCS_V1_2_ROUND_COUNT, PI_CCS_V1_2_SOURCE_COUNT, PI_CCS_V1_2_STATE_PREIMAGE_WORDS,
+    PI_CCS_V1_2_VERIFIER_CONTEXT_WORDS, PI_DEC_V1_2_CHILD_COUNT, PI_DEC_V1_2_COMMITMENT_WORDS_PER_CHILD,
+    PI_DEC_V1_2_EVAL_A_MATRICES_PER_CHILD, PI_DEC_V1_2_EVAL_K_VALUES_PER_CHILD,
+    PI_DEC_V1_2_PUBLIC_INPUT_WORDS_PER_CHILD, PREPARED_FIXED_SOURCE_NODE_LIMIT,
 };
 pub use proof::WitnessAssignment;

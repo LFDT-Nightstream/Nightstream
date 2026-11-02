@@ -34,6 +34,7 @@ import NightstreamFPrime.Layout.OptionB.RefreshAssembler
 import NightstreamFPrime.Layout.OptionB.RefreshPiCCSCompleteness
 import NightstreamFPrime.Layout.OptionB.RefreshStepCompleteness
 import NightstreamFPrime.Layout.OptionB.StepCircuits
+import NightstreamFPrime.Export.Generic.Pieces
 import NightstreamFPrime.Lifecycle.OptionB.Terminal
 import NightstreamFPrime.Spec.Folding.Light.RlcModule
 
@@ -319,6 +320,11 @@ open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.Terminal.holdsFor_recursive_iff
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.Terminal.rejects_counter_shift
 #audit_axioms NightstreamFPrime.Layout.OptionB.StepCircuits.soundness
+#audit_axioms NightstreamFPrime.Export.Generic.Pieces.linear?_eval
+#audit_axioms NightstreamFPrime.Export.Generic.Pieces.flatMap_split
+#audit_axioms NightstreamFPrime.Export.Generic.Pieces.valid_split
+#audit_axioms NightstreamFPrime.Export.Generic.Pieces.permutation_sound
+#audit_axioms NightstreamFPrime.Export.Generic.Pieces.split_sound
 
 /-- One refresh per period starves slot 1: it takes a light fold each time the light circuit
 follows the refresh circuit and is never refreshed. -/

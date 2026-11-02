@@ -79,4 +79,5 @@ import NightstreamFPrime.Layout.OptionB.RefreshAssemblerSource
 import NightstreamFPrime.Layout.OptionB.RefreshAssemblerCompleteness
 import NightstreamFPrime.Layout.OptionB.RefreshAssemblerCircuit
 import NightstreamFPrime.Layout.OptionB.StepCircuits
+import NightstreamFPrime.Export.Generic.Pieces
 import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.ChainBinding

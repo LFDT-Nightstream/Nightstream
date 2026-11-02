@@ -11,7 +11,7 @@ use nightstream_fprime::{
     load_option_b_packages, option_b_identity, parse_atoms, OptionBPackages, PackageError, OPTION_B_PACKAGES_IDENTITY,
 };
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
-use p3_goldilocks::Goldilocks;
+use p3_goldilocks::Goldilocks as G;
 use serde_json::Value;
 
 fn artifact(name: &str) -> Vec<u8> {
@@ -49,15 +49,15 @@ fn words(value: &Value) -> Vec<u64> {
 }
 
 /// Lean `Parity.sharedWord`.
-fn shared_word(column: usize) -> Goldilocks {
+fn shared_word(column: usize) -> G {
     if column == 0 {
-        return Goldilocks::ONE;
+        return G::ONE;
     }
-    let q = u128::from(Goldilocks::ORDER_U64);
-    Goldilocks::from_u64(((column as u128 * 6_364_136_223_846_793_005 + 1_442_695_040_888_963_407) % q) as u64)
+    let q = u128::from(G::ORDER_U64);
+    G::from_u64(((column as u128 * 6_364_136_223_846_793_005 + 1_442_695_040_888_963_407) % q) as u64)
 }
 
-fn shared_columns(summary: &Value) -> Vec<Goldilocks> {
+fn shared_columns(summary: &Value) -> Vec<G> {
     (0..words(summary)[3] as usize).map(shared_word).collect()
 }
 
@@ -76,8 +76,8 @@ fn relation_rows_match_the_lean_checksum() {
         (packages.light(), &fields[1], 184_830),
         (packages.refresh(), &fields[2], 796_563),
     ] {
-        let [ordinary, sbox, checksum, _, _] = words(summary)[..] else {
-            panic!("a summary has five words");
+        let [ordinary, sbox, checksum, _, _, _] = words(summary)[..] else {
+            panic!("a summary has six words");
         };
         let rows = package.plan_rows().expect("plan rows");
         let circuit = package.circuit();
@@ -118,24 +118,24 @@ fn block_rows_compute_the_native_permutation() {
     let rows = light.plan_rows().expect("plan rows");
     let width = light.sbox_start() + 150 * light.block_count();
     let mut state = 0x9e37_79b9_7f4a_7c15u64;
-    let mut assignment: Vec<Goldilocks> = (0..width)
+    let mut assignment: Vec<G> = (0..width)
         .map(|_| {
             state = state
                 .wrapping_mul(6_364_136_223_846_793_005)
                 .wrapping_add(1_442_695_040_888_963_407);
-            Goldilocks::from_u64(state >> 1)
+            G::from_u64(state >> 1)
         })
         .collect();
-    assignment[0] = Goldilocks::ONE;
+    assignment[0] = G::ONE;
     for block in light.blocks() {
-        let lanes: [Goldilocks; 16] = block.lane_values(&assignment).try_into().expect("16 lanes");
+        let lanes: [G; 16] = block.lane_values(&assignment).try_into().expect("16 lanes");
         assignment[block.outputs()..block.outputs() + 16].copy_from_slice(&permute_state(lanes));
     }
     for row in rows.ordinary_row_count()..rows.row_count() {
         let [(column, coefficient)] = rows.port(row, 2).collect::<Vec<_>>()[..] else {
             panic!("an S-box row's C port is one S-box column");
         };
-        assert_eq!(coefficient, Goldilocks::ONE);
+        assert_eq!(coefficient, G::ONE);
         assignment[column] = rows.evaluate(row, 3, &assignment).exp_u64(7);
     }
     for row in rows.binding_rows().start..rows.row_count() {
@@ -189,5 +189,42 @@ fn fresh_columns_satisfy_the_rows_that_define_them() {
                 package.circuit()
             );
         }
+    }
+}
+
+/// Rust's logical layout and digits give the logical assignment that Lean's
+/// slot layout gives; every digit is in {-1, 0, 1} and every slot
+/// recomposes to its source value.
+#[test]
+fn logical_assignment_matches_the_lean_layout() {
+    let fields = parity();
+    let packages = packages();
+    for (package, summary) in [(packages.light(), &fields[1]), (packages.refresh(), &fields[2])] {
+        let layout = package.layout().expect("layout");
+        let rows = package.plan_rows().expect("plan rows");
+        let columns = package
+            .circuit_columns(&shared_columns(summary))
+            .expect("circuit columns");
+        let columns = package
+            .relation_columns(columns, &rows)
+            .expect("relation columns");
+        let logical = layout.assignment(&columns).expect("logical assignment");
+        assert_eq!(
+            layout.checksum(&logical, package.first_fresh()),
+            words(summary)[5],
+            "logical assignment of circuit {}",
+            package.circuit()
+        );
+        let unit = |value: &G| matches!(value.as_canonical_u64(), 0 | 1) || *value == -G::ONE;
+        assert!(logical[270..].iter().all(unit), "a digit outside {{-1, 0, 1}}");
+        for (column, value) in columns.iter().enumerate().skip(270) {
+            if let Some((offset, kind)) = layout.slot(column) {
+                let recomposed = (0..kind.width())
+                    .rev()
+                    .fold(G::ZERO, |sum, digit| sum * G::from_u64(3) + logical[offset + digit]);
+                assert_eq!(recomposed, *value, "column {column} recomposes");
+            }
+        }
+        println!("circuit {}: {} logical columns", package.circuit(), layout.width());
     }
 }

@@ -83,6 +83,7 @@ import NightstreamFPrime.Export.Generic.Pieces
 import NightstreamFPrime.Export.Generic.PieceRows
 import NightstreamFPrime.Export.Generic.Frame
 import NightstreamFPrime.Export.Generic.CircuitRelation
+import NightstreamFPrime.Export.Generic.SlotLayout
 import NightstreamFPrime.Export.Generic.LogicalPlan
 import NightstreamFPrime.Export.OptionB.StepRelation
 import NightstreamFPrime.Export.OptionB.StepPackage

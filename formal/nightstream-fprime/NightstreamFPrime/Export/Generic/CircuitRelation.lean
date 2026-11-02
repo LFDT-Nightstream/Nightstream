@@ -183,6 +183,10 @@ theorem packed_holds {publicColumns : Nat} {pieces : List Piece}
 
 /-! ### Forms on the logical columns -/
 
+/-- Column `c` of an assignment as an environment, 0 beyond the width. -/
+def identityEnv {width : Nat} (assignment : Assignment F width) : Env :=
+  fun column => if bounded : column < width then assignment ⟨column, bounded⟩ else 0
+
 /-- Sparse terms as a form on the logical columns; terms outside the width are dropped. -/
 def termsForm {width : Nat} : List (Nat × F) → SparseForm width
   | [] => .empty
@@ -194,7 +198,7 @@ def termsForm {width : Nat} : List (Nat × F) → SparseForm width
 theorem termsForm_eval {width : Nat} (assignment : Assignment F width) :
     ∀ terms : List (Nat × F), (∀ term ∈ terms, term.1 < width) →
       (termsForm terms).eval assignment =
-        (terms.map fun term => term.2 * LogicalPlan.sourceEnv assignment term.1).sum
+        (terms.map fun term => term.2 * identityEnv assignment term.1).sum
   | [], _ => by simp [termsForm]
   | (column, coefficient) :: rest, bounded => by
       have inside : column < width := bounded _ List.mem_cons_self
@@ -202,51 +206,50 @@ theorem termsForm_eval {width : Nat} (assignment : Assignment F width) :
         (fun term member => bounded term (List.mem_cons_of_mem _ member))
       simp only [termsForm, inside, dite_true, SparseForm.add_eval, SparseForm.singleton_eval,
         List.map_cons, List.sum_cons, restEval]
-      simp [LogicalPlan.sourceEnv, inside]
+      simp [identityEnv, inside]
 
 /-- A linear combination as a form; its constant reads the constant column 0. -/
 def formOf {width : Nat} (combination : R1CS.LinearCombination) : SparseForm width :=
   termsForm ((0, combination.constant) :: combination.terms)
 
-theorem formOf_eval {width : Nat} {assignment : Assignment F width} (positive : 0 < width)
-    (one : assignment ⟨0, positive⟩ = 1) (combination : R1CS.LinearCombination)
-    (bounded : ∀ term ∈ combination.terms, term.1 < width) :
-    (formOf combination).eval assignment =
-      combination.eval (LogicalPlan.sourceEnv assignment) := by
+/-- `formOf` of one column reads that column. -/
+theorem formOf_ofVar_eval {width : Nat} (assignment : Assignment F width) (column : Nat)
+    (bounded : column < width) :
+    (formOf (width := width) (R1CS.LinearCombination.ofVar column)).eval assignment =
+      assignment ⟨column, bounded⟩ := by
+  have positive : 0 < width := by omega
   rw [formOf, termsForm_eval assignment _ (by
     intro term member
     rcases List.mem_cons.mp member with rfl | member
     · exact positive
-    · exact bounded term member)]
-  simp [R1CS.LinearCombination.eval, LogicalPlan.sourceEnv, positive, one]
+    · simp [R1CS.LinearCombination.ofVar] at member
+      rw [member]
+      exact bounded)]
+  simp [R1CS.LinearCombination.ofVar, identityEnv, bounded]
 
 /-- A form as an R1CS combination over the same columns. -/
 def toCombination {width : Nat} (form : SparseForm width) : R1CS.LinearCombination :=
   ⟨0, form.entries.map fun entry => (entry.column.val, entry.coefficient)⟩
 
-theorem sourceEnv_fin {width : Nat} (assignment : Assignment F width) (column : Fin width) :
-    LogicalPlan.sourceEnv assignment column.val = assignment column := by
-  simp [LogicalPlan.sourceEnv]
-
-theorem toCombination_eval {width : Nat} (form : SparseForm width)
-    (assignment : Assignment F width) :
-    (toCombination form).eval (LogicalPlan.sourceEnv assignment) = form.eval assignment := by
+theorem toCombination_eval {width : Nat} (form : SparseForm width) (env : Env) :
+    (toCombination form).eval env = form.eval (fun column => env column.val) := by
   rcases form with ⟨entries⟩
   induction entries with
   | nil =>
-      have empty : (⟨[]⟩ : SparseForm width).eval assignment = 0 :=
-        SparseForm.empty_eval assignment
+      have empty : (⟨[]⟩ : SparseForm width).eval (fun column => env column.val) = 0 :=
+        SparseForm.empty_eval _
       rw [empty]
       simp [toCombination, R1CS.LinearCombination.eval]
   | cons entry rest inductionHypothesis =>
-      have split : (⟨entry :: rest⟩ : SparseForm width).eval assignment =
-          entry.coefficient * assignment entry.column + (⟨rest⟩ : SparseForm width).eval assignment := by
+      have split : (⟨entry :: rest⟩ : SparseForm width).eval (fun column => env column.val) =
+          entry.coefficient * env entry.column.val +
+            (⟨rest⟩ : SparseForm width).eval (fun column => env column.val) := by
         rw [show (⟨entry :: rest⟩ : SparseForm width) =
             .add (.singleton entry.column entry.coefficient) ⟨rest⟩ from rfl,
           SparseForm.add_eval, SparseForm.singleton_eval]
       rw [split, ← inductionHypothesis]
       simp only [toCombination, R1CS.LinearCombination.eval, List.map_cons, List.map_map,
-        List.sum_cons, Function.comp_def, sourceEnv_fin, zero_add]
+        List.sum_cons, Function.comp_def, zero_add]
 
 /-! ### The packed relation -/
 
@@ -258,12 +261,15 @@ def sboxOutputs {width : Nat} (blocks : List Block) (sboxStart : Nat) :
     Fin blocks.length → Fin PoseidonRetainedSlots.rows.length → SparseForm width :=
   fun index row => formOf (R1CS.LinearCombination.ofVar (sboxColumn sboxStart index.val row.val))
 
-def sboxInterface {width : Nat} (one : Fin width) (blocks : List Block) (sboxStart : Nat) :
-    PoseidonSboxFamilyPlan.Interface width blocks.length where
-  oneColumn := one
+/-- The S-box family's interface: each block's input lanes and S-box outputs read through the
+layout. -/
+def sboxInterface {width logicalWidth : Nat} (layout : LogicalPlan.Layout width logicalWidth)
+    (blocks : List Block) (sboxStart : Nat) :
+    PoseidonSboxFamilyPlan.Interface logicalWidth blocks.length where
+  oneColumn := layout.one
   input := fun index lane =>
-    formOf (invocationInputCombination (blocks.get index).invocation lane.val).toR1CS
-  sboxOutput := sboxOutputs blocks sboxStart
+    layout.combination (invocationInputCombination (blocks.get index).invocation lane.val).toR1CS
+  sboxOutput := fun index row => layout.form (sboxColumn sboxStart index.val row.val)
 
 /-- The output state of a block, from its final S-box outputs (`Interface.output`). -/
 def outputState {width : Nat} (blocks : List Block) (sboxStart : Nat)
@@ -306,107 +312,133 @@ structure Fits (publicColumns : Nat) (pieces : List Piece) (next width : Nat) : 
   blocks : packable publicColumns pieces = true →
     BlockFits pieces next width (relationRows publicColumns pieces next width).length
 
-theorem ordinary_rowCount (rows : List R1CS.Row) (width : Nat) (fits : LogicalPlan.Fits rows width) :
-    (LogicalPlan.plan rows width fits).rowCount = rows.length :=
+theorem ordinary_rowCount (rows : List R1CS.Row) (width : Nat) (fits : LogicalPlan.Fits rows width)
+    {logicalWidth : Nat} (layout : LogicalPlan.Layout width logicalWidth) :
+    (LogicalPlan.plan rows width fits layout).rowCount = rows.length :=
   rfl
 
 def plan (publicColumns : Nat) (pieces : List Piece) (next width : Nat)
-    (fits : Fits publicColumns pieces next width) : Plan width :=
+    (fits : Fits publicColumns pieces next width) {logicalWidth : Nat}
+    (layout : LogicalPlan.Layout width logicalWidth) : Plan logicalWidth :=
   if packed : packable publicColumns pieces = true then
-    Plan.append (LogicalPlan.plan _ width fits.rows)
+    Plan.append (LogicalPlan.plan _ width fits.rows layout)
       (PoseidonSboxFamilyPlan.plan
-        (sboxInterface (LogicalPlan.oneColumn fits.rows) (blocksOf pieces) (sboxStart pieces next))
+        (sboxInterface layout (blocksOf pieces) (sboxStart pieces next))
         (by have := (fits.blocks packed).rowCount; omega))
       (by
         rw [ordinary_rowCount, PoseidonSboxFamilyPlan.plan_rowCount]
         exact (fits.blocks packed).rowCount)
-  else LogicalPlan.plan _ width fits.rows
+  else LogicalPlan.plan _ width fits.rows layout
 
 /-- Binding rows and S-box rows give each block's outputs as the permutation of its inputs. -/
-theorem outputsHold {publicColumns : Nat} {pieces : List Piece} {next width : Nat}
+theorem outputsHold {publicColumns : Nat} {pieces : List Piece} {next width logicalWidth : Nat}
     (fits : Fits publicColumns pieces next width) (packed : packable publicColumns pieces = true)
-    (assignment : Assignment F width)
-    (one : assignment (LogicalPlan.oneColumn fits.rows) = 1)
-    (binding : R1CS.RowsHold (LogicalPlan.sourceEnv assignment)
+    (layout : LogicalPlan.Layout width logicalWidth) (assignment : Assignment F logicalWidth)
+    (one : assignment layout.one = 1)
+    (binding : R1CS.RowsHold (LogicalPlan.sourceEnv layout assignment)
       (bindingRows width (blocksOf pieces) (sboxStart pieces next)))
     (sboxRows : (PoseidonSboxFamilyPlan.plan
-        (sboxInterface (LogicalPlan.oneColumn fits.rows) (blocksOf pieces) (sboxStart pieces next))
+        (sboxInterface layout (blocksOf pieces) (sboxStart pieces next))
         (by have := (fits.blocks packed).rowCount; omega)).RowsZero assignment) :
-    OutputsHold (blocksOf pieces) (LogicalPlan.sourceEnv assignment) := by
+    OutputsHold (blocksOf pieces) (LogicalPlan.sourceEnv layout assignment) := by
   intro block member
   obtain ⟨index, rfl⟩ := List.mem_iff_get.mp member
   have permuted := PoseidonSboxFamilyPlan.planRowsZero_implies_permute _ _ assignment one sboxRows
     index
   have inputs : SparseLayer.evalState assignment
-      ((sboxInterface (LogicalPlan.oneColumn fits.rows) (blocksOf pieces)
-        (sboxStart pieces next)).input index) =
-      ((blocksOf pieces).get index).input (LogicalPlan.sourceEnv assignment) := by
+      ((sboxInterface layout (blocksOf pieces) (sboxStart pieces next)).input index) =
+      ((blocksOf pieces).get index).input (LogicalPlan.sourceEnv layout assignment) := by
     funext lane
-    exact formOf_eval fits.rows.positive one _ ((fits.blocks packed).inputs _ member lane)
+    exact layout.combination_eval assignment one _
+  have finals : SparseLayer.evalState assignment
+      (fun lane => (sboxInterface layout (blocksOf pieces) (sboxStart pieces next)).sboxOutput
+        index (PoseidonRetainedSlots.finalRow lane)) =
+      SparseLayer.evalState (fun column : Fin width =>
+          LogicalPlan.sourceEnv layout assignment column.val)
+        (fun lane => sboxOutputs (width := width) (blocksOf pieces) (sboxStart pieces next) index
+          (PoseidonRetainedSlots.finalRow lane)) := by
+    funext lane
+    have bound : sboxColumn (sboxStart pieces next) index.val
+        (PoseidonRetainedSlots.finalRow lane).val < width := by
+      have room := (fits.blocks packed).sboxColumns
+      have row : (PoseidonRetainedSlots.finalRow lane).val < 150 := by
+        simpa using (PoseidonRetainedSlots.finalRow lane).isLt
+      have indexBound := index.isLt
+      unfold sboxColumn
+      have : index.val * 150 + 150 ≤ (blocksOf pieces).length * 150 := by
+        have := Nat.mul_le_mul_right 150 (Nat.succ_le_of_lt indexBound)
+        simpa [Nat.succ_mul] using this
+      omega
+    simp only [SparseLayer.evalState, sboxInterface, sboxOutputs,
+      formOf_ofVar_eval _ _ bound, LogicalPlan.Layout.form_eval]
   have outputs : SparseLayer.evalState assignment
-      ((sboxInterface (LogicalPlan.oneColumn fits.rows) (blocksOf pieces)
-        (sboxStart pieces next)).output index) =
-      ((blocksOf pieces).get index).output (LogicalPlan.sourceEnv assignment) := by
+      ((sboxInterface layout (blocksOf pieces) (sboxStart pieces next)).output index) =
+      ((blocksOf pieces).get index).output (LogicalPlan.sourceEnv layout assignment) := by
     funext lane
     have row := binding _ (List.mem_flatMap.mpr ⟨index, List.mem_finRange index,
       List.mem_ofFn.mpr ⟨lane, rfl⟩⟩)
     simp only [R1CS.Row.Holds, R1CS.LinearCombination.eval_add, R1CS.LinearCombination.eval_ofVar,
       R1CS.LinearCombination.eval_scale, R1CS.LinearCombination.eval_one,
       R1CS.LinearCombination.eval_zero, mul_one, toCombination_eval] at row
-    simp only [Block.output]
-    show (outputState (width := width) (blocksOf pieces) (sboxStart pieces next) index lane).eval
-      assignment = _
     rw [neg_one_mul, ← sub_eq_add_neg, sub_eq_zero] at row
-    exact row.symm
+    simp only [Block.output, SparseLayer.evalState, PoseidonSboxFamilyPlan.Interface.output,
+      SparseLayer.eval_external]
+    have external := congrArg (fun state => Layer.externalF state lane) finals
+    rw [external, row]
+    simp only [outputState, SparseLayer.eval_external]
   rw [inputs, outputs] at permuted
   apply List.ofFn_injective
   rw [permuted, Permutation.runF_eq_reference, Permutation.runReference_schedule]
 
 /-- A satisfying assignment gives every piece's constraints in an environment that agrees with
-the assignment on the public columns. -/
+the layout's source environment on the public columns. -/
 theorem rowsZero_implies_pieces (publicColumns : Nat) (pieces : List Piece)
     (valid : ∀ piece ∈ pieces, piece.Valid) (next width : Nat)
-    (fits : Fits publicColumns pieces next width)
-    (assignment : Assignment F width) (one : assignment (LogicalPlan.oneColumn fits.rows) = 1)
-    (rowsZero : (plan publicColumns pieces next width fits).RowsZero assignment) :
+    (fits : Fits publicColumns pieces next width) {logicalWidth : Nat}
+    (layout : LogicalPlan.Layout width logicalWidth) (assignment : Assignment F logicalWidth)
+    (one : assignment layout.one = 1)
+    (rowsZero : (plan publicColumns pieces next width fits layout).RowsZero assignment) :
     ∃ env : Env,
       (∀ piece ∈ pieces, ConstraintsHold env (piece.constraints (PilotData.canonicalConstraints ()))) ∧
-      ∀ column, column < publicColumns → env column = LogicalPlan.sourceEnv assignment column := by
+      ∀ column, column < publicColumns →
+        env column = LogicalPlan.sourceEnv layout assignment column := by
   by_cases packed : packable publicColumns pieces = true
   · unfold plan at rowsZero
     rw [dite_eq_left packed, Plan.append_rowsZero_iff] at rowsZero
-    have rowsHold := (LogicalPlan.rowsZero_iff_rowsHold _ width fits.rows assignment one).mp
-      rowsZero.1
+    have rowsHold := (LogicalPlan.rowsZero_iff_rowsHold _ width fits.rows layout assignment
+      one).mp rowsZero.1
     unfold relationRows at rowsHold
     rw [ite_eq_left packed, R1CS.rowsHold_append] at rowsHold
-    have others := (PieceRows.lowerPiecesAux_sound _ (LogicalPlan.sourceEnv assignment)
+    have others := (PieceRows.lowerPiecesAux_sound _ (LogicalPlan.sourceEnv layout assignment)
       (otherPieces pieces) next [] (fun piece member => valid piece (List.mem_filter.mp member).1)
       rowsHold.1).2
-    have outputs := outputsHold fits packed assignment one rowsHold.2 rowsZero.2
-    refine ⟨complete (blocksOf pieces) (LogicalPlan.sourceEnv assignment),
+    have outputs := outputsHold fits packed layout assignment one rowsHold.2 rowsZero.2
+    refine ⟨complete (blocksOf pieces) (LogicalPlan.sourceEnv layout assignment),
       packed_holds valid packed _ (fun piece member notBlock =>
         others piece (List.mem_filter.mpr ⟨member, by simp [notBlock]⟩)) outputs, ?_⟩
     intro column below
     exact complete_live (packable_framed packed) outputs (packable_public packed below)
   · unfold plan at rowsZero
     rw [dite_eq_right packed] at rowsZero
-    have rowsHold := (LogicalPlan.rowsZero_iff_rowsHold _ width fits.rows assignment one).mp
-      rowsZero
+    have rowsHold := (LogicalPlan.rowsZero_iff_rowsHold _ width fits.rows layout assignment
+      one).mp rowsZero
     unfold relationRows at rowsHold
     rw [ite_eq_right packed] at rowsHold
-    exact ⟨LogicalPlan.sourceEnv assignment, (PieceRows.lowerPiecesAux_sound _ _ pieces next []
-      valid rowsHold).2, fun _ _ => rfl⟩
+    exact ⟨LogicalPlan.sourceEnv layout assignment, (PieceRows.lowerPiecesAux_sound _ _ pieces next
+      [] valid rowsHold).2, fun _ _ => rfl⟩
 
 /-- The same for the constraints that `split` cut into the pieces. -/
 theorem rowsZero_implies_constraints (publicColumns : Nat) (constraints : List Expr)
     (next width : Nat)
     (fits : Fits publicColumns (split (PilotData.canonicalConstraints ()) constraints) next width)
-    (assignment : Assignment F width) (one : assignment (LogicalPlan.oneColumn fits.rows) = 1)
-    (rowsZero : (plan publicColumns _ next width fits).RowsZero assignment) :
+    {logicalWidth : Nat} (layout : LogicalPlan.Layout width logicalWidth)
+    (assignment : Assignment F logicalWidth) (one : assignment layout.one = 1)
+    (rowsZero : (plan publicColumns _ next width fits layout).RowsZero assignment) :
     ∃ env : Env, ConstraintsHold env constraints ∧
-      ∀ column, column < publicColumns → env column = LogicalPlan.sourceEnv assignment column := by
+      ∀ column, column < publicColumns →
+        env column = LogicalPlan.sourceEnv layout assignment column := by
   obtain ⟨env, holds, agree⟩ := rowsZero_implies_pieces publicColumns _
-    (valid_split _ constraints) next width fits assignment one rowsZero
+    (valid_split _ constraints) next width fits layout assignment one rowsZero
   refine ⟨env, ?_, agree⟩
   intro expression member
   rw [← flatMap_split (PilotData.canonicalConstraints ()) constraints, List.mem_flatMap] at member
@@ -434,20 +466,22 @@ variable {logicalWidth : Nat}
 `digest` gives the circuit's spec and the output digest, in an environment that agrees with the
 assignment on the public columns. -/
 theorem rowsZero_implies_spec (circuit : FormalCircuit) (offset firstFresh : Nat)
-    (digestColumn : Fin 4 → Nat)
-    (fits : Fits publicColumns (pieces circuit offset digestColumn) firstFresh logicalWidth)
+    (digestColumn : Fin 4 → Nat) {width : Nat}
+    (fits : Fits publicColumns (pieces circuit offset digestColumn) firstFresh width)
+    (layout : LogicalPlan.Layout width logicalWidth)
     (assignment : Assignment F logicalWidth) (digest : Digest)
     (encoded : LogicalPlan.publicInput (publicFits := publicFits)
-      (LogicalPlan.sourceEnv assignment) = encHash digest)
-    (rowsZero : (plan _ _ firstFresh logicalWidth fits).RowsZero assignment)
+      (LogicalPlan.sourceEnv layout assignment) = encHash digest)
+    (rowsZero : (plan _ _ firstFresh width fits layout).RowsZero assignment)
     (assumptions : ∀ env, circuit.assumptions offset env) :
     ∃ env : Env, circuit.spec offset env ∧
       ∀ word, env (digestColumn word) = digest.getD word.val 0 := by
   obtain ⟨env, holds, agree⟩ := rowsZero_implies_constraints publicColumns
-    (constraints circuit offset digestColumn) firstFresh logicalWidth fits assignment
-    (LogicalPlan.encoded_one assignment digest encoded fits.rows) rowsZero
+    (constraints circuit offset digestColumn) firstFresh width fits layout assignment
+    (LogicalPlan.encoded_one layout assignment digest fits.rows.positive encoded) rowsZero
   have publicEq : LogicalPlan.publicInput (publicFits := publicFits) env =
-      LogicalPlan.publicInput (publicFits := publicFits) (LogicalPlan.sourceEnv assignment) := by
+      LogicalPlan.publicInput (publicFits := publicFits)
+        (LogicalPlan.sourceEnv layout assignment) := by
     funext column
     exact agree column.val column.isLt
   refine ⟨env, ?_, LogicalPlan.digest_of_decode env digestColumn digest (publicEq.trans encoded)

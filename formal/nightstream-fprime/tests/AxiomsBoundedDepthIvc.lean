@@ -38,6 +38,7 @@ import NightstreamFPrime.Export.Generic.Pieces
 import NightstreamFPrime.Export.Generic.LogicalPlan
 import NightstreamFPrime.Export.OptionB.StepRelation
 import NightstreamFPrime.Export.OptionB.StepPackage
+import NightstreamFPrime.Export.Generic.SlotLayout
 import NightstreamFPrime.Export.OptionB.TerminalBridge
 import NightstreamFPrime.Lifecycle.OptionB.Terminal
 import NightstreamFPrime.Spec.Folding.Light.RlcModule
@@ -351,7 +352,14 @@ open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 #audit_axioms NightstreamFPrime.Export.Generic.CircuitRelation.ringConstraint_varsBelow
 #audit_axioms NightstreamFPrime.Export.Generic.CircuitRelation.avoidsDead_congr
 #audit_axioms NightstreamFPrime.Export.Generic.CircuitRelation.packed_holds
-#audit_axioms NightstreamFPrime.Export.Generic.CircuitRelation.formOf_eval
+#audit_axioms NightstreamFPrime.Export.Generic.CircuitRelation.formOf_ofVar_eval
+#audit_axioms NightstreamFPrime.Export.Generic.LogicalPlan.sourceEnv_public
+#audit_axioms NightstreamFPrime.Export.Generic.LogicalPlan.Layout.form_eval
+#audit_axioms NightstreamFPrime.Export.Generic.LogicalPlan.Layout.terms_eval
+#audit_axioms NightstreamFPrime.Export.Generic.LogicalPlan.Layout.combination_eval
+#audit_axioms NightstreamFPrime.Export.Generic.LogicalPlan.rowsZero_iff_rowsHold
+#audit_axioms NightstreamFPrime.Export.Generic.LogicalPlan.encoded_one
+#audit_axioms NightstreamFPrime.Export.Generic.SlotLayout.kindOf_kindCode
 #audit_axioms NightstreamFPrime.Export.Generic.CircuitRelation.toCombination_eval
 #audit_axioms NightstreamFPrime.Export.Generic.CircuitRelation.outputsHold
 #audit_axioms NightstreamFPrime.Export.Generic.CircuitRelation.rowsZero_implies_pieces

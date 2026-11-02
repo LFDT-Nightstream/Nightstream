@@ -216,17 +216,18 @@ variable (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
 /-- A recursive terminal whose last circuit is the light circuit, with the light circuit's
 exported relation in the setup, gives the light step under the setup's keys, ending in the
 terminal's statement, or a Poseidon2 collision. -/
-theorem light_bridge (keysShaped : ∀ key, (circuitKeys key).digest.length = 4)
-    (publicLogicalFits : ringDegree * PaperAlgebra.publicRingColumns ≤ logicalWidth)
+theorem light_bridge (keysShaped : ∀ key, (circuitKeys key).digest.length = 4) (width : Nat)
+    (publicInside : ringDegree * PaperAlgebra.publicRingColumns ≤ width)
     (program : Stage1.Application.Program) (stepEq : program.step = step)
     (validControl : ∀ state witness, program.valid state witness → control state witness = 0)
     (firstFresh : Nat)
     (fits : CircuitRelation.Fits CircuitRelation.publicColumns (CircuitRelation.pieces
       (LightAssemblerCircuit.stepCircuit program base relation 0 ajtai)
       (LightAssembler.sharedEnd base program.witnessWordCount)
-      (lightDigestColumn program)) firstFresh logicalWidth)
+      (lightDigestColumn program)) firstFresh width)
+    (layout : LogicalPlan.Layout width logicalWidth)
     (lightKey : (circuitKeys 0).relation =
-      (CircuitRelation.plan _ _ firstFresh logicalWidth fits).logicalRelation
+      (CircuitRelation.plan _ _ firstFresh width fits layout).logicalRelation
         (publicFits := publicFits) cubeFits)
     (cap : Nat) (statement : TerminalStatement AppState)
     (payload : TerminalProof (SlotData logicalWidth publicFits)
@@ -245,7 +246,7 @@ theorem light_bridge (keysShaped : ∀ key, (circuitKeys key).digest.length = 4)
   have selected : selectedIndex pcValid = 0 := Fin.ext (by simp [selectedIndex, ranLight])
   rw [selected, lightKey] at freshHolds
   obtain ⟨env, holds, words⟩ := light_freshHolds program relation ajtai circuitKeys step control
-    stepEq validControl firstFresh fits cubeFits publicLogicalFits payload.fresh
+    stepEq validControl firstFresh width fits layout cubeFits publicInside payload.fresh
     payload.freshWitness _ freshHash freshHolds
   rcases bind_step _ ajtai circuitKeys keysShaped step control 0 _ env _ _ holds (Fin.isLt _)
       List.length_ofFn List.length_ofFn statement valid positive payload.running payload.pc
@@ -255,17 +256,18 @@ theorem light_bridge (keysShaped : ∀ key, (circuitKeys key).digest.length = 4)
   · exact Or.inr collision
 
 /-- The refresh case of `light_bridge`. -/
-theorem refresh_bridge (keysShaped : ∀ key, (circuitKeys key).digest.length = 4)
-    (publicLogicalFits : ringDegree * PaperAlgebra.publicRingColumns ≤ logicalWidth)
+theorem refresh_bridge (keysShaped : ∀ key, (circuitKeys key).digest.length = 4) (width : Nat)
+    (publicInside : ringDegree * PaperAlgebra.publicRingColumns ≤ width)
     (program : Stage1.Application.Program) (stepEq : program.step = step)
     (validControl : ∀ state witness, program.valid state witness → control state witness = 1)
     (firstFresh : Nat)
     (fits : CircuitRelation.Fits CircuitRelation.publicColumns (CircuitRelation.pieces
       (RefreshAssemblerCircuit.stepCircuit program base relation 1 ajtai)
       (RefreshAssembler.sharedEnd base program.witnessWordCount)
-      (refreshDigestColumn program)) firstFresh logicalWidth)
+      (refreshDigestColumn program)) firstFresh width)
+    (layout : LogicalPlan.Layout width logicalWidth)
     (refreshKey : (circuitKeys 1).relation =
-      (CircuitRelation.plan _ _ firstFresh logicalWidth fits).logicalRelation
+      (CircuitRelation.plan _ _ firstFresh width fits layout).logicalRelation
         (publicFits := publicFits) cubeFits)
     (cap : Nat) (statement : TerminalStatement AppState)
     (payload : TerminalProof (SlotData logicalWidth publicFits)
@@ -284,7 +286,7 @@ theorem refresh_bridge (keysShaped : ∀ key, (circuitKeys key).digest.length = 
   have selected : selectedIndex pcValid = 1 := Fin.ext (by simp [selectedIndex, ranRefresh])
   rw [selected, refreshKey] at freshHolds
   obtain ⟨env, holds, words⟩ := refresh_freshHolds program relation ajtai circuitKeys step
-    control stepEq validControl firstFresh fits cubeFits publicLogicalFits payload.fresh
+    control stepEq validControl firstFresh width fits layout cubeFits publicInside payload.fresh
     payload.freshWitness _ freshHash freshHolds
   rcases bind_step _ ajtai circuitKeys keysShaped step control 1 _ env _ _ holds (Fin.isLt _)
       List.length_ofFn List.length_ofFn statement valid positive payload.running payload.pc
@@ -297,27 +299,30 @@ theorem refresh_bridge (keysShaped : ∀ key, (circuitKeys key).digest.length = 
 the terminal accepts a recursive proof. Then the circuit that ran last holds its step relation
 under the setup's keys and ends in the terminal's statement, or Poseidon2 has a collision. -/
 theorem bridge (keysShaped : ∀ key, (circuitKeys key).digest.length = 4)
-    (publicLogicalFits : ringDegree * PaperAlgebra.publicRingColumns ≤ logicalWidth)
     (lightProgram refreshProgram : Stage1.Application.Program)
     (lightStep : lightProgram.step = step) (refreshStep : refreshProgram.step = step)
     (lightControl : ∀ state witness, lightProgram.valid state witness →
       control state witness = 0)
     (refreshControl : ∀ state witness, refreshProgram.valid state witness →
       control state witness = 1)
-    (lightFresh refreshFresh : Nat)
+    (lightFresh refreshFresh lightWidth refreshWidth : Nat)
     (lightFits : CircuitRelation.Fits CircuitRelation.publicColumns (CircuitRelation.pieces
       (LightAssemblerCircuit.stepCircuit lightProgram base relation 0 ajtai)
       (LightAssembler.sharedEnd base lightProgram.witnessWordCount)
-      (lightDigestColumn lightProgram)) lightFresh logicalWidth)
+      (lightDigestColumn lightProgram)) lightFresh lightWidth)
     (refreshFits : CircuitRelation.Fits CircuitRelation.publicColumns (CircuitRelation.pieces
       (RefreshAssemblerCircuit.stepCircuit refreshProgram base relation 1 ajtai)
       (RefreshAssembler.sharedEnd base refreshProgram.witnessWordCount)
-      (refreshDigestColumn refreshProgram)) refreshFresh logicalWidth)
+      (refreshDigestColumn refreshProgram)) refreshFresh refreshWidth)
+    (lightLayout : LogicalPlan.Layout lightWidth logicalWidth)
+    (refreshLayout : LogicalPlan.Layout refreshWidth logicalWidth)
+    (lightInside : ringDegree * PaperAlgebra.publicRingColumns ≤ lightWidth)
+    (refreshInside : ringDegree * PaperAlgebra.publicRingColumns ≤ refreshWidth)
     (lightKey : (circuitKeys 0).relation =
-      (CircuitRelation.plan _ _ lightFresh logicalWidth lightFits).logicalRelation
+      (CircuitRelation.plan _ _ lightFresh lightWidth lightFits lightLayout).logicalRelation
         (publicFits := publicFits) cubeFits)
     (refreshKey : (circuitKeys 1).relation =
-      (CircuitRelation.plan _ _ refreshFresh logicalWidth refreshFits).logicalRelation
+      (CircuitRelation.plan _ _ refreshFresh refreshWidth refreshFits refreshLayout).logicalRelation
         (publicFits := publicFits) cubeFits)
     (cap : Nat) (statement : TerminalStatement AppState)
     (payload : TerminalProof (SlotData logicalWidth publicFits)
@@ -336,14 +341,14 @@ theorem bridge (keysShaped : ∀ key, (circuitKeys key).digest.length = 4)
     obtain ⟨lower, upper⟩ := pcValid
     omega
   rcases cases with ranLight | ranRefresh
-  · rcases light_bridge relation ajtai circuitKeys step control cubeFits keysShaped
-        publicLogicalFits lightProgram lightStep lightControl lightFresh lightFits lightKey cap
+  · rcases light_bridge relation ajtai circuitKeys step control cubeFits keysShaped lightWidth
+        lightInside lightProgram lightStep lightControl lightFresh lightFits lightLayout lightKey cap
         statement payload accepted ranLight with ⟨input, output, last⟩ | collision
     · exact Or.inl ⟨0, input, output, last⟩
     · exact Or.inr collision
-  · rcases refresh_bridge relation ajtai circuitKeys step control cubeFits keysShaped
-        publicLogicalFits refreshProgram refreshStep refreshControl refreshFresh refreshFits
-        refreshKey cap statement payload accepted ranRefresh with
+  · rcases refresh_bridge relation ajtai circuitKeys step control cubeFits keysShaped refreshWidth
+        refreshInside refreshProgram refreshStep refreshControl refreshFresh refreshFits
+        refreshLayout refreshKey cap statement payload accepted ranRefresh with
       ⟨input, output, last⟩ | collision
     · exact Or.inl ⟨1, input, output, last⟩
     · exact Or.inr collision

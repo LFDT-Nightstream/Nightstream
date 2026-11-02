@@ -844,7 +844,7 @@ fn canonical_slot(value: u64) -> Result<u64, PackageError> {
     Ok(value)
 }
 
-fn encode_field(value: u64, output: &mut [i8]) {
+pub(crate) fn encode_field(value: u64, output: &mut [i8]) {
     let negative = value > CENTERED_HALF_MODULUS;
     let mut magnitude = if negative { Goldilocks::ORDER_U64 - value } else { value };
     for coordinate in output {

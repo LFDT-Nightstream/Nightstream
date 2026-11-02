@@ -1,5 +1,6 @@
 import NightstreamFPrime.Export.Generic.CircuitRelation
 import NightstreamFPrime.Export.StreamingIdentity
+import NightstreamFPrime.Export.Generic.SlotLayout
 
 /-! The package of an option-B step circuit (CW-5.9). It lists the circuit's pieces in the
 relation's order: the lowered R1CS rows of each constraint, each Π_RLC ring product with its fresh
@@ -255,7 +256,8 @@ def witnessOf (batches : List WitnessBatch) (pieces : List Piece) : List Witness
 from the step's inputs; the circuit's locals by column, `witness` batches and the native ranges
 (a block's outputs by the permutation of its lanes, a ring piece's outputs by the ring product);
 then, piece by piece, each fresh lowering column `c := a * b` from its row, each ring piece's
-quotients, and each block's S-box outputs from `sboxStart`. -/
+quotients, and each block's S-box outputs from `sboxStart`. The relation reads the columns through
+the slots' layout (`SlotLayout.layout (SlotLayout.runSlots width slots)`). -/
 structure Package where
   circuit : Nat
   publicColumns : Nat
@@ -264,16 +266,19 @@ structure Package where
   sboxStart : Nat
   pieces : List PackagePiece
   witness : List WitnessBatch
+  slots : List (Nat × Nat × Nat)
 
 def Package.format : Format Package where
   encode := fun value => .array [.atom value.circuit, .atom value.publicColumns,
     .atom value.width, .atom value.firstFresh, .atom value.sboxStart,
-    (list PackagePiece.format).encode value.pieces, (list WitnessBatch.format).encode value.witness]
+    (list PackagePiece.format).encode value.pieces, (list WitnessBatch.format).encode value.witness,
+    (list (pair nat (pair nat nat))).encode value.slots]
   decode
     | .array [.atom circuit, .atom publicColumns, .atom width, .atom firstFresh,
-        .atom sboxStart, pieces, witness] => do
+        .atom sboxStart, pieces, witness, slots] => do
         pure ⟨circuit, publicColumns, width, firstFresh, sboxStart,
-          ← (list PackagePiece.format).decode pieces, ← (list WitnessBatch.format).decode witness⟩
+          ← (list PackagePiece.format).decode pieces, ← (list WitnessBatch.format).decode witness,
+          ← (list (pair nat (pair nat nat))).decode slots⟩
     | _ => .error "invalid step package"
   decode_encode := by
     intro value
@@ -290,10 +295,34 @@ def Package.relationRows (package : Package) : List R1CS.Row :=
   package.pieces.flatMap PackagePiece.relationRows ++
     CircuitRelation.bindingRows package.width package.blocks package.sboxStart
 
+/-- The live source columns' slots as runs `(start, count, kind)`: every column from the public
+columns to the last S-box output except the blocks' dead locals; a column that a `bit` hint fills
+is a bit, every other column a field element (`LowNormSlot.Kind`). -/
+def slotRuns (publicColumns : Nat) (pieces : List Piece) (next : Nat)
+    (batches : List WitnessBatch) : List (Nat × Nat × Nat) :=
+  let blocks := CircuitRelation.blocksOf pieces
+  let size := CircuitRelation.sboxStart pieces next + 150 * blocks.length
+  let codes := blocks.foldl (fun codes block =>
+      (List.range 1080).foldl (fun codes offset => codes.set! (block.start + offset) 3) codes)
+    (Array.replicate size (2 : Nat))
+  let codes := batches.foldl (fun codes batch =>
+      (batch.hints.zipIdx).foldl (fun codes (hint, index) => match hint with
+        | .bit .. => codes.set! (batch.start + batch.recipes.length + index) 0
+        | _ => codes) codes) codes
+  let runs := ((List.range size).drop publicColumns).foldl (fun runs column =>
+      let code : Nat := codes.getD column 3
+      if code = 3 then runs else
+        match runs with
+        | (start, count, kind) :: rest =>
+            if kind = code ∧ start + count = column then (start, count + 1, kind) :: rest
+            else (column, 1, code) :: runs
+        | [] => [(column, 1, code)]) []
+  runs.reverse
+
 def packageOf (circuit publicColumns : Nat) (pieces : List Piece) (next width : Nat)
     (batches : List WitnessBatch) : Package :=
   ⟨circuit, publicColumns, width, next, CircuitRelation.sboxStart pieces next,
-    packagePieces pieces next, witnessOf batches pieces⟩
+    packagePieces pieces next, witnessOf batches pieces, slotRuns publicColumns pieces next batches⟩
 
 theorem relationRows_packageOf (circuit publicColumns : Nat) (pieces : List Piece)
     (next width : Nat) (batches : List WitnessBatch)

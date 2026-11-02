@@ -77,31 +77,53 @@ def witnessSum (values : Array F) (dead : Array Bool) : F :=
   (List.range values.size).foldl (fun sum column =>
     if dead.getD column false then sum else sum + values.getD column 0 * mix 0 column) 0
 
+/-- The logical assignment's checksum (CW-5.11): the public columns, then each slot's digits at
+its logical column (`ProductionAssignment.logicalAssignment`), each value times
+`mix 1 column`. Only slots below `limit` add, because the parity witness stops at the first
+fresh column; every slot moves the logical column. -/
+def logicalSum (values : Array F) (runs : List (Nat × Nat × Nat)) (limit : Nat) : F :=
+  let publicPart := (List.range 270).foldl (fun sum column =>
+    sum + values.getD column 0 * mix 1 column) 0
+  (runs.foldl (fun (sum, offset) (start, count, kind) =>
+      (List.range count).foldl (fun (sum, offset) index =>
+          let column := start + index
+          let digits := LowNormSlot.encode (SlotLayout.kindOf kind) (values.getD column 0)
+          if column < limit then
+            digits.foldl (fun (sum, offset) digit => (sum + digit * mix 1 offset, offset + 1))
+              (sum, offset)
+          else (sum, offset + digits.length))
+        (sum, offset))
+    (publicPart, 270)).1
+
 /-- A circuit whose blocks pack: its relation rows, its S-box rows, the checksum of its relation
-rows, the end of its shared columns, and the checksum of its witness. -/
+rows, the end of its shared columns, the checksum of its witness, and the checksum of its logical
+assignment. -/
 def summary (width : Nat) (pieces : List Pieces.Piece) (next sharedEnd : Nat)
     (batches : List WitnessBatch) : Value :=
   let rows := CircuitRelation.relationRows CircuitRelation.publicColumns pieces next width
   let blocks := CircuitRelation.blocksOf pieces
-  let witness := witnessSum (runBatches sharedEnd next batches) (deadMask next blocks)
+  let values := runBatches sharedEnd next batches
+  let witness := witnessSum values (deadMask next blocks)
+  let logical := logicalSum values
+    (StepPackage.slotRuns CircuitRelation.publicColumns pieces next batches) next
   .array [.atom rows.length, .atom (150 * blocks.length), .atom (ordinarySum width rows 0).val,
-    .atom sharedEnd, .atom witness.val]
+    .atom sharedEnd, .atom witness.val, .atom logical.val]
 
 /-- Two small packages whose identity Lean computes (`StepPackage.identityFast`): a probe for
 Rust's identity code. -/
 def probeLight : StepPackage.Package :=
   ⟨0, 270, 16, 300, 400,
     [.rows [⟨⟨5, [(1, 7)]⟩, .one, .zero⟩], .block 2 [.var 3, .const 9]],
-    [⟨301, [.add (.var 1) (.const 2)], [.inverseOrZero (.var 4)]⟩]⟩
+    [⟨301, [.add (.var 1) (.const 2)], [.inverseOrZero (.var 4)]⟩], [(270, 3, 2), (273, 1, 0)]⟩
 
 def probeRefresh : StepPackage.Package :=
-  ⟨1, 270, 32, 10, 20, [.ring 1 4 30 [.mul (.const 3) (.var 8)]], []⟩
+  ⟨1, 270, 32, 10, 20, [.ring 1 4 30 [.mul (.const 3) (.var 8)]], [], []⟩
 
 /-- The parity file: its version, both circuits' summaries, and the probe packages with their
 identity. -/
 def parity (width : Nat) (light refresh : List Pieces.Piece × Nat × Nat × List WitnessBatch) :
     Value :=
-  .array [.atom 2, summary width light.1 light.2.1 light.2.2.1 light.2.2.2,
+  .array [.atom 3, summary width light.1 light.2.1 light.2.2.1 light.2.2.2,
     summary width refresh.1 refresh.2.1 refresh.2.2.1 refresh.2.2.2,
     StepPackage.identityValue probeLight probeRefresh,
     .array ((StepPackage.identityFast probeLight probeRefresh).map fun word => .atom word.val)]

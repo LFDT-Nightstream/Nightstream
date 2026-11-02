@@ -9,6 +9,7 @@ use crate::witness::{execute_witness_batch, WitnessBatch};
 use crate::WitnessAssignment;
 
 mod assignment_transport;
+pub(crate) use assignment_transport::encode_field;
 pub use assignment_transport::{LoadedAssignmentPlan, LogicalAssignment};
 mod compact;
 pub(crate) mod json;

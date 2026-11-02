@@ -7,6 +7,7 @@
 //! own the relation's meaning, the witness program or the fold.
 
 mod expand;
+pub mod layout;
 mod witness;
 pub mod words;
 
@@ -25,10 +26,10 @@ const IDENTITY_DOMAIN: &[u8] = b"Nightstream/OptionB/packages/v1";
 
 /// The identity of the packages in `formal/nightstream-fprime/artifacts`.
 pub const OPTION_B_PACKAGES_IDENTITY: [u64; 4] = [
-    1_114_272_870_958_146_077,
-    13_863_304_086_798_712_488,
-    3_214_465_430_417_245_974,
-    14_550_303_026_585_784_988,
+    7_617_093_090_708_275_751,
+    14_121_438_074_113_695_225,
+    1_674_118_278_171_147_961,
+    6_978_670_162_879_286_300,
 ];
 
 /// A lane or a row side as `Pieces.linear?` reads it: a constant and terms.
@@ -87,6 +88,7 @@ pub struct StepPackage {
     sbox_start: usize,
     pieces: Vec<Piece>,
     witness: Vec<Value>,
+    slots: Vec<(usize, usize, u8)>,
 }
 
 impl StepPackage {
@@ -127,7 +129,7 @@ impl StepPackage {
     }
 
     fn decode(value: &Value) -> Result<Self, PackageError> {
-        let fields = exact_array(value, 7, "option-B package")?;
+        let fields = exact_array(value, 8, "option-B package")?;
         let pieces = array(&fields[5], "option-B pieces")?
             .iter()
             .map(decode_piece)
@@ -140,6 +142,22 @@ impl StepPackage {
             sbox_start: usize_atom(&fields[4], "option-B S-box start")?,
             pieces,
             witness: array(&fields[6], "option-B witness")?.to_vec(),
+            slots: array(&fields[7], "option-B slots")?
+                .iter()
+                .map(|run| {
+                    let pair = exact_array(run, 2, "option-B slot run")?;
+                    let tail = exact_array(&pair[1], 2, "option-B slot run")?;
+                    let kind = usize_atom(&tail[1], "option-B slot kind")?;
+                    Ok((
+                        usize_atom(&pair[0], "option-B slot start")?,
+                        usize_atom(&tail[0], "option-B slot count")?,
+                        u8::try_from(kind)
+                            .ok()
+                            .filter(|kind| *kind <= 2)
+                            .ok_or(PackageError::Malformed("option-B slot kind"))?,
+                    ))
+                })
+                .collect::<Result<_, PackageError>>()?,
         })
     }
 }

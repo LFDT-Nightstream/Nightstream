@@ -19,6 +19,7 @@ open NightstreamFPrime.Circuit
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Layout.OptionB
 open NightstreamFPrime.Export.Generic
+open NightstreamFPrime.Layout
 
 /-- The census width; the step circuits' rows do not depend on it. -/
 def width : Nat := 2 ^ 24
@@ -82,8 +83,13 @@ def emitPackage (name : String) (circuit : Nat) (ops : List Op) (offset : Nat)
     (offset + localLength ops) width (witnesses ops)
   let path := s!"artifacts/nightstream-fprime-option-b-{name}-v1.json"
   IO.FS.writeFile path ((StepPackage.Package.format.encode package).render ++ "\n")
+  let slotColumns := package.slots.foldl (fun total (_, count, _) => total + count) 0
+  let digitColumns := package.slots.foldl (fun total (_, count, kind) =>
+    total + count * (SlotLayout.kindOf kind).width) 0
   say s!"{name}: wrote {path}: {package.pieces.length} pieces, \
-    {package.witness.length} witness batches ({(← IO.monoMsNow) - start} ms)"
+    {package.witness.length} witness batches, {package.slots.length} slot runs, \
+    {slotColumns} slotted columns, {digitColumns} digit columns \
+    ({(← IO.monoMsNow) - start} ms)"
   return package
 
 /-- One line per top-level child: its name, Poseidon2 blocks, ring products, other constraints

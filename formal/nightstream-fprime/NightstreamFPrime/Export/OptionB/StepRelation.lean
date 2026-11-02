@@ -126,15 +126,16 @@ theorem light_stepHolds (relation : ProductionKey.LogicalRelation logicalWidth p
     (step : AppState → AppWitness → AppState) (control : AppState → AppWitness → Fin 2)
     (stepEq : program.step = step)
     (validControl : ∀ state witness, program.valid state witness → control state witness = 0)
-    (firstFresh : Nat)
+    (firstFresh width : Nat)
     (fits : CircuitRelation.Fits CircuitRelation.publicColumns (CircuitRelation.pieces
       (LightAssemblerCircuit.stepCircuit program base relation 0 ajtai)
       (LightAssembler.sharedEnd base program.witnessWordCount)
-      (lightDigestColumn program)) firstFresh logicalWidth)
+      (lightDigestColumn program)) firstFresh width)
+    (layout : LogicalPlan.Layout width logicalWidth)
     (assignment : Assignment F logicalWidth) (digest : Digest)
     (encoded : LogicalPlan.publicInput (publicFits := publicFits)
-      (LogicalPlan.sourceEnv assignment) = encHash digest)
-    (rowsZero : (CircuitRelation.plan _ _ firstFresh logicalWidth fits).RowsZero assignment) :
+      (LogicalPlan.sourceEnv layout assignment) = encHash digest)
+    (rowsZero : (CircuitRelation.plan _ _ firstFresh width fits layout).RowsZero assignment) :
     ∃ env : Env,
     StepHolds Folding.Schedule.productionLightFoldCap ajtai
         (decodedKeys circuitKeys (lightInterface (logicalWidth := logicalWidth)
@@ -145,7 +146,7 @@ theorem light_stepHolds (relation : ProductionKey.LogicalRelation logicalWidth p
   obtain ⟨env, rows, words⟩ := CircuitRelation.rowsZero_implies_spec
     (LightAssemblerCircuit.stepCircuit program base relation 0 ajtai)
     (LightAssembler.sharedEnd base program.witnessWordCount) firstFresh
-    (lightDigestColumn program) fits assignment digest encoded rowsZero (fun _ => rfl)
+    (lightDigestColumn program) fits layout assignment digest encoded rowsZero (fun _ => rfl)
   refine ⟨env, LightAssembler.rows_implies_stepHolds program relation base ajtai _ step control 0 rfl
     stepEq validControl env rows _ _ _ (lightRepresents program ajtai circuitKeys 0 env), ?_⟩
   exact congrArg List.ofFn (funext words)
@@ -240,15 +241,16 @@ theorem refresh_stepHolds (relation : ProductionKey.LogicalRelation logicalWidth
     (step : AppState → AppWitness → AppState) (control : AppState → AppWitness → Fin 2)
     (stepEq : program.step = step)
     (validControl : ∀ state witness, program.valid state witness → control state witness = 1)
-    (firstFresh : Nat)
+    (firstFresh width : Nat)
     (fits : CircuitRelation.Fits CircuitRelation.publicColumns (CircuitRelation.pieces
       (RefreshAssemblerCircuit.stepCircuit program base relation 1 ajtai)
       (RefreshAssembler.sharedEnd base program.witnessWordCount)
-      (refreshDigestColumn program)) firstFresh logicalWidth)
+      (refreshDigestColumn program)) firstFresh width)
+    (layout : LogicalPlan.Layout width logicalWidth)
     (assignment : Assignment F logicalWidth) (digest : Digest)
     (encoded : LogicalPlan.publicInput (publicFits := publicFits)
-      (LogicalPlan.sourceEnv assignment) = encHash digest)
-    (rowsZero : (CircuitRelation.plan _ _ firstFresh logicalWidth fits).RowsZero assignment) :
+      (LogicalPlan.sourceEnv layout assignment) = encHash digest)
+    (rowsZero : (CircuitRelation.plan _ _ firstFresh width fits layout).RowsZero assignment) :
     ∃ env : Env,
     StepHolds Folding.Schedule.productionLightFoldCap ajtai
         (decodedKeys circuitKeys (refreshInterface (logicalWidth := logicalWidth)
@@ -259,7 +261,7 @@ theorem refresh_stepHolds (relation : ProductionKey.LogicalRelation logicalWidth
   obtain ⟨env, rows, words⟩ := CircuitRelation.rowsZero_implies_spec
     (RefreshAssemblerCircuit.stepCircuit program base relation 1 ajtai)
     (RefreshAssembler.sharedEnd base program.witnessWordCount) firstFresh
-    (refreshDigestColumn program) fits assignment digest encoded rowsZero (fun _ => rfl)
+    (refreshDigestColumn program) fits layout assignment digest encoded rowsZero (fun _ => rfl)
   refine ⟨env, RefreshAssembler.rows_implies_stepHolds program relation base ajtai _ step control 1 rfl
     stepEq validControl env rows _ _ _ (refreshRepresents program ajtai circuitKeys 1 env), ?_⟩
   exact congrArg List.ofFn (funext words)
@@ -269,22 +271,24 @@ end Refresh
 /-! ### From the fresh statement the fold extracts -/
 
 /-- The first logical columns are the public input of `projectPublicInput`. -/
-theorem publicInput_eq_project (assignment : Assignment F logicalWidth)
-    (publicLogicalFits : ringDegree * PaperAlgebra.publicRingColumns ≤ logicalWidth) :
-    LogicalPlan.publicInput (publicFits := publicFits) (LogicalPlan.sourceEnv assignment) =
+theorem publicInput_eq_project {width : Nat} (layout : LogicalPlan.Layout width logicalWidth)
+    (assignment : Assignment F logicalWidth)
+    (publicInside : ringDegree * PaperAlgebra.publicRingColumns ≤ width) :
+    LogicalPlan.publicInput (publicFits := publicFits) (LogicalPlan.sourceEnv layout assignment) =
       Phi81Relation.projectPublicInput
         (shape := PaperAlgebra.FullShape logicalWidth publicFits)
         (Phi81CarrierLayout.extendAssignment 0 assignment) := by
   funext column
   have inside : column.val < logicalWidth :=
-    Nat.lt_of_lt_of_le column.isLt publicLogicalFits
+    Nat.lt_of_lt_of_le column.isLt layout.publicFits
   have same : (PaperAlgebra.FullShape logicalWidth publicFits).publicColumn column =
       Phi81CarrierLayout.embedLogical (⟨column.val, inside⟩ : Fin logicalWidth) := by
     apply Fin.ext
     rfl
-  change LogicalPlan.sourceEnv assignment column.val = _
-  rw [Phi81Relation.projectPublicInput, same, Phi81CarrierLayout.extendAssignment_embedLogical]
-  simp [LogicalPlan.sourceEnv, inside]
+  change LogicalPlan.sourceEnv layout assignment column.val = _
+  rw [Phi81Relation.projectPublicInput, same, Phi81CarrierLayout.extendAssignment_embedLogical,
+    LogicalPlan.sourceEnv_public layout assignment column.val column.isLt
+      (Nat.lt_of_lt_of_le column.isLt publicInside)]
 
 /-- A fresh instance that holds under the light circuit's relation, with public input
 `encHash digest`, gives the light case of the option-B step relation with output hash `digest`. -/
@@ -295,18 +299,19 @@ theorem light_freshHolds (program : Stage1.Application.Program)
     (step : AppState → AppWitness → AppState) (control : AppState → AppWitness → Fin 2)
     (stepEq : program.step = step)
     (validControl : ∀ state witness, program.valid state witness → control state witness = 0)
-    (firstFresh : Nat)
+    (firstFresh width : Nat)
     (fits : CircuitRelation.Fits CircuitRelation.publicColumns (CircuitRelation.pieces
       (LightAssemblerCircuit.stepCircuit program base relation 0 ajtai)
       (LightAssembler.sharedEnd base program.witnessWordCount)
-      (lightDigestColumn program)) firstFresh logicalWidth)
+      (lightDigestColumn program)) firstFresh width)
+    (layout : LogicalPlan.Layout width logicalWidth)
     (cubeFits : Phi81CarrierLayout.carrierWidth logicalWidth ≤ 2 ^ cubeVariables)
-    (publicLogicalFits : ringDegree * PaperAlgebra.publicRingColumns ≤ logicalWidth)
+    (publicInside : ringDegree * PaperAlgebra.publicRingColumns ≤ width)
     (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
     (assignment : Assignment F (Phi81CarrierLayout.carrierWidth logicalWidth))
     (digest : Digest) (encoded : fresh.publicInputs ⟨0, by decide⟩ = encHash digest)
     (accepted : CCS.Holds (PaperAlgebra.semantics ajtai) productionGlobalParams
-      (freshStatement ((CircuitRelation.plan _ _ firstFresh logicalWidth fits).logicalRelation
+      (freshStatement ((CircuitRelation.plan _ _ firstFresh width fits layout).logicalRelation
         (publicFits := publicFits) cubeFits) fresh) assignment) :
     ∃ env : Env,
     StepHolds Folding.Schedule.productionLightFoldCap ajtai
@@ -317,10 +322,10 @@ theorem light_freshHolds (program : Stage1.Application.Program)
         List.ofFn fun word : Fin 4 => digest.getD word.val 0 := by
   obtain ⟨rowsZero, publicEq⟩ :=
     Layout.ProductionRelation.Plan.freshHolds_implies_rowsAndPublic _ cubeFits ajtai fresh
-      assignment publicLogicalFits accepted
+      assignment layout.publicFits accepted
   exact light_stepHolds program relation ajtai circuitKeys step control stepEq validControl
-    firstFresh fits _ digest
-    ((publicInput_eq_project _ publicLogicalFits).trans (publicEq.trans encoded)) rowsZero
+    firstFresh width fits layout _ digest
+    ((publicInput_eq_project layout _ publicInside).trans (publicEq.trans encoded)) rowsZero
 
 /-- A fresh instance that holds under the refresh circuit's relation, with public input
 `encHash digest`, gives the refresh case of the option-B step relation with output hash
@@ -332,18 +337,19 @@ theorem refresh_freshHolds (program : Stage1.Application.Program)
     (step : AppState → AppWitness → AppState) (control : AppState → AppWitness → Fin 2)
     (stepEq : program.step = step)
     (validControl : ∀ state witness, program.valid state witness → control state witness = 1)
-    (firstFresh : Nat)
+    (firstFresh width : Nat)
     (fits : CircuitRelation.Fits CircuitRelation.publicColumns (CircuitRelation.pieces
       (RefreshAssemblerCircuit.stepCircuit program base relation 1 ajtai)
       (RefreshAssembler.sharedEnd base program.witnessWordCount)
-      (refreshDigestColumn program)) firstFresh logicalWidth)
+      (refreshDigestColumn program)) firstFresh width)
+    (layout : LogicalPlan.Layout width logicalWidth)
     (cubeFits : Phi81CarrierLayout.carrierWidth logicalWidth ≤ 2 ^ cubeVariables)
-    (publicLogicalFits : ringDegree * PaperAlgebra.publicRingColumns ≤ logicalWidth)
+    (publicInside : ringDegree * PaperAlgebra.publicRingColumns ≤ width)
     (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
     (assignment : Assignment F (Phi81CarrierLayout.carrierWidth logicalWidth))
     (digest : Digest) (encoded : fresh.publicInputs ⟨0, by decide⟩ = encHash digest)
     (accepted : CCS.Holds (PaperAlgebra.semantics ajtai) productionGlobalParams
-      (freshStatement ((CircuitRelation.plan _ _ firstFresh logicalWidth fits).logicalRelation
+      (freshStatement ((CircuitRelation.plan _ _ firstFresh width fits layout).logicalRelation
         (publicFits := publicFits) cubeFits) fresh) assignment) :
     ∃ env : Env,
     StepHolds Folding.Schedule.productionLightFoldCap ajtai
@@ -354,9 +360,9 @@ theorem refresh_freshHolds (program : Stage1.Application.Program)
         List.ofFn fun word : Fin 4 => digest.getD word.val 0 := by
   obtain ⟨rowsZero, publicEq⟩ :=
     Layout.ProductionRelation.Plan.freshHolds_implies_rowsAndPublic _ cubeFits ajtai fresh
-      assignment publicLogicalFits accepted
+      assignment layout.publicFits accepted
   exact refresh_stepHolds program relation ajtai circuitKeys step control stepEq validControl
-    firstFresh fits _ digest
-    ((publicInput_eq_project _ publicLogicalFits).trans (publicEq.trans encoded)) rowsZero
+    firstFresh width fits layout _ digest
+    ((publicInput_eq_project layout _ publicInside).trans (publicEq.trans encoded)) rowsZero
 
 end NightstreamFPrime.Export.OptionB.StepRelation

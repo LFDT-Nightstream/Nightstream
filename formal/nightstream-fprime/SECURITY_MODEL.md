@@ -411,12 +411,18 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
    its first challenge. The paper's delayed-statement attack therefore needs
    a state-hash collision or a change to verifier-owned authority here; this
    does not settle the concrete Poseidon2 random-oracle premise.
-   Merz and Rodríguez García (ePrint 2026/306) give faster algebraic attacks
-   on Poseidon2's linear layers and on some sponge and compression modes,
-   while reporting no break of the 128-bit sets they analyze. The selected
-   permutation uses 16 Goldilocks words, `x^7`, eight full rounds and 22
-   partial rounds. Their mode estimates do not bound this additive duplex's
-   repeated intermediate lane reads. Hovhannisyan, Asaturyan and Hovhannisyan
+   Merz and Rodríguez García (ePrint 2026/306, Section 3.2) give faster
+   algebraic attacks on Poseidon2's linear layers and on some sponge and
+   compression modes, while reporting no break of the 128-bit sets they
+   analyze. The selected permutation uses 16 Goldilocks words, `x^7`, eight
+   full rounds and 22 partial rounds. Its external layer has the paper's
+   `(I₄ + J₄) ⊗ M₄` shape. Rust's selected `M₄` differs from the paper's
+   displayed block but has determinant `-35 mod q`. Since `x^7` is odd, the
+   paper's local `(X, -X)` subspace condition can be solved for one initial
+   external round with any round constants. This does not establish the input
+   and output conditions or cost of a full attack. Their mode estimates do not
+   bound this additive duplex's repeated intermediate lane reads.
+   Hovhannisyan, Asaturyan and Hovhannisyan
    (ePrint 2026/409) report no forgery from their coupled Poseidon and
    Fiat–Shamir algebraic experiments, even with reduced rounds. Those
    negative experiments are not a security reduction for this transcript.

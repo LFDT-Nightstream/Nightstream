@@ -4,7 +4,6 @@ use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks;
 use thiserror::Error;
 
-use crate::identity::relation_identifier;
 use crate::sparse::{eval_sparse_combination, SparseCombination, SparseRow, WitnessInstruction};
 use crate::witness::{execute_witness_batch, WitnessBatch};
 use crate::WitnessAssignment;

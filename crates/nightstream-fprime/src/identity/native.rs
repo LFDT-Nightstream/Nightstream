@@ -9,17 +9,56 @@ use super::*;
 
 const FIXED_ABI_WORDS: usize = 100;
 const RECIPE_BATCH_HEADER_WORDS: usize = 16;
+const ENVELOPE_FIELDS: usize = 7;
+const PACKAGE_FIELDS: usize = 14;
+const PACKAGE_WITNESS_BATCHES: usize = 10;
+const PACKAGE_WITNESS_INSTRUCTIONS: usize = 11;
+const PACKAGE_ASSERTION_ROWS: usize = 12;
+/// Lean `PerApplicationCanonicalPackage.nextPreimageRowCount`.
+pub(crate) const NEXT_PREIMAGE_ROWS: usize = 5;
 
-pub(crate) fn native_relation_identifier(
-    fixed: &Value,
-    application: &PreparedApplication,
+/// The application entries that the package of an envelope still holds: the
+/// last `batches` witness batches, the last `instructions` witness
+/// instructions, and the `rows` assertion rows before the last
+/// `NEXT_PREIMAGE_ROWS` rows (Lean `PerApplicationCanonicalPackage.reassemble`).
+/// A native fixed envelope holds none.
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct ApplicationEntries {
+    pub(crate) batches: usize,
+    pub(crate) instructions: usize,
+    pub(crate) rows: usize,
+}
+
+/// Lean `PerApplicationCanonicalPackage.structuralPackageIdentity`: the hash of
+/// `structuralValue`, the envelope with the application digest at index 3 and
+/// the package without the application entries. The application rows enter
+/// only through `application`, so they are hashed once.
+pub(crate) fn structural_identifier(
+    envelope: &Value,
+    application: &ApplicationIdentity,
+    entries: ApplicationEntries,
 ) -> Result<StructuralIdentifier, PackageError> {
+    let envelope = tuple(envelope, ENVELOPE_FIELDS)?;
     let mut input = poseidon2::Poseidon2Hasher::default();
     update_words(&mut input, &IDENTITY_DOMAIN);
-    visit_native_preimage_words(fixed, application, &mut |words| {
+    let mut emit = |words: &[u64]| {
         update_words(&mut input, words);
         Ok(())
-    })?;
+    };
+    let mut sink = CanonicalSink { emit: &mut emit };
+    sink.array(envelope.len())?;
+    for (index, value) in envelope.iter().enumerate() {
+        match index {
+            1 => fixed_package(value, entries, &mut sink)?,
+            3 => {
+                sink.array(application.digest.len())?;
+                for word in application.digest {
+                    sink.number(word)?;
+                }
+            }
+            _ => sink.value(value)?,
+        }
+    }
     Ok(StructuralIdentifier(
         input.finalize().map(|value| value.as_canonical_u64()),
     ))
@@ -74,76 +113,36 @@ pub(crate) fn visit_native_application_words(
     application_value(application, &mut CanonicalSink { emit })
 }
 
-pub(crate) fn visit_native_preimage_words(
-    fixed: &Value,
-    application: &PreparedApplication,
-    emit: &mut dyn FnMut(&[u64]) -> Result<(), PackageError>,
-) -> Result<(), PackageError> {
-    let envelope = tuple(fixed, 7)?;
-    let mut sink = CanonicalSink { emit };
-    sink.array(envelope.len())?;
-    for (index, value) in envelope.iter().enumerate() {
+fn fixed_package(value: &Value, entries: ApplicationEntries, sink: &mut CanonicalSink<'_>) -> Result<(), PackageError> {
+    let package = tuple(value, PACKAGE_FIELDS)?;
+    sink.array(package.len())?;
+    for (index, value) in package.iter().enumerate() {
         match index {
-            1 => source_value(value, application, &mut sink)?,
-            3 => application_value(application, &mut sink)?,
+            PACKAGE_WITNESS_BATCHES => fixed_list(value, entries.batches, 0, sink)?,
+            PACKAGE_WITNESS_INSTRUCTIONS => fixed_list(value, entries.instructions, 0, sink)?,
+            PACKAGE_ASSERTION_ROWS => fixed_list(value, entries.rows, NEXT_PREIMAGE_ROWS, sink)?,
             _ => sink.value(value)?,
         }
     }
     Ok(())
 }
 
-fn source_value(
-    value: &Value,
-    application: &PreparedApplication,
-    sink: &mut CanonicalSink<'_>,
-) -> Result<(), PackageError> {
-    let source = tuple(value, 14)?;
-    sink.array(source.len())?;
-    for (index, value) in source.iter().enumerate() {
-        match index {
-            10 => {
-                let batches = array(value)?;
-                let added = usize::from(application.records().recipe_count() != 0);
-                sink.array(add(batches.len(), added)?)?;
-                for batch in batches {
-                    sink.value(batch)?;
-                }
-                if added != 0 {
-                    application_batch(application, sink)?;
-                }
-            }
-            12 => source_rows(value, application, sink)?,
-            _ => sink.value(value)?,
-        }
+/// Emit `value` without the `removed` entries before its last `kept` entries.
+fn fixed_list(value: &Value, removed: usize, kept: usize, sink: &mut CanonicalSink<'_>) -> Result<(), PackageError> {
+    if removed == 0 {
+        return sink.value(value);
     }
-    Ok(())
-}
-
-fn source_rows(
-    value: &Value,
-    application: &PreparedApplication,
-    sink: &mut CanonicalSink<'_>,
-) -> Result<(), PackageError> {
-    let fixed = array(value)?;
-    let range = application.plan().row_range();
-    sink.array(add(fixed.len(), application.records().row_count())?)?;
-    let mut inserted = false;
-    for row in fixed {
-        let index = tuple(row, 4)?[0]
-            .as_u64()
-            .and_then(|index| usize::try_from(index).ok())
-            .ok_or(PackageError::Malformed("native fixed row index"))?;
-        if range.contains(&index) || (inserted && index < range.start) {
-            return Err(PackageError::Malformed("native application row insertion"));
-        }
-        if !inserted && index >= range.start {
-            application_rows(application, sink)?;
-            inserted = true;
-        }
-        sink.value(row)?;
-    }
-    if !inserted {
-        application_rows(application, sink)?;
+    let values = array(value)?;
+    let end = values
+        .len()
+        .checked_sub(kept)
+        .ok_or(PackageError::Malformed("native identity application entries"))?;
+    let start = end
+        .checked_sub(removed)
+        .ok_or(PackageError::Malformed("native identity application entries"))?;
+    sink.array(values.len() - removed)?;
+    for value in values[..start].iter().chain(&values[end..]) {
+        sink.value(value)?;
     }
     Ok(())
 }

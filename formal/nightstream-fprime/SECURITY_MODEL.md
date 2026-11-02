@@ -54,6 +54,15 @@ and every state hash carries it. So when one application's verifier accepts a
 proof, adversary 2's result gives that application's context or a state-hash
 collision.
 
+The verifier pins the package identity. Two packages with one package
+identity have the same sealed envelope and the same authority, or one of four
+named collisions: two structural values with one structural identity, two
+application plans with one application digest, two authority components with
+one component digest, or two final preimages with one package identity
+(`Export.Stage1.PerApplicationSecurity.packageIdentity_identifies_package_authority_or_collision`).
+The structural identity takes the application only through its application
+digest (`Export.Stage1.PerApplicationCanonicalPackage.structuralValue`).
+
 ## Adversaries
 
 ### 1. Malicious step assignment
@@ -513,7 +522,13 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
 - A program that the adversary chooses after it sees the setup. Adversary 5
   fixes the program before the adversary runs.
 - The Rust-built memory relation of an application or geometry that no Lean
-  package fixes, and the binding rows of the Rust catalog backend
-  (`SPEC.md` section 7.6). Tests check them on fixed inputs (trust item 5).
+  package fixes, the binding rows of the Rust catalog backend, and the
+  relation that links the rows of a batched WASM step (`SPEC.md` section
+  7.6). Lean proves what the slot plan conditions give
+  (`Spec.Nebula.MemoryTrace.reorders_of_slotOrder`) and that batched steps
+  are memory consistent exactly when their rows are
+  (`Spec.Nebula.MemoryTrace.memoryConsistent_batchCatalog_iff`), but not
+  that the Rust rows enforce those conditions. Tests check the rows on fixed
+  inputs (trust item 5).
 - Values for the adversary time and the query counts `Q` and `Q_η`. They
   stay symbolic (`decisions/nebula-memory-checking.md`).

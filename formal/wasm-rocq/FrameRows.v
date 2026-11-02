@@ -549,13 +549,16 @@ Proof.
   - rewrite Hremaining. unfold slideWord. rewrite length_app. destruct (Nat.eqb distance 0); lia.
 Qed.
 
-(* A BLOCK, LOOP, END or ELSE: a static jump that leaves the stack and the frame as
-   they are. *)
+(* The opcodes whose row is a static jump that leaves the stack and the frame as
+   they are, with their selectors. *)
+Definition quietControl (opcode : Z) (chosen : nat) : Prop :=
+  opcode = CODE_END /\ chosen = COL_SEL_END \/ opcode = CODE_ELSE /\ chosen = COL_SEL_ELSE \/
+  opcode = CODE_BLOCK /\ chosen = COL_SEL_BLOCK \/ opcode = CODE_LOOP /\ chosen = COL_SEL_LOOP \/
+  opcode = CODE_NOP /\ chosen = COL_SEL_NOP.
+
 Lemma quiet_control_row : forall initial final row pc opcode chosen next,
   fieldPrime -> FullRelation.satFull row -> row COL_IS_PROGRAM_ROW = 1 -> row COL_ACTIVATION_FINISHED_AFTER = 0 ->
-  Replay initial (eventsForRow memories row) final -> row COL_PC_BEFORE = pc ->
-  (opcode = CODE_END /\ chosen = COL_SEL_END \/ opcode = CODE_ELSE /\ chosen = COL_SEL_ELSE \/
-    opcode = CODE_BLOCK /\ chosen = COL_SEL_BLOCK \/ opcode = CODE_LOOP /\ chosen = COL_SEL_LOOP) ->
+  Replay initial (eventsForRow memories row) final -> row COL_PC_BEFORE = pc -> quietControl opcode chosen ->
   controlImage initial pc opcode next -> initializationIdle (beforeBoundary row) ->
   row COL_PC_AFTER = next /\ row COL_SP_AFTER = row COL_SP_BEFORE /\
   row COL_STACK_FRAME_BASE_AFTER = row COL_STACK_FRAME_BASE_BEFORE /\ frameRegistersPreserved row /\
@@ -564,10 +567,10 @@ Lemma quiet_control_row : forall initial final row pc opcode chosen next,
 Proof.
   intros initial final row pc opcode chosen next Hprime Hfull Hprogram Hhalt Hreplay Hpc Hkind Himage Hidle.
   assert (Hin : In chosen selectorColumns)
-    by (destruct Hkind as [[_ ->] | [[_ ->] | [[_ ->] | [_ ->]]]]; vm_compute; tauto).
+    by (destruct Hkind as [[_ ->] | [[_ ->] | [[_ ->] | [[_ ->] | [_ ->]]]]]; vm_compute; tauto).
   pose proof (control_row_static_edge _ _ row _ _ _ Hprogram Hreplay Hpc Himage) as Hedge.
   assert (Hrow : row chosen = 1 /\ row COL_PC_AFTER = next).
-  { destruct Hkind as [[-> ->] | [[-> ->] | [[-> ->] | [-> ->]]]].
+  { destruct Hkind as [[-> ->] | [[-> ->] | [[-> ->] | [[-> ->] | [-> ->]]]]].
     - exact (BlockTrace.control_row _ _ row _ CODE_END COL_SEL_END _ Hprime Hfull Hprogram Hreplay Hpc
         ltac:(vm_compute; reflexivity) ltac:(vm_compute; intuition discriminate) Himage).
     - exact (BlockTrace.control_row _ _ row _ CODE_ELSE COL_SEL_ELSE _ Hprime Hfull Hprogram Hreplay Hpc
@@ -575,30 +578,35 @@ Proof.
     - exact (BlockTrace.control_row _ _ row _ CODE_BLOCK COL_SEL_BLOCK _ Hprime Hfull Hprogram Hreplay Hpc
         ltac:(vm_compute; reflexivity) ltac:(vm_compute; intuition discriminate) Himage).
     - exact (BlockTrace.control_row _ _ row _ CODE_LOOP COL_SEL_LOOP _ Hprime Hfull Hprogram Hreplay Hpc
+        ltac:(vm_compute; reflexivity) ltac:(vm_compute; intuition discriminate) Himage).
+    - exact (BlockTrace.control_row _ _ row _ CODE_NOP COL_SEL_NOP _ Hprime Hfull Hprogram Hreplay Hpc
         ltac:(vm_compute; reflexivity) ltac:(vm_compute; intuition discriminate) Himage). }
   destruct Hrow as [Hchosen Hnext].
   destruct (full_selected_no_host_switch row chosen Hprime Hfull Hin Hchosen) as [Hsuspend [_ [_ [_ Hread]]]].
   assert (Hquiet : row COL_CALL_STACK_PUSH_PRESENT = 0 /\ row COL_CALL_STACK_POP_PRESENT = 0).
-  { destruct Hkind as [[_ ->] | [[_ ->] | [[_ ->] | [_ ->]]]].
+  { destruct Hkind as [[_ ->] | [[_ ->] | [[_ ->] | [[_ ->] | [_ ->]]]]].
     - exact (full_block_end_quiet row Hprime Hfull Hchosen Hedge Hhalt).
     - exact (full_block_selector_quiet row COL_SEL_ELSE Hprime Hfull
-        (or_intror (or_intror (or_intror (or_intror Logic.eq_refl)))) Hchosen).
+        (or_intror (or_intror (or_intror (or_intror (or_introl Logic.eq_refl))))) Hchosen).
     - exact (full_block_selector_quiet row COL_SEL_BLOCK Hprime Hfull (or_introl Logic.eq_refl) Hchosen).
     - exact (full_block_selector_quiet row COL_SEL_LOOP Hprime Hfull
-        (or_intror (or_intror (or_introl Logic.eq_refl))) Hchosen). }
+        (or_intror (or_intror (or_introl Logic.eq_refl))) Hchosen).
+    - exact (full_block_selector_quiet row COL_SEL_NOP Hprime Hfull
+        (or_intror (or_intror (or_intror (or_intror (or_intror Logic.eq_refl))))) Hchosen). }
   destruct Hquiet as [Hpush Hpop].
   destruct (full_block_context row chosen Hprime Hfull
-    ltac:(destruct Hkind as [[_ ->] | [[_ ->] | [[_ ->] | [_ ->]]]];
-      [right; left | right; right; right | left | right; right; left]; reflexivity) Hchosen Hpop Hhalt)
+    ltac:(destruct Hkind as [[_ ->] | [[_ ->] | [[_ ->] | [[_ ->] | [_ ->]]]]];
+      [right; left | right; right; right; left | left | right; right; left | right; right; right; right];
+      reflexivity) Hchosen Hpop Hhalt)
     as [Hsp' [Hbase' [Hfbp' [Hdepth' Hwrites]]]].
   pose proof (program_row_keeps_idle row chosen Hprime Hfull Hin Hchosen
-    ltac:(destruct Hkind as [[_ ->] | [[_ ->] | [[_ ->] | [_ ->]]]]; not_call_selector) Hpop Hidle) as HidleAfter.
+    ltac:(destruct Hkind as [[_ ->] | [[_ ->] | [[_ ->] | [[_ ->] | [_ ->]]]]]; not_call_selector) Hpop Hidle)
+    as HidleAfter.
   split; [exact Hnext | ]. split; [exact Hsp' | ]. split; [exact Hbase' | ].
   split; [split; [exact Hdepth' | split; assumption] | ].
   split; [eapply quiet_row_frame_effect; eassumption | ].
   split; [exact (no_stack_writes_preserve _ _ _ Hreplay Hwrites) | exact HidleAfter].
 Qed.
-
 (* Entering a block or a loop: its label goes on over the operands, and its body runs. *)
 Lemma code_label_enter_row : forall view f i body initial final row inner,
   fieldPrime -> programLoaded program initial -> FullRelation.satFull row -> row COL_IS_PROGRAM_ROW = 1 ->
@@ -626,26 +634,24 @@ Proof.
   set (z := mk_state s (activeFrame f locals)).
   assert (Hz : wf_state z) by exact (frame_state_wf _ _ _ _ _ Hstore Hwf Hf Hlb).
   (* The opcode and SpecTec's entry step, for a block or a loop. *)
-  assert (Hentry : exists opcode chosen,
-      (opcode = CODE_END /\ chosen = COL_SEL_END \/ opcode = CODE_ELSE /\ chosen = COL_SEL_ELSE \/
-        opcode = CODE_BLOCK /\ chosen = COL_SEL_BLOCK \/ opcode = CODE_LOOP /\ chosen = COL_SEL_LOOP) /\
+  assert (Hentry : exists opcode chosen, quietControl opcode chosen /\
       controlImage initial (row COL_PC_BEFORE) opcode (row COL_PC_BEFORE + 1) /\
       instrArm i 0 = Some body /\ (forall h, labelBase i h = h) /\
       Steps (stackConfig z [] [i]) (blockContext (labelArity i) (labelContinuation i) (stackConfig z [] body))).
   { inversion Hsup as [ | ? ? Hsupported _]; subst.
     pose proof (proj1 (Forall_forall _ _) Hwfcode _ (nth_error_In _ _ Hi)) as Hwi.
     destruct Hlabel as [[bt ->] | [bt ->]].
-    - inversion Hsupported as [ | | | | | result ? _ Hresult | | | | | | ]; subst.
+    - inversion Hsupported as [ | | | | | result ? _ Hresult | | | | | | | ]; subst.
       assert (Hwbody : Forall wf_instr body) by (inversion Hwi; assumption).
       pose proof (encoded_path_block_entry _ _ _ _ Hloaded Hf _ _ _ _ _ Hpath Hi) as Himage.
       unfold pathPC in Himage. rewrite <- Hpc in Himage.
       exists CODE_BLOCK, COL_SEL_BLOCK. split; [right; right; left; split; reflexivity | ].
       split; [exact Himage | ]. split; [reflexivity | ]. split; [reflexivity | exact (enter_block z result body Hresult Hz Hwbody)].
-    - inversion Hsupported as [ | | | | | | | | | | | result ? _ Hresult]; subst.
+    - inversion Hsupported as [ | | | | | | | | | | | result ? _ Hresult | ]; subst.
       assert (Hwbody : Forall wf_instr body) by (inversion Hwi; assumption).
       pose proof (encoded_path_loop_entry _ _ _ _ Hloaded Hf _ _ _ _ _ Hpath Hi) as Himage.
       unfold pathPC in Himage. rewrite <- Hpc in Himage.
-      exists CODE_LOOP, COL_SEL_LOOP. split; [right; right; right; split; reflexivity | ].
+      exists CODE_LOOP, COL_SEL_LOOP. split; [right; right; right; left; split; reflexivity | ].
       split; [exact Himage | ]. split; [reflexivity | ]. split; [reflexivity | exact (enter_loop z result body Hresult Hz Hwbody)]. }
   destruct Hentry as [opcode [chosen [Hkind [Himage [Harm [HlabelBase Hsteps]]]]]].
   destruct (quiet_control_row _ _ row _ _ chosen _ Hprime Hfull Hprogram Hhalt Hreplay Logic.eq_refl Hkind Himage
@@ -703,6 +709,78 @@ Proof.
     + exact HidleAfter.
 Qed.
 
+(* A nop: the next instruction runs on the same operands. *)
+Lemma code_nop_row : forall view f initial final row inner,
+  fieldPrime -> programLoaded program initial -> FullRelation.satFull row -> row COL_IS_PROGRAM_ROW = 1 ->
+  row COL_ACTIVATION_FINISHED_AFTER = 0 -> Replay initial (eventsForRow memories row) final ->
+  ActiveState program s initial (beforeBoundary row) (atCode view) inner ->
+  functionAt program (positionFunction (viewPosition view)) = Some f ->
+  nth_error (innerCode f (viewPosition view)) (positionOffset (viewPosition view)) = Some NOP ->
+  RowResult initial final row f inner view.
+Proof.
+  intros view f initial final row inner Hprime Hloaded Hfull Hprogram Hhalt Hreplay Hstate Hf Hi.
+  destruct (program_row_active _ _ _ _ _ _ Hprime Hfull Hprogram Hstate)
+    as [f' [Hframe [Hoffset [Hsp [Hpc [Hidle ->]]]]]].
+  pose proof Hframe as [Hf' [Hpath [Hheights [Hfbp0 [Hbase0 [Hbounds [_ [Hllen [Hlb Hlc]]]]]]]]].
+  pose proof (frame_at_unmoved_cells _ _ _ _ _ _ _ _ Hframe) as Hcells.
+  rewrite Hf in Hf'. injection Hf' as <-.
+  destruct view as [[index labels offset] segments values locals].
+  cbn [viewPosition viewSegments viewValues viewLocals positionFunction positionLabels positionOffset viewOperands]
+    in *.
+  destruct (view_facts _ _ _ _ _ _ _ _ _ _ Hstore Hvalid Hframe) as [_ [_ [_ [_ [Hready Hwfcode]]]]].
+  cbn [viewPosition viewSegments positionLabels] in Hready, Hwfcode.
+  set (code := innerCode f (codePosition index labels offset)) in *.
+  pose proof (encoded_path_nop _ _ _ _ Hloaded Hf _ _ _ Hpath Hi) as Himage.
+  unfold pathPC in Himage.
+  change (row COL_PC_BEFORE = guestEntry f + Z.of_nat (pathOffset (guestBody f) labels offset)) in Hpc.
+  rewrite <- Hpc in Himage.
+  destruct (quiet_control_row _ _ row _ _ COL_SEL_NOP _ Hprime Hfull Hprogram Hhalt Hreplay Logic.eq_refl
+    ltac:(right; right; right; right; split; reflexivity) Himage Hidle)
+    as [Hnext [Hsp' [Hbase' [Hregs [Heffect [HstackMem HidleAfter]]]]]].
+  pose proof Hregs as [_ [_ Hfbp']].
+  set (z := mk_state s (activeFrame f locals)).
+  assert (Hz : wf_state z) by exact (frame_state_wf _ _ _ _ _ Hstore Hwf Hf Hlb).
+  exists (frameView (codePosition index labels (S offset)) segments values locals),
+    (frameConfig f (frameView (codePosition index labels (S offset)) segments values locals)
+      (stackConfig z values (skipn (S offset) code))).
+  cbn [viewPosition positionFunction]. split; [exact Hf | ].
+  split.
+  - unfold frameConfig. cbn [viewPosition viewSegments positionLabels].
+    apply steps_in_labels; [exact Hready | ].
+    rewrite (skipn_at_instruction _ _ _ Hi), <- (app_nil_r values), stack_config_split, app_nil_r.
+    replace (stackConfig z values (skipn (S offset) code)) with
+      (stackPrefix values (instructionSuffix (skipn (S offset) code) (stackConfig z [] [])))
+      by (rewrite instruction_suffix_config, stack_prefix_config, app_nil_r; reflexivity).
+    apply steps_with_stack_prefix; [exact (proj2 (proj1 (Forall_app _ _ _) Hbounds)) | ].
+    apply steps_with_instruction_suffix; [apply forall_skipn; exact Hwfcode | ].
+    exact (nop_steps z Hz).
+  - split; [ | split; [exact Hregs | exact Heffect]].
+    assert (Hinner : innerCode f (codePosition index labels (S offset)) = code) by reflexivity.
+    pose proof (idle_active_state program s final (afterBoundary row) f
+      (frameView (codePosition index labels (S offset)) segments values locals)) as Hafter.
+    cbn [viewPosition viewSegments viewValues viewLocals positionFunction positionLabels positionOffset] in Hafter.
+    rewrite Hinner in Hafter. apply Hafter; clear Hafter.
+    + apply frame_at_unmoved_intro;
+        cbn [viewPosition viewSegments viewValues viewLocals positionFunction positionLabels positionOffset viewOperands];
+        unfold viewOperands; cbn [viewSegments viewValues]; try rewrite Hinner.
+      * exact Hf.
+      * exact Hpath.
+      * refine (path_heights_step _ _ _ _ _ _ _ _ _ Hpath Hi Hheights _). rewrite Nat.add_0_r. reflexivity.
+      * cbn [afterBoundary boundaryLocalsBase]. normalize_columns. lia.
+      * cbn [afterBoundary boundaryLocalsBase boundaryStackBase]. normalize_columns. lia.
+      * exact Hbounds.
+      * intros index' value Hv. cbn [afterBoundary boundaryStackBase]. rewrite Hbase', HstackMem.
+        exact (Hcells _ _ Hv).
+      * exact Hllen.
+      * exact Hlb.
+      * intros index' value Hv. cbn [afterBoundary boundaryLocalsBase]. rewrite Hfbp', HstackMem. exact (Hlc _ _ Hv).
+    + assert (offset < length code)%nat by (apply nth_error_Some; rewrite Hi; discriminate). cbn. lia.
+    + cbn [afterBoundary beforeBoundary boundarySP boundaryStackBase] in Hsp |- *. rewrite Hsp', Hbase'. exact Hsp.
+    + cbn [afterBoundary boundaryPC]. rewrite Hnext, Hpc, (path_offset_step _ _ _ _ _ Hpath Hi).
+      change (instructionSize NOP) with 1%nat. lia.
+    + exact HidleAfter.
+Qed.
+
 (* An if pops its condition. A nonzero condition enters the then-body under the
    if's label, a zero one the else-body; an empty else-body is skipped, the label
    it would enter keeping nothing. *)
@@ -728,7 +806,7 @@ Proof.
   rewrite (skipn_at_instruction _ _ _ Hi) in Hfacts, Hsup. cbn [codeFacts] in Hfacts. destruct Hfacts as [Hif _].
   destruct (proj1 (if_facts _ _ _ _ _ _ _ _) Hif) as [Hwif [Hone [_ [Hends _]]]].
   inversion Hsup as [ | ? ? Hsupported _]; subst.
-  inversion Hsupported as [ | | | | | | | | | | result ? ? _ _ Hresult | ]; subst.
+  inversion Hsupported as [ | | | | | | | | | | result ? ? _ _ Hresult | | ]; subst.
   (* The condition is the top operand; `under` are the operands below it. *)
   assert (Hnonempty : values <> []) by (intros ->; cbn in Hone; lia).
   destruct (exists_last Hnonempty) as [under [condition ->]]. clear Hnonempty.
@@ -1004,11 +1082,8 @@ Proof.
     lazymatch goal with |- context [match ?e with [] => _ | _ :: _ => _ end] => destruct e end;
       [left; split; reflexivity | ].
     destruct (siteArm s0); [right | left]; split; reflexivity. }
-  assert (Hmarker : exists chosen, armEndOpcode i (siteArm s0) = CODE_END /\ chosen = COL_SEL_END \/
-      armEndOpcode i (siteArm s0) = CODE_ELSE /\ chosen = COL_SEL_ELSE \/
-      armEndOpcode i (siteArm s0) = CODE_BLOCK /\ chosen = COL_SEL_BLOCK \/
-      armEndOpcode i (siteArm s0) = CODE_LOOP /\ chosen = COL_SEL_LOOP)
-    by (destruct Hkind as [H | H]; [exists COL_SEL_END | exists COL_SEL_ELSE]; tauto).
+  assert (Hmarker : exists chosen, quietControl (armEndOpcode i (siteArm s0)) chosen)
+    by (unfold quietControl; destruct Hkind as [H | H]; [exists COL_SEL_END | exists COL_SEL_ELSE]; tauto).
   destruct Hmarker as [chosen Hmarker].
   destruct (quiet_control_row _ _ row _ _ chosen _ Hprime Hfull Hprogram Hhalt Hreplay Logic.eq_refl Hmarker Himage Hidle)
     as [Hnext [Hsp' [Hbase' [Hregs [Heffect [HstackMem HidleAfter]]]]]].

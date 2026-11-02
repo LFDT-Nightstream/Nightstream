@@ -40,6 +40,7 @@ Definition sourceHeight (callees : CalleeEnvironment) (i : instr) (height : nat)
       | None => None
       end
   | BR_IF _ => match height with S below => Some below | O => None end
+  | NOP => Some height
   | _ => instructionStackHeight i height
   end.
 
@@ -111,6 +112,7 @@ Inductive Supported (callees : CalleeEnvironment) : instr -> Prop :=
     (result = None \/ result = Some valtype_I32) -> Supported callees (IFELSE (_RESULT result) t e)
 (* Loops like blocks: branches to a loop's label keep nothing and run it again. *)
 | supported_loop : forall result body, Forall (Supported callees) body ->
-    (result = None \/ result = Some valtype_I32) -> Supported callees (LOOP (_RESULT result) body).
+    (result = None \/ result = Some valtype_I32) -> Supported callees (LOOP (_RESULT result) body)
+| supported_nop : Supported callees NOP.
 
 Definition supportedCode (callees : CalleeEnvironment) (code : list instr) : Prop := Forall (Supported callees) code.

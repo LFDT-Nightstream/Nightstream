@@ -127,6 +127,14 @@ const LOOPS: &str = r#"(module
       br_if 0
     end))"#;
 
+/// Nops at the top level and inside a block, around an operand.
+const NOPS: &str = r#"(module
+  (func (export "main") (param i32) (result i32)
+    nop
+    local.get 0
+    block nop end
+    nop))"#;
+
 /// The longest run of program, zero and move rows ending just before the final END,
 /// which finishes the activation, as `name`, one dense row per trace row.
 fn export_witness(wat: &str, params: &[i32], name: &str, file: &str) {
@@ -190,4 +198,5 @@ fn export_witnesses() {
     export_witness(BR_TABLES, &[7, 1], "brTableRows", "BrTableTrace.v");
     export_witness(IFS, &[7, 0], "ifRows", "IfTrace.v");
     export_witness(LOOPS, &[3, 1], "loopRows", "LoopTrace.v");
+    export_witness(NOPS, &[7], "nopRows", "NopTrace.v");
 }

@@ -102,6 +102,7 @@ Definition instructionRom (program : Program) (memory : nat) (pc : Z) (choice : 
         | Some (flatInstruction (opInstr (BR _)) _) => Some CODE_BR
         | Some (flatInstruction (opInstr (BR_TABLE _ _)) _) => Some CODE_BR_TABLE
         | Some (flatInstruction (opInstr RETURN) _) => Some CODE_RETURN
+        | Some (flatInstruction (opInstr NOP) _) => Some CODE_NOP
         | Some (flatInstruction (opInstr i) _) => encodedOpcode i
         | _ => Some CODE_END end
       else if Nat.eqb memory pcEdgeKindId then

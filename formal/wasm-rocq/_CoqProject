@@ -92,5 +92,7 @@ tests/IfTrace.v
 tests/IfWitness.v
 tests/LoopTrace.v
 tests/LoopWitness.v
+tests/NopTrace.v
+tests/NopWitness.v
 tests/DeepBranches.v
 tests/RangeSearch.v

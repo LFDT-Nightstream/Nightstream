@@ -10,7 +10,7 @@ Open Scope Z_scope.
 Lemma supported_cases : forall callees i, Supported callees i ->
   (exists op, encodedOpcode i = Some op) \/ (exists x, i = CALL x) \/
   (exists bt body, i = BLOCK bt body \/ i = LOOP bt body) \/ (exists l, i = BR_IF l) \/ (exists l, i = BR l) \/
-  (exists ls l, i = BR_TABLE ls l) \/ i = RETURN \/ (exists bt t e, i = IFELSE bt t e).
+  (exists ls l, i = BR_TABLE ls l) \/ i = RETURN \/ (exists bt t e, i = IFELSE bt t e) \/ i = NOP.
 Proof.
   intros callees i H. inversion H; subst;
     first [solve [left; eexists; reflexivity] | solve [right; left; eauto] | solve [right; right; left; do 2 eexists; left; reflexivity] |
@@ -18,7 +18,8 @@ Proof.
       solve [right; right; right; left; eauto] | solve [right; right; right; right; left; eauto] |
       solve [right; right; right; right; right; left; eauto] |
       solve [right; right; right; right; right; right; left; reflexivity] |
-      solve [right; right; right; right; right; right; right; eauto]].
+      solve [right; right; right; right; right; right; right; left; eauto] |
+      solve [right; right; right; right; right; right; right; right; reflexivity]].
 Qed.
 
 Section Run.
@@ -70,7 +71,8 @@ Proof.
   destruct (nth_error (innerCode f (viewPosition view)) (positionOffset (viewPosition view))) as [i | ] eqn:Hi.
   - destruct (view_facts _ _ _ _ _ _ _ _ _ _ Hstore Hvalid Hframe) as [_ [[Hsup _] _]].
     rewrite (skipn_at_instruction _ _ _ Hi) in Hsup.
-    destruct (supported_cases _ _ (Forall_inv Hsup)) as [Hop | [[x ->] | [[bt [body Hlabel]] | [[l ->] | [[l ->] | [[ls [l ->]] | [-> | [bt [t [e ->]]]]]]]]]].
+    destruct (supported_cases _ _ (Forall_inv Hsup))
+      as [Hop | [[x ->] | [[bt [body Hlabel]] | [[l ->] | [[l ->] | [[ls [l ->]] | [-> | [[bt [t [e ->]]] | ->]]]]]]]].
     + apply Hkeep. eapply code_ordinary_row; eassumption.
     + eapply call_row; eassumption.
     + apply Hkeep. eapply code_label_enter_row; try eassumption.
@@ -86,6 +88,7 @@ Proof.
         destruct (full_return_exits row COL_SEL_RETURN Hprime Hfull ltac:(cbn; tauto) Hsel Hedge); lia.
       * eapply early_return_row; eassumption.
     + apply Hkeep. eapply code_if_row; eassumption.
+    + apply Hkeep. eapply code_nop_row; eassumption.
   - apply nth_error_None in Hi.
     assert (Hend : positionOffset (viewPosition view) = length (innerCode f (viewPosition view))) by lia.
     destruct (positionLabels (viewPosition view)) as [ | b more] eqn:Hlabels.

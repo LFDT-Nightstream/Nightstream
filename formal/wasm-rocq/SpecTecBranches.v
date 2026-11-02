@@ -76,6 +76,14 @@ Proof.
         apply (introT eqP); reflexivity.
 Qed.
 
+Lemma nop_steps : forall z, wf_state z -> Steps (stackConfig z [] [NOP]) (stackConfig z [] []).
+Proof.
+  intros z Hz. apply one_spec_step.
+  - apply stack_config_wf; [exact Hz | constructor | repeat constructor].
+  - apply stack_config_wf; [exact Hz | constructor | constructor].
+  - apply pure. exact Step_pure__nop.
+Qed.
+
 (* An arm's END: its label leaves the arm's results, whatever it keeps for branches. *)
 Lemma exit_block : forall n continuation z values, Forall wf_instr continuation ->
   wf_state z -> Forall (fun value => 0 <= value < i32Modulus) values ->

@@ -8,6 +8,7 @@
 
 mod expand;
 mod witness;
+pub mod words;
 
 pub use expand::PlanRows;
 

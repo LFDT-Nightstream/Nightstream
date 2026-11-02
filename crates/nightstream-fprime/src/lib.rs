@@ -27,8 +27,9 @@ pub use identity::{
     POSEIDON2_HASH_CHAIN_V1_VERIFICATION_KEY_DIGEST,
 };
 pub use option_b::{
-    load_option_b_packages, option_b_identity, parse_atoms, Block, OptionBPackages, PlanRows, StepPackage,
-    OPTION_B_PACKAGES_IDENTITY,
+    load_option_b_packages, option_b_identity, parse_atoms,
+    words::{encode_digest, KWords, LightWords, Slot, State as OptionBState},
+    Block, OptionBPackages, PlanRows, StepPackage, OPTION_B_PACKAGES_IDENTITY,
 };
 pub use package::{
     derive_light_transcript, derive_pi_ccs_v1_2_transcript, derive_refresh_transcript, load_per_application_package,

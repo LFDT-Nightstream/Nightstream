@@ -33,7 +33,7 @@ import NightstreamFPrime.Lifecycle.OptionB.RefreshStep
 import NightstreamFPrime.Layout.OptionB.RefreshAssembler
 import NightstreamFPrime.Layout.OptionB.RefreshPiCCSCompleteness
 import NightstreamFPrime.Layout.OptionB.RefreshStepCompleteness
-import NightstreamFPrime.Layout.OptionB.RefreshAssemblerCompleteness
+import NightstreamFPrime.Layout.OptionB.RefreshAssemblerCircuit
 import NightstreamFPrime.Spec.Folding.Light.RlcModule
 
 open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
@@ -309,6 +309,11 @@ open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 #audit_axioms NightstreamFPrime.Layout.OptionB.RefreshAssemblerSource.digit_eval
 #audit_axioms NightstreamFPrime.Layout.OptionB.RefreshAssemblerSource.stepRepresents
 #audit_axioms NightstreamFPrime.Layout.OptionB.RefreshAssemblerCompleteness.complete
+#audit_axioms NightstreamFPrime.Layout.OptionB.RefreshAssemblerCircuit.decWired
+#audit_axioms NightstreamFPrime.Layout.OptionB.RefreshAssemblerCircuit.rlcWired
+#audit_axioms NightstreamFPrime.Layout.OptionB.RefreshAssemblerCircuit.piccsRepresents
+#audit_axioms NightstreamFPrime.Layout.OptionB.RefreshAssemblerCircuit.completeOfChildren
+#audit_axioms NightstreamFPrime.Layout.OptionB.RefreshAssemblerCircuit.stepCircuit
 
 /-- One refresh per period starves slot 1: it takes a light fold each time the light circuit
 follows the refresh circuit and is never refreshed. -/

@@ -218,6 +218,24 @@ theorem check_of_chain
   unfold Spec.Folding.Nifs.PaperNonInteractive.piCcsCheck
   exact (SumCheck.Finite.FixedPhase.checkChain_eq_true_iff _ _ _ _ _).mpr chain
 
+/-- The converse of `check_of_chain`: an accepting check gives the SumCheck chain. -/
+theorem chain_of_check
+    (accepted : Spec.Folding.Nifs.PaperNonInteractive.piCcsCheck (refreshKey relation ajtai)
+      children fresh proof = true) :
+    SumCheck.Finite.FixedPhase.Chain extensionOps.toOps
+      ((refreshInput relation ajtai children fresh).initial extensionOps
+        (refreshCoins relation ajtai children fresh proof).gamma)
+      (List.ofFn proof.piCcsRounds)
+      (refreshCoins relation ajtai children fresh proof).roundPoint.coordinates
+      (ProtocolPolynomial.terminalFromMessage extensionOps
+        (refreshInput relation ajtai children fresh)
+        (refreshCoins relation ajtai children fresh proof).alpha
+        (refreshCoins relation ajtai children fresh proof).gamma
+        (refreshCoins relation ajtai children fresh proof).roundPoint
+        (refreshMessage relation ajtai children fresh proof)) := by
+  unfold Spec.Folding.Nifs.PaperNonInteractive.piCcsCheck at accepted
+  exact (SumCheck.Finite.FixedPhase.checkChain_eq_true_iff _ _ _ _ _).mp accepted
+
 private theorem point_eq {count : Nat} {left right : CubePoint K count}
     (coordinates : left.coordinates = right.coordinates) : left = right := by
   cases left

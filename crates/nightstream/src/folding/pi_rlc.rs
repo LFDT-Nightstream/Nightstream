@@ -5,6 +5,7 @@ use super::{
 };
 use neo_ccs::Mat;
 use neo_math::F;
+use neo_reductions::common::RotRho;
 use p3_field::PrimeField64;
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -55,6 +56,18 @@ pub(crate) enum Weights {
     )]
     Light,
 }
+impl Weights {
+    fn sample(self, tr: &mut Transcript, pp: &Params, inputs: usize) -> Result<Vec<RotRho>, Error> {
+        Ok(match self {
+            Weights::Sampled => engine::sample_rho_n(tr.inner_mut(), pp, inputs)?,
+            Weights::Light if inputs == 2 => {
+                let rho = engine::sample_rho_n(tr.inner_mut(), pp, 1)?.remove(0);
+                vec![rho, RotRho::identity()]
+            }
+            Weights::Light => return Err(Error::Shape),
+        })
+    }
+}
 pub(crate) fn prove_refs(
     tr: &mut Transcript,
     pp: &Params,
@@ -66,14 +79,7 @@ pub(crate) fn prove_refs(
 ) -> Result<(Output, Proof), Error> {
     validate_input_shape(claims, witnesses)?;
     validate_inputs_before_rho(s, claims)?;
-    let rhos = match weights {
-        Weights::Sampled => engine::sample_rho_n(tr.inner_mut(), pp, claims.len())?,
-        Weights::Light if claims.len() == 2 => {
-            let rho = engine::sample_rho_n(tr.inner_mut(), pp, 1)?.remove(0);
-            vec![rho, neo_reductions::common::RotRho::identity()]
-        }
-        Weights::Light => return Err(Error::Shape),
-    };
+    let rhos = weights.sample(tr, pp, claims.len())?;
     let (combined, witness) = engine::prove_pi_rlc_refs(pp, s, &rhos, claims, witnesses, mix)?;
     validate_combined_claim(s, claims, &combined)?;
     Ok((
@@ -106,11 +112,12 @@ pub(crate) fn verify(
     pp: &Params,
     s: &Structure,
     mix: RlcMixer,
+    weights: Weights,
     claims: &[CeClaim],
     proof: &Proof,
 ) -> Result<CeClaim, Error> {
     validate_inputs_before_rho(s, claims)?;
-    let rhos = engine::sample_rho_n(tr.inner_mut(), pp, claims.len())?;
+    let rhos = weights.sample(tr, pp, claims.len())?;
     validate_combined_claim(s, claims, &proof.combined)?;
     if !engine::verify_pi_rlc(pp, s, &rhos, claims, &proof.combined, mix)? {
         return Err(Error::VerifyRejected);

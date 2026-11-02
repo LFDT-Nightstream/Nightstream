@@ -81,8 +81,8 @@ pub(crate) fn verify_parent(
     r: &pi_rlc::Proof,
 ) -> Result<CeClaim, Error> {
     validate_running_children(pp, s, running)?;
-    let outputs = pi_ccs::verify(tr, pp, s, fresh, running.0, c)?;
-    Ok(pi_rlc::verify(tr, pp, s, mix, &outputs, r)?)
+    let outputs = pi_ccs::verify(tr, pp, s, &FoldProfile::production(), fresh, running.0, c)?;
+    Ok(pi_rlc::verify(tr, pp, s, mix, pi_rlc::Weights::Sampled, &outputs, r)?)
 }
 pub(crate) fn validate_running_children(pp: &Params, s: &Structure, running: BoundRunning<'_>) -> Result<(), Error> {
     if running.0.claims.is_empty() {

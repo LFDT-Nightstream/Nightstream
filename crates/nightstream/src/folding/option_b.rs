@@ -6,8 +6,8 @@
 //! after the statement, then runs PiCCS over the fresh instance and the
 //! children and PiRLC with 17 sampled challenges. Neither fold ends in PiDEC.
 use super::{
-    ajtai_rlc_mixer, pi_ccs, pi_dec, pi_rlc, transcript::Transcript, CcsInstance, CeClaim, Error, FoldContext,
-    RunningInstance,
+    ajtai_dec_mixer, ajtai_rlc_mixer, pi_ccs, pi_dec, pi_rlc, transcript::Transcript, CcsClaim, CcsInstance, CeClaim,
+    Error, FoldContext, Params, RunningInstance, Structure,
 };
 use neo_math::{KExtensions, D, F};
 use neo_reductions::{FoldProfile, NormSources};
@@ -19,6 +19,31 @@ use nightstream_fprime::{LIGHT_DOMAIN, REFRESH_DOMAIN};
 pub(crate) enum Kind {
     Light,
     Refresh,
+}
+
+impl Kind {
+    /// The fold's PiCCS profile, which binds `children` after the statement,
+    /// and its PiRLC weights.
+    fn profile(self, children: &[F]) -> (FoldProfile<'_>, pi_rlc::Weights) {
+        match self {
+            Kind::Light => (
+                FoldProfile {
+                    domain: domain_chunk_v1_2(LIGHT_DOMAIN),
+                    children: &[],
+                    norm: NormSources::Fresh,
+                },
+                pi_rlc::Weights::Light,
+            ),
+            Kind::Refresh => (
+                FoldProfile {
+                    domain: domain_chunk_v1_2(REFRESH_DOMAIN),
+                    children,
+                    norm: NormSources::All,
+                },
+                pi_rlc::Weights::Sampled,
+            ),
+        }
+    }
 }
 
 /// What the next step circuit reads of a fold besides the accumulators: the
@@ -45,24 +70,7 @@ pub(crate) fn prove(
         }
     };
     let words = child_words(&children);
-    let (profile, weights) = match kind {
-        Kind::Light => (
-            FoldProfile {
-                domain: domain_chunk_v1_2(LIGHT_DOMAIN),
-                children: &[],
-                norm: NormSources::Fresh,
-            },
-            pi_rlc::Weights::Light,
-        ),
-        Kind::Refresh => (
-            FoldProfile {
-                domain: domain_chunk_v1_2(REFRESH_DOMAIN),
-                children: &words,
-                norm: NormSources::All,
-            },
-            pi_rlc::Weights::Sampled,
-        ),
-    };
+    let (profile, weights) = kind.profile(&words);
     let mut tr = Transcript::session();
     let CcsInstance { claim, witness } = fresh;
     let pi_ccs = pi_ccs::prove_from_parts_with_rows(&mut tr, context, &profile, &claim, &witness, &running)?;
@@ -93,4 +101,48 @@ fn child_words(children: &[CeClaim]) -> Vec<F> {
             child.c.data().iter().copied().chain(evaluations)
         })
         .collect()
+}
+
+/// Replays a fold of `fresh` into the slot's accumulator claim and checks
+/// that it gives `next`: for a refresh fold the PiDEC recomposition of the
+/// accumulator, then PiCCS under the fold's profile and PiRLC with its
+/// weights.
+pub(crate) fn verify(
+    kind: Kind,
+    pp: &Params,
+    s: &Structure,
+    fresh: &CcsClaim,
+    accumulator: &CeClaim,
+    proof: &Proof,
+    next: &CeClaim,
+) -> Result<(), Error> {
+    let running = match kind {
+        Kind::Light => RunningInstance::new(vec![accumulator.clone()], Vec::new()),
+        Kind::Refresh => {
+            let children = pi_dec::verify(
+                pp,
+                s,
+                ajtai_dec_mixer,
+                accumulator,
+                &pi_dec::Proof {
+                    children: proof.children.clone(),
+                },
+            )?;
+            RunningInstance::new(children, Vec::new())
+        }
+    };
+    let words = child_words(&proof.children);
+    let (profile, weights) = kind.profile(&words);
+    let mut tr = Transcript::session();
+    let outputs = pi_ccs::verify(&mut tr, pp, s, &profile, fresh, &running, &proof.pi_ccs)?;
+    pi_rlc::verify(
+        &mut tr,
+        pp,
+        s,
+        ajtai_rlc_mixer,
+        weights,
+        &outputs,
+        &pi_rlc::Proof { combined: next.clone() },
+    )?;
+    Ok(())
 }

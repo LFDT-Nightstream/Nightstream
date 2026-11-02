@@ -7,7 +7,8 @@ use neo_reductions::{
     api as nr,
     api::FoldingMode,
     common::{sample_rot_rhos_n_typed, RotRho},
-    optimized_engine::pi_ccs_verify,
+    optimized_engine::optimized_verify_with_profile,
+    FoldProfile,
 };
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -27,16 +28,18 @@ fn ell_d() -> usize {
     neo_math::D.next_power_of_two().trailing_zeros() as usize
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn verify_pi_ccs(
     tr: &mut neo_transcript::Poseidon2Transcript,
     pp: &Params,
     s: &Structure,
+    profile: &FoldProfile<'_>,
     fresh_claim: &CcsClaim,
     running: &RunningInstance,
     fold_outputs: &[CeClaim],
     proof: &nr::PiCcsProof,
 ) -> Result<bool, Error> {
-    let ok = pi_ccs_verify(
+    let ok = optimized_verify_with_profile(
         tr,
         pp.inner(),
         s,
@@ -44,6 +47,7 @@ pub(crate) fn verify_pi_ccs(
         &running.claims,
         fold_outputs,
         proof,
+        profile,
     )?;
     Ok(ok)
 }

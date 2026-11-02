@@ -197,3 +197,64 @@ fn option_b_step_times() {
         );
     }
 }
+
+/// The native fold verifier (`folding::option_b::verify`) accepts both fold
+/// kinds of step 1's instance into the accumulator that step 1 made, and
+/// rejects a changed PiCCS output, a changed PiDEC child, a changed next
+/// claim and, for a refresh fold, a changed accumulator, which only PiDEC
+/// reads.
+#[test]
+fn native_fold_verifier_checks_both_folds() {
+    use crate::folding::option_b::{prove as fold, verify, Kind};
+    let prover = prover(LIGHT_FOLD_CAP_MAX);
+    let z0 = words([10, 11, 12, 13]);
+    let mut envelope = prover.initial(z0).expect("initial proof");
+    for step in 0..2 {
+        let message = words([20 + step, 21 + step, 22 + step, 23 + step]);
+        let next = hash_chain_step(envelope.current, message);
+        envelope = prover.extend(&envelope, &message, next).expect("step");
+    }
+    let relation = &prover.relations[0];
+    let fresh = envelope.fresh.clone().expect("fresh instance");
+    let slot = &envelope.slots[0].accumulator;
+    let check_from = |accumulator: &crate::folding::CeClaim,
+                      kind,
+                      proof: &crate::folding::option_b::Proof,
+                      next: &crate::folding::CeClaim| {
+        verify(
+            kind,
+            relation.params(),
+            relation.structure(),
+            &fresh.claim,
+            accumulator,
+            proof,
+            next,
+        )
+    };
+    let check = |kind, proof: &crate::folding::option_b::Proof, next: &crate::folding::CeClaim| {
+        check_from(&slot.claim, kind, proof, next)
+    };
+    for kind in [Kind::Light, Kind::Refresh] {
+        let (next, mut proof) = fold(kind, relation.context(), fresh.clone(), slot.clone()).expect("fold");
+        check(kind, &proof, &next.claim).expect("the fold verifies");
+        let mut changed = next.claim.clone();
+        changed.eval_k[0] += neo_math::K::ONE;
+        assert!(check(kind, &proof, &changed).is_err(), "{kind:?}: changed next claim");
+        if kind == Kind::Refresh {
+            let mut accumulator = slot.claim.clone();
+            accumulator.eval_a[0][5] += neo_math::K::ONE;
+            assert!(
+                check_from(&accumulator, kind, &proof, &next.claim).is_err(),
+                "PiDEC recomposes the accumulator"
+            );
+            let original = proof.children[3].clone();
+            proof.children[3].eval_a[1][0] += neo_math::K::ONE;
+            assert!(check(kind, &proof, &next.claim).is_err(), "changed child");
+            proof.children[3] = original;
+        }
+        proof.pi_ccs.outputs[0].eval_k[2] += neo_math::K::ONE;
+        assert!(check(kind, &proof, &next.claim).is_err(), "{kind:?}: changed output");
+    }
+}
+
+const LIGHT_FOLD_CAP_MAX: u64 = super::LIGHT_FOLD_CAP;

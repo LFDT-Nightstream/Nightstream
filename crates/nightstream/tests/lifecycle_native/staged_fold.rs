@@ -124,7 +124,16 @@ fn replay_ccs(
     )
     .unwrap();
     let mut transcript = Transcript::session();
-    let outputs = pi_ccs::verify(&mut transcript, &params, &package.structure, fresh, running, proof).unwrap();
+    let outputs = pi_ccs::verify(
+        &mut transcript,
+        &params,
+        &package.structure,
+        &neo_reductions::FoldProfile::production(),
+        fresh,
+        running,
+        proof,
+    )
+    .unwrap();
     (transcript, outputs)
 }
 fn read_parent(package: &PreparedLifecycle, root: &Path, step: u64) -> SavedParent {
@@ -147,6 +156,7 @@ fn read_parent(package: &PreparedLifecycle, root: &Path, step: u64) -> SavedPare
         &params(package),
         &package.structure,
         ajtai_rlc_mixer,
+        pi_rlc::Weights::Sampled,
         &outputs,
         &pi_rlc::Proof {
             combined: parent.rlc_parent.clone(),
@@ -339,6 +349,7 @@ pub(super) fn rlc(root: &Path, step: u64) {
         &params(&package),
         &package.structure,
         ajtai_rlc_mixer,
+        pi_rlc::Weights::Sampled,
         &outputs,
         &rproof,
     )

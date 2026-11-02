@@ -63,6 +63,7 @@ pub(crate) fn verify(
     tr: &mut Transcript,
     pp: &Params,
     s: &Structure,
+    profile: &FoldProfile<'_>,
     fresh_claim: &CcsClaim,
     running: &RunningInstance,
     proof: &Proof,
@@ -71,11 +72,12 @@ pub(crate) fn verify(
     if proof.outputs.iter().any(|c| c.adv.is_some()) {
         return Err(Error::Shape("plain outputs cannot carry auxiliary commitments"));
     }
-    validate_verifier_shape(pp, s, running, &proof.outputs)?;
+    validate_verifier_shape(pp, s, profile, running, &proof.outputs)?;
     let ok = engine::verify_pi_ccs(
         tr.inner_mut(),
         pp,
         s,
+        profile,
         fresh_claim,
         running,
         &proof.outputs,
@@ -107,12 +109,7 @@ fn validate_input_shape(
     if !running.prover_shape_is_valid() {
         return Err(Error::Shape("running: |claims| \u{2260} |witnesses|"));
     }
-    // The light fold folds into one accumulator (Lean `Spec/Folding/Light`).
-    let running_count = match profile.norm {
-        NormSources::All => pp.k_rho() as usize,
-        NormSources::Fresh => 1,
-    };
-    if !running.is_empty() && running.claims.len() != running_count {
+    if !running.is_empty() && running.claims.len() != running_count(pp, profile) {
         return Err(Error::Shape("running length does not match the fold profile"));
     }
     if fresh_claim.m_in > s.m() {
@@ -135,15 +132,25 @@ fn validate_input_shape(
     Ok(())
 }
 
+/// The light fold folds into one accumulator (Lean `Spec/Folding/Light`);
+/// every other fold into the 16 PiDEC children.
+fn running_count(pp: &Params, profile: &FoldProfile<'_>) -> usize {
+    match profile.norm {
+        NormSources::All => pp.k_rho() as usize,
+        NormSources::Fresh => 1,
+    }
+}
+
 fn validate_verifier_shape(
     pp: &Params,
     s: &Structure,
+    profile: &FoldProfile<'_>,
     running: &RunningInstance,
     fold_outputs: &[CeClaim],
 ) -> Result<(), Error> {
     let running_claims = &running.claims;
-    if !running_claims.is_empty() && running_claims.len() as u32 != pp.k_rho() {
-        return Err(Error::Shape("running length does not match params.k_rho()"));
+    if !running_claims.is_empty() && running_claims.len() != running_count(pp, profile) {
+        return Err(Error::Shape("running length does not match the fold profile"));
     }
     if fold_outputs.len() != 1 + running_claims.len() {
         return Err(Error::Shape("|fold_outputs| \u{2260} 1 + k"));

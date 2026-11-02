@@ -22,6 +22,7 @@ const EVALUATIONS: usize = 270;
 const POINT_COORDINATES: usize = 28;
 const ROUND_COEFFICIENTS: usize = 9;
 const SOURCE_OUTPUTS: usize = 270;
+const CHILDREN: usize = 16;
 
 /// A slot: its claim and its depth (`State.SlotData`). The evaluations are
 /// `Eval_K` (54) then `Eval_A` (four matrices of 54).
@@ -104,12 +105,36 @@ pub fn encode_digest(digest: [G; 4]) -> Vec<G> {
     words
 }
 
-/// The light step's shared words (`LightAssemblerSource.Values`). The slots
-/// are the two prior slots, the active slot, the two inner slots and the two
-/// next slots; the digests are the two prior slot digests, the two next slot
-/// digests and the output digest.
+/// A PiDEC child of the refresh step: its commitment, its evaluation family
+/// and its digit words (`Refresh.Split`, `publicInputSplit`).
 #[derive(Clone, Debug)]
-pub struct LightWords {
+pub struct Child {
+    pub commitment: Vec<G>,
+    pub evaluations: Vec<KWords>,
+    pub digits: Vec<G>,
+}
+
+/// The words of the step's fold after the fresh instance: the light fold's
+/// two-source PiCCS output, or the refresh fold's 16 children and 17-source
+/// output. The round messages lie between them in both.
+#[derive(Clone, Debug)]
+pub enum FoldWords {
+    Light {
+        outputs: [Vec<KWords>; 2],
+    },
+    Refresh {
+        children: Vec<Child>,
+        outputs: Vec<Vec<KWords>>,
+    },
+}
+
+/// A step's shared words (`LightAssemblerSource.Values`,
+/// `RefreshAssemblerSource.Values`). The slots are the two prior slots, the
+/// active slot, the two inner slots and the two next slots; the digests are
+/// the two prior slot digests, the two next slot digests and the output
+/// digest.
+#[derive(Clone, Debug)]
+pub struct StepWords {
     pub iteration: u64,
     pub prior_pc: u64,
     pub selected: u64,
@@ -121,11 +146,11 @@ pub struct LightWords {
     pub fresh_commitment: Vec<G>,
     pub fresh_public_input: Vec<G>,
     pub rounds: Vec<[KWords; ROUND_COEFFICIENTS]>,
-    pub outputs: [Vec<KWords>; 2],
+    pub fold: FoldWords,
 }
 
-impl LightWords {
-    /// The shared columns below the light step's `sharedEnd`.
+impl StepWords {
+    /// The shared columns below the step's `sharedEnd`.
     pub fn columns(&self) -> Result<Vec<G>, PackageError> {
         let slots_fit = self.slots.iter().all(|slot| {
             slot.commitment.len() == COMMITMENT_WORDS
@@ -133,16 +158,28 @@ impl LightWords {
                 && slot.point.len() == POINT_COORDINATES
                 && slot.public_input.len() == PUBLIC_WORDS
         });
+        let outputs_fit = |outputs: &[Vec<KWords>], count| {
+            outputs.len() == count && outputs.iter().all(|output| output.len() == SOURCE_OUTPUTS)
+        };
+        let fold_fits = match &self.fold {
+            FoldWords::Light { outputs } => outputs_fit(outputs, 2),
+            FoldWords::Refresh { children, outputs } => {
+                outputs_fit(outputs, 1 + CHILDREN)
+                    && children.len() == CHILDREN
+                    && children.iter().all(|child| {
+                        child.commitment.len() == COMMITMENT_WORDS
+                            && child.evaluations.len() == EVALUATIONS
+                            && child.digits.len() == PUBLIC_WORDS
+                    })
+            }
+        };
         if !slots_fit
+            || !fold_fits
             || self.fresh_commitment.len() != COMMITMENT_WORDS
             || self.fresh_public_input.len() != PUBLIC_WORDS
             || self.rounds.len() != POINT_COORDINATES
-            || self
-                .outputs
-                .iter()
-                .any(|output| output.len() != SOURCE_OUTPUTS)
         {
-            return Err(PackageError::Input("light step word shapes"));
+            return Err(PackageError::Input("step word shapes"));
         }
         let iteration = G::from_u64(self.iteration);
         let mut columns = encode_digest(self.digests[4]);
@@ -162,8 +199,21 @@ impl LightWords {
         columns.extend(self.digests.iter().flatten());
         columns.extend(&self.fresh_commitment);
         columns.extend(&self.fresh_public_input);
+        let outputs = match &self.fold {
+            FoldWords::Light { outputs } => outputs.as_slice(),
+            FoldWords::Refresh { children, outputs } => {
+                columns.extend(children.iter().flat_map(|child| child.commitment.iter()));
+                columns.extend(
+                    children
+                        .iter()
+                        .flat_map(|child| child.evaluations.iter().flatten()),
+                );
+                columns.extend(children.iter().flat_map(|child| child.digits.iter()));
+                outputs.as_slice()
+            }
+        };
         columns.extend(self.rounds.iter().flatten().flatten());
-        for output in &self.outputs {
+        for output in outputs {
             columns.extend(output.iter().flatten());
         }
         Ok(columns)

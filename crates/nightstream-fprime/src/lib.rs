@@ -28,7 +28,7 @@ pub use identity::{
 };
 pub use option_b::{
     load_option_b_packages, option_b_identity, parse_atoms,
-    words::{encode_digest, KWords, LightWords, Slot, State as OptionBState},
+    words::{encode_digest, Child, FoldWords, KWords, Slot, State as OptionBState, StepWords},
     Block, OptionBPackages, PlanRows, StepPackage, OPTION_B_PACKAGES_IDENTITY,
 };
 pub use package::{

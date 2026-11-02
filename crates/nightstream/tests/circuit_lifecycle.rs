@@ -32,6 +32,12 @@ fn poseidon_base_step_matches_lean_and_verifies() {
     poseidon_lifecycle(Engine::Optimized, false);
 }
 
+#[test]
+#[ignore = "Full production CPU lifecycle with two recursive steps; run this test separately under the 300-second cap."]
+fn poseidon_recursive_lifecycle() {
+    poseidon_lifecycle(Engine::Optimized, true);
+}
+
 #[cfg(feature = "metal")]
 #[test]
 #[ignore = "Full production base lifecycle with Metal terminal rows; run separately under the 300-second cap."]

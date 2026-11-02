@@ -167,3 +167,33 @@ fn native_hash_chain_verifies() {
 fn native_addition_verifies() {
     native_application_verifies(addition());
 }
+
+/// The CPU time of each option-B step with the production cap, against
+/// `poseidon_base_step_matches_lean_and_verifies` (today's one-circuit fold)
+/// on the same machine. Steps 1 to 3 are light; a refresh step runs at the
+/// cap, so this test reaches one with cap 2.
+#[test]
+#[ignore = "Timing run; run this test separately under the 300-second cap."]
+fn option_b_step_times() {
+    let started = std::time::Instant::now();
+    let prover = prover(2);
+    eprintln!("option-B preparation elapsed={:?}", started.elapsed());
+    let z0 = words([10, 11, 12, 13]);
+    let mut envelope = prover.initial(z0).expect("initial proof");
+    for step in 0..6 {
+        let message = words([20 + step, 21 + step, 22 + step, 23 + step]);
+        let next = hash_chain_step(envelope.current, message);
+        let proving = std::time::Instant::now();
+        envelope = prover.extend(&envelope, &message, next).expect("step");
+        let proved = proving.elapsed();
+        let verifying = std::time::Instant::now();
+        prover
+            .verify(step + 1, z0, next, &envelope)
+            .expect("verifies");
+        eprintln!(
+            "option-B step={step} circuit={} prove={proved:?} verify={:?}",
+            envelope.pc,
+            verifying.elapsed()
+        );
+    }
+}

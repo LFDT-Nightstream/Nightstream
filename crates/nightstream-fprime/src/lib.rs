@@ -10,6 +10,7 @@ extern crate self as nightstream_fprime;
 mod application_records;
 pub mod components;
 mod identity;
+mod option_b;
 mod package;
 mod proof;
 mod sparse;
@@ -38,5 +39,9 @@ pub use package::{
     PI_CCS_V1_2_STATE_PREIMAGE_WORDS, PI_CCS_V1_2_VERIFIER_CONTEXT_WORDS, PI_DEC_V1_2_CHILD_COUNT,
     PI_DEC_V1_2_COMMITMENT_WORDS_PER_CHILD, PI_DEC_V1_2_EVAL_A_MATRICES_PER_CHILD, PI_DEC_V1_2_EVAL_K_VALUES_PER_CHILD,
     PI_DEC_V1_2_PUBLIC_INPUT_WORDS_PER_CHILD, PREPARED_FIXED_SOURCE_NODE_LIMIT,
+};
+pub use option_b::{
+    load_option_b_packages, option_b_identity, parse_atoms, Block, OptionBPackages, PlanRows, StepPackage,
+    OPTION_B_PACKAGES_IDENTITY,
 };
 pub use proof::WitnessAssignment;

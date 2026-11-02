@@ -16,6 +16,7 @@ use compact::{CompactRowInvocation, CompactRowTemplate};
 use json::{canonical_field, word_to_usize};
 mod matrix_program;
 pub use matrix_program::MatrixRun;
+pub(crate) use matrix_program::{external_outputs, permutation_rows, Entries};
 pub(crate) mod native_application;
 use native_application::PreparedApplication;
 mod prepared;

@@ -1,5 +1,5 @@
 import NightstreamFPrime.Export.OptionB.StepRelation
-import NightstreamFPrime.Export.OptionB.StepPackage
+import NightstreamFPrime.Export.OptionB.Parity
 import NightstreamFPrime.Export.Stage1.Rows
 import NightstreamFPrime.Lifecycle.Stage1.Poseidon2HashChainV1
 
@@ -8,8 +8,8 @@ circuits for today's fixture application (`Poseidon2HashChainV1.program`). For e
 prints the constraints, the Poseidon2 blocks and ring products that `Pieces.split` recognizes,
 whether the blocks pack (`CircuitRelation.packable`), and the rows and columns of the circuit's
 relation (`CircuitRelation.relationRows` and 150 S-box rows per packed block), and the counts
-for each top-level child, largest first. It then writes both packages (`StepPackage`) and their
-`artifacts/`. -/
+for each top-level child, largest first. It then writes both packages (`StepPackage`) and the
+parity file that Rust's expansion test reads (`Parity`). -/
 
 namespace NightstreamFPrime.Export.OptionB.EmitMain
 
@@ -140,7 +140,17 @@ def main (arguments : List String) : IO Unit := do
       (flatConstraints refreshOps ++
         LogicalPlan.decodeConstraints (StepRelation.refreshDigestColumn program)))
   let refresh ← emitPackage "refresh" 1 refreshOps refreshOffset refreshPieces
-  say s!"packages written; emitter total {(← IO.monoMsNow) - start} ms"
+  say s!"packages written ({(← IO.monoMsNow) - start} ms)"
+  let parity := Parity.parity width (lightPieces, light.firstFresh)
+    (refreshPieces, refresh.firstFresh)
+  let parityPath := "artifacts/nightstream-fprime-option-b-parity-v1.json"
+  IO.FS.writeFile parityPath (parity.render ++ "\n")
+  match parity with
+  | .array [_, lightSummary, refreshSummary, _, probeIdentity] =>
+      say s!"wrote {parityPath}: light {lightSummary.render}, refresh {refreshSummary.render}, \
+        probe identity {probeIdentity.render}"
+  | _ => pure ()
+  say s!"emitter total {(← IO.monoMsNow) - start} ms"
   if arguments.contains "--identity" then
     let identity := StepPackage.identityFast light refresh
     say s!"identity {identity.map (·.val)} ({(← IO.monoMsNow) - start} ms)"

@@ -87,4 +87,5 @@ import NightstreamFPrime.Export.Generic.LogicalPlan
 import NightstreamFPrime.Export.OptionB.StepRelation
 import NightstreamFPrime.Export.OptionB.StepPackage
 import NightstreamFPrime.Export.OptionB.TerminalBridge
+import NightstreamFPrime.Export.OptionB.Parity
 import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.ChainBinding

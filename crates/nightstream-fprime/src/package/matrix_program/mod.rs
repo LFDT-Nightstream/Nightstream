@@ -18,6 +18,8 @@ mod affine;
 mod form;
 use form::Form;
 pub use form::MatrixRun;
+pub(crate) use permutation::{external_outputs, permutation_rows, Entries};
+mod permutation;
 mod phi81;
 mod poseidon;
 mod poseidon_input;

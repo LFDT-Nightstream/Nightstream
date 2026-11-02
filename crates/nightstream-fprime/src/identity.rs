@@ -399,7 +399,7 @@ impl CanonicalSink<'_> {
     }
 }
 
-fn append_value_preimage(value: &Value, input: &mut poseidon2::Poseidon2Hasher) -> Result<(), PackageError> {
+pub(crate) fn append_value_preimage(value: &Value, input: &mut poseidon2::Poseidon2Hasher) -> Result<(), PackageError> {
     CanonicalSink {
         emit: &mut |words| {
             update_words(input, words);

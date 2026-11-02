@@ -8,6 +8,7 @@
 mod support;
 
 use super::{Envelope, OptionB, OptionBError};
+use crate::application::{poseidon2_hash_chain_v1, Affine, ApplicationBuilder, ApplicationCircuit};
 use neo_ajtai::nightstream_fprime_setup::commit_production_signed_unit_prefix_matrix;
 use neo_ajtai::Commitment;
 use neo_ccs::Mat;
@@ -109,4 +110,60 @@ fn light_folds_and_a_refresh_verify() {
 fn refresh_folds_under_both_relations_verify() {
     let (_, circuits) = run(&prover(0), 3);
     assert_eq!(circuits, [1, 2, 2]);
+}
+
+/// The addition application with two witness words, so the shared words after
+/// them move: the next state is the current state plus `[w0, w1, w0, w1]`.
+fn addition() -> ApplicationCircuit {
+    let builder = ApplicationBuilder::new(2).expect("builder");
+    let input = builder.input_state();
+    let private = builder.private_inputs().to_vec();
+    let outputs = std::array::from_fn(|lane| Affine::from(input[lane]) + Affine::from(private[lane % 2]));
+    builder.finish(outputs).expect("addition application")
+}
+
+/// Cap 1 with a native application in place of Lean's: the base step, a
+/// light step and a refresh step, each verified; a step that claims a wrong
+/// next state fails the application's rows.
+fn native_application_verifies(application: ApplicationCircuit) {
+    let packages = packages()
+        .with_application(application.records().clone(), application.private_input_count())
+        .expect("packages with the application");
+    let mut prover = OptionB::new(packages, MINIMUM_SECURITY_BITS).expect("option-B prover");
+    prover.cap = 1;
+    let z0 = words([10, 11, 12, 13]);
+    let mut envelope = prover.initial(z0).expect("initial proof");
+    let mut circuits = Vec::new();
+    for step in 0..3 {
+        let message = &words([20 + step, 21 + step, 22 + step, 23 + step])[..application.private_input_count()];
+        let next = application
+            .execute(envelope.current, message)
+            .expect("application step")
+            .output_state();
+        let wrong = [next[0] + F::ONE, next[1], next[2], next[3]];
+        let rejected = prover.extend(&envelope, message, wrong).expect("step");
+        assert!(
+            matches!(
+                prover.verify(step + 1, z0, wrong, &rejected),
+                Err(OptionBError::Fresh("a relation row fails"))
+            ),
+            "step {step} with a wrong next state"
+        );
+        envelope = prover.extend(&envelope, message, next).expect("step");
+        circuits.push(envelope.pc);
+        prover
+            .verify(step + 1, z0, next, &envelope)
+            .unwrap_or_else(|error| panic!("step {step} verifies: {error}"));
+    }
+    assert_eq!(circuits, [1, 1, 2]);
+}
+
+#[test]
+fn native_hash_chain_verifies() {
+    native_application_verifies(poseidon2_hash_chain_v1().expect("hash chain"));
+}
+
+#[test]
+fn native_addition_verifies() {
+    native_application_verifies(addition());
 }

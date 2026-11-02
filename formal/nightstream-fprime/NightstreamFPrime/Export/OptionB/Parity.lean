@@ -114,10 +114,11 @@ Rust's identity code. -/
 def probeLight : StepPackage.Package :=
   ⟨0, 270, 16, 300, 400,
     [.rows [⟨⟨5, [(1, 7)]⟩, .one, .zero⟩], .block 2 [.var 3, .const 9]],
-    [⟨301, [.add (.var 1) (.const 2)], [.inverseOrZero (.var 4)]⟩], [(270, 3, 2), (273, 1, 0)]⟩
+    [⟨301, [.add (.var 1) (.const 2)], [.inverseOrZero (.var 4)]⟩], [(270, 3, 2), (273, 1, 0)],
+    (4, 300, 2, 1, 0)⟩
 
 def probeRefresh : StepPackage.Package :=
-  ⟨1, 270, 32, 10, 20, [.ring 1 4 30 [.mul (.const 3) (.var 8)]], [], []⟩
+  ⟨1, 270, 32, 10, 20, [.ring 1 4 30 [.mul (.const 3) (.var 8)]], [], [], (0, 10, 0, 0, 0)⟩
 
 /-- The parity file: its version, both circuits' summaries, and the probe packages with their
 identity. -/

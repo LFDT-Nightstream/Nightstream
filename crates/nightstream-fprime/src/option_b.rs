@@ -6,6 +6,7 @@
 //! of its circuit's relation (`CircuitRelation.plan`, in `expand`). Does not
 //! own the relation's meaning, the witness program or the fold.
 
+mod application;
 mod expand;
 pub mod layout;
 mod witness;
@@ -13,23 +14,27 @@ pub mod words;
 
 pub use expand::PlanRows;
 
+use std::sync::Arc;
+
 use neo_ccs::crypto::poseidon2_goldilocks as poseidon2;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks;
 use serde_json::Value;
 
+use crate::application_records::ApplicationRecords;
 use crate::identity::append_value_preimage;
 use crate::package::json::{array, exact_array, usize_atom};
 use crate::package::{IdentityKind, PackageError};
+use crate::witness::{validate_witness_batch, validate_witness_batch_order, RawWitnessBatch, WitnessBatch};
 
 const IDENTITY_DOMAIN: &[u8] = b"Nightstream/OptionB/packages/v1";
 
 /// The identity of the packages in `formal/nightstream-fprime/artifacts`.
 pub const OPTION_B_PACKAGES_IDENTITY: [u64; 4] = [
-    7_617_093_090_708_275_751,
-    14_121_438_074_113_695_225,
-    1_674_118_278_171_147_961,
-    6_978_670_162_879_286_300,
+    11_914_402_469_065_390_615,
+    16_999_262_119_374_355_933,
+    5_807_378_991_680_498_619,
+    12_342_705_591_096_310_232,
 ];
 
 /// A lane or a row side as `Pieces.linear?` reads it: a constant and terms.
@@ -78,7 +83,20 @@ pub(crate) enum Piece {
     },
 }
 
-/// One step circuit's package (`StepPackage.Package`).
+/// The application's region (`StepPackage.Package.application`): its witness
+/// words, its first local and local count, its pieces from the first piece and
+/// its fresh columns from `first_fresh`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct Region {
+    witness_words: usize,
+    local_start: usize,
+    locals: usize,
+    pieces: usize,
+    fresh: usize,
+}
+
+/// One step circuit's package (`StepPackage.Package`). A native application
+/// in place of Lean's fills its locals from its records.
 #[derive(Clone, Debug)]
 pub struct StepPackage {
     circuit: usize,
@@ -87,8 +105,10 @@ pub struct StepPackage {
     first_fresh: usize,
     sbox_start: usize,
     pieces: Vec<Piece>,
-    witness: Vec<Value>,
+    witness: Vec<WitnessBatch>,
     slots: Vec<(usize, usize, u8)>,
+    application: Region,
+    native: Option<Arc<ApplicationRecords>>,
 }
 
 impl StepPackage {
@@ -129,19 +149,47 @@ impl StepPackage {
     }
 
     fn decode(value: &Value) -> Result<Self, PackageError> {
-        let fields = exact_array(value, 8, "option-B package")?;
+        let fields = exact_array(value, 9, "option-B package")?;
         let pieces = array(&fields[5], "option-B pieces")?
             .iter()
             .map(decode_piece)
             .collect::<Result<_, _>>()?;
+        let mut region = [0; 5];
+        let mut rest = &fields[8];
+        for (index, word) in region.iter_mut().enumerate() {
+            if index == 4 {
+                *word = usize_atom(rest, "option-B application")?;
+            } else {
+                let pair = exact_array(rest, 2, "option-B application")?;
+                *word = usize_atom(&pair[0], "option-B application")?;
+                rest = &pair[1];
+            }
+        }
+        let [witness_words, local_start, locals, pieces_count, fresh] = region;
+        let application = Region {
+            witness_words,
+            local_start,
+            locals,
+            pieces: pieces_count,
+            fresh,
+        };
+        let first_fresh = usize_atom(&fields[3], "option-B first fresh column")?;
+        let witness = array(&fields[6], "option-B witness")?
+            .iter()
+            .map(|raw| {
+                let raw: RawWitnessBatch = serde_json::from_value(raw.clone())?;
+                validate_witness_batch(raw, local_start, first_fresh, 0, first_fresh)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        validate_witness_batch_order(&witness)?;
         Ok(Self {
             circuit: usize_atom(&fields[0], "option-B circuit")?,
             public_columns: usize_atom(&fields[1], "option-B public columns")?,
             width: usize_atom(&fields[2], "option-B width")?,
-            first_fresh: usize_atom(&fields[3], "option-B first fresh column")?,
+            first_fresh,
             sbox_start: usize_atom(&fields[4], "option-B S-box start")?,
             pieces,
-            witness: array(&fields[6], "option-B witness")?.to_vec(),
+            witness,
             slots: array(&fields[7], "option-B slots")?
                 .iter()
                 .map(|run| {
@@ -158,6 +206,8 @@ impl StepPackage {
                     ))
                 })
                 .collect::<Result<_, PackageError>>()?,
+            application,
+            native: None,
         })
     }
 }

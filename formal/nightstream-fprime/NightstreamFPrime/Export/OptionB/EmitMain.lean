@@ -73,14 +73,38 @@ def census (name : String) (ops : List Op) (offset : Nat) (digestColumn : Fin 4 
     columns below {lastColumn} ({(← IO.monoMsNow) - start} ms)"
   return pieces
 
+/-- The application's region (`StepPackage.Package.application`): its witness word count, its
+first local, its local count, its pieces and its fresh columns. The application is the circuit's first child; the
+emitter checks that its own package pieces are the package's first pieces. -/
+def applicationRegion (name : String) (words : Nat) (ops : List Op) (offset firstFresh : Nat)
+    (package : List StepPackage.PackagePiece) : IO (Nat × Nat × Nat × Nat × Nat) := do
+  let some application := ops.head? | throw (IO.userError s!"{name}: no application child")
+  match application with
+  | .subcircuit child =>
+      unless child.name == s!"{name}.application" do
+        throw (IO.userError s!"{name}: the first child is {child.name}")
+  | _ => throw (IO.userError s!"{name}: the first operation is not the application")
+  let own := Pieces.split (PilotData.canonicalConstraints ()) application.flatConstraints
+  let render := fun (piece : StepPackage.PackagePiece) =>
+    (StepPackage.PackagePiece.format.encode piece).render
+  unless (StepPackage.packagePieces own firstFresh).map render ==
+      (package.take own.length).map render do
+    throw (IO.userError s!"{name}: the application's pieces are not the first pieces")
+  pure (words, offset, localLength [application], own.length,
+    StepPackage.freshAfter own firstFresh - firstFresh)
+
 /-- Writes the circuit's package (`StepPackage.packageOf`); the blocks must pack. -/
 def emitPackage (name : String) (circuit : Nat) (ops : List Op) (offset : Nat)
     (pieces : List Pieces.Piece) : IO StepPackage.Package := do
   let start ← IO.monoMsNow
   unless CircuitRelation.packable CircuitRelation.publicColumns pieces do
     throw (IO.userError s!"{name}: the Poseidon2 blocks do not pack")
+  let firstFresh := offset + localLength ops
   let package := StepPackage.packageOf circuit CircuitRelation.publicColumns pieces
-    (offset + localLength ops) width (witnesses ops)
+    firstFresh width (witnesses ops) (0, 0, 0, 0, 0)
+  let region ← applicationRegion name program.witnessWordCount ops offset firstFresh
+    package.pieces
+  let package := { package with application := region }
   let path := s!"artifacts/nightstream-fprime-option-b-{name}-v1.json"
   IO.FS.writeFile path ((StepPackage.Package.format.encode package).render ++ "\n")
   let slotColumns := package.slots.foldl (fun total (_, count, _) => total + count) 0
@@ -88,8 +112,8 @@ def emitPackage (name : String) (circuit : Nat) (ops : List Op) (offset : Nat)
     total + count * (SlotLayout.kindOf kind).width) 0
   say s!"{name}: wrote {path}: {package.pieces.length} pieces, \
     {package.witness.length} witness batches, {package.slots.length} slot runs, \
-    {slotColumns} slotted columns, {digitColumns} digit columns \
-    ({(← IO.monoMsNow) - start} ms)"
+    {slotColumns} slotted columns, {digitColumns} digit columns, application \
+    {package.application} ({(← IO.monoMsNow) - start} ms)"
   return package
 
 /-- One line per top-level child: its name, Poseidon2 blocks, ring products, other constraints

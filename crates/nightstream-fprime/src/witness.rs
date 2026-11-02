@@ -37,6 +37,33 @@ impl WitnessBatch {
     pub(super) fn end(&self) -> usize {
         self.start + self.recipes.len() + self.hints.len()
     }
+
+    /// The batch with every column moved by `map`; `None` if `map` drops a
+    /// column the batch writes or reads.
+    pub(super) fn map_columns(&self, map: &impl Fn(usize) -> Option<usize>) -> Option<Self> {
+        let start = map(self.start)?;
+        (map(self.end() - 1)? == start + self.recipes.len() + self.hints.len() - 1).then_some(())?;
+        Some(Self {
+            start,
+            recipes: self
+                .recipes
+                .iter()
+                .map(|recipe| recipe.map_columns(map))
+                .collect::<Option<_>>()?,
+            hints: self
+                .hints
+                .iter()
+                .map(|hint| {
+                    Some(match hint {
+                        WitnessHint::Bit(source, index) => WitnessHint::Bit(source.map_columns(map)?, *index),
+                        WitnessHint::InverseOrZero(source) => WitnessHint::InverseOrZero(source.map_columns(map)?),
+                        WitnessHint::QuotientFive(source) => WitnessHint::QuotientFive(source.map_columns(map)?),
+                        WitnessHint::RemainderFive(source) => WitnessHint::RemainderFive(source.map_columns(map)?),
+                    })
+                })
+                .collect::<Option<_>>()?,
+        })
+    }
 }
 
 impl WitnessHint {
@@ -61,6 +88,15 @@ impl WitnessHint {
 }
 
 impl WitnessExpr {
+    fn map_columns(&self, map: &impl Fn(usize) -> Option<usize>) -> Option<Self> {
+        Some(match self {
+            Self::Var(column) => Self::Var(map(*column)?),
+            Self::Const(value) => Self::Const(*value),
+            Self::Add(left, right) => Self::Add(Box::new(left.map_columns(map)?), Box::new(right.map_columns(map)?)),
+            Self::Mul(left, right) => Self::Mul(Box::new(left.map_columns(map)?), Box::new(right.map_columns(map)?)),
+        })
+    }
+
     fn eval(&self, assignment: &[Goldilocks]) -> Goldilocks {
         self.eval_with(&|column| assignment[column])
     }

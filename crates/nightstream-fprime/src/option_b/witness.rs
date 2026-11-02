@@ -9,7 +9,7 @@ use p3_goldilocks::Goldilocks;
 use super::expand::{mix, PlanRows};
 use super::{Linear, Piece, StepPackage};
 use crate::package::PackageError;
-use crate::witness::{execute_witness_batch, validate_witness_batch, RawWitnessBatch, WitnessBatch};
+use crate::witness::{execute_witness_batch, WitnessBatch};
 
 const RING_DEGREE: usize = 54;
 const BLOCK_LOCALS: usize = 1096;
@@ -17,7 +17,7 @@ const BLOCK_OUTPUTS: usize = 1080;
 
 /// Something that fills columns from `start` in column order.
 enum Step<'a> {
-    Batch(WitnessBatch),
+    Batch(&'a WitnessBatch),
     Block {
         start: usize,
         lanes: &'a [Linear],
@@ -94,19 +94,15 @@ impl StepPackage {
         if shared.first() != Some(&Goldilocks::ONE) || shared.len() > self.first_fresh {
             return Err(PackageError::Input("option-B shared columns"));
         }
+        if shared.len() != self.application.local_start {
+            return Err(PackageError::Input("option-B shared column count"));
+        }
         let mut columns = vec![Goldilocks::ZERO; self.first_fresh];
         columns[..shared.len()].copy_from_slice(shared);
-        let mut steps = Vec::new();
-        for raw in &self.witness {
-            let raw: RawWitnessBatch = serde_json::from_value(raw.clone())?;
-            steps.push(Step::Batch(validate_witness_batch(
-                raw,
-                shared.len(),
-                self.first_fresh,
-                0,
-                self.first_fresh,
-            )?));
+        if let Some(records) = &self.native {
+            self.fill_application(records, &mut columns)?;
         }
+        let mut steps: Vec<_> = self.witness.iter().map(Step::Batch).collect();
         for piece in &self.pieces {
             match piece {
                 Piece::Block { start, lanes } => steps.push(Step::Block { start: *start, lanes }),

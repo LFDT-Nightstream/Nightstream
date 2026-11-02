@@ -118,6 +118,11 @@ def packageAux : List Piece → Nat → List PackagePiece → List PackagePiece
 def packagePieces (pieces : List Piece) (next : Nat) : List PackagePiece :=
   packageAux pieces next []
 
+/-- The first fresh column after the pieces' fresh columns from `next`. -/
+def freshAfter : List Piece → Nat → Nat
+  | [], next => next
+  | piece :: rest, next => freshAfter rest (pieceOf piece next).2
+
 /-! ### Expansion -/
 
 /-- The lowering of the pieces outside the blocks, without an accumulator. -/
@@ -257,7 +262,10 @@ from the step's inputs; the circuit's locals by column, `witness` batches and th
 (a block's outputs by the permutation of its lanes, a ring piece's outputs by the ring product);
 then, piece by piece, each fresh lowering column `c := a * b` from its row, each ring piece's
 quotients, and each block's S-box outputs from `sboxStart`. The relation reads the columns through
-the slots' layout (`SlotLayout.layout (SlotLayout.runSlots width slots)`). -/
+the slots' layout (`SlotLayout.layout (SlotLayout.runSlots width slots)`). The application's
+region is the first part of each column range: its witness word count, its first local, its local
+count, its pieces from the first piece and its fresh columns from `firstFresh` (`application`), so
+Rust can put a native application in its place. -/
 structure Package where
   circuit : Nat
   publicColumns : Nat
@@ -267,18 +275,21 @@ structure Package where
   pieces : List PackagePiece
   witness : List WitnessBatch
   slots : List (Nat × Nat × Nat)
+  application : Nat × Nat × Nat × Nat × Nat
 
 def Package.format : Format Package where
   encode := fun value => .array [.atom value.circuit, .atom value.publicColumns,
     .atom value.width, .atom value.firstFresh, .atom value.sboxStart,
     (list PackagePiece.format).encode value.pieces, (list WitnessBatch.format).encode value.witness,
-    (list (pair nat (pair nat nat))).encode value.slots]
+    (list (pair nat (pair nat nat))).encode value.slots,
+    (pair nat (pair nat (pair nat (pair nat nat)))).encode value.application]
   decode
     | .array [.atom circuit, .atom publicColumns, .atom width, .atom firstFresh,
-        .atom sboxStart, pieces, witness, slots] => do
+        .atom sboxStart, pieces, witness, slots, application] => do
         pure ⟨circuit, publicColumns, width, firstFresh, sboxStart,
           ← (list PackagePiece.format).decode pieces, ← (list WitnessBatch.format).decode witness,
-          ← (list (pair nat (pair nat nat))).decode slots⟩
+          ← (list (pair nat (pair nat nat))).decode slots,
+          ← (pair nat (pair nat (pair nat (pair nat nat)))).decode application⟩
     | _ => .error "invalid step package"
   decode_encode := by
     intro value
@@ -320,14 +331,15 @@ def slotRuns (publicColumns : Nat) (pieces : List Piece) (next : Nat)
   runs.reverse
 
 def packageOf (circuit publicColumns : Nat) (pieces : List Piece) (next width : Nat)
-    (batches : List WitnessBatch) : Package :=
+    (batches : List WitnessBatch) (application : Nat × Nat × Nat × Nat × Nat) : Package :=
   ⟨circuit, publicColumns, width, next, CircuitRelation.sboxStart pieces next,
-    packagePieces pieces next, witnessOf batches pieces, slotRuns publicColumns pieces next batches⟩
+    packagePieces pieces next, witnessOf batches pieces, slotRuns publicColumns pieces next batches,
+    application⟩
 
 theorem relationRows_packageOf (circuit publicColumns : Nat) (pieces : List Piece)
-    (next width : Nat) (batches : List WitnessBatch)
+    (next width : Nat) (batches : List WitnessBatch) (application : Nat × Nat × Nat × Nat × Nat)
     (packed : CircuitRelation.packable publicColumns pieces = true) :
-    (packageOf circuit publicColumns pieces next width batches).relationRows =
+    (packageOf circuit publicColumns pieces next width batches application).relationRows =
       CircuitRelation.relationRows publicColumns pieces next width := by
   simp only [Package.relationRows, Package.blocks, packageOf, packagePieces, packageAux_eq,
     List.reverse_nil, List.nil_append, blocks_packageSpec, CircuitRelation.relationRows, packed,

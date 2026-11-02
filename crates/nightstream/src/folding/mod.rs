@@ -8,7 +8,7 @@ pub(crate) mod kernels;
     not(test),
     expect(
         dead_code,
-        reason = "the option-B lifecycle (CW-7.6c) calls it; only tests do until then"
+        reason = "the public API calls the option-B lifecycle from CW-8; only tests do until then"
     )
 )]
 pub(crate) mod option_b;

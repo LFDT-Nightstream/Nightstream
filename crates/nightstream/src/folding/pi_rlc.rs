@@ -35,6 +35,7 @@ pub enum Error {
 pub(crate) struct Proof {
     pub combined: CeClaim,
 }
+#[derive(Clone)]
 pub(crate) struct Output {
     pub claim: CeClaim,
     pub witness: Mat<F>,
@@ -49,7 +50,7 @@ pub(crate) enum Weights {
         not(test),
         expect(
             dead_code,
-            reason = "the option-B lifecycle (CW-7.6c) calls it; only tests do until then"
+            reason = "the public API calls the option-B lifecycle from CW-8; only tests do until then"
         )
     )]
     Light,

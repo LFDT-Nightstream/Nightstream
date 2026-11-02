@@ -24,8 +24,7 @@ mod inputs;
     not(test),
     expect(
         dead_code,
-        unused_imports,
-        reason = "the option-B lifecycle (CW-7.6c) calls it; only tests do until then"
+        reason = "the public API calls the option-B lifecycle from CW-8; only tests do until then"
     )
 )]
 mod option_b;

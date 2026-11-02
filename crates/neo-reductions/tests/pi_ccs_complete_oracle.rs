@@ -155,6 +155,7 @@ impl Case {
                 dims,
                 source,
                 workspace_bytes,
+                self.witnesses.len() + self.running_witnesses.len(),
             )
             .unwrap(),
             openings: Some(

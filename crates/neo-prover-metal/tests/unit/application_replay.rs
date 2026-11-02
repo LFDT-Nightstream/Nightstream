@@ -157,6 +157,7 @@ impl Fixture {
             self.dims,
             source,
             workspace_bytes,
+            self.fresh.len() + self.running.len(),
         )
         .unwrap()
     }

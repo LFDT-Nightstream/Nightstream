@@ -675,6 +675,15 @@ def outputBindingCircuit {logicalWidth degreeBound : Nat}
 def childLength (child : FormalCircuit) (offset : Nat) : Nat :=
   localLength (Circuit.ops child.main offset)
 
+/-- A child's length from its `privateCount`, for compiled evaluation: every offset after a
+child would otherwise build the child's whole operation list again. -/
+def childLengthFast (child : FormalCircuit) (offset : Nat) : Nat :=
+  child.privateCount offset
+
+@[csimp] theorem childLength_eq_childLengthFast : @childLength = @childLengthFast := by
+  funext child offset
+  exact child.privateCount_eq offset
+
 def nextOffset (child : FormalCircuit) (offset : Nat) : Nat :=
   offset + childLength child offset
 

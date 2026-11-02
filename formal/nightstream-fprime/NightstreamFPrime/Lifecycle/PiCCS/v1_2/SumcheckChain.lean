@@ -126,6 +126,15 @@ theorem localLength_eq {degree : Nat} (interface : Interface degree)
       privateCount degree :=
   FixedChain.Owned.localLength_eq (coreInterface interface offset) offset
 
+/-- The circuit with its constant private count, for compiled evaluation
+(`Formal.childLength_eq_childLengthFast` reads it for every later offset). -/
+def circuitFast {degree : Nat} (interface : Interface degree) : FormalCircuit :=
+  (circuit interface).withPrivateCount (fun _ => privateCount degree) (localLength_eq interface)
+
+@[csimp] theorem circuit_eq_circuitFast : @circuit = @circuitFast := by
+  funext degree interface
+  exact FormalCircuit.eq_withPrivateCount _ _ _
+
 theorem operations_length {degree : Nat} (interface : Interface degree)
     (offset : Nat) :
     (Circuit.ops (circuit interface).main offset).length = 57 := by

@@ -337,6 +337,23 @@ open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 #audit_axioms NightstreamFPrime.Export.OptionB.StepRelation.publicInput_eq_project
 #audit_axioms NightstreamFPrime.Export.OptionB.StepRelation.light_freshHolds
 #audit_axioms NightstreamFPrime.Export.OptionB.StepRelation.refresh_freshHolds
+#audit_axioms NightstreamFPrime.Circuit.FormalCircuit.eq_withPrivateCount
+#audit_axioms NightstreamFPrime.Gadgets.Poseidon2.Permutation.compile_eq_compileMemo
+#audit_axioms NightstreamFPrime.Gadgets.Poseidon2.Duplex.Formal.Owned.output_eq_outputFast
+#audit_axioms NightstreamFPrime.Gadgets.Poseidon2.Duplex.Formal.Owned.circuit_eq_circuitFast
+#audit_axioms NightstreamFPrime.Gadgets.Polynomial.Horner.Owned.circuit_eq_circuitFast
+#audit_axioms NightstreamFPrime.Gadgets.Multilinear.PointWeightedHorner.pointLength_eq_pointLengthFast
+#audit_axioms NightstreamFPrime.Gadgets.Multilinear.PointWeightedHorner.hornerLength_eq_hornerLengthFast
+#audit_axioms NightstreamFPrime.Gadgets.Multilinear.PointWeightedHorner.Owned.circuit_eq_circuitFast
+#audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.childLength_eq_childLengthFast
+#audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_2.ChallengeDerivation.circuit_eq_circuitFast
+#audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_2.RoundTranscript.circuit_eq_circuitFast
+#audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_2.SumcheckChain.circuit_eq_circuitFast
+#audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_2.FinalIdentity.pointLength_eq_pointLengthFast
+#audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_2.FinalIdentity.matrixLength_eq_matrixLengthFast
+#audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_2.FinalIdentity.constraintLength_eq_constraintLengthFast
+#audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_2.FinalIdentity.shapeCircuit_eq_shapeCircuitFast
+#audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_2.FinalIdentity.circuit_eq_circuitFast
 
 /-- One refresh per period starves slot 1: it takes a light fold each time the light circuit
 follows the refresh circuit and is never refreshed. -/

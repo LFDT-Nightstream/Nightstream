@@ -945,4 +945,16 @@ theorem spec_implies_keyExecution_rounds
     finalStateDerived.trans
       (congrArg (fun coins => coins.finalState) productionEq).symm⟩
 
+/-- The circuit with its constant private count, for compiled evaluation
+(`Formal.childLength_eq_childLengthFast` reads it for every later offset). -/
+def circuitFast {degreeBound : Nat} (interface : Interface degreeBound) : FormalCircuit :=
+  (circuit interface).withPrivateCount
+    (fun _ => productionShape.cubeVariables * perRoundRecipeCount degreeBound)
+    (localLength_eq interface)
+
+@[csimp] theorem circuit_eq_circuitFast :
+    @circuit = @circuitFast := by
+  funext degreeBound interface
+  exact FormalCircuit.eq_withPrivateCount _ _ _
+
 end NightstreamFPrime.Lifecycle.PiCCS.v1_2.RoundTranscript

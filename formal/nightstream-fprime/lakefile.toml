@@ -28,6 +28,11 @@ root = "NightstreamFPrime.Export.Entrypoint"
 leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
 
 [[lean_exe]]
+name = "emitOptionB"
+root = "NightstreamFPrime.Export.OptionB.EmitMain"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+
+[[lean_exe]]
 name = "emitSharedFormulas"
 root = "NightstreamFPrime.Export.EmitSharedFormulas"
 leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }

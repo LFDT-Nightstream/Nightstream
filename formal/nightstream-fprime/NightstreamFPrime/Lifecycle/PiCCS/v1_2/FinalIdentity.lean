@@ -141,12 +141,35 @@ def matrixPowerCircuitAt (interface : ShapeInterface shape) (parentOffset : Nat)
 def pointLength (interface : ShapeInterface shape) (offset : Nat) : Nat :=
   localLength (Circuit.ops (pointCircuitAt interface offset).main offset)
 
+/-- `pointLength` from the gadget's closed form, for compiled evaluation: the offsets and the
+Horner interfaces below read it once per coefficient. -/
+def pointLengthFast (interface : ShapeInterface shape) (offset : Nat) : Nat :=
+  if 0 < shape.cubeVariables then 4 * shape.cubeVariables - 2 else pointLength interface offset
+
+@[csimp] theorem pointLength_eq_pointLengthFast : @pointLength = @pointLengthFast := by
+  funext shape interface offset
+  unfold pointLengthFast
+  split
+  · rename_i positive
+    unfold pointLength pointCircuitAt
+    exact PointEquality.Owned.localLength_eq_of_positive _ offset positive
+  · rfl
+
 def matrixOffset (interface : ShapeInterface shape) (offset : Nat) : Nat :=
   offset + pointLength interface offset
 
 def matrixLength (interface : ShapeInterface shape) (offset : Nat) : Nat :=
   localLength (Circuit.ops (matrixPowerCircuitAt interface offset).main
     (matrixOffset interface offset))
+
+/-- `matrixLength` from `Power.localLength_eq`, for compiled evaluation. -/
+def matrixLengthFast (_interface : ShapeInterface shape) (_offset : Nat) : Nat :=
+  3 * matrixExponentOf shape
+
+@[csimp] theorem matrixLength_eq_matrixLengthFast : @matrixLength = @matrixLengthFast := by
+  funext shape interface offset
+  unfold matrixLength matrixPowerCircuitAt matrixLengthFast
+  rw [Power.localLength_eq]
 
 def constraintOffset (interface : ShapeInterface shape) (offset : Nat) : Nat :=
   matrixOffset interface offset + matrixLength interface offset
@@ -173,6 +196,16 @@ def constraintPowerCircuitAt (interface : ShapeInterface shape) (parentOffset : 
 def constraintLength (interface : ShapeInterface shape) (offset : Nat) : Nat :=
   localLength (Circuit.ops (constraintPowerCircuitAt interface offset).main
     (constraintOffset interface offset))
+
+/-- `constraintLength` from `Power.localLength_eq`, for compiled evaluation. -/
+def constraintLengthFast (_interface : ShapeInterface shape) (_offset : Nat) : Nat :=
+  3 * constraintFactorOf shape
+
+@[csimp] theorem constraintLength_eq_constraintLengthFast :
+    @constraintLength = @constraintLengthFast := by
+  funext shape interface offset
+  unfold constraintLength constraintPowerCircuitAt constraintLengthFast
+  rw [Power.localLength_eq]
 
 def finalOffset (interface : ShapeInterface shape) (offset : Nat) : Nat :=
   constraintOffset interface offset + constraintLength interface offset
@@ -794,6 +827,19 @@ def shapeCircuit (interface : ShapeInterface shape) (positive : 0 < shape.cubeVa
   soundness := soundness interface
   completeness := shapeCompleteness interface positive
 
+/-- The circuit with its private count from the three gadget lengths, for compiled evaluation:
+an offset after the final identity would otherwise build its terminal expression again. -/
+def shapeCircuitFast (interface : ShapeInterface shape) (positive : 0 < shape.cubeVariables) :
+    FormalCircuit :=
+  (shapeCircuit interface positive).withPrivateCount
+    (fun offset => pointLength interface offset + matrixLength interface offset +
+      constraintLength interface offset)
+    fun offset => opsAt_localLength interface offset
+
+@[csimp] theorem shapeCircuit_eq_shapeCircuitFast : @shapeCircuit = @shapeCircuitFast := by
+  funext shape interface positive
+  exact FormalCircuit.eq_withPrivateCount _ _ _
+
 private theorem cubeVariables_positive : 0 < productionShape.cubeVariables := by
   norm_num [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]
 
@@ -975,6 +1021,15 @@ theorem localLength_eq (interface : Interface) (offset : Nat) :
     localLength (Circuit.ops (circuit interface).main offset) = 2717 := by
   change localLength (opsAt interface offset) = _
   rw [opsAt_localLength, pointLength_eq, matrixLength_eq, constraintLength_eq]
+
+/-- The circuit with its constant private count, for compiled evaluation
+(`Formal.childLength_eq_childLengthFast` reads it for every later offset). -/
+def circuitFast (interface : Interface) : FormalCircuit :=
+  (circuit interface).withPrivateCount (fun _ => 2717) (localLength_eq interface)
+
+@[csimp] theorem circuit_eq_circuitFast : @circuit = @circuitFast := by
+  funext interface
+  exact FormalCircuit.eq_withPrivateCount _ _ _
 
 theorem operations_length (interface : Interface) (offset : Nat) :
     (Circuit.ops (circuit interface).main offset).length = 5 := by

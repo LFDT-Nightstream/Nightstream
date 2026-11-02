@@ -685,6 +685,13 @@ impl ParsedWasmArtifactsBuilder {
                             control_stack.push(frame);
                         }
                         wasmparser::Operator::Else => {
+                            // SpecTec's `if` has no empty-else form, and the pc layout
+                            // follows SpecTec: strip an empty `else` before proving.
+                            if matches!(reader.clone().read(), Ok(wasmparser::Operator::End)) {
+                                return Err(WasmProgramError::Unsupported(
+                                    "empty else-body: remove the `else` before proving".to_string(),
+                                ));
+                            }
                             let frame = control_stack.last_mut().ok_or_else(|| {
                                 WasmProgramError::Invalid("encountered else without an open control frame".to_string())
                             })?;

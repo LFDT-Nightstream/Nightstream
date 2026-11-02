@@ -458,6 +458,29 @@ fn float_global_initializer_is_rejected_at_parse() {
 }
 
 #[test]
+fn empty_else_is_rejected_at_parse() {
+    let wasm = wat::parse_str(
+        r#"(module
+            (func (export "run") (param i32) (result i32)
+                local.get 0
+                if
+                    local.get 0
+                    local.set 0
+                else
+                end
+                local.get 0)
+        )"#,
+    )
+    .expect("wat");
+
+    let err = extract_wasm_program_artifacts(&wasm).expect_err("an empty else must be rejected");
+    assert!(
+        err.to_string().contains("empty else-body"),
+        "expected empty-else rejection, got: {err}",
+    );
+}
+
+#[test]
 fn unsupported_operator_in_uncalled_function_is_rejected_at_parse() {
     let wasm = wat::parse_str(
         r#"(module

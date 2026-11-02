@@ -51,6 +51,7 @@ import NightstreamFPrime.Lifecycle.OptionB.RefreshStep
 import NightstreamFPrime.Lifecycle.OptionB.RefreshPiCCSLayout
 import NightstreamFPrime.Lifecycle.OptionB.RefreshStepLayout
 import NightstreamFPrime.Lifecycle.OptionB.RefreshStepSoundness
+import NightstreamFPrime.Lifecycle.OptionB.Terminal
 import NightstreamFPrime.Lifecycle.OptionB.LightFold
 import NightstreamFPrime.Lifecycle.OptionB.LightStep
 import NightstreamFPrime.Lifecycle.OptionB.LightPiCCSLayout
@@ -77,4 +78,5 @@ import NightstreamFPrime.Layout.OptionB.RefreshStepCompleteness
 import NightstreamFPrime.Layout.OptionB.RefreshAssemblerSource
 import NightstreamFPrime.Layout.OptionB.RefreshAssemblerCompleteness
 import NightstreamFPrime.Layout.OptionB.RefreshAssemblerCircuit
+import NightstreamFPrime.Layout.OptionB.StepCircuits
 import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.ChainBinding

@@ -38,6 +38,7 @@ import NightstreamFPrime.Export.Generic.Pieces
 import NightstreamFPrime.Export.Generic.LogicalPlan
 import NightstreamFPrime.Export.OptionB.StepRelation
 import NightstreamFPrime.Export.OptionB.StepPackage
+import NightstreamFPrime.Export.OptionB.TerminalBridge
 import NightstreamFPrime.Lifecycle.OptionB.Terminal
 import NightstreamFPrime.Spec.Folding.Light.RlcModule
 
@@ -363,6 +364,15 @@ open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 #audit_axioms NightstreamFPrime.Export.OptionB.StepPackage.blocks_packageSpec
 #audit_axioms NightstreamFPrime.Export.OptionB.StepPackage.relationRows_packageOf
 #audit_axioms NightstreamFPrime.Export.OptionB.StepPackage.identityFast_eq
+#audit_axioms NightstreamFPrime.Export.OptionB.TerminalBridge.serializeSlot_words
+#audit_axioms NightstreamFPrime.Export.OptionB.TerminalBridge.stateHash_binds_words
+#audit_axioms NightstreamFPrime.Export.OptionB.TerminalBridge.iteration_of_words
+#audit_axioms NightstreamFPrime.Export.OptionB.TerminalBridge.ofFn_getD
+#audit_axioms NightstreamFPrime.Export.OptionB.TerminalBridge.decodedKeys_eq
+#audit_axioms NightstreamFPrime.Export.OptionB.TerminalBridge.bind_step
+#audit_axioms NightstreamFPrime.Export.OptionB.TerminalBridge.light_bridge
+#audit_axioms NightstreamFPrime.Export.OptionB.TerminalBridge.refresh_bridge
+#audit_axioms NightstreamFPrime.Export.OptionB.TerminalBridge.bridge
 #audit_axioms NightstreamFPrime.Export.OptionB.StepRelation.lightRepresents
 #audit_axioms NightstreamFPrime.Export.OptionB.StepRelation.light_stepHolds
 #audit_axioms NightstreamFPrime.Export.OptionB.StepRelation.refreshRepresents

@@ -391,7 +391,7 @@ theorem valid_split (canonical constraints : List Expr) :
 def invocation (phase rowStart start : Nat) (lanes : List Expr) : PermutationInvocation :=
   ⟨phase, rowStart, start, lanes.map fun lane => (linear? lane).getD zeroSparseCombination⟩
 
-private theorem lane_eval (lanes : List Expr) (linear : LinearLanes lanes) (env : Env)
+theorem lane_eval (lanes : List Expr) (linear : LinearLanes lanes) (env : Env)
     (column : Nat) :
     (lanes.getD column 0).eval env =
       ((lanes.map fun lane => (linear? lane).getD zeroSparseCombination).getD column

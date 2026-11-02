@@ -81,6 +81,8 @@ import NightstreamFPrime.Layout.OptionB.RefreshAssemblerCircuit
 import NightstreamFPrime.Layout.OptionB.StepCircuits
 import NightstreamFPrime.Export.Generic.Pieces
 import NightstreamFPrime.Export.Generic.PieceRows
+import NightstreamFPrime.Export.Generic.Frame
+import NightstreamFPrime.Export.Generic.CircuitRelation
 import NightstreamFPrime.Export.Generic.LogicalPlan
 import NightstreamFPrime.Export.OptionB.StepRelation
 import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.ChainBinding

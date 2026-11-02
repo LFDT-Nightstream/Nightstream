@@ -1,4 +1,4 @@
-import NightstreamFPrime.Export.Generic.LogicalPlan
+import NightstreamFPrime.Export.Generic.CircuitRelation
 import NightstreamFPrime.Layout.OptionB.StepCircuits
 import NightstreamFPrime.Layout.ProductionRelation.AcceptedOpening
 
@@ -6,8 +6,9 @@ import NightstreamFPrime.Layout.ProductionRelation.AcceptedOpening
 `base = 270`, after the public input `x` (`LogicalPlan`). From a satisfying assignment of a
 circuit's logical relation, the decoders read the step's input, output, key digests and fold proof
 from the shared words; `lightRepresents` and `refreshRepresents` hold by construction. With
-`LogicalPlan.rowsZero_implies_spec` this gives each circuit's case of the option-B step relation
-(`light_stepHolds`, `refresh_stepHolds`), and the output digest that `x` encodes. The decoded key
+`CircuitRelation.rowsZero_implies_spec` this gives each circuit's case of the option-B step
+relation (`light_stepHolds`, `refresh_stepHolds`) and the output digest that `x` encodes, in an
+environment that agrees with the assignment on `x` and differs only on dead Poseidon2 locals. The decoded key
 digests are what the shared words carry; the state hash in `x` binds them to the setup's keys
 (`State.stateHash_collision`), which the terminal uses. `light_freshHolds` and
 `refresh_freshHolds` start from the CCS statement that the folding scheme extracts for a fresh
@@ -126,27 +127,26 @@ theorem light_stepHolds (relation : ProductionKey.LogicalRelation logicalWidth p
     (stepEq : program.step = step)
     (validControl : ∀ state witness, program.valid state witness → control state witness = 0)
     (firstFresh : Nat)
-    (fits : LogicalPlan.Fits (LogicalPlan.rows
+    (fits : CircuitRelation.Fits CircuitRelation.publicColumns (CircuitRelation.pieces
       (LightAssemblerCircuit.stepCircuit program base relation 0 ajtai)
-      (LightAssembler.sharedEnd base program.witnessWordCount) firstFresh
-      (lightDigestColumn program)) logicalWidth)
+      (LightAssembler.sharedEnd base program.witnessWordCount)
+      (lightDigestColumn program)) firstFresh logicalWidth)
     (assignment : Assignment F logicalWidth) (digest : Digest)
     (encoded : LogicalPlan.publicInput (publicFits := publicFits)
       (LogicalPlan.sourceEnv assignment) = encHash digest)
-    (rowsZero : (LogicalPlan.plan _ logicalWidth fits).RowsZero assignment) :
-    let env := LogicalPlan.sourceEnv assignment
+    (rowsZero : (CircuitRelation.plan _ _ firstFresh logicalWidth fits).RowsZero assignment) :
+    ∃ env : Env,
     StepHolds Folding.Schedule.productionLightFoldCap ajtai
         (decodedKeys circuitKeys (lightInterface (logicalWidth := logicalWidth)
           (publicFits := publicFits) program).verifierKeys env)
         step control 0 (lightInput program env) (lightOutput program 0 env) ∧
       (lightOutput (logicalWidth := logicalWidth) (publicFits := publicFits) program 0 env).x =
         List.ofFn fun word : Fin 4 => digest.getD word.val 0 := by
-  intro env
-  obtain ⟨rows, words⟩ := LogicalPlan.rowsZero_implies_spec
+  obtain ⟨env, rows, words⟩ := CircuitRelation.rowsZero_implies_spec
     (LightAssemblerCircuit.stepCircuit program base relation 0 ajtai)
     (LightAssembler.sharedEnd base program.witnessWordCount) firstFresh
-    (lightDigestColumn program) fits assignment digest encoded rowsZero rfl
-  refine ⟨LightAssembler.rows_implies_stepHolds program relation base ajtai _ step control 0 rfl
+    (lightDigestColumn program) fits assignment digest encoded rowsZero (fun _ => rfl)
+  refine ⟨env, LightAssembler.rows_implies_stepHolds program relation base ajtai _ step control 0 rfl
     stepEq validControl env rows _ _ _ (lightRepresents program ajtai circuitKeys 0 env), ?_⟩
   exact congrArg List.ofFn (funext words)
 
@@ -241,27 +241,26 @@ theorem refresh_stepHolds (relation : ProductionKey.LogicalRelation logicalWidth
     (stepEq : program.step = step)
     (validControl : ∀ state witness, program.valid state witness → control state witness = 1)
     (firstFresh : Nat)
-    (fits : LogicalPlan.Fits (LogicalPlan.rows
+    (fits : CircuitRelation.Fits CircuitRelation.publicColumns (CircuitRelation.pieces
       (RefreshAssemblerCircuit.stepCircuit program base relation 1 ajtai)
-      (RefreshAssembler.sharedEnd base program.witnessWordCount) firstFresh
-      (refreshDigestColumn program)) logicalWidth)
+      (RefreshAssembler.sharedEnd base program.witnessWordCount)
+      (refreshDigestColumn program)) firstFresh logicalWidth)
     (assignment : Assignment F logicalWidth) (digest : Digest)
     (encoded : LogicalPlan.publicInput (publicFits := publicFits)
       (LogicalPlan.sourceEnv assignment) = encHash digest)
-    (rowsZero : (LogicalPlan.plan _ logicalWidth fits).RowsZero assignment) :
-    let env := LogicalPlan.sourceEnv assignment
+    (rowsZero : (CircuitRelation.plan _ _ firstFresh logicalWidth fits).RowsZero assignment) :
+    ∃ env : Env,
     StepHolds Folding.Schedule.productionLightFoldCap ajtai
         (decodedKeys circuitKeys (refreshInterface (logicalWidth := logicalWidth)
           (publicFits := publicFits) program).verifierKeys env)
         step control 1 (refreshInput program env) (refreshOutput program 1 env) ∧
       (refreshOutput (logicalWidth := logicalWidth) (publicFits := publicFits) program 1 env).x =
         List.ofFn fun word : Fin 4 => digest.getD word.val 0 := by
-  intro env
-  obtain ⟨rows, words⟩ := LogicalPlan.rowsZero_implies_spec
+  obtain ⟨env, rows, words⟩ := CircuitRelation.rowsZero_implies_spec
     (RefreshAssemblerCircuit.stepCircuit program base relation 1 ajtai)
     (RefreshAssembler.sharedEnd base program.witnessWordCount) firstFresh
-    (refreshDigestColumn program) fits assignment digest encoded rowsZero rfl
-  refine ⟨RefreshAssembler.rows_implies_stepHolds program relation base ajtai _ step control 1 rfl
+    (refreshDigestColumn program) fits assignment digest encoded rowsZero (fun _ => rfl)
+  refine ⟨env, RefreshAssembler.rows_implies_stepHolds program relation base ajtai _ step control 1 rfl
     stepEq validControl env rows _ _ _ (refreshRepresents program ajtai circuitKeys 1 env), ?_⟩
   exact congrArg List.ofFn (funext words)
 
@@ -297,19 +296,19 @@ theorem light_freshHolds (program : Stage1.Application.Program)
     (stepEq : program.step = step)
     (validControl : ∀ state witness, program.valid state witness → control state witness = 0)
     (firstFresh : Nat)
-    (fits : LogicalPlan.Fits (LogicalPlan.rows
+    (fits : CircuitRelation.Fits CircuitRelation.publicColumns (CircuitRelation.pieces
       (LightAssemblerCircuit.stepCircuit program base relation 0 ajtai)
-      (LightAssembler.sharedEnd base program.witnessWordCount) firstFresh
-      (lightDigestColumn program)) logicalWidth)
+      (LightAssembler.sharedEnd base program.witnessWordCount)
+      (lightDigestColumn program)) firstFresh logicalWidth)
     (cubeFits : Phi81CarrierLayout.carrierWidth logicalWidth ≤ 2 ^ cubeVariables)
     (publicLogicalFits : ringDegree * PaperAlgebra.publicRingColumns ≤ logicalWidth)
     (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
     (assignment : Assignment F (Phi81CarrierLayout.carrierWidth logicalWidth))
     (digest : Digest) (encoded : fresh.publicInputs ⟨0, by decide⟩ = encHash digest)
     (accepted : CCS.Holds (PaperAlgebra.semantics ajtai) productionGlobalParams
-      (freshStatement ((LogicalPlan.plan _ logicalWidth fits).logicalRelation
+      (freshStatement ((CircuitRelation.plan _ _ firstFresh logicalWidth fits).logicalRelation
         (publicFits := publicFits) cubeFits) fresh) assignment) :
-    let env := LogicalPlan.sourceEnv (Layout.ProductionRelation.Plan.logicalAssignment assignment)
+    ∃ env : Env,
     StepHolds Folding.Schedule.productionLightFoldCap ajtai
         (decodedKeys circuitKeys (lightInterface (logicalWidth := logicalWidth)
           (publicFits := publicFits) program).verifierKeys env)
@@ -334,19 +333,19 @@ theorem refresh_freshHolds (program : Stage1.Application.Program)
     (stepEq : program.step = step)
     (validControl : ∀ state witness, program.valid state witness → control state witness = 1)
     (firstFresh : Nat)
-    (fits : LogicalPlan.Fits (LogicalPlan.rows
+    (fits : CircuitRelation.Fits CircuitRelation.publicColumns (CircuitRelation.pieces
       (RefreshAssemblerCircuit.stepCircuit program base relation 1 ajtai)
-      (RefreshAssembler.sharedEnd base program.witnessWordCount) firstFresh
-      (refreshDigestColumn program)) logicalWidth)
+      (RefreshAssembler.sharedEnd base program.witnessWordCount)
+      (refreshDigestColumn program)) firstFresh logicalWidth)
     (cubeFits : Phi81CarrierLayout.carrierWidth logicalWidth ≤ 2 ^ cubeVariables)
     (publicLogicalFits : ringDegree * PaperAlgebra.publicRingColumns ≤ logicalWidth)
     (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
     (assignment : Assignment F (Phi81CarrierLayout.carrierWidth logicalWidth))
     (digest : Digest) (encoded : fresh.publicInputs ⟨0, by decide⟩ = encHash digest)
     (accepted : CCS.Holds (PaperAlgebra.semantics ajtai) productionGlobalParams
-      (freshStatement ((LogicalPlan.plan _ logicalWidth fits).logicalRelation
+      (freshStatement ((CircuitRelation.plan _ _ firstFresh logicalWidth fits).logicalRelation
         (publicFits := publicFits) cubeFits) fresh) assignment) :
-    let env := LogicalPlan.sourceEnv (Layout.ProductionRelation.Plan.logicalAssignment assignment)
+    ∃ env : Env,
     StepHolds Folding.Schedule.productionLightFoldCap ajtai
         (decodedKeys circuitKeys (refreshInterface (logicalWidth := logicalWidth)
           (publicFits := publicFits) program).verifierKeys env)

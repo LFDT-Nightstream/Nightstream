@@ -1,20 +1,15 @@
-import NightstreamFPrime.Export.Generic.PieceRows
 import NightstreamFPrime.Layout.ProductionRelation.OrdinarySourcePlan
 import NightstreamFPrime.Lifecycle.XOut
 
-/-! The logical relation of a circuit for the generic exporter (CW-5.2, CW-5.7): the circuit's
-constraints are split into pieces and lowered to R1CS rows (`PieceRows.lowerPieces`). A Π_RLC
-ring product becomes 108 rows per cell (`PieceRows.ringRows`); every other constraint is lowered
-with `R1CS.lowerConstraints`, as today's Π_CCS arithmetic. Each row becomes one row of a
-`ProductionRelation.Plan` through `OrdinarySourcePlan`, over the identity map from source columns
-to logical columns. Poseidon2 blocks stay unpacked here; packing them into 150 S-box rows is a
-later unit.
+/-! The ordinary part of a circuit's logical relation for the generic exporter (CW-5.2): each R1CS
+row becomes one row of a `ProductionRelation.Plan` through `OrdinarySourcePlan`, over the identity
+map from source columns to logical columns. `CircuitRelation` builds a step circuit's relation from
+these rows and the packed Poseidon2 blocks.
 
 The logical assignment's first `ringDegree * publicRingColumns` columns are the public input
 `x` (`Phi81Relation.projectPublicInput`), so column 0 is the `encHash` marker 1 and serves as the
 constant column. Four extra constraints read the output digest back from `x`
-(`decodeHashWord`, as `RecursivePublicOutputPlan`). `rowsZero_implies_spec` gives the circuit's
-spec and the output digest from a satisfying assignment. -/
+(`decodeHashWord`, as `RecursivePublicOutputPlan`). -/
 
 namespace NightstreamFPrime.Export.Generic.LogicalPlan
 
@@ -196,19 +191,7 @@ theorem digest_of_decode (env : Env) (digestColumn : Fin 4 → Nat) (digest : Di
     encoded, decodeHashWord_encHash] at zero
   exact sub_eq_zero.mp zero
 
-/-! ### From the logical relation to the circuit -/
-
-/-- A circuit's constraints at `offset` with the decode constraints of its output digest. -/
-def constraints (circuit : FormalCircuit) (offset : Nat) (digestColumn : Fin 4 → Nat) :
-    List Expr :=
-  flatConstraints (Circuit.ops circuit.main offset) ++ decodeConstraints digestColumn
-
-/-- The R1CS rows of the constraints' pieces, with fresh columns from `firstFresh`. -/
-def rows (circuit : FormalCircuit) (offset firstFresh : Nat) (digestColumn : Fin 4 → Nat) :
-    List R1CS.Row :=
-  let canonical := PilotData.canonicalConstraints ()
-  (PieceRows.lowerPieces canonical (Pieces.split canonical (constraints circuit offset digestColumn))
-    firstFresh).1
+/-! ### The constant column -/
 
 theorem encoded_one (assignment : Assignment F logicalWidth) (digest : Digest)
     (encoded : publicInput (publicFits := publicFits) (sourceEnv assignment) = encHash digest)
@@ -217,26 +200,5 @@ theorem encoded_one (assignment : Assignment F logicalWidth) (digest : Digest)
   have marker := congrFun encoded encHashMarkerIndex
   rw [encHash_marker] at marker
   simpa [publicInput, sourceEnv, encHashMarkerIndex, oneColumn, fits.positive] using marker
-
-/-- A satisfying assignment of the circuit's logical relation whose public input encodes
-`digest` gives the circuit's spec and the output digest. -/
-theorem rowsZero_implies_spec (circuit : FormalCircuit) (offset firstFresh : Nat)
-    (digestColumn : Fin 4 → Nat)
-    (fits : Fits (rows circuit offset firstFresh digestColumn) logicalWidth)
-    (assignment : Assignment F logicalWidth) (digest : Digest)
-    (encoded : publicInput (publicFits := publicFits) (sourceEnv assignment) = encHash digest)
-    (rowsZero : (plan _ logicalWidth fits).RowsZero assignment)
-    (assumptions : circuit.assumptions offset (sourceEnv assignment)) :
-    circuit.spec offset (sourceEnv assignment) ∧
-      ∀ word, sourceEnv assignment (digestColumn word) = digest.getD word.val 0 := by
-  have rowsHold := (rowsZero_iff_rowsHold _ logicalWidth fits assignment
-    (encoded_one assignment digest encoded fits)).mp rowsZero
-  have all := PieceRows.pieces_sound _ (constraints circuit offset digestColumn) firstFresh
-    (sourceEnv assignment) rowsHold
-  refine ⟨?_, digest_of_decode _ digestColumn digest encoded
-    (fun expression member => all expression (List.mem_append_right _ member))⟩
-  exact circuit.soundness _ offset assumptions
-    (holdsFlat_implies_holds _ _ fun expression member =>
-      all expression (List.mem_append_left _ member))
 
 end NightstreamFPrime.Export.Generic.LogicalPlan

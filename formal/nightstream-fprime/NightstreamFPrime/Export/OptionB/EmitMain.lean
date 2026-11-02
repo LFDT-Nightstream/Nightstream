@@ -5,9 +5,9 @@ import NightstreamFPrime.Lifecycle.Stage1.Poseidon2HashChainV1
 /-! The option-B emitter (CW-5.5), first part: the row census of the light and the refresh step
 circuits for today's fixture application (`Poseidon2HashChainV1.program`). For each circuit it
 prints the constraints, the Poseidon2 blocks and ring products that `Pieces.split` recognizes,
-the rows of `LogicalPlan.rows` with their largest column, and the rows after packing each
-Poseidon2 block into 150 CCS rows; then the same counts for each top-level child, largest
-first. -/
+whether the blocks pack (`CircuitRelation.packable`), and the rows and columns of the circuit's
+relation (`CircuitRelation.relationRows` and 150 S-box rows per packed block); then the counts
+for each top-level child, largest first. -/
 
 namespace NightstreamFPrime.Export.OptionB.EmitMain
 
@@ -48,17 +48,21 @@ def census (name : String) (ops : List Op) (offset : Nat) (digestColumn : Fin 4 
   let firstFresh := offset + localLength ops
   IO.println s!"{name}: {constraints.length} constraints, {localLength ops} locals from {offset}"
   let pieces := Pieces.split canonical constraints
-  let lowered := PieceRows.lowerPieces canonical pieces firstFresh
-  IO.println s!"{name}: {lowered.1.length} logical rows, next column {lowered.2}, \
-    largest column {LogicalPlan.rowsMax lowered.1} ({(← IO.monoMsNow) - start} ms)"
-  let permutations := (pieces.filter fun | .permutation .. => true | _ => false).length
+  let blocks := (CircuitRelation.blocksOf pieces).length
   let products := ringProducts pieces
   let generic := Pieces.genericConstraints pieces
   let genericRows := (Stage1.Rows.lowerConstraintsTR generic firstFresh).rows.length
-  IO.println s!"{name}: {permutations} Poseidon2 blocks, {products} ring products, \
-    {generic.length} other constraints, {genericRows} other rows, \
-    {genericRows + 108 * products + 150 * permutations} packed rows \
-    ({(← IO.monoMsNow) - start} ms)"
+  IO.println s!"{name}: {blocks} Poseidon2 blocks, {products} ring products, \
+    {generic.length} other constraints, {genericRows} other rows ({(← IO.monoMsNow) - start} ms)"
+  let packed := CircuitRelation.packable CircuitRelation.publicColumns pieces
+  IO.println s!"{name}: blocks pack: {packed} ({(← IO.monoMsNow) - start} ms)"
+  let rows := CircuitRelation.relationRows CircuitRelation.publicColumns pieces firstFresh width
+  let sboxRows := if packed then 150 * blocks else 0
+  let lastColumn := if packed then CircuitRelation.sboxStart pieces firstFresh + 150 * blocks
+    else LogicalPlan.rowsMax rows + 1
+  IO.println s!"{name}: {rows.length} R1CS rows + {sboxRows} S-box rows = \
+    {rows.length + sboxRows} logical rows; largest R1CS column {LogicalPlan.rowsMax rows}, \
+    columns below {lastColumn} ({(← IO.monoMsNow) - start} ms)"
 
 /-- One line per top-level child: its name, Poseidon2 blocks, ring products, other constraints
 and their R1CS rows, largest first. -/

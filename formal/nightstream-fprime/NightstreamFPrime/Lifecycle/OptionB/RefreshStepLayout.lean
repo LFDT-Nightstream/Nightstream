@@ -49,7 +49,7 @@ structure Interface (logicalWidth : Nat)
     Fin ringDegree → Expr
   childEvaluation : Fin productionShape.runningCount → StatementAbsorption.EvaluationExpr
   digit : Fin productionShape.runningCount →
-    Fin (Lifecycle.PiDEC.v1_2.PublicInputSplit.coordinateCount logicalWidth publicFits) → Expr
+    Fin (PaperAlgebra.FullShape logicalWidth publicFits).publicWidth → Expr
   round : Fin productionShape.cubeVariables → RoundTranscript.Message 8
   output : OutputBinding.OutputExpr
 

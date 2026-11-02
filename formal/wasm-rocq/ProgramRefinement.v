@@ -69,7 +69,18 @@ Proof.
     cbn [suspendedCalls afterBoundary boundaryLocalsBase boundaryCallDepth].
     rewrite Hd, Hfbp. eapply frame_effect_suspended; [exact Heffect | exact Hsusp]. }
   destruct (nth_error (innerCode f (viewPosition view)) (positionOffset (viewPosition view))) as [i | ] eqn:Hi.
-  - destruct (view_facts _ _ _ _ _ _ _ _ _ _ Hstore Hvalid Hframe) as [_ [[Hsup _] _]].
+  - (* A return, or a br to the function's label, pops back to its caller; in the
+       base frame it would leave the run. *)
+    assert (Hreturns : returnsFrom (length (positionLabels (viewPosition view))) i ->
+        exists cursor' c1, Steps (plugCalls stack inner) c1 /\
+          ControlState program s baseDepth cursor' final (afterBoundary row) c1).
+    { intros Hreturn. destruct stack as [ | top rest].
+      - exfalso. pose proof (Hbase ltac:(cbn in Hdepth; lia)) as Hpop.
+        destruct (return_selected program s view f i initial final row _ Hprime Hloaded Hfull
+          Hprogram Hreplay Hactivestate Hactive Hi Hreturn) as [Hsel Hedge].
+        destruct (full_return_exits row COL_SEL_RETURN Hprime Hfull ltac:(cbn; tauto) Hsel Hedge); lia.
+      - eapply early_return_row; eassumption. }
+    destruct (view_facts _ _ _ _ _ _ _ _ _ _ Hstore Hvalid Hframe) as [_ [[Hsup _] _]].
     rewrite (skipn_at_instruction _ _ _ Hi) in Hsup.
     destruct (supported_cases _ _ (Forall_inv Hsup))
       as [Hop | [[x ->] | [[bt [body Hlabel]] | [[l ->] | [[l ->] | [[ls [l ->]] | [-> | [[bt [t [e ->]]] | ->]]]]]]]].
@@ -78,15 +89,11 @@ Proof.
     + apply Hkeep. eapply code_label_enter_row; try eassumption.
       destruct Hlabel as [-> | ->]; [left | right]; eauto.
     + apply Hkeep. eapply code_branch_row; eassumption.
-    + apply Hkeep. eapply code_br_row; eassumption.
+    + destruct (Nat.eq_dec (N.to_nat (l :> N)) (length (positionLabels (viewPosition view)))) as [Hto | Hinside].
+      * apply Hreturns. right. exists l. split; [reflexivity | exact Hto].
+      * apply Hkeep. eapply code_br_row; eassumption.
     + apply Hkeep. eapply code_br_table_row; eassumption.
-    + (* A return pops back to its caller; in the base frame it would leave the run. *)
-      destruct stack as [ | top rest].
-      * exfalso. pose proof (Hbase ltac:(cbn in Hdepth; lia)) as Hpop.
-        destruct (return_selected program s view f initial final row _ Hprime Hloaded Hfull
-          Hprogram Hreplay Hactivestate Hactive Hi) as [Hsel Hedge].
-        destruct (full_return_exits row COL_SEL_RETURN Hprime Hfull ltac:(cbn; tauto) Hsel Hedge); lia.
-      * eapply early_return_row; eassumption.
+    + apply Hreturns. left. reflexivity.
     + apply Hkeep. eapply code_if_row; eassumption.
     + apply Hkeep. eapply code_nop_row; eassumption.
   - apply nth_error_None in Hi.

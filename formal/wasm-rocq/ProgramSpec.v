@@ -99,6 +99,7 @@ Definition instructionRom (program : Program) (memory : nat) (pc : Z) (choice : 
         | Some (flatInstruction (opInstr (IFELSE _ _ _)) _) => Some CODE_IF
         | Some (flatInstruction opElse _) => Some CODE_ELSE
         | Some (flatInstruction (opInstr (BR_IF _)) _) => Some CODE_BR_IF
+        | Some (flatInstruction (opInstr (BR _)) [None]) => Some CODE_RETURN
         | Some (flatInstruction (opInstr (BR _)) _) => Some CODE_BR
         | Some (flatInstruction (opInstr (BR_TABLE _ _)) _) => Some CODE_BR_TABLE
         | Some (flatInstruction (opInstr RETURN) _) => Some CODE_RETURN
@@ -106,7 +107,10 @@ Definition instructionRom (program : Program) (memory : nat) (pc : Z) (choice : 
         | Some (flatInstruction (opInstr i) _) => encodedOpcode i
         | _ => Some CODE_END end
       else if Nat.eqb memory pcEdgeKindId then
-        match slot with Some (flatInstruction (opInstr RETURN) _) | None => Some 1 | Some _ => Some 0 end
+        match slot with
+        | Some (flatInstruction (opInstr RETURN) _) | Some (flatInstruction (opInstr (BR _)) [None]) | None => Some 1
+        | Some _ => Some 0
+        end
       else if Nat.eqb memory programLocalIndexId then
         match slot with
         | Some (flatInstruction (opInstr (LOCAL_GET x)) _)
@@ -194,7 +198,8 @@ Definition slideWord (remaining : bool) (kept distance : nat) : Z :=
 (* The slide ROM's entry at a slot of f's flattened code, for the edges that can
    slide: f's END and returns drop its locals too; a br, a br_if's taken edge and
    each br_table edge slide within the frame. A return is the branch to the
-   function's own label, the outermost one. Other slots have none. *)
+   function's own label, the outermost one, and a br to that label is a return.
+   Other slots have none. *)
 Definition functionSlide (program : Program) (memory : nat) (f : GuestFunction) (offset : nat) (choice : Z)
     : option Z :=
   let frame := (guestParams f + guestLocals f)%nat in
@@ -207,7 +212,9 @@ Definition functionSlide (program : Program) (memory : nat) (f : GuestFunction) 
   | Some (flatInstruction (opInstr i) _), Some (Some (heights, arities, h)) =>
       match i with
       | RETURN => if choice =? 0 then word frame (labelSlide heights arities h (length arities - 1)) else None
-      | BR l => if choice =? 0 then word 0%nat (labelSlide heights arities h (N.to_nat (l :> N))) else None
+      | BR l =>
+          let frameDrop := if Nat.eqb (N.to_nat (l :> N)) (length arities - 1) then frame else 0%nat in
+          if choice =? 0 then word frameDrop (labelSlide heights arities h (N.to_nat (l :> N))) else None
       | BR_IF l =>
           if choice =? 0 then Some 0
           else if choice =? 1 then word 0%nat (branchSlide heights arities h (N.to_nat (l :> N))) else None

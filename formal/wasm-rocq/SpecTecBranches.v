@@ -310,3 +310,46 @@ Proof.
     rewrite !cat_app, !app_nil_r in Hstep. apply Hstep.
     apply (introT eqP). unfold n. rewrite length_map. reflexivity.
 Qed.
+
+(* A branch to the function's own label: the label keeps the results, and the frame
+   returns them, as a return would. *)
+Lemma i32_function_branches_out : forall s caller callee dropped results rest,
+  wf_state (mk_state s caller) -> wf_frame callee ->
+  Forall (fun value => 0 <= value < i32Modulus) (dropped ++ results) -> Forall wf_instr rest ->
+  Steps (callContext caller (N.of_nat (length results))
+      (stackConfig (mk_state s callee) (dropped ++ results) (BR (mk_uN 0) :: rest)))
+    (mk_config (mk_state s caller) (map i32Constant results)).
+Proof.
+  intros s caller callee dropped results rest Hstate Hcallee Hvalues Hrest.
+  set (n := N.of_nat (length results)).
+  assert (Hconstants : forall values, Forall (fun value => 0 <= value < i32Modulus) values ->
+      Forall wf_admininstr (map i32Constant values)).
+  { intros values Hv. apply Forall_map. eapply Forall_impl; [ | exact Hv].
+    intros value Hvalue. constructor. apply spectec_i32_well_formed. exact Hvalue. }
+  pose proof (Hconstants _ Hvalues) as Hall.
+  pose proof (Hconstants _ (proj2 (proj1 (Forall_app _ _ _) Hvalues))) as Hkept.
+  assert (HinnerState : wf_state (mk_state s callee)) by (inversion Hstate; constructor; assumption).
+  set (body := map i32Constant (dropped ++ results) ++ map admininstr_instr (BR (mk_uN 0) :: rest)).
+  assert (Hbody : Forall wf_admininstr body).
+  { apply Forall_app; split; [exact Hall | ]. apply Forall_map. constructor; [repeat constructor | ].
+    eapply Forall_impl; [ | exact Hrest]. intros i Hi. apply instruction_admin_wf. exact Hi. }
+  assert (Hlabel : wf_config (mk_config (mk_state s callee) [LABEL_ n [] body]))
+    by (constructor; [exact HinnerState | repeat constructor; assumption]).
+  assert (HinnerKept : wf_config (mk_config (mk_state s callee) (map i32Constant results))) by (constructor; assumption).
+  assert (Hbefore : wf_config (mk_config (mk_state s caller) [FRAME_ n callee [LABEL_ n [] body]]))
+    by (constructor; [exact Hstate | repeat constructor; assumption]).
+  assert (Hmiddle : wf_config (mk_config (mk_state s caller) [FRAME_ n callee (map i32Constant results)]))
+    by (constructor; [exact Hstate | repeat constructor; assumption]).
+  assert (Hafter : wf_config (mk_config (mk_state s caller) (map i32Constant results))) by (constructor; assumption).
+  change (Steps (mk_config (mk_state s caller) [FRAME_ n callee [LABEL_ n [] body]])
+    (mk_config (mk_state s caller) (map i32Constant results))).
+  eapply trans; [ | | exact Hbefore | exact Hafter | exact Hmiddle].
+  - apply ctxt_frame; [ | exact Hlabel | exact HinnerKept].
+    apply pure. unfold body. rewrite map_app, !i32_constants_values.
+    pose proof (br_zero n [] (map i32Value dropped) (map i32Value results) (map admininstr_instr rest)) as Hstep.
+    rewrite !cat_app, app_nil_r, <- !app_assoc in Hstep. rewrite <- !app_assoc. apply Hstep.
+    apply (introT eqP). unfold n. rewrite length_map. reflexivity.
+  - eapply trans; [ | apply Steps__refl; exact Hafter | exact Hmiddle | exact Hafter | exact Hafter].
+    apply pure. rewrite i32_constants_values. apply frame_vals.
+    apply (introT eqP). unfold n. rewrite length_map. reflexivity.
+Qed.

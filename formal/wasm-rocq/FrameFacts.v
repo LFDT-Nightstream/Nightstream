@@ -274,17 +274,6 @@ Proof.
     exact (return_label_carrying _ _ z _ rest' Hk Hz Hcarried Hrest').
 Qed.
 
-Lemma path_heights_length : forall callees labels code offset heights top,
-  pathHeights callees code labels offset = Some (heights, top) -> length heights = length labels.
-Proof.
-  intros callees. induction labels as [ | s rest IH]; intros code offset heights top H; cbn [pathHeights] in H.
-  - destruct (sourceHeights callees (firstn offset code) 0); cbn in H; [ | discriminate]. now injection H as <- _.
-  - destruct (siteEntry code s) as [[i body] | ]; [ | discriminate].
-    destruct (sourceHeights callees (firstn (siteOffset s) code) 0); [ | discriminate].
-    destruct (pathHeights callees body rest offset) as [[hs t] | ] eqn:Hin; cbn in H; [ | discriminate].
-    injection H as <- _. cbn [length]. f_equal. exact (IH _ _ _ _ Hin).
-Qed.
-
 (* Callee types and validation come from the module context SpecTec instantiated. *)
 Lemma program_callee_types : forall program s module C,
   store_FUNCS s = program -> Moduleinst_ok s module C ->

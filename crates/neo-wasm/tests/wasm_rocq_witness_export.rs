@@ -135,6 +135,20 @@ const NOPS: &str = r#"(module
     block nop end
     nop))"#;
 
+/// A br to the callee's own label from inside a block: a return of 9 to main,
+/// dropping the 7 below it.
+const FUNCTION_BR: &str = r#"(module
+  (func (export "main") (param i32 i32) (result i32)
+    local.get 0
+    local.get 1
+    call 1)
+  (func (param i32 i32) (result i32)
+    block (result i32)
+      local.get 0
+      local.get 1
+      br 1
+    end))"#;
+
 /// The longest run of program, zero and move rows ending just before the final END,
 /// which finishes the activation, as `name`, one dense row per trace row.
 fn export_witness(wat: &str, params: &[i32], name: &str, file: &str) {
@@ -199,4 +213,5 @@ fn export_witnesses() {
     export_witness(IFS, &[7, 0], "ifRows", "IfTrace.v");
     export_witness(LOOPS, &[3, 1], "loopRows", "LoopTrace.v");
     export_witness(NOPS, &[7], "nopRows", "NopTrace.v");
+    export_witness(FUNCTION_BR, &[7, 9], "functionBrRows", "FunctionBrTrace.v");
 }

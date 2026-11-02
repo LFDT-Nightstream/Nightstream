@@ -31,7 +31,7 @@ Proof. intros callees body H. inversion H as [ | | | | | ? ? _ [Hr | Hr] | | | |
 Example typed_block_rejected : forall callees x body, ~ Supported callees (BLOCK (_IDX x) body).
 Proof. intros callees x body H. inversion H. Qed.
 
-(* Branches leave blocks, never the function. *)
+(* A br_if or br_table leaves blocks, never the function. *)
 Example br_if_outside_block_rejected : ~ codeBranches noCallees 0 [LOCAL_GET (mk_uN 0); BR_IF (mk_uN 0)] 0.
 Proof. intros H. vm_compute in H. intuition lia. Qed.
 
@@ -59,7 +59,11 @@ Proof. vm_compute. repeat split; lia. Qed.
 Example br_out_of_block : codeBranches noCallees 0 [BLOCK (_RESULT None) [BR (mk_uN 0); LOCAL_SET (mk_uN 0)]] 0.
 Proof. vm_compute. repeat split; lia. Qed.
 
-Example br_to_function_rejected : ~ codeBranches noCallees 0 [BLOCK (_RESULT None) [BR (mk_uN 1)]] 0.
+(* A br may leave the function's own label, as a return; nothing lies beyond it. *)
+Example br_to_function : codeBranches noCallees 0 [BLOCK (_RESULT None) [BR (mk_uN 1)]] 0.
+Proof. vm_compute. repeat split; lia. Qed.
+
+Example br_past_function_rejected : ~ codeBranches noCallees 0 [BLOCK (_RESULT None) [BR (mk_uN 2)]] 0.
 Proof. intros H. vm_compute in H. intuition lia. Qed.
 
 (* Every br_table target leaves an enclosing block. *)

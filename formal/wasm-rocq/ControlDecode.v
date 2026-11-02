@@ -84,6 +84,17 @@ Fixpoint pathHeights (callees : CalleeEnvironment) (code : list instr) (labels :
       end
   end.
 
+Lemma path_heights_length : forall callees labels code offset heights top,
+  pathHeights callees code labels offset = Some (heights, top) -> length heights = length labels.
+Proof.
+  intros callees. induction labels as [ | s rest IH]; intros code offset heights top H; cbn [pathHeights] in H.
+  - destruct (sourceHeights callees (firstn offset code) 0); cbn in H; [ | discriminate]. now injection H as <- _.
+  - destruct (siteEntry code s) as [[i body] | ]; [ | discriminate].
+    destruct (sourceHeights callees (firstn (siteOffset s) code) 0); [ | discriminate].
+    destruct (pathHeights callees body rest offset) as [[hs t] | ] eqn:Hin; cbn in H; [ | discriminate].
+    injection H as <- _. cbn [length]. f_equal. exact (IH _ _ _ _ Hin).
+Qed.
+
 Definition totalHeight (heights : list nat * nat) : nat := fold_right Nat.add (snd heights) (fst heights).
 
 (* The arity of each enclosing label, outermost first. *)

@@ -537,6 +537,30 @@ impl ParsedWasmArtifactsBuilder {
                     let operator = reader
                         .read()
                         .map_err(|err| WasmProgramError::Invalid(format!("failed to decode wasm operator: {err}")))?;
+                    // A branch to the body's own label leaves the function: a `br` is a
+                    // `return`; a conditional one would need a branch row that returns.
+                    let to_function = |depth: u32| depth as usize == curr_depth;
+                    let operator = match operator {
+                        wasmparser::Operator::Br { relative_depth } if to_function(relative_depth) => {
+                            wasmparser::Operator::Return
+                        }
+                        wasmparser::Operator::BrIf { relative_depth } if to_function(relative_depth) => {
+                            return Err(WasmProgramError::Unsupported(
+                                "br_if to the function's label".to_string(),
+                            ));
+                        }
+                        wasmparser::Operator::BrTable { ref targets }
+                            if to_function(targets.default())
+                                || targets
+                                    .targets()
+                                    .any(|target| target.is_ok_and(&to_function)) =>
+                        {
+                            return Err(WasmProgramError::Unsupported(
+                                "br_table to the function's label".to_string(),
+                            ));
+                        }
+                        operator => operator,
+                    };
                     let pc_after = u64::from(self.next_pc);
                     let is_function_end = matches!(&operator, wasmparser::Operator::End) && curr_depth == 0;
                     let decoded = match &operator {

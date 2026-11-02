@@ -501,9 +501,10 @@ Lemma code_br_row : forall view f l initial final row inner,
   ActiveState program s initial (beforeBoundary row) (atCode view) inner ->
   functionAt program (positionFunction (viewPosition view)) = Some f ->
   nth_error (innerCode f (viewPosition view)) (positionOffset (viewPosition view)) = Some (BR l) ->
+  N.to_nat (l :> N) <> length (positionLabels (viewPosition view)) ->
   RowResult initial final row f inner view.
 Proof.
-  intros view f l initial final row inner Hprime Hloaded Hfull Hprogram Hreplay Hstate Hf Hi.
+  intros view f l initial final row inner Hprime Hloaded Hfull Hprogram Hreplay Hstate Hf Hi Hnotfunction.
   destruct (program_row_active _ _ _ _ _ _ Hprime Hfull Hprogram Hstate)
     as [f' [Hframe [Hoffset [Hsp [Hpc [Hidle ->]]]]]].
   pose proof Hframe as [Hf' [Hpath [Hheights [Hfbp0 [Hbase0 [Hbounds [_ [Hllen [Hlb Hlc]]]]]]]]].
@@ -521,6 +522,11 @@ Proof.
   assert (Hwfl : wf_uN 32%N l).
   { pose proof (proj1 (Forall_forall _ _) Hwfcode _ (nth_error_In _ _ Hi)) as H. inversion H; assumption. }
   cbn [instrBranches] in Hexits.
+  (* Not the function's label (a return), so an enclosing one. *)
+  assert (Hlabels : length segments = length labels)
+    by (pose proof (path_heights_length _ _ _ _ _ _ Hheights) as H; rewrite length_map in H; exact H).
+  assert (Htarget : (N.to_nat (l :> N) < length segments)%nat) by lia.
+  clear Hexits. rename Htarget into Hexits.
   match type of Hexits with (?target < _)%nat => set (depth := target) in * end.
   (* The target block, and the `depth` labels inside it. *)
   destruct (branch_target_split _ _ _ _ _ _ _ _ _ _ _ Hframe Hexits)
@@ -559,7 +565,8 @@ Proof.
       repeat rewrite (full_opcode_selector_exclusive row COL_SEL_BR) by
         (assumption || vm_compute; tauto || discriminate). reflexivity. }
     destruct (circuit_row_slide_fetch _ _ _ Hreplay Hslide) as [Hremaining Hdistance].
-    destruct (encoded_br_slide _ _ _ _ _ _ _ _ _ _ (row COL_CONTROL_CHOICE) Hloaded Hf Hpath Hi Hheights)
+    destruct (encoded_br_slide _ _ _ _ _ _ _ _ _ _ (row COL_CONTROL_CHOICE) Hloaded Hf Hpath Hi
+      ltac:(rewrite length_app; cbn [length]; lia) Hheights)
       as [Hkept Hrom].
     pose proof (full_selected_choice_pinned row COL_SEL_BR Hprime Hfull ltac:(vm_compute; tauto) Hchosen
       ltac:(vm_compute; intuition discriminate)) as Hchoice.

@@ -481,6 +481,25 @@ fn empty_else_is_rejected_at_parse() {
 }
 
 #[test]
+fn br_if_to_function_label_is_rejected_at_parse() {
+    let wasm = wat::parse_str(
+        r#"(module
+            (func (export "run") (param i32) (result i32)
+                local.get 0
+                local.get 0
+                br_if 0)
+        )"#,
+    )
+    .expect("wat");
+
+    let err = extract_wasm_program_artifacts(&wasm).expect_err("a br_if to the function label must be rejected");
+    assert!(
+        err.to_string().contains("br_if to the function's label"),
+        "expected function-label br_if rejection, got: {err}",
+    );
+}
+
+#[test]
 fn unsupported_operator_in_uncalled_function_is_rejected_at_parse() {
     let wasm = wat::parse_str(
         r#"(module

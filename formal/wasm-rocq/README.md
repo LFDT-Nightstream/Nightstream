@@ -3,7 +3,8 @@
 `run_refinement` proves circuit traces against SpecTec's Wasm 2.0 semantics for
 `i32.add/sub`, `local.get/set`, `nop`, direct guest calls, `return` from any depth of
 blocks, and blocks, loops and `if`s with no or one i32 result with `br`, `br_if` and `br_table` to any enclosing
-label: a branch to a block or an `if` leaves it, a branch to a loop runs it again. Blocks, loops and `if`s nest to any
+label: a branch to a block or an `if` leaves it, a branch to a loop runs it again. A `br` may also target the
+function's own label, which is a `return`; a `br_if` or `br_table` to it is rejected by the Rust parser. Blocks, loops and `if`s nest to any
 depth, calls nest to any depth, and any supported instruction, calls included, may appear inside them.
 Conditions may be computed, with multiple branches per block; a taken branch
 keeps its target block's results and discards every other operand above the
@@ -21,8 +22,7 @@ in its base frame, including inside blocks, inside calls, or during a callee's
 frame initialization; the final shape resumes the next run. The store is an input:
 the circuit does not hold it. A run's activation never finishes (no export return
 or trap). Padding is supported. An explicitly empty `else` is rejected by the Rust parser (SpecTec's `if` has no such form; strip it before
-proving). Host rows, indirect calls, blocks and loops with parameters or typed by index, branches
-to the function's own label and returning out of the base frame are excluded.
+proving). Host rows, indirect calls, blocks and loops with parameters or typed by index, and returning out of the base frame are excluded.
 Selected zero-test steps are also proved.
 Field primality and memory-event consistency are assumed; the offline memory
 argument is not proved. ROMs are dense: keys the encoder does not list read 0, so

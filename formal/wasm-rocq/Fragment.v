@@ -44,6 +44,11 @@ Definition sourceHeight (callees : CalleeEnvironment) (i : instr) (height : nat)
   | _ => instructionStackHeight i height
   end.
 
+(* An instruction that leaves its function from `depth` enclosing labels: a return,
+   or a br to the function's own label. *)
+Definition returnsFrom (depth : nat) (i : instr) : Prop :=
+  i = RETURN \/ exists l, i = BR l /\ N.to_nat (l :> N) = depth.
+
 Fixpoint sourceHeights (callees : CalleeEnvironment) (code : list instr) (height : nat) : option nat :=
   match code with
   | [] => Some height
@@ -51,12 +56,14 @@ Fixpoint sourceHeights (callees : CalleeEnvironment) (code : list instr) (height
       | Some next => sourceHeights callees rest next | None => None end
   end.
 
-(* A br, br_if or br_table targets an enclosing label, never the function's:
-   `exits` counts the enclosing labels. A taken branch discards the operands above its target's base.
+(* A br_if or br_table targets an enclosing label, never the function's; a br may
+   also target the function's: `exits` counts the enclosing labels. A taken branch discards the operands above its target's base.
    Code nothing falls through to is dead and unconstrained. *)
 Fixpoint instrBranches (callees : CalleeEnvironment) (i : instr) (height exits : nat) : Prop :=
   match i with
-  | BR_IF l | BR l => (N.to_nat (l :> N) < exits)%nat
+  | BR_IF l => (N.to_nat (l :> N) < exits)%nat
+  (* A br may also leave the function's own label, past every enclosing one. *)
+  | BR l => (N.to_nat (l :> N) <= exits)%nat
   | BR_TABLE ls l => Forall (fun target => N.to_nat (target :> N) < exits)%nat (l :: ls)
   | BLOCK _ body | LOOP _ body =>
       (fix bodyBranches (code : list instr) (h : nat) : Prop :=

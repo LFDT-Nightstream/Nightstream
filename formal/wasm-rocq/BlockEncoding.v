@@ -3,7 +3,7 @@
    depth of nesting. *)
 From Stdlib Require Import List ZArith Lia.
 Require Import Wasm2 R1CS MemoryTrace MemoryCatalog OpcodeCatalog StraightLineSpec CallSpec CallerSpec
-  CodeLayout ProgramSpec ProgramEncoding BlockSpec BranchBindings StraightLineInstructions StackSimulation.
+  CodeLayout ProgramSpec ProgramEncoding BlockSpec BranchBindings StraightLineInstructions StackSimulation Fragment.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -306,15 +306,19 @@ Proof.
   - unfold pathPC. eapply encoded_frame_image; [exact Hloaded | exact Hf | lia | exact Hcount].
 Qed.
 
-(* A return's slot: the RETURN opcode, with a return-like edge. *)
-Lemma encoded_path_return : forall labels inner offset,
-  pathCode (guestBody f) labels = Some inner -> nth_error inner offset = Some RETURN ->
+(* A return's slot, or a br's to the function's label: the RETURN opcode, with a
+   return-like edge. *)
+Lemma encoded_path_return : forall labels inner offset i,
+  pathCode (guestBody f) labels = Some inner -> nth_error inner offset = Some i -> returnsFrom (length labels) i ->
   memory programOpcodeId [pathPC labels offset] = Some CODE_RETURN /\
   memory pcEdgeKindId [pathPC labels offset] = Some 1.
 Proof.
-  intros labels inner offset Hpath Hi.
-  pose proof (encoded_path_head _ _ _ _ Hpath Hi) as Hpc. cbn [slotTargets] in Hpc.
-  split; pc_cell Hpc; reflexivity.
+  intros labels inner offset i Hpath Hi Hreturn.
+  pose proof (encoded_path_head _ _ _ _ Hpath Hi) as Hpc.
+  destruct Hreturn as [-> | [l [-> Hl]]]; cbn [slotTargets branchTargets map] in Hpc.
+  - split; pc_cell Hpc; reflexivity.
+  - rewrite (proj2 (nth_error_None _ _)) in Hpc by (rewrite (path_targets_length _ _ _ Hpath); lia).
+    split; pc_cell Hpc; reflexivity.
 Qed.
 
 End Path.

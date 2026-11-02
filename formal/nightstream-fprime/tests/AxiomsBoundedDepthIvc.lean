@@ -37,6 +37,7 @@ import NightstreamFPrime.Layout.OptionB.StepCircuits
 import NightstreamFPrime.Export.Generic.Pieces
 import NightstreamFPrime.Export.Generic.LogicalPlan
 import NightstreamFPrime.Export.OptionB.StepRelation
+import NightstreamFPrime.Export.OptionB.StepPackage
 import NightstreamFPrime.Lifecycle.OptionB.Terminal
 import NightstreamFPrime.Spec.Folding.Light.RlcModule
 
@@ -355,6 +356,13 @@ open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 #audit_axioms NightstreamFPrime.Export.Generic.CircuitRelation.rowsZero_implies_pieces
 #audit_axioms NightstreamFPrime.Export.Generic.CircuitRelation.rowsZero_implies_constraints
 #audit_axioms NightstreamFPrime.Export.Generic.CircuitRelation.rowsZero_implies_spec
+#audit_axioms NightstreamFPrime.Export.OptionB.StepPackage.Package.format
+#audit_axioms NightstreamFPrime.Export.OptionB.StepPackage.lowerPiecesAux_eq
+#audit_axioms NightstreamFPrime.Export.OptionB.StepPackage.packageAux_eq
+#audit_axioms NightstreamFPrime.Export.OptionB.StepPackage.flatMap_packageSpec
+#audit_axioms NightstreamFPrime.Export.OptionB.StepPackage.blocks_packageSpec
+#audit_axioms NightstreamFPrime.Export.OptionB.StepPackage.relationRows_packageOf
+#audit_axioms NightstreamFPrime.Export.OptionB.StepPackage.identityFast_eq
 #audit_axioms NightstreamFPrime.Export.OptionB.StepRelation.lightRepresents
 #audit_axioms NightstreamFPrime.Export.OptionB.StepRelation.light_stepHolds
 #audit_axioms NightstreamFPrime.Export.OptionB.StepRelation.refreshRepresents

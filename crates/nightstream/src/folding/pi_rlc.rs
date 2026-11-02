@@ -39,17 +39,40 @@ pub(crate) struct Output {
     pub claim: CeClaim,
     pub witness: Mat<F>,
 }
+/// How PiRLC weights its inputs: a sampled challenge for each input (SuperNeo
+/// v1.2 Π_RLC), or option B's light rule, a sampled challenge for the fresh
+/// output and 1 for the running output (Lean `lightChallenge`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Weights {
+    Sampled,
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "the option-B lifecycle (CW-7.6c) calls it; only tests do until then"
+        )
+    )]
+    Light,
+}
 pub(crate) fn prove_refs(
     tr: &mut Transcript,
     pp: &Params,
     s: &Structure,
     mix: RlcMixer,
+    weights: Weights,
     claims: &[CeClaim],
     witnesses: &[&Mat<F>],
 ) -> Result<(Output, Proof), Error> {
     validate_input_shape(claims, witnesses)?;
     validate_inputs_before_rho(s, claims)?;
-    let rhos = engine::sample_rho_n(tr.inner_mut(), pp, claims.len())?;
+    let rhos = match weights {
+        Weights::Sampled => engine::sample_rho_n(tr.inner_mut(), pp, claims.len())?,
+        Weights::Light if claims.len() == 2 => {
+            let rho = engine::sample_rho_n(tr.inner_mut(), pp, 1)?.remove(0);
+            vec![rho, neo_reductions::common::RotRho::identity()]
+        }
+        Weights::Light => return Err(Error::Shape),
+    };
     let (combined, witness) = engine::prove_pi_rlc_refs(pp, s, &rhos, claims, witnesses, mix)?;
     validate_combined_claim(s, claims, &combined)?;
     Ok((

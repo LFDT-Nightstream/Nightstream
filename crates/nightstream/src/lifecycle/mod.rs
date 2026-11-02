@@ -20,6 +20,15 @@ mod evaluation;
 mod extend;
 mod finish;
 mod inputs;
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        unused_imports,
+        reason = "the option-B lifecycle (CW-7.6c) calls it; only tests do until then"
+    )
+)]
+mod option_b;
 mod prove;
 mod step_inputs;
 mod terminal;

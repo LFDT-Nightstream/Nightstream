@@ -4,6 +4,14 @@
 mod claims;
 mod compose;
 pub(crate) mod kernels;
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "the option-B lifecycle (CW-7.6c) calls it; only tests do until then"
+    )
+)]
+pub(crate) mod option_b;
 mod params;
 pub(crate) mod pi_ccs;
 pub(crate) mod pi_dec;

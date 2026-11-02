@@ -3,6 +3,7 @@ use super::{
     ajtai_rlc_mixer, pi_ccs, pi_dec, pi_rlc, transcript::Transcript, CcsClaim, CcsInstance, CeClaim, DecMixer, Error,
     FoldContext, NifsProof, Params, RlcMixer, RunningInstance, Structure,
 };
+use neo_reductions::FoldProfile;
 pub(crate) fn prove_owned_with_rows(
     tr: &mut Transcript,
     context: FoldContext<'_>,
@@ -39,11 +40,19 @@ pub(crate) fn prove_parent_with_rows(
     running: RunningInstance,
 ) -> Result<(pi_ccs::Proof, pi_rlc::Output, pi_rlc::Proof), Error> {
     let CcsInstance { claim, witness } = fresh;
-    let c = pi_ccs::prove_from_parts_with_rows(tr, context, &claim, &witness, &running)?;
+    let c = pi_ccs::prove_from_parts_with_rows(tr, context, &FoldProfile::production(), &claim, &witness, &running)?;
     let all: Vec<_> = std::iter::once(&witness.Z)
         .chain(running.witnesses.iter())
         .collect();
-    let (parent, r) = pi_rlc::prove_refs(tr, context.params, context.structure, ajtai_rlc_mixer, &c.outputs, &all)?;
+    let (parent, r) = pi_rlc::prove_refs(
+        tr,
+        context.params,
+        context.structure,
+        ajtai_rlc_mixer,
+        pi_rlc::Weights::Sampled,
+        &c.outputs,
+        &all,
+    )?;
     Ok((c, parent, r))
 }
 pub(crate) fn verify(

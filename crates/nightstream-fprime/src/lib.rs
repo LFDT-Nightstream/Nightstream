@@ -29,7 +29,7 @@ pub use identity::{
 pub use option_b::{
     layout::{Kind as SlotKind, LogicalLayout},
     load_option_b_packages, option_b_identity, parse_atoms,
-    words::{encode_digest, Child, FoldWords, KWords, Slot, State as OptionBState, StepWords},
+    words::{encode_digest, Child, FoldWords, KWords, Slot, State as OptionBState, StepWords, PUBLIC_WORDS},
     Block, OptionBPackages, PlanRows, StepPackage, OPTION_B_PACKAGES_IDENTITY,
 };
 pub use package::{
@@ -40,11 +40,11 @@ pub use package::{
     MatrixRun, PackageCcsRelation, PackageError, PackagePolynomialTerm, PackageR1cs, PackageSparseMatrix,
     PiCcsV1_2EncodedInputs, PiCcsV1_2OutputEvaluations, PiCcsV1_2PackageInputs, PiCcsV1_2Transcript,
     PiDecV1_2PackageInputs, TerminalOutputs, DECOMPOSITION_BASE, DECOMPOSITION_K_RHO, DECOMPOSITION_NORM_BOUND,
-    PI_CCS_V1_2_COEFFICIENT_COUNT, PI_CCS_V1_2_FRESH_COMMITMENT_WORDS, PI_CCS_V1_2_MATRIX_COUNT,
+    LIGHT_DOMAIN, PI_CCS_V1_2_COEFFICIENT_COUNT, PI_CCS_V1_2_FRESH_COMMITMENT_WORDS, PI_CCS_V1_2_MATRIX_COUNT,
     PI_CCS_V1_2_PRIOR_CHILDREN_WORDS, PI_CCS_V1_2_PRIOR_PUBLIC_INPUT_WORDS, PI_CCS_V1_2_ROUND_COEFFICIENT_COUNT,
     PI_CCS_V1_2_ROUND_COUNT, PI_CCS_V1_2_SOURCE_COUNT, PI_CCS_V1_2_STATE_PREIMAGE_WORDS,
     PI_CCS_V1_2_VERIFIER_CONTEXT_WORDS, PI_DEC_V1_2_CHILD_COUNT, PI_DEC_V1_2_COMMITMENT_WORDS_PER_CHILD,
     PI_DEC_V1_2_EVAL_A_MATRICES_PER_CHILD, PI_DEC_V1_2_EVAL_K_VALUES_PER_CHILD,
-    PI_DEC_V1_2_PUBLIC_INPUT_WORDS_PER_CHILD, PREPARED_FIXED_SOURCE_NODE_LIMIT,
+    PI_DEC_V1_2_PUBLIC_INPUT_WORDS_PER_CHILD, PREPARED_FIXED_SOURCE_NODE_LIMIT, REFRESH_DOMAIN,
 };
 pub use proof::WitnessAssignment;

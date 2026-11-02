@@ -141,6 +141,7 @@ pub(crate) fn prove_parent(
         context.params,
         context.structure,
         ajtai_rlc_mixer,
+        pi_rlc::Weights::Sampled,
         &c.outputs,
         &sources,
     )

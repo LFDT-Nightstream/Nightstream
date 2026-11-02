@@ -13,8 +13,9 @@ const WIDTH: usize = neo_ccs::crypto::poseidon2_goldilocks::WIDTH;
 const CUBE_VARIABLES: usize = PI_CCS_V1_2_ROUND_COUNT;
 const SOURCE_COUNT: usize = 17;
 const LIGHT_SOURCE_COUNT: usize = 2;
-const LIGHT_DOMAIN: &[u8] = b"Nightstream/SuperNeo/fold/light/v1";
-const REFRESH_DOMAIN: &[u8] = b"Nightstream/SuperNeo/fold/refresh/v1";
+/// The fold domains of option B's light and refresh PiCCS (Lean `OptionB.Keys`).
+pub const LIGHT_DOMAIN: &[u8] = b"Nightstream/SuperNeo/fold/light/v1";
+pub const REFRESH_DOMAIN: &[u8] = b"Nightstream/SuperNeo/fold/refresh/v1";
 const CHILD_WORDS: usize = 16 * (COMMITMENT_WORDS + EVALUATION_WORDS);
 const MATRIX_COUNT: usize = super::PI_CCS_V1_2_MATRIX_COUNT;
 const COEFFICIENT_COUNT: usize = 54;

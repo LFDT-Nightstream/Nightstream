@@ -241,6 +241,7 @@ pub(super) fn ccs(root: &Path, step: u64, engine: EvaluationEngine, cpu_referenc
         EvaluationEngine::Optimized => pi_ccs::prove_from_parts_with_rows(
             &mut transcript,
             context,
+            &neo_reductions::FoldProfile::production(),
             &source.fresh.claim,
             &source.fresh.witness,
             &source.running,
@@ -326,6 +327,7 @@ pub(super) fn rlc(root: &Path, step: u64) {
         &params(&package),
         &package.structure,
         ajtai_rlc_mixer,
+        pi_rlc::Weights::Sampled,
         &outputs,
         &witnesses,
     )

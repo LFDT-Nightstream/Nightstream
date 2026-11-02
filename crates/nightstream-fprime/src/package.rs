@@ -49,6 +49,7 @@ mod pi_ccs_v1_2_transcript;
 mod source_row;
 pub use pi_ccs_v1_2_transcript::{
     derive_light_transcript, derive_pi_ccs_v1_2_transcript, derive_refresh_transcript, PiCcsV1_2Transcript,
+    LIGHT_DOMAIN, REFRESH_DOMAIN,
 };
 
 const MAX_JOINT_DOMAIN_VARIABLES: u32 = 28;

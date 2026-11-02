@@ -5,7 +5,8 @@ use super::{
 };
 use neo_math::D;
 pub(crate) use neo_reductions::api::PiCcsProof as SumcheckProof;
-use neo_reductions::optimized_engine::optimized_prove_with_matrix_rows;
+use neo_reductions::optimized_engine::optimized_prove_with_profile;
+use neo_reductions::{FoldProfile, NormSources};
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("PiCCS shape: {0}")]
@@ -27,6 +28,7 @@ fn reject_auxiliary(fresh: &CcsClaim, running: &[CeClaim]) -> Result<(), Error> 
 pub(crate) fn prove_from_parts_with_rows(
     tr: &mut Transcript,
     context: FoldContext<'_>,
+    profile: &FoldProfile<'_>,
     fresh_claim: &CcsClaim,
     fresh_witness: &CcsWitness,
     running: &RunningInstance,
@@ -38,8 +40,8 @@ pub(crate) fn prove_from_parts_with_rows(
         workspace_bytes,
     } = context;
     reject_auxiliary(fresh_claim, &running.claims)?;
-    validate_input_shape(pp, s, fresh_claim, fresh_witness, running)?;
-    let (outputs, sumcheck, _) = optimized_prove_with_matrix_rows(
+    validate_input_shape(pp, s, profile, fresh_claim, fresh_witness, running)?;
+    let (outputs, sumcheck, _) = optimized_prove_with_profile(
         tr.inner_mut(),
         pp.inner(),
         s,
@@ -50,6 +52,7 @@ pub(crate) fn prove_from_parts_with_rows(
         rows,
         workspace_bytes,
         None,
+        profile,
     )
     .map_err(engine::Error::from)?;
     validate_v1_2_claims(s, &outputs)?;
@@ -96,6 +99,7 @@ fn validate_canonical_x_shape(claims: &[CeClaim], label: &'static str) -> Result
 fn validate_input_shape(
     pp: &Params,
     s: &Structure,
+    profile: &FoldProfile<'_>,
     fresh_claim: &CcsClaim,
     fresh_witness: &CcsWitness,
     running: &RunningInstance,
@@ -103,8 +107,13 @@ fn validate_input_shape(
     if !running.prover_shape_is_valid() {
         return Err(Error::Shape("running: |claims| \u{2260} |witnesses|"));
     }
-    if !running.is_empty() && running.claims.len() as u32 != pp.k_rho() {
-        return Err(Error::Shape("running length does not match params.k_rho()"));
+    // The light fold folds into one accumulator (Lean `Spec/Folding/Light`).
+    let running_count = match profile.norm {
+        NormSources::All => pp.k_rho() as usize,
+        NormSources::Fresh => 1,
+    };
+    if !running.is_empty() && running.claims.len() != running_count {
+        return Err(Error::Shape("running length does not match the fold profile"));
     }
     if fresh_claim.m_in > s.m() {
         return Err(Error::Shape("fresh m_in exceeds structure.m"));

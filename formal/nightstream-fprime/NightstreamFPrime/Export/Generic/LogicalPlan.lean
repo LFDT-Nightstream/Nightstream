@@ -1,11 +1,14 @@
+import NightstreamFPrime.Export.Generic.PieceRows
 import NightstreamFPrime.Layout.ProductionRelation.OrdinarySourcePlan
 import NightstreamFPrime.Lifecycle.XOut
 
-/-! The logical relation of a circuit for the generic exporter (CW-5.2), first version: every
-constraint is lowered to R1CS rows (`R1CS.lowerConstraints`, as today's Π_CCS arithmetic) and
-each row becomes one row of a `ProductionRelation.Plan` through `OrdinarySourcePlan`, over the
-identity map from source columns to logical columns. Poseidon2 blocks stay unpacked here; packing
-them into 150 S-box rows is a later unit.
+/-! The logical relation of a circuit for the generic exporter (CW-5.2, CW-5.7): the circuit's
+constraints are split into pieces and lowered to R1CS rows (`PieceRows.lowerPieces`). A Π_RLC
+ring product becomes 108 rows per cell (`PieceRows.ringRows`); every other constraint is lowered
+with `R1CS.lowerConstraints`, as today's Π_CCS arithmetic. Each row becomes one row of a
+`ProductionRelation.Plan` through `OrdinarySourcePlan`, over the identity map from source columns
+to logical columns. Poseidon2 blocks stay unpacked here; packing them into 150 S-box rows is a
+later unit.
 
 The logical assignment's first `ringDegree * publicRingColumns` columns are the public input
 `x` (`Phi81Relation.projectPublicInput`), so column 0 is the `encHash` marker 1 and serves as the
@@ -200,10 +203,12 @@ def constraints (circuit : FormalCircuit) (offset : Nat) (digestColumn : Fin 4 �
     List Expr :=
   flatConstraints (Circuit.ops circuit.main offset) ++ decodeConstraints digestColumn
 
-/-- The R1CS rows, with fresh lowering columns from `firstFresh`. -/
+/-- The R1CS rows of the constraints' pieces, with fresh columns from `firstFresh`. -/
 def rows (circuit : FormalCircuit) (offset firstFresh : Nat) (digestColumn : Fin 4 → Nat) :
     List R1CS.Row :=
-  (R1CS.lowerConstraints (constraints circuit offset digestColumn) firstFresh).rows
+  let canonical := PilotData.canonicalConstraints ()
+  (PieceRows.lowerPieces canonical (Pieces.split canonical (constraints circuit offset digestColumn))
+    firstFresh).1
 
 theorem encoded_one (assignment : Assignment F logicalWidth) (digest : Digest)
     (encoded : publicInput (publicFits := publicFits) (sourceEnv assignment) = encHash digest)
@@ -226,8 +231,8 @@ theorem rowsZero_implies_spec (circuit : FormalCircuit) (offset firstFresh : Nat
       ∀ word, sourceEnv assignment (digestColumn word) = digest.getD word.val 0 := by
   have rowsHold := (rowsZero_iff_rowsHold _ logicalWidth fits assignment
     (encoded_one assignment digest encoded fits)).mp rowsZero
-  have all := R1CS.lowerConstraints_sound (sourceEnv assignment)
-    (constraints circuit offset digestColumn) firstFresh rowsHold
+  have all := PieceRows.pieces_sound _ (constraints circuit offset digestColumn) firstFresh
+    (sourceEnv assignment) rowsHold
   refine ⟨?_, digest_of_decode _ digestColumn digest encoded
     (fun expression member => all expression (List.mem_append_right _ member))⟩
   exact circuit.soundness _ offset assumptions

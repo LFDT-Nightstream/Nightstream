@@ -1,13 +1,13 @@
 import NightstreamFPrime.Export.OptionB.StepRelation
-import NightstreamFPrime.Export.Generic.Pieces
 import NightstreamFPrime.Export.Stage1.Rows
 import NightstreamFPrime.Lifecycle.Stage1.Poseidon2HashChainV1
 
 /-! The option-B emitter (CW-5.5), first part: the row census of the light and the refresh step
 circuits for today's fixture application (`Poseidon2HashChainV1.program`). For each circuit it
-prints the constraints, the unpacked R1CS rows of `LogicalPlan.rows`, the largest column, the
-Poseidon2 blocks that `Pieces.split` recognizes, and the rows after packing each block into 150
-CCS rows; then the same counts for each top-level child, largest first. -/
+prints the constraints, the Poseidon2 blocks and ring products that `Pieces.split` recognizes,
+the rows of `LogicalPlan.rows` with their largest column, and the rows after packing each
+Poseidon2 block into 150 CCS rows; then the same counts for each top-level child, largest
+first. -/
 
 namespace NightstreamFPrime.Export.OptionB.EmitMain
 
@@ -34,25 +34,34 @@ def relation : ProductionKey.LogicalRelation width publicFits :=
 
 def program : Stage1.Application.Program := Stage1.Poseidon2HashChainV1.program
 
+/-- The ring products of the ring-product pieces: one per cell. -/
+def ringProducts (pieces : List Pieces.Piece) : Nat :=
+  pieces.foldl (fun total piece => match piece with
+    | .ringProduct cells .. => total + cells
+    | _ => total) 0
+
 def census (name : String) (ops : List Op) (offset : Nat) (digestColumn : Fin 4 → Nat) :
     IO Unit := do
   let start ← IO.monoMsNow
+  let canonical := PilotData.canonicalConstraints ()
   let constraints := flatConstraints ops ++ LogicalPlan.decodeConstraints digestColumn
   let firstFresh := offset + localLength ops
-  let lowered := Stage1.Rows.lowerConstraintsTR constraints firstFresh
   IO.println s!"{name}: {constraints.length} constraints, {localLength ops} locals from {offset}"
-  IO.println s!"{name}: {lowered.rows.length} unpacked rows, next column {lowered.next}, \
-    largest column {LogicalPlan.rowsMax lowered.rows} ({(← IO.monoMsNow) - start} ms)"
-  let pieces := Pieces.split (PilotData.canonicalConstraints ()) constraints
+  let pieces := Pieces.split canonical constraints
+  let lowered := PieceRows.lowerPieces canonical pieces firstFresh
+  IO.println s!"{name}: {lowered.1.length} logical rows, next column {lowered.2}, \
+    largest column {LogicalPlan.rowsMax lowered.1} ({(← IO.monoMsNow) - start} ms)"
   let permutations := (pieces.filter fun | .permutation .. => true | _ => false).length
+  let products := ringProducts pieces
   let generic := Pieces.genericConstraints pieces
   let genericRows := (Stage1.Rows.lowerConstraintsTR generic firstFresh).rows.length
-  IO.println s!"{name}: {permutations} Poseidon2 blocks, {generic.length} other constraints, \
-    {genericRows} other rows, {genericRows + 150 * permutations} packed rows \
+  IO.println s!"{name}: {permutations} Poseidon2 blocks, {products} ring products, \
+    {generic.length} other constraints, {genericRows} other rows, \
+    {genericRows + 108 * products + 150 * permutations} packed rows \
     ({(← IO.monoMsNow) - start} ms)"
 
-/-- One line per top-level child: its name, Poseidon2 blocks, other constraints and their R1CS
-rows, largest first. -/
+/-- One line per top-level child: its name, Poseidon2 blocks, ring products, other constraints
+and their R1CS rows, largest first. -/
 def childCensus (name : String) (ops : List Op) : IO Unit := do
   let canonical := PilotData.canonicalConstraints ()
   let lines := ops.map fun op =>
@@ -63,12 +72,12 @@ def childCensus (name : String) (ops : List Op) : IO Unit := do
     let pieces := Pieces.split canonical op.flatConstraints
     let permutations := (pieces.filter fun | .permutation .. => true | _ => false).length
     let generic := Pieces.genericConstraints pieces
-    (label, permutations, generic.length,
+    (label, permutations, ringProducts pieces, generic.length,
       (Stage1.Rows.lowerConstraintsTR generic 0).rows.length)
-  let sorted := lines.toArray.qsort (fun left right => left.2.2.2 > right.2.2.2)
-  for (label, permutations, constraints, rows) in sorted do
-    IO.println s!"{name} child {label}: {permutations} blocks, {constraints} other constraints, \
-      {rows} other rows"
+  let sorted := lines.toArray.qsort (fun left right => left.2.2.2.2 > right.2.2.2.2)
+  for (label, permutations, products, constraints, rows) in sorted do
+    IO.println s!"{name} child {label}: {permutations} blocks, {products} ring products, \
+      {constraints} other constraints, {rows} other rows"
 
 def main : IO Unit := do
   let base := StepRelation.base

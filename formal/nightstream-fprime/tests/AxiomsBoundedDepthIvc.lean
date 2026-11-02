@@ -327,6 +327,16 @@ open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 #audit_axioms NightstreamFPrime.Export.Generic.Pieces.valid_split
 #audit_axioms NightstreamFPrime.Export.Generic.Pieces.permutation_sound
 #audit_axioms NightstreamFPrime.Export.Generic.Pieces.split_sound
+#audit_axioms NightstreamFPrime.Export.Generic.Pieces.matchTemplate_spec
+#audit_axioms NightstreamFPrime.Export.Generic.Pieces.recognize_spec
+#audit_axioms NightstreamFPrime.Export.Generic.PieceRows.laneCombination_eval
+#audit_axioms NightstreamFPrime.Export.Generic.PieceRows.evaluation_eval
+#audit_axioms NightstreamFPrime.Export.Generic.PieceRows.ring_of_equations
+#audit_axioms NightstreamFPrime.Export.Generic.PieceRows.ringRows_product
+#audit_axioms NightstreamFPrime.Export.Generic.PieceRows.ringRows_sound
+#audit_axioms NightstreamFPrime.Export.Generic.PieceRows.lowerPiece_sound
+#audit_axioms NightstreamFPrime.Export.Generic.PieceRows.lowerPiecesAux_sound
+#audit_axioms NightstreamFPrime.Export.Generic.PieceRows.pieces_sound
 #audit_axioms NightstreamFPrime.Export.Generic.LogicalPlan.rowsZero_iff_rowsHold
 #audit_axioms NightstreamFPrime.Export.Generic.LogicalPlan.digest_of_decode
 #audit_axioms NightstreamFPrime.Export.Generic.LogicalPlan.rowsZero_implies_spec

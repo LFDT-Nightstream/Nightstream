@@ -37,6 +37,9 @@ def blocksOf : List Piece → List Block
   | .permutation start lanes :: rest => ⟨start, lanes⟩ :: blocksOf rest
   | _ :: rest => blocksOf rest
 
+def otherPieces (pieces : List Piece) : List Piece :=
+  pieces.filter fun piece => !isBlock piece
+
 theorem mem_blocksOf {start : Nat} {lanes : List Expr} :
     ∀ {pieces : List Piece}, Piece.permutation start lanes ∈ pieces →
       (⟨start, lanes⟩ : Block) ∈ blocksOf pieces
@@ -59,11 +62,23 @@ def avoidsDead (dead : Nat → Bool) : Piece → Bool
       lanes.all (avoids dead) &&
         (List.range (ringDegree * cells)).all fun index => !dead (start + index)
 
+/-- Every block starts at or after `bound`. -/
+def startsFrom (bound : Nat) (pieces : List Piece) : Bool :=
+  (blocksOf pieces).all fun block => decide (bound ≤ block.start)
+
+/-- No column below the blocks' start is a dead local. -/
+theorem live_below {bound : Nat} {pieces : List Piece} (starts : startsFrom bound pieces = true)
+    {column : Nat} (below : column < bound) : deadIn (blocksOf pieces) column = false := by
+  simp only [startsFrom, List.all_eq_true, decide_eq_true_eq] at starts
+  simp only [deadIn, List.any_eq_false, Block.dead, Bool.and_eq_true, decide_eq_true_eq]
+  intro block member dead
+  have := starts block member
+  omega
+
 /-- The blocks pack: they pass the frame check, start after the public columns, and no other
 piece reads a dead local. -/
 def packable (publicColumns : Nat) (pieces : List Piece) : Bool :=
-  checkFrame (blocksOf pieces) &&
-    (blocksOf pieces).all (fun block => decide (publicColumns ≤ block.start)) &&
+  checkFrame (blocksOf pieces) && startsFrom publicColumns pieces &&
     pieces.all (avoidsDead (deadIn (blocksOf pieces)))
 
 theorem varsBelow_sub {left right : Expr} {bound : Nat} (leftBelow : left.VarsBelow bound)
@@ -150,11 +165,8 @@ theorem packable_framed {publicColumns : Nat} {pieces : List Piece}
 theorem packable_public {publicColumns : Nat} {pieces : List Piece}
     (check : packable publicColumns pieces = true) {column : Nat} (below : column < publicColumns) :
     deadIn (blocksOf pieces) column = false := by
-  simp only [packable, Bool.and_eq_true, List.all_eq_true, decide_eq_true_eq] at check
-  simp only [deadIn, List.any_eq_false, Block.dead, Bool.and_eq_true, decide_eq_true_eq]
-  intro block member dead
-  have := check.1.2 block member
-  omega
+  simp only [packable, Bool.and_eq_true] at check
+  exact live_below check.1.2 below
 
 /-- When the blocks pack, every piece holds in the completed environment: the blocks by their
 honest traces, the other pieces because they read no dead local. -/
@@ -180,6 +192,36 @@ theorem packed_holds {publicColumns : Nat} {pieces : List Piece}
       exact avoidsDead_congr completed.1 _ _ rfl (check.2 _ member) (others _ member rfl)
   | ringProduct cells start lanes =>
       exact avoidsDead_congr completed.1 _ _ rfl (check.2 _ member) (others _ member rfl)
+
+/-- The checks that replace the S-box and binding rows: the rows of the pieces other than the
+blocks, and each block's outputs as the permutation of its inputs. When the blocks pack, every
+piece holds in an environment that differs from `env` only on dead locals. -/
+theorem checks_implies_pieces {publicColumns : Nat} {pieces : List Piece}
+    (valid : ∀ piece ∈ pieces, piece.Valid) (packed : packable publicColumns pieces = true)
+    (next : Nat) (env : Env)
+    (rows : R1CS.RowsHold env
+      (PieceRows.lowerPieces (PilotData.canonicalConstraints ()) (otherPieces pieces) next).1)
+    (outputs : OutputsHold (blocksOf pieces) env) :
+    ∃ completed : Env,
+      (∀ piece ∈ pieces,
+        ConstraintsHold completed (piece.constraints (PilotData.canonicalConstraints ()))) ∧
+      ∀ column, deadIn (blocksOf pieces) column = false → completed column = env column := by
+  have others := (PieceRows.lowerPiecesAux_sound _ env (otherPieces pieces) next []
+    (fun piece member => valid piece (List.mem_filter.mp member).1) rows).2
+  exact ⟨complete (blocksOf pieces) env,
+    packed_holds valid packed env (fun piece member notBlock =>
+      others piece (List.mem_filter.mpr ⟨member, by simp [notBlock]⟩)) outputs,
+    fun _ live => complete_live (packable_framed packed) outputs live⟩
+
+/-- The pieces that `split` cut give the constraints. -/
+theorem split_holds {constraints : List Expr} {env : Env}
+    (holds : ∀ piece ∈ split (PilotData.canonicalConstraints ()) constraints,
+      ConstraintsHold env (piece.constraints (PilotData.canonicalConstraints ()))) :
+    ConstraintsHold env constraints := by
+  intro expression member
+  rw [← flatMap_split (PilotData.canonicalConstraints ()) constraints, List.mem_flatMap] at member
+  obtain ⟨piece, pieceMember, inPiece⟩ := member
+  exact holds piece pieceMember expression inPiece
 
 /-! ### Forms on the logical columns -/
 
@@ -283,9 +325,6 @@ def bindingRows (width : Nat) (blocks : List Block) (sboxStart : Nat) : List R1C
     ⟨.add (.ofVar ((blocks.get index).start + 1080 + lane.val))
         (.scale (-1) (toCombination (outputState (width := width) blocks sboxStart index lane))),
       .one, .zero⟩
-
-def otherPieces (pieces : List Piece) : List Piece :=
-  pieces.filter fun piece => !isBlock piece
 
 /-- The first fresh S-box column: after the fresh columns of the other pieces. -/
 def sboxStart (pieces : List Piece) (next : Nat) : Nat :=
@@ -409,15 +448,9 @@ theorem rowsZero_implies_pieces (publicColumns : Nat) (pieces : List Piece)
       one).mp rowsZero.1
     unfold relationRows at rowsHold
     rw [ite_eq_left packed, R1CS.rowsHold_append] at rowsHold
-    have others := (PieceRows.lowerPiecesAux_sound _ (LogicalPlan.sourceEnv layout assignment)
-      (otherPieces pieces) next [] (fun piece member => valid piece (List.mem_filter.mp member).1)
-      rowsHold.1).2
-    have outputs := outputsHold fits packed layout assignment one rowsHold.2 rowsZero.2
-    refine ⟨complete (blocksOf pieces) (LogicalPlan.sourceEnv layout assignment),
-      packed_holds valid packed _ (fun piece member notBlock =>
-        others piece (List.mem_filter.mpr ⟨member, by simp [notBlock]⟩)) outputs, ?_⟩
-    intro column below
-    exact complete_live (packable_framed packed) outputs (packable_public packed below)
+    obtain ⟨env, holds, agree⟩ := checks_implies_pieces valid packed next _ rowsHold.1
+      (outputsHold fits packed layout assignment one rowsHold.2 rowsZero.2)
+    exact ⟨env, holds, fun column below => agree column (packable_public packed below)⟩
   · unfold plan at rowsZero
     rw [dite_eq_right packed] at rowsZero
     have rowsHold := (LogicalPlan.rowsZero_iff_rowsHold _ width fits.rows layout assignment
@@ -439,11 +472,7 @@ theorem rowsZero_implies_constraints (publicColumns : Nat) (constraints : List E
         env column = LogicalPlan.sourceEnv layout assignment column := by
   obtain ⟨env, holds, agree⟩ := rowsZero_implies_pieces publicColumns _
     (valid_split _ constraints) next width fits layout assignment one rowsZero
-  refine ⟨env, ?_, agree⟩
-  intro expression member
-  rw [← flatMap_split (PilotData.canonicalConstraints ()) constraints, List.mem_flatMap] at member
-  obtain ⟨piece, pieceMember, inPiece⟩ := member
-  exact holds piece pieceMember expression inPiece
+  exact ⟨env, split_holds holds, agree⟩
 
 /-! ### The step circuit's relation -/
 

@@ -414,3 +414,5 @@ example : (runDepths 2 (fun _ => 0) 1 (List.replicate 3 [0, 0, 1]).flatten).isNo
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.FinishStep.rows_implies_finish
 #audit_axioms NightstreamFPrime.Layout.OptionB.FinishAssembler.rows_implies_finish
 #audit_axioms NightstreamFPrime.Export.OptionB.FinishRelation.finish_holds
+#audit_axioms NightstreamFPrime.Export.OptionB.FinishRelation.checks_finish
+#audit_axioms NightstreamFPrime.Export.Generic.CircuitRelation.checks_implies_pieces

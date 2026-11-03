@@ -104,7 +104,8 @@ def applicationRegion (name : String) (words : Nat) (ops : List Op) (offset firs
   pure (words, offset, localLength [application], own.length,
     StepPackage.freshAfter own firstFresh - firstFresh)
 
-/-- Writes the circuit's package (`StepPackage.packageOf`); the blocks must pack. The finish
+/-- Writes the circuit's package (`StepPackage.packageOf`); the blocks must pack and start at or
+after the shared words (`FinishRelation.checks_finish` reads the words below them). The finish
 package has no application: its region is the witness words alone, and its fresh columns start
 after the refresh step's locals (`firstFresh`), whose layout its gadgets keep. -/
 def emitPackage (name : String) (circuit : Nat) (ops : List Op) (offset : Nat)
@@ -114,6 +115,8 @@ def emitPackage (name : String) (circuit : Nat) (ops : List Op) (offset : Nat)
   let start ← IO.monoMsNow
   unless CircuitRelation.packable CircuitRelation.publicColumns pieces do
     throw (IO.userError s!"{name}: the Poseidon2 blocks do not pack")
+  unless CircuitRelation.startsFrom offset pieces do
+    throw (IO.userError s!"{name}: a Poseidon2 block starts below the shared end")
   let firstFresh := firstFresh.getD (offset + localLength ops)
   let package := StepPackage.packageOf circuit CircuitRelation.publicColumns pieces
     firstFresh width (witnesses ops) (program.witnessWordCount, offset, 0, 0, 0)

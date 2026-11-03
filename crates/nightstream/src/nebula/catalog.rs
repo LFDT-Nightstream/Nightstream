@@ -53,6 +53,30 @@ impl Region {
     }
 }
 
+/// One region for each memory, with the widths that `memories` gives. In each
+/// space the regions go from the largest to the smallest, so each base is a
+/// multiple of its size (SPEC.md section 7.6, rule 3). Returns the regions
+/// and the cells that they take in the ROM space and in the RAM space.
+pub fn pack_regions<Id>(
+    memories: impl IntoIterator<Item = (Id, MemoryKind, Vec<usize>)>,
+) -> (Vec<(Id, Region)>, [u64; 2]) {
+    let mut memories: Vec<_> = memories
+        .into_iter()
+        .map(|(id, kind, widths)| (id, usize::from(kind == MemoryKind::Ram), widths))
+        .collect();
+    memories.sort_by_key(|(_, space, widths)| (*space, std::cmp::Reverse(widths.iter().sum::<usize>())));
+    let mut used = [0u64; 2];
+    let regions = memories
+        .into_iter()
+        .map(|(id, space, widths)| {
+            let base = used[space];
+            used[space] += 1 << widths.iter().sum::<usize>();
+            (id, Region { base, widths })
+        })
+        .collect();
+    (regions, used)
+}
+
 /// Why a catalog, regions, and a slot plan give no binding, or a preload no
 /// program.
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]

@@ -7,18 +7,18 @@
 //! (`state_words`), so a verifier reads the last state of a proof as a typed
 //! value. Every field has words (test `every_state_field_changes_the_state_words`),
 //! except that `None` and `Some(0)` of `memory_pages` and `max_memory_pages`
-//! share the word 0. One circuit serves every program whose memories fit the
-//! regions that the caller gives.
+//! share the word 0. One circuit serves every program whose memories fit its
+//! regions. A deployment proves in the fixed sizes of `WasmSize`.
 
 use std::num::NonZeroUsize;
 
 use neo_ccs::CcsMatrix;
 use neo_math::F;
 use nightstream::nebula::{
-    batched_slots, Application, CatalogBinding, CatalogBindingError, Expr, Geometry, Memory, Program, R1csApplication,
-    R1csApplicationError, R1csStepError, Region, RowRelation, Size, Terms, Transition, View,
+    batched_slots, pack_regions, Application, CatalogBinding, CatalogBindingError, Expr, Geometry, Memory, Program,
+    R1csApplication, R1csApplicationError, R1csStepError, Region, RowRelation, Size, Terms, Transition, View,
 };
-use nightstream::relation::{MemoryKind, MemoryPortActivation};
+use nightstream::relation::MemoryPortActivation;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 use crate::batch::{build_batched_witness, single_wasm_relation, BatchError};
@@ -59,6 +59,8 @@ pub enum WasmApplicationError {
     Binding(#[from] CatalogBindingError),
     #[error("a run needs at least one trace row")]
     EmptyTrace,
+    #[error("no WASM size holds the program and its run, which need {0:?}")]
+    TooLarge(WasmLimits),
     #[error("the trace of {trace} rows does not fit {steps} steps of {rows} rows")]
     Steps {
         trace: usize,
@@ -226,7 +228,7 @@ pub fn state_words(state: WasmStepState) -> Vec<u64> {
 /// witnesses of the rows of `trace`, then of padding rows, which activate no
 /// port and keep the state, cut into `steps` inputs of `rows` rows each. The
 /// next state of a step is the state after its last trace row. `rows = 1`
-/// gives the one-row witnesses that `smallest_regions` takes.
+/// gives the one-row witnesses that `WasmLimits::of` takes.
 pub fn step_inputs(
     trace: &[WasmVmStep],
     steps: usize,
@@ -267,74 +269,337 @@ fn bits(value: u64) -> usize {
     (u64::BITS - value.leading_zeros()) as usize
 }
 
-/// The smallest region of each memory of the catalog that holds the cells of
-/// `preloads` and the addresses of the active ports of `rows`, the one-row
-/// witnesses of `step_inputs(trace, steps * rows, 1)`. Each part's
-/// width holds the largest part of that memory. In each namespace the regions
-/// go from the largest to the smallest, so each base is a multiple of its
-/// size. Returns the regions and the `log2` size of the ROM and of the RAM
-/// that hold them. A deployment that proves programs it does not know yet
-/// needs fixed regions instead.
-pub fn smallest_regions(preloads: &[&WasmMemoryPreload], rows: &[Vec<F>]) -> (Vec<(WasmMemoryId, Region)>, [usize; 2]) {
-    let catalog = &build_wasm_relation_layout().auxiliary.memory;
-    let mut needs: Vec<(WasmMemoryId, bool, Vec<usize>)> = catalog
-        .entries()
-        .iter()
-        .map(|memory| {
-            let mut largest = vec![0; memory.ports[0].address_columns.len()];
-            let mut see = |parts: Vec<u64>| {
-                for (largest, part) in largest.iter_mut().zip(parts) {
-                    *largest = part.max(*largest);
-                }
-            };
-            for (id, address, _) in preloads.iter().flat_map(|preload| preload.entries()) {
-                if id == memory.id {
-                    see(address.into_iter().map(u64::from).collect());
-                }
-            }
-            for port in &memory.ports {
-                for z in rows.iter().filter(|z| is_active(z, port.activation)) {
-                    see(port
-                        .address_columns
-                        .iter()
-                        .map(|column| z[*column].as_canonical_u64())
-                        .collect());
-                }
-            }
-            let widths = largest.into_iter().map(bits).collect();
-            (memory.id, memory.kind == MemoryKind::Ram, widths)
-        })
-        .collect();
-    needs.sort_by_key(|(_, is_ram, widths)| (*is_ram, std::cmp::Reverse(widths.iter().sum::<usize>())));
-    let mut used = [0u64; 2];
-    let regions = needs
-        .into_iter()
-        .map(|(id, is_ram, widths)| {
-            let next = &mut used[usize::from(is_ram)];
-            let base = *next;
-            *next += 1 << widths.iter().sum::<usize>();
-            (id, Region { base, widths })
-        })
-        .collect();
-    (regions, used.map(|cells| bits(cells - 1)))
+/// What one address part of a WASM memory counts.
+#[derive(Clone, Copy)]
+enum Dimension {
+    Pc,
+    Choice,
+    Function,
+    Event,
+    Slot,
+    ModuleType,
+    Stack,
+    LinearMemory,
+    Global,
+    CallDepth,
+    HostDepth,
+    Table,
+    TableIndex,
 }
 
-/// The smallest geometry with ROM and RAM of at least `2^log2` cells, `b_ops`
-/// slots, segments of `n` steps, and at most `s_max` segments. `n` must be a
-/// power of two; each namespace has at least `n` cells, so that the scan
-/// covers both in `n` steps (`SPEC.md` section 7.1, rule 1).
-pub fn smallest_geometry(log2: [usize; 2], b_ops: usize, n: usize, s_max: usize) -> Geometry {
-    let low = n.trailing_zeros() as usize;
-    // Rule 4: the RAM is at least as large as the ROM.
-    let r = log2[0].max(low);
-    let mu = log2[1].max(r);
-    Geometry {
-        r,
-        mu,
-        w_ts: bits((s_max * n * b_ops) as u64),
-        b_ops,
-        b_scan: ((1 << r) + (1 << mu)) / n,
-        n,
-        s_max,
+impl Dimension {
+    const ALL: [Self; 13] = [
+        Self::Pc,
+        Self::Choice,
+        Self::Function,
+        Self::Event,
+        Self::Slot,
+        Self::ModuleType,
+        Self::Stack,
+        Self::LinearMemory,
+        Self::Global,
+        Self::CallDepth,
+        Self::HostDepth,
+        Self::Table,
+        Self::TableIndex,
+    ];
+}
+
+/// The dimension of each address part of memory `id`, least significant part
+/// first, as `preload_from_program_artifacts`, `preload_host_event_tables`
+/// and the catalog's address columns key it.
+fn dimensions(id: WasmMemoryId) -> &'static [Dimension] {
+    use Dimension as D;
+    use WasmMemoryId as M;
+    match id {
+        M::ProgramOpcode
+        | M::ProgramBrTableLen
+        | M::ProgramLocalIndex
+        | M::ProgramGlobalIndex
+        | M::ProgramTableId
+        | M::ProgramMemoryOffset
+        | M::ProgramCallIndirectTypeIndex
+        | M::ProgramCallIndirectExpectedTypeId
+        | M::ProgramI32ConstValue
+        | M::ProgramI64ConstValueLo
+        | M::ProgramI64ConstValueHi
+        | M::ProgramRefFuncRef
+        | M::PcEdgeKind
+        | M::PcFunctionRef
+        | M::CallTarget => &[D::Pc],
+        M::PcRom | M::FrameSlideRemaining | M::FrameSlideDistance => &[D::Pc, D::Choice],
+        M::FunctionEntry
+        | M::FunctionType
+        | M::FunctionCallMetadata
+        | M::FunctionLocalCount
+        | M::HostEventExportEntryScheduleCount
+        | M::HostEventExportExitScheduleCount
+        | M::HostEventImportScheduleCount => &[D::Function],
+        M::HostEventSlotKind
+        | M::HostEventSlotArg
+        | M::HostEventSlotVariant
+        | M::HostEventSlotImmediate0
+        | M::HostEventSlotImmediate1 => &[D::Function, D::Event, D::Slot],
+        M::ModuleType => &[D::ModuleType],
+        M::Stack => &[D::Stack],
+        M::LinearMemory => &[D::LinearMemory],
+        M::GlobalLo | M::GlobalHi => &[D::Global],
+        M::CallStackReturnPc | M::CallStackCallerFbp | M::CallStackCallerSpBase => &[D::CallDepth],
+        M::HostContextExport
+        | M::HostContextImport
+        | M::HostContextArgsBase
+        | M::HostContextParentDepth
+        | M::HostContextSp => &[D::HostDepth],
+        M::TableSize => &[D::Table],
+        M::TableElement => &[D::Table, D::TableIndex],
+    }
+}
+
+/// The bit width of each address dimension of a WASM program and its run.
+/// The region of a memory has, for each address part, the width of its
+/// dimension (`WasmLimits::regions`). So a program and its run fit limits
+/// when each address part of the preload and of the active ports fits.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct WasmLimits {
+    /// A program counter.
+    pub pc: usize,
+    /// A control choice at one program counter (`PcRom`, frame slides).
+    pub choice: usize,
+    /// A function reference, imports included.
+    pub function: usize,
+    /// A host event of one function.
+    pub event: usize,
+    /// A slot of one host event.
+    pub slot: usize,
+    /// A module type.
+    pub module_type: usize,
+    /// A stack cell.
+    pub stack: usize,
+    /// A word of linear memory.
+    pub linear_memory: usize,
+    /// A global.
+    pub global: usize,
+    /// A call-stack frame.
+    pub call_depth: usize,
+    /// A host-context frame.
+    pub host_depth: usize,
+    /// A table.
+    pub table: usize,
+    /// An element of one table.
+    pub table_index: usize,
+}
+
+impl WasmLimits {
+    /// The smallest limits that hold the cells of `preloads` and the address
+    /// parts of the active ports of `rows`, the one-row witnesses of
+    /// `step_inputs(trace, trace.len(), 1)`.
+    pub fn of(preloads: &[&WasmMemoryPreload], rows: &[Vec<F>]) -> Self {
+        let mut limits = Self::default();
+        for (id, address, _) in preloads.iter().flat_map(|preload| preload.entries()) {
+            limits.hold(id, address.into_iter().map(u64::from));
+        }
+        for memory in build_wasm_relation_layout().auxiliary.memory.entries() {
+            for port in &memory.ports {
+                for z in rows.iter().filter(|z| is_active(z, port.activation)) {
+                    limits.hold(
+                        memory.id,
+                        port.address_columns
+                            .iter()
+                            .map(|column| z[*column].as_canonical_u64()),
+                    );
+                }
+            }
+        }
+        limits
+    }
+
+    /// Whether each width is at least the width of `other`.
+    pub fn holds(&self, other: &Self) -> bool {
+        let (mut this, mut other) = (*self, *other);
+        Dimension::ALL
+            .into_iter()
+            .all(|dimension| *this.width(dimension) >= *other.width(dimension))
+    }
+
+    /// One region for each memory of the catalog, with the widths of its
+    /// dimensions (`pack_regions`), and the cells that they take in the ROM
+    /// and in the RAM.
+    pub fn regions(&self) -> (Vec<(WasmMemoryId, Region)>, [u64; 2]) {
+        let mut limits = *self;
+        pack_regions(
+            build_wasm_relation_layout()
+                .auxiliary
+                .memory
+                .entries()
+                .iter()
+                .map(|memory| {
+                    let widths = dimensions(memory.id)
+                        .iter()
+                        .map(|dimension| *limits.width(*dimension))
+                        .collect();
+                    (memory.id, memory.kind, widths)
+                }),
+        )
+    }
+
+    /// Widen the limits so that they hold the address `parts` of memory `id`.
+    fn hold(&mut self, id: WasmMemoryId, parts: impl IntoIterator<Item = u64>) {
+        for (dimension, part) in dimensions(id).iter().zip(parts) {
+            let width = self.width(*dimension);
+            *width = (*width).max(bits(part));
+        }
+    }
+
+    fn width(&mut self, dimension: Dimension) -> &mut usize {
+        match dimension {
+            Dimension::Pc => &mut self.pc,
+            Dimension::Choice => &mut self.choice,
+            Dimension::Function => &mut self.function,
+            Dimension::Event => &mut self.event,
+            Dimension::Slot => &mut self.slot,
+            Dimension::ModuleType => &mut self.module_type,
+            Dimension::Stack => &mut self.stack,
+            Dimension::LinearMemory => &mut self.linear_memory,
+            Dimension::Global => &mut self.global,
+            Dimension::CallDepth => &mut self.call_depth,
+            Dimension::HostDepth => &mut self.host_depth,
+            Dimension::Table => &mut self.table,
+            Dimension::TableIndex => &mut self.table_index,
+        }
+    }
+}
+
+/// A fixed size of WASM proofs (`decisions/wasm-fixed-sizes.md`): limits, a
+/// geometry, and the rows of one step. Each size is one circuit, so a
+/// verifier compiles at most three. It takes the size of a proof from the
+/// proof's statement, never from the prover's run. A prover takes the
+/// smallest size that holds the run (`WasmSize::for_run`). Each size holds
+/// runs of up to 16,384 trace rows. Its memory security is at least 109.91
+/// bits (SPEC.md section 7.1, rule 6), so a caller asks for at most 109 bits.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum WasmSize {
+    /// ROM and RAM of `2^14` cells: 256 instructions, 32 function
+    /// references, steps of 8 rows, and segments of 64 steps.
+    Small,
+    /// ROM and RAM of `2^15` cells: 512 instructions, 64 function
+    /// references, steps of 8 rows, and segments of 128 steps.
+    Medium,
+    /// ROM and RAM of `2^16` cells, the largest that rule 6 permits: 1,024
+    /// instructions, 128 function references, steps of 2 rows, and segments
+    /// of 128 steps.
+    Large,
+}
+
+impl WasmSize {
+    pub const ALL: [Self; 3] = [Self::Small, Self::Medium, Self::Large];
+
+    /// The `log2` cells of the ROM and of the RAM, the rows of one step, the
+    /// steps of one segment, and the most segments.
+    fn shape(self) -> (usize, usize, usize, usize) {
+        match self {
+            Self::Small => (14, 8, 64, 32),
+            Self::Medium => (15, 8, 128, 16),
+            Self::Large => (16, 2, 128, 64),
+        }
+    }
+
+    /// The limits of the programs and runs that the size holds. Each memory
+    /// family gets a fixed part of its space: in the RAM, half for linear
+    /// memory and a quarter for the stack.
+    pub fn limits(self) -> WasmLimits {
+        let (log2, ..) = self.shape();
+        let (pc, function) = match self {
+            Self::Small => (8, 5),
+            Self::Medium => (9, 6),
+            Self::Large => (10, 7),
+        };
+        WasmLimits {
+            pc,
+            choice: 1,
+            function,
+            event: 3,
+            slot: 3,
+            module_type: 4,
+            stack: log2 - 2,
+            linear_memory: log2 - 1,
+            global: 6,
+            call_depth: log2 - 6,
+            host_depth: 4,
+            table: 1,
+            table_index: log2 - 6,
+        }
+    }
+
+    /// The trace rows of one step.
+    pub fn rows(self) -> NonZeroUsize {
+        NonZeroUsize::new(self.shape().1).expect("a step has rows")
+    }
+
+    pub fn geometry(self) -> Geometry {
+        let (log2, _, n, s_max) = self.shape();
+        let b_ops = plan_ordered_slots(self.rows()).len();
+        Geometry {
+            r: log2,
+            mu: log2,
+            w_ts: bits((s_max * n * b_ops) as u64),
+            b_ops,
+            b_scan: (2 << log2) / n,
+            n,
+            s_max,
+        }
+    }
+
+    /// The application of the size: its regions (`WasmLimits::regions`) and
+    /// the slot plan of `plan_ordered_slots`.
+    pub fn application(self) -> Result<WasmApplication, WasmApplicationError> {
+        WasmApplication::new(&self.geometry(), self.limits().regions().0, self.rows())
+    }
+
+    /// The trace rows of one segment.
+    pub fn segment_rows(self) -> usize {
+        let (_, rows, n, _) = self.shape();
+        rows * n
+    }
+
+    /// The most trace rows of one run.
+    pub fn max_rows(self) -> usize {
+        self.segment_rows() * self.shape().3
+    }
+
+    /// The smallest size whose limits hold `limits` and whose runs hold
+    /// `rows` trace rows.
+    pub fn smallest(limits: &WasmLimits, rows: usize) -> Option<Self> {
+        Self::ALL
+            .into_iter()
+            .find(|size| size.limits().holds(limits) && rows <= size.max_rows())
+    }
+
+    /// The smallest size that holds the program of `preload` and its run
+    /// `trace`.
+    pub fn for_run(preload: &WasmMemoryPreload, trace: &[WasmVmStep]) -> Result<Self, WasmApplicationError> {
+        let rows: Vec<Vec<F>> = step_inputs(trace, trace.len(), NonZeroUsize::MIN)?
+            .into_iter()
+            .map(|step| step.z)
+            .collect();
+        let limits = WasmLimits::of(&[preload], &rows);
+        Self::smallest(&limits, trace.len()).ok_or(WasmApplicationError::TooLarge(limits))
+    }
+
+    /// The step inputs of each segment of the run `trace` in this size: the
+    /// fewest segments, padded as `step_inputs` pads.
+    pub fn segments(self, trace: &[WasmVmStep]) -> Result<Vec<Vec<WasmStep>>, WasmApplicationError> {
+        let (_, _, n, s_max) = self.shape();
+        let segments = trace.len().div_ceil(self.segment_rows());
+        if segments > s_max {
+            return Err(WasmApplicationError::Steps {
+                trace: trace.len(),
+                steps: s_max * n,
+                rows: self.rows(),
+            });
+        }
+        Ok(step_inputs(trace, segments * n, self.rows())?
+            .chunks(n)
+            .map(<[WasmStep]>::to_vec)
+            .collect())
     }
 }

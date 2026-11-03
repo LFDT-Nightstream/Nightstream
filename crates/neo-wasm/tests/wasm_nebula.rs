@@ -4,7 +4,7 @@
 //! continuity words (one per link, `_AFTER` of a row equal to `_BEFORE` of
 //! the next), and `nightstream::nebula::CatalogBinding` checks every memory
 //! of the batched catalog. The regions come from what the test programs
-//! need, so one circuit serves each program of a setup. The slot plan is
+//! need (`WasmLimits::of`), so one circuit serves each program of a setup. The slot plan is
 //! `plan_ordered_slots`, which keeps each pair of one memory with a write in
 //! trace order on every row that the relation accepts.
 
@@ -19,8 +19,8 @@ use neo_wasm::batch::build_batched_wasm_ccs;
 use neo_wasm::host_event_bindings::HostEventBindings;
 use neo_wasm::memory_semantics::preload_host_event_tables;
 use neo_wasm::nebula::{
-    is_active, plan_ordered_slots, smallest_geometry, smallest_regions, state_words, step_inputs, WasmApplication,
-    WasmApplicationError, WasmStep, WasmStepError,
+    is_active, plan_ordered_slots, state_words, step_inputs, WasmApplication, WasmApplicationError, WasmLimits,
+    WasmStep, WasmStepError,
 };
 use neo_wasm::{
     build_wasm_relation_layout, plan_wasm_memory_slots, preload_from_program_artifacts, top_level_initial_state,
@@ -157,6 +157,31 @@ fn traced(wat: &str, steps: usize, per_step: NonZeroUsize) -> Traced {
     }
 }
 
+fn bits(value: u64) -> usize {
+    (u64::BITS - value.leading_zeros()) as usize
+}
+
+/// The smallest geometry with ROM and RAM of at least `2^log2` cells, `b_ops`
+/// slots, segments of `n` steps, and at most `s_max` segments, so that a test
+/// proof stays small. `n` must be a power of two. Each space has at least `n`
+/// cells, so that the scan covers both in `n` steps (`SPEC.md` section 7.1,
+/// rule 1).
+fn smallest_geometry(log2: [usize; 2], b_ops: usize, n: usize, s_max: usize) -> Geometry {
+    let low = n.trailing_zeros() as usize;
+    // Rule 4: the RAM is at least as large as the ROM.
+    let r = log2[0].max(low);
+    let mu = log2[1].max(r);
+    Geometry {
+        r,
+        mu,
+        w_ts: bits((s_max * n * b_ops) as u64),
+        b_ops,
+        b_scan: ((1 << r) + (1 << mu)) / n,
+        n,
+        s_max,
+    }
+}
+
 struct Setup {
     programs: Vec<Traced>,
     activations: Vec<MemoryPortActivation>,
@@ -191,7 +216,7 @@ impl Setup {
     /// `per_step` rows.
     fn of(programs: Vec<Traced>, n: usize, per_step: NonZeroUsize) -> Setup {
         let catalog = &build_wasm_relation_layout().auxiliary.memory;
-        let (regions, log2) = smallest_regions(
+        let (regions, used) = WasmLimits::of(
             &programs
                 .iter()
                 .map(|traced| &traced.preload)
@@ -200,7 +225,8 @@ impl Setup {
                 .iter()
                 .flat_map(|traced| traced.rows.clone())
                 .collect::<Vec<_>>(),
-        );
+        )
+        .regions();
         Setup {
             activations: catalog
                 .entries()
@@ -208,7 +234,7 @@ impl Setup {
                 .flat_map(|memory| memory.ports.iter().map(|port| port.activation))
                 .collect(),
             regions,
-            log2,
+            log2: used.map(|cells| bits(cells - 1)),
             programs,
             n,
             per_step,
@@ -781,15 +807,6 @@ fn a_proof_of_two_segments_verifies_on_cpu() {
         .unwrap();
     assert_eq!(verified.steps, 8);
     eprintln!("two segments elapsed={:?}", started.elapsed());
-}
-
-/// Small memories and a long segment: the geometry still covers both
-/// namespaces in `n` steps, so a program of it exists.
-#[test]
-fn smallest_geometry_covers_small_memories_in_a_long_segment() {
-    let geometry = smallest_geometry([1, 2], 3, 64, 2);
-    assert_eq!((geometry.r, geometry.mu), (6, 6));
-    assert!(Program::new(geometry, vec![0; 1 << geometry.r], vec![0; 1 << geometry.mu]).is_ok());
 }
 
 /// The trace row and one-row value column of the first active

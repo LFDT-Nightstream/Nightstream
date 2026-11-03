@@ -534,5 +534,8 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
   typed WASM state changes its words (`every_state_field_changes_the_state_words`
   in `crates/neo-wasm/tests/wasm_nebula.rs`), so a verifier that reads a
   field of a proved last state reads a proved word.
+- A prover that picks the WASM size of its proof
+  (`neo_wasm::nebula::WasmSize`). The results hold for each of the three
+  fixed sizes, not for a choice among them.
 - Values for the adversary time and the query counts `Q` and `Q_η`. They
   stay symbolic (`decisions/nebula-memory-checking.md`).

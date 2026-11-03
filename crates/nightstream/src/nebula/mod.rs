@@ -31,7 +31,7 @@ use p3_goldilocks::Goldilocks as F;
 
 pub use app::{Application, Memory, Transition};
 pub(crate) use carry::Carry;
-pub use catalog::{CatalogBinding, CatalogBindingError, CatalogRowError, Region};
+pub use catalog::{pack_regions, CatalogBinding, CatalogBindingError, CatalogRowError, Region};
 pub use expr::Expr;
 pub use geometry::Geometry;
 #[cfg(test)]

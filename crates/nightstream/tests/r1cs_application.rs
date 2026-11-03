@@ -7,7 +7,7 @@
 use std::num::NonZeroUsize;
 
 use nightstream::nebula::{
-    batched_slots, Circuit, Geometry, R1csApplication, Region, RowRelation, Run, SegmentError, Size, VerifyError,
+    batched_slots, pack_regions, Circuit, Geometry, R1csApplication, RowRelation, Run, SegmentError, Size, VerifyError,
 };
 use nightstream::relation::{
     ColumnFamilySpec, ColumnRegistry, ColumnWidth, ConstraintTag, ContinuityCatalog, ContinuityGroup, ContinuityLink,
@@ -101,25 +101,17 @@ fn application(rows: usize) -> R1csApplication<u32> {
     )
     .unwrap();
     let catalog = catalog();
+    let (regions, used) = pack_regions(
+        catalog
+            .entries()
+            .iter()
+            .map(|memory| (memory.id, memory.kind, vec![2])),
+    );
+    assert_eq!(used, [4, 4], "four ROM cells and four RAM cells");
     let size = Size {
         geometry: geometry(rows.get()),
         rows,
-        regions: vec![
-            (
-                0,
-                Region {
-                    base: 0,
-                    widths: vec![2],
-                },
-            ),
-            (
-                1,
-                Region {
-                    base: 0,
-                    widths: vec![2],
-                },
-            ),
-        ],
+        regions,
         slots: batched_slots(&catalog, &[vec![0], vec![1]], rows),
     };
     R1csApplication::new(RowRelation::of(&relation()).unwrap(), &continuity, &catalog, size).unwrap()

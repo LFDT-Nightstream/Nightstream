@@ -11,8 +11,7 @@ use std::path::Path;
 
 use neo_math::F;
 use neo_transcript::{domain_chunk_v1_2, Poseidon2Transcript};
-use nightstream_fprime::{encode_digest, OptionBState};
-use p3_field::{PrimeCharacteristicRing, PrimeField64};
+use p3_field::PrimeCharacteristicRing;
 
 use super::final_program::{FinalProgram, FinalWitness, Finish};
 use super::{words, Envelope, OptionB, OptionBError, LIGHT_FOLD_CAP};
@@ -37,20 +36,13 @@ pub(crate) struct Setups {
     keys: Keys,
 }
 
-/// A compressed proof: the statement, the circuit that ran last, both slots'
-/// claims and depths before the last fold, the last step's claim, the last
-/// fold and its next claim, and one layer-1 proof per slot.
-#[derive(Clone)]
+/// What finishing a proof makes before the shrink layer: the last step's
+/// claim, the last fold and its next claim, and one layer-1 proof per slot.
 pub(crate) struct Compressed {
-    iteration: u64,
-    z0: [F; 4],
-    current: [F; 4],
-    pc: u64,
-    pub(super) slots: [(CeClaim, u64); 2],
-    pub(super) fresh: CcsClaim,
-    pub(super) fold: fold::Proof,
-    pub(super) next: CeClaim,
-    pub(super) layer1: [neo_spartan::Proof; 2],
+    fresh: CcsClaim,
+    fold: fold::Proof,
+    next: CeClaim,
+    layer1: [neo_spartan::Proof; 2],
 }
 
 impl OptionB {
@@ -155,93 +147,11 @@ impl OptionB {
         });
         let [light, refresh] = layer1;
         Ok(Compressed {
-            iteration: envelope.iteration,
-            z0: envelope.z0,
-            current: envelope.current,
-            pc: envelope.pc,
-            slots: envelope
-                .slots
-                .each_ref()
-                .map(|slot| (slot.accumulator.claim.clone(), slot.depth)),
             fresh: fresh.claim,
             fold: proof,
             next: next.claim,
             layer1: [light?, refresh?],
         })
-    }
-
-    /// The compressed form of `Terminal.HoldsFor`: the fresh public input is
-    /// the hash of the state with both slots, the refresh fold of the fresh
-    /// claim into its slot gives the next claim, and layer 1 proves the next
-    /// claim and the other slot's claim below the bound.
-    pub(crate) fn verify_compressed(
-        &self,
-        keys: &Keys,
-        iteration: u64,
-        z0: [F; 4],
-        current: [F; 4],
-        proof: &Compressed,
-    ) -> Result<(), OptionBError> {
-        if (proof.iteration, proof.z0, proof.current) != (iteration, z0, current) {
-            return Err(OptionBError::Statement(
-                "the proof's statement differs from the expected one",
-            ));
-        }
-        if iteration == 0 || iteration >= F::ORDER_U64 || !matches!(proof.pc, 1 | 2) {
-            return Err(OptionBError::Statement("a compressed proof needs a step and a circuit"));
-        }
-        for (index, (claim, _)) in proof.slots.iter().enumerate() {
-            self.relations[index]
-                .shape(claim)
-                .map_err(|reason| OptionBError::Slot {
-                    slot: index,
-                    reason: reason.into(),
-                })?;
-        }
-        let state = OptionBState {
-            keys: self.keys,
-            iteration,
-            z0,
-            current,
-            pc: proof.pc,
-            slots: proof
-                .slots
-                .each_ref()
-                .map(|(claim, depth)| words::slot(claim, *depth)),
-        }
-        .hash();
-        if proof.fresh.x != encode_digest(state) {
-            return Err(OptionBError::Fresh("public input differs from the hash of the state"));
-        }
-        let selected = (proof.pc - 1) as usize;
-        let relation = &self.relations[selected];
-        fold::verify(
-            Kind::Refresh,
-            relation.params(),
-            relation.structure(),
-            &proof.fresh,
-            &proof.slots[selected].0,
-            &proof.fold,
-            &proof.next,
-        )?;
-        for slot in 0..2 {
-            let claim = if slot == selected {
-                &proof.next
-            } else {
-                &proof.slots[slot].0
-            };
-            neo_spartan::verify(
-                &Self::layer1_relation(keys, slot)?,
-                Self::layer1_seed(state, slot),
-                claim,
-                &proof.layer1[slot],
-            )
-            .map_err(|error| OptionBError::Slot {
-                slot,
-                reason: error.to_string(),
-            })?;
-        }
-        Ok(())
     }
 }
 

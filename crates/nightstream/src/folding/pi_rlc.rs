@@ -47,13 +47,6 @@ pub(crate) struct Output {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Weights {
     Sampled,
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "the public API calls the option-B lifecycle from CW-8; only tests do until then"
-        )
-    )]
     Light,
 }
 impl Weights {

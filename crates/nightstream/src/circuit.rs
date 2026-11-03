@@ -47,6 +47,8 @@ pub enum Error {
     ProofBytes(#[from] ProofCodecError),
     #[error(transparent)]
     Parameters(#[from] neo_params::ParamsError),
+    #[error(transparent)]
+    OptionB(#[from] crate::lifecycle::option_b::OptionBError),
 }
 
 impl From<ExtendError> for Error {

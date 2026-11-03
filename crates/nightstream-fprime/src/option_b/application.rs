@@ -283,6 +283,16 @@ impl StepPackage {
     }
 }
 
+impl StepPackage {
+    /// This package with `witness_words` application witness words and no
+    /// application rows: the finish package, which has no application, keeps
+    /// the step's shared words.
+    pub fn with_witness_words(&self, witness_words: usize) -> Result<Self, PackageError> {
+        let empty = Arc::new(crate::application_records::ApplicationRecordsWriter::new()?.finish()?);
+        self.with_application(&empty, witness_words)
+    }
+}
+
 impl OptionBPackages {
     /// Both packages with a native application in place of Lean's. The
     /// identity binds the packages' identity, the witness word count and the

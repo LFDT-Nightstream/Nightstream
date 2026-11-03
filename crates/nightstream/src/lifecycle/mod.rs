@@ -20,14 +20,7 @@ mod evaluation;
 mod extend;
 mod finish;
 mod inputs;
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "the public API calls the option-B lifecycle from CW-8; only tests do until then"
-    )
-)]
-mod option_b;
+pub(crate) mod option_b;
 mod prove;
 mod step_inputs;
 mod terminal;

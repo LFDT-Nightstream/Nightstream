@@ -4,13 +4,6 @@
 mod claims;
 mod compose;
 pub(crate) mod kernels;
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "the public API calls the option-B lifecycle from CW-8; only tests do until then"
-    )
-)]
 pub(crate) mod option_b;
 mod params;
 pub(crate) mod pi_ccs;

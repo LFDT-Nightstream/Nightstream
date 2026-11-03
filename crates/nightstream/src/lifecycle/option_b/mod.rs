@@ -12,6 +12,8 @@ mod words;
 
 use crate::folding::option_b::{prove, Kind};
 use crate::folding::{pi_dec, pi_rlc, CcsInstance, RunningInstance};
+pub(crate) use compression::{FinalProof, Keys, Setups};
+pub(crate) use final_program::Finish;
 use neo_ccs::crypto::poseidon2_goldilocks::poseidon2_hash;
 use neo_math::F;
 use neo_transcript::domain_chunk_v1_2;
@@ -25,7 +27,7 @@ const LIGHT_FOLD_CAP: u64 = 64;
 const KEY_DOMAIN: &[u8] = b"Nightstream/OptionB/circuit-key/v1";
 
 #[derive(Debug, thiserror::Error)]
-pub(crate) enum OptionBError {
+pub enum OptionBError {
     #[error(transparent)]
     Relation(#[from] RelationError),
     #[error(transparent)]
@@ -60,6 +62,12 @@ pub(crate) struct Envelope {
     pc: u64,
     slots: [Slot; 2],
     fresh: Option<CcsInstance>,
+}
+
+impl Envelope {
+    pub(crate) fn state(&self) -> crate::State {
+        crate::State::new(self.iteration, self.z0, self.current)
+    }
 }
 
 pub(crate) struct OptionB {

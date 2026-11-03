@@ -22,7 +22,7 @@ use p3_field::PrimeCharacteristicRing;
 const MATRICES: usize = 4;
 
 #[derive(Debug, thiserror::Error)]
-pub(crate) enum RelationError {
+pub enum RelationError {
     #[error(transparent)]
     Package(#[from] PackageError),
     #[error(transparent)]

@@ -55,20 +55,22 @@ noncomputable def runEntry (S : Layer1.Setup Gl) (D j i c : ℕ) : Gl :=
       (fun k => S.runRow k = i),
     S.runCoef k * S.slotRatio (S.runSlot k) ^ (c - (D * S.slotBlock (S.runSlot k) + S.slotLane (S.runSlot k)))
 
+/-- The layer-1 shape of a parent claim. The key commits at most the carrier's blocks: a key with
+fewer blocks, such as option B's light relation, commits a witness that is zero past them. -/
 structure ParentShape (s : Layer1.Shape) (lw : ℕ) : Prop where
   D : s.D = ringDegree
   laneVars : s.laneVars = 6
   kappa : s.kappa = productionProfile.commitmentWidth
   matrices : s.matrices = productionProfile.ccsMatrices
   publicBlocks : s.publicBlocks = PaperAlgebra.publicRingColumns
-  blocks : s.blocks = Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth lw)
+  blocks : s.blocks ≤ Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth lw)
   norm : s.normBound < productionGlobalParams.bigB
 
 structure HonestSetup (s : Layer1.Shape) (S : Layer1.Setup Gl) (relation : ProductionKey.LogicalRelation lw pf)
     (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := lw) (publicFits := pf)) : Prop where
   key : ∀ (i : Fin productionProfile.commitmentWidth)
     (b : Fin (Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth lw))) (l : Fin ringDegree),
-    S.key i (2 ^ s.laneVars * b + l) = gl (ajtai i b l)
+    b.val < s.blocks → S.key i (2 ^ s.laneVars * b + l) = gl (ajtai i b l)
   row_lt : ∀ k, k < S.runs → S.runRow k < 2 ^ cubeVariables
   entry : ∀ (j : Fin productionProfile.ccsMatrices) (i : ℕ) (c : Fin (Phi81CarrierLayout.carrierWidth lw)),
     i < 2 ^ cubeVariables →

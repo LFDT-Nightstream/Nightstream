@@ -231,8 +231,9 @@ theorem statementOf_point (P : PiRLC.v1_2.InputBinding.InputInstance lw pf) :
   simp only [Layer1.Statement.point, statementOf, List.map_map]
   rfl
 
+/-- Layer 1's witness on the carrier's columns, zero past the key's blocks. -/
 def assignmentOf (s : Layer1.Shape) (z : ℕ → Gl) : PaperAlgebra.Assignment (logicalWidth := lw) (publicFits := pf) :=
-  fun c => z (2 ^ s.laneVars * (c.val / ringDegree) + c.val % ringDegree)
+  fun c => if c.val / ringDegree < s.blocks then z (2 ^ s.laneVars * (c.val / ringDegree) + c.val % ringDegree) else 0
 
 theorem coeffPoly_eq (v : ℕ → Gl) (w : RingF) (same : ∀ l : Fin ringDegree, v l = gl (w l)) :
     Layer1.coeffPoly ringDegree v = toPolynomial w := by
@@ -255,7 +256,8 @@ theorem barPoly_eq (bar : ℕ → ℕ → Gl) (barEq : ∀ p l : Fin ringDegree,
 theorem assignmentBlock_apply (s : Layer1.Shape) (z : ℕ → Gl)
     (b : Fin (Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth lw))) (l : Fin ringDegree) :
     gl (Phi81Relation.EvaluationHomomorphism.CarrierAction.assignmentBlock
-      (assignmentOf (lw := lw) (pf := pf) s z) b l) = z (2 ^ s.laneVars * b + l) := by
+      (assignmentOf (lw := lw) (pf := pf) s z) b l) =
+        if b.val < s.blocks then z (2 ^ s.laneVars * b + l) else 0 := by
   have div : (b.val * ringDegree + l.val) / ringDegree = b.val := by
     have := l.isLt
     simp only [ringDegree] at this ⊢
@@ -267,21 +269,38 @@ theorem assignmentBlock_apply (s : Layer1.Shape) (z : ℕ → Gl)
   simp only [Phi81Relation.EvaluationHomomorphism.CarrierAction.assignmentBlock, assignmentOf,
     Phi81Relation.EvaluationHomomorphism.CarrierAction.carrierColumn,
     Phi81CarrierLayout.carrierColumn, Phi81ColumnLayout.flatIndex, div, mod]
+  by_cases inside : b.val < s.blocks
+  · simp only [inside, ↓reduceIte]
+  · simp only [inside, ↓reduceIte]
+    rfl
 
 theorem witnessBlock_eq (s : Layer1.Shape) (z : ℕ → Gl) (shape : ParentShape s lw)
-    (b : Fin (Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth lw))) :
+    (b : Fin (Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth lw))) (inside : b.val < s.blocks) :
     Layer1.witnessBlock s z b = toPolynomial (Phi81Relation.EvaluationHomomorphism.CarrierAction.assignmentBlock
       (assignmentOf (lw := lw) (pf := pf) s z) b) := by
   unfold Layer1.witnessBlock
   rw [shape.D]
-  exact coeffPoly_eq _ _ fun l => (assignmentBlock_apply s z b l).symm
+  exact coeffPoly_eq _ _ fun l => by rw [assignmentBlock_apply s z b l, ite_eq_left inside]
+
+/-- Past the key's blocks the witness's ring block is zero. -/
+theorem assignmentBlock_past (s : Layer1.Shape) (z : ℕ → Gl)
+    (b : Fin (Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth lw))) (outside : s.blocks ≤ b.val) :
+    toPolynomial (Phi81Relation.EvaluationHomomorphism.CarrierAction.assignmentBlock
+      (assignmentOf (lw := lw) (pf := pf) s z) b) = 0 := by
+  have zero : Phi81Relation.EvaluationHomomorphism.CarrierAction.assignmentBlock
+      (assignmentOf (lw := lw) (pf := pf) s z) b = ringFZero := by
+    funext l
+    have value := assignmentBlock_apply (pf := pf) s z b l
+    rw [ite_eq_right (by omega)] at value
+    exact value
+  rw [zero, toPolynomial_zero]
 
 theorem row_dvd {s : Layer1.Shape} {bar : ℕ → ℕ → Gl} {S : Layer1.Setup Gl} {st : Layer1.Statement Gl}
     {z : ℕ → Gl} (shape : ParentShape s lw)
     (rows : (Layer1.relationRows s bar S st).Holds modulus (Layer1.witnessBlock s z))
     {ρ : ℕ} (inside : ρ < s.rows)
     (W : Fin (Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth lw)) → RingF) (y : RingF)
-    (weight : ∀ b : Fin (Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth lw)),
+    (weight : ∀ b : Fin (Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth lw)), b.val < s.blocks →
       (Layer1.relationRows s bar S st).weight ρ b = toPolynomial (W b))
     (target : (Layer1.relationRows s bar S st).target ρ = toPolynomial y) :
     modulus ∣ ∑ b, toPolynomial (W b) * toPolynomial
@@ -289,14 +308,28 @@ theorem row_dvd {s : Layer1.Shape} {bar : ℕ → ℕ → Gl} {S : Layer1.Setup 
         toPolynomial y := by
   have holds := rows ρ inside
   unfold Layer1.RingRows.residual at holds
-  rw [show (Layer1.relationRows s bar S st).blocks = s.blocks from rfl, shape.blocks,
-    ← Fin.sum_univ_eq_sum_range (fun b => (Layer1.relationRows s bar S st).weight ρ b * Layer1.witnessBlock s z b),
-    target] at holds
-  have same : ∑ b : Fin (Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth lw)),
-      (Layer1.relationRows s bar S st).weight ρ b * Layer1.witnessBlock s z b =
-        ∑ b, toPolynomial (W b) * toPolynomial (Phi81Relation.EvaluationHomomorphism.CarrierAction.assignmentBlock
-          (assignmentOf (lw := lw) (pf := pf) s z) b) :=
-    Finset.sum_congr rfl fun b _ => by rw [weight b, witnessBlock_eq s z shape b]
+  rw [show (Layer1.relationRows s bar S st).blocks = s.blocks from rfl, target] at holds
+  let term : Fin (Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth lw)) → Polynomial Gl := fun b =>
+    toPolynomial (W b) * toPolynomial (Phi81Relation.EvaluationHomomorphism.CarrierAction.assignmentBlock
+      (assignmentOf (lw := lw) (pf := pf) s z) b)
+  have same : ∑ b ∈ Finset.range s.blocks,
+      (Layer1.relationRows s bar S st).weight ρ b * Layer1.witnessBlock s z b = ∑ b, term b := by
+    rw [Finset.sum_fin_eq_sum_range, ← Finset.sum_range_add_sum_Ico _ shape.blocks]
+    have past : ∑ b ∈ Finset.Ico s.blocks (Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth lw)),
+        (if h : b < Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth lw) then term ⟨b, h⟩ else 0) = 0 :=
+      Finset.sum_eq_zero fun b member => by
+        obtain ⟨low, high⟩ := Finset.mem_Ico.mp member
+        rw [dite_eq_left high]
+        simp only [term]
+        rw [assignmentBlock_past s z ⟨b, high⟩ low, mul_zero]
+    rw [past, add_zero]
+    refine Finset.sum_congr rfl fun b member => ?_
+    have small := Finset.mem_range.mp member
+    have below : b < Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth lw) :=
+      lt_of_lt_of_le small shape.blocks
+    rw [dite_eq_left below]
+    simp only [term]
+    rw [← weight ⟨b, below⟩ small, ← witnessBlock_eq s z shape ⟨b, below⟩ small]
   rwa [same] at holds
 
 theorem evalRow_coeff {s : Layer1.Shape} {bar : ℕ → ℕ → Gl} {S : Layer1.Setup Gl} {st : Layer1.Statement Gl}
@@ -304,7 +337,7 @@ theorem evalRow_coeff {s : Layer1.Shape} {bar : ℕ → ℕ → Gl} {S : Layer1.
     (rows : (Layer1.relationRows s bar S st).Holds modulus (Layer1.witnessBlock s z))
     {ρ : ℕ} (inside : ρ < s.rows)
     (u : Fin (Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth lw)) → RingF) (y : RingF)
-    (weight : ∀ b : Fin (Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth lw)),
+    (weight : ∀ b : Fin (Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth lw)), b.val < s.blocks →
       (Layer1.relationRows s bar S st).weight ρ b = toPolynomial (barRing (u b)))
     (target : (Layer1.relationRows s bar S st).target ρ = toPolynomial y) (p : Fin ringDegree) :
     gl (y p) = ∑ b, ∑ l, ∑ e, gl (u b l) * gl (Phi81Relation.EvaluationHomomorphism.CarrierAction.assignmentBlock
@@ -446,7 +479,7 @@ theorem pad_part {s : Layer1.Shape} {bar : ℕ → ℕ → Gl} {S : Layer1.Setup
     (by rw [rows_eq shape, Layer1.Shape.evalKRow, shape.kappa]; change 22 + part < 37; omega)
     (fun b l => π (Lib.eqAt (P.point.coordinates.map toQuad) (ringDegree * b + l)))
     (fun l => sel part ((statementOf P).evalK l))
-    (fun b => by
+    (fun b _ => by
       rw [weight_evalK s bar S _ part small b, shape.D]
       exact barPoly_eq bar barEq _ _ fun l => chi_part P part π hπ _)
     (by
@@ -488,7 +521,7 @@ theorem matrix_part {s : Layer1.Shape} {bar : ℕ → ℕ → Gl} {S : Layer1.Se
     (fun b l => ∑ i ∈ Finset.range (2 ^ cubeVariables), π (Lib.eqAt (P.point.coordinates.map toQuad) i) *
       entryAt ((PaperAlgebra.matrixSource relation.system).matrices j) i (ringDegree * b + l))
     (fun l => sel part ((statementOf P).evalA j l))
-    (fun b => by
+    (fun b _ => by
       rw [weight_evalA s bar S _ j part inside small b, shape.D]
       exact barPoly_eq bar barEq _ _ fun l => by
         have weight := evalA_weight honest P part π hπ j (column_lt b l)
@@ -535,9 +568,9 @@ theorem parent_holds (s : Layer1.Shape) (bar : ℕ → ℕ → Gl) (S : Layer1.S
     apply ringSum_eq_of_dvd
     apply row_dvd (pf := pf) shape rows (ρ := ρ)
       (by have := ρ.isLt; rw [rows_eq shape]; change ρ.val < 22 at this; omega)
-    · intro b
+    · intro b inside
       rw [weight_key s bar S _ key, shape.D]
-      exact coeffPoly_eq _ _ fun l => honest.key ρ b l
+      exact coeffPoly_eq _ _ fun l => honest.key ρ b l inside
     · rw [target_key s bar S _ key, shape.D]
       exact coeffPoly_eq _ _ fun l => by simp [statementOf, ρ.isLt, l.isLt]
   · funext column
@@ -561,7 +594,7 @@ theorem parent_holds (s : Layer1.Shape) (bar : ℕ → ℕ → Gl) (S : Layer1.S
         change 22 + 2 + 2 * 4 + column.val / 54 < 37
         omega)
       (fun b => if b = block then ringFOne else ringFZero) y
-      (fun b => by
+      (fun b _ => by
         rw [weight_public]
         by_cases same : b = block
         · rw [ite_eq_left (congrArg Fin.val same), ite_eq_left same, toPolynomial_one]
@@ -582,21 +615,28 @@ theorem parent_holds (s : Layer1.Shape) (bar : ℕ → ℕ → Gl) (S : Layer1.S
   · rw [stage]
     intro column
     change centeredMagnitude (assignmentOf (lw := lw) (pf := pf) s z column) < productionGlobalParams.bigB
-    have index : 2 ^ s.laneVars * (column.val / ringDegree) + column.val % ringDegree < 2 ^ s.cubeVars := by
-      have hc := column.isLt
-      have hb := blocks_le
-      rw [shape.blocks, Phi81CarrierLayout.blockCount_carrierWidth] at hb
-      change column.val < Phi81ColumnLayout.blockCount lw * 54 at hc
-      rw [Layer1.Shape.cubeVars, shape.laneVars, pow_add]
-      change 64 * (column.val / 54) + column.val % 54 < 64 * 2 ^ s.blockVars
-      omega
-    obtain ⟨t, small, value⟩ := norm _ index
-    have bound := shape.norm
-    change s.normBound < 65536 at bound
-    unfold assignmentOf
-    rw [value]
-    exact (centeredMagnitude_slotValue s.normBound t small (by unfold goldilocksModulus; omega)).trans_lt
-      shape.norm
+    by_cases live : column.val / ringDegree < s.blocks
+    · have kept : assignmentOf (lw := lw) (pf := pf) s z column =
+          z (2 ^ s.laneVars * (column.val / ringDegree) + column.val % ringDegree) := by
+        unfold assignmentOf
+        exact ite_eq_left live
+      have index : 2 ^ s.laneVars * (column.val / ringDegree) + column.val % ringDegree < 2 ^ s.cubeVars := by
+        have hb := blocks_le
+        rw [Layer1.Shape.cubeVars, shape.laneVars, pow_add]
+        change 64 * (column.val / 54) + column.val % 54 < 64 * 2 ^ s.blockVars
+        change column.val / 54 < s.blocks at live
+        omega
+      obtain ⟨t, small, value⟩ := norm _ index
+      have bound := shape.norm
+      change s.normBound < 65536 at bound
+      rw [kept, value]
+      exact (centeredMagnitude_slotValue s.normBound t small (by unfold goldilocksModulus; omega)).trans_lt
+        shape.norm
+    · have zero : assignmentOf (lw := lw) (pf := pf) s z column = 0 := by
+        unfold assignmentOf
+        exact ite_eq_right live
+      rw [zero]
+      decide
   · change #[PaperAlgebra.evaluationFamily P.constraintSystem (assignmentOf s z) P.point] = P.evaluations
     rw [source, show PiRLC.v1_2.InputBinding.relationSource relation = PaperAlgebra.relationSource
       (Spec.Folding.PiCCS.CanonicalRowLayout.layout cubeVariables (Phi81CarrierLayout.carrierWidth lw)

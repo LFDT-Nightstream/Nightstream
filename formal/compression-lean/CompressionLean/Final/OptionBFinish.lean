@@ -5,7 +5,8 @@ import NightstreamFPrime.Export.OptionB.FinishRelation
 one that the emitter writes for the finish relation's pieces (`StepPackage.packageOf`), with blocks
 that pack after the shared words, finish columns in which the program's checks hold give
 `FinishStep.FinishHolds` for the refresh step input whose iteration, `z0` and current state are the
-statement (`finishTerminal_holds`, through F′'s `FinishRelation.package_finish`). -/
+statement, in finish columns that agree with the program's below the shared end
+(`finishTerminal_holds`, through F′'s `FinishRelation.package_finish`). -/
 
 namespace CompressionLean.Final.OptionB
 
@@ -36,6 +37,8 @@ theorem finishTerminal_holds (program : Stage1.Application.Program)
     (terminal : FinishTerminal (StepPackage.packageOf 2 CircuitRelation.publicColumns
       (FinishRelation.pieces program relation) next width batches application) stateKeys x env) :
     ∃ completed : Env,
+      (∀ column, column < RefreshAssembler.sharedEnd base program.witnessWordCount →
+        completed column = env column) ∧
       (refreshInput (logicalWidth := logicalWidth) (publicFits := publicFits) program
         completed).iteration = (x 0).val ∧
       (refreshInput (logicalWidth := logicalWidth) (publicFits := publicFits) program completed).z0 =
@@ -56,7 +59,7 @@ theorem finishTerminal_holds (program : Stage1.Application.Program)
     show (completed base).val = _
     rw [below base (by omega), base_eq]
     exact congrArg Fin.val iteration
-  refine ⟨completed, first, ?_, ?_, holds (by rw [first]; exact fun zero => positive (Fin.ext zero))⟩
+  refine ⟨completed, agree, first, ?_, ?_, holds (by rw [first]; exact fun zero => positive (Fin.ext zero))⟩
   · show List.ofFn (fun lane : Fin 4 => completed (base + 13 + lane)) = _
     congr 1
     funext lane

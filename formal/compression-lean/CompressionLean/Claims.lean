@@ -1,5 +1,6 @@
 import CompressionLean.Sim.Encodes
 import CompressionLean.Sim.OptionBEncodes
+import CompressionLean.Final.OptionBParent
 import CompressionLean.Final.ParentClaim
 import CompressionLean.Checks.KeyFacts
 import CompressionLean.Final.RustSetup
@@ -168,5 +169,61 @@ theorem option_b_bound (finish : NightstreamFPrime.Export.OptionB.StepPackage.Pa
     Lowering.Block.poseidonTemplate_wellFormed (Sim.OptionB.shrinkRun_valid finish stateKeys keys)
     (cubic_natCast_injective 9 (by norm_num [goldilocksModulus])) _ _ _ _ _
     (Sim.OptionB.optionBEncodes S facts fits describes L0 L1 fit keysLength) calls prover
+
+/-- Soundness of `lifecycle/option_b/compression.rs::OptionB::verify_final`: the shrink layer accepts
+a statement while no refresh step input with its counter and states has the finish checks and
+both next slots holding under their circuits' relations (`OptionB.ParentHolds`, SuperNeo v1.2
+Definition 21 for the last fold), with probability at most `calls / 2^t`. The finish package is the
+one that F′'s emitter writes (`OptionB.finishPackage`). Fiat–Shamir inside the program is assumed
+(`TRUST.md` §3). -/
+theorem option_b_parent_bound {lw : ℕ}
+    {pf : ringDegree * PaperAlgebra.publicRingColumns ≤ Phi81CarrierLayout.carrierWidth lw}
+    (program : Stage1.Application.Program) (relation : ProductionKey.LogicalRelation lw pf)
+    (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := lw) (publicFits := pf))
+    (circuitKeys : Fin 2 → Lifecycle.OptionB.CircuitKey lw pf) (next width : ℕ)
+    (batches : List NightstreamFPrime.Circuit.WitnessBatch) (rest : ℕ × ℕ × ℕ × ℕ)
+    (packed : Export.Generic.CircuitRelation.packable Export.Generic.CircuitRelation.publicColumns
+      (Export.OptionB.FinishRelation.pieces program relation) = true)
+    (starts : Export.Generic.CircuitRelation.startsFrom
+      (Layout.OptionB.RefreshAssembler.sharedEnd Export.OptionB.StepRelation.base program.witnessWordCount)
+      (Export.OptionB.FinishRelation.pieces program relation) = true)
+    (stateKeys : List Replay.Word) (keys : Fin 2 → Layer1Key) (S : Fin 2 → Layer1.Setup Gl)
+    (facts : ∀ slot, KeyFacts (keys slot)) (fits : ∀ slot, (S slot).Fits (shapeOf (keys slot).relation))
+    (describes : ∀ slot,
+      (structureOf (keys slot).relation.key.layout).Describes (shapeOf (keys slot).relation) (S slot))
+    (shape : ∀ slot, ParentShape (shapeOf (keys slot).relation) lw)
+    (honest : ∀ slot, HonestSetup (shapeOf (keys slot).relation) (S slot) (circuitKeys slot).relation ajtai)
+    (fit : OptionB.fits (OptionB.finishPackage program relation next width batches rest) = true)
+    (keysLength : stateKeys.length ≤ 8)
+    (L0 L1 : ℕ) (h0 : 1 ≤ L0) (h1 : 1 ≤ L1) (t Ls : ℕ)
+    (p0 : ∀ slot, (L0 : ℝ) * L1 * Layer1.rustDegrees (shapeOf (keys slot).relation) / 2 ^ 191 ≤ 1 / 2 ^ (t + 1))
+    (p1 : ∀ slot, (L1 : ℝ) * (1 / 2) ^ ((shapeOf (keys slot).relation).queries - 1) ≤ 1 / 2 ^ (t + 1))
+    (rust : (Ls : ℝ) * Shrink.rustDegrees
+        (Shrink.Layout.rowVars Circuit.Block.poseidonTemplate
+          (OptionB.counts (OptionB.finishPackage program relation next width batches rest) stateKeys keys))
+        (Shrink.Layout.cellVars Circuit.Block.poseidonTemplate
+          (OptionB.counts (OptionB.finishPackage program relation next width batches rest) stateKeys keys))
+          / 2 ^ 191 ≤ 1 / 2 ^ t)
+    (calls : ℕ)
+    (prover : Game.Strategy (OptionB.Outcome Gl Cubic (game (keys 0) (S 0) L0 L1) (game (keys 1) (S 1) L0 L1))) :
+    Game.prob prover
+        (restorePair (Shrink.shrinkGame (F := Gl) Circuit.Block.poseidonTemplate
+            (OptionB.counts (OptionB.finishPackage program relation next width batches rest) stateKeys keys)
+            (OptionB.shrinkRun (OptionB.finishPackage program relation next width batches rest) stateKeys keys) Ls)
+          (choice (game (keys 0) (S 0) L0 L1) (game (keys 1) (S 1) L0 L1)) calls [] [])
+        (OptionB.RestoreBreak (F := Gl) (OptionB.ParentHolds program ajtai circuitKeys)
+          Circuit.Block.poseidonTemplate
+          (OptionB.counts (OptionB.finishPackage program relation next width batches rest) stateKeys keys)
+          (OptionB.shrinkRun (OptionB.finishPackage program relation next width batches rest) stateKeys keys)
+          (game (keys 0) (S 0) L0 L1) (game (keys 1) (S 1) L0 L1)
+          (OptionB.Reads (OptionB.finishPackage program relation next width batches rest) stateKeys keys 0
+            (S 0) L0 L1)
+          (OptionB.Reads (OptionB.finishPackage program relation next width batches rest) stateKeys keys 1
+            (S 1) L0 L1)) ≤
+      calls / 2 ^ t :=
+  (prob_mono prover _ fun r => Final.OptionB.restoreBreak_mono (fun _ holds =>
+      Final.OptionB.parentHolds_of_holds program relation ajtai circuitKeys next width batches rest packed starts
+        (fun slot => shapeOf (keys slot).relation) S barOf barOf_eq shape (fun slot => (facts slot).shape.blocks_le) honest holds) _ _ _ _ _ _ _ r).trans
+    (option_b_bound _ stateKeys keys S facts fits describes fit keysLength L0 L1 h0 h1 t Ls p0 p1 rust calls prover)
 
 end CompressionLean.Claims

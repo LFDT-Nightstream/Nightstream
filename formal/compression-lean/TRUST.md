@@ -104,8 +104,11 @@ A claim that takes a premise says nothing about a key, a package, a setup or run
 it. `STATUS.md` lists every hypothesis of every claim and says, for each premise, how it is met: by a
 Lean proof, by a check of Rust's files, by a Lean value or by Rust. No premise of `poseidon2_bound`
 is open. Two premises of `option_b_bound` are open: that each slot's setup fits its key's shape and
-that the key describes it (`fits`, `describes`). No check reads option B's layer-1 setups yet. `CompressionLeanTests/Inventory.lean` holds that list, and `lake build` fails when a premise
-of a claim has no entry there.
+that the key describes it (`fits`, `describes`). `option_b_parent_bound` adds two more open
+premises: that each slot's key has the parent shape at option B's width (`shape`) and that each
+slot's setup is the honest setup of its circuit key (`honest`). No check reads option B's layer-1
+setups or runs yet. `CompressionLeanTests/Inventory.lean` holds that list, and `lake build` fails
+when a premise of a claim has no entry there.
 
 ## Option B
 
@@ -113,13 +116,21 @@ of a claim has no entry there.
 Its claim is a terminal environment of the finish package's columns in which the final program's
 checks hold (`Spec.OptionB.FinishTerminal`: the statement and state keys on their words, every row
 of the package's pieces, and each Poseidon2 block as the permutation of its lanes), whose two next
-slots' claim words are in their layer-1 relations (`Spec.OptionB.Holds`). Two links to F′ are not
-part of a claim yet. F′'s `FinishRelation.checks_finish` turns those checks into `FinishHolds` when
-the package is `packageOf` of the finish relation's pieces with packed blocks after the shared
-words; the emitter checks both and writes the package, and the claim reads the decoded package
-(`optionBCheck`). The bridge from each slot's layer-1 relation to its CE claim needs padding:
-Rust's light relation commits fewer blocks than the refresh relation, while F′'s option-B model
-gives both circuit keys one width (CW-6.5.6).
+slots' claim words are in their layer-1 relations (`Spec.OptionB.Holds`).
+
+`option_b_parent_bound` gives the same bound for the claim in F′'s terms (`Spec.OptionB.ParentHolds`):
+a refresh step input whose counter and states are the statement, with `FinishHolds`, and whose two
+next slots hold under their circuits' relations (SuperNeo v1.2 Definition 21). It reads the finish
+package as the one that F′'s emitter writes (`Spec.OptionB.finishPackage`). The emitter evaluates
+`packable` and `startsFrom` on the finish relation's pieces and writes no package when either fails.
+Rust embeds that package and pins its identifier; no check compares the package that `optionBCheck`
+decodes with `finishPackage`.
+
+The bridge from each slot's layer-1 relation to its CE claim pads. Rust's light relation commits
+fewer blocks than the refresh relation, while F′'s option-B model gives both circuit keys one width.
+`Final.parent_holds` reads a slot's witness as zero past the key's committed blocks, so `ParentShape`
+asks only that the committed blocks fit the width, and `HonestSetup` fixes the Ajtai key only on
+the committed blocks.
 
 ## 5. The ports
 

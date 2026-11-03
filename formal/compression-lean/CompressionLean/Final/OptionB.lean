@@ -29,6 +29,17 @@ def Encodes (T : Shrink.Template F) (s : Shrink.Counts) (prog : StateWords → S
     (∀ p, Reads0 x w p → ∃ tr, Pos.node g0 p = .pure (some tr) ∧ tr.statement = claim0 env) ∧
     ∀ p, Reads1 x w p → ∃ tr, Pos.node g1 p = .pure (some tr) ∧ tr.statement = claim1 env
 
+omit [Field K] [Algebra F K] [Fintype K] [DecidableEq K] in
+/-- A break of a weaker claim is a break of a stronger one. -/
+theorem restoreBreak_mono {Claim Claim' : StateWords → Prop} (imp : ∀ x, Claim x → Claim' x)
+    (T : Shrink.Template F) (s : Shrink.Counts) (prog : StateWords → Shrink.Run F)
+    (g0 : Game (Option (Layer1.Transcript F K t0 L0))) (g1 : Game (Option (Layer1.Transcript F K t1 L1)))
+    (Reads0 : StateWords → (ℕ → F) → g0.Pos → Prop) (Reads1 : StateWords → (ℕ → F) → g1.Pos → Prop)
+    (r : Outcome F K g0 g1) (broken : RestoreBreak Claim' T s prog g0 g1 Reads0 Reads1 r) :
+    RestoreBreak Claim T s prog g0 g1 Reads0 Reads1 r := by
+  obtain ⟨tr, accepted, reads, failed⟩ := broken
+  exact ⟨tr, accepted, reads, fun claim => failed (imp _ claim)⟩
+
 /-- What a layer-1 game's leaves avoid: an accepted transcript extracts. -/
 abbrev Extracts (s : Layer1.Shape) (Φ : F[X]) (bar : ℕ → ℕ → F) (S : Layer1.Setup F) {t L : ℕ}
     (r : Option (Layer1.Transcript F K t L)) : Prop :=

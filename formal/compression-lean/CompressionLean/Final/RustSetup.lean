@@ -166,7 +166,7 @@ theorem build_honest (s : Layer1.Shape) (D : s.D = ringDegree) (lanes : s.laneVa
     (gives : RunsGive pushes relation) :
     HonestSetup s S relation setup.verifierKey := by
   obtain ⟨back, key⟩ := readsBack_of_build built
-  refine ⟨fun i b l => ?_, fun k inside => ?_, fun j i c inside => ?_⟩
+  refine ⟨fun i b l _ => ?_, fun k inside => ?_, fun j i c inside => ?_⟩
   · have blocks : Phi81CarrierLayout.carrierWidth lw / ringDegree =
         Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth lw) := by
       rw [Phi81CarrierLayout.blockCount_carrierWidth, Phi81CarrierLayout.carrierWidth,
@@ -192,7 +192,7 @@ theorem parentShape_of (s : Layer1.Shape) (lw : ℕ) (D : s.D = ringDegree) (lan
   kappa := kappa
   matrices := matrices
   publicBlocks := publicBlocks
-  blocks := by rw [blocks, Phi81CarrierLayout.blockCount_carrierWidth]
+  blocks := le_of_eq (by rw [blocks, Phi81CarrierLayout.blockCount_carrierWidth])
   norm := Production.normLimit_eq ▸ norm
 
 end CompressionLean.Final

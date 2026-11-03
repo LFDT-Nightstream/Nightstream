@@ -16,7 +16,8 @@ def claims : List (Name × List Name) := [
   (`CompressionLean.Claims.package_templates_of_check, [``propext, ``Quot.sound]),
   (`CompressionLean.Claims.setup_facts_of_check, standardAxioms),
   (`CompressionLean.Claims.runsGive_of_check, standardAxioms),
-  (`CompressionLean.Claims.option_b_bound, standardAxioms)]
+  (`CompressionLean.Claims.option_b_bound, standardAxioms),
+  (`CompressionLean.Claims.option_b_parent_bound, standardAxioms)]
 
 def claimsModule : Name := `CompressionLean.Claims
 
@@ -75,6 +76,13 @@ def premises : List (Name × List Premise) :=
     "`terminalCheck` evaluates `templatesNamed` on the terminal package (`package_templates_of_check`)."⟩
   let hctx : Premise := ⟨`hctx, .rust,
     "`PreparedLifecycle::check_compression_key` (`lifecycle/finish.rs`) refuses a compression key whose context words are not the digest of the circuit's verifier context. `authority` is that context."⟩
+  let optionB : List Premise := [
+    ⟨`facts, .rustFiles, "`lowerCheck` evaluates `keyFailure` on both layer-1 keys that `option_b_layer1_keys_are_written` writes (`option_b_layer1_matches_lean`); `key_facts_of_check` turns each pass into `KeyFacts`."⟩,
+    ⟨`fits, .unmet, "No check reads option B's layer-1 setups yet."⟩,
+    ⟨`describes, .unmet, "As `fits`."⟩,
+    ⟨`fit, .leanValue, "`optionBCheck` evaluates `fits` on the finish package that it decodes from the artifact and stops when it fails."⟩,
+    ⟨`keysLength, .rustFiles, "`optionBCheck` requires eight state key words in the log that `option_b_final_program_matches_lean` writes; `FinalProgram::keys` is `[[F; 4]; 2]`."⟩,
+    h0, h1, p0, p1, rust]
   [(`CompressionLean.Claims.production_bound, [pf,
       ⟨`shape, .proved, "`poseidon2_bound` gives it from `KeyFacts` and `WidthFits` (`parentShape_of`). Open for other applications."⟩,
       ⟨`honest, .proved, "`poseidon2_bound` gives it from Rust's setup build and the pass of `runsCheck` (`honest_setup_of_build`, `runsGive_of_check`). Open for other applications."⟩,
@@ -100,13 +108,13 @@ def premises : List (Name × List Premise) :=
       "`terminalCheck` evaluates `templatesNamed` on the terminal package."⟩]),
     (`CompressionLean.Claims.setup_facts_of_check, [⟨`pass, .rustFiles, setupPass⟩]),
     (`CompressionLean.Claims.runsGive_of_check, [⟨`pass, .rustFiles, runsPass⟩]),
-    (`CompressionLean.Claims.option_b_bound, [
-      ⟨`facts, .rustFiles, "`lowerCheck` evaluates `keyFailure` on both layer-1 keys that `option_b_layer1_keys_are_written` writes (`option_b_layer1_matches_lean`); `key_facts_of_check` turns each pass into `KeyFacts`."⟩,
-      ⟨`fits, .unmet, "No check reads option B's layer-1 setups yet (CW-6.5.6)."⟩,
-      ⟨`describes, .unmet, "As `fits`."⟩,
-      ⟨`fit, .leanValue, "`optionBCheck` evaluates `fits` on the finish package that it decodes from the artifact and stops when it fails."⟩,
-      ⟨`keysLength, .rustFiles, "`optionBCheck` requires eight state key words in the log that `option_b_final_program_matches_lean` writes; `FinalProgram::keys` is `[[F; 4]; 2]`."⟩,
-      h0, h1, p0, p1, rust])]
+    (`CompressionLean.Claims.option_b_bound, optionB),
+    (`CompressionLean.Claims.option_b_parent_bound, optionB ++ [
+      ⟨`pf, .proved, "F′ proves it for option B's circuit width (`OptionB.EmitMain.publicFits`)."⟩,
+      ⟨`packed, .leanValue, "F′'s emitter evaluates `packable` on the finish relation's pieces (`EmitMain.emitPackage`) and writes no package when it fails."⟩,
+      ⟨`starts, .leanValue, "F′'s emitter evaluates `startsFrom` at the shared end on the finish relation's pieces (`EmitMain.emitPackage`) and writes no package when it fails."⟩,
+      ⟨`shape, .unmet, "No check compares the block count of option B's layer-1 keys with the circuit width (`EmitMain.width`). `parentShape_of` gives it from `KeyFacts` and that comparison."⟩,
+      ⟨`honest, .unmet, "No check reads option B's layer-1 setups or runs yet. `honest_setup_of_build` gives it for today's key from Rust's setup build and the runs."⟩])]
 
 def portRoot : Name := `CompressionLean.Ports
 

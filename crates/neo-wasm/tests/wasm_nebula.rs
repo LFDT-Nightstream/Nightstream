@@ -171,15 +171,7 @@ fn smallest_geometry(log2: [usize; 2], b_ops: usize, n: usize, s_max: usize) -> 
     // Rule 4: the RAM is at least as large as the ROM.
     let r = log2[0].max(low);
     let mu = log2[1].max(r);
-    Geometry {
-        r,
-        mu,
-        w_ts: bits((s_max * n * b_ops) as u64),
-        b_ops,
-        b_scan: ((1 << r) + (1 << mu)) / n,
-        n,
-        s_max,
-    }
+    Geometry::new(r, mu, b_ops, n, s_max).expect("a valid, secure test geometry")
 }
 
 struct Setup {

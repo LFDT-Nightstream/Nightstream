@@ -52,6 +52,28 @@ impl Geometry {
         }
     }
 
+    /// The geometry of a ROM of `2^r` cells and a RAM of `2^mu` cells, with
+    /// `b_ops` operation slots in each step, segments of `n` steps, and at
+    /// most `s_max` segments. `w_ts` is the fewest bits that hold
+    /// `s_max · n · b_ops`, and `b_scan` is the cells over `n`. `None` when
+    /// the result breaks SPEC.md section 7.1, rules 1 to 6 (`is_valid` and
+    /// Lean `Geometry.Secure`).
+    pub fn new(r: usize, mu: usize, b_ops: usize, n: usize, s_max: usize) -> Option<Self> {
+        let space = |log2: usize| 1usize.checked_shl(u32::try_from(log2).ok()?);
+        let cells = space(r)?.checked_add(space(mu)?)?;
+        let stamps = s_max.checked_mul(n)?.checked_mul(b_ops)?;
+        let geometry = Self {
+            r,
+            mu,
+            w_ts: (usize::BITS - stamps.leading_zeros()) as usize,
+            b_ops,
+            b_scan: cells.checked_div(n)?,
+            n,
+            s_max,
+        };
+        (geometry.is_valid() && geometry.is_secure()).then_some(geometry)
+    }
+
     /// Lean `Geometry.Valid`: SPEC.md section 7.1, rules 1 to 5 and positive counts. The
     /// memory theorems hold only for a valid geometry. `μ ≥ 64` breaks
     /// `R + M < q`, so the shifts below cannot overflow.

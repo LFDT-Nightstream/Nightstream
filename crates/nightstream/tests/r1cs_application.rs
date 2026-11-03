@@ -76,15 +76,7 @@ fn catalog() -> MemoryCatalog<u32> {
 /// ROM and RAM of four cells, two slots for each row, one segment of
 /// `4 / rows` steps.
 fn geometry(rows: usize) -> Geometry {
-    Geometry {
-        r: 2,
-        mu: 2,
-        w_ts: 4,
-        b_ops: 2 * rows,
-        b_scan: 2 * rows,
-        n: 4 / rows,
-        s_max: 1,
-    }
+    Geometry::new(2, 2, 2 * rows, 4 / rows, 1).unwrap()
 }
 
 /// The count of a row is the count before the next row.
@@ -165,6 +157,38 @@ fn check_rows_names_the_row_that_fails() {
             got: COLUMNS - 1
         })
     );
+}
+
+/// `Geometry::new` derives the timestamp width and the scan slots, and refuses
+/// a geometry that breaks SPEC.md section 7.1.
+#[test]
+fn a_geometry_derives_its_widths_and_keeps_the_rules() {
+    assert_eq!(
+        geometry(2),
+        Geometry {
+            r: 2,
+            mu: 2,
+            w_ts: 4,
+            b_ops: 4,
+            b_scan: 4,
+            n: 2,
+            s_max: 1,
+        }
+    );
+    assert_eq!(
+        Geometry::new(3, 2, 2, 4, 1),
+        None,
+        "rule 4: the RAM is at least the ROM"
+    );
+    assert_eq!(Geometry::new(2, 2, 2, 3, 1), None, "rule 1: n divides the cells");
+    assert_eq!(Geometry::new(2, 2, 2, 16, 1), None, "rule 1: each space has n cells");
+    assert_eq!(
+        Geometry::new(16, 16, 168, 64, 1),
+        None,
+        "rule 6: 131,072 cells and 64 steps of 168 slots exceed 139,509"
+    );
+    assert_eq!(Geometry::new(2, 2, 2, 0, 1), None, "a segment has steps");
+    assert_eq!(Geometry::new(64, 64, 2, 4, 1), None, "the spaces fit in a word");
 }
 
 /// A size that gives the RAM no region is refused, because the circuit would

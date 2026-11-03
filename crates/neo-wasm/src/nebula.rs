@@ -524,16 +524,8 @@ impl WasmSize {
 
     pub fn geometry(self) -> Geometry {
         let (log2, _, n, s_max) = self.shape();
-        let b_ops = plan_ordered_slots(self.rows()).len();
-        Geometry {
-            r: log2,
-            mu: log2,
-            w_ts: bits((s_max * n * b_ops) as u64),
-            b_ops,
-            b_scan: (2 << log2) / n,
-            n,
-            s_max,
-        }
+        Geometry::new(log2, log2, plan_ordered_slots(self.rows()).len(), n, s_max)
+            .expect("each WASM size keeps SPEC.md section 7.1")
     }
 
     /// The application of the size: its regions (`WasmLimits::regions`) and

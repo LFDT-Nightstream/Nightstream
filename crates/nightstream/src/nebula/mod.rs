@@ -49,6 +49,7 @@ pub use transcript::Digest;
 /// A Lean-emitted memory package of the machine: the memory geometry that it
 /// proves and its pinned structural identifier. A program of the geometry is
 /// a `Program`.
+#[cfg(test)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Package {
     /// `artifacts/nightstream-fprime-stage2-nebula-memory-v1.json` (`FirstPlan.lean`).
@@ -57,16 +58,16 @@ pub(crate) enum Package {
     N1,
 }
 
+#[cfg(test)]
 impl Package {
     /// Whether `identifier` pins a memory package, whose verifier is
-    /// `nebula::Verifier`.
+    /// `nebula::Circuit::verifier`.
     pub(crate) fn pinned(identifier: [u64; 4]) -> bool {
         [Package::V1, Package::N1]
             .into_iter()
             .any(|package| package.structural_identifier() == identifier)
     }
 
-    #[cfg(test)]
     /// The memory geometry that the package proves.
     pub fn geometry(self) -> Geometry {
         match self {
@@ -75,7 +76,6 @@ impl Package {
         }
     }
 
-    #[cfg(test)]
     /// The default program of the Lean plan that the package was emitted
     /// from (`FirstPlan.plan`, `SecondPlan.plan`).
     pub fn program(self) -> Program {
@@ -86,7 +86,6 @@ impl Package {
         Program::new(self.geometry(), rom, ram).expect("a default program fits its geometry")
     }
 
-    #[cfg(test)]
     /// Load the package's circuit from its bytes. `Circuit::load_package`
     /// recomputes the structural identifier and requires the package's pin.
     pub fn load(self, bytes: &[u8]) -> Result<Circuit<Machine>, crate::Error> {
@@ -99,7 +98,6 @@ impl Package {
 
     /// The package's relation built in Rust, row for row as Lean builds it
     /// (`tests/nebula/parity.rs`).
-    #[cfg(test)]
     pub(crate) fn application(self) -> Result<crate::application::ApplicationCircuit, crate::Error> {
         circuit::memory_circuit(&self.geometry(), &Machine)
     }

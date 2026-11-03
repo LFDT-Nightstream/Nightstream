@@ -593,7 +593,7 @@ When the plan names each checked port once, each slot shows at most one active p
 
 **Rejects.** Each step's failure.
 
-**Source.** `nebula::Verifier::verify` and `nebula::Verifier::verify_final` (`crates/nightstream/src/nebula/proving.rs`), with steps 2 to 4 in `terminal_states` (`crates/nightstream/src/nebula/mod.rs`; not checked against Lean). Steps 3 and 4 are `Lifecycle.Nebula.TerminalChecks`. A chain of valid steps with these checks gives a run that the memory model accepts, or a state-digest collision in the run (`Lifecycle.Nebula.accepts_or_collision` (`31d12d5e456bee76`)). Algorithm 6 alone does not make steps 2 to 4, so `nightstream::Verifier` refuses a memory relation: a pinned Lean memory package, a circuit from `nebula::Circuit::compile`, or a saved memory circuit, whose file starts with `NSMEM` (`crates/nightstream/src/circuit.rs`; not checked against Lean).
+**Source.** `nebula::Verifier::verify` and `nebula::Verifier::verify_final` (`crates/nightstream/src/nebula/proving.rs`), with steps 2 to 4 in `terminal_states` (`crates/nightstream/src/nebula/mod.rs`; not checked against Lean). Steps 3 and 4 are `Lifecycle.Nebula.TerminalChecks`. A chain of valid steps with these checks gives a run that the memory model accepts, or a state-digest collision in the run (`Lifecycle.Nebula.accepts_or_collision` (`31d12d5e456bee76`)). Algorithm 6 alone does not make steps 2 to 4, so `nightstream::Circuit::verifier` refuses a memory relation: a pinned Lean memory package, a circuit from `nebula::Circuit::compile`, or a saved memory circuit, whose file starts with `NSMEM` (`crates/nightstream/src/circuit.rs`; not checked against Lean). A verifier compiles its own circuit and never loads a saved file.
 
 ## 8. Differences from the papers
 

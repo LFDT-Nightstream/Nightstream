@@ -4,7 +4,7 @@
 use std::{fs, path::PathBuf, time::Instant};
 
 use neo_math::D;
-use nightstream::{application::poseidon2_hash_chain_v1, Circuit, Engine, Verifier};
+use nightstream::{application::poseidon2_hash_chain_v1, Circuit, Engine};
 use nightstream_fprime::{
     PI_CCS_V1_2_FRESH_COMMITMENT_WORDS, PI_CCS_V1_2_MATRIX_COUNT, PI_CCS_V1_2_PRIOR_PUBLIC_INPUT_WORDS,
     PI_CCS_V1_2_ROUND_COUNT, PI_DEC_V1_2_CHILD_COUNT,
@@ -48,7 +48,7 @@ fn extend_refuses_an_edited_fresh_commitment(engine: Engine) {
     let started = Instant::now();
     let circuit = compiled();
     let prover = circuit.prover(engine, 114).unwrap();
-    let verifier = Verifier::from_package(&circuit, Engine::Optimized, 114).unwrap();
+    let verifier = circuit.verifier(Engine::Optimized, 114).unwrap();
     let initial = [202, 203, 204, 205].map(F::from_u64);
     let message = [7, 11, 13, 17].map(F::from_u64);
 

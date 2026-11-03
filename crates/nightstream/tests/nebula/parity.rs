@@ -84,8 +84,10 @@ fn memory_packages_make_no_stage1_verifier() {
         .load(&artifact("nightstream-fprime-stage2-nebula-memory-v1.json"))
         .unwrap();
     assert!(matches!(
-        crate::Verifier::from_package(&loaded.circuit, crate::Engine::Optimized, 114),
-        Err(crate::Error::Circuit("a memory relation needs nebula::Verifier"))
+        loaded.circuit.verifier(crate::Engine::Optimized, 114),
+        Err(crate::Error::Circuit(
+            "a memory relation needs nebula::Circuit::verifier"
+        ))
     ));
     assert!(loaded.verifier(crate::Engine::Optimized, 114).is_ok());
 }
@@ -159,8 +161,10 @@ fn rust_built_circuit_writes_and_loads() {
     let loaded = loaded.unwrap();
     assert_eq!(loaded.identity(), circuit.circuit.identity());
     assert!(matches!(
-        crate::Verifier::from_package(&loaded, crate::Engine::Optimized, 114),
-        Err(crate::Error::Circuit("a memory relation needs nebula::Verifier"))
+        loaded.verifier(crate::Engine::Optimized, 114),
+        Err(crate::Error::Circuit(
+            "a memory relation needs nebula::Circuit::verifier"
+        ))
     ));
     let application = loaded.application().unwrap();
     let size = crate::ApplicationSize {

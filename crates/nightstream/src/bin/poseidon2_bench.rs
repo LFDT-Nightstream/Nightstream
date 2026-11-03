@@ -12,7 +12,7 @@ use std::{
 
 use nightstream::{
     application::{poseidon2_hash_chain_step, poseidon2_hash_chain_v1},
-    Circuit, Engine, Goldilocks as F, PrimeCharacteristicRing, PrimeField64, State, Verifier,
+    Circuit, Engine, Goldilocks as F, PrimeCharacteristicRing, PrimeField64, Prover, State,
 };
 use serde_json::{json, Value};
 
@@ -170,10 +170,16 @@ fn benchmark(package: &Path, engine: Engine, steps: u64, minimum_security_bits: 
     }))?;
     let total = Instant::now();
     let started = begin("load", None)?;
-    let circuit = Circuit::load(package)?;
-    let prover = circuit.prover(engine, minimum_security_bits)?;
-    let verifier = Verifier::from_package(&circuit, engine, minimum_security_bits)?;
+    let prover = Prover::load(package, engine, minimum_security_bits)?;
     end("load", None, started)?;
+    // A verifier never loads a saved circuit: it compiles its own.
+    let started = begin("verifier_compile", None)?;
+    let reference = fs::read(
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1.json"),
+    )?;
+    let circuit = Circuit::compile(&reference, poseidon2_hash_chain_v1()?)?;
+    let verifier = circuit.verifier(engine, minimum_security_bits)?;
+    end("verifier_compile", None, started)?;
 
     let initial = INITIAL.map(F::from_u64);
     let message = MESSAGE.map(F::from_u64);

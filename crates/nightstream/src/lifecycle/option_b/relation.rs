@@ -193,20 +193,33 @@ impl Relation {
         if commit_production_signed_unit_prefix_matrix(z).map_err(|_| "witness outside {-1, 0, 1}")? != claim.c {
             return Err("fixed-key commitment differs from the witness");
         }
-        let port = |row, port| {
-            self.layout
-                .evaluate(&self.rows, row, port, &logical[..width])
-        };
-        for row in 0..self.rows.row_count() {
-            let [a, b, c, s] = [0, 1, 2, 3].map(|index| port(row, index));
-            let (Ok(a), Ok(b), Ok(c), Ok(s)) = (a, b, c, s) else {
-                return Err("row evaluation");
-            };
-            if a * b - c + s.exp_u64(7) != F::ZERO {
-                return Err("a relation row fails");
+        let check = |rows: Range<usize>| {
+            for row in rows {
+                let [a, b, c, s] = [0, 1, 2, 3].map(|port| {
+                    self.layout
+                        .evaluate(&self.rows, row, port, &logical[..width])
+                });
+                let (Ok(a), Ok(b), Ok(c), Ok(s)) = (a, b, c, s) else {
+                    return Err("row evaluation");
+                };
+                if a * b - c + s.exp_u64(7) != F::ZERO {
+                    return Err("a relation row fails");
+                }
             }
-        }
-        Ok(())
+            Ok(())
+        };
+        let count = self.rows.row_count();
+        let threads = std::thread::available_parallelism().map_or(1, usize::from);
+        let chunk = count.div_ceil(threads).max(1);
+        std::thread::scope(|scope| {
+            let workers: Vec<_> = (0..count)
+                .step_by(chunk)
+                .map(|start| scope.spawn(move || check(start..(start + chunk).min(count))))
+                .collect();
+            workers
+                .into_iter()
+                .try_for_each(|worker| worker.join().unwrap_or(Err("row worker panicked")))
+        })
     }
 
     pub(crate) fn blocks(&self) -> usize {

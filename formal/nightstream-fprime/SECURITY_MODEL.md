@@ -105,8 +105,13 @@ item 5).
   verifier (trust item 5). It concludes the step relation with the selector
   that returns the circuit that ran, and the terminal does not read the
   selector (`Export.OptionB.TerminalBridge.holdsFor_recursive_control`), so
-  it applies to the reference packages, whose two circuits run one
-  application.
+  its premises hold for the reference packages, whose two circuits run one
+  application. Its collision alternative,
+  `Export.OptionB.TerminalBridge.Collision`, says only that some two
+  different inputs have one Poseidon2 hash. That is true for every hash with
+  a fixed output length, so the result gives no guarantee as stated. A useful
+  form names the two colliding states, as the Nebula results do
+  (`Lifecycle.Nebula.RunStateCollision`).
 
 ### 3. One-fold adversary
 

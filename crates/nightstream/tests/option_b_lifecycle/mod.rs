@@ -126,8 +126,8 @@ fn addition() -> ApplicationCircuit {
 }
 
 /// Cap 1 with a native application in place of Lean's: the base step, a
-/// light step and a refresh step, each verified; a step that claims a wrong
-/// next state fails the application's rows.
+/// light step and a refresh step, each verified; `extend` refuses a step that
+/// claims a wrong next state, because the application's rows fail.
 fn native_application_verifies(application: ApplicationCircuit) {
     let packages = packages()
         .with_application(application.records().clone(), application.private_input_count())
@@ -144,10 +144,9 @@ fn native_application_verifies(application: ApplicationCircuit) {
             .expect("application step")
             .output_state();
         let wrong = [next[0] + F::ONE, next[1], next[2], next[3]];
-        let rejected = prover.extend(&envelope, message, wrong).expect("step");
         assert!(
             matches!(
-                prover.verify(step + 1, z0, wrong, &rejected),
+                prover.extend(&envelope, message, wrong),
                 Err(OptionBError::Fresh("a relation row fails"))
             ),
             "step {step} with a wrong next state"

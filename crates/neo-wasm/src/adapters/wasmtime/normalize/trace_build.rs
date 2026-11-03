@@ -35,7 +35,7 @@ use crate::ir::{
 use crate::isa::{opcode_code, opcode_info_from_code, WasmOpcode};
 
 /// Lays out one Wasmtime step: an indirect call becomes its resolve step, at the
-/// pc before the invocation's, and, unless that step traps, the invocation. The
+/// step's pc, and, unless that step traps, the invocation one pc later. The
 /// resolve step checks the table entry and leaves the checked function reference
 /// where the index was, which is what the invocation pops and calls.
 fn split_indirect_call(step: NormalizedStep, out: &mut Vec<NormalizedStep>) {
@@ -48,10 +48,10 @@ fn split_indirect_call(step: NormalizedStep, out: &mut Vec<NormalizedStep>) {
     let mut resolve = step.clone();
     resolve.opcode = WasmOpcode::CallIndirectResolve;
     resolve.info = opcode_info_from_code(opcode_code(WasmOpcode::CallIndirectResolve));
-    resolve.pc = step.pc - 1;
+    resolve.pc = step.pc;
     resolve.control_choice = 0;
     resolve.pc_edge_kind = WasmPcEdgeKind::Static;
-    resolve.pc_after_instruction = Some(u64::from(step.pc));
+    resolve.pc_after_instruction = Some(u64::from(step.pc) + 1);
     resolve.wide_values_enabled = false;
     resolve.stack_reads_override = None;
     resolve.stack_writes_override = None;
@@ -64,6 +64,7 @@ fn split_indirect_call(step: NormalizedStep, out: &mut Vec<NormalizedStep>) {
         return;
     }
     let mut invocation = step;
+    invocation.pc += 1;
     let reference = invocation
         .table_value
         .expect("a resolved indirect call has a table entry");

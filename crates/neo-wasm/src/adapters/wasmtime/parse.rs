@@ -570,21 +570,22 @@ impl ParsedWasmArtifactsBuilder {
                         operator => operator,
                     };
                     // An indirect call takes two pcs: its resolve step, then the
-                    // invocation, which the rest of this iteration lays out.
+                    // invocation, which the rest of this iteration lays out. The
+                    // Wasmtime step keeps the first pc, where the instruction starts.
                     let resolve_pc = matches!(
                         operator,
                         wasmparser::Operator::CallIndirect { .. } | wasmparser::Operator::ReturnCallIndirect { .. }
                     )
                     .then_some(pc_before);
-                    let (pc, pc_before) = if resolve_pc.is_some() {
+                    let pc_before = if resolve_pc.is_some() {
                         let invocation = self.next_pc;
                         self.next_pc = invocation.checked_add(1).ok_or_else(|| {
                             WasmProgramError::Unsupported("wasm instruction PC exceeds u32".to_string())
                         })?;
                         self.indirect_invocations.push(u64::from(invocation));
-                        (invocation, u64::from(invocation))
+                        u64::from(invocation)
                     } else {
-                        (pc, pc_before)
+                        pc_before
                     };
                     let pc_after = u64::from(self.next_pc);
                     let is_function_end = matches!(&operator, wasmparser::Operator::End) && curr_depth == 0;

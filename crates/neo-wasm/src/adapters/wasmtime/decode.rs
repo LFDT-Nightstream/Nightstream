@@ -11,6 +11,7 @@ use crate::isa::WasmOpcode;
 
 #[derive(Clone, Debug)]
 pub(crate) struct DecodedOpcode {
+    /// The first pc of the instruction's rows: an indirect call's resolve step.
     pub(crate) pc: u32,
     pub(crate) text: String,
     pub(crate) memory: Option<DecodedMemoryOpcode>,

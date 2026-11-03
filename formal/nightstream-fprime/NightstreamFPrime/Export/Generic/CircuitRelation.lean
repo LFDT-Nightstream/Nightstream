@@ -195,21 +195,20 @@ theorem packed_holds {publicColumns : Nat} {pieces : List Piece}
 
 /-- The checks that replace the S-box and binding rows: the rows of the pieces other than the
 blocks, and each block's outputs as the permutation of its inputs. When the blocks pack, every
-piece holds in an environment that differs from `env` only on dead locals. -/
+piece holds in the completed environment, which differs from `env` only on dead locals. -/
 theorem checks_implies_pieces {publicColumns : Nat} {pieces : List Piece}
     (valid : ∀ piece ∈ pieces, piece.Valid) (packed : packable publicColumns pieces = true)
     (next : Nat) (env : Env)
     (rows : R1CS.RowsHold env
       (PieceRows.lowerPieces (PilotData.canonicalConstraints ()) (otherPieces pieces) next).1)
     (outputs : OutputsHold (blocksOf pieces) env) :
-    ∃ completed : Env,
-      (∀ piece ∈ pieces,
-        ConstraintsHold completed (piece.constraints (PilotData.canonicalConstraints ()))) ∧
-      ∀ column, deadIn (blocksOf pieces) column = false → completed column = env column := by
+    (∀ piece ∈ pieces, ConstraintsHold (complete (blocksOf pieces) env)
+        (piece.constraints (PilotData.canonicalConstraints ()))) ∧
+      ∀ column, deadIn (blocksOf pieces) column = false →
+        complete (blocksOf pieces) env column = env column := by
   have others := (PieceRows.lowerPiecesAux_sound _ env (otherPieces pieces) next []
     (fun piece member => valid piece (List.mem_filter.mp member).1) rows).2
-  exact ⟨complete (blocksOf pieces) env,
-    packed_holds valid packed env (fun piece member notBlock =>
+  exact ⟨packed_holds valid packed env (fun piece member notBlock =>
       others piece (List.mem_filter.mpr ⟨member, by simp [notBlock]⟩)) outputs,
     fun _ live => complete_live (packable_framed packed) outputs live⟩
 
@@ -429,18 +428,28 @@ theorem outputsHold {publicColumns : Nat} {pieces : List Piece} {next width logi
   apply List.ofFn_injective
   rw [permuted, Permutation.runF_eq_reference, Permutation.runReference_schedule]
 
-/-- A satisfying assignment gives every piece's constraints in an environment that agrees with
-the layout's source environment on the public columns. -/
+/-- The environment that an assignment decodes to: the layout's source environment, with the
+dead locals of the Poseidon2 blocks completed when the blocks pack. -/
+def decodeEnv (publicColumns : Nat) (pieces : List Piece) {width logicalWidth : Nat}
+    (layout : LogicalPlan.Layout width logicalWidth) (assignment : Assignment F logicalWidth) :
+    Env :=
+  if packable publicColumns pieces = true then
+    complete (blocksOf pieces) (LogicalPlan.sourceEnv layout assignment)
+  else LogicalPlan.sourceEnv layout assignment
+
+/-- A satisfying assignment gives every piece's constraints in its decoded environment, which
+agrees with the layout's source environment on the public columns. -/
 theorem rowsZero_implies_pieces (publicColumns : Nat) (pieces : List Piece)
     (valid : ∀ piece ∈ pieces, piece.Valid) (next width : Nat)
     (fits : Fits publicColumns pieces next width) {logicalWidth : Nat}
     (layout : LogicalPlan.Layout width logicalWidth) (assignment : Assignment F logicalWidth)
     (one : assignment layout.one = 1)
     (rowsZero : (plan publicColumns pieces next width fits layout).RowsZero assignment) :
-    ∃ env : Env,
-      (∀ piece ∈ pieces, ConstraintsHold env (piece.constraints (PilotData.canonicalConstraints ()))) ∧
+    (∀ piece ∈ pieces, ConstraintsHold (decodeEnv publicColumns pieces layout assignment)
+        (piece.constraints (PilotData.canonicalConstraints ()))) ∧
       ∀ column, column < publicColumns →
-        env column = LogicalPlan.sourceEnv layout assignment column := by
+        decodeEnv publicColumns pieces layout assignment column =
+          LogicalPlan.sourceEnv layout assignment column := by
   by_cases packed : packable publicColumns pieces = true
   · unfold plan at rowsZero
     rw [dite_eq_left packed, Plan.append_rowsZero_iff] at rowsZero
@@ -448,17 +457,18 @@ theorem rowsZero_implies_pieces (publicColumns : Nat) (pieces : List Piece)
       one).mp rowsZero.1
     unfold relationRows at rowsHold
     rw [ite_eq_left packed, R1CS.rowsHold_append] at rowsHold
-    obtain ⟨env, holds, agree⟩ := checks_implies_pieces valid packed next _ rowsHold.1
+    obtain ⟨holds, agree⟩ := checks_implies_pieces valid packed next _ rowsHold.1
       (outputsHold fits packed layout assignment one rowsHold.2 rowsZero.2)
-    exact ⟨env, holds, fun column below => agree column (packable_public packed below)⟩
+    simp only [decodeEnv, packed, ↓reduceIte]
+    exact ⟨holds, fun column below => agree column (packable_public packed below)⟩
   · unfold plan at rowsZero
     rw [dite_eq_right packed] at rowsZero
     have rowsHold := (LogicalPlan.rowsZero_iff_rowsHold _ width fits.rows layout assignment
       one).mp rowsZero
     unfold relationRows at rowsHold
     rw [ite_eq_right packed] at rowsHold
-    exact ⟨LogicalPlan.sourceEnv layout assignment, (PieceRows.lowerPiecesAux_sound _ _ pieces next
-      [] valid rowsHold).2, fun _ _ => rfl⟩
+    simp only [decodeEnv, packed, Bool.false_eq_true, ↓reduceIte]
+    exact ⟨(PieceRows.lowerPiecesAux_sound _ _ pieces next [] valid rowsHold).2, by simp⟩
 
 /-- The same for the constraints that `split` cut into the pieces. -/
 theorem rowsZero_implies_constraints (publicColumns : Nat) (constraints : List Expr)
@@ -467,12 +477,14 @@ theorem rowsZero_implies_constraints (publicColumns : Nat) (constraints : List E
     {logicalWidth : Nat} (layout : LogicalPlan.Layout width logicalWidth)
     (assignment : Assignment F logicalWidth) (one : assignment layout.one = 1)
     (rowsZero : (plan publicColumns _ next width fits layout).RowsZero assignment) :
-    ∃ env : Env, ConstraintsHold env constraints ∧
+    ConstraintsHold (decodeEnv publicColumns (split (PilotData.canonicalConstraints ()) constraints)
+        layout assignment) constraints ∧
       ∀ column, column < publicColumns →
-        env column = LogicalPlan.sourceEnv layout assignment column := by
-  obtain ⟨env, holds, agree⟩ := rowsZero_implies_pieces publicColumns _
+        decodeEnv publicColumns (split (PilotData.canonicalConstraints ()) constraints) layout
+          assignment column = LogicalPlan.sourceEnv layout assignment column := by
+  obtain ⟨holds, agree⟩ := rowsZero_implies_pieces publicColumns _
     (valid_split _ constraints) next width fits layout assignment one rowsZero
-  exact ⟨env, split_holds holds, agree⟩
+  exact ⟨split_holds holds, agree⟩
 
 /-! ### The step circuit's relation -/
 
@@ -492,8 +504,7 @@ variable {logicalWidth : Nat}
     Phi81CarrierLayout.carrierWidth logicalWidth}
 
 /-- A satisfying assignment of the circuit's logical relation whose public input encodes
-`digest` gives the circuit's spec and the output digest, in an environment that agrees with the
-assignment on the public columns. -/
+`digest` gives the circuit's spec and the output digest in the decoded environment. -/
 theorem rowsZero_implies_spec (circuit : FormalCircuit) (offset firstFresh : Nat)
     (digestColumn : Fin 4 → Nat) {width : Nat}
     (fits : Fits publicColumns (pieces circuit offset digestColumn) firstFresh width)
@@ -503,17 +514,20 @@ theorem rowsZero_implies_spec (circuit : FormalCircuit) (offset firstFresh : Nat
       (LogicalPlan.sourceEnv layout assignment) = encHash digest)
     (rowsZero : (plan _ _ firstFresh width fits layout).RowsZero assignment)
     (assumptions : ∀ env, circuit.assumptions offset env) :
-    ∃ env : Env, circuit.spec offset env ∧
-      ∀ word, env (digestColumn word) = digest.getD word.val 0 := by
-  obtain ⟨env, holds, agree⟩ := rowsZero_implies_constraints publicColumns
+    circuit.spec offset (decodeEnv publicColumns (pieces circuit offset digestColumn) layout
+        assignment) ∧
+      ∀ word, decodeEnv publicColumns (pieces circuit offset digestColumn) layout assignment
+        (digestColumn word) = digest.getD word.val 0 := by
+  obtain ⟨holds, agree⟩ := rowsZero_implies_constraints publicColumns
     (constraints circuit offset digestColumn) firstFresh width fits layout assignment
     (LogicalPlan.encoded_one layout assignment digest fits.rows.positive encoded) rowsZero
+  let env := decodeEnv publicColumns (pieces circuit offset digestColumn) layout assignment
   have publicEq : LogicalPlan.publicInput (publicFits := publicFits) env =
       LogicalPlan.publicInput (publicFits := publicFits)
         (LogicalPlan.sourceEnv layout assignment) := by
     funext column
     exact agree column.val column.isLt
-  refine ⟨env, ?_, LogicalPlan.digest_of_decode env digestColumn digest (publicEq.trans encoded)
+  refine ⟨?_, LogicalPlan.digest_of_decode env digestColumn digest (publicEq.trans encoded)
     (fun expression member => holds expression (List.mem_append_right _ member))⟩
   exact circuit.soundness _ offset (assumptions env)
     (holdsFlat_implies_holds _ _ fun expression member =>

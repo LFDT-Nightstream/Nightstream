@@ -146,7 +146,9 @@ impl OptionB {
 
     /// The next proof: the step from `envelope.current` to `next` with the
     /// application witness `witness`. The first step is the light circuit's
-    /// base step; every later step folds the previous step's instance.
+    /// base step; every later step folds the previous step's instance. The new
+    /// instance must hold under its circuit's relation (`Relation::holds`),
+    /// whose rows verify the fold, before the proof returns.
     pub(crate) fn extend(&self, envelope: &Envelope, witness: &[F], next: [F; 4]) -> Result<Envelope, OptionBError> {
         let prior = self.state(envelope);
         let mut slots = envelope.slots.clone();
@@ -181,13 +183,15 @@ impl OptionB {
         if CHECK_ROWS.get() {
             FAILED_ROW.set(relation.first_failing_row(self.package(kind), &step)?);
         }
+        let instance = relation.instance(&logical)?;
+        relation.holds(&instance).map_err(OptionBError::Fresh)?;
         Ok(Envelope {
             iteration: envelope.iteration + 1,
             z0: envelope.z0,
             current: next,
             pc: words::pc(kind),
             slots,
-            fresh: Some(relation.instance(&logical)?),
+            fresh: Some(instance),
         })
     }
 

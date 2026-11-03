@@ -210,7 +210,8 @@ impl OptionB {
     }
 
     /// The shrink proof that the final program accepts `witness` for the
-    /// statement.
+    /// statement. The proof passes the verifier of `verify_final` before it
+    /// returns, so a prover fault gives an error and not a bad proof.
     pub(crate) fn prove_final(
         &self,
         keys: &Keys,
@@ -223,6 +224,8 @@ impl OptionB {
         let layer = Shrink::new(shape, keys.layer_bits)?;
         let program = self.final_program(finish, [&relations[0], &relations[1]], statement, Some(witness));
         let shrink = neo_spartan::shrink::prove(&layer, &program, &neo_spartan::Accelerator::cpu())?;
+        let checked = self.final_program(finish, [&relations[0], &relations[1]], statement, None);
+        neo_spartan::shrink::verify(&layer, &checked, &shrink)?;
         let (iteration, z0, current) = statement;
         Ok(FinalProof {
             iteration,

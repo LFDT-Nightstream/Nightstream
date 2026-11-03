@@ -79,9 +79,9 @@ item 5).
   either circuit give its case of the step relation
   (`Layout.OptionB.StepCircuits.soundness`). Each result takes as a premise
   that every valid step of the circuit's application has the selector value
-  of that circuit. The selector that returns the circuit that runs
-  (`Export.OptionB.TerminalBridge.chosen`) meets this premise for every
-  application (trust item 4). The decoded key digests are the words that
+  of that circuit. The selector that returns the circuit that runs on a valid step and the
+  other circuit otherwise (`Export.OptionB.TerminalBridge.chosen`) meets this
+  premise for every application (trust item 4). The decoded key digests are the words that
   the assignment carries; adversary 2 binds them to the verifier's keys. The
   result is deterministic and needs no hardness premise.
 
@@ -92,21 +92,25 @@ item 5).
   its witness.
 - **Wins:** the terminal relation accepts, but no step holds under the
   verifier's keys that ends in the statement.
-- **Result:** acceptance gives a circuit, an input and an output for which the
-  step relation holds at the production cap, under the setup's keys, and
-  which end in the terminal's statement, or two different Poseidon2 inputs
-  with one hash (`Export.OptionB.TerminalBridge.bridge`). The terminal is
+- **Result:** acceptance gives the step that the fresh witness decodes to
+  (`Export.OptionB.TerminalBridge.Exports.decode`). The step relation holds
+  on it at the production cap, under the setup's keys, and it ends in the
+  terminal's statement, or its next state and the terminal's state collide
+  (`Export.OptionB.TerminalBridge.bridge`,
+  `Export.OptionB.TerminalBridge.Collision`). The terminal is
   `Lifecycle.OptionB.Terminal.HoldsFor`. Two well-formed states with one state
-  hash are equal or give a Poseidon2 collision
-  (`Lifecycle.OptionB.stateHash_collision`). The bridge reads each counter as
+  hash are equal or give a Poseidon2 collision on an input pair that the two
+  states fix (`Lifecycle.OptionB.stateHash_collision`,
+  `Lifecycle.OptionB.StateCollision`). The bridge reads each counter as
   one word, so it gives the depth words and not the depths
   (`Export.OptionB.TerminalBridge.stateHash_binds_words`). The result is
   deterministic. It is about the Lean terminal relation, not about the Rust
   verifier (trust item 5). It concludes the step relation with the selector
   that returns the circuit that ran, and the terminal does not read the
   selector (`Export.OptionB.TerminalBridge.holdsFor_recursive_control`), so
-  it applies to the reference packages, whose two circuits run one
-  application.
+  its premises hold for the reference packages, whose two circuits run one
+  application. The decode is a function of the proof, so the collision names
+  two states that a reduction computes from the proof.
 
 ### 3. One-fold adversary
 
@@ -145,31 +149,50 @@ item 5).
   Π_CCS bad event occurs in a Fiat–Shamir game, and it does not join these
   counts into one error.
 
-### 4. Recursive-history adversary
+### 4. IVC adversary
 
-- **Controls:** a random tape and, from it, the history of one slot (the
-  folds that the slot receives, last fold first), its final accumulator and a
-  witness of it at a bound of at most `B`, for a fixed application and
-  setup. The adversary must be admitted (trust item 3).
-- **Wins:** the history is accepted, and the reverse extractor of HyperNova
-  Lemma 17 does not return a witness for each fold.
+- **Controls:** a random tape and, from it, a terminal statement and every
+  value of a proof, for a fixed application, setup and pair of exported step
+  circuits. The adversary must be admitted (trust item 3).
+- **Wins:** the terminal relation accepts, and no `iteration` steps of the
+  application lead from `z0` to `zi` (a false acceptance).
 - **Result:** under Assumption 1 and the closure premise,
-  `Pr[accepted ∧ not returned] ≤ Σ_j error(stage j)` on the joint law of the
-  adversary and the reverse extractor
-  (`Spec.HyperNova.Construction2.BoundedDepthSecurity.history_failure_le`).
-  An accepted execution of both slots and a decider check of a slot's final
-  claim below `B` make that slot's history accepted
-  (`Spec.HyperNova.Construction2.BoundedDepthSecurity.slot_accepted`).
-  Without probabilities, the reverse run opens each running claim at its
+  `Pr[false acceptance] ≤ Σ_j (Pr[collision at visit j] + error(stage j))`
+  for `j` below a bound on the adversary's iteration
+  (`Export.OptionB.IvcSecurity.probability_bound`). The reverse extractor
+  walks back from the terminal one step per stage
+  (`Export.OptionB.IvcWalk`). At each visit, the fresh witness decodes to the
+  last step (`Export.OptionB.TerminalBridge.Exports.decode`). When that step
+  is recursive, the stage's attempt is its fold of the slot that its prior
+  program counter selects, linked to the step's prior state, with the slot's
+  witness at the slot's bound. An answer that extracts the fold gives the
+  prior visit, whose statement and slots are the step's input. Each slot keeps
+  its own bound: a light fold adds `T(b − 1)` and a refresh fold returns it to
+  `B`, so each attempt stays within `B + cap · T · (b − 1)`
+  (`Export.OptionB.IvcWalk.DepthWithin`). At a visit without a collision, an
+  answer that extracts gives a valid prior visit one iteration back, or the
+  last step is the base step (`Export.OptionB.IvcWalk.walk_step`). So a false
+  acceptance has a collision or a failed extraction at one of its first
+  `iteration` visits (`Export.OptionB.IvcWalk.covered`).
+- **Collision term:** the collision at a visit is a Poseidon2 collision on
+  the next state of the decoded step and the visit's terminal state
+  (`Export.OptionB.TerminalBridge.Collision`). The stage computes both states
+  from its tape, so a reduction that runs the stage outputs the colliding
+  pair. Lean does not bound this probability (trust item 2).
+- **Per slot:** the earlier one-slot result,
+  `Spec.HyperNova.Construction2.BoundedDepthSecurity.history_failure_le`,
+  takes the history as an adversary output and has no collision term. Without
+  probabilities, the reverse run of one slot opens each running claim at its
   recovered bound, or it names a failed fold
   (`Spec.HyperNova.Construction2.BoundedDepthKnowledge.execution_extracts`).
-- **Gaps:** the adversary outputs the history. Lean does not read the history
-  from the step witnesses of a terminal proof, and the bound has no
-  state-hash collision term. So no Lean statement joins this result with
-  adversary 2. The light verifier rejects a fold at the cap, so each accepted
-  history is an admissible schedule
-  (`Spec.HyperNova.Construction2.BoundedDepth.admissible_of_accepted`), but
-  Lean does not bound the length of a slot's history.
+- **Validity:** a false acceptance has no list of witnesses that are valid
+  for the application and that its step maps from `z0` to `zi`
+  (`Export.OptionB.IvcWalk.Reaches`). The bridge's selector returns the
+  circuit that ran only on a valid step (`Export.OptionB.TerminalBridge.chosen`),
+  so each decoded step is valid (`Export.OptionB.TerminalBridge.valid_of_chosen`).
+- **Gaps:** Lean does not derive the value of `error`. Adversary 3's counts
+  are deterministic, and no random-oracle result for the light and refresh
+  folds discharges Assumption 1.
 
 ### 5. Memory adversary
 
@@ -179,12 +202,22 @@ item 5).
   history that an extractor returns does not attest the claim: it is not an
   execution from the claim's initial words and the program's memory to its
   final words in which each memory access reads the last value written.
-- **Result:** no probabilistic Lean result covers the two step circuits.
-  `Lifecycle.Nebula.EndToEnd.bad_subset` reduces a win to a failure of the
-  history extraction, a state-link collision, a chain collision, or an
-  accepted run with an unbalanced segment that passes the product test, for
-  every extraction that meets `Lifecycle.Nebula.EndToEnd.Stage1Extraction`.
-  Lean proves that premise for no extractor of the two step circuits.
+- **Result:** under Assumption 1, the closure premise and the memory round
+  (trust item 6), on the joint law of the claim that the adversary's tape
+  gives and the reverse extractor's sample, the mass of wins is at most the
+  collision and stage terms of adversary 4, the state-link and chain
+  collision masses of the extracted runs, and the memory-round error of the
+  last stage (`Export.OptionB.NebulaSecurity.bad_le`). The extracted history
+  is the steps that adversary 4's walk decodes (`Export.OptionB.IvcWalk.trail`),
+  so every event reads data of the sample. The walk meets the extraction
+  premise of `Lifecycle.Nebula.EndToEnd.Stage1Extraction`
+  (`Export.OptionB.NebulaSecurity.stage1Extraction`), and
+  `Lifecycle.Nebula.EndToEnd.bad_subset` reduces a win to a failure of that
+  extraction, a state-link collision, a chain collision, or an accepted run
+  with an unbalanced segment that passes the product test. A win counts only
+  on a sample whose answers cover the statement's iteration; on the law of
+  the theorem this holds when the adversary's iteration is at most the
+  number of stages.
 - **Deterministic part:** an accepted run gives an execution, a Poseidon2
   collision among the run's own chain inputs and the `D_init` chain, or a
   segment that passes the product test with unbalanced multisets
@@ -255,8 +288,12 @@ item 5).
      applies to algorithms that a person can write without such knowledge.
    - Lean bounds neither term numerically.
 3. **The history: HyperNova errata Assumption 1 for the two fold kinds.**
-   `Spec.HyperNova.Construction2.BoundedDepthSecurity.Assumption1` states
-   Assumption 1 in the form of HyperNova Definition 7 knowledge soundness.
+   `Spec.HyperNova.ReverseStages.Assumption1` states Assumption 1 in the form
+   of HyperNova Definition 7 knowledge soundness. Adversary 4 uses it with the
+   success event `Export.OptionB.IvcWalk.WalkSucceeds` and the extraction
+   event `Export.OptionB.IvcWalk.WalkExtracted`; the one-slot result uses
+   `Spec.HyperNova.Construction2.BoundedDepthSecurity.Assumption1` with the
+   same events.
    For every admitted fold adversary there is an efficient extractor that
    reads the adversary's tape and its own coins, so it may rerun the
    adversary. After a success, the extractor fails with probability at most
@@ -273,18 +310,31 @@ item 5).
    claim (`Spec.HyperNova.Construction2.BoundedDepthReverse.Extracted`,
    `Spec.Folding.Schedule.extractedBefore`). These are the differences from
    Definition 7:
-   - The success event has no prior-state link. The light transcript does
+   - The success event has a prior-state link. The light transcript does
      not absorb the running claim (`Lifecycle.OptionB.lightAbsorbPublicInput`),
      and the refresh transcript absorbs the children's commitments and
      evaluations but not the accumulator's point or public input
      (`Lifecycle.OptionB.refreshWords`). Both bind the accumulator only
-     through the prior digest in the fresh public input, and no premise of
-     `history_failure_le` checks that digest. So a fold adversary can choose
-     the running claim after it sees the challenges, and the premise can
-     hold with a small `error` only if `Admitted` excludes such adversaries.
-     The deployed system checks the link: the next step circuit and the
-     terminal verifier recompute the state hash of the slots and compare it
-     with the fresh public input (`SPEC.md` Algorithms 3 and 6).
+     through the prior digest in the fresh public input. So the adversary
+     also outputs a prior state, and a success needs `PriorLink` of that
+     state, the running claim and the fold
+     (`Spec.HyperNova.Construction2.BoundedDepthReverse.RunsBack`). The
+     prior state is an output, as in PR #155: a link to some prior state
+     holds for almost every running claim, because many states share one
+     digest. In an accepted execution, each fold of a slot links to the
+     prior hash preimage of its step: the fresh public input encodes the hash
+     of that preimage, and its program counter selects the slot that holds
+     the fold's running claim
+     (`Spec.HyperNova.Construction2.BoundedDepthSecurity.StepLink`,
+     `Spec.HyperNova.Construction2.BoundedDepthSecurity.slot_runsBack`).
+     Option B's link also requires a well-formed prior state
+     (`Lifecycle.OptionB.PriorLink`). Two linked folds with one fresh instance
+     then start from one running claim, or their two prior states give a
+     state-hash collision (`Lifecycle.OptionB.priorLink_binds`). So the
+     transcript fixes the running claim before the challenges, up to a
+     collision on a pair of states that the adversary outputs.
+   - The relations have a key. A claim holds under the key of its slot, and
+     every fold of an accepted history uses the slot's key.
    - The transcript is not the one of HyperNova Construction 3, which absorbs
      `sid` (the structure and the public parameters) and the running instance
      before the first challenge. The fold transcripts absorb a domain block,
@@ -306,8 +356,7 @@ item 5).
      choice that depends on the adversary's coins is not covered.
    - `error` replaces `negl(λ)`.
 
-   `Spec.HyperNova.Construction2.BoundedDepthSecurity.Closed` is the
-   composition premise. A second class, `StageAdmitted`, holds whole stages:
+   `Spec.HyperNova.ReverseStages.Closed` is the composition premise. A second class, `StageAdmitted`, holds whole stages:
    the reverse extractor so far, as one algorithm. An admitted stage gives an
    admitted fold adversary, and one reverse step of an admitted stage with an
    efficient extractor is again an admitted stage. The IVC adversary is the
@@ -332,8 +381,8 @@ item 5).
    `Lifecycle.OptionB.stepHolds_iff`). Both option-B circuits run the same
    application step, so the selector does not change the computed state.
    `Export.OptionB.TerminalBridge.bridge` takes the selector that returns the
-   circuit that ran (`Export.OptionB.TerminalBridge.chosen`), so the prover
-   picks the circuit. Rust picks it from the depth of the selected slot
+   circuit that ran on a valid step (`Export.OptionB.TerminalBridge.chosen`),
+   so the prover picks the circuit. Rust picks it from the depth of the selected slot
    (`SPEC.md` Algorithm 5): a light fold below the cap and a refresh fold at
    the cap. The light depth guard rejects a light fold at the cap for every
    pick. The statement `(i, z0, zi)` does not fix the circuit of a step; the
@@ -343,11 +392,11 @@ item 5).
    and its logical assignment with Lean exports, and they check the
    lifecycle on fixed inputs (`SPEC.md` section 9). No theorem covers
    arbitrary Rust execution.
-6. **The memory round.** No Lean premise states the memory round for the two
-   step circuits. Its target is this: for each admitted stage and the memory
-   statement of its tape, the extracted run is accepted and has a segment
-   that passes the product test with unbalanced multisets with probability at
-   most `error_mem` of that stage. The relation computes `η`
+6. **The memory round.** `Export.OptionB.NebulaSecurity.MemoryRound` states
+   the memory round for the two step circuits as a premise: for each admitted
+   stage and the memory statement of its tape, the extracted run is accepted
+   and has a segment that passes the product test with unbalanced multisets
+   with probability at most `error_mem` of that stage. The relation computes `η`
    with Poseidon2 inside the proven step, so no random-oracle proof covers
    it. The challenge game of adversary 5 motivates the target
    `(Q_η + 1) · (2 · m_mem/q² + ε_coll(t_1))`, where `Q_η` counts the

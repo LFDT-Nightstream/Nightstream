@@ -9,8 +9,7 @@ the `nightstream` crate.
   PiDEC over Ajtai commitments.
 - HyperNova is the recursion. The F′ circuit (R1CS) checks the previous fold
   inside each step.
-- Nebula is the memory layer. It is Stage 2 work on
-  `nico/nebula-superneo-spec`.
+- Nebula is the memory layer (`nightstream::nebula`, `SPEC.md` section 7).
 - Spartan over WHIR compresses the final proof (`neo-spartan`).
 - The papers are in `docs/` (local only, not in git): `superneo-paper-v1_2`,
   `hypernova-paper`, and `nebula-paper`.
@@ -18,7 +17,8 @@ the `nightstream` crate.
 ## Lean
 
 Lean in `formal/` is the source of truth for the circuits. Lean emits the
-circuit artifacts, and Rust embeds them and pins their identifiers.
+circuit packages, and Rust checks each package's identity against a pinned
+value.
 
 - `formal/nightstream-fprime` models SuperNeo v1.2, defines and proves the F′
   circuit, and emits the F′ artifacts. Read its `AGENTS.md` before work there.

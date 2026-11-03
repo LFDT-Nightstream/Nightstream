@@ -22,6 +22,7 @@ import NightstreamFPrime.Spec.Folding.Light.Completeness
 import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.LightNorm
 import NightstreamFPrime.Spec.Folding.Light.Security
 import NightstreamFPrime.Spec.Folding.Light.Binding
+import NightstreamFPrime.Spec.Folding.Light.RunningBinding
 import NightstreamFPrime.Spec.Folding.Light.ErrorBudget
 import NightstreamFPrime.Spec.Folding.Refresh.Security
 import NightstreamFPrime.Spec.Folding.Refresh.Completeness
@@ -30,12 +31,14 @@ import NightstreamFPrime.Spec.Folding.Schedule
 import NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 import NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthKnowledge
 import NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthSecurity
+import NightstreamFPrime.Spec.HyperNova.ReverseStages
 import NightstreamFPrime.Spec.HyperNova.Construction2.OptionBFolds
 import NightstreamFPrime.Spec.HyperNova.Construction2.OptionBKeys
 import NightstreamFPrime.Spec.Folding.Light.RlcModule
 import NightstreamFPrime.Lifecycle.OptionB.State
 import NightstreamFPrime.Lifecycle.OptionB.Keys
 import NightstreamFPrime.Lifecycle.OptionB.Step
+import NightstreamFPrime.Lifecycle.OptionB.PriorLink
 import NightstreamFPrime.Lifecycle.OptionB.StateHashGadget
 import NightstreamFPrime.Lifecycle.OptionB.LightCommitment
 import NightstreamFPrime.Lifecycle.OptionB.LightPublicInput
@@ -89,6 +92,9 @@ import NightstreamFPrime.Export.Generic.LogicalPlan
 import NightstreamFPrime.Export.OptionB.StepRelation
 import NightstreamFPrime.Export.OptionB.StepPackage
 import NightstreamFPrime.Export.OptionB.TerminalBridge
+import NightstreamFPrime.Export.OptionB.IvcWalk
+import NightstreamFPrime.Export.OptionB.IvcSecurity
+import NightstreamFPrime.Export.OptionB.NebulaSecurity
 import NightstreamFPrime.Export.OptionB.FinishRelation
 import NightstreamFPrime.Export.OptionB.Parity
 import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.ChainBinding

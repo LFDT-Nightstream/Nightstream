@@ -172,7 +172,7 @@ theorem hash_binds
           (fun circuit => (right.verifierKeys circuit).digest) ∧
         left.iteration = right.iteration ∧ left.z0 = right.z0 ∧ left.current = right.current ∧
         left.pc = right.pc ∧ left.running = right.running) ∨
-      ∃ input input', input ≠ input' ∧ Poseidon2.hash input = Poseidon2.hash input' := by
+      StateCollision (toState left) (toState right) := by
   by_cases equal : toState left = toState right
   · exact Or.inl ⟨congrArg State.verifierKeys equal, congrArg State.iteration equal,
       congrArg State.z0 equal, congrArg State.current equal, congrArg State.pc equal,

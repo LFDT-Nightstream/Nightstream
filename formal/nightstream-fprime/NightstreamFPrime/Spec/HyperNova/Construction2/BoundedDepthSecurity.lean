@@ -22,112 +22,115 @@ open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthReverse
 
-variable {Key Claim Fresh Proof ClaimWitness FreshWitness : Type}
+variable {Prior Key Claim Fresh Proof ClaimWitness FreshWitness : Type}
 
 theorem event_ne_top {Sample : Type} (distribution : PMF Sample) (event : Set Sample) :
     distribution.toOuterMeasure event ≠ ∞ := by
   rw [PMF.toOuterMeasure_apply]
   exact distribution.tsum_coe_indicator_ne_top event
 
-/-- What the IVC adversary outputs for one slot: the history, last fold first, and a witness of
-the final claim at `bound`. -/
-structure Output (Key Claim Fresh Proof ClaimWitness : Type) where
+/-- What the IVC adversary outputs for one slot: the slot's key, the history with the prior
+states, last fold first, and a witness of the final claim at `bound`. -/
+structure Output (Prior Key Claim Fresh Proof ClaimWitness : Type) where
+  key : Key
   final : Running Claim
-  back : List (Link Key Claim Fresh Proof)
+  back : List (Link Prior Key Claim Fresh Proof)
   bound : Nat
   witness : ClaimWitness
 
 /-- HyperNova Definition 7 adversary for one fold. -/
-structure NifsAdversary (Key Claim Fresh Proof ClaimWitness : Type) where
+structure NifsAdversary (Prior Key Claim Fresh Proof ClaimWitness : Type) where
   Tape : Type
   tape : PMF Tape
-  run : Tape → Option (Attempt Key Claim Fresh Proof ClaimWitness)
+  run : Tape → Option (Attempt Prior Key Claim Fresh Proof ClaimWitness)
 
 structure NifsExtractor (FreshWitness : Type)
-    (adversary : NifsAdversary Key Claim Fresh Proof ClaimWitness) where
+    (adversary : NifsAdversary Prior Key Claim Fresh Proof ClaimWitness) where
   Coins : Type
   coins : PMF Coins
   run : adversary.Tape → Coins → ClaimWitness × FreshWitness
 
-noncomputable def NifsExtractor.law {adversary : NifsAdversary Key Claim Fresh Proof ClaimWitness}
+noncomputable def NifsExtractor.law {adversary : NifsAdversary Prior Key Claim Fresh Proof ClaimWitness}
     (extractor : NifsExtractor FreshWitness adversary) : PMF (adversary.Tape × extractor.Coins) :=
   adversary.tape.bind fun tape => extractor.coins.map (tape, ·)
 
-structure IvcAdversary (Key Claim Fresh Proof ClaimWitness : Type) where
+structure IvcAdversary (Prior Key Claim Fresh Proof ClaimWitness : Type) where
   Tape : Type
   tape : PMF Tape
-  output : Tape → Output Key Claim Fresh Proof ClaimWitness
+  output : Tape → Output Prior Key Claim Fresh Proof ClaimWitness
 
-structure Stage (Key Claim Fresh Proof ClaimWitness FreshWitness : Type) where
+structure Stage (Prior Key Claim Fresh Proof ClaimWitness FreshWitness : Type) where
   Tape : Type
   tape : PMF Tape
-  input : Tape → Output Key Claim Fresh Proof ClaimWitness
+  input : Tape → Output Prior Key Claim Fresh Proof ClaimWitness
   results : Tape → List (ClaimWitness × FreshWitness)
 
 section Events
 
 variable (p : GlobalParams) (cap : Nat) (folds : Folds Key Claim Fresh Proof)
-  (Holds : Nat → Claim → ClaimWitness → Prop) (FreshHolds : Fresh → FreshWitness → Prop)
+  (PriorLink : Prior → Running Claim → Fold Key Claim Fresh Proof → Prop)
+  (Holds : Key → Nat → Claim → ClaimWitness → Prop) (FreshHolds : Key → Fresh → FreshWitness → Prop)
 
-/-- The verifier accepts the slot's history and the decider accepts the final claim below `B`. -/
-def Accepted (output : Output Key Claim Fresh Proof ClaimWitness) : Prop :=
-  RunsBack cap folds output.final output.back ∧ Holds output.bound output.final.1 output.witness ∧
-    output.bound ≤ p.bigB
+/-- The verifier accepts the slot's history, each fold linked to its output prior state, and the
+decider accepts the final claim below `B`. -/
+def Accepted (output : Output Prior Key Claim Fresh Proof ClaimWitness) : Prop :=
+  RunsBack cap folds PriorLink output.key output.final output.back ∧
+    Holds output.key output.bound output.final.1 output.witness ∧ output.bound ≤ p.bigB
 
-def ExtractionFails (adversary : NifsAdversary Key Claim Fresh Proof ClaimWitness)
+def ExtractionFails (adversary : NifsAdversary Prior Key Claim Fresh Proof ClaimWitness)
     (extractor : NifsExtractor FreshWitness adversary) (draw : adversary.Tape × extractor.Coins) :
     Prop :=
-  ∃ attempt, adversary.run draw.1 = some attempt ∧ Succeeds p cap folds Holds attempt ∧
+  ∃ attempt, adversary.run draw.1 = some attempt ∧ Succeeds p cap folds PriorLink Holds attempt ∧
     ¬ Extracted p Holds FreshHolds attempt (extractor.run draw.1 draw.2)
 
 /-- HyperNova errata Assumption 1 in Definition 7 form for the folds of option B. -/
-def Assumption1 (Admitted : NifsAdversary Key Claim Fresh Proof ClaimWitness → Prop)
-    (Efficient : (adversary : NifsAdversary Key Claim Fresh Proof ClaimWitness) →
+def Assumption1 (Admitted : NifsAdversary Prior Key Claim Fresh Proof ClaimWitness → Prop)
+    (Efficient : (adversary : NifsAdversary Prior Key Claim Fresh Proof ClaimWitness) →
       NifsExtractor FreshWitness adversary → Prop)
-    (error : NifsAdversary Key Claim Fresh Proof ClaimWitness → ℝ) : Prop :=
+    (error : NifsAdversary Prior Key Claim Fresh Proof ClaimWitness → ℝ) : Prop :=
   ∀ adversary, Admitted adversary → ∃ extractor : NifsExtractor FreshWitness adversary,
     Efficient adversary extractor ∧
       (extractor.law.toOuterMeasure
-        {draw | ExtractionFails p cap folds Holds FreshHolds adversary extractor draw}).toReal ≤
+        {draw | ExtractionFails p cap folds PriorLink Holds FreshHolds adversary extractor draw}).toReal ≤
         error adversary
 
 /-- Stage `j` of the reverse extractor fails on its fold. -/
-def StageFails (output : Output Key Claim Fresh Proof ClaimWitness)
+def StageFails (output : Output Prior Key Claim Fresh Proof ClaimWitness)
     (results : List (ClaimWitness × FreshWitness)) (j : Nat) : Prop :=
-  Fails p cap folds Holds FreshHolds output.bound output.witness output.back results j
+  Fails p cap folds PriorLink Holds FreshHolds output.bound output.witness output.back results j
 
 /-- The answers extract every fold of the slot's history. -/
-def HistoryReturned (output : Output Key Claim Fresh Proof ClaimWitness)
+def HistoryReturned (output : Output Prior Key Claim Fresh Proof ClaimWitness)
     (results : List (ClaimWitness × FreshWitness)) : Prop :=
   Returned p Holds FreshHolds output.bound output.witness output.back results
 
 namespace Stage
 
 /-- Stage `j`'s NIFS adversary: the `j`-th fold from the end, with stage `j − 1`'s answer. -/
-def nifs (stage : Stage Key Claim Fresh Proof ClaimWitness FreshWitness) :
-    NifsAdversary Key Claim Fresh Proof ClaimWitness where
+def nifs (stage : Stage Prior Key Claim Fresh Proof ClaimWitness FreshWitness) :
+    NifsAdversary Prior Key Claim Fresh Proof ClaimWitness where
   Tape := stage.Tape
   tape := stage.tape
   run tape := (attempts p (stage.input tape).bound (stage.input tape).witness
     (stage.input tape).back (stage.results tape))[(stage.results tape).length]?
 
-def start (adversary : IvcAdversary Key Claim Fresh Proof ClaimWitness) :
-    Stage Key Claim Fresh Proof ClaimWitness FreshWitness where
+def start (adversary : IvcAdversary Prior Key Claim Fresh Proof ClaimWitness) :
+    Stage Prior Key Claim Fresh Proof ClaimWitness FreshWitness where
   Tape := adversary.Tape
   tape := adversary.tape
   input := adversary.output
   results _ := []
 
 @[implicit_reducible]
-noncomputable def next (stage : Stage Key Claim Fresh Proof ClaimWitness FreshWitness)
+noncomputable def next (stage : Stage Prior Key Claim Fresh Proof ClaimWitness FreshWitness)
     (extractor : NifsExtractor FreshWitness (stage.nifs p)) :
-    Stage Key Claim Fresh Proof ClaimWitness FreshWitness where
+    Stage Prior Key Claim Fresh Proof ClaimWitness FreshWitness where
   Tape := stage.Tape × extractor.Coins
   tape := extractor.law
   input draw := stage.input draw.1
   results draw := stage.results draw.1 ++ [extractor.run draw.1 draw.2]
 
-theorem next_marginal (stage : Stage Key Claim Fresh Proof ClaimWitness FreshWitness)
+theorem next_marginal (stage : Stage Prior Key Claim Fresh Proof ClaimWitness FreshWitness)
     (extractor : NifsExtractor FreshWitness (stage.nifs p)) (count : Nat)
     (within : ∀ tape, count ≤ (stage.results tape).length) :
     (stage.next p extractor).tape.map (fun draw =>
@@ -149,12 +152,12 @@ theorem next_marginal (stage : Stage Key Claim Fresh Proof ClaimWitness FreshWit
 end Stage
 
 /-- HyperNova Lemma 17 composition premise. -/
-structure Closed (Admitted : NifsAdversary Key Claim Fresh Proof ClaimWitness → Prop)
-    (StageAdmitted : Stage Key Claim Fresh Proof ClaimWitness FreshWitness → Prop)
-    (Efficient : (adversary : NifsAdversary Key Claim Fresh Proof ClaimWitness) →
+structure Closed (Admitted : NifsAdversary Prior Key Claim Fresh Proof ClaimWitness → Prop)
+    (StageAdmitted : Stage Prior Key Claim Fresh Proof ClaimWitness FreshWitness → Prop)
+    (Efficient : (adversary : NifsAdversary Prior Key Claim Fresh Proof ClaimWitness) →
       NifsExtractor FreshWitness adversary → Prop) : Prop where
   nifs : ∀ stage, StageAdmitted stage → Admitted (stage.nifs p)
-  next : ∀ (stage : Stage Key Claim Fresh Proof ClaimWitness FreshWitness)
+  next : ∀ (stage : Stage Prior Key Claim Fresh Proof ClaimWitness FreshWitness)
       (extractor : NifsExtractor FreshWitness (stage.nifs p)),
     StageAdmitted stage → Efficient (stage.nifs p) extractor →
       StageAdmitted (stage.next p extractor)
@@ -162,20 +165,21 @@ structure Closed (Admitted : NifsAdversary Key Claim Fresh Proof ClaimWitness �
 end Events
 
 variable {p : GlobalParams} {cap : Nat} {folds : Folds Key Claim Fresh Proof}
-  {Holds : Nat → Claim → ClaimWitness → Prop} {FreshHolds : Fresh → FreshWitness → Prop}
-  {Admitted : NifsAdversary Key Claim Fresh Proof ClaimWitness → Prop}
-  {StageAdmitted : Stage Key Claim Fresh Proof ClaimWitness FreshWitness → Prop}
-  {Efficient : (adversary : NifsAdversary Key Claim Fresh Proof ClaimWitness) →
+  {PriorLink : Prior → Running Claim → Fold Key Claim Fresh Proof → Prop}
+  {Holds : Key → Nat → Claim → ClaimWitness → Prop} {FreshHolds : Key → Fresh → FreshWitness → Prop}
+  {Admitted : NifsAdversary Prior Key Claim Fresh Proof ClaimWitness → Prop}
+  {StageAdmitted : Stage Prior Key Claim Fresh Proof ClaimWitness FreshWitness → Prop}
+  {Efficient : (adversary : NifsAdversary Prior Key Claim Fresh Proof ClaimWitness) →
     NifsExtractor FreshWitness adversary → Prop}
-  {error : NifsAdversary Key Claim Fresh Proof ClaimWitness → ℝ}
-  (assumption : Assumption1 p cap folds Holds FreshHolds Admitted Efficient error)
+  {error : NifsAdversary Prior Key Claim Fresh Proof ClaimWitness → ℝ}
+  (assumption : Assumption1 p cap folds PriorLink Holds FreshHolds Admitted Efficient error)
   (closed : Closed p Admitted StageAdmitted Efficient)
-  (adversary : IvcAdversary Key Claim Fresh Proof ClaimWitness)
+  (adversary : IvcAdversary Prior Key Claim Fresh Proof ClaimWitness)
   (admitted : StageAdmitted (Stage.start adversary))
 
 /-- HyperNova Lemma 17. -/
 noncomputable def reverseStages :
-    Nat → {stage : Stage Key Claim Fresh Proof ClaimWitness FreshWitness // StageAdmitted stage}
+    Nat → {stage : Stage Prior Key Claim Fresh Proof ClaimWitness FreshWitness // StageAdmitted stage}
   | 0 => ⟨Stage.start adversary, admitted⟩
   | steps + 1 =>
       ⟨(reverseStages steps).1.next p
@@ -190,7 +194,7 @@ noncomputable def reverseExtractor (steps : Nat) :
 
 theorem reverseExtractor_error (steps : Nat) :
     ((reverseExtractor assumption closed adversary admitted steps).law.toOuterMeasure
-        {draw | ExtractionFails p cap folds Holds FreshHolds _
+        {draw | ExtractionFails p cap folds PriorLink Holds FreshHolds _
           (reverseExtractor assumption closed adversary admitted steps) draw}).toReal ≤
       error ((reverseStages assumption closed adversary admitted steps).1.nifs p) :=
   (Classical.choose_spec
@@ -228,7 +232,7 @@ theorem reverseStages_marginal (steps extra : Nat) :
       exact induction
 
 theorem stage_event (steps extra : Nat)
-    (event : Set (Output Key Claim Fresh Proof ClaimWitness × List (ClaimWitness × FreshWitness))) :
+    (event : Set (Output Prior Key Claim Fresh Proof ClaimWitness × List (ClaimWitness × FreshWitness))) :
     (stages (steps + extra)).1.tape.toOuterMeasure
         {tape | ((stages (steps + extra)).1.input tape,
           ((stages (steps + extra)).1.results tape).take steps) ∈ event} =
@@ -240,7 +244,7 @@ theorem stage_event (steps extra : Nat)
   exact mapped
 
 /-- The IVC adversary's law of its output is the reverse extractor's law of its input. -/
-theorem start_event (total : Nat) (event : Set (Output Key Claim Fresh Proof ClaimWitness)) :
+theorem start_event (total : Nat) (event : Set (Output Prior Key Claim Fresh Proof ClaimWitness)) :
     adversary.tape.toOuterMeasure {tape | adversary.output tape ∈ event} =
       (stages total).1.tape.toOuterMeasure {tape | (stages total).1.input tape ∈ event} := by
   have moved := stage_event assumption closed adversary admitted 0 total {pair | pair.1 ∈ event}
@@ -250,13 +254,13 @@ theorem start_event (total : Nat) (event : Set (Output Key Claim Fresh Proof Cla
 /-- Stage `j`'s failure, read on a later stage, is stage `j`'s extraction failure. -/
 theorem failure_term (j extra : Nat) :
     (stages (j + 1 + extra)).1.tape.toOuterMeasure
-        {tape | StageFails p cap folds Holds FreshHolds ((stages (j + 1 + extra)).1.input tape)
+        {tape | StageFails p cap folds PriorLink Holds FreshHolds ((stages (j + 1 + extra)).1.input tape)
           ((stages (j + 1 + extra)).1.results tape) j} =
       (extractors j).law.toOuterMeasure
-        {draw | ExtractionFails p cap folds Holds FreshHolds _ (extractors j) draw} := by
-  let event : Set (Output Key Claim Fresh Proof ClaimWitness × List (ClaimWitness × FreshWitness)) :=
-    {pair | StageFails p cap folds Holds FreshHolds pair.1 pair.2 j}
-  have taken : {tape | StageFails p cap folds Holds FreshHolds ((stages (j + 1 + extra)).1.input tape)
+        {draw | ExtractionFails p cap folds PriorLink Holds FreshHolds _ (extractors j) draw} := by
+  let event : Set (Output Prior Key Claim Fresh Proof ClaimWitness × List (ClaimWitness × FreshWitness)) :=
+    {pair | StageFails p cap folds PriorLink Holds FreshHolds pair.1 pair.2 j}
+  have taken : {tape | StageFails p cap folds PriorLink Holds FreshHolds ((stages (j + 1 + extra)).1.input tape)
         ((stages (j + 1 + extra)).1.results tape) j} =
       {tape | ((stages (j + 1 + extra)).1.input tape,
         ((stages (j + 1 + extra)).1.results tape).take (j + 1)) ∈ event} := by
@@ -268,7 +272,7 @@ theorem failure_term (j extra : Nat) :
   ext draw
   have length := results_length assumption closed adversary admitted j draw.1
   simp only [Set.mem_ofPred_eq, event, StageFails, Stage.next, ExtractionFails, Stage.nifs, Fails]
-  have sameAttempt : ∀ (output : Output Key Claim Fresh Proof ClaimWitness),
+  have sameAttempt : ∀ (output : Output Prior Key Claim Fresh Proof ClaimWitness),
       (attempts p output.bound output.witness output.back
           ((stages j).1.results draw.1 ++ [(extractors j).run draw.1 draw.2]))[j]? =
         (attempts p output.bound output.witness output.back
@@ -308,17 +312,17 @@ theorem input_bound (depth : Nat)
 theorem per_tape (depth : Nat)
     (depthBound : ∀ tape ∈ adversary.tape.support, (adversary.output tape).back.length ≤ depth)
     (tape : (stages depth).1.Tape) (supported : tape ∈ (stages depth).1.tape.support)
-    (accepted : Accepted p cap folds Holds ((stages depth).1.input tape))
+    (accepted : Accepted p cap folds PriorLink Holds ((stages depth).1.input tape))
     (missing : ¬ HistoryReturned p Holds FreshHolds ((stages depth).1.input tape)
       ((stages depth).1.results tape)) :
-    ∃ j : Fin depth, StageFails p cap folds Holds FreshHolds ((stages depth).1.input tape)
+    ∃ j : Fin depth, StageFails p cap folds PriorLink Holds FreshHolds ((stages depth).1.input tape)
       ((stages depth).1.results tape) j.val := by
   have historyLength := input_bound assumption closed adversary admitted depth depthBound depth tape
     supported
   have resultsLength := results_length assumption closed adversary admitted depth tape
   obtain ⟨runs, holds, atMostB⟩ := accepted
   refine Classical.byContradiction fun none => missing ?_
-  refine returned_of_no_failure _ _ _ _ _ runs holds (by omega) (by omega) fun j small failed => ?_
+  refine returned_of_no_failure _ _ _ _ _ _ runs holds (by omega) (by omega) fun j small failed => ?_
   exact none ⟨⟨j, by omega⟩, failed⟩
 
 /-- HyperNova Lemma 17 for one slot of option B: the chance that the slot's history is accepted
@@ -326,15 +330,15 @@ but the reverse extractor does not return it is at most the stages' Assumption 1
 theorem history_failure_le (depth : Nat)
     (depthBound : ∀ tape ∈ adversary.tape.support, (adversary.output tape).back.length ≤ depth) :
     ((stages depth).1.tape.toOuterMeasure
-        {tape | Accepted p cap folds Holds ((stages depth).1.input tape) ∧
+        {tape | Accepted p cap folds PriorLink Holds ((stages depth).1.input tape) ∧
           ¬ HistoryReturned p Holds FreshHolds ((stages depth).1.input tape)
             ((stages depth).1.results tape)}).toReal ≤
       ∑ j : Fin depth, error ((stages j.val).1.nifs p) := by
   let law := (stages depth).1.tape
   let failures : Fin depth → Set (stages depth).1.Tape := fun j =>
-    {tape | StageFails p cap folds Holds FreshHolds ((stages depth).1.input tape)
+    {tape | StageFails p cap folds PriorLink Holds FreshHolds ((stages depth).1.input tape)
       ((stages depth).1.results tape) j.val}
-  have covered : {tape | Accepted p cap folds Holds ((stages depth).1.input tape) ∧
+  have covered : {tape | Accepted p cap folds PriorLink Holds ((stages depth).1.input tape) ∧
         ¬ HistoryReturned p Holds FreshHolds ((stages depth).1.input tape)
           ((stages depth).1.results tape)} ∩ law.support ⊆ ⋃ j, failures j := by
     rintro tape ⟨⟨accepted, missing⟩, supported⟩
@@ -343,24 +347,24 @@ theorem history_failure_le (depth : Nat)
     exact Set.mem_iUnion.mpr ⟨j, failed⟩
   have termEq : ∀ j : Fin depth, law.toOuterMeasure (failures j) =
       (extractors j.val).law.toOuterMeasure
-        {draw | ExtractionFails p cap folds Holds FreshHolds _ (extractors j.val) draw} := by
+        {draw | ExtractionFails p cap folds PriorLink Holds FreshHolds _ (extractors j.val) draw} := by
     intro j
     obtain ⟨extra, total⟩ := Nat.exists_eq_add_of_le (Nat.succ_le_of_lt j.isLt)
     have moved := failure_term assumption closed adversary admitted j.val extra
     rw [← total] at moved
     exact moved
   have bound : law.toOuterMeasure
-      {tape | Accepted p cap folds Holds ((stages depth).1.input tape) ∧
+      {tape | Accepted p cap folds PriorLink Holds ((stages depth).1.input tape) ∧
         ¬ HistoryReturned p Holds FreshHolds ((stages depth).1.input tape)
           ((stages depth).1.results tape)} ≤
       ∑ j : Fin depth, (extractors j.val).law.toOuterMeasure
-        {draw | ExtractionFails p cap folds Holds FreshHolds _ (extractors j.val) draw} := by
+        {draw | ExtractionFails p cap folds PriorLink Holds FreshHolds _ (extractors j.val) draw} := by
     rw [← PMF.toOuterMeasure_apply_inter_support]
     calc _ ≤ law.toOuterMeasure (⋃ j, failures j) := MeasureTheory.measure_mono covered
       _ ≤ ∑ j, law.toOuterMeasure (failures j) := MeasureTheory.measure_iUnion_fintype_le _ _
       _ = _ := Finset.sum_congr rfl fun j _ => termEq j
   have finiteTerm : ∀ j : Fin depth, (extractors j.val).law.toOuterMeasure
-      {draw | ExtractionFails p cap folds Holds FreshHolds _ (extractors j.val) draw} ≠ ∞ :=
+      {draw | ExtractionFails p cap folds PriorLink Holds FreshHolds _ (extractors j.val) draw} ≠ ∞ :=
     fun j => event_ne_top _ _
   have finiteSum := ENNReal.sum_ne_top.mpr (fun j (_ : j ∈ Finset.univ) => finiteTerm j)
   have realBound := ENNReal.toReal_mono finiteSum bound
@@ -372,56 +376,120 @@ section TwoSlot
 
 open NightstreamFPrime.Spec.HyperNova.NonInteractiveMultiFold (Accepts)
 open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthKnowledge
-  (Runs Execution MachineStep slotHistory slot_runs)
-
-/-- Each fold of a forward history with the running claim it starts from. -/
-def links : Running Claim → List (Fold Key Claim Fresh Proof) → List (Link Key Claim Fresh Proof)
-  | _, [] => []
-  | start, fold :: rest => (start, fold) :: links fold.output rest
-
-/-- The running claim the oldest fold of a history, last fold first, starts from. -/
-def oldest : Running Claim → List (Link Key Claim Fresh Proof) → Running Claim
-  | final, [] => final
-  | _, link :: older => oldest link.1 older
-
-theorem runsBack_append :
-    ∀ (back : List (Link Key Claim Fresh Proof)) (final : Running Claim)
-      (link : Link Key Claim Fresh Proof),
-      RunsBack cap folds final back → link.2.output = oldest final back →
-      link.2.input = link.1.1 →
-      Accepts (verifier cap folds link.2.circuit) link.2.key link.1 link.2.fresh link.2.proof
-        link.2.output →
-      RunsBack cap folds final (back ++ [link]) ∧ oldest final (back ++ [link]) = link.1
-  | [], _, _, _, output, input, accepted => ⟨⟨output, input, accepted, trivial⟩, rfl⟩
-  | newer :: older, _, link, ⟨outputEq, inputEq, acceptedNewer, olderRuns⟩, output, input,
-      accepted => by
-      obtain ⟨runs, oldestEq⟩ := runsBack_append older newer.1 link olderRuns output input accepted
-      exact ⟨⟨outputEq, inputEq, acceptedNewer, runs⟩, oldestEq⟩
-
-/-- A forward history of accepted folds, read last fold first. -/
-theorem runsBack_of_runs :
-    ∀ (history : List (Fold Key Claim Fresh Proof)) (start final : Running Claim),
-      Runs cap folds start history final →
-        RunsBack cap folds final (links start history).reverse ∧
-          oldest final (links start history).reverse = start
-  | [], start, final, runs => by
-      simp only [Runs] at runs
-      subst runs
-      exact ⟨trivial, rfl⟩
-  | fold :: rest, start, final, ⟨inputEq, accepted, later⟩ => by
-      obtain ⟨runs, oldestEq⟩ := runsBack_of_runs rest fold.output final later
-      simp only [links, List.reverse_cons]
-      exact runsBack_append _ final (start, fold) runs oldestEq.symm inputEq accepted
+  (Execution MachineStep slotFold)
 
 variable {Digest State StepWitness Encoded : Type}
 
-/-- The one-slot output of a two-slot execution: the slot's history, last fold first, and a
-witness of its final claim. -/
-def slotOutput (verifierKeys : Fin 2 → Key) (start final : Fin 2 → Running Claim) (slot : Fin 2)
+/-- HyperNova Construction 2 step 4(b) for one fold: the fold's fresh instance encodes the hash
+of `prior`, and the program counter of `prior` selects a slot that holds `start`. -/
+def StepLink (machine : Paper.Machine Key Digest State StepWitness (Running Claim) Fresh Encoded 2)
+    (prior : Paper.HashPreimage Key State (Running Claim) 2) (start : Running Claim)
+    (fold : Fold Key Claim Fresh Proof) : Prop :=
+  machine.freshPublic fold.fresh = machine.encodeInstance (machine.hash prior) ∧
+    ∃ valid : Paper.InRange 2 prior.pc, prior.running (Paper.selectedIndex valid) = start
+
+/-- The hash preimage that a step's fresh instance commits to (Construction 2 step 4(b)). -/
+def priorOf (verifierKeys : Fin 2 → Key)
+    (step : MachineStep Key Claim Fresh Proof Digest State StepWitness) :
+    Paper.HashPreimage Key State (Running Claim) 2 where
+  verifierKeys := verifierKeys
+  iteration := step.input.iteration
+  z0 := step.input.z0
+  current := step.input.zi
+  running := step.input.running
+  pc := step.input.priorPc
+
+/-- The links `slot` receives: one for each step whose prior program counter selects it, with
+the step's prior hash preimage and the slot's claim before the fold. -/
+def slotLinks (verifierKeys : Fin 2 → Key) (slot : Fin 2) :
+    List (MachineStep Key Claim Fresh Proof Digest State StepWitness) →
+      List (Link (Paper.HashPreimage Key State (Running Claim) 2) Key Claim Fresh Proof)
+  | [] => []
+  | step :: rest =>
+      if step.input.priorPc = slot.val + 1 then
+        ⟨priorOf verifierKeys step, step.input.running slot, slotFold verifierKeys slot step⟩ ::
+          slotLinks verifierKeys slot rest
+      else slotLinks verifierKeys slot rest
+
+/-- The running claim the oldest fold of a history, last fold first, starts from. -/
+def oldest : Running Claim → List (Link Prior Key Claim Fresh Proof) → Running Claim
+  | final, [] => final
+  | _, link :: older => oldest link.start older
+
+theorem runsBack_append (key : Key) :
+    ∀ (back : List (Link Prior Key Claim Fresh Proof)) (final : Running Claim)
+      (link : Link Prior Key Claim Fresh Proof),
+      RunsBack cap folds PriorLink key final back → link.fold.output = oldest final back →
+      link.fold.input = link.start.1 → link.fold.key = key →
+      PriorLink link.prior link.start link.fold →
+      Accepts (verifier cap folds link.fold.circuit) link.fold.key link.start link.fold.fresh
+        link.fold.proof link.fold.output →
+      RunsBack cap folds PriorLink key final (back ++ [link]) ∧
+        oldest final (back ++ [link]) = link.start
+  | [], _, _, _, output, input, keyEq, linked, accepted =>
+      ⟨⟨output, input, keyEq, linked, accepted, trivial⟩, rfl⟩
+  | newer :: older, _, link, ⟨outputEq, inputEq, keyNewer, linkedNewer, acceptedNewer, olderRuns⟩,
+      output, input, keyEq, linked, accepted => by
+      obtain ⟨runs, oldestEq⟩ :=
+        runsBack_append key older newer.start link olderRuns output input keyEq linked accepted
+      exact ⟨⟨outputEq, inputEq, keyNewer, linkedNewer, acceptedNewer, runs⟩, oldestEq⟩
+
+/-- Each slot of an accepted execution receives an accepted history, last fold first, under the
+slot's key, with each fold linked to its step's prior hash preimage. -/
+theorem slot_runsBack (verifierKeys : Fin 2 → Key) (defaultClaim : Claim)
+    (machine : Paper.Machine Key Digest State StepWitness (Running Claim) Fresh Encoded 2)
+    (slot : Fin 2) :
+    ∀ (trace : List (MachineStep Key Claim Fresh Proof Digest State StepWitness))
+      (start final : Fin 2 → Running Claim),
+      Execution (setup cap folds verifierKeys defaultClaim) machine start trace final →
+        RunsBack cap folds (StepLink machine) (verifierKeys slot) (final slot)
+            (slotLinks verifierKeys slot trace).reverse ∧
+          oldest (final slot) (slotLinks verifierKeys slot trace).reverse = start slot
+  | [], start, final, execution => by
+      simp only [Execution] at execution
+      subst execution
+      exact ⟨trivial, rfl⟩
+  | step :: rest, start, final, ⟨runningEq, recursive, holds, later⟩ => by
+      obtain ⟨runs, oldestEq⟩ := slot_runsBack verifierKeys defaultClaim machine slot rest
+        step.output.runningNext final later
+      have holdsCopy := holds
+      obtain ⟨_, _, _, _, base | ⟨priorPcValid, _, priorPublic, accepted, unchanged⟩⟩ := holdsCopy
+      · omega
+      have lower := priorPcValid.1
+      by_cases selects : step.input.priorPc = slot.val + 1
+      · have same : Paper.selectedIndex priorPcValid = slot := by
+          apply Fin.ext
+          simp only [Paper.selectedIndex]
+          omega
+        rw [same] at accepted
+        simp only [slotLinks, selects, ↓reduceIte, List.reverse_cons]
+        have linked : StepLink machine (priorOf verifierKeys step) (step.input.running slot)
+            (slotFold verifierKeys slot step) := ⟨priorPublic, priorPcValid, by rw [← same]; rfl⟩
+        obtain ⟨appended, appendedOldest⟩ := runsBack_append (verifierKeys slot) _ (final slot)
+          ⟨priorOf verifierKeys step, step.input.running slot, slotFold verifierKeys slot step⟩
+          runs oldestEq.symm rfl rfl linked accepted
+        exact ⟨appended, appendedOldest.trans (congrFun runningEq slot)⟩
+      · have other : Paper.selectedIndex priorPcValid ≠ slot := by
+          intro equal
+          apply selects
+          have value := congrArg Fin.val equal
+          simp only [Paper.selectedIndex] at value
+          omega
+        have kept : step.output.runningNext slot = start slot :=
+          (unchanged slot (Ne.symm other)).trans (congrFun runningEq slot)
+        simp only [slotLinks, selects, ↓reduceIte]
+        rw [kept] at oldestEq
+        exact ⟨runs, oldestEq⟩
+
+/-- The one-slot output of a two-slot execution: the slot's key, its history with the prior
+hash preimages, last fold first, and a witness of its final claim. -/
+def slotOutput (verifierKeys : Fin 2 → Key) (final : Fin 2 → Running Claim) (slot : Fin 2)
     (trace : List (MachineStep Key Claim Fresh Proof Digest State StepWitness)) (bound : Nat)
-    (witness : ClaimWitness) : Output Key Claim Fresh Proof ClaimWitness where
+    (witness : ClaimWitness) :
+    Output (Paper.HashPreimage Key State (Running Claim) 2) Key Claim Fresh Proof ClaimWitness where
+  key := verifierKeys slot
   final := final slot
-  back := (links (start slot) (slotHistory verifierKeys slot trace)).reverse
+  back := (slotLinks verifierKeys slot trace).reverse
   bound := bound
   witness := witness
 
@@ -433,10 +501,10 @@ theorem slot_accepted (verifierKeys : Fin 2 → Key) (defaultClaim : Claim)
     (start final : Fin 2 → Running Claim)
     (execution : Execution (setup cap folds verifierKeys defaultClaim) machine start trace final)
     (slot : Fin 2) (bound : Nat) (witness : ClaimWitness)
-    (holds : Holds bound (final slot).1 witness) (atMostB : bound ≤ p.bigB) :
-    Accepted p cap folds Holds (slotOutput verifierKeys start final slot trace bound witness) :=
-  ⟨(runsBack_of_runs _ _ _
-      (slot_runs verifierKeys defaultClaim machine slot trace start final execution)).1,
+    (holds : Holds (verifierKeys slot) bound (final slot).1 witness) (atMostB : bound ≤ p.bigB) :
+    Accepted p cap folds (StepLink machine) Holds
+      (slotOutput verifierKeys final slot trace bound witness) :=
+  ⟨(slot_runsBack verifierKeys defaultClaim machine slot trace start final execution).1,
     holds, atMostB⟩
 
 end TwoSlot

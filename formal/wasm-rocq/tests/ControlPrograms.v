@@ -103,11 +103,11 @@ Qed.
 Lemma computed_initial_config : forall condition,
   0 <= condition < i32Modulus ->
   CircuitConfig computedProgram computedStore 0 (controlShape [] (siteCode (codePosition 0 [] 0)))
-    (computedMemory condition) (mkBoundary 0 9 9 7 0 0 0 0 0 0) (stackConfig (computedState condition) [] computedCode).
+    (computedMemory condition) (mkBoundary 0 9 9 7 0 0 0 0 0 0 0) (stackConfig (computedState condition) [] computedCode).
 Proof.
   intros condition Hcondition.
   apply (function_start_config computedProgram computedStore 0 computedGuest [condition; 9] _
-    (mkBoundary 0 9 9 7 0 0 0 0 0 0)); try reflexivity; try (cbn; lia).
+    (mkBoundary 0 9 9 7 0 0 0 0 0 0 0)); try reflexivity; try (cbn; lia).
   - exact computed_store_wf.
   - exact computed_program_validated.
   - repeat constructor; unfold i32Modulus in *; lia.
@@ -120,11 +120,11 @@ Qed.
 Example computed_program_refines : forall condition rows final,
   fieldPrime -> 0 <= condition < i32Modulus ->
   validCircuitRun (computedMemory condition) rows final ->
-  runFragment (mkBoundary 0 9 9 7 0 0 0 0 0 0) 0 rows ->
+  runFragment (mkBoundary 0 9 9 7 0 0 0 0 0 0 0) 0 rows ->
   exists shape c,
     Steps (stackConfig (computedState condition) [] computedCode) c /\
     programLoaded computedProgram final /\
-    CircuitConfig computedProgram computedStore 0 shape final (rowsFinalBoundary (mkBoundary 0 9 9 7 0 0 0 0 0 0) rows) c.
+    CircuitConfig computedProgram computedStore 0 shape final (rowsFinalBoundary (mkBoundary 0 9 9 7 0 0 0 0 0 0 0) rows) c.
 Proof.
   intros condition rows final Hprime Hcondition Hrun Hfragment.
   exact (active_run_refinement computedProgram computedStore 0 _ rows _ final _ _ Hprime
@@ -153,7 +153,7 @@ Definition computedInteriorConfig := stackPrefix []
 (* Inside the label, the decoder splits the operand stack at the block's height. *)
 Example computed_interior_config :
   CircuitConfig computedProgram computedStore 0 (controlShape [] (siteCode (codePosition 0 [labelSite 0 0] 3)))
-    computedInteriorMemory (mkBoundary 4 10 9 7 0 0 0 0 0 0) computedInteriorConfig.
+    computedInteriorMemory (mkBoundary 4 10 9 7 0 0 0 0 0 0 0) computedInteriorConfig.
 Proof.
   split; [reflexivity | ]. split; [exact computed_store_wf | ]. split; [exact computed_program_validated | ].
   exists True. split; [vm_compute; reflexivity | exact I].
@@ -163,11 +163,11 @@ Qed.
    run's output is precisely the second run's input. *)
 Example computed_interior_two_runs : forall firstRows lastRows final,
   fieldPrime -> validCircuitRun computedInteriorMemory (firstRows ++ lastRows) final ->
-  runFragment (mkBoundary 4 10 9 7 0 0 0 0 0 0) 0 firstRows ->
-  runFragment (rowsFinalBoundary (mkBoundary 4 10 9 7 0 0 0 0 0 0) firstRows) 0 lastRows ->
+  runFragment (mkBoundary 4 10 9 7 0 0 0 0 0 0 0) 0 firstRows ->
+  runFragment (rowsFinalBoundary (mkBoundary 4 10 9 7 0 0 0 0 0 0 0) firstRows) 0 lastRows ->
   exists shape c, Steps computedInteriorConfig c /\ programLoaded computedProgram final /\
     CircuitConfig computedProgram computedStore 0 shape final
-      (rowsFinalBoundary (mkBoundary 4 10 9 7 0 0 0 0 0 0) (firstRows ++ lastRows)) c.
+      (rowsFinalBoundary (mkBoundary 4 10 9 7 0 0 0 0 0 0 0) (firstRows ++ lastRows)) c.
 Proof.
   intros firstRows lastRows final Hprime Hrun Hfirst Hlast.
   destruct (valid_run_split _ _ _ _ Hrun) as [between [Hrun1 Hrun2]].
@@ -243,16 +243,16 @@ Qed.
 (* Splitting the raw trace before the first br_if yields the interior shape. *)
 Example computed_split_before_branch : forall firstRows lastRows final,
   fieldPrime -> validCircuitRun (computedMemory 7) (firstRows ++ lastRows) final ->
-  runFragment (mkBoundary 0 9 9 7 0 0 0 0 0 0) 0 firstRows ->
-  runFragment (rowsFinalBoundary (mkBoundary 0 9 9 7 0 0 0 0 0 0) firstRows) 0 lastRows ->
-  boundaryPC (rowsFinalBoundary (mkBoundary 0 9 9 7 0 0 0 0 0 0) firstRows) = 4 ->
+  runFragment (mkBoundary 0 9 9 7 0 0 0 0 0 0 0) 0 firstRows ->
+  runFragment (rowsFinalBoundary (mkBoundary 0 9 9 7 0 0 0 0 0 0 0) firstRows) 0 lastRows ->
+  boundaryPC (rowsFinalBoundary (mkBoundary 0 9 9 7 0 0 0 0 0 0 0) firstRows) = 4 ->
   exists between c1 shape c,
     CircuitConfig computedProgram computedStore 0 (controlShape [] (siteCode (codePosition 0 [labelSite 0 0] 3)))
-      between (rowsFinalBoundary (mkBoundary 0 9 9 7 0 0 0 0 0 0) firstRows) c1 /\
+      between (rowsFinalBoundary (mkBoundary 0 9 9 7 0 0 0 0 0 0 0) firstRows) c1 /\
     Steps (stackConfig (computedState 7) [] computedCode) c1 /\ Steps c1 c /\
     programLoaded computedProgram final /\
     CircuitConfig computedProgram computedStore 0 shape final
-      (rowsFinalBoundary (mkBoundary 0 9 9 7 0 0 0 0 0 0) (firstRows ++ lastRows)) c.
+      (rowsFinalBoundary (mkBoundary 0 9 9 7 0 0 0 0 0 0 0) (firstRows ++ lastRows)) c.
 Proof.
   intros firstRows lastRows final Hprime Hrun Hfirst Hlast Hpc.
   destruct (valid_run_split _ _ _ _ Hrun) as [between [Hrun1 Hrun2]].

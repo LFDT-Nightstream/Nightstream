@@ -63,6 +63,23 @@ Proof.
     pose proof (value_bound w COL_HOST_NESTED_ENTRY). field_linear Hrow.
 Qed.
 
+(* Guest and auxiliary rows preserve the activation's host depth. Only host
+   suspend/resume can change it; cross-row continuity carries it to the next row. *)
+Lemma full_host_depth_preserved : forall (w : Witness) kind,
+  fieldPrime -> FullRelation.satFull w -> In kind rowKindFlags ->
+  kind <> COL_HOST_SUSPEND -> kind <> COL_HOST_RESUME -> kind <> COL_TURN_BOUNDARY -> w kind = 1 ->
+  w COL_HOST_FRAME_DEPTH_AFTER = w COL_HOST_FRAME_DEPTH_BEFORE.
+Proof.
+  intros w kind Hprime Hfull Hin Hs Hr Ht Hkind.
+  destruct (full_host_switch_absent w kind Hprime Hfull Hin Hs Hr Ht Hkind) as [Hsuspend [Hresume _]].
+  pose proof (proj1 Hfull) as Hone.
+  circuit_row ([(COL_ONE, 1); (COL_HOST_SUSPEND, -1); (COL_HOST_RESUME, -1)],
+    [(COL_HOST_FRAME_DEPTH_AFTER, 1); (COL_HOST_FRAME_DEPTH_BEFORE, -1)], ([] : SparseRow)) Hrow.
+  expand_row Hrow. normalize_columns. rewrite Hone, Hsuspend, Hresume in Hrow.
+  pose proof (value_bound w COL_HOST_FRAME_DEPTH_AFTER).
+  pose proof (value_bound w COL_HOST_FRAME_DEPTH_BEFORE). field_linear Hrow.
+Qed.
+
 (* A pending move runs first: zeroing waits until it is done. *)
 Lemma full_initialization_flags : forall (w : Witness),
   fieldPrime -> FullRelation.satFull w ->

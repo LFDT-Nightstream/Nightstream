@@ -61,7 +61,7 @@ Proof.
     split; [repeat constructor | vm_compute; repeat split; lia].
 Qed.
 
-Definition unwindingStart := mkBoundary 0 2 2 0 0 0 0 0 0 0.
+Definition unwindingStart := mkBoundary 0 2 2 0 0 0 0 0 0 0 0.
 
 Lemma unwinding_run_valid :
   validCircuitRun unwindingMemory unwindingWitness (replayed unwindingMemory unwindingWitness).

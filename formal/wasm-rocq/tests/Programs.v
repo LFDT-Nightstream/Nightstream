@@ -134,7 +134,7 @@ Proof. reflexivity. Qed.
 
 Example source_initial_config : forall stale,
   CircuitConfig sourceProgram sourceStore 0 (controlShape [] (siteCode (codePosition 1 [] 0)))
-    (sourceMemory stale) (mkBoundary 2 8 8 7 0 0 0 0 0 0) (stackConfig sourceInitialState [] getCallAdd).
+    (sourceMemory stale) (mkBoundary 2 8 8 7 0 0 0 0 0 0 0) (stackConfig sourceInitialState [] getCallAdd).
 Proof.
   intros stale. split; [reflexivity | ]. split; [exact source_store_wf | ]. split; [exact source_program_validated | ].
   exists True. split; [vm_compute; reflexivity | exact I].
@@ -143,24 +143,24 @@ Qed.
 (* The decoder reads the caller's one local from memory. *)
 Example source_initial_decodes : forall stale,
   option_map fst (decodeControl sourceProgram sourceStore 0 (controlShape [] (siteCode (codePosition 1 [] 0)))
-    (sourceMemory stale) (mkBoundary 2 8 8 7 0 0 0 0 0 0)) = Some (stackConfig sourceInitialState [] getCallAdd).
+    (sourceMemory stale) (mkBoundary 2 8 8 7 0 0 0 0 0 0 0)) = Some (stackConfig sourceInitialState [] getCallAdd).
 Proof. intros stale. vm_compute. reflexivity. Qed.
 
 (* A pc off the position, a missing operand cell, or a depth without a saved
    caller does not decode. *)
 Example source_wrong_pc_rejected : forall stale,
   decodeControl sourceProgram sourceStore 0 (controlShape [] (siteCode (codePosition 1 [] 0)))
-    (sourceMemory stale) (mkBoundary 3 8 8 7 0 0 0 0 0 0) = None.
+    (sourceMemory stale) (mkBoundary 3 8 8 7 0 0 0 0 0 0 0) = None.
 Proof. intros stale. vm_compute. reflexivity. Qed.
 
 Example source_missing_operand_rejected : forall stale,
   decodeControl sourceProgram sourceStore 0 (controlShape [] (siteCode (codePosition 1 [] 0)))
-    (sourceMemory stale) (mkBoundary 2 9 8 7 0 0 0 0 0 0) = None.
+    (sourceMemory stale) (mkBoundary 2 9 8 7 0 0 0 0 0 0 0) = None.
 Proof. intros stale. vm_compute. reflexivity. Qed.
 
 Example source_unsaved_caller_rejected :
   decodeControl sourceProgram sourceStore 0 (controlShape [codePosition 1 [] 1] (siteCode (codePosition 0 [] 0)))
-    (sourceMemory 3) (mkBoundary 0 10 10 9 1 0 0 0 0 0) = None.
+    (sourceMemory 3) (mkBoundary 0 10 10 9 1 0 0 0 0 0 0) = None.
 Proof. vm_compute. reflexivity. Qed.
 
 (* The caller is suspended at its CALL: its local at cell 7, its operand [5] at
@@ -187,7 +187,7 @@ Definition suspendedConfig (calleeFrame : frame) :=
 Example source_initializing_callee_decodes :
   option_map fst (decodeControl sourceProgram sourceStore 0
     (controlShape [codePosition 1 [] 1] (siteEntering 0))
-    (suspendedMemory None) (mkBoundary 0 9 10 9 1 1 0 1 0 0)) =
+    (suspendedMemory None) (mkBoundary 0 9 10 9 1 1 0 1 0 0 0)) =
   Some (suspendedConfig (MKframe [i32Value 0] callModule)).
 Proof. vm_compute. reflexivity. Qed.
 
@@ -195,7 +195,7 @@ Proof. vm_compute. reflexivity. Qed.
 Example source_suspended_call_decodes :
   option_map fst (decodeControl sourceProgram sourceStore 0
     (controlShape [codePosition 1 [] 1] (siteCode (codePosition 0 [] 0)))
-    (suspendedMemory (Some 0)) (mkBoundary 0 10 10 9 1 0 0 0 0 0)) =
+    (suspendedMemory (Some 0)) (mkBoundary 0 10 10 9 1 0 0 0 0 0 0)) =
   Some (suspendedConfig (MKframe [i32Value 0] callModule)).
 Proof. vm_compute. reflexivity. Qed.
 
@@ -235,11 +235,11 @@ Qed.
    split may fall anywhere, including inside the call or its frame initialization. *)
 Example source_program_two_runs : forall stale firstRows lastRows final,
   fieldPrime -> validCircuitRun (sourceMemory stale) (firstRows ++ lastRows) final ->
-  runFragment (mkBoundary 2 8 8 7 0 0 0 0 0 0) 0 firstRows ->
-  runFragment (rowsFinalBoundary (mkBoundary 2 8 8 7 0 0 0 0 0 0) firstRows) 0 lastRows ->
+  runFragment (mkBoundary 2 8 8 7 0 0 0 0 0 0 0) 0 firstRows ->
+  runFragment (rowsFinalBoundary (mkBoundary 2 8 8 7 0 0 0 0 0 0 0) firstRows) 0 lastRows ->
   exists shape c, Steps (stackConfig sourceInitialState [] getCallAdd) c /\ programLoaded sourceProgram final /\
     CircuitConfig sourceProgram sourceStore 0 shape final
-      (rowsFinalBoundary (mkBoundary 2 8 8 7 0 0 0 0 0 0) (firstRows ++ lastRows)) c.
+      (rowsFinalBoundary (mkBoundary 2 8 8 7 0 0 0 0 0 0 0) (firstRows ++ lastRows)) c.
 Proof.
   intros stale firstRows lastRows final Hprime Hrun Hfirst Hlast.
   destruct (valid_run_split _ _ _ _ Hrun) as [between [Hrun1 Hrun2]].

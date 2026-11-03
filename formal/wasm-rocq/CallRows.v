@@ -878,9 +878,11 @@ Proof.
   destruct Hidle as [Hzr Hmr].
   destruct (full_padding_row row Hprime Hfull Hpadding Hzr Hmr)
     as [Hpc [Hsp [Hbase [Hfbp [Hdepth [Hzra [Hmra [Hzaa [Hmaa [Hzab [Hmab [Hdist [Hwrites [Hpush [Hsuspend Hread]]]]]]]]]]]]]]].
+  pose proof (full_host_depth_preserved row COL_PADDING_ACTIVE Hprime Hfull ltac:(cbn; tauto)
+    ltac:(discriminate) ltac:(discriminate) ltac:(discriminate) Hpadding) as Hhost.
   assert (Hboundary : afterBoundary row = beforeBoundary row).
   { unfold afterBoundary, beforeBoundary. rewrite Hpc, Hsp, Hbase, Hfbp, Hdepth, Hzra, Hmra, Hzaa, Hmaa, Hdist,
-      Hzr, Hmr, Hzab, Hmab. reflexivity. }
+      Hzr, Hmr, Hzab, Hmab, Hhost. reflexivity. }
   exists cursor, c0. split; [ reflexivity | ].
   split; [apply steps_refl_wf; eapply control_state_wf; exact Hstate | ].
   rewrite Hboundary. eapply control_state_memory_congr; [ | | exact Hstate].

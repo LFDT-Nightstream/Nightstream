@@ -95,7 +95,7 @@ Definition ifMemory := loadProgram ifProgram (fun memory address =>
     match address with [0] => Some 7 | [1] => Some 0 | [2] => Some 0 | [3] => Some 0 | _ => None end
   else None).
 Definition ifWitness := map rowWitness ifRows.
-Definition ifStart := mkBoundary 0 2 2 0 0 0 0 0 0 0.
+Definition ifStart := mkBoundary 0 2 2 0 0 0 0 0 0 0 0.
 
 Lemma if_run_checks : validRunb ifMemory ifWitness = true.
 Proof. vm_compute. reflexivity. Qed.

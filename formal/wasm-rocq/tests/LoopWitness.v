@@ -81,7 +81,7 @@ Definition loopMemory := loadProgram loopProgram (fun memory address =>
     end
   else None).
 Definition loopWitness := map rowWitness loopRows.
-Definition loopStart := mkBoundary 0 3 3 0 0 0 0 0 0 0.
+Definition loopStart := mkBoundary 0 3 3 0 0 0 0 0 0 0 0.
 
 Lemma loop_run_checks : validRunb loopMemory loopWitness = true.
 Proof. vm_compute. reflexivity. Qed.

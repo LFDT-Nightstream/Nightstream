@@ -87,7 +87,7 @@ Definition returnMemory := loadProgram returnProgram (fun memory address =>
   if Nat.eqb memory stackId then match address with [0] => Some 7 | [1] => Some 0 | _ => None end
   else None).
 Definition returnWitness := map rowWitness earlyReturnRows.
-Definition returnStart := mkBoundary 0 1 1 0 0 0 0 0 0 0.
+Definition returnStart := mkBoundary 0 1 1 0 0 0 0 0 0 0 0.
 
 Lemma return_run_checks : validRunb returnMemory returnWitness = true.
 Proof. vm_compute. reflexivity. Qed.

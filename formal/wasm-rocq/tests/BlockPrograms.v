@@ -189,13 +189,13 @@ Qed.
 Example conditional_initial_config : forall condition,
   0 <= condition < i32Modulus ->
   CircuitConfig conditionalProgram conditionalStore 0 (controlShape [] (siteCode (codePosition 0 [] 0)))
-    (conditionalMemory condition) (mkBoundary 0 9 9 7 0 0 0 0 0 0)
+    (conditionalMemory condition) (mkBoundary 0 9 9 7 0 0 0 0 0 0 0)
     (stackConfig (conditionalState condition) [] conditionalCode).
 Proof.
   intros condition Hcondition.
   apply (function_start_config conditionalProgram conditionalStore 0
     (mkGuestFunction 0%N conditionalModule (mk_uN 0) 0 1 2 conditionalCode 0) [condition; 9] _
-    (mkBoundary 0 9 9 7 0 0 0 0 0 0)); try reflexivity; try (cbn; lia).
+    (mkBoundary 0 9 9 7 0 0 0 0 0 0 0)); try reflexivity; try (cbn; lia).
   - repeat constructor.
   - split; [constructor; [apply (conditional_function_validates 0) | constructor] | exact conditional_program_supported].
   - repeat constructor; unfold i32Modulus in *; lia.
@@ -208,12 +208,12 @@ Qed.
 Example conditional_program_refines : forall condition rows final,
   fieldPrime -> 0 <= condition < i32Modulus ->
   validCircuitRun (conditionalMemory condition) rows final ->
-  runFragment (mkBoundary 0 9 9 7 0 0 0 0 0 0) 0 rows ->
+  runFragment (mkBoundary 0 9 9 7 0 0 0 0 0 0 0) 0 rows ->
   exists shape c,
     Steps (stackConfig (conditionalState condition) [] conditionalCode) c /\
     programLoaded conditionalProgram final /\
     CircuitConfig conditionalProgram conditionalStore 0 shape final
-      (rowsFinalBoundary (mkBoundary 0 9 9 7 0 0 0 0 0 0) rows) c.
+      (rowsFinalBoundary (mkBoundary 0 9 9 7 0 0 0 0 0 0 0) rows) c.
 Proof.
   intros condition rows final Hprime Hcondition Hrun Hfragment.
   exact (active_run_refinement conditionalProgram conditionalStore 0 _ rows (conditionalMemory condition) final _ _ Hprime

@@ -4,7 +4,7 @@
 From Stdlib Require Import List ZArith Lia.
 Require Import R1CS Columns FullRelation Range MemoryTrace MemoryCatalog TraceRefinement Wasm2
   StraightLineSpec StackSimulation SpecTecCalls CallerSpec CallerRefinement ProgramSpec ProgramEncoding ControlDecode
-  ControlInvariant ControlBridge ProgramRefinement ExecutionSpec TerminalRows.
+  ControlInvariant ControlBridge ProgramRefinement ExecutionSpec TerminalRows CallInitialization.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -20,7 +20,7 @@ Qed.
 Lemma execution_rows_split : forall baseDepth rows,
   executionRows baseDepth rows ->
   Forall (callerRow baseDepth) rows \/ exists prefix last,
-    rows = prefix ++ [last] /\ Forall (callerRow baseDepth) prefix /\ terminalRow baseDepth last.
+    rows = prefix ++ [last] /\ Forall (callerRow baseDepth) prefix /\ terminalRow last.
 Proof.
   intros baseDepth rows. induction rows as [ | row rows IH]; intros Hrows; [left; constructor | ].
   destruct rows as [ | next rest].
@@ -48,6 +48,33 @@ Proof.
       inversion Hchain; subst; assumption.
 Qed.
 
+Lemma caller_row_host_depth : forall depth row,
+  fieldPrime -> FullRelation.satFull row -> callerRow depth row ->
+  row COL_HOST_FRAME_DEPTH_AFTER = row COL_HOST_FRAME_DEPTH_BEFORE.
+Proof.
+  intros depth row Hprime Hfull [[Hp | [Hz | [Hm | Hpad]]] _].
+  all: match goal with H : value ?w ?kind = 1 |- _ =>
+    exact (full_host_depth_preserved w kind Hprime Hfull ltac:(cbn; tauto)
+      ltac:(discriminate) ltac:(discriminate) ltac:(discriminate) H)
+  end.
+Qed.
+
+Lemma running_host_depth_preserved : forall depth rows boundary,
+  fieldPrime -> Forall FullRelation.satFull rows -> Chain continuityLinks rows ->
+  runStartsAt boundary rows -> Forall (callerRow depth) rows ->
+  boundaryHostDepth (rowsFinalBoundary boundary rows) = boundaryHostDepth boundary.
+Proof.
+  intros depth rows. induction rows as [ | row rest IH]; intros boundary Hprime Hfull Hchain Hstart Hrows;
+    [reflexivity | ].
+  cbn [runStartsAt] in Hstart. subst boundary. cbn [rowsFinalBoundary].
+  rewrite (IH (afterBoundary row) Hprime (Forall_inv_tail Hfull)).
+  - exact (caller_row_host_depth depth row Hprime (Forall_inv Hfull) (Forall_inv Hrows)).
+  - eapply chain_suffix with (prefix := [row]); exact Hchain.
+  - destruct rest as [ | next rest]; [exact I | ]. cbn [runStartsAt]. symmetry. apply follows_boundary.
+    inversion Hchain; subst; assumption.
+  - exact (Forall_inv_tail Hrows).
+Qed.
+
 Theorem run_refinement : forall program s caller baseDepth root shape rows initial final boundary c0,
   fieldPrime -> programLoaded program initial -> validCircuitRun initial rows final ->
   executionFragment boundary baseDepth rows ->
@@ -56,7 +83,7 @@ Theorem run_refinement : forall program s caller baseDepth root shape rows initi
     ExecutionConfig program s caller baseDepth root final (rowsFinalBoundary boundary rows) rows outcome c1.
 Proof.
   intros program s caller baseDepth root shape rows initial final boundary c0 Hprime Hloaded Hrun [Hstart Hrows]
-    [Hcaller [HrootShape [f [inner [Hroot [Hconfig ->]]]]]].
+    [Hhost [Hcaller [HrootShape [f [inner [Hroot [Hconfig ->]]]]]]].
   pose proof Hconfig as [Hstore [Hwf [Hvalid _]]].
   destruct (circuit_config_state _ _ _ _ _ _ _ Hconfig) as [cursor [Hshape Hstate]].
   assert (HrootCursor : cursorRoot cursor = root) by (rewrite <- shape_root_cursor, Hshape; exact HrootShape).
@@ -70,6 +97,9 @@ Proof.
     split.
     { unfold lastRow. pose proof (Forall_rev Hactive) as Hrev.
       destruct (rev rows) as [ | last rest]; [exact I | exact (proj1 (proj2 (Forall_inv Hrev)))]. }
+    split.
+    { rewrite (running_host_depth_preserved baseDepth rows boundary Hprime (proj1 Hrun)
+        (proj1 (proj2 Hrun)) Hstart Hactive). exact Hhost. }
     split; [exact Hcaller | ]. split; [rewrite shape_root_cursor, Hroot'; exact HrootCursor | ].
     exists f, inner'. split; [exact Hroot | ]. split; [ | reflexivity].
     apply control_state_circuit; assumption.
@@ -79,11 +109,15 @@ Proof.
       as [cursor' [inner' [Hroot' [Hsteps [HloadedMiddle Hstate']]]]].
     assert (Hboundary : rowsFinalBoundary boundary prefix = beforeBoundary row)
       by (eapply boundary_before_last; [exact (proj1 (proj2 Hrun)) | exact Hstart]).
+    assert (HhostRow : row COL_HOST_FRAME_DEPTH_BEFORE = baseDepth).
+    { change (boundaryHostDepth (beforeBoundary row) = baseDepth). rewrite <- Hboundary.
+      rewrite (running_host_depth_preserved baseDepth prefix boundary Hprime (proj1 HrunPrefix)
+        (proj1 (proj2 HrunPrefix)) (prefix_starts_at _ _ _ Hstart) Hprefix). exact Hhost. }
     rewrite Hboundary in Hstate'.
     destruct HrunRow as [Hsat [_ Hreplay]].
     cbn [eventsForTrace flat_map] in Hreplay. rewrite app_nil_r in Hreplay.
     destruct (terminal_control_row program s baseDepth cursor' root f middle final row inner' caller Hstore Hwf Hvalid
-      Hprime HloadedMiddle (Forall_inv Hsat) Hreplay Hterminal Hcaller Hroot ltac:(congruence) Hstate')
+      Hprime HloadedMiddle (Forall_inv Hsat) Hreplay Hterminal HhostRow Hcaller Hroot ltac:(congruence) Hstate')
       as [outcome [c1 [HterminalSteps HterminalConfig]]].
     exists outcome, c1. split.
     + eapply spec_steps_transitive; [apply steps_in_call_frame; eassumption | exact HterminalSteps].

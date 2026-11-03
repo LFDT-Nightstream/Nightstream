@@ -14,7 +14,7 @@ Definition witnessShape := controlShape [] (siteCode (codePosition 1 [] 0)).
 Definition witnessEntry :=
   stackConfig (mk_state blockStore (enteredFrame blockModule [] 1)) [] callerBody.
 
-Lemma witness_start : witnessStart = mkBoundary 2 1 1 0 0 0 0 0 0 0.
+Lemma witness_start : witnessStart = mkBoundary 2 1 1 0 0 0 0 0 0 0 0.
 Proof. vm_compute. reflexivity. Qed.
 
 Lemma witness_fragment : runFragment witnessStart 0 witnessRows.

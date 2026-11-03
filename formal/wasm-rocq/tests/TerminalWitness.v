@@ -62,7 +62,7 @@ Proof.
   intros Hprime.
   assert (Hstart : ActivationConfig nopProgram nopStore (outerFrame nopModule) 0 0 entryShape nopCompleteMemory nopStart
       (callContext (outerFrame nopModule) 1 (stackConfig (mk_state nopStore (activeFrame nopGuest [7])) [] nopCode))).
-  { split; [repeat constructor | ]. split; [reflexivity | ]. exists nopGuest, (stackConfig (mk_state nopStore (activeFrame nopGuest [7])) [] nopCode).
+  { split; [reflexivity | ]. split; [repeat constructor | ]. split; [reflexivity | ]. exists nopGuest, (stackConfig (mk_state nopStore (activeFrame nopGuest [7])) [] nopCode).
     split; [reflexivity | ]. split; [exact nop_complete_start | reflexivity]. }
   destruct (run_refinement _ _ _ _ _ _ _ _ _ _ _ Hprime (load_program_loaded _ _)
     (validRunb_sound _ _ nop_complete_valid) nop_complete_fragment Hstart)
@@ -120,7 +120,7 @@ Qed.
 
 Definition trapMemory := loadProgram trapProgram (fun _ _ => Some 0).
 Definition trapWitness := map rowWitness trapRows.
-Definition trapStart := mkBoundary 0 0 0 0 0 0 0 0 0 0.
+Definition trapStart := mkBoundary 0 0 0 0 0 0 0 0 0 0 0.
 Lemma trap_run_valid : validRunb trapMemory trapWitness = true.
 Proof. vm_compute. reflexivity. Qed.
 Lemma trap_run_fragment : executionFragment trapStart 0 trapWitness.
@@ -144,7 +144,7 @@ Proof.
   intros Hprime.
   assert (Hstart : ActivationConfig trapProgram trapStore (outerFrame trapModule) 0 0 entryShape trapMemory trapStart
       (callContext (outerFrame trapModule) 0 (stackConfig (mk_state trapStore (activeFrame trapGuest [])) [] trapMainCode))).
-  { split; [repeat constructor | ]. split; [reflexivity | ]. exists trapGuest, (stackConfig (mk_state trapStore (activeFrame trapGuest [])) [] trapMainCode).
+  { split; [reflexivity | ]. split; [repeat constructor | ]. split; [reflexivity | ]. exists trapGuest, (stackConfig (mk_state trapStore (activeFrame trapGuest [])) [] trapMainCode).
     split; [reflexivity | ]. split; [exact trap_start_config | reflexivity]. }
   destruct (run_refinement _ _ _ _ _ _ _ _ _ _ _ Hprime (load_program_loaded _ _)
     (validRunb_sound _ _ trap_run_valid) trap_run_fragment Hstart)

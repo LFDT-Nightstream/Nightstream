@@ -77,7 +77,7 @@ Proof.
   assert (Hstart : ActivationConfig baseReturnProgram baseReturnStore (outerFrame nopModule) 0 0 entryShape
       baseReturnMemory nopStart (callContext (outerFrame nopModule) 1
         (stackConfig (mk_state baseReturnStore (activeFrame baseReturnGuest [7])) [] baseReturnCode))).
-  { split; [repeat constructor | ]. split; [reflexivity | ]. exists baseReturnGuest, (stackConfig (mk_state baseReturnStore (activeFrame baseReturnGuest [7])) [] baseReturnCode).
+  { split; [reflexivity | ]. split; [repeat constructor | ]. split; [reflexivity | ]. exists baseReturnGuest, (stackConfig (mk_state baseReturnStore (activeFrame baseReturnGuest [7])) [] baseReturnCode).
     split; [reflexivity | ]. split; [exact base_return_initial | reflexivity]. }
   destruct (run_refinement _ _ _ _ _ _ _ _ _ _ _ Hprime (load_program_loaded _ _)
     (validRunb_sound _ _ base_return_valid_run) base_return_fragment Hstart) as [outcome [c [Hsteps [_ Hconfig]]]].
@@ -125,7 +125,7 @@ Proof.
   intros Hprime.
   assert (Hstart : ActivationConfig voidProgram voidStore (outerFrame voidModule) 0 0 entryShape voidMemory trapStart
       (callContext (outerFrame voidModule) 0 (stackConfig (mk_state voidStore (activeFrame voidGuest [])) [] [NOP]))).
-  { split; [repeat constructor | ]. split; [reflexivity | ]. exists voidGuest, (stackConfig (mk_state voidStore (activeFrame voidGuest [])) [] [NOP]).
+  { split; [reflexivity | ]. split; [repeat constructor | ]. split; [reflexivity | ]. exists voidGuest, (stackConfig (mk_state voidStore (activeFrame voidGuest [])) [] [NOP]).
     split; [reflexivity | ]. split; [exact void_initial | reflexivity]. }
   destruct (run_refinement _ _ _ _ _ _ _ _ _ _ _ Hprime (load_program_loaded _ _)
     (validRunb_sound _ _ void_valid_run) void_fragment Hstart) as [outcome [c [Hsteps [_ Hconfig]]]].

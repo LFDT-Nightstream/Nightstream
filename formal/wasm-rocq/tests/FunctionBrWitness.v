@@ -87,7 +87,7 @@ Definition branchMemory := loadProgram branchProgram (fun memory address =>
     match address with [0] => Some 7 | [1] => Some 0 | [2] => Some 9 | [3] => Some 0 | _ => None end
   else None).
 Definition branchWitness := map rowWitness functionBrRows.
-Definition branchStart := mkBoundary 0 2 2 0 0 0 0 0 0 0.
+Definition branchStart := mkBoundary 0 2 2 0 0 0 0 0 0 0 0.
 
 Lemma branch_run_checks : validRunb branchMemory branchWitness = true.
 Proof. vm_compute. reflexivity. Qed.

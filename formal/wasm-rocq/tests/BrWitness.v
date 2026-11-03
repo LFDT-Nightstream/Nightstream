@@ -76,7 +76,7 @@ Definition brMemory := loadProgram brProgram (fun memory address =>
     match address with [0] => Some 7 | [1] => Some 0 | [2] => Some 9 | [3] => Some 0 | _ => None end
   else None).
 Definition brWitness := map rowWitness brRows.
-Definition brStart := mkBoundary 0 2 2 0 0 0 0 0 0 0.
+Definition brStart := mkBoundary 0 2 2 0 0 0 0 0 0 0 0.
 
 Lemma br_run_checks : validRunb brMemory brWitness = true.
 Proof. vm_compute. reflexivity. Qed.

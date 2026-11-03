@@ -11,14 +11,14 @@ Open Scope Z_scope.
 Lemma terminal_control_row : forall program s baseDepth cursor root f initial final row inner caller,
   store_FUNCS s = program -> wf_store s -> programValidated program s ->
   fieldPrime -> programLoaded program initial -> FullRelation.satFull row ->
-  Replay initial (eventsForRow memories row) final -> terminalRow baseDepth row -> wf_frame caller ->
+  Replay initial (eventsForRow memories row) final -> terminalRow row -> row COL_HOST_FRAME_DEPTH_BEFORE = baseDepth -> wf_frame caller ->
   functionAt program root = Some f -> cursorRoot cursor = root ->
   ControlState program s baseDepth cursor initial (beforeBoundary row) inner ->
   exists outcome c1, Steps (callContext caller (N.of_nat (guestResults f)) inner) c1 /\
     TerminalConfig s caller row outcome c1.
 Proof.
   intros program s baseDepth [stack position] root base initial final row inner caller Hstore Hwf Hvalid Hprime
-    Hloaded Hfull Hreplay [Hprogram [Hfinish Hhost]] Hcaller Hroot Hindex
+    Hloaded Hfull Hreplay [Hprogram Hfinish] Hhost Hcaller Hroot Hindex
     [f [active [Hf [Hstate [Hsusp [Hbase0 [Hdepth ->]]]]]]].
   cbn [activePosition suspendedCalls] in Hf, Hstate, Hsusp, Hdepth.
   cbn [beforeBoundary boundaryCallDepth boundaryLocalsBase] in Hsusp, Hdepth.

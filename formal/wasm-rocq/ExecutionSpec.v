@@ -11,22 +11,23 @@ Fixpoint rootSite (sites : list CodePosition) (active : nat) : nat :=
 
 Definition shapeRoot (shape : ControlShape) : nat := rootSite (callSites shape) (siteFunction (activeSite shape)).
 
+(* Host depth identifies this activation's base; guest rows preserve it. *)
 Definition ActivationConfig (program : Program) (s : store) (caller : frame) (baseDepth : Z)
     (root : nat) (shape : ControlShape) (memory : MemoryState) (boundary : Boundary) (c : config) : Prop :=
+  boundaryHostDepth boundary = baseDepth /\
   wf_frame caller /\ shapeRoot shape = root /\
   exists f inner, functionAt program root = Some f /\
     CircuitConfig program s baseDepth shape memory boundary inner /\
     c = callContext caller (N.of_nat (guestResults f)) inner.
 
-Definition terminalRow (baseDepth : Z) (row : Witness) : Prop :=
-  row COL_IS_PROGRAM_ROW = 1 /\ row COL_ACTIVATION_FINISHED_AFTER = 1 /\
-  row COL_HOST_FRAME_DEPTH_BEFORE = baseDepth.
+Definition terminalRow (row : Witness) : Prop :=
+  row COL_IS_PROGRAM_ROW = 1 /\ row COL_ACTIVATION_FINISHED_AFTER = 1.
 
 Fixpoint executionRows (baseDepth : Z) (rows : list Witness) : Prop :=
   match rows with
   | [] => True
   | row :: rest =>
-      match rest with [] => callerRow baseDepth row \/ terminalRow baseDepth row
+      match rest with [] => callerRow baseDepth row \/ terminalRow row
       | _ => callerRow baseDepth row /\ executionRows baseDepth rest end
   end.
 

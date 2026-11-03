@@ -87,7 +87,7 @@ Definition tableMemory := loadProgram tableProgram (fun memory address =>
     match address with [0] => Some 7 | [1] => Some 0 | [2] => Some 1 | [3] => Some 0 | _ => None end
   else None).
 Definition tableWitness := map rowWitness brTableRows.
-Definition tableStart := mkBoundary 0 2 2 0 0 0 0 0 0 0.
+Definition tableStart := mkBoundary 0 2 2 0 0 0 0 0 0 0 0.
 
 Lemma table_run_checks : validRunb tableMemory tableWitness = true.
 Proof. vm_compute. reflexivity. Qed.

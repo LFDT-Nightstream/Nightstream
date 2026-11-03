@@ -71,7 +71,7 @@ Definition nopMemory := loadProgram nopProgram (fun memory address =>
   if Nat.eqb memory stackId then match address with [0] => Some 7 | [1] => Some 0 | _ => None end
   else None).
 Definition nopWitness := map rowWitness nopRows.
-Definition nopStart := mkBoundary 0 1 1 0 0 0 0 0 0 0.
+Definition nopStart := mkBoundary 0 1 1 0 0 0 0 0 0 0 0.
 
 Lemma nop_run_checks : validRunb nopMemory nopWitness = true.
 Proof. vm_compute. reflexivity. Qed.

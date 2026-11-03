@@ -15,10 +15,10 @@ use std::num::NonZeroUsize;
 use neo_ccs::CcsMatrix;
 use neo_math::F;
 use nightstream::nebula::{
-    batched_slots, Application, CatalogBinding, CatalogBindingError, Expr, Geometry, Memory, MemoryKind,
-    MemoryPortActivation, Program, R1csApplication, R1csApplicationError, R1csStepError, Region, RowRelation, Size,
-    Terms, Transition, View,
+    batched_slots, Application, CatalogBinding, CatalogBindingError, Expr, Geometry, Memory, Program, R1csApplication,
+    R1csApplicationError, R1csStepError, Region, RowRelation, Size, Terms, Transition, View,
 };
+use nightstream::relation::{MemoryKind, MemoryPortActivation};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 use crate::batch::{build_batched_witness, single_wasm_relation, BatchError};
@@ -70,6 +70,7 @@ pub enum WasmApplicationError {
 impl From<R1csApplicationError> for WasmApplicationError {
     fn from(error: R1csApplicationError) -> Self {
         match error {
+            R1csApplicationError::Matrix => Self::Matrix,
             R1csApplicationError::Binding(error) => Self::Binding(error),
         }
     }

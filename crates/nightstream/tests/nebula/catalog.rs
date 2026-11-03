@@ -16,9 +16,12 @@ use crate::application::ApplicationCircuit;
 use crate::nebula::circuit::memory_circuit;
 use crate::nebula::segment::initial_memory;
 use crate::nebula::{
-    Application, CatalogBinding, CatalogBindingError, CatalogRowError, ColumnFamilySpec, ColumnRegistry, ColumnWidth,
-    Expr, Geometry, Invocation, Memory, MemoryCatalog, MemoryKind, MemoryPortActivation, MemoryPortKind,
-    MemoryPortSpec, MemoryPreload, MemorySpec, PortAccess, Program, Region, Run, Transition, View,
+    Application, CatalogBinding, CatalogBindingError, CatalogRowError, Expr, Geometry, Invocation, Memory, PortAccess,
+    Program, Region, Run, Transition, View,
+};
+use crate::relation::{
+    ColumnFamilySpec, ColumnRegistry, ColumnWidth, MemoryCatalog, MemoryKind, MemoryPortActivation, MemoryPortKind,
+    MemoryPortSpec, MemoryPreload, MemorySpec,
 };
 
 const FETCH: usize = 0;

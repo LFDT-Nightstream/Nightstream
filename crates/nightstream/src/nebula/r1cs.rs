@@ -14,7 +14,8 @@
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 
-use neo_application::{ContinuityCatalog, MemoryCatalog};
+use neo_application::{ContinuityCatalog, MemoryCatalog, R1csRelation};
+use neo_ccs::CcsMatrix;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks as F;
 
@@ -36,6 +37,30 @@ pub struct RowRelation {
     pub rows: Vec<[Terms; 3]>,
     pub width: usize,
     pub one: usize,
+}
+
+impl RowRelation {
+    /// The rank-one rows of a relation that the relation builders made
+    /// (`crate::relation::R1csBuilder`), with its constant-one column.
+    pub fn of<Owner>(relation: &R1csRelation<Owner>) -> Result<Self, R1csApplicationError> {
+        let structure = relation.structure();
+        let mut rows = vec![[Terms::new(), Terms::new(), Terms::new()]; structure.n()];
+        for (side, matrix) in structure.matrices().iter().take(3).enumerate() {
+            let CcsMatrix::Csc(csc) = matrix else {
+                return Err(R1csApplicationError::Matrix);
+            };
+            for column in 0..csc.ncols() {
+                for entry in csc.column_range(column) {
+                    rows[csc.row_index(entry)][side].push((column, csc.vals()[entry]));
+                }
+            }
+        }
+        Ok(Self {
+            rows,
+            width: relation.column_count(),
+            one: relation.const_one_column(),
+        })
+    }
 }
 
 /// One fixed circuit of an `R1csApplication`: its geometry, the rows of each
@@ -95,6 +120,8 @@ pub struct R1csApplication<Id> {
 
 #[derive(Debug, thiserror::Error)]
 pub enum R1csApplicationError {
+    #[error("a matrix of the relation is not in CSC form")]
+    Matrix,
     #[error(transparent)]
     Binding(#[from] CatalogBindingError),
 }

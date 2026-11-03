@@ -36,10 +36,7 @@ pub use expr::Expr;
 pub use geometry::Geometry;
 #[cfg(test)]
 pub(crate) use machine::{Machine, MachineError, MachineState, Step};
-pub use neo_application::{
-    ColumnFamilySpec, ColumnRegistry, ColumnRegistryError, ColumnWidth, MemoryCatalog, MemoryCatalogError, MemoryKind,
-    MemoryPortActivation, MemoryPortKind, MemoryPortSpec, MemoryPreload, MemorySpec,
-};
+use neo_application::MemoryPreload;
 pub use proving::{FinalProof, Proof, ProveError, Prover, Proving, Verified, Verifier, VerifyError};
 pub use r1cs::{batched_slots, R1csApplication, R1csApplicationError, R1csStepError, RowRelation, Size, Terms};
 pub use records::PortAccess;

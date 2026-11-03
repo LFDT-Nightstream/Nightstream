@@ -8,6 +8,7 @@ mod engine;
 mod folding;
 mod lifecycle;
 pub mod nebula;
+pub mod relation;
 
 pub use circuit::{ApplicationSize, Circuit, CompressionKey, CompressionSetup, Error, Prover, Verifier};
 pub use engine::{Engine, EngineError};

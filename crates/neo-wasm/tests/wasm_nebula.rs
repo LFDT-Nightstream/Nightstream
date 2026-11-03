@@ -27,9 +27,10 @@ use neo_wasm::{
     WasmMemoryId, WasmMemoryPreload, WasmStepState,
 };
 use nightstream::nebula::{
-    size_parts, Application, CatalogRowError, Expr, Geometry, Memory, MemoryPortActivation, MemoryPortKind, Program,
-    R1csStepError, Region, Run, SegmentError, Transition, View,
+    size_parts, Application, CatalogRowError, Expr, Geometry, Memory, Program, R1csStepError, Region, Run,
+    SegmentError, Transition, View,
 };
+use nightstream::relation::{MemoryPortActivation, MemoryPortKind};
 use p3_field::PrimeCharacteristicRing;
 
 /// Stack and linear-memory traffic: store 42 at address 0, then load it.

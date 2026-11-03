@@ -525,6 +525,30 @@ fn production_relation(key: &Key, bound: u32, bits: f64) -> Relation<'_> {
     Relation::new(key, 270 / D, 28, bound, bits).unwrap()
 }
 
+/// Option B's two layer-1 relations, from the keys that nightstream's
+/// `option_b_layer1_keys_are_written` writes: their JSON for `optionBCheck`
+/// and Lean's key facts.
+#[test]
+#[ignore = "needs nightstream's option_b_layer1_keys_are_written and lake build lowerCheck"]
+fn option_b_layer1_matches_lean() {
+    for slot in 0..2 {
+        let name = format!("option_b_layer1_{slot}");
+        let bytes = std::fs::read(workspace().join(format!("target/lean-lowering/{name}.bin")))
+            .unwrap_or_else(|error| panic!("{name}.bin: {error}; run option_b_layer1_keys_are_written first"));
+        let (key, bound, bits): (Key, u32, f64) = bincode::deserialize(&bytes).unwrap();
+        let relation = production_relation(&key, bound, bits);
+        let layer1 = Layer1::shape(&relation);
+        let path = export(&name, &layer1);
+        let input = workspace().join(format!("target/lean-lowering/{name}.json"));
+        std::fs::write(&input, layer1_input(&relation)).unwrap();
+        let stdout = lower_check(&name, &path, &["layer1".into(), input]);
+        assert!(
+            stdout.contains("key facts hold"),
+            "{name} must have the key facts: {stdout}"
+        );
+    }
+}
+
 /// The run digest of the layer-1 verifier's shape run, as `lowerCheck`
 /// computes it from Lean's program (`digest` on its `layer1` line). Update a
 /// pin only after its Lean check passes, from that line: the toy's in

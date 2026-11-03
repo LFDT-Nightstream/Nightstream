@@ -186,13 +186,13 @@ theorem build_honest (s : Layer1.Shape) (D : s.D = ringDegree) (lanes : s.laneVa
 theorem parentShape_of (s : Layer1.Shape) (lw : ℕ) (D : s.D = ringDegree) (lanes : s.laneVars = 6)
     (kappa : s.kappa = Production.kappa) (matrices : s.matrices = Production.matrices)
     (publicBlocks : s.publicBlocks = Production.publicBlocks) (blocks : s.blocks = Phi81ColumnLayout.blockCount lw)
-    (norm : s.normBound = Production.normBound) : ParentShape s lw where
+    (norm : s.normBound < Production.normLimit) : ParentShape s lw where
   D := D
   laneVars := lanes
   kappa := kappa
   matrices := matrices
   publicBlocks := publicBlocks
   blocks := by rw [blocks, Phi81CarrierLayout.blockCount_carrierWidth]
-  norm := by rw [norm]; decide
+  norm := Production.normLimit_eq ▸ norm
 
 end CompressionLean.Final

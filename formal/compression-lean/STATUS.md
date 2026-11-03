@@ -120,7 +120,7 @@ Parameters: `{pushes : List CompressionLean.Setup.Push}`.
 
 ## Ports
 
-`ports.json` has 570 entries: 517 Lean declarations transcribe 302 Rust items.
+`ports.json` has 601 entries: 537 Lean declarations transcribe 328 Rust items.
 
 | Lean module | Declarations |
 |---|---:|
@@ -146,6 +146,7 @@ Parameters: `{pushes : List CompressionLean.Setup.Push}`.
 | `CompressionLean.Ports.Circuit.Views` | 17 |
 | `CompressionLean.Ports.Circuit.Whir` | 19 |
 | `CompressionLean.Ports.Layer1.Budget` | 5 |
+| `CompressionLean.Ports.OptionB.Program` | 20 |
 | `CompressionLean.Ports.Replay.Data` | 39 |
 | `CompressionLean.Ports.Replay.Field` | 16 |
 | `CompressionLean.Ports.Replay.Formulas` | 39 |
@@ -197,12 +198,17 @@ Parameters: `{pushes : List CompressionLean.Setup.Push}`.
 | `crates/neo-spartan/tests/internal/lowering.rs` | 3 |
 | `crates/neo-spartan/tests/internal/replay.rs` | 7 |
 | `crates/neo-spartan/tests/internal/setup_columns.rs` | 1 |
-| `crates/neo-transcript/src/poseidon2.rs` | 1 |
+| `crates/neo-transcript/src/poseidon2.rs` | 2 |
+| `crates/nightstream-fprime/src/option_b.rs` | 6 |
+| `crates/nightstream-fprime/src/option_b/expand.rs` | 3 |
+| `crates/nightstream-fprime/src/option_b/words.rs` | 1 |
 | `crates/nightstream-fprime/src/package.rs` | 5 |
 | `crates/nightstream-fprime/src/package/r1cs.rs` | 3 |
 | `crates/nightstream-fprime/src/package/terminal.rs` | 2 |
 | `crates/nightstream-fprime/src/package/v1_2.rs` | 1 |
 | `crates/nightstream/src/lifecycle/inputs.rs` | 2 |
+| `crates/nightstream/src/lifecycle/option_b/compression.rs` | 2 |
+| `crates/nightstream/src/lifecycle/option_b/final_program.rs` | 13 |
 | `crates/nightstream/src/lifecycle/terminal/mod.rs` | 1 |
 | `crates/nightstream/src/lifecycle/terminal/package.rs` | 5 |
 | `crates/nightstream/tests/lifecycle_native/setup_runs.rs` | 4 |

@@ -7,6 +7,8 @@
 #[path = "../option_b_support/mod.rs"]
 mod support;
 
+mod final_ir;
+
 use super::{Envelope, OptionB, OptionBError};
 use crate::application::{poseidon2_hash_chain_v1, Affine, ApplicationBuilder, ApplicationCircuit};
 use neo_ajtai::nightstream_fprime_setup::commit_production_signed_unit_prefix_matrix;

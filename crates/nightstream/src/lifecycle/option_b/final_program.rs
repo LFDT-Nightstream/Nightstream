@@ -3,9 +3,11 @@
 //! the last fold, then the layer-1 verifier of each slot's claim. The shrink
 //! prover records it; `verify_final` runs it again.
 //!
-//! The rows are the package's relation rows as one R1CS block, and each
-//! Poseidon2 block as a permutation of its input lanes into its output
-//! locals, which is what the block's S-box and binding rows encode. The
+//! The rows are the package's relation rows as one R1CS block, each port in
+//! Lean's form (`side`), and each Poseidon2 block as a permutation of its
+//! input lanes into its output locals, which is what the block's S-box and
+//! binding rows encode. Lean's copy is `Ports/OptionB/Program.lean` in
+//! `formal/compression-lean`. The
 //! statement and the state keys are bound to their shared words; the slot
 //! claims that layer 1 reads are the next slots that the slot select fixes.
 
@@ -41,13 +43,8 @@ impl Finish {
         let rows: PlanRows = package.plan_rows()?;
         let mut system = R1cs::new(package.sbox_start());
         let binding = rows.binding_rows();
-        let side = |row, port| -> Vec<(usize, u64)> {
-            rows.port(row, port)
-                .map(|(column, value)| (column, value.as_canonical_u64()))
-                .collect()
-        };
         for row in (0..rows.ordinary_row_count()).filter(|row| !binding.contains(row)) {
-            system.push(&side(row, 0), &side(row, 1), &side(row, 2));
+            system.push(&side(&rows, row, 0), &side(&rows, row, 1), &side(&rows, row, 2));
         }
         Ok(Self { package, system })
     }
@@ -71,6 +68,25 @@ impl Finish {
     fn witness_words(&self) -> usize {
         self.package.witness_words()
     }
+}
+
+/// One port of a plan row in Lean's form (`Terminal.Package.side`): sorted by
+/// column, equal columns summed, zero sums dropped.
+fn side(rows: &PlanRows, row: usize, port: usize) -> Vec<(usize, u64)> {
+    let mut entries: Vec<(usize, F)> = rows.port(row, port).collect();
+    entries.sort_by_key(|&(column, _)| column);
+    let mut merged: Vec<(usize, F)> = Vec::with_capacity(entries.len());
+    for (column, value) in entries {
+        match merged.last_mut() {
+            Some(last) if last.0 == column => last.1 += value,
+            _ => merged.push((column, value)),
+        }
+    }
+    merged
+        .into_iter()
+        .filter(|&(_, value)| value != F::ZERO)
+        .map(|(column, value)| (column, value.as_canonical_u64()))
+        .collect()
 }
 
 /// What the prover adds to a run: the finish columns and both layer-1 proofs.

@@ -25,6 +25,12 @@ theorem pointVariables_eq : pointVariables = 28 := rfl
 
 abbrev normBound : ℕ := 3672
 
+/-- `B = 2^16` (`productionGlobalParams.bigB`, `k_rho = 16`). Each layer-1 relation's honest bound
+lies below it: today's 3,672 and option B's 17,496 (`compression.rs::compression_bound`). -/
+abbrev normLimit : ℕ := 65536
+
+theorem normLimit_eq : normLimit = productionGlobalParams.bigB := by decide
+
 abbrev poseidon2Width : ℕ := PerApplicationFixedPoint.logicalWidth Poseidon2HashChainV1Package.application
 
 theorem poseidon2Width_eq : poseidon2Width = 43963750 := Poseidon2HashChainV1Package.logicalWidth

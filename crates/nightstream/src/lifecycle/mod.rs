@@ -169,5 +169,8 @@ enum ProofState {
     },
 }
 #[cfg(test)]
+#[path = "../../tests/option_b_lifecycle/ir_log.rs"]
+mod ir_log;
+#[cfg(test)]
 #[path = "../../tests/lifecycle_native/mod.rs"]
 mod tests;

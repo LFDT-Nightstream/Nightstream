@@ -77,7 +77,7 @@ structure ProductionConstants (rel : Replay.Relation) : Prop where
   blocks : rel.publicBlocks = Production.publicBlocks
   point : rel.pointVariables = Production.pointVariables
   matrices : rel.matrices = Production.matrices
-  norm : rel.normBound = Production.normBound
+  norm : rel.normBound < Production.normLimit
 
 structure KeyFacts (key : Layer1Key) : Prop where
   circuit : CircuitFacts key.relation key.p1Key key.p0Key
@@ -109,7 +109,7 @@ def keyChecks (key : Layer1Key) : List Fact :=
     ⟨"blocks", rel.publicBlocks = Production.publicBlocks⟩,
     ⟨"point", rel.pointVariables = Production.pointVariables⟩,
     ⟨"matrices", rel.matrices = Production.matrices⟩,
-    ⟨"norm", rel.normBound = Production.normBound⟩,
+    ⟨"norm", rel.normBound < Production.normLimit⟩,
     ⟨"shape", (shapeOf rel).Sizes NightstreamFPrime.Spec.goldilocksModulus⟩]
 
 def keyFailure (key : Layer1Key) : Option String :=

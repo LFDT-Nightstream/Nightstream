@@ -26,8 +26,8 @@ pub(super) const SEED_DOMAIN: &[u8] = b"Nightstream/OptionB/compression/v1";
 #[derive(Clone)]
 pub(crate) struct Keys {
     pub(super) layer1: [neo_spartan::Key; 2],
-    bound: u32,
-    layer_bits: f64,
+    pub(super) bound: u32,
+    pub(super) layer_bits: f64,
 }
 
 /// The prover's layer-1 setups and their keys.

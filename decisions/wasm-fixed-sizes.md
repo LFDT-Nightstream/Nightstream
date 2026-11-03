@@ -1,6 +1,6 @@
 # WASM Fixed Sizes
 
-**Status:** Proposed
+**Status:** Accepted
 
 ## Problem
 
@@ -19,7 +19,8 @@ geometry.
 
 ## Decision
 
-The owner asked on 2026-11-02 for this choice to be made without Enzo.
+The owner asked on 2026-11-02 for this choice to be made without Enzo, and
+approved it on 2026-11-03.
 
 1. **Three sizes.** `neo_wasm::nebula::WasmSize` has Small, Medium and
    Large, with ROM and RAM of `2^14`, `2^15` and `2^16` cells. `2^16` is the

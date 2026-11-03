@@ -20,15 +20,15 @@ use neo_wasm::host_event_bindings::HostEventBindings;
 use neo_wasm::memory_semantics::preload_host_event_tables;
 use neo_wasm::nebula::{
     is_active, plan_ordered_slots, smallest_geometry, smallest_regions, state_words, step_inputs, WasmApplication,
-    WasmApplicationError, WasmStepError,
+    WasmApplicationError, WasmStep, WasmStepError,
 };
 use neo_wasm::{
     build_wasm_relation_layout, plan_wasm_memory_slots, preload_from_program_artifacts, top_level_initial_state,
-    WasmMemoryId, WasmMemoryPreload,
+    WasmMemoryId, WasmMemoryPreload, WasmStepState,
 };
 use nightstream::nebula::{
     size_parts, Application, CatalogRowError, Expr, Geometry, Memory, MemoryPortActivation, MemoryPortKind, Program,
-    Region, Run, SegmentError, Transition, View,
+    R1csStepError, Region, Run, SegmentError, Transition, View,
 };
 use p3_field::PrimeCharacteristicRing;
 
@@ -117,14 +117,16 @@ struct Traced {
     /// The one-row witness of each trace row, then of each padding row, one
     /// segment in all.
     rows: Vec<Vec<F>>,
+    /// The state after each row of `rows`; a padding row keeps the state.
+    states: Vec<WasmStepState>,
     /// The step inputs of the segment: `per_step` rows each.
-    inputs: Vec<Vec<F>>,
+    inputs: Vec<WasmStep>,
     real: usize,
     preload: WasmMemoryPreload,
-    /// The continuity words of the entry state (`top_level_initial_state`).
-    initial: Vec<u64>,
-    /// The continuity words after the last trace row.
-    last: Vec<u64>,
+    /// The entry state (`top_level_initial_state`).
+    initial: WasmStepState,
+    /// The state after the last trace row.
+    last: WasmStepState,
 }
 
 fn traced(wat: &str, steps: usize, per_step: NonZeroUsize) -> Traced {
@@ -142,13 +144,15 @@ fn traced(wat: &str, steps: usize, per_step: NonZeroUsize) -> Traced {
         &mut preload,
         &HostEventBindings::import_free(u32::try_from(export_fref).unwrap()),
     );
+    let rows = step_inputs(&checked.trace, steps * per_step.get(), NonZeroUsize::MIN).expect("the trace fits");
     Traced {
-        rows: step_inputs(&checked.trace, steps * per_step.get(), NonZeroUsize::MIN).expect("the trace fits"),
+        states: rows.iter().map(|row| row.next).collect(),
+        rows: rows.into_iter().map(|row| row.z).collect(),
         inputs: step_inputs(&checked.trace, steps, per_step).expect("the trace fits one segment"),
         real: checked.trace.len(),
         preload,
-        initial: state_words(top_level_initial_state(tables, entry_pc)),
-        last: state_words(checked.trace.last().expect("a trace row").state_after),
+        initial: top_level_initial_state(tables, entry_pc),
+        last: checked.trace.last().expect("a trace row").state_after,
     }
 }
 
@@ -228,7 +232,7 @@ impl Setup {
         let program = app
             .program(&traced.preload)
             .expect("the regions hold the preload");
-        let run = Run::new(app.clone(), &program, traced.initial.clone());
+        let run = Run::new(app.clone(), &program, traced.initial);
         (program, run)
     }
 
@@ -249,8 +253,8 @@ struct Kept {
 }
 
 impl Application for Kept {
-    type Input = Vec<F>;
-    type State = Vec<u64>;
+    type Input = WasmStep;
+    type State = WasmStepState;
     type Error = WasmStepError;
 
     fn width(&self) -> usize {
@@ -265,7 +269,7 @@ impl Application for Kept {
         self.app.port_count()
     }
 
-    fn words(&self, state: &Vec<u64>) -> Vec<u64> {
+    fn words(&self, state: &WasmStepState) -> Vec<u64> {
         Application::words(&self.app, state)
     }
 
@@ -275,8 +279,13 @@ impl Application for Kept {
         Ok(rows)
     }
 
-    fn step(&self, state: &Vec<u64>, z: &Vec<F>, memory: &Memory) -> Result<Transition<Vec<u64>>, WasmStepError> {
-        self.app.step(state, z, memory)
+    fn step(
+        &self,
+        state: &WasmStepState,
+        input: &WasmStep,
+        memory: &Memory,
+    ) -> Result<Transition<WasmStepState>, WasmStepError> {
+        self.app.step(state, input, memory)
     }
 }
 
@@ -410,7 +419,7 @@ fn a_load_reads_a_store_of_an_earlier_row_of_its_step() {
         assert!(!failing(&relation, &words).is_empty(), "a row fails");
 
         let mut inputs = traced.inputs.clone();
-        inputs[step][position] += F::ONE;
+        inputs[step].z[position] += F::ONE;
         let (_, mut run) = setup.run(&app, traced);
         assert!(matches!(run.segment(&inputs), Err(SegmentError::Access)));
     }
@@ -426,10 +435,21 @@ fn a_step_of_rows_that_are_not_neighbors_fails_only_its_link_rows() {
     let relation = application_rows(&app, &geometry);
     let traced = &setup.programs[0];
     assert!(traced.real < traced.rows.len(), "the last row is a padding row");
-    let mut rows: Vec<&[F]> = traced.rows.iter().map(Vec::as_slice).collect();
+    let mut rows: Vec<(&[F], WasmStepState)> = traced
+        .rows
+        .iter()
+        .map(Vec::as_slice)
+        .zip(traced.states.iter().copied())
+        .collect();
     rows.remove(1);
     rows.push(rows[rows.len() - 1]);
-    let inputs: Vec<Vec<F>> = rows.chunks(2).map(|pair| pair.concat()).collect();
+    let inputs: Vec<WasmStep> = rows
+        .chunks(2)
+        .map(|pair| WasmStep {
+            z: pair.iter().flat_map(|(z, _)| z.iter().copied()).collect(),
+            next: pair[1].1,
+        })
+        .collect();
 
     let (_, mut run) = setup.run(&app, traced);
     let invocations = run.segment(&inputs).expect("the runner accepts the steps");
@@ -466,7 +486,7 @@ fn enzo_slot_plan_breaks_a_dependent_pair_on_an_honest_row() {
     };
     assert!(matches!(
         error.downcast_ref::<WasmStepError>(),
-        Some(WasmStepError::Row(CatalogRowError::Plan))
+        Some(WasmStepError::Step(R1csStepError::Row(CatalogRowError::Plan)))
     ));
 }
 
@@ -487,7 +507,7 @@ fn a_step_input_of_another_row_count_is_rejected() {
         };
         assert!(matches!(
             error.downcast_ref::<WasmStepError>(),
-            Some(WasmStepError::Width { .. })
+            Some(WasmStepError::Step(R1csStepError::Width { .. }))
         ));
     }
 }
@@ -501,7 +521,7 @@ fn runner_rejects_a_load_of_another_value() {
     let traced = &setup.programs[0];
     let (row, column) = access(traced, false);
     let mut inputs = traced.inputs.clone();
-    inputs[row][column] += F::ONE;
+    inputs[row].z[column] += F::ONE;
     let (_, mut run) = setup.run(&app, traced);
     assert!(matches!(run.segment(&inputs), Err(SegmentError::Access)));
 }
@@ -534,9 +554,179 @@ fn step_inputs_reject_a_trace_longer_than_the_run() {
         inputs,
         one_row
             .chunks(2)
-            .map(|pair| pair.concat())
+            .map(|pair| WasmStep {
+                z: pair.iter().flat_map(|row| row.z.iter().copied()).collect(),
+                next: pair[1].next,
+            })
             .collect::<Vec<_>>()
     );
+}
+
+/// Every field of `WasmStepState` changes its words, so a verifier that reads
+/// a field of a proved last state reads a proved value. The pattern names
+/// every field, so a new field does not compile until it gets a change here.
+/// `None` and `Some(0)` of the two page counts share the word 0.
+#[test]
+fn every_state_field_changes_the_state_words() {
+    use neo_wasm::{WasmCountdownState, WasmEventAbsorbState, WasmFrameMoveState, WasmHostEventState, WasmOutputState};
+    let checked = common::checked_main(LINEAR_MEMORY);
+    let base = checked.trace[0].state_after;
+    let WasmStepState {
+        pc: _,
+        sp: _,
+        stack_frame_base: _,
+        output: WasmOutputState {
+            enabled: _,
+            value_lo: _,
+            value_hi: _,
+        },
+        call_stack_depth: _,
+        memory_pages: _,
+        max_memory_pages: _,
+        locals_fbp: _,
+        activation_finished: _,
+        trapped: _,
+        frame_move:
+            WasmFrameMoveState {
+                active: _,
+                remaining: _,
+                distance: _,
+            },
+        local_zero: WasmCountdownState {
+            active: _,
+            remaining: _,
+        },
+        host_callee_fref: _,
+        comm_chain: _,
+        event_absorb:
+            WasmEventAbsorbState {
+                outer_prefix: _,
+                outer_chain: _,
+                object_active: _,
+                evbuf: _,
+                perm_pending: _,
+                perm_round: _,
+                perm_state: _,
+            },
+        host_events:
+            WasmHostEventState {
+                turn_export_fref: _,
+                host_frame_depth: _,
+                awaiting_host: _,
+                suspend_pending: _,
+                events_remaining: _,
+                event_index: _,
+                args_base: _,
+                slot_cursor: _,
+            },
+    } = base;
+    let next = |pages: Option<u32>| Some(pages.unwrap_or(0) + 1);
+    let mut changes: Vec<(String, Box<dyn Fn(&mut WasmStepState)>)> = vec![
+        ("pc".into(), Box::new(|s| s.pc += 1)),
+        ("sp".into(), Box::new(|s| s.sp += 1)),
+        ("stack_frame_base".into(), Box::new(|s| s.stack_frame_base += 1)),
+        ("output.enabled".into(), Box::new(|s| s.output.enabled ^= true)),
+        ("output.value_lo".into(), Box::new(|s| s.output.value_lo += 1)),
+        ("output.value_hi".into(), Box::new(|s| s.output.value_hi += 1)),
+        ("call_stack_depth".into(), Box::new(|s| s.call_stack_depth += 1)),
+        (
+            "memory_pages".into(),
+            Box::new(move |s| s.memory_pages = next(s.memory_pages)),
+        ),
+        (
+            "max_memory_pages".into(),
+            Box::new(move |s| s.max_memory_pages = next(s.max_memory_pages)),
+        ),
+        ("locals_fbp".into(), Box::new(|s| s.locals_fbp += 1)),
+        (
+            "activation_finished".into(),
+            Box::new(|s| s.activation_finished ^= true),
+        ),
+        ("trapped".into(), Box::new(|s| s.trapped ^= true)),
+        ("frame_move.active".into(), Box::new(|s| s.frame_move.active ^= true)),
+        ("frame_move.remaining".into(), Box::new(|s| s.frame_move.remaining += 1)),
+        ("frame_move.distance".into(), Box::new(|s| s.frame_move.distance += 1)),
+        ("local_zero.active".into(), Box::new(|s| s.local_zero.active ^= true)),
+        ("local_zero.remaining".into(), Box::new(|s| s.local_zero.remaining += 1)),
+        ("host_callee_fref".into(), Box::new(|s| s.host_callee_fref += 1)),
+        (
+            "event_absorb.object_active".into(),
+            Box::new(|s| s.event_absorb.object_active ^= true),
+        ),
+        (
+            "event_absorb.perm_pending".into(),
+            Box::new(|s| s.event_absorb.perm_pending ^= true),
+        ),
+        (
+            "event_absorb.perm_round".into(),
+            Box::new(|s| s.event_absorb.perm_round += 1),
+        ),
+        (
+            "host_events.turn_export_fref".into(),
+            Box::new(|s| s.host_events.turn_export_fref += 1),
+        ),
+        (
+            "host_events.host_frame_depth".into(),
+            Box::new(|s| s.host_events.host_frame_depth += 1),
+        ),
+        (
+            "host_events.awaiting_host".into(),
+            Box::new(|s| s.host_events.awaiting_host ^= true),
+        ),
+        (
+            "host_events.suspend_pending".into(),
+            Box::new(|s| s.host_events.suspend_pending ^= true),
+        ),
+        (
+            "host_events.events_remaining".into(),
+            Box::new(|s| s.host_events.events_remaining += 1),
+        ),
+        (
+            "host_events.event_index".into(),
+            Box::new(|s| s.host_events.event_index += 1),
+        ),
+        (
+            "host_events.args_base".into(),
+            Box::new(|s| s.host_events.args_base += 1),
+        ),
+        (
+            "host_events.slot_cursor".into(),
+            Box::new(|s| s.host_events.slot_cursor += 1),
+        ),
+    ];
+    for lane in 0..4 {
+        changes.push((
+            format!("comm_chain[{lane}]"),
+            Box::new(move |s| s.comm_chain[lane] += 1),
+        ));
+        changes.push((
+            format!("event_absorb.outer_prefix[{lane}]"),
+            Box::new(move |s| s.event_absorb.outer_prefix[lane] += 1),
+        ));
+        changes.push((
+            format!("event_absorb.outer_chain[{lane}]"),
+            Box::new(move |s| s.event_absorb.outer_chain[lane] += 1),
+        ));
+    }
+    for lane in 0..8 {
+        changes.push((
+            format!("event_absorb.evbuf[{lane}]"),
+            Box::new(move |s| s.event_absorb.evbuf[lane] += 1),
+        ));
+    }
+    for lane in 0..12 {
+        changes.push((
+            format!("event_absorb.perm_state[{lane}]"),
+            Box::new(move |s| s.event_absorb.perm_state[lane] += 1),
+        ));
+    }
+    let words = state_words(base);
+    for (name, change) in &changes {
+        let mut changed = base;
+        change(&mut changed);
+        assert_ne!(state_words(changed), words, "{name} has no words");
+    }
+    assert_eq!(changes.len(), 29 + 3 * 4 + 8 + 12, "one change for each field and lane");
 }
 
 /// Small memories and a long segment: the geometry still covers both
@@ -601,9 +791,9 @@ fn proof_verifies_and_rejects_a_changed_load_on_cpu(per_step: NonZeroUsize) {
 
     let program = app.program(&traced.preload).unwrap();
     let proving = std::time::Instant::now();
-    let mut run = prover.start(&program, traced.initial.clone()).unwrap();
+    let mut run = prover.start(&program, traced.initial).unwrap();
     run.segment(&traced.inputs).unwrap();
-    let last = run.state().clone();
+    let last = *run.state();
     let proof = run.finish().unwrap();
     eprintln!(
         "wasm {} steps of {per_step} rows elapsed={:?}",
@@ -623,20 +813,29 @@ fn proof_verifies_and_rejects_a_changed_load_on_cpu(per_step: NonZeroUsize) {
     let (row, column) = access(traced, false);
     let (step, position) = setup.position(traced, row, column);
     let mut inputs = traced.inputs.clone();
-    inputs[step][position] += F::ONE;
-    let mut changed_run = prover.start(&program, traced.initial.clone()).unwrap();
+    inputs[step].z[position] += F::ONE;
+    let mut changed_run = prover.start(&program, traced.initial).unwrap();
     assert!(matches!(
         changed_run.segment(&inputs),
         Err(ProveError::Segment(SegmentError::Access))
     ));
 
-    let pc = app.state_position(neo_wasm::layout::COL_PC_AFTER).unwrap();
-    let mut changed = last.clone();
-    changed[pc] += 1;
-    assert!(matches!(
-        verifier.verify(&program, &traced.initial, &changed, &proof),
-        Err(VerifyError::Proof(_))
-    ));
+    let changes: [(&str, fn(&mut WasmStepState)); 3] = [
+        ("another pc", |state| state.pc += 1),
+        ("another event chain", |state| state.comm_chain[0] ^= 1),
+        ("a trap", |state| state.trapped = !state.trapped),
+    ];
+    for (name, change) in changes {
+        let mut changed = last;
+        change(&mut changed);
+        assert!(
+            matches!(
+                verifier.verify(&program, &traced.initial, &changed, &proof),
+                Err(VerifyError::Proof(_))
+            ),
+            "{name} does not verify"
+        );
+    }
     eprintln!("wasm elapsed={:?}", started.elapsed());
 }
 
@@ -712,7 +911,7 @@ fn fibonacci_proof_times_on_metal(steps: usize, per_step: NonZeroUsize) {
     let program = app
         .program(&traced.preload)
         .expect("the regions hold the preload");
-    time_on_metal(app, geometry, &program, traced.initial.clone(), &traced.inputs);
+    time_on_metal(app, geometry, &program, traced.initial, &traced.inputs);
 }
 
 /// `fib(2)` at one row per step: 32 steps.

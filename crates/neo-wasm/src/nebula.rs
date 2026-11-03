@@ -2,19 +2,22 @@
 //! 7.6): `nightstream::nebula::R1csApplication` of the one-row WASM relation
 //! with its operation-table rows, its continuity links, and its memory
 //! catalog. One Nebula step proves `rows` consecutive trace rows. Its private
-//! words are the witnesses `z` of its rows (`build_batched_witness`), and its
-//! state is the continuity words. One circuit serves every program whose
-//! memories fit the regions that the caller gives.
+//! words are the witnesses `z` of its rows (`build_batched_witness`). Its
+//! state is a `WasmStepState`, whose words are the continuity words
+//! (`state_words`), so a verifier reads the last state of a proof as a typed
+//! value. Every field has words (test `every_state_field_changes_the_state_words`),
+//! except that `None` and `Some(0)` of `memory_pages` and `max_memory_pages`
+//! share the word 0. One circuit serves every program whose memories fit the
+//! regions that the caller gives.
 
 use std::num::NonZeroUsize;
 
 use neo_ccs::CcsMatrix;
 use neo_math::F;
-pub use nightstream::nebula::R1csStepError as WasmStepError;
 use nightstream::nebula::{
     batched_slots, Application, CatalogBinding, CatalogBindingError, Expr, Geometry, Memory, MemoryKind,
-    MemoryPortActivation, Program, R1csApplication, R1csApplicationError, Region, RowRelation, Size, Terms, Transition,
-    View,
+    MemoryPortActivation, Program, R1csApplication, R1csApplicationError, R1csStepError, Region, RowRelation, Size,
+    Terms, Transition, View,
 };
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
@@ -29,6 +32,23 @@ use crate::{
 #[derive(Clone)]
 pub struct WasmApplication(R1csApplication<WasmMemoryId>);
 
+/// One step input: the witnesses of its rows and the state after its last
+/// trace row.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct WasmStep {
+    pub z: Vec<F>,
+    /// Its words must be the `_AFTER` columns of the last row of `z`.
+    pub next: WasmStepState,
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum WasmStepError {
+    #[error(transparent)]
+    Step(#[from] R1csStepError),
+    #[error("the step's next state has other words than its last row")]
+    Next,
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum WasmApplicationError {
     #[error(transparent)]
@@ -37,6 +57,8 @@ pub enum WasmApplicationError {
     Matrix,
     #[error(transparent)]
     Binding(#[from] CatalogBindingError),
+    #[error("a run needs at least one trace row")]
+    EmptyTrace,
     #[error("the trace of {trace} rows does not fit {steps} steps of {rows} rows")]
     Steps {
         trace: usize,
@@ -127,8 +149,8 @@ impl WasmApplication {
 }
 
 impl Application for WasmApplication {
-    type Input = Vec<F>;
-    type State = Vec<u64>;
+    type Input = WasmStep;
+    type State = WasmStepState;
     type Error = WasmStepError;
 
     fn width(&self) -> usize {
@@ -143,16 +165,29 @@ impl Application for WasmApplication {
         self.0.port_count()
     }
 
-    fn words(&self, state: &Vec<u64>) -> Vec<u64> {
-        self.0.words(state)
+    fn words(&self, state: &WasmStepState) -> Vec<u64> {
+        state_words(*state)
     }
 
     fn rows(&self, view: &View) -> Result<Vec<Expr>, nightstream::Error> {
         self.0.rows(view)
     }
 
-    fn step(&self, state: &Vec<u64>, z: &Vec<F>, memory: &Memory) -> Result<Transition<Vec<u64>>, WasmStepError> {
-        self.0.step(state, z, memory)
+    fn step(
+        &self,
+        state: &WasmStepState,
+        input: &WasmStep,
+        memory: &Memory,
+    ) -> Result<Transition<WasmStepState>, WasmStepError> {
+        let transition = self.0.step(&state_words(*state), &input.z, memory)?;
+        if transition.next != state_words(input.next) {
+            return Err(WasmStepError::Next);
+        }
+        Ok(Transition {
+            next: input.next,
+            ports: transition.ports,
+            aux: transition.aux,
+        })
     }
 }
 
@@ -188,13 +223,17 @@ pub fn state_words(state: WasmStepState) -> Vec<u64> {
 
 /// The step inputs of a run of `steps` steps of `rows` trace rows each: the
 /// witnesses of the rows of `trace`, then of padding rows, which activate no
-/// port and keep the state, cut into `steps` inputs of `rows` rows each.
-/// `rows = 1` gives the one-row witnesses that `smallest_regions` takes.
+/// port and keep the state, cut into `steps` inputs of `rows` rows each. The
+/// next state of a step is the state after its last trace row. `rows = 1`
+/// gives the one-row witnesses that `smallest_regions` takes.
 pub fn step_inputs(
     trace: &[WasmVmStep],
     steps: usize,
     rows: NonZeroUsize,
-) -> Result<Vec<Vec<F>>, WasmApplicationError> {
+) -> Result<Vec<WasmStep>, WasmApplicationError> {
+    if trace.is_empty() {
+        return Err(WasmApplicationError::EmptyTrace);
+    }
     let capacity = steps
         .checked_mul(rows.get())
         .filter(|capacity| trace.len() <= *capacity)
@@ -206,7 +245,11 @@ pub fn step_inputs(
     let batch = build_batched_witness(trace, capacity, 0);
     Ok(batch
         .chunks(batch.len() / steps)
-        .map(<[F]>::to_vec)
+        .enumerate()
+        .map(|(step, z)| WasmStep {
+            z: z.to_vec(),
+            next: trace[((step + 1) * rows.get()).min(trace.len()) - 1].state_after,
+        })
         .collect())
 }
 

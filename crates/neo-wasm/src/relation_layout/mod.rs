@@ -1,11 +1,11 @@
 use super::isa::{WasmOpTable, WasmOpcode};
 use super::ivc_state::build_ivc_state_continuity_links;
 use super::layout::{
-    selector_col, Column, COL_CALL_INDIRECT_IS_NOT_TRAP, COL_CALL_INDIRECT_TYPE_INDEX, COL_CALL_STACK_ADDR,
-    COL_CALL_STACK_CALLER_FBP_VALUE, COL_CALL_STACK_CALLER_SP_BASE_VALUE, COL_CALL_STACK_POP_PRESENT,
-    COL_CALL_STACK_PUSH_PRESENT, COL_CALL_STACK_RETURN_PC_VALUE, COL_CALL_TARGET_METADATA, COL_CI_HOST_CALL,
-    COL_CONTROL_CHOICE, COL_CURRENT_FUNCTION_REF, COL_ENTERED_FUNCTION_NUM_LOCALS, COL_EXIT_SLIDE_DISTANCE,
-    COL_EXPECTED_TYPE_ID, COL_FRAME_MOVE_DISTANCE_AFTER, COL_FRAME_MOVE_REMAINING_AFTER, COL_FRAME_SLIDE_ACTIVE,
+    selector_col, Column, COL_CALL_INDIRECT_IS_NOT_TRAP, COL_CALL_STACK_ADDR, COL_CALL_STACK_CALLER_FBP_VALUE,
+    COL_CALL_STACK_CALLER_SP_BASE_VALUE, COL_CALL_STACK_POP_PRESENT, COL_CALL_STACK_PUSH_PRESENT,
+    COL_CALL_STACK_RETURN_PC_VALUE, COL_CALL_TARGET_METADATA, COL_CI_HOST_CALL, COL_CONTROL_CHOICE,
+    COL_CURRENT_FUNCTION_REF, COL_ENTERED_FUNCTION_NUM_LOCALS, COL_EXIT_SLIDE_DISTANCE, COL_EXPECTED_TYPE_ID,
+    COL_FRAME_MOVE_DISTANCE_AFTER, COL_FRAME_MOVE_REMAINING_AFTER, COL_FRAME_SLIDE_ACTIVE,
     COL_FUNCTION_CALL_TYPE_LOOKUP_GATE, COL_FUNCTION_REF, COL_FUNCTION_TYPE_ID, COL_GATHER_ACTIVE,
     COL_GATHER_LOCAL_WRITE, COL_GATHER_LOCAL_WRITE_LO, COL_GLOBAL_INDEX, COL_GLOBAL_VALUE, COL_GLOBAL_VALUE_HI,
     COL_GUEST_ENTRY_ACTIVE, COL_HOST_CALLEE_FREF_AFTER, COL_HOST_CALLEE_FREF_BEFORE, COL_HOST_CALL_ACTIVE,
@@ -739,12 +739,6 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
             active_when(linear_memory.use_lane0),
         ),
         rom_read_spec(
-            WasmMemoryId::ProgramCallIndirectTypeIndex,
-            vec![Column(COL_PC_BEFORE)],
-            Column(COL_CALL_INDIRECT_TYPE_INDEX),
-            active_when(Column(COL_PROGRAM_CALL_INDIRECT_IMMEDIATES_ACTIVE)),
-        ),
-        rom_read_spec(
             WasmMemoryId::ProgramCallIndirectExpectedTypeId,
             vec![Column(COL_PC_BEFORE)],
             Column(COL_EXPECTED_TYPE_ID),
@@ -840,19 +834,6 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
                     activation: active_when(Column(COL_TURN_BOUNDARY)),
                 },
             ],
-        },
-        MemorySpec {
-            id: WasmMemoryId::ModuleType,
-            kind: MemoryKind::Rom,
-            ports: [WasmOpcode::CallIndirect, WasmOpcode::ReturnCallIndirect]
-                .into_iter()
-                .map(|opcode| MemoryPortSpec {
-                    address_columns: memory_columns([Column(COL_CALL_INDIRECT_TYPE_INDEX)]),
-                    value_column: COL_EXPECTED_TYPE_ID,
-                    kind: MemoryPortKind::Read,
-                    activation: active_when(Column(selector_col(opcode).unwrap())),
-                })
-                .collect(),
         },
         MemorySpec {
             id: WasmMemoryId::CallTarget,

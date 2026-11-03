@@ -637,8 +637,6 @@ pub struct WasmVmStep {
     pub table_value: Option<u32>,
     /// Normalized deduplicated type id for the observed function reference.
     pub function_type_id: Option<u32>,
-    /// Raw module type-section index from the `call_indirect` immediate.
-    pub call_indirect_type_index: Option<u32>,
     /// Normalized deduplicated type id expected by the current opcode.
     pub expected_type_id: Option<u32>,
     /// Size of the referenced table observed by this step.

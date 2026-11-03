@@ -33,11 +33,6 @@ pub fn preload_from_program_artifacts(artifacts: &WasmProgramArtifacts) -> WasmM
         preload.insert(WasmMemoryId::ProgramTableId, vec![pc], entry.table_id);
         preload.insert(WasmMemoryId::ProgramMemoryOffset, vec![pc], entry.memory_offset);
         preload.insert(
-            WasmMemoryId::ProgramCallIndirectTypeIndex,
-            vec![pc],
-            entry.call_indirect_type_index,
-        );
-        preload.insert(
             WasmMemoryId::ProgramCallIndirectExpectedTypeId,
             vec![pc],
             entry.call_indirect_expected_type_id,
@@ -122,13 +117,6 @@ pub fn preload_from_program_artifacts(artifacts: &WasmProgramArtifacts) -> WasmM
             WasmMemoryId::CallTarget,
             vec![narrow(pc_before, "call_targets.state_before.pc")],
             narrow(function_ref, "call_targets.function_ref"),
-        );
-    }
-    for &(raw_type_index, expected_type_id) in &tables.module_types {
-        preload.insert(
-            WasmMemoryId::ModuleType,
-            vec![narrow(raw_type_index, "module_types.raw_type_index")],
-            narrow(expected_type_id, "module_types.expected_type_id"),
         );
     }
     // Pack data-section bytes into the word-addressed linear_memory cells.

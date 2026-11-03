@@ -799,7 +799,6 @@ pub(super) fn build_trace(
             target_function_is_guest: current.target_function_is_guest && !ci_trap,
             function_type_id: current.function_type_id,
             expected_type_id: current.expected_type_id,
-            call_indirect_type_index: current.call_indirect_type_index,
             table_size: current.table_size,
             call_param_count: current.call_param_count.filter(|_| !ci_trap),
             call_result_count: current.call_result_count.filter(|_| !ci_trap),

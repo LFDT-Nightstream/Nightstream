@@ -18,7 +18,6 @@ pub(crate) struct DecodedOpcode {
     pub(crate) decoded: Option<(WasmOpcode, Option<u32>)>,
     pub(crate) control: Option<DecodedControlOpcode>,
     pub(crate) pc_edge_kind: WasmPcEdgeKind,
-    pub(crate) call_indirect_type_index: Option<u32>,
     pub(crate) expected_type_id: Option<u32>,
     /// Dense PC immediately after this instruction. For `call`
     /// this is the return PC; for branches it is the linear successor.

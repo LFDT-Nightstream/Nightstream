@@ -529,7 +529,6 @@ fn call_indirect_row_is_accepted() {
     assert_eq!(row.table_index, Some(0));
     assert_eq!(row.table_value, Some(1));
     assert_eq!(row.function_type_id, Some(1));
-    assert_eq!(row.call_indirect_type_index, Some(0));
     assert_eq!(row.expected_type_id, Some(1));
     assert_eq!(row.stack_reads_override, Some(1));
     assert_satisfied(&build_witness_vector(row), "call_indirect row");

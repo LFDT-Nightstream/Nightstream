@@ -683,7 +683,6 @@ fn wasm_trace_run_with_call_indirect() {
     assert_eq!(row.table_index, Some(0));
     assert_eq!(row.table_value, Some(1));
     assert_eq!(row.function_type_id, Some(1));
-    assert_eq!(row.call_indirect_type_index, Some(0));
     assert_eq!(row.expected_type_id, Some(1));
 }
 

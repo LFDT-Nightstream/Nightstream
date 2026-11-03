@@ -8,9 +8,9 @@ use super::gadgets::unsigned_ge_witness;
 use super::ir::{pack_function_call_metadata, WasmHostEventSlotKind, WasmRowKind, WasmVmStep};
 use super::layout::{
     selector_col, COL_ACTIVATION_FINISHED_AFTER, COL_ACTIVATION_FINISHED_BEFORE, COL_CALL_INDIRECT_IS_NOT_TRAP,
-    COL_CALL_INDIRECT_IS_TRAP, COL_CALL_INDIRECT_TYPE_INDEX, COL_CALL_PARAM_COUNT, COL_CALL_RESULT_COUNT,
-    COL_CALL_STACK_ADDR, COL_CALL_STACK_CALLER_FBP_VALUE, COL_CALL_STACK_CALLER_SP_BASE_VALUE,
-    COL_CALL_STACK_DEPTH_AFTER, COL_CALL_STACK_DEPTH_BEFORE, COL_CALL_STACK_POP_PRESENT, COL_CALL_STACK_PUSH_PRESENT,
+    COL_CALL_INDIRECT_IS_TRAP, COL_CALL_PARAM_COUNT, COL_CALL_RESULT_COUNT, COL_CALL_STACK_ADDR,
+    COL_CALL_STACK_CALLER_FBP_VALUE, COL_CALL_STACK_CALLER_SP_BASE_VALUE, COL_CALL_STACK_DEPTH_AFTER,
+    COL_CALL_STACK_DEPTH_BEFORE, COL_CALL_STACK_POP_PRESENT, COL_CALL_STACK_PUSH_PRESENT,
     COL_CALL_STACK_RETURN_PC_VALUE, COL_CALL_TARGET_METADATA, COL_CI_ENTRY_IS_NULL, COL_CI_HOST_CALL, COL_CI_OOB,
     COL_CI_TYPE_EQ, COL_CMP_GE, COL_CMP_LOW, COL_COMM_CHAIN_AFTER, COL_COMM_CHAIN_BEFORE, COL_CONTROL_CHOICE,
     COL_CURRENT_FUNCTION_REF, COL_DIV_DIVIDEND_IS_MIN, COL_DIV_DIVISOR_IS_NEG1, COL_DIV_DIVISOR_IS_ZERO,
@@ -797,9 +797,6 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
     ));
     if let Some(function_type_id) = trace.function_type_id {
         wit[COL_FUNCTION_TYPE_ID] = F::from_u64(u64::from(function_type_id));
-    }
-    if let Some(type_index) = trace.call_indirect_type_index {
-        wit[COL_CALL_INDIRECT_TYPE_INDEX] = F::from_u64(u64::from(type_index));
     }
     if let Some(expected_type_id) = trace.expected_type_id {
         wit[COL_EXPECTED_TYPE_ID] = F::from_u64(u64::from(expected_type_id));

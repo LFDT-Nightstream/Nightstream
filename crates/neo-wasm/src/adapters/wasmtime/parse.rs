@@ -87,9 +87,6 @@ pub struct WasmProgramTables {
     pub function_local_counts: Vec<(u64, u64)>,
     /// Static `(pc_before, function_ref)` rows for direct `call` targets.
     pub call_targets: Vec<(u64, u64)>,
-    /// Static `(raw_type_index, expected_type_id)` rows mapping module type
-    /// section indexes to normalized type ids for `call_indirect`.
-    pub module_types: Vec<(u64, u64)>,
     /// Bytes initialized by active `(data ...)` segments at module
     /// instantiation, as `(byte_addr, byte_value)` pairs. Used by the memory
     /// sanity checker to seed `linear_memory` so the RMW Read check at
@@ -121,10 +118,9 @@ pub struct WasmProgramDecodeEntry {
     pub global_index: u32,
     pub table_id: u32,
     pub memory_offset: u32,
-    pub call_indirect_type_index: u32,
-    /// Normalized type id derived from the same module type-section entry
-    /// checked by the `module_types` ROM, but keyed by program PC so the
-    /// static opcode/immediate row is bound directly to the wasm bytes.
+    /// Normalized type id of the call_indirect type immediate, keyed by
+    /// program PC so the static opcode/immediate row is bound directly to the
+    /// wasm bytes.
     pub call_indirect_expected_type_id: u32,
     pub br_table_len: u32,
     pub i32_const_value: u32,
@@ -346,13 +342,6 @@ impl ParsedWasmArtifactsBuilder {
             .collect::<Vec<_>>();
         function_local_counts.sort_unstable();
         function_local_counts.dedup();
-        let mut module_types = self
-            .raw_type_id_by_index
-            .iter()
-            .map(|(&raw_type_index, &type_id)| (u64::from(raw_type_index), u64::from(type_id)))
-            .collect::<Vec<_>>();
-        module_types.sort_unstable();
-        module_types.dedup();
         Ok(WasmProgramArtifacts {
             host_event_bindings: Default::default(),
             tables: WasmProgramTables {
@@ -370,7 +359,6 @@ impl ParsedWasmArtifactsBuilder {
                 function_call_metadata,
                 function_local_counts,
                 call_targets: self.call_targets,
-                module_types,
                 linear_memory_init: self.linear_memory_init,
                 globals_init: self.globals_init,
                 table_sizes_init: self.table_sizes_init,
@@ -597,7 +585,7 @@ impl ParsedWasmArtifactsBuilder {
                         });
                     }
                     let memory = decode_memory_opcode(&operator);
-                    let (call_indirect_type_index, expected_type_id) = match &operator {
+                    let expected_type_id = match &operator {
                         wasmparser::Operator::CallIndirect { type_index, .. }
                         | wasmparser::Operator::ReturnCallIndirect { type_index, .. } => {
                             let expected_type_id = *self.raw_type_id_by_index.get(type_index).ok_or_else(|| {
@@ -605,9 +593,9 @@ impl ParsedWasmArtifactsBuilder {
                                     "missing normalized type id for call_indirect type {type_index}"
                                 ))
                             })?;
-                            (Some(*type_index), Some(expected_type_id))
+                            Some(expected_type_id)
                         }
-                        _ => (None, None),
+                        _ => None,
                     };
                     if let Some((opcode, immediate)) = decoded {
                         let i64_const = match operator {
@@ -640,7 +628,6 @@ impl ParsedWasmArtifactsBuilder {
                                 _ => 0,
                             },
                             memory_offset,
-                            call_indirect_type_index: call_indirect_type_index.unwrap_or(0),
                             call_indirect_expected_type_id: expected_type_id.unwrap_or(0),
                             br_table_len: match &operator {
                                 wasmparser::Operator::BrTable { targets } => targets.len(),
@@ -686,7 +673,6 @@ impl ParsedWasmArtifactsBuilder {
                             decoded,
                             control: decode_control_opcode(&operator),
                             pc_edge_kind,
-                            call_indirect_type_index,
                             expected_type_id,
                             pc_after_instruction: pc_after,
                             frame_slides,

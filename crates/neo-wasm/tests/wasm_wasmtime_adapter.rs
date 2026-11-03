@@ -704,7 +704,6 @@ fn wasmtime_trace_normalizes_call_indirect_row() {
     assert_eq!(row.table_index, Some(0));
     assert_eq!(row.table_value, Some(1));
     assert_eq!(row.function_type_id, Some(1));
-    assert_eq!(row.call_indirect_type_index, Some(0));
     assert_eq!(row.expected_type_id, Some(1));
     assert_eq!(row.stack_reads_override, Some(1));
     assert_eq!(

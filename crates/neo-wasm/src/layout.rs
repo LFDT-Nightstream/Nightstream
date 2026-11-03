@@ -201,8 +201,6 @@ define_column_region! {
         COL_TARGET_FUNCTION_IS_GUEST: Boolean => "true when the selected call target is a guest-defined function",
         COL_CALL_TARGET_METADATA: Field =>
             "packed call-target arity and guest flag; range follows from unpacking",
-        COL_CALL_INDIRECT_TYPE_INDEX: U32 =>
-            "raw module type-section index from the call_indirect instruction immediate",
         COL_FUNCTION_TYPE_ID: U32 => "normalized deduplicated type id for the observed function reference",
         COL_EXPECTED_TYPE_ID: U32 => "normalized deduplicated type id expected by the current opcode",
         COL_MEMORY_PAGES_BEFORE: U32 => "linear memory page count before this step",

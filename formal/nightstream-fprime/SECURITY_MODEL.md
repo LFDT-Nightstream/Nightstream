@@ -78,8 +78,10 @@ item 5).
   rows (`Export.OptionB.StepPackage.relationRows_packageOf`), and the rows of
   either circuit give its case of the step relation
   (`Layout.OptionB.StepCircuits.soundness`). Each result takes as a premise
-  that every valid step of the circuit's application has the control value
-  of that circuit (trust item 4). The decoded key digests are the words that
+  that every valid step of the circuit's application has the selector value
+  of that circuit. The selector that returns the circuit that runs
+  (`Export.OptionB.TerminalBridge.chosen`) meets this premise for every
+  application (trust item 4). The decoded key digests are the words that
   the assignment carries; adversary 2 binds them to the verifier's keys. The
   result is deterministic and needs no hardness premise.
 
@@ -100,9 +102,11 @@ item 5).
   one word, so it gives the depth words and not the depths
   (`Export.OptionB.TerminalBridge.stateHash_binds_words`). The result is
   deterministic. It is about the Lean terminal relation, not about the Rust
-  verifier (trust item 5). It takes the premises of adversary 1 for both
-  circuits, and trust item 4 shows that they hold for no control function
-  when both circuits run the reference application.
+  verifier (trust item 5). It concludes the step relation with the selector
+  that returns the circuit that ran, and the terminal does not read the
+  selector (`Export.OptionB.TerminalBridge.holdsFor_recursive_control`), so
+  it applies to the reference packages, whose two circuits run one
+  application.
 
 ### 3. One-fold adversary
 
@@ -324,21 +328,16 @@ item 5).
    concrete security for a long history.
 4. **The circuit selection.** HyperNova NIVC selects the circuit of a step
    with `φ(z_i, w_i)`. The Lean step relation takes it from the machine's
-   control function of the application state and witness
-   (`Lifecycle.OptionB.machine`, `Lifecycle.OptionB.stepHolds_iff`). The step
-   circuits check no control value. Their rows give the application's
-   validity predicate, so each step result takes as a premise that every
-   valid step of the circuit's application has the circuit's control value.
-   `Export.OptionB.TerminalBridge.bridge` takes this premise for both
-   circuits: control 0 for each valid step of the light circuit's
-   application, and control 1 for each valid step of the refresh circuit's
-   application. Both reference packages run
-   `Lifecycle.Stage1.Poseidon2HashChainV1.program`, whose validity predicate
-   holds for every state and witness. So no control function meets both
-   premises, and `bridge` does not apply to the reference packages. Rust
-   selects the circuit from the depth of the selected slot (`SPEC.md`
-   Algorithm 5), which is not a function of the application state. No Lean
-   result covers the Rust selection.
+   selector of the application state and witness (`Lifecycle.OptionB.machine`,
+   `Lifecycle.OptionB.stepHolds_iff`). Both option-B circuits run the same
+   application step, so the selector does not change the computed state.
+   `Export.OptionB.TerminalBridge.bridge` takes the selector that returns the
+   circuit that ran (`Export.OptionB.TerminalBridge.chosen`), so the prover
+   picks the circuit. Rust picks it from the depth of the selected slot
+   (`SPEC.md` Algorithm 5): a light fold below the cap and a refresh fold at
+   the cap. The light depth guard rejects a light fold at the cap for every
+   pick. The statement `(i, z0, zi)` does not fix the circuit of a step; the
+   state hash binds the program counter of the last step only.
 5. **Rust and Lean agree on recorded inputs only.** The Rust tests compare
    Rust's expansion of the packages, its identity code, its witness program
    and its logical assignment with Lean exports, and they check the

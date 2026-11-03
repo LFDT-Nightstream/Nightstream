@@ -10,6 +10,14 @@ setup's keys, and the counters, states and slot claims to the terminal's, or Pos
 collision (`stateHash_binds_words`). So the last step holds under the setup's keys and ends in the
 terminal's statement (`bridge`).
 
+The circuit selector of Construction 2 (`Paper.Machine.control`) reads only the application state
+and witness. Option B's scheduler picks the circuit from the slot depth, which the application
+state does not hold: a light fold while the slot is below the cap, a refresh fold at the cap.
+Both circuits run the same application step, so the selector does not change the computed state,
+and the light depth guard bounds every schedule (`Folding.Schedule`). The bridge therefore takes
+the selector that returns the circuit that ran (`chosen`). The terminal does not read the
+selector (`holdsFor_recursive_control`), so a terminal under any selector gives the step.
+
 The state hash reads every counter as one word (`natWord`). The decoded next iteration is the
 input iteration plus one, which can be `q`, whose word is 0; the terminal requires
 `0 < iteration`, so the iterations agree (`iteration_of_words`). A terminal slot's depth is any
@@ -31,6 +39,24 @@ open NightstreamFPrime.Export.OptionB.StepRelation
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
     Phi81CarrierLayout.carrierWidth logicalWidth}
+
+/-- The selector that returns `circuit`: the circuit that the prover runs. -/
+def chosen (circuit : Fin 2) : AppState → AppWitness → Fin 2 := fun _ _ => circuit
+
+/-- The terminal does not read the circuit selector. -/
+theorem holdsFor_recursive_control (cap : Nat)
+    (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (circuitKeys : Fin 2 → CircuitKey logicalWidth publicFits)
+    (step : AppState → AppWitness → AppState) (control control' : AppState → AppWitness → Fin 2)
+    (statement : TerminalStatement AppState)
+    (payload : TerminalProof (SlotData logicalWidth publicFits)
+      (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits))
+      (StepFresh logicalWidth publicFits)
+      (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits)) 2) :
+    Terminal.HoldsFor cap ajtai circuitKeys step control statement (.recursive payload) ↔
+      Terminal.HoldsFor cap ajtai circuitKeys step control' statement (.recursive payload) :=
+  (Terminal.holdsFor_recursive_iff cap ajtai circuitKeys step control statement payload).trans
+    (Terminal.holdsFor_recursive_iff cap ajtai circuitKeys step control' statement payload).symm
 
 /-- Two different Poseidon2 inputs with one hash. -/
 def Collision : Prop :=
@@ -215,11 +241,10 @@ variable (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
 
 /-- A recursive terminal whose last circuit is the light circuit, with the light circuit's
 exported relation in the setup, gives the light step under the setup's keys, ending in the
-terminal's statement, or a Poseidon2 collision. -/
+terminal's statement, or a Poseidon2 collision. The step's selector is the light circuit. -/
 theorem light_bridge (keysShaped : ∀ key, (circuitKeys key).digest.length = 4) (width : Nat)
     (publicInside : ringDegree * PaperAlgebra.publicRingColumns ≤ width)
     (program : Stage1.Application.Program) (stepEq : program.step = step)
-    (validControl : ∀ state witness, program.valid state witness → control state witness = 0)
     (firstFresh : Nat)
     (fits : CircuitRelation.Fits CircuitRelation.publicColumns (CircuitRelation.pieces
       (LightAssemblerCircuit.stepCircuit program base relation 0 ajtai)
@@ -238,17 +263,18 @@ theorem light_bridge (keysShaped : ∀ key, (circuitKeys key).digest.length = 4)
       (.recursive payload))
     (ranLight : payload.pc = 1) :
     (∃ input output, StepHolds Folding.Schedule.productionLightFoldCap ajtai circuitKeys step
-        control 0 input output ∧ EndsIn statement payload.running payload.pc 0 input output) ∨
+        (chosen 0) 0 input output ∧ EndsIn statement payload.running payload.pc 0 input output) ∨
       Collision := by
   obtain ⟨valid, pcValid, positive, freshHash, _, freshHolds⟩ :=
-    (Terminal.holdsFor_recursive_iff cap ajtai circuitKeys step control statement payload).1
-      accepted
+    (Terminal.holdsFor_recursive_iff cap ajtai circuitKeys step (chosen 0) statement payload).1
+      ((holdsFor_recursive_control cap ajtai circuitKeys step control _ statement payload).1
+        accepted)
   have selected : selectedIndex pcValid = 0 := Fin.ext (by simp [selectedIndex, ranLight])
   rw [selected, lightKey] at freshHolds
-  obtain ⟨env, holds, words⟩ := light_freshHolds program relation ajtai circuitKeys step control
-    stepEq validControl firstFresh width fits layout cubeFits publicInside payload.fresh
-    payload.freshWitness _ freshHash freshHolds
-  rcases bind_step _ ajtai circuitKeys keysShaped step control 0 _ env _ _ holds (Fin.isLt _)
+  obtain ⟨env, holds, words⟩ := light_freshHolds program relation ajtai circuitKeys step
+    (chosen 0) stepEq (fun _ _ _ => rfl) firstFresh width fits layout cubeFits publicInside
+    payload.fresh payload.freshWitness _ freshHash freshHolds
+  rcases bind_step _ ajtai circuitKeys keysShaped step (chosen 0) 0 _ env _ _ holds (Fin.isLt _)
       List.length_ofFn List.length_ofFn statement valid positive payload.running payload.pc
       pcValid (words.trans (ofFn_getD (Poseidon2.hash_length _))) with
     ⟨holds, ends⟩ | collision
@@ -259,7 +285,6 @@ theorem light_bridge (keysShaped : ∀ key, (circuitKeys key).digest.length = 4)
 theorem refresh_bridge (keysShaped : ∀ key, (circuitKeys key).digest.length = 4) (width : Nat)
     (publicInside : ringDegree * PaperAlgebra.publicRingColumns ≤ width)
     (program : Stage1.Application.Program) (stepEq : program.step = step)
-    (validControl : ∀ state witness, program.valid state witness → control state witness = 1)
     (firstFresh : Nat)
     (fits : CircuitRelation.Fits CircuitRelation.publicColumns (CircuitRelation.pieces
       (RefreshAssemblerCircuit.stepCircuit program base relation 1 ajtai)
@@ -278,17 +303,18 @@ theorem refresh_bridge (keysShaped : ∀ key, (circuitKeys key).digest.length = 
       (.recursive payload))
     (ranRefresh : payload.pc = 2) :
     (∃ input output, StepHolds Folding.Schedule.productionLightFoldCap ajtai circuitKeys step
-        control 1 input output ∧ EndsIn statement payload.running payload.pc 1 input output) ∨
+        (chosen 1) 1 input output ∧ EndsIn statement payload.running payload.pc 1 input output) ∨
       Collision := by
   obtain ⟨valid, pcValid, positive, freshHash, _, freshHolds⟩ :=
-    (Terminal.holdsFor_recursive_iff cap ajtai circuitKeys step control statement payload).1
-      accepted
+    (Terminal.holdsFor_recursive_iff cap ajtai circuitKeys step (chosen 1) statement payload).1
+      ((holdsFor_recursive_control cap ajtai circuitKeys step control _ statement payload).1
+        accepted)
   have selected : selectedIndex pcValid = 1 := Fin.ext (by simp [selectedIndex, ranRefresh])
   rw [selected, refreshKey] at freshHolds
   obtain ⟨env, holds, words⟩ := refresh_freshHolds program relation ajtai circuitKeys step
-    control stepEq validControl firstFresh width fits layout cubeFits publicInside payload.fresh
-    payload.freshWitness _ freshHash freshHolds
-  rcases bind_step _ ajtai circuitKeys keysShaped step control 1 _ env _ _ holds (Fin.isLt _)
+    (chosen 1) stepEq (fun _ _ _ => rfl) firstFresh width fits layout cubeFits publicInside
+    payload.fresh payload.freshWitness _ freshHash freshHolds
+  rcases bind_step _ ajtai circuitKeys keysShaped step (chosen 1) 1 _ env _ _ holds (Fin.isLt _)
       List.length_ofFn List.length_ofFn statement valid positive payload.running payload.pc
       pcValid (words.trans (ofFn_getD (Poseidon2.hash_length _))) with
     ⟨holds, ends⟩ | collision
@@ -296,15 +322,12 @@ theorem refresh_bridge (keysShaped : ∀ key, (circuitKeys key).digest.length = 
   · exact Or.inr collision
 
 /-- Option B's export-to-terminal bridge. The setup's keys carry the two exported relations, and
-the terminal accepts a recursive proof. Then the circuit that ran last holds its step relation
-under the setup's keys and ends in the terminal's statement, or Poseidon2 has a collision. -/
+the terminal accepts a recursive proof under any selector. Then the circuit that ran last holds
+its step relation, with that circuit as the selector (`chosen`), under the setup's keys and ends
+in the terminal's statement, or Poseidon2 has a collision. -/
 theorem bridge (keysShaped : ∀ key, (circuitKeys key).digest.length = 4)
     (lightProgram refreshProgram : Stage1.Application.Program)
     (lightStep : lightProgram.step = step) (refreshStep : refreshProgram.step = step)
-    (lightControl : ∀ state witness, lightProgram.valid state witness →
-      control state witness = 0)
-    (refreshControl : ∀ state witness, refreshProgram.valid state witness →
-      control state witness = 1)
     (lightFresh refreshFresh lightWidth refreshWidth : Nat)
     (lightFits : CircuitRelation.Fits CircuitRelation.publicColumns (CircuitRelation.pieces
       (LightAssemblerCircuit.stepCircuit lightProgram base relation 0 ajtai)
@@ -332,7 +355,7 @@ theorem bridge (keysShaped : ∀ key, (circuitKeys key).digest.length = 4)
     (accepted : Terminal.HoldsFor cap ajtai circuitKeys step control statement
       (.recursive payload)) :
     (∃ circuit input output, StepHolds Folding.Schedule.productionLightFoldCap ajtai circuitKeys
-        step control circuit input output ∧
+        step (chosen circuit) circuit input output ∧
         EndsIn statement payload.running payload.pc circuit input output) ∨ Collision := by
   obtain ⟨_, pcValid, _⟩ :=
     (Terminal.holdsFor_recursive_iff cap ajtai circuitKeys step control statement payload).1
@@ -342,12 +365,12 @@ theorem bridge (keysShaped : ∀ key, (circuitKeys key).digest.length = 4)
     omega
   rcases cases with ranLight | ranRefresh
   · rcases light_bridge relation ajtai circuitKeys step control cubeFits keysShaped lightWidth
-        lightInside lightProgram lightStep lightControl lightFresh lightFits lightLayout lightKey cap
+        lightInside lightProgram lightStep lightFresh lightFits lightLayout lightKey cap
         statement payload accepted ranLight with ⟨input, output, last⟩ | collision
     · exact Or.inl ⟨0, input, output, last⟩
     · exact Or.inr collision
   · rcases refresh_bridge relation ajtai circuitKeys step control cubeFits keysShaped refreshWidth
-        refreshInside refreshProgram refreshStep refreshControl refreshFresh refreshFits
+        refreshInside refreshProgram refreshStep refreshFresh refreshFits
         refreshLayout refreshKey cap statement payload accepted ranRefresh with
       ⟨input, output, last⟩ | collision
     · exact Or.inl ⟨1, input, output, last⟩

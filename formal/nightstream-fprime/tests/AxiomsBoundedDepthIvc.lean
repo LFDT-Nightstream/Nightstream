@@ -378,6 +378,7 @@ open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 #audit_axioms NightstreamFPrime.Export.OptionB.TerminalBridge.iteration_of_words
 #audit_axioms NightstreamFPrime.Export.OptionB.TerminalBridge.ofFn_getD
 #audit_axioms NightstreamFPrime.Export.OptionB.TerminalBridge.decodedKeys_eq
+#audit_axioms NightstreamFPrime.Export.OptionB.TerminalBridge.holdsFor_recursive_control
 #audit_axioms NightstreamFPrime.Export.OptionB.TerminalBridge.bind_step
 #audit_axioms NightstreamFPrime.Export.OptionB.TerminalBridge.light_bridge
 #audit_axioms NightstreamFPrime.Export.OptionB.TerminalBridge.refresh_bridge

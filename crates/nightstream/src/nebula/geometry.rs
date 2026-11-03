@@ -108,17 +108,17 @@ impl Geometry {
     }
 
     /// Bits of one operation slot (SPEC.md section 7.2).
-    pub fn op_width(&self) -> usize {
+    pub(crate) fn op_width(&self) -> usize {
         3 + self.mu + 64 + self.w_ts
     }
 
     /// Bits of one scan slot (SPEC.md section 7.2).
-    pub fn scan_width(&self) -> usize {
+    pub(crate) fn scan_width(&self) -> usize {
         32 + self.w_ts
     }
 
     /// `W_seg`: enough bits for every value below `S_max` (Lean `Nat.log2 + 1`).
-    pub fn seg_width(&self) -> usize {
+    pub(crate) fn seg_width(&self) -> usize {
         (usize::BITS - self.s_max.leading_zeros()) as usize
     }
 }

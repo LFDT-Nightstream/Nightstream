@@ -225,7 +225,7 @@ The selected profile remains `b = 2`, `k_rho = 16`, `B = 2^16`, with one fresh
 claim and sixteen carried claims. Terminal verification checks all remaining
 openings.
 
-`Prover::finish_with_spartan` compresses an active proof on the Optimized or
+`Prover::compress` compresses an active proof on the Optimized or
 Metal engine. It runs PiCCS and PiRLC once more and stops before PiDEC
 (SuperNeo Lemma 1). The `neo-spartan`
 crate then proves the folded CE(B) claim with sum-checks and WHIR (layer 1).

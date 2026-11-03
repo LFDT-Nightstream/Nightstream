@@ -370,7 +370,7 @@ impl Prover {
     /// Compress `proof`: one more PiCCS + PiRLC fold without PiDEC, then a
     /// sum-check and WHIR argument for the folded claim. The result carries
     /// no witness and cannot be extended; `proof` does not change.
-    pub fn finish_with_spartan(&self, proof: &Stage1Envelope, setup: &CompressionSetup) -> Result<FinalProof, Error> {
+    pub fn compress(&self, proof: &Stage1Envelope, setup: &CompressionSetup) -> Result<FinalProof, Error> {
         Ok(self.lifecycle.finish_with_spartan(proof, setup)?)
     }
 }

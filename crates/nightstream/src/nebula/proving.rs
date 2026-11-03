@@ -161,11 +161,11 @@ impl<A: Application + Clone> Prover<A> {
         self.stage1.open_compression_setup(dir, key)
     }
 
-    /// Compress `proof` (`crate::Prover::finish_with_spartan`). The carry
+    /// Compress `proof` (`crate::Prover::compress`). The carry
     /// does not change.
     pub fn compress(&self, proof: &Proof, setup: &crate::CompressionSetup) -> Result<FinalProof, crate::Error> {
         Ok(FinalProof {
-            stage1: self.stage1.finish_with_spartan(&proof.stage1, setup)?,
+            stage1: self.stage1.compress(&proof.stage1, setup)?,
             carry: proof.carry,
         })
     }

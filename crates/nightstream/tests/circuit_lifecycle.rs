@@ -74,7 +74,7 @@ fn poseidon_metal_proofs_equal_cpu_proofs() {
 
 /// The production compression setup, written once by
 /// `poseidon_compression_setup_matches_the_derived_key` and reused by
-/// `poseidon_finish_with_spartan_verifies`.
+/// `poseidon_compressed_proof_verifies`.
 fn compression_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../target/compression-setup")
 }
@@ -113,18 +113,18 @@ fn poseidon_compression_setup_matches_the_derived_key() {
 /// rejects a wrong state, a changed byte or the key of another setup root.
 #[test]
 #[ignore = "Full production compression; needs the stored setup; run this test separately under the 300-second cap."]
-fn poseidon_finish_with_spartan_verifies() {
-    finish_with_spartan_verifies(Engine::Optimized);
+fn poseidon_compressed_proof_verifies() {
+    compressed_proof_verifies(Engine::Optimized);
 }
 
 #[cfg(feature = "metal")]
 #[test]
 #[ignore = "Full production compression on Metal; needs the stored setup; run this test separately under the 300-second cap."]
-fn poseidon_metal_finish_with_spartan_verifies() {
-    finish_with_spartan_verifies(Engine::Metal);
+fn poseidon_metal_compressed_proof_verifies() {
+    compressed_proof_verifies(Engine::Metal);
 }
 
-fn finish_with_spartan_verifies(engine: Engine) {
+fn compressed_proof_verifies(engine: Engine) {
     let started = Instant::now();
     let circuit = Circuit::compile(&selected_reference(), poseidon2_hash_chain_v1().unwrap()).unwrap();
     let prover = circuit.prover(engine, 114).unwrap();
@@ -140,8 +140,8 @@ fn finish_with_spartan_verifies(engine: Engine) {
     eprintln!("compile, base step and one fold elapsed={:?}", started.elapsed());
 
     let finishing = Instant::now();
-    let finished = prover.finish_with_spartan(&proof, &setup).unwrap();
-    eprintln!("finish_with_spartan elapsed={:?}", finishing.elapsed());
+    let finished = prover.compress(&proof, &setup).unwrap();
+    eprintln!("compress elapsed={:?}", finishing.elapsed());
     let bytes = finished.to_bytes();
     eprintln!(
         "final proof bytes={} (accumulator proof bytes={})",
@@ -249,7 +249,7 @@ fn rejects_changes(verifier: &Verifier, key: &CompressionKey, bytes: &[u8]) {
 }
 
 /// Verification time of the final proof saved by
-/// `poseidon_finish_with_spartan_verifies`: the median of five runs after
+/// `poseidon_compressed_proof_verifies`: the median of five runs after
 /// one warm-up run that loads the terminal package.
 #[test]
 #[ignore = "Needs the saved final proof; run this test separately under the 300-second cap."]

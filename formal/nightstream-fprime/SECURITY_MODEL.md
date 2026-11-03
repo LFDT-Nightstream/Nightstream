@@ -530,10 +530,13 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
   are memory consistent exactly when their rows are
   (`Spec.Nebula.MemoryTrace.memoryConsistent_batchCatalog_iff`), but not
   that the Rust rows enforce those conditions. Tests check the rows on fixed
-  inputs (trust item 5). A Rust test also checks that each field of the
+  inputs (trust item 5). Rust tests also check that each field of the
   typed WASM state changes its words (`every_state_field_changes_the_state_words`
-  in `crates/neo-wasm/tests/wasm_nebula.rs`), so a verifier that reads a
-  field of a proved last state reads a proved word.
+  in `crates/neo-wasm/tests/wasm_nebula.rs`), and that a field of `q` or more
+  keeps a word that the terminal check of `SPEC.md` Algorithm 10 refuses
+  (`a_state_field_of_q_or_more_has_no_canonical_word`). So a verifier that
+  reads a field of a proved state reads a proved word, except that `None` and
+  `Some(0)` of `memory_pages` and `max_memory_pages` share the word 0.
 - A prover that picks the WASM size of its proof
   (`neo_wasm::nebula::WasmSize`). The results hold for each of the three
   fixed sizes, not for a choice among them.

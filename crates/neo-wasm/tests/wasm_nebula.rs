@@ -747,6 +747,47 @@ fn every_state_field_changes_the_state_words() {
     assert_eq!(changes.len(), 29 + 3 * 4 + 8 + 12, "one change for each field and lane");
 }
 
+/// A field raised by `q` keeps a word of `q` or more, which the terminal check
+/// of SPEC.md Algorithm 10 refuses, so a claim cannot name a field that differs
+/// from the proved word by `q`. A step input whose next state is raised by `q`
+/// has no step.
+#[test]
+fn a_state_field_of_q_or_more_has_no_canonical_word() {
+    use p3_field::PrimeField64;
+    let q = F::ORDER_U64;
+    let setup = setup(NonZeroUsize::MIN);
+    let traced = &setup.programs[0];
+    let base = traced.last;
+    let raises: [(&str, fn(&mut WasmStepState, u64)); 5] = [
+        ("pc", |state, q| state.pc += q),
+        ("sp", |state, q| state.sp += q),
+        ("call_stack_depth", |state, q| state.call_stack_depth += q),
+        ("host_frame_depth", |state, q| state.host_events.host_frame_depth += q),
+        ("comm_chain[0]", |state, q| {
+            state.comm_chain[0] = state.comm_chain[0].checked_add(q).unwrap()
+        }),
+    ];
+    for (name, raise) in raises {
+        let mut raised = base;
+        raise(&mut raised, q);
+        let words = state_words(raised);
+        assert_ne!(words, state_words(base), "{name}");
+        assert!(words.iter().any(|word| *word >= q), "{name} keeps a word of q or more");
+    }
+
+    let (app, _) = setup.complete();
+    let (_, mut run) = setup.run(&app, traced);
+    let mut inputs = traced.inputs.clone();
+    inputs.last_mut().unwrap().next.pc += q;
+    let Err(SegmentError::Application(error)) = run.segment(&inputs) else {
+        panic!("a next state raised by q has a step");
+    };
+    assert!(matches!(
+        error.downcast_ref::<WasmStepError>(),
+        Some(WasmStepError::Next)
+    ));
+}
+
 /// Both test programs, 8 one-row steps each, in two segments of four steps
 /// (`S_max = 2`).
 fn two_segments() -> (Setup, WasmApplication, Geometry) {
@@ -831,7 +872,8 @@ fn access(traced: &Traced, write: bool) -> (usize, usize) {
 /// value has no proof: its segment fails before the prover proves it. A
 /// final state with another `pc` does not verify.
 fn proof_verifies_and_rejects_a_changed_load_on_cpu(per_step: NonZeroUsize) {
-    use nightstream::nebula::{Circuit, ProveError, VerifyError};
+    use nightstream::nebula::{Circuit, ProveError, TerminalError, VerifyError};
+    use p3_field::PrimeField64;
     let started = std::time::Instant::now();
     let setup = setup(per_step);
     let (app, geometry) = setup.complete();
@@ -885,6 +927,47 @@ fn proof_verifies_and_rejects_a_changed_load_on_cpu(per_step: NonZeroUsize) {
             matches!(
                 verifier.verify(&program, &traced.initial, &changed, &proof),
                 Err(VerifyError::Proof(_))
+            ),
+            "{name} does not verify"
+        );
+    }
+
+    // A field raised by q has the word of the honest field after reduction,
+    // so only the terminal check can refuse it.
+    let q = F::ORDER_U64;
+    for (name, initial, changed) in [
+        (
+            "a last pc raised by q",
+            traced.initial,
+            WasmStepState {
+                pc: last.pc + q,
+                ..last
+            },
+        ),
+        (
+            "a last host frame depth raised by q",
+            traced.initial,
+            WasmStepState {
+                host_events: neo_wasm::WasmHostEventState {
+                    host_frame_depth: last.host_events.host_frame_depth + q,
+                    ..last.host_events
+                },
+                ..last
+            },
+        ),
+        (
+            "an initial pc raised by q",
+            WasmStepState {
+                pc: traced.initial.pc + q,
+                ..traced.initial
+            },
+            last,
+        ),
+    ] {
+        assert!(
+            matches!(
+                verifier.verify(&program, &initial, &changed, &proof),
+                Err(VerifyError::Terminal(TerminalError::NonCanonical))
             ),
             "{name} does not verify"
         );

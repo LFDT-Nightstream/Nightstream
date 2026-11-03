@@ -6,8 +6,8 @@
 //! state is a `WasmStepState`, whose words are the continuity words
 //! (`state_words`), so a verifier reads the last state of a proof as a typed
 //! value. Every field has words (test `every_state_field_changes_the_state_words`),
-//! except that `None` and `Some(0)` of `memory_pages` and `max_memory_pages`
-//! share the word 0. One circuit serves every program whose memories fit its
+//! and a field of `q` or more has no canonical word, except that `None` and
+//! `Some(0)` of `memory_pages` and `max_memory_pages` share the word 0. One circuit serves every program whose memories fit its
 //! regions. A deployment proves in the fixed sizes of `WasmSize`.
 
 use std::num::NonZeroUsize;
@@ -24,9 +24,7 @@ use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use crate::batch::{build_batched_witness, single_wasm_relation, BatchError};
 use crate::ir::{WasmStepState, WasmVmStep};
 use crate::layout::COL_ONE;
-use crate::{
-    build_wasm_relation_layout, continuity_words, plan_ordered_wasm_memory_slots, WasmMemoryId, WasmMemoryPreload,
-};
+use crate::{build_wasm_relation_layout, plan_ordered_wasm_memory_slots, WasmMemoryId, WasmMemoryPreload};
 
 /// The WASM relation as a Nebula application.
 #[derive(Clone)]
@@ -203,12 +201,13 @@ fn relation() -> Result<RowRelation, WasmApplicationError> {
     })
 }
 
-/// The state words of `state`: its continuity words.
+/// The state words of `state`: the integers of its continuity words, before
+/// their reduction to field words. A field of `q` or more keeps a word of `q`
+/// or more, which the terminal check of SPEC.md Algorithm 10 refuses, so a
+/// claim cannot name a field that differs from the proved word by a multiple
+/// of `q` (test `a_state_field_of_q_or_more_has_no_canonical_word`).
 pub fn state_words(state: WasmStepState) -> Vec<u64> {
-    continuity_words(state)
-        .iter()
-        .map(F::as_canonical_u64)
-        .collect()
+    crate::preprocess::continuity_values(state)
 }
 
 /// The step inputs of a run of `steps` steps of `rows` trace rows each: the

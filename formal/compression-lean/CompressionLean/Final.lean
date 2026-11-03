@@ -6,3 +6,4 @@ import CompressionLean.Final.ParentClaim
 import CompressionLean.Final.RustSetup
 import CompressionLean.Final.Soundness
 
+import CompressionLean.Final.OptionB

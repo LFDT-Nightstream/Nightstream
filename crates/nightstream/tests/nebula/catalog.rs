@@ -957,13 +957,7 @@ fn catalog_proof_verifies_and_rejects_a_broken_row_on_cpu() {
     let started = std::time::Instant::now();
     let setup = setup();
     let engine = crate::Engine::Optimized;
-    let reference = std::fs::read(
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("artifacts")
-            .join("nightstream-fprime-stage1-poseidon2-hash-chain-v1.json"),
-    )
-    .unwrap();
-    let circuit = Circuit::compile(&reference, setup.geometry, setup.app(true, None)).unwrap();
+    let circuit = Circuit::compile(setup.geometry, setup.app(true, None)).unwrap();
     let prover = circuit.circuit.prover(engine, 114).unwrap();
     let verifier = circuit.verifier(engine, 114).unwrap();
     eprintln!("catalog setup elapsed={:?}", started.elapsed());

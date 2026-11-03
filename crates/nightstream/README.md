@@ -9,12 +9,11 @@ Compile the application once using the packaged reference, then save it:
 ```rust
 use nightstream::{application::poseidon2_hash_chain_v1, Circuit};
 
-let reference = std::fs::read("artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1.json")?;
-let circuit = Circuit::compile(&reference, poseidon2_hash_chain_v1()?)?;
+let circuit = Circuit::compile(poseidon2_hash_chain_v1()?)?;
 circuit.write("app.nsc")?;
 ```
 
-Compilation validates the selected reference and application, and computes the
+Compilation validates the embedded reference package and the application, and computes the
 unchanged Poseidon2 identities. Writing publishes one complete file and refuses
 to replace an existing destination. The compiled circuit can also be reused
 directly in the same process.
@@ -28,7 +27,7 @@ use nightstream::{Circuit, Engine, Prover};
 // Set this from the integrating application's security policy.
 let minimum_security_bits = policy.minimum_statistical_security_bits;
 let prover = Prover::load("app.nsc", Engine::Metal, minimum_security_bits)?;
-let verifier = Circuit::compile(&reference, application)?.verifier(Engine::Metal, minimum_security_bits)?;
+let verifier = Circuit::compile(application)?.verifier(Engine::Metal, minimum_security_bits)?;
 let proof = prover.prove(initial_state, &private_inputs)?;
 verifier.verify(&expected_state, &proof)?;
 ```

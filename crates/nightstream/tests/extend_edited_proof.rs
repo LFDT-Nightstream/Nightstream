@@ -1,7 +1,7 @@
 //! Extending a proof whose fresh commitment was edited in its bytes.
 //! Every engine refuses it at the PiDEC commitment check.
 
-use std::{fs, path::PathBuf, time::Instant};
+use std::time::Instant;
 
 use neo_math::D;
 use nightstream::{application::poseidon2_hash_chain_v1, Circuit, Engine};
@@ -13,12 +13,7 @@ use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks as F;
 
 fn compiled() -> Circuit {
-    let reference = fs::read(
-        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1.json"),
-    )
-    .expect("saved selected circuit reference");
-    Circuit::compile(&reference, poseidon2_hash_chain_v1().unwrap()).unwrap()
+    Circuit::compile(poseidon2_hash_chain_v1().unwrap()).unwrap()
 }
 
 /// Add one to the first word of the fresh commitment, which stays below the

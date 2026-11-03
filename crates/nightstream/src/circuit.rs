@@ -126,17 +126,19 @@ pub struct Circuit {
 }
 
 impl Circuit {
-    pub fn compile(reference_bytes: &[u8], application: ApplicationCircuit) -> Result<Self, Error> {
-        Self::compile_as(Role::Stage1, reference_bytes, application)
+    /// The circuit of `application` in the shared F′ verifier of the embedded
+    /// Stage 1 reference package, after the package's identity pins pass.
+    pub fn compile(application: ApplicationCircuit) -> Result<Self, Error> {
+        Self::compile_as(Role::Stage1, application)
     }
 
     /// `compile` for a memory relation (`nebula::Circuit::compile`).
-    pub(crate) fn compile_memory(reference_bytes: &[u8], application: ApplicationCircuit) -> Result<Self, Error> {
-        Self::compile_as(Role::Memory, reference_bytes, application)
+    pub(crate) fn compile_memory(application: ApplicationCircuit) -> Result<Self, Error> {
+        Self::compile_as(Role::Memory, application)
     }
 
-    fn compile_as(role: Role, reference_bytes: &[u8], application: ApplicationCircuit) -> Result<Self, Error> {
-        let (package, binding) = assembly::prepare(reference_bytes, &application)?;
+    fn compile_as(role: Role, application: ApplicationCircuit) -> Result<Self, Error> {
+        let (package, binding) = assembly::prepare(crate::artifacts::reference_package(), &application)?;
         crate::lifecycle::validate_key_prefix(
             package.logical_column_count(),
             binding.verifier_context().commitment_key_words(),

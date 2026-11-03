@@ -6,7 +6,7 @@ use std::{fs::File, io::Read};
 use std::{
     fs::{self, OpenOptions},
     io::{Seek, SeekFrom, Write},
-    path::{Path, PathBuf},
+    path::PathBuf,
     sync::{
         atomic::{AtomicU64, Ordering},
         OnceLock,
@@ -43,13 +43,6 @@ impl Drop for TestDirectory {
     }
 }
 
-fn reference() -> Vec<u8> {
-    fs::read(
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1.json"),
-    )
-    .unwrap()
-}
-
 fn compiled_fixture() -> &'static Circuit {
     static CIRCUIT: OnceLock<Circuit> = OnceLock::new();
     CIRCUIT.get_or_init(|| {
@@ -68,7 +61,7 @@ fn compiled_fixture() -> &'static Circuit {
                 Affine::constant(F::from_u64(17)),
             ])
             .unwrap();
-        Circuit::compile(&reference(), application).unwrap()
+        Circuit::compile(application).unwrap()
     })
 }
 
@@ -371,10 +364,8 @@ fn metal_verifier_rejects_changed_constraint_with_original_cached_identity_and_s
     use neo_reductions::superneo_eval::SuperneoCachedRelationError;
     let started = std::time::Instant::now();
     let directory = TestDirectory::new();
-    let reference = reference();
-    let original = Circuit::compile(&reference, private_zero_application(F::ONE)).unwrap();
-    let changed = Circuit::compile(&reference, private_zero_application(F::ZERO)).unwrap();
-    drop(reference);
+    let original = Circuit::compile(private_zero_application(F::ONE)).unwrap();
+    let changed = Circuit::compile(private_zero_application(F::ZERO)).unwrap();
     assert_ne!(original.identity(), changed.identity());
     assert_eq!(
         original.compiled.package.application(),

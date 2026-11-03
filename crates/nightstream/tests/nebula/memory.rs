@@ -742,7 +742,6 @@ fn runner_rejects_a_misread_port_and_a_short_port_list() {
 fn invalid_geometries_make_no_program_and_no_circuit() {
     let valid = Package::V1.geometry();
     assert!(valid.is_valid() && Package::N1.geometry().is_valid());
-    let reference = package("nightstream-fprime-stage1-poseidon2-hash-chain-v1.json");
     let cases: [(&str, fn(&mut crate::nebula::Geometry)); 5] = [
         ("r > μ", |g| g.r = 3),
         ("timestamps", |g| g.w_ts = 4),
@@ -761,7 +760,7 @@ fn invalid_geometries_make_no_program_and_no_circuit() {
         );
         assert!(
             matches!(
-                crate::nebula::Circuit::compile(&reference, geometry, Machine),
+                crate::nebula::Circuit::compile(geometry, Machine),
                 Err(crate::Error::Circuit(_))
             ),
             "{name}"
@@ -785,9 +784,8 @@ fn insecure_geometry_makes_no_circuit() {
     };
     assert!(insecure.is_valid());
     assert!(insecure.max_tuples() > 139_509);
-    let reference = package("nightstream-fprime-stage1-poseidon2-hash-chain-v1.json");
     assert!(matches!(
-        crate::nebula::Circuit::compile(&reference, insecure, Machine),
+        crate::nebula::Circuit::compile(insecure, Machine),
         Err(crate::Error::Circuit("the memory geometry breaks SPEC.md section 7.1"))
     ));
 }
@@ -800,9 +798,8 @@ fn machine_makes_no_circuit_with_a_third_port() {
     let mut geometry = Package::V1.geometry();
     geometry.b_ops = 3;
     assert!(geometry.is_valid() && geometry.max_tuples() <= 139_509);
-    let reference = package("nightstream-fprime-stage1-poseidon2-hash-chain-v1.json");
     assert!(matches!(
-        crate::nebula::Circuit::compile(&reference, geometry, Machine),
+        crate::nebula::Circuit::compile(geometry, Machine),
         Err(crate::Error::Circuit(
             "the application's port count is not the geometry's b_ops"
         ))
@@ -861,11 +858,10 @@ impl Application for ReadsWord {
 /// fresh `η1`) or word 0 (the carry) makes no circuit.
 #[test]
 fn application_rows_outside_the_view_make_no_circuit() {
-    let reference = package("nightstream-fprime-stage1-poseidon2-hash-chain-v1.json");
     for word in [90, 0] {
         assert!(
             matches!(
-                crate::nebula::Circuit::compile(&reference, Package::V1.geometry(), ReadsWord(word)),
+                crate::nebula::Circuit::compile(Package::V1.geometry(), ReadsWord(word)),
                 Err(crate::Error::Application(
                     crate::application::ApplicationError::VariableOutOfScope(_)
                 ))
@@ -955,22 +951,21 @@ fn prove_segment<A: Application<Input = Step, State = MachineState>>(
 fn rust_built(engine: crate::Engine) {
     use crate::nebula::{Circuit, VerifyError};
     let started = std::time::Instant::now();
-    let reference = package("nightstream-fprime-stage1-poseidon2-hash-chain-v1.json");
     let geometry = Package::V1.geometry();
     let path = std::env::temp_dir().join(format!("nightstream-nebula-setup-{}.package", std::process::id()));
     let _ = std::fs::remove_file(&path);
-    Circuit::compile(&reference, geometry, Machine)
+    Circuit::compile(geometry, Machine)
         .unwrap()
         .write(&path)
         .unwrap();
     let prover = crate::Prover::load(&path, engine, 114);
     std::fs::remove_file(&path).unwrap();
     let prover = prover.unwrap();
-    let verifier = Circuit::compile(&reference, geometry, Machine)
+    let verifier = Circuit::compile(geometry, Machine)
         .unwrap()
         .verifier(engine, 114)
         .unwrap();
-    let changed = Circuit::compile(&reference, geometry, Changed::Row).unwrap();
+    let changed = Circuit::compile(geometry, Changed::Row).unwrap();
     eprintln!("rust-built setup elapsed={:?}", started.elapsed());
     let program = Package::V1.program();
 

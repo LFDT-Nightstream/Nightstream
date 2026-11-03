@@ -242,14 +242,8 @@ fn a_relation_of_the_builders_runs_through_nebula() {
 #[ignore = "Full production-profile memory proof; run separately under the 300-second cap."]
 fn a_relation_of_the_builders_proves_and_verifies_on_cpu() {
     let engine = nightstream::Engine::Optimized;
-    let reference = std::fs::read(
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("artifacts")
-            .join("nightstream-fprime-stage1-poseidon2-hash-chain-v1.json"),
-    )
-    .unwrap();
     let app = application(2);
-    let circuit = Circuit::compile(&reference, geometry(2), app.clone()).unwrap();
+    let circuit = Circuit::compile(geometry(2), app.clone()).unwrap();
     let prover = circuit.prover(engine, 114).unwrap();
     let verifier = circuit.verifier(engine, 114).unwrap();
     let program = app.program(&preload(TABLE)).unwrap();

@@ -151,8 +151,7 @@ fn second_package_executes_honest_invocations() {
 /// completes the honest invocations with the same output states.
 #[test]
 fn rust_built_circuit_writes_and_loads() {
-    let reference = artifact("nightstream-fprime-stage1-poseidon2-hash-chain-v1.json");
-    let circuit = Circuit::compile(&reference, Package::V1.geometry(), Machine).unwrap();
+    let circuit = Circuit::compile(Package::V1.geometry(), Machine).unwrap();
     let path = std::env::temp_dir().join(format!("nightstream-nebula-circuit-{}.package", std::process::id()));
     let _ = fs::remove_file(&path);
     circuit.write(&path).unwrap();

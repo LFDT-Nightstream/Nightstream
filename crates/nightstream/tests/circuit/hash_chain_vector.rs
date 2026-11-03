@@ -12,14 +12,6 @@ use neo_ajtai::nightstream_fprime_setup::{
 };
 use neo_math::D;
 use p3_field::PrimeCharacteristicRing;
-use std::{fs, path::Path};
-
-fn reference() -> Vec<u8> {
-    fs::read(
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1.json"),
-    )
-    .unwrap()
-}
 
 fn chain(state: [F; 4], message: &[F]) -> [F; 4] {
     let first = poseidon2_hash_chain_step(state, message[..4].try_into().unwrap());
@@ -29,7 +21,7 @@ fn chain(state: [F; 4], message: &[F]) -> [F; 4] {
 #[test]
 #[ignore = "Full production-profile check; run this test separately under the 300-second cap."]
 fn two_link_hash_chain_base_step_verifies_and_rejects_changes() {
-    let circuit = Circuit::compile(&reference(), two_link_hash_chain().unwrap()).unwrap();
+    let circuit = Circuit::compile(two_link_hash_chain().unwrap()).unwrap();
     let columns = circuit.compiled.package.logical_column_count().div_ceil(D) as u64;
     assert!(columns > PRODUCTION_MESSAGE_COLUMNS && columns <= MAX_MESSAGE_COLUMNS);
     assert_eq!(
@@ -146,7 +138,7 @@ fn two_link_hash_chain_base_step_verifies_and_rejects_changes() {
 #[ignore = "Full production Metal fold; run this test separately under the 300-second cap."]
 fn two_link_hash_chain_folds_on_metal() {
     let engine = Engine::Metal;
-    let circuit = Circuit::compile(&reference(), two_link_hash_chain().unwrap()).unwrap();
+    let circuit = Circuit::compile(two_link_hash_chain().unwrap()).unwrap();
     let prover = circuit.prover(engine, 114).unwrap();
     let verifier = circuit.verifier(engine, 114).unwrap();
     let initial = [1, 2, 3, 4].map(F::from_u64);
@@ -175,7 +167,7 @@ fn two_link_hash_chain_folds_on_metal() {
 #[test]
 #[ignore = "Full production Metal and CPU folds; run this test separately under the 300-second cap."]
 fn metal_and_cpu_folds_encode_the_same_proof() {
-    let circuit = Circuit::compile(&reference(), two_link_hash_chain().unwrap()).unwrap();
+    let circuit = Circuit::compile(two_link_hash_chain().unwrap()).unwrap();
     let initial = [1, 2, 3, 4].map(F::from_u64);
     let first = [5, 6, 7, 8, 9, 10, 11, 12].map(F::from_u64);
     let second = [13, 14, 15, 16, 17, 18, 19, 20].map(F::from_u64);

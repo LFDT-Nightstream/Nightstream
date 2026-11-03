@@ -77,11 +77,7 @@ fn terminal_package_rejects_another_identifier() {
 #[test]
 #[ignore = "Production base step, fold and terminal package; run separately under the 300-second cap."]
 fn terminal_package_accepts_the_last_fold() {
-    let circuit = Circuit::compile(
-        &read("artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1.json"),
-        poseidon2_hash_chain_v1().unwrap(),
-    )
-    .unwrap();
+    let circuit = Circuit::compile(poseidon2_hash_chain_v1().unwrap()).unwrap();
     let prover = circuit.prover(Engine::Optimized, 114).unwrap();
     let initial = [202, 203, 204, 205].map(F::from_u64);
     let message = [7, 11, 13, 17].map(F::from_u64);

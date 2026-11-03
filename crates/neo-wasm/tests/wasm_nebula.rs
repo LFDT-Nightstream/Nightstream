@@ -783,7 +783,7 @@ fn a_proof_of_two_segments_verifies_on_cpu() {
     let (setup, app, geometry) = two_segments();
     let traced = &setup.programs[1];
     let engine = nightstream::Engine::Optimized;
-    let circuit = Circuit::compile(&reference(), geometry, app.clone()).unwrap();
+    let circuit = Circuit::compile(geometry, app.clone()).unwrap();
     let prover = circuit.prover(engine, 114).unwrap();
     let verifier = circuit.verifier(engine, 114).unwrap();
     let program = app.program(&traced.preload).unwrap();
@@ -825,15 +825,6 @@ fn access(traced: &Traced, write: bool) -> (usize, usize) {
         .expect("the trace has the access")
 }
 
-/// The Stage 1 package that every Nebula circuit extends.
-fn reference() -> Vec<u8> {
-    std::fs::read(
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../nightstream/artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1.json"),
-    )
-    .unwrap()
-}
-
 /// The linear-memory program in steps of `per_step` rows through
 /// `Circuit::compile`, the prover, and the memory verifier. The honest proof
 /// verifies after its bytes round-trip. A run whose `i32.load` reads another
@@ -846,7 +837,7 @@ fn proof_verifies_and_rejects_a_changed_load_on_cpu(per_step: NonZeroUsize) {
     let (app, geometry) = setup.complete();
     let traced = &setup.programs[0];
     let engine = nightstream::Engine::Optimized;
-    let circuit = Circuit::compile(&reference(), geometry, app.clone()).unwrap();
+    let circuit = Circuit::compile(geometry, app.clone()).unwrap();
     let prover = circuit.prover(engine, 114).unwrap();
     let verifier = circuit.verifier(engine, 114).unwrap();
     eprintln!("wasm setup elapsed={:?}", started.elapsed());
@@ -931,7 +922,7 @@ fn time_on_metal<A: Application + Clone>(
     let engine = nightstream::Engine::Metal;
     let started = Instant::now();
     eprintln!("{geometry:?}");
-    let circuit = Circuit::compile(&reference(), geometry, app).unwrap();
+    let circuit = Circuit::compile(geometry, app).unwrap();
     eprintln!("compile elapsed={:?}", started.elapsed());
     eprintln!("application size={:?}", circuit.application_size().unwrap());
     let prover = circuit.prover(engine, 114).unwrap();
@@ -1116,7 +1107,7 @@ fn fibonacci_step_size_for_the_breakdown_chart() {
             local_words: total.local_words + size.local_words,
             rows: total.rows + size.rows,
         });
-    let compiled = Circuit::compile(&reference(), geometry, wasm)
+    let compiled = Circuit::compile(geometry, wasm)
         .unwrap()
         .application_size()
         .unwrap();

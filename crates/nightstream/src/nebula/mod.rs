@@ -266,16 +266,16 @@ pub struct Circuit<A> {
 impl<A: Application> Circuit<A> {
     /// Build the memory relation of a valid, secure geometry (Lean
     /// `Geometry.Valid` and `Geometry.Secure`) and `app` in Rust, and compile
-    /// it with the Stage 1 reference package. `app` must have the geometry's
-    /// `b_ops` ports (Lean `PortApp.portsLength`).
-    pub fn compile(reference_bytes: &[u8], geometry: Geometry, app: A) -> Result<Self, crate::Error> {
+    /// it with the embedded Stage 1 reference package. `app` must have the
+    /// geometry's `b_ops` ports (Lean `PortApp.portsLength`).
+    pub fn compile(geometry: Geometry, app: A) -> Result<Self, crate::Error> {
         if !geometry.is_valid() || !geometry.is_secure() {
             return Err(crate::Error::Circuit("the memory geometry breaks SPEC.md section 7.1"));
         }
         check_port_count(&geometry, &app)?;
         let application = circuit::memory_circuit(&geometry, &app)?;
         Ok(Self {
-            circuit: crate::Circuit::compile_memory(reference_bytes, application)?,
+            circuit: crate::Circuit::compile_memory(application)?,
             geometry,
             app,
         })

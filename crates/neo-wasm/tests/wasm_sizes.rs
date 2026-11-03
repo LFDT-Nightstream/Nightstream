@@ -188,15 +188,6 @@ fn a_run_steps_natively_through_the_segments_of_its_size() {
     }
 }
 
-/// The Stage 1 package that every Nebula circuit extends.
-fn reference() -> Vec<u8> {
-    std::fs::read(
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../nightstream/artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1.json"),
-    )
-    .unwrap()
-}
-
 /// Fibonacci proved on Metal in Small, one segment of 64 steps of 8 rows. The
 /// proof verifies after its bytes round-trip, and a last state with another
 /// `pc` does not verify.
@@ -211,7 +202,7 @@ fn a_small_proof_verifies_on_metal() {
     assert_eq!(size, WasmSize::Small);
     let app = size.application().unwrap();
     let program = app.program(&preload).unwrap();
-    let circuit = Circuit::compile(&reference(), size.geometry(), app).unwrap();
+    let circuit = Circuit::compile(size.geometry(), app).unwrap();
     eprintln!("compile elapsed={:?}", started.elapsed());
     let engine = nightstream::Engine::Metal;
     let prover = circuit.prover(engine, 109).unwrap();

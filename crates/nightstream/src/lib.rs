@@ -3,6 +3,7 @@
 pub mod application;
 pub mod error;
 
+mod artifacts;
 mod assembly;
 mod circuit;
 mod engine;

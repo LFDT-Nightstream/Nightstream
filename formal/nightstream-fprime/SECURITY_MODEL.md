@@ -79,9 +79,9 @@ item 5).
   either circuit give its case of the step relation
   (`Layout.OptionB.StepCircuits.soundness`). Each result takes as a premise
   that every valid step of the circuit's application has the selector value
-  of that circuit. The selector that returns the circuit that runs
-  (`Export.OptionB.TerminalBridge.chosen`) meets this premise for every
-  application (trust item 4). The decoded key digests are the words that
+  of that circuit. The selector that returns the circuit that runs on a valid step and the
+  other circuit otherwise (`Export.OptionB.TerminalBridge.chosen`) meets this
+  premise for every application (trust item 4). The decoded key digests are the words that
   the assignment carries; adversary 2 binds them to the verifier's keys. The
   result is deterministic and needs no hardness premise.
 
@@ -185,12 +185,14 @@ item 5).
   probabilities, the reverse run of one slot opens each running claim at its
   recovered bound, or it names a failed fold
   (`Spec.HyperNova.Construction2.BoundedDepthKnowledge.execution_extracts`).
+- **Validity:** a false acceptance has no list of witnesses that are valid
+  for the application and that its step maps from `z0` to `zi`
+  (`Export.OptionB.IvcWalk.Reaches`). The bridge's selector returns the
+  circuit that ran only on a valid step (`Export.OptionB.TerminalBridge.chosen`),
+  so each decoded step is valid (`Export.OptionB.TerminalBridge.valid_of_chosen`).
 - **Gaps:** Lean does not derive the value of `error`. Adversary 3's counts
   are deterministic, and no random-oracle result for the light and refresh
-  folds discharges Assumption 1. The advice of a false acceptance is any list
-  of witnesses that `step` maps from `z0` to `zi`. The step relation does not
-  carry the application's validity predicate, so the result does not say that
-  the witnesses are valid for the application.
+  folds discharges Assumption 1.
 
 ### 5. Memory adversary
 
@@ -200,12 +202,22 @@ item 5).
   history that an extractor returns does not attest the claim: it is not an
   execution from the claim's initial words and the program's memory to its
   final words in which each memory access reads the last value written.
-- **Result:** no probabilistic Lean result covers the two step circuits.
-  `Lifecycle.Nebula.EndToEnd.bad_subset` reduces a win to a failure of the
-  history extraction, a state-link collision, a chain collision, or an
-  accepted run with an unbalanced segment that passes the product test, for
-  every extraction that meets `Lifecycle.Nebula.EndToEnd.Stage1Extraction`.
-  Lean proves that premise for no extractor of the two step circuits.
+- **Result:** under Assumption 1, the closure premise and the memory round
+  (trust item 6), on the joint law of the claim that the adversary's tape
+  gives and the reverse extractor's sample, the mass of wins is at most the
+  collision and stage terms of adversary 4, the state-link and chain
+  collision masses of the extracted runs, and the memory-round error of the
+  last stage (`Export.OptionB.NebulaSecurity.bad_le`). The extracted history
+  is the steps that adversary 4's walk decodes (`Export.OptionB.IvcWalk.trail`),
+  so every event reads data of the sample. The walk meets the extraction
+  premise of `Lifecycle.Nebula.EndToEnd.Stage1Extraction`
+  (`Export.OptionB.NebulaSecurity.stage1Extraction`), and
+  `Lifecycle.Nebula.EndToEnd.bad_subset` reduces a win to a failure of that
+  extraction, a state-link collision, a chain collision, or an accepted run
+  with an unbalanced segment that passes the product test. A win counts only
+  on a sample whose answers cover the statement's iteration; on the law of
+  the theorem this holds when the adversary's iteration is at most the
+  number of stages.
 - **Deterministic part:** an accepted run gives an execution, a Poseidon2
   collision among the run's own chain inputs and the `D_init` chain, or a
   segment that passes the product test with unbalanced multisets
@@ -369,8 +381,8 @@ item 5).
    `Lifecycle.OptionB.stepHolds_iff`). Both option-B circuits run the same
    application step, so the selector does not change the computed state.
    `Export.OptionB.TerminalBridge.bridge` takes the selector that returns the
-   circuit that ran (`Export.OptionB.TerminalBridge.chosen`), so the prover
-   picks the circuit. Rust picks it from the depth of the selected slot
+   circuit that ran on a valid step (`Export.OptionB.TerminalBridge.chosen`),
+   so the prover picks the circuit. Rust picks it from the depth of the selected slot
    (`SPEC.md` Algorithm 5): a light fold below the cap and a refresh fold at
    the cap. The light depth guard rejects a light fold at the cap for every
    pick. The statement `(i, z0, zi)` does not fix the circuit of a step; the
@@ -380,11 +392,11 @@ item 5).
    and its logical assignment with Lean exports, and they check the
    lifecycle on fixed inputs (`SPEC.md` section 9). No theorem covers
    arbitrary Rust execution.
-6. **The memory round.** No Lean premise states the memory round for the two
-   step circuits. Its target is this: for each admitted stage and the memory
-   statement of its tape, the extracted run is accepted and has a segment
-   that passes the product test with unbalanced multisets with probability at
-   most `error_mem` of that stage. The relation computes `η`
+6. **The memory round.** `Export.OptionB.NebulaSecurity.MemoryRound` states
+   the memory round for the two step circuits as a premise: for each admitted
+   stage and the memory statement of its tape, the extracted run is accepted
+   and has a segment that passes the product test with unbalanced multisets
+   with probability at most `error_mem` of that stage. The relation computes `η`
    with Poseidon2 inside the proven step, so no random-oracle proof covers
    it. The challenge game of adversary 5 motivates the target
    `(Q_η + 1) · (2 · m_mem/q² + ε_coll(t_1))`, where `Q_η` counts the

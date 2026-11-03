@@ -42,6 +42,7 @@ import NightstreamFPrime.Export.OptionB.StepPackage
 import NightstreamFPrime.Export.Generic.SlotLayout
 import NightstreamFPrime.Export.OptionB.TerminalBridge
 import NightstreamFPrime.Export.OptionB.IvcSecurity
+import NightstreamFPrime.Export.OptionB.NebulaSecurity
 import NightstreamFPrime.Export.OptionB.FinishRelation
 import NightstreamFPrime.Lifecycle.OptionB.Terminal
 import NightstreamFPrime.Spec.Folding.Light.RlcModule
@@ -384,6 +385,7 @@ open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 #audit_axioms NightstreamFPrime.Export.OptionB.TerminalBridge.decodedKeys_eq
 #audit_axioms NightstreamFPrime.Export.OptionB.TerminalBridge.holdsFor_recursive_control
 #audit_axioms NightstreamFPrime.Export.OptionB.TerminalBridge.bind_step
+#audit_axioms NightstreamFPrime.Export.OptionB.TerminalBridge.valid_of_chosen
 #audit_axioms NightstreamFPrime.Export.OptionB.TerminalBridge.linked_of_holdsFor
 #audit_axioms NightstreamFPrime.Export.OptionB.TerminalBridge.bridge_linked
 #audit_axioms NightstreamFPrime.Export.OptionB.TerminalBridge.bridge
@@ -434,6 +436,8 @@ example : (runDepths 2 (fun _ => 0) 1 (List.replicate 3 [0, 0, 1]).flatten).isNo
 #audit_axioms NightstreamFPrime.Spec.HyperNova.ReverseStages.stage_event
 #audit_axioms NightstreamFPrime.Spec.HyperNova.ReverseStages.start_event
 #audit_axioms NightstreamFPrime.Spec.HyperNova.ReverseStages.input_supported
+#audit_axioms NightstreamFPrime.Spec.HyperNova.ReverseStages.input_origin
+#audit_axioms NightstreamFPrime.Spec.HyperNova.ReverseStages.tape_map_origin
 #audit_axioms NightstreamFPrime.Spec.HyperNova.ReverseStages.failure_term
 #audit_axioms NightstreamFPrime.Spec.HyperNova.ReverseStages.visit_term
 #audit_axioms NightstreamFPrime.Spec.HyperNova.ReverseStages.bad_le
@@ -443,8 +447,14 @@ example : (runDepths 2 (fun _ => 0) 1 (List.replicate 3 [0, 0, 1]).flatten).isNo
 #audit_axioms NightstreamFPrime.Export.OptionB.IvcWalk.circuitOf_selected
 #audit_axioms NightstreamFPrime.Export.OptionB.IvcWalk.claimHolds_bigB
 #audit_axioms NightstreamFPrime.Export.OptionB.IvcWalk.decode_shaped
+#audit_axioms NightstreamFPrime.Export.OptionB.IvcWalk.validFrom_append
+#audit_axioms NightstreamFPrime.Export.OptionB.IvcWalk.reaches_of_leads
 #audit_axioms NightstreamFPrime.Export.OptionB.IvcWalk.initial_relaxed
 #audit_axioms NightstreamFPrime.Export.OptionB.IvcWalk.walk_step
-#audit_axioms NightstreamFPrime.Export.OptionB.IvcWalk.walk_reaches
+#audit_axioms NightstreamFPrime.Export.OptionB.IvcWalk.walk_leads
 #audit_axioms NightstreamFPrime.Export.OptionB.IvcWalk.covered
 #audit_axioms NightstreamFPrime.Export.OptionB.IvcSecurity.probability_bound
+#audit_axioms NightstreamFPrime.Export.OptionB.NebulaSecurity.leads_length
+#audit_axioms NightstreamFPrime.Export.OptionB.NebulaSecurity.history_of_leads
+#audit_axioms NightstreamFPrime.Export.OptionB.NebulaSecurity.stage1Extraction
+#audit_axioms NightstreamFPrime.Export.OptionB.NebulaSecurity.bad_le

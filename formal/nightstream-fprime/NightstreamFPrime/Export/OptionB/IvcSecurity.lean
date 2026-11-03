@@ -47,11 +47,12 @@ variable {relation : ProductionKey.LogicalRelation logicalWidth publicFits}
   {cubeFits : Phi81CarrierLayout.carrierWidth logicalWidth ≤ 2 ^ cubeVariables}
   (exports : Exports relation ajtai circuitKeys step cubeFits)
 
-/-- The terminal accepts, and no `iteration` steps of the application lead from `z0` to `zi`. -/
+/-- The terminal accepts, and no `iteration` valid steps of the application lead from `z0` to
+`zi`. -/
 def FalseAcceptance (control : AppState → AppWitness → Fin 2) (cap : Nat)
     (output : Output logicalWidth publicFits) : Prop :=
   Terminal.HoldsFor cap ajtai circuitKeys step control output.1 output.2 ∧
-    ¬ Reaches step output.1
+    ¬ Reaches exports.program output.1
 
 /-- The walk's start: the IVC adversary's output with every slot at bound `B`. -/
 def walkAdversary (adversary : IvcAdversary (Output logicalWidth publicFits)) :
@@ -76,7 +77,7 @@ theorem probability_bound (keysShaped : ∀ key, (circuitKeys key).digest.length
     (control : AppState → AppWitness → Fin 2) (cap depth : Nat)
     (depthBound : ∀ tape ∈ adversary.tape.support, (adversary.output tape).1.iteration ≤ depth) :
     (adversary.tape.toOuterMeasure
-        {tape | FalseAcceptance ajtai circuitKeys (step := step) control cap
+        {tape | FalseAcceptance ajtai circuitKeys exports control cap
           (adversary.output tape)}).toReal ≤
       ∑ j : Fin depth,
         (((stages j.val).1.tape.toOuterMeasure
@@ -86,11 +87,11 @@ theorem probability_bound (keysShaped : ∀ key, (circuitKeys key).digest.length
           error ((stages j.val).1.nifs (attemptOf ajtai circuitKeys exports)
             (back ajtai circuitKeys exports))) := by
   let event : Set (Visit logicalWidth publicFits) :=
-    {visit | FalseAcceptance ajtai circuitKeys (step := step) control cap
+    {visit | FalseAcceptance ajtai circuitKeys exports control cap
       (visit.statement, visit.proof)}
   have moved := start_event assumption closed (walkAdversary adversary) admitted depth event
   change adversary.tape.toOuterMeasure
-      {tape | FalseAcceptance ajtai circuitKeys (step := step) control cap
+      {tape | FalseAcceptance ajtai circuitKeys exports control cap
         (adversary.output tape)} = _ at moved
   rw [moved]
   refine bad_le assumption closed (walkAdversary adversary) admitted depth
@@ -98,7 +99,8 @@ theorem probability_bound (keysShaped : ∀ key, (circuitKeys key).digest.length
   intro origin supported results length falseAcceptance
   obtain ⟨accepted, unreached⟩ := falseAcceptance
   obtain ⟨j, inside, found⟩ := covered ajtai circuitKeys exports keysShaped control cap
-    (adversary.output origin) results (length ▸ depthBound origin supported) accepted unreached
+    (adversary.output origin) results (length ▸ depthBound origin supported) accepted
+    fun leads => unreached (reaches_of_leads _ _ _ leads)
   exact ⟨⟨j, length ▸ inside⟩, found⟩
 
 end NightstreamFPrime.Export.OptionB.IvcSecurity

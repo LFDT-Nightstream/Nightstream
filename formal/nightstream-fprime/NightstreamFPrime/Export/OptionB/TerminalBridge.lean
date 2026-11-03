@@ -17,8 +17,9 @@ and witness. Option B's scheduler picks the circuit from the slot depth, which t
 state does not hold: a light fold while the slot is below the cap, a refresh fold at the cap.
 Both circuits run the same application step, so the selector does not change the computed state,
 and the light depth guard bounds every schedule (`Folding.Schedule`). The bridge therefore takes
-the selector that returns the circuit that ran (`chosen`). The terminal does not read the
-selector (`holdsFor_recursive_control`), so a terminal under any selector gives the step.
+the selector that returns the circuit that ran on a valid step (`chosen`), so the step's witness
+is valid (`valid_of_chosen`). The terminal does not read the selector
+(`holdsFor_recursive_control`), so a terminal under any selector gives the step.
 
 The state hash reads every counter as one word (`natWord`). The decoded next iteration is the
 input iteration plus one, which can be `q`, whose word is 0; the terminal requires
@@ -42,8 +43,21 @@ variable {logicalWidth : Nat}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
     Phi81CarrierLayout.carrierWidth logicalWidth}
 
-/-- The selector that returns `circuit`: the circuit that the prover runs. -/
-def chosen (circuit : Fin 2) : AppState → AppWitness → Fin 2 := fun _ _ => circuit
+attribute [local instance] Classical.propDecidable in
+/-- The selector that returns `circuit`, the circuit that the prover runs, on a step that
+`program` admits, and the other circuit otherwise. -/
+noncomputable def chosen (program : Stage1.Application.Program) (circuit : Fin 2) :
+    AppState → AppWitness → Fin 2 :=
+  fun state witness => if program.valid state witness then circuit else circuit + 1
+
+/-- A step on which `chosen` returns its circuit is valid. -/
+theorem valid_of_chosen {program : Stage1.Application.Program} {circuit : Fin 2}
+    {state : AppState} {witness : AppWitness} (picked : chosen program circuit state witness = circuit) :
+    program.valid state witness := by
+  refine Classical.byContradiction fun invalid => ?_
+  simp only [chosen, invalid, ↓reduceIte] at picked
+  revert picked
+  fin_cases circuit <;> decide
 
 /-- The terminal does not read the circuit selector. -/
 theorem holdsFor_recursive_control (cap : Nat)
@@ -253,24 +267,22 @@ variable (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
   (cubeFits : Phi81CarrierLayout.carrierWidth logicalWidth ≤ 2 ^ cubeVariables)
 
 /-- The two exported step circuits whose relations the setup's keys carry. Both run the
-application step `step`. -/
+application `program`, whose step is `step`. -/
 structure Exports where
-  lightProgram : Stage1.Application.Program
-  refreshProgram : Stage1.Application.Program
-  lightStep : lightProgram.step = step
-  refreshStep : refreshProgram.step = step
+  program : Stage1.Application.Program
+  programStep : program.step = step
   lightFresh : Nat
   refreshFresh : Nat
   lightWidth : Nat
   refreshWidth : Nat
   lightFits : CircuitRelation.Fits CircuitRelation.publicColumns (CircuitRelation.pieces
-    (LightAssemblerCircuit.stepCircuit lightProgram base relation 0 ajtai)
-    (LightAssembler.sharedEnd base lightProgram.witnessWordCount)
-    (lightDigestColumn lightProgram)) lightFresh lightWidth
+    (LightAssemblerCircuit.stepCircuit program base relation 0 ajtai)
+    (LightAssembler.sharedEnd base program.witnessWordCount)
+    (lightDigestColumn program)) lightFresh lightWidth
   refreshFits : CircuitRelation.Fits CircuitRelation.publicColumns (CircuitRelation.pieces
-    (RefreshAssemblerCircuit.stepCircuit refreshProgram base relation 1 ajtai)
-    (RefreshAssembler.sharedEnd base refreshProgram.witnessWordCount)
-    (refreshDigestColumn refreshProgram)) refreshFresh refreshWidth
+    (RefreshAssemblerCircuit.stepCircuit program base relation 1 ajtai)
+    (RefreshAssembler.sharedEnd base program.witnessWordCount)
+    (refreshDigestColumn program)) refreshFresh refreshWidth
   lightLayout : LogicalPlan.Layout lightWidth logicalWidth
   refreshLayout : LogicalPlan.Layout refreshWidth logicalWidth
   lightInside : ringDegree * PaperAlgebra.publicRingColumns ≤ lightWidth
@@ -290,15 +302,15 @@ def Exports.decode (exports : Exports relation ajtai circuitKeys step cubeFits) 
     Decoded logicalWidth publicFits :=
   let assignment := Layout.ProductionRelation.Plan.logicalAssignment witness
   if circuit = 0 then
-    let env := lightEnv exports.lightProgram relation ajtai exports.lightLayout assignment
-    ⟨lightInput exports.lightProgram env, lightOutput exports.lightProgram 0 env,
+    let env := lightEnv exports.program relation ajtai exports.lightLayout assignment
+    ⟨lightInput exports.program env, lightOutput exports.program 0 env,
       decodedKeys circuitKeys (lightInterface (logicalWidth := logicalWidth)
-        (publicFits := publicFits) exports.lightProgram).verifierKeys env⟩
+        (publicFits := publicFits) exports.program).verifierKeys env⟩
   else
-    let env := refreshEnv exports.refreshProgram relation ajtai exports.refreshLayout assignment
-    ⟨refreshInput exports.refreshProgram env, refreshOutput exports.refreshProgram 1 env,
+    let env := refreshEnv exports.program relation ajtai exports.refreshLayout assignment
+    ⟨refreshInput exports.program env, refreshOutput exports.program 1 env,
       decodedKeys circuitKeys (refreshInterface (logicalWidth := logicalWidth)
-        (publicFits := publicFits) exports.refreshProgram).verifierKeys env⟩
+        (publicFits := publicFits) exports.program).verifierKeys env⟩
 
 /-- The step that a recursive terminal's fresh witness decodes to. -/
 def Exports.last (exports : Exports relation ajtai circuitKeys step cubeFits)
@@ -364,8 +376,9 @@ theorem linked_of_holdsFor (control : AppState → AppWitness → Fin 2) (cap : 
 
 /-- Option B's export-to-terminal bridge. The setup's keys carry the two exported relations, and
 a recursive terminal is linked. Then the circuit that ran last holds its step relation on the
-decoded step, with that circuit as the selector (`chosen`), under the setup's keys and ends in
-the terminal's statement, or the decoded next state and the terminal's state collide. -/
+decoded step, with the selector that returns that circuit on a valid step (`chosen`), under the
+setup's keys and ends in the terminal's statement, or the decoded next state and the terminal's
+state collide. -/
 theorem bridge_linked (exports : Exports relation ajtai circuitKeys step cubeFits)
     (keysShaped : ∀ key, (circuitKeys key).digest.length = 4)
     (statement : TerminalStatement AppState)
@@ -375,7 +388,7 @@ theorem bridge_linked (exports : Exports relation ajtai circuitKeys step cubeFit
       (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits)) 2)
     (linked : Linked (ajtai := ajtai) (circuitKeys := circuitKeys) statement payload) :
     (StepHolds Folding.Schedule.productionLightFoldCap ajtai circuitKeys step
-        (chosen (circuitOf payload.pc)) (circuitOf payload.pc) (exports.last payload).input
+        (chosen exports.program (circuitOf payload.pc)) (circuitOf payload.pc) (exports.last payload).input
         (exports.last payload).output ∧
       EndsIn statement payload.running payload.pc (circuitOf payload.pc)
         (exports.last payload).input (exports.last payload).output) ∨
@@ -389,23 +402,27 @@ theorem bridge_linked (exports : Exports relation ajtai circuitKeys step cubeFit
   rcases cases with ranLight | ranRefresh
   · have circuitEq : circuitOf payload.pc = 0 := by simp [circuitOf, ranLight]
     rw [circuitEq, exports.lightKey] at freshHolds
-    obtain ⟨holds, words⟩ := light_freshHolds exports.lightProgram relation ajtai circuitKeys
-      step (chosen 0) exports.lightStep (fun _ _ _ => rfl) exports.lightFresh exports.lightWidth
+    obtain ⟨holds, words⟩ := light_freshHolds exports.program relation ajtai circuitKeys
+      step (chosen exports.program 0) exports.programStep (fun _ _ valid => ite_eq_left valid)
+      exports.lightFresh exports.lightWidth
       exports.lightFits exports.lightLayout cubeFits exports.lightInside payload.fresh
       payload.freshWitness _ freshHash freshHolds
     simp only [Collision, Exports.last, circuitEq, Exports.decode, ↓reduceIte]
-    exact bind_step _ ajtai circuitKeys keysShaped step (chosen 0) 0 _ _ _ _ holds (Fin.isLt _)
+    exact bind_step _ ajtai circuitKeys keysShaped step (chosen exports.program 0) 0 _ _ _ _ holds
+      (Fin.isLt _)
       List.length_ofFn List.length_ofFn statement valid positive payload.running payload.pc
       pcValid (words.trans digestEq)
   · have circuitEq : circuitOf payload.pc = 1 := by simp [circuitOf, ranRefresh]
     rw [circuitEq, exports.refreshKey] at freshHolds
-    obtain ⟨holds, words⟩ := refresh_freshHolds exports.refreshProgram relation ajtai circuitKeys
-      step (chosen 1) exports.refreshStep (fun _ _ _ => rfl) exports.refreshFresh
+    obtain ⟨holds, words⟩ := refresh_freshHolds exports.program relation ajtai circuitKeys
+      step (chosen exports.program 1) exports.programStep (fun _ _ valid => ite_eq_left valid)
+      exports.refreshFresh
       exports.refreshWidth exports.refreshFits exports.refreshLayout cubeFits
       exports.refreshInside payload.fresh payload.freshWitness _ freshHash freshHolds
     simp only [Collision, Exports.last, circuitEq, Exports.decode, Fin.one_eq_zero_iff,
       OfNat.ofNat_ne_one, ↓reduceIte]
-    exact bind_step _ ajtai circuitKeys keysShaped step (chosen 1) 1 _ _ _ _ holds (Fin.isLt _)
+    exact bind_step _ ajtai circuitKeys keysShaped step (chosen exports.program 1) 1 _ _ _ _ holds
+      (Fin.isLt _)
       List.length_ofFn List.length_ofFn statement valid positive payload.running payload.pc
       pcValid (words.trans digestEq)
 
@@ -421,7 +438,7 @@ theorem bridge (exports : Exports relation ajtai circuitKeys step cubeFits)
     (accepted : Terminal.HoldsFor cap ajtai circuitKeys step control statement
       (.recursive payload)) :
     (StepHolds Folding.Schedule.productionLightFoldCap ajtai circuitKeys step
-        (chosen (circuitOf payload.pc)) (circuitOf payload.pc) (exports.last payload).input
+        (chosen exports.program (circuitOf payload.pc)) (circuitOf payload.pc) (exports.last payload).input
         (exports.last payload).output ∧
       EndsIn statement payload.running payload.pc (circuitOf payload.pc)
         (exports.last payload).input (exports.last payload).output) ∨

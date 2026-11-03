@@ -246,6 +246,35 @@ theorem input_supported (steps : Nat) (tape : (stages steps).1.Tape)
   obtain ⟨origin, originSupported, same⟩ := (PMF.mem_support_map_iff _ _ _).mp member
   exact ⟨origin, originSupported, congrArg Prod.fst same⟩
 
+/-- The IVC adversary's tape inside the tape of stage `j`: stage `j + 1` draws a tape of stage `j`
+and the coins of one extractor. -/
+noncomputable def origin : (j : Nat) → (stages j).1.Tape → adversary.Tape
+  | 0, tape => tape
+  | j + 1, draw => origin j draw.1
+
+/-- Every stage reads its input from the adversary's tape. -/
+theorem input_origin (j : Nat) (tape : (stages j).1.Tape) :
+    (stages j).1.input tape =
+      adversary.output (origin assumption closed adversary admitted j tape) := by
+  induction j with
+  | zero => rfl
+  | succ j induction => exact induction tape.1
+
+/-- The adversary's tape inside a stage has the adversary's law. -/
+theorem tape_map_origin (j : Nat) :
+    (stages j).1.tape.map (origin assumption closed adversary admitted j) = adversary.tape := by
+  induction j with
+  | zero => exact PMF.map_id _
+  | succ j induction =>
+      rw [← induction]
+      change ((stages j).1.tape.bind fun tape => (extractors j).coins.map (tape, ·)).map
+        (fun draw => origin assumption closed adversary admitted j draw.1) = _
+      rw [PMF.map_bind, ← PMF.bind_pure_comp]
+      congr 1
+      funext tape
+      rw [PMF.map_comp]
+      exact PMF.map_const (extractors j).coins (origin assumption closed adversary admitted j tape)
+
 /-- Stage `j`'s failure, read on a later stage, is stage `j`'s extraction failure. -/
 theorem failure_term (j extra : Nat) :
     (stages (j + 1 + extra)).1.tape.toOuterMeasure

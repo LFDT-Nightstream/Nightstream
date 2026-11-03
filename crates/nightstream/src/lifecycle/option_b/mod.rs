@@ -6,6 +6,7 @@
 //! cap, a refresh fold at the cap (`Schedule.Admissible`). The steps run
 //! `((L^(cap+1) R)^cap R)`.
 mod compression;
+mod encoding;
 mod final_program;
 mod relation;
 mod words;

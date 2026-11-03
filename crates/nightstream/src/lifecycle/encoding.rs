@@ -34,10 +34,10 @@ const WORD: usize = 8;
 pub struct ProofCodecError(pub(super) &'static str);
 
 /// Sizes that the prepared circuit fixes.
-struct Shape {
-    public_width: usize,
-    witness_columns: usize,
-    matrices: usize,
+pub(super) struct Shape {
+    pub(super) public_width: usize,
+    pub(super) witness_columns: usize,
+    pub(super) matrices: usize,
 }
 
 impl Shape {
@@ -176,14 +176,14 @@ impl PreparedLifecycle {
     }
 }
 
-struct Writer(Vec<u8>);
+pub(super) struct Writer(pub(super) Vec<u8>);
 
 impl Writer {
-    fn word(&mut self, value: u64) {
+    pub(super) fn word(&mut self, value: u64) {
         self.0.extend_from_slice(&value.to_le_bytes());
     }
 
-    fn fields(&mut self, values: &[F]) {
+    pub(super) fn fields(&mut self, values: &[F]) {
         values
             .iter()
             .for_each(|value| self.word(value.as_canonical_u64()));
@@ -196,7 +196,7 @@ impl Writer {
         }
     }
 
-    fn commitment(&mut self, commitment: &Commitment) -> Result<(), ProofCodecError> {
+    pub(super) fn commitment(&mut self, commitment: &Commitment) -> Result<(), ProofCodecError> {
         if commitment.d() != D || commitment.kappa() != KAPPA || commitment.data().len() != D * KAPPA {
             return Err(ProofCodecError("commitment shape"));
         }
@@ -204,7 +204,7 @@ impl Writer {
         Ok(())
     }
 
-    fn claim(&mut self, claim: &CeClaim, shape: &Shape) -> Result<(), ProofCodecError> {
+    pub(super) fn claim(&mut self, claim: &CeClaim, shape: &Shape) -> Result<(), ProofCodecError> {
         if claim.m_in != shape.public_width
             || claim.X.rows() != D
             || claim.X.cols() != shape.public_width / D
@@ -229,7 +229,7 @@ impl Writer {
     }
 
     /// One `+1` mask and one `-1` mask per column, from the commitment's own check.
-    fn witness(&mut self, witness: &Mat<F>, shape: &Shape) -> Result<(), ProofCodecError> {
+    pub(super) fn witness(&mut self, witness: &Mat<F>, shape: &Shape) -> Result<(), ProofCodecError> {
         if witness.rows() != D || witness.cols() != shape.witness_columns {
             return Err(ProofCodecError("witness shape"));
         }
@@ -252,10 +252,10 @@ impl Writer {
     }
 }
 
-struct Reader<'a>(&'a [u8]);
+pub(super) struct Reader<'a>(pub(super) &'a [u8]);
 
 impl<'a> Reader<'a> {
-    fn take(&mut self, length: usize) -> Result<&'a [u8], ProofCodecError> {
+    pub(super) fn take(&mut self, length: usize) -> Result<&'a [u8], ProofCodecError> {
         if self.0.len() < length {
             return Err(ProofCodecError("truncated proof"));
         }
@@ -264,7 +264,7 @@ impl<'a> Reader<'a> {
         Ok(head)
     }
 
-    fn word(&mut self) -> Result<u64, ProofCodecError> {
+    pub(super) fn word(&mut self) -> Result<u64, ProofCodecError> {
         Ok(u64::from_le_bytes(self.take(WORD)?.try_into().expect("one word")))
     }
 
@@ -276,11 +276,11 @@ impl<'a> Reader<'a> {
         Ok(F::from_u64(word))
     }
 
-    fn fields(&mut self, count: usize) -> Result<Vec<F>, ProofCodecError> {
+    pub(super) fn fields(&mut self, count: usize) -> Result<Vec<F>, ProofCodecError> {
         (0..count).map(|_| self.field()).collect()
     }
 
-    fn four(&mut self) -> Result<[F; 4], ProofCodecError> {
+    pub(super) fn four(&mut self) -> Result<[F; 4], ProofCodecError> {
         Ok([self.field()?, self.field()?, self.field()?, self.field()?])
     }
 
@@ -297,11 +297,11 @@ impl<'a> Reader<'a> {
         Ok(values)
     }
 
-    fn commitment(&mut self) -> Result<Commitment, ProofCodecError> {
+    pub(super) fn commitment(&mut self) -> Result<Commitment, ProofCodecError> {
         Ok(Commitment::new(KAPPA, self.fields(D * KAPPA)?).expect("commitment shape"))
     }
 
-    fn claim(&mut self, shape: &Shape) -> Result<CeClaim, ProofCodecError> {
+    pub(super) fn claim(&mut self, shape: &Shape) -> Result<CeClaim, ProofCodecError> {
         let c = self.commitment()?;
         let projection = self.fields(shape.public_width)?;
         let r = (0..PI_CCS_V1_2_ROUND_COUNT)
@@ -323,7 +323,7 @@ impl<'a> Reader<'a> {
         })
     }
 
-    fn witness(&mut self, shape: &Shape) -> Result<Mat<F>, ProofCodecError> {
+    pub(super) fn witness(&mut self, shape: &Shape) -> Result<Mat<F>, ProofCodecError> {
         let mut positive = Vec::with_capacity(shape.witness_columns);
         let mut negative = Vec::with_capacity(shape.witness_columns);
         for _ in 0..shape.witness_columns {

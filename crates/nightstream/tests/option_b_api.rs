@@ -66,6 +66,37 @@ fn hash_chain_proves_and_verifies() {
     assert!(verifier
         .verify(&State::new(3, initial, other), &proof)
         .is_err());
+
+    let bytes = prover.encode_proof(&proof).expect("proof bytes");
+    let decoded = verifier.decode_proof(&bytes).expect("decoded proof");
+    verifier
+        .verify(&State::new(3, initial, current), &decoded)
+        .expect("the decoded proof verifies");
+    let extended = prover
+        .extend(&decoded, &message)
+        .expect("a decoded proof extends");
+    verifier
+        .verify(
+            &State::new(4, initial, poseidon2_hash_chain_step(current, message)),
+            &extended,
+        )
+        .expect("the extended proof verifies");
+    assert!(verifier.decode_proof(&bytes[..bytes.len() - 1]).is_err(), "truncated");
+    let mut changed = bytes.clone();
+    let last = changed.len() - 9;
+    changed[last] ^= 1;
+    if let Ok(proof) = verifier.decode_proof(&changed) {
+        assert!(
+            verifier
+                .verify(&State::new(3, initial, current), &proof)
+                .is_err(),
+            "changed byte"
+        );
+    }
+    let initial_proof = prover
+        .encode_proof(&prover.prove(initial, &message).expect("first step"))
+        .expect("bytes");
+    assert!(verifier.decode_proof(&initial_proof).is_ok());
 }
 
 /// The final proof of two steps verifies with the verifier's own key, and

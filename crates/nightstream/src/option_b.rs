@@ -117,6 +117,11 @@ impl Prover {
         Ok(Proof(self.lifecycle.extend(&proof.0, private_inputs, next)?))
     }
 
+    /// The proof's strict bytes, for `Verifier::decode_proof`.
+    pub fn encode_proof(&self, proof: &Proof) -> Result<Vec<u8>, Error> {
+        Ok(self.lifecycle.encode_proof(&proof.0)?)
+    }
+
     /// Write both layer-1 setups into the existing directory `dir`.
     pub fn compression_setup(&self, dir: impl AsRef<Path>) -> Result<CompressionSetup, Error> {
         Ok(CompressionSetup(self.lifecycle.compression_setups(dir.as_ref())?))
@@ -143,6 +148,12 @@ pub struct Verifier {
 }
 
 impl Verifier {
+    /// Decode untrusted proof bytes; the relations fix the exact length,
+    /// which is checked before allocation. Acceptance still needs `verify`.
+    pub fn decode_proof(&self, bytes: &[u8]) -> Result<Proof, Error> {
+        Ok(Proof(self.lifecycle.decode_proof(bytes)?))
+    }
+
     /// Check `proof` and its witnesses against the expected state
     /// (`Terminal.HoldsFor`).
     pub fn verify(&self, expected: &State, proof: &Proof) -> Result<(), Error> {

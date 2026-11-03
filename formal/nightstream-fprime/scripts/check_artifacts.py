@@ -14,7 +14,6 @@ ROOT = Path(subprocess.run(['git', 'rev-parse', '--show-toplevel'],
                            capture_output=True, text=True).stdout.strip())
 ARTIFACT_DIRECTORIES = [
     ROOT / 'formal/nightstream-fprime/artifacts',
-    ROOT / 'crates/nightstream/artifacts',
     ROOT / 'crates/nightstream-fprime/artifacts',
 ]
 

@@ -20,10 +20,6 @@ fn library() -> Result<&'static FormulaLibrary, PackageError> {
         .map_err(|_| PackageError::Malformed("compiled Lean formula library"))
 }
 
-pub(in crate::package) fn formula_digest() -> Result<[u64; 4], PackageError> {
-    Ok(library()?.digest())
-}
-
 fn variant(id: &str, index: usize) -> Result<&'static FormulaVariant, PackageError> {
     library()?
         .component(id)

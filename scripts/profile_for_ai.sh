@@ -17,10 +17,9 @@ if [ $# -lt 3 ]; then
   echo "  <number>     Sample duration in seconds (default: 10)"
   echo ""
   echo "Examples:"
-  echo "  $0 nightstream circuit_lifecycle poseidon_base_step_matches_lean_and_verifies --ignored"
-  echo "  $0 nightstream circuit_lifecycle poseidon_base_step_matches_lean_and_verifies --ignored 20"
+  echo "  $0 nightstream option_b_api hash_chain_proves_and_verifies"
+  echo "  $0 nightstream option_b_api hash_chain_proves_and_verifies 20"
   echo "  $0 nightstream application_poseidon2 every_poseidon2_application_row_matches_the_saved_lean_reference 30"
-  echo "  $0 nightstream circuit_lifecycle poseidon_metal_recursive_lifecycle --ignored --features metal"
   echo ""
   echo "Output: Writes profile to profile-output.txt for AI analysis"
   exit 1

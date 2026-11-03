@@ -1,8 +1,5 @@
 import NightstreamFPrime.Lifecycle.Nifs.VerifierErrorBudget
 import NightstreamFPrime.Export.Stage1.NifsRealSuccess
-import NightstreamFPrime.Export.Stage1.PiDECCommitmentMatrixEntry
-import NightstreamFPrime.Export.Stage1.PiDECCommitmentMatrixWork
-import NightstreamFPrime.Export.Stage1.PiDECOrdinarySourceWork
 import NightstreamFPrime.Layout.MatrixProgram.RetainedWork
 import NightstreamFPrime.Layout.MatrixProgram.CoefficientWork
 import NightstreamFPrime.Layout.MatrixProgram.SparseWork
@@ -134,23 +131,13 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StoredWitnessCheckEntries
 #audit_axioms NightstreamFPrime.Layout.MatrixProgram.RetainedWork.form?_length
 #audit_axioms NightstreamFPrime.Layout.MatrixProgram.RetainedWork.form?_work_le
 
-#audit_axioms NightstreamFPrime.Export.Stage1.PiDECOrdinarySourceWork.commitmentRow_value
-#audit_axioms NightstreamFPrime.Export.Stage1.PiDECOrdinarySourceWork.commitmentRow_lengths
-#audit_axioms NightstreamFPrime.Export.Stage1.PiDECOrdinarySourceWork.commitmentRow_work_le
 
 
 
-#audit_axioms NightstreamFPrime.Export.Stage1.PiDECOrdinarySourceWork.commitmentRow_data
-
-#audit_axioms NightstreamFPrime.Export.Stage1.PiDECCommitmentMatrixWork.commitmentForms_value
-#audit_axioms NightstreamFPrime.Export.Stage1.PiDECCommitmentMatrixWork.commitmentForms_lengths
-#audit_axioms NightstreamFPrime.Export.Stage1.PiDECCommitmentMatrixWork.commitmentForms_work_le
 
 
 
-#audit_axioms NightstreamFPrime.Export.Stage1.PiDECCommitmentMatrixEntry.globalRow_val
-#audit_axioms NightstreamFPrime.Export.Stage1.PiDECCommitmentMatrixEntry.entry_value
-#audit_axioms NightstreamFPrime.Export.Stage1.PiDECCommitmentMatrixEntry.entry_work_le
+
 
 
 

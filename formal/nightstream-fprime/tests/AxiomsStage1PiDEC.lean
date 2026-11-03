@@ -37,7 +37,6 @@ import NightstreamFPrime.Export.Stage1.PiDECMatrixBatchBoundary
 import NightstreamFPrime.Export.Stage1.PiDECMatrixInvocation
 import NightstreamFPrime.Export.Stage1.PiDECMatrixInvocationRange
 import NightstreamFPrime.Export.Stage1.PiDECMatrixSparseRange
-import NightstreamFPrime.Export.Stage1.PiDECMatrixWeightedRange
 import NightstreamFPrime.Export.Stage1.PiDECNativeSparseEvaluation
 import NightstreamFPrime.Export.Stage1.PiDECMatrixRangeSum
 import NightstreamFPrime.Export.Stage1.PiDECMatrixSelectedBatch
@@ -45,7 +44,6 @@ import NightstreamFPrime.Export.Stage1.PiDECMatrixMergeClosure
 import NightstreamFPrime.Export.Stage1.PiDECParentMagnitude
 import NightstreamFPrime.Export.Stage1.PiDECMatrixZeroRead
 import NightstreamFPrime.Export.Stage1.PiDECCompletedAssignment
-import NightstreamFPrime.Export.Stage1.PiRLCParent
 import NightstreamFPrime.Lifecycle.PiDEC.v1_2.CommitmentRecomposition
 import NightstreamFPrime.Lifecycle.PiDEC.v1_2.Completeness
 import NightstreamFPrime.Lifecycle.PiDEC.v1_2.EvalARecomposition
@@ -82,7 +80,6 @@ import NightstreamFPrime.Spec.Folding.Nifs.PaperNonInteractive.Verifier
 import NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.PaperVerifier
 import NightstreamFPrime.Layout.Stage1.SpartanValues
 import NightstreamFPrime.Layout.Stage1.RunningTransitionValues
-import NightstreamFPrime.Export.Stage1.PiDECPoseidonColumnWeights
 
 #audit_axioms NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.PiRLC.ExplicitMatrix.rowRing_eq_sumRange
 
@@ -162,10 +159,6 @@ import NightstreamFPrime.Export.Stage1.PiDECPoseidonColumnWeights
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECInputCheck.child_structure
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECInputCheck.child_publicInput
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECInputCheck.accepted_reduces_knowledge
-#audit_axioms NightstreamFPrime.Export.Stage1.PiRLCParent.computedParent_outgoing
-#audit_axioms NightstreamFPrime.Export.Stage1.PiRLCParent.inputBatch_eq_probe
-#audit_axioms NightstreamFPrime.Export.Stage1.PiRLCParent.computedParent_eq_combined
-#audit_axioms NightstreamFPrime.Export.Stage1.PiRLCParent.computedParent_correct
 
 #audit_axioms NightstreamFPrime.Lifecycle.PiDEC.v1_2.OutputWitnessConsumer.runningStatement_eq
 #audit_axioms NightstreamFPrime.Lifecycle.PiDEC.v1_2.OutputWitnessConsumer.terminalHolds_supplies_childOpenings
@@ -623,19 +616,9 @@ import NightstreamFPrime.Export.Stage1.PiDECPoseidonColumnWeights
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECMatrixSelectedBatch.selectedIntInvocationRange_eq_range
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECPoseidonNumericStep.stepValues_value
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECMatrixSparseRange.sum_value
-#audit_axioms NightstreamFPrime.Export.Stage1.PiDECMatrixWeightedRange.evaluate_prepare_toRing
-#audit_axioms NightstreamFPrime.Export.Stage1.PiDECMatrixWeightedRange.mul_embed
-#audit_axioms NightstreamFPrime.Export.Stage1.PiDECMatrixWeightedRange.evalSparse_cons
-#audit_axioms NightstreamFPrime.Export.Stage1.PiDECMatrixWeightedRange.embed_evalSparse
-#audit_axioms NightstreamFPrime.Export.Stage1.PiDECMatrixWeightedRange.numericSum_succ
-#audit_axioms NightstreamFPrime.Export.Stage1.PiDECMatrixWeightedRange.dot_append_single
-#audit_axioms NightstreamFPrime.Export.Stage1.PiDECMatrixWeightedRange.dot_set_add
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECNativeSparseEvaluation.nativeEvalSparse_eq_spec
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECNativeSparseEvaluation.nativeEvalPair_eq_spec
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECNativeSparseEvaluation.nativeEvalTwoPairs_eq_spec
-#audit_axioms NightstreamFPrime.Export.Stage1.PiDECPoseidonColumnWeights.externalT_dot
-#audit_axioms NightstreamFPrime.Export.Stage1.PiDECPoseidonColumnWeights.internalT_dot
-#audit_axioms NightstreamFPrime.Export.Stage1.PiDECPoseidonColumnWeights.evaluate_prepare_toRing
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECMatrixSelectedBatch.selectedIntSparseRange_eq_range
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECProductRow.blockRow?_of_grouped_loaded
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECMatrixSelectedBatch.selectedCachedBlockRow_eq_program

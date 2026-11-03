@@ -8,7 +8,7 @@ import unittest
 
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts/check_artifacts.py"
 LEAN = "formal/nightstream-fprime/artifacts"
-CRATE = "crates/nightstream/artifacts"
+CRATE = "crates/nightstream-fprime/artifacts"
 
 
 class CheckArtifacts(unittest.TestCase):
@@ -20,7 +20,7 @@ class CheckArtifacts(unittest.TestCase):
         script = self.root / "formal/nightstream-fprime/scripts/check_artifacts.py"
         script.parent.mkdir(parents=True)
         shutil.copy(SCRIPT, script)
-        for directory in (LEAN, CRATE, "crates/nightstream-fprime/artifacts"):
+        for directory in (LEAN, CRATE):
             (self.root / directory).mkdir(parents=True, exist_ok=True)
         self.write(f"{LEAN}/a.json", '{"v":1}')
         self.write(f"{CRATE}/shared.json", '{"s":1}')

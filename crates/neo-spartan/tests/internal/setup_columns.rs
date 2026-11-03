@@ -1,4 +1,4 @@
-//! Writes the run oracles of the production layer-1 key for the Lean `setupCheck`.
+//! Writes the run oracles of each option-B layer-1 key for the Lean `setupCheck`.
 //!
 //! The file is little endian: the run count and the slot count (`u64`), then
 //! per run its row, per run its slot (`u32`), per run its coefficient
@@ -15,7 +15,6 @@ use neo_reductions::PiCcsError;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_field_v08::{PrimeCharacteristicRing as _, PrimeField64 as _};
 
-use super::lowering::production_key;
 use crate::field::Gl;
 use crate::matrix::Tables;
 use crate::{kappa, key, oracle, Key};
@@ -88,17 +87,6 @@ impl MatrixRows for RunsFile {
 
 fn workspace() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
-}
-
-#[test]
-#[ignore = "needs production_runs.bin of nightstream's production_runs_rebuild_the_layer1_key; writes about \
-            700 MB under target/lean-lowering"]
-fn production_setup_columns() {
-    write_columns(
-        "production_runs.bin",
-        &production_key().0,
-        "production_setup_columns.bin",
-    );
 }
 
 #[test]

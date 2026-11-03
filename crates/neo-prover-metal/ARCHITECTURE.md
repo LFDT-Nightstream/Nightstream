@@ -1,10 +1,11 @@
 # Metal prover boundary
 
-`neo-prover-metal` runs prover work for `nightstream` on Apple GPUs. It
-compiles only with the `metal` feature, which needs an Apple target. Without
-the feature, the crate exports no backend.
+`neo-prover-metal` runs prover work on Apple GPUs. No workspace crate
+depends on it now, and `nightstream` proves on the CPU path only. It compiles
+only with the `metal` feature, which needs an Apple target. Without the
+feature, the crate exports no backend.
 
-- `MetalRowProver` is the type that `nightstream` uses. It implements
+- `MetalRowProver` is the prover type of the crate. It implements
   `PaperJointOracleBackend` for the PiCCS round oracle. It also gives the
   PiRLC witness split, the PiDEC child openings, the fixed-key commitments,
   the terminal row evaluations, and the compression work: Merkle trees,

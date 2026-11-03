@@ -55,7 +55,7 @@ class ValidateTests(unittest.TestCase):
         requested = [line for line in result.stdout.splitlines() if line.startswith("requested:")]
         self.assertEqual(requested[:2], ["requested:build", "requested:--wfail"])
         self.assertEqual(len(requested) - 2, lakefile.count("[[lean_exe]]"))
-        self.assertIn("requested:emit", requested)
+        self.assertIn("requested:emitOptionB", requested)
 
     def test_failure_in_later_target_fails_validation(self):
         result = self.run_validation("build", "Production", "BrokenAudit")

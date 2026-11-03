@@ -111,20 +111,6 @@ impl WitnessExpr {
     }
 }
 
-pub(super) fn decode_template_expr(
-    value: &Value,
-    input_count: usize,
-    output_input: usize,
-) -> Result<WitnessExpr, PackageError> {
-    decode_expr_with(value, &|column| {
-        if column >= input_count || column == output_input {
-            Err(PackageError::Malformed("compact output recipe input"))
-        } else {
-            Ok(())
-        }
-    })
-}
-
 pub(super) fn validate_witness_batch(
     raw: RawWitnessBatch,
     witness_start: usize,
@@ -164,28 +150,6 @@ pub(super) fn validate_witness_batch_order(batches: &[WitnessBatch]) -> Result<(
         .any(|pair| pair[0].start >= pair[1].start || pair[0].end() > pair[1].start)
     {
         return Err(PackageError::Malformed("witness batch order"));
-    }
-    Ok(())
-}
-
-pub(super) fn validate_witness_coverage(
-    witness_start: usize,
-    witness_length: usize,
-    mut intervals: Vec<(usize, usize)>,
-) -> Result<(), PackageError> {
-    intervals.sort_unstable();
-    let mut cursor = witness_start;
-    for (start, end) in intervals {
-        if start != cursor || end <= start {
-            return Err(PackageError::Malformed("witness column coverage"));
-        }
-        cursor = end;
-    }
-    let witness_end = witness_start
-        .checked_add(witness_length)
-        .ok_or(PackageError::Malformed("witness range overflow"))?;
-    if cursor != witness_end {
-        return Err(PackageError::Malformed("witness column count coverage"));
     }
     Ok(())
 }

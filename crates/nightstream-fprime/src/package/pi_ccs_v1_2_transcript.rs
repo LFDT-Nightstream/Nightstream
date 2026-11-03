@@ -3,7 +3,7 @@
 //! This module does not select a circuit or accept a proof; it derives
 //! verifier-owned challenges and the post-output state from fixed-profile public messages.
 
-use neo_transcript::{domain_chunk_v1_2, fold_domain_chunk_v1_2, Poseidon2Transcript};
+use neo_transcript::{domain_chunk_v1_2, Poseidon2Transcript};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks;
 
@@ -32,14 +32,6 @@ pub struct PiCcsV1_2Transcript {
 }
 
 impl PiCcsV1_2Transcript {
-    pub fn alpha(&self) -> &[[u64; 2]] {
-        &self.alpha
-    }
-
-    pub fn gamma(&self) -> [u64; 2] {
-        self.gamma
-    }
-
     pub fn round_point(&self) -> &[[u64; 2]] {
         &self.round_point
     }
@@ -47,28 +39,6 @@ impl PiCcsV1_2Transcript {
     pub fn outgoing_state(&self) -> [u64; WIDTH] {
         self.outgoing_state
     }
-}
-
-/// After the constant domain chunk, the statement is absorbed as one stream
-/// with no length prefixes: the prior-state digest, the fresh commitment and
-/// the fresh public input. The digest is Lean's `decodeHash` of that input, as
-/// `ProductionKey.priorDigest` reads it, so it is not a separate argument.
-/// Coins are read from rate-lane pairs; nothing is labeled.
-pub fn derive_pi_ccs_v1_2_transcript(
-    fresh_commitment: &[u64],
-    fresh_public_input: &[u64],
-    rounds: &[Vec<[u64; 2]>],
-    output_words: &[u64],
-) -> Result<PiCcsV1_2Transcript, PackageError> {
-    derive(
-        fold_domain_chunk_v1_2(),
-        fresh_commitment,
-        fresh_public_input,
-        &[],
-        rounds,
-        output_words,
-        SOURCE_COUNT,
-    )
 }
 
 /// The light fold's transcript (`OptionB.lightPiCcsOracle`): the production

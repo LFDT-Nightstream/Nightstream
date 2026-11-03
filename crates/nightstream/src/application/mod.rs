@@ -1,5 +1,5 @@
-//! Rust-owned application constraints and causal witnesses. The shared recursive
-//! verifier and physical column allocation are owned by the assembler.
+//! Rust-owned application constraints and causal witnesses. `Circuit::compile`
+//! puts the application in place of Lean's application in the step packages.
 
 mod builder;
 mod expression;
@@ -19,7 +19,7 @@ use std::{
 use p3_field::PrimeCharacteristicRing;
 use p3_goldilocks::Goldilocks;
 
-/// An application-local variable. The assembler assigns its physical column.
+/// An application-local variable. The step packages assign its column.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Variable(pub(super) usize);
 

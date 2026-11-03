@@ -13,37 +13,42 @@ and [Stage 1 goal](../../FPRIME_STAGE1_GOAL.md).
 
 Lean is the source of truth for every result. [SECURITY_MODEL.md](SECURITY_MODEL.md)
 states the adversaries that the results protect against, the Lean result for
-each, and what you must trust. `tests/EvidenceTargets.lean` has the literal
-statements of the registered targets, and `tests/Axioms*.lean` lists every
-audited theorem.
+each, and what you must trust. `tests/Axioms*.lean` lists every audited
+theorem.
 
-## Phase map
+## Step circuits
 
-The Stage 1 step circuit `F′` has eight children, in this order
-(`Lifecycle/Stage1/Formal.lean`). Each module header states what the module
-owns. Row and column counts are Lean theorems in
-`Export/Stage1/Poseidon2HashChainV1Package.lean`: `structuralRowCount`
-(logical rows), `logicalWidth` (logical coordinates), and
-`physicalPackageRowCount` and `physicalPackageTotalColumnCount` (physical
-package). Do not copy these numbers into a document.
+Option B has two step circuits (`Layout/OptionB/StepCircuits.lean`). Circuit 0
+runs a light fold, and circuit 1 runs a refresh fold. Both run the same
+application step. The state has two slots, one for the accumulator of each
+circuit. Each module header states what the module owns. Do not copy row or
+column counts into a document.
 
-| Child | Paper | Lean module | Checks |
-|---|---|---|---|
-| Prior state hash | HyperNova Construction 2 | `Lifecycle/PriorStateHash.lean` | The prior state hash of the running instance. |
-| Output state hash | HyperNova Construction 2 | `Lifecycle/OutputHash.lean` | The public output digest of the next state. |
-| Π_CCS | SuperNeo v1.2 Section 7.3 | `Lifecycle/PiCCS/v1_2/Formal.lean` | The complete Π_CCS reduction in its exact transcript order. |
-| Π_RLC | SuperNeo v1.2 Section 7.4 | `Lifecycle/PiRLC/v1_2/Formal.lean` | The random linear combination of the sources. |
-| Π_DEC | SuperNeo v1.2 Section 7.5 | `Lifecycle/PiDEC/v1_2/Formal.lean` | The split of the parent into the children, with their commitments and evaluations. |
-| Running instance | HyperNova Construction 2 | `Lifecycle/Stage1/RunningTransition.lean` | The default running instance at the base step, else the Π_DEC output. |
-| Application | Nightstream | `Lifecycle/Stage1/Application.lean` | The step of the verifier-selected application. |
-| Next preimage | HyperNova Construction 2, step 5 | `Lifecycle/Stage1/NextPreimage.lean` | The next state-hash preimage keeps `z0` and increments `i`. |
+| Circuit | Lean layout | Gadgets, in order |
+|---|---|---|
+| Light | `Lifecycle/OptionB/LightStepLayout.lean` | The application, the depth guard on the depth word of the active slot, the prior state hash with its two slot hashes, the next state hash with its two slot hashes, the light Π_CCS and Π_RLC on the active slot, and the slot select. |
+| Refresh | `Lifecycle/OptionB/RefreshStepLayout.lean` | The application, the prior state hash with its two slot hashes, the next state hash with its two slot hashes, Π_DEC on the active slot, the refresh Π_CCS on the 16 children, Π_RLC, and the slot select. There is no depth guard, and the new depth of the slot is 0. |
+| Finish | `Lifecycle/OptionB/FinishStep.lean` | The last fold of a compressed proof. It is the refresh step circuit without the application and without the hashes of the next slots and the next state. |
 
-Outside `F′`, `Lifecycle/Stage1/Terminal.lean` owns the terminal relation and
-`Lifecycle/Stage1/VerificationKey.lean` the verification-key binding.
-`Layout/Stage1/AssemblerSoundness.lean` composes the children's semantics,
-`Layout/Stage1/PreservationClosure.lean` proves that the physical layout
-preserves it, and `Export/Stage1/PerApplicationSoundness.lean` proves that the
-emitted package rows imply the typed step.
+`Lifecycle/OptionB/Step.lean` states the step relation (`stepHolds_iff`).
+`LightStep.lean` and `RefreshStep.lean` give its two cases from the rows of
+each circuit, and `StepCircuits.soundness` gives the case of either circuit.
+`LightAssemblerCompleteness.complete` and
+`RefreshAssemblerCompleteness.complete` give completeness.
+`Lifecycle/OptionB/Terminal.lean` owns the terminal relation.
+`Export/OptionB/StepRelation.lean` and `Export/OptionB/TerminalBridge.lean`
+connect the exported relations to the step relation and the terminal.
+The Lean results in `Spec/Folding/Light`, `Spec/Folding/Refresh`,
+`Spec/Folding/Schedule.lean` and `Spec/HyperNova/Construction2/BoundedDepth*`
+are the authority for the departures from SuperNeo v1.2.
+
+`lake exe emitOptionB` (`Export/OptionB/EmitMain.lean`) writes the light and
+refresh packages, `artifacts/nightstream-fprime-option-b-light-v1.json` and
+`artifacts/nightstream-fprime-option-b-refresh-v1.json`.
+`lake exe emitOptionB --finish` writes
+`artifacts/nightstream-fprime-option-b-finish-v1.json`. Rust pins the
+identities of these packages (`OPTION_B_PACKAGES_IDENTITY` and
+`OPTION_B_FINISH_IDENTITY` in `crates/nightstream-fprime/src/option_b.rs`).
 
 ## Credits
 
@@ -58,8 +63,10 @@ The code is a fresh implementation. The headers of `Circuit/Basic.lean` and
 Prove the soundness and completeness of the concrete checks, exact transcript
 and public-input binding, parameter bounds, and the links consumed by the
 selected verifier. Keep Pad and the matrix-evaluation families separate.
-The selected profile is Goldilocks, `b = 2`, `k_rho = 16`, `B = 65536`,
-17 ordered sources and 16 children. Protocol binding uses Poseidon2.
+The selected profile is Nightstream Goldilocks, k_rho = 16, with `b = 2` and
+`B = 65536`. A light fold has two sources, the fresh instance and the
+accumulator. A refresh fold has 17 ordered sources, the fresh instance and the
+16 Π_DEC children of the accumulator. Protocol binding uses Poseidon2.
 
 The project does not require a full proof of every cryptographic primitive.
 Established cryptographic security results can remain explicit assumptions.
@@ -107,14 +114,14 @@ and the affected correctness and security arguments.
 
 | Change | Owner and proof obligation | Required evidence |
 |---|---|---|
-| Proof or compiler refactor with unchanged rows | Preserve the public statements, executable operations, row order and encoding. Layout owns the physical transformations; Export consumes them. | Static, library and axiom gates; the affected real consumer; `validate.sh identity` for the selected package. Record the checked commit. |
+| Proof or compiler refactor with unchanged rows | Preserve the public statements, executable operations, row order and encoding. Layout owns the physical transformations; Export consumes them. | Static, library and axiom gates; the affected real consumer; an unchanged package identity against the Rust pins. Record the checked commit. |
 | Constraints inside a gadget with the same interface | Keep the gadget specification. Prove soundness, completeness, footprint and variable support. For row removal, prove that the retained rows imply the original specification; the old witness supplies completeness only after the placement and witness interface are checked. | The gadget and its real parent consumer; static, library and axiom gates; regenerate the selected package and run the affected Lean/Rust valid-input and rejection checks. |
 | Witness footprint, column reuse or row order | The gadget owns its footprint. Phase owners derive starts and expose support and semantic theorems. Layout proves that relocation and lowering preserve the specification; package counts and selected value checks follow the derived geometry. | Affected size bounds and Values checks, selected package emission and identity re-pin, matrix and assignment parity, and affected mutation checks. List the exact executed coverage. |
 | Transcript, digest format, challenge distribution or protocol parameters | Revise the semantic verifier and the affected security argument together. Protocol binding and Rust must use the same revision. The production decomposition and Poseidon2-only rules still apply. | An approved concrete protocol change, revised Lean statements and audits, updated per-call and cumulative probability assumptions where affected, a new package identity and the corresponding conformance evidence. |
 
-`validate.sh identity` compares the freshly emitted canonical binding with the
-current fixture and Rust pins. A changed identity in a refactor is a failed
-check; updating the pins does not repair that refactor. Moving a file, passing
+Rust compares the identity of the emitted packages with its pins. A changed
+identity in a refactor is a failed check. Updating the pins does not repair
+that refactor. Moving a file, passing
 a parser, matching package hashes or passing selected Rust examples does not
 by itself prove these obligations.
 

@@ -1,7 +1,7 @@
 use std::{collections::BTreeMap, ops::Range};
 
+use crate::application::{poseidon2_hash_chain_step, poseidon2_hash_chain_v1, ApplicationCircuit};
 use neo_ccs::crypto::poseidon2_goldilocks::poseidon2_hash;
-use nightstream::application::{poseidon2_hash_chain_step, poseidon2_hash_chain_v1, ApplicationCircuit};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks;
 use serde_json::{json, Value};
@@ -10,11 +10,12 @@ const ITERATION_WORD: usize = 27_810;
 const INPUT_STATE_WORDS: Range<usize> = 27_815..27_819;
 
 fn reference() -> Value {
-    serde_json::from_slice(include_bytes!("fixtures/poseidon2-application-reference.json")).unwrap()
+    serde_json::from_slice(include_bytes!("../fixtures/poseidon2-application-reference.json")).unwrap()
 }
 
 fn execution() -> ([Goldilocks; 4], [Goldilocks; 4], [Goldilocks; 4]) {
-    let value: Value = serde_json::from_slice(include_bytes!("fixtures/poseidon2-application-execution.json")).unwrap();
+    let value: Value =
+        serde_json::from_slice(include_bytes!("../fixtures/poseidon2-application-execution.json")).unwrap();
     let words = |index: usize| std::array::from_fn(|lane| field(&value[index][lane]));
     (words(0), words(1), words(2))
 }
@@ -136,11 +137,11 @@ fn poseidon2_computation_matches_stored_lean_base_and_recursive_steps() {
     let fixtures: [(&str, &[u8]); 2] = [
         (
             "base",
-            include_bytes!("fixtures/lean/nightstream-fprime-stage1-base-step-fixture-v1.json"),
+            include_bytes!("../fixtures/lean/nightstream-fprime-stage1-base-step-fixture-v1.json"),
         ),
         (
             "recursive",
-            include_bytes!("fixtures/lean/nightstream-fprime-stage1-actual-recursive-step-fixture-v1.json"),
+            include_bytes!("../fixtures/lean/nightstream-fprime-stage1-actual-recursive-step-fixture-v1.json"),
         ),
     ];
     let mut previous_output = None;

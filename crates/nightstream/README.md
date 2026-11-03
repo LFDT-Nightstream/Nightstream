@@ -122,7 +122,7 @@ A changed output must fail those constraints. These tests run by default and
 need no Lean installation or artifact generation.
 
 ```sh
-timeout --signal=KILL 300 cargo test -p nightstream --release --test application_poseidon2
+timeout --signal=KILL 300 cargo test -p nightstream --release --lib application::poseidon2_tests
 ```
 
 ## Poseidon2 benchmark

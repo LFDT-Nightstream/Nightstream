@@ -118,6 +118,31 @@ fn the_starstream_test_transactions_fit_small_or_medium() {
     }
 }
 
+/// The memory security of each size is below 114 bits, so a prover that asks
+/// for 114 gets the named security error before it reads its circuit file.
+#[test]
+fn a_size_refuses_more_security_than_its_memory_gives() {
+    use nightstream::error::ParamsError;
+    use nightstream::nebula::Prover;
+    for (size, available) in [(WasmSize::Small, 111), (WasmSize::Medium, 110), (WasmSize::Large, 109)] {
+        let result = Prover::load(
+            "no-circuit-file",
+            size.geometry(),
+            size.application().unwrap(),
+            nightstream::Engine::Optimized,
+            114,
+        );
+        let Err(nightstream::Error::Parameters(error)) = result else {
+            panic!("{size:?} accepts 114 bits");
+        };
+        let error: ParamsError = error;
+        assert!(
+            matches!(error, ParamsError::InsufficientStatisticalSecurity { required: 114, available: a } if a == available),
+            "{size:?}: {error}"
+        );
+    }
+}
+
 /// Programs of more instructions need larger sizes, and one of 1,100
 /// instructions fits none. A run of more rows than every size holds fits
 /// none either.

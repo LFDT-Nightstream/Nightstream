@@ -1,6 +1,7 @@
 //! Native circuit assembly and recursive proving from Lean-exported verifier components.
 
 pub mod application;
+pub mod error;
 
 mod assembly;
 mod circuit;

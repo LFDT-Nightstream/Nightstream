@@ -5,6 +5,7 @@
 //! circuit that made it: a light fold while that slot's depth is below the
 //! cap, a refresh fold at the cap (`Schedule.Admissible`). The steps run
 //! `((L^(cap+1) R)^cap R)`.
+mod compression;
 mod relation;
 mod words;
 
@@ -36,6 +37,8 @@ pub(crate) enum OptionBError {
     Fresh(&'static str),
     #[error("option-B slot {slot}: {reason}")]
     Slot { slot: usize, reason: String },
+    #[error(transparent)]
+    Layer1(#[from] neo_spartan::Error),
 }
 
 /// One slot: the accumulator of its circuit's instances and its depth.

@@ -48,6 +48,7 @@ impl Kind {
 
 /// What the next step circuit reads of a fold besides the accumulators: the
 /// PiCCS proof and, for a refresh fold, the PiDEC children.
+#[derive(Clone)]
 pub(crate) struct Proof {
     pub children: Vec<CeClaim>,
     pub pi_ccs: pi_ccs::Proof,

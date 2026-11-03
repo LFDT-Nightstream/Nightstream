@@ -258,3 +258,66 @@ fn native_fold_verifier_checks_both_folds() {
 }
 
 const LIGHT_FOLD_CAP_MAX: u64 = super::LIGHT_FOLD_CAP;
+
+/// CW-6.2: the last fold refreshes step 3's instance into slot 0, and layer 1
+/// proves both slots' claims; the native final verifier accepts. Each
+/// tampered proof fails one check: another current state the statement, a
+/// deeper slot 1 the state hash, a changed fold output the fold, and slot 1
+/// carrying slot 0's layer-1 proof that slot's layer 1.
+#[test]
+fn compressed_proof_verifies() {
+    let started = std::time::Instant::now();
+    let prover = prover(2);
+    let z0 = words([10, 11, 12, 13]);
+    let mut envelope = prover.initial(z0).expect("initial proof");
+    for step in 0..3 {
+        let message = words([20 + step, 21 + step, 22 + step, 23 + step]);
+        let next = hash_chain_step(envelope.current, message);
+        envelope = prover.extend(&envelope, &message, next).expect("step");
+    }
+    assert_eq!(envelope.pc, 1, "slot 0 takes the last fold");
+    let dir = std::env::temp_dir().join(format!("option-b-compression-{}", std::process::id()));
+    let (proof, setup_keys) = {
+        let setups = prover.compression_setups(&dir).expect("layer-1 setups");
+        eprintln!("compression setups elapsed={:?}", started.elapsed());
+        let finishing = std::time::Instant::now();
+        let proof = prover.finish(&envelope, &setups).expect("compressed proof");
+        eprintln!("finish elapsed={:?}", finishing.elapsed());
+        (proof, setups.keys().clone())
+    };
+    std::fs::remove_dir_all(&dir).expect("remove the setups");
+    let keys = prover.compression_keys().expect("derived keys");
+    assert!(
+        keys.layer1 == setup_keys.layer1,
+        "the setups' keys are the derived keys"
+    );
+    eprintln!(
+        "layer-1 proof bytes: light {}, refresh {}",
+        proof.layer1[0].to_bytes().len(),
+        proof.layer1[1].to_bytes().len()
+    );
+    let verifying = std::time::Instant::now();
+    let (iteration, current) = (envelope.iteration, envelope.current);
+    let verify =
+        |proof: &super::compression::Compressed| prover.verify_compressed(&keys, iteration, z0, current, proof);
+    verify(&proof).expect("the compressed proof verifies");
+    eprintln!("compressed verification elapsed={:?}", verifying.elapsed());
+
+    let wrong_current = [current[0] + F::ONE, current[1], current[2], current[3]];
+    assert!(matches!(
+        prover.verify_compressed(&keys, iteration, z0, wrong_current, &proof),
+        Err(OptionBError::Statement(_))
+    ));
+    let mut deeper = proof.clone();
+    deeper.slots[1].1 += 1;
+    assert!(matches!(
+        verify(&deeper),
+        Err(OptionBError::Fresh("public input differs from the hash of the state"))
+    ));
+    let mut changed = proof.clone();
+    changed.fold.pi_ccs.outputs[0].eval_k[0] += neo_math::K::ONE;
+    assert!(matches!(verify(&changed), Err(OptionBError::Fold(_))));
+    let mut borrowed = proof.clone();
+    borrowed.layer1[1] = proof.layer1[0].clone();
+    assert!(matches!(verify(&borrowed), Err(OptionBError::Slot { slot: 1, .. })));
+}

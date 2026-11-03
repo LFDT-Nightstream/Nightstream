@@ -7,7 +7,8 @@
 use std::num::NonZeroUsize;
 
 use nightstream::nebula::{
-    batched_slots, pack_regions, Circuit, Geometry, R1csApplication, RowRelation, Run, SegmentError, Size, VerifyError,
+    batched_slots, pack_regions, Circuit, Geometry, R1csApplication, R1csApplicationError, RowRelation, Run,
+    SegmentError, Size, VerifyError,
 };
 use nightstream::relation::{
     ColumnFamilySpec, ColumnRegistry, ColumnWidth, ConstraintTag, ContinuityCatalog, ContinuityGroup, ContinuityLink,
@@ -86,9 +87,9 @@ fn geometry(rows: usize) -> Geometry {
     }
 }
 
-fn application(rows: usize) -> R1csApplication<u32> {
-    let rows = NonZeroUsize::new(rows).unwrap();
-    let continuity = ContinuityCatalog::new(
+/// The count of a row is the count before the next row.
+fn continuity() -> ContinuityCatalog {
+    ContinuityCatalog::new(
         [ContinuityGroup {
             name: "count",
             role: "test",
@@ -99,7 +100,11 @@ fn application(rows: usize) -> R1csApplication<u32> {
         }],
         &registry(),
     )
-    .unwrap();
+    .unwrap()
+}
+
+fn application(rows: usize) -> R1csApplication<u32> {
+    let rows = NonZeroUsize::new(rows).unwrap();
     let catalog = catalog();
     let (regions, used) = pack_regions(
         catalog
@@ -114,7 +119,7 @@ fn application(rows: usize) -> R1csApplication<u32> {
         regions,
         slots: batched_slots(&catalog, &[vec![0], vec![1]], rows),
     };
-    R1csApplication::new(RowRelation::of(&relation()).unwrap(), &continuity, &catalog, size).unwrap()
+    R1csApplication::new(RowRelation::of(&relation()).unwrap(), &continuity(), &catalog, size).unwrap()
 }
 
 fn preload(table: [u32; 4]) -> MemoryPreload<u32> {
@@ -160,6 +165,31 @@ fn check_rows_names_the_row_that_fails() {
             got: COLUMNS - 1
         })
     );
+}
+
+/// A size that gives the RAM no region is refused, because the circuit would
+/// not check the RAM.
+#[test]
+fn a_size_must_give_each_memory_a_region() {
+    let rows = NonZeroUsize::MIN;
+    let catalog = catalog();
+    let (mut regions, _) = pack_regions(
+        catalog
+            .entries()
+            .iter()
+            .map(|memory| (memory.id, memory.kind, vec![2])),
+    );
+    regions.retain(|(id, _)| *id == 0);
+    let size = Size {
+        geometry: geometry(1),
+        rows,
+        regions,
+        slots: batched_slots(&catalog, &[vec![0], vec![]], rows),
+    };
+    assert!(matches!(
+        R1csApplication::new(RowRelation::of(&relation()).unwrap(), &continuity(), &catalog, size),
+        Err(R1csApplicationError::Unchecked)
+    ));
 }
 
 /// The honest rows run natively in steps of one row and of two rows: the

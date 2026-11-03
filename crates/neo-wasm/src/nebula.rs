@@ -15,8 +15,8 @@ use std::num::NonZeroUsize;
 use neo_ccs::CcsMatrix;
 use neo_math::F;
 use nightstream::nebula::{
-    batched_slots, pack_regions, Application, CatalogBinding, CatalogBindingError, Expr, Geometry, Memory, Program,
-    R1csApplication, R1csApplicationError, R1csStepError, Region, RowRelation, Size, Terms, Transition, View,
+    batched_slots, pack_regions, Application, CatalogBindingError, Expr, Geometry, Memory, Program, R1csApplication,
+    R1csApplicationError, R1csStepError, Region, RowRelation, Size, Terms, Transition, View,
 };
 use nightstream::relation::MemoryPortActivation;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
@@ -56,7 +56,7 @@ pub enum WasmApplicationError {
     #[error("a matrix of the WASM relation is not in CSC form")]
     Matrix,
     #[error(transparent)]
-    Binding(#[from] CatalogBindingError),
+    Application(#[from] R1csApplicationError),
     #[error("a run needs at least one trace row")]
     EmptyTrace,
     #[error("no WASM size holds the program and its run, which need {0:?}")]
@@ -67,15 +67,6 @@ pub enum WasmApplicationError {
         steps: usize,
         rows: NonZeroUsize,
     },
-}
-
-impl From<R1csApplicationError> for WasmApplicationError {
-    fn from(error: R1csApplicationError) -> Self {
-        match error {
-            R1csApplicationError::Matrix => Self::Matrix,
-            R1csApplicationError::Binding(error) => Self::Binding(error),
-        }
-    }
 }
 
 /// The slot plan of `WasmApplication::new`: `batched_slots` of the one-row
@@ -121,10 +112,6 @@ impl WasmApplication {
             &layout.auxiliary.memory,
             size,
         )?))
-    }
-
-    pub fn binding(&self) -> &CatalogBinding<WasmMemoryId> {
-        self.0.binding()
     }
 
     /// The program images of a preload, in the application's regions.

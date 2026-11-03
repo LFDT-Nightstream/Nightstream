@@ -2,7 +2,7 @@
 //! 7.6). One Nebula step proves `per_step` consecutive trace rows: its
 //! private words are the witnesses `z` of its rows, its state is the
 //! continuity words (one per link, `_AFTER` of a row equal to `_BEFORE` of
-//! the next), and `nightstream::nebula::CatalogBinding` checks every memory
+//! the next), and `nightstream::nebula::R1csApplication` checks every memory
 //! of the batched catalog. The regions come from what the test programs
 //! need (`WasmLimits::of`), so one circuit serves each program of a setup. The slot plan is
 //! `plan_ordered_slots`, which keeps each pair of one memory with a write in
@@ -358,7 +358,6 @@ fn honest_padded_traces_run_through_nebula() {
     for rows in [1, 2, 4] {
         let setup = setup(per_step(rows));
         let (app, geometry) = setup.complete();
-        assert!(app.binding().host_checked().is_empty(), "every memory is checked");
         let relation = application_rows(&app, &geometry);
         eprintln!("{rows} rows per step: geometry {geometry:?}");
         for traced in &setup.programs {

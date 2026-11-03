@@ -124,6 +124,8 @@ pub enum R1csApplicationError {
     Matrix,
     #[error(transparent)]
     Binding(#[from] CatalogBindingError),
+    #[error("a memory of the catalog has no region, so the circuit would not check it")]
+    Unchecked,
 }
 
 /// Why a step input has no step.
@@ -157,7 +159,8 @@ fn step_column(row_width: usize, one: usize, row: usize, column: usize) -> usize
 
 impl<Id: Clone + Eq> R1csApplication<Id> {
     /// The application of `relation`, its continuity links, and its memory
-    /// catalog for `size`.
+    /// catalog for `size`. The size must give each memory of the catalog a
+    /// region, so that the circuit checks every memory.
     pub fn new(
         relation: RowRelation,
         continuity: &ContinuityCatalog,
@@ -171,18 +174,18 @@ impl<Id: Clone + Eq> R1csApplication<Id> {
         let (row_width, one) = (relation.width, relation.one);
         let column = |row: usize, column: usize| step_column(row_width, one, row, column);
         let batched = catalog.batched(size.rows, column);
+        let binding = CatalogBinding::new(&batched, &size.geometry, size.regions, &size.slots)?;
+        if !binding.host_checked().is_empty() {
+            return Err(R1csApplicationError::Unchecked);
+        }
         Ok(Self {
             relation: Arc::new(step_relation(&relation, &links, size.rows)),
             links: Arc::new(links),
             rows: size.rows,
             row_width,
             one,
-            binding: CatalogBinding::new(&batched, &size.geometry, size.regions, &size.slots)?,
+            binding,
         })
-    }
-
-    pub fn binding(&self) -> &CatalogBinding<Id> {
-        &self.binding
     }
 
     /// The program images of a preload, in the application's regions.

@@ -111,9 +111,9 @@ def premises : List (Name × List Premise) :=
     (`CompressionLean.Claims.option_b_bound, optionB),
     (`CompressionLean.Claims.option_b_parent_bound, optionB ++ [
       ⟨`pf, .proved, "F′ proves it for option B's circuit width (`OptionB.EmitMain.publicFits`)."⟩,
-      ⟨`packed, .leanValue, "F′'s emitter evaluates `packable` on the finish relation's pieces (`EmitMain.emitPackage`) and writes no package when it fails."⟩,
-      ⟨`starts, .leanValue, "F′'s emitter evaluates `startsFrom` at the shared end on the finish relation's pieces (`EmitMain.emitPackage`) and writes no package when it fails."⟩,
-      ⟨`shape, .unmet, "No check compares the block count of option B's layer-1 keys with the circuit width (`EmitMain.width`). `parentShape_of` gives it from `KeyFacts` and that comparison."⟩,
+      ⟨`packed, .unmet, "F′'s emitter evaluates `packable` on the finish relation's pieces only at its census width `2^24` with a zero relation (`EmitMain.emitPackage`). The refresh relation is wider, so `shape` needs a wider `lw`, where no check evaluates it. `EmitMain.width` says the rows do not depend on the width; no proof checks that."⟩,
+      ⟨`starts, .unmet, "As `packed`, for `startsFrom` at the shared end."⟩,
+      ⟨`shape, .unmet, "No check compares the block count of option B's layer-1 keys with `lw`. At the emitter's census width the refresh key does not fit. `parentShape_of` gives it from `KeyFacts` and that comparison."⟩,
       ⟨`honest, .unmet, "No check reads option B's layer-1 setups or runs yet. `honest_setup_of_build` gives it for today's key from Rust's setup build and the runs."⟩])]
 
 def portRoot : Name := `CompressionLean.Ports

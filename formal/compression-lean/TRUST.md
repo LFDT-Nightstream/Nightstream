@@ -106,7 +106,8 @@ Lean proof, by a check of Rust's files, by a Lean value or by Rust. No premise o
 is open. Two premises of `option_b_bound` are open: that each slot's setup fits its key's shape and
 that the key describes it (`fits`, `describes`). `option_b_parent_bound` adds two more open
 premises: that each slot's key has the parent shape at option B's width (`shape`) and that each
-slot's setup is the honest setup of its circuit key (`honest`). No check reads option B's layer-1
+slot's setup is the honest setup of its circuit key (`honest`). Its `packed` and `starts` are open
+at any width wide enough for the refresh key (see Option B). No check reads option B's layer-1
 setups or runs yet. `CompressionLeanTests/Inventory.lean` holds that list, and `lake build` fails
 when a premise of a claim has no entry there.
 
@@ -121,10 +122,14 @@ slots' claim words are in their layer-1 relations (`Spec.OptionB.Holds`).
 `option_b_parent_bound` gives the same bound for the claim in F′'s terms (`Spec.OptionB.ParentHolds`):
 a refresh step input whose counter and states are the statement, with `FinishHolds`, and whose two
 next slots hold under their circuits' relations (SuperNeo v1.2 Definition 21). It reads the finish
-package as the one that F′'s emitter writes (`Spec.OptionB.finishPackage`). The emitter evaluates
-`packable` and `startsFrom` on the finish relation's pieces and writes no package when either fails.
-Rust embeds that package and pins its identifier; no check compares the package that `optionBCheck`
-decodes with `finishPackage`.
+package as the one that F′'s emitter writes (`Spec.OptionB.finishPackage`). One width `lw` is
+shared by the finish circuit's relation argument and both circuit keys. The emitter evaluates
+`packable` and `startsFrom` only at its census width `2^24` with a zero relation, and the refresh
+relation is wider than `2^24`. So at the emitter's width `shape` fails for the refresh slot, and at a
+wider width no check evaluates `packed` or `starts`. The emitter says that the step circuits' rows
+do not depend on the width or the relation (`EmitMain.width`); no proof checks that. Rust embeds the
+emitted package and pins its identifier; no check compares the package that `optionBCheck` decodes
+with `finishPackage`.
 
 The bridge from each slot's layer-1 relation to its CE claim pads. Rust's light relation commits
 fewer blocks than the refresh relation, while F′'s option-B model gives both circuit keys one width.

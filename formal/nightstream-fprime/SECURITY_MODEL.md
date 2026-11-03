@@ -278,18 +278,26 @@ item 5).
    claim (`Spec.HyperNova.Construction2.BoundedDepthReverse.Extracted`,
    `Spec.Folding.Schedule.extractedBefore`). These are the differences from
    Definition 7:
-   - The success event has no prior-state link. The light transcript does
+   - The success event has a prior-state link. The light transcript does
      not absorb the running claim (`Lifecycle.OptionB.lightAbsorbPublicInput`),
      and the refresh transcript absorbs the children's commitments and
      evaluations but not the accumulator's point or public input
      (`Lifecycle.OptionB.refreshWords`). Both bind the accumulator only
-     through the prior digest in the fresh public input, and no premise of
-     `history_failure_le` checks that digest. So a fold adversary can choose
-     the running claim after it sees the challenges, and the premise can
-     hold with a small `error` only if `Admitted` excludes such adversaries.
-     The deployed system checks the link: the next step circuit and the
-     terminal verifier recompute the state hash of the slots and compare it
-     with the fresh public input (`SPEC.md` Algorithms 3 and 6).
+     through the prior digest in the fresh public input. So the adversary
+     also outputs a prior state, and a success needs `PriorLink` of that
+     state, the running claim and the fold
+     (`Spec.HyperNova.Construction2.BoundedDepthReverse.RunsBack`). The
+     prior state is an output, as in PR #155: a link to some prior state
+     holds for almost every running claim, because many states share one
+     digest. The two-slot results use the link that every fold satisfies
+     (`Spec.HyperNova.Construction2.BoundedDepthSecurity.unlinked`), so for
+     them the premise can hold with a small `error` only if `Admitted`
+     excludes adversaries that choose the running claim after the
+     challenges. The deployed system checks the link: the next step circuit
+     and the terminal verifier recompute the state hash of the slots and
+     compare it with the fresh public input (`SPEC.md` Algorithms 3 and 6).
+   - The relations have a key. A claim holds under the key of its slot, and
+     every fold of an accepted history uses the slot's key.
    - The transcript is not the one of HyperNova Construction 3, which absorbs
      `sid` (the structure and the public parameters) and the running instance
      before the first challenge. The fold transcripts absorb a domain block,

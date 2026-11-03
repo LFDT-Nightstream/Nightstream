@@ -87,6 +87,7 @@ open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 #audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthSecurity.history_failure_le
 #audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthSecurity.runsBack_append
 #audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthSecurity.runsBack_of_runs
+#audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthSecurity.slotHistory_keys
 #audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthSecurity.slot_accepted
 #audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.OptionBFolds.light_eq_some_iff
 #audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.OptionBFolds.refresh_eq

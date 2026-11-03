@@ -1,4 +1,5 @@
 import CompressionLean.Ports.OptionB.Program
+import CompressionLean.Spec.OptionBRuns
 import CompressionLeanExe.Parse
 import CompressionLeanExe.Digest
 import CompressionLeanExe.Key
@@ -51,13 +52,15 @@ def digest (instrs : Array Instr) : List ℕ :=
 def check (finish : Package) (keys : Fin 2 → Layer1Key) : Parser String := do
   keyword "keys"
   let stateKeys ← many (← nat) glWord
+  unless stateKeys.length = 8 do throw s!"{stateKeys.length} state key words, not 8"
+  unless Spec.OptionB.fits finish do throw "the finish package does not fit its columns (`fits`)"
   let rust ← program
   let lean := (OptionB.finalProgram finish stateKeys keys).program
   samePrograms lean rust
   let upToLayer1 : Build Unit := do
     let (_, first) ← OptionB.finishPrefix finish stateKeys
     let _ ← OptionB.seed (fun k => first + k) (OptionB.bitsStart finish.application.1) 0
-  pure s!"match: all {lean.size} instructions of option B's final program, \
+  pure s!"finish package fits; match: all {lean.size} instructions of option B's final program, \
     {(OptionB.finishRows finish).length} finish rows, {finish.blocks.length} blocks; digest {digest lean}; \
     prefix digest {digest upToLayer1.program}"
 

@@ -1,4 +1,5 @@
 import CompressionLean.Sim.Encodes
+import CompressionLean.Sim.OptionBEncodes
 import CompressionLean.Final.ParentClaim
 import CompressionLean.Checks.KeyFacts
 import CompressionLean.Final.RustSetup
@@ -20,6 +21,7 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CoefficientKernel
 open CompressionLean.Circuit (Layer1Key)
 open CompressionLean.Terminal.Package (Loaded load)
 open CompressionLean.Final CompressionLean.Setup
+open NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.RingFPolynomial (modulus modulus_monic)
 
 /-- Soundness of `lifecycle/finish.rs::CompressionKey::verify`; Fiat–Shamir inside the program is assumed (`TRUST.md` §3). -/
 theorem production_bound {lw : ℕ}
@@ -123,5 +125,48 @@ theorem poseidon2_bound (key : Layer1Key) (loaded : Loaded) (context : Array Rep
       facts.constants.blocks width facts.constants.norm)
     (honest_setup_of_build _ rfl rfl setup _ pushes built (runsGive_of_check runs)) facts fits describes L0 L1 h0 h1
     t Ls p0 p1 rust loads valid hctx calls prover
+
+/-- Soundness of `lifecycle/option_b/compression.rs::OptionB::verify_final` at the layer-1 level: the
+shrink layer accepts a statement while no finish columns satisfy the final program's checks with
+both next slots' claim words in their layer-1 relations, with probability at most `calls / 2^t`.
+Fiat–Shamir inside the program is assumed (`TRUST.md` §3). -/
+theorem option_b_bound (finish : NightstreamFPrime.Export.OptionB.StepPackage.Package)
+    (stateKeys : List Replay.Word) (keys : Fin 2 → Layer1Key) (S : Fin 2 → Layer1.Setup Gl)
+    (facts : ∀ slot, KeyFacts (keys slot)) (fits : ∀ slot, (S slot).Fits (shapeOf (keys slot).relation))
+    (describes : ∀ slot,
+      (structureOf (keys slot).relation.key.layout).Describes (shapeOf (keys slot).relation) (S slot))
+    (fit : OptionB.fits finish = true) (keysLength : stateKeys.length ≤ 8)
+    (L0 L1 : ℕ) (h0 : 1 ≤ L0) (h1 : 1 ≤ L1) (t Ls : ℕ)
+    (p0 : ∀ slot, (L0 : ℝ) * L1 * Layer1.rustDegrees (shapeOf (keys slot).relation) / 2 ^ 191 ≤ 1 / 2 ^ (t + 1))
+    (p1 : ∀ slot, (L1 : ℝ) * (1 / 2) ^ ((shapeOf (keys slot).relation).queries - 1) ≤ 1 / 2 ^ (t + 1))
+    (rust : (Ls : ℝ) * Shrink.rustDegrees
+        (Shrink.Layout.rowVars Circuit.Block.poseidonTemplate (OptionB.counts finish stateKeys keys))
+        (Shrink.Layout.cellVars Circuit.Block.poseidonTemplate (OptionB.counts finish stateKeys keys)) / 2 ^ 191 ≤
+        1 / 2 ^ t)
+    (calls : ℕ)
+    (prover : Game.Strategy (OptionB.Outcome Gl Cubic (game (keys 0) (S 0) L0 L1) (game (keys 1) (S 1) L0 L1))) :
+    Game.prob prover
+        (restorePair (Shrink.shrinkGame (F := Gl) Circuit.Block.poseidonTemplate (OptionB.counts finish stateKeys keys)
+            (OptionB.shrinkRun finish stateKeys keys) Ls)
+          (choice (game (keys 0) (S 0) L0 L1) (game (keys 1) (S 1) L0 L1)) calls [] [])
+        (OptionB.RestoreBreak (F := Gl)
+          (OptionB.Holds (shapeOf (keys 0).relation) (shapeOf (keys 1).relation) modulus barOf (S 0) (S 1)
+            (OptionB.FinishTerminal finish stateKeys) (OptionB.slotClaim finish 0) (OptionB.slotClaim finish 1))
+          Circuit.Block.poseidonTemplate (OptionB.counts finish stateKeys keys) (OptionB.shrinkRun finish stateKeys keys)
+          (game (keys 0) (S 0) L0 L1) (game (keys 1) (S 1) L0 L1)
+          (OptionB.Reads finish stateKeys keys 0 (S 0) L0 L1) (OptionB.Reads finish stateKeys keys 1 (S 1) L0 L1)) ≤
+      calls / 2 ^ t :=
+  Final.OptionB.restore_budget (shapeOf (keys 0).relation) (shapeOf (keys 1).relation) modulus barOf (S 0) (S 1)
+    L0 L1 h0 h1 cubic_big (show (keys 0).relation.setupVars ≤ 35 by have := (facts 0).relation.high; omega)
+    (show (keys 1).relation.setupVars ≤ 35 by have := (facts 1).relation.high; omega) t
+    Circuit.Block.poseidonTemplate _ (OptionB.shrinkRun finish stateKeys keys) Ls (p0 0) (p1 0) (p0 1) (p1 1) rust
+    (queryAt (keys 0).relation) (queryAt (keys 1).relation) goldilocksModulus goldilocksModulus (facts 0).shape
+    (facts 1).shape (cubic_natCast_injective _ le_rfl) (cubic_natCast_injective _ le_rfl)
+    (Bridge.queryAt_distinct (keys 0).relation (facts 0).relation.high)
+    (Bridge.queryAt_distinct (keys 1).relation (facts 1).relation.high) (fits 0) (fits 1) modulus_monic
+    (by rw [modulus_natDegree]; rfl) (by rw [modulus_natDegree]; rfl) (show 2 ≤ Replay.D by decide)
+    Lowering.Block.poseidonTemplate_wellFormed (Sim.OptionB.shrinkRun_valid finish stateKeys keys)
+    (cubic_natCast_injective 9 (by norm_num [goldilocksModulus])) _ _ _ _ _
+    (Sim.OptionB.optionBEncodes S facts fits describes L0 L1 fit keysLength) calls prover
 
 end CompressionLean.Claims

@@ -16,6 +16,7 @@ Each claim of `CompressionLean/Claims.lean` and the axioms that it uses.
 | `CompressionLean.Claims.package_templates_of_check` | `propext`, `Quot.sound` |
 | `CompressionLean.Claims.setup_facts_of_check` | `propext`, `Classical.choice`, `Quot.sound` |
 | `CompressionLean.Claims.runsGive_of_check` | `propext`, `Classical.choice`, `Quot.sound` |
+| `CompressionLean.Claims.option_b_bound` | `propext`, `Classical.choice`, `Quot.sound` |
 
 ## Hypotheses
 
@@ -25,6 +26,7 @@ Every hypothesis of each claim, by binder. A parameter is data that the claim ho
 - Lean value: compiled evaluation checks a closed proposition about Lean values. The kernel does not evaluate it: the terminal package is too large.
 - Rust: Rust checks it when it runs. Lean does not check it.
 - Lean proof: a Lean proof gives it where another claim uses this claim.
+- Open: no check meets it yet; the claim holds only where it holds.
 
 ### `CompressionLean.Claims.production_bound`
 
@@ -118,9 +120,26 @@ Parameters: `{pushes : List CompressionLean.Setup.Push}`.
 |---|---|---|
 | `pass : CompressionLean.Spec.runsFailure pushes = none` | Rust's files | `runsCheck` checks it on the runs that `production_runs_rebuild_the_layer1_key` writes, which `setupCheck` reads too. `production_runs_match_lean` requires the pass. |
 
+### `CompressionLean.Claims.option_b_bound`
+
+Parameters: `finish : NightstreamFPrime.Export.OptionB.StepPackage.Package`, `stateKeys : List CompressionLean.Replay.Word`, `keys : Fin 2 → CompressionLean.Circuit.Layer1Key`, `S : Fin 2 → CompressionLean.Layer1.Setup CompressionLean.Gl`, `L0 : ℕ`, `L1 : ℕ`, `t : ℕ`, `Ls : ℕ`, `calls : ℕ`, `prover : CompressionLean.Game.Strategy (CompressionLean.Spec.OptionB.Outcome CompressionLean.Gl CompressionLean.Cubic (CompressionLean.Spec.game (keys 0) (S 0) L0 L1) (CompressionLean.Spec.game (keys 1) (S 1) L0 L1))`.
+
+| Premise | Met by | How |
+|---|---|---|
+| `facts : ∀ (slot : Fin 2), CompressionLean.Spec.KeyFacts (keys slot)` | Rust's files | `lowerCheck` evaluates `keyFailure` on both layer-1 keys that `option_b_layer1_keys_are_written` writes (`option_b_layer1_matches_lean`); `key_facts_of_check` turns each pass into `KeyFacts`. |
+| `fits : ∀ (slot : Fin 2), (S slot).Fits (CompressionLean.Spec.shapeOf (keys slot).relation)` | Open | No check reads option B's layer-1 setups yet (CW-6.5.6). |
+| `describes : ∀ (slot : Fin 2), (CompressionLean.Spec.structureOf (keys slot).relation.key.layout).Describes (CompressionLean.Spec.shapeOf (keys slot).relation) (S slot)` | Open | As `fits`. |
+| `fit : CompressionLean.Spec.OptionB.fits finish = true` | Lean value | `optionBCheck` evaluates `fits` on the finish package that it decodes from the artifact and stops when it fails. |
+| `keysLength : stateKeys.length ≤ 8` | Rust's files | `optionBCheck` requires eight state key words in the log that `option_b_final_program_matches_lean` writes; `FinalProgram::keys` is `[[F; 4]; 2]`. |
+| `h0 : 1 ≤ L0` | Rust | `L0` is the candidate count of P0's WHIR configuration (`log2_max_candidates`, `pcs.rs`). Plonky3 charges each term over `CandidateSet::from_log2` (`charge_reduction`, p3-sumcheck 0.8.0), which names no set for a count below one (p3-security 0.8.0, `report.rs`). The term then has zero bits, so `Pcs::new` refuses the configuration. `Relation::new` and `Shrink::new` keep only configurations that are charged at least one term. |
+| `h1 : 1 ≤ L1` | Rust | As `h0`, for P1. |
+| `p0 : ∀ (slot : Fin 2), ↑L0 * ↑L1 * ↑(CompressionLean.Layer1.rustDegrees (CompressionLean.Spec.shapeOf (keys slot).relation)) / 2 ^ 191 ≤ 1 / 2 ^ (t + 1)` | Rust | `Relation::new` builds P0's WHIR configuration with `Pcs::new` at `t + 1` bits. `Pcs::new` refuses it unless its WHIR terms plus these charged terms, over its candidates, are at most `2^-(t+1)` (`pcs.rs`). The candidate counts and the WHIR terms come from Plonky3's Johnson-bound report. No Lean proof checks them (`TRUST.md` §3). |
+| `p1 : ∀ (slot : Fin 2), ↑L1 * (1 / 2) ^ ((CompressionLean.Spec.shapeOf (keys slot).relation).queries - 1) ≤ 1 / 2 ^ (t + 1)` | Rust | As `p0`, for P1, which is charged the setup queries. |
+| `rust : ↑Ls * ↑(CompressionLean.Shrink.rustDegrees (CompressionLean.Shrink.Layout.rowVars CompressionLean.Circuit.Block.poseidonTemplate (CompressionLean.Spec.OptionB.counts finish stateKeys keys)) (CompressionLean.Shrink.Layout.cellVars CompressionLean.Circuit.Block.poseidonTemplate (CompressionLean.Spec.OptionB.counts finish stateKeys keys))) / 2 ^ 191 ≤ 1 / 2 ^ t` | Rust | `Shrink::new` gives these terms to `Pcs::new` at the layer bits `t`. `Pcs::new` refuses the configuration unless its WHIR terms plus these terms, over its candidates, are at most `2^-t` (`pcs.rs`). No Lean proof checks the WHIR terms or `Ls`. |
+
 ## Ports
 
-`ports.json` has 601 entries: 537 Lean declarations transcribe 328 Rust items.
+`ports.json` has 605 entries: 541 Lean declarations transcribe 328 Rust items.
 
 | Lean module | Declarations |
 |---|---:|
@@ -146,7 +165,7 @@ Parameters: `{pushes : List CompressionLean.Setup.Push}`.
 | `CompressionLean.Ports.Circuit.Views` | 17 |
 | `CompressionLean.Ports.Circuit.Whir` | 19 |
 | `CompressionLean.Ports.Layer1.Budget` | 5 |
-| `CompressionLean.Ports.OptionB.Program` | 20 |
+| `CompressionLean.Ports.OptionB.Program` | 24 |
 | `CompressionLean.Ports.Replay.Data` | 39 |
 | `CompressionLean.Ports.Replay.Field` | 16 |
 | `CompressionLean.Ports.Replay.Formulas` | 39 |
@@ -224,6 +243,8 @@ The Rust tests that pin a digest that Lean computes.
 | `production_layer1_digest_is_pinned` | `crates/neo-spartan/tests/internal/lowering.rs` |
 | `terminal_digest_is_pinned` | `crates/nightstream/tests/lifecycle_native/terminal_ir.rs` |
 | `final_program_digest_is_pinned` | `crates/nightstream/tests/lifecycle_native/terminal_ir.rs` |
+| `option_b_prefix_digest_is_pinned` | `crates/nightstream/tests/option_b_lifecycle/final_ir.rs` |
+| `option_b_program_digest_is_pinned` | `crates/nightstream/tests/option_b_lifecycle/final_ir.rs` |
 
 ## Toolchain
 

@@ -10,3 +10,4 @@ import CompressionLean.Spec.PoseidonRows
 import CompressionLean.Spec.Runs
 
 import CompressionLean.Spec.OptionB
+import CompressionLean.Spec.OptionBRuns

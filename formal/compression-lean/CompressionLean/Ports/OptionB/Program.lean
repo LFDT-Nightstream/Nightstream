@@ -90,12 +90,12 @@ def checkBlock (column : ℕ → Var) (block : NightstreamFPrime.Export.Generic.
 def seedDomain : String := "Nightstream/OptionB/compression/v1"
 
 /-- `Poseidon2Transcript::new_v1_2` after it absorbs `domain_chunk_v1_2(SEED_DOMAIN)`. -/
-def seedDomainState : Array Word :=
+@[irreducible] def seedDomainState : Array Word :=
   Replay.permute (Array.ofFn fun lane : Fin 16 => (domainChunk seedDomain).getD lane 0)
 
-/-- `FinalProgram::seed`: the domain's state, plus the four state-hash words that the bits encode
-and the slot, permuted (`OptionB::layer1_seed`). -/
-def seed (column : ℕ → Var) (bits slot : ℕ) : Build (Fin 16 → Var) := do
+/-- `FinalProgram::seed` before its permutation: the domain's state, plus the four state-hash words
+that the bits encode and the slot. -/
+def seedState (column : ℕ → Var) (bits slot : ℕ) : Build (Array Var) := do
   let mut state ← (Array.range 16).mapM fun lane => Build.const seedDomainState[lane]!
   for word in List.range 4 do
     let mut value ← Build.const 0
@@ -104,7 +104,11 @@ def seed (column : ℕ → Var) (bits slot : ℕ) : Build (Fin 16 → Var) := do
       value ← Build.add value scaled
     state := state.set! word (← Build.add state[word]! value)
   let index ← Build.const (Word.ofNat slot)
-  state := state.set! 4 (← Build.add state[4]! index)
+  pure (state.set! 4 (← Build.add state[4]! index))
+
+/-- `FinalProgram::seed`: that state permuted (`OptionB::layer1_seed`). -/
+def seed (column : ℕ → Var) (bits slot : ℕ) : Build (Fin 16 → Var) := do
+  let state ← seedState column bits slot
   Build.permute fun lane => state[lane]!
 
 /-- `FinalProgram::claim`: a slot's claim words from `start` (`LightAssembler.slotAt`). -/
@@ -117,6 +121,21 @@ def claimAt (column : ℕ → Var) (start : ℕ) : ClaimView where
   evalA := (Array.range 4).map fun family => (Array.range 54).map fun k =>
     (column (start + 1188 + (family + 1) * 108 + 2 * k), column (start + 1188 + (family + 1) * 108 + 2 * k + 1))
 
+/-- `FinalProgram::run`: column 0 is one, and the statement and the state keys are on their words. -/
+def bindWords (column : ℕ → Var) (statement : Array Var) (one : Var) (stateKeys : List Word) : Build Unit := do
+  Build.assertEqual (column 0) one
+  Build.assertEqual (column iterationWord) (statement.getD 0 0)
+  (List.range 4).forM fun lane => do
+    Build.assertEqual (column (z0Word + lane)) (statement.getD (1 + lane) 0)
+    Build.assertEqual (column (currentWord + lane)) (statement.getD (5 + lane) 0)
+  stateKeys.zipIdx.forM fun (word, index) => do
+    let key ← Build.const word
+    Build.assertEqual (column (keysWord + index)) key
+
+/-- `FinalProgram::run`: each Poseidon2 block. -/
+def checkBlocks (column : ℕ → Var) (blocks : List NightstreamFPrime.Export.Generic.Frame.Block) : Build Unit :=
+  blocks.forM (checkBlock column)
+
 /-- `FinalProgram::run` before layer 1: the statement handles, the finish columns' first handle. -/
 def finishPrefix (finish : Package) (stateKeys : List Word) : Build (Array Var × Var) := do
   let statement ← (Array.range Terminal.Program.statementWords).mapM fun _ => Build.pub
@@ -126,25 +145,21 @@ def finishPrefix (finish : Package) (stateKeys : List Word) : Build (Array Var �
   Build.assertEqual product one
   let first ← Build.emit (.hint finish.sboxStart)
   let column : ℕ → Var := fun k => first + k
-  Build.assertEqual (column 0) one
-  Build.assertEqual (column iterationWord) (statement.getD 0 0)
-  (List.range 4).forM fun lane => do
-    Build.assertEqual (column (z0Word + lane)) (statement.getD (1 + lane) 0)
-    Build.assertEqual (column (currentWord + lane)) (statement.getD (5 + lane) 0)
-  stateKeys.zipIdx.forM fun (word, index) => do
-    let key ← Build.const word
-    Build.assertEqual (column (keysWord + index)) key
+  bindWords column statement one stateKeys
   Build.r1cs (finishRows finish) ((List.range finish.sboxStart).map column)
-  finish.blocks.forM (checkBlock column)
+  checkBlocks column finish.blocks
   pure (statement, first)
+
+/-- `FinalProgram::run` for one slot: its seed, then the layer-1 verifier of its next claim. -/
+def slotLayer1 (finish : Package) (key : Layer1Key) (first slot : ℕ) : Build Unit := do
+  let column : ℕ → Var := fun k => first + k
+  let state ← seed column (bitsStart finish.application.1) slot
+  verifyWith key state (claimAt column (slotStart finish.application.1 (5 + slot)))
 
 /-- `FinalProgram::run`: the prefix, then each slot's layer-1 verifier. -/
 def finalProgram (finish : Package) (stateKeys : List Word) (keys : Fin 2 → Layer1Key) : Build Unit := do
-  let (_, first) ← finishPrefix finish stateKeys
-  let column : ℕ → Var := fun k => first + k
-  let witnessWords := finish.application.1
-  (List.finRange 2).forM fun slot => do
-    let state ← seed column (bitsStart witnessWords) slot
-    verifyWith (keys slot) state (claimAt column (slotStart witnessWords (5 + slot)))
+  let start ← finishPrefix finish stateKeys
+  slotLayer1 finish (keys 0) start.2 0
+  slotLayer1 finish (keys 1) start.2 1
 
 end CompressionLean.OptionB

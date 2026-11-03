@@ -103,8 +103,23 @@ The claims bound a probability. They take these as part of the model, not as Lea
 A claim that takes a premise says nothing about a key, a package, a setup or runs that do not meet
 it. `STATUS.md` lists every hypothesis of every claim and says, for each premise, how it is met: by a
 Lean proof, by a check of Rust's files, by a Lean value or by Rust. No premise of `poseidon2_bound`
-is open. `CompressionLeanTests/Inventory.lean` holds that list, and `lake build` fails when a premise
+is open. Two premises of `option_b_bound` are open: that each slot's setup fits its key's shape and
+that the key describes it (`fits`, `describes`). No check reads option B's layer-1 setups yet. `CompressionLeanTests/Inventory.lean` holds that list, and `lake build` fails when a premise
 of a claim has no entry there.
+
+## Option B
+
+`option_b_bound` bounds option B's final verifier (`OptionB::verify_final`) at the layer-1 level.
+Its claim is a terminal environment of the finish package's columns in which the final program's
+checks hold (`Spec.OptionB.FinishTerminal`: the statement and state keys on their words, every row
+of the package's pieces, and each Poseidon2 block as the permutation of its lanes), whose two next
+slots' claim words are in their layer-1 relations (`Spec.OptionB.Holds`). Two links to F′ are not
+part of a claim yet. F′'s `FinishRelation.checks_finish` turns those checks into `FinishHolds` when
+the package is `packageOf` of the finish relation's pieces with packed blocks after the shared
+words; the emitter checks both and writes the package, and the claim reads the decoded package
+(`optionBCheck`). The bridge from each slot's layer-1 relation to its CE claim needs padding:
+Rust's light relation commits fewer blocks than the refresh relation, while F′'s option-B model
+gives both circuit keys one width (CW-6.5.6).
 
 ## 5. The ports
 
@@ -138,6 +153,13 @@ Rust, a claim is about a verifier, a program, a file or a check that Rust does n
   holds every package row in one `r1cs` instruction, so `final_program_matches_lean` compares each
   row and term, in order, on the pinned artifact, by hand; in CI, `final_program_digest_is_pinned`
   pins the run digest of Lean's program. For another package, no check compares the rows.
+- Option B's final program (`Ports/OptionB/Program.lean`, `FinalProgram::run` in
+  `lifecycle/option_b/final_program.rs`). `optionBCheck` decodes the finish package from its
+  artifact (`StepPackage.Package.format`, which round-trips), builds Lean's program with both
+  layer-1 keys, and requires every instruction of Rust's run, rows and terms in order
+  (`option_b_final_program_matches_lean`, by hand). In CI, `option_b_prefix_digest_is_pinned` pins
+  the run up to layer 1; `option_b_program_digest_is_pinned` pins the whole run by hand. Rust writes
+  each row port in Lean's form (`side`), so the rows compare term by term.
 - The setup build and the key expander (`Ports/Setup.lean`). The build is Rust's slot key while
   there are at most `2^24` run classes and the blocks fit 32 bits; `from_rows` refuses wider keys
   (`slot key width`). The proof reads only `ReadsBack` of the port, and the Rust test

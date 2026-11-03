@@ -15,7 +15,8 @@ def claims : List (Name × List Name) := [
   (`CompressionLean.Claims.width_fits_of_check, standardAxioms),
   (`CompressionLean.Claims.package_templates_of_check, [``propext, ``Quot.sound]),
   (`CompressionLean.Claims.setup_facts_of_check, standardAxioms),
-  (`CompressionLean.Claims.runsGive_of_check, standardAxioms)]
+  (`CompressionLean.Claims.runsGive_of_check, standardAxioms),
+  (`CompressionLean.Claims.option_b_bound, standardAxioms)]
 
 def claimsModule : Name := `CompressionLean.Claims
 
@@ -32,18 +33,21 @@ inductive Met where
   | leanValue
   | rust
   | proved
+  | unmet
 
 def Met.label : Met → String
   | .rustFiles => "Rust's files"
   | .leanValue => "Lean value"
   | .rust => "Rust"
   | .proved => "Lean proof"
+  | .unmet => "Open"
 
 def Met.meaning : Met → String
   | .rustFiles => "an executable checks a fact about the files that Rust writes, and a claim turns the pass into the premise."
   | .leanValue => "compiled evaluation checks a closed proposition about Lean values. The kernel does not evaluate it: the terminal package is too large."
   | .rust => "Rust checks it when it runs. Lean does not check it."
   | .proved => "a Lean proof gives it where another claim uses this claim."
+  | .unmet => "no check meets it yet; the claim holds only where it holds."
 
 structure Premise where
   binder : Name
@@ -95,7 +99,14 @@ def premises : List (Name × List Premise) :=
     (`CompressionLean.Claims.package_templates_of_check, [⟨`named, .leanValue,
       "`terminalCheck` evaluates `templatesNamed` on the terminal package."⟩]),
     (`CompressionLean.Claims.setup_facts_of_check, [⟨`pass, .rustFiles, setupPass⟩]),
-    (`CompressionLean.Claims.runsGive_of_check, [⟨`pass, .rustFiles, runsPass⟩])]
+    (`CompressionLean.Claims.runsGive_of_check, [⟨`pass, .rustFiles, runsPass⟩]),
+    (`CompressionLean.Claims.option_b_bound, [
+      ⟨`facts, .rustFiles, "`lowerCheck` evaluates `keyFailure` on both layer-1 keys that `option_b_layer1_keys_are_written` writes (`option_b_layer1_matches_lean`); `key_facts_of_check` turns each pass into `KeyFacts`."⟩,
+      ⟨`fits, .unmet, "No check reads option B's layer-1 setups yet (CW-6.5.6)."⟩,
+      ⟨`describes, .unmet, "As `fits`."⟩,
+      ⟨`fit, .leanValue, "`optionBCheck` evaluates `fits` on the finish package that it decodes from the artifact and stops when it fails."⟩,
+      ⟨`keysLength, .rustFiles, "`optionBCheck` requires eight state key words in the log that `option_b_final_program_matches_lean` writes; `FinalProgram::keys` is `[[F; 4]; 2]`."⟩,
+      h0, h1, p0, p1, rust])]
 
 def portRoot : Name := `CompressionLean.Ports
 
@@ -104,7 +115,9 @@ def digestPins : List (String × String) := [
   ("crates/neo-spartan/tests/internal/lowering.rs", "toy_layer1_digest_is_pinned"),
   ("crates/neo-spartan/tests/internal/lowering.rs", "production_layer1_digest_is_pinned"),
   ("crates/nightstream/tests/lifecycle_native/terminal_ir.rs", "terminal_digest_is_pinned"),
-  ("crates/nightstream/tests/lifecycle_native/terminal_ir.rs", "final_program_digest_is_pinned")]
+  ("crates/nightstream/tests/lifecycle_native/terminal_ir.rs", "final_program_digest_is_pinned"),
+  ("crates/nightstream/tests/option_b_lifecycle/final_ir.rs", "option_b_prefix_digest_is_pinned"),
+  ("crates/nightstream/tests/option_b_lifecycle/final_ir.rs", "option_b_program_digest_is_pinned")]
 
 /-- The Rust test `lean_ports_match_their_rust_items` checks each hash. -/
 structure Port where
@@ -158,7 +171,7 @@ def statusPage (ports : Array Port) : CoreM String :=
   lines := lines ++ #["", "## Hypotheses", "",
     "Every hypothesis of each claim, by binder. A parameter is data that the claim holds for. A premise is a proposition that the claim takes; the claim says nothing where it fails. Each premise row says how the premise is met:",
     ""]
-  for met in [Met.rustFiles, .leanValue, .rust, .proved] do
+  for met in [Met.rustFiles, .leanValue, .rust, .proved, .unmet] do
     lines := lines.push s!"- {met.label}: {met.meaning}"
   for (claim, _) in claims do
     let some info := env.find? claim | throwError "claim {claim} is not declared"

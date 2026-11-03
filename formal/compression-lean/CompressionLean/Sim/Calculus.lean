@@ -76,6 +76,18 @@ theorem mapM_list {f : δ → Build α} (h : ∀ x, Appends (f x)) : ∀ l : Lis
       rw [List.mapM_cons]
       exact bind (h x) fun _ => bind (mapM_list h l) fun _ => pure _
 
+theorem forM_list {f : δ → Build PUnit} (h : ∀ x, Appends (f x)) : ∀ l : List δ, Appends (l.forM f)
+  | [] => pure _
+  | x :: l => by
+      show Appends (f x >>= fun _ => l.forM f)
+      exact bind (h x) fun _ => forM_list h l
+
+theorem foldlM_list {f : γ → δ → Build γ} (h : ∀ a x, Appends (f a x)) : ∀ (l : List δ) (a : γ), Appends (l.foldlM f a)
+  | [], _ => pure _
+  | x :: l, a => by
+      rw [List.foldlM_cons]
+      exact bind (h a x) fun b => foldlM_list h l b
+
 theorem mapM_array {f : δ → Build α} (h : ∀ x, Appends (f x)) (xs : Array δ) : Appends (xs.mapM f) := by
   rw [Array.mapM_eq_mapM_toList]
   exact map _ (mapM_list h _)
@@ -237,6 +249,8 @@ private def appendsRule (b : Expr) : MetaM (Option Name) := do
   | .const ``ForIn.forIn _ => forIn b.getAppArgs[1]! ``Appends.forIn_list ``Appends.forIn_array ``Appends.forIn_range
   | .const ``Array.mapM _ => return some ``Appends.mapM_array
   | .const ``List.mapM _ => return some ``Appends.mapM_list
+  | .const ``List.forM _ => return some ``Appends.forM_list
+  | .const ``List.foldlM _ => return some ``Appends.foldlM_list
   | .const ``StateT.run _ =>
     let t := b.getAppArgs[3]!.headBeta
     match t.getAppFn with

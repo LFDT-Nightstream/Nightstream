@@ -42,6 +42,7 @@ StraightLineValidation.v
 FunctionValidation.v
 CallBody.v
 CallContext.v
+TrapFacts.v
 CallScope.v
 CallReturn.v
 CallerSpec.v

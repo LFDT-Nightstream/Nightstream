@@ -23,7 +23,8 @@ frame initialization; the final shape resumes the next run. The store is an inpu
 the circuit does not hold it. A run's activation never finishes (no export return
 or trap). Padding is supported. An explicitly empty `else` is rejected by the Rust parser (SpecTec's `if` has no such form; strip it before
 proving). Host rows, indirect calls, blocks and loops with parameters or typed by index, and returning out of the base frame are excluded.
-Selected zero-test steps are also proved.
+Selected zero-test steps are also proved, and `TrapFacts.v` proves that no supported opcode's row can trap: each
+trap cause is gated by its own selectors.
 Field primality and memory-event consistency are assumed; the offline memory
 argument is not proved. ROMs are dense: keys the encoder does not list read 0, so
 proofs never rely on a key being absent. The program ROM encoder covers this guest-only fragment;

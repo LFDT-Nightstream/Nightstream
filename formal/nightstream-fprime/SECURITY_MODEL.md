@@ -97,8 +97,9 @@ item 5).
   which end in the terminal's statement, or two different Poseidon2 inputs
   with one hash (`Export.OptionB.TerminalBridge.bridge`). The terminal is
   `Lifecycle.OptionB.Terminal.HoldsFor`. Two well-formed states with one state
-  hash are equal or give a Poseidon2 collision
-  (`Lifecycle.OptionB.stateHash_collision`). The bridge reads each counter as
+  hash are equal or give a Poseidon2 collision on an input pair that the two
+  states fix (`Lifecycle.OptionB.stateHash_collision`,
+  `Lifecycle.OptionB.StateCollision`). The bridge reads each counter as
   one word, so it gives the depth words and not the depths
   (`Export.OptionB.TerminalBridge.stateHash_binds_words`). The result is
   deterministic. It is about the Lean terminal relation, not about the Rust
@@ -289,13 +290,18 @@ item 5).
      (`Spec.HyperNova.Construction2.BoundedDepthReverse.RunsBack`). The
      prior state is an output, as in PR #155: a link to some prior state
      holds for almost every running claim, because many states share one
-     digest. The two-slot results use the link that every fold satisfies
-     (`Spec.HyperNova.Construction2.BoundedDepthSecurity.unlinked`), so for
-     them the premise can hold with a small `error` only if `Admitted`
-     excludes adversaries that choose the running claim after the
-     challenges. The deployed system checks the link: the next step circuit
-     and the terminal verifier recompute the state hash of the slots and
-     compare it with the fresh public input (`SPEC.md` Algorithms 3 and 6).
+     digest. In an accepted execution, each fold of a slot links to the
+     prior hash preimage of its step: the fresh public input encodes the hash
+     of that preimage, and its program counter selects the slot that holds
+     the fold's running claim
+     (`Spec.HyperNova.Construction2.BoundedDepthSecurity.StepLink`,
+     `Spec.HyperNova.Construction2.BoundedDepthSecurity.slot_runsBack`).
+     Option B's link also requires a well-formed prior state
+     (`Lifecycle.OptionB.PriorLink`). Two linked folds with one fresh instance
+     then start from one running claim, or their two prior states give a
+     state-hash collision (`Lifecycle.OptionB.priorLink_binds`). So the
+     transcript fixes the running claim before the challenges, up to a
+     collision on a pair of states that the adversary outputs.
    - The relations have a key. A claim holds under the key of its slot, and
      every fold of an accepted history uses the slot's key.
    - The transcript is not the one of HyperNova Construction 3, which absorbs

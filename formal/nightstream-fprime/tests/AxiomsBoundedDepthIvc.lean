@@ -2,6 +2,7 @@ import tests.AxiomAudit
 import NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 import NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthKnowledge
 import NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthSecurity
+import NightstreamFPrime.Lifecycle.OptionB.PriorLink
 import NightstreamFPrime.Spec.HyperNova.Construction2.OptionBFolds
 import NightstreamFPrime.Spec.HyperNova.Construction2.OptionBKeys
 import NightstreamFPrime.Lifecycle.OptionB.State
@@ -86,8 +87,7 @@ open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 #audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthSecurity.per_tape
 #audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthSecurity.history_failure_le
 #audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthSecurity.runsBack_append
-#audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthSecurity.runsBack_of_runs
-#audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthSecurity.slotHistory_keys
+#audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthSecurity.slot_runsBack
 #audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthSecurity.slot_accepted
 #audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.OptionBFolds.light_eq_some_iff
 #audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.OptionBFolds.refresh_eq
@@ -149,6 +149,7 @@ open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.setup
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.machine
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.hash_binds
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.priorLink_binds
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.StepHolds
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.accepts_iff
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.stepHolds_iff

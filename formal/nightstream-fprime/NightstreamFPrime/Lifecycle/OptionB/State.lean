@@ -6,7 +6,9 @@ depth are hashed to a four-word digest under their own domain. The state hash bi
 circuits' verifier-key digests, the step counter, the initial and current states, the program
 counter and the two slot digests. HyperNova Construction 2 step 5 hashes the running instances
 directly; the extra level is the recorded difference. `stateHash_collision`: two different
-well-formed states with one state hash give a Poseidon2 collision. -/
+well-formed states with one state hash give a Poseidon2 collision on an input pair that the two
+states fix (`StateCollision`). A collision of some pair always exists, so only a pair that the
+states name is an event that can have a small probability. -/
 
 namespace NightstreamFPrime.Lifecycle.OptionB
 
@@ -172,12 +174,18 @@ theorem statePreimage_injective {left right : State logicalWidth publicFits}
     | ⟨0, _⟩ => exact digest0
     | ⟨1, _⟩ => exact digest1
 
-/-- Two different well-formed states with one state hash give two different Poseidon2 inputs
-with one hash: the state preimages differ, or a slot differs and its slot preimages differ. -/
+/-- A Poseidon2 collision on an input pair that two states fix: their state preimages, or the
+slot preimages of one slot. -/
+def StateCollision (left right : State logicalWidth publicFits) : Prop :=
+  (statePreimage left ≠ statePreimage right ∧ stateHash left = stateHash right) ∨
+    ∃ slot, serializeSlot (left.slots slot) ≠ serializeSlot (right.slots slot) ∧
+      slotDigest (left.slots slot) = slotDigest (right.slots slot)
+
+/-- Two different well-formed states with one state hash give a collision on their pair: the
+state preimages differ, or a slot differs and its slot preimages differ. -/
 theorem stateHash_collision {left right : State logicalWidth publicFits}
     (leftWell : left.WellFormed) (rightWell : right.WellFormed) (different : left ≠ right)
-    (same : stateHash left = stateHash right) :
-    ∃ input input', input ≠ input' ∧ Poseidon2.hash input = Poseidon2.hash input' := by
+    (same : stateHash left = stateHash right) : StateCollision left right := by
   by_cases preimages : statePreimage left = statePreimage right
   · obtain ⟨keys, iteration, z0, current, pc, digests⟩ :=
       statePreimage_injective leftWell rightWell preimages
@@ -191,11 +199,8 @@ theorem stateHash_collision {left right : State logicalWidth publicFits}
       subst keys iteration z0 current pc slots
       rfl
     obtain ⟨slot, differs⟩ := slotDiffers
-    refine ⟨slotDomainChunk ++ serializeSlot (left.slots slot),
-      slotDomainChunk ++ serializeSlot (right.slots slot), ?_, digests slot⟩
-    intro inputs
-    exact differs (serializeSlot_injective (leftWell.depth slot) (rightWell.depth slot)
-      (List.append_cancel_left inputs))
-  · exact ⟨_, _, preimages, same⟩
+    refine Or.inr ⟨slot, fun inputs => differs ?_, digests slot⟩
+    exact serializeSlot_injective (leftWell.depth slot) (rightWell.depth slot) inputs
+  · exact Or.inl ⟨preimages, same⟩
 
 end NightstreamFPrime.Lifecycle.OptionB

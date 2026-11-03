@@ -36,6 +36,7 @@ import NightstreamFPrime.Spec.Folding.Light.RlcModule
 import NightstreamFPrime.Lifecycle.OptionB.State
 import NightstreamFPrime.Lifecycle.OptionB.Keys
 import NightstreamFPrime.Lifecycle.OptionB.Step
+import NightstreamFPrime.Lifecycle.OptionB.PriorLink
 import NightstreamFPrime.Lifecycle.OptionB.StateHashGadget
 import NightstreamFPrime.Lifecycle.OptionB.LightCommitment
 import NightstreamFPrime.Lifecycle.OptionB.LightPublicInput

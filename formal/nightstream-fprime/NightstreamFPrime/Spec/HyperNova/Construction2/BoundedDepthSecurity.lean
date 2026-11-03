@@ -376,82 +376,120 @@ section TwoSlot
 
 open NightstreamFPrime.Spec.HyperNova.NonInteractiveMultiFold (Accepts)
 open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthKnowledge
-  (Runs Execution MachineStep slotHistory slot_runs)
+  (Execution MachineStep slotFold)
 
-/-! The two-slot results below carry no prior state (`Prior := Unit`, `unlinked`). The IVC
-reduction supplies the production link. -/
+variable {Digest State StepWitness Encoded : Type}
 
-/-- The link that every fold satisfies. -/
-def unlinked : Unit → Running Claim → Fold Key Claim Fresh Proof → Prop := fun _ _ _ => True
+/-- HyperNova Construction 2 step 4(b) for one fold: the fold's fresh instance encodes the hash
+of `prior`, and the program counter of `prior` selects a slot that holds `start`. -/
+def StepLink (machine : Paper.Machine Key Digest State StepWitness (Running Claim) Fresh Encoded 2)
+    (prior : Paper.HashPreimage Key State (Running Claim) 2) (start : Running Claim)
+    (fold : Fold Key Claim Fresh Proof) : Prop :=
+  machine.freshPublic fold.fresh = machine.encodeInstance (machine.hash prior) ∧
+    ∃ valid : Paper.InRange 2 prior.pc, prior.running (Paper.selectedIndex valid) = start
 
-/-- Each fold of a forward history with the running claim it starts from. -/
-def links : Running Claim → List (Fold Key Claim Fresh Proof) → List (Link Unit Key Claim Fresh Proof)
-  | _, [] => []
-  | start, fold :: rest => ⟨(), start, fold⟩ :: links fold.output rest
+/-- The hash preimage that a step's fresh instance commits to (Construction 2 step 4(b)). -/
+def priorOf (verifierKeys : Fin 2 → Key)
+    (step : MachineStep Key Claim Fresh Proof Digest State StepWitness) :
+    Paper.HashPreimage Key State (Running Claim) 2 where
+  verifierKeys := verifierKeys
+  iteration := step.input.iteration
+  z0 := step.input.z0
+  current := step.input.zi
+  running := step.input.running
+  pc := step.input.priorPc
+
+/-- The links `slot` receives: one for each step whose prior program counter selects it, with
+the step's prior hash preimage and the slot's claim before the fold. -/
+def slotLinks (verifierKeys : Fin 2 → Key) (slot : Fin 2) :
+    List (MachineStep Key Claim Fresh Proof Digest State StepWitness) →
+      List (Link (Paper.HashPreimage Key State (Running Claim) 2) Key Claim Fresh Proof)
+  | [] => []
+  | step :: rest =>
+      if step.input.priorPc = slot.val + 1 then
+        ⟨priorOf verifierKeys step, step.input.running slot, slotFold verifierKeys slot step⟩ ::
+          slotLinks verifierKeys slot rest
+      else slotLinks verifierKeys slot rest
 
 /-- The running claim the oldest fold of a history, last fold first, starts from. -/
-def oldest : Running Claim → List (Link Unit Key Claim Fresh Proof) → Running Claim
+def oldest : Running Claim → List (Link Prior Key Claim Fresh Proof) → Running Claim
   | final, [] => final
   | _, link :: older => oldest link.start older
 
 theorem runsBack_append (key : Key) :
-    ∀ (back : List (Link Unit Key Claim Fresh Proof)) (final : Running Claim)
-      (link : Link Unit Key Claim Fresh Proof),
-      RunsBack cap folds unlinked key final back → link.fold.output = oldest final back →
+    ∀ (back : List (Link Prior Key Claim Fresh Proof)) (final : Running Claim)
+      (link : Link Prior Key Claim Fresh Proof),
+      RunsBack cap folds PriorLink key final back → link.fold.output = oldest final back →
       link.fold.input = link.start.1 → link.fold.key = key →
+      PriorLink link.prior link.start link.fold →
       Accepts (verifier cap folds link.fold.circuit) link.fold.key link.start link.fold.fresh
         link.fold.proof link.fold.output →
-      RunsBack cap folds unlinked key final (back ++ [link]) ∧
+      RunsBack cap folds PriorLink key final (back ++ [link]) ∧
         oldest final (back ++ [link]) = link.start
-  | [], _, _, _, output, input, keyEq, accepted =>
-      ⟨⟨output, input, keyEq, trivial, accepted, trivial⟩, rfl⟩
-  | newer :: older, _, link, ⟨outputEq, inputEq, keyNewer, linked, acceptedNewer, olderRuns⟩,
-      output, input, keyEq, accepted => by
+  | [], _, _, _, output, input, keyEq, linked, accepted =>
+      ⟨⟨output, input, keyEq, linked, accepted, trivial⟩, rfl⟩
+  | newer :: older, _, link, ⟨outputEq, inputEq, keyNewer, linkedNewer, acceptedNewer, olderRuns⟩,
+      output, input, keyEq, linked, accepted => by
       obtain ⟨runs, oldestEq⟩ :=
-        runsBack_append key older newer.start link olderRuns output input keyEq accepted
-      exact ⟨⟨outputEq, inputEq, keyNewer, linked, acceptedNewer, runs⟩, oldestEq⟩
+        runsBack_append key older newer.start link olderRuns output input keyEq linked accepted
+      exact ⟨⟨outputEq, inputEq, keyNewer, linkedNewer, acceptedNewer, runs⟩, oldestEq⟩
 
-/-- A forward history of accepted folds under one key, read last fold first. -/
-theorem runsBack_of_runs (key : Key) :
-    ∀ (history : List (Fold Key Claim Fresh Proof)) (start final : Running Claim),
-      Runs cap folds start history final → (∀ fold ∈ history, fold.key = key) →
-        RunsBack cap folds unlinked key final (links start history).reverse ∧
-          oldest final (links start history).reverse = start
-  | [], start, final, runs, _ => by
-      simp only [Runs] at runs
-      subst runs
+/-- Each slot of an accepted execution receives an accepted history, last fold first, under the
+slot's key, with each fold linked to its step's prior hash preimage. -/
+theorem slot_runsBack (verifierKeys : Fin 2 → Key) (defaultClaim : Claim)
+    (machine : Paper.Machine Key Digest State StepWitness (Running Claim) Fresh Encoded 2)
+    (slot : Fin 2) :
+    ∀ (trace : List (MachineStep Key Claim Fresh Proof Digest State StepWitness))
+      (start final : Fin 2 → Running Claim),
+      Execution (setup cap folds verifierKeys defaultClaim) machine start trace final →
+        RunsBack cap folds (StepLink machine) (verifierKeys slot) (final slot)
+            (slotLinks verifierKeys slot trace).reverse ∧
+          oldest (final slot) (slotLinks verifierKeys slot trace).reverse = start slot
+  | [], start, final, execution => by
+      simp only [Execution] at execution
+      subst execution
       exact ⟨trivial, rfl⟩
-  | fold :: rest, start, final, ⟨inputEq, accepted, later⟩, keys => by
-      obtain ⟨runs, oldestEq⟩ := runsBack_of_runs key rest fold.output final later
-        fun other member => keys other (List.mem_cons_of_mem _ member)
-      simp only [links, List.reverse_cons]
-      exact runsBack_append key _ final ⟨(), start, fold⟩ runs oldestEq.symm inputEq
-        (keys fold List.mem_cons_self) accepted
+  | step :: rest, start, final, ⟨runningEq, recursive, holds, later⟩ => by
+      obtain ⟨runs, oldestEq⟩ := slot_runsBack verifierKeys defaultClaim machine slot rest
+        step.output.runningNext final later
+      have holdsCopy := holds
+      obtain ⟨_, _, _, _, base | ⟨priorPcValid, _, priorPublic, accepted, unchanged⟩⟩ := holdsCopy
+      · omega
+      have lower := priorPcValid.1
+      by_cases selects : step.input.priorPc = slot.val + 1
+      · have same : Paper.selectedIndex priorPcValid = slot := by
+          apply Fin.ext
+          simp only [Paper.selectedIndex]
+          omega
+        rw [same] at accepted
+        simp only [slotLinks, selects, ↓reduceIte, List.reverse_cons]
+        have linked : StepLink machine (priorOf verifierKeys step) (step.input.running slot)
+            (slotFold verifierKeys slot step) := ⟨priorPublic, priorPcValid, by rw [← same]; rfl⟩
+        obtain ⟨appended, appendedOldest⟩ := runsBack_append (verifierKeys slot) _ (final slot)
+          ⟨priorOf verifierKeys step, step.input.running slot, slotFold verifierKeys slot step⟩
+          runs oldestEq.symm rfl rfl linked accepted
+        exact ⟨appended, appendedOldest.trans (congrFun runningEq slot)⟩
+      · have other : Paper.selectedIndex priorPcValid ≠ slot := by
+          intro equal
+          apply selects
+          have value := congrArg Fin.val equal
+          simp only [Paper.selectedIndex] at value
+          omega
+        have kept : step.output.runningNext slot = start slot :=
+          (unchanged slot (Ne.symm other)).trans (congrFun runningEq slot)
+        simp only [slotLinks, selects, ↓reduceIte]
+        rw [kept] at oldestEq
+        exact ⟨runs, oldestEq⟩
 
-variable {Digest State StepWitness Encoded : Type}
-
-/-- Every fold that `slot` receives uses the slot's own key. -/
-theorem slotHistory_keys (verifierKeys : Fin 2 → Key) (slot : Fin 2) :
-    ∀ (trace : List (MachineStep Key Claim Fresh Proof Digest State StepWitness)),
-      ∀ fold ∈ slotHistory verifierKeys slot trace, fold.key = verifierKeys slot
-  | [] => fun _ member => by simp [slotHistory] at member
-  | step :: rest => fun fold member => by
-      simp only [slotHistory] at member
-      split at member
-      · rcases List.mem_cons.mp member with same | later
-        · subst same
-          rfl
-        · exact slotHistory_keys verifierKeys slot rest fold later
-      · exact slotHistory_keys verifierKeys slot rest fold member
-
-/-- The one-slot output of a two-slot execution: the slot's key, its history, last fold first,
-and a witness of its final claim. -/
-def slotOutput (verifierKeys : Fin 2 → Key) (start final : Fin 2 → Running Claim) (slot : Fin 2)
+/-- The one-slot output of a two-slot execution: the slot's key, its history with the prior
+hash preimages, last fold first, and a witness of its final claim. -/
+def slotOutput (verifierKeys : Fin 2 → Key) (final : Fin 2 → Running Claim) (slot : Fin 2)
     (trace : List (MachineStep Key Claim Fresh Proof Digest State StepWitness)) (bound : Nat)
-    (witness : ClaimWitness) : Output Unit Key Claim Fresh Proof ClaimWitness where
+    (witness : ClaimWitness) :
+    Output (Paper.HashPreimage Key State (Running Claim) 2) Key Claim Fresh Proof ClaimWitness where
   key := verifierKeys slot
   final := final slot
-  back := (links (start slot) (slotHistory verifierKeys slot trace)).reverse
+  back := (slotLinks verifierKeys slot trace).reverse
   bound := bound
   witness := witness
 
@@ -464,11 +502,9 @@ theorem slot_accepted (verifierKeys : Fin 2 → Key) (defaultClaim : Claim)
     (execution : Execution (setup cap folds verifierKeys defaultClaim) machine start trace final)
     (slot : Fin 2) (bound : Nat) (witness : ClaimWitness)
     (holds : Holds (verifierKeys slot) bound (final slot).1 witness) (atMostB : bound ≤ p.bigB) :
-    Accepted p cap folds unlinked Holds
-      (slotOutput verifierKeys start final slot trace bound witness) :=
-  ⟨(runsBack_of_runs (verifierKeys slot) _ _ _
-      (slot_runs verifierKeys defaultClaim machine slot trace start final execution)
-      (slotHistory_keys verifierKeys slot trace)).1,
+    Accepted p cap folds (StepLink machine) Holds
+      (slotOutput verifierKeys final slot trace bound witness) :=
+  ⟨(slot_runsBack verifierKeys defaultClaim machine slot trace start final execution).1,
     holds, atMostB⟩
 
 end TwoSlot

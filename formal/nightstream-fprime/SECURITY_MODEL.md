@@ -247,7 +247,8 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
 
 - **Controls:** what adversary 4 controls, for a memory application at a
   fixed geometry and program, and from the same tape a claimed memory
-  statement and the final carry. The adversary must be admitted (trust
+  statement and the final carry. The proof carries the carry, and the
+  verifier takes the statement integers from it (`SPEC.md` Algorithm 10). The adversary must be admitted (trust
   item 4).
 - **Wins:** the memory verifier accepts (`SPEC.md` Algorithm 10), and the
   history that the reverse extractor returns does not attest the claim: it
@@ -522,13 +523,16 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
 - A program that the adversary chooses after it sees the setup. Adversary 5
   fixes the program before the adversary runs.
 - The Rust-built memory relation of an application or geometry that no Lean
-  package fixes, the binding rows of the Rust catalog backend, and the
-  relation that links the rows of a batched WASM step (`SPEC.md` section
-  7.6). Lean proves what the slot plan conditions give
+  package fixes, the binding rows of the Rust catalog backend, the rows of
+  `nebula::R1csApplication` that link the rows of a batched step, and the
+  WASM relation itself (`SPEC.md` section 7.6). Lean proves what the slot plan conditions give
   (`Spec.Nebula.MemoryTrace.reorders_of_slotOrder`) and that batched steps
   are memory consistent exactly when their rows are
   (`Spec.Nebula.MemoryTrace.memoryConsistent_batchCatalog_iff`), but not
   that the Rust rows enforce those conditions. Tests check the rows on fixed
-  inputs (trust item 5).
+  inputs (trust item 5). A Rust test also checks that each field of the
+  typed WASM state changes its words (`every_state_field_changes_the_state_words`
+  in `crates/neo-wasm/tests/wasm_nebula.rs`), so a verifier that reads a
+  field of a proved last state reads a proved word.
 - Values for the adversary time and the query counts `Q` and `Q_η`. They
   stay symbolic (`decisions/nebula-memory-checking.md`).

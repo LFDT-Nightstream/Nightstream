@@ -22,6 +22,7 @@ impl Geometry {
     /// The first memory-application package (`FirstPlan.lean`): ROM and RAM
     /// of four words, two ports, segments of two steps, at most four
     /// segments, and 5-bit timestamps.
+    #[cfg(test)]
     pub(super) fn first() -> Self {
         Self {
             r: 2,
@@ -38,6 +39,7 @@ impl Geometry {
     /// the first geometry cannot reach: ROM of four words and RAM of eight
     /// (`r < μ`), segments of one step, at most four segments, and 4-bit
     /// timestamps.
+    #[cfg(test)]
     pub(super) fn second() -> Self {
         Self {
             r: 2,

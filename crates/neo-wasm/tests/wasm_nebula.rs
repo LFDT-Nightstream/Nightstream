@@ -27,8 +27,8 @@ use neo_wasm::{
     WasmMemoryId, WasmMemoryPreload,
 };
 use nightstream::nebula::{
-    size_parts, Application, CatalogRowError, Context, Expr, Geometry, Memory, MemoryPortActivation, MemoryPortKind,
-    Program, Region, Run, SegmentError, Transition, View,
+    size_parts, Application, CatalogRowError, Expr, Geometry, Memory, MemoryPortActivation, MemoryPortKind, Program,
+    Region, Run, SegmentError, Transition, View,
 };
 use p3_field::PrimeCharacteristicRing;
 
@@ -228,7 +228,7 @@ impl Setup {
         let program = app
             .program(&traced.preload)
             .expect("the regions hold the preload");
-        let run = Run::new(Context::new(app.clone(), &program), traced.initial.clone());
+        let run = Run::new(app.clone(), &program, traced.initial.clone());
         (program, run)
     }
 
@@ -335,9 +335,9 @@ fn honest_padded_traces_run_through_nebula() {
                     "step {step} holds"
                 );
             }
-            let statement = run.statement();
             assert_eq!(
-                statement.final_, traced.last,
+                *run.state(),
+                traced.last,
                 "padding keeps the state of the last trace row"
             );
             for z in &traced.rows[traced.real..] {
@@ -360,7 +360,7 @@ fn honest_padded_traces_run_through_nebula() {
                         .count() as u64
                 })
                 .sum::<u64>();
-            assert_eq!(statement.final_ts, events, "one access per active catalog port");
+            assert_eq!(run.timestamp(), events, "one access per active catalog port");
             eprintln!(
                 "rows={} events={events} witness words per step={}",
                 traced.real,
@@ -584,11 +584,11 @@ fn reference() -> Vec<u8> {
 
 /// The linear-memory program in steps of `per_step` rows through
 /// `Circuit::compile`, the prover, and the memory verifier. The honest proof
-/// verifies. The step of the `i32.load` row with another load value and
-/// honest memory words fails the relation, so the prover cannot extend with
-/// it. A statement with another final `pc` does not verify.
+/// verifies after its bytes round-trip. A run whose `i32.load` reads another
+/// value has no proof: its segment fails before the prover proves it. A
+/// final state with another `pc` does not verify.
 fn proof_verifies_and_rejects_a_changed_load_on_cpu(per_step: NonZeroUsize) {
-    use nightstream::nebula::{Circuit, Verifier, VerifyError};
+    use nightstream::nebula::{Circuit, ProveError, VerifyError};
     let started = std::time::Instant::now();
     let setup = setup(per_step);
     let (app, geometry) = setup.complete();
@@ -596,50 +596,45 @@ fn proof_verifies_and_rejects_a_changed_load_on_cpu(per_step: NonZeroUsize) {
     let engine = nightstream::Engine::Optimized;
     let circuit = Circuit::compile(&reference(), geometry, app.clone()).unwrap();
     let prover = circuit.prover(engine, 114).unwrap();
-    let verifier = Verifier::new(&circuit, engine, 114).unwrap();
+    let verifier = circuit.verifier(engine, 114).unwrap();
     eprintln!("wasm setup elapsed={:?}", started.elapsed());
 
-    let (program, mut run) = setup.run(&app, traced);
-    let invocations = run.segment(&traced.inputs).unwrap();
-    let (row, column) = access(traced, false);
-    let (step, position) = setup.position(traced, row, column);
+    let program = app.program(&traced.preload).unwrap();
     let proving = std::time::Instant::now();
-    // A prover keeps only its last proof. The test also keeps the proof that
-    // the step of the changed load extends.
-    let mut last = prover
-        .prove(run.initial_state(), &invocations[0].words)
-        .unwrap();
-    let mut before_load = None;
-    for (k, invocation) in invocations.iter().enumerate().skip(1) {
-        let next = prover.extend(&last, &invocation.words).unwrap();
-        let previous = std::mem::replace(&mut last, next);
-        if k == step {
-            before_load = Some(previous);
-        }
-    }
+    let mut run = prover.start(&program, traced.initial.clone()).unwrap();
+    run.segment(&traced.inputs).unwrap();
+    let last = run.state().clone();
+    let proof = run.finish().unwrap();
     eprintln!(
         "wasm {} steps of {per_step} rows elapsed={:?}",
         setup.n,
         proving.elapsed()
     );
-    let statement = run.statement();
-    let verifying = std::time::Instant::now();
-    verifier
-        .verify(&program, &statement, run.carry(), &last)
+    let proof = verifier
+        .decode_proof(&prover.encode_proof(&proof).unwrap())
         .unwrap();
+    let verifying = std::time::Instant::now();
+    let verified = verifier
+        .verify(&program, &traced.initial, &last, &proof)
+        .unwrap();
+    assert_eq!(verified.steps, setup.n as u64);
     eprintln!("wasm verify elapsed={:?}", verifying.elapsed());
 
-    let mut words = invocations[step].words.clone();
-    let start = words.len() - app.aux();
-    words[start + position] += F::ONE;
-    let before_load = before_load.expect("the load is after the first step");
-    assert!(prover.extend(&before_load, &words).is_err());
+    let (row, column) = access(traced, false);
+    let (step, position) = setup.position(traced, row, column);
+    let mut inputs = traced.inputs.clone();
+    inputs[step][position] += F::ONE;
+    let mut changed_run = prover.start(&program, traced.initial.clone()).unwrap();
+    assert!(matches!(
+        changed_run.segment(&inputs),
+        Err(ProveError::Segment(SegmentError::Access))
+    ));
 
     let pc = app.state_position(neo_wasm::layout::COL_PC_AFTER).unwrap();
-    let mut changed = statement.clone();
-    changed.final_[pc] += 1;
+    let mut changed = last.clone();
+    changed[pc] += 1;
     assert!(matches!(
-        verifier.verify(&program, &changed, run.carry(), &last),
+        verifier.verify(&program, &traced.initial, &changed, &proof),
         Err(VerifyError::Proof(_))
     ));
     eprintln!("wasm elapsed={:?}", started.elapsed());
@@ -662,7 +657,7 @@ const FIB_ROUNDS: u32 = 2;
 const FIB_STEPS: usize = 32;
 
 /// Prove and verify one segment of `inputs` from `initial` on Metal, and print
-/// the time of each phase and of each step.
+/// the time of each phase.
 fn time_on_metal<A: Application + Clone>(
     app: A,
     geometry: Geometry,
@@ -670,39 +665,31 @@ fn time_on_metal<A: Application + Clone>(
     initial: A::State,
     inputs: &[A::Input],
 ) {
-    use nightstream::nebula::{Circuit, Verifier};
+    use nightstream::nebula::Circuit;
     use std::time::Instant;
     let engine = nightstream::Engine::Metal;
     let started = Instant::now();
     eprintln!("{geometry:?}");
-    let circuit = Circuit::compile(&reference(), geometry, app.clone()).unwrap();
+    let circuit = Circuit::compile(&reference(), geometry, app).unwrap();
     eprintln!("compile elapsed={:?}", started.elapsed());
     eprintln!("application size={:?}", circuit.application_size().unwrap());
     let prover = circuit.prover(engine, 114).unwrap();
-    let verifier = Verifier::new(&circuit, engine, 114).unwrap();
+    let verifier = circuit.verifier(engine, 114).unwrap();
     eprintln!("setup elapsed={:?}", started.elapsed());
 
-    let mut run = Run::new(Context::new(app, program), initial);
-    let invocations = run.segment(inputs).unwrap();
-    eprintln!("witness words per step={}", invocations[0].words.len());
     let proving = Instant::now();
-    // A prover keeps only its last proof.
-    let mut last: Option<nightstream::Proof> = None;
-    for (k, invocation) in invocations.iter().enumerate() {
-        let step = Instant::now();
-        let proof = match &last {
-            None => prover.prove(run.initial_state(), &invocation.words),
-            Some(last) => prover.extend(last, &invocation.words),
-        }
-        .unwrap();
-        eprintln!("step {k} elapsed={:?}", step.elapsed());
-        last = Some(proof);
-    }
-    eprintln!("prove {} steps elapsed={:?}", invocations.len(), proving.elapsed());
+    let mut run = prover.start(program, initial.clone()).unwrap();
+    run.segment(inputs).unwrap();
+    let last = run.state().clone();
+    let proof = run.finish().unwrap();
+    eprintln!(
+        "prove {} steps elapsed={:?}, {:?} per step",
+        inputs.len(),
+        proving.elapsed(),
+        proving.elapsed() / inputs.len() as u32
+    );
     let verifying = Instant::now();
-    verifier
-        .verify(program, &run.statement(), run.carry(), last.as_ref().unwrap())
-        .unwrap();
+    verifier.verify(program, &initial, &last, &proof).unwrap();
     eprintln!("verify elapsed={:?}", verifying.elapsed());
     eprintln!("total elapsed={:?}", started.elapsed());
 }

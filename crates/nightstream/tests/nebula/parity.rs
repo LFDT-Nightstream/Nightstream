@@ -14,8 +14,7 @@ use crate::{
     application::ApplicationCircuit,
     assembly,
     nebula::{
-        Application, Circuit, Context, Expr, Machine, MachineState, Memory, Package, Program, Run, Step, Transition,
-        View,
+        Application, Circuit, Expr, Machine, MachineState, Memory, Package, Program, Run, Step, Transition, View,
     },
 };
 
@@ -88,7 +87,7 @@ fn memory_packages_make_no_stage1_verifier() {
         crate::Verifier::from_package(&loaded.circuit, crate::Engine::Optimized, 114),
         Err(crate::Error::Circuit("a memory relation needs nebula::Verifier"))
     ));
-    assert!(crate::nebula::Verifier::new(&loaded, crate::Engine::Optimized, 114).is_ok());
+    assert!(loaded.verifier(crate::Engine::Optimized, 114).is_ok());
 }
 
 #[test]
@@ -109,7 +108,7 @@ fn assert_honest_invocations_execute(program: &Program, segments: &[&[Step]]) {
 }
 
 fn assert_application_executes(application: &ApplicationCircuit, program: &Program, segments: &[&[Step]]) {
-    let mut run = Run::new(Context::new(Machine, program), MachineState::default());
+    let mut run = Run::new(Machine, program, MachineState::default());
     let mut state = run.initial_state();
     for steps in segments {
         for invocation in run.segment(steps).unwrap() {

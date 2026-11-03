@@ -314,6 +314,25 @@ impl Prover {
             .extend_with_output(proof.snapshot(), &words, output, None)?)
     }
 
+    /// The next proof of a memory invocation whose native output state is
+    /// `output`. A Rust-built circuit executes its application, which must
+    /// reach `output`. A Lean package takes `output` (`extend_with_output`).
+    pub(crate) fn extend_invocation(
+        &self,
+        proof: &Stage1Envelope,
+        private_inputs: &[F],
+        output: [F; 4],
+    ) -> Result<Stage1Envelope, Error> {
+        if self.compiled.application.is_none() {
+            return self.extend_with_output(proof, private_inputs, output);
+        }
+        let next = self.extend(proof, private_inputs)?;
+        if next.state().current() != output {
+            return Err(Error::Circuit("the application's output differs from the native step"));
+        }
+        Ok(next)
+    }
+
     /// The circuit's strict byte encoding of `proof`, for `Verifier::decode_proof`.
     pub fn encode_proof(&self, proof: &Stage1Envelope) -> Result<Vec<u8>, Error> {
         Ok(self.lifecycle.encode_proof(proof)?)

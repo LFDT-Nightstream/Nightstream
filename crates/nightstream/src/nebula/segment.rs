@@ -77,6 +77,7 @@ impl<A: Application> Context<A> {
         self.program.geometry
     }
 
+    #[cfg(test)]
     pub fn witness_word_count(&self) -> usize {
         self.layout.count()
     }
@@ -156,8 +157,8 @@ struct Executed {
 #[derive(Clone, Debug)]
 pub struct Invocation {
     pub words: Vec<F>,
-    pub output: Digest,
-    pub carry: Carry,
+    pub(crate) output: Digest,
+    pub(crate) carry: Carry,
 }
 
 /// A proved-ready segment: its invocations and the values after it.

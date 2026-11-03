@@ -14,11 +14,13 @@ use neo_transcript::{domain_chunk_v1_2, Poseidon2Transcript};
 use nightstream_fprime::{encode_digest, OptionBState};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
+use super::final_program::{FinalProgram, FinalWitness, Finish};
 use super::{words, Envelope, OptionB, OptionBError, LIGHT_FOLD_CAP};
 use crate::folding::option_b::{self as fold, Kind};
 use crate::folding::{CcsClaim, CeClaim};
+use neo_spartan::shrink::{Shape, Shrink};
 
-const SEED_DOMAIN: &[u8] = b"Nightstream/OptionB/compression/v1";
+pub(super) const SEED_DOMAIN: &[u8] = b"Nightstream/OptionB/compression/v1";
 
 /// The verifier's constants: one layer-1 key per circuit's relation, the
 /// honest norm bound of a slot and the bits each layer must reach.
@@ -45,7 +47,7 @@ pub(crate) struct Compressed {
     current: [F; 4],
     pc: u64,
     pub(super) slots: [(CeClaim, u64); 2],
-    fresh: CcsClaim,
+    pub(super) fresh: CcsClaim,
     pub(super) fold: fold::Proof,
     pub(super) next: CeClaim,
     pub(super) layer1: [neo_spartan::Proof; 2],
@@ -112,7 +114,7 @@ impl OptionB {
         transcript
     }
 
-    fn layer1_relation<'a>(keys: &'a Keys, slot: usize) -> Result<neo_spartan::Relation<'a>, OptionBError> {
+    pub(super) fn layer1_relation<'a>(keys: &'a Keys, slot: usize) -> Result<neo_spartan::Relation<'a>, OptionBError> {
         Ok(neo_spartan::Relation::new(
             &keys.layer1[slot],
             nightstream_fprime::PUBLIC_WORDS / neo_math::D,
@@ -240,6 +242,106 @@ impl OptionB {
             })?;
         }
         Ok(())
+    }
+}
+
+/// A finished proof: the statement and a shrink proof that the final program
+/// accepts it. It carries no witness and cannot be extended.
+#[derive(Clone)]
+pub(crate) struct FinalProof {
+    iteration: u64,
+    z0: [F; 4],
+    pub(super) current: [F; 4],
+    pub(super) shrink: neo_spartan::shrink::ShrinkProof,
+}
+
+impl OptionB {
+    pub(super) fn final_program<'a>(
+        &self,
+        finish: &'a Finish,
+        relations: [&'a neo_spartan::Relation<'a>; 2],
+        statement: (u64, [F; 4], [F; 4]),
+        witness: Option<&'a FinalWitness>,
+    ) -> FinalProgram<'a> {
+        FinalProgram {
+            keys: self.keys,
+            finish,
+            relations,
+            statement,
+            witness,
+        }
+    }
+
+    /// What the final program reads for `envelope`: the last fold and both
+    /// layer-1 proofs (`finish`), and the finish package's columns on the last
+    /// fold's words.
+    pub(crate) fn final_witness(
+        &self,
+        envelope: &Envelope,
+        setups: &Setups,
+        finish: &Finish,
+    ) -> Result<FinalWitness, OptionBError> {
+        let compressed = self.finish(envelope, setups)?;
+        let prior = self.state(envelope);
+        let witness_words = vec![F::ZERO; finish.package().witness_words()];
+        let (words, _) = words::fold_step(
+            &prior,
+            prior.current,
+            &witness_words,
+            Kind::Refresh,
+            &compressed.next,
+            compressed.fresh.c.data(),
+            &compressed.fold,
+        );
+        Ok(FinalWitness {
+            columns: finish.columns(&words)?,
+            layer1: compressed.layer1,
+        })
+    }
+
+    /// The shrink proof that the final program accepts `witness` for the
+    /// statement.
+    pub(crate) fn prove_final(
+        &self,
+        keys: &Keys,
+        finish: &Finish,
+        statement: (u64, [F; 4], [F; 4]),
+        witness: &FinalWitness,
+    ) -> Result<FinalProof, OptionBError> {
+        let relations = [Self::layer1_relation(keys, 0)?, Self::layer1_relation(keys, 1)?];
+        let shape = Shape::derive(&self.final_program(finish, [&relations[0], &relations[1]], statement, None))?;
+        let layer = Shrink::new(shape, keys.layer_bits)?;
+        let program = self.final_program(finish, [&relations[0], &relations[1]], statement, Some(witness));
+        let shrink = neo_spartan::shrink::prove(&layer, &program, &neo_spartan::Accelerator::cpu())?;
+        let (iteration, z0, current) = statement;
+        Ok(FinalProof {
+            iteration,
+            z0,
+            current,
+            shrink,
+        })
+    }
+
+    /// Checks a finished proof against the expected statement and the keys,
+    /// which the verifier derives (`compression_keys`).
+    pub(crate) fn verify_final(
+        &self,
+        keys: &Keys,
+        finish: &Finish,
+        iteration: u64,
+        z0: [F; 4],
+        current: [F; 4],
+        proof: &FinalProof,
+    ) -> Result<(), OptionBError> {
+        if (proof.iteration, proof.z0, proof.current) != (iteration, z0, current) {
+            return Err(OptionBError::Statement(
+                "the proof's statement differs from the expected one",
+            ));
+        }
+        let relations = [Self::layer1_relation(keys, 0)?, Self::layer1_relation(keys, 1)?];
+        let program = self.final_program(finish, [&relations[0], &relations[1]], (iteration, z0, current), None);
+        let layer = Shrink::new(Shape::derive(&program)?, keys.layer_bits)?;
+        Ok(neo_spartan::shrink::verify(&layer, &program, &proof.shrink)?)
     }
 }
 

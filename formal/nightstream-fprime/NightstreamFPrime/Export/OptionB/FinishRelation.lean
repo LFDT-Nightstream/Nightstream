@@ -1,5 +1,6 @@
 import NightstreamFPrime.Export.OptionB.StepRelation
 import NightstreamFPrime.Layout.OptionB.FinishAssembler
+import NightstreamFPrime.Export.OptionB.StepPackage
 
 /-! The finish circuit's exported relation (CW-6.3). The finish package holds the finish circuit
 (`FinishStep.main`) at the refresh step's source layout, with the refresh step's shared words, and
@@ -9,7 +10,8 @@ refresh step input and output that the words carry, once the input's iteration i
 (`finish_holds`). The final program checks the rows of the pieces other than the Poseidon2 blocks
 and each block as a permutation instead of its S-box and binding rows; those checks give the same
 in an environment that agrees with the program's columns below the shared end, when no block
-starts below it (`checks_finish`). -/
+starts below it (`checks_finish`), stated on the package that the emitter writes
+(`package_finish`). -/
 
 namespace NightstreamFPrime.Export.OptionB.FinishRelation
 
@@ -111,5 +113,44 @@ theorem checks_finish (relation : ProductionKey.LogicalRelation logicalWidth pub
   exact ⟨completed, fun column below => agree column (CircuitRelation.live_below starts below),
     constraints_finish program relation ajtai circuitKeys completed
       (CircuitRelation.split_holds holds)⟩
+
+/-- `checks_finish` on the finish package that the emitter writes (`StepPackage.packageOf`): the
+rows of its pieces, and each of its blocks' outputs as the permutation of its lanes' values. -/
+theorem package_finish (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (circuitKeys : Fin 2 → CircuitKey logicalWidth publicFits) (next width : Nat)
+    (batches : List WitnessBatch) (application : Nat × Nat × Nat × Nat × Nat) (env : Env)
+    (packed : CircuitRelation.packable CircuitRelation.publicColumns
+      (pieces program relation) = true)
+    (starts : CircuitRelation.startsFrom (RefreshAssembler.sharedEnd base program.witnessWordCount)
+      (pieces program relation) = true)
+    (rows : ∀ r ∈ (StepPackage.packageOf 2 CircuitRelation.publicColumns (pieces program relation)
+      next width batches application).pieces.flatMap StepPackage.PackagePiece.relationRows,
+        r.Holds env)
+    (blocks : ∀ block ∈ (StepPackage.packageOf 2 CircuitRelation.publicColumns
+      (pieces program relation) next width batches application).blocks,
+        (fun lane : Fin 16 => env (block.start + 1080 + lane)) =
+          Gadgets.Poseidon2.Permutation.runF Gadgets.Poseidon2.Permutation.schedule
+            fun lane => (block.lanes.getD lane 0).eval env) :
+    ∃ completed : Env,
+      (∀ column, column < RefreshAssembler.sharedEnd base program.witnessWordCount →
+        completed column = env column) ∧
+      ((refreshInput (logicalWidth := logicalWidth) (publicFits := publicFits) program
+          completed).iteration ≠ 0 →
+        FinishStep.FinishHolds Folding.Schedule.productionLightFoldCap ajtai
+          (decodedKeys circuitKeys (refreshInterface (logicalWidth := logicalWidth)
+            (publicFits := publicFits) program).verifierKeys completed)
+          1 (refreshInput program completed) (refreshOutput program 1 completed)) := by
+  rw [StepPackage.pieceRows_packageOf] at rows
+  rw [StepPackage.blocks_packageOf] at blocks
+  refine checks_finish program relation ajtai circuitKeys next env packed starts rows fun block member => ?_
+  have linear := (CircuitRelation.packable_framed packed).linear block member
+  funext lane
+  have outputs := congrFun (blocks block member) lane
+  have inputs : (fun lane : Fin 16 => (block.lanes.getD lane 0).eval env) = block.input env := by
+    funext column
+    exact Pieces.lane_eval block.lanes linear env column
+  rw [inputs] at outputs
+  exact outputs
 
 end NightstreamFPrime.Export.OptionB.FinishRelation

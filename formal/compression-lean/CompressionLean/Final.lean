@@ -7,3 +7,4 @@ import CompressionLean.Final.RustSetup
 import CompressionLean.Final.Soundness
 
 import CompressionLean.Final.OptionB
+import CompressionLean.Final.OptionBFinish

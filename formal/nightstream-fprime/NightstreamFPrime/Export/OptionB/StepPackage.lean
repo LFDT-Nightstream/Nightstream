@@ -345,6 +345,24 @@ theorem relationRows_packageOf (circuit publicColumns : Nat) (pieces : List Piec
     List.reverse_nil, List.nil_append, blocks_packageSpec, CircuitRelation.relationRows, packed,
     ite_true, PieceRows.lowerPieces, lowerPiecesAux_eq _ rfl, flatMap_packageSpec]
 
+/-- The rows of the package's pieces, before the binding rows, are the lowering of the pieces
+outside the blocks. -/
+theorem pieceRows_packageOf (circuit publicColumns : Nat) (pieces : List Piece) (next width : Nat)
+    (batches : List WitnessBatch) (application : Nat × Nat × Nat × Nat × Nat) :
+    (packageOf circuit publicColumns pieces next width batches application).pieces.flatMap
+        PackagePiece.relationRows =
+      (PieceRows.lowerPieces (PilotData.canonicalConstraints ()) (CircuitRelation.otherPieces pieces)
+        next).1 := by
+  simp only [packageOf, packagePieces, packageAux_eq, List.reverse_nil, List.nil_append,
+    flatMap_packageSpec, PieceRows.lowerPieces, lowerPiecesAux_eq _ rfl]
+
+theorem blocks_packageOf (circuit publicColumns : Nat) (pieces : List Piece) (next width : Nat)
+    (batches : List WitnessBatch) (application : Nat × Nat × Nat × Nat × Nat) :
+    (packageOf circuit publicColumns pieces next width batches application).blocks =
+      CircuitRelation.blocksOf pieces := by
+  simp only [Package.blocks, packageOf, packagePieces, packageAux_eq, List.reverse_nil,
+    List.nil_append, blocks_packageSpec]
+
 /-! ### One identity for both packages -/
 
 /-- "Nightstream/OptionB/packages/v1". -/

@@ -246,8 +246,8 @@ fn healthy_call_indirect_row_rejects_faked_trap() {
     let row_index = checked
         .trace
         .iter()
-        .position(|row| row.opcode == WasmOpcode::CallIndirect)
-        .expect("call_indirect row");
+        .position(|row| row.opcode == WasmOpcode::CallIndirectResolve)
+        .expect("call_indirect resolve row");
     let mut witness = checked.witnesses[row_index].clone();
     witness[COL_CALL_INDIRECT_IS_TRAP] = F::ONE;
     witness[COL_TRAPPED_AFTER] = F::ONE;
@@ -266,8 +266,8 @@ fn null_entry_call_indirect_row_rejects_hidden_trap() {
     let row_index = checked
         .trace
         .iter()
-        .position(|row| row.opcode == WasmOpcode::CallIndirect)
-        .expect("call_indirect row");
+        .position(|row| row.opcode == WasmOpcode::CallIndirectResolve)
+        .expect("call_indirect resolve row");
     let mut witness = checked.witnesses[row_index].clone();
     witness[COL_CALL_INDIRECT_IS_TRAP] = F::ZERO;
     witness[COL_TRAPPED_AFTER] = F::ZERO;
@@ -284,8 +284,8 @@ fn null_entry_call_indirect_row_rejects_forged_null_flag() {
     let row_index = checked
         .trace
         .iter()
-        .position(|row| row.opcode == WasmOpcode::CallIndirect)
-        .expect("call_indirect row");
+        .position(|row| row.opcode == WasmOpcode::CallIndirectResolve)
+        .expect("call_indirect resolve row");
     let mut witness = checked.witnesses[row_index].clone();
     witness[COL_CI_ENTRY_IS_NULL] = F::ZERO;
     witness[COL_CALL_INDIRECT_IS_TRAP] = F::ZERO;
@@ -319,8 +319,8 @@ fn oob_call_indirect_row_rejects_hidden_trap() {
     let row_index = checked
         .trace
         .iter()
-        .position(|row| row.opcode == WasmOpcode::CallIndirect)
-        .expect("call_indirect row");
+        .position(|row| row.opcode == WasmOpcode::CallIndirectResolve)
+        .expect("call_indirect resolve row");
     let mut witness = checked.witnesses[row_index].clone();
     witness[COL_CALL_INDIRECT_IS_TRAP] = F::ZERO;
     witness[COL_TRAPPED_AFTER] = F::ZERO;
@@ -352,8 +352,8 @@ fn type_mismatch_call_indirect_row_binds_looked_up_reference() {
     let row_index = checked
         .trace
         .iter()
-        .position(|row| row.opcode == WasmOpcode::CallIndirect)
-        .expect("call_indirect row");
+        .position(|row| row.opcode == WasmOpcode::CallIndirectResolve)
+        .expect("call_indirect resolve row");
     let mut witness = checked.witnesses[row_index].clone();
     assert_eq!(witness[COL_CALL_INDIRECT_IS_TRAP], F::ONE);
     assert_eq!(witness[COL_FUNCTION_CALL_TYPE_LOOKUP_GATE], F::ONE);

@@ -8,7 +8,7 @@ Open Scope Z_scope.
 Local Number Notation nat Nat.of_num_uint Nat.to_num_uint (abstract after 1000) : nat_scope.
 
 Definition selectorColumns : list Column :=
-  seq COL_SEL_NOP 85 ++ seq COL_SEL_I32_WRAP_I64 30.
+  seq COL_SEL_NOP 85 ++ seq COL_SEL_I32_WRAP_I64 31.
 
 Definition selectorRow : Row :=
   (map (fun column => (column, 1)) selectorColumns ++
@@ -144,7 +144,7 @@ Proof.
   pose proof (Range.full_boolean w COL_IS_PROGRAM_ROW Hprime Hfull ltac:(vm_compute; reflexivity)) as Hprogram.
   destruct Hfull as [Hone Hall].
   pose proof (selector_sum_boolean_bound w selectorColumns Hbits) as HsumBound.
-  change (0 <= selectorSum w selectorColumns <= 115) in HsumBound.
+  change (0 <= selectorSum w selectorColumns <= 116) in HsumBound.
   pose proof (Range.in_full_sat w _ Hall selector_row_in_full) as Honehot.
   unfold sat, selectorRow in Honehot.
   rewrite eval_app in Honehot.

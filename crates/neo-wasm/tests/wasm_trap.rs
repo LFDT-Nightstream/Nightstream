@@ -179,11 +179,11 @@ fn call_indirect_null_entry_trap_is_a_provable_terminal_state() {
 
     assert!(checked.run.results.is_empty());
     let last = checked.trace.last().expect("non-empty trace");
-    assert_eq!(last.opcode, WasmOpcode::CallIndirect);
+    assert_eq!(last.opcode, WasmOpcode::CallIndirectResolve);
     assert_eq!(last.table_value, Some(0), "slot 1 is a null funcref");
     assert!(last.state_after.trapped);
     assert!(!last.state_after.output.enabled);
-    assert!(last.call_stack_push.is_none(), "a trapping call_indirect never calls");
+    assert!(last.call_stack_push.is_none(), "a trapping resolve step never calls");
 }
 
 #[test]
@@ -207,13 +207,13 @@ fn call_indirect_oob_index_trap_is_a_provable_terminal_state() {
 
     assert!(checked.run.results.is_empty());
     let last = checked.trace.last().expect("non-empty trace");
-    assert_eq!(last.opcode, WasmOpcode::CallIndirect);
+    assert_eq!(last.opcode, WasmOpcode::CallIndirectResolve);
     assert_eq!(last.table_index, Some(5));
     assert_eq!(last.table_size, Some(1), "index 5 is past the one-slot table");
     assert_eq!(last.table_value, None, "no entry is read on an OOB index");
     assert!(last.state_after.trapped);
     assert!(!last.state_after.output.enabled);
-    assert!(last.call_stack_push.is_none(), "a trapping call_indirect never calls");
+    assert!(last.call_stack_push.is_none(), "a trapping resolve step never calls");
 }
 
 #[test]
@@ -234,9 +234,9 @@ fn call_indirect_type_mismatch_trap_is_a_provable_terminal_state() {
 
     assert!(checked.run.results.is_empty());
     let last = checked.trace.last().expect("non-empty trace");
-    assert_eq!(last.opcode, WasmOpcode::CallIndirect);
+    assert_eq!(last.opcode, WasmOpcode::CallIndirectResolve);
     assert!(last.table_value.is_some_and(|funcref| funcref != 0));
     assert_ne!(last.function_type_id, last.expected_type_id);
     assert!(last.state_after.trapped);
-    assert!(last.call_stack_push.is_none(), "a trapping call_indirect never calls");
+    assert!(last.call_stack_push.is_none(), "a trapping resolve step never calls");
 }

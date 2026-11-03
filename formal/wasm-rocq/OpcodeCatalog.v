@@ -92,6 +92,7 @@ Definition CODE_CALL : Z := 16%Z.
 Definition CODE_CALL_INDIRECT : Z := 17%Z.
 Definition CODE_RETURN_CALL : Z := 18%Z.
 Definition CODE_RETURN_CALL_INDIRECT : Z := 19%Z.
+Definition CODE_CALL_INDIRECT_RESOLVE : Z := 65520%Z.
 Definition CODE_RETURN : Z := 15%Z.
 Definition CODE_LOCAL_GET : Z := 32%Z.
 Definition CODE_LOCAL_SET : Z := 33%Z.
@@ -209,6 +210,7 @@ Definition selectorCodes : SparseRow :=
    (128%nat, CODE_CALL_INDIRECT);
    (322%nat, CODE_RETURN_CALL);
    (323%nat, CODE_RETURN_CALL_INDIRECT);
+   (324%nat, CODE_CALL_INDIRECT_RESOLVE);
    (129%nat, CODE_RETURN);
    (130%nat, CODE_LOCAL_GET);
    (131%nat, CODE_LOCAL_SET);

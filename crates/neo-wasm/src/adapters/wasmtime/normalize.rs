@@ -149,7 +149,9 @@ fn normalize_step(row: &WasmtimeTraceStep) -> Result<Option<NormalizedStep>, Was
     let operand_stack = row.operand_stack_words.clone();
     let operand_stack_hi = row.operand_stack_words_hi.clone();
     let code = opcode_code(opcode);
-    // Call rows pop only the indirect table index, if any. Guest args stay in
+    // Call rows pop only the indirect table index, if any (the split into a
+    // resolve step and an invocation then turns it into the checked function
+    // reference the invocation pops). Guest args stay in
     // place as the callee's params; host args are read by gather rows and
     // host results are pushed by a host-result aux row.
     let (stack_reads_override, stack_writes_override) = match opcode {

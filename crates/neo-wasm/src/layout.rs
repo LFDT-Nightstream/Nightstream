@@ -376,6 +376,7 @@ define_column_region! {
         COL_SEL_I64_POPCNT: Boolean => "selector for i64.popcnt",
         COL_SEL_RETURN_CALL: Boolean => "selector for return_call",
         COL_SEL_RETURN_CALL_INDIRECT: Boolean => "selector for return_call_indirect",
+        COL_SEL_CALL_INDIRECT_RESOLVE: Boolean => "selector for the synthetic call_indirect resolve step",
         COL_TRAPPED_BEFORE: Boolean => "carried trapped-execution flag before this row",
         COL_TRAPPED_AFTER: Boolean => "carried trapped-execution flag after this row",
         // Div/rem trap scratch; see the `trap transition` constraints in ccs.rs.
@@ -398,18 +399,18 @@ define_column_region! {
         COL_CI_TYPE_EQ: Boolean => "zero-test flag: callee type id equals the indirect call's expected type id",
         COL_CI_TYPE_EQ_INV: Field => "inverse witness for the callee-type equality test",
         COL_CALL_INDIRECT_IS_TRAP: Boolean =>
-            "this row is an indirect call trapping on OOB index, null entry, or callee type mismatch",
+            "this row is an indirect call's resolve step trapping on OOB index, null entry, or callee type mismatch",
         COL_CALL_INDIRECT_IS_NOT_TRAP: Boolean =>
-            "non-trapping indirect-call row: gates callee metadata and entry-pc reads",
+            "non-trapping resolve row: gates the handoff of the checked function reference",
         COL_FUNCTION_CALL_TYPE_LOOKUP_GATE: Boolean =>
-            "indirect-call row with an in-bounds non-null entry: gates the function-types read",
+            "resolve row with an in-bounds non-null entry: gates the function-types read",
         // Shared unsigned-comparison scratch for the bounds traps (see
         // `push_unsigned_ge_gadget`). `low` is the range-checked borrow-bit
         // remainder; `ge` is `a >= b` for whichever mutually-exclusive comparison
         // the row's opcode selects.
         COL_CMP_LOW: U32 => "borrow-bit remainder of the active unsigned comparison",
         COL_CMP_GE: Boolean => "result a >= b of the active unsigned comparison",
-        COL_CI_OOB: Boolean => "whether an indirect call traps because the table index is >= the table size",
+        COL_CI_OOB: Boolean => "whether an indirect call's resolve step traps because the table index is >= the table size",
         COL_TABLE_SIZE_READ_ENABLED: Boolean => "table_sizes read gate: table.size or an indirect call",
         COL_MEM_OOB: Boolean =>
             "whether this load/store traps because the access is past the end of linear memory",

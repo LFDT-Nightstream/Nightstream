@@ -695,16 +695,23 @@ fn wasmtime_trace_normalizes_call_indirect_row() {
     let artifacts = extract_wasm_program_artifacts(&wasm).expect("program artifacts");
     let run = collect_wasmtime_steps(&wasm, &HostEventBindings::default(), "run", &[]).expect("trace");
     let trace = traces_from_wasmtime_steps(&run.steps).expect("normalize");
-    let row = trace
+    // The resolve step checks the table entry; the invocation, one pc later,
+    // pops the checked reference and calls it.
+    let resolve_index = trace
         .iter()
-        .find(|r| r.opcode == WasmOpcode::CallIndirect)
-        .expect("call_indirect row");
+        .position(|r| r.opcode == WasmOpcode::CallIndirectResolve)
+        .expect("call_indirect resolve row");
+    let resolve = &trace[resolve_index];
+    let row = &trace[resolve_index + 1];
+    assert_eq!(row.opcode, WasmOpcode::CallIndirect);
+    assert_eq!(row.state_before.pc, resolve.state_before.pc + 1);
 
-    assert_eq!(row.table_id, Some(0));
-    assert_eq!(row.table_index, Some(0));
-    assert_eq!(row.table_value, Some(1));
-    assert_eq!(row.function_type_id, Some(1));
-    assert_eq!(row.expected_type_id, Some(1));
+    assert_eq!(resolve.table_id, Some(0));
+    assert_eq!(resolve.table_index, Some(0));
+    assert_eq!(resolve.table_value, Some(1));
+    assert_eq!(resolve.function_type_id, Some(1));
+    assert_eq!(resolve.expected_type_id, Some(1));
+    assert_eq!(row.function_ref, Some(1));
     assert_eq!(row.stack_reads_override, Some(1));
     assert_eq!(
         artifacts

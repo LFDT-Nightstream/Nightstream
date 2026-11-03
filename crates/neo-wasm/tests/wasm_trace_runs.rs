@@ -677,8 +677,8 @@ fn wasm_trace_run_with_call_indirect() {
     );
     let row = trace
         .iter()
-        .find(|row| row.opcode == neo_wasm::WasmOpcode::CallIndirect)
-        .expect("call_indirect row");
+        .find(|row| row.opcode == neo_wasm::WasmOpcode::CallIndirectResolve)
+        .expect("call_indirect resolve row");
     assert_eq!(row.table_id, Some(0));
     assert_eq!(row.table_index, Some(0));
     assert_eq!(row.table_value, Some(1));

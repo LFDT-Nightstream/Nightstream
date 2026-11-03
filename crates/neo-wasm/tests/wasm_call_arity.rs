@@ -5,7 +5,10 @@
 mod common;
 
 use neo_math::F;
-use neo_wasm::layout::{COL_STACK_READ_ADDR_LO, COL_TABLE_INDEX};
+use neo_wasm::layout::{
+    COL_FUNCTION_REF, COL_STACK_READ_ADDR_LO, COL_STACK_READ_VALUE_LO, COL_STACK_WRITE0_VALUE_LO, COL_TABLE_INDEX,
+    COL_TABLE_VALUE,
+};
 use neo_wasm::WasmOpcode;
 use p3_field::PrimeCharacteristicRing;
 
@@ -91,14 +94,59 @@ fn call_indirect_rejects_table_index_decoupled_from_stack_operand() {
     let row_index = checked
         .trace
         .iter()
-        .position(|row| row.opcode == WasmOpcode::CallIndirect)
-        .expect("call_indirect row");
+        .position(|row| row.opcode == WasmOpcode::CallIndirectResolve)
+        .expect("call_indirect resolve row");
     let mut witness = checked.witnesses[row_index].clone();
     // Slot 1 holds the same funcref, so the tables-memory read stays
     // consistent with the preload; only the index↔stack binding can reject.
     assert_eq!(witness[COL_TABLE_INDEX], F::ZERO);
     witness[COL_TABLE_INDEX] = F::ONE;
     common::assert_rejected(&witness, "table index decoupled from popped stack operand");
+}
+
+const CALL_INDIRECT_WAT: &str = r#"(module
+    (type $t (func (param i32) (result i32)))
+    (func $add_one (type $t)
+        local.get 0
+        i32.const 1
+        i32.add)
+    (table 1 funcref)
+    (elem (i32.const 0) func $add_one)
+    (func (export "run") (result i32)
+        i32.const 5
+        i32.const 0
+        call_indirect (type $t)))
+"#;
+
+/// The resolve step must hand the invocation exactly the reference it checked:
+/// the stack cell it writes holds the table entry.
+#[test]
+fn call_indirect_resolve_rejects_a_handoff_other_than_the_checked_entry() {
+    let checked = common::checked_wasm_run(CALL_INDIRECT_WAT, "run");
+    let row_index = checked
+        .trace
+        .iter()
+        .position(|row| row.opcode == WasmOpcode::CallIndirectResolve)
+        .expect("call_indirect resolve row");
+    let mut witness = checked.witnesses[row_index].clone();
+    assert_eq!(witness[COL_STACK_WRITE0_VALUE_LO], witness[COL_TABLE_VALUE]);
+    witness[COL_STACK_WRITE0_VALUE_LO] += F::ONE;
+    common::assert_rejected(&witness, "resolve step handing off an unchecked reference");
+}
+
+/// The invocation must call the reference it pops, not one of its choosing.
+#[test]
+fn call_indirect_invocation_rejects_a_callee_other_than_the_popped_reference() {
+    let checked = common::checked_wasm_run(CALL_INDIRECT_WAT, "run");
+    let row_index = checked
+        .trace
+        .iter()
+        .position(|row| row.opcode == WasmOpcode::CallIndirect)
+        .expect("call_indirect invocation row");
+    let mut witness = checked.witnesses[row_index].clone();
+    assert_eq!(witness[COL_FUNCTION_REF], witness[COL_STACK_READ_VALUE_LO[0]]);
+    witness[COL_FUNCTION_REF] += F::ONE;
+    common::assert_rejected(&witness, "invocation calling a reference it did not pop");
 }
 
 /// The lane-0 index read must point at the operand-stack top (slot sp − 1);

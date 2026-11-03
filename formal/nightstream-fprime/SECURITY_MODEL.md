@@ -149,31 +149,48 @@ item 5).
   Π_CCS bad event occurs in a Fiat–Shamir game, and it does not join these
   counts into one error.
 
-### 4. Recursive-history adversary
+### 4. IVC adversary
 
-- **Controls:** a random tape and, from it, the history of one slot (the
-  folds that the slot receives, last fold first), its final accumulator and a
-  witness of it at a bound of at most `B`, for a fixed application and
-  setup. The adversary must be admitted (trust item 3).
-- **Wins:** the history is accepted, and the reverse extractor of HyperNova
-  Lemma 17 does not return a witness for each fold.
+- **Controls:** a random tape and, from it, a terminal statement and every
+  value of a proof, for a fixed application, setup and pair of exported step
+  circuits. The adversary must be admitted (trust item 3).
+- **Wins:** the terminal relation accepts, and no `iteration` steps of the
+  application lead from `z0` to `zi` (a false acceptance).
 - **Result:** under Assumption 1 and the closure premise,
-  `Pr[accepted ∧ not returned] ≤ Σ_j error(stage j)` on the joint law of the
-  adversary and the reverse extractor
-  (`Spec.HyperNova.Construction2.BoundedDepthSecurity.history_failure_le`).
-  An accepted execution of both slots and a decider check of a slot's final
-  claim below `B` make that slot's history accepted
-  (`Spec.HyperNova.Construction2.BoundedDepthSecurity.slot_accepted`).
-  Without probabilities, the reverse run opens each running claim at its
+  `Pr[false acceptance] ≤ Σ_j (Pr[collision at visit j] + error(stage j))`
+  for `j` below a bound on the adversary's iteration
+  (`Export.OptionB.IvcSecurity.probability_bound`). The reverse extractor
+  walks back from the terminal one step per stage
+  (`Export.OptionB.IvcWalk`). At each visit, the fresh witness decodes to the
+  last step (`Export.OptionB.TerminalBridge.Exports.decode`). When that step
+  is recursive, the stage's attempt is its fold of the slot that its prior
+  program counter selects, linked to the step's prior state, with the slot's
+  witness at the slot's bound. An answer that extracts the fold gives the
+  prior visit, whose statement and slots are the step's input. Each slot keeps
+  its own bound: a light fold adds `T(b − 1)` and a refresh fold returns it to
+  `B`, so each attempt stays within `B + cap · T · (b − 1)`
+  (`Export.OptionB.IvcWalk.DepthWithin`). At a visit without a collision, an
+  answer that extracts gives a valid prior visit one iteration back, or the
+  last step is the base step (`Export.OptionB.IvcWalk.walk_step`). So a false
+  acceptance has a collision or a failed extraction at one of its first
+  `iteration` visits (`Export.OptionB.IvcWalk.covered`).
+- **Collision term:** the collision at a visit is a Poseidon2 collision on
+  the next state of the decoded step and the visit's terminal state
+  (`Export.OptionB.TerminalBridge.Collision`). The stage computes both states
+  from its tape, so a reduction that runs the stage outputs the colliding
+  pair. Lean does not bound this probability (trust item 2).
+- **Per slot:** the earlier one-slot result,
+  `Spec.HyperNova.Construction2.BoundedDepthSecurity.history_failure_le`,
+  takes the history as an adversary output and has no collision term. Without
+  probabilities, the reverse run of one slot opens each running claim at its
   recovered bound, or it names a failed fold
   (`Spec.HyperNova.Construction2.BoundedDepthKnowledge.execution_extracts`).
-- **Gaps:** the adversary outputs the history. Lean does not read the history
-  from the step witnesses of a terminal proof, and the bound has no
-  state-hash collision term. So no Lean statement joins this result with
-  adversary 2. The light verifier rejects a fold at the cap, so each accepted
-  history is an admissible schedule
-  (`Spec.HyperNova.Construction2.BoundedDepth.admissible_of_accepted`), but
-  Lean does not bound the length of a slot's history.
+- **Gaps:** Lean does not derive the value of `error`. Adversary 3's counts
+  are deterministic, and no random-oracle result for the light and refresh
+  folds discharges Assumption 1. The advice of a false acceptance is any list
+  of witnesses that `step` maps from `z0` to `zi`. The step relation does not
+  carry the application's validity predicate, so the result does not say that
+  the witnesses are valid for the application.
 
 ### 5. Memory adversary
 
@@ -259,8 +276,12 @@ item 5).
      applies to algorithms that a person can write without such knowledge.
    - Lean bounds neither term numerically.
 3. **The history: HyperNova errata Assumption 1 for the two fold kinds.**
-   `Spec.HyperNova.Construction2.BoundedDepthSecurity.Assumption1` states
-   Assumption 1 in the form of HyperNova Definition 7 knowledge soundness.
+   `Spec.HyperNova.ReverseStages.Assumption1` states Assumption 1 in the form
+   of HyperNova Definition 7 knowledge soundness. Adversary 4 uses it with the
+   success event `Export.OptionB.IvcWalk.WalkSucceeds` and the extraction
+   event `Export.OptionB.IvcWalk.WalkExtracted`; the one-slot result uses
+   `Spec.HyperNova.Construction2.BoundedDepthSecurity.Assumption1` with the
+   same events.
    For every admitted fold adversary there is an efficient extractor that
    reads the adversary's tape and its own coins, so it may rerun the
    adversary. After a success, the extractor fails with probability at most
@@ -323,8 +344,7 @@ item 5).
      choice that depends on the adversary's coins is not covered.
    - `error` replaces `negl(λ)`.
 
-   `Spec.HyperNova.Construction2.BoundedDepthSecurity.Closed` is the
-   composition premise. A second class, `StageAdmitted`, holds whole stages:
+   `Spec.HyperNova.ReverseStages.Closed` is the composition premise. A second class, `StageAdmitted`, holds whole stages:
    the reverse extractor so far, as one algorithm. An admitted stage gives an
    admitted fold adversary, and one reverse step of an admitted stage with an
    efficient extractor is again an admitted stage. The IVC adversary is the

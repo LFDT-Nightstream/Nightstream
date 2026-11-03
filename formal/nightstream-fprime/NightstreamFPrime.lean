@@ -30,6 +30,7 @@ import NightstreamFPrime.Spec.Folding.Schedule
 import NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 import NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthKnowledge
 import NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthSecurity
+import NightstreamFPrime.Spec.HyperNova.ReverseStages
 import NightstreamFPrime.Spec.HyperNova.Construction2.OptionBFolds
 import NightstreamFPrime.Spec.HyperNova.Construction2.OptionBKeys
 import NightstreamFPrime.Spec.Folding.Light.RlcModule
@@ -89,6 +90,8 @@ import NightstreamFPrime.Export.Generic.LogicalPlan
 import NightstreamFPrime.Export.OptionB.StepRelation
 import NightstreamFPrime.Export.OptionB.StepPackage
 import NightstreamFPrime.Export.OptionB.TerminalBridge
+import NightstreamFPrime.Export.OptionB.IvcWalk
+import NightstreamFPrime.Export.OptionB.IvcSecurity
 import NightstreamFPrime.Export.OptionB.FinishRelation
 import NightstreamFPrime.Export.OptionB.Parity
 import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.ChainBinding

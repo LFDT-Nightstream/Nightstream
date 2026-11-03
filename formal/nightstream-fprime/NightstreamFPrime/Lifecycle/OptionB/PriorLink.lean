@@ -36,23 +36,30 @@ abbrev PriorPreimage (logicalWidth : Nat)
 
 /-- The fold's fresh instance commits to `prior`, whose selected slot holds `start`, and `prior`
 is well formed. -/
-def PriorLink (step : AppState → AppWitness → AppState) (control : AppState → AppWitness → Fin 2)
-    (prior : PriorPreimage logicalWidth publicFits) (start : SlotData logicalWidth publicFits)
-    (fold : StepFold logicalWidth publicFits) : Prop :=
-  StepLink (machine step control) prior start fold ∧ (toState prior).WellFormed
+def PriorLink (prior : PriorPreimage logicalWidth publicFits)
+    (start : SlotData logicalWidth publicFits) (fold : StepFold logicalWidth publicFits) : Prop :=
+  fold.fresh.publicInputs ⟨0, by decide⟩ = encHash (stateHash (toState prior)) ∧
+    (∃ valid : Paper.InRange 2 prior.pc, prior.running (Paper.selectedIndex valid) = start) ∧
+    (toState prior).WellFormed
+
+/-- Option B's link is the Construction 2 link of `machine` for a well-formed prior state. -/
+theorem priorLink_iff (step : AppState → AppWitness → AppState)
+    (control : AppState → AppWitness → Fin 2) (prior : PriorPreimage logicalWidth publicFits)
+    (start : SlotData logicalWidth publicFits) (fold : StepFold logicalWidth publicFits) :
+    PriorLink prior start fold ↔
+      StepLink (machine step control) prior start fold ∧ (toState prior).WellFormed :=
+  ⟨fun ⟨digest, selects, well⟩ => ⟨⟨digest, selects⟩, well⟩,
+    fun ⟨⟨digest, selects⟩, well⟩ => ⟨digest, selects, well⟩⟩
 
 /-- Two linked folds with one fresh instance start from one running claim, or their prior
 states collide. -/
-theorem priorLink_binds (step : AppState → AppWitness → AppState)
-    (control : AppState → AppWitness → Fin 2) {prior prior' : PriorPreimage logicalWidth publicFits}
+theorem priorLink_binds {prior prior' : PriorPreimage logicalWidth publicFits}
     {start start' : SlotData logicalWidth publicFits} {fold fold' : StepFold logicalWidth publicFits}
-    (link : PriorLink step control prior start fold)
-    (link' : PriorLink step control prior' start' fold') (sameFresh : fold.fresh = fold'.fresh) :
+    (link : PriorLink prior start fold) (link' : PriorLink prior' start' fold')
+    (sameFresh : fold.fresh = fold'.fresh) :
     start = start' ∨ StateCollision (toState prior) (toState prior') := by
-  obtain ⟨⟨digest, valid, startEq⟩, well⟩ := link
-  obtain ⟨⟨digest', valid', startEq'⟩, well'⟩ := link'
-  change fold.fresh.publicInputs ⟨0, by decide⟩ = encHash (stateHash (toState prior)) at digest
-  change fold'.fresh.publicInputs ⟨0, by decide⟩ = encHash (stateHash (toState prior')) at digest'
+  obtain ⟨digest, ⟨valid, startEq⟩, well⟩ := link
+  obtain ⟨digest', ⟨valid', startEq'⟩, well'⟩ := link'
   rw [sameFresh] at digest
   have hashes : stateHash (toState prior) = stateHash (toState prior') :=
     encHash_injective_fixed (Poseidon2.hash_length _) (Poseidon2.hash_length _)

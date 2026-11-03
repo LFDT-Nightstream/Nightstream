@@ -2,6 +2,8 @@ import NightstreamFPrime.Export.OptionB.FinishRelation
 import NightstreamFPrime.Export.OptionB.Parity
 import NightstreamFPrime.Export.Stage1.Rows
 import NightstreamFPrime.Lifecycle.Stage1.Poseidon2HashChainV1
+import NightstreamFPrime.Export.Stage1.NebulaMemoryV1Package
+import NightstreamFPrime.Export.Stage1.NebulaMemoryN1Package
 
 /-! The option-B emitter (CW-5.5), first part: the row census of the light and the refresh step
 circuits for today's fixture application (`Poseidon2HashChainV1.program`). For each circuit it
@@ -36,6 +38,15 @@ def relation : ProductionKey.LogicalRelation width publicFits :=
   ⟨fun _ _ _ => 0, cubeFits⟩
 
 def program : Stage1.Application.Program := Stage1.Poseidon2HashChainV1.program
+
+/-- The application that `--program` selects and the stem of its package files: today's fixture
+by default, or a Nebula memory program (`NebulaMemoryV1Package`, `NebulaMemoryN1Package`). -/
+def selected (arguments : List String) : IO (Stage1.Application.Program × String) :=
+  match arguments.dropWhile (· != "--program") with
+  | _ :: "nebula-v1" :: _ => pure (Export.Stage1.NebulaMemoryV1Package.application, "nebula-v1-")
+  | _ :: "nebula-n1" :: _ => pure (Export.Stage1.NebulaMemoryN1Package.application, "nebula-n1-")
+  | _ :: name :: _ => throw (IO.userError s!"unknown program {name}")
+  | _ => pure (program, "")
 
 /-- Prints a line and flushes it, so a capped run keeps its timings. -/
 def say (line : String) : IO Unit := do
@@ -97,7 +108,9 @@ def applicationRegion (name : String) (words : Nat) (ops : List Op) (offset firs
 package has no application: its region is the witness words alone, and its fresh columns start
 after the refresh step's locals (`firstFresh`), whose layout its gadgets keep. -/
 def emitPackage (name : String) (circuit : Nat) (ops : List Op) (offset : Nat)
-    (pieces : List Pieces.Piece) (firstFresh : Option Nat := none) : IO StepPackage.Package := do
+    (pieces : List Pieces.Piece) (firstFresh : Option Nat := none)
+    (program : Stage1.Application.Program := program) (stem : String := "") :
+    IO StepPackage.Package := do
   let start ← IO.monoMsNow
   unless CircuitRelation.packable CircuitRelation.publicColumns pieces do
     throw (IO.userError s!"{name}: the Poseidon2 blocks do not pack")
@@ -108,7 +121,7 @@ def emitPackage (name : String) (circuit : Nat) (ops : List Op) (offset : Nat)
       applicationRegion name program.witnessWordCount ops offset firstFresh package.pieces
     else pure package.application
   let package := { package with application := region }
-  let path := s!"artifacts/nightstream-fprime-option-b-{name}-v1.json"
+  let path := s!"artifacts/nightstream-fprime-option-b-{stem}{name}-v1.json"
   IO.FS.writeFile path ((StepPackage.Package.format.encode package).render ++ "\n")
   let slotColumns := package.slots.foldl (fun total (_, count, _) => total + count) 0
   let digitColumns := package.slots.foldl (fun total (_, count, kind) =>
@@ -157,7 +170,8 @@ def emitFinish : IO Unit := do
     (some (refreshOffset + localLength refreshOps))
   say s!"finish package written ({(← IO.monoMsNow) - start} ms)"
 
-/-- Writes both step packages; with `--finish`, only the finish package (one Lean run renders
+/-- Writes both step packages of the `--program` application (`selected`), and for today's
+fixture the parity file; with `--finish`, only the finish package (one Lean run renders
 at most two packages under the 1,500 s cap); with `--census`, prints the row census first; with
 `--identity`, also computes their one identity (`StepPackage.identityFast`), which the spec
 field arithmetic makes slow: Rust computes it natively. -/
@@ -166,6 +180,7 @@ def main (arguments : List String) : IO Unit := do
     emitFinish
     return
   let withCensus := arguments.contains "--census"
+  let (program, stem) ← selected arguments
   let start ← IO.monoMsNow
   let base := StepRelation.base
   let words := program.witnessWordCount
@@ -181,7 +196,8 @@ def main (arguments : List String) : IO Unit := do
     else pure (Pieces.split (PilotData.canonicalConstraints ())
       (flatConstraints lightOps ++
         LogicalPlan.decodeConstraints (StepRelation.lightDigestColumn program)))
-  let light ← emitPackage "light" 0 lightOps lightOffset lightPieces
+  let light ← emitPackage "light" 0 lightOps lightOffset lightPieces (program := program)
+    (stem := stem)
   let refreshOffset := RefreshAssembler.sharedEnd base words
   say s!"light done ({(← IO.monoMsNow) - start} ms)"
   let refreshOps := Circuit.ops (OptionB.RefreshStepLayout.main program relation 1
@@ -196,7 +212,11 @@ def main (arguments : List String) : IO Unit := do
       (flatConstraints refreshOps ++
         LogicalPlan.decodeConstraints (StepRelation.refreshDigestColumn program)))
   let refresh ← emitPackage "refresh" 1 refreshOps refreshOffset refreshPieces
+    (program := program) (stem := stem)
   say s!"packages written ({(← IO.monoMsNow) - start} ms)"
+  unless stem.isEmpty do
+    say s!"emitter total {(← IO.monoMsNow) - start} ms"
+    return
   let parity := Parity.parity width (lightPieces, light.firstFresh, lightOffset, witnesses lightOps)
     (refreshPieces, refresh.firstFresh, refreshOffset, witnesses refreshOps)
   let parityPath := "artifacts/nightstream-fprime-option-b-parity-v1.json"

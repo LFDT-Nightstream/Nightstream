@@ -16,12 +16,13 @@ use nightstream_fprime::{
     OPTION_B_PACKAGES_IDENTITY,
 };
 
-use crate::application::ApplicationCircuit;
+use crate::application::{ApplicationCircuit, ApplicationError};
 use crate::engine::{Engine, EngineError};
 use crate::lifecycle::option_b::{self as lifecycle, Finish};
 use crate::{Error, State};
 
 const MAGIC: &[u8; 8] = b"NSOPTB\0\x01";
+const MEMORY_MAGIC: &[u8; 8] = b"NSOPTM\0\x01";
 
 fn read_word(input: &mut impl Read) -> Result<usize, Error> {
     let mut bytes = [0; 8];
@@ -49,11 +50,16 @@ pub struct References<'a> {
     pub finish: &'a [u8],
 }
 
-/// The packages with a Rust application in place of Lean's.
+/// The packages and their application: a Rust application in place of
+/// Lean's (`compile`), or Lean's own (`load_packages`), whose witness program
+/// fills its locals from the witness words and the output state.
 pub struct Circuit {
     packages: OptionBPackages,
     finish: StepPackage,
-    application: ApplicationCircuit,
+    application: Option<ApplicationCircuit>,
+    /// A memory relation: only `nebula::Verifier` verifies it, because this
+    /// verifier checks no SPEC.md Algorithm 10 terminal condition.
+    memory: bool,
 }
 
 impl Circuit {
@@ -68,8 +74,46 @@ impl Circuit {
         Ok(Self {
             packages,
             finish,
-            application,
+            application: Some(application),
+            memory: false,
         })
+    }
+
+    /// Check the pinned identity of Lean-emitted light and refresh packages
+    /// whose application is Lean's (`expected`), and of the finish package,
+    /// which moves to their witness words.
+    pub fn load_packages(references: References<'_>, expected: [u64; 4]) -> Result<Self, Error> {
+        let packages = load_option_b_packages(references.light, references.refresh, expected)?;
+        let finish = load_option_b_finish(references.finish, OPTION_B_FINISH_IDENTITY)?
+            .with_witness_words(packages.light().witness_words())?;
+        Ok(Self {
+            packages,
+            finish,
+            application: None,
+            memory: false,
+        })
+    }
+
+    /// This circuit as a memory relation (`nebula::Circuit`).
+    pub(crate) fn into_memory(self) -> Self {
+        Self { memory: true, ..self }
+    }
+
+    /// The Rust application, for tests that execute a loaded circuit.
+    #[cfg(test)]
+    pub(crate) fn application(&self) -> Option<&ApplicationCircuit> {
+        self.application.as_ref()
+    }
+
+    /// The size of the Rust application, or `None` for Lean's.
+    pub fn application_size(&self) -> Option<crate::ApplicationSize> {
+        self.application
+            .as_ref()
+            .map(|application| crate::ApplicationSize {
+                witness_words: application.private_input_count(),
+                local_words: application.generated_range().len(),
+                rows: application.row_count(),
+            })
     }
 
     /// The packages' identity with the application.
@@ -86,8 +130,11 @@ impl Circuit {
                 .create_new(true)
                 .open(path)?,
         );
-        output.write_all(MAGIC)?;
-        let application = &self.application;
+        output.write_all(if self.memory { MEMORY_MAGIC } else { MAGIC })?;
+        let application = self
+            .application
+            .as_ref()
+            .ok_or(ApplicationError::NoApplication)?;
         output.write_all(&(application.private_input_count() as u64).to_le_bytes())?;
         output.write_all(&application.prepared_output_forms()?)?;
         for row in application.prepared_output_rows() {
@@ -107,9 +154,11 @@ impl Circuit {
         let mut input = std::io::BufReader::new(std::fs::File::open(path)?);
         let mut magic = [0; 8];
         input.read_exact(&mut magic)?;
-        if &magic != MAGIC {
-            return Err(Error::Circuit("not a saved option-B application"));
-        }
+        let memory = match &magic {
+            magic if magic == MAGIC => false,
+            magic if magic == MEMORY_MAGIC => true,
+            _ => return Err(Error::Circuit("not a saved option-B application")),
+        };
         let private_count = read_word(&mut input)?;
         let mut forms = [0; 4];
         input.read_exact(&mut forms)?;
@@ -120,7 +169,8 @@ impl Circuit {
         let (row_count, recipe_count) = (read_word(&mut input)?, read_word(&mut input)?);
         let records = nightstream_fprime::ApplicationRecords::read_from(&mut input, row_count, recipe_count)?;
         let application = ApplicationCircuit::from_records(Arc::new(records), private_count, forms, rows)?;
-        Self::compile(references, application)
+        let circuit = Self::compile(references, application)?;
+        Ok(if memory { circuit.into_memory() } else { circuit })
     }
 
     /// Require the profile to meet the caller's positive statistical minimum.
@@ -137,6 +187,14 @@ impl Circuit {
     /// A verifier of this circuit; the caller selects it independently of any
     /// proof.
     pub fn verifier(&self, engine: Engine, minimum_security_bits: u32) -> Result<Verifier, Error> {
+        if self.memory {
+            return Err(Error::Circuit("a memory relation needs nebula::Verifier"));
+        }
+        self.stage1_verifier(engine, minimum_security_bits)
+    }
+
+    /// The Stage 1 verifier inside `nebula::Verifier`.
+    pub(crate) fn stage1_verifier(&self, engine: Engine, minimum_security_bits: u32) -> Result<Verifier, Error> {
         cpu_only(engine)?;
         Ok(Verifier {
             lifecycle: lifecycle::OptionB::new(self.packages.clone(), minimum_security_bits)?,
@@ -171,7 +229,7 @@ pub struct CompressionSetup(lifecycle::Setups);
 pub struct Prover {
     lifecycle: lifecycle::OptionB,
     finish: Finish,
-    application: ApplicationCircuit,
+    application: Option<ApplicationCircuit>,
 }
 
 impl Prover {
@@ -179,13 +237,32 @@ impl Prover {
         self.extend(&Proof(self.lifecycle.initial(initial_state)?), private_inputs)
     }
 
-    /// The next proof; `proof` does not change.
+    /// The next proof; `proof` does not change. The Rust application
+    /// computes the output state.
     pub fn extend(&self, proof: &Proof, private_inputs: &[F]) -> Result<Proof, Error> {
         let next = self
             .application
+            .as_ref()
+            .ok_or(ApplicationError::NoApplication)?
             .execute(proof.state().current(), private_inputs)?
             .output_state();
-        Ok(Proof(self.lifecycle.extend(&proof.0, private_inputs, next)?))
+        self.extend_with_output(proof, private_inputs, next)
+    }
+
+    /// The first proof with the output state that the caller supplies.
+    pub fn prove_with_output(
+        &self,
+        initial_state: [F; 4],
+        private_inputs: &[F],
+        output: [F; 4],
+    ) -> Result<Proof, Error> {
+        self.extend_with_output(&Proof(self.lifecycle.initial(initial_state)?), private_inputs, output)
+    }
+
+    /// The next proof with the output state that the caller supplies; the
+    /// application's rows check it.
+    pub fn extend_with_output(&self, proof: &Proof, private_inputs: &[F], output: [F; 4]) -> Result<Proof, Error> {
+        Ok(Proof(self.lifecycle.extend(&proof.0, private_inputs, output)?))
     }
 
     /// The proof's strict bytes, for `Verifier::decode_proof`.

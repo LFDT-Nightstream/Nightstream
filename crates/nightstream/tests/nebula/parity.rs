@@ -10,6 +10,7 @@ use nightstream_fprime::{
     load_per_application_package, LoadedPerApplicationPackage, LogicalMatrixRow, StructuralIdentifier,
 };
 
+use crate::nebula::test_packages::{option_b_packages, references};
 use crate::{
     application::ApplicationCircuit,
     assembly,
@@ -81,11 +82,10 @@ fn logical_row(package: &LoadedPerApplicationPackage, index: usize) -> LogicalMa
 /// checked. A memory package makes only the memory verifier.
 #[test]
 fn memory_packages_make_no_stage1_verifier() {
-    let loaded = Package::V1
-        .load(&artifact("nightstream-fprime-stage2-nebula-memory-v1.json"))
-        .unwrap();
+    let packages = option_b_packages("nebula-v1-");
+    let loaded = Package::V1.load(references(&packages)).unwrap();
     assert!(matches!(
-        crate::Verifier::from_package(&loaded.circuit, crate::Engine::Optimized, 114),
+        loaded.circuit.verifier(crate::Engine::Optimized, 114),
         Err(crate::Error::Circuit("a memory relation needs nebula::Verifier"))
     ));
     assert!(crate::nebula::Verifier::new(&loaded, crate::Engine::Optimized, 114).is_ok());
@@ -150,17 +150,17 @@ fn second_package_executes_honest_invocations() {
 /// completes the honest invocations with the same output states.
 #[test]
 fn rust_built_circuit_writes_and_loads() {
-    let reference = artifact("nightstream-fprime-stage1-poseidon2-hash-chain-v1.json");
-    let circuit = Circuit::compile(&reference, Package::V1.geometry(), Machine).unwrap();
+    let packages = option_b_packages("");
+    let circuit = Circuit::compile(references(&packages), Package::V1.geometry(), Machine).unwrap();
     let path = std::env::temp_dir().join(format!("nightstream-nebula-circuit-{}.package", std::process::id()));
     let _ = fs::remove_file(&path);
     circuit.write(&path).unwrap();
-    let loaded = crate::Circuit::load(&path);
+    let loaded = crate::option_b::Circuit::load(&path, references(&packages));
     fs::remove_file(&path).unwrap();
     let loaded = loaded.unwrap();
     assert_eq!(loaded.identity(), circuit.circuit.identity());
     assert!(matches!(
-        crate::Verifier::from_package(&loaded, crate::Engine::Optimized, 114),
+        loaded.verifier(crate::Engine::Optimized, 114),
         Err(crate::Error::Circuit("a memory relation needs nebula::Verifier"))
     ));
     let application = loaded.application().unwrap();

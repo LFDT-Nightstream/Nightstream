@@ -132,11 +132,6 @@ impl Circuit {
         Self::compile_as(Role::Stage1, reference_bytes, application)
     }
 
-    /// `compile` for a memory relation (`nebula::Circuit::compile`).
-    pub(crate) fn compile_memory(reference_bytes: &[u8], application: ApplicationCircuit) -> Result<Self, Error> {
-        Self::compile_as(Role::Memory, reference_bytes, application)
-    }
-
     fn compile_as(role: Role, reference_bytes: &[u8], application: ApplicationCircuit) -> Result<Self, Error> {
         let (package, binding) = assembly::prepare(reference_bytes, &application)?;
         crate::lifecycle::validate_key_prefix(
@@ -205,12 +200,6 @@ impl Circuit {
     #[cfg(test)]
     pub(crate) fn application_rows(&self) -> std::ops::Range<usize> {
         self.compiled.package.application().row_range()
-    }
-
-    /// The Rust application, for tests that execute a loaded circuit.
-    #[cfg(test)]
-    pub(crate) fn application(&self) -> Option<&ApplicationCircuit> {
-        self.compiled.application.as_ref()
     }
 
     /// The size of the Rust application, or `None` for a Lean-emitted package.
@@ -362,7 +351,9 @@ impl Verifier {
         Self::configured(package, engine, minimum_security_bits)
     }
 
-    /// The Stage 1 verifier inside `nebula::Verifier`.
+    /// The Stage 1 verifier of a one-circuit memory package, for the SPEC.md
+    /// section 9 conformance suite.
+    #[cfg(test)]
     pub(crate) fn of_memory(package: &Circuit, engine: Engine, minimum_security_bits: u32) -> Result<Self, Error> {
         Self::configured(package, engine, minimum_security_bits)
     }

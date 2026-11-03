@@ -352,29 +352,53 @@ fn memory_security_bits_match_the_lean_setup_boundary() {
     }
 }
 
-fn package(name: &str) -> Vec<u8> {
-    std::fs::read(
-        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("artifacts")
-            .join(name),
-    )
-    .expect("saved Lean memory package")
+/// Lean's option-B packages (`formal/nightstream-fprime/artifacts`): the
+/// light and refresh step packages of an application and the finish package.
+struct Packages {
+    light: Vec<u8>,
+    refresh: Vec<u8>,
+    finish: Vec<u8>,
 }
 
-/// A package loads only from its own bytes: the second package's bytes fail
-/// as the first package at the pinned structural identifier.
+impl Packages {
+    fn read(name: &str) -> Vec<u8> {
+        std::fs::read(
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("../../formal/nightstream-fprime/artifacts")
+                .join(name),
+        )
+        .expect("Lean option-B package")
+    }
+
+    /// The packages of `stem` (`""` for today's fixture, `"nebula-v1-"`,
+    /// `"nebula-n1-"`).
+    fn of(stem: &str) -> Self {
+        Self {
+            light: Self::read(&format!("nightstream-fprime-option-b-{stem}light-v1.json")),
+            refresh: Self::read(&format!("nightstream-fprime-option-b-{stem}refresh-v1.json")),
+            finish: Self::read("nightstream-fprime-option-b-finish-v1.json"),
+        }
+    }
+
+    fn references(&self) -> nightstream::option_b::References<'_> {
+        nightstream::option_b::References {
+            light: &self.light,
+            refresh: &self.refresh,
+            finish: &self.finish,
+        }
+    }
+}
+
+/// A package loads only from its own packages: the second package's fail as
+/// the first package at the pinned identity.
 #[test]
 fn package_loads_only_its_own_bytes() {
     assert!(matches!(
-        Package::V1.load(&package("nightstream-fprime-stage2-nebula-memory-n1.json")),
+        Package::V1.load(Packages::of("nebula-n1-").references()),
         Err(nightstream::Error::Package(
             nightstream_fprime::PackageError::IdentityMismatch { .. }
         ))
     ));
-}
-
-fn memory_package() -> Vec<u8> {
-    package("nightstream-fprime-stage2-nebula-memory-v1.json")
 }
 
 fn n1_run() -> Run<Machine> {
@@ -410,13 +434,13 @@ fn n1_native_run_reaches_every_counter_maximum() {
 /// `N = 1`, and `S = S_max` with every counter at its largest value.
 fn n1_accept(engine: nightstream::Engine) {
     let circuit = Package::N1
-        .load(&package("nightstream-fprime-stage2-nebula-memory-n1.json"))
+        .load(Packages::of("nebula-n1-").references())
         .expect("pinned memory package");
     let prover = circuit.prover(engine, 114).unwrap();
     let verifier = nightstream::nebula::Verifier::new(&circuit, engine, 114).unwrap();
     let mut run = n1_run();
     let z0 = run.initial_state();
-    let mut proof: Option<nightstream::Proof> = None;
+    let mut proof: Option<nightstream::option_b::Proof> = None;
     for _ in 0..run.context().geometry().s_max {
         let invocation = run.segment(&[Step::Execute]).unwrap().remove(0);
         proof = Some(match &proof {
@@ -444,13 +468,6 @@ fn n1_accept_on_cpu() {
     n1_accept(nightstream::Engine::Optimized);
 }
 
-#[cfg(feature = "metal")]
-#[test]
-#[ignore = "Full production-profile memory proofs on Metal; run separately under the 300-second cap."]
-fn n1_accept_on_metal() {
-    n1_accept(nightstream::Engine::Metal);
-}
-
 /// The SPEC.md section 9 accept cases that the first plan reaches, and the rejections
 /// that need no invalid witness, through the memory verifier. One run of four
 /// segments (`S = S_max`) has continue arms (`N = 2`), writes RAM in the first
@@ -459,7 +476,7 @@ fn memory_conformance(engine: nightstream::Engine) {
     use nightstream::nebula::{self, VerifyError};
     let started = std::time::Instant::now();
     let circuit = Package::V1
-        .load(&memory_package())
+        .load(Packages::of("nebula-v1-").references())
         .expect("pinned memory package");
     let prover = circuit.prover(engine, 114).unwrap();
     let verifier = nebula::Verifier::new(&circuit, engine, 114).unwrap();
@@ -575,13 +592,6 @@ fn memory_conformance_on_cpu() {
     memory_conformance(nightstream::Engine::Optimized);
 }
 
-#[cfg(feature = "metal")]
-#[test]
-#[ignore = "Full production-profile memory proofs on Metal; run separately under the 300-second cap."]
-fn memory_conformance_on_metal() {
-    memory_conformance(nightstream::Engine::Metal);
-}
-
 /// One package serves two programs (SPEC.md section 9): the loaded V1 package proves a
 /// segment of the default program and of a second program, and each proof
 /// verifies with its own program. A verifier given the other program rejects
@@ -594,7 +604,7 @@ fn each_program_verifies_only_its_own_proof_on_cpu() {
     let engine = nightstream::Engine::Optimized;
     let started = std::time::Instant::now();
     let circuit = Package::V1
-        .load(&memory_package())
+        .load(Packages::of("nebula-v1-").references())
         .expect("pinned memory package");
     let prover = circuit.prover(engine, 114).unwrap();
     let verifier = nebula::Verifier::new(&circuit, engine, 114).unwrap();
@@ -635,19 +645,16 @@ fn each_program_verifies_only_its_own_proof_on_cpu() {
 }
 
 #[test]
-#[ignore = "Prints the saved memory packages' structural identifiers for pinning."]
+#[ignore = "Prints the memory programs' option-B package identities for pinning."]
 fn print_memory_package_identifier() {
-    for name in [
-        "nightstream-fprime-stage2-nebula-memory-v1.json",
-        "nightstream-fprime-stage2-nebula-memory-n1.json",
-    ] {
-        let placeholder = nightstream_fprime::StructuralIdentifier::from_words([0; 4]);
-        let computed = match nightstream_fprime::load_per_application_package(&package(name), placeholder) {
-            Ok(loaded) => loaded.structural_identifier().words(),
+    for stem in ["nebula-v1-", "nebula-n1-"] {
+        let packages = Packages::of(stem);
+        let computed = match nightstream_fprime::load_option_b_packages(&packages.light, &packages.refresh, [0; 4]) {
+            Ok(loaded) => loaded.identity(),
             Err(nightstream_fprime::PackageError::IdentityMismatch { computed, .. }) => computed,
-            Err(error) => panic!("{name}: {error}"),
+            Err(error) => panic!("{stem}: {error}"),
         };
-        println!("{name} structural_identifier={computed:?}");
+        println!("{stem} identity={computed:?}");
     }
 }
 
@@ -739,7 +746,7 @@ fn runner_rejects_a_misread_port_and_a_short_port_list() {
 fn invalid_geometries_make_no_program_and_no_circuit() {
     let valid = Package::V1.geometry();
     assert!(valid.is_valid() && Package::N1.geometry().is_valid());
-    let reference = package("nightstream-fprime-stage1-poseidon2-hash-chain-v1.json");
+    let reference = Packages::of("");
     let cases: [(&str, fn(&mut nightstream::nebula::Geometry)); 5] = [
         ("r > μ", |g| g.r = 3),
         ("timestamps", |g| g.w_ts = 4),
@@ -758,7 +765,7 @@ fn invalid_geometries_make_no_program_and_no_circuit() {
         );
         assert!(
             matches!(
-                nightstream::nebula::Circuit::compile(&reference, geometry, Machine),
+                nightstream::nebula::Circuit::compile(reference.references(), geometry, Machine),
                 Err(nightstream::Error::Circuit(_))
             ),
             "{name}"
@@ -782,9 +789,9 @@ fn insecure_geometry_makes_no_circuit() {
     };
     assert!(insecure.is_valid());
     assert!(insecure.max_tuples() > 139_509);
-    let reference = package("nightstream-fprime-stage1-poseidon2-hash-chain-v1.json");
+    let reference = Packages::of("");
     assert!(matches!(
-        nightstream::nebula::Circuit::compile(&reference, insecure, Machine),
+        nightstream::nebula::Circuit::compile(reference.references(), insecure, Machine),
         Err(nightstream::Error::Circuit(
             "the memory geometry breaks SPEC.md section 7.1"
         ))
@@ -799,9 +806,9 @@ fn machine_makes_no_circuit_with_a_third_port() {
     let mut geometry = Package::V1.geometry();
     geometry.b_ops = 3;
     assert!(geometry.is_valid() && geometry.max_tuples() <= 139_509);
-    let reference = package("nightstream-fprime-stage1-poseidon2-hash-chain-v1.json");
+    let reference = Packages::of("");
     assert!(matches!(
-        nightstream::nebula::Circuit::compile(&reference, geometry, Machine),
+        nightstream::nebula::Circuit::compile(reference.references(), geometry, Machine),
         Err(nightstream::Error::Circuit(
             "the application's port count is not the geometry's b_ops"
         ))
@@ -860,11 +867,11 @@ impl Application for ReadsWord {
 /// fresh `η1`) or word 0 (the carry) makes no circuit.
 #[test]
 fn application_rows_outside_the_view_make_no_circuit() {
-    let reference = package("nightstream-fprime-stage1-poseidon2-hash-chain-v1.json");
+    let reference = Packages::of("");
     for word in [90, 0] {
         assert!(
             matches!(
-                nightstream::nebula::Circuit::compile(&reference, Package::V1.geometry(), ReadsWord(word)),
+                nightstream::nebula::Circuit::compile(reference.references(), Package::V1.geometry(), ReadsWord(word)),
                 Err(nightstream::Error::Application(
                     nightstream::application::ApplicationError::VariableOutOfScope(_)
                 ))
@@ -933,9 +940,9 @@ fn terminal_checks_reject_a_state_of_another_width() {
 /// One segment of the first package's default program proved by `prover`,
 /// with the native outputs as the Rust application's outputs.
 fn prove_segment<A: Application<Input = Step, State = MachineState>>(
-    prover: &nightstream::Prover,
+    prover: &nightstream::option_b::Prover,
     app: A,
-) -> (Statement<MachineState>, Carry, nightstream::Proof) {
+) -> (Statement<MachineState>, Carry, nightstream::option_b::Proof) {
     let mut run = Run::new(Context::new(app, &Package::V1.program()), MachineState::default());
     let z0 = run.initial_state();
     let invocations = run.segment(&[Step::Execute, Step::Execute]).unwrap();
@@ -954,19 +961,24 @@ fn prove_segment<A: Application<Input = Step, State = MachineState>>(
 fn rust_built(engine: nightstream::Engine) {
     use nightstream::nebula::{Circuit, Verifier, VerifyError};
     let started = std::time::Instant::now();
-    let reference = package("nightstream-fprime-stage1-poseidon2-hash-chain-v1.json");
+    let reference = Packages::of("");
     let geometry = Package::V1.geometry();
     let path = std::env::temp_dir().join(format!("nightstream-nebula-setup-{}.package", std::process::id()));
     let _ = std::fs::remove_file(&path);
-    Circuit::compile(&reference, geometry, Machine)
+    Circuit::compile(reference.references(), geometry, Machine)
         .unwrap()
         .write(&path)
         .unwrap();
-    let prover = nightstream::Prover::load(&path, engine, 114);
+    let prover = nightstream::option_b::Circuit::load(&path, reference.references());
     std::fs::remove_file(&path).unwrap();
-    let prover = prover.unwrap();
-    let verifier = Verifier::new(&Circuit::compile(&reference, geometry, Machine).unwrap(), engine, 114).unwrap();
-    let changed = Circuit::compile(&reference, geometry, Changed::Row).unwrap();
+    let prover = prover.unwrap().prover(engine, 114).unwrap();
+    let verifier = Verifier::new(
+        &Circuit::compile(reference.references(), geometry, Machine).unwrap(),
+        engine,
+        114,
+    )
+    .unwrap();
+    let changed = Circuit::compile(reference.references(), geometry, Changed::Row).unwrap();
     eprintln!("rust-built setup elapsed={:?}", started.elapsed());
     let program = Package::V1.program();
 

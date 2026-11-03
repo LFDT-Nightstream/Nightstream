@@ -50,8 +50,10 @@ impl Harness {
                 .join(fixture.artifact),
         )
         .expect("saved Lean memory package");
-        let loaded = fixture.package.load(&bytes).unwrap();
-        let rows = loaded.circuit.application_rows();
+        // The checks name rows of the one-circuit memory package, so this
+        // suite runs on that path until it names option-B rows.
+        let loaded = crate::Circuit::load_package(&bytes, fixture.package.structural_identifier()).unwrap();
+        let rows = loaded.application_rows();
         let named: Vec<(String, usize, usize)> = serde_json::from_slice(fixture.rows).unwrap();
         assert_eq!(
             named.last().map(|check| check.2),
@@ -61,7 +63,7 @@ impl Harness {
         Self {
             context: Context::new(Machine, &fixture.package.program()),
             prover: loaded.prover(engine, 114).unwrap(),
-            verifier: Verifier::of_memory(&loaded.circuit, engine, 114).unwrap(),
+            verifier: Verifier::of_memory(&loaded, engine, 114).unwrap(),
             checks: named
                 .into_iter()
                 .map(|(name, first, end)| (name, rows.start + first..rows.start + end))

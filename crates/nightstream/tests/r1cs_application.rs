@@ -7,8 +7,8 @@
 use std::num::NonZeroUsize;
 
 use nightstream::nebula::{
-    batched_slots, pack_regions, Circuit, Geometry, R1csApplication, R1csApplicationError, RowRelation, Run,
-    SegmentError, Size, VerifyError,
+    batched_slots, pack_regions, CatalogBindingError, Circuit, Geometry, R1csApplication, R1csApplicationError,
+    RowRelation, Run, SegmentError, Size, VerifyError,
 };
 use nightstream::relation::{
     ColumnFamilySpec, ColumnRegistry, ColumnWidth, ConstraintTag, ContinuityCatalog, ContinuityGroup, ContinuityLink,
@@ -189,6 +189,37 @@ fn a_geometry_derives_its_widths_and_keeps_the_rules() {
     );
     assert_eq!(Geometry::new(2, 2, 2, 0, 1), None, "a segment has steps");
     assert_eq!(Geometry::new(64, 64, 2, 4, 1), None, "the spaces fit in a word");
+}
+
+/// A relation with a verifier-supplied column other than the constant-one
+/// column is refused, because no memory verifier supplies that column, so
+/// the column would be a free word of each row.
+#[test]
+fn a_relation_with_another_public_input_is_refused() {
+    let mut builder = R1csBuilder::new(COLUMNS, 2, ONE).unwrap();
+    builder.with_tag(ConstraintTag::new("count", "counter"), |rows| {
+        rows.push_linear_zero([(AFTER, F::ONE), (BEFORE, -F::ONE), (ONE, -F::ONE)]);
+    });
+    let relation = builder.build().unwrap();
+    assert!(matches!(
+        RowRelation::of(&relation),
+        Err(R1csApplicationError::PublicInput)
+    ));
+    assert!(
+        RowRelation::of(&self::relation()).is_ok(),
+        "the constant-one column alone is public"
+    );
+}
+
+/// A preload cell of a memory that the catalog does not have is refused, so
+/// two preloads never give one program.
+#[test]
+fn a_preload_of_an_unknown_memory_is_refused() {
+    let mut unknown = preload(TABLE);
+    unknown.insert(7, vec![0], 1);
+    let app = application(1);
+    assert!(matches!(app.program(&unknown), Err(CatalogBindingError::UnknownMemory)));
+    assert!(app.program(&preload(TABLE)).is_ok());
 }
 
 /// A size that gives the RAM no region is refused, because the circuit would

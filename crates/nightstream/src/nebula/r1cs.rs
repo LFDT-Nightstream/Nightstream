@@ -41,8 +41,13 @@ pub struct RowRelation {
 
 impl RowRelation {
     /// The rank-one rows of a relation that the relation builders made
-    /// (`crate::relation::R1csBuilder`), with its constant-one column.
+    /// (`crate::relation::R1csBuilder`), with its constant-one column. A
+    /// memory verifier takes no column values, so the relation may have no
+    /// verifier-supplied column other than the constant-one column.
     pub fn of<Owner>(relation: &R1csRelation<Owner>) -> Result<Self, R1csApplicationError> {
+        if (0..relation.public_input_count()).any(|column| column != relation.const_one_column()) {
+            return Err(R1csApplicationError::PublicInput);
+        }
         let structure = relation.structure();
         let mut rows = vec![[Terms::new(), Terms::new(), Terms::new()]; structure.n()];
         for (side, matrix) in structure.matrices().iter().take(3).enumerate() {
@@ -126,6 +131,8 @@ pub enum R1csApplicationError {
     Binding(#[from] CatalogBindingError),
     #[error("a memory of the catalog has no region, so the circuit would not check it")]
     Unchecked,
+    #[error("the relation has a verifier-supplied column other than the constant-one column, which no memory verifier supplies")]
+    PublicInput,
 }
 
 /// Why a step input has no step.

@@ -162,3 +162,57 @@ fn a_run_steps_natively_through_the_segments_of_its_size() {
         assert_eq!(*run.state(), trace.last().unwrap().state_after);
     }
 }
+
+/// The Stage 1 package that every Nebula circuit extends.
+fn reference() -> Vec<u8> {
+    std::fs::read(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../nightstream/artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1.json"),
+    )
+    .unwrap()
+}
+
+/// Fibonacci proved on Metal in Small, one segment of 64 steps of 8 rows. The
+/// proof verifies after its bytes round-trip, and a last state with another
+/// `pc` does not verify.
+#[test]
+#[ignore = "Metal proof at a fixed size, about 10 minutes; build with --features nightstream/metal and run it alone, only with approval for a run longer than 300 seconds."]
+fn a_small_proof_verifies_on_metal() {
+    use nightstream::nebula::{Circuit, VerifyError};
+    use std::time::Instant;
+    let started = Instant::now();
+    let (preload, initial, trace) = run_of(FIB);
+    let size = WasmSize::for_run(&preload, &trace).unwrap();
+    assert_eq!(size, WasmSize::Small);
+    let app = size.application().unwrap();
+    let program = app.program(&preload).unwrap();
+    let circuit = Circuit::compile(&reference(), size.geometry(), app).unwrap();
+    eprintln!("compile elapsed={:?}", started.elapsed());
+    let engine = nightstream::Engine::Metal;
+    let prover = circuit.prover(engine, 109).unwrap();
+    let verifier = circuit.verifier(engine, 109).unwrap();
+    eprintln!("setup elapsed={:?}", started.elapsed());
+
+    let proving = Instant::now();
+    let mut run = prover.start(&program, initial).unwrap();
+    for segment in size.segments(&trace).unwrap() {
+        run.segment(&segment).unwrap();
+    }
+    let last = *run.state();
+    let proof = run.finish().unwrap();
+    eprintln!("prove 64 steps elapsed={:?}", proving.elapsed());
+
+    let bytes = prover.encode_proof(&proof).unwrap();
+    let verifying = Instant::now();
+    let proof = verifier.decode_proof(&bytes).unwrap();
+    let verified = verifier.verify(&program, &initial, &last, &proof).unwrap();
+    eprintln!("verify elapsed={:?}, proof bytes={}", verifying.elapsed(), bytes.len());
+    assert_eq!(verified.steps, 64);
+    let mut other = last;
+    other.pc += 1;
+    assert!(matches!(
+        verifier.verify(&program, &initial, &other, &proof),
+        Err(VerifyError::Proof(_))
+    ));
+    eprintln!("total elapsed={:?}", started.elapsed());
+}

@@ -16,11 +16,11 @@ Example plain_rows_get_call_add : forall stale rows final,
       (rowsFinalBoundary (mkBoundary 2 8 8 7 0 0 0 0 0 0) rows) c.
 Proof.
   intros stale rows final Hprime Hrun Hfragment Hpc.
-  destruct (run_refinement sourceProgram sourceStore 0 _ rows (sourceMemory stale) final _ _ Hprime
+  destruct (active_run_refinement sourceProgram sourceStore 0 _ rows (sourceMemory stale) final _ _ Hprime
     (source_program_loaded stale) Hrun Hfragment (source_initial_config stale))
     as [shape [c [Hsteps [Hloaded Hconfig]]]].
   exists c. split; [exact Hsteps | ]. split; [exact Hloaded | ].
-  destruct (circuit_config_state _ _ _ _ _ _ _ Hconfig) as [cursor Hstate].
+  destruct (circuit_config_state _ _ _ _ _ _ _ Hconfig) as [cursor [Hshape Hstate]].
   rewrite <- (source_final_shape _ _ _ _ Hstate Hpc).
   exact (control_state_circuit _ _ _ _ _ _ _ Logic.eq_refl source_store_wf source_program_validated Hstate).
 Qed.

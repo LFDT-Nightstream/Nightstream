@@ -1,7 +1,7 @@
 (* A real run with two br_tables: main(7, 1) takes arm 1 out of a zero-result
    block, then, with index 7 past the arms, takes the default out of the result
    block, which keeps the result 1 and drops the 7 below it. The exported rows meet
-   every premise of run_refinement. *)
+   every premise of active_run_refinement. *)
 From Stdlib Require Import List ZArith Lia.
 From mathcomp Require Import ssrbool eqtype.
 Require Import R1CS Columns Range MemoryTrace MemoryCatalog TraceRefinement Wasm2 WasmIntegers Locals
@@ -117,7 +117,7 @@ Example br_table_witness_refines : fieldPrime ->
       (rowsFinalBoundary tableStart tableWitness) c.
 Proof.
   intros Hprime.
-  destruct (run_refinement _ _ _ _ _ _ _ _ _ Hprime (load_program_loaded _ _) (validRunb_sound _ _ table_run_checks)
+  destruct (active_run_refinement _ _ _ _ _ _ _ _ _ Hprime (load_program_loaded _ _) (validRunb_sound _ _ table_run_checks)
     table_fragment table_start_config) as [shape [c [Hsteps [_ Hconfig]]]].
   exists shape, c. split; assumption.
 Qed.

@@ -88,7 +88,7 @@ Definition instructionRom (program : Program) (memory : nat) (pc : Z) (choice : 
             | Some (Some target) => Some (pcEntry program pc + Z.of_nat target)
             | _ => None
             end
-        | Some (flatInstruction (opInstr RETURN) _) => None
+        | Some (flatInstruction (opInstr (RETURN | UNREACHABLE)) _) => None
         | Some _ => if choice =? 0 then Some (pc + 1) else None
         | None => None end
       else if Nat.eqb memory programOpcodeId then
@@ -104,11 +104,13 @@ Definition instructionRom (program : Program) (memory : nat) (pc : Z) (choice : 
         | Some (flatInstruction (opInstr (BR_TABLE _ _)) _) => Some CODE_BR_TABLE
         | Some (flatInstruction (opInstr RETURN) _) => Some CODE_RETURN
         | Some (flatInstruction (opInstr NOP) _) => Some CODE_NOP
+        | Some (flatInstruction (opInstr UNREACHABLE) _) => Some CODE_UNREACHABLE
         | Some (flatInstruction (opInstr i) _) => encodedOpcode i
         | _ => Some CODE_END end
       else if Nat.eqb memory pcEdgeKindId then
         match slot with
         | Some (flatInstruction (opInstr RETURN) _) | Some (flatInstruction (opInstr (BR _)) [None]) | None => Some 1
+        | Some (flatInstruction (opInstr UNREACHABLE) _) => Some 3
         | Some _ => Some 0
         end
       else if Nat.eqb memory programLocalIndexId then

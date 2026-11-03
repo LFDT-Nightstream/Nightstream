@@ -1,6 +1,6 @@
 (* A real run of a loop: main(3, 1) sums 3, 2 and 1. Each taken br_if drops the sum
    it pushed and runs the loop again; the last iteration falls out of the loop with
-   the sum 6 as its result. The exported rows meet every premise of run_refinement. *)
+   the sum 6 as its result. The exported rows meet every premise of active_run_refinement. *)
 From Stdlib Require Import List ZArith Lia.
 From mathcomp Require Import ssrbool eqtype.
 Require Import R1CS Columns Range MemoryTrace MemoryCatalog TraceRefinement Wasm2 WasmIntegers Locals
@@ -111,7 +111,7 @@ Example loop_witness_refines : fieldPrime ->
       (rowsFinalBoundary loopStart loopWitness) c.
 Proof.
   intros Hprime.
-  destruct (run_refinement _ _ _ _ _ _ _ _ _ Hprime (load_program_loaded _ _) (validRunb_sound _ _ loop_run_checks)
+  destruct (active_run_refinement _ _ _ _ _ _ _ _ _ Hprime (load_program_loaded _ _) (validRunb_sound _ _ loop_run_checks)
     loop_fragment loop_start_config) as [shape [c [Hsteps [_ Hconfig]]]].
   exists shape, c. split; assumption.
 Qed.

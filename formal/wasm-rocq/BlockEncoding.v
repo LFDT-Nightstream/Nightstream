@@ -118,6 +118,16 @@ Proof.
   unfold controlImage; repeat split; try intro choice; pc_cell Hpc; try reflexivity; destruct (choice =? 0); reflexivity.
 Qed.
 
+Lemma encoded_path_unreachable : forall labels inner offset,
+  pathCode (guestBody f) labels = Some inner -> nth_error inner offset = Some UNREACHABLE ->
+  memory programOpcodeId [pathPC labels offset] = Some CODE_UNREACHABLE /\
+  memory pcEdgeKindId [pathPC labels offset] = Some 3.
+Proof.
+  intros labels inner offset Hpath Hi.
+  pose proof (encoded_path_head _ _ _ _ Hpath Hi) as Hpc.
+  split; pc_cell Hpc; reflexivity.
+Qed.
+
 Lemma encoded_path_loop_entry : forall labels inner offset bt body,
   pathCode (guestBody f) labels = Some inner -> nth_error inner offset = Some (LOOP bt body) ->
   controlImage memory (pathPC labels offset) CODE_LOOP (pathPC labels offset + 1).

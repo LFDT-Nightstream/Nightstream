@@ -243,10 +243,10 @@ Example source_program_two_runs : forall stale firstRows lastRows final,
 Proof.
   intros stale firstRows lastRows final Hprime Hrun Hfirst Hlast.
   destruct (valid_run_split _ _ _ _ Hrun) as [between [Hrun1 Hrun2]].
-  destruct (run_refinement sourceProgram sourceStore 0 _ firstRows (sourceMemory stale) between _ _ Hprime
+  destruct (active_run_refinement sourceProgram sourceStore 0 _ firstRows (sourceMemory stale) between _ _ Hprime
     (source_program_loaded stale) Hrun1 Hfirst (source_initial_config stale))
     as [shape1 [c1 [Hsteps1 [Hloaded1 Hconfig1]]]].
-  destruct (run_refinement sourceProgram sourceStore 0 shape1 lastRows between final _ c1 Hprime Hloaded1 Hrun2
+  destruct (active_run_refinement sourceProgram sourceStore 0 shape1 lastRows between final _ c1 Hprime Hloaded1 Hrun2
     Hlast Hconfig1) as [shape2 [c2 [Hsteps2 [Hloaded2 Hconfig2]]]].
   exists shape2, c2. split; [eapply spec_steps_transitive; eassumption | ].
   split; [exact Hloaded2 | ]. rewrite rows_final_boundary_app. exact Hconfig2.

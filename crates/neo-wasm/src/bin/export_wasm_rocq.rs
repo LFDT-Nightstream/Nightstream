@@ -382,6 +382,14 @@ fn emit_rocq_memory_catalog() -> String {
         (WasmMemoryId::FrameSlideRemaining, "frameSlideRemainingId"),
         (WasmMemoryId::FrameSlideDistance, "frameSlideDistanceId"),
         (WasmMemoryId::ProgramBrTableLen, "programBrTableLenId"),
+        (
+            WasmMemoryId::HostEventExportEntryScheduleCount,
+            "exportEntryScheduleCountId",
+        ),
+        (
+            WasmMemoryId::HostEventExportExitScheduleCount,
+            "exportExitScheduleCountId",
+        ),
     ] {
         let index = memories
             .iter()

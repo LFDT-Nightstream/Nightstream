@@ -1,7 +1,7 @@
 # Wasm circuit proofs in Rocq
 
-`run_refinement` proves circuit traces against SpecTec's Wasm 2.0 semantics for
-`i32.add/sub`, `local.get/set`, `nop`, direct guest calls, `return` from any depth of
+`run_refinement` (`ExecutionRefinement.v`) proves circuit traces against SpecTec's Wasm 2.0 semantics for
+`i32.add/sub`, `local.get/set`, `nop`, `unreachable`, direct guest calls, `return` from any depth of
 blocks, and blocks, loops and `if`s with no or one i32 result with `br`, `br_if` and `br_table` to any enclosing
 label: a branch to a block or an `if` leaves it, a branch to a loop runs it again. A `br` may also target the
 function's own label, which is a `return`; a `br_if` or `br_table` to it is rejected by the Rust parser. Blocks, loops and `if`s nest to any
@@ -10,7 +10,7 @@ Conditions may be computed, with multiple branches per block; a taken branch
 keeps its target block's results and discards every other operand above the
 block's base, as the circuit's frame slide does; a `return` likewise keeps only
 its function's results. Code after a
-`return`, `br` or `br_table` is dead: nothing falls through to it, so it needs no stack height.
+`return`, `br`, `br_table` or `unreachable` is dead: nothing falls through to it, so it needs no stack height.
 `Fragment.v` lists the supported instructions, one constructor each with its
 restrictions, and states the branch-site rule (`codeBranches`). Parameters, results, locals and stack values are i32. The theorem
 takes plain rows, refines them one at a time, and relates circuit and SpecTec states through
@@ -20,17 +20,19 @@ The operand height below each label follows from the code's static stack effects
 every function in the store must pass SpecTec validation. A run may stop anywhere
 in its base frame, including inside blocks, inside calls, or during a callee's
 frame initialization; the final shape resumes the next run. The store is an input:
-the circuit does not hold it. A run's activation never finishes (no export return
-or trap). Padding is supported. An explicitly empty `else` is rejected by the Rust parser (SpecTec's `if` has no such form; strip it before
-proving). Host rows, indirect calls, blocks and loops with parameters or typed by index, and returning out of the base frame are excluded.
-Selected zero-test steps are also proved, and `TrapFacts.v` proves that no supported opcode's row can trap: each
-trap cause is gated by its own selectors.
+the circuit does not hold it. An activation may remain running, return a captured i32 result (or no result), or trap.
+`ActivationConfig` wraps the running decoder in the base function's SpecTec frame;
+`ExecutionConfig` binds the outcome to the last row. A terminating run stops on that row.
+Padding before termination is supported. An explicitly empty `else` is rejected by the Rust parser (SpecTec's `if` has no such form; strip it before
+proving). Host rows, indirect calls, and blocks and loops with parameters or typed by index are excluded.
+Selected zero-test steps are also proved. `TrapFacts.v` connects the supported opcode set to
+trap accounting: only `unreachable` traps in this fragment.
 Field primality and memory-event consistency are assumed; the offline memory
 argument is not proved. ROMs are dense: keys the encoder does not list read 0, so
 proofs never rely on a key being absent. The program ROM encoder covers this guest-only fragment;
 its correspondence with Rust preprocessing is not yet proved. The `tests/*Witness.v`
 files check by computation that exported Rust traces meet every premise of
-`run_refinement` (regenerate them with
+the running or complete-run refinement theorem (regenerate them with
 `cargo test -p neo-wasm --release --test wasm_rocq_witness_export -- --ignored`).
 
 ## Build

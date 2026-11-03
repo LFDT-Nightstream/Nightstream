@@ -1,7 +1,7 @@
 (* A real run of tests/BlockCalls.v's program, exported from the Rust trace: the
    caller's frame with its initially zero local to just before its final END, through the
    call, the callee's zeroing, its END and result move. Its rows meet every premise
-   of run_refinement, so the theorem's conclusion holds of an actual run. *)
+   of active_run_refinement, so the theorem's conclusion holds of an actual run. *)
 From Stdlib Require Import List ZArith Lia.
 Require Import R1CS Columns Range MemoryTrace MemoryCatalog TraceRefinement Wasm2 StraightLineSpec SpecTecCalls
   ProgramSpec ProgramEncoding ProgramRefinement ControlDecode tests.WitnessCheck tests.BlockCallTrace
@@ -33,7 +33,7 @@ Example block_call_witness_refines : fieldPrime ->
       (rowsFinalBoundary witnessStart witnessRows) c.
 Proof.
   intros Hprime.
-  destruct (run_refinement _ _ _ _ _ _ _ _ _ Hprime (load_program_loaded _ _) witness_run_valid witness_fragment
+  destruct (active_run_refinement _ _ _ _ _ _ _ _ _ Hprime (load_program_loaded _ _) witness_run_valid witness_fragment
     witness_entry_config) as [shape [c [Hsteps [_ Hconfig]]]].
   exists shape, c. split; assumption.
 Qed.

@@ -1,4 +1,4 @@
-(* The unwinding br_if run meets every premise of run_refinement, so the theorem's
+(* The unwinding br_if run meets every premise of active_run_refinement, so the theorem's
    conclusion holds of an actual run that discards operands on a taken branch. *)
 From Stdlib Require Import List ZArith Lia.
 From mathcomp Require Import ssrbool eqtype.
@@ -93,7 +93,7 @@ Example unwinding_witness_refines : fieldPrime ->
       (rowsFinalBoundary unwindingStart unwindingWitness) c.
 Proof.
   intros Hprime.
-  destruct (run_refinement _ _ _ _ _ _ _ _ _ Hprime (load_program_loaded _ _) unwinding_run_valid
+  destruct (active_run_refinement _ _ _ _ _ _ _ _ _ Hprime (load_program_loaded _ _) unwinding_run_valid
     unwinding_fragment unwinding_start_config) as [shape [c [Hsteps [_ Hconfig]]]].
   exists shape, c. split; assumption.
 Qed.

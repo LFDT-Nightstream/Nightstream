@@ -149,9 +149,8 @@ const FUNCTION_BR: &str = r#"(module
       br 1
     end))"#;
 
-/// The longest run of program, zero and move rows ending just before the final END,
-/// which finishes the activation, as `name`, one dense row per trace row.
-fn export_witness(wat: &str, params: &[i32], name: &str, file: &str) {
+/// The final run of program, zero and move rows, optionally including its terminal row.
+fn export_witness(wat: &str, params: &[i32], name: &str, file: &str, include_terminal: bool) {
     let wasm = wat::parse_str(wat).expect("wat");
     let run = collect_wasmtime_steps(&wasm, &entry_bindings(&wasm, params.len()), "main", params).expect("trace");
     let trace = if params.is_empty() {
@@ -181,7 +180,10 @@ fn export_witness(wat: &str, params: &[i32], name: &str, file: &str) {
          (* Each row's witness, column by column, in trace order. *)\n\
          Definition {name} : list (list Z) :=\n  ["
     );
-    for (index, row) in trace[start..end].iter().enumerate() {
+    for (index, row) in trace[start..end + usize::from(include_terminal)]
+        .iter()
+        .enumerate()
+    {
         if index > 0 {
             out.push_str(";\n   ");
         }
@@ -204,14 +206,44 @@ fn export_witness(wat: &str, params: &[i32], name: &str, file: &str) {
 #[test]
 #[ignore = "regenerates Rocq files"]
 fn export_witnesses() {
-    export_witness(BLOCK_CALLS, &[], "blockCallRows", "BlockCallTrace.v");
-    export_witness(UNWINDING_BRANCH, &[7], "unwindingRows", "UnwindingTrace.v");
-    export_witness(EARLY_RETURN, &[7], "earlyReturnRows", "EarlyReturnTrace.v");
-    export_witness(RESULT_BLOCKS, &[7, 9], "resultBlockRows", "ResultBlockTrace.v");
-    export_witness(BR_OUT, &[7, 9], "brRows", "BrTrace.v");
-    export_witness(BR_TABLES, &[7, 1], "brTableRows", "BrTableTrace.v");
-    export_witness(IFS, &[7, 0], "ifRows", "IfTrace.v");
-    export_witness(LOOPS, &[3, 1], "loopRows", "LoopTrace.v");
-    export_witness(NOPS, &[7], "nopRows", "NopTrace.v");
-    export_witness(FUNCTION_BR, &[7, 9], "functionBrRows", "FunctionBrTrace.v");
+    export_witness(BLOCK_CALLS, &[], "blockCallRows", "BlockCallTrace.v", false);
+    export_witness(UNWINDING_BRANCH, &[7], "unwindingRows", "UnwindingTrace.v", false);
+    export_witness(EARLY_RETURN, &[7], "earlyReturnRows", "EarlyReturnTrace.v", false);
+    export_witness(RESULT_BLOCKS, &[7, 9], "resultBlockRows", "ResultBlockTrace.v", false);
+    export_witness(BR_OUT, &[7, 9], "brRows", "BrTrace.v", false);
+    export_witness(BR_TABLES, &[7, 1], "brTableRows", "BrTableTrace.v", false);
+    export_witness(IFS, &[7, 0], "ifRows", "IfTrace.v", false);
+    export_witness(LOOPS, &[3, 1], "loopRows", "LoopTrace.v", false);
+    export_witness(NOPS, &[7], "nopRows", "NopTrace.v", false);
+    export_witness(FUNCTION_BR, &[7, 9], "functionBrRows", "FunctionBrTrace.v", false);
+}
+
+#[test]
+#[ignore = "regenerates Rocq files"]
+fn export_terminal_witnesses() {
+    export_witness(NOPS, &[7], "nopTerminalRows", "NopTerminalTrace.v", true);
+    export_witness(
+        r#"(module
+          (func (export "main") block call 1 end)
+          (func block unreachable end))"#,
+        &[],
+        "trapRows",
+        "TrapTrace.v",
+        true,
+    );
+    export_witness(
+        r#"(module (func (export "main") (param i32) (result i32)
+          block (result i32) local.get 0 return end))"#,
+        &[7],
+        "baseReturnRows",
+        "BaseReturnTrace.v",
+        true,
+    );
+    export_witness(
+        r#"(module (func (export "main") nop))"#,
+        &[],
+        "voidReturnRows",
+        "VoidReturnTrace.v",
+        true,
+    );
 }

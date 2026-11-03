@@ -1,5 +1,5 @@
 (* A real run with nops at the top level and inside a block: main(7) leaves 7. The
-   exported rows meet every premise of run_refinement. *)
+   exported rows meet every premise of active_run_refinement. *)
 From Stdlib Require Import List ZArith Lia.
 From mathcomp Require Import ssrbool eqtype.
 Require Import R1CS Columns Range MemoryTrace MemoryCatalog TraceRefinement Wasm2 WasmIntegers Locals
@@ -98,7 +98,7 @@ Example nop_witness_refines : fieldPrime ->
     CircuitConfig nopProgram nopStore 0 shape (replayed nopMemory nopWitness) (rowsFinalBoundary nopStart nopWitness) c.
 Proof.
   intros Hprime.
-  destruct (run_refinement _ _ _ _ _ _ _ _ _ Hprime (load_program_loaded _ _) (validRunb_sound _ _ nop_run_checks)
+  destruct (active_run_refinement _ _ _ _ _ _ _ _ _ Hprime (load_program_loaded _ _) (validRunb_sound _ _ nop_run_checks)
     nop_fragment nop_start_config) as [shape [c [Hsteps [_ Hconfig]]]].
   exists shape, c. split; assumption.
 Qed.

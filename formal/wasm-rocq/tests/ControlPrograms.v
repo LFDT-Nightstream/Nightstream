@@ -127,7 +127,7 @@ Example computed_program_refines : forall condition rows final,
     CircuitConfig computedProgram computedStore 0 shape final (rowsFinalBoundary (mkBoundary 0 9 9 7 0 0 0 0 0 0) rows) c.
 Proof.
   intros condition rows final Hprime Hcondition Hrun Hfragment.
-  exact (run_refinement computedProgram computedStore 0 _ rows _ final _ _ Hprime
+  exact (active_run_refinement computedProgram computedStore 0 _ rows _ final _ _ Hprime
     (load_program_loaded _ _) Hrun Hfragment
     (computed_initial_config condition Hcondition)).
 Qed.
@@ -171,10 +171,10 @@ Example computed_interior_two_runs : forall firstRows lastRows final,
 Proof.
   intros firstRows lastRows final Hprime Hrun Hfirst Hlast.
   destruct (valid_run_split _ _ _ _ Hrun) as [between [Hrun1 Hrun2]].
-  destruct (run_refinement computedProgram computedStore 0 _ firstRows computedInteriorMemory between _ _ Hprime
+  destruct (active_run_refinement computedProgram computedStore 0 _ firstRows computedInteriorMemory between _ _ Hprime
     (load_program_loaded _ _) Hrun1 Hfirst computed_interior_config)
     as [shape1 [c1 [Hsteps1 [Hloaded1 Hconfig1]]]].
-  destruct (run_refinement computedProgram computedStore 0 shape1 lastRows between final _ c1 Hprime Hloaded1 Hrun2
+  destruct (active_run_refinement computedProgram computedStore 0 shape1 lastRows between final _ c1 Hprime Hloaded1 Hrun2
     Hlast Hconfig1) as [shape2 [c2 [Hsteps2 [Hloaded2 Hconfig2]]]].
   exists shape2, c2. split; [eapply spec_steps_transitive; eassumption | ].
   split; [exact Hloaded2 | ]. rewrite rows_final_boundary_app. exact Hconfig2.
@@ -256,12 +256,12 @@ Example computed_split_before_branch : forall firstRows lastRows final,
 Proof.
   intros firstRows lastRows final Hprime Hrun Hfirst Hlast Hpc.
   destruct (valid_run_split _ _ _ _ Hrun) as [between [Hrun1 Hrun2]].
-  destruct (run_refinement computedProgram computedStore 0 _ firstRows (computedMemory 7) between _ _ Hprime
+  destruct (active_run_refinement computedProgram computedStore 0 _ firstRows (computedMemory 7) between _ _ Hprime
     (load_program_loaded _ _) Hrun1 Hfirst (computed_initial_config 7 ltac:(unfold i32Modulus; lia)))
     as [shape1 [c1 [Hsteps1 [Hloaded1 Hconfig1]]]].
-  destruct (run_refinement computedProgram computedStore 0 shape1 lastRows between final _ c1 Hprime Hloaded1 Hrun2
+  destruct (active_run_refinement computedProgram computedStore 0 shape1 lastRows between final _ c1 Hprime Hloaded1 Hrun2
     Hlast Hconfig1) as [shape2 [c2 [Hsteps2 [Hloaded2 Hconfig2]]]].
-  destruct (circuit_config_state _ _ _ _ _ _ _ Hconfig1) as [cursor Hstate1].
+  destruct (circuit_config_state _ _ _ _ _ _ _ Hconfig1) as [cursor [Hshape Hstate1]].
   exists between, c1, shape2, c2.
   split; [rewrite <- (computed_pc_four_shape _ _ _ _ Hstate1 Hpc);
     exact (control_state_circuit _ _ _ _ _ _ _ Logic.eq_refl computed_store_wf computed_program_validated Hstate1) | ].

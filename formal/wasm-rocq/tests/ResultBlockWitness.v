@@ -1,7 +1,7 @@
 (* A real run through result blocks: main(7, 9) takes a br_if out of an inner
    result block, which keeps the result 9 and drops the 7 below it, and leaves the
    outer block through its END with its result. The exported rows meet every
-   premise of run_refinement, and the branch's slide leaves the result to move down. *)
+   premise of active_run_refinement, and the branch's slide leaves the result to move down. *)
 From Stdlib Require Import List ZArith Lia.
 From mathcomp Require Import ssrbool eqtype.
 Require Import R1CS Columns Range MemoryTrace MemoryCatalog TraceRefinement Wasm2 WasmIntegers Locals
@@ -114,7 +114,7 @@ Example result_block_witness_refines : fieldPrime ->
       (rowsFinalBoundary resultStart resultWitness) c.
 Proof.
   intros Hprime.
-  destruct (run_refinement _ _ _ _ _ _ _ _ _ Hprime (load_program_loaded _ _) (validRunb_sound _ _ result_run_checks)
+  destruct (active_run_refinement _ _ _ _ _ _ _ _ _ Hprime (load_program_loaded _ _) (validRunb_sound _ _ result_run_checks)
     result_fragment result_start_config) as [shape [c [Hsteps [_ Hconfig]]]].
   exists shape, c. split; assumption.
 Qed.

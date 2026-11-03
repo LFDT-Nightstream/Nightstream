@@ -425,7 +425,7 @@ Qed.
 (* The bridge: what the audited statement says, in the invariant's terms. *)
 Theorem circuit_config_state : forall program s baseDepth shape memory boundary c,
   CircuitConfig program s baseDepth shape memory boundary c ->
-  exists cursor, ControlState program s baseDepth cursor memory boundary c.
+  exists cursor, shapeOf cursor = shape /\ ControlState program s baseDepth cursor memory boundary c.
 Proof.
   intros program s baseDepth shape memory boundary c [_ [_ [_ [obligations [Hdecode Hobligations]]]]].
   unfold decodeControl in Hdecode.
@@ -436,7 +436,9 @@ Proof.
   destruct (decoded_calls _ _ _ _ _ _ _ _ _ _ _ Hf Hdecode) as [Hresult [stack [Hsites [Hsusp ->]]]].
   subst obligations.
   destruct (decoded_active _ _ _ _ _ _ _ Hactive Hobligations) as [position [Hsite Hstate]].
-  exists (controlCursor stack position). exists f, inner. cbn [activePosition suspendedCalls].
+  exists (controlCursor stack position). split.
+  { unfold shapeOf. cbn [suspendedCalls activePosition]. rewrite Hsites, Hsite. destruct shape; reflexivity. }
+  exists f, inner. cbn [activePosition suspendedCalls].
   split; [rewrite active_function_site, Hsite; exact Hf | ]. split; [exact Hstate | ].
   split; [exact Hsusp | ]. split; [assumption | ].
   split; [rewrite <- Hsites, length_map in *; assumption | reflexivity].

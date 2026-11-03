@@ -118,6 +118,6 @@ Example nested_program_refines : forall rows final,
     CircuitConfig nestedProgram nestedStore 0 shape final (rowsFinalBoundary (mkBoundary 4 8 8 7 0 0 0 0 0 0) rows) c.
 Proof.
   intros rows final Hprime Hrun Hfragment.
-  exact (run_refinement nestedProgram nestedStore 0 _ rows nestedMemory final _ _ Hprime
+  exact (active_run_refinement nestedProgram nestedStore 0 _ rows nestedMemory final _ _ Hprime
     (load_program_loaded _ _) Hrun Hfragment nested_initial_config).
 Qed.

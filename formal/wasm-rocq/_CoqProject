@@ -59,8 +59,17 @@ FrameFacts.v
 ControlBridge.v
 FrameRows.v
 BranchRows.v
+FunctionResults.v
 CallRows.v
+SpecTecTraps.v
 ProgramRefinement.v
+ExecutionSpec.v
+TerminalFacts.v
+TerminalClassification.v
+TrapRows.v
+FinishRows.v
+TerminalRows.v
+ExecutionRefinement.v
 tests/StraightLinePrograms.v
 tests/Calls.v
 tests/Callers.v
@@ -99,3 +108,9 @@ tests/FunctionBrTrace.v
 tests/FunctionBrWitness.v
 tests/DeepBranches.v
 tests/RangeSearch.v
+tests/NopTerminalTrace.v
+tests/TrapTrace.v
+tests/BaseReturnTrace.v
+tests/VoidReturnTrace.v
+tests/TerminalWitness.v
+tests/ReturnWitness.v

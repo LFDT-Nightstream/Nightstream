@@ -1,6 +1,6 @@
 (* A real run with a br out of two blocks: main(7, 9) branches from inside a
    zero-result block to its enclosing result block, which keeps the result 9 and
-   drops the 7 below it. The exported rows meet every premise of run_refinement,
+   drops the 7 below it. The exported rows meet every premise of active_run_refinement,
    and the br's slide leaves the result to move down. *)
 From Stdlib Require Import List ZArith Lia.
 From mathcomp Require Import ssrbool eqtype.
@@ -106,7 +106,7 @@ Example br_witness_refines : fieldPrime ->
       (rowsFinalBoundary brStart brWitness) c.
 Proof.
   intros Hprime.
-  destruct (run_refinement _ _ _ _ _ _ _ _ _ Hprime (load_program_loaded _ _) (validRunb_sound _ _ br_run_checks)
+  destruct (active_run_refinement _ _ _ _ _ _ _ _ _ Hprime (load_program_loaded _ _) (validRunb_sound _ _ br_run_checks)
     br_fragment br_start_config) as [shape [c [Hsteps [_ Hconfig]]]].
   exists shape, c. split; assumption.
 Qed.

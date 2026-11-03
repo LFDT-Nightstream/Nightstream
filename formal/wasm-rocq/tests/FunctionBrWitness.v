@@ -1,6 +1,6 @@
 (* A real run with a br to the function's own label: main(7, 9) calls f(7, 9), whose
    br leaves its block and f, returning 9 and dropping the 7 below it, as a return
-   would. The exported rows meet every premise of run_refinement. *)
+   would. The exported rows meet every premise of active_run_refinement. *)
 From Stdlib Require Import List ZArith Lia.
 From mathcomp Require Import ssrbool eqtype.
 Require Import R1CS Columns Range MemoryTrace MemoryCatalog TraceRefinement Wasm2 WasmIntegers Locals
@@ -116,7 +116,7 @@ Example function_br_witness_refines : fieldPrime ->
       (rowsFinalBoundary branchStart branchWitness) c.
 Proof.
   intros Hprime.
-  destruct (run_refinement _ _ _ _ _ _ _ _ _ Hprime (load_program_loaded _ _) (validRunb_sound _ _ branch_run_checks)
+  destruct (active_run_refinement _ _ _ _ _ _ _ _ _ Hprime (load_program_loaded _ _) (validRunb_sound _ _ branch_run_checks)
     branch_fragment branch_start_config) as [shape [c [Hsteps [_ Hconfig]]]].
   exists shape, c. split; assumption.
 Qed.

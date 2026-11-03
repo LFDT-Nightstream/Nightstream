@@ -1,6 +1,6 @@
 (* A real run with a return from inside a block: main(7) calls f(7), whose return
    drops the operand below its result. The exported rows meet every premise of
-   run_refinement, and the run returns through a slide that moves the result down. *)
+   active_run_refinement, and the run returns through a slide that moves the result down. *)
 From Stdlib Require Import List ZArith Lia.
 From mathcomp Require Import ssrbool eqtype.
 Require Import R1CS Columns Range MemoryTrace MemoryCatalog TraceRefinement Wasm2 WasmIntegers Locals
@@ -115,7 +115,7 @@ Example early_return_witness_refines : fieldPrime ->
       (rowsFinalBoundary returnStart returnWitness) c.
 Proof.
   intros Hprime.
-  destruct (run_refinement _ _ _ _ _ _ _ _ _ Hprime (load_program_loaded _ _) (validRunb_sound _ _ return_run_checks)
+  destruct (active_run_refinement _ _ _ _ _ _ _ _ _ Hprime (load_program_loaded _ _) (validRunb_sound _ _ return_run_checks)
     return_fragment return_start_config) as [shape [c [Hsteps [_ Hconfig]]]].
   exists shape, c. split; assumption.
 Qed.

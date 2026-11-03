@@ -107,7 +107,7 @@ Example deep_program_refines : forall condition rows final,
     CircuitConfig deepProgram deepStore 0 shape final (rowsFinalBoundary (mkBoundary 0 9 9 7 0 0 0 0 0 0) rows) c.
 Proof.
   intros condition rows final Hprime Hcondition Hrun Hfragment.
-  exact (run_refinement deepProgram deepStore 0 _ rows (deepMemory condition) final _ _ Hprime
+  exact (active_run_refinement deepProgram deepStore 0 _ rows (deepMemory condition) final _ _ Hprime
     (load_program_loaded _ _) Hrun Hfragment (deep_initial_config condition Hcondition)).
 Qed.
 

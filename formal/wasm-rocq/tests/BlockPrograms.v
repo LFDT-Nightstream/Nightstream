@@ -216,6 +216,6 @@ Example conditional_program_refines : forall condition rows final,
       (rowsFinalBoundary (mkBoundary 0 9 9 7 0 0 0 0 0 0) rows) c.
 Proof.
   intros condition rows final Hprime Hcondition Hrun Hfragment.
-  exact (run_refinement conditionalProgram conditionalStore 0 _ rows (conditionalMemory condition) final _ _ Hprime
+  exact (active_run_refinement conditionalProgram conditionalStore 0 _ rows (conditionalMemory condition) final _ _ Hprime
     (load_program_loaded _ _) Hrun Hfragment (conditional_initial_config condition Hcondition)).
 Qed.

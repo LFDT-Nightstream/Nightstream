@@ -1,15 +1,14 @@
-(* The circuit's trap accounting on the supported opcodes: none of them can trap.
-   A row's trap causes (the unreachable selector, div/rem traps, indirect-call
-   traps and out-of-bounds memory) are each gated by their own selectors, and a
-   program row starts untrapped, so a supported row ends untrapped. *)
+(* Trap accounting for the supported fragment: UNREACHABLE traps; the other
+   supported instructions cannot. Coverage is checked against the ROM encoder,
+   and each trap cause is constrained by its own selectors. *)
 From Stdlib Require Import List ZArith Lia.
 Require Import R1CS Columns FullRelation Range Selectors CircuitFacts Wasm2 OpcodeCatalog
-  StraightLineSpec CodeLayout Fragment ProgramSpec.
+  StraightLineSpec CodeLayout Fragment ProgramSpec CallInitialization.
 Import ListNotations.
 Open Scope Z_scope.
 
 (* Circuit selectors proved nontrapping below. Coverage of the source fragment
-   is checked against the actual opcode ROM encoder by supported_opcode_nontrapping. *)
+   is checked against the actual opcode ROM encoder by supported_opcode_trap_classification. *)
 Definition nonTrappingSelectors : list Column :=
   [COL_SEL_I32_ADD; COL_SEL_I32_SUB; COL_SEL_LOCAL_GET; COL_SEL_LOCAL_SET; COL_SEL_CALL; COL_SEL_BLOCK;
    COL_SEL_LOOP; COL_SEL_IF; COL_SEL_ELSE; COL_SEL_END; COL_SEL_BR; COL_SEL_BR_IF_EQZ; COL_SEL_BR_TABLE;
@@ -84,13 +83,14 @@ Ltac nontrapping_selector :=
     end
   end.
 
-(* Every supported source instruction's encoded opcode selects a nontrapping row.
-   In particular, a function-label BR may encode RETURN. Adding a constructor to
-   Supported must extend this proof; it cannot silently escape trap coverage. *)
-Lemma supported_opcode_nontrapping : forall callees i program f pc targets opcode,
+(* Classify every supported source instruction's encoded opcode. UNREACHABLE is
+   the trapping case; a function-label BR may encode RETURN. Adding a constructor
+   to Supported must extend this proof; it cannot silently escape trap coverage. *)
+Lemma supported_opcode_trap_classification : forall callees i program f pc targets opcode,
   Supported callees i ->
   instructionAtPC program pc = Some (f, Some (flatInstruction (opInstr i) targets)) ->
   instructionRom program MemoryCatalog.programOpcodeId pc 0 = Some opcode ->
+  (i = UNREACHABLE /\ opcode = CODE_UNREACHABLE) \/
   exists chosen, In chosen nonTrappingSelectors /\ In (chosen, opcode) selectorCodes.
 Proof.
   intros callees i program f pc targets opcode Hsupported Hslot Hcode.
@@ -98,7 +98,7 @@ Proof.
   inversion Hsupported; subst;
     destruct targets as [ | [target | ] [ | next rest]]; cbn in Hcode;
     injection Hcode as <-;
-    nontrapping_selector.
+    first [left; split; reflexivity | right; nontrapping_selector].
 Qed.
 
 (* END and ELSE are synthetic markers, not source instructions. *)
@@ -112,4 +112,45 @@ Proof.
   unfold instructionRom in Hcode. rewrite Hslot in Hcode.
   destruct Hmarker as [-> | ->]; cbn in Hcode; injection Hcode as <-;
     nontrapping_selector.
+Qed.
+
+(* UNREACHABLE is the fragment's sole trapping instruction. Its terminal flags
+   follow from the constraints, rather than being supplied by the decoder. *)
+Lemma full_unreachable_traps : forall (w : Witness),
+  fieldPrime -> FullRelation.satFull w -> w COL_SEL_UNREACHABLE = 1 ->
+  w COL_TRAPPED_AFTER = 1 /\ w COL_ACTIVATION_FINISHED_AFTER = 1.
+Proof.
+  intros w Hprime Hfull Hchosen.
+  assert (Hin : In COL_SEL_UNREACHABLE selectorColumns) by (vm_compute; tauto).
+  pose proof (proj1 Hfull) as Hone.
+  pose proof (full_selected_is_program_row w _ Hprime Hfull Hin Hchosen) as Hprogram.
+  assert (Htb : w COL_TRAPPED_BEFORE = 0).
+  { circuit_row ([(COL_IS_PROGRAM_ROW, 1)], [(COL_TRAPPED_BEFORE, 1)], ([] : SparseRow)) Hrow.
+    expand_row Hrow. rewrite Hprogram in Hrow.
+    pose proof (value_bound w COL_TRAPPED_BEFORE). field_linear Hrow. }
+  assert (Hfb : w COL_ACTIVATION_FINISHED_BEFORE = 0).
+  { circuit_row ([(COL_IS_PROGRAM_ROW, 1)], [(COL_ACTIVATION_FINISHED_BEFORE, 1)], ([] : SparseRow)) Hrow.
+    expand_row Hrow. rewrite Hprogram in Hrow.
+    pose proof (value_bound w COL_ACTIVATION_FINISHED_BEFORE). field_linear Hrow. }
+  selected_circuit_row COL_SEL_UNREACHABLE
+    ([(COL_TRAPPED_AFTER, 1); (COL_TRAPPED_BEFORE, -1); (COL_SEL_UNREACHABLE, -1); (COL_DIV_TRAP, -1);
+      (COL_CALL_INDIRECT_IS_TRAP, -1); (COL_MEM_OOB, -1)], [(COL_ONE, 1)], ([] : SparseRow)) Htrap.
+  circuit_boolean COL_TRAPPED_AFTER Hta. circuit_boolean COL_DIV_TRAP Hdiv.
+  circuit_boolean COL_CALL_INDIRECT_IS_TRAP Hci. circuit_boolean COL_MEM_OOB Hmem.
+  normalize_columns. rewrite Hone, Htb in Htrap.
+  assert (Htrapped : w COL_TRAPPED_AFTER = 1).
+  { normalize_columns. apply Z.mod_divide in Htrap; [ | unfold modulus; lia]. destruct Htrap as [k Htrap]. unfold modulus in *; lia. }
+  split; [exact Htrapped | ].
+  assert (Hturn : w COL_TURN_BOUNDARY = 0).
+  { exact (full_row_kind_exclusive w COL_IS_PROGRAM_ROW COL_TURN_BOUNDARY Hprime Hfull
+      ltac:(cbn; tauto) ltac:(cbn; tauto) ltac:(discriminate) Hprogram). }
+  destruct (full_host_switch_absent w COL_IS_PROGRAM_ROW Hprime Hfull ltac:(cbn; auto 20)
+    ltac:(cbn; discriminate) ltac:(cbn; discriminate) ltac:(cbn; discriminate) Hprogram) as [_ [Hresume _]].
+  pose proof (full_no_activation_clear w Hfull Hturn Hresume) as Hclear.
+  circuit_row ([(COL_ACTIVATION_FINISHED_AFTER, 1); (COL_ACTIVATION_FINISHED_BEFORE, -1); (COL_TRAPPED_AFTER, -1);
+    (COL_TRAPPED_BEFORE, 1); (COL_HOST_CLEAR_ACTIVATION_FINISHED, 1); (COL_HOST_EVENT_EXIT_LATCH, -1)],
+    [(COL_ONE, 1)], ([] : SparseRow)) Hstate.
+  expand_row Hstate. normalize_columns. rewrite Hone, Hfb, Htrapped, Htb, Hclear in Hstate.
+  circuit_boolean COL_HOST_EVENT_EXIT_LATCH Hlatch. circuit_boolean COL_ACTIVATION_FINISHED_AFTER Hfa.
+  normalize_columns. apply Z.mod_divide in Hstate; [ | unfold modulus; lia]. destruct Hstate as [k Hstate]. unfold modulus in *; lia.
 Qed.

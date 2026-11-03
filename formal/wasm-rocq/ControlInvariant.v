@@ -163,3 +163,19 @@ Definition ControlState (program : Program) (s : store) (baseDepth : Z) (cursor 
       (boundaryCallDepth boundary) (suspendedCalls cursor) /\
     0 <= baseDepth /\ boundaryCallDepth boundary = baseDepth + Z.of_nat (length (suspendedCalls cursor)) /\
     c = plugCalls (suspendedCalls cursor) inner.
+
+(* The activation's original function survives calls and returns inside it. *)
+Definition positionFunctionIndex (position : ControlPosition) : nat :=
+  match position with
+  | atCode view => positionFunction (viewPosition view)
+  | entering function _ => function
+  end.
+
+Fixpoint rootFunction (stack : list SuspendedCall) (active : nat) : nat :=
+  match stack with
+  | [] => active
+  | top :: rest => rootFunction rest (positionFunction (viewPosition (callView top)))
+  end.
+
+Definition cursorRoot (cursor : ControlCursor) : nat :=
+  rootFunction (suspendedCalls cursor) (positionFunctionIndex (activePosition cursor)).

@@ -142,6 +142,6 @@ Example block_program_refines : forall rows final,
     CircuitConfig blockProgram blockStore 0 shape final (rowsFinalBoundary (mkBoundary 2 8 8 7 0 0 0 0 0 0) rows) c.
 Proof.
   intros rows final Hprime Hrun Hfragment.
-  exact (run_refinement blockProgram blockStore 0 _ rows blockMemory final _ _ Hprime
+  exact (active_run_refinement blockProgram blockStore 0 _ rows blockMemory final _ _ Hprime
     (load_program_loaded _ _) Hrun Hfragment block_initial_config).
 Qed.

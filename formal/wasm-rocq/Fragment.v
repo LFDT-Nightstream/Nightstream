@@ -34,7 +34,7 @@ Definition sourceHeight (callees : CalleeEnvironment) (i : instr) (height : nat)
   match i with
   | BLOCK bt _ | LOOP bt _ => Some (height + blockResults bt)%nat
   | IFELSE bt _ _ => match height with S below => Some (below + blockResults bt)%nat | O => None end
-  | RETURN | BR _ | BR_TABLE _ _ => None
+  | RETURN | BR _ | BR_TABLE _ _ | UNREACHABLE => None
   | CALL x => match callees (x :> N) with
       | Some f => if Nat.leb (guestParams f) height then Some (height - guestParams f + guestResults f)%nat else None
       | None => None
@@ -120,6 +120,7 @@ Inductive Supported (callees : CalleeEnvironment) : instr -> Prop :=
 (* Loops like blocks: branches to a loop's label keep nothing and run it again. *)
 | supported_loop : forall result body, Forall (Supported callees) body ->
     (result = None \/ result = Some valtype_I32) -> Supported callees (LOOP (_RESULT result) body)
-| supported_nop : Supported callees NOP.
+| supported_nop : Supported callees NOP
+| supported_unreachable : Supported callees UNREACHABLE.
 
 Definition supportedCode (callees : CalleeEnvironment) (code : list instr) : Prop := Forall (Supported callees) code.

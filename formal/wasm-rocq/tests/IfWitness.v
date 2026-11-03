@@ -1,6 +1,6 @@
 (* A real run with three ifs: main(7, 0) takes the else-body on 0, the then-body on
    7, whose ELSE jumps past the else-body, and skips an if with no else-body on 0.
-   The exported rows meet every premise of run_refinement. *)
+   The exported rows meet every premise of active_run_refinement. *)
 From Stdlib Require Import List ZArith Lia.
 From mathcomp Require Import ssrbool eqtype.
 Require Import R1CS Columns Range MemoryTrace MemoryCatalog TraceRefinement Wasm2 WasmIntegers Locals
@@ -125,7 +125,7 @@ Example if_witness_refines : fieldPrime ->
       (rowsFinalBoundary ifStart ifWitness) c.
 Proof.
   intros Hprime.
-  destruct (run_refinement _ _ _ _ _ _ _ _ _ Hprime (load_program_loaded _ _) (validRunb_sound _ _ if_run_checks)
+  destruct (active_run_refinement _ _ _ _ _ _ _ _ _ Hprime (load_program_loaded _ _) (validRunb_sound _ _ if_run_checks)
     if_fragment if_start_config) as [shape [c [Hsteps [_ Hconfig]]]].
   exists shape, c. split; assumption.
 Qed.

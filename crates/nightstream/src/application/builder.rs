@@ -1,7 +1,8 @@
 use std::{fmt, ops::Range, sync::Arc};
 
 use nightstream_fprime::{
-    ApplicationForm, ApplicationRecords, ApplicationRecordsWriter, ApplicationRowHeader, ApplicationTerm, PackageError,
+    ApplicationForm, ApplicationRecords, ApplicationRecordsWriter, ApplicationRowHeader, ApplicationTerm, Linear,
+    NativeBlock, NativeShape, PackageError,
 };
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks;
@@ -20,6 +21,7 @@ pub enum ApplicationError {
     Prepared(&'static str),
     Records(PackageError),
     NoApplication,
+    Block(usize),
 }
 
 impl fmt::Display for ApplicationError {
@@ -39,6 +41,7 @@ impl fmt::Display for ApplicationError {
             Self::Prepared(location) => write!(f, "invalid prepared application: {location}"),
             Self::Records(error) => write!(f, "application records: {error}"),
             Self::NoApplication => write!(f, "a loaded package has no Rust application"),
+            Self::Block(index) => write!(f, "application block {index} is not a Poseidon2 permutation"),
         }
     }
 }
@@ -65,6 +68,7 @@ pub struct ApplicationBuilder {
     generated_start: usize,
     variable_count: usize,
     records: ApplicationRecordsWriter,
+    shape: NativeShape,
 }
 
 impl ApplicationBuilder {
@@ -82,6 +86,7 @@ impl ApplicationBuilder {
             generated_start,
             variable_count: generated_start,
             records: ApplicationRecordsWriter::new()?,
+            shape: NativeShape::default(),
         })
     }
 
@@ -105,6 +110,28 @@ impl ApplicationBuilder {
     /// The local variables so far.
     pub(crate) fn local_count(&self) -> usize {
         self.variable_count - self.generated_start
+    }
+
+    /// Mark `variable` as 0 or 1 in every honest witness. The caller's rows
+    /// must force it to 0 or 1; it gets a bit slot (`NativeShape::bits`).
+    pub(crate) fn bit(&mut self, variable: Variable) {
+        self.shape.bits.push(variable.0);
+    }
+
+    /// Record that the next 1,096 locals are one permutation of `lanes`
+    /// (`poseidon2::permutation`).
+    pub(super) fn begin_block(&mut self, lanes: &[Affine; 16]) {
+        self.shape.blocks.push(NativeBlock {
+            first_local: self.variable_count,
+            lanes: lanes.each_ref().map(|lane| Linear {
+                constant: lane.constant,
+                terms: lane
+                    .terms
+                    .iter()
+                    .map(|&(variable, coefficient)| (variable.0, coefficient))
+                    .collect(),
+            }),
+        });
     }
 
     fn validate(&self, expression: &Affine, causal: bool) -> Result<(), ApplicationError> {
@@ -255,6 +282,7 @@ impl ApplicationBuilder {
             variable_count: self.variable_count,
             records: Arc::new(self.records.finish()?),
             outputs,
+            shape: Arc::new(self.shape),
         })
     }
 }
@@ -272,6 +300,7 @@ pub struct ApplicationCircuit {
     variable_count: usize,
     records: Arc<ApplicationRecords>,
     outputs: [OutputRow; 4],
+    shape: Arc<NativeShape>,
 }
 
 impl ApplicationCircuit {
@@ -292,14 +321,15 @@ impl ApplicationCircuit {
         self.outputs.map(|output| output.row)
     }
 
-    /// The application of `records` with `private_count` witness words and
-    /// its output forms and rows (`prepared_output_forms`,
-    /// `prepared_output_rows`).
+    /// The application of `records` with `private_count` witness words, its
+    /// output forms and rows (`prepared_output_forms`,
+    /// `prepared_output_rows`) and its shape.
     pub(crate) fn from_records(
         records: Arc<ApplicationRecords>,
         private_count: usize,
         forms: [u8; 4],
         rows: [usize; 4],
+        shape: NativeShape,
     ) -> Result<Self, ApplicationError> {
         let generated_start = private_count
             .checked_add(8)
@@ -341,12 +371,17 @@ impl ApplicationCircuit {
             variable_count,
             records,
             outputs,
+            shape: Arc::new(shape),
         })
     }
 
     /// Immutable original terms and recipe syntax, read with fallible visitors.
     pub fn records(&self) -> &Arc<ApplicationRecords> {
         &self.records
+    }
+    /// The permutations that the step packages place as blocks, and the bits.
+    pub(crate) fn shape(&self) -> &NativeShape {
+        &self.shape
     }
     pub fn row_count(&self) -> usize {
         self.records.row_count()

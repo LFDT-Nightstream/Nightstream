@@ -8,7 +8,7 @@ mod poseidon2;
 pub(crate) use expression::Expression;
 
 pub use builder::{ApplicationBuilder, ApplicationCircuit, ApplicationError, ApplicationWitness};
-pub(crate) use poseidon2::permutation;
+pub(crate) use poseidon2::{check_blocks, permutation};
 pub use poseidon2::{poseidon2_hash_chain_step, poseidon2_hash_chain_v1};
 
 use std::{

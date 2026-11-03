@@ -25,6 +25,7 @@ use crate::package::PackageError;
 const STATES_START: usize = PUBLIC_WORDS + 5 + 8;
 const WITNESS_START: usize = STATES_START + 12;
 const BLOCK_LOCALS: usize = 1096;
+const BLOCK_OUTPUTS: usize = 1080;
 const SBOX_COLUMNS: usize = 150;
 const RING_DEGREE: usize = 54;
 const IDENTITY_DOMAIN: &[u8] = b"Nightstream/OptionB/application/v1";
@@ -110,6 +111,26 @@ fn map_piece(piece: &Piece, map: &impl Fn(usize) -> Option<usize>) -> Option<Pie
     })
 }
 
+/// What a native application places natively: its Poseidon2 blocks and its
+/// bit variables, over the application's variables.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct NativeShape {
+    pub blocks: Vec<NativeBlock>,
+    /// Variables that every honest witness sets to 0 or 1 and that a row of
+    /// the application forces to 0 or 1: each gets a bit slot
+    /// (`LowNormSlot.Kind.bit`).
+    pub bits: Vec<usize>,
+}
+
+/// One permutation as a block (`PackagePiece.block`): its 1,096 locals from
+/// variable `first_local` in the order of `Gadgets/Poseidon2/Permutation.lean`,
+/// the last 16 its output, and its input lanes.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct NativeBlock {
+    pub first_local: usize,
+    pub lanes: [Linear; 16],
+}
+
 impl StepPackage {
     /// The column of application variable `variable` under this package's
     /// region.
@@ -147,11 +168,17 @@ impl StepPackage {
         Ok(())
     }
 
-    /// This package with `records` in place of its application. The pieces,
-    /// witness batches and slots outside the region keep their order; a
-    /// dropped piece may read only the shared words and the region, and a kept
-    /// piece or batch may not read the region.
-    fn with_application(&self, records: &Arc<ApplicationRecords>, witness_words: usize) -> Result<Self, PackageError> {
+    /// This package with `records` in place of its application and `shape`'s
+    /// blocks in place of their rows. The pieces, witness batches and slots
+    /// outside the region keep their order; a dropped piece may read only the
+    /// shared words and the region, and a kept piece or batch may not read
+    /// the region. The application's blocks lead the S-box columns.
+    fn with_application(
+        &self,
+        records: &Arc<ApplicationRecords>,
+        witness_words: usize,
+        shape: &NativeShape,
+    ) -> Result<Self, PackageError> {
         let old = self.application;
         if old.pieces > self.pieces.len() || old.local_start < WITNESS_START + old.witness_words {
             return Err(PackageError::Malformed("option-B application region"));
@@ -163,7 +190,7 @@ impl StepPackage {
         let words = witness_words as i128 - old.witness_words as i128;
         let locals = words + records.recipe_count() as i128 - old.locals as i128;
         let fresh = locals - old.fresh as i128;
-        let sbox = fresh - (SBOX_COLUMNS * blocks) as i128;
+        let sbox = fresh + (SBOX_COLUMNS as i128) * (shape.blocks.len() as i128 - blocks as i128);
         let region_locals = old.local_start..old.local_start + old.locals;
         let region_fresh = self.first_fresh..self.first_fresh + old.fresh;
         let region_sbox = self.sbox_start..self.sbox_start + SBOX_COLUMNS * blocks;
@@ -196,7 +223,7 @@ impl StepPackage {
                 witness_words,
                 local_start: moved(old.local_start, words).ok_or(PackageError::Malformed("option-B columns"))?,
                 locals: records.recipe_count(),
-                pieces: 1,
+                pieces: 1 + shape.blocks.len(),
                 fresh: 0,
             },
             native: Some(Arc::clone(records)),
@@ -205,7 +232,7 @@ impl StepPackage {
             slots: Vec::new(),
             ..self.clone()
         };
-        let mut pieces = vec![Piece::Rows(package.application_rows(records)?)];
+        let mut pieces = package.native_pieces(records, shape)?;
         for piece in &self.pieces[old.pieces..] {
             pieces.push(map_piece(piece, &map).ok_or(PackageError::Malformed("option-B piece reads the application"))?);
         }
@@ -220,13 +247,80 @@ impl StepPackage {
                     .ok_or(PackageError::Malformed("option-B witness batch reads the application"))
             })
             .collect::<Result<_, _>>()?;
-        package.slots = self.mapped_slots(&map, &package)?;
+        package.slots = self.mapped_slots(&map, &package, shape)?;
         Ok(package)
     }
 
-    /// The application's rows over the step's columns.
-    fn application_rows(&self, records: &ApplicationRecords) -> Result<Vec<Row>, PackageError> {
+    /// The application's pieces: one piece of every row outside the blocks,
+    /// then one block per permutation of `shape`. The blocks take ascending,
+    /// disjoint locals; a block drops the recipe rows of its locals; no kept
+    /// row and no lane reads a dead local (`Frame.Framed`), and a lane reads
+    /// only variables before its block.
+    fn native_pieces(&self, records: &ApplicationRecords, shape: &NativeShape) -> Result<Vec<Piece>, PackageError> {
+        let first = 8 + self.application.witness_words;
+        let end = first + records.recipe_count();
+        let mut dead = vec![false; end];
+        let mut dropped = vec![false; records.row_count()];
+        let mut free = first;
+        let mut blocks = Vec::with_capacity(shape.blocks.len());
+        for block in &shape.blocks {
+            let start = block.first_local;
+            if start < free || end < BLOCK_LOCALS || start > end - BLOCK_LOCALS {
+                return Err(PackageError::Malformed("option-B native block outside the free locals"));
+            }
+            let lanes = block
+                .lanes
+                .iter()
+                .map(|lane| {
+                    if lane
+                        .terms
+                        .iter()
+                        .any(|&(variable, _)| variable >= start || dead[variable])
+                    {
+                        return Err(PackageError::Malformed("option-B native lane reads past its inputs"));
+                    }
+                    self.columns_of(lane)
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            for recipe in start - first..start - first + BLOCK_LOCALS {
+                let row = dropped
+                    .get_mut(records.recipe_row(recipe)?)
+                    .ok_or(PackageError::Malformed("option-B native block row"))?;
+                if std::mem::replace(row, true) {
+                    return Err(PackageError::Malformed("option-B native block row in two blocks"));
+                }
+            }
+            dead[start..start + BLOCK_OUTPUTS].fill(true);
+            blocks.push(Piece::Block {
+                start: self.variable_column(start)?,
+                lanes,
+            });
+            free = start + BLOCK_LOCALS;
+        }
+        let rows = self.application_rows(records, &dropped, &dead)?;
+        Ok(std::iter::once(Piece::Rows(rows)).chain(blocks).collect())
+    }
+
+    fn columns_of(&self, linear: &Linear) -> Result<Linear, PackageError> {
+        Ok(Linear {
+            constant: linear.constant,
+            terms: linear
+                .terms
+                .iter()
+                .map(|&(variable, coefficient)| Ok((self.variable_column(variable)?, coefficient)))
+                .collect::<Result<_, PackageError>>()?,
+        })
+    }
+
+    /// The application's rows outside the blocks over the step's columns.
+    fn application_rows(
+        &self,
+        records: &ApplicationRecords,
+        dropped: &[bool],
+        dead: &[bool],
+    ) -> Result<Vec<Row>, PackageError> {
         (0..records.row_count())
+            .filter(|&row| !dropped[row])
             .map(|row| {
                 let header = records.row_header(row)?;
                 let mut sides = header.constants.map(|constant| Linear {
@@ -234,6 +328,9 @@ impl StepPackage {
                     terms: Vec::new(),
                 });
                 let _: ControlFlow<()> = records.visit_terms(row, |term| {
+                    if dead.get(term.variable) == Some(&true) {
+                        return Err(PackageError::Malformed("option-B application row reads a dead local"));
+                    }
                     sides[term.form.index()].terms.push((
                         self.variable_column(term.variable)?,
                         Goldilocks::from_u64(term.coefficient),
@@ -246,13 +343,17 @@ impl StepPackage {
             .collect()
     }
 
-    /// The slot runs of `next`: every kept column keeps its kind, and the new
-    /// witness words and locals are field elements.
+    /// The slot runs of `next`: every kept column keeps its kind; the new
+    /// witness words, live locals and S-box columns are field elements,
+    /// except `shape`'s bits; the blocks' dead locals get no slot.
     fn mapped_slots(
         &self,
         map: &impl Fn(usize) -> Option<usize>,
         next: &Self,
+        shape: &NativeShape,
     ) -> Result<Vec<(usize, usize, u8)>, PackageError> {
+        const BIT: u8 = 0;
+        const FIELD: u8 = 2;
         const NO_SLOT: u8 = 3;
         let end = next.sbox_start + SBOX_COLUMNS * next.block_count();
         let mut codes = vec![NO_SLOT; end];
@@ -266,10 +367,23 @@ impl StepPackage {
             }
         }
         let region = next.application;
+        let sbox = next.sbox_start..next.sbox_start + SBOX_COLUMNS * shape.blocks.len();
         for column in (WITNESS_START..WITNESS_START + region.witness_words)
             .chain(region.local_start..region.local_start + region.locals)
+            .chain(sbox)
         {
-            codes[column] = 2;
+            codes[column] = FIELD;
+        }
+        for block in next.blocks().take(shape.blocks.len()) {
+            codes[block.start()..block.outputs()].fill(NO_SLOT);
+        }
+        for &bit in &shape.bits {
+            let witness_word = (4..4 + region.witness_words).contains(&bit);
+            let column = next.variable_column(bit)?;
+            if !(witness_word || bit >= 8 + region.witness_words) || codes[column] == NO_SLOT {
+                return Err(PackageError::Malformed("option-B native bit outside the live words"));
+            }
+            codes[column] = BIT;
         }
         let mut runs: Vec<(usize, usize, u8)> = Vec::new();
         for (column, &kind) in codes.iter().enumerate().skip(self.public_columns) {
@@ -289,18 +403,20 @@ impl StepPackage {
     /// the step's shared words.
     pub fn with_witness_words(&self, witness_words: usize) -> Result<Self, PackageError> {
         let empty = Arc::new(crate::application_records::ApplicationRecordsWriter::new()?.finish()?);
-        self.with_application(&empty, witness_words)
+        self.with_application(&empty, witness_words, &NativeShape::default())
     }
 }
 
 impl OptionBPackages {
     /// Both packages with a native application in place of Lean's. The
-    /// identity binds the packages' identity, the witness word count and the
-    /// application's rows and recipe rows.
+    /// identity binds the packages' identity, the witness word count, the
+    /// application's rows and recipe rows, then the shape: each block's first
+    /// local and lanes, then the bits.
     pub fn with_application(
         &self,
         records: Arc<ApplicationRecords>,
         witness_words: usize,
+        shape: &NativeShape,
     ) -> Result<Self, PackageError> {
         let mut input = poseidon2::Poseidon2Hasher::default();
         let mut update = |word: u64| input.update(&[Goldilocks::from_u64(word)]);
@@ -326,9 +442,27 @@ impl OptionBPackages {
         for recipe in 0..records.recipe_count() {
             update(records.recipe_row(recipe)? as u64);
         }
+        update(shape.blocks.len() as u64);
+        for block in &shape.blocks {
+            update(block.first_local as u64);
+            for lane in &block.lanes {
+                update(lane.constant.as_canonical_u64());
+                update(lane.terms.len() as u64);
+                for &(variable, coefficient) in &lane.terms {
+                    update(variable as u64);
+                    update(coefficient.as_canonical_u64());
+                }
+            }
+        }
+        update(shape.bits.len() as u64);
+        shape.bits.iter().for_each(|&bit| update(bit as u64));
         Ok(Self {
-            light: self.light.with_application(&records, witness_words)?,
-            refresh: self.refresh.with_application(&records, witness_words)?,
+            light: self
+                .light
+                .with_application(&records, witness_words, shape)?,
+            refresh: self
+                .refresh
+                .with_application(&records, witness_words, shape)?,
             identity: input.finalize().map(|word| word.as_canonical_u64()),
         })
     }

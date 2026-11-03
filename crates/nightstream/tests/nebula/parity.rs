@@ -89,6 +89,61 @@ fn second_package_rows_match_lean() {
     assert_same_rows(Package::N1, include_bytes!("../fixtures/nebula-memory-n1-digest.json"));
 }
 
+/// The slot coordinates of each kind (`Kind::width`) of `package`'s columns.
+fn coordinates(package: &nightstream_fprime::StepPackage) -> BTreeMap<String, usize> {
+    let layout = package.layout().unwrap();
+    let mut counts = BTreeMap::new();
+    for column in 270..package.sbox_start() + 150 * package.block_count() {
+        if let Some((_, kind)) = layout.slot(column) {
+            *counts.entry(format!("{kind:?}")).or_insert(0) += kind.width();
+        }
+    }
+    counts
+}
+
+/// The machine's Rust-built memory circuit in place of the fixture's
+/// application gives each Lean memory package's step relation: the same
+/// blocks and plan rows, and the same slots except that each bit word is a
+/// bit slot (1 coordinate) where Lean's witness word is a field slot (41).
+fn assert_native_packages_match_lean(package: Package, stem: &str) {
+    let application = package.application().unwrap();
+    let bits: BTreeSet<usize> = application.shape().bits.iter().copied().collect();
+    assert!(!bits.is_empty());
+    let load = |stem: &str, identity| {
+        let bytes = option_b_packages(stem);
+        nightstream_fprime::load_option_b_packages(&bytes[0], &bytes[1], identity).unwrap()
+    };
+    let native = load("", nightstream_fprime::OPTION_B_PACKAGES_IDENTITY)
+        .with_application(
+            application.records().clone(),
+            application.private_input_count(),
+            application.shape(),
+        )
+        .unwrap();
+    let lean = load(stem, package.option_b_identity());
+    for (native, lean) in [(native.light(), lean.light()), (native.refresh(), lean.refresh())] {
+        assert_eq!(native.block_count(), lean.block_count());
+        assert_eq!(
+            native.plan_rows().unwrap().row_count(),
+            lean.plan_rows().unwrap().row_count()
+        );
+        let mut expected = coordinates(lean);
+        *expected.get_mut("Field").unwrap() -= 41 * bits.len();
+        *expected.get_mut("Bit").unwrap() += bits.len();
+        assert_eq!(coordinates(native), expected);
+    }
+}
+
+#[test]
+fn first_package_native_packages_match_lean() {
+    assert_native_packages_match_lean(Package::V1, "nebula-v1-");
+}
+
+#[test]
+fn second_package_native_packages_match_lean() {
+    assert_native_packages_match_lean(Package::N1, "nebula-n1-");
+}
+
 /// The Rust circuit's witness program completes every honest invocation of a
 /// native run of `program`, and its output is the next Stage 1 state.
 fn assert_honest_invocations_execute(program: &Program, segments: &[&[Step]]) {

@@ -12,6 +12,7 @@ pub mod layout;
 mod witness;
 pub mod words;
 
+pub use application::{NativeBlock, NativeShape};
 pub use expand::PlanRows;
 
 use std::sync::Arc;
@@ -47,10 +48,10 @@ pub const OPTION_B_PACKAGES_IDENTITY: [u64; 4] = [
 ];
 
 /// A lane or a row side as `Pieces.linear?` reads it: a constant and terms.
-#[derive(Clone, Debug, Default)]
-pub(crate) struct Linear {
-    pub(crate) constant: Goldilocks,
-    pub(crate) terms: Vec<(usize, Goldilocks)>,
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Linear {
+    pub constant: Goldilocks,
+    pub terms: Vec<(usize, Goldilocks)>,
 }
 
 impl Linear {

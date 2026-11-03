@@ -26,7 +26,11 @@ fn logical_width(circuit: &ApplicationCircuit) -> Result<usize, crate::Error> {
         let bytes = crate::nebula::test_packages::option_b_packages("");
         load_option_b_packages(&bytes[0], &bytes[1], OPTION_B_PACKAGES_IDENTITY).unwrap()
     });
-    let packages = packages.with_application(circuit.records().clone(), circuit.private_input_count())?;
+    let packages = packages.with_application(
+        circuit.records().clone(),
+        circuit.private_input_count(),
+        circuit.shape(),
+    )?;
     Ok(packages.refresh().layout()?.width())
 }
 
@@ -207,4 +211,78 @@ fn size_parts_sum_to_the_circuit_counts() {
     names.sort_unstable();
     names.dedup();
     assert_eq!(names.len(), parts.len());
+}
+
+/// The committed size of the step packages with `circuit` in place of the
+/// fixture's application: per package, the logical width, the slot
+/// coordinates of each kind, the plan rows and the blocks.
+fn print_package_size(name: &str, packages: &OptionBPackages) {
+    for (kind, package) in [("light", packages.light()), ("refresh", packages.refresh())] {
+        let layout = package.layout().unwrap();
+        let rows = package.plan_rows().unwrap();
+        eprintln!(
+            "{name} {kind} logical={} plan_rows={} blocks={}",
+            layout.width(),
+            rows.row_count(),
+            package.block_count()
+        );
+    }
+}
+
+/// The step cost of the first memory package's geometry and machine through
+/// `Circuit::compile`: the committed size of both step packages, next to
+/// Lean's own `nebula-v1` packages, and the CPU time of three honest steps.
+#[test]
+#[ignore = "Timing run; run separately under the 300-second cap."]
+fn native_memory_step_cost() {
+    use crate::nebula::{Circuit, Context, Machine, MachineState, Package, Run, Step};
+    let geometry = crate::nebula::Package::V1.geometry();
+    let circuit = memory_circuit(&geometry, &Machine).unwrap();
+    eprintln!(
+        "native application witness={} local={} rows={}",
+        circuit.private_input_count(),
+        circuit.generated_range().len(),
+        circuit.row_count()
+    );
+    let bytes = crate::nebula::test_packages::option_b_packages("");
+    let fixture = load_option_b_packages(&bytes[0], &bytes[1], OPTION_B_PACKAGES_IDENTITY).unwrap();
+    print_package_size(
+        "native",
+        &fixture
+            .with_application(
+                circuit.records().clone(),
+                circuit.private_input_count(),
+                circuit.shape(),
+            )
+            .unwrap(),
+    );
+    let lean = crate::nebula::test_packages::option_b_packages("nebula-v1-");
+    let computed = match load_option_b_packages(&lean[0], &lean[1], [0; 4]) {
+        Err(nightstream_fprime::PackageError::IdentityMismatch { computed, .. }) => computed,
+        other => panic!("{:?}", other.map(|packages| packages.identity())),
+    };
+    print_package_size("lean", &load_option_b_packages(&lean[0], &lean[1], computed).unwrap());
+
+    let references = crate::nebula::test_packages::references(&bytes);
+    let started = std::time::Instant::now();
+    let circuit = Circuit::compile(references, geometry, Machine).unwrap();
+    let prover = circuit.prover(crate::Engine::Optimized, 114).unwrap();
+    eprintln!("setup elapsed={:?}", started.elapsed());
+    let program = Package::V1.program();
+    let mut run = Run::new(Context::new(Machine, &program), MachineState::default());
+    let z0 = run.initial_state();
+    let mut invocations = run.segment(&[Step::Execute, Step::Execute]).unwrap();
+    invocations.extend(run.segment(&[Step::Idle, Step::Idle]).unwrap());
+    let mut proof: Option<crate::Proof> = None;
+    for (step, invocation) in invocations.iter().take(3).enumerate() {
+        let proving = std::time::Instant::now();
+        proof = Some(
+            match &proof {
+                None => prover.prove_with_output(z0, &invocation.words, invocation.output),
+                Some(proof) => prover.extend_with_output(proof, &invocation.words, invocation.output),
+            }
+            .unwrap(),
+        );
+        eprintln!("native step={step} prove={:?}", proving.elapsed());
+    }
 }

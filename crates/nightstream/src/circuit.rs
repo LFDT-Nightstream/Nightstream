@@ -11,9 +11,10 @@ use std::sync::Arc;
 
 use neo_math::F;
 use nightstream_fprime::{
-    load_option_b_finish, load_option_b_packages, OptionBPackages, StepPackage, OPTION_B_FINISH_IDENTITY,
-    OPTION_B_PACKAGES_IDENTITY,
+    load_option_b_finish, load_option_b_packages, Linear, NativeBlock, NativeShape, OptionBPackages, StepPackage,
+    OPTION_B_FINISH_IDENTITY, OPTION_B_PACKAGES_IDENTITY,
 };
+use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 use crate::application::{ApplicationCircuit, ApplicationError};
 use crate::engine::{Engine, EngineError};
@@ -84,6 +85,58 @@ fn read_word(input: &mut impl Read) -> Result<usize, Error> {
     usize::try_from(u64::from_le_bytes(bytes)).map_err(|_| Error::Circuit("saved word exceeds usize"))
 }
 
+fn read_field(input: &mut impl Read) -> Result<F, Error> {
+    let mut bytes = [0; 8];
+    input.read_exact(&mut bytes)?;
+    let word = u64::from_le_bytes(bytes);
+    if word >= F::ORDER_U64 {
+        return Err(Error::Circuit("saved field word is not canonical"));
+    }
+    Ok(F::from_u64(word))
+}
+
+/// The shape after the records: the blocks, each its first local and its
+/// lanes (constant, term count, terms), then the bits.
+fn write_shape(output: &mut impl Write, shape: &NativeShape) -> Result<(), Error> {
+    let mut word = |value: u64| output.write_all(&value.to_le_bytes());
+    word(shape.blocks.len() as u64)?;
+    for block in &shape.blocks {
+        word(block.first_local as u64)?;
+        for lane in &block.lanes {
+            word(lane.constant.as_canonical_u64())?;
+            word(lane.terms.len() as u64)?;
+            for &(variable, coefficient) in &lane.terms {
+                word(variable as u64)?;
+                word(coefficient.as_canonical_u64())?;
+            }
+        }
+    }
+    word(shape.bits.len() as u64)?;
+    for &bit in &shape.bits {
+        word(bit as u64)?;
+    }
+    Ok(())
+}
+
+fn read_shape(input: &mut impl Read) -> Result<NativeShape, Error> {
+    let mut shape = NativeShape::default();
+    for _ in 0..read_word(input)? {
+        let first_local = read_word(input)?;
+        let mut lanes: [Linear; 16] = Default::default();
+        for lane in &mut lanes {
+            lane.constant = read_field(input)?;
+            for _ in 0..read_word(input)? {
+                lane.terms.push((read_word(input)?, read_field(input)?));
+            }
+        }
+        shape.blocks.push(NativeBlock { first_local, lanes });
+    }
+    for _ in 0..read_word(input)? {
+        shape.bits.push(read_word(input)?);
+    }
+    Ok(shape)
+}
+
 fn cpu_only(engine: Engine) -> Result<(), Error> {
     if engine != Engine::Optimized {
         return Err(EngineError::Unavailable {
@@ -118,11 +171,12 @@ pub struct Circuit {
 
 impl Circuit {
     /// Check the packages' pinned identities, then put `application` in place
-    /// of Lean's application.
+    /// of Lean's application, each permutation as a block.
     pub fn compile(references: References<'_>, application: ApplicationCircuit) -> Result<Self, Error> {
+        crate::application::check_blocks(&application)?;
         let witness_words = application.private_input_count();
         let packages = load_option_b_packages(references.light, references.refresh, OPTION_B_PACKAGES_IDENTITY)?
-            .with_application(application.records().clone(), witness_words)?;
+            .with_application(application.records().clone(), witness_words, application.shape())?;
         let finish =
             load_option_b_finish(references.finish, OPTION_B_FINISH_IDENTITY)?.with_witness_words(witness_words)?;
         Ok(Self {
@@ -198,6 +252,7 @@ impl Circuit {
         output.write_all(&(records.row_count() as u64).to_le_bytes())?;
         output.write_all(&(records.recipe_count() as u64).to_le_bytes())?;
         records.write_to(&mut output)?;
+        write_shape(&mut output, application.shape())?;
         output.flush()?;
         Ok(())
     }
@@ -222,7 +277,8 @@ impl Circuit {
         }
         let (row_count, recipe_count) = (read_word(&mut input)?, read_word(&mut input)?);
         let records = nightstream_fprime::ApplicationRecords::read_from(&mut input, row_count, recipe_count)?;
-        let application = ApplicationCircuit::from_records(Arc::new(records), private_count, forms, rows)?;
+        let shape = read_shape(&mut input)?;
+        let application = ApplicationCircuit::from_records(Arc::new(records), private_count, forms, rows, shape)?;
         let circuit = Self::compile(references, application)?;
         Ok(if memory { circuit.into_memory() } else { circuit })
     }

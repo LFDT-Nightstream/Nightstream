@@ -291,31 +291,21 @@ impl<'a> Sym<'a> {
         ]
     }
 
-    fn bit_rows(&self) -> Vec<Expr> {
+    /// The words that the bit rows force to 0 or 1, in row order.
+    pub(super) fn bit_words(&self) -> Vec<Expr> {
         let geometry = self.geometry;
-        let mut rows: Vec<Expr> = (0..geometry.b_ops)
-            .flat_map(|j| self.op_lane(j))
-            .map(bit_row)
-            .collect();
-        rows.extend(
-            (0..geometry.b_ops)
-                .flat_map(|j| self.diff_bits(j))
-                .map(bit_row),
-        );
-        rows.extend(
-            (0..geometry.b_scan)
-                .flat_map(|j| self.scan_lane(self.initial(j)))
-                .map(bit_row),
-        );
-        rows.extend(
-            (0..geometry.b_scan)
-                .flat_map(|j| self.scan_lane(self.final_(j)))
-                .map(bit_row),
-        );
-        rows.extend((0..geometry.w_ts).map(|k| bit_row(self.word(self.layout.ts_bits(k)))));
-        rows.extend((0..geometry.seg_width()).map(|k| bit_row(self.word(self.layout.seg_bits(k)))));
-        rows.extend([bit_row(self.is_open()), bit_row(self.is_close())]);
-        rows
+        let mut words: Vec<Expr> = (0..geometry.b_ops).flat_map(|j| self.op_lane(j)).collect();
+        words.extend((0..geometry.b_ops).flat_map(|j| self.diff_bits(j)));
+        words.extend((0..geometry.b_scan).flat_map(|j| self.scan_lane(self.initial(j))));
+        words.extend((0..geometry.b_scan).flat_map(|j| self.scan_lane(self.final_(j))));
+        words.extend((0..geometry.w_ts).map(|k| self.word(self.layout.ts_bits(k))));
+        words.extend((0..geometry.seg_width()).map(|k| self.word(self.layout.seg_bits(k))));
+        words.extend([self.is_open(), self.is_close()]);
+        words
+    }
+
+    fn bit_rows(&self) -> Vec<Expr> {
+        self.bit_words().into_iter().map(bit_row).collect()
     }
 
     fn arm_rows(&self) -> Vec<Expr> {

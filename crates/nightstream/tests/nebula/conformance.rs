@@ -6,7 +6,7 @@
 //! check. The names come from Lean (`tests/fixtures/nebula-memory-*-rows.json`)
 //! and count from the application's first row. The Rust-built memory relation
 //! has Lean's rows (`tests/nebula/parity.rs`), and option B puts them first in
-//! each step relation.
+//! each step relation, without the rows of its Poseidon2 blocks.
 
 use std::ops::Range;
 
@@ -41,6 +41,8 @@ struct Harness {
     prover: Prover,
     verifier: Verifier,
     checks: Vec<(String, Range<usize>)>,
+    /// The application row of each of the step relation's first rows.
+    kept: Vec<usize>,
 }
 
 impl Harness {
@@ -48,14 +50,23 @@ impl Harness {
         let packages = option_b_packages("");
         let circuit = Circuit::compile(references(&packages), fixture.package.geometry(), Machine).unwrap();
         let named: Vec<(String, usize, usize)> = serde_json::from_slice(fixture.rows).unwrap();
+        let application = circuit.circuit.application().unwrap();
         assert_eq!(
             named.last().map(|check| check.2),
-            circuit
-                .circuit
-                .application()
-                .map(|application| application.row_count()),
+            Some(application.row_count()),
             "names cover the rows"
         );
+        let records = application.records();
+        let first = application.generated_range().start;
+        let mut blocked = vec![false; records.row_count()];
+        for block in &application.shape().blocks {
+            for local in block.first_local..block.first_local + 1096 {
+                blocked[records.recipe_row(local - first).unwrap()] = true;
+            }
+        }
+        let kept = (0..records.row_count())
+            .filter(|&row| !blocked[row])
+            .collect();
         Self {
             context: Context::new(Machine, &fixture.package.program()),
             prover: circuit.prover(Engine::Optimized, 114).unwrap(),
@@ -67,6 +78,7 @@ impl Harness {
                 .into_iter()
                 .map(|(name, first, end)| (name, first..end))
                 .collect(),
+            kept,
         }
     }
 
@@ -95,11 +107,12 @@ impl Harness {
         CHECK_ROWS.set(false);
         let bad = proved.unwrap();
         let row = FAILED_ROW.take().expect("the faulty witness fails a row");
-        let named = self
-            .checks
-            .iter()
-            .find(|(_, rows)| rows.contains(&row))
-            .map(|(name, _)| name.as_str());
+        let named = self.kept.get(row).and_then(|row| {
+            self.checks
+                .iter()
+                .find(|(_, rows)| rows.contains(row))
+                .map(|(name, _)| name.as_str())
+        });
         assert_eq!(named, Some(check), "first failing row {row}");
         eprintln!("rejected at row {row} ({check})");
         assert!(

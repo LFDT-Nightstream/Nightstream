@@ -6,7 +6,9 @@
 //! The caller selects the packages and the application; the verifier derives
 //! everything else from them. Nothing a proof carries is authority.
 
+use std::io::{Read, Write};
 use std::path::Path;
+use std::sync::Arc;
 
 use neo_math::F;
 use nightstream_fprime::{
@@ -15,8 +17,28 @@ use nightstream_fprime::{
 };
 
 use crate::application::ApplicationCircuit;
+use crate::engine::{Engine, EngineError};
 use crate::lifecycle::option_b::{self as lifecycle, Finish};
 use crate::{Error, State};
+
+const MAGIC: &[u8; 8] = b"NSOPTB\0\x01";
+
+fn read_word(input: &mut impl Read) -> Result<usize, Error> {
+    let mut bytes = [0; 8];
+    input.read_exact(&mut bytes)?;
+    usize::try_from(u64::from_le_bytes(bytes)).map_err(|_| Error::Circuit("saved word exceeds usize"))
+}
+
+fn cpu_only(engine: Engine) -> Result<(), Error> {
+    if engine != Engine::Optimized {
+        return Err(EngineError::Unavailable {
+            engine,
+            reason: "option B proves and verifies on the CPU path",
+        }
+        .into());
+    }
+    Ok(())
+}
 
 /// The three Lean-emitted packages: the light and refresh step circuits and
 /// the finish circuit (`formal/nightstream-fprime/artifacts`).
@@ -55,8 +77,56 @@ impl Circuit {
         self.packages.identity()
     }
 
+    /// Save the application for a prover in another process; the packages
+    /// stay the caller's (`load`). The destination must not exist.
+    pub fn write(&self, path: impl AsRef<Path>) -> Result<(), Error> {
+        let mut output = std::io::BufWriter::new(
+            std::fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(path)?,
+        );
+        output.write_all(MAGIC)?;
+        let application = &self.application;
+        output.write_all(&(application.private_input_count() as u64).to_le_bytes())?;
+        output.write_all(&application.prepared_output_forms()?)?;
+        for row in application.prepared_output_rows() {
+            output.write_all(&(row as u64).to_le_bytes())?;
+        }
+        let records = application.records();
+        output.write_all(&(records.row_count() as u64).to_le_bytes())?;
+        output.write_all(&(records.recipe_count() as u64).to_le_bytes())?;
+        records.write_to(&mut output)?;
+        output.flush()?;
+        Ok(())
+    }
+
+    /// Read a saved application and compile it against the caller's
+    /// packages again; their pinned identities are checked again.
+    pub fn load(path: impl AsRef<Path>, references: References<'_>) -> Result<Self, Error> {
+        let mut input = std::io::BufReader::new(std::fs::File::open(path)?);
+        let mut magic = [0; 8];
+        input.read_exact(&mut magic)?;
+        if &magic != MAGIC {
+            return Err(Error::Circuit("not a saved option-B application"));
+        }
+        let private_count = read_word(&mut input)?;
+        let mut forms = [0; 4];
+        input.read_exact(&mut forms)?;
+        let mut rows = [0; 4];
+        for row in &mut rows {
+            *row = read_word(&mut input)?;
+        }
+        let (row_count, recipe_count) = (read_word(&mut input)?, read_word(&mut input)?);
+        let records = nightstream_fprime::ApplicationRecords::read_from(&mut input, row_count, recipe_count)?;
+        let application = ApplicationCircuit::from_records(Arc::new(records), private_count, forms, rows)?;
+        Self::compile(references, application)
+    }
+
     /// Require the profile to meet the caller's positive statistical minimum.
-    pub fn prover(&self, minimum_security_bits: u32) -> Result<Prover, Error> {
+    /// Option B proves and verifies on the CPU path (`Engine::Optimized`).
+    pub fn prover(&self, engine: Engine, minimum_security_bits: u32) -> Result<Prover, Error> {
+        cpu_only(engine)?;
         Ok(Prover {
             lifecycle: lifecycle::OptionB::new(self.packages.clone(), minimum_security_bits)?,
             finish: Finish::new(self.finish.clone())?,
@@ -66,7 +136,8 @@ impl Circuit {
 
     /// A verifier of this circuit; the caller selects it independently of any
     /// proof.
-    pub fn verifier(&self, minimum_security_bits: u32) -> Result<Verifier, Error> {
+    pub fn verifier(&self, engine: Engine, minimum_security_bits: u32) -> Result<Verifier, Error> {
+        cpu_only(engine)?;
         Ok(Verifier {
             lifecycle: lifecycle::OptionB::new(self.packages.clone(), minimum_security_bits)?,
             finish: Finish::new(self.finish.clone())?,

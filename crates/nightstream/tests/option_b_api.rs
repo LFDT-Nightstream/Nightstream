@@ -7,7 +7,7 @@ use std::path::PathBuf;
 
 use nightstream::application::{poseidon2_hash_chain_step, poseidon2_hash_chain_v1};
 use nightstream::option_b::{Circuit, References};
-use nightstream::{PrimeCharacteristicRing, State};
+use nightstream::{Engine, PrimeCharacteristicRing, State};
 use p3_goldilocks::Goldilocks as F;
 
 fn artifact(name: &str) -> Vec<u8> {
@@ -19,21 +19,23 @@ fn artifact(name: &str) -> Vec<u8> {
     .unwrap_or_else(|error| panic!("read {name}: {error}"))
 }
 
-fn circuit() -> Circuit {
+fn with_references<T>(use_them: impl FnOnce(References<'_>) -> T) -> T {
     let (light, refresh, finish) = (
         artifact("nightstream-fprime-option-b-light-v1.json"),
         artifact("nightstream-fprime-option-b-refresh-v1.json"),
         artifact("nightstream-fprime-option-b-finish-v1.json"),
     );
-    Circuit::compile(
-        References {
-            light: &light,
-            refresh: &refresh,
-            finish: &finish,
-        },
-        poseidon2_hash_chain_v1().expect("hash chain"),
-    )
-    .expect("option-B circuit")
+    use_them(References {
+        light: &light,
+        refresh: &refresh,
+        finish: &finish,
+    })
+}
+
+fn circuit() -> Circuit {
+    with_references(|references| {
+        Circuit::compile(references, poseidon2_hash_chain_v1().expect("hash chain")).expect("option-B circuit")
+    })
 }
 
 fn words(values: [u64; 4]) -> [F; 4] {
@@ -43,9 +45,18 @@ fn words(values: [u64; 4]) -> [F; 4] {
 /// Three steps, each verified; a proof does not verify for another state.
 #[test]
 fn hash_chain_proves_and_verifies() {
-    let circuit = circuit();
-    let prover = circuit.prover(114).expect("prover");
-    let verifier = circuit.verifier(114).expect("verifier");
+    let compiled = circuit();
+    let path = std::env::temp_dir().join(format!("option-b-circuit-{}", std::process::id()));
+    compiled.write(&path).expect("saved application");
+    let circuit = with_references(|references| Circuit::load(&path, references)).expect("loaded circuit");
+    fs::remove_file(&path).expect("remove the saved application");
+    assert_eq!(circuit.identity(), compiled.identity());
+    let prover = circuit.prover(Engine::Optimized, 114).expect("prover");
+    let verifier = compiled.verifier(Engine::Optimized, 114).expect("verifier");
+    assert!(
+        circuit.prover(Engine::Metal, 114).is_err(),
+        "option B proves on the CPU path"
+    );
     let initial = words([1, 2, 3, 4]);
     let message = words([5, 6, 7, 8]);
     let mut proof = prover.prove(initial, &message).expect("first step");
@@ -104,7 +115,7 @@ fn hash_chain_proves_and_verifies() {
 #[test]
 fn hash_chain_final_proof_verifies() {
     let circuit = circuit();
-    let prover = circuit.prover(114).expect("prover");
+    let prover = circuit.prover(Engine::Optimized, 114).expect("prover");
     let initial = words([1, 2, 3, 4]);
     let message = words([5, 6, 7, 8]);
     let proof = prover
@@ -117,7 +128,7 @@ fn hash_chain_final_proof_verifies() {
         prover.finish(&proof, &setup).expect("final proof")
     };
     fs::remove_dir_all(&dir).expect("remove the setup");
-    let verifier = circuit.verifier(114).expect("verifier");
+    let verifier = circuit.verifier(Engine::Optimized, 114).expect("verifier");
     let key = verifier.compression_key().expect("key");
     let state = proof.state();
     verifier

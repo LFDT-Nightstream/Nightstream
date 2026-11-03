@@ -31,8 +31,7 @@ Field primality and memory-event consistency are assumed; the offline memory
 argument is not proved. ROMs are dense: keys the encoder does not list read 0, so
 proofs never rely on a key being absent. The program ROM encoder covers this guest-only fragment;
 its correspondence with Rust preprocessing is not yet proved. The `tests/*Witness.v`
-files check by computation that exported Rust traces meet every premise of
-the running or complete-run refinement theorem (regenerate them with
+files check exported Rust traces against the refinement proofs (regenerate them with
 `cargo test -p neo-wasm --release --test wasm_rocq_witness_export -- --ignored`).
 
 ## Build

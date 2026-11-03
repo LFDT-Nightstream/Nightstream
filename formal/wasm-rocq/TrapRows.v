@@ -7,6 +7,35 @@ Require Import R1CS Columns FullRelation Range MemoryTrace MemoryCatalog Wasm2 W
 Import ListNotations.
 Open Scope Z_scope.
 
+(* A trap consumes every suspended caller, including its saved operands and
+   continuation. The external caller of the activation remains. *)
+Lemma plug_calls_trap : forall stack s caller callee arity,
+  Forall SuspendedReady stack -> wf_state (mk_state s caller) -> wf_frame callee ->
+  Steps (callContext caller arity (plugCalls stack (mk_config (mk_state s callee) [admininstr_TRAP])))
+    (mk_config (mk_state s caller) [admininstr_TRAP]).
+Proof.
+  induction stack as [ | top rest IH]; intros s caller callee arity Hready Hz Hcallee.
+  - apply call_context_traps; assumption.
+  - inversion Hready as [ | ? ? [Hlabels [Hvalues [Hcode Hframe]]] Hrest]; subst.
+    set (parent := activeFrame (callerFunction top) (viewLocals (callView top))).
+    assert (Hparent : wf_state (mk_state s parent)) by (inversion Hz; constructor; assumption).
+    assert (Hstep : Steps (callerConfig top (mk_config (mk_state s callee) [admininstr_TRAP]))
+        (mk_config (mk_state s parent) [admininstr_TRAP])).
+    { unfold callerConfig, frameConfig.
+      eapply spec_steps_transitive.
+      - apply steps_in_labels; [exact Hlabels | ].
+        apply steps_with_stack_prefix; [exact Hvalues | ]. apply steps_with_instruction_suffix; [exact Hcode | ].
+        apply call_context_traps; assumption.
+      - eapply spec_steps_transitive.
+        + apply steps_in_labels; [exact Hlabels | ].
+          cbn [stackPrefix instructionSuffix]. rewrite app_assoc.
+          apply trap_discards_context; assumption.
+        + apply wrap_labels_trap; assumption. }
+    cbn [plugCalls]. eapply spec_steps_transitive.
+    + apply steps_in_call_frame; [inversion Hz; assumption | ]. exact (steps_in_plug_calls rest _ _ Hrest Hstep).
+    + apply IH; assumption.
+Qed.
+
 Lemma unreachable_row : forall program s stack view f initial final row inner caller arity,
   store_FUNCS s = program -> wf_store s -> programValidated program s ->
   fieldPrime -> programLoaded program initial -> FullRelation.satFull row -> row COL_IS_PROGRAM_ROW = 1 ->

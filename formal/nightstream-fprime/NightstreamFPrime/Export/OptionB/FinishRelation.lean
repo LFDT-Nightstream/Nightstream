@@ -79,11 +79,11 @@ theorem finish_holds (relation : ProductionKey.LogicalRelation logicalWidth publ
         (decodedKeys circuitKeys (refreshInterface (logicalWidth := logicalWidth)
           (publicFits := publicFits) program).verifierKeys env)
         1 (refreshInput program env) (refreshOutput program 1 env) := by
-  obtain ⟨env, holds, _⟩ := CircuitRelation.rowsZero_implies_constraints
+  obtain ⟨holds, _⟩ := CircuitRelation.rowsZero_implies_constraints
     CircuitRelation.publicColumns (constraints program relation) firstFresh width fits layout
     assignment (LogicalPlan.encoded_one layout assignment digest fits.rows.positive encoded)
     rowsZero
-  exact ⟨env, constraints_finish program relation ajtai circuitKeys env holds⟩
+  exact ⟨_, constraints_finish program relation ajtai circuitKeys _ holds⟩
 
 /-- The final program's checks on the finish package's columns `env`: the rows of the pieces
 other than the Poseidon2 blocks, and each block's outputs as the permutation of its inputs. When
@@ -108,11 +108,10 @@ theorem checks_finish (relation : ProductionKey.LogicalRelation logicalWidth pub
           (decodedKeys circuitKeys (refreshInterface (logicalWidth := logicalWidth)
             (publicFits := publicFits) program).verifierKeys completed)
           1 (refreshInput program completed) (refreshOutput program 1 completed)) := by
-  obtain ⟨completed, holds, agree⟩ := CircuitRelation.checks_implies_pieces
+  obtain ⟨holds, agree⟩ := CircuitRelation.checks_implies_pieces
     (Pieces.valid_split _ _) packed next env rows outputs
-  exact ⟨completed, fun column below => agree column (CircuitRelation.live_below starts below),
-    constraints_finish program relation ajtai circuitKeys completed
-      (CircuitRelation.split_holds holds)⟩
+  exact ⟨_, fun column below => agree column (CircuitRelation.live_below starts below),
+    constraints_finish program relation ajtai circuitKeys _ (CircuitRelation.split_holds holds)⟩
 
 /-- `checks_finish` on the finish package that the emitter writes (`StepPackage.packageOf`): the
 rows of its pieces, and each of its blocks' outputs as the permutation of its lanes' values. -/

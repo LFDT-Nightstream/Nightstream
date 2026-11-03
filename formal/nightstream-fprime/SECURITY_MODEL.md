@@ -92,10 +92,12 @@ item 5).
   its witness.
 - **Wins:** the terminal relation accepts, but no step holds under the
   verifier's keys that ends in the statement.
-- **Result:** acceptance gives a circuit, an input and an output for which the
-  step relation holds at the production cap, under the setup's keys, and
-  which end in the terminal's statement, or two different Poseidon2 inputs
-  with one hash (`Export.OptionB.TerminalBridge.bridge`). The terminal is
+- **Result:** acceptance gives the step that the fresh witness decodes to
+  (`Export.OptionB.TerminalBridge.Exports.decode`). The step relation holds
+  on it at the production cap, under the setup's keys, and it ends in the
+  terminal's statement, or its next state and the terminal's state collide
+  (`Export.OptionB.TerminalBridge.bridge`,
+  `Export.OptionB.TerminalBridge.Collision`). The terminal is
   `Lifecycle.OptionB.Terminal.HoldsFor`. Two well-formed states with one state
   hash are equal or give a Poseidon2 collision on an input pair that the two
   states fix (`Lifecycle.OptionB.stateHash_collision`,
@@ -107,12 +109,8 @@ item 5).
   that returns the circuit that ran, and the terminal does not read the
   selector (`Export.OptionB.TerminalBridge.holdsFor_recursive_control`), so
   its premises hold for the reference packages, whose two circuits run one
-  application. Its collision alternative,
-  `Export.OptionB.TerminalBridge.Collision`, says only that some two
-  different inputs have one Poseidon2 hash. That is true for every hash with
-  a fixed output length, so the result gives no guarantee as stated. A useful
-  form names the two colliding states, as the Nebula results do
-  (`Lifecycle.Nebula.RunStateCollision`).
+  application. The decode is a function of the proof, so the collision names
+  two states that a reduction computes from the proof.
 
 ### 3. One-fold adversary
 

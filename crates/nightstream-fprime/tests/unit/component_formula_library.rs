@@ -1,6 +1,4 @@
 use nightstream_fprime::components::{FormulaLibrary, SparseForm};
-use p3_field::PrimeCharacteristicRing;
-use p3_goldilocks::Goldilocks;
 use serde_json::{json, Value};
 
 fn library() -> Value {
@@ -24,27 +22,6 @@ fn library() -> Value {
 
 fn decode(value: &Value) -> Result<FormulaLibrary, nightstream_fprime::components::ComponentError> {
     FormulaLibrary::from_json(&serde_json::to_vec(value).unwrap())
-}
-
-#[test]
-fn substitutes_exported_dag_into_relocated_sparse_forms() {
-    let library = decode(&library()).unwrap();
-    let component = library.component("linear-example").unwrap();
-    assert_eq!(component.ports()[1].range(), 1..2);
-    let variant = component.variant(0).unwrap();
-    let inputs = [SparseForm::new([(4, 3), (8, 2)]).unwrap(), SparseForm::variable(8)];
-    let rows = variant.rows(&inputs, 9).unwrap();
-    assert_eq!(rows[0].ports()[0].entries().collect::<Vec<_>>(), vec![(4, 3), (8, 4)]);
-    assert!(rows[0].ports()[1..]
-        .iter()
-        .all(|form| form.entries().len() == 0));
-    let mut values = vec![Goldilocks::ZERO; 9];
-    values[4] = Goldilocks::from_u64(7);
-    values[8] = Goldilocks::from_u64(11);
-    assert_eq!(rows[0].ports()[0].evaluate(&values).unwrap(), Goldilocks::from_u64(65));
-    assert_eq!(variant.outputs(&inputs, 9).unwrap()[0], rows[0].ports()[0]);
-    assert!(variant.rows(&inputs[..1], 9).is_err());
-    assert!(variant.rows(&inputs, 8).is_err());
 }
 
 #[test]

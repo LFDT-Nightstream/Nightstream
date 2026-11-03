@@ -110,6 +110,15 @@ fn hash_chain_proves_and_verifies() {
     assert!(verifier.decode_proof(&initial_proof).is_ok());
 }
 
+/// Removes a setup folder when it drops, so a failed run frees its disk too.
+struct SetupDir(std::path::PathBuf);
+
+impl Drop for SetupDir {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+
 /// The final proof of two steps verifies with the verifier's own key, and
 /// not for another state.
 #[test]
@@ -121,13 +130,13 @@ fn hash_chain_final_proof_verifies() {
     let proof = prover
         .extend(&prover.prove(initial, &message).expect("first step"), &message)
         .expect("second step");
-    let dir = std::env::temp_dir().join(format!("option-b-api-{}", std::process::id()));
-    fs::create_dir_all(&dir).expect("setup directory");
+    let dir = SetupDir(std::env::temp_dir().join(format!("option-b-api-{}", std::process::id())));
+    fs::create_dir_all(&dir.0).expect("setup directory");
     let final_proof = {
-        let setup = prover.compression_setup(&dir).expect("setup");
+        let setup = prover.compression_setup(&dir.0).expect("setup");
         prover.finish(&proof, &setup).expect("final proof")
     };
-    fs::remove_dir_all(&dir).expect("remove the setup");
+    drop(dir);
     let verifier = circuit.verifier(Engine::Optimized, 114).expect("verifier");
     let key = verifier.compression_key().expect("key");
     let state = proof.state();

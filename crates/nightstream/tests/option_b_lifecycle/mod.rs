@@ -201,6 +201,15 @@ fn option_b_step_times() {
     }
 }
 
+/// Removes a setup folder when it drops, so a failed run frees its disk too.
+struct SetupDir(std::path::PathBuf);
+
+impl Drop for SetupDir {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+
 /// CW-6.4: the final program (the finish package's rows and both layer-1
 /// verifiers) accepts the last fold of three steps, and the shrink proof of
 /// it verifies. A run with a changed row column, current word or key word,
@@ -227,9 +236,9 @@ fn final_proof_verifies() {
         let next = hash_chain_step(envelope.current, message);
         envelope = prover.extend(&envelope, &message, next).expect("step");
     }
-    let dir = std::env::temp_dir().join(format!("option-b-final-{}", std::process::id()));
+    let dir = SetupDir(std::env::temp_dir().join(format!("option-b-final-{}", std::process::id())));
     let (witness, keys) = {
-        let setups = prover.compression_setups(&dir).expect("layer-1 setups");
+        let setups = prover.compression_setups(&dir.0).expect("layer-1 setups");
         eprintln!("compression setups elapsed={:?}", started.elapsed());
         let witnessing = std::time::Instant::now();
         let witness = prover
@@ -238,7 +247,7 @@ fn final_proof_verifies() {
         eprintln!("final witness elapsed={:?}", witnessing.elapsed());
         (witness, setups.keys().clone())
     };
-    std::fs::remove_dir_all(&dir).expect("remove the setups");
+    drop(dir);
     assert_eq!(
         (
             nightstream_fprime::PUBLIC_WORDS / D,

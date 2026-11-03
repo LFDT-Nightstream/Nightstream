@@ -49,9 +49,9 @@ pub use transcript::{state_words, Digest};
 /// a `Program`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Package {
-    /// `artifacts/nightstream-fprime-stage2-nebula-memory-v1.json` (`FirstPlan.lean`).
+    /// `FirstPlan.lean`: `artifacts/nightstream-fprime-option-b-nebula-v1-{light,refresh}-v1.json`.
     V1,
-    /// `artifacts/nightstream-fprime-stage2-nebula-memory-n1.json` (`SecondPlan.lean`).
+    /// `SecondPlan.lean`: `artifacts/nightstream-fprime-option-b-nebula-n1-{light,refresh}-v1.json`.
     N1,
 }
 

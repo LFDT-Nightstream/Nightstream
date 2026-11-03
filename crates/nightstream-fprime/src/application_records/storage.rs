@@ -140,45 +140,6 @@ impl Write for Writer {
     }
 }
 
-pub(crate) struct PrivateSnapshot(Reader);
-
-impl std::fmt::Debug for PrivateSnapshot {
-    fn fmt(&self, output: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        output
-            .debug_struct("PrivateSnapshot")
-            .field("bytes", &self.len())
-            .finish()
-    }
-}
-
-impl PrivateSnapshot {
-    pub(crate) fn create(write: impl FnOnce(&mut dyn Write) -> Result<(), PackageError>) -> Result<Self, PackageError> {
-        let mut writer = Writer::new()?;
-        write(&mut writer)?;
-        Ok(Self(writer.finish()?))
-    }
-
-    pub(crate) fn len(&self) -> u64 {
-        self.0.length
-    }
-
-    pub(crate) fn copy_to(&self, output: &mut (impl Write + ?Sized)) -> Result<(), PackageError> {
-        let mut input = self.0.cursor(0, self.len())?;
-        if io::copy(&mut input, output)? != self.len() {
-            return Err(io::Error::new(io::ErrorKind::UnexpectedEof, "private snapshot is truncated").into());
-        }
-        Ok(())
-    }
-
-    pub(crate) fn with_reader<T>(
-        &self,
-        read: impl FnOnce(&mut dyn Read) -> Result<T, PackageError>,
-    ) -> Result<T, PackageError> {
-        let mut input = self.0.cursor(0, self.len())?;
-        read(&mut input)
-    }
-}
-
 pub(super) struct Reader {
     #[cfg(unix)]
     file: File,

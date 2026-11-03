@@ -1,8 +1,6 @@
 import CompressionLean.Sim.Algebra
 import CompressionLean.Sim.Calculus
-import CompressionLean.Sim.Claim
 import CompressionLean.Sim.Early
-import CompressionLean.Sim.Encodes
 import CompressionLean.Sim.EvalK
 import CompressionLean.Sim.Fold
 import CompressionLean.Sim.Gkr
@@ -19,7 +17,7 @@ import CompressionLean.Sim.Ring
 import CompressionLean.Sim.Run
 import CompressionLean.Sim.SetupLeaf
 import CompressionLean.Sim.Sumcheck
-import CompressionLean.Sim.Terminal
+import CompressionLean.Sim.Statement
 import CompressionLean.Sim.Tracks
 import CompressionLean.Sim.Verify
 import CompressionLean.Sim.Views

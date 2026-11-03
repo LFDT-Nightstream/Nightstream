@@ -72,54 +72,6 @@ end FoldTranscript
 
 def statementHandles : Build (Array Var) := (Array.range statementWords).mapM fun _ => Build.pub
 
-def checkedApply (package : Loaded) (context : Array Word) (statement : Array Var) :
-    Build (ClaimVars × (Fin 16 → Var)) := do
-  let inverse ← Build.emit (.hint 1)
-  let product ← Build.mul (statement.getD 0 0) inverse
-  let one ← Build.const 1
-  Build.assertEqual product one
-  apply package statement context
-
-def terminalPrefix (package : Loaded) (context : Array Word) : Build (ClaimVars × (Fin 16 → Var)) :=
-  statementHandles >>= checkedApply package context
-
-section Runs
-
-variable (key : Layer1Key) (loaded : Loaded) (context : Array Replay.Word)
-
-/-- `lifecycle/terminal/mod.rs::FinalProgram::run`. Irreducible, so that no check evaluates the program. -/
-@[irreducible] def productionProgram : Build Unit :=
-  finalProgram loaded context fun claim state => verifyWith key state claim.view
-
-noncomputable def shrinkRun (x : StateWords) : Shrink.Run Spec.F :=
-  lower (productionProgram key loaded context).program (List.ofFn x)
-
-noncomputable def counts : Shrink.Counts :=
-  (lower (productionProgram key loaded context).program ([] : List Spec.F)).counts
-
-noncomputable def wordsOf (x : StateWords) (w : ℕ → Spec.F) : Var → Replay.Word :=
-  let L := (productionProgram key loaded context).program
-  let stmt := List.ofFn x
-  fun h => Replay.Word.ofF
-    ((Exec.run Spec.Poseidon2.permute stmt (tapeOf Block.poseidonTemplate L stmt w) L).value h)
-
-def prefixRun : (ClaimVars × (Fin 16 → Var)) × Builder := (terminalPrefix loaded context).run {}
-
-def seedRun : DigestVar × Builder :=
-  (FoldTranscript.fromState (prefixRun loaded context).1.2).handoff.run (prefixRun loaded context).2
-
-def viewRun : Circuit.ProofView × Builder :=
-  (Circuit.ProofView.read key.relation key.p1Key.rows key.p0Key.rows).run (seedRun loaded context).2
-
-def statementWith (w : Var → Replay.Word) : Replay.Statement := (prefixRun loaded context).1.1.view.decode w
-
-def seedWith (w : Var → Replay.Word) : Array Replay.Word :=
-  FoldTranscript.handoffWords (Array.ofFn fun lane => w ((prefixRun loaded context).1.2 lane))
-
-def proofWith (w : Var → Replay.Word) : Replay.Proof := (viewRun key loaded context).1.decode w
-
-end Runs
-
 def start : Replay.Transcript := ⟨Replay.Duplex.new, #[]⟩
 
 end CompressionLean.Spec

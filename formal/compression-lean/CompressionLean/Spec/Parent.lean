@@ -1,5 +1,4 @@
 import CompressionLean.Ports.Setup
-import CompressionLean.Terminal.Soundness
 import NightstreamFPrime.Lifecycle.PiRLC.v1_2.OutputBinding
 
 namespace CompressionLean.Spec
@@ -15,38 +14,7 @@ abbrev gl (x : F) : Gl := x
 
 abbrev StateWords := Fin 9 → Spec.F
 
-def priorStatement (env : Circuit.Env) : StateWords := fun k =>
-  (Layout.Stage1.PiCCSInputs.priorStateWord
-    (Lifecycle.PiCCS.v1_2.StateBinding.contextWordStart + 4 + k.val)).eval
-    (Layout.Stage1.Spartan.pullback env)
-
-def TerminalFor (authority : Lifecycle.VerifierContext.Authority) (x : StateWords)
-    (env : Circuit.Env) : Prop :=
-  (Terminal.circuitPackage ()).RowsHold env ∧
-    Export.Stage1.Package.SelectedVerifierContext authority env ∧
-    priorStatement env = x ∧ x 0 ≠ 0
-
 variable {lw : ℕ} {pf : ringDegree * PaperAlgebra.publicRingColumns ≤ Phi81CarrierLayout.carrierWidth lw}
-
-abbrev runningOf (env : Circuit.Env) :=
-  Layout.Stage1.AccumulatorInputs.running lw pf (Layout.Stage1.Spartan.pullback env)
-
-abbrev freshOf (env : Circuit.Env) :=
-  Layout.Stage1.AccumulatorInputs.fresh lw pf (Layout.Stage1.Spartan.pullback env)
-
-abbrev proofOf (relation : ProductionKey.LogicalRelation lw pf) (env : Circuit.Env) :=
-  Layout.Stage1.AccumulatorInputs.proof relation (Layout.Stage1.Spartan.pullback env)
-
-/-- SuperNeo v1.2 Definition 21. -/
-def ParentClaim (relation : ProductionKey.LogicalRelation lw pf)
-    (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := lw) (publicFits := pf))
-    (authority : Lifecycle.VerifierContext.Authority) (x : StateWords) : Prop :=
-  ∃ env, TerminalFor authority x env ∧
-    Spec.Folding.Nifs.PaperNonInteractive.piCcsCheck (ProductionKey.key relation ajtai) (runningOf env) (freshOf env)
-      (proofOf relation env) = true ∧
-    (ProductionKey.key relation ajtai).parent (runningOf env) (freshOf env) (proofOf relation env) =
-      some (Terminal.parent relation env) ∧
-    ∃ a, Spec.CE.Holds (PaperAlgebra.semantics ajtai) productionGlobalParams (Terminal.parent relation env) a
 
 noncomputable def runEntry (S : Layer1.Setup Gl) (D j i c : ℕ) : Gl :=
   ∑ k ∈ ((Finset.range S.runs).filter (fun k => S.runMatrix k = j ∧

@@ -239,6 +239,18 @@ fn final_proof_verifies() {
         (witness, setups.keys().clone())
     };
     std::fs::remove_dir_all(&dir).expect("remove the setups");
+    assert_eq!(
+        (
+            nightstream_fprime::PUBLIC_WORDS / D,
+            nightstream_fprime::PI_CCS_V1_2_ROUND_COUNT
+        ),
+        (5, 28),
+        "the layer-1 relations take Production.lean's public blocks and point variables"
+    );
+    assert!(
+        keys.bound < 1 << 16,
+        "each slot's honest bound lies below Production.normLimit"
+    );
     let (iteration, current) = (envelope.iteration, envelope.current);
     let statement = (iteration, z0, current);
     let relations = [

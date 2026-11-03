@@ -1,11 +1,13 @@
 import CompressionLean.Spec.OptionB
-import CompressionLean.Final.Soundness
+import CompressionLean.Game.Compose
+import CompressionLean.Final.Budget
+import CompressionLean.Shrink.Budget
 
-/-! The bound of a final program with one layer-1 verifier per slot (CW-6.5), in the model of
-`Final.final_restore_sound`. When every accepted witness gives a terminal environment whose two
-slot statements are the leaves of the positions it reads (`Encodes`), a break has probability at
-most `calls` times the largest density (`restore_sound`), and at most `calls / 2^t` under
-Plonky3's budget checks for both shapes (`restore_budget`). -/
+/-! The bound of a final program with one layer-1 verifier per slot (CW-6.5). When every accepted
+witness gives a terminal environment whose two slot statements are the leaves of the positions it
+reads (`Encodes`), a break has probability at most `calls` times the largest density
+(`restore_sound`), and at most `calls / 2^t` under Plonky3's budget checks for both shapes
+(`restore_budget`). -/
 
 namespace CompressionLean.Final.OptionB
 

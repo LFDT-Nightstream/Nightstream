@@ -8,10 +8,9 @@ read through a layout at the key width, then 150 S-box rows for each Poseidon2 b
 (`keyRelation`, `CircuitRelation.plan`). The layout is the step package's slot layout, widened to
 the key width (`keyLayout`): a key with fewer columns has a witness that is zero past them.
 
-`keyRunsFailure` compares Rust's runs of a layer-1 relation with these matrices row by row, as
-`runsFailure` does for the Poseidon2 hash chain. It finds the slot of each source column by a
-binary search over the slots' sources and confirms the slot at the position it finds (`slotAt`),
-so its result does not rest on the search. -/
+`keyRunsFailure` compares Rust's runs of a layer-1 relation with these matrices row by row. It
+finds the slot of each source column by a binary search over the slots' sources and confirms the
+slot at the position it finds (`slotAt`), so its result does not rest on the search. -/
 
 namespace CompressionLean.Spec.OptionB
 

@@ -4,7 +4,7 @@ import CompressionLeanTests.Inventory
 open Lean Elab Command CompressionLeanTests.Inventory
 
 def layers : List String :=
-  ["Lib", "Fields", "Production", "Game", "Terminal", "Layer1", "Ports", "Shrink", "Lowering", "Spec", "Bridge",
+  ["Lib", "Fields", "Production", "Game", "Layer1", "Ports", "Shrink", "Lowering", "Spec", "Bridge",
     "Final", "Checks", "Sim", "Claims"]
 
 def folderOf (m : Name) : Option String :=

@@ -7,7 +7,6 @@ Library users need these saved artifacts:
 | `nightstream-fprime-stage2-nebula-memory-v1.json` | Included in this package. The first Nebula memory application (`SPEC.md` section 7). Load these bytes with `nebula::Package::V1.load`, and pass the circuit to `nebula::Verifier::new`. The package fixes the memory geometry only (`nebula::Package::geometry`): `nebula::Verifier::verify` takes the program (`nebula::Program`, the ROM and RAM images of 32-bit words, with its `D_init`), and `Package::program` gives the default program of the Lean plan. |
 | `nightstream-fprime-stage2-nebula-memory-n1.json` | Included in this package. The second memory test geometry (`nebula::Package::N1`: segments of one step, `r < μ`). Load these bytes with `nebula::Package::N1.load`, and pass the circuit to `nebula::Verifier::new`. |
 | `shared-formulas-v1.json` | Included by the `nightstream-fprime` dependency's Rust build. Supplies the shared Poseidon2 and Phi81 formulas. |
-| `compression-terminal-v1.json` | Included by the `nightstream` Rust build. The Lean terminal package that the final verifier checks (`formal/compression-lean`); `IDENTIFIER` in `src/lifecycle/terminal/package.rs` pins it. |
 
 Application preparation, proving, verification, and Rust builds do not run
 Lean. The selected blueprint is required even for a different Rust application:
@@ -15,8 +14,7 @@ the assembler retains its shared verifier and replaces only its application.
 It checks the original package and key identities before that replacement.
 
 In this repository, the blueprint path is a symbolic link to the existing
-file under `formal/nightstream-fprime/artifacts`, and the terminal package
-path is one to `formal/compression-lean/artifacts`. This avoids another large
+file under `formal/nightstream-fprime/artifacts`. This avoids another large
 copy in Git. The explicit Cargo `include` list includes the artifact, and
 [Cargo packaging replaces symbolic links with their target files](https://doc.rust-lang.org/cargo/commands/cargo-package.html).
 An extracted Cargo package therefore contains the JSON file and needs no

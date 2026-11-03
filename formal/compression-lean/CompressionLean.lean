@@ -2,7 +2,6 @@ import CompressionLean.Lib
 import CompressionLean.Fields
 import CompressionLean.Production
 import CompressionLean.Game
-import CompressionLean.Terminal
 import CompressionLean.Layer1
 import CompressionLean.Ports
 import CompressionLean.Shrink

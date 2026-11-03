@@ -2,7 +2,7 @@ import CompressionLean.Sim.OptionBSlots
 import CompressionLean.Final.OptionB
 
 /-! Option B's final program encodes its claim (CW-6.5), the premise `Final.OptionB.Encodes` of its
-bound, as `Sim.Encodes.programEncodes` is today's. A witness of the shrink relation gives an
+bound. A witness of the shrink relation gives an
 accepted run (`Lowering.lower_sound`): its prefix gives the finish columns' environment, in which
 the program's checks hold (`finishPrefix_ensures`), and each slot's call runs the replay of its
 layer-1 verifier (`slotLayer1_at`) on that slot's claim words (`statementWith_eq`). The replay

@@ -136,6 +136,9 @@ theorem toPolynomial_ringFSum {n : ℕ} (terms : Fin n → RingF) :
 theorem degree_toPolynomial' (value : RingF) : (toPolynomial value).degree < 54 :=
   degree_sum_fin_lt (R := Gl) value
 
+theorem modulus_natDegree : modulus.natDegree = ringDegree :=
+  natDegree_eq_of_degree_eq_some degree_modulus
+
 theorem eq_of_dvd {x y : RingF} (holds : modulus ∣ toPolynomial x - toPolynomial y) : x = y := by
   apply toPolynomial_injective
   have small : (toPolynomial x - toPolynomial y).degree < modulus.degree := by

@@ -2,10 +2,10 @@
 //!
 //! `option_b_runs_rebuild_the_layer1_keys` writes each relation's runs (`runs_file`) and requires
 //! `Key::derive` of the file to be the slot's layer-1 key. `option_b_runs_match_lean` requires
-//! `runsCheck --option-b` to find the runs to be the matrices of the slot's circuit key, read from
+//! `runsCheck` to find the runs to be the matrices of the slot's circuit key, read from
 //! its step package (`Spec.OptionB.keyRunsFailure`). `neo-spartan`'s `option_b_setup_columns`
 //! writes the setup columns from the runs, and `option_b_setup_matches_lean` requires
-//! `setupCheck --option-b` to accept each slot over its key's own columns (`keyColumns`).
+//! `setupCheck` to accept each slot over its key's own columns (`keyColumns`).
 
 use std::process::Command;
 use std::time::Instant;
@@ -48,7 +48,6 @@ fn option_b_runs_match_lean() {
         assert!(runs.exists(), "run option_b_runs_rebuild_the_layer1_keys first");
         let started = Instant::now();
         let output = Command::new(&check)
-            .arg("--option-b")
             .arg(&package)
             .arg(&runs)
             .output()
@@ -88,11 +87,7 @@ fn option_b_setup_matches_lean() {
             assert!(file.exists(), "write {} first", file.display());
         }
         let started = Instant::now();
-        let output = Command::new(&check)
-            .arg("--option-b")
-            .args(&files)
-            .output()
-            .unwrap();
+        let output = Command::new(&check).args(&files).output().unwrap();
         let stdout = String::from_utf8_lossy(&output.stdout);
         eprintln!(
             "slot {slot}: setupCheck: {} in {:?}",

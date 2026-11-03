@@ -182,14 +182,15 @@ theorem setupFailureAt_sound {key : Layer1Key} {pushes : List Push} {columns : �
       rw [word]
       exact shape
 
-theorem columnsFailure_sound {key : Layer1Key} {pushes : List Push} {cols : SetupColumns} (seed : List ℕ)
-    (setup : setupFailure key pushes = none) (pass : columnsFailure pushes cols = none) (x : ℕ) :
-    ((poseidon2Setup seed pushes).runRow x : Gl) = cols.row.getD x 0 ∧
-      ((poseidon2Setup seed pushes).runSlot x : Gl) = cols.slot.getD x 0 ∧
-      (poseidon2Setup seed pushes).runCoef x = cols.coef.getD x 0 ∧
-      (if x < (poseidon2Setup seed pushes).slots then ((poseidon2Setup seed pushes).slotBlock x : Gl) else 0) =
+theorem columnsFailure_sound {key : Layer1Key} {pushes : List Push} {cols : SetupColumns} {columns : ℕ}
+    (seed : List ℕ) (setup : setupFailureAt columns key pushes = none) (pass : columnsFailure pushes cols = none)
+    (x : ℕ) :
+    ((setupAt seed columns pushes).runRow x : Gl) = cols.row.getD x 0 ∧
+      ((setupAt seed columns pushes).runSlot x : Gl) = cols.slot.getD x 0 ∧
+      (setupAt seed columns pushes).runCoef x = cols.coef.getD x 0 ∧
+      (if x < (setupAt seed columns pushes).slots then ((setupAt seed columns pushes).slotBlock x : Gl) else 0) =
         cols.block.getD x 0 := by
-  unfold setupFailure setupFailureAt at setup
+  unfold setupFailureAt at setup
   obtain ⟨-, runs, -⟩ := all_of_firstFailure setup
   obtain ⟨sizes, rows, slots, coefs, blocks, -⟩ := all_of_firstFailure pass
   dsimp only at runs sizes rows slots coefs blocks
@@ -206,7 +207,7 @@ theorem columnsFailure_sound {key : Layer1Key} {pushes : List Push} {cols : Setu
   have nodup : (sortedValues (slotKey (sortedValues Push.classCode pushes).toList) pushes).toList.Nodup := by
     rw [sortedValues_toList]
     exact (List.perm_insertionSort _ _).nodup_iff.mpr (List.nodup_dedup _)
-  unfold poseidon2Setup setupAt setupOfRuns
+  unfold setupAt setupOfRuns
   dsimp only
   rw [hc, hk]
   rcases Nat.lt_or_ge x (runList Production.matrices pushes).length with inside | past

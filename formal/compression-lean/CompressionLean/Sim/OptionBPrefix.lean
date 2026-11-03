@@ -1,4 +1,4 @@
-import CompressionLean.Sim.Terminal
+import CompressionLean.Sim.Statement
 import CompressionLean.Sim.Merkle
 import CompressionLean.Lowering.PackageRows
 import CompressionLean.Spec.OptionBRuns

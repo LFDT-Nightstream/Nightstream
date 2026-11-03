@@ -116,15 +116,6 @@ def keyChecks (key : Layer1Key) : List Fact :=
 def keyFailure (key : Layer1Key) : Option String :=
   firstFailure (keyChecks key)
 
-def WidthFits (key : Layer1Key) (lw : ℕ) : Prop :=
-  key.relation.key.blocks = NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81ColumnLayout.blockCount lw
-
-instance (key : Layer1Key) (lw : ℕ) : Decidable (WidthFits key lw) :=
-  inferInstanceAs (Decidable (_ = _))
-
-def poseidon2Fits (key : Layer1Key) : Bool :=
-  decide (WidthFits key Production.poseidon2Width)
-
 /-- The key commits at most the blocks of `lw`. Option B's light key commits fewer blocks than its
 key width, and its witness is zero past them (`Final.parent_holds`). -/
 def KeyWithin (key : Layer1Key) (lw : ℕ) : Prop :=
@@ -139,14 +130,9 @@ def optionBFits (key : Layer1Key) : Bool :=
 def sortedValues (f : Push → ℕ) (pushes : List Push) : Array ℕ :=
   ((pushes.foldl (fun set p => set.insert (f p)) (∅ : Std.HashSet ℕ)).toList.mergeSort).toArray
 
-def poseidon2Columns : ℕ := Phi81CarrierLayout.carrierWidth Production.poseidon2Width
-
 /-- The layer-1 setup that `build` gives from `pushes` over `columns`. -/
 def setupAt (seed : List ℕ) (columns : ℕ) (pushes : List Push) : Layer1.Setup Gl :=
   setupOfRuns seed (columns / ringDegree) (runList Production.matrices pushes)
-
-def poseidon2Setup (seed : List ℕ) (pushes : List Push) : Layer1.Setup Gl :=
-  setupAt seed poseidon2Columns pushes
 
 /-- The columns of a key's relation: Rust's `Key::derive` gives `blocks = columns / D`. -/
 def keyColumns (key : Layer1Key) : ℕ := ringDegree * key.relation.key.blocks
@@ -178,9 +164,6 @@ def setupChecksAt (columns : ℕ) (key : Layer1Key) (pushes : List Push) : List 
 def setupFailureAt (columns : ℕ) (key : Layer1Key) (pushes : List Push) : Option String :=
   firstFailure (setupChecksAt columns key pushes)
 
-def setupFailure (key : Layer1Key) (pushes : List Push) : Option String :=
-  setupFailureAt poseidon2Columns key pushes
-
 structure SetupColumns where
   row : Array Gl
   slot : Array Gl
@@ -201,8 +184,5 @@ def columnChecks (pushes : List Push) (cols : SetupColumns) : List Fact :=
 
 def columnsFailure (pushes : List Push) (cols : SetupColumns) : Option String :=
   firstFailure (columnChecks pushes cols)
-
-def templatesNamed (package : CircuitPackage) : Bool :=
-  package.compactRowInvocations.all fun invocation => (package.compactRowTemplates[invocation.templateIndex]?).isSome
 
 end CompressionLean.Spec

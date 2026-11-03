@@ -1,5 +1,5 @@
 import CompressionLean.Final.OptionBFinish
-import CompressionLean.Final.ParentClaim
+import CompressionLean.Final.Parent
 import CompressionLean.Bridge.Field
 import CompressionLean.Spec.OptionBParent
 import CompressionLean.Final.OptionB

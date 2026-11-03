@@ -1,21 +1,18 @@
 #!/usr/bin/env bash
 # Builds the Lean check executables, then runs the ignored Rust tests that
 # compare Rust with Lean, each under its cap. With arguments, runs only those
-# checks, in that order. The terminal checks need about 22 GB.
+# checks, in that order.
 #
-# CI runs no Lean, so Rust pins the run digests that lowerCheck, terminalCheck
-# and optionBCheck print (`digest` on each `match` line). Copy a new digest
-# into its `*_digest_is_pinned` test (lowering.rs, terminal_ir.rs,
-# option_b_lifecycle/final_ir.rs) only after the check that prints it passes.
-# Option B's checks run in order: the keys, their JSON and key facts, each
-# relation's runs against its step package, the setups, the final program,
-# then its whole-run pin.
+# CI runs no Lean, so Rust pins the run digests that lowerCheck and
+# optionBCheck print (`digest` on each `match` line). Copy a new digest into
+# its `*_digest_is_pinned` test (lowering.rs, option_b_lifecycle/final_ir.rs)
+# only after the check that prints it passes. The option-B checks run in
+# order: the keys, their JSON and key facts, each relation's runs against its
+# step package, the setups, the final program, then its whole-run pin.
 set -u
 lean_dir=$(cd "$(dirname "$0")/.." && pwd)
 repo=$(cd "$lean_dir/../.." && pwd)
-checks=(lean_replay lean_setup_root lowering_matches_lean production_layer1_matches_lean terminal_program_matches_lean
-  final_program_matches_lean production_runs_rebuild_the_layer1_key production_setup_columns
-  production_setup_matches_lean production_runs_match_lean option_b_layer1_keys_are_written
+checks=(lean_replay lean_setup_root lowering_matches_lean option_b_layer1_keys_are_written
   option_b_layer1_matches_lean option_b_runs_rebuild_the_layer1_keys option_b_runs_match_lean option_b_setup_columns
   option_b_setup_matches_lean option_b_final_program_matches_lean option_b_program_digest_is_pinned)
 [ $# -gt 0 ] && checks=("$@")
@@ -33,10 +30,9 @@ cd "$repo" || exit 1
 built=""
 for check in "${checks[@]}"; do
   case $check in
-    terminal_program_matches_lean | final_program_matches_lean | production_runs_rebuild_the_layer1_key | \
-      production_setup_matches_lean | production_runs_match_lean | option_b_layer1_keys_are_written | \
-      option_b_runs_rebuild_the_layer1_keys | option_b_runs_match_lean | option_b_setup_matches_lean | \
-      option_b_final_program_matches_lean | option_b_program_digest_is_pinned) crate=nightstream ;;
+    option_b_layer1_keys_are_written | option_b_runs_rebuild_the_layer1_keys | option_b_runs_match_lean | \
+      option_b_setup_matches_lean | option_b_final_program_matches_lean | option_b_program_digest_is_pinned)
+      crate=nightstream ;;
     *) crate=neo-spartan ;;
   esac
   if [[ $built != *" $crate"* ]]; then

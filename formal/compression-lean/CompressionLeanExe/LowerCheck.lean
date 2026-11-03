@@ -79,7 +79,6 @@ def main (args : List String) : IO UInt32 := do
     | .error message => IO.eprintln message; return 2
   if let some key := key then
     let _ ← CompressionLeanExe.Key.printFacts key
-    CompressionLeanExe.Key.printWidth key
   match ((check mirror).run 0).run (← IO.FS.readBinFile path) with
   | .ok (message, _) => IO.println message; return 0
   | .error message => IO.println s!"mismatch: {message}"; return 1

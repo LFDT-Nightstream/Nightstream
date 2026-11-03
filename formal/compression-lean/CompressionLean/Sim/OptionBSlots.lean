@@ -1,12 +1,18 @@
 import CompressionLean.Sim.OptionBPrefix
 import CompressionLean.Sim.Verify
-import CompressionLean.Sim.Claim
-import CompressionLean.Sim.Encodes
+import CompressionLean.Sim.Fold
+import CompressionLean.Ports.Circuit.Verifier
+import CompressionLean.Lowering.Sound
+import CompressionLean.Lowering.Record
+import CompressionLean.Lowering.Valid
+import CompressionLean.Bridge.Main
+import CompressionLean.Final.Bridge
+import CompressionLean.Spec.Bound
 import CompressionLean.Checks.KeyFacts
 
 /-! Each slot's layer-1 call in option B's final program (CW-6.5): from the prefix's handoff, the
 replay of the slot's layer-1 verifier runs on the slot's statement, seed and proof
-(`slotLayer1_at`), as `Sim.Encodes.verifyWith_at` gives today's one call. -/
+(`slotLayer1_at`). -/
 
 namespace CompressionLean.Sim.OptionB
 
@@ -21,6 +27,10 @@ variable {c : Ctx F}
 
 instance seedState_appends (column : ℕ → Var) (bits slot : ℕ) : Appends (seedState column bits slot) := by
   unfold seedState; appends
+
+instance verifyWith_appends (key : Layer1Key) (state : Fin 16 → Var) (claim : ClaimView) :
+    Appends (Circuit.verifyWith key state claim) := by
+  unfold Circuit.verifyWith; appends
 
 instance seed_appends (column : ℕ → Var) (bits slot : ℕ) : Appends (seed column bits slot) := by
   unfold seed; appends

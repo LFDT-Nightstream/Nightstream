@@ -730,6 +730,59 @@ fn every_state_field_changes_the_state_words() {
     assert_eq!(changes.len(), 29 + 3 * 4 + 8 + 12, "one change for each field and lane");
 }
 
+/// Both test programs, 8 one-row steps each, in two segments of four steps
+/// (`S_max = 2`).
+fn two_segments() -> (Setup, WasmApplication, Geometry) {
+    let setup = setup(NonZeroUsize::MIN);
+    let slots = plan_ordered_slots(NonZeroUsize::MIN);
+    let geometry = smallest_geometry(setup.log2, slots.len(), N / 2, 2);
+    let app = WasmApplication::with_slots(&geometry, setup.regions.clone(), NonZeroUsize::MIN, &slots)
+        .expect("an application");
+    (setup, app, geometry)
+}
+
+/// Each trace runs natively in two segments and ends in its last state. A
+/// third segment is past `S_max`.
+#[test]
+fn a_trace_runs_in_two_segments() {
+    let (setup, app, geometry) = two_segments();
+    for traced in &setup.programs {
+        let program = app.program(&traced.preload).unwrap();
+        let mut run = Run::new(app.clone(), &program, traced.initial);
+        let (first, second) = traced.inputs.split_at(geometry.n);
+        run.segment(first).expect("the first segment runs");
+        run.segment(second).expect("the second segment runs");
+        assert_eq!(*run.state(), traced.last);
+        assert!(matches!(run.segment(second), Err(SegmentError::Carry)));
+    }
+}
+
+/// The call trace proved in two segments verifies with 8 steps.
+#[test]
+#[ignore = "Full production-profile memory proof; run separately under the 300-second cap."]
+fn a_proof_of_two_segments_verifies_on_cpu() {
+    use nightstream::nebula::Circuit;
+    let started = std::time::Instant::now();
+    let (setup, app, geometry) = two_segments();
+    let traced = &setup.programs[1];
+    let engine = nightstream::Engine::Optimized;
+    let circuit = Circuit::compile(&reference(), geometry, app.clone()).unwrap();
+    let prover = circuit.prover(engine, 114).unwrap();
+    let verifier = circuit.verifier(engine, 114).unwrap();
+    let program = app.program(&traced.preload).unwrap();
+    let mut run = prover.start(&program, traced.initial).unwrap();
+    for segment in traced.inputs.chunks(geometry.n) {
+        run.segment(segment).unwrap();
+    }
+    let last = *run.state();
+    let proof = run.finish().unwrap();
+    let verified = verifier
+        .verify(&program, &traced.initial, &last, &proof)
+        .unwrap();
+    assert_eq!(verified.steps, 8);
+    eprintln!("two segments elapsed={:?}", started.elapsed());
+}
+
 /// Small memories and a long segment: the geometry still covers both
 /// namespaces in `n` steps, so a program of it exists.
 #[test]

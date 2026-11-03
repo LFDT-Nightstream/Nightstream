@@ -558,6 +558,25 @@ When the plan names each checked port once, each slot shows at most one active p
 
 **Several rows in one step.** One step can hold `k` rows of a catalog application, so that the rows share the cost of one fold. The step uses the batched catalog (`Spec.Nebula.MemoryTrace.batchCatalog`). It has the memories of the catalog in order. Each memory has the ports of row 0, then of row 1, up to row `k − 1`, and a map `shift i` moves the columns of row `i` to columns of the step witness. At `shift i c`, the step witness holds the value of row `i` at column `c`, for each column `c` that a port reads (`Spec.Nebula.MemoryTrace.HoldsRows`). So a step lists its events memory by memory, and its rows list them row by row. When the memory ids are distinct, each memory's events come in the same order in the two lists. So batched steps are memory consistent exactly when their rows, in order, are memory consistent (`Spec.Nebula.MemoryTrace.memoryConsistent_batchCatalog_iff` (`8884c58e0831ed34`)). When the regions are disjoint, every event of the rows is in range and the initial state holds the program images, an execution whose active ports, step after step, bind a reorder of the batched events of each step makes the trace of the rows memory consistent (`Spec.Nebula.MemoryTrace.memoryConsistent_of_batched_executes` (`d36926c9499e93e5`)). A slot plan that obeys the conditions above in each step gives this reorder (`Spec.Nebula.MemoryTrace.memoryConsistent_of_slotOrder_executes` (`763d05fb5fd4b167`)). Rust `neo_application::MemoryCatalog::batched` builds the batched catalog, and the catalog rejects two memories with one id. The WASM application `neo_wasm::nebula::WasmApplication` keeps column 0 (`z[0] = 1`) for all rows and moves each other column of row `i` by `i` times the row width. Its relation also makes each row's `_AFTER` columns equal to the next row's `_BEFORE` columns, and its slot plan is the one-row plan for each row in turn (`crates/neo-wasm/src/nebula.rs`; not checked against Lean).
 
+### 7.7 Native pieces
+
+A Rust-built application in an option-B step package (`Export.OptionB.StepPackage.Package`) places each Poseidon2 permutation as a block and each 0/1 word in a bit slot, as the packages that Lean emits do.
+
+**Input.** The application's rows and recipe rows, and its shape: for each permutation, its first local and its 16 input lanes, and the words that a bit row forces to 0 or 1.
+
+**Output.** The application's pieces of the package. The first piece has every row except the 1,096 recipe rows of each block. Then each permutation is one block (`Export.Generic.Frame.Block`): 150 S-box rows on its S-box columns, which the application's blocks lead, 16 binding rows, and no slot for its 1,080 dead locals. A bit word has a bit slot of one coordinate (`Layout.LowNormSlot.Kind`). Every other word has a field slot of 41 trits.
+
+**Steps.**
+
+1. Require that the blocks ascend and do not overlap, that each lane reads only live words before its block (`Export.Generic.Frame.Framed`), and that each kept row reads no dead local (`Export.Generic.NativeBlock.rowAvoids`).
+2. Require that the 1,096 rows of each block are the rows of one permutation over its lanes, in the order of `formal/nightstream-fprime/NightstreamFPrime/Gadgets/Poseidon2/Permutation.lean`.
+3. Drop the recipe rows of each block and add its block. Give each dead local no slot and the value 0.
+4. Bind the shape into the package identity: each block's first local and lanes, then the bit words.
+
+**Rejects.** A block outside the locals, a row in two blocks, a lane that reads its own block or a later word, a kept row or a lane that reads a dead local, a bit word that is a dead local or neither a witness word nor a local, and a block whose rows are not its permutation.
+
+**Source.** Soundness: when the S-box rows are zero and the other rows and the binding rows hold, the outputs of each block are the Poseidon2 permutation of its lanes, and an environment that differs only on the dead locals satisfies the other rows and the 1,096 template constraints of every block (`Export.Generic.NativeBlock.blocks_sound` (`342cf54f1709fba4`)). Completeness: an honest template trace, with each S-box column at its template local, makes the S-box rows zero and the binding rows hold (`Export.Generic.NativeBlock.blocks_complete` (`50cfe996b332136e`)). A value 0 or 1 is valid in a bit slot (`Export.Generic.NativeBlock.bit_valid_of_boolean` (`b39dadbdb89f5988`)). A bit slot whose coordinate passes the norm check decodes to −1, 0 or 1 (`Export.Generic.NativeBlock.bitSlot_sound` (`84d40cc422a4c3ef`)), so the word's bit row makes it 0 or 1. The relation is sound for every slot layout (`Export.Generic.CircuitRelation.rowsZero_implies_spec` (`8d8dfc28ea513e47`)). Rust: `StepPackage::with_application` in `crates/nightstream-fprime/src/option_b/application.rs` and `check_blocks` in `crates/nightstream/src/application/poseidon2.rs` (not checked against Lean).
+
 ### Algorithm 9. Memory step
 
 **Input.** The input state, the carry `c` and the application words that open it, the output application words, the private words, the step's lanes, and the proposals.

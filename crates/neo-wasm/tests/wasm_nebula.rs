@@ -585,8 +585,8 @@ fn packages() -> [Vec<u8>; 3] {
     })
 }
 
-fn references(packages: &[Vec<u8>; 3]) -> nightstream::option_b::References<'_> {
-    nightstream::option_b::References {
+fn references(packages: &[Vec<u8>; 3]) -> nightstream::References<'_> {
+    nightstream::References {
         light: &packages[0],
         refresh: &packages[1],
         finish: &packages[2],
@@ -698,7 +698,7 @@ fn time_proofs<A: Application + Clone>(
     eprintln!("witness words per step={}", invocations[0].words.len());
     let proving = Instant::now();
     // A prover keeps only its last proof.
-    let mut last: Option<nightstream::option_b::Proof> = None;
+    let mut last: Option<nightstream::Proof> = None;
     for (k, invocation) in invocations.iter().enumerate() {
         let step = Instant::now();
         let proof = match &last {

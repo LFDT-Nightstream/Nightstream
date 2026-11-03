@@ -18,8 +18,8 @@ pub(crate) fn option_b_packages(stem: &str) -> [Vec<u8>; 3] {
     ]
 }
 
-pub(crate) fn references(packages: &[Vec<u8>; 3]) -> crate::option_b::References<'_> {
-    crate::option_b::References {
+pub(crate) fn references(packages: &[Vec<u8>; 3]) -> crate::References<'_> {
+    crate::References {
         light: &packages[0],
         refresh: &packages[1],
         finish: &packages[2],

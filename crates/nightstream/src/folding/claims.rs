@@ -31,9 +31,6 @@ impl RunningInstance {
     pub(crate) fn new(claims: Vec<CeClaim>, witnesses: Vec<Mat<F>>) -> Self {
         Self { claims, witnesses }
     }
-    pub(crate) fn claims_only(&self) -> Self {
-        Self::new(self.claims.clone(), Vec::new())
-    }
     pub(crate) fn is_empty(&self) -> bool {
         self.claims.is_empty() && self.witnesses.is_empty()
     }

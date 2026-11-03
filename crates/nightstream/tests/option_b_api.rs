@@ -6,7 +6,7 @@ use std::fs;
 use std::path::PathBuf;
 
 use nightstream::application::{poseidon2_hash_chain_step, poseidon2_hash_chain_v1};
-use nightstream::option_b::{Circuit, References};
+use nightstream::{Circuit, References};
 use nightstream::{Engine, PrimeCharacteristicRing, State};
 use p3_goldilocks::Goldilocks as F;
 

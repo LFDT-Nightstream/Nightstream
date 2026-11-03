@@ -59,36 +59,6 @@ pub(crate) fn prove_from_parts_with_rows(
     Ok(Proof { sumcheck, outputs })
 }
 
-pub(crate) fn verify(
-    tr: &mut Transcript,
-    pp: &Params,
-    s: &Structure,
-    profile: &FoldProfile<'_>,
-    fresh_claim: &CcsClaim,
-    running: &RunningInstance,
-    proof: &Proof,
-) -> Result<Vec<CeClaim>, Error> {
-    reject_auxiliary(fresh_claim, &running.claims)?;
-    if proof.outputs.iter().any(|c| c.adv.is_some()) {
-        return Err(Error::Shape("plain outputs cannot carry auxiliary commitments"));
-    }
-    validate_verifier_shape(pp, s, profile, running, &proof.outputs)?;
-    let ok = engine::verify_pi_ccs(
-        tr.inner_mut(),
-        pp,
-        s,
-        profile,
-        fresh_claim,
-        running,
-        &proof.outputs,
-        &proof.sumcheck,
-    )?;
-    if !ok {
-        return Err(Error::Shape("engine returned false on verify"));
-    }
-    Ok(proof.outputs.clone())
-}
-
 fn validate_canonical_x_shape(claims: &[CeClaim], label: &'static str) -> Result<(), Error> {
     for claim in claims {
         if !superneo_has_canonical_x_shape(&claim.X, claim.m_in) {
@@ -139,30 +109,6 @@ fn running_count(pp: &Params, profile: &FoldProfile<'_>) -> usize {
         NormSources::All => pp.k_rho() as usize,
         NormSources::Fresh => 1,
     }
-}
-
-fn validate_verifier_shape(
-    pp: &Params,
-    s: &Structure,
-    profile: &FoldProfile<'_>,
-    running: &RunningInstance,
-    fold_outputs: &[CeClaim],
-) -> Result<(), Error> {
-    let running_claims = &running.claims;
-    if !running_claims.is_empty() && running_claims.len() != running_count(pp, profile) {
-        return Err(Error::Shape("running length does not match the fold profile"));
-    }
-    if fold_outputs.len() != 1 + running_claims.len() {
-        return Err(Error::Shape("|fold_outputs| \u{2260} 1 + k"));
-    }
-    validate_canonical_x_shape(running_claims, "running X must use the canonical coefficient embedding")?;
-    validate_canonical_x_shape(
-        fold_outputs,
-        "fold output X must use the canonical coefficient embedding",
-    )?;
-    validate_v1_2_claims(s, running_claims)?;
-    validate_v1_2_claims(s, fold_outputs)?;
-    Ok(())
 }
 
 fn validate_v1_2_claims(s: &Structure, claims: &[CeClaim]) -> Result<(), Error> {

@@ -14,8 +14,8 @@ use super::*;
 use crate::lifecycle::option_b::{OptionBError, CHECK_ROWS, FAILED_ROW};
 use crate::nebula::test_packages::{option_b_packages, references};
 use crate::nebula::{Circuit, Machine, MachineState, Package, Step};
-use crate::option_b::{Proof, Prover, Verifier};
 use crate::{Engine, Error};
+use crate::{Proof, Prover, Verifier};
 
 /// `loadi 5; store 0`, then `load 0; halt`.
 const EXECUTE: [Step; 2] = [Step::Execute, Step::Execute];

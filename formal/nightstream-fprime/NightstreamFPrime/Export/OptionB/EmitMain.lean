@@ -4,6 +4,7 @@ import NightstreamFPrime.Export.Stage1.Rows
 import NightstreamFPrime.Lifecycle.Stage1.Poseidon2HashChainV1
 import NightstreamFPrime.Export.Stage1.NebulaMemoryV1Package
 import NightstreamFPrime.Export.Stage1.NebulaMemoryN1Package
+import NightstreamFPrime.Export.Stage1.ApplicationPackage
 
 /-! The option-B emitter (CW-5.5), first part: the row census of the light and the refresh step
 circuits for today's fixture application (`Poseidon2HashChainV1.program`). For each circuit it
@@ -168,6 +169,54 @@ def emitFinish : IO Unit := do
     (some (refreshOffset + localLength refreshOps))
   say s!"finish package written ({(← IO.monoMsNow) - start} ms)"
 
+/-- FNV-1a over the little-endian bytes of `word`. -/
+def fnvWord (hash word : UInt64) : UInt64 := Id.run do
+  let mut hash := hash
+  for k in [0:8] do
+    hash := (hash ^^^ ((word >>> (8 * k).toUInt64) &&& 0xff)) * 0x100000001b3
+  return hash
+
+/-- One side of a row in canonical form: its constant, then its terms by variable, with equal
+variables merged and zero coefficients dropped. -/
+def sideWords (toVariable : Nat → Except String Nat) (side : R1CS.LinearCombination) :
+    Except String (List UInt64) := do
+  let mut merged : Std.HashMap Nat F := {}
+  for (column, coefficient) in side.terms do
+    let index ← toVariable column
+    merged := merged.insert index (merged.getD index 0 + coefficient)
+  let terms := (merged.toList.filter (·.2 ≠ 0)).mergeSort (·.1 ≤ ·.1)
+  return [side.constant.val.toUInt64, terms.length.toUInt64] ++
+    terms.flatMap fun (index, coefficient) => [index.toUInt64, coefficient.val.toUInt64]
+
+/-- The rows of `program`'s application, and their digest in the Rust application's variable
+order (`ApplicationCircuit`): the input state, the witness words, the output state, then the
+locals and the lowering's fresh columns. `tests/nebula/parity.rs` requires the Rust-built
+memory circuit to have the same digest. -/
+def applicationDigest (program : Stage1.Application.Program) : Except String (Nat × UInt64) := do
+  let columns := Export.Stage1.ApplicationPackage.productionColumns program
+  let privateStart := Layout.Stage1.ApplicationInputs.localStart program
+  let words := program.witnessWordCount
+  let constraints := Export.Stage1.ApplicationPackage.constraints program columns privateStart
+  let rows := (Export.Stage1.Rows.lowerConstraintsTR constraints
+    (Export.Stage1.ApplicationPackage.r1csFreshStart program columns privateStart)).rows
+  let mut ports : Std.HashMap Nat Nat := {}
+  for lane in List.finRange 4 do
+    ports := ports.insert (Layout.Stage1.ApplicationInputs.inputColumn lane) lane.val
+    ports := ports.insert (Layout.Stage1.ApplicationInputs.outputColumn lane) (4 + words + lane.val)
+  for word in List.finRange words do
+    ports := ports.insert (Layout.Stage1.ApplicationInputs.witnessColumn word) (4 + word.val)
+  let toVariable (column : Nat) : Except String Nat :=
+    match ports[column]? with
+    | some index => pure index
+    | none => if privateStart ≤ column then pure (8 + words + (column - privateStart))
+      else throw s!"column {column} is no application variable"
+  let mut hash := fnvWord 0xcbf29ce484222325 rows.length.toUInt64
+  for row in rows do
+    for side in [row.a, row.b, row.c] do
+      for word in ← sideWords toVariable side do
+        hash := fnvWord hash word
+  return (rows.length, hash)
+
 /-- Writes both step packages of the `--program` application (`selected`), and for today's
 fixture the parity file; with `--finish`, only the finish package (one Lean run renders
 at most two packages under the 1,500 s cap); with `--census`, prints the row census first; with
@@ -176,6 +225,12 @@ field arithmetic makes slow: Rust computes it natively. -/
 def main (arguments : List String) : IO Unit := do
   if arguments.contains "--finish" then
     emitFinish
+    return
+  if let ["--application-digest", name, path] := arguments then
+    let (program, _) ← selected ["--program", name]
+    let (rows, digest) ← IO.ofExcept (applicationDigest program)
+    IO.FS.writeFile path s!"\{\"rows\": {rows}, \"digest\": {digest}}\n"
+    say s!"{name}: {rows} application rows, digest {digest}"
     return
   let withCensus := arguments.contains "--census"
   let (program, stem) ← selected arguments

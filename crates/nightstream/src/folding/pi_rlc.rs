@@ -83,40 +83,6 @@ pub(crate) fn prove_refs(
         Proof { combined },
     ))
 }
-#[cfg(feature = "metal")]
-pub(crate) fn prove_refs_resident<R>(
-    tr: &mut Transcript,
-    pp: &Params,
-    s: &Structure,
-    mix: RlcMixer,
-    claims: &[CeClaim],
-    witnesses: &[&Mat<F>],
-    mix_witnesses: impl Fn(&[Mat<F>], &[&Mat<F>]) -> R,
-) -> Result<(CeClaim, R, Proof), Error> {
-    validate_input_shape(claims, witnesses)?;
-    validate_inputs_before_rho(s, claims)?;
-    let rhos = engine::sample_rho_n(tr.inner_mut(), pp, claims.len())?;
-    let (combined, resident) = engine::prove_pi_rlc_refs_resident(pp, s, &rhos, claims, witnesses, mix, mix_witnesses)?;
-    validate_combined_claim(s, claims, &combined)?;
-    Ok((combined.clone(), resident, Proof { combined }))
-}
-pub(crate) fn verify(
-    tr: &mut Transcript,
-    pp: &Params,
-    s: &Structure,
-    mix: RlcMixer,
-    weights: Weights,
-    claims: &[CeClaim],
-    proof: &Proof,
-) -> Result<CeClaim, Error> {
-    validate_inputs_before_rho(s, claims)?;
-    let rhos = weights.sample(tr, pp, claims.len())?;
-    validate_combined_claim(s, claims, &proof.combined)?;
-    if !engine::verify_pi_rlc(pp, s, &rhos, claims, &proof.combined, mix)? {
-        return Err(Error::VerifyRejected);
-    }
-    Ok(proof.combined.clone())
-}
 fn validate_inputs_before_rho(s: &Structure, inputs: &[CeClaim]) -> Result<(), Error> {
     if inputs.is_empty() {
         return Err(Error::Shape);

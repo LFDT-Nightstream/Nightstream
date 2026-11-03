@@ -292,19 +292,6 @@ impl ApplicationCircuit {
         self.outputs.map(|output| output.row)
     }
 
-    pub(crate) fn from_prepared(
-        package: &nightstream_fprime::LoadedPerApplicationPackage,
-        forms: [u8; 4],
-        rows: [usize; 4],
-    ) -> Result<Self, ApplicationError> {
-        let records = Arc::clone(
-            package
-                .application_records()
-                .ok_or(ApplicationError::Prepared("prepared native records"))?,
-        );
-        Self::from_records(records, package.application().witness_word_count(), forms, rows)
-    }
-
     /// The application of `records` with `private_count` witness words and
     /// its output forms and rows (`prepared_output_forms`,
     /// `prepared_output_rows`).

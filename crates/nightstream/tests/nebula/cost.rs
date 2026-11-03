@@ -6,14 +6,29 @@
 //! `neo-wasm` (`tests/wasm_nebula.rs`), without its rows. A step's
 //! Stage 1 words are its witness words (the memory words of
 //! `WitnessWords.lean`) and its local words (the variables of the Poseidon2
-//! sponges and of the product rows). The F′ carrier of the shared verifier
-//! must fit the approved key capacity (`MAX_CARRIER_WIDTH`) and the `2^28`
-//! domain checks of the assembler.
+//! sponges and of the product rows). The refresh relation with the application
+//! in place, whose logical width is the widest step's, must fit the approved
+//! key capacity (`MAX_CARRIER_WIDTH`).
+
+use std::sync::OnceLock;
 
 use neo_ajtai::nightstream_fprime_setup::MAX_CARRIER_WIDTH;
+use nightstream_fprime::{load_option_b_packages, OptionBPackages, OPTION_B_PACKAGES_IDENTITY};
 
 use super::memory_circuit;
+use crate::application::ApplicationCircuit;
 use crate::nebula::{Application, Expr, Geometry, Memory, Transition, View};
+
+/// The logical width of the refresh relation with `circuit` in place of Lean's application.
+fn logical_width(circuit: &ApplicationCircuit) -> Result<usize, crate::Error> {
+    static PACKAGES: OnceLock<OptionBPackages> = OnceLock::new();
+    let packages = PACKAGES.get_or_init(|| {
+        let bytes = crate::nebula::test_packages::option_b_packages("");
+        load_option_b_packages(&bytes[0], &bytes[1], OPTION_B_PACKAGES_IDENTITY).unwrap()
+    });
+    let packages = packages.with_application(circuit.records().clone(), circuit.private_input_count())?;
+    Ok(packages.refresh().layout()?.width())
+}
 
 /// An application with `width` state words, `aux` private words, `ports`
 /// ports, and no row.
@@ -90,7 +105,7 @@ fn count(geometry: &Geometry, app: Free) -> Option<bool> {
     let started = std::time::Instant::now();
     let circuit = memory_circuit(geometry, &app).unwrap();
     let (witness, local) = (circuit.private_input_count(), circuit.generated_range().len());
-    let carrier = crate::assembly::logical_width(&circuit);
+    let carrier = logical_width(&circuit);
     let fits = carrier
         .as_ref()
         .is_ok_and(|width| *width <= MAX_CARRIER_WIDTH);

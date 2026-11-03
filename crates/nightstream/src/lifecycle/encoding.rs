@@ -15,17 +15,11 @@ use neo_ajtai::nightstream_fprime_setup::{signed_unit_prefix_blocks, PRODUCTION_
 use neo_ajtai::Commitment;
 use neo_ccs::Mat;
 use neo_math::{KExtensions, D, F, K};
-use nightstream_fprime::{PI_CCS_V1_2_ROUND_COUNT, PI_DEC_V1_2_CHILD_COUNT};
+use nightstream_fprime::PI_CCS_V1_2_ROUND_COUNT;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
-use super::{PreparedLifecycle, Stage1Envelope, Stage1State};
-use crate::folding::{
-    has_canonical_evaluations, CcsClaim, CcsInstance, CcsWitness, CeClaim, RunningInstance, EVALUATION_WIDTH,
-};
+use crate::folding::{has_canonical_evaluations, CeClaim, EVALUATION_WIDTH};
 
-const MAGIC: &[u8; 16] = b"NS-STAGE1-PROOF1";
-const INITIAL: u64 = 0;
-const ACTIVE: u64 = 1;
 const KAPPA: usize = PRODUCTION_VERIFIER_ROWS as usize;
 const WORD: usize = 8;
 
@@ -38,142 +32,6 @@ pub(super) struct Shape {
     pub(super) public_width: usize,
     pub(super) witness_columns: usize,
     pub(super) matrices: usize,
-}
-
-impl Shape {
-    /// Commitment, public projection, point, `Eval_K`, then `Eval_A`.
-    fn claim_bytes(&self) -> Option<usize> {
-        let evaluations = self.matrices.checked_add(1)?.checked_mul(2 * D)?;
-        D.checked_mul(KAPPA)?
-            .checked_add(self.public_width)?
-            .checked_add(2 * PI_CCS_V1_2_ROUND_COUNT)?
-            .checked_add(evaluations)?
-            .checked_mul(WORD)
-    }
-
-    fn witness_bytes(&self) -> Option<usize> {
-        self.witness_columns.checked_mul(2 * WORD)
-    }
-
-    /// The complete length of one proof of `kind`, or `None` for an unknown kind.
-    fn length(&self, kind: u64) -> Option<usize> {
-        let header = MAGIC.len() + WORD;
-        match kind {
-            INITIAL => Some(header + 4 * WORD),
-            ACTIVE => {
-                let claim = self.claim_bytes()?;
-                let witness = self.witness_bytes()?;
-                let running = claim
-                    .checked_mul(PI_DEC_V1_2_CHILD_COUNT)?
-                    .checked_add(witness.checked_mul(PI_DEC_V1_2_CHILD_COUNT)?)?;
-                let fresh = (D * KAPPA + self.public_width)
-                    .checked_mul(WORD)?
-                    .checked_add(witness)?;
-                (header + 9 * WORD).checked_add(running)?.checked_add(fresh)
-            }
-            _ => None,
-        }
-    }
-}
-
-impl PreparedLifecycle {
-    fn proof_shape(&self) -> Result<Shape, ProofCodecError> {
-        let public_width = self.package.logical_public_input_count();
-        if !public_width.is_multiple_of(D) {
-            return Err(ProofCodecError("public width is not whole ring elements"));
-        }
-        Ok(Shape {
-            public_width,
-            witness_columns: self.structure.m().div_ceil(D),
-            matrices: self.structure.t(),
-        })
-    }
-
-    /// Encode a proof of this circuit. A value outside the selected shape is
-    /// an error, never a silently changed proof. Values that `verify` does not
-    /// read are not encoded.
-    pub(crate) fn encode_proof(&self, envelope: &Stage1Envelope) -> Result<Vec<u8>, ProofCodecError> {
-        let shape = self.proof_shape()?;
-        let active = envelope.active_parts();
-        let kind = if active.is_some() { ACTIVE } else { INITIAL };
-        let length = shape
-            .length(kind)
-            .ok_or(ProofCodecError("proof size overflows"))?;
-        let mut output = Writer(Vec::with_capacity(length));
-        output.0.extend_from_slice(MAGIC);
-        output.word(kind);
-        let state = envelope.state();
-        let Some((running, fresh)) = active else {
-            output.fields(&state.z0());
-            return Ok(output.0);
-        };
-        if running.claims.len() != PI_DEC_V1_2_CHILD_COUNT || running.witnesses.len() != PI_DEC_V1_2_CHILD_COUNT {
-            return Err(ProofCodecError("running claim or witness count"));
-        }
-        output.word(state.iteration());
-        output.fields(&state.z0());
-        output.fields(&state.current());
-        for claim in &running.claims {
-            output.claim(claim, &shape)?;
-        }
-        for witness in &running.witnesses {
-            output.witness(witness, &shape)?;
-        }
-        let claim = &fresh.claim;
-        if claim.m_in != shape.public_width || claim.x.len() != shape.public_width || claim.adv.is_some() {
-            return Err(ProofCodecError("fresh public input shape"));
-        }
-        output.commitment(&claim.c)?;
-        output.fields(&claim.x);
-        output.witness(&fresh.witness.Z, &shape)?;
-        debug_assert_eq!(output.0.len(), length);
-        Ok(output.0)
-    }
-
-    /// Decode untrusted proof bytes for this circuit.
-    pub(crate) fn decode_proof(&self, bytes: &[u8]) -> Result<Stage1Envelope, ProofCodecError> {
-        let shape = self.proof_shape()?;
-        let mut input = Reader(bytes);
-        if input.take(MAGIC.len())? != MAGIC {
-            return Err(ProofCodecError("format tag"));
-        }
-        let kind = input.word()?;
-        let length = shape
-            .length(kind)
-            .ok_or(ProofCodecError("unknown proof kind"))?;
-        if bytes.len() != length {
-            return Err(ProofCodecError("length differs from this circuit's proof size"));
-        }
-        if kind == INITIAL {
-            return Ok(Stage1Envelope::initial(input.four()?));
-        }
-        let state = Stage1State::new(input.word()?, input.four()?, input.four()?);
-        let claims = (0..PI_DEC_V1_2_CHILD_COUNT)
-            .map(|_| input.claim(&shape))
-            .collect::<Result<Vec<_>, _>>()?;
-        let witnesses = (0..PI_DEC_V1_2_CHILD_COUNT)
-            .map(|_| input.witness(&shape))
-            .collect::<Result<Vec<_>, _>>()?;
-        let c = input.commitment()?;
-        let x = input.fields(shape.public_width)?;
-        let fresh = CcsInstance {
-            claim: CcsClaim {
-                c,
-                x,
-                m_in: shape.public_width,
-                adv: None,
-            },
-            witness: CcsWitness {
-                Z: input.witness(&shape)?,
-            },
-        };
-        // The frame digests stay zero: no reduction reads them.
-        Ok(Stage1Envelope::from_parts(
-            state,
-            RunningInstance::new(claims, witnesses),
-            fresh,
-        ))
-    }
 }
 
 pub(super) struct Writer(pub(super) Vec<u8>);

@@ -56,14 +56,6 @@ pub enum Package {
 }
 
 impl Package {
-    /// Whether `identifier` pins a memory package, whose verifier is
-    /// `nebula::Verifier`.
-    pub(crate) fn pinned(identifier: [u64; 4]) -> bool {
-        [Package::V1, Package::N1]
-            .into_iter()
-            .any(|package| package.structural_identifier() == identifier)
-    }
-
     /// The memory geometry that the package proves.
     pub fn geometry(self) -> Geometry {
         match self {
@@ -84,13 +76,13 @@ impl Package {
 
     /// Load the package's option-B circuit: Lean's light and refresh
     /// packages of the memory program (`EmitMain --program`) and the finish
-    /// package. `option_b::Circuit::load_packages` recomputes their identity
+    /// package. `Circuit::load_packages` recomputes their identity
     /// and requires the package's pin.
-    pub fn load(self, references: crate::option_b::References<'_>) -> Result<Circuit<Machine>, crate::Error> {
+    pub fn load(self, references: crate::References<'_>) -> Result<Circuit<Machine>, crate::Error> {
         Ok(Circuit {
             geometry: self.geometry(),
             app: Machine,
-            circuit: crate::option_b::Circuit::load_packages(references, self.option_b_identity())?.into_memory(),
+            circuit: crate::Circuit::load_packages(references, self.option_b_identity())?.into_memory(),
         })
     }
 
@@ -117,23 +109,6 @@ impl Package {
     #[cfg(test)]
     pub(crate) fn application(self) -> Result<crate::application::ApplicationCircuit, crate::Error> {
         circuit::memory_circuit(&self.geometry(), &Machine)
-    }
-
-    fn structural_identifier(self) -> [u64; 4] {
-        match self {
-            Package::V1 => [
-                16124593816834730366,
-                3526578406157962078,
-                13420800549100596370,
-                2876334031716046261,
-            ],
-            Package::N1 => [
-                8020921799501217406,
-                18145530998824220440,
-                8946753667183584570,
-                9385901100025494867,
-            ],
-        }
     }
 }
 
@@ -276,7 +251,7 @@ pub fn size_parts<A: Application>(geometry: &Geometry, app: &A) -> Result<Vec<Si
 pub struct Circuit<A> {
     geometry: Geometry,
     app: A,
-    circuit: crate::option_b::Circuit,
+    circuit: crate::Circuit,
 }
 
 impl<A: Application> Circuit<A> {
@@ -284,25 +259,21 @@ impl<A: Application> Circuit<A> {
     /// `Geometry.Valid` and `Geometry.Secure`) and `app` in Rust, and compile
     /// it with the Stage 1 reference package. `app` must have the geometry's
     /// `b_ops` ports (Lean `PortApp.portsLength`).
-    pub fn compile(
-        references: crate::option_b::References<'_>,
-        geometry: Geometry,
-        app: A,
-    ) -> Result<Self, crate::Error> {
+    pub fn compile(references: crate::References<'_>, geometry: Geometry, app: A) -> Result<Self, crate::Error> {
         if !geometry.is_valid() || !geometry.is_secure() {
             return Err(crate::Error::Circuit("the memory geometry breaks SPEC.md section 7.1"));
         }
         check_port_count(&geometry, &app)?;
         let application = circuit::memory_circuit(&geometry, &app)?;
         Ok(Self {
-            circuit: crate::option_b::Circuit::compile(references, application)?.into_memory(),
+            circuit: crate::Circuit::compile(references, application)?.into_memory(),
             geometry,
             app,
         })
     }
 
     /// Save a `Circuit::compile` circuit for a prover in another process
-    /// (`option_b::Circuit::load`). The destination must not exist. A Lean
+    /// (`Circuit::load`). The destination must not exist. A Lean
     /// package has no Rust application to save. A verifier compiles its own
     /// circuit and never loads this file.
     pub fn write(&self, path: impl AsRef<std::path::Path>) -> Result<(), crate::Error> {
@@ -317,11 +288,7 @@ impl<A: Application> Circuit<A> {
 
     /// The prover of the circuit. `minimum_security_bits` bounds the folding
     /// profile and the memory fingerprint term (`Geometry::memory_security_bits`).
-    pub fn prover(
-        &self,
-        engine: crate::Engine,
-        minimum_security_bits: u32,
-    ) -> Result<crate::option_b::Prover, crate::Error> {
+    pub fn prover(&self, engine: crate::Engine, minimum_security_bits: u32) -> Result<crate::Prover, crate::Error> {
         self.check_memory_security(minimum_security_bits)?;
         self.circuit.prover(engine, minimum_security_bits)
     }
@@ -356,7 +323,7 @@ pub enum VerifyError {
 pub struct Verifier<A> {
     geometry: Geometry,
     app: A,
-    stage1: crate::option_b::Verifier,
+    stage1: crate::Verifier,
 }
 
 impl<A: Application + Clone> Verifier<A> {
@@ -374,8 +341,8 @@ impl<A: Application + Clone> Verifier<A> {
         })
     }
 
-    /// Decode untrusted proof bytes (`option_b::Verifier::decode_proof`).
-    pub fn decode_proof(&self, bytes: &[u8]) -> Result<crate::option_b::Proof, crate::Error> {
+    /// Decode untrusted proof bytes (`crate::Verifier::decode_proof`).
+    pub fn decode_proof(&self, bytes: &[u8]) -> Result<crate::Proof, crate::Error> {
         self.stage1.decode_proof(bytes)
     }
 
@@ -389,7 +356,7 @@ impl<A: Application + Clone> Verifier<A> {
         program: &Program,
         statement: &Statement<A::State>,
         final_carry: &Carry,
-        proof: &crate::option_b::Proof,
+        proof: &crate::Proof,
     ) -> Result<(), VerifyError> {
         if program.geometry != self.geometry {
             return Err(VerifyError::Geometry);
@@ -400,21 +367,21 @@ impl<A: Application + Clone> Verifier<A> {
         Ok(())
     }
 
-    /// The trusted compression key of the circuit (`option_b::Verifier::compression_key`).
-    pub fn compression_key(&self) -> Result<crate::option_b::CompressionKey, crate::Error> {
+    /// The trusted compression key of the circuit (`crate::Verifier::compression_key`).
+    pub fn compression_key(&self) -> Result<crate::CompressionKey, crate::Error> {
         self.stage1.compression_key()
     }
 
-    /// Verify a finished memory proof (`option_b::Prover::finish`)
+    /// Verify a finished memory proof (`crate::Prover::finish`)
     /// as `verify` does: the terminal checks, then
-    /// `option_b::Verifier::verify_final` with `key`.
+    /// `crate::Verifier::verify_final` with `key`.
     pub fn verify_final(
         &self,
         program: &Program,
         statement: &Statement<A::State>,
         final_carry: &Carry,
-        key: &crate::option_b::CompressionKey,
-        proof: &crate::option_b::FinalProof,
+        key: &crate::CompressionKey,
+        proof: &crate::FinalProof,
     ) -> Result<(), VerifyError> {
         if program.geometry != self.geometry {
             return Err(VerifyError::Geometry);

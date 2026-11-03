@@ -380,8 +380,8 @@ impl Packages {
         }
     }
 
-    fn references(&self) -> nightstream::option_b::References<'_> {
-        nightstream::option_b::References {
+    fn references(&self) -> nightstream::References<'_> {
+        nightstream::References {
             light: &self.light,
             refresh: &self.refresh,
             finish: &self.finish,
@@ -440,7 +440,7 @@ fn n1_accept(engine: nightstream::Engine) {
     let verifier = nightstream::nebula::Verifier::new(&circuit, engine, 114).unwrap();
     let mut run = n1_run();
     let z0 = run.initial_state();
-    let mut proof: Option<nightstream::option_b::Proof> = None;
+    let mut proof: Option<nightstream::Proof> = None;
     for _ in 0..run.context().geometry().s_max {
         let invocation = run.segment(&[Step::Execute]).unwrap().remove(0);
         proof = Some(match &proof {
@@ -940,9 +940,9 @@ fn terminal_checks_reject_a_state_of_another_width() {
 /// One segment of the first package's default program proved by `prover`,
 /// with the native outputs as the Rust application's outputs.
 fn prove_segment<A: Application<Input = Step, State = MachineState>>(
-    prover: &nightstream::option_b::Prover,
+    prover: &nightstream::Prover,
     app: A,
-) -> (Statement<MachineState>, Carry, nightstream::option_b::Proof) {
+) -> (Statement<MachineState>, Carry, nightstream::Proof) {
     let mut run = Run::new(Context::new(app, &Package::V1.program()), MachineState::default());
     let z0 = run.initial_state();
     let invocations = run.segment(&[Step::Execute, Step::Execute]).unwrap();
@@ -969,7 +969,7 @@ fn rust_built(engine: nightstream::Engine) {
         .unwrap()
         .write(&path)
         .unwrap();
-    let prover = nightstream::option_b::Circuit::load(&path, reference.references());
+    let prover = nightstream::Circuit::load(&path, reference.references());
     std::fs::remove_file(&path).unwrap();
     let prover = prover.unwrap().prover(engine, 114).unwrap();
     let verifier = Verifier::new(

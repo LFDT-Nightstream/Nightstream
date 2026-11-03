@@ -3,12 +3,14 @@
    traps and out-of-bounds memory) are each gated by their own selectors, and a
    program row starts untrapped, so a supported row ends untrapped. *)
 From Stdlib Require Import List ZArith Lia.
-Require Import R1CS Columns FullRelation Range Selectors CircuitFacts.
+Require Import R1CS Columns FullRelation Range Selectors CircuitFacts Wasm2 OpcodeCatalog
+  StraightLineSpec CodeLayout Fragment ProgramSpec.
 Import ListNotations.
 Open Scope Z_scope.
 
-(* The selectors of the supported fragment's rows. *)
-Definition supportedSelectors : list Column :=
+(* Circuit selectors proved nontrapping below. Coverage of the source fragment
+   is checked against the actual opcode ROM encoder by supported_opcode_nontrapping. *)
+Definition nonTrappingSelectors : list Column :=
   [COL_SEL_I32_ADD; COL_SEL_I32_SUB; COL_SEL_LOCAL_GET; COL_SEL_LOCAL_SET; COL_SEL_CALL; COL_SEL_BLOCK;
    COL_SEL_LOOP; COL_SEL_IF; COL_SEL_ELSE; COL_SEL_END; COL_SEL_BR; COL_SEL_BR_IF_EQZ; COL_SEL_BR_TABLE;
    COL_SEL_RETURN; COL_SEL_NOP].
@@ -27,8 +29,8 @@ Ltac selected_row_where chosen a b c name :=
   | None => fail "Missing circuit row" a b c
   end.
 
-Lemma full_supported_untrapped : forall (w : Witness) chosen,
-  fieldPrime -> FullRelation.satFull w -> In chosen supportedSelectors -> w chosen = 1 ->
+Lemma full_nontrapping_untrapped : forall (w : Witness) chosen,
+  fieldPrime -> FullRelation.satFull w -> In chosen nonTrappingSelectors -> w chosen = 1 ->
   w COL_TRAPPED_AFTER = 0.
 Proof.
   intros w chosen Hprime Hfull Hsupported Hchosen.
@@ -71,4 +73,43 @@ Proof.
   all: normalize_columns; rewrite Hg in Htype.
   all: assert (Hct : w COL_CALL_INDIRECT_IS_TRAP = 0) by field_linear Htype.
   all: field_linear Htrap.
+Qed.
+
+Ltac nontrapping_selector :=
+  match goal with
+  | |- exists chosen, In chosen nonTrappingSelectors /\ In (chosen, ?opcode) selectorCodes =>
+    let found := eval vm_compute in (find (fun entry => Z.eqb (snd entry) opcode) selectorCodes) in
+    lazymatch found with
+    | Some (?chosen, _) => exists chosen; split; vm_compute; tauto
+    end
+  end.
+
+(* Every supported source instruction's encoded opcode selects a nontrapping row.
+   In particular, a function-label BR may encode RETURN. Adding a constructor to
+   Supported must extend this proof; it cannot silently escape trap coverage. *)
+Lemma supported_opcode_nontrapping : forall callees i program f pc targets opcode,
+  Supported callees i ->
+  instructionAtPC program pc = Some (f, Some (flatInstruction (opInstr i) targets)) ->
+  instructionRom program MemoryCatalog.programOpcodeId pc 0 = Some opcode ->
+  exists chosen, In chosen nonTrappingSelectors /\ In (chosen, opcode) selectorCodes.
+Proof.
+  intros callees i program f pc targets opcode Hsupported Hslot Hcode.
+  unfold instructionRom in Hcode. rewrite Hslot in Hcode.
+  inversion Hsupported; subst;
+    destruct targets as [ | [target | ] [ | next rest]]; cbn in Hcode;
+    injection Hcode as <-;
+    nontrapping_selector.
+Qed.
+
+(* END and ELSE are synthetic markers, not source instructions. *)
+Lemma marker_opcode_nontrapping : forall program f pc marker targets opcode,
+  (marker = opEnd \/ marker = opElse) ->
+  instructionAtPC program pc = Some (f, Some (flatInstruction marker targets)) ->
+  instructionRom program MemoryCatalog.programOpcodeId pc 0 = Some opcode ->
+  exists chosen, In chosen nonTrappingSelectors /\ In (chosen, opcode) selectorCodes.
+Proof.
+  intros program f pc marker targets opcode Hmarker Hslot Hcode.
+  unfold instructionRom in Hcode. rewrite Hslot in Hcode.
+  destruct Hmarker as [-> | ->]; cbn in Hcode; injection Hcode as <-;
+    nontrapping_selector.
 Qed.

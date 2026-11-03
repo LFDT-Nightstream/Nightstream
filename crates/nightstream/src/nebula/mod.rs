@@ -210,8 +210,8 @@ pub struct SizePart {
 /// The parts of the memory circuit of `geometry` and `app`: the phases of its
 /// rows (the sponges, the hash bindings, the memory rows, and the
 /// application's rows), then the regions of its witness words. They sum to
-/// the application size of `Circuit::compile` for `geometry` and `app`, and
-/// `scripts/fprime_breakdown.py` charts them. It builds no Stage 1 package.
+/// the application size of `Circuit::compile` for `geometry` and `app`. It
+/// builds no step package.
 pub fn size_parts<A: Application>(geometry: &Geometry, app: &A) -> Result<Vec<SizePart>, crate::Error> {
     if !geometry.is_valid() {
         return Err(crate::Error::Circuit("the memory geometry breaks SPEC.md section 7.1"));
@@ -257,7 +257,7 @@ pub struct Circuit<A> {
 impl<A: Application> Circuit<A> {
     /// Build the memory relation of a valid, secure geometry (Lean
     /// `Geometry.Valid` and `Geometry.Secure`) and `app` in Rust, and compile
-    /// it with the Stage 1 reference package. `app` must have the geometry's
+    /// it into the step packages of `references` (`Circuit::compile`). `app` must have the geometry's
     /// `b_ops` ports (Lean `PortApp.portsLength`).
     pub fn compile(references: crate::References<'_>, geometry: Geometry, app: A) -> Result<Self, crate::Error> {
         if !geometry.is_valid() || !geometry.is_secure() {

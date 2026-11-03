@@ -45,3 +45,7 @@ leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
 name = "emitAjtaiSetupV1Parity"
 root = "NightstreamFPrime.Export.AjtaiSetupV1ParityMain"
 leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+[[lean_exe]]
+name = "emitFoundationParity"
+root = "NightstreamFPrime.Export.FoundationParityMain"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }

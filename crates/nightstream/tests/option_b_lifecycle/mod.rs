@@ -171,10 +171,8 @@ fn native_addition_verifies() {
     native_application_verifies(addition());
 }
 
-/// The CPU time of each option-B step with the production cap, against
-/// `poseidon_base_step_matches_lean_and_verifies` (today's one-circuit fold)
-/// on the same machine. Steps 1 to 3 are light; a refresh step runs at the
-/// cap, so this test reaches one with cap 2.
+/// The CPU time of each option-B step. Steps 1 to 3 are light; a refresh step
+/// runs at the cap, so this test reaches one with cap 2.
 #[test]
 #[ignore = "Timing run; run this test separately under the 300-second cap."]
 fn option_b_step_times() {

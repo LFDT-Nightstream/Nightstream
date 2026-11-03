@@ -9,6 +9,7 @@
 #   validate.sh lean-executable <built-Lean-executable> [arguments...]
 #   validate.sh pi-rlc-sampler-parity <path>
 #   validate.sh ajtai-setup-v1-parity <path>
+#   validate.sh foundation-parity <directory>
 #   validate.sh compression       boundary checks, libraries and executables of
 #                                 ../compression-lean, which imports this package
 #   validate.sh all               static, both libraries, executables, census
@@ -113,6 +114,10 @@ case "$phase" in
   pi-rlc-sampler-parity)
     if (( $# != 2 )); then echo "usage: validate.sh pi-rlc-sampler-parity <path>" >&2; exit 2; fi
     capped lake exe emitPiRlcSamplerParity -- "$2"
+    ;;
+  foundation-parity)
+    if (( $# != 2 )); then echo "usage: validate.sh foundation-parity <directory>" >&2; exit 2; fi
+    capped lake exe emitFoundationParity -- "$2"
     ;;
   ajtai-setup-v1-parity)
     if (( $# != 2 )); then echo "usage: validate.sh ajtai-setup-v1-parity <path>" >&2; exit 2; fi

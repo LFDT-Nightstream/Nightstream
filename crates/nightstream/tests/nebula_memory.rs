@@ -179,7 +179,7 @@ fn programs_of_one_package_have_their_own_initial_state() {
 
 /// The verifier's `D_init` (SPEC.md section 7.4), from which it computes the start
 /// carry and `z0`, equals the value that Lean computes for the same plan
-/// (`emit --application-start`). It binds the plan digest and the images.
+/// (`emitOptionB --application-start`). It binds the plan digest and the images.
 /// `FirstPlan.otherPlan` has a distinct nonzero word in every cell, so a
 /// misplaced or truncated word changes `D_init`.
 #[test]
@@ -277,7 +277,7 @@ fn canonical_words(words: &[F]) -> Vec<u64> {
 }
 
 /// The SPEC.md Algorithm 10 terminal check agrees with Lean's `TerminalChecks` on every
-/// case of `emit --application-terminal`. It accepts exactly when every
+/// case of `emitOptionB --application-terminal`. It accepts exactly when every
 /// statement integer is below `q` and every check holds, with Lean's final
 /// state words. Otherwise it fails at the first false check in its own order:
 /// Canonical decoding, closed carry, segment range, step count, then the carry fields.

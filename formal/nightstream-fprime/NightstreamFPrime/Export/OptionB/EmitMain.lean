@@ -5,6 +5,8 @@ import NightstreamFPrime.Lifecycle.Stage1.Poseidon2HashChainV1
 import NightstreamFPrime.Export.Stage1.NebulaMemoryV1Package
 import NightstreamFPrime.Export.Stage1.NebulaMemoryN1Package
 import NightstreamFPrime.Export.Stage1.ApplicationPackage
+import NightstreamFPrime.Export.Stage1.NebulaMemoryTerminal
+import NightstreamFPrime.Lifecycle.Nebula.SecondPlan
 
 /-! The option-B emitter (CW-5.5), first part: the row census of the light and the refresh step
 circuits for today's fixture application (`Poseidon2HashChainV1.program`). For each circuit it
@@ -217,6 +219,31 @@ def applicationDigest (program : Stage1.Application.Program) : Except String (Na
         hash := fnvWord hash word
   return (rows.length, hash)
 
+/-- A memory package's named assertion row ranges as `[[name, first, end], ...]`, counted from
+the application's first row. The Rust conformance suite reads them. -/
+def nebulaRows (ranges : List (String × ℕ × ℕ)) : String :=
+  "[" ++ ",".intercalate (ranges.map fun (name, first, stop) => s!"[\"{name}\",{first},{stop}]") ++ "]\n"
+
+/-- `D_init` of `plan` (SPEC.md section 7.4, the start carry's `D_mem`) as `{"d_init":[...]}`.
+`ofWords_initRootWords`: the words are `(context plan).initRoot`. Rust tests compare their own
+value with it. -/
+def nebulaStart (plan : Spec.Nebula.Plan) : String :=
+  "{\"d_init\":[" ++ ",".intercalate ((Lifecycle.Nebula.initRootWords plan).map (toString ·.val)) ++ "]}\n"
+
+/-- The memory fixtures that the Rust tests read: the named row ranges, `D_init` and the
+SPEC.md Algorithm 10 terminal-check cases (`NebulaMemoryTerminal.fixture`). -/
+def nebulaFixture : List String → Option String
+  | ["--application-rows", "nebula-v1"] => some (nebulaRows Stage1.NebulaMemoryV1Package.namedRowRanges)
+  | ["--application-rows", "nebula-n1"] => some (nebulaRows Stage1.NebulaMemoryN1Package.namedRowRanges)
+  | ["--application-start", "nebula-v1"] => some (nebulaStart Lifecycle.Nebula.FirstPlan.plan)
+  | ["--application-start", "nebula-v1-other"] => some (nebulaStart Lifecycle.Nebula.FirstPlan.otherPlan)
+  | ["--application-start", "nebula-n1"] => some (nebulaStart Lifecycle.Nebula.SecondPlan.plan)
+  | ["--application-terminal", "nebula-v1"] =>
+      some (Stage1.NebulaMemoryTerminal.fixture Lifecycle.Nebula.FirstPlan.plan)
+  | ["--application-terminal", "nebula-n1"] =>
+      some (Stage1.NebulaMemoryTerminal.fixture Lifecycle.Nebula.SecondPlan.plan)
+  | _ => none
+
 /-- Writes both step packages of the `--program` application (`selected`), and for today's
 fixture the parity file; with `--finish`, only the finish package (one Lean run renders
 at most two packages under the 1,500 s cap); with `--census`, prints the row census first; with
@@ -226,6 +253,11 @@ def main (arguments : List String) : IO Unit := do
   if arguments.contains "--finish" then
     emitFinish
     return
+  if let [mode, name, path] := arguments then
+    if let some text := nebulaFixture [mode, name] then
+      IO.FS.writeFile path text
+      say s!"{mode} {name}: {path}"
+      return
   if let ["--application-digest", name, path] := arguments then
     let (program, _) ← selected ["--program", name]
     let (rows, digest) ← IO.ofExcept (applicationDigest program)

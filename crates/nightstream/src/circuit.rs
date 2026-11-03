@@ -195,13 +195,6 @@ impl Circuit {
         })
     }
 
-    /// The package rows of the application, for conformance tests that name
-    /// the check a rejected step fails.
-    #[cfg(test)]
-    pub(crate) fn application_rows(&self) -> std::ops::Range<usize> {
-        self.compiled.package.application().row_range()
-    }
-
     /// The size of the Rust application, or `None` for a Lean-emitted package.
     pub fn application_size(&self) -> Option<ApplicationSize> {
         self.compiled
@@ -348,13 +341,6 @@ impl Verifier {
         if package.compiled.role == Role::Memory {
             return Err(Error::Circuit("a memory relation needs nebula::Verifier"));
         }
-        Self::configured(package, engine, minimum_security_bits)
-    }
-
-    /// The Stage 1 verifier of a one-circuit memory package, for the SPEC.md
-    /// section 9 conformance suite.
-    #[cfg(test)]
-    pub(crate) fn of_memory(package: &Circuit, engine: Engine, minimum_security_bits: u32) -> Result<Self, Error> {
         Self::configured(package, engine, minimum_security_bits)
     }
 

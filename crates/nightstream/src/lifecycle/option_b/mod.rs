@@ -177,6 +177,10 @@ impl OptionB {
         };
         let relation = &self.relations[words::pc(kind) as usize - 1];
         let logical = relation.assignment(self.package(kind), &step)?;
+        #[cfg(test)]
+        if CHECK_ROWS.get() {
+            FAILED_ROW.set(relation.first_failing_row(self.package(kind), &step)?);
+        }
         Ok(Envelope {
             iteration: envelope.iteration + 1,
             z0: envelope.z0,
@@ -247,6 +251,15 @@ impl OptionB {
             .holds(fresh)
             .map_err(OptionBError::Fresh)
     }
+}
+
+#[cfg(test)]
+thread_local! {
+    /// Set by a test that proves an invalid witness: record the first row of
+    /// the step relation that the step fails.
+    pub(crate) static CHECK_ROWS: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    /// That row, or `None` when every row holds.
+    pub(crate) static FAILED_ROW: std::cell::Cell<Option<usize>> = const { std::cell::Cell::new(None) };
 }
 
 #[cfg(test)]

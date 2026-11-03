@@ -137,6 +137,19 @@ impl Relation {
         Ok(self.layout.assignment(&columns)?)
     }
 
+    /// The first row of the relation that a step's columns fail; the
+    /// application's rows come first.
+    #[cfg(test)]
+    pub(crate) fn first_failing_row(
+        &self,
+        package: &StepPackage,
+        words: &StepWords,
+    ) -> Result<Option<usize>, RelationError> {
+        let columns = package.circuit_columns(&words.columns()?)?;
+        let columns = package.relation_columns(columns, &self.rows)?;
+        Ok((0..self.rows.row_count()).find(|&row| self.rows.residual(row, &columns) != F::ZERO))
+    }
+
     /// The shape that a slot's claim and the state words need: the selected
     /// commitment, the 270 public words, the 28-coordinate point and canonical
     /// evaluations.

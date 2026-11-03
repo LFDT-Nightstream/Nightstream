@@ -1,5 +1,6 @@
 import tests.AxiomAudit
 import NightstreamFPrime.Spec.Folding.Light.Binding
+import NightstreamFPrime.Spec.Folding.Light.RunningBinding
 import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.ChainBinding
 import NightstreamFPrime.Lifecycle.Nifs.BindingBridge
 
@@ -7,6 +8,11 @@ import NightstreamFPrime.Lifecycle.Nifs.BindingBridge
 #audit_axioms NightstreamFPrime.Spec.Folding.PiRLC.ChainBinding.forkCollision
 #audit_axioms NightstreamFPrime.Spec.Folding.Light.Rlc.Fork.forgetNorms
 #audit_axioms NightstreamFPrime.Spec.Folding.Light.Rlc.collisionAbove
+#audit_axioms NightstreamFPrime.Spec.Folding.Light.Rlc.smul_sub_value
+#audit_axioms NightstreamFPrime.Spec.Folding.Light.Rlc.sub_smul_value
+#audit_axioms NightstreamFPrime.Spec.Folding.Light.Rlc.running_eq_of_cross
+#audit_axioms NightstreamFPrime.Spec.Folding.Light.Rlc.base_difference_commits
+#audit_axioms NightstreamFPrime.Spec.Folding.Light.Rlc.runningCollisionAbove
 #audit_axioms NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Binding.collisionAt_to_shortKernel
 #audit_axioms NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Binding.chainCollision_to_shortKernel
 #audit_axioms NightstreamFPrime.Lifecycle.Nifs.BindingBridge.differenceBounded

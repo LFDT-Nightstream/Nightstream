@@ -7,15 +7,17 @@
 # and optionBCheck print (`digest` on each `match` line). Copy a new digest
 # into its `*_digest_is_pinned` test (lowering.rs, terminal_ir.rs,
 # option_b_lifecycle/final_ir.rs) only after the check that prints it passes.
-# Option B's checks run in order: the keys, their JSON and key facts, the
-# final program, then its whole-run pin.
+# Option B's checks run in order: the keys, their JSON and key facts, each
+# relation's runs against its step package, the setups, the final program,
+# then its whole-run pin.
 set -u
 lean_dir=$(cd "$(dirname "$0")/.." && pwd)
 repo=$(cd "$lean_dir/../.." && pwd)
 checks=(lean_replay lean_setup_root lowering_matches_lean production_layer1_matches_lean terminal_program_matches_lean
   final_program_matches_lean production_runs_rebuild_the_layer1_key production_setup_columns
   production_setup_matches_lean production_runs_match_lean option_b_layer1_keys_are_written
-  option_b_layer1_matches_lean option_b_final_program_matches_lean option_b_program_digest_is_pinned)
+  option_b_layer1_matches_lean option_b_runs_rebuild_the_layer1_keys option_b_runs_match_lean option_b_setup_columns
+  option_b_setup_matches_lean option_b_final_program_matches_lean option_b_program_digest_is_pinned)
 [ $# -gt 0 ] && checks=("$@")
 failed=0
 
@@ -33,6 +35,7 @@ for check in "${checks[@]}"; do
   case $check in
     terminal_program_matches_lean | final_program_matches_lean | production_runs_rebuild_the_layer1_key | \
       production_setup_matches_lean | production_runs_match_lean | option_b_layer1_keys_are_written | \
+      option_b_runs_rebuild_the_layer1_keys | option_b_runs_match_lean | option_b_setup_matches_lean | \
       option_b_final_program_matches_lean | option_b_program_digest_is_pinned) crate=nightstream ;;
     *) crate=neo-spartan ;;
   esac

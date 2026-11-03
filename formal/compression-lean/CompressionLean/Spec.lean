@@ -11,4 +11,5 @@ import CompressionLean.Spec.Runs
 
 import CompressionLean.Spec.OptionB
 import CompressionLean.Spec.OptionBRuns
+import CompressionLean.Spec.OptionBMatrix
 import CompressionLean.Spec.OptionBParent

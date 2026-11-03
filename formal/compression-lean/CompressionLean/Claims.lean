@@ -1,6 +1,7 @@
 import CompressionLean.Sim.Encodes
 import CompressionLean.Sim.OptionBEncodes
 import CompressionLean.Final.OptionBParent
+import CompressionLean.Checks.OptionBMatrix
 import CompressionLean.Final.ParentClaim
 import CompressionLean.Checks.KeyFacts
 import CompressionLean.Final.RustSetup
@@ -69,7 +70,9 @@ theorem honest_setup_of_build {lw : ℕ}
     (built : build setup.seed.bytes (Phi81CarrierLayout.carrierWidth lw) productionProfile.ccsMatrices pushes = some S)
     (gives : RunsGive pushes relation) :
     HonestSetup s S relation setup.verifierKey :=
-  Final.build_honest s D lanes setup relation pushes built gives
+  Final.build_honest s D lanes setup relation pushes built (fun _ _ inside => by
+    rw [Phi81CarrierLayout.blockCount_carrierWidth] at inside
+    rwa [Phi81CarrierLayout.carrierWidth, Nat.mul_div_cancel _ (by decide)]) gives
 
 theorem key_facts_of_check {key : Layer1Key} (pass : keyFailure key = none) : KeyFacts key :=
   Checks.keyFailure_sound pass
@@ -77,6 +80,11 @@ theorem key_facts_of_check {key : Layer1Key} (pass : keyFailure key = none) : Ke
 theorem width_fits_of_check {key : Layer1Key} (pass : poseidon2Fits key = true) :
     WidthFits key Production.poseidon2Width :=
   of_decide_eq_true pass
+
+theorem option_b_shape_of_check {key : Layer1Key} (facts : KeyFacts key) (pass : optionBFits key = true) :
+    ParentShape (shapeOf key.relation) Export.OptionB.StepRelation.keyWidth :=
+  parentShape_of _ _ rfl rfl facts.constants.kappa facts.constants.matrices facts.constants.blocks
+    (of_decide_eq_true pass) facts.constants.norm
 
 theorem package_templates_of_check {package : CircuitPackage}
     (named : Spec.templatesNamed package = true) : package.CompactTemplatesValid :=
@@ -88,7 +96,50 @@ theorem setup_facts_of_check {key : Layer1Key} {pushes : List Push} (seed : List
         some (poseidon2Setup seed pushes) ∧
       (poseidon2Setup seed pushes).Fits (shapeOf key.relation) ∧
       (structureOf key.relation.key.layout).Describes (shapeOf key.relation) (poseidon2Setup seed pushes) :=
-  Checks.setupFailure_sound seed pass
+  Checks.setupFailureAt_sound seed pass
+
+theorem option_b_setup_facts_of_check {key : Layer1Key} {pushes : List Push} (seed : List ℕ)
+    (pass : setupFailureAt (keyColumns key) key pushes = none) :
+    build seed (keyColumns key) productionProfile.ccsMatrices pushes = some (setupAt seed (keyColumns key) pushes) ∧
+      (setupAt seed (keyColumns key) pushes).Fits (shapeOf key.relation) ∧
+      (structureOf key.relation.key.layout).Describes (shapeOf key.relation) (setupAt seed (keyColumns key) pushes) :=
+  Checks.setupFailureAt_sound seed pass
+
+theorem option_b_runs_of_check {p : Export.OptionB.StepPackage.Package} {pushes : List Push}
+    (pass : OptionB.keyRunsFailure p pushes = none) {pieces : List Export.Generic.Pieces.Piece} {next : ℕ}
+    (fits : Export.Generic.CircuitRelation.Fits Export.Generic.CircuitRelation.publicColumns pieces next p.width)
+    (packed : Export.Generic.CircuitRelation.packable Export.Generic.CircuitRelation.publicColumns pieces = true)
+    (rows : p.relationRows =
+      Export.Generic.CircuitRelation.relationRows Export.Generic.CircuitRelation.publicColumns pieces next p.width)
+    (blocks : p.blocks = Export.Generic.CircuitRelation.blocksOf pieces)
+    (start : p.sboxStart = Export.Generic.CircuitRelation.sboxStart pieces next)
+    (logical : Layout.ProductionAssignment.logicalWidth (OptionB.slotsOf p) ≤ Export.OptionB.StepRelation.keyWidth) :
+    RunsGive pushes (OptionB.keyRelation pieces next p.width fits (OptionB.keyLayout p logical)) :=
+  Checks.OptionB.keyRunsFailure_sound pass fits packed rows blocks start logical
+
+theorem option_b_logical_of_check {p : Export.OptionB.StepPackage.Package} {pushes : List Push}
+    (pass : OptionB.keyRunsFailure p pushes = none) :
+    Layout.ProductionAssignment.logicalWidth (OptionB.slotsOf p) ≤ Export.OptionB.StepRelation.keyWidth :=
+  Checks.OptionB.logical_of_check pass
+
+theorem option_b_fits_of_check {p : Export.OptionB.StepPackage.Package} {pushes : List Push}
+    (pass : OptionB.keyRunsFailure p pushes = none) {pieces : List Export.Generic.Pieces.Piece} {next : ℕ}
+    (rows : p.relationRows =
+      Export.Generic.CircuitRelation.relationRows Export.Generic.CircuitRelation.publicColumns pieces next p.width)
+    (blocks : p.blocks = Export.Generic.CircuitRelation.blocksOf pieces)
+    (start : p.sboxStart = Export.Generic.CircuitRelation.sboxStart pieces next) :
+    Export.Generic.CircuitRelation.Fits Export.Generic.CircuitRelation.publicColumns pieces next p.width :=
+  Checks.OptionB.fits_of_check pass rows blocks start
+
+theorem option_b_honest_of_check (key : Layer1Key)
+    (setup : AjtaiSetupV1.Setup productionProfile.commitmentWidth
+      (Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth Export.OptionB.StepRelation.keyWidth)))
+    (relation : ProductionKey.LogicalRelation Export.OptionB.StepRelation.keyWidth
+      Export.OptionB.StepRelation.keyPublicFits)
+    (pushes : List Push) (pass : setupFailureAt (keyColumns key) key pushes = none) (gives : RunsGive pushes relation) :
+    HonestSetup (shapeOf key.relation) (setupAt setup.seed.bytes (keyColumns key) pushes) relation setup.verifierKey :=
+  Final.build_honest _ rfl rfl setup relation pushes (option_b_setup_facts_of_check _ pass).1
+    (fun _ inside _ => by rw [Checks.keyColumns_div]; exact inside) gives
 
 theorem runsGive_of_check {pushes : List Push} (pass : runsFailure pushes = none) :
     RunsGive pushes Production.poseidon2Relation :=
@@ -123,7 +174,7 @@ theorem poseidon2_bound (key : Layer1Key) (loaded : Loaded) (context : Array Rep
   obtain ⟨built, fits, describes⟩ := setup_facts_of_check setup.seed.bytes pass
   exact production_bound key loaded context authority _ Production.poseidon2Relation setup.verifierKey
     (parentShape_of _ _ rfl rfl facts.constants.kappa facts.constants.matrices
-      facts.constants.blocks width facts.constants.norm)
+      facts.constants.blocks width.le facts.constants.norm)
     (honest_setup_of_build _ rfl rfl setup _ pushes built (runsGive_of_check runs)) facts fits describes L0 L1 h0 h1
     t Ls p0 p1 rust loads valid hctx calls prover
 
@@ -225,5 +276,93 @@ theorem option_b_parent_bound {lw : ℕ}
       Final.OptionB.parentHolds_of_holds program relation ajtai circuitKeys next width batches rest packed starts
         (fun slot => shapeOf (keys slot).relation) S barOf barOf_eq shape (fun slot => (facts slot).shape.blocks_le) honest holds) _ _ _ _ _ _ _ r).trans
     (option_b_bound _ stateKeys keys S facts fits describes fit keysLength L0 L1 h0 h1 t Ls p0 p1 rust calls prover)
+
+/-- Soundness of `OptionB::verify_final` for the Poseidon2 hash chain (`option_b_parent_bound`). Each
+circuit key's relation is that of the circuit whose pieces its emitted step package holds
+(`OptionB.circuitKey`), each slot's layer-1 setup is the one that Rust builds from its key's runs
+(`OptionB.keySetup`), and each premise about a key, a setup or the runs is a check of Rust's files
+(`STATUS.md`). -/
+theorem option_b_poseidon2_bound (packages : Fin 2 → Export.OptionB.StepPackage.Package)
+    (pieces : Fin 2 → List Export.Generic.Pieces.Piece) (nexts : Fin 2 → ℕ) (digests : Fin 2 → KeyDigest)
+    (keys : Fin 2 → Layer1Key) (pushes : Fin 2 → List Push)
+    (setup : AjtaiSetupV1.Setup productionProfile.commitmentWidth
+      (Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth Export.OptionB.StepRelation.keyWidth)))
+    (facts : ∀ slot, KeyFacts (keys slot)) (within : ∀ slot, optionBFits (keys slot) = true)
+    (setups : ∀ slot, setupFailureAt (keyColumns (keys slot)) (keys slot) (pushes slot) = none)
+    (runs : ∀ slot, OptionB.keyRunsFailure (packages slot) (pushes slot) = none)
+    (fits : ∀ slot, Export.Generic.CircuitRelation.Fits Export.Generic.CircuitRelation.publicColumns (pieces slot)
+      (nexts slot) (packages slot).width)
+    (logical : ∀ slot,
+      Layout.ProductionAssignment.logicalWidth (OptionB.slotsOf (packages slot)) ≤ Export.OptionB.StepRelation.keyWidth)
+    (packed : ∀ slot,
+      Export.Generic.CircuitRelation.packable Export.Generic.CircuitRelation.publicColumns (pieces slot) = true)
+    (rows : ∀ slot, (packages slot).relationRows = Export.Generic.CircuitRelation.relationRows
+      Export.Generic.CircuitRelation.publicColumns (pieces slot) (nexts slot) (packages slot).width)
+    (blocks : ∀ slot, (packages slot).blocks = Export.Generic.CircuitRelation.blocksOf (pieces slot))
+    (starts : ∀ slot, (packages slot).sboxStart = Export.Generic.CircuitRelation.sboxStart (pieces slot) (nexts slot))
+    (next width : ℕ) (batches : List NightstreamFPrime.Circuit.WitnessBatch) (rest : ℕ × ℕ × ℕ × ℕ)
+    (finishPacked : Export.Generic.CircuitRelation.packable Export.Generic.CircuitRelation.publicColumns
+      (Export.OptionB.FinishRelation.pieces Stage1.Poseidon2HashChainV1.program
+        Export.OptionB.StepRelation.keyRelation) = true)
+    (finishStarts : Export.Generic.CircuitRelation.startsFrom
+      (Layout.OptionB.RefreshAssembler.sharedEnd Export.OptionB.StepRelation.base
+        Stage1.Poseidon2HashChainV1.program.witnessWordCount)
+      (Export.OptionB.FinishRelation.pieces Stage1.Poseidon2HashChainV1.program
+        Export.OptionB.StepRelation.keyRelation) = true)
+    (stateKeys : List Replay.Word)
+    (fit : OptionB.fits (OptionB.finishPackage Stage1.Poseidon2HashChainV1.program
+      Export.OptionB.StepRelation.keyRelation next width batches rest) = true)
+    (keysLength : stateKeys.length ≤ 8)
+    (L0 L1 : ℕ) (h0 : 1 ≤ L0) (h1 : 1 ≤ L1) (t Ls : ℕ)
+    (p0 : ∀ slot, (L0 : ℝ) * L1 * Layer1.rustDegrees (shapeOf (keys slot).relation) / 2 ^ 191 ≤ 1 / 2 ^ (t + 1))
+    (p1 : ∀ slot, (L1 : ℝ) * (1 / 2) ^ ((shapeOf (keys slot).relation).queries - 1) ≤ 1 / 2 ^ (t + 1))
+    (rust : (Ls : ℝ) * Shrink.rustDegrees
+        (Shrink.Layout.rowVars Circuit.Block.poseidonTemplate
+          (OptionB.counts (OptionB.finishPackage Stage1.Poseidon2HashChainV1.program
+            Export.OptionB.StepRelation.keyRelation next width batches rest) stateKeys keys))
+        (Shrink.Layout.cellVars Circuit.Block.poseidonTemplate
+          (OptionB.counts (OptionB.finishPackage Stage1.Poseidon2HashChainV1.program
+            Export.OptionB.StepRelation.keyRelation next width batches rest) stateKeys keys))
+          / 2 ^ 191 ≤ 1 / 2 ^ t)
+    (calls : ℕ)
+    (prover : Game.Strategy (OptionB.Outcome Gl Cubic
+      (game (keys 0) (OptionB.keySetup setup.seed.bytes (keys 0) (pushes 0)) L0 L1)
+      (game (keys 1) (OptionB.keySetup setup.seed.bytes (keys 1) (pushes 1)) L0 L1))) :
+    Game.prob prover
+        (restorePair (Shrink.shrinkGame (F := Gl) Circuit.Block.poseidonTemplate
+            (OptionB.counts (OptionB.finishPackage Stage1.Poseidon2HashChainV1.program
+              Export.OptionB.StepRelation.keyRelation next width batches rest) stateKeys keys)
+            (OptionB.shrinkRun (OptionB.finishPackage Stage1.Poseidon2HashChainV1.program
+              Export.OptionB.StepRelation.keyRelation next width batches rest) stateKeys keys) Ls)
+          (choice (game (keys 0) (OptionB.keySetup setup.seed.bytes (keys 0) (pushes 0)) L0 L1)
+            (game (keys 1) (OptionB.keySetup setup.seed.bytes (keys 1) (pushes 1)) L0 L1)) calls [] [])
+        (OptionB.RestoreBreak (F := Gl)
+          (OptionB.ParentHolds Stage1.Poseidon2HashChainV1.program setup.verifierKey fun slot =>
+            OptionB.circuitKey (digests slot) (packages slot) (pieces slot) (nexts slot) (fits slot) (logical slot))
+          Circuit.Block.poseidonTemplate
+          (OptionB.counts (OptionB.finishPackage Stage1.Poseidon2HashChainV1.program
+            Export.OptionB.StepRelation.keyRelation next width batches rest) stateKeys keys)
+          (OptionB.shrinkRun (OptionB.finishPackage Stage1.Poseidon2HashChainV1.program
+            Export.OptionB.StepRelation.keyRelation next width batches rest) stateKeys keys)
+          (game (keys 0) (OptionB.keySetup setup.seed.bytes (keys 0) (pushes 0)) L0 L1)
+          (game (keys 1) (OptionB.keySetup setup.seed.bytes (keys 1) (pushes 1)) L0 L1)
+          (OptionB.Reads (OptionB.finishPackage Stage1.Poseidon2HashChainV1.program
+            Export.OptionB.StepRelation.keyRelation next width batches rest) stateKeys keys 0
+              (OptionB.keySetup setup.seed.bytes (keys 0) (pushes 0)) L0 L1)
+          (OptionB.Reads (OptionB.finishPackage Stage1.Poseidon2HashChainV1.program
+            Export.OptionB.StepRelation.keyRelation next width batches rest) stateKeys keys 1
+              (OptionB.keySetup setup.seed.bytes (keys 1) (pushes 1)) L0 L1)) ≤
+      calls / 2 ^ t :=
+  option_b_parent_bound Stage1.Poseidon2HashChainV1.program Export.OptionB.StepRelation.keyRelation setup.verifierKey
+    (fun slot => OptionB.circuitKey (digests slot) (packages slot) (pieces slot) (nexts slot) (fits slot) (logical slot))
+    next width batches rest finishPacked finishStarts stateKeys keys
+    (fun slot => OptionB.keySetup setup.seed.bytes (keys slot) (pushes slot)) facts
+    (fun slot => (option_b_setup_facts_of_check _ (setups slot)).2.1)
+    (fun slot => (option_b_setup_facts_of_check _ (setups slot)).2.2)
+    (fun slot => option_b_shape_of_check (facts slot) (within slot))
+    (fun slot => option_b_honest_of_check (keys slot) setup _ (pushes slot) (setups slot)
+      (option_b_runs_of_check (runs slot) (fits slot) (packed slot) (rows slot) (blocks slot) (starts slot)
+        (logical slot)))
+    fit keysLength L0 L1 h0 h1 t Ls p0 p1 rust calls prover
 
 end CompressionLean.Claims

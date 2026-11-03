@@ -35,6 +35,22 @@ variable {logicalWidth : Nat}
 /-- The public input occupies source columns 0 to 269; the shared words start after it. -/
 def base : Nat := ringDegree * PaperAlgebra.publicRingColumns
 
+/-- The logical width that both circuit keys share. It is at least each step circuit's logical
+width, so a key with fewer columns commits a witness that is zero past them. -/
+def keyWidth : Nat := 2 ^ 26
+
+theorem keyPublicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
+    Phi81CarrierLayout.carrierWidth keyWidth := by
+  decide
+
+theorem keyCubeFits : Phi81CarrierLayout.carrierWidth keyWidth ≤ 2 ^ cubeVariables := by
+  decide
+
+/-- The relation argument of the step circuits at `keyWidth`. The emitter builds the circuits with
+it; their rows do not read its matrices. -/
+def keyRelation : ProductionKey.LogicalRelation keyWidth keyPublicFits :=
+  ⟨fun _ _ _ => 0, keyCubeFits⟩
+
 theorem natWord_val (value : F) : natWord value.val = value := by
   apply Fin.ext
   simp [natWord, Poseidon2.ofNat, Nat.mod_eq_of_lt value.isLt]

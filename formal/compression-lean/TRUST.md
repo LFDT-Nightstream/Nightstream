@@ -103,13 +103,8 @@ The claims bound a probability. They take these as part of the model, not as Lea
 A claim that takes a premise says nothing about a key, a package, a setup or runs that do not meet
 it. `STATUS.md` lists every hypothesis of every claim and says, for each premise, how it is met: by a
 Lean proof, by a check of Rust's files, by a Lean value or by Rust. No premise of `poseidon2_bound`
-is open. Two premises of `option_b_bound` are open: that each slot's setup fits its key's shape and
-that the key describes it (`fits`, `describes`). `option_b_parent_bound` adds two more open
-premises: that each slot's key has the parent shape at option B's width (`shape`) and that each
-slot's setup is the honest setup of its circuit key (`honest`). Its `packed` and `starts` are open
-at any width wide enough for the refresh key (see Option B). No check reads option B's layer-1
-setups or runs yet. `CompressionLeanTests/Inventory.lean` holds that list, and `lake build` fails
-when a premise of a claim has no entry there.
+or of `option_b_poseidon2_bound` is open. `CompressionLeanTests/Inventory.lean` holds that list, and
+`lake build` fails when a premise of a claim has no entry there.
 
 ## Option B
 
@@ -122,20 +117,31 @@ slots' claim words are in their layer-1 relations (`Spec.OptionB.Holds`).
 `option_b_parent_bound` gives the same bound for the claim in F′'s terms (`Spec.OptionB.ParentHolds`):
 a refresh step input whose counter and states are the statement, with `FinishHolds`, and whose two
 next slots hold under their circuits' relations (SuperNeo v1.2 Definition 21). It reads the finish
-package as the one that F′'s emitter writes (`Spec.OptionB.finishPackage`). One width `lw` is
-shared by the finish circuit's relation argument and both circuit keys. The emitter evaluates
-`packable` and `startsFrom` only at its census width `2^24` with a zero relation, and the refresh
-relation is wider than `2^24`. So at the emitter's width `shape` fails for the refresh slot, and at a
-wider width no check evaluates `packed` or `starts`. The emitter says that the step circuits' rows
-do not depend on the width or the relation (`EmitMain.width`); no proof checks that. Rust embeds the
-emitted package and pins its identifier; no check compares the package that `optionBCheck` decodes
-with `finishPackage`.
+package as the one that F′'s emitter writes (`Spec.OptionB.finishPackage`).
+
+`option_b_poseidon2_bound` meets every premise for the Poseidon2 hash chain. One logical width is
+shared by the finish circuit's relation argument and both circuit keys: the key width
+`StepRelation.keyWidth = 2^26`, which is at least each step circuit's logical width (the emitter
+refuses a package that is wider). The emitter builds the circuits at the key width; the light,
+refresh and finish packages are the same bytes as at the earlier census width `2^24`. Each circuit
+key's relation is its step package's rows through the package's slot layout, widened to the key
+width, then 150 S-box rows for each Poseidon2 block (`Spec.OptionB.keyRelation`). `runsCheck
+--option-b` compares Rust's runs of each layer-1 relation with these matrices row by row
+(`keyRunsFailure`, `Checks.OptionB.keyRunsFailure_sound`). Rust pushes one run for each term of a
+row, so the check sorts a row's runs and merges equal runs first, which keeps each column's sum
+(`sortedRuns_sum`). `setupCheck --option-b` checks each layer-1 setup over its key's own columns,
+and `optionBCheck` checks that each key's blocks fit the key width.
 
 The bridge from each slot's layer-1 relation to its CE claim pads. Rust's light relation commits
 fewer blocks than the refresh relation, while F′'s option-B model gives both circuit keys one width.
 `Final.parent_holds` reads a slot's witness as zero past the key's committed blocks, so `ParentShape`
 asks only that the committed blocks fit the width, and `HonestSetup` fixes the Ajtai key only on
 the committed blocks.
+
+Three things are trusted, not checked. The emitter writes each package as `packageOf` of its
+circuit's pieces, and the checks read the bytes it writes (the `rows`, `blocks`, `start`,
+`packed` and `finishPacked` premises). Rust embeds those bytes and pins their identifier. The layer-1
+key's root is the honest root of the claim's setup (section 5).
 
 ## 5. The ports
 

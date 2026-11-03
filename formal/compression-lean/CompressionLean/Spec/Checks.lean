@@ -4,6 +4,7 @@ import CompressionLean.Ports.Setup
 import CompressionLean.Production
 import CompressionLean.Layer1.Soundness
 import NightstreamFPrime.Export.PackageExpansion
+import NightstreamFPrime.Export.OptionB.StepRelation
 import Std.Data.HashSet
 
 namespace CompressionLean.Spec
@@ -124,27 +125,46 @@ instance (key : Layer1Key) (lw : ℕ) : Decidable (WidthFits key lw) :=
 def poseidon2Fits (key : Layer1Key) : Bool :=
   decide (WidthFits key Production.poseidon2Width)
 
+/-- The key commits at most the blocks of `lw`. Option B's light key commits fewer blocks than its
+key width, and its witness is zero past them (`Final.parent_holds`). -/
+def KeyWithin (key : Layer1Key) (lw : ℕ) : Prop :=
+  key.relation.key.blocks ≤ NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81ColumnLayout.blockCount lw
+
+instance (key : Layer1Key) (lw : ℕ) : Decidable (KeyWithin key lw) :=
+  inferInstanceAs (Decidable (_ ≤ _))
+
+def optionBFits (key : Layer1Key) : Bool :=
+  decide (KeyWithin key NightstreamFPrime.Export.OptionB.StepRelation.keyWidth)
+
 def sortedValues (f : Push → ℕ) (pushes : List Push) : Array ℕ :=
   ((pushes.foldl (fun set p => set.insert (f p)) (∅ : Std.HashSet ℕ)).toList.mergeSort).toArray
 
 def poseidon2Columns : ℕ := Phi81CarrierLayout.carrierWidth Production.poseidon2Width
 
-def poseidon2Setup (seed : List ℕ) (pushes : List Push) : Layer1.Setup Gl :=
-  setupOfRuns seed (poseidon2Columns / ringDegree) (runList Production.matrices pushes)
+/-- The layer-1 setup that `build` gives from `pushes` over `columns`. -/
+def setupAt (seed : List ℕ) (columns : ℕ) (pushes : List Push) : Layer1.Setup Gl :=
+  setupOfRuns seed (columns / ringDegree) (runList Production.matrices pushes)
 
-def setupChecks (key : Layer1Key) (pushes : List Push) : List Fact :=
+def poseidon2Setup (seed : List ℕ) (pushes : List Push) : Layer1.Setup Gl :=
+  setupAt seed poseidon2Columns pushes
+
+/-- The columns of a key's relation: Rust's `Key::derive` gives `blocks = columns / D`. -/
+def keyColumns (key : Layer1Key) : ℕ := ringDegree * key.relation.key.blocks
+
+def setupChecksAt (columns : ℕ) (key : Layer1Key) (pushes : List Push) : List Fact :=
   let rel := key.relation
   let layout := rel.key.layout
   let st := structureOf layout
   let m := Production.matrices
   let classes := (sortedValues Push.classCode pushes).toList
   let keys := sortedValues (slotKey classes) pushes
-  [⟨"runs", ∀ p ∈ pushes, p.matrix < m ∧ p.len ≤ ringDegree ∧ p.start + p.len ≤ poseidon2Columns ∧
+  [⟨"columns", columns % ringDegree = 0 ∧ 0 < columns / ringDegree ∧ columns / ringDegree ≤ 4708530⟩,
+    ⟨"runs", ∀ p ∈ pushes, p.matrix < m ∧ p.len ≤ ringDegree ∧ p.start + p.len ≤ columns ∧
       p.row < 2 ^ layout.rowVariables⟩,
     ⟨"matrices", layout.matrices = m ∧ m ≤ 2 ^ rel.matrixVars⟩,
     ⟨"bounds", ∀ j, j < m + 1 → layout.runBounds[j]! = pushes.countP fun p => p.matrix < j⟩,
     ⟨"run count", layout.runBounds[m]! ≤ 2 ^ layout.runVariables⟩,
-    ⟨"blocks", poseidon2Columns / ringDegree ≤ rel.key.blocks⟩,
+    ⟨"blocks", columns / ringDegree = rel.key.blocks⟩,
     ⟨"slots", keys.size = layout.slots ∧ keys.size ≤ 2 ^ layout.slotVariables⟩,
     ⟨"cover", layout.segments.size = 0 → layout.slots = 0⟩,
     ⟨"slot sizes", ∀ w ∈ (0 : ℕ) :: keys.toList, codeLength (keyCode classes w) ≤ ringDegree ∧
@@ -155,8 +175,11 @@ def setupChecks (key : Layer1Key) (pushes : List Push) : List Fact :=
       codeLength (keyCode classes w) = st.classLength (st.segmentClass i) ∧
         codeRatio (keyCode classes w) = st.classRatio (st.segmentClass i) ∧ keyStart w % ringDegree = st.segmentLane i⟩]
 
+def setupFailureAt (columns : ℕ) (key : Layer1Key) (pushes : List Push) : Option String :=
+  firstFailure (setupChecksAt columns key pushes)
+
 def setupFailure (key : Layer1Key) (pushes : List Push) : Option String :=
-  firstFailure (setupChecks key pushes)
+  setupFailureAt poseidon2Columns key pushes
 
 structure SetupColumns where
   row : Array Gl

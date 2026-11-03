@@ -8,6 +8,7 @@
 mod support;
 
 mod final_ir;
+mod setup_runs;
 
 use super::{Envelope, OptionB, OptionBError};
 use crate::application::{poseidon2_hash_chain_v1, Affine, ApplicationBuilder, ApplicationCircuit};

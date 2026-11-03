@@ -46,11 +46,11 @@ const OPTION_B_PREFIX_DIGEST: [u64; 4] = [
     12339972930509328780,
 ];
 
-fn workspace() -> PathBuf {
+pub(super) fn workspace() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
 }
 
-fn lowering(name: &str) -> PathBuf {
+pub(super) fn lowering(name: &str) -> PathBuf {
     let dir = workspace().join("target/lean-lowering");
     std::fs::create_dir_all(&dir).unwrap();
     dir.join(name)

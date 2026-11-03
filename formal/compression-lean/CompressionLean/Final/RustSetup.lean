@@ -161,20 +161,19 @@ theorem gl_natCast (n : ℕ) (small : n < goldilocksModulus) : ((n : ℕ) : Gl) 
 theorem build_honest (s : Layer1.Shape) (D : s.D = ringDegree) (lanes : s.laneVars = 6)
     (setup : AjtaiSetupV1.Setup productionProfile.commitmentWidth
       (Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth lw)))
-    (relation : ProductionKey.LogicalRelation lw pf) (pushes : List Push) {S : Layer1.Setup Gl}
-    (built : build setup.seed.bytes (Phi81CarrierLayout.carrierWidth lw) productionProfile.ccsMatrices pushes = some S)
+    (relation : ProductionKey.LogicalRelation lw pf) (pushes : List Push) {columns : ℕ} {S : Layer1.Setup Gl}
+    (built : build setup.seed.bytes columns productionProfile.ccsMatrices pushes = some S)
+    (cover : ∀ b, b < s.blocks → b < Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth lw) →
+      b < columns / ringDegree)
     (gives : RunsGive pushes relation) :
     HonestSetup s S relation setup.verifierKey := by
   obtain ⟨back, key⟩ := readsBack_of_build built
-  refine ⟨fun i b l _ => ?_, fun k inside => ?_, fun j i c inside => ?_⟩
-  · have blocks : Phi81CarrierLayout.carrierWidth lw / ringDegree =
-        Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth lw) := by
-      rw [Phi81CarrierLayout.blockCount_carrierWidth, Phi81CarrierLayout.carrierWidth,
-        Nat.mul_div_cancel _ (by decide)]
-    have lane := l.isLt
+  refine ⟨fun i b l inside => ?_, fun k inside => ?_, fun j i c inside => ?_⟩
+  · have lane := l.isLt
     have low : (64 * b.val + l.val) % 64 = l.val := by simp only [ringDegree] at lane; omega
     have high : (64 * b.val + l.val) / 64 = b.val := by simp only [ringDegree] at lane; omega
-    rw [key, lanes, seedKey, show (2 : ℕ) ^ 6 = 64 from rfl, low, high, blocks, ite_eq_left ⟨lane, b.isLt⟩]
+    rw [key, lanes, seedKey, show (2 : ℕ) ^ 6 = 64 from rfl, low, high,
+      ite_eq_left ⟨lane, cover b inside b.isLt⟩]
     exact gl_natCast _ _
   · obtain ⟨p, member, row⟩ := runRow_mem back inside
     rw [row]
@@ -185,14 +184,14 @@ theorem build_honest (s : Layer1.Shape) (D : s.D = ringDegree) (lanes : s.laneVa
 /-- Rust tests `relation_shape_has_the_lean_constants` and `parent_relation_arguments_are_the_lean_constants` pin these numbers. -/
 theorem parentShape_of (s : Layer1.Shape) (lw : ℕ) (D : s.D = ringDegree) (lanes : s.laneVars = 6)
     (kappa : s.kappa = Production.kappa) (matrices : s.matrices = Production.matrices)
-    (publicBlocks : s.publicBlocks = Production.publicBlocks) (blocks : s.blocks = Phi81ColumnLayout.blockCount lw)
+    (publicBlocks : s.publicBlocks = Production.publicBlocks) (blocks : s.blocks ≤ Phi81ColumnLayout.blockCount lw)
     (norm : s.normBound < Production.normLimit) : ParentShape s lw where
   D := D
   laneVars := lanes
   kappa := kappa
   matrices := matrices
   publicBlocks := publicBlocks
-  blocks := le_of_eq (by rw [blocks, Phi81CarrierLayout.blockCount_carrierWidth])
+  blocks := by rw [Phi81CarrierLayout.blockCount_carrierWidth]; exact blocks
   norm := Production.normLimit_eq ▸ norm
 
 end CompressionLean.Final

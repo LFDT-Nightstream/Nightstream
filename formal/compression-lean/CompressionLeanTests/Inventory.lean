@@ -17,7 +17,14 @@ def claims : List (Name × List Name) := [
   (`CompressionLean.Claims.setup_facts_of_check, standardAxioms),
   (`CompressionLean.Claims.runsGive_of_check, standardAxioms),
   (`CompressionLean.Claims.option_b_bound, standardAxioms),
-  (`CompressionLean.Claims.option_b_parent_bound, standardAxioms)]
+  (`CompressionLean.Claims.option_b_parent_bound, standardAxioms),
+  (`CompressionLean.Claims.option_b_shape_of_check, standardAxioms),
+  (`CompressionLean.Claims.option_b_setup_facts_of_check, standardAxioms),
+  (`CompressionLean.Claims.option_b_logical_of_check, standardAxioms),
+  (`CompressionLean.Claims.option_b_fits_of_check, standardAxioms),
+  (`CompressionLean.Claims.option_b_runs_of_check, standardAxioms),
+  (`CompressionLean.Claims.option_b_honest_of_check, standardAxioms),
+  (`CompressionLean.Claims.option_b_poseidon2_bound, standardAxioms)]
 
 def claimsModule : Name := `CompressionLean.Claims
 
@@ -76,10 +83,17 @@ def premises : List (Name × List Premise) :=
     "`terminalCheck` evaluates `templatesNamed` on the terminal package (`package_templates_of_check`)."⟩
   let hctx : Premise := ⟨`hctx, .rust,
     "`PreparedLifecycle::check_compression_key` (`lifecycle/finish.rs`) refuses a compression key whose context words are not the digest of the circuit's verifier context. `authority` is that context."⟩
+  let optionBWidth := "`optionBCheck` evaluates `optionBFits` on both layer-1 keys that `option_b_layer1_keys_are_written` writes and stops when it fails; `option_b_final_program_matches_lean` requires the pass."
+  let optionBSetup := "`setupCheck --option-b` evaluates `setupFailureAt` over the key's own columns on the runs that `option_b_runs_rebuild_the_layer1_keys` writes, which rebuild each slot's layer-1 key. `option_b_setup_matches_lean` requires the pass."
+  let optionBRuns := "`runsCheck --option-b` evaluates `keyRunsFailure` on each slot's step package and the runs that `option_b_runs_rebuild_the_layer1_keys` writes. `option_b_runs_match_lean` requires the pass."
+  let emittedPacked : Premise := ⟨`packed, .leanValue, "F′'s emitter evaluates `packable` on the circuit's pieces and writes the package as `packageOf` of them (`EmitMain.emitPackage`); the checks read that artifact."⟩
+  let emittedRows : Premise := ⟨`rows, .leanValue, "The emitter writes the package as `packageOf` of the circuit's pieces, whose rows are the relation's rows (`StepPackage.relationRows_packageOf`, with `packed`)."⟩
+  let emittedBlocks : Premise := ⟨`blocks, .leanValue, "As `rows` (`StepPackage.blocks_packageOf`)."⟩
+  let emittedStart : Premise := ⟨`start, .leanValue, "As `rows`: `packageOf` writes `CircuitRelation.sboxStart`."⟩
   let optionB : List Premise := [
     ⟨`facts, .rustFiles, "`lowerCheck` evaluates `keyFailure` on both layer-1 keys that `option_b_layer1_keys_are_written` writes (`option_b_layer1_matches_lean`); `key_facts_of_check` turns each pass into `KeyFacts`."⟩,
-    ⟨`fits, .unmet, "No check reads option B's layer-1 setups yet."⟩,
-    ⟨`describes, .unmet, "As `fits`."⟩,
+    ⟨`fits, .proved, "`option_b_poseidon2_bound` gives it from the pass of `setupCheck --option-b` (`option_b_setup_facts_of_check`). Open for other applications."⟩,
+    ⟨`describes, .proved, "As `fits`."⟩,
     ⟨`fit, .leanValue, "`optionBCheck` evaluates `fits` on the finish package that it decodes from the artifact and stops when it fails."⟩,
     ⟨`keysLength, .rustFiles, "`optionBCheck` requires eight state key words in the log that `option_b_final_program_matches_lean` writes; `FinalProgram::keys` is `[[F; 4]; 2]`."⟩,
     h0, h1, p0, p1, rust]
@@ -110,11 +124,38 @@ def premises : List (Name × List Premise) :=
     (`CompressionLean.Claims.runsGive_of_check, [⟨`pass, .rustFiles, runsPass⟩]),
     (`CompressionLean.Claims.option_b_bound, optionB),
     (`CompressionLean.Claims.option_b_parent_bound, optionB ++ [
-      ⟨`pf, .proved, "F′ proves it for option B's circuit width (`OptionB.EmitMain.publicFits`)."⟩,
-      ⟨`packed, .unmet, "F′'s emitter evaluates `packable` on the finish relation's pieces only at its census width `2^24` with a zero relation (`EmitMain.emitPackage`). The refresh relation is wider, so `shape` needs a wider `lw`, where no check evaluates it. `EmitMain.width` says the rows do not depend on the width; no proof checks that."⟩,
-      ⟨`starts, .unmet, "As `packed`, for `startsFrom` at the shared end."⟩,
-      ⟨`shape, .unmet, "No check compares the block count of option B's layer-1 keys with `lw`. At the emitter's census width the refresh key does not fit. `parentShape_of` gives it from `KeyFacts` and that comparison."⟩,
-      ⟨`honest, .unmet, "No check reads option B's layer-1 setups or runs yet. `honest_setup_of_build` gives it for today's key from Rust's setup build and the runs."⟩])]
+      ⟨`pf, .proved, "F′ proves it for the key width (`StepRelation.keyPublicFits`, in `option_b_poseidon2_bound`)."⟩,
+      ⟨`packed, .proved, "`option_b_poseidon2_bound` gives it from F′'s emitter at the key width. Open for other widths."⟩,
+      ⟨`starts, .proved, "As `packed`."⟩,
+      ⟨`shape, .proved, "`option_b_poseidon2_bound` gives it from `KeyFacts` and the pass of `optionBCheck` (`option_b_shape_of_check`). Open for other applications."⟩,
+      ⟨`honest, .proved, "`option_b_poseidon2_bound` gives it from the passes of `setupCheck --option-b` and `runsCheck --option-b` (`option_b_honest_of_check`, `option_b_runs_of_check`). Open for other applications."⟩]),
+    (`CompressionLean.Claims.option_b_shape_of_check, [
+      ⟨`facts, .rustFiles, "As `option_b_bound`'s `facts`."⟩,
+      ⟨`pass, .rustFiles, optionBWidth⟩]),
+    (`CompressionLean.Claims.option_b_setup_facts_of_check, [⟨`pass, .rustFiles, optionBSetup⟩]),
+    (`CompressionLean.Claims.option_b_logical_of_check, [⟨`pass, .rustFiles, optionBRuns⟩]),
+    (`CompressionLean.Claims.option_b_fits_of_check, [⟨`pass, .rustFiles, optionBRuns⟩, emittedRows, emittedBlocks,
+      emittedStart]),
+    (`CompressionLean.Claims.option_b_runs_of_check, [⟨`pass, .rustFiles, optionBRuns⟩,
+      ⟨`fits, .proved, "`option_b_fits_of_check` gives it from `pass`, `rows`, `blocks` and `start` (in `option_b_poseidon2_bound`)."⟩,
+      emittedPacked, emittedRows, emittedBlocks, emittedStart,
+      ⟨`logical, .proved, "`option_b_logical_of_check` gives it from `pass` (in `option_b_poseidon2_bound`)."⟩]),
+    (`CompressionLean.Claims.option_b_honest_of_check, [⟨`pass, .rustFiles, optionBSetup⟩,
+      ⟨`gives, .proved, "`option_b_runs_of_check` gives it (in `option_b_poseidon2_bound`)."⟩]),
+    (`CompressionLean.Claims.option_b_poseidon2_bound, [
+      ⟨`facts, .rustFiles, "As `option_b_bound`'s `facts`."⟩,
+      ⟨`within, .rustFiles, optionBWidth⟩,
+      ⟨`setups, .rustFiles, optionBSetup⟩,
+      ⟨`runs, .rustFiles, optionBRuns⟩,
+      ⟨`fits, .rustFiles, s!"{optionBRuns} `option_b_fits_of_check` turns the pass, with `rows`, `blocks` and `starts`, into `Fits`."⟩,
+      ⟨`logical, .rustFiles, s!"{optionBRuns} `option_b_logical_of_check` turns the pass into the bound."⟩,
+      { emittedPacked with binder := `packed }, { emittedRows with binder := `rows },
+      { emittedBlocks with binder := `blocks }, { emittedStart with binder := `starts },
+      ⟨`finishPacked, .leanValue, "F′'s emitter evaluates `packable` on the finish relation's pieces at the key width with `StepRelation.keyRelation` (`EmitMain.emitPackage`) and writes no package when it fails."⟩,
+      ⟨`finishStarts, .leanValue, "As `finishPacked`, for `startsFrom` at the shared end."⟩,
+      ⟨`fit, .leanValue, "`optionBCheck` evaluates `fits` on the finish package that it decodes from the artifact and stops when it fails."⟩,
+      ⟨`keysLength, .rustFiles, "As `option_b_bound`'s `keysLength`."⟩,
+      h0, h1, p0, p1, rust])]
 
 def portRoot : Name := `CompressionLean.Ports
 

@@ -172,5 +172,8 @@ enum ProofState {
 #[path = "../../tests/option_b_lifecycle/ir_log.rs"]
 mod ir_log;
 #[cfg(test)]
+#[path = "../../tests/option_b_lifecycle/runs_file.rs"]
+mod runs_file;
+#[cfg(test)]
 #[path = "../../tests/lifecycle_native/mod.rs"]
 mod tests;

@@ -29,7 +29,7 @@ leanOptions = { autoImplicit = false, relaxedAutoImplicit = false, warningAsErro
 [[lean_lib]]
 name = "CompressionLeanExe"
 roots = ["CompressionLeanExe.Digest", "CompressionLeanExe.EmitTerminal",
-  "CompressionLeanExe.Fixtures", "CompressionLeanExe.Key", "CompressionLeanExe.LowerCheck", "CompressionLeanExe.OptionBCheck",
+  "CompressionLeanExe.Fixtures", "CompressionLeanExe.Key", "CompressionLeanExe.LowerCheck", "CompressionLeanExe.OptionBCheck", "CompressionLeanExe.PackageJson",
   "CompressionLeanExe.Parse", "CompressionLeanExe.ReplayLayer1", "CompressionLeanExe.Runs",
   "CompressionLeanExe.RunsCheck", "CompressionLeanExe.SetupCheck",
   "CompressionLeanExe.SetupRootCheck", "CompressionLeanExe.TerminalCheck"]

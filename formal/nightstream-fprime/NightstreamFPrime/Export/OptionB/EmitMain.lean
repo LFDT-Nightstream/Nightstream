@@ -23,19 +23,11 @@ open NightstreamFPrime.Layout.OptionB
 open NightstreamFPrime.Export.Generic
 open NightstreamFPrime.Layout
 
-/-- The census width; the step circuits' rows do not depend on it. -/
+/-- The source width: every source column of a step package lies below it. -/
 def width : Nat := 2 ^ 24
 
-theorem publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth width := by
-  decide
-
-theorem cubeFits : Phi81CarrierLayout.carrierWidth width ≤ 2 ^ cubeVariables := by
-  decide
-
-/-- The relation argument of the step circuits; their rows do not read its matrices. -/
-def relation : ProductionKey.LogicalRelation width publicFits :=
-  ⟨fun _ _ _ => 0, cubeFits⟩
+/-- The step circuits' relation argument, at the width that both circuit keys share. -/
+abbrev relation := StepRelation.keyRelation
 
 def program : Stage1.Application.Program := Stage1.Poseidon2HashChainV1.program
 
@@ -124,6 +116,9 @@ def emitPackage (name : String) (circuit : Nat) (ops : List Op) (offset : Nat)
       applicationRegion name program.witnessWordCount ops offset firstFresh package.pieces
     else pure package.application
   let package := { package with application := region }
+  let logical := ProductionAssignment.logicalWidth (SlotLayout.runSlots width package.slots)
+  unless logical ≤ StepRelation.keyWidth do
+    throw (IO.userError s!"{name}: logical width {logical} exceeds the key width")
   let path := s!"artifacts/nightstream-fprime-option-b-{stem}{name}-v1.json"
   IO.FS.writeFile path ((StepPackage.Package.format.encode package).render ++ "\n")
   let slotColumns := package.slots.foldl (fun total (_, count, _) => total + count) 0
@@ -131,7 +126,7 @@ def emitPackage (name : String) (circuit : Nat) (ops : List Op) (offset : Nat)
     total + count * (SlotLayout.kindOf kind).width) 0
   say s!"{name}: wrote {path}: {package.pieces.length} pieces, \
     {package.witness.length} witness batches, {package.slots.length} slot runs, \
-    {slotColumns} slotted columns, {digitColumns} digit columns, application \
+    {slotColumns} slotted columns, {digitColumns} digit columns, logical width {logical}, application \
     {package.application} ({(← IO.monoMsNow) - start} ms)"
   return package
 
@@ -161,15 +156,15 @@ def emitFinish : IO Unit := do
   let base := StepRelation.base
   let words := program.witnessWordCount
   let refreshOffset := RefreshAssembler.sharedEnd base words
-  let interface := RefreshAssembler.interface (logicalWidth := width) (publicFits := publicFits)
-    base words
+  let interface := RefreshAssembler.interface (logicalWidth := StepRelation.keyWidth)
+    (publicFits := StepRelation.keyPublicFits) base words
   let refreshOps := Circuit.ops (OptionB.RefreshStepLayout.main program relation 1 interface)
     refreshOffset
   let finishOps := Circuit.ops (OptionB.FinishStep.main program relation 1 interface) refreshOffset
   let _ ← emitPackage "finish" 2 finishOps refreshOffset
     (Pieces.split (PilotData.canonicalConstraints ())
-      (FinishRelation.constraints (logicalWidth := width) (publicFits := publicFits) program
-        relation))
+      (FinishRelation.constraints (logicalWidth := StepRelation.keyWidth)
+        (publicFits := StepRelation.keyPublicFits) program relation))
     (some (refreshOffset + localLength refreshOps))
   say s!"finish package written ({(← IO.monoMsNow) - start} ms)"
 
@@ -190,7 +185,8 @@ def main (arguments : List String) : IO Unit := do
   let lightOffset := LightAssembler.sharedEnd base words
   say s!"start ({(← IO.monoMsNow) - start} ms)"
   let lightOps := Circuit.ops (OptionB.LightStepLayout.main program relation 0
-      (LightAssembler.interface (logicalWidth := width) (publicFits := publicFits) base words))
+      (LightAssembler.interface (logicalWidth := StepRelation.keyWidth)
+        (publicFits := StepRelation.keyPublicFits) base words))
       lightOffset
   let lightPieces ← if withCensus then do
       let pieces ← census "light" lightOps lightOffset (StepRelation.lightDigestColumn program)
@@ -204,7 +200,8 @@ def main (arguments : List String) : IO Unit := do
   let refreshOffset := RefreshAssembler.sharedEnd base words
   say s!"light done ({(← IO.monoMsNow) - start} ms)"
   let refreshOps := Circuit.ops (OptionB.RefreshStepLayout.main program relation 1
-      (RefreshAssembler.interface (logicalWidth := width) (publicFits := publicFits) base words))
+      (RefreshAssembler.interface (logicalWidth := StepRelation.keyWidth)
+        (publicFits := StepRelation.keyPublicFits) base words))
       refreshOffset
   let refreshPieces ← if withCensus then do
       let pieces ← census "refresh" refreshOps refreshOffset

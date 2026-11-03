@@ -18,7 +18,7 @@ use p3_field_v08::{PrimeCharacteristicRing as _, PrimeField64 as _};
 use super::lowering::production_key;
 use crate::field::Gl;
 use crate::matrix::Tables;
-use crate::{kappa, key, oracle};
+use crate::{kappa, key, oracle, Key};
 
 /// The runs of `production_runs.bin` (`nightstream`'s `setup_runs.rs`) in file
 /// order, which is visit order: by row, then by matrix.
@@ -94,14 +94,36 @@ fn workspace() -> PathBuf {
 #[ignore = "needs production_runs.bin of nightstream's production_runs_rebuild_the_layer1_key; writes about \
             700 MB under target/lean-lowering"]
 fn production_setup_columns() {
+    write_columns(
+        "production_runs.bin",
+        &production_key().0,
+        "production_setup_columns.bin",
+    );
+}
+
+#[test]
+#[ignore = "needs option_b_runs_{0,1}.bin of nightstream's option_b_runs_rebuild_the_layer1_keys and \
+            option_b_layer1_{0,1}.bin of its option_b_layer1_keys_are_written"]
+fn option_b_setup_columns() {
     let dir = workspace().join("target/lean-lowering");
-    let runs = RunsFile::read(&dir.join("production_runs.bin"));
+    for slot in 0..2 {
+        let bytes = std::fs::read(dir.join(format!("option_b_layer1_{slot}.bin"))).unwrap();
+        let (layer1, ..): (Key, u32, f64) = bincode::deserialize(&bytes).unwrap();
+        write_columns(
+            &format!("option_b_runs_{slot}.bin"),
+            &layer1,
+            &format!("option_b_setup_columns_{slot}.bin"),
+        );
+    }
+}
+
+/// Writes the setup columns of the runs in `runs`, which must derive `expected`, to `out`.
+fn write_columns(runs: &str, expected: &Key, out: &str) {
+    let dir = workspace().join("target/lean-lowering");
+    let runs = RunsFile::read(&dir.join(runs));
     let tables = Tables::from_rows(&runs).unwrap();
     let derived = key(&runs, &tables, None).unwrap();
-    assert!(
-        derived == production_key().0,
-        "the runs derive the committed production key"
-    );
+    assert!(&derived == expected, "the runs derive the expected layer-1 key");
     let structure = tables.structure();
     let run_count = *structure.run_bounds.last().unwrap() as usize;
     let slot_count = structure.slots as usize;
@@ -126,21 +148,21 @@ fn production_setup_columns() {
             .expect("a row, slot or block fits 32 bits")
             .to_le_bytes()
     };
-    let mut out = Vec::with_capacity(16 + 16 * run_count + 4 * slot_count);
-    out.extend_from_slice(&(run_count as u64).to_le_bytes());
-    out.extend_from_slice(&(slot_count as u64).to_le_bytes());
+    let mut bytes = Vec::with_capacity(16 + 16 * run_count + 4 * slot_count);
+    bytes.extend_from_slice(&(run_count as u64).to_le_bytes());
+    bytes.extend_from_slice(&(slot_count as u64).to_le_bytes());
     columns[0][..run_count]
         .iter()
-        .for_each(|x| out.extend_from_slice(&small(x)));
+        .for_each(|x| bytes.extend_from_slice(&small(x)));
     columns[1][..run_count]
         .iter()
-        .for_each(|x| out.extend_from_slice(&small(x)));
+        .for_each(|x| bytes.extend_from_slice(&small(x)));
     columns[2][..run_count]
         .iter()
-        .for_each(|x| out.extend_from_slice(&x.as_canonical_u64().to_le_bytes()));
+        .for_each(|x| bytes.extend_from_slice(&x.as_canonical_u64().to_le_bytes()));
     columns[3][..slot_count]
         .iter()
-        .for_each(|x| out.extend_from_slice(&small(x)));
-    std::fs::write(dir.join("production_setup_columns.bin"), &out).unwrap();
-    eprintln!("{run_count} runs, {slot_count} slots, {} bytes", out.len());
+        .for_each(|x| bytes.extend_from_slice(&small(x)));
+    std::fs::write(dir.join(out), &bytes).unwrap();
+    eprintln!("{run_count} runs, {slot_count} slots, {} bytes", bytes.len());
 }

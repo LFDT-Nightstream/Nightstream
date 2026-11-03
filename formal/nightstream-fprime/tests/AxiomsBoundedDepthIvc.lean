@@ -40,6 +40,7 @@ import NightstreamFPrime.Export.OptionB.StepRelation
 import NightstreamFPrime.Export.OptionB.StepPackage
 import NightstreamFPrime.Export.Generic.SlotLayout
 import NightstreamFPrime.Export.OptionB.TerminalBridge
+import NightstreamFPrime.Export.OptionB.FinishRelation
 import NightstreamFPrime.Lifecycle.OptionB.Terminal
 import NightstreamFPrime.Spec.Folding.Light.RlcModule
 
@@ -410,3 +411,6 @@ open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 follows the refresh circuit and is never refreshed. -/
 example : (runDepths 2 (fun _ => 0) 1 (List.replicate 3 [0, 0, 1]).flatten).isNone = true := by
   decide
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.FinishStep.rows_implies_finish
+#audit_axioms NightstreamFPrime.Layout.OptionB.FinishAssembler.rows_implies_finish
+#audit_axioms NightstreamFPrime.Export.OptionB.FinishRelation.finish_holds

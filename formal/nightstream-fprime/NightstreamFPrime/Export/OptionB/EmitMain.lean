@@ -1,4 +1,4 @@
-import NightstreamFPrime.Export.OptionB.StepRelation
+import NightstreamFPrime.Export.OptionB.FinishRelation
 import NightstreamFPrime.Export.OptionB.Parity
 import NightstreamFPrime.Export.Stage1.Rows
 import NightstreamFPrime.Lifecycle.Stage1.Poseidon2HashChainV1
@@ -93,17 +93,20 @@ def applicationRegion (name : String) (words : Nat) (ops : List Op) (offset firs
   pure (words, offset, localLength [application], own.length,
     StepPackage.freshAfter own firstFresh - firstFresh)
 
-/-- Writes the circuit's package (`StepPackage.packageOf`); the blocks must pack. -/
+/-- Writes the circuit's package (`StepPackage.packageOf`); the blocks must pack. The finish
+package has no application: its region is the witness words alone, and its fresh columns start
+after the refresh step's locals (`firstFresh`), whose layout its gadgets keep. -/
 def emitPackage (name : String) (circuit : Nat) (ops : List Op) (offset : Nat)
-    (pieces : List Pieces.Piece) : IO StepPackage.Package := do
+    (pieces : List Pieces.Piece) (firstFresh : Option Nat := none) : IO StepPackage.Package := do
   let start ← IO.monoMsNow
   unless CircuitRelation.packable CircuitRelation.publicColumns pieces do
     throw (IO.userError s!"{name}: the Poseidon2 blocks do not pack")
-  let firstFresh := offset + localLength ops
+  let firstFresh := firstFresh.getD (offset + localLength ops)
   let package := StepPackage.packageOf circuit CircuitRelation.publicColumns pieces
-    firstFresh width (witnesses ops) (0, 0, 0, 0, 0)
-  let region ← applicationRegion name program.witnessWordCount ops offset firstFresh
-    package.pieces
+    firstFresh width (witnesses ops) (program.witnessWordCount, offset, 0, 0, 0)
+  let region ← if circuit < 2 then
+      applicationRegion name program.witnessWordCount ops offset firstFresh package.pieces
+    else pure package.application
   let package := { package with application := region }
   let path := s!"artifacts/nightstream-fprime-option-b-{name}-v1.json"
   IO.FS.writeFile path ((StepPackage.Package.format.encode package).render ++ "\n")
@@ -135,10 +138,33 @@ def childCensus (name : String) (ops : List Op) : IO Unit := do
     IO.println s!"{name} child {label}: {permutations} blocks, {products} ring products, \
       {constraints} other constraints, {rows} other rows"
 
-/-- Writes both packages; with `--census`, prints the row census first; with `--identity`, also
-computes their one identity (`StepPackage.identityFast`), which the spec field arithmetic makes
-slow: Rust computes it natively. -/
+/-- Writes the finish package (`FinishRelation`): the refresh step's layout without the
+application and the next hashes, with fresh columns after the refresh step's locals. -/
+def emitFinish : IO Unit := do
+  let start ← IO.monoMsNow
+  let base := StepRelation.base
+  let words := program.witnessWordCount
+  let refreshOffset := RefreshAssembler.sharedEnd base words
+  let interface := RefreshAssembler.interface (logicalWidth := width) (publicFits := publicFits)
+    base words
+  let refreshOps := Circuit.ops (OptionB.RefreshStepLayout.main program relation 1 interface)
+    refreshOffset
+  let finishOps := Circuit.ops (OptionB.FinishStep.main program relation 1 interface) refreshOffset
+  let _ ← emitPackage "finish" 2 finishOps refreshOffset
+    (Pieces.split (PilotData.canonicalConstraints ())
+      (FinishRelation.constraints (logicalWidth := width) (publicFits := publicFits) program
+        relation))
+    (some (refreshOffset + localLength refreshOps))
+  say s!"finish package written ({(← IO.monoMsNow) - start} ms)"
+
+/-- Writes both step packages; with `--finish`, only the finish package (one Lean run renders
+at most two packages under the 1,500 s cap); with `--census`, prints the row census first; with
+`--identity`, also computes their one identity (`StepPackage.identityFast`), which the spec
+field arithmetic makes slow: Rust computes it natively. -/
 def main (arguments : List String) : IO Unit := do
+  if arguments.contains "--finish" then
+    emitFinish
+    return
   let withCensus := arguments.contains "--census"
   let start ← IO.monoMsNow
   let base := StepRelation.base

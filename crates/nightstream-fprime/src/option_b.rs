@@ -28,6 +28,15 @@ use crate::package::{IdentityKind, PackageError};
 use crate::witness::{validate_witness_batch, validate_witness_batch_order, RawWitnessBatch, WitnessBatch};
 
 const IDENTITY_DOMAIN: &[u8] = b"Nightstream/OptionB/packages/v1";
+const FINISH_IDENTITY_DOMAIN: &[u8] = b"Nightstream/OptionB/finish/v1";
+
+/// The identity of the finish package in `formal/nightstream-fprime/artifacts`.
+pub const OPTION_B_FINISH_IDENTITY: [u64; 4] = [
+    703_660_054_816_153_897,
+    9_610_984_441_758_868_748,
+    6_107_576_991_013_288_423,
+    4_802_043_085_587_250_043,
+];
 
 /// The identity of the packages in `formal/nightstream-fprime/artifacts`.
 pub const OPTION_B_PACKAGES_IDENTITY: [u64; 4] = [
@@ -132,6 +141,12 @@ impl StepPackage {
         self.sbox_start
     }
 
+    /// The application's witness word count, which places the shared words
+    /// after it.
+    pub fn witness_words(&self) -> usize {
+        self.application.witness_words
+    }
+
     pub fn witness_batch_count(&self) -> usize {
         self.witness.len()
     }
@@ -230,6 +245,13 @@ impl Block<'_> {
         self.start + 1080
     }
 
+    /// The input lanes as their constant and terms.
+    pub fn lane_forms(&self) -> impl Iterator<Item = (Goldilocks, &[(usize, Goldilocks)])> + '_ {
+        self.lanes
+            .iter()
+            .map(|lane| (lane.constant, lane.terms.as_slice()))
+    }
+
     /// The input lanes evaluated on `assignment`.
     pub fn lane_values(&self, assignment: &[Goldilocks]) -> Vec<Goldilocks> {
         self.lanes
@@ -297,15 +319,39 @@ pub fn load_option_b_packages(
     })
 }
 
+/// The finish package (`FinishRelation`): the refresh step's layout without
+/// the application and the next hashes. Its identity hashes its canonical
+/// preimage under its own domain.
+pub fn load_option_b_finish(bytes: &[u8], expected: [u64; 4]) -> Result<StepPackage, PackageError> {
+    let value = parse_atoms(bytes)?;
+    let package = StepPackage::decode(&value)?;
+    if package.circuit != 2 {
+        return Err(PackageError::Malformed("option-B finish circuit index"));
+    }
+    let identity = hashed_identity(FINISH_IDENTITY_DOMAIN, &value)?;
+    if identity != expected {
+        return Err(PackageError::IdentityMismatch {
+            kind: IdentityKind::Package,
+            expected,
+            computed: identity,
+        });
+    }
+    Ok(package)
+}
+
+fn hashed_identity(domain: &[u8], value: &Value) -> Result<[u64; 4], PackageError> {
+    let mut input = poseidon2::Poseidon2Hasher::default();
+    for &byte in domain {
+        input.update(&[Goldilocks::from_u64(u64::from(byte))]);
+    }
+    append_value_preimage(value, &mut input)?;
+    Ok(input.finalize().map(|word| word.as_canonical_u64()))
+}
+
 /// `StepPackage.identity`: Poseidon2 over the domain words and the canonical
 /// preimage of the package pair.
 pub fn option_b_identity(pair: &Value) -> Result<[u64; 4], PackageError> {
-    let mut input = poseidon2::Poseidon2Hasher::default();
-    for &byte in IDENTITY_DOMAIN {
-        input.update(&[Goldilocks::from_u64(u64::from(byte))]);
-    }
-    append_value_preimage(pair, &mut input)?;
-    Ok(input.finalize().map(|word| word.as_canonical_u64()))
+    hashed_identity(IDENTITY_DOMAIN, pair)
 }
 
 /// Reads Lean's rendering of a `Codec.Value`: arrays and natural numbers. It

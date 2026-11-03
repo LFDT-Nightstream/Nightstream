@@ -28,9 +28,9 @@ pub use identity::{
 };
 pub use option_b::{
     layout::{Kind as SlotKind, LogicalLayout},
-    load_option_b_packages, option_b_identity, parse_atoms,
+    load_option_b_finish, load_option_b_packages, option_b_identity, parse_atoms,
     words::{encode_digest, Child, FoldWords, KWords, Slot, State as OptionBState, StepWords, PUBLIC_WORDS},
-    Block, OptionBPackages, PlanRows, StepPackage, OPTION_B_PACKAGES_IDENTITY,
+    Block, OptionBPackages, PlanRows, StepPackage, OPTION_B_FINISH_IDENTITY, OPTION_B_PACKAGES_IDENTITY,
 };
 pub use package::{
     derive_light_transcript, derive_pi_ccs_v1_2_transcript, derive_refresh_transcript, load_per_application_package,

@@ -6,6 +6,10 @@ import NightstreamFPrime.Lifecycle.OptionB.RandomOracle.LightFork
 import NightstreamFPrime.Lifecycle.OptionB.RandomOracle.RefreshFork
 import NightstreamFPrime.Lifecycle.OptionB.RandomOracle.LightKnowledge
 import NightstreamFPrime.Lifecycle.OptionB.RandomOracle.RefreshKnowledge
+import NightstreamFPrime.Lifecycle.OptionB.RandomOracle.Assumption1
+import NightstreamFPrime.Lifecycle.OptionB.RandomOracle.Fidelity
+import NightstreamFPrime.Lifecycle.OptionB.RandomOracle.Honest
+import NightstreamFPrime.Export.OptionB.RomWalk
 
 #audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Schedule.roundCallCount_pos
 #audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Schedule.roundCalls_length
@@ -233,3 +237,54 @@ import NightstreamFPrime.Lifecycle.OptionB.RandomOracle.RefreshKnowledge
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.RefreshKnowledge.statisticalError_two_pow_64
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.RefreshKnowledge.splits
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.RefreshKnowledge.knowledge_error_le
+
+#audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Budgeted.runs_le
+#audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Budgeted.extract_eq
+#audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Budgeted.miss_le
+#audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Budgeted.failure_le
+
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.RomModel.queryBound_mono
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.RomModel.run_restrictLight
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.RomModel.run_restrictRefresh
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.RomModel.restrictLight_bound
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.RomModel.restrictRefresh_bound
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.RomModel.succeeds_congr
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.RomModel.light_succeeds
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.RomModel.refresh_succeeds
+
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.Assumption1.toReal_bind
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.Assumption1.toReal_uniform_bind
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.Assumption1.toReal_uniform
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.Assumption1.toReal_sum_eq_one
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.Assumption1.expect_pair
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.Assumption1.uniform_light
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.Assumption1.uniform_refresh
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.Assumption1.light_failure_le
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.Assumption1.refresh_failure_le
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.Assumption1.law_toReal
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.Assumption1.covered
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.Assumption1.lightFailure_expect_le
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.Assumption1.refreshFailure_expect_le
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.Assumption1.extraction_failure_le
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.Assumption1.assumption_of_rom
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.Assumption1.romAssumption1
+
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.Fidelity.spongeOracle_deployed
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.Fidelity.coins_eq
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.Fidelity.rho_eq
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.Fidelity.deployedOracle_deployed
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.Fidelity.light_probe_eq
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.Fidelity.light_challenge_eq
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.Fidelity.light_verify_eq
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.Fidelity.refresh_probe_eq
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.Fidelity.refresh_parent_eq
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.Fidelity.refresh_verify_eq
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.Fidelity.folds_eq_slotFolds
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.Fidelity.succeeds_iff
+
+#audit_axioms NightstreamFPrime.Export.OptionB.RomWalk.succeeds_iff_walkSucceeds
+#audit_axioms NightstreamFPrime.Export.OptionB.RomWalk.extracted_iff_walkExtracted
+
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.Honest.slot_of_holds
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.Honest.light_honest
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.Honest.refresh_honest

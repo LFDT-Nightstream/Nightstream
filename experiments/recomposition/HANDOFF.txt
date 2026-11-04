@@ -1,0 +1,124 @@
+Shared recomposition experiment for Nico
+=======================================
+
+This branch contains a test-only prototype, not a production optimization.
+It is based on origin/nico/f-prime-constraints-cuda-formal at df0abe0dd.
+The original experiment was at 0b43e1912bb4a83e296339d6d4d093e19d766d05.
+No verifier, transcript, commitment, witness encoding, or production dispatch
+changes. No dependency on the other exploratory experiments.
+
+What it does
+------------
+The encoded matrices repeat geometric runs over the same witness coordinates.
+Plan::new indexes runs by (start, length, ratio), independently of the scalar
+coefficient. Each evaluation computes each distinct run once and applies the
+original scalar coefficients to those cached values. The plan depends only on
+the relation. Values are recomputed for every witness or projected input;
+values are never reused across different folds.
+
+The fresh path reconstructs packed signed-unit coordinates in F. The carried
+path applies the same factorization over K after the existing ring projection.
+All other protocol terms and the complete production sumcheck remain intact.
+Final ring openings are unchanged. The opening helper only measures them.
+
+Historic evidence
+-----------------
+baseline/ contains the original report, metadata, and raw measurement records.
+Treat its reproduction commands as historic; use the commands below instead.
+Full PiCCS medians in seconds, production -> factored:
+  initial fold: 2.723 -> 1.922 (29.4%)
+  later fold 1: 8.106 -> 5.442 (32.9%)
+  later fold 2: 8.613 -> 5.996 (30.4%)
+The plan costs about 0.9-1.0 seconds to build and retains 643.13 MiB.
+That setup is excluded from the reused-plan proof timings. This is a substantial
+memory cost, not a production memory-budget guarantee. See baseline/report.txt
+for transient allocations and measured phase boundaries.
+
+Reproduce from the repository root
+----------------------------------
+Requires Python 3 and the repository Rust toolchain. The embedded application
+artifact is used directly; no Lean build or external fixture download is needed.
+All commands enforce a 300-second cap per cargo-test process, including builds.
+If compilation reaches the cap, that invocation fails; rerun after partial build.
+Do not run benchmark processes concurrently. Release profile and four Rayon
+threads are fixed. Each benchmark warms up and consumes/checks its outputs.
+
+python3 experiments/recomposition/run.py capture
+python3 experiments/recomposition/run.py checks
+python3 experiments/recomposition/run.py measure --step 1
+python3 experiments/recomposition/run.py proofs --step 1
+python3 experiments/recomposition/run.py measure --step 2
+python3 experiments/recomposition/run.py proofs --step 2
+python3 experiments/recomposition/run.py measure --step 3
+python3 experiments/recomposition/run.py proofs --step 3
+python3 experiments/recomposition/summarize.py
+
+Use --target-dir PATH to share an existing Cargo build directory, --directory
+PATH for captured witnesses (default /private/tmp/nightstream-recomposition-handoff),
+and --output PATH for logs/JSONL (default experiments/recomposition/results).
+Pass --results PATH to summarize.py if changing the output location.
+Large captured witnesses are not committed. Raw current JSONL results are.
+
+Code map
+--------
+crates/neo-reductions/tests/experiments/recomposition.rs:
+  standalone relation adapter, plan, fresh/carried kernels, differential timings.
+crates/neo-reductions/tests/experiments/recomposition_proof.rs:
+  test backend, alternating production/factored complete PiCCS comparisons.
+  Every proof verifies; output claims and sumcheck round messages agree exactly.
+crates/neo-reductions/tests/experiments/recomposition_openings.rs:
+  diagnostic split of unchanged opening evaluation, checked against production.
+crates/nightstream/tests/experiments/recomposition_capture.rs:
+  real application prove + two extends, captures active witnesses and claims,
+  and verifies the final lifecycle proof.
+All implementation hooks are cfg(test). The only dependency addition is a
+neo-reductions dev-dependency on nightstream-fprime.
+
+Before production integration
+-----------------------------
+Give the plan explicit relation ownership and budget its retained and temporary
+memory. Avoid constructing it on every fold. Keep cached values local to each
+evaluation. Preserve the ring projection before factoring carried evaluations;
+ordinary field reconstruction does not replace the required ring map.
+The prototype accepts packed signed-unit or virtual-zero witnesses only.
+A production path needs an explicit policy for other representations and small
+relations where plan setup will not amortize. The test backend currently uses
+one fresh witness, matching this workload. It is not a general public backend.
+Keep full-proof differential tests and verifier checks when integrating.
+
+Retest on updated upstream (2026-11-04)
+--------------------------------------
+Base: df0abe0dd, 19 upstream commits after the historic base. The capture uses
+the current embedded circuit and public compile/verifier API. All seven captured
+files (package, claims, witnesses) match the historic SHA-256 file checksums.
+These hashes identify local benchmark files only; they are not protocol bindings.
+
+Apple M5, 24 GiB, rustc 1.97.1, release opt-level 3 / fat LTO / one codegen unit,
+four Rayon threads. One fresh instance; no WASM batch-size change. Actual active
+witness counts are 1, 7, and 8. Hardware and capture metadata: results/metadata.json.
+Commands above were run with --target-dir /Users/enzo/Work/Nightstream/target.
+
+Full PiCCS seconds: median [min, max], three measured pairs after a warmup pair.
+State   Production                  Factored                    Median saving
+1       4.143 [4.011, 4.189]      3.214 [3.114, 3.276]      22.4%
+2       12.773 [12.039, 13.149]      10.179 [8.463, 10.784]      20.3%
+3       13.806 [13.561, 15.307]      10.465 [8.948, 12.389]      24.2%
+
+Plan build times in these proof runs: 1.967, 1.948, 1.884 seconds. They are
+excluded from the proof timings above; retained plan memory is 674,368,688 bytes
+(643.13 MiB). Plan construction must be amortized. These are complete PiCCS
+proof timings, not complete application prove/extend or commitment timings.
+
+Both variants ran slower than the historic run, and variability was higher.
+No cause was isolated; do not infer an upstream regression from these absolute
+times. Alternating paired trials still show a benefit in every measured pair.
+The same relation and unchanged reduction code make the paired comparison the
+useful result. This run supports about 20-24%, not a fresh claim of 30%.
+
+Validation: current lifecycle capture verifies; 23 reduction unit tests pass
+(4 ignored); all three phase experiments pass exact table/opening comparisons;
+all three full-proof experiments pass (24 verified proofs including warmups).
+Each production/factored pair has identical output claims and round messages.
+All successful test processes finished within the 300-second cap.
+cargo fmt --all and git diff --check pass.
+Raw current records and summary are in results/. Logs are generated but ignored.

@@ -511,3 +511,7 @@ impl ApplicationTables {
 #[cfg(test)]
 #[path = "../../../tests/unit/application_tables.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "../../../tests/experiments/recomposition.rs"]
+mod recomposition_experiment;

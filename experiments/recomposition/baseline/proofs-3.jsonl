@@ -1,0 +1,6 @@
+{"event":"proof","exact_equal":true,"seconds":5.996196917,"setup_seconds":0.9200275,"step":3,"trial":1,"variant":"factor","verified":true}
+{"event":"proof","exact_equal":true,"seconds":8.440469833,"setup_seconds":0.9200275,"step":3,"trial":1,"variant":"production","verified":true}
+{"event":"proof","exact_equal":true,"seconds":8.630187791,"setup_seconds":0.9200275,"step":3,"trial":2,"variant":"production","verified":true}
+{"event":"proof","exact_equal":true,"seconds":6.066756959,"setup_seconds":0.9200275,"step":3,"trial":2,"variant":"factor","verified":true}
+{"event":"proof","exact_equal":true,"seconds":5.949830042,"setup_seconds":0.9200275,"step":3,"trial":3,"variant":"factor","verified":true}
+{"event":"proof","exact_equal":true,"seconds":8.613497917,"setup_seconds":0.9200275,"step":3,"trial":3,"variant":"production","verified":true}

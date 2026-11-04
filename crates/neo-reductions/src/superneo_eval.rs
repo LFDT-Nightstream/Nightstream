@@ -1277,3 +1277,7 @@ pub fn eval_all_mats_ring_cached(cache: &SuperneoEvalCache, z: &[K], chi_r: &[K]
     let z_blocks = SuperneoZBlocks::from_z(z);
     eval_all_mats_ring_cached_with_blocks(cache, &z_blocks, chi_r, n_eff)
 }
+
+#[cfg(test)]
+#[path = "../tests/experiments/recomposition_openings.rs"]
+pub(crate) mod recomposition_openings;

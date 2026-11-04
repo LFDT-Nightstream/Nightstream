@@ -1,0 +1,372 @@
+{
+  "1": {
+    "plan": {
+      "active_sources": 1,
+      "cache_bytes": 957308056,
+      "cache_seconds": 1.579052167,
+      "columns": 43963776,
+      "digit_visits": 1541414313,
+      "event": "plan",
+      "occurrences": 38533993,
+      "plan_bytes": 674368688,
+      "plan_seconds": 2.4384012090000002,
+      "rows": 1004131,
+      "sources": 17,
+      "step": 1,
+      "unique_digit_visits": 43756605,
+      "unique_run_lengths": {
+        "1": 3373,
+        "41": 1067152
+      },
+      "unique_runs": 1070525
+    },
+    "oracle": {
+      "binding_seconds": 0.04928908200000002,
+      "build_seconds": 0.001762083,
+      "event": "oracle",
+      "opening_seconds": 1.852981583,
+      "opening_sources": 17,
+      "reusable_fresh_scalars": 4,
+      "round_seconds": 2.8956062480000004,
+      "scalar_reuse_equal": true,
+      "step": 1
+    },
+    "fresh": {
+      "factor_seconds": {
+        "median": 0.070091166,
+        "min": 0.062937708,
+        "max": 0.216451958,
+        "n": 5
+      },
+      "generic_seconds": {
+        "median": 0.958272375,
+        "min": 0.880332208,
+        "max": 1.238063167,
+        "n": 5
+      }
+    },
+    "openings": {
+      "accumulation_seconds": {
+        "median": 0.6828633749999999,
+        "min": 0.5218345,
+        "max": 0.876822542,
+        "n": 3
+      },
+      "clearing_seconds": {
+        "median": 0.035933291,
+        "min": 0.031710376,
+        "max": 0.052290124,
+        "n": 3
+      },
+      "contraction_seconds": {
+        "median": 0.929045209,
+        "min": 0.902557417,
+        "max": 1.010725458,
+        "n": 3
+      },
+      "pad_seconds": {
+        "median": 0.016143583,
+        "min": 0.014087,
+        "max": 0.020121334,
+        "n": 3
+      },
+      "row_weights_seconds": {
+        "median": 0.004617333,
+        "min": 0.003596167,
+        "max": 0.006101167,
+        "n": 3
+      },
+      "scratch_allocation_seconds": {
+        "median": 0.035969083,
+        "min": 0.016319834,
+        "max": 0.060211375,
+        "n": 3
+      }
+    },
+    "proofs": {
+      "production": {
+        "median": 4.143003875,
+        "min": 4.011254292,
+        "max": 4.1892418750000004,
+        "n": 3
+      },
+      "factor": {
+        "median": 3.214269709,
+        "min": 3.113948208,
+        "max": 3.275993583,
+        "n": 3
+      },
+      "paired_savings": {
+        "median": 0.9132482920000005,
+        "min": 0.7969845830000004,
+        "max": 1.0290556669999997,
+        "n": 3
+      }
+    },
+    "proof_plan_setup_seconds": 1.966854834
+  },
+  "2": {
+    "plan": {
+      "active_sources": 7,
+      "cache_bytes": 957308056,
+      "cache_seconds": 1.371316375,
+      "columns": 43963776,
+      "digit_visits": 1541414313,
+      "event": "plan",
+      "occurrences": 38533993,
+      "plan_bytes": 674368688,
+      "plan_seconds": 1.9597059589999999,
+      "rows": 1004131,
+      "sources": 17,
+      "step": 2,
+      "unique_digit_visits": 43756605,
+      "unique_run_lengths": {
+        "1": 3373,
+        "41": 1067152
+      },
+      "unique_runs": 1070525
+    },
+    "oracle": {
+      "binding_seconds": 0.36390658500000017,
+      "build_seconds": 4.54573025,
+      "event": "oracle",
+      "opening_seconds": 4.179472041,
+      "opening_sources": 17,
+      "reusable_fresh_scalars": 4,
+      "round_seconds": 4.157887624000001,
+      "scalar_reuse_equal": true,
+      "step": 2
+    },
+    "fresh": {
+      "factor_seconds": {
+        "median": 0.070833125,
+        "min": 0.059151667,
+        "max": 0.14436225,
+        "n": 5
+      },
+      "generic_seconds": {
+        "median": 1.1277495,
+        "min": 1.116081917,
+        "max": 1.418010709,
+        "n": 5
+      }
+    },
+    "carried": {
+      "factor_seconds": {
+        "median": 0.174178208,
+        "min": 0.049479292,
+        "max": 0.281460334,
+        "n": 5
+      },
+      "generic_seconds": {
+        "median": 1.340626584,
+        "min": 1.108742083,
+        "max": 1.425073208,
+        "n": 5
+      },
+      "matrix_projection_seconds": {
+        "median": 0.968077417,
+        "min": 0.945949125,
+        "max": 1.08304925,
+        "n": 5
+      },
+      "pad_projection_seconds": {
+        "median": 1.120691458,
+        "min": 0.90773925,
+        "max": 1.165284542,
+        "n": 5
+      }
+    },
+    "openings": {
+      "accumulation_seconds": {
+        "median": 0.601147125,
+        "min": 0.597759625,
+        "max": 0.814858709,
+        "n": 3
+      },
+      "clearing_seconds": {
+        "median": 0.046486874000000004,
+        "min": 0.041919916,
+        "max": 0.113791208,
+        "n": 3
+      },
+      "contraction_seconds": {
+        "median": 2.916055624,
+        "min": 2.885305958,
+        "max": 3.007952291,
+        "n": 3
+      },
+      "pad_seconds": {
+        "median": 0.076561208,
+        "min": 0.068730875,
+        "max": 0.086140584,
+        "n": 3
+      },
+      "row_weights_seconds": {
+        "median": 0.005306459,
+        "min": 0.003721792,
+        "max": 0.006313583,
+        "n": 3
+      },
+      "scratch_allocation_seconds": {
+        "median": 0.027400208,
+        "min": 0.010511209,
+        "max": 0.041481083,
+        "n": 3
+      }
+    },
+    "proofs": {
+      "production": {
+        "median": 12.773250667,
+        "min": 12.0386325,
+        "max": 13.148676667,
+        "n": 3
+      },
+      "factor": {
+        "median": 10.179049417,
+        "min": 8.462765458,
+        "max": 10.783816542,
+        "n": 3
+      },
+      "paired_savings": {
+        "median": 1.989434124999999,
+        "min": 1.8595830830000004,
+        "max": 4.685911209,
+        "n": 3
+      }
+    },
+    "proof_plan_setup_seconds": 1.948455541
+  },
+  "3": {
+    "plan": {
+      "active_sources": 8,
+      "cache_bytes": 957308056,
+      "cache_seconds": 1.445713666,
+      "columns": 43963776,
+      "digit_visits": 1541414313,
+      "event": "plan",
+      "occurrences": 38533993,
+      "plan_bytes": 674368688,
+      "plan_seconds": 1.8695734160000002,
+      "rows": 1004131,
+      "sources": 17,
+      "step": 3,
+      "unique_digit_visits": 43756605,
+      "unique_run_lengths": {
+        "1": 3373,
+        "41": 1067152
+      },
+      "unique_runs": 1070525
+    },
+    "oracle": {
+      "binding_seconds": 0.37489016400000025,
+      "build_seconds": 4.699096583,
+      "event": "oracle",
+      "opening_seconds": 4.301103875,
+      "opening_sources": 17,
+      "reusable_fresh_scalars": 4,
+      "round_seconds": 4.268699417,
+      "scalar_reuse_equal": true,
+      "step": 3
+    },
+    "fresh": {
+      "factor_seconds": {
+        "median": 0.063994667,
+        "min": 0.058213875,
+        "max": 0.198267917,
+        "n": 5
+      },
+      "generic_seconds": {
+        "median": 1.1380658750000001,
+        "min": 0.942807542,
+        "max": 1.189795667,
+        "n": 5
+      }
+    },
+    "carried": {
+      "factor_seconds": {
+        "median": 0.05449925,
+        "min": 0.05154025,
+        "max": 0.189100417,
+        "n": 5
+      },
+      "generic_seconds": {
+        "median": 1.160952791,
+        "min": 1.06884025,
+        "max": 1.45123325,
+        "n": 5
+      },
+      "matrix_projection_seconds": {
+        "median": 1.087364958,
+        "min": 0.99595725,
+        "max": 1.167529916,
+        "n": 5
+      },
+      "pad_projection_seconds": {
+        "median": 1.083432125,
+        "min": 0.970313916,
+        "max": 1.102352667,
+        "n": 5
+      }
+    },
+    "openings": {
+      "accumulation_seconds": {
+        "median": 0.5129950409999999,
+        "min": 0.479339043,
+        "max": 0.5319717509999999,
+        "n": 3
+      },
+      "clearing_seconds": {
+        "median": 0.029033084,
+        "min": 0.028603583,
+        "max": 0.050912083,
+        "n": 3
+      },
+      "contraction_seconds": {
+        "median": 3.431628792,
+        "min": 3.122528876,
+        "max": 3.476992083,
+        "n": 3
+      },
+      "pad_seconds": {
+        "median": 0.089905417,
+        "min": 0.086374708,
+        "max": 0.105382959,
+        "n": 3
+      },
+      "row_weights_seconds": {
+        "median": 0.004019208,
+        "min": 0.003525125,
+        "max": 0.004243625,
+        "n": 3
+      },
+      "scratch_allocation_seconds": {
+        "median": 0.012208625,
+        "min": 0.011344708,
+        "max": 0.018788875,
+        "n": 3
+      }
+    },
+    "proofs": {
+      "production": {
+        "median": 13.806095958,
+        "min": 13.561039833,
+        "max": 15.306887917,
+        "n": 3
+      },
+      "factor": {
+        "median": 10.464701292,
+        "min": 8.947917625,
+        "max": 12.389477916,
+        "n": 3
+      },
+      "paired_savings": {
+        "median": 4.842186624999998,
+        "min": 1.171561917,
+        "max": 4.858178333,
+        "n": 3
+      }
+    },
+    "proof_plan_setup_seconds": 1.884398834
+  }
+}

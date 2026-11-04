@@ -30,6 +30,7 @@ serde = { workspace = true }
 rayon = { workspace = true }
 
 [dev-dependencies]
+nightstream-fprime = { path = "../nightstream-fprime" }
 rand_chacha = { workspace = true }
 p3-goldilocks = { workspace = true }
 p3-field = { workspace = true }

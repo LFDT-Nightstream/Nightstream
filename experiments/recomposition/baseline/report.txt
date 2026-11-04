@@ -1,0 +1,279 @@
+Encoded-witness recomposition experiment
+=======================================
+
+The repeated-recomposition hypothesis is confirmed for this relation. The
+prototype is mathematically equivalent, and materially faster in complete PiCCS
+proofs, including inputs from later lifecycle states. It does not change the
+relation, commitments, packing, transcript, sumcheck, or verifier.
+
+Scope and fixture
+-----------------
+Commit: 0b43e1912bb4a83e296339d6d4d093e19d766d05
+Branch: nico/f-prime-constraints-cuda-formal
+Apple M5, 10 logical CPUs, 24 GiB RAM, Darwin 25.5 arm64; Rust 1.97.1.
+Release opt-level 3, fat LTO, one codegen unit, -Dwarnings, four Rayon workers.
+No new features or environment controls. The standard RAYON_NUM_THREADS=4 is
+set by the runner. No WASM/Nebula workload is assumed. The existing Poseidon2
+hash-chain application uses one fresh instance per fold, a fixed four-field
+message [7,11,13,17], initial state [202,203,204,205], and security parameter 114.
+
+The capture test loads the compiled package used by the preceding lifecycle
+experiment, runs prove then two extends, and verifies the resulting third state.
+After each state it saves the actual fresh/running witnesses and claims. Thus:
+  snapshot 1: initial state, 1 active fresh + 0 active running witnesses;
+  snapshot 2: after one fold, 1 active fresh + 6 active running witnesses;
+  snapshot 3: after two folds, 1 active fresh + 7 active running witnesses.
+There are always 16 running slots and one fresh slot. The subsequent PiCCS proof
+is benchmarked on each snapshot. Snapshot 3 exercises the next fold's real inputs;
+this is not a measurement of an entire fourth lifecycle append.
+
+Circuit identity:
+[1976096400667016188,11940451206530000970,
+ 1351020060958716848,1336463872620604566]
+Rows: 1,004,131. Logical encoded columns: 43,963,750; packed width: 43,963,776.
+Four matrices, gate AB-C+S^7, ring degree 54, sumcheck domain 28 variables.
+metadata.json records build settings and hashes/sizes of all captured files.
+
+What factorization actually exists
+---------------------------------
+package/assignment_transport.rs retains field values as 41 balanced base-3
+coordinates. package/matrix_program/form.rs::retained emits a geometric run with coefficient 1 and ratio 3; singleton
+coordinates have ratio 1. Matrix affine operations scale and combine these runs.
+No dense expanded matrix is materialized by the production path, but arithmetic
+still expands each run while computing a row dot product:
+  superneo_eval/geometric.rs::geometric_dot_real
+  superneo_eval/geometric.rs::geometric_weighted_projection
+
+For a distinct run q=(start,len,ratio), define
+  (D_run x)[q] = sum_{j=0}^{len-1} ratio^j x[start+j].
+Let L put each run occurrence's scalar coefficient in its matrix row. Then
+  M_encoded x = L (D_run x)
+exactly, over F and over K. This statement needs no witness-specific zeros,
+constraint satisfaction assumption, or approximate arithmetic. The prototype
+uses the actual run boundaries, including those crossing 54-lane packing blocks.
+It does not infer logical wires from physical row numbers.
+
+Measured structure (all snapshots share the same relation):
+  run occurrences across four matrices       38,533,993
+  distinct (start,length,ratio) runs           1,070,525
+  distinct length-41 runs                     1,067,152
+  distinct singleton runs                         3,373
+  digit visits in occurrence expansion    1,541,414,313
+  digit visits in shared reconstruction      43,756,605
+That is 35.23x fewer digit visits. The retained logical affine expressions still
+contain 38.5 million references; this prototype does not deduplicate entire
+expressions, Poseidon round templates, or common affine subexpressions.
+
+Fresh path: reconstruct each unique run from the packed signed-unit masks using
+Horner evaluation over F, then evaluate the four logical affine matrices. The
+production comparison uses its existing parallel matrix/chunk schedule on the
+same already-created MatrixWindow, with four workers in both variants.
+
+Carried path: preserve fill_combined_projection exactly. It combines all running
+sources with their gamma powers and applies the required ring-coefficient weights.
+Only then apply D_run to that K-valued projected vector and evaluate L. Matrix
+weights, padding projection, matrix shift, and trimming remain the production
+operations. Reconstructing Dw from a fresh scalar witness and substituting it
+for this ring projection would be incorrect: the projection mixes lanes inside
+54-coefficient ring blocks, while the digit decomposition uses 41 coordinates.
+
+The test-only complete-proof backend initializes the ordinary CPU oracle with
+these equivalent fresh and carried tables. Every subsequent sumcheck operation,
+norm constraint, equality weight, binding, opening, and verifier is unchanged.
+Production constructs a fresh matrix window and, when needed, another for carried
+evaluation. The prototype needs neither for those two evaluations, but its final
+openings still construct the original MatrixWindow. That cost is included in the
+complete-proof measurements. The baseline retains its fresh window for openings.
+
+Measurement method
+------------------
+Microbenchmarks: one warmup + five measured repetitions, alternating generic and
+factored order; allocations of output/recomposition vectors included. Relation
+loading, matrix-window construction, plan construction, equality assertions and
+satisfaction checks are outside those kernel timings. Outputs are consumed.
+
+Complete PiCCS: one warmup pair + three measured pairs, alternating variant order.
+The timer includes all ordinary proving work and backend construction; excludes
+loading captured data, preparing the reusable relation plan, and verification.
+Every produced proof is verified outside the timer. Every pair has exactly equal
+serialized output claims and sumcheck-round coefficients (the entire PiCCS proof
+payload). This is an equivalent implementation, not an ablation.
+
+The retained plan setup cost is reported separately; adding it back gives a cold
+single-proof estimate. It can be amortized across repeated folds of this fixed
+relation. No benchmark processes ran concurrently. All test processes have an
+unconditional 300-second process-group timeout; all successful runs finished
+below that cap. Raw JSONL files retain min/max variability and individual samples.
+
+Measured results (seconds; median [minimum, maximum])
+---------------------------------------------------
+Complete PiCCS, with reusable plan already prepared:
+snapshot   production                 factored                   reduction
+1          2.723 [2.570, 2.751]       1.922 [1.721, 1.946]       29.4%
+2          8.106 [7.970, 8.306]       5.442 [5.406, 5.472]       32.9%
+3          8.613 [8.440, 8.630]       5.996 [5.950, 6.067]       30.4%
+
+One-time plan construction in the proof runs:
+  snapshot 1: 0.953 s; factored median + setup = 2.875 s
+  snapshot 2: 0.913 s; factored median + setup = 6.355 s
+  snapshot 3: 0.920 s; factored median + setup = 6.916 s
+The first cold proof does not win after charging plan setup; later folds do.
+Ranges do not overlap between variants in these three-repetition proof runs.
+These are local measurements, not confidence intervals or cross-machine claims.
+
+Fresh matrix arithmetic (cached relation; matrix-cache construction excluded):
+snapshot   production                 factored
+1          0.839 [0.837, 0.849]       0.052 [0.051, 0.056]
+2          0.967 [0.927, 0.977]       0.054 [0.054, 0.058]
+3          1.074 [1.062, 1.103]       0.055 [0.054, 0.058]
+
+Carried matrix arithmetic AFTER the required ring projection:
+snapshot   production                 factored
+2          0.965 [0.916, 1.127]       0.052 [0.044, 0.147]
+3          1.028 [1.020, 1.348]       0.049 [0.046, 0.111]
+
+Unchanged carried projections (same source witnesses and gamma weights):
+snapshot   matrix projection          padding projection
+2          0.936 [0.815, 0.943]       0.800 [0.776, 0.968]
+3          0.990 [0.879, 1.071]       0.995 [0.889, 1.006]
+
+Production oracle diagnostic, one separate fixed-challenge pass per snapshot:
+snapshot   constructor   messages*   binding   final openings
+1          0.000         1.588       0.032     0.879
+2          3.247         2.592       0.224     1.764
+3          3.704         2.843       0.201     2.050
+* Includes lazy fresh matrix-window creation and fresh table evaluation.
+These single-pass diagnostic numbers are not a sum of independently measured
+median kernel times, and their challenges differ from the transcript proof runs.
+
+Final-opening diagnostic split (median of three runs, cached full window):
+snapshot   ring-form construction   witness contractions   padding   other**
+1          0.420                    0.295                  0.013     0.047
+2          0.437                    1.171                  0.068     0.051
+3          0.434                    1.527                  0.082     0.042
+** Equality row weights, scratch allocation and clearing. Drops, result assembly
+and matrix loading are not attributed to these subphase timers. Each diagnostic
+result matches all production opening coefficients. A separately constructed
+matrix window took about 0.50-0.62 s in these runs; production retains its window.
+The prototype complete-proof timings include rebuilding that window for openings.
+Matrices C and S dominate the witness contractions; per-matrix arrays and
+variability are preserved in measure-*.jsonl and summary.json.
+
+Interpretation
+--------------
+The large gain comes from avoiding repeated reconstruction, not from the earlier
+zero-pattern sumcheck specialization. Fresh arithmetic improves roughly 16-19x;
+the carried matrix-application stage improves roughly 19-21x. Complete PiCCS
+improves roughly 29-33% with a reusable plan, including later folds. Its remaining
+time is substantial because ring projections, norm sumcheck, full ring openings,
+and ordinary matrix-window construction still execute.
+
+This warrants production integration of shared run reconstruction, provided the
+relation representation owns its memory and its setup is amortized. The test-only
+backend is an experimental proof of the benefit, not a proposed public API.
+The next measured targets are the two carried ring projections (about 1.7-2.0 s)
+and full-opening contractions (about 1.2-1.5 s on later snapshots). The two
+projections rebuild the same gamma-weighted source combination before applying
+different ring forms; sharing that combination is a concrete next experiment.
+This run does not claim a measured gain for such fusion or for shared affine DAGs.
+
+Final-opening reuse and its limits
+---------------------------------
+The experiment checks that each of the four fully bound fresh scalar tables
+matches eval_a[matrix][0] from the full production opening. It also checks that
+each fully bound assignment matches that source's eval_k[0]. These are already
+available and do not need recomputation as scalar values.
+
+However, each nonzero source needs 54 coefficients for each of four matrix
+openings and 54 padding coefficients: 270 K values, not five scalar values.
+The scalar sumcheck tables retain only coefficient zero. The carried table is a
+single gamma-weighted combination of source/matrix/coefficient openings; its
+one final scalar does not separate those outputs. Zero sources are already skipped.
+
+Consequently, reusing these scalar entries does not eliminate the dominant ring
+opening pass. The diagnostic split below reproduces every coefficient exactly.
+No performance gain is claimed for scalar reuse; we checked availability, rather
+than disabling remaining coefficients and calling that equivalent.
+
+Production already avoids a second digit-by-occurrence expansion in openings:
+geometric.rs::add_geometric_events emits start/end events, and row_forms.rs
+resolves the shared-ratio recurrence into packed ring forms. The contraction
+parallel.rs::eval_active_blocks_many then applies these forms to active witnesses.
+Padding openings already exploit repeated 54/64-lane phase templates. Completed
+carried storage is reused for opening scratch, and a complete fresh matrix window
+is reused when available. These optimizations materially limit the additional
+benefit of simply retaining scalar sumcheck values.
+
+Retaining all 54 coefficients as row tables for the four matrices would take
+3,470,276,736 bytes (3.23 GiB) per source before padding and other state. Doing
+that for eight active sources would exceed this machine's 24 GiB by itself.
+No such richer-table prototype was implemented; a narrower compressed or
+relation-specific representation would need a separate experiment.
+
+Memory and integration limits
+-----------------------------
+The reusable experimental plan retains 674,368,688 bytes (643.13 MiB): run keys,
+row offsets, and (run-id,coefficient) occurrences. Original MatrixWindow storage
+is 957,308,056 bytes (912.96 MiB). A temporary distinct-run value array uses
+8,564,200 bytes for F, or 17,128,400 bytes for K. Fresh table storage is unchanged
+at 64,264,384 bytes. The projected vector/opening scratch is 703,420,416 bytes.
+
+These are allocation payloads, NOT measured peak RSS. Plan construction also
+has a temporary HashMap and vector growth capacity. During prototype openings,
+the plan remains alive alongside the original window and scratch: approximately
+2.335 GB of those three payloads, versus 1.661 GB without the plan, excluding
+witnesses/allocator overhead. The 1 GiB window-budget parameter is unchanged,
+but the prototype's plan is outside that budget. It is not a demonstration of
+a production implementation fitting all additional memory into 1 GiB.
+
+A production integration must account for or replace that retained matrix data,
+ideally owning the factorization as the relation's evaluation representation.
+It should avoid adding a second large independent cache with unclear lifetime.
+This experiment does not change the verifier or claim a full lifecycle speedup:
+commitment generation, recursive witness execution, other reductions, and final
+lifecycle verification were not replaced. Complete PiCCS and real later-fold
+inputs are measured, rather than extrapolating initial-fold microbenchmarks.
+
+Reproduction
+------------
+From the repository root (Rust toolchain and dependencies already installed):
+
+  python3 experiments/sumcheck-specialization/fetch_artifacts.py
+  cargo build --release -p nightstream --bin nightstream-poseidon2-bench
+  target/release/nightstream-poseidon2-bench compile --output /private/tmp/nightstream-specialization.nsc
+  python3 experiments/recomposition/run.py capture
+  python3 experiments/recomposition/run.py measure --step 1
+  python3 experiments/recomposition/run.py measure --step 2
+  python3 experiments/recomposition/run.py measure --step 3
+  python3 experiments/recomposition/run.py proofs --step 1
+  python3 experiments/recomposition/run.py proofs --step 2
+  python3 experiments/recomposition/run.py proofs --step 3
+  python3 experiments/recomposition/summarize.py
+  python3 experiments/recomposition/run.py checks
+
+run.py accepts --package and --directory for alternative scratch locations. It
+caps each cargo-test process, including compilation, at 300 seconds and kills
+the entire process group on timeout. The package compiler is an ordinary build
+utility, not a test invocation. Capture files remain in /private/tmp to avoid
+checking hundreds of megabytes into the repository. The original LFS pointers
+were restored after measurements; fetch_artifacts.py rehydrates verified content.
+
+Experimental code (all paths relative to repository root):
+  crates/nightstream/tests/experiments/recomposition_capture.rs
+  crates/neo-reductions/tests/experiments/recomposition.rs
+  crates/neo-reductions/tests/experiments/recomposition_proof.rs
+  crates/neo-reductions/tests/experiments/recomposition_openings.rs
+The recomposition module is nested under the earlier specialization experiment
+to reuse its package MatrixRows adapter and access private CPU-oracle tables.
+Only cfg(test) module hooks are added to production source files. The earlier
+dev dependency and experiments are retained. No production backend is selected
+or modified by these changes.
+
+Validation completed
+--------------------
+Three-step lifecycle capture verified. All 24 complete PiCCS proofs (including
+warmups) verified; every variant pair matched exact messages and output claims.
+All fresh and carried table comparisons and full opening diagnostic comparisons
+passed. All three snapshots also passed fresh relation satisfaction checks.
+neo-reductions release unit suite: 24 passed, 7 ignored (performance experiments).
+cargo fmt --all -- --check and git diff --check passed.

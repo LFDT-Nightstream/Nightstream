@@ -447,3 +447,7 @@ mod hash_chain_vector;
 #[cfg(test)]
 #[path = "../tests/circuit/terminal_package.rs"]
 mod terminal_package;
+
+#[cfg(test)]
+#[path = "../tests/experiments/recomposition_capture.rs"]
+mod recomposition_capture;

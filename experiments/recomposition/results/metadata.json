@@ -1,0 +1,80 @@
+{
+  "cpu": "Apple M5",
+  "logical_cpus": 10,
+  "memory_bytes": 25769803776,
+  "threads": 4,
+  "release": {
+    "opt_level": 3,
+    "lto": "fat",
+    "codegen_units": 1
+  },
+  "rustflags": [
+    "-Dwarnings"
+  ],
+  "lifecycle_steps": 3,
+  "fresh_instances_per_fold": 1,
+  "test_timeout_seconds": 300,
+  "micro_warmups": 1,
+  "micro_repeats": 5,
+  "opening_warmups": 1,
+  "opening_repeats": 3,
+  "proof_warmups": 1,
+  "proof_repeats": 3,
+  "features": [],
+  "captured_state_steps": [
+    1,
+    2,
+    3
+  ],
+  "description": "Actual active parts after each lifecycle step; PiCCS benchmarks consume these as the next fold inputs.",
+  "base_commit": "df0abe0dd341867312d88758160af16fc34daa9e",
+  "branch": "enzo/shared-recomposition-experiment",
+  "recorded_at": "2026-11-04T16:17:21.546037+00:00",
+  "os": "Darwin MacBook-Pro-de-Enzo.local 25.5.0 Darwin Kernel Version 25.5.0: Mon Apr 27 20:39:29 PDT 2026; root:xnu-12377.121.6~2/RELEASE_ARM64_T8142 arm64",
+  "rustc": "rustc 1.97.1 (8bab26f4f 2026-07-14)\nbinary: rustc\ncommit-hash: 8bab26f4f68e0e26f0bb7960be334d5b520ea452\ncommit-date: 2026-07-14\nhost: aarch64-apple-darwin\nrelease: 1.97.1\nLLVM version: 22.1.6",
+  "capture_files": {
+    "claims-2.json": {
+      "bytes": 823928,
+      "sha256": "dec0ee519bee530e0c05169c0e6a71b496737c3154a33ccea4028e7bdc81acc8",
+      "matches_original": true
+    },
+    "package.bin": {
+      "bytes": 49494468,
+      "sha256": "418b05dea84a625b900b9f774cc60536f5bd960eefcfdf180e99a7dd2e779f6c",
+      "matches_original": true
+    },
+    "claims-3.json": {
+      "bytes": 859501,
+      "sha256": "e836fe5ded6561325779b9f78caadbb50faae3385d8c6c9a14d21bf11d1952b8",
+      "matches_original": true
+    },
+    "claims-1.json": {
+      "bytes": 561251,
+      "sha256": "3d6ea02cf88915175e8ccae811ee0729784e47216ce0af0c5413d3768ccd0f06",
+      "matches_original": true
+    },
+    "witnesses-2.bin": {
+      "bytes": 91184298,
+      "sha256": "4e4de695e0dba015cd2aebe8d4fe47bb312e57f76b7168626eb7e1dd92518163",
+      "matches_original": true
+    },
+    "witnesses-3.bin": {
+      "bytes": 104210602,
+      "sha256": "f5bec59bf17ce6e61a29f903595415382e40318abee7a4605787b857cdaa1d9d",
+      "matches_original": true
+    },
+    "witnesses-1.bin": {
+      "bytes": 13026474,
+      "sha256": "a728557484ce476bbe9f1ac556dede2d7f189fff75ff607c3183946763953892",
+      "matches_original": true
+    }
+  },
+  "validation": {
+    "unit_tests_passed": 23,
+    "unit_tests_failed": 0,
+    "unit_tests_ignored": 4,
+    "complete_proofs_verified_including_warmups": 24,
+    "paired_outputs_equal": true,
+    "capture_verified": true
+  }
+}

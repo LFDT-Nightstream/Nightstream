@@ -1,7 +1,8 @@
 //! SPEC.md section 9 rejection cases that need an invalid witness. Each case changes
 //! one record or word of an honest run and keeps every other value
 //! consistent, and the faulty invocation is proved last. Two results are
-//! required: the verifier rejects the proof at the fresh instance, and the
+//! required: the prover refuses the step at its own check of the fresh
+//! instance, which is the verifier's check (`Relation::holds`), and the
 //! first row of the step relation that the witness fails is in the named
 //! check. The names come from Lean (`tests/fixtures/nebula-memory-*-rows.json`)
 //! and count from the application's first row. The Rust-built memory relation
@@ -15,7 +16,7 @@ use crate::lifecycle::option_b::{OptionBError, CHECK_ROWS, FAILED_ROW};
 use crate::nebula::test_packages::{option_b_packages, references};
 use crate::nebula::{Circuit, Machine, MachineState, Package, Step};
 use crate::{Engine, Error};
-use crate::{Proof, Prover, Verifier};
+use crate::{Proof, Prover};
 
 /// `loadi 5; store 0`, then `load 0; halt`.
 const EXECUTE: [Step; 2] = [Step::Execute, Step::Execute];
@@ -39,7 +40,6 @@ const N1: Fixture = Fixture {
 struct Harness {
     context: Context<Machine>,
     prover: Prover,
-    verifier: Verifier,
     checks: Vec<(String, Range<usize>)>,
     /// The application row of each of the step relation's first rows.
     kept: Vec<usize>,
@@ -70,10 +70,6 @@ impl Harness {
         Self {
             context: Context::new(Machine, &fixture.package.program()),
             prover: circuit.prover(Engine::Optimized, 114).unwrap(),
-            verifier: circuit
-                .circuit
-                .stage1_verifier(Engine::Optimized, 114)
-                .unwrap(),
             checks: named
                 .into_iter()
                 .map(|(name, first, end)| (name, first..end))
@@ -97,15 +93,19 @@ impl Harness {
         }
     }
 
-    /// Prove `invocation` after `proof`, or as the first step, without the
-    /// assertion check. Require the rejection at the fresh relation, and
-    /// require that the first failing row is in `check`.
+    /// Prove `invocation` after `proof`, or as the first step. Require the
+    /// rejection at the fresh relation, and require that the first failing
+    /// row is in `check`.
     fn reject(&self, proof: Option<&Proof>, invocation: &Invocation, check: &str) {
         CHECK_ROWS.set(true);
         FAILED_ROW.set(None);
         let proved = self.step(proof, invocation);
         CHECK_ROWS.set(false);
-        let bad = proved.unwrap();
+        assert!(
+            matches!(proved, Err(Error::OptionB(OptionBError::Fresh(_)))),
+            "{check}: {:?}",
+            proved.err()
+        );
         let row = FAILED_ROW.take().expect("the faulty witness fails a row");
         let named = self.kept.get(row).and_then(|row| {
             self.checks
@@ -115,13 +115,6 @@ impl Harness {
         });
         assert_eq!(named, Some(check), "first failing row {row}");
         eprintln!("rejected at row {row} ({check})");
-        assert!(
-            matches!(
-                self.verifier.verify(&bad.state(), &bad),
-                Err(Error::OptionB(OptionBError::Fresh(_)))
-            ),
-            "{check}"
-        );
     }
 
     /// The first segment's invocations after `fault` edits its execution
@@ -190,6 +183,21 @@ fn conformance() {
         h.reject(None, &changed, "state_in");
     }
 
+    // An auxiliary word that is not its honest value (SPEC.md section 7.3,
+    // Lean `AuxHonest`): a start product, a counter, and a factor word of an
+    // operation fingerprint and of a scan fingerprint.
+    let layout = &h.context.layout;
+    for (word, check) in [
+        (layout.start(0, 0), "arm start products"),
+        (layout.cnt(0), "O2 slot 0"),
+        (layout.ops_factor(0, 1, 2), "O9 slot 0"),
+        (layout.scan_factor(0, 0, 4), "S2 slot 0"),
+    ] {
+        let mut changed = honest.invocations[0].clone();
+        changed.words[word] += F::ONE;
+        h.reject(None, &changed, check);
+    }
+
     // A base arm that reads the `D_seen` headers from the witness, not from
     // the package constants.
     let mut changed = honest.invocations[0].clone();
@@ -215,7 +223,6 @@ fn conformance() {
 
     // An auxiliary bit equal to −1, with the same diff word: O1.
     let mut changed = honest.invocations[1].clone();
-    let layout = &h.context.layout;
     let (bit0, bit1) = (layout.op(0, layout.op_diff(0)), layout.op(0, layout.op_diff(1)));
     assert_eq!((changed.words[bit0], changed.words[bit1]), (F::ONE, F::ZERO));
     changed.words[bit0] = -F::ONE;

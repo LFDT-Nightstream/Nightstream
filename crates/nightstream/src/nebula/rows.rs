@@ -51,23 +51,6 @@ pub(super) fn pack(bits: Vec<Expr>) -> Vec<Expr> {
     bits.chunks(63).map(|bits| chunk(bits.to_vec())).collect()
 }
 
-/// `Expr.sum`: `e₀ + (e₁ + (… + 0))`.
-fn sum(terms: Vec<Expr>) -> Expr {
-    terms.into_iter().rev().fold(c(0), |rest, e| e + rest)
-}
-
-fn fingerprint(eta1: KExpr, eta2: KExpr, eta1_sq: KExpr, t: Expr, g: Expr, v: Expr) -> KExpr {
-    KExpr::embed(g)
-        .add(eta1.mul(KExpr::embed(v)))
-        .add(eta1_sq.mul(KExpr::embed(t)))
-        .sub(eta2)
-}
-
-/// `gatedE pad f = pad + (1 − pad) · f`.
-fn gated(pad: Expr, f: KExpr) -> KExpr {
-    KExpr::embed(pad.clone()).add(KExpr::embed(c(1) - pad).mul(f))
-}
-
 impl<'a> Sym<'a> {
     pub(super) fn new(geometry: &'a Geometry, layout: Layout, wires: &'a [Variable], headers: [F; 12]) -> Self {
         Self {
@@ -103,10 +86,6 @@ impl<'a> Sym<'a> {
 
     fn eta1(&self) -> KExpr {
         KExpr::of(self.c_out(3), self.c_out(4))
-    }
-
-    fn eta2(&self) -> KExpr {
-        KExpr::of(self.c_out(5), self.c_out(6))
     }
 
     fn eta1_sq(&self) -> KExpr {
@@ -218,14 +197,22 @@ impl<'a> Sym<'a> {
         )
     }
 
+    /// The counter `cnt_j` of slot `j` (row O2).
+    fn cnt(&self, j: usize) -> Expr {
+        self.word(self.layout.cnt(j))
+    }
+
+    /// `cnt` before slot `k`: `0`, then the counter of slot `k − 1`.
     fn cnt_before(&self, k: usize) -> Expr {
-        sum((0..self.geometry.b_ops.min(k))
-            .map(|j| c(1) - self.pad(j))
-            .collect())
+        if k == 0 {
+            c(0)
+        } else {
+            self.cnt(k - 1)
+        }
     }
 
     fn wt(&self, j: usize) -> Expr {
-        self.c_in(2) + self.cnt_before(j + 1)
+        self.c_in(2) + self.cnt(j)
     }
 
     fn global_index(&self, j: usize) -> Expr {
@@ -236,9 +223,9 @@ impl<'a> Sym<'a> {
         self.idx_eff() * c(self.geometry.b_scan as u64) + c(j as u64)
     }
 
-    fn start_product(&self, k: usize) -> KExpr {
-        KExpr::embed(self.is_open())
-            .add(KExpr::embed(c(1) - self.is_open()).mul(KExpr::of(self.c_in(k), self.c_in(k + 1))))
+    /// Coefficient `c` of start product `s` (0 RS, 1 WS, 2 IS, 3 FS).
+    fn start_word(&self, s: usize, k: usize) -> Expr {
+        self.word(self.layout.start(s, k))
     }
 
     fn product_after(
@@ -250,7 +237,7 @@ impl<'a> Sym<'a> {
         base: fn(&Layout, usize, usize) -> usize,
     ) -> KExpr {
         if k == 0 {
-            self.start_product(start + 2 * pair)
+            KExpr::of(self.start_word(start + pair, 0), self.start_word(start + pair, 1))
         } else if k - 1 < count {
             KExpr::of(
                 self.word(base(&self.layout, k - 1, 2 * pair % 4)),
@@ -262,11 +249,58 @@ impl<'a> Sym<'a> {
     }
 
     fn ops_product_after(&self, pair: usize, k: usize) -> KExpr {
-        self.product_after(7, pair, k, self.geometry.b_ops, Layout::ops_products)
+        self.product_after(0, pair, k, self.geometry.b_ops, Layout::ops_products)
     }
 
     fn scan_product_after(&self, pair: usize, k: usize) -> KExpr {
-        self.product_after(11, pair, k, self.geometry.b_scan, Layout::scan_products)
+        self.product_after(2, pair, k, self.geometry.b_scan, Layout::scan_products)
+    }
+
+    /// `Rows.fingerprintRows`: `a 0, a 1 = η1 · v` and `(a 2, a 3) = f`. Each
+    /// row is `word − recipe` with one product, so it lowers to one R1CS row.
+    fn fingerprint_rows(&self, a: &impl Fn(usize) -> Expr, t: Expr, g: Expr, v: Expr) -> Vec<Expr> {
+        vec![
+            a(0) - self.c_out(3) * v.clone(),
+            a(1) - self.c_out(4) * v,
+            a(2) - (self.word(words::ETA1_SQUARE) * t.clone() + (g + a(0) - self.c_out(5))),
+            a(3) - (self.word(words::ETA1_SQUARE + 1) * t + (a(1) - self.c_out(6))),
+        ]
+    }
+
+    /// `Rows.productRows`: `next = prod · x` with the cross products
+    /// `m = prod.c1 · x1` and `n = prod.c1 · x0`.
+    fn product_rows(prod: KExpr, next: KExpr, x0: Expr, x1: Expr, m: Expr, n: Expr) -> Vec<Expr> {
+        vec![
+            m.clone() - prod.c1.clone() * x1.clone(),
+            n.clone() - prod.c1 * x0.clone(),
+            next.c0 - (prod.c0.clone() * x0 + c(7) * m),
+            next.c1 - (prod.c0 * x1 + n),
+        ]
+    }
+
+    /// `Rows.factorRows`: an ungated fingerprint step over six factor words.
+    fn factor_rows(&self, a: impl Fn(usize) -> Expr, prod: KExpr, next: KExpr, t: Expr, g: Expr, v: Expr) -> Vec<Expr> {
+        let mut rows = self.fingerprint_rows(&a, t, g, v);
+        rows.extend(Self::product_rows(prod, next, a(2), a(3), a(4), a(5)));
+        rows
+    }
+
+    /// `Rows.gatedRows`: a gated fingerprint step over eight factor words.
+    fn gated_rows(
+        &self,
+        a: impl Fn(usize) -> Expr,
+        pad: Expr,
+        prod: KExpr,
+        next: KExpr,
+        t: Expr,
+        g: Expr,
+        v: Expr,
+    ) -> Vec<Expr> {
+        let mut rows = self.fingerprint_rows(&a, t, g, v);
+        rows.push(a(4) - ((c(1) - pad.clone()) * a(2) + pad.clone()));
+        rows.push(a(5) - (c(1) - pad) * a(3));
+        rows.extend(Self::product_rows(prod, next, a(4), a(5), a(6), a(7)));
+        rows
     }
 
     /// `memoryRows`: bits, arm, slots, scans, close, in that order, each
@@ -330,6 +364,10 @@ impl<'a> Sym<'a> {
                 - (is_open.clone() * self.word(words::ETA_FRESH + i) + (c(1) - is_open.clone()) * self.c_in(3 + i))
         }));
         rows.extend(self.eta1_sq().equalities(self.eta1().mul(self.eta1())));
+        for s in 0..4 {
+            rows.push(self.start_word(s, 0) - ((c(1) - is_open.clone()) * self.c_in(7 + 2 * s) + is_open.clone()));
+            rows.push(self.start_word(s, 1) - (c(1) - is_open.clone()) * self.c_in(8 + 2 * s));
+        }
         rows
     }
 
@@ -338,6 +376,7 @@ impl<'a> Sym<'a> {
         let (pad, is_write, is_ram) = (self.pad(j), self.is_write(j), self.is_ram(j));
         let (vr, vw) = (chunk(self.vr_bits(j)), chunk(self.vw_bits(j)));
         let mut rows = vec![
+            self.cnt(j) - (self.cnt_before(j) + (c(1) - pad.clone())),
             (c(1) - is_write.clone()) * (vw.clone() - vr.clone()),
             (c(1) - pad.clone()) * (self.wt(j) - chunk(self.rt_bits(j)) - c(1) - chunk(self.diff_bits(j))),
             is_write * (c(1) - is_ram.clone()),
@@ -351,21 +390,15 @@ impl<'a> Sym<'a> {
         );
         rows.extend(self.op_lane(j).into_iter().skip(1).map(|x| pad.clone() * x));
         for (pair, stamp, value) in [(0, chunk(self.rt_bits(j)), vr), (1, self.wt(j), vw)] {
-            let factor = gated(
+            rows.extend(self.gated_rows(
+                |k| self.word(self.layout.ops_factor(j, pair, k)),
                 pad.clone(),
-                fingerprint(
-                    self.eta1(),
-                    self.eta2(),
-                    self.eta1_sq(),
-                    stamp,
-                    self.global_index(j),
-                    value,
-                ),
-            );
-            rows.extend(
-                self.ops_product_after(pair, j + 1)
-                    .equalities(self.ops_product_after(pair, j).mul(factor)),
-            );
+                self.ops_product_after(pair, j),
+                self.ops_product_after(pair, j + 1),
+                stamp,
+                self.global_index(j),
+                value,
+            ));
         }
         rows
     }
@@ -373,18 +406,14 @@ impl<'a> Sym<'a> {
     fn scan_rows(&self, j: usize) -> Vec<Expr> {
         let mut rows = Vec::new();
         for (pair, base) in [(0, self.initial(j)), (1, self.final_(j))] {
-            let factor = fingerprint(
-                self.eta1(),
-                self.eta2(),
-                self.eta1_sq(),
+            rows.extend(self.factor_rows(
+                |k| self.word(self.layout.scan_factor(j, pair, k)),
+                self.scan_product_after(pair, j),
+                self.scan_product_after(pair, j + 1),
                 chunk(self.scan_stamp_bits(base)),
                 self.scan_index(j),
                 chunk(self.scan_value_bits(base)),
-            );
-            rows.extend(
-                self.scan_product_after(pair, j + 1)
-                    .equalities(self.scan_product_after(pair, j).mul(factor)),
-            );
+            ));
         }
         rows
     }

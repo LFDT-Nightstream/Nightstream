@@ -38,10 +38,11 @@ def step (_input witness : List F) : List F :=
   stateWords (List.ofFn fun k : Fin app.width => wordOf witness (Words.appOut p app.toAppShape k))
     (List.ofFn fun k : Fin 39 => wordOf witness (Words.carryOut k))
 
-/-- The validity predicate: the memory rows on the input state, and the
-application's rows. -/
+/-- The validity predicate: the memory rows on the input state, the
+application's rows, and the honest auxiliary words (`AuxHonest`). -/
 def valid (input witness : List F) : Prop :=
-  (decode p app witness).RowsHold input ∧ ConstraintsHold (decode p app witness).view.env app.rows
+  (decode p app witness).RowsHold input ∧ ConstraintsHold (decode p app witness).view.env app.rows ∧
+    AuxHonest p app.toAppShape (wordOf witness)
 
 /-! ### Wires and blocks -/
 

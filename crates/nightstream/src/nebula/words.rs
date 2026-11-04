@@ -32,6 +32,9 @@ pub struct Layout {
     seg_bits: usize,
     ops_products: usize,
     scan_products: usize,
+    cnt: usize,
+    ops_factor: usize,
+    scan_factor: usize,
     memory_count: usize,
     width: usize,
     aux: usize,
@@ -50,7 +53,10 @@ impl Layout {
         let seg_bits = ts_bits + geometry.w_ts;
         let ops_products = seg_bits + geometry.seg_width();
         let scan_products = ops_products + 4 * geometry.b_ops;
-        let memory_count = scan_products + 4 * geometry.b_scan;
+        let cnt = scan_products + 4 * geometry.b_scan;
+        let ops_factor = cnt + geometry.b_ops + 8;
+        let scan_factor = ops_factor + 16 * geometry.b_ops;
+        let memory_count = scan_factor + 12 * geometry.b_scan;
         Self {
             b_ops: geometry.b_ops,
             op_words,
@@ -63,6 +69,9 @@ impl Layout {
             seg_bits,
             ops_products,
             scan_products,
+            cnt,
+            ops_factor,
+            scan_factor,
             memory_count,
             width,
             aux,
@@ -79,14 +88,16 @@ impl Layout {
     }
 
     /// The memory's witness regions and their word counts, in layout order.
-    pub fn memory_regions(&self) -> [(&'static str, usize); 6] {
+    pub fn memory_regions(&self) -> [(&'static str, usize); 8] {
         [
             ("Carry, proposal, and control words", OPS_START),
             ("Operation slot words", self.initial_start - OPS_START),
             ("Scan slot words (initial and final)", self.ts_bits - self.initial_start),
             ("Timestamp and segment bits", self.ops_products - self.ts_bits),
             ("Operation product words", self.scan_products - self.ops_products),
-            ("Scan product words", self.memory_count - self.scan_products),
+            ("Scan product words", self.cnt - self.scan_products),
+            ("Counter and start product words", self.ops_factor - self.cnt),
+            ("Factor words", self.memory_count - self.ops_factor),
         ]
     }
 
@@ -178,5 +189,25 @@ impl Layout {
 
     pub fn scan_products(&self, j: usize, c: usize) -> usize {
         self.scan_products + 4 * j + c
+    }
+
+    /// The counter `cnt_j` of operation slot `j` (row O2).
+    pub fn cnt(&self, j: usize) -> usize {
+        self.cnt + j
+    }
+
+    /// Coefficient `c` of start product `s` (0 RS, 1 WS, 2 IS, 3 FS).
+    pub fn start(&self, s: usize, c: usize) -> usize {
+        self.cnt + self.b_ops + 2 * s + c
+    }
+
+    /// Factor word `c` of fingerprint `pair` (0 read, 1 write) of operation slot `j`.
+    pub fn ops_factor(&self, j: usize, pair: usize, c: usize) -> usize {
+        self.ops_factor + 16 * j + 8 * pair + c
+    }
+
+    /// Factor word `c` of fingerprint `pair` (0 IS, 1 FS) of scan slot `j`.
+    pub fn scan_factor(&self, j: usize, pair: usize, c: usize) -> usize {
+        self.scan_factor + 12 * j + 6 * pair + c
     }
 }

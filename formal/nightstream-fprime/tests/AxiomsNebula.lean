@@ -12,6 +12,7 @@ import NightstreamFPrime.Export.Stage1.NebulaMemoryN1Package
 import NightstreamFPrime.Export.Stage1.NebulaMemorySecurity
 import NightstreamFPrime.Export.Stage1.NebulaMemoryTerminal
 import NightstreamFPrime.Lifecycle.Nebula.EtaOracle
+import NightstreamFPrime.Lifecycle.Nebula.EtaRound
 
 /-! Axiom audits for the Nebula memory-phase model (`Spec/Nebula`) and its
 memory application layer (`Lifecycle/Nebula`): framing, carry, step rows,
@@ -693,3 +694,15 @@ plans (`SlotPlan`), batched catalogs (`Batch`) and the free application
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.EtaOracle.deployed_pointOf
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.EtaOracle.romContext_deployed
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.EtaOracle.pointOf_injective
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.EtaOracle.inputOf_pointOf
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.EtaOracle.etaOf_deployed
+#audit_axioms NightstreamFPrime.Spec.Nebula.segmentView_withEta
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.EtaRound.mass_le_errors
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.EtaRound.union_le
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.EtaRound.unbalancedIn_deployed
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.EtaRound.hit_of_unbalanced
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.EtaRound.hit_queried
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.EtaRound.play_closes
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.EtaRound.retry_collision
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.EtaRound.mass_le
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.EtaRound.unbalanced_le

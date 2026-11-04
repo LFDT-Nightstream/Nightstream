@@ -129,6 +129,7 @@ import NightstreamFPrime.Lifecycle.OptionB.FoldCompleteness
 import NightstreamFPrime.Export.OptionB.StepExtend
 import NightstreamFPrime.Export.OptionB.RunCompleteness
 import NightstreamFPrime.Lifecycle.Nebula.EtaOracle
+import NightstreamFPrime.Lifecycle.Nebula.EtaRound
 import NightstreamFPrime.Export.OptionB.NebulaSecurity
 import NightstreamFPrime.Export.OptionB.FinishRelation
 import NightstreamFPrime.Export.OptionB.Parity

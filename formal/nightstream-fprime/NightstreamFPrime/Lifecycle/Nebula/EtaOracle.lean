@@ -25,25 +25,46 @@ abbrev Point := Digest × F × Digest × Digest × Digest
 /-- An oracle for the `η` transcript. -/
 abbrev Oracle := Point → K × K
 
+open scoped NightstreamFPrime.Spec.GoldilocksExtensionRing in
+/-- The oracles are finite. Instance search on `Point → K × K` exceeds its size limit. -/
+noncomputable instance oracleFintype : Fintype Oracle := Pi.instFintype
+
 /-- The oracle point of an `η` input. -/
 def pointOf (input : EtaInput Digest) : Point :=
   (input.planDigest, natWord input.ts, input.opsRoot, input.memRoot, input.finalRoot)
 
+/-- The `η` input of an oracle point. -/
+def inputOf (point : Point) : EtaInput Digest :=
+  ⟨point.1, point.2.1.val, point.2.2.1, point.2.2.2.1, point.2.2.2.2⟩
+
+/-- An `η` input with a canonical timestamp is the input of its oracle point. -/
+theorem inputOf_pointOf {input : EtaInput Digest} (small : input.ts < goldilocksModulus) :
+    inputOf (pointOf input) = input := by
+  cases input
+  simp only [inputOf, pointOf, natWord_val small]
+
+/-- The challenge function of an oracle: every segment reads `oracle` at its input's point. -/
+def etaOf (oracle : Oracle) : ℕ → EtaInput Digest → K × K := fun _ input => oracle (pointOf input)
+
 /-- The memory context with `η` read from `oracle`. -/
 def romContext (p : Plan) (oracle : Oracle) : Context K Digest :=
-  (context p).withEta fun _ input => oracle (pointOf input)
+  (context p).withEta (etaOf oracle)
 
 /-- The Poseidon2 `η` transcript as an oracle. -/
-def deployed : Oracle := fun point =>
-  etaChallenges ⟨point.1, point.2.1.val, point.2.2.1, point.2.2.2.1, point.2.2.2.2⟩
+def deployed : Oracle := fun point => etaChallenges (inputOf point)
 
 theorem deployed_pointOf (input : EtaInput Digest) :
     deployed (pointOf input) = etaChallenges input := by
   have word : natWord (natWord input.ts).val = natWord input.ts := by
     apply Fin.ext
     simp [natWord, Poseidon2.ofNat, Nat.mod_mod_of_dvd]
-  unfold deployed pointOf etaChallenges
+  unfold deployed inputOf pointOf etaChallenges
   simp only [etaInputBlocks, word]
+
+/-- At the deployed oracle, the challenge function is the deployed one. -/
+theorem etaOf_deployed (p : Plan) : etaOf deployed = (context p).eta := by
+  funext _ input
+  exact deployed_pointOf input
 
 /-- At the deployed oracle, the model is the deployed memory context. -/
 theorem romContext_deployed (p : Plan) : romContext p deployed = context p := by
@@ -57,13 +78,6 @@ theorem romContext_deployed (p : Plan) : romContext p deployed = context p := by
 theorem pointOf_injective {input input' : EtaInput Digest} (small : input.ts < goldilocksModulus)
     (small' : input'.ts < goldilocksModulus) (same : pointOf input = pointOf input') :
     input = input' := by
-  simp only [pointOf, Prod.mk.injEq] at same
-  obtain ⟨plan, ts, ops, mem, final⟩ := same
-  have tsEq : input.ts = input'.ts := by
-    have := congrArg Fin.val ts
-    rwa [natWord_val small, natWord_val small'] at this
-  cases input
-  cases input'
-  simp_all
+  rw [← inputOf_pointOf small, same, inputOf_pointOf small']
 
 end NightstreamFPrime.Lifecycle.Nebula.EtaOracle

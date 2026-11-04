@@ -1,8 +1,8 @@
 import NightstreamFPrime.Spec.Nebula.Soundness
 
-/-! What a segment's product test reads from the context (CW-10.8). The close checks and the
-challenge input read the plan, the hash and the plan digest, but not the context's challenge
-function: changing it (`Context.withEta`) keeps `ClosesAt` and `etaInput`, and the segment's
+/-! What a segment's product test reads from the context (CW-10.8). The segment views, the close
+checks and the challenge input read the plan, the hash and the plan digest, but not the
+context's challenge function: changing it (`Context.withEta`) keeps them, and the segment's
 challenges become the new function at the same input (`eta_withEta`). So a random-oracle model
 that reads `η` from the input alone changes only the product test. The input's timestamp is
 canonical, because a segment that closes opens below `2 ^ W_ts ≤ 2 ^ 62`
@@ -18,6 +18,11 @@ variable {E Digest : Type}
 def Context.withEta (ctx : Context E Digest) (eta : ℕ → EtaInput Digest → E × E) :
     Context E Digest :=
   { ctx with eta := eta }
+
+/-- The segment views of a run do not read the challenge function. -/
+theorem segmentView_withEta {σ : Type} (ctx : Context E Digest)
+    (eta : ℕ → EtaInput Digest → E × E) (run : List (Invocation σ Digest)) (k : ℕ) :
+    segmentView (ctx.withEta eta) run k = segmentView ctx run k := rfl
 
 namespace SegmentView
 

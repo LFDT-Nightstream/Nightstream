@@ -94,11 +94,13 @@ import NightstreamFPrime.Export.Generic.PieceRowsCompleteness
 import NightstreamFPrime.Export.Generic.SlotLayoutCompleteness
 import NightstreamFPrime.Export.Generic.NativeBlockCompleteness
 import NightstreamFPrime.Export.Generic.CircuitRelationCompleteness
+import NightstreamFPrime.Export.Generic.CircuitRelationNorm
 import NightstreamFPrime.Export.Generic.LogicalPlan
 import NightstreamFPrime.Export.OptionB.StepRelation
 import NightstreamFPrime.Export.OptionB.StepPackage
 import NightstreamFPrime.Export.OptionB.StepPackageCompleteness
 import NightstreamFPrime.Export.OptionB.StepRelationCompleteness
+import NightstreamFPrime.Export.OptionB.StepFreshCompleteness
 import NightstreamFPrime.Export.OptionB.TerminalBridge
 import NightstreamFPrime.Export.OptionB.IvcWalk
 import NightstreamFPrime.Export.OptionB.IvcSecurity

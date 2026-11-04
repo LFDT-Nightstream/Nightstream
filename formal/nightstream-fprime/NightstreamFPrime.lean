@@ -127,6 +127,7 @@ import NightstreamFPrime.Export.OptionB.FinishWalk
 import NightstreamFPrime.Export.OptionB.StepCompleteness
 import NightstreamFPrime.Lifecycle.OptionB.FoldCompleteness
 import NightstreamFPrime.Export.OptionB.StepExtend
+import NightstreamFPrime.Export.OptionB.RunCompleteness
 import NightstreamFPrime.Export.OptionB.NebulaSecurity
 import NightstreamFPrime.Export.OptionB.FinishRelation
 import NightstreamFPrime.Export.OptionB.Parity

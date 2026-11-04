@@ -353,7 +353,7 @@ Proof.
   cbn [SuspendedStack suspendedCalls afterBoundary boundaryLocalsBase boundaryCallDepth
     callView callerFunction callResults callerBase callerFbp viewPosition viewSegments viewValues viewLocals
     positionFunction positionLabels positionOffset].
-  exists x. split.
+  exists (CALL x). split.
   { apply FrameRows.frame_at_unmoved_intro;
       cbn [viewPosition viewSegments viewValues viewLocals positionFunction positionLabels positionOffset];
       unfold viewOperands; cbn [viewSegments viewValues].
@@ -561,7 +561,7 @@ Proof.
       [(COL_LOCAL_ZERO_REMAINING_AFTER, 1); (COL_LOCAL_ZERO_REMAINING_BEFORE, -1)], ([] : SparseRow)) Hrow.
     expand_row Hrow. normalize_columns. rewrite Hone, Hguest, Hturn, Hza, Hzr in Hrow.
     pose proof (value_bound row COL_LOCAL_ZERO_REMAINING_AFTER). field_linear Hrow. }
-  destruct Hsusp as [x [HframeC [Hcall [Hcallee [Hres [HfbpC [Hret [HsavedFbp [HsavedBase Hrest]]]]]]]]].
+  destruct Hsusp as [ci [HframeC [Hcall [Hcallee [Hres [HfbpC [Hret [HsavedFbp [HsavedBase Hrest]]]]]]]]].
   destruct top as [[[gindex glabels goffset] gsegments gvalues glocals] g results callerB callerF].
   cbn [callView callerFunction callResults callerBase callerFbp viewPosition viewSegments viewValues viewLocals
     positionFunction positionLabels positionOffset viewOperands] in HframeC, Hcall, Hcallee, Hres, HfbpC,
@@ -598,11 +598,9 @@ Proof.
     rewrite <- (stack_config_rejoin _ gvalues returned). apply steps_with_stack_prefix; [exact HvaluesC | ].
     apply steps_with_instruction_suffix; [apply forall_skipn; exact HcodeC | ].
     rewrite Hres. exact (Hleave _ HstateC). }
-  assert (Hsource : sourceHeight (programCallees program (guestModule g)) (CALL x) (length gvalues + guestParams f) =
+  assert (Hsource : sourceHeight (programCallees program (guestModule g)) ci (length gvalues + callOperands ci f) =
       Some (length (gvalues ++ returned) + 0)%nat).
-  { cbn [sourceHeight]. rewrite Hcallee.
-    replace (Nat.leb (guestParams f) (length gvalues + guestParams f)) with true by (symmetry; apply Nat.leb_le; lia).
-    rewrite length_app. f_equal. lia. }
+  { rewrite (calls_into_height _ _ _ _ Hcallee), length_app. f_equal. lia. }
   (* The results slide down over the callee's locals and the dropped operands;
      with neither, they are already in place and nothing moves. *)
   assert (HdistAfter : row COL_FRAME_MOVE_DISTANCE_AFTER =

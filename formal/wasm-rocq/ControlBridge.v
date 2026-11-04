@@ -345,11 +345,20 @@ Proof.
   rewrite Ha in Ha'. lia.
 Qed.
 
-Lemma call_at_some : forall code offset x, callAt code offset = Some x <-> nth_error code offset = Some (CALL x).
+Lemma calls_into_check : forall program module i callee f,
+  functionAt program callee = Some f ->
+  callsIntob module i callee f = true <-> callsInto (programCallees program module) i f.
 Proof.
-  intros code offset x. unfold callAt. split; [ | intros ->; reflexivity].
-  destruct (nth_error code offset) as [i | ]; [ | discriminate].
-  destruct i; try discriminate. intros H. injection H as ->. reflexivity.
+  intros program module i callee f Hf.
+  destruct i; cbn [callsIntob callsInto]; try (split; [discriminate | contradiction]);
+    unfold programCallees; cbn [calleeAt envTypes].
+  - destruct (nth_error (FUNCS module) _) as [address | ]; [ | split; discriminate].
+    split; intros H.
+    + apply Nat.eqb_eq in H. rewrite H. exact Hf.
+    + apply Nat.eqb_eq. eapply function_index_unique; eassumption.
+  - destruct (nth_error (TYPES module) _) as [t | ]; [ | split; discriminate].
+    destruct (functypeEqDec t (guestType f)) as [-> | Hne]; split; intros H; try reflexivity; try discriminate.
+    injection H as ->. contradiction.
 Qed.
 
 (* Decoded callers form the invariant's suspended stack. *)
@@ -365,9 +374,7 @@ Proof.
   - destruct (functionAt program (positionFunction site)) as [g | ] eqn:Hg; [ | discriminate].
     rewrite Hf in Hdecode.
     destruct (pathCode (guestBody g) (positionLabels site)) as [code | ] eqn:Hpath; [ | discriminate].
-    destruct (callAt code (positionOffset site)) as [x | ] eqn:Hcall; [ | discriminate].
-    apply call_at_some in Hcall.
-    destruct (nth_error (FUNCS (guestModule g)) _) as [address | ] eqn:Haddress; [ | discriminate].
+    destruct (nth_error code (positionOffset site)) as [i | ] eqn:Hcall; [ | discriminate].
     destruct (pathHeights _ _ _ _) as [heights | ] eqn:Hheights; [ | discriminate].
     destruct (memory callStackReturnPcId _) as [returnPC | ] eqn:Hret; [ | discriminate].
     destruct (memory callStackCallerFbpId _) as [savedFbp | ] eqn:HsavedFbp; [ | discriminate].
@@ -378,9 +385,9 @@ Proof.
     destruct (IH _ _ _ _ _ _ _ _ Hg Hdecode) as [Hresult [stack' [Hsites [Hsusp ->]]]].
     split; [exact Hresult | ].
     rewrite <- (read_operands_unmoved memory savedBase _ 0) in Hstack.
-    destruct (frame_of_reads program memory savedBase savedFbp (guestParams f) 0%nat 0 _ _ _ _ _ _ Hg Hpath Hheights
+    destruct (frame_of_reads program memory savedBase savedFbp (callOperands i f) 0%nat 0 _ _ _ _ _ _ Hg Hpath Hheights
       ltac:(lia) ltac:(lia) ltac:(lia) ltac:(lia) Hstack Hlocals) as [Hframe [Hinner Hoperands]].
-    destruct (proj1 (read_operands_cells memory savedBase (totalHeight heights - guestParams f) 0 0 stack
+    destruct (proj1 (read_operands_cells memory savedBase (totalHeight heights - callOperands i f) 0 0 stack
       (Nat.le_0_l _)) Hstack) as [Hlen _].
     exists (suspendedCall (frameView site (fst (splitSegments (fst heights) stack))
       (snd (splitSegments (fst heights) stack)) locals) g (guestResults f) savedBase savedFbp :: stack').
@@ -388,9 +395,9 @@ Proof.
     split; [ | cbn [plugCalls]; unfold callerConfig, frameConfig;
       cbn [callView callerFunction viewPosition viewSegments viewValues viewLocals callResults]; rewrite Hinner;
       reflexivity].
-    exists x. cbn [callView callerFunction viewPosition callerBase callerFbp callResults].
+    exists i. cbn [callView callerFunction viewPosition callerBase callerFbp callResults].
     split; [exact Hframe | ]. split; [rewrite Hinner; exact Hcall | ].
-    split; [unfold programCallees; cbn [calleeAt]; rewrite Haddress; subst callee; exact Hf | ]. split; [reflexivity | ].
+    split; [apply (proj1 (calls_into_check _ _ _ _ _ Hf)); assumption | ]. split; [reflexivity | ].
     split; [rewrite Hoperands, Hlen; assumption | ].
     split; [rewrite Hret; f_equal; assumption | ].
     split; [exact HsavedFbp | ]. split; [exact HsavedBase | exact Hsusp].
@@ -410,11 +417,8 @@ Proof.
   destruct (frame_heights _ _ _ _ _ _ _ _ _ Hframe) as [Hheights Htotal].
   destruct (frame_reads _ _ _ _ _ _ _ _ _ Hframe ltac:(lia)) as [Hstack Hlocals].
   rewrite read_operands_unmoved in Hstack.
-  rewrite Hg, Hf, Hpath, (proj2 (call_at_some _ _ _) Hcall).
-  unfold programCallees in Hcallee; cbn [calleeAt] in Hcallee.
-  destruct (nth_error (FUNCS (guestModule (callerFunction top))) (N.to_nat (x :> N))) as [address | ];
-    [ | discriminate].
-  pose proof (function_index_unique _ _ _ _ Hcallee Hf) as Haddress.
+  rewrite Hg, Hf, Hpath, Hcall.
+  pose proof (proj2 (calls_into_check _ _ _ _ _ Hf) Hcallee) as Hcallsb.
   rewrite Hheights, Hret, HsavedFbp, HsavedBase.
   rewrite Htotal, Nat.add_sub. cbn [fst snd]. pass_check.
   rewrite Hstack, Hlocals.

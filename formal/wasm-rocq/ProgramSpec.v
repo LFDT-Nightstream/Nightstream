@@ -65,8 +65,16 @@ Fixpoint typePosition (t : functype) (types : list functype) : nat :=
 Definition typeId (module : moduleinst) (t : functype) : Z :=
   Z.of_nat (typePosition t (firstSeen [] (TYPES module))) + 1.
 
-Definition guestType (f : GuestFunction) : functype :=
-  mk_functype (mk_list _ (repeat valtype_I32 (guestParams f))) (mk_list _ (repeat valtype_I32 (guestResults f))).
+(* The decoder's check that call instruction i in `module` enters function
+   `callee`, which decodes to f. *)
+Definition callsIntob (module : moduleinst) (i : instr) (callee : nat) (f : GuestFunction) : bool :=
+  match i with
+  | CALL x => match nth_error (FUNCS module) (N.to_nat (x :> N)) with
+      | Some address => Nat.eqb (N.to_nat address) callee | None => false end
+  | CALL_INDIRECT _ y => match nth_error (TYPES module) (N.to_nat (y :> N)) with
+      | Some t => if functypeEqDec t (guestType f) then true else false | None => false end
+  | _ => false
+  end.
 
 (* Locate an encoded instruction, including the function-ending END. *)
 Fixpoint locatePC (program : Program) (pc : nat) : option (nat * nat) :=

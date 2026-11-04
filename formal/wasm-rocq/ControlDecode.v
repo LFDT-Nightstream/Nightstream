@@ -125,9 +125,6 @@ Fixpoint wrapLabels (code : list instr) (labels : list LabelSite) (segments : li
   | _, _ => c
   end.
 
-Definition callAt (code : list instr) (offset : nat) : option funcidx :=
-  match nth_error code offset with Some (CALL x) => Some x | _ => None end.
-
 (* The countdown flags follow the counters, as the circuit computes them: a
    pending move runs before zeroing. *)
 Definition initializationFlagsb (boundary : Boundary) : bool :=
@@ -187,14 +184,13 @@ Fixpoint decodeCalls (program : Program) (memory : MemoryState) (callee : nat) (
       let? g := functionAt program (positionFunction site) in
       let? f := functionAt program callee in
       let? inner := pathCode (guestBody g) labels in
-      let? x := callAt inner offset in
-      let? address := nth_error (FUNCS (guestModule g)) (N.to_nat (x :> N)) in
+      let? i := nth_error inner offset in
       let? heights := pathHeights (programCallees program (guestModule g)) (guestBody g) labels offset in
       let? returnPC := memory callStackReturnPcId [depth - 1] in
       let? callerFbp := memory callStackCallerFbpId [depth - 1] in
       let? callerBase := memory callStackCallerSpBaseId [depth - 1] in
-      let below := (totalHeight heights - guestParams f)%nat in
-      check (N.to_nat address =? callee)%nat && (guestParams f <=? snd heights)%nat &&
+      let below := (totalHeight heights - callOperands i f)%nat in
+      check callsIntob (guestModule g) i callee f && (callOperands i f <=? snd heights)%nat &&
         (returnPC =? guestEntry g + Z.of_nat (pathOffset (guestBody g) labels (S offset))) &&
         (0 <=? callerFbp) && (callerBase =? callerFbp + Z.of_nat (frameLocals g)) &&
         (fbp =? callerBase + Z.of_nat below) in

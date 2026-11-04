@@ -95,8 +95,8 @@ Definition ActiveState (program : Program) (s : store) (memory : MemoryState) (b
       c = stackConfig (mk_state s (enteredFrame (guestModule f) arguments (guestLocals f))) [] (guestBody f)
   end.
 
-(* A caller suspended at a direct CALL inside its labels: its view holds the
-   operands below the callee's arguments. *)
+(* A caller suspended at a call inside its labels: its view holds the operands
+   below the ones the call consumed. *)
 Record SuspendedCall := suspendedCall {
   callView : FrameView;
   callerFunction : GuestFunction;
@@ -129,10 +129,10 @@ Fixpoint SuspendedStack (program : Program) (memory : MemoryState) (callee : Gue
       let g := callerFunction suspended in
       let view := callView suspended in
       let position := viewPosition view in
-      exists x,
-      FrameAt program memory (callerBase suspended) (callerFbp suspended) (guestParams callee) 0 0 g view /\
-      nth_error (innerCode g position) (positionOffset position) = Some (CALL x) /\
-      programCallees program (guestModule g) (x :> N) = Some callee /\
+      exists i,
+      FrameAt program memory (callerBase suspended) (callerFbp suspended) (callOperands i callee) 0 0 g view /\
+      nth_error (innerCode g position) (positionOffset position) = Some i /\
+      callsInto (programCallees program (guestModule g)) i callee /\
       callResults suspended = guestResults callee /\
       fbp = callerBase suspended + Z.of_nat (length (viewOperands view)) /\
       memory callStackReturnPcId [depth - 1] =

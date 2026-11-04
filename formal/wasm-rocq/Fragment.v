@@ -2,7 +2,7 @@
    restrictions, each instruction's operand-stack effect, and the stack discipline
    at branch sites. Supporting a new instruction, or relaxing a restriction, is a
    change here. Validation is separate (ProgramSpec). *)
-From Stdlib Require Import List ZArith NArith Arith.
+From Stdlib Require Import List ZArith NArith Arith Lia.
 Require Import Wasm2 StraightLineSpec CallerSpec.
 Import ListNotations.
 
@@ -48,6 +48,30 @@ Definition sourceHeight (callees : CalleeEnvironment) (i : instr) (height : nat)
   | NOP => Some height
   | _ => instructionStackHeight i height
   end.
+
+(* A call instruction that enters `callee`: a direct call naming it, or an
+   indirect call whose expected type is its type. *)
+Definition callsInto (callees : CalleeEnvironment) (i : instr) (callee : GuestFunction) : Prop :=
+  match i with
+  | CALL x => callees (x :> N) = Some callee
+  | CALL_INDIRECT _ y => nth_error (envTypes callees) (N.to_nat (y :> N)) = Some (guestType callee)
+  | _ => False
+  end.
+
+(* The operands a call consumes: the callee's arguments, and an indirect call's
+   table index. *)
+Definition callOperands (i : instr) (callee : GuestFunction) : nat :=
+  match i with CALL_INDIRECT _ _ => S (guestParams callee) | _ => guestParams callee end.
+
+Lemma calls_into_height : forall callees i callee below, callsInto callees i callee ->
+  sourceHeight callees i (below + callOperands i callee) = Some (below + guestResults callee)%nat.
+Proof.
+  intros callees i callee below H. destruct i; try contradiction; cbn [callsInto] in H;
+    cbn [sourceHeight callOperands]; rewrite H.
+  - destruct (Nat.leb_spec (guestParams callee) (below + guestParams callee)); [f_equal; lia | lia].
+  - unfold guestType. cbv beta iota. rewrite !repeat_length.
+    destruct (Nat.leb_spec (S (guestParams callee)) (below + S (guestParams callee))); [f_equal; lia | lia].
+Qed.
 
 (* An instruction that leaves its function from `depth` enclosing labels: a return,
    or a br to the function's own label. *)

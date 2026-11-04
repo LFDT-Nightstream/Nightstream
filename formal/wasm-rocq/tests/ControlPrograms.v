@@ -201,15 +201,15 @@ Proof.
   - destruct b as [ | b]; [reflexivity | destruct b; reflexivity].
 Qed.
 
-Lemma computed_no_call : forall labels offset x,
-  nth_error (innerCode computedGuest (codePosition 0 labels offset)) offset <> Some (CALL x).
+Lemma computed_no_call : forall labels offset i callees callee,
+  nth_error (innerCode computedGuest (codePosition 0 labels offset)) offset = Some i -> ~ callsInto callees i callee.
 Proof.
-  intros labels offset x H. unfold innerCode in H. cbn [positionLabels] in H.
+  intros labels offset i callees callee H Hcall. unfold innerCode in H. cbn [positionLabels] in H.
   change (guestBody computedGuest) with computedCode in H.
   destruct (computed_paths labels) as [Hnone | [-> | ->]].
   - rewrite Hnone in H. destruct offset; discriminate.
-  - apply nth_error_In in H. cbn in H. intuition discriminate.
-  - apply nth_error_In in H. cbn in H. intuition discriminate.
+  - apply nth_error_In in H. cbn in H. repeat destruct H as [<- | H]; cbn in Hcall; tauto.
+  - apply nth_error_In in H. cbn in H. repeat destruct H as [<- | H]; cbn in Hcall; tauto.
 Qed.
 
 (* At pc 4 the frame is at the first br_if, inside the block. *)
@@ -232,10 +232,10 @@ Proof.
     + unfold innerCode in Hoffset. cbn in Hoffset.
       destruct offset as [ | [ | [ | [ | [ | [ | [ | [ | [ | offset]]]]]]]]]; cbn in Hpos; try lia.
       destruct stack as [ | top more]; [reflexivity | exfalso].
-      destruct Hsusp as [x [[Hg _] [Hcall _]]].
+      destruct Hsusp as [x [[Hg _] [Hcall [Hcallee _]]]].
       destruct (callView top) as [[[ | caller] glabels goffset] gsegments gvalues glocals];
         cbn [viewPosition positionFunction positionLabels positionOffset] in Hg, Hcall; [ | destruct caller; discriminate].
-      cbn in Hg. injection Hg as Hg. rewrite <- Hg in Hcall. exact (computed_no_call _ _ _ Hcall).
+      cbn in Hg. injection Hg as Hg. rewrite <- Hg in Hcall, Hcallee. exact (computed_no_call _ _ _ _ _ Hcall Hcallee).
   - exfalso. destruct Hactive as [f' [Hf' [_ [_ [_ [_ [_ [_ [Hpos _]]]]]]]]].
     destruct function as [ | function]; [ | destruct function; discriminate].
     injection Hf' as <-. cbn in Hpos. lia.

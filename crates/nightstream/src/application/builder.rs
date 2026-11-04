@@ -112,12 +112,6 @@ impl ApplicationBuilder {
         self.variable_count - self.generated_start
     }
 
-    /// Mark `variable` as 0 or 1 in every honest witness. The caller's rows
-    /// must force it to 0 or 1; it gets a bit slot (`NativeShape::bits`).
-    pub(crate) fn bit(&mut self, variable: Variable) {
-        self.shape.bits.push(variable.0);
-    }
-
     /// Record that the next 1,096 locals are one permutation of `lanes`
     /// (`poseidon2::permutation`).
     pub(super) fn begin_block(&mut self, lanes: &[Affine; 16]) {

@@ -111,15 +111,11 @@ fn map_piece(piece: &Piece, map: &impl Fn(usize) -> Option<usize>) -> Option<Pie
     })
 }
 
-/// What a native application places natively: its Poseidon2 blocks and its
-/// bit variables, over the application's variables.
+/// What a native application places natively: its Poseidon2 blocks, over
+/// the application's variables.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct NativeShape {
     pub blocks: Vec<NativeBlock>,
-    /// Bit candidates: each variable that a row of the package forces to 0
-    /// or 1 (Lean `SlotLayout.forcedColumn?`) gets a bit slot
-    /// (`LowNormSlot.Kind.bit`), and any other a field slot.
-    pub bits: Vec<usize>,
 }
 
 /// One permutation as a block (`PackagePiece.block`): its 1,096 locals from
@@ -248,7 +244,7 @@ impl StepPackage {
                     .ok_or(PackageError::Malformed("option-B witness batch reads the application"))
             })
             .collect::<Result<_, _>>()?;
-        package.slots = package.native_slots(shape)?;
+        package.slots = package.native_slots();
         Ok(package)
     }
 
@@ -344,26 +340,25 @@ impl StepPackage {
             .collect()
     }
 
-    /// The slot runs of this package by Lean's rule (`StepPackage.runsOf`),
-    /// with its `bit` hints and `shape`'s bits as the bit candidates. A bit
-    /// must be a witness word or a live local; it gets a bit slot only if a
-    /// row forces it to 0 or 1.
-    fn native_slots(&self, shape: &NativeShape) -> Result<Vec<(usize, usize, u8)>, PackageError> {
+    /// The slot runs of this package by Lean's rule (`StepPackage.runsOf`).
+    /// The bit candidates are its `bit` hints and every live column of the
+    /// application: its witness words and its locals that are not a block's
+    /// dead locals. A candidate gets a bit slot only if a row forces it to 0
+    /// or 1.
+    fn native_slots(&self) -> Vec<(usize, usize, u8)> {
         let region = self.application;
+        let dead: Vec<_> = self
+            .blocks()
+            .take(region.pieces - 1)
+            .map(|block| block.start()..block.outputs())
+            .collect();
         let mut bits = self.bit_columns();
-        for &bit in &shape.bits {
-            let witness_word = (4..4 + region.witness_words).contains(&bit);
-            let column = self.variable_column(bit)?;
-            let dead = self
-                .blocks()
-                .take(shape.blocks.len())
-                .any(|block| (block.start()..block.outputs()).contains(&column));
-            if !(witness_word || bit >= 8 + region.witness_words) || dead {
-                return Err(PackageError::Malformed("option-B native bit outside the live words"));
-            }
-            bits.push(column);
-        }
-        Ok(self.rule_slots(&bits))
+        bits.extend(WITNESS_START..WITNESS_START + region.witness_words);
+        bits.extend(
+            (region.local_start..region.local_start + region.locals)
+                .filter(|column| !dead.iter().any(|locals| locals.contains(column))),
+        );
+        self.rule_slots(&bits)
     }
 }
 
@@ -381,7 +376,7 @@ impl OptionBPackages {
     /// Both packages with a native application in place of Lean's. The
     /// identity binds the packages' identity, the witness word count, the
     /// application's rows and recipe rows, then the shape: each block's first
-    /// local and lanes, then the bits.
+    /// local and lanes.
     pub fn with_application(
         &self,
         records: Arc<ApplicationRecords>,
@@ -424,8 +419,6 @@ impl OptionBPackages {
                 }
             }
         }
-        update(shape.bits.len() as u64);
-        shape.bits.iter().for_each(|&bit| update(bit as u64));
         Ok(Self {
             light: self
                 .light

@@ -200,11 +200,6 @@ pub(super) fn memory_circuit_phases<A: Application>(
         }
         mark(&builder, name);
     }
-    for word in sym.bit_words() {
-        if let Expr::Var(variable) = word {
-            builder.bit(variable);
-        }
-    }
     let view = View::new(&sym);
     let readable = view.variables();
     for row in &app.rows(&view)? {

@@ -159,17 +159,18 @@ fn block(first_local: usize, lane: usize) -> NativeBlock {
 }
 
 /// Two blocks of the chain's locals replace their rows: the application's
-/// pieces are its four output rows, its bit row and the two blocks, the dead
-/// locals get no slot, each block gets 150 S-box columns, and a bit word that
-/// a row forces to 0 or 1 gets one coordinate. A witness word that no row
-/// reads gets no slot. The identity binds the blocks and the bits.
+/// pieces are its four output rows, its three bit rows and the two blocks,
+/// the dead locals get no slot, and each block gets 150 S-box columns. A
+/// witness word or a live local that a row forces to 0 or 1 gets one
+/// coordinate; a state word that a row forces keeps its field slot. A
+/// witness word that no row reads gets no slot. The identity binds the
+/// blocks.
 #[test]
 fn native_blocks_replace_their_rows_and_bits_take_one_coordinate() {
     let packages = packages();
-    let records = chained(2 * BLOCK, FIRST_LOCAL + 2 * BLOCK - 1, &[5]);
+    let records = chained(2 * BLOCK, FIRST_LOCAL + 2 * BLOCK - 1, &[5, 0, FIRST_LOCAL + 1080]);
     let shape = NativeShape {
         blocks: vec![block(FIRST_LOCAL, 4), block(FIRST_LOCAL + BLOCK, 5)],
-        bits: vec![5],
     };
     let plain = packages
         .with_application(Arc::clone(&records), 4, &NativeShape::default())
@@ -182,7 +183,7 @@ fn native_blocks_replace_their_rows_and_bits_take_one_coordinate() {
         (plain.refresh(), packed.refresh(), packages.refresh()),
     ] {
         assert_eq!(packed.application.pieces, 3);
-        assert!(matches!(&packed.pieces[0], Piece::Rows(rows) if rows.len() == 5));
+        assert!(matches!(&packed.pieces[0], Piece::Rows(rows) if rows.len() == 7));
         assert_eq!(packed.block_count(), lean.block_count() - 5 + 2);
         assert_eq!(plain.block_count(), lean.block_count() - 5);
         let layout = packed.layout().expect("layout");
@@ -193,15 +194,17 @@ fn native_blocks_replace_their_rows_and_bits_take_one_coordinate() {
         };
         assert_eq!(kind(FIRST_LOCAL), None);
         assert_eq!(kind(FIRST_LOCAL + BLOCK + 1079), None);
-        assert_eq!(kind(FIRST_LOCAL + 1080), Some(Kind::Field));
+        assert_eq!(kind(FIRST_LOCAL + 1080), Some(Kind::Bit));
+        assert_eq!(kind(FIRST_LOCAL + 1081), Some(Kind::Field));
         assert_eq!(kind(5), Some(Kind::Bit));
         assert_eq!(kind(4), Some(Kind::Field));
+        assert_eq!(kind(0), Some(Kind::Field));
         assert_eq!(kind(6), None);
         for column in [packed.sbox_start(), packed.sbox_start() + 299] {
             assert_eq!(layout.slot(column).map(|(_, kind)| kind), Some(Kind::Field));
         }
         assert_eq!(
-            layout.width() + 41 * 2 * 1080 + 40,
+            layout.width() + 41 * 2 * 1080,
             plain.layout().expect("layout").width() + 41 * 2 * 150
         );
         assert_eq!(
@@ -209,52 +212,17 @@ fn native_blocks_replace_their_rows_and_bits_take_one_coordinate() {
             plain.plan_rows().expect("rows").row_count() + 2 * (150 + 16)
         );
     }
-    let identity = |shape: &NativeShape| {
-        packages
-            .with_application(Arc::clone(&records), 4, shape)
-            .expect("in place")
-            .identity()
-    };
     let one_lane = NativeShape {
         blocks: vec![block(FIRST_LOCAL, 4), block(FIRST_LOCAL + BLOCK, 6)],
-        ..shape.clone()
     };
-    let no_bit = NativeShape {
-        bits: Vec::new(),
-        ..shape.clone()
-    };
-    let distinct = [
-        plain.identity(),
-        packed.identity(),
-        identity(&one_lane),
-        identity(&no_bit),
-    ];
+    let one_lane = packages
+        .with_application(Arc::clone(&records), 4, &one_lane)
+        .expect("in place")
+        .identity();
+    let distinct = [plain.identity(), packed.identity(), one_lane];
     for (index, left) in distinct.iter().enumerate() {
         assert!(distinct[index + 1..].iter().all(|right| right != left));
     }
-}
-
-/// A bit word that no row forces to 0 or 1 keeps its field slot.
-#[test]
-fn a_bit_without_its_row_is_a_field_slot() {
-    let packages = packages();
-    let shape = NativeShape {
-        blocks: vec![block(FIRST_LOCAL, 4), block(FIRST_LOCAL + BLOCK, 5)],
-        bits: vec![5],
-    };
-    let packed = packages
-        .with_application(chained(2 * BLOCK, FIRST_LOCAL + 2 * BLOCK - 1, &[]), 4, &shape)
-        .expect("blocks in place");
-    let light = packed.light();
-    let column = light.variable_column(5).expect("column");
-    assert_eq!(
-        light
-            .layout()
-            .expect("layout")
-            .slot(column)
-            .map(|(_, kind)| kind),
-        Some(Kind::Field)
-    );
 }
 
 /// Each package that Lean writes has the slots of Lean's rule
@@ -278,19 +246,13 @@ fn lean_packages_follow_the_slot_rule() {
 }
 
 /// Blocks that overlap or pass the locals, a lane that reads its own block
-/// or a dead local, a kept row that reads a dead local, and a bit outside
-/// the live witness words and locals are refused.
+/// or a dead local, and a kept row that reads a dead local are refused.
 #[test]
 fn native_shape_outside_its_rules_is_refused() {
     let packages = packages();
     let records = chained(2 * BLOCK, FIRST_LOCAL + 2 * BLOCK - 1, &[]);
     let two = |first: NativeBlock, second: NativeBlock| NativeShape {
         blocks: vec![first, second],
-        bits: Vec::new(),
-    };
-    let bit = |variable| NativeShape {
-        blocks: vec![block(FIRST_LOCAL, 4)],
-        bits: vec![variable],
     };
     let cases = [
         (
@@ -313,13 +275,6 @@ fn native_shape_outside_its_rules_is_refused() {
             two(block(FIRST_LOCAL, 4), block(FIRST_LOCAL + BLOCK, FIRST_LOCAL + 5)),
             "option-B native lane reads past its inputs",
         ),
-        (&records, bit(0), "option-B native bit outside the live words"),
-        (&records, bit(9), "option-B native bit outside the live words"),
-        (
-            &records,
-            bit(FIRST_LOCAL + 3),
-            "option-B native bit outside the live words",
-        ),
     ];
     for (records, shape, expected) in cases {
         let refused = packages.with_application(Arc::clone(records), 4, &shape);
@@ -331,7 +286,13 @@ fn native_shape_outside_its_rules_is_refused() {
     }
     let reads_dead = chained(2 * BLOCK, FIRST_LOCAL + 7, &[]);
     assert!(matches!(
-        packages.with_application(reads_dead, 4, &bit(5)),
+        packages.with_application(
+            reads_dead,
+            4,
+            &NativeShape {
+                blocks: vec![block(FIRST_LOCAL, 4)]
+            }
+        ),
         Err(PackageError::Malformed("option-B application row reads a dead local"))
     ));
 }

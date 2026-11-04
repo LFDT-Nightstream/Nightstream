@@ -97,7 +97,7 @@ fn read_field(input: &mut impl Read) -> Result<F, Error> {
 }
 
 /// The shape after the records: the blocks, each its first local and its
-/// lanes (constant, term count, terms), then the bits.
+/// lanes (constant, term count, terms).
 fn write_shape(output: &mut impl Write, shape: &NativeShape) -> Result<(), Error> {
     let mut word = |value: u64| output.write_all(&value.to_le_bytes());
     word(shape.blocks.len() as u64)?;
@@ -111,10 +111,6 @@ fn write_shape(output: &mut impl Write, shape: &NativeShape) -> Result<(), Error
                 word(coefficient.as_canonical_u64())?;
             }
         }
-    }
-    word(shape.bits.len() as u64)?;
-    for &bit in &shape.bits {
-        word(bit as u64)?;
     }
     Ok(())
 }
@@ -131,9 +127,6 @@ fn read_shape(input: &mut impl Read) -> Result<NativeShape, Error> {
             }
         }
         shape.blocks.push(NativeBlock { first_local, lanes });
-    }
-    for _ in 0..read_word(input)? {
-        shape.bits.push(read_word(input)?);
     }
     Ok(shape)
 }

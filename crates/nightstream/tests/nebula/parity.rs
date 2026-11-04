@@ -102,14 +102,48 @@ fn coordinates(package: &nightstream_fprime::StepPackage) -> BTreeMap<String, us
     counts
 }
 
+/// The witness words and locals of `application` that one of its rows forces
+/// to 0 or 1: the row reads only that variable and holds at 0 and at 1
+/// (Lean `SlotLayout.forcedColumn?`).
+fn forced_words(application: &ApplicationCircuit) -> usize {
+    let records = application.records();
+    let witness = 4..4 + application.private_input_count();
+    let mut forced = BTreeSet::new();
+    for row in 0..records.row_count() {
+        let header = records.row_header(row).unwrap();
+        let mut variables = BTreeSet::new();
+        let mut high = [F::ZERO; 3];
+        let _: ControlFlow<()> = records
+            .visit_terms(row, |term| {
+                variables.insert(term.variable);
+                high[term.form.index()] += F::from_u64(term.coefficient);
+                Ok(ControlFlow::Continue(()))
+            })
+            .unwrap();
+        let [variable] = variables.into_iter().collect::<Vec<_>>()[..] else {
+            continue;
+        };
+        let low = header.constants.map(F::from_u64);
+        if high[0] * high[1] != F::ZERO
+            && low[0] * low[1] == low[2]
+            && (low[0] + high[0]) * (low[1] + high[1]) == low[2] + high[2]
+            && (witness.contains(&variable) || variable >= witness.end + 4)
+        {
+            forced.insert(variable);
+        }
+    }
+    forced.len()
+}
+
 /// The machine's Rust-built memory circuit in place of the fixture's
 /// application gives each Lean memory package's step relation: the same
-/// blocks and plan rows, and the same slots except that each bit word is a
-/// bit slot (1 coordinate) where Lean's witness word is a field slot (41).
+/// blocks and plan rows, and the same slots except that each witness word or
+/// local that a row forces to 0 or 1 is a bit slot (1 coordinate) where
+/// Lean's is a field slot (41).
 fn assert_native_packages_match_lean(package: Package, stem: &str) {
     let application = package.application().unwrap();
-    let bits: BTreeSet<usize> = application.shape().bits.iter().copied().collect();
-    assert!(!bits.is_empty());
+    let bits = forced_words(&application);
+    assert!(bits > 0);
     let load = |stem: &str, identity| {
         let bytes = option_b_packages(stem);
         nightstream_fprime::load_option_b_packages(&bytes[0], &bytes[1], identity).unwrap()
@@ -129,8 +163,8 @@ fn assert_native_packages_match_lean(package: Package, stem: &str) {
             lean.plan_rows().unwrap().row_count()
         );
         let mut expected = coordinates(lean);
-        *expected.get_mut("Field").unwrap() -= 41 * bits.len();
-        *expected.get_mut("Bit").unwrap() += bits.len();
+        *expected.get_mut("Field").unwrap() -= 41 * bits;
+        *expected.get_mut("Bit").unwrap() += bits;
         assert_eq!(coordinates(native), expected);
     }
 }

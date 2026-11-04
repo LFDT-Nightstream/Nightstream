@@ -326,7 +326,7 @@ impl<'a> Sym<'a> {
     }
 
     /// The words that the bit rows force to 0 or 1, in row order.
-    pub(super) fn bit_words(&self) -> Vec<Expr> {
+    fn bit_words(&self) -> Vec<Expr> {
         let geometry = self.geometry;
         let mut words: Vec<Expr> = (0..geometry.b_ops).flat_map(|j| self.op_lane(j)).collect();
         words.extend((0..geometry.b_ops).flat_map(|j| self.diff_bits(j)));

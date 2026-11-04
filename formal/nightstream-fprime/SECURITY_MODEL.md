@@ -217,6 +217,15 @@ item 5).
   (`Export.OptionB.IvcWalk.Reaches`). The bridge's selector returns the
   circuit that ran only on a valid step (`Export.OptionB.TerminalBridge.chosen`),
   so each decoded step is valid (`Export.OptionB.TerminalBridge.valid_of_chosen`).
+- **Start from a final proof:** the finish fold of a last fold is one more
+  stage before the walk. An answer that extracts it gives an accepted
+  terminal for the finish step's input
+  (`Export.OptionB.FinishWalk.holdsFor_of_extracted`), whose visit has each
+  slot at bound `B` (`Export.OptionB.FinishWalk.finish_relaxed`). So, if no
+  valid steps reach that statement, the finish answer does not extract, or
+  the walk from the finish output has a collision or a failed stage at one of
+  its first `iteration` visits
+  (`Export.OptionB.FinishWalk.finish_walk_covered`). Adversary 6 uses this.
 - **Gaps:** Lean derives Assumption 1 with an explicit `error` only in a
   random-oracle model of the folds
   (`Lifecycle.OptionB.RandomOracle.Assumption1.romAssumption1`). The bound
@@ -276,6 +285,22 @@ item 5).
   finish package give the finish relation of the last fold
   (`Export.OptionB.FinishRelation.package_finish`). Trust item 7 lists what
   this result assumes.
+- **With the IVC bound:** the last fold starts the reverse walk of adversary
+  4. One experiment draws an outcome of the final verifier's experiment, then
+  the coins of the finish stage's extractor, then the coins of the reverse
+  extractor's stages. In it, the probability that the final verifier accepts
+  a statement whose iteration is at most `depth` and that no valid steps
+  reach is at most `calls / 2^t`, plus the finish stage's Assumption 1 error,
+  plus the terms of adversary 4
+  (`CompressionLean.Claims.option_b_ivc_bound`).
+- **Gaps:** that bound has two more premises. The finish adversary, which
+  outputs the finish fold of the last fold, is admitted. The chain adversary,
+  which outputs the terminal that the finish answer gives, is an admitted
+  stage (`CompressionLean.Spec.OptionB.finishAdversary`,
+  `CompressionLean.Spec.OptionB.chainAdversary`). Both select the last fold
+  with `Classical.epsilon`. The compression claims prove that a last fold
+  exists, but no Lean algorithm computes it from the final proof. So Lean
+  does not show that these two adversaries are efficient (trust item 3).
 
 ## What you trust
 
@@ -424,6 +449,11 @@ item 5).
    extractors because that number is constant. A random-oracle bound for
    each fold does not remove this limit: each stage's adversary includes
    the earlier stages' reruns.
+   The joined bound of adversary 6 uses this premise for one more stage, the
+   finish fold. It also needs the finish adversary and the chain adversary to
+   be admitted. Both select the last fold with `Classical.epsilon`, so they
+   have the intended meaning of `Admitted` only if an efficient algorithm
+   finds the last fold from the final proof. Lean does not show this.
 4. **The circuit selection.** HyperNova NIVC selects the circuit of a step
    with `φ(z_i, w_i)`. The Lean step relation takes it from the machine's
    selector of the application state and witness (`Lifecycle.OptionB.machine`,
@@ -459,6 +489,11 @@ item 5).
    key's root is the honest root of the claims' setup. The premises about the
    keys and the setups are met for the reference application only
    (`formal/compression-lean/STATUS.md`).
+   The bound with the IVC bound (`CompressionLean.Claims.option_b_ivc_bound`)
+   also needs the final program's state keys to be the digests of the circuit
+   keys (`CompressionLean.Spec.OptionB.KeysAre`). Rust meets this premise:
+   `OptionB::new` gives the same digests to the step states and to the final
+   program (not checked against Lean).
 
 ## Out of scope
 

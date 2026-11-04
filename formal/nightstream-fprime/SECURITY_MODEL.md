@@ -155,10 +155,23 @@ item 5).
   (`Lifecycle.OptionB.RandomOracle.LightKnowledge.statisticalError_le`,
   `Lifecycle.OptionB.RandomOracle.RefreshKnowledge.statisticalError_le`).
   The kernel term is the probability that the binding reduction returns a
-  short kernel vector of the Ajtai key at the chain norm. The state-collision
-  term is the probability of a Poseidon2 collision on two named prior states.
-  Lean bounds neither term numerically (trust item 2) and has no running-time
-  model of the reduction.
+  short kernel vector of the Ajtai key at the chain norm. A black-box
+  rewinding machine outputs that vector with at most `budget` adversary runs,
+  so the kernel term is at most its success plus `(3Q + 61)/budget` for light
+  and `(35Q + 653)/budget` for refresh
+  (`Lifecycle.OptionB.RandomOracle.LightSolver.kernelChance_le_solver`,
+  `Lifecycle.OptionB.RandomOracle.RefreshSolver.kernelChance_le_solver`). The
+  state-collision terms are the probability of a Poseidon2 collision on two
+  named prior states, and a collision finder outputs the colliding input
+  pair (`Lifecycle.OptionB.RandomOracle.HashSolver.hashCollisions_le_finder`).
+  Averaged over the SHAKE128 key setup at key width `2^26`, the kernel term is
+  an MSIS advantage for a uniform matrix at the chain norm plus a programming
+  error below `2^−192`, so each fold's bound uses only the two algorithms
+  (`Export.OptionB.RandomOracleSetup.light_production_knowledge_error_lt_solvers`,
+  `Export.OptionB.RandomOracleSetup.refresh_production_knowledge_error_lt_solvers`).
+  Lean bounds neither the MSIS advantage nor the collision advantage
+  numerically (trust item 2), and it states the machines' work in adversary
+  runs, not in time.
 - **Not covered:** the model reads every challenge from a random oracle. The
   step circuits recompute the challenges with Poseidon2, so this result
   bounds no deployed check (trust item 3).

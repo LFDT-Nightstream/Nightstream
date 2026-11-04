@@ -144,10 +144,24 @@ item 5).
   `Spec.Folding.Light.ErrorBudget.production_forkCoordinates`,
   `Lifecycle.Nifs.VerifierErrorBudget.test_error_eq`). Each numerator is a
   per-call count over `q²`.
-- **Not covered:** Lean has no random-oracle result for the light or the
-  refresh fold. It does not bound the probability that a fork fails or that a
-  Π_CCS bad event occurs in a Fiat–Shamir game, and it does not join these
-  counts into one error.
+- **Random-oracle result:** with every fold challenge read from a uniform
+  random oracle and an adversary that makes at most `Q` queries, the
+  probability that a fold succeeds and the extractor does not return its
+  witnesses is at most a statistical term, a state-collision term and a
+  kernel term (`Lifecycle.OptionB.RandomOracle.LightKnowledge.knowledge_error_le`,
+  `Lifecycle.OptionB.RandomOracle.RefreshKnowledge.knowledge_error_le`). The
+  statistical term is at most `(Q + 58) · 531/2^128` for light and
+  `(Q + 74) · 50/(87 · 2^115)` for refresh
+  (`Lifecycle.OptionB.RandomOracle.LightKnowledge.statisticalError_le`,
+  `Lifecycle.OptionB.RandomOracle.RefreshKnowledge.statisticalError_le`).
+  The kernel term is the probability that the binding reduction returns a
+  short kernel vector of the Ajtai key at the chain norm. The state-collision
+  term is the probability of a Poseidon2 collision on two named prior states.
+  Lean bounds neither term numerically (trust item 2) and has no running-time
+  model of the reduction.
+- **Not covered:** the model reads every challenge from a random oracle. The
+  step circuits recompute the challenges with Poseidon2, so this result
+  bounds no deployed check (trust item 3).
 
 ### 4. IVC adversary
 
@@ -190,9 +204,11 @@ item 5).
   (`Export.OptionB.IvcWalk.Reaches`). The bridge's selector returns the
   circuit that ran only on a valid step (`Export.OptionB.TerminalBridge.chosen`),
   so each decoded step is valid (`Export.OptionB.TerminalBridge.valid_of_chosen`).
-- **Gaps:** Lean does not derive the value of `error`. Adversary 3's counts
-  are deterministic, and no random-oracle result for the light and refresh
-  folds discharges Assumption 1.
+- **Gaps:** Lean derives Assumption 1 with an explicit `error` only in a
+  random-oracle model of the folds
+  (`Lifecycle.OptionB.RandomOracle.Assumption1.romAssumption1`). The bound
+  here still takes Assumption 1 for the concrete hash as a premise, and it
+  gives no concrete security for a long history (trust item 3).
 
 ### 5. Memory adversary
 
@@ -369,8 +385,21 @@ item 5).
    for the whole class. Assumption 1 is the paper's plain-model premise, not
    a theorem. The step circuits recompute the challenges of the previous fold
    with Poseidon2, so a recursive argument uses the concrete hash, which no
-   random-oracle model covers. Adversary 3's error counts motivate the value
-   of `error`, but no Lean statement derives one from the other. The sum has
+   random-oracle model covers. In a random-oracle model of the folds,
+   Assumption 1 holds with an explicit error: adversary 3's knowledge errors
+   for each circuit key plus a truncation loss `2 · ((Q + 1) + 17 · (Q + 17))
+   / budget` for an extractor with its own oracle coins and `budget` reruns
+   (`Lifecycle.OptionB.RandomOracle.Assumption1.romAssumption1`). At an
+   oracle that answers like the Poseidon2 sponge, the model's success and
+   extraction events are the walk's
+   (`Export.OptionB.RomWalk.succeeds_iff_walkSucceeds`,
+   `Export.OptionB.RomWalk.extracted_iff_walkExtracted`), and an honest fold
+   meets the success event (`Lifecycle.OptionB.RandomOracle.Honest.light_honest`,
+   `Lifecycle.OptionB.RandomOracle.Honest.refresh_honest`). One fixed oracle
+   carries no probability, so this does not prove the premise for the
+   concrete hash; it gives the value of `error` that the premise asks for.
+   Lean has no random-oracle closure premise, because the query bound of a
+   stage grows with its depth. The sum has
    one Assumption 1 error for each stage of the reverse extractor, which is
    one visit, and stage `j + 1` runs
    the extractor of stage `j`, which may rerun stage `j`. So the cost of a

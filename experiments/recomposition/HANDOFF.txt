@@ -46,17 +46,22 @@ threads are fixed. Each benchmark warms up and consumes/checks its outputs.
 python3 experiments/recomposition/run.py capture
 python3 experiments/recomposition/run.py checks
 python3 experiments/recomposition/run.py measure --step 1
-python3 experiments/recomposition/run.py proofs --step 1
 python3 experiments/recomposition/run.py measure --step 2
-python3 experiments/recomposition/run.py proofs --step 2
 python3 experiments/recomposition/run.py measure --step 3
-python3 experiments/recomposition/run.py proofs --step 3
+python3 experiments/recomposition/run.py proofs --step 1 --pairs 5 --processes 4
+python3 experiments/recomposition/run.py proofs --step 2 --pairs 5 --processes 4
+python3 experiments/recomposition/run.py proofs --step 3 --pairs 5 --processes 4
 python3 experiments/recomposition/summarize.py
 
+Each proofs process runs one warmup pair and then --pairs measured pairs. With
+--processes N, run.py runs N processes in sequence, waits --cooldown seconds
+(default 30) between them, and writes all records to one JSONL file. Five pairs
+of state 3 fit in the 300-second cap; more pairs per process do not.
 Use --target-dir PATH to share an existing Cargo build directory, --directory
-PATH for captured witnesses (default /private/tmp/nightstream-recomposition-handoff),
-and --output PATH for logs/JSONL (default experiments/recomposition/results).
-Pass --results PATH to summarize.py if changing the output location.
+PATH for captured witnesses (default: nightstream-recomposition-handoff in the
+system temporary directory), and --output PATH for logs/JSONL (default
+experiments/recomposition/results). Pass --results PATH to summarize.py if
+changing the output location.
 Large captured witnesses are not committed. Raw current JSONL results are.
 
 Code map
@@ -65,6 +70,9 @@ crates/neo-reductions/tests/experiments/recomposition.rs:
   standalone relation adapter, plan, fresh/carried kernels, differential timings.
 crates/neo-reductions/tests/experiments/recomposition_proof.rs:
   test backend, alternating production/factored complete PiCCS comparisons.
+  Both variants enter through the same backend; production calls the unchanged
+  OptimizedPaperJointOracle::new. A wrapper times each oracle phase, and a
+  counter on the matrix-row source records window builds in each phase.
   Every proof verifies; output claims and sumcheck round messages agree exactly.
 crates/neo-reductions/tests/experiments/recomposition_openings.rs:
   diagnostic split of unchanged opening evaluation, checked against production.
@@ -94,31 +102,52 @@ files (package, claims, witnesses) match the historic SHA-256 file checksums.
 These hashes identify local benchmark files only; they are not protocol bindings.
 
 Apple M5, 24 GiB, rustc 1.97.1, release opt-level 3 / fat LTO / one codegen unit,
-four Rayon threads. One fresh instance; no WASM batch-size change. Actual active
-witness counts are 1, 7, and 8. Hardware and capture metadata: results/metadata.json.
-Commands above were run with --target-dir /Users/enzo/Work/Nightstream/target.
+four Rayon threads, AC power, Low Power Mode off. One fresh instance; no WASM
+batch-size change. Each state has 17 witnesses (1 fresh, 16 running PiDEC
+digits); 1, 7, and 8 are non-zero. Hardware and capture metadata:
+results/metadata.json. Commands above were run with
+--target-dir /Users/enzo/Work/Nightstream/target.
 
-Full PiCCS seconds: median [min, max], three measured pairs after a warmup pair.
-State   Production                  Factored                    Median saving
-1       4.143 [4.011, 4.189]      3.214 [3.114, 3.276]      22.4%
-2       12.773 [12.039, 13.149]      10.179 [8.463, 10.784]      20.3%
-3       13.806 [13.561, 15.307]      10.465 [8.948, 12.389]      24.2%
+Full PiCCS seconds: 20 pairs per state (4 processes x 5 pairs, after one warmup
+pair per process). Saving is 1 - median(factored / production) of each pair;
+the interval is a seeded percentile bootstrap over pairs.
+State   Production median   Factored median   Saving   95% interval
+1        3.66                2.92              20.4%    [16.2, 23.1]
+2       10.47                7.42              29.1%    [28.4, 30.1]
+3       11.09                8.01              27.7%    [26.3, 28.4]
 
-Plan build times in these proof runs: 1.967, 1.948, 1.884 seconds. They are
-excluded from the proof timings above; retained plan memory is 674,368,688 bytes
-(643.13 MiB). Plan construction must be amortized. These are complete PiCCS
-proof timings, not complete application prove/extend or commitment timings.
+Median paired saving: 0.74 s, 3.06 s, and 3.05 s. Plan build: 1.82 s, excluded
+from the proof times; retained plan memory is 674,368,688 bytes (643.13 MiB).
+These are complete PiCCS proof timings, not complete application prove/extend
+or commitment timings. State 1 is less stable across processes (13-22%) because
+its saving is small relative to the proof.
 
-Both variants ran slower than the historic run, and variability was higher.
-No cause was isolated; do not infer an upstream regression from these absolute
-times. Alternating paired trials still show a benefit in every measured pair.
-The same relation and unchanged reduction code make the paired comparison the
-useful result. This run supports about 20-24%, not a fresh claim of 30%.
+An earlier retest with 3 pairs reported 20-24%. Its paired savings for state 3
+were 1.17-4.86 s, so it could not resolve the saving. Use the numbers above.
 
-Validation: current lifecycle capture verifies; 23 reduction unit tests pass
-(4 ignored); all three phase experiments pass exact table/opening comparisons;
-all three full-proof experiments pass (24 verified proofs including warmups).
-Each production/factored pair has identical output claims and round messages.
-All successful test processes finished within the 300-second cap.
-cargo fmt --all and git diff --check pass.
+Where the saving comes from (state 3 medians; state 2 is the same within 0.1 s):
+Phase                 Production   Factored   Saving   Window builds (P / F)
+create                4.07         2.06       +2.02    1 / 0
+round 0               2.69         0.45       +2.23    1 / 0
+openings              2.74         4.00       -1.22    0 / 1
+later rounds, folds   1.54         1.53        0.00    0 / 0
+
+A window is the MatrixWindow cache of the matrix rows (about 912 MiB); one
+build takes about 1.2-1.5 s. In states 2 and 3, production builds it at create
+for the carried table and discards it, then builds it again in round 0 for the
+fresh tables and keeps it for the openings. The factored variant builds it only
+for the openings. The saving therefore has two parts:
+  - about 1.2 s (about 11%): one window build fewer. This part does not need
+    the plan. Production could build one window and use it for the carried
+    table, the fresh tables, and the openings. Not tested.
+  - about 1.8 s (about 17%): the factored kernels. Only this part needs the
+    plan, its 643 MiB, and its 1.8 s setup.
+State 1 has no carried table, so both variants build one window, and the
+saving (0.74 s) is the kernel saving only.
+
+Validation: current lifecycle capture verifies; all three phase experiments pass
+exact table/opening comparisons; all 120 measured full proofs (plus warmups)
+verify, and each production/factored pair has identical output claims and round
+messages. All test processes finished within the 300-second cap. The reduction
+unit tests (run.py checks) were not rerun after the instrumentation change.
 Raw current records and summary are in results/. Logs are generated but ignored.

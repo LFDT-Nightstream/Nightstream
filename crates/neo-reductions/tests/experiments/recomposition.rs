@@ -84,6 +84,13 @@ use std::{collections::HashMap, io::Read};
 struct Request {
     directory: PathBuf,
     step: usize,
+    pairs: Option<usize>,
+}
+impl Request {
+    /// Measured production/factored proof pairs per process, after one warmup pair.
+    fn pairs(&self) -> usize {
+        self.pairs.unwrap_or(3)
+    }
 }
 #[derive(Clone, Copy, Hash, PartialEq, Eq)]
 struct Key {

@@ -1,31 +1,84 @@
 #!/usr/bin/env python3
-"""All test processes have an unconditional 300-second process-group cap."""
-import argparse,json,os,signal,subprocess
+"""Run one recomposition experiment mode.
+
+Each cargo-test process has an unconditional 300-second process-group cap.
+With --processes N, the mode runs N times in sequence, with --cooldown seconds
+between runs, and all EXPERIMENT records go to one JSONL file. Each record gets
+a "process" field.
+"""
+import argparse
+import json
+import os
+import signal
+import subprocess
+import tempfile
+import time
 from pathlib import Path
-p=argparse.ArgumentParser()
-p.add_argument('mode',choices=['capture','measure','proofs','checks'])
-p.add_argument('--directory',default='/private/tmp/nightstream-recomposition-handoff')
-p.add_argument('--target-dir')
-p.add_argument('--output',type=Path,default=Path(__file__).resolve().parent/'results')
-p.add_argument('--step',type=int,default=1)
-a=p.parse_args()
-out=a.output.resolve()
-out.mkdir(parents=True,exist_ok=True)
-root=Path(__file__).resolve().parents[2]
-os.chdir(root)
-name='capture' if a.mode=='capture' else f'{a.mode}-{a.step}'
-cmd=['cargo','test','--release','-p','nightstream' if a.mode=='capture' else 'neo-reductions','--lib','capture_recomposition_workload' if a.mode=='capture' else ('recomposition_measure' if a.mode=='measure' else 'recomposition_proofs'),'--','--ignored','--nocapture','--test-threads=1']
-if a.mode=='checks':
- name='checks'
- cmd=['cargo','test','--release','-p','neo-reductions','--lib','--','--test-threads=4']
-if a.target_dir: cmd[2:2]=['--target-dir',a.target_dir]
-with (out/(name+'.log')).open('w') as log:
- proc=subprocess.Popen(cmd,stdin=subprocess.PIPE,stdout=log,stderr=subprocess.STDOUT,env=dict(os.environ,RAYON_NUM_THREADS='4'),start_new_session=True)
- try: proc.communicate(json.dumps({"directory":str(Path(a.directory).resolve()),"step":a.step}).encode(),timeout=300)
- except subprocess.TimeoutExpired:
-  os.killpg(proc.pid,signal.SIGKILL);proc.wait();raise SystemExit('FAIL: 300-second cap')
-if proc.returncode: raise SystemExit(f'FAIL: see {out/(name+".log")}')
-with (out/(name+'.jsonl')).open('w') as f:
- for line in (out/(name+'.log')).read_text().splitlines():
-  if 'EXPERIMENT ' in line: f.write(line.split('EXPERIMENT ',1)[1]+'\n')
-print(name,'passed')
+
+CAP_SECONDS = 300
+TESTS = {
+    'capture': ('nightstream', 'capture_recomposition_workload'),
+    'measure': ('neo-reductions', 'recomposition_measure'),
+    'proofs': ('neo-reductions', 'recomposition_proofs'),
+}
+
+parser = argparse.ArgumentParser()
+parser.add_argument('mode', choices=['capture', 'measure', 'proofs', 'checks'])
+parser.add_argument('--directory', type=Path,
+                    default=Path(tempfile.gettempdir()) / 'nightstream-recomposition-handoff')
+parser.add_argument('--target-dir')
+parser.add_argument('--output', type=Path, default=Path(__file__).resolve().parent / 'results')
+parser.add_argument('--step', type=int, default=1)
+parser.add_argument('--pairs', type=int, default=3, help='measured proof pairs per process')
+parser.add_argument('--processes', type=int, default=1)
+parser.add_argument('--cooldown', type=float, default=30, help='seconds between processes')
+args = parser.parse_args()
+
+output = args.output.resolve()
+output.mkdir(parents=True, exist_ok=True)
+os.chdir(Path(__file__).resolve().parents[2])
+
+if args.mode == 'checks':
+    name = 'checks'
+    command = ['cargo', 'test', '--release', '-p', 'neo-reductions', '--lib', '--', '--test-threads=4']
+else:
+    name = 'capture' if args.mode == 'capture' else f'{args.mode}-{args.step}'
+    package, test = TESTS[args.mode]
+    command = ['cargo', 'test', '--release', '-p', package, '--lib', test,
+               '--', '--ignored', '--nocapture', '--test-threads=1']
+if args.target_dir:
+    command[2:2] = ['--target-dir', args.target_dir]
+request = json.dumps({'directory': str(args.directory.resolve()), 'step': args.step, 'pairs': args.pairs})
+
+
+def run(log_path):
+    with log_path.open('w') as log:
+        process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=log, stderr=subprocess.STDOUT,
+                                   env=dict(os.environ, RAYON_NUM_THREADS='4'), start_new_session=True)
+        try:
+            process.communicate(request.encode(), timeout=CAP_SECONDS)
+        except subprocess.TimeoutExpired:
+            os.killpg(process.pid, signal.SIGKILL)
+            process.wait()
+            raise SystemExit(f'FAIL: {CAP_SECONDS}-second cap, see {log_path}')
+    if process.returncode:
+        raise SystemExit(f'FAIL: see {log_path}')
+
+
+records = []
+for index in range(args.processes):
+    if index:
+        time.sleep(args.cooldown)
+    log_path = output / (f'{name}.log' if args.processes == 1 else f'{name}.p{index}.log')
+    run(log_path)
+    for line in log_path.read_text().splitlines():
+        if 'EXPERIMENT ' in line:
+            record = json.loads(line.split('EXPERIMENT ', 1)[1])
+            record['process'] = index
+            records.append(record)
+    print(f'{name} process {index} passed', flush=True)
+
+if args.mode != 'checks':
+    with (output / f'{name}.jsonl').open('w') as jsonl:
+        for record in records:
+            jsonl.write(json.dumps(record, sort_keys=True) + '\n')

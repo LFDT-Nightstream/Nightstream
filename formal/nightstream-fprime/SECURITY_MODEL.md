@@ -271,6 +271,21 @@ item 5).
   transcript collision (`Lifecycle.Nebula.badAt_bound`). Here
   `m_mem = R + M + N · B_ops`, and setup rule 6 keeps `2 · m_mem/q²` at most
   `2^−109.91` (`Spec.Nebula.Geometry.secure_iff`).
+- **Random-oracle model of `η`:** when `η` comes from a uniform oracle on its
+  input (the plan digest, `ts` and the three roots) in place of Poseidon2,
+  then for every `η` sampler with `Q_η` queries, the event of the memory
+  round has probability at most `(Q_η + 1) · 2 · m_mem/q²` plus the
+  sampler's retry term
+  (`Lifecycle.Nebula.EtaRound.EtaSampler.unbalancedChance_le`). Each pair
+  that the retry term counts is a Poseidon2 transcript collision between the
+  chain inputs of two runs with the same `η` input
+  (`Lifecycle.Nebula.EtaRound.retry_collision`). For a secure geometry, the
+  first term is at most `(Q_η + 1) · 2^−109.91`
+  (`Export.OptionB.NebulaSecurity.romMemoryRound`). The model takes the
+  adversary and the extractor as one sampler, so `Q_η` counts the queries of
+  every rerun. At the Poseidon2 oracle the event is the event of the memory
+  round (`Lifecycle.Nebula.EtaRound.unbalancedIn_deployed`), but no result
+  bounds it there.
 
 ### 6. Final-proof adversary
 
@@ -480,12 +495,15 @@ item 5).
    and has a segment that passes the product test with unbalanced multisets
    with probability at most `error_mem` of that stage. The relation computes `η`
    with Poseidon2 inside the proven step, so no random-oracle proof covers
-   it. The challenge game of adversary 5 motivates the target
-   `(Q_η + 1) · (2 · m_mem/q² + ε_coll(t_1))`, where `Q_η` counts the
-   evaluations of the `η` transcript, in the circuit and outside it, and
-   `ε_coll(t_1)` is the Poseidon2 collision probability at twice the time of
-   one run. The owner chose this form (`decisions/nebula-memory-checking.md`).
-   The record chains need only Poseidon2 collision resistance.
+   the deployed check. The random-oracle model of `η` in adversary 5 gives
+   the form of `error_mem`: `(Q_η + 1) · 2 · m_mem/q²` plus the retry term,
+   where `Q_η` counts the evaluations of the `η` transcript, in the circuit
+   and outside it. Lean does not bound the retry term with a number, because
+   each pair that it counts is a Poseidon2 collision. The owner chose this
+   form (`decisions/nebula-memory-checking.md`). The model takes the `η`
+   oracle to be independent of the oracle of the folds (trust item 3). Their
+   domain tags differ, but no Lean result separates them. The record chains
+   need only Poseidon2 collision resistance.
 7. **The compressed proof.** `formal/compression-lean/TRUST.md` lists the
    assumptions of adversary 6: WHIR openings are idealized, Poseidon2 is a
    random oracle, Fiat–Shamir runs inside the final program, and the layer-1

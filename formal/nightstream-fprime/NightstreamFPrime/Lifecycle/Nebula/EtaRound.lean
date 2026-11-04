@@ -1,5 +1,6 @@
 import NightstreamFPrime.Lifecycle.Nebula.EndToEnd
 import NightstreamFPrime.Lifecycle.Nebula.EtaOracle
+import NightstreamFPrime.Lifecycle.Nebula.MemoryBound
 import NightstreamFPrime.Spec.Nebula.GoldilocksFingerprint
 import NightstreamFPrime.Spec.RandomOracle
 
@@ -230,18 +231,30 @@ theorem play_closes (valid : p.Valid) (computation : OracleComp Point (K × K) S
   exact ⟨⟨closes.length, closes.rows, closes.opsRoot, closes.initialRoot, closes.finalRoot,
     closes.products⟩, notBalanced⟩
 
-/-- Every disagreeing pair of calls at `point` gives a Poseidon2 collision between the chain
-inputs of the two calls' segments, which have the same `η` input. -/
+/-- Every disagreeing pair of calls at `point` gives a Poseidon2 transcript collision between the
+chain inputs of the two calls' segments, which have the same `η` input. -/
 theorem retry_collision (valid : p.Valid) (computation : OracleComp Point (K × K) Sample)
     (point : Point) (oracle : Oracle) :
     ∀ pair ∈ disagreements (play app x computation point oracle) (UnbalancedAt (p := p) point),
       ∃ z z', play app x computation point oracle pair.1 = some z ∧
         play app x computation point oracle pair.2 = some z' ∧
+        ∃ a ∈ ((inputOf point).view 0 z).chainInputs (context p),
+          ∃ b ∈ ((inputOf point).view 0 z').chainInputs (context p),
+            TranscriptCollision (blocks a) (blocks b) := by
+  have chains : ∀ pair ∈ disagreements (play app x computation point oracle)
+      (UnbalancedAt (p := p) point),
+      ∃ z z', play app x computation point oracle pair.1 = some z ∧
+        play app x computation point oracle pair.2 = some z' ∧
         CollisionIn (context p).hash (((inputOf point).view 0 z).chainInputs (context p))
           (((inputOf point).view 0 z').chainInputs (context p)) :=
-  (GoldilocksFingerprint.goldilocks_segment_fingerprint_bound (ctx := context p) valid
-    (inputOf point) 0 (play app x computation point oracle)
-    fun c z returns => (play_closes valid computation point oracle c z returns).1).2
+    (GoldilocksFingerprint.goldilocks_segment_fingerprint_bound (ctx := context p) valid
+      (inputOf point) 0 (play app x computation point oracle)
+      fun c z returns => (play_closes valid computation point oracle c z returns).1).2
+  intro pair _
+  obtain ⟨z, z', first, second, collision⟩ := chains pair ‹_›
+  exact ⟨z, z', first, second, closing_collision_transcript valid
+    (play_closes valid computation point oracle _ _ first).1
+    (play_closes valid computation point oracle _ _ second).1 collision⟩
 
 /-- The answers at `point` whose runs hit it have mass at most `2 · m_mem / q²` plus the retry
 term at `point`. -/
@@ -287,5 +300,63 @@ theorem unbalanced_le (valid : p.Valid) {computation : OracleComp Point (K × K)
     (fun oracle unbalanced => ⟨_, hit_of_unbalanced valid computation oracle unbalanced⟩)
     (hit_queried computation) _ _ (by positivity) (retryChance_nonnegative computation)
     (mass_le valid computation)
+
+/-! ### Randomized samplers -/
+
+/-- A randomized computation with `queries` queries to the `η` oracle: uniform coins of a finite
+type, then the computation of each coin. The adversary and the extractor together are one such
+sampler, so `queries` counts every query of every rerun. -/
+structure EtaSampler (Sample : Type) (queries : ℕ) where
+  Coins : Type
+  [coinsFintype : Fintype Coins]
+  [coinsNonempty : Nonempty Coins]
+  run : Coins → OracleComp Point (K × K) Sample
+  bounded : ∀ coin, (run coin).QueryBound queries
+
+attribute [instance] EtaSampler.coinsFintype EtaSampler.coinsNonempty
+
+namespace EtaSampler
+
+variable (app x) {queries : ℕ} (sampler : EtaSampler Sample queries)
+
+/-- The chance over uniform coins and a uniform oracle that the sample is unbalanced with the
+oracle's challenges. -/
+noncomputable def unbalancedChance : ℝ :=
+  𝔼 coin, 𝔼 oracle : Oracle,
+    if x.UnbalancedIn app (etaOf oracle) ((sampler.run coin).run oracle) then (1 : ℝ) else 0
+
+/-- The retry term over uniform coins. Each pair that it counts is a Poseidon2 transcript
+collision (`retry_collision`). -/
+noncomputable def retryCollision : ℝ :=
+  𝔼 coin, ∑ point, 𝔼 oracle : Oracle, retryChance app x (sampler.run coin) point oracle
+
+variable {app x}
+
+/-- `unbalanced_le` over the sampler's coins. -/
+theorem unbalancedChance_le (valid : p.Valid) :
+    sampler.unbalancedChance app x ≤
+      ((queries + 1 : ℕ) : ℝ) * (2 * (p.maxTuples : ℝ) / (goldilocksModulus ^ 2 : ℕ)) +
+        sampler.retryCollision app x := by
+  unfold unbalancedChance retryCollision
+  calc 𝔼 coin, 𝔼 oracle : Oracle,
+        (if x.UnbalancedIn app (etaOf oracle) ((sampler.run coin).run oracle) then (1 : ℝ) else 0)
+      ≤ 𝔼 coin, (((queries + 1 : ℕ) : ℝ) * (2 * (p.maxTuples : ℝ) / (goldilocksModulus ^ 2 : ℕ)) +
+          ∑ point, 𝔼 oracle : Oracle, retryChance app x (sampler.run coin) point oracle) :=
+        Finset.expect_le_expect fun coin _ => unbalanced_le valid (sampler.bounded coin)
+    _ = _ := by rw [Finset.expect_add_distrib, Finset.expect_const Finset.univ_nonempty]
+
+/-- For a secure geometry (`SPEC.md` section 7.1, rule 6), the first term is at most
+`(queries + 1) · 2^−109.91` (`Geometry.secure_iff`). -/
+theorem unbalancedChance_le_secure (valid : p.Valid) (secure : p.Secure) :
+    sampler.unbalancedChance app x ≤
+      ((queries + 1 : ℕ) : ℝ) * (2 : ℝ) ^ (-(10991 / 100 : ℝ)) + sampler.retryCollision app x := by
+  have floor := (Geometry.secure_iff p.toGeometry).mp secure
+  have term : 2 * (p.maxTuples : ℝ) / (goldilocksModulus ^ 2 : ℕ) ≤ (2 : ℝ) ^ (-(10991 / 100 : ℝ)) := by
+    push_cast
+    exact floor
+  refine (sampler.unbalancedChance_le valid).trans ?_
+  gcongr
+
+end EtaSampler
 
 end NightstreamFPrime.Lifecycle.Nebula.EtaRound

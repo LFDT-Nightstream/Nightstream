@@ -1,5 +1,6 @@
 import NightstreamFPrime.Export.OptionB.IvcSecurity
 import NightstreamFPrime.Lifecycle.Nebula.EndToEnd
+import NightstreamFPrime.Lifecycle.Nebula.EtaRound
 
 /-! The end-to-end bound of a memory application on option B (`SECURITY_MODEL.md`, adversary 5),
 on the joint law of the memory statement that the IVC adversary claims and the reverse
@@ -12,6 +13,9 @@ extractor's sample.
   first visits, which `ReverseStages.bad_le` bounds.
 * `MemoryRound`: the memory round (`SECURITY_MODEL.md`, trust item 6) in the form of HyperNova
   errata Assumption 1, for the stages that the walk admits. It is a premise.
+* `romMemoryRound`: the same event in the random-oracle model of `η`, bounded for every `η`
+  sampler by `(queries + 1) · 2^−109.91` plus a Poseidon2 collision term
+  (`Lifecycle.Nebula.EtaRound`). It does not discharge `MemoryRound`, whose `η` is Poseidon2.
 * `bad_le`: on the claim that the adversary's tape gives, the bad mass is at most the walk's
   collision and stage terms, the state-link and chain collision masses, and the memory-round
   error. -/
@@ -191,6 +195,19 @@ def MemoryRound
   ∀ c : ClaimedStage app, StageAdmitted c.stage →
     (c.law.toOuterMeasure
       {s | (experiment app ajtai circuitKeys exports).Unbalanced app s}).toReal ≤ error c
+
+/-- The memory round in the random-oracle model of `η` (CW-10.8): for an `η` sampler of samples
+with `queries` queries and a secure geometry, the chance over the sampler's coins and a uniform
+oracle that the extracted run is unbalanced with the oracle's challenges is at most
+`(queries + 1) · 2^−109.91` plus the sampler's retry collision term. At the Poseidon2 oracle the
+event is `Unbalanced` (`EtaRound.unbalancedIn_deployed`), but no result bounds it there, so
+`MemoryRound` stays a premise. -/
+theorem romMemoryRound (valid : p.Valid) (secure : p.Secure) {queries : ℕ}
+    (sampler : EtaRound.EtaSampler (Sample app.width logicalWidth publicFits) queries) :
+    sampler.unbalancedChance app (experiment app ajtai circuitKeys exports) ≤
+      ((queries + 1 : ℕ) : ℝ) * (2 : ℝ) ^ (-(10991 / 100 : ℝ)) +
+        sampler.retryCollision app (experiment app ajtai circuitKeys exports) :=
+  sampler.unbalancedChance_le_secure valid secure
 
 variable {Admitted : NifsAdversary (WalkAttempt logicalWidth publicFits) → Prop}
   {StageAdmitted : Stage (Visit logicalWidth publicFits) (Answer logicalWidth publicFits) → Prop}

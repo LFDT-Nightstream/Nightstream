@@ -10,7 +10,7 @@ extractor's sample.
 * `stage1Extraction`: the extraction premise of `Lifecycle.Nebula.EndToEnd` for the memory
   program, from `IvcWalk.covered`. Its failure is a collision or a failed stage among the walk's
   first visits, which `ReverseStages.bad_le` bounds.
-* `MemoryRound`: the memory round (`SECURITY_MODEL.md`, trust item 7) in the form of HyperNova
+* `MemoryRound`: the memory round (`SECURITY_MODEL.md`, trust item 6) in the form of HyperNova
   errata Assumption 1, for the stages that the walk admits. It is a premise.
 * `bad_le`: on the claim that the adversary's tape gives, the bad mass is at most the walk's
   collision and stage terms, the state-link and chain collision masses, and the memory-round
@@ -179,7 +179,7 @@ noncomputable def ClaimedStage.law (c : ClaimedStage app (logicalWidth := logica
     (publicFits := publicFits)) : PMF (Sample app.width logicalWidth publicFits) :=
   c.stage.tape.map fun tape => (c.claim tape, c.stage.input tape, c.stage.results tape)
 
-/-- The memory round (`SECURITY_MODEL.md`, trust item 7), in the form of HyperNova errata
+/-- The memory round (`SECURITY_MODEL.md`, trust item 6), in the form of HyperNova errata
 Assumption 1: for every claimed stage whose stage is admitted, the mass of samples whose
 extracted run the model accepts with a claimed segment that passes the product test with
 unbalanced multisets is at most `error c`. The relation computes `η` with Poseidon2, so no

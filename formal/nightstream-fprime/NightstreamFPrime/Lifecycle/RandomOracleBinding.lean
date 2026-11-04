@@ -1,7 +1,7 @@
 import NightstreamFPrime.Lifecycle.RandomOracleUniqueness
 import NightstreamFPrime.Lifecycle.Nifs.BindingBridge
 
-/-! Random-oracle model, SECURITY_MODEL.md Lemma 6; SuperNeo v1.2 Appendix B. -/
+/-! Random-oracle model, the one-circuit chain's uniqueness step; SuperNeo v1.2 Appendix B. -/
 
 set_option autoImplicit false
 

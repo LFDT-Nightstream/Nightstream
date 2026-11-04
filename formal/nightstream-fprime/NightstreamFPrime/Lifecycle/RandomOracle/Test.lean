@@ -4,8 +4,8 @@ import NightstreamFPrime.Spec.RandomOracle
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.IndependentExecution
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.RoundByRound
 
-/-! The Π_CCS test error in the random-oracle model for any fold transcript `Schedule`: Lemma 4
-of the random-oracle chain, which `RandomOracleTest` states for the one-circuit fold. A random
+/-! The Π_CCS test error in the random-oracle model for any fold transcript `Schedule`: the test
+step of the random-oracle chain, which `RandomOracleTest` states for the one-circuit fold. A random
 function of each challenge's address (`point`) replaces the Poseidon2 sponge read, so the
 Π_CCS coins are `coins oracle statement messages`.
 
@@ -596,7 +596,7 @@ theorem hits_error_le {Sample : Type} [Fintype Sample] (event : Sample → Prop)
   push_cast
   ring
 
-/-- Lemma 4 with the claimed data fixed: an event that implies a hit of the bad sets on
+/-- The test step with the claimed data fixed: an event that implies a hit of the bad sets on
 `source` has probability at most `(Q + 1) · testError` over the oracle, for an adversary with
 at most `Q` queries. -/
 theorem test_error_le (source : schedule.Statement → ProtocolPolynomial.Data K schedule.shape)
@@ -663,7 +663,7 @@ theorem mem_checked (oracle : Point schedule width → Answer) (challenge : sche
   OracleComp.mem_queries_thenQueries _ _ _
     (List.mem_map.mpr ⟨challenge, mem_challenges schedule challenge, rfl⟩)
 
-/-- Lemma 4 for any local per-challenge family with the masses of `error`: inside the checked
+/-- The test step for any local per-challenge family with the masses of `error`: inside the checked
 game, an event that implies a hit has probability at most
 `(Q + challenge count) · testError`. -/
 theorem checked_error_le

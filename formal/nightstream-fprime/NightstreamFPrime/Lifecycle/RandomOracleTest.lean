@@ -5,7 +5,7 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.IndependentExecution
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.RoundByRound
 
 /-!
-Random-oracle model, SECURITY_MODEL.md Lemma 4: a random function of each
+Random-oracle model, the one-circuit chain's test step: a random function of each
 challenge's address replaces the Poseidon2 sponge read.
 -/
 

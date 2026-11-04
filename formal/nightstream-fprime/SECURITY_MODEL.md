@@ -267,9 +267,10 @@ item 5).
      `2^27.03` (`Spec.Folding.Schedule.production_msisChainBound`). It is the
      SuperNeo v1.2 Section 8 norm `8TB` with `B` replaced by the largest
      recovered bound (`Spec.Folding.Schedule.msisChainBound_zero`). The
-     decider checks each slot below `B`, and an honest slot stays below
-     `accumulatorBound cap = 17,496` (`Spec.GlobalParams.accumulatorBound`,
-     `SPEC.md` Algorithm 7). The recovered bound, and so the chain norm,
+     decider checks each slot below `B`. By Cyclo Theorem 3, an honest slot
+     stays below `accumulatorBound cap = 17,496`
+     (`Spec.GlobalParams.accumulatorBound`, `SPEC.md` Algorithm 7); Lean does
+     not prove this over a schedule. The recovered bound, and so the chain norm,
      comes from the decider bound `B`, not from the honest bound.
    - *The κ estimate.* A lattice-estimator run outside Lean (commit 38618db),
      with the method and the matrix of 22 × 4,708,530 ring elements of the
@@ -296,8 +297,8 @@ item 5).
    same events.
    For every admitted fold adversary there is an efficient extractor that
    reads the adversary's tape and its own coins, so it may rerun the
-   adversary. After a success, the extractor fails with probability at most
-   `error` of that adversary. The adversary outputs an attempt: a fold, the
+   adversary. The probability that the adversary succeeds and the extractor
+   fails is at most `error` of that adversary. The adversary outputs an attempt: a fold, the
    running claim that it starts from, and a witness of its output at a
    bound. One premise covers both fold kinds. The attempt names its circuit,
    and a success needs the bounded-depth verifier of that circuit to accept,
@@ -370,11 +371,17 @@ item 5).
    with Poseidon2, so a recursive argument uses the concrete hash, which no
    random-oracle model covers. Adversary 3's error counts motivate the value
    of `error`, but no Lean statement derives one from the other. The sum has
-   one Assumption 1 error for each fold of the slot, and stage `j + 1` runs
+   one Assumption 1 error for each stage of the reverse extractor, which is
+   one visit, and stage `j + 1` runs
    the extractor of stage `j`, which may rerun stage `j`. So the cost of a
    stage grows with its depth. This is the constant-depth limit of HyperNova
    Lemma 17: the Lean statement holds for every depth, but it gives no
-   concrete security for a long history.
+   concrete security for a long history. The errata's Definition 11 states
+   knowledge soundness only for a constant number of steps that does not
+   depend on the security parameter, and its proof composes the stage
+   extractors because that number is constant. A random-oracle bound for
+   each fold does not remove this limit: each stage's adversary includes
+   the earlier stages' reruns.
 4. **The circuit selection.** HyperNova NIVC selects the circuit of a step
    with `φ(z_i, w_i)`. The Lean step relation takes it from the machine's
    selector of the application state and witness (`Lifecycle.OptionB.machine`,
@@ -417,13 +424,18 @@ item 5).
   adversary is not evidence that an honest proof is accepted. The honest
   prover has separate results: an honest light fold and an honest refresh
   fold are accepted (`Spec.Folding.Light.complete`,
-  `Spec.Folding.Refresh.complete`), each accumulator of an admissible
-  schedule stays below `B` (`Spec.Folding.Schedule.honest_bounds`), and an
-  honest step of either circuit has an assignment in which every row holds
+  `Spec.Folding.Refresh.complete`), the bound `accumulatorBound` of each
+  depth of an admissible schedule stays below `B`
+  (`Spec.Folding.Schedule.honest_bounds`, arithmetic only), and, given an
+  accepted fold, an honest step of either circuit has an assignment in which
+  every row of its source layout holds
   (`Layout.OptionB.LightAssemblerCompleteness.complete`,
-  `Layout.OptionB.RefreshAssemblerCompleteness.complete`). Lean does not join
-  these results into a statement that the honest prover's proofs are
-  accepted. Each application promises that its step keeps the state width
+  `Layout.OptionB.RefreshAssemblerCompleteness.complete`). Lean does not prove
+  that an honest accumulator's norm stays within `accumulatorBound` over a
+  schedule, that an honest witness satisfies the exported relation, or that
+  the terminal, one IVC step, the finish step or compression accept an
+  honest proof. So Lean does not join these results into a statement that
+  the honest prover's proofs are accepted. Each application promises that its step keeps the state width
   (`Lifecycle.Stage1.Application.Program.step_length`); the counter must stay
   below `q`.
 - The error is not one security level. Lean bounds no fold error in a

@@ -103,7 +103,7 @@ theorem falseAcceptance_hits (oracle : Oracle) (fresh : LightStatement)
       Width (source_degreeCovers relation ajtai running witness fresh)
       (oracleProbe relation ajtai running oracle fresh proof) witness invalid ambient accepted)
 
-/-- Lemma 4 for the light fold: an adversary with at most `Q` queries makes a light Π_CCS false
+/-- The test step for the light fold: an adversary with at most `Q` queries makes a light Π_CCS false
 acceptance with probability at most `(Q + 1) · 524/q²`. -/
 theorem test_error_le {Output : Type}
     (adversary : OracleComp

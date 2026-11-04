@@ -111,7 +111,7 @@ theorem falseAcceptance_hits (oracle : Oracle)
       (source_degreeCovers relation ajtai accumulator witness (fresh, proof.split)) witness
       invalid _ ambient accepted)
 
-/-- Lemma 4 for the refresh fold: an adversary with at most `Q` queries makes a refresh Π_CCS
+/-- The test step for the refresh fold: an adversary with at most `Q` queries makes a refresh Π_CCS
 false acceptance with probability at most `(Q + 1) · 4589/q²`. -/
 theorem test_error_le {Output : Type}
     (adversary : OracleComp

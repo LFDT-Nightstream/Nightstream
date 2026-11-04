@@ -2,7 +2,7 @@ import NightstreamFPrime.Lifecycle.Nebula.Framing
 import NightstreamFPrime.Spec.Nebula.Game
 
 /-! Owns the per-slot bound of the challenge game of the memory round
-(`SECURITY_MODEL.md`, trust item 7), for
+(`SECURITY_MODEL.md`, trust item 6), for
 the concrete verifier context: over `K` with the Poseidon2 chains. Each retry
 disagreement is a Poseidon2 transcript collision. The memory round is a premise
 of the end-to-end bound (`NebulaMemorySecurity.MemoryRound`); this bound only

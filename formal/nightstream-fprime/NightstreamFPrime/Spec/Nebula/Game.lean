@@ -2,7 +2,7 @@ import NightstreamFPrime.Spec.Nebula.Soundness
 import NightstreamFPrime.Spec.Nebula.RetryAveraging
 
 /-! Owns the interactive memory game that motivates the value of the error of
-the memory round (`SECURITY_MODEL.md`, trust item 7), and its per-slot bound.
+the memory round (`SECURITY_MODEL.md`, trust item 6), and its per-slot bound.
 An outcome is the prover's coins and one fresh uniform challenge pair per
 segment slot. Before the challenge of
 segment `k`, the prover commits the transcript input of segment `k`; the

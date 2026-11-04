@@ -297,13 +297,13 @@ A refresh fold takes `ρ_0, …, ρ_16` (`Lifecycle.ProductionKey.piRlcResponse`
 **Steps.**
 
 1. Decode each package with `Package.format`. Require the circuit index 0 for the light package, 1 for the refresh package and 2 for the finish package.
-2. Compute the identity of the light and refresh packages and the identity of the finish package (section 4.4). Require that each equals its pin.
+2. Compute the identity of the light and refresh packages and the identity of the finish package (section 4.4). Require that each equals its pin. For the copies that the crate embeds, the test `embedded_packages_have_their_pinned_identities` does this step once, and at run time each identity is its pin, because the bytes are part of the binary (`crates/nightstream/src/artifacts.rs`). The embedded packages are decoded once per process.
 3. With a Rust application, put its rows and recipes in place of the application region of both step packages, move the finish package to its witness word count, and compute the new identity (section 4.4).
 4. Compute `vk_0` and `vk_1` from the identity (section 4.4).
 
 **Rejects.** A package that does not decode, a wrong circuit index, an identity that is not its pin, and an application piece that reads past its region.
 
-**Source.** `load_option_b_packages`, `load_option_b_finish` and `OptionBPackages::with_application` (`crates/nightstream-fprime/src/option_b.rs`, `crates/nightstream-fprime/src/option_b/application.rs`), `Circuit::compile` and `Circuit::load_packages` (`crates/nightstream/src/circuit.rs`), and `OptionB::new` (`crates/nightstream/src/lifecycle/option_b/mod.rs`); not checked against Lean. Lean defines the identity of the light and refresh packages (`Export.OptionB.StepPackage.identity`). Every state hash carries `vk_0` and `vk_1` (section 4.2).
+**Source.** `load_option_b_packages`, `load_option_b_finish`, `load_pinned_option_b_packages`, `load_pinned_option_b_finish` and `OptionBPackages::with_application` (`crates/nightstream-fprime/src/option_b.rs`, `crates/nightstream-fprime/src/option_b/application.rs`), `Circuit::compile` and `Circuit::load_packages` (`crates/nightstream/src/circuit.rs`), and `OptionB::new` (`crates/nightstream/src/lifecycle/option_b/mod.rs`); not checked against Lean. Lean defines the identity of the light and refresh packages (`Export.OptionB.StepPackage.identity`). Every state hash carries `vk_0` and `vk_1` (section 4.2).
 
 ### Algorithm 3. The step relation
 

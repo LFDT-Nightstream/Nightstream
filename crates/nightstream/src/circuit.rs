@@ -11,10 +11,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 use neo_math::F;
-use nightstream_fprime::{
-    load_option_b_finish, load_option_b_packages, OptionBPackages, StepPackage, OPTION_B_FINISH_IDENTITY,
-    OPTION_B_PACKAGES_IDENTITY,
-};
+use nightstream_fprime::{OptionBPackages, StepPackage};
 
 use crate::application::{ApplicationCircuit, ApplicationError};
 use crate::engine::{Engine, EngineError};
@@ -97,8 +94,9 @@ fn cpu_only(engine: Engine) -> Result<(), Error> {
 }
 
 /// The three Lean-emitted packages: the light and refresh step circuits and
-/// the finish circuit (`formal/nightstream-fprime/artifacts`). The crate
-/// embeds the reference copies (`artifacts::references`).
+/// the finish circuit (`formal/nightstream-fprime/artifacts`), for the tests
+/// that load Lean's own packages (`load_packages`).
+#[cfg(test)]
 #[derive(Clone, Copy)]
 pub(crate) struct References<'a> {
     pub(crate) light: &'a [u8],
@@ -120,18 +118,15 @@ pub struct Circuit {
 }
 
 impl Circuit {
-    /// Check the embedded packages' pinned identities, then put
-    /// `application` in place of Lean's application.
+    /// Put `application` in place of Lean's application in the embedded
+    /// packages, whose identities are their pins (`artifacts`).
     pub fn compile(application: ApplicationCircuit) -> Result<Self, Error> {
-        Self::compile_with(crate::artifacts::references(), application)
-    }
-
-    fn compile_with(references: References<'_>, application: ApplicationCircuit) -> Result<Self, Error> {
+        let embedded = crate::artifacts::embedded();
         let witness_words = application.private_input_count();
-        let packages = load_option_b_packages(references.light, references.refresh, OPTION_B_PACKAGES_IDENTITY)?
+        let packages = embedded
+            .packages
             .with_application(application.records().clone(), witness_words)?;
-        let finish =
-            load_option_b_finish(references.finish, OPTION_B_FINISH_IDENTITY)?.with_witness_words(witness_words)?;
+        let finish = embedded.finish.with_witness_words(witness_words)?;
         Ok(Self {
             packages,
             finish,
@@ -145,9 +140,10 @@ impl Circuit {
     /// which moves to their witness words. Only the tests load Lean packages.
     #[cfg(test)]
     pub(crate) fn load_packages(references: References<'_>, expected: [u64; 4]) -> Result<Self, Error> {
-        let packages = load_option_b_packages(references.light, references.refresh, expected)?;
-        let finish = load_option_b_finish(references.finish, OPTION_B_FINISH_IDENTITY)?
-            .with_witness_words(packages.light().witness_words())?;
+        let packages = nightstream_fprime::load_option_b_packages(references.light, references.refresh, expected)?;
+        let finish =
+            nightstream_fprime::load_option_b_finish(references.finish, nightstream_fprime::OPTION_B_FINISH_IDENTITY)?
+                .with_witness_words(packages.light().witness_words())?;
         Ok(Self {
             packages,
             finish,

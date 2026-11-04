@@ -16,16 +16,17 @@ let circuit = Circuit::compile(poseidon2_hash_chain_v1()?)?;
 circuit.write("app.nsc")?;
 ```
 
-`Circuit::compile` checks the pinned identities of the three embedded
-packages (`OPTION_B_PACKAGES_IDENTITY` and `OPTION_B_FINISH_IDENTITY` in
-`nightstream-fprime`). Then it puts the Rust application in place of the Lean
-application in both step circuits. `Circuit::identity` returns the identity of
+`Circuit::compile` puts the Rust application in place of the Lean application
+in both step circuits of the three embedded packages. The crate decodes the
+packages once per process, and their identities are their pins
+(`OPTION_B_PACKAGES_IDENTITY` and `OPTION_B_FINISH_IDENTITY` in
+`nightstream-fprime`). A test checks that each embedded copy hashes to its
+pin (`artifacts/README.md`). `Circuit::identity` returns the identity of
 the packages with this application.
 
 `Circuit::write` saves only the application. The destination must not exist.
 A prover loads it with `Prover::load(path, engine, minimum_security_bits)`,
-which compiles it again against the embedded packages and checks the pinned
-identities again. A verifier compiles its own circuit and never loads a saved
+which compiles it again against the embedded packages. A verifier compiles its own circuit and never loads a saved
 file. A memory relation has its verifier in `nebula::Circuit::verifier`.
 
 ## Prove and verify

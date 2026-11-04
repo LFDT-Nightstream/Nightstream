@@ -48,6 +48,12 @@ import NightstreamFPrime.Lifecycle.RandomOracle.Fork
 import NightstreamFPrime.Lifecycle.OptionB.RandomOracle.ForkLink
 import NightstreamFPrime.Lifecycle.OptionB.RandomOracle.LightFork
 import NightstreamFPrime.Lifecycle.OptionB.RandomOracle.RefreshFork
+import NightstreamFPrime.Lifecycle.RandomOracle.Uniqueness
+import NightstreamFPrime.Lifecycle.OptionB.RandomOracle.UniquenessLink
+import NightstreamFPrime.Lifecycle.OptionB.RandomOracle.LightUniqueness
+import NightstreamFPrime.Lifecycle.OptionB.RandomOracle.LightKnowledge
+import NightstreamFPrime.Lifecycle.OptionB.RandomOracle.RefreshUniqueness
+import NightstreamFPrime.Lifecycle.OptionB.RandomOracle.RefreshKnowledge
 import NightstreamFPrime.Lifecycle.OptionB.Step
 import NightstreamFPrime.Lifecycle.OptionB.PriorLink
 import NightstreamFPrime.Lifecycle.OptionB.StateHashGadget

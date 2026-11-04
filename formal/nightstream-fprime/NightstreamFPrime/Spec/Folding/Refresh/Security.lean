@@ -6,7 +6,8 @@ import NightstreamFPrime.Spec.Folding.PiRLC.NormFreeFork
 Theorem 13 (Π_DEC) by Lemma 4. When `verify` accepts and the Π_RLC challenges fork, the
 extracted fresh witnesses satisfy the CCS and the recomposed children open the input
 accumulator at norm below `B`, or a Π_CCS bad event occurred. The children's norm terms are
-the norm check that light folds skip.
+the norm check that light folds skip. `knowledge_of_sourceHolds` is the source branch for any
+Π_CCS output witness, such as one that a random-oracle fork extracts.
 
 The fork outputs need no norm bound: Lemma 8 extraction reads only their commitments, public
 inputs and evaluations. A chain extracts a refresh output at up to `B + cap · T · (b − 1)`, and
@@ -69,6 +70,44 @@ theorem forkWitness_ambient
     ((forkWitness key running fresh nifs laws strongSet fork).assignments source) rfl]
   simpa [piRlcBatch, Nifs.PaperNonInteractive.Key.piCcsOutputs, forkWitness] using extracted
 
+/-- SuperNeo v1.2 Theorem 13 and Lemma 4 for the refresh fold, for any Π_CCS output witness: when
+the Π_DEC input check accepts and the witness satisfies the 17 source claims, the fresh witnesses
+satisfy the CCS and the recomposed children open the input accumulator below `B`. -/
+theorem knowledge_of_sourceHolds
+    (key : Key K Commitment PublicInput Scalar State shape columns blockCount degreeBound)
+    (accumulator : Accumulator Commitment PublicInput shape columns blockCount)
+    (fresh : Fresh Commitment PublicInput shape) (split : Split Commitment shape)
+    (system : accumulator.constraintSystem = key.relationSource)
+    (inputAccepted : inputCheck key accumulator split = true)
+    (witness : OutputWitness shape columns)
+    (sourceHolds : SourceHolds key.extensionOps key.lift key.openingMaps key.params
+      (key.statement (children key accumulator split) fresh) witness) :
+    (∀ source, CCS.Holds
+        (paperRelationSemantics key.baseOps key.extensionOps key.lift key.openingMaps)
+        key.params
+        (SourceMembership.freshInstance (key.statement (children key accumulator split) fresh)
+          source)
+        (witness.assignments (freshSourceIndex source))) ∧
+      CE.Holds key.piRlcSemantics key.params accumulator
+        (key.piDecAlgebra.recomposeAssignment fun child =>
+          witness.assignments (runningSourceIndex (Fin.cast key.outputCount_eq child))) := by
+  obtain ⟨freshHolds, runningHolds⟩ :=
+    (SourceMembership.sourceHolds_iff_memberships key.extensionOps key.extensionLaws
+      key.lift key.openingMaps key.params key.freshBound
+      (key.statement (children key accumulator split) fresh) witness).mp sourceHolds
+  refine ⟨freshHolds, ?_⟩
+  apply PiDEC.PaperVerifier.reduce_knowledge key.piRlcSemantics key.params key.piDecAlgebra
+    key.piDecPublicInputSplit key.piDecEvaluationArity (inputAttempt key accumulator split)
+    _ key.kPositive ((inputCheck_eq_true_iff key accumulator split).mp inputAccepted)
+  intro child
+  have castBack : Fin.cast key.runningCount_eq_outputCount (Fin.cast key.outputCount_eq child) =
+      child := Fin.ext rfl
+  have holds := runningHolds (Fin.cast key.outputCount_eq child)
+  rw [runningInstance_eq_child key accumulator fresh split system, castBack] at holds
+  exact (ceHolds_iff key
+    (PiDEC.PaperVerifier.children key.piDecPublicInputSplit
+      (inputAttempt key accumulator split) child) system _).mp holds
+
 /-- SuperNeo v1.2 Lemma 1, Theorem 13 and Lemma 4 for the refresh fold. A fork at the output
 stage bound gives the fork here through `NormFreeFork.forgetNorms`. -/
 theorem accepted_implies_securityOutcome
@@ -113,23 +152,8 @@ theorem accepted_implies_securityOutcome
       (forkWitness_ambient key running fresh proof.nifs laws strongSet fork)
       piCcsAccepted with
     sourceHolds | mixingRoot | sumCheck
-  · left
-    obtain ⟨freshHolds, runningHolds⟩ :=
-      (SourceMembership.sourceHolds_iff_memberships key.extensionOps key.extensionLaws
-        key.lift key.openingMaps key.params key.freshBound (key.statement running fresh)
-        witness).mp sourceHolds
-    refine ⟨freshHolds, ?_⟩
-    apply PiDEC.PaperVerifier.reduce_knowledge key.piRlcSemantics key.params key.piDecAlgebra
-      key.piDecPublicInputSplit key.piDecEvaluationArity (inputAttempt key accumulator proof.split)
-      _ key.kPositive inputAccepted
-    intro child
-    have castBack : Fin.cast key.runningCount_eq_outputCount (Fin.cast key.outputCount_eq child) =
-        child := Fin.ext rfl
-    have holds := runningHolds (Fin.cast key.outputCount_eq child)
-    rw [runningInstance_eq_child key accumulator fresh proof.split system, castBack] at holds
-    exact (ceHolds_iff key
-      (PiDEC.PaperVerifier.children key.piDecPublicInputSplit
-        (inputAttempt key accumulator proof.split) child) system _).mp holds
+  · exact Or.inl (knowledge_of_sourceHolds key accumulator fresh proof.split system
+      ((inputCheck_eq_true_iff key accumulator proof.split).mpr inputAccepted) witness sourceHolds)
   · exact Or.inr (Or.inl mixingRoot)
   · exact Or.inr (Or.inr sumCheck)
 

@@ -100,7 +100,7 @@ Lemma return_start_config :
     returnMemory returnStart (stackConfig (mk_state returnStore (activeFrame mainGuest [7])) [] mainBody).
 Proof.
   apply (function_start_config returnProgram returnStore 0 mainGuest [7] _ returnStart);
-    try reflexivity; try (cbn; lia).
+    try reflexivity; try (apply TableState.no_tables_loaded; reflexivity); try (cbn; lia).
   - repeat constructor.
   - exact return_program_validated.
   - repeat constructor; unfold i32Modulus; lia.

@@ -100,7 +100,7 @@ Lemma table_start_config :
     tableMemory tableStart (stackConfig (mk_state tableStore (activeFrame tableGuest [7; 1])) [] tableCode).
 Proof.
   apply (function_start_config tableProgram tableStore 0 tableGuest [7; 1] _ tableStart);
-    try reflexivity; try (cbn; lia).
+    try reflexivity; try (apply TableState.no_tables_loaded; reflexivity); try (cbn; lia).
   - repeat constructor.
   - exact table_program_validated.
   - repeat constructor; unfold i32Modulus; lia.

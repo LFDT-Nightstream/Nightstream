@@ -94,7 +94,7 @@ Lemma loop_start_config :
     loopMemory loopStart (stackConfig (mk_state loopStore (activeFrame loopGuest [3; 1; 0])) [] loopCode).
 Proof.
   apply (function_start_config loopProgram loopStore 0 loopGuest [3; 1; 0] _ loopStart);
-    try reflexivity; try (cbn; lia).
+    try reflexivity; try (apply TableState.no_tables_loaded; reflexivity); try (cbn; lia).
   - repeat constructor.
   - exact loop_program_validated.
   - repeat constructor; unfold i32Modulus; lia.

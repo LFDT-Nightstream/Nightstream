@@ -97,7 +97,7 @@ Lemma result_start_config :
     resultMemory resultStart (stackConfig (mk_state resultStore (activeFrame resultGuest [7; 9])) [] resultCode).
 Proof.
   apply (function_start_config resultProgram resultStore 0 resultGuest [7; 9] _ resultStart);
-    try reflexivity; try (cbn; lia).
+    try reflexivity; try (apply TableState.no_tables_loaded; reflexivity); try (cbn; lia).
   - repeat constructor.
   - exact result_program_validated.
   - repeat constructor; unfold i32Modulus; lia.

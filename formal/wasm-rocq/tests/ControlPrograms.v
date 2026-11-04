@@ -108,7 +108,7 @@ Lemma computed_initial_config : forall condition,
 Proof.
   intros condition Hcondition.
   apply (function_start_config computedProgram computedStore 0 computedGuest [condition; 9] _
-    (mkBoundary 0 9 9 7 0 0 0 0 0 0 0)); try reflexivity; try (cbn; lia).
+    (mkBoundary 0 9 9 7 0 0 0 0 0 0 0)); try reflexivity; try (apply TableState.no_tables_loaded; reflexivity); try (cbn; lia).
   - exact computed_store_wf.
   - exact computed_program_validated.
   - repeat constructor; unfold i32Modulus in *; lia.

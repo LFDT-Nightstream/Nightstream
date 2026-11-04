@@ -83,7 +83,7 @@ Lemma nop_start_config :
   CircuitConfig nopProgram nopStore 0 (controlShape [] (siteCode (codePosition 0 [] 0)))
     nopMemory nopStart (stackConfig (mk_state nopStore (activeFrame nopGuest [7])) [] nopCode).
 Proof.
-  apply (function_start_config nopProgram nopStore 0 nopGuest [7] _ nopStart); try reflexivity; try (cbn; lia).
+  apply (function_start_config nopProgram nopStore 0 nopGuest [7] _ nopStart); try reflexivity; try (apply TableState.no_tables_loaded; reflexivity); try (cbn; lia).
   - repeat constructor.
   - exact nop_program_validated.
   - repeat constructor; unfold i32Modulus; lia.

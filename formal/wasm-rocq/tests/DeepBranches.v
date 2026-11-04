@@ -91,7 +91,7 @@ Example deep_initial_config : forall condition,
 Proof.
   intros condition Hcondition.
   apply (function_start_config deepProgram deepStore 0 deepGuest [condition; 9] _ (mkBoundary 0 9 9 7 0 0 0 0 0 0 0));
-    try reflexivity; try (cbn; lia).
+    try reflexivity; try (apply TableState.no_tables_loaded; reflexivity); try (cbn; lia).
   - repeat constructor.
   - exact deep_program_validated.
   - repeat constructor; unfold i32Modulus in *; lia.

@@ -89,7 +89,7 @@ Lemma br_start_config :
     brMemory brStart (stackConfig (mk_state brStore (activeFrame brGuest [7; 9])) [] brCode).
 Proof.
   apply (function_start_config brProgram brStore 0 brGuest [7; 9] _ brStart);
-    try reflexivity; try (cbn; lia).
+    try reflexivity; try (apply TableState.no_tables_loaded; reflexivity); try (cbn; lia).
   - repeat constructor.
   - exact br_program_validated.
   - repeat constructor; unfold i32Modulus; lia.

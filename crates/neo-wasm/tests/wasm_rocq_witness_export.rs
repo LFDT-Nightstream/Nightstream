@@ -149,6 +149,21 @@ const FUNCTION_BR: &str = r#"(module
       br 1
     end))"#;
 
+/// An indirect call through table entry 0, which holds $double. The index comes
+/// from a parameter: the proved fragment has no constants.
+const INDIRECT_CALL: &str = r#"(module
+  (type $unary (func (param i32) (result i32)))
+  (table 1 funcref)
+  (elem (i32.const 0) $double)
+  (func (export "main") (param i32 i32) (result i32)
+    local.get 0
+    local.get 1
+    call_indirect (type $unary))
+  (func $double (type $unary)
+    local.get 0
+    local.get 0
+    i32.add))"#;
+
 /// The final run of program, zero and move rows, optionally including its terminal row.
 fn export_witness(wat: &str, params: &[i32], name: &str, file: &str, include_terminal: bool) {
     let wasm = wat::parse_str(wat).expect("wat");
@@ -216,12 +231,14 @@ fn export_witnesses() {
     export_witness(LOOPS, &[3, 1], "loopRows", "LoopTrace.v", false);
     export_witness(NOPS, &[7], "nopRows", "NopTrace.v", false);
     export_witness(FUNCTION_BR, &[7, 9], "functionBrRows", "FunctionBrTrace.v", false);
+    export_witness(INDIRECT_CALL, &[7, 0], "indirectRows", "IndirectTrace.v", false);
 }
 
 #[test]
 #[ignore = "regenerates Rocq files"]
 fn export_terminal_witnesses() {
     export_witness(NOPS, &[7], "nopTerminalRows", "NopTerminalTrace.v", true);
+    export_witness(INDIRECT_CALL, &[7, 5], "indirectTrapRows", "IndirectTrapTrace.v", true);
     export_witness(
         r#"(module
           (func (export "main") block call 1 end)

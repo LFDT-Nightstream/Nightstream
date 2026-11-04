@@ -61,7 +61,7 @@ Lemma base_return_initial : CircuitConfig baseReturnProgram baseReturnStore 0 en
     (stackConfig (mk_state baseReturnStore (activeFrame baseReturnGuest [7])) [] baseReturnCode).
 Proof.
   apply (function_start_config baseReturnProgram baseReturnStore 0 baseReturnGuest [7] _ nopStart);
-    try reflexivity; try (cbn; lia).
+    try reflexivity; try (apply TableState.no_tables_loaded; reflexivity); try (cbn; lia).
   - repeat constructor.
   - exact base_return_validated.
   - repeat constructor; unfold i32Modulus; lia.
@@ -111,7 +111,7 @@ Proof. vm_compute. repeat first [split | left; reflexivity | right; repeat split
 Lemma void_initial : CircuitConfig voidProgram voidStore 0 entryShape voidMemory trapStart
     (stackConfig (mk_state voidStore (activeFrame voidGuest [])) [] [NOP]).
 Proof.
-  apply (function_start_config voidProgram voidStore 0 voidGuest [] _ trapStart); try reflexivity; try (cbn; lia).
+  apply (function_start_config voidProgram voidStore 0 voidGuest [] _ trapStart); try reflexivity; try (apply TableState.no_tables_loaded; reflexivity); try (cbn; lia).
   - repeat constructor.
   - exact void_validated.
   - constructor.

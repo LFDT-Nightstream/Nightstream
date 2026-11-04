@@ -110,6 +110,9 @@ tests/NopTrace.v
 tests/NopWitness.v
 tests/FunctionBrTrace.v
 tests/FunctionBrWitness.v
+tests/IndirectTrace.v
+tests/IndirectTrapTrace.v
+tests/IndirectWitness.v
 tests/DeepBranches.v
 tests/RangeSearch.v
 tests/NopTerminalTrace.v

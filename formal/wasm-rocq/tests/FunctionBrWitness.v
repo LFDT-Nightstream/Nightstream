@@ -100,7 +100,7 @@ Lemma branch_start_config :
     branchMemory branchStart (stackConfig (mk_state branchStore (activeFrame mainGuest [7; 9])) [] mainBody).
 Proof.
   apply (function_start_config branchProgram branchStore 0 mainGuest [7; 9] _ branchStart);
-    try reflexivity; try (cbn; lia).
+    try reflexivity; try (apply TableState.no_tables_loaded; reflexivity); try (cbn; lia).
   - repeat constructor.
   - exact branch_program_validated.
   - repeat constructor; unfold i32Modulus; lia.

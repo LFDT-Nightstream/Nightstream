@@ -30,7 +30,7 @@ Ltac typed_step inputs outputs extra :=
 
 (* A function's first instruction, with its locals as its first cells. *)
 Lemma function_start_config : forall program s index f locals memory boundary,
-  store_FUNCS s = program -> wf_store s -> programValidated program s -> store_TABLES s = [] ->
+  store_FUNCS s = program -> wf_store s -> programValidated program s -> tablesLoaded s memory ->
   functionAt program index = Some f -> length locals = frameLocals f ->
   Forall (fun v => 0 <= v < i32Modulus) locals ->
   (forall i v, nth_error locals i = Some v ->
@@ -46,7 +46,7 @@ Proof.
   intros program s index f locals memory boundary Hstore Hwf Hvalid Htables Hf Hlen Hbounds Hcells Hfbp Hbase Hsp Hpc Hidle
     Hdepth.
   apply (control_state_circuit _ _ _ (controlCursor [] (atCode (frameView (codePosition index [] 0) [] [] locals))));
-    [exact Hstore | exact Hwf | exact Hvalid | exact (no_tables_loaded _ _ Htables) | ].
+    [exact Hstore | exact Hwf | exact Hvalid | exact Htables | ].
   exists f, (stackConfig (mk_state s (activeFrame f locals)) [] (guestBody f)).
   split; [exact Hf | ]. split.
   - pose proof (FrameRows.idle_active_state program s memory boundary f
@@ -195,7 +195,7 @@ Proof.
   intros condition Hcondition.
   apply (function_start_config conditionalProgram conditionalStore 0
     (mkGuestFunction 0%N conditionalModule (mk_uN 0) 0 1 2 conditionalCode 0) [condition; 9] _
-    (mkBoundary 0 9 9 7 0 0 0 0 0 0 0)); try reflexivity; try (cbn; lia).
+    (mkBoundary 0 9 9 7 0 0 0 0 0 0 0)); try reflexivity; try (apply TableState.no_tables_loaded; reflexivity); try (cbn; lia).
   - repeat constructor.
   - split; [constructor; [apply (conditional_function_validates 0) | constructor] | exact conditional_program_supported].
   - repeat constructor; unfold i32Modulus in *; lia.

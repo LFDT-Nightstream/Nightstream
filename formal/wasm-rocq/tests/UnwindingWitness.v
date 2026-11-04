@@ -76,7 +76,7 @@ Lemma unwinding_start_config :
     (stackConfig (mk_state unwindingStore (activeFrame unwindingGuest [7; 0])) [] unwindingCode).
 Proof.
   apply (function_start_config unwindingProgram unwindingStore 0 unwindingGuest [7; 0] _ unwindingStart);
-    try reflexivity; try (cbn; lia).
+    try reflexivity; try (apply TableState.no_tables_loaded; reflexivity); try (cbn; lia).
   - repeat constructor.
   - exact unwinding_program_validated.
   - repeat constructor; unfold i32Modulus; lia.

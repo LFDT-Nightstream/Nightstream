@@ -40,7 +40,7 @@ Definition nopCompleteMemory := loadProgram nopProgram (exportSchedules 5 1 nopM
 Lemma nop_complete_start : CircuitConfig nopProgram nopStore 0 entryShape nopCompleteMemory nopStart
     (stackConfig (mk_state nopStore (activeFrame nopGuest [7])) [] nopCode).
 Proof.
-  apply (function_start_config nopProgram nopStore 0 nopGuest [7] _ nopStart); try reflexivity; try (cbn; lia).
+  apply (function_start_config nopProgram nopStore 0 nopGuest [7] _ nopStart); try reflexivity; try (apply TableState.no_tables_loaded; reflexivity); try (cbn; lia).
   - repeat constructor.
   - exact nop_program_validated.
   - repeat constructor; unfold i32Modulus; lia.
@@ -128,7 +128,7 @@ Proof. vm_compute. repeat first [split | left; reflexivity | right; repeat split
 Lemma trap_start_config : CircuitConfig trapProgram trapStore 0 entryShape trapMemory trapStart
   (stackConfig (mk_state trapStore (activeFrame trapGuest [])) [] trapMainCode).
 Proof.
-  apply (function_start_config trapProgram trapStore 0 trapGuest [] _ trapStart); try reflexivity; try (cbn; lia).
+  apply (function_start_config trapProgram trapStore 0 trapGuest [] _ trapStart); try reflexivity; try (apply TableState.no_tables_loaded; reflexivity); try (cbn; lia).
   - repeat constructor.
   - exact trap_program_validated.
   - constructor.

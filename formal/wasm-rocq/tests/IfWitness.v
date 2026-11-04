@@ -108,7 +108,7 @@ Lemma if_start_config :
     ifMemory ifStart (stackConfig (mk_state ifStore (activeFrame ifGuest [7; 0])) [] ifCode).
 Proof.
   apply (function_start_config ifProgram ifStore 0 ifGuest [7; 0] _ ifStart);
-    try reflexivity; try (cbn; lia).
+    try reflexivity; try (apply TableState.no_tables_loaded; reflexivity); try (cbn; lia).
   - repeat constructor.
   - exact if_program_validated.
   - repeat constructor; unfold i32Modulus; lia.

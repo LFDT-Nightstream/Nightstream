@@ -126,6 +126,33 @@ Definition instructionRom (program : Program) (memory : nat) (pc : Z) (choice : 
       else None
   end.
 
+(* Function type ids as the Rust parser assigns them: the module's distinct types,
+   numbered from 1 in first-seen order. *)
+(* Wasm2's functype_eq_dec rests on an admitted list comparison and does not
+   compute; this one compares the parameter and result lists directly. *)
+Definition functypeEqDec (t u : functype) : {t = u} + {t <> u}.
+Proof.
+  destruct t as [[params] [results]], u as [[params'] [results']].
+  destruct (list_eq_dec valtype_eq_dec params params') as [-> | Hp]; [ | right; congruence].
+  destruct (list_eq_dec valtype_eq_dec results results') as [-> | Hr]; [left; reflexivity | right; congruence].
+Defined.
+
+Fixpoint firstSeen (seen types : list functype) : list functype :=
+  match types with
+  | [] => seen
+  | t :: rest =>
+      firstSeen (if existsb (fun u => if functypeEqDec t u then true else false) seen then seen else seen ++ [t]) rest
+  end.
+
+Fixpoint typePosition (t : functype) (types : list functype) : nat :=
+  match types with [] => 0 | u :: rest => if functypeEqDec t u then 0 else S (typePosition t rest) end.
+
+Definition typeId (module : moduleinst) (t : functype) : Z :=
+  Z.of_nat (typePosition t (firstSeen [] (TYPES module))) + 1.
+
+Definition guestType (f : GuestFunction) : functype :=
+  mk_functype (mk_list _ (repeat valtype_I32 (guestParams f))) (mk_list _ (repeat valtype_I32 (guestResults f))).
+
 Definition functionRom (program : Program) (memory : nat) (reference : Z) : option Z :=
   if reference <=? 0 then None else
   let function := Z.to_nat (reference - 1) in
@@ -133,6 +160,7 @@ Definition functionRom (program : Program) (memory : nat) (reference : Z) : opti
   | None => None
   | Some f =>
       if Nat.eqb memory functionEntryId then Some (guestEntry f)
+      else if Nat.eqb memory functionTypeId then Some (typeId (guestModule f) (guestType f))
       else if Nat.eqb memory functionLocalCountId then Some (Z.of_nat (guestParams f + guestLocals f))
       else if Nat.eqb memory functionCallMetadataId then
         (* Parameter count, result count, and the guest-function flag. *)
@@ -243,7 +271,7 @@ Definition slideRom (program : Program) (memory : nat) (pc choice : Z) : option 
   end.
 
 Definition programRomIds := [programOpcodeId; programLocalIndexId; pcEdgeKindId; pcRomId;
-  callTargetId; pcFunctionRefId; functionEntryId; functionLocalCountId; functionCallMetadataId;
+  callTargetId; pcFunctionRefId; functionEntryId; functionTypeId; functionLocalCountId; functionCallMetadataId;
   frameSlideRemainingId; frameSlideDistanceId; programBrTableLenId].
 
 Definition encodeProgram (program : Program) : MemoryState := fun memory address =>
@@ -258,7 +286,8 @@ Definition encodeProgram (program : Program) : MemoryState := fun memory address
       if Nat.eqb memory pcFunctionRefId then
         if key <? 0 then None else
         option_map (fun location => Z.of_nat (fst location + 1)) (locatePC program (Z.to_nat key))
-      else if Nat.eqb memory functionEntryId || Nat.eqb memory functionLocalCountId || Nat.eqb memory functionCallMetadataId
+      else if Nat.eqb memory functionEntryId || Nat.eqb memory functionTypeId || Nat.eqb memory functionLocalCountId ||
+        Nat.eqb memory functionCallMetadataId
         then functionRom program memory key
       else instructionRom program memory key 0
   | _ => None

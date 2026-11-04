@@ -120,6 +120,19 @@ Proof.
   - constructor; [apply source_function_validates; [repeat constructor | exact source_body_validates] | constructor].
 Qed.
 
+(* Type ids compute and number distinct types densely in first-seen order: the
+   repeated (i32 i32) -> i32 keeps id 1, and the unused () -> i32 still takes id 2. *)
+Definition typesModule := MKmoduleinst
+  [i32StackType 2 1; i32StackType 0 1; i32StackType 2 1; i32StackType 1 0] [] [] [] [] [] [] [].
+
+Example type_ids_first_seen :
+  map (typeId typesModule) [i32StackType 2 1; i32StackType 0 1; i32StackType 1 0] = [1; 2; 3].
+Proof. vm_compute. reflexivity. Qed.
+
+(* The function-type ROM holds each function's id in its module. *)
+Example function_type_rom : encodeProgram sourceProgram functionTypeId [2] = Some 1.
+Proof. vm_compute. reflexivity. Qed.
+
 Example wrong_function_entry_rejected : forall stale,
   ~ programLoaded sourceProgram (update (sourceMemory stale) functionEntryId [1] 99).
 Proof.

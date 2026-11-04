@@ -57,6 +57,7 @@ Definition functionCallMetadataId : nat := 22%nat.
 Definition pcFunctionRefId : nat := 21%nat.
 Definition callTargetId : nat := 23%nat.
 Definition functionEntryId : nat := 24%nat.
+Definition functionTypeId : nat := 19%nat.
 Definition programOpcodeId : nat := 9%nat.
 Definition programLocalIndexId : nat := 10%nat.
 Definition pcEdgeKindId : nat := 25%nat.

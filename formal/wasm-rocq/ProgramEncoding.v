@@ -197,3 +197,33 @@ Proof.
     ltac:(unfold functionSize; cbn [functionBody i32Function CODE]; lia)).
   reflexivity.
 Qed.
+
+Lemma type_position_found : forall t types, In t types -> nth_error types (typePosition t types) = Some t.
+Proof.
+  intros t types. induction types as [ | u rest IH]; [contradiction | ].
+  intros Hin. cbn. destruct (functypeEqDec t u) as [-> | Hne]; [reflexivity | ].
+  destruct Hin as [Heq | Hin]; [symmetry in Heq; contradiction | exact (IH Hin)].
+Qed.
+
+Lemma first_seen_keeps : forall types seen t, In t seen \/ In t types -> In t (firstSeen seen types).
+Proof.
+  induction types as [ | u rest IH]; intros seen t Hin; cbn.
+  - destruct Hin as [Hin | []]; exact Hin.
+  - apply IH. destruct Hin as [Hin | [<- | Hin]]; [ | | right; exact Hin].
+    + left. destruct (existsb _ seen); [exact Hin | apply in_or_app; left; exact Hin].
+    + left. destruct (existsb _ seen) eqn:Hseen.
+      * apply existsb_exists in Hseen as [v [Hv Heq]].
+        destruct (functypeEqDec u v) as [-> | ]; [exact Hv | discriminate].
+      * apply in_or_app. right. left. reflexivity.
+Qed.
+
+(* Within a module, equal type ids are equal types. *)
+Lemma type_id_injective : forall module t u,
+  In t (TYPES module) -> In u (TYPES module) -> typeId module t = typeId module u -> t = u.
+Proof.
+  intros module t u Ht Hu Hid. unfold typeId in Hid.
+  assert (Hpos : typePosition t (firstSeen [] (TYPES module)) = typePosition u (firstSeen [] (TYPES module))) by lia.
+  pose proof (type_position_found t _ (first_seen_keeps _ [] t (or_intror Ht))) as Hfound.
+  rewrite Hpos, (type_position_found u _ (first_seen_keeps _ [] u (or_intror Hu))) in Hfound.
+  injection Hfound as ->. reflexivity.
+Qed.

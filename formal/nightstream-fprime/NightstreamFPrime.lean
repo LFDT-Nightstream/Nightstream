@@ -59,6 +59,12 @@ import NightstreamFPrime.Lifecycle.OptionB.RandomOracle.RomModel
 import NightstreamFPrime.Lifecycle.OptionB.RandomOracle.Assumption1
 import NightstreamFPrime.Lifecycle.OptionB.RandomOracle.Fidelity
 import NightstreamFPrime.Lifecycle.OptionB.RandomOracle.Honest
+import NightstreamFPrime.Lifecycle.RandomOracle.Reduction
+import NightstreamFPrime.Lifecycle.RandomOracle.Solver
+import NightstreamFPrime.Lifecycle.RandomOracle.LineFinder
+import NightstreamFPrime.Lifecycle.OptionB.RandomOracle.LightSolver
+import NightstreamFPrime.Lifecycle.OptionB.RandomOracle.RefreshSolver
+import NightstreamFPrime.Lifecycle.OptionB.RandomOracle.HashSolver
 import NightstreamFPrime.Lifecycle.OptionB.Step
 import NightstreamFPrime.Lifecycle.OptionB.PriorLink
 import NightstreamFPrime.Lifecycle.OptionB.StateHashGadget
@@ -115,6 +121,7 @@ import NightstreamFPrime.Export.OptionB.StepPackage
 import NightstreamFPrime.Export.OptionB.TerminalBridge
 import NightstreamFPrime.Export.OptionB.IvcWalk
 import NightstreamFPrime.Export.OptionB.RomWalk
+import NightstreamFPrime.Export.OptionB.RandomOracleSetup
 import NightstreamFPrime.Export.OptionB.IvcSecurity
 import NightstreamFPrime.Export.OptionB.NebulaSecurity
 import NightstreamFPrime.Export.OptionB.FinishRelation

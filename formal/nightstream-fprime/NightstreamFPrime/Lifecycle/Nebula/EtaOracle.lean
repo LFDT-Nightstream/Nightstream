@@ -1,5 +1,6 @@
 import NightstreamFPrime.Lifecycle.Nebula.Framing
 import NightstreamFPrime.Lifecycle.Nebula.Carry
+import NightstreamFPrime.Spec.Nebula.EtaLine
 
 /-! A random-oracle model of the Nebula `η` transcript (CW-10.8). The step circuit computes the
 product-test challenge `η` with Poseidon2 from the plan digest, the open timestamp and the three
@@ -30,7 +31,7 @@ def pointOf (input : EtaInput Digest) : Point :=
 
 /-- The memory context with `η` read from `oracle`. -/
 def romContext (p : Plan) (oracle : Oracle) : Context K Digest :=
-  { context p with eta := fun _ input => oracle (pointOf input) }
+  (context p).withEta fun _ input => oracle (pointOf input)
 
 /-- The Poseidon2 `η` transcript as an oracle. -/
 def deployed : Oracle := fun point =>

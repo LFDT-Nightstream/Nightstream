@@ -687,6 +687,9 @@ plans (`SlotPlan`), batched catalogs (`Batch`) and the free application
 #audit_axioms NightstreamFPrime.Spec.Nebula.activeOps_append
 #audit_axioms NightstreamFPrime.Spec.Nebula.opsFactors_append
 #audit_axioms NightstreamFPrime.Spec.Nebula.scanFactor_append
+#audit_axioms NightstreamFPrime.Spec.Nebula.SegmentView.closesAt_withEta
+#audit_axioms NightstreamFPrime.Spec.Nebula.SegmentView.badChallenge_withEta
+#audit_axioms NightstreamFPrime.Spec.Nebula.SegmentView.ClosesAt.openTs_lt
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.EtaOracle.deployed_pointOf
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.EtaOracle.romContext_deployed
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.EtaOracle.pointOf_injective

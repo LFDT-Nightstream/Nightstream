@@ -483,3 +483,9 @@ example : (runDepths 2 (fun _ => 0) 1 (List.replicate 3 [0, 0, 1]).flatten).isNo
 #audit_axioms NightstreamFPrime.Export.OptionB.StepCompleteness.refresh_complete
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.FoldCompleteness.light_folds
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.FoldCompleteness.refresh_folds
+#audit_axioms NightstreamFPrime.Spec.Folding.Light.PiCCS.semanticTruth_of_sources
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.FoldCompleteness.light_premises
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.FoldCompleteness.light_folds_of_holds
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.FoldCompleteness.refresh_folds_of_holds
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.FoldCompleteness.countNormLaw
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.FoldCompleteness.refresh_folds_bounded

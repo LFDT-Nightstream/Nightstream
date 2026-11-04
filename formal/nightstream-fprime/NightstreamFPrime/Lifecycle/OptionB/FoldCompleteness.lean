@@ -1,4 +1,6 @@
 import NightstreamFPrime.Lifecycle.OptionB.RandomOracle.Honest
+import NightstreamFPrime.Spec.Folding.Light.SourceTruth
+import NightstreamFPrime.Spec.Folding.Refresh.Bound
 
 /-! Completeness of the option-B folds at the production keys (CW-10.3). An honest light fold
 (`Spec.Folding.Light.complete`, Cyclo Theorem 3, item 1) and an honest refresh fold
@@ -179,6 +181,208 @@ theorem refresh_folds (key : CircuitKey logicalWidth publicFits)
     toClaim_of_fromClaim rfl rfl read
   refine ⟨proof, folded, parentWitness, ?_, claimEq ▸ slotHolds⟩
   show Refresh.verify (keys key.relation ajtai).refresh (toClaim (key.system ajtai) start) fresh
+    proof = _
+  rw [show (keys key.relation ajtai).refresh = refreshKey key.relation ajtai from rfl, verified,
+    claimEq]
+
+/-! ### From the terminal's claims -/
+
+/-- The light output witness of a running witness and a fresh witness; `LightUniqueness.answerOf`
+reads them back. -/
+def witnessOf (running fresh : PaperAlgebra.Assignment (logicalWidth := logicalWidth)
+    (publicFits := publicFits)) :
+    OutputWitness LightShape (Phi81CarrierLayout.carrierWidth logicalWidth) :=
+  ⟨fun source => if source.val = 0 then fresh else running⟩
+
+/-- A slot claim that holds at `bound` and a fresh instance that holds under the slot's relation
+give the premises of `light_folds`, the converse of `LightUniqueness.holds_of_knowledge`. -/
+theorem light_premises (key : CircuitKey logicalWidth publicFits)
+    (claim : SlotClaim logicalWidth publicFits) (fresh : StepFresh logicalWidth publicFits)
+    (bound : Nat)
+    (running freshWitness : PaperAlgebra.Assignment (logicalWidth := logicalWidth)
+      (publicFits := publicFits))
+    (slot : ForkLink.SlotHolds ajtai key bound claim running)
+    (freshHolds : UniquenessLink.FreshHolds ajtai key fresh freshWitness) :
+    Opening.Holds
+        (paperRelationSemantics (shape := LightShape)
+          (blockCount := Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth logicalWidth))
+          (keys key.relation ajtai).light.baseOps (keys key.relation ajtai).light.extensionOps
+          (keys key.relation ajtai).light.lift (keys key.relation ajtai).light.openingMaps)
+        (keys key.relation ajtai).light.params.b
+        (((keys key.relation ajtai).light.statement (LightFork.runningOf claim)
+          (freshToLight fresh)).commitments (keys key.relation ajtai).light.freshSource)
+        (((keys key.relation ajtai).light.statement (LightFork.runningOf claim)
+          (freshToLight fresh)).publicInputs (keys key.relation ajtai).light.freshSource)
+        ((witnessOf running freshWitness).assignments (keys key.relation ajtai).light.freshSource) ∧
+      Opening.Holds
+        (paperRelationSemantics (shape := LightShape)
+          (blockCount := Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth logicalWidth))
+          (keys key.relation ajtai).light.baseOps (keys key.relation ajtai).light.extensionOps
+          (keys key.relation ajtai).light.lift (keys key.relation ajtai).light.openingMaps)
+        bound
+        (((keys key.relation ajtai).light.statement (LightFork.runningOf claim)
+          (freshToLight fresh)).commitments (keys key.relation ajtai).light.runningSource)
+        (((keys key.relation ajtai).light.statement (LightFork.runningOf claim)
+          (freshToLight fresh)).publicInputs (keys key.relation ajtai).light.runningSource)
+        ((witnessOf running freshWitness).assignments
+          (keys key.relation ajtai).light.runningSource) ∧
+      LightUniqueness.Truth ajtai key.relation (LightFork.runningOf claim) (freshToLight fresh)
+        (witnessOf running freshWitness) := by
+  let light := (keys key.relation ajtai).light
+  have freshOpening := (light.openingAgreement _ _ _ _).mpr freshHolds.1
+  have runningOpening := (light.openingAgreement _ _ _ _).mpr slot.1
+  have lightSlot := (OptionBKeys.boundHolds_claimToLight_iff _ _ _).mpr slot
+  have runningEvaluations : (paperRelationSemantics (shape := LightShape)
+        (blockCount := Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth logicalWidth))
+        light.baseOps light.extensionOps light.lift light.openingMaps).evaluations
+        (light.statement (LightFork.runningOf claim) (freshToLight fresh)).relationSource
+        ((witnessOf running freshWitness).assignments
+          (UnifiedSources.runningSourceIndex ⟨0, by decide⟩))
+        (light.statement (LightFork.runningOf claim) (freshToLight fresh)).priorPoint =
+      #[SourceMembership.runningEvaluation
+        (light.statement (LightFork.runningOf claim) (freshToLight fresh)) ⟨0, by decide⟩] := by
+    refine (light.evaluationAgreement running claim.point).2.symm.trans (lightSlot.2.2.trans ?_)
+    simp only [OptionBKeys.claimToLight, toClaim, List.map_toArray, List.map_cons, List.map_nil]
+    rfl
+  refine ⟨freshOpening, runningOpening, ?_⟩
+  apply Light.PiCCS.semanticTruth_of_sources light.extensionOps light.extensionLaws light.lift
+    light.openingMaps light.params rfl
+  · intro index
+    obtain rfl : index = ⟨0, by decide⟩ := Fin.ext (by
+      have bound := index.isLt
+      change index.val < 1 at bound
+      show index.val = 0
+      omega)
+    exact ⟨freshOpening, freshHolds.2⟩
+  · intro index
+    obtain rfl : index = ⟨0, by decide⟩ := Fin.ext (by
+      have bound := index.isLt
+      change index.val < 1 at bound
+      show index.val = 0
+      omega)
+    exact runningEvaluations
+
+/-- The honest light fold of a slot claim that holds at `bound`, with a fresh instance that holds
+under the slot's relation, is accepted, and its output holds at `bound + T(b − 1)`. -/
+theorem light_folds_of_holds (key : CircuitKey logicalWidth publicFits)
+    (claim : SlotClaim logicalWidth publicFits) (fresh : StepFresh logicalWidth publicFits)
+    (bound : Nat)
+    (running freshWitness : PaperAlgebra.Assignment (logicalWidth := logicalWidth)
+      (publicFits := publicFits))
+    (slot : ForkLink.SlotHolds ajtai key bound claim running)
+    (freshHolds : UniquenessLink.FreshHolds ajtai key fresh freshWitness) :
+    ∃ (proof : Light.Proof LightShape 8) (folded : SlotClaim logicalWidth publicFits)
+      (foldedWitness : PaperAlgebra.Assignment (logicalWidth := logicalWidth)
+        (publicFits := publicFits)),
+      OptionBFolds.folds .light (keys key.relation ajtai) (toClaim (key.system ajtai) claim) fresh
+          (.light proof) = some (toClaim (key.system ajtai) folded) ∧
+        Light.Rlc.Holds (semantics ajtai)
+          (bound + (keys key.relation ajtai).light.params.expansionT *
+            ((keys key.relation ajtai).light.params.b - 1))
+          (toClaim (key.system ajtai) folded) foldedWitness := by
+  obtain ⟨freshOpening, runningOpening, truth⟩ :=
+    light_premises ajtai key claim fresh bound running freshWitness slot freshHolds
+  exact light_folds ajtai key claim fresh (witnessOf running freshWitness) bound freshOpening
+    runningOpening truth
+
+/-- The honest refresh fold of a slot claim that holds, with a fresh instance that holds under
+the slot's relation, is accepted, and its output holds below `B`. -/
+theorem refresh_folds_of_holds (key : CircuitKey logicalWidth publicFits)
+    (claim : SlotClaim logicalWidth publicFits) (fresh : StepFresh logicalWidth publicFits)
+    (assignment freshWitness : PaperAlgebra.Assignment (logicalWidth := logicalWidth)
+      (publicFits := publicFits))
+    (slot : CE.Holds (semantics ajtai) productionGlobalParams (toClaim (key.system ajtai) claim)
+      assignment)
+    (freshHolds : UniquenessLink.FreshHolds ajtai key fresh freshWitness) :
+    ∃ (proof : RefreshFork.RefreshProof) (folded : SlotClaim logicalWidth publicFits)
+      (foldedWitness : PaperAlgebra.Assignment (logicalWidth := logicalWidth)
+        (publicFits := publicFits)),
+      OptionBFolds.folds .refresh (keys key.relation ajtai) (toClaim (key.system ajtai) claim)
+          fresh (.refresh proof) = some (toClaim (key.system ajtai) folded) ∧
+        Light.Rlc.Holds (semantics ajtai) productionGlobalParams.bigB
+          (toClaim (key.system ajtai) folded) foldedWitness :=
+  refresh_folds ajtai key claim fresh assignment (fun _ => freshWitness) slot fun source => by
+    obtain rfl : source = ⟨0, by decide⟩ := Fin.ext (by
+      have bound := source.isLt
+      change source.val < 1 at bound
+      show source.val = 0
+      omega)
+    exact ⟨((refreshKey key.relation ajtai).openingAgreement _ _ _ _).mpr freshHolds.1,
+      freshHolds.2⟩
+
+/-- The norm law of the production Π_RLC combination: `count` sources of norm below `b` give a
+combination below `count · T · (b − 1) + 1`, as `Refresh.production_countNormLaw`. -/
+theorem countNormLaw : Refresh.CountNormLaw (PaperAlgebra.piRlcAlgebra ajtai) := by
+  constructor
+  intro count challenges assignments valid bounded column
+  have fresh : ∀ index, Phi81Relation.assignmentNormBounded 2 (assignments index) := by
+    intro index
+    simpa [PaperAlgebra.semantics, productionGlobalParams] using bounded index
+  have finite := Phi81Relation.PiRLCAlgebra.Norm.Finite.combineAssignments_le challenges
+    assignments valid fresh column
+  change centeredMagnitude
+      (Phi81Relation.EvaluationHomomorphism.PiRLCFinite.combineAssignments challenges
+        assignments column) < count * 216 * (2 - 1) + 1
+  omega
+
+/-- The honest refresh fold of a slot claim that holds, with a fresh instance that holds under
+the slot's relation, is accepted, and its output holds within the depth-0 accumulator bound
+(`Refresh.complete_bounded`, SuperNeo v1.2 Definition 22). -/
+theorem refresh_folds_bounded (key : CircuitKey logicalWidth publicFits)
+    (claim : SlotClaim logicalWidth publicFits) (fresh : StepFresh logicalWidth publicFits)
+    (assignment freshWitness : PaperAlgebra.Assignment (logicalWidth := logicalWidth)
+      (publicFits := publicFits))
+    (slot : CE.Holds (semantics ajtai) productionGlobalParams (toClaim (key.system ajtai) claim)
+      assignment)
+    (freshHolds : UniquenessLink.FreshHolds ajtai key fresh freshWitness) :
+    ∃ (proof : RefreshFork.RefreshProof) (folded : SlotClaim logicalWidth publicFits)
+      (foldedWitness : PaperAlgebra.Assignment (logicalWidth := logicalWidth)
+        (publicFits := publicFits)),
+      OptionBFolds.folds .refresh (keys key.relation ajtai) (toClaim (key.system ajtai) claim)
+          fresh (.refresh proof) = some (toClaim (key.system ajtai) folded) ∧
+        CE.Holds (semantics ajtai) productionGlobalParams (toClaim (key.system ajtai) folded)
+          foldedWitness ∧
+        (semantics ajtai).normBounded (productionGlobalParams.accumulatorBound 0 + 1)
+          foldedWitness := by
+  let oracle := (Fidelity.deployedOracle (logicalWidth := logicalWidth)
+    (publicFits := publicFits)).2
+  have deployed : Fidelity.DeployedOn oracle :=
+    (Fidelity.deployedOracle_deployed (logicalWidth := logicalWidth) (publicFits := publicFits)).2
+  obtain ⟨_, _, honest⟩ := Refresh.complete_bounded (refreshKey key.relation ajtai)
+    (countNormLaw ajtai) rfl (toClaim (key.system ajtai) claim) fresh assignment
+    (fun _ => freshWitness) rfl rfl slot fun source => by
+      obtain rfl : source = ⟨0, by decide⟩ := Fin.ext (by
+        have bound := source.isLt
+        change source.val < 1 at bound
+        show source.val = 0
+        omega)
+      exact ⟨((refreshKey key.relation ajtai).openingAgreement _ _ _ _).mpr freshHolds.1,
+        freshHolds.2⟩
+  obtain ⟨proof, parent, parentWitness, _, _, verified, parentHolds, parentNorm⟩ := honest _ rfl
+  have romVerified : RefreshFork.verify key.relation ajtai oracle
+      (toClaim (key.system ajtai) claim) fresh proof = some parent :=
+    (Fidelity.refresh_verify_eq key.relation ajtai (toClaim (key.system ajtai) claim) fresh proof
+      deployed).trans verified
+  have parentEq : parent = RefreshFork.parentFor key.relation ajtai oracle
+      (toClaim (key.system ajtai) claim) fresh proof
+      (Fork.rho oracle (fresh, proof.split) (RefreshSchedule.messages proof.nifs)) := by
+    unfold RefreshFork.verify at romVerified
+    split at romVerified
+    · exact (Option.some.inj romVerified).symm
+    · cases romVerified
+  subst parentEq
+  have slotHolds : Light.Rlc.Holds (semantics ajtai) productionGlobalParams.bigB
+      (RefreshFork.parentFor key.relation ajtai oracle (toClaim (key.system ajtai) claim) fresh proof
+        (Fork.rho oracle (fresh, proof.split) (RefreshSchedule.messages proof.nifs)))
+      parentWitness :=
+    parentHolds
+  obtain ⟨folded, read⟩ := Honest.slot_of_holds ajtai slotHolds
+  have claimEq : RefreshFork.parentFor key.relation ajtai oracle (toClaim (key.system ajtai) claim)
+      fresh proof (Fork.rho oracle (fresh, proof.split) (RefreshSchedule.messages proof.nifs)) =
+        toClaim (key.system ajtai) folded :=
+    toClaim_of_fromClaim rfl rfl read
+  refine ⟨proof, folded, parentWitness, ?_, claimEq ▸ parentHolds, parentNorm⟩
+  show Refresh.verify (keys key.relation ajtai).refresh (toClaim (key.system ajtai) claim) fresh
     proof = _
   rw [show (keys key.relation ajtai).refresh = refreshKey key.relation ajtai from rfl, verified,
     claimEq]

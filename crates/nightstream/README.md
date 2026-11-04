@@ -9,39 +9,34 @@ Compile the application once using the packaged reference, then save it:
 ```rust
 use nightstream::{application::poseidon2_hash_chain_v1, Circuit};
 
-let reference = std::fs::read("artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1.json")?;
-let circuit = Circuit::compile(&reference, poseidon2_hash_chain_v1()?)?;
+let circuit = Circuit::compile(poseidon2_hash_chain_v1()?)?;
 circuit.write("app.nsc")?;
 ```
 
-Compilation validates the selected reference and application, and computes the
+Compilation validates the embedded reference package and the application, and computes the
 unchanged Poseidon2 identities. Writing publishes one complete file and refuses
 to replace an existing destination. The compiled circuit can also be reused
 directly in the same process.
 
-Load the saved data and select execution engines:
+A prover loads the saved data. A verifier compiles its own circuit and never
+loads a saved file:
 
 ```rust
-use nightstream::{Circuit, Engine, Verifier};
+use nightstream::{Circuit, Engine, Prover};
 
-let package = Circuit::load("app.nsc")?;
 // Set this from the integrating application's security policy.
 let minimum_security_bits = policy.minimum_statistical_security_bits;
-let prover = package.prover(Engine::Metal, minimum_security_bits)?;
-let verifier = Verifier::from_package(&package, Engine::Metal, minimum_security_bits)?;
+let prover = Prover::load("app.nsc", Engine::Metal, minimum_security_bits)?;
+let verifier = Circuit::compile(application)?.verifier(Engine::Metal, minimum_security_bits)?;
 let proof = prover.prove(initial_state, &private_inputs)?;
 verifier.verify(&expected_state, &proof)?;
 ```
 
 Loading checks the format, layout, dimensions and recipe structure. It does not
-repeat whole-circuit identity hashing. `Circuit::identity()` returns the saved
-claim; comparing it with a known value does not authenticate the loaded data.
-`Prover::load(path, engine, minimum_security_bits)` is available
-when only proving data is needed. `Verifier::compile` derives expected
-configuration from a local application. The caller selects the verifier's
-expected configuration and is responsible for its provenance; the crate does
-not impose an authentication policy. Proof data cannot replace that configured
-relation.
+repeat whole-circuit identity hashing, so a saved identity is only a claim.
+The verifier's own compiled circuit is its expected configuration, and proof
+data cannot replace that relation. A memory relation has its verifier in
+`nebula::Circuit::verifier`.
 
 Prover and verifier creation require an explicit, positive statistical-security
 minimum. Preparation rejects a profile below that minimum. The current stored
@@ -126,16 +121,16 @@ A changed output must fail those constraints. These tests run by default and
 need no Lean installation or artifact generation.
 
 ```sh
-timeout --signal=KILL 300 cargo test -p nightstream --release --test application_poseidon2
+timeout --signal=KILL 300 cargo test -p nightstream --release --lib application::poseidon2_tests
 ```
 
 ## Poseidon2 benchmark
 
 `nightstream-poseidon2-bench` has separate `compile` and `run` commands.
 Compilation builds the Rust Poseidon2 application and reports `compile` and
-`save` times. Each fresh `run` loads the saved package, creates the selected
-prover and verifier, proves the base and active steps, and verifies the terminal
-state. It emits schema2 JSON with scope `prepared_package_load_prove_verify`.
+`save` times. Each fresh `run` loads the saved package into the selected
+prover, compiles the verifier's own circuit (`verifier_compile`), proves the
+base and active steps, and verifies the terminal state. It emits schema2 JSON with scope `prepared_package_load_prove_verify`.
 The total begins before package loading. Native Poseidon2 supplies the expected
 state, and a run succeeds only after terminal verification accepts it.
 
@@ -229,7 +224,7 @@ The selected profile remains `b = 2`, `k_rho = 16`, `B = 2^16`, with one fresh
 claim and sixteen carried claims. Terminal verification checks all remaining
 openings.
 
-`Prover::finish_with_spartan` compresses an active proof on the Optimized or
+`Prover::compress` compresses an active proof on the Optimized or
 Metal engine. It runs PiCCS and PiRLC once more and stops before PiDEC
 (SuperNeo Lemma 1). The `neo-spartan`
 crate then proves the folded CE(B) claim with sum-checks and WHIR (layer 1).

@@ -26,9 +26,9 @@ mod terminal;
 mod verify;
 pub(crate) use complete::CompleteStepError;
 pub use complete::Stage1Envelope;
-pub(crate) use encoding::ProofCodecError;
-pub(crate) use extend::ExtendError;
-pub(crate) use finish::CompressionError;
+pub use encoding::ProofCodecError;
+pub use extend::ExtendError;
+pub use finish::CompressionError;
 pub use finish::{CompressionKey, CompressionSetup, FinalProof};
 pub(crate) use inputs::{
     encode_pi_ccs_v1_2_public_input, pi_ccs_v1_2_prior_children, pi_ccs_v1_2_state_hash,
@@ -39,7 +39,7 @@ pub use step_inputs::Stage1State;
 pub(crate) use step_inputs::{Stage1StepInputs, StepInputError};
 #[cfg(test)]
 pub(crate) use terminal::{package as terminal_package, TERMINAL_PACKAGE_IDENTIFIER};
-pub(crate) use verify::VerifyError;
+pub use verify::VerifyError;
 
 pub(crate) struct PreparedLifecycle {
     package: std::sync::Arc<LoadedPerApplicationPackage>,

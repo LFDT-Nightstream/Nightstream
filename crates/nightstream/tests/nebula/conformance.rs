@@ -60,7 +60,7 @@ impl Harness {
         );
         Self {
             context: Context::new(Machine, &fixture.package.program()),
-            prover: loaded.prover(engine, 114).unwrap(),
+            prover: loaded.circuit.prover(engine, 114).unwrap(),
             verifier: Verifier::of_memory(&loaded.circuit, engine, 114).unwrap(),
             checks: named
                 .into_iter()

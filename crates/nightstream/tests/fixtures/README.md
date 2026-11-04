@@ -118,5 +118,5 @@ production run digests on the key (`final_program_digest_is_pinned`, and
 `neo-spartan`'s `production_layer1_digest_is_pinned`). After a change to the
 circuit or the final program, run the ignored
 `poseidon_compression_setup_matches_the_derived_key`, then
-`poseidon_finish_with_spartan_verifies`, each under the 300-second cap, and
+`poseidon_compressed_proof_verifies`, each under the 300-second cap, and
 copy `target/compression-setup/key.bin` and `final-proof.bin` here.

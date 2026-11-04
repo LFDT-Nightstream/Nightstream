@@ -64,7 +64,11 @@ impl FinalProof {
 
     /// Strict: the bytes must be the canonical encoding of the decoded proof.
     /// Acceptance still needs `Verifier::verify_final`.
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self, ProofCodecError> {
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, crate::Error> {
+        Ok(Self::decode(bytes)?)
+    }
+
+    fn decode(bytes: &[u8]) -> Result<Self, ProofCodecError> {
         let header = FINAL_MAGIC.len() + STATE_BYTES;
         if bytes.len() < header || &bytes[..FINAL_MAGIC.len()] != FINAL_MAGIC {
             return Err(ProofCodecError("final proof tag"));
@@ -115,7 +119,11 @@ impl CompressionKey {
 
     /// Strict: the bytes must be the canonical encoding of a well-formed
     /// key.
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self, ProofCodecError> {
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, crate::Error> {
+        Ok(Self::decode(bytes)?)
+    }
+
+    fn decode(bytes: &[u8]) -> Result<Self, ProofCodecError> {
         let key: Self = bincode::deserialize(bytes).map_err(|_| ProofCodecError("compression key"))?;
         if key.to_bytes() != bytes {
             return Err(ProofCodecError("non-canonical compression key"));

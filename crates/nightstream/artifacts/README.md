@@ -3,11 +3,11 @@ Library users need these saved artifacts:
 | Artifact | Delivery and use |
 | --- | --- |
 | `shared-verifier-v1.json` | Included by the `nightstream` Rust build. Declares mandatory components, application ports, dimensions, and relocation rules. |
-| `nightstream-fprime-stage1-poseidon2-hash-chain-v1.json` | Included in this package. Pass these bytes to `Circuit::compile` as verifier configuration. |
-| `nightstream-fprime-stage2-nebula-memory-v1.json` | Included in this package. The first Nebula memory application (`SPEC.md` section 7). Load these bytes with `nebula::Package::V1.load`, and pass the circuit to `nebula::Verifier::new`. The package fixes the memory geometry only (`nebula::Package::geometry`): `nebula::Verifier::verify` takes the program (`nebula::Program`, the ROM and RAM images of 32-bit words, with its `D_init`), and `Package::program` gives the default program of the Lean plan. |
-| `nightstream-fprime-stage2-nebula-memory-n1.json` | Included in this package. The second memory test geometry (`nebula::Package::N1`: segments of one step, `r < μ`). Load these bytes with `nebula::Package::N1.load`, and pass the circuit to `nebula::Verifier::new`. |
+| `nightstream-fprime-stage1-poseidon2-hash-chain-v1.json` | Embedded by the `nightstream` Rust build as its zstd copy `nightstream-fprime-stage1-poseidon2-hash-chain-v1.json.zst`. Every `Circuit::compile` checks its pins and keeps its shared F′ verifier. The raw file is a test input. |
+| `nightstream-fprime-stage2-nebula-memory-v1.json` | Test input. The first Nebula memory package of Lean (`SPEC.md` section 7). The internal `nebula::Package::V1` loads it for the parity tests. |
+| `nightstream-fprime-stage2-nebula-memory-n1.json` | Test input. The second memory test geometry (segments of one step, `r < μ`). The internal `nebula::Package::N1` loads it. |
 | `shared-formulas-v1.json` | Included by the `nightstream-fprime` dependency's Rust build. Supplies the shared Poseidon2 and Phi81 formulas. |
-| `compression-terminal-v1.json` | Included by the `nightstream` Rust build. The Lean terminal package that the final verifier checks (`formal/compression-lean`); `IDENTIFIER` in `src/lifecycle/terminal/package.rs` pins it. |
+| `compression-terminal-v1.json` | Embedded by the `nightstream` Rust build as its zstd copy `compression-terminal-v1.json.zst`. The Lean terminal package that the final verifier checks (`formal/compression-lean`); `IDENTIFIER` in `src/lifecycle/terminal/package.rs` pins it. |
 
 Application preparation, proving, verification, and Rust builds do not run
 Lean. The selected blueprint is required even for a different Rust application:
@@ -22,6 +22,19 @@ copy in Git. The explicit Cargo `include` list includes the artifact, and
 An extracted Cargo package therefore contains the JSON file and needs no
 `formal` directory. A source checkout must contain the full Git LFS payload
 before packaging; an LFS pointer is not a usable blueprint.
+
+The two embedded packages are zstd copies in normal Git files, not LFS
+files, so a Git dependency of `nightstream` builds and proves without Git
+LFS. Together they add about 2.6 MB to a binary, and each unpacks once, in
+about 0.1 s. After a Lean regeneration of either package, make its copy again
+from this directory, then run
+`cargo test --release -p nightstream --lib artifacts::`, which checks that
+each copy is the Lean output:
+
+```sh
+zstd -19 -q -f -o nightstream-fprime-stage1-poseidon2-hash-chain-v1.json.zst < nightstream-fprime-stage1-poseidon2-hash-chain-v1.json
+zstd -19 -q -f -o compression-terminal-v1.json.zst < compression-terminal-v1.json
+```
 
 Saved execution results and the small independent application reference are
 test inputs under `tests/fixtures`. They are included for conformance tests.

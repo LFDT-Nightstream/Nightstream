@@ -53,13 +53,37 @@ impl Region {
     }
 }
 
+/// One region for each memory, with the widths that `memories` gives. In each
+/// space the regions go from the largest to the smallest, so each base is a
+/// multiple of its size (SPEC.md section 7.6, rule 3). Returns the regions
+/// and the cells that they take in the ROM space and in the RAM space.
+pub fn pack_regions<Id>(
+    memories: impl IntoIterator<Item = (Id, MemoryKind, Vec<usize>)>,
+) -> (Vec<(Id, Region)>, [u64; 2]) {
+    let mut memories: Vec<_> = memories
+        .into_iter()
+        .map(|(id, kind, widths)| (id, usize::from(kind == MemoryKind::Ram), widths))
+        .collect();
+    memories.sort_by_key(|(_, space, widths)| (*space, std::cmp::Reverse(widths.iter().sum::<usize>())));
+    let mut used = [0u64; 2];
+    let regions = memories
+        .into_iter()
+        .map(|(id, space, widths)| {
+            let base = used[space];
+            used[space] += 1 << widths.iter().sum::<usize>();
+            (id, Region { base, widths })
+        })
+        .collect();
+    (regions, used)
+}
+
 /// Why a catalog, regions, and a slot plan give no binding, or a preload no
 /// program.
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 pub enum CatalogBindingError {
     #[error("the geometry breaks SPEC.md section 7.1")]
     Geometry,
-    #[error("a region names a memory that the catalog does not have")]
+    #[error("a region or a preload cell names a memory that the catalog does not have")]
     UnknownMemory,
     #[error("two regions name one memory")]
     DuplicateRegion,
@@ -343,7 +367,8 @@ impl<Id: Clone + Eq> CatalogBinding<Id> {
     /// `m` is the image word at `base + packParts(a)` of the region of `m`,
     /// in the RAM image for a RAM memory and in the ROM image otherwise. Every
     /// other word is zero. A memory without a region has no cell in the
-    /// images. Packing is injective on the addresses that fit a region, and
+    /// images, and a cell of a memory that the catalog does not have is
+    /// refused, so two preloads never give one program. Packing is injective on the addresses that fit a region, and
     /// the regions of one namespace are disjoint, so no two cells share a word.
     pub fn program(&self, preload: &MemoryPreload<Id>) -> Result<Program, CatalogBindingError>
     where
@@ -353,7 +378,10 @@ impl<Id: Clone + Eq> CatalogBinding<Id> {
         let mut ram = vec![0; self.geometry.ram_size()];
         for (memory, address, value) in preload.entries() {
             let Some(checked) = self.checked.iter().find(|checked| checked.id == memory) else {
-                continue;
+                if self.host_checked.contains(&memory) {
+                    continue;
+                }
+                return Err(CatalogBindingError::UnknownMemory);
             };
             let parts: Vec<u64> = address.into_iter().map(u64::from).collect();
             let addr = checked

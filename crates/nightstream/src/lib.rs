@@ -1,13 +1,16 @@
 //! Native circuit assembly and recursive proving from Lean-exported verifier components.
 
 pub mod application;
+pub mod error;
 
+mod artifacts;
 mod assembly;
 mod circuit;
 mod engine;
 mod folding;
 mod lifecycle;
 pub mod nebula;
+pub mod relation;
 
 pub use circuit::{ApplicationSize, Circuit, CompressionKey, CompressionSetup, Error, Prover, Verifier};
 pub use engine::{Engine, EngineError};

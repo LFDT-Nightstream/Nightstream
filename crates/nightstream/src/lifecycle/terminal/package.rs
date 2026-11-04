@@ -30,14 +30,6 @@ use super::super::inputs::{STATE_CONTEXT_START, STATE_DOMAIN_CHUNK, STATE_STATEM
 #[path = "../../../tests/lifecycle_native/terminal_hints.rs"]
 mod hints;
 
-const ARTIFACT: &[u8] = include_bytes!("../../../artifacts/compression-terminal-v1.json");
-// Without its Git LFS object, the file is the pointer text: fail the build,
-// not every verification.
-const _: () = assert!(
-    !ARTIFACT.is_empty() && ARTIFACT[0] == b'[',
-    "compression-terminal-v1.json is not the package: run `git lfs pull`"
-);
-
 /// The identifier of the embedded artifact.
 pub(crate) const IDENTIFIER: [u64; 4] = [
     15_606_775_949_683_203_332,
@@ -97,7 +89,7 @@ pub(crate) fn package() -> Result<&'static Package, TerminalPackageError> {
 }
 
 fn load() -> Result<Package, TerminalPackageError> {
-    let (loaded, outputs) = load_terminal_package(ARTIFACT, IDENTIFIER)?;
+    let (loaded, outputs) = load_terminal_package(crate::artifacts::terminal_package(), IDENTIFIER)?;
     // `apply` reads the first caller inputs as the prior state preimage.
     if loaded.prior_preimage_inputs() != Some(0..PI_CCS_V1_2_STATE_PREIMAGE_WORDS) {
         return Err(TerminalPackageError(

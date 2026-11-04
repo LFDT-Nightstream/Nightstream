@@ -22,16 +22,21 @@ Record CodePosition := codePosition {
   positionOffset : nat
 }.
 
-(* The active frame runs code, or is a callee whose frame is being initialized. *)
+(* The active frame runs code, has resolved the indirect call at its position, or
+   is a callee whose frame is being initialized. *)
 Inductive ActiveSite :=
 | siteCode (position : CodePosition)
+| siteResolved (position : CodePosition)
 | siteEntering (function : nat).
 
 (* The active site and, top first, the CALL each suspended caller is stopped at. *)
 Record ControlShape := controlShape { callSites : list CodePosition; activeSite : ActiveSite }.
 
 Definition siteFunction (site : ActiveSite) : nat :=
-  match site with siteCode position => positionFunction position | siteEntering function => function end.
+  match site with
+  | siteCode position | siteResolved position => positionFunction position
+  | siteEntering function => function
+  end.
 
 (* An i32 occupies the low limb of its stack cell. *)
 Definition i32Cell (cell : option Z) : option Z :=
@@ -125,6 +130,8 @@ Fixpoint wrapLabels (code : list instr) (labels : list LabelSite) (segments : li
   | _, _ => c
   end.
 
+Definition isIndirect (i : instr) : bool := match i with CALL_INDIRECT _ _ => true | _ => false end.
+
 (* The countdown flags follow the counters, as the circuit computes them: a
    pending move runs before zeroing. *)
 Definition initializationFlagsb (boundary : Boundary) : bool :=
@@ -160,6 +167,29 @@ Definition decodeActive (program : Program) (s : store) (memory : MemoryState) (
       let split := splitSegments (fst heights) stack in
       Some (wrapLabels (guestBody f) labels (fst split)
         (stackConfig (mk_state s (activeFrame f locals)) (snd split) (skipn offset inner)), True)
+  (* An indirect call has resolved: its function reference replaced the table
+     index on top, and SpecTec calls that address next. *)
+  | siteResolved position =>
+      let labels := positionLabels position in
+      let offset := positionOffset position in
+      let? f := functionAt program (positionFunction position) in
+      let? inner := pathCode (guestBody f) labels in
+      let? i := nth_error inner offset in
+      let? heights := pathHeights (programCallees program (guestModule f)) (guestBody f) labels offset in
+      let? reference := memory stackId [2 * (base + Z.of_nat (totalHeight heights - 1))] in
+      let callee := Z.to_nat (reference - 1) in
+      let? g := functionAt program callee in
+      check initializationFlagsb boundary && (boundaryZeroRemaining boundary =? 0) &&
+        (boundaryMoveRemaining boundary =? 0) && isIndirect i && callsIntob (guestModule f) i callee g &&
+        (1 <=? reference) && (1 <=? snd heights)%nat && (0 <=? fbp) && (base =? fbp + Z.of_nat (frameLocals f)) &&
+        (boundarySP boundary =? base + Z.of_nat (totalHeight heights)) &&
+        (boundaryPC boundary =? guestEntry f + Z.of_nat (pathOffset (guestBody f) labels offset) + 1) in
+      let? stack := readOperands memory base (totalHeight heights - 1) 0 0 in
+      let? locals := readLocals memory fbp (frameLocals f) in
+      let split := splitSegments (fst heights) stack in
+      Some (wrapLabels (guestBody f) labels (fst split) (stackPrefix (snd split)
+        (instructionSuffix (skipn (S offset) inner)
+          (mk_config (mk_state s (activeFrame f locals)) [CALL_ADDR (N.of_nat callee)]))), True)
   | siteEntering function =>
       let? f := functionAt program function in
       check initializationFlagsb boundary && (boundaryMoveRemaining boundary =? 0) &&

@@ -325,6 +325,39 @@ Proof.
       replace (codeSize t + S k - codeSize t)%nat with (S k) by lia end. reflexivity.
 Qed.
 
+(* An instruction's slots at a code path. *)
+Lemma path_slots : forall code labels inner offset i targets base k,
+  pathCode code labels = Some inner -> nth_error inner offset = Some i -> (k < instructionSize i)%nat ->
+  nth_error (bodyAt targets base code) (pathOffset code labels offset + k) =
+    nth_error (flattenAt (map (Nat.add base) (pathTargets code labels) ++ targets)
+      (base + pathOffset code labels offset) i) k.
+Proof.
+  intros code labels. revert code.
+  induction labels as [ | s rest IH]; intros code inner offset i targets base k Hpath Hi Hk.
+  - injection Hpath as Heq. subst code. cbn [pathOffset pathTargets map app].
+    exact (body_at_instruction _ _ _ _ _ _ Hi Hk).
+  - cbn [pathCode pathOffset pathTargets] in *. unfold siteEntry in *.
+    destruct (nth_error code (siteOffset s)) as [j | ] eqn:Hj; [ | discriminate].
+    destruct (instrArm j (siteArm s)) as [body | ] eqn:Harm; [ | discriminate]. cbn [option_map] in *.
+    pose proof (IH _ _ _ _ (base + codeOffset code (siteOffset s) + labelTarget j :: targets)
+      (base + codeOffset code (siteOffset s) + armStart j (siteArm s)) _ Hpath Hi Hk) as Hinner.
+    assert (Hlen : (pathOffset body rest offset + k < codeSize body)%nat).
+    { rewrite <- (body_length body (base + codeOffset code (siteOffset s) + labelTarget j :: targets)
+        (base + codeOffset code (siteOffset s) + armStart j (siteArm s))).
+      apply nth_error_Some. rewrite Hinner. apply nth_error_Some. rewrite flatten_length. exact Hk. }
+    assert (Hsize : (armStart j (siteArm s) + (pathOffset body rest offset + k) < instructionSize j)%nat).
+    { pose proof (arm_inside _ _ _ Harm). lia. }
+    match goal with |- nth_error _ ?n = _ =>
+      replace n with (codeOffset code (siteOffset s) + (armStart j (siteArm s) + (pathOffset body rest offset + k)))%nat
+        by lia end.
+    rewrite (body_at_instruction _ _ _ _ _ _ Hj Hsize).
+    rewrite (flatten_arm _ _ _ _ _ (pathOffset body rest offset + k) Harm ltac:(lia)), nth_error_app1
+      by (rewrite body_length; exact Hlen).
+    rewrite Hinner. f_equal. f_equal; [ | lia].
+    rewrite map_app, <- app_assoc, map_map. cbn [map app].
+    f_equal; [apply map_ext; intros; lia | f_equal; lia].
+Qed.
+
 (* An instruction's head slot at a code path. *)
 Lemma path_slot : forall code labels inner offset i targets base,
   pathCode code labels = Some inner -> nth_error inner offset = Some i ->
@@ -332,29 +365,12 @@ Lemma path_slot : forall code labels inner offset i targets base,
     Some (flatInstruction (opInstr i) (slotTargets
       (map (Nat.add base) (pathTargets code labels) ++ targets) (base + pathOffset code labels offset) i)).
 Proof.
-  intros code labels. revert code. induction labels as [ | s rest IH]; intros code inner offset i targets base Hpath Hi.
-  - injection Hpath as Heq. subst code. cbn [pathOffset pathTargets map app].
-    destruct (flatten_head targets (base + codeOffset inner offset) i) as [more Hhead].
-    rewrite <- (Nat.add_0_r (codeOffset inner offset)), (body_at_instruction _ _ _ _ _ 0 Hi)
-      by exact (instruction_size_pos i).
-    rewrite Nat.add_0_r, Hhead. reflexivity.
-  - cbn [pathCode pathOffset pathTargets] in *. unfold siteEntry in *.
-    destruct (nth_error code (siteOffset s)) as [j | ] eqn:Hj; [ | discriminate].
-    destruct (instrArm j (siteArm s)) as [body | ] eqn:Harm; [ | discriminate]. cbn [option_map] in *.
-    pose proof (IH _ _ _ _ (base + codeOffset code (siteOffset s) + labelTarget j :: targets)
-      (base + codeOffset code (siteOffset s) + armStart j (siteArm s)) Hpath Hi) as Hinner.
-    assert (Hlen : (pathOffset body rest offset < codeSize body)%nat).
-    { rewrite <- (body_length body (base + codeOffset code (siteOffset s) + labelTarget j :: targets)
-        (base + codeOffset code (siteOffset s) + armStart j (siteArm s))).
-      apply nth_error_Some. rewrite Hinner. discriminate. }
-    assert (Hsize : (armStart j (siteArm s) + pathOffset body rest offset < instructionSize j)%nat).
-    { pose proof (arm_inside _ _ _ Harm). lia. }
-    rewrite <- Nat.add_assoc, (body_at_instruction _ _ _ _ _ _ Hj Hsize).
-    rewrite (flatten_arm _ _ _ _ _ (pathOffset body rest offset) Harm ltac:(lia)), nth_error_app1
-      by (rewrite body_length; exact Hlen).
-    rewrite Hinner. f_equal. f_equal.
-    rewrite map_app, <- app_assoc, map_map. cbn [map app].
-    f_equal; [f_equal; [apply map_ext; intros; lia | f_equal; lia] | lia].
+  intros code labels inner offset i targets base Hpath Hi.
+  rewrite <- (Nat.add_0_r (pathOffset code labels offset)),
+    (path_slots _ _ _ _ _ _ _ 0 Hpath Hi (instruction_size_pos i)), Nat.add_0_r.
+  destruct (flatten_head (map (Nat.add base) (pathTargets code labels) ++ targets)
+    (base + pathOffset code labels offset) i) as [more ->].
+  reflexivity.
 Qed.
 
 (* The last slot of the innermost arm at a code path. *)
@@ -405,6 +421,15 @@ Proof.
   replace (map (Nat.add 0) (pathTargets code labels)) with (pathTargets code labels)
     by (rewrite <- (map_id (pathTargets code labels)) at 1; apply map_ext; reflexivity).
   reflexivity.
+Qed.
+
+(* An indirect call's invocation follows its resolve slot. *)
+Lemma flatten_at_invoke : forall code labels inner offset x y,
+  pathCode code labels = Some inner -> nth_error inner offset = Some (CALL_INDIRECT x y) ->
+  nth_error (flattenCode code) (S (pathOffset code labels offset)) = Some (flatInstruction opInvoke []).
+Proof.
+  intros code labels inner offset x y Hpath Hi. unfold flattenCode.
+  rewrite <- Nat.add_1_r. rewrite (path_slots _ _ _ _ _ [] 0 1 Hpath Hi ltac:(cbn; lia)). reflexivity.
 Qed.
 
 Lemma flatten_arm_end : forall code pre s inner,

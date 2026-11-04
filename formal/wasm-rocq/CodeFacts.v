@@ -2,7 +2,7 @@
    instruction's facts at the operand height it runs at, down into nested blocks,
    and the code's stack heights. Validation stays a premise; these are its
    consequences for the i32 fragment. *)
-From Stdlib Require Import List ZArith Lia.
+From Stdlib Require Import List ZArith NArith Lia.
 From mathcomp Require Import ssrbool eqtype.
 Require Import Wasm2 StraightLineSpec StraightLineInstructions StraightLineValidation SpecTecCalls
   CallerSpec CallerValidation FunctionValidation CodeLayout Fragment.
@@ -60,6 +60,10 @@ Fixpoint instrFacts (localCount resultCount : nat) (arities : list nat) (callees
              | Some next => bodyFacts localCount resultCount arities callees next rest | None => Forall wf_instr rest end
          end) localCount resultCount (blockResults bt :: arities) callees 0 e
   | CALL x => wf_instr i /\ exists g, callees (x :> N) = Some g /\ (guestParams g <= height)%nat
+  (* An indirect call's table exists; its arguments sit below the table index. *)
+  | CALL_INDIRECT x y => wf_instr i /\ (N.to_nat (x :> N) < length (envTables callees))%nat /\
+      exists params results, nth_error (envTypes callees) (N.to_nat (y :> N)) = Some (i32StackType params results) /\
+        (S params <= height)%nat
   (* A return consumes the results from its own block's operands. *)
   | RETURN => wf_instr i /\ (resultCount <= height)%nat
   (* A br_if's operands hold its target's results below the condition. *)
@@ -108,7 +112,8 @@ Proof. reflexivity. Qed.
 Definition contextFits (C : context) (localCount resultCount : nat) (arities : list nat)
     (callees : CalleeEnvironment) : Prop :=
   context_LOCALS C = repeat valtype_I32 localCount /\ context_RETURN C = Some (i32Results resultCount) /\
-  LABELS C = map i32Results arities /\ calleeTypes C callees.
+  LABELS C = map i32Results arities /\ calleeTypes C callees /\
+  context_TYPES C = envTypes callees /\ length (context_TABLES C) = length (envTables callees).
 
 Lemma source_heights_app : forall callees a b h,
   sourceHeights callees (a ++ b) h =
@@ -128,10 +133,10 @@ Lemma label_fits : forall C localCount resultCount arities callees n,
   contextFits C localCount resultCount arities callees ->
   contextFits (labelContext (repeat valtype_I32 n) C) localCount resultCount (n :: arities) callees.
 Proof.
-  intros C localCount resultCount arities callees n [Hlocals [Hreturn [Hlabels Htypes]]].
+  intros C localCount resultCount arities callees n [Hlocals [Hreturn [Hlabels [Htypes [HtypeList Htables]]]]].
   split; [rewrite label_context_locals; exact Hlocals | ]. split; [exact Hreturn | ].
   split; [cbn; rewrite Hlabels; reflexivity | ].
-  intros x f Hf. exact (Htypes x f Hf).
+  split; [intros x f Hf; exact (Htypes x f Hf) | ]. split; [exact HtypeList | exact Htables].
 Qed.
 
 (* One instruction other than a block: its facts and its height step. *)
@@ -143,14 +148,15 @@ Lemma flat_instruction_facts : forall C i inputs outputs localCount resultCount 
   (forall extra, sourceHeight callees i (extra + length inputs) = Some (extra + length outputs)%nat \/
     sourceHeight callees i (extra + length inputs) = None).
 Proof.
-  intros C i inputs outputs localCount resultCount arities callees Hi Hw [Hlocals [Hreturn [Hlabels Htypes]]] Hsupport
+  intros C i inputs outputs localCount resultCount arities callees Hi Hw [Hlocals [Hreturn [Hlabels [Htypes [HtypeList Htables]]]]] Hsupport
     Hnot Hnot' Hnot''.
   assert (Hordinary : (exists op, encodedOpcode i = Some op) -> forall extra,
       wf_instr i /\ programTyped localCount (extra + length inputs) [i]).
   { intros Hop extra. split; [exact Hw | ].
     pose proof (proj1 (validated_instruction_height _ _ _ _ Hi Hop) extra [] I) as H.
     rewrite Hlocals, repeat_length in H. exact H. }
-  inversion Hsupport as [ | | | | x f Hf Hp Hr | result body | l | l | ls l | | result t e | result body |  | ]; subst.
+  inversion Hsupport as [ | | | | x f Hf Hp Hr | result body | l | l | ls l | | result t e | result body
+    | x y params results Htype Hp Hr Hready | | ]; subst.
   - split; [exact (Hordinary ltac:(eexists; reflexivity)) | ].
     inversion Hi; subst. intros extra. left. cbn [length]. rewrite Nat.add_comm. cbn. f_equal; lia.
   - split; [exact (Hordinary ltac:(eexists; reflexivity)) | ].
@@ -231,6 +237,28 @@ Proof.
     rewrite Hlength, <- Hresults, repeat_length. lia.
   - exfalso. eapply Hnot'. reflexivity.
   - exfalso. eapply Hnot''. reflexivity.
+  - inversion Hi; subst.
+    repeat match goal with H : is_true (N.ltb _ _) |- _ => apply N.ltb_lt in H end.
+    match goal with H : is_true (_ == mk_functype _ _), H' : is_true (_ == mk_functype _ _) |- _ => idtac | _ => idtac end.
+    match goal with H : is_true (@lookup_total _ _ (context_TYPES C) _ == _) |- _ =>
+      apply (elimT eqP) in H; rewrite HtypeList in H;
+      erewrite spec_lookup_from_nth_error in H by exact Htype; inversion H; subst end.
+    assert (Hsize : forall (A : Type) (xs : list A), seq.size xs = length xs)
+      by (intros A xs; induction xs as [ | z xs IH]; [reflexivity | cbn; rewrite IH; reflexivity]).
+    assert (Hlength : forall (xs ys : list valtype), length (seq.cat xs ys) = (length xs + length ys)%nat)
+      by (intros xs ys; induction xs as [ | z xs IH]; [reflexivity | cbn; rewrite IH; reflexivity]).
+    split.
+    + intros extra. split; [exact Hw | ]. split.
+      * match goal with H : context [seq.size (context_TABLES C)], H' : is_true (_ == mk_tabletype _ _) |- _ =>
+          rewrite Hsize in H end.
+        match goal with |- context [@coerce tableidx N ?c x] => change (@coerce tableidx N c x) with (@coerce idx N c x) end.
+        lia.
+      * exists params, results. split; [exact Htype | ]. rewrite Hlength, repeat_length. cbn [length]. lia.
+    + intros extra. left. cbn [sourceHeight]. rewrite Htype. cbn.
+      rewrite Hlength, !repeat_length. cbn [length].
+      replace (extra + (params + 1))%nat with (S (extra + params)) by lia.
+      replace (params <=? extra + params) with true by (symmetry; apply Nat.leb_le; lia).
+      f_equal. lia.
   - split; [intros extra; exact Hw | ]. inversion Hi; subst. intros extra. left. reflexivity.
   - split; [intros extra; exact Hw | intros extra; right; reflexivity].
 Qed.
@@ -270,7 +298,7 @@ Proof.
   - intros Hsize localCount resultCount arities callees Hfits Hsupport.
     pose proof (Forall_inv Hsupport) as Hsup.
     destruct (instr_structured_cases i) as [[bt [body ->]] | [[bt [t [e ->]]] | [[bt [body ->]] | [Hnot [Hnot' Hnot'']]]]].
-    + inversion Hsup as [ | | | | | result body' Hbody' Hresult | | | | | | |  | ]; subst. inversion Hi; subst.
+    + inversion Hsup as [ | | | | | result body' Hbody' Hresult | | | | | | |  | | ]; subst. inversion Hi; subst.
       match goal with Hbt : Blocktype_ok _ _ _ |- _ => inversion Hbt; subst end.
       rewrite block_size in Hsize.
       match goal with Hbody : Instrs_ok _ body _ |- _ => pose proof (IHn _ _ _ Hbody ltac:(lia)) as Hinner end.
@@ -289,7 +317,7 @@ Proof.
       * intros extra h' H. cbn [sourceHeights sourceHeight] in H. injection H as <-.
         cbn [length option_to_list]. rewrite Hlabel, repeat_length. destruct result; cbn; lia.
     + (* An if: each arm like a block's body, above the condition. *)
-      inversion Hsup as [ | | | | | | | | | | result t' e' Ht He Hresult | |  | ]; subst. inversion Hi; subst.
+      inversion Hsup as [ | | | | | | | | | | result t' e' Ht He Hresult | |  | | ]; subst. inversion Hi; subst.
       match goal with Hbt : Blocktype_ok _ _ _ |- _ => inversion Hbt; subst end.
       destruct (if_size (_RESULT result) t e) as [Hst Hse].
       assert (Hlabel : option_to_list result = repeat valtype_I32 (blockResults (_RESULT result)))
@@ -315,7 +343,7 @@ Proof.
       * intros extra h' H. rewrite Hin, Nat.add_1_r in H. cbn [sourceHeights sourceHeight] in H.
         injection H as <-. cbn [length option_to_list]. rewrite Hlabel, repeat_length. destruct result; cbn; lia.
     + (* A loop: its body like a block's, under a label that keeps nothing. *)
-      inversion Hsup as [ | | | | | | | | | | | result body' Hbody' Hresult |  | ]; subst. inversion Hi; subst.
+      inversion Hsup as [ | | | | | | | | | | | result body' Hbody' Hresult |  | | ]; subst. inversion Hi; subst.
       match goal with Hbt : Blocktype_ok _ _ _ |- _ => inversion Hbt; subst end.
       rewrite loop_size in Hsize.
       match goal with Hbody : Instrs_ok _ body _ |- _ => pose proof (IHn _ _ _ Hbody ltac:(lia)) as Hinner end.

@@ -320,7 +320,9 @@ Proof.
       [guestResults f] callees).
   { split; [rewrite function_context_locals by (eapply module_context_locals; exact HC); reflexivity | ].
     split; [inversion HC; subst; reflexivity | ].
-    split; [inversion HC; subst; reflexivity | intros x g Hg; exact (program_callee_types _ _ _ _ Hstore HC x g Hg)]. }
+    split; [inversion HC; subst; reflexivity | ].
+    split; [intros x g Hg; exact (program_callee_types _ _ _ _ Hstore HC x g Hg) | ].
+    destruct (module_context_tables _ _ _ HC) as [Htypes Htables]. exact (conj Htypes Htables). }
   destruct (H (frameLocals f) (guestResults f) _ _ Hfits Hsupport) as [Hfacts [Hheights _]].
   rewrite !repeat_length in Hfacts, Hheights.
   split; [pose proof (Hfacts 0%nat [] I) as Hf0; rewrite app_nil_r in Hf0; exact Hf0 | ].

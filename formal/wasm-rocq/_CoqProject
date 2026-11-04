@@ -45,6 +45,7 @@ CallContext.v
 TrapFacts.v
 CallScope.v
 CallReturn.v
+IndirectBindings.v
 CallerSpec.v
 CallerRefinement.v
 CallerValidation.v
@@ -62,7 +63,9 @@ FrameRows.v
 BranchRows.v
 FunctionResults.v
 CallRows.v
+IndirectRows.v
 SpecTecTraps.v
+SpecTecIndirect.v
 ProgramRefinement.v
 ExecutionSpec.v
 TerminalFacts.v

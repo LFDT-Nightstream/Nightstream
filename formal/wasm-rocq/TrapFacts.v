@@ -1,5 +1,5 @@
-(* Trap accounting for the supported fragment: UNREACHABLE traps; the other
-   supported instructions cannot. Coverage is checked against the ROM encoder,
+(* Trap accounting for the supported fragment: UNREACHABLE and an indirect call's
+   resolve step trap; the other supported instructions cannot. Coverage is checked against the ROM encoder,
    and each trap cause is constrained by its own selectors. *)
 From Stdlib Require Import List ZArith Lia.
 Require Import R1CS Columns FullRelation Range Selectors CircuitFacts Wasm2 OpcodeCatalog
@@ -83,14 +83,16 @@ Ltac nontrapping_selector :=
     end
   end.
 
-(* Classify every supported source instruction's encoded opcode. UNREACHABLE is
-   the trapping case; a function-label BR may encode RETURN. Adding a constructor
+(* Classify every supported source instruction's encoded opcode. UNREACHABLE and
+   an indirect call's resolve step are the trapping cases; a function-label BR may
+   encode RETURN. Adding a constructor
    to Supported must extend this proof; it cannot silently escape trap coverage. *)
 Lemma supported_opcode_trap_classification : forall callees i program f pc targets opcode,
   Supported callees i ->
   instructionAtPC program pc = Some (f, Some (flatInstruction (opInstr i) targets)) ->
   instructionRom program MemoryCatalog.programOpcodeId pc 0 = Some opcode ->
   (i = UNREACHABLE /\ opcode = CODE_UNREACHABLE) \/
+  (exists x y, i = CALL_INDIRECT x y /\ opcode = CODE_CALL_INDIRECT_RESOLVE) \/
   exists chosen, In chosen nonTrappingSelectors /\ In (chosen, opcode) selectorCodes.
 Proof.
   intros callees i program f pc targets opcode Hsupported Hslot Hcode.
@@ -98,7 +100,8 @@ Proof.
   inversion Hsupported; subst;
     destruct targets as [ | [target | ] [ | next rest]]; cbn in Hcode;
     injection Hcode as <-;
-    first [left; split; reflexivity | right; nontrapping_selector].
+    first [left; split; reflexivity | right; left; do 2 eexists; split; reflexivity |
+      right; right; nontrapping_selector].
 Qed.
 
 (* END and ELSE are synthetic markers, not source instructions. *)

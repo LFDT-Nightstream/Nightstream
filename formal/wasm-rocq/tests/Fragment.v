@@ -3,7 +3,7 @@ From Stdlib Require Import List ZArith Lia.
 Require Import Wasm2 CallerSpec Fragment.
 Import ListNotations.
 
-Definition noCallees : CalleeEnvironment := calleeEnvironment (fun _ => None) [] True.
+Definition noCallees : CalleeEnvironment := calleeEnvironment (fun _ => None) [] [] True.
 
 Example unreachable_supported : forall callees, Supported callees UNREACHABLE.
 Proof. intros; constructor. Qed.
@@ -16,7 +16,7 @@ Proof. repeat constructor. Qed.
 Example wide_call_rejected : forall (callees : CalleeEnvironment) x f, callees (x :> N) = Some f -> guestParams f = 256%nat ->
   ~ Supported callees (CALL x).
 Proof.
-  intros callees x f Hf Hparams H. inversion H as [ | | | | ? g Hg Hp _ | | | | | | | | | ]; subst.
+  intros callees x f Hf Hparams H. inversion H as [ | | | | ? g Hg Hp _ | | | | | | | | | | ]; subst.
   rewrite Hf in Hg. injection Hg as <-. lia.
 Qed.
 
@@ -26,7 +26,7 @@ Proof. apply supported_block; [repeat constructor | right; reflexivity]. Qed.
 
 (* Blocks hold at most one i32 result and take no parameters. *)
 Example i64_block_rejected : forall callees body, ~ Supported callees (BLOCK (_RESULT (Some valtype_I64)) body).
-Proof. intros callees body H. inversion H as [ | | | | | ? ? _ [Hr | Hr] | | | | | | | | ]; discriminate. Qed.
+Proof. intros callees body H. inversion H as [ | | | | | ? ? _ [Hr | Hr] | | | | | | | | | ]; discriminate. Qed.
 
 Example typed_block_rejected : forall callees x body, ~ Supported callees (BLOCK (_IDX x) body).
 Proof. intros callees x body H. inversion H. Qed.

@@ -155,11 +155,17 @@ Qed.
 Lemma active_state_wf : forall memory boundary position c,
   ActiveState program s memory boundary position c -> wf_config c.
 Proof.
-  intros memory boundary [view | function arguments] c H.
+  intros memory boundary [view | view callee | function arguments] c H.
   - destruct H as [f [Hframe [_ [_ [_ [_ [_ [_ ->]]]]]]]].
     destruct (frame_ready _ _ _ _ _ _ _ _ Hframe) as [Hready [Hvalues [Hcode Hz]]].
     apply wrap_labels_wf; [exact Hready | ].
     apply stack_config_wf; [exact Hz | exact Hvalues | apply forall_skipn; exact Hcode].
+  - destruct H as [f [g [i [Hframe [_ [_ [_ [_ [_ [_ [_ [_ [_ [_ ->]]]]]]]]]]]]]].
+    destruct (frame_ready _ _ _ _ _ _ _ _ Hframe) as [Hready [Hvalues [Hcode Hz]]].
+    apply wrap_labels_wf; [exact Hready | ].
+    apply stack_prefix_wf; [exact Hvalues | ].
+    apply instruction_suffix_wf; [apply forall_skipn; exact Hcode | ].
+    constructor; [exact Hz | repeat constructor].
   - destruct H as [f [Hf [Hlen [Hargs [_ [_ [_ [_ [_ ->]]]]]]]]].
     apply (entered_body_wf s (activeFrame f []) _ (guestTypeIndex f) _ (guestResults f)).
     + exact (frame_state_wf _ _ _ _ [] Hstore Hwf Hf (Forall_nil _)).
@@ -833,9 +839,12 @@ Proof.
   intros baseDepth [stack position] initial final boundary c Hstack Hcontext
     [f [inner [Hactive [Hstate [Hsusp Hrest]]]]].
   exists f, inner. split; [exact Hactive | ]. split; [ | split; [ | exact Hrest]].
-  - cbn [activePosition] in *. destruct position as [view | function arguments].
+  - cbn [activePosition] in *. destruct position as [view | view callee | function arguments].
     + destruct Hstate as [g [Hframe Hfacts]]. exists g. split; [ | exact Hfacts].
       eapply frame_at_preserved; [exact Hframe | intros; apply Hstack | intros; apply Hstack].
+    + destruct Hstate as [g [h [i [Hframe [Hi [Hind [Hh [Hcalls [Hcell Hfacts]]]]]]]]].
+      exists g, h, i. split; [eapply frame_at_preserved; [exact Hframe | intros; apply Hstack | intros; apply Hstack] | ].
+      repeat (split; [eassumption | ]). split; [rewrite Hstack; exact Hcell | exact Hfacts].
     + destruct Hstate as [g [Hg [Hlen [Hbounds [Hinit Hfacts]]]]].
       exists g. split; [exact Hg | ]. split; [exact Hlen | ]. split; [exact Hbounds | ]. split; [ | exact Hfacts].
       destruct Hinit as [Hzb Hfbp Hbase Hsp Hargs Hzeros].
@@ -862,12 +871,15 @@ Proof.
     assert (Hza : row COL_LOCAL_ZERO_ACTIVE_BEFORE = 0) by exact (full_row_kind_exclusive row COL_PADDING_ACTIVE
       COL_LOCAL_ZERO_ACTIVE_BEFORE Hprime Hfull ltac:(cbn; tauto) ltac:(cbn; tauto) ltac:(discriminate) Hpadding).
     destruct Hstate as [f [inner [_ [Hactive _]]]].
-    destruct (activePosition cursor) as [view | function arguments]; cbn in Hactive.
+    destruct (activePosition cursor) as [view | view callee | function arguments]; cbn in Hactive.
     - destruct Hactive as [g [_ [_ [_ [_ [[HmaFlag HzaFlag] [Hzr _]]]]]]].
       cbn [beforeBoundary boundaryMoveActive boundaryMoveRemaining boundaryZeroActive boundaryZeroRemaining]
         in HmaFlag, HzaFlag, Hzr.
       rewrite Hma in HmaFlag. split; [exact Hzr | ].
       destruct (row COL_FRAME_MOVE_REMAINING_BEFORE =? 0) eqn:H; [apply Z.eqb_eq; exact H | discriminate].
+    - destruct Hactive as [g [h [i [_ [_ [_ [_ [_ [_ [_ [_ [_ [Hzr [Hmr _]]]]]]]]]]]]]].
+      cbn [beforeBoundary boundaryMoveRemaining boundaryZeroRemaining] in Hzr, Hmr.
+      split; assumption.
     - destruct Hactive as [g [_ [_ [_ [_ [[HmaFlag HzaFlag] [Hmr [Hzr _]]]]]]]].
       cbn [beforeBoundary boundaryMoveActive boundaryMoveRemaining boundaryZeroActive boundaryZeroRemaining]
         in HmaFlag, HzaFlag, Hmr, Hzr.

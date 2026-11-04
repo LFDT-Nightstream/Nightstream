@@ -239,7 +239,16 @@ Lemma source_final_shape : forall cursor memory boundary c,
 Proof.
   intros [stack active] memory boundary c [f [inner [Hf [Hactive [Hsusp [_ [_ ->]]]]]]] Hpc.
   cbn [activePosition suspendedCalls] in *.
-  destruct active as [[[index labels offset] segments values locals] | function arguments].
+  destruct active as [[[index labels offset] segments values locals] | view callee | function arguments].
+  2: { exfalso. destruct Hactive as [f' [g [i [[Hf' _] [Hi [Hind _]]]]]].
+       cbn [activeFunction] in Hf. rewrite Hf in Hf'. injection Hf' as <-.
+       destruct view as [[index labels offset] segments values locals].
+       cbn [viewPosition positionFunction positionLabels positionOffset] in Hf, Hi.
+       destruct index as [ | [ | index]]; [ | | destruct index; discriminate]; injection Hf as <-;
+         unfold innerCode in Hi; (destruct labels as [ | b more];
+           [ | destruct b as [[ | [ | [ | [ | b]]]] arm]; cbn in Hi; destruct offset; discriminate]);
+         cbn in Hi; destruct offset as [ | [ | [ | offset]]]; try discriminate; try (destruct offset; discriminate);
+         injection Hi as <-; discriminate Hind. }
   - destruct Hactive as [f' [[Hf' [Hpath _]] [Hoffset [_ [Hpos _]]]]].
     cbn [activeFunction viewPosition positionFunction positionLabels positionOffset] in *.
     rewrite Hf in Hf'. injection Hf' as <-.

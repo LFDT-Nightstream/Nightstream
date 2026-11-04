@@ -25,9 +25,12 @@ which the fragment never writes. An activation may remain running, return a capt
 `ActivationConfig` wraps the running decoder in the base function's SpecTec frame;
 `ExecutionConfig` binds the outcome to the last row. A terminating run stops on that row.
 Padding before termination is supported. An explicitly empty `else` is rejected by the Rust parser (SpecTec's `if` has no such form; strip it before
-proving). Host rows, indirect calls, and blocks and loops with parameters or typed by index are excluded.
+proving). `call_indirect` is supported when every function in the program is a guest of the
+caller's module: its resolve row checks the table entry and leaves SpecTec at `CALL_ADDR`
+(`siteResolved`), its invocation row enters the callee (`IndirectRows.v`), and a failed check traps
+(`TrapRows.v`). Host rows, and blocks and loops with parameters or typed by index are excluded.
 Selected zero-test steps are also proved. `TrapFacts.v` connects the supported opcode set to
-trap accounting: only `unreachable` traps in this fragment.
+trap accounting: only `unreachable` and an indirect call's resolve step trap in this fragment.
 Field primality and memory-event consistency are assumed; the offline memory
 argument is not proved. ROMs are dense: keys the encoder does not list read 0, so
 proofs never rely on a key being absent. The program ROM encoder covers this guest-only fragment;

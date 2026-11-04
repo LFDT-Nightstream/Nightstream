@@ -40,7 +40,7 @@ Definition programCallees (program : Program) (module : moduleinst) : CalleeEnvi
       | Some address => functionAt program (N.to_nat address)
       | None => None
       end)
-    (TYPES module)
+    (TYPES module) (TABLES module)
     (forall a fi, nth_error program a = Some fi -> exists g, functionAt program a = Some g /\ guestModule g = module).
 
 (* Wasm2's functype_eq_dec rests on an admitted list comparison and does not

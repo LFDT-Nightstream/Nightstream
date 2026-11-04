@@ -641,13 +641,13 @@ Proof.
   { inversion Hsup as [ | ? ? Hsupported _]; subst.
     pose proof (proj1 (Forall_forall _ _) Hwfcode _ (nth_error_In _ _ Hi)) as Hwi.
     destruct Hlabel as [[bt ->] | [bt ->]].
-    - inversion Hsupported as [ | | | | | result ? _ Hresult | | | | | | |  | ]; subst.
+    - inversion Hsupported as [ | | | | | result ? _ Hresult | | | | | | |  | | ]; subst.
       assert (Hwbody : Forall wf_instr body) by (inversion Hwi; assumption).
       pose proof (encoded_path_block_entry _ _ _ _ Hloaded Hf _ _ _ _ _ Hpath Hi) as Himage.
       unfold pathPC in Himage. rewrite <- Hpc in Himage.
       exists CODE_BLOCK, COL_SEL_BLOCK. split; [right; right; left; split; reflexivity | ].
       split; [exact Himage | ]. split; [reflexivity | ]. split; [reflexivity | exact (enter_block z result body Hresult Hz Hwbody)].
-    - inversion Hsupported as [ | | | | | | | | | | | result ? _ Hresult |  | ]; subst.
+    - inversion Hsupported as [ | | | | | | | | | | | result ? _ Hresult |  | | ]; subst.
       assert (Hwbody : Forall wf_instr body) by (inversion Hwi; assumption).
       pose proof (encoded_path_loop_entry _ _ _ _ Hloaded Hf _ _ _ _ _ Hpath Hi) as Himage.
       unfold pathPC in Himage. rewrite <- Hpc in Himage.
@@ -806,7 +806,7 @@ Proof.
   rewrite (skipn_at_instruction _ _ _ Hi) in Hfacts, Hsup. cbn [codeFacts] in Hfacts. destruct Hfacts as [Hif _].
   destruct (proj1 (if_facts _ _ _ _ _ _ _ _) Hif) as [Hwif [Hone [_ [Hends _]]]].
   inversion Hsup as [ | ? ? Hsupported _]; subst.
-  inversion Hsupported as [ | | | | | | | | | | result ? ? _ _ Hresult | |  | ]; subst.
+  inversion Hsupported as [ | | | | | | | | | | result ? ? _ _ Hresult | |  | | ]; subst.
   (* The condition is the top operand; `under` are the operands below it. *)
   assert (Hnonempty : values <> []) by (intros ->; cbn in Hone; lia).
   destruct (exists_last Hnonempty) as [under [condition ->]]. clear Hnonempty.

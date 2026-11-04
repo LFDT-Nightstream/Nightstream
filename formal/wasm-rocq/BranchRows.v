@@ -200,7 +200,7 @@ Proof.
     destruct kept as [ | ? ?]; [ | discriminate Hlength].
     destruct (siteArm b) as [ | arm] eqn:Hsitearm; [ | destruct arm; discriminate Harm].
     injection Harm as Hlbody. subst lbody.
-    inversion Hsup as [ | | | | | | | | | | | result ? Hbody Hresult |  | ]; try subst bt.
+    inversion Hsup as [ | | | | | | | | | | | result ? Hbody Hresult |  | | ]; try subst bt.
     assert (Hwbody : Forall wf_instr body) by exact (site_wf _ _ _ _ Hwfouter Hb).
     assert (Hpath' : pathCode (guestBody f) (pre ++ [b]) = Some body)
       by (rewrite path_code_snoc, Hpath, Hb; reflexivity).

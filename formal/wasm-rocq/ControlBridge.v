@@ -8,7 +8,11 @@ Import ListNotations.
 Open Scope Z_scope.
 
 Definition siteOf (position : ControlPosition) : ActiveSite :=
-  match position with atCode view => siteCode (viewPosition view) | entering function _ => siteEntering function end.
+  match position with
+  | atCode view => siteCode (viewPosition view)
+  | resolved view _ => siteResolved (viewPosition view)
+  | entering function _ => siteEntering function
+  end.
 
 Definition shapeOf (cursor : ControlCursor) : ControlShape :=
   controlShape (map (fun suspended => viewPosition (callView suspended)) (suspendedCalls cursor))
@@ -259,23 +263,47 @@ Proof.
   apply total_height_operands.
 Qed.
 
+Lemma function_index_unique : forall program index index' f,
+  functionAt program index = Some f -> functionAt program index' = Some f -> index = index'.
+Proof.
+  intros program index index' f H H'.
+  destruct (function_at_sound _ _ _ H) as [_ [Ha _]]. destruct (function_at_sound _ _ _ H') as [_ [Ha' _]].
+  rewrite Ha in Ha'. lia.
+Qed.
+
+Lemma calls_into_check : forall program module i callee f,
+  functionAt program callee = Some f ->
+  callsIntob module i callee f = true <-> callsInto (programCallees program module) i f.
+Proof.
+  intros program module i callee f Hf.
+  destruct i; cbn [callsIntob callsInto]; try (split; [discriminate | contradiction]);
+    unfold programCallees; cbn [calleeAt envTypes].
+  - destruct (nth_error (FUNCS module) _) as [address | ]; [ | split; discriminate].
+    split; intros H.
+    + apply Nat.eqb_eq in H. rewrite H. exact Hf.
+    + apply Nat.eqb_eq. eapply function_index_unique; eassumption.
+  - destruct (nth_error (TYPES module) _) as [t | ]; [ | split; discriminate].
+    destruct (functypeEqDec t (guestType f)) as [-> | Hne]; split; intros H; try reflexivity; try discriminate.
+    injection H as ->. contradiction.
+Qed.
+
 Lemma decode_active_function : forall program s memory boundary site r,
   decodeActive program s memory boundary site = Some r -> exists f, functionAt program (siteFunction site) = Some f.
 Proof.
-  intros program s memory boundary [position | function] r H; cbn [siteFunction];
+  intros program s memory boundary [position | position | function] r H; cbn [siteFunction];
     unfold decodeActive in H; destruct (functionAt program _) as [f | ]; eauto; discriminate.
 Qed.
 
 Lemma active_function_site : forall program position,
   activeFunction program position = functionAt program (siteFunction (siteOf position)).
-Proof. intros program [view | function arguments]; reflexivity. Qed.
+Proof. intros program [view | view callee | function arguments]; reflexivity. Qed.
 
 (* Decoded active frames satisfy the invariant. *)
 Lemma decoded_active : forall program s memory boundary site c obligations,
   decodeActive program s memory boundary site = Some (c, obligations) -> obligations ->
   exists position, siteOf position = site /\ ActiveState program s memory boundary position c.
 Proof.
-  intros program s memory boundary [position | function] c obligations Hdecode Hobligations;
+  intros program s memory boundary [position | position | function] c obligations Hdecode Hobligations;
     unfold decodeActive in Hdecode; cbv zeta in Hdecode.
   - destruct (functionAt program (positionFunction position)) as [f | ] eqn:Hf; [ | discriminate].
     destruct (pathCode (guestBody f) (positionLabels position)) as [inner | ] eqn:Hpath; [ | discriminate].
@@ -302,6 +330,33 @@ Proof.
       rewrite Hlen, Nat.sub_0_r; assumption | ].
     split; [assumption | ]. split; [assumption | ]. split; [assumption | ].
     split; [lia | reflexivity].
+  - destruct (functionAt program (positionFunction position)) as [f | ] eqn:Hf; [ | discriminate].
+    destruct (pathCode (guestBody f) (positionLabels position)) as [inner | ] eqn:Hpath; [ | discriminate].
+    destruct (nth_error inner (positionOffset position)) as [i | ] eqn:Hi; [ | discriminate].
+    destruct (pathHeights _ _ _ _) as [heights | ] eqn:Hheights; [ | discriminate].
+    destruct (memory stackId _) as [reference | ] eqn:Href; [ | discriminate].
+    destruct (functionAt program (Z.to_nat (reference - 1))) as [g | ] eqn:Hg; [ | discriminate].
+    destruct (_ && _) eqn:Hchecks; [ | discriminate]. bools.
+    repeat match goal with H : initializationFlagsb _ = true |- _ => apply flags_check in H end.
+    destruct (readOperands _ _ _ _ _) as [stack | ] eqn:Hstack; [ | discriminate].
+    destruct (readLocals _ _ _) as [locals | ] eqn:Hlocals; [ | discriminate].
+    injection Hdecode as <- <-.
+    assert (Htop : (snd heights <= totalHeight heights)%nat)
+      by (destruct heights as [hs top]; rewrite total_height_sum; cbn [snd]; lia).
+    destruct (frame_of_reads program memory (boundaryStackBase boundary) (boundaryLocalsBase boundary) 1%nat
+      0%nat 0 _ _ _ _ _ _ Hf Hpath Hheights ltac:(assumption) ltac:(assumption) ltac:(assumption) ltac:(lia)
+      Hstack Hlocals) as [Hframe [Hinner Hoperands]].
+    destruct (proj1 (read_operands_cells _ _ _ _ _ _ (Nat.le_0_l _)) Hstack) as [Hlen _].
+    exists (resolved (frameView position (fst (splitSegments (fst heights) stack))
+      (snd (splitSegments (fst heights) stack)) locals) (Z.to_nat (reference - 1))).
+    split; [reflexivity | ]. exists f, g, i. cbn [viewPosition viewLocals viewValues].
+    split; [exact Hframe | ]. rewrite Hinner.
+    split; [exact Hi | ]. split; [assumption | ]. split; [exact Hg | ].
+    split; [apply (proj1 (calls_into_check _ _ _ _ _ Hg)); assumption | ].
+    rewrite Hoperands, Hlen.
+    split; [rewrite Href; f_equal; lia | ].
+    split; [lia | ]. split; [assumption | ]. split; [assumption | ]. split; [assumption | ].
+    split; [assumption | reflexivity].
   - destruct (functionAt program function) as [f | ] eqn:Hf; [ | discriminate].
     destruct (_ && _) eqn:Hchecks; [ | discriminate]. bools.
     repeat match goal with H : initializationFlagsb _ = true |- _ => apply flags_check in H end.
@@ -318,7 +373,8 @@ Lemma active_decodes : forall program s position memory boundary c,
   ActiveState program s memory boundary position c ->
   exists obligations, decodeActive program s memory boundary (siteOf position) = Some (c, obligations) /\ obligations.
 Proof.
-  intros program s [view | function arguments] memory boundary c Hstate; cbn [siteOf]; unfold decodeActive; cbv zeta.
+  intros program s [view | view callee | function arguments] memory boundary c Hstate; cbn [siteOf];
+    unfold decodeActive; cbv zeta.
   - destruct Hstate as [f [Hframe [Hoffset [Hsp [Hpc [Hflags [Hzero [Hmoved ->]]]]]]]].
     pose proof Hframe as [Hf [Hpath [_ [Hfbp [Hbase _]]]]].
     destruct (frame_heights _ _ _ _ _ _ _ _ _ Hframe) as [Hheights Htotal].
@@ -329,36 +385,23 @@ Proof.
     apply flags_check in Hflags. pass_check.
     rewrite Hstack, Hlocals. cbn [fst snd]. unfold viewOperands. rewrite split_concat.
     eexists. split; [reflexivity | exact I].
+  - destruct Hstate as [f [g [i [Hframe [Hi [Hind [Hg [Hcalls [Href [Hsp [Hpc [Hflags [Hzero [Hmove ->]]]]]]]]]]]]]].
+    pose proof Hframe as [Hf [Hpath [_ [Hfbp [Hbase _]]]]].
+    destruct (frame_heights _ _ _ _ _ _ _ _ _ Hframe) as [Hheights Htotal].
+    destruct (frame_reads _ _ _ _ _ _ _ _ _ Hframe (Nat.le_0_l _)) as [Hstack Hlocals].
+    unfold innerCode in Hi. rewrite Hpath in Hi.
+    rewrite Hf, Hpath, Hi, Hheights, Htotal, Nat.add_sub, Href.
+    replace (Z.to_nat (Z.of_nat callee + 1 - 1)) with callee by lia. rewrite Hg.
+    pose proof (proj2 (calls_into_check _ _ _ _ _ Hg) Hcalls) as Hcallsb.
+    cbn [snd]. apply flags_check in Hflags. pass_check.
+    rewrite Hstack, Hlocals. cbn [fst snd]. unfold viewOperands. rewrite split_concat.
+    eexists. split; [ | exact I]. unfold frameConfig, innerCode. rewrite Hpath. reflexivity.
   - destruct Hstate as [f [Hf [Hlen [Hbounds [Hinit [Hflags [Hmove [Hpending [Hpc ->]]]]]]]]].
     rewrite Hf. apply flags_check in Hflags. pass_check.
     assert (Hargs : readStack memory (boundaryLocalsBase boundary) (guestParams f) = Some arguments).
     { apply read_stack_cells. split; [exact Hlen | split; [exact Hbounds | ]].
       intros index value Hi. exact (argument_cells _ _ _ _ _ Hinit index value Hi). }
     rewrite Hargs. eexists. split; [reflexivity | exact Hinit].
-Qed.
-
-Lemma function_index_unique : forall program index index' f,
-  functionAt program index = Some f -> functionAt program index' = Some f -> index = index'.
-Proof.
-  intros program index index' f H H'.
-  destruct (function_at_sound _ _ _ H) as [_ [Ha _]]. destruct (function_at_sound _ _ _ H') as [_ [Ha' _]].
-  rewrite Ha in Ha'. lia.
-Qed.
-
-Lemma calls_into_check : forall program module i callee f,
-  functionAt program callee = Some f ->
-  callsIntob module i callee f = true <-> callsInto (programCallees program module) i f.
-Proof.
-  intros program module i callee f Hf.
-  destruct i; cbn [callsIntob callsInto]; try (split; [discriminate | contradiction]);
-    unfold programCallees; cbn [calleeAt envTypes].
-  - destruct (nth_error (FUNCS module) _) as [address | ]; [ | split; discriminate].
-    split; intros H.
-    + apply Nat.eqb_eq in H. rewrite H. exact Hf.
-    + apply Nat.eqb_eq. eapply function_index_unique; eassumption.
-  - destruct (nth_error (TYPES module) _) as [t | ]; [ | split; discriminate].
-    destruct (functypeEqDec t (guestType f)) as [-> | Hne]; split; intros H; try reflexivity; try discriminate.
-    injection H as ->. contradiction.
 Qed.
 
 (* Decoded callers form the invariant's suspended stack. *)

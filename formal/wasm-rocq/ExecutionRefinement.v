@@ -90,7 +90,7 @@ Proof.
   assert (HloadedFinal : programLoaded program final)
     by (eapply program_loaded_preserved; [eapply run_preserves_roms; exact Hrun | exact Hloaded]).
   destruct (execution_rows_split _ _ Hrows) as [Hactive | [prefix [row [-> [Hprefix Hterminal]]]]].
-  - destruct (control_run program s Hstore Hwf Hvalid _ _ _ _ _ _ _ Hprime Hloaded Hrun
+  - destruct (control_run program s Hstore Hwf Hvalid _ _ _ _ _ _ _ Hprime Hloaded Htables Hrun
       (conj Hstart Hactive) Hstate) as [cursor' [inner' [Hroot' [Hsteps [_ Hstate']]]]].
     exists (running (shapeOf cursor')), (callContext caller (N.of_nat (guestResults f)) inner').
     split; [apply steps_in_call_frame; assumption | ]. split; [exact HloadedFinal | ].
@@ -104,7 +104,7 @@ Proof.
     exists f, inner'. split; [exact Hroot | ]. split; [ | reflexivity].
     apply control_state_circuit; try assumption. exact (run_preserves_tables _ _ _ _ _ Hprime Hloaded Hrun Htables).
   - destruct (valid_run_split prefix [row] initial final Hrun) as [middle [HrunPrefix HrunRow]].
-    destruct (control_run program s Hstore Hwf Hvalid _ _ _ _ _ _ _ Hprime Hloaded HrunPrefix
+    destruct (control_run program s Hstore Hwf Hvalid _ _ _ _ _ _ _ Hprime Hloaded Htables HrunPrefix
       (conj (prefix_starts_at _ _ _ Hstart) Hprefix) Hstate)
       as [cursor' [inner' [Hroot' [Hsteps [HloadedMiddle Hstate']]]]].
     assert (Hboundary : rowsFinalBoundary boundary prefix = beforeBoundary row)
@@ -117,7 +117,7 @@ Proof.
     destruct HrunRow as [Hsat [_ Hreplay]].
     cbn [eventsForTrace flat_map] in Hreplay. rewrite app_nil_r in Hreplay.
     destruct (terminal_control_row program s baseDepth cursor' root f middle final row inner' caller Hstore Hwf Hvalid
-      Hprime HloadedMiddle (Forall_inv Hsat) Hreplay Hterminal HhostRow Hcaller Hroot ltac:(congruence) Hstate')
+      Hprime HloadedMiddle (run_preserves_tables _ _ _ _ _ Hprime Hloaded HrunPrefix Htables) (Forall_inv Hsat) Hreplay Hterminal HhostRow Hcaller Hroot ltac:(congruence) Hstate')
       as [outcome [c1 [HterminalSteps HterminalConfig]]].
     exists outcome, c1. split.
     + eapply spec_steps_transitive; [apply steps_in_call_frame; eassumption | exact HterminalSteps].

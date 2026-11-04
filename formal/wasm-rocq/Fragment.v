@@ -149,6 +149,12 @@ Inductive Supported (callees : CalleeEnvironment) : instr -> Prop :=
 (* Loops like blocks: branches to a loop's label keep nothing and run it again. *)
 | supported_loop : forall result body, Forall (Supported callees) body ->
     (result = None \/ result = Some valtype_I32) -> Supported callees (LOOP (_RESULT result) body)
+(* Indirect calls to i32 functions, typed as the call metadata allows. Any
+   function may be called, so every function must be a guest of this module. *)
+| supported_call_indirect : forall x y params results,
+    nth_error (envTypes callees) (N.to_nat (y :> N)) = Some (i32StackType params results) ->
+    (params < 256)%nat -> (results < 256)%nat -> indirectReady callees ->
+    Supported callees (CALL_INDIRECT x y)
 | supported_nop : Supported callees NOP
 | supported_unreachable : Supported callees UNREACHABLE.
 

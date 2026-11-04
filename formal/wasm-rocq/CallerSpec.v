@@ -26,5 +26,6 @@ Definition guestType (f : GuestFunction) : functype :=
 Record CalleeEnvironment := calleeEnvironment {
   calleeAt :> N -> option GuestFunction;
   envTypes : list functype;
+  envTables : list tableaddr;
   indirectReady : Prop
 }.

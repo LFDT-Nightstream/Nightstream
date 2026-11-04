@@ -219,7 +219,13 @@ Lemma computed_pc_four_shape : forall cursor memory boundary c,
 Proof.
   intros [stack active] memory boundary c [f [inner [Hf [Hactive [Hsusp [_ [_ ->]]]]]]] Hpc.
   cbn [activePosition suspendedCalls] in *.
-  destruct active as [[[index labels offset] segments values locals] | function arguments].
+  destruct active as [[[index labels offset] segments values locals] | view callee | function arguments].
+  2: { exfalso. destruct Hactive as [f' [g [i [[Hf' _] [Hi [_ [_ [Hcalls _]]]]]]]].
+       cbn [activeFunction] in Hf. rewrite Hf in Hf'. injection Hf' as <-.
+       destruct view as [[index labels offset] segments values locals].
+       cbn [viewPosition positionFunction] in Hf, Hi.
+       destruct index as [ | index]; [ | destruct index; discriminate]. cbn in Hf. injection Hf as <-.
+       exact (computed_no_call _ _ _ _ _ Hi Hcalls). }
   - destruct Hactive as [f' [[Hf' [Hpath _]] [Hoffset [_ [Hpos _]]]]].
     cbn [activeFunction viewPosition positionFunction positionLabels positionOffset] in *.
     rewrite Hf in Hf'. injection Hf' as <-.

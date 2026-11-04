@@ -39,7 +39,8 @@ Lemma terminal_instruction : forall program s view f i initial final row inner,
   ActiveState program s initial (beforeBoundary row) (atCode view) inner ->
   functionAt program (positionFunction (viewPosition view)) = Some f ->
   nth_error (innerCode f (viewPosition view)) (positionOffset (viewPosition view)) = Some i ->
-  i = UNREACHABLE \/ returnsFrom (length (positionLabels (viewPosition view))) i.
+  i = UNREACHABLE \/ (exists x y, i = CALL_INDIRECT x y) \/
+    returnsFrom (length (positionLabels (viewPosition view))) i.
 Proof.
   intros program s view f i initial final row inner Hstore Hvalid Hprime Hloaded Hfull Hprogram Hfinish Hreplay
     Hstate Hf Hi.
@@ -58,7 +59,9 @@ Proof.
   pose proof (circuit_row_opcode_fetch _ _ _ Hreplay Hprogram) as Hfetch.
   rewrite Hrom in Hfetch. injection Hfetch as Hcode.
   destruct (supported_opcode_trap_classification _ _ _ _ _ _ _ Hsupported Hslot Hop)
-    as [[-> _] | [chosen [Hin Hcodes]]]; [left; reflexivity | ].
+    as [[-> _] | [[x [y [-> _]]] | [chosen [Hin Hcodes]]]]; [left; reflexivity | right; left; eauto | ].
+  enough (Hcases : i = UNREACHABLE \/ returnsFrom (length (positionLabels (viewPosition view))) i)
+    by (destruct Hcases; [left | right; right]; assumption).
   pose proof (full_opcode_selects_member row chosen opcode Hprime Hfull Hprogram Hcodes (eq_sym Hcode)) as Hsel.
   pose proof (full_nontrapping_finish_edge row chosen Hprime Hfull Hin Hsel Hfinish) as Hedge.
   assert (HromKind : initial pcEdgeKindId [row COL_PC_BEFORE] =

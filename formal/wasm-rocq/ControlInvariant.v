@@ -53,6 +53,7 @@ Definition FrameAt (program : Program) (memory : MemoryState) (base fbp : Z) (pe
 
 Inductive ControlPosition :=
 | atCode (view : FrameView)
+| resolved (view : FrameView) (callee : nat)
 | entering (function : nat) (arguments : list Z).
 
 (* The countdown flags follow the counters, as the circuit computes them on the row
@@ -85,6 +86,23 @@ Definition ActiveState (program : Program) (s : store) (memory : MemoryState) (b
       (moved <= length (viewValues view))%nat /\
       c = frameConfig f view (stackConfig (mk_state s (activeFrame f (viewLocals view))) (viewValues view)
         (skipn (positionOffset position) (innerCode f position)))
+  (* The indirect call at the view's position has resolved to `callee`: its
+     reference, callee + 1, sits above the view's operands, where the table index
+     was. SpecTec has stepped to CALL_ADDR. *)
+  | resolved view callee => exists f g i,
+      let position := viewPosition view in
+      FrameAt program memory (boundaryStackBase boundary) (boundaryLocalsBase boundary) 1 0 0 f view /\
+      nth_error (innerCode f position) (positionOffset position) = Some i /\ isIndirect i = true /\
+      functionAt program callee = Some g /\ callsInto (programCallees program (guestModule f)) i g /\
+      memory stackId [2 * (boundaryStackBase boundary + Z.of_nat (length (viewOperands view)))] =
+        Some (Z.of_nat callee + 1) /\
+      boundarySP boundary = boundaryStackBase boundary + Z.of_nat (length (viewOperands view)) + 1 /\
+      boundaryPC boundary =
+        guestEntry f + Z.of_nat (pathOffset (guestBody f) (positionLabels position) (positionOffset position)) + 1 /\
+      initializationFlags boundary /\ boundaryZeroRemaining boundary = 0 /\ boundaryMoveRemaining boundary = 0 /\
+      c = frameConfig f view (stackPrefix (viewValues view)
+        (instructionSuffix (skipn (S (positionOffset position)) (innerCode f position))
+          (mk_config (mk_state s (activeFrame f (viewLocals view))) [CALL_ADDR (N.of_nat callee)])))
   | entering function arguments => exists f,
       functionAt program function = Some f /\ length arguments = guestParams f /\
       Forall (fun value => 0 <= value < i32Modulus) arguments /\
@@ -150,6 +168,7 @@ Record ControlCursor := controlCursor {
 Definition activeFunction (program : Program) (cursor : ControlPosition) : option GuestFunction :=
   match cursor with
   | atCode view => functionAt program (positionFunction (viewPosition view))
+  | resolved view _ => functionAt program (positionFunction (viewPosition view))
   | entering function _ => functionAt program function
   end.
 
@@ -168,6 +187,7 @@ Definition ControlState (program : Program) (s : store) (baseDepth : Z) (cursor 
 Definition positionFunctionIndex (position : ControlPosition) : nat :=
   match position with
   | atCode view => positionFunction (viewPosition view)
+  | resolved view _ => positionFunction (viewPosition view)
   | entering function _ => function
   end.
 

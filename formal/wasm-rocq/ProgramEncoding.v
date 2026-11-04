@@ -227,3 +227,32 @@ Proof.
   rewrite Hpos, (type_position_found u _ (first_seen_keeps _ [] u (or_intror Hu))) in Hfound.
   injection Hfound as ->. reflexivity.
 Qed.
+
+(* A function-type read of a nonzero id names a guest function of that type. *)
+Lemma function_type_read : forall program memory reference id,
+  programLoaded program memory -> memory functionTypeId [reference] = Some id -> 1 <= id ->
+  exists g, 1 <= reference /\ functionAt program (Z.to_nat (reference - 1)) = Some g /\
+    id = typeId (guestModule g) (guestType g).
+Proof.
+  intros program memory reference id Hloaded Hread Hid.
+  rewrite (Hloaded functionTypeId ltac:(unfold programRomIds; simpl; tauto)) in Hread.
+  injection Hread as Hread. unfold romValue, encodeProgram in Hread. cbn in Hread.
+  unfold functionRom in Hread.
+  destruct (reference <=? 0) eqn:Hpositive; [subst id; lia | ].
+  destruct (functionAt program (Z.to_nat (reference - 1))) as [g | ] eqn:Hg; [ | subst id; lia].
+  cbn in Hread. exists g. split; [apply Z.leb_gt in Hpositive; lia | ]. split; [reflexivity | ]. lia.
+Qed.
+
+Lemma type_id_positive : forall module t, 1 <= typeId module t.
+Proof. intros. unfold typeId. lia. Qed.
+
+Lemma function_type_rom : forall program memory index g,
+  programLoaded program memory -> functionAt program index = Some g ->
+  memory functionTypeId [Z.of_nat index + 1] = Some (typeId (guestModule g) (guestType g)).
+Proof.
+  intros program memory index g Hloaded Hg.
+  rewrite (Hloaded functionTypeId ltac:(unfold programRomIds; simpl; tauto)).
+  unfold romValue, encodeProgram. cbn. unfold functionRom.
+  replace (Z.of_nat index + 1 <=? 0) with false by (symmetry; apply Z.leb_gt; lia).
+  replace (Z.to_nat (Z.of_nat index + 1 - 1)) with index by lia. rewrite Hg. reflexivity.
+Qed.

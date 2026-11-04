@@ -318,6 +318,41 @@ Qed.
 
 (* A return's slot, or a br's to the function's label: the RETURN opcode, with a
    return-like edge. *)
+(* An indirect call's resolve slot: a static jump to its invocation, with the
+   table's store address and the expected type's id. *)
+Lemma encoded_path_resolve : forall labels inner offset x y,
+  pathCode (guestBody f) labels = Some inner -> nth_error inner offset = Some (CALL_INDIRECT x y) ->
+  controlImage memory (pathPC labels offset) CODE_CALL_INDIRECT_RESOLVE (pathPC labels offset + 1) /\
+  memory programTableId [pathPC labels offset] =
+    Some (romValue (option_map Z.of_N (nth_error (TABLES (guestModule f)) (N.to_nat (x :> N))))) /\
+  memory expectedTypeId [pathPC labels offset] =
+    Some (romValue (option_map (typeId (guestModule f)) (nth_error (TYPES (guestModule f)) (N.to_nat (y :> N))))).
+Proof.
+  intros labels inner offset x y Hpath Hi.
+  pose proof (encoded_path_head _ _ _ _ Hpath Hi) as Hpc. cbn [slotTargets] in Hpc.
+  split; [ | split].
+  - unfold controlImage; repeat split; try intro choice; pc_cell Hpc; try reflexivity;
+      destruct (choice =? 0); reflexivity.
+  - pc_cell Hpc. reflexivity.
+  - pc_cell Hpc. reflexivity.
+Qed.
+
+(* An indirect call's invocation slot, one past its resolve slot: the invocation
+   opcode, the dynamic edge kind, and its return to the slot after it. *)
+Lemma encoded_path_invoke : forall labels inner offset x y,
+  pathCode (guestBody f) labels = Some inner -> nth_error inner offset = Some (CALL_INDIRECT x y) ->
+  memory programOpcodeId [pathPC labels offset + 1] = Some CODE_CALL_INDIRECT /\
+  memory pcEdgeKindId [pathPC labels offset + 1] = Some 2 /\
+  memory pcRomId [pathPC labels offset + 1; 1] = Some (pathPC labels offset + 2).
+Proof.
+  intros labels inner offset x y Hpath Hi.
+  pose proof (encoded_slot _ _ _ _ _ Hf (flatten_at_invoke _ _ _ _ _ _ Hpath Hi)) as Hpc.
+  replace (guestEntry f + Z.of_nat (S (pathOffset (guestBody f) labels offset))) with (pathPC labels offset + 1)
+    in Hpc by (unfold pathPC; lia).
+  split; [ | split]; pc_cell Hpc; try reflexivity.
+  cbn. f_equal. lia.
+Qed.
+
 Lemma encoded_path_return : forall labels inner offset i,
   pathCode (guestBody f) labels = Some inner -> nth_error inner offset = Some i -> returnsFrom (length labels) i ->
   memory programOpcodeId [pathPC labels offset] = Some CODE_RETURN /\

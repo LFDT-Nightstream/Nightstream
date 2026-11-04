@@ -6,6 +6,7 @@ import CompressionLean.Final.RustSetup
 import CompressionLean.Checks.SetupFacts
 import CompressionLean.Checks.Runs
 import NightstreamFPrime.Lifecycle.Stage1.Poseidon2HashChainV1
+import CompressionLean.Final.OptionBIvc
 
 namespace CompressionLean.Claims
 
@@ -18,6 +19,8 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CoefficientKernel
 open CompressionLean.Circuit (Layer1Key)
 open CompressionLean.Final CompressionLean.Setup
+open NightstreamFPrime.Spec.HyperNova.ReverseStages (NifsAdversary NifsExtractor Stage Assumption1 Closed
+  reverseStages visitAfter)
 open NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.RingFPolynomial (modulus modulus_monic)
 
 theorem key_facts_of_check {key : Layer1Key} (pass : keyFailure key = none) : KeyFacts key :=
@@ -169,6 +172,182 @@ theorem option_b_parent_bound {lw : ℕ}
       Final.OptionB.parentHolds_of_holds program relation ajtai circuitKeys next width batches rest packed starts
         (fun slot => shapeOf (keys slot).relation) S barOf barOf_eq shape (fun slot => (facts slot).shape.blocks_le) honest holds) _ _ _ _ _ _ _ r).trans
     (option_b_bound _ stateKeys keys S facts fits describes fit keysLength L0 L1 h0 h1 t Ls p0 p1 rust calls prover)
+
+/-- `option_b_parent_bound` in the terms of option B's IVC walk (CW-10.1): the shrink layer accepts a
+statement while no last fold exists (`OptionB.LastFold`), with probability at most `calls / 2^t`. A
+last fold is a refresh step input with the statement's iteration and states and a nonzero
+iteration, the finish checks under the setup's keys, and witnesses of both next slots under their
+circuits' relations. The final program's state keys are the setup's key digests
+(`OptionB.KeysAre`). -/
+theorem option_b_last_fold_bound {lw : ℕ}
+    {pf : ringDegree * PaperAlgebra.publicRingColumns ≤ Phi81CarrierLayout.carrierWidth lw}
+    (program : Stage1.Application.Program) (relation : ProductionKey.LogicalRelation lw pf)
+    (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := lw) (publicFits := pf))
+    (circuitKeys : Fin 2 → Lifecycle.OptionB.CircuitKey lw pf) (next width : ℕ)
+    (batches : List NightstreamFPrime.Circuit.WitnessBatch) (rest : ℕ × ℕ × ℕ × ℕ)
+    (packed : Export.Generic.CircuitRelation.packable Export.Generic.CircuitRelation.publicColumns
+      (Export.OptionB.FinishRelation.pieces program relation) = true)
+    (starts : Export.Generic.CircuitRelation.startsFrom
+      (Layout.OptionB.RefreshAssembler.sharedEnd Export.OptionB.StepRelation.base program.witnessWordCount)
+      (Export.OptionB.FinishRelation.pieces program relation) = true)
+    (stateKeys : List Replay.Word) (keys : Fin 2 → Layer1Key) (S : Fin 2 → Layer1.Setup Gl)
+    (facts : ∀ slot, KeyFacts (keys slot)) (fits : ∀ slot, (S slot).Fits (shapeOf (keys slot).relation))
+    (describes : ∀ slot,
+      (structureOf (keys slot).relation.key.layout).Describes (shapeOf (keys slot).relation) (S slot))
+    (shape : ∀ slot, ParentShape (shapeOf (keys slot).relation) lw)
+    (honest : ∀ slot, HonestSetup (shapeOf (keys slot).relation) (S slot) (circuitKeys slot).relation ajtai)
+    (fit : OptionB.fits (OptionB.finishPackage program relation next width batches rest) = true)
+    (keysLength : stateKeys.length ≤ 8) (keyWords : OptionB.KeysAre stateKeys circuitKeys)
+    (keysShaped : ∀ key, (circuitKeys key).digest.length = 4)
+    (L0 L1 : ℕ) (h0 : 1 ≤ L0) (h1 : 1 ≤ L1) (t Ls : ℕ)
+    (p0 : ∀ slot, (L0 : ℝ) * L1 * Layer1.rustDegrees (shapeOf (keys slot).relation) / 2 ^ 191 ≤ 1 / 2 ^ (t + 1))
+    (p1 : ∀ slot, (L1 : ℝ) * (1 / 2) ^ ((shapeOf (keys slot).relation).queries - 1) ≤ 1 / 2 ^ (t + 1))
+    (rust : (Ls : ℝ) * Shrink.rustDegrees
+        (Shrink.Layout.rowVars Circuit.Block.poseidonTemplate
+          (OptionB.counts (OptionB.finishPackage program relation next width batches rest) stateKeys keys))
+        (Shrink.Layout.cellVars Circuit.Block.poseidonTemplate
+          (OptionB.counts (OptionB.finishPackage program relation next width batches rest) stateKeys keys))
+          / 2 ^ 191 ≤ 1 / 2 ^ t)
+    (calls : ℕ)
+    (prover : Game.Strategy (OptionB.Outcome Gl Cubic (game (keys 0) (S 0) L0 L1) (game (keys 1) (S 1) L0 L1))) :
+    Game.prob prover (OptionB.finalGame (OptionB.finishPackage program relation next width batches rest) stateKeys keys S L0 L1 Ls
+          calls)
+        (OptionB.RestoreBreak (F := Gl) (OptionB.LastFold program ajtai circuitKeys)
+          Circuit.Block.poseidonTemplate
+          (OptionB.counts (OptionB.finishPackage program relation next width batches rest) stateKeys keys)
+          (OptionB.shrinkRun (OptionB.finishPackage program relation next width batches rest) stateKeys keys)
+          (game (keys 0) (S 0) L0 L1) (game (keys 1) (S 1) L0 L1)
+          (OptionB.Reads (OptionB.finishPackage program relation next width batches rest) stateKeys keys 0
+            (S 0) L0 L1)
+          (OptionB.Reads (OptionB.finishPackage program relation next width batches rest) stateKeys keys 1
+            (S 1) L0 L1)) ≤
+      calls / 2 ^ t :=
+  (prob_mono prover _ fun r => Final.OptionB.restoreBreak_mono (fun _ holds =>
+      Final.OptionB.lastFold_of_holds program relation ajtai circuitKeys next width batches rest packed starts
+        (fun slot => shapeOf (keys slot).relation) S barOf barOf_eq shape (fun slot => (facts slot).shape.blocks_le)
+        honest keyWords keysShaped holds) _ _ _ _ _ _ _ r).trans
+    (option_b_bound _ stateKeys keys S facts fits describes fit keysLength L0 L1 h0 h1 t Ls p0 p1 rust calls prover)
+
+/-- Option B's final verifier and its IVC bound in one experiment (CW-10.1). The experiment draws an
+outcome of the final verifier's state-restoration experiment (`Game.law`), then the coins of the
+finish stage's extractor, then the coins of the reverse extractor's stages. The finish stage's NIFS
+adversary outputs the finish fold of the accepted statement's last fold
+(`OptionB.finishAdversary`), and Assumption 1 gives its extractor. The chain's IVC adversary
+outputs the terminal that the extractor's answer gives (`OptionB.chainAdversary`). When both are
+admitted, the final verifier accepts a statement whose iteration is at most `depth` and that no
+valid advice reaches with probability at most `calls / 2^t`, plus the finish stage's Assumption 1
+error, plus the terms of `Export.OptionB.IvcSecurity.probability_bound`. Both adversaries choose the
+last fold with `Classical.epsilon`: the compression claims prove that it exists, not that the final
+proof gives it. -/
+theorem option_b_ivc_bound {lw : ℕ}
+    {pf : ringDegree * PaperAlgebra.publicRingColumns ≤ Phi81CarrierLayout.carrierWidth lw}
+    {relation : ProductionKey.LogicalRelation lw pf}
+    {ajtai : PaperAlgebra.AjtaiKey (logicalWidth := lw) (publicFits := pf)}
+    {circuitKeys : Fin 2 → Lifecycle.OptionB.CircuitKey lw pf} {step : AppState → AppWitness → AppState}
+    {cubeFits : Phi81CarrierLayout.carrierWidth lw ≤ 2 ^ cubeVariables}
+    (exports : Export.OptionB.TerminalBridge.Exports relation ajtai circuitKeys step cubeFits) (next width : ℕ)
+    (batches : List NightstreamFPrime.Circuit.WitnessBatch) (rest : ℕ × ℕ × ℕ × ℕ)
+    (packed : Export.Generic.CircuitRelation.packable Export.Generic.CircuitRelation.publicColumns
+      (Export.OptionB.FinishRelation.pieces exports.program relation) = true)
+    (starts : Export.Generic.CircuitRelation.startsFrom
+      (Layout.OptionB.RefreshAssembler.sharedEnd Export.OptionB.StepRelation.base exports.program.witnessWordCount)
+      (Export.OptionB.FinishRelation.pieces exports.program relation) = true)
+    (stateKeys : List Replay.Word) (keys : Fin 2 → Layer1Key) (S : Fin 2 → Layer1.Setup Gl)
+    (facts : ∀ slot, KeyFacts (keys slot)) (fits : ∀ slot, (S slot).Fits (shapeOf (keys slot).relation))
+    (describes : ∀ slot,
+      (structureOf (keys slot).relation.key.layout).Describes (shapeOf (keys slot).relation) (S slot))
+    (shape : ∀ slot, ParentShape (shapeOf (keys slot).relation) lw)
+    (honest : ∀ slot, HonestSetup (shapeOf (keys slot).relation) (S slot) (circuitKeys slot).relation ajtai)
+    (fit : OptionB.fits (OptionB.finishPackage exports.program relation next width batches rest) = true)
+    (keysLength : stateKeys.length ≤ 8) (keyWords : OptionB.KeysAre stateKeys circuitKeys)
+    (keysShaped : ∀ key, (circuitKeys key).digest.length = 4)
+    (L0 L1 : ℕ) (h0 : 1 ≤ L0) (h1 : 1 ≤ L1) (t Ls : ℕ)
+    (p0 : ∀ slot, (L0 : ℝ) * L1 * Layer1.rustDegrees (shapeOf (keys slot).relation) / 2 ^ 191 ≤ 1 / 2 ^ (t + 1))
+    (p1 : ∀ slot, (L1 : ℝ) * (1 / 2) ^ ((shapeOf (keys slot).relation).queries - 1) ≤ 1 / 2 ^ (t + 1))
+    (rust : (Ls : ℝ) * Shrink.rustDegrees
+        (Shrink.Layout.rowVars Circuit.Block.poseidonTemplate
+          (OptionB.counts (OptionB.finishPackage exports.program relation next width batches rest) stateKeys keys))
+        (Shrink.Layout.cellVars Circuit.Block.poseidonTemplate
+          (OptionB.counts (OptionB.finishPackage exports.program relation next width batches rest) stateKeys keys))
+          / 2 ^ 191 ≤ 1 / 2 ^ t)
+    (calls : ℕ)
+    (prover : Game.Strategy (OptionB.Outcome Gl Cubic (game (keys 0) (S 0) L0 L1) (game (keys 1) (S 1) L0 L1)))
+    {Admitted : NifsAdversary (Export.OptionB.IvcWalk.WalkAttempt lw pf) → Prop}
+    {StageAdmitted : Stage (Export.OptionB.IvcWalk.Visit lw pf) (Export.OptionB.IvcWalk.Answer lw pf) → Prop}
+    {Efficient : (adversary : NifsAdversary (Export.OptionB.IvcWalk.WalkAttempt lw pf)) →
+      NifsExtractor (Export.OptionB.IvcWalk.Answer lw pf) adversary → Prop}
+    {error : NifsAdversary (Export.OptionB.IvcWalk.WalkAttempt lw pf) → ℝ}
+    (assumption : Assumption1 (Export.OptionB.IvcWalk.WalkSucceeds ajtai)
+      (Export.OptionB.IvcWalk.WalkExtracted ajtai) Admitted Efficient error)
+    (closed : Closed (Export.OptionB.IvcWalk.attemptOf ajtai circuitKeys exports)
+      (Export.OptionB.IvcWalk.back ajtai circuitKeys exports) Admitted StageAdmitted Efficient)
+    (finishAdmitted : Admitted (OptionB.finishAdversary exports.program ajtai circuitKeys
+        (Game.law prover (OptionB.finalGame (OptionB.finishPackage exports.program relation next width batches rest) stateKeys keys S L0 L1 Ls
+          calls)) fun r => OptionB.acceptedOf r.1))
+    (control : AppState → AppWitness → Fin 2) (cap depth : ℕ) :
+    ∃ extractor : NifsExtractor (Export.OptionB.IvcWalk.Answer lw pf) (OptionB.finishAdversary exports.program ajtai circuitKeys
+        (Game.law prover (OptionB.finalGame (OptionB.finishPackage exports.program relation next width batches rest) stateKeys keys S L0 L1 Ls
+          calls)) fun r => OptionB.acceptedOf r.1),
+      Efficient _ extractor ∧
+      ∀ admitted : StageAdmitted (Stage.start (Export.OptionB.IvcSecurity.walkAdversary
+        (OptionB.chainAdversary exports.program ajtai circuitKeys (Game.law prover (OptionB.finalGame (OptionB.finishPackage exports.program relation next width batches rest) stateKeys keys S L0 L1 Ls
+          calls))
+          (fun r => OptionB.acceptedOf r.1) extractor depth))),
+      Game.prob prover (OptionB.finalGame (OptionB.finishPackage exports.program relation next width batches rest) stateKeys keys S L0 L1 Ls
+          calls)
+          (OptionB.RestoreBreak (F := Gl) (fun x => depth < (x 0).val ∨ Export.OptionB.IvcWalk.Reaches exports.program (OptionB.terminalOf x))
+          Circuit.Block.poseidonTemplate
+          (OptionB.counts (OptionB.finishPackage exports.program relation next width batches rest) stateKeys keys)
+          (OptionB.shrinkRun (OptionB.finishPackage exports.program relation next width batches rest) stateKeys keys)
+          (game (keys 0) (S 0) L0 L1) (game (keys 1) (S 1) L0 L1)
+          (OptionB.Reads (OptionB.finishPackage exports.program relation next width batches rest) stateKeys keys 0
+            (S 0) L0 L1)
+          (OptionB.Reads (OptionB.finishPackage exports.program relation next width batches rest) stateKeys keys 1
+            (S 1) L0 L1)) ≤
+        calls / 2 ^ t + error (OptionB.finishAdversary exports.program ajtai circuitKeys
+        (Game.law prover (OptionB.finalGame (OptionB.finishPackage exports.program relation next width batches rest) stateKeys keys S L0 L1 Ls
+          calls)) fun r => OptionB.acceptedOf r.1) +
+          ∑ j : Fin depth,
+            (((reverseStages assumption closed (Export.OptionB.IvcSecurity.walkAdversary
+              (OptionB.chainAdversary exports.program ajtai circuitKeys (Game.law prover (OptionB.finalGame (OptionB.finishPackage exports.program relation next width batches rest) stateKeys keys S L0 L1 Ls
+          calls)) (fun r => OptionB.acceptedOf r.1)
+                extractor depth)) admitted j.val).1.tape.toOuterMeasure
+                {tape | Export.OptionB.IvcWalk.WalkCollision ajtai circuitKeys exports
+                  (visitAfter (Export.OptionB.IvcWalk.back ajtai circuitKeys exports)
+                    ((reverseStages assumption closed (Export.OptionB.IvcSecurity.walkAdversary
+              (OptionB.chainAdversary exports.program ajtai circuitKeys (Game.law prover (OptionB.finalGame (OptionB.finishPackage exports.program relation next width batches rest) stateKeys keys S L0 L1 Ls
+          calls)) (fun r => OptionB.acceptedOf r.1)
+                extractor depth)) admitted j.val).1.input tape) ((reverseStages assumption closed (Export.OptionB.IvcSecurity.walkAdversary
+              (OptionB.chainAdversary exports.program ajtai circuitKeys (Game.law prover (OptionB.finalGame (OptionB.finishPackage exports.program relation next width batches rest) stateKeys keys S L0 L1 Ls
+          calls)) (fun r => OptionB.acceptedOf r.1)
+                extractor depth)) admitted j.val).1.results tape))}).toReal +
+              error ((reverseStages assumption closed (Export.OptionB.IvcSecurity.walkAdversary
+              (OptionB.chainAdversary exports.program ajtai circuitKeys (Game.law prover (OptionB.finalGame (OptionB.finishPackage exports.program relation next width batches rest) stateKeys keys S L0 L1 Ls
+          calls)) (fun r => OptionB.acceptedOf r.1)
+                extractor depth)) admitted j.val).1.nifs (Export.OptionB.IvcWalk.attemptOf ajtai circuitKeys exports)
+                (Export.OptionB.IvcWalk.back ajtai circuitKeys exports))) := by
+  obtain ⟨extractor, efficient, extractionError⟩ := assumption _ finishAdmitted
+  refine ⟨extractor, efficient, fun admitted => ?_⟩
+  have compression := option_b_last_fold_bound exports.program relation ajtai circuitKeys next width batches rest
+    packed starts stateKeys keys S facts fits describes shape honest fit keysLength keyWords keysShaped L0 L1 h0 h1 t
+    Ls p0 p1 rust calls prover
+  have ivc := Export.OptionB.IvcSecurity.probability_bound ajtai circuitKeys exports assumption closed
+    (OptionB.chainAdversary exports.program ajtai circuitKeys (Game.law prover (OptionB.finalGame (OptionB.finishPackage exports.program relation next width batches rest) stateKeys keys S L0 L1 Ls
+          calls)) (fun r => OptionB.acceptedOf r.1) extractor
+      depth) admitted keysShaped control cap depth
+    (fun tape _ => Final.OptionB.chainOutput_iteration_le exports.program ajtai circuitKeys depth _ _)
+  rw [Game.prob_eq_law] at compression ⊢
+  refine (Final.OptionB.chain_le (Succeeds := Export.OptionB.IvcWalk.WalkSucceeds ajtai)
+    (Extracted := Export.OptionB.IvcWalk.WalkExtracted ajtai) _ extractor
+    (OptionB.chainAdversary exports.program ajtai circuitKeys (Game.law prover (OptionB.finalGame (OptionB.finishPackage exports.program relation next width batches rest) stateKeys keys S L0 L1 Ls
+          calls)) (fun r => OptionB.acceptedOf r.1) extractor
+      depth).output _ _ (Export.OptionB.IvcSecurity.FalseAcceptance ajtai circuitKeys exports control cap)
+    fun draw hit => Final.OptionB.chain_event exports keysShaped control cap depth _ _ extractor _ _
+      (fun r broken => ?_) draw hit).trans (add_le_add (add_le_add compression extractionError) ivc)
+  obtain ⟨x, acceptedEq, notClaim, weaker⟩ := Final.OptionB.restoreBreak_accepted
+    (Claim' := OptionB.LastFold exports.program ajtai circuitKeys) _ _ _ _ _ _ _ r broken
+  exact ⟨x, acceptedEq, Nat.le_of_not_lt fun deep => notClaim (Or.inl deep),
+    fun reached => notClaim (Or.inr reached), weaker⟩
 
 /-- Soundness of `OptionB::verify_final` for the Poseidon2 hash chain (`option_b_parent_bound`). Each
 circuit key's relation is that of the circuit whose pieces its emitted step package holds

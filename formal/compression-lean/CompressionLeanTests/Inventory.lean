@@ -11,6 +11,8 @@ def claims : List (Name × List Name) := [
   (`CompressionLean.Claims.key_facts_of_check, standardAxioms),
   (`CompressionLean.Claims.option_b_bound, standardAxioms),
   (`CompressionLean.Claims.option_b_parent_bound, standardAxioms),
+  (`CompressionLean.Claims.option_b_last_fold_bound, standardAxioms),
+  (`CompressionLean.Claims.option_b_ivc_bound, standardAxioms),
   (`CompressionLean.Claims.option_b_shape_of_check, standardAxioms),
   (`CompressionLean.Claims.option_b_setup_facts_of_check, standardAxioms),
   (`CompressionLean.Claims.option_b_logical_of_check, standardAxioms),
@@ -78,15 +80,32 @@ def premises : List (Name × List Premise) :=
     ⟨`fit, .leanValue, "`optionBCheck` evaluates `fits` on the finish package that it decodes from the artifact and stops when it fails."⟩,
     ⟨`keysLength, .rustFiles, "`optionBCheck` requires eight state key words in the log that `option_b_final_program_matches_lean` writes; `FinalProgram::keys` is `[[F; 4]; 2]`."⟩,
     h0, h1, p0, p1, rust]
-  [(`CompressionLean.Claims.key_facts_of_check, [⟨`pass, .rustFiles,
-      "`lowerCheck` evaluates `keyFailure` on both layer-1 keys that `option_b_layer1_keys_are_written` writes. `option_b_layer1_matches_lean` requires the pass."⟩]),
-    (`CompressionLean.Claims.option_b_bound, optionB),
-    (`CompressionLean.Claims.option_b_parent_bound, optionB ++ [
+  let parent : List Premise := optionB ++ [
       ⟨`pf, .proved, "F′ proves it for the key width (`StepRelation.keyPublicFits`, in `option_b_poseidon2_bound`)."⟩,
       ⟨`packed, .proved, "`option_b_poseidon2_bound` gives it from F′'s emitter at the key width. Open for other widths."⟩,
       ⟨`starts, .proved, "As `packed`."⟩,
       ⟨`shape, .proved, "`option_b_poseidon2_bound` gives it from `KeyFacts` and the pass of `optionBCheck` (`option_b_shape_of_check`). Open for other applications."⟩,
-      ⟨`honest, .proved, "`option_b_poseidon2_bound` gives it from the passes of `setupCheck` and `runsCheck` (`option_b_honest_of_check`, `option_b_runs_of_check`). Open for other applications."⟩]),
+      ⟨`honest, .proved, "`option_b_poseidon2_bound` gives it from the passes of `setupCheck` and `runsCheck` (`option_b_honest_of_check`, `option_b_runs_of_check`). Open for other applications."⟩]
+  let lastFold : List Premise := optionB.filter (fun p => p.binder != `fits && p.binder != `describes) ++ [
+      ⟨`fits, .rustFiles, "For the setups that Rust builds from each key's runs (`OptionB.keySetup`), `option_b_setup_facts_of_check` turns the pass of `setupCheck` into it."⟩,
+      ⟨`describes, .rustFiles, "As `fits`."⟩,
+      ⟨`pf, .proved, "F′ proves it for the key width (`StepRelation.keyPublicFits`)."⟩,
+      ⟨`packed, .leanValue, "F′'s emitter evaluates `packable` on the finish relation's pieces (`EmitMain.emitPackage`) and writes no package when it fails."⟩,
+      ⟨`starts, .leanValue, "As `packed`, for `startsFrom` at the shared end."⟩,
+      ⟨`shape, .rustFiles, "`option_b_shape_of_check` turns `KeyFacts` and the pass of `optionBCheck` into it."⟩,
+      ⟨`honest, .rustFiles, "`option_b_honest_of_check` turns the passes of `setupCheck` and `runsCheck` into it (`option_b_runs_of_check`)."⟩,
+      ⟨`keyWords, .rust, "`OptionB::new` derives `self.keys` from the packages' identity (`option_b/mod.rs`). The step states hash these digests, and `OptionB::final_program` gives the same digests to the final program (`compression.rs`). No Lean check compares them with the setup's circuit keys."⟩,
+      ⟨`keysShaped, .rust, "Rust's key digests have four words: `FinalProgram::keys` is `[[F; 4]; 2]`."⟩]
+  [(`CompressionLean.Claims.key_facts_of_check, [⟨`pass, .rustFiles,
+      "`lowerCheck` evaluates `keyFailure` on both layer-1 keys that `option_b_layer1_keys_are_written` writes. `option_b_layer1_matches_lean` requires the pass."⟩]),
+    (`CompressionLean.Claims.option_b_bound, optionB),
+    (`CompressionLean.Claims.option_b_parent_bound, parent),
+    (`CompressionLean.Claims.option_b_last_fold_bound, lastFold),
+    (`CompressionLean.Claims.option_b_ivc_bound, lastFold ++ [
+      ⟨`cubeFits, .proved, "F′ proves it at the key width (`StepRelation.keyCubeFits`)."⟩,
+      ⟨`assumption, .unmet, "HyperNova errata Assumption 1 for the light and refresh folds with Poseidon2 inside the step circuits (`SECURITY_MODEL.md`, trust item 3). `romAssumption1` proves it only in a random-oracle model of the two folds."⟩,
+      ⟨`closed, .unmet, "The closure premise of HyperNova Lemma 17 for the reverse extractor's stages (`SECURITY_MODEL.md`, trust item 3)."⟩,
+      ⟨`finishAdmitted, .unmet, "The finish stage's adversary runs the final verifier's experiment and outputs the last fold that `Classical.epsilon` chooses. The claims prove that a last fold exists. No claim computes one from the final proof, so this premise asks for knowledge soundness of the final verifier. The claim's conclusion asks the same of the chain's IVC adversary (`admitted`)."⟩]),
     (`CompressionLean.Claims.option_b_shape_of_check, [
       ⟨`facts, .rustFiles, "As `option_b_bound`'s `facts`."⟩,
       ⟨`pass, .rustFiles, optionBWidth⟩]),

@@ -118,6 +118,24 @@ a refresh step input whose counter and states are the statement, with `FinishHol
 next slots hold under their circuits' relations (SuperNeo v1.2 Definition 21). It reads the finish
 package as the one that F′'s emitter writes (`Spec.OptionB.finishPackage`).
 
+`option_b_last_fold_bound` gives the same bound for the claim in the terms of F′'s IVC walk
+(`Spec.OptionB.LastFold`). It is the claim of `option_b_parent_bound` with a nonzero iteration and
+the finish checks under the setup's keys. The final program reads the key digests from its state
+keys, and the premise `keyWords` makes the state keys the setup's digests.
+
+`option_b_ivc_bound` joins the final verifier with F′'s IVC bound
+(`Export.OptionB.IvcSecurity.probability_bound`) in one experiment. The experiment draws an outcome
+of the final verifier's experiment (`Game.law`), then the coins of the finish stage's extractor,
+then the coins of the reverse extractor's stages. The finish fold is the first stage of the walk.
+An answer that extracts it makes the last fold's input a terminal that `Terminal.HoldsFor` accepts
+(`FinishWalk.holdsFor_of_extracted`). Three premises are open: HyperNova errata Assumption 1 for
+the folds with Poseidon2, the closure premise of the stages, and that the finish stage's adversary
+and the chain's IVC adversary are admitted. Both adversaries choose the last fold with
+`Classical.epsilon`. The claims prove that a last fold exists. They do not extract one from the
+final proof. So "admitted" asks for knowledge soundness of the final verifier, which no claim
+proves. The experiment's oracle is independent of Poseidon2 (section 3), while Assumption 1 is
+about the folds' Poseidon2 transcripts.
+
 `option_b_poseidon2_bound` meets every premise for the Poseidon2 hash chain. One logical width is
 shared by the finish circuit's relation argument and both circuit keys: the key width
 `StepRelation.keyWidth = 2^26`, which is at least each step circuit's logical width (the emitter

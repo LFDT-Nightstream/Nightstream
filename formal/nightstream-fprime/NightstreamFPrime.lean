@@ -123,6 +123,7 @@ import NightstreamFPrime.Export.OptionB.IvcWalk
 import NightstreamFPrime.Export.OptionB.RomWalk
 import NightstreamFPrime.Export.OptionB.RandomOracleSetup
 import NightstreamFPrime.Export.OptionB.IvcSecurity
+import NightstreamFPrime.Export.OptionB.FinishWalk
 import NightstreamFPrime.Export.OptionB.NebulaSecurity
 import NightstreamFPrime.Export.OptionB.FinishRelation
 import NightstreamFPrime.Export.OptionB.Parity

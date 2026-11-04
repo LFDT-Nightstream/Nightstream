@@ -42,6 +42,7 @@ import NightstreamFPrime.Export.OptionB.StepPackage
 import NightstreamFPrime.Export.Generic.SlotLayout
 import NightstreamFPrime.Export.OptionB.TerminalBridge
 import NightstreamFPrime.Export.OptionB.IvcSecurity
+import NightstreamFPrime.Export.OptionB.FinishWalk
 import NightstreamFPrime.Export.OptionB.NebulaSecurity
 import NightstreamFPrime.Export.OptionB.FinishRelation
 import NightstreamFPrime.Lifecycle.OptionB.Terminal
@@ -454,6 +455,13 @@ example : (runDepths 2 (fun _ => 0) 1 (List.replicate 3 [0, 0, 1]).flatten).isNo
 #audit_axioms NightstreamFPrime.Export.OptionB.IvcWalk.walk_leads
 #audit_axioms NightstreamFPrime.Export.OptionB.IvcWalk.covered
 #audit_axioms NightstreamFPrime.Export.OptionB.IvcSecurity.probability_bound
+#audit_axioms NightstreamFPrime.Export.OptionB.FinishWalk.attempt_succeeds
+#audit_axioms NightstreamFPrime.Export.OptionB.FinishWalk.holdsFor_of_extracted
+#audit_axioms NightstreamFPrime.Export.OptionB.FinishWalk.finish_relaxed
+#audit_axioms NightstreamFPrime.Export.OptionB.FinishWalk.finish_covered
+#audit_axioms NightstreamFPrime.Export.OptionB.FinishWalk.finish_walk_covered
+#audit_axioms NightstreamFPrime.Export.OptionB.FinishWalk.refresh_wellFormed
+#audit_axioms NightstreamFPrime.Export.OptionB.FinishWalk.refresh_valid
 #audit_axioms NightstreamFPrime.Export.OptionB.NebulaSecurity.leads_length
 #audit_axioms NightstreamFPrime.Export.OptionB.NebulaSecurity.history_of_leads
 #audit_axioms NightstreamFPrime.Export.OptionB.NebulaSecurity.stage1Extraction

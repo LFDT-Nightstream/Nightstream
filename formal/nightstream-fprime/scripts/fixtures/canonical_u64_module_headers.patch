@@ -1,0 +1,129 @@
+diff --git a/formal/nightstream-fprime/NightstreamFPrime/Circuit/Basic.lean b/formal/nightstream-fprime/NightstreamFPrime/Circuit/Basic.lean
+--- a/formal/nightstream-fprime/NightstreamFPrime/Circuit/Basic.lean
++++ b/formal/nightstream-fprime/NightstreamFPrime/Circuit/Basic.lean
+@@ -1,5 +1,9 @@
+-import Mathlib.Data.ZMod.Basic
+-import NightstreamFPrime.Spec.Algebra
++module
++
++public import Mathlib.Data.ZMod.Basic
++public import NightstreamFPrime.Spec.Algebra
++
++@[expose] public section
+ 
+ /-!
+ Owns the circuit DSL: expressions over offset-indexed variables, the three
+diff --git a/formal/nightstream-fprime/NightstreamFPrime/Circuit/Sequence.lean b/formal/nightstream-fprime/NightstreamFPrime/Circuit/Sequence.lean
+--- a/formal/nightstream-fprime/NightstreamFPrime/Circuit/Sequence.lean
++++ b/formal/nightstream-fprime/NightstreamFPrime/Circuit/Sequence.lean
+@@ -1,4 +1,8 @@
+-import NightstreamFPrime.Circuit.StraightLine
++module
++
++public import NightstreamFPrime.Circuit.StraightLine
++
++@[expose] public section
+ 
+ /-!
+ Owns the proof-only sequencing rule for opaque `FormalCircuit` children.
+diff --git a/formal/nightstream-fprime/NightstreamFPrime/Circuit/StraightLine.lean b/formal/nightstream-fprime/NightstreamFPrime/Circuit/StraightLine.lean
+--- a/formal/nightstream-fprime/NightstreamFPrime/Circuit/StraightLine.lean
++++ b/formal/nightstream-fprime/NightstreamFPrime/Circuit/StraightLine.lean
+@@ -1,4 +1,8 @@
+-import NightstreamFPrime.Circuit.Basic
++module
++
++public import NightstreamFPrime.Circuit.Basic
++
++@[expose] public section
+ 
+ /-!
+ Owns execution and correctness of the canonical straight-line witness IR.
+diff --git a/formal/nightstream-fprime/NightstreamFPrime/Circuit/VariableSupport.lean b/formal/nightstream-fprime/NightstreamFPrime/Circuit/VariableSupport.lean
+--- a/formal/nightstream-fprime/NightstreamFPrime/Circuit/VariableSupport.lean
++++ b/formal/nightstream-fprime/NightstreamFPrime/Circuit/VariableSupport.lean
+@@ -1,4 +1,8 @@
+-import NightstreamFPrime.Circuit.StraightLine
++module
++
++public import NightstreamFPrime.Circuit.StraightLine
++
++@[expose] public section
+ 
+ /-!
+ Owns a generic predicate for the variable indices read by one circuit
+diff --git a/formal/nightstream-fprime/NightstreamFPrime/Gadgets/Range/CanonicalPublicU64.lean b/formal/nightstream-fprime/NightstreamFPrime/Gadgets/Range/CanonicalPublicU64.lean
+--- a/formal/nightstream-fprime/NightstreamFPrime/Gadgets/Range/CanonicalPublicU64.lean
++++ b/formal/nightstream-fprime/NightstreamFPrime/Gadgets/Range/CanonicalPublicU64.lean
+@@ -1,5 +1,9 @@
+-import NightstreamFPrime.Circuit.Sequence
+-import NightstreamFPrime.Gadgets.Range.CanonicalU64
++module
++
++public import NightstreamFPrime.Circuit.Sequence
++public import NightstreamFPrime.Gadgets.Range.CanonicalU64
++
++@[expose] public section
+ 
+ /-!
+ Owns the binding between one canonical Goldilocks word and 64 caller-owned
+diff --git a/formal/nightstream-fprime/NightstreamFPrime/Gadgets/Range/CanonicalU64.lean b/formal/nightstream-fprime/NightstreamFPrime/Gadgets/Range/CanonicalU64.lean
+--- a/formal/nightstream-fprime/NightstreamFPrime/Gadgets/Range/CanonicalU64.lean
++++ b/formal/nightstream-fprime/NightstreamFPrime/Gadgets/Range/CanonicalU64.lean
+@@ -1,6 +1,10 @@
+-import Mathlib.Data.Nat.Digits.Lemmas
+-import NightstreamFPrime.Circuit.VariableSupport
+-import NightstreamFPrime.Spec.GoldilocksPrime
++module
++
++public import Mathlib.Data.Nat.Digits.Lemmas
++public import NightstreamFPrime.Circuit.VariableSupport
++public import NightstreamFPrime.Spec.GoldilocksPrime
++
++@[expose] public section
+ 
+ /-!
+ Owns the exact canonical 64-bit decomposition of one Goldilocks field value.
+diff --git a/formal/nightstream-fprime/NightstreamFPrime/Spec/Algebra.lean b/formal/nightstream-fprime/NightstreamFPrime/Spec/Algebra.lean
+--- a/formal/nightstream-fprime/NightstreamFPrime/Spec/Algebra.lean
++++ b/formal/nightstream-fprime/NightstreamFPrime/Spec/Algebra.lean
+@@ -1,3 +1,7 @@
++module
++
++@[expose] public section
++
+ /-!
+ Owns the concrete Goldilocks algebra of the production profile: the field
+ `F`, its quadratic extension `K = F[X]/(X² − 7)`, the cyclotomic rings
+diff --git a/formal/nightstream-fprime/NightstreamFPrime/Spec/Folding/PiCCS/PaperJoint/NormRange.lean b/formal/nightstream-fprime/NightstreamFPrime/Spec/Folding/PiCCS/PaperJoint/NormRange.lean
+--- a/formal/nightstream-fprime/NightstreamFPrime/Spec/Folding/PiCCS/PaperJoint/NormRange.lean
++++ b/formal/nightstream-fprime/NightstreamFPrime/Spec/Folding/PiCCS/PaperJoint/NormRange.lean
+@@ -1,4 +1,8 @@
+-import NightstreamFPrime.Spec.Algebra
++module
++
++public import NightstreamFPrime.Spec.Algebra
++
++@[expose] public section
+ 
+ /-! Provenance: copied from `formal/nightstream-lean/Nightstream/SuperNeo/Folding/PiCCS/PaperJoint/NormRange.lean`
+ at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherwise unchanged. -/
+diff --git a/formal/nightstream-fprime/NightstreamFPrime/Spec/GoldilocksPrime.lean b/formal/nightstream-fprime/NightstreamFPrime/Spec/GoldilocksPrime.lean
+--- a/formal/nightstream-fprime/NightstreamFPrime/Spec/GoldilocksPrime.lean
++++ b/formal/nightstream-fprime/NightstreamFPrime/Spec/GoldilocksPrime.lean
+@@ -1,7 +1,11 @@
+-import Mathlib.NumberTheory.LucasPrimality
+-import Mathlib.Tactic.NormNum.Prime
+-import NightstreamFPrime.Spec.Algebra
+-import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.NormRange
++module
++
++public import Mathlib.NumberTheory.LucasPrimality
++public import Mathlib.Tactic.NormNum.Prime
++public import NightstreamFPrime.Spec.Algebra
++public import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.NormRange
++
++@[expose] public section
+ 
+ /-!
+ Owns the kernel-checked Lucas certificate that the Goldilocks modulus is prime

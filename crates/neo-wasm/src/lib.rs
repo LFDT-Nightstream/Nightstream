@@ -17,10 +17,12 @@ mod memory_activation;
 mod memory_id;
 mod memory_routing;
 pub mod memory_semantics;
+pub mod nebula;
 #[doc(hidden)]
 pub mod preprocess;
 pub mod range_check;
 pub mod relation_layout;
+mod sparse_r1cs;
 pub mod tables;
 pub mod tagged_r1cs_builder;
 pub mod witness_builder;
@@ -53,12 +55,9 @@ pub use layout::{column_families, named_column_family, Column, ColumnFamilySpec,
 pub use lookup_circuit::{audit_compact_lookup_auxiliary_load_bearing, audit_compact_lookup_witness};
 pub use lookup_semantics::{sanity_check_lookup_row, LookupBuiltin, LookupExpr, LookupPredicate, LookupSemantics};
 pub use memory_id::WasmMemoryId;
-pub use memory_routing::{plan_wasm_memory_slots, WasmMemorySlotPlan};
+pub use memory_routing::{plan_ordered_wasm_memory_slots, plan_wasm_memory_slots, WasmMemorySlotPlan};
 pub use memory_semantics::{preload_from_program_artifacts, sanity_check_memory_rows, WasmMemoryPreload};
-pub use preprocess::{
-    host_event_top_level_initial_state, host_event_top_level_initial_state_digest, preprocess_seeded_batched,
-    semantic_state_digest, top_level_initial_state, top_level_initial_state_digest,
-};
+pub use preprocess::{continuity_words, host_event_top_level_initial_state, top_level_initial_state};
 pub use range_check::write_range_check_bits;
 pub use relation_layout::{
     build_wasm_relation_layout, LinearMemoryColumns, SignExtensionColumns, WasmAuxiliaryRelations,

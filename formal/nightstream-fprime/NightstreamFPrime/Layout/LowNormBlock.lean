@@ -1,0 +1,276 @@
+import NightstreamFPrime.Layout.LowNormAssignment
+import NightstreamFPrime.Layout.ProductionRelation.RetainedSlot
+
+namespace NightstreamFPrime.Layout.LowNormBlock
+
+open NightstreamFPrime.Spec
+open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
+open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
+open NightstreamFPrime.Layout.ProductionRelation
+
+structure Block (sourceWidth : Nat) where
+  kind : LowNormSlot.Kind
+  slotCount : Nat
+  source : Fin slotCount → Fin sourceWidth
+
+namespace Block
+
+def lift {sourceWidth largerWidth : Nat} (block : Block sourceWidth)
+    (fits : sourceWidth ≤ largerWidth) : Block largerWidth where
+  kind := block.kind
+  slotCount := block.slotCount
+  source := fun slot =>
+    ⟨(block.source slot).val,
+      Nat.lt_of_lt_of_le (block.source slot).isLt fits⟩
+
+@[simp] theorem lift_kind {sourceWidth largerWidth : Nat}
+    (block : Block sourceWidth) (fits : sourceWidth ≤ largerWidth) :
+    (block.lift fits).kind = block.kind := by
+  rfl
+
+@[simp] theorem lift_slotCount {sourceWidth largerWidth : Nat}
+    (block : Block sourceWidth) (fits : sourceWidth ≤ largerWidth) :
+    (block.lift fits).slotCount = block.slotCount := by
+  rfl
+
+@[simp] theorem lift_source_val {sourceWidth largerWidth : Nat}
+    (block : Block sourceWidth) (fits : sourceWidth ≤ largerWidth)
+    (slot : Fin block.slotCount) :
+    ((block.lift fits).source ⟨slot.val, by simp⟩).val =
+      (block.source slot).val := by
+  rfl
+
+def slice {sourceWidth : Nat} (block : Block sourceWidth)
+    (offset count : Nat) (fits : offset + count ≤ block.slotCount) :
+    Block sourceWidth where
+  kind := block.kind
+  slotCount := count
+  source := fun slot =>
+    block.source ⟨offset + slot.val, by
+      exact Nat.lt_of_lt_of_le (Nat.add_lt_add_left slot.isLt offset) fits⟩
+
+@[simp] theorem slice_kind {sourceWidth : Nat} (block : Block sourceWidth)
+    (offset count : Nat) (fits : offset + count ≤ block.slotCount) :
+    (block.slice offset count fits).kind = block.kind := by
+  rfl
+
+@[simp] theorem slice_slotCount {sourceWidth : Nat}
+    (block : Block sourceWidth) (offset count : Nat)
+    (fits : offset + count ≤ block.slotCount) :
+    (block.slice offset count fits).slotCount = count := by
+  rfl
+
+theorem slice_source {sourceWidth : Nat} (block : Block sourceWidth)
+    (offset count : Nat) (fits : offset + count ≤ block.slotCount)
+    (slot : Fin count) :
+    (block.slice offset count fits).source slot =
+      block.source ⟨offset + slot.val, by
+        exact Nat.lt_of_lt_of_le (Nat.add_lt_add_left slot.isLt offset) fits⟩ := by
+  rfl
+
+private theorem sum_ofFn_const (count value : Nat) :
+    (List.ofFn fun _ : Fin count => value).sum = count * value := by
+  induction count with
+  | zero => simp
+  | succ count inductionHypothesis =>
+      simp [List.ofFn_succ, Nat.succ_mul, Nat.add_comm]
+
+def coordinateCount {sourceWidth : Nat} (block : Block sourceWidth) : Nat :=
+  block.slotCount * block.kind.width
+
+@[simp] theorem lift_coordinateCount {sourceWidth largerWidth : Nat}
+    (block : Block sourceWidth) (fits : sourceWidth ≤ largerWidth) :
+    (block.lift fits).coordinateCount = block.coordinateCount := by
+  rfl
+
+@[simp] theorem slice_coordinateCount {sourceWidth : Nat}
+    (block : Block sourceWidth) (offset count : Nat)
+    (fits : offset + count ≤ block.slotCount) :
+    (block.slice offset count fits).coordinateCount = count * block.kind.width := by
+  rfl
+
+@[implicit_reducible]
+def expanded {sourceWidth : Nat} (block : Block sourceWidth) :
+    List (LowNormAssignment.Slot sourceWidth) :=
+  List.ofFn fun slot =>
+    { source := block.source slot
+      kind := block.kind }
+
+@[simp] theorem expanded_length {sourceWidth : Nat}
+    (block : Block sourceWidth) :
+    block.expanded.length = block.slotCount := by
+  simp [expanded]
+
+theorem expanded_logicalWidth {sourceWidth : Nat}
+    (block : Block sourceWidth) :
+    LowNormAssignment.logicalWidth block.expanded = block.coordinateCount := by
+  unfold LowNormAssignment.logicalWidth expanded
+  rw [List.map_ofFn]
+  change
+    (List.ofFn fun _ : Fin block.slotCount => block.kind.width).sum =
+      block.slotCount * block.kind.width
+  exact sum_ofFn_const block.slotCount block.kind.width
+
+def coordinateOffset {sourceWidth : Nat} (block : Block sourceWidth)
+    (slot : Fin block.slotCount) (coordinate : Fin block.kind.width) :
+    Fin block.coordinateCount :=
+  ⟨slot.val * block.kind.width + coordinate.val, by
+    unfold coordinateCount
+    have slotSucc : slot.val + 1 ≤ block.slotCount := by omega
+    calc
+      slot.val * block.kind.width + coordinate.val <
+          slot.val * block.kind.width + block.kind.width :=
+        Nat.add_lt_add_left coordinate.isLt _
+      _ = (slot.val + 1) * block.kind.width := by ring
+      _ ≤ block.slotCount * block.kind.width :=
+        Nat.mul_le_mul_right block.kind.width slotSucc⟩
+
+def column {sourceWidth logicalWidth : Nat} (block : Block sourceWidth)
+    (start : Nat) (fits : start + block.coordinateCount ≤ logicalWidth)
+    (slot : Fin block.slotCount) (coordinate : Fin block.kind.width) :
+    Fin logicalWidth :=
+  ⟨start + (block.coordinateOffset slot coordinate).val, by
+    have offsetBound := (block.coordinateOffset slot coordinate).isLt
+    omega⟩
+
+def EncodesAt {sourceWidth logicalWidth : Nat} (block : Block sourceWidth)
+    (start : Nat) (fits : start + block.coordinateCount ≤ logicalWidth)
+    (assignment : Assignment F logicalWidth)
+    (source : Fin sourceWidth → F) : Prop :=
+  ∀ slot coordinate,
+    assignment (block.column start fits slot coordinate) =
+      LowNormSlot.coordinate block.kind (source (block.source slot)) coordinate
+
+theorem encodesAt_lift
+    {sourceWidth largerWidth logicalWidth : Nat}
+    (block : Block sourceWidth) (sourceFits : sourceWidth ≤ largerWidth)
+    (start : Nat) (fits : start + block.coordinateCount ≤ logicalWidth)
+    (liftedFits : start + (block.lift sourceFits).coordinateCount ≤
+      logicalWidth)
+    (assignment : Assignment F logicalWidth)
+    (source : Fin sourceWidth → F) (largerSource : Fin largerWidth → F)
+    (encodes : block.EncodesAt start fits assignment source)
+    (agrees : ∀ slot : Fin block.slotCount,
+      largerSource ((block.lift sourceFits).source slot) =
+        source (block.source slot)) :
+    (block.lift sourceFits).EncodesAt start liftedFits assignment
+      largerSource := by
+  intro slot coordinate
+  change assignment (block.column start fits slot coordinate) =
+    LowNormSlot.coordinate block.kind
+      (largerSource ((block.lift sourceFits).source slot)) coordinate
+  rw [agrees slot]
+  exact encodes slot coordinate
+
+theorem encodesAt_slice
+    {sourceWidth logicalWidth : Nat}
+    (block : Block sourceWidth) (offset count : Nat)
+    (slotFits : offset + count ≤ block.slotCount)
+    (start : Nat) (fits : start + block.coordinateCount ≤ logicalWidth)
+    (sliceFits : start + offset * block.kind.width +
+        (block.slice offset count slotFits).coordinateCount ≤ logicalWidth)
+    (assignment : Assignment F logicalWidth) (source : Fin sourceWidth → F)
+    (encodes : block.EncodesAt start fits assignment source) :
+    (block.slice offset count slotFits).EncodesAt
+      (start + offset * block.kind.width) sliceFits assignment source := by
+  intro slot coordinate
+  let parentSlot : Fin block.slotCount :=
+    ⟨offset + slot.val, by
+      exact Nat.lt_of_lt_of_le (Nat.add_lt_add_left slot.isLt offset)
+        slotFits⟩
+  have columnEq :
+      (block.slice offset count slotFits).column
+          (start + offset * block.kind.width) sliceFits slot coordinate =
+        block.column start fits parentSlot coordinate := by
+    apply Fin.ext
+    unfold column coordinateOffset parentSlot
+    simp only [slice_kind]
+    ring
+  erw [columnEq, slice_source]
+  exact encodes parentSlot coordinate
+
+theorem encodesAt_start_eq
+    {sourceWidth logicalWidth : Nat} (block : Block sourceWidth)
+    (leftStart rightStart : Nat) (startEq : leftStart = rightStart)
+    (leftFits : leftStart + block.coordinateCount ≤ logicalWidth)
+    (rightFits : rightStart + block.coordinateCount ≤ logicalWidth)
+    (assignment : Assignment F logicalWidth) (source : Fin sourceWidth → F)
+    (encodes : block.EncodesAt leftStart leftFits assignment source) :
+    block.EncodesAt rightStart rightFits assignment source := by
+  cases startEq
+  exact encodes
+
+def form {sourceWidth logicalWidth : Nat} (block : Block sourceWidth)
+    (start : Nat) (fits : start + block.coordinateCount ≤ logicalWidth)
+    (slot : Fin block.slotCount) : SparseForm logicalWidth :=
+  RetainedSlot.recomposeForms <| List.ofFn fun coordinate =>
+    SparseForm.singleton (block.column start fits slot coordinate) 1
+
+theorem form_eq_of_coordinates
+    {leftSourceWidth rightSourceWidth logicalWidth : Nat}
+    (left : LowNormBlock.Block leftSourceWidth)
+    (right : LowNormBlock.Block rightSourceWidth)
+    (leftStart rightStart : Nat)
+    (leftFits : leftStart + left.coordinateCount ≤ logicalWidth)
+    (rightFits : rightStart + right.coordinateCount ≤ logicalWidth)
+    (leftSlot : Fin left.slotCount) (rightSlot : Fin right.slotCount)
+    (kindEq : left.kind = right.kind)
+    (offsetEq : leftStart + leftSlot.val * left.kind.width =
+      rightStart + rightSlot.val * right.kind.width) :
+    left.form leftStart leftFits leftSlot =
+      right.form rightStart rightFits rightSlot := by
+  cases left with
+  | mk leftKind leftCount leftSource =>
+    cases right with
+    | mk rightKind rightCount rightSource =>
+      cases kindEq
+      unfold LowNormBlock.Block.form
+      apply congrArg RetainedSlot.recomposeForms
+      apply congrArg List.ofFn
+      funext coordinate
+      apply congrArg (fun column => SparseForm.singleton column (1 : F))
+      apply Fin.ext
+      simpa only [LowNormBlock.Block.column, LowNormBlock.Block.coordinateOffset,
+        Nat.add_assoc] using congrArg (fun value => value + coordinate.val) offsetEq
+
+theorem form_eval {sourceWidth logicalWidth : Nat} (block : Block sourceWidth)
+    (start : Nat) (fits : start + block.coordinateCount ≤ logicalWidth)
+    (assignment : Assignment F logicalWidth)
+    (source : Fin sourceWidth → F) (encodes : block.EncodesAt start fits assignment source)
+    (slot : Fin block.slotCount) :
+    (block.form start fits slot).eval assignment = source (block.source slot) := by
+  rw [form, RetainedSlot.recomposeForms_eval]
+  have coordinates :
+      (List.ofFn fun coordinate : Fin block.kind.width =>
+        SparseForm.singleton (block.column start fits slot coordinate) 1).map
+          (fun value => value.eval assignment) =
+        LowNormSlot.encode block.kind (source (block.source slot)) := by
+    rw [List.map_ofFn]
+    calc
+      List.ofFn (fun coordinate : Fin block.kind.width =>
+          (SparseForm.singleton
+            (block.column start fits slot coordinate) 1).eval assignment) =
+          List.ofFn (LowNormSlot.coordinate block.kind
+            (source (block.source slot))) := by
+        apply congrArg List.ofFn
+        funext coordinate
+        simp [encodes slot coordinate]
+      _ = LowNormSlot.encode block.kind (source (block.source slot)) :=
+        LowNormSlot.coordinateList_eq_encode _ _
+  rw [coordinates]
+  exact LowNormSlot.recompose_encode _ _
+
+theorem expanded_kind {sourceWidth : Nat} (block : Block sourceWidth)
+    (slot : Fin block.expanded.length) :
+    (block.expanded.get slot).kind = block.kind := by
+  simp [expanded]
+
+theorem expanded_source {sourceWidth : Nat} (block : Block sourceWidth)
+    (slot : Fin block.slotCount) :
+    (block.expanded.get ⟨slot.val, by simp⟩).source =
+      block.source slot := by
+  simp [expanded]
+
+end Block
+
+end NightstreamFPrime.Layout.LowNormBlock

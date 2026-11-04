@@ -1,0 +1,127 @@
+import Batteries.Data.Fin.Coding
+import NightstreamFPrime.Layout.MatrixProgram.AffineGrid
+import NightstreamFPrime.Layout.ProductionRelation.MultiplicationFamilyPlan
+
+namespace NightstreamFPrime.Layout.MatrixProgram.MultiplicationGrid
+
+open NightstreamFPrime.Layout
+open NightstreamFPrime.Layout.ProductionRelation
+
+structure Shape where
+  majorCount : Nat
+  middleCount : Nat
+  minorCount : Nat
+deriving Repr, DecidableEq
+
+def Shape.rowCount (shape : Shape) : Nat :=
+  shape.majorCount * (shape.middleCount * shape.minorCount)
+
+def Shape.coordinate? (shape : Shape) (ordinal : Nat) :
+    Option AffineGrid.Coordinate :=
+  if bound : ordinal < shape.rowCount then
+    let outer : Fin (shape.majorCount *
+        (shape.middleCount * shape.minorCount)) := ⟨ordinal, bound⟩
+    let decoded := Fin.decodeProd outer
+    let inner := Fin.decodeProd decoded.2
+    some {
+      major := decoded.1.val
+      middle := inner.1.val
+      minor := inner.2.val }
+  else none
+
+theorem Shape.coordinate?_of_coordinates (shape : Shape)
+    (major : Fin shape.majorCount) (middle : Fin shape.middleCount)
+    (minor : Fin shape.minorCount) :
+    shape.coordinate?
+        (Fin.encodeProd (major, Fin.encodeProd (middle, minor))).val =
+      some { major := major.val, middle := middle.val, minor := minor.val } := by
+  unfold coordinate?
+  change (if bound :
+      (Fin.encodeProd (major, Fin.encodeProd (middle, minor))).val <
+        shape.majorCount * (shape.middleCount * shape.minorCount) then
+      let outer : Fin (shape.majorCount *
+          (shape.middleCount * shape.minorCount)) :=
+        ⟨(Fin.encodeProd (major, Fin.encodeProd (middle, minor))).val, bound⟩
+      let decoded := Fin.decodeProd outer
+      let inner := Fin.decodeProd decoded.2
+      some (AffineGrid.Coordinate.mk decoded.1.val inner.1.val inner.2.val)
+    else none) = _
+  rw [dite_eq_left (Fin.encodeProd (major,
+    Fin.encodeProd (middle, minor))).isLt]
+  simp only
+  rw [Fin.decodeProd_encodeProd, Fin.decodeProd_encodeProd]
+
+structure Block where
+  shape : Shape
+  oneColumn : Nat
+  left : AffineGrid.Program
+  right : AffineGrid.Program
+  output : AffineGrid.Program
+deriving Repr, DecidableEq
+
+def Block.rowCount (block : Block) : Nat := block.shape.rowCount
+
+def Block.row? (block : Block) (logicalWidth ordinal : Nat) :
+    Option (OrdinaryRow.Forms logicalWidth) := do
+  if block.oneColumn < logicalWidth then
+    let coordinate ← block.shape.coordinate? ordinal
+    let left ← block.left.form? logicalWidth block.oneColumn coordinate
+    let right ← block.right.form? logicalWidth block.oneColumn coordinate
+    let output ← block.output.form? logicalWidth block.oneColumn coordinate
+    pure {
+      a := left
+      b := right
+      c := output }
+  else none
+
+theorem Block.row?_of_results (block : Block) {logicalWidth : Nat}
+    (oneColumn : Fin logicalWidth) (oneEqual : block.oneColumn = oneColumn.val)
+    (major : Fin block.shape.majorCount)
+    (middle : Fin block.shape.middleCount)
+    (minor : Fin block.shape.minorCount)
+    (left right output : SparseForm logicalWidth)
+    (leftLoaded : block.left.form? logicalWidth block.oneColumn
+      { major := major.val, middle := middle.val, minor := minor.val } =
+        some left)
+    (rightLoaded : block.right.form? logicalWidth block.oneColumn
+      { major := major.val, middle := middle.val, minor := minor.val } =
+        some right)
+    (outputLoaded : block.output.form? logicalWidth block.oneColumn
+      { major := major.val, middle := middle.val, minor := minor.val } =
+        some output) :
+    block.row? logicalWidth
+        (Fin.encodeProd (major, Fin.encodeProd (middle, minor))).val =
+      some {
+        a := left
+        b := right
+        c := output } := by
+  have leftLoaded' : block.left.form? logicalWidth oneColumn.val
+      { major := major.val, middle := middle.val, minor := minor.val } =
+        some left := by
+    simpa [oneEqual] using leftLoaded
+  have rightLoaded' : block.right.form? logicalWidth oneColumn.val
+      { major := major.val, middle := middle.val, minor := minor.val } =
+        some right := by
+    simpa [oneEqual] using rightLoaded
+  have outputLoaded' : block.output.form? logicalWidth oneColumn.val
+      { major := major.val, middle := middle.val, minor := minor.val } =
+        some output := by
+    simpa [oneEqual] using outputLoaded
+  unfold Block.row?
+  rw [oneEqual, ite_eq_left oneColumn.isLt]
+  rw [Shape.coordinate?_of_coordinates]
+  change (do
+    let loadedLeft ← block.left.form? logicalWidth oneColumn.val
+      { major := major.val, middle := middle.val, minor := minor.val }
+    let loadedRight ← block.right.form? logicalWidth oneColumn.val
+      { major := major.val, middle := middle.val, minor := minor.val }
+    let loadedOutput ← block.output.form? logicalWidth oneColumn.val
+      { major := major.val, middle := middle.val, minor := minor.val }
+    pure ({
+      a := loadedLeft
+      b := loadedRight
+      c := loadedOutput } : OrdinaryRow.Forms logicalWidth)) = _
+  rw [leftLoaded', rightLoaded', outputLoaded']
+  rfl
+
+end NightstreamFPrime.Layout.MatrixProgram.MultiplicationGrid

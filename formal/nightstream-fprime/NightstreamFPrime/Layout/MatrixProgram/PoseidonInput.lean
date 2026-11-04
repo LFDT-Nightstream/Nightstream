@@ -1,0 +1,516 @@
+import Mathlib.Tactic.FinCases
+import NightstreamFPrime.Layout.MatrixProgram
+import NightstreamFPrime.Layout.MatrixProgram.Affine
+import NightstreamFPrime.Layout.ProductionRelation.PoseidonSboxPlan
+
+namespace NightstreamFPrime.Layout.MatrixProgram.PoseidonInput
+
+open NightstreamFPrime.Layout
+open NightstreamFPrime.Layout.ProductionRelation
+open NightstreamFPrime.Spec
+open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
+
+structure Region where
+  invocationStart : Nat
+  invocationCount : Nat
+  laneStart : Nat
+  laneCount : Nat
+deriving Repr, DecidableEq
+
+def Region.offsets? (region : Region) (invocation lane : Nat) :
+    Option (Nat × Nat) :=
+  if region.invocationStart ≤ invocation then
+    let invocationOffset := invocation - region.invocationStart
+    if invocationOffset < region.invocationCount then
+      if region.laneStart ≤ lane then
+        let laneOffset := lane - region.laneStart
+        if laneOffset < region.laneCount then
+          some (invocationOffset, laneOffset)
+        else none
+      else none
+    else none
+  else none
+
+theorem Region.offsets?_of_offsets (region : Region)
+    (invocationOffset : Fin region.invocationCount)
+    (laneOffset : Fin region.laneCount) :
+    region.offsets?
+        (region.invocationStart + invocationOffset.val)
+        (region.laneStart + laneOffset.val) =
+      some (invocationOffset.val, laneOffset.val) := by
+  unfold Region.offsets?
+  rw [ite_eq_left (by omega)]
+  rw [show region.invocationStart + invocationOffset.val -
+      region.invocationStart = invocationOffset.val by omega]
+  rw [ite_eq_left invocationOffset.isLt, ite_eq_left (by omega)]
+  rw [show region.laneStart + laneOffset.val - region.laneStart =
+      laneOffset.val by omega]
+  rw [ite_eq_left laneOffset.isLt]
+
+structure OptionalConstantTable where
+  values : Array (Option Nat)
+deriving Repr, DecidableEq
+
+def OptionalConstantTable.value? (table : OptionalConstantTable)
+    (index : Nat) : Option (Option Nat) :=
+  table.values[index]?
+
+def OptionalConstantTable.ofSemantic {count : Nat}
+    (value : Fin count → Option F) : OptionalConstantTable where
+  values := Array.ofFn fun index =>
+    (value index).map fun coefficient => coefficient.val
+
+@[simp] theorem OptionalConstantTable.value?_ofSemantic {count : Nat}
+    (value : Fin count → Option F) (index : Fin count) :
+    (OptionalConstantTable.ofSemantic value).value? index.val =
+      some ((value index).map fun coefficient => coefficient.val) := by
+  simp [OptionalConstantTable.value?, OptionalConstantTable.ofSemantic]
+
+inductive Term where
+  | retained (block : RetainedBlock) (slotBase invocationStride laneStride : Nat)
+  | constant (coefficient : Nat)
+  | external (block : RetainedBlock) (slotBase invocationStride : Nat)
+  | optionalConstant (values : OptionalConstantTable) (laneCount : Nat)
+  | affine (values : Affine.Table) (substitution : SourceSubstitution)
+      (laneCount : Nat)
+deriving Repr, DecidableEq
+
+def Term.form? (term : Term) (logicalWidth oneColumn : Nat)
+    (invocationOffset laneOffset : Nat) : Option (SparseForm logicalWidth) :=
+  match term with
+  | .retained block slotBase invocationStride laneStride =>
+      block.form? logicalWidth
+        (slotBase + invocationOffset * invocationStride +
+          laneOffset * laneStride)
+  | .constant coefficient =>
+      if oneBound : oneColumn < logicalWidth then
+        if coefficientBound : coefficient < Spec.goldilocksModulus then
+          some (SparseForm.singleton ⟨oneColumn, oneBound⟩
+            ⟨coefficient, coefficientBound⟩)
+        else none
+      else none
+  | .external block slotBase invocationStride => do
+      block.externalForm? logicalWidth
+        (slotBase + invocationOffset * invocationStride) laneOffset
+  | .optionalConstant values laneCount =>
+      match values.value? (invocationOffset * laneCount + laneOffset) with
+      | none => none
+      | some none => some SparseForm.empty
+      | some (some coefficient) =>
+          if oneBound : oneColumn < logicalWidth then
+            if coefficientBound : coefficient < Spec.goldilocksModulus then
+              some (SparseForm.singleton ⟨oneColumn, oneBound⟩
+                ⟨coefficient, coefficientBound⟩)
+            else none
+          else none
+  | .affine values substitution laneCount =>
+      values.compile? substitution logicalWidth oneColumn
+        (invocationOffset * laneCount + laneOffset)
+
+theorem Term.retained_form?_ofSemantic
+    {sourceWidth logicalWidth : Nat}
+    (block : LowNormBlock.Block sourceWidth) (retainedStart : Nat)
+    (fits : retainedStart + block.coordinateCount ≤ logicalWidth)
+    (oneColumn slotBase invocationStride laneStride
+      invocationOffset laneOffset : Nat)
+    (slotBound : slotBase + invocationOffset * invocationStride +
+      laneOffset * laneStride < block.slotCount) :
+    (Term.retained (RetainedBlock.ofSemantic block retainedStart) slotBase
+      invocationStride laneStride).form? logicalWidth oneColumn
+        invocationOffset laneOffset =
+      some (block.form retainedStart fits
+        ⟨slotBase + invocationOffset * invocationStride +
+          laneOffset * laneStride, slotBound⟩) := by
+  change (RetainedBlock.ofSemantic block retainedStart).form? logicalWidth
+      (slotBase + invocationOffset * invocationStride +
+        laneOffset * laneStride) = _
+  exact RetainedBlock.form?_ofSemantic block retainedStart fits
+    ⟨slotBase + invocationOffset * invocationStride +
+      laneOffset * laneStride, slotBound⟩
+
+theorem Term.constant_form? {logicalWidth : Nat}
+    (oneColumn : Fin logicalWidth) (coefficient : F)
+    (invocationOffset laneOffset : Nat) :
+    (Term.constant coefficient.val).form? logicalWidth oneColumn.val
+        invocationOffset laneOffset =
+      some (SparseForm.singleton oneColumn coefficient) := by
+  change (if oneBound : oneColumn.val < logicalWidth then
+      if coefficientBound : coefficient.val < goldilocksModulus then
+        some (SparseForm.singleton ⟨oneColumn.val, oneBound⟩
+          ⟨coefficient.val, coefficientBound⟩)
+      else none
+    else none) = _
+  rw [dite_eq_left oneColumn.isLt, dite_eq_left coefficient.isLt]
+
+theorem Term.affine_form?_ofSemantic
+    {logicalWidth invocationCount laneCount : Nat}
+    (combinations : Fin (invocationCount * laneCount) → R1CS.LinearCombination)
+    (substitution : SourceSubstitution) (oneColumn : Fin logicalWidth)
+    (invocation : Fin invocationCount) (lane : Fin laneCount) :
+    (Term.affine (Affine.Table.ofSemantic combinations) substitution
+      laneCount).form? logicalWidth oneColumn.val invocation.val lane.val =
+      Ordinary.compileCombination? substitution oneColumn
+        (combinations (Fin.encodeProd (invocation, lane))) := by
+  change (Affine.Table.ofSemantic combinations).compile? substitution logicalWidth
+    oneColumn.val (invocation.val * laneCount + lane.val) = _
+  have indexEq : invocation.val * laneCount + lane.val =
+      (Fin.encodeProd (invocation, lane)).val := by
+    change invocation.val * laneCount + lane.val = laneCount * invocation.val + lane.val
+    rw [Nat.mul_comm invocation.val laneCount]
+  rw [indexEq]
+  exact Affine.Table.compile?_ofSemantic combinations substitution oneColumn
+    (Fin.encodeProd (invocation, lane))
+
+theorem Term.optionalConstant_form?_ofSemantic_of_some
+    {logicalWidth count : Nat} (oneColumn : Fin logicalWidth)
+    (value : Fin count → Option F) (laneCount invocationOffset laneOffset : Nat)
+    (index : Fin count)
+    (indexEq : invocationOffset * laneCount + laneOffset = index.val)
+    (coefficient : F) (found : value index = some coefficient) :
+    (Term.optionalConstant (OptionalConstantTable.ofSemantic value)
+      laneCount).form? logicalWidth oneColumn.val invocationOffset laneOffset =
+      some (SparseForm.singleton oneColumn coefficient) := by
+  change (match (OptionalConstantTable.ofSemantic value).value?
+      (invocationOffset * laneCount + laneOffset) with
+    | none => none
+    | some none => some SparseForm.empty
+    | some (some encoded) =>
+        if oneBound : oneColumn.val < logicalWidth then
+          if coefficientBound : encoded < goldilocksModulus then
+            some (SparseForm.singleton ⟨oneColumn.val, oneBound⟩
+              ⟨encoded, coefficientBound⟩)
+          else none
+        else none) = _
+  rw [indexEq, OptionalConstantTable.value?_ofSemantic, found]
+  simp [oneColumn.isLt, coefficient.isLt]
+
+theorem Term.optionalConstant_form?_ofSemantic_of_none
+    {logicalWidth count : Nat} (oneColumn : Nat)
+    (value : Fin count → Option F) (laneCount invocationOffset laneOffset : Nat)
+    (index : Fin count)
+    (indexEq : invocationOffset * laneCount + laneOffset = index.val)
+    (found : value index = none) :
+    (Term.optionalConstant (OptionalConstantTable.ofSemantic value)
+      laneCount).form? logicalWidth oneColumn invocationOffset laneOffset =
+      some .empty := by
+  change (match (OptionalConstantTable.ofSemantic value).value?
+      (invocationOffset * laneCount + laneOffset) with
+    | none => none
+    | some none => some SparseForm.empty
+    | some (some encoded) =>
+        if oneBound : oneColumn < logicalWidth then
+          if coefficientBound : encoded < goldilocksModulus then
+            some (SparseForm.singleton ⟨oneColumn, oneBound⟩
+              ⟨encoded, coefficientBound⟩)
+          else none
+        else none) = _
+  rw [indexEq, OptionalConstantTable.value?_ofSemantic, found]
+  simp
+
+theorem Term.external_form?_ofSemantic
+    {sourceWidth logicalWidth : Nat}
+    (block : LowNormBlock.Block sourceWidth) (retainedStart : Nat)
+    (fits : retainedStart + block.coordinateCount ≤ logicalWidth)
+    (oneColumn slotBase invocationStride invocationOffset : Nat)
+    (slotBound : ∀ lane : Fin 16,
+      slotBase + invocationOffset * invocationStride + lane.val <
+        block.slotCount)
+    (lane : Fin 16) :
+    (Term.external (RetainedBlock.ofSemantic block retainedStart) slotBase
+      invocationStride).form? logicalWidth oneColumn invocationOffset lane.val =
+      some (SparseLayer.external (fun selected : Fin 16 =>
+        block.form retainedStart fits
+          ⟨slotBase + invocationOffset * invocationStride + selected.val,
+            slotBound selected⟩) lane) := by
+  simpa [Nat.add_assoc] using!
+    RetainedBlock.externalForm?_ofSemantic block retainedStart fits
+      (slotBase + invocationOffset * invocationStride)
+      (fun selected => by simpa [Nat.add_assoc] using slotBound selected) lane
+
+structure Rule where
+  region : Region
+  term : Term
+deriving Repr, DecidableEq
+
+def Rule.form? (rule : Rule) (logicalWidth oneColumn invocation lane : Nat) :
+    Option (Option (SparseForm logicalWidth)) :=
+  match rule.region.offsets? invocation lane with
+  | none => some none
+  | some offsets => do
+      pure (some (← rule.term.form? logicalWidth oneColumn offsets.1 offsets.2))
+
+theorem Rule.form?_eq_some_none (rule : Rule)
+    (logicalWidth oneColumn invocation lane : Nat)
+    (outside : rule.region.offsets? invocation lane = none) :
+    rule.form? logicalWidth oneColumn invocation lane = some none := by
+  unfold Rule.form?
+  rw [outside]
+
+theorem Rule.retained_form?_ofSemantic
+    {sourceWidth logicalWidth : Nat}
+    (region : Region) (invocationOffset : Fin region.invocationCount)
+    (laneOffset : Fin region.laneCount)
+    (block : LowNormBlock.Block sourceWidth) (retainedStart : Nat)
+    (fits : retainedStart + block.coordinateCount ≤ logicalWidth)
+    (oneColumn slotBase invocationStride laneStride : Nat)
+    (slotBound : slotBase + invocationOffset.val * invocationStride +
+      laneOffset.val * laneStride < block.slotCount) :
+    (Rule.mk region (.retained (RetainedBlock.ofSemantic block retainedStart)
+      slotBase invocationStride laneStride)).form? logicalWidth oneColumn
+        (region.invocationStart + invocationOffset.val)
+        (region.laneStart + laneOffset.val) =
+      some (some (block.form retainedStart fits
+        ⟨slotBase + invocationOffset.val * invocationStride +
+          laneOffset.val * laneStride, slotBound⟩)) := by
+  unfold Rule.form?
+  rw [Region.offsets?_of_offsets region invocationOffset laneOffset]
+  simp only
+  rw [Term.retained_form?_ofSemantic block retainedStart fits oneColumn
+    slotBase invocationStride laneStride invocationOffset.val laneOffset.val
+    slotBound]
+  rfl
+
+theorem Rule.constant_form?
+    {logicalWidth : Nat} (region : Region)
+    (invocationOffset : Fin region.invocationCount)
+    (laneOffset : Fin region.laneCount)
+    (oneColumn : Fin logicalWidth) (coefficient : F) :
+    (Rule.mk region (.constant coefficient.val)).form? logicalWidth
+        oneColumn.val (region.invocationStart + invocationOffset.val)
+        (region.laneStart + laneOffset.val) =
+      some (some (SparseForm.singleton oneColumn coefficient)) := by
+  unfold Rule.form?
+  rw [Region.offsets?_of_offsets region invocationOffset laneOffset]
+  simp only
+  rw [Term.constant_form? oneColumn coefficient]
+  rfl
+
+theorem Rule.external_form?_ofSemantic
+    {sourceWidth logicalWidth : Nat}
+    (region : Region) (invocationOffset : Fin region.invocationCount)
+    (laneOffset : Fin region.laneCount) (laneBound : laneOffset.val < 16)
+    (block : LowNormBlock.Block sourceWidth) (retainedStart : Nat)
+    (fits : retainedStart + block.coordinateCount ≤ logicalWidth)
+    (oneColumn slotBase invocationStride : Nat)
+    (slotBound : ∀ lane : Fin 16,
+      slotBase + invocationOffset.val * invocationStride + lane.val <
+        block.slotCount) :
+    (Rule.mk region (.external (RetainedBlock.ofSemantic block retainedStart)
+      slotBase invocationStride)).form? logicalWidth oneColumn
+        (region.invocationStart + invocationOffset.val)
+        (region.laneStart + laneOffset.val) =
+      some (some (SparseLayer.external (fun selected : Fin 16 =>
+        block.form retainedStart fits
+          ⟨slotBase + invocationOffset.val * invocationStride + selected.val,
+            slotBound selected⟩) ⟨laneOffset.val, laneBound⟩)) := by
+  unfold Rule.form?
+  rw [Region.offsets?_of_offsets region invocationOffset laneOffset]
+  simp only
+  rw [Term.external_form?_ofSemantic block retainedStart fits oneColumn
+    slotBase invocationStride invocationOffset.val slotBound
+    ⟨laneOffset.val, laneBound⟩]
+  rfl
+
+theorem Rule.optionalConstant_form?_ofSemantic_of_some
+    {logicalWidth count : Nat} (region : Region)
+    (invocationOffset : Fin region.invocationCount)
+    (laneOffset : Fin region.laneCount) (oneColumn : Fin logicalWidth)
+    (value : Fin count → Option F) (laneCount : Nat) (index : Fin count)
+    (indexEq : invocationOffset.val * laneCount + laneOffset.val = index.val)
+    (coefficient : F) (found : value index = some coefficient) :
+    (Rule.mk region (.optionalConstant
+      (OptionalConstantTable.ofSemantic value) laneCount)).form?
+        logicalWidth oneColumn.val
+        (region.invocationStart + invocationOffset.val)
+        (region.laneStart + laneOffset.val) =
+      some (some (SparseForm.singleton oneColumn coefficient)) := by
+  unfold Rule.form?
+  rw [Region.offsets?_of_offsets region invocationOffset laneOffset]
+  simp only
+  rw [Term.optionalConstant_form?_ofSemantic_of_some oneColumn value
+    laneCount invocationOffset.val laneOffset.val index indexEq coefficient found]
+  rfl
+
+theorem Rule.optionalConstant_form?_ofSemantic_of_none
+    {logicalWidth count : Nat} (region : Region)
+    (invocationOffset : Fin region.invocationCount)
+    (laneOffset : Fin region.laneCount) (oneColumn : Nat)
+    (value : Fin count → Option F) (laneCount : Nat) (index : Fin count)
+    (indexEq : invocationOffset.val * laneCount + laneOffset.val = index.val)
+    (found : value index = none) :
+    (Rule.mk region (.optionalConstant
+      (OptionalConstantTable.ofSemantic value) laneCount)).form?
+        logicalWidth oneColumn
+        (region.invocationStart + invocationOffset.val)
+        (region.laneStart + laneOffset.val) =
+      some (some .empty) := by
+  unfold Rule.form?
+  rw [Region.offsets?_of_offsets region invocationOffset laneOffset]
+  simp only
+  rw [Term.optionalConstant_form?_ofSemantic_of_none oneColumn value
+    laneCount invocationOffset.val laneOffset.val index indexEq found]
+  rfl
+
+structure Program where
+  rules : List Rule
+deriving Repr, DecidableEq
+
+private def applyRules? {logicalWidth : Nat} (oneColumn invocation lane : Nat) :
+    List Rule → SparseForm logicalWidth → Option (SparseForm logicalWidth)
+  | [], accumulated => some accumulated
+  | rule :: rest, accumulated => do
+      let selected ← rule.form? logicalWidth oneColumn invocation lane
+      selected.elim
+        (applyRules? oneColumn invocation lane rest accumulated)
+        (fun value => applyRules? oneColumn invocation lane rest
+          (SparseForm.add accumulated value))
+
+def Program.form? (program : Program) (logicalWidth oneColumn invocation lane : Nat) :
+    Option (SparseForm logicalWidth) :=
+  applyRules? oneColumn invocation lane program.rules .empty
+
+theorem Program.singleton_form?_of_selected {logicalWidth : Nat}
+    (rule : Rule) (oneColumn invocation lane : Nat)
+    (value : SparseForm logicalWidth)
+    (selected : rule.form? logicalWidth oneColumn invocation lane =
+      some (some value)) :
+    (Program.mk [rule]).form? logicalWidth oneColumn invocation lane =
+      some value := by
+  unfold Program.form? applyRules?
+  rw [selected]
+  rfl
+
+theorem Program.two_form?_of_results {logicalWidth : Nat}
+    (rule0 rule1 : Rule) (oneColumn invocation lane : Nat)
+    (value0 value1 : Option (SparseForm logicalWidth))
+    (result0 : rule0.form? logicalWidth oneColumn invocation lane = some value0)
+    (result1 : rule1.form? logicalWidth oneColumn invocation lane = some value1) :
+    (Program.mk [rule0, rule1]).form? logicalWidth oneColumn invocation lane =
+      some (
+        let accumulated0 :=
+          value0.elim SparseForm.empty (SparseForm.add SparseForm.empty)
+        value1.elim accumulated0 (SparseForm.add accumulated0)) := by
+  cases value0 <;> cases value1 <;>
+    simp [Program.form?, applyRules?, result0, result1]
+
+theorem Program.three_form?_of_results {logicalWidth : Nat}
+    (rule0 rule1 rule2 : Rule) (oneColumn invocation lane : Nat)
+    (value0 value1 value2 : Option (SparseForm logicalWidth))
+    (result0 : rule0.form? logicalWidth oneColumn invocation lane = some value0)
+    (result1 : rule1.form? logicalWidth oneColumn invocation lane = some value1)
+    (result2 : rule2.form? logicalWidth oneColumn invocation lane = some value2) :
+    (Program.mk [rule0, rule1, rule2]).form? logicalWidth oneColumn
+        invocation lane =
+      some (
+        let accumulated0 :=
+          value0.elim SparseForm.empty (SparseForm.add SparseForm.empty)
+        let accumulated1 :=
+          value1.elim accumulated0 (SparseForm.add accumulated0)
+        value2.elim accumulated1 (SparseForm.add accumulated1)) := by
+  cases value0 <;> cases value1 <;> cases value2 <;>
+    simp [Program.form?, applyRules?, result0, result1, result2]
+
+theorem Program.four_form?_of_results {logicalWidth : Nat}
+    (rule0 rule1 rule2 rule3 : Rule)
+    (oneColumn invocation lane : Nat)
+    (value0 value1 value2 value3 : Option (SparseForm logicalWidth))
+    (result0 : rule0.form? logicalWidth oneColumn invocation lane = some value0)
+    (result1 : rule1.form? logicalWidth oneColumn invocation lane = some value1)
+    (result2 : rule2.form? logicalWidth oneColumn invocation lane = some value2)
+    (result3 : rule3.form? logicalWidth oneColumn invocation lane = some value3) :
+    (Program.mk [rule0, rule1, rule2, rule3]).form? logicalWidth oneColumn
+        invocation lane =
+      some (
+        let accumulated0 :=
+          value0.elim SparseForm.empty (SparseForm.add SparseForm.empty)
+        let accumulated1 :=
+          value1.elim accumulated0 (SparseForm.add accumulated0)
+        let accumulated2 :=
+          value2.elim accumulated1 (SparseForm.add accumulated1)
+        value3.elim accumulated2 (SparseForm.add accumulated2)) := by
+  cases value0 <;> cases value1 <;> cases value2 <;> cases value3 <;>
+    simp [Program.form?, applyRules?, result0, result1, result2, result3]
+
+private theorem applyRules?_of_allOutside {logicalWidth : Nat}
+    (oneColumn invocation lane : Nat) (rules : List Rule)
+    (accumulated : SparseForm logicalWidth)
+    (outside : ∀ rule ∈ rules,
+      rule.region.offsets? invocation lane = none) :
+    applyRules? oneColumn invocation lane rules accumulated =
+      some accumulated := by
+  induction rules generalizing accumulated with
+  | nil => rfl
+  | cons rule rest inductionHypothesis =>
+      have headOutside := outside rule (by simp)
+      have tailOutside : ∀ candidate ∈ rest,
+          candidate.region.offsets? invocation lane = none := by
+        intro candidate member
+        exact outside candidate (by simp [member])
+      unfold applyRules?
+      rw [Rule.form?_eq_some_none rule logicalWidth oneColumn invocation lane
+        headOutside]
+      exact inductionHypothesis accumulated tailOutside
+
+theorem Program.form?_eq_some_empty_of_allOutside
+    (program : Program) (logicalWidth oneColumn invocation lane : Nat)
+    (outside : ∀ rule ∈ program.rules,
+      rule.region.offsets? invocation lane = none) :
+    program.form? logicalWidth oneColumn invocation lane = some .empty := by
+  exact applyRules?_of_allOutside oneColumn invocation lane program.rules
+    .empty outside
+
+private def fixedState16 {Alpha : Type}
+    (lane0 lane1 lane2 lane3 lane4 lane5 lane6 lane7 lane8 lane9 lane10 lane11 lane12 lane13 lane14 lane15 : Alpha) :
+    Fin 16 → Alpha :=
+  fun lane =>
+    [lane0, lane1, lane2, lane3, lane4, lane5, lane6, lane7,
+      lane8, lane9, lane10, lane11, lane12, lane13, lane14, lane15].get
+      ⟨lane.val, by simp⟩
+
+def Program.state? (program : Program) (logicalWidth oneColumn invocation : Nat) :
+    Option (PoseidonSboxPlan.State logicalWidth) := do
+  let lane0 ← program.form? logicalWidth oneColumn invocation 0
+  let lane1 ← program.form? logicalWidth oneColumn invocation 1
+  let lane2 ← program.form? logicalWidth oneColumn invocation 2
+  let lane3 ← program.form? logicalWidth oneColumn invocation 3
+  let lane4 ← program.form? logicalWidth oneColumn invocation 4
+  let lane5 ← program.form? logicalWidth oneColumn invocation 5
+  let lane6 ← program.form? logicalWidth oneColumn invocation 6
+  let lane7 ← program.form? logicalWidth oneColumn invocation 7
+  let lane8 ← program.form? logicalWidth oneColumn invocation 8
+  let lane9 ← program.form? logicalWidth oneColumn invocation 9
+  let lane10 ← program.form? logicalWidth oneColumn invocation 10
+  let lane11 ← program.form? logicalWidth oneColumn invocation 11
+  let lane12 ← program.form? logicalWidth oneColumn invocation 12
+  let lane13 ← program.form? logicalWidth oneColumn invocation 13
+  let lane14 ← program.form? logicalWidth oneColumn invocation 14
+  let lane15 ← program.form? logicalWidth oneColumn invocation 15
+  pure (fixedState16 lane0 lane1 lane2 lane3 lane4 lane5 lane6 lane7 lane8 lane9 lane10 lane11 lane12 lane13 lane14 lane15)
+
+theorem Program.state?_eq_some
+    (program : Program) (logicalWidth oneColumn invocation : Nat)
+    (state : PoseidonSboxPlan.State logicalWidth)
+    (lane0 : program.form? logicalWidth oneColumn invocation 0 = some (state 0))
+    (lane1 : program.form? logicalWidth oneColumn invocation 1 = some (state 1))
+    (lane2 : program.form? logicalWidth oneColumn invocation 2 = some (state 2))
+    (lane3 : program.form? logicalWidth oneColumn invocation 3 = some (state 3))
+    (lane4 : program.form? logicalWidth oneColumn invocation 4 = some (state 4))
+    (lane5 : program.form? logicalWidth oneColumn invocation 5 = some (state 5))
+    (lane6 : program.form? logicalWidth oneColumn invocation 6 = some (state 6))
+    (lane7 : program.form? logicalWidth oneColumn invocation 7 = some (state 7))
+    (lane8 : program.form? logicalWidth oneColumn invocation 8 = some (state 8))
+    (lane9 : program.form? logicalWidth oneColumn invocation 9 = some (state 9))
+    (lane10 : program.form? logicalWidth oneColumn invocation 10 = some (state 10))
+    (lane11 : program.form? logicalWidth oneColumn invocation 11 = some (state 11))
+    (lane12 : program.form? logicalWidth oneColumn invocation 12 = some (state 12))
+    (lane13 : program.form? logicalWidth oneColumn invocation 13 = some (state 13))
+    (lane14 : program.form? logicalWidth oneColumn invocation 14 = some (state 14))
+    (lane15 : program.form? logicalWidth oneColumn invocation 15 = some (state 15)) :
+    program.state? logicalWidth oneColumn invocation = some state := by
+  unfold Program.state?
+  rw [lane0, lane1, lane2, lane3, lane4, lane5, lane6, lane7, lane8, lane9, lane10, lane11, lane12, lane13, lane14, lane15]
+  apply congrArg some
+  funext lane
+  fin_cases lane <;> rfl
+
+end NightstreamFPrime.Layout.MatrixProgram.PoseidonInput

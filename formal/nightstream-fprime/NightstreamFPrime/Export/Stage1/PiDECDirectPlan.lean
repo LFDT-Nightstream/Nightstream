@@ -1,0 +1,916 @@
+import NightstreamFPrime.Export.Stage1.PiDECOrdinaryDirectSource
+import NightstreamFPrime.Export.Stage1.PiDECRetainedGeometry
+import NightstreamFPrime.Export.Stage1.RunningTransitionDirectPlan
+import NightstreamFPrime.Layout.PiDEC.v1_2.Preservation
+
+namespace NightstreamFPrime.Export.Stage1.PiDECDirectPlan
+
+open NightstreamFPrime.Circuit
+open NightstreamFPrime.Layout
+open NightstreamFPrime.Layout.ProductionRelation
+open NightstreamFPrime.Layout.Stage1
+open NightstreamFPrime.Layout.Stage1.PiDECSourceSupport
+open NightstreamFPrime.Lifecycle
+open NightstreamFPrime.Lifecycle.PaperAlgebra
+open NightstreamFPrime.Spec
+open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
+open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
+open PiDECRetainedBlocks
+open PiDECRetainedGeometry
+
+inductive Location where
+  | parentCommitment (index : Fin PiDECInputs.commitmentWordsPerChild)
+  | parentPublicInput (index : Fin PiDECInputs.publicInputWordsPerChild)
+  | parentEvalK (index : Fin PiDECInputs.evalKWordsPerChild)
+  | parentEvalA (index : Fin PiDECInputs.evalAWordsPerChild)
+  | proof (index : Fin PiDECInputs.proofInputColumnCount)
+  | logical (index : Fin logicalCount)
+  | fresh (index : Fin freshCount)
+
+namespace Location
+
+def sourceColumn : Location → Nat
+  | .parentCommitment index =>
+      PiDECSourceSupport.parentCommitmentStart + index.val
+  | .parentPublicInput index =>
+      PiDECSourceSupport.parentPublicInputStart + index.val
+  | .parentEvalK index => PiDECSourceSupport.parentEvalKStart + index.val
+  | .parentEvalA index => PiDECSourceSupport.parentEvalAStart + index.val
+  | .proof index => PiDECInputs.proofInputStart + index.val
+  | .logical index => PiDECStarts.phaseLogicalStart + index.val
+  | .fresh index => PiDECStarts.phaseFreshStart + index.val
+
+theorem sourceSupport (location : Location) : Source location.sourceColumn := by
+  cases location with
+  | parentCommitment index =>
+      apply parent_source
+      apply PiDECSourceSupport.parentCommitment
+      constructor
+      · change PiDECSourceSupport.parentCommitmentStart ≤
+          PiDECSourceSupport.parentCommitmentStart + index.val
+        omega
+      · change PiDECSourceSupport.parentCommitmentStart + index.val <
+          PiDECSourceSupport.parentCommitmentStart +
+            PiDECInputs.commitmentWordsPerChild
+        have bound := index.isLt
+        omega
+  | parentPublicInput index =>
+      apply parent_source
+      apply PiDECSourceSupport.parentPublicInput
+      constructor
+      · change PiDECSourceSupport.parentPublicInputStart ≤
+          PiDECSourceSupport.parentPublicInputStart + index.val
+        omega
+      · change PiDECSourceSupport.parentPublicInputStart + index.val <
+          PiDECSourceSupport.parentPublicInputStart +
+            PiDECInputs.publicInputWordsPerChild
+        have bound := index.isLt
+        omega
+  | parentEvalK index =>
+      apply parent_source
+      apply PiDECSourceSupport.parentEvalK
+      constructor
+      · change PiDECSourceSupport.parentEvalKStart ≤
+          PiDECSourceSupport.parentEvalKStart + index.val
+        omega
+      · change PiDECSourceSupport.parentEvalKStart + index.val <
+          PiDECSourceSupport.parentEvalKStart + PiDECInputs.evalKWordsPerChild
+        have bound := index.isLt
+        omega
+  | parentEvalA index =>
+      apply parent_source
+      apply PiDECSourceSupport.parentEvalA
+      constructor
+      · change PiDECSourceSupport.parentEvalAStart ≤
+          PiDECSourceSupport.parentEvalAStart + index.val
+        omega
+      · change PiDECSourceSupport.parentEvalAStart + index.val <
+          PiDECSourceSupport.parentEvalAStart + PiDECInputs.evalAWordsPerChild
+        have bound := index.isLt
+        omega
+  | proof index =>
+      apply proof_source
+      constructor
+      · change PiDECInputs.proofInputStart ≤
+          PiDECInputs.proofInputStart + index.val
+        omega
+      · change PiDECInputs.proofInputStart + index.val <
+          PiDECInputs.proofInputStart + PiDECInputs.proofInputColumnCount
+        have bound := index.isLt
+        omega
+  | logical index =>
+      apply logical_source
+      constructor
+      · change PiDECStarts.phaseLogicalStart ≤
+          PiDECStarts.phaseLogicalStart + index.val
+        omega
+      · change PiDECStarts.phaseLogicalStart + index.val <
+          PiDECStarts.phaseLogicalStart + logicalCount
+        have bound := index.isLt
+        omega
+  | fresh index =>
+      apply fresh_source
+      constructor
+      · change PiDECStarts.phaseFreshStart ≤
+          PiDECStarts.phaseFreshStart + index.val
+        omega
+      · change PiDECStarts.phaseFreshStart + index.val <
+          PiDECStarts.phaseFreshStart + freshCount
+        have bound := index.isLt
+        omega
+
+theorem sourceColumn_lt (location : Location) :
+    location.sourceColumn < Spartan.SourceColumnCount :=
+  PiDECSourceSupport.source_lt_sourceColumnCount location.sourceSupport
+
+def form {program : Lifecycle.Stage1.Application.Program}
+    {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
+    Location → SparseForm logicalWidth
+  | .parentCommitment index => (parentCommitmentBlock program).form
+      (PiDECRetainedGeometry.parentCommitmentStart program)
+      (parentCommitmentFits geometry) index
+  | .parentPublicInput index => (parentPublicInputBlock program).form
+      (PiDECRetainedGeometry.parentPublicInputStart program)
+      (parentPublicInputFits geometry) index
+  | .parentEvalK index => (parentEvalKBlock program).form
+      (PiDECRetainedGeometry.parentEvalKStart program)
+      (parentEvalKFits geometry) index
+  | .parentEvalA index => (parentEvalABlock program).form
+      (PiDECRetainedGeometry.parentEvalAStart program)
+      (parentEvalAFits geometry) index
+  | .proof index => (proofBlock program).form (proofStart program)
+      (proofFits geometry) index
+  | .logical index => (logicalBlock program).form (logicalStart program)
+      (logicalFits geometry) index
+  | .fresh index => (freshBlock program).form (freshStart program)
+      (freshFits geometry) index
+
+theorem proof_form_eq_running
+    {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
+    (geometry : Geometry program logicalWidth)
+    (index : Fin PiDECInputs.proofInputColumnCount) :
+    (Location.proof index).form geometry =
+      (RunningTransitionDirectPlan.Location.piDec index).form
+        (PiCCSOrdinaryRetainedGeometry.prefixGeometry
+          (prefixGeometry geometry)) := by
+  unfold form RunningTransitionDirectPlan.Location.form
+  apply LowNormBlock.Block.form_eq_of_coordinates
+  · rfl
+  · rfl
+
+theorem form_eval {program : Lifecycle.Stage1.Application.Program}
+    {logicalWidth : Nat} (geometry : Geometry program logicalWidth)
+    (assignment : Assignment F logicalWidth)
+    (source : Fin (sourceWidth program) → F)
+    (encodes : Encodes geometry assignment source) (location : Location) :
+    (location.form geometry).eval assignment =
+      source (RunningTransitionRetainedBlocks.packageSourceColumn program
+        location.sourceColumn location.sourceColumn_lt) := by
+  cases location with
+  | parentCommitment index =>
+      rw [form, LowNormBlock.Block.form_eval _ _ _ assignment source
+        encodes.parentCommitment index]
+      apply congrArg source
+      apply Fin.ext
+      rfl
+  | parentPublicInput index =>
+      rw [form, LowNormBlock.Block.form_eval _ _ _ assignment source
+        encodes.parentPublicInput index]
+      apply congrArg source
+      apply Fin.ext
+      rfl
+  | parentEvalK index =>
+      rw [form, LowNormBlock.Block.form_eval _ _ _ assignment source
+        encodes.parentEvalK index]
+      apply congrArg source
+      apply Fin.ext
+      rfl
+  | parentEvalA index =>
+      rw [form, LowNormBlock.Block.form_eval _ _ _ assignment source
+        encodes.parentEvalA index]
+      apply congrArg source
+      apply Fin.ext
+      rfl
+  | proof index =>
+      rw [form, LowNormBlock.Block.form_eval _ _ _ assignment source encodes.proof index]
+      apply congrArg source
+      apply Fin.ext
+      rfl
+  | logical index =>
+      rw [form, LowNormBlock.Block.form_eval _ _ _ assignment source encodes.logical index]
+      apply congrArg source
+      apply Fin.ext
+      rfl
+  | fresh index =>
+      rw [form, LowNormBlock.Block.form_eval _ _ _ assignment source encodes.fresh index]
+      apply congrArg source
+      apply Fin.ext
+      rfl
+
+end Location
+
+def rangeIndex {start count column : Nat} (inside : InRange start count column) :
+    Fin count :=
+  ⟨column - start, by unfold InRange at inside; omega⟩
+
+@[simp] theorem rangeIndex_source {start count column : Nat}
+    (inside : InRange start count column) :
+    start + (rangeIndex inside).val = column := by
+  change start + (column - start) = column
+  unfold InRange at inside
+  omega
+
+local instance (start count column : Nat) : Decidable (InRange start count column) :=
+  by unfold InRange; infer_instance
+
+structure Located (column : Nat) where
+  location : Location
+  owns : location.sourceColumn = column
+
+def classifySource (column : Nat) : Option (Located column) :=
+  if commitment : InRange PiDECSourceSupport.parentCommitmentStart
+      PiDECInputs.commitmentWordsPerChild column then
+    some ⟨.parentCommitment (rangeIndex commitment), by
+      rw [Location.sourceColumn, rangeIndex_source commitment]⟩
+  else if publicInput : InRange PiDECSourceSupport.parentPublicInputStart
+      PiDECInputs.publicInputWordsPerChild column then
+    some ⟨.parentPublicInput (rangeIndex publicInput), by
+      rw [Location.sourceColumn, rangeIndex_source publicInput]⟩
+  else if evalK : InRange PiDECSourceSupport.parentEvalKStart
+      PiDECInputs.evalKWordsPerChild column then
+    some ⟨.parentEvalK (rangeIndex evalK), by
+      rw [Location.sourceColumn, rangeIndex_source evalK]⟩
+  else if evalA : InRange PiDECSourceSupport.parentEvalAStart
+      PiDECInputs.evalAWordsPerChild column then
+    some ⟨.parentEvalA (rangeIndex evalA), by
+      rw [Location.sourceColumn, rangeIndex_source evalA]⟩
+  else if proof : InRange PiDECInputs.proofInputStart
+      PiDECInputs.proofInputColumnCount column then
+    some ⟨.proof (rangeIndex proof), by
+      rw [Location.sourceColumn, rangeIndex_source proof]⟩
+  else if logical : InRange PiDECStarts.phaseLogicalStart logicalCount column then
+    some ⟨.logical (rangeIndex logical), by
+      rw [Location.sourceColumn, rangeIndex_source logical]⟩
+  else if fresh : InRange PiDECStarts.phaseFreshStart freshCount column then
+    some ⟨.fresh (rangeIndex fresh), by
+      rw [Location.sourceColumn, rangeIndex_source fresh]⟩
+  else
+    none
+
+theorem classifySource_complete {column : Nat} (support : Source column) :
+    (classifySource column).isSome := by
+  by_cases commitment : InRange PiDECSourceSupport.parentCommitmentStart
+      PiDECInputs.commitmentWordsPerChild column
+  · unfold classifySource
+    rw [dite_eq_left commitment]
+    rfl
+  by_cases publicInput : InRange PiDECSourceSupport.parentPublicInputStart
+      PiDECInputs.publicInputWordsPerChild column
+  · unfold classifySource
+    rw [dite_eq_right commitment, dite_eq_left publicInput]
+    rfl
+  by_cases evalK : InRange PiDECSourceSupport.parentEvalKStart
+      PiDECInputs.evalKWordsPerChild column
+  · unfold classifySource
+    rw [dite_eq_right commitment, dite_eq_right publicInput, dite_eq_left evalK]
+    rfl
+  by_cases evalA : InRange PiDECSourceSupport.parentEvalAStart
+      PiDECInputs.evalAWordsPerChild column
+  · unfold classifySource
+    rw [dite_eq_right commitment, dite_eq_right publicInput, dite_eq_right evalK, dite_eq_left evalA]
+    rfl
+  by_cases proof : InRange PiDECInputs.proofInputStart
+      PiDECInputs.proofInputColumnCount column
+  · unfold classifySource
+    rw [dite_eq_right commitment, dite_eq_right publicInput, dite_eq_right evalK, dite_eq_right evalA,
+      dite_eq_left proof]
+    rfl
+  by_cases logical : InRange PiDECStarts.phaseLogicalStart logicalCount column
+  · unfold classifySource
+    rw [dite_eq_right commitment, dite_eq_right publicInput, dite_eq_right evalK, dite_eq_right evalA,
+      dite_eq_right proof, dite_eq_left logical]
+    rfl
+  by_cases fresh : InRange PiDECStarts.phaseFreshStart freshCount column
+  · unfold classifySource
+    rw [dite_eq_right commitment, dite_eq_right publicInput, dite_eq_right evalK, dite_eq_right evalA,
+      dite_eq_right proof, dite_eq_right logical, dite_eq_left fresh]
+    rfl
+  · exfalso
+    rcases support with logicalSource | freshSupport
+    · rcases logicalSource with external | logicalSupport
+      · rcases external with parent | proofSupport
+        · rcases parent with commitmentSupport | publicSupport | evalKSupport |
+            evalASupport
+          · exact commitment commitmentSupport
+          · exact publicInput publicSupport
+          · exact evalK evalKSupport
+          · exact evalA evalASupport
+        · exact proof proofSupport
+      · exact logical logicalSupport
+    · exact fresh freshSupport
+
+structure Decoded where
+  source : Nat
+  location : Location
+  owns : location.sourceColumn = source
+
+def classifyTarget (column : Nat) : Option Decoded :=
+  match Spartan.spartanToSource column with
+  | none => none
+  | some source =>
+      match classifySource source with
+      | none => none
+      | some located => some ⟨source, located.location, located.owns⟩
+
+theorem classifyTarget_complete {column : Nat} (support : Target column) :
+    ∃ decoded, classifyTarget column = some decoded ∧
+      Spartan.sourceToSpartan decoded.source = column := by
+  rcases support with ⟨source, sourceSupport, rfl⟩
+  have inverse := Spartan.spartanToSource_sourceToSpartan source
+    (PiDECSourceSupport.source_lt_sourceColumnCount sourceSupport)
+  have complete := classifySource_complete sourceSupport
+  cases found : classifySource source with
+  | none => simp [found] at complete
+  | some located =>
+      refine ⟨⟨source, located.location, located.owns⟩, ?_, rfl⟩
+      simp [classifyTarget, inverse, found]
+
+def sourceMap {program : Lifecycle.Stage1.Application.Program}
+    {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
+    SourceCompiler.SourceMap Spartan.spartanColumnCount logicalWidth where
+  form := fun column =>
+    match classifyTarget column.val with
+    | none => .empty
+    | some decoded => decoded.location.form geometry
+
+private theorem Location.sourceColumn_afterTranscript (location : Location) :
+    PiCCSStarts.statementWitnessStart +
+        PiCCSOrdinarySourceSupport.transcriptInvocationCount * 1096 ≤
+      location.sourceColumn := by
+  have first : PiCCSStarts.statementWitnessStart +
+      PiCCSOrdinarySourceSupport.transcriptInvocationCount * 1096 ≤
+        PiDECSourceSupport.parentCommitmentStart := by decide
+  exact Nat.le_trans first
+    (PiDECSourceSupport.parentStart_le_source location.sourceSupport)
+
+theorem sourceMap_form_eval_of_target
+    {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
+    (geometry : Geometry program logicalWidth)
+    (assignment : Assignment F logicalWidth)
+    (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
+    (encodes : Encodes geometry assignment
+      (PiRLCRetainedPreservation.sourceAssignment program base groupValue))
+    (column : Fin Spartan.spartanColumnCount) (support : Target column.val) :
+    ((sourceMap geometry).form column).eval assignment =
+      RunningTransitionDirectPlan.transitionEnv program base column.val := by
+  rcases classifyTarget_complete support with ⟨decoded, found, mapped⟩
+  change (match classifyTarget column.val with
+    | none => SparseForm.empty
+    | some value => value.location.form geometry).eval assignment = _
+  rw [found]
+  rw [Location.form_eval geometry assignment _ encodes decoded.location]
+  rw [RunningTransitionDirectPlan.sourceAssignment_packageSource program base
+    groupValue decoded.location.sourceColumn
+    decoded.location.sourceColumn_lt]
+  have mappedLocation :
+      Spartan.sourceToSpartan decoded.location.sourceColumn = column.val := by
+    rw [decoded.owns, mapped]
+  rw [← mappedLocation]
+  exact (RunningTransitionDirectPlan.transitionEnv_of_outside program base
+    decoded.location.sourceColumn decoded.location.sourceColumn_lt
+    (Or.inr decoded.location.sourceColumn_afterTranscript)).symm
+
+private theorem preservesCombination
+    {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
+    (geometry : Geometry application logicalWidth)
+    (assignment : Assignment F logicalWidth)
+    (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
+    (encodes : Encodes geometry assignment
+      (PiRLCRetainedPreservation.sourceAssignment application base groupValue))
+    (combination : R1CS.LinearCombination)
+    (bounded : SourceCompiler.CombinationBounded Spartan.spartanColumnCount
+      combination) (scope : combination.VarsSatisfy Target) :
+    OrdinarySourcePlan.SourceMap.PreservesCombination (sourceMap geometry)
+      assignment (RunningTransitionDirectPlan.transitionEnv application base)
+      combination bounded := by
+  intro term member
+  exact sourceMap_form_eval_of_target geometry assignment base groupValue
+    encodes ⟨term.1, bounded term member⟩ (scope term member)
+
+def inputs {application : Lifecycle.Stage1.Application.Program}
+    {logicalWidth : Nat}
+    (sourceProgram : OrdinarySourcePlan.Program Spartan.spartanColumnCount)
+    (geometry : Geometry application logicalWidth) :
+    sourceProgram.Inputs logicalWidth where
+  oneColumn := oneColumn geometry
+  sourceMap := fun _ => sourceMap geometry
+
+theorem inputs_preserve
+    {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
+    (sourceProgram : OrdinarySourcePlan.Program Spartan.spartanColumnCount)
+    (geometry : Geometry application logicalWidth)
+    (assignment : Assignment F logicalWidth)
+    (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
+    (encodes : Encodes geometry assignment
+      (PiRLCRetainedPreservation.sourceAssignment application base groupValue))
+    (scope : ∀ index, (sourceProgram.row index).VarsSatisfy Target) :
+    ∀ index, OrdinarySourcePlan.SourceMap.PreservesRow
+      ((inputs sourceProgram geometry).sourceMap index) assignment
+      (RunningTransitionDirectPlan.transitionEnv application base)
+      (sourceProgram.row index) (sourceProgram.bounded index) := by
+  intro index
+  have rowScope := scope index
+  exact ⟨
+    preservesCombination geometry assignment base groupValue encodes
+      _ _ rowScope.1,
+    preservesCombination geometry assignment base groupValue encodes
+      _ _ rowScope.2.1,
+    preservesCombination geometry assignment base groupValue encodes
+      _ _ rowScope.2.2⟩
+
+structure SupportedProgram (rows : List R1CS.Row) where
+  rowCount : Nat
+  rowCount_le : rowCount ≤ 2 ^ Lifecycle.cubeVariables
+  row : Fin rowCount → R1CS.Row
+  exactRows : List.ofFn row = rows
+  supported : ∀ index, (row index).VarsSatisfy Target
+
+def SupportedProgram.toProgram {rows : List R1CS.Row}
+    (source : SupportedProgram rows) :
+    OrdinarySourcePlan.Program Spartan.spartanColumnCount where
+  rowCount := source.rowCount
+  rowCount_le := source.rowCount_le
+  row := source.row
+  bounded := fun index => (source.supported index).mono _
+    (fun _ support => PiDECOrdinaryDirectSource.target_lt_spartanColumnCount support)
+
+section
+
+variable {relationLogicalWidth : Nat}
+  {relationPublicFits : ringDegree * publicRingColumns ≤
+    Phi81CarrierLayout.carrierWidth relationLogicalWidth}
+
+def publicSource
+    (relation : ProductionKey.LogicalRelation relationLogicalWidth
+      relationPublicFits) :
+    SupportedProgram (PiDECOrdinaryDirectSource.publicRows
+      relationLogicalWidth relationPublicFits) where
+  rowCount := Layout.PiDEC.v1_2.PublicInputSplit.physicalRowCount
+  rowCount_le := by decide
+  row := PiDECOrdinaryDirectSource.publicProgramRow relation
+  exactRows := PiDECOrdinaryDirectSource.publicProgramRows_eq relation
+  supported := PiDECOrdinaryDirectSource.publicProgramRow_varsSatisfy relation
+
+def commitmentSource
+    (relation : ProductionKey.LogicalRelation relationLogicalWidth
+      relationPublicFits) :
+    SupportedProgram (PiDECOrdinaryDirectSource.commitmentRows
+      relationLogicalWidth relationPublicFits) where
+  rowCount := Layout.PiDEC.v1_2.CommitmentRecomposition.physicalRowCount
+  rowCount_le := by decide
+  row := PiDECOrdinaryDirectSource.commitmentProgramRow relation
+  exactRows := PiDECOrdinaryDirectSource.commitmentProgramRows_eq relation
+  supported := PiDECOrdinaryDirectSource.commitmentProgramRow_varsSatisfy relation
+
+def evalKSource
+    (relation : ProductionKey.LogicalRelation relationLogicalWidth
+      relationPublicFits) :
+    SupportedProgram (PiDECOrdinaryDirectSource.evalKRows
+      relationLogicalWidth relationPublicFits) where
+  rowCount := Layout.PiDEC.v1_2.EvalKRecomposition.physicalRowCount
+  rowCount_le := by decide
+  row := PiDECOrdinaryDirectSource.evalKProgramRow relation
+  exactRows := PiDECOrdinaryDirectSource.evalKProgramRows_eq relation
+  supported := PiDECOrdinaryDirectSource.evalKProgramRow_varsSatisfy relation
+
+def evalASource
+    (relation : ProductionKey.LogicalRelation relationLogicalWidth
+      relationPublicFits) :
+    SupportedProgram (PiDECOrdinaryDirectSource.evalARows
+      relationLogicalWidth relationPublicFits) where
+  rowCount := Layout.PiDEC.v1_2.EvalARecomposition.physicalRowCount
+  rowCount_le := by decide
+  row := PiDECOrdinaryDirectSource.evalAProgramRow relation
+  exactRows := PiDECOrdinaryDirectSource.evalAProgramRows_eq relation
+  supported := PiDECOrdinaryDirectSource.evalAProgramRow_varsSatisfy relation
+
+def publicPlan {application : Lifecycle.Stage1.Application.Program}
+    {logicalWidth : Nat}
+    (relation : ProductionKey.LogicalRelation relationLogicalWidth
+      relationPublicFits)
+    (geometry : Geometry application logicalWidth) : ProductionRelation.Plan logicalWidth :=
+  (publicSource relation).toProgram.compile
+    (inputs (publicSource relation).toProgram geometry) |>.toPlan
+
+def commitmentPlan {application : Lifecycle.Stage1.Application.Program}
+    {logicalWidth : Nat}
+    (relation : ProductionKey.LogicalRelation relationLogicalWidth
+      relationPublicFits)
+    (geometry : Geometry application logicalWidth) : ProductionRelation.Plan logicalWidth :=
+  (commitmentSource relation).toProgram.compile
+    (inputs (commitmentSource relation).toProgram geometry) |>.toPlan
+
+def evalKPlan {application : Lifecycle.Stage1.Application.Program}
+    {logicalWidth : Nat}
+    (relation : ProductionKey.LogicalRelation relationLogicalWidth
+      relationPublicFits)
+    (geometry : Geometry application logicalWidth) : ProductionRelation.Plan logicalWidth :=
+  (evalKSource relation).toProgram.compile
+    (inputs (evalKSource relation).toProgram geometry) |>.toPlan
+
+def evalAPlan {application : Lifecycle.Stage1.Application.Program}
+    {logicalWidth : Nat}
+    (relation : ProductionKey.LogicalRelation relationLogicalWidth
+      relationPublicFits)
+    (geometry : Geometry application logicalWidth) : ProductionRelation.Plan logicalWidth :=
+  (evalASource relation).toProgram.compile
+    (inputs (evalASource relation).toProgram geometry) |>.toPlan
+
+@[simp] theorem publicPlan_rowCount
+    {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
+    (relation : ProductionKey.LogicalRelation relationLogicalWidth
+      relationPublicFits)
+    (geometry : Geometry application logicalWidth) :
+    (publicPlan relation geometry).rowCount = Layout.PiDEC.v1_2.PublicInputSplit.physicalRowCount := by
+  rfl
+
+@[simp] theorem commitmentPlan_rowCount
+    {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
+    (relation : ProductionKey.LogicalRelation relationLogicalWidth
+      relationPublicFits)
+    (geometry : Geometry application logicalWidth) :
+    (commitmentPlan relation geometry).rowCount = Layout.PiDEC.v1_2.CommitmentRecomposition.physicalRowCount := by
+  rfl
+
+@[simp] theorem evalKPlan_rowCount
+    {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
+    (relation : ProductionKey.LogicalRelation relationLogicalWidth
+      relationPublicFits)
+    (geometry : Geometry application logicalWidth) :
+    (evalKPlan relation geometry).rowCount = Layout.PiDEC.v1_2.EvalKRecomposition.physicalRowCount := by
+  rfl
+
+@[simp] theorem evalAPlan_rowCount
+    {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
+    (relation : ProductionKey.LogicalRelation relationLogicalWidth
+      relationPublicFits)
+    (geometry : Geometry application logicalWidth) :
+    (evalAPlan relation geometry).rowCount = Layout.PiDEC.v1_2.EvalARecomposition.physicalRowCount := by
+  rfl
+
+private theorem evalPlans_fit
+    {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
+    (relation : ProductionKey.LogicalRelation relationLogicalWidth
+      relationPublicFits)
+    (geometry : Geometry application logicalWidth) :
+    (evalKPlan relation geometry).rowCount + (evalAPlan relation geometry).rowCount ≤
+      2 ^ Lifecycle.cubeVariables := by
+  rw [evalKPlan_rowCount, evalAPlan_rowCount]
+  decide
+
+def evaluationPlan {application : Lifecycle.Stage1.Application.Program}
+    {logicalWidth : Nat}
+    (relation : ProductionKey.LogicalRelation relationLogicalWidth
+      relationPublicFits)
+    (geometry : Geometry application logicalWidth) : ProductionRelation.Plan logicalWidth :=
+  ProductionRelation.Plan.append (evalKPlan relation geometry)
+    (evalAPlan relation geometry) (evalPlans_fit relation geometry)
+
+@[simp] theorem evaluationPlan_rowCount
+    {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
+    (relation : ProductionKey.LogicalRelation relationLogicalWidth
+      relationPublicFits)
+    (geometry : Geometry application logicalWidth) :
+    (evaluationPlan relation geometry).rowCount =
+      Layout.PiDEC.v1_2.EvalKRecomposition.physicalRowCount +
+        Layout.PiDEC.v1_2.EvalARecomposition.physicalRowCount := by
+  simp [evaluationPlan]
+
+private theorem recompositionPlans_fit
+    {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
+    (relation : ProductionKey.LogicalRelation relationLogicalWidth
+      relationPublicFits)
+    (geometry : Geometry application logicalWidth) :
+    (commitmentPlan relation geometry).rowCount +
+        (evaluationPlan relation geometry).rowCount ≤
+      2 ^ Lifecycle.cubeVariables := by
+  rw [commitmentPlan_rowCount, evaluationPlan_rowCount]
+  decide
+
+def recompositionPlan {application : Lifecycle.Stage1.Application.Program}
+    {logicalWidth : Nat}
+    (relation : ProductionKey.LogicalRelation relationLogicalWidth
+      relationPublicFits)
+    (geometry : Geometry application logicalWidth) : ProductionRelation.Plan logicalWidth :=
+  ProductionRelation.Plan.append (commitmentPlan relation geometry)
+    (evaluationPlan relation geometry) (recompositionPlans_fit relation geometry)
+
+@[simp] theorem recompositionPlan_rowCount
+    {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
+    (relation : ProductionKey.LogicalRelation relationLogicalWidth
+      relationPublicFits)
+    (geometry : Geometry application logicalWidth) :
+    (recompositionPlan relation geometry).rowCount =
+      Layout.PiDEC.v1_2.CommitmentRecomposition.physicalRowCount +
+        (Layout.PiDEC.v1_2.EvalKRecomposition.physicalRowCount +
+          Layout.PiDEC.v1_2.EvalARecomposition.physicalRowCount) := by
+  simp [recompositionPlan]
+
+private theorem allPlans_fit
+    {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
+    (relation : ProductionKey.LogicalRelation relationLogicalWidth
+      relationPublicFits)
+    (geometry : Geometry application logicalWidth) :
+    (publicPlan relation geometry).rowCount +
+        (recompositionPlan relation geometry).rowCount ≤
+      2 ^ Lifecycle.cubeVariables := by
+  rw [publicPlan_rowCount, recompositionPlan_rowCount]
+  decide
+
+def plan {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
+    (relation : ProductionKey.LogicalRelation relationLogicalWidth
+      relationPublicFits)
+    (geometry : Geometry application logicalWidth) : ProductionRelation.Plan logicalWidth :=
+  ProductionRelation.Plan.append (publicPlan relation geometry)
+    (recompositionPlan relation geometry) (allPlans_fit relation geometry)
+
+@[simp] theorem plan_rowCount
+    {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
+    (relation : ProductionKey.LogicalRelation relationLogicalWidth
+      relationPublicFits)
+    (geometry : Geometry application logicalWidth) :
+    (plan relation geometry).rowCount = Layout.PiDEC.v1_2.exactRowCount := by
+  simp [plan, Layout.PiDEC.v1_2.exactRowCount,
+    Layout.PiDEC.v1_2.exactRowDeltas]
+
+theorem plan_eq_of_same_shape
+    {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
+    {relationLogicalWidth : Nat}
+    {relationPublicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth relationLogicalWidth}
+    (left right : ProductionKey.LogicalRelation relationLogicalWidth
+      relationPublicFits)
+    (geometry : Geometry application logicalWidth) :
+    plan left geometry = plan right geometry := by
+  rfl
+
+private theorem holds_iff_rowsHold_ofFn {count : Nat}
+    (rowAt : Fin count → R1CS.Row) (env : Env) :
+    (∀ index, (rowAt index).Holds env) ↔
+      R1CS.RowsHold env (List.ofFn rowAt) := by
+  unfold R1CS.RowsHold
+  exact List.forall_mem_ofFn_iff.symm
+
+private theorem predicate_iff_of_eq {Alpha : Type} (predicate : Alpha → Prop)
+    {left right : Alpha} (equal : left = right) :
+    predicate left ↔ predicate right := by
+  cases equal
+  rfl
+
+private theorem supportedHolds_iff_rowsHold {rows : List R1CS.Row}
+    (source : SupportedProgram rows) (env : Env) :
+    source.toProgram.Holds env ↔ R1CS.RowsHold env rows := by
+  exact (holds_iff_rowsHold_ofFn source.row env).trans
+    (predicate_iff_of_eq (R1CS.RowsHold env) source.exactRows)
+
+private theorem publicHolds_iff_rowsHold
+    (relation : ProductionKey.LogicalRelation relationLogicalWidth
+      relationPublicFits)
+    (env : Env) :
+    (publicSource relation).toProgram.Holds env ↔
+      R1CS.RowsHold env (PiDECOrdinaryDirectSource.publicRows
+        relationLogicalWidth relationPublicFits) := by
+  exact supportedHolds_iff_rowsHold (publicSource relation) env
+
+private theorem commitmentHolds_iff_rowsHold
+    (relation : ProductionKey.LogicalRelation relationLogicalWidth
+      relationPublicFits)
+    (env : Env) :
+    (commitmentSource relation).toProgram.Holds env ↔
+      R1CS.RowsHold env (PiDECOrdinaryDirectSource.commitmentRows
+        relationLogicalWidth relationPublicFits) := by
+  exact supportedHolds_iff_rowsHold (commitmentSource relation) env
+
+private theorem evalKHolds_iff_rowsHold
+    (relation : ProductionKey.LogicalRelation relationLogicalWidth
+      relationPublicFits)
+    (env : Env) :
+    (evalKSource relation).toProgram.Holds env ↔
+      R1CS.RowsHold env (PiDECOrdinaryDirectSource.evalKRows
+        relationLogicalWidth relationPublicFits) := by
+  exact supportedHolds_iff_rowsHold (evalKSource relation) env
+
+private theorem evalAHolds_iff_rowsHold
+    (relation : ProductionKey.LogicalRelation relationLogicalWidth
+      relationPublicFits)
+    (env : Env) :
+    (evalASource relation).toProgram.Holds env ↔
+      R1CS.RowsHold env (PiDECOrdinaryDirectSource.evalARows
+        relationLogicalWidth relationPublicFits) := by
+  exact supportedHolds_iff_rowsHold (evalASource relation) env
+
+private theorem compiledRowsZero_iff
+    {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
+    {rows : List R1CS.Row} (source : SupportedProgram rows)
+    (geometry : Geometry application logicalWidth)
+    (assignment : Assignment F logicalWidth)
+    (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
+    (one : assignment (oneColumn geometry) = 1)
+    (encodes : Encodes geometry assignment
+      (PiRLCRetainedPreservation.sourceAssignment application base groupValue)) :
+    (source.toProgram.compile (inputs source.toProgram geometry)).toPlan.RowsZero
+        assignment ↔
+      source.toProgram.Holds
+        (RunningTransitionDirectPlan.transitionEnv application base) := by
+  exact OrdinarySourcePlan.Program.rowsZero_iff source.toProgram
+    (inputs source.toProgram geometry) assignment
+    (RunningTransitionDirectPlan.transitionEnv application base) one
+    (inputs_preserve source.toProgram geometry assignment base groupValue
+      encodes source.supported)
+
+theorem publicRowsZero_iff_rowsHold
+    {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
+    (relation : ProductionKey.LogicalRelation relationLogicalWidth
+      relationPublicFits)
+    (geometry : Geometry application logicalWidth)
+    (assignment : Assignment F logicalWidth)
+    (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
+    (one : assignment (oneColumn geometry) = 1)
+    (encodes : Encodes geometry assignment
+      (PiRLCRetainedPreservation.sourceAssignment application base groupValue)) :
+    (publicPlan relation geometry).RowsZero assignment ↔
+      R1CS.RowsHold (RunningTransitionDirectPlan.transitionEnv application base)
+        (PiDECOrdinaryDirectSource.publicRows relationLogicalWidth
+          relationPublicFits) := by
+  rw [publicPlan, compiledRowsZero_iff (publicSource relation) geometry assignment
+    base groupValue one encodes]
+  exact publicHolds_iff_rowsHold relation _
+
+theorem commitmentRowsZero_iff_rowsHold
+    {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
+    (relation : ProductionKey.LogicalRelation relationLogicalWidth
+      relationPublicFits)
+    (geometry : Geometry application logicalWidth)
+    (assignment : Assignment F logicalWidth)
+    (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
+    (one : assignment (oneColumn geometry) = 1)
+    (encodes : Encodes geometry assignment
+      (PiRLCRetainedPreservation.sourceAssignment application base groupValue)) :
+    (commitmentPlan relation geometry).RowsZero assignment ↔
+      R1CS.RowsHold (RunningTransitionDirectPlan.transitionEnv application base)
+        (PiDECOrdinaryDirectSource.commitmentRows relationLogicalWidth
+          relationPublicFits) := by
+  rw [commitmentPlan, compiledRowsZero_iff (commitmentSource relation) geometry
+    assignment base groupValue one encodes]
+  exact commitmentHolds_iff_rowsHold relation _
+
+theorem evalKRowsZero_iff_rowsHold
+    {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
+    (relation : ProductionKey.LogicalRelation relationLogicalWidth
+      relationPublicFits)
+    (geometry : Geometry application logicalWidth)
+    (assignment : Assignment F logicalWidth)
+    (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
+    (one : assignment (oneColumn geometry) = 1)
+    (encodes : Encodes geometry assignment
+      (PiRLCRetainedPreservation.sourceAssignment application base groupValue)) :
+    (evalKPlan relation geometry).RowsZero assignment ↔
+      R1CS.RowsHold (RunningTransitionDirectPlan.transitionEnv application base)
+        (PiDECOrdinaryDirectSource.evalKRows relationLogicalWidth
+          relationPublicFits) := by
+  rw [evalKPlan, compiledRowsZero_iff (evalKSource relation) geometry assignment
+    base groupValue one encodes]
+  exact evalKHolds_iff_rowsHold relation _
+
+theorem evalARowsZero_iff_rowsHold
+    {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
+    (relation : ProductionKey.LogicalRelation relationLogicalWidth
+      relationPublicFits)
+    (geometry : Geometry application logicalWidth)
+    (assignment : Assignment F logicalWidth)
+    (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
+    (one : assignment (oneColumn geometry) = 1)
+    (encodes : Encodes geometry assignment
+      (PiRLCRetainedPreservation.sourceAssignment application base groupValue)) :
+    (evalAPlan relation geometry).RowsZero assignment ↔
+      R1CS.RowsHold (RunningTransitionDirectPlan.transitionEnv application base)
+        (PiDECOrdinaryDirectSource.evalARows relationLogicalWidth
+          relationPublicFits) := by
+  rw [evalAPlan, compiledRowsZero_iff (evalASource relation) geometry assignment
+    base groupValue one encodes]
+  exact evalAHolds_iff_rowsHold relation _
+
+theorem rowsZero_iff_rowsHold
+    {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
+    (relation : ProductionKey.LogicalRelation relationLogicalWidth
+      relationPublicFits)
+    (geometry : Geometry application logicalWidth)
+    (assignment : Assignment F logicalWidth)
+    (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
+    (one : assignment (oneColumn geometry) = 1)
+    (encodes : Encodes geometry assignment
+      (PiRLCRetainedPreservation.sourceAssignment application base groupValue)) :
+    (plan relation geometry).RowsZero assignment ↔
+      R1CS.RowsHold (RunningTransitionDirectPlan.transitionEnv application base)
+        (PiDECOrdinaryDirectSource.sourceRows relationLogicalWidth
+          relationPublicFits) := by
+  rw [plan, ProductionRelation.Plan.append_rowsZero_iff]
+  rw [recompositionPlan, ProductionRelation.Plan.append_rowsZero_iff]
+  rw [evaluationPlan, ProductionRelation.Plan.append_rowsZero_iff]
+  rw [publicRowsZero_iff_rowsHold relation geometry assignment base groupValue one encodes]
+  rw [commitmentRowsZero_iff_rowsHold relation geometry assignment base groupValue one encodes]
+  rw [evalKRowsZero_iff_rowsHold relation geometry assignment base groupValue one encodes]
+  rw [evalARowsZero_iff_rowsHold relation geometry assignment base groupValue one encodes]
+  simp only [PiDECOrdinaryDirectSource.sourceRows, R1CS.rowsHold_append]
+  constructor
+  · rintro ⟨publicHolds, commitmentHolds, evalKHolds, evalAHolds⟩
+    exact ⟨⟨⟨publicHolds, commitmentHolds⟩, evalKHolds⟩, evalAHolds⟩
+  · rintro ⟨⟨⟨publicHolds, commitmentHolds⟩, evalKHolds⟩, evalAHolds⟩
+    exact ⟨publicHolds, commitmentHolds, evalKHolds, evalAHolds⟩
+
+theorem rowsZero_iff_canonicalRowsHold
+    {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
+    (relation : ProductionKey.LogicalRelation relationLogicalWidth
+      relationPublicFits)
+    (geometry : Geometry application logicalWidth)
+    (assignment : Assignment F logicalWidth)
+    (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
+    (one : assignment (oneColumn geometry) = 1)
+    (encodes : Encodes geometry assignment
+      (PiRLCRetainedPreservation.sourceAssignment application base groupValue)) :
+    (plan relation geometry).RowsZero assignment ↔
+      R1CS.RowsHold (RunningTransitionDirectPlan.transitionEnv application base)
+        ((PiDECArithmetic.canonicalPlan relationLogicalWidth
+          relationPublicFits).rows.map
+          Rows.CompiledRow.toR1CS) := by
+  exact (rowsZero_iff_rowsHold relation geometry assignment base groupValue one encodes).trans
+      (predicate_iff_of_eq
+        (R1CS.RowsHold (RunningTransitionDirectPlan.transitionEnv application base))
+        PiDECOrdinaryDirectSource.sourceRows_eq_canonical)
+
+theorem rowsZero_implies_phaseHolds
+    {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
+    (relation : ProductionKey.LogicalRelation relationLogicalWidth
+      relationPublicFits)
+    (ajtai : AjtaiKey
+      (logicalWidth := relationLogicalWidth)
+      (publicFits := relationPublicFits))
+    (geometry : Geometry application logicalWidth)
+    (assignment : Assignment F logicalWidth)
+    (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
+    (one : assignment (oneColumn geometry) = 1)
+    (encodes : Encodes geometry assignment
+      (PiRLCRetainedPreservation.sourceAssignment application base groupValue))
+    (assumptions :
+      Lifecycle.PiDEC.v1_2.Formal.Assumptions relation
+        (PiDECArithmetic.phaseInterface relationLogicalWidth
+          relationPublicFits)
+        PiDECInputs.phaseOffset
+        (Spartan.pullback
+          (RunningTransitionDirectPlan.transitionEnv application base)))
+    (accepted : (plan relation geometry).RowsZero assignment) :
+    Lifecycle.PiDEC.v1_2.Semantics.PhaseHolds relation ajtai
+      (PiDECArithmetic.phaseInterface relationLogicalWidth relationPublicFits)
+      PiDECInputs.phaseOffset
+        (Spartan.pullback
+          (RunningTransitionDirectPlan.transitionEnv application base)) := by
+  have canonicalRows :=
+    (rowsZero_iff_canonicalRowsHold relation geometry assignment base groupValue one encodes).mp accepted
+  have exactRows := PiDECArithmetic.Plan.rows_to_layout
+    (PiDECArithmetic.canonicalPlan relationLogicalWidth relationPublicFits)
+    (PiDECArithmetic.canonicalLayoutPlan relation)
+    (PiDECArithmetic.canonicalPlan_matches relation)
+  have remappedRows : R1CS.RowsHold
+      (RunningTransitionDirectPlan.transitionEnv application base)
+      (Spartan.remapRows (PiDECArithmetic.canonicalLayoutPlan relation).rows) :=
+    (predicate_iff_of_eq
+      (R1CS.RowsHold (RunningTransitionDirectPlan.transitionEnv application base))
+      exactRows).mp canonicalRows
+  have physicalRows : R1CS.RowsHold
+      (Spartan.pullback
+        (RunningTransitionDirectPlan.transitionEnv application base))
+      (PiDECArithmetic.canonicalLayoutPlan relation).rows :=
+    (Spartan.remapRows_hold
+      (RunningTransitionDirectPlan.transitionEnv application base)
+      (PiDECArithmetic.canonicalLayoutPlan relation).rows).mp remappedRows
+  exact Layout.PiDEC.v1_2.physical_implies_phaseHolds relation ajtai
+    (PiDECArithmetic.phaseInterface relationLogicalWidth relationPublicFits)
+    PiDECInputs.phaseOffset
+    (Spartan.pullback
+      (RunningTransitionDirectPlan.transitionEnv application base))
+    assumptions physicalRows
+
+end
+
+end NightstreamFPrime.Export.Stage1.PiDECDirectPlan

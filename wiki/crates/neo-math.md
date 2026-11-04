@@ -16,16 +16,11 @@ Field, ring, and embedding primitives. `#![forbid(unsafe_code)]`.
 - **`s_action`** — `SAction`: the ring acting as `d×d` rotation matrices on
   coefficient vectors; the algebra behind commitment-homomorphic challenge mixing.
 
-## Consumers
+## Consumers and proofs
 
-Everything. `neo-ajtai` builds commitments from `Rq`/`SAction`; `neo-ccs` builds
-relations over `F`/`K`; `neo-reductions` runs sum-check over `K`; `neo-fold-clean`
-maps these to paper symbols 1:1 (`paper/mod.rs` §4–5 tables).
+`neo-ajtai` builds commitments from ring arithmetic. `neo-ccs` defines
+relations over the base and extension fields. `neo-reductions` and
+`nightstream` use these operations in folding and terminal verification.
 
-## Specs and formal backing
-
-`specs/{Goldilocks, Ring, BarTransform, Norms, SAction}.spec.md` state the MUST/SHOULD
-contracts. The same surfaces are the core of the Lean cross-check in
-`formal/superneo-lean` (inner-product transform identity, ring multiplication, norm,
-split_b round-trips, Definition 7/8 embeddings, Theorem 4/5 identities) — Lean is the
-mathematical source of truth for these definitions.
+The maintained algebra and implementation proofs live in
+`formal/nightstream-fprime`. Rust checks live in `crates/neo-math/tests`.

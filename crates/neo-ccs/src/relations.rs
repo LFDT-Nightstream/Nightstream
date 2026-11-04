@@ -1,32 +1,48 @@
 use p3_field::{Field, PrimeCharacteristicRing};
 
-use neo_math::{superneo_bar_block, KExtensions, Rq, D, F as GoldiF};
-use neo_params::NeoParams;
-
 use crate::{
     error::{CcsError, RelationError},
     matrix::Mat,
     poly::SparsePoly,
     sparse::{CcsMatrix, CscMat},
-    traits::SModuleHomomorphism,
-    utils::tensor_point,
 };
+use neo_math::D;
 
-/// CCS structure: matrices {M_j} and a sparse polynomial `f` in `t` variables.
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+/// A validated CCS structure. The fields are private, so a structure keeps
+/// the shape that `new`, `new_sparse` or `new_verifier_artifact_header`
+/// checked.
+#[derive(Clone, Debug)]
 pub struct CcsStructure<F> {
-    /// M_j ∈ F^{n×m}, j = 0..t-1
-    pub matrices: Vec<CcsMatrix<F>>,
-    /// Degree-`<u` polynomial in t variables.
-    pub f: SparsePoly<F>,
-    /// n (rows)
-    pub n: usize,
-    /// m (cols)
-    pub m: usize,
+    matrices: Vec<CcsMatrix<F>>,
+    f: SparsePoly<F>,
+    n: usize,
+    m: usize,
+    domain_variables: Option<usize>,
 }
 
 impl<F: Field> CcsStructure<F> {
-    /// Create a CCS structure; validates matrix shapes & polynomial arity.
+    pub fn matrices(&self) -> &[CcsMatrix<F>] {
+        &self.matrices
+    }
+
+    pub fn f(&self) -> &SparsePoly<F> {
+        &self.f
+    }
+
+    /// The constraint rows.
+    pub fn n(&self) -> usize {
+        self.n
+    }
+
+    /// The witness columns.
+    pub fn m(&self) -> usize {
+        self.m
+    }
+
+    pub fn domain_variables(&self) -> Option<usize> {
+        self.domain_variables
+    }
+
     pub fn new(matrices: Vec<Mat<F>>, f: SparsePoly<F>) -> Result<Self, RelationError>
     where
         F: p3_field::PrimeCharacteristicRing + Copy + Eq + Send + Sync,
@@ -51,6 +67,7 @@ impl<F: Field> CcsStructure<F> {
                 t,
             });
         }
+        validate_polynomial(&f, t)?;
 
         let matrices = matrices
             .into_iter()
@@ -63,10 +80,15 @@ impl<F: Field> CcsStructure<F> {
             })
             .collect();
 
-        Ok(Self { matrices, f, n, m })
+        Ok(Self {
+            matrices,
+            f,
+            n,
+            m,
+            domain_variables: None,
+        })
     }
 
-    /// Create a CCS structure from sparse matrices (CSC / identity).
     pub fn new_sparse(matrices: Vec<CcsMatrix<F>>, f: SparsePoly<F>) -> Result<Self, RelationError> {
         if matrices.is_empty() {
             return Err(RelationError::InvalidStructure);
@@ -74,11 +96,21 @@ impl<F: Field> CcsStructure<F> {
         let n = matrices[0].rows();
         let m = matrices[0].cols();
         for mj in matrices.iter() {
+            if matches!(mj, CcsMatrix::VerifierArtifact { .. }) {
+                return Err(RelationError::Message(
+                    "verifier-artifact matrices require the artifact-header constructor".into(),
+                ));
+            }
             if mj.rows() != n || mj.cols() != m {
                 return Err(RelationError::InvalidStructure);
             }
             if mj.rows() == 0 || mj.cols() == 0 {
                 return Err(RelationError::InvalidStructure);
+            }
+            if !mj.has_canonical_csc() {
+                return Err(RelationError::Message(
+                    "CCS sparse matrix is not in canonical CSC form".into(),
+                ));
             }
         }
         let t = matrices.len();
@@ -88,133 +120,142 @@ impl<F: Field> CcsStructure<F> {
                 t,
             });
         }
-        Ok(Self { matrices, f, n, m })
+        validate_polynomial(&f, t)?;
+        Ok(Self {
+            matrices,
+            f,
+            n,
+            m,
+            domain_variables: None,
+        })
     }
 
-    /// Number of matrices (arity of `f`).
+    pub fn new_verifier_artifact_header(
+        n: usize,
+        m: usize,
+        matrix_count: usize,
+        f: SparsePoly<F>,
+    ) -> Result<Self, RelationError> {
+        if n == 0 || m == 0 || matrix_count == 0 || padded_carrier_width(m).is_none() {
+            return Err(RelationError::InvalidStructure);
+        }
+        if f.arity() != matrix_count {
+            return Err(RelationError::PolyArity {
+                poly_arity: f.arity(),
+                t: matrix_count,
+            });
+        }
+        validate_polynomial(&f, matrix_count)?;
+        Ok(Self {
+            matrices: vec![CcsMatrix::VerifierArtifact { rows: n, cols: m }; matrix_count],
+            f,
+            n,
+            m,
+            domain_variables: None,
+        })
+    }
+
+    pub fn with_domain_variables(mut self, variables: usize) -> Result<Self, RelationError> {
+        self.domain_variables = Some(variables);
+        self.validate_domain()?;
+        Ok(self)
+    }
+
+    pub fn domain_rows(&self) -> usize {
+        self.domain_variables
+            .map_or(self.n, |variables| self.n.max(1 << variables))
+    }
+
+    pub fn cube_variables(&self) -> usize {
+        self.domain_rows()
+            .max(self.m.div_ceil(D) * D)
+            .next_power_of_two()
+            .max(2)
+            .trailing_zeros() as usize
+    }
+
+    fn validate_domain(&self) -> Result<(), RelationError> {
+        let Some(variables) = self.domain_variables else {
+            return Ok(());
+        };
+        let size = u32::try_from(variables)
+            .ok()
+            .and_then(|shift| 1usize.checked_shl(shift))
+            .ok_or(RelationError::InvalidStructure)?;
+        let carrier = padded_carrier_width(self.m).ok_or(RelationError::InvalidStructure)?;
+        if self.n > size || carrier > size {
+            return Err(RelationError::InvalidStructure);
+        }
+        Ok(())
+    }
+
+    pub fn is_verifier_artifact_header(&self) -> bool {
+        !self.matrices.is_empty()
+            && self
+                .matrices
+                .iter()
+                .all(|matrix| matches!(matrix, CcsMatrix::VerifierArtifact { .. }))
+    }
+
+    pub fn validate(&self) -> Result<(), RelationError> {
+        if self.matrices.is_empty() || self.n == 0 || self.m == 0 || padded_carrier_width(self.m).is_none() {
+            return Err(RelationError::InvalidStructure);
+        }
+        let artifact_header = self.is_verifier_artifact_header();
+        if !artifact_header
+            && self
+                .matrices
+                .iter()
+                .any(|matrix| matches!(matrix, CcsMatrix::VerifierArtifact { .. }))
+        {
+            return Err(RelationError::InvalidStructure);
+        }
+        for matrix in &self.matrices {
+            if matrix.rows() != self.n || matrix.cols() != self.m || (!artifact_header && !matrix.has_canonical_csc()) {
+                return Err(RelationError::InvalidStructure);
+            }
+        }
+        if self.f.arity() != self.matrices.len() {
+            return Err(RelationError::PolyArity {
+                poly_arity: self.f.arity(),
+                t: self.matrices.len(),
+            });
+        }
+        self.validate_domain()?;
+        validate_polynomial(&self.f, self.matrices.len())
+    }
+
     pub fn t(&self) -> usize {
         self.matrices.len()
     }
 
-    /// Maximum degree of the CCS polynomial.
     pub fn max_degree(&self) -> u32 {
         self.f.max_degree()
     }
+}
 
-    /// Ensure the first matrix is the identity I_n, as assumed by paper's NC semantics.
-    /// If not, insert I_n at index 0 and shift the polynomial arity/variables accordingly.
-    pub fn ensure_identity_first(&self) -> Result<Self, RelationError>
-    where
-        F: p3_field::PrimeCharacteristicRing + Copy + Eq + Clone,
-    {
-        // If not square, we cannot insert a true identity; leave structure unchanged.
-        if self.n != self.m {
-            return Ok(self.clone());
-        }
-        let is_id0 = self
-            .matrices
-            .first()
-            .map(|m0| m0.is_identity())
-            .unwrap_or(false);
-        if is_id0 {
-            return Ok(self.clone());
-        }
-        // Insert identity at position 0
-        let mut matrices = self.matrices.clone();
-        matrices.insert(0, CcsMatrix::Identity { n: self.n });
-        // Shift polynomial variables by inserting a dummy variable at the front
-        let f = self.f.insert_var_at_front();
-        Ok(CcsStructure {
-            matrices,
-            f,
-            n: self.n,
-            m: self.m,
-        })
-    }
-
-    /// Owned variant of `ensure_identity_first` that avoids cloning when `M₀` is already identity.
-    ///
-    /// This is useful in hot paths where callers already own a `CcsStructure` and only need to
-    /// normalize it (if necessary) for Ajtai/NC semantics.
-    pub fn ensure_identity_first_owned(mut self) -> Result<Self, RelationError>
-    where
-        F: p3_field::PrimeCharacteristicRing + Copy + Eq + Clone,
-    {
-        // If not square, we cannot insert a true identity; leave structure unchanged.
-        if self.n != self.m {
-            return Ok(self);
-        }
-        let is_id0 = self
-            .matrices
-            .first()
-            .map(|m0| m0.is_identity())
-            .unwrap_or(false);
-        if is_id0 {
-            return Ok(self);
-        }
-        self.matrices.insert(0, CcsMatrix::Identity { n: self.n });
-        self.f = self.f.insert_var_at_front();
-        Ok(self)
-    }
-
-    /// **STRICT** validation: Assert that M₀ = I_n for Ajtai/NC pipeline.
-    ///
-    /// The Ajtai norm constraint (NC) layer assumes the first matrix is the identity
-    /// for digit-range checks. If this invariant is violated, the sumcheck will fail
-    /// with a mysterious error later. This function fails fast with a clear error message.
-    ///
-    /// # Errors
-    /// - Returns error if n ≠ m (non-square CCS cannot have square identity)
-    /// - Returns error if matrices list is empty
-    /// - Returns error if M₀ is not the identity matrix I_n
-    ///
-    /// # Example
-    /// ```ignore
-    /// // Before using CCS in Ajtai/NC pipeline:
-    /// ccs.assert_m0_is_identity_for_nc()?;
-    /// ```
-    pub fn assert_m0_is_identity_for_nc(&self) -> Result<(), RelationError>
-    where
-        F: p3_field::PrimeCharacteristicRing + Copy + Eq,
-    {
-        // Check 1: Square CCS required for identity to even make sense
-        if self.n != self.m {
-            return Err(RelationError::Message(format!(
-                "Ajtai NC requires square CCS (n_constraints == n_vars), got {}×{}. \
-                 You may need to pad your R1CS to square dimensions.",
-                self.n, self.m
-            )));
-        }
-
-        // Check 2: Must have at least one matrix
-        if self.matrices.is_empty() {
+fn validate_polynomial<F>(polynomial: &SparsePoly<F>, arity: usize) -> Result<(), RelationError> {
+    for term in polynomial.terms() {
+        if term.exps.len() != arity {
             return Err(RelationError::Message(
-                "Ajtai NC expects at least one matrix (M₀) in CCS".into(),
+                "polynomial term exponent count does not match its arity".into(),
             ));
         }
-
-        // Check 3: M₀ must be the identity matrix
-        if !self.matrices[0].is_identity() {
+        if term
+            .exps
+            .iter()
+            .try_fold(0u32, |degree, exponent| degree.checked_add(*exponent))
+            .is_none()
+        {
             return Err(RelationError::Message(
-                "Ajtai NC requires M₀ = I_n (identity matrix). \
-                 Your CCS has a non-identity first matrix. \
-                 This usually happens with rectangular R1CS or when r1cs_to_ccs \
-                 doesn't produce identity-first form. \
-                 Try: (1) ensure n==m in R1CS, or (2) call ensure_identity_first() \
-                 before this check."
-                    .into(),
+                "polynomial term total degree exceeds u32".into(),
             ));
         }
-
-        Ok(())
     }
+    Ok(())
 }
 
 impl CcsStructure<neo_math::Fq> {
-    /// SuperNeo matrix transform `M -> bar(M)` applied row-wise.
-    ///
-    /// The field-column dimension `m` must be divisible by `D` so rows can be partitioned
-    /// into `d`-coefficient ring blocks.
     pub fn transform_matrices_superneo(&self) -> Result<Self, RelationError> {
         if !self.m.is_multiple_of(D) {
             return Err(RelationError::Message(format!(
@@ -228,7 +269,10 @@ impl CcsStructure<neo_math::Fq> {
         for mj in &self.matrices {
             out.push(transform_ccs_matrix_superneo(mj, bar)?);
         }
-        CcsStructure::new_sparse(out, self.f.clone())
+        Ok(CcsStructure {
+            domain_variables: self.domain_variables,
+            ..CcsStructure::new_sparse(out, self.f.clone())?
+        })
     }
 }
 
@@ -269,16 +313,14 @@ fn transform_ccs_matrix_superneo(
             }
         }
         CcsMatrix::Csc(m) => {
-            triplets.reserve(m.vals.len() * D);
-            for c in 0..m.ncols {
+            triplets.reserve(m.vals().len() * D);
+            for c in 0..m.ncols() {
                 let block = c / D;
                 let local = c % D;
                 let base = block * D;
-                let s = m.col_ptr[c];
-                let e = m.col_ptr[c + 1];
-                for k in s..e {
-                    let r = m.row_idx[k];
-                    let v = m.vals[k];
+                for k in m.column_range(c) {
+                    let r = m.row_index(k);
+                    let v = m.vals()[k];
                     for i in 0..D {
                         let coeff = v * bar[i][local];
                         if coeff != Fq::ZERO {
@@ -288,433 +330,137 @@ fn transform_ccs_matrix_superneo(
                 }
             }
         }
+        CcsMatrix::CscWithGeometricRuns { csc, geometric_runs } => {
+            triplets.reserve(csc.vals().len() * D);
+            for c in 0..csc.ncols() {
+                let block = c / D;
+                let local = c % D;
+                let base = block * D;
+                for k in csc.column_range(c) {
+                    let r = csc.row_index(k);
+                    let v = csc.vals()[k];
+                    for i in 0..D {
+                        let coeff = v * bar[i][local];
+                        if coeff != Fq::ZERO {
+                            triplets.push((r, base + i, coeff));
+                        }
+                    }
+                }
+            }
+            for run in geometric_runs {
+                run.for_each_term(|r, c, v| {
+                    let block = c / D;
+                    let local = c % D;
+                    let base = block * D;
+                    for (i, bar_row) in bar.iter().enumerate() {
+                        let coeff = v * bar_row[local];
+                        if coeff != Fq::ZERO {
+                            triplets.push((r, base + i, coeff));
+                        }
+                    }
+                });
+            }
+        }
+        CcsMatrix::VerifierArtifact { .. } => {
+            return Err(RelationError::Message(
+                "SuperNeo matrix transformation requires materialized matrix content".into(),
+            ));
+        }
     }
 
     Ok(CcsMatrix::Csc(CscMat::from_triplets(triplets, nrows, ncols)))
 }
 
-/// CCS claim: (c, x) with public inputs x ⊂ z.
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct LaneCommitments<C> {
+    pub ops: C,
+    pub is: C,
+    pub fs: C,
+}
+
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct CcsClaim<C, F> {
-    /// Commitment to Z (Ajtai over decomposition).
     pub c: C,
-    /// Public inputs x ∈ F^{m_in}; z = x || w.
     pub x: Vec<F>,
-    /// m_in
     pub m_in: usize,
+    #[serde(default = "Option::default")]
+    pub adv: Option<LaneCommitments<C>>,
 }
 
-/// CCS witness: w and its decomposition Z = Decomp_b(z).
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[serde(bound(
+    serialize = "F: serde::Serialize",
+    deserialize = "F: serde::Deserialize<'de> + p3_field::PrimeCharacteristicRing + Clone + Eq"
+))]
 #[allow(non_snake_case)]
 pub struct CcsWitness<F> {
-    /// Private witness w ∈ F^{m - m_in}.
-    pub w: Vec<F>,
-    /// Z ∈ F^{d×m}: decomposition matrix of z = x || w.
     pub Z: Mat<F>,
 }
 
-/// CE claim: (c, X, r, {y_ring_j}, ct, aux_openings).
+impl<F: Copy> CcsWitness<F> {
+    pub fn private_len(&self, m_in: usize, total: usize) -> Option<usize> {
+        let private = total.checked_sub(m_in)?;
+        self.Z
+            .rows()
+            .checked_mul(self.Z.cols())
+            .is_some_and(|len| len >= total)
+            .then_some(private)
+    }
+}
+
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
+pub struct V1_2Evaluations<K> {
+    pub eval_k: Vec<K>,
+    pub eval_a: Vec<Vec<K>>,
+}
+
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, PartialEq)]
+#[serde(bound(
+    serialize = "C: serde::Serialize, F: serde::Serialize, K: serde::Serialize",
+    deserialize = "C: serde::Deserialize<'de>, F: serde::Deserialize<'de> + p3_field::PrimeCharacteristicRing + Clone + Eq, K: serde::Deserialize<'de>"
+))]
 #[allow(non_snake_case)]
 pub struct CeClaim<C, F, K> {
-    /// Commitment to Z.
     pub c: C,
-    /// X = L_x(Z) ∈ F^{d×m_in}
     pub X: Mat<F>,
-    /// r ∈ K^{log n}
     pub r: Vec<K>,
-    /// s_col ∈ K^{log m}: column-domain point used for the digit-range (NC) check.
-    ///
-    /// Callers may leave this empty when the NC channel is not part of the checked surface.
-    #[serde(default)]
-    pub s_col: Vec<K>,
-    /// Ring-digit rows per CCS matrix output (j=0..t-1).
-    ///
-    /// Callers may store either:
-    /// - the unpadded length `d` (= `Z.rows()`), or
-    /// - the Ajtai-padded length `2^{ell_d}` (typically `D.next_power_of_two()`),
-    ///   in which case the tail must be all zeros.
-    pub y_ring: Vec<Vec<K>>,
-    /// Scalar view of `y_ring`.
-    ///
-    /// In SuperNeo embedding, core entries are constant terms of each `y_ring[j]`.
-    /// Existing pipelines may append additional scalar openings to this vector.
-    pub ct: Vec<K>,
-    /// Additional scalar openings that are not core CCS matrix outputs.
-    ///
-    /// This field is the CE-native home for sidecar/Route-A openings.
-    #[serde(default)]
-    pub aux_openings: Vec<K>,
-    /// y_zcol := Z · χ_{s_col} ∈ K^{d} (digit rows, typically padded to 2^{ell_d}).
-    ///
-    /// Callers may leave this empty when the NC channel is not part of the checked surface.
-    #[serde(default)]
-    pub y_zcol: Vec<K>,
-    /// m_in
+    pub eval_k: Vec<K>,
+    pub eval_a: Vec<Vec<K>>,
     pub m_in: usize,
-    /// **SECURITY**: Transcript-derived digest binding this ME to the folding proof
     pub fold_digest: [u8; 32],
-    /// **PATTERN A**: Pre-commitment coordinates for linear link constraints
-    /// c_step_coords[i] are the coordinates of the pre-commitment (with ρ=0 for EV part)
-    /// Used to enforce: c_full[i] - c_step_coords[i] = ⟨L_i, U⟩ where U = ρ·y_step
-    pub c_step_coords: Vec<F>,
-    /// Pattern A: Offset where ρ-dependent part starts in witness vector (unused in Pattern B)
-    pub u_offset: usize,
-    /// Pattern A: Length of the ρ-dependent part (unused in Pattern B)
-    pub u_len: usize,
+    #[serde(default = "Option::default")]
+    pub adv: Option<LaneCommitments<C>>,
 }
 
-/// CE witness: Z.
+impl<C, F, K> CeClaim<C, F, K> {
+    pub fn evaluation_families(&self) -> impl Iterator<Item = &[K]> {
+        std::iter::once(self.eval_k.as_slice()).chain(self.eval_a.iter().map(Vec::as_slice))
+    }
+
+    pub fn evaluation_family_count(&self) -> usize {
+        1 + self.eval_a.len()
+    }
+}
+
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[serde(bound(
+    serialize = "F: serde::Serialize",
+    deserialize = "F: serde::Deserialize<'de> + p3_field::PrimeCharacteristicRing + Clone + Eq"
+))]
 #[allow(non_snake_case)]
 pub struct CeWitness<F> {
-    /// Z ∈ F^{d×m}
     pub Z: Mat<F>,
 }
 
-fn validate_superneo_witness_mat_for_expected_m<F: Field>(z: &Mat<F>, expected_m: usize) -> Result<(), CcsError> {
-    if z.rows() != D {
-        return Err(CcsError::Dim {
-            context: "Z rows (expected D)",
-            expected: (D, expected_m),
-            got: (z.rows(), z.cols()),
-        });
-    }
-    if expected_m == 0 {
-        return Err(CcsError::Relation("expected_m must be > 0".into()));
-    }
-    let want_cols = expected_m.div_ceil(D);
-    if z.cols() == want_cols {
-        let pad_end = want_cols
-            .checked_mul(D)
-            .ok_or_else(|| CcsError::Relation("witness padding overflow".into()))?;
-        for c in expected_m..pad_end {
-            let blk = c / D;
-            let off = c % D;
-            if z[(off, blk)] != F::ZERO {
-                return Err(CcsError::Relation(
-                    format!("non-zero padded coefficient at logical index {c} (blk={blk}, off={off})").into(),
-                ));
-            }
-        }
-        return Ok(());
-    }
-    Err(CcsError::Dim {
-        context: "Z shape vs SuperNeo packed width",
-        expected: (D, want_cols),
-        got: (z.rows(), z.cols()),
-    })
-}
-
 #[inline]
-fn witness_get<F: Field + Copy>(z: &Mat<F>, rho: usize, col: usize) -> F {
-    let blk = col / D;
-    let off = col % D;
-    if off == rho {
-        z[(rho, blk)]
-    } else {
-        F::ZERO
-    }
+pub fn superneo_public_x_cols(m_in: usize) -> Option<usize> {
+    m_in.is_multiple_of(D).then_some(m_in / D)
 }
 
-fn project_x_from_superneo_witness<F: Field + Copy>(z: &Mat<F>, m_in: usize) -> Mat<F> {
-    let mut x = Mat::zero(D, m_in, F::ZERO);
-    let active_cols = core::cmp::min(m_in, z.cols());
-    for c in 0..active_cols {
-        for rho in 0..D {
-            x[(rho, c)] = z[(rho, c)];
-        }
-    }
-    x
+fn padded_carrier_width(m: usize) -> Option<usize> {
+    m.div_ceil(D).checked_mul(D)
 }
 
-#[inline]
-fn ct_from_y_digits_for_ccs_m<Kf: Field>(y_digits: &[Kf], expected_m: usize) -> Kf {
-    debug_assert!(expected_m > 0);
-    y_digits.first().copied().unwrap_or(Kf::ZERO)
-}
-
-fn matrix_entry_base_f<F: Field + Copy + Into<GoldiF>>(mat: &CcsMatrix<F>, row: usize, col: usize) -> GoldiF {
-    if row >= mat.rows() || col >= mat.cols() {
-        return GoldiF::ZERO;
-    }
-    match mat {
-        CcsMatrix::Identity { .. } => {
-            if row == col {
-                GoldiF::ONE
-            } else {
-                GoldiF::ZERO
-            }
-        }
-        CcsMatrix::Csc(csc) => {
-            let s = csc.col_ptr[col];
-            let e = csc.col_ptr[col + 1];
-            let mut acc = GoldiF::ZERO;
-            for idx in s..e {
-                if csc.row_idx[idx] == row {
-                    acc += csc.vals[idx].into();
-                }
-            }
-            acc
-        }
-    }
-}
-
-/// Build SuperNeo ring-coefficient linear forms for one CE point `r`.
-///
-/// Returns `forms[j][col][rho]` such that for each matrix `j`, the ring row
-/// satisfies `y_ring[j][rho] = Σ_col forms[j][col][rho] * z[col]`, where `col`
-/// ranges over logical witness columns padded up to the next multiple of `D`.
-pub fn build_superneo_ring_forms<
-    F: Field + PrimeCharacteristicRing + Copy + Into<GoldiF>,
-    K: Field + From<F> + KExtensions + Copy,
->(
-    s: &CcsStructure<F>,
-    r: &[K],
-) -> Result<Vec<Vec<[K; D]>>, CcsError> {
-    let n_pad = s.n.next_power_of_two();
-    let ell = n_pad.trailing_zeros() as usize;
-    if r.len() != ell {
-        return Err(CcsError::Len {
-            context: "r (extension point)",
-            expected: ell,
-            got: r.len(),
-        });
-    }
-
-    let chi_r = tensor_point::<K>(r);
-    let m_eff = s.m.div_ceil(D) * D;
-    let block_count = m_eff / D;
-    let mut out = Vec::with_capacity(s.t());
-
-    for matrix in &s.matrices {
-        let mut forms = vec![[K::ZERO; D]; m_eff];
-        for (row, &weight) in chi_r.iter().take(s.n).enumerate() {
-            if weight == K::ZERO {
-                continue;
-            }
-            for blk in 0..block_count {
-                let base = blk * D;
-                let mut a = [GoldiF::ZERO; D];
-                for (i, coeff) in a.iter_mut().enumerate() {
-                    *coeff = matrix_entry_base_f(matrix, row, base + i);
-                }
-                let a_bar = Rq(superneo_bar_block(a));
-                for i in 0..D {
-                    let mut basis = [GoldiF::ZERO; D];
-                    basis[i] = GoldiF::ONE;
-                    let shifted = a_bar.mul(&Rq(basis));
-                    let slot = &mut forms[base + i];
-                    for rho in 0..D {
-                        slot[rho] += weight.scale_base(shifted.0[rho]);
-                    }
-                }
-            }
-        }
-        out.push(forms);
-    }
-
-    Ok(out)
-}
-
-/// Check `c == L(Z)` for CCS claim.
-/// Note: The critical Z == Decomp_b(z) check is now handled in the folding pipeline
-/// where both neo-ccs and neo-ajtai dependencies are available.
-pub fn check_ccs_claim_opening<F: Field, C, L: SModuleHomomorphism<F, C>>(
-    l: &L,
-    inst: &CcsClaim<C, F>,
-    wit: &CcsWitness<F>,
-) -> Result<Vec<F>, CcsError>
-where
-    C: PartialEq,
-{
-    // shape sanity
-    let m = inst.m_in + wit.w.len();
-    validate_superneo_witness_mat_for_expected_m(&wit.Z, m)?;
-    // z = x || w
-    if inst.x.len() != inst.m_in {
-        return Err(CcsError::Len {
-            context: "x (public)",
-            expected: inst.m_in,
-            got: inst.x.len(),
-        });
-    }
-    let mut z = inst.x.clone();
-    z.extend_from_slice(&wit.w);
-
-    // === COMMITMENT BINDING ===
-    let c_star = l.commit(&wit.Z);
-    if c_star != inst.c {
-        return Err(CcsError::Relation("c != L(Z)".into()));
-    }
-
-    Ok(z)
-}
-
-/// Check `X == L_x(Z)` and SuperNeo CE output consistency.
-pub fn check_ce_consistency<
-    F: Field + PrimeCharacteristicRing + Copy + Into<GoldiF>,
-    K: Field + From<F> + KExtensions + Copy,
-    C,
-    L: SModuleHomomorphism<F, C>,
->(
-    _params: &NeoParams,
-    s: &CcsStructure<F>,
-    l: &L,
-    inst: &CeClaim<C, F, K>,
-    wit: &CeWitness<F>,
-) -> Result<(), CcsError>
-where
-    C: PartialEq,
-{
-    validate_superneo_witness_mat_for_expected_m(&wit.Z, s.m)?;
-
-    // X = L_x(Z)
-    let x_star = project_x_from_superneo_witness(&wit.Z, inst.m_in);
-    if x_star.as_slice() != inst.X.as_slice() {
-        return Err(CcsError::Relation("X != L_x(Z)".into()));
-    }
-    // c == L(Z) (always true in Π_CCS/Π_RLC composition; enforce here)
-    let c_star = l.commit(&wit.Z);
-    if c_star != inst.c {
-        return Err(CcsError::Relation("c != L(Z)".into()));
-    }
-
-    // y_j == \widehat{\bar{M}_j z}(r) in SuperNeo ring-coefficient form.
-    // Allow arbitrary n by deriving ℓ from the next power of two.
-    // χ_r is length 2^ℓ, and we consume only the first n entries.
-    let n_pad = s.n.next_power_of_two();
-    let ell = n_pad.trailing_zeros() as usize;
-    if inst.r.len() != ell {
-        return Err(CcsError::Len {
-            context: "r (extension point)",
-            expected: ell,
-            got: inst.r.len(),
-        });
-    }
-
-    // Optional NC channel: y_zcol == Z · χ_{s_col} (column-domain).
-    //
-    // This is only checked when both `s_col` and `y_zcol` are present; some paper
-    // CE openings do not include the backend NC channel.
-    if !(inst.s_col.is_empty() && inst.y_zcol.is_empty()) {
-        if inst.s_col.is_empty() || inst.y_zcol.is_empty() {
-            return Err(CcsError::Relation(
-                "incomplete NC channel: expected both s_col and y_zcol".into(),
-            ));
-        }
-
-        // Column-domain length is derived from CCS width `m` (not `n`).
-        let m_pad = s.m.next_power_of_two().max(2);
-        let ell_m = m_pad.trailing_zeros() as usize;
-        if inst.s_col.len() != ell_m {
-            return Err(CcsError::Len {
-                context: "s_col (column extension point)",
-                expected: ell_m,
-                got: inst.s_col.len(),
-            });
-        }
-
-        // Ajtai padding length for digit rows (matches `1 << ell_d` used by Π_CCS dims).
-        let d_pad = D.next_power_of_two();
-        let ell_d = d_pad.trailing_zeros() as usize;
-        let d_pad = 1usize << ell_d;
-        if inst.y_zcol.len() != d_pad {
-            return Err(CcsError::Len {
-                context: "y_zcol (padded digit rows)",
-                expected: d_pad,
-                got: inst.y_zcol.len(),
-            });
-        }
-
-        // Compute y_zcol = Z · χ_{s_col}.
-        let chi_s = crate::utils::tensor_point::<K>(&inst.s_col);
-        let mut y_star = vec![K::ZERO; D];
-        for rho in 0..D {
-            let mut acc = K::ZERO;
-            for c in 0..s.m {
-                acc += K::from(witness_get(&wit.Z, rho, c)) * chi_s[c];
-            }
-            y_star[rho] = acc;
-        }
-        y_star.resize(d_pad, K::ZERO);
-
-        if y_star.as_slice() != inst.y_zcol.as_slice() {
-            return Err(CcsError::Relation("y_zcol != Z · χ_{s_col}".into()));
-        }
-    }
-    if inst.y_ring.len() != s.t() {
-        return Err(CcsError::Len {
-            context: "|y_ring|",
-            expected: s.t(),
-            got: inst.y_ring.len(),
-        });
-    }
-
-    // Ajtai padding length for digit rows (matches `1 << ell_d` used by Π_CCS dims).
-    let d_pad = D.next_power_of_two();
-
-    let ring_forms = build_superneo_ring_forms(s, &inst.r)?;
-    for (j, forms) in ring_forms.iter().enumerate() {
-        let mut y_star = vec![K::ZERO; D];
-        for rho in 0..D {
-            let mut acc = K::ZERO;
-            for (c, coeffs) in forms.iter().enumerate() {
-                if c >= s.m {
-                    continue;
-                }
-                let z_c = K::from(witness_get(&wit.Z, c % D, c));
-                acc += coeffs[rho] * z_c;
-            }
-            y_star[rho] = acc;
-        }
-        let yj = &inst.y_ring[j];
-        let d = y_star.len();
-        if yj.len() < d {
-            return Err(CcsError::Len {
-                context: "y_ring[j] (digit row)",
-                expected: d,
-                got: yj.len(),
-            });
-        }
-        if yj.len() != d && yj.len() != d_pad {
-            return Err(CcsError::Len {
-                context: "y_ring[j] (digit row)",
-                expected: d_pad,
-                got: yj.len(),
-            });
-        }
-        if y_star.as_slice() != &yj[..d] {
-            return Err(CcsError::Relation("y_j != SuperNeo ring-form evaluation".into()));
-        }
-        if yj[d..].iter().any(|&x| x != K::ZERO) {
-            return Err(CcsError::Relation("y_j has non-zero SuperNeo padding tail".into()));
-        }
-    }
-
-    // Core CE invariant (SuperNeo-only): `ct[j] == y_ring[j][0]`.
-    if inst.ct.len() < s.t() {
-        return Err(CcsError::Len {
-            context: "ct (core entries)",
-            expected: s.t(),
-            got: inst.ct.len(),
-        });
-    }
-    for j in 0..s.t() {
-        let want = ct_from_y_digits_for_ccs_m(&inst.y_ring[j], s.m);
-        if inst.ct[j] != want {
-            return Err(CcsError::Relation("ct[j] != y_ring[j][0]".into()));
-        }
-    }
-
-    Ok(())
-}
-
-/// **MUST**: Verify CCS satisfiability `f(M z) = 0` **row-wise** with public inputs `x`.
-///
-/// This matches Def. 17's condition `f(Mg_1 z, …, Mg_t z) ∈ ZS_n` by simply
-/// checking that for each row i, `f((M_1 z)[i], …, (M_t z)[i]) == 0`.
 pub fn check_ccs_rowwise_zero<F: Field>(s: &CcsStructure<F>, x: &[F], w: &[F]) -> Result<(), CcsError> {
     if x.len() + w.len() != s.m {
         return Err(CcsError::Len {
@@ -726,7 +472,6 @@ pub fn check_ccs_rowwise_zero<F: Field>(s: &CcsStructure<F>, x: &[F], w: &[F]) -
     let mut z = x.to_vec();
     z.extend_from_slice(w);
 
-    // Compute M_j z for every j
     let mut mz: Vec<Vec<F>> = Vec::with_capacity(s.t());
     for mj in &s.matrices {
         let mut v = vec![F::ZERO; s.n];
@@ -734,7 +479,6 @@ pub fn check_ccs_rowwise_zero<F: Field>(s: &CcsStructure<F>, x: &[F], w: &[F]) -
         mz.push(v);
     }
 
-    // Row-wise: for each i, evaluate f( (M_1 z)[i], ..., (M_t z)[i] ) == 0
     for i in 0..s.n {
         let mut point = Vec::with_capacity(s.t());
         for j in 0..s.t() {
@@ -748,9 +492,6 @@ pub fn check_ccs_rowwise_zero<F: Field>(s: &CcsStructure<F>, x: &[F], w: &[F]) -
     Ok(())
 }
 
-/// **MUST**: Verify **relaxed CCS** `f(M z) = e * u` row-wise (defaults `u=0`, `e=1`).
-///
-/// This corresponds to the usual relaxed CCS used in Nova/HyperNova/Neo.
 pub fn check_ccs_rowwise_relaxed<F: Field>(
     s: &CcsStructure<F>,
     x: &[F],
@@ -786,7 +527,6 @@ pub fn check_ccs_rowwise_relaxed<F: Field>(
     let mut z = x.to_vec();
     z.extend_from_slice(w);
 
-    // M_j z for every j
     let mut mz: Vec<Vec<F>> = Vec::with_capacity(s.t());
     for mj in &s.matrices {
         let mut v = vec![F::ZERO; s.n];
@@ -794,7 +534,6 @@ pub fn check_ccs_rowwise_relaxed<F: Field>(
         mz.push(v);
     }
 
-    // Row-wise: f( (M_1 z)[i], ..., (M_t z)[i] ) == e * u[i]
     for i in 0..s.n {
         let mut point = Vec::with_capacity(s.t());
         for j in 0..s.t() {

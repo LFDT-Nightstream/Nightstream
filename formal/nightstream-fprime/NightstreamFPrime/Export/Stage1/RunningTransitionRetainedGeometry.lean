@@ -1,0 +1,131 @@
+import NightstreamFPrime.Export.Stage1.PiCCSActionPayloadBlock
+import NightstreamFPrime.Export.Stage1.RunningTransitionRetainedBlocks
+import NightstreamFPrime.Export.Stage1.PiCCSPoseidonPlan.Retained
+
+namespace NightstreamFPrime.Export.Stage1.RunningTransitionRetainedGeometry
+
+open NightstreamFPrime.Layout
+open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
+open RunningTransitionRetainedBlocks
+
+def stateStart (program : Lifecycle.Stage1.Application.Program) : Nat :=
+  PiRLCPoseidonGeometry.priorInputStart program + 27810 * 41
+
+theorem retainedPrefix_le_stateStart
+    (program : Lifecycle.Stage1.Application.Program) :
+    PiRLCRetainedGeometry.prefixLogicalWidth program ≤ stateStart program := by
+  unfold stateStart PiRLCPoseidonGeometry.priorInputStart
+  omega
+
+def outputStart (program : Lifecycle.Stage1.Application.Program) : Nat :=
+  PiRLCPoseidonGeometry.outputInputStart program
+
+def piDecStart (program : Lifecycle.Stage1.Application.Program) : Nat :=
+  PiRLCPoseidonGeometry.pilotLogicalWidth program
+
+def freshStart (program : Lifecycle.Stage1.Application.Program) : Nat :=
+  piDecStart program + (piDecBlock program).coordinateCount
+
+def completeLogicalWidth
+    (program : Lifecycle.Stage1.Application.Program) : Nat :=
+  freshStart program + (freshBlock program).coordinateCount
+
+@[simp] theorem completeLogicalWidth_eq
+    (program : Lifecycle.Stage1.Application.Program) :
+    completeLogicalWidth program = 40990348 := by
+  have retained := retainedCoordinateCount_eq program
+  simp only [retainedCoordinateCount] at retained
+  unfold completeLogicalWidth freshStart piDecStart
+  rw [PiRLCPoseidonGeometry.pilotLogicalWidth_eq]
+  omega
+
+theorem completeLogicalWidth_le_cube
+    (program : Lifecycle.Stage1.Application.Program) :
+    completeLogicalWidth program ≤
+      2 ^ NightstreamFPrime.Lifecycle.cubeVariables := by
+  rw [completeLogicalWidth_eq]
+  norm_num [NightstreamFPrime.Lifecycle.cubeVariables]
+
+structure Geometry (program : Lifecycle.Stage1.Application.Program)
+    (logicalWidth : Nat) : Prop where
+  completeFits : completeLogicalWidth program ≤ logicalWidth
+
+theorem poseidonGeometry {program : Lifecycle.Stage1.Application.Program}
+    {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
+    PiCCSPoseidonPlan.Geometry program logicalWidth where
+  pilotFits := by
+    apply Nat.le_trans _ geometry.completeFits
+    rw [PiRLCPoseidonGeometry.pilotLogicalWidth_eq, completeLogicalWidth_eq]
+    omega
+
+theorem pilotGeometry {program : Lifecycle.Stage1.Application.Program}
+    {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
+    PiRLCPoseidonGeometry.Geometry program logicalWidth where
+  pilotFits := by
+    have complete := geometry.completeFits
+    rw [completeLogicalWidth_eq] at complete
+    rw [PiRLCPoseidonGeometry.pilotLogicalWidth_eq]
+    omega
+
+theorem prefixGeometry {program : Lifecycle.Stage1.Application.Program}
+    {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
+    PiRLCRetainedGeometry.Geometry program logicalWidth :=
+  PiRLCPoseidonGeometry.prefixGeometry (pilotGeometry geometry)
+
+def oneColumn {program : Lifecycle.Stage1.Application.Program}
+    {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
+    Fin logicalWidth :=
+  PiRLCRetainedGeometry.oneColumn (prefixGeometry geometry)
+
+theorem stateFits {program : Lifecycle.Stage1.Application.Program}
+    {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
+    stateStart program + (stateBlock program).coordinateCount ≤ logicalWidth := by
+  have parent := PiRLCPoseidonGeometry.priorInputFits (pilotGeometry geometry)
+  have width : (PiRLCPoseidonGeometry.priorInputBlock program).coordinateCount =
+      1140579 := by simp [PiRLCPoseidonGeometry.priorInputBlock]
+  rw [width] at parent
+  change PiRLCPoseidonGeometry.priorInputStart program + 27810 * 41 + 9 * 41 ≤
+    logicalWidth
+  omega
+
+theorem outputFits {program : Lifecycle.Stage1.Application.Program}
+    {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
+    outputStart program + (outputBlock program).coordinateCount ≤ logicalWidth := by
+  have width : (outputBlock program).coordinateCount =
+      (PiRLCPoseidonGeometry.outputInputBlock program).coordinateCount := by
+    rw [outputBlock, fieldBlock_coordinateCount,
+      Layout.Stage1.RunningTransitionSourceSupport.outputCount_eq]
+    simp [PiRLCPoseidonGeometry.outputInputBlock]
+  rw [width]
+  exact PiRLCPoseidonGeometry.outputInputFits (pilotGeometry geometry)
+
+theorem piDecFits {program : Lifecycle.Stage1.Application.Program}
+    {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
+    piDecStart program + (piDecBlock program).coordinateCount ≤ logicalWidth := by
+  apply Nat.le_trans _ geometry.completeFits
+  unfold completeLogicalWidth freshStart
+  omega
+
+theorem freshFits {program : Lifecycle.Stage1.Application.Program}
+    {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
+    freshStart program + (freshBlock program).coordinateCount ≤ logicalWidth :=
+  geometry.completeFits
+
+structure Encodes {program : Lifecycle.Stage1.Application.Program}
+    {logicalWidth : Nat} (geometry : Geometry program logicalWidth)
+    (assignment : Assignment NightstreamFPrime.Spec.F logicalWidth)
+    (source : Fin (sourceWidth program) → NightstreamFPrime.Spec.F) : Prop where
+  state : (stateBlock program).EncodesAt
+    (stateStart program) (stateFits geometry) assignment source
+  output : (outputBlock program).EncodesAt
+    (outputStart program) (outputFits geometry) assignment source
+  piDec : (piDecBlock program).EncodesAt
+    (piDecStart program) (piDecFits geometry) assignment source
+  fresh : (freshBlock program).EncodesAt
+    (freshStart program) (freshFits geometry) assignment source
+  sboxes : (PiCCSPoseidonPlan.retainedBlock program).EncodesAt
+    (PiCCSPoseidonPlan.retainedStart program)
+    (PiCCSPoseidonPlan.retainedFits (poseidonGeometry geometry)) assignment
+    (PiCCSActionPayloadBlock.sourceAssignment program source)
+
+end NightstreamFPrime.Export.Stage1.RunningTransitionRetainedGeometry

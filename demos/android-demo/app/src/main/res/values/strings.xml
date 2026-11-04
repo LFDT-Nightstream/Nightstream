@@ -1,6 +1,0 @@
-<resources>
-    <string name="app_name">NeoFold Demo</string>
-    <string name="app_title">Nightstream wasm demo</string>
-    <string name="app_subtitle">neo-fold prove+verify via WebAssembly (WebView) and optional native JNI backend.</string>
-</resources>
-

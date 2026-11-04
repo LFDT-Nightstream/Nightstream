@@ -1,0 +1,100 @@
+import NightstreamFPrime.Export.Stage1.PiCCSOrdinaryDirectSource
+
+set_option autoImplicit false
+
+namespace NightstreamFPrime.Export.Stage1.PiDECPiCCSPacketSource
+
+open NightstreamFPrime.Spec
+open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
+open NightstreamFPrime.Lifecycle
+open NightstreamFPrime.Lifecycle.PaperAlgebra
+open NightstreamFPrime.Layout
+
+private theorem append_getElem? {Alpha : Type} {left : List Alpha} {count : Nat}
+    (lengthEq : left.length = count) (right : List Alpha) (index : Nat) :
+    (left ++ right)[index]? =
+      if index < count then left[index]? else right[index - count]? := by
+  by_cases bounded : index < count
+  · rw [ite_eq_left bounded, List.getElem?_append_left (by simpa only [lengthEq] using bounded)]
+  · rw [ite_eq_right bounded, List.getElem?_append_right (by
+      simpa only [lengthEq] using Nat.le_of_not_gt bounded), lengthEq]
+
+def row? (logicalWidth : Nat)
+    (publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth) (ordinal : Nat) :
+    Option R1CS.Row :=
+  let selected : Option Rows.CompiledRow :=
+    if ordinal < 4712 then
+      (PiCCSArithmetic.statementBindingRows logicalWidth publicFits)[ordinal]?
+    else
+      let ordinal := ordinal - 4712
+      if ordinal < 12957 then
+        (PiCCSArithmetic.initialClaimRows logicalWidth publicFits)[ordinal]?
+      else
+        let ordinal := ordinal - 12957
+        if ordinal < 728 then
+          (PiCCSArithmetic.sumcheckRows logicalWidth publicFits)[ordinal]?
+        else
+          let ordinal := ordinal - 728
+          if ordinal < 3364 then
+            (PiCCSArithmetic.evalKRows logicalWidth publicFits)[ordinal]?
+          else
+            let ordinal := ordinal - 3364
+            if ordinal < 11140 then
+              (PiCCSArithmetic.evalARows logicalWidth publicFits)[ordinal]?
+            else
+              let ordinal := ordinal - 11140
+              if ordinal < 23 then
+                (PiCCSArithmetic.ccsRows logicalWidth publicFits)[ordinal]?
+              else
+                let ordinal := ordinal - 23
+                if ordinal < 800 then
+                  (PiCCSArithmetic.normRows logicalWidth publicFits)[ordinal]?
+                else
+                  (PiCCSArithmetic.finalIdentityRows logicalWidth publicFits)[ordinal - 800]?
+  selected.map Rows.CompiledRow.toR1CS
+
+theorem row?_eq_sourceRows_getElem?
+    {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (ordinal : Nat) :
+    row? logicalWidth publicFits ordinal =
+      (PiCCSOrdinaryDirectSource.sourceRows logicalWidth publicFits)[ordinal]? := by
+  unfold row? PiCCSOrdinaryDirectSource.sourceRows
+  rw [List.getElem?_map]
+  apply congrArg (Option.map Rows.CompiledRow.toR1CS)
+  simp only [PiCCSArithmetic.arithmeticRows, List.append_assoc,
+    append_getElem? (PiCCSArithmetic.statementBindingRows_length
+      logicalWidth publicFits relation),
+    append_getElem? (PiCCSArithmetic.initialClaimRows_length
+      logicalWidth publicFits relation),
+    append_getElem? (PiCCSArithmetic.sumcheckRows_length
+      logicalWidth publicFits relation),
+    append_getElem? (PiCCSArithmetic.evalKRows_length
+      logicalWidth publicFits relation),
+    append_getElem? (PiCCSArithmetic.evalARows_length
+      logicalWidth publicFits relation),
+    append_getElem? (PiCCSArithmetic.ccsRows_length
+      logicalWidth publicFits relation),
+    append_getElem? (PiCCSArithmetic.normRows_length
+      logicalWidth publicFits relation)]
+
+theorem row?_eq_programRow
+    {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (index : Fin 37317) :
+    row? logicalWidth publicFits index.val =
+      some (PiCCSOrdinaryDirectSource.programRow relation index) := by
+  rw [row?_eq_sourceRows_getElem? relation]
+  have bounded : index.val <
+      (PiCCSOrdinaryDirectSource.sourceRows logicalWidth publicFits).length := by
+    rw [PiCCSOrdinaryDirectSource.sourceRows_length relation]
+    exact index.isLt
+  rw [List.getElem?_eq_getElem bounded]
+  rfl
+
+end NightstreamFPrime.Export.Stage1.PiDECPiCCSPacketSource

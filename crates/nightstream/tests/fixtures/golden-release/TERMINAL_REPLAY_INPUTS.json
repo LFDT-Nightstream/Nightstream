@@ -1,0 +1,283 @@
+{
+  "schema": 1,
+  "prepared_at_utc": "2026-09-13T06:56:22.634566+00:00",
+  "source_cut_commit": "48f06fabef53d3f8f20eb501077b756fb529a805",
+  "repository": "LFDT-Nightstream/Nightstream",
+  "proposed_release_tag": "stage1-evidence-48f06fab",
+  "asset_name": "NATIVE_TERMINAL_CHILD_WITNESSES_EVIDENCE-933ef4b4e31310b59abf1ff07856efe308d39513a88c4af36966a68b83d3f10e.zip",
+  "archive_bytes": 162917001,
+  "archive_sha256": "933ef4b4e31310b59abf1ff07856efe308d39513a88c4af36966a68b83d3f10e",
+  "archive_member_count": 17,
+  "inputs": [
+    {
+      "source_path": "/tmp/nightstream-native-parent-material-1/digit-0.json",
+      "archive_member": "child-witnesses/digit-0.json",
+      "bytes": 90671538,
+      "sha256": "7645853931a22b280594822a5f50c461ea616b4cd553afbac4433d52cdf4cf56",
+      "committed_child_manifest_match": true,
+      "committed_prior_audit_match": true,
+      "child_index": 0,
+      "source_check_input_path": "/tmp/nightstream-native-nonzero-sources-1/digit-0.json",
+      "source_check_input_resolves_to_same_file": true,
+      "archived_bytes_verified": true
+    },
+    {
+      "source_path": "/tmp/nightstream-native-parent-material-1/digit-1.json",
+      "archive_member": "child-witnesses/digit-1.json",
+      "bytes": 90422650,
+      "sha256": "3087882365e6a36adeb3e147bd3d9e0860bb8d6c24943e6108664e8497ebe34e",
+      "committed_child_manifest_match": true,
+      "committed_prior_audit_match": true,
+      "child_index": 1,
+      "source_check_input_path": "/tmp/nightstream-native-nonzero-sources-1/digit-1.json",
+      "source_check_input_resolves_to_same_file": true,
+      "archived_bytes_verified": true
+    },
+    {
+      "source_path": "/tmp/nightstream-native-parent-material-1/digit-2.json",
+      "archive_member": "child-witnesses/digit-2.json",
+      "bytes": 88108411,
+      "sha256": "ad44d68e0446874cc89efb63ac0a366ea5d4152a9b775abbce01adea0bc8bbc7",
+      "committed_child_manifest_match": true,
+      "committed_prior_audit_match": true,
+      "child_index": 2,
+      "source_check_input_path": "/tmp/nightstream-native-nonzero-sources-1/digit-2.json",
+      "source_check_input_resolves_to_same_file": true,
+      "archived_bytes_verified": true
+    },
+    {
+      "source_path": "/tmp/nightstream-native-parent-material-1/digit-3.json",
+      "archive_member": "child-witnesses/digit-3.json",
+      "bytes": 84230535,
+      "sha256": "ba98664c57e846a7134122ac7fc80439f6843c38617aee7b384a9fccc1caa0c0",
+      "committed_child_manifest_match": true,
+      "committed_prior_audit_match": true,
+      "child_index": 3,
+      "source_check_input_path": "/tmp/nightstream-native-nonzero-sources-1/digit-3.json",
+      "source_check_input_resolves_to_same_file": true,
+      "archived_bytes_verified": true
+    },
+    {
+      "source_path": "/tmp/nightstream-native-parent-material-1/digit-4.json",
+      "archive_member": "child-witnesses/digit-4.json",
+      "bytes": 70277656,
+      "sha256": "a77ce096b028d961ddb81c166b22625f19686f86d92fa869f86852144069c06c",
+      "committed_child_manifest_match": true,
+      "committed_prior_audit_match": true,
+      "child_index": 4,
+      "source_check_input_path": "/tmp/nightstream-native-nonzero-sources-1/digit-4.json",
+      "source_check_input_resolves_to_same_file": true,
+      "archived_bytes_verified": true
+    },
+    {
+      "source_path": "/tmp/nightstream-native-parent-material-1/digit-5.json",
+      "archive_member": "child-witnesses/digit-5.json",
+      "bytes": 20662166,
+      "sha256": "d126d8362918e6d0e306812bb08b650a4bfc862c575d4b7d7d34f8b9a2121ac9",
+      "committed_child_manifest_match": true,
+      "committed_prior_audit_match": true,
+      "child_index": 5,
+      "source_check_input_path": "/tmp/nightstream-native-nonzero-sources-1/digit-5.json",
+      "source_check_input_resolves_to_same_file": true,
+      "archived_bytes_verified": true
+    },
+    {
+      "source_path": "/tmp/nightstream-native-parent-material-1/digit-6.json",
+      "archive_member": "child-witnesses/digit-6.json",
+      "bytes": 91,
+      "sha256": "b7c60df53c833fe220b7cbcabc5c3b964c804f34fe75f6bc899cd189c1d69009",
+      "committed_child_manifest_match": true,
+      "committed_prior_audit_match": true,
+      "child_index": 6,
+      "source_check_input_path": "/tmp/nightstream-native-nonzero-sources-1/digit-6.json",
+      "source_check_input_resolves_to_same_file": true,
+      "archived_bytes_verified": true
+    },
+    {
+      "source_path": "/tmp/nightstream-native-parent-material-1/digit-7.json",
+      "archive_member": "child-witnesses/digit-7.json",
+      "bytes": 91,
+      "sha256": "b7c60df53c833fe220b7cbcabc5c3b964c804f34fe75f6bc899cd189c1d69009",
+      "committed_child_manifest_match": true,
+      "committed_prior_audit_match": true,
+      "child_index": 7,
+      "source_check_input_path": "/tmp/nightstream-native-nonzero-sources-1/digit-7.json",
+      "source_check_input_resolves_to_same_file": true,
+      "archived_bytes_verified": true
+    },
+    {
+      "source_path": "/tmp/nightstream-native-parent-material-1/digit-8.json",
+      "archive_member": "child-witnesses/digit-8.json",
+      "bytes": 91,
+      "sha256": "b7c60df53c833fe220b7cbcabc5c3b964c804f34fe75f6bc899cd189c1d69009",
+      "committed_child_manifest_match": true,
+      "committed_prior_audit_match": true,
+      "child_index": 8,
+      "source_check_input_path": "/tmp/nightstream-native-nonzero-sources-1/digit-8.json",
+      "source_check_input_resolves_to_same_file": true,
+      "archived_bytes_verified": true
+    },
+    {
+      "source_path": "/tmp/nightstream-native-parent-material-1/digit-9.json",
+      "archive_member": "child-witnesses/digit-9.json",
+      "bytes": 91,
+      "sha256": "b7c60df53c833fe220b7cbcabc5c3b964c804f34fe75f6bc899cd189c1d69009",
+      "committed_child_manifest_match": true,
+      "committed_prior_audit_match": true,
+      "child_index": 9,
+      "source_check_input_path": "/tmp/nightstream-native-nonzero-sources-1/digit-9.json",
+      "source_check_input_resolves_to_same_file": true,
+      "archived_bytes_verified": true
+    },
+    {
+      "source_path": "/tmp/nightstream-native-parent-material-1/digit-10.json",
+      "archive_member": "child-witnesses/digit-10.json",
+      "bytes": 91,
+      "sha256": "b7c60df53c833fe220b7cbcabc5c3b964c804f34fe75f6bc899cd189c1d69009",
+      "committed_child_manifest_match": true,
+      "committed_prior_audit_match": true,
+      "child_index": 10,
+      "source_check_input_path": "/tmp/nightstream-native-nonzero-sources-1/digit-10.json",
+      "source_check_input_resolves_to_same_file": true,
+      "archived_bytes_verified": true
+    },
+    {
+      "source_path": "/tmp/nightstream-native-parent-material-1/digit-11.json",
+      "archive_member": "child-witnesses/digit-11.json",
+      "bytes": 91,
+      "sha256": "b7c60df53c833fe220b7cbcabc5c3b964c804f34fe75f6bc899cd189c1d69009",
+      "committed_child_manifest_match": true,
+      "committed_prior_audit_match": true,
+      "child_index": 11,
+      "source_check_input_path": "/tmp/nightstream-native-nonzero-sources-1/digit-11.json",
+      "source_check_input_resolves_to_same_file": true,
+      "archived_bytes_verified": true
+    },
+    {
+      "source_path": "/tmp/nightstream-native-parent-material-1/digit-12.json",
+      "archive_member": "child-witnesses/digit-12.json",
+      "bytes": 91,
+      "sha256": "b7c60df53c833fe220b7cbcabc5c3b964c804f34fe75f6bc899cd189c1d69009",
+      "committed_child_manifest_match": true,
+      "committed_prior_audit_match": true,
+      "child_index": 12,
+      "source_check_input_path": "/tmp/nightstream-native-nonzero-sources-1/digit-12.json",
+      "source_check_input_resolves_to_same_file": true,
+      "archived_bytes_verified": true
+    },
+    {
+      "source_path": "/tmp/nightstream-native-parent-material-1/digit-13.json",
+      "archive_member": "child-witnesses/digit-13.json",
+      "bytes": 91,
+      "sha256": "b7c60df53c833fe220b7cbcabc5c3b964c804f34fe75f6bc899cd189c1d69009",
+      "committed_child_manifest_match": true,
+      "committed_prior_audit_match": true,
+      "child_index": 13,
+      "source_check_input_path": "/tmp/nightstream-native-nonzero-sources-1/digit-13.json",
+      "source_check_input_resolves_to_same_file": true,
+      "archived_bytes_verified": true
+    },
+    {
+      "source_path": "/tmp/nightstream-native-parent-material-1/digit-14.json",
+      "archive_member": "child-witnesses/digit-14.json",
+      "bytes": 91,
+      "sha256": "b7c60df53c833fe220b7cbcabc5c3b964c804f34fe75f6bc899cd189c1d69009",
+      "committed_child_manifest_match": true,
+      "committed_prior_audit_match": true,
+      "child_index": 14,
+      "source_check_input_path": "/tmp/nightstream-native-nonzero-sources-1/digit-14.json",
+      "source_check_input_resolves_to_same_file": true,
+      "archived_bytes_verified": true
+    },
+    {
+      "source_path": "/tmp/nightstream-native-parent-material-1/digit-15.json",
+      "archive_member": "child-witnesses/digit-15.json",
+      "bytes": 91,
+      "sha256": "b7c60df53c833fe220b7cbcabc5c3b964c804f34fe75f6bc899cd189c1d69009",
+      "committed_child_manifest_match": true,
+      "committed_prior_audit_match": true,
+      "child_index": 15,
+      "source_check_input_path": "/tmp/nightstream-native-nonzero-sources-1/digit-15.json",
+      "source_check_input_resolves_to_same_file": true,
+      "archived_bytes_verified": true
+    },
+    {
+      "source_path": "/tmp/nightstream-native-parent-material-1/split.json",
+      "archive_member": "child-witnesses/split.json",
+      "bytes": 482435,
+      "sha256": "331d3b8a2a4356d5170cc62d4a4802362fc9e01360b1cbd8660ada6236bfa24a",
+      "committed_child_manifest_match": true,
+      "committed_prior_audit_match": true,
+      "purpose": "Original canonical split metadata for the existing parent/D replay; not authority for terminal acceptance.",
+      "archived_bytes_verified": true
+    }
+  ],
+  "input_authority_records": [
+    {
+      "archive": "docs/reviews/nightstream-fprime-requirements/NATIVE_ENVELOPE_EVIDENCE.zip",
+      "archive_sha256": "b9ab74dc98c7d5875dcc5925d4f7be4ca42729f841f3708c24043f2096f679fb",
+      "member": "input/child-witness-manifest.json",
+      "member_sha256": "ccf51bab02c72e357460aa003853f607ea7a12d83671c0f1ec8a2b3345ff9995"
+    },
+    {
+      "archive": "docs/reviews/nightstream-fprime-requirements/STAGE1_BASELINE_AUDIT.zip",
+      "archive_sha256": "07edfb2061167b7fe3dfa5ee6069ed0cd5f014b1d08c8483f97dcf6d4ed1983f",
+      "member": "review/nightstream-baseline-nonzero-audit.json",
+      "member_sha256": "0e4076d6a6685e06f3b0d95e17e6d0cdb4619d395ac1afdf018ac874d17d14a2"
+    }
+  ],
+  "existing_source_check": {
+    "log_path": "/tmp/nightstream-baseline-nonzero-source-check-1.log",
+    "log_sha256": "1184892177ab90de9bde4747f7750a9ceebecfc1a50a93f9443b7b463a6671e0",
+    "outcome": "passed",
+    "exit": 0,
+    "elapsed_seconds": 134.64219627599232,
+    "cap_seconds": 300,
+    "input_directory": "/tmp/nightstream-native-nonzero-sources-1",
+    "all_digit_paths_resolve_to_packaged_sources": true,
+    "all_sixteen_opening_markers_present": true,
+    "private_substitution_rejected": true,
+    "scope": "Existing local diagnostic execution; inspected, not rerun."
+  },
+  "terminal_replay_inputs": {
+    "scope": "The previously prepared evidence archives plus this new asset and the current tracked package and independent Lean caller fixture supply the inputs for replaying the retained iteration-two terminal case.",
+    "envelope_archive": "NATIVE_ENVELOPE_EVIDENCE-b9ab74dc98c7d5875dcc5925d4f7be4ca42729f841f3708c24043f2096f679fb.zip",
+    "envelope_archive_sha256": "b9ab74dc98c7d5875dcc5925d4f7be4ca42729f841f3708c24043f2096f679fb",
+    "envelope_members": [
+      "output/envelope.json",
+      "output/fresh-claim.json",
+      "output/fresh-witness.json"
+    ],
+    "child_directory_after_extract": "child-witnesses",
+    "tracked_prerequisites": [
+      {
+        "source_path": "formal/nightstream-fprime/artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1.json",
+        "source_cut_git_blob": "4c913c1dfc49efe0df45eccf66199f35799efa27",
+        "bytes": 128098921,
+        "sha256": "043bce25083eb15c733a903f4df2958acbc31a59dbe17420cd084c8242bd4d1f",
+        "bundled_in_new_asset": false,
+        "git_storage": "LFS pointer",
+        "lfs_oid": "sha256:043bce25083eb15c733a903f4df2958acbc31a59dbe17420cd084c8242bd4d1f",
+        "lfs_size": 128098921,
+        "materialized_bytes_match_pointer": true,
+        "replay_requirement": "Materialize this exact LFS object; the pointer text itself is not the package."
+      },
+      {
+        "source_path": "formal/nightstream-fprime/artifacts/nightstream-fprime-stage1-actual-recursive-step-fixture-v1.json",
+        "source_cut_git_blob": "1feb6472d5eefba1e62a5bea914ae3ad0d551d2c",
+        "bytes": 940444,
+        "sha256": "3a5bc4e1077df3416b69a081f1b1d681edf9244e042cd9a4c35770293bdffc38",
+        "bundled_in_new_asset": false,
+        "git_storage": "ordinary Git blob"
+      }
+    ],
+    "use": "Give the existing terminal fixture action the extracted envelope output directory and this asset's extracted child-witnesses directory. Use the exact materialized tracked package and checked actual-recursive-step Lean expectation. split.json is also available for the existing staged parent/D replay."
+  },
+  "elapsed_seconds": 18.378883,
+  "peak_rss_kib": 19652,
+  "memory_policy": "Existing memory limits and historical memory records are unchanged. Peak RSS measures only this successful archive-preparation process.",
+  "upload_status": "pending",
+  "remote_verification_status": "pending",
+  "fresh_download_verification": "not performed",
+  "terminal_rerun": "not performed"
+}

@@ -1,0 +1,1416 @@
+import NightstreamFPrime.Export.Stage1.PiCCSOrdinaryDirectPlan
+import NightstreamFPrime.Export.Stage1.PiCCSTranscriptDirectSemantics
+import NightstreamFPrime.Export.Stage1.InvocationLastOutput
+import NightstreamFPrime.Layout.ProductionRelation.PinFamilyPlan
+import NightstreamFPrime.Layout.Stage1.SpartanValues
+
+namespace NightstreamFPrime.Export.Stage1.PiCCSTranscriptEndpointPlan
+
+open NightstreamFPrime.Layout
+open NightstreamFPrime.Layout.ProductionRelation
+open NightstreamFPrime.Layout.Stage1
+open NightstreamFPrime.Circuit
+open NightstreamFPrime.Gadgets.Poseidon2
+open NightstreamFPrime.Lifecycle.PaperAlgebra
+open NightstreamFPrime.Lifecycle.PiCCS.v1_2
+open NightstreamFPrime.Spec
+open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
+open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
+
+def familyCount : Nat := 4
+@[implicit_reducible]
+def laneCount : Nat := Spec.Poseidon2.width
+def rowCount : Nat := familyCount * laneCount
+
+def statementFamily : Fin familyCount := ⟨0, by norm_num [familyCount]⟩
+def challengeFamily : Fin familyCount := ⟨1, by norm_num [familyCount]⟩
+def roundFamily : Fin familyCount := ⟨2, by norm_num [familyCount]⟩
+def outputFamily : Fin familyCount := ⟨3, by norm_num [familyCount]⟩
+
+@[simp] theorem rowCount_eq : rowCount = 64 := by
+  rfl
+
+def descriptor (row : Fin rowCount) : Fin familyCount × Fin laneCount :=
+  Fin.decodeProd row
+
+def row (family : Fin familyCount) (lane : Fin laneCount) : Fin rowCount :=
+  Fin.encodeProd (family, lane)
+
+@[simp] theorem descriptor_row (family : Fin familyCount)
+    (lane : Fin laneCount) : descriptor (row family lane) = (family, lane) := by
+  exact Fin.decodeProd_encodeProd (family, lane)
+
+private theorem statementActions_positive :
+    0 < Invocations.invocationCount PiCCSActionPayloadBlock.statementActions := by
+  have count := PiCCSInvocations.statementInvocationCount_eq
+    Data.logicalWidth Data.publicFits
+  change Invocations.invocationCount
+    PiCCSActionPayloadBlock.statementActions = 123 at count
+  omega
+
+private theorem challengeActions_positive :
+    0 < Invocations.invocationCount PiCCSActionPayloadBlock.challengeActions := by
+  rw [PiCCSActionPayloadBlock.challengeInvocationCount_eq]
+  norm_num
+
+private theorem roundActions_positive :
+    0 < Invocations.invocationCount PiCCSActionPayloadBlock.roundActions := by
+  rw [PiCCSActionPayloadBlock.roundInvocationCount_eq]
+  norm_num
+
+private theorem outputActions_positive :
+    0 < Invocations.invocationCount PiCCSActionPayloadBlock.outputActions := by
+  have count := PiCCSInvocations.outputInvocationCount_eq
+    Data.logicalWidth Data.publicFits
+  change Invocations.invocationCount
+    PiCCSActionPayloadBlock.outputActions = 765 at count
+  omega
+
+def endpointInvocation (family : Fin familyCount) :
+    Fin PiCCSActionPayloadBlock.invocationCount :=
+  if family.val = 0 then
+    PiCCSTranscriptDirectSemantics.statementLast
+  else if family.val = 1 then
+    PiCCSTranscriptDirectSemantics.challengeLast
+  else if family.val = 2 then
+    PiCCSTranscriptDirectSemantics.roundLast
+  else
+    PiCCSTranscriptDirectSemantics.outputLast
+
+def endpointStart (family : Fin familyCount) : Nat :=
+  if family.val = 0 then
+    PiCCSInvocations.challengeWitnessStart - 16
+  else if family.val = 1 then
+    PiCCSInvocations.roundWitnessStart - 16
+  else if family.val = 2 then
+    PiCCSInvocations.roundWitnessStart +
+      PiCCSTranscriptDirectSemantics.roundCount * 1096 - 16
+  else
+    PiCCSStarts.logicalFreshBase - 16
+
+def endpointColumn (family : Fin familyCount) (lane : Fin laneCount) : Nat :=
+  endpointStart family + lane.val
+
+private theorem statementTrace_state_endpoint (lane : Fin laneCount) :
+    (PiCCSInvocations.statementTrace Data.logicalWidth Data.publicFits).state
+        lane =
+      Expr.var (endpointColumn statementFamily lane) := by
+  have compiled := InvocationLastOutput.compileActions_state_scheduleOutput
+    PiCCSInvocations.statementPhase PiCCSInvocations.statementRowStart
+    PiCCSInvocations.statementWitnessStart Hash.zeroE
+    PiCCSActionPayloadBlock.statementActions statementActions_positive
+  change
+    (PiCCSInvocations.statementTrace Data.logicalWidth Data.publicFits).state =
+      Permutation.scheduleOutput
+        (PiCCSInvocations.statementWitnessStart +
+          (Invocations.invocationCount
+            PiCCSActionPayloadBlock.statementActions - 1) * 1096) at compiled
+  have count : Invocations.invocationCount
+      PiCCSActionPayloadBlock.statementActions = 123 := by
+    exact PiCCSInvocations.statementInvocationCount_eq
+      Data.logicalWidth Data.publicFits
+  have endEq := PiCCSInvocations.statementEnd_eq_challengeStart
+    Data.logicalWidth Data.publicFits
+  rw [count] at compiled
+  rw [PiCCSInvocations.statementInvocationCount_eq] at endEq
+  have startEq :
+      PiCCSInvocations.statementWitnessStart + (123 - 1) * 1096 + 1080 =
+        PiCCSInvocations.challengeWitnessStart - 16 := by
+    rw [← endEq]
+    generalize PiCCSInvocations.statementWitnessStart = start
+    omega
+  rw [congrFun compiled lane]
+  unfold Permutation.scheduleOutput Permutation.freshState endpointColumn
+  rw [show endpointStart statementFamily =
+      PiCCSInvocations.challengeWitnessStart - 16 by rfl]
+  rw [startEq]
+
+private theorem challengeTrace_state_endpoint (lane : Fin laneCount) :
+    (PiCCSInvocations.challengeTrace Data.logicalWidth Data.publicFits).state
+        lane =
+      Expr.var (endpointColumn challengeFamily lane) := by
+  rw [PiCCSInvocations.challengeTrace_eq_semantic]
+  have compiled := InvocationLastOutput.compileActions_state_scheduleOutput
+    PiCCSInvocations.challengePhase PiCCSInvocations.challengeRowStart
+    PiCCSInvocations.challengeWitnessStart
+    ((PiCCSInvocations.challengeInterface Data.logicalWidth
+      Data.publicFits).initialState PiCCSInvocations.challengeWitnessStart)
+    PiCCSActionPayloadBlock.challengeActions challengeActions_positive
+  change
+    (PiCCSInvocations.challengeSemanticTrace Data.logicalWidth
+        Data.publicFits).state =
+      Permutation.scheduleOutput
+        (PiCCSInvocations.challengeWitnessStart +
+          (Invocations.invocationCount
+            PiCCSActionPayloadBlock.challengeActions - 1) * 1096) at compiled
+  have endEq := PiCCSInvocations.challengeEnd_eq_roundStart
+    Data.logicalWidth Data.publicFits
+  rw [PiCCSActionPayloadBlock.challengeInvocationCount_eq] at compiled
+  rw [PiCCSInvocations.challengeInvocationCount_eq] at endEq
+  have startEq :
+      PiCCSInvocations.challengeWitnessStart + (4 - 1) * 1096 + 1080 =
+        PiCCSInvocations.roundWitnessStart - 16 := by
+    rw [← endEq]
+    generalize PiCCSInvocations.challengeWitnessStart = start
+    omega
+  rw [congrFun compiled lane]
+  unfold Permutation.scheduleOutput Permutation.freshState endpointColumn
+  rw [show endpointStart challengeFamily =
+      PiCCSInvocations.roundWitnessStart - 16 by rfl]
+  rw [startEq]
+
+private theorem roundTrace_state_endpoint (lane : Fin laneCount) :
+    (PiCCSInvocations.roundTrace Data.logicalWidth Data.publicFits).state lane =
+      Expr.var (endpointColumn roundFamily lane) := by
+  rw [PiCCSInvocations.roundTrace_eq_semantic]
+  have compiled := InvocationLastOutput.compileActions_state_scheduleOutput
+    PiCCSInvocations.roundPhase PiCCSInvocations.roundRowStart
+    PiCCSInvocations.roundWitnessStart
+    ((PiCCSInvocations.roundInterface Data.logicalWidth
+      Data.publicFits).initialState PiCCSInvocations.roundWitnessStart)
+    PiCCSActionPayloadBlock.roundActions roundActions_positive
+  change
+    (PiCCSInvocations.roundSemanticTrace Data.logicalWidth
+        Data.publicFits).state =
+      Permutation.scheduleOutput
+        (PiCCSInvocations.roundWitnessStart +
+          (Invocations.invocationCount PiCCSActionPayloadBlock.roundActions - 1) *
+            1096) at compiled
+  rw [PiCCSActionPayloadBlock.roundInvocationCount_eq] at compiled
+  have startEq :
+      PiCCSInvocations.roundWitnessStart + (56 - 1) * 1096 + 1080 =
+        PiCCSInvocations.roundWitnessStart + 56 * 1096 - 16 := by
+    generalize PiCCSInvocations.roundWitnessStart = start
+    omega
+  rw [congrFun compiled lane]
+  unfold Permutation.scheduleOutput Permutation.freshState endpointColumn
+  rw [show endpointStart roundFamily =
+      PiCCSInvocations.roundWitnessStart +
+        PiCCSTranscriptDirectSemantics.roundCount * 1096 - 16 by rfl]
+  rw [show PiCCSTranscriptDirectSemantics.roundCount = 56 by rfl]
+  rw [startEq]
+
+private theorem outputTrace_state_endpoint (lane : Fin laneCount) :
+    (PiCCSInvocations.outputTrace Data.logicalWidth Data.publicFits).state lane =
+      Expr.var (endpointColumn outputFamily lane) := by
+  have compiled := InvocationLastOutput.compileActions_state_scheduleOutput
+    PiCCSInvocations.outputPhase PiCCSInvocations.outputRowStart
+    PiCCSInvocations.outputWitnessStart
+    (PiCCSInvocations.roundTrace Data.logicalWidth Data.publicFits).state
+    PiCCSActionPayloadBlock.outputActions outputActions_positive
+  change
+    (PiCCSInvocations.outputTrace Data.logicalWidth Data.publicFits).state =
+      Permutation.scheduleOutput
+        (PiCCSInvocations.outputWitnessStart +
+          (Invocations.invocationCount PiCCSActionPayloadBlock.outputActions - 1) *
+            1096) at compiled
+  have count : Invocations.invocationCount
+      PiCCSActionPayloadBlock.outputActions = 765 := by
+    exact PiCCSInvocations.outputInvocationCount_eq
+      Data.logicalWidth Data.publicFits
+  have endEq := PiCCSInvocations.outputEnd_eq_logicalFreshBase
+    Data.logicalWidth Data.publicFits
+  rw [count] at compiled
+  rw [PiCCSInvocations.outputInvocationCount_eq] at endEq
+  have startEq :
+      PiCCSInvocations.outputWitnessStart + (765 - 1) * 1096 + 1080 =
+        PiCCSStarts.logicalFreshBase - 16 := by
+    rw [← endEq]
+    generalize PiCCSInvocations.outputWitnessStart = start
+    omega
+  rw [congrFun compiled lane]
+  unfold Permutation.scheduleOutput Permutation.freshState endpointColumn
+  rw [show endpointStart outputFamily = PiCCSStarts.logicalFreshBase - 16 by rfl]
+  rw [startEq]
+
+theorem endpointColumn_lt_source (family : Fin familyCount)
+    (lane : Fin laneCount) : endpointColumn family lane < Spartan.SourceColumnCount := by
+  have familyBound := family.isLt
+  have laneBound := lane.isLt
+  change lane.val < 16 at laneBound
+  unfold endpointColumn endpointStart familyCount laneCount
+  rw [Spartan.sourceColumnCount_eq]
+  split <;> try split <;> try split
+  all_goals
+    try simp only [PiCCSInvocations.challengeWitnessStart,
+      PiCCSInvocations.roundWitnessStart]
+  all_goals
+    try simp only [PiCCSStarts.challengeWitnessStart_eq,
+      PiCCSStarts.roundTranscriptWitnessStart_eq]
+  all_goals try unfold PiCCSStarts.logicalFreshBase
+  all_goals
+    norm_num [PiCCSTranscriptDirectSemantics.roundCount,
+      PiCCSInputs.phaseOffset_eq, PiCCSStarts.statementWitnessStart_eq] at *
+  all_goals omega
+
+def endpointTranscriptInvocation (family : Fin familyCount) :
+    Fin PiCCSOrdinaryRetainedBlocks.transcriptInvocationCount :=
+  if family.val = 0 then
+    ⟨122, by rw [PiCCSOrdinaryRetainedBlocks.transcriptInvocationCount_eq]; omega⟩
+  else if family.val = 1 then
+    ⟨126, by rw [PiCCSOrdinaryRetainedBlocks.transcriptInvocationCount_eq]; omega⟩
+  else
+    ⟨182, by rw [PiCCSOrdinaryRetainedBlocks.transcriptInvocationCount_eq]; omega⟩
+
+def endpointTranscriptIndex (family : Fin familyCount) (lane : Fin laneCount) :
+    Fin PiCCSOrdinaryRetainedBlocks.transcriptOutputCount :=
+  Fin.encodeProd (endpointTranscriptInvocation family, lane)
+
+def proofLogicalIndex (family : Fin familyCount) (_notOutput : family.val ≠ 3)
+    (lane : Fin laneCount) :
+    Fin PiCCSOrdinaryRetainedBlocks.proofLogicalCount :=
+  PiCCSOrdinaryRetainedBlocks.transcriptOutputSlot
+    (endpointTranscriptIndex family lane)
+
+@[simp] theorem proofLogicalIndex_source (family : Fin familyCount)
+    (notOutput : family.val ≠ 3) (lane : Fin laneCount) :
+    PiCCSOrdinaryRetainedBlocks.proofLogicalSource
+        (proofLogicalIndex family notOutput lane) =
+      endpointColumn family lane := by
+  have familyBound := family.isLt
+  have laneBound := lane.isLt
+  change lane.val < 16 at laneBound
+  unfold proofLogicalIndex
+  rw [PiCCSOrdinaryRetainedBlocks.proofLogicalSource_transcriptOutput]
+  unfold endpointTranscriptIndex
+  rw [PiCCSOrdinaryRetainedBlocks.transcriptOutputSource_encodeProd]
+  unfold endpointTranscriptInvocation endpointColumn endpointStart familyCount
+    laneCount
+  split <;> try split <;> try split
+  all_goals
+    try simp only [PiCCSInvocations.challengeWitnessStart,
+      PiCCSInvocations.roundWitnessStart]
+  all_goals
+    try simp only [PiCCSStarts.challengeWitnessStart_eq,
+      PiCCSStarts.roundTranscriptWitnessStart_eq]
+  all_goals try unfold PiCCSStarts.logicalFreshBase
+  all_goals
+    norm_num [PiCCSTranscriptDirectSemantics.roundCount,
+      PiCCSInputs.phaseOffset_eq, PiCCSStarts.statementWitnessStart_eq] at *
+  all_goals omega
+
+private theorem packageSourceColumn_congr
+    (program : Lifecycle.Stage1.Application.Program)
+    (left right : Nat) (leftBound : left < Spartan.SourceColumnCount)
+    (rightBound : right < Spartan.SourceColumnCount) (same : left = right) :
+    RunningTransitionRetainedBlocks.packageSourceColumn program left leftBound =
+      RunningTransitionRetainedBlocks.packageSourceColumn program right
+        rightBound := by
+  subst right
+  rfl
+
+def directForm {program : Lifecycle.Stage1.Application.Program}
+    {logicalWidth : Nat}
+    (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth)
+    (family : Fin familyCount) (lane : Fin laneCount) :
+    SparseForm logicalWidth :=
+  PiCCSPoseidonPlan.outputState geometry (endpointInvocation family) lane
+
+def sourceForm {program : Lifecycle.Stage1.Application.Program}
+    {logicalWidth : Nat}
+    (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
+    (family : Fin familyCount) (lane : Fin laneCount) :
+    SparseForm logicalWidth :=
+  if output : family.val = 3 then
+    (PiCCSOrdinaryRetainedBlocks.outputEndpointBlock program).form
+      (PiCCSOrdinaryRetainedGeometry.outputEndpointStart program)
+      (PiCCSOrdinaryRetainedGeometry.outputEndpointFits geometry) lane
+  else
+    (PiCCSOrdinaryDirectPlan.Location.proofLogical
+      (proofLogicalIndex family output lane)).form geometry
+
+theorem sourceForm_eval
+    {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
+    (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
+    (assignment : Assignment F logicalWidth)
+    (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
+    (encoding : PiCCSOrdinaryRetainedGeometry.Encodes geometry assignment
+      (PiRLCRetainedPreservation.sourceAssignment
+        program base groupValue))
+    (family : Fin familyCount) (lane : Fin laneCount) :
+    (sourceForm geometry family lane).eval assignment =
+      PiCCSActionPayloadBlock.packageEnv program
+        (PiRLCRetainedPreservation.sourceAssignment
+          program base groupValue) (endpointColumn family lane) := by
+  rw [PiCCSPoseidonPreservation.packageEnv_sourceAssignment program base
+    groupValue (endpointColumn family lane)
+    (endpointColumn_lt_source family lane)]
+  by_cases output : family.val = 3
+  · have familyEq : family = outputFamily := by
+      apply Fin.ext
+      exact output
+    subst family
+    rw [sourceForm, dite_eq_left (by rfl)]
+    rw [LowNormBlock.Block.form_eval _ _ _ assignment _ encoding.outputEndpoint lane]
+    have sourceEq :
+        (PiCCSOrdinaryRetainedBlocks.outputEndpointBlock program).source lane =
+          RunningTransitionRetainedBlocks.packageSourceColumn program
+            (endpointColumn outputFamily lane)
+            (endpointColumn_lt_source outputFamily lane) := by
+      apply Fin.ext
+      rfl
+    rw [sourceEq, RunningTransitionDirectPlan.sourceAssignment_packageSource]
+    exact (RunningTransitionDirectPlan.transitionEnv_of_outside program base
+      (endpointColumn outputFamily lane) (endpointColumn_lt_source outputFamily lane) (by
+        right
+        unfold endpointColumn endpointStart outputFamily
+          PiCCSStarts.logicalFreshBase
+        rw [PiCCSInputs.phaseOffset_eq]
+        norm_num [PiCCSStarts.statementWitnessStart_eq,
+          PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq]
+        omega)).symm
+  · rw [sourceForm, dite_eq_right output,
+      PiCCSOrdinaryDirectPlan.Location.form_eval geometry assignment base
+        groupValue encoding]
+    rw [PiCCSOrdinaryDirectPlan.Location.sourceColumn, proofLogicalIndex_source]
+    rfl
+
+def bindingForm {program : Lifecycle.Stage1.Application.Program}
+    {logicalWidth : Nat}
+    (poseidonGeometry : PiCCSPoseidonPlan.Geometry program logicalWidth)
+    (ordinaryGeometry :
+      PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
+    (rowIndex : Fin rowCount) : SparseForm logicalWidth :=
+  let decoded := descriptor rowIndex
+  SparseForm.add (directForm poseidonGeometry decoded.1 decoded.2)
+    (SparseForm.scale (-1)
+      (sourceForm ordinaryGeometry decoded.1 decoded.2))
+
+def interface {program : Lifecycle.Stage1.Application.Program}
+    {logicalWidth : Nat}
+    (poseidonGeometry : PiCCSPoseidonPlan.Geometry program logicalWidth)
+    (ordinaryGeometry :
+      PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth) :
+    PinFamilyPlan.Interface logicalWidth rowCount where
+  value := bindingForm poseidonGeometry ordinaryGeometry
+
+theorem rowCount_le : rowCount ≤ 2 ^ NightstreamFPrime.Lifecycle.cubeVariables := by
+  rw [rowCount_eq]
+  norm_num [NightstreamFPrime.Lifecycle.cubeVariables]
+
+def plan {program : Lifecycle.Stage1.Application.Program}
+    {logicalWidth : Nat}
+    (poseidonGeometry : PiCCSPoseidonPlan.Geometry program logicalWidth)
+    (ordinaryGeometry :
+      PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth) :
+    ProductionRelation.Plan logicalWidth :=
+  PinFamilyPlan.plan (interface poseidonGeometry ordinaryGeometry) rowCount_le
+
+@[simp] theorem plan_rowCount
+    {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
+    (poseidonGeometry : PiCCSPoseidonPlan.Geometry program logicalWidth)
+    (ordinaryGeometry :
+      PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth) :
+    (plan poseidonGeometry ordinaryGeometry).rowCount = 64 := by
+  rfl
+
+theorem rowsZero_iff
+    {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
+    (poseidonGeometry : PiCCSPoseidonPlan.Geometry program logicalWidth)
+    (ordinaryGeometry :
+      PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
+    (assignment : Assignment F logicalWidth) :
+    (plan poseidonGeometry ordinaryGeometry).RowsZero assignment ↔
+      ∀ rowIndex,
+        (bindingForm poseidonGeometry ordinaryGeometry rowIndex).eval
+          assignment = 0 := by
+  exact PinFamilyPlan.planRowsZero_iff
+    (interface poseidonGeometry ordinaryGeometry) rowCount_le assignment
+
+theorem rowsZero_implies_endpointValue
+    {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
+    (poseidonGeometry : PiCCSPoseidonPlan.Geometry program logicalWidth)
+    (ordinaryGeometry :
+      PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
+    (assignment : Assignment F logicalWidth)
+    (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
+    (encoding : PiCCSOrdinaryRetainedGeometry.Encodes ordinaryGeometry
+      assignment (PiRLCRetainedPreservation.sourceAssignment
+        program base groupValue))
+    (rowsZero : (plan poseidonGeometry ordinaryGeometry).RowsZero assignment)
+    (family : Fin familyCount) (lane : Fin laneCount) :
+    PiCCSPoseidonPreservation.outputValue poseidonGeometry assignment
+        (endpointInvocation family) lane =
+      PiCCSActionPayloadBlock.packageEnv program
+        (PiRLCRetainedPreservation.sourceAssignment
+          program base groupValue) (endpointColumn family lane) := by
+  have rowZero := (rowsZero_iff poseidonGeometry ordinaryGeometry
+    assignment).mp rowsZero (row family lane)
+  rw [bindingForm, descriptor_row, SparseForm.add_eval,
+    SparseForm.scale_eval] at rowZero
+  have formsEq :
+      (directForm poseidonGeometry family lane).eval assignment =
+        (sourceForm ordinaryGeometry family lane).eval assignment := by
+    apply Lean.Grind.AddCommGroup.sub_eq_zero_iff.mp
+    simpa [sub_eq_add_neg] using rowZero
+  calc
+    PiCCSPoseidonPreservation.outputValue poseidonGeometry assignment
+        (endpointInvocation family) lane =
+        (directForm poseidonGeometry family lane).eval assignment := by
+      rfl
+    _ = (sourceForm ordinaryGeometry family lane).eval assignment := formsEq
+    _ = _ := sourceForm_eval ordinaryGeometry assignment base groupValue
+      encoding family lane
+
+private theorem statementFinalState_endpoint (lane : Fin laneCount) :
+    StatementAbsorption.finalState
+        (PiCCSInvocations.statementInterface Data.logicalWidth Data.publicFits)
+        PiCCSInvocations.statementWitnessStart lane =
+      Expr.var (endpointColumn statementFamily lane) := by
+  calc
+    _ = (PiCCSInvocations.statementTrace Data.logicalWidth
+          Data.publicFits).state lane :=
+      congrFun (PiCCSInvocations.statementTrace_state_matches
+        Data.logicalWidth Data.publicFits).symm lane
+    _ = _ := statementTrace_state_endpoint lane
+
+private theorem challengeFinalState_endpoint (lane : Fin laneCount) :
+    ChallengeDerivation.finalState
+        (PiCCSInvocations.challengeInterface Data.logicalWidth Data.publicFits)
+        PiCCSInvocations.challengeWitnessStart lane =
+      Expr.var (endpointColumn challengeFamily lane) := by
+  calc
+    _ = (PiCCSInvocations.challengeTrace Data.logicalWidth
+          Data.publicFits).state lane :=
+      congrFun (PiCCSInvocations.challengeTrace_state_matches
+        Data.logicalWidth Data.publicFits).symm lane
+    _ = _ := challengeTrace_state_endpoint lane
+
+private theorem roundFinalState_endpoint (lane : Fin laneCount) :
+    RoundTranscript.finalState
+        (PiCCSInvocations.roundInterface Data.logicalWidth Data.publicFits)
+        PiCCSInvocations.roundWitnessStart lane =
+      Expr.var (endpointColumn roundFamily lane) := by
+  calc
+    _ = (PiCCSInvocations.roundTrace Data.logicalWidth
+          Data.publicFits).state lane :=
+      congrFun (PiCCSInvocations.roundTrace_state_matches
+        Data.logicalWidth Data.publicFits).symm lane
+    _ = _ := roundTrace_state_endpoint lane
+
+private theorem roundInitialState_eq_challengeFinalState :
+    (PiCCSInvocations.roundInterface Data.logicalWidth
+      Data.publicFits).initialState PiCCSInvocations.roundWitnessStart =
+      ChallengeDerivation.finalState
+        (PiCCSInvocations.challengeInterface Data.logicalWidth Data.publicFits)
+        PiCCSInvocations.challengeWitnessStart := by
+  have initialEq :
+      (PiCCSInvocations.challengeTrace Data.logicalWidth Data.publicFits).state =
+        (PiCCSInvocations.roundInterface Data.logicalWidth
+          Data.publicFits).initialState PiCCSInvocations.roundWitnessStart := by
+    simpa [PiCCSInvocations.roundInterface,
+      NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.roundTranscriptInterface,
+      NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.challengeFinalState,
+      PiCCSInvocations.sharedInterface] using!
+      PiCCSInvocations.challengeTrace_state_matches
+        Data.logicalWidth Data.publicFits
+  exact initialEq.symm.trans
+    (PiCCSInvocations.challengeTrace_state_matches
+      Data.logicalWidth Data.publicFits)
+
+private theorem outputTrace_state_matches :
+    (PiCCSInvocations.outputTrace Data.logicalWidth Data.publicFits).state =
+      OutputBinding.finalState
+        (PiCCSInvocations.outputInterface Data.logicalWidth Data.publicFits)
+        PiCCSInvocations.outputWitnessStart := by
+  calc
+    _ = (PiCCSInvocations.outputSemanticTrace Data.logicalWidth
+          Data.publicFits).state :=
+      congrArg Invocations.Trace.state
+        (PiCCSInvocations.outputTrace_eq_semantic
+          Data.logicalWidth Data.publicFits)
+    _ = _ := PiCCSInvocations.outputSemanticTrace_state_matches
+      Data.logicalWidth Data.publicFits
+
+private theorem outputInitialState_eq_roundFinalState :
+    (PiCCSInvocations.outputInterface Data.logicalWidth
+      Data.publicFits).initialState PiCCSInvocations.outputWitnessStart =
+      RoundTranscript.finalState
+        (PiCCSInvocations.roundInterface Data.logicalWidth Data.publicFits)
+        PiCCSInvocations.roundWitnessStart := by
+  have initialEq :
+      (PiCCSInvocations.roundTrace Data.logicalWidth Data.publicFits).state =
+        (PiCCSInvocations.outputInterface Data.logicalWidth
+          Data.publicFits).initialState PiCCSInvocations.outputWitnessStart := by
+    simpa [PiCCSInvocations.outputInterface,
+      NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.outputBindingInterface,
+      NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.roundTranscriptFinalState,
+      PiCCSInvocations.sharedInterface] using!
+      PiCCSInvocations.roundTrace_state_matches Data.logicalWidth
+        Data.publicFits
+  exact initialEq.symm.trans
+    (PiCCSInvocations.roundTrace_state_matches
+      Data.logicalWidth Data.publicFits)
+
+private theorem outputFinalState_endpoint (lane : Fin laneCount) :
+    OutputBinding.finalState
+        (PiCCSInvocations.outputInterface Data.logicalWidth Data.publicFits)
+        PiCCSInvocations.outputWitnessStart lane =
+      Expr.var (endpointColumn outputFamily lane) := by
+  calc
+    _ = (PiCCSInvocations.outputTrace Data.logicalWidth
+          Data.publicFits).state lane := congrFun outputTrace_state_matches.symm lane
+    _ = _ := outputTrace_state_endpoint lane
+
+theorem rowsZero_implies_endpointState
+    {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
+    (poseidonGeometry : PiCCSPoseidonPlan.Geometry program logicalWidth)
+    (ordinaryGeometry :
+      PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
+    (assignment : Assignment F logicalWidth)
+    (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
+    (encoding : PiCCSOrdinaryRetainedGeometry.Encodes ordinaryGeometry
+      assignment (PiRLCRetainedPreservation.sourceAssignment
+        program base groupValue))
+    (rowsZero : (plan poseidonGeometry ordinaryGeometry).RowsZero assignment)
+    (family : Fin familyCount) :
+    PiCCSPoseidonPreservation.valueState poseidonGeometry assignment
+        (endpointInvocation family) =
+      List.ofFn fun lane : Fin laneCount =>
+        PiCCSActionPayloadBlock.packageEnv program
+          (PiRLCRetainedPreservation.sourceAssignment
+            program base groupValue) (endpointColumn family lane) := by
+  unfold PiCCSPoseidonPreservation.valueState
+  apply congrArg List.ofFn
+  funext lane
+  exact rowsZero_implies_endpointValue poseidonGeometry ordinaryGeometry
+    assignment base groupValue encoding rowsZero family lane
+
+private theorem endpointState_eq_finalEval
+    {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
+    (poseidonGeometry : PiCCSPoseidonPlan.Geometry program logicalWidth)
+    (ordinaryGeometry :
+      PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
+    (assignment : Assignment F logicalWidth)
+    (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
+    (encoding : PiCCSOrdinaryRetainedGeometry.Encodes ordinaryGeometry
+      assignment (PiRLCRetainedPreservation.sourceAssignment
+        program base groupValue))
+    (rowsZero : (plan poseidonGeometry ordinaryGeometry).RowsZero assignment)
+    (family : Fin familyCount) (finalState : Layer.EState)
+    (finalEndpoint : ∀ lane : Fin laneCount,
+      finalState lane = Expr.var (endpointColumn family lane)) :
+    PiCCSPoseidonPreservation.valueState poseidonGeometry assignment
+        (endpointInvocation family) =
+      List.ofFn (Layer.evalState
+        (PiCCSActionPayloadBlock.packageEnv program
+          (PiRLCRetainedPreservation.sourceAssignment
+            program base groupValue)) finalState) := by
+  rw [rowsZero_implies_endpointState poseidonGeometry ordinaryGeometry
+    assignment base groupValue encoding rowsZero family]
+  apply congrArg List.ofFn
+  funext lane
+  unfold Layer.evalState
+  rw [finalEndpoint lane]
+  rfl
+
+private theorem statementEndpoint_eq_finalEval
+    {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
+    (poseidonGeometry : PiCCSPoseidonPlan.Geometry program logicalWidth)
+    (ordinaryGeometry :
+      PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
+    (assignment : Assignment F logicalWidth)
+    (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
+    (encoding : PiCCSOrdinaryRetainedGeometry.Encodes ordinaryGeometry
+      assignment (PiRLCRetainedPreservation.sourceAssignment
+        program base groupValue))
+    (rowsZero : (plan poseidonGeometry ordinaryGeometry).RowsZero assignment) :
+    PiCCSPoseidonPreservation.valueState poseidonGeometry assignment
+        PiCCSTranscriptDirectSemantics.statementLast =
+      List.ofFn (Layer.evalState
+        (PiCCSActionPayloadBlock.packageEnv program
+          (PiRLCRetainedPreservation.sourceAssignment
+            program base groupValue))
+        (StatementAbsorption.finalState
+          (PiCCSInvocations.statementInterface Data.logicalWidth
+            Data.publicFits) PiCCSInvocations.statementWitnessStart)) := by
+  simpa [endpointInvocation, statementFamily] using
+    endpointState_eq_finalEval poseidonGeometry ordinaryGeometry assignment
+      base groupValue encoding rowsZero statementFamily
+      (StatementAbsorption.finalState
+        (PiCCSInvocations.statementInterface Data.logicalWidth Data.publicFits)
+        PiCCSInvocations.statementWitnessStart) statementFinalState_endpoint
+
+private theorem challengeEndpoint_eq_finalEval
+    {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
+    (poseidonGeometry : PiCCSPoseidonPlan.Geometry program logicalWidth)
+    (ordinaryGeometry :
+      PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
+    (assignment : Assignment F logicalWidth)
+    (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
+    (encoding : PiCCSOrdinaryRetainedGeometry.Encodes ordinaryGeometry
+      assignment (PiRLCRetainedPreservation.sourceAssignment
+        program base groupValue))
+    (rowsZero : (plan poseidonGeometry ordinaryGeometry).RowsZero assignment) :
+    PiCCSPoseidonPreservation.valueState poseidonGeometry assignment
+        PiCCSTranscriptDirectSemantics.challengeLast =
+      List.ofFn (Layer.evalState
+        (PiCCSActionPayloadBlock.packageEnv program
+          (PiRLCRetainedPreservation.sourceAssignment
+            program base groupValue))
+        (ChallengeDerivation.finalState
+          (PiCCSInvocations.challengeInterface Data.logicalWidth
+            Data.publicFits) PiCCSInvocations.challengeWitnessStart)) := by
+  simpa [endpointInvocation, challengeFamily] using
+    endpointState_eq_finalEval poseidonGeometry ordinaryGeometry assignment
+      base groupValue encoding rowsZero challengeFamily
+      (ChallengeDerivation.finalState
+        (PiCCSInvocations.challengeInterface Data.logicalWidth Data.publicFits)
+        PiCCSInvocations.challengeWitnessStart) challengeFinalState_endpoint
+
+private theorem roundEndpoint_eq_finalEval
+    {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
+    (poseidonGeometry : PiCCSPoseidonPlan.Geometry program logicalWidth)
+    (ordinaryGeometry :
+      PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
+    (assignment : Assignment F logicalWidth)
+    (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
+    (encoding : PiCCSOrdinaryRetainedGeometry.Encodes ordinaryGeometry
+      assignment (PiRLCRetainedPreservation.sourceAssignment
+        program base groupValue))
+    (rowsZero : (plan poseidonGeometry ordinaryGeometry).RowsZero assignment) :
+    PiCCSPoseidonPreservation.valueState poseidonGeometry assignment
+        PiCCSTranscriptDirectSemantics.roundLast =
+      List.ofFn (Layer.evalState
+        (PiCCSActionPayloadBlock.packageEnv program
+          (PiRLCRetainedPreservation.sourceAssignment
+            program base groupValue))
+        (RoundTranscript.finalState
+          (PiCCSInvocations.roundInterface Data.logicalWidth Data.publicFits)
+          PiCCSInvocations.roundWitnessStart)) := by
+  simpa [endpointInvocation, roundFamily] using
+    endpointState_eq_finalEval poseidonGeometry ordinaryGeometry assignment
+      base groupValue encoding rowsZero roundFamily
+      (RoundTranscript.finalState
+        (PiCCSInvocations.roundInterface Data.logicalWidth Data.publicFits)
+        PiCCSInvocations.roundWitnessStart) roundFinalState_endpoint
+
+theorem outputEndpoint_eq_finalEval
+    {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
+    (poseidonGeometry : PiCCSPoseidonPlan.Geometry program logicalWidth)
+    (ordinaryGeometry :
+      PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
+    (assignment : Assignment F logicalWidth)
+    (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
+    (encoding : PiCCSOrdinaryRetainedGeometry.Encodes ordinaryGeometry
+      assignment (PiRLCRetainedPreservation.sourceAssignment
+        program base groupValue))
+    (rowsZero : (plan poseidonGeometry ordinaryGeometry).RowsZero assignment) :
+    PiCCSPoseidonPreservation.valueState poseidonGeometry assignment
+        PiCCSTranscriptDirectSemantics.outputLast =
+      List.ofFn (Layer.evalState
+        (PiCCSActionPayloadBlock.packageEnv program
+          (PiRLCRetainedPreservation.sourceAssignment
+            program base groupValue))
+        (OutputBinding.finalState
+          (PiCCSInvocations.outputInterface Data.logicalWidth Data.publicFits)
+          PiCCSInvocations.outputWitnessStart)) := by
+  simpa [endpointInvocation, outputFamily] using
+    endpointState_eq_finalEval poseidonGeometry ordinaryGeometry assignment
+      base groupValue encoding rowsZero outputFamily
+      (OutputBinding.finalState
+        (PiCCSInvocations.outputInterface Data.logicalWidth Data.publicFits)
+        PiCCSInvocations.outputWitnessStart) outputFinalState_endpoint
+
+def transcriptEnv (program : Lifecycle.Stage1.Application.Program)
+    (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F) : Env :=
+  PiCCSTranscriptReadout.env <|
+    PerApplicationPackage.baseEnv program <| SourceCompiler.sourceEnv <|
+      PiRLCRetainedPreservation.sourceAssignment program base groupValue
+
+theorem transcriptEnv_eq_transitionEnv_of_lt
+    (program : Lifecycle.Stage1.Application.Program)
+    (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
+    (column : Nat) (bound : column < Spartan.spartanColumnCount) :
+    transcriptEnv program base groupValue column =
+      RunningTransitionDirectPlan.transitionEnv program base column := by
+  exact PiCCSPoseidonPreservation.readout_sourceAssignment
+    program base groupValue column bound
+
+private theorem zeroState_eq_evalZero (env : Env) :
+    Spec.Poseidon2.zeroState =
+      List.ofFn (Layer.evalState env Hash.zeroE) := by
+  unfold Spec.Poseidon2.zeroState Layer.evalState Hash.zeroE
+  change List.replicate 16 0 = List.ofFn (fun _ : Fin 16 => (0 : F))
+  norm_num [List.ofFn_succ]
+
+theorem statementActions_eq_of_shape
+    (relationLogicalWidth : Nat)
+    (relationPublicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth relationLogicalWidth) :
+    PiCCSInvocations.statementActions relationLogicalWidth
+        relationPublicFits =
+      PiCCSActionPayloadBlock.statementActions := by
+  rfl
+
+private theorem statementTrace_state_endpoint_of_shape
+    (relationLogicalWidth : Nat)
+    (relationPublicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth relationLogicalWidth)
+    (lane : Fin laneCount) :
+    (PiCCSInvocations.statementTrace relationLogicalWidth
+      relationPublicFits).state lane =
+      Expr.var (endpointColumn statementFamily lane) := by
+  have positive : 0 < Invocations.invocationCount
+      (PiCCSInvocations.statementActions relationLogicalWidth
+        relationPublicFits) := by
+    rw [statementActions_eq_of_shape]
+    exact statementActions_positive
+  have compiled := InvocationLastOutput.compileActions_state_scheduleOutput
+    PiCCSInvocations.statementPhase PiCCSInvocations.statementRowStart
+    PiCCSInvocations.statementWitnessStart Hash.zeroE
+    (PiCCSInvocations.statementActions relationLogicalWidth
+      relationPublicFits) positive
+  change
+    (PiCCSInvocations.statementTrace relationLogicalWidth
+        relationPublicFits).state =
+      Permutation.scheduleOutput
+        (PiCCSInvocations.statementWitnessStart +
+          (Invocations.invocationCount
+            (PiCCSInvocations.statementActions relationLogicalWidth
+              relationPublicFits) - 1) * 1096) at compiled
+  have count := PiCCSInvocations.statementInvocationCount_eq
+    relationLogicalWidth relationPublicFits
+  have endEq := PiCCSInvocations.statementEnd_eq_challengeStart
+    relationLogicalWidth relationPublicFits
+  rw [count] at compiled endEq
+  have startEq :
+      PiCCSInvocations.statementWitnessStart + (123 - 1) * 1096 + 1080 =
+        PiCCSInvocations.challengeWitnessStart - 16 := by
+    rw [← endEq]
+    generalize PiCCSInvocations.statementWitnessStart = start
+    omega
+  rw [congrFun compiled lane]
+  unfold Permutation.scheduleOutput Permutation.freshState endpointColumn
+  rw [show endpointStart statementFamily =
+      PiCCSInvocations.challengeWitnessStart - 16 by rfl]
+  rw [startEq]
+
+theorem statementFinalState_endpoint_of_shape
+    (relationLogicalWidth : Nat)
+    (relationPublicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth relationLogicalWidth)
+    (lane : Fin laneCount) :
+    StatementAbsorption.finalState
+        (PiCCSInvocations.statementInterface relationLogicalWidth
+          relationPublicFits)
+        PiCCSInvocations.statementWitnessStart lane =
+      Expr.var (endpointColumn statementFamily lane) := by
+  calc
+    _ = (PiCCSInvocations.statementTrace relationLogicalWidth
+          relationPublicFits).state lane :=
+      congrFun (PiCCSInvocations.statementTrace_state_matches
+        relationLogicalWidth relationPublicFits).symm lane
+    _ = _ := statementTrace_state_endpoint_of_shape relationLogicalWidth
+      relationPublicFits lane
+
+theorem challengeActions_eq_of_shape
+    (relationLogicalWidth : Nat)
+    (relationPublicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth relationLogicalWidth) :
+    ChallengeDerivation.actions
+        (PiCCSInvocations.challengeInterface relationLogicalWidth
+          relationPublicFits)
+        PiCCSInvocations.challengeWitnessStart =
+      PiCCSActionPayloadBlock.challengeActions := by
+  rfl
+
+private theorem challengeTrace_state_endpoint_of_shape
+    (relationLogicalWidth : Nat)
+    (relationPublicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth relationLogicalWidth)
+    (lane : Fin laneCount) :
+    (PiCCSInvocations.challengeTrace relationLogicalWidth
+      relationPublicFits).state lane =
+      Expr.var (endpointColumn challengeFamily lane) := by
+  rw [PiCCSInvocations.challengeTrace_eq_semantic]
+  have positive : 0 < Invocations.invocationCount
+      (ChallengeDerivation.actions
+        (PiCCSInvocations.challengeInterface relationLogicalWidth
+          relationPublicFits) PiCCSInvocations.challengeWitnessStart) := by
+    rw [challengeActions_eq_of_shape]
+    exact challengeActions_positive
+  have compiled := InvocationLastOutput.compileActions_state_scheduleOutput
+    PiCCSInvocations.challengePhase PiCCSInvocations.challengeRowStart
+    PiCCSInvocations.challengeWitnessStart
+    ((PiCCSInvocations.challengeInterface relationLogicalWidth
+      relationPublicFits).initialState PiCCSInvocations.challengeWitnessStart)
+    (ChallengeDerivation.actions
+      (PiCCSInvocations.challengeInterface relationLogicalWidth
+        relationPublicFits) PiCCSInvocations.challengeWitnessStart)
+    positive
+  change
+    (PiCCSInvocations.challengeSemanticTrace relationLogicalWidth
+        relationPublicFits).state =
+      Permutation.scheduleOutput
+        (PiCCSInvocations.challengeWitnessStart +
+          (Invocations.invocationCount
+            (ChallengeDerivation.actions
+              (PiCCSInvocations.challengeInterface relationLogicalWidth
+                relationPublicFits)
+              PiCCSInvocations.challengeWitnessStart) - 1) * 1096) at compiled
+  have count : Invocations.invocationCount
+      (ChallengeDerivation.actions
+        (PiCCSInvocations.challengeInterface relationLogicalWidth
+          relationPublicFits) PiCCSInvocations.challengeWitnessStart) = 4 := by
+    rw [challengeActions_eq_of_shape]
+    exact PiCCSActionPayloadBlock.challengeInvocationCount_eq
+  have endEq := PiCCSInvocations.challengeEnd_eq_roundStart
+    relationLogicalWidth relationPublicFits
+  rw [count] at compiled
+  rw [PiCCSInvocations.challengeInvocationCount_eq] at endEq
+  have startEq :
+      PiCCSInvocations.challengeWitnessStart + (4 - 1) * 1096 + 1080 =
+        PiCCSInvocations.roundWitnessStart - 16 := by
+    rw [← endEq]
+    generalize PiCCSInvocations.challengeWitnessStart = start
+    omega
+  rw [congrFun compiled lane]
+  unfold Permutation.scheduleOutput Permutation.freshState endpointColumn
+  rw [show endpointStart challengeFamily =
+      PiCCSInvocations.roundWitnessStart - 16 by rfl]
+  rw [startEq]
+
+theorem challengeFinalState_endpoint_of_shape
+    (relationLogicalWidth : Nat)
+    (relationPublicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth relationLogicalWidth)
+    (lane : Fin laneCount) :
+    ChallengeDerivation.finalState
+        (PiCCSInvocations.challengeInterface relationLogicalWidth
+          relationPublicFits)
+        PiCCSInvocations.challengeWitnessStart lane =
+      Expr.var (endpointColumn challengeFamily lane) := by
+  calc
+    _ = (PiCCSInvocations.challengeTrace relationLogicalWidth
+          relationPublicFits).state lane :=
+      congrFun (PiCCSInvocations.challengeTrace_state_matches
+        relationLogicalWidth relationPublicFits).symm lane
+    _ = _ := challengeTrace_state_endpoint_of_shape relationLogicalWidth
+      relationPublicFits lane
+
+theorem roundActions_eq_of_shape
+    (relationLogicalWidth : Nat)
+    (relationPublicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth relationLogicalWidth) :
+    RoundTranscript.actions
+        (PiCCSInvocations.roundInterface relationLogicalWidth
+          relationPublicFits)
+        PiCCSInvocations.roundWitnessStart =
+      PiCCSActionPayloadBlock.roundActions := by
+  rfl
+
+private theorem roundTrace_state_endpoint_of_shape
+    (relationLogicalWidth : Nat)
+    (relationPublicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth relationLogicalWidth)
+    (lane : Fin laneCount) :
+    (PiCCSInvocations.roundTrace relationLogicalWidth
+      relationPublicFits).state lane =
+      Expr.var (endpointColumn roundFamily lane) := by
+  rw [PiCCSInvocations.roundTrace_eq_semantic]
+  have positive : 0 < Invocations.invocationCount
+      (RoundTranscript.actions
+        (PiCCSInvocations.roundInterface relationLogicalWidth
+          relationPublicFits) PiCCSInvocations.roundWitnessStart) := by
+    rw [roundActions_eq_of_shape]
+    exact roundActions_positive
+  have compiled := InvocationLastOutput.compileActions_state_scheduleOutput
+    PiCCSInvocations.roundPhase PiCCSInvocations.roundRowStart
+    PiCCSInvocations.roundWitnessStart
+    ((PiCCSInvocations.roundInterface relationLogicalWidth
+      relationPublicFits).initialState PiCCSInvocations.roundWitnessStart)
+    (RoundTranscript.actions
+      (PiCCSInvocations.roundInterface relationLogicalWidth
+        relationPublicFits) PiCCSInvocations.roundWitnessStart)
+    positive
+  change
+    (PiCCSInvocations.roundSemanticTrace relationLogicalWidth
+        relationPublicFits).state =
+      Permutation.scheduleOutput
+        (PiCCSInvocations.roundWitnessStart +
+          (Invocations.invocationCount
+            (RoundTranscript.actions
+              (PiCCSInvocations.roundInterface relationLogicalWidth
+                relationPublicFits)
+              PiCCSInvocations.roundWitnessStart) - 1) * 1096) at compiled
+  have count : Invocations.invocationCount
+      (RoundTranscript.actions
+        (PiCCSInvocations.roundInterface relationLogicalWidth
+          relationPublicFits) PiCCSInvocations.roundWitnessStart) = 56 := by
+    rw [roundActions_eq_of_shape]
+    exact PiCCSActionPayloadBlock.roundInvocationCount_eq
+  rw [count] at compiled
+  have startEq :
+      PiCCSInvocations.roundWitnessStart + (56 - 1) * 1096 + 1080 =
+        PiCCSInvocations.roundWitnessStart + 56 * 1096 - 16 := by
+    generalize PiCCSInvocations.roundWitnessStart = start
+    omega
+  rw [congrFun compiled lane]
+  unfold Permutation.scheduleOutput Permutation.freshState endpointColumn
+  rw [show endpointStart roundFamily =
+      PiCCSInvocations.roundWitnessStart +
+        PiCCSTranscriptDirectSemantics.roundCount * 1096 - 16 by rfl]
+  rw [show PiCCSTranscriptDirectSemantics.roundCount = 56 by rfl]
+  rw [startEq]
+
+theorem roundFinalState_endpoint_of_shape
+    (relationLogicalWidth : Nat)
+    (relationPublicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth relationLogicalWidth)
+    (lane : Fin laneCount) :
+    RoundTranscript.finalState
+        (PiCCSInvocations.roundInterface relationLogicalWidth
+          relationPublicFits)
+        PiCCSInvocations.roundWitnessStart lane =
+      Expr.var (endpointColumn roundFamily lane) := by
+  calc
+    _ = (PiCCSInvocations.roundTrace relationLogicalWidth
+          relationPublicFits).state lane :=
+      congrFun (PiCCSInvocations.roundTrace_state_matches
+        relationLogicalWidth relationPublicFits).symm lane
+    _ = _ := roundTrace_state_endpoint_of_shape relationLogicalWidth
+      relationPublicFits lane
+
+theorem outputActions_eq_of_shape
+    (relationLogicalWidth : Nat)
+    (relationPublicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth relationLogicalWidth) :
+    PiCCSInvocations.outputActions relationLogicalWidth relationPublicFits =
+      PiCCSActionPayloadBlock.outputActions := by
+  rfl
+
+private theorem outputTrace_state_endpoint_of_shape
+    (relationLogicalWidth : Nat)
+    (relationPublicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth relationLogicalWidth)
+    (lane : Fin laneCount) :
+    (PiCCSInvocations.outputTrace relationLogicalWidth
+      relationPublicFits).state lane =
+      Expr.var (endpointColumn outputFamily lane) := by
+  have positive : 0 < Invocations.invocationCount
+      (PiCCSInvocations.outputActions relationLogicalWidth
+        relationPublicFits) := by
+    rw [outputActions_eq_of_shape]
+    exact outputActions_positive
+  have compiled := InvocationLastOutput.compileActions_state_scheduleOutput
+    PiCCSInvocations.outputPhase PiCCSInvocations.outputRowStart
+    PiCCSInvocations.outputWitnessStart
+    (PiCCSInvocations.roundTrace relationLogicalWidth relationPublicFits).state
+    (PiCCSInvocations.outputActions relationLogicalWidth relationPublicFits)
+    positive
+  change
+    (PiCCSInvocations.outputTrace relationLogicalWidth
+        relationPublicFits).state =
+      Permutation.scheduleOutput
+        (PiCCSInvocations.outputWitnessStart +
+          (Invocations.invocationCount
+            (PiCCSInvocations.outputActions relationLogicalWidth
+              relationPublicFits) - 1) * 1096) at compiled
+  have count := PiCCSInvocations.outputInvocationCount_eq
+    relationLogicalWidth relationPublicFits
+  have endEq := PiCCSInvocations.outputEnd_eq_logicalFreshBase
+    relationLogicalWidth relationPublicFits
+  rw [count] at compiled endEq
+  have startEq :
+      PiCCSInvocations.outputWitnessStart + (765 - 1) * 1096 + 1080 =
+        PiCCSStarts.logicalFreshBase - 16 := by
+    rw [← endEq]
+    generalize PiCCSInvocations.outputWitnessStart = start
+    omega
+  rw [congrFun compiled lane]
+  unfold Permutation.scheduleOutput Permutation.freshState endpointColumn
+  rw [show endpointStart outputFamily = PiCCSStarts.logicalFreshBase - 16 by rfl]
+  rw [startEq]
+
+private theorem outputTrace_state_matches_of_shape
+    (relationLogicalWidth : Nat)
+    (relationPublicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth relationLogicalWidth) :
+    (PiCCSInvocations.outputTrace relationLogicalWidth
+      relationPublicFits).state =
+      OutputBinding.finalState
+        (PiCCSInvocations.outputInterface relationLogicalWidth
+          relationPublicFits) PiCCSInvocations.outputWitnessStart := by
+  calc
+    _ = (PiCCSInvocations.outputSemanticTrace relationLogicalWidth
+          relationPublicFits).state :=
+      congrArg Invocations.Trace.state
+        (PiCCSInvocations.outputTrace_eq_semantic relationLogicalWidth
+          relationPublicFits)
+    _ = _ := PiCCSInvocations.outputSemanticTrace_state_matches
+      relationLogicalWidth relationPublicFits
+
+theorem outputFinalState_endpoint_of_shape
+    (relationLogicalWidth : Nat)
+    (relationPublicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth relationLogicalWidth)
+    (lane : Fin laneCount) :
+    OutputBinding.finalState
+        (PiCCSInvocations.outputInterface relationLogicalWidth
+          relationPublicFits)
+        PiCCSInvocations.outputWitnessStart lane =
+      Expr.var (endpointColumn outputFamily lane) := by
+  calc
+    _ = (PiCCSInvocations.outputTrace relationLogicalWidth
+          relationPublicFits).state lane :=
+      congrFun (outputTrace_state_matches_of_shape relationLogicalWidth
+        relationPublicFits).symm lane
+    _ = _ := outputTrace_state_endpoint_of_shape relationLogicalWidth
+      relationPublicFits lane
+
+theorem roundInitialState_eq_challengeFinalState_of_shape
+    (relationLogicalWidth : Nat)
+    (relationPublicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth relationLogicalWidth) :
+    (PiCCSInvocations.roundInterface relationLogicalWidth
+      relationPublicFits).initialState PiCCSInvocations.roundWitnessStart =
+      ChallengeDerivation.finalState
+        (PiCCSInvocations.challengeInterface relationLogicalWidth
+          relationPublicFits) PiCCSInvocations.challengeWitnessStart := by
+  have initialEq :
+      (PiCCSInvocations.challengeTrace relationLogicalWidth
+        relationPublicFits).state =
+        (PiCCSInvocations.roundInterface relationLogicalWidth
+          relationPublicFits).initialState
+            PiCCSInvocations.roundWitnessStart := by
+    simpa [PiCCSInvocations.roundInterface,
+      NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.roundTranscriptInterface,
+      NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.challengeFinalState,
+      PiCCSInvocations.sharedInterface] using!
+      PiCCSInvocations.challengeTrace_state_matches relationLogicalWidth
+        relationPublicFits
+  exact initialEq.symm.trans
+    (PiCCSInvocations.challengeTrace_state_matches relationLogicalWidth
+      relationPublicFits)
+
+theorem outputInitialState_eq_roundFinalState_of_shape
+    (relationLogicalWidth : Nat)
+    (relationPublicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth relationLogicalWidth) :
+    (PiCCSInvocations.outputInterface relationLogicalWidth
+      relationPublicFits).initialState PiCCSInvocations.outputWitnessStart =
+      RoundTranscript.finalState
+        (PiCCSInvocations.roundInterface relationLogicalWidth
+          relationPublicFits) PiCCSInvocations.roundWitnessStart := by
+  have initialEq :
+      (PiCCSInvocations.roundTrace relationLogicalWidth
+        relationPublicFits).state =
+        (PiCCSInvocations.outputInterface relationLogicalWidth
+          relationPublicFits).initialState
+            PiCCSInvocations.outputWitnessStart := by
+    simpa [PiCCSInvocations.outputInterface,
+      NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.outputBindingInterface,
+      NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.roundTranscriptFinalState,
+      PiCCSInvocations.sharedInterface] using!
+      PiCCSInvocations.roundTrace_state_matches relationLogicalWidth
+        relationPublicFits
+  exact initialEq.symm.trans
+    (PiCCSInvocations.roundTrace_state_matches relationLogicalWidth
+      relationPublicFits)
+
+private theorem transcriptIndex_bound (index : Nat)
+    (bound : index < PiCCSOrdinarySourceSupport.transcriptInvocationCount) :
+    index < PiCCSActionPayloadBlock.invocationCount := by
+  rw [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq] at bound
+  norm_num [PiCCSActionPayloadBlock.invocationCount]
+  omega
+
+def TranscriptOutputs {program : Lifecycle.Stage1.Application.Program}
+    {logicalWidth : Nat}
+    (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth)
+    (assignment : Assignment F logicalWidth) (env : Env) : Prop :=
+  ∀ (index : Nat)
+    (bound : index < PiCCSOrdinarySourceSupport.transcriptInvocationCount),
+    List.ofFn (Layer.evalState env
+        (Invocations.permutationOutput (PiCCSStarts.statementWitnessStart + index * 1096))) =
+      PiCCSPoseidonPreservation.valueState geometry assignment
+        ⟨index, transcriptIndex_bound index bound⟩
+
+private theorem endpoint_permutationOutput (family : Fin familyCount)
+    (start : Nat)
+    (startEq : endpointStart family = start + 1080) :
+    (fun lane : Fin laneCount => Expr.var (endpointColumn family lane)) =
+      Invocations.permutationOutput start := by
+  funext lane
+  unfold Invocations.permutationOutput Permutation.freshState endpointColumn
+  rw [startEq]
+
+theorem transcriptOutputs_of_forms
+    {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
+    (poseidonGeometry : PiCCSPoseidonPlan.Geometry program logicalWidth)
+    (ordinaryGeometry :
+      PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
+    (assignment : Assignment F logicalWidth) (env : Env)
+    (forms : ∀ slot : Fin PiCCSOrdinaryRetainedBlocks.transcriptOutputCount,
+      env (PiCCSOrdinaryRetainedBlocks.transcriptOutputSource slot) =
+        ((PiCCSOrdinaryDirectPlan.Location.proofLogical
+          (PiCCSOrdinaryRetainedBlocks.transcriptOutputSlot slot)).form
+            ordinaryGeometry).eval assignment) :
+    TranscriptOutputs poseidonGeometry assignment env := by
+  intro index bound
+  unfold PiCCSPoseidonPreservation.valueState
+  apply congrArg List.ofFn
+  funext lane
+  have laneBound := lane.isLt
+  have countEq := PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq
+  rw [countEq] at bound
+  let slot : Fin PiCCSOrdinaryRetainedBlocks.transcriptOutputCount :=
+    ⟨index * 16 + lane.val, by
+      change index * 16 + lane.val <
+        PiCCSOrdinarySourceSupport.transcriptInvocationCount * Spec.Poseidon2.width
+      rw [countEq]
+      norm_num [Spec.Poseidon2.width]
+      omega⟩
+  have firstVal : (Fin.decodeProd slot).1.val = index := by
+    simp only [Fin.decodeProd, Fin.divNat, slot]
+    norm_num [Spec.Poseidon2.width]
+    omega
+  have secondVal : (Fin.decodeProd slot).2.val = lane.val := by
+    simp only [Fin.decodeProd, Fin.modNat, slot]
+    norm_num [Spec.Poseidon2.width]
+  have sourceEq : PiCCSOrdinaryRetainedBlocks.transcriptOutputSource slot =
+      PiCCSStarts.statementWitnessStart + index * 1096 + 1080 + lane.val := by
+    unfold PiCCSOrdinaryRetainedBlocks.transcriptOutputSource
+    simp only [Fin.decodeProd, Fin.divNat, Fin.modNat, slot]
+    norm_num [Spec.Poseidon2.width]
+    omega
+  have stateEq : PiCCSTranscriptOutputForms.transcriptForm
+      (PiCCSOrdinaryRetainedGeometry.poseidonGeometry ordinaryGeometry)
+      (Fin.decodeProd slot).1 (Fin.decodeProd slot).2 =
+        PiCCSPoseidonPlan.outputState poseidonGeometry
+          ⟨index, transcriptIndex_bound index (by rw [countEq]; exact bound)⟩
+          lane := by
+    unfold PiCCSTranscriptOutputForms.transcriptForm
+      PiCCSTranscriptOutputForms.invocation
+    congr 1
+    · exact Fin.ext firstVal
+    · exact Fin.ext secondVal
+  exact calc
+    env (PiCCSStarts.statementWitnessStart + index * 1096 + 1080 + lane.val) =
+        env (PiCCSOrdinaryRetainedBlocks.transcriptOutputSource slot) := by
+      rw [sourceEq]
+    _ = ((PiCCSOrdinaryDirectPlan.Location.proofLogical
+          (PiCCSOrdinaryRetainedBlocks.transcriptOutputSlot slot)).form
+            ordinaryGeometry).eval assignment := forms slot
+    _ = (PiCCSTranscriptOutputForms.transcriptForm
+          (PiCCSOrdinaryRetainedGeometry.poseidonGeometry ordinaryGeometry)
+          (Fin.decodeProd slot).1 (Fin.decodeProd slot).2).eval assignment := by
+      rw [PiCCSOrdinaryDirectPlan.Location.form_transcriptOutput]
+    _ = _ := by
+      rw [stateEq]
+      rfl
+
+theorem transcriptOutputs_of_encoding
+    {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
+    (poseidonGeometry : PiCCSPoseidonPlan.Geometry program logicalWidth)
+    (ordinaryGeometry :
+      PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
+    (assignment : Assignment F logicalWidth)
+    (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
+    (encoding : PiCCSOrdinaryRetainedGeometry.Encodes ordinaryGeometry
+      assignment (PiRLCRetainedPreservation.sourceAssignment
+        program base groupValue)) :
+    TranscriptOutputs poseidonGeometry assignment
+      (PiCCSActionPayloadBlock.packageEnv program
+        (PiRLCRetainedPreservation.sourceAssignment program base groupValue)) := by
+  apply transcriptOutputs_of_forms poseidonGeometry ordinaryGeometry
+  intro slot
+  have value := PiCCSOrdinaryDirectPlan.Location.form_eval ordinaryGeometry assignment
+    base groupValue encoding
+    (.proofLogical (PiCCSOrdinaryRetainedBlocks.transcriptOutputSlot slot))
+  rw [PiCCSOrdinaryDirectPlan.Location.sourceColumn,
+    PiCCSOrdinaryRetainedBlocks.proofLogicalSource_transcriptOutput] at value
+  rw [value]
+  change transcriptEnv program base groupValue
+      (Spartan.sourceToSpartan
+        (PiCCSOrdinaryRetainedBlocks.transcriptOutputSource slot)) = _
+  exact transcriptEnv_eq_transitionEnv_of_lt program base groupValue _
+    (Spartan.sourceToSpartan_lt _
+      (PiCCSOrdinaryRetainedBlocks.transcriptOutputSource_lt slot))
+
+theorem reads_of_outputs {program : Lifecycle.Stage1.Application.Program}
+    {logicalWidth : Nat}
+    (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth)
+    (assignment : Assignment F logicalWidth) (env : Env)
+    (outputs : TranscriptOutputs geometry assignment env) :
+    PiCCSTranscriptDirectSemantics.Reads geometry assignment env where
+  challenge := by
+    have challengeStart := PiCCSStarts.challengeWitnessStart_eq
+    have phaseStart := PiCCSStarts.statementWitnessStart_eq
+    apply PoseidonActionSemantics.readsAt_of_outputs env _
+      PiCCSActionPayloadBlock.challengeActions
+      PiCCSInvocations.challengeWitnessStart 0
+      ((PiCCSInvocations.challengeInterface Data.logicalWidth
+        Data.publicFits).initialState PiCCSInvocations.challengeWitnessStart)
+    · rw [PiCCSInvocations.challengeInitialState_eq_statementFinalState]
+      have state : StatementAbsorption.finalState
+          (PiCCSInvocations.statementInterface Data.logicalWidth Data.publicFits)
+          PiCCSInvocations.statementWitnessStart =
+            Invocations.permutationOutput (PiCCSStarts.statementWitnessStart + 122 * 1096) := by
+        rw [← endpoint_permutationOutput statementFamily _ (by
+          change PiCCSStarts.challengeWitnessStart - 16 = _
+          omega)]
+        funext lane
+        exact statementFinalState_endpoint_of_shape Data.logicalWidth
+          Data.publicFits lane
+      rw [state, outputs 122 (by
+        rw [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq]; omega)]
+      simp [PiCCSTranscriptDirectSemantics.sliceState,
+        PoseidonActionSemantics.stateAfter, PoseidonActionSemantics.sliceInitial,
+        PiCCSTranscriptDirectSemantics.challengeOffset]
+    · intro index bound
+      rw [PiCCSActionPayloadBlock.challengeInvocationCount_eq] at bound
+      have position : PiCCSInvocations.challengeWitnessStart + index * 1096 =
+          PiCCSStarts.statementWitnessStart + (123 + index) * 1096 := by
+        change PiCCSStarts.challengeWitnessStart + index * 1096 = _
+        omega
+      rw [position, outputs (123 + index) (by
+        rw [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq]; omega)]
+      simp [PiCCSTranscriptDirectSemantics.sliceState,
+        PoseidonActionSemantics.stateAfter, PoseidonActionSemantics.sliceOutput,
+        PoseidonActionSemantics.sliceIndex,
+        PiCCSTranscriptDirectSemantics.challengeOffset,
+        PiCCSTranscriptDirectSemantics.challengeCount, bound]
+    · exact ChallengeDerivation.expectedSamples_eq_samples _ _
+  rounds := by
+    have roundStart := PiCCSStarts.roundTranscriptWitnessStart_eq
+    have phaseStart := PiCCSStarts.statementWitnessStart_eq
+    apply PoseidonActionSemantics.readsAt_of_outputs env _
+      PiCCSActionPayloadBlock.roundActions
+      PiCCSInvocations.roundWitnessStart 0
+      ((PiCCSInvocations.roundInterface Data.logicalWidth
+        Data.publicFits).initialState PiCCSInvocations.roundWitnessStart)
+    · rw [roundInitialState_eq_challengeFinalState_of_shape]
+      have state : ChallengeDerivation.finalState
+          (PiCCSInvocations.challengeInterface Data.logicalWidth Data.publicFits)
+          PiCCSInvocations.challengeWitnessStart =
+            Invocations.permutationOutput (PiCCSStarts.statementWitnessStart + 126 * 1096) := by
+        rw [← endpoint_permutationOutput challengeFamily _ (by
+          change PiCCSStarts.roundTranscriptWitnessStart - 16 = _
+          omega)]
+        funext lane
+        exact challengeFinalState_endpoint_of_shape Data.logicalWidth
+          Data.publicFits lane
+      rw [state, outputs 126 (by
+        rw [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq]; omega)]
+      simp [PiCCSTranscriptDirectSemantics.sliceState,
+        PoseidonActionSemantics.stateAfter, PoseidonActionSemantics.sliceInitial,
+        PiCCSTranscriptDirectSemantics.roundOffset]
+    · intro index bound
+      rw [PiCCSActionPayloadBlock.roundInvocationCount_eq] at bound
+      have position : PiCCSInvocations.roundWitnessStart + index * 1096 =
+          PiCCSStarts.statementWitnessStart + (127 + index) * 1096 := by
+        change PiCCSStarts.roundTranscriptWitnessStart + index * 1096 = _
+        omega
+      rw [position, outputs (127 + index) (by
+        rw [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq]; omega)]
+      simp [PiCCSTranscriptDirectSemantics.sliceState,
+        PoseidonActionSemantics.stateAfter, PoseidonActionSemantics.sliceOutput,
+        PoseidonActionSemantics.sliceIndex,
+        PiCCSTranscriptDirectSemantics.roundOffset,
+        PiCCSTranscriptDirectSemantics.roundCount, bound]
+    · exact RoundTranscript.expectedSamples_eq_samples _ _
+
+theorem traces_and_endpoints_imply_transcriptSpecs
+    {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
+    {relationLogicalWidth : Nat}
+    {relationPublicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth relationLogicalWidth}
+    (poseidonGeometry : PiCCSPoseidonPlan.Geometry program logicalWidth)
+    (assignment : Assignment F logicalWidth)
+    (env : Env)
+    (traces : PiCCSTranscriptDirectSemantics.Traces poseidonGeometry assignment
+      (Spartan.pullback env))
+    (endpoints : ∀ family,
+      PiCCSPoseidonPreservation.valueState poseidonGeometry assignment
+          (endpointInvocation family) =
+        List.ofFn fun lane : Fin laneCount =>
+          Spartan.pullback env (endpointColumn family lane)) :
+    PiCCSInvocations.TranscriptSpecs relationLogicalWidth relationPublicFits env := by
+  have endpointFinal (family : Fin familyCount) (finalState : Layer.EState)
+      (finalEndpoint : ∀ lane : Fin laneCount,
+        finalState lane = Expr.var (endpointColumn family lane)) :
+      PiCCSPoseidonPreservation.valueState poseidonGeometry assignment
+          (endpointInvocation family) =
+        List.ofFn (Layer.evalState (Spartan.pullback env) finalState) := by
+    rw [endpoints family]
+    apply congrArg List.ofFn
+    funext lane
+    unfold Layer.evalState
+    rw [finalEndpoint lane]
+    rfl
+  have statementEndpoint := endpointFinal statementFamily
+    (StatementAbsorption.finalState
+      (PiCCSInvocations.statementInterface relationLogicalWidth
+        relationPublicFits) PiCCSInvocations.statementWitnessStart)
+    (statementFinalState_endpoint_of_shape relationLogicalWidth
+      relationPublicFits)
+  have challengeEndpoint := endpointFinal challengeFamily
+    (ChallengeDerivation.finalState
+      (PiCCSInvocations.challengeInterface relationLogicalWidth
+        relationPublicFits) PiCCSInvocations.challengeWitnessStart)
+    (challengeFinalState_endpoint_of_shape relationLogicalWidth
+      relationPublicFits)
+  have roundEndpoint := endpointFinal roundFamily
+    (RoundTranscript.finalState
+      (PiCCSInvocations.roundInterface relationLogicalWidth
+        relationPublicFits) PiCCSInvocations.roundWitnessStart)
+    (roundFinalState_endpoint_of_shape relationLogicalWidth
+      relationPublicFits)
+  have outputEndpoint := endpointFinal outputFamily
+    (OutputBinding.finalState
+      (PiCCSInvocations.outputInterface relationLogicalWidth
+        relationPublicFits) PiCCSInvocations.outputWitnessStart)
+    (outputFinalState_endpoint_of_shape relationLogicalWidth
+      relationPublicFits)
+  simp [endpointInvocation, statementFamily] at statementEndpoint
+  simp [endpointInvocation, challengeFamily] at challengeEndpoint
+  simp [endpointInvocation, roundFamily] at roundEndpoint
+  simp [endpointInvocation, outputFamily] at outputEndpoint
+  refine {
+    statementAbsorption := ?_
+    challengeDerivation := ?_
+    roundTranscript := ?_
+    outputBinding := ?_ }
+  · unfold StatementAbsorption.SpecHolds
+    have trace := traces.statement
+    rw [statementEndpoint] at trace
+    rw [zeroState_eq_evalZero (Spartan.pullback env)] at trace
+    simpa [PiCCSActionPayloadBlock.statementActions,
+      PiCCSInvocations.statementActions] using! trace
+  · apply ChallengeDerivation.trace_implies_specHolds
+    have trace := traces.challenge
+    rw [statementEndpoint, challengeEndpoint] at trace
+    rw [← PiCCSInvocations.challengeInitialState_eq_statementFinalState
+      relationLogicalWidth relationPublicFits] at trace
+    simpa [PiCCSActionPayloadBlock.challengeActions] using! trace
+  · apply (RoundTranscript.trace_iff_specHolds
+      (PiCCSInvocations.roundInterface relationLogicalWidth relationPublicFits)
+      PiCCSInvocations.roundWitnessStart
+      (Spartan.pullback env)).mp
+    have trace := traces.rounds
+    rw [challengeEndpoint, roundEndpoint] at trace
+    rw [← roundInitialState_eq_challengeFinalState_of_shape
+      relationLogicalWidth relationPublicFits] at trace
+    simpa [PiCCSActionPayloadBlock.roundActions] using! trace
+  · apply OutputBinding.trace_implies_specHolds
+    have trace := traces.output
+    rw [roundEndpoint, outputEndpoint] at trace
+    rw [← outputInitialState_eq_roundFinalState_of_shape
+      relationLogicalWidth relationPublicFits] at trace
+    simpa [PiCCSActionPayloadBlock.outputActions,
+      PiCCSInvocations.outputActions] using! trace
+
+end NightstreamFPrime.Export.Stage1.PiCCSTranscriptEndpointPlan

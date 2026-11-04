@@ -1,0 +1,39 @@
+import NightstreamFPrime.Layout.MatrixProgram
+import NightstreamFPrime.Layout.ProductionRelation.PinFamilyPlan
+
+namespace NightstreamFPrime.Layout.MatrixProgram.Pin
+
+open NightstreamFPrime.Layout
+open NightstreamFPrime.Layout.ProductionRelation
+
+structure Block where
+  values : List WireForm
+deriving Repr, DecidableEq
+
+def Block.rowCount (block : Block) : Nat :=
+  block.values.length
+
+def Block.row? (block : Block) (logicalWidth ordinal : Nat) :
+    Option (PinRow.Forms logicalWidth) :=
+  do
+    let encoded ← block.values[ordinal]?
+    let value ← encoded.semantic? logicalWidth
+    pure { value := value }
+
+def Block.ofSemantic {logicalWidth rowCount : Nat}
+    (interface : PinFamilyPlan.Interface logicalWidth rowCount) : Block where
+  values := List.ofFn fun row => WireForm.ofSemantic (interface.value row)
+
+@[simp] theorem Block.ofSemantic_rowCount {logicalWidth rowCount : Nat}
+    (interface : PinFamilyPlan.Interface logicalWidth rowCount) :
+    (Block.ofSemantic interface).rowCount = rowCount := by
+  simp [Block.rowCount, Block.ofSemantic]
+
+theorem Block.row?_ofSemantic {logicalWidth rowCount : Nat}
+    (interface : PinFamilyPlan.Interface logicalWidth rowCount)
+    (row : Fin rowCount) :
+    (Block.ofSemantic interface).row? logicalWidth row.val =
+      some (PinFamilyPlan.forms interface row) := by
+  simp [Block.row?, Block.ofSemantic, PinFamilyPlan.forms]
+
+end NightstreamFPrime.Layout.MatrixProgram.Pin

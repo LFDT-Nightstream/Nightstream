@@ -1,0 +1,85 @@
+{
+  "baseline_commit": "e5988718",
+  "source": "The containing source commit.",
+  "claim": "The generic Spartan column map does not import the complete running-transition row instance. PiDEC source support uses the generic map and explicit phase data.",
+  "owners": {
+    "generic_map": "NightstreamFPrime/Layout/Stage1/Spartan.lean",
+    "complete_prefix_rows": "NightstreamFPrime/Layout/Stage1/SpartanRows.lean"
+  },
+  "moved_public_names": [
+    "sourceRows",
+    "remappedRows",
+    "remappedRows_hold",
+    "sourceColumnCount_matches",
+    "sourceRowCount_eq",
+    "sourceRowCount_bounds",
+    "paddedRows",
+    "paddedRows_length",
+    "paddedRows_hold"
+  ],
+  "namespace": "NightstreamFPrime.Layout.Stage1.Spartan",
+  "source_review": "Moved declaration text, docstrings, runtime bodies and private visibility are unchanged. Additional direct imports repair prior transitive dependencies. PiRLC schedule bounds use the definitionally equal PiRLC-owned endpoint; consumers use explicit conversion.",
+  "gates": {
+    "static": {
+      "result": "passed",
+      "seconds": 6.3,
+      "log_sha256": "70932996802666ffa6552b35d36d53335c9099afc3ab524ea1d54e92abcd543d",
+      "last_lines": [
+        "[parallel] LEAN_NUM_THREADS=16",
+        "[matrix-codecs] 11 files; 34 Format definitions; no physical declarations",
+        "[boundary] all checks passed"
+      ]
+    },
+    "build": {
+      "result": "passed",
+      "seconds": 36.99,
+      "log_sha256": "ec22850a0f5bbdf573de2e9dc1bd91c372cb00a7336838e4038454bda9ccdb13",
+      "last_lines": [
+        "\u2714 [3811/3812] Built NightstreamFPrime (1.4s)",
+        "Build completed successfully (3812 jobs).",
+        "[bounded] exit=0 elapsed=37s"
+      ]
+    },
+    "axioms": {
+      "result": "passed",
+      "seconds": 49.09,
+      "log_sha256": "e2e436f55362cc534d56dc6c9938b7c3573b6898d306a580d6d8392e3bc58400",
+      "last_lines": [
+        " Quot.sound]",
+        "Build completed successfully (3919 jobs).",
+        "[bounded] exit=0 elapsed=49s"
+      ]
+    },
+    "identity": {
+      "result": "passed",
+      "seconds": 131.95,
+      "log_sha256": "a9b0aef71a6463f45488ab134281cb90f2b57bccd3365e9b6e0f32dbde510d1c",
+      "last_lines": [
+        "emitted_poseidon2_hash_chain_v1_canonical_binding=/tmp/nightstream-fprime-identity.T6vXal.json",
+        "[bounded] exit=0 elapsed=132s",
+        "[identity] canonical binding, structural identity, package identity and verifier-key pins match"
+      ]
+    }
+  },
+  "import_reachability": {
+    "scope": "Local source import reachability; excludes the changed module; not measured rebuilds",
+    "before": {
+      "NightstreamFPrime.Gadgets.Range.CanonicalU64": 414,
+      "NightstreamFPrime.Layout.MatrixProgram": 220,
+      "NightstreamFPrime.Layout.Stage1.PiDECSourceSupportData": 279,
+      "NightstreamFPrime.Layout.Stage1.RunningTransitionLowering": 335,
+      "NightstreamFPrime.Layout.Stage1.Spartan": 330
+    },
+    "after": {
+      "NightstreamFPrime.Gadgets.Range.CanonicalU64": 415,
+      "NightstreamFPrime.Layout.MatrixProgram": 220,
+      "NightstreamFPrime.Layout.Stage1.PiDECSourceSupportData": 279,
+      "NightstreamFPrime.Layout.Stage1.RunningTransitionLowering": 283,
+      "NightstreamFPrime.Layout.Stage1.Spartan": 331
+    },
+    "running_lowering_reaches_source_data_before": true,
+    "running_lowering_reaches_source_data_after": false
+  },
+  "probe": "Repeat the extra-cell allocation test at this checkpoint. Source import inspection alone does not establish full allocation isolation.",
+  "external_review": "00:20 UTC on 2026-09-11: unchanged September 4 review; no new finding or approval."
+}

@@ -1,0 +1,206 @@
+import NightstreamFPrime.Layout.Stage1.RunningTransitionInputs
+import NightstreamFPrime.Layout.Stage1.RunningTransitionCost
+import NightstreamFPrime.Layout.Stage1.RunningTransitionPointBoundsDirect
+import NightstreamFPrime.Layout.Stage1.Spartan
+
+namespace NightstreamFPrime.Layout.Stage1.RunningTransitionSourceSupport
+
+open NightstreamFPrime.Layout
+open NightstreamFPrime.Lifecycle
+open NightstreamFPrime.Lifecycle.PaperAlgebra
+open NightstreamFPrime.Spec
+open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
+open NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra
+open RunningTransitionInputs
+
+def InRange (start count column : Nat) : Prop :=
+  start ≤ column ∧ column < start + count
+
+def stateStart : Nat :=
+  PilotProduction.priorPreimageStart + iterationWordIndex
+
+def stateCount : Nat := 9
+
+def outputStart : Nat := PilotProduction.outputPreimageStart
+
+def outputCount : Nat := PilotProduction.stateHashWords
+
+def piDecStart : Nat := PiDECInputs.proofInputStart
+
+def piDecCount : Nat := PiDECInputs.proofInputColumnCount
+
+def physicalEnd : Nat := RunningTransitionLayout.physicalEnd
+
+def PiDecField (column : Nat) : Prop :=
+  (∃ (source : Radix.ChildIndex)
+      (row : Fin productionProfile.commitmentWidth)
+      (coefficient : Fin ringDegree),
+    column = PiDECInputs.childCommitmentStart source +
+      row.val * ringDegree + coefficient.val) ∨
+  (∃ (source : Radix.ChildIndex) (coordinate : Fin 270),
+    column = PiDECInputs.childPublicInputStart source + coordinate.val) ∨
+  (∃ (source : Radix.ChildIndex)
+      (coefficient : Fin productionShape.coefficientCount),
+    column = PiDECInputs.childEvalKStart source + coefficient.val * 2 ∨
+      column = PiDECInputs.childEvalKStart source + coefficient.val * 2 + 1) ∨
+  (∃ (source : Radix.ChildIndex)
+      (matrix : Fin productionShape.matrixCount)
+      (coefficient : Fin productionShape.coefficientCount),
+    column = PiDECInputs.childEvalAStart source +
+        matrix.val * PiDECInputs.evalKWordsPerChild + coefficient.val * 2 ∨
+      column = PiDECInputs.childEvalAStart source +
+        matrix.val * PiDECInputs.evalKWordsPerChild + coefficient.val * 2 + 1)
+
+def External (column : Nat) : Prop :=
+  InRange stateStart stateCount column ∨
+    InRange outputStart outputCount column ∨
+      (∃ coordinate : Fin productionShape.cubeVariables,
+        column = PiCCSStarts.roundTranscriptWitnessStart +
+            coordinate.val * roundStride + roundSampleC0Offset ∨
+          column = PiCCSStarts.roundTranscriptWitnessStart +
+            coordinate.val * roundStride + roundSampleC1Offset) ∨
+        PiDecField column
+
+def Logical (column : Nat) : Prop :=
+  External column ∨ column = phaseOffset ∨ column = phaseOffset + 1
+
+def Source (column : Nat) : Prop :=
+  External column ∨ (phaseOffset ≤ column ∧ column < physicalEnd)
+
+def Target (column : Nat) : Prop :=
+  ∃ source, Source source ∧ column = Spartan.sourceToSpartan source
+
+@[simp] theorem stateStart_eq : stateStart = 27810 := by
+  rfl
+
+@[simp] theorem outputStart_eq : outputStart = 28089 := by
+  rfl
+
+@[simp] theorem outputCount_eq : outputCount = 27819 := by
+  exact PilotProduction.stateHashWords_eq
+
+@[simp] theorem piDecStart_eq : piDecStart = 11432634 := by
+  rfl
+
+@[simp] theorem piDecCount_eq : piDecCount = 31968 := by
+  exact PiDECInputs.proofInputColumnCount_eq
+
+theorem piDecField_inRange {column : Nat} (field : PiDecField column) :
+    InRange piDecStart piDecCount column := by
+  rw [piDecStart_eq, piDecCount_eq]
+  rcases field with commitment | publicInput | evalK | evalA
+  · rcases commitment with ⟨source, row, coefficient, rfl⟩
+    have sourceBound := source.isLt
+    have rowBound := row.isLt
+    have coefficientBound := coefficient.isLt
+    change source.val < 16 at sourceBound
+    change row.val < 22 at rowBound
+    change coefficient.val < 54 at coefficientBound
+    change InRange 11432634 31968
+      (11432634 + source.val * 1188 + row.val * 54 + coefficient.val)
+    unfold InRange
+    omega
+  · rcases publicInput with ⟨source, coordinate, rfl⟩
+    have sourceBound := source.isLt
+    have coordinateBound := coordinate.isLt
+    change source.val < 16 at sourceBound
+    change coordinate.val < 270 at coordinateBound
+    change InRange 11432634 31968
+      (11460282 + source.val * 270 + coordinate.val)
+    unfold InRange
+    omega
+  · rcases evalK with ⟨source, coefficient, low | high⟩
+    all_goals subst column
+    all_goals
+      have sourceBound := source.isLt
+      have coefficientBound := coefficient.isLt
+      change source.val < 16 at sourceBound
+      change coefficient.val < 54 at coefficientBound
+      first
+      | change InRange 11432634 31968
+          (11451642 + source.val * 108 + coefficient.val * 2)
+        unfold InRange
+        omega
+      | change InRange 11432634 31968
+          (11451642 + source.val * 108 + coefficient.val * 2 + 1)
+        unfold InRange
+        omega
+  · rcases evalA with ⟨source, matrix, coefficient, low | high⟩
+    all_goals subst column
+    all_goals
+      have sourceBound := source.isLt
+      have matrixBound := matrix.isLt
+      have coefficientBound := coefficient.isLt
+      change source.val < 16 at sourceBound
+      change matrix.val < 4 at matrixBound
+      change coefficient.val < 54 at coefficientBound
+      first
+      | change InRange 11432634 31968
+          (11453370 + source.val * 432 + matrix.val * 108 +
+            coefficient.val * 2)
+        unfold InRange
+        omega
+      | change InRange 11432634 31968
+          (11453370 + source.val * 432 + matrix.val * 108 +
+            coefficient.val * 2 + 1)
+        unfold InRange
+        omega
+
+theorem source_lt_sourceColumnCount {column : Nat} (support : Source column) :
+    column < Spartan.SourceColumnCount := by
+  have phaseLower := Spartan.sourceColumnCount_ge_piDecPhaseOffset
+  rw [PiDECInputs.phaseOffset, PiDECInputs.proofInputStart,
+    PiDECInputs.proofInputColumnCount_eq, PiRLCStarts.finalBoundaries_eq.2]
+    at phaseLower
+  rcases support with external | fresh
+  · rcases external with state | output | roundPoint | piDec
+    · unfold InRange at state
+      rw [stateStart_eq] at state
+      norm_num [stateCount] at state
+      omega
+    · unfold InRange at output
+      rw [outputStart_eq, outputCount_eq] at output
+      omega
+    · rcases roundPoint with ⟨coordinate, c0 | c1⟩
+      all_goals subst column
+      all_goals
+        have coordinateBound := coordinate.isLt
+        change coordinate.val < 28 at coordinateBound
+        rw [PiCCSStarts.roundTranscriptWitnessStart_eq]
+        norm_num [roundStride, roundSampleC0Offset, roundSampleC1Offset]
+        omega
+    · have inside := piDecField_inRange piDec
+      unfold InRange at inside
+      rw [piDecStart_eq, piDecCount_eq] at inside
+      omega
+  · change phaseOffset ≤ column ∧ column < physicalEnd at fresh
+    rw [Spartan.sourceColumnCount_eq_physicalEnd]
+    exact fresh.2
+
+theorem logical_state {column : Nat}
+    (inside : InRange stateStart stateCount column) : Logical column :=
+  Or.inl (Or.inl inside)
+
+theorem logical_output {column : Nat}
+    (inside : InRange outputStart outputCount column) : Logical column :=
+  Or.inl (Or.inr (Or.inl inside))
+
+theorem logical_roundPointC0
+    (coordinate : Fin productionShape.cubeVariables) :
+    Logical (PiCCSStarts.roundTranscriptWitnessStart +
+      coordinate.val * roundStride + roundSampleC0Offset) :=
+  Or.inl (Or.inr (Or.inr (Or.inl
+    ⟨coordinate, Or.inl rfl⟩)))
+
+theorem logical_roundPointC1
+    (coordinate : Fin productionShape.cubeVariables) :
+    Logical (PiCCSStarts.roundTranscriptWitnessStart +
+      coordinate.val * roundStride + roundSampleC1Offset) :=
+  Or.inl (Or.inr (Or.inr (Or.inl
+    ⟨coordinate, Or.inr rfl⟩)))
+
+theorem logical_piDec {column : Nat}
+    (field : PiDecField column) : Logical column :=
+  Or.inl (Or.inr (Or.inr (Or.inr field)))
+
+end NightstreamFPrime.Layout.Stage1.RunningTransitionSourceSupport

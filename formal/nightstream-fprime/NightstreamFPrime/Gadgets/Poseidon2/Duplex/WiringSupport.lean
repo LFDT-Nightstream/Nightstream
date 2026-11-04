@@ -1,0 +1,284 @@
+import NightstreamFPrime.Circuit.SupportRange
+import NightstreamFPrime.Gadgets.Poseidon2.Duplex.Formal
+
+namespace NightstreamFPrime.Gadgets.Poseidon2.Duplex.Formal
+
+open NightstreamFPrime.Circuit
+open NightstreamFPrime.Circuit.Quadratic
+open NightstreamFPrime.Circuit.SupportRange
+open NightstreamFPrime.Gadgets.Poseidon2
+open NightstreamFPrime.Gadgets.Poseidon2.Layer
+
+def KSupported (value : KExpr) (allowed : Nat → Prop) : Prop :=
+  value.c0.VarsSatisfy allowed ∧ value.c1.VarsSatisfy allowed
+
+def StateSupported (state : EState) (allowed : Nat → Prop) : Prop :=
+  ∀ lane, (state lane).VarsSatisfy allowed
+
+theorem KSupported.mono {value : KExpr} {allowed larger : Nat → Prop}
+    (support : KSupported value allowed)
+    (includes : ∀ index, allowed index → larger index) :
+    KSupported value larger :=
+  ⟨Expr.VarsSatisfy.mono value.c0 support.1 includes,
+    Expr.VarsSatisfy.mono value.c1 support.2 includes⟩
+
+theorem StateSupported.mono {state : EState} {allowed larger : Nat → Prop}
+    (support : StateSupported state allowed)
+    (includes : ∀ index, allowed index → larger index) :
+    StateSupported state larger := by
+  intro lane
+  exact Expr.VarsSatisfy.mono (state lane) (support lane) includes
+
+def OutputPrefix (allowed : Nat → Prop) (base count index : Nat) : Prop :=
+  allowed index ∨
+    ∃ (invocation : Fin count) (lane : Fin Spec.Poseidon2.width),
+      index = base + invocation.val * 1096 + 1080 + lane.val
+
+theorem outputPrefix_mono {allowed : Nat → Prop} {base prior later index : Nat}
+    (support : OutputPrefix allowed base prior index) (le : prior ≤ later) :
+    OutputPrefix allowed base later index := by
+  rcases support with support | ⟨invocation, lane, source⟩
+  · exact Or.inl support
+  · exact Or.inr ⟨⟨invocation.val,
+        Nat.lt_of_lt_of_le invocation.isLt le⟩, lane, source⟩
+
+def Action.permutationCount : Action → Nat
+  | .absorb input => (Hash.inputChunks input).length
+  | .readK _ _ => 0
+
+def permutationCount (actions : List Action) : Nat :=
+  (actions.map Action.permutationCount).sum
+
+theorem recipeCount_eq_permutationCount_mul (actions : List Action) :
+    recipeCount actions = permutationCount actions * 1096 := by
+  induction actions with
+  | nil => rfl
+  | cons action actions inductionHypothesis =>
+      unfold recipeCount permutationCount at inductionHypothesis ⊢
+      cases action with
+      | absorb input =>
+          simp [Action.recipeCount,
+            Action.permutationCount, inductionHypothesis, Nat.add_mul]
+      | readK pair expected =>
+          simp [Action.recipeCount,
+            Action.permutationCount, inductionHypothesis]
+
+private theorem scheduleOutput_outputPrefix_supported
+    (allowed : Nat → Prop) (base count : Nat) :
+    StateSupported (Permutation.scheduleOutput (base + count * 1096))
+      (OutputPrefix allowed base (count + 1)) := by
+  intro lane
+  simp only [Permutation.scheduleOutput, Permutation.freshState,
+    Expr.VarsSatisfy]
+  exact Or.inr ⟨⟨count, by omega⟩, lane, rfl⟩
+
+private theorem compileAbsorbWiring_outputPrefix_supported
+    (allowed : Nat → Prop) (base prior : Nat) (state : EState)
+    (blocks : List (List Expr))
+    (stateSupport : StateSupported state (OutputPrefix allowed base prior)) :
+    StateSupported
+      (compileAbsorbWiring (base + prior * 1096) state blocks).output
+      (OutputPrefix allowed base (prior + blocks.length)) := by
+  induction blocks generalizing prior state with
+  | nil => simpa [compileAbsorbWiring] using stateSupport
+  | cons block blocks inductionHypothesis =>
+      simp only [compileAbsorbWiring, List.length_cons]
+      have nextSupport := scheduleOutput_outputPrefix_supported allowed base prior
+      have tail := inductionHypothesis (prior := prior + 1)
+        (state := Permutation.scheduleOutput (base + prior * 1096)) nextSupport
+      rw [show base + prior * 1096 + 1096 = base + (prior + 1) * 1096 by omega]
+      rw [show prior + (blocks.length + 1) = prior + 1 + blocks.length by omega]
+      exact tail
+
+theorem compileAbsorbWiring_output_cons
+    (start : Nat) (state : EState) (block : List Expr)
+    (rest : List (List Expr)) :
+    (compileAbsorbWiring start state (block :: rest)).output =
+      Permutation.scheduleOutput (start + rest.length * 1096) := by
+  induction rest generalizing start state block with
+  | nil => rfl
+  | cons next rest inductionHypothesis =>
+      rw [compileAbsorbWiring]
+      rw [inductionHypothesis (start := start + 1096)
+        (state := Permutation.scheduleOutput start) (block := next)]
+      congr 1
+      simp only [List.length_cons]
+      omega
+
+theorem compileAbsorbWiring_output_supported_from_start
+    (start : Nat) (state : EState) (block : List Expr)
+    (rest : List (List Expr)) :
+    StateSupported (compileAbsorbWiring start state (block :: rest)).output
+      (fun index => start ≤ index) := by
+  rw [compileAbsorbWiring_output_cons]
+  intro lane
+  simp only [Permutation.scheduleOutput, Permutation.freshState,
+    Expr.VarsSatisfy]
+  have laneBound := lane.isLt
+  omega
+
+theorem compileWiring_outputPrefix_supported
+    (allowed : Nat → Prop) (base prior : Nat) (state : EState)
+    (actions : List Action)
+    (stateSupport : StateSupported state (OutputPrefix allowed base prior)) :
+    (∀ sample ∈
+        (compileWiring (base + prior * 1096) state actions).samples,
+      KSupported sample
+        (OutputPrefix allowed base (prior + permutationCount actions))) ∧
+      StateSupported
+        (compileWiring (base + prior * 1096) state actions).output
+        (OutputPrefix allowed base (prior + permutationCount actions)) := by
+  induction actions generalizing prior state with
+  | nil =>
+      constructor
+      · intro sample member
+        simp [compileWiring] at member
+      · simpa [compileWiring, permutationCount] using stateSupport
+  | cons action actions inductionHypothesis =>
+      cases action with
+      | absorb input =>
+          let blocks := Hash.inputChunks input
+          have absorbedSupport := compileAbsorbWiring_outputPrefix_supported
+            allowed base prior state blocks stateSupport
+          have tail := inductionHypothesis (prior := prior + blocks.length)
+            (state :=
+              (compileAbsorbWiring (base + prior * 1096) state blocks).output)
+            absorbedSupport
+          simp only [compileWiring]
+          rw [compileAbsorbWiring_next]
+          rw [show base + prior * 1096 + blocks.length * 1096 =
+              base + (prior + blocks.length) * 1096 by omega]
+          have countEq :
+              prior + permutationCount (.absorb input :: actions) =
+                prior + blocks.length + permutationCount actions := by
+            simp [permutationCount, Action.permutationCount, blocks,
+              Nat.add_assoc]
+          rw [countEq]
+          simpa [blocks] using tail
+      | readK pair expected =>
+          have tail := inductionHypothesis (prior := prior) (state := state)
+            stateSupport
+          have countEq :
+              prior + permutationCount (.readK pair expected :: actions) =
+                prior + permutationCount actions := by
+            simp [permutationCount, Action.permutationCount]
+          rw [countEq]
+          simp only [compileWiring]
+          constructor
+          · intro sample member
+            simp only [List.mem_cons] at member
+            rcases member with rfl | member
+            · exact ⟨Expr.VarsSatisfy.mono _ (stateSupport _)
+                  (fun index support => outputPrefix_mono support (by omega)),
+                Expr.VarsSatisfy.mono _ (stateSupport _)
+                  (fun index support => outputPrefix_mono support (by omega))⟩
+            · exact tail.1 sample member
+          · exact tail.2
+
+theorem sampleGetD_supported (samples : List KExpr) (index : Nat)
+    (fallback : KExpr) (allowed : Nat → Prop)
+    (support : ∀ sample ∈ samples, KSupported sample allowed)
+    (indexBound : index < samples.length) :
+    KSupported (samples.getD index fallback) allowed := by
+  rw [List.getD_eq_get samples fallback ⟨index, indexBound⟩]
+  exact support _ (List.get_mem samples ⟨index, indexBound⟩)
+
+private theorem scheduleOutput_supported (allowed : Nat → Prop)
+    (base start : Nat) (baseLeStart : base ≤ start) :
+    StateSupported (Permutation.scheduleOutput start)
+      (Extend allowed base (start + 1096)) := by
+  intro lane
+  simp only [Permutation.scheduleOutput, Permutation.freshState,
+    Expr.VarsSatisfy]
+  apply NightstreamFPrime.Circuit.SupportRange.interval
+  · omega
+  · have laneBound := lane.isLt
+    omega
+
+private theorem compileAbsorbWiring_output_supported
+    (allowed : Nat → Prop) (base start : Nat) (state : EState)
+    (blocks : List (List Expr)) (baseLeStart : base ≤ start)
+    (stateSupport : StateSupported state (Extend allowed base start)) :
+    StateSupported (compileAbsorbWiring start state blocks).output
+      (Extend allowed base (start + blocks.length * 1096)) := by
+  induction blocks generalizing start state with
+  | nil =>
+      simpa [compileAbsorbWiring] using stateSupport
+  | cons block blocks inductionHypothesis =>
+      have nextSupport := scheduleOutput_supported allowed base start baseLeStart
+      have tail := inductionHypothesis
+        (start := start + 1096) (state := Permutation.scheduleOutput start)
+        (by omega) nextSupport
+      have endEq :
+          start + (List.length (block :: blocks)) * 1096 =
+            (start + 1096) + blocks.length * 1096 := by
+        simp only [List.length_cons]
+        omega
+      simpa only [compileAbsorbWiring, endEq] using tail
+
+theorem compileWiring_supported (allowed : Nat → Prop)
+    (base start : Nat) (state : EState) (actions : List Action)
+    (baseLeStart : base ≤ start)
+    (stateSupport : StateSupported state (Extend allowed base start)) :
+    (∀ sample ∈ (compileWiring start state actions).samples,
+        KSupported sample (Extend allowed base (start + recipeCount actions))) ∧
+      StateSupported (compileWiring start state actions).output
+        (Extend allowed base (start + recipeCount actions)) := by
+  induction actions generalizing start state with
+  | nil =>
+      constructor
+      · intro sample member
+        simp [compileWiring] at member
+      · simpa [compileWiring, recipeCount] using stateSupport
+  | cons action actions inductionHypothesis =>
+      cases action with
+      | absorb input =>
+          let blocks := Hash.inputChunks input
+          let absorbed := compileAbsorbWiring start state blocks
+          have absorbedSupport : StateSupported absorbed.output
+              (Extend allowed base absorbed.next) := by
+            have support := compileAbsorbWiring_output_supported allowed base
+              start state blocks baseLeStart stateSupport
+            have nextEq := compileAbsorbWiring_next start state blocks
+            rw [nextEq]
+            exact support
+          have baseLeNext : base ≤ absorbed.next := by
+            dsimp [absorbed]
+            rw [compileAbsorbWiring_next]
+            omega
+          have tail := inductionHypothesis
+            (start := absorbed.next) (state := absorbed.output)
+            baseLeNext absorbedSupport
+          have finishEq :
+              absorbed.next + recipeCount actions =
+                start + recipeCount (.absorb input :: actions) := by
+            dsimp [absorbed]
+            rw [compileAbsorbWiring_next]
+            simp only [recipeCount, List.map_cons, List.sum_cons,
+              Action.recipeCount, blocks]
+            omega
+          simpa only [compileWiring, blocks, absorbed, finishEq] using tail
+      | readK pair expected =>
+          have tail := inductionHypothesis (start := start) (state := state)
+            baseLeStart stateSupport
+          have finishEq :
+              start + recipeCount actions =
+                start + recipeCount (.readK pair expected :: actions) := by
+            simp [recipeCount, Action.recipeCount]
+          rw [← finishEq]
+          simp only [compileWiring]
+          constructor
+          · intro sample member
+            simp only [List.mem_cons] at member
+            rcases member with rfl | member
+            · constructor
+              · apply Expr.VarsSatisfy.mono _ (stateSupport _)
+                intro index support
+                exact NightstreamFPrime.Circuit.SupportRange.mono_finish support (by omega)
+              · apply Expr.VarsSatisfy.mono _ (stateSupport _)
+                intro index support
+                exact NightstreamFPrime.Circuit.SupportRange.mono_finish support (by omega)
+            · exact tail.1 sample member
+          · exact tail.2
+
+end NightstreamFPrime.Gadgets.Poseidon2.Duplex.Formal

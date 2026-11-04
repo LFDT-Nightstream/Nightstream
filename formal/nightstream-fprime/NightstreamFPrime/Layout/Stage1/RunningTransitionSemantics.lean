@@ -1,0 +1,124 @@
+import NightstreamFPrime.Layout.Stage1.RunningTransitionBounds
+import NightstreamFPrime.Layout.Stage1.StateDecoder
+
+namespace NightstreamFPrime.Layout.Stage1.RunningTransitionInputs
+
+open NightstreamFPrime.Spec
+open NightstreamFPrime.Circuit
+open NightstreamFPrime.Lifecycle
+open NightstreamFPrime.Lifecycle.Stage1
+open NightstreamFPrime.Lifecycle.PaperAlgebra
+open NightstreamFPrime.Lifecycle.PiCCS.v1_2
+open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
+
+def outputRunning
+    (logicalWidth : Nat)
+    (publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth)
+    (env : Env) :
+    Running (logicalWidth := logicalWidth) (publicFits := publicFits) :=
+  StateDecoder.running logicalWidth publicFits
+    (fun word => env (PilotProduction.outputPreimageStart + word))
+
+theorem spec_typed_base
+    {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    {env : Env}
+    (specification : RunningTransition.SpecHolds
+      (interface logicalWidth publicFits) phaseOffset env)
+    (iterationZero : RunningTransition.iterationValue
+      (interface logicalWidth publicFits) phaseOffset env = 0) :
+    outputRunning logicalWidth publicFits env =
+      defaultRunning (logicalWidth := logicalWidth)
+        (publicFits := publicFits) :=
+  StateDecoder.outputRunning_eq_of_serialized env StateEncoding.defaultRunning_canonical
+    (RunningTransition.spec_serialized_base specification iterationZero)
+
+theorem spec_typed_recursive
+    {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    {env : Env}
+    (specification : RunningTransition.SpecHolds
+      (interface logicalWidth publicFits) phaseOffset env)
+    (iterationNonzero : RunningTransition.iterationValue
+      (interface logicalWidth publicFits) phaseOffset env ≠ 0)
+    (canonical : Lifecycle.ChildrenCanonical
+      (StatementAbsorption.evalRunning (recursiveRunningExpr logicalWidth publicFits) env)) :
+    outputRunning logicalWidth publicFits env =
+      StatementAbsorption.evalRunning
+        (recursiveRunningExpr logicalWidth publicFits) env :=
+  StateDecoder.outputRunning_eq_of_serialized env canonical
+    (RunningTransition.spec_serialized_recursive specification iterationNonzero)
+
+theorem recursive_canonical
+    {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (env : Env)
+    (split : NightstreamFPrime.Lifecycle.PiDEC.v1_2.PublicInputSplit.RelationHolds
+      (NightstreamFPrime.Lifecycle.PiDEC.v1_2.Formal.publicInputInterface
+        (NightstreamFPrime.Lifecycle.PiDEC.v1_2.Formal.atOffset
+          (piDecInterface logicalWidth publicFits) PiDECInputs.phaseOffset))
+      (NightstreamFPrime.Lifecycle.PiDEC.v1_2.Formal.publicInputOffset
+        PiDECInputs.phaseOffset) env) :
+    Lifecycle.ChildrenCanonical
+      (StatementAbsorption.evalRunning (recursiveRunningExpr logicalWidth publicFits) env) := by
+  intro column
+  rcases split (digitCoordinate column) with ⟨sign, accepted⟩
+  exact ⟨sign, accepted.constraint⟩
+
+def piDecRunningOutput
+    {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (env : Env) :
+    NightstreamFPrime.Spec.Folding.Nifs.PaperNonInteractive.Running K
+      PaperAlgebra.Commitment
+      (PaperAlgebra.PublicInput
+        (logicalWidth := logicalWidth) (publicFits := publicFits))
+      productionShape :=
+  let piDec := piDecInterface logicalWidth publicFits
+  let outputs := NightstreamFPrime.Lifecycle.PiDEC.v1_2.Semantics.output
+    relation piDec PiDECInputs.phaseOffset env
+  { point := StatementAbsorption.evalPoint
+      (piDec.point PiDECInputs.phaseOffset) env
+    commitments := fun source =>
+      (outputs (childOfRunning source)).commitment
+    publicInputs := fun source =>
+      (outputs (childOfRunning source)).publicInput
+    evaluations := fun source =>
+      (outputs (childOfRunning source)).evaluations.getD 0
+        PaperAlgebra.evaluationZero }
+
+theorem eval_recursiveRunningExpr_eq_piDecRunningOutput
+    {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (env : Env) :
+    StatementAbsorption.evalRunning
+        (recursiveRunningExpr logicalWidth publicFits) env =
+      piDecRunningOutput relation env := by
+  rfl
+
+theorem spec_typed_recursive_eq_piDecOutput
+    {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    {env : Env}
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (specification : RunningTransition.SpecHolds
+      (interface logicalWidth publicFits) phaseOffset env)
+    (iterationNonzero : RunningTransition.iterationValue
+      (interface logicalWidth publicFits) phaseOffset env ≠ 0)
+    (canonical : Lifecycle.ChildrenCanonical
+      (StatementAbsorption.evalRunning (recursiveRunningExpr logicalWidth publicFits) env)) :
+    outputRunning logicalWidth publicFits env =
+      piDecRunningOutput relation env := by
+  rw [spec_typed_recursive specification iterationNonzero canonical,
+    eval_recursiveRunningExpr_eq_piDecRunningOutput relation env]
+
+end NightstreamFPrime.Layout.Stage1.RunningTransitionInputs

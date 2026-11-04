@@ -1,0 +1,178 @@
+import NightstreamFPrime.Export.PermutationOutput
+
+namespace NightstreamFPrime.Export.PermutationOutput.Readout
+
+open NightstreamFPrime.Circuit
+open NightstreamFPrime.Spec
+open NightstreamFPrime.Gadgets.Poseidon2
+open NightstreamFPrime.Layout.ProductionRelation
+
+def witnessStart (start : Nat) {count : Nat} (index : Fin count) : Nat :=
+  start + index.val * 1096
+
+def outputColumn (start : Nat) {count : Nat} (index : Fin count) (lane : Fin 16) : Nat :=
+  witnessStart start index + 1080 + lane.val
+
+def sboxColumn (start : Nat) {count : Nat} (index : Fin count) (lane : Fin 16) : Nat :=
+  witnessStart start index +
+    (PoseidonRetainedSlots.localOutput (PoseidonRetainedSlots.finalRow lane)).val
+
+def decode (start count column : Nat) : Option (Fin count × Fin 16) :=
+  if _lower : start + 1080 ≤ column then
+    let offset := column - (start + 1080)
+    if invocationBound : offset / 1096 < count then
+      if laneBound : offset % 1096 < 16 then
+        some (⟨offset / 1096, invocationBound⟩, ⟨offset % 1096, laneBound⟩)
+      else none
+    else none
+  else none
+
+theorem decode_outputColumn (start : Nat) {count : Nat}
+    (index : Fin count) (lane : Fin 16) :
+    decode start count (outputColumn start index lane) = some (index, lane) := by
+  have lower : start + 1080 ≤ outputColumn start index lane := by
+    unfold outputColumn witnessStart
+    omega
+  have offset : outputColumn start index lane - (start + 1080) =
+      index.val * 1096 + lane.val := by
+    unfold outputColumn witnessStart
+    omega
+  have laneBound := lane.isLt
+  have quotient : (index.val * 1096 + lane.val) / 1096 = index.val := by omega
+  have remainder : (index.val * 1096 + lane.val) % 1096 = lane.val := by omega
+  unfold decode
+  rw [dite_eq_left lower]
+  simp only [offset, quotient, remainder, dite_eq_left index.isLt, dite_eq_left lane.isLt]
+
+theorem decode_source (start : Nat) {count column : Nat}
+    {index : Fin count} {lane : Fin 16}
+    (found : decode start count column = some (index, lane)) :
+    column = outputColumn start index lane := by
+  unfold decode at found
+  split at found
+  · rename_i lower
+    dsimp only at found
+    split at found
+    · split at found
+      · have selected := Option.some.inj found
+        have indexEq := congrArg (fun pair : Fin count × Fin 16 => pair.1.val) selected
+        have laneEq := congrArg (fun pair : Fin count × Fin 16 => pair.2.val) selected
+        dsimp only at indexEq laneEq
+        have divmod := Nat.mod_add_div (column - (start + 1080)) 1096
+        unfold outputColumn witnessStart
+        omega
+      · cases found
+    · cases found
+  · cases found
+
+private theorem sboxOffset_bounds_all : ∀ lane : Fin 16,
+    1019 ≤ (PoseidonRetainedSlots.localOutput (PoseidonRetainedSlots.finalRow lane)).val ∧
+    (PoseidonRetainedSlots.localOutput (PoseidonRetainedSlots.finalRow lane)).val ≤ 1079 := by
+  decide +kernel
+
+private theorem sboxOffset_bounds (lane : Fin 16) :
+    1019 ≤ (PoseidonRetainedSlots.localOutput (PoseidonRetainedSlots.finalRow lane)).val ∧
+    (PoseidonRetainedSlots.localOutput (PoseidonRetainedSlots.finalRow lane)).val ≤ 1079 :=
+  sboxOffset_bounds_all lane
+
+theorem sboxColumn_lt_end (start : Nat) {count : Nat}
+    (index : Fin count) (lane : Fin 16) :
+    sboxColumn start index lane < start + count * 1096 := by
+  have slotBound := sboxOffset_bounds lane
+  have indexBound := index.isLt
+  unfold sboxColumn witnessStart
+  omega
+
+theorem decode_sboxColumn (start : Nat) {count : Nat}
+    (index : Fin count) (lane : Fin 16) :
+    decode start count (sboxColumn start index lane) = none := by
+  cases found : decode start count (sboxColumn start index lane) with
+  | none => rfl
+  | some selected =>
+      rcases selected with ⟨other, outputLane⟩
+      have same := decode_source start found
+      have bounded := sboxOffset_bounds lane
+      have outputBound := outputLane.isLt
+      unfold sboxColumn outputColumn witnessStart at same
+      omega
+
+def env (start count : Nat) (source : Env) : Env := fun column =>
+  match decode start count column with
+  | none => source column
+  | some (index, lane) =>
+      Layer.externalF (fun selected => source (sboxColumn start index selected)) lane
+
+theorem env_congr_at (start count : Nat) (left right : Env) (column : Nat)
+    (atColumn : left column = right column)
+    (atSboxes : ∀ (index : Fin count) (lane : Fin 16),
+      left (sboxColumn start index lane) = right (sboxColumn start index lane)) :
+    env start count left column = env start count right column := by
+  cases found : decode start count column with
+  | none => simpa only [env, found] using atColumn
+  | some selected =>
+      rcases selected with ⟨index, lane⟩
+      simp only [env, found]
+      apply congrArg (fun state => Layer.externalF state lane)
+      funext selected
+      exact atSboxes index selected
+
+theorem env_outputColumn (start : Nat) {count : Nat}
+    (source : Env) (index : Fin count) (lane : Fin 16) :
+    env start count source (outputColumn start index lane) =
+      Layer.externalF (fun selected => source (sboxColumn start index selected)) lane := by
+  simp only [env, decode_outputColumn]
+
+theorem env_of_decode_none (start count : Nat) (source : Env) (column : Nat)
+    (outside : decode start count column = none) :
+    env start count source column = source column := by
+  simp only [env, outside]
+
+theorem env_sboxColumn (start : Nat) {count : Nat}
+    (source : Env) (index : Fin count) (lane : Fin 16) :
+    env start count source (sboxColumn start index lane) =
+      source (sboxColumn start index lane) := by
+  exact env_of_decode_none start count source _ (decode_sboxColumn start index lane)
+
+theorem env_idempotent (start count : Nat) (source : Env) :
+    env start count (env start count source) = env start count source := by
+  funext column
+  cases found : decode start count column with
+  | none => simp only [env, found]
+  | some selected =>
+      rcases selected with ⟨index, lane⟩
+      rw [decode_source start found, env_outputColumn, env_outputColumn]
+      apply congrArg (fun state => Layer.externalF state lane)
+      funext selected
+      exact env_sboxColumn start source index selected
+
+def variableExpr (start count column : Nat) : Expr :=
+  match decode start count column with
+  | none => .var column
+  | some (index, lane) =>
+      Layer.externalE (fun selected => .var (sboxColumn start index selected)) lane
+
+theorem variableExpr_eval (start count column : Nat) (source : Env) :
+    (variableExpr start count column).eval source = env start count source column := by
+  cases found : decode start count column with
+  | none => simp only [variableExpr, env, found, Expr.eval_var]
+  | some selected =>
+      rcases selected with ⟨index, lane⟩
+      simp only [variableExpr, env, found, Layer.eval_externalE]
+      rfl
+
+def rewriteExpr (start count : Nat) : Expr → Expr
+  | .var column => variableExpr start count column
+  | .const value => .const value
+  | .add left right => .add (rewriteExpr start count left) (rewriteExpr start count right)
+  | .mul left right => .mul (rewriteExpr start count left) (rewriteExpr start count right)
+
+theorem rewriteExpr_eval (start count : Nat) (source : Env) (expression : Expr) :
+    (rewriteExpr start count expression).eval source =
+      expression.eval (env start count source) := by
+  induction expression with
+  | var column => exact variableExpr_eval start count column source
+  | const value => rfl
+  | add left right leftIH rightIH => simp only [rewriteExpr, Expr.eval_add, leftIH, rightIH]
+  | mul left right leftIH rightIH => simp only [rewriteExpr, Expr.eval_mul, leftIH, rightIH]
+
+end NightstreamFPrime.Export.PermutationOutput.Readout

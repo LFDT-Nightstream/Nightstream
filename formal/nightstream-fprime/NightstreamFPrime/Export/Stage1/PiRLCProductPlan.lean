@@ -1,0 +1,742 @@
+import NightstreamFPrime.Export.Stage1.PerApplicationPackage
+import NightstreamFPrime.Export.Stage1.Package
+import NightstreamFPrime.Export.Stage1.PiRLCProductRingSchedule
+import NightstreamFPrime.Layout.ProductionRelation.Phi81ProductFamilyPlan
+import NightstreamFPrime.Layout.ProductionRelation.ProductRetainedBlock
+import NightstreamFPrime.Layout.ProductionRelation.SourceCompiler
+import NightstreamFPrime.Layout.Stage1.SpartanValues
+
+namespace NightstreamFPrime.Export.Stage1.PiRLCProductPlan
+
+open NightstreamFPrime.Spec
+open NightstreamFPrime.Circuit
+open NightstreamFPrime.Layout
+open NightstreamFPrime.Layout.Stage1
+open NightstreamFPrime.Layout.ProductionRelation
+open NightstreamFPrime.Lifecycle.PiRLC.v1_2
+open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
+open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
+open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
+
+def basePackage (_delay : Unit := ()) := PerApplicationPackage.basePackage ()
+
+def baseSourceWidth (program : Lifecycle.Stage1.Application.Program) : Nat :=
+  (PerApplicationPackage.package program).layout.totalColumnCount
+
+def directBaseSourceWidth (program : Lifecycle.Stage1.Application.Program) : Nat :=
+  11464875 + PerApplicationPackage.directAddedPrivateColumnCount program
+
+theorem directBaseSourceWidth_eq_baseSourceWidth
+    (program : Lifecycle.Stage1.Application.Program) :
+    directBaseSourceWidth program = baseSourceWidth program := by
+  unfold directBaseSourceWidth baseSourceWidth
+  rw [PerApplicationPackage.package_totalColumnCount,
+    PerApplicationPackage.basePackage_totalColumnCount_eq,
+    PerApplicationPackage.directAddedPrivateColumnCount_eq_addedPrivateColumnCount]
+
+@[csimp] theorem baseSourceWidth_eq_directBaseSourceWidth :
+    @baseSourceWidth = @directBaseSourceWidth := by
+  funext program
+  exact (directBaseSourceWidth_eq_baseSourceWidth program).symm
+
+@[implicit_reducible]
+def sourceWidth (program : Lifecycle.Stage1.Application.Program) : Nat :=
+  ProductRetainedBlock.sourceWidth (baseSourceWidth program)
+    PiRLCProductSchedule.invocationCount
+
+private theorem basePackage_constantColumn :
+    basePackage.layout.constantColumn = 11464596 := by
+  exact NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.1
+
+private theorem commitmentLogicalStart_eq :
+    PiRLCStarts.commitmentLogicalStart = 6301320 := by
+  rfl
+
+private theorem publicInputLogicalStart_eq :
+    PiRLCStarts.publicInputLogicalStart = 6321516 := by
+  rfl
+
+private theorem evalKLogicalStart_eq :
+    PiRLCStarts.evalKLogicalStart = 6326106 := by
+  rfl
+
+private theorem evalALogicalStart_eq :
+    PiRLCStarts.evalALogicalStart = 6327942 := by
+  rfl
+
+theorem basePackage_fits (program : Lifecycle.Stage1.Application.Program) :
+    basePackage.layout.constantColumn ≤ baseSourceWidth program := by
+  rw [baseSourceWidth, PerApplicationPackage.package_totalColumnCount]
+  change PerApplicationPackage.basePackage.layout.constantColumn ≤
+    PerApplicationPackage.basePackage.layout.totalColumnCount +
+      PerApplicationPackage.addedPrivateColumnCount program
+  have constant :
+      PerApplicationPackage.basePackage.layout.constantColumn = 11464596 :=
+    NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.1
+  have total :
+      PerApplicationPackage.basePackage.layout.totalColumnCount = 11464875 :=
+    NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.2.2
+  rw [constant, total]
+  omega
+
+theorem shiftColumn_lt_baseSourceWidth
+    (program : Lifecycle.Stage1.Application.Program) (column : Nat)
+    (bound : column < basePackage.layout.totalColumnCount) :
+    PerApplicationPackage.shiftColumn program column < baseSourceWidth program := by
+  rw [baseSourceWidth, PerApplicationPackage.package_totalColumnCount]
+  change column < PerApplicationPackage.basePackage.layout.totalColumnCount at bound
+  have total :
+      PerApplicationPackage.basePackage.layout.totalColumnCount = 11464875 :=
+    NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.2.2
+  rw [total] at bound ⊢
+  unfold PerApplicationPackage.shiftColumn
+  split
+  all_goals omega
+
+def shiftedPackageColumn (program : Lifecycle.Stage1.Application.Program)
+    (column : Nat) (bound : column < basePackage.layout.totalColumnCount) :
+    Fin (baseSourceWidth program) :=
+  ⟨PerApplicationPackage.shiftColumn program column,
+    shiftColumn_lt_baseSourceWidth program column bound⟩
+
+theorem sourceToSpartan_lt_basePackage (column : Nat)
+    (bound : column < basePackage.layout.constantColumn) :
+    Spartan.sourceToSpartan column < basePackage.layout.totalColumnCount := by
+  have sourceBound : column < Spartan.SourceColumnCount := by
+    rw [basePackage_constantColumn] at bound
+    rw [Spartan.sourceColumnCount_eq]
+    omega
+  have mapped := Spartan.sourceToSpartan_lt column sourceBound
+  have total : basePackage.layout.totalColumnCount = 11464875 := by
+    exact NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.2.2
+  simpa only [total, Spartan.spartanColumnCount_eq] using mapped
+
+def mappedPackageColumn (program : Lifecycle.Stage1.Application.Program)
+    (column : Nat) (bound : column < basePackage.layout.constantColumn) :
+    Fin (baseSourceWidth program) :=
+  shiftedPackageColumn program (Spartan.sourceToSpartan column)
+    (sourceToSpartan_lt_basePackage column bound)
+
+private theorem challengeColumn_lt_basePackage
+    (descriptor : PiRLCProductSchedule.Descriptor)
+    (lane : Fin ringDegree) :
+    descriptor.challengeColumn lane < basePackage.layout.constantColumn := by
+  rw [basePackage_constantColumn]
+  rcases descriptor with ⟨family, source, block, productLane, cell⟩
+  simp only [PiRLCProductSchedule.Descriptor.challengeColumn]
+  rw [PiRLCCombinationInvocations.challengeSourceStart,
+    PiRLCStarts.challengeWordStart_eq, PiRLCStarts.phaseLogicalStart_eq]
+  have sourceBound := source.isLt
+  have laneBound := lane.isLt
+  norm_num [PiRLCCombinationInvocations.sourceCount, ringDegree] at sourceBound laneBound ⊢
+  omega
+
+private theorem valueColumn_lt_basePackage
+    (descriptor : PiRLCProductSchedule.Descriptor)
+    (lane : Fin ringDegree) :
+    descriptor.valueColumn lane < basePackage.layout.constantColumn := by
+  rw [basePackage_constantColumn]
+  rcases descriptor with ⟨family, source, block, productLane, cell⟩
+  cases family <;>
+    simp only [PiRLCProductSchedule.Descriptor.valueColumn,
+      PiRLCProductSchedule.Family.blockCount,
+      PiRLCProductSchedule.Family.cellCount] at *
+  all_goals
+    have sourceBound := source.isLt
+    have blockBound := block.isLt
+    have cellBound := cell.isLt
+    have laneBound := lane.isLt
+    norm_num [PiRLCCombinationInvocations.sourceCount, ringDegree,
+      PiRLCCombinationInvocations.commitmentValueSourceStart,
+      PiRLCCombinationInvocations.publicInputValueSourceStart,
+      PiRLCCombinationInvocations.evalKValueSourceStart,
+      PiRLCCombinationInvocations.evalAValueSourceStart,
+      PiCCSInputs.freshCommitmentStart, PiCCSInputs.runningCommitmentStart,
+      PiCCSInputs.runningPublicStart, PiCCSInputs.priorRunningStart,
+      PiCCSInputs.runningCommitmentWords, PiCCSInputs.runningPublicWords,
+        PiCCSInputs.runningEvalKWords, PiCCSInputs.runningEvalAWords, PiCCSInputs.priorChildrenStart,
+        PiCCSInputs.expectedContextStart, PiCCSInputs.expectedContextWords, PiCCSInputs.outputEvaluationStart,
+      PiCCSInputs.roundMessageStart, PiCCSInputs.freshCommitmentWords,
+      PiCCSInputs.proofInputStart, PiCCSInputs.priorChildrenStart,
+        PiCCSInputs.priorChildrenWords, PiCCSInputs.expectedContextStart,
+      PiCCSInputs.expectedContextWords, PiCCSInputs.roundMessageWords,
+      PilotProduction.priorPublicInputStart, PilotProduction.priorPreimageStart,
+      PilotProduction.stateHashWords_eq] at sourceBound blockBound cellBound laneBound ⊢
+  all_goals
+    (try split) <;> omega
+
+private theorem outputColumn_lt_basePackage
+    (descriptor : PiRLCProductSchedule.Descriptor) :
+    descriptor.outputColumn < basePackage.layout.constantColumn := by
+  rw [basePackage_constantColumn]
+  rcases descriptor with ⟨family, source, block, lane, cell⟩
+  cases family <;>
+    simp only [PiRLCProductSchedule.Descriptor.outputColumn,
+      PiRLCProductSchedule.Descriptor.logicalIndex,
+      PiRLCProductSchedule.Family.logicalStart,
+      PiRLCProductSchedule.Family.blockCount,
+      PiRLCProductSchedule.Family.cellCount, commitmentLogicalStart_eq,
+      publicInputLogicalStart_eq, evalKLogicalStart_eq,
+      evalALogicalStart_eq] at *
+  all_goals
+    have sourceBound := source.isLt
+    have blockBound := block.isLt
+    have laneBound := lane.isLt
+    have cellBound := cell.isLt
+    norm_num [PiRLCCombinationInvocations.sourceCount,
+      PiRLCCombinationInvocations.stepSize,
+      PiRLCCombinationInvocations.logicalIndex, ringDegree,
+      PiRLCStarts.phaseLogicalStart, PiRLCInputs.phaseOffset] at sourceBound blockBound laneBound cellBound ⊢
+    omega
+
+private theorem priorColumn_lt_basePackage
+    (descriptor : PiRLCProductSchedule.Descriptor)
+    (notFirst : descriptor.source.val ≠ 0) :
+    descriptor.priorColumn < basePackage.layout.constantColumn := by
+  rw [basePackage_constantColumn]
+  rcases descriptor with ⟨family, source, block, lane, cell⟩
+  cases family <;>
+    simp only [PiRLCProductSchedule.Descriptor.priorColumn,
+      PiRLCProductSchedule.Descriptor.logicalIndex,
+      PiRLCProductSchedule.Family.logicalStart,
+      PiRLCProductSchedule.Family.blockCount,
+      PiRLCProductSchedule.Family.cellCount, commitmentLogicalStart_eq,
+      publicInputLogicalStart_eq, evalKLogicalStart_eq,
+      evalALogicalStart_eq] at *
+  all_goals
+    have sourceBound := source.isLt
+    have blockBound := block.isLt
+    have laneBound := lane.isLt
+    have cellBound := cell.isLt
+    norm_num [PiRLCCombinationInvocations.sourceCount,
+      PiRLCCombinationInvocations.stepSize,
+      PiRLCCombinationInvocations.logicalIndex, ringDegree,
+      PiRLCStarts.phaseLogicalStart, PiRLCInputs.phaseOffset] at sourceBound blockBound laneBound cellBound ⊢
+    omega
+
+def baseColumn (program : Lifecycle.Stage1.Application.Program)
+    (column : Nat) (bound : column < basePackage.layout.constantColumn) :
+    Fin (sourceWidth program) :=
+  ProductRetainedBlock.baseColumn (baseSourceWidth program)
+    PiRLCProductSchedule.invocationCount
+      (mappedPackageColumn program column bound)
+
+theorem baseColumn_val_lt_baseSourceWidth
+    (program : Lifecycle.Stage1.Application.Program)
+    (column : Nat) (bound : column < basePackage.layout.constantColumn) :
+    (baseColumn program column bound).val < baseSourceWidth program := by
+  unfold baseColumn ProductRetainedBlock.baseColumn
+  exact (mappedPackageColumn program column bound).isLt
+
+def challengeColumn (program : Lifecycle.Stage1.Application.Program)
+    (descriptor : PiRLCProductSchedule.Descriptor) (lane : Fin ringDegree) :
+    Fin (sourceWidth program) :=
+  baseColumn program (descriptor.challengeColumn lane)
+    (challengeColumn_lt_basePackage descriptor lane)
+
+def valueColumn (program : Lifecycle.Stage1.Application.Program)
+    (descriptor : PiRLCProductSchedule.Descriptor) (lane : Fin ringDegree) :
+    Fin (sourceWidth program) :=
+  baseColumn program (descriptor.valueColumn lane)
+    (valueColumn_lt_basePackage descriptor lane)
+
+theorem valueColumn_val_lt_baseSourceWidth
+    (program : Lifecycle.Stage1.Application.Program)
+    (descriptor : PiRLCProductSchedule.Descriptor)
+    (lane : Fin ringDegree) :
+    (valueColumn program descriptor lane).val < baseSourceWidth program := by
+  unfold valueColumn
+  exact baseColumn_val_lt_baseSourceWidth program
+    (descriptor.valueColumn lane)
+    (valueColumn_lt_basePackage descriptor lane)
+
+def outputColumn (program : Lifecycle.Stage1.Application.Program)
+    (descriptor : PiRLCProductSchedule.Descriptor) :
+    Fin (sourceWidth program) :=
+  baseColumn program descriptor.outputColumn
+    (outputColumn_lt_basePackage descriptor)
+
+def priorColumn (program : Lifecycle.Stage1.Application.Program)
+    (descriptor : PiRLCProductSchedule.Descriptor)
+    (notFirst : descriptor.source.val ≠ 0) : Fin (sourceWidth program) :=
+  baseColumn program descriptor.priorColumn
+    (priorColumn_lt_basePackage descriptor notFirst)
+
+def groupColumn (program : Lifecycle.Stage1.Application.Program)
+    (invocation : Fin PiRLCProductSchedule.invocationCount)
+    (group : Fin 1) :
+    Fin (sourceWidth program) :=
+  ProductRetainedBlock.groupColumn (baseSourceWidth program)
+    PiRLCProductSchedule.invocationCount invocation group
+
+theorem shiftedPackageColumn_lt_groupColumn
+    (program : Lifecycle.Stage1.Application.Program)
+    (column : Nat) (bound : column < basePackage.layout.totalColumnCount)
+    (invocation : Fin PiRLCProductSchedule.invocationCount)
+    (group : Fin 1) :
+    (shiftedPackageColumn program column bound).val <
+      (groupColumn program invocation group).val := by
+  have packageBound := shiftColumn_lt_baseSourceWidth program column bound
+  unfold shiftedPackageColumn groupColumn ProductRetainedBlock.groupColumn
+  change PerApplicationPackage.shiftColumn program column <
+    baseSourceWidth program + (Fin.encodeProd (invocation, group)).val
+  omega
+
+structure Inputs (program : Lifecycle.Stage1.Application.Program)
+    (logicalWidth : Nat) where
+  oneColumn : Fin logicalWidth
+  challenge : Fin PiRLCProductSchedule.invocationCount →
+    Fin ringDegree → SparseForm logicalWidth
+  value : Fin PiRLCProductSchedule.invocationCount →
+    Fin ringDegree → SparseForm logicalWidth
+  prior : Fin PiRLCProductSchedule.invocationCount → SparseForm logicalWidth
+  output : Fin PiRLCProductSchedule.invocationCount → SparseForm logicalWidth
+  group : Fin PiRLCProductSchedule.invocationCount →
+    Fin 1 → SparseForm logicalWidth
+
+def sourceAssignment (program : Lifecycle.Stage1.Application.Program)
+    (base : Fin (baseSourceWidth program) → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F) :
+    Fin (sourceWidth program) → F :=
+  ProductRetainedBlock.sourceAssignment (baseSourceWidth program)
+    PiRLCProductSchedule.invocationCount base groupValue
+
+def baseEnv (program : Lifecycle.Stage1.Application.Program)
+    (base : Fin (baseSourceWidth program) → F) : Env :=
+  Spartan.pullback <|
+    PerApplicationPackage.baseEnv program (SourceCompiler.sourceEnv base)
+
+theorem baseEnv_eq_mappedPackageColumn
+    (program : Lifecycle.Stage1.Application.Program)
+    (base : Fin (baseSourceWidth program) → F)
+    (column : Nat) (bound : column < basePackage.layout.constantColumn) :
+    baseEnv program base column = base (mappedPackageColumn program column bound) := by
+  have mappedBound := shiftColumn_lt_baseSourceWidth program
+    (Spartan.sourceToSpartan column)
+    (sourceToSpartan_lt_basePackage column bound)
+  unfold baseEnv Spartan.pullback PerApplicationPackage.baseEnv
+    SourceCompiler.sourceEnv mappedPackageColumn shiftedPackageColumn
+  rw [dite_eq_left mappedBound]
+
+theorem baseEnv_valueColumn
+    (program : Lifecycle.Stage1.Application.Program)
+    (base : Fin (baseSourceWidth program) → F)
+    (descriptor : PiRLCProductSchedule.Descriptor) (lane : Fin ringDegree) :
+    baseEnv program base (descriptor.valueColumn lane) =
+      base (mappedPackageColumn program (descriptor.valueColumn lane)
+        (valueColumn_lt_basePackage descriptor lane)) := by
+  exact baseEnv_eq_mappedPackageColumn program base _
+    (valueColumn_lt_basePackage descriptor lane)
+
+theorem baseEnv_outputColumn
+    (program : Lifecycle.Stage1.Application.Program)
+    (base : Fin (baseSourceWidth program) → F)
+    (descriptor : PiRLCProductSchedule.Descriptor) :
+    baseEnv program base descriptor.outputColumn =
+      base (mappedPackageColumn program descriptor.outputColumn
+        (outputColumn_lt_basePackage descriptor)) := by
+  exact baseEnv_eq_mappedPackageColumn program base _
+    (outputColumn_lt_basePackage descriptor)
+
+def challengeForm {program : Lifecycle.Stage1.Application.Program}
+    {logicalWidth : Nat} (inputs : Inputs program logicalWidth)
+    (invocation : Fin PiRLCProductSchedule.invocationCount)
+    (lane : Fin ringDegree) :
+    SparseForm logicalWidth :=
+  inputs.challenge invocation lane
+
+def valueForm {program : Lifecycle.Stage1.Application.Program}
+    {logicalWidth : Nat} (inputs : Inputs program logicalWidth)
+    (invocation : Fin PiRLCProductSchedule.invocationCount)
+    (lane : Fin ringDegree) : SparseForm logicalWidth :=
+  inputs.value invocation lane
+
+def challengeState {program : Lifecycle.Stage1.Application.Program}
+    {logicalWidth : Nat} (inputs : Inputs program logicalWidth)
+    (invocation : Fin PiRLCProductSchedule.invocationCount) :
+    Phi81ProductPlan.State logicalWidth :=
+  fun lane =>
+    SparseForm.add
+      (challengeForm inputs invocation lane)
+      (SparseForm.singleton inputs.oneColumn (-2))
+
+def valueState {program : Lifecycle.Stage1.Application.Program}
+    {logicalWidth : Nat} (inputs : Inputs program logicalWidth)
+    (invocation : Fin PiRLCProductSchedule.invocationCount) :
+    Phi81ProductPlan.State logicalWidth :=
+  fun lane => valueForm inputs invocation lane
+
+def priorForm {program : Lifecycle.Stage1.Application.Program}
+    {logicalWidth : Nat} (inputs : Inputs program logicalWidth)
+    (invocation : Fin PiRLCProductSchedule.invocationCount) : SparseForm logicalWidth :=
+  let descriptor := PiRLCProductSchedule.descriptor invocation
+  if _first : descriptor.source.val = 0 then
+    .empty
+  else
+    inputs.prior invocation
+
+def outputForm {program : Lifecycle.Stage1.Application.Program}
+    {logicalWidth : Nat} (inputs : Inputs program logicalWidth)
+    (invocation : Fin PiRLCProductSchedule.invocationCount) : SparseForm logicalWidth :=
+  inputs.output invocation
+
+def groupForm {program : Lifecycle.Stage1.Application.Program}
+    {logicalWidth : Nat} (inputs : Inputs program logicalWidth)
+    (invocation : Fin PiRLCProductSchedule.invocationCount)
+    (group : Fin 1) : SparseForm logicalWidth :=
+  inputs.group invocation group
+
+def interface {program : Lifecycle.Stage1.Application.Program}
+    {logicalWidth : Nat} (inputs : Inputs program logicalWidth) :
+    Phi81ProductFamilyPlan.Interface logicalWidth
+      PiRLCProductRingSchedule.invocationCount :=
+  { left := fun ring => challengeState inputs
+      (PiRLCProductRingSchedule.laneInvocation ring PiRLCProductRingSchedule.zeroLane)
+    right := fun ring => valueState inputs
+      (PiRLCProductRingSchedule.laneInvocation ring PiRLCProductRingSchedule.zeroLane)
+    quotient := fun ring lane => groupForm inputs
+      (PiRLCProductRingSchedule.laneInvocation ring lane) 0
+    prior := fun ring lane => priorForm inputs
+      (PiRLCProductRingSchedule.laneInvocation ring lane)
+    output := fun ring lane => outputForm inputs
+      (PiRLCProductRingSchedule.laneInvocation ring lane) }
+
+theorem rowCount_le : PiRLCProductRingSchedule.invocationCount * 108 ≤
+    2 ^ NightstreamFPrime.Lifecycle.cubeVariables := by
+  rw [PiRLCProductRingSchedule.invocationCount_eq]
+  norm_num [NightstreamFPrime.Lifecycle.cubeVariables]
+
+def plan {program : Lifecycle.Stage1.Application.Program}
+    {logicalWidth : Nat} (inputs : Inputs program logicalWidth) :
+    ProductionRelation.Plan logicalWidth :=
+  Phi81ProductFamilyPlan.plan (interface inputs) rowCount_le
+
+@[simp] theorem plan_rowCount {program : Lifecycle.Stage1.Application.Program}
+    {logicalWidth : Nat} (inputs : Inputs program logicalWidth) :
+    (plan inputs).rowCount = 67932 := by
+  rw [plan, Phi81ProductFamilyPlan.plan_rowCount,
+    PiRLCProductRingSchedule.invocationCount_eq]
+
+def challengeRing (program : Lifecycle.Stage1.Application.Program)
+    (base : Fin (baseSourceWidth program) → F)
+    (descriptor : PiRLCProductSchedule.Descriptor) : RingF :=
+  fun lane => baseEnv program base (descriptor.challengeColumn lane) - 2
+
+def valueRing (program : Lifecycle.Stage1.Application.Program)
+    (base : Fin (baseSourceWidth program) → F)
+    (descriptor : PiRLCProductSchedule.Descriptor) : RingF :=
+  fun lane => baseEnv program base (descriptor.valueColumn lane)
+
+def priorValue (program : Lifecycle.Stage1.Application.Program)
+    (base : Fin (baseSourceWidth program) → F)
+    (descriptor : PiRLCProductSchedule.Descriptor) : F :=
+  if descriptor.source.val = 0 then 0
+  else baseEnv program base descriptor.priorColumn
+
+def outputValue (program : Lifecycle.Stage1.Application.Program)
+    (base : Fin (baseSourceWidth program) → F)
+    (descriptor : PiRLCProductSchedule.Descriptor) : F :=
+  baseEnv program base descriptor.outputColumn
+
+@[simp] theorem challengeRing_withLane
+    (program : Lifecycle.Stage1.Application.Program)
+    (base : Fin (baseSourceWidth program) → F)
+    (descriptor : PiRLCProductSchedule.Descriptor) (lane : Fin ringDegree) :
+    challengeRing program base (descriptor.withLane lane) =
+      challengeRing program base descriptor := by
+  cases descriptor
+  rfl
+
+@[simp] theorem valueRing_withLane
+    (program : Lifecycle.Stage1.Application.Program)
+    (base : Fin (baseSourceWidth program) → F)
+    (descriptor : PiRLCProductSchedule.Descriptor) (lane : Fin ringDegree) :
+    valueRing program base (descriptor.withLane lane) =
+      valueRing program base descriptor := by
+  rcases descriptor with ⟨family, source, block, oldLane, cell⟩
+  cases family <;> rfl
+
+structure Preserves {program : Lifecycle.Stage1.Application.Program}
+    {logicalWidth : Nat} (inputs : Inputs program logicalWidth)
+    (assignment : Assignment F logicalWidth)
+    (base : Fin (baseSourceWidth program) → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F) :
+    Prop where
+  challenge : ∀ invocation lane,
+    (challengeForm inputs invocation lane).eval assignment =
+      baseEnv program base
+        ((PiRLCProductSchedule.descriptor invocation).challengeColumn lane)
+  value : ∀ invocation lane,
+    (valueForm inputs invocation lane).eval assignment =
+      baseEnv program base
+        ((PiRLCProductSchedule.descriptor invocation).valueColumn lane)
+  prior : ∀ invocation,
+    (priorForm inputs invocation).eval assignment =
+      priorValue program base (PiRLCProductSchedule.descriptor invocation)
+  output : ∀ invocation,
+    (outputForm inputs invocation).eval assignment =
+      outputValue program base (PiRLCProductSchedule.descriptor invocation)
+  group : ∀ invocation group,
+    (groupForm inputs invocation group).eval assignment =
+      groupValue invocation group
+
+private theorem challengeState_eval
+    {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
+    (inputs : Inputs program logicalWidth)
+    (assignment : Assignment F logicalWidth)
+    (base : Fin (baseSourceWidth program) → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
+    (one : assignment inputs.oneColumn = 1)
+    (preserves : Preserves inputs assignment base groupValue)
+    (invocation : Fin PiRLCProductSchedule.invocationCount) :
+    Phi81ProductPlan.evalState assignment (challengeState inputs invocation) =
+      challengeRing program base (PiRLCProductSchedule.descriptor invocation) := by
+  funext lane
+  simp [Phi81ProductPlan.evalState, challengeState, challengeRing,
+    preserves.challenge invocation lane, one,
+    sub_eq_add_neg]
+
+private theorem valueState_eval
+    {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
+    (inputs : Inputs program logicalWidth)
+    (assignment : Assignment F logicalWidth)
+    (base : Fin (baseSourceWidth program) → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
+    (preserves : Preserves inputs assignment base groupValue)
+    (invocation : Fin PiRLCProductSchedule.invocationCount) :
+    Phi81ProductPlan.evalState assignment (valueState inputs invocation) =
+      valueRing program base (PiRLCProductSchedule.descriptor invocation) := by
+  funext lane
+  exact preserves.value invocation lane
+
+private theorem priorForm_eval
+    {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
+    (inputs : Inputs program logicalWidth)
+    (assignment : Assignment F logicalWidth)
+    (base : Fin (baseSourceWidth program) → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
+    (preserves : Preserves inputs assignment base groupValue)
+    (invocation : Fin PiRLCProductSchedule.invocationCount) :
+    (priorForm inputs invocation).eval assignment =
+      priorValue program base (PiRLCProductSchedule.descriptor invocation) := by
+  exact preserves.prior invocation
+
+private theorem outputForm_eval
+    {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
+    (inputs : Inputs program logicalWidth)
+    (assignment : Assignment F logicalWidth)
+    (base : Fin (baseSourceWidth program) → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
+    (preserves : Preserves inputs assignment base groupValue)
+    (invocation : Fin PiRLCProductSchedule.invocationCount) :
+    (outputForm inputs invocation).eval assignment =
+      outputValue program base (PiRLCProductSchedule.descriptor invocation) := by
+  exact preserves.output invocation
+
+theorem rowsZero_implies_equation
+    {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
+    (inputs : Inputs program logicalWidth)
+    (assignment : Assignment F logicalWidth)
+    (base : Fin (baseSourceWidth program) → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
+    (one : assignment inputs.oneColumn = 1)
+    (preserves : Preserves inputs assignment base groupValue)
+    (rowsZero : (plan inputs).RowsZero assignment)
+    (invocation : Fin PiRLCProductSchedule.invocationCount) :
+    outputValue program base (PiRLCProductSchedule.descriptor invocation) =
+      priorValue program base (PiRLCProductSchedule.descriptor invocation) +
+        ringFMul
+          (challengeRing program base
+            (PiRLCProductSchedule.descriptor invocation))
+          (valueRing program base
+            (PiRLCProductSchedule.descriptor invocation))
+          (PiRLCProductSchedule.descriptor invocation).lane := by
+  let ring := PiRLCProductRingSchedule.ringInvocation invocation
+  have equation := Phi81ProductFamilyPlan.planRowsZero_implies_ringProduct
+    (interface inputs) rowCount_le assignment rowsZero ring
+  have coefficient := congrFun equation
+    (PiRLCProductSchedule.descriptor invocation).lane
+  change (outputForm inputs (PiRLCProductRingSchedule.laneInvocation ring
+      (PiRLCProductSchedule.descriptor invocation).lane)).eval assignment =
+    (priorForm inputs (PiRLCProductRingSchedule.laneInvocation ring
+      (PiRLCProductSchedule.descriptor invocation).lane)).eval assignment +
+      ringFMul
+        (Phi81ProductPlan.evalState assignment (challengeState inputs
+          (PiRLCProductRingSchedule.laneInvocation ring PiRLCProductRingSchedule.zeroLane)))
+        (Phi81ProductPlan.evalState assignment (valueState inputs
+          (PiRLCProductRingSchedule.laneInvocation ring PiRLCProductRingSchedule.zeroLane)))
+        (PiRLCProductSchedule.descriptor invocation).lane at coefficient
+  rw [PiRLCProductRingSchedule.laneInvocation_ringInvocation] at coefficient
+  rw [outputForm_eval inputs assignment base groupValue preserves,
+    priorForm_eval inputs assignment base groupValue preserves,
+    challengeState_eval inputs assignment base groupValue one preserves,
+    valueState_eval inputs assignment base groupValue preserves] at coefficient
+  simpa [ring, PiRLCProductRingSchedule.ringInvocation,
+    PiRLCProductRingSchedule.laneInvocation] using coefficient
+
+private theorem outputExpr_eval
+    (program : Lifecycle.Stage1.Application.Program)
+    (base : Fin (baseSourceWidth program) → F)
+    (descriptor : PiRLCProductSchedule.Descriptor) :
+    descriptor.outputExpr.eval (baseEnv program base) =
+      outputValue program base descriptor := by
+  rfl
+
+private theorem priorExpr_eval
+    (program : Lifecycle.Stage1.Application.Program)
+    (base : Fin (baseSourceWidth program) → F)
+    (descriptor : PiRLCProductSchedule.Descriptor) :
+    descriptor.priorExpr.eval (baseEnv program base) =
+      priorValue program base descriptor := by
+  unfold PiRLCProductSchedule.Descriptor.priorExpr priorValue
+  split <;> rfl
+
+private theorem challengeExpr_evalRing
+    (program : Lifecycle.Stage1.Application.Program)
+    (base : Fin (baseSourceWidth program) → F)
+    (descriptor : PiRLCProductSchedule.Descriptor) :
+    CombinationStep.evalRing (baseEnv program base) descriptor.challengeExpr =
+      challengeRing program base descriptor := by
+  funext lane
+  simp [CombinationStep.evalRing,
+    PiRLCProductSchedule.Descriptor.challengeExpr, challengeRing]
+
+private theorem valueExpr_evalRing
+    (program : Lifecycle.Stage1.Application.Program)
+    (base : Fin (baseSourceWidth program) → F)
+    (descriptor : PiRLCProductSchedule.Descriptor) :
+    CombinationStep.evalRing (baseEnv program base) descriptor.valueExpr =
+      valueRing program base descriptor := by
+  funext lane
+  rfl
+
+theorem sourceConstraint_eval
+    (program : Lifecycle.Stage1.Application.Program)
+    (base : Fin (baseSourceWidth program) → F)
+    (descriptor : PiRLCProductSchedule.Descriptor) :
+    descriptor.sourceConstraint.eval (baseEnv program base) =
+      outputValue program base descriptor -
+        (priorValue program base descriptor +
+          ringFMul (challengeRing program base descriptor)
+            (valueRing program base descriptor) descriptor.lane) := by
+  rw [PiRLCProductSchedule.Descriptor.sourceConstraint_eq_direct]
+  rw [Expr.eval_sub, Expr.eval_hadd, CombinationStep.mulExpr_eval]
+  rw [outputExpr_eval, priorExpr_eval, challengeExpr_evalRing,
+    valueExpr_evalRing]
+
+theorem rowsZero_implies_sourceConstraint
+    {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
+    (inputs : Inputs program logicalWidth)
+    (assignment : Assignment F logicalWidth)
+    (base : Fin (baseSourceWidth program) → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
+    (one : assignment inputs.oneColumn = 1)
+    (preserves : Preserves inputs assignment base groupValue)
+    (rowsZero : (plan inputs).RowsZero assignment)
+    (invocation : Fin PiRLCProductSchedule.invocationCount) :
+    (PiRLCProductSchedule.descriptor invocation).sourceConstraint.eval
+        (baseEnv program base) = 0 := by
+  rw [sourceConstraint_eval]
+  rw [rowsZero_implies_equation inputs assignment base groupValue one preserves
+    rowsZero invocation]
+  exact Lean.Grind.AddCommGroup.sub_self _
+
+def honestGroupValue
+    {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
+    (inputs : Inputs program logicalWidth)
+    (assignment : Assignment F logicalWidth)
+    (invocation : Fin PiRLCProductSchedule.invocationCount)
+    (_group : Fin 1) : F :=
+  let ring := PiRLCProductRingSchedule.ringInvocation invocation
+  let representative := PiRLCProductRingSchedule.laneInvocation ring PiRLCProductRingSchedule.zeroLane
+  Phi81Relation.QuotientProduct.quotientCoeff
+    (Phi81ProductPlan.evalState assignment (challengeState inputs representative))
+    (Phi81ProductPlan.evalState assignment (valueState inputs representative))
+    (PiRLCProductSchedule.descriptor invocation).lane
+
+theorem sourceConstraints_imply_rowsZero
+    {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
+    (inputs : Inputs program logicalWidth)
+    (assignment : Assignment F logicalWidth)
+    (base : Fin (baseSourceWidth program) → F)
+    (one : assignment inputs.oneColumn = 1)
+    (preserves : Preserves inputs assignment base
+      (honestGroupValue inputs assignment))
+    (constraints : ∀ invocation,
+      (PiRLCProductSchedule.descriptor invocation).sourceConstraint.eval
+        (baseEnv program base) = 0) :
+    (plan inputs).RowsZero assignment := by
+  apply (Phi81ProductFamilyPlan.planRowsZero_iff
+    (interface inputs) rowCount_le assignment).mpr
+  intro ring
+  let current := Phi81ProductFamilyPlan.ringInterface (interface inputs) ring
+  let left := Phi81ProductPlan.evalState assignment current.left
+  let right := Phi81ProductPlan.evalState assignment current.right
+  let prior := Phi81ProductPlan.evalState assignment current.prior
+  have output : Phi81ProductPlan.evalState assignment current.output =
+      ringFAdd prior (ringFMul left right) := by
+    funext lane
+    have constraint := constraints (PiRLCProductRingSchedule.laneInvocation ring lane)
+    rw [sourceConstraint_eval] at constraint
+    have recurrence := Lean.Grind.AddCommGroup.sub_eq_zero_iff.mp constraint
+    change (outputForm inputs
+        (PiRLCProductRingSchedule.laneInvocation ring lane)).eval assignment =
+      (priorForm inputs
+        (PiRLCProductRingSchedule.laneInvocation ring lane)).eval assignment +
+        ringFMul
+          (Phi81ProductPlan.evalState assignment (challengeState inputs
+            (PiRLCProductRingSchedule.laneInvocation ring PiRLCProductRingSchedule.zeroLane)))
+          (Phi81ProductPlan.evalState assignment (valueState inputs
+            (PiRLCProductRingSchedule.laneInvocation ring PiRLCProductRingSchedule.zeroLane))) lane
+    rw [outputForm_eval inputs assignment base
+      (honestGroupValue inputs assignment) preserves,
+      priorForm_eval inputs assignment base
+        (honestGroupValue inputs assignment) preserves,
+      challengeState_eval inputs assignment base
+        (honestGroupValue inputs assignment) one preserves,
+      valueState_eval inputs assignment base
+        (honestGroupValue inputs assignment) preserves]
+    simp only [PiRLCProductRingSchedule.descriptor_laneInvocation] at recurrence ⊢
+    have challengeSame : challengeRing program base
+          ((PiRLCProductRingSchedule.descriptor ring).withLane PiRLCProductRingSchedule.zeroLane) =
+        challengeRing program base
+          ((PiRLCProductRingSchedule.descriptor ring).withLane lane) := by
+      rfl
+    have valueSame : valueRing program base
+          ((PiRLCProductRingSchedule.descriptor ring).withLane PiRLCProductRingSchedule.zeroLane) =
+        valueRing program base
+          ((PiRLCProductRingSchedule.descriptor ring).withLane lane) := by
+      rcases PiRLCProductRingSchedule.descriptor ring with ⟨family, source, block, cell⟩
+      cases family <;> rfl
+    rw [challengeSame, valueSame]
+    exact recurrence
+  have quotient : Phi81ProductPlan.evalState assignment current.quotient =
+      Phi81Relation.QuotientProduct.quotient left right := by
+    funext lane
+    change (groupForm inputs
+        (PiRLCProductRingSchedule.laneInvocation ring lane) 0).eval assignment = _
+    rw [preserves.group]
+    simp only [honestGroupValue,
+      PiRLCProductRingSchedule.ringInvocation_laneInvocation,
+      PiRLCProductRingSchedule.descriptor_laneInvocation,
+      PiRLCProductRingSchedule.Descriptor.withLane]
+    exact Phi81Relation.QuotientProduct.quotientCoeff_eq_quotient left right lane
+  intro point
+  change Phi81Relation.QuotientProduct.evaluate left
+        (Phi81Relation.QuotientProduct.node point) *
+      Phi81Relation.QuotientProduct.evaluate right
+        (Phi81Relation.QuotientProduct.node point) =
+    Phi81Relation.QuotientProduct.evaluate
+        (Phi81ProductPlan.evalState assignment current.output)
+        (Phi81Relation.QuotientProduct.node point) -
+      Phi81Relation.QuotientProduct.evaluate prior
+        (Phi81Relation.QuotientProduct.node point) +
+      Phi81Relation.QuotientProduct.modulusValue
+        (Phi81Relation.QuotientProduct.node point) *
+        Phi81Relation.QuotientProduct.evaluate
+          (Phi81ProductPlan.evalState assignment current.quotient)
+          (Phi81Relation.QuotientProduct.node point)
+  rw [output, quotient]
+  exact Phi81Relation.QuotientProduct.complete_add left right prior point
+
+end NightstreamFPrime.Export.Stage1.PiRLCProductPlan

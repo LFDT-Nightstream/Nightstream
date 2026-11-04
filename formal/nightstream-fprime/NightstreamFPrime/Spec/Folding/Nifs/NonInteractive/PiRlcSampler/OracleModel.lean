@@ -1,0 +1,115 @@
+import NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.Conditional
+import NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.Transcript
+
+/-! Ideal classical block-oracle model; Poseidon2 is assumed, not proved, to follow it. -/
+
+namespace NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.OracleModel
+
+open NightstreamFPrime.Spec
+
+abbrev Query := {history : List Draw // history ≠ []}
+abbrev Cache := Query → Option Draw
+
+def zeroBlock : Draw := fun _ => 0
+
+def scalarDomain (coordinate : Fin 17) : Draw := fun lane =>
+  if lane.val = 0 then Poseidon2.ofNat 4
+  else if lane.val = 1 then Poseidon2.ofNat coordinate.val else 0
+
+def scalarQuery (history : List Draw) (coordinate : Fin 17) (position : Nat) : Query :=
+  ⟨history ++ [scalarDomain coordinate] ++ List.replicate position zeroBlock, by
+    intro empty
+    have lengths := congrArg List.length empty
+    simp at lengths⟩
+
+def empty : Cache := fun _ => none
+
+def ask (cache : Cache) (query : Query) (fresh : Draw) : Draw × Cache :=
+  match cache query with
+  | some previous => (previous, cache)
+  | none => (fresh, fun candidate => if candidate = query then some fresh else cache candidate)
+
+theorem ask_saved (cache : Cache) (query : Query) (fresh : Draw) :
+    (ask cache query fresh).2 query = some (ask cache query fresh).1 := by
+  cases previous : cache query <;> simp [ask, previous]
+
+theorem ask_preserves (cache : Cache) (query previous : Query) (fresh saved : Draw)
+    (known : cache previous = some saved) : (ask cache query fresh).2 previous = some saved := by
+  cases current : cache query with
+  | some value => simpa only [ask, current] using known
+  | none =>
+      have different : previous ≠ query := by
+        intro same
+        subst previous
+        rw [current] at known
+        cases known
+      simpa only [ask, current, ite_eq_right different] using known
+
+theorem ask_repeated (cache : Cache) (query : Query) (first second : Draw) :
+    (ask (ask cache query first).2 query second).1 = (ask cache query first).1 := by
+  rw [ask, ask_saved]
+
+structure Program (State : Type*) where
+  request : State → Option Query
+  advance : State → Draw → State
+
+structure Outcome (State : Type*) where
+  state : State
+  cache : Cache
+  queries : Nat
+
+def run {State : Type*} (program : Program State) (state : State) (cache : Cache) :
+    (q : Nat) → (Fin q → Draw) → Outcome State
+  | 0, _ => ⟨state, cache, 0⟩
+  | count + 1, tape =>
+      match program.request state with
+      | none => ⟨state, cache, 0⟩
+      | some query =>
+          let answer := ask cache query (tape 0)
+          let later := run program (program.advance state answer.1) answer.2 count
+            (fun index => tape index.succ)
+          {later with queries := later.queries + 1}
+
+theorem run_query_bound {State : Type*} (program : Program State) (state : State) (cache : Cache)
+    (q : Nat) (tape : Fin q → Draw) : (run program state cache q tape).queries ≤ q := by
+  induction q generalizing state cache with
+  | zero => exact Nat.le_refl 0
+  | succ count ih =>
+      simp only [run]
+      cases request : program.request state with
+      | none => exact Nat.zero_le _
+      | some query => exact Nat.add_le_add_right (ih _ _ _) 1
+
+theorem run_preserves {State : Type*} (program : Program State) (state : State) (cache : Cache)
+    (q : Nat) (tape : Fin q → Draw) (query : Query) (value : Draw)
+    (known : cache query = some value) : (run program state cache q tape).cache query = some value := by
+  induction q generalizing state cache with
+  | zero => exact known
+  | succ count ih =>
+      simp only [run]
+      cases request : program.request state with
+      | none => exact known
+      | some next => exact ih _ _ _ (ask_preserves cache next query (tape 0) value known)
+
+theorem run_bias_bound {State : Type*} (program : Program State) (initial : State) (q : Nat)
+    (test : Outcome State → ℝ) (nonnegative : ∀ result, 0 ≤ test result)
+    (atMostOne : ∀ result, test result ≤ 1) :
+    |average (fun tape : Fin q → Draw => test (run program initial empty q tape)) -
+      balancedAverage (fun tape : Fin q → Draw => test (run program initial empty q tape))| ≤
+        q * distance := by
+  simpa only [Fintype.card_fin] using
+    raw_blocks_difference_abs_le (fun tape : Fin q → Draw => test (run program initial empty q tape))
+      (fun _ => nonnegative _) (fun _ => atMostOne _)
+
+theorem under_block_oracle_assumption {State : Type*} (program : Program State)
+    (initial : State) (q : Nat) (test : Outcome State → ℝ)
+    (nonnegative : ∀ result, 0 ≤ test result) (atMostOne : ∀ result, test result ≤ 1)
+    (actualRate modelError : ℝ)
+    (model : |actualRate - average (fun tape : Fin q → Draw =>
+      test (run program initial empty q tape))| ≤ modelError) :
+    |actualRate - balancedAverage (fun tape : Fin q → Draw =>
+      test (run program initial empty q tape))| ≤ modelError + q * distance := by
+  have comparison := run_bias_bound program initial q test nonnegative atMostOne
+  exact (abs_sub_le _ _ _).trans (add_le_add model comparison)
+
+end NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.OracleModel

@@ -25,7 +25,7 @@ paths. `#![forbid(unsafe_code)]`.
 
 ## Contract
 
-`specs/Transcript.spec.md`. The binding requirements for the direct-CCS path —
-exactly which data must be absorbed before each NIFS.V challenge — are specified in
-`specs/direct-ccs-superneo-transcript-binding.md` at the repo root; see
-[Transcript & digests](../protocol/transcript-and-digests.md).
+The active Lean transcript model defines which data the transcript must absorb
+before each challenge. It is the formal authority. Rust framing
+and red-team checks live in `crates/neo-transcript/tests`.
+See [SPEC.md](../../SPEC.md), section 5.

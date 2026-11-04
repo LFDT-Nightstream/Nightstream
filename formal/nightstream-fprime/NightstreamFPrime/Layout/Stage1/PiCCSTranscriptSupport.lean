@@ -1,0 +1,504 @@
+import NightstreamFPrime.Gadgets.Polynomial.HornerSupport
+import NightstreamFPrime.Gadgets.Poseidon2.Duplex.WiringSupport
+import NightstreamFPrime.Layout.Stage1.PiCCSOrdinarySourceSupportData
+
+namespace NightstreamFPrime.Layout.Stage1.PiCCSOrdinarySourceSupport
+
+open NightstreamFPrime.Circuit
+open NightstreamFPrime.Circuit.Quadratic
+open NightstreamFPrime.Circuit.SupportRange
+open NightstreamFPrime.Gadgets.Polynomial
+open NightstreamFPrime.Gadgets.Poseidon2
+open NightstreamFPrime.Lifecycle
+open NightstreamFPrime.Lifecycle.PaperAlgebra
+open NightstreamFPrime.Lifecycle.PiCCS.v1_2
+open NightstreamFPrime.Spec
+open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
+
+private theorem transcriptBase_eq :
+    PiCCSInputs.phaseOffset + StateBinding.signCount =
+      PiCCSStarts.statementWitnessStart := by
+  rw [StateBinding.signCount_eq]
+  rfl
+
+private theorem outputPrefix_source (count : Nat)
+    (countLe : count ≤ transcriptInvocationCount) :
+    ∀ index,
+      Duplex.Formal.OutputPrefix External (PiCCSInputs.phaseOffset + StateBinding.signCount) count index →
+        Source index := by
+  intro index support
+  rcases support with external | ⟨invocation, lane, source⟩
+  · exact external_source index external
+  · apply transcript_output_source index
+    refine ⟨⟨invocation.val,
+      Nat.lt_of_lt_of_le invocation.isLt countLe⟩, lane, ?_⟩
+    rw [source, transcriptBase_eq]
+
+private theorem zeroState_outputPrefix_supported :
+    Duplex.Formal.StateSupported Hash.zeroE
+      (Duplex.Formal.OutputPrefix External (PiCCSInputs.phaseOffset + StateBinding.signCount) 0) := by
+  intro lane
+  trivial
+
+private theorem challengeLayoutRecipeCount
+    (interface : ChallengeDerivation.Interface) (offset : Nat) :
+    Duplex.Formal.recipeCount ChallengeDerivation.layoutActions = 4384 := by
+  calc
+    Duplex.Formal.recipeCount ChallengeDerivation.layoutActions =
+        (ChallengeDerivation.layoutProgram interface offset).recipes.length :=
+      (Duplex.Formal.compile_recipes_length offset
+        (interface.initialState offset) ChallengeDerivation.layoutActions).symm
+    _ = (ChallengeDerivation.program interface offset).recipes.length :=
+      congrArg List.length
+        (ChallengeDerivation.program_shape_eq_layout interface offset).1.symm
+    _ = 4384 := ChallengeDerivation.program_recipes_length interface offset
+
+private theorem roundLayoutRecipeCount {degreeBound : Nat}
+    (interface : RoundTranscript.Interface degreeBound) (offset : Nat) :
+    Duplex.Formal.recipeCount (RoundTranscript.layoutActions interface offset) =
+      productionShape.cubeVariables *
+        RoundTranscript.perRoundRecipeCount degreeBound := by
+  calc
+    Duplex.Formal.recipeCount (RoundTranscript.layoutActions interface offset) =
+        (RoundTranscript.layoutProgram interface offset).recipes.length :=
+      (Duplex.Formal.compile_recipes_length offset
+        (interface.initialState offset)
+        (RoundTranscript.layoutActions interface offset)).symm
+    _ = (RoundTranscript.program interface offset).recipes.length :=
+      congrArg List.length
+        (RoundTranscript.program_shape_eq_layout interface offset).1.symm
+    _ = productionShape.cubeVariables *
+        RoundTranscript.perRoundRecipeCount degreeBound :=
+      RoundTranscript.program_recipes_length interface offset
+
+private theorem statementPermutationCount
+    {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (interface : StatementAbsorption.Interface logicalWidth publicFits)
+    (offset : Nat) :
+    Duplex.Formal.permutationCount
+      (StatementAbsorption.actions interface offset) = 123 := by
+  have recipes := Duplex.Formal.recipeCount_eq_permutationCount_mul
+    (StatementAbsorption.actions interface offset)
+  change StatementAbsorption.recipeCount interface offset =
+    Duplex.Formal.permutationCount
+      (StatementAbsorption.actions interface offset) * 1096 at recipes
+  rw [StatementAbsorption.recipeCount_eq] at recipes
+  omega
+
+private theorem challengePermutationCount
+    (interface : ChallengeDerivation.Interface) (offset : Nat) :
+    Duplex.Formal.permutationCount ChallengeDerivation.layoutActions = 4 := by
+  have recipes := Duplex.Formal.recipeCount_eq_permutationCount_mul
+    ChallengeDerivation.layoutActions
+  rw [challengeLayoutRecipeCount interface offset] at recipes
+  omega
+
+private theorem roundPermutationCount
+    (interface : RoundTranscript.Interface 8) (offset : Nat) :
+    Duplex.Formal.permutationCount
+      (RoundTranscript.layoutActions interface offset) = 56 := by
+  have recipes := Duplex.Formal.recipeCount_eq_permutationCount_mul
+    (RoundTranscript.layoutActions interface offset)
+  rw [roundLayoutRecipeCount interface offset] at recipes
+  norm_num [productionShape, Phi81MatrixSource.phi81Shape,
+    cubeVariables, RoundTranscript.perRoundRecipeCount] at recipes
+  omega
+
+private theorem statementFinalState_outputPrefix_supported
+    (logicalWidth : Nat)
+    (publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth) :
+    let shared := Formal.atOffset
+      (PiCCSInputs.interface logicalWidth publicFits) PiCCSInputs.phaseOffset
+    Duplex.Formal.StateSupported
+      (Formal.statementFinalState shared PiCCSInputs.phaseOffset)
+      (Duplex.Formal.OutputPrefix External (PiCCSInputs.phaseOffset + StateBinding.signCount) 123) := by
+  dsimp only
+  let shared := Formal.atOffset
+    (PiCCSInputs.interface logicalWidth publicFits) PiCCSInputs.phaseOffset
+  let interface := Formal.statementAbsorptionInterface shared
+  let actions := StatementAbsorption.actions interface (PiCCSInputs.phaseOffset + StateBinding.signCount)
+  have projected := Duplex.Formal.compileWiring_outputPrefix_supported External
+    (PiCCSInputs.phaseOffset + StateBinding.signCount) 0 Hash.zeroE actions
+    zeroState_outputPrefix_supported
+  have count := statementPermutationCount interface (PiCCSInputs.phaseOffset + StateBinding.signCount)
+  rw [count] at projected
+  have outputSupport := projected.2
+  simp only [Nat.zero_mul, Nat.add_zero] at outputSupport
+  rw [(Duplex.Formal.compileWiring_matches (PiCCSInputs.phaseOffset + StateBinding.signCount) Hash.zeroE
+    actions).2] at outputSupport
+  exact outputSupport
+
+private theorem challengeWiring_outputPrefix_supported
+    (logicalWidth : Nat)
+    (publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth) :
+    let shared := Formal.atOffset
+      (PiCCSInputs.interface logicalWidth publicFits) PiCCSInputs.phaseOffset
+    let interface := Formal.challengeInterface shared PiCCSInputs.phaseOffset
+    (∀ sample ∈
+      (ChallengeDerivation.layoutWiring interface
+          (Formal.challengeStart shared)).samples,
+      Duplex.Formal.KSupported sample
+        (Duplex.Formal.OutputPrefix External (PiCCSInputs.phaseOffset + StateBinding.signCount) 127)) ∧
+      Duplex.Formal.StateSupported
+        (ChallengeDerivation.finalState interface
+          (Formal.challengeStart shared))
+        (Duplex.Formal.OutputPrefix External (PiCCSInputs.phaseOffset + StateBinding.signCount) 127) := by
+  dsimp only
+  let shared := Formal.atOffset
+    (PiCCSInputs.interface logicalWidth publicFits) PiCCSInputs.phaseOffset
+  let interface := Formal.challengeInterface shared PiCCSInputs.phaseOffset
+  let start := Formal.challengeStart shared
+  have incoming : Duplex.Formal.StateSupported (interface.initialState start)
+      (Duplex.Formal.OutputPrefix External (PiCCSInputs.phaseOffset + StateBinding.signCount) 123) := by
+    simpa [interface, Formal.challengeInterface_initialState] using
+      statementFinalState_outputPrefix_supported logicalWidth publicFits
+  have startEq : (PiCCSInputs.phaseOffset + StateBinding.signCount) + 123 * 1096 = start := by
+    have value := Formal.challengeOffset_eq
+      (PiCCSInputs.interface logicalWidth publicFits) PiCCSInputs.phaseOffset
+    rw [StateBinding.signCount_eq]
+    dsimp [start, shared]
+    rw [Formal.challengeStart_atOffset]
+    omega
+  have projected := Duplex.Formal.compileWiring_outputPrefix_supported External
+    (PiCCSInputs.phaseOffset + StateBinding.signCount) 123 (interface.initialState start)
+    ChallengeDerivation.layoutActions incoming
+  rw [startEq] at projected
+  rw [← ChallengeDerivation.layoutWiring_eq_compileWiring] at projected
+  have count := challengePermutationCount interface start
+  rw [count] at projected
+  change
+    (∀ value ∈ (ChallengeDerivation.layoutWiring interface start).samples,
+      Duplex.Formal.KSupported value
+        (Duplex.Formal.OutputPrefix External (PiCCSInputs.phaseOffset + StateBinding.signCount) 127)) ∧
+      Duplex.Formal.StateSupported
+        (ChallengeDerivation.finalState interface start)
+        (Duplex.Formal.OutputPrefix External (PiCCSInputs.phaseOffset + StateBinding.signCount) 127)
+  refine ⟨projected.1, ?_⟩
+  rw [ChallengeDerivation.finalState_eq_finalStateFast_pointwise]
+  exact projected.2
+
+private theorem roundWiring_outputPrefix_supported
+    (logicalWidth : Nat)
+    (publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth) :
+    let shared := Formal.atOffset
+      (PiCCSInputs.interface logicalWidth publicFits) PiCCSInputs.phaseOffset
+    let interface := Formal.roundTranscriptInterface shared
+    ∀ sample ∈
+      (RoundTranscript.layoutWiring interface
+        (Formal.roundTranscriptStart shared)).samples,
+      Duplex.Formal.KSupported sample
+        (Duplex.Formal.OutputPrefix External (PiCCSInputs.phaseOffset + StateBinding.signCount) 183) := by
+  dsimp only
+  let shared := Formal.atOffset
+    (PiCCSInputs.interface logicalWidth publicFits) PiCCSInputs.phaseOffset
+  let challengeInterface :=
+    Formal.challengeInterface shared PiCCSInputs.phaseOffset
+  let interface := Formal.roundTranscriptInterface shared
+  let start := Formal.roundTranscriptStart shared
+  have challengeSupport :=
+    challengeWiring_outputPrefix_supported logicalWidth publicFits
+  have incoming : Duplex.Formal.StateSupported (interface.initialState start)
+      (Duplex.Formal.OutputPrefix External (PiCCSInputs.phaseOffset + StateBinding.signCount) 127) := by
+    simpa [interface, Formal.roundTranscriptInterface,
+      Formal.challengeFinalState, challengeInterface, shared, Formal.atOffset]
+      using challengeSupport.2
+  have startEq : (PiCCSInputs.phaseOffset + StateBinding.signCount) + 127 * 1096 = start := by
+    have value := Formal.challengeOffset_eq
+      (PiCCSInputs.interface logicalWidth publicFits) PiCCSInputs.phaseOffset
+    rw [StateBinding.signCount_eq]
+    dsimp [start, shared]
+    rw [Formal.roundTranscriptStart_atOffset, Formal.roundTranscriptOffset_eq]
+    omega
+  have projected := Duplex.Formal.compileWiring_outputPrefix_supported External
+    (PiCCSInputs.phaseOffset + StateBinding.signCount) 127 (interface.initialState start)
+    (RoundTranscript.layoutActions interface start) incoming
+  rw [startEq] at projected
+  rw [← RoundTranscript.layoutWiring_eq_compileWiring] at projected
+  have count := roundPermutationCount interface start
+  rw [count] at projected
+  change ∀ value ∈ (RoundTranscript.layoutWiring interface start).samples,
+    Duplex.Formal.KSupported value
+      (Duplex.Formal.OutputPrefix External (PiCCSInputs.phaseOffset + StateBinding.signCount) 183)
+  exact projected.1
+
+theorem challengeWiring_supported
+    (logicalWidth : Nat)
+    (publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth) :
+    let shared := Formal.atOffset
+      (PiCCSInputs.interface logicalWidth publicFits) PiCCSInputs.phaseOffset
+    let interface := Formal.challengeInterface shared PiCCSInputs.phaseOffset
+    ∀ sample ∈
+      (ChallengeDerivation.layoutWiring interface
+        (Formal.challengeStart shared)).samples,
+      Duplex.Formal.KSupported sample Source := by
+  dsimp only
+  have precise := challengeWiring_outputPrefix_supported logicalWidth publicFits
+  intro sample member
+  exact (precise.1 sample member).mono
+    (outputPrefix_source 127 (by
+      rw [transcriptInvocationCount_eq]
+      omega))
+
+private theorem roundWiring_supported
+    (logicalWidth : Nat)
+    (publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth) :
+    let shared := Formal.atOffset
+      (PiCCSInputs.interface logicalWidth publicFits) PiCCSInputs.phaseOffset
+    let interface := Formal.roundTranscriptInterface shared
+    ∀ sample ∈
+      (RoundTranscript.layoutWiring interface
+        (Formal.roundTranscriptStart shared)).samples,
+      Duplex.Formal.KSupported sample Source := by
+  dsimp only
+  have precise := roundWiring_outputPrefix_supported logicalWidth publicFits
+  intro sample member
+  exact (precise sample member).mono
+    (outputPrefix_source 183 (by
+      rw [transcriptInvocationCount_eq]))
+
+structure TranscriptValuesSupported
+    (logicalWidth : Nat)
+    (publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth) : Prop where
+  alpha : ∀ coordinate,
+    Horner.KSupported
+      (Formal.challengeAlpha
+        (Formal.atOffset (PiCCSInputs.interface logicalWidth publicFits)
+          PiCCSInputs.phaseOffset)
+        PiCCSInputs.phaseOffset coordinate) Source
+  gamma : Horner.KSupported
+    (Formal.challengeGamma
+      (Formal.atOffset (PiCCSInputs.interface logicalWidth publicFits)
+        PiCCSInputs.phaseOffset)
+      PiCCSInputs.phaseOffset) Source
+  roundPoint : ∀ coordinate,
+    Horner.KSupported
+      (Formal.roundPoint
+        (Formal.atOffset (PiCCSInputs.interface logicalWidth publicFits)
+          PiCCSInputs.phaseOffset)
+        PiCCSInputs.phaseOffset coordinate) Source
+
+theorem transcriptValuesSupported
+    (logicalWidth : Nat)
+    (publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth) :
+    TranscriptValuesSupported logicalWidth publicFits := by
+  let shared := Formal.atOffset
+    (PiCCSInputs.interface logicalWidth publicFits) PiCCSInputs.phaseOffset
+  let challengeInterface :=
+    Formal.challengeInterface shared PiCCSInputs.phaseOffset
+  let roundInterface := Formal.roundTranscriptInterface shared
+  have challengeSupport := challengeWiring_supported logicalWidth publicFits
+  have roundSupport := roundWiring_supported logicalWidth publicFits
+  refine {
+    alpha := ?_
+    gamma := ?_
+    roundPoint := ?_ }
+  · intro coordinate
+    rw [Formal.challengeAlpha,
+      ChallengeDerivation.alpha_eq_alphaFast_pointwise]
+    unfold ChallengeDerivation.alphaFast
+    apply Duplex.Formal.sampleGetD_supported
+    · intro sample member
+      apply challengeSupport sample
+      exact List.mem_of_mem_take member
+    · simp [ChallengeDerivation.layoutWiring_samples_length,
+        productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]
+      exact coordinate.isLt
+  · rw [Formal.challengeGamma,
+      ChallengeDerivation.gamma_eq_gammaFast_pointwise]
+    unfold ChallengeDerivation.gammaFast
+    apply Duplex.Formal.sampleGetD_supported
+    · exact challengeSupport
+    · simp [ChallengeDerivation.layoutWiring_samples_length,
+        productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]
+  · intro coordinate
+    rw [Formal.roundPoint,
+      RoundTranscript.challenge_eq_challengeFast_pointwise]
+    unfold RoundTranscript.challengeFast
+    apply Duplex.Formal.sampleGetD_supported
+    · exact roundSupport
+    · rw [RoundTranscript.layoutWiring_samples_length]
+      change coordinate.val < productionShape.cubeVariables
+      exact coordinate.isLt
+
+theorem roundOutputs_outputPrefix_supported
+    {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (interface : Formal.Interface logicalWidth 8 publicFits)
+    (offset : Nat) :
+    (∀ coordinate, Horner.KSupported
+        (Formal.roundPoint (Formal.atOffset interface offset) offset coordinate)
+        (Duplex.Formal.OutputPrefix External (offset + StateBinding.signCount) 183)) ∧
+      Duplex.Formal.StateSupported
+        (Formal.roundTranscriptFinalState
+          (Formal.atOffset interface offset) offset)
+        (Duplex.Formal.OutputPrefix External (offset + StateBinding.signCount) 183) := by
+  let shared := Formal.atOffset interface offset
+  let statementInterface := Formal.statementAbsorptionInterface shared
+  let statementActions := StatementAbsorption.actions statementInterface
+    (offset + StateBinding.signCount)
+  have zeroSupport : Duplex.Formal.StateSupported Hash.zeroE
+      (Duplex.Formal.OutputPrefix External (offset + StateBinding.signCount) 0) := by
+    intro lane
+    trivial
+  have statementProjected :=
+    Duplex.Formal.compileWiring_outputPrefix_supported External
+      (offset + StateBinding.signCount) 0 Hash.zeroE statementActions zeroSupport
+  have statementCount := statementPermutationCount statementInterface
+    (offset + StateBinding.signCount)
+  rw [statementCount] at statementProjected
+  simp only [Nat.zero_mul, Nat.add_zero] at statementProjected
+  rw [(Duplex.Formal.compileWiring_matches (offset + StateBinding.signCount) Hash.zeroE
+    statementActions).2] at statementProjected
+  have statementSupport : Duplex.Formal.StateSupported
+      (Formal.statementFinalState shared offset)
+      (Duplex.Formal.OutputPrefix External (offset + StateBinding.signCount) 123) := by
+    exact statementProjected.2
+
+  let challengeInterface := Formal.challengeInterface shared offset
+  let challengeStart := Formal.challengeStart shared
+  have challengeIncoming : Duplex.Formal.StateSupported
+      (challengeInterface.initialState challengeStart)
+      (Duplex.Formal.OutputPrefix External (offset + StateBinding.signCount) 123) := by
+    simpa [challengeInterface, Formal.challengeInterface_initialState] using
+      statementSupport
+  have challengeStartEq : (offset + StateBinding.signCount) + 123 * 1096 = challengeStart := by
+    have value := Formal.challengeOffset_eq interface offset
+    rw [StateBinding.signCount_eq]
+    dsimp [challengeStart, shared]
+    rw [Formal.challengeStart_atOffset]
+    omega
+  have challengeProjected :=
+    Duplex.Formal.compileWiring_outputPrefix_supported External
+      (offset + StateBinding.signCount) 123
+      (challengeInterface.initialState challengeStart)
+      ChallengeDerivation.layoutActions challengeIncoming
+  rw [challengeStartEq] at challengeProjected
+  rw [← ChallengeDerivation.layoutWiring_eq_compileWiring] at challengeProjected
+  have challengeCount := challengePermutationCount challengeInterface
+    challengeStart
+  rw [challengeCount] at challengeProjected
+  have challengeFinalSupport : Duplex.Formal.StateSupported
+      (ChallengeDerivation.finalState challengeInterface challengeStart)
+      (Duplex.Formal.OutputPrefix External (offset + StateBinding.signCount) 127) := by
+    rw [ChallengeDerivation.finalState_eq_finalStateFast_pointwise]
+    exact challengeProjected.2
+
+  let roundInterface := Formal.roundTranscriptInterface shared
+  let roundStart := Formal.roundTranscriptStart shared
+  have roundIncoming : Duplex.Formal.StateSupported
+      (roundInterface.initialState roundStart)
+      (Duplex.Formal.OutputPrefix External (offset + StateBinding.signCount) 127) := by
+    simpa [roundInterface, Formal.roundTranscriptInterface,
+      Formal.challengeFinalState, challengeInterface, shared, Formal.atOffset]
+      using! challengeFinalSupport
+  have roundStartEq : (offset + StateBinding.signCount) + 127 * 1096 = roundStart := by
+    have value := Formal.challengeOffset_eq interface offset
+    rw [StateBinding.signCount_eq]
+    dsimp [roundStart, shared]
+    rw [Formal.roundTranscriptStart_atOffset, Formal.roundTranscriptOffset_eq]
+    omega
+  have roundProjected :=
+    Duplex.Formal.compileWiring_outputPrefix_supported External
+      (offset + StateBinding.signCount) 127
+      (roundInterface.initialState roundStart)
+      (RoundTranscript.layoutActions roundInterface roundStart) roundIncoming
+  rw [roundStartEq] at roundProjected
+  rw [← RoundTranscript.layoutWiring_eq_compileWiring] at roundProjected
+  have roundCount := roundPermutationCount roundInterface roundStart
+  rw [roundCount] at roundProjected
+  constructor
+  · intro coordinate
+    rw [Formal.roundPoint,
+      RoundTranscript.challenge_eq_challengeFast_pointwise]
+    unfold RoundTranscript.challengeFast
+    apply Duplex.Formal.sampleGetD_supported
+    · exact roundProjected.1
+    · rw [RoundTranscript.layoutWiring_samples_length]
+      change coordinate.val < productionShape.cubeVariables
+      exact coordinate.isLt
+  · change Duplex.Formal.StateSupported
+      (RoundTranscript.finalState roundInterface roundStart)
+      (Duplex.Formal.OutputPrefix External (offset + StateBinding.signCount) 183)
+    rw [RoundTranscript.finalState_eq_finalStateFast_pointwise]
+    exact roundProjected.2
+
+theorem roundPoint_outputPrefix_supported
+    {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (interface : Formal.Interface logicalWidth 8 publicFits)
+    (offset : Nat) (coordinate : Fin productionShape.cubeVariables) :
+    Horner.KSupported
+      (Formal.roundPoint (Formal.atOffset interface offset) offset coordinate)
+      (Duplex.Formal.OutputPrefix External (offset + StateBinding.signCount) 183) :=
+  (roundOutputs_outputPrefix_supported interface offset).1 coordinate
+
+private theorem cubePoint_ext
+    {Field : Type} {variableCount : Nat}
+    (left right : CubePoint Field variableCount)
+    (coordinates : left.coordinates = right.coordinates) : left = right := by
+  cases left
+  cases right
+  simp_all
+
+theorem evalRoundPoint_eq_of_agree_outputPrefix
+    {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (interface : Formal.Interface logicalWidth 8 publicFits)
+    (offset : Nat) (left right : Env)
+    (agrees : ∀ index,
+      Duplex.Formal.OutputPrefix External (offset + StateBinding.signCount) 183 index →
+        left index = right index) :
+    RoundTranscript.evalRoundPoint
+        (Formal.roundTranscriptInterface (Formal.atOffset interface offset))
+        (Formal.roundTranscriptOffset interface offset) left =
+      RoundTranscript.evalRoundPoint
+        (Formal.roundTranscriptInterface (Formal.atOffset interface offset))
+        (Formal.roundTranscriptOffset interface offset) right := by
+  apply cubePoint_ext
+  change (canonicalFinIndices productionShape.cubeVariables).map
+      (fun coordinate =>
+        (RoundTranscript.challenge
+          (Formal.roundTranscriptInterface (Formal.atOffset interface offset))
+          (Formal.roundTranscriptOffset interface offset) coordinate).eval left) =
+    (canonicalFinIndices productionShape.cubeVariables).map
+      (fun coordinate =>
+        (RoundTranscript.challenge
+          (Formal.roundTranscriptInterface (Formal.atOffset interface offset))
+          (Formal.roundTranscriptOffset interface offset) coordinate).eval right)
+  apply List.map_congr_left
+  intro coordinate _member
+  rw [← Formal.roundTranscriptStart_atOffset interface offset]
+  change (Formal.roundPoint (Formal.atOffset interface offset) offset
+      coordinate).eval left =
+    (Formal.roundPoint (Formal.atOffset interface offset) offset
+      coordinate).eval right
+  have support := roundPoint_outputPrefix_supported interface offset coordinate
+  exact congrArg₂ K.mk
+    (Expr.eval_eq_of_agree_satisfy _ _ left right support.1 agrees)
+    (Expr.eval_eq_of_agree_satisfy _ _ left right support.2 agrees)
+
+theorem roundFinalState_outputPrefix_supported
+    {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (interface : Formal.Interface logicalWidth 8 publicFits)
+    (offset : Nat) :
+    Duplex.Formal.StateSupported
+      (Formal.roundTranscriptFinalState
+        (Formal.atOffset interface offset) offset)
+      (Duplex.Formal.OutputPrefix External (offset + StateBinding.signCount) 183) :=
+  (roundOutputs_outputPrefix_supported interface offset).2
+
+end NightstreamFPrime.Layout.Stage1.PiCCSOrdinarySourceSupport

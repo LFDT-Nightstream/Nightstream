@@ -1,0 +1,154 @@
+import NightstreamFPrime.Layout.MatrixProgram.SourceProjection
+import NightstreamFPrime.Layout.ProductionRelation.OrdinarySourcePlan
+
+namespace NightstreamFPrime.Layout.MatrixProgram.Ordinary
+
+open NightstreamFPrime.Layout
+open NightstreamFPrime.Layout.ProductionRelation
+open NightstreamFPrime.Spec
+
+def compileTerms? (substitution : SourceSubstitution) (logicalWidth : Nat) :
+    List (Nat × F) → Option (SparseForm logicalWidth)
+  | [] => some .empty
+  | term :: rest => do
+      let head ← substitution.form? logicalWidth term.1
+      let tail ← compileTerms? substitution logicalWidth rest
+      pure (SparseForm.add (SparseForm.scale term.2 head) tail)
+
+def compileCombination? (substitution : SourceSubstitution)
+    {logicalWidth : Nat} (oneColumn : Fin logicalWidth)
+    (combination : R1CS.LinearCombination) : Option (SparseForm logicalWidth) := do
+  let terms ← compileTerms? substitution logicalWidth combination.terms
+  pure (SparseForm.add
+    (SparseForm.singleton oneColumn combination.constant) terms)
+
+def compileRow? (substitution : SourceSubstitution) (logicalWidth oneColumn : Nat)
+    (row : R1CS.Row) : Option (OrdinaryRow.Forms logicalWidth) :=
+  if oneBound : oneColumn < logicalWidth then do
+    let a ← compileCombination? substitution ⟨oneColumn, oneBound⟩ row.a
+    let b ← compileCombination? substitution ⟨oneColumn, oneBound⟩ row.b
+    let c ← compileCombination? substitution ⟨oneColumn, oneBound⟩ row.c
+    pure {
+      a := a
+      b := b
+      c := c }
+  else
+    none
+
+structure Block where
+  rows : IndexSchedule
+  oneColumn : Nat
+  substitution : SourceSubstitution
+  projection : SourceProjection := .identity
+deriving Repr, DecidableEq
+
+def Block.rowCount (block : Block) : Nat :=
+  block.rows.count
+
+def Block.row? (block : Block) (logicalWidth : Nat)
+    (sourceRow : Nat → Option R1CS.Row) (ordinal : Nat) :
+    Option (OrdinaryRow.Forms logicalWidth) := do
+  let sourceIndex ← block.rows.index? ordinal
+  let packageRow ← sourceRow sourceIndex
+  let row ← block.projection.row? packageRow
+  compileRow? block.substitution logicalWidth block.oneColumn row
+
+def AgreesOnTerms {sourceWidth logicalWidth : Nat}
+    (substitution : SourceSubstitution)
+    (sourceMap : SourceCompiler.SourceMap sourceWidth logicalWidth)
+    (terms : List (Nat × F)) : Prop :=
+  ∀ term, term ∈ terms → ∀ bounded : term.1 < sourceWidth,
+    substitution.form? logicalWidth term.1 =
+      some (sourceMap.form ⟨term.1, bounded⟩)
+
+theorem compileTerms?_eq_compileTerms
+    {sourceWidth logicalWidth : Nat}
+    (substitution : SourceSubstitution)
+    (sourceMap : SourceCompiler.SourceMap sourceWidth logicalWidth)
+    (terms : List (Nat × F))
+    (bounded : ∀ term ∈ terms, term.1 < sourceWidth)
+    (agrees : AgreesOnTerms substitution sourceMap terms) :
+    compileTerms? substitution logicalWidth terms =
+      some (SourceCompiler.compileTerms sourceMap terms bounded) := by
+  induction terms with
+  | nil => rfl
+  | cons term rest inductionHypothesis =>
+      have headBound : term.1 < sourceWidth := bounded term (by simp)
+      have restBound : ∀ candidate ∈ rest, candidate.1 < sourceWidth :=
+        fun candidate member => bounded candidate (by simp [member])
+      have restAgrees : AgreesOnTerms substitution sourceMap rest := by
+        intro candidate member candidateBound
+        exact agrees candidate (by simp [member]) candidateBound
+      rw [compileTerms?, agrees term (by simp) headBound,
+        inductionHypothesis restBound restAgrees]
+      rfl
+
+theorem compileCombination?_eq_compileCombination
+    {sourceWidth logicalWidth : Nat}
+    (substitution : SourceSubstitution)
+    (sourceMap : SourceCompiler.SourceMap sourceWidth logicalWidth)
+    (oneColumn : Fin logicalWidth) (combination : R1CS.LinearCombination)
+    (bounded : SourceCompiler.CombinationBounded sourceWidth combination)
+    (agrees : AgreesOnTerms substitution sourceMap combination.terms) :
+    compileCombination? substitution oneColumn combination =
+      some (SourceCompiler.compileCombination sourceMap oneColumn combination
+        bounded) := by
+  unfold compileCombination?
+  rw [compileTerms?_eq_compileTerms substitution sourceMap combination.terms
+    bounded agrees]
+  rfl
+
+theorem compileRow?_eq_compileRow
+    {sourceWidth logicalWidth : Nat}
+    (substitution : SourceSubstitution)
+    (sourceMap : SourceCompiler.SourceMap sourceWidth logicalWidth)
+    (oneColumn : Fin logicalWidth) (row : R1CS.Row)
+    (bounded : SourceCompiler.RowBounded sourceWidth row)
+    (agreesA : AgreesOnTerms substitution sourceMap row.a.terms)
+    (agreesB : AgreesOnTerms substitution sourceMap row.b.terms)
+    (agreesC : AgreesOnTerms substitution sourceMap row.c.terms) :
+    compileRow? substitution logicalWidth oneColumn.val row =
+      some (SourceCompiler.compileRow sourceMap oneColumn row bounded) := by
+  unfold compileRow?
+  rw [dite_eq_left oneColumn.isLt]
+  rw [compileCombination?_eq_compileCombination substitution sourceMap
+    oneColumn row.a bounded.1 agreesA]
+  rw [compileCombination?_eq_compileCombination substitution sourceMap
+    oneColumn row.b bounded.2.1 agreesB]
+  rw [compileCombination?_eq_compileCombination substitution sourceMap
+    oneColumn row.c bounded.2.2 agreesC]
+  rfl
+
+theorem Block.row?_eq_compileRow
+    {sourceWidth logicalWidth : Nat}
+    (block : Block)
+    (sourceRow : Nat → Option R1CS.Row) (ordinal sourceIndex : Nat)
+    (row : R1CS.Row)
+    (selected : block.rows.index? ordinal = some sourceIndex)
+    (packageRow : R1CS.Row)
+    (loaded : sourceRow sourceIndex = some packageRow)
+    (projected : block.projection.row? packageRow = some row)
+    (sourceMap : SourceCompiler.SourceMap sourceWidth logicalWidth)
+    (oneColumn : Fin logicalWidth) (oneEqual : block.oneColumn = oneColumn.val)
+    (bounded : SourceCompiler.RowBounded sourceWidth row)
+    (agreesA : AgreesOnTerms block.substitution sourceMap row.a.terms)
+    (agreesB : AgreesOnTerms block.substitution sourceMap row.b.terms)
+    (agreesC : AgreesOnTerms block.substitution sourceMap row.c.terms) :
+    block.row? logicalWidth sourceRow ordinal =
+      some (SourceCompiler.compileRow sourceMap oneColumn row bounded) := by
+  unfold Block.row?
+  rw [selected]
+  change (do
+    let selectedPackageRow ← sourceRow sourceIndex
+    let selectedRow ← block.projection.row? selectedPackageRow
+    compileRow? block.substitution logicalWidth block.oneColumn selectedRow) = _
+  rw [loaded]
+  change (do
+    let selectedRow ← block.projection.row? packageRow
+    compileRow? block.substitution logicalWidth block.oneColumn selectedRow) = _
+  rw [projected]
+  rw [oneEqual]
+  exact compileRow?_eq_compileRow block.substitution sourceMap oneColumn row
+    bounded agreesA agreesB agreesC
+
+end NightstreamFPrime.Layout.MatrixProgram.Ordinary

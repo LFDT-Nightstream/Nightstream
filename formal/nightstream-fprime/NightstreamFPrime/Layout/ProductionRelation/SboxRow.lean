@@ -1,0 +1,82 @@
+import NightstreamFPrime.Layout.ProductionRelation
+import NightstreamFPrime.Spec.ProductionRelation.RowSemantics
+
+namespace NightstreamFPrime.Layout.ProductionRelation.SboxRow
+
+open NightstreamFPrime.Spec
+open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
+open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CCSResidualTable
+open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
+open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
+
+structure Forms (logicalWidth : Nat) where
+  input : SparseForm logicalWidth
+  output : SparseForm logicalWidth
+deriving Repr, DecidableEq
+
+namespace Forms
+
+def meaningfulForm {logicalWidth : Nat} (forms : Forms logicalWidth)
+    (port : Fin Spec.ProductionRelation.meaningfulPortCount) :
+    SparseForm logicalWidth :=
+  match port.val with
+  | 2 => forms.output
+  | 3 => forms.input
+  | _ => .empty
+
+def portForm {logicalWidth : Nat} (forms : Forms logicalWidth)
+    (port : Fin Spec.ProductionRelation.matrixCount) : SparseForm logicalWidth :=
+  match ProductionRelation.meaningfulPort? port with
+  | some meaningful => forms.meaningfulForm meaningful
+  | none => .empty
+
+def portImages {logicalWidth : Nat} (forms : Forms logicalWidth)
+    (assignment : Assignment F logicalWidth) :
+    Fin Spec.ProductionRelation.matrixCount → F :=
+  fun port => (forms.portForm port).eval assignment
+
+private theorem portImages_eq_sbox {logicalWidth : Nat}
+    (forms : Forms logicalWidth) (assignment : Assignment F logicalWidth) :
+    forms.portImages assignment =
+      (Spec.ProductionRelation.RowSemantics.sbox
+        (forms.input.eval assignment)
+        (forms.output.eval assignment)).get := by
+  funext port
+  fin_cases port <;>
+    simp [portImages, portForm, meaningfulForm,
+      ProductionRelation.meaningfulPort?,
+      Spec.ProductionRelation.RowSemantics.sbox,
+      Spec.ProductionRelation.RowSemantics.PortValues.get]
+
+def residual {logicalWidth : Nat} (forms : Forms logicalWidth)
+    (assignment : Assignment F logicalWidth) : F :=
+  evaluatePolynomial baseOps Spec.ProductionRelation.polynomial
+    (forms.portImages assignment)
+
+theorem residual_eq {logicalWidth : Nat} (forms : Forms logicalWidth)
+    (assignment : Assignment F logicalWidth) :
+    forms.residual assignment =
+      Spec.ProductionRelation.RowSemantics.seventhPower
+          (forms.input.eval assignment) -
+        forms.output.eval assignment := by
+  unfold residual
+  rw [portImages_eq_sbox]
+  exact Spec.ProductionRelation.RowSemantics.evaluate_sbox _ _
+
+def Preserves {logicalWidth : Nat} (forms : Forms logicalWidth)
+    (assignment : Assignment F logicalWidth) (input output : F) : Prop :=
+  forms.input.eval assignment = input ∧
+    forms.output.eval assignment = output
+
+theorem residual_zero_iff {logicalWidth : Nat} (forms : Forms logicalWidth)
+    (assignment : Assignment F logicalWidth) (input output : F)
+    (preserves : forms.Preserves assignment input output) :
+    forms.residual assignment = 0 ↔
+      Spec.ProductionRelation.RowSemantics.seventhPower input = output := by
+  rcases preserves with ⟨inputEqual, outputEqual⟩
+  rw [residual_eq, inputEqual, outputEqual]
+  exact Lean.Grind.AddCommGroup.sub_eq_zero_iff
+
+end Forms
+
+end NightstreamFPrime.Layout.ProductionRelation.SboxRow

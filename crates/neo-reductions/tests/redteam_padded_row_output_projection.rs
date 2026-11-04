@@ -1,0 +1,134 @@
+//! Rejects noncanonical public outputs for the selected padded-row PiCCS protocol.
+
+use neo_ajtai::{commit_row_major, setup as ajtai_setup, Commitment};
+use neo_ccs::{CcsClaim, CcsStructure, CcsWitness, CeClaim, Mat, SparsePoly, Term};
+use neo_math::{D, F, K};
+use neo_params::NeoParams;
+use neo_reductions::optimized_engine::PiCcsProof;
+use neo_reductions::{pi_ccs_prove, pi_ccs_verify};
+use neo_transcript::Poseidon2Transcript;
+use p3_field::PrimeCharacteristicRing;
+use rand_chacha::rand_core::SeedableRng;
+
+mod zero_running;
+
+fn identity_left(n: usize, m: usize) -> Mat<F> {
+    let mut matrix = Mat::zero(n, m, F::ZERO);
+    for index in 0..n.min(m) {
+        matrix.set(index, index, F::ONE);
+    }
+    matrix
+}
+
+type OutputClaim = CeClaim<Commitment, F, K>;
+
+struct HonestProof {
+    params: NeoParams,
+    structure: CcsStructure<F>,
+    claim: CcsClaim<Commitment, F>,
+    running: Vec<OutputClaim>,
+    outputs: Vec<OutputClaim>,
+    proof: PiCcsProof,
+}
+
+fn honest_proof() -> HonestProof {
+    let params = NeoParams::goldilocks_auto_rectangular_r1cs_ccs(4, 4).expect("params");
+    let structure = CcsStructure::new(
+        vec![identity_left(4, D)],
+        SparsePoly::new(
+            1,
+            vec![Term {
+                coeff: F::ONE,
+                exps: vec![1],
+            }],
+        ),
+    )
+    .expect("structure");
+
+    let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(983);
+    let pp = ajtai_setup(&mut rng, D, params.kappa() as usize, structure.m() / D).expect("Ajtai setup");
+    let commitment_scheme = pp;
+    let z = Mat::from_row_major(D, structure.m() / D, vec![F::ZERO; structure.m()]);
+    let claim = CcsClaim {
+        c: commit_row_major(&commitment_scheme, &z),
+        x: vec![],
+        m_in: 0,
+        adv: None,
+    };
+    let witness = CcsWitness { Z: z };
+
+    let (running, running_witnesses) = zero_running::zero_running(&params, &structure, 1, 0);
+
+    let mut prover_transcript = Poseidon2Transcript::new_v1_2();
+    let (outputs, proof) = pi_ccs_prove(
+        &mut prover_transcript,
+        &params,
+        &structure,
+        core::slice::from_ref(&claim),
+        core::slice::from_ref(&witness),
+        &running,
+        &running_witnesses,
+    )
+    .expect("honest proof");
+
+    HonestProof {
+        params,
+        structure,
+        claim,
+        running,
+        outputs,
+        proof,
+    }
+}
+
+fn raw_accepts(fixture: &HonestProof, outputs: &[OutputClaim], proof: &PiCcsProof) -> bool {
+    let mut verifier_transcript = Poseidon2Transcript::new_v1_2();
+    pi_ccs_verify(
+        &mut verifier_transcript,
+        &fixture.params,
+        &fixture.structure,
+        core::slice::from_ref(&fixture.claim),
+        &fixture.running,
+        outputs,
+        proof,
+    )
+    .unwrap_or(false)
+}
+
+#[test]
+fn raw_pi_ccs_rejects_nonzero_fresh_output_eval_k_padding() {
+    let fixture = honest_proof();
+    let mut malformed = fixture.outputs.clone();
+    assert!(D < malformed[0].eval_k.len(), "fixture must expose Eval_K padding");
+    malformed[0].eval_k[D] = K::ONE;
+
+    assert!(
+        !raw_accepts(&fixture, &malformed, &fixture.proof),
+        "raw PiCCS accepted a nonzero fresh-output Eval_K padding lane"
+    );
+}
+
+#[test]
+fn raw_pi_ccs_rejects_noncanonical_output_widths() {
+    let fixture = honest_proof();
+    assert!(
+        raw_accepts(&fixture, &fixture.outputs, &fixture.proof),
+        "baseline proof must verify"
+    );
+
+    let mut extra_matrix = fixture.outputs.clone();
+    extra_matrix[0]
+        .eval_a
+        .push(vec![K::ZERO; D.next_power_of_two()]);
+    assert!(
+        !raw_accepts(&fixture, &extra_matrix, &fixture.proof),
+        "raw PiCCS accepted an extra Eval_A matrix"
+    );
+
+    let mut extra_pad_coordinate = fixture.outputs.clone();
+    extra_pad_coordinate[0].eval_k.push(K::ZERO);
+    assert!(
+        !raw_accepts(&fixture, &extra_pad_coordinate, &fixture.proof),
+        "raw PiCCS accepted an extra Eval_K coordinate"
+    );
+}

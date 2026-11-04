@@ -10,6 +10,6 @@ fn two_adic_generator_orders() {
     let mut x = g;
     for _ in 0..bits {
         x = x.square();
-    } // g^{2^bits} = 1
+    }
     assert_eq!(x, Fq::ONE);
 }

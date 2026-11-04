@@ -1,0 +1,409 @@
+import NightstreamFPrime.Export.Stage1.PerApplicationAssignmentTransportExpressions
+import NightstreamFPrime.Export.Stage1.PerApplicationAssignmentTransportProducts
+
+namespace NightstreamFPrime.Export.Stage1.PerApplicationAssignmentTransportExecution
+
+open NightstreamFPrime.Circuit
+open NightstreamFPrime.Export.Stage1.PerApplicationAssignmentTransport
+open NightstreamFPrime.Layout
+open NightstreamFPrime.Layout.ProductionRelation
+open NightstreamFPrime.Lifecycle
+open NightstreamFPrime.Spec
+open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
+open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
+open PerApplicationAssignmentBlocks
+open PerApplicationAssignmentPlan
+open PerApplicationCanonicalAssignment
+
+abbrev Program := Lifecycle.Stage1.Application.Program
+
+abbrev BaseValues (program : Program) :=
+  PerApplicationAssignmentTransportProducts.BaseValues program
+
+def rawValues (program : Program) (plan : Plan) (base : BaseValues program) :
+    RawValues program where
+  base := base
+  groupValue := fun invocation group =>
+    PerApplicationAssignmentTransportProducts.phi81GroupValue
+      plan.phi81 program base invocation group.val
+
+def canonicalRawValues (program : Program) (base : BaseValues program) :
+    RawValues program :=
+  rawValues program (PerApplicationAssignmentTransport.canonical program) base
+
+theorem canonicalRawValues_groupValue_eq_honestGroupValue
+    (program : Program) (base : BaseValues program)
+    (invocation : Fin PiRLCProductSchedule.invocationCount)
+    (group : Fin 1) :
+    (canonicalRawValues program base).groupValue invocation group =
+      PiRLCProductPlan.honestGroupValue
+        (PiRLCProductMatrixProgram.inputs
+          (PerApplicationCanonicalEncodes.piCcsOrdinaryGeometry program))
+        (canonicalRawValues program base).assignment invocation group := by
+  change
+    PerApplicationAssignmentTransportProducts.phi81GroupValue
+        (phi81QuotientRecipe program) program base invocation group.val = _
+  exact
+    PerApplicationAssignmentTransportProducts.canonical_phi81GroupValue_eq_honestGroupValue
+      (canonicalRawValues program base) invocation group
+
+private theorem canonical_runSource (program : Program) (kind : BlockKind)
+    (slot : Nat)
+    (bound :
+      slot < (PerApplicationAssignmentBlocks.entry program kind).block.slotCount) :
+    AffineRuns.sourceAt
+        (PerApplicationAssignmentBlocks.BlockPlan.ofKind program kind).sourceRuns
+        slot =
+      PerApplicationAssignmentBlocks.sourceIndex program kind
+        ⟨slot, bound⟩ := by
+  rw [AffineRuns.sourceAt_eq_expand_getD]
+  change
+    (AffineRuns.expand
+      (PerApplicationAssignmentBlocks.sourceRunsFor program kind)).getD
+        slot 0 = _
+  rw [PerApplicationAssignmentBlocks.sourceRuns_expand]
+  unfold PerApplicationAssignmentBlocks.sourceIndices
+  exact NightstreamFPrime.Lifecycle.PriorStateHash.ofFn_getD _ ⟨slot, bound⟩ 0
+
+private def expressionValue {program : Program} (expressions : List Expr)
+    (raw : RawValues program) (index : Nat) : F :=
+  (expressions.getD index 0).eval
+    (SourceCompiler.sourceEnv raw.retainedSource)
+
+private def domainValue (program : Program)
+    (raw : RawValues program) : SourceDomain → Nat → F
+  | .retained => SourceCompiler.sourceEnv raw.retainedSource
+  | .physicalBase => SourceCompiler.sourceEnv raw.base
+
+private theorem canonical_domain_source (program : Program)
+    (raw : RawValues program) (kind : BlockKind) (slot : Nat)
+    (entryBound :
+      slot < (PerApplicationAssignmentBlocks.entry program kind).block.slotCount)
+    (rawBound : slot < (kind.expand raw).block.slotCount) :
+    domainValue program raw (PerApplicationAssignmentBlocks.sourceDomainOf kind)
+        (PerApplicationAssignmentBlocks.sourceIndex program kind
+          ⟨slot, entryBound⟩) =
+      (kind.expand raw).source
+        ((kind.expand raw).block.source ⟨slot, rawBound⟩) := by
+  cases kind <;>
+    simp [domainValue, 
+      PerApplicationAssignmentBlocks.sourceDomainOf,
+      PerApplicationAssignmentBlocks.sourceIndex,
+      PerApplicationAssignmentBlocks.entry,
+      PerApplicationAssignmentBlocks.zeroRaw,
+      PerApplicationAssignmentPlan.BlockKind.expand,
+      PerApplicationAssignmentPlan.BlockKind.template,
+      PerApplicationCanonicalAssignment.Canonical.ofBlock,
+      CanonicalBlockAssignment.ofBlock,
+      PerApplicationCanonicalAssignment.RawValues.applicationSource
+      ]
+
+private def blockSlotValue (program : Program)
+    (raw : RawValues program) (block : BlockPlan)
+    (slot : Fin block.slotCount) : F :=
+  if _covered :
+      (block.sourceRuns.map AffineRuns.Run.count).sum = block.slotCount then
+    domainValue program raw block.sourceDomain
+      (AffineRuns.sourceAt block.sourceRuns slot.val)
+  else
+    0
+
+private def identityBlock (block : BlockPlan) :
+    LowNormBlock.Block block.slotCount where
+  kind := block.slotKind
+  slotCount := block.slotCount
+  source := fun slot => slot
+
+private def transportBlockValue (program : Program)
+    (raw : RawValues program) (block : BlockPlan) :
+    CanonicalBlockAssignment.BlockValue :=
+  CanonicalBlockAssignment.ofBlock (identityBlock block)
+    (blockSlotValue program raw block)
+
+@[simp] private theorem transportBlockValue_block_kind
+    (program : Program) (raw : RawValues program)
+    (block : BlockPlan) :
+    (transportBlockValue program raw block).block.kind = block.slotKind := by
+  rfl
+
+@[simp] private theorem transportBlockValue_block_slotCount
+    (program : Program) (raw : RawValues program)
+    (block : BlockPlan) :
+    (transportBlockValue program raw block).block.slotCount =
+      block.slotCount := by
+  rfl
+
+private theorem blockValue_coordinateAt_eq
+    (left right : CanonicalBlockAssignment.BlockValue)
+    (kindEq : left.block.kind = right.block.kind)
+    (slotCountEq : left.block.slotCount = right.block.slotCount)
+    (sourceEq : ∀ (slot : Nat)
+      (leftBound : slot < left.block.slotCount)
+      (rightBound : slot < right.block.slotCount),
+      left.source (left.block.source ⟨slot, leftBound⟩) =
+        right.source (right.block.source ⟨slot, rightBound⟩))
+    (index : Nat) : left.coordinateAt index = right.coordinateAt index := by
+  have countEq : left.coordinateCount = right.coordinateCount := by
+    unfold CanonicalBlockAssignment.BlockValue.coordinateCount
+      LowNormBlock.Block.coordinateCount
+    rw [slotCountEq, kindEq]
+  unfold CanonicalBlockAssignment.BlockValue.coordinateAt
+  by_cases inside : index < left.coordinateCount
+  · have rightInside : index < right.coordinateCount := by
+      rw [← countEq]
+      exact inside
+    rw [dite_eq_left inside, dite_eq_left rightInside]
+    dsimp only
+    let leftSlot : Fin left.block.slotCount :=
+      ⟨index / left.block.kind.width, by
+        apply (Nat.div_lt_iff_lt_mul (by
+          cases left.block.kind <;>
+            norm_num [LowNormSlot.Kind.width, BalancedTernary.width])).2
+        simpa [CanonicalBlockAssignment.BlockValue.coordinateCount,
+          LowNormBlock.Block.coordinateCount] using inside⟩
+    let rightSlot : Fin right.block.slotCount :=
+      ⟨index / right.block.kind.width, by
+        apply (Nat.div_lt_iff_lt_mul (by
+          cases right.block.kind <;>
+            norm_num [LowNormSlot.Kind.width, BalancedTernary.width])).2
+        simpa [CanonicalBlockAssignment.BlockValue.coordinateCount,
+          LowNormBlock.Block.coordinateCount] using rightInside⟩
+    let leftCoordinate : Fin left.block.kind.width :=
+      ⟨index % left.block.kind.width, Nat.mod_lt _ (by
+        cases left.block.kind <;>
+          norm_num [LowNormSlot.Kind.width, BalancedTernary.width])⟩
+    let rightCoordinate : Fin right.block.kind.width :=
+      ⟨index % right.block.kind.width, Nat.mod_lt _ (by
+        cases right.block.kind <;>
+          norm_num [LowNormSlot.Kind.width, BalancedTernary.width])⟩
+    change LowNormSlot.coordinate left.block.kind
+        (left.source (left.block.source leftSlot)) leftCoordinate =
+      LowNormSlot.coordinate right.block.kind
+        (right.source (right.block.source rightSlot)) rightCoordinate
+    have slotEq : leftSlot.val = rightSlot.val := by
+      simp [leftSlot, rightSlot, kindEq]
+    have rightBound : leftSlot.val < right.block.slotCount := by
+      rw [← slotCountEq]
+      exact leftSlot.isLt
+    have leftSlotEq :
+        (⟨leftSlot.val, leftSlot.isLt⟩ : Fin left.block.slotCount) =
+          leftSlot := by
+      apply Fin.ext
+      rfl
+    have rightSlotEq :
+        (⟨leftSlot.val, rightBound⟩ : Fin right.block.slotCount) =
+          rightSlot := by
+      apply Fin.ext
+      exact slotEq
+    rw [← leftSlotEq,
+      sourceEq leftSlot.val leftSlot.isLt rightBound, rightSlotEq]
+    have coordinateEq :
+        Fin.cast (congrArg LowNormSlot.Kind.width kindEq) leftCoordinate =
+          rightCoordinate := by
+      apply Fin.ext
+      simp [leftCoordinate, rightCoordinate, kindEq]
+    rw [← coordinateEq]
+    exact (LowNormSlot.coordinate_cast kindEq _ leftCoordinate).symm
+  · have rightOutside : ¬ index < right.coordinateCount := by
+      rw [← countEq]
+      exact inside
+    rw [dite_eq_right inside, dite_eq_right rightOutside]
+
+private theorem canonicalBlock_kind (program : Program)
+    (raw : RawValues program) (kind : BlockKind) :
+    (transportBlockValue program raw
+        (PerApplicationAssignmentBlocks.BlockPlan.ofKind program kind)).block.kind =
+      (kind.expand raw).block.kind := by
+  change
+    (PerApplicationAssignmentBlocks.BlockPlan.ofKind program kind).slotKind = _
+  rw [PerApplicationAssignmentBlocks.BlockPlan.ofKind_slotKind]
+  exact (PerApplicationAssignmentBlocks.entry_geometry_eq_expand
+    program raw kind).1
+
+private theorem canonicalBlock_slotCount (program : Program)
+    (raw : RawValues program) (kind : BlockKind) :
+    (transportBlockValue program raw
+        (PerApplicationAssignmentBlocks.BlockPlan.ofKind program kind)).block.slotCount =
+      (kind.expand raw).block.slotCount := by
+  change
+    (PerApplicationAssignmentBlocks.BlockPlan.ofKind program kind).slotCount = _
+  rw [PerApplicationAssignmentBlocks.BlockPlan.ofKind_slotCount]
+  exact (PerApplicationAssignmentBlocks.entry_geometry_eq_expand
+    program raw kind).2
+
+private theorem canonicalBlock_coordinateAt (program : Program)
+    (raw : RawValues program) (kind : BlockKind) (index : Nat) :
+    (transportBlockValue program raw
+        (PerApplicationAssignmentBlocks.BlockPlan.ofKind program kind)).coordinateAt
+          index =
+      (kind.expand raw).coordinateAt index := by
+  apply blockValue_coordinateAt_eq
+  · exact canonicalBlock_kind program raw kind
+  · exact canonicalBlock_slotCount program raw kind
+  · intro slot leftBound rightBound
+    change slot <
+      (PerApplicationAssignmentBlocks.BlockPlan.ofKind program kind).slotCount at leftBound
+    have entryBound : slot <
+        (PerApplicationAssignmentBlocks.entry program kind).block.slotCount := by
+      simpa only [PerApplicationAssignmentBlocks.BlockPlan.ofKind_slotCount] using
+        leftBound
+    change
+      blockSlotValue program raw
+          (PerApplicationAssignmentBlocks.BlockPlan.ofKind program kind)
+          ⟨slot, leftBound⟩ =
+        (kind.expand raw).source
+          ((kind.expand raw).block.source ⟨slot, rightBound⟩)
+    unfold blockSlotValue
+    rw [dite_eq_left
+      (PerApplicationAssignmentBlocks.BlockPlan.ofKind_sourceRuns_count
+        program kind)]
+    rw [canonical_runSource program kind slot entryBound]
+    exact
+      canonical_domain_source program raw kind slot entryBound rightBound
+
+private theorem canonicalBlock_coordinateCount (program : Program)
+    (raw : RawValues program) (kind : BlockKind) :
+    (transportBlockValue program raw
+        (PerApplicationAssignmentBlocks.BlockPlan.ofKind program kind)).coordinateCount =
+      (kind.expand raw).coordinateCount := by
+  unfold CanonicalBlockAssignment.BlockValue.coordinateCount
+    LowNormBlock.Block.coordinateCount
+  rw [canonicalBlock_slotCount program raw kind,
+    canonicalBlock_kind program raw kind]
+
+private def transportSchedule (program : Program) (plan : Plan)
+    (raw : RawValues program) : CanonicalBlockAssignment.Schedule :=
+  plan.blocks.map (transportBlockValue program raw)
+
+private theorem canonicalBlocks_coordinateAt_aux (program : Program)
+    (raw : RawValues program) (kinds : List BlockKind) (index : Nat) :
+    CanonicalBlockAssignment.coordinateAt
+        ((kinds.map
+          (PerApplicationAssignmentBlocks.BlockPlan.ofKind program)).map
+            (transportBlockValue program raw))
+        index =
+      CanonicalBlockAssignment.coordinateAt
+        (kinds.map (BlockKind.expand raw)) index := by
+  induction kinds generalizing index with
+  | nil => rfl
+  | cons kind kinds inductionHypothesis =>
+      simp only [List.map_cons]
+      unfold CanonicalBlockAssignment.coordinateAt
+      have countEq := canonicalBlock_coordinateCount program raw kind
+      by_cases inside : index <
+          (transportBlockValue program raw
+            (PerApplicationAssignmentBlocks.BlockPlan.ofKind program kind)).coordinateCount
+      · have rightInside : index < (kind.expand raw).coordinateCount := by
+          rw [← countEq]
+          exact inside
+        rw [dite_eq_left inside, dite_eq_left rightInside]
+        exact canonicalBlock_coordinateAt program raw kind index
+      · have rightOutside : ¬ index < (kind.expand raw).coordinateCount := by
+          rw [← countEq]
+          exact inside
+        rw [dite_eq_right inside, dite_eq_right rightOutside, countEq]
+        exact inductionHypothesis _
+
+private theorem canonicalBlocks_coordinateAt (program : Program)
+    (raw : RawValues program) (index : Nat) :
+    CanonicalBlockAssignment.coordinateAt
+        (transportSchedule program
+          (PerApplicationAssignmentTransport.canonical program) raw) index =
+      CanonicalBlockAssignment.coordinateAt
+        (PerApplicationAssignmentPlan.expand raw) index := by
+  change
+    CanonicalBlockAssignment.coordinateAt
+        ((PerApplicationAssignmentBlocks.canonical program).map
+          (transportBlockValue program raw)) index = _
+  unfold PerApplicationAssignmentBlocks.canonical
+    PerApplicationAssignmentPlan.expand
+  exact canonicalBlocks_coordinateAt_aux program raw
+    PerApplicationAssignmentPlan.canonicalKinds index
+
+private def outputDigest {program : Program} (plan : Plan)
+    (raw : RawValues program) : Digest :=
+  List.ofFn fun lane : Fin PilotProduction.digestWords =>
+    expressionValue plan.outputDigestExpressions raw lane.val
+
+private theorem canonical_outputDigest (program : Program)
+    (raw : RawValues program) :
+    outputDigest (PerApplicationAssignmentTransport.canonical program) raw =
+      raw.outputDigest := by
+  unfold outputDigest
+  calc
+    List.ofFn (fun lane : Fin PilotProduction.digestWords =>
+        expressionValue
+          (PerApplicationAssignmentTransport.canonical program).outputDigestExpressions
+          raw lane.val) =
+      List.ofFn (fun lane : Fin PilotProduction.digestWords =>
+        raw.outputDigest.getD lane.val 0) := by
+      apply congrArg List.ofFn
+      funext lane
+      simpa [expressionValue,
+        PerApplicationAssignmentTransport.canonical] using
+        (PerApplicationAssignmentTransportExpressions.outputDigestExpression_eval
+          program raw lane)
+    _ = raw.outputDigest := by
+      unfold PerApplicationCanonicalAssignment.RawValues.outputDigest
+      apply congrArg List.ofFn
+      funext lane
+      exact NightstreamFPrime.Lifecycle.PriorStateHash.ofFn_getD _ lane 0
+
+private def executeUnchecked (program : Program) (plan : Plan)
+    (base : BaseValues program) :
+    Assignment F (PerApplicationFixedPoint.logicalWidth program) :=
+  let raw := rawValues program plan base
+  CanonicalBlockAssignment.assignment
+    (encodedHashCells (outputDigest plan raw))
+    (transportSchedule program plan raw)
+
+private theorem canonical_execute_eq_plan_execute (program : Program)
+    (base : BaseValues program) :
+    executeUnchecked program
+        (PerApplicationAssignmentTransport.canonical program) base =
+      PerApplicationAssignmentPlan.execute (canonicalRawValues program base) := by
+  funext column
+  let raw := canonicalRawValues program base
+  change
+    CanonicalBlockAssignment.assignment
+        (encodedHashCells
+          (outputDigest
+            (PerApplicationAssignmentTransport.canonical program) raw))
+        (transportSchedule program
+          (PerApplicationAssignmentTransport.canonical program) raw) column =
+      CanonicalBlockAssignment.assignment
+        (encodedHashCells raw.outputDigest)
+        (PerApplicationAssignmentPlan.expand raw) column
+  rw [canonical_outputDigest program raw]
+  unfold CanonicalBlockAssignment.assignment
+  by_cases publicRegion :
+      column.val < ProductionAssignment.publicWidth
+  · rw [dite_eq_left publicRegion, dite_eq_left publicRegion]
+  · rw [dite_eq_right publicRegion, dite_eq_right publicRegion]
+    exact canonicalBlocks_coordinateAt program raw _
+
+def execute (program : Program) (plan : Plan) (base : BaseValues program) :
+    Option (Assignment F (PerApplicationFixedPoint.logicalWidth program)) :=
+  if plan = PerApplicationAssignmentTransport.canonical program then
+    some (executeUnchecked program plan base)
+  else
+    none
+
+theorem canonical_execute_eq_assignment (program : Program)
+    (base : BaseValues program) :
+    execute program (PerApplicationAssignmentTransport.canonical program) base =
+      some (canonicalRawValues program base).assignment := by
+  unfold execute
+  rw [ite_eq_left rfl, canonical_execute_eq_plan_execute,
+    PerApplicationAssignmentPlan.execute_eq_assignment]
+
+theorem canonical_execute_eq_assignment_pointwise (program : Program)
+    (base : BaseValues program)
+    (column : Fin (PerApplicationFixedPoint.logicalWidth program)) :
+    (execute program (PerApplicationAssignmentTransport.canonical program) base).map
+        (fun assignment => assignment column) =
+      some ((canonicalRawValues program base).assignment column) := by
+  simpa using congrArg (Option.map (fun assignment => assignment column))
+    (canonical_execute_eq_assignment program base)
+
+end NightstreamFPrime.Export.Stage1.PerApplicationAssignmentTransportExecution

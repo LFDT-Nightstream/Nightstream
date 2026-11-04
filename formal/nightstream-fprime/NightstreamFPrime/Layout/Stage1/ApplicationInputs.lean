@@ -1,0 +1,118 @@
+import NightstreamFPrime.Layout.Stage1.Spartan
+import NightstreamFPrime.Lifecycle.Stage1.Application
+
+namespace NightstreamFPrime.Layout.Stage1.ApplicationInputs
+
+open NightstreamFPrime.Circuit
+open NightstreamFPrime.Lifecycle
+open NightstreamFPrime.Layout
+
+def currentWordStart : Nat := 27815
+
+def inputSourceColumn
+    (index : Lifecycle.Stage1.Application.StateIndex) : Nat :=
+  PilotProduction.priorPreimageStart + currentWordStart + index.val
+
+def outputSourceColumn
+    (index : Lifecycle.Stage1.Application.StateIndex) : Nat :=
+  PilotProduction.outputPreimageStart + currentWordStart + index.val
+
+def inputColumn (index : Lifecycle.Stage1.Application.StateIndex) : Nat :=
+  Spartan.sourceToSpartan (inputSourceColumn index)
+
+def outputColumn (index : Lifecycle.Stage1.Application.StateIndex) : Nat :=
+  Spartan.sourceToSpartan (outputSourceColumn index)
+
+def witnessStart : Nat := Spartan.privateColumnCount
+
+def witnessColumn {witnessWordCount : Nat}
+    (index : Fin witnessWordCount) : Nat :=
+  witnessStart + index.val
+
+def localStart (program : Lifecycle.Stage1.Application.Program) : Nat :=
+  witnessStart + program.witnessWordCount
+
+def interface (program : Lifecycle.Stage1.Application.Program) :
+    Lifecycle.Stage1.Application.Interface program.witnessWordCount where
+  input := fun _ index => .var (inputColumn index)
+  witness := fun _ index => .var (witnessColumn index)
+  output := fun _ index => .var (outputColumn index)
+
+theorem inputColumn_value
+    (index : Lifecycle.Stage1.Application.StateIndex) :
+    inputColumn index = currentWordStart + index.val := by
+  have bound := index.isLt
+  simp only [Lifecycle.Stage1.Application.stateWordCount] at bound
+  change Spartan.sourceToSpartan (27815 + index.val) = 27815 + index.val
+  unfold Spartan.sourceToSpartan
+  rw [ite_eq_left (by
+    norm_num [Spartan.pilotSourceColumnCount]
+    omega)]
+  unfold PilotSpartan.sourceToSpartan
+  rw [ite_eq_left (by rw [PilotSpartan.priorPublicStart_value]; omega)]
+  unfold Spartan.liftPilotColumn
+  rw [ite_eq_left (by
+    norm_num [Spartan.pilotInputPrivateColumnCount]
+    omega)]
+
+theorem outputColumn_value
+    (index : Lifecycle.Stage1.Application.StateIndex) :
+    outputColumn index = 55634 + index.val := by
+  have bound := index.isLt
+  simp only [Lifecycle.Stage1.Application.stateWordCount] at bound
+  change Spartan.sourceToSpartan (55904 + index.val) = 55634 + index.val
+  unfold Spartan.sourceToSpartan
+  rw [ite_eq_left (by
+    norm_num [Spartan.pilotSourceColumnCount]
+    omega)]
+  unfold PilotSpartan.sourceToSpartan
+  rw [ite_eq_right (by rw [PilotSpartan.priorPublicStart_value]; omega)]
+  rw [ite_eq_right (by rw [PilotSpartan.outputPreimageStart_value]; omega)]
+  rw [ite_eq_left (by rw [PilotSpartan.outputDigestStart_value]; omega)]
+  rw [PilotSpartan.secondPrivateStart_value,
+    PilotSpartan.outputPreimageStart_value]
+  have difference : 55904 + index.val - 28089 = 27815 + index.val := by omega
+  rw [difference]
+  unfold Spartan.liftPilotColumn
+  rw [ite_eq_left (by
+    norm_num [Spartan.pilotInputPrivateColumnCount]
+    omega)]
+  omega
+
+abbrev ExternalBelow (program : Lifecycle.Stage1.Application.Program) : Prop :=
+  Lifecycle.Stage1.Application.InputsBelow
+    (interface program) (localStart program)
+
+theorem externalBelow (program : Lifecycle.Stage1.Application.Program) :
+    ExternalBelow program := by
+  have pilotBelow : Spartan.pilotPrivateColumnCount ≤ localStart program := by
+    calc
+      _ ≤ Spartan.constantColumn := Spartan.pilotPrivateColumnCount_le_constantColumn
+      _ = Spartan.privateColumnCount := Spartan.constantColumn_eq_private
+      _ ≤ localStart program := by
+        unfold localStart witnessStart
+        exact Nat.le_add_right _ _
+  refine {
+    input := fun index => ?_
+    witness := fun index => ?_
+    output := fun index => ?_ }
+  · simp only [interface, Expr.VarsBelow]
+    apply Nat.lt_of_lt_of_le ?_ pilotBelow
+    rw [inputColumn_value]
+    have bound := index.isLt
+    norm_num [Spartan.pilotPrivateColumnCount,
+      Lifecycle.Stage1.Application.stateWordCount, currentWordStart] at bound ⊢
+    omega
+  · simp only [interface, Expr.VarsBelow, witnessColumn]
+    have bound := index.isLt
+    unfold localStart
+    omega
+  · simp only [interface, Expr.VarsBelow]
+    apply Nat.lt_of_lt_of_le ?_ pilotBelow
+    rw [outputColumn_value]
+    have bound := index.isLt
+    norm_num [Spartan.pilotPrivateColumnCount,
+      Lifecycle.Stage1.Application.stateWordCount] at bound ⊢
+    omega
+
+end NightstreamFPrime.Layout.Stage1.ApplicationInputs

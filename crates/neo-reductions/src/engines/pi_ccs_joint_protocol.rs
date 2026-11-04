@@ -1,0 +1,391 @@
+//! Optimized-side protocol flow for SuperNeo v1.2 PiCCS.
+//!
+//! This file independently implements the Lean-owned transcript schedule. It
+//! does not call the PaperExact transcript, SumCheck driver, or proof assembly.
+
+use neo_ajtai::Commitment as Cmt;
+use neo_ccs::{CcsClaim, CcsStructure, CeClaim};
+use neo_math::{KExtensions, D, F, K};
+use neo_params::NeoParams;
+use neo_transcript::{fold_domain_chunk_v1_2, Poseidon2Transcript};
+use p3_field::PrimeCharacteristicRing;
+
+use crate::engines::pi_ccs_joint::{
+    build_joint_dims, JointDims, ProtocolTrace, TraceEvent, ALPHA_TAG, GAMMA_TAG, ROUND_CHALLENGE_TAG,
+};
+use crate::engines::pi_ccs_protocol::{Challenges, PiCcsProof};
+use crate::error::PiCcsError;
+
+const RATE: usize = neo_ccs::crypto::poseidon2_goldilocks::RATE;
+
+pub type V1_2OutputOpening = neo_ccs::V1_2Evaluations<K>;
+
+pub trait PaperJointRoundOracle {
+    fn evals_at(&mut self, points: &[K]) -> Result<Vec<K>, PiCcsError>;
+    fn num_rounds(&self) -> usize;
+    fn degree_bound(&self) -> usize;
+    fn fold(&mut self, challenge: K) -> Result<(), PiCcsError>;
+
+    fn output_openings(&mut self, _point: &[K]) -> Result<Option<Vec<V1_2OutputOpening>>, PiCcsError> {
+        Ok(None)
+    }
+}
+
+fn k_fields(output: &mut Vec<F>, value: K) {
+    output.extend_from_slice(&value.as_coeffs());
+}
+
+fn append(transcript: &mut Poseidon2Transcript, trace: &mut ProtocolTrace, fields: Vec<F>) {
+    transcript.absorb_v1_2(&fields);
+    trace.events.push(TraceEvent::Absorb(fields));
+}
+
+fn read_coin(transcript: &mut Poseidon2Transcript, trace: &mut ProtocolTrace, label: u64, index: Option<usize>) -> K {
+    let coin = transcript.read_coin_v1_2();
+    let value = neo_math::from_complex(coin.value[0], coin.value[1]);
+    trace
+        .events
+        .push(TraceEvent::Challenge { label, index, value });
+    if coin.absorbed_zero_chunk {
+        trace.events.push(TraceEvent::Absorb(vec![F::ZERO; RATE]));
+    }
+    value
+}
+
+fn check_commitment(commitment: &Cmt, params: &NeoParams) -> Result<(), PiCcsError> {
+    if commitment.d() != D
+        || commitment.kappa() != params.kappa() as usize
+        || commitment.data().len() != D * params.kappa() as usize
+    {
+        return Err(PiCcsError::InvalidInput(
+            "PiCCS v1_2 commitment does not have the fixed Ajtai shape".into(),
+        ));
+    }
+    Ok(())
+}
+
+fn commitment_fields(commitment: &Cmt, params: &NeoParams) -> Result<Vec<F>, PiCcsError> {
+    check_commitment(commitment, params)?;
+    Ok(commitment.data().to_vec())
+}
+
+fn validate_selected_inputs(
+    structure: &CcsStructure<F>,
+    fresh: &[CcsClaim<Cmt, F>],
+    running: &[CeClaim<Cmt, F, K>],
+    dims: JointDims,
+) -> Result<(), PiCcsError> {
+    for (index, claim) in fresh.iter().enumerate() {
+        if claim.m_in > structure.m() || claim.x.len() != claim.m_in || claim.m_in % D != 0 {
+            return Err(PiCcsError::InvalidInput(format!(
+                "optimized fresh claim {index} is not a complete whole-ring public input"
+            )));
+        }
+    }
+    for (index, claim) in running.iter().enumerate() {
+        if claim.m_in > structure.m()
+            || claim.X.rows() != D
+            || neo_ccs::superneo_public_x_cols(claim.m_in) != Some(claim.X.cols())
+            || claim.eval_k.len() != D.next_power_of_two()
+            || claim.eval_a.len() != dims.matrix_count
+        {
+            return Err(PiCcsError::InvalidInput(format!(
+                "optimized running claim {index} does not have the selected paper shape"
+            )));
+        }
+        if claim.eval_k.iter().skip(D).any(|&value| value != K::ZERO) {
+            return Err(PiCcsError::InvalidInput(format!(
+                "optimized running claim {index} Eval_K is not canonical"
+            )));
+        }
+        for (matrix, coefficients) in claim.eval_a.iter().enumerate() {
+            if coefficients.len() != D.next_power_of_two() || coefficients.iter().skip(D).any(|&value| value != K::ZERO)
+            {
+                return Err(PiCcsError::InvalidInput(format!(
+                    "optimized running claim {index} Eval_A matrix {matrix} is not canonical"
+                )));
+            }
+        }
+    }
+    Ok(())
+}
+
+pub(crate) fn bind_and_sample_with_trace(
+    transcript: &mut Poseidon2Transcript,
+    trace: &mut ProtocolTrace,
+    params: &NeoParams,
+    structure: &CcsStructure<F>,
+    fresh: &[CcsClaim<Cmt, F>],
+    running: &[CeClaim<Cmt, F, K>],
+) -> Result<(JointDims, Challenges), PiCcsError> {
+    let dims = build_joint_dims(params, structure, fresh.len(), running.len())?;
+    validate_selected_inputs(structure, fresh, running, dims)?;
+    for claim in running {
+        check_commitment(&claim.c, params)?;
+    }
+    if fresh.iter().any(|claim| claim.adv.is_some()) || running.iter().any(|claim| claim.adv.is_some()) {
+        return Err(PiCcsError::InvalidInput(
+            "PiCCS v1_2 does not bind auxiliary lane commitments".into(),
+        ));
+    }
+    if fresh.is_empty() {
+        return Err(PiCcsError::InvalidInput(
+            "PiCCS v1_2 digest-only statement requires a fresh claim".into(),
+        ));
+    }
+    let prior_point = running
+        .first()
+        .map_or_else(|| vec![K::ZERO; dims.variables], |claim| claim.r.clone());
+    if prior_point.len() != dims.variables || running.iter().any(|claim| claim.r != prior_point) {
+        return Err(PiCcsError::InvalidInput(
+            "PiCCS v1_2 running claims must share the complete prior point".into(),
+        ));
+    }
+
+    transcript.reset_v1_2();
+    append(transcript, trace, fold_domain_chunk_v1_2().to_vec());
+
+    let mut statement = neo_transcript::prior_digest_v1_2(&fresh[0].x).to_vec();
+    for claim in fresh {
+        statement.extend(commitment_fields(&claim.c, params)?);
+        statement.extend_from_slice(&claim.x);
+    }
+    append(transcript, trace, statement);
+
+    let alpha: Vec<K> = (0..dims.variables)
+        .map(|index| read_coin(transcript, trace, ALPHA_TAG, Some(index)))
+        .collect();
+    let gamma = read_coin(transcript, trace, GAMMA_TAG, None);
+    trace.alpha = alpha.clone();
+    trace.gamma = gamma;
+    trace.pre_sumcheck_state = transcript.state();
+    Ok((dims, Challenges::new(alpha, gamma)))
+}
+
+pub fn prove_phase<O: PaperJointRoundOracle + ?Sized>(
+    transcript: &mut Poseidon2Transcript,
+    trace: &mut ProtocolTrace,
+    initial_claim: K,
+    oracle: &mut O,
+) -> Result<(Vec<Vec<K>>, Vec<K>, K), PiCcsError> {
+    trace.initial_claim = initial_claim;
+    let mut claim = initial_claim;
+    let mut rounds = Vec::with_capacity(oracle.num_rounds());
+    let mut challenges = Vec::with_capacity(oracle.num_rounds());
+    for round in 0..oracle.num_rounds() {
+        let points: Vec<K> = (0..=oracle.degree_bound())
+            .map(|value| K::from(F::from_u64(value as u64)))
+            .collect();
+        let evaluations = oracle.evals_at(&points)?;
+        if evaluations.len() != points.len() || evaluations[0] + evaluations[1] != claim {
+            let actual =
+                evaluations.first().copied().unwrap_or(K::ZERO) + evaluations.get(1).copied().unwrap_or(K::ZERO);
+            return Err(PiCcsError::SumcheckError(format!(
+                "optimized joint SumCheck invariant failed at round {round}: expected {claim:?}, got {actual:?}"
+            )));
+        }
+        let coefficients = crate::sumcheck::interpolate_from_evals(&points, &evaluations);
+        let mut fields = Vec::with_capacity(coefficients.len() * 2);
+        for &coefficient in &coefficients {
+            k_fields(&mut fields, coefficient);
+        }
+        append(transcript, trace, fields);
+        let challenge = read_coin(transcript, trace, ROUND_CHALLENGE_TAG, Some(round));
+        claim = crate::sumcheck::poly_eval_k(&coefficients, challenge);
+        oracle.fold(challenge)?;
+        rounds.push(coefficients);
+        challenges.push(challenge);
+        trace.round_states.push(transcript.state());
+        trace.round_claims.push(claim);
+    }
+    trace.rounds = rounds.clone();
+    trace.round_challenges = challenges.clone();
+    trace.terminal_claim = claim;
+    Ok((rounds, challenges, claim))
+}
+
+fn verify_phase(
+    transcript: &mut Poseidon2Transcript,
+    trace: &mut ProtocolTrace,
+    dims: JointDims,
+    initial_claim: K,
+    rounds: &[Vec<K>],
+) -> Result<(Vec<K>, K), PiCcsError> {
+    if rounds.len() != dims.variables || rounds.iter().any(|round| round.len() != dims.degree + 1) {
+        return Err(PiCcsError::InvalidInput(
+            "optimized joint SumCheck message shape mismatch".into(),
+        ));
+    }
+    trace.initial_claim = initial_claim;
+    let mut claim = initial_claim;
+    let mut challenges = Vec::with_capacity(dims.variables);
+    for (round_index, coefficients) in rounds.iter().enumerate() {
+        if coefficients[0] + crate::sumcheck::poly_eval_k(coefficients, K::ONE) != claim {
+            return Err(PiCcsError::SumcheckError(format!(
+                "optimized verifier rejected SumCheck round {round_index}"
+            )));
+        }
+        let mut fields = Vec::with_capacity(coefficients.len() * 2);
+        for &coefficient in coefficients {
+            k_fields(&mut fields, coefficient);
+        }
+        append(transcript, trace, fields);
+        let challenge = read_coin(transcript, trace, ROUND_CHALLENGE_TAG, Some(round_index));
+        claim = crate::sumcheck::poly_eval_k(coefficients, challenge);
+        challenges.push(challenge);
+        trace.round_states.push(transcript.state());
+        trace.round_claims.push(claim);
+    }
+    trace.rounds = rounds.to_vec();
+    trace.round_challenges = challenges.clone();
+    trace.terminal_claim = claim;
+    Ok((challenges, claim))
+}
+
+/// Encode the complete Section 7.3 output message in
+/// source/`Eval_K`/`Eval_A` order. Each quadratic-extension value is low limb
+/// first.
+pub fn output_message_fields(outputs: &[CeClaim<Cmt, F, K>], dims: JointDims) -> Result<Vec<F>, PiCcsError> {
+    let mut fields = Vec::with_capacity(outputs.len() * (dims.matrix_count + 1) * D * 2);
+    for output in outputs {
+        if output.eval_k.len() < D || output.eval_a.len() != dims.matrix_count {
+            return Err(PiCcsError::InvalidInput(
+                "optimized output v1_2 families are incomplete".into(),
+            ));
+        }
+        for coefficient in 0..D {
+            k_fields(&mut fields, output.eval_k[coefficient]);
+        }
+        for matrix in 0..dims.matrix_count {
+            for coefficient in 0..D {
+                k_fields(
+                    &mut fields,
+                    *output.eval_a[matrix]
+                        .get(coefficient)
+                        .ok_or_else(|| PiCcsError::InvalidInput("optimized ring output is incomplete".into()))?,
+                );
+            }
+        }
+    }
+    Ok(fields)
+}
+
+pub fn absorb_outputs(
+    transcript: &mut Poseidon2Transcript,
+    trace: &mut ProtocolTrace,
+    outputs: &[CeClaim<Cmt, F, K>],
+    dims: JointDims,
+) -> Result<[u8; 32], PiCcsError> {
+    let fields = output_message_fields(outputs, dims)?;
+    append(transcript, trace, fields);
+    trace.outgoing_state = transcript.state();
+    let digest = transcript.state_prefix_v1_2();
+    trace.final_digest = digest;
+    Ok(digest)
+}
+
+pub fn assemble_proof(rounds: Vec<Vec<K>>) -> PiCcsProof {
+    let mut proof = PiCcsProof::new(rounds);
+    proof.canonicalize();
+    proof
+}
+
+fn validate_outputs(
+    structure: &CcsStructure<F>,
+    fresh: &[CcsClaim<Cmt, F>],
+    running: &[CeClaim<Cmt, F, K>],
+    outputs: &[CeClaim<Cmt, F, K>],
+    point: &[K],
+    dims: JointDims,
+) -> Result<(), PiCcsError> {
+    if outputs.len() != fresh.len() + running.len() {
+        return Err(PiCcsError::InvalidInput(
+            "optimized output source count mismatch".into(),
+        ));
+    }
+    for output in outputs {
+        if output.r != point
+            || output.X.rows() != D
+            || neo_ccs::superneo_public_x_cols(output.m_in) != Some(output.X.cols())
+            || output.eval_k.len() != D.next_power_of_two()
+            || output.eval_a.len() != dims.matrix_count
+        {
+            return Err(PiCcsError::InvalidInput(
+                "optimized output does not have the one-joint shape".into(),
+            ));
+        }
+        if output.eval_k.iter().skip(D).any(|&value| value != K::ZERO) {
+            return Err(PiCcsError::InvalidInput(
+                "optimized Eval_K output is not canonical".into(),
+            ));
+        }
+        for row in &output.eval_a {
+            if row.len() != D.next_power_of_two() || row.iter().skip(D).any(|&value| value != K::ZERO) {
+                return Err(PiCcsError::InvalidInput("optimized output is not canonical".into()));
+            }
+        }
+    }
+    for (claim, output) in fresh.iter().zip(outputs) {
+        if claim.c != output.c || claim.m_in != output.m_in || claim.adv != output.adv {
+            return Err(PiCcsError::ProtocolError(
+                "fresh output changed its public instance".into(),
+            ));
+        }
+        if claim.m_in % D != 0 || claim.x.len() != claim.m_in {
+            return Err(PiCcsError::InvalidInput(
+                "fresh public input is not whole-ring aligned".into(),
+            ));
+        }
+        for (coordinate, &value) in claim.x.iter().enumerate() {
+            if output.X[(coordinate % D, coordinate / D)] != value {
+                return Err(PiCcsError::ProtocolError(
+                    "fresh output changed a public input coordinate".into(),
+                ));
+            }
+        }
+    }
+    for (claim, output) in running.iter().zip(outputs.iter().skip(fresh.len())) {
+        if claim.c != output.c || claim.X != output.X || claim.m_in != output.m_in || claim.adv != output.adv {
+            return Err(PiCcsError::ProtocolError(
+                "carried output changed its public instance".into(),
+            ));
+        }
+    }
+    let _ = structure;
+    Ok(())
+}
+
+pub(crate) fn verify_with_trace(
+    transcript: &mut Poseidon2Transcript,
+    params: &NeoParams,
+    structure: &CcsStructure<F>,
+    fresh: &[CcsClaim<Cmt, F>],
+    running: &[CeClaim<Cmt, F, K>],
+    outputs: &[CeClaim<Cmt, F, K>],
+    proof: &PiCcsProof,
+) -> Result<(bool, ProtocolTrace), PiCcsError> {
+    let mut trace = ProtocolTrace::default();
+    let (dims, challenges) = bind_and_sample_with_trace(transcript, &mut trace, params, structure, fresh, running)?;
+    let prior_point = crate::engines::utils::shared_me_input_r(running, dims.variables)?;
+    let initial = crate::engines::optimized_engine::paper_joint::initial_claim(structure, &challenges, running)?;
+    let (point, final_claim) = verify_phase(transcript, &mut trace, dims, initial, &proof.sumcheck_rounds)?;
+    validate_outputs(structure, fresh, running, outputs, &point, dims)?;
+    let terminal = crate::engines::optimized_engine::paper_joint::terminal_components::<F>(
+        structure,
+        params,
+        &challenges,
+        fresh.len(),
+        prior_point,
+        &point,
+        outputs,
+    )?;
+    let expected = terminal.terminal;
+    trace.terminal_components = terminal;
+    let digest = absorb_outputs(transcript, &mut trace, outputs, dims)?;
+    if outputs.iter().any(|output| output.fold_digest != digest) {
+        return Err(PiCcsError::ProtocolError(
+            "optimized output digest does not match transcript replay".into(),
+        ));
+    }
+    Ok((final_claim == expected, trace))
+}

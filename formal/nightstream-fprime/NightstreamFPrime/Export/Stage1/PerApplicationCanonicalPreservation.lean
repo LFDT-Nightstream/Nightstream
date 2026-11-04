@@ -1,0 +1,42 @@
+import NightstreamFPrime.Export.Stage1.PerApplicationCompactPreservation
+
+namespace NightstreamFPrime.Export.Stage1.PerApplicationCanonicalPreservation
+
+open NightstreamFPrime.Circuit
+open NightstreamFPrime.Export.Package
+open NightstreamFPrime.Export.Stage1.PerApplicationPackage
+open NightstreamFPrime.Export.Stage1.PerApplicationPreservation
+open NightstreamFPrime.Lifecycle
+
+theorem canonicalCompactRows
+    (program : Lifecycle.Stage1.Application.Program) :
+    ∀ invocation ∈ basePackage.compactRowInvocations,
+      ∀ template,
+        basePackage.compactRowTemplates[invocation.templateIndex]? =
+            some template →
+          ∀ row ∈ template.rows,
+            instantiateCompactRow
+                (shiftCompactRowInvocation program invocation) row =
+              CompactRows.renameRow (shiftColumn program)
+                (instantiateCompactRow invocation row) := by
+  intro invocation invocationMember template templateEquation row rowMember
+  change invocation ∈ Data.compactRowInvocations () at invocationMember
+  rw [Data.compactRowInvocations_eq] at invocationMember
+  exact PerApplicationCompactPreservation.combinationRows program invocation
+    invocationMember template templateEquation row rowMember
+
+theorem canonicalShiftCompatible
+    (program : Lifecycle.Stage1.Application.Program) :
+    ShiftCompatible program where
+  hashRows := canonicalHashRows program
+  permutationRows := canonicalPermutationRows program
+  compactRows := canonicalCompactRows program
+
+theorem packageRows_imply_validatedPrefix
+    (program : Lifecycle.Stage1.Application.Program) (env : Env)
+    (holds : (package program).RowsHold env) :
+    basePackage.RowsHold (baseEnv program env) :=
+  packageRows_imply_basePackage program env (canonicalShiftCompatible program)
+    holds
+
+end NightstreamFPrime.Export.Stage1.PerApplicationCanonicalPreservation

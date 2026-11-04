@@ -1,0 +1,131 @@
+import NightstreamFPrime.Export.Stage1.PiCCSCompletedReadout
+import NightstreamFPrime.Export.Stage1.PermutationPlan
+
+set_option autoImplicit false
+
+namespace NightstreamFPrime.Export.Stage1.PiCCSEndpointCompleteness
+
+open NightstreamFPrime.Circuit
+open NightstreamFPrime.Spec
+open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
+open NightstreamFPrime.Lifecycle
+open NightstreamFPrime.Lifecycle.PaperAlgebra
+open NightstreamFPrime.Gadgets.Poseidon2
+open NightstreamFPrime.Layout
+open NightstreamFPrime.Layout.Stage1
+open NightstreamFPrime.Layout.ProductionRelation
+open PiCCSTranscriptEndpointPlan
+open PiCCSPoseidonPreservation
+open PerApplicationAssignmentTransportExecution
+
+variable {logicalWidth : Nat}
+  {publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth}
+
+private theorem physicalInvocation_data (index : InvocationIndex) :
+    physicalInvocation index = (Data.permutationInvocations ()).get
+      ⟨index.val, by
+        rw [PoseidonRetainedBlock.data_permutationInvocations_length]
+        exact (laterIndex index).isLt⟩ := by
+  simp only [physicalInvocation, List.get_eq_getElem,
+    PoseidonRetainedBlock.basePackage_permutationInvocations_eq]
+
+theorem physicalEndpoint_column (family : Fin familyCount) (lane : Fin laneCount) :
+    (physicalInvocation (endpointInvocation family)).witnessStart + 1080 + lane.val =
+      Spartan.sourceToSpartan (endpointColumn family lane) := by
+  let index := endpointInvocation family
+  let sourceStart := if index.val < 183 then
+      PiCCSStarts.statementWitnessStart + index.val * 1096
+    else PiCCSInvocations.outputWitnessStart + (index.val - 183) * 1096
+  have startEq : (physicalInvocation index).witnessStart = Spartan.sourceToSpartan sourceStart := by
+    rw [physicalInvocation_data]
+    by_cases beforeOutput : index.val < 183
+    · rw [show sourceStart = PiCCSStarts.statementWitnessStart + index.val * 1096 from ite_eq_left beforeOutput]
+      exact PermutationPlan.canonicalInvocation_witnessStart_of_transcript _ beforeOutput
+    · rw [show sourceStart = PiCCSInvocations.outputWitnessStart + (index.val - 183) * 1096 from ite_eq_right beforeOutput]
+      apply PermutationPlan.canonicalInvocation_witnessStart_of_output
+      · change 183 ≤ index.val
+        exact Nat.le_of_not_gt beforeOutput
+      · simpa only [PiCCSPoseidonPlan.invocationCount_eq] using
+          (show index.val < PiCCSPoseidonPlan.invocationCount from index.isLt)
+  have sourceLocal : Spartan.piCcsPhaseOffset ≤ sourceStart := by
+    unfold sourceStart
+    split
+    · rw [PiCCSStarts.statementWitnessStart_eq]
+      change 5156956 ≤ 5157226 + index.val * 1096
+      omega
+    · rw [PiCCSInvocations.outputWitnessStart, PiCCSStarts.outputBindingWitnessStart_eq]
+      change 5156956 ≤ 5387385 + (index.val - 183) * 1096
+      omega
+  have endpointEq : sourceStart + 1080 + lane.val = endpointColumn family lane := by
+    unfold sourceStart index endpointInvocation endpointColumn endpointStart
+      PiCCSInvocations.challengeWitnessStart PiCCSInvocations.roundWitnessStart
+      PiCCSInvocations.outputWitnessStart PiCCSStarts.logicalFreshBase
+    fin_cases family <;>
+      norm_num [PiCCSTranscriptDirectSemantics.statementLast,
+        PiCCSTranscriptDirectSemantics.challengeLast,
+        PiCCSTranscriptDirectSemantics.roundLast, PiCCSTranscriptDirectSemantics.outputLast,
+        PiCCSTranscriptDirectSemantics.roundCount, PiCCSInputs.phaseOffset_eq,
+        PiCCSStarts.statementWitnessStart_eq, PiCCSStarts.challengeWitnessStart_eq, PiCCSStarts.roundTranscriptWitnessStart_eq,
+        PiCCSStarts.outputBindingWitnessStart_eq]
+  calc
+    (physicalInvocation (endpointInvocation family)).witnessStart + 1080 + lane.val =
+        Spartan.sourceToSpartan sourceStart + (1080 + lane.val) := by rw [startEq]; omega
+    _ = Spartan.sourceToSpartan (sourceStart + (1080 + lane.val)) :=
+      (Spartan.sourceToSpartan_add_of_piCcsLocal sourceStart (1080 + lane.val) sourceLocal).symm
+    _ = Spartan.sourceToSpartan (endpointColumn family lane) :=
+      congrArg Spartan.sourceToSpartan (by omega)
+
+theorem endpointValue_of_completed
+    (application : Lifecycle.Stage1.Application.Program)
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (target : Env)
+    (suffix : Fin (PerApplicationPackage.addedPrivateColumnCount application) → F)
+    (physical : NightstreamFPrime.Layout.PiCCS.v1_2.PhysicalHolds relation
+      (PiCCSInputs.interface logicalWidth publicFits) PiCCSInputs.phaseOffset (Spartan.pullback target))
+    (family : Fin familyCount) (lane : Fin laneCount) :
+    let raw := canonicalRawValues application (PerApplicationSourceAssignment.ofCompleted application target suffix)
+    outputValue (PerApplicationCanonicalEncodes.poseidonGeometry application) raw.assignment
+      (endpointInvocation family) lane = Spartan.pullback target (endpointColumn family lane) := by
+  intro raw
+  have output := congrFun
+    (PiCCSCompletedReadout.outputValue_of_completed application relation target suffix physical
+      (endpointInvocation family)) lane
+  rw [physicalEndpoint_column] at output
+  exact output
+
+theorem rowsZero_of_completed
+    (application : Lifecycle.Stage1.Application.Program)
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (target : Env)
+    (suffix : Fin (PerApplicationPackage.addedPrivateColumnCount application) → F)
+    (physical : NightstreamFPrime.Layout.PiCCS.v1_2.PhysicalHolds relation
+      (PiCCSInputs.interface logicalWidth publicFits) PiCCSInputs.phaseOffset (Spartan.pullback target)) :
+    let raw := canonicalRawValues application (PerApplicationSourceAssignment.ofCompleted application target suffix)
+    (PiCCSTranscriptEndpointPlan.plan (PerApplicationCanonicalEncodes.poseidonGeometry application)
+      (PerApplicationCanonicalEncodes.piCcsOrdinaryGeometry application)).RowsZero raw.assignment := by
+  intro raw
+  apply (PiCCSTranscriptEndpointPlan.rowsZero_iff _ _ raw.assignment).mpr
+  intro rowIndex
+  let selected := descriptor rowIndex
+  have direct := endpointValue_of_completed application relation target suffix physical selected.1 selected.2
+  have source := sourceForm_eval (PerApplicationCanonicalEncodes.piCcsOrdinaryGeometry application)
+    raw.assignment raw.base raw.groupValue
+    (PerApplicationCanonicalEncodes.samplerPrefixEncodes raw).prior.pilotOrdinary.prior selected.1 selected.2
+  have bound := endpointColumn_lt_source selected.1 selected.2
+  have same := packageEnv_sourceAssignment application raw.base raw.groupValue _ bound
+  have copied := PiCCSCompletedReadout.transitionEnv_of_completed application relation target suffix
+    physical (endpointColumn selected.1 selected.2) bound
+  have sourceValue : (sourceForm (PerApplicationCanonicalEncodes.piCcsOrdinaryGeometry application)
+      selected.1 selected.2).eval raw.assignment =
+      Spartan.pullback target (endpointColumn selected.1 selected.2) :=
+    source.trans (same.trans copied)
+  change (directForm (PerApplicationCanonicalEncodes.poseidonGeometry application)
+    selected.1 selected.2).eval raw.assignment = _ at direct
+  change (SparseForm.add (directForm (PerApplicationCanonicalEncodes.poseidonGeometry application)
+      selected.1 selected.2)
+    (SparseForm.scale (-1) (sourceForm (PerApplicationCanonicalEncodes.piCcsOrdinaryGeometry application)
+      selected.1 selected.2))).eval raw.assignment = 0
+  rw [SparseForm.add_eval, SparseForm.scale_eval, direct, sourceValue]
+  simp
+
+end NightstreamFPrime.Export.Stage1.PiCCSEndpointCompleteness

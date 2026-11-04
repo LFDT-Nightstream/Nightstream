@@ -1,0 +1,766 @@
+import Batteries.Data.Fin.Coding
+import NightstreamFPrime.Export.Stage1.Data
+import NightstreamFPrime.Export.Stage1.PiCCSProjection
+
+namespace NightstreamFPrime.Export.Stage1.PermutationPlan
+
+open NightstreamFPrime.Circuit
+open NightstreamFPrime.Circuit.Quadratic
+open NightstreamFPrime.Export
+open NightstreamFPrime.Export.Codec
+open NightstreamFPrime.Export.Package
+open NightstreamFPrime.Gadgets.Poseidon2
+open NightstreamFPrime.Gadgets.Poseidon2.Duplex
+open NightstreamFPrime.Lifecycle.PiCCS.v1_2
+open NightstreamFPrime.Lifecycle.PiRLC.v1_2
+
+abbrev EState := Invocations.EState
+abbrev ActionShape := Formal.ActionShape
+
+/-- Rust rejects any wire list whose length is not eight. -/
+def stateOfList (values : List Expr) : EState :=
+  fun lane => values.getD lane.val 0
+
+theorem stateOfList_ofFn (state : EState) :
+    stateOfList (List.ofFn state) = state := by
+  funext lane
+  exact NightstreamFPrime.Lifecycle.PriorStateHash.ofFn_getD
+    state lane 0
+
+namespace ActionShape
+
+def toAction : ActionShape → Formal.Action
+  | .absorb input => .absorb input
+  | .readK pair => .readK pair KExpr.zero
+
+@[simp] theorem toAction_shape (shape : ActionShape) :
+    shape.toAction.shape = shape := by
+  cases shape <;> rfl
+
+def format : Format ActionShape where
+  encode
+    | .absorb input => .array [
+        .atom 0,
+        (list Package.exprFormat).encode input]
+    | .readK pair => .array [.atom 1, .atom pair.val]
+  decode
+    | .array [.atom 0, input] => do
+      pure (.absorb (← (list Package.exprFormat).decode input))
+    | .array [.atom 1, .atom pair] =>
+      if bound : pair < Spec.Poseidon2.rate / 2 then .ok (.readK ⟨pair, bound⟩)
+      else .error "invalid permutation read pair"
+    | _ => .error "invalid permutation action shape"
+  decode_encode := by
+    intro value
+    cases value with
+    | absorb input =>
+        simp only
+        rw [(list Package.exprFormat).decode_encode]
+        rfl
+    | readK pair =>
+        simp
+        erw [dite_eq_left pair.isLt]
+        rfl
+
+end ActionShape
+
+structure ActionBlock where
+  phase : Nat
+  rowStart : Nat
+  witnessStart : Nat
+  initialState : List Expr
+  actionShapes : List ActionShape
+
+def ActionBlock.format : Format ActionBlock where
+  encode := fun value => .array [
+    .atom value.phase,
+    .atom value.rowStart,
+    .atom value.witnessStart,
+    (list Package.exprFormat).encode value.initialState,
+    (list ActionShape.format).encode value.actionShapes]
+  decode
+    | .array [.atom phase, .atom rowStart, .atom witnessStart,
+        initialState, actionShapes] => do
+      pure ⟨phase, rowStart, witnessStart,
+        ← (list Package.exprFormat).decode initialState,
+        ← (list ActionShape.format).decode actionShapes⟩
+    | _ => .error "invalid permutation action block"
+  decode_encode := by
+    intro value
+    cases value
+    simp only
+    rw [(list Package.exprFormat).decode_encode,
+      (list ActionShape.format).decode_encode]
+    rfl
+
+def ActionBlock.ofActions (phase rowStart witnessStart : Nat)
+    (state : EState) (actions : List Formal.Action) : ActionBlock where
+  phase := phase
+  rowStart := rowStart
+  witnessStart := witnessStart
+  initialState := List.ofFn state
+  actionShapes := actions.map Formal.Action.shape
+
+def ActionBlock.expand (block : ActionBlock) :
+    List PermutationInvocation :=
+  (Invocations.compileActions block.phase block.rowStart block.witnessStart
+    (stateOfList block.initialState)
+    (block.actionShapes.map ActionShape.toAction)).invocations
+
+theorem ActionBlock.ofActions_expand
+    (phase rowStart witnessStart : Nat) (state : EState)
+    (actions : List Formal.Action) :
+    (ActionBlock.ofActions phase rowStart witnessStart state actions).expand =
+      (Invocations.compileActions phase rowStart witnessStart state
+        actions).invocations := by
+  unfold ActionBlock.expand ActionBlock.ofActions
+  rw [stateOfList_ofFn]
+  exact congrArg (fun trace : Invocations.Trace => trace.invocations)
+    (Invocations.compileActions_eq_of_shapes phase rowStart witnessStart state
+      ((actions.map Formal.Action.shape).map ActionShape.toAction) actions
+      (by simp))
+
+structure DirectBlock where
+  phase : Nat
+  rowStart : Nat
+  witnessStart : Nat
+  state : List Expr
+
+def DirectBlock.format : Format DirectBlock where
+  encode := fun value => .array [
+    .atom value.phase,
+    .atom value.rowStart,
+    .atom value.witnessStart,
+    (list Package.exprFormat).encode value.state]
+  decode
+    | .array [.atom phase, .atom rowStart, .atom witnessStart, state] => do
+      pure ⟨phase, rowStart, witnessStart,
+        ← (list Package.exprFormat).decode state⟩
+    | _ => .error "invalid direct permutation block"
+  decode_encode := by
+    intro value
+    cases value
+    simp only
+    rw [(list Package.exprFormat).decode_encode]
+    rfl
+
+def DirectBlock.ofState (phase rowStart witnessStart : Nat)
+    (state : EState) : DirectBlock where
+  phase := phase
+  rowStart := rowStart
+  witnessStart := witnessStart
+  state := List.ofFn state
+
+def DirectBlock.expand (block : DirectBlock) : PermutationInvocation :=
+  Invocations.invocation block.phase block.rowStart block.witnessStart
+    (stateOfList block.state)
+
+theorem DirectBlock.ofState_expand
+    (phase rowStart witnessStart : Nat) (state : EState) :
+    (DirectBlock.ofState phase rowStart witnessStart state).expand =
+      Invocations.invocation phase rowStart witnessStart state := by
+  unfold DirectBlock.expand DirectBlock.ofState
+  rw [stateOfList_ofFn]
+
+inductive Block where
+  | actions (block : ActionBlock)
+  | direct (block : DirectBlock)
+
+def Block.expand : Block → List PermutationInvocation
+  | .actions block => block.expand
+  | .direct block => [block.expand]
+
+def Block.format : Format Block where
+  encode
+    | .actions block => .array [.atom 0, ActionBlock.format.encode block]
+    | .direct block => .array [.atom 1, DirectBlock.format.encode block]
+  decode
+    | .array [.atom 0, block] => do
+      pure (.actions (← ActionBlock.format.decode block))
+    | .array [.atom 1, block] => do
+      pure (.direct (← DirectBlock.format.decode block))
+    | _ => .error "invalid permutation plan block"
+  decode_encode := by
+    intro value
+    cases value <;> simp [Format.decode_encode]
+
+private def sequentialWitnessStarts : Nat → Nat → List Nat
+  | _witnessStart, 0 => []
+  | witnessStart, count + 1 =>
+      NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan witnessStart ::
+        sequentialWitnessStarts (witnessStart + 1096) count
+
+private theorem sequentialWitnessStarts_add
+    (witnessStart left right : Nat) :
+    sequentialWitnessStarts witnessStart (left + right) =
+      sequentialWitnessStarts witnessStart left ++
+        sequentialWitnessStarts (witnessStart + left * 1096) right := by
+  induction left generalizing witnessStart with
+  | zero => simp [sequentialWitnessStarts]
+  | succ left inductionHypothesis =>
+      simp only [Nat.succ_add, sequentialWitnessStarts, List.cons_append]
+      rw [inductionHypothesis]
+      rw [show witnessStart + 1096 + left * 1096 =
+        witnessStart + Nat.succ left * 1096 by omega]
+
+private theorem sequentialWitnessStarts_length (witnessStart count : Nat) :
+    (sequentialWitnessStarts witnessStart count).length = count := by
+  induction count generalizing witnessStart with
+  | zero => rfl
+  | succ count inductionHypothesis =>
+      simp only [sequentialWitnessStarts, List.length_cons, inductionHypothesis]
+
+private theorem sequentialWitnessStarts_getD
+    (witnessStart count index : Nat) (bound : index < count) :
+    (sequentialWitnessStarts witnessStart count).getD index 0 =
+      NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+        (witnessStart + index * 1096) := by
+  induction count generalizing witnessStart index with
+  | zero => omega
+  | succ count inductionHypothesis =>
+      cases index with
+      | zero => simp [sequentialWitnessStarts]
+      | succ index =>
+          rw [sequentialWitnessStarts, List.getD_cons_succ,
+            inductionHypothesis (witnessStart + 1096) index (by omega)]
+          apply congrArg NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+          omega
+
+private theorem compileBlocks_witnessStarts
+    (phase rowStart witnessStart : Nat) (state : EState)
+    (blocks : List (List Expr)) :
+    (Invocations.compileBlocks phase rowStart witnessStart state blocks).invocations.map
+        (fun invocation => invocation.witnessStart) =
+      sequentialWitnessStarts witnessStart blocks.length := by
+  induction blocks generalizing rowStart witnessStart state with
+  | nil => rfl
+  | cons block blocks inductionHypothesis =>
+      simp only [Invocations.compileBlocks, List.map_cons,
+        Invocations.invocation_witnessStart, List.length_cons,
+        sequentialWitnessStarts]
+      rw [inductionHypothesis
+        (rowStart := rowStart + 1096)
+        (witnessStart := witnessStart + 1096)
+        (state := Invocations.permutationOutput witnessStart)]
+
+private theorem compileActions_witnessStarts
+    (phase rowStart witnessStart : Nat) (state : EState)
+    (actions : List Formal.Action) :
+    (Invocations.compileActions phase rowStart witnessStart state actions).invocations.map
+        (fun invocation => invocation.witnessStart) =
+      sequentialWitnessStarts witnessStart
+        (Invocations.invocationCount actions) := by
+  induction actions generalizing rowStart witnessStart state with
+  | nil => rfl
+  | cons action actions inductionHypothesis =>
+      cases action with
+      | absorb input =>
+          simp only [Invocations.compileActions, List.map_append]
+          rw [compileBlocks_witnessStarts, inductionHypothesis,
+            Invocations.compileBlocks_witnessNext]
+          simp only [Invocations.invocationCount,
+            Invocations.Action.invocationCount, List.map_cons, List.sum_cons]
+          exact (sequentialWitnessStarts_add witnessStart
+            (Hash.inputChunks input).length
+            ((actions.map Invocations.Action.invocationCount).sum)).symm
+      | readK pair expected =>
+          simp only [Invocations.compileActions]
+          rw [inductionHypothesis]
+          simp [Invocations.invocationCount, Invocations.Action.invocationCount]
+
+def statementBlock (_unit : Unit) : ActionBlock :=
+  ActionBlock.ofActions PiCCSInvocations.statementPhase
+    PiCCSInvocations.statementRowStart PiCCSInvocations.statementWitnessStart
+    Hash.zeroE
+    (PiCCSInvocations.statementActions Data.logicalWidth Data.publicFits)
+
+def challengeBlock (_unit : Unit) : ActionBlock :=
+  ActionBlock.ofActions PiCCSInvocations.challengePhase
+    PiCCSInvocations.challengeRowStart PiCCSInvocations.challengeWitnessStart
+    (PiCCSProjection.fastStatementState Data.logicalWidth Data.publicFits)
+    (PiCCSInvocations.challengeActions Data.logicalWidth Data.publicFits)
+
+def roundBlock (_unit : Unit) : ActionBlock :=
+  ActionBlock.ofActions PiCCSInvocations.roundPhase
+    PiCCSInvocations.roundRowStart PiCCSInvocations.roundWitnessStart
+    (PiCCSProjection.fastChallengeState Data.logicalWidth Data.publicFits)
+    (PiCCSInvocations.roundActions Data.logicalWidth Data.publicFits)
+
+def outputBlock (_unit : Unit) : ActionBlock :=
+  ActionBlock.ofActions PiCCSInvocations.outputPhase
+    PiCCSInvocations.outputRowStart PiCCSInvocations.outputWitnessStart
+    (PiCCSProjection.fastRoundState Data.logicalWidth Data.publicFits)
+    (PiCCSInvocations.outputActions Data.logicalWidth Data.publicFits)
+
+theorem statementBlock_expand :
+    (statementBlock ()).expand =
+      (PiCCSInvocations.statementTrace Data.logicalWidth
+        Data.publicFits).invocations := by
+  simpa [statementBlock, PiCCSInvocations.statementTrace] using
+    ActionBlock.ofActions_expand PiCCSInvocations.statementPhase
+      PiCCSInvocations.statementRowStart
+      PiCCSInvocations.statementWitnessStart Hash.zeroE
+      (PiCCSInvocations.statementActions Data.logicalWidth Data.publicFits)
+
+theorem challengeBlock_expand :
+    (challengeBlock ()).expand =
+      (PiCCSInvocations.challengeTrace Data.logicalWidth
+        Data.publicFits).invocations := by
+  calc
+    (challengeBlock ()).expand =
+        (Invocations.compileActions PiCCSInvocations.challengePhase
+          PiCCSInvocations.challengeRowStart
+          PiCCSInvocations.challengeWitnessStart
+          (PiCCSProjection.fastStatementState Data.logicalWidth
+            Data.publicFits)
+          (PiCCSInvocations.challengeActions Data.logicalWidth
+            Data.publicFits)).invocations :=
+      (by
+        simpa [challengeBlock] using
+          ActionBlock.ofActions_expand PiCCSInvocations.challengePhase
+            PiCCSInvocations.challengeRowStart
+            PiCCSInvocations.challengeWitnessStart
+            (PiCCSProjection.fastStatementState Data.logicalWidth
+              Data.publicFits)
+            (PiCCSInvocations.challengeActions Data.logicalWidth
+              Data.publicFits))
+    _ = _ := by
+      rw [PiCCSProjection.fastStatementState_eq]
+      rfl
+
+theorem roundBlock_expand :
+    (roundBlock ()).expand =
+      (PiCCSInvocations.roundTrace Data.logicalWidth
+        Data.publicFits).invocations := by
+  calc
+    (roundBlock ()).expand =
+        (Invocations.compileActions PiCCSInvocations.roundPhase
+          PiCCSInvocations.roundRowStart PiCCSInvocations.roundWitnessStart
+          (PiCCSProjection.fastChallengeState Data.logicalWidth
+            Data.publicFits)
+          (PiCCSInvocations.roundActions Data.logicalWidth
+            Data.publicFits)).invocations :=
+      (by
+        simpa [roundBlock] using
+          ActionBlock.ofActions_expand PiCCSInvocations.roundPhase
+            PiCCSInvocations.roundRowStart PiCCSInvocations.roundWitnessStart
+            (PiCCSProjection.fastChallengeState Data.logicalWidth
+              Data.publicFits)
+            (PiCCSInvocations.roundActions Data.logicalWidth
+              Data.publicFits))
+    _ = _ := by
+      rw [PiCCSProjection.fastChallengeState_eq]
+      rfl
+
+theorem outputBlock_expand :
+    (outputBlock ()).expand =
+      (PiCCSInvocations.outputTrace Data.logicalWidth
+        Data.publicFits).invocations := by
+  calc
+    (outputBlock ()).expand =
+        (Invocations.compileActions PiCCSInvocations.outputPhase
+          PiCCSInvocations.outputRowStart PiCCSInvocations.outputWitnessStart
+          (PiCCSProjection.fastRoundState Data.logicalWidth Data.publicFits)
+          (PiCCSInvocations.outputActions Data.logicalWidth
+            Data.publicFits)).invocations :=
+      (by
+        simpa [outputBlock] using
+          ActionBlock.ofActions_expand PiCCSInvocations.outputPhase
+            PiCCSInvocations.outputRowStart
+            PiCCSInvocations.outputWitnessStart
+            (PiCCSProjection.fastRoundState Data.logicalWidth Data.publicFits)
+            (PiCCSInvocations.outputActions Data.logicalWidth
+              Data.publicFits))
+    _ = _ := by
+      rw [PiCCSProjection.fastRoundState_eq]
+      rfl
+
+def piCcsBlocks (_unit : Unit) : List Block :=
+  [.actions (statementBlock ()), .actions (challengeBlock ()),
+   .actions (roundBlock ()), .actions (outputBlock ())]
+
+theorem piCcsBlocks_expand :
+    (piCcsBlocks ()).flatMap Block.expand =
+      PiCCSInvocations.invocations Data.logicalWidth Data.publicFits := by
+  rw [PiCCSInvocations.invocations]
+  simp only [piCcsBlocks, List.flatMap_cons, List.flatMap_nil, Block.expand,
+    List.append_nil, statementBlock_expand, challengeBlock_expand,
+    roundBlock_expand, outputBlock_expand]
+  simp only [List.append_assoc]
+
+def piCcsWitnessStarts (_unit : Unit) : List Nat :=
+  sequentialWitnessStarts PiCCSInvocations.statementWitnessStart 123 ++
+    sequentialWitnessStarts PiCCSInvocations.challengeWitnessStart 4 ++
+    sequentialWitnessStarts PiCCSInvocations.roundWitnessStart 56 ++
+    sequentialWitnessStarts PiCCSInvocations.outputWitnessStart 765
+
+theorem piCcsWitnessStarts_materializes :
+    piCcsWitnessStarts () =
+      (PiCCSInvocations.invocations Data.logicalWidth Data.publicFits).map
+        (fun invocation => invocation.witnessStart) := by
+  unfold piCcsWitnessStarts PiCCSInvocations.invocations
+  simp only [List.map_append, PiCCSInvocations.statementTrace,
+    PiCCSInvocations.challengeTrace, PiCCSInvocations.roundTrace,
+    PiCCSInvocations.outputTrace, compileActions_witnessStarts]
+  rw [PiCCSInvocations.statementInvocationCount_eq,
+    PiCCSInvocations.challengeInvocationCount_eq,
+    PiCCSInvocations.roundInvocationCount_eq,
+    PiCCSInvocations.outputInvocationCount_eq]
+
+private theorem piCcsWitnessStarts_transcriptPrefix :
+    piCcsWitnessStarts () =
+      sequentialWitnessStarts PiCCSInvocations.statementWitnessStart 183 ++
+        sequentialWitnessStarts PiCCSInvocations.outputWitnessStart 765 := by
+  have challengeStart : PiCCSInvocations.statementWitnessStart + 123 * 1096 =
+      PiCCSInvocations.challengeWitnessStart := by
+    simp only [PiCCSInvocations.statementWitnessStart,
+      PiCCSInvocations.challengeWitnessStart,
+      NightstreamFPrime.Layout.Stage1.PiCCSStarts.statementWitnessStart_eq,
+      NightstreamFPrime.Layout.Stage1.PiCCSStarts.challengeWitnessStart_eq]
+  have roundStart : PiCCSInvocations.statementWitnessStart +
+      (123 + 4) * 1096 = PiCCSInvocations.roundWitnessStart := by
+    simp only [PiCCSInvocations.statementWitnessStart,
+      PiCCSInvocations.roundWitnessStart,
+      NightstreamFPrime.Layout.Stage1.PiCCSStarts.statementWitnessStart_eq,
+      NightstreamFPrime.Layout.Stage1.PiCCSStarts.roundTranscriptWitnessStart_eq]
+  unfold piCcsWitnessStarts
+  rw [← challengeStart,
+    ← sequentialWitnessStarts_add PiCCSInvocations.statementWitnessStart 123 4]
+  rw [← roundStart,
+    ← sequentialWitnessStarts_add PiCCSInvocations.statementWitnessStart
+      (123 + 4) 56]
+
+private theorem piCcsWitnessStarts_length :
+    (piCcsWitnessStarts ()).length = 948 := by
+  rw [piCcsWitnessStarts_transcriptPrefix, List.length_append,
+    sequentialWitnessStarts_length, sequentialWitnessStarts_length]
+
+def samplerEntryBlock (source : Nat) : ActionBlock :=
+  ActionBlock.ofActions PiRLCSamplerInvocations.phase
+    (NightstreamFPrime.Layout.Stage1.PiRLCStarts.entryRowStart source)
+    (PiRLCSamplerInvocations.sourceLogicalStart source)
+    (PiRLCSamplerInvocations.fastEntryState
+      (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits)
+      source)
+    (TranscriptAbsorption.actions source)
+
+def samplerAdvanceBlock (source : Nat) : DirectBlock :=
+  DirectBlock.ofState PiRLCSamplerInvocations.phase
+    (NightstreamFPrime.Layout.Stage1.PiRLCStarts.advanceRowStart source)
+    (NightstreamFPrime.Layout.Stage1.PiRLCStarts.advanceLogicalStart source)
+    (PiRLCSamplerInvocations.fastAdvanceState
+      (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits)
+      source)
+
+theorem samplerEntryBlock_expand (source : Nat) :
+    (samplerEntryBlock source).expand =
+      PiRLCSamplerInvocations.entryInvocations
+        (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits)
+        source := by
+  calc
+    (samplerEntryBlock source).expand =
+        (Invocations.compileActions PiRLCSamplerInvocations.phase
+          (NightstreamFPrime.Layout.Stage1.PiRLCStarts.entryRowStart source)
+          (PiRLCSamplerInvocations.sourceLogicalStart source)
+          (PiRLCSamplerInvocations.fastEntryState
+            (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits)
+            source)
+          (TranscriptAbsorption.actions source)).invocations := by
+      simpa [samplerEntryBlock] using
+        ActionBlock.ofActions_expand PiRLCSamplerInvocations.phase
+          (NightstreamFPrime.Layout.Stage1.PiRLCStarts.entryRowStart source)
+          (PiRLCSamplerInvocations.sourceLogicalStart source)
+          (PiRLCSamplerInvocations.fastEntryState
+            (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits)
+            source)
+          (TranscriptAbsorption.actions source)
+    _ = _ := by rfl
+
+theorem samplerAdvanceBlock_expand (source : Nat) :
+    (samplerAdvanceBlock source).expand =
+      PiRLCSamplerInvocations.advanceInvocation
+        (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits)
+        source := by
+  simpa [samplerAdvanceBlock, PiRLCSamplerInvocations.advanceInvocation,
+    PiRLCSamplerInvocations.fastAdvanceState_eq] using
+    DirectBlock.ofState_expand PiRLCSamplerInvocations.phase
+      (NightstreamFPrime.Layout.Stage1.PiRLCStarts.advanceRowStart source)
+      (NightstreamFPrime.Layout.Stage1.PiRLCStarts.advanceLogicalStart source)
+      (PiRLCSamplerInvocations.fastAdvanceState
+        (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits)
+        source)
+
+def samplerSourceBlocks (source : Nat) : List Block :=
+  [.actions (samplerEntryBlock source), .direct (samplerAdvanceBlock source)]
+
+theorem samplerSourceBlocks_expand (source : Nat) :
+    (samplerSourceBlocks source).flatMap Block.expand =
+      PiRLCSamplerInvocations.sourceInvocations
+        (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits) source := by
+  simp only [samplerSourceBlocks, PiRLCSamplerInvocations.sourceInvocations,
+    List.flatMap_cons, List.flatMap_nil, Block.expand, List.append_nil,
+    samplerEntryBlock_expand, samplerAdvanceBlock_expand]
+
+def piRlcSamplerBlocks (_unit : Unit) : List Block :=
+  (List.range PiRLCSamplerInvocations.sourceCount).flatMap
+    samplerSourceBlocks
+
+private theorem samplerBlocks_expand (sources : List Nat) :
+    (sources.flatMap samplerSourceBlocks).flatMap Block.expand =
+      sources.flatMap fun source =>
+        PiRLCSamplerInvocations.sourceInvocations
+          (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits)
+          source := by
+  induction sources with
+  | nil => rfl
+  | cons source sources inductionHypothesis =>
+      simp only [List.flatMap_cons, List.flatMap_append]
+      rw [samplerSourceBlocks_expand, inductionHypothesis]
+
+theorem piRlcSamplerBlocks_expand :
+    (piRlcSamplerBlocks ()).flatMap Block.expand =
+      PiRLCSamplerInvocations.invocations
+        (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits) := by
+  unfold piRlcSamplerBlocks PiRLCSamplerInvocations.invocations
+  simpa only using
+    samplerBlocks_expand (List.range PiRLCSamplerInvocations.sourceCount)
+
+def samplerStepsPerSource : Nat := 2
+
+@[simp] theorem samplerStepsPerSource_eq : samplerStepsPerSource = 2 := by
+  rfl
+
+def samplerSourceBlockAt (source : Nat) (step : Fin samplerStepsPerSource) :
+    Block :=
+  if step.val = 0 then
+    .actions (samplerEntryBlock source)
+  else
+    .direct (samplerAdvanceBlock source)
+
+def samplerSourceWitnessStartAt (source : Nat)
+    (step : Fin samplerStepsPerSource) : Nat :=
+  if step.val = 0 then
+    NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+      (PiRLCSamplerInvocations.sourceLogicalStart source)
+  else
+    NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+      (NightstreamFPrime.Layout.Stage1.PiRLCStarts.advanceLogicalStart source)
+
+theorem samplerSourceBlockAt_witnessStarts (source : Nat)
+    (step : Fin samplerStepsPerSource) :
+    ((samplerSourceBlockAt source step).expand.map
+      fun invocation => invocation.witnessStart) =
+      [samplerSourceWitnessStartAt source step] := by
+  by_cases entry : step.val = 0
+  · unfold samplerSourceBlockAt samplerSourceWitnessStartAt
+    rw [ite_eq_left entry, ite_eq_left entry]
+    change ((samplerEntryBlock source).expand.map
+      fun invocation => invocation.witnessStart) = _
+    rw [samplerEntryBlock_expand]
+    simp [PiRLCSamplerInvocations.entryInvocations,
+      PiRLCSamplerInvocations.entryTrace, Invocations.compileActions,
+      Invocations.compileBlocks, TranscriptAbsorption.actions,
+      TranscriptAbsorption.constantWords, TranscriptAbsorption.frameWords,
+      Hash.inputChunks, Spec.Poseidon2.rate]
+  · unfold samplerSourceBlockAt samplerSourceWitnessStartAt
+    rw [ite_eq_right entry, ite_eq_right entry]
+    simp [Block.expand, samplerAdvanceBlock, DirectBlock.expand,
+      DirectBlock.ofState, Invocations.invocation_witnessStart]
+
+theorem samplerSourceBlockAt_materializes (source : Nat) :
+    List.ofFn (samplerSourceBlockAt source) = samplerSourceBlocks source := by
+  change List.ofFn (fun step : Fin 2 => samplerSourceBlockAt source step) = _
+  simp [List.ofFn_succ, samplerSourceBlockAt, samplerSourceBlocks]
+
+private theorem ofFn_decodeProd_eq_range_flatMap {Alpha : Type}
+    (m n : Nat) (value : Nat → Fin n → Alpha) :
+    List.ofFn (fun index : Fin (m * n) =>
+        let decoded : Fin m × Fin n := Fin.decodeProd index
+        value decoded.1.val decoded.2) =
+      (List.range m).flatMap fun outer =>
+        List.ofFn fun inner : Fin n => value outer inner := by
+  rw [List.ofFn_mul]
+  simp only [List.flatten_eq_flatMap]
+  rw [List.ofFn_eq_map]
+  rw [List.flatMap_map]
+  rw [← List.map_coe_finRange_eq_range]
+  rw [List.flatMap_map]
+  apply List.flatMap_congr
+  intro outer _member
+  simp only [id_eq]
+  apply congrArg List.ofFn
+  funext inner
+  let combined : Fin (m * n) :=
+    ⟨outer.val * n + inner.val, by
+      calc
+        outer.val * n + inner.val < (outer.val + 1) * n := by
+          simp [Nat.add_mul]
+        _ ≤ m * n := Nat.mul_le_mul_right n outer.isLt⟩
+  change value (Fin.decodeProd combined).1.val (Fin.decodeProd combined).2 =
+    value outer.val inner
+  have combined_eq : combined = Fin.encodeProd (outer, inner) := by
+    apply Fin.ext
+    simp [combined, Fin.encodeProd, Nat.mul_comm]
+  rw [combined_eq, Fin.decodeProd_encodeProd]
+
+def samplerBlockAt
+    (index : Fin (PiRLCSamplerInvocations.sourceCount *
+      samplerStepsPerSource)) : Block :=
+  let decoded : Fin PiRLCSamplerInvocations.sourceCount ×
+      Fin samplerStepsPerSource := Fin.decodeProd index
+  samplerSourceBlockAt decoded.1.val decoded.2
+
+def samplerWitnessStartAt
+    (index : Fin (PiRLCSamplerInvocations.sourceCount *
+      samplerStepsPerSource)) : Nat :=
+  let decoded : Fin PiRLCSamplerInvocations.sourceCount ×
+      Fin samplerStepsPerSource := Fin.decodeProd index
+  samplerSourceWitnessStartAt decoded.1.val decoded.2
+
+theorem samplerBlockAt_materializes :
+    List.ofFn samplerBlockAt = piRlcSamplerBlocks () := by
+  calc
+    List.ofFn samplerBlockAt =
+        (List.range PiRLCSamplerInvocations.sourceCount).flatMap fun source =>
+          List.ofFn fun step : Fin samplerStepsPerSource =>
+            samplerSourceBlockAt source step :=
+      ofFn_decodeProd_eq_range_flatMap PiRLCSamplerInvocations.sourceCount
+        samplerStepsPerSource samplerSourceBlockAt
+    _ = (List.range PiRLCSamplerInvocations.sourceCount).flatMap
+        samplerSourceBlocks := by
+      apply List.flatMap_congr
+      intro source _member
+      exact samplerSourceBlockAt_materializes source
+    _ = piRlcSamplerBlocks () := rfl
+
+private theorem ofFn_flatMap_witnessStarts {count : Nat}
+    (block : Fin count → Block) (value : Fin count → Nat)
+    (each : ∀ index,
+      ((block index).expand.map fun invocation => invocation.witnessStart) =
+        [value index]) :
+    (List.ofFn block).flatMap
+        (fun current => current.expand.map fun invocation =>
+          invocation.witnessStart) =
+      List.ofFn value := by
+  induction count with
+  | zero => rfl
+  | succ count inductionHypothesis =>
+      rw [List.ofFn_succ (f := block), List.flatMap_cons,
+        List.ofFn_succ (f := value)]
+      have head := each (0 : Fin (count + 1))
+      rw [head, List.singleton_append]
+      apply congrArg (fun tail => value 0 :: tail)
+      exact inductionHypothesis
+        (fun index => block index.succ) (fun index => value index.succ)
+        (fun index => each index.succ)
+
+theorem samplerWitnessStartAt_materializes :
+    List.ofFn samplerWitnessStartAt =
+      (PiRLCSamplerInvocations.invocations
+        (logicalWidth := Data.logicalWidth)
+        (publicFits := Data.publicFits)).map
+          (fun invocation => invocation.witnessStart) := by
+  calc
+    List.ofFn samplerWitnessStartAt =
+        (List.ofFn samplerBlockAt).flatMap
+          (fun current => current.expand.map fun invocation =>
+            invocation.witnessStart) := by
+      exact (ofFn_flatMap_witnessStarts samplerBlockAt samplerWitnessStartAt
+        (fun index => by
+          exact samplerSourceBlockAt_witnessStarts
+            (Fin.decodeProd index).1.val (Fin.decodeProd index).2)).symm
+    _ = (piRlcSamplerBlocks ()).flatMap
+          (fun current => current.expand.map fun invocation =>
+            invocation.witnessStart) := by
+      rw [samplerBlockAt_materializes]
+    _ = ((piRlcSamplerBlocks ()).flatMap Block.expand).map
+          (fun invocation => invocation.witnessStart) := by
+      rw [List.map_flatMap]
+    _ = (PiRLCSamplerInvocations.invocations
+          (logicalWidth := Data.logicalWidth)
+          (publicFits := Data.publicFits)).map
+            (fun invocation => invocation.witnessStart) := by
+      rw [piRlcSamplerBlocks_expand]
+
+def canonicalWitnessStarts (_unit : Unit) : List Nat :=
+  piCcsWitnessStarts () ++ List.ofFn samplerWitnessStartAt
+
+theorem canonicalWitnessStarts_materializes :
+    canonicalWitnessStarts () =
+      (Data.permutationInvocations ()).map
+        (fun invocation => invocation.witnessStart) := by
+  unfold canonicalWitnessStarts
+  rw [Data.permutationInvocations_eq, List.map_append,
+    piCcsWitnessStarts_materializes, samplerWitnessStartAt_materializes]
+
+private theorem canonicalWitnessStarts_transcript_getD
+    (index : Nat) (bound : index < 183) :
+    (canonicalWitnessStarts ()).getD index 0 =
+      NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+        (NightstreamFPrime.Layout.Stage1.PiCCSStarts.statementWitnessStart +
+          index * 1096) := by
+  rw [canonicalWitnessStarts, List.getD_append _ _ _ _ (by
+    rw [piCcsWitnessStarts_length]
+    omega)]
+  rw [piCcsWitnessStarts_transcriptPrefix, List.getD_append _ _ _ _ (by
+    rw [sequentialWitnessStarts_length]
+    exact bound)]
+  exact sequentialWitnessStarts_getD PiCCSInvocations.statementWitnessStart
+    183 index bound
+
+theorem canonicalInvocation_witnessStart_of_transcript
+    (index : Fin (Data.permutationInvocations ()).length)
+    (bound : index.val < 183) :
+    ((Data.permutationInvocations ()).get index).witnessStart =
+      NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+        (NightstreamFPrime.Layout.Stage1.PiCCSStarts.statementWitnessStart +
+          index.val * 1096) := by
+  have selected := canonicalWitnessStarts_transcript_getD index.val bound
+  rw [canonicalWitnessStarts_materializes] at selected
+  have mappedBound : index.val <
+      ((Data.permutationInvocations ()).map
+        (fun invocation => invocation.witnessStart)).length := by
+    simpa only [List.length_map] using index.isLt
+  rw [List.getD_eq_getElem (l := _) (d := 0) mappedBound] at selected
+  simpa only [List.getElem_map, List.get_eq_getElem] using selected
+
+private theorem canonicalWitnessStarts_output_getD
+    (index : Nat) (afterTranscript : 183 ≤ index) (bound : index < 948) :
+    (canonicalWitnessStarts ()).getD index 0 =
+      NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+        (PiCCSInvocations.outputWitnessStart + (index - 183) * 1096) := by
+  rw [canonicalWitnessStarts, List.getD_append _ _ _ _ (by
+    rw [piCcsWitnessStarts_length]
+    exact bound)]
+  rw [piCcsWitnessStarts_transcriptPrefix, List.getD_append_right _ _ _ _ (by
+    rw [sequentialWitnessStarts_length]
+    exact afterTranscript)]
+  rw [sequentialWitnessStarts_length]
+  exact sequentialWitnessStarts_getD PiCCSInvocations.outputWitnessStart
+    765 (index - 183) (by omega)
+
+theorem canonicalInvocation_witnessStart_of_output
+    (index : Fin (Data.permutationInvocations ()).length)
+    (afterTranscript : 183 ≤ index.val) (bound : index.val < 948) :
+    ((Data.permutationInvocations ()).get index).witnessStart =
+      NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+        (PiCCSInvocations.outputWitnessStart + (index.val - 183) * 1096) := by
+  have selected := canonicalWitnessStarts_output_getD index.val afterTranscript bound
+  rw [canonicalWitnessStarts_materializes] at selected
+  have mappedBound : index.val <
+      ((Data.permutationInvocations ()).map
+        (fun invocation => invocation.witnessStart)).length := by
+    simpa only [List.length_map] using index.isLt
+  rw [List.getD_eq_getElem (l := _) (d := 0) mappedBound] at selected
+  simpa only [List.getElem_map, List.get_eq_getElem] using selected
+
+def canonicalBlocks (_unit : Unit) : List Block :=
+  piCcsBlocks () ++ piRlcSamplerBlocks ()
+
+theorem canonicalBlocks_expand :
+    (canonicalBlocks ()).flatMap Block.expand =
+      Data.permutationInvocations () := by
+  rw [canonicalBlocks, List.flatMap_append, piCcsBlocks_expand,
+    piRlcSamplerBlocks_expand, Data.permutationInvocations_eq]
+
+end NightstreamFPrime.Export.Stage1.PermutationPlan

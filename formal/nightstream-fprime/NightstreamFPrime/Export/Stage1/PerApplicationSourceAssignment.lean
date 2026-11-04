@@ -1,0 +1,154 @@
+import NightstreamFPrime.Export.Stage1.PerApplicationAssignmentTransportExecution
+import NightstreamFPrime.Export.Stage1.PerApplicationCanonicalNorm
+import NightstreamFPrime.Layout.Stage1.SpartanValues
+
+set_option autoImplicit false
+
+namespace NightstreamFPrime.Export.Stage1.PerApplicationSourceAssignment
+
+open NightstreamFPrime.Circuit
+open NightstreamFPrime.Layout
+open NightstreamFPrime.Layout.ProductionRelation
+open NightstreamFPrime.Layout.Stage1
+open NightstreamFPrime.Lifecycle
+open NightstreamFPrime.Lifecycle.PaperAlgebra
+open NightstreamFPrime.Lifecycle.PiRLC.v1_2
+open NightstreamFPrime.Spec
+open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
+open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
+open PerApplicationAssignmentTransportExecution
+
+def ofCompleted (application : Lifecycle.Stage1.Application.Program)
+    (target : Env)
+    (applicationPrivate : Fin (PerApplicationPackage.addedPrivateColumnCount
+      application) → F) : BaseValues application :=
+  fun column =>
+    if before : column.val < PerApplicationPackage.basePackage.layout.constantColumn then
+      target column.val
+    else if inside : column.val <
+        PerApplicationPackage.basePackage.layout.constantColumn +
+          PerApplicationPackage.addedPrivateColumnCount application then
+      applicationPrivate ⟨column.val -
+        PerApplicationPackage.basePackage.layout.constantColumn, by omega⟩
+    else
+      target (column.val - PerApplicationPackage.addedPrivateColumnCount application)
+
+private theorem baseConstant_eq_private :
+    PerApplicationPackage.basePackage.layout.constantColumn =
+      Spartan.privateColumnCount := by
+  rw [Spartan.privateColumnCount_eq]
+  exact Package.circuitPackage_layout_values.2.2.1
+
+private theorem baseTotal_eq_spartan :
+    PerApplicationPackage.basePackage.layout.totalColumnCount =
+      Spartan.spartanColumnCount := by
+  rw [PerApplicationPackage.basePackage_totalColumnCount_eq,
+    Spartan.spartanColumnCount_eq]
+
+private theorem applicationColumn_lt
+    (application : Lifecycle.Stage1.Application.Program)
+    (index : Fin (PerApplicationPackage.addedPrivateColumnCount application)) :
+    Spartan.privateColumnCount + index.val <
+      PiRLCProductPlan.baseSourceWidth application := by
+  rw [PiRLCProductPlan.baseSourceWidth,
+    PerApplicationPackage.package_totalColumnCount, baseTotal_eq_spartan]
+  have privateBound : Spartan.privateColumnCount < Spartan.spartanColumnCount := by
+    rw [Spartan.privateColumnCount_eq, Spartan.spartanColumnCount_eq]
+    decide
+  have indexBound := index.isLt
+  omega
+
+theorem application_ofCompleted
+    (application : Lifecycle.Stage1.Application.Program)
+    (target : Env)
+    (applicationPrivate : Fin (PerApplicationPackage.addedPrivateColumnCount
+      application) → F)
+    (index : Fin (PerApplicationPackage.addedPrivateColumnCount application)) :
+    ofCompleted application target applicationPrivate
+      ⟨Spartan.privateColumnCount + index.val,
+        applicationColumn_lt application index⟩ = applicationPrivate index := by
+  have before : ¬(Spartan.privateColumnCount + index.val <
+      PerApplicationPackage.basePackage.layout.constantColumn) := by
+    rw [baseConstant_eq_private]
+    omega
+  have inside : Spartan.privateColumnCount + index.val <
+      PerApplicationPackage.basePackage.layout.constantColumn +
+        PerApplicationPackage.addedPrivateColumnCount application := by
+    rw [baseConstant_eq_private]
+    exact Nat.add_lt_add_left index.isLt _
+  unfold ofCompleted
+  rw [dite_eq_right before, dite_eq_left inside]
+  apply congrArg applicationPrivate
+  apply Fin.ext
+  change Spartan.privateColumnCount + index.val -
+    PerApplicationPackage.basePackage.layout.constantColumn = index.val
+  rw [baseConstant_eq_private, Nat.add_sub_cancel_left]
+
+private theorem shifted_ofCompleted
+    (application : Lifecycle.Stage1.Application.Program)
+    (target : Env)
+    (applicationPrivate : Fin (PerApplicationPackage.addedPrivateColumnCount
+      application) → F)
+    (column : Nat)
+    (bound : column < PiRLCProductPlan.basePackage.layout.totalColumnCount) :
+    ofCompleted application target applicationPrivate
+      (PiRLCProductPlan.shiftedPackageColumn application column bound) =
+        target column := by
+  unfold ofCompleted PiRLCProductPlan.shiftedPackageColumn
+  dsimp only
+  by_cases before : column < PerApplicationPackage.basePackage.layout.constantColumn
+  · simp only [PerApplicationPackage.shiftColumn, ite_eq_left before, dite_eq_left before]
+  · simp only [PerApplicationPackage.shiftColumn, ite_eq_right before]
+    rw [dite_eq_right (by omega), dite_eq_right (by omega)]
+    rw [Nat.add_sub_cancel_right]
+
+theorem packageEnv_ofCompleted
+    (application : Lifecycle.Stage1.Application.Program)
+    (target : Env)
+    (applicationPrivate : Fin (PerApplicationPackage.addedPrivateColumnCount
+      application) → F)
+    (column : Nat)
+    (bound : column < PiRLCProductPlan.basePackage.layout.totalColumnCount) :
+    RunningTransitionDirectPlan.packageEnv application
+      (ofCompleted application target applicationPrivate) column = target column := by
+  change SourceCompiler.sourceEnv (ofCompleted application target applicationPrivate)
+      (PiRLCProductPlan.shiftedPackageColumn application column bound).val = _
+  rw [SourceCompiler.sourceEnv_at]
+  exact shifted_ofCompleted application target applicationPrivate column bound
+
+theorem source_ofCompleted
+    (application : Lifecycle.Stage1.Application.Program)
+    (target : Env)
+    (applicationPrivate : Fin (PerApplicationPackage.addedPrivateColumnCount
+      application) → F)
+    (column : Nat) (bound : column < Spartan.SourceColumnCount) :
+    PiRLCProductPlan.baseEnv application
+      (ofCompleted application target applicationPrivate) column =
+        Spartan.pullback target column := by
+  have mappedBound : Spartan.sourceToSpartan column <
+      PiRLCProductPlan.basePackage.layout.totalColumnCount := by
+    change Spartan.sourceToSpartan column <
+      PerApplicationPackage.basePackage.layout.totalColumnCount
+    rw [baseTotal_eq_spartan]
+    exact Spartan.sourceToSpartan_lt column bound
+  change SourceCompiler.sourceEnv (ofCompleted application target applicationPrivate)
+      (PerApplicationPackage.shiftColumn application (Spartan.sourceToSpartan column)) =
+    target (Spartan.sourceToSpartan column)
+  change SourceCompiler.sourceEnv (ofCompleted application target applicationPrivate)
+      (PiRLCProductPlan.shiftedPackageColumn application
+        (Spartan.sourceToSpartan column) mappedBound).val = _
+  rw [SourceCompiler.sourceEnv_at]
+  exact shifted_ofCompleted application target applicationPrivate _ mappedBound
+
+theorem completeAssignment_norm_of_completed
+    (application : Lifecycle.Stage1.Application.Program)
+    (target : Env)
+    (applicationPrivate : Fin (PerApplicationPackage.addedPrivateColumnCount application) → F)
+    (column : Fin (Phi81CarrierLayout.carrierWidth
+      (PerApplicationFixedPoint.logicalWidth application))) :
+    centeredMagnitude
+      ((canonicalRawValues application
+        (ofCompleted application target applicationPrivate)).completeAssignment column) < 2 :=
+  PerApplicationCanonicalAssignment.completeAssignment_norm _ column
+
+end NightstreamFPrime.Export.Stage1.PerApplicationSourceAssignment

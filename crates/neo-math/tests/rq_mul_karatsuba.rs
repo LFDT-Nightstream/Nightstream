@@ -1,8 +1,8 @@
-use neo_math::ring::test_reduce_mod_phi_81;
+use neo_math::ring::PHI_MID_DEGREE;
 use neo_math::{Fq, Rq, D};
 use p3_field::PrimeCharacteristicRing;
+use rand::rngs::StdRng;
 use rand::SeedableRng;
-use rand_chacha::ChaCha20Rng;
 
 fn make_rq<F>(mut f: F) -> Rq
 where
@@ -23,7 +23,12 @@ fn schoolbook_mul_reference(lhs: &Rq, rhs: &Rq) -> Rq {
             tmp[i + j] += ai * rhs.0[j];
         }
     }
-    test_reduce_mod_phi_81(&mut tmp);
+    for degree in (D..2 * D - 1).rev() {
+        let top = tmp[degree];
+        tmp[degree] = Fq::ZERO;
+        tmp[degree - D] -= top;
+        tmp[degree - D + PHI_MID_DEGREE] -= top;
+    }
     let mut out = [Fq::ZERO; D];
     out.copy_from_slice(&tmp[..D]);
     Rq(out)
@@ -71,7 +76,7 @@ fn adversarial_cases() -> Vec<Rq> {
 
 #[test]
 fn rq_mul_matches_reference_randomized() {
-    let mut rng = ChaCha20Rng::seed_from_u64(0x9e37_79b9_7f4a_7c15);
+    let mut rng = StdRng::seed_from_u64(0x9e37_79b9_7f4a_7c15);
     for _ in 0..256 {
         let lhs = Rq::random_uniform(&mut rng);
         let rhs = Rq::random_uniform(&mut rng);

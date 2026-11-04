@@ -1,0 +1,167 @@
+import NightstreamFPrime.Lifecycle.Nifs.VerifierErrorBudget
+import NightstreamFPrime.Export.Stage1.NifsRealSuccess
+import NightstreamFPrime.Export.Stage1.PiDECCommitmentMatrixEntry
+import NightstreamFPrime.Export.Stage1.PiDECCommitmentMatrixWork
+import NightstreamFPrime.Export.Stage1.PiDECOrdinarySourceWork
+import NightstreamFPrime.Layout.MatrixProgram.RetainedWork
+import NightstreamFPrime.Layout.MatrixProgram.CoefficientWork
+import NightstreamFPrime.Layout.MatrixProgram.SparseWork
+import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.StoredRingInverseWork
+import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.StoredRingArithmetic
+import NightstreamFPrime.Spec.ProductionRelation.GatePolynomial
+import tests.AxiomAudit
+import NightstreamFPrime.Lifecycle.NifsProfile
+import NightstreamFPrime.Lifecycle.Nifs.InteractiveCompleteness
+import NightstreamFPrime.Lifecycle.Nifs.BaseCompleteness
+import NightstreamFPrime.Lifecycle.Nifs.BaseVerifierCompleteness
+import NightstreamFPrime.Lifecycle.PiRLC.v1_2.SamplerChain
+import NightstreamFPrime.Spec.Folding.Nifs.PaperStrongCompleteness
+import NightstreamFPrime.Spec.Folding.Nifs.PaperCausalReplay
+import NightstreamFPrime.Spec.Folding.Nifs.PaperNonInteractive.Completeness
+import NightstreamFPrime.Spec.Folding.Nifs.PaperStrongInterface
+import NightstreamFPrime.Spec.Folding.Nifs.PaperWeakCompleteness
+import NightstreamFPrime.Spec.Folding.Nifs.PaperWeakSuffix
+import NightstreamFPrime.Spec.Folding.Nifs.StoredAssignmentArithmetic
+import NightstreamFPrime.Export.Stage1.PiCCSStoredWitnessCheck
+
+import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.StoredRingInverse
+import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.StoredRingInverseCorrect
+
+import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.RingFPolynomial
+import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.StoredRingInverseUnit
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StoredWitnessCheckEntries
+
+
+
+
+
+
+
+
+
+
+#audit_axioms NightstreamFPrime.Spec.ProductionRelation.GatePolynomial.termData_length
+
+#audit_axioms NightstreamFPrime.Spec.ProductionRelation.GatePolynomial.termData_toMonomial
+
+
+
+
+#audit_axioms NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.RingFPolynomial.coeff_toPolynomial
+#audit_axioms NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.RingFPolynomial.toPolynomial_injective
+#audit_axioms NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.RingFPolynomial.toPolynomial_zero
+#audit_axioms NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.RingFPolynomial.toPolynomial_one
+#audit_axioms NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.RingFPolynomial.modulus_monic
+#audit_axioms NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.RingFPolynomial.toPolynomial_ringFMul_mod
+#audit_axioms NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.StoredRingInverseUnit.candidate_mul_value
+#audit_axioms NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.StoredRingInverseUnit.candidate_eq_unitInverse
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StoredWitnessCheckEntries.nativeBarEntry_value
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StoredWitnessCheckEntries.nativeBarEntry_work_le
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StoredWitnessCheckEntries.kernelWeight_value
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StoredWitnessCheckEntries.kernelWeight_work_le
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StoredWitnessCheckEntries.padEntry_value
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSStoredWitnessCheck.statement_eq_key
+
+#audit_axioms NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.StoredRingInverse.encode_coeff
+#audit_axioms NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.StoredRingInverse.candidate_coeff
+#audit_axioms NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.StoredRingInverse.modulus_toPolynomial
+#audit_axioms NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.StoredRingInverse.divisor_monic
+#audit_axioms NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.StoredRingInverse.candidatePolynomial_toPolynomial
+#audit_axioms NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.StoredRingInverse.normalized_bezout
+#audit_axioms NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.StoredRingInverseCorrect.modulus_degree
+#audit_axioms NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.StoredRingInverseCorrect.candidatePolynomial_degree_lt
+#audit_axioms NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.StoredRingInverseCorrect.candidatePolynomial_mul_mod
+
+
+
+#audit_axioms NightstreamFPrime.Lifecycle.NifsProfile.selected_relation
+#audit_axioms NightstreamFPrime.Lifecycle.NifsProfile.selected_matrix
+#audit_axioms NightstreamFPrime.Lifecycle.NifsProfile.selected_shape
+#audit_axioms NightstreamFPrime.Lifecycle.NifsProfile.selected_arity
+#audit_axioms NightstreamFPrime.Lifecycle.NifsProfile.shared_setup
+#audit_axioms NightstreamFPrime.Lifecycle.NifsProfile.phases_preserve_relation
+
+#audit_axioms NightstreamFPrime.Spec.Folding.Nifs.PaperStrongInterface.piRlcBatchForProbe_eq_piRlcBatch
+#audit_axioms NightstreamFPrime.Spec.Folding.Nifs.PaperStrongInterface.outputWitnessOfAssignments_at
+#audit_axioms NightstreamFPrime.Spec.Folding.Nifs.PaperStrongInterface.outputWitnessOfAssignments_ambient
+#audit_axioms NightstreamFPrime.Spec.Folding.Nifs.PaperStrongCompleteness.exists_causal_honest_strategy
+#audit_axioms NightstreamFPrime.Spec.Folding.Nifs.PaperStrongCompleteness.exists_honest_piCcs_prover
+#audit_axioms NightstreamFPrime.Spec.Folding.Nifs.PaperCausalReplay.generated_messages_replay
+#audit_axioms NightstreamFPrime.Spec.Folding.Nifs.PaperCausalReplay.prover_generated_messages_replay
+#audit_axioms NightstreamFPrime.Spec.Folding.Nifs.PaperNonInteractive.Completeness.exists_honest_proof_of_sampler_success
+#audit_axioms NightstreamFPrime.Lifecycle.Nifs.InteractiveCompleteness.exists_honest_execution
+#audit_axioms NightstreamFPrime.Lifecycle.Nifs.BaseCompleteness.zeroProof_piCcsCheck
+#audit_axioms NightstreamFPrime.Lifecycle.Nifs.BaseCompleteness.zeroProof_parentBounded
+
+
+
+#audit_axioms NightstreamFPrime.Spec.Folding.Nifs.PaperWeakCompleteness.attempt_eq_publicAttempt
+#audit_axioms NightstreamFPrime.Spec.Folding.Nifs.PaperWeakCompleteness.publicAccepts_iff
+#audit_axioms NightstreamFPrime.Spec.Folding.Nifs.PaperWeakCompleteness.honest_complete
+#audit_axioms NightstreamFPrime.Spec.Folding.Nifs.PaperWeakCompleteness.honest_public_accepts
+#audit_axioms NightstreamFPrime.Spec.Folding.Nifs.PaperWeakCompleteness.public_parent
+
+
+
+
+
+#audit_axioms NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.StoredRingInverseWork.trim_value
+#audit_axioms NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.StoredRingInverseWork.trim_work_le
+#audit_axioms NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.StoredRingInverseWork.encode_value
+#audit_axioms NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.StoredRingInverseWork.encode_work_le
+#audit_axioms NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.RingFPolynomial.degree_modulus
+#audit_axioms NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.RingFPolynomial.root_pow_mod
+#audit_axioms NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.RingFPolynomial.image_mul
+
+
+
+
+#audit_axioms NightstreamFPrime.Layout.MatrixProgram.SparseWork.empty_value
+#audit_axioms NightstreamFPrime.Layout.MatrixProgram.SparseWork.empty_work
+#audit_axioms NightstreamFPrime.Layout.MatrixProgram.SparseWork.singleton_value
+#audit_axioms NightstreamFPrime.Layout.MatrixProgram.SparseWork.singleton_work
+#audit_axioms NightstreamFPrime.Layout.MatrixProgram.SparseWork.add_value
+#audit_axioms NightstreamFPrime.Layout.MatrixProgram.SparseWork.add_work
+#audit_axioms NightstreamFPrime.Layout.MatrixProgram.SparseWork.scale_value
+#audit_axioms NightstreamFPrime.Layout.MatrixProgram.SparseWork.scale_work
+#audit_axioms NightstreamFPrime.Layout.MatrixProgram.SparseWork.coefficient_value
+#audit_axioms NightstreamFPrime.Layout.MatrixProgram.SparseWork.coefficient_work_le
+
+#audit_axioms NightstreamFPrime.Layout.MatrixProgram.CoefficientWork.coefficient_value
+#audit_axioms NightstreamFPrime.Layout.MatrixProgram.CoefficientWork.coefficient_work_le
+
+#audit_axioms NightstreamFPrime.Layout.MatrixProgram.RetainedWork.form?_value
+#audit_axioms NightstreamFPrime.Layout.MatrixProgram.RetainedWork.form?_length
+#audit_axioms NightstreamFPrime.Layout.MatrixProgram.RetainedWork.form?_work_le
+
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECOrdinarySourceWork.commitmentRow_value
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECOrdinarySourceWork.commitmentRow_lengths
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECOrdinarySourceWork.commitmentRow_work_le
+
+
+
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECOrdinarySourceWork.commitmentRow_data
+
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECCommitmentMatrixWork.commitmentForms_value
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECCommitmentMatrixWork.commitmentForms_lengths
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECCommitmentMatrixWork.commitmentForms_work_le
+
+
+
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECCommitmentMatrixEntry.globalRow_val
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECCommitmentMatrixEntry.entry_value
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECCommitmentMatrixEntry.entry_work_le
+
+
+
+
+
+#audit_axioms NightstreamFPrime.Export.Stage1.NifsRealSuccess.realSuccess_implies_exact_children
+
+
+#audit_axioms NightstreamFPrime.Lifecycle.Nifs.VerifierErrorBudget.test_error_eq
+#audit_axioms NightstreamFPrime.Lifecycle.Nifs.VerifierErrorBudget.test_error_eq_selected
+#audit_axioms NightstreamFPrime.Lifecycle.Nifs.SelectedTestNumerator.numerator_eq
+
+
+

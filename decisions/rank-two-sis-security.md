@@ -1,0 +1,37 @@
+# Auxiliary Rank-Two SIS Security
+
+## Status
+
+Accepted.
+
+## Problem
+
+The symbol `κ` is a module rank, not a security level. Long auxiliary SIS
+maps need an explicit width limit and a union bound over all collision targets.
+They must not be confused with the main SuperNeo witness commitment.
+
+## SuperNeo
+
+The selected main commitment originally used `κ = 18`. The SuperNeo paper does not
+define a rank-two profile for Nightstream's auxiliary protocol-binding maps.
+See [Appendix B.2](../docs/superneo-paper/11-b-concrete-parameters.md).
+
+## Decision
+
+The main witness commitment now uses `κ = 22` under the superseding
+[`fprime-stage1-main-ajtai-setup.md`](./fprime-stage1-main-ajtai-setup.md)
+decision. An auxiliary
+protocol-binding SIS map may use `κ = 2` only if:
+
+- its source fields use the [canonical 41-trit opening](41-trit-encoding.md);
+- its ring-column width is at most `50,371`;
+- the active system has at most seven rank-two collision targets, all included
+  in the union bound; and
+- its claim states the external Module-SIS and estimator assumptions.
+
+For `W` source fields, `r = ceil(41W/54)`, so the certified limit is also
+`W <= 66,342`. The selected model targets 128 post-union quantum Core-SVP bits
+and rounds seven targets to eight. Lean proved the arithmetic boundary in
+`formal/ajtai-lean/Ajtai/EstimatorModel.lean` and stated the external hardness
+boundary in `formal/ajtai-lean/Ajtai/SecurityBoundary.lean`. Both files are at
+commit `f7e093d8f`. That project was later deleted.

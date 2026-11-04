@@ -1,0 +1,73 @@
+//! Narrow accelerator hooks that preserve the canonical reduction boundary.
+
+use super::*;
+
+pub fn rlc_with_commit_refs_and_resident_witness<MixWitness, Resident>(
+    mode: FoldingMode,
+    s: &CcsStructure<F>,
+    params: &NeoParams,
+    rhos: &[RotRho],
+    me_inputs: &[CeClaim<Cmt, F, K>],
+    witnesses: &[&Mat<F>],
+    ell_d: usize,
+    mix_commits: RlcMixer,
+    mix_witnesses: MixWitness,
+) -> Result<(CeClaim<Cmt, F, K>, Resident), PiCcsError>
+where
+    MixWitness: Fn(&[Mat<F>], &[&Mat<F>]) -> Resident,
+{
+    #[cfg(feature = "perf-timers")]
+    let total_started = std::time::Instant::now();
+    validate_rlc_refs(
+        "rlc_with_commit_refs_and_witness_mix",
+        s,
+        params,
+        rhos,
+        me_inputs,
+        witnesses,
+        ell_d,
+    )?;
+    #[cfg(feature = "perf-timers")]
+    let validation_elapsed = total_started.elapsed();
+    let rho_mats = crate::common::rot_rhos_to_mats(rhos);
+
+    match mode {
+        FoldingMode::Optimized => {
+            #[cfg(feature = "perf-timers")]
+            let witness_mix_started = std::time::Instant::now();
+            let resident = mix_witnesses(&rho_mats, witnesses);
+            #[cfg(feature = "perf-timers")]
+            let witness_mix_elapsed = witness_mix_started.elapsed();
+            #[cfg(feature = "perf-timers")]
+            let commitment_started = std::time::Instant::now();
+            let commitments = me_inputs
+                .iter()
+                .map(|input| input.c.clone())
+                .collect::<Vec<_>>();
+            let commitment = mix_commits(&rho_mats, &commitments);
+            #[cfg(feature = "perf-timers")]
+            let commitment_elapsed = commitment_started.elapsed();
+            #[cfg(feature = "perf-timers")]
+            let claim_mix_started = std::time::Instant::now();
+            let out = crate::engines::optimized_engine::rlc_combine_claims(
+                s, params, &rho_mats, me_inputs, ell_d, commitment,
+            );
+            #[cfg(feature = "perf-timers")]
+            eprintln!(
+                "[pi-rlc/resident] validation={:.3}ms witness_mix={:.3}ms claim_mix={:.3}ms commitment={:.3}ms total={:.3}ms inputs={} cols={}",
+                validation_elapsed.as_secs_f64() * 1_000.0,
+                witness_mix_elapsed.as_secs_f64() * 1_000.0,
+                claim_mix_started.elapsed().as_secs_f64() * 1_000.0,
+                commitment_elapsed.as_secs_f64() * 1_000.0,
+                total_started.elapsed().as_secs_f64() * 1_000.0,
+                witnesses.len(),
+                s.m(),
+            );
+            Ok((out, resident))
+        }
+        #[cfg(feature = "paper-exact")]
+        FoldingMode::PaperExact | FoldingMode::OptimizedWithCrosscheck => Err(PiCcsError::InvalidInput(
+            "accelerator witness mixing is available only in FoldingMode::Optimized".into(),
+        )),
+    }
+}

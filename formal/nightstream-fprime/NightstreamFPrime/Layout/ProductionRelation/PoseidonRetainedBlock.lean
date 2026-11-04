@@ -1,0 +1,57 @@
+import Batteries.Data.Fin.Coding
+import NightstreamFPrime.Layout.LowNormBlock
+import NightstreamFPrime.Layout.ProductionRelation.PoseidonRetainedSlots
+
+namespace NightstreamFPrime.Layout.ProductionRelation.PoseidonRetainedBlock
+
+open NightstreamFPrime.Layout
+
+def block (sourceWidth invocationCount : Nat)
+    (witnessStart : Fin invocationCount → Nat)
+    (witnessBound : ∀ invocation,
+      witnessStart invocation + PoseidonScheduleTrace.localColumnCount ≤
+        sourceWidth) : LowNormBlock.Block sourceWidth where
+  kind := .field
+  slotCount := invocationCount * PoseidonRetainedSlots.rows.length
+  source := fun slot =>
+    let indices : Fin invocationCount × Fin PoseidonRetainedSlots.rows.length :=
+      Fin.decodeProd slot
+    ⟨witnessStart indices.1 +
+        (PoseidonRetainedSlots.localOutput indices.2).val, by
+      have invocationBound := witnessBound indices.1
+      have localBound := (PoseidonRetainedSlots.localOutput indices.2).isLt
+      omega⟩
+
+@[simp] theorem block_slotCount (sourceWidth invocationCount : Nat)
+    (witnessStart : Fin invocationCount → Nat)
+    (witnessBound : ∀ invocation,
+      witnessStart invocation + PoseidonScheduleTrace.localColumnCount ≤
+        sourceWidth) :
+    (block sourceWidth invocationCount witnessStart witnessBound).slotCount =
+      invocationCount * 150 := by
+  simp [block]
+
+theorem block_coordinateCount (sourceWidth invocationCount : Nat)
+    (witnessStart : Fin invocationCount → Nat)
+    (witnessBound : ∀ invocation,
+      witnessStart invocation + PoseidonScheduleTrace.localColumnCount ≤
+        sourceWidth) :
+    (block sourceWidth invocationCount witnessStart
+      witnessBound).coordinateCount = invocationCount * 150 * 41 := by
+  simp [LowNormBlock.Block.coordinateCount, block,
+    LowNormSlot.Kind.width, BalancedTernary.width]
+
+theorem block_source (sourceWidth invocationCount : Nat)
+    (witnessStart : Fin invocationCount → Nat)
+    (witnessBound : ∀ invocation,
+      witnessStart invocation + PoseidonScheduleTrace.localColumnCount ≤
+        sourceWidth)
+    (slot : Fin (invocationCount * PoseidonRetainedSlots.rows.length)) :
+    let indices : Fin invocationCount × Fin PoseidonRetainedSlots.rows.length :=
+      Fin.decodeProd slot
+    ((block sourceWidth invocationCount witnessStart witnessBound).source
+      slot).val = witnessStart indices.1 +
+        (PoseidonRetainedSlots.localOutput indices.2).val := by
+  rfl
+
+end NightstreamFPrime.Layout.ProductionRelation.PoseidonRetainedBlock

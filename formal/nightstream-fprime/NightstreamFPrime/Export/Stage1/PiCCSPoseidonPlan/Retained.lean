@@ -1,0 +1,149 @@
+import NightstreamFPrime.Export.Stage1.LaterPoseidonRetainedBlocks
+import NightstreamFPrime.Export.Stage1.PiCCSActionPayloadBlock
+import NightstreamFPrime.Layout.ProductionRelation.PoseidonRetainedFamily
+
+namespace NightstreamFPrime.Export.Stage1.PiCCSPoseidonPlan
+
+open NightstreamFPrime.Spec
+open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
+open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
+open NightstreamFPrime.Layout
+open NightstreamFPrime.Layout.ProductionRelation
+
+@[implicit_reducible]
+def invocationCount : Nat := PiCCSActionPayloadBlock.invocationCount
+
+@[simp] theorem invocationCount_eq : invocationCount = 948 := by
+  exact PiCCSActionPayloadBlock.invocationCount_eq
+
+@[implicit_reducible]
+def sourceWidth (program : Lifecycle.Stage1.Application.Program) : Nat :=
+  PiCCSActionPayloadBlock.sourceWidth program
+
+theorem prefixSourceFits (program : Lifecycle.Stage1.Application.Program) :
+    PiRLCRetainedGeometry.sourceWidth program ≤ sourceWidth program := by
+  unfold sourceWidth PiCCSActionPayloadBlock.sourceWidth
+    PiCCSActionPayloadBlock.prefixSourceWidth FieldSuffixBlock.sourceWidth
+  omega
+
+def retainedBlock (program : Lifecycle.Stage1.Application.Program) :
+    LowNormBlock.Block (sourceWidth program) :=
+  (LaterPoseidonRetainedBlocks.piCcsBlock program).lift
+    (prefixSourceFits program)
+
+@[simp] theorem retainedBlock_slotCount
+    (program : Lifecycle.Stage1.Application.Program) :
+    (retainedBlock program).slotCount = 142200 := by
+  erw [retainedBlock, LowNormBlock.Block.lift_slotCount,
+    LaterPoseidonRetainedBlocks.piCcsBlock_slotCount]
+
+@[simp] theorem retainedBlock_coordinateCount
+    (program : Lifecycle.Stage1.Application.Program) :
+    (retainedBlock program).coordinateCount = 5830200 := by
+  erw [retainedBlock, LowNormBlock.Block.lift_coordinateCount,
+    LaterPoseidonRetainedBlocks.piCcsBlock_coordinateCount]
+
+def schedule (program : Lifecycle.Stage1.Application.Program) :
+    PoseidonRetainedFamily.Schedule (sourceWidth program) invocationCount where
+  block := retainedBlock program
+  slotCount_eq := by
+    rw [retainedBlock_slotCount, invocationCount_eq,
+      PoseidonRetainedSlots.rows_length]
+
+structure Geometry (program : Lifecycle.Stage1.Application.Program)
+    (logicalWidth : Nat) : Prop where
+  pilotFits : PiRLCPoseidonGeometry.pilotLogicalWidth program ≤ logicalWidth
+
+theorem pilotGeometry {program : Lifecycle.Stage1.Application.Program}
+    {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
+    PiRLCPoseidonGeometry.Geometry program logicalWidth where
+  pilotFits := geometry.pilotFits
+
+theorem prefixGeometry {program : Lifecycle.Stage1.Application.Program}
+    {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
+    PiRLCRetainedGeometry.Geometry program logicalWidth :=
+  PiRLCPoseidonGeometry.prefixGeometry (pilotGeometry geometry)
+
+def oneColumn {program : Lifecycle.Stage1.Application.Program}
+    {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
+    Fin logicalWidth :=
+  PiRLCPoseidonGeometry.oneColumn (pilotGeometry geometry)
+
+def retainedStart (program : Lifecycle.Stage1.Application.Program) : Nat :=
+  LaterPoseidonRetainedBlocks.piCcsStart program
+
+theorem retainedFits {program : Lifecycle.Stage1.Application.Program}
+    {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
+    retainedStart program + (retainedBlock program).coordinateCount ≤
+      logicalWidth := by
+  have whole := PiRLCRetainedGeometry.laterPoseidonFits
+    (prefixGeometry geometry)
+  rw [retainedBlock_coordinateCount]
+  unfold retainedStart LaterPoseidonRetainedBlocks.piCcsStart
+  rw [PiRLCRetainedGeometry.laterPoseidonBlock_coordinateCount] at whole
+  omega
+
+theorem retainedBlock_encodesAt
+    {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
+    (geometry : Geometry program logicalWidth)
+    (assignment : Assignment F logicalWidth)
+    (prefixAssignment : Fin (PiCCSActionPayloadBlock.prefixSourceWidth program) → F)
+    (parentFits : PiRLCRetainedGeometry.laterPoseidonStart program +
+      (PiRLCRetainedGeometry.laterPoseidonBlock program).coordinateCount ≤
+        logicalWidth)
+    (parent : (PiRLCRetainedGeometry.laterPoseidonBlock program).EncodesAt
+      (PiRLCRetainedGeometry.laterPoseidonStart program) parentFits assignment
+      prefixAssignment) :
+    (retainedBlock program).EncodesAt (retainedStart program)
+      (retainedFits geometry) assignment
+      (PiCCSActionPayloadBlock.sourceAssignment program prefixAssignment) := by
+  have sliceFits :
+      LaterPoseidonRetainedBlocks.piCcsStart program +
+          (LaterPoseidonRetainedBlocks.piCcsBlock program).coordinateCount ≤
+        logicalWidth := by
+    have fits := retainedFits geometry
+    rw [retainedBlock_coordinateCount] at fits
+    rw [LaterPoseidonRetainedBlocks.piCcsBlock_coordinateCount]
+    exact fits
+  have sliced :
+      (LaterPoseidonRetainedBlocks.piCcsBlock program).EncodesAt
+        (LaterPoseidonRetainedBlocks.piCcsStart program) sliceFits assignment
+        prefixAssignment := by
+    exact LaterPoseidonRetainedBlocks.piCcsBlock_encodesAt assignment
+      prefixAssignment parentFits sliceFits parent
+  apply LowNormBlock.Block.encodesAt_lift
+    (LaterPoseidonRetainedBlocks.piCcsBlock program)
+    (prefixSourceFits program) (retainedStart program) sliceFits
+    (retainedFits geometry) assignment prefixAssignment
+    (PiCCSActionPayloadBlock.sourceAssignment program prefixAssignment) sliced
+  intro slot
+  rw [show
+      ((LaterPoseidonRetainedBlocks.piCcsBlock program).lift
+          (prefixSourceFits program)).source slot =
+        PiCCSActionPayloadBlock.prefixColumn program
+          ((LaterPoseidonRetainedBlocks.piCcsBlock program).source slot) by
+    apply Fin.ext
+    rfl]
+  exact PiCCSActionPayloadBlock.sourceAssignment_prefix program
+    prefixAssignment _
+
+def previousOutput {program : Lifecycle.Stage1.Application.Program}
+    {logicalWidth : Nat} (geometry : Geometry program logicalWidth)
+    (invocation : Fin invocationCount) :
+    PoseidonSboxPlan.State logicalWidth :=
+  if first : invocation.val = 0 then
+    fun _ => .empty
+  else
+    PoseidonRetainedFamily.outputState (schedule program)
+      (retainedStart program) (retainedFits geometry)
+      ⟨invocation.val - 1, by
+        have invocationBound := invocation.isLt
+        omega⟩
+
+def outputState {program : Lifecycle.Stage1.Application.Program}
+    {logicalWidth : Nat} (geometry : Geometry program logicalWidth)
+    (invocation : Fin invocationCount) : PoseidonSboxPlan.State logicalWidth :=
+  PoseidonRetainedFamily.outputState (schedule program)
+    (retainedStart program) (retainedFits geometry) invocation
+
+end NightstreamFPrime.Export.Stage1.PiCCSPoseidonPlan

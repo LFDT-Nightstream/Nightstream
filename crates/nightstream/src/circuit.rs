@@ -1,0 +1,449 @@
+//! Compiled circuit ownership and separate proving and verifier capabilities.
+//! The caller selects verifier configuration; proof data cannot replace it.
+
+use std::{path::Path, sync::Arc};
+
+use neo_math::F;
+use neo_reductions::superneo_eval::RetainedMatrixWindow;
+use nightstream_fprime::{LoadedPerApplicationPackage, Stage1VerifierBinding};
+use p3_field::PrimeField64;
+
+use crate::application::{ApplicationCircuit, ApplicationError};
+use crate::assembly::{self, AssemblyError};
+use crate::engine::{Backend, CommitError, Engine, EngineError};
+use crate::lifecycle::{
+    CompleteStepError, CompressionError, ExtendError, FinalProof, PreparedLifecycle, ProofCodecError, ProveError,
+    Stage1Envelope, Stage1State, VerifyError,
+};
+pub use crate::lifecycle::{CompressionKey, CompressionSetup};
+
+mod storage;
+
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    /// The selected engine did not judge the proof or the input. The engine
+    /// is unavailable, the engine or its device failed, or the two Crosscheck
+    /// engines disagree. A retry with the same engine can succeed only after
+    /// a `Failure`.
+    #[error(transparent)]
+    Engine(#[from] EngineError),
+    #[error(transparent)]
+    Assembly(#[from] AssemblyError),
+    #[error(transparent)]
+    Application(#[from] ApplicationError),
+    #[error(transparent)]
+    Package(#[from] nightstream_fprime::PackageError),
+    #[error("invalid compiled circuit: {0}")]
+    Circuit(&'static str),
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
+    #[error(transparent)]
+    Extend(ExtendError),
+    #[error(transparent)]
+    Verify(VerifyError),
+    #[error(transparent)]
+    Compression(CompressionError),
+    #[error(transparent)]
+    ProofBytes(#[from] ProofCodecError),
+    #[error(transparent)]
+    Parameters(#[from] neo_params::ParamsError),
+}
+
+impl From<ExtendError> for Error {
+    fn from(error: ExtendError) -> Self {
+        match error {
+            ExtendError::Prove(ProveError::Engine(error))
+            | ExtendError::Complete(CompleteStepError::Commitment(CommitError::Engine(error))) => Self::Engine(error),
+            error => Self::Extend(error),
+        }
+    }
+}
+
+impl From<VerifyError> for Error {
+    fn from(error: VerifyError) -> Self {
+        match error {
+            VerifyError::Engine(error) | VerifyError::Commitment(CommitError::Engine(error)) => Self::Engine(error),
+            error => Self::Verify(error),
+        }
+    }
+}
+
+impl From<CompressionError> for Error {
+    fn from(error: CompressionError) -> Self {
+        match error {
+            CompressionError::Prove(ProveError::Engine(error)) => Self::Engine(error),
+            error => Self::Compression(error),
+        }
+    }
+}
+
+/// The verifier that a circuit configures. A memory relation proves only
+/// steps: the SPEC.md Algorithm 10 terminal checks of `nebula::Verifier` give its claim.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Role {
+    Stage1,
+    Memory,
+}
+
+struct CompiledCircuit {
+    role: Role,
+    /// The Rust application, or `None` for a Lean-emitted package whose own
+    /// witness program fills the application's local variables.
+    application: Option<ApplicationCircuit>,
+    package: Arc<LoadedPerApplicationPackage>,
+    binding: Stage1VerifierBinding,
+    /// The package's complete matrix window, shared by every lifecycle.
+    matrix_window: Arc<RetainedMatrixWindow>,
+}
+
+impl CompiledCircuit {
+    fn lifecycle(&self, backend: Backend, minimum_security_bits: u32) -> Result<PreparedLifecycle, Error> {
+        Ok(PreparedLifecycle::from_package(
+            Arc::clone(&self.package),
+            self.binding.clone(),
+            backend,
+            minimum_security_bits,
+        )?
+        .sharing_matrix_window(Arc::clone(&self.matrix_window)))
+    }
+}
+
+/// The size of an application in the F′ step. These are the three numbers
+/// that the shared verifier's row and width formulas take
+/// (`artifacts/shared-verifier-v1.json`), so they set the step's cost.
+/// `scripts/fprime_breakdown.py` charts the step from them.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ApplicationSize {
+    pub witness_words: usize,
+    pub local_words: usize,
+    pub rows: usize,
+}
+
+/// Reusable circuit data and bindings, independent of the execution engine.
+/// The caller chooses whether this package is its expected verifier configuration.
+pub struct Circuit {
+    compiled: Arc<CompiledCircuit>,
+}
+
+impl Circuit {
+    /// The circuit of `application` in the shared F′ verifier of the embedded
+    /// Stage 1 reference package, after the package's identity pins pass.
+    pub fn compile(application: ApplicationCircuit) -> Result<Self, Error> {
+        Self::compile_as(Role::Stage1, application)
+    }
+
+    /// `compile` for a memory relation (`nebula::Circuit::compile`).
+    pub(crate) fn compile_memory(application: ApplicationCircuit) -> Result<Self, Error> {
+        Self::compile_as(Role::Memory, application)
+    }
+
+    fn compile_as(role: Role, application: ApplicationCircuit) -> Result<Self, Error> {
+        let (package, binding) = assembly::prepare(crate::artifacts::reference_package(), &application)?;
+        crate::lifecycle::validate_key_prefix(
+            package.logical_column_count(),
+            binding.verifier_context().commitment_key_words(),
+        )?;
+        Ok(Self {
+            compiled: Arc::new(CompiledCircuit {
+                role,
+                application: Some(application),
+                package: Arc::new(package),
+                binding,
+                matrix_window: Arc::default(),
+            }),
+        })
+    }
+
+    /// Load a Lean-emitted sealed per-application package and require its
+    /// structural identifier. The caller pins the identifier; the package's
+    /// own witness program computes the application's local variables, so a
+    /// prover supplies the witness words and the output state
+    /// (`Prover::extend_with_output`). Only the tests load Lean packages.
+    #[cfg(test)]
+    pub(crate) fn load_package(bytes: &[u8], expected_structural_identifier: [u64; 4]) -> Result<Self, Error> {
+        let package = nightstream_fprime::load_per_application_package(
+            bytes,
+            nightstream_fprime::StructuralIdentifier::from_words(expected_structural_identifier),
+        )?;
+        let binding = package.production_verifier_binding()?;
+        crate::lifecycle::validate_key_prefix(
+            package.logical_column_count(),
+            binding.verifier_context().commitment_key_words(),
+        )?;
+        let role = if crate::nebula::Package::pinned(expected_structural_identifier) {
+            Role::Memory
+        } else {
+            Role::Stage1
+        };
+        Ok(Self {
+            compiled: Arc::new(CompiledCircuit {
+                role,
+                application: None,
+                package: Arc::new(package),
+                binding,
+                matrix_window: Arc::default(),
+            }),
+        })
+    }
+
+    /// Save validated execution data and bindings for use in another process.
+    /// The destination must not exist.
+    pub fn write(&self, path: impl AsRef<Path>) -> Result<(), Error> {
+        storage::write(path.as_ref(), &self.compiled)
+    }
+
+    /// Decode saved circuit data without repeating whole-circuit identity
+    /// hashing. Format and execution structure are checked. A prover loads a
+    /// saved circuit with `Prover::load`; a verifier compiles its own.
+    #[cfg(test)]
+    pub(crate) fn load(path: impl AsRef<Path>) -> Result<Self, Error> {
+        Ok(Self {
+            compiled: Arc::new(storage::read(path.as_ref())?),
+        })
+    }
+
+    /// The package rows of the application, for conformance tests that name
+    /// the check a rejected step fails.
+    #[cfg(test)]
+    pub(crate) fn application_rows(&self) -> std::ops::Range<usize> {
+        self.compiled.package.application().row_range()
+    }
+
+    /// The Rust application, for tests that execute a loaded circuit.
+    #[cfg(test)]
+    pub(crate) fn application(&self) -> Option<&ApplicationCircuit> {
+        self.compiled.application.as_ref()
+    }
+
+    /// The size of the Rust application, or `None` for a Lean-emitted package.
+    pub fn application_size(&self) -> Option<ApplicationSize> {
+        self.compiled
+            .application
+            .as_ref()
+            .map(|application| ApplicationSize {
+                witness_words: application.private_input_count(),
+                local_words: application.generated_range().len(),
+                rows: application.row_count(),
+            })
+    }
+
+    /// Return the package's claimed circuit identifier.
+    /// Compilation computes it from the circuit. Loading preserves the saved
+    /// value without recomputing it, so equality does not authenticate a loaded
+    /// package. The caller selects the expected verifier configuration.
+    pub fn identity(&self) -> [u64; 4] {
+        self.compiled.binding.package_identity().words()
+    }
+
+    /// The verifier of the circuit, which may share the prover's circuit.
+    /// Reject a profile below the caller's positive statistical minimum, and
+    /// a memory relation, whose verifier is `nebula::Circuit::verifier`.
+    pub fn verifier(&self, engine: Engine, minimum_security_bits: u32) -> Result<Verifier, Error> {
+        if self.compiled.role == Role::Memory {
+            return Err(Error::Circuit("a memory relation needs nebula::Circuit::verifier"));
+        }
+        Verifier::configured(self, engine, minimum_security_bits)
+    }
+
+    /// Require the selected profile to meet the caller's positive statistical minimum.
+    pub fn prover(&self, engine: Engine, minimum_security_bits: u32) -> Result<Prover, Error> {
+        Prover::new(Arc::clone(&self.compiled), Backend::new(engine)?, minimum_security_bits)
+    }
+}
+
+/// Proof generation from reusable execution data. This does not configure a verifier.
+pub struct Prover {
+    compiled: Arc<CompiledCircuit>,
+    lifecycle: PreparedLifecycle,
+}
+
+impl Prover {
+    fn new(compiled: Arc<CompiledCircuit>, backend: Backend, minimum_security_bits: u32) -> Result<Self, Error> {
+        let mut lifecycle = compiled.lifecycle(backend, minimum_security_bits)?;
+        lifecycle.keep_commitment_key_when_it_fits()?;
+        Ok(Self { compiled, lifecycle })
+    }
+
+    /// Load proving data without repeating compilation or whole-circuit hashing.
+    /// Saved identities are claims; verification uses an independently configured circuit.
+    pub fn load(path: impl AsRef<Path>, engine: Engine, minimum_security_bits: u32) -> Result<Self, Error> {
+        let backend = Backend::new(engine)?;
+        Self::new(Arc::new(storage::read(path.as_ref())?), backend, minimum_security_bits)
+    }
+
+    pub fn engine(&self) -> Engine {
+        self.lifecycle.engine()
+    }
+
+    pub fn prove(&self, initial_state: [F; 4], private_inputs: &[F]) -> Result<Stage1Envelope, Error> {
+        self.extend(&Stage1Envelope::initial(initial_state), private_inputs)
+    }
+
+    /// Construct the next proof without changing the supplied proof, including
+    /// on input, device, or I/O failure. Packed witnesses share immutable storage.
+    pub fn extend(&self, proof: &Stage1Envelope, private_inputs: &[F]) -> Result<Stage1Envelope, Error> {
+        let witness = self
+            .compiled
+            .application
+            .as_ref()
+            .ok_or(ApplicationError::NoApplication)?
+            .execute(proof.state().current(), private_inputs)?;
+        let words: Vec<_> = private_inputs
+            .iter()
+            .map(PrimeField64::as_canonical_u64)
+            .collect();
+        Ok(self.lifecycle.extend_with_output(
+            proof.snapshot(),
+            &words,
+            witness.output_state(),
+            Some(witness.values()),
+        )?)
+    }
+
+    /// The first proof for a Lean-emitted package (`extend_with_output`).
+    #[cfg(test)]
+    pub(crate) fn prove_with_output(
+        &self,
+        initial_state: [F; 4],
+        private_inputs: &[F],
+        output: [F; 4],
+    ) -> Result<Stage1Envelope, Error> {
+        self.extend_with_output(&Stage1Envelope::initial(initial_state), private_inputs, output)
+    }
+
+    /// Construct the next proof for a Lean-emitted package: the caller supplies
+    /// the application's witness words and output state; the package's own
+    /// witness program fills every application-local variable.
+    pub(crate) fn extend_with_output(
+        &self,
+        proof: &Stage1Envelope,
+        private_inputs: &[F],
+        output: [F; 4],
+    ) -> Result<Stage1Envelope, Error> {
+        let words: Vec<_> = private_inputs
+            .iter()
+            .map(PrimeField64::as_canonical_u64)
+            .collect();
+        Ok(self
+            .lifecycle
+            .extend_with_output(proof.snapshot(), &words, output, None)?)
+    }
+
+    /// The next proof of a memory invocation whose native output state is
+    /// `output`. A Rust-built circuit executes its application, which must
+    /// reach `output`. A Lean package takes `output` (`extend_with_output`).
+    pub(crate) fn extend_invocation(
+        &self,
+        proof: &Stage1Envelope,
+        private_inputs: &[F],
+        output: [F; 4],
+    ) -> Result<Stage1Envelope, Error> {
+        if self.compiled.application.is_none() {
+            return self.extend_with_output(proof, private_inputs, output);
+        }
+        let next = self.extend(proof, private_inputs)?;
+        if next.state().current() != output {
+            return Err(Error::Circuit("the application's output differs from the native step"));
+        }
+        Ok(next)
+    }
+
+    /// The circuit's strict byte encoding of `proof`, for `Verifier::decode_proof`.
+    pub fn encode_proof(&self, proof: &Stage1Envelope) -> Result<Vec<u8>, Error> {
+        Ok(self.lifecycle.encode_proof(proof)?)
+    }
+
+    /// Write this circuit's compression setup files into the existing
+    /// directory `dir` (about 29 GB, 27 GiB, at the production size) and return the
+    /// setup. Its key is what verifiers need.
+    pub fn compression_setup(&self, dir: impl AsRef<Path>) -> Result<CompressionSetup, Error> {
+        Ok(self.lifecycle.compression_setup(dir.as_ref())?)
+    }
+
+    /// Reopen setup files written for `key`. The files gain no authority.
+    pub fn open_compression_setup(
+        &self,
+        dir: impl AsRef<Path>,
+        key: &CompressionKey,
+    ) -> Result<CompressionSetup, Error> {
+        Ok(self.lifecycle.open_compression_setup(dir.as_ref(), key)?)
+    }
+
+    /// Compress `proof`: one more PiCCS + PiRLC fold without PiDEC, then a
+    /// sum-check and WHIR argument for the folded claim. The result carries
+    /// no witness and cannot be extended; `proof` does not change.
+    pub fn compress(&self, proof: &Stage1Envelope, setup: &CompressionSetup) -> Result<FinalProof, Error> {
+        Ok(self.lifecycle.finish_with_spartan(proof, setup)?)
+    }
+}
+
+/// Terminal verification against a circuit chosen independently of the proof.
+pub struct Verifier {
+    lifecycle: PreparedLifecycle,
+}
+
+impl Verifier {
+    /// The Stage 1 verifier inside `nebula::Verifier`.
+    pub(crate) fn of_memory(package: &Circuit, engine: Engine, minimum_security_bits: u32) -> Result<Self, Error> {
+        Self::configured(package, engine, minimum_security_bits)
+    }
+
+    fn configured(package: &Circuit, engine: Engine, minimum_security_bits: u32) -> Result<Self, Error> {
+        Ok(Self {
+            lifecycle: package
+                .compiled
+                .lifecycle(Backend::new(engine)?, minimum_security_bits)?,
+        })
+    }
+
+    pub fn engine(&self) -> Engine {
+        self.lifecycle.engine()
+    }
+
+    /// Decode untrusted proof bytes. The configured circuit fixes the exact
+    /// length, which is checked before allocation. Acceptance still needs `verify`.
+    pub fn decode_proof(&self, bytes: &[u8]) -> Result<Stage1Envelope, Error> {
+        Ok(self.lifecycle.decode_proof(bytes)?)
+    }
+
+    /// Check `proof` against the configured circuit and the expected state,
+    /// with its witnesses.
+    pub fn verify(&self, expected_state: &Stage1State, proof: &Stage1Envelope) -> Result<(), Error> {
+        Ok(self.lifecycle.verify(expected_state, proof)?)
+    }
+
+    /// Derive the compression key from the configured circuit, without files.
+    /// This key, or a copy of it you pinned, is the authority for
+    /// `verify_final`. Never take a key from a prover.
+    pub fn compression_key(&self) -> Result<CompressionKey, Error> {
+        Ok(self.lifecycle.compression_key()?)
+    }
+
+    /// Check a finished proof against the expected state and a trusted
+    /// compression key. The key must be this circuit's and meet this
+    /// verifier's security minimum; its setup root comes from
+    /// `compression_key` or a copy you pinned, never from a prover.
+    pub fn verify_final(
+        &self,
+        expected_state: &Stage1State,
+        key: &CompressionKey,
+        proof: &FinalProof,
+    ) -> Result<(), Error> {
+        self.lifecycle
+            .check_compression_key(key)
+            .map_err(VerifyError::Statement)?;
+        Ok(key.verify(expected_state, proof)?)
+    }
+}
+
+#[cfg(test)]
+#[path = "../tests/circuit/compiled_circuit.rs"]
+mod compiled_circuit;
+
+#[cfg(test)]
+#[path = "../tests/circuit/hash_chain_vector.rs"]
+mod hash_chain_vector;
+
+#[cfg(test)]
+#[path = "../tests/circuit/terminal_package.rs"]
+mod terminal_package;

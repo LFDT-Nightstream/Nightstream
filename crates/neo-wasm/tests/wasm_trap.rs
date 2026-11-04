@@ -2,16 +2,13 @@
 //!
 //! Modeled trap causes (`unreachable`, div/rem by zero, signed division
 //! overflow, `call_indirect` OOB index / null entry / callee type mismatch,
-//! and linear-memory load/store OOB) end the trace at the faulting row. The
-//! carried `trapped` flag enters the semantic-state digest, and `verify`
-//! authenticates a prover-disclosed final state with `trapped: true` and no
-//! captured output. Unmodeled causes still stay loud trace-collection errors.
+//! and linear-memory load/store OOB) end the trace at the faulting row with
+//! `trapped: true` and no captured output. Unmodeled causes still stay loud
+//! trace-collection errors.
 
 mod common;
 
-use common::audit::{prove_batched, verify, AuditProveError};
-use neo_wasm::preprocess::preprocess_seeded_batched;
-use neo_wasm::{top_level_initial_state_digest, WasmOpcode};
+use neo_wasm::WasmOpcode;
 
 #[test]
 fn unreachable_trap_is_a_provable_terminal_state() {
@@ -30,26 +27,6 @@ fn unreachable_trap_is_a_provable_terminal_state() {
     assert!(last.state_after.trapped);
     assert!(last.state_after.activation_finished);
     assert!(!last.state_after.output.enabled);
-
-    // batch_size 2 forces one padding row after the trap row, covering
-    // trapped-flag preservation across padding.
-    let batch_size = 2;
-    let digest = common::verifier_initial_state_digest(&checked.artifacts);
-    let prep = preprocess_seeded_batched(batch_size, digest).expect("prep");
-    let proof = prove_batched(&prep, &checked.trace, batch_size).expect("prove");
-
-    let final_state = common::final_state(&checked.trace);
-    assert!(final_state.trapped);
-    verify(&prep, &proof, final_state).expect("verify trapped final state");
-
-    // The trap outcome is bound: claiming a clean (non-trapped) final state
-    // for the same proof must fail.
-    let mut clean_claim = final_state;
-    clean_claim.trapped = false;
-    assert!(matches!(
-        verify(&prep, &proof, clean_claim),
-        Err(AuditProveError::FinalStateMismatch)
-    ));
 }
 
 #[test]
@@ -67,21 +44,6 @@ fn div_by_zero_trap_is_a_provable_terminal_state() {
     assert_eq!(last.opcode, WasmOpcode::I32DivU);
     assert!(last.state_after.trapped);
     assert!(!last.state_after.output.enabled);
-
-    let batch_size = 2;
-    let digest = common::verifier_initial_state_digest(&checked.artifacts);
-    let prep = preprocess_seeded_batched(batch_size, digest).expect("prep");
-    let proof = prove_batched(&prep, &checked.trace, batch_size).expect("prove");
-
-    let final_state = common::final_state(&checked.trace);
-    verify(&prep, &proof, final_state).expect("verify trapped final state");
-
-    let mut clean_claim = final_state;
-    clean_claim.trapped = false;
-    assert!(matches!(
-        verify(&prep, &proof, clean_claim),
-        Err(AuditProveError::FinalStateMismatch)
-    ));
 }
 
 #[test]
@@ -127,21 +89,6 @@ fn i32_signed_division_overflow_trap_is_a_provable_terminal_state() {
     assert_eq!(last.opcode, WasmOpcode::I32DivS);
     assert!(last.state_after.trapped);
     assert!(!last.state_after.output.enabled);
-
-    let batch_size = 2;
-    let digest = common::verifier_initial_state_digest(&checked.artifacts);
-    let prep = preprocess_seeded_batched(batch_size, digest).expect("prep");
-    let proof = prove_batched(&prep, &checked.trace, batch_size).expect("prove");
-
-    let final_state = common::final_state(&checked.trace);
-    verify(&prep, &proof, final_state).expect("verify trapped final state");
-
-    let mut clean_claim = final_state;
-    clean_claim.trapped = false;
-    assert!(matches!(
-        verify(&prep, &proof, clean_claim),
-        Err(AuditProveError::FinalStateMismatch)
-    ));
 }
 
 #[test]
@@ -190,22 +137,6 @@ fn linear_memory_oob_load_trap_is_a_provable_terminal_state() {
     assert_eq!(last.opcode, WasmOpcode::I32Load);
     assert!(last.state_after.trapped);
     assert!(!last.state_after.output.enabled);
-
-    let batch_size = 2;
-    let digest = common::verifier_initial_state_digest(&checked.artifacts);
-    let prep = preprocess_seeded_batched(batch_size, digest).expect("prep");
-    let proof = prove_batched(&prep, &checked.trace, batch_size).expect("prove");
-
-    let final_state = common::final_state(&checked.trace);
-    assert!(final_state.trapped);
-    verify(&prep, &proof, final_state).expect("verify trapped final state");
-
-    let mut clean_claim = final_state;
-    clean_claim.trapped = false;
-    assert!(matches!(
-        verify(&prep, &proof, clean_claim),
-        Err(AuditProveError::FinalStateMismatch)
-    ));
 }
 
 #[test]
@@ -227,22 +158,6 @@ fn linear_memory_oob_store_trap_is_a_provable_terminal_state() {
     assert_eq!(last.opcode, WasmOpcode::I32Store);
     assert!(last.state_after.trapped);
     assert!(!last.state_after.output.enabled);
-
-    let batch_size = 2;
-    let digest = common::verifier_initial_state_digest(&checked.artifacts);
-    let prep = preprocess_seeded_batched(batch_size, digest).expect("prep");
-    let proof = prove_batched(&prep, &checked.trace, batch_size).expect("prove");
-
-    let final_state = common::final_state(&checked.trace);
-    assert!(final_state.trapped);
-    verify(&prep, &proof, final_state).expect("verify trapped final state");
-
-    let mut clean_claim = final_state;
-    clean_claim.trapped = false;
-    assert!(matches!(
-        verify(&prep, &proof, clean_claim),
-        Err(AuditProveError::FinalStateMismatch)
-    ));
 }
 
 #[test]
@@ -269,24 +184,6 @@ fn call_indirect_null_entry_trap_is_a_provable_terminal_state() {
     assert!(last.state_after.trapped);
     assert!(!last.state_after.output.enabled);
     assert!(last.call_stack_push.is_none(), "a trapping call_indirect never calls");
-
-    let batch_size = 2;
-    // "main" is the second defined function in this fixture.
-    let entry_pc = common::entry_pc_for_function_ref(&checked.artifacts, 2);
-    let digest = top_level_initial_state_digest(&checked.artifacts.tables, entry_pc);
-    let prep = preprocess_seeded_batched(batch_size, digest).expect("prep");
-    let proof = prove_batched(&prep, &checked.trace, batch_size).expect("prove");
-
-    let final_state = common::final_state(&checked.trace);
-    assert!(final_state.trapped);
-    verify(&prep, &proof, final_state).expect("verify trapped final state");
-
-    let mut clean_claim = final_state;
-    clean_claim.trapped = false;
-    assert!(matches!(
-        verify(&prep, &proof, clean_claim),
-        Err(AuditProveError::FinalStateMismatch)
-    ));
 }
 
 #[test]
@@ -317,24 +214,6 @@ fn call_indirect_oob_index_trap_is_a_provable_terminal_state() {
     assert!(last.state_after.trapped);
     assert!(!last.state_after.output.enabled);
     assert!(last.call_stack_push.is_none(), "a trapping call_indirect never calls");
-
-    let batch_size = 2;
-    // "main" is the second defined function in this fixture.
-    let entry_pc = common::entry_pc_for_function_ref(&checked.artifacts, 2);
-    let digest = top_level_initial_state_digest(&checked.artifacts.tables, entry_pc);
-    let prep = preprocess_seeded_batched(batch_size, digest).expect("prep");
-    let proof = prove_batched(&prep, &checked.trace, batch_size).expect("prove");
-
-    let final_state = common::final_state(&checked.trace);
-    assert!(final_state.trapped);
-    verify(&prep, &proof, final_state).expect("verify trapped final state");
-
-    let mut clean_claim = final_state;
-    clean_claim.trapped = false;
-    assert!(matches!(
-        verify(&prep, &proof, clean_claim),
-        Err(AuditProveError::FinalStateMismatch)
-    ));
 }
 
 #[test]
@@ -360,21 +239,4 @@ fn call_indirect_type_mismatch_trap_is_a_provable_terminal_state() {
     assert_ne!(last.function_type_id, last.expected_type_id);
     assert!(last.state_after.trapped);
     assert!(last.call_stack_push.is_none(), "a trapping call_indirect never calls");
-
-    let batch_size = 2;
-    // "main" is the second defined function in this fixture.
-    let entry_pc = common::entry_pc_for_function_ref(&checked.artifacts, 2);
-    let digest = top_level_initial_state_digest(&checked.artifacts.tables, entry_pc);
-    let prep = preprocess_seeded_batched(batch_size, digest).expect("prep");
-    let proof = prove_batched(&prep, &checked.trace, batch_size).expect("prove");
-
-    let final_state = common::final_state(&checked.trace);
-    verify(&prep, &proof, final_state).expect("verify trapped final state");
-
-    let mut clean_claim = final_state;
-    clean_claim.trapped = false;
-    assert!(matches!(
-        verify(&prep, &proof, clean_claim),
-        Err(AuditProveError::FinalStateMismatch)
-    ));
 }

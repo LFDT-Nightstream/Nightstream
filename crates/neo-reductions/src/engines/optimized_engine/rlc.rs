@@ -2,6 +2,7 @@
 //!
 //! It does not own paper-exact cross-check formulas or DEC.
 
+use crate::engines::RlcMixer;
 use neo_ajtai::Commitment as Cmt;
 use neo_ccs::{CcsStructure, CeClaim, Mat};
 use neo_math::{D, K};
@@ -11,10 +12,49 @@ use p3_field::{Field, PrimeCharacteristicRing, PrimeField64};
 #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
 use rayon::prelude::*;
 
-const RLC_RING_MUL_COL_THRESHOLD: usize = 256;
 const RLC_RING_SPLIT: usize = D / 3;
 const RLC_RING_CHUNK_OUT: usize = 2 * RLC_RING_SPLIT - 1;
-const RLC_RING_SPARSE_RHS_THRESHOLD: usize = D / 4;
+
+fn add_signed_unit_columns<Ff>(acc: &mut Mat<Ff>, rho_data: &[Ff], positive: &[u64], negative: &[u64])
+where
+    Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync,
+{
+    let m = acc.cols();
+    let add_row = |rr: usize, row_out: &mut [Ff]| {
+        let coefficients = &rho_data[rr * D..(rr + 1) * D];
+        let mut nonzero_coefficients = 0u64;
+        for (lane, &coefficient) in coefficients.iter().enumerate() {
+            if coefficient != Ff::ZERO {
+                nonzero_coefficients |= 1u64 << lane;
+            }
+        }
+        for (column, value) in row_out.iter_mut().enumerate() {
+            let mut mask = positive[column] & nonzero_coefficients;
+            while mask != 0 {
+                *value += coefficients[mask.trailing_zeros() as usize];
+                mask &= mask - 1;
+            }
+            mask = negative[column] & nonzero_coefficients;
+            while mask != 0 {
+                *value -= coefficients[mask.trailing_zeros() as usize];
+                mask &= mask - 1;
+            }
+        }
+    };
+
+    #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
+    if rayon::current_num_threads() > 1 {
+        acc.as_mut_slice()
+            .par_chunks_exact_mut(m)
+            .enumerate()
+            .for_each(|(rr, row_out)| add_row(rr, row_out));
+        return;
+    }
+
+    for (rr, row_out) in acc.as_mut_slice().chunks_exact_mut(m).enumerate() {
+        add_row(rr, row_out);
+    }
+}
 
 fn left_mul_acc_optimized<Ff>(acc: &mut Mat<Ff>, rho: &Mat<Ff>, a: &Mat<Ff>)
 where
@@ -27,160 +67,42 @@ where
     debug_assert_eq!(a.cols(), acc.cols());
 
     let m = acc.cols();
-    let rho_data = rho.as_slice();
-    let a_data = a.as_slice();
-    let neg_one = Ff::ZERO - Ff::ONE;
-
-    if m >= 1024 {
-        let total = D * m;
-        let mut row_counts = [0usize; D];
-        for kk in 0..D {
-            let row = &a_data[kk * m..(kk + 1) * m];
-            row_counts[kk] = row.iter().filter(|&&value| value != Ff::ZERO).count();
-        }
-        let total_nnz: usize = row_counts.iter().sum();
-
-        // Sparse witnesses are common after DEC. In that case the dense
-        // row-wise loop scans the same mostly-zero matrix once per output
-        // row; building row nonzero lists once cuts the work from D^2*m
-        // zero checks to D*nnz updates. Keep the threshold conservative so
-        // dense SHA/F' traces stay on the locality-friendly dense path.
-        if total_nnz > 0 && total_nnz * 8 <= total {
-            let mut row_nonzeros: Vec<Vec<(usize, Ff)>> = row_counts
-                .iter()
-                .map(|&count| Vec::with_capacity(count))
-                .collect();
-            for kk in 0..D {
-                let row = &a_data[kk * m..(kk + 1) * m];
-                for (col, &value) in row.iter().enumerate() {
-                    if value != Ff::ZERO {
-                        row_nonzeros[kk].push((col, value));
-                    }
-                }
-            }
-
-            #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
-            {
-                if rayon::current_num_threads() > 1 {
-                    acc.as_mut_slice()
-                        .par_chunks_exact_mut(m)
-                        .enumerate()
-                        .for_each(|(rr, row_out)| {
-                            for kk in 0..D {
-                                let coeff = rho_data[rr * D + kk];
-                                if coeff == Ff::ZERO {
-                                    continue;
-                                }
-                                for &(col, value) in &row_nonzeros[kk] {
-                                    if value == Ff::ONE {
-                                        row_out[col] += coeff;
-                                    } else if value == neg_one {
-                                        row_out[col] -= coeff;
-                                    } else {
-                                        row_out[col] += coeff * value;
-                                    }
-                                }
-                            }
-                        });
-                    return;
-                }
-            }
-
-            let acc_data = acc.as_mut_slice();
-            for rr in 0..D {
-                let row_out = &mut acc_data[rr * m..(rr + 1) * m];
-                for kk in 0..D {
-                    let coeff = rho_data[rr * D + kk];
-                    if coeff == Ff::ZERO {
-                        continue;
-                    }
-                    for &(col, value) in &row_nonzeros[kk] {
-                        if value == Ff::ONE {
-                            row_out[col] += coeff;
-                        } else if value == neg_one {
-                            row_out[col] -= coeff;
-                        } else {
-                            row_out[col] += coeff * value;
-                        }
-                    }
-                }
-            }
-            return;
-        }
-    }
-
-    if m >= RLC_RING_MUL_COL_THRESHOLD {
-        left_mul_acc_rotation_ring(acc, rho_data, a_data, m);
+    if m == 0 {
         return;
     }
-
-    #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
-    {
-        if rayon::current_num_threads() > 1 {
-            let acc_data = acc.as_mut_slice();
-            const BLOCK_COLS: usize = 1024;
-            acc_data
-                .par_chunks_exact_mut(m)
-                .enumerate()
-                .for_each(|(rr, row_out)| {
-                    for col0 in (0..m).step_by(BLOCK_COLS) {
-                        let len = core::cmp::min(BLOCK_COLS, m - col0);
-                        for kk in 0..D {
-                            let coeff = rho_data[rr * D + kk];
-                            if coeff == Ff::ZERO {
-                                continue;
-                            }
-                            let in_off = kk * m + col0;
-                            for t in 0..len {
-                                let value = a_data[in_off + t];
-                                if value == Ff::ZERO {
-                                    continue;
-                                }
-                                if value == Ff::ONE {
-                                    row_out[col0 + t] += coeff;
-                                } else if value == neg_one {
-                                    row_out[col0 + t] -= coeff;
-                                } else {
-                                    row_out[col0 + t] += coeff * value;
-                                }
-                            }
-                        }
-                    }
-                });
+    let rho_data = rho.as_slice();
+    if let Some(&constant) = a.virtual_constant_value() {
+        if constant == Ff::ZERO {
             return;
         }
-    }
-
-    let acc_data = acc.as_mut_slice();
-    const BLOCK_COLS: usize = 1024;
-    for rr in 0..D {
-        let row_out = &mut acc_data[rr * m..(rr + 1) * m];
-        for col0 in (0..m).step_by(BLOCK_COLS) {
-            let len = core::cmp::min(BLOCK_COLS, m - col0);
+        let add_row = |rr: usize, row_out: &mut [Ff]| {
+            let mut value = Ff::ZERO;
             for kk in 0..D {
-                let coeff = rho_data[rr * D + kk];
-                if coeff == Ff::ZERO {
-                    continue;
-                }
-                let in_off = kk * m + col0;
-                for t in 0..len {
-                    let value = a_data[in_off + t];
-                    if value == Ff::ZERO {
-                        continue;
-                    }
-                    if value == Ff::ONE {
-                        row_out[col0 + t] += coeff;
-                    } else if value == neg_one {
-                        row_out[col0 + t] -= coeff;
-                    } else {
-                        row_out[col0 + t] += coeff * value;
-                    }
-                }
+                value += rho_data[rr * D + kk] * constant;
             }
+            for entry in row_out {
+                *entry += value;
+            }
+        };
+        #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
+        if rayon::current_num_threads() > 1 {
+            acc.as_mut_slice()
+                .par_chunks_exact_mut(m)
+                .enumerate()
+                .for_each(|(rr, row_out)| add_row(rr, row_out));
+            return;
         }
+        for (rr, row_out) in acc.as_mut_slice().chunks_exact_mut(m).enumerate() {
+            add_row(rr, row_out);
+        }
+        return;
     }
+    if let Some((positive, negative)) = a.packed_signed_unit_column_masks() {
+        add_signed_unit_columns(acc, rho_data, positive, negative);
+        return;
+    }
+    left_mul_acc_rotation_ring(acc, rho_data, a.as_slice(), m);
 }
-
 #[inline]
 fn left_mul_acc_rotation_ring<Ff>(acc: &mut Mat<Ff>, rho_data: &[Ff], a_data: &[Ff], cols: usize)
 where
@@ -193,21 +115,13 @@ where
 
     #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
     {
-        if rayon::current_num_threads() > 1 && cols >= 1024 {
+        if rayon::current_num_threads() > 1 && rayon::current_thread_index().is_none() {
             let products: Vec<[Ff; D]> = (0..cols)
                 .into_par_iter()
                 .map(|col| {
                     let mut rhs = [Ff::ZERO; D];
-                    let mut nnz = 0usize;
                     for row in 0..D {
-                        let value = a_data[row * cols + col];
-                        rhs[row] = value;
-                        if value != Ff::ZERO {
-                            nnz += 1;
-                        }
-                    }
-                    if nnz <= RLC_RING_SPARSE_RHS_THRESHOLD {
-                        return mul_phi_81_sparse_rhs(&rho_coeffs, &rhs);
+                        rhs[row] = a_data[row * cols + col];
                     }
                     mul_phi_81_toom3(&rho_coeffs, &rhs)
                 })
@@ -226,107 +140,14 @@ where
     let acc_data = acc.as_mut_slice();
     let mut rhs = [Ff::ZERO; D];
     for col in 0..cols {
-        let mut nnz = 0usize;
         for row in 0..D {
-            let value = a_data[row * cols + col];
-            rhs[row] = value;
-            if value != Ff::ZERO {
-                nnz += 1;
-            }
+            rhs[row] = a_data[row * cols + col];
         }
-        let product = if nnz <= RLC_RING_SPARSE_RHS_THRESHOLD {
-            mul_phi_81_sparse_rhs(&rho_coeffs, &rhs)
-        } else {
-            mul_phi_81_toom3(&rho_coeffs, &rhs)
-        };
+        let product = mul_phi_81_toom3(&rho_coeffs, &rhs);
         for row in 0..D {
             acc_data[row * cols + col] += product[row];
         }
     }
-}
-
-#[inline]
-fn mul_phi_81_sparse_rhs<Ff>(lhs: &[Ff; D], rhs: &[Ff; D]) -> [Ff; D]
-where
-    Ff: Field + PrimeCharacteristicRing + Copy,
-{
-    let mut out = [Ff::ZERO; D];
-    let mut rot_col = *lhs;
-    let mut rot_pos = 0usize;
-    let neg_one = Ff::ZERO - Ff::ONE;
-
-    for (pos, &scale) in rhs.iter().enumerate() {
-        if scale == Ff::ZERO {
-            continue;
-        }
-        advance_rot_col_phi_81(&mut rot_col, pos - rot_pos);
-        if scale == Ff::ONE {
-            for lane in 0..D {
-                out[lane] += rot_col[lane];
-            }
-        } else if scale == neg_one {
-            for lane in 0..D {
-                out[lane] -= rot_col[lane];
-            }
-        } else {
-            for lane in 0..D {
-                out[lane] += rot_col[lane] * scale;
-            }
-        }
-        rot_pos = pos;
-    }
-
-    out
-}
-
-#[inline]
-fn advance_rot_col_phi_81<Ff>(col: &mut [Ff; D], delta: usize)
-where
-    Ff: Field + PrimeCharacteristicRing + Copy,
-{
-    match delta {
-        0 => {}
-        1 => {
-            let last = col[D - 1];
-            for idx in (1..D).rev() {
-                col[idx] = col[idx - 1];
-            }
-            col[0] = Ff::ZERO - last;
-            col[D / 2] -= last;
-        }
-        _ => *col = mul_coeffs_by_monomial_phi_81(col, delta),
-    }
-}
-
-#[inline]
-fn mul_coeffs_by_monomial_phi_81<Ff>(input: &[Ff; D], j: usize) -> [Ff; D]
-where
-    Ff: Field + PrimeCharacteristicRing + Copy,
-{
-    debug_assert!(j < D);
-    if j == 0 {
-        return *input;
-    }
-
-    let mut out = [Ff::ZERO; D];
-    let first_reduced = D - j;
-    let first_wrap = (D + D / 2).saturating_sub(j).min(D);
-
-    for i in 0..first_reduced {
-        out[i + j] = input[i];
-    }
-
-    for i in first_reduced..first_wrap {
-        let reduced = i + j - D;
-        out[reduced] -= input[i];
-        out[reduced + D / 2] -= input[i];
-    }
-
-    for i in first_wrap..D {
-        out[i + j - D - D / 2] += input[i];
-    }
-
-    out
 }
 
 #[inline]
@@ -518,30 +339,24 @@ fn mat_is_zero<Ff>(m: &Mat<Ff>) -> bool
 where
     Ff: Field + Copy,
 {
+    if let Some(value) = m.virtual_constant_value() {
+        return *value == Ff::ZERO;
+    }
+    if let Some(nonzero) = m.packed_signed_unit_nonzero_count() {
+        return nonzero == 0;
+    }
     m.as_slice().iter().all(|&entry| entry == Ff::ZERO)
 }
 
-fn rlc_reduction_optimized_from_refs<Ff>(
-    s: &CcsStructure<Ff>,
-    params: &NeoParams,
-    rhos: &[Mat<Ff>],
-    me_inputs: &[CeClaim<Cmt, Ff, K>],
-    Zs: &[&Mat<Ff>],
-    ell_d: usize,
-) -> (CeClaim<Cmt, Ff, K>, Mat<Ff>)
+pub fn rlc_mix_witnesses<Ff>(s_m: usize, rhos: &[Mat<Ff>], Zs: &[&Mat<Ff>]) -> Mat<Ff>
 where
     Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy + Send + Sync,
-    K: From<Ff>,
 {
-    assert!(!me_inputs.is_empty(), "Π_RLC(optimized): need at least one input");
-    let k1 = me_inputs.len();
-    assert_eq!(rhos.len(), k1, "Π_RLC: |rhos| must equal |inputs|");
-    assert_eq!(Zs.len(), k1, "Π_RLC: |Zs| must equal |inputs|");
-    crate::common::validate_rhos_are_rotation_matrices(params, rhos, "Π_RLC(optimized): rhos")
-        .unwrap_or_else(|e| panic!("Π_RLC(optimized): invalid rho set: {e}"));
+    assert!(!Zs.is_empty(), "Π_RLC(optimized): need at least one witness");
+    assert_eq!(rhos.len(), Zs.len(), "Π_RLC: |rhos| must equal |Zs|");
     let z_cols = Zs[0].cols();
     for (idx, z) in Zs.iter().enumerate() {
-        crate::common::validate_superneo_witness_mat(*z, s.m)
+        crate::common::validate_superneo_witness_shape(*z, s_m)
             .unwrap_or_else(|e| panic!("Π_RLC(optimized): invalid witness shape at input {idx}: {e}"));
         assert_eq!(
             z.cols(),
@@ -550,27 +365,73 @@ where
         );
     }
 
+    let mut Z = Mat::zero(D, z_cols, Ff::ZERO);
+    for (rho, z_in) in rhos.iter().zip(Zs.iter()) {
+        if mat_is_zero(z_in) {
+            continue;
+        }
+        left_mul_acc_optimized(&mut Z, rho, z_in);
+    }
+    Z
+}
+
+pub fn rlc_combine_claims<Ff>(
+    s: &CcsStructure<Ff>,
+    params: &NeoParams,
+    rhos: &[Mat<Ff>],
+    me_inputs: &[CeClaim<Cmt, Ff, K>],
+    ell_d: usize,
+    c: Cmt,
+) -> CeClaim<Cmt, Ff, K>
+where
+    Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy + Send + Sync,
+    K: From<Ff>,
+{
+    assert!(!me_inputs.is_empty(), "Π_RLC(optimized): need at least one input");
+    let k1 = me_inputs.len();
+    assert_eq!(rhos.len(), k1, "Π_RLC: |rhos| must equal |inputs|");
+    crate::common::validate_rhos_are_rotation_matrices(params, rhos, "Π_RLC(optimized): rhos")
+        .unwrap_or_else(|e| panic!("Π_RLC(optimized): invalid rho set: {e}"));
+
     let d_pad = 1usize << ell_d;
-    let t_core = s.t();
+    let matrix_count = me_inputs[0].eval_a.len();
+    assert_eq!(matrix_count, s.t(), "PiRLC Eval_A count mismatch");
     let m_in = me_inputs[0].m_in;
     let r = me_inputs[0].r.clone();
-    let aux_len = me_inputs[0].aux_openings.len();
     for (idx, inst) in me_inputs.iter().enumerate() {
+        assert_eq!(inst.eval_k.len(), d_pad, "PiRLC: Eval_K width mismatch at input {idx}");
         assert_eq!(
-            inst.aux_openings.len(),
-            aux_len,
-            "Π_RLC: aux_openings.len mismatch at input {idx}"
+            inst.eval_a.len(),
+            matrix_count,
+            "PiRLC: Eval_A count mismatch at input {idx}"
         );
     }
 
     #[cfg(feature = "perf-timers")]
-    let t_y_ring = std::time::Instant::now();
-    let mut y_ring: Vec<Vec<K>> = Vec::with_capacity(t_core);
-    for j in 0..t_core {
+    let t_evaluations = std::time::Instant::now();
+    let combine = |select: &dyn Fn(&CeClaim<Cmt, Ff, K>) -> &[K]| {
+        let mut result = vec![K::ZERO; d_pad];
+        for i in 0..k1 {
+            let input = select(&me_inputs[i]);
+            debug_assert!(input.len() >= D, "PiRLC evaluation must have length >= D");
+            let rho = &rhos[i];
+            for row in 0..D {
+                let mut value = K::ZERO;
+                for column in 0..D {
+                    value += K::from(rho[(row, column)]) * input[column];
+                }
+                result[row] += value;
+            }
+        }
+        result
+    };
+    let eval_k = combine(&|claim| &claim.eval_k);
+    let mut eval_a = Vec::with_capacity(matrix_count);
+    for matrix in 0..matrix_count {
         let mut yj_acc = vec![K::ZERO; d_pad];
         for i in 0..k1 {
-            let yi = &me_inputs[i].y_ring[j];
-            debug_assert!(yi.len() >= D, "ME.y_ring[{j}] must have length >= D");
+            let yi = &me_inputs[i].eval_a[matrix];
+            debug_assert!(yi.len() >= D, "PiRLC Eval_A[{matrix}] must have length >= D");
             let rho = &rhos[i];
             for rr in 0..D {
                 let mut acc_rr = K::ZERO;
@@ -580,61 +441,14 @@ where
                 yj_acc[rr] += acc_rr;
             }
         }
-        y_ring.push(yj_acc);
+        eval_a.push(yj_acc);
     }
     #[cfg(feature = "perf-timers")]
-    let y_ring_s = t_y_ring.elapsed().as_secs_f64();
-
-    let wants_nc_channel = !(me_inputs[0].s_col.is_empty() && me_inputs[0].y_zcol.is_empty());
-    if wants_nc_channel {
-        assert!(
-            !me_inputs[0].s_col.is_empty() && !me_inputs[0].y_zcol.is_empty(),
-            "Π_RLC: incomplete NC channel on input 0 (expected both s_col and y_zcol)"
-        );
-        for (idx, inst) in me_inputs.iter().enumerate() {
-            assert_eq!(inst.s_col, me_inputs[0].s_col, "Π_RLC: s_col mismatch at input {idx}");
-            assert_eq!(
-                inst.y_zcol.len(),
-                d_pad,
-                "Π_RLC: y_zcol len mismatch at input {idx} (expected {d_pad}, got {})",
-                inst.y_zcol.len()
-            );
-        }
-    }
-
-    #[cfg(feature = "perf-timers")]
-    let t_ct = std::time::Instant::now();
-    let ct = crate::common::ct_from_y_ring_for_ccs_m(&y_ring, params, s.m);
-    #[cfg(feature = "perf-timers")]
-    let ct_s = t_ct.elapsed().as_secs_f64();
-
-    #[cfg(feature = "perf-timers")]
-    let t_aux = std::time::Instant::now();
-    let mut aux_openings = vec![K::ZERO; aux_len];
-    for (rho, inst) in rhos.iter().zip(me_inputs.iter()) {
-        let w = K::from(rho[(0, 0)]);
-        for (dst, src) in aux_openings.iter_mut().zip(inst.aux_openings.iter()) {
-            *dst += w * *src;
-        }
-    }
-    #[cfg(feature = "perf-timers")]
-    let aux_s = t_aux.elapsed().as_secs_f64();
-
-    #[cfg(feature = "perf-timers")]
-    let t_z = std::time::Instant::now();
-    let mut Z = Mat::zero(D, z_cols, Ff::ZERO);
-    for (rho, z_in) in rhos.iter().zip(Zs.iter()) {
-        if mat_is_zero(z_in) {
-            continue;
-        }
-        left_mul_acc_optimized(&mut Z, rho, z_in);
-    }
-    #[cfg(feature = "perf-timers")]
-    let z_s = t_z.elapsed().as_secs_f64();
+    let evaluations_s = t_evaluations.elapsed().as_secs_f64();
 
     #[cfg(feature = "perf-timers")]
     let t_x = std::time::Instant::now();
-    let mut X = Mat::zero(D, m_in, Ff::ZERO);
+    let mut X = Mat::zero(D, me_inputs[0].X.cols(), Ff::ZERO);
     for (rho, inst) in rhos.iter().zip(me_inputs.iter()) {
         left_mul_acc_optimized(&mut X, rho, &inst.X);
     }
@@ -642,94 +456,76 @@ where
     let x_s = t_x.elapsed().as_secs_f64();
 
     #[cfg(feature = "perf-timers")]
-    let t_y_zcol = std::time::Instant::now();
-    let y_zcol = if wants_nc_channel {
-        let mut acc = vec![K::ZERO; d_pad];
-        for i in 0..k1 {
-            for rr in 0..D {
-                let mut sum = K::ZERO;
-                for kk in 0..D {
-                    sum += K::from(rhos[i][(rr, kk)]) * me_inputs[i].y_zcol[kk];
-                }
-                acc[rr] += sum;
-            }
-        }
-        acc
-    } else {
-        Vec::new()
-    };
-    #[cfg(feature = "perf-timers")]
-    let y_zcol_s = t_y_zcol.elapsed().as_secs_f64();
+    eprintln!("[pi-rlc] evaluations {:>7.2}s X_mix {:>7.2}s", evaluations_s, x_s,);
 
-    #[cfg(feature = "perf-timers")]
-    eprintln!(
-        "[pi-rlc] y_ring {:>7.2}s ct {:>7.2}s aux {:>7.2}s Z_mix {:>7.2}s X_mix {:>7.2}s y_zcol {:>7.2}s",
-        y_ring_s, ct_s, aux_s, z_s, x_s, y_zcol_s,
-    );
-
-    let out = CeClaim::<Cmt, Ff, K> {
-        c_step_coords: vec![],
-        u_offset: 0,
-        u_len: 0,
-        c: me_inputs[0].c.clone(),
+    CeClaim::<Cmt, Ff, K> {
+        adv: None,
+        c,
         X,
         r,
-        s_col: me_inputs[0].s_col.clone(),
-        y_ring,
-        ct,
-        aux_openings,
-        y_zcol,
+        eval_k,
+        eval_a,
         m_in,
         fold_digest: me_inputs[0].fold_digest,
-    };
-
-    (out, Z)
+    }
 }
 
-pub fn rlc_reduction_optimized<Ff>(
-    s: &CcsStructure<Ff>,
-    params: &NeoParams,
-    rhos: &[Mat<Ff>],
-    me_inputs: &[CeClaim<Cmt, Ff, K>],
-    Zs: &[Mat<Ff>],
-    ell_d: usize,
-) -> (CeClaim<Cmt, Ff, K>, Mat<Ff>)
-where
-    Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy + Send + Sync,
-    K: From<Ff>,
-{
-    let z_refs: Vec<&Mat<Ff>> = Zs.iter().collect();
-    rlc_reduction_optimized_from_refs::<Ff>(s, params, rhos, me_inputs, &z_refs, ell_d)
-}
-
-pub fn rlc_reduction_optimized_with_commit_mix<Ff, Comb>(
+pub fn rlc_reduction_optimized_with_commit_mix<Ff>(
     s: &CcsStructure<Ff>,
     params: &NeoParams,
     rhos: &[Mat<Ff>],
     me_inputs: &[CeClaim<Cmt, Ff, K>],
     Zs: &[&Mat<Ff>],
     ell_d: usize,
-    combine_commit: Comb,
+    combine_commit: RlcMixer<Ff>,
 ) -> (CeClaim<Cmt, Ff, K>, Mat<Ff>)
 where
     Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy + Send + Sync,
     K: From<Ff>,
-    Comb: Fn(&[Mat<Ff>], &[Cmt]) -> Cmt,
+{
+    rlc_reduction_optimized_with_mixers(
+        s,
+        params,
+        rhos,
+        me_inputs,
+        Zs,
+        ell_d,
+        combine_commit,
+        |rhos, witnesses| rlc_mix_witnesses(s.m(), rhos, witnesses),
+    )
+}
+
+pub fn rlc_reduction_optimized_with_mixers<Ff, MixWitness>(
+    s: &CcsStructure<Ff>,
+    params: &NeoParams,
+    rhos: &[Mat<Ff>],
+    me_inputs: &[CeClaim<Cmt, Ff, K>],
+    Zs: &[&Mat<Ff>],
+    ell_d: usize,
+    combine_commit: RlcMixer<Ff>,
+    mix_witnesses: MixWitness,
+) -> (CeClaim<Cmt, Ff, K>, Mat<Ff>)
+where
+    Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy + Send + Sync,
+    K: From<Ff>,
+    MixWitness: Fn(&[Mat<Ff>], &[&Mat<Ff>]) -> Mat<Ff>,
 {
     #[cfg(feature = "perf-timers")]
     let t_core = std::time::Instant::now();
-    let (mut out, Z) = rlc_reduction_optimized_from_refs::<Ff>(s, params, rhos, me_inputs, Zs, ell_d);
-    #[cfg(feature = "perf-timers")]
-    let core_s = t_core.elapsed().as_secs_f64();
+    assert_eq!(Zs.len(), me_inputs.len(), "Pi_RLC: |Zs| must equal |inputs|");
     #[cfg(feature = "perf-timers")]
     let t_commit = std::time::Instant::now();
     let inputs_c: Vec<Cmt> = me_inputs.iter().map(|m| m.c.clone()).collect();
-    out.c = combine_commit(rhos, &inputs_c);
+    let c = combine_commit(rhos, &inputs_c);
+    #[cfg(feature = "perf-timers")]
+    let commit_s = t_commit.elapsed().as_secs_f64();
+    let Z = mix_witnesses(rhos, Zs);
+    let out = rlc_combine_claims(s, params, rhos, me_inputs, ell_d, c);
     #[cfg(feature = "perf-timers")]
     eprintln!(
         "[pi-rlc] core {:>7.2}s commit_mix {:>7.2}s inputs={}",
-        core_s,
-        t_commit.elapsed().as_secs_f64(),
+        t_core.elapsed().as_secs_f64() - commit_s,
+        commit_s,
         me_inputs.len(),
     );
     (out, Z)

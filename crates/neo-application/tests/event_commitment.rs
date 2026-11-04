@@ -191,7 +191,7 @@ fn unrolled_commitment_matches_native_and_retains_one_semantic_occurrence() {
     assert_eq!(gadget.auxiliary_range(), AUXILIARY..WIDTH);
     // 12 premix + 8 × (48 S-box + 12 output) + 11 × (8 S-box + 12 output)
     // + 4 feed-forward rows.
-    assert_eq!(relation.structure().n, 716);
+    assert_eq!(relation.structure().n(), 716);
     let [occurrence] = relation.catalog().gadget_occurrences() else {
         panic!("the composite must retain one semantic occurrence, not its internal rounds")
     };
@@ -212,9 +212,7 @@ fn unrolled_commitment_matches_native_and_retains_one_semantic_occurrence() {
         core::array::from_fn(|lane| assignment[PREVIOUS + lane]),
         core::array::from_fn(|word| assignment[BLOCK + word]),
     );
-    for lane in 0..4 {
-        assignment[OUTPUT + lane] = expected[lane];
-    }
+    assignment[OUTPUT..OUTPUT + 4].copy_from_slice(&expected);
     gadget.assign_auxiliaries(&mut assignment);
     assert_satisfied(&relation, &assignment);
 

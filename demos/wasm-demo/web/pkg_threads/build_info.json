@@ -1,8 +1,0 @@
-{
-  "build_time_utc": "2026-02-03T04:52:04Z",
-  "bundle": "pkg_threads",
-  "git_commit": "05595df216e0b09419891785febaf52daba93c0e",
-  "git_commit_short": "05595df216e0",
-  "git_dirty": true,
-  "profile": "release"
-}

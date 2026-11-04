@@ -1,0 +1,561 @@
+import CompressionLean.Ports.Terminal.Program
+import CompressionLean.Lowering.PackageRows
+import CompressionLean.Sim.Instr
+import CompressionLean.Final.Claim
+import CompressionLean.Production
+import CompressionLean.Spec.Program
+
+namespace CompressionLean.Sim
+
+open CompressionLean.Spec
+open CompressionLean.Circuit CompressionLean.Terminal.Package CompressionLean.Terminal.Program
+open CompressionLean.Lowering CompressionLean.Lowering.Package
+open CompressionLean.Replay (Word)
+open NightstreamFPrime.Circuit (Env Expr)
+open NightstreamFPrime.Layout
+
+def statementOf (c : Ctx NightstreamFPrime.Spec.F) : Spec.StateWords := fun k => c.stmt.getD k 0
+
+def ReadsStatement (c : Ctx NightstreamFPrime.Spec.F) : Prop := ∀ k : Fin 9, c.val k = statementOf c k
+
+theorem finalProgram_eq {α : Type} (package : Loaded) (context : Array Word)
+    (layer1 : ClaimVars → (Fin 16 → Var) → Build α) :
+    finalProgram package context layer1 = terminalPrefix package context >>= fun r => layer1 r.1 r.2 :=
+  rfl
+
+private theorem pubs_run {δ : Type} : ∀ (xs : List δ) (p : Builder), (xs.mapM fun _ => Build.pub).run p =
+    (List.range' p.values xs.length,
+      { instrs := p.instrs ++ Array.replicate xs.length Instr.pub, values := p.values + xs.length })
+  | [], p => by simp; rfl
+  | x :: xs, p => by
+      rw [List.mapM_cons]
+      show ((xs.mapM fun _ => Build.pub).run _ >>= fun r => pure (p.values :: r.1, r.2)) = _
+      rw [pubs_run xs]
+      show (p.values :: List.range' (p.values + 1) xs.length, _) = _
+      simp only [List.length_cons, List.range'_succ, Prod.mk.injEq, true_and, Builder.mk.injEq, Instr.outputs]
+      refine ⟨Array.toList_inj.mp ?_, by omega⟩
+      simp [List.replicate_succ]
+
+theorem statementHandles_run (p : Builder) : statementHandles.run p =
+    ((List.range' p.values 9).toArray,
+      { instrs := p.instrs ++ Array.replicate 9 Instr.pub, values := p.values + 9 }) := by
+  rw [statementHandles, Array.mapM_eq_mapM_toList]
+  show (fun r => (r.1.toArray, r.2)) ((List.mapM (fun _ => Build.pub) (Array.range statementWords).toList).run p) = _
+  rw [pubs_run]
+  simp [statementWords]
+
+private theorem range_getD (j : ℕ) : (List.range' 0 9).toArray.getD j 0 = if j < 9 then j else 0 := by
+  rw [Array.getD_eq_getD_getElem?, List.getElem?_toArray]
+  by_cases h : j < 9
+  · rw [ite_eq_left h, List.getElem?_range' h]
+    simp
+  · rw [ite_eq_right h, List.getElem?_eq_none (by simpa using h)]
+    rfl
+
+instance statementHandles_appends : Appends statementHandles := by unfold statementHandles; appends
+
+theorem statementHandles_ensures {c : Ctx NightstreamFPrime.Spec.F} {n : ℕ} :
+    Ensures c n statementHandles fun s m => s = (List.range' n 9).toArray ∧ m = n + 9 :=
+  fun p hp _ _ _ _ _ _ => by
+    rw [statementHandles_run, hp]
+    exact ⟨rfl, rfl⟩
+
+private def ColumnHolds (c : Ctx NightstreamFPrime.Spec.F) (statement : Array Var) (context : Array Word) (src : Source)
+    (h : Var) (m : ℕ) : Prop :=
+  h < m ∧ match src with
+    | .one => c.val h = 1
+    | .priv i => contextStart + 4 ≤ i → i < PilotProduction.stateHashWords →
+        h = statement.getD (i - contextStart - 4) 0
+    | .pub i => publicContextStart ≤ i → c.val h = Word.cast (context.getD (i - publicContextStart) 0)
+    | .computed _ => True
+
+private theorem ColumnHolds.mono {c : Ctx NightstreamFPrime.Spec.F} {statement : Array Var} {context : Array Word}
+    {src : Source} {h : Var} {m m' : ℕ} (hold : ColumnHolds c statement context src h m) (le : m ≤ m') :
+    ColumnHolds c statement context src h m' :=
+  ⟨lt_of_lt_of_le hold.1 le, hold.2⟩
+
+instance column_appends (statement : Array Var) (context : Array Word) (computed : Var) (src : Source) :
+    Appends (column statement context computed src) := by
+  cases src <;> simp only [column] <;> appends
+
+private theorem column_ensures {c : Ctx NightstreamFPrime.Spec.F} {n : ℕ} (statement : Array Var)
+    (context : Array Word) (computed : Var) (src : Source) (hs : ∀ j, statement.getD j 0 < n)
+    (hc : ∀ i, src = .computed i → computed + i < n) :
+    Ensures c n (column statement context computed src) (ColumnHolds c statement context src) := by
+  have chunk : NightstreamFPrime.Lifecycle.stateDomainChunk.length ≤ contextStart := by
+    rw [NightstreamFPrime.Lifecycle.stateDomainChunk_length]
+    decide
+  have fresh : ∀ {h m : ℕ}, h = n ∧ m = n + 1 ∧ c.val h = c.tape h → h < m := fun ⟨e, e', _⟩ => by
+    rw [e, e']
+    exact Nat.lt_succ_self n
+  cases src with
+  | one => exact (const_ensures 1).post fun _ m w => ⟨w.1, by rw [w.2, word_one]⟩
+  | priv i =>
+      dsimp only [column]
+      split_ifs with h1 h2 h3
+      · exact (const_ensures _).post fun _ m w => ⟨w.1, fun lo => absurd h1 (by omega)⟩
+      · exact (const_ensures _).post fun _ m w => ⟨w.1, fun lo => absurd h2.2 (by omega)⟩
+      · exact Ensures.pure ⟨hs _, fun _ _ => rfl⟩
+      · exact priv_ensures.post fun _ m w => ⟨fresh w, fun lo hi => absurd ⟨lo, hi⟩ h3⟩
+  | pub i =>
+      dsimp only [column]
+      split_ifs with h1
+      · exact (const_ensures _).post fun _ m w => ⟨w.1, fun _ => w.2⟩
+      · exact priv_ensures.post fun _ m w => ⟨fresh w, fun lo => absurd lo h1⟩
+  | computed k => exact Ensures.pure ⟨hc k rfl, trivial⟩
+
+private theorem foldl_prefix {α β γ : Type} {f : Array α × β → γ → Array α × β}
+    (hf : ∀ acc x, ∃ y, (f acc x).1 = acc.1.push y) :
+    ∀ (l : List γ) acc, ∃ more, (l.foldl f acc).1.toList = acc.1.toList ++ more
+  | [], acc => ⟨[], by simp⟩
+  | x :: l, acc => by
+      obtain ⟨y, hy⟩ := hf acc x
+      obtain ⟨more, e⟩ := foldl_prefix hf l (f acc x)
+      exact ⟨y :: more, by rw [List.foldl_cons, e, hy]; simp⟩
+
+private theorem callerSegments_head : ∃ more, callerSegments (CompressionLean.Terminal.circuitPackage ()).layout =
+    (⟨NightstreamFPrime.Export.Stage1.Data.Role.priorPreimage, 0, PilotProduction.stateHashWords⟩, 0) :: more := by
+  obtain ⟨rest, hrest⟩ : ∃ rest, (CompressionLean.Terminal.circuitPackage ()).layout.privateSegments =
+      ⟨NightstreamFPrime.Export.Stage1.Data.Role.priorPreimage, 0, PilotProduction.stateHashWords⟩ :: rest :=
+    ⟨_, rfl⟩
+  unfold callerSegments
+  rw [hrest, List.filter_cons_of_pos (by decide), List.foldl_cons]
+  exact foldl_prefix (fun acc x => ⟨_, rfl⟩) _ _
+
+private theorem privateInput_prior {pc : ℕ} (hpc : pc < PilotProduction.stateHashWords) :
+    privateInput (callerSegments (CompressionLean.Terminal.circuitPackage ()).layout) pc = some pc := by
+  obtain ⟨more, h⟩ := callerSegments_head
+  rw [h, privateInput]
+  simp [hpc]
+
+private theorem priorColumn (k : Fin 9) :
+    Stage1.Spartan.sourceToSpartan (PilotProduction.priorPreimageStart +
+      (NightstreamFPrime.Lifecycle.PiCCS.v1_2.StateBinding.contextWordStart + 4 + k.val)) = contextStart + 4 + k := by
+  revert k
+  decide
+
+private theorem layout_facts :
+    (CompressionLean.Terminal.circuitPackage ()).layout.privateColumnCount = Stage1.Spartan.privateColumnCount ∧
+    (CompressionLean.Terminal.circuitPackage ()).layout.constantColumn = Stage1.Spartan.privateColumnCount ∧
+    (CompressionLean.Terminal.circuitPackage ()).layout.totalColumnCount = Stage1.Spartan.privateColumnCount + 279 ∧
+    Stage1.Spartan.expectedContextPublicStart = Stage1.Spartan.privateColumnCount + 275 ∧
+    PilotProduction.stateHashWords < Stage1.Spartan.privateColumnCount ∧
+    contextStart + 13 = PilotProduction.stateHashWords := by
+  refine ⟨rfl, rfl, ?_, rfl, ?_, by decide⟩
+  · show Stage1.Spartan.spartanColumnCount = _
+    rw [Stage1.Spartan.spartanColumnCount_decomposition, Stage1.Spartan.publicColumnCount_eq]
+  · rw [Stage1.Spartan.privateColumnCount_decomposition, PilotProduction.stateHashWords_eq]
+    show 27819 < 5141486 + _
+    omega
+
+def HoldsValues (c : Ctx NightstreamFPrime.Spec.F) (m : ℕ) (env : Env) (hs : List Var) (list : List Expr) : Prop :=
+  List.Forall₂ (fun h e => h < m ∧ c.val h = e.eval env) hs list
+
+def pairHandles (pairs : Array (Var × Var)) : List Var := pairs.toList.flatMap fun p => [p.1, p.2]
+
+def ClaimHolds (c : Ctx NightstreamFPrime.Spec.F) (m : ℕ) (claim : ClaimVars) (env : Env) : Prop :=
+  HoldsValues c m env (claim.commitment.toList.flatMap Array.toList) CompressionLean.Terminal.outputs.commitment ∧
+  HoldsValues c m env (claim.publicInput.toList.flatMap Array.toList) CompressionLean.Terminal.outputs.publicInput ∧
+  HoldsValues c m env (pairHandles claim.point) CompressionLean.Terminal.outputs.point ∧
+  HoldsValues c m env (pairHandles claim.evalK) CompressionLean.Terminal.outputs.eval_K ∧
+  HoldsValues c m env (claim.evalA.toList.flatMap pairHandles) CompressionLean.Terminal.outputs.eval_A
+
+def StateHolds (c : Ctx NightstreamFPrime.Spec.F) (m : ℕ) (state : Fin 16 → Var) (env : Env) : Prop :=
+  HoldsValues c m env (List.ofFn state) CompressionLean.Terminal.outputs.state
+
+def _root_.CompressionLean.Terminal.Program.ClaimVars.Shaped (claim : ClaimVars) : Prop :=
+  (∀ row ∈ claim.commitment, row.size = Replay.D) ∧ (∀ row ∈ claim.publicInput, row.size = Replay.D) ∧
+    ∀ row ∈ claim.evalA, row.size = Replay.D
+
+def Handoff (c : Ctx NightstreamFPrime.Spec.F) (authority : NightstreamFPrime.Lifecycle.VerifierContext.Authority)
+    (r : ClaimVars × (Fin 16 → Var)) (m : ℕ) : Prop :=
+  ∃ env, Spec.TerminalFor authority (statementOf c) env ∧ ClaimHolds c m r.1 env ∧ StateHolds c m r.2 env ∧
+    r.1.Shaped
+
+private theorem chunks_take {α : Type} (n : ℕ) (xs : Array α) :
+    ∀ q, n * q ≤ xs.size →
+      ((List.range q).flatMap fun k => (xs.extract (n * k) (n * k + n)).toList) = xs.toList.take (n * q)
+  | 0, _ => by simp
+  | q + 1, le => by
+      rw [Nat.mul_succ] at le
+      rw [List.range_succ, List.flatMap_append, chunks_take n xs q (by omega), List.flatMap_singleton,
+        Array.toList_extract, List.extract_eq_take_drop, Nat.mul_succ, List.take_add]
+      simp
+
+private theorem chunks_flatten {α : Type} {n : ℕ} {xs : Array α} (dvd : n ∣ xs.size) :
+    (chunks n xs).toList.flatMap Array.toList = xs.toList := by
+  rw [Terminal.Program.chunks, Array.toList_map, Array.toList_range, List.flatMap_map,
+    chunks_take n xs _ (Nat.mul_div_le xs.size n), Nat.mul_div_cancel' dvd]
+  simp
+
+private theorem chunks_size {α : Type} {n : ℕ} {xs : Array α} {chunk : Array α} (mem : chunk ∈ chunks n xs) :
+    chunk.size = n := by
+  rw [Terminal.Program.chunks, Array.mem_map] at mem
+  obtain ⟨k, hk, rfl⟩ := mem
+  rw [Array.mem_range] at hk
+  have le : n * (k + 1) ≤ xs.size := le_trans (Nat.mul_le_mul_left n hk) (Nat.mul_div_le xs.size n)
+  rw [Nat.mul_succ] at le
+  rw [Array.size_extract]
+  omega
+
+private theorem pairs_flatten {xs : Array Var} (dvd : 2 ∣ xs.size) : pairHandles (pairs xs) = xs.toList := by
+  rw [pairHandles, pairs, Array.toList_map, List.flatMap_map, ← chunks_flatten dvd]
+  refine List.flatMap_congr fun pair mem => ?_
+  have size := chunks_size (Array.mem_toList_iff.mp mem)
+  obtain ⟨l⟩ := pair
+  match l, size with
+  | [a, b], _ => rfl
+
+private def unnamed (c : Ctx NightstreamFPrime.Spec.F) (context : Array Word) (pc : ℕ) : NightstreamFPrime.Spec.F :=
+  if pc = Stage1.Spartan.privateColumnCount then 1
+  else if Stage1.Spartan.expectedContextPublicStart ≤ pc then
+    Word.cast (context.getD (pc - Stage1.Spartan.expectedContextPublicStart) 0)
+  else if contextStart + 4 ≤ pc ∧ pc < PilotProduction.stateHashWords then c.stmt.getD (pc - (contextStart + 4)) 0
+  else 0
+
+private def terminalEnv (c : Ctx NightstreamFPrime.Spec.F) (context : Array Word) (columns : Array Var) : Env :=
+  assignment (numbering (CompressionLean.Terminal.circuitPackage ())).1 (fun j => (columns.toList.map c.val).getD j 0)
+    (unnamed c context)
+
+section Assignment
+
+variable {c : Ctx NightstreamFPrime.Spec.F} {statement : Array Var} {context : Array Word} {columns : Array Var}
+  {m : ℕ} {loaded : Loaded}
+
+private theorem computed_lt
+    (loads : load (CompressionLean.Terminal.circuitPackage ()) CompressionLean.Terminal.outputs = .ok loaded) :
+    ∀ x ∈ loaded.sources, ∀ i, x = .computed i → i < loaded.computed.size := by
+  obtain ⟨-, sources, computed, -⟩ := load_ok loads
+  intro x mem i e
+  rw [sources] at mem
+  rw [computed]
+  obtain ⟨k, hk, rfl⟩ := Array.mem_iff_getElem.mp mem
+  exact (numbering_numbered _).computed k hk i e
+
+private theorem columns_lt : ∀ {xs : List Source} {hs : List Var},
+    List.Forall₂ (fun x a => ColumnHolds c statement context x a m) xs hs → ∀ h ∈ hs, h < m
+  | _, _, .nil => fun _ mem => absurd mem List.not_mem_nil
+  | _, _, .cons hold rest => fun h mem => (List.mem_cons.mp mem).elim (fun e => e ▸ hold.1) (columns_lt rest h)
+
+private theorem index_some (pc : ℕ) (lt : pc < (CompressionLean.Terminal.circuitPackage ()).layout.totalColumnCount) :
+    ∃ x, (numbering (CompressionLean.Terminal.circuitPackage ())).1[pc]? = some x :=
+  ⟨_, Array.getElem?_eq_getElem (by rw [(numbering_numbered _).size]; exact lt)⟩
+
+private theorem env_named
+    (loads : load (CompressionLean.Terminal.circuitPackage ()) CompressionLean.Terminal.outputs = .ok loaded)
+    (cols : List.Forall₂ (fun x a => ColumnHolds c statement context x a m) loaded.sources.toList columns.toList)
+    {pc k : ℕ} (hk : (numbering (CompressionLean.Terminal.circuitPackage ())).1[pc]? = some (some k)) :
+    ∃ lt : k < (numbering (CompressionLean.Terminal.circuitPackage ())).2.1.size,
+      SourceOf (CompressionLean.Terminal.circuitPackage ()).layout
+        (callerSegments (CompressionLean.Terminal.circuitPackage ()).layout) pc
+        (numbering (CompressionLean.Terminal.circuitPackage ())).2.1[k] ∧
+      ColumnHolds c statement context (numbering (CompressionLean.Terminal.circuitPackage ())).2.1[k]
+        (columns.getD k 0) m ∧
+      terminalEnv c context columns pc = c.val (columns.getD k 0) := by
+  rw [(load_ok loads).2.1] at cols
+  obtain ⟨lt, src⟩ := (numbering_numbered _).source pc k hk
+  obtain ⟨len, each⟩ := List.forall₂_iff_get.mp cols
+  rw [Array.length_toList, Array.length_toList] at len
+  have klt : k < columns.size := by
+    rw [← len]
+    exact lt
+  have hold := each k (by rw [Array.length_toList]; exact lt) (by rw [Array.length_toList]; exact klt)
+  rw [List.get_eq_getElem, List.get_eq_getElem, Array.getElem_toList, Array.getElem_toList] at hold
+  have getD : columns.getD k 0 = columns[k] := by simp [Array.getD, klt]
+  have bang : (numbering (CompressionLean.Terminal.circuitPackage ())).1[pc]! = some k := by
+    rw [Array.getElem!_eq_getD, Array.getD_eq_getD_getElem?, hk]
+    rfl
+  rw [getD]
+  refine ⟨lt, src, hold, ?_⟩
+  rw [terminalEnv, assignment, ite_eq_right (by rw [hk]; simp), bang, Option.getD_some]
+  simp [List.getD_eq_getElem?_getD, klt]
+
+private theorem env_one
+    (loads : load (CompressionLean.Terminal.circuitPackage ()) CompressionLean.Terminal.outputs = .ok loaded)
+    (cols : List.Forall₂ (fun x a => ColumnHolds c statement context x a m) loaded.sources.toList columns.toList) :
+    terminalEnv c context columns (CompressionLean.Terminal.circuitPackage ()).layout.constantColumn = 1 := by
+  obtain ⟨hpc, hcc, htotal, -, -, -⟩ := layout_facts
+  rw [hcc]
+  obtain ⟨x, hx⟩ := index_some Stage1.Spartan.privateColumnCount (by rw [htotal]; omega)
+  cases x with
+  | none => rw [terminalEnv, assignment, ite_eq_left hx, unnamed, ite_eq_left rfl]
+  | some k =>
+      obtain ⟨lt, src, hold, env⟩ := env_named loads cols hx
+      rw [env]
+      generalize (numbering (CompressionLean.Terminal.circuitPackage ())).2.1[k] = s at src hold
+      cases s with
+      | one => exact hold.2
+      | priv i => exact absurd src.1 (by rw [hpc]; omega)
+      | pub i => exact absurd src.1 (by rw [hpc]; omega)
+      | computed i => exact absurd src.1 (by rw [hpc]; omega)
+
+private theorem env_context
+    (loads : load (CompressionLean.Terminal.circuitPackage ()) CompressionLean.Terminal.outputs = .ok loaded)
+    (cols : List.Forall₂ (fun x a => ColumnHolds c statement context x a m) loaded.sources.toList columns.toList)
+    {authority : NightstreamFPrime.Lifecycle.VerifierContext.Authority}
+    (hctx : ∀ lane : Fin 4,
+      Word.cast (context.getD lane 0) = (NightstreamFPrime.Lifecycle.VerifierContext.digest authority).getD lane 0) :
+    NightstreamFPrime.Export.Stage1.Package.SelectedVerifierContext authority (terminalEnv c context columns) := by
+  obtain ⟨hpc, -, htotal, hstart, -, -⟩ := layout_facts
+  intro lane
+  have lane4 := lane.isLt
+  obtain ⟨x, hx⟩ := index_some (Stage1.Spartan.expectedContextPublicStart + lane) (by rw [htotal, hstart]; omega)
+  cases x with
+  | none =>
+      rw [terminalEnv, assignment, ite_eq_left hx, unnamed, ite_eq_right (by rw [hstart]; omega), ite_eq_left (Nat.le_add_right _ _),
+        Nat.add_sub_cancel_left]
+      exact hctx lane
+  | some k =>
+      obtain ⟨lt, src, hold, env⟩ := env_named loads cols hx
+      rw [env]
+      generalize (numbering (CompressionLean.Terminal.circuitPackage ())).2.1[k] = s at src hold
+      cases s with
+      | pub i =>
+          obtain ⟨-, hi⟩ := src
+          have e : i = publicContextStart + lane := by
+            rw [hi, hpc, hstart, publicContextStart]
+            omega
+          rw [hold.2 (by rw [e]; omega), e, Nat.add_sub_cancel_left]
+          exact hctx lane
+      | one =>
+          simp only [SourceOf] at src
+          rw [hpc, hstart] at src
+          omega
+      | priv i => exact absurd src.1 (by rw [hpc, hstart]; omega)
+      | computed i => exact absurd src.1 (by rw [hpc, hstart]; omega)
+
+private theorem env_prior
+    (loads : load (CompressionLean.Terminal.circuitPackage ()) CompressionLean.Terminal.outputs = .ok loaded)
+    (cols : List.Forall₂ (fun x a => ColumnHolds c statement context x a m) loaded.sources.toList columns.toList)
+    (hstmt : statement = (List.range' 0 9).toArray) (reads : ReadsStatement c) :
+    Spec.priorStatement (terminalEnv c context columns) = statementOf c := by
+  obtain ⟨hpc, -, htotal, hstart, hshw, hcs⟩ := layout_facts
+  funext k
+  have k9 := k.isLt
+  rw [Spec.priorStatement, Stage1.PiCCSInputs.priorStateWord, NightstreamFPrime.Circuit.Expr.eval_var,
+    Stage1.Spartan.pullback, priorColumn k]
+  obtain ⟨x, hx⟩ := index_some (contextStart + 4 + k) (by rw [htotal]; omega)
+  cases x with
+  | none =>
+      rw [terminalEnv, assignment, ite_eq_left hx, unnamed, ite_eq_right (by omega), ite_eq_right (by rw [hstart]; omega),
+        ite_eq_left ⟨by omega, by omega⟩, Nat.add_sub_cancel_left]
+      rfl
+  | some j =>
+      obtain ⟨lt, src, hold, env⟩ := env_named loads cols hx
+      rw [env]
+      generalize (numbering (CompressionLean.Terminal.circuitPackage ())).2.1[j] = s at src hold
+      cases s with
+      | priv i =>
+          obtain ⟨-, e⟩ := src
+          rw [privateInput_prior (by omega)] at e
+          cases e
+          rw [hold.2 (by omega) (by omega), hstmt, show contextStart + 4 + k - contextStart - 4 = k by omega,
+            range_getD, ite_eq_left k9]
+          exact reads k
+      | one =>
+          simp only [SourceOf] at src
+          rw [hpc] at src
+          omega
+      | pub i => exact absurd src.1 (by rw [hpc]; omega)
+      | computed i =>
+          obtain ⟨-, e⟩ := src
+          rw [privateInput_prior (by omega)] at e
+          cases e
+
+private theorem env_rows
+    (loads : load (CompressionLean.Terminal.circuitPackage ()) CompressionLean.Terminal.outputs = .ok loaded)
+    (valid : (CompressionLean.Terminal.circuitPackage ()).CompactTemplatesValid)
+    (cols : List.Forall₂ (fun x a => ColumnHolds c statement context x a m) loaded.sources.toList columns.toList)
+    (rows : ∀ r ∈ loaded.system.toList, R1csRow.Holds (fun j => (columns.toList.map c.val).getD j 0) r) :
+    (CompressionLean.Terminal.circuitPackage ()).RowsHold (terminalEnv c context columns) :=
+  (system_holds_iff loads valid (fun j => (columns.toList.map c.val).getD j 0) (unnamed c context)
+    (env_one loads cols)).mp fun r mem => rows r (Array.mem_toList_iff.mpr mem)
+
+private theorem read_holds
+    (loads : load (CompressionLean.Terminal.circuitPackage ()) CompressionLean.Terminal.outputs = .ok loaded)
+    (cols : List.Forall₂ (fun x a => ColumnHolds c statement context x a m) loaded.sources.toList columns.toList)
+    {list : List Expr} {ks : Array ℕ}
+    (h : outputColumns (CompressionLean.Terminal.circuitPackage ()).layout
+      (numbering (CompressionLean.Terminal.circuitPackage ())).1 list = .ok ks) :
+    HoldsValues c m (terminalEnv c context columns) (ks.toList.map fun k => columns.getD k 0) list := by
+  obtain ⟨size, each⟩ := outputColumns_ok h
+  refine List.forall₂_iff_get.mpr ⟨by simp [size], fun i h₁ h₂ => ?_⟩
+  obtain ⟨pc, k, e, lt, hk, hks⟩ := each i h₂
+  have hk' : (numbering (CompressionLean.Terminal.circuitPackage ())).1[pc]? = some (some k) := by
+    obtain ⟨x, hx⟩ := index_some pc lt
+    rw [Array.getElem!_eq_getD, Array.getD_eq_getD_getElem?, hx] at hk
+    rw [hx, ← hk]
+    rfl
+  obtain ⟨_, _, hold, env⟩ := env_named loads cols hk'
+  have iks : i < ks.size := by rw [size]; exact h₂
+  have ki : ks[i] = k := by
+    rw [Array.getElem?_eq_getElem iks] at hks
+    exact Option.some.inj hks
+  simp only [List.get_eq_getElem, List.getElem_map, Array.getElem_toList, ki, e,
+    NightstreamFPrime.Circuit.Expr.eval]
+  exact ⟨hold.1, env.symm⟩
+
+end Assignment
+
+theorem outputs_length :
+    CompressionLean.Terminal.outputs.commitment.length = Production.kappa * Replay.D ∧
+    CompressionLean.Terminal.outputs.publicInput.length = Production.publicBlocks * Replay.D ∧
+    CompressionLean.Terminal.outputs.point.length = 2 * Production.pointVariables ∧
+    CompressionLean.Terminal.outputs.eval_K.length = 2 * Replay.D ∧
+    CompressionLean.Terminal.outputs.eval_A.length = Production.matrices * (2 * Replay.D) ∧
+    CompressionLean.Terminal.outputs.state.length = 16 := by
+  refine ⟨?_, ?_, ?_, ?_, ?_, by simp [CompressionLean.Terminal.outputs]⟩ <;>
+    simp [CompressionLean.Terminal.outputs, CompressionLean.Terminal.extension, List.length_flatten, List.map_ofFn,
+      Function.comp_def] <;> decide
+
+private theorem state_list {columns : Array Var} {ks : Array ℕ} (size : ks.size = 16) :
+    List.ofFn (fun lane : Fin 16 => columns.getD (ks.getD lane 0) 0) = ks.toList.map fun k => columns.getD k 0 := by
+  apply List.ext_getElem (by simp [size])
+  intro i h₁ h₂
+  have hi : i < ks.size := by simpa using h₂
+  have getD : ks.getD i 0 = ks[i] := by
+    rw [Array.getD_eq_getD_getElem?, Array.getElem?_eq_getElem hi]
+    rfl
+  rw [List.getElem_ofFn, List.getElem_map, Array.getElem_toList, ← getD]
+
+section Program
+
+variable {c : Ctx NightstreamFPrime.Spec.F} {loaded : Loaded} {context : Array Word}
+  {authority : NightstreamFPrime.Lifecycle.VerifierContext.Authority}
+
+instance apply_appends (package : Loaded) (statement : Array Var) (context : Array Word) :
+    Appends (apply package statement context) := by
+  unfold apply; appends
+instance checkedApply_appends (package : Loaded) (context : Array Word) (statement : Array Var) :
+    Appends (checkedApply package context statement) := by
+  unfold checkedApply; appends
+instance terminalPrefix_appends (package : Loaded) (context : Array Word) : Appends (terminalPrefix package context) := by
+  unfold terminalPrefix; appends
+
+theorem apply_ensures
+    (loads : load (CompressionLean.Terminal.circuitPackage ()) CompressionLean.Terminal.outputs = .ok loaded)
+    (valid : (CompressionLean.Terminal.circuitPackage ()).CompactTemplatesValid)
+    (hctx : ∀ lane : Fin 4,
+      Word.cast (context.getD lane 0) = (NightstreamFPrime.Lifecycle.VerifierContext.digest authority).getD lane 0)
+    {statement : Array Var} {n : ℕ} (hstmt : statement = (List.range' 0 9).toArray) (le : 9 ≤ n)
+    (reads : ReadsStatement c) (nz : statementOf c 0 ≠ 0) :
+    Ensures c n (apply loaded statement context) (Handoff c authority) := by
+  have hs : ∀ j, statement.getD j 0 < n := fun j => by
+    rw [hstmt, range_getD]
+    split
+    · rename_i hj
+      exact lt_of_lt_of_le hj le
+    · exact lt_of_lt_of_le (by decide) le
+  unfold apply
+  refine (Ensures.emit (Q := fun h m => h + loaded.computed.size ≤ m) (.hint loaded.computed.size)
+    fun _ _ _ _ => by simp [Instr.outputs]).bind fun computed m₁ le₁ hcomputed => ?_
+  refine (Ensures.mapM (ColumnHolds c statement context) (fun _ _ _ _ h le => h.mono le) fun x mem m' le' =>
+    column_ensures statement context computed x (fun j => lt_of_lt_of_le (hs j) (le₁.trans le'))
+      fun i e => lt_of_lt_of_le (Nat.add_lt_add_left (computed_lt loads x mem i e) computed)
+        (hcomputed.trans le')).bind fun columns m₂ _ cols => ?_
+  refine (r1cs_ensures (rows := loaded.system.toList) (columns_lt cols)).bind fun _ m₃ le₃ rows => Ensures.pure ?_
+  replace cols := cols.imp fun _ _ hold => hold.mono le₃
+  obtain ⟨-, -, -, hcom, hpub, hpt, hk, ha, hst⟩ := load_ok loads
+  obtain ⟨lcom, lpub, lpt, lk, la, lst⟩ := outputs_length
+  have read : ∀ {list : List Expr} {ks : Array ℕ}, outputColumns (CompressionLean.Terminal.circuitPackage ()).layout
+      (numbering (CompressionLean.Terminal.circuitPackage ())).1 list = .ok ks →
+      (ks.map fun k => columns.getD k 0).toList = (ks.toList.map fun k => columns.getD k 0) ∧
+        (ks.map fun k => columns.getD k 0).size = list.length := fun h =>
+    ⟨Array.toList_map .., by rw [Array.size_map, (outputColumns_ok h).1]⟩
+  refine ⟨terminalEnv c context columns, ⟨env_rows loads valid cols rows, env_context loads cols hctx,
+    env_prior loads cols hstmt reads, nz⟩, ⟨?_, ?_, ?_, ?_, ?_⟩, ?_, ?_⟩
+  · show HoldsValues c m₃ _ ((chunks Replay.D (loaded.outputs.commitment.map _)).toList.flatMap Array.toList) _
+    rw [chunks_flatten (by rw [(read hcom).2, lcom]; exact Nat.dvd_mul_left _ _), (read hcom).1]
+    exact read_holds loads cols hcom
+  · show HoldsValues c m₃ _ ((chunks Replay.D (loaded.outputs.publicInput.map _)).toList.flatMap Array.toList) _
+    rw [chunks_flatten (by rw [(read hpub).2, lpub]; exact Nat.dvd_mul_left _ _), (read hpub).1]
+    exact read_holds loads cols hpub
+  · show HoldsValues c m₃ _ (pairHandles (pairs (loaded.outputs.point.map _))) _
+    rw [pairs_flatten (by rw [(read hpt).2, lpt]; exact Nat.dvd_mul_right _ _), (read hpt).1]
+    exact read_holds loads cols hpt
+  · show HoldsValues c m₃ _ (pairHandles (pairs (loaded.outputs.evalK.map _))) _
+    rw [pairs_flatten (by rw [(read hk).2, lk]; exact Nat.dvd_mul_right _ _), (read hk).1]
+    exact read_holds loads cols hk
+  · show HoldsValues c m₃ _ (((chunks (2 * Replay.D) (loaded.outputs.evalA.map _)).map pairs).toList.flatMap
+      pairHandles) _
+    rw [Array.toList_map, List.flatMap_map]
+    rw [List.flatMap_congr fun chunk mem => pairs_flatten (by
+      rw [chunks_size (Array.mem_toList_iff.mp mem)]
+      exact Nat.dvd_mul_right _ _)]
+    rw [chunks_flatten (by rw [(read ha).2, la]; exact Nat.dvd_mul_left _ _), (read ha).1]
+    exact read_holds loads cols ha
+  · show HoldsValues c m₃ _ (List.ofFn fun lane : Fin 16 => columns.getD (loaded.outputs.state.getD lane 0) 0) _
+    rw [state_list (by rw [(outputColumns_ok hst).1, lst])]
+    exact read_holds loads cols hst
+  · refine ⟨fun _ mem => chunks_size mem, fun _ mem => chunks_size mem, fun row mem => ?_⟩
+    obtain ⟨chunk, mem', rfl⟩ := Array.mem_map.mp mem
+    simp only [pairs, Terminal.Program.chunks, Array.size_map, Array.size_range, chunks_size mem']
+    omega
+
+theorem checkedApply_ensures
+    (loads : load (CompressionLean.Terminal.circuitPackage ()) CompressionLean.Terminal.outputs = .ok loaded)
+    (valid : (CompressionLean.Terminal.circuitPackage ()).CompactTemplatesValid)
+    (hctx : ∀ lane : Fin 4,
+      Word.cast (context.getD lane 0) = (NightstreamFPrime.Lifecycle.VerifierContext.digest authority).getD lane 0)
+    {statement : Array Var} {n : ℕ} (hstmt : statement = (List.range' 0 9).toArray) (le : 9 ≤ n)
+    (reads : ReadsStatement c) :
+    Ensures c n (checkedApply loaded context statement) (Handoff c authority) := by
+  have zero : statement.getD 0 0 = 0 := by rw [hstmt, range_getD]; rfl
+  unfold checkedApply
+  refine (Ensures.emit (Q := fun h m => h < m) (.hint 1) fun _ _ _ _ => by simp [Instr.outputs]).bind
+    fun inverse m₁ le₁ hinverse => ?_
+  refine (mul_ensures (ga := Word.ofF (c.val (statement.getD 0 0))) (gb := Word.ofF (c.val inverse))
+    ⟨by rw [zero]; exact lt_of_lt_of_le (lt_of_lt_of_le (by decide) le) le₁, (Word.cast_ofF _).symm⟩
+    ⟨hinverse, (Word.cast_ofF _).symm⟩).bind fun product _ _ hproduct => ?_
+  refine (const_ensures 1).bind fun one _ _ hone => ?_
+  refine (assertEqual_ensures hproduct.mono hone).bind fun _ _ _ heq => ?_
+  refine apply_ensures loads valid hctx hstmt (by omega) reads fun zero0 => ?_
+  have cast : ∀ x : NightstreamFPrime.Spec.F, Word.cast (Word.ofF x) = x := fun x => Word.cast_ofF x
+  have := congrArg (Word.cast : Word → NightstreamFPrime.Spec.F) heq
+  rw [word_mul, cast, cast, word_one, zero, show c.val 0 = statementOf c 0 from reads 0, zero0, zero_mul] at this
+  exact absurd this (by decide)
+
+theorem terminalPrefix_ensures
+    (loads : load (CompressionLean.Terminal.circuitPackage ()) CompressionLean.Terminal.outputs = .ok loaded)
+    (valid : (CompressionLean.Terminal.circuitPackage ()).CompactTemplatesValid)
+    (hctx : ∀ lane : Fin 4,
+      Word.cast (context.getD lane 0) = (NightstreamFPrime.Lifecycle.VerifierContext.digest authority).getD lane 0)
+    (reads : ReadsStatement c) :
+    Ensures c 0 (terminalPrefix loaded context) (Handoff c authority) :=
+  statementHandles_ensures.bind fun _ _ _ h => checkedApply_ensures loads valid hctx h.1 (by omega) reads
+
+/-- Stated for `program`, so that a caller can keep it irreducible. -/
+theorem finalProgram_exec {α : Type} {layer1 : ClaimVars → (Fin 16 → Var) → Build α} {R : α → ℕ → Prop}
+    {program : Build α} (eq : program = finalProgram loaded context layer1)
+    (loads : load (CompressionLean.Terminal.circuitPackage ()) CompressionLean.Terminal.outputs = .ok loaded)
+    (valid : (CompressionLean.Terminal.circuitPackage ()).CompactTemplatesValid)
+    (hctx : ∀ lane : Fin 4,
+      Word.cast (context.getD lane 0) = (NightstreamFPrime.Lifecycle.VerifierContext.digest authority).getD lane 0)
+    (hlayer1 : Handoff c authority ((terminalPrefix loaded context).run {}).1
+        ((terminalPrefix loaded context).run {}).2.values →
+      EnsuresAt c ((terminalPrefix loaded context).run {}).2
+        (layer1 ((terminalPrefix loaded context).run {}).1.1 ((terminalPrefix loaded context).run {}).1.2) R)
+    (shape : ∀ r : ClaimVars × (Fin 16 → Var), Appends (layer1 r.1 r.2))
+    (hval : c.val = (Exec.run c.perm c.stmt c.tape program.program).value)
+    (accepts : Exec c.perm program.program c.stmt c.tape) :
+    R (program.run {}).1 (program.run {}).2.values := by
+  subst eq
+  obtain ⟨new, hi, -⟩ := (Appends.bind (f := fun r => layer1 r.1 r.2)
+    (checkedApply_appends loaded context (List.range' 0 9).toArray) shape).out
+    { instrs := #[] ++ Array.replicate 9 .pub, values := 0 + 9 }
+  have pre : (finalProgram loaded context layer1).program.toList = List.replicate 9 .pub ++ new := by
+    rw [Build.program, finalProgram_eq, terminalPrefix, bind_assoc, StateT.run_bind, statementHandles_run]
+    show ((checkedApply loaded context (List.range' 0 9).toArray >>= fun r => layer1 r.1 r.2).run
+      { instrs := #[] ++ Array.replicate 9 .pub, values := 0 + 9 }).2.instrs.toList = _
+    rw [hi]
+    simp
+  have reads : ReadsStatement c := fun k => by
+    rw [hval]
+    exact c.run_pubs pre k.isLt
+  rw [finalProgram_eq] at hval accepts ⊢
+  exact EnsuresAt.exec (EnsuresAt.bind (terminalPrefix_ensures loads valid hctx reads {} rfl) (fun _ h => hlayer1 h)
+    (hf' := shape)) hval accepts
+
+end Program
+
+end CompressionLean.Sim

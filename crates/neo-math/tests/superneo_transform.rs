@@ -23,7 +23,6 @@ fn dot(a: &[Fq; D], b: &[Fq; D]) -> Fq {
 
 #[test]
 fn superneo_transform_matches_one_sided_inner_product_identity() {
-    // Touch once so failures (if any) are immediate and deterministic.
     let _ = superneo_bar_matrix();
 
     for round in 0..16u64 {
@@ -59,6 +58,19 @@ fn superneo_transform_is_linear_on_blocks() {
 }
 
 #[test]
+fn superneo_transform_commutes_with_base_scalars() {
+    let block = deterministic_block(0x5555_5555_5555_5555);
+    let scalar = Fq::from_u64(37);
+    let scaled = std::array::from_fn(|i| scalar * block[i]);
+    let transformed = superneo_bar_block(block);
+
+    assert_eq!(
+        superneo_bar_block(scaled),
+        std::array::from_fn(|i| scalar * transformed[i])
+    );
+}
+
+#[test]
 fn superneo_transform_vector_lifts_blockwise() {
     let mut v = vec![Fq::ZERO; 2 * D];
     let b0 = deterministic_block(0x3333_3333_3333_3333);
@@ -72,4 +84,25 @@ fn superneo_transform_vector_lifts_blockwise() {
 
     assert_eq!(&out[..D], &want0);
     assert_eq!(&out[D..2 * D], &want1);
+}
+
+#[test]
+fn superneo_transform_block_matches_dense_matrix() {
+    let matrix = superneo_bar_matrix();
+    let dense = |block: &[Fq; D]| -> [Fq; D] { std::array::from_fn(|row| dot(&matrix[row], block)) };
+    for column in 0..D {
+        let mut basis = [Fq::ZERO; D];
+        basis[column] = Fq::ONE;
+        assert_eq!(superneo_bar_block(basis), dense(&basis), "basis {column}");
+    }
+    for round in 0..64u64 {
+        let block = deterministic_block(0x5555_5555_5555_5555 ^ round);
+        assert_eq!(superneo_bar_block(block), dense(&block), "round={round}");
+    }
+}
+
+#[test]
+#[should_panic(expected = "superneo_bar_vec expects length multiple of D")]
+fn superneo_transform_rejects_partial_blocks() {
+    superneo_bar_vec(&vec![Fq::ZERO; D + 1]);
 }

@@ -1,158 +1,18 @@
-//! Tests for signed base-b digit decomposition.
-//!
-//! Validates that the DEC splitter decomposes values into signed norm-bound digits
-//! that terminate (quotient reaches 0) for both positive and negative inputs.
-
 use neo_ccs::Mat;
 use neo_math::F;
 use neo_reductions::split_b_matrix_k;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
-/// Helper to test signed decomposition by manually applying the algorithm
-fn test_balanced_decomposition(initial_value: i128, b: i128, max_digits: usize) -> (Vec<i128>, i128, i128) {
-    let mut v = initial_value;
-    let mut digits = Vec::new();
-
-    for i in 0..max_digits {
-        // Mimic the signed norm-bound digit logic from common.rs:
-        // r is in {-(b-1), ..., +(b-1)}, so |r| < b.
-        let r = v % b;
-        let q = (v - r) / b;
-
-        eprintln!(
-            "Step {}: v={} -> (r={}, q={}), check: {}*{} + {} = {}",
-            i,
-            v,
-            r,
-            q,
-            b,
-            q,
-            r,
-            b * q + r
-        );
-        digits.push(r);
-        v = q;
-
-        if v == 0 {
-            break;
-        }
-    }
-
-    eprintln!("Final digits: {:?}", digits);
-    eprintln!("Final remainder: {}", v);
-
-    // Reconstruct the value
-    let mut reconstructed = 0i128;
-    let mut power = 1i128;
-    for &digit in &digits {
-        reconstructed += digit * power;
-        power *= b;
-    }
-    eprintln!("Reconstructed: {}", reconstructed);
-
-    (digits, v, reconstructed)
-}
-
-#[test]
-fn test_balanced_divrem_decompose_4_base2() {
-    // Test that 4 can be decomposed in base 2 with balanced digits
-    let (digits, final_v, reconstructed) = test_balanced_decomposition(4, 2, 12);
-
-    assert_eq!(final_v, 0, "Should consume all digits (quotient should reach 0)");
-    assert_eq!(reconstructed, 4, "Should reconstruct to original value");
-    assert!(digits.len() <= 3, "4 should only need 3 digits at most");
-}
-
-#[test]
-fn test_balanced_divrem_decompose_minus2_base2() {
-    // Test that -2 can be decomposed in base 2 with balanced digits
-    let (digits, final_v, reconstructed) = test_balanced_decomposition(-2, 2, 12);
-
-    assert_eq!(final_v, 0, "Should consume all digits (quotient should reach 0)");
-    assert_eq!(reconstructed, -2, "Should reconstruct to original value");
-    assert!(digits.len() <= 2, "-2 should only need 2 digits at most");
-}
-
-#[test]
-fn test_balanced_divrem_various_values_base2() {
-    // Test a range of values to ensure termination
-    let test_cases = vec![
-        (0, 1),
-        (1, 2),
-        (2, 2),
-        (3, 2),
-        (-1, 2),
-        (-3, 3),
-        (-4, 3),
-        (15, 4),
-        (-15, 4),
-    ];
-
-    for (value, expected_max_digits) in test_cases {
-        let (digits, final_v, reconstructed) = test_balanced_decomposition(value, 2, 12);
-        assert_eq!(final_v, 0, "Value {} should terminate", value);
-        assert_eq!(reconstructed, value, "Value {} should reconstruct correctly", value);
-        assert!(
-            digits.len() <= expected_max_digits,
-            "Value {} used {} digits, expected <= {}",
-            value,
-            digits.len(),
-            expected_max_digits
-        );
-    }
-}
-
-#[test]
-fn test_balanced_divrem_base3() {
-    // Test base-3 decomposition
-    let test_cases = vec![
-        (0, 1),
-        (1, 1),
-        (2, 1),
-        (3, 2),
-        (4, 2),
-        (5, 2),
-        (-1, 1),
-        (-2, 1),
-        (-3, 2),
-        (26, 3), // 3^3 - 1
-    ];
-
-    for (value, expected_max_digits) in test_cases {
-        let (digits, final_v, reconstructed) = test_balanced_decomposition(value, 3, 12);
-        assert_eq!(final_v, 0, "Value {} (base 3) should terminate", value);
-        assert_eq!(
-            reconstructed, value,
-            "Value {} (base 3) should reconstruct correctly",
-            value
-        );
-        assert!(
-            digits.len() <= expected_max_digits,
-            "Value {} (base 3) used {} digits, expected <= {}",
-            value,
-            digits.len(),
-            expected_max_digits
-        );
-    }
-}
-
 #[test]
 fn test_split_b_matrix_k_simple() {
-    // Test the full split_b_matrix_k function with simple values
     let b = 2u32;
     let k = 12usize;
 
-    // Create a simple 2x2 matrix with small values
     #[allow(non_snake_case)]
     let Z = Mat::from_row_major(
         2,
         2,
-        vec![
-            F::from_u64(4),
-            F::from_u64(2),
-            F::ZERO - F::from_u64(2), // -2 in field representation
-            F::from_u64(1),
-        ],
+        vec![F::from_u64(4), F::from_u64(2), F::ZERO - F::from_u64(2), F::from_u64(1)],
     );
 
     let result = split_b_matrix_k(&Z, k, b);
@@ -165,7 +25,6 @@ fn test_split_b_matrix_k_simple() {
     let split_matrices = result.unwrap();
     assert_eq!(split_matrices.len(), k, "Should produce k={} output matrices", k);
 
-    // Each output matrix should have the same dimensions as input
     for (i, mat) in split_matrices.iter().enumerate() {
         assert_eq!(
             mat.rows(),
@@ -181,7 +40,6 @@ fn test_split_b_matrix_k_simple() {
         );
     }
 
-    // Reconstruct and verify
     let mut reconstructed = Mat::zero(Z.rows(), Z.cols(), F::ZERO);
     let mut power = F::ONE;
     let b_field = F::from_u64(b as u64);
@@ -195,7 +53,6 @@ fn test_split_b_matrix_k_simple() {
         power *= b_field;
     }
 
-    // Check reconstruction matches original
     for r in 0..Z.rows() {
         for c in 0..Z.cols() {
             assert_eq!(
@@ -211,9 +68,6 @@ fn test_split_b_matrix_k_simple() {
 
 #[test]
 fn test_split_b_matrix_k_base3_accepts_full_norm_bound_digit() {
-    // SuperNeo split_b requires each digit to satisfy ||z_i||_inf < b.
-    // For b=3,k=1, both +2 and -2 are valid one-digit values. A narrower
-    // signed-ternary alphabet would falsely reject them.
     let b = 3u32;
     let k = 1usize;
     #[allow(non_snake_case)]
@@ -224,4 +78,42 @@ fn test_split_b_matrix_k_base3_accepts_full_norm_bound_digit() {
     assert_eq!(split.len(), 1);
     assert_eq!(split[0][(0, 0)], F::from_u64(2));
     assert_eq!(split[0][(0, 1)], F::ZERO - F::from_u64(2));
+}
+
+#[test]
+fn split_b_matrix_round_trip_preserves_signed_values_and_digit_bound() {
+    let base = 4u32;
+    let digit_count = 6usize;
+    let signed_values = [-100i64, -25, -4, -3, -1, 0, 1, 3, 4, 17, 63, 99, -77, 28, 2, -2];
+    let values = signed_values
+        .into_iter()
+        .map(|value| {
+            if value < 0 {
+                F::ZERO - F::from_u64(value.unsigned_abs())
+            } else {
+                F::from_u64(value as u64)
+            }
+        })
+        .collect();
+    let input = Mat::from_row_major(2, 8, values);
+    let digits = split_b_matrix_k(&input, digit_count, base).expect("signed values must decompose");
+
+    let mut reconstructed = Mat::zero(input.rows(), input.cols(), F::ZERO);
+    let mut power = F::ONE;
+    let base_field = F::from_u64(base as u64);
+    let bound = (base - 1) as u64;
+    for digit in &digits {
+        for row in 0..input.rows() {
+            for column in 0..input.cols() {
+                let canonical = digit[(row, column)].as_canonical_u64();
+                assert!(
+                    canonical <= bound || canonical >= F::ORDER_U64 - bound,
+                    "digit at ({row},{column}) exceeds the strict SuperNeo bound"
+                );
+                reconstructed[(row, column)] += power * digit[(row, column)];
+            }
+        }
+        power *= base_field;
+    }
+    assert_eq!(reconstructed, input);
 }

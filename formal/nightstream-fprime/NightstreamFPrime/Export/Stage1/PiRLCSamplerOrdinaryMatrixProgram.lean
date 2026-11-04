@@ -1,0 +1,44 @@
+import NightstreamFPrime.Export.MatrixProgram.Program
+import NightstreamFPrime.Export.Stage1.PerApplicationSourceProjection
+import NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryMatrixSubstitution
+
+namespace NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryMatrixProgram
+
+open NightstreamFPrime.Layout
+
+open NightstreamFPrime.Layout.MatrixProgram
+open NightstreamFPrime.Layout.ProductionRelation
+open NightstreamFPrime.Lifecycle
+open PiRLCSamplerOrdinaryMatrixSchedule
+open PiRLCSamplerOrdinaryMatrixSubstitution
+open PiRLCSamplerOrdinaryRetainedGeometry
+
+abbrev Program := Lifecycle.Stage1.Application.Program
+
+def block {program : Program} {logicalWidth : Nat}
+    (geometry : Geometry program logicalWidth) : Ordinary.Block where
+  rows := rowSchedule
+  oneColumn := (oneColumn geometry).val
+  substitution := substitution program
+  projection := PerApplicationSourceProjection.base program
+
+@[simp] theorem block_rowCount
+    {program : Program} {logicalWidth : Nat}
+    (geometry : Geometry program logicalWidth) :
+    (block geometry).rowCount = 14943 := by
+  exact rowSchedule_count
+
+def matrixProgram {program : Program} {logicalWidth : Nat}
+    (geometry : Geometry program logicalWidth) : MatrixProgram.Program where
+  blocks := [.ordinary (block geometry)]
+
+@[simp] theorem matrixProgram_rowCount
+    {program : Program} {logicalWidth : Nat}
+    (geometry : Geometry program logicalWidth) :
+    (matrixProgram geometry).rowCount = 14943 := by
+  rw [show matrixProgram geometry =
+      MatrixProgram.Program.mk [.ordinary (block geometry)] by rfl]
+  rw [MatrixProgram.Program.singleton_rowCount]
+  exact block_rowCount geometry
+
+end NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryMatrixProgram

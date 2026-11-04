@@ -1,0 +1,610 @@
+import Lean.Elab.Tactic.Omega
+import NightstreamFPrime.Spec.HyperNova.NonInteractiveMultiFold
+
+/-! HyperNova Section 6.3, Construction 2, and Appendix H.3. -/
+
+namespace NightstreamFPrime.Spec.HyperNova.Construction2.Paper
+
+open NightstreamFPrime.Spec.HyperNova.NonInteractiveMultiFold
+
+universe uKey uDigest uState uWitness uRunning uFresh uProof uEncoded
+  uRunningWitness uFreshWitness
+
+def InRange (slotCount pc : Nat) : Prop :=
+  1 <= pc /\ pc <= slotCount
+
+def selectedIndex
+    {slotCount pc : Nat}
+    (valid : InRange slotCount pc) : Fin slotCount :=
+  ⟨pc - 1, by
+    rcases valid with ⟨lower, upper⟩
+    omega⟩
+
+def oneBased {slotCount : Nat} (slot : Fin slotCount) : Nat :=
+  slot.val + 1
+
+@[simp] theorem selectedIndex_oneBased
+    {slotCount : Nat}
+    (slot : Fin slotCount) :
+    selectedIndex (show InRange slotCount (oneBased slot) by
+      simp only [oneBased]
+      constructor <;> omega) = slot := by
+  apply Fin.ext
+  simp [selectedIndex, oneBased]
+
+structure HashPreimage
+    (Key : Type uKey)
+    (State : Type uState)
+    (Running : Type uRunning)
+    (slotCount : Nat) where
+  verifierKeys : Fin slotCount -> Key
+  iteration : Nat
+  z0 : State
+  current : State
+  running : Fin slotCount -> Running
+  pc : Nat
+
+structure Setup
+    (Key : Type uKey)
+    (Running : Type uRunning)
+    (Fresh : Type uFresh)
+    (Proof : Type uProof)
+    (slotCount : Nat) where
+  verifierKeys : Fin slotCount -> Key
+  nifs : Verifier Key Running Fresh Proof
+  /-- HyperNova Definition 12. -/
+  defaultRunning : Running
+
+structure Machine
+    (Key : Type uKey)
+    (Digest : Type uDigest)
+    (State : Type uState)
+    (Witness : Type uWitness)
+    (Running : Type uRunning)
+    (Fresh : Type uFresh)
+    (Encoded : Type uEncoded)
+    (slotCount : Nat) where
+  control : State -> Witness -> Fin slotCount
+  step : Fin slotCount -> State -> Witness -> State
+  freshPublic : Fresh -> Encoded
+  encodeInstance : Digest -> Encoded
+  hash : HashPreimage Key State Running slotCount -> Digest
+
+structure Input
+    (Key : Type uKey)
+    (State : Type uState)
+    (Witness : Type uWitness)
+    (Running : Type uRunning)
+    (Fresh : Type uFresh)
+    (Proof : Type uProof)
+    (slotCount : Nat) where
+  iteration : Nat
+  z0 : State
+  zi : State
+  running : Fin slotCount -> Running
+  fresh : Fresh
+  priorPc : Nat
+  witness : Witness
+  nifsProof : Proof
+
+structure Output
+    (Digest : Type uDigest)
+    (State : Type uState)
+    (Running : Type uRunning)
+    (slotCount : Nat) where
+  zNext : State
+  runningNext : Fin slotCount -> Running
+  pcNext : Fin slotCount
+  x : Digest
+
+/-- HyperNova Construction 2, step 4(b). -/
+def priorHashPreimage
+    {Key : Type uKey}
+    {State : Type uState}
+    {Witness : Type uWitness}
+    {Running : Type uRunning}
+    {Fresh : Type uFresh}
+    {Proof : Type uProof}
+    {slotCount : Nat}
+    (setup : Setup Key Running Fresh Proof slotCount)
+    (input : Input Key State Witness Running Fresh Proof slotCount) :
+    HashPreimage Key State Running slotCount where
+  verifierKeys := setup.verifierKeys
+  iteration := input.iteration
+  z0 := input.z0
+  current := input.zi
+  running := input.running
+  pc := input.priorPc
+
+/-- HyperNova Construction 2, step 5. -/
+def nextHashPreimage
+    {Key : Type uKey}
+    {Digest : Type uDigest}
+    {State : Type uState}
+    {Witness : Type uWitness}
+    {Running : Type uRunning}
+    {Fresh : Type uFresh}
+    {Proof : Type uProof}
+    {slotCount : Nat}
+    (setup : Setup Key Running Fresh Proof slotCount)
+    (input : Input Key State Witness Running Fresh Proof slotCount)
+    (output : Output Digest State Running slotCount) :
+    HashPreimage Key State Running slotCount where
+  verifierKeys := setup.verifierKeys
+  iteration := input.iteration + 1
+  z0 := input.z0
+  current := output.zNext
+  running := output.runningNext
+  pc := oneBased output.pcNext
+
+def HonestOuterDispatch
+    {Key : Type uKey}
+    {Digest : Type uDigest}
+    {State : Type uState}
+    {Witness : Type uWitness}
+    {Running : Type uRunning}
+    {Fresh : Type uFresh}
+    {Proof : Type uProof}
+    {Encoded : Type uEncoded}
+    {slotCount : Nat}
+    (machine : Machine Key Digest State Witness Running Fresh Encoded slotCount)
+    (functionIndex : Fin slotCount)
+    (input : Input Key State Witness Running Fresh Proof slotCount) : Prop :=
+  machine.control input.zi input.witness = functionIndex
+
+structure ApplicationHolds
+    {Key : Type uKey}
+    {Digest : Type uDigest}
+    {State : Type uState}
+    {Witness : Type uWitness}
+    {Running : Type uRunning}
+    {Fresh : Type uFresh}
+    {Proof : Type uProof}
+    {Encoded : Type uEncoded}
+    {slotCount : Nat}
+    (machine : Machine Key Digest State Witness Running Fresh Encoded slotCount)
+    (functionIndex : Fin slotCount)
+    (input : Input Key State Witness Running Fresh Proof slotCount)
+    (output : Output Digest State Running slotCount) : Prop where
+  dispatch : machine.control input.zi input.witness = functionIndex
+  pcNext : output.pcNext = functionIndex
+  application : output.zNext =
+    machine.step functionIndex input.zi input.witness
+
+def OutputHolds
+    {Key : Type uKey}
+    {Digest : Type uDigest}
+    {State : Type uState}
+    {Witness : Type uWitness}
+    {Running : Type uRunning}
+    {Fresh : Type uFresh}
+    {Proof : Type uProof}
+    {Encoded : Type uEncoded}
+    {slotCount : Nat}
+    (setup : Setup Key Running Fresh Proof slotCount)
+    (machine : Machine Key Digest State Witness Running Fresh Encoded slotCount)
+    (input : Input Key State Witness Running Fresh Proof slotCount)
+    (output : Output Digest State Running slotCount) : Prop :=
+  output.x = machine.hash (nextHashPreimage setup input output)
+
+structure BaseHolds
+    {Key : Type uKey}
+    {Digest : Type uDigest}
+    {State : Type uState}
+    {Witness : Type uWitness}
+    {Running : Type uRunning}
+    {Fresh : Type uFresh}
+    {Proof : Type uProof}
+    {Encoded : Type uEncoded}
+    {slotCount : Nat}
+    (setup : Setup Key Running Fresh Proof slotCount)
+    (machine : Machine Key Digest State Witness Running Fresh Encoded slotCount)
+    (functionIndex : Fin slotCount)
+    (input : Input Key State Witness Running Fresh Proof slotCount)
+    (output : Output Digest State Running slotCount) : Prop where
+  iterationZero : input.iteration = 0
+  initialState : input.z0 = input.zi
+  application : ApplicationHolds machine functionIndex input output
+  defaultRunning : output.runningNext = fun _ => setup.defaultRunning
+  outputHash : OutputHolds setup machine input output
+
+structure RecursiveHolds
+    {Key : Type uKey}
+    {Digest : Type uDigest}
+    {State : Type uState}
+    {Witness : Type uWitness}
+    {Running : Type uRunning}
+    {Fresh : Type uFresh}
+    {Proof : Type uProof}
+    {Encoded : Type uEncoded}
+    {slotCount : Nat}
+    (setup : Setup Key Running Fresh Proof slotCount)
+    (machine : Machine Key Digest State Witness Running Fresh Encoded slotCount)
+    (functionIndex : Fin slotCount)
+    (input : Input Key State Witness Running Fresh Proof slotCount)
+    (output : Output Digest State Running slotCount) : Prop where
+  iterationPositive : 0 < input.iteration
+  priorPcValid : InRange slotCount input.priorPc
+  priorPublicInput : machine.freshPublic input.fresh =
+    machine.encodeInstance (machine.hash (priorHashPreimage setup input))
+  application : ApplicationHolds machine functionIndex input output
+  selectedNifs : Accepts setup.nifs
+    (setup.verifierKeys (selectedIndex priorPcValid))
+    (input.running (selectedIndex priorPcValid)) input.fresh input.nifsProof
+    (output.runningNext (selectedIndex priorPcValid))
+  unchanged : forall slot, slot ≠ selectedIndex priorPcValid ->
+    output.runningNext slot = input.running slot
+  outputHash : OutputHolds setup machine input output
+
+def Transition
+    {Key : Type uKey}
+    {Digest : Type uDigest}
+    {State : Type uState}
+    {Witness : Type uWitness}
+    {Running : Type uRunning}
+    {Fresh : Type uFresh}
+    {Proof : Type uProof}
+    {Encoded : Type uEncoded}
+    {slotCount : Nat}
+    (setup : Setup Key Running Fresh Proof slotCount)
+    (machine : Machine Key Digest State Witness Running Fresh Encoded slotCount)
+    (functionIndex : Fin slotCount)
+    (input : Input Key State Witness Running Fresh Proof slotCount)
+    (output : Output Digest State Running slotCount) : Prop :=
+  machine.control input.zi input.witness = functionIndex /\
+  output.pcNext = functionIndex /\
+  output.zNext = machine.step functionIndex input.zi input.witness /\
+  output.x = machine.hash (nextHashPreimage setup input output) /\
+  ((input.iteration = 0 /\
+      input.z0 = input.zi /\
+      output.runningNext = fun _ => setup.defaultRunning) \/
+    exists priorPcValid : InRange slotCount input.priorPc,
+      0 < input.iteration /\
+      machine.freshPublic input.fresh =
+        machine.encodeInstance (machine.hash (priorHashPreimage setup input)) /\
+      Accepts setup.nifs
+        (setup.verifierKeys (selectedIndex priorPcValid))
+        (input.running (selectedIndex priorPcValid)) input.fresh input.nifsProof
+        (output.runningNext (selectedIndex priorPcValid)) /\
+      forall slot, slot ≠ selectedIndex priorPcValid ->
+        output.runningNext slot = input.running slot)
+
+def FixedAugmentedTransition
+    {Key : Type uKey}
+    {Digest : Type uDigest}
+    {State : Type uState}
+    {Witness : Type uWitness}
+    {Running : Type uRunning}
+    {Fresh : Type uFresh}
+    {Proof : Type uProof}
+    {Encoded : Type uEncoded}
+    {slotCount : Nat}
+    (setup : Setup Key Running Fresh Proof slotCount)
+    (machine : Machine Key Digest State Witness Running Fresh Encoded slotCount)
+    (functionIndex : Fin slotCount)
+    (input : Input Key State Witness Running Fresh Proof slotCount)
+    (output : Output Digest State Running slotCount) : Prop :=
+  output.pcNext = functionIndex /\
+  output.zNext = machine.step functionIndex input.zi input.witness /\
+  output.x = machine.hash (nextHashPreimage setup input output) /\
+  ((input.iteration = 0 /\
+      input.z0 = input.zi /\
+      output.runningNext = fun _ => setup.defaultRunning) \/
+    exists priorPcValid : InRange slotCount input.priorPc,
+      0 < input.iteration /\
+      machine.freshPublic input.fresh =
+        machine.encodeInstance (machine.hash (priorHashPreimage setup input)) /\
+      Accepts setup.nifs
+        (setup.verifierKeys (selectedIndex priorPcValid))
+        (input.running (selectedIndex priorPcValid)) input.fresh input.nifsProof
+        (output.runningNext (selectedIndex priorPcValid)) /\
+      forall slot, slot ≠ selectedIndex priorPcValid ->
+        output.runningNext slot = input.running slot)
+
+theorem transition_iff_honestOuterDispatch_and_fixedAugmented
+    {Key : Type uKey}
+    {Digest : Type uDigest}
+    {State : Type uState}
+    {Witness : Type uWitness}
+    {Running : Type uRunning}
+    {Fresh : Type uFresh}
+    {Proof : Type uProof}
+    {Encoded : Type uEncoded}
+    {slotCount : Nat}
+    (setup : Setup Key Running Fresh Proof slotCount)
+    (machine : Machine Key Digest State Witness Running Fresh Encoded slotCount)
+    (functionIndex : Fin slotCount)
+    (input : Input Key State Witness Running Fresh Proof slotCount)
+    (output : Output Digest State Running slotCount) :
+    Transition setup machine functionIndex input output ↔
+      HonestOuterDispatch machine functionIndex input /\
+        FixedAugmentedTransition setup machine functionIndex input output := by
+  rfl
+
+inductive Holds
+    {Key : Type uKey}
+    {Digest : Type uDigest}
+    {State : Type uState}
+    {Witness : Type uWitness}
+    {Running : Type uRunning}
+    {Fresh : Type uFresh}
+    {Proof : Type uProof}
+    {Encoded : Type uEncoded}
+    {slotCount : Nat}
+    (setup : Setup Key Running Fresh Proof slotCount)
+    (machine : Machine Key Digest State Witness Running Fresh Encoded slotCount)
+    (functionIndex : Fin slotCount)
+    (input : Input Key State Witness Running Fresh Proof slotCount)
+    (output : Output Digest State Running slotCount) : Prop where
+  | base : BaseHolds setup machine functionIndex input output ->
+      Holds setup machine functionIndex input output
+  | recursive : RecursiveHolds setup machine functionIndex input output ->
+      Holds setup machine functionIndex input output
+
+theorem holds_iff_base_or_recursive
+    {Key : Type uKey}
+    {Digest : Type uDigest}
+    {State : Type uState}
+    {Witness : Type uWitness}
+    {Running : Type uRunning}
+    {Fresh : Type uFresh}
+    {Proof : Type uProof}
+    {Encoded : Type uEncoded}
+    {slotCount : Nat}
+    (setup : Setup Key Running Fresh Proof slotCount)
+    (machine : Machine Key Digest State Witness Running Fresh Encoded slotCount)
+    (functionIndex : Fin slotCount)
+    (input : Input Key State Witness Running Fresh Proof slotCount)
+    (output : Output Digest State Running slotCount) :
+    Holds setup machine functionIndex input output <->
+      BaseHolds setup machine functionIndex input output \/
+      RecursiveHolds setup machine functionIndex input output := by
+  constructor
+  · intro accepted
+    cases accepted with
+    | base holds => exact Or.inl holds
+    | recursive holds => exact Or.inr holds
+  · rintro (holds | holds)
+    · exact Holds.base holds
+    · exact Holds.recursive holds
+
+theorem holds_iff_transition
+    {Key : Type uKey}
+    {Digest : Type uDigest}
+    {State : Type uState}
+    {Witness : Type uWitness}
+    {Running : Type uRunning}
+    {Fresh : Type uFresh}
+    {Proof : Type uProof}
+    {Encoded : Type uEncoded}
+    {slotCount : Nat}
+    (setup : Setup Key Running Fresh Proof slotCount)
+    (machine : Machine Key Digest State Witness Running Fresh Encoded slotCount)
+    (functionIndex : Fin slotCount)
+    (input : Input Key State Witness Running Fresh Proof slotCount)
+    (output : Output Digest State Running slotCount) :
+    Holds setup machine functionIndex input output <->
+      Transition setup machine functionIndex input output := by
+  constructor
+  · intro accepted
+    cases accepted with
+    | base holds =>
+        exact ⟨holds.application.dispatch, holds.application.pcNext,
+          holds.application.application, holds.outputHash,
+          Or.inl ⟨holds.iterationZero, holds.initialState,
+            holds.defaultRunning⟩⟩
+    | recursive holds =>
+        exact ⟨holds.application.dispatch, holds.application.pcNext,
+          holds.application.application, holds.outputHash,
+          Or.inr ⟨holds.priorPcValid, holds.iterationPositive,
+            holds.priorPublicInput, holds.selectedNifs, holds.unchanged⟩⟩
+  · rintro ⟨dispatch, pcNext, application, outputHash, branch⟩
+    have applicationHolds :
+        ApplicationHolds machine functionIndex input output :=
+      ⟨dispatch, pcNext, application⟩
+    rcases branch with base | recursive
+    · exact Holds.base {
+        iterationZero := base.1
+        initialState := base.2.1
+        application := applicationHolds
+        defaultRunning := base.2.2
+        outputHash := outputHash }
+    · rcases recursive with
+        ⟨priorPcValid, iterationPositive, priorPublicInput,
+          selectedNifs, unchanged⟩
+      exact Holds.recursive {
+        iterationPositive := iterationPositive
+        priorPcValid := priorPcValid
+        priorPublicInput := priorPublicInput
+        application := applicationHolds
+        selectedNifs := selectedNifs
+        unchanged := unchanged
+        outputHash := outputHash }
+
+theorem holds_iff_honestOuterDispatch_and_fixedAugmented
+    {Key : Type uKey}
+    {Digest : Type uDigest}
+    {State : Type uState}
+    {Witness : Type uWitness}
+    {Running : Type uRunning}
+    {Fresh : Type uFresh}
+    {Proof : Type uProof}
+    {Encoded : Type uEncoded}
+    {slotCount : Nat}
+    (setup : Setup Key Running Fresh Proof slotCount)
+    (machine : Machine Key Digest State Witness Running Fresh Encoded slotCount)
+    (functionIndex : Fin slotCount)
+    (input : Input Key State Witness Running Fresh Proof slotCount)
+    (output : Output Digest State Running slotCount) :
+    Holds setup machine functionIndex input output ↔
+      HonestOuterDispatch machine functionIndex input /\
+        FixedAugmentedTransition setup machine functionIndex input output :=
+  (holds_iff_transition setup machine functionIndex input output).trans
+    (transition_iff_honestOuterDispatch_and_fixedAugmented
+      setup machine functionIndex input output)
+
+structure TerminalProof
+    (Running : Type uRunning)
+    (RunningWitness : Type uRunningWitness)
+    (Fresh : Type uFresh)
+    (FreshWitness : Type uFreshWitness)
+    (slotCount : Nat) where
+  running : Fin slotCount -> Running
+  runningWitness : Fin slotCount -> RunningWitness
+  fresh : Fresh
+  freshWitness : FreshWitness
+  pc : Nat
+
+inductive OuterTerminalProof
+    (Running : Type uRunning)
+    (RunningWitness : Type uRunningWitness)
+    (Fresh : Type uFresh)
+    (FreshWitness : Type uFreshWitness)
+    (slotCount : Nat) where
+  | bottom
+  | recursive
+      (payload : TerminalProof Running RunningWitness Fresh FreshWitness
+        slotCount)
+
+structure TerminalStatement (State : Type uState) where
+  iteration : Nat
+  z0 : State
+  zi : State
+
+structure TerminalRelations
+    (Key : Type uKey)
+    (Running : Type uRunning)
+    (RunningWitness : Type uRunningWitness)
+    (Fresh : Type uFresh)
+    (FreshWitness : Type uFreshWitness)
+    (slotCount : Nat) where
+  runningHolds : (slot : Fin slotCount) ->
+    Key -> Running -> RunningWitness -> Prop
+  freshHolds : (slot : Fin slotCount) ->
+    Key -> Fresh -> FreshWitness -> Prop
+
+def RecursiveTerminalTransition
+    {Key : Type uKey}
+    {Digest : Type uDigest}
+    {State : Type uState}
+    {Witness : Type uWitness}
+    {Running : Type uRunning}
+    {RunningWitness : Type uRunningWitness}
+    {Fresh : Type uFresh}
+    {FreshWitness : Type uFreshWitness}
+    {Proof : Type uProof}
+    {Encoded : Type uEncoded}
+    {slotCount : Nat}
+    (setup : Setup Key Running Fresh Proof slotCount)
+    (machine : Machine Key Digest State Witness Running Fresh Encoded slotCount)
+    (relations : TerminalRelations Key Running RunningWitness Fresh FreshWitness
+      slotCount)
+    (statement : TerminalStatement State)
+    (proof : TerminalProof Running RunningWitness Fresh FreshWitness slotCount) :
+    Prop :=
+  exists pcValid : InRange slotCount proof.pc,
+    0 < statement.iteration /\
+    machine.freshPublic proof.fresh =
+      machine.encodeInstance (machine.hash {
+        verifierKeys := setup.verifierKeys
+        iteration := statement.iteration
+        z0 := statement.z0
+        current := statement.zi
+        running := proof.running
+        pc := proof.pc
+      }) /\
+    (forall slot, relations.runningHolds slot (setup.verifierKeys slot)
+      (proof.running slot) (proof.runningWitness slot)) /\
+    relations.freshHolds (selectedIndex pcValid)
+      (setup.verifierKeys (selectedIndex pcValid)) proof.fresh proof.freshWitness
+
+def OuterTerminalTransition
+    {Key : Type uKey}
+    {Digest : Type uDigest}
+    {State : Type uState}
+    {Witness : Type uWitness}
+    {Running : Type uRunning}
+    {RunningWitness : Type uRunningWitness}
+    {Fresh : Type uFresh}
+    {FreshWitness : Type uFreshWitness}
+    {Proof : Type uProof}
+    {Encoded : Type uEncoded}
+    {slotCount : Nat}
+    (setup : Setup Key Running Fresh Proof slotCount)
+    (machine : Machine Key Digest State Witness Running Fresh Encoded slotCount)
+    (relations : TerminalRelations Key Running RunningWitness Fresh FreshWitness
+      slotCount)
+    (statement : TerminalStatement State)
+    (proof : OuterTerminalProof Running RunningWitness Fresh FreshWitness
+      slotCount) : Prop :=
+  match proof with
+  | .bottom => statement.iteration = 0 /\ statement.zi = statement.z0
+  | .recursive payload =>
+      RecursiveTerminalTransition setup machine relations statement payload
+
+inductive OuterTerminalHolds
+    {Key : Type uKey}
+    {Digest : Type uDigest}
+    {State : Type uState}
+    {Witness : Type uWitness}
+    {Running : Type uRunning}
+    {RunningWitness : Type uRunningWitness}
+    {Fresh : Type uFresh}
+    {FreshWitness : Type uFreshWitness}
+    {Proof : Type uProof}
+    {Encoded : Type uEncoded}
+    {slotCount : Nat}
+    (setup : Setup Key Running Fresh Proof slotCount)
+    (machine : Machine Key Digest State Witness Running Fresh Encoded slotCount)
+    (relations : TerminalRelations Key Running RunningWitness Fresh FreshWitness
+      slotCount)
+    (statement : TerminalStatement State) :
+    OuterTerminalProof Running RunningWitness Fresh FreshWitness slotCount ->
+      Prop where
+  | bottom
+      (iterationZero : statement.iteration = 0)
+      (initialState : statement.zi = statement.z0) :
+      OuterTerminalHolds setup machine relations statement .bottom
+  | recursive
+      (payload : TerminalProof Running RunningWitness Fresh FreshWitness
+        slotCount)
+      (recursiveHolds : RecursiveTerminalTransition setup machine relations
+        statement payload) :
+      OuterTerminalHolds setup machine relations statement (.recursive payload)
+
+theorem outerTerminalHolds_iff_transition
+    {Key : Type uKey}
+    {Digest : Type uDigest}
+    {State : Type uState}
+    {Witness : Type uWitness}
+    {Running : Type uRunning}
+    {RunningWitness : Type uRunningWitness}
+    {Fresh : Type uFresh}
+    {FreshWitness : Type uFreshWitness}
+    {Proof : Type uProof}
+    {Encoded : Type uEncoded}
+    {slotCount : Nat}
+    (setup : Setup Key Running Fresh Proof slotCount)
+    (machine : Machine Key Digest State Witness Running Fresh Encoded slotCount)
+    (relations : TerminalRelations Key Running RunningWitness Fresh FreshWitness
+      slotCount)
+    (statement : TerminalStatement State)
+    (proof : OuterTerminalProof Running RunningWitness Fresh FreshWitness
+      slotCount) :
+    OuterTerminalHolds setup machine relations statement proof <->
+      OuterTerminalTransition setup machine relations statement proof := by
+  constructor
+  · intro accepted
+    cases accepted with
+    | bottom iterationZero initialState =>
+        exact ⟨iterationZero, initialState⟩
+    | recursive payload recursiveHolds =>
+        exact recursiveHolds
+  · intro transition
+    cases proof with
+    | bottom =>
+        exact OuterTerminalHolds.bottom transition.1 transition.2
+    | recursive payload =>
+        exact OuterTerminalHolds.recursive payload transition
+
+end NightstreamFPrime.Spec.HyperNova.Construction2.Paper

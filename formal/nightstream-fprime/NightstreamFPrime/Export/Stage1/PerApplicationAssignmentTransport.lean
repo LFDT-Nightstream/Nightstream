@@ -1,0 +1,203 @@
+import NightstreamFPrime.Export.Package
+import NightstreamFPrime.Export.Stage1.PerApplicationAssignmentBlocks
+import NightstreamFPrime.Export.Stage1.PiCCSPoseidonPreservation
+
+namespace NightstreamFPrime.Export.Stage1.PerApplicationAssignmentTransport
+
+open NightstreamFPrime.Circuit
+open NightstreamFPrime.Export.Codec
+open NightstreamFPrime.Layout
+open NightstreamFPrime.Layout.ProductionRelation
+open NightstreamFPrime.Lifecycle
+open NightstreamFPrime.Spec
+open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
+open PerApplicationCanonicalAssignment
+open PerApplicationAssignmentPlan
+
+abbrev Program := Lifecycle.Stage1.Application.Program
+
+structure Phi81FamilyShape where
+  sourceCount : Nat
+  blockCount : Nat
+  cellCount : Nat
+deriving Repr, DecidableEq
+
+def Phi81FamilyShape.format : Format Phi81FamilyShape where
+  encode := fun shape => .array [
+    .atom shape.sourceCount,
+    .atom shape.blockCount,
+    .atom shape.cellCount]
+  decode
+    | .array [.atom sourceCount, .atom blockCount, .atom cellCount] =>
+        .ok { sourceCount, blockCount, cellCount }
+    | _ => .error "invalid Phi81 assignment family shape"
+  decode_encode := by
+    intro shape
+    cases shape
+    rfl
+
+structure Phi81QuotientRecipe where
+  ringDegree : Nat
+  middleDegree : Nat
+  foldOffset : Nat
+  quotientCount : Nat
+  familyShapes : List Phi81FamilyShape
+  challengeBlock : BlockKind
+  challengeSlotBase : Nat
+  challengeSourceStride : Nat
+  challengeShift : Nat
+  valueSources : List AffineRuns.Run
+  quotientOutputBlock : BlockKind
+deriving Repr, DecidableEq
+
+def Phi81QuotientRecipe.format : Format Phi81QuotientRecipe where
+  encode := fun recipe => .array [
+    .atom recipe.ringDegree,
+    .atom recipe.middleDegree,
+    .atom recipe.foldOffset,
+    .atom recipe.quotientCount,
+    (Codec.list Phi81FamilyShape.format).encode recipe.familyShapes,
+    BlockKind.format.encode recipe.challengeBlock,
+    .atom recipe.challengeSlotBase,
+    .atom recipe.challengeSourceStride,
+    .atom recipe.challengeShift,
+    AffineRuns.format.encode recipe.valueSources,
+    BlockKind.format.encode recipe.quotientOutputBlock]
+  decode
+    | .array [.atom ringDegree, .atom middleDegree, .atom foldOffset,
+        .atom quotientCount, familyShapes, challengeBlock,
+        .atom challengeSlotBase, .atom challengeSourceStride,
+        .atom challengeShift, valueSources, quotientOutputBlock] => do
+      pure {
+        ringDegree, middleDegree, foldOffset, quotientCount,
+        familyShapes := ← (Codec.list Phi81FamilyShape.format).decode familyShapes,
+        challengeBlock := ← BlockKind.format.decode challengeBlock,
+        challengeSlotBase, challengeSourceStride, challengeShift,
+        valueSources := ← AffineRuns.format.decode valueSources,
+        quotientOutputBlock := ← BlockKind.format.decode quotientOutputBlock }
+    | _ => .error "invalid Phi81 assignment quotient recipe"
+  decode_encode := by
+    intro recipe
+    cases recipe
+    simp only [(Codec.list Phi81FamilyShape.format).decode_encode,
+      BlockKind.format.decode_encode, AffineRuns.decode_encode]
+    rfl
+
+def phi81FamilyShapes : List Phi81FamilyShape :=
+  [ ⟨17, 22, 1⟩
+  , ⟨17, 5, 1⟩
+  , ⟨17, 1, 2⟩
+  , ⟨17, 4, 2⟩ ]
+
+def phi81ValueSources (program : Program) : List AffineRuns.Run :=
+  AffineRuns.compress <| List.ofFn fun invocation :
+      Fin PiRLCProductSchedule.invocationCount =>
+    let descriptor := PiRLCProductSchedule.descriptor invocation
+    (PiRLCProductPlan.valueColumn program descriptor descriptor.lane).val
+
+def directPhi81ValueSources (program : Program) : List AffineRuns.Run :=
+  AffineRuns.compressIndexedTR fun invocation :
+      Fin PiRLCProductSchedule.invocationCount =>
+    let descriptor := PiRLCProductSchedule.descriptor invocation
+    (PiRLCProductPlan.valueColumn program descriptor descriptor.lane).val
+
+@[csimp] theorem phi81ValueSources_eq_direct :
+    phi81ValueSources = directPhi81ValueSources := by
+  funext program
+  exact (AffineRuns.compressIndexedTR_eq_compress_ofFn _).symm
+
+theorem phi81ValueSources_at (program : Program)
+    (invocation : Fin PiRLCProductSchedule.invocationCount) :
+    AffineRuns.sourceAt (phi81ValueSources program) invocation.val =
+      (PiRLCProductPlan.valueColumn program
+        (PiRLCProductSchedule.descriptor invocation)
+        (PiRLCProductSchedule.descriptor invocation).lane).val := by
+  rw [AffineRuns.sourceAt_eq_expand_getD, phi81ValueSources,
+    AffineRuns.expand_compress]
+  exact Lifecycle.PriorStateHash.ofFn_getD _ invocation 0
+
+def phi81QuotientRecipe (program : Program) : Phi81QuotientRecipe where
+  ringDegree := 54
+  middleDegree := 27
+  foldOffset := 81
+  quotientCount := 54
+  familyShapes := phi81FamilyShapes
+  challengeBlock := .challengeWords
+  challengeSlotBase := 0
+  challengeSourceStride := 54
+  challengeShift := 2
+  valueSources := phi81ValueSources program
+  quotientOutputBlock := .productGroup
+
+def physicalExpr (program : Program) (expression : Expr) : Expr :=
+  CompactRows.renameExpr (PerApplicationPackage.shiftColumn program) <|
+    PermutationOutput.Readout.rewriteExpr PiCCSTranscriptReadout.transcriptStart
+      NightstreamFPrime.Layout.Stage1.PiCCSOrdinarySourceSupport.transcriptInvocationCount <|
+        CompactRows.renameExpr NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan expression
+
+def outputDigestExpression (program : Program) (lane : Fin 4) : Expr :=
+  physicalExpr program <|
+    PilotProduction.outputInterface.digest
+      (Lifecycle.Pilot.outputOffset PilotProduction.interface
+        PilotProduction.witnessOffset) lane
+
+def outputDigestExpressions (program : Program) : List Expr :=
+  List.ofFn (outputDigestExpression program)
+
+@[simp] theorem outputDigestExpressions_length (program : Program) :
+    (outputDigestExpressions program).length = 4 := by
+  simp [outputDigestExpressions]
+
+def schema : Nat := 3
+
+structure Plan where
+  blocks : List PerApplicationAssignmentBlocks.BlockPlan
+  phi81 : Phi81QuotientRecipe
+  outputDigestBlock : BlockKind
+  outputDigestExpressions : List Expr
+deriving Repr, DecidableEq
+
+def Plan.format : Format Plan where
+  encode := fun plan => .array [
+    .atom schema,
+    PerApplicationAssignmentBlocks.format.encode plan.blocks,
+    Phi81QuotientRecipe.format.encode plan.phi81,
+    BlockKind.format.encode plan.outputDigestBlock,
+    (Codec.list NightstreamFPrime.Export.Package.exprFormat).encode
+      plan.outputDigestExpressions]
+  decode
+    | .array [.atom 3, blocks, phi81,
+        outputDigestBlock, outputDigestExpressions] => do
+      pure {
+        blocks := ← PerApplicationAssignmentBlocks.format.decode blocks,
+        phi81 := ← Phi81QuotientRecipe.format.decode phi81,
+        outputDigestBlock := ← BlockKind.format.decode outputDigestBlock,
+        outputDigestExpressions :=
+          ← (Codec.list NightstreamFPrime.Export.Package.exprFormat).decode
+            outputDigestExpressions }
+    | _ => .error "invalid per-application assignment transport plan"
+  decode_encode := by
+    intro plan
+    cases plan
+    simp only [schema, PerApplicationAssignmentBlocks.format.decode_encode,
+      Phi81QuotientRecipe.format.decode_encode,
+      BlockKind.format.decode_encode,
+      (Codec.list NightstreamFPrime.Export.Package.exprFormat).decode_encode]
+    rfl
+
+def canonical (program : Program) : Plan where
+  blocks := PerApplicationAssignmentBlocks.canonical program
+  phi81 := phi81QuotientRecipe program
+  outputDigestBlock := .pilotOutputDigest
+  outputDigestExpressions := outputDigestExpressions program
+
+@[simp] theorem canonical_blocks_length (program : Program) :
+    (canonical program).blocks.length = 26 := by
+  exact PerApplicationAssignmentBlocks.canonical_length program
+
+@[simp] theorem canonical_outputDigestExpressions_length (program : Program) :
+    (canonical program).outputDigestExpressions.length = 4 := by
+  change (outputDigestExpressions program).length = 4
+  exact outputDigestExpressions_length program
+
+end NightstreamFPrime.Export.Stage1.PerApplicationAssignmentTransport

@@ -1,0 +1,114 @@
+import NightstreamFPrime.Export.Stage1.PermutationCompilerTransport
+
+set_option autoImplicit false
+
+namespace NightstreamFPrime.Export.Stage1.PermutationCompilerTransport
+
+open NightstreamFPrime.Circuit
+open NightstreamFPrime.Export.Package
+open NightstreamFPrime.Export.Stage1.Invocations
+open NightstreamFPrime.Gadgets.Poseidon2
+open NightstreamFPrime.Gadgets.Poseidon2.Duplex
+open NightstreamFPrime.Layout
+open NightstreamFPrime.Layout.Stage1
+
+private theorem compileBlocks_complete_of_sourceConstraints
+    (phase rowStart witnessStart : Nat) (state : EState)
+    (blocks : List (List Expr)) (env : Env)
+    (witnessLocal : Spartan.piCcsPhaseOffset ≤ witnessStart)
+    (stateAffine : Poseidon2.StateAffine state)
+    (blocksAffine : Poseidon2.BlocksAffine blocks)
+    (rows : ConstraintsHold (Spartan.pullback env)
+      (recipeConstraints witnessStart
+        (Hash.compileAbsorptions witnessStart state blocks).recipes)) :
+    ∀ current ∈ (compileBlocks phase rowStart witnessStart state blocks).invocations,
+      PermutationInvocationHolds (PilotData.circuitPackage ()) current env := by
+  induction blocks generalizing rowStart witnessStart state with
+  | nil => simp only [compileBlocks, List.not_mem_nil, false_implies, implies_true]
+  | cons block rest induction =>
+      have blockAffine : Poseidon2.ListAffine block := blocksAffine block (by simp)
+      have restAffine : Poseidon2.BlocksAffine rest := by
+        intro current member
+        exact blocksAffine current (List.mem_cons_of_mem _ member)
+      have separated := Formal.splitRecipeRows (Spartan.pullback env) witnessStart
+        (Permutation.compile witnessStart (Hash.absorbE state block)
+          Permutation.schedule).recipes
+        (Hash.compileAbsorptions (witnessStart + 1096)
+          (Permutation.compile witnessStart (Hash.absorbE state block)
+            Permutation.schedule).output rest).recipes rows
+      have headRows : ConstraintsHold (Spartan.pullback env)
+          (recipeConstraints witnessStart
+            (Permutation.compile witnessStart (Hash.absorbE state block)
+              Permutation.schedule).recipes) := separated.1
+      have tailRows : ConstraintsHold (Spartan.pullback env)
+          (recipeConstraints (witnessStart + 1096)
+            (Hash.compileAbsorptions (witnessStart + 1096)
+              (permutationOutput witnessStart) rest).recipes) := by
+        rw [permutationOutput_eq_compile]
+        simpa only [Permutation.compile_schedule_recipe_count] using separated.2
+      intro current member
+      simp only [compileBlocks, List.mem_cons] at member
+      rcases member with rfl | member
+      · exact invocation_complete_of_sourceConstraints phase rowStart witnessStart
+          (Hash.absorbE state block) env witnessLocal
+          (Poseidon2.absorbE_affine state block stateAffine blockAffine) headRows
+      · exact induction (rowStart + 1096) (witnessStart + 1096)
+          (permutationOutput witnessStart) (by omega)
+          (permutationOutput_affine witnessStart) restAffine tailRows current member
+
+theorem compileActions_complete_of_sourceConstraints
+    (phase rowStart witnessStart : Nat) (state : EState)
+    (actions : List Action) (env : Env)
+    (witnessLocal : Spartan.piCcsPhaseOffset ≤ witnessStart)
+    (stateAffine : Poseidon2.StateAffine state)
+    (actionsAffine : ActionsInvocationInputsAffine actions)
+    (rows : ConstraintsHold (Spartan.pullback env)
+      (recipeConstraints witnessStart
+        (Formal.compile witnessStart state actions).recipes)) :
+    ∀ current ∈ (compileActions phase rowStart witnessStart state actions).invocations,
+      PermutationInvocationHolds (PilotData.circuitPackage ()) current env := by
+  induction actions generalizing rowStart witnessStart state with
+  | nil => simp only [compileActions, List.not_mem_nil, false_implies, implies_true]
+  | cons action actions induction =>
+      have tailAffine : ActionsInvocationInputsAffine actions := by
+        intro shape member
+        exact actionsAffine shape (by simpa only [List.map_cons, List.mem_cons] using Or.inr member)
+      cases action with
+      | absorb input =>
+          let blocks := Hash.inputChunks input
+          let traced := compileBlocks phase rowStart witnessStart state blocks
+          let absorbed := Hash.compileAbsorptions witnessStart state blocks
+          have inputAffine : Poseidon2.ListAffine input :=
+            actionsAffine (.absorb input) (by simp only [List.map_cons, Formal.Action.shape, List.mem_cons, true_or])
+          have blocksAffine := Poseidon2.inputChunks_affine input inputAffine
+          have nextEq : traced.witnessNext = witnessStart + absorbed.recipes.length := by
+            rw [compileBlocks_witnessNext, Hash.compileAbsorptions_recipes_length]
+          have stateEq : traced.state = absorbed.output :=
+            compileBlocks_state_eq phase rowStart witnessStart state blocks
+          have separated := Formal.splitRecipeRows (Spartan.pullback env) witnessStart
+            absorbed.recipes
+            (Formal.compile (witnessStart + absorbed.recipes.length) absorbed.output actions).recipes rows
+          have nextLocal : Spartan.piCcsPhaseOffset ≤ traced.witnessNext := by
+            rw [nextEq]
+            omega
+          have nextAffine : Poseidon2.StateAffine traced.state := by
+            rw [stateEq]
+            exact Poseidon2.compileAbsorptions_output_affine witnessStart state blocks stateAffine blocksAffine
+          have tailRows : ConstraintsHold (Spartan.pullback env)
+              (recipeConstraints traced.witnessNext
+                (Formal.compile traced.witnessNext traced.state actions).recipes) := by
+            rw [nextEq, stateEq]
+            exact separated.2
+          intro current member
+          change current ∈ traced.invocations ++
+            (compileActions phase traced.rowNext traced.witnessNext traced.state actions).invocations at member
+          rcases List.mem_append.mp member with member | member
+          · exact compileBlocks_complete_of_sourceConstraints phase rowStart witnessStart state blocks env
+              witnessLocal stateAffine blocksAffine separated.1 current member
+          · exact induction traced.rowNext traced.witnessNext traced.state nextLocal nextAffine
+              tailAffine tailRows current member
+      | readK pair expected =>
+          exact induction rowStart witnessStart state witnessLocal stateAffine
+            tailAffine rows
+
+end NightstreamFPrime.Export.Stage1.PermutationCompilerTransport

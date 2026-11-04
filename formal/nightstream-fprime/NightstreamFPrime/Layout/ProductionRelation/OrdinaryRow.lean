@@ -1,0 +1,200 @@
+import NightstreamFPrime.Layout.ProductionRelation
+import NightstreamFPrime.Layout.R1CS
+import NightstreamFPrime.Spec.ProductionRelation.RowSemantics
+
+namespace NightstreamFPrime.Layout.ProductionRelation.OrdinaryRow
+
+open NightstreamFPrime.Spec
+open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
+open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CCSResidualTable
+open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
+open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
+open NightstreamFPrime.Lifecycle
+
+structure Forms (logicalWidth : Nat) where
+  a : SparseForm logicalWidth
+  b : SparseForm logicalWidth
+  c : SparseForm logicalWidth
+deriving Repr, DecidableEq
+
+namespace Forms
+
+def meaningfulForm {logicalWidth : Nat} (forms : Forms logicalWidth)
+    (port : Fin Spec.ProductionRelation.meaningfulPortCount) :
+    SparseForm logicalWidth :=
+  match port.val with
+  | 0 => forms.a
+  | 1 => forms.b
+  | 2 => forms.c
+  | _ => .empty
+
+def portForm {logicalWidth : Nat} (forms : Forms logicalWidth)
+    (port : Fin Spec.ProductionRelation.matrixCount) : SparseForm logicalWidth :=
+  match ProductionRelation.meaningfulPort? port with
+  | some meaningful => forms.meaningfulForm meaningful
+  | none => .empty
+
+def portImages {logicalWidth : Nat} (forms : Forms logicalWidth)
+    (assignment : Assignment F logicalWidth) :
+    Fin Spec.ProductionRelation.matrixCount → F :=
+  fun port => (forms.portForm port).eval assignment
+
+private theorem portImages_eq_multiplication {logicalWidth : Nat}
+    (forms : Forms logicalWidth) (assignment : Assignment F logicalWidth) :
+    forms.portImages assignment =
+      (Spec.ProductionRelation.RowSemantics.multiplication
+        (forms.a.eval assignment)
+        (forms.b.eval assignment)
+        (forms.c.eval assignment)).get := by
+  funext port
+  fin_cases port <;>
+    simp [portImages, portForm, meaningfulForm,
+      ProductionRelation.meaningfulPort?,
+      Spec.ProductionRelation.RowSemantics.multiplication,
+      Spec.ProductionRelation.RowSemantics.PortValues.get]
+
+def residual {logicalWidth : Nat} (forms : Forms logicalWidth)
+    (assignment : Assignment F logicalWidth) : F :=
+  evaluatePolynomial baseOps Spec.ProductionRelation.polynomial
+    (forms.portImages assignment)
+
+theorem residual_eq {logicalWidth : Nat} (forms : Forms logicalWidth)
+    (assignment : Assignment F logicalWidth) :
+    forms.residual assignment =
+      forms.a.eval assignment * forms.b.eval assignment -
+        forms.c.eval assignment := by
+  unfold residual
+  rw [portImages_eq_multiplication]
+  exact Spec.ProductionRelation.RowSemantics.evaluate_multiplication _ _ _
+
+def Preserves {logicalWidth : Nat} (forms : Forms logicalWidth)
+    (assignment : Assignment F logicalWidth) (source : Circuit.Env)
+    (row : R1CS.Row) : Prop :=
+  forms.a.eval assignment = row.a.eval source ∧
+    forms.b.eval assignment = row.b.eval source ∧
+    forms.c.eval assignment = row.c.eval source
+
+theorem residual_zero_iff {logicalWidth : Nat} (forms : Forms logicalWidth)
+    (assignment : Assignment F logicalWidth) (source : Circuit.Env)
+    (row : R1CS.Row) (preserves : forms.Preserves assignment source row) :
+    forms.residual assignment = 0 ↔ row.Holds source := by
+  rcases preserves with ⟨a, b, c⟩
+  rw [residual_eq, a, b, c]
+  change
+    row.a.eval source * row.b.eval source - row.c.eval source = 0 ↔
+      row.a.eval source * row.b.eval source = row.c.eval source
+  exact Lean.Grind.AddCommGroup.sub_eq_zero_iff
+
+end Forms
+
+def planOfForms {logicalWidth rowCount : Nat}
+    (rowCount_le : rowCount ≤ 2 ^ cubeVariables)
+    (forms : Fin rowCount → Forms logicalWidth) :
+    ProductionRelation.Plan logicalWidth where
+  rowCount := rowCount
+  rowCount_le := rowCount_le
+  forms := fun row port => (forms row).meaningfulForm port
+
+private theorem planOfForms_portForm {logicalWidth rowCount : Nat}
+    (rowCount_le : rowCount ≤ 2 ^ cubeVariables)
+    (forms : Fin rowCount → Forms logicalWidth) (row : Fin rowCount)
+    (port : Fin Spec.ProductionRelation.matrixCount) :
+    (planOfForms rowCount_le forms).portForm row port =
+      (forms row).portForm port := by
+  rfl
+
+theorem planOfForms_residual_zero_iff {logicalWidth rowCount : Nat}
+    (rowCount_le : rowCount ≤ 2 ^ cubeVariables)
+    (forms : Fin rowCount → Forms logicalWidth)
+    (assignment : Assignment F logicalWidth) (source : Circuit.Env)
+    (row : Fin rowCount) (sourceRow : R1CS.Row)
+    (preserves : (forms row).Preserves assignment source sourceRow) :
+    evaluatePolynomial baseOps Spec.ProductionRelation.polynomial
+        ((planOfForms rowCount_le forms).rowImage assignment
+          ((planOfForms rowCount_le forms).rowLayout.toVertex row)) = 0 ↔
+      sourceRow.Holds source := by
+  have images :
+      (planOfForms rowCount_le forms).rowImage assignment
+          ((planOfForms rowCount_le forms).rowLayout.toVertex row) =
+        (forms row).portImages assignment := by
+    funext port
+    unfold ProductionRelation.Plan.rowImage Forms.portImages
+    erw [(planOfForms rowCount_le forms).rowLayout.toColumn_toVertex]
+    exact congrArg (fun form => form.eval assignment)
+      (planOfForms_portForm rowCount_le forms row port)
+  rw [images]
+  exact Forms.residual_zero_iff _ _ _ _ preserves
+
+structure Row (logicalWidth : Nat) where
+  source : R1CS.Row
+  forms : Forms logicalWidth
+
+structure Program (logicalWidth : Nat) where
+  rowCount : Nat
+  rowCount_le : rowCount ≤ 2 ^ cubeVariables
+  row : Fin rowCount → Row logicalWidth
+
+namespace Program
+
+def toPlan {logicalWidth : Nat} (program : Program logicalWidth) :
+    ProductionRelation.Plan logicalWidth where
+  rowCount := program.rowCount
+  rowCount_le := program.rowCount_le
+  forms := fun row port => (program.row row).forms.meaningfulForm port
+
+private theorem toPlan_portForm {logicalWidth : Nat}
+    (program : Program logicalWidth) (row : Fin program.rowCount)
+    (port : Fin Spec.ProductionRelation.matrixCount) :
+    program.toPlan.portForm row port = (program.row row).forms.portForm port := by
+  rfl
+
+private theorem rowImage_at {logicalWidth : Nat}
+    (program : Program logicalWidth) (assignment : Assignment F logicalWidth)
+    (row : Fin program.rowCount)
+    (port : Fin Spec.ProductionRelation.matrixCount) :
+    program.toPlan.rowImage assignment
+        (program.toPlan.rowLayout.toVertex row) port =
+      (program.row row).forms.portImages assignment port := by
+  unfold ProductionRelation.Plan.rowImage Forms.portImages
+  erw [program.toPlan.rowLayout.toColumn_toVertex]
+  exact congrArg (fun form => form.eval assignment)
+    (toPlan_portForm program row port)
+
+def Preserves {logicalWidth : Nat} (program : Program logicalWidth)
+    (assignment : Assignment F logicalWidth) (source : Circuit.Env) : Prop :=
+  ∀ row,
+    (program.row row).forms.Preserves assignment source
+      (program.row row).source
+
+theorem residualAt_live_zero_iff_row {logicalWidth : Nat}
+    (program : Program logicalWidth) (assignment : Assignment F logicalWidth)
+    (source : Circuit.Env) (row : Fin program.rowCount)
+    (preserves : (program.row row).forms.Preserves assignment source
+      (program.row row).source) :
+    evaluatePolynomial baseOps Spec.ProductionRelation.polynomial
+        (program.toPlan.rowImage assignment
+          (program.toPlan.rowLayout.toVertex row)) = 0 ↔
+      (program.row row).source.Holds source := by
+  have images :
+      program.toPlan.rowImage assignment
+          (program.toPlan.rowLayout.toVertex row) =
+        (program.row row).forms.portImages assignment := by
+    funext port
+    exact rowImage_at program assignment row port
+  rw [images]
+  exact Forms.residual_zero_iff _ _ _ _ preserves
+
+theorem residualAt_live_zero_iff {logicalWidth : Nat}
+    (program : Program logicalWidth) (assignment : Assignment F logicalWidth)
+    (source : Circuit.Env) (preserves : program.Preserves assignment source)
+    (row : Fin program.rowCount) :
+    evaluatePolynomial baseOps Spec.ProductionRelation.polynomial
+        (program.toPlan.rowImage assignment
+          (program.toPlan.rowLayout.toVertex row)) = 0 ↔
+      (program.row row).source.Holds source := by
+  exact residualAt_live_zero_iff_row program assignment source row
+    (preserves row)
+
+end Program
+
+end NightstreamFPrime.Layout.ProductionRelation.OrdinaryRow

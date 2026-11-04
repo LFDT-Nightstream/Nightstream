@@ -1,0 +1,351 @@
+import NightstreamFPrime.Export.Stage1.ApplicationDirectPlan
+import NightstreamFPrime.Export.Stage1.DirectPiRLCSamplerCompletePrefixPlan
+import NightstreamFPrime.Export.Stage1.NextPreimageDirectPlan
+import NightstreamFPrime.Export.Stage1.RecursivePublicOutputPlan
+import NightstreamFPrime.Layout.Stage1.SpartanValues
+
+namespace NightstreamFPrime.Export.Stage1.DirectApplicationPrefixPlan
+
+open NightstreamFPrime.Circuit
+open NightstreamFPrime.Layout
+open NightstreamFPrime.Layout.ProductionRelation
+open NightstreamFPrime.Layout.Stage1
+open NightstreamFPrime.Lifecycle
+open NightstreamFPrime.Lifecycle.PaperAlgebra
+open NightstreamFPrime.Spec
+open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
+open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
+
+variable {relationLogicalWidth : Nat}
+  {relationPublicFits : ringDegree * publicRingColumns ≤
+    Phi81CarrierLayout.carrierWidth relationLogicalWidth}
+
+theorem prefixGeometry {application : Lifecycle.Stage1.Application.Program}
+    {logicalWidth : Nat}
+    (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth) :
+    PiRLCSamplerOrdinaryRetainedGeometry.Geometry application logicalWidth :=
+  ApplicationRetainedGeometry.prefixGeometry geometry
+
+def prefixPlan
+    {application : Lifecycle.Stage1.Application.Program}
+    {logicalWidth : Nat}
+    (relation : ProductionKey.LogicalRelation relationLogicalWidth
+      relationPublicFits)
+    (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth) :
+    ProductionRelation.Plan logicalWidth :=
+  DirectPiRLCSamplerCompletePrefixPlan.plan relation (prefixGeometry geometry)
+
+def applicationPlan
+    {application : Lifecycle.Stage1.Application.Program}
+    {logicalWidth : Nat}
+    (fits : PerApplicationPackage.FitsTwoPow28 application)
+    (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth) :
+    ProductionRelation.Plan logicalWidth :=
+  ApplicationDirectPlan.plan fits geometry
+
+theorem piDecGeometry
+    {application : Lifecycle.Stage1.Application.Program}
+    {logicalWidth : Nat}
+    (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth) :
+    PiDECRetainedGeometry.Geometry application logicalWidth :=
+  DirectPiRLCSamplerCompletePrefixPlan.piDecGeometry (prefixGeometry geometry)
+
+theorem pilotOrdinaryGeometry
+    {application : Lifecycle.Stage1.Application.Program}
+    {logicalWidth : Nat}
+    (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth) :
+    PilotOrdinaryRetainedGeometry.Geometry application logicalWidth :=
+  DirectPiDECPrefixPlan.pilotOrdinaryGeometry (piDecGeometry geometry)
+
+theorem piCcsOrdinaryGeometry
+    {application : Lifecycle.Stage1.Application.Program}
+    {logicalWidth : Nat}
+    (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth) :
+    PiCCSOrdinaryRetainedGeometry.Geometry application logicalWidth :=
+  PilotOrdinaryDirectPlan.piCcsGeometry (pilotOrdinaryGeometry geometry)
+
+def nextPreimagePlan
+    {application : Lifecycle.Stage1.Application.Program}
+    {logicalWidth : Nat}
+    (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth) :
+    ProductionRelation.Plan logicalWidth :=
+  NextPreimageDirectPlan.plan (piCcsOrdinaryGeometry geometry)
+
+def publicOutputPlan
+    {application : Lifecycle.Stage1.Application.Program}
+    {logicalWidth : Nat}
+    (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth) :
+    ProductionRelation.Plan logicalWidth :=
+  RecursivePublicOutputPlan.plan geometry
+
+theorem rowCount_le
+    {application : Lifecycle.Stage1.Application.Program}
+    {logicalWidth : Nat}
+    (relation : ProductionKey.LogicalRelation relationLogicalWidth
+      relationPublicFits)
+    (fits : PerApplicationPackage.FitsTwoPow28 application)
+    (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth) :
+    (((prefixPlan relation geometry).rowCount +
+        (applicationPlan fits geometry).rowCount) +
+        (nextPreimagePlan geometry).rowCount) +
+        (publicOutputPlan geometry).rowCount ≤
+      2 ^ NightstreamFPrime.Lifecycle.cubeVariables := by
+  have packageRows := fits.rows
+  rw [PerApplicationPackage.package_rowCount] at packageRows
+  have baseRows : PerApplicationPackage.basePackage.layout.rowCount =
+      11377912 := by
+    simpa [PerApplicationPackage.basePackage] using
+      NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.1
+  rw [baseRows] at packageRows
+  rw [prefixPlan, DirectPiRLCSamplerCompletePrefixPlan.plan_rowCount,
+    applicationPlan, ApplicationDirectPlan.plan_rowCount,
+    nextPreimagePlan, NextPreimageDirectPlan.plan_rowCount,
+    publicOutputPlan, RecursivePublicOutputPlan.plan_rowCount]
+  norm_num [NightstreamFPrime.Lifecycle.cubeVariables] at packageRows ⊢
+  omega
+
+private theorem prefixApplicationRowCount_le
+    {application : Lifecycle.Stage1.Application.Program}
+    {logicalWidth : Nat}
+    (relation : ProductionKey.LogicalRelation relationLogicalWidth
+      relationPublicFits)
+    (fits : PerApplicationPackage.FitsTwoPow28 application)
+    (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth) :
+    (prefixPlan relation geometry).rowCount +
+        (applicationPlan fits geometry).rowCount ≤
+      2 ^ NightstreamFPrime.Lifecycle.cubeVariables := by
+  have complete := rowCount_le relation fits geometry
+  omega
+
+private theorem throughNextPreimageRowCount_le
+    {application : Lifecycle.Stage1.Application.Program}
+    {logicalWidth : Nat}
+    (relation : ProductionKey.LogicalRelation relationLogicalWidth
+      relationPublicFits)
+    (fits : PerApplicationPackage.FitsTwoPow28 application)
+    (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth) :
+    ((prefixPlan relation geometry).rowCount +
+        (applicationPlan fits geometry).rowCount) +
+        (nextPreimagePlan geometry).rowCount ≤
+      2 ^ NightstreamFPrime.Lifecycle.cubeVariables := by
+  have complete := rowCount_le relation fits geometry
+  omega
+
+def prefixApplicationPlan
+    {application : Lifecycle.Stage1.Application.Program}
+    {logicalWidth : Nat}
+    (relation : ProductionKey.LogicalRelation relationLogicalWidth
+      relationPublicFits)
+    (fits : PerApplicationPackage.FitsTwoPow28 application)
+    (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth) :
+    ProductionRelation.Plan logicalWidth :=
+  ProductionRelation.Plan.append (prefixPlan relation geometry)
+    (applicationPlan fits geometry)
+    (prefixApplicationRowCount_le relation fits geometry)
+
+def throughNextPreimagePlan
+    {application : Lifecycle.Stage1.Application.Program}
+    {logicalWidth : Nat}
+    (relation : ProductionKey.LogicalRelation relationLogicalWidth
+      relationPublicFits)
+    (fits : PerApplicationPackage.FitsTwoPow28 application)
+    (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth) :
+    ProductionRelation.Plan logicalWidth :=
+  ProductionRelation.Plan.append (prefixApplicationPlan relation fits geometry)
+    (nextPreimagePlan geometry)
+    (throughNextPreimageRowCount_le relation fits geometry)
+
+def plan
+    {application : Lifecycle.Stage1.Application.Program}
+    {logicalWidth : Nat}
+    (relation : ProductionKey.LogicalRelation relationLogicalWidth
+      relationPublicFits)
+    (fits : PerApplicationPackage.FitsTwoPow28 application)
+    (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth) :
+    ProductionRelation.Plan logicalWidth :=
+  ProductionRelation.Plan.append
+    (throughNextPreimagePlan relation fits geometry)
+    (publicOutputPlan geometry) (rowCount_le relation fits geometry)
+
+@[simp] theorem plan_rowCount
+    {application : Lifecycle.Stage1.Application.Program}
+    {logicalWidth : Nat}
+    (relation : ProductionKey.LogicalRelation relationLogicalWidth
+      relationPublicFits)
+    (fits : PerApplicationPackage.FitsTwoPow28 application)
+    (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth) :
+    (plan relation fits geometry).rowCount =
+      998638 + (PerApplicationPackage.applicationPlan application).rowCount +
+        9 := by
+  simp [plan, throughNextPreimagePlan, prefixApplicationPlan, prefixPlan,
+    applicationPlan, nextPreimagePlan, publicOutputPlan]
+
+theorem plan_eq_of_same_shape
+    {application : Lifecycle.Stage1.Application.Program}
+    {logicalWidth : Nat}
+    (left right : ProductionKey.LogicalRelation relationLogicalWidth
+      relationPublicFits)
+    (fits : PerApplicationPackage.FitsTwoPow28 application)
+    (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth) :
+    plan left fits geometry = plan right fits geometry := by
+  unfold plan throughNextPreimagePlan prefixApplicationPlan prefixPlan
+  have prefixEq :=
+    DirectPiRLCSamplerCompletePrefixPlan.plan_eq_of_same_shape left right
+      (prefixGeometry geometry)
+  cases prefixEq
+  rfl
+
+theorem rowsZero_iff
+    {application : Lifecycle.Stage1.Application.Program}
+    {logicalWidth : Nat}
+    (relation : ProductionKey.LogicalRelation relationLogicalWidth
+      relationPublicFits)
+    (fits : PerApplicationPackage.FitsTwoPow28 application)
+    (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth)
+    (assignment : Assignment F logicalWidth) :
+    (plan relation fits geometry).RowsZero assignment ↔
+      (((prefixPlan relation geometry).RowsZero assignment ∧
+        (applicationPlan fits geometry).RowsZero assignment) ∧
+          (nextPreimagePlan geometry).RowsZero assignment) ∧
+        (publicOutputPlan geometry).RowsZero assignment := by
+  rw [plan, ProductionRelation.Plan.append_rowsZero_iff
+    (throughNextPreimagePlan relation fits geometry) (publicOutputPlan geometry)
+    (rowCount_le relation fits geometry)]
+  rw [throughNextPreimagePlan, ProductionRelation.Plan.append_rowsZero_iff
+    (prefixApplicationPlan relation fits geometry) (nextPreimagePlan geometry)
+    (throughNextPreimageRowCount_le relation fits geometry)]
+  rw [prefixApplicationPlan, ProductionRelation.Plan.append_rowsZero_iff]
+
+theorem applicationSourceWidth_le_baseSourceWidth
+    (application : Lifecycle.Stage1.Application.Program) :
+    ApplicationRetainedBlocks.sourceWidth application ≤
+      PiRLCProductPlan.baseSourceWidth application := by
+  unfold ApplicationRetainedBlocks.sourceWidth
+    ApplicationDirectSource.sourceWidth ApplicationPackage.r1csFreshStart
+    Layout.Stage1.ApplicationInputs.localStart
+    Layout.Stage1.ApplicationInputs.witnessStart
+    PiRLCProductPlan.baseSourceWidth
+  rw [PerApplicationPackage.package_totalColumnCount]
+  unfold PerApplicationPackage.addedPrivateColumnCount
+  have baseTotal : PerApplicationPackage.basePackage.layout.totalColumnCount =
+      11464875 := by
+    exact Package.circuitPackage_layout_values.2.2.2.2
+  have privateCount : Layout.Stage1.Spartan.privateColumnCount = 11464596 := by
+    exact Layout.Stage1.Spartan.privateColumnCount_eq
+  rw [baseTotal, privateCount]
+  change 11464596 + application.witnessWordCount +
+        localLength (ApplicationPackage.operations application
+          (ApplicationPackage.productionColumns application)
+          (11464596 + application.witnessWordCount)) +
+        R1CS.totalFreshCount
+          (ApplicationPackage.constraints application
+            (ApplicationPackage.productionColumns application)
+            (11464596 + application.witnessWordCount)) ≤
+      11464875 + (application.witnessWordCount +
+        (PerApplicationPackage.applicationPlan application).privateCount)
+  change _ ≤ 11464875 + (application.witnessWordCount +
+    (localLength (ApplicationPackage.operations application
+      (ApplicationPackage.productionColumns application)
+      (11464596 + application.witnessWordCount)) +
+    R1CS.totalFreshCount
+      (ApplicationPackage.constraints application
+        (ApplicationPackage.productionColumns application)
+        (11464596 + application.witnessWordCount))))
+  omega
+
+def applicationSource
+    (application : Lifecycle.Stage1.Application.Program)
+    (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F) :
+    Fin (ApplicationRetainedBlocks.sourceWidth application) → F :=
+  fun column => base ⟨column.val,
+    lt_of_lt_of_le column.isLt
+      (applicationSourceWidth_le_baseSourceWidth application)⟩
+
+@[simp] theorem applicationSource_eq_sourceEnv
+    (application : Lifecycle.Stage1.Application.Program)
+    (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
+    (column : Fin (ApplicationRetainedBlocks.sourceWidth application)) :
+    applicationSource application base column =
+      SourceCompiler.sourceEnv base column.val := by
+  unfold applicationSource SourceCompiler.sourceEnv
+  rw [dite_eq_left (lt_of_lt_of_le column.isLt
+    (applicationSourceWidth_le_baseSourceWidth application))]
+
+structure Encodes
+    {application : Lifecycle.Stage1.Application.Program}
+    {logicalWidth : Nat}
+    (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth)
+    (assignment : Assignment F logicalWidth)
+    (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
+    : Prop where
+  runningPrefix : DirectPiRLCSamplerCompletePrefixPlan.Encodes
+    (prefixGeometry geometry) assignment base groupValue
+  applicationEncoding : ApplicationRetainedGeometry.Encodes geometry assignment
+    (applicationSource application base)
+
+structure Semantics
+    {application : Lifecycle.Stage1.Application.Program}
+    {logicalWidth : Nat}
+    (relation : ProductionKey.LogicalRelation relationLogicalWidth
+      relationPublicFits)
+    (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth)
+    (assignment : Assignment F logicalWidth)
+    (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
+    : Prop where
+  runningPrefix : DirectPiRLCSamplerCompletePrefixPlan.Semantics relation
+    (prefixGeometry geometry) assignment base groupValue
+  applicationSemantics : Lifecycle.Stage1.Application.Holds application.step
+    (Layout.Stage1.ApplicationInputs.interface application)
+    (Layout.Stage1.ApplicationInputs.localStart application)
+    (ApplicationDirectPlan.sourceEnv (applicationSource application base))
+  nextPreimage : Lifecycle.Stage1.NextPreimage.SpecHolds
+    Layout.Stage1.NextPreimageInputs.sourceInterface
+    Layout.Stage1.RunningTransitionInputs.phaseOffset
+    (Spartan.pullback (RunningTransitionDirectPlan.transitionEnv application base))
+  publicOutput : RecursivePublicOutputPlan.Matches geometry assignment
+
+private theorem prefixOne
+    {application : Lifecycle.Stage1.Application.Program}
+    {logicalWidth : Nat}
+    (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth)
+    (assignment : Assignment F logicalWidth)
+    (one : assignment (ApplicationRetainedGeometry.oneColumn geometry) = 1) :
+    assignment
+      (PiRLCSamplerOrdinaryRetainedGeometry.oneColumn
+        (prefixGeometry geometry)) =
+        1 := by
+  exact one
+
+theorem rowsZero_implies_semantics
+    {application : Lifecycle.Stage1.Application.Program}
+    {logicalWidth : Nat}
+    (relation : ProductionKey.LogicalRelation relationLogicalWidth
+      relationPublicFits)
+    (fits : PerApplicationPackage.FitsTwoPow28 application)
+    (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth)
+    (assignment : Assignment F logicalWidth)
+    (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
+    (one : assignment (ApplicationRetainedGeometry.oneColumn geometry) = 1)
+    (encodes : Encodes geometry assignment base groupValue)
+    (rowsZero : (plan relation fits geometry).RowsZero assignment) :
+    Semantics relation geometry assignment base groupValue := by
+  have children := (rowsZero_iff relation fits geometry assignment).mp rowsZero
+  refine ⟨?_, ?_, ?_, ?_⟩
+  · exact DirectPiRLCSamplerCompletePrefixPlan.rowsZero_implies_semantics relation
+      (prefixGeometry geometry) assignment base groupValue
+      (prefixOne geometry assignment one) encodes.runningPrefix children.1.1.1
+  · have rows := (ApplicationDirectPlan.rowsZero_iff_rowsHold fits geometry
+      assignment (applicationSource application base)
+      encodes.applicationEncoding one).mp children.1.1.2
+    exact ApplicationDirectSource.rowsHold_implies_applicationHolds application
+      (ApplicationDirectPlan.sourceEnv (applicationSource application base)) rows
+  · exact NextPreimageDirectPlan.rowsZero_implies_spec
+      (piCcsOrdinaryGeometry geometry) assignment base groupValue
+      encodes.runningPrefix.prior.pilotOrdinary.prior one children.1.2
+  · exact (RecursivePublicOutputPlan.rowsZero_iff_matches geometry
+      assignment).mp children.2
+
+end NightstreamFPrime.Export.Stage1.DirectApplicationPrefixPlan

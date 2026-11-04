@@ -1,0 +1,120 @@
+//! Borrowed original matrix rows. Sources own coefficients; sinks own temporary storage.
+//! Every row/matrix slot is explicit, including empty slots. No digest grants authority.
+
+use std::{ops::ControlFlow, ops::Range};
+
+use neo_ccs::GeometricRowRun;
+use neo_math::{D, F};
+use p3_field::PrimeCharacteristicRing;
+
+use super::{RetainedMatrixWindow, SuperneoEvalCache};
+use crate::PiCcsError;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MatrixShape {
+    pub rows: usize,
+    pub columns: usize,
+    pub matrices: usize,
+}
+
+impl MatrixShape {
+    pub(super) fn validate(self, rows: &Range<usize>) -> Result<(), PiCcsError> {
+        if self.rows == 0
+            || self.columns == 0
+            || !self.columns.is_multiple_of(D)
+            || self.matrices == 0
+            || self.columns / D > super::COMPACT_SINGLE_BLOCK_MASK as usize + 1
+            || rows.start > rows.end
+            || rows.end > self.rows
+        {
+            return Err(invalid("matrix source shape or requested row range"));
+        }
+        Ok(())
+    }
+}
+
+pub trait MatrixRows: Sync {
+    fn shape(&self) -> MatrixShape;
+
+    fn visit_rows(&self, rows: Range<usize>, sink: &mut dyn MatrixRowSink) -> Result<(), PiCcsError>;
+
+    fn retained_window(&self) -> Option<&RetainedMatrixWindow> {
+        None
+    }
+}
+
+pub trait MatrixRowSink {
+    fn push_run(&mut self, row: usize, matrix: usize, run: GeometricRowRun<F>) -> Result<(), PiCcsError>;
+
+    fn finish_matrix_row(&mut self, row: usize, matrix: usize) -> Result<ControlFlow<()>, PiCcsError>;
+}
+
+pub struct CachedMatrixRows<'a> {
+    cache: &'a SuperneoEvalCache,
+    shape: MatrixShape,
+}
+
+impl<'a> CachedMatrixRows<'a> {
+    pub fn new(cache: &'a SuperneoEvalCache) -> Result<Self, PiCcsError> {
+        let (rows, columns, matrices) = cache
+            .relation_shape()
+            .ok_or_else(|| invalid("cached matrix source has inconsistent shape"))?;
+        let shape = MatrixShape {
+            rows,
+            columns,
+            matrices,
+        };
+        shape.validate(&(0..rows))?;
+        Ok(Self { cache, shape })
+    }
+}
+
+impl MatrixRows for CachedMatrixRows<'_> {
+    fn shape(&self) -> MatrixShape {
+        self.shape
+    }
+
+    fn visit_rows(&self, rows: Range<usize>, sink: &mut dyn MatrixRowSink) -> Result<(), PiCcsError> {
+        self.shape.validate(&rows)?;
+        for row in rows {
+            for (index, matrix) in self.cache.matrix_caches().iter().enumerate() {
+                if matrix.identity {
+                    sink.push_run(row, index, GeometricRowRun::new(row, row, 1, F::ONE, F::ONE))?;
+                } else {
+                    let mut result = Ok(());
+                    matrix.for_each_compact_explicit_row_coefficient(row, |block, local, coefficient| {
+                        if result.is_ok() {
+                            result = sink.push_run(
+                                row,
+                                index,
+                                GeometricRowRun::new(row, block as usize * D + local as usize, 1, coefficient, F::ONE),
+                            );
+                        }
+                    });
+                    result?;
+                    for &[packed, coefficient, ratio] in matrix.geometric_runs_for(row) {
+                        sink.push_run(
+                            row,
+                            index,
+                            GeometricRowRun::new(
+                                row,
+                                packed as u32 as usize,
+                                (packed >> 32) as usize,
+                                F::from_u64(coefficient),
+                                F::from_u64(ratio),
+                            ),
+                        )?;
+                    }
+                }
+                if sink.finish_matrix_row(row, index)?.is_break() {
+                    return Ok(());
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
+pub(super) fn invalid(message: &str) -> PiCcsError {
+    PiCcsError::InvalidInput(message.to_owned())
+}

@@ -150,18 +150,18 @@ fn builds_ccs_and_catalog_from_the_same_tagged_rows() {
 
     let r1cs = builder.build().expect("valid R1CS relation");
     let relation = ApplicationRelation::new(r1cs, columns).expect("complete application relation");
-    assert_eq!(relation.r1cs().structure().n, 3);
-    assert_eq!(relation.r1cs().structure().m, 4);
+    assert_eq!(relation.r1cs().structure().n(), 3);
+    assert_eq!(relation.r1cs().structure().m(), 4);
     assert!(relation
         .r1cs()
         .structure()
-        .matrices
+        .matrices()
         .iter()
         .all(|matrix| matrix.as_csc().is_some()));
     assert_eq!(relation.columns().column_count(), 4);
     assert_eq!(relation.r1cs().public_input_count(), 1);
     assert_eq!(relation.r1cs().const_one_column(), ONE);
-    assert_eq!(relation.r1cs().catalog().len(), relation.r1cs().structure().n);
+    assert_eq!(relation.r1cs().catalog().len(), relation.r1cs().structure().n());
 
     let rows = relation.r1cs().catalog().rows();
     assert_eq!(rows[0].tag().label(), "selector is boolean");

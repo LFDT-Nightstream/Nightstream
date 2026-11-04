@@ -18,17 +18,13 @@ foldable. `#![forbid(unsafe_code)]`.
 
 ## API surface
 
-- `setup` / `setup_par` — sample public parameters `PP`.
+- `setup` — sample public parameters `PP`.
 - `commit`, `commit_row_major`, `try_commit*`, masked/precomputed variants;
-  `verify_open` / `verify_split_open`.
-- `decomp_b` / `split_b` / `assert_range_b` (`DecompStyle`) — decomposition used by
-  Π_DEC and the pay-per-bit embedding.
+  `verify_open`.
 - `s_module::AjtaiSModule` — the `SModuleHomomorphism` implementation `neo-ccs`
-  traits expect, plus the **global PP registry** (`set_global_pp*`,
-  `get_global_pp_for_dims`, seeded variants): verifier-owned setup keyed by shape,
+  traits expect, plus the **global PP registry** (`set_global_pp`,
+  `get_global_pp_for_dims`): verifier-owned setup keyed by shape,
   so provers cannot supply their own parameters.
-- Seeded/`#[doc(hidden)]` commit auditing helpers back deterministic test setups
-  (`tests/seeded_signed_unit_commit_parity.rs` in this crate).
 
 ## Deliberate omission
 
@@ -36,6 +32,6 @@ The crate does **not** export `verify_linear` (compile-fail doctest enforces it)
 linear-relation verification belongs to the folding layer (Π_RLC), not the commitment
 crate — keeping a single owner for that soundness obligation.
 
-## Specs
-
-`specs/{AjtaiCommit, Decomposition, PublicParameters, SModule}.spec.md`.
+Executable behavior checks live under `crates/neo-ajtai/tests/`. Protocol-critical
+rules must cite the pinned paper or the active Lean model instead of a copied
+per-crate specification.

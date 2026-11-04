@@ -2,7 +2,6 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 fn workspace_root() -> PathBuf {
-    // CARGO_MANIFEST_DIR = .../crates/neo-reductions
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     manifest_dir
         .parent()
@@ -64,5 +63,5 @@ fn legacy_me_mcs_identifiers_do_not_reappear_in_core_src() {
     ];
     assert_absent_tokens_in_src("crates/neo-ccs", &banned);
     assert_absent_tokens_in_src("crates/neo-reductions", &banned);
-    assert_absent_tokens_in_src("crates/neo-fold-clean", &banned);
+    assert_absent_tokens_in_src("crates/nightstream", &banned);
 }

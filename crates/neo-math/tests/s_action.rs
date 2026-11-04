@@ -3,7 +3,6 @@ use p3_field::PrimeCharacteristicRing;
 
 #[test]
 fn rot_matches_ring_multiplication_on_vectors() {
-    // random-looking but deterministic vectors
     let mut v = [Fq::ZERO; D];
     v.iter_mut().enumerate().for_each(|(i, elem)| {
         *elem = Fq::from_u64((i as u64).wrapping_mul(7919));
@@ -26,4 +25,24 @@ fn s_action_identity() {
     let id = SAction::from_ring(Rq::one());
     let v = [Fq::ONE; D];
     assert_eq!(id.apply_vec(&v), v);
+}
+
+#[test]
+fn s_action_composition_matches_sequential_application() {
+    let a = SAction::from_ring(Rq::from_field_scalar(Fq::from_u64(7)));
+    let b = SAction::from_ring(Rq::from_field_scalar(Fq::from_u64(11)));
+    let v = std::array::from_fn(|i| Fq::from_u64((i + 1) as u64));
+
+    assert_eq!(a.compose(&b).apply_vec(&v), a.apply_vec(&b.apply_vec(&v)));
+}
+
+#[test]
+fn scalar_action_is_coefficient_scaling() {
+    let scalar = Fq::from_u64(13);
+    let v = std::array::from_fn(|i| Fq::from_u64((2 * i + 1) as u64));
+
+    assert_eq!(
+        SAction::scalar(scalar).apply_vec(&v),
+        std::array::from_fn(|i| scalar * v[i])
+    );
 }

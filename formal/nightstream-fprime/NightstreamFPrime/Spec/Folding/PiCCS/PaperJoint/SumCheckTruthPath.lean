@@ -1,0 +1,566 @@
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SignedJointIdentity
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.BooleanReproduction
+import NightstreamFPrime.Spec.SumCheck.HypercubeTruth
+
+/-! SuperNeo v1.2 Section 7.3, Appendix B.2. -/
+
+namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SumCheckTruthPath
+
+universe uField
+
+open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
+open NightstreamFPrime.Spec.SumCheck
+
+def equalityFactor
+    {Field : Type uField}
+    (ops : InterpolationOps Field)
+    (left right : Field) : Field :=
+  ops.add
+    (ops.mul (ops.sub ops.one left) (ops.sub ops.one right))
+    (ops.mul left right)
+
+theorem equalityFactor_eq_affine
+    {Field : Type uField}
+    {ops : InterpolationOps Field}
+    (laws : InterpolationEvaluationLaws ops)
+    (left right : Field) :
+    equalityFactor ops left right =
+      ops.add (ops.sub ops.one right)
+        (ops.mul left (ops.sub right (ops.sub ops.one right))) := by
+  calc
+    equalityFactor ops left right =
+        ops.add
+          (ops.mul (ops.sub ops.one left) (ops.sub ops.one right))
+          (ops.mul left right) := by
+      rfl
+    _ = ops.add
+        (ops.add (ops.sub ops.one right)
+          (ops.neg (ops.mul left (ops.sub ops.one right))))
+        (ops.mul left right) := by
+      unfold InterpolationOps.sub
+      rw [laws.right_distrib ops.one (ops.neg left)
+        (ops.add ops.one (ops.neg right))]
+      rw [laws.one_mul, laws.neg_mul]
+    _ = ops.add (ops.sub ops.one right)
+        (ops.add (ops.mul left right)
+          (ops.neg (ops.mul left (ops.sub ops.one right)))) := by
+      letI : Std.Associative ops.add := ⟨laws.add_assoc⟩
+      letI : Std.Commutative ops.add := ⟨laws.add_comm⟩
+      ac_rfl
+    _ = ops.add (ops.sub ops.one right)
+        (ops.mul left (ops.sub right (ops.sub ops.one right))) := by
+      congr 1
+      exact (FiniteSumAlgebra.mul_sub ops laws left right
+        (ops.sub ops.one right)).symm
+
+def pointEqualityCoordinates
+    {Field : Type uField}
+    (ops : InterpolationOps Field) : List Field -> List Field -> Field
+  | [], [] => ops.one
+  | left :: lefts, right :: rights =>
+      ops.mul (equalityFactor ops left right)
+        (pointEqualityCoordinates ops lefts rights)
+  | _, _ => ops.zero
+
+def pointEquality
+    {Field : Type uField}
+    (ops : InterpolationOps Field)
+    {variables : Nat}
+    (left right : CubePoint Field variables) : Field :=
+  pointEqualityCoordinates ops left.coordinates right.coordinates
+
+private theorem zero_mul
+    {Field : Type uField}
+    (ops : InterpolationOps Field)
+    (laws : InterpolationEvaluationLaws ops)
+    (value : Field) :
+    ops.mul ops.zero value = ops.zero := by
+  rw [laws.mul_comm, laws.mul_zero]
+
+private theorem sub_one_zero
+    {Field : Type uField}
+    (ops : InterpolationOps Field)
+    (laws : InterpolationEvaluationLaws ops) :
+    ops.sub ops.one ops.zero = ops.one := by
+  unfold InterpolationOps.sub
+  have negZero : ops.neg ops.zero = ops.zero := by
+    have inverse := laws.add_neg ops.zero
+    simpa only [laws.zero_add] using inverse
+  rw [negZero, laws.add_zero]
+
+private theorem sub_one_one
+    {Field : Type uField}
+    (ops : InterpolationOps Field)
+    (laws : InterpolationEvaluationLaws ops) :
+    ops.sub ops.one ops.one = ops.zero := by
+  exact laws.add_neg ops.one
+
+private theorem equalityFactor_zero
+    {Field : Type uField}
+    (ops : InterpolationOps Field)
+    (laws : InterpolationEvaluationLaws ops)
+    (right : Field) :
+    equalityFactor ops ops.zero right = ops.sub ops.one right := by
+  unfold equalityFactor
+  rw [sub_one_zero ops laws, laws.one_mul, zero_mul ops laws,
+    laws.add_zero]
+
+private theorem equalityFactor_one
+    {Field : Type uField}
+    (ops : InterpolationOps Field)
+    (laws : InterpolationEvaluationLaws ops)
+    (right : Field) :
+    equalityFactor ops ops.one right = right := by
+  unfold equalityFactor
+  rw [sub_one_one ops laws, zero_mul ops laws, laws.one_mul,
+    laws.zero_add]
+
+private theorem add_sub_self_right
+    {Field : Type uField}
+    (ops : InterpolationOps Field)
+    (laws : InterpolationEvaluationLaws ops)
+    (low high : Field) :
+    ops.add low (ops.sub high low) = high := by
+  unfold InterpolationOps.sub
+  calc
+    ops.add low (ops.add high (ops.neg low)) =
+        ops.add (ops.add low high) (ops.neg low) :=
+      (laws.add_assoc _ _ _).symm
+    _ = ops.add (ops.add high low) (ops.neg low) := by
+      rw [laws.add_comm low high]
+    _ = ops.add high (ops.add low (ops.neg low)) :=
+      laws.add_assoc _ _ _
+    _ = ops.add high ops.zero := by rw [laws.add_neg]
+    _ = high := laws.add_zero high
+
+theorem evaluateCoordinates_fieldCoordinates_eq_valueAt
+    {Field : Type uField}
+    (ops : InterpolationOps Field)
+    (laws : InterpolationEvaluationLaws ops)
+    {variables : Nat}
+    (table : BooleanTable Field variables)
+    (vertex : BooleanVertex variables) :
+    table.evaluateCoordinates ops (BooleanVertex.fieldCoordinates ops vertex) =
+      table.valueAt vertex := by
+  induction table with
+  | leaf value =>
+      cases vertex
+      rfl
+  | @branch tailVariables low high lowInduction highInduction =>
+      cases vertex with
+      | cons coordinate tail =>
+          cases coordinate
+          · simp only [BooleanVertex.fieldCoordinates,
+              BooleanTable.evaluateCoordinates, BooleanTable.valueAt]
+            rw [zero_mul ops laws, laws.add_zero,
+              lowInduction tail]
+          · simp only [BooleanVertex.fieldCoordinates,
+              BooleanTable.evaluateCoordinates, BooleanTable.valueAt]
+            rw [laws.one_mul, add_sub_self_right ops laws,
+              highInduction tail]
+
+theorem evaluate_toCubePoint_eq_valueAt
+    {Field : Type uField}
+    (ops : InterpolationOps Field)
+    (laws : InterpolationEvaluationLaws ops)
+    {variables : Nat}
+    (table : BooleanTable Field variables)
+    (vertex : BooleanVertex variables) :
+    table.evaluate ops (BooleanVertex.toCubePoint ops vertex) =
+      table.valueAt vertex := by
+  exact evaluateCoordinates_fieldCoordinates_eq_valueAt
+    ops laws table vertex
+
+theorem pointEquality_toCubePoint_eq_equalityWeight
+    {Field : Type uField}
+    (ops : InterpolationOps Field)
+    (laws : InterpolationEvaluationLaws ops)
+    {variables : Nat}
+    (vertex : BooleanVertex variables)
+    (right : CubePoint Field variables) :
+    pointEquality ops (BooleanVertex.toCubePoint ops vertex) right =
+      vertex.equalityWeight ops right := by
+  rcases right with ⟨coordinates, dimension⟩
+  induction vertex generalizing coordinates with
+  | nil =>
+      have coordinatesEmpty : coordinates = [] :=
+        List.eq_nil_of_length_eq_zero dimension
+      subst coordinates
+      rfl
+  | @cons tailVariables coordinate tail inductionHypothesis =>
+      cases coordinates with
+      | nil => simp at dimension
+      | cons right rights =>
+          have tailDimension : rights.length = tailVariables :=
+            Nat.succ.inj dimension
+          have tailEquality :
+              pointEqualityCoordinates ops
+                  (BooleanVertex.fieldCoordinates ops tail) rights =
+                BooleanVertex.equalityWeightCoordinates ops tail rights tailDimension := by
+            simpa only [pointEquality, BooleanVertex.equalityWeight] using!
+              inductionHypothesis rights tailDimension
+          cases coordinate
+          · simp only [pointEquality, BooleanVertex.toCubePoint_coordinates,
+              BooleanVertex.fieldCoordinates,
+              pointEqualityCoordinates,
+              BooleanVertex.equalityWeight,
+              BooleanVertex.equalityWeightCoordinates,
+              equalityFactor_zero ops laws]
+            rw [tailEquality]
+          · simp only [pointEquality, BooleanVertex.toCubePoint_coordinates,
+              BooleanVertex.fieldCoordinates,
+              pointEqualityCoordinates,
+              BooleanVertex.equalityWeight,
+              BooleanVertex.equalityWeightCoordinates,
+              equalityFactor_one ops laws]
+            rw [tailEquality]
+
+def ccsAtPoint
+    {Field : Type uField}
+    {shape : Shape}
+    (ops : InterpolationOps Field)
+    (data : SignedJointIdentity.JointData Field shape)
+    (gamma : Field)
+    (point : CubePoint Field shape.cubeVariables) : Field :=
+  SignedJointIdentity.sumMap ops (canonicalFinIndices shape.freshCount) fun source =>
+    SignedJointIdentity.gammaTerm ops gamma source.val
+      ((data.ccs source).evaluate ops point)
+
+def normAtPoint
+    {Field : Type uField}
+    {shape : Shape}
+    (ops : InterpolationOps Field)
+    (data : SignedJointIdentity.JointData Field shape)
+    (gamma : Field)
+    (point : CubePoint Field shape.cubeVariables) : Field :=
+  SignedJointIdentity.sumMap ops (canonicalFinIndices shape.sourceCount) fun source =>
+    SignedJointIdentity.gammaTerm ops gamma source.val
+      ((data.norm source).evaluate ops point)
+
+def padAtPoint
+    {Field : Type uField}
+    {shape : Shape}
+    (ops : InterpolationOps Field)
+    (data : SignedJointIdentity.JointData Field shape)
+    (gamma : Field)
+    (point : CubePoint Field shape.cubeVariables) : Field :=
+  ops.mul (pointEquality ops point data.priorPoint) <|
+    SignedJointIdentity.sumMap ops (canonicalPadCoordinates shape) fun coordinate =>
+      SignedJointIdentity.gammaTerm ops gamma coordinate.localGammaExponent
+        ((data.padImage coordinate).evaluate ops point)
+
+def matrixAtPoint
+    {Field : Type uField}
+    {shape : Shape}
+    (ops : InterpolationOps Field)
+    (data : SignedJointIdentity.JointData Field shape)
+    (gamma : Field)
+    (point : CubePoint Field shape.cubeVariables) : Field :=
+  ops.mul (pointEquality ops point data.priorPoint) <|
+    SignedJointIdentity.sumMap ops (canonicalMatrixCoordinates shape) fun coordinate =>
+      SignedJointIdentity.gammaTerm ops gamma coordinate.localGammaExponent
+        ((data.matrixImage coordinate).evaluate ops point)
+
+def constraintAtPoint
+    {Field : Type uField}
+    {shape : Shape}
+    (ops : InterpolationOps Field)
+    (data : SignedJointIdentity.JointData Field shape)
+    (alpha : CubePoint Field shape.cubeVariables)
+    (gamma : Field)
+    (point : CubePoint Field shape.cubeVariables) : Field :=
+  ops.mul (pointEquality ops point alpha)
+    (ops.add (ccsAtPoint ops data gamma point)
+      (SignedJointIdentity.gammaTerm ops gamma shape.freshCount
+        (normAtPoint ops data gamma point)))
+
+def qAtPoint
+    {Field : Type uField}
+    {shape : Shape}
+    (ops : InterpolationOps Field)
+    (data : SignedJointIdentity.JointData Field shape)
+    (alpha : CubePoint Field shape.cubeVariables)
+    (gamma : Field)
+    (point : CubePoint Field shape.cubeVariables) : Field :=
+  ops.add
+    (padAtPoint ops data gamma point)
+    (ops.add
+      (SignedJointIdentity.gammaTerm ops gamma shape.matrixEvaluationOffset
+        (matrixAtPoint ops data gamma point))
+      (SignedJointIdentity.gammaTerm ops gamma shape.constraintOffset
+        (constraintAtPoint ops data alpha gamma point)))
+
+private theorem sumMap_evaluate_toCubePoint_eq_valueAt
+    {Field : Type uField}
+    {Index : Type}
+    (ops : InterpolationOps Field)
+    (laws : InterpolationEvaluationLaws ops)
+    {variables : Nat}
+    (indices : List Index)
+    (tables : Index -> BooleanTable Field variables)
+    (weights : Index -> Field)
+    (vertex : BooleanVertex variables) :
+    SignedJointIdentity.sumMap ops indices (fun index =>
+        ops.mul (weights index)
+          ((tables index).evaluate ops
+            (BooleanVertex.toCubePoint ops vertex))) =
+      SignedJointIdentity.sumMap ops indices (fun index =>
+        ops.mul (weights index) ((tables index).valueAt vertex)) := by
+  unfold SignedJointIdentity.sumMap
+  congr 1
+  apply List.map_congr_left
+  intro index _
+  rw [evaluate_toCubePoint_eq_valueAt ops laws]
+
+theorem ccsAtPoint_toCubePoint_eq_ccsAt
+    {Field : Type uField}
+    {shape : Shape}
+    (ops : InterpolationOps Field)
+    (laws : InterpolationEvaluationLaws ops)
+    (data : SignedJointIdentity.JointData Field shape)
+    (gamma : Field)
+    (vertex : BooleanVertex shape.cubeVariables) :
+    ccsAtPoint ops data gamma (BooleanVertex.toCubePoint ops vertex) =
+      SignedJointIdentity.ccsAt ops data gamma vertex := by
+  unfold ccsAtPoint SignedJointIdentity.ccsAt SignedJointIdentity.gammaTerm
+  exact sumMap_evaluate_toCubePoint_eq_valueAt ops laws _ data.ccs
+    (fun source => TargetPolynomial.power ops.toOps gamma source.val) vertex
+
+theorem normAtPoint_toCubePoint_eq_normAt
+    {Field : Type uField}
+    {shape : Shape}
+    (ops : InterpolationOps Field)
+    (laws : InterpolationEvaluationLaws ops)
+    (data : SignedJointIdentity.JointData Field shape)
+    (gamma : Field)
+    (vertex : BooleanVertex shape.cubeVariables) :
+    normAtPoint ops data gamma (BooleanVertex.toCubePoint ops vertex) =
+      SignedJointIdentity.normAt ops data gamma vertex := by
+  unfold normAtPoint SignedJointIdentity.normAt SignedJointIdentity.gammaTerm
+  exact sumMap_evaluate_toCubePoint_eq_valueAt ops laws _ data.norm
+    (fun source => TargetPolynomial.power ops.toOps gamma source.val) vertex
+
+theorem padAtPoint_toCubePoint_eq_padAt
+    {Field : Type uField}
+    {shape : Shape}
+    (ops : InterpolationOps Field)
+    (laws : InterpolationEvaluationLaws ops)
+    (data : SignedJointIdentity.JointData Field shape)
+    (gamma : Field)
+    (vertex : BooleanVertex shape.cubeVariables) :
+    padAtPoint ops data gamma (BooleanVertex.toCubePoint ops vertex) =
+      SignedJointIdentity.padAt ops data gamma vertex := by
+  unfold padAtPoint SignedJointIdentity.padAt
+  rw [pointEquality_toCubePoint_eq_equalityWeight ops laws]
+  congr 1
+  unfold SignedJointIdentity.gammaTerm
+  exact sumMap_evaluate_toCubePoint_eq_valueAt ops laws _ data.padImage
+    (fun coordinate =>
+      TargetPolynomial.power ops.toOps gamma coordinate.localGammaExponent)
+    vertex
+
+theorem matrixAtPoint_toCubePoint_eq_matrixAt
+    {Field : Type uField}
+    {shape : Shape}
+    (ops : InterpolationOps Field)
+    (laws : InterpolationEvaluationLaws ops)
+    (data : SignedJointIdentity.JointData Field shape)
+    (gamma : Field)
+    (vertex : BooleanVertex shape.cubeVariables) :
+    matrixAtPoint ops data gamma (BooleanVertex.toCubePoint ops vertex) =
+      SignedJointIdentity.matrixAt ops data gamma vertex := by
+  unfold matrixAtPoint SignedJointIdentity.matrixAt
+  rw [pointEquality_toCubePoint_eq_equalityWeight ops laws]
+  congr 1
+  unfold SignedJointIdentity.gammaTerm
+  exact sumMap_evaluate_toCubePoint_eq_valueAt ops laws _ data.matrixImage
+    (fun coordinate =>
+      TargetPolynomial.power ops.toOps gamma coordinate.localGammaExponent)
+    vertex
+
+theorem constraintAtPoint_toCubePoint_eq_constraintAt
+    {Field : Type uField}
+    {shape : Shape}
+    (ops : InterpolationOps Field)
+    (laws : InterpolationEvaluationLaws ops)
+    (data : SignedJointIdentity.JointData Field shape)
+    (alpha : CubePoint Field shape.cubeVariables)
+    (gamma : Field)
+    (vertex : BooleanVertex shape.cubeVariables) :
+    constraintAtPoint ops data alpha gamma
+        (BooleanVertex.toCubePoint ops vertex) =
+      SignedJointIdentity.constraintAt ops data alpha gamma vertex := by
+  unfold constraintAtPoint SignedJointIdentity.constraintAt
+  rw [pointEquality_toCubePoint_eq_equalityWeight ops laws,
+    ccsAtPoint_toCubePoint_eq_ccsAt ops laws,
+    normAtPoint_toCubePoint_eq_normAt ops laws]
+
+theorem qAtPoint_toCubePoint_eq_qAt
+    {Field : Type uField}
+    {shape : Shape}
+    (ops : InterpolationOps Field)
+    (laws : InterpolationEvaluationLaws ops)
+    (data : SignedJointIdentity.JointData Field shape)
+    (alpha : CubePoint Field shape.cubeVariables)
+    (gamma : Field)
+    (vertex : BooleanVertex shape.cubeVariables) :
+    qAtPoint ops data alpha gamma (BooleanVertex.toCubePoint ops vertex) =
+      SignedJointIdentity.qAt ops data alpha gamma vertex := by
+  unfold qAtPoint SignedJointIdentity.qAt
+  rw [padAtPoint_toCubePoint_eq_padAt ops laws,
+    matrixAtPoint_toCubePoint_eq_matrixAt ops laws,
+    constraintAtPoint_toCubePoint_eq_constraintAt ops laws]
+
+def jointPolynomial
+    {Field : Type uField}
+    {shape : Shape}
+    (ops : InterpolationOps Field)
+    (data : SignedJointIdentity.JointData Field shape)
+    (alpha : CubePoint Field shape.cubeVariables)
+    (gamma : Field)
+    (coordinates : List Field) : Field :=
+  if dimension : coordinates.length = shape.cubeVariables then
+    qAtPoint ops data alpha gamma ⟨coordinates, dimension⟩
+  else
+    ops.zero
+
+def verifierTerminal
+    {Field : Type uField}
+    {shape : Shape}
+    (ops : InterpolationOps Field)
+    (data : SignedJointIdentity.JointData Field shape)
+    (alpha : CubePoint Field shape.cubeVariables)
+    (gamma : Field)
+    (challenges : List Field) : Field :=
+  jointPolynomial ops data alpha gamma challenges
+
+theorem jointPolynomial_fieldCoordinates_eq_qAt
+    {Field : Type uField}
+    {shape : Shape}
+    (ops : InterpolationOps Field)
+    (laws : InterpolationEvaluationLaws ops)
+    (data : SignedJointIdentity.JointData Field shape)
+    (alpha : CubePoint Field shape.cubeVariables)
+    (gamma : Field)
+    (vertex : BooleanVertex shape.cubeVariables) :
+    jointPolynomial ops data alpha gamma
+        (BooleanVertex.fieldCoordinates ops vertex) =
+      SignedJointIdentity.qAt ops data alpha gamma vertex := by
+  unfold jointPolynomial
+  rw [dite_eq_left (BooleanVertex.fieldCoordinates_length ops vertex)]
+  exact qAtPoint_toCubePoint_eq_qAt ops laws data alpha gamma vertex
+
+private theorem finiteSum_append
+    {Field : Type uField}
+    (ops : InterpolationOps Field)
+    (laws : InterpolationEvaluationLaws ops) :
+    forall left right : List Field,
+      BooleanTable.finiteSum ops (left ++ right) =
+        ops.add (BooleanTable.finiteSum ops left)
+          (BooleanTable.finiteSum ops right)
+  | [], right => by
+      simp [BooleanTable.finiteSum, laws.zero_add]
+  | value :: values, right => by
+      simp only [List.cons_append, BooleanTable.finiteSum]
+      rw [finiteSum_append ops laws values right]
+      exact (laws.add_assoc _ _ _).symm
+
+theorem sumCompletions_eq_vertexSum
+    {Field : Type uField}
+    (ops : InterpolationOps Field)
+    (laws : InterpolationEvaluationLaws ops)
+    (polynomial : List Field -> Field)
+    (fixed : List Field)
+    (variables : Nat) :
+    SumCheck.Finite.HypercubeTruth.sumCompletions ops.toOps polynomial
+        fixed variables =
+      BooleanTable.finiteSum ops
+        ((BooleanVertex.all variables).map (fun vertex =>
+          polynomial
+            (fixed ++ BooleanVertex.fieldCoordinates ops vertex))) := by
+  induction variables generalizing fixed with
+  | zero =>
+      simp [SumCheck.Finite.HypercubeTruth.sumCompletions.eq_def,
+        BooleanVertex.all, BooleanTable.finiteSum, laws.add_zero]
+  | succ variables inductionHypothesis =>
+      change ops.add
+          (SumCheck.Finite.HypercubeTruth.sumCompletions ops.toOps polynomial
+            (fixed ++ [ops.zero]) variables)
+          (SumCheck.Finite.HypercubeTruth.sumCompletions ops.toOps polynomial
+            (fixed ++ [ops.one]) variables) = _
+      rw [inductionHypothesis (fixed ++ [ops.zero]),
+        inductionHypothesis (fixed ++ [ops.one])]
+      rw [BooleanVertex.all, List.map_append,
+        finiteSum_append ops laws]
+      simp only [List.map_map]
+      congr 1
+      · apply congrArg (BooleanTable.finiteSum ops)
+        apply List.map_congr_left
+        intro vertex _
+        simp [List.append_assoc]
+      · apply congrArg (BooleanTable.finiteSum ops)
+        apply List.map_congr_left
+        intro vertex _
+        simp [List.append_assoc]
+
+theorem sumCompletions_jointPolynomial_eq_summedQ
+    {Field : Type uField}
+    {shape : Shape}
+    (ops : InterpolationOps Field)
+    (laws : InterpolationEvaluationLaws ops)
+    (data : SignedJointIdentity.JointData Field shape)
+    (alpha : CubePoint Field shape.cubeVariables)
+    (gamma : Field) :
+    SumCheck.Finite.HypercubeTruth.sumCompletions ops.toOps
+        (jointPolynomial ops data alpha gamma) [] shape.cubeVariables =
+      SignedJointIdentity.summedQ ops data alpha gamma := by
+  rw [sumCompletions_eq_vertexSum ops laws]
+  unfold SignedJointIdentity.summedQ SignedJointIdentity.sumMap
+  simp only [List.nil_append]
+  congr 1
+  apply List.map_congr_left
+  intro vertex _
+  exact jointPolynomial_fieldCoordinates_eq_qAt
+    ops laws data alpha gamma vertex
+
+def canonicalGhosts
+    {Field : Type uField}
+    {shape : Shape}
+    (ops : InterpolationOps Field)
+    (data : SignedJointIdentity.JointData Field shape)
+    (alpha : CubePoint Field shape.cubeVariables)
+    (gamma : Field)
+    (challenges : List Field) : SumCheck.Finite.SemanticGhosts Field where
+  trueInitial := SignedJointIdentity.summedQ ops data alpha gamma
+  expected := SumCheck.Finite.HypercubeTruth.expectedPolynomials ops.toOps
+    (jointPolynomial ops data alpha gamma) challenges
+
+theorem canonicalGhosts_honest
+    {Field : Type uField}
+    {shape : Shape}
+    (ops : InterpolationOps Field)
+    (laws : InterpolationEvaluationLaws ops)
+    (data : SignedJointIdentity.JointData Field shape)
+    (alpha : CubePoint Field shape.cubeVariables)
+    (gamma : Field)
+    (maxDegree challengeSetSize : Nat)
+    (initial : Field)
+    (challenges : List Field)
+    (certificate : SumCheck.Finite.Certificate Field)
+    (challengeLength : challenges.length = shape.cubeVariables)
+    (sameLength : certificate.rounds.length = challenges.length) :
+    (canonicalGhosts ops data alpha gamma challenges).Honest ops.toOps
+      maxDegree challengeSetSize initial challenges
+      (verifierTerminal ops data alpha gamma challenges) certificate := by
+  have generic :=
+    SumCheck.Finite.HypercubeTruth.semanticGhosts_honest ops.toOps
+      (jointPolynomial ops data alpha gamma) maxDegree challengeSetSize initial
+      challenges certificate sameLength
+  simpa only [canonicalGhosts, verifierTerminal,
+      SumCheck.Finite.HypercubeTruth.semanticGhosts,
+      SumCheck.Finite.HypercubeTruth.expectedPolynomials,
+      challengeLength,
+      sumCompletions_jointPolynomial_eq_summedQ ops laws data alpha gamma]
+    using generic
+
+end NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SumCheckTruthPath

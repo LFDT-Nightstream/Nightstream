@@ -1,0 +1,1122 @@
+import NightstreamFPrime.Circuit.StraightLine
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.RunningWords
+import NightstreamFPrime.Spec.GoldilocksPrime
+
+namespace NightstreamFPrime.Lifecycle.Stage1.RunningTransition
+
+open NightstreamFPrime.Spec
+open NightstreamFPrime.Spec.GoldilocksPrime
+open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
+open NightstreamFPrime.Circuit
+open NightstreamFPrime.Circuit.Quadratic
+open NightstreamFPrime.Lifecycle.PaperAlgebra
+open NightstreamFPrime.Lifecycle.PiCCS.v1_2
+
+def exactWordCount : Nat := 27794
+def stateWordCount : Nat := 4
+def exactPrivateCount : Nat := 2
+def exactRowCount : Nat := 27800
+
+abbrev WordIndex := Fin exactWordCount
+abbrev StateIndex := Fin stateWordCount
+
+structure Interface (logicalWidth : Nat)
+    (publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth) where
+  iteration : Nat → Expr
+  initialState : Nat → StateIndex → Expr
+  currentState : Nat → StateIndex → Expr
+  recursive : Nat → StatementAbsorption.RunningExpr logicalWidth publicFits
+  output : Nat → Fin 27794 → Expr
+
+def iterationValue {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (interface : Interface logicalWidth publicFits) (offset : Nat)
+    (env : Env) : F :=
+  (interface.iteration offset).eval env
+
+def runningWord {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (running : StatementAbsorption.RunningExpr logicalWidth publicFits)
+    (index : WordIndex) : Expr :=
+  (RunningWords.serializeRunningExpr running).getD index.val 0
+
+def defaultWord {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (index : WordIndex) : F :=
+  (serializeRunning (logicalWidth := logicalWidth) (publicFits := publicFits)
+    (defaultRunning (logicalWidth := logicalWidth) (publicFits := publicFits))).getD
+      index.val 0
+
+def inverseExpr (offset : Nat) : Expr :=
+  Expr.var offset
+
+def inverseHint {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (interface : Interface logicalWidth publicFits) (offset : Nat) : Hint :=
+  .inverseOrZero (interface.iteration offset)
+
+def flagRecipe {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (interface : Interface logicalWidth publicFits) (offset : Nat) : Expr :=
+  interface.iteration offset * inverseExpr offset
+
+def recursiveFlag {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (_interface : Interface logicalWidth publicFits) (offset : Nat) : Expr :=
+  Expr.var (offset + 1)
+
+def baseFlag {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (interface : Interface logicalWidth publicFits) (offset : Nat) : Expr :=
+  1 - recursiveFlag interface offset
+
+def bindingConstraint {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (interface : Interface logicalWidth publicFits) (offset : Nat) : Expr :=
+  0 - interface.iteration offset * baseFlag interface offset
+
+def muxConstraint {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (interface : Interface logicalWidth publicFits) (offset : Nat)
+    (index : WordIndex) : Expr :=
+  (interface.output offset index -
+      Expr.const (defaultWord (logicalWidth := logicalWidth)
+        (publicFits := publicFits) index)) -
+    recursiveFlag interface offset *
+      (runningWord (interface.recursive offset) index -
+        Expr.const (defaultWord (logicalWidth := logicalWidth)
+          (publicFits := publicFits) index))
+
+def muxConstraints {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (interface : Interface logicalWidth publicFits) (offset : Nat) :
+    List Expr :=
+  List.ofFn (muxConstraint interface offset)
+
+/-- HyperNova Construction 2, base branch: `z0 = zi`. -/
+def baseStateConstraint {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (interface : Interface logicalWidth publicFits) (offset : Nat)
+    (index : StateIndex) : Expr :=
+  0 - baseFlag interface offset *
+    (interface.initialState offset index - interface.currentState offset index)
+
+def baseStateConstraints {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (interface : Interface logicalWidth publicFits) (offset : Nat) : List Expr :=
+  List.ofFn (baseStateConstraint interface offset)
+
+@[simp] theorem muxConstraints_length {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (interface : Interface logicalWidth publicFits) (offset : Nat) :
+    (muxConstraints interface offset).length = exactWordCount := by
+  simp [muxConstraints]
+
+@[simp] theorem baseStateConstraints_length {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (interface : Interface logicalWidth publicFits) (offset : Nat) :
+    (baseStateConstraints interface offset).length = stateWordCount := by
+  simp [baseStateConstraints]
+
+private theorem zipWith3_eq_ofFn_getD
+    {Alpha Beta Gamma Delta : Type}
+    (combine : Alpha → Beta → Gamma → Delta)
+    (fallbackAlpha : Alpha) (fallbackBeta : Beta) (fallbackGamma : Gamma) :
+    ∀ (count : Nat) (alpha : List Alpha) (beta : List Beta)
+      (gamma : List Gamma),
+      alpha.length = count → beta.length = count →
+        gamma.length = count →
+        List.zipWith3 combine alpha beta gamma =
+          List.ofFn fun index : Fin count =>
+            combine (alpha.getD index.val fallbackAlpha)
+              (beta.getD index.val fallbackBeta)
+              (gamma.getD index.val fallbackGamma) := by
+  intro count
+  induction count with
+  | zero =>
+      intro alpha beta gamma alphaLength betaLength gammaLength
+      have alphaEmpty : alpha = [] := List.length_eq_zero_iff.mp alphaLength
+      have betaEmpty : beta = [] := List.length_eq_zero_iff.mp betaLength
+      have gammaEmpty : gamma = [] := List.length_eq_zero_iff.mp gammaLength
+      subst alpha
+      subst beta
+      subst gamma
+      rfl
+  | succ count inductionHypothesis =>
+      intro alpha beta gamma alphaLength betaLength gammaLength
+      cases alpha with
+      | nil => simp at alphaLength
+      | cons alphaHead alphaTail =>
+          cases beta with
+          | nil => simp at betaLength
+          | cons betaHead betaTail =>
+              cases gamma with
+              | nil => simp at gammaLength
+              | cons gammaHead gammaTail =>
+                  have alphaTailLength : alphaTail.length = count := by
+                    simpa using alphaLength
+                  have betaTailLength : betaTail.length = count := by
+                    simpa using betaLength
+                  have gammaTailLength : gammaTail.length = count := by
+                    simpa using gammaLength
+                  rw [List.ofFn_succ]
+                  simp only [List.zipWith3]
+                  rw [inductionHypothesis alphaTail betaTail gammaTail
+                    alphaTailLength betaTailLength gammaTailLength]
+                  simp
+
+def muxConstraintsFast {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (interface : Interface logicalWidth publicFits) (offset : Nat) :
+    List Expr :=
+  List.zipWith3
+    (fun default recursive output =>
+      (output - Expr.const default) -
+        recursiveFlag interface offset * (recursive - Expr.const default))
+    (serializeRunning (logicalWidth := logicalWidth) (publicFits := publicFits)
+      (defaultRunning (logicalWidth := logicalWidth)
+        (publicFits := publicFits)))
+    (RunningWords.serializeRunningExpr (interface.recursive offset))
+    (List.ofFn (interface.output offset))
+
+theorem muxConstraintsFast_eq_muxConstraints {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (interface : Interface logicalWidth publicFits) (offset : Nat) :
+    muxConstraintsFast interface offset = muxConstraints interface offset := by
+  rw [muxConstraintsFast, muxConstraints]
+  rw [zipWith3_eq_ofFn_getD _ (0 : F) (0 : Expr) (0 : Expr)
+    exactWordCount]
+  · refine congrArg List.ofFn (funext fun index => ?_)
+    rw [List.getD_eq_getElem _ _ (by rw [List.length_ofFn]; exact index.isLt),
+      List.getElem_ofFn]
+    rfl
+  · rw [serializeRunning_length]
+    rfl
+  · rw [RunningWords.serializeRunningExpr_length]
+    rfl
+  · exact List.length_ofFn
+
+def constraints {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (interface : Interface logicalWidth publicFits) (offset : Nat) :
+    List Expr :=
+  bindingConstraint interface offset ::
+    (muxConstraints interface offset ++ baseStateConstraints interface offset)
+
+def constraintsFast {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (interface : Interface logicalWidth publicFits) (offset : Nat) :
+    List Expr :=
+  bindingConstraint interface offset ::
+    (muxConstraintsFast interface offset ++ baseStateConstraints interface offset)
+
+theorem constraintsFast_eq_constraints {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (interface : Interface logicalWidth publicFits) (offset : Nat) :
+    constraintsFast interface offset = constraints interface offset := by
+  rw [constraintsFast, constraints, muxConstraintsFast_eq_muxConstraints]
+
+def operations {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (interface : Interface logicalWidth publicFits) (offset : Nat) : List Op :=
+  .witness (WitnessBatch.hinted offset [inverseHint interface offset]) ::
+    .witness (WitnessBatch.arithmetic (offset + 1)
+      [flagRecipe interface offset]) ::
+    (constraints interface offset).map .assertZero
+
+def main {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (interface : Interface logicalWidth publicFits) : Circuit Unit :=
+  fun offset => ((), offset + exactPrivateCount, operations interface offset)
+
+structure Assumptions {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (interface : Interface logicalWidth publicFits) (offset : Nat)
+    (_env : Env) : Prop where
+  iteration : (interface.iteration offset).VarsBelow offset
+  initialState : ∀ index,
+    (interface.initialState offset index).VarsBelow offset
+  currentState : ∀ index,
+    (interface.currentState offset index).VarsBelow offset
+  recursive : ∀ index,
+    (runningWord (interface.recursive offset) index).VarsBelow offset
+  output : ∀ index,
+    (interface.output offset index).VarsBelow offset
+
+structure RunningBelow {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (running : StatementAbsorption.RunningExpr logicalWidth publicFits)
+    (bound : Nat) : Prop where
+  point : ∀ coordinate, (running.point coordinate).VarsBelow bound
+  commitment : ∀ source row coefficient,
+    (running.commitment source row coefficient).VarsBelow bound
+  publicInput : ∀ source column,
+    (running.publicInput source column).VarsBelow bound
+  eval_K : ∀ source coefficient,
+    (running.evaluation source).eval_K coefficient |>.VarsBelow bound
+  eval_A : ∀ source matrix coefficient,
+    (running.evaluation source).eval_A matrix coefficient |>.VarsBelow bound
+
+theorem RunningBelow.mono {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    {running : StatementAbsorption.RunningExpr logicalWidth publicFits}
+    {bound larger : Nat} (below : RunningBelow running bound)
+    (le : bound ≤ larger) : RunningBelow running larger where
+  point coordinate :=
+    ⟨Expr.VarsBelow.mono _ (below.point coordinate).1 le,
+      Expr.VarsBelow.mono _ (below.point coordinate).2 le⟩
+  commitment source row coefficient :=
+    (below.commitment source row coefficient).mono _ le
+  publicInput source column := (below.publicInput source column).mono _ le
+  eval_K source coefficient :=
+    ⟨Expr.VarsBelow.mono _ (below.eval_K source coefficient).1 le,
+      Expr.VarsBelow.mono _ (below.eval_K source coefficient).2 le⟩
+  eval_A source matrix coefficient :=
+    ⟨Expr.VarsBelow.mono _ (below.eval_A source matrix coefficient).1 le,
+      Expr.VarsBelow.mono _ (below.eval_A source matrix coefficient).2 le⟩
+
+private theorem serializeKExpr_varsBelow (value : KExpr) (bound : Nat)
+    (below : value.VarsBelow bound) :
+    ∀ expression ∈ StatementAbsorption.serializeKExpr value,
+      expression.VarsBelow bound := by
+  intro expression member
+  simp only [StatementAbsorption.serializeKExpr, List.mem_cons,
+    List.not_mem_nil, or_false] at member
+  rcases member with rfl | rfl
+  · exact below.1
+  · exact below.2
+
+theorem serializeRunningExpr_varsBelow {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (running : StatementAbsorption.RunningExpr logicalWidth publicFits)
+    (bound : Nat) (below : RunningBelow running bound) :
+    ∀ expression ∈ RunningWords.serializeRunningExpr running,
+      expression.VarsBelow bound := by
+  intro expression member
+  rcases RunningWords.serializeRunningExpr_mem member with
+    ⟨source, row, coefficient, rfl⟩ | ⟨source, coefficient, evalK⟩ |
+      ⟨source, matrix, coefficient, evalA⟩ | ⟨coordinate, point⟩ | ⟨word, rfl⟩
+  · exact below.commitment source row coefficient
+  · exact serializeKExpr_varsBelow _ bound (below.eval_K source coefficient) _ evalK
+  · exact serializeKExpr_varsBelow _ bound (below.eval_A source matrix coefficient) _ evalA
+  · exact serializeKExpr_varsBelow _ bound (below.point coordinate) _ point
+  · exact RunningWords.packWordExpr_parent_closed
+      (fun expression => expression.VarsBelow bound) (fun _ => trivial)
+      (fun left right => Expr.VarsBelow.add left right bound)
+      (fun weight value valueBelow =>
+        Expr.VarsBelow.mul (Expr.const weight) value bound trivial valueBelow)
+      running below.publicInput word
+
+theorem runningWord_varsBelow {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (running : StatementAbsorption.RunningExpr logicalWidth publicFits)
+    (bound : Nat) (below : RunningBelow running bound) (index : WordIndex) :
+    (runningWord running index).VarsBelow bound := by
+  have indexBound : index.val <
+      (RunningWords.serializeRunningExpr running).length := by
+    rw [RunningWords.serializeRunningExpr_length]
+    exact index.isLt
+  rw [runningWord, List.getD_eq_get _ _ ⟨index.val, indexBound⟩]
+  exact serializeRunningExpr_varsBelow running bound below _
+    (List.get_mem _ ⟨index.val, indexBound⟩)
+
+def WordsEqual {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (words : WordIndex → Expr)
+    (running : StatementAbsorption.RunningExpr logicalWidth publicFits)
+    (env : Env) : Prop :=
+  ∀ index, (words index).eval env = (runningWord running index).eval env
+
+def WordsEqualDefault (logicalWidth : Nat)
+    (publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth)
+    (words : WordIndex → Expr) (env : Env) : Prop :=
+  ∀ index, (words index).eval env =
+    defaultWord (logicalWidth := logicalWidth) (publicFits := publicFits) index
+
+structure SpecHolds {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (interface : Interface logicalWidth publicFits) (offset : Nat)
+    (env : Env) : Prop where
+  initialState : iterationValue interface offset env = 0 → ∀ index,
+    (interface.initialState offset index).eval env =
+      (interface.currentState offset index).eval env
+  base : iterationValue interface offset env = 0 →
+    WordsEqualDefault logicalWidth publicFits (interface.output offset) env
+  recursive : iterationValue interface offset env ≠ 0 →
+    WordsEqual (interface.output offset) (interface.recursive offset) env
+
+theorem specHolds_of_agree_below
+    {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (interface : Interface logicalWidth publicFits)
+    (offset : Nat) (before after : Env)
+    (assumptions : Assumptions interface offset before)
+    (agrees : ∀ index, index < offset → after index = before index)
+    (specification : SpecHolds interface offset before) :
+    SpecHolds interface offset after := by
+  have iterationEq : iterationValue interface offset after =
+      iterationValue interface offset before :=
+    Expr.eval_eq_of_agree_below _ offset after before assumptions.iteration
+      agrees
+  refine {
+    initialState := ?_
+    base := ?_
+    recursive := ?_ }
+  · intro afterZero index
+    have beforeZero : iterationValue interface offset before = 0 := by
+      rw [← iterationEq]
+      exact afterZero
+    calc
+      (interface.initialState offset index).eval after =
+          (interface.initialState offset index).eval before :=
+        Expr.eval_eq_of_agree_below _ offset after before
+          (assumptions.initialState index) agrees
+      _ = (interface.currentState offset index).eval before :=
+        specification.initialState beforeZero index
+      _ = (interface.currentState offset index).eval after :=
+        (Expr.eval_eq_of_agree_below _ offset after before
+          (assumptions.currentState index) agrees).symm
+  · intro afterZero index
+    have beforeZero : iterationValue interface offset before = 0 := by
+      rw [← iterationEq]
+      exact afterZero
+    calc
+      (interface.output offset index).eval after =
+          (interface.output offset index).eval before :=
+        Expr.eval_eq_of_agree_below _ offset after before
+          (assumptions.output index) agrees
+      _ = defaultWord (logicalWidth := logicalWidth)
+          (publicFits := publicFits) index := specification.base beforeZero index
+  · intro afterNonzero index
+    have beforeNonzero : iterationValue interface offset before ≠ 0 := by
+      intro beforeZero
+      apply afterNonzero
+      rw [iterationEq, beforeZero]
+    calc
+      (interface.output offset index).eval after =
+          (interface.output offset index).eval before :=
+        Expr.eval_eq_of_agree_below _ offset after before
+          (assumptions.output index) agrees
+      _ = (runningWord (interface.recursive offset) index).eval before :=
+        specification.recursive beforeNonzero index
+      _ = (runningWord (interface.recursive offset) index).eval after :=
+        (Expr.eval_eq_of_agree_below _ offset after before
+          (assumptions.recursive index) agrees).symm
+
+theorem specHolds_of_values_eq
+    {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (interface : Interface logicalWidth publicFits)
+    (offset : Nat) (before after : Env)
+    (iterationEq : iterationValue interface offset before =
+      iterationValue interface offset after)
+    (initialStateEq : ∀ index,
+      (interface.initialState offset index).eval before =
+        (interface.initialState offset index).eval after)
+    (currentStateEq : ∀ index,
+      (interface.currentState offset index).eval before =
+        (interface.currentState offset index).eval after)
+    (recursiveEq : ∀ index,
+      (runningWord (interface.recursive offset) index).eval before =
+        (runningWord (interface.recursive offset) index).eval after)
+    (outputEq : ∀ index,
+      (interface.output offset index).eval before =
+        (interface.output offset index).eval after)
+    (specification : SpecHolds interface offset before) :
+    SpecHolds interface offset after := by
+  refine {
+    initialState := ?_
+    base := ?_
+    recursive := ?_ }
+  · intro afterZero index
+    have beforeZero : iterationValue interface offset before = 0 := by
+      rw [iterationEq]
+      exact afterZero
+    calc
+      (interface.initialState offset index).eval after =
+          (interface.initialState offset index).eval before :=
+        (initialStateEq index).symm
+      _ = (interface.currentState offset index).eval before :=
+        specification.initialState beforeZero index
+      _ = (interface.currentState offset index).eval after :=
+        currentStateEq index
+  · intro afterZero index
+    have beforeZero : iterationValue interface offset before = 0 := by
+      rw [iterationEq]
+      exact afterZero
+    calc
+      (interface.output offset index).eval after =
+          (interface.output offset index).eval before :=
+        (outputEq index).symm
+      _ = defaultWord (logicalWidth := logicalWidth)
+          (publicFits := publicFits) index :=
+        specification.base beforeZero index
+  · intro afterNonzero index
+    have beforeNonzero : iterationValue interface offset before ≠ 0 := by
+      intro beforeZero
+      apply afterNonzero
+      rw [← iterationEq]
+      exact beforeZero
+    calc
+      (interface.output offset index).eval after =
+          (interface.output offset index).eval before :=
+        (outputEq index).symm
+      _ = (runningWord (interface.recursive offset) index).eval before :=
+        specification.recursive beforeNonzero index
+      _ = (runningWord (interface.recursive offset) index).eval after :=
+        recursiveEq index
+
+private theorem flatConstraints_assertions (items : List Expr) :
+    flatConstraints (items.map .assertZero) = items := by
+  induction items with
+  | nil => rfl
+  | cons expression rest inductionHypothesis =>
+      change expression :: flatConstraints (rest.map .assertZero) =
+        expression :: rest
+      rw [inductionHypothesis]
+
+private theorem localLength_assertions (items : List Expr) :
+    localLength (items.map .assertZero) = 0 := by
+  induction items with
+  | nil => rfl
+  | cons _ rest inductionHypothesis =>
+      change 0 + localLength (rest.map .assertZero) = 0
+      simpa using inductionHypothesis
+
+def flagConstraint {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (interface : Interface logicalWidth publicFits) (offset : Nat) : Expr :=
+  Expr.var (offset + 1) - flagRecipe interface offset
+
+theorem flatConstraints_operations {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (interface : Interface logicalWidth publicFits) (offset : Nat) :
+    flatConstraints (operations interface offset) =
+      flagConstraint interface offset :: constraints interface offset := by
+  change recipeConstraints offset [] ++
+      (recipeConstraints (offset + 1) [flagRecipe interface offset] ++
+        flatConstraints ((constraints interface offset).map .assertZero)) =
+    flagConstraint interface offset :: constraints interface offset
+  rw [flatConstraints_assertions]
+  rfl
+
+theorem localLength_eq {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (interface : Interface logicalWidth publicFits) (offset : Nat) :
+    localLength (operations interface offset) = exactPrivateCount := by
+  change 1 + (1 + localLength
+      ((constraints interface offset).map .assertZero)) = exactPrivateCount
+  rw [localLength_assertions]
+  rfl
+
+theorem flatConstraints_length_eq {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (interface : Interface logicalWidth publicFits) (offset : Nat) :
+    (flatConstraints (operations interface offset)).length = exactRowCount := by
+  rw [flatConstraints_operations]
+  rw [List.length_cons, constraints, List.length_cons, List.length_append,
+    muxConstraints_length, baseStateConstraints_length]
+  rfl
+
+private theorem inverseExpr_varsBelow (offset : Nat) :
+    (inverseExpr offset).VarsBelow (offset + exactPrivateCount) := by
+  simp [inverseExpr, Expr.VarsBelow, exactPrivateCount]
+
+private theorem recursiveFlag_varsBelow {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (interface : Interface logicalWidth publicFits) (offset : Nat) :
+    (recursiveFlag interface offset).VarsBelow
+      (offset + exactPrivateCount) := by
+  simp [recursiveFlag, Expr.VarsBelow, exactPrivateCount]
+
+private theorem baseFlag_varsBelow {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (interface : Interface logicalWidth publicFits) (offset : Nat) :
+    (baseFlag interface offset).VarsBelow
+      (offset + exactPrivateCount) := by
+  exact Expr.VarsBelow.sub _ _ _ trivial
+    (recursiveFlag_varsBelow interface offset)
+
+theorem flatConstraints_varsBelow {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (interface : Interface logicalWidth publicFits) (offset : Nat)
+    (env : Env) (assumptions : Assumptions interface offset env) :
+    ∀ expression ∈ flatConstraints (operations interface offset),
+      expression.VarsBelow (offset + exactPrivateCount) := by
+  rw [flatConstraints_operations]
+  have iterationBelow := Expr.VarsBelow.mono (interface.iteration offset)
+    (lower := offset) (upper := offset + exactPrivateCount)
+    assumptions.iteration (by simp [exactPrivateCount])
+  intro expression member
+  rcases List.mem_cons.mp member with flagMember | member
+  · subst expression
+    exact Expr.VarsBelow.sub _ _ _
+      (recursiveFlag_varsBelow interface offset)
+      (Expr.VarsBelow.mul _ _ _ iterationBelow (inverseExpr_varsBelow offset))
+  rcases List.mem_cons.mp member with bindingMember | muxMember
+  · subst expression
+    exact Expr.VarsBelow.sub _ _ _ trivial
+      (Expr.VarsBelow.mul _ _ _ iterationBelow
+        (baseFlag_varsBelow interface offset))
+  · rcases List.mem_append.mp muxMember with muxMember | stateMember
+    · rcases List.mem_ofFn.mp muxMember with ⟨index, rfl⟩
+      have outputBelow := Expr.VarsBelow.mono
+        (interface.output offset index)
+        (lower := offset) (upper := offset + exactPrivateCount)
+        (assumptions.output index) (by simp [exactPrivateCount])
+      have recursiveBelow := Expr.VarsBelow.mono
+        (runningWord (interface.recursive offset) index)
+        (lower := offset) (upper := offset + exactPrivateCount)
+        (assumptions.recursive index) (by simp [exactPrivateCount])
+      exact Expr.VarsBelow.sub _ _ _
+        (Expr.VarsBelow.sub _ _ _ outputBelow trivial)
+        (Expr.VarsBelow.mul _ _ _
+          (recursiveFlag_varsBelow interface offset)
+          (Expr.VarsBelow.sub _ _ _ recursiveBelow trivial))
+    · rcases List.mem_ofFn.mp stateMember with ⟨index, rfl⟩
+      have initialBelow := Expr.VarsBelow.mono
+        (interface.initialState offset index)
+        (lower := offset) (upper := offset + exactPrivateCount)
+        (assumptions.initialState index) (by simp [exactPrivateCount])
+      have currentBelow := Expr.VarsBelow.mono
+        (interface.currentState offset index)
+        (lower := offset) (upper := offset + exactPrivateCount)
+        (assumptions.currentState index) (by simp [exactPrivateCount])
+      exact Expr.VarsBelow.sub _ _ _ trivial
+        (Expr.VarsBelow.mul _ _ _
+          (baseFlag_varsBelow interface offset)
+          (Expr.VarsBelow.sub _ _ _ initialBelow currentBelow))
+
+private theorem constraintsHold_of_holds {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (interface : Interface logicalWidth publicFits) (offset : Nat)
+    (env : Env) (rows : holds env (operations interface offset)) :
+    ConstraintsHold env (constraints interface offset) := by
+  intro expression member
+  exact rows (.assertZero expression) (by simp [operations, member])
+
+private theorem flagConstraint_of_holds {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (interface : Interface logicalWidth publicFits) (offset : Nat)
+    (env : Env) (rows : holds env (operations interface offset)) :
+    (flagConstraint interface offset).eval env = 0 := by
+  have batch := rows (.witness (WitnessBatch.arithmetic (offset + 1)
+    [flagRecipe interface offset])) (by simp [operations])
+  exact batch (flagConstraint interface offset) (by
+    simp [recipeConstraints, flagConstraint])
+
+@[simp] private theorem exprOne_eval (env : Env) :
+    ((1 : Expr).eval env) = (1 : F) := by
+  rfl
+
+@[simp] private theorem exprZero_eval (env : Env) :
+    ((0 : Expr).eval env) = (0 : F) := by
+  rfl
+
+private theorem recursiveFlag_eval {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (interface : Interface logicalWidth publicFits) (offset : Nat)
+    (env : Env) :
+    (recursiveFlag interface offset).eval env = env (offset + 1) := by
+  rfl
+
+private theorem flag_eq_of_row {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (interface : Interface logicalWidth publicFits) (offset : Nat)
+    (env : Env) (row : (flagConstraint interface offset).eval env = 0) :
+    (recursiveFlag interface offset).eval env =
+      iterationValue interface offset env * env offset :=
+  sub_eq_zero.mp (by
+    simpa [flagConstraint, flagRecipe, inverseExpr, recursiveFlag,
+      iterationValue] using row)
+
+private theorem baseFlag_eval {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (interface : Interface logicalWidth publicFits) (offset : Nat)
+    (env : Env) :
+    (baseFlag interface offset).eval env =
+      1 - (recursiveFlag interface offset).eval env := by
+  simp [baseFlag]
+
+private theorem bindingConstraint_eval {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (interface : Interface logicalWidth publicFits) (offset : Nat)
+    (env : Env) :
+    (bindingConstraint interface offset).eval env =
+      0 - iterationValue interface offset env *
+        (baseFlag interface offset).eval env := by
+  simp [bindingConstraint, iterationValue]
+
+private theorem muxConstraint_eval {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (interface : Interface logicalWidth publicFits) (offset : Nat)
+    (index : WordIndex) (env : Env) :
+    (muxConstraint interface offset index).eval env =
+      ((interface.output offset index).eval env -
+          defaultWord (logicalWidth := logicalWidth)
+            (publicFits := publicFits) index) -
+        (recursiveFlag interface offset).eval env *
+          ((runningWord (interface.recursive offset) index).eval env -
+            defaultWord (logicalWidth := logicalWidth)
+              (publicFits := publicFits) index) := by
+  simp [muxConstraint]
+
+private theorem baseStateConstraint_eval {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (interface : Interface logicalWidth publicFits) (offset : Nat)
+    (index : StateIndex) (env : Env) :
+    (baseStateConstraint interface offset index).eval env =
+      0 - (baseFlag interface offset).eval env *
+        ((interface.initialState offset index).eval env -
+          (interface.currentState offset index).eval env) := by
+  simp [baseStateConstraint]
+
+theorem soundness {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (interface : Interface logicalWidth publicFits) (env : Env)
+    (offset : Nat) (_assumptions : Assumptions interface offset env)
+    (rows : holds env (operations interface offset)) :
+    SpecHolds interface offset env := by
+  have constraintRows := constraintsHold_of_holds interface offset env rows
+  have flagEq := flag_eq_of_row interface offset env
+    (flagConstraint_of_holds interface offset env rows)
+  refine {
+    initialState := ?_
+    base := ?_
+    recursive := ?_ }
+  · intro iterationZero index
+    have row := constraintRows (baseStateConstraint interface offset index) (by
+      rw [constraints]
+      exact List.mem_cons_of_mem _
+        (List.mem_append_right _ (List.mem_ofFn.mpr ⟨index, rfl⟩)))
+    have recursiveZero :
+        (recursiveFlag interface offset).eval env = 0 := by
+      rw [flagEq, iterationZero, zero_mul]
+    have baseOne : (baseFlag interface offset).eval env = 1 := by
+      rw [baseFlag_eval, recursiveZero, sub_zero]
+    exact (sub_eq_zero.mp
+      (by simpa [baseStateConstraint_eval, baseOne] using row)).symm
+  · intro iterationZero index
+    have row := constraintRows (muxConstraint interface offset index) (by
+      rw [constraints]
+      exact List.mem_cons_of_mem _
+        (List.mem_append_left _ (List.mem_ofFn.mpr ⟨index, rfl⟩)))
+    have recursiveZero :
+        (recursiveFlag interface offset).eval env = 0 := by
+      rw [flagEq, iterationZero, zero_mul]
+    apply sub_eq_zero.mp
+    simpa [muxConstraint_eval, recursiveZero] using row
+  · intro iterationNonzero index
+    have bindingRow := constraintRows (bindingConstraint interface offset) (by
+      simp [constraints])
+    have product : iterationValue interface offset env *
+        (baseFlag interface offset).eval env = 0 := by
+      simpa [bindingConstraint_eval] using bindingRow
+    have baseZero : (baseFlag interface offset).eval env = 0 := by
+      rcases baseFieldNoZeroDivisors _ _ product with impossible | zero
+      · exact False.elim (iterationNonzero impossible)
+      · exact zero
+    have recursiveOne :
+        (recursiveFlag interface offset).eval env = 1 := by
+      have equal : (1 : F) = (recursiveFlag interface offset).eval env :=
+        sub_eq_zero.mp (by simpa [baseFlag_eval] using baseZero)
+      exact equal.symm
+    have row := constraintRows (muxConstraint interface offset index) (by
+      rw [constraints]
+      exact List.mem_cons_of_mem _
+        (List.mem_append_left _ (List.mem_ofFn.mpr ⟨index, rfl⟩)))
+    rw [muxConstraint_eval, recursiveOne, one_mul] at row
+    have difference := sub_eq_zero.mp row
+    exact sub_left_injective difference
+
+def completeEnv {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (interface : Interface logicalWidth publicFits) (env : Env)
+    (offset : Nat) : Env :=
+  Env.set
+    (Env.set env offset (Hint.inverse (iterationValue interface offset env)))
+    (offset + 1)
+    (iterationValue interface offset env *
+      Hint.inverse (iterationValue interface offset env))
+
+private theorem completed_agrees_below {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (interface : Interface logicalWidth publicFits) (env : Env)
+    (offset index : Nat) (below : index < offset) :
+    completeEnv interface env offset index = env index := by
+  unfold completeEnv
+  rw [Env.set_of_ne _ _ _ _ (by omega), Env.set_of_ne _ _ _ _ (by omega)]
+
+private theorem completed_iteration {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (interface : Interface logicalWidth publicFits) (env : Env)
+    (offset : Nat) (assumptions : Assumptions interface offset env) :
+    iterationValue interface offset (completeEnv interface env offset) =
+      iterationValue interface offset env := by
+  exact Expr.eval_eq_of_agree_below _ offset _ _ assumptions.iteration
+    (completed_agrees_below interface env offset)
+
+private theorem completed_runningWord {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (interface : Interface logicalWidth publicFits) (env : Env)
+    (offset : Nat) (assumptions : Assumptions interface offset env)
+    (index : WordIndex) :
+    (runningWord (interface.recursive offset) index).eval
+        (completeEnv interface env offset) =
+      (runningWord (interface.recursive offset) index).eval env := by
+  exact Expr.eval_eq_of_agree_below _ offset _ _
+    (assumptions.recursive index)
+    (completed_agrees_below interface env offset)
+
+private theorem completed_initialState {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (interface : Interface logicalWidth publicFits) (env : Env)
+    (offset : Nat) (assumptions : Assumptions interface offset env)
+    (index : StateIndex) :
+    (interface.initialState offset index).eval
+        (completeEnv interface env offset) =
+      (interface.initialState offset index).eval env := by
+  exact Expr.eval_eq_of_agree_below _ offset _ _
+    (assumptions.initialState index)
+    (completed_agrees_below interface env offset)
+
+private theorem completed_currentState {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (interface : Interface logicalWidth publicFits) (env : Env)
+    (offset : Nat) (assumptions : Assumptions interface offset env)
+    (index : StateIndex) :
+    (interface.currentState offset index).eval
+        (completeEnv interface env offset) =
+      (interface.currentState offset index).eval env := by
+  exact Expr.eval_eq_of_agree_below _ offset _ _
+    (assumptions.currentState index)
+    (completed_agrees_below interface env offset)
+
+private theorem completed_outputWord {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (interface : Interface logicalWidth publicFits) (env : Env)
+    (offset : Nat) (assumptions : Assumptions interface offset env)
+    (index : WordIndex) :
+    (interface.output offset index).eval
+        (completeEnv interface env offset) =
+      (interface.output offset index).eval env := by
+  exact Expr.eval_eq_of_agree_below _ offset _ _
+    (assumptions.output index)
+    (completed_agrees_below interface env offset)
+
+private theorem mul_hintInverse_eq_one (value : F) (nonzero : value ≠ 0) :
+    value * Hint.inverse value = 1 := by
+  have valuePositive : 0 < value.val := Nat.pos_of_ne_zero (by
+    intro valueValZero
+    apply nonzero
+    apply Fin.eq_of_val_eq
+    simpa using valueValZero)
+  have notDvd : ¬goldilocksModulus ∣ value.val := by
+    intro divides
+    have lower := Nat.le_of_dvd valuePositive divides
+    exact (not_le_of_gt value.isLt) lower
+  have coprime : Nat.Coprime value.val goldilocksModulus :=
+    (goldilocks_natPrime.coprime_iff_not_dvd.mpr notDvd).symm
+  unfold Hint.inverse
+  have gcdOne : Nat.gcd value.val goldilocksModulus = 1 :=
+    Nat.coprime_iff_gcd_eq_one.mp coprime
+  unfold F goldilocksModulus at value gcdOne ⊢
+  have law := ZMod.mul_inv_eq_gcd
+    (n := 18446744069414584321) value
+  dsimp [ZMod, ZMod.val] at law
+  rw [gcdOne] at law
+  exact law
+
+private theorem completed_recursiveFlag {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (interface : Interface logicalWidth publicFits) (env : Env)
+    (offset : Nat) :
+    (recursiveFlag interface offset).eval (completeEnv interface env offset) =
+      iterationValue interface offset env *
+        Hint.inverse (iterationValue interface offset env) := by
+  rw [recursiveFlag_eval]
+  simp [completeEnv]
+
+private theorem completeEnv_holdsFlat {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (interface : Interface logicalWidth publicFits) (env : Env)
+    (offset : Nat) (assumptions : Assumptions interface offset env)
+    (specification : SpecHolds interface offset env) :
+    holdsFlat (completeEnv interface env offset)
+      (operations interface offset) := by
+  unfold holdsFlat
+  rw [flatConstraints_operations]
+  intro expression member
+  rcases List.mem_cons.mp member with flagMember | member
+  · subst expression
+    have inverseValue : (completeEnv interface env offset) offset =
+        Hint.inverse (iterationValue interface offset env) := by
+      unfold completeEnv
+      rw [Env.set_of_ne _ _ _ _ (by omega), Env.set_self]
+    have flagEval :
+        (flagConstraint interface offset).eval (completeEnv interface env offset) =
+          (recursiveFlag interface offset).eval
+              (completeEnv interface env offset) -
+            iterationValue interface offset (completeEnv interface env offset) *
+              (completeEnv interface env offset) offset := by
+      simp [flagConstraint, flagRecipe, inverseExpr, recursiveFlag,
+        iterationValue]
+    rw [flagEval, completed_recursiveFlag interface env offset,
+      completed_iteration interface env offset assumptions, inverseValue,
+      sub_self]
+  rcases List.mem_cons.mp member with bindingMember | muxMember
+  · subst expression
+    rw [bindingConstraint_eval,
+      completed_iteration interface env offset assumptions]
+    by_cases iterationZero : iterationValue interface offset env = 0
+    · rw [iterationZero, zero_mul, sub_zero]
+    · rw [baseFlag_eval, completed_recursiveFlag interface env offset,
+        mul_hintInverse_eq_one _ iterationZero, sub_self, mul_zero, sub_zero]
+  · rcases List.mem_append.mp muxMember with muxMember | stateMember
+    · rcases List.mem_ofFn.mp muxMember with ⟨index, rfl⟩
+      rw [muxConstraint_eval,
+        completed_outputWord interface env offset assumptions index,
+        completed_runningWord interface env offset assumptions index,
+        completed_recursiveFlag interface env offset]
+      by_cases iterationZero : iterationValue interface offset env = 0
+      · have selected := specification.base iterationZero index
+        rw [iterationZero, zero_mul, zero_mul, selected, sub_self, sub_zero]
+      · have selected := specification.recursive iterationZero index
+        rw [mul_hintInverse_eq_one _ iterationZero, one_mul, selected,
+          sub_self]
+    · rcases List.mem_ofFn.mp stateMember with ⟨index, rfl⟩
+      rw [baseStateConstraint_eval,
+        completed_initialState interface env offset assumptions index,
+        completed_currentState interface env offset assumptions index]
+      by_cases iterationZero : iterationValue interface offset env = 0
+      · have selected := specification.initialState iterationZero index
+        rw [selected, sub_self, mul_zero, sub_zero]
+      · rw [baseFlag_eval, completed_recursiveFlag interface env offset,
+          mul_hintInverse_eq_one _ iterationZero, sub_self, zero_mul, sub_zero]
+
+theorem completeness {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (interface : Interface logicalWidth publicFits) (env : Env)
+    (offset : Nat) (assumptions : Assumptions interface offset env)
+    (specification : SpecHolds interface offset env) :
+    ∃ completed,
+      AgreesOutside env completed offset
+        (localLength (operations interface offset)) ∧
+      holdsFlat completed (operations interface offset) := by
+  refine ⟨completeEnv interface env offset, ?_,
+    completeEnv_holdsFlat interface env offset assumptions specification⟩
+  rw [localLength_eq]
+  intro index outside
+  unfold completeEnv
+  simp [exactPrivateCount] at outside
+  rw [Env.set_of_ne _ _ _ _ (by omega), Env.set_of_ne _ _ _ _ (by omega)]
+
+theorem runningWord_eval {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (running : StatementAbsorption.RunningExpr logicalWidth publicFits)
+    (env : Env) (index : WordIndex) :
+    (runningWord running index).eval env =
+      (serializeRunning (publicFits := publicFits)
+        (StatementAbsorption.evalRunning running env)).getD index.val 0 := by
+  rw [← RunningWords.serializeRunningExpr_eval running env]
+  change ((RunningWords.serializeRunningExpr running).getD
+      index.val 0).eval env =
+    ((RunningWords.serializeRunningExpr running).map
+      (Expr.eval env)).getD index.val 0
+  exact (List.getD_map
+    (n := index.val) (RunningWords.serializeRunningExpr running)
+    (0 : Expr) (Expr.eval env)).symm
+
+theorem specHolds_of_cross_values_eq
+    {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (beforeInterface afterInterface : Interface logicalWidth publicFits)
+    (beforeOffset afterOffset : Nat) (before after : Env)
+    (iterationEq : iterationValue beforeInterface beforeOffset before =
+      iterationValue afterInterface afterOffset after)
+    (initialStateEq : ∀ index,
+      (beforeInterface.initialState beforeOffset index).eval before =
+        (afterInterface.initialState afterOffset index).eval after)
+    (currentStateEq : ∀ index,
+      (beforeInterface.currentState beforeOffset index).eval before =
+        (afterInterface.currentState afterOffset index).eval after)
+    (recursiveEq : StatementAbsorption.evalRunning
+        (beforeInterface.recursive beforeOffset) before =
+      StatementAbsorption.evalRunning
+        (afterInterface.recursive afterOffset) after)
+    (outputEq : ∀ index,
+      (beforeInterface.output beforeOffset index).eval before =
+        (afterInterface.output afterOffset index).eval after)
+    (specification : SpecHolds beforeInterface beforeOffset before) :
+    SpecHolds afterInterface afterOffset after := by
+  refine {
+    initialState := ?_
+    base := ?_
+    recursive := ?_ }
+  · intro afterZero index
+    have beforeZero :
+        iterationValue beforeInterface beforeOffset before = 0 := by
+      rw [iterationEq]
+      exact afterZero
+    calc
+      (afterInterface.initialState afterOffset index).eval after =
+          (beforeInterface.initialState beforeOffset index).eval before :=
+        (initialStateEq index).symm
+      _ = (beforeInterface.currentState beforeOffset index).eval before :=
+        specification.initialState beforeZero index
+      _ = (afterInterface.currentState afterOffset index).eval after :=
+        currentStateEq index
+  · intro afterZero index
+    have beforeZero :
+        iterationValue beforeInterface beforeOffset before = 0 := by
+      rw [iterationEq]
+      exact afterZero
+    rw [← outputEq index]
+    exact specification.base beforeZero index
+  · intro afterNonzero index
+    have beforeNonzero :
+        iterationValue beforeInterface beforeOffset before ≠ 0 := by
+      intro beforeZero
+      apply afterNonzero
+      rw [← iterationEq]
+      exact beforeZero
+    have word := specification.recursive beforeNonzero index
+    rw [runningWord_eval] at word ⊢
+    rw [← outputEq index, ← recursiveEq]
+    exact word
+
+def outputWords {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (interface : Interface logicalWidth publicFits) (offset : Nat) (env : Env) :
+    List F :=
+  List.ofFn fun index => (interface.output offset index).eval env
+
+private theorem ofFn_eq_of_getD {count : Nat} (values : Fin count → F)
+    (words : List F) (length : words.length = count)
+    (each : ∀ index : Fin count, values index = words.getD index.val 0) :
+    List.ofFn values = words := by
+  apply List.ext_getElem
+  · rw [List.length_ofFn, length]
+  · intro index ofFnBound wordsBound
+    rw [List.getElem_ofFn, each, List.getD_eq_getElem _ _ wordsBound]
+
+private theorem outputWords_eq_of_get {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (interface : Interface logicalWidth publicFits) (offset : Nat) (env : Env)
+    (words : List F) (length : words.length = exactWordCount)
+    (each : ∀ index : WordIndex,
+      (interface.output offset index).eval env = words.getD index.val 0) :
+    outputWords interface offset env = words :=
+  ofFn_eq_of_getD _ words length each
+
+theorem spec_serialized_base {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    {interface : Interface logicalWidth publicFits} {offset : Nat}
+    {env : Env} (specification : SpecHolds interface offset env)
+    (iterationZero : iterationValue interface offset env = 0) :
+    outputWords interface offset env =
+      serializeRunning (publicFits := publicFits)
+        (defaultRunning (logicalWidth := logicalWidth)
+          (publicFits := publicFits)) :=
+  outputWords_eq_of_get interface offset env _
+    (by rw [serializeRunning_length]; rfl) (specification.base iterationZero)
+
+theorem spec_serialized_recursive {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    {interface : Interface logicalWidth publicFits} {offset : Nat}
+    {env : Env} (specification : SpecHolds interface offset env)
+    (iterationNonzero : iterationValue interface offset env ≠ 0) :
+    outputWords interface offset env =
+      serializeRunning (publicFits := publicFits)
+        (StatementAbsorption.evalRunning (interface.recursive offset) env) :=
+  outputWords_eq_of_get interface offset env _
+    (by rw [serializeRunning_length]; rfl) fun index => by
+      rw [specification.recursive iterationNonzero index, runningWord_eval]
+
+def circuit {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (interface : Interface logicalWidth publicFits) : FormalCircuit :=
+  { main := main interface
+    assumptions := Assumptions interface
+    spec := SpecHolds interface
+    privateCount := fun _ => exactPrivateCount
+    rowCount := fun _ => exactRowCount
+    privateCount_eq := by
+      intro offset
+      exact localLength_eq interface offset
+    rowCount_eq := by
+      intro offset
+      exact flatConstraints_length_eq interface offset
+    soundness := by
+      intro env offset assumptions rows
+      exact soundness interface env offset assumptions rows
+    completeness := by
+      intro env offset assumptions specification
+      exact completeness interface env offset assumptions specification }
+
+end NightstreamFPrime.Lifecycle.Stage1.RunningTransition

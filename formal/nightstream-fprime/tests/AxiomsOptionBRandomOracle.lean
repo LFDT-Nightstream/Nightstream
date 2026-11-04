@@ -1,5 +1,7 @@
 import tests.AxiomAudit
 import NightstreamFPrime.Lifecycle.OptionB.RandomOracle.LightSchedule
+import NightstreamFPrime.Lifecycle.OptionB.RandomOracle.LightTest
+import NightstreamFPrime.Lifecycle.OptionB.RandomOracle.RefreshTest
 
 #audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Schedule.roundCallCount_pos
 #audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Schedule.roundCalls_length
@@ -40,3 +42,31 @@ import NightstreamFPrime.Lifecycle.OptionB.RandomOracle.LightSchedule
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.LightSchedule.coins_eq_reads
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.LightSchedule.probe_coins
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.LightSchedule.challenge_seal
+
+#audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Test.pairs_card
+#audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Test.expect_decodeK
+#audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Test.point_injective
+#audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Test.read_challengeAddress
+#audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Test.error_nonnegative
+#audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Test.bad_local
+#audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Test.bad_mass_le
+#audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Test.splits_hits
+#audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Test.hits_error_le
+#audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Test.test_error_le
+#audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Test.mem_challenges
+#audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Test.challenges_length
+#audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Test.checked_bound
+#audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Test.mem_checked
+#audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Test.checked_error_le
+
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.RefreshTest.challenges_length
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.RefreshTest.source_degreeCovers
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.RefreshTest.falseAcceptance_hits
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.RefreshTest.test_error_le
+
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.LightTest.lightShape_eq
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.LightTest.testError_eq
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.LightTest.challenges_length
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.LightTest.source_degreeCovers
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.LightTest.falseAcceptance_hits
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.LightTest.test_error_le

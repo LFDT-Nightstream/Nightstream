@@ -199,7 +199,7 @@ noncomputable def mass (answers : Set Answer) : ℝ :=
 def Local (bad : Point → (Point → Answer) → Set Answer) : Prop :=
   ∀ point oracle answer, bad point (Function.update oracle point answer) = bad point oracle
 
-private theorem expect_update (point : Point) (value : (Point → Answer) → ℝ) :
+theorem expect_update (point : Point) (value : (Point → Answer) → ℝ) :
     𝔼 oracle, value oracle = 𝔼 oracle, 𝔼 answer, value (Function.update oracle point answer) := by
   let swap : (Point → Answer) × Answer ≃ (Point → Answer) × Answer :=
     { toFun := fun pair => (Function.update pair.1 point pair.2, pair.1 point)
@@ -429,7 +429,7 @@ noncomputable def retryCount (point : Point) (oracle : Point → Answer) : ℝ :
   1 / mass (lineSet success point oracle)
 
 omit [Fintype Point] [Nonempty Answer] in
-private theorem queried_of_mass {computation : OracleComp Point Answer Output}
+theorem queried_of_mass {computation : OracleComp Point Answer Output}
     (queried : ∀ point oracle, success point oracle → point ∈ computation.queries oracle)
     (point : Point) (oracle : Point → Answer) (positive : mass (lineSet success point oracle) ≠ 0) :
     point ∈ computation.queries oracle := by

@@ -113,12 +113,17 @@ def ChainCollision (s : Sample) : Prop :=
     ∃ b ∈ runInputs (context p) (x.run app s) (x.memory s).segments,
       TranscriptCollision (blocks a) (blocks b)
 
-/-- The model accepts the extracted run, and a claimed segment passes the
-product test with unbalanced multisets: the one event that the memory round bounds, for all
-segment slots at once. -/
+/-- The model accepts the extracted run with the challenge function `eta`, and a claimed
+segment passes the product test with unbalanced multisets. -/
+def UnbalancedIn (eta : ℕ → EtaInput Digest → K × K) (s : Sample) : Prop :=
+  Accepts ((context p).withEta eta) app.model (x.claim app s) (x.run app s) ∧
+    ∃ k < (x.memory s).segments,
+      BadChallenge ((context p).withEta eta) (segmentView (context p) (x.run app s) k)
+
+/-- `UnbalancedIn` with the Poseidon2 challenges: the one event that the memory round bounds, for
+all segment slots at once. -/
 def Unbalanced (s : Sample) : Prop :=
-  Accepts (context p) app.model (x.claim app s) (x.run app s) ∧
-    ∃ k < (x.memory s).segments, BadChallenge (context p) (segmentView (context p) (x.run app s) k)
+  x.UnbalancedIn app (context p).eta s
 
 /-- An accepted sample that passes the SPEC.md Algorithm 10 checks, but whose extracted
 history is not a history that attests the claim (`SECURITY_MODEL.md`, adversary 5). -/

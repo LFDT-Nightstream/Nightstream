@@ -235,7 +235,7 @@ fn print_package_size(name: &str, packages: &OptionBPackages) {
 #[test]
 #[ignore = "Timing run; run separately under the 300-second cap."]
 fn native_memory_step_cost() {
-    use crate::nebula::{Circuit, Context, Machine, MachineState, Package, Run, Step};
+    use crate::nebula::{Circuit, Machine, MachineState, Package, Run, Step};
     let geometry = crate::nebula::Package::V1.geometry();
     let circuit = memory_circuit(&geometry, &Machine).unwrap();
     eprintln!(
@@ -263,13 +263,14 @@ fn native_memory_step_cost() {
     };
     print_package_size("lean", &load_option_b_packages(&lean[0], &lean[1], computed).unwrap());
 
-    let references = crate::nebula::test_packages::references(&bytes);
     let started = std::time::Instant::now();
-    let circuit = Circuit::compile(references, geometry, Machine).unwrap();
-    let prover = circuit.prover(crate::Engine::Optimized, 114).unwrap();
+    let circuit = Circuit::compile(geometry, Machine).unwrap();
+    let prover = circuit
+        .circuit
+        .prover(crate::Engine::Optimized, 114)
+        .unwrap();
     eprintln!("setup elapsed={:?}", started.elapsed());
-    let program = Package::V1.program();
-    let mut run = Run::new(Context::new(Machine, &program), MachineState::default());
+    let mut run = Run::new(Machine, &Package::V1.program(), MachineState::default());
     let z0 = run.initial_state();
     let mut invocations = run.segment(&[Step::Execute, Step::Execute]).unwrap();
     invocations.extend(run.segment(&[Step::Idle, Step::Idle]).unwrap());

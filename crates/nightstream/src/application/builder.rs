@@ -376,7 +376,7 @@ impl ApplicationCircuit {
     }
 
     /// Immutable original terms and recipe syntax, read with fallible visitors.
-    pub fn records(&self) -> &Arc<ApplicationRecords> {
+    pub(crate) fn records(&self) -> &Arc<ApplicationRecords> {
         &self.records
     }
     /// The permutations that the step packages place as blocks, and the bits.

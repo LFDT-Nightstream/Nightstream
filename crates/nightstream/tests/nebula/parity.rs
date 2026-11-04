@@ -19,8 +19,7 @@ use crate::nebula::test_packages::{option_b_packages, references};
 use crate::{
     application::ApplicationCircuit,
     nebula::{
-        Application, Circuit, Context, Expr, Machine, MachineState, Memory, Package, Program, Run, Step, Transition,
-        View,
+        Application, Circuit, Expr, Machine, MachineState, Memory, Package, Program, Run, Step, Transition, View,
     },
 };
 
@@ -74,9 +73,11 @@ fn memory_packages_make_no_stage1_verifier() {
     let loaded = Package::V1.load(references(&packages)).unwrap();
     assert!(matches!(
         loaded.circuit.verifier(crate::Engine::Optimized, 114),
-        Err(crate::Error::Circuit("a memory relation needs nebula::Verifier"))
+        Err(crate::Error::Circuit(
+            "a memory relation needs nebula::Circuit::verifier"
+        ))
     ));
-    assert!(crate::nebula::Verifier::new(&loaded, crate::Engine::Optimized, 114).is_ok());
+    assert!(loaded.verifier(crate::Engine::Optimized, 114).is_ok());
 }
 
 #[test]
@@ -152,7 +153,7 @@ fn assert_honest_invocations_execute(program: &Program, segments: &[&[Step]]) {
 }
 
 fn assert_application_executes(application: &ApplicationCircuit, program: &Program, segments: &[&[Step]]) {
-    let mut run = Run::new(Context::new(Machine, program), MachineState::default());
+    let mut run = Run::new(Machine, program, MachineState::default());
     let mut state = run.initial_state();
     for steps in segments {
         for invocation in run.segment(steps).unwrap() {
@@ -193,18 +194,19 @@ fn second_package_executes_honest_invocations() {
 /// completes the honest invocations with the same output states.
 #[test]
 fn rust_built_circuit_writes_and_loads() {
-    let packages = option_b_packages("");
-    let circuit = Circuit::compile(references(&packages), Package::V1.geometry(), Machine).unwrap();
+    let circuit = Circuit::compile(Package::V1.geometry(), Machine).unwrap();
     let path = std::env::temp_dir().join(format!("nightstream-nebula-circuit-{}.package", std::process::id()));
     let _ = fs::remove_file(&path);
     circuit.write(&path).unwrap();
-    let loaded = crate::Circuit::load(&path, references(&packages));
+    let loaded = crate::Circuit::load(&path);
     fs::remove_file(&path).unwrap();
     let loaded = loaded.unwrap();
     assert_eq!(loaded.identity(), circuit.circuit.identity());
     assert!(matches!(
         loaded.verifier(crate::Engine::Optimized, 114),
-        Err(crate::Error::Circuit("a memory relation needs nebula::Verifier"))
+        Err(crate::Error::Circuit(
+            "a memory relation needs nebula::Circuit::verifier"
+        ))
     ));
     let application = loaded.application().unwrap();
     let size = crate::ApplicationSize {

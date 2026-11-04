@@ -22,6 +22,7 @@ impl Geometry {
     /// The first memory-application package (`FirstPlan.lean`): ROM and RAM
     /// of four words, two ports, segments of two steps, at most four
     /// segments, and 5-bit timestamps.
+    #[cfg(test)]
     pub(super) fn first() -> Self {
         Self {
             r: 2,
@@ -38,6 +39,7 @@ impl Geometry {
     /// the first geometry cannot reach: ROM of four words and RAM of eight
     /// (`r < μ`), segments of one step, at most four segments, and 4-bit
     /// timestamps.
+    #[cfg(test)]
     pub(super) fn second() -> Self {
         Self {
             r: 2,
@@ -48,6 +50,28 @@ impl Geometry {
             n: 1,
             s_max: 4,
         }
+    }
+
+    /// The geometry of a ROM of `2^r` cells and a RAM of `2^mu` cells, with
+    /// `b_ops` operation slots in each step, segments of `n` steps, and at
+    /// most `s_max` segments. `w_ts` is the fewest bits that hold
+    /// `s_max · n · b_ops`, and `b_scan` is the cells over `n`. `None` when
+    /// the result breaks SPEC.md section 7.1, rules 1 to 6 (`is_valid` and
+    /// Lean `Geometry.Secure`).
+    pub fn new(r: usize, mu: usize, b_ops: usize, n: usize, s_max: usize) -> Option<Self> {
+        let space = |log2: usize| 1usize.checked_shl(u32::try_from(log2).ok()?);
+        let cells = space(r)?.checked_add(space(mu)?)?;
+        let stamps = s_max.checked_mul(n)?.checked_mul(b_ops)?;
+        let geometry = Self {
+            r,
+            mu,
+            w_ts: (usize::BITS - stamps.leading_zeros()) as usize,
+            b_ops,
+            b_scan: cells.checked_div(n)?,
+            n,
+            s_max,
+        };
+        (geometry.is_valid() && geometry.is_secure()).then_some(geometry)
     }
 
     /// Lean `Geometry.Valid`: SPEC.md section 7.1, rules 1 to 5 and positive counts. The
@@ -106,17 +130,17 @@ impl Geometry {
     }
 
     /// Bits of one operation slot (SPEC.md section 7.2).
-    pub fn op_width(&self) -> usize {
+    pub(crate) fn op_width(&self) -> usize {
         3 + self.mu + 64 + self.w_ts
     }
 
     /// Bits of one scan slot (SPEC.md section 7.2).
-    pub fn scan_width(&self) -> usize {
+    pub(crate) fn scan_width(&self) -> usize {
         32 + self.w_ts
     }
 
     /// `W_seg`: enough bits for every value below `S_max` (Lean `Nat.log2 + 1`).
-    pub fn seg_width(&self) -> usize {
+    pub(crate) fn seg_width(&self) -> usize {
         (usize::BITS - self.s_max.leading_zeros()) as usize
     }
 }

@@ -19,7 +19,7 @@ if [ $# -lt 3 ]; then
   echo "Examples:"
   echo "  $0 nightstream option_b_api hash_chain_proves_and_verifies"
   echo "  $0 nightstream option_b_api hash_chain_proves_and_verifies 20"
-  echo "  $0 nightstream application_poseidon2 every_poseidon2_application_row_matches_the_saved_lean_reference 30"
+  echo "  $0 nightstream r1cs_application a_relation_of_the_builders_runs_through_nebula 30"
   echo ""
   echo "Output: Writes profile to profile-output.txt for AI analysis"
   exit 1

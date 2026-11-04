@@ -232,19 +232,12 @@ fn a_block_that_is_not_its_permutation_is_refused() {
         .expect("application")
     };
     assert!(crate::application::check_blocks(&honest).is_ok());
-    let references = ["light", "refresh", "finish"]
-        .map(|name| support::artifact(&format!("nightstream-fprime-option-b-{name}-v1.json")));
-    let references = crate::References {
-        light: &references[0],
-        refresh: &references[1],
-        finish: &references[2],
-    };
     for application in [
         forged(&|block| block.lanes[3].constant += F::ONE),
         forged(&|block| block.first_local += 1),
     ] {
         assert!(matches!(
-            crate::Circuit::compile(references, application),
+            crate::Circuit::compile(application),
             Err(crate::Error::Application(ApplicationError::Block(1)))
         ));
     }

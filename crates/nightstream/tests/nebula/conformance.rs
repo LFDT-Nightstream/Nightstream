@@ -13,7 +13,6 @@ use std::ops::Range;
 
 use super::*;
 use crate::lifecycle::option_b::{OptionBError, CHECK_ROWS, FAILED_ROW};
-use crate::nebula::test_packages::{option_b_packages, references};
 use crate::nebula::{Circuit, Machine, MachineState, Package, Step};
 use crate::{Engine, Error};
 use crate::{Proof, Prover};
@@ -47,8 +46,7 @@ struct Harness {
 
 impl Harness {
     fn new(fixture: &Fixture) -> Self {
-        let packages = option_b_packages("");
-        let circuit = Circuit::compile(references(&packages), fixture.package.geometry(), Machine).unwrap();
+        let circuit = Circuit::compile(fixture.package.geometry(), Machine).unwrap();
         let named: Vec<(String, usize, usize)> = serde_json::from_slice(fixture.rows).unwrap();
         let application = circuit.circuit.application().unwrap();
         assert_eq!(
@@ -69,7 +67,7 @@ impl Harness {
             .collect();
         Self {
             context: Context::new(Machine, &fixture.package.program()),
-            prover: circuit.prover(Engine::Optimized, 114).unwrap(),
+            prover: circuit.circuit.prover(Engine::Optimized, 114).unwrap(),
             checks: named
                 .into_iter()
                 .map(|(name, first, end)| (name, first..end))

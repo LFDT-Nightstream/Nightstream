@@ -163,3 +163,11 @@ struct R1csRow {
     pub(super) b: Affine,
     pub(super) c: Affine,
 }
+
+#[cfg(test)]
+#[path = "../../tests/application/builder.rs"]
+mod builder_tests;
+
+#[cfg(test)]
+#[path = "../../tests/application/poseidon2.rs"]
+mod poseidon2_tests;

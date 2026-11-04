@@ -1,41 +1,16 @@
 //! The option-B public API end to end on the Rust Poseidon2 hash chain:
-//! compile against the three Lean packages, prove and extend, verify against
-//! the expected state, and finish and verify the final proof.
+//! compile against the three embedded Lean packages, prove and extend, verify
+//! against the expected state, and compress and verify the final proof.
 
 use std::fs;
-use std::path::PathBuf;
 
 use nightstream::application::{poseidon2_hash_chain_step, poseidon2_hash_chain_v1};
-use nightstream::{Circuit, References};
+use nightstream::{Circuit, Prover};
 use nightstream::{Engine, PrimeCharacteristicRing, State};
 use p3_goldilocks::Goldilocks as F;
 
-fn artifact(name: &str) -> Vec<u8> {
-    fs::read(
-        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../../formal/nightstream-fprime/artifacts")
-            .join(name),
-    )
-    .unwrap_or_else(|error| panic!("read {name}: {error}"))
-}
-
-fn with_references<T>(use_them: impl FnOnce(References<'_>) -> T) -> T {
-    let (light, refresh, finish) = (
-        artifact("nightstream-fprime-option-b-light-v1.json"),
-        artifact("nightstream-fprime-option-b-refresh-v1.json"),
-        artifact("nightstream-fprime-option-b-finish-v1.json"),
-    );
-    use_them(References {
-        light: &light,
-        refresh: &refresh,
-        finish: &finish,
-    })
-}
-
 fn circuit() -> Circuit {
-    with_references(|references| {
-        Circuit::compile(references, poseidon2_hash_chain_v1().expect("hash chain")).expect("option-B circuit")
-    })
+    Circuit::compile(poseidon2_hash_chain_v1().expect("hash chain")).expect("option-B circuit")
 }
 
 fn words(values: [u64; 4]) -> [F; 4] {
@@ -48,13 +23,11 @@ fn hash_chain_proves_and_verifies() {
     let compiled = circuit();
     let path = std::env::temp_dir().join(format!("option-b-circuit-{}", std::process::id()));
     compiled.write(&path).expect("saved application");
-    let circuit = with_references(|references| Circuit::load(&path, references)).expect("loaded circuit");
+    let prover = Prover::load(&path, Engine::Optimized, 114).expect("loaded prover");
     fs::remove_file(&path).expect("remove the saved application");
-    assert_eq!(circuit.identity(), compiled.identity());
-    let prover = circuit.prover(Engine::Optimized, 114).expect("prover");
     let verifier = compiled.verifier(Engine::Optimized, 114).expect("verifier");
     assert!(
-        circuit.prover(Engine::Metal, 114).is_err(),
+        compiled.prover(Engine::Metal, 114).is_err(),
         "option B proves on the CPU path"
     );
     let initial = words([1, 2, 3, 4]);
@@ -134,7 +107,7 @@ fn hash_chain_final_proof_verifies() {
     fs::create_dir_all(&dir.0).expect("setup directory");
     let final_proof = {
         let setup = prover.compression_setup(&dir.0).expect("setup");
-        prover.finish(&proof, &setup).expect("final proof")
+        prover.compress(&proof, &setup).expect("final proof")
     };
     drop(dir);
     let verifier = circuit.verifier(Engine::Optimized, 114).expect("verifier");

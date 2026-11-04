@@ -1,6 +1,8 @@
 import NightstreamFPrime.Export.OptionB.StepCompleteness
 import NightstreamFPrime.Export.OptionB.TerminalBridge
 import NightstreamFPrime.Lifecycle.OptionB.FoldCompleteness
+import NightstreamFPrime.Lifecycle.OptionB.BaseFold
+import NightstreamFPrime.Lifecycle.PilotZeroRunning
 import NightstreamFPrime.Layout.OptionB.LightAssemblerCompleteness
 import NightstreamFPrime.Layout.OptionB.RefreshAssemblerCompleteness
 
@@ -396,5 +398,100 @@ theorem refresh_extend (exports : Exports relation ajtai circuitKeys step cubeFi
           (Function.update payload.runningWitness selected foldedWitness slot)
       rw [nextOther slot same, Function.update_of_ne same]
       exact honest slot
+
+/-- The first honest step: from the bottom proof, a valid application step on the light circuit
+gives a recursive proof that the terminal accepts at iteration 1, with both slots at the default
+claim and the zero witness. The fold is HyperNova's zero proof (`BaseFold.zero_folds`). -/
+theorem base_extend (exports : Exports relation ajtai circuitKeys step cubeFits)
+    (complete : Complete exports) (keysShaped : ∀ key, (circuitKeys key).digest.length = 4)
+    (cap : Nat) (control : AppState → AppWitness → Fin 2) (statement : TerminalStatement AppState)
+    (holds : Terminal.HoldsFor cap ajtai circuitKeys step control statement .bottom)
+    (witness : AppWitness) (valid : exports.program.valid statement.zi witness)
+    (lightNext : control statement.zi witness = 0)
+    (nextLength : (step statement.zi witness).length = Stage1.Application.stateWordCount)
+    (witnessLength : witness.length = exports.program.witnessWordCount) :
+    ∃ next, Terminal.HoldsFor cap ajtai circuitKeys step control
+        ⟨statement.iteration + 1, statement.z0, step statement.zi witness⟩ (.recursive next) ∧
+      Honest (ajtai := ajtai) next := by
+  obtain ⟨statementValid, iterationZero, ziEq⟩ :=
+    (Terminal.holdsFor_bottom_iff cap ajtai circuitKeys step control statement).mp holds
+  let defaults : Fin 2 → SlotData logicalWidth publicFits := fun _ => (defaultSlot, 0)
+  let prior : Paper.HashPreimage (CircuitKey logicalWidth publicFits) AppState
+      (SlotData logicalWidth publicFits) 2 :=
+    { verifierKeys := circuitKeys, iteration := statement.iteration, z0 := statement.z0,
+      current := statement.zi, running := defaults, pc := 0 }
+  let digest := stateHash (toState prior)
+  let input : StepInput logicalWidth publicFits :=
+    { iteration := statement.iteration, z0 := statement.z0, zi := statement.zi,
+      running := defaults, fresh := BaseFold.baseFresh digest, priorPc := 0,
+      witness := witness, nifsProof := .light BaseFold.zeroProof }
+  obtain ⟨folded, accepted⟩ := BaseFold.zero_folds ajtai (circuitKeys 0) digest
+  let draft : StepOutput logicalWidth publicFits :=
+    { zNext := step statement.zi witness, runningNext := defaults, pcNext := 0, x := [] }
+  let output : StepOutput logicalWidth publicFits :=
+    { draft with x := stateHash (toState (Paper.nextHashPreimage
+        ((setup Schedule.productionLightFoldCap ajtai circuitKeys).forCircuit 0) input draft)) }
+  have stepHolds : StepHolds Schedule.productionLightFoldCap ajtai circuitKeys step control 0
+      input output :=
+    (stepHolds_iff _ _ _ _ _ _ _ _).mpr ⟨lightNext, rfl, rfl, rfl,
+      Or.inl ⟨iterationZero, ziEq.symm, rfl⟩⟩
+  have priorSame : Paper.priorHashPreimage
+      ((setup Schedule.productionLightFoldCap ajtai circuitKeys).forCircuit 0) input = prior := by
+    unfold Paper.priorHashPreimage
+    rfl
+  have freshPublic : input.fresh.publicInputs ⟨0, by decide⟩ =
+      encHash (publicFits := publicFits) (stateHash (toState (Paper.priorHashPreimage
+        ((setup Schedule.productionLightFoldCap ajtai circuitKeys).forCircuit 0) input))) := by
+    rw [priorSame]
+    rfl
+  obtain ⟨env, rows, represents⟩ := LightAssemblerCompleteness.complete exports.program relation
+    base ajtai circuitKeys step control 0 rfl exports.programStep input output BaseFold.zeroProof 0
+    folded stepHolds valid (fun nonzero => absurd iterationZero nonzero) freshPublic
+    (fun nonzero => absurd iterationZero nonzero) accepted
+    (show (0 : Nat) < Schedule.productionLightFoldCap by decide) statementValid.1
+    (show (0 : Nat) < goldilocksModulus by decide)
+    (fun _ => show (0 : Nat) < goldilocksModulus by decide)
+    (fun _ => show (0 : Nat) < goldilocksModulus by decide)
+    keysShaped statementValid.2.1 statementValid.2.2 nextLength witnessLength
+  obtain ⟨assignment, freshNext⟩ := light_complete exports.program relation ajtai circuitKeys input
+    output BaseFold.zeroProof env rows represents complete.lightFree exports.lightFresh
+    exports.lightWidth exports.lightFits complete.lightPacked complete.lightBelow
+    complete.lightPublicBelow complete.lightBatches complete.lightWide cubeFits
+  have keyEq : (circuitKeys 0).relation = (CircuitRelation.plan publicColumns _ exports.lightFresh
+      exports.lightWidth exports.lightFits
+      (WideLayout.widen (SlotLayout.layout _) complete.lightWide)).logicalRelation
+        (publicFits := publicFits) cubeFits := by
+    rw [exports.lightKey, complete.lightLayout]
+  let next : TerminalProof (SlotData logicalWidth publicFits)
+      (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits))
+      (StepFresh logicalWidth publicFits)
+      (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits)) 2 :=
+    { running := defaults
+      runningWitness := fun _ => Phi81Relation.EvaluationHomomorphism.BaseLinear.assignmentZero
+      fresh := { commitments := fun _ => Phi81Relation.PiRLCAlgebra.Commitment.commit ajtai
+                   (Phi81CarrierLayout.extendAssignment 0 assignment)
+                 publicInputs := fun _ => encHash (publicFits := publicFits) output.x }
+      freshWitness := Phi81CarrierLayout.extendAssignment 0 assignment
+      pc := 1 }
+  have pcOne : InRange 2 1 := ⟨le_refl 1, by decide⟩
+  have iterationOne : statement.iteration + 1 < goldilocksModulus := by
+    rw [iterationZero]
+    decide
+  refine ⟨next, (Terminal.holdsFor_recursive_iff cap ajtai circuitKeys step control _ next).mpr
+    ⟨⟨iterationOne, statementValid.2.1, nextLength⟩, pcOne, Nat.succ_pos _, rfl, ?_, ?_⟩, ?_⟩
+  · intro slot
+    have zero := PilotZeroRunning.defaultRunning_holds (circuitKeys slot).relation ajtai
+      ⟨0, by decide⟩
+    exact ⟨⟨zero.1.1, zero.1.2.1, normBounded_mono zero.1.2.2
+      (show productionGlobalParams.b ≤ productionGlobalParams.bigB by decide)⟩, zero.2.1,
+      zero.2.2⟩
+  · show CCS.Holds (PaperAlgebra.semantics ajtai) productionGlobalParams
+      (freshStatement (circuitKeys 0).relation next.fresh) next.freshWitness
+    rw [keyEq]
+    exact freshNext
+  · intro slot
+    refine ⟨Nat.zero_le _, fun column => ?_⟩
+    change centeredMagnitude (0 : F) < productionGlobalParams.accumulatorBound 0 + 1
+    simp [centeredMagnitude]
 
 end NightstreamFPrime.Export.OptionB.StepExtend

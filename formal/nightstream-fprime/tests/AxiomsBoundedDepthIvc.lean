@@ -55,6 +55,7 @@ import NightstreamFPrime.Export.OptionB.SlotCompleteness
 import NightstreamFPrime.Export.OptionB.NativeCompleteness
 import NightstreamFPrime.Lifecycle.OptionB.FoldCompleteness
 import NightstreamFPrime.Export.OptionB.StepExtend
+import NightstreamFPrime.Export.OptionB.RunCompleteness
 import NightstreamFPrime.Export.OptionB.NebulaSecurity
 import NightstreamFPrime.Export.OptionB.FinishRelation
 import NightstreamFPrime.Lifecycle.OptionB.Terminal
@@ -610,3 +611,8 @@ example : (runDepths 2 (fun _ => 0) 1 (List.replicate 3 [0, 0, 1]).flatten).isNo
 #audit_axioms NightstreamFPrime.Export.OptionB.StepExtend.normBounded_mono
 #audit_axioms NightstreamFPrime.Export.OptionB.StepExtend.light_extend
 #audit_axioms NightstreamFPrime.Export.OptionB.StepExtend.refresh_extend
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.BaseFold.check_zero
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.BaseFold.zero_folds
+#audit_axioms NightstreamFPrime.Export.OptionB.StepExtend.base_extend
+#audit_axioms NightstreamFPrime.Export.OptionB.RunCompleteness.accepts_step
+#audit_axioms NightstreamFPrime.Export.OptionB.RunCompleteness.run_complete

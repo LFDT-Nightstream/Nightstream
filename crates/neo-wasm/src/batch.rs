@@ -71,6 +71,13 @@ pub enum BatchError {
 /// batching. Sources cross-step links from [`build_wasm_relation_layout`]. Every
 /// declared continuity link is emitted as a linking row.
 pub fn build_batched_wasm_ccs(batch_size: usize) -> Result<BatchedWasmCcs, BatchError> {
+    let lookup = single_wasm_relation()?;
+    batch_wasm_relation(&lookup.relation, &lookup.widths, batch_size)
+}
+
+/// The single-step WASM relation with its operation-table constraints, which
+/// `build_batched_wasm_ccs` replicates.
+pub(crate) fn single_wasm_relation() -> Result<lookup_circuit::CompactLookupShape, BatchError> {
     let relation = build_wasm_relation().expect("valid WASM relation");
     let core = relation.r1cs();
     let m_single = core.column_count();
@@ -85,8 +92,7 @@ pub fn build_batched_wasm_ccs(batch_size: usize) -> Result<BatchedWasmCcs, Batch
         core.public_input_count(),
     )?;
     let widths = crate::witness_layout::range_checked_variable_widths(relation.columns());
-    let lookup = lookup_circuit::extend_relation(&single, widths)?;
-    batch_wasm_relation(&lookup.relation, &lookup.widths, batch_size)
+    Ok(lookup_circuit::extend_relation(&single, widths)?)
 }
 
 /// Replicate one authoritative single-step WASM relation into an ordered

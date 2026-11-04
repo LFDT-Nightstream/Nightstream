@@ -235,7 +235,10 @@ item 5).
 ### 5. Memory adversary
 
 - **Controls:** what adversary 4 controls, for a memory application at a
-  fixed geometry and program, and a claimed memory statement and final carry.
+  fixed geometry and program, and from the same tape a claimed memory
+  statement and the final carry. The proof carries the carry, and the
+  verifier takes the statement integers from it (`SPEC.md` Algorithm 10). The
+  adversary must be admitted (trust item 3).
 - **Wins:** the memory verifier accepts (`SPEC.md` Algorithm 10), and the
   history that an extractor returns does not attest the claim: it is not an
   execution from the claim's initial words and the program's memory to its
@@ -534,13 +537,22 @@ item 5).
 - A program that the adversary chooses after it sees the setup. Adversary 5
   fixes the program before the adversary runs.
 - The Rust-built memory relation of an application or geometry that no Lean
-  package fixes, the binding rows of the Rust catalog backend, and the
-  relation that links the rows of a batched WASM step (`SPEC.md` section
-  7.6). Lean proves what the slot plan conditions give
+  package fixes, the binding rows of the Rust catalog backend, the rows of
+  `nebula::R1csApplication` that link the rows of a batched step, and the
+  WASM relation itself (`SPEC.md` section 7.6). Lean proves what the slot plan conditions give
   (`Spec.Nebula.MemoryTrace.reorders_of_slotOrder`) and that batched steps
   are memory consistent exactly when their rows are
   (`Spec.Nebula.MemoryTrace.memoryConsistent_batchCatalog_iff`), but not
   that the Rust rows enforce those conditions. Tests check the rows on fixed
-  inputs (trust item 5).
+  inputs (trust item 5). Rust tests also check that each field of the
+  typed WASM state changes its words (`every_state_field_changes_the_state_words`
+  in `crates/neo-wasm/tests/wasm_nebula.rs`), and that a field of `q` or more
+  keeps a word that the terminal check of `SPEC.md` Algorithm 10 refuses
+  (`a_state_field_of_q_or_more_has_no_canonical_word`). So a verifier that
+  reads a field of a proved state reads a proved word, except that `None` and
+  `Some(0)` of `memory_pages` and `max_memory_pages` share the word 0.
+- A prover that picks the WASM size of its proof
+  (`neo_wasm::nebula::WasmSize`). The results hold for each of the three
+  fixed sizes, not for a choice among them.
 - Values for the adversary time and the query counts `Q_η`. They stay
   symbolic (`decisions/nebula-memory-checking.md`).

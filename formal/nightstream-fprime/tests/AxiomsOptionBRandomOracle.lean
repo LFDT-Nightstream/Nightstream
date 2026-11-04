@@ -2,6 +2,8 @@ import tests.AxiomAudit
 import NightstreamFPrime.Lifecycle.OptionB.RandomOracle.LightSchedule
 import NightstreamFPrime.Lifecycle.OptionB.RandomOracle.LightTest
 import NightstreamFPrime.Lifecycle.OptionB.RandomOracle.RefreshTest
+import NightstreamFPrime.Lifecycle.OptionB.RandomOracle.LightFork
+import NightstreamFPrime.Lifecycle.OptionB.RandomOracle.RefreshFork
 
 #audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Schedule.roundCallCount_pos
 #audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Schedule.roundCalls_length
@@ -70,3 +72,65 @@ import NightstreamFPrime.Lifecycle.OptionB.RandomOracle.RefreshTest
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.LightTest.source_degreeCovers
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.LightTest.falseAcceptance_hits
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.LightTest.test_error_le
+
+#audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Fork.readRho_valid
+#audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Fork.readRho_eq_iff
+#audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Fork.sponge_readRho
+#audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Fork.sampleError_nonnegative
+#audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Fork.fiber_mass_le
+#audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Fork.rho_valid
+#audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Fork.rhoPoint_identifies
+#audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Fork.update_ne
+#audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Fork.coins_update_rho
+#audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Fork.rho_update
+#audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Fork.normalized_bound
+#audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Fork.hits_queried
+#audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Fork.retryChance_mono
+#audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Fork.forkValid_iff
+#audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Fork.mass_ne_zero
+#audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Fork.base_mem_retrySets
+#audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Fork.fork_failure_le
+#audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Fork.fork_failure_le_of_mismatch
+#audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Fork.expected_retries_at_le
+#audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Fork.expected_retries_le
+#audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Fork.ForkValid.mem_retrySets
+#audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Fork.ForkValid.succeeds
+#audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Fork.ForkValid.start_eq
+#audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Fork.ForkValid.identifies
+#audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Fork.ForkValid.coins_eq
+#audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Fork.ForkValid.rho_eq
+#audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Fork.ForkValid.agree
+#audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Fork.ForkValid.changed
+
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.ForkLink.start_eq_or_collision
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.ForkLink.mismatchChance_le
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.ForkLink.fork_failure_le
+
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.LightFork.toLightRunning_toClaim
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.LightFork.freshToLight_injective
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.LightFork.holds_normFree
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.LightFork.oracleProbe_update
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.LightFork.outputFor_update
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.LightFork.challenge_update
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.LightFork.folds_eq_some
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.LightFork.succeeds_holds
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.LightFork.retry_holds
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.LightFork.fork
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.LightFork.fork_baseNorm
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.LightFork.extractedWitness
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.LightFork.extracted_ambient
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.LightFork.extracted_running_normBounded
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.LightFork.fork_failure_le
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.LightFork.expected_retries_le
+
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.RefreshFork.oracleProbe_congr
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.RefreshFork.batch_congr
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.RefreshFork.batch_update
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.RefreshFork.folds_eq_some
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.RefreshFork.succeeds_holds
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.RefreshFork.retry_holds
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.RefreshFork.fork
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.RefreshFork.extractedWitness
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.RefreshFork.extracted_ambient
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.RefreshFork.fork_failure_le
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.RandomOracle.RefreshFork.expected_retries_le

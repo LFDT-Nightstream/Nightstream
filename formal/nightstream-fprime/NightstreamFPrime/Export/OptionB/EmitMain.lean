@@ -1,5 +1,6 @@
 import NightstreamFPrime.Export.OptionB.FinishRelation
 import NightstreamFPrime.Export.OptionB.Parity
+import NightstreamFPrime.Export.OptionB.StepCompleteness
 import NightstreamFPrime.Export.Stage1.Rows
 import NightstreamFPrime.Lifecycle.Stage1.Poseidon2HashChainV1
 import NightstreamFPrime.Export.Stage1.NebulaMemoryV1Package
@@ -99,13 +100,20 @@ def applicationRegion (name : String) (words : Nat) (ops : List Op) (offset firs
   pure (words, offset, localLength [application], own.length,
     StepPackage.freshAfter own firstFresh - firstFresh)
 
+/-- The completeness check of a step package (`PieceRowsCompleteness.pieceBelow`), and the number
+of pieces that read a fresh column. -/
+def completenessChecks (pieces : List Pieces.Piece) (firstFresh : Nat) : Bool × Nat :=
+  let scope := (pieces.filter fun piece => !PieceRowsCompleteness.pieceBelow firstFresh piece).length
+  (scope == 0, scope)
+
 /-- Writes the circuit's package (`StepPackage.packageOf`); the blocks must pack and start at or
 after the shared words (`FinishRelation.checks_finish` reads the words below them). The finish
 package has no application: its region is the witness words alone, and its fresh columns start
 after the refresh step's locals (`firstFresh`), whose layout its gadgets keep. -/
 def emitPackage (name : String) (circuit : Nat) (ops : List Op) (offset : Nat)
     (pieces : List Pieces.Piece) (firstFresh : Option Nat := none)
-    (program : Stage1.Application.Program := program) (stem : String := "") :
+    (program : Stage1.Application.Program := program) (stem : String := "")
+    (write : Bool := true) :
     IO StepPackage.Package := do
   let start ← IO.monoMsNow
   unless CircuitRelation.packable CircuitRelation.publicColumns pieces do
@@ -113,6 +121,19 @@ def emitPackage (name : String) (circuit : Nat) (ops : List Op) (offset : Nat)
   unless CircuitRelation.startsFrom offset pieces do
     throw (IO.userError s!"{name}: a Poseidon2 block starts below the shared end")
   let firstFresh := firstFresh.getD (offset + localLength ops)
+  unless CircuitRelation.publicColumns ≤ firstFresh do
+    throw (IO.userError s!"{name}: the first fresh column is inside the public input")
+  if circuit < 2 then
+    let (complete, scope) := completenessChecks pieces firstFresh
+    let free := StepCompleteness.publicFree (flatConstraints ops)
+    say s!"{name}: completeness checks pass: {complete}, rows read no public column: {free} \
+      ({(← IO.monoMsNow) - start} ms)"
+    unless complete && free do
+      throw (IO.userError s!"{name}: the completeness checks fail: {scope} pieces read a fresh \
+        column, rows read no public column: {free}")
+  unless write do
+    return StepPackage.packageOf circuit CircuitRelation.publicColumns pieces firstFresh width
+      (witnesses ops) (program.witnessWordCount, offset, 0, 0, 0)
   let package := StepPackage.packageOf circuit CircuitRelation.publicColumns pieces
     firstFresh width (witnesses ops) (program.witnessWordCount, offset, 0, 0, 0)
   let region ← if circuit < 2 then
@@ -246,7 +267,8 @@ def nebulaFixture : List String → Option String
 
 /-- Writes both step packages of the `--program` application (`selected`), and for today's
 fixture the parity file; with `--finish`, only the finish package (one Lean run renders
-at most two packages under the 1,500 s cap); with `--census`, prints the row census first; with
+at most two packages under the 1,500 s cap); with `--checks`, only runs the completeness checks of
+both step packages and writes nothing; with `--census`, prints the row census first; with
 `--identity`, also computes their one identity (`StepPackage.identityFast`), which the spec
 field arithmetic makes slow: Rust computes it natively. -/
 def main (arguments : List String) : IO Unit := do
@@ -265,6 +287,7 @@ def main (arguments : List String) : IO Unit := do
     say s!"{name}: {rows} application rows, digest {digest}"
     return
   let withCensus := arguments.contains "--census"
+  let write := !arguments.contains "--checks"
   let (program, stem) ← selected arguments
   let start ← IO.monoMsNow
   let base := StepRelation.base
@@ -283,7 +306,7 @@ def main (arguments : List String) : IO Unit := do
       (flatConstraints lightOps ++
         LogicalPlan.decodeConstraints (StepRelation.lightDigestColumn program)))
   let light ← emitPackage "light" 0 lightOps lightOffset lightPieces (program := program)
-    (stem := stem)
+    (stem := stem) (write := write)
   let refreshOffset := RefreshAssembler.sharedEnd base words
   say s!"light done ({(← IO.monoMsNow) - start} ms)"
   let refreshOps := Circuit.ops (OptionB.RefreshStepLayout.main program relation 1
@@ -299,7 +322,10 @@ def main (arguments : List String) : IO Unit := do
       (flatConstraints refreshOps ++
         LogicalPlan.decodeConstraints (StepRelation.refreshDigestColumn program)))
   let refresh ← emitPackage "refresh" 1 refreshOps refreshOffset refreshPieces
-    (program := program) (stem := stem)
+    (program := program) (stem := stem) (write := write)
+  unless write do
+    say s!"checks done ({(← IO.monoMsNow) - start} ms)"
+    return
   say s!"packages written ({(← IO.monoMsNow) - start} ms)"
   unless stem.isEmpty do
     say s!"emitter total {(← IO.monoMsNow) - start} ms"

@@ -64,7 +64,8 @@ theorem light_bound (p : GlobalParams) (depth : Nat) :
   rw [accumulatorBound_succ]
   omega
 
-/-- Every accumulator of an honest admissible run stays below `B`. -/
+/-- Along an admissible run, the bound `accumulatorBound` of each reached depth stays below `B`.
+This is arithmetic on the bound, not a statement about an accumulator's norm. -/
 theorem honest_bounds (p : GlobalParams) {cap : Nat} (capFits : 1 + cap ≤ p.maxFresh)
     (steps : List Step) (depth : Nat) (start : depth ≤ cap)
     (admissible : Admissible cap depth steps) :

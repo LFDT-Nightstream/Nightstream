@@ -7,7 +7,7 @@ whose extracted fresh witnesses differ give SuperNeo's relaxed binding collision
 outputs are bounded by `B`, the openings are bounded by `2B`, so the MSIS norm `8TB` of
 SuperNeo v1.2 Section 8 applies unchanged. `collisionAbove` drops the bound `B`: a chain
 extracts light outputs at up to `B + cap · T · (b − 1)`, and the openings then stay below twice
-that bound. -/
+that bound. The two forks can come from two Π_CCS runs, so their points can differ. -/
 
 set_option autoImplicit false
 
@@ -30,7 +30,7 @@ variable {Structure : Type uStructure} {Assignment : Type uAssignment}
   {params : GlobalParams}
   {algebra : PiRLC.Algebra Structure Assignment PublicInput Point Evaluation Commitment Scalar
     semantics params}
-  {one : Scalar} {bound : Nat} {system : Structure} {point : Point}
+  {one : Scalar} {bound : Nat} {system system' : Structure} {point point' : Point}
 
 theorem difference_commits
     {fresh running : CE.Instance Structure PublicInput Point Evaluation Commitment}
@@ -86,7 +86,7 @@ def collisionAt
     (withinB : ∀ assignment, semantics.normBounded bound assignment →
       semantics.normBounded params.bigB assignment)
     (left : Fork algebra one bound system point leftFresh leftRunning)
-    (right : Fork algebra one bound system point rightFresh rightRunning)
+    (right : Fork algebra one bound system' point' rightFresh rightRunning)
     (sameFresh : leftFresh.commitment = rightFresh.commitment)
     (different : left.freshAssignment laws strongSet ≠ right.freshAssignment laws strongSet) :
     PiRLC.RelaxedBindingCollision semantics params ops leftFresh.commitment where
@@ -143,7 +143,7 @@ def collisionAbove
       semantics.normBounded bound right →
       semantics.normBounded (2 * bound) (laws.assignmentModule.sub left right))
     (left : Fork algebra one bound system point leftFresh leftRunning)
-    (right : Fork algebra one bound system point rightFresh rightRunning)
+    (right : Fork algebra one bound system' point' rightFresh rightRunning)
     (sameFresh : leftFresh.commitment = rightFresh.commitment)
     (different : left.freshAssignment laws strongSet ≠ right.freshAssignment laws strongSet) :
     CollisionAt semantics params ops (2 * bound) leftFresh.commitment where

@@ -1,6 +1,7 @@
 import NightstreamFPrime.Lifecycle.RandomOracleReduction
 
-/-! SECURITY_MODEL.md Lemma 6, binding reduction laws and work. -/
+/-! The one-circuit random-oracle chain, uniqueness step (`RandomOracleUniqueness`): binding
+reduction laws and work. -/
 
 set_option autoImplicit false
 

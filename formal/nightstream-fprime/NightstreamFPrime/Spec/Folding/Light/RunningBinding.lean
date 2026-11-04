@@ -75,7 +75,7 @@ variable {Structure : Type uStructure} {Assignment : Type uAssignment}
   {params : GlobalParams}
   {algebra : PiRLC.Algebra Structure Assignment PublicInput Point Evaluation Commitment Scalar
     semantics params}
-  {one : Scalar} {bound : Nat} {system : Structure} {point : Point}
+  {one : Scalar} {bound : Nat} {system system' : Structure} {point point' : Point}
   {leftFresh leftRunning rightFresh rightRunning :
     CE.Instance Structure PublicInput Point Evaluation Commitment}
 
@@ -84,7 +84,7 @@ the first fork's output difference scaled by `δ₁⁻¹`, extract one running w
 theorem running_eq_of_cross (laws : ExtractionAlgebra semantics params algebra)
     (strongSet : StrongSetUnits laws.ring algebra.challengeValid)
     (left : Fork algebra one bound system point leftFresh leftRunning)
-    (right : Fork algebra one bound system point rightFresh rightRunning)
+    (right : Fork algebra one bound system' point' rightFresh rightRunning)
     (sameFresh : left.freshAssignment laws strongSet = right.freshAssignment laws strongSet)
     (cross : laws.assignmentModule.smul (laws.ring.sub left.baseChallenge left.forkChallenge)
         (laws.assignmentModule.sub left.baseAssignment right.baseAssignment) =
@@ -120,7 +120,7 @@ theorem running_eq_of_cross (laws : ExtractionAlgebra semantics params algebra)
 theorem base_difference_commits (laws : ExtractionAlgebra semantics params algebra)
     (oneEq : one = laws.ring.one)
     (left : Fork algebra one bound system point leftFresh leftRunning)
-    (right : Fork algebra one bound system point rightFresh rightRunning)
+    (right : Fork algebra one bound system' point' rightFresh rightRunning)
     (sameFreshCommitment : leftFresh.commitment = rightFresh.commitment)
     (sameRunningCommitment : leftRunning.commitment = rightRunning.commitment) :
     semantics.commit (laws.assignmentModule.sub left.baseAssignment right.baseAssignment) =
@@ -148,7 +148,7 @@ def runningCollisionAbove (laws : ExtractionAlgebra semantics params algebra)
       semantics.normBounded bound right →
       semantics.normBounded (2 * bound) (laws.assignmentModule.sub left right))
     (left : Fork algebra one bound system point leftFresh leftRunning)
-    (right : Fork algebra one bound system point rightFresh rightRunning)
+    (right : Fork algebra one bound system' point' rightFresh rightRunning)
     (sameFreshCommitment : leftFresh.commitment = rightFresh.commitment)
     (sameRunningCommitment : leftRunning.commitment = rightRunning.commitment)
     (sameFresh : left.freshAssignment laws strongSet = right.freshAssignment laws strongSet)

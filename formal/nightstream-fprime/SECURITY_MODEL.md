@@ -144,10 +144,37 @@ item 5).
   `Spec.Folding.Light.ErrorBudget.production_forkCoordinates`,
   `Lifecycle.Nifs.VerifierErrorBudget.test_error_eq`). Each numerator is a
   per-call count over `q²`.
-- **Not covered:** Lean has no random-oracle result for the light or the
-  refresh fold. It does not bound the probability that a fork fails or that a
-  Π_CCS bad event occurs in a Fiat–Shamir game, and it does not join these
-  counts into one error.
+- **Random-oracle result:** with every fold challenge read from a uniform
+  random oracle and an adversary that makes at most `Q` queries, the
+  probability that a fold succeeds and the extractor does not return its
+  witnesses is at most a statistical term, a state-collision term and a
+  kernel term (`Lifecycle.OptionB.RandomOracle.LightKnowledge.knowledge_error_le`,
+  `Lifecycle.OptionB.RandomOracle.RefreshKnowledge.knowledge_error_le`). The
+  statistical term is at most `(Q + 58) · 531/2^128` for light and
+  `(Q + 74) · 50/(87 · 2^115)` for refresh
+  (`Lifecycle.OptionB.RandomOracle.LightKnowledge.statisticalError_le`,
+  `Lifecycle.OptionB.RandomOracle.RefreshKnowledge.statisticalError_le`).
+  The kernel term is the probability that the binding reduction returns a
+  short kernel vector of the Ajtai key at the chain norm. A black-box
+  rewinding machine outputs that vector with at most `budget` adversary runs,
+  so the kernel term is at most its success plus `(3Q + 61)/budget` for light
+  and `(35Q + 653)/budget` for refresh
+  (`Lifecycle.OptionB.RandomOracle.LightSolver.kernelChance_le_solver`,
+  `Lifecycle.OptionB.RandomOracle.RefreshSolver.kernelChance_le_solver`). The
+  state-collision terms are the probability of a Poseidon2 collision on two
+  named prior states, and a collision finder outputs the colliding input
+  pair (`Lifecycle.OptionB.RandomOracle.HashSolver.hashCollisions_le_finder`).
+  Averaged over the SHAKE128 key setup at key width `2^26`, the kernel term is
+  an MSIS advantage for a uniform matrix at the chain norm plus a programming
+  error below `2^−192`, so each fold's bound uses only the two algorithms
+  (`Export.OptionB.RandomOracleSetup.light_production_knowledge_error_lt_solvers`,
+  `Export.OptionB.RandomOracleSetup.refresh_production_knowledge_error_lt_solvers`).
+  Lean bounds neither the MSIS advantage nor the collision advantage
+  numerically (trust item 2), and it states the machines' work in adversary
+  runs, not in time.
+- **Not covered:** the model reads every challenge from a random oracle. The
+  step circuits recompute the challenges with Poseidon2, so this result
+  bounds no deployed check (trust item 3).
 
 ### 4. IVC adversary
 
@@ -190,9 +217,20 @@ item 5).
   (`Export.OptionB.IvcWalk.Reaches`). The bridge's selector returns the
   circuit that ran only on a valid step (`Export.OptionB.TerminalBridge.chosen`),
   so each decoded step is valid (`Export.OptionB.TerminalBridge.valid_of_chosen`).
-- **Gaps:** Lean does not derive the value of `error`. Adversary 3's counts
-  are deterministic, and no random-oracle result for the light and refresh
-  folds discharges Assumption 1.
+- **Start from a final proof:** the finish fold of a last fold is one more
+  stage before the walk. An answer that extracts it gives an accepted
+  terminal for the finish step's input
+  (`Export.OptionB.FinishWalk.holdsFor_of_extracted`), whose visit has each
+  slot at bound `B` (`Export.OptionB.FinishWalk.finish_relaxed`). So, if no
+  valid steps reach that statement, the finish answer does not extract, or
+  the walk from the finish output has a collision or a failed stage at one of
+  its first `iteration` visits
+  (`Export.OptionB.FinishWalk.finish_walk_covered`). Adversary 6 uses this.
+- **Gaps:** Lean derives Assumption 1 with an explicit `error` only in a
+  random-oracle model of the folds
+  (`Lifecycle.OptionB.RandomOracle.Assumption1.romAssumption1`). The bound
+  here still takes Assumption 1 for the concrete hash as a premise, and it
+  gives no concrete security for a long history (trust item 3).
 
 ### 5. Memory adversary
 
@@ -247,6 +285,22 @@ item 5).
   finish package give the finish relation of the last fold
   (`Export.OptionB.FinishRelation.package_finish`). Trust item 7 lists what
   this result assumes.
+- **With the IVC bound:** the last fold starts the reverse walk of adversary
+  4. One experiment draws an outcome of the final verifier's experiment, then
+  the coins of the finish stage's extractor, then the coins of the reverse
+  extractor's stages. In it, the probability that the final verifier accepts
+  a statement whose iteration is at most `depth` and that no valid steps
+  reach is at most `calls / 2^t`, plus the finish stage's Assumption 1 error,
+  plus the terms of adversary 4
+  (`CompressionLean.Claims.option_b_ivc_bound`).
+- **Gaps:** that bound has two more premises. The finish adversary, which
+  outputs the finish fold of the last fold, is admitted. The chain adversary,
+  which outputs the terminal that the finish answer gives, is an admitted
+  stage (`CompressionLean.Spec.OptionB.finishAdversary`,
+  `CompressionLean.Spec.OptionB.chainAdversary`). Both select the last fold
+  with `Classical.epsilon`. The compression claims prove that a last fold
+  exists, but no Lean algorithm computes it from the final proof. So Lean
+  does not show that these two adversaries are efficient (trust item 3).
 
 ## What you trust
 
@@ -267,9 +321,10 @@ item 5).
      `2^27.03` (`Spec.Folding.Schedule.production_msisChainBound`). It is the
      SuperNeo v1.2 Section 8 norm `8TB` with `B` replaced by the largest
      recovered bound (`Spec.Folding.Schedule.msisChainBound_zero`). The
-     decider checks each slot below `B`, and an honest slot stays below
-     `accumulatorBound cap = 17,496` (`Spec.GlobalParams.accumulatorBound`,
-     `SPEC.md` Algorithm 7). The recovered bound, and so the chain norm,
+     decider checks each slot below `B`. By Cyclo Theorem 3, an honest slot
+     stays below `accumulatorBound cap = 17,496`
+     (`Spec.GlobalParams.accumulatorBound`, `SPEC.md` Algorithm 7); Lean does
+     not prove this over a schedule. The recovered bound, and so the chain norm,
      comes from the decider bound `B`, not from the honest bound.
    - *The κ estimate.* A lattice-estimator run outside Lean (commit 38618db),
      with the method and the matrix of 22 × 4,708,530 ring elements of the
@@ -296,8 +351,8 @@ item 5).
    same events.
    For every admitted fold adversary there is an efficient extractor that
    reads the adversary's tape and its own coins, so it may rerun the
-   adversary. After a success, the extractor fails with probability at most
-   `error` of that adversary. The adversary outputs an attempt: a fold, the
+   adversary. The probability that the adversary succeeds and the extractor
+   fails is at most `error` of that adversary. The adversary outputs an attempt: a fold, the
    running claim that it starts from, and a witness of its output at a
    bound. One premise covers both fold kinds. The attempt names its circuit,
    and a success needs the bounded-depth verifier of that circuit to accept,
@@ -368,13 +423,37 @@ item 5).
    for the whole class. Assumption 1 is the paper's plain-model premise, not
    a theorem. The step circuits recompute the challenges of the previous fold
    with Poseidon2, so a recursive argument uses the concrete hash, which no
-   random-oracle model covers. Adversary 3's error counts motivate the value
-   of `error`, but no Lean statement derives one from the other. The sum has
-   one Assumption 1 error for each fold of the slot, and stage `j + 1` runs
+   random-oracle model covers. In a random-oracle model of the folds,
+   Assumption 1 holds with an explicit error: adversary 3's knowledge errors
+   for each circuit key plus a truncation loss `2 · ((Q + 1) + 17 · (Q + 17))
+   / budget` for an extractor with its own oracle coins and `budget` reruns
+   (`Lifecycle.OptionB.RandomOracle.Assumption1.romAssumption1`). At an
+   oracle that answers like the Poseidon2 sponge, the model's success and
+   extraction events are the walk's
+   (`Export.OptionB.RomWalk.succeeds_iff_walkSucceeds`,
+   `Export.OptionB.RomWalk.extracted_iff_walkExtracted`), and an honest fold
+   meets the success event (`Lifecycle.OptionB.RandomOracle.Honest.light_honest`,
+   `Lifecycle.OptionB.RandomOracle.Honest.refresh_honest`). One fixed oracle
+   carries no probability, so this does not prove the premise for the
+   concrete hash; it gives the value of `error` that the premise asks for.
+   Lean has no random-oracle closure premise, because the query bound of a
+   stage grows with its depth. The sum has
+   one Assumption 1 error for each stage of the reverse extractor, which is
+   one visit, and stage `j + 1` runs
    the extractor of stage `j`, which may rerun stage `j`. So the cost of a
    stage grows with its depth. This is the constant-depth limit of HyperNova
    Lemma 17: the Lean statement holds for every depth, but it gives no
-   concrete security for a long history.
+   concrete security for a long history. The errata's Definition 11 states
+   knowledge soundness only for a constant number of steps that does not
+   depend on the security parameter, and its proof composes the stage
+   extractors because that number is constant. A random-oracle bound for
+   each fold does not remove this limit: each stage's adversary includes
+   the earlier stages' reruns.
+   The joined bound of adversary 6 uses this premise for one more stage, the
+   finish fold. It also needs the finish adversary and the chain adversary to
+   be admitted. Both select the last fold with `Classical.epsilon`, so they
+   have the intended meaning of `Admitted` only if an efficient algorithm
+   finds the last fold from the final proof. Lean does not show this.
 4. **The circuit selection.** HyperNova NIVC selects the circuit of a step
    with `φ(z_i, w_i)`. The Lean step relation takes it from the machine's
    selector of the application state and witness (`Lifecycle.OptionB.machine`,
@@ -410,6 +489,11 @@ item 5).
    key's root is the honest root of the claims' setup. The premises about the
    keys and the setups are met for the reference application only
    (`formal/compression-lean/STATUS.md`).
+   The bound with the IVC bound (`CompressionLean.Claims.option_b_ivc_bound`)
+   also needs the final program's state keys to be the digests of the circuit
+   keys (`CompressionLean.Spec.OptionB.KeysAre`). Rust meets this premise:
+   `OptionB::new` gives the same digests to the step states and to the final
+   program (not checked against Lean).
 
 ## Out of scope
 
@@ -417,13 +501,18 @@ item 5).
   adversary is not evidence that an honest proof is accepted. The honest
   prover has separate results: an honest light fold and an honest refresh
   fold are accepted (`Spec.Folding.Light.complete`,
-  `Spec.Folding.Refresh.complete`), each accumulator of an admissible
-  schedule stays below `B` (`Spec.Folding.Schedule.honest_bounds`), and an
-  honest step of either circuit has an assignment in which every row holds
+  `Spec.Folding.Refresh.complete`), the bound `accumulatorBound` of each
+  depth of an admissible schedule stays below `B`
+  (`Spec.Folding.Schedule.honest_bounds`, arithmetic only), and, given an
+  accepted fold, an honest step of either circuit has an assignment in which
+  every row of its source layout holds
   (`Layout.OptionB.LightAssemblerCompleteness.complete`,
-  `Layout.OptionB.RefreshAssemblerCompleteness.complete`). Lean does not join
-  these results into a statement that the honest prover's proofs are
-  accepted. Each application promises that its step keeps the state width
+  `Layout.OptionB.RefreshAssemblerCompleteness.complete`). Lean does not prove
+  that an honest accumulator's norm stays within `accumulatorBound` over a
+  schedule, that an honest witness satisfies the exported relation, or that
+  the terminal, one IVC step, the finish step or compression accept an
+  honest proof. So Lean does not join these results into a statement that
+  the honest prover's proofs are accepted. Each application promises that its step keeps the state width
   (`Lifecycle.Stage1.Application.Program.step_length`); the counter must stay
   below `q`.
 - The error is not one security level. Lean bounds no fold error in a

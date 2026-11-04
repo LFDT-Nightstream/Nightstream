@@ -5,7 +5,7 @@ import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.ForkStrongSet
 import NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.Law
 import NightstreamFPrime.Spec.Phi81StrongSet.LowNormInvertibility
 
-/-! Random-oracle model, SECURITY_MODEL.md Lemma 5. -/
+/-! Random-oracle model, the one-circuit chain's fork step. -/
 
 set_option autoImplicit false
 

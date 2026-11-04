@@ -49,6 +49,7 @@ CallerSpec.v
 CallerRefinement.v
 CallerValidation.v
 ProgramSpec.v
+TableState.v
 ProgramEncoding.v
 BlockEncoding.v
 BlockTrace.v

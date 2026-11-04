@@ -5,6 +5,7 @@ From mathcomp Require Import ssrbool eqtype.
 Require Import R1CS Columns Range MemoryTrace MemoryCatalog OpcodeCatalog TraceRefinement Wasm2 WasmIntegers Locals
   SpecTecCalls StraightLineSpec CallerSpec CallerValidation ProgramSpec ProgramEncoding ProgramRefinement
   FunctionValidation CodeLayout ControlDecode Fragment tests.BlockPrograms.
+Require Import TableState.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -129,7 +130,7 @@ Example block_initial_config :
   CircuitConfig blockProgram blockStore 0 (controlShape [] (siteCode (codePosition 1 [] 0)))
     blockMemory (mkBoundary 2 8 8 7 0 0 0 0 0 0 0) (stackConfig (mk_state blockStore callerFrame) [] callerBody).
 Proof.
-  split; [reflexivity | ]. split; [repeat constructor | ]. split; [exact block_program_validated | ].
+  split; [reflexivity | ]. split; [repeat constructor | ]. split; [exact block_program_validated | ]. split; [apply no_tables_loaded; reflexivity | ].
   exists True. split; [vm_compute; reflexivity | exact I].
 Qed.
 

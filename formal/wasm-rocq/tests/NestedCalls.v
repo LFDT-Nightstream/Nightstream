@@ -3,6 +3,7 @@ From mathcomp Require Import ssrbool eqtype.
 Require Import R1CS Columns Range MemoryTrace MemoryCatalog TraceRefinement Wasm2 WasmIntegers Locals SpecTecCalls
   StraightLineSpec CallerSpec ProgramSpec ProgramEncoding ProgramRefinement FunctionValidation
   ControlDecode Fragment.
+Require Import TableState.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -105,7 +106,7 @@ Example nested_initial_config :
     nestedMemory (mkBoundary 4 8 8 7 0 0 0 0 0 0 0)
     (mk_config (mk_state nestedStore zeroFrame) [admininstr_instr (CALL (mk_uN 1))]).
 Proof.
-  split; [reflexivity | ]. split; [repeat constructor | ]. split; [exact nested_program_validated | ].
+  split; [reflexivity | ]. split; [repeat constructor | ]. split; [exact nested_program_validated | ]. split; [apply no_tables_loaded; reflexivity | ].
   exists True. split; [vm_compute; reflexivity | exact I].
 Qed.
 

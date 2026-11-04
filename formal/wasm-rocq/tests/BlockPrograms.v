@@ -1,6 +1,6 @@
 From Stdlib Require Import List ZArith Lia.
 From mathcomp Require Import ssrbool eqtype.
-Require Import R1CS Columns Range Add TraceRefinement MemoryTrace MemoryCatalog OpcodeCatalog Wasm2 WasmIntegers Locals
+Require Import R1CS Columns Range Add TraceRefinement MemoryTrace MemoryCatalog OpcodeCatalog TableState Wasm2 WasmIntegers Locals
   StraightLineSpec StackSimulation SpecTecCalls CallerSpec CallerValidation FunctionValidation
   BlockSpec CodeLayout ProgramSpec ProgramEncoding ProgramRefinement ControlDecode ControlInvariant ControlBridge
   Fragment.
@@ -30,7 +30,7 @@ Ltac typed_step inputs outputs extra :=
 
 (* A function's first instruction, with its locals as its first cells. *)
 Lemma function_start_config : forall program s index f locals memory boundary,
-  store_FUNCS s = program -> wf_store s -> programValidated program s ->
+  store_FUNCS s = program -> wf_store s -> programValidated program s -> store_TABLES s = [] ->
   functionAt program index = Some f -> length locals = frameLocals f ->
   Forall (fun v => 0 <= v < i32Modulus) locals ->
   (forall i v, nth_error locals i = Some v ->
@@ -43,10 +43,10 @@ Lemma function_start_config : forall program s index f locals memory boundary,
   CircuitConfig program s (boundaryCallDepth boundary) (controlShape [] (siteCode (codePosition index [] 0)))
     memory boundary (stackConfig (mk_state s (activeFrame f locals)) [] (guestBody f)).
 Proof.
-  intros program s index f locals memory boundary Hstore Hwf Hvalid Hf Hlen Hbounds Hcells Hfbp Hbase Hsp Hpc Hidle
+  intros program s index f locals memory boundary Hstore Hwf Hvalid Htables Hf Hlen Hbounds Hcells Hfbp Hbase Hsp Hpc Hidle
     Hdepth.
   apply (control_state_circuit _ _ _ (controlCursor [] (atCode (frameView (codePosition index [] 0) [] [] locals))));
-    [exact Hstore | exact Hwf | exact Hvalid | ].
+    [exact Hstore | exact Hwf | exact Hvalid | exact (no_tables_loaded _ _ Htables) | ].
   exists f, (stackConfig (mk_state s (activeFrame f locals)) [] (guestBody f)).
   split; [exact Hf | ]. split.
   - pose proof (FrameRows.idle_active_state program s memory boundary f

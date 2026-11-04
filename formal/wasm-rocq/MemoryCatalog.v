@@ -64,6 +64,8 @@ Definition pcRomId : nat := 34%nat.
 Definition frameSlideRemainingId : nat := 35%nat.
 Definition frameSlideDistanceId : nat := 36%nat.
 Definition programBrTableLenId : nat := 37%nat.
+Definition tableElementId : nat := 7%nat.
+Definition tableSizeId : nat := 8%nat.
 Definition exportEntryScheduleCountId : nat := 32%nat.
 Definition exportExitScheduleCountId : nat := 33%nat.
 

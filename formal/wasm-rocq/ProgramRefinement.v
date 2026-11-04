@@ -2,7 +2,7 @@
    the active frame's code, enters or initializes a callee, or returns to its caller. *)
 From Stdlib Require Import List ZArith Lia.
 Require Import R1CS Columns FullRelation Range MemoryTrace MemoryCatalog TraceRefinement Wasm2
-  StraightLineSpec StackSimulation SpecTecCalls CallerSpec CallerRefinement ProgramSpec ProgramEncoding CallContext CallScope Fragment
+  StraightLineSpec StackSimulation SpecTecCalls CallerSpec CallerRefinement ProgramSpec TableState ProgramEncoding CallContext CallScope Fragment
   ControlDecode ControlInvariant FrameFacts ControlBridge FrameRows BranchRows CallRows TrapFacts BlockEncoding ProgramBinding OpcodeCatalog Selectors.
 Import ListNotations.
 Open Scope Z_scope.
@@ -180,10 +180,10 @@ Theorem active_run_refinement : forall program s baseDepth (shape : ControlShape
     CircuitConfig program s baseDepth shape' final (rowsFinalBoundary boundary rows) c1.
 Proof.
   intros program s baseDepth shape rows initial final boundary c0 Hprime Hloaded Hrun Hfragment Hconfig.
-  pose proof Hconfig as [Hfuncs [Hwf [Hvalid _]]].
+  pose proof Hconfig as [Hfuncs [Hwf [Hvalid [Htables _]]]].
   destruct (circuit_config_state _ _ _ _ _ _ _ Hconfig) as [cursor [Hshape Hstate]].
   destruct (control_run program s Hfuncs Hwf Hvalid _ _ _ _ _ _ _ Hprime Hloaded Hrun Hfragment Hstate)
     as [cursor' [c1 [Hroot [Hsteps [Hloaded' Hstate']]]]].
   exists (shapeOf cursor'), c1. split; [exact Hsteps | ]. split; [exact Hloaded' | ].
-  apply control_state_circuit; assumption.
+  apply control_state_circuit; try assumption. exact (run_preserves_tables _ _ _ _ _ Hprime Hloaded Hrun Htables).
 Qed.

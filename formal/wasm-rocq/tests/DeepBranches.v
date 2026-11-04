@@ -4,6 +4,7 @@ From mathcomp Require Import ssrbool eqtype.
 Require Import R1CS Columns Range TraceRefinement MemoryTrace MemoryCatalog OpcodeCatalog Wasm2 WasmIntegers Locals
   StraightLineSpec SpecTecCalls CallerSpec CallerValidation FunctionValidation CodeLayout ProgramSpec ProgramEncoding
   ProgramRefinement ControlDecode Fragment tests.BlockPrograms.
+Require Import TableState.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -124,7 +125,7 @@ Example deep_branch_site_config :
         admininstr_instr (LOCAL_GET (mk_uN 1)); admininstr_instr (LOCAL_SET (mk_uN 0))];
        admininstr_instr (LOCAL_GET (mk_uN 0))]).
 Proof.
-  split; [reflexivity | ]. split; [repeat constructor | ]. split; [exact deep_program_validated | ].
+  split; [reflexivity | ]. split; [repeat constructor | ]. split; [exact deep_program_validated | ]. split; [apply no_tables_loaded; reflexivity | ].
   exists True. split; [vm_compute; reflexivity | exact I].
 Qed.
 

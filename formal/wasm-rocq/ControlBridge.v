@@ -2,7 +2,7 @@
    ControlState, and every ControlState decodes at its own shape. *)
 From Stdlib Require Import List ZArith Bool Lia.
 Require Import Wasm2 WasmIntegers R1CS MemoryTrace MemoryCatalog Add Locals StraightLineSpec StackSimulation
-  SpecTecCalls SpecTecBranches CallerSpec ProgramSpec ProgramEncoding CodeLayout FrameInitialization
+  SpecTecCalls SpecTecBranches CallerSpec ProgramSpec TableState ProgramEncoding CodeLayout FrameInitialization
   Fragment ControlDecode ControlInvariant FrameFacts.
 Import ListNotations.
 Open Scope Z_scope.
@@ -427,7 +427,7 @@ Theorem circuit_config_state : forall program s baseDepth shape memory boundary 
   CircuitConfig program s baseDepth shape memory boundary c ->
   exists cursor, shapeOf cursor = shape /\ ControlState program s baseDepth cursor memory boundary c.
 Proof.
-  intros program s baseDepth shape memory boundary c [_ [_ [_ [obligations [Hdecode Hobligations]]]]].
+  intros program s baseDepth shape memory boundary c [_ [_ [_ [_ [obligations [Hdecode Hobligations]]]]]].
   unfold decodeControl in Hdecode.
   destruct (_ && _) eqn:Hchecks; [ | discriminate]. bools.
   destruct (decodeActive program s memory boundary (activeSite shape)) as [[inner active] | ] eqn:Hactive;
@@ -445,14 +445,14 @@ Proof.
 Qed.
 
 Theorem control_state_circuit : forall program s baseDepth cursor memory boundary c,
-  store_FUNCS s = program -> wf_store s -> programValidated program s ->
+  store_FUNCS s = program -> wf_store s -> programValidated program s -> tablesLoaded s memory ->
   ControlState program s baseDepth cursor memory boundary c ->
   CircuitConfig program s baseDepth (shapeOf cursor) memory boundary c.
 Proof.
-  intros program s baseDepth [stack position] memory boundary c Hfuncs Hwf Hvalid
+  intros program s baseDepth [stack position] memory boundary c Hfuncs Hwf Hvalid Htables
     [f [inner [Hf [Hstate [Hsusp [Hbase [Hdepth ->]]]]]]].
   cbn [activePosition suspendedCalls] in *.
-  split; [exact Hfuncs | split; [exact Hwf | split; [exact Hvalid | ]]].
+  split; [exact Hfuncs | split; [exact Hwf | split; [exact Hvalid | split; [exact Htables | ]]]].
   unfold decodeControl, shapeOf. cbn [callSites activeSite activePosition suspendedCalls]. rewrite length_map.
   pass_check.
   destruct (active_decodes _ _ _ _ _ _ Hstate) as [active [Hactive Hobligations]].

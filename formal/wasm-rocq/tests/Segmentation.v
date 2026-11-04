@@ -1,6 +1,7 @@
 From Stdlib Require Import List ZArith Lia.
 Require Import R1CS Columns Range MemoryTrace TraceRefinement Wasm2 StraightLineSpec
   CallerSpec ProgramSpec ControlDecode ControlInvariant ControlBridge ProgramRefinement tests.Programs tests.Callers.
+Require Import TableState.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -22,7 +23,7 @@ Proof.
   exists c. split; [exact Hsteps | ]. split; [exact Hloaded | ].
   destruct (circuit_config_state _ _ _ _ _ _ _ Hconfig) as [cursor [Hshape Hstate]].
   rewrite <- (source_final_shape _ _ _ _ Hstate Hpc).
-  exact (control_state_circuit _ _ _ _ _ _ _ Logic.eq_refl source_store_wf source_program_validated Hstate).
+  exact (control_state_circuit _ _ _ _ _ _ _ Logic.eq_refl source_store_wf source_program_validated (no_tables_loaded sourceStore _ Logic.eq_refl) Hstate).
 Qed.
 
 (* These rows test the scope predicate alone, not full circuit satisfaction or

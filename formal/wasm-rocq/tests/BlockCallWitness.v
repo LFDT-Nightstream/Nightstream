@@ -6,6 +6,7 @@ From Stdlib Require Import List ZArith Lia.
 Require Import R1CS Columns Range MemoryTrace MemoryCatalog TraceRefinement Wasm2 StraightLineSpec SpecTecCalls
   ProgramSpec ProgramEncoding ProgramRefinement ControlDecode tests.WitnessCheck tests.BlockCallTrace
   tests.BlockCalls tests.BlockCallRun.
+Require Import TableState.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -22,7 +23,7 @@ Proof. split; [reflexivity | ]. apply callerRowb_sound. vm_compute. reflexivity.
 
 Lemma witness_entry_config : CircuitConfig blockProgram blockStore 0 witnessShape witnessMemory witnessStart witnessEntry.
 Proof.
-  split; [reflexivity | ]. split; [repeat constructor | ]. split; [exact block_program_validated | ].
+  split; [reflexivity | ]. split; [repeat constructor | ]. split; [exact block_program_validated | ]. split; [apply no_tables_loaded; reflexivity | ].
   exists True. split; [vm_compute; reflexivity | exact I].
 Qed.
 

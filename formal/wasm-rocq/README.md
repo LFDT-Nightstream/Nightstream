@@ -20,7 +20,8 @@ The operand height below each label follows from the code's static stack effects
 every function in the store must pass SpecTec validation. A run may stop anywhere
 in its base frame, including inside blocks, inside calls, or during a callee's
 frame initialization; the final shape resumes the next run. The store is an input:
-the circuit does not hold it. An activation may remain running, return a captured i32 result (or no result), or trap.
+the circuit holds only its tables (`TableState.v`: null as 0, function address a as a + 1),
+which the fragment never writes. An activation may remain running, return a captured i32 result (or no result), or trap.
 `ActivationConfig` wraps the running decoder in the base function's SpecTec frame;
 `ExecutionConfig` binds the outcome to the last row. A terminating run stops on that row.
 Padding before termination is supported. An explicitly empty `else` is rejected by the Rust parser (SpecTec's `if` has no such form; strip it before

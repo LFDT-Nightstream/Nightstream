@@ -3,6 +3,7 @@ From mathcomp Require Import ssrbool eqtype.
 Require Import R1CS Columns Range Add TraceRefinement MemoryTrace MemoryCatalog OpcodeCatalog Wasm2 WasmIntegers Locals
   StraightLineSpec StackSimulation SpecTecCalls CallerSpec CallerValidation FunctionValidation CodeLayout ProgramSpec
   ProgramEncoding ProgramRefinement ControlDecode ControlInvariant ControlBridge Fragment tests.BlockPrograms.
+Require Import TableState.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -155,7 +156,7 @@ Example computed_interior_config :
   CircuitConfig computedProgram computedStore 0 (controlShape [] (siteCode (codePosition 0 [labelSite 0 0] 3)))
     computedInteriorMemory (mkBoundary 4 10 9 7 0 0 0 0 0 0 0) computedInteriorConfig.
 Proof.
-  split; [reflexivity | ]. split; [exact computed_store_wf | ]. split; [exact computed_program_validated | ].
+  split; [reflexivity | ]. split; [exact computed_store_wf | ]. split; [exact computed_program_validated | ]. split; [apply no_tables_loaded; reflexivity | ].
   exists True. split; [vm_compute; reflexivity | exact I].
 Qed.
 
@@ -264,7 +265,7 @@ Proof.
   destruct (circuit_config_state _ _ _ _ _ _ _ Hconfig1) as [cursor [Hshape Hstate1]].
   exists between, c1, shape2, c2.
   split; [rewrite <- (computed_pc_four_shape _ _ _ _ Hstate1 Hpc);
-    exact (control_state_circuit _ _ _ _ _ _ _ Logic.eq_refl computed_store_wf computed_program_validated Hstate1) | ].
+    exact (control_state_circuit _ _ _ _ _ _ _ Logic.eq_refl computed_store_wf computed_program_validated (no_tables_loaded computedStore _ Logic.eq_refl) Hstate1) | ].
   split; [exact Hsteps1 | ]. split; [exact Hsteps2 | ].
   split; [exact Hloaded2 | ]. rewrite rows_final_boundary_app. exact Hconfig2.
 Qed.

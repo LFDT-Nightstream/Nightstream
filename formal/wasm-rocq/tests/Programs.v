@@ -1,6 +1,6 @@
 From Stdlib Require Import List ZArith Lia.
 From mathcomp Require Import ssrbool eqtype.
-Require Import R1CS Columns Range MemoryTrace MemoryCatalog OpcodeCatalog TraceRefinement
+Require Import R1CS Columns Range MemoryTrace MemoryCatalog OpcodeCatalog TableState TraceRefinement
   Wasm2 WasmIntegers Locals SpecTecCalls StackSimulation StraightLineSpec CallSpec CallerSpec CallerRefinement
   ProgramSpec ControlDecode ControlInvariant ControlBridge ProgramEncoding ProgramRefinement FunctionValidation
   CallerValidation CodeLayout Fragment tests.Calls tests.Callers.
@@ -136,7 +136,7 @@ Example source_initial_config : forall stale,
   CircuitConfig sourceProgram sourceStore 0 (controlShape [] (siteCode (codePosition 1 [] 0)))
     (sourceMemory stale) (mkBoundary 2 8 8 7 0 0 0 0 0 0 0) (stackConfig sourceInitialState [] getCallAdd).
 Proof.
-  intros stale. split; [reflexivity | ]. split; [exact source_store_wf | ]. split; [exact source_program_validated | ].
+  intros stale. split; [reflexivity | ]. split; [exact source_store_wf | ]. split; [exact source_program_validated | ]. split; [apply no_tables_loaded; reflexivity | ].
   exists True. split; [vm_compute; reflexivity | exact I].
 Qed.
 

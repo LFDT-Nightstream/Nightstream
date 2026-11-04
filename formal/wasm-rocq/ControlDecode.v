@@ -6,7 +6,7 @@
    input; the program it holds must validate. *)
 From Stdlib Require Import List ZArith Bool.
 Require Import Wasm2 WasmIntegers R1CS MemoryTrace MemoryCatalog StraightLineSpec SpecTecCalls SpecTecBranches
-  CallerSpec ProgramSpec CodeLayout FunctionValidation FrameInitialization Locals Fragment.
+  CallerSpec ProgramSpec TableState CodeLayout FunctionValidation FrameInitialization Locals Fragment.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -216,11 +216,11 @@ Definition decodeControl (program : Program) (s : store) (baseDepth : Z) (shape 
   decodeCalls program memory (siteFunction (activeSite shape))
     (boundaryLocalsBase boundary) (boundaryCallDepth boundary) (callSites shape) (fst active) (snd active).
 
-(* The circuit state denotes c: the store holds the program, which validates, and
-   the state decodes to c. *)
+(* The circuit state denotes c: the store holds the program, which validates, the
+   table memories hold the store's tables, and the state decodes to c. *)
 Definition CircuitConfig (program : Program) (s : store) (baseDepth : Z) (shape : ControlShape)
     (memory : MemoryState) (boundary : Boundary) (c : config) : Prop :=
-  store_FUNCS s = program /\ wf_store s /\ programValidated program s /\
+  store_FUNCS s = program /\ wf_store s /\ programValidated program s /\ tablesLoaded s memory /\
   exists obligations, decodeControl program s baseDepth shape memory boundary = Some (c, obligations) /\ obligations.
 
 Definition runStartsAt (boundary : Boundary) (rows : list Witness) : Prop :=

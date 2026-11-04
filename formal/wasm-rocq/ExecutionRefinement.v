@@ -3,7 +3,7 @@
    composes that terminal step with the running prefix. *)
 From Stdlib Require Import List ZArith Lia.
 Require Import R1CS Columns FullRelation Range MemoryTrace MemoryCatalog TraceRefinement Wasm2
-  StraightLineSpec StackSimulation SpecTecCalls CallerSpec CallerRefinement ProgramSpec ProgramEncoding ControlDecode
+  StraightLineSpec StackSimulation SpecTecCalls CallerSpec CallerRefinement ProgramSpec TableState ProgramEncoding ControlDecode
   ControlInvariant ControlBridge ProgramRefinement ExecutionSpec TerminalRows CallInitialization.
 Import ListNotations.
 Open Scope Z_scope.
@@ -84,7 +84,7 @@ Theorem run_refinement : forall program s caller baseDepth root shape rows initi
 Proof.
   intros program s caller baseDepth root shape rows initial final boundary c0 Hprime Hloaded Hrun [Hstart Hrows]
     [Hhost [Hcaller [HrootShape [f [inner [Hroot [Hconfig ->]]]]]]].
-  pose proof Hconfig as [Hstore [Hwf [Hvalid _]]].
+  pose proof Hconfig as [Hstore [Hwf [Hvalid [Htables _]]]].
   destruct (circuit_config_state _ _ _ _ _ _ _ Hconfig) as [cursor [Hshape Hstate]].
   assert (HrootCursor : cursorRoot cursor = root) by (rewrite <- shape_root_cursor, Hshape; exact HrootShape).
   assert (HloadedFinal : programLoaded program final)
@@ -102,7 +102,7 @@ Proof.
         (proj1 (proj2 Hrun)) Hstart Hactive). exact Hhost. }
     split; [exact Hcaller | ]. split; [rewrite shape_root_cursor, Hroot'; exact HrootCursor | ].
     exists f, inner'. split; [exact Hroot | ]. split; [ | reflexivity].
-    apply control_state_circuit; assumption.
+    apply control_state_circuit; try assumption. exact (run_preserves_tables _ _ _ _ _ Hprime Hloaded Hrun Htables).
   - destruct (valid_run_split prefix [row] initial final Hrun) as [middle [HrunPrefix HrunRow]].
     destruct (control_run program s Hstore Hwf Hvalid _ _ _ _ _ _ _ Hprime Hloaded HrunPrefix
       (conj (prefix_starts_at _ _ _ Hstart) Hprefix) Hstate)

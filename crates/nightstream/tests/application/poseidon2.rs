@@ -1,17 +1,18 @@
 use std::collections::BTreeMap;
 
+use crate::application::{poseidon2_hash_chain_step, poseidon2_hash_chain_v1, ApplicationCircuit};
 use neo_ccs::crypto::poseidon2_goldilocks::poseidon2_hash;
-use nightstream::application::{poseidon2_hash_chain_step, poseidon2_hash_chain_v1, ApplicationCircuit};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks;
 use serde_json::{json, Value};
 
 fn reference() -> Value {
-    serde_json::from_slice(include_bytes!("fixtures/poseidon2-application-reference.json")).unwrap()
+    serde_json::from_slice(include_bytes!("../fixtures/poseidon2-application-reference.json")).unwrap()
 }
 
 fn execution() -> ([Goldilocks; 4], [Goldilocks; 4], [Goldilocks; 4]) {
-    let value: Value = serde_json::from_slice(include_bytes!("fixtures/poseidon2-application-execution.json")).unwrap();
+    let value: Value =
+        serde_json::from_slice(include_bytes!("../fixtures/poseidon2-application-execution.json")).unwrap();
     let words = |index: usize| std::array::from_fn(|lane| field(&value[index][lane]));
     (words(0), words(1), words(2))
 }

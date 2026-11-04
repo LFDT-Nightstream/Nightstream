@@ -4,7 +4,7 @@ edition = { workspace = true }
 version = { workspace = true }
 authors = { workspace = true }
 license = "Apache-2.0"
-include = ["/src/**", "/tests/**", "/README.md"]
+include = ["/src/**", "/tests/**", "/artifacts/**", "/README.md"]
 
 [lints]
 workspace = true
@@ -31,6 +31,7 @@ bincode = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
+ruzstd = "0.9.1"
 
 [dev-dependencies]
 proc-macro2 = "1.0.106"

@@ -20,7 +20,8 @@ use neo_math::F;
 use neo_transcript::domain_chunk_v1_2;
 use nightstream_fprime::{encode_digest, OptionBPackages, OptionBState, PackageError, StepPackage, PUBLIC_WORDS};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
-pub(crate) use relation::{Relation, RelationError};
+pub(crate) use relation::Relation;
+pub use relation::RelationError;
 
 /// `Schedule.productionLightFoldCap`: the light circuit's depth guard admits
 /// depths below 64.

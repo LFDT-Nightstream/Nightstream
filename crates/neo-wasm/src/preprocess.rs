@@ -128,6 +128,16 @@ fn export_frame_shape(tables: &WasmProgramTables, fref: u32) -> Result<(u8, u32)
 /// The carried words of `state` in continuity-link order: the values that a
 /// row starting from `state` holds at its `_BEFORE` columns.
 pub fn continuity_words(state: WasmStepState) -> Vec<F> {
+    continuity_values(state)
+        .into_iter()
+        .map(F::from_u64)
+        .collect()
+}
+
+/// The carried integers of `state` in continuity-link order, before their
+/// reduction to field words. A value of `q` or more stays as it is, so it is
+/// not the word of the smaller value that it reduces to.
+pub(crate) fn continuity_values(state: WasmStepState) -> Vec<u64> {
     build_wasm_relation_layout()
         .auxiliary
         .continuity
@@ -136,7 +146,7 @@ pub fn continuity_words(state: WasmStepState) -> Vec<F> {
         .collect()
 }
 
-fn carried_state_field(state: WasmStepState, column: usize) -> F {
+fn carried_state_field(state: WasmStepState, column: usize) -> u64 {
     for (columns, values) in [
         (
             COL_OUTER_CHAIN_BEFORE.as_slice(),
@@ -154,48 +164,40 @@ fn carried_state_field(state: WasmStepState, column: usize) -> F {
         ),
     ] {
         if let Some(lane) = columns.iter().position(|&candidate| candidate == column) {
-            return F::from_u64(values[lane]);
+            return values[lane];
         }
     }
 
     match column {
-        crate::layout::COL_HOST_FRAME_DEPTH_BEFORE => F::from_u64(state.host_events.host_frame_depth),
-        crate::layout::COL_HOST_AWAITING_BEFORE => bool_field(state.host_events.awaiting_host),
-        crate::layout::COL_HOST_SUSPEND_PENDING_BEFORE => bool_field(state.host_events.suspend_pending),
-        COL_OBJECT_ACTIVE_BEFORE => bool_field(state.event_absorb.object_active),
-        COL_PC_BEFORE => F::from_u64(state.pc),
-        COL_SP_BEFORE => F::from_u64(state.sp),
-        COL_STACK_FRAME_BASE_BEFORE => F::from_u64(state.stack_frame_base),
-        COL_ACTIVATION_FINISHED_BEFORE => bool_field(state.activation_finished),
-        COL_OUTPUT_ENABLED_BEFORE => bool_field(state.output.enabled),
-        COL_OUTPUT_VALUE_LO_BEFORE => F::from_u64(u64::from(state.output.value_lo)),
-        COL_OUTPUT_VALUE_HI_BEFORE => F::from_u64(u64::from(state.output.value_hi)),
-        COL_CALL_STACK_DEPTH_BEFORE => F::from_u64(state.call_stack_depth),
-        COL_MEMORY_PAGES_BEFORE => F::from_u64(u64::from(state.memory_pages.unwrap_or(0))),
-        COL_MAX_MEMORY_PAGES_BEFORE => F::from_u64(u64::from(state.max_memory_pages.unwrap_or(0))),
-        COL_LOCALS_FBP_BEFORE => F::from_u64(state.locals_fbp),
-        COL_LOCAL_ZERO_ACTIVE_BEFORE => bool_field(state.local_zero.active),
-        COL_LOCAL_ZERO_REMAINING_BEFORE => F::from_u64(u64::from(state.local_zero.remaining)),
-        COL_FRAME_MOVE_ACTIVE_BEFORE => bool_field(state.frame_move.active),
-        COL_FRAME_MOVE_REMAINING_BEFORE => F::from_u64(u64::from(state.frame_move.remaining)),
-        COL_FRAME_MOVE_DISTANCE_BEFORE => F::from_u64(state.frame_move.distance),
-        COL_HOST_CALLEE_FREF_BEFORE => F::from_u64(u64::from(state.host_callee_fref)),
-        COL_TURN_EXPORT_FREF_BEFORE => F::from_u64(u64::from(state.host_events.turn_export_fref)),
-        COL_HOST_EVENTS_REMAINING_BEFORE => F::from_u64(u64::from(state.host_events.events_remaining)),
-        COL_HOST_EVENT_INDEX_BEFORE => F::from_u64(u64::from(state.host_events.event_index)),
-        COL_HOST_EVENT_ARGS_BASE_BEFORE => F::from_u64(state.host_events.args_base),
-        COL_HOST_EVENT_SLOT_CURSOR_BEFORE => F::from_u64(u64::from(state.host_events.slot_cursor)),
-        COL_PERM_PENDING_BEFORE => bool_field(state.event_absorb.perm_pending),
-        COL_PERM_ROUND_BEFORE => F::from_u64(u64::from(state.event_absorb.perm_round)),
-        COL_TRAPPED_BEFORE => bool_field(state.trapped),
+        crate::layout::COL_HOST_FRAME_DEPTH_BEFORE => state.host_events.host_frame_depth,
+        crate::layout::COL_HOST_AWAITING_BEFORE => u64::from(state.host_events.awaiting_host),
+        crate::layout::COL_HOST_SUSPEND_PENDING_BEFORE => u64::from(state.host_events.suspend_pending),
+        COL_OBJECT_ACTIVE_BEFORE => u64::from(state.event_absorb.object_active),
+        COL_PC_BEFORE => state.pc,
+        COL_SP_BEFORE => state.sp,
+        COL_STACK_FRAME_BASE_BEFORE => state.stack_frame_base,
+        COL_ACTIVATION_FINISHED_BEFORE => u64::from(state.activation_finished),
+        COL_OUTPUT_ENABLED_BEFORE => u64::from(state.output.enabled),
+        COL_OUTPUT_VALUE_LO_BEFORE => u64::from(state.output.value_lo),
+        COL_OUTPUT_VALUE_HI_BEFORE => u64::from(state.output.value_hi),
+        COL_CALL_STACK_DEPTH_BEFORE => state.call_stack_depth,
+        COL_MEMORY_PAGES_BEFORE => u64::from(state.memory_pages.unwrap_or(0)),
+        COL_MAX_MEMORY_PAGES_BEFORE => u64::from(state.max_memory_pages.unwrap_or(0)),
+        COL_LOCALS_FBP_BEFORE => state.locals_fbp,
+        COL_LOCAL_ZERO_ACTIVE_BEFORE => u64::from(state.local_zero.active),
+        COL_LOCAL_ZERO_REMAINING_BEFORE => u64::from(state.local_zero.remaining),
+        COL_FRAME_MOVE_ACTIVE_BEFORE => u64::from(state.frame_move.active),
+        COL_FRAME_MOVE_REMAINING_BEFORE => u64::from(state.frame_move.remaining),
+        COL_FRAME_MOVE_DISTANCE_BEFORE => state.frame_move.distance,
+        COL_HOST_CALLEE_FREF_BEFORE => u64::from(state.host_callee_fref),
+        COL_TURN_EXPORT_FREF_BEFORE => u64::from(state.host_events.turn_export_fref),
+        COL_HOST_EVENTS_REMAINING_BEFORE => u64::from(state.host_events.events_remaining),
+        COL_HOST_EVENT_INDEX_BEFORE => u64::from(state.host_events.event_index),
+        COL_HOST_EVENT_ARGS_BASE_BEFORE => state.host_events.args_base,
+        COL_HOST_EVENT_SLOT_CURSOR_BEFORE => u64::from(state.host_events.slot_cursor),
+        COL_PERM_PENDING_BEFORE => u64::from(state.event_absorb.perm_pending),
+        COL_PERM_ROUND_BEFORE => u64::from(state.event_absorb.perm_round),
+        COL_TRAPPED_BEFORE => u64::from(state.trapped),
         other => panic!("unsupported initial semantic-state column {other}"),
-    }
-}
-
-fn bool_field(value: bool) -> F {
-    if value {
-        F::ONE
-    } else {
-        F::ZERO
     }
 }

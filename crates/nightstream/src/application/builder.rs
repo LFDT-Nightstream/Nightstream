@@ -345,7 +345,7 @@ impl ApplicationCircuit {
     }
 
     /// Immutable original terms and recipe syntax, read with fallible visitors.
-    pub fn records(&self) -> &Arc<ApplicationRecords> {
+    pub(crate) fn records(&self) -> &Arc<ApplicationRecords> {
         &self.records
     }
     pub fn row_count(&self) -> usize {

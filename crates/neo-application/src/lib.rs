@@ -44,8 +44,8 @@ pub use poseidon2::{
     Poseidon2Permutation12, POSEIDON2_PERMUTATION_AUX_COLUMNS,
 };
 pub use r1cs::{
-    ConstraintCatalog, ConstraintTag, R1csBuildError, R1csBuilder, R1csRelation, R1csRow, R1csSide, TaggedR1csBuilder,
-    TaggedR1csRow,
+    ConstraintCatalog, ConstraintTag, R1csBuildError, R1csBuilder, R1csCheckError, R1csRelation, R1csRow, R1csSide,
+    TaggedR1csBuilder, TaggedR1csRow,
 };
 pub use range_check::{
     decomposition_bit_count, range_checked_variable_widths, RangeCheckAssignmentError, RangeCheckBitFamily,

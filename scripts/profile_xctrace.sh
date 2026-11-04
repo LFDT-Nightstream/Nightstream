@@ -40,7 +40,7 @@ if [ $# -lt 3 ]; then
   echo "Examples:"
   echo "  $0 nightstream option_b_api hash_chain_proves_and_verifies"
   echo "  $0 nightstream option_b_api hash_chain_proves_and_verifies --template Allocations"
-  echo "  $0 nightstream application_poseidon2 every_poseidon2_application_row_matches_the_saved_lean_reference --time-limit 20"
+  echo "  $0 nightstream r1cs_application a_relation_of_the_builders_runs_through_nebula --time-limit 20"
   exit 1
 fi
 

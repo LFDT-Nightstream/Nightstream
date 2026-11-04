@@ -1,4 +1,4 @@
-use nightstream::application::{Affine, ApplicationBuilder, ApplicationError};
+use crate::application::{Affine, ApplicationBuilder, ApplicationError};
 use p3_field::PrimeCharacteristicRing;
 use p3_goldilocks::Goldilocks;
 

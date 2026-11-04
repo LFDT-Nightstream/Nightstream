@@ -4,7 +4,7 @@
 mod encoding;
 pub(crate) mod option_b;
 
-pub(crate) use encoding::ProofCodecError;
+pub use encoding::ProofCodecError;
 
 #[cfg(test)]
 #[path = "../../tests/option_b_lifecycle/ir_log.rs"]

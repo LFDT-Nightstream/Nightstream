@@ -2,8 +2,9 @@
 //! emits, with the Rust application in place of Lean's, two slots, and a
 //! final proof that the shrink layer compresses.
 //!
-//! The caller selects the packages and the application; the verifier derives
-//! everything else from them. Nothing a proof carries is authority.
+//! The crate embeds the three packages (`artifacts`); the caller selects the
+//! application, and the verifier derives everything else from them. Nothing
+//! a proof carries is authority.
 
 use std::io::{Read, Write};
 use std::path::Path;
@@ -96,12 +97,13 @@ fn cpu_only(engine: Engine) -> Result<(), Error> {
 }
 
 /// The three Lean-emitted packages: the light and refresh step circuits and
-/// the finish circuit (`formal/nightstream-fprime/artifacts`).
+/// the finish circuit (`formal/nightstream-fprime/artifacts`). The crate
+/// embeds the reference copies (`artifacts::references`).
 #[derive(Clone, Copy)]
-pub struct References<'a> {
-    pub light: &'a [u8],
-    pub refresh: &'a [u8],
-    pub finish: &'a [u8],
+pub(crate) struct References<'a> {
+    pub(crate) light: &'a [u8],
+    pub(crate) refresh: &'a [u8],
+    pub(crate) finish: &'a [u8],
 }
 
 /// The packages and their application: a Rust application in place of
@@ -111,15 +113,20 @@ pub struct Circuit {
     packages: OptionBPackages,
     finish: StepPackage,
     application: Option<ApplicationCircuit>,
-    /// A memory relation: only `nebula::Verifier` verifies it, because this
-    /// verifier checks no SPEC.md Algorithm 10 terminal condition.
+    /// A memory relation: only `nebula::Circuit::verifier` verifies it,
+    /// because this verifier checks no SPEC.md Algorithm 10 terminal
+    /// condition.
     memory: bool,
 }
 
 impl Circuit {
-    /// Check the packages' pinned identities, then put `application` in place
-    /// of Lean's application.
-    pub fn compile(references: References<'_>, application: ApplicationCircuit) -> Result<Self, Error> {
+    /// Check the embedded packages' pinned identities, then put
+    /// `application` in place of Lean's application.
+    pub fn compile(application: ApplicationCircuit) -> Result<Self, Error> {
+        Self::compile_with(crate::artifacts::references(), application)
+    }
+
+    fn compile_with(references: References<'_>, application: ApplicationCircuit) -> Result<Self, Error> {
         let witness_words = application.private_input_count();
         let packages = load_option_b_packages(references.light, references.refresh, OPTION_B_PACKAGES_IDENTITY)?
             .with_application(application.records().clone(), witness_words)?;
@@ -135,8 +142,9 @@ impl Circuit {
 
     /// Check the pinned identity of Lean-emitted light and refresh packages
     /// whose application is Lean's (`expected`), and of the finish package,
-    /// which moves to their witness words.
-    pub fn load_packages(references: References<'_>, expected: [u64; 4]) -> Result<Self, Error> {
+    /// which moves to their witness words. Only the tests load Lean packages.
+    #[cfg(test)]
+    pub(crate) fn load_packages(references: References<'_>, expected: [u64; 4]) -> Result<Self, Error> {
         let packages = load_option_b_packages(references.light, references.refresh, expected)?;
         let finish = load_option_b_finish(references.finish, OPTION_B_FINISH_IDENTITY)?
             .with_witness_words(packages.light().witness_words())?;
@@ -175,8 +183,9 @@ impl Circuit {
         self.packages.identity()
     }
 
-    /// Save the application for a prover in another process; the packages
-    /// stay the caller's (`load`). The destination must not exist.
+    /// Save the application for a prover in another process
+    /// (`Prover::load`). The destination must not exist. A verifier compiles
+    /// its own circuit and never loads this file.
     pub fn write(&self, path: impl AsRef<Path>) -> Result<(), Error> {
         let mut output = std::io::BufWriter::new(
             std::fs::OpenOptions::new()
@@ -202,9 +211,9 @@ impl Circuit {
         Ok(())
     }
 
-    /// Read a saved application and compile it against the caller's
-    /// packages again; their pinned identities are checked again.
-    pub fn load(path: impl AsRef<Path>, references: References<'_>) -> Result<Self, Error> {
+    /// Read a saved application and compile it against the embedded packages
+    /// again; their pinned identities are checked again.
+    pub(crate) fn load(path: impl AsRef<Path>) -> Result<Self, Error> {
         let mut input = std::io::BufReader::new(std::fs::File::open(path)?);
         let mut magic = [0; 8];
         input.read_exact(&mut magic)?;
@@ -223,7 +232,7 @@ impl Circuit {
         let (row_count, recipe_count) = (read_word(&mut input)?, read_word(&mut input)?);
         let records = nightstream_fprime::ApplicationRecords::read_from(&mut input, row_count, recipe_count)?;
         let application = ApplicationCircuit::from_records(Arc::new(records), private_count, forms, rows)?;
-        let circuit = Self::compile(references, application)?;
+        let circuit = Self::compile(application)?;
         Ok(if memory { circuit.into_memory() } else { circuit })
     }
 
@@ -242,12 +251,12 @@ impl Circuit {
     /// proof.
     pub fn verifier(&self, engine: Engine, minimum_security_bits: u32) -> Result<Verifier, Error> {
         if self.memory {
-            return Err(Error::Circuit("a memory relation needs nebula::Verifier"));
+            return Err(Error::Circuit("a memory relation needs nebula::Circuit::verifier"));
         }
         self.stage1_verifier(engine, minimum_security_bits)
     }
 
-    /// The Stage 1 verifier inside `nebula::Verifier`.
+    /// The step verifier inside `nebula::Verifier`.
     pub(crate) fn stage1_verifier(&self, engine: Engine, minimum_security_bits: u32) -> Result<Verifier, Error> {
         cpu_only(engine)?;
         Ok(Verifier {
@@ -287,6 +296,12 @@ pub struct Prover {
 }
 
 impl Prover {
+    /// Load the prover of a circuit that `Circuit::write` saved. A verifier
+    /// compiles its own circuit and never loads this file.
+    pub fn load(path: impl AsRef<Path>, engine: Engine, minimum_security_bits: u32) -> Result<Self, Error> {
+        Circuit::load(path)?.prover(engine, minimum_security_bits)
+    }
+
     pub fn prove(&self, initial_state: [F; 4], private_inputs: &[F]) -> Result<Proof, Error> {
         self.extend(&Proof(self.lifecycle.initial(initial_state)?), private_inputs)
     }
@@ -303,8 +318,14 @@ impl Prover {
         self.extend_with_output(proof, private_inputs, next)
     }
 
+    /// The proof of no step from `z0`, which a memory run extends.
+    pub(crate) fn initial(&self, z0: [F; 4]) -> Result<Proof, Error> {
+        Ok(Proof(self.lifecycle.initial(z0)?))
+    }
+
     /// The first proof with the output state that the caller supplies.
-    pub fn prove_with_output(
+    #[cfg(test)]
+    pub(crate) fn prove_with_output(
         &self,
         initial_state: [F; 4],
         private_inputs: &[F],
@@ -315,8 +336,32 @@ impl Prover {
 
     /// The next proof with the output state that the caller supplies; the
     /// application's rows check it.
-    pub fn extend_with_output(&self, proof: &Proof, private_inputs: &[F], output: [F; 4]) -> Result<Proof, Error> {
+    pub(crate) fn extend_with_output(
+        &self,
+        proof: &Proof,
+        private_inputs: &[F],
+        output: [F; 4],
+    ) -> Result<Proof, Error> {
         Ok(Proof(self.lifecycle.extend(&proof.0, private_inputs, output)?))
+    }
+
+    /// The next proof of a memory invocation whose native output state is
+    /// `output`. A Rust application executes and must reach `output`; Lean's
+    /// application takes it (`extend_with_output`).
+    pub(crate) fn extend_invocation(
+        &self,
+        proof: &Proof,
+        private_inputs: &[F],
+        output: [F; 4],
+    ) -> Result<Proof, Error> {
+        if self.application.is_none() {
+            return self.extend_with_output(proof, private_inputs, output);
+        }
+        let next = self.extend(proof, private_inputs)?;
+        if next.state().current() != output {
+            return Err(Error::Circuit("the application's output differs from the native step"));
+        }
+        Ok(next)
     }
 
     /// The proof's strict bytes, for `Verifier::decode_proof`.
@@ -330,7 +375,7 @@ impl Prover {
     }
 
     /// Compress `proof`; `proof` does not change.
-    pub fn finish(&self, proof: &Proof, setup: &CompressionSetup) -> Result<FinalProof, Error> {
+    pub fn compress(&self, proof: &Proof, setup: &CompressionSetup) -> Result<FinalProof, Error> {
         let witness = self
             .lifecycle
             .final_witness(&proof.0, &setup.0, &self.finish)?;

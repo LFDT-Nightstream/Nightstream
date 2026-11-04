@@ -3,7 +3,6 @@
 
 use std::{
     error::Error,
-    fs,
     io::Write,
     path::{Path, PathBuf},
     process::ExitCode,
@@ -12,7 +11,7 @@ use std::{
 
 use nightstream::{
     application::{poseidon2_hash_chain_step, poseidon2_hash_chain_v1},
-    Circuit, Engine, Goldilocks as F, PrimeCharacteristicRing, PrimeField64, References, State,
+    Circuit, Engine, Goldilocks as F, PrimeCharacteristicRing, PrimeField64, Prover, State,
 };
 use serde_json::{json, Value};
 
@@ -132,24 +131,6 @@ fn end(phase: &str, step: Option<u64>, started: Instant) -> Result<()> {
     emit(json!({"event":"phase_finished", "phase":phase, "step":step, "seconds":seconds}))
 }
 
-/// Lean's light, refresh and finish packages (`formal/nightstream-fprime/artifacts`).
-fn packages() -> Result<[Vec<u8>; 3]> {
-    let artifacts = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../formal/nightstream-fprime/artifacts");
-    Ok([
-        fs::read(artifacts.join("nightstream-fprime-option-b-light-v1.json"))?,
-        fs::read(artifacts.join("nightstream-fprime-option-b-refresh-v1.json"))?,
-        fs::read(artifacts.join("nightstream-fprime-option-b-finish-v1.json"))?,
-    ])
-}
-
-fn references(packages: &[Vec<u8>; 3]) -> References<'_> {
-    References {
-        light: &packages[0],
-        refresh: &packages[1],
-        finish: &packages[2],
-    }
-}
-
 fn compile(output: &Path) -> Result<()> {
     let profile = neo_params::NeoParams::nightstream_goldilocks_k16();
     emit(json!({
@@ -159,9 +140,7 @@ fn compile(output: &Path) -> Result<()> {
     }))?;
     let total = Instant::now();
     let started = begin("compile", None)?;
-    let packages = packages()?;
-    let circuit = Circuit::compile(references(&packages), poseidon2_hash_chain_v1()?)?;
-    drop(packages);
+    let circuit = Circuit::compile(poseidon2_hash_chain_v1()?)?;
     end("compile", None, started)?;
     let started = begin("save", None)?;
     circuit.write(output)?;
@@ -186,11 +165,13 @@ fn benchmark(package: &Path, engine: Engine, steps: u64, minimum_security_bits: 
     }))?;
     let total = Instant::now();
     let started = begin("load", None)?;
-    let packages = packages()?;
-    let circuit = Circuit::load(package, references(&packages))?;
-    let prover = circuit.prover(engine, minimum_security_bits)?;
-    let verifier = circuit.verifier(engine, minimum_security_bits)?;
+    let prover = Prover::load(package, engine, minimum_security_bits)?;
     end("load", None, started)?;
+    // A verifier never loads a saved circuit: it compiles its own.
+    let started = begin("verifier_compile", None)?;
+    let circuit = Circuit::compile(poseidon2_hash_chain_v1()?)?;
+    let verifier = circuit.verifier(engine, minimum_security_bits)?;
+    end("verifier_compile", None, started)?;
 
     let initial = INITIAL.map(F::from_u64);
     let message = MESSAGE.map(F::from_u64);

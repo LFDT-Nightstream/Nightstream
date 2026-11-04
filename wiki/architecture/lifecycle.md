@@ -20,7 +20,7 @@ of each slot under the relation of its circuit, with a norm below `B`, and the
 fresh instance under the relation of the circuit that ran last. Matching
 digests do not replace these checks.
 
-`Prover::finish` makes a final proof. The last fold is a refresh fold. Then
+`Prover::compress` makes a final proof. The last fold is a refresh fold. Then
 `neo-spartan` proves the claim of each slot (layer 1), and a shrink proof
 shows that the final program accepts. `Verifier::verify_final` checks the
 final proof with a key that the verifier derives.

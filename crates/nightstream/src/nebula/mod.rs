@@ -1,13 +1,14 @@
 //! Native side of Nebula memory checking (SPEC.md section 7) for any application of
 //! the `Application` contract: the geometry and the program, the record
 //! chains and challenge transcript, the carry, the segment runner that writes
-//! each invocation's witness words, the SPEC.md Algorithm 10 terminal checks, the memory
-//! circuit, the memory verifier, and the memory backend of catalog
-//! applications (`CatalogBinding`). `Machine` is the first application.
-//! A memory circuit comes from a pinned Lean-emitted package (`Package::load`)
-//! or from the Rust-built relation (`Circuit::compile`), and
-//! `tests/nebula/parity.rs` requires the machine's Rust relation to equal each
-//! Lean package's, row for row.
+//! each invocation's witness words, the SPEC.md Algorithm 10 terminal checks,
+//! the memory circuit, the memory prover and verifier, the memory backend of
+//! catalog applications (`CatalogBinding`), and the application of an R1CS
+//! relation of one row (`R1csApplication`). A public memory circuit comes
+//! from the Rust-built relation (`Circuit::compile`). The tests also load the
+//! pinned Lean-emitted packages of the toy `Machine` (`Package::load`), and
+//! `tests/nebula/parity.rs` requires the machine's Rust relation to equal
+//! each Lean package's, row for row.
 
 mod app;
 mod carry;
@@ -15,7 +16,10 @@ mod catalog;
 mod circuit;
 mod expr;
 mod geometry;
+#[cfg(test)]
 mod machine;
+mod proving;
+mod r1cs;
 mod records;
 mod rows;
 mod segment;
@@ -29,32 +33,37 @@ use p3_field::PrimeField64;
 use p3_goldilocks::Goldilocks as F;
 
 pub use app::{Application, Memory, Transition};
-pub use carry::{Carry, Products};
-pub use catalog::{CatalogBinding, CatalogBindingError, CatalogRowError, Region};
+pub(crate) use carry::Carry;
+#[cfg(test)]
+pub(crate) use catalog::CatalogBinding;
+pub use catalog::{pack_regions, CatalogBindingError, CatalogRowError, Region};
 pub use expr::Expr;
 pub use geometry::Geometry;
-pub use machine::{Machine, MachineError, MachineState, Step};
-pub use neo_application::{
-    ColumnFamilySpec, ColumnRegistry, ColumnRegistryError, ColumnWidth, MemoryCatalog, MemoryCatalogError, MemoryKind,
-    MemoryPortActivation, MemoryPortKind, MemoryPortSpec, MemoryPreload, MemorySpec,
-};
+#[cfg(test)]
+pub(crate) use machine::{Machine, MachineError, MachineState, Step};
+use neo_application::MemoryPreload;
+pub use proving::{FinalProof, Proof, ProveError, Prover, Proving, Verified, Verifier, VerifyError};
+pub use r1cs::{batched_slots, R1csApplication, R1csApplicationError, R1csStepError, RowRelation, Size, Terms};
 pub use records::PortAccess;
 pub use rows::View;
 use segment::Cell;
-pub use segment::{Context, Invocation, SegmentError};
-pub use transcript::{state_words, Digest};
+pub(crate) use segment::Context;
+pub use segment::{Invocation, SegmentError};
+pub use transcript::Digest;
 
 /// A Lean-emitted memory package of the machine: the memory geometry that it
 /// proves and its pinned structural identifier. A program of the geometry is
 /// a `Program`.
+#[cfg(test)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Package {
+pub(crate) enum Package {
     /// `FirstPlan.lean`: `artifacts/nightstream-fprime-option-b-nebula-v1-{light,refresh}-v1.json`.
     V1,
     /// `SecondPlan.lean`: `artifacts/nightstream-fprime-option-b-nebula-n1-{light,refresh}-v1.json`.
     N1,
 }
 
+#[cfg(test)]
 impl Package {
     /// The memory geometry that the package proves.
     pub fn geometry(self) -> Geometry {
@@ -106,7 +115,6 @@ impl Package {
 
     /// The package's relation built in Rust, row for row as Lean builds it
     /// (`tests/nebula/parity.rs`).
-    #[cfg(test)]
     pub(crate) fn application(self) -> Result<crate::application::ApplicationCircuit, crate::Error> {
         circuit::memory_circuit(&self.geometry(), &Machine)
     }
@@ -161,7 +169,7 @@ impl Program {
 
 /// The SPEC.md Algorithm 10 public statement of a memory proof over application states `S`.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Statement<S> {
+pub(crate) struct Statement<S> {
     pub steps: u64,
     pub initial: S,
     pub final_: S,
@@ -244,10 +252,9 @@ pub fn size_parts<A: Application>(geometry: &Geometry, app: &A) -> Result<Vec<Si
 }
 
 /// The circuit of a memory relation: its geometry, its application, and the
-/// Stage 1 circuit. Only `Package::load` (a pinned Lean package) and
-/// `Circuit::compile` (the Rust-built relation) make one, so a memory verifier
-/// never takes its circuit from a prover. The memory prover and the memory
-/// verifier can share it.
+/// Stage 1 circuit. Only `Circuit::compile` (the Rust-built relation) makes a
+/// public one, so a memory verifier never takes its circuit from a prover.
+/// The memory prover and the memory verifier can share it.
 pub struct Circuit<A> {
     geometry: Geometry,
     app: A,
@@ -257,23 +264,23 @@ pub struct Circuit<A> {
 impl<A: Application> Circuit<A> {
     /// Build the memory relation of a valid, secure geometry (Lean
     /// `Geometry.Valid` and `Geometry.Secure`) and `app` in Rust, and compile
-    /// it into the step packages of `references` (`Circuit::compile`). `app` must have the geometry's
-    /// `b_ops` ports (Lean `PortApp.portsLength`).
-    pub fn compile(references: crate::References<'_>, geometry: Geometry, app: A) -> Result<Self, crate::Error> {
+    /// it into the embedded step packages (`crate::Circuit::compile`). `app`
+    /// must have the geometry's `b_ops` ports (Lean `PortApp.portsLength`).
+    pub fn compile(geometry: Geometry, app: A) -> Result<Self, crate::Error> {
         if !geometry.is_valid() || !geometry.is_secure() {
             return Err(crate::Error::Circuit("the memory geometry breaks SPEC.md section 7.1"));
         }
         check_port_count(&geometry, &app)?;
         let application = circuit::memory_circuit(&geometry, &app)?;
         Ok(Self {
-            circuit: crate::Circuit::compile(references, application)?.into_memory(),
+            circuit: crate::Circuit::compile(application)?.into_memory(),
             geometry,
             app,
         })
     }
 
     /// Save a `Circuit::compile` circuit for a prover in another process
-    /// (`Circuit::load`). The destination must not exist. A Lean
+    /// (`Prover::load`). The destination must not exist. A Lean
     /// package has no Rust application to save. A verifier compiles its own
     /// circuit and never loads this file.
     pub fn write(&self, path: impl AsRef<std::path::Path>) -> Result<(), crate::Error> {
@@ -288,111 +295,50 @@ impl<A: Application> Circuit<A> {
 
     /// The prover of the circuit. `minimum_security_bits` bounds the folding
     /// profile and the memory fingerprint term (`Geometry::memory_security_bits`).
-    pub fn prover(&self, engine: crate::Engine, minimum_security_bits: u32) -> Result<crate::Prover, crate::Error> {
-        self.check_memory_security(minimum_security_bits)?;
-        self.circuit.prover(engine, minimum_security_bits)
+    pub fn prover(&self, engine: crate::Engine, minimum_security_bits: u32) -> Result<Prover<A>, crate::Error>
+    where
+        A: Clone,
+    {
+        memory_security(&self.geometry, minimum_security_bits)?;
+        Ok(Prover::new(
+            self.geometry,
+            self.app.clone(),
+            self.circuit.prover(engine, minimum_security_bits)?,
+        ))
     }
 
-    fn check_memory_security(&self, minimum_security_bits: u32) -> Result<(), crate::Error> {
-        let available = self.geometry.memory_security_bits();
-        if available < f64::from(minimum_security_bits) {
-            return Err(neo_params::ParamsError::InsufficientStatisticalSecurity {
-                required: minimum_security_bits,
-                available: available.floor() as u32,
-            }
-            .into());
-        }
-        Ok(())
-    }
-}
-
-/// Why a memory proof does not verify.
-#[derive(Debug, thiserror::Error)]
-pub enum VerifyError {
-    #[error("the program is for another geometry")]
-    Geometry,
-    #[error(transparent)]
-    Terminal(#[from] TerminalError),
-    #[error(transparent)]
-    Proof(#[from] crate::Error),
-}
-
-/// The memory verifier of one circuit: the SPEC.md Algorithm 10 terminal checks, then
-/// the Stage 1 verifier of the circuit's relation. It verifies proofs of
-/// every program of the circuit's geometry.
-pub struct Verifier<A> {
-    geometry: Geometry,
-    app: A,
-    stage1: crate::Verifier,
-}
-
-impl<A: Application + Clone> Verifier<A> {
-    /// The verifier of a memory circuit. It may share the prover's circuit.
+    /// The verifier of the circuit. It may share the prover's circuit.
     /// `minimum_security_bits` bounds the folding profile and the memory
     /// fingerprint term (`Geometry::memory_security_bits`).
-    pub fn new(circuit: &Circuit<A>, engine: crate::Engine, minimum_security_bits: u32) -> Result<Self, crate::Error> {
-        circuit.check_memory_security(minimum_security_bits)?;
-        Ok(Self {
-            geometry: circuit.geometry,
-            app: circuit.app.clone(),
-            stage1: circuit
-                .circuit
+    pub fn verifier(&self, engine: crate::Engine, minimum_security_bits: u32) -> Result<Verifier<A>, crate::Error>
+    where
+        A: Clone,
+    {
+        memory_security(&self.geometry, minimum_security_bits)?;
+        Ok(Verifier::new(
+            self.geometry,
+            self.app.clone(),
+            self.circuit
                 .stage1_verifier(engine, minimum_security_bits)?,
-        })
-    }
-
-    /// Decode untrusted proof bytes (`crate::Verifier::decode_proof`).
-    pub fn decode_proof(&self, bytes: &[u8]) -> Result<crate::Proof, crate::Error> {
-        self.stage1.decode_proof(bytes)
-    }
-
-    /// Verify a memory proof of `program` (SPEC.md Algorithm 10): the terminal checks on
-    /// the final carry, then the Stage 1 verification of `proof` with the
-    /// initial and final states that the statement and the carry open. The
-    /// initial state opens the start carry, which holds the program's
-    /// `D_init` (`Program::d_init`).
-    pub fn verify(
-        &self,
-        program: &Program,
-        statement: &Statement<A::State>,
-        final_carry: &Carry,
-        proof: &crate::Proof,
-    ) -> Result<(), VerifyError> {
-        if program.geometry != self.geometry {
-            return Err(VerifyError::Geometry);
-        }
-        let (initial, last) = terminal_states(&self.app, program, statement, final_carry)?;
-        self.stage1
-            .verify(&crate::State::new(statement.steps, initial, last), proof)?;
-        Ok(())
-    }
-
-    /// The trusted compression key of the circuit (`crate::Verifier::compression_key`).
-    pub fn compression_key(&self) -> Result<crate::CompressionKey, crate::Error> {
-        self.stage1.compression_key()
-    }
-
-    /// Verify a finished memory proof (`crate::Prover::finish`)
-    /// as `verify` does: the terminal checks, then
-    /// `crate::Verifier::verify_final` with `key`.
-    pub fn verify_final(
-        &self,
-        program: &Program,
-        statement: &Statement<A::State>,
-        final_carry: &Carry,
-        key: &crate::CompressionKey,
-        proof: &crate::FinalProof,
-    ) -> Result<(), VerifyError> {
-        if program.geometry != self.geometry {
-            return Err(VerifyError::Geometry);
-        }
-        let (initial, last) = terminal_states(&self.app, program, statement, final_carry)?;
-        self.stage1
-            .verify_final(&crate::State::new(statement.steps, initial, last), key, proof)?;
-        Ok(())
+        ))
     }
 }
 
+/// Require the memory fingerprint term of `geometry` to meet
+/// `minimum_security_bits` (SPEC.md section 7.1, rule 6).
+fn memory_security(geometry: &Geometry, minimum_security_bits: u32) -> Result<(), crate::Error> {
+    let available = geometry.memory_security_bits();
+    if available < f64::from(minimum_security_bits) {
+        return Err(neo_params::ParamsError::InsufficientStatisticalSecurity {
+            required: minimum_security_bits,
+            available: available.floor() as u32,
+        }
+        .into());
+    }
+    Ok(())
+}
+
+#[cfg(test)]
 impl<A: Application> Context<A> {
     /// SPEC.md Algorithm 10: check the final carry against the statement and return the
     /// initial and final Stage 1 states for the Stage 1 terminal check.
@@ -459,7 +405,9 @@ fn terminal_states<A: Application>(
     ))
 }
 
-/// A native memory run from the start carry, one segment at a time.
+/// A native memory run from the start carry, one segment at a time, with no
+/// proof. A caller can check a run with it before proving; `Proving` runs one
+/// inside.
 #[derive(Clone, Debug)]
 pub struct Run<A: Application> {
     context: Context<A>,
@@ -471,7 +419,8 @@ pub struct Run<A: Application> {
 }
 
 impl<A: Application> Run<A> {
-    pub fn new(context: Context<A>, initial: A::State) -> Self {
+    pub fn new(app: A, program: &Program, initial: A::State) -> Self {
+        let context = Context::new(app, program);
         let memory = segment::initial_memory(&context.program().rom, &context.program().ram);
         Self {
             carry: context.start_carry(),
@@ -483,18 +432,29 @@ impl<A: Application> Run<A> {
         }
     }
 
-    pub fn context(&self) -> &Context<A> {
+    #[cfg(test)]
+    pub(crate) fn context(&self) -> &Context<A> {
         &self.context
     }
 
     /// The Stage 1 state before the first invocation.
-    pub fn initial_state(&self) -> Digest {
+    pub(crate) fn initial_state(&self) -> Digest {
         self.context
             .state(&self.initial, &self.context.start_carry())
     }
 
-    pub fn carry(&self) -> &Carry {
+    pub(crate) fn carry(&self) -> &Carry {
         &self.carry
+    }
+
+    /// The application state after the last segment.
+    pub fn state(&self) -> &A::State {
+        &self.state
+    }
+
+    /// The number of memory accesses so far (the carry's `ts`).
+    pub fn timestamp(&self) -> u64 {
+        self.carry.ts
     }
 
     /// Run the next segment and return its invocations in order.
@@ -510,7 +470,8 @@ impl<A: Application> Run<A> {
     }
 
     /// The SPEC.md Algorithm 10 statement of the run so far.
-    pub fn statement(&self) -> Statement<A::State> {
+    #[cfg(test)]
+    pub(crate) fn statement(&self) -> Statement<A::State> {
         Statement {
             steps: self.steps,
             initial: self.initial.clone(),
@@ -521,3 +482,7 @@ impl<A: Application> Run<A> {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "../../tests/nebula/memory.rs"]
+mod memory;

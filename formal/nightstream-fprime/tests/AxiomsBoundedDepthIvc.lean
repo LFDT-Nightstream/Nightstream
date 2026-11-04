@@ -43,6 +43,7 @@ import NightstreamFPrime.Export.Generic.SlotLayout
 import NightstreamFPrime.Export.OptionB.TerminalBridge
 import NightstreamFPrime.Export.OptionB.IvcSecurity
 import NightstreamFPrime.Export.OptionB.FinishWalk
+import NightstreamFPrime.Export.OptionB.StepCompleteness
 import NightstreamFPrime.Export.OptionB.NebulaSecurity
 import NightstreamFPrime.Export.OptionB.FinishRelation
 import NightstreamFPrime.Lifecycle.OptionB.Terminal
@@ -466,3 +467,16 @@ example : (runDepths 2 (fun _ => 0) 1 (List.replicate 3 [0, 0, 1]).flatten).isNo
 #audit_axioms NightstreamFPrime.Export.OptionB.NebulaSecurity.history_of_leads
 #audit_axioms NightstreamFPrime.Export.OptionB.NebulaSecurity.stage1Extraction
 #audit_axioms NightstreamFPrime.Export.OptionB.NebulaSecurity.bad_le
+
+#audit_axioms NightstreamFPrime.Export.Generic.PieceRowsCompleteness.ringRows_complete
+#audit_axioms NightstreamFPrime.Export.Generic.PieceRowsCompleteness.executePieces_spec
+#audit_axioms NightstreamFPrime.Export.Generic.RelationCompleteness.rowsZero_of_holds
+#audit_axioms NightstreamFPrime.Export.Generic.WideLayout.sourceEnv_widen
+#audit_axioms NightstreamFPrime.Export.OptionB.SlotRuns.mem_runSlots_runsOf
+#audit_axioms NightstreamFPrime.Export.OptionB.SlotCompleteness.dead_of_code
+#audit_axioms NightstreamFPrime.Export.OptionB.SlotCompleteness.holds_of_reads
+#audit_axioms NightstreamFPrime.Export.OptionB.SlotCompleteness.rowsZero_of_holds
+#audit_axioms NightstreamFPrime.Export.OptionB.StepCompleteness.pieces_complete
+#audit_axioms NightstreamFPrime.Export.OptionB.StepCompleteness.fresh_complete
+#audit_axioms NightstreamFPrime.Export.OptionB.StepCompleteness.light_complete
+#audit_axioms NightstreamFPrime.Export.OptionB.StepCompleteness.refresh_complete

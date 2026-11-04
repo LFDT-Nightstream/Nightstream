@@ -38,6 +38,9 @@ import NightstreamFPrime.Spec.HyperNova.Construction2.OptionBKeys
 import NightstreamFPrime.Spec.Folding.Light.RlcModule
 import NightstreamFPrime.Lifecycle.OptionB.State
 import NightstreamFPrime.Lifecycle.OptionB.Keys
+import NightstreamFPrime.Lifecycle.RandomOracle.Schedule
+import NightstreamFPrime.Lifecycle.OptionB.RandomOracle.RefreshSchedule
+import NightstreamFPrime.Lifecycle.OptionB.RandomOracle.LightSchedule
 import NightstreamFPrime.Lifecycle.OptionB.Step
 import NightstreamFPrime.Lifecycle.OptionB.PriorLink
 import NightstreamFPrime.Lifecycle.OptionB.StateHashGadget

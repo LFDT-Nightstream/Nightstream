@@ -24,6 +24,7 @@ import NightstreamFPrime.Spec.Folding.Light.Security
 import NightstreamFPrime.Spec.Folding.Light.Binding
 import NightstreamFPrime.Spec.Folding.Light.RunningBinding
 import NightstreamFPrime.Spec.Folding.Light.ErrorBudget
+import NightstreamFPrime.Spec.Folding.Light.RoundByRound
 import NightstreamFPrime.Spec.Folding.Refresh.Security
 import NightstreamFPrime.Spec.Folding.Refresh.Completeness
 import NightstreamFPrime.Spec.Folding.Refresh.Bound

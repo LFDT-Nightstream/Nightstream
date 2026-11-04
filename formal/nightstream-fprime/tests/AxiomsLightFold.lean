@@ -29,6 +29,7 @@ import NightstreamFPrime.Spec.Folding.Light.RoundByRound
 #audit_axioms NightstreamFPrime.Spec.Folding.Light.Rlc.difference_commits
 #audit_axioms NightstreamFPrime.Spec.Folding.Light.Rlc.collisionAt
 #audit_axioms NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.LightNorm.sub_act_bound
+#audit_axioms NightstreamFPrime.Spec.Folding.Light.accepted_implies_securityOutcome_normFree
 #audit_axioms NightstreamFPrime.Spec.Folding.Light.accepted_implies_securityOutcome
 #audit_axioms NightstreamFPrime.Spec.Folding.Light.ErrorBudget.production_testNumerator
 #audit_axioms NightstreamFPrime.Spec.Folding.Light.ErrorBudget.production_forkCoordinates

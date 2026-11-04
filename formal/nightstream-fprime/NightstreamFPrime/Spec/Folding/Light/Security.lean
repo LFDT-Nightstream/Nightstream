@@ -1,6 +1,6 @@
 import NightstreamFPrime.Spec.Folding.Light.Verifier
 import NightstreamFPrime.Spec.Folding.Light.Strong
-import NightstreamFPrime.Spec.Folding.Light.Extraction
+import NightstreamFPrime.Spec.Folding.Light.Binding
 
 /-! SuperNeo v1.2 Theorem 12 for the light fold, with Cyclo (ePrint 2026/359) Theorem 3,
 item 2. When `verify` accepts and two outputs differ only in `ρ`, the extracted fresh witness
@@ -18,6 +18,7 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StrongReduction
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 open NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtraction (ExtractionAlgebra StrongSetUnits)
 open NightstreamFPrime.Spec.Folding.Nifs.PaperNonInteractive (Fresh Running)
+open NightstreamFPrime.Spec.Folding.PiRLC.NormFreeFork (normFreeAlgebra normFreeLaws)
 
 universe uCommitment uPublicInput uScalar uState
 
@@ -89,8 +90,10 @@ private theorem paperAmbient
   rw [system] at evaluations ⊢
   exact (key.evaluationAgreement assignment statement.point).2.symm.trans evaluations
 
-/-- SuperNeo v1.2 Theorem 12 for the light fold, with Cyclo Theorem 3, item 2. -/
-theorem accepted_implies_securityOutcome
+/-- SuperNeo v1.2 Theorem 12 for the light fold, with Cyclo Theorem 3, item 2, from a fork whose
+outputs satisfy no norm bound and whose base output opens at `bound`. The extracted accumulator
+opens at `bound + T · (b − 1)`; the forked output's norm does not enter. -/
+theorem accepted_implies_securityOutcome_normFree
     (key : Key Commitment PublicInput Scalar State shape columns blockCount width)
     (running : Running K Commitment PublicInput shape)
     (fresh : Fresh Commitment PublicInput shape)
@@ -104,8 +107,13 @@ theorem accepted_implies_securityOutcome
     (strongSet : StrongSetUnits laws.ring key.piRlcAlgebra.challengeValid)
     (oneEq : key.one = laws.ring.one)
     (normLaw : Rlc.ExtractionNormLaw laws)
-    (fork : key.Fork running fresh proof bound) :
-    let witness := key.extractedWitness running fresh proof bound laws strongSet fork
+    (fork : Rlc.Fork (normFreeAlgebra key.piRlcAlgebra) key.one bound key.relationSource
+      (key.probe running fresh proof).coins.roundPoint (key.outputs running fresh proof key.freshSource)
+      (key.outputs running fresh proof key.runningSource))
+    (baseNorm : key.piRlcSemantics.normBounded bound fork.baseAssignment) :
+    let witness : OutputWitness shape columns :=
+      ⟨fun source => if source.val = 0 then fork.freshAssignment (normFreeLaws laws) strongSet
+        else fork.runningAssignment (normFreeLaws laws) strongSet⟩
     Knowledge key running fresh bound witness ∨
       SignedCoefficientObject.MixingRoot key.extensionOps
         ((PiCCS.protocolData key.baseOps key.lift
@@ -120,11 +128,13 @@ theorem accepted_implies_securityOutcome
       (key.probe running fresh proof) = true := by
     by_contra rejected
     simp [verify, rejected] at accepted
-  have freshValue : witness.assignments key.freshSource = fork.freshAssignment laws strongSet := by
-    simp [witness, Key.extractedWitness, Key.freshSource]
+  have freshValue : witness.assignments key.freshSource =
+      fork.freshAssignment (normFreeLaws laws) strongSet := by
+    simp [witness, Key.freshSource]
   have runningValue :
-      witness.assignments key.runningSource = fork.runningAssignment laws strongSet := by
-    simp [witness, Key.extractedWitness, Key.runningSource]
+      witness.assignments key.runningSource =
+        fork.runningAssignment (normFreeLaws laws) strongSet := by
+    simp [witness, Key.runningSource]
   have sourceCases : ∀ source : Fin shape.sourceCount,
       source = key.freshSource ∨ source = key.runningSource := by
     intro source
@@ -135,8 +145,16 @@ theorem accepted_implies_securityOutcome
     by_cases first : source.val = 0
     · exact Or.inl (Fin.ext first)
     · exact Or.inr (Fin.ext (by simp only [Key.runningSource]; omega))
-  obtain ⟨freshAmbient, runningAmbient⟩ := Rlc.fork_extracts laws strongSet oneEq fork
+  obtain ⟨freshFree, runningFree⟩ := Rlc.fork_extracts (normFreeLaws laws) strongSet oneEq fork
     rfl rfl rfl rfl 1 rfl rfl
+  have freshAmbient : PiRLC.PaperCorrections.CorrectedAmbientHolds key.piRlcSemantics key.params
+      (key.outputs running fresh proof key.freshSource)
+      (fork.freshAssignment (normFreeLaws laws) strongSet) :=
+    ⟨⟨freshFree.1.1, freshFree.1.2.1, laws.correctedNormCoverage _⟩, freshFree.2⟩
+  have runningAmbient : PiRLC.PaperCorrections.CorrectedAmbientHolds key.piRlcSemantics key.params
+      (key.outputs running fresh proof key.runningSource)
+      (fork.runningAssignment (normFreeLaws laws) strongSet) :=
+    ⟨⟨runningFree.1.1, runningFree.1.2.1, laws.correctedNormCoverage _⟩, runningFree.2⟩
   have ambient : AmbientOutputHolds key.extensionOps key.lift key.openingMaps key.params
       (key.statement running fresh) (key.probe running fresh proof) witness := by
     intro source
@@ -167,15 +185,47 @@ theorem accepted_implies_securityOutcome
         (witness.assignments key.freshSource) :=
       ⟨(ambient key.freshSource).1.1, (ambient key.freshSource).1.2.1, freshNorm⟩
     have freshPiRlcNorm : key.piRlcSemantics.normBounded key.params.b
-        (fork.freshAssignment laws strongSet) := by
+        (fork.freshAssignment (normFreeLaws laws) strongSet) := by
       rw [← freshValue]
       exact ((key.openingAgreement _ _ _ _).mp freshPaperOpening).2.2
-    have runningNorm := Rlc.runningAssignment_normBounded laws strongSet normLaw fork
-      freshPiRlcNorm
+    have runningNorm : key.piRlcSemantics.normBounded
+        (bound + key.params.expansionT * (key.params.b - 1))
+        (fork.runningAssignment (normFreeLaws laws) strongSet) :=
+      normLaw.sub_bound bound fork.baseChallenge fork.baseAssignment _ fork.baseValid baseNorm
+        freshPiRlcNorm
     refine ⟨freshPaperOpening, ?_, truth⟩
     rw [runningValue]
     exact ⟨runningAmbient.1.1, runningAmbient.1.2.1, runningNorm⟩
   · exact Or.inr (Or.inl mixingRoot)
   · exact Or.inr (Or.inr sumCheck)
+
+/-- SuperNeo v1.2 Theorem 12 for the light fold, with Cyclo Theorem 3, item 2. -/
+theorem accepted_implies_securityOutcome
+    (key : Key Commitment PublicInput Scalar State shape columns blockCount width)
+    (running : Running K Commitment PublicInput shape)
+    (fresh : Fresh Commitment PublicInput shape)
+    (proof : Proof shape width)
+    (result : CE.Instance (RelationSource shape columns blockCount) PublicInput
+      (CubePoint K shape.cubeVariables) (EvaluationFamily K shape) Commitment)
+    (accepted : verify key running fresh proof = some result)
+    (freshBound : key.params.b = 2)
+    (challengeSetSize bound : Nat)
+    (laws : ExtractionAlgebra key.piRlcSemantics key.params key.piRlcAlgebra)
+    (strongSet : StrongSetUnits laws.ring key.piRlcAlgebra.challengeValid)
+    (oneEq : key.one = laws.ring.one)
+    (normLaw : Rlc.ExtractionNormLaw laws)
+    (fork : key.Fork running fresh proof bound) :
+    let witness := key.extractedWitness running fresh proof bound laws strongSet fork
+    Knowledge key running fresh bound witness ∨
+      SignedCoefficientObject.MixingRoot key.extensionOps
+        ((PiCCS.protocolData key.baseOps key.lift
+          (((key.statement running fresh).sourceConnectedInputs witness).toUnifiedInputs
+            key.baseOps)).toJointData key.extensionOps)
+        (key.probe running fresh proof).coins.alpha
+        (key.probe running fresh proof).coins.gamma ∨
+      PiCCS.SumCheckFailure key.extensionOps key.lift (key.statement running fresh) width
+        challengeSetSize (key.probe running fresh proof) witness :=
+  accepted_implies_securityOutcome_normFree key running fresh proof result accepted freshBound
+    challengeSetSize bound laws strongSet oneEq normLaw fork.forgetNorms fork.baseHolds.1.2.2
 
 end NightstreamFPrime.Spec.Folding.Light

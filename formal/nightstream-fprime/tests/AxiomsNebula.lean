@@ -11,6 +11,7 @@ import NightstreamFPrime.Export.Stage1.NebulaMemoryV1Package
 import NightstreamFPrime.Export.Stage1.NebulaMemoryN1Package
 import NightstreamFPrime.Export.Stage1.NebulaMemorySecurity
 import NightstreamFPrime.Export.Stage1.NebulaMemoryTerminal
+import NightstreamFPrime.Lifecycle.Nebula.EtaOracle
 
 /-! Axiom audits for the Nebula memory-phase model (`Spec/Nebula`) and its
 memory application layer (`Lifecycle/Nebula`): framing, carry, step rows,
@@ -686,3 +687,6 @@ plans (`SlotPlan`), batched catalogs (`Batch`) and the free application
 #audit_axioms NightstreamFPrime.Spec.Nebula.activeOps_append
 #audit_axioms NightstreamFPrime.Spec.Nebula.opsFactors_append
 #audit_axioms NightstreamFPrime.Spec.Nebula.scanFactor_append
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.EtaOracle.deployed_pointOf
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.EtaOracle.romContext_deployed
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.EtaOracle.pointOf_injective

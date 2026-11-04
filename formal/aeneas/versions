@@ -1,0 +1,9 @@
+# The translation toolchain. scripts/aeneas_extract.sh refuses other versions.
+AENEAS_TAG=nightly-2026.10.30-de16f3c
+AENEAS_COMMIT=de16f3cf877976e966906dc890f63dcb418884fa
+CHARON_VERSION=0.1.301
+CHARON_COMMIT=373d84044d80f6eb44285c2c349bae1453f5b6ca
+RUST_NIGHTLY=nightly-2026-09-17
+LEAN_TOOLCHAIN=leanprover/lean4:v4.35.0
+# `default` is rustc's distributed sysroot. Charon's own sysroot needs miri.
+CHARON_SYSROOT=default

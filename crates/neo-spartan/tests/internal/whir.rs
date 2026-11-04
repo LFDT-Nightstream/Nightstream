@@ -9,8 +9,9 @@ use p3_field_v08::{BasedVectorSpace, PrimeCharacteristicRing as _, PrimeField64 
 use p3_sumcheck_v08::OpeningBatch;
 use p3_symmetric_v08::Permutation;
 
+use crate::circuit::{Backend, Fast};
 use crate::device::Accelerator;
-use crate::field::{gl, Ext, Gl};
+use crate::field::{as_words, gl, Ext, Gl};
 use crate::hash::{challenger, permutation, seed};
 use crate::matrix::Structure;
 use crate::pcs::{Pcs, TablePlan};
@@ -56,6 +57,28 @@ fn poseidon2_matches_the_workspace_permutation() {
             .permute(state.map(gl))
             .map(|value| value.as_canonical_u64());
         assert_eq!(ours, theirs, "state {seed}");
+    }
+}
+
+/// The verifier's permutation, `neo_verified::poseidon2::permute` behind `Fast::permute`, is
+/// Plonky3's on random states and on edge words, including words of `p` or more, which it reads
+/// mod p. It returns canonical words.
+#[test]
+fn verified_permutation_matches_plonky3() {
+    const P: u64 = neo_verified::field::MODULUS;
+    let edges = [0, 1, 2, P - 2, P - 1, P, P + 1, u64::MAX];
+    let mut states: Vec<[u64; p2::WIDTH]> = (0..256)
+        .map(|seed| std::array::from_fn(|lane| word(seed, lane as u64)))
+        .collect();
+    states.extend(edges.map(|edge| [edge; p2::WIDTH]));
+    states.push(std::array::from_fn(|lane| edges[lane % edges.len()]));
+    for state in states {
+        let input = state.map(Gl::new);
+        let ours = Fast.permute(input);
+        let theirs = permutation()
+            .permute(input)
+            .map(|value| value.as_canonical_u64());
+        assert_eq!(as_words(&ours), theirs, "state {state:?}");
     }
 }
 

@@ -127,11 +127,14 @@ Rust, a claim is about a verifier, a program, a file or a check that Rust does n
   (`Game.sumcheck`, `Lib.roundValues`, `Lib.eqAt`, `Lib.eqEval`). These four and the two
   readers below are the only `ports.json` entries outside `Ports/` (`portsOutside`): `Layer1/`,
   which sits below `Ports/`, reads these four too. `Lib.eqAt` puts
-  coordinate `t` with bit `t` of the index, as `eq_at` and `eq_table` (`field.rs`) do; `ports.json`
-  pins it to both.
+  coordinate `t` with bit `t` of the index, as `eq_at` and `eq_table` of `neo-verified`
+  (`algebra.rs`) do; `ports.json` names the proofs for both. The verifier runs them on `Native`;
+  the prover's parallel `eq_table` (`field.rs`) has a test against them.
 - The circuit programs and their lowering (`Ports/Circuit/`), with the parts of `Ports/Replay/`
   that the programs read: the data types (`Ports/Replay/Data.lean`), the fields
-  (`Ports/Replay/Field.lean`), the bar transform (`Replay.bar`) and the GKR shape functions
+  (`Ports/Replay/Field.lean`, whose `Word` and `Ext` operations are proved equal to the field of
+  `neo-verified` in `CompressionLeanRust/Field.lean`; the verifier's `Native` backend computes with
+  that field, and the prover's `Fast` backend with Plonky3's), the bar transform (`Replay.bar`) and the GKR shape functions
   (`layerCount`, `layerDegree`, `layerFactors`, `partFactors`, `activeTrees`).
 - The terminal loader (`Terminal.Package.load`). Its rows are F′'s row instantiation
   (`Producer.rows`); Rust pushes the rows of its templates (`expand_matrix`). The final program
@@ -161,7 +164,16 @@ Rust, a claim is about a verifier, a program, a file or a check that Rust does n
 - The Merkle hash that `MerkleBinds` reads (`Replay.pathOk`, `merkleRoot`, `compress`,
   `hashLeaf`). The Merkle binding of section 3 gives a Poseidon2 collision only if this is the
   hash that made the key root. Its permutation `Replay.permute` is F′'s `permute64`, which F′
-  proves is `Poseidon2.permute` over F′'s constants. Rust draws its constants from `SEED`.
+  proves is `Poseidon2.permute` over F′'s constants. The native verifier's `Native::permute` runs
+  the permutation of `neo-verified`, which `CompressionLeanRust/Poseidon2.lean` proves equal to
+  `Replay.permute`, constant tables included, so the native verifier's sponge and compression run
+  the proved permutation too. `CompressionLeanRust/Native.lean` proves the Rust `hash_leaf`,
+  `compress` and `merkle_root`, run on `Native`, equal to `Replay.hashLeaf`, `Replay.compress` and
+  `Replay.merkleRoot`, and `path_ok` (`setup.rs`) equal to `Replay.pathOk`
+  (`CompressionLeanRust/Setup.lean`). The prover, the
+  leaf hashes in hints and the trace digest use
+  `hash::permutation`, which draws its constants from `SEED`, and
+  `verified_permutation_matches_plonky3` (`neo-spartan`) compares the two permutations.
   `exported_round_constants_match_fprime_lean_spec` (`neo-ccs`, `tests/poseidon2_round_constants.rs`)
   compares them with F′'s, and `exported_round_constants_rebuild_the_canonical_permutation` shows
   that they make the workspace permutation; CI runs both (the `neo-ccs` group of
@@ -172,9 +184,9 @@ Rust, a claim is about a verifier, a program, a file or a check that Rust does n
   digests hash with `Replay.hashLeaf`.
 - The error charges (`Layer1.rustDegrees`, `Shrink.rustDegrees`). If one differs from
   `outer_terms` (`relation.rs`) or from `terms` (`shrink/mod.rs`), the premises `p0`, `p1` and `rust`
-  are not the checks that `Pcs::new` makes. `outer_terms` charges `ring::row_count(shape) - 1`
-  for the ring-row batching, and `Layer1.rustLinear` charges `s.rows - 1`, the same sum of
-  `kappa`, `matrices` and `publicBlocks`; `ports.json` pins `rustLinear` to `row_count` too.
+  are not the checks that `Pcs::new` makes. The integer degrees of both charges are Rust in
+  `neo-verified` (`degrees.rs`), proved equal to their ports (`CompressionLeanRust/Degrees.lean`).
+  `outer_terms` and `terms`, which turn each degree into an `f64` term, keep a token hash.
 - The readers of the files that the Rust tests write, which transcribe their formats:
   `Layer1Key`'s JSON (`layer1_input` and `relation_json` write it), and `readRuns` and
   `readColumns` (`CompressionLeanExe/Runs.lean`; `setup_runs.rs` and `setup_columns.rs` write
@@ -201,7 +213,20 @@ These checks compare a transcription with its Rust:
 
 - Rust tests in CI pin digests that Lean computes from the lowered programs, so a change to the
   circuit's instruction stream fails CI.
-- `ports.json` names the Rust item that each transcription follows, with a hash of its tokens. The
+- For a port of Rust in `crates/neo-verified` that has a proof, `ports.json` names two theorems
+  in place of a hash. The other ports of `neo-verified` code (`Recorder`, `Native`, the block
+  template, `Shrink.Track`, the Replay duplex and transcript, the `Replay.eqAt` family,
+  `Replay.setupCheck`, `Replay.leafWeight`, `Replay.monomial`, and the terminal loader) keep a
+  hash. Aeneas translates the crate (`scripts/aeneas_extract.sh`), and `CompressionLeanRust` proves
+  the translation equal to the port. `Sound` has no premise: if the translated function returns,
+  it returns the port's value. `Complete` gives a premise, an input that meets it, and a value on
+  every input that meets it. `CompressionLeanRustTests` checks the shape of both. The `aeneas` CI
+  job translates the crate again, fails when the committed translation differs, builds the proofs
+  and rechecks them with `leanchecker --fresh`. This trusts Charon, Aeneas and the Aeneas models
+  of the Rust items in `formal/aeneas/std-models.txt`. The run check
+  (`crates/neo-verified/tests/run_check.rs`) runs the translation and each model against Rust on
+  fixed inputs in CI.
+- `ports.json` names the Rust item that each other transcription follows, with a hash of its tokens. The
   CI test `lean_ports` fails when a Rust item changes, until someone re-reads the Lean declaration
   and updates the hash. It detects a change; it does not show that the transcription is right.
   A Rust constant whose value a transcription writes as a number has its own entry, so a change

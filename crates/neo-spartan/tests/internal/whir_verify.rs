@@ -9,7 +9,7 @@ use p3_sumcheck_v08::OpeningBatch;
 use super::word;
 use crate::circuit::hash::Duplex;
 use crate::circuit::record::{Recorder, Trace};
-use crate::circuit::{algebra, Backend, Native};
+use crate::circuit::{algebra, Backend, Fast};
 use crate::device::Accelerator;
 use crate::field::{Ext, Gl};
 use crate::hash::{permutation, Challenger};
@@ -78,9 +78,9 @@ fn theirs(case: &Case, opening: &Opening) -> Option<(Vec<Vec<Ext>>, Gl)> {
     Some((values, CanSample::<Gl>::sample(&mut challenger)))
 }
 
-/// Our verdict on `Native` and its next sample.
+/// Our verdict on `Fast` and its next sample.
 fn ours(case: &Case, opening: &Opening, root: [Gl; 4]) -> Option<(Vec<Vec<Ext>>, Gl)> {
-    let b = &mut Native;
+    let b = &mut Fast;
     let mut duplex = Duplex::new(b);
     observe_root(b, &mut duplex, root);
     let view = OpeningView::read(b, &case.pcs, Some(opening)).ok()?;
@@ -195,10 +195,10 @@ fn recorded_verification_holds_and_does_not_depend_on_the_proof() {
     for r in 0..honest.rows.len() {
         assert_eq!(honest.row_value(r), Gl::ZERO, "row {r}");
     }
-    assert_eq!(honest.failing_block(), None);
+    assert!(honest.failing_block().is_none());
     let (shape, _) = record(&case, None);
     assert_eq!(honest.rows, shape.rows);
-    assert_eq!(honest.entries, shape.entries);
+    assert!(honest.entries == shape.entries);
     assert_eq!(honest.glue.len(), shape.glue.len());
     assert_eq!(
         honest.blocks.each_ref().map(Vec::len),

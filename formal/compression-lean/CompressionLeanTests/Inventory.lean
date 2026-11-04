@@ -106,11 +106,11 @@ def digestPins : List (String × String) := [
   ("crates/nightstream/tests/lifecycle_native/terminal_ir.rs", "terminal_digest_is_pinned"),
   ("crates/nightstream/tests/lifecycle_native/terminal_ir.rs", "final_program_digest_is_pinned")]
 
-/-- The Rust test `lean_ports_match_their_rust_items` checks each hash. -/
+/-- The Rust test `lean_ports_match_their_rust_items` checks each entry's hash, and
+`CompressionLeanRustTests` checks each entry's proof. -/
 structure Port where
   lean : Name
   rust : String
-  hash : String
 deriving FromJson
 
 def readPorts : IO (Array Port) := do

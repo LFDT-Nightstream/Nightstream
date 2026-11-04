@@ -11,7 +11,7 @@ use p3_field::PrimeCharacteristicRing as _;
 use p3_field_v08::{BasedVectorSpace, PrimeCharacteristicRing, PrimeField64};
 
 use super::{fresh, gkr_verify, word};
-use crate::circuit::Native;
+use crate::circuit::Fast;
 use crate::field::{eq_table, re_im, Ext, Gl};
 use crate::gkr::{prove, Tree};
 use crate::matrix::{EarlyChallenges, Tables};
@@ -108,7 +108,7 @@ fn eval_a() -> Vec<[Ext; 2]> {
 fn direct_weights(runs: &Runs, r: &[K], eval_a: &[[Ext; 2]]) -> Vec<[Ext; D]> {
     let mut weights = vec![[Ext::ZERO; D]; BLOCKS];
     for &(row, matrix, start, len, initial, ratio) in &runs.0 {
-        let mut weight = project(&mut Native, re_im(chi_at(r, row)), eval_a[matrix]) * Gl::from_u64(initial);
+        let mut weight = project(&mut Fast, re_im(chi_at(r, row)), eval_a[matrix]) * Gl::from_u64(initial);
         for column in start..start + len {
             weights[column / D][column % D] += weight;
             weight *= Gl::from_u64(if len == 1 { 1 } else { ratio });
@@ -131,7 +131,7 @@ fn two_level_scatter_matches_the_direct_scatter() {
     assert_eq!(tables.column_weights(&ubar, BLOCKS), direct);
 
     let tau: [Ext; D] = std::array::from_fn(|l| ext(10, l as u64));
-    let lanes = structure.lane_tables(&mut Native, &tau);
+    let lanes = structure.lane_tables(&mut Fast, &tau);
     let omega = tables.block_weights(&ubar, &lanes, 3);
     for (block, &value) in omega.iter().enumerate() {
         let expected: Ext = direct.get(block).map_or(Ext::ZERO, |weights| {
@@ -246,7 +246,7 @@ fn matrix_trees_verify_and_leave_true_openings() {
     let values = tables.early_values(&early, &prover);
     let claims = gkr_verify(&proof, &structure.early_shapes()).unwrap();
     let openings = structure
-        .check_early(&mut Native, &k_point(&r), challenges(), &claims, &values)
+        .check_early(&mut Fast, &k_point(&r), challenges(), &claims, &values)
         .unwrap();
     assert_eq!(openings.mult, evaluate(&lift(&early.mult), &openings.row_point));
     for (k, &value) in openings.setup.iter().enumerate() {
@@ -277,7 +277,7 @@ fn matrix_trees_verify_and_leave_true_openings() {
         tampered.runs[index] += Ext::ONE;
         assert!(
             structure
-                .check_early(&mut Native, &k_point(&r), challenges(), &claims, &tampered)
+                .check_early(&mut Fast, &k_point(&r), challenges(), &claims, &tampered)
                 .is_err(),
             "run value {index}"
         );
@@ -287,7 +287,7 @@ fn matrix_trees_verify_and_leave_true_openings() {
         tampered.pairs[j][1] += Ext::ONE;
         assert!(
             structure
-                .check_early(&mut Native, &k_point(&r), challenges(), &claims, &tampered)
+                .check_early(&mut Fast, &k_point(&r), challenges(), &claims, &tampered)
                 .is_err(),
             "pair value {j}"
         );
@@ -297,7 +297,7 @@ fn matrix_trees_verify_and_leave_true_openings() {
     let eval_a = eval_a();
     let ubar = tables.slot_weights(&early, &eval_a);
     let tau: [Ext; D] = std::array::from_fn(|l| ext(10, l as u64));
-    let lanes = structure.lane_tables(&mut Native, &tau);
+    let lanes = structure.lane_tables(&mut Fast, &tau);
     let omega = tables.block_weights(&ubar, &lanes, 3);
     let beta = ext(21, 0);
     let late = |omega: &[Ext]| {
@@ -317,21 +317,21 @@ fn matrix_trees_verify_and_leave_true_openings() {
     };
     let (claims, pairs) = late(&omega);
     let openings = structure
-        .check_late(&mut Native, beta, &eval_a, &lanes, &claims, &pairs)
+        .check_late(&mut Fast, beta, &eval_a, &lanes, &claims, &pairs)
         .unwrap();
     assert_eq!(openings.block, evaluate(&lift(&tables.blocks()), &openings.pair_point));
     assert_eq!(openings.omega, evaluate(&omega, &openings.block_point));
     let mut tampered = pairs.clone();
     tampered[2][0] += Ext::ONE;
     assert!(structure
-        .check_late(&mut Native, beta, &eval_a, &lanes, &claims, &tampered)
+        .check_late(&mut Fast, beta, &eval_a, &lanes, &claims, &tampered)
         .is_err());
     // A wrong block weight breaks the block scatter roots.
     let mut forged = omega.clone();
     forged[1] += Ext::ONE;
     let (claims, pairs) = late(&forged);
     assert!(structure
-        .check_late(&mut Native, beta, &eval_a, &lanes, &claims, &pairs)
+        .check_late(&mut Fast, beta, &eval_a, &lanes, &claims, &pairs)
         .is_err());
 }
 
@@ -350,7 +350,7 @@ fn wrong_early_columns_break_the_roots() {
         .unwrap();
         let values = tables.early_values(early, &prover);
         let claims = gkr_verify(&proof, &structure.early_shapes()).unwrap();
-        structure.check_early(&mut Native, &k_point(&r), challenges(), &claims, &values)
+        structure.check_early(&mut Fast, &k_point(&r), challenges(), &claims, &values)
     };
     assert!(run(&tables.early(&r)).is_ok());
     let mut wrong_e = tables.early(&r);

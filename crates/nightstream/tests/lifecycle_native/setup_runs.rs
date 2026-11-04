@@ -125,12 +125,11 @@ fn workspace() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
 }
 
-/// The layer-1 key of the committed production key, read as `neo-spartan`'s
-/// `production_key` reads it.
+/// The layer-1 key of the committed production key: its first field
+/// (`neo-spartan`'s `production_key` reads them all).
 fn committed_layer1() -> Key {
     let bytes = std::fs::read(workspace().join("crates/nightstream/tests/fixtures/compression/key.bin")).unwrap();
-    let (key, ..): (Key, [u64; 4], u32, f64, neo_spartan::shrink::Shape) = bincode::deserialize(&bytes).unwrap();
-    key
+    bincode::deserialize(&bytes).unwrap()
 }
 
 #[test]

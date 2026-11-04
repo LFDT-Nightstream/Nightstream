@@ -1,6 +1,7 @@
 //! Crate-private tests of layer 1.
 
 mod circuit;
+mod field;
 mod gkr;
 mod layer1;
 mod lowering;
@@ -30,7 +31,7 @@ use neo_transcript::Poseidon2Transcript;
 use p3_field::PrimeCharacteristicRing;
 
 use crate::circuit::hash::Duplex;
-use crate::circuit::Native;
+use crate::circuit::Fast;
 use crate::field::{Ext, Gl};
 use crate::gkr::{GkrProof, GkrView, TreeClaim, TreeShape};
 use crate::hash::Challenger;
@@ -56,7 +57,7 @@ pub(super) fn fresh() -> Challenger {
 
 /// The GKR verifier on plain values, at `seed()`.
 pub(super) fn gkr_verify(proof: &GkrProof, shapes: &[TreeShape]) -> Result<Vec<TreeClaim<Ext>>, Error> {
-    let b = &mut Native;
+    let b = &mut Fast;
     let mut duplex = Duplex::new(b);
     duplex.observe_slice(b, &seed());
     let view = GkrView::read(b, Some(proof), shapes)?;

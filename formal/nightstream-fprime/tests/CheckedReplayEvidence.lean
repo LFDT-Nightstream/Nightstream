@@ -38,7 +38,7 @@ theorem checkedReplayNifsResult : CheckedReplayNifsResult := by
 #audit_axioms NightstreamFPrime.Export.Stage1.CheckedReplayNifs.checked_verifies
 #audit_axioms NightstreamFPrime.Export.Stage1.CheckedReplayNifs.checked_verifies_selected
 #audit_axioms NightstreamFPrime.Export.Stage1.CheckedReplayStep.checked_step
-#audit_axioms checkedReplayNifsResult
+#audit_axioms LeanGraph.Targets.checkedReplayNifsResult
 
 end LeanGraph.Targets
 

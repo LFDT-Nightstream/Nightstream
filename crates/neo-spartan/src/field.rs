@@ -3,13 +3,17 @@
 //! Owns: the Goldilocks and cubic-extension aliases in Plonky3 0.8, the
 //! conversions from workspace values (Plonky3 0.5 field values by `gl` and
 //! `re_im`, raw words such as key coefficients and Poseidon2 constants by
-//! `from_word`), the in-place slice views over their words (the crate's
-//! only `unsafe` code outside `scratch.rs`), multilinear helpers, and the
-//! point-order conversion. Does not own: words that enter a `Backend`
-//! (`circuit`), device outputs, or words that the prover reads back from
-//! its own files.
+//! `from_word`), the conversions to and from `neo_verified::field`, which
+//! read a Plonky3 value by its canonical word, the in-place slice views over
+//! their words (the crate's only `unsafe` code outside `scratch.rs`),
+//! multilinear helpers, and the point-order conversion. Does not own: words
+//! that enter a `Backend` (`circuit`), device outputs, or words that the
+//! prover reads back from its own files.
 
 use neo_math::{KExtensions, F, K};
+use neo_verified::algebra;
+use neo_verified::field as verified;
+use neo_verified::native::Native;
 use p3_field::PrimeField64;
 use p3_field_v08::extension::CubicTrinomialExtensionField;
 use p3_field_v08::{BasedVectorSpace, PrimeCharacteristicRing, PrimeField64 as _};
@@ -58,11 +62,33 @@ pub(crate) fn gl(value: F) -> Gl {
 
 /// A workspace word as a field element, reduced to canonical form.
 pub(crate) fn from_word(word: u64) -> Gl {
-    Gl::new(if word < Gl::ORDER_U64 {
-        word
-    } else {
-        word - Gl::ORDER_U64
-    })
+    from_verified(verified::reduce(word))
+}
+
+/// `value` in `neo_verified`, by its canonical word: a Plonky3 value may
+/// hold any word.
+pub(crate) fn to_verified(value: Gl) -> verified::Gl {
+    verified::reduce(value.as_canonical_u64())
+}
+
+pub(crate) fn from_verified(value: verified::Gl) -> Gl {
+    Gl::new(verified::gl_word(value))
+}
+
+/// `value` in `neo_verified`, coordinate by coordinate.
+pub(crate) fn ext_to_verified(value: Ext) -> verified::Ext {
+    let [c0, c1, c2] = ext_words(value).map(to_verified);
+    verified::Ext { c0, c1, c2 }
+}
+
+/// `values` in `neo_verified`, coordinate by coordinate.
+pub(crate) fn exts_to_verified(values: &[Ext]) -> Vec<verified::Ext> {
+    values.iter().map(|&value| ext_to_verified(value)).collect()
+}
+
+pub(crate) fn ext_from_verified(value: verified::Ext) -> Ext {
+    let coordinates = [value.c0, value.c1, value.c2].map(from_verified);
+    Ext::from_basis_coefficients_fn(|i| coordinates[i])
 }
 
 /// The coordinates of `K = F[u] / (u^2 - 7)` in the basis `(1, u)`.
@@ -100,8 +126,17 @@ pub(crate) fn signed(value: i64) -> Gl {
     }
 }
 
+/// `eq_table` of `neo_verified` on `Native`, which the verifier runs.
+pub(crate) fn verified_eq_table(point: &[Ext]) -> Vec<Ext> {
+    algebra::eq_table(&mut Native, &exts_to_verified(point))
+        .into_iter()
+        .map(ext_from_verified)
+        .collect()
+}
+
 /// `eq(point, x)` for every `x < 2^point.len()`; index bit `t` pairs with
-/// `point[t]` (low bit first, as everywhere in Nightstream).
+/// `point[t]` (low bit first, as everywhere in Nightstream). The prover's
+/// table, in parallel; the verifier runs `verified_eq_table`.
 pub(crate) fn eq_table(point: &[Ext]) -> Vec<Ext> {
     let mut table = vec![Ext::ONE];
     for &coordinate in point {

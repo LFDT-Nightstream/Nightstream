@@ -1,6 +1,8 @@
 import NightstreamFPrime.Layout.OptionB.RefreshAssemblerSource
 import NightstreamFPrime.Layout.OptionB.RefreshStepCompleteness
 import NightstreamFPrime.Layout.OptionB.RefreshPiCCSCompleteness
+import NightstreamFPrime.Layout.OptionB.SharedWordsAbove
+import NightstreamFPrime.Layout.OptionB.StepFootprint
 
 /-! Completeness of the refresh step circuit (CW-3.8). An honest refresh step (`StepHolds` with
 the application's validity, the prior-state binding of the fresh instance, and a refresh proof
@@ -116,8 +118,11 @@ theorem nextDigest_group (slot : Fin 2) :
 
 end Groups
 
-/-- Completeness of the refresh step circuit at the source layout. -/
-theorem complete (program : Stage1.Application.Program)
+/-- `complete` with any values `front` below `base`: the assignment carries `front` there, since
+the shared words lie at or above `base` (`SharedWordsAbove`). The exported relation puts its
+public input below `base`. Every constraint of the circuit reads below its last local
+(`StepFootprint.refresh_assembler_select_below` for the slot-select rows). -/
+theorem completeWith (program : Stage1.Application.Program)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) (base : Nat)
     (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
     (circuitKeys : Fin 2 → CircuitKey logicalWidth publicFits)
@@ -146,8 +151,13 @@ theorem complete (program : Stage1.Application.Program)
     (keyLength : ∀ key, (circuitKeys key).digest.length = 4)
     (z0Length : input.z0.length = 4) (ziLength : input.zi.length = 4)
     (zNextLength : output.zNext.length = 4)
-    (witnessLength : input.witness.length = program.witnessWordCount) :
-    ∃ env, holdsFlat env (Circuit.ops (RefreshStepLayout.main program relation circuit
+    (witnessLength : input.witness.length = program.witnessWordCount) (front : Env) :
+    ∃ env, (∀ column, column < base → env column = front column) ∧
+      (∀ expression ∈ flatConstraints (Circuit.ops (RefreshStepLayout.main program relation circuit
+        (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount)) (sharedEnd base program.witnessWordCount)),
+        expression.VarsBelow (sharedEnd base program.witnessWordCount + localLength (Circuit.ops
+          (RefreshStepLayout.main program relation circuit (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount)) (sharedEnd base program.witnessWordCount)))) ∧
+      holdsFlat env (Circuit.ops (RefreshStepLayout.main program relation circuit
         (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount)) (sharedEnd base program.witnessWordCount)) ∧
       RefreshStepSoundness.StepRepresents program (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount) ajtai circuitKeys circuit input output
         proof env := by
@@ -160,32 +170,53 @@ theorem complete (program : Stage1.Application.Program)
   have foldedDepth : foldedSlot.2 < goldilocksModulus := by
     rw [foldedSlotEq]
     exact (by decide : (0 : Nat) < goldilocksModulus)
-  obtain ⟨source, sourceEq⟩ : ∃ env : Env, env = honestEnv ajtai circuitKeys input output proof
-      selected foldedSlot base program.witnessWordCount := ⟨_, rfl⟩
-  have sourceAgree : ∀ column, column < (sharedEnd base program.witnessWordCount) →
-      source column = honestEnv ajtai circuitKeys input output proof selected foldedSlot base
-        program.witnessWordCount column := fun column _ => congrFun sourceEq column
+  have starts : base ≤ slotsStart base program.witnessWordCount ∧
+      base ≤ digestsStart base program.witnessWordCount ∧
+      base ≤ digitsStart base program.witnessWordCount ∧
+      base ≤ sharedEnd base program.witnessWordCount := by
+    simp only [sharedEnd, outputStart, roundsStart, digitsStart, childEvaluationsStart,
+      childCommitmentsStart, LightAssembler.freshStart, digestsStart, slotsStart,
+      LightAssembler.witnessStart]
+    omega
+  obtain ⟨slotsAbove, digestsAbove, digitsAbove, endAbove⟩ := starts
+  obtain ⟨source, sourceEq⟩ : ∃ env : Env, env = SharedWordsAbove.withFront front
+      (honestEnv ajtai circuitKeys input output proof selected foldedSlot base
+        program.witnessWordCount) base := ⟨_, rfl⟩
+  have starAbove : ∀ (target : Env) column, base ≤ column →
+      SharedWordsAbove.withFront (honestEnv ajtai circuitKeys input output proof selected
+        foldedSlot base program.witnessWordCount) target base column = target column :=
+    fun _ _ above => SharedWordsAbove.withFront_above above
+  have sourceAgree : SharedWordsAbove.Shared (honestEnv ajtai circuitKeys input output proof
+      selected foldedSlot base program.witnessWordCount) source base
+      (sharedEnd base program.witnessWordCount) := by
+    intro column above _
+    rw [sourceEq]
+    exact SharedWordsAbove.withFront_above above
   have agreeOf : ∀ completed : Sequence.Prefix source (sharedEnd base program.witnessWordCount),
-      ∀ column, column < (sharedEnd base program.witnessWordCount) →
-        completed.current column = honestEnv ajtai circuitKeys input output proof selected
-          foldedSlot base program.witnessWordCount column :=
-    fun completed column bound => (completed.agrees column (Or.inl bound)).trans
-      (congrFun sourceEq column)
-  have repAt := fun (target : Env) (agree : ∀ column, column < (sharedEnd base program.witnessWordCount) → target column =
-      honestEnv ajtai circuitKeys input output proof selected foldedSlot base
-        program.witnessWordCount column) =>
-    stepRepresents ajtai circuitKeys input output proof selected foldedSlot base target program
-      circuit agree iterationBound priorPcBound priorDepth nextDepth keyLength z0Length ziLength
-      zNextLength witnessLength xLength pcNext proofEq
-  have activeAt : ∀ (target : Env) (agree : ∀ column, column < (sharedEnd base program.witnessWordCount) → target column =
-      honestEnv ajtai circuitKeys input output proof selected foldedSlot base
-        program.witnessWordCount column),
+      SharedWordsAbove.Shared (honestEnv ajtai circuitKeys input output proof selected foldedSlot
+        base program.witnessWordCount) completed.current base
+        (sharedEnd base program.witnessWordCount) :=
+    fun completed column above below => (completed.agrees column (Or.inl below)).trans
+      (sourceAgree column above below)
+  have repAt := fun (target : Env) (agree : SharedWordsAbove.Shared (honestEnv ajtai circuitKeys input
+      output proof selected foldedSlot base program.witnessWordCount) target base
+      (sharedEnd base program.witnessWordCount)) =>
+    SharedWordsAbove.refresh_stepRepresents (starAbove target) program ajtai circuitKeys circuit
+      input output proof
+      (stepRepresents ajtai circuitKeys input output proof selected foldedSlot base _ program
+        circuit (SharedWordsAbove.withFront_agree agree) iterationBound priorPcBound priorDepth
+        nextDepth keyLength z0Length ziLength zNextLength witnessLength xLength pcNext proofEq)
+  have activeAt : ∀ (target : Env) (agree : SharedWordsAbove.Shared (honestEnv ajtai circuitKeys input
+      output proof selected foldedSlot base program.witnessWordCount) target base
+      (sharedEnd base program.witnessWordCount)),
       (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount).active.value target = input.running selected :=
-    fun target agree => (target_slot_value ajtai circuitKeys input output proof selected
-      foldedSlot base program.witnessWordCount target agree ⟨2, by decide⟩ (by
-        rw [active_group]
-        exact priorDepth selected)).trans
-      (active_group ajtai circuitKeys input output proof selected foldedSlot)
+    fun target agree => (SharedWordsAbove.slotAt_value_eq (starAbove target) (by omega)).trans
+      ((target_slot_value ajtai circuitKeys input output proof selected
+        foldedSlot base program.witnessWordCount _ (SharedWordsAbove.withFront_agree agree)
+        ⟨2, by decide⟩ (by
+          rw [active_group]
+          exact priorDepth selected)).trans
+        (active_group ajtai circuitKeys input output proof selected foldedSlot))
   have digestLength : ∀ block, ((honestValues ajtai circuitKeys input output proof selected
       foldedSlot).digests block).length = 4 := by
     intro block
@@ -194,9 +225,9 @@ theorem complete (program : Stage1.Application.Program)
     · exact Spec.Poseidon2.hash_length _
     · exact Spec.Poseidon2.hash_length _
     · exact xLength
-  have digestLanes := fun (target : Env) (agree : ∀ column, column < (sharedEnd base program.witnessWordCount) → target column =
-      honestEnv ajtai circuitKeys input output proof selected foldedSlot base
-        program.witnessWordCount column) (block : Fin 5) (start : Nat)
+  have digestLanes := fun (target : Env) (agree : SharedWordsAbove.Shared (honestEnv ajtai circuitKeys input
+      output proof selected foldedSlot base program.witnessWordCount) target base
+      (sharedEnd base program.witnessWordCount)) (block : Fin 5) (start : Nat)
       (startEq : start = digestsStart base program.witnessWordCount + 4 * block.val) =>
     show List.ofFn (fun lane : Fin 4 => target (start + lane.val)) =
         (honestValues ajtai circuitKeys input output proof selected foldedSlot).digests block by
@@ -206,21 +237,23 @@ theorem complete (program : Stage1.Application.Program)
       have blockBound := block.isLt
       have laneBound := lane.isLt
       rw [startEq, Nat.add_assoc]
-      exact (target_digest ajtai circuitKeys input output proof selected foldedSlot base
-        program.witnessWordCount target agree (4 * block.val + lane.val) (by omega)).trans
-        (LightAssemblerSource.quadColumn_eq _ _ block _ laneBound)
-  have priorDigestWords : ∀ (target : Env) (agree : ∀ column, column < (sharedEnd base program.witnessWordCount) → target column =
-      honestEnv ajtai circuitKeys input output proof selected foldedSlot base
-        program.witnessWordCount column) (slot : Fin 2),
+      exact (starAbove target _ (by omega)).symm.trans
+        ((target_digest ajtai circuitKeys input output proof selected foldedSlot base
+          program.witnessWordCount _ (SharedWordsAbove.withFront_agree agree)
+          (4 * block.val + lane.val) (by omega)).trans
+          (LightAssemblerSource.quadColumn_eq _ _ block _ laneBound))
+  have priorDigestWords : ∀ (target : Env) (agree : SharedWordsAbove.Shared (honestEnv ajtai circuitKeys input
+      output proof selected foldedSlot base program.witnessWordCount) target base
+      (sharedEnd base program.witnessWordCount)) (slot : Fin 2),
       List.ofFn (fun lane => ((interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount).priorDigest slot lane).eval target) =
           slotDigest (input.running slot) := by
     intro target agree slot
     have lanes := digestLanes target agree ⟨slot.val, by omega⟩ _ rfl
     rw [priorDigest_group] at lanes
     exact lanes
-  have nextDigestWords : ∀ (target : Env) (agree : ∀ column, column < (sharedEnd base program.witnessWordCount) → target column =
-      honestEnv ajtai circuitKeys input output proof selected foldedSlot base
-        program.witnessWordCount column) (slot : Fin 2),
+  have nextDigestWords : ∀ (target : Env) (agree : SharedWordsAbove.Shared (honestEnv ajtai circuitKeys input
+      output proof selected foldedSlot base program.witnessWordCount) target base
+      (sharedEnd base program.witnessWordCount)) (slot : Fin 2),
       List.ofFn (fun lane => ((interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount).nextDigest slot lane).eval target) =
           slotDigest (output.runningNext slot) := by
     intro target agree slot
@@ -304,8 +337,10 @@ theorem complete (program : Stage1.Application.Program)
         (PaperAlgebra.publicInputSplit ajtai).split (input.running selected).1.publicInput child
           column := by
     intro child column
-    exact digit_eval p1.current _ (fun word bound => target_digit ajtai circuitKeys input output
-      proof selected foldedSlot base program.witnessWordCount p1.current (agreeOf p1) word bound)
+    exact digit_eval p1.current _ (fun word bound =>
+      (starAbove p1.current _ (by omega)).symm.trans (target_digit ajtai circuitKeys input output
+        proof selected foldedSlot base program.witnessWordCount _
+        (SharedWordsAbove.withFront_agree (agreeOf p1)) word bound))
       (childOf child) column
   have decPhase : Lifecycle.PiDEC.v1_2.Semantics.PhaseHolds relation ajtai
       (decInterface program (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount)) (decOffset program circuit (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount) (sharedEnd base program.witnessWordCount)) p1.current := by
@@ -414,9 +449,10 @@ theorem complete (program : Stage1.Application.Program)
       (rlcOffset program relation circuit (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount) (sharedEnd base program.witnessWordCount)) p4.current = folded :=
     LightFold.toClaim_injective _ (Option.some.inj (foldEq.symm.trans foldedEq))
   -- The slot-select rows on the filled values.
-  have counter4 := fun (word : Nat) (bound : word < 5) => target_counter ajtai circuitKeys input
-    output proof selected foldedSlot base program.witnessWordCount p4.current (agreeOf p4) word
-    bound
+  have counter4 := fun (word : Nat) (bound : word < 5) =>
+    (starAbove p4.current (base + word) (Nat.le_add_right _ _)).symm.trans
+      (target_counter ajtai circuitKeys input output proof selected foldedSlot base
+        program.witnessWordCount _ (SharedWordsAbove.withFront_agree (agreeOf p4)) word bound)
   have inverseWord : (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount).inverse.eval p4.current = Hint.inverse (natWord input.iteration) :=
     counter4 1 (by decide)
   have recursiveWord : (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount).recursive.eval p4.current =
@@ -485,8 +521,11 @@ theorem complete (program : Stage1.Application.Program)
         (rep4.initialState.trans (sameState.trans rep4.currentState.symm))) index
     · dsimp only at facts
       exact absurd (recursiveZero zero) (Nat.pos_iff_ne_zero.mp facts.1)
-  have groupWords := fun (slot : Fin 7) depth => target_slot_words ajtai circuitKeys input output
-    proof selected foldedSlot base program.witnessWordCount p4.current (agreeOf p4) slot depth
+  have groupWords := fun (slot : Fin 7) depth =>
+    (SharedWordsAbove.slotAt_words_eq (fun column above => (starAbove p4.current column above).symm)
+      (by omega)).trans (target_slot_words ajtai circuitKeys input output proof selected
+        foldedSlot base program.witnessWordCount _ (SharedWordsAbove.withFront_agree (agreeOf p4))
+        slot depth)
   have activeWords : Hash.evalList p4.current (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount).active.words =
       Hash.evalList p4.current ((interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount).prior (SlotSelect.selected
         (selectInterface program relation circuit (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount) (sharedEnd base program.witnessWordCount))
@@ -550,7 +589,42 @@ theorem complete (program : Stage1.Application.Program)
   have selectRows := SlotSelect.rows_of_select (selectInterface program relation circuit (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount)
     (sharedEnd base program.witnessWordCount)) (selectOffset program relation circuit (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount) (sharedEnd base program.witnessWordCount)) p4.current flags selectorBit pcLink
     baseState activeWords innerSelected innerOther nextBase nextRecursive
-  refine ⟨p4.current, ?_, rep4⟩
+  have selectLength : localLength (Circuit.ops
+      (selectCircuit program relation circuit (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount) (sharedEnd base program.witnessWordCount)).main
+      (selectOffset program relation circuit (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount) (sharedEnd base program.witnessWordCount))) = 0 :=
+    StepFootprint.assertZero_localLength _
+  have lengthEq : localLength (RefreshStepLayout.opsAt program relation circuit (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount) (sharedEnd base program.witnessWordCount)) =
+      localLength p4.operations := by
+    rw [ops4, ops3, ops2, ops1]
+    unfold RefreshStepLayout.opsAt
+    rw [Sequence.localLength_append, Sequence.localLength_singleton,
+      Formal.CompletenessSupport.childOp_localLength]
+    unfold Formal.childLength
+    rw [selectLength, Nat.add_zero]
+    simp only [Sequence.empty, List.nil_append]
+    rfl
+  refine ⟨p4.current, fun column below => ?_, ?_, ?_, rep4⟩
+  · rw [p4.agrees column (Or.inl (by omega)), sourceEq]
+    exact SharedWordsAbove.withFront_below below
+  · change ∀ expression ∈ flatConstraints (RefreshStepLayout.opsAt program relation circuit (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount) (sharedEnd base program.witnessWordCount)),
+      expression.VarsBelow (sharedEnd base program.witnessWordCount + localLength (RefreshStepLayout.opsAt program relation circuit (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount) (sharedEnd base program.witnessWordCount)))
+    rw [lengthEq, end4]
+    intro expression member
+    unfold RefreshStepLayout.opsAt at member
+    rw [flatConstraints_append, List.mem_append] at member
+    rcases member with filled | select
+    · have scope := p4.scope expression (by
+        rw [ops4, ops3, ops2, ops1]
+        simp only [Sequence.empty, List.nil_append]
+        exact filled)
+      rwa [end4] at scope
+    · simp only [flatConstraints, List.flatMap_cons, List.flatMap_nil, List.append_nil] at select
+      change expression ∈ flatConstraints ((SlotSelect.rows (selectInterface program relation circuit (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount) (sharedEnd base program.witnessWordCount)) (selectOffset program relation circuit (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount) (sharedEnd base program.witnessWordCount))).map Op.assertZero) at select
+      simp only [flatConstraints, List.flatMap_map, List.mem_flatMap, Op.flatConstraints,
+        List.mem_singleton] at select
+      obtain ⟨original, inside, rfl⟩ := select
+      exact StepFootprint.refresh_assembler_select_below program relation circuit base
+        (le_of_le_of_eq (Nat.le_add_right _ _) end4) _ inside
   change holdsFlat p4.current (RefreshStepLayout.opsAt program relation circuit (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount) (sharedEnd base program.witnessWordCount))
   unfold RefreshStepLayout.opsAt holdsFlat
   rw [flatConstraints_append]
@@ -563,5 +637,46 @@ theorem complete (program : Stage1.Application.Program)
     List.mem_singleton] at member
   obtain ⟨original, inside, rfl⟩ := member
   exact selectRows _ inside
+
+/-- Completeness of the refresh step circuit at the source layout. -/
+theorem complete (program : Stage1.Application.Program)
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits) (base : Nat)
+    (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (circuitKeys : Fin 2 → CircuitKey logicalWidth publicFits)
+    (step : AppState → AppWitness → AppState) (control : AppState → AppWitness → Fin 2)
+    (circuit : Fin 2) (refresh : BoundedDepth.circuitStep circuit = .refresh)
+    (stepEq : program.step = step)
+    (input : StepInput logicalWidth publicFits) (output : StepOutput logicalWidth publicFits)
+    (proof : Spec.Folding.Refresh.Proof PaperAlgebra.Commitment productionShape 8)
+    (selected : Fin 2) (folded : SlotClaim logicalWidth publicFits)
+    (holds : StepHolds Folding.Schedule.productionLightFoldCap ajtai circuitKeys step control
+      circuit input output)
+    (valid : program.valid input.zi input.witness)
+    (selectedPc : input.iteration ≠ 0 → input.priorPc = selected.val + 1)
+    (freshPublic : input.fresh.publicInputs ⟨0, by decide⟩ =
+      encHash (publicFits := publicFits) (stateHash (toState (Paper.priorHashPreimage
+        ((setup Folding.Schedule.productionLightFoldCap ajtai circuitKeys).forCircuit circuit)
+        input))))
+    (proofEq : input.iteration ≠ 0 → input.nifsProof = .refresh proof)
+    (accepted : OptionBFolds.folds .refresh (keys (circuitKeys selected).relation ajtai)
+      (toClaim ((circuitKeys selected).system ajtai) (input.running selected).1) input.fresh
+      (.refresh proof) = some (toClaim ((circuitKeys selected).system ajtai) folded))
+    (iterationBound : input.iteration < goldilocksModulus)
+    (priorPcBound : input.priorPc < goldilocksModulus)
+    (priorDepth : ∀ slot, (input.running slot).2 < goldilocksModulus)
+    (nextDepth : ∀ slot, (output.runningNext slot).2 < goldilocksModulus)
+    (keyLength : ∀ key, (circuitKeys key).digest.length = 4)
+    (z0Length : input.z0.length = 4) (ziLength : input.zi.length = 4)
+    (zNextLength : output.zNext.length = 4)
+    (witnessLength : input.witness.length = program.witnessWordCount) :
+    ∃ env, holdsFlat env (Circuit.ops (RefreshStepLayout.main program relation circuit
+        (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount)) (sharedEnd base program.witnessWordCount)) ∧
+      RefreshStepSoundness.StepRepresents program (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount) ajtai circuitKeys circuit input output
+        proof env := by
+  obtain ⟨env, _, _, rows, represents⟩ := completeWith program relation base ajtai circuitKeys step
+    control circuit refresh stepEq input output proof selected folded holds valid selectedPc
+    freshPublic proofEq accepted iterationBound priorPcBound priorDepth nextDepth keyLength
+    z0Length ziLength zNextLength witnessLength (fun _ => 0)
+  exact ⟨env, rows, represents⟩
 
 end NightstreamFPrime.Layout.OptionB.RefreshAssemblerCompleteness

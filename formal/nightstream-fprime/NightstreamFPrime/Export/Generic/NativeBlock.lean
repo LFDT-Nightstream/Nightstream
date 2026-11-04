@@ -2,6 +2,7 @@ import NightstreamFPrime.Export.Generic.CircuitRelation
 import NightstreamFPrime.Export.PermutationOutput
 import NightstreamFPrime.Layout.ProductionRelation.PoseidonSboxSourceCompleteness
 import NightstreamFPrime.Spec.GoldilocksPrime
+import NightstreamFPrime.Export.Generic.SlotLayout
 
 /-! Native Poseidon2 blocks and bit slots (CW-8.3). A Rust-built application can place each
 Poseidon2 permutation as an option-B block (`Frame.Block`) instead of its 1,096 template rows: 150
@@ -19,7 +20,8 @@ binding rows hold.
 
 A `bit` slot commits one coordinate. A value 0 or 1 encodes within the norm bound
 (`LowNormSlot.encode_norm`, `bitHint_valid`, `bit_valid_of_boolean`), and a slot whose coordinate
-passes the norm check decodes to -1, 0 or 1 (`bitSlot_sound`). -/
+passes the norm check decodes to -1, 0 or 1 (`bitSlot_sound`). A row that forces a column to 0
+or 1 (`SlotLayout.forcedColumn?`) gives it 0 or 1 wherever the row holds (`forced_valid`). -/
 
 namespace NightstreamFPrime.Export.Generic.NativeBlock
 
@@ -404,6 +406,81 @@ theorem bit_valid_of_boolean {value : F} (boolean : value * value = value) :
   rcases GoldilocksPrime.baseFieldNoZeroDivisors value (value - 1) product with zero | minusOne
   · exact Or.inl zero
   · exact Or.inr (sub_eq_zero.mp minusOne)
+
+open Fin.CommRing in
+/-- A root of `(a₀ + a₁x)(b₀ + b₁x) - (c₀ + c₁x)`, a quadratic with leading coefficient `a₁b₁ ≠ 0`
+and roots 0 and 1, is 0 or 1. -/
+theorem bit_of_quadratic {a₀ a₁ b₀ b₁ c₀ c₁ value : F} (lead : a₁ * b₁ ≠ 0)
+    (atZero : a₀ * b₀ = c₀) (atOne : (a₀ + a₁) * (b₀ + b₁) = c₀ + c₁)
+    (holds : (a₀ + a₁ * value) * (b₀ + b₁ * value) = c₀ + c₁ * value) :
+    LowNormSlot.Valid .bit value := by
+  have product : (a₁ * b₁) * (value * (value - 1)) = 0 := by
+    linear_combination holds - value * atOne + (value - 1) * atZero
+  rcases GoldilocksPrime.baseFieldNoZeroDivisors _ _ product with zero | root
+  · exact absurd zero lead
+  · rcases GoldilocksPrime.baseFieldNoZeroDivisors value (value - 1) root with zero | minusOne
+    · exact Or.inl zero
+    · exact Or.inr (sub_eq_zero.mp minusOne)
+
+open Fin.CommRing in
+/-- With 1 at column 0, terms that read only column 0 and `column` sum to their coefficients at
+column 0 plus their coefficients at `column` times its value. -/
+theorem terms_eval_two {column : Nat} {env : Env} (one : env 0 = 1) (other : column ≠ 0) :
+    ∀ terms : List (Nat × F), (∀ term ∈ terms, term.1 = 0 ∨ term.1 = column) →
+      (terms.map fun term => term.2 * env term.1).sum =
+        ((terms.filter fun term => term.1 = 0).map Prod.snd).sum +
+          ((terms.filter fun term => term.1 = column).map Prod.snd).sum * env column
+  | [], _ => by simp
+  | (index, coefficient) :: rest, reads => by
+      have tail := terms_eval_two one other rest
+        fun term member => reads term (List.mem_cons_of_mem _ member)
+      rcases reads (index, coefficient) List.mem_cons_self with zero | same
+      · obtain rfl : index = 0 := zero
+        have notColumn : ¬(0 : Nat) = column := fun equal => other equal.symm
+        simp only [List.map_cons, List.sum_cons, List.filter_cons, decide_true, ↓reduceIte,
+          notColumn, decide_false, Bool.false_eq_true, tail, one]
+        ring
+      · obtain rfl : index = column := same
+        simp only [List.map_cons, List.sum_cons, List.filter_cons, other, decide_false,
+          Bool.false_eq_true, ↓reduceIte, decide_true, tail]
+        ring
+
+theorem side_eval_two {side : R1CS.LinearCombination} {column : Nat} {env : Env}
+    (one : env 0 = 1) (other : column ≠ 0)
+    (reads : ∀ term ∈ side.terms, term.1 = 0 ∨ term.1 = column) :
+    side.eval env = (side.constant + SlotLayout.coefficientAt side 0) +
+      SlotLayout.coefficientAt side column * env column := by
+  unfold R1CS.LinearCombination.eval SlotLayout.coefficientAt
+  rw [terms_eval_two one other side.terms reads, add_assoc]
+
+/-- A row that forces `column` to 0 or 1 (`SlotLayout.forcedColumn?`) gives it the value 0 or 1
+in every environment where the row holds and column 0 is 1. -/
+theorem forced_valid {row : R1CS.Row} {column : Nat}
+    (forced : SlotLayout.forcedColumn? row = some column) {env : Env} (one : env 0 = 1)
+    (holds : row.Holds env) : LowNormSlot.Valid .bit (env column) := by
+  unfold SlotLayout.forcedColumn? at forced
+  cases found : (row.a.terms ++ row.b.terms ++ row.c.terms).find? (fun term => term.1 != 0) with
+  | none => simp only [found] at forced; exact absurd forced (by simp)
+  | some first =>
+    obtain ⟨first, coefficient⟩ := first
+    simp only [found] at forced
+    split at forced
+    · rename_i checks
+      obtain ⟨reads, lead, atZero, atOne⟩ := checks
+      have columnEq := Option.some.inj forced
+      subst columnEq
+      have nonzero : first ≠ 0 := by simpa using List.find?_some found
+      simp only [List.all_eq_true, Bool.or_eq_true, beq_iff_eq] at reads
+      have side : ∀ side : R1CS.LinearCombination, (∀ term ∈ side.terms,
+          term ∈ row.a.terms ++ row.b.terms ++ row.c.terms) →
+          side.eval env = (side.constant + SlotLayout.coefficientAt side 0) +
+            SlotLayout.coefficientAt side first * env first :=
+        fun side inside => side_eval_two one nonzero fun term member => reads term (inside term member)
+      have rowEq : row.a.eval env * row.b.eval env = row.c.eval env := holds
+      rw [side row.a (fun _ member => by simp [member]), side row.b (fun _ member => by simp [member]),
+        side row.c (fun _ member => by simp [member])] at rowEq
+      exact bit_of_quadratic lead atZero atOne rowEq
+    · exact absurd forced (by simp)
 
 private theorem ofFn_eq_singleton {α : Type} {count : Nat} (values : Fin count → α)
     (one : count = 1) : List.ofFn values = [values ⟨0, by omega⟩] := by

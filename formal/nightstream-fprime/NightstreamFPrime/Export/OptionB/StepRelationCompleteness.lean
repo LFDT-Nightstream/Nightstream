@@ -7,9 +7,10 @@ step gives an environment that carries the step and the public input `encHash x`
 `base` (`LightAssemblerCompleteness.completeWith`, `RefreshAssemblerCompleteness.completeWith`).
 Its digest columns carry `x`, so `CircuitRelationCompleteness.rowsZero_of_holdsFlat` gives the
 prover's assignment of the exported relation: its rows are zero, its public input encodes the
-step's output hash, and it decodes to the honest environment on every live column below the
-first fresh column. For the package's own slots (`StepPackage.slotRuns`) the cover holds when the
-blocks pack (`light_packageComplete`, `refresh_packageComplete`). -/
+step's output hash, and it decodes to the honest environment on the column of every slot below
+the first fresh column. For the package's own slots (`StepPackage.slotRuns`), which cover the
+columns that the relation reads, the cover holds when the blocks pack (`light_packageComplete`,
+`refresh_packageComplete`). -/
 
 namespace NightstreamFPrime.Export.OptionB.StepRelationCompleteness
 
@@ -97,8 +98,8 @@ theorem light_below (relation : ProductionKey.LogicalRelation logicalWidth publi
 /-- Completeness of the light step relation, the converse of `StepRelation.light_stepHolds`: an
 honest light step gives an assignment of the light circuit's exported relation whose rows are zero
 and whose public input encodes the step's output hash. It decodes to an environment that carries
-the step on every live column below the first fresh column. The fresh columns start at or after
-the circuit's last local, and every live column of the relation has a slot. -/
+the step on the column of every slot below the first fresh column. The fresh columns start at or
+after the circuit's last local, and every column that the relation reads has a slot. -/
 theorem light_stepComplete (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
     (circuitKeys : Fin 2 → CircuitKey logicalWidth publicFits)
@@ -151,12 +152,9 @@ theorem light_stepComplete (relation : ProductionKey.LogicalRelation logicalWidt
         assignment ∧
       LogicalPlan.publicInput (publicFits := publicFits)
           (LogicalPlan.sourceEnv (SlotLayout.layout slots) assignment) = encHash output.x ∧
-      ∀ column, column < firstFresh → column < width →
-        CircuitRelationCompleteness.deadColumn CircuitRelation.publicColumns
-          (CircuitRelation.pieces (LightAssemblerCircuit.stepCircuit program base relation 0 ajtai)
-            (LightAssembler.sharedEnd base program.witnessWordCount) (lightDigestColumn program))
-          column = false →
-          LogicalPlan.sourceEnv (SlotLayout.layout slots) assignment column = env column := by
+      ∀ slot ∈ slots, slot.source.val < firstFresh →
+        LogicalPlan.sourceEnv (SlotLayout.layout slots) assignment slot.source.val =
+          env slot.source.val := by
   obtain ⟨env, front, footprint, rows, represents⟩ := LightAssemblerCompleteness.completeWith
     program relation base ajtai circuitKeys step control 0 rfl stepEq input output proof selected
     folded holds valid selectedPc freshPublic proofEq accepted depthSmall iterationBound
@@ -336,12 +334,9 @@ theorem refresh_stepComplete (relation : ProductionKey.LogicalRelation logicalWi
         assignment ∧
       LogicalPlan.publicInput (publicFits := publicFits)
           (LogicalPlan.sourceEnv (SlotLayout.layout slots) assignment) = encHash output.x ∧
-      ∀ column, column < firstFresh → column < width →
-        CircuitRelationCompleteness.deadColumn CircuitRelation.publicColumns
-          (CircuitRelation.pieces (RefreshAssemblerCircuit.stepCircuit program base relation 1
-            ajtai) (RefreshAssembler.sharedEnd base program.witnessWordCount)
-            (refreshDigestColumn program)) column = false →
-          LogicalPlan.sourceEnv (SlotLayout.layout slots) assignment column = env column := by
+      ∀ slot ∈ slots, slot.source.val < firstFresh →
+        LogicalPlan.sourceEnv (SlotLayout.layout slots) assignment slot.source.val =
+          env slot.source.val := by
   obtain ⟨env, front, footprint, rows, represents⟩ := RefreshAssemblerCompleteness.completeWith
     program relation base ajtai circuitKeys step control 1 rfl stepEq input output proof selected
     folded holds valid selectedPc freshPublic proofEq accepted iterationBound priorPcBound

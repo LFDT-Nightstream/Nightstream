@@ -15,7 +15,8 @@ use crate::application_records::{
 };
 use crate::option_b::layout::Kind;
 use crate::option_b::{
-    load_option_b_packages, Linear, NativeBlock, NativeShape, OptionBPackages, Piece, OPTION_B_PACKAGES_IDENTITY,
+    load_option_b_packages, parse_atoms, Linear, NativeBlock, NativeShape, OptionBPackages, Piece, StepPackage,
+    OPTION_B_PACKAGES_IDENTITY,
 };
 use crate::package::PackageError;
 
@@ -92,8 +93,9 @@ const FIRST_LOCAL: usize = 12;
 const BLOCK: usize = 1096;
 
 /// Four witness words and `locals` locals, each its own recipe
-/// `local · 1 = previous` from witness word 0; then `output_k · 1 = read`.
-fn chained(locals: usize, read: usize) -> Arc<ApplicationRecords> {
+/// `local · 1 = previous` from witness word 0; then `output_k · 1 = read`,
+/// and `bit · bit = bit` for each of `bits`.
+fn chained(locals: usize, read: usize, bits: &[usize]) -> Arc<ApplicationRecords> {
     let mut writer = ApplicationRecordsWriter::new().expect("writer");
     let copy = |writer: &mut ApplicationRecordsWriter, from: usize, to: usize| {
         let header = ApplicationRowHeader {
@@ -120,6 +122,29 @@ fn chained(locals: usize, read: usize) -> Arc<ApplicationRecords> {
     for lane in 0..4 {
         copy(&mut writer, read, 8 + lane);
     }
+    for &bit in bits {
+        let header = ApplicationRowHeader {
+            constants: [0, 0, 0],
+            term_counts: [1, 1, 1],
+        };
+        let term = |form| {
+            Ok(ApplicationTerm {
+                form,
+                variable: bit,
+                coefficient: 1,
+            })
+        };
+        writer
+            .append_row(
+                header,
+                [
+                    term(ApplicationForm::A),
+                    term(ApplicationForm::B),
+                    term(ApplicationForm::C),
+                ],
+            )
+            .expect("row");
+    }
     Arc::new(writer.finish().expect("records"))
 }
 
@@ -134,13 +159,14 @@ fn block(first_local: usize, lane: usize) -> NativeBlock {
 }
 
 /// Two blocks of the chain's locals replace their rows: the application's
-/// pieces are its four output rows and the two blocks, the dead locals get
-/// no slot, each block gets 150 S-box columns, and a bit word gets one
-/// coordinate. The identity binds the blocks and the bits.
+/// pieces are its four output rows, its bit row and the two blocks, the dead
+/// locals get no slot, each block gets 150 S-box columns, and a bit word that
+/// a row forces to 0 or 1 gets one coordinate. A witness word that no row
+/// reads gets no slot. The identity binds the blocks and the bits.
 #[test]
 fn native_blocks_replace_their_rows_and_bits_take_one_coordinate() {
     let packages = packages();
-    let records = chained(2 * BLOCK, FIRST_LOCAL + 2 * BLOCK - 1);
+    let records = chained(2 * BLOCK, FIRST_LOCAL + 2 * BLOCK - 1, &[5]);
     let shape = NativeShape {
         blocks: vec![block(FIRST_LOCAL, 4), block(FIRST_LOCAL + BLOCK, 5)],
         bits: vec![5],
@@ -156,7 +182,7 @@ fn native_blocks_replace_their_rows_and_bits_take_one_coordinate() {
         (plain.refresh(), packed.refresh(), packages.refresh()),
     ] {
         assert_eq!(packed.application.pieces, 3);
-        assert!(matches!(&packed.pieces[0], Piece::Rows(rows) if rows.len() == 4));
+        assert!(matches!(&packed.pieces[0], Piece::Rows(rows) if rows.len() == 5));
         assert_eq!(packed.block_count(), lean.block_count() - 5 + 2);
         assert_eq!(plain.block_count(), lean.block_count() - 5);
         let layout = packed.layout().expect("layout");
@@ -170,6 +196,7 @@ fn native_blocks_replace_their_rows_and_bits_take_one_coordinate() {
         assert_eq!(kind(FIRST_LOCAL + 1080), Some(Kind::Field));
         assert_eq!(kind(5), Some(Kind::Bit));
         assert_eq!(kind(4), Some(Kind::Field));
+        assert_eq!(kind(6), None);
         for column in [packed.sbox_start(), packed.sbox_start() + 299] {
             assert_eq!(layout.slot(column).map(|(_, kind)| kind), Some(Kind::Field));
         }
@@ -207,13 +234,56 @@ fn native_blocks_replace_their_rows_and_bits_take_one_coordinate() {
     }
 }
 
+/// A bit word that no row forces to 0 or 1 keeps its field slot.
+#[test]
+fn a_bit_without_its_row_is_a_field_slot() {
+    let packages = packages();
+    let shape = NativeShape {
+        blocks: vec![block(FIRST_LOCAL, 4), block(FIRST_LOCAL + BLOCK, 5)],
+        bits: vec![5],
+    };
+    let packed = packages
+        .with_application(chained(2 * BLOCK, FIRST_LOCAL + 2 * BLOCK - 1, &[]), 4, &shape)
+        .expect("blocks in place");
+    let light = packed.light();
+    let column = light.variable_column(5).expect("column");
+    assert_eq!(
+        light
+            .layout()
+            .expect("layout")
+            .slot(column)
+            .map(|(_, kind)| kind),
+        Some(Kind::Field)
+    );
+}
+
+/// Each package that Lean writes has the slots of Lean's rule
+/// (`StepPackage.runsOf`) on its own pieces, with its `bit` hints as the bit
+/// candidates: Rust's rule is Lean's.
+#[test]
+fn lean_packages_follow_the_slot_rule() {
+    for name in [
+        "light",
+        "refresh",
+        "finish",
+        "nebula-v1-light",
+        "nebula-v1-refresh",
+        "nebula-n1-light",
+        "nebula-n1-refresh",
+    ] {
+        let bytes = artifact(&format!("nightstream-fprime-option-b-{name}-v1.json"));
+        let package = StepPackage::decode(&parse_atoms(&bytes).expect("atoms")).expect("package");
+        assert_eq!(package.rule_slots(&package.bit_columns()), package.slots, "{name}");
+    }
+}
+
 /// Blocks that overlap or pass the locals, a lane that reads its own block
 /// or a dead local, a kept row that reads a dead local, and a bit outside
 /// the live witness words and locals are refused.
 #[test]
 fn native_shape_outside_its_rules_is_refused() {
     let packages = packages();
-    let records = chained(2 * BLOCK, FIRST_LOCAL + 2 * BLOCK - 1);
+    let records = chained(2 * BLOCK, FIRST_LOCAL + 2 * BLOCK - 1, &[]);
     let two = |first: NativeBlock, second: NativeBlock| NativeShape {
         blocks: vec![first, second],
         bits: Vec::new(),
@@ -259,7 +329,7 @@ fn native_shape_outside_its_rules_is_refused() {
             refused.map(|packages| packages.identity())
         );
     }
-    let reads_dead = chained(2 * BLOCK, FIRST_LOCAL + 7);
+    let reads_dead = chained(2 * BLOCK, FIRST_LOCAL + 7, &[]);
     assert!(matches!(
         packages.with_application(reads_dead, 4, &bit(5)),
         Err(PackageError::Malformed("option-B application row reads a dead local"))

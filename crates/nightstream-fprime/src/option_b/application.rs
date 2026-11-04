@@ -116,9 +116,9 @@ fn map_piece(piece: &Piece, map: &impl Fn(usize) -> Option<usize>) -> Option<Pie
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct NativeShape {
     pub blocks: Vec<NativeBlock>,
-    /// Variables that every honest witness sets to 0 or 1 and that a row of
-    /// the application forces to 0 or 1: each gets a bit slot
-    /// (`LowNormSlot.Kind.bit`).
+    /// Bit candidates: each variable that a row of the package forces to 0
+    /// or 1 (Lean `SlotLayout.forcedColumn?`) gets a bit slot
+    /// (`LowNormSlot.Kind.bit`), and any other a field slot.
     pub bits: Vec<usize>,
 }
 
@@ -169,10 +169,11 @@ impl StepPackage {
     }
 
     /// This package with `records` in place of its application and `shape`'s
-    /// blocks in place of their rows. The pieces, witness batches and slots
-    /// outside the region keep their order; a dropped piece may read only the
-    /// shared words and the region, and a kept piece or batch may not read
-    /// the region. The application's blocks lead the S-box columns.
+    /// blocks in place of their rows. The pieces and witness batches outside
+    /// the region keep their order; a dropped piece may read only the shared
+    /// words and the region, and a kept piece or batch may not read the
+    /// region. The application's blocks lead the S-box columns. The slots
+    /// follow Lean's rule on the new pieces (`native_slots`).
     fn with_application(
         &self,
         records: &Arc<ApplicationRecords>,
@@ -247,7 +248,7 @@ impl StepPackage {
                     .ok_or(PackageError::Malformed("option-B witness batch reads the application"))
             })
             .collect::<Result<_, _>>()?;
-        package.slots = self.mapped_slots(&map, &package, shape)?;
+        package.slots = package.native_slots(shape)?;
         Ok(package)
     }
 
@@ -343,57 +344,26 @@ impl StepPackage {
             .collect()
     }
 
-    /// The slot runs of `next`: every kept column keeps its kind; the new
-    /// witness words, live locals and S-box columns are field elements,
-    /// except `shape`'s bits; the blocks' dead locals get no slot.
-    fn mapped_slots(
-        &self,
-        map: &impl Fn(usize) -> Option<usize>,
-        next: &Self,
-        shape: &NativeShape,
-    ) -> Result<Vec<(usize, usize, u8)>, PackageError> {
-        const BIT: u8 = 0;
-        const FIELD: u8 = 2;
-        const NO_SLOT: u8 = 3;
-        let end = next.sbox_start + SBOX_COLUMNS * next.block_count();
-        let mut codes = vec![NO_SLOT; end];
-        for &(start, count, kind) in &self.slots {
-            for column in start..start + count {
-                if let Some(target) = map(column) {
-                    *codes
-                        .get_mut(target)
-                        .ok_or(PackageError::Malformed("option-B slot run"))? = kind;
-                }
-            }
-        }
-        let region = next.application;
-        let sbox = next.sbox_start..next.sbox_start + SBOX_COLUMNS * shape.blocks.len();
-        for column in (WITNESS_START..WITNESS_START + region.witness_words)
-            .chain(region.local_start..region.local_start + region.locals)
-            .chain(sbox)
-        {
-            codes[column] = FIELD;
-        }
-        for block in next.blocks().take(shape.blocks.len()) {
-            codes[block.start()..block.outputs()].fill(NO_SLOT);
-        }
+    /// The slot runs of this package by Lean's rule (`StepPackage.runsOf`),
+    /// with its `bit` hints and `shape`'s bits as the bit candidates. A bit
+    /// must be a witness word or a live local; it gets a bit slot only if a
+    /// row forces it to 0 or 1.
+    fn native_slots(&self, shape: &NativeShape) -> Result<Vec<(usize, usize, u8)>, PackageError> {
+        let region = self.application;
+        let mut bits = self.bit_columns();
         for &bit in &shape.bits {
             let witness_word = (4..4 + region.witness_words).contains(&bit);
-            let column = next.variable_column(bit)?;
-            if !(witness_word || bit >= 8 + region.witness_words) || codes[column] == NO_SLOT {
+            let column = self.variable_column(bit)?;
+            let dead = self
+                .blocks()
+                .take(shape.blocks.len())
+                .any(|block| (block.start()..block.outputs()).contains(&column));
+            if !(witness_word || bit >= 8 + region.witness_words) || dead {
                 return Err(PackageError::Malformed("option-B native bit outside the live words"));
             }
-            codes[column] = BIT;
+            bits.push(column);
         }
-        let mut runs: Vec<(usize, usize, u8)> = Vec::new();
-        for (column, &kind) in codes.iter().enumerate().skip(self.public_columns) {
-            match runs.last_mut() {
-                _ if kind == NO_SLOT => {}
-                Some((start, count, last)) if *last == kind && *start + *count == column => *count += 1,
-                _ => runs.push((column, 1, kind)),
-            }
-        }
-        Ok(runs)
+        Ok(self.rule_slots(&bits))
     }
 }
 

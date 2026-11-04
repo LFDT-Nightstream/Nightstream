@@ -6,11 +6,11 @@ import NightstreamFPrime.Export.Generic.NativeBlockCompleteness
 (`PieceRowsCompleteness.fillPieces`), then the S-box columns
 (`NativeBlockCompleteness.sboxFill`); otherwise the fresh columns of every piece. It encodes the
 result in the slots (`assignment`). When every piece reads below the first fresh column and every
-column of the relation other than a dead local has a slot (`Covers`), both branches of
-`CircuitRelation.plan` have zero rows, and the assignment decodes to the honest environment on the
-public columns and on every live column below the first fresh column (`rowsZero_of_pieces`). From
-a circuit's rows, an output digest that its public columns encode and its digest columns carry,
-this gives `rowsZero_of_holdsFlat`. -/
+column that the relation reads has a slot (`Covers`), both branches of `CircuitRelation.plan` have
+zero rows, and the assignment decodes to the honest environment on the public columns and on the
+column of every slot below the first fresh column (`rowsZero_of_pieces`). A column that no row
+reads needs no slot. From a circuit's rows, an output digest that its public columns encode and its
+digest columns carry, this gives `rowsZero_of_holdsFlat`. -/
 
 namespace NightstreamFPrime.Export.Generic.CircuitRelationCompleteness
 
@@ -58,113 +58,19 @@ theorem split_mem {canonical constraints : List Expr} {piece : Piece}
   rw [← flatMap_split canonical constraints]
   exact List.mem_flatMap.mpr ⟨piece, member, inPiece⟩
 
-/-! ### Lowered rows that read no dead local -/
-
-theorem avoids_varsSatisfy {dead : Nat → Bool} :
-    ∀ expression : Expr, avoids dead expression = true →
-      expression.VarsSatisfy fun column => dead column = false
-  | .var column, avoid => by
-      show dead column = false
-      simpa [avoids] using avoid
-  | .const _, _ => trivial
-  | .add left right, avoid => by
-      simp only [avoids, Bool.and_eq_true] at avoid
-      exact ⟨avoids_varsSatisfy left avoid.1, avoids_varsSatisfy right avoid.2⟩
-  | .mul left right, avoid => by
-      simp only [avoids, Bool.and_eq_true] at avoid
-      exact ⟨avoids_varsSatisfy left avoid.1, avoids_varsSatisfy right avoid.2⟩
-
-theorem rowAvoids_of_varsSatisfy {dead : Nat → Bool} {row : R1CS.Row}
-    (support : row.VarsSatisfy fun column => dead column = false) : rowAvoids dead row = true := by
-  simp only [rowAvoids, combinationAvoids, Bool.and_eq_true, List.all_eq_true]
-  refine ⟨⟨fun term member => ?_, fun term member => ?_⟩, fun term member => ?_⟩
-  · simpa using support.1 term member
-  · simpa using support.2.1 term member
-  · simpa using support.2.2 term member
-
-theorem getD_avoids {dead : Nat → Bool} {lanes : List Expr}
-    (avoid : ∀ lane ∈ lanes, avoids dead lane = true) (index : Nat) :
-    avoids dead (lanes.getD index 0) = true := by
-  by_cases inside : index < lanes.length
-  · rw [List.getD_eq_getElem _ _ inside]
-    exact avoid _ (List.getElem_mem inside)
-  · rw [List.getD_eq_default _ _ (by omega)]
-    rfl
-
-/-- The rows of a piece outside the blocks that reads no dead local read no dead local, when the
-dead locals lie below the piece's fresh columns. -/
-theorem lowerPiece_avoid {dead : Nat → Bool} (piece : Piece) (next : Nat)
-    (notBlock : isBlock piece = false) (avoid : avoidsDead dead piece = true)
-    (deadBelow : ∀ column, dead column = true → column < next) :
-    ∀ row ∈ (lowerPiece (PilotData.canonicalConstraints ()) piece next).1,
-      rowAvoids dead row = true := by
-  intro row member
-  apply rowAvoids_of_varsSatisfy
-  have fresh : ∀ column, next ≤ column → dead column = false := by
-    intro column high
-    cases isDead : dead column
-    · rfl
-    · exact absurd (deadBelow column isDead) (by omega)
-  cases piece with
-  | permutation => simp [isBlock] at notBlock
-  | constraint expression =>
-      have scope := R1CS.lowerConstraints_rows_varsSatisfy [expression] next _ (fun current inside => by
-        simp only [List.mem_singleton] at inside
-        subst inside
-        exact avoids_varsSatisfy _ avoid) row member
-      exact scope.mono row fun column source => by
-        rcases source with live | ⟨high, _⟩
-        · exact live
-        · exact fresh column high
-  | ringProduct cells start lanes =>
-      simp only [avoidsDead, Bool.and_eq_true, List.all_eq_true, List.mem_range] at avoid
-      have laneAvoid := fun index => avoids_varsSatisfy _ (getD_avoids avoid.1 index)
-      exact ringRows_varsSatisfy cells start next lanes (fun lane => laneAvoid _)
-        (fun _ _ lane => laneAvoid _) (fun _ _ lane => laneAvoid _)
-        (fun cell inside lane => by simpa [outputColumn] using avoid.2 _ (slot_lt lane inside))
-        (fun cell inside lane => fresh _ (by simp only [quotientColumn]; omega)) row member
-
-theorem lowerPiecesAux_avoid {dead : Nat → Bool} {bound : Nat}
-    (deadBelow : ∀ column, dead column = true → column < bound) :
-    ∀ (pieces : List Piece) (next : Nat) (rowsReversed : List R1CS.Row), bound ≤ next →
-      (∀ piece ∈ pieces, isBlock piece = false ∧ avoidsDead dead piece = true) →
-      (∀ row ∈ rowsReversed, rowAvoids dead row = true) →
-      ∀ row ∈ (lowerPiecesAux (PilotData.canonicalConstraints ()) pieces next rowsReversed).1,
-        rowAvoids dead row = true
-  | [], _, rowsReversed, _, _, rows => by
-      intro row member
-      exact rows row (by simpa [lowerPiecesAux] using member)
-  | piece :: rest, next, rowsReversed, le, pieces, rows => by
-      simp only [lowerPiecesAux]
-      apply lowerPiecesAux_avoid deadBelow rest _ _
-        (le_trans le (lowerPiece_next _ piece next))
-        (fun other member => pieces other (List.mem_cons_of_mem _ member))
-      intro row member
-      rw [List.reverseAux_eq, List.mem_append, List.mem_reverse] at member
-      rcases member with member | member
-      · exact lowerPiece_avoid piece next (pieces _ List.mem_cons_self).1
-          (pieces _ List.mem_cons_self).2 (fun column isDead => by
-            have := deadBelow column isDead
-            omega) row member
-      · exact rows row member
-
 /-! ### The prover's assignment -/
 
-/-- The columns the slots need not cover: the dead locals when the blocks pack. -/
-def deadColumn (publicColumns : Nat) (pieces : List Piece) (column : Nat) : Bool :=
-  packable publicColumns pieces && deadIn (blocksOf pieces) column
-
-/-- The first column after the relation's columns: after the S-box columns when the blocks pack,
-after the lowering's fresh columns otherwise. -/
-def columnEnd (publicColumns : Nat) (pieces : List Piece) (next : Nat) : Nat :=
-  if packable publicColumns pieces then sboxStart pieces next + (blocksOf pieces).length * 150
-  else (lowerPieces (PilotData.canonicalConstraints ()) pieces next).2
-
-/-- Every column from the public columns to `columnEnd`, other than a dead local, has a slot. -/
-def Covers {width : Nat} (slots : List (LowNormAssignment.Slot width)) (publicColumns : Nat)
-    (pieces : List Piece) (next : Nat) : Prop :=
-  ∀ column, LogicalPlan.publicCount ≤ column → column < columnEnd publicColumns pieces next →
-    deadColumn publicColumns pieces column = false → ∃ slot ∈ slots, slot.source.val = column
+/-- Each column that the relation reads below its last column is public or has a slot: when the
+blocks pack, the rows of the other pieces, the blocks' lanes and output locals and the S-box
+columns (`NativeBlockCompleteness.ReadsCovered`); otherwise the rows of every piece. -/
+structure Covers {width : Nat} (slots : List (LowNormAssignment.Slot width)) (publicColumns : Nat)
+    (pieces : List Piece) (next : Nat) : Prop where
+  packed : packable publicColumns pieces = true →
+    ReadsCovered slots (lowerPieces (PilotData.canonicalConstraints ()) (otherPieces pieces) next).1
+      (blocksOf pieces) (sboxStart pieces next)
+  unpacked : packable publicColumns pieces = false →
+    ReadsCovered slots (lowerPieces (PilotData.canonicalConstraints ()) pieces next).1 []
+      (lowerPieces (PilotData.canonicalConstraints ()) pieces next).2
 
 /-- The honest environment with its fresh columns filled. -/
 def filled (publicColumns : Nat) (pieces : List Piece) (next : Nat) (env : Env) : Env :=
@@ -190,9 +96,9 @@ theorem publicInside_of_packed {publicColumns : Nat} {pieces : List Piece} {next
 /-! ### Completeness -/
 
 /-- Plan completeness on pieces: when every piece's constraints hold in `env` and read below the
-first fresh column `next`, and every column of the relation other than a dead local has a slot,
-the prover's assignment makes the plan's rows zero, for both branches of `CircuitRelation.plan`.
-It decodes to `env` on the public columns and on every live column below `next`. -/
+first fresh column `next`, and every column that the relation reads has a slot, the prover's
+assignment makes the plan's rows zero, for both branches of `CircuitRelation.plan`. It decodes to
+`env` on the public columns and on the column of every slot below `next`. -/
 theorem rowsZero_of_pieces (publicColumns : Nat) (pieces : List Piece)
     (valid : ∀ piece ∈ pieces, piece.Valid) (next width : Nat)
     (fits : Fits publicColumns pieces next width) (slots : List (LowNormAssignment.Slot width))
@@ -208,11 +114,15 @@ theorem rowsZero_of_pieces (publicColumns : Nat) (pieces : List Piece)
       (∀ column, column < LogicalPlan.publicCount →
         LogicalPlan.sourceEnv (layout slots) (assignment slots publicColumns pieces next env)
           column = env column) ∧
-      ∀ column, column < next → column < width →
-        deadColumn publicColumns pieces column = false →
-          LogicalPlan.sourceEnv (layout slots) (assignment slots publicColumns pieces next env)
-            column = env column := by
+      ∀ slot ∈ slots, slot.source.val < next →
+        LogicalPlan.sourceEnv (layout slots) (assignment slots publicColumns pieces next env)
+          slot.source.val = env slot.source.val := by
   have zeroPublic : 0 < LogicalPlan.publicCount := by decide
+  have decodeSlot : ∀ honest : Env, ∀ slot ∈ slots,
+      LogicalPlan.sourceEnv (layout slots) (encode slots honest) slot.source.val =
+        honest slot.source.val :=
+    fun honest slot member => sourceEnv_encode slots honest slot.source.isLt
+      (Or.inr ⟨slot, member, rfl⟩)
   by_cases packed : packable publicColumns pieces = true
   · let canonical := PilotData.canonicalConstraints ()
     let blocks := blocksOf pieces
@@ -232,30 +142,13 @@ theorem rowsZero_of_pieces (publicColumns : Nat) (pieces : List Piece)
         expression.VarsBelow next := fun block member => below _ (blocksOf_mem member)
     have nextLe : next ≤ sboxStart pieces next :=
       lowerPiecesAux_le canonical (otherPieces pieces) next []
-    have check := packed
-    simp only [packable, Bool.and_eq_true, List.all_eq_true] at check
-    have avoid : (lowerPieces canonical (otherPieces pieces) next).1.all
-        (rowAvoids (deadIn blocks)) = true :=
-      List.all_eq_true.mpr (lowerPiecesAux_avoid (fun column dead => dead_below blocksBelow dead)
-        (otherPieces pieces) next [] (le_refl _)
-        (fun piece member => ⟨(otherPieces_mem member).2,
-          check.2 piece (otherPieces_mem member).1⟩)
-        (fun _ member => by simp at member))
     have blockFits := fits.blocks packed
-    have endEq : columnEnd publicColumns pieces next = sboxStart pieces next + blocks.length * 150 := by
-      unfold columnEnd
-      rw [ite_eq_left packed]
-    have deadEq : ∀ column, deadColumn publicColumns pieces column = deadIn blocks column := by
-      intro column
-      simp only [deadColumn, packed, Bool.true_and, blocks]
-    obtain ⟨sboxRows, rowsHold, publicEq, decode⟩ := blocks_rows_complete slots
-      (packable_framed packed) (sboxStart pieces next) avoid
+    obtain ⟨sboxRows, rowsHold, publicEq⟩ := blocks_rows_complete slots
+      (packable_framed packed) (sboxStart pieces next)
       (lowerPieces_rows_below canonical (otherPieces pieces) next othersBelow)
       (fun block member expression inside => Expr.VarsBelow.mono _
         (blocksBelow block member expression inside) nextLe)
-      (le_trans publicBelow nextLe) blockFits.sboxColumns
-      (fun column notPublic high live => covers column notPublic (by rw [endEq]; exact high)
-        (by rw [deadEq]; exact live))
+      (le_trans publicBelow nextLe) blockFits.sboxColumns (covers.packed packed)
       (by have := blockFits.rowCount; omega) honest (by rw [low 0 (by omega)]; exact one)
       loweredRows (fun block member => constraintsHold_of_agree_below env honest _ next
         (blocksBelow block member) low (holds _ (blocksOf_mem member)))
@@ -269,7 +162,7 @@ theorem rowsZero_of_pieces (publicColumns : Nat) (pieces : List Piece)
       rw [encode_one, sboxFill_outside (Or.inl (by omega)), low 0 (by omega)]
       exact one
     refine ⟨?_, fun column isPublic => (publicEq column isPublic).trans (low column (by omega)),
-      fun column below _ live => ?_⟩
+      fun slot member below => ?_⟩
     · unfold plan
       rw [dite_eq_left packed, Plan.append_rowsZero_iff]
       refine ⟨(LogicalPlan.rowsZero_iff_rowsHold _ width fits.rows (layout slots) _ oneEq).mpr ?_,
@@ -277,8 +170,8 @@ theorem rowsZero_of_pieces (publicColumns : Nat) (pieces : List Piece)
       unfold relationRows
       rw [ite_eq_left packed]
       exact rowsHold
-    · rw [deadEq] at live
-      rw [decode column (by omega) live, sboxFill_outside (Or.inl (by omega)), low column below]
+    · unfold blockAssignment
+      rw [decodeSlot _ slot member, sboxFill_outside (Or.inl (by omega)), low _ below]
   · have notPacked : packable publicColumns pieces = false := by simpa using packed
     let canonical := PilotData.canonicalConstraints ()
     let honest := fillPieces canonical env pieces next
@@ -291,38 +184,21 @@ theorem rowsZero_of_pieces (publicColumns : Nat) (pieces : List Piece)
       unfold assignment filled
       rw [ite_eq_right (by simpa using packed)]
     rw [assignmentEq]
-    have decode : ∀ column, column < width → column < (lowerPieces canonical pieces next).2 →
-        LogicalPlan.sourceEnv (layout slots) (encode slots honest) column = honest column := by
-      intro column inside high
-      apply sourceEnv_encode slots honest inside
-      by_cases isPublic : column < LogicalPlan.publicCount
-      · exact Or.inl isPublic
-      · refine Or.inr (covers column (Nat.le_of_not_gt isPublic) ?_ ?_)
-        · unfold columnEnd
-          rw [ite_eq_right (by simpa using packed)]
-          exact high
-        · simp [deadColumn, notPacked]
     have rowsBelow := lowerPieces_rows_below canonical pieces next below
+    have cover := covers.unpacked notPacked
     have rowsAt : R1CS.RowsHold (LogicalPlan.sourceEnv (layout slots) (encode slots honest))
-        (lowerPieces canonical pieces next).1 := by
-      apply R1CS.rowsHold_of_agree _
-        (fun column => column < width ∧ column < (lowerPieces canonical pieces next).2) honest
-      · intro row member
-        have bounded := fits.rows.rowBounded (show row ∈ relationRows publicColumns pieces next width by
-          unfold relationRows
-          rw [ite_eq_right (by simpa using packed)]
-          exact member)
-        have rowBelow := rowsBelow row member
-        exact ⟨fun term inside => ⟨bounded.1 term inside, rowBelow.1 term inside⟩,
-          fun term inside => ⟨bounded.2.1 term inside, rowBelow.2.1 term inside⟩,
-          fun term inside => ⟨bounded.2.2 term inside, rowBelow.2.2 term inside⟩⟩
-      · intro column allowed
-        exact decode column allowed.1 allowed.2
-      · exact loweredRows
+        (lowerPieces canonical pieces next).1 :=
+      R1CS.rowsHold_of_agree _
+        (fun column => column < (lowerPieces canonical pieces next).2 ∧ Slotted slots column) honest _
+        (fun row member => row_scope (rowsBelow row member) fun column columnMember high =>
+          cover column (by simpa using high) (Or.inl ⟨row, member, columnMember⟩))
+        (fun column allowed => sourceEnv_encode slots honest (allowed.2.lt_width publicInside)
+          allowed.2)
+        loweredRows
     have oneEq : encode slots honest (layout slots).one = 1 := by
       rw [encode_one, low 0 (by omega)]
       exact one
-    refine ⟨?_, fun column isPublic => ?_, fun column below inside _ => ?_⟩
+    refine ⟨?_, fun column isPublic => ?_, fun slot member below => ?_⟩
     · unfold plan
       rw [dite_eq_right packed]
       refine (LogicalPlan.rowsZero_iff_rowsHold _ width fits.rows (layout slots) _ oneEq).mpr ?_
@@ -330,7 +206,7 @@ theorem rowsZero_of_pieces (publicColumns : Nat) (pieces : List Piece)
       rw [ite_eq_right (by simpa using packed)]
       exact rowsAt
     · rw [sourceEnv_encode_public slots honest (by omega) isPublic, low column (by omega)]
-    · rw [decode column inside (by omega), low column below]
+    · rw [decodeSlot _ slot member, low _ below]
 
 /-- Plan completeness on the constraints that `split` cuts into the pieces. -/
 theorem rowsZero_of_constraints (publicColumns : Nat) (constraints : List Expr) (next width : Nat)
@@ -347,12 +223,10 @@ theorem rowsZero_of_constraints (publicColumns : Nat) (constraints : List Expr) 
       (∀ column, column < LogicalPlan.publicCount →
         LogicalPlan.sourceEnv (layout slots) (assignment slots publicColumns
           (split (PilotData.canonicalConstraints ()) constraints) next env) column = env column) ∧
-      ∀ column, column < next → column < width →
-        deadColumn publicColumns (split (PilotData.canonicalConstraints ()) constraints) column =
-          false →
-          LogicalPlan.sourceEnv (layout slots) (assignment slots publicColumns
-            (split (PilotData.canonicalConstraints ()) constraints) next env) column =
-            env column :=
+      ∀ slot ∈ slots, slot.source.val < next →
+        LogicalPlan.sourceEnv (layout slots) (assignment slots publicColumns
+          (split (PilotData.canonicalConstraints ()) constraints) next env) slot.source.val =
+          env slot.source.val :=
   rowsZero_of_pieces publicColumns _ (valid_split _ constraints) next width fits slots covers
     publicBelow publicInside env one
     (fun _ member _ inside => below _ (split_mem member inside))
@@ -431,11 +305,10 @@ theorem rowsZero_of_holdsFlat (circuit : FormalCircuit) (offset next : Nat)
       LogicalPlan.publicInput (publicFits := publicFits) (LogicalPlan.sourceEnv (layout slots)
           (assignment slots CircuitRelation.publicColumns (pieces circuit offset digestColumn) next
             env)) = encHash digest ∧
-      ∀ column, column < next → column < width →
-        deadColumn CircuitRelation.publicColumns (pieces circuit offset digestColumn) column =
-          false →
-          LogicalPlan.sourceEnv (layout slots) (assignment slots CircuitRelation.publicColumns
-            (pieces circuit offset digestColumn) next env) column = env column := by
+      ∀ slot ∈ slots, slot.source.val < next →
+        LogicalPlan.sourceEnv (layout slots) (assignment slots CircuitRelation.publicColumns
+          (pieces circuit offset digestColumn) next env) slot.source.val =
+          env slot.source.val := by
   have holds : ConstraintsHold env (CircuitRelation.constraints circuit offset digestColumn) :=
     (constraintsHold_append _ _ _).mpr ⟨rows,
       decodeConstraints_hold (publicFits := publicFits) env digestColumn digest encoded words⟩

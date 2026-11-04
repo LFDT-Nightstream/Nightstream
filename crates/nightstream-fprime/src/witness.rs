@@ -38,6 +38,16 @@ impl WitnessBatch {
         self.start + self.recipes.len() + self.hints.len()
     }
 
+    /// The columns of the batch's `bit` hints (Lean `StepPackage.bitColumns`).
+    pub(super) fn bit_columns(&self) -> impl Iterator<Item = usize> + '_ {
+        let first = self.start + self.recipes.len();
+        self.hints
+            .iter()
+            .enumerate()
+            .filter(|(_, hint)| matches!(hint, WitnessHint::Bit(..)))
+            .map(move |(index, _)| first + index)
+    }
+
     /// The batch with every column moved by `map`; `None` if `map` drops a
     /// column the batch writes or reads.
     pub(super) fn map_columns(&self, map: &impl Fn(usize) -> Option<usize>) -> Option<Self> {

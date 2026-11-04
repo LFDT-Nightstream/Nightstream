@@ -306,35 +306,75 @@ def Package.relationRows (package : Package) : List R1CS.Row :=
   package.pieces.flatMap PackagePiece.relationRows ++
     CircuitRelation.bindingRows package.width package.blocks package.sboxStart
 
-/-- The live source columns' slots as runs `(start, count, kind)`: every column from the public
-columns to the last S-box output except the blocks' dead locals; a column that a `bit` hint fills
-is a bit, every other column a field element (`LowNormSlot.Kind`). -/
+/-! ### The slots -/
+
+/-- The columns that the relation reads from a piece: the terms of a rows piece; a ring piece's
+outputs, quotients and lanes; a block's output locals and lanes, which its binding rows and its
+S-box rows read. -/
+def PackagePiece.reads : PackagePiece → List Nat
+  | .rows chunk => chunk.flatMap SlotLayout.rowColumns
+  | .ring cells start quotient lanes =>
+      List.range' start (ringDegree * cells) ++ List.range' quotient (ringDegree * cells) ++
+        lanes.flatMap SlotLayout.exprColumns
+  | .block start lanes => List.range' (start + 1080) 16 ++ lanes.flatMap SlotLayout.exprColumns
+
+/-- The columns that the rows of a rows piece force to 0 or 1 (`SlotLayout.forcedColumn?`). -/
+def PackagePiece.forced : PackagePiece → List Nat
+  | .rows chunk => chunk.filterMap SlotLayout.forcedColumn?
+  | _ => []
+
+/-- The columns that the `bit` hints of `batches` fill. -/
+def bitColumns (batches : List WitnessBatch) : List Nat :=
+  batches.flatMap fun batch => (batch.hints.zipIdx).filterMap fun (hint, index) => match hint with
+    | .bit .. => some (batch.start + batch.recipes.length + index)
+    | _ => none
+
+/-- The kind code of a column (`SlotLayout.kindOf`), or 3 for no slot. A column that a row reads
+and each S-box column has a slot; the slot is a bit when the column is a bit candidate and a row
+forces it to 0 or 1, and a field element otherwise. -/
+def slotCode (sboxStart : Nat) (reads bits forced : Array Bool) (column : Nat) : Nat :=
+  if (reads.getD column false || decide (sboxStart ≤ column)) = true then
+    if (bits.getD column false && forced.getD column false) = true then 0 else 2
+  else 3
+
+/-- One column of the run fold: no run for code 3, else extend the last run or start one. -/
+def runStep (code : Nat → Nat) (runs : List (Nat × Nat × Nat)) (column : Nat) :
+    List (Nat × Nat × Nat) :=
+  if code column = 3 then runs else
+    match runs with
+    | (start, count, kind) :: rest =>
+        if kind = code column ∧ start + count = column then (start, count + 1, kind) :: rest
+        else (column, 1, code column) :: runs
+    | [] => [(column, 1, code column)]
+
+/-- A package's slot runs `(start, count, kind)` from the public columns to the last S-box
+column: a column has a slot only if a row of the relation reads it (`PackagePiece.reads`, and the
+S-box rows read each S-box column), and the slot is a bit only if `bits` names the column and a row
+forces it to 0 or 1 (`PackagePiece.forced`). Every other slot is a field element. A block's dead
+locals have no slot, because no row reads them. -/
+def runsOf (publicColumns sboxStart : Nat) (pieces : List PackagePiece) (bits : List Nat) :
+    List (Nat × Nat × Nat) :=
+  let size := sboxStart + 150 * (pieces.filterMap PackagePiece.block?).length
+  let empty := Array.replicate size false
+  let code := slotCode sboxStart
+    (pieces.foldl (fun mask piece => SlotLayout.markColumns mask piece.reads) empty)
+    (SlotLayout.markColumns empty bits)
+    (pieces.foldl (fun mask piece => SlotLayout.markColumns mask piece.forced) empty)
+  (((List.range size).drop publicColumns).foldl (runStep code) []).reverse
+
+/-- A step circuit's slot runs: `runsOf` on its package pieces, with the columns of its `bit`
+hints as the bit candidates. -/
 def slotRuns (publicColumns : Nat) (pieces : List Piece) (next : Nat)
     (batches : List WitnessBatch) : List (Nat × Nat × Nat) :=
-  let blocks := CircuitRelation.blocksOf pieces
-  let size := CircuitRelation.sboxStart pieces next + 150 * blocks.length
-  let codes := blocks.foldl (fun codes block =>
-      (List.range 1080).foldl (fun codes offset => codes.set! (block.start + offset) 3) codes)
-    (Array.replicate size (2 : Nat))
-  let codes := batches.foldl (fun codes batch =>
-      (batch.hints.zipIdx).foldl (fun codes (hint, index) => match hint with
-        | .bit .. => codes.set! (batch.start + batch.recipes.length + index) 0
-        | _ => codes) codes) codes
-  let runs := ((List.range size).drop publicColumns).foldl (fun runs column =>
-      let code : Nat := codes.getD column 3
-      if code = 3 then runs else
-        match runs with
-        | (start, count, kind) :: rest =>
-            if kind = code ∧ start + count = column then (start, count + 1, kind) :: rest
-            else (column, 1, code) :: runs
-        | [] => [(column, 1, code)]) []
-  runs.reverse
+  runsOf publicColumns (CircuitRelation.sboxStart pieces next) (packagePieces pieces next)
+    (bitColumns batches)
 
 def packageOf (circuit publicColumns : Nat) (pieces : List Piece) (next width : Nat)
     (batches : List WitnessBatch) (application : Nat × Nat × Nat × Nat × Nat) : Package :=
-  ⟨circuit, publicColumns, width, next, CircuitRelation.sboxStart pieces next,
-    packagePieces pieces next, witnessOf batches pieces, slotRuns publicColumns pieces next batches,
-    application⟩
+  let sboxStart := CircuitRelation.sboxStart pieces next
+  let package := packagePieces pieces next
+  ⟨circuit, publicColumns, width, next, sboxStart, package, witnessOf batches pieces,
+    runsOf publicColumns sboxStart package (bitColumns batches), application⟩
 
 theorem relationRows_packageOf (circuit publicColumns : Nat) (pieces : List Piece)
     (next width : Nat) (batches : List WitnessBatch) (application : Nat × Nat × Nat × Nat × Nat)

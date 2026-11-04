@@ -280,7 +280,7 @@ Lemma program_callee_types : forall program s module C,
   calleeTypes C (programCallees program module).
 Proof.
   intros program s module C Hstore Hmodule x f Hf.
-  unfold programCallees in Hf.
+  unfold programCallees in Hf; cbn [calleeAt] in Hf.
   destruct (nth_error (FUNCS module) (N.to_nat x)) as [address | ] eqn:Ha; [ | discriminate].
   destruct (function_at_sound _ _ _ Hf) as [Hfi _].
   exact (module_function_type _ _ _ _ _ _ Hmodule Ha ltac:(rewrite Hstore; exact Hfi)).
@@ -293,7 +293,7 @@ Lemma program_callee_validates : forall program s module x f,
     (guestParams f) (guestResults f) (guestLocals f) (guestBody f))
     (i32StackType (guestParams f) (guestResults f)).
 Proof.
-  intros program s module x f Hvalid Hf. unfold programCallees in Hf.
+  intros program s module x f Hvalid Hf. unfold programCallees in Hf; cbn [calleeAt] in Hf.
   destruct (nth_error (FUNCS module) (N.to_nat x)) as [address | ]; [ | discriminate].
   destruct (function_at_sound _ _ _ Hf) as [Hfi _].
   rewrite Forall_forall in Hvalid. apply Hvalid. eapply nth_error_In; exact Hfi.

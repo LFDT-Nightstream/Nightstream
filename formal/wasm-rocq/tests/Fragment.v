@@ -3,7 +3,7 @@ From Stdlib Require Import List ZArith Lia.
 Require Import Wasm2 CallerSpec Fragment.
 Import ListNotations.
 
-Definition noCallees : CalleeEnvironment := fun _ => None.
+Definition noCallees : CalleeEnvironment := calleeEnvironment (fun _ => None) [] True.
 
 Example unreachable_supported : forall callees, Supported callees UNREACHABLE.
 Proof. intros; constructor. Qed.
@@ -13,7 +13,7 @@ Example nested_block_supported :
 Proof. repeat constructor. Qed.
 
 (* The call metadata holds the parameter count in one byte. *)
-Example wide_call_rejected : forall callees x f, callees (x :> N) = Some f -> guestParams f = 256%nat ->
+Example wide_call_rejected : forall (callees : CalleeEnvironment) x f, callees (x :> N) = Some f -> guestParams f = 256%nat ->
   ~ Supported callees (CALL x).
 Proof.
   intros callees x f Hf Hparams H. inversion H as [ | | | | ? g Hg Hp _ | | | | | | | | | ]; subst.

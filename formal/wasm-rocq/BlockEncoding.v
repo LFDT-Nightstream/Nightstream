@@ -286,7 +286,7 @@ Proof.
   intros labels inner offset s values x callee Hpath Hi Hstore Hcount Hcallee z.
   pose proof (encoded_path_head _ _ _ _ Hpath Hi) as Hpc. cbn [slotTargets] in Hpc.
   pose proof (path_offset_inside _ _ _ _ Hpath Hi) as Hbound.
-  unfold programCallees in Hcallee.
+  unfold programCallees in Hcallee; cbn [calleeAt] in Hcallee.
   destruct (nth_error (FUNCS (guestModule f)) (N.to_nat (x :> N))) as [address | ] eqn:Haddress; [ | discriminate].
   destruct (function_at_sound _ _ _ Hcallee) as [Hinstance [HcalleeAddress Hentry]].
   replace (N.of_nat (N.to_nat address)) with address in HcalleeAddress by lia.

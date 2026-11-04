@@ -120,6 +120,25 @@ Proof.
   - constructor; [apply source_function_validates; [repeat constructor | exact source_body_validates] | constructor].
 Qed.
 
+(* An indirect call takes two slots, as the Rust parser lays it out: the resolve
+   slot binds the table's store address and the expected type's id, and the
+   invocation returns to the slot after it. *)
+Definition indirectModule := MKmoduleinst [i32StackType 0 1; i32StackType 1 1] [0%N; 1%N] [] [3%N] [] [] [] [].
+Definition indirectProgram : Program :=
+  [i32Function indirectModule (mk_uN 0) 0 1 1 readZeroBody;
+   i32Function indirectModule (mk_uN 1) 1 1 0 [LOCAL_GET (mk_uN 0); CALL_INDIRECT (mk_uN 0) (mk_uN 0); NOP]].
+
+Example indirect_call_layout :
+  functionEntry indirectProgram 1 = 2 /\
+  map (fun pc => encodeProgram indirectProgram programOpcodeId [pc]) [3; 4; 5] =
+    [Some CODE_CALL_INDIRECT_RESOLVE; Some CODE_CALL_INDIRECT; Some CODE_NOP] /\
+  map (fun pc => encodeProgram indirectProgram pcEdgeKindId [pc]) [3; 4] = [Some 0; Some 2] /\
+  map (encodeProgram indirectProgram pcRomId) [[3; 0]; [4; 0]; [4; 1]] = [Some 4; None; Some 5] /\
+  encodeProgram indirectProgram programTableId [3] = Some 3 /\
+  encodeProgram indirectProgram expectedTypeId [3] = Some 1 /\
+  map (fun reference => encodeProgram indirectProgram functionTypeId [reference]) [1; 2] = [Some 1; Some 2].
+Proof. vm_compute. repeat split. Qed.
+
 (* Type ids compute and number distinct types densely in first-seen order: the
    repeated (i32 i32) -> i32 keeps id 1, and the unused () -> i32 still takes id 2. *)
 Definition typesModule := MKmoduleinst

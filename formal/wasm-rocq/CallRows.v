@@ -324,7 +324,7 @@ Proof.
   pose proof (direct_i32_call_enters s (activeFrame f locals) x (guestAddress callee) (guestModule callee)
     (guestTypeIndex callee) arguments (guestResults callee) (guestLocals callee) (guestBody callee) Hz Hidx
     Haddress Hfunction Hfuncwf HargBounds) as Henter.
-  pose proof Hcallee as HcalleeAt. unfold programCallees in HcalleeAt.
+  pose proof Hcallee as HcalleeAt. unfold programCallees in HcalleeAt; cbn [calleeAt] in HcalleeAt.
   destruct (nth_error (FUNCS (guestModule f)) (N.to_nat (x :> N))) as [address | ]; [ | discriminate].
   destruct (callee_active_state (N.to_nat address) callee arguments final (afterBoundary row) HcalleeAt Hlen
     HargBounds Hinit (full_initialization_flags row Hprime Hfull) HmoveAfter Hentry)

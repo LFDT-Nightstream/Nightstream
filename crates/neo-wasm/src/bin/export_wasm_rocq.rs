@@ -378,6 +378,8 @@ fn emit_rocq_memory_catalog() -> String {
         (WasmMemoryId::FunctionType, "functionTypeId"),
         (WasmMemoryId::ProgramOpcode, "programOpcodeId"),
         (WasmMemoryId::ProgramLocalIndex, "programLocalIndexId"),
+        (WasmMemoryId::ProgramTableId, "programTableId"),
+        (WasmMemoryId::ProgramCallIndirectExpectedTypeId, "expectedTypeId"),
         (WasmMemoryId::PcEdgeKind, "pcEdgeKindId"),
         (WasmMemoryId::PcRom, "pcRomId"),
         (WasmMemoryId::FrameSlideRemaining, "frameSlideRemainingId"),

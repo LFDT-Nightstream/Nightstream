@@ -36,7 +36,7 @@ Proof.
   unfold instructionRom.
   destruct (instructionAtPC program pc) as [[f slot] | ]; [ | discriminate].
   cbv [programOpcodeId pcRomId Nat.eqb].
-  destruct slot as [[[i | | ] targets] | ]; try discriminate.
+  destruct slot as [[[i | | | ] targets] | ]; try discriminate.
   destruct i; try discriminate; try (destruct targets as [ | [t | ] [ | ]]; discriminate);
     match goal with |- romValue (encodedOpcode ?j) <> _ =>
       destruct (encodedOpcode j) eqn:Hj; cbn [romValue]; intros Hz; [subst | discriminate];

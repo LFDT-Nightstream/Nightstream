@@ -39,6 +39,11 @@ Definition sourceHeight (callees : CalleeEnvironment) (i : instr) (height : nat)
       | Some f => if Nat.leb (guestParams f) height then Some (height - guestParams f + guestResults f)%nat else None
       | None => None
       end
+  | CALL_INDIRECT _ y => match nth_error (envTypes callees) (N.to_nat (y :> N)) with
+      | Some (mk_functype (mk_list params) (mk_list results)) =>
+          if Nat.leb (S (length params)) height then Some (height - S (length params) + length results)%nat else None
+      | None => None
+      end
   | BR_IF _ => match height with S below => Some below | O => None end
   | NOP => Some height
   | _ => instructionStackHeight i height

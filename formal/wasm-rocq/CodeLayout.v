@@ -8,8 +8,9 @@ From Stdlib Require Import List Arith NArith Lia.
 Require Import Wasm2 StraightLineSpec StraightLineInstructions StackSimulation.
 Import ListNotations.
 
-(* A slot holds an instruction or one of the markers that delimit structured code. *)
-Inductive FlatOp := opInstr (i : instr) | opElse | opEnd.
+(* A slot holds an instruction, one of the markers that delimit structured code,
+   or an indirect call's invocation, which follows its resolve slot. *)
+Inductive FlatOp := opInstr (i : instr) | opElse | opEnd | opInvoke.
 
 Record FlatInstruction := flatInstruction {
   flatOpcode : FlatOp;
@@ -27,6 +28,7 @@ Fixpoint instructionSize (i : instr) : nat :=
   match i with
   | BLOCK _ body | LOOP _ body => S (S (codeSize body))
   | IFELSE _ t e => S (S (codeSize t + match e with [] => 0 | _ => S (codeSize e) end))
+  | CALL_INDIRECT _ _ => 2
   | _ => 1
   end.
 
@@ -61,6 +63,7 @@ Fixpoint flattenAt (labels : list nat) (base : nat) (i : instr) {struct i} : lis
         end ++ [flatInstruction opEnd []]
   | BR_IF _ | BR _ | BR_TABLE _ _ =>
       [flatInstruction (opInstr i) (map (fun l => nth_error labels (N.to_nat (l :> N))) (branchTargets i))]
+  | CALL_INDIRECT _ _ => [flatInstruction (opInstr i) []; flatInstruction opInvoke []]
   | _ => [flatInstruction (opInstr i) []]
   end.
 

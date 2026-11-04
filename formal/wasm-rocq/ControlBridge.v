@@ -390,7 +390,7 @@ Proof.
       reflexivity].
     exists x. cbn [callView callerFunction viewPosition callerBase callerFbp callResults].
     split; [exact Hframe | ]. split; [rewrite Hinner; exact Hcall | ].
-    split; [unfold programCallees; rewrite Haddress; subst callee; exact Hf | ]. split; [reflexivity | ].
+    split; [unfold programCallees; cbn [calleeAt]; rewrite Haddress; subst callee; exact Hf | ]. split; [reflexivity | ].
     split; [rewrite Hoperands, Hlen; assumption | ].
     split; [rewrite Hret; f_equal; assumption | ].
     split; [exact HsavedFbp | ]. split; [exact HsavedBase | exact Hsusp].
@@ -411,7 +411,7 @@ Proof.
   destruct (frame_reads _ _ _ _ _ _ _ _ _ Hframe ltac:(lia)) as [Hstack Hlocals].
   rewrite read_operands_unmoved in Hstack.
   rewrite Hg, Hf, Hpath, (proj2 (call_at_some _ _ _) Hcall).
-  unfold programCallees in Hcallee.
+  unfold programCallees in Hcallee; cbn [calleeAt] in Hcallee.
   destruct (nth_error (FUNCS (guestModule (callerFunction top))) (N.to_nat (x :> N))) as [address | ];
     [ | discriminate].
   pose proof (function_index_unique _ _ _ _ Hcallee Hf) as Haddress.

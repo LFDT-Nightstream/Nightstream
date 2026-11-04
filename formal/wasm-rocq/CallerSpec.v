@@ -16,5 +16,11 @@ Record GuestFunction := mkGuestFunction {
   guestEntry : Z
 }.
 
-(* Function indices are local to the calling function's module. *)
-Definition CalleeEnvironment := N -> option GuestFunction.
+(* What a function's code can name: callees by function index, local to its
+   module, and the module's types. An indirect call may reach any function, so it
+   needs every function in the program to be a guest of this module. *)
+Record CalleeEnvironment := calleeEnvironment {
+  calleeAt :> N -> option GuestFunction;
+  envTypes : list functype;
+  indirectReady : Prop
+}.

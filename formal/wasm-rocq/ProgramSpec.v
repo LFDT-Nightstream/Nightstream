@@ -35,10 +35,38 @@ Definition functionAt (program : Program) (function : nat) : option GuestFunctio
   end.
 
 Definition programCallees (program : Program) (module : moduleinst) : CalleeEnvironment :=
-  fun index => match nth_error (FUNCS module) (N.to_nat index) with
-  | Some address => functionAt program (N.to_nat address)
-  | None => None
+  calleeEnvironment
+    (fun index => match nth_error (FUNCS module) (N.to_nat index) with
+      | Some address => functionAt program (N.to_nat address)
+      | None => None
+      end)
+    (TYPES module)
+    (forall a fi, nth_error program a = Some fi -> exists g, functionAt program a = Some g /\ guestModule g = module).
+
+(* Wasm2's functype_eq_dec rests on an admitted list comparison and does not
+   compute; this one compares the parameter and result lists directly. *)
+Definition functypeEqDec (t u : functype) : {t = u} + {t <> u}.
+Proof.
+  destruct t as [[params] [results]], u as [[params'] [results']].
+  destruct (list_eq_dec valtype_eq_dec params params') as [-> | Hp]; [ | right; congruence].
+  destruct (list_eq_dec valtype_eq_dec results results') as [-> | Hr]; [left; reflexivity | right; congruence].
+Defined.
+
+Fixpoint firstSeen (seen types : list functype) : list functype :=
+  match types with
+  | [] => seen
+  | t :: rest =>
+      firstSeen (if existsb (fun u => if functypeEqDec t u then true else false) seen then seen else seen ++ [t]) rest
   end.
+
+Fixpoint typePosition (t : functype) (types : list functype) : nat :=
+  match types with [] => 0 | u :: rest => if functypeEqDec t u then 0 else S (typePosition t rest) end.
+
+Definition typeId (module : moduleinst) (t : functype) : Z :=
+  Z.of_nat (typePosition t (firstSeen [] (TYPES module))) + 1.
+
+Definition guestType (f : GuestFunction) : functype :=
+  mk_functype (mk_list _ (repeat valtype_I32 (guestParams f))) (mk_list _ (repeat valtype_I32 (guestResults f))).
 
 (* Locate an encoded instruction, including the function-ending END. *)
 Fixpoint locatePC (program : Program) (pc : nat) : option (nat * nat) :=
@@ -89,6 +117,8 @@ Definition instructionRom (program : Program) (memory : nat) (pc : Z) (choice : 
             | _ => None
             end
         | Some (flatInstruction (opInstr (RETURN | UNREACHABLE)) _) => None
+        (* The callee's entry comes from the function-entry ROM, not from here. *)
+        | Some (flatInstruction opInvoke _) => if choice =? 1 then Some (pc + 1) else None
         | Some _ => if choice =? 0 then Some (pc + 1) else None
         | None => None end
       else if Nat.eqb memory programOpcodeId then
@@ -105,12 +135,15 @@ Definition instructionRom (program : Program) (memory : nat) (pc : Z) (choice : 
         | Some (flatInstruction (opInstr RETURN) _) => Some CODE_RETURN
         | Some (flatInstruction (opInstr NOP) _) => Some CODE_NOP
         | Some (flatInstruction (opInstr UNREACHABLE) _) => Some CODE_UNREACHABLE
+        | Some (flatInstruction (opInstr (CALL_INDIRECT _ _)) _) => Some CODE_CALL_INDIRECT_RESOLVE
+        | Some (flatInstruction opInvoke _) => Some CODE_CALL_INDIRECT
         | Some (flatInstruction (opInstr i) _) => encodedOpcode i
         | _ => Some CODE_END end
       else if Nat.eqb memory pcEdgeKindId then
         match slot with
         | Some (flatInstruction (opInstr RETURN) _) | Some (flatInstruction (opInstr (BR _)) [None]) | None => Some 1
         | Some (flatInstruction (opInstr UNREACHABLE) _) => Some 3
+        | Some (flatInstruction opInvoke _) => Some 2
         | Some _ => Some 0
         end
       else if Nat.eqb memory programLocalIndexId then
@@ -120,6 +153,14 @@ Definition instructionRom (program : Program) (memory : nat) (pc : Z) (choice : 
         | _ => Some 0 end
       else if Nat.eqb memory programBrTableLenId then
         match slot with Some (flatInstruction (opInstr (BR_TABLE ls _)) _) => Some (Z.of_nat (length ls)) | _ => None end
+      (* A resolve slot's table, by store address, and its expected type's id. *)
+      else if Nat.eqb memory programTableId then
+        match slot with Some (flatInstruction (opInstr (CALL_INDIRECT x _)) _) =>
+          option_map Z.of_N (nth_error (TABLES (funcinst_MODULE f)) (N.to_nat (x :> N))) | _ => None end
+      else if Nat.eqb memory expectedTypeId then
+        match slot with Some (flatInstruction (opInstr (CALL_INDIRECT _ y)) _) =>
+          option_map (typeId (funcinst_MODULE f)) (nth_error (TYPES (funcinst_MODULE f)) (N.to_nat (y :> N)))
+        | _ => None end
       else if Nat.eqb memory callTargetId then
         match slot with Some (flatInstruction (opInstr (CALL x)) _) =>
           option_map (fun address => Z.of_N address + 1) (callAddress f x) | _ => None end
@@ -128,31 +169,6 @@ Definition instructionRom (program : Program) (memory : nat) (pc : Z) (choice : 
 
 (* Function type ids as the Rust parser assigns them: the module's distinct types,
    numbered from 1 in first-seen order. *)
-(* Wasm2's functype_eq_dec rests on an admitted list comparison and does not
-   compute; this one compares the parameter and result lists directly. *)
-Definition functypeEqDec (t u : functype) : {t = u} + {t <> u}.
-Proof.
-  destruct t as [[params] [results]], u as [[params'] [results']].
-  destruct (list_eq_dec valtype_eq_dec params params') as [-> | Hp]; [ | right; congruence].
-  destruct (list_eq_dec valtype_eq_dec results results') as [-> | Hr]; [left; reflexivity | right; congruence].
-Defined.
-
-Fixpoint firstSeen (seen types : list functype) : list functype :=
-  match types with
-  | [] => seen
-  | t :: rest =>
-      firstSeen (if existsb (fun u => if functypeEqDec t u then true else false) seen then seen else seen ++ [t]) rest
-  end.
-
-Fixpoint typePosition (t : functype) (types : list functype) : nat :=
-  match types with [] => 0 | u :: rest => if functypeEqDec t u then 0 else S (typePosition t rest) end.
-
-Definition typeId (module : moduleinst) (t : functype) : Z :=
-  Z.of_nat (typePosition t (firstSeen [] (TYPES module))) + 1.
-
-Definition guestType (f : GuestFunction) : functype :=
-  mk_functype (mk_list _ (repeat valtype_I32 (guestParams f))) (mk_list _ (repeat valtype_I32 (guestResults f))).
-
 Definition functionRom (program : Program) (memory : nat) (reference : Z) : option Z :=
   if reference <=? 0 then None else
   let function := Z.to_nat (reference - 1) in
@@ -207,6 +223,7 @@ Fixpoint instructionContexts (callees : CalleeEnvironment) (heights arities : li
       None :: bodyContexts innerHeights (labelArity i :: arities) t entered ++
         match e with [] => [] | _ => None :: bodyContexts innerHeights (labelArity i :: arities) e entered end ++
         [None]
+  | CALL_INDIRECT _ _ => [option_map (fun h => (heights, arities, h)) height; None]
   | _ => [option_map (fun h => (heights, arities, h)) height]
   end.
 
@@ -270,7 +287,7 @@ Definition slideRom (program : Program) (memory : nat) (pc choice : Z) : option 
       end
   end.
 
-Definition programRomIds := [programOpcodeId; programLocalIndexId; pcEdgeKindId; pcRomId;
+Definition programRomIds := [programOpcodeId; programLocalIndexId; programTableId; expectedTypeId; pcEdgeKindId; pcRomId;
   callTargetId; pcFunctionRefId; functionEntryId; functionTypeId; functionLocalCountId; functionCallMetadataId;
   frameSlideRemainingId; frameSlideDistanceId; programBrTableLenId].
 

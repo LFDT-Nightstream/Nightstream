@@ -48,6 +48,7 @@ import NightstreamFPrime.Lifecycle.OptionB.FoldCompleteness
 import NightstreamFPrime.Export.OptionB.StepExtend
 import NightstreamFPrime.Export.OptionB.RunCompleteness
 import NightstreamFPrime.Export.OptionB.NebulaSecurity
+import NightstreamFPrime.Export.OptionB.NebulaCompleteness
 import NightstreamFPrime.Export.OptionB.FinishRelation
 import NightstreamFPrime.Lifecycle.OptionB.Terminal
 import NightstreamFPrime.Spec.Folding.Light.RlcModule
@@ -471,6 +472,10 @@ example : (runDepths 2 (fun _ => 0) 1 (List.replicate 3 [0, 0, 1]).flatten).isNo
 #audit_axioms NightstreamFPrime.Export.OptionB.NebulaSecurity.stage1Extraction
 #audit_axioms NightstreamFPrime.Export.OptionB.NebulaSecurity.bad_le
 #audit_axioms NightstreamFPrime.Export.OptionB.NebulaSecurity.romMemoryRound
+#audit_axioms NightstreamFPrime.Export.OptionB.NebulaCompleteness.validFrom_of_history
+#audit_axioms NightstreamFPrime.Export.OptionB.NebulaCompleteness.accepts_of_history
+#audit_axioms NightstreamFPrime.Export.OptionB.NebulaCompleteness.steps_lt
+#audit_axioms NightstreamFPrime.Export.OptionB.NebulaCompleteness.memory_complete
 
 #audit_axioms NightstreamFPrime.Export.Generic.PieceRowsCompleteness.ringRows_complete
 #audit_axioms NightstreamFPrime.Export.Generic.PieceRowsCompleteness.executePieces_spec

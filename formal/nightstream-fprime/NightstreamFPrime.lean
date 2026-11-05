@@ -131,6 +131,7 @@ import NightstreamFPrime.Export.OptionB.RunCompleteness
 import NightstreamFPrime.Lifecycle.Nebula.EtaOracle
 import NightstreamFPrime.Lifecycle.Nebula.EtaRound
 import NightstreamFPrime.Export.OptionB.NebulaSecurity
+import NightstreamFPrime.Export.OptionB.NebulaCompleteness
 import NightstreamFPrime.Export.OptionB.FinishRelation
 import NightstreamFPrime.Export.OptionB.Parity
 import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.ChainBinding

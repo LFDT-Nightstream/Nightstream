@@ -528,12 +528,19 @@ item 5).
   accepted fold, an honest step of either circuit has an assignment in which
   every row of its source layout holds
   (`Layout.OptionB.LightAssemblerCompleteness.complete`,
-  `Layout.OptionB.RefreshAssemblerCompleteness.complete`). Lean does not prove
-  that an honest accumulator's norm stays within `accumulatorBound` over a
-  schedule, that an honest witness satisfies the exported relation, or that
-  the terminal, one IVC step, the finish step or compression accept an
-  honest proof. So Lean does not join these results into a statement that
-  the honest prover's proofs are accepted. Each application promises that its step keeps the state width
+  `Layout.OptionB.RefreshAssemblerCompleteness.complete`). Lean joins these
+  results. Along an honest run, each slot's witness stays within the bound
+  of its depth (`Export.OptionB.StepExtend.Honest`). An honest step's witness
+  satisfies the exported relation at the key's widened slot layout
+  (`Export.OptionB.StepCompleteness.light_complete`,
+  `Export.OptionB.StepCompleteness.refresh_complete`). The terminal accepts
+  the honest proof of every valid run
+  (`Export.OptionB.RunCompleteness.run_complete`) and of every memory
+  execution (`Export.OptionB.NebulaCompleteness.memory_complete`). These
+  results take as premises four package checks that the emitter evaluates
+  (`Export.OptionB.StepExtend.Complete`), key digests of four words, and
+  witnesses of the application's witness length. Lean does not prove that
+  the finish step or compression accepts an honest proof. Each application promises that its step keeps the state width
   (`Lifecycle.Stage1.Application.Program.step_length`); the counter must stay
   below `q`.
 - The error is not one security level. Lean bounds no fold error in a

@@ -19,6 +19,7 @@ def claims : List (Name × List Name) := [
   (`CompressionLean.Claims.option_b_fits_of_check, standardAxioms),
   (`CompressionLean.Claims.option_b_runs_of_check, standardAxioms),
   (`CompressionLean.Claims.option_b_honest_of_check, standardAxioms),
+  (`CompressionLean.Claims.option_b_covers_of_check, [``propext, ``Quot.sound]),
   (`CompressionLean.Claims.option_b_poseidon2_bound, standardAxioms)]
 
 def claimsModule : Name := `CompressionLean.Claims
@@ -68,6 +69,7 @@ def premises : List (Name × List Premise) :=
     "`Shrink::new` gives these terms to `Pcs::new` at the layer bits `t`. `Pcs::new` refuses the configuration unless its WHIR terms plus these terms, over its candidates, are at most `2^-t` (`pcs.rs`). No Lean proof checks the WHIR terms or `Ls`."⟩
   let optionBWidth := "`optionBCheck` evaluates `optionBFits` on both layer-1 keys that `option_b_layer1_keys_are_written` writes and stops when it fails; `option_b_final_program_matches_lean` requires the pass."
   let optionBSetup := "`setupCheck` evaluates `setupFailureAt` over the key's own columns on the runs that `option_b_runs_rebuild_the_layer1_keys` writes, which rebuild each slot's layer-1 key. `option_b_setup_matches_lean` requires the pass."
+  let optionBCover := "`coverCheck` evaluates `coverFailure` on each slot's step package and the layer-1 key that `option_b_layer1_matches_lean` writes. `scripts/crosschecks.sh` runs it after that test (`option_b_covers`); no Rust test requires the pass."
   let optionBRuns := "`runsCheck` evaluates `keyRunsFailure` on each slot's step package and the runs that `option_b_runs_rebuild_the_layer1_keys` writes. `option_b_runs_match_lean` requires the pass."
   let emittedPacked : Premise := ⟨`packed, .leanValue, "F′'s emitter evaluates `packable` on the circuit's pieces and writes the package as `packageOf` of them (`EmitMain.emitPackage`); the checks read that artifact."⟩
   let emittedRows : Premise := ⟨`rows, .leanValue, "The emitter writes the package as `packageOf` of the circuit's pieces, whose rows are the relation's rows (`StepPackage.relationRows_packageOf`, with `packed`)."⟩
@@ -119,6 +121,7 @@ def premises : List (Name × List Premise) :=
       ⟨`logical, .proved, "`option_b_logical_of_check` gives it from `pass` (in `option_b_poseidon2_bound`)."⟩]),
     (`CompressionLean.Claims.option_b_honest_of_check, [⟨`pass, .rustFiles, optionBSetup⟩,
       ⟨`gives, .proved, "`option_b_runs_of_check` gives it (in `option_b_poseidon2_bound`)."⟩]),
+    (`CompressionLean.Claims.option_b_covers_of_check, [⟨`pass, .rustFiles, optionBCover⟩]),
     (`CompressionLean.Claims.option_b_poseidon2_bound, [
       ⟨`facts, .rustFiles, "As `option_b_bound`'s `facts`."⟩,
       ⟨`within, .rustFiles, optionBWidth⟩,

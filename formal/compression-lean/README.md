@@ -113,4 +113,5 @@ The CI test `lean_ports` (`nightstream`) fails when a Rust item that `ports.json
 ## Cross-checks
 
 `scripts/crosschecks.sh` builds the executables and runs the ignored Rust tests that compare Rust
-with Lean, one after another, each under its cap. Its header says how to update a digest pin.
+with Lean, one after another, each under its cap. After the layer-1 keys are written, it runs
+`coverCheck` on them. Its header says how to update a digest pin.

@@ -19,6 +19,7 @@ Each claim of `CompressionLean/Claims.lean` and the axioms that it uses.
 | `CompressionLean.Claims.option_b_fits_of_check` | `propext`, `Classical.choice`, `Quot.sound` |
 | `CompressionLean.Claims.option_b_runs_of_check` | `propext`, `Classical.choice`, `Quot.sound` |
 | `CompressionLean.Claims.option_b_honest_of_check` | `propext`, `Classical.choice`, `Quot.sound` |
+| `CompressionLean.Claims.option_b_covers_of_check` | `propext`, `Quot.sound` |
 | `CompressionLean.Claims.option_b_poseidon2_bound` | `propext`, `Classical.choice`, `Quot.sound` |
 
 ## Hypotheses
@@ -188,6 +189,14 @@ Parameters: `key : CompressionLean.Circuit.Layer1Key`, `setup : NightstreamFPrim
 |---|---|---|
 | `pass : CompressionLean.Spec.setupFailureAt (CompressionLean.Spec.keyColumns key) key pushes = none` | Rust's files | `setupCheck` evaluates `setupFailureAt` over the key's own columns on the runs that `option_b_runs_rebuild_the_layer1_keys` writes, which rebuild each slot's layer-1 key. `option_b_setup_matches_lean` requires the pass. |
 | `gives : CompressionLean.Spec.RunsGive pushes relation` | Lean proof | `option_b_runs_of_check` gives it (in `option_b_poseidon2_bound`). |
+
+### `CompressionLean.Claims.option_b_covers_of_check`
+
+Parameters: `{p : NightstreamFPrime.Export.OptionB.StepPackage.Package}`, `{key : CompressionLean.Circuit.Layer1Key}`.
+
+| Premise | Met by | How |
+|---|---|---|
+| `pass : CompressionLean.Spec.OptionB.coverFailure p key = none` | Rust's files | `coverCheck` evaluates `coverFailure` on each slot's step package and the layer-1 key that `option_b_layer1_matches_lean` writes. `scripts/crosschecks.sh` runs it after that test (`option_b_covers`); no Rust test requires the pass. |
 
 ### `CompressionLean.Claims.option_b_poseidon2_bound`
 

@@ -1,6 +1,7 @@
 import CompressionLean.Sim.OptionBEncodes
 import CompressionLean.Final.OptionBParent
 import CompressionLean.Checks.OptionBMatrix
+import CompressionLean.Checks.OptionBCover
 import CompressionLean.Checks.KeyFacts
 import CompressionLean.Final.RustSetup
 import CompressionLean.Checks.SetupFacts
@@ -63,6 +64,16 @@ theorem option_b_fits_of_check {p : Export.OptionB.StepPackage.Package} {pushes 
     (start : p.sboxStart = Export.Generic.CircuitRelation.sboxStart pieces next) :
     Export.Generic.CircuitRelation.Fits Export.Generic.CircuitRelation.publicColumns pieces next p.width :=
   Checks.OptionB.fits_of_check pass rows blocks start
+
+/-- A pass of `coverCheck` on a step package and the layer-1 key of its circuit (CW-10.6): the key's
+norm bound is at least the accumulator bound of the light cap, and its blocks hold the package's
+logical width. -/
+theorem option_b_covers_of_check {p : Export.OptionB.StepPackage.Package} {key : Layer1Key}
+    (pass : OptionB.coverFailure p key = none) :
+    productionGlobalParams.accumulatorBound Folding.Schedule.productionLightFoldCap ≤
+        (shapeOf key.relation).normBound ∧
+      Layout.ProductionAssignment.logicalWidth (OptionB.slotsOf p) ≤ ringDegree * (shapeOf key.relation).blocks :=
+  ⟨(Checks.OptionB.coverFailure_sound pass).normCovers, (Checks.OptionB.coverFailure_sound pass).blocksCover⟩
 
 theorem option_b_honest_of_check (key : Layer1Key)
     (setup : AjtaiSetupV1.Setup productionProfile.commitmentWidth

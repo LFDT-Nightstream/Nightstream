@@ -155,6 +155,15 @@ fewer blocks than the refresh relation, while F′'s option-B model gives both c
 asks only that the committed blocks fit the width, and `HonestSetup` fixes the Ajtai key only on
 the committed blocks.
 
+The converse, `Final.parent_complete` (CW-10.6), puts a slot claim that holds into its layer-1
+relation. Its witness must lie within the key's norm bound and be zero on the blocks past the key's.
+`Final.OptionB.slot_complete` gives both for the honest next slots from two facts about each slot's
+layer-1 key, which the soundness claims do not take. The key's norm bound is at least the
+accumulator bound of the light cap, 17,496 (`normCovers`, `Spec.OptionB.slotBound`, Rust's
+`compression_bound`). The key's blocks hold the logical width of its circuit's step package
+(`blocksCover`). `coverCheck` checks both on Rust's files (`Spec.OptionB.coverFailure`,
+`option_b_covers_of_check`). They are not in `KeyFacts`, so no soundness claim changes.
+
 Three things are trusted, not checked. The emitter writes each package as `packageOf` of its
 circuit's pieces, and the checks read the bytes it writes (the `rows`, `blocks`, `start`,
 `packed` and `finishPacked` premises). Rust embeds those bytes and pins their identifier. The layer-1
@@ -277,16 +286,18 @@ These checks compare a transcription with its Rust:
   premises of two kinds. `fit` is a closed proposition about a Lean value: the finish package that
   `optionBCheck` decodes from its artifact. `optionBCheck` checks it by compiled evaluation, because
   the kernel does not evaluate a package of this size. It says nothing about a Rust file.
-  `KeyFacts`, `optionBFits`, `setupFailureAt` and `keyRunsFailure` are facts about the files that
-  Rust writes. `lowerCheck`, `optionBCheck`, `setupCheck` and `runsCheck` read those files, and a
-  Rust test requires each pass. `setupCheck` and `runsCheck` read the runs with the same reader, so
+  `KeyFacts`, `optionBFits`, `setupFailureAt`, `keyRunsFailure` and `coverFailure` are facts about
+  the files that Rust writes. `lowerCheck`, `optionBCheck`, `setupCheck` and `runsCheck` read those
+  files, and a Rust test requires each pass. `coverCheck` reads the step packages and the layer-1
+  keys; `scripts/crosschecks.sh` runs it, and no Rust test requires its pass. `setupCheck` and `runsCheck` read the runs with the same reader, so
   their passes are about the same runs. `runsCheck` checks the rows in parallel tasks
   (`Task.spawn`); in the logic a task is the value of its function, and the compiled evaluator runs
   it on a thread. `lowerCheck` also reads the toy key of `lowering_matches_lean`, which has neither
   production's constants nor an application's width, so it prints each result and does not refuse
   the key. `key_facts_of_check`, `option_b_shape_of_check`, `option_b_setup_facts_of_check`,
-  `option_b_runs_of_check` and `option_b_logical_of_check` prove that a pass gives the premise. That
-  the executables ran on the option-B artifacts is the evidence of the Rust tests. `STATUS.md` names
+  `option_b_runs_of_check`, `option_b_logical_of_check` and `option_b_covers_of_check` prove that a
+  pass gives the premise. That the executables ran on the option-B artifacts is the evidence of the
+  Rust tests. `STATUS.md` names
   the executable and the test of each premise. `setupRootCheck` backs no premise and cannot make a
   claim false: it shows, on the toy key, that Rust's root is `tableRoot` of Rust's own tables
   (read by `RootInput`), which is `honestRoot rel S` for any `(rel, S)` whose setup oracles are

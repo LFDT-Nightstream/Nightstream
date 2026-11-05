@@ -6,7 +6,7 @@ use std::fs;
 
 use nightstream::application::{poseidon2_hash_chain_step, poseidon2_hash_chain_v1};
 use nightstream::{Circuit, Prover};
-use nightstream::{Engine, PrimeCharacteristicRing, State};
+use nightstream::{Engine, PrimeCharacteristicRing, PrimeField64, State};
 use p3_goldilocks::Goldilocks as F;
 
 fn circuit() -> Circuit {
@@ -81,6 +81,25 @@ fn hash_chain_proves_and_verifies() {
         .encode_proof(&prover.prove(initial, &message).expect("first step"))
         .expect("bytes");
     assert!(verifier.decode_proof(&initial_proof).is_ok());
+}
+
+/// The iteration word and a slot depth have one encoding: `d + q` hashes like
+/// `d`, so the decoder refuses a word not below `q` (`SPEC.md` section 4.5).
+#[test]
+fn a_word_not_below_q_does_not_decode() {
+    let compiled = circuit();
+    let prover = compiled.prover(Engine::Optimized, 114).expect("prover");
+    let verifier = compiled.verifier(Engine::Optimized, 114).expect("verifier");
+    let proof = prover
+        .prove(words([1, 2, 3, 4]), &words([5, 6, 7, 8]))
+        .expect("first step");
+    let bytes = prover.encode_proof(&proof).expect("proof bytes");
+    for (name, at) in [("iteration", 16 + 8), ("slot 0 depth", 16 + 80)] {
+        let word = u64::from_le_bytes(bytes[at..at + 8].try_into().unwrap());
+        let mut aliased = bytes.clone();
+        aliased[at..at + 8].copy_from_slice(&(word + F::ORDER_U64).to_le_bytes());
+        assert!(verifier.decode_proof(&aliased).is_err(), "{name} word {word} + q");
+    }
 }
 
 /// Removes a setup folder when it drops, so a failed run frees its disk too.

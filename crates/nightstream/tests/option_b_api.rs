@@ -23,11 +23,11 @@ fn hash_chain_proves_and_verifies() {
     let compiled = circuit();
     let path = std::env::temp_dir().join(format!("option-b-circuit-{}", std::process::id()));
     compiled.write(&path).expect("saved application");
-    let prover = Prover::load(&path, Engine::Optimized, 114).expect("loaded prover");
+    let prover = Prover::load(&path, Engine::Optimized, 109).expect("loaded prover");
     fs::remove_file(&path).expect("remove the saved application");
-    let verifier = compiled.verifier(Engine::Optimized, 114).expect("verifier");
+    let verifier = compiled.verifier(Engine::Optimized, 109).expect("verifier");
     assert!(
-        compiled.prover(Engine::Metal, 114).is_err(),
+        compiled.prover(Engine::Metal, 109).is_err(),
         "option B proves on the CPU path"
     );
     let initial = words([1, 2, 3, 4]);
@@ -88,8 +88,8 @@ fn hash_chain_proves_and_verifies() {
 #[test]
 fn a_word_not_below_q_does_not_decode() {
     let compiled = circuit();
-    let prover = compiled.prover(Engine::Optimized, 114).expect("prover");
-    let verifier = compiled.verifier(Engine::Optimized, 114).expect("verifier");
+    let prover = compiled.prover(Engine::Optimized, 109).expect("prover");
+    let verifier = compiled.verifier(Engine::Optimized, 109).expect("verifier");
     let proof = prover
         .prove(words([1, 2, 3, 4]), &words([5, 6, 7, 8]))
         .expect("first step");
@@ -100,6 +100,17 @@ fn a_word_not_below_q_does_not_decode() {
         aliased[at..at + 8].copy_from_slice(&(word + F::ORDER_U64).to_le_bytes());
         assert!(verifier.decode_proof(&aliased).is_err(), "{name} word {word} + q");
     }
+}
+
+/// The gate charges the refresh fold's zero-query error of the random-oracle
+/// result (`RefreshKnowledge.statisticalError 0`, about `2^-109.6`), so a
+/// prover or verifier that asks for 110 bits is refused.
+#[test]
+fn the_gate_refuses_more_bits_than_the_fold_error_gives() {
+    let compiled = circuit();
+    assert!(compiled.prover(Engine::Optimized, 109).is_ok());
+    assert!(compiled.prover(Engine::Optimized, 110).is_err());
+    assert!(compiled.verifier(Engine::Optimized, 110).is_err());
 }
 
 /// Removes a setup folder when it drops, so a failed run frees its disk too.
@@ -116,7 +127,7 @@ impl Drop for SetupDir {
 #[test]
 fn hash_chain_final_proof_verifies() {
     let circuit = circuit();
-    let prover = circuit.prover(Engine::Optimized, 114).expect("prover");
+    let prover = circuit.prover(Engine::Optimized, 109).expect("prover");
     let initial = words([1, 2, 3, 4]);
     let message = words([5, 6, 7, 8]);
     let proof = prover
@@ -129,7 +140,7 @@ fn hash_chain_final_proof_verifies() {
         prover.compress(&proof, &setup).expect("final proof")
     };
     drop(dir);
-    let verifier = circuit.verifier(Engine::Optimized, 114).expect("verifier");
+    let verifier = circuit.verifier(Engine::Optimized, 109).expect("verifier");
     let key = verifier.compression_key().expect("key");
     let state = proof.state();
     verifier

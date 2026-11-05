@@ -3,7 +3,7 @@ use super::super::OptimizedPaperJointOracle;
 use super::*;
 use crate::engines::pi_ccs_protocol::Challenges;
 use crate::engines::{pi_ccs_joint::build_joint_dims, pi_ccs_joint_protocol::PaperJointRoundOracle};
-use crate::superneo_eval::MatrixRowSink;
+use crate::superneo_eval::{MatrixRowSink, RetainedMatrixWindow};
 use neo_ccs::{CcsWitness, GeometricRowRun, Mat};
 use neo_math::KExtensions;
 use nightstream_fprime::LoadedPerApplicationPackage;
@@ -14,8 +14,13 @@ const BUDGET: usize = 1024 * 1024 * 1024;
 const THREADS: usize = 4;
 const REPEATS: usize = 5;
 
-struct Rows<'a>(&'a LoadedPerApplicationPackage);
+/// The package rows, optionally with a window that is kept across loads, as in
+/// the prover's `PackageRows`.
+struct Rows<'a>(&'a LoadedPerApplicationPackage, Option<&'a RetainedMatrixWindow>);
 impl MatrixRows for Rows<'_> {
+    fn retained_window(&self) -> Option<&RetainedMatrixWindow> {
+        self.1
+    }
     fn shape(&self) -> MatrixShape {
         MatrixShape {
             rows: self.0.row_count(),
@@ -255,7 +260,7 @@ fn recomposition_measure() {
     rayon::ThreadPoolBuilder::new().num_threads(THREADS).build().unwrap().install(|| {
         let package=nightstream_fprime::load_prepared_package(fs::File::open(request.directory.join("package.bin")).unwrap()).unwrap();
         let witnesses=read_witnesses(request.directory.join(format!("witnesses-{}.bin",request.step)));
-        let source=Rows(&package);let structure=package.ccs_structure_header().unwrap();let rows=source.shape().rows;
+        let source=Rows(&package,None);let structure=package.ccs_structure_header().unwrap();let rows=source.shape().rows;
         let blocks:Vec<_>=witnesses.iter().map(|w|SuperneoZBlocks::from_witness_mat(w,structure.m()).unwrap()).collect();
         let (plan,plan_seconds)=seconds(||Plan::new(&package));
         let digits:usize=plan.terms.iter().map(|&(id,_)|plan.keys[id as usize].len).sum();

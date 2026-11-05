@@ -64,6 +64,9 @@ impl MatrixRows for Counted<'_> {
     fn shape(&self) -> MatrixShape {
         self.inner.shape()
     }
+    fn retained_window(&self) -> Option<&RetainedMatrixWindow> {
+        self.inner.retained_window()
+    }
     fn visit_rows(&self, range: Range<usize>, sink: &mut dyn MatrixRowSink) -> Result<(), PiCcsError> {
         self.rows_visited.fetch_add(range.len(), Ordering::Relaxed);
         self.inner.visit_rows(range, sink)
@@ -215,7 +218,13 @@ fn recomposition_proofs() {
         let claims = fs::read(directory.join(format!("claims-{step}.json"))).unwrap();
         let (claim, running): (CcsClaim<Commitment, F>, Vec<CeClaim<Commitment, F, K>>) =
             serde_json::from_slice(&claims).unwrap();
-        let rows = Rows(&package);
+        // One kept window for all proofs of this process, as `Circuit` shares
+        // one across its lifecycles; the warmup pair builds it.
+        let retained = RetainedMatrixWindow::default();
+        let rows = Rows(&package, Some(&retained));
+        let workspace: serde_json::Value =
+            serde_json::from_slice(&fs::read(directory.join("workspace.json")).unwrap()).unwrap();
+        let workspace_bytes = workspace["matrix_workspace_bytes"].as_u64().unwrap() as usize;
         let row_count = rows.shape().rows;
         let structure = package.ccs_structure_header().unwrap();
         let params = neo_params::NeoParams::nightstream_goldilocks_k16()
@@ -250,7 +259,7 @@ fn recomposition_proofs() {
                         &running,
                         &witnesses[1..],
                         &source,
-                        BUDGET,
+                        workspace_bytes,
                         Some(&mut backend),
                     )
                     .unwrap()
@@ -282,6 +291,7 @@ fn recomposition_proofs() {
                         "seconds": elapsed,
                         "phases": report,
                         "setup_seconds": setup_seconds,
+                        "workspace_bytes": workspace_bytes,
                         "verified": true,
                         "exact_equal": true,
                     });

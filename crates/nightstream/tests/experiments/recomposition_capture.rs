@@ -28,6 +28,14 @@ fn capture_recomposition_workload() {
         .write_prepared(fs::File::create(request.directory.join("package.bin")).unwrap())
         .unwrap();
     let prover = circuit.prover(Engine::Optimized, 114).unwrap();
+    // The proof experiment uses the prover's own row workspace, so the
+    // retained matrix window fits exactly as it does in the prover.
+    let workspace_bytes = prover.lifecycle.matrix_workspace_bytes().unwrap();
+    fs::write(
+        request.directory.join("workspace.json"),
+        serde_json::to_vec(&serde_json::json!({"matrix_workspace_bytes": workspace_bytes})).unwrap(),
+    )
+    .unwrap();
     let verifier = circuit.verifier(Engine::Optimized, 114).unwrap();
     let initial = [202, 203, 204, 205].map(F::from_u64);
     let message = [7, 11, 13, 17].map(F::from_u64);

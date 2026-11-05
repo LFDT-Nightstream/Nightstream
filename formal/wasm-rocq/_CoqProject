@@ -112,6 +112,8 @@ tests/FunctionBrTrace.v
 tests/FunctionBrWitness.v
 tests/IndirectTrace.v
 tests/IndirectTrapTrace.v
+tests/IndirectMismatchTrace.v
+tests/IndirectNullTrace.v
 tests/IndirectWitness.v
 tests/DeepBranches.v
 tests/RangeSearch.v

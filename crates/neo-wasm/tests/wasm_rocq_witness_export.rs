@@ -149,13 +149,13 @@ const FUNCTION_BR: &str = r#"(module
       br 1
     end))"#;
 
-/// An indirect call through table entry 0, which holds $double. The index comes
-/// from a parameter: the proved fragment has no constants.
+/// An indirect call through a table holding $double, $main (another type) and
+/// null. The index comes from a parameter: the proved fragment has no constants.
 const INDIRECT_CALL: &str = r#"(module
   (type $unary (func (param i32) (result i32)))
-  (table 1 funcref)
-  (elem (i32.const 0) $double)
-  (func (export "main") (param i32 i32) (result i32)
+  (table 3 funcref)
+  (elem (i32.const 0) $double $main)
+  (func $main (export "main") (param i32 i32) (result i32)
     local.get 0
     local.get 1
     call_indirect (type $unary))
@@ -239,6 +239,14 @@ fn export_witnesses() {
 fn export_terminal_witnesses() {
     export_witness(NOPS, &[7], "nopTerminalRows", "NopTerminalTrace.v", true);
     export_witness(INDIRECT_CALL, &[7, 5], "indirectTrapRows", "IndirectTrapTrace.v", true);
+    export_witness(
+        INDIRECT_CALL,
+        &[7, 1],
+        "indirectMismatchRows",
+        "IndirectMismatchTrace.v",
+        true,
+    );
+    export_witness(INDIRECT_CALL, &[7, 2], "indirectNullRows", "IndirectNullTrace.v", true);
     export_witness(
         r#"(module
           (func (export "main") block call 1 end)

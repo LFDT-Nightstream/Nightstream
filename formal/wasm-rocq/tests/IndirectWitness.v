@@ -1,12 +1,14 @@
-(* A real run with an indirect call: main(7, 0) calls table entry 0, double, which
-   returns 14. The exported rows meet every premise of active_run_refinement. With
-   index 5 the resolve row traps, and so does SpecTec. *)
+(* Real runs with an indirect call through a table holding double, main and null.
+   main(7, 0) calls double, which returns 14; the exported rows meet every premise
+   of active_run_refinement. Index 1 names a function of another type, index 2 is
+   null and index 5 is out of bounds: each resolve row traps, and so does SpecTec. *)
 From Stdlib Require Import List ZArith Lia.
 From mathcomp Require Import ssrbool eqtype.
 Require Import R1CS Columns Range MemoryTrace MemoryCatalog TraceRefinement Wasm2 WasmIntegers Locals
   StraightLineSpec SpecTecCalls CallerSpec CallerValidation FunctionValidation CodeLayout ProgramSpec ProgramEncoding
-  ProgramRefinement ControlDecode Fragment TableState ExecutionSpec ExecutionRefinement tests.BlockPrograms
-  tests.WitnessCheck tests.IndirectTrace tests.IndirectTrapTrace.
+  ProgramRefinement ControlDecode ControlInvariant ControlBridge Fragment TableState ExecutionSpec ExecutionRefinement
+  tests.BlockPrograms
+  tests.WitnessCheck tests.IndirectTrace tests.IndirectTrapTrace tests.IndirectMismatchTrace tests.IndirectNullTrace.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -18,8 +20,8 @@ Definition indirectModule := MKmoduleinst indirectTypes [0%N; 1%N] [] [0%N] [] [
 Definition mainFunction := i32Function indirectModule (mk_uN 1) 2 1 0 mainBody.
 Definition doubleFunction := i32Function indirectModule (mk_uN 0) 1 1 0 doubleBody.
 Definition indirectProgram := [mainFunction; doubleFunction].
-Definition tableType := mk_tabletype (mk_limits (mk_uN 1) None) FUNCREF.
-Definition indirectTable := MKtableinst tableType [REF_FUNC_ADDR 1%N].
+Definition tableType := mk_tabletype (mk_limits (mk_uN 3) None) FUNCREF.
+Definition indirectTable := MKtableinst tableType [REF_FUNC_ADDR 1%N; REF_FUNC_ADDR 0%N; ref_REF_NULL FUNCREF].
 Definition indirectStore := MKstore indirectProgram [] [indirectTable] [] [] [].
 Definition mainGuest := mkGuestFunction 0%N indirectModule (mk_uN 1) 2 1 0 mainBody 0.
 
@@ -63,7 +65,7 @@ Proof.
   apply (i32_validation_frame _ _ 2 1 0); [ | repeat constructor | repeat constructor].
   change (Instr_ok (functionContext indirectContext mainFunction) (CALL_INDIRECT (mk_uN 0) (mk_uN 0))
     (mk_functype (mk_list _ ([valtype_I32] ++ [valtype_I32])) (mk_list _ [valtype_I32]))).
-  apply (call_indirect _ _ _ [valtype_I32] [valtype_I32] (mk_limits (mk_uN 1) None));
+  apply (call_indirect _ _ _ [valtype_I32] [valtype_I32] (mk_limits (mk_uN 3) None));
     try reflexivity; try (apply (introT eqP); reflexivity); repeat constructor.
 Qed.
 
@@ -89,12 +91,14 @@ Proof.
     + split; [ | vm_compute; tauto]. repeat constructor.
 Qed.
 
-(* The arguments 7 and 0, as the entry rows before the run left them, and the table. *)
+(* The arguments 7 and the index, as the entry rows before the run left them, and
+   the table: references are function addresses plus one, null is 0. *)
 Definition indirectRam (index : Z) : MemoryState := fun memory address =>
   if Nat.eqb memory stackId then
     match address with [0] => Some 7 | [1] => Some 0 | [2] => Some index | [3] => Some 0 | _ => None end
-  else if Nat.eqb memory tableSizeId then match address with [0] => Some 1 | _ => None end
-  else if Nat.eqb memory tableElementId then match address with [0; 0] => Some 2 | _ => None end
+  else if Nat.eqb memory tableSizeId then match address with [0] => Some 3 | _ => None end
+  else if Nat.eqb memory tableElementId then
+    match address with [0; 0] => Some 2 | [0; 1] => Some 1 | [0; 2] => Some 0 | _ => None end
   else None.
 Definition indirectMemory := loadProgram indirectProgram (indirectRam 0).
 Definition indirectWitness := map rowWitness indirectRows.
@@ -103,7 +107,8 @@ Definition indirectStart := mkBoundary 0 2 2 0 0 0 0 0 0 0 0.
 Lemma indirect_tables_loaded : forall index, tablesLoaded indirectStore (loadProgram indirectProgram (indirectRam index)).
 Proof.
   intros index [ | a] t Ht; cbn in Ht; [injection Ht as <- | destruct a; discriminate].
-  split; [reflexivity | ]. intros [ | i] r Hr; cbn in Hr; [injection Hr as <-; reflexivity | destruct i; discriminate].
+  split; [reflexivity | ]. intros [ | [ | [ | i]]] r Hr; cbn in Hr; try (injection Hr as <-; reflexivity).
+  destruct i; discriminate.
 Qed.
 
 Lemma indirect_run_checks : validRunb indirectMemory indirectWitness = true.
@@ -148,59 +153,139 @@ Example indirect_rows_split :
     w COL_FUNCTION_REF)) rows = [(2, 1, 0, 2); (3, 0, 1, 2)].
 Proof. vm_compute. reflexivity. Qed.
 
-(* main(7, 5): the index is past the table's one entry, so the call traps. *)
+(* A trapping run from main(7, index): the resolve row is its last row. *)
 Definition trapFrame := MKframe [] indirectModule.
-Definition trapMemory := loadProgram indirectProgram (indirectRam 5).
-Definition trapWitness := map rowWitness indirectTrapRows.
+Definition trapStart index := stackConfig (mk_state indirectStore (activeFrame mainGuest [7; index])) [] mainBody.
 
-Lemma trap_run_valid : validRunb trapMemory trapWitness = true.
-Proof. vm_compute. reflexivity. Qed.
-
-Lemma trap_run_fragment : executionFragment indirectStart 0 trapWitness.
-Proof. vm_compute. repeat first [split | left; reflexivity | right; repeat split; reflexivity | reflexivity | exact I]. Qed.
-
-Lemma trap_start_config :
-  CircuitConfig indirectProgram indirectStore 0 (controlShape [] (siteCode (codePosition 0 [] 0)))
-    trapMemory indirectStart (stackConfig (mk_state indirectStore (activeFrame mainGuest [7; 5])) [] mainBody).
+Lemma indirect_trap_refines : forall index rows, fieldPrime -> 0 <= index < i32Modulus ->
+  validRunb (loadProgram indirectProgram (indirectRam index)) (map rowWitness rows) = true ->
+  executionFragment indirectStart 0 (map rowWitness rows) ->
+  (exists row, lastRow (map rowWitness rows) = Some row /\ row COL_ACTIVATION_FINISHED_AFTER = 1 /\
+    row COL_TRAPPED_AFTER = 1) ->
+  Steps (callContext trapFrame 1 (trapStart index)) (mk_config (mk_state indirectStore trapFrame) [admininstr_TRAP]).
 Proof.
-  apply (function_start_config indirectProgram indirectStore 0 mainGuest [7; 5] _ indirectStart);
-    try reflexivity; try (cbn; lia).
-  - repeat constructor.
-  - exact indirect_program_validated.
-  - exact (indirect_tables_loaded 5).
-  - repeat constructor; unfold i32Modulus; lia.
-  - intros [ | [ | i]] v Hv; cbn in Hv; [injection Hv as <-; reflexivity | injection Hv as <-; reflexivity |
-      destruct i; discriminate].
-  - repeat split.
+  intros index rows Hprime Hindex Hvalid Hfragment [row [Hlast [Hfinish Htrap]]].
+  assert (Hconfig : CircuitConfig indirectProgram indirectStore 0 (controlShape [] (siteCode (codePosition 0 [] 0)))
+      (loadProgram indirectProgram (indirectRam index)) indirectStart (trapStart index)).
+  { apply (function_start_config indirectProgram indirectStore 0 mainGuest [7; index] _ indirectStart);
+      try reflexivity; try (cbn; lia).
+    - repeat constructor.
+    - exact indirect_program_validated.
+    - exact (indirect_tables_loaded index).
+    - repeat constructor; unfold i32Modulus in *; lia.
+    - intros [ | [ | i]] v Hv; cbn in Hv; [injection Hv as <-; reflexivity | injection Hv as <-; reflexivity |
+        destruct i; discriminate].
+    - repeat split. }
+  assert (Hstart : ActivationConfig indirectProgram indirectStore trapFrame 0 0
+      (controlShape [] (siteCode (codePosition 0 [] 0))) (loadProgram indirectProgram (indirectRam index))
+      indirectStart (callContext trapFrame 1 (trapStart index))).
+  { split; [reflexivity | ]. split; [repeat constructor | ]. split; [reflexivity | ].
+    exists mainGuest, (trapStart index). split; [reflexivity | ]. split; [exact Hconfig | reflexivity]. }
+  destruct (run_refinement _ _ _ _ _ _ _ _ _ _ _ Hprime (load_program_loaded _ _)
+    (validRunb_sound _ _ Hvalid) Hfragment Hstart) as [outcome [c [Hsteps [_ Hresult]]]].
+  destruct outcome as [shape | | result].
+  - destruct Hresult as [Hflag _]. rewrite Hlast in Hflag; congruence.
+  - destruct Hresult as [last [Hlast' [_ [_ Hc]]]]. rewrite Hlast in Hlast'; injection Hlast' as <-.
+    rewrite <- Hc; exact Hsteps.
+  - destruct Hresult as [last [Hlast' [_ [Ht _]]]]. rewrite Hlast in Hlast'; injection Hlast' as <-; congruence.
 Qed.
 
-Example indirect_trap_refines : fieldPrime ->
-  Steps (callContext trapFrame 1 (stackConfig (mk_state indirectStore (activeFrame mainGuest [7; 5])) [] mainBody))
-    (mk_config (mk_state indirectStore trapFrame) [admininstr_TRAP]).
+Ltac trap_witness rows :=
+  intros Hprime; apply (indirect_trap_refines _ rows Hprime);
+  [unfold i32Modulus; lia | vm_compute; reflexivity |
+   vm_compute; repeat first [split | left; reflexivity | right; repeat split; reflexivity | reflexivity | exact I] |
+   exists (rowWitness (List.last rows [])); split; [reflexivity | vm_compute; split; reflexivity]].
+
+(* Index 5 is past the table's three entries. *)
+Example out_of_bounds_traps : fieldPrime ->
+  Steps (callContext trapFrame 1 (trapStart 5)) (mk_config (mk_state indirectStore trapFrame) [admininstr_TRAP]).
+Proof. trap_witness indirectTrapRows. Qed.
+
+(* Index 1 holds main, whose type is not the expected one. *)
+Example type_mismatch_traps : fieldPrime ->
+  Steps (callContext trapFrame 1 (trapStart 1)) (mk_config (mk_state indirectStore trapFrame) [admininstr_TRAP]).
+Proof. trap_witness indirectMismatchRows. Qed.
+
+(* Index 2 is null. *)
+Example null_entry_traps : fieldPrime ->
+  Steps (callContext trapFrame 1 (trapStart 2)) (mk_config (mk_state indirectStore trapFrame) [admininstr_TRAP]).
+Proof. trap_witness indirectNullRows. Qed.
+
+(* Each run's last row is its resolve row, at pc 2, trapping for its own reason:
+   out of bounds (the entry is not read, so it also reads as null), a type mismatch
+   after the lookup, and a null entry. *)
+Example indirect_trap_rows :
+  map (fun rows => let w := rowWitness (List.last rows []) in
+    (w COL_PC_BEFORE, w COL_SEL_CALL_INDIRECT_RESOLVE, w COL_CI_OOB, w COL_CI_ENTRY_IS_NULL,
+     w COL_FUNCTION_CALL_TYPE_LOOKUP_GATE, w COL_CALL_INDIRECT_IS_TRAP))
+    [indirectTrapRows; indirectMismatchRows; indirectNullRows] =
+  [(2, 1, 1, 1, 0, 1); (2, 1, 0, 0, 1, 1); (2, 1, 0, 1, 0, 1)].
+Proof. vm_compute. reflexivity. Qed.
+
+(* At pc 4, main's END, the only control state is main's own frame after the call. *)
+Lemma indirect_final_shape : forall cursor memory boundary c,
+  ControlState indirectProgram indirectStore 0 cursor memory boundary c -> boundaryPC boundary = 4 ->
+  shapeOf cursor = controlShape [] (siteCode (codePosition 0 [] 3)).
+Proof.
+  intros [stack active] memory boundary c [f [inner [Hf [Hactive [Hsusp [_ [_ ->]]]]]]] Hpc.
+  cbn [activePosition suspendedCalls] in *.
+  destruct active as [[[index labels offset] segments values locals] | view callee | function arguments].
+  - destruct Hactive as [f' [[Hf' [Hpath _]] [Hoffset [_ [Hpos _]]]]].
+    cbn [activeFunction viewPosition positionFunction positionLabels positionOffset] in *.
+    rewrite Hf in Hf'. injection Hf' as <-.
+    destruct index as [ | [ | index]]; [ | | destruct index; discriminate]; injection Hf as <-;
+      (destruct labels as [ | b more]; [ | destruct b as [[ | [ | [ | [ | b]]]] arm]; cbn in Hpath; discriminate]);
+      unfold innerCode in Hoffset; cbn in Hoffset, Hpos.
+    + destruct offset as [ | [ | [ | [ | offset]]]]; cbn in Hpos; try lia.
+      destruct stack as [ | top more]; [reflexivity | exfalso].
+      destruct Hsusp as [x [[Hg _] [Hcall [Hcallee _]]]].
+      destruct (callView top) as [[[ | [ | caller]] glabels goffset] gsegments gvalues glocals];
+        cbn [viewPosition positionFunction positionLabels positionOffset] in Hg, Hcall, Hcallee;
+        [ | | destruct caller; discriminate]; cbn in Hg; injection Hg as Hg; rewrite <- Hg in Hcall, Hcallee;
+        unfold innerCode in Hcall; (destruct glabels as [ | b more'];
+          [ | destruct b as [[ | [ | [ | [ | b]]]] arm]; cbn in Hcall; destruct goffset; discriminate]);
+        cbn in Hcall;
+        destruct goffset as [ | [ | [ | goffset]]]; try discriminate; try (destruct goffset; discriminate);
+        injection Hcall as <-; cbn in Hcallee; first [contradiction | discriminate Hcallee].
+    + destruct offset as [ | [ | [ | [ | offset]]]]; cbn in Hpos; lia.
+  - exfalso. destruct Hactive as [f' [g [i [[Hf' [Hpath _]] [Hi [Hind [_ [_ [_ [_ [Hpos _]]]]]]]]]]].
+    destruct view as [[index labels offset] segments values locals].
+    cbn [activeFunction viewPosition positionFunction positionLabels positionOffset] in *.
+    rewrite Hf in Hf'. injection Hf' as <-.
+    destruct index as [ | [ | index]]; [ | | destruct index; discriminate]; injection Hf as <-;
+      unfold innerCode in Hi; (destruct labels as [ | b more];
+        [ | destruct b as [[ | [ | [ | [ | b]]]] arm]; cbn in Hi; destruct offset; discriminate]);
+      cbn in Hi, Hpos; destruct offset as [ | [ | [ | offset]]]; try discriminate; try (destruct offset; discriminate);
+      injection Hi as <-; try discriminate Hind; unfold codeOffset, mainBody in Hpos; cbn in Hpos; lia.
+  - exfalso. destruct Hactive as [f' [Hf' [_ [_ [_ [_ [_ [_ [Hpos _]]]]]]]]].
+    destruct function as [ | [ | function]]; try (destruct function; discriminate);
+      injection Hf' as <-; cbn in Hpos; lia.
+Qed.
+
+(* The run ends at main's END, where the state decodes to main's frame holding 14.
+   Both are computed on the goal: reducing a hypothesis instead leaves the kernel to
+   recheck it by lazy conversion, which does not finish on a replayed trace. *)
+Lemma indirect_final_pc : boundaryPC (rowsFinalBoundary indirectStart indirectWitness) = 4.
+Proof. vm_compute. reflexivity. Qed.
+
+Lemma indirect_final_decode :
+  option_map fst (decodeControl indirectProgram indirectStore 0 (controlShape [] (siteCode (codePosition 0 [] 3)))
+    (replayed indirectMemory indirectWitness) (rowsFinalBoundary indirectStart indirectWitness)) =
+  Some (stackConfig (mk_state indirectStore (activeFrame mainGuest [7; 0])) [14] []).
+Proof. vm_compute. reflexivity. Qed.
+
+(* main(7, 0) runs to 14: the run's final state, whatever its shape, is main's frame
+   holding only double's result. *)
+Example indirect_call_returns_double : fieldPrime ->
+  Steps (stackConfig (mk_state indirectStore (activeFrame mainGuest [7; 0])) [] mainBody)
+    (stackConfig (mk_state indirectStore (activeFrame mainGuest [7; 0])) [14] []).
 Proof.
   intros Hprime.
-  assert (Hstart : ActivationConfig indirectProgram indirectStore trapFrame 0 0
-      (controlShape [] (siteCode (codePosition 0 [] 0))) trapMemory indirectStart
-      (callContext trapFrame 1 (stackConfig (mk_state indirectStore (activeFrame mainGuest [7; 5])) [] mainBody))).
-  { split; [reflexivity | ]. split; [repeat constructor | ]. split; [reflexivity | ].
-    exists mainGuest, (stackConfig (mk_state indirectStore (activeFrame mainGuest [7; 5])) [] mainBody).
-    split; [reflexivity | ]. split; [exact trap_start_config | reflexivity]. }
-  destruct (run_refinement _ _ _ _ _ _ _ _ _ _ _ Hprime (load_program_loaded _ _)
-    (validRunb_sound _ _ trap_run_valid) trap_run_fragment Hstart)
-    as [outcome [c [Hsteps [_ Hconfig]]]].
-  assert (Hlast : exists row, lastRow trapWitness = Some row /\ row COL_ACTIVATION_FINISHED_AFTER = 1 /\
-      row COL_TRAPPED_AFTER = 1).
-  { exists (rowWitness (List.last indirectTrapRows [])). split; [reflexivity | ]. vm_compute; split; reflexivity. }
-  destruct Hlast as [row [Hlast [Hfinish Htrap]]].
-  destruct outcome as [shape | | result].
-  - destruct Hconfig as [Hflag _]. rewrite Hlast in Hflag; congruence.
-  - destruct Hconfig as [last [Hlast' [_ [_ Hc]]]]. rewrite Hlast in Hlast'; injection Hlast' as <-.
-    rewrite <- Hc; exact Hsteps.
-  - destruct Hconfig as [last [Hlast' [_ [Ht _]]]]. rewrite Hlast in Hlast'; injection Hlast' as <-; congruence.
+  destruct (indirect_witness_refines Hprime) as [shape [c [Hsteps Hconfig]]].
+  destruct (circuit_config_state _ _ _ _ _ _ _ Hconfig) as [cursor [Hshape Hstate]].
+  pose proof (indirect_final_shape _ _ _ _ Hstate indirect_final_pc) as Hfinal.
+  destruct Hconfig as [_ [_ [_ [_ [obligations [Hdecode _]]]]]].
+  rewrite <- Hshape, Hfinal in Hdecode.
+  pose proof indirect_final_decode as Hresult. rewrite Hdecode in Hresult.
+  injection Hresult as <-. exact Hsteps.
 Qed.
-
-(* The trapping row is the resolve row, at pc 2: its index is out of bounds. *)
-Example indirect_trap_row :
-  let w := rowWitness (List.last indirectTrapRows []) in
-  (w COL_PC_BEFORE, w COL_SEL_CALL_INDIRECT_RESOLVE, w COL_CI_OOB, w COL_CALL_INDIRECT_IS_TRAP) = (2, 1, 1, 1).
-Proof. vm_compute. reflexivity. Qed.

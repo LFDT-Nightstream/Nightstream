@@ -109,14 +109,6 @@ Proof.
   rewrite Hfunction in Hactual. injection Hactual as <-. injection Heq as ->. exact Htype.
 Qed.
 
-Lemma forall2_nth_left : forall (A B : Type) (P : A -> B -> Prop) xs ys k x,
-  List.Forall2 P xs ys -> nth_error xs k = Some x -> exists y, nth_error ys k = Some y /\ P x y.
-Proof.
-  intros A B P xs ys k x H. revert k. induction H as [ | a b xs ys Hab _ IH]; intros [ | k] Hk; try discriminate.
-  - injection Hk as <-. exists b. split; [reflexivity | exact Hab].
-  - exact (IH k Hk).
-Qed.
-
 Lemma externaddr_table_bound : forall s a t, Externaddr_ok s a t ->
   match a with externaddr_TABLE address => (N.to_nat address < length (store_TABLES s))%nat | _ => True end.
 Proof.
@@ -130,7 +122,7 @@ Lemma module_table_in_store : forall s m C k ta,
 Proof.
   intros s m C k ta H Hta. inversion H; subst. cbn [TABLES] in Hta.
   match goal with Hf : List.Forall2 (fun (_ : tableaddr) (_ : tabletype) => _) _ _ |- _ =>
-    destruct (forall2_nth_left _ _ _ _ _ _ _ Hf Hta) as [tt [_ Hok]] end.
+    destruct (forall2_lookup _ _ _ _ _ Hf _ _ Hta) as [tt [_ Hok]] end.
   exact (externaddr_table_bound _ _ _ Hok).
 Qed.
 

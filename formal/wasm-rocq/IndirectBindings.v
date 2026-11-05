@@ -162,7 +162,9 @@ Proof.
   { refine (full_opcode_selector_exclusive w COL_SEL_CALL_INDIRECT_RESOLVE COL_SEL_LOCAL_GET Hprime Hfull
       Hchosen Hin _ _); [vm_compute; tauto | discriminate]. }
   assert (Haddr : w COL_STACK_WRITE0_ADDR_LO = 2 * (w COL_SP_BEFORE - 1)).
-  { selected_row COL_SEL_CALL_INDIRECT_RESOLVE 531%nat Hrow. rewrite Hone in Hrow.
+  { selected_row_where COL_SEL_CALL_INDIRECT_RESOLVE (@None SparseRow)
+      (Some [(COL_STACK_WRITE0_ADDR_LO, 1); (COL_SP_BEFORE, -2); (COL_ONE, 2)]) (@None SparseRow) Hrow.
+    rewrite Hone in Hrow.
     pose proof (value_bound w COL_STACK_WRITE0_ADDR_LO). field_linear Hrow. }
   constructor; try assumption.
   - selected_row COL_SEL_CALL_INDIRECT_RESOLVE unaryReadAddressRow Hrow. rewrite Hone in Hrow.
@@ -264,11 +266,22 @@ Proof.
   pose proof (value_bound w COL_PROGRAM_TABLE_ID_ACTIVE).
   pose proof (value_bound w COL_PROGRAM_CALL_INDIRECT_IMMEDIATES_ACTIVE).
   pose proof (value_bound w COL_CALL_INDIRECT_IS_NOT_TRAP).
-  full_row 437%nat Hid. full_row 438%nat Himm. full_row 4%nat HsizeRead. full_row 3%nat Hread'.
-  full_row 21%nat Hindex. full_row 502%nat Hcmp. full_row 503%nat Hoob.
-  full_row 504%nat HnullInv. full_row 505%nat HnullZero. full_row 506%nat HeqInv. full_row 507%nat HeqZero.
-  full_row 508%nat Hgate. full_row 509%nat Htrapped. full_row 510%nat HnotTrap.
-  full_row 511%nat Hlookup. full_row 22%nat Hwrite.
+  circuit_row ([(COL_PROGRAM_TABLE_ID_ACTIVE, 1); (COL_SEL_TABLE_SIZE, -1); (COL_SEL_TABLE_GET, -1); (COL_SEL_TABLE_SET, -1); (COL_SEL_CALL_INDIRECT_RESOLVE, -1)], [(COL_ONE, 1)], ([] : SparseRow)) Hid. expand_row Hid.
+  circuit_row ([(COL_PROGRAM_CALL_INDIRECT_IMMEDIATES_ACTIVE, 1); (COL_SEL_CALL_INDIRECT_RESOLVE, -1)], [(COL_ONE, 1)], ([] : SparseRow)) Himm. expand_row Himm.
+  circuit_row ([(COL_TABLE_SIZE_READ_ENABLED, 1); (COL_SEL_TABLE_SIZE, -1); (COL_SEL_CALL_INDIRECT_RESOLVE, -1)], [(COL_ONE, 1)], ([] : SparseRow)) HsizeRead. expand_row HsizeRead.
+  circuit_row ([(COL_TABLE_READ_ENABLED, 1); (COL_SEL_TABLE_GET, -1); (COL_SEL_CALL_INDIRECT_RESOLVE, -1); (COL_CI_OOB, 1)], [(COL_ONE, 1)], ([] : SparseRow)) Hread'. expand_row Hread'.
+  circuit_row ([(COL_SEL_CALL_INDIRECT_RESOLVE, 1)], [(COL_TABLE_INDEX, 1); (List.nth 0%nat COL_STACK_READ_VALUE_LO 0%nat, -1)], ([] : SparseRow)) Hindex. expand_row Hindex.
+  circuit_row ([(COL_SEL_CALL_INDIRECT_RESOLVE, 1)], [(COL_TABLE_INDEX, 1); (COL_TABLE_SIZE, -1); (COL_ONE, 4294967296); (COL_CMP_LOW, -1); (COL_CMP_GE, -4294967296)], ([] : SparseRow)) Hcmp. expand_row Hcmp.
+  circuit_row ([(COL_SEL_CALL_INDIRECT_RESOLVE, 1)], [(COL_CMP_GE, 1)], [(COL_CI_OOB, 1)]) Hoob. expand_row Hoob.
+  circuit_row ([(COL_TABLE_VALUE, 1)], [(COL_CI_ENTRY_NULL_INV, 1)], [(COL_ONE, 1); (COL_CI_ENTRY_IS_NULL, -1)]) HnullInv. expand_row HnullInv.
+  circuit_row ([(COL_TABLE_VALUE, 1)], [(COL_CI_ENTRY_IS_NULL, 1)], ([] : SparseRow)) HnullZero. expand_row HnullZero.
+  circuit_row ([(COL_FUNCTION_TYPE_ID, 1); (COL_EXPECTED_TYPE_ID, -1)], [(COL_CI_TYPE_EQ_INV, 1)], [(COL_ONE, 1); (COL_CI_TYPE_EQ, -1)]) HeqInv. expand_row HeqInv.
+  circuit_row ([(COL_FUNCTION_TYPE_ID, 1); (COL_EXPECTED_TYPE_ID, -1)], [(COL_CI_TYPE_EQ, 1)], ([] : SparseRow)) HeqZero. expand_row HeqZero.
+  circuit_row ([(COL_SEL_CALL_INDIRECT_RESOLVE, 1); (COL_CI_OOB, -1)], [(COL_ONE, 1); (COL_CI_ENTRY_IS_NULL, -1)], [(COL_FUNCTION_CALL_TYPE_LOOKUP_GATE, 1)]) Hgate. expand_row Hgate.
+  circuit_row ([(COL_FUNCTION_CALL_TYPE_LOOKUP_GATE, 1)], [(COL_CI_TYPE_EQ, 1)], [(COL_SEL_CALL_INDIRECT_RESOLVE, 1); (COL_CALL_INDIRECT_IS_TRAP, -1)]) Htrapped. expand_row Htrapped.
+  circuit_row ([(COL_SEL_CALL_INDIRECT_RESOLVE, 1)], [(COL_ONE, 1); (COL_CALL_INDIRECT_IS_TRAP, -1)], [(COL_CALL_INDIRECT_IS_NOT_TRAP, 1)]) HnotTrap. expand_row HnotTrap.
+  circuit_row ([(COL_FUNCTION_CALL_TYPE_LOOKUP_GATE, 1)], [(COL_FUNCTION_REF, 1); (COL_TABLE_VALUE, -1)], ([] : SparseRow)) Hlookup. expand_row Hlookup.
+  circuit_row ([(COL_CALL_INDIRECT_IS_NOT_TRAP, 1)], [(COL_STACK_WRITE0_VALUE_LO, 1); (COL_FUNCTION_REF, -1)], ([] : SparseRow)) Hwrite. expand_row Hwrite.
   normalize_columns.
   rewrite Hone, Hchosen, Hsize, Hget, Hset in *.
   assert (HindexEq : w COL_TABLE_INDEX = w (List.nth 0%nat COL_STACK_READ_VALUE_LO 0%nat)).

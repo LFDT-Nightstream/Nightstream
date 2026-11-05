@@ -61,7 +61,9 @@ private def splitAnswer : Answer ≃ (F × F) × (F × F) where
           (by unfold Spec.Folding.Nifs.NonInteractive.PiRlcSampler.drawWidth; omega)
   right_inv _ := rfl
 
-def pairs : Finset K :=
+/-- Every element of `K`, as the pairs of its two words. Noncomputable: compiled code would build
+the `goldilocksModulus ^ 2` pairs when an executable that imports this module starts. -/
+noncomputable def pairs : Finset K :=
   Finset.univ.map ⟨fun words : F × F => (⟨words.1, words.2⟩ : K), fun left right same => by
     cases left
     cases right

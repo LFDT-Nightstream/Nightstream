@@ -101,9 +101,10 @@ The claims bound a probability. They take these as part of the model, not as Lea
 
 A claim that takes a premise says nothing about a key, a package, a setup or runs that do not meet
 it. `STATUS.md` lists every hypothesis of every claim and says, for each premise, how it is met: by a
-Lean proof, by a check of Rust's files, by a Lean value or by Rust. No premise of
-`option_b_poseidon2_bound` is open. `CompressionLeanTests/Inventory.lean` holds that list, and
-`lake build` fails when a premise of a claim has no entry there.
+Lean proof, by a check of Rust's files, by a Lean value or by Rust; a completeness claim's run
+premises are its scope instead. No premise of `option_b_poseidon2_bound` is open.
+`CompressionLeanTests/Inventory.lean` holds that list, and `lake build` fails when a premise of a
+claim has no entry there.
 
 ## Option B
 
@@ -163,6 +164,41 @@ accumulator bound of the light cap, 17,496 (`normCovers`, `Spec.OptionB.slotBoun
 `compression_bound`). The key's blocks hold the logical width of its circuit's step package
 (`blocksCover`). `coverCheck` checks both on Rust's files (`Spec.OptionB.coverFailure`,
 `option_b_covers_of_check`). They are not in `KeyFacts`, so no soundness claim changes.
+
+### Completeness
+
+`option_b_complete` (CW-10.6) is claim-level completeness. Take a valid run of the application of
+at least one step and fewer than `goldilocksModulus` steps, from a state of four words, whose
+witnesses have the application's witness length. Then the claim of `option_b_bound`
+(`Spec.OptionB.Holds` with `FinishTerminal` on the emitted finish package) holds for the run's
+statement words (`Spec.OptionB.terminalWords`). `option_b_honest_unbroken` follows: no outcome of
+the final verifier's experiment accepts that statement as a break (`Spec.OptionB.RestoreBreak`).
+The proof joins F′'s `FinishCompleteness.run_finish_complete` (the honest finish columns and next
+slot witnesses), `Final.OptionB.holds_of_honest` (those columns satisfy the final program's
+terminal) and `Final.OptionB.slot_complete` (each next slot's words are in their layer-1
+relation). It uses no cryptographic assumption: the folds use the deployed Poseidon2 sponge, as
+F′'s `FoldCompleteness` does.
+
+What is not proved:
+
+- That the shrink verifier or the layer-1 verifiers accept the honest prover's messages. Lean has
+  no honest layer-1 or shrink prover, and no converse of the lowering (`Lowering.lower_sound`) or of
+  `Sim.OptionB.optionBEncodes`. The Rust tests `final_proof_verifies` (`nightstream`,
+  `option_b_lifecycle`) and `hash_chain_final_proof_verifies` (`option_b_api.rs`) are the evidence
+  at that level.
+- Perfect completeness at the game level. Rust's WHIR verifier rejects a query sample of `p - 1`
+  (`Replay.whirQueries`, about `2^-64` for each draw), while the Lean game draws from `Fin P` and
+  never rejects. So a completeness theorem about the game would not describe Rust.
+
+The premises are the soundness claims' `shape`, `honest`, `keyWords` and `keysShaped`, the passes
+of `coverCheck` on both step packages (`lightCover`, `refreshCover`), and F′'s finish-package
+checks (`FinishCompleteness.FinishComplete`, which the emitter evaluates). The soundness premises
+`packed`, `starts` and `fit` are not needed. The claim also takes F′'s `Exports` and `Complete`
+as parameters: the setup's keys carry the exported relations, and both step packages pass the
+emitter's completeness checks. No claim builds them for the Poseidon2 hash chain, so there is no
+reference-application form of `option_b_complete`, as there is none of `option_b_ivc_bound`.
+The run premises (`valid`, `lengths`, `nonempty`, `bound`, `z0Length`) are the claim's scope
+(`STATUS.md`).
 
 Three things are trusted, not checked. The emitter writes each package as `packageOf` of its
 circuit's pieces, and the checks read the bytes it writes (the `rows`, `blocks`, `start`,
@@ -307,7 +343,8 @@ These checks compare a transcription with its Rust:
 
 `option_b_parent_bound` holds for circuit keys of any logical width. `option_b_poseidon2_bound`
 covers F′'s light and refresh circuits of the Poseidon2 hash-chain application at the key width
-`2^26`. It takes the premises that `STATUS.md` lists. The claims describe the native verifier and
+`2^26`. It takes the premises that `STATUS.md` lists. `option_b_complete` holds for any application
+with F′'s `Exports` and `Complete`, for the valid runs that it names. The claims describe the native verifier and
 the circuit that Rust records; they say nothing about code paths that Lean does not model.
 
 ## Not trusted

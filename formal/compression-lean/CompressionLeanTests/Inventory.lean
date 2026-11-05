@@ -20,7 +20,9 @@ def claims : List (Name × List Name) := [
   (`CompressionLean.Claims.option_b_runs_of_check, standardAxioms),
   (`CompressionLean.Claims.option_b_honest_of_check, standardAxioms),
   (`CompressionLean.Claims.option_b_covers_of_check, [``propext, ``Quot.sound]),
-  (`CompressionLean.Claims.option_b_poseidon2_bound, standardAxioms)]
+  (`CompressionLean.Claims.option_b_poseidon2_bound, standardAxioms),
+  (`CompressionLean.Claims.option_b_complete, standardAxioms),
+  (`CompressionLean.Claims.option_b_honest_unbroken, standardAxioms)]
 
 def claimsModule : Name := `CompressionLean.Claims
 
@@ -38,6 +40,7 @@ inductive Met where
   | rust
   | proved
   | unmet
+  | scope
 
 def Met.label : Met → String
   | .rustFiles => "Rust's files"
@@ -45,6 +48,7 @@ def Met.label : Met → String
   | .rust => "Rust"
   | .proved => "Lean proof"
   | .unmet => "Open"
+  | .scope => "Scope"
 
 def Met.meaning : Met → String
   | .rustFiles => "an executable checks a fact about the files that Rust writes, and a claim turns the pass into the premise."
@@ -52,6 +56,7 @@ def Met.meaning : Met → String
   | .rust => "Rust checks it when it runs. Lean does not check it."
   | .proved => "a Lean proof gives it where another claim uses this claim."
   | .unmet => "no check meets it yet; the claim holds only where it holds."
+  | .scope => "it names the runs that a completeness claim covers. No check meets it: the claim says nothing about other runs."
 
 structure Premise where
   binder : Name
@@ -98,6 +103,21 @@ def premises : List (Name × List Premise) :=
       ⟨`honest, .rustFiles, "`option_b_honest_of_check` turns the passes of `setupCheck` and `runsCheck` into it (`option_b_runs_of_check`)."⟩,
       ⟨`keyWords, .rust, "`OptionB::new` derives `self.keys` from the packages' identity (`option_b/mod.rs`). The step states hash these digests, and `OptionB::final_program` gives the same digests to the final program (`compression.rs`). No Lean check compares them with the setup's circuit keys."⟩,
       ⟨`keysShaped, .rust, "Rust's key digests have four words: `FinalProgram::keys` is `[[F; 4]; 2]`."⟩]
+  let complete : List Premise := [
+      ⟨`pf, .proved, "F′ proves it for the key width (`StepRelation.keyPublicFits`)."⟩,
+      ⟨`cubeFits, .proved, "F′ proves it at the key width (`StepRelation.keyCubeFits`)."⟩,
+      ⟨`finish, .leanValue, "F′'s emitter evaluates the finish package's completeness checks (`EmitMain.finishChecks` and `StepCompleteness.publicFree` of the finish rows) at the key width with `StepRelation.keyRelation`, and writes no finish package when one fails (`EmitMain.emitPackage`)."⟩,
+      ⟨`shape, .rustFiles, "`option_b_shape_of_check` turns `KeyFacts` and the pass of `optionBCheck` into it."⟩,
+      ⟨`honest, .rustFiles, "`option_b_honest_of_check` turns the passes of `setupCheck` and `runsCheck` into it (`option_b_runs_of_check`)."⟩,
+      ⟨`keyWords, .rust, "As `option_b_last_fold_bound`'s `keyWords`."⟩,
+      ⟨`keysShaped, .rust, "As `option_b_last_fold_bound`'s `keysShaped`."⟩,
+      ⟨`lightCover, .rustFiles, s!"{optionBCover} The emitter writes the light package as `packageOf 0` of the light circuit's pieces (`EmitMain.emitPackage`), which is this package when `exports` and `complete` carry the emitter's first fresh column, width and witness batches. `option_b_covers_of_check` turns the pass into the norm and block bounds of slot 0."⟩,
+      ⟨`refreshCover, .rustFiles, "As `lightCover`, for the refresh package (`packageOf 1`) and slot 1."⟩,
+      ⟨`z0Length, .scope, "The run starts from a state of `Stage1.Application.stateWordCount` words."⟩,
+      ⟨`valid, .scope, "Each witness of the run is valid for the application at the state that the earlier witnesses reach (`IvcWalk.ValidFrom`)."⟩,
+      ⟨`lengths, .scope, "Each witness of the run has the application's witness length."⟩,
+      ⟨`nonempty, .scope, "The run has at least one step. A run of no steps has no final proof: the final program's terminal asks for a nonzero iteration (`Spec.OptionB.FinishTerminal`)."⟩,
+      ⟨`bound, .scope, "The run has fewer steps than the field's order, so that its iteration is one field word."⟩]
   [(`CompressionLean.Claims.key_facts_of_check, [⟨`pass, .rustFiles,
       "`lowerCheck` evaluates `keyFailure` on both layer-1 keys that `option_b_layer1_keys_are_written` writes. `option_b_layer1_matches_lean` requires the pass."⟩]),
     (`CompressionLean.Claims.option_b_bound, optionB),
@@ -135,7 +155,9 @@ def premises : List (Name × List Premise) :=
       ⟨`finishStarts, .leanValue, "As `finishPacked`, for `startsFrom` at the shared end."⟩,
       ⟨`fit, .leanValue, "`optionBCheck` evaluates `fits` on the finish package that it decodes from the artifact and stops when it fails."⟩,
       ⟨`keysLength, .rustFiles, "As `option_b_bound`'s `keysLength`."⟩,
-      h0, h1, p0, p1, rust])]
+      h0, h1, p0, p1, rust]),
+    (`CompressionLean.Claims.option_b_complete, complete),
+    (`CompressionLean.Claims.option_b_honest_unbroken, complete)]
 
 def portRoot : Name := `CompressionLean.Ports
 
@@ -197,7 +219,7 @@ def statusPage (ports : Array Port) : CoreM String :=
   lines := lines ++ #["", "## Hypotheses", "",
     "Every hypothesis of each claim, by binder. A parameter is data that the claim holds for. A premise is a proposition that the claim takes; the claim says nothing where it fails. Each premise row says how the premise is met:",
     ""]
-  for met in [Met.rustFiles, .leanValue, .rust, .proved, .unmet] do
+  for met in [Met.rustFiles, .leanValue, .rust, .proved, .unmet, .scope] do
     lines := lines.push s!"- {met.label}: {met.meaning}"
   for (claim, _) in claims do
     let some info := env.find? claim | throwError "claim {claim} is not declared"

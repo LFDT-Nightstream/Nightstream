@@ -13,7 +13,10 @@ The honest prover folds the fresh instance into the slot that the program counte
 (`FoldCompleteness`), runs the step circuit (`LightAssemblerCompleteness.complete`), and
 commits to the exported relation's honest assignment (`StepCompleteness.light_complete`). The
 terminal accepts the new proof at iteration `i + 1`, and the new slots stay within their bounds
-(`light_extend`).
+(`light_extend`). Each slot witness and the fresh witness are zero on every ring block from the
+logical width of their circuit's package (`Complete.packageWidth`, `BlockSupport.Supported`): the
+fresh witness is zero past that width (`StepCompleteness.light_complete`), and the folds keep
+zero blocks (`FoldCompleteness`).
 
 The keys must carry the exported relations at the packages' widened slot layouts, and the
 packages must pass the emitter's completeness checks (`Complete`). -/
@@ -31,6 +34,7 @@ open NightstreamFPrime.Spec.HyperNova.Construction2
 open NightstreamFPrime.Spec.HyperNova.Construction2.Paper
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Lifecycle.OptionB
+open NightstreamFPrime.Lifecycle.OptionB.BlockSupport
 open NightstreamFPrime.Layout.OptionB
 open NightstreamFPrime.Export.Generic
 open NightstreamFPrime.Export.Generic.CircuitRelation
@@ -81,16 +85,53 @@ structure Complete (exports : Exports relation ajtai circuitKeys step cubeFits) 
     (RefreshAssemblerCircuit.stepCircuit exports.program base relation 1 ajtai).main
     (RefreshAssembler.sharedEnd base exports.program.witnessWordCount))) = true
 
-/-- Every slot's depth is at most the light cap, and its witness lies within the accumulator
-bound of its depth (CW-10.5). -/
-def Honest (payload : TerminalProof (SlotData logicalWidth publicFits)
-    (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits))
-    (StepFresh logicalWidth publicFits)
-    (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits)) 2) : Prop :=
-  ∀ slot, (payload.running slot).2 ≤ Schedule.productionLightFoldCap ∧
-    (PaperAlgebra.semantics ajtai).normBounded
-      (productionGlobalParams.accumulatorBound (payload.running slot).2 + 1)
-      (payload.runningWitness slot)
+/-- The logical width of circuit `circuit`'s package: the columns of its slot layout before the
+key widens them, as the emitter prints it (`EmitMain.emitPackage`). Slot `circuit` accumulates
+the circuit's fresh instances (SPEC.md section 2.5). -/
+def Complete.packageWidth {exports : Exports relation ajtai circuitKeys step cubeFits}
+    (complete : Complete exports) (circuit : Fin 2) : Nat :=
+  if circuit.val = 0 then
+    ProductionAssignment.logicalWidth (SlotLayout.runSlots exports.lightWidth
+      (StepPackage.slotRuns publicColumns (lightPieces exports.program relation ajtai)
+        exports.lightFresh complete.lightBatches))
+  else
+    ProductionAssignment.logicalWidth (SlotLayout.runSlots exports.refreshWidth
+      (StepPackage.slotRuns publicColumns (refreshPieces exports.program relation ajtai)
+        exports.refreshFresh complete.refreshBatches))
+
+theorem Complete.packageWidth_zero {exports : Exports relation ajtai circuitKeys step cubeFits}
+    (complete : Complete exports) :
+    complete.packageWidth 0 = ProductionAssignment.logicalWidth (SlotLayout.runSlots
+      exports.lightWidth (StepPackage.slotRuns publicColumns
+        (lightPieces exports.program relation ajtai) exports.lightFresh complete.lightBatches)) :=
+  rfl
+
+theorem Complete.packageWidth_one {exports : Exports relation ajtai circuitKeys step cubeFits}
+    (complete : Complete exports) :
+    complete.packageWidth 1 = ProductionAssignment.logicalWidth (SlotLayout.runSlots
+      exports.refreshWidth (StepPackage.slotRuns publicColumns
+        (refreshPieces exports.program relation ajtai) exports.refreshFresh
+        complete.refreshBatches)) :=
+  rfl
+
+/-- An honest proof's slots and fresh instance (CW-10.5, CW-10.6). Every slot's depth is at most
+the light cap; its witness lies within the accumulator bound of its depth and is zero on every
+ring block from its circuit's package width. The fresh witness is zero on every ring block from
+the package width of the circuit that ran last. -/
+structure Honest (packageWidths : Fin 2 → Nat)
+    (payload : TerminalProof (SlotData logicalWidth publicFits)
+      (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits))
+      (StepFresh logicalWidth publicFits)
+      (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits)) 2) : Prop where
+  depth : ∀ slot, (payload.running slot).2 ≤ Schedule.productionLightFoldCap
+  norm : ∀ slot, (PaperAlgebra.semantics ajtai).normBounded
+    (productionGlobalParams.accumulatorBound (payload.running slot).2 + 1)
+    (payload.runningWitness slot)
+  support : ∀ slot,
+    Supported (logicalWidth := logicalWidth) (packageWidths slot) (payload.runningWitness slot)
+  freshSupport : ∀ pcValid : InRange 2 payload.pc,
+    Supported (logicalWidth := logicalWidth) (packageWidths (selectedIndex pcValid))
+      payload.freshWitness
 
 theorem accumulatorBound_succ (depth : Nat) :
     productionGlobalParams.accumulatorBound depth + 1 +
@@ -122,7 +163,7 @@ theorem light_extend (exports : Exports relation ajtai circuitKeys step cubeFits
       (StepFresh logicalWidth publicFits)
       (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits)) 2)
     (holds : Terminal.HoldsFor cap ajtai circuitKeys step control statement (.recursive payload))
-    (honest : Honest (ajtai := ajtai) payload)
+    (honest : Honest (ajtai := ajtai) complete.packageWidth payload)
     (witness : AppWitness) (valid : exports.program.valid statement.zi witness)
     (lightNext : control statement.zi witness = 0)
     (room : ∀ pcValid : InRange 2 payload.pc,
@@ -132,11 +173,11 @@ theorem light_extend (exports : Exports relation ajtai circuitKeys step cubeFits
     (witnessLength : witness.length = exports.program.witnessWordCount) :
     ∃ next, Terminal.HoldsFor cap ajtai circuitKeys step control
         ⟨statement.iteration + 1, statement.z0, step statement.zi witness⟩ (.recursive next) ∧
-      Honest (ajtai := ajtai) next := by
+      Honest (ajtai := ajtai) complete.packageWidth next := by
   obtain ⟨statementValid, pcValid, positive, freshPublic, slots, freshHolds⟩ :=
     (Terminal.holdsFor_recursive_iff cap ajtai circuitKeys step control statement payload).mp holds
   let selected := selectedIndex pcValid
-  obtain ⟨_, normWithin⟩ := honest selected
+  have normWithin := honest.norm selected
   have depthLt := room pcValid
   have running : Light.Rlc.Holds (PaperAlgebra.semantics ajtai)
       (productionGlobalParams.accumulatorBound (payload.running selected).2 + 1)
@@ -144,7 +185,7 @@ theorem light_extend (exports : Exports relation ajtai circuitKeys step cubeFits
       (payload.runningWitness selected) :=
     ⟨⟨(slots selected).1.1, (slots selected).1.2.1, normWithin⟩, (slots selected).2.1,
       (slots selected).2.2⟩
-  obtain ⟨proof, folded, foldedWitness, accepted, foldedHolds⟩ :=
+  obtain ⟨proof, folded, foldedWitness, accepted, foldedHolds, foldedSupported⟩ :=
     FoldCompleteness.light_folds_of_holds ajtai (circuitKeys selected) (payload.running selected).1
       payload.fresh _ (payload.runningWitness selected) payload.freshWitness running freshHolds
   let input : StepInput logicalWidth publicFits :=
@@ -191,7 +232,7 @@ theorem light_extend (exports : Exports relation ajtai circuitKeys step cubeFits
     · rw [same, nextSelected]
       exact depthLt
     · rw [nextOther slot same]
-      exact (honest slot).1
+      exact honest.depth slot
   obtain ⟨env, rows, represents⟩ := LightAssemblerCompleteness.complete exports.program relation
     base ajtai circuitKeys step control 0 rfl exports.programStep input output proof selected
     folded stepHolds valid
@@ -200,13 +241,13 @@ theorem light_extend (exports : Exports relation ajtai circuitKeys step cubeFits
       have := pcValid.1
       omega)
     freshPublic (fun _ => rfl) accepted depthLt statementValid.1 pcBound
-    (fun slot => lt_of_le_of_lt (honest slot).1 small)
+    (fun slot => lt_of_le_of_lt (honest.depth slot) small)
     (fun slot => lt_of_le_of_lt (nextDepthLe slot) small) keysShaped statementValid.2.1
     statementValid.2.2 nextLength witnessLength
-  obtain ⟨assignment, freshNext⟩ := light_complete exports.program relation ajtai circuitKeys input
-    output proof env rows represents complete.lightFree exports.lightFresh exports.lightWidth
-    exports.lightFits complete.lightPacked complete.lightBelow complete.lightPublicBelow
-    complete.lightBatches complete.lightSafe complete.lightWide cubeFits
+  obtain ⟨assignment, freshNext, freshZero⟩ := light_complete exports.program relation ajtai
+    circuitKeys input output proof env rows represents complete.lightFree exports.lightFresh
+    exports.lightWidth exports.lightFits complete.lightPacked complete.lightBelow
+    complete.lightPublicBelow complete.lightBatches complete.lightSafe complete.lightWide cubeFits
   have keyEq : (circuitKeys 0).relation = (CircuitRelation.plan publicColumns _ exports.lightFresh
       exports.lightWidth exports.lightFits
       (WideLayout.widen (SlotLayout.layout _) complete.lightWide)).logicalRelation
@@ -250,20 +291,24 @@ theorem light_extend (exports : Exports relation ajtai circuitKeys step cubeFits
       (freshStatement (circuitKeys 0).relation next.fresh) next.freshWitness
     rw [keyEq]
     exact freshNext
-  · intro slot
-    by_cases same : slot = selected
-    · show (runningNext slot).2 ≤ Schedule.productionLightFoldCap ∧
-        (PaperAlgebra.semantics ajtai).normBounded
-          (productionGlobalParams.accumulatorBound (runningNext slot).2 + 1)
-          (Function.update payload.runningWitness selected foldedWitness slot)
-      rw [same, nextSelected, Function.update_self]
-      exact ⟨depthLt, foldedWithin.1.2.2⟩
-    · show (runningNext slot).2 ≤ Schedule.productionLightFoldCap ∧
-        (PaperAlgebra.semantics ajtai).normBounded
-          (productionGlobalParams.accumulatorBound (runningNext slot).2 + 1)
-          (Function.update payload.runningWitness selected foldedWitness slot)
-      rw [nextOther slot same, Function.update_of_ne same]
-      exact honest slot
+  · refine ⟨nextDepthLe, fun slot => ?_, fun slot => ?_, fun pcNext => ?_⟩
+    · show (PaperAlgebra.semantics ajtai).normBounded
+        (productionGlobalParams.accumulatorBound (runningNext slot).2 + 1)
+        (Function.update payload.runningWitness selected foldedWitness slot)
+      by_cases same : slot = selected
+      · rw [same, nextSelected, Function.update_self]
+        exact foldedWithin.1.2.2
+      · rw [nextOther slot same, Function.update_of_ne same]
+        exact honest.norm slot
+    · show Supported (complete.packageWidth slot)
+        (Function.update payload.runningWitness selected foldedWitness slot)
+      by_cases same : slot = selected
+      · rw [same, Function.update_self]
+        exact foldedSupported _ (honest.support selected) (honest.freshSupport pcValid)
+      · rw [Function.update_of_ne same]
+        exact honest.support slot
+    · rw [show selectedIndex pcNext = (0 : Fin 2) from Fin.ext rfl, Complete.packageWidth_zero]
+      exact supported_of_tail freshZero
 
 /-- One honest refresh step: from a recursive proof that the terminal accepts and whose slots are
 honest, a valid application step whose circuit is the refresh circuit gives a recursive proof
@@ -277,7 +322,7 @@ theorem refresh_extend (exports : Exports relation ajtai circuitKeys step cubeFi
       (StepFresh logicalWidth publicFits)
       (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits)) 2)
     (holds : Terminal.HoldsFor cap ajtai circuitKeys step control statement (.recursive payload))
-    (honest : Honest (ajtai := ajtai) payload)
+    (honest : Honest (ajtai := ajtai) complete.packageWidth payload)
     (witness : AppWitness) (valid : exports.program.valid statement.zi witness)
     (refreshNext : control statement.zi witness = 1)
     (iterationNext : statement.iteration + 1 < goldilocksModulus)
@@ -285,11 +330,11 @@ theorem refresh_extend (exports : Exports relation ajtai circuitKeys step cubeFi
     (witnessLength : witness.length = exports.program.witnessWordCount) :
     ∃ next, Terminal.HoldsFor cap ajtai circuitKeys step control
         ⟨statement.iteration + 1, statement.z0, step statement.zi witness⟩ (.recursive next) ∧
-      Honest (ajtai := ajtai) next := by
+      Honest (ajtai := ajtai) complete.packageWidth next := by
   obtain ⟨statementValid, pcValid, positive, freshPublic, slots, freshHolds⟩ :=
     (Terminal.holdsFor_recursive_iff cap ajtai circuitKeys step control statement payload).mp holds
   let selected := selectedIndex pcValid
-  obtain ⟨proof, folded, foldedWitness, accepted, foldedHolds, foldedNorm⟩ :=
+  obtain ⟨proof, folded, foldedWitness, accepted, foldedHolds, foldedNorm, foldedSupported⟩ :=
     FoldCompleteness.refresh_folds_bounded ajtai (circuitKeys selected)
       (payload.running selected).1 payload.fresh (payload.runningWitness selected)
       payload.freshWitness (slots selected) freshHolds
@@ -336,7 +381,7 @@ theorem refresh_extend (exports : Exports relation ajtai circuitKeys step cubeFi
     · rw [same, nextSelected]
       exact Nat.zero_le _
     · rw [nextOther slot same]
-      exact (honest slot).1
+      exact honest.depth slot
   obtain ⟨env, rows, represents⟩ := RefreshAssemblerCompleteness.complete exports.program relation
     base ajtai circuitKeys step control 1 rfl exports.programStep input output proof selected
     folded stepHolds valid
@@ -345,11 +390,11 @@ theorem refresh_extend (exports : Exports relation ajtai circuitKeys step cubeFi
       have := pcValid.1
       omega)
     freshPublic (fun _ => rfl) accepted statementValid.1 pcBound
-    (fun slot => lt_of_le_of_lt (honest slot).1 small)
+    (fun slot => lt_of_le_of_lt (honest.depth slot) small)
     (fun slot => lt_of_le_of_lt (nextDepthLe slot) small) keysShaped statementValid.2.1
     statementValid.2.2 nextLength witnessLength
-  obtain ⟨assignment, freshNext⟩ := refresh_complete exports.program relation ajtai circuitKeys
-    input output proof env rows represents complete.refreshFree exports.refreshFresh
+  obtain ⟨assignment, freshNext, freshZero⟩ := refresh_complete exports.program relation ajtai
+    circuitKeys input output proof env rows represents complete.refreshFree exports.refreshFresh
     exports.refreshWidth exports.refreshFits complete.refreshPacked complete.refreshBelow
     complete.refreshPublicBelow complete.refreshBatches complete.refreshSafe complete.refreshWide
     cubeFits
@@ -389,20 +434,24 @@ theorem refresh_extend (exports : Exports relation ajtai circuitKeys step cubeFi
       (freshStatement (circuitKeys 1).relation next.fresh) next.freshWitness
     rw [keyEq]
     exact freshNext
-  · intro slot
-    by_cases same : slot = selected
-    · show (runningNext slot).2 ≤ Schedule.productionLightFoldCap ∧
-        (PaperAlgebra.semantics ajtai).normBounded
-          (productionGlobalParams.accumulatorBound (runningNext slot).2 + 1)
-          (Function.update payload.runningWitness selected foldedWitness slot)
-      rw [same, nextSelected, Function.update_self]
-      exact ⟨Nat.zero_le _, foldedNorm⟩
-    · show (runningNext slot).2 ≤ Schedule.productionLightFoldCap ∧
-        (PaperAlgebra.semantics ajtai).normBounded
-          (productionGlobalParams.accumulatorBound (runningNext slot).2 + 1)
-          (Function.update payload.runningWitness selected foldedWitness slot)
-      rw [nextOther slot same, Function.update_of_ne same]
-      exact honest slot
+  · refine ⟨nextDepthLe, fun slot => ?_, fun slot => ?_, fun pcNext => ?_⟩
+    · show (PaperAlgebra.semantics ajtai).normBounded
+        (productionGlobalParams.accumulatorBound (runningNext slot).2 + 1)
+        (Function.update payload.runningWitness selected foldedWitness slot)
+      by_cases same : slot = selected
+      · rw [same, nextSelected, Function.update_self]
+        exact foldedNorm
+      · rw [nextOther slot same, Function.update_of_ne same]
+        exact honest.norm slot
+    · show Supported (complete.packageWidth slot)
+        (Function.update payload.runningWitness selected foldedWitness slot)
+      by_cases same : slot = selected
+      · rw [same, Function.update_self]
+        exact foldedSupported _ (honest.support selected) (honest.freshSupport pcValid)
+      · rw [Function.update_of_ne same]
+        exact honest.support slot
+    · rw [show selectedIndex pcNext = (1 : Fin 2) from Fin.ext rfl, Complete.packageWidth_one]
+      exact supported_of_tail freshZero
 
 /-- The first honest step: from the bottom proof, a valid application step on the light circuit
 gives a recursive proof that the terminal accepts at iteration 1, with both slots at the default
@@ -417,7 +466,7 @@ theorem base_extend (exports : Exports relation ajtai circuitKeys step cubeFits)
     (witnessLength : witness.length = exports.program.witnessWordCount) :
     ∃ next, Terminal.HoldsFor cap ajtai circuitKeys step control
         ⟨statement.iteration + 1, statement.z0, step statement.zi witness⟩ (.recursive next) ∧
-      Honest (ajtai := ajtai) next := by
+      Honest (ajtai := ajtai) complete.packageWidth next := by
   obtain ⟨statementValid, iterationZero, ziEq⟩ :=
     (Terminal.holdsFor_bottom_iff cap ajtai circuitKeys step control statement).mp holds
   let defaults : Fin 2 → SlotData logicalWidth publicFits := fun _ => (defaultSlot, 0)
@@ -458,10 +507,11 @@ theorem base_extend (exports : Exports relation ajtai circuitKeys step cubeFits)
     (fun _ => show (0 : Nat) < goldilocksModulus by decide)
     (fun _ => show (0 : Nat) < goldilocksModulus by decide)
     keysShaped statementValid.2.1 statementValid.2.2 nextLength witnessLength
-  obtain ⟨assignment, freshNext⟩ := light_complete exports.program relation ajtai circuitKeys input
-    output BaseFold.zeroProof env rows represents complete.lightFree exports.lightFresh
-    exports.lightWidth exports.lightFits complete.lightPacked complete.lightBelow
-    complete.lightPublicBelow complete.lightBatches complete.lightSafe complete.lightWide cubeFits
+  obtain ⟨assignment, freshNext, freshZero⟩ := light_complete exports.program relation ajtai
+    circuitKeys input output BaseFold.zeroProof env rows represents complete.lightFree
+    exports.lightFresh exports.lightWidth exports.lightFits complete.lightPacked
+    complete.lightBelow complete.lightPublicBelow complete.lightBatches complete.lightSafe
+    complete.lightWide cubeFits
   have keyEq : (circuitKeys 0).relation = (CircuitRelation.plan publicColumns _ exports.lightFresh
       exports.lightWidth exports.lightFits
       (WideLayout.widen (SlotLayout.layout _) complete.lightWide)).logicalRelation
@@ -494,9 +544,11 @@ theorem base_extend (exports : Exports relation ajtai circuitKeys step cubeFits)
       (freshStatement (circuitKeys 0).relation next.fresh) next.freshWitness
     rw [keyEq]
     exact freshNext
-  · intro slot
-    refine ⟨Nat.zero_le _, fun column => ?_⟩
-    change centeredMagnitude (0 : F) < productionGlobalParams.accumulatorBound 0 + 1
-    simp [centeredMagnitude]
+  · refine ⟨fun _ => Nat.zero_le _, fun slot column => ?_, fun slot => supported_zero _,
+      fun pcNext => ?_⟩
+    · change centeredMagnitude (0 : F) < productionGlobalParams.accumulatorBound 0 + 1
+      simp [centeredMagnitude]
+    · rw [show selectedIndex pcNext = (0 : Fin 2) from Fin.ext rfl, Complete.packageWidth_zero]
+      exact supported_of_tail freshZero
 
 end NightstreamFPrime.Export.OptionB.StepExtend

@@ -4,7 +4,10 @@ import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Algebra
 
 /-! The honest refresh parent is the Π_RLC combination of its 17 sources, so its norm is at most
 `17 · T · (b − 1)`, the accumulator bound at depth 0 (SuperNeo v1.2 Definition 22). Light folds
-after a refresh start from this bound. -/
+after a refresh start from this bound. The parent's witness is the combination of the fresh
+witnesses and the Π_DEC digits of the accumulator's witness (`complete_bounded`), so a predicate
+that Π_RLC and Π_DEC keep (`SupportLaw`) holds for it when it holds for the inputs
+(`parent_supported`). -/
 
 set_option autoImplicit false
 
@@ -35,6 +38,26 @@ structure CountNormLaw
     (∀ index, semantics.normBounded params.b (assignments index)) →
     semantics.normBounded (count * params.expansionT * (params.b - 1) + 1)
       (algebra.combineAssignment challenges assignments)
+
+/-- Π_RLC and Π_DEC keep `supported`: the combination of supported witnesses is supported, and
+so is each Π_DEC digit of a supported witness. -/
+structure SupportLaw
+    {Structure : Type uStructure} {Assignment : Type uAssignment}
+    {PublicInput : Type uPublicInput} {Point : Type uPoint} {Evaluation : Type uEvaluation}
+    {Commitment : Type uCommitment} {Scalar : Type uScalar}
+    {semantics : RelationSemantics Structure Assignment PublicInput Point Evaluation Commitment}
+    {params : GlobalParams}
+    (combination : PiRLC.Algebra Structure Assignment PublicInput Point Evaluation Commitment Scalar
+      semantics params)
+    (decomposition : PiDEC.Algebra Structure Assignment PublicInput Point Evaluation Commitment
+      semantics params)
+    (supported : Assignment → Prop) : Prop where
+  combine_supported : ∀ {count : Nat} (challenges : Fin count → Scalar)
+      (assignments : Fin count → Assignment),
+    (∀ index, supported (assignments index)) →
+    supported (combination.combineAssignment challenges assignments)
+  split_supported : ∀ (assignment : Assignment) (child : Fin params.k),
+    supported assignment → supported (decomposition.splitAssignment assignment child)
 
 theorem production_countNormLaw {shape : Phi81Relation.Shape} {verifierRows : Nat}
     (key : Phi81Relation.PiRLCAlgebra.Commitment.Key shape verifierRows) :
@@ -99,7 +122,8 @@ theorem parent_bounded
   exact bounded
 
 /-- Refresh completeness with the depth-0 bound on the parent: light folds after an honest
-refresh start from `accumulatorBound 0`. -/
+refresh start from `accumulatorBound 0`. The parent's witness is the Π_RLC combination of the
+honest sources (`honestWitness`). -/
 theorem complete_bounded
     (key : Key K Commitment PublicInput Scalar State shape columns blockCount degreeBound)
     (normLaw : CountNormLaw key.piRlcAlgebra)
@@ -134,7 +158,10 @@ theorem complete_bounded
           proof.nifs.piCcsRounds = messages ∧
           verify key accumulator fresh proof = some parent ∧
           CE.Holds key.piRlcSemantics key.params parent parentWitness ∧
-          key.piRlcSemantics.normBounded (key.params.accumulatorBound 0 + 1) parentWitness := by
+          key.piRlcSemantics.normBounded (key.params.accumulatorBound 0 + 1) parentWitness ∧
+          parentWitness = PiRLC.combinedWitness key.piRlcAlgebra rho
+            (fun index => (honestWitness key assignment freshWitness).assignments
+              (Fin.cast key.total_eq_sourceCount index)) := by
   intro running
   let split := honestSplit key accumulator assignment
   let witness := honestWitness key assignment freshWitness
@@ -163,7 +190,61 @@ theorem complete_bounded
   obtain ⟨parentHolds, parentBounded⟩ := parent_bounded key normLaw freshOne running fresh nifs
     rho (fun index => key.piRlcResponseValid _ rho sampled index) witness outputsHold
   refine ⟨{ split := split, nifs := nifs }, key.parentForChallenges running fresh nifs rho, _,
-    rfl, roundsEq, ?_, parentHolds, parentBounded⟩
+    rfl, roundsEq, ?_, parentHolds, parentBounded, rfl⟩
   exact (verify_eq_some_iff key accumulator fresh _ _).mpr ⟨inputAccepted, checks.1, parentEq⟩
+
+/-- Every source of the honest Π_CCS witness is supported: the fresh witnesses are, and so are
+the Π_DEC digits of a supported accumulator witness. -/
+theorem honestWitness_supported
+    (key : Key K Commitment PublicInput Scalar State shape columns blockCount degreeBound)
+    {supported : PaperLinearAlgebra.Assignment F columns → Prop}
+    (law : SupportLaw key.piRlcAlgebra key.piDecAlgebra supported)
+    (assignment : PaperLinearAlgebra.Assignment F columns)
+    (freshWitness : Fin shape.freshCount -> PaperLinearAlgebra.Assignment F columns)
+    (assignmentSupported : supported assignment)
+    (freshSupported : ∀ source, supported (freshWitness source)) (source : Fin shape.sourceCount) :
+    supported ((honestWitness key assignment freshWitness).assignments source) := by
+  let digits := fun running : Fin shape.runningCount =>
+    key.piDecAlgebra.splitAssignment assignment (Fin.cast key.runningCount_eq_outputCount running)
+  by_cases inside : source.val < shape.freshCount
+  · have sourceEq : source = UnifiedSources.freshSourceIndex ⟨source.val, inside⟩ := Fin.ext rfl
+    have value : (honestWitness key assignment freshWitness).assignments
+        (UnifiedSources.freshSourceIndex ⟨source.val, inside⟩) =
+          freshWitness ⟨source.val, inside⟩ :=
+      addCases_freshSource freshWitness digits _
+    rw [sourceEq, value]
+    exact freshSupported _
+  · have below : source.val - shape.freshCount < shape.runningCount := by
+      have bound := source.isLt
+      simp only [Shape.sourceCount] at bound
+      omega
+    have sourceEq : source =
+        UnifiedSources.runningSourceIndex ⟨source.val - shape.freshCount, below⟩ := by
+      apply Fin.ext
+      show source.val = shape.freshCount + (source.val - shape.freshCount)
+      omega
+    have value : (honestWitness key assignment freshWitness).assignments
+        (UnifiedSources.runningSourceIndex ⟨source.val - shape.freshCount, below⟩) =
+          digits ⟨source.val - shape.freshCount, below⟩ :=
+      addCases_runningSource freshWitness digits _
+    rw [sourceEq, value]
+    exact law.split_supported _ _ assignmentSupported
+
+/-- The honest parent of a supported accumulator witness and supported fresh witnesses is
+supported (`complete_bounded` names the parent's witness). -/
+theorem parent_supported
+    (key : Key K Commitment PublicInput Scalar State shape columns blockCount degreeBound)
+    {supported : PaperLinearAlgebra.Assignment F columns → Prop}
+    (law : SupportLaw key.piRlcAlgebra key.piDecAlgebra supported)
+    (assignment : PaperLinearAlgebra.Assignment F columns)
+    (freshWitness : Fin shape.freshCount -> PaperLinearAlgebra.Assignment F columns)
+    (challenges : Fin key.arity.total → Scalar)
+    (assignmentSupported : supported assignment)
+    (freshSupported : ∀ source, supported (freshWitness source)) :
+    supported (PiRLC.combinedWitness key.piRlcAlgebra challenges
+      (fun index => (honestWitness key assignment freshWitness).assignments
+        (Fin.cast key.total_eq_sourceCount index))) :=
+  law.combine_supported challenges _ fun _ =>
+    honestWitness_supported key law assignment freshWitness assignmentSupported freshSupported _
 
 end NightstreamFPrime.Spec.Folding.Refresh

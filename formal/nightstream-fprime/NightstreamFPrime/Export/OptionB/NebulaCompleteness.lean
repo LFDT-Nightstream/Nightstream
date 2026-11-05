@@ -64,7 +64,7 @@ theorem accepts_of_history (exports : Exports relation ajtai circuitKeys step cu
     (lengths : ∀ i < statement.iteration, (witness i).length = program.witnessWordCount)
     (z0Length : statement.z0.length = Stage1.Application.stateWordCount)
     (below : statement.iteration < goldilocksModulus) :
-    Accepts ajtai circuitKeys step cap control statement := by
+    Accepts ajtai circuitKeys step complete.packageWidth cap control statement := by
   subst programEq
   obtain ⟨valid, reaches⟩ :=
     validFrom_of_history exports.program statement history statement.iteration le_rfl
@@ -119,7 +119,7 @@ theorem memory_complete {p : Plan} {app : PortApp p.toGeometry} (valid : p.Valid
           stateWords (List.ofFn m.finalApp) (List.ofFn m.finalCarry)⟩
       EndToEnd.VerifierChecks p statement m ∧
         ∃ payload, Terminal.HoldsFor cap ajtai circuitKeys step control statement
-            (.recursive payload) ∧ Honest (ajtai := ajtai) payload := by
+            (.recursive payload) ∧ Honest (ajtai := ajtai) complete.packageWidth payload := by
   obtain ⟨carry, z, witness, history, lengths, checks⟩ :=
     MemoryApp.history_of_execution valid count range exec
   refine ⟨carry, checks, ?_⟩

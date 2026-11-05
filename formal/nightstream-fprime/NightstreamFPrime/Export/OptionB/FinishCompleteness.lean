@@ -21,7 +21,9 @@ whose slots are honest (`StepExtend.Honest`): the fresh instance folds into the 
 current state, as Rust's `final_witness` builds them. In the finish columns, the words carry the
 setup's key digests and the proof's statement, the decoded step passes the finish checks
 (`FinishRelation.constraints_finish`), and both next slots are the honest ones, whose claims
-hold with witnesses within the accumulator bound of the light cap (`finish_complete`). With
+hold with witnesses within the accumulator bound of the light cap. Each next slot witness is zero
+on every ring block from its circuit's package width (`BlockSupport.Supported`), because the
+fold keeps zero blocks (`finish_complete`). With
 `RunCompleteness.run_complete`, this holds for every valid run of at least one step
 (`run_finish_complete`).
 
@@ -42,6 +44,7 @@ open NightstreamFPrime.Spec.HyperNova.Construction2.Paper
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Lifecycle.OptionB
 open NightstreamFPrime.Lifecycle.OptionB.SlotWords
+open NightstreamFPrime.Lifecycle.OptionB.BlockSupport
 open NightstreamFPrime.Lifecycle.PiCCS.v1_2
 open NightstreamFPrime.Layout.OptionB
 open NightstreamFPrime.Export.Generic
@@ -201,10 +204,11 @@ hold one at column 0, satisfy every row of the package's pieces, and make each P
 outputs the permutation of its lanes. Their key words are the setup's key digests, and they
 decode to a refresh step input with the statement's iteration and states that passes the finish
 checks with its output. Both next slots' claims hold, with witnesses within the accumulator bound
-of the light cap. -/
+of the light cap that are zero on every ring block from the package width of the slot's circuit
+(`packageWidths`). -/
 def FinishAccepts (firstFresh width : Nat) (batches : List WitnessBatch)
-    (application : Nat × Nat × Nat × Nat × Nat) (statement : TerminalStatement AppState) :
-    Prop :=
+    (application : Nat × Nat × Nat × Nat × Nat) (packageWidths : Fin 2 → Nat)
+    (statement : TerminalStatement AppState) : Prop :=
   ∃ (env : Env)
     (witnesses : Fin 2 →
       Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits)),
@@ -228,7 +232,8 @@ def FinishAccepts (firstFresh width : Nat) (batches : List WitnessBatch)
         (witnesses slot) ∧
       (PaperAlgebra.semantics ajtai).normBounded
         (productionGlobalParams.accumulatorBound Schedule.productionLightFoldCap + 1)
-        (witnesses slot)
+        (witnesses slot) ∧
+      Supported (logicalWidth := logicalWidth) (packageWidths slot) (witnesses slot)
 
 /-- The honest finish: from a recursive proof that the terminal accepts and whose slots are
 honest, the last refresh fold of the fresh instance into the selected slot gives finish columns
@@ -244,13 +249,13 @@ theorem finish_complete (keysShaped : ∀ key, (circuitKeys key).digest.length =
       (StepFresh logicalWidth publicFits)
       (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits)) 2)
     (holds : Terminal.HoldsFor cap ajtai circuitKeys step control statement (.recursive payload))
-    (honest : Honest (ajtai := ajtai) payload) :
+    (packageWidths : Fin 2 → Nat) (honest : Honest (ajtai := ajtai) packageWidths payload) :
     FinishAccepts program relation ajtai circuitKeys firstFresh width batches application
-      statement := by
+      packageWidths statement := by
   obtain ⟨statementValid, pcValid, positive, freshPublic, slots, freshHolds⟩ :=
     (Terminal.holdsFor_recursive_iff cap ajtai circuitKeys step control statement payload).mp holds
   let selected := selectedIndex pcValid
-  obtain ⟨proof, folded, foldedWitness, accepted, foldedHolds, foldedNorm⟩ :=
+  obtain ⟨proof, folded, foldedWitness, accepted, foldedHolds, foldedNorm, foldedSupported⟩ :=
     FoldCompleteness.refresh_folds_bounded ajtai (circuitKeys selected)
       (payload.running selected).1 payload.fresh (payload.runningWitness selected)
       payload.freshWitness (slots selected) freshHolds
@@ -291,10 +296,10 @@ theorem finish_complete (keysShaped : ∀ key, (circuitKeys key).digest.length =
     · rw [same, nextSelected]
       exact Nat.zero_le _
     · rw [nextOther slot same]
-      exact (honest slot).1
+      exact honest.depth slot
   obtain ⟨env, rows, represents⟩ := FinishAssemblerCompleteness.complete program relation base
     ajtai circuitKeys 1 input output proof finishHolds (Nat.pos_iff_ne_zero.mp positive) rfl rfl
-    statementValid.1 pcBound (fun slot => lt_of_le_of_lt (honest slot).1 small)
+    statementValid.1 pcBound (fun slot => lt_of_le_of_lt (honest.depth slot) small)
     (fun slot => lt_of_le_of_lt (nextDepthLe slot) small) keysShaped statementValid.2.1
     statementValid.2.2 statementValid.2.2 List.length_replicate (Spec.Poseidon2.hash_length _)
   obtain ⟨completed, kept, constraintsHold, packageRows, packageBlocks⟩ :=
@@ -379,11 +384,11 @@ theorem finish_complete (keysShaped : ∀ key, (circuitKeys key).digest.length =
     · rw [same, nextSelected, Function.update_self]
       exact ⟨foldedHolds, normBounded_mono foldedNorm (by
         have := accumulatorBound_mono (Nat.zero_le Schedule.productionLightFoldCap)
-        omega)⟩
+        omega), foldedSupported _ (honest.support selected) (honest.freshSupport pcValid)⟩
     · rw [nextOther slot same, Function.update_of_ne same]
-      exact ⟨slots slot, normBounded_mono (honest slot).2 (by
-        have := accumulatorBound_mono (honest slot).1
-        omega)⟩
+      exact ⟨slots slot, normBounded_mono (honest.norm slot) (by
+        have := accumulatorBound_mono (honest.depth slot)
+        omega), honest.support slot⟩
 
 end Finish
 
@@ -409,7 +414,7 @@ theorem run_finish_complete (exports : Exports relation ajtai circuitKeys step c
       (∀ witness ∈ witnesses, witness.length = exports.program.witnessWordCount) →
       0 < witnesses.length → witnesses.length < goldilocksModulus →
         FinishAccepts exports.program relation ajtai circuitKeys firstFresh width batches
-          application ⟨witnesses.length, z0, witnesses.foldl step z0⟩ := by
+          application complete.packageWidth ⟨witnesses.length, z0, witnesses.foldl step z0⟩ := by
   intro witnesses valid lengths nonempty bound
   rcases RunCompleteness.run_complete exports complete keysShaped cap control z0 z0Length witnesses
     valid lengths bound with bottom | ⟨payload, holds, honest⟩
@@ -417,6 +422,6 @@ theorem run_finish_complete (exports : Exports relation ajtai circuitKeys step c
       (Terminal.holdsFor_bottom_iff cap ajtai circuitKeys step control _).mp bottom
     exact absurd iterationZero (Nat.pos_iff_ne_zero.mp nonempty)
   · exact finish_complete exports.program relation ajtai circuitKeys keysShaped firstFresh width
-      batches application finish cap step control _ payload holds honest
+      batches application finish cap step control _ payload holds complete.packageWidth honest
 
 end NightstreamFPrime.Export.OptionB.FinishCompleteness

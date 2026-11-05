@@ -3,9 +3,9 @@ import NightstreamFPrime.Export.OptionB.IvcWalk
 
 /-! Completeness of option-B IVC (CW-10.4): the terminal accepts the honest prover's proof of
 every valid run. A statement is honestly accepted when the terminal accepts the bottom proof, or a
-recursive proof whose slots are honest (`Accepts`). One valid step keeps this
-(`accepts_step`): from the bottom proof by `StepExtend.base_extend`, and from a recursive proof by
-`StepExtend.light_extend` when the selected slot is below the light cap and by
+recursive proof whose slots are honest at the package widths (`Accepts`). One valid step keeps
+this (`accepts_step`): from the bottom proof by `StepExtend.base_extend`, and from a recursive
+proof by `StepExtend.light_extend` when the selected slot is below the light cap and by
 `StepExtend.refresh_extend` otherwise, as Rust picks the circuit from the slot depth. The terminal
 does not read the circuit selector (`TerminalBridge.holdsFor_recursive_control`), so each step may
 pick its own. Induction over the run gives `run_complete`. -/
@@ -36,22 +36,22 @@ variable {logicalWidth : Nat}
 
 variable (ajtai circuitKeys step) in
 /-- The terminal accepts `statement` with the bottom proof, or with a recursive proof whose slots
-are honest. -/
-def Accepts (cap : Nat) (control : AppState → AppWitness → Fin 2)
+and fresh instance are honest at the package widths `packageWidths`. -/
+def Accepts (packageWidths : Fin 2 → Nat) (cap : Nat) (control : AppState → AppWitness → Fin 2)
     (statement : TerminalStatement AppState) : Prop :=
   Terminal.HoldsFor cap ajtai circuitKeys step control statement .bottom ∨
     ∃ payload, Terminal.HoldsFor cap ajtai circuitKeys step control statement (.recursive payload) ∧
-      Honest (ajtai := ajtai) payload
+      Honest (ajtai := ajtai) packageWidths payload
 
 /-- One valid step keeps the terminal's honest acceptance. -/
 theorem accepts_step (exports : Exports relation ajtai circuitKeys step cubeFits)
     (complete : Complete exports) (keysShaped : ∀ key, (circuitKeys key).digest.length = 4)
     (cap : Nat) (control : AppState → AppWitness → Fin 2) (statement : TerminalStatement AppState)
-    (accepts : Accepts ajtai circuitKeys step cap control statement)
+    (accepts : Accepts ajtai circuitKeys step complete.packageWidth cap control statement)
     (witness : AppWitness) (valid : exports.program.valid statement.zi witness)
     (iterationNext : statement.iteration + 1 < goldilocksModulus)
     (witnessLength : witness.length = exports.program.witnessWordCount) :
-    Accepts ajtai circuitKeys step cap control
+    Accepts ajtai circuitKeys step complete.packageWidth cap control
       ⟨statement.iteration + 1, statement.z0, step statement.zi witness⟩ := by
   have nextLength : ∀ (current : AppState),
       current.length = Stage1.Application.stateWordCount →
@@ -105,7 +105,8 @@ theorem run_complete (exports : Exports relation ajtai circuitKeys step cubeFits
     ∀ witnesses : List AppWitness, IvcWalk.ValidFrom exports.program z0 witnesses →
       (∀ witness ∈ witnesses, witness.length = exports.program.witnessWordCount) →
       witnesses.length < goldilocksModulus →
-        Accepts ajtai circuitKeys step cap control ⟨witnesses.length, z0, witnesses.foldl step z0⟩ := by
+        Accepts ajtai circuitKeys step complete.packageWidth cap control
+          ⟨witnesses.length, z0, witnesses.foldl step z0⟩ := by
   intro witnesses
   induction witnesses using List.reverseRecOn with
   | nil =>

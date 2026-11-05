@@ -44,6 +44,7 @@ import NightstreamFPrime.Export.OptionB.TerminalBridge
 import NightstreamFPrime.Export.OptionB.IvcSecurity
 import NightstreamFPrime.Export.OptionB.FinishWalk
 import NightstreamFPrime.Export.OptionB.StepCompleteness
+import NightstreamFPrime.Lifecycle.OptionB.BlockSupport
 import NightstreamFPrime.Lifecycle.OptionB.FoldCompleteness
 import NightstreamFPrime.Export.OptionB.StepExtend
 import NightstreamFPrime.Export.OptionB.RunCompleteness
@@ -502,6 +503,15 @@ example : (runDepths 2 (fun _ => 0) 1 (List.replicate 3 [0, 0, 1]).flatten).isNo
 #audit_axioms NightstreamFPrime.Export.OptionB.StepCompleteness.fresh_complete
 #audit_axioms NightstreamFPrime.Export.OptionB.StepCompleteness.light_complete
 #audit_axioms NightstreamFPrime.Export.OptionB.StepCompleteness.refresh_complete
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.BlockSupport.supported_of_tail
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.BlockSupport.supported_zero
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.BlockSupport.add_supported
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.BlockSupport.act_supported
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.BlockSupport.combineAssignments_supported
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.BlockSupport.splitScalar_zero
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.BlockSupport.splitAssignment_supported
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.BlockSupport.supportLaw
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.FoldCompleteness.lightWitness_supported
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.FoldCompleteness.light_folds
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.FoldCompleteness.refresh_folds
 #audit_axioms NightstreamFPrime.Spec.Folding.Light.PiCCS.semanticTruth_of_sources
@@ -510,6 +520,8 @@ example : (runDepths 2 (fun _ => 0) 1 (List.replicate 3 [0, 0, 1]).flatten).isNo
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.FoldCompleteness.refresh_folds_of_holds
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.FoldCompleteness.countNormLaw
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.FoldCompleteness.refresh_folds_bounded
+#audit_axioms NightstreamFPrime.Export.OptionB.StepExtend.Complete.packageWidth_zero
+#audit_axioms NightstreamFPrime.Export.OptionB.StepExtend.Complete.packageWidth_one
 #audit_axioms NightstreamFPrime.Export.OptionB.StepExtend.light_extend
 #audit_axioms NightstreamFPrime.Export.OptionB.StepExtend.refresh_extend
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.BaseFold.check_zero

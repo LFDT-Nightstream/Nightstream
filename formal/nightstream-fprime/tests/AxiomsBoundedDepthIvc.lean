@@ -50,6 +50,7 @@ import NightstreamFPrime.Export.OptionB.RunCompleteness
 import NightstreamFPrime.Export.OptionB.NebulaSecurity
 import NightstreamFPrime.Export.OptionB.NebulaCompleteness
 import NightstreamFPrime.Export.OptionB.FinishRelation
+import NightstreamFPrime.Layout.OptionB.FinishAssemblerCompleteness
 import NightstreamFPrime.Lifecycle.OptionB.Terminal
 import NightstreamFPrime.Spec.Folding.Light.RlcModule
 
@@ -320,6 +321,7 @@ open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 #audit_axioms NightstreamFPrime.Layout.OptionB.RefreshPiCCSCompleteness.represents_of_agree_below
 #audit_axioms NightstreamFPrime.Layout.OptionB.RefreshPiCCSCompleteness.completeFrom
 #audit_axioms NightstreamFPrime.Layout.OptionB.RefreshStepCompleteness.appendPrefix
+#audit_axioms NightstreamFPrime.Layout.OptionB.RefreshStepCompleteness.completePriorHashesFrom
 #audit_axioms NightstreamFPrime.Layout.OptionB.RefreshStepCompleteness.completeGadgetsFrom
 #audit_axioms NightstreamFPrime.Layout.OptionB.RefreshStepCompleteness.completeDecFrom
 #audit_axioms NightstreamFPrime.Layout.OptionB.RefreshStepCompleteness.completeRlcPhaseFrom
@@ -327,6 +329,9 @@ open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 #audit_axioms NightstreamFPrime.Layout.OptionB.RefreshAssemblerSource.childEvaluation_eval
 #audit_axioms NightstreamFPrime.Layout.OptionB.RefreshAssemblerSource.digit_eval
 #audit_axioms NightstreamFPrime.Layout.OptionB.RefreshAssemblerSource.stepRepresents
+#audit_axioms NightstreamFPrime.Layout.OptionB.RefreshAssemblerCompleteness.priorSlot_spec
+#audit_axioms NightstreamFPrime.Layout.OptionB.RefreshAssemblerCompleteness.priorState_spec
+#audit_axioms NightstreamFPrime.Layout.OptionB.RefreshAssemblerCompleteness.completeFoldFrom
 #audit_axioms NightstreamFPrime.Layout.OptionB.RefreshAssemblerCompleteness.complete
 #audit_axioms NightstreamFPrime.Layout.OptionB.RefreshAssemblerCircuit.decWired
 #audit_axioms NightstreamFPrime.Layout.OptionB.RefreshAssemblerCircuit.rlcWired
@@ -426,6 +431,7 @@ example : (runDepths 2 (fun _ => 0) 1 (List.replicate 3 [0, 0, 1]).flatten).isNo
   decide
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.FinishStep.rows_implies_finish
 #audit_axioms NightstreamFPrime.Layout.OptionB.FinishAssembler.rows_implies_finish
+#audit_axioms NightstreamFPrime.Layout.OptionB.FinishAssemblerCompleteness.complete
 #audit_axioms NightstreamFPrime.Export.OptionB.FinishRelation.finish_holds
 #audit_axioms NightstreamFPrime.Export.OptionB.FinishRelation.checks_finish
 #audit_axioms NightstreamFPrime.Export.OptionB.FinishRelation.package_finish

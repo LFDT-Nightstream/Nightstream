@@ -6,7 +6,8 @@ import NightstreamFPrime.Export.OptionB.StepRelation
 which the step circuit's rows hold, as the assembler gives it for an honest step
 (`Layout.OptionB.LightAssemblerCompleteness.complete`, `RefreshAssemblerCompleteness.complete`).
 Set its public columns to `encHash` of its output digest (`withPublic`). The circuit reads no
-public column, so its rows still hold, and the decode constraints hold (`pieces_complete`).
+public column, so its rows still hold, and the decode constraints hold (`constraints_complete`,
+`pieces_complete`).
 `SlotCompleteness.rowsZero_of_holds` then gives an assignment that satisfies the relation at the
 key's widened slot layout, with small coordinates, and `Plan.rowsZero_implies_freshHolds` gives the
 fresh CCS statement with public input `encHash digest` (`fresh_complete`). `light_complete` and
@@ -60,6 +61,29 @@ theorem publicInput_withPublic (digest : Digest) (env : Env) :
   show (if inside : column.val < publicColumns then _ else _) = _
   rw [dite_eq_left (show column.val < publicColumns from column.isLt)]
 
+/-- Rows that hold and read no public column, with the decode constraints of the digest that the
+words `digestColumn` carry, hold once the public columns carry `encHash digest`. -/
+theorem constraints_complete (ops : List Op) (digestColumn : Fin 4 → Nat) (env : Env)
+    (holds : holdsFlat env ops) (digest : Digest)
+    (digestWords : ∀ word, env (digestColumn word) = digest.getD word.val 0)
+    (digestAbove : ∀ word, publicColumns ≤ digestColumn word)
+    (free : publicFree (flatConstraints ops) = true) :
+    ConstraintsHold (withPublic (publicFits := publicFits) digest env)
+      (flatConstraints ops ++ LogicalPlan.decodeConstraints digestColumn) := by
+  intro expression member
+  rcases List.mem_append.mp member with flat | decode
+  · have above := List.all_eq_true.mp free expression flat
+    rw [eval_of_vars (right := env) expression fun column read => by
+      have bound := List.all_eq_true.mp above column read
+      simp only [decide_eq_true_eq] at bound
+      simp [withPublic, not_lt.mpr bound]]
+    exact holds expression flat
+  · obtain ⟨word, rfl⟩ := List.mem_ofFn.mp decode
+    rw [LogicalPlan.decodeConstraint, Expr.eval_sub, Expr.eval_var,
+      LogicalPlan.decodeExpr_eval (publicFits := publicFits), publicInput_withPublic,
+      decodeHashWord_encHash]
+    simp [withPublic, not_lt.mpr (digestAbove word), digestWords]
+
 /-- The circuit's rows with the decode constraints of its output digest hold, piece by piece,
 once the public columns carry `encHash digest`. -/
 theorem pieces_complete (circuit : FormalCircuit) (offset : Nat) (digestColumn : Fin 4 → Nat)
@@ -71,20 +95,9 @@ theorem pieces_complete (circuit : FormalCircuit) (offset : Nat) (digestColumn :
       ConstraintsHold (withPublic (publicFits := publicFits) digest env)
         (piece.constraints (PilotData.canonicalConstraints ())) := by
   have all : ConstraintsHold (withPublic (publicFits := publicFits) digest env)
-      (CircuitRelation.constraints circuit offset digestColumn) := by
-    intro expression member
-    rcases List.mem_append.mp member with flat | decode
-    · have above := List.all_eq_true.mp free expression flat
-      rw [eval_of_vars (right := env) expression fun column read => by
-        have bound := List.all_eq_true.mp above column read
-        simp only [decide_eq_true_eq] at bound
-        simp [withPublic, not_lt.mpr bound]]
-      exact holds expression flat
-    · obtain ⟨word, rfl⟩ := List.mem_ofFn.mp decode
-      rw [LogicalPlan.decodeConstraint, Expr.eval_sub, Expr.eval_var,
-        LogicalPlan.decodeExpr_eval (publicFits := publicFits), publicInput_withPublic,
-        decodeHashWord_encHash]
-      simp [withPublic, not_lt.mpr (digestAbove word), digestWords]
+      (CircuitRelation.constraints circuit offset digestColumn) :=
+    constraints_complete (publicFits := publicFits) _ digestColumn env holds digest digestWords
+      digestAbove free
   intro piece member expression inPiece
   apply all
   show expression ∈ CircuitRelation.constraints circuit offset digestColumn

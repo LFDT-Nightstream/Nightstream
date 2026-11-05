@@ -539,8 +539,15 @@ item 5).
   execution (`Export.OptionB.NebulaCompleteness.memory_complete`). These
   results take as premises four package checks that the emitter evaluates
   (`Export.OptionB.StepExtend.Complete`), key digests of four words, and
-  witnesses of the application's witness length. Lean does not prove that
-  the finish step or compression accepts an honest proof. Each application promises that its step keeps the state width
+  witnesses of the application's witness length. For the finish step and
+  compression, Lean proves completeness at the claim level: for every valid
+  run of at least one step, the claim of the final verifier holds for the
+  honest statement (`CompressionLean.Claims.option_b_complete`). It does not
+  prove that the honest layer-1 and shrink provers produce proofs that the
+  verifiers accept. That part is an assumption, and the Rust tests of SPEC.md
+  lifecycle rule 2 are its evidence (`decisions/option-b-claim-level-completeness.md`).
+  Rust's completeness is not perfect: a WHIR query sample of `p − 1` and the
+  layer-1 poles of SPEC.md Algorithm 7 make `compress` return an error. Each application promises that its step keeps the state width
   (`Lifecycle.Stage1.Application.Program.step_length`); the counter must stay
   below `q`.
 - The error is not one security level. Lean bounds no fold error in a

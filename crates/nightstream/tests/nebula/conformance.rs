@@ -56,10 +56,10 @@ impl Harness {
         );
         Self {
             context: Context::new(Machine, &fixture.package.program()),
-            prover: circuit.circuit.prover(Engine::Optimized, 114).unwrap(),
+            prover: circuit.circuit.prover(Engine::Optimized, 109).unwrap(),
             verifier: circuit
                 .circuit
-                .stage1_verifier(Engine::Optimized, 114)
+                .stage1_verifier(Engine::Optimized, 109)
                 .unwrap(),
             checks: named
                 .into_iter()

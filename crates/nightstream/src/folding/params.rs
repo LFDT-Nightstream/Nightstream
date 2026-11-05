@@ -5,7 +5,7 @@ pub(crate) struct Params {
     inner: NeoParams,
     /// The caller's statistical minimum, in bits.
     minimum_security_bits: u32,
-    /// `-log2` of one fold's exact census error (not floored).
+    /// `-log2` of one fold's zero-query statistical error (not floored).
     fold_error_bits: f64,
 }
 impl Params {
@@ -36,7 +36,19 @@ impl Params {
             poly_degree,
             neo_params::goldilocks_paper_b2::CHALLENGE_ALPHABET.len() as u32,
         )?;
-        let available = inner.lambda().min(summary.security_bits);
+        // Lean `RefreshKnowledge.statisticalError 0`, the larger fold error,
+        // since either fold can run under either relation: the Π_CCS test
+        // error at each of the 2ℓ + 1 + sources transcript challenges, and
+        // the Π_RLC sample error `1/|C| + 2^-132` sources² times.
+        let sources = f64::from(1 + inner.k_rho());
+        let challenges = 2.0 * f64::from(summary.cube_variables) + 1.0 + sources;
+        let test = (challenges * summary.field_factor as f64).log2() - f64::from(inner.s()) * (inner.q() as f64).log2();
+        let sample = sources * sources * (1.0 / summary.challenge_set_cardinality as f64 + (-132.0f64).exp2());
+        let fold_error_bits = -(test.exp2() + sample).log2();
+        let available = inner
+            .lambda()
+            .min(summary.security_bits)
+            .min(fold_error_bits.floor() as u32);
         if available < minimum_security_bits {
             return Err(neo_params::ParamsError::InsufficientStatisticalSecurity {
                 required: minimum_security_bits,
@@ -44,10 +56,6 @@ impl Params {
             });
         }
         let inner = inner.with_lambda(available)?;
-        // field_factor / q^s + fork_factor / |C|, the error `security_bits` floors.
-        let field = (summary.field_factor as f64).log2() - f64::from(inner.s()) * (inner.q() as f64).log2();
-        let fork = (summary.fork_factor as f64).log2() - (summary.challenge_set_cardinality as f64).log2();
-        let fold_error_bits = -(field.exp2() + fork.exp2()).log2();
         Ok(Self {
             inner,
             minimum_security_bits,

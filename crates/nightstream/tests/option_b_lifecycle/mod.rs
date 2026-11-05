@@ -19,7 +19,7 @@ use neo_math::{D, F};
 use p3_field::PrimeCharacteristicRing;
 use support::{hash_chain_step, packages, words};
 
-const MINIMUM_SECURITY_BITS: u32 = 114;
+const MINIMUM_SECURITY_BITS: u32 = 109;
 
 fn prover(cap: u64) -> OptionB {
     let mut prover = OptionB::new(packages(), MINIMUM_SECURITY_BITS).expect("option-B prover");

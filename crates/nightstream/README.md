@@ -43,7 +43,10 @@ verifier.verify(&State::new(2, initial_state, expected_state), &second)?;
 
 The caller sets `minimum_security_bits` from its own security policy. The
 value must be positive. Prover and verifier creation fail when the
-statistical security of a step relation is below this minimum.
+statistical security of a step relation is below this minimum. That
+security is the zero-query error of a refresh fold in Lean's
+random-oracle result, about `2^-109.4`, so the selected profile accepts
+a minimum of at most 109 bits.
 
 Steps prove and verify on the CPU path only (`Engine::Optimized`).
 `Engine::Metal` and `Engine::Cuda` return `EngineError::Unavailable`. The
@@ -149,7 +152,7 @@ The binary writes one JSON line when each phase starts and stops. Only
 ```sh
 cargo build -p nightstream --release --bin nightstream-poseidon2-bench
 timeout --signal=KILL 300 target/release/nightstream-poseidon2-bench compile --output app.nsc > compile.jsonl
-/usr/bin/time -l timeout --foreground --signal=KILL 300 target/release/nightstream-poseidon2-bench run --package app.nsc --engine optimized --steps 3 --minimum-security-bits 114 > cpu.jsonl 2> cpu.time
+/usr/bin/time -l timeout --foreground --signal=KILL 300 target/release/nightstream-poseidon2-bench run --package app.nsc --engine optimized --steps 3 --minimum-security-bits 109 > cpu.jsonl 2> cpu.time
 ```
 
 The 300-second cap comes from the repository `AGENTS.md`. A run that reaches

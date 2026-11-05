@@ -95,38 +95,40 @@ theorem accepts_step (exports : Exports relation ajtai circuitKeys step cubeFits
         (nextLength _ statementValid.2.2) witnessLength
       exact Or.inr ⟨next, transport _ next nextHolds, nextHonest⟩
 
-/-- Completeness of option-B IVC: for every valid run of the application from `z0`, the terminal
-accepts the honest prover's proof of the run's last state. -/
+/-- Completeness of option-B IVC: for every valid run of the application from `z0` whose
+witnesses have the application's witness length, the terminal accepts the honest prover's proof
+of the run's last state. -/
 theorem run_complete (exports : Exports relation ajtai circuitKeys step cubeFits)
     (complete : Complete exports) (keysShaped : ∀ key, (circuitKeys key).digest.length = 4)
     (cap : Nat) (control : AppState → AppWitness → Fin 2) (z0 : AppState)
-    (z0Length : z0.length = Stage1.Application.stateWordCount)
-    (witnessLength : ∀ state witness, exports.program.valid state witness →
-      witness.length = exports.program.witnessWordCount) :
+    (z0Length : z0.length = Stage1.Application.stateWordCount) :
     ∀ witnesses : List AppWitness, IvcWalk.ValidFrom exports.program z0 witnesses →
+      (∀ witness ∈ witnesses, witness.length = exports.program.witnessWordCount) →
       witnesses.length < goldilocksModulus →
         Accepts ajtai circuitKeys step cap control ⟨witnesses.length, z0, witnesses.foldl step z0⟩ := by
   intro witnesses
   induction witnesses using List.reverseRecOn with
   | nil =>
-      intro _ _
+      intro _ _ _
       left
       exact (Terminal.holdsFor_bottom_iff cap ajtai circuitKeys step control _).mpr
         ⟨⟨show (0 : Nat) < goldilocksModulus by decide, z0Length, z0Length⟩, rfl, rfl⟩
   | append_singleton earlier witness inductionHypothesis =>
-      intro validRun lengthBound
+      intro validRun lengths lengthBound
       rw [IvcWalk.validFrom_append] at validRun
       have earlierBound : earlier.length < goldilocksModulus := by
         simp only [List.length_append, List.length_singleton] at lengthBound
         omega
-      have earlierAccepts := inductionHypothesis validRun.1 earlierBound
+      have earlierAccepts := inductionHypothesis validRun.1
+        (fun other inside => lengths other (List.mem_append_left _ inside)) earlierBound
       have foldEq : earlier.foldl exports.program.step z0 = earlier.foldl step z0 :=
         congrArg (fun next => earlier.foldl next z0) exports.programStep
       have lastValid : exports.program.valid (earlier.foldl step z0) witness := by
         rw [← foldEq]
         exact validRun.2.1
       have stepped := accepts_step exports complete keysShaped cap control _ earlierAccepts witness
-        lastValid (by simpa using lengthBound) (witnessLength _ _ lastValid)
+        lastValid (by simpa using lengthBound)
+        (lengths witness (List.mem_append_right _ (List.mem_singleton_self _)))
       simpa only [List.length_append, List.length_singleton, List.foldl_append, List.foldl_cons,
         List.foldl_nil] using stepped
 

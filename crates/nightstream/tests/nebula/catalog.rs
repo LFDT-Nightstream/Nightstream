@@ -16,9 +16,12 @@ use crate::application::ApplicationCircuit;
 use crate::nebula::circuit::memory_circuit;
 use crate::nebula::segment::initial_memory;
 use crate::nebula::{
-    Application, CatalogBinding, CatalogBindingError, CatalogRowError, ColumnFamilySpec, ColumnRegistry, ColumnWidth,
-    Context, Expr, Geometry, Invocation, Memory, MemoryCatalog, MemoryKind, MemoryPortActivation, MemoryPortKind,
-    MemoryPortSpec, MemoryPreload, MemorySpec, PortAccess, Program, Region, Run, Transition, View,
+    Application, CatalogBinding, CatalogBindingError, CatalogRowError, Expr, Geometry, Invocation, Memory, PortAccess,
+    Program, Region, Run, Transition, View,
+};
+use crate::relation::{
+    ColumnFamilySpec, ColumnRegistry, ColumnWidth, MemoryCatalog, MemoryKind, MemoryPortActivation, MemoryPortKind,
+    MemoryPortSpec, MemoryPreload, MemorySpec,
 };
 
 const FETCH: usize = 0;
@@ -250,7 +253,7 @@ impl Setup {
     }
 
     fn run(&self, forge: Option<Forge>, rows: &[Vec<F>]) -> (Run<CatalogApp>, Vec<Invocation>) {
-        let mut run = Run::new(Context::new(self.app(true, forge), &self.program), ());
+        let mut run = Run::new(self.app(true, forge), &self.program, ());
         let invocations = run.segment(rows).unwrap();
         (run, invocations)
     }
@@ -950,19 +953,13 @@ fn program_images_hold_the_preloaded_cells_of_checked_memories() {
 #[ignore = "Full production-profile memory proofs; run separately under the 300-second cap."]
 fn catalog_proof_verifies_and_rejects_a_broken_row_on_cpu() {
     use crate::lifecycle::{VerifyError as Stage1Error, FAILED_ASSERTION_ROW, UNCHECKED_WITNESS};
-    use crate::nebula::{Circuit, Verifier, VerifyError};
+    use crate::nebula::{Circuit, Proof, VerifyError};
     let started = std::time::Instant::now();
     let setup = setup();
     let engine = crate::Engine::Optimized;
-    let reference = std::fs::read(
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("artifacts")
-            .join("nightstream-fprime-stage1-poseidon2-hash-chain-v1.json"),
-    )
-    .unwrap();
-    let circuit = Circuit::compile(&reference, setup.geometry, setup.app(true, None)).unwrap();
-    let prover = circuit.prover(engine, 109).unwrap();
-    let verifier = Verifier::new(&circuit, engine, 109).unwrap();
+    let circuit = Circuit::compile(setup.geometry, setup.app(true, None)).unwrap();
+    let prover = circuit.circuit.prover(engine, 109).unwrap();
+    let verifier = circuit.verifier(engine, 109).unwrap();
     eprintln!("catalog setup elapsed={:?}", started.elapsed());
 
     let (run, invocations) = setup.run(None, &honest_rows());
@@ -975,8 +972,10 @@ fn catalog_proof_verifies_and_rejects_a_broken_row_on_cpu() {
             .unwrap();
         proofs.push(next);
     }
+    let statement = run.statement();
+    let honest = Proof::from_parts(proofs.pop().unwrap(), *run.carry());
     verifier
-        .verify(&setup.program, &run.statement(), run.carry(), &proofs[3])
+        .verify(&setup.program, &statement.initial, &statement.final_, &honest)
         .unwrap();
     eprintln!("catalog honest proof elapsed={:?}", started.elapsed());
 
@@ -990,8 +989,9 @@ fn catalog_proof_verifies_and_rejects_a_broken_row_on_cpu() {
         FAILED_ASSERTION_ROW.take().is_some(),
         "the broken step fails an assertion row"
     );
+    let bad = Proof::from_parts(bad.unwrap(), *run.carry());
     assert!(matches!(
-        verifier.verify(&setup.program, &run.statement(), run.carry(), &bad.unwrap()),
+        verifier.verify(&setup.program, &statement.initial, &statement.final_, &bad),
         Err(VerifyError::Proof(crate::Error::Verify(Stage1Error::FreshRelation(_))))
     ));
     eprintln!("catalog elapsed={:?}", started.elapsed());

@@ -129,17 +129,19 @@ pub struct Circuit {
 }
 
 impl Circuit {
-    pub fn compile(reference_bytes: &[u8], application: ApplicationCircuit) -> Result<Self, Error> {
-        Self::compile_as(Role::Stage1, reference_bytes, application)
+    /// The circuit of `application` in the shared F′ verifier of the embedded
+    /// Stage 1 reference package, after the package's identity pins pass.
+    pub fn compile(application: ApplicationCircuit) -> Result<Self, Error> {
+        Self::compile_as(Role::Stage1, application)
     }
 
     /// `compile` for a memory relation (`nebula::Circuit::compile`).
-    pub(crate) fn compile_memory(reference_bytes: &[u8], application: ApplicationCircuit) -> Result<Self, Error> {
-        Self::compile_as(Role::Memory, reference_bytes, application)
+    pub(crate) fn compile_memory(application: ApplicationCircuit) -> Result<Self, Error> {
+        Self::compile_as(Role::Memory, application)
     }
 
-    fn compile_as(role: Role, reference_bytes: &[u8], application: ApplicationCircuit) -> Result<Self, Error> {
-        let (package, binding) = assembly::prepare(reference_bytes, &application)?;
+    fn compile_as(role: Role, application: ApplicationCircuit) -> Result<Self, Error> {
+        let (package, binding) = assembly::prepare(crate::artifacts::reference_package(), &application)?;
         crate::lifecycle::validate_key_prefix(
             package.logical_column_count(),
             binding.verifier_context().commitment_key_words(),
@@ -159,8 +161,9 @@ impl Circuit {
     /// structural identifier. The caller pins the identifier; the package's
     /// own witness program computes the application's local variables, so a
     /// prover supplies the witness words and the output state
-    /// (`Prover::extend_with_output`).
-    pub fn load_package(bytes: &[u8], expected_structural_identifier: [u64; 4]) -> Result<Self, Error> {
+    /// (`Prover::extend_with_output`). Only the tests load Lean packages.
+    #[cfg(test)]
+    pub(crate) fn load_package(bytes: &[u8], expected_structural_identifier: [u64; 4]) -> Result<Self, Error> {
         let package = nightstream_fprime::load_per_application_package(
             bytes,
             nightstream_fprime::StructuralIdentifier::from_words(expected_structural_identifier),
@@ -192,10 +195,11 @@ impl Circuit {
         storage::write(path.as_ref(), &self.compiled)
     }
 
-    /// Decode saved circuit data without repeating whole-circuit identity hashing.
-    /// Format and execution structure are checked. The caller is responsible
-    /// for package provenance and for selecting its expected verifier configuration.
-    pub fn load(path: impl AsRef<Path>) -> Result<Self, Error> {
+    /// Decode saved circuit data without repeating whole-circuit identity
+    /// hashing. Format and execution structure are checked. A prover loads a
+    /// saved circuit with `Prover::load`; a verifier compiles its own.
+    #[cfg(test)]
+    pub(crate) fn load(path: impl AsRef<Path>) -> Result<Self, Error> {
         Ok(Self {
             compiled: Arc::new(storage::read(path.as_ref())?),
         })
@@ -215,7 +219,7 @@ impl Circuit {
     }
 
     /// The largest `minimum_security_bits` that `prover`, `Prover::load` and
-    /// `Verifier::from_package` accept for this circuit. It is the
+    /// `verifier` accept for this circuit. It is the
     /// zero-query error of one fold
     /// (`Lifecycle.RandomOracleKnowledge.statisticalError`); oracle queries
     /// and fold depth add to it
@@ -249,6 +253,20 @@ impl Circuit {
     /// package. The caller selects the expected verifier configuration.
     pub fn identity(&self) -> [u64; 4] {
         self.compiled.binding.package_identity().words()
+    }
+
+    /// The verifier of the circuit, which may share the prover's circuit.
+    /// Reject a profile below the caller's positive statistical minimum, and
+    /// a memory relation, whose verifier is `nebula::Circuit::verifier`.
+    /// The profile's error is the zero-query error of one fold
+    /// (`Lifecycle.RandomOracleKnowledge.statisticalError`); oracle queries
+    /// and fold depth add to it
+    /// (`Export.Stage1.HyperNovaFalseAcceptance.probability_bound`).
+    pub fn verifier(&self, engine: Engine, minimum_security_bits: u32) -> Result<Verifier, Error> {
+        if self.compiled.role == Role::Memory {
+            return Err(Error::Circuit("a memory relation needs nebula::Circuit::verifier"));
+        }
+        Verifier::configured(self, engine, minimum_security_bits)
     }
 
     /// Require the selected profile to meet the caller's positive statistical minimum.
@@ -311,7 +329,8 @@ impl Prover {
     }
 
     /// The first proof for a Lean-emitted package (`extend_with_output`).
-    pub fn prove_with_output(
+    #[cfg(test)]
+    pub(crate) fn prove_with_output(
         &self,
         initial_state: [F; 4],
         private_inputs: &[F],
@@ -323,7 +342,7 @@ impl Prover {
     /// Construct the next proof for a Lean-emitted package: the caller supplies
     /// the application's witness words and output state; the package's own
     /// witness program fills every application-local variable.
-    pub fn extend_with_output(
+    pub(crate) fn extend_with_output(
         &self,
         proof: &Stage1Envelope,
         private_inputs: &[F],
@@ -336,6 +355,25 @@ impl Prover {
         Ok(self
             .lifecycle
             .extend_with_output(proof.snapshot(), &words, output, None)?)
+    }
+
+    /// The next proof of a memory invocation whose native output state is
+    /// `output`. A Rust-built circuit executes its application, which must
+    /// reach `output`. A Lean package takes `output` (`extend_with_output`).
+    pub(crate) fn extend_invocation(
+        &self,
+        proof: &Stage1Envelope,
+        private_inputs: &[F],
+        output: [F; 4],
+    ) -> Result<Stage1Envelope, Error> {
+        if self.compiled.application.is_none() {
+            return self.extend_with_output(proof, private_inputs, output);
+        }
+        let next = self.extend(proof, private_inputs)?;
+        if next.state().current() != output {
+            return Err(Error::Circuit("the application's output differs from the native step"));
+        }
+        Ok(next)
     }
 
     /// The circuit's strict byte encoding of `proof`, for `Verifier::decode_proof`.
@@ -362,7 +400,7 @@ impl Prover {
     /// Compress `proof`: one more PiCCS + PiRLC fold without PiDEC, then a
     /// sum-check and WHIR argument for the folded claim. The result carries
     /// no witness and cannot be extended; `proof` does not change.
-    pub fn finish_with_spartan(&self, proof: &Stage1Envelope, setup: &CompressionSetup) -> Result<FinalProof, Error> {
+    pub fn compress(&self, proof: &Stage1Envelope, setup: &CompressionSetup) -> Result<FinalProof, Error> {
         Ok(self.lifecycle.finish_with_spartan(proof, setup)?)
     }
 }
@@ -373,21 +411,6 @@ pub struct Verifier {
 }
 
 impl Verifier {
-    /// Use the caller-selected package as the expected circuit configuration.
-    /// This does not establish the package's provenance.
-    /// Reject a profile below the caller's positive statistical minimum, and
-    /// a memory relation, whose verifier is `nebula::Verifier`.
-    /// The profile's error is the zero-query error of one fold
-    /// (`Lifecycle.RandomOracleKnowledge.statisticalError`); oracle queries
-    /// and fold depth add to it
-    /// (`Export.Stage1.HyperNovaFalseAcceptance.probability_bound`).
-    pub fn from_package(package: &Circuit, engine: Engine, minimum_security_bits: u32) -> Result<Self, Error> {
-        if package.compiled.role == Role::Memory {
-            return Err(Error::Circuit("a memory relation needs nebula::Verifier"));
-        }
-        Self::configured(package, engine, minimum_security_bits)
-    }
-
     /// The Stage 1 verifier inside `nebula::Verifier`.
     pub(crate) fn of_memory(package: &Circuit, engine: Engine, minimum_security_bits: u32) -> Result<Self, Error> {
         Self::configured(package, engine, minimum_security_bits)
@@ -399,20 +422,6 @@ impl Verifier {
                 .compiled
                 .lifecycle(Backend::new(engine)?, minimum_security_bits)?,
         })
-    }
-
-    /// Compile a local application and use it as the expected configuration.
-    pub fn compile(
-        reference_bytes: &[u8],
-        application: ApplicationCircuit,
-        engine: Engine,
-        minimum_security_bits: u32,
-    ) -> Result<Self, Error> {
-        Self::from_package(
-            &Circuit::compile(reference_bytes, application)?,
-            engine,
-            minimum_security_bits,
-        )
     }
 
     pub fn engine(&self) -> Engine {

@@ -4,9 +4,12 @@
 //! Lean-emitted packages and the Rust-built circuit.
 
 use neo_math::K;
-use nightstream::nebula::{
-    state_words, Application, Carry, Context, Expr, Machine, MachineError, MachineState, Memory, Package, Products,
-    Program, ProgramError, Run, SegmentError, Statement, Step, TerminalError, Transition, View,
+
+use super::carry::{Carry, Products};
+use super::transcript::state_words;
+use super::{
+    Application, Context, Expr, Machine, MachineError, MachineState, Memory, Package, Program, ProgramError, Run,
+    SegmentError, Statement, Step, TerminalError, Transition, View,
 };
 use p3_field::{BasedVectorSpace, PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks as F;
@@ -20,7 +23,7 @@ fn input_state(words: &[F]) -> [F; 4] {
 }
 
 fn program_run() -> Run<Machine> {
-    Run::new(Context::new(Machine, &Package::V1.program()), MachineState::default())
+    Run::new(Machine, &Package::V1.program(), MachineState::default())
 }
 
 /// `loadi 7; store 1; load 1; halt` with RAM `[0, 0, 0, 9]`: a second
@@ -150,7 +153,7 @@ fn programs_of_one_package_have_their_own_initial_state() {
         Context::new(Machine, &other_program()),
     ];
     let runs = contexts.clone().map(|context| {
-        let mut run = Run::new(context, MachineState::default());
+        let mut run = Run::new(Machine, context.program(), MachineState::default());
         for steps in [
             [Step::Execute, Step::Execute],
             [Step::Execute, Step::Execute],
@@ -193,13 +196,13 @@ fn d_init_matches_lean() {
     for (program, fixture) in [
         (
             Package::V1.program(),
-            include_str!("fixtures/nebula-memory-v1-start.json"),
+            include_str!("../fixtures/nebula-memory-v1-start.json"),
         ),
         (
             Package::N1.program(),
-            include_str!("fixtures/nebula-memory-n1-start.json"),
+            include_str!("../fixtures/nebula-memory-n1-start.json"),
         ),
-        (other, include_str!("fixtures/nebula-memory-v1-other-start.json")),
+        (other, include_str!("../fixtures/nebula-memory-v1-other-start.json")),
     ] {
         let lean: serde_json::Value = serde_json::from_str(fixture).unwrap();
         let lean: Vec<u64> = serde_json::from_value(lean["d_init"].clone()).unwrap();
@@ -284,8 +287,8 @@ fn canonical_words(words: &[F]) -> Vec<u64> {
 #[test]
 fn terminal_checks_match_lean() {
     for (package, fixture) in [
-        (Package::V1, include_str!("fixtures/nebula-memory-v1-terminal.json")),
-        (Package::N1, include_str!("fixtures/nebula-memory-n1-terminal.json")),
+        (Package::V1, include_str!("../fixtures/nebula-memory-v1-terminal.json")),
+        (Package::N1, include_str!("../fixtures/nebula-memory-n1-terminal.json")),
     ] {
         let context = Context::new(Machine, &package.program());
         let fixture: TerminalFixture = serde_json::from_str(fixture).unwrap();
@@ -367,7 +370,7 @@ fn package(name: &str) -> Vec<u8> {
 fn package_loads_only_its_own_bytes() {
     assert!(matches!(
         Package::V1.load(&package("nightstream-fprime-stage2-nebula-memory-n1.json")),
-        Err(nightstream::Error::Package(
+        Err(crate::Error::Package(
             nightstream_fprime::PackageError::IdentityMismatch { .. }
         ))
     ));
@@ -378,7 +381,7 @@ fn memory_package() -> Vec<u8> {
 }
 
 fn n1_run() -> Run<Machine> {
-    Run::new(Context::new(Machine, &Package::N1.program()), MachineState::default())
+    Run::new(Machine, &Package::N1.program(), MachineState::default())
 }
 
 /// The second plan (`N = 1`): every invocation opens and closes a segment,
@@ -408,15 +411,15 @@ fn n1_native_run_reaches_every_counter_maximum() {
 
 /// The SPEC.md section 9 accept cases of the second plan through the memory verifier:
 /// `N = 1`, and `S = S_max` with every counter at its largest value.
-fn n1_accept(engine: nightstream::Engine) {
+fn n1_accept(engine: crate::Engine) {
     let circuit = Package::N1
         .load(&package("nightstream-fprime-stage2-nebula-memory-n1.json"))
         .expect("pinned memory package");
-    let prover = circuit.prover(engine, 109).unwrap();
-    let verifier = nightstream::nebula::Verifier::new(&circuit, engine, 109).unwrap();
+    let prover = circuit.circuit.prover(engine, 109).unwrap();
+    let verifier = circuit.verifier(engine, 109).unwrap();
     let mut run = n1_run();
     let z0 = run.initial_state();
-    let mut proof: Option<nightstream::Proof> = None;
+    let mut proof: Option<crate::Proof> = None;
     for _ in 0..run.context().geometry().s_max {
         let invocation = run.segment(&[Step::Execute]).unwrap().remove(0);
         proof = Some(match &proof {
@@ -429,7 +432,7 @@ fn n1_accept(engine: nightstream::Engine) {
         });
     }
     verifier
-        .verify(
+        .verify_parts(
             &Package::N1.program(),
             &run.statement(),
             run.carry(),
@@ -441,28 +444,28 @@ fn n1_accept(engine: nightstream::Engine) {
 #[test]
 #[ignore = "Full production-profile memory proofs; run separately under the 300-second cap."]
 fn n1_accept_on_cpu() {
-    n1_accept(nightstream::Engine::Optimized);
+    n1_accept(crate::Engine::Optimized);
 }
 
 #[cfg(feature = "metal")]
 #[test]
 #[ignore = "Full production-profile memory proofs on Metal; run separately under the 300-second cap."]
 fn n1_accept_on_metal() {
-    n1_accept(nightstream::Engine::Metal);
+    n1_accept(crate::Engine::Metal);
 }
 
 /// The SPEC.md section 9 accept cases that the first plan reaches, and the rejections
 /// that need no invalid witness, through the memory verifier. One run of four
 /// segments (`S = S_max`) has continue arms (`N = 2`), writes RAM in the first
 /// segment and reads it in the second, and ends with an idle segment.
-fn memory_conformance(engine: nightstream::Engine) {
-    use nightstream::nebula::{self, VerifyError};
+fn memory_conformance(engine: crate::Engine) {
+    use crate::nebula::VerifyError;
     let started = std::time::Instant::now();
     let circuit = Package::V1
         .load(&memory_package())
         .expect("pinned memory package");
-    let prover = circuit.prover(engine, 109).unwrap();
-    let verifier = nebula::Verifier::new(&circuit, engine, 109).unwrap();
+    let prover = circuit.circuit.prover(engine, 109).unwrap();
+    let verifier = circuit.verifier(engine, 109).unwrap();
     let program = Package::V1.program();
     eprintln!("memory preparation elapsed={:?}", started.elapsed());
 
@@ -507,7 +510,7 @@ fn memory_conformance(engine: nightstream::Engine) {
     );
     let verifying = std::time::Instant::now();
     verifier
-        .verify(&program, &statement, run.carry(), &proof)
+        .verify_parts(&program, &statement, run.carry(), &proof)
         .unwrap();
     eprintln!("memory verification elapsed={:?}", verifying.elapsed());
 
@@ -516,7 +519,7 @@ fn memory_conformance(engine: nightstream::Engine) {
     let mut alias = statement.clone();
     alias.final_.acc += F::ORDER_U64;
     assert!(matches!(
-        verifier.verify(&program, &alias, run.carry(), &proof),
+        verifier.verify_parts(&program, &alias, run.carry(), &proof),
         Err(VerifyError::Terminal(TerminalError::NonCanonical))
     ));
 
@@ -528,7 +531,7 @@ fn memory_conformance(engine: nightstream::Engine) {
     one.final_ts = invocations[1].carry.ts;
     one.final_root = invocations[1].carry.mem_root;
     verifier
-        .verify(&program, &one, &invocations[1].carry, &segment_proof)
+        .verify_parts(&program, &one, &invocations[1].carry, &segment_proof)
         .unwrap();
 
     // End inside a segment: reject at the terminal `idx = N` check.
@@ -537,7 +540,7 @@ fn memory_conformance(engine: nightstream::Engine) {
     open.final_ = MachineState { pc: 1, acc: 5 };
     open.final_ts = invocations[0].carry.ts;
     assert!(matches!(
-        verifier.verify(&program, &open, &invocations[0].carry, &first),
+        verifier.verify_parts(&program, &open, &invocations[0].carry, &first),
         Err(VerifyError::Terminal(TerminalError::OpenCarry))
     ));
 
@@ -546,7 +549,7 @@ fn memory_conformance(engine: nightstream::Engine) {
     empty.steps = 0;
     empty.segments = 0;
     assert!(matches!(
-        verifier.verify(&program, &empty, run.carry(), &proof),
+        verifier.verify_parts(&program, &empty, run.carry(), &proof),
         Err(VerifyError::Terminal(TerminalError::SegmentRange))
     ));
 
@@ -564,7 +567,7 @@ fn memory_conformance(engine: nightstream::Engine) {
     carry.seen.swap(0, 1);
     assert_ne!(carry, *run.carry());
     assert!(matches!(
-        verifier.verify(&program, &statement, &carry, &proof),
+        verifier.verify_parts(&program, &statement, &carry, &proof),
         Err(VerifyError::Proof(_))
     ));
 }
@@ -572,14 +575,14 @@ fn memory_conformance(engine: nightstream::Engine) {
 #[test]
 #[ignore = "Full production-profile memory proofs; run separately under the 300-second cap."]
 fn memory_conformance_on_cpu() {
-    memory_conformance(nightstream::Engine::Optimized);
+    memory_conformance(crate::Engine::Optimized);
 }
 
 #[cfg(feature = "metal")]
 #[test]
 #[ignore = "Full production-profile memory proofs on Metal; run separately under the 300-second cap."]
 fn memory_conformance_on_metal() {
-    memory_conformance(nightstream::Engine::Metal);
+    memory_conformance(crate::Engine::Metal);
 }
 
 /// One package serves two programs (SPEC.md section 9): the loaded V1 package proves a
@@ -590,16 +593,16 @@ fn memory_conformance_on_metal() {
 #[test]
 #[ignore = "Full production-profile memory proofs; run separately under the 300-second cap."]
 fn each_program_verifies_only_its_own_proof_on_cpu() {
-    use nightstream::nebula::{self, VerifyError};
-    let engine = nightstream::Engine::Optimized;
+    use crate::nebula::VerifyError;
+    let engine = crate::Engine::Optimized;
     let started = std::time::Instant::now();
     let circuit = Package::V1
         .load(&memory_package())
         .expect("pinned memory package");
-    let prover = circuit.prover(engine, 109).unwrap();
-    let verifier = nebula::Verifier::new(&circuit, engine, 109).unwrap();
+    let prover = circuit.circuit.prover(engine, 109).unwrap();
+    let verifier = circuit.verifier(engine, 109).unwrap();
     let prove = |program: &Program| {
-        let mut run = Run::new(Context::new(Machine, program), MachineState::default());
+        let mut run = Run::new(Machine, program, MachineState::default());
         let z0 = run.initial_state();
         let invocations = run.segment(&[Step::Execute, Step::Execute]).unwrap();
         let first = prover
@@ -614,21 +617,21 @@ fn each_program_verifies_only_its_own_proof_on_cpu() {
     let (statement, carry, proof) = prove(&default);
     let (other_statement, other_carry, other_proof) = prove(&other);
     verifier
-        .verify(&default, &statement, &carry, &proof)
+        .verify_parts(&default, &statement, &carry, &proof)
         .unwrap();
     verifier
-        .verify(&other, &other_statement, &other_carry, &other_proof)
+        .verify_parts(&other, &other_statement, &other_carry, &other_proof)
         .unwrap();
     assert!(matches!(
-        verifier.verify(&other, &statement, &carry, &proof),
+        verifier.verify_parts(&other, &statement, &carry, &proof),
         Err(VerifyError::Proof(_))
     ));
     assert!(matches!(
-        verifier.verify(&default, &other_statement, &other_carry, &other_proof),
+        verifier.verify_parts(&default, &other_statement, &other_carry, &other_proof),
         Err(VerifyError::Proof(_))
     ));
     assert!(matches!(
-        verifier.verify(&Package::N1.program(), &statement, &carry, &proof),
+        verifier.verify_parts(&Package::N1.program(), &statement, &carry, &proof),
         Err(VerifyError::Geometry)
     ));
     eprintln!("two programs elapsed={:?}", started.elapsed());
@@ -684,7 +687,7 @@ impl Application for Changed {
         Machine.words(state)
     }
 
-    fn rows(&self, view: &View) -> Result<Vec<Expr>, nightstream::Error> {
+    fn rows(&self, view: &View) -> Result<Vec<Expr>, crate::Error> {
         let mut rows = Machine.rows(view)?;
         if let Changed::Row = self {
             rows[2] = rows[2].clone() * Expr::constant(2);
@@ -720,7 +723,7 @@ impl Application for Changed {
 #[test]
 fn runner_rejects_a_misread_port_and_a_short_port_list() {
     for (app, expected) in [(Changed::Read, "Access"), (Changed::Ports, "Shape")] {
-        let mut run = Run::new(Context::new(app, &Package::V1.program()), MachineState::default());
+        let mut run = Run::new(app, &Package::V1.program(), MachineState::default());
         let error = run.segment(&[Step::Execute, Step::Execute]).unwrap_err();
         let name = match error {
             SegmentError::Access => "Access",
@@ -739,8 +742,7 @@ fn runner_rejects_a_misread_port_and_a_short_port_list() {
 fn invalid_geometries_make_no_program_and_no_circuit() {
     let valid = Package::V1.geometry();
     assert!(valid.is_valid() && Package::N1.geometry().is_valid());
-    let reference = package("nightstream-fprime-stage1-poseidon2-hash-chain-v1.json");
-    let cases: [(&str, fn(&mut nightstream::nebula::Geometry)); 5] = [
+    let cases: [(&str, fn(&mut crate::nebula::Geometry)); 5] = [
         ("r > μ", |g| g.r = 3),
         ("timestamps", |g| g.w_ts = 4),
         ("exact cover", |g| g.b_scan = 3),
@@ -758,8 +760,8 @@ fn invalid_geometries_make_no_program_and_no_circuit() {
         );
         assert!(
             matches!(
-                nightstream::nebula::Circuit::compile(&reference, geometry, Machine),
-                Err(nightstream::Error::Circuit(_))
+                crate::nebula::Circuit::compile(geometry, Machine),
+                Err(crate::Error::Circuit(_))
             ),
             "{name}"
         );
@@ -771,7 +773,7 @@ fn invalid_geometries_make_no_program_and_no_circuit() {
 /// relation is small, but `m_mem = R + M + N · B_ops = 2^18`.
 #[test]
 fn insecure_geometry_makes_no_circuit() {
-    let insecure = nightstream::nebula::Geometry {
+    let insecure = crate::nebula::Geometry {
         r: 16,
         mu: 16,
         w_ts: 18,
@@ -782,12 +784,9 @@ fn insecure_geometry_makes_no_circuit() {
     };
     assert!(insecure.is_valid());
     assert!(insecure.max_tuples() > 139_509);
-    let reference = package("nightstream-fprime-stage1-poseidon2-hash-chain-v1.json");
     assert!(matches!(
-        nightstream::nebula::Circuit::compile(&reference, insecure, Machine),
-        Err(nightstream::Error::Circuit(
-            "the memory geometry breaks SPEC.md section 7.1"
-        ))
+        crate::nebula::Circuit::compile(insecure, Machine),
+        Err(crate::Error::Circuit("the memory geometry breaks SPEC.md section 7.1"))
     ));
 }
 
@@ -799,16 +798,15 @@ fn machine_makes_no_circuit_with_a_third_port() {
     let mut geometry = Package::V1.geometry();
     geometry.b_ops = 3;
     assert!(geometry.is_valid() && geometry.max_tuples() <= 139_509);
-    let reference = package("nightstream-fprime-stage1-poseidon2-hash-chain-v1.json");
     assert!(matches!(
-        nightstream::nebula::Circuit::compile(&reference, geometry, Machine),
-        Err(nightstream::Error::Circuit(
+        crate::nebula::Circuit::compile(geometry, Machine),
+        Err(crate::Error::Circuit(
             "the application's port count is not the geometry's b_ops"
         ))
     ));
     assert!(matches!(
-        nightstream::nebula::size_parts(&geometry, &Machine),
-        Err(nightstream::Error::Circuit(
+        crate::nebula::size_parts(&geometry, &Machine),
+        Err(crate::Error::Circuit(
             "the application's port count is not the geometry's b_ops"
         ))
     ));
@@ -839,8 +837,8 @@ impl Application for ReadsWord {
         Vec::new()
     }
 
-    fn rows(&self, view: &View) -> Result<Vec<Expr>, nightstream::Error> {
-        let word = nightstream::application::ApplicationBuilder::new(self.0 + 1)
+    fn rows(&self, view: &View) -> Result<Vec<Expr>, crate::Error> {
+        let word = crate::application::ApplicationBuilder::new(self.0 + 1)
             .unwrap()
             .private_inputs()[self.0];
         Ok(vec![view.pad(0) * (view.vr(0) - Expr::Var(word))])
@@ -860,13 +858,12 @@ impl Application for ReadsWord {
 /// fresh `η1`) or word 0 (the carry) makes no circuit.
 #[test]
 fn application_rows_outside_the_view_make_no_circuit() {
-    let reference = package("nightstream-fprime-stage1-poseidon2-hash-chain-v1.json");
     for word in [90, 0] {
         assert!(
             matches!(
-                nightstream::nebula::Circuit::compile(&reference, Package::V1.geometry(), ReadsWord(word)),
-                Err(nightstream::Error::Application(
-                    nightstream::application::ApplicationError::VariableOutOfScope(_)
+                crate::nebula::Circuit::compile(Package::V1.geometry(), ReadsWord(word)),
+                Err(crate::Error::Application(
+                    crate::application::ApplicationError::VariableOutOfScope(_)
                 ))
             ),
             "word {word}"
@@ -899,7 +896,7 @@ impl Application for Listed {
         state.clone()
     }
 
-    fn rows(&self, _: &View) -> Result<Vec<Expr>, nightstream::Error> {
+    fn rows(&self, _: &View) -> Result<Vec<Expr>, crate::Error> {
         Ok(Vec::new())
     }
 
@@ -916,7 +913,7 @@ impl Application for Listed {
 /// another count would need a state-digest collision to verify.
 #[test]
 fn terminal_checks_reject_a_state_of_another_width() {
-    let mut run = Run::new(Context::new(Listed, &Package::V1.program()), vec![0, 0]);
+    let mut run = Run::new(Listed, &Package::V1.program(), vec![0, 0]);
     run.segment(&vec![(); Package::V1.geometry().n]).unwrap();
     let mut statement = run.statement();
     assert!(run
@@ -933,10 +930,10 @@ fn terminal_checks_reject_a_state_of_another_width() {
 /// One segment of the first package's default program proved by `prover`,
 /// with the native outputs as the Rust application's outputs.
 fn prove_segment<A: Application<Input = Step, State = MachineState>>(
-    prover: &nightstream::Prover,
+    prover: &crate::Prover,
     app: A,
-) -> (Statement<MachineState>, Carry, nightstream::Proof) {
-    let mut run = Run::new(Context::new(app, &Package::V1.program()), MachineState::default());
+) -> (Statement<MachineState>, Carry, crate::Proof) {
+    let mut run = Run::new(app, &Package::V1.program(), MachineState::default());
     let z0 = run.initial_state();
     let invocations = run.segment(&[Step::Execute, Step::Execute]).unwrap();
     let mut proof = prover.prove(z0, &invocations[0].words).unwrap();
@@ -951,32 +948,34 @@ fn prove_segment<A: Application<Input = Step, State = MachineState>>(
 /// compiles the relation itself. It accepts the loaded prover's proof of one
 /// segment and rejects a proof from the circuit with one changed application
 /// row.
-fn rust_built(engine: nightstream::Engine) {
-    use nightstream::nebula::{Circuit, Verifier, VerifyError};
+fn rust_built(engine: crate::Engine) {
+    use crate::nebula::{Circuit, VerifyError};
     let started = std::time::Instant::now();
-    let reference = package("nightstream-fprime-stage1-poseidon2-hash-chain-v1.json");
     let geometry = Package::V1.geometry();
     let path = std::env::temp_dir().join(format!("nightstream-nebula-setup-{}.package", std::process::id()));
     let _ = std::fs::remove_file(&path);
-    Circuit::compile(&reference, geometry, Machine)
+    Circuit::compile(geometry, Machine)
         .unwrap()
         .write(&path)
         .unwrap();
-    let prover = nightstream::Prover::load(&path, engine, 109);
+    let prover = crate::Prover::load(&path, engine, 109);
     std::fs::remove_file(&path).unwrap();
     let prover = prover.unwrap();
-    let verifier = Verifier::new(&Circuit::compile(&reference, geometry, Machine).unwrap(), engine, 109).unwrap();
-    let changed = Circuit::compile(&reference, geometry, Changed::Row).unwrap();
+    let verifier = Circuit::compile(geometry, Machine)
+        .unwrap()
+        .verifier(engine, 109)
+        .unwrap();
+    let changed = Circuit::compile(geometry, Changed::Row).unwrap();
     eprintln!("rust-built setup elapsed={:?}", started.elapsed());
     let program = Package::V1.program();
 
     let (statement, carry, proof) = prove_segment(&prover, Machine);
     verifier
-        .verify(&program, &statement, &carry, &proof)
+        .verify_parts(&program, &statement, &carry, &proof)
         .unwrap();
-    let (statement, carry, proof) = prove_segment(&changed.prover(engine, 109).unwrap(), Changed::Row);
+    let (statement, carry, proof) = prove_segment(&changed.circuit.prover(engine, 109).unwrap(), Changed::Row);
     assert!(matches!(
-        verifier.verify(&program, &statement, &carry, &proof),
+        verifier.verify_parts(&program, &statement, &carry, &proof),
         Err(VerifyError::Proof(_))
     ));
     eprintln!("rust-built elapsed={:?}", started.elapsed());
@@ -985,5 +984,5 @@ fn rust_built(engine: nightstream::Engine) {
 #[test]
 #[ignore = "Full production-profile memory proofs; run separately under the 300-second cap."]
 fn rust_built_verifier_accepts_a_saved_prover_and_rejects_a_changed_row_on_cpu() {
-    rust_built(nightstream::Engine::Optimized);
+    rust_built(crate::Engine::Optimized);
 }

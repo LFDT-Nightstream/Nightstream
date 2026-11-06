@@ -2,7 +2,7 @@
 //! `Lifecycle/Nebula/Carry.lean` (`carryVector`).
 
 use neo_math::K;
-use p3_field::{BasedVectorSpace, PrimeCharacteristicRing};
+use p3_field::{BasedVectorSpace, PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks as F;
 
 use super::transcript::Digest;
@@ -83,5 +83,27 @@ impl Carry {
         }
         words.extend(self.mem_root);
         words.try_into().expect("39 carry words")
+    }
+
+    /// The carry of 39 words in SPEC.md section 7.5 order, the inverse of
+    /// `words`.
+    pub fn from_words(words: &[F; 39]) -> Self {
+        let k = |at: usize| K::from_basis_coefficients_slice(&words[at..at + 2]).expect("two coefficients");
+        let digest = |at: usize| -> Digest { words[at..at + 4].try_into().expect("four words") };
+        Self {
+            seg_idx: words[0].as_canonical_u64(),
+            idx: words[1].as_canonical_u64(),
+            ts: words[2].as_canonical_u64(),
+            eta: (k(3), k(5)),
+            products: Products {
+                read: k(7),
+                write: k(9),
+                initial: k(11),
+                final_: k(13),
+            },
+            proposed: (digest(15), digest(19)),
+            seen: [digest(23), digest(27), digest(31)],
+            mem_root: digest(35),
+        }
     }
 }

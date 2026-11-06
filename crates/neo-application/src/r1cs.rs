@@ -125,6 +125,35 @@ impl<Owner> R1csRelation<Owner> {
     pub const fn catalog(&self) -> &ConstraintCatalog<Owner> {
         &self.catalog
     }
+
+    /// `Ok` when the assignment `z = x || w` satisfies every row, else the
+    /// first row that does not hold. `catalog().rows()[row]` names it.
+    pub fn check_rows(&self, z: &[F]) -> Result<(), R1csCheckError> {
+        if z.len() != self.column_count() {
+            return Err(R1csCheckError::Width {
+                expected: self.column_count(),
+                got: z.len(),
+            });
+        }
+        let (x, w) = z.split_at(self.public_input_count);
+        match neo_ccs::check_ccs_rowwise_zero(&self.structure, x, w) {
+            Err(neo_ccs::CcsError::RowFail { row }) => Err(R1csCheckError::Row { row }),
+            Err(_) => Err(R1csCheckError::Width {
+                expected: self.column_count(),
+                got: z.len(),
+            }),
+            Ok(()) => Ok(()),
+        }
+    }
+}
+
+/// Why an assignment does not satisfy an R1CS relation.
+#[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
+pub enum R1csCheckError {
+    #[error("the assignment has {got} columns, not {expected}")]
+    Width { expected: usize, got: usize },
+    #[error("row {row} does not hold")]
+    Row { row: usize },
 }
 
 /// Builds an R1CS relation over the concrete Nightstream field.

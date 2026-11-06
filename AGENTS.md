@@ -1,7 +1,7 @@
 # AGENTS.md
 
 Nightstream is a lattice-based folding prover over Goldilocks. Users call only
-the `nightstream` crate.
+the `nightstream` crate and its WASM frontend, `neo-wasm`.
 
 ## Design
 
@@ -71,9 +71,11 @@ circuit artifacts, and Rust embeds them and pins their identifiers.
 
 ## Security
 
-- Only `nightstream` is public. The `neo-*` crates, `nightstream-fprime`, and
-  the prover backends are internal. A finding counts only if input through
-  `nightstream` can reach it.
+- Only `nightstream` and `neo-wasm` are public. `nightstream::relation`
+  re-exports the relation builders of `neo-application`. The other `neo-*`
+  crates, `nightstream-fprime`, and the prover backends are internal. A
+  finding counts only if input through `nightstream` or `neo-wasm` can reach
+  it.
 - A digest is compression, never authority. Across a trust boundary, recompute
   each carried digest from its inputs, bind it into the verifier transcript, or
   treat it as unchecked. If an attacker changes data and re-digests upward, the

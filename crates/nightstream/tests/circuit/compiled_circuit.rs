@@ -6,7 +6,7 @@ use std::{fs::File, io::Read};
 use std::{
     fs::{self, OpenOptions},
     io::{Seek, SeekFrom, Write},
-    path::{Path, PathBuf},
+    path::PathBuf,
     sync::{
         atomic::{AtomicU64, Ordering},
         OnceLock,
@@ -43,13 +43,6 @@ impl Drop for TestDirectory {
     }
 }
 
-fn reference() -> Vec<u8> {
-    fs::read(
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1.json"),
-    )
-    .unwrap()
-}
-
 fn compiled_fixture() -> &'static Circuit {
     static CIRCUIT: OnceLock<Circuit> = OnceLock::new();
     CIRCUIT.get_or_init(|| {
@@ -68,7 +61,7 @@ fn compiled_fixture() -> &'static Circuit {
                 Affine::constant(F::from_u64(17)),
             ])
             .unwrap();
-        Circuit::compile(&reference(), application).unwrap()
+        Circuit::compile(application).unwrap()
     })
 }
 
@@ -80,7 +73,7 @@ fn security_minimum_is_explicit_and_cannot_be_lowered_by_preparation() {
         Err(Error::Parameters(_))
     ));
     assert!(matches!(
-        Verifier::from_package(circuit, Engine::Optimized, 0),
+        circuit.verifier(Engine::Optimized, 0),
         Err(Error::Parameters(_))
     ));
     let above = circuit.security_bits().unwrap() + 1;
@@ -89,11 +82,11 @@ fn security_minimum_is_explicit_and_cannot_be_lowered_by_preparation() {
         Err(Error::InsufficientSecurity { .. })
     ));
     assert!(matches!(
-        Verifier::from_package(circuit, Engine::Optimized, above),
+        circuit.verifier(Engine::Optimized, above),
         Err(Error::InsufficientSecurity { .. })
     ));
     assert!(circuit.prover(Engine::Optimized, 109).is_ok());
-    assert!(Verifier::from_package(circuit, Engine::Optimized, 109).is_ok());
+    assert!(circuit.verifier(Engine::Optimized, 109).is_ok());
 }
 
 #[test]
@@ -378,10 +371,8 @@ fn metal_verifier_rejects_changed_constraint_with_original_cached_identity_and_s
     use neo_reductions::superneo_eval::SuperneoCachedRelationError;
     let started = std::time::Instant::now();
     let directory = TestDirectory::new();
-    let reference = reference();
-    let original = Circuit::compile(&reference, private_zero_application(F::ONE)).unwrap();
-    let changed = Circuit::compile(&reference, private_zero_application(F::ZERO)).unwrap();
-    drop(reference);
+    let original = Circuit::compile(private_zero_application(F::ONE)).unwrap();
+    let changed = Circuit::compile(private_zero_application(F::ZERO)).unwrap();
     assert_ne!(original.identity(), changed.identity());
     assert_eq!(
         original.compiled.package.application(),
@@ -436,7 +427,7 @@ fn metal_verifier_rejects_changed_constraint_with_original_cached_identity_and_s
     drop(prover);
     eprintln!("changed-package Metal proof built elapsed={:?}", started.elapsed());
 
-    let verifier = Verifier::from_package(&original, Engine::Metal, 109).unwrap();
+    let verifier = original.verifier(Engine::Metal, 109).unwrap();
     assert_eq!(verifier.engine(), Engine::Metal);
     match verifier.verify(&expected, &proof) {
         Err(Error::Verify(VerifyError::FreshRelation(SuperneoCachedRelationError::UnsatisfiedRow { row }))) => {
@@ -522,7 +513,7 @@ fn proof_offsets(prover: &Prover) -> (usize, usize, usize) {
 #[test]
 fn proof_bytes_round_trip_exactly() {
     let prover = compiled_fixture().prover(Engine::Optimized, 109).unwrap();
-    let verifier = Verifier::from_package(compiled_fixture(), Engine::Optimized, 109).unwrap();
+    let verifier = compiled_fixture().verifier(Engine::Optimized, 109).unwrap();
     let public_width = prover.compiled.package.logical_public_input_count();
     let (header, claim, witness) = proof_offsets(&prover);
 
@@ -566,7 +557,7 @@ fn proof_bytes_round_trip_exactly() {
 #[test]
 fn proof_decoder_rejects_resized_and_noncanonical_bytes() {
     let prover = compiled_fixture().prover(Engine::Optimized, 109).unwrap();
-    let verifier = Verifier::from_package(compiled_fixture(), Engine::Optimized, 109).unwrap();
+    let verifier = compiled_fixture().verifier(Engine::Optimized, 109).unwrap();
     let (header, claim, _) = proof_offsets(&prover);
     let mut bytes = prover.encode_proof(&shaped_proof(&prover)).unwrap();
     let rejects = |bytes: &[u8]| matches!(verifier.decode_proof(bytes), Err(Error::ProofBytes(_)));
@@ -628,7 +619,7 @@ fn proof_encoder_rejects_values_outside_the_selected_shape() {
 #[test]
 fn verifier_requires_the_padded_evaluation_width() {
     let prover = compiled_fixture().prover(Engine::Optimized, 109).unwrap();
-    let verifier = Verifier::from_package(compiled_fixture(), Engine::Optimized, 109).unwrap();
+    let verifier = compiled_fixture().verifier(Engine::Optimized, 109).unwrap();
     let proof = shaped_proof(&prover);
     let state = *proof.state();
     let (running, fresh) = proof.active_parts().unwrap();
@@ -737,7 +728,7 @@ fn verifier_rejects_a_witness_outside_the_signed_units() {
         #[cfg(feature = "metal")]
         Engine::Metal,
     ] {
-        let verifier = Verifier::from_package(circuit, engine, 109).unwrap();
+        let verifier = circuit.verifier(engine, 109).unwrap();
         let structure = verifier.lifecycle.structure();
         let columns = structure.m().div_ceil(D);
         let evaluations = vec![K::ZERO; D.next_power_of_two()];

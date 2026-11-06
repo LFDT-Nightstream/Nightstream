@@ -1,6 +1,5 @@
-use nightstream::nebula::{Circuit, Geometry, Machine, Verifier};
-use nightstream::{Engine, Error};
-use std::{fs, path::PathBuf};
+use crate::nebula::{Circuit, Geometry, Machine, Prover};
+use crate::{Engine, Error};
 
 #[test]
 fn minimum_110_rejects_64_segment_fingerprint_loss() {
@@ -17,16 +16,11 @@ fn minimum_110_rejects_64_segment_fingerprint_loss() {
     let segment_bits = geometry.memory_security_bits();
     let chain_bits = segment_bits - (geometry.s_max as f64).log2();
     assert!(segment_bits > 110.0 && chain_bits < 110.0);
-    let reference = fs::read(
-        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1.json"),
-    )
-    .unwrap();
-    let circuit = Circuit::compile(&reference, geometry, Machine).unwrap();
+    let circuit = Circuit::compile(geometry, Machine).unwrap();
     assert_eq!(circuit.security_bits().unwrap(), 109);
     assert!(
         matches!(
-            Verifier::new(&circuit, Engine::Optimized, 110),
+            circuit.verifier(Engine::Optimized, 110),
             Err(Error::InsufficientSecurity {
                 required: 110,
                 available: 109
@@ -34,7 +28,14 @@ fn minimum_110_rejects_64_segment_fingerprint_loss() {
         ),
         "public verifier accepts 110 bits with a {segment_bits:.3}-bit one-segment fingerprint bound and only {chain_bits:.3} bits across 64 allowed segments"
     );
-    assert!(Verifier::new(&circuit, Engine::Optimized, 109).is_ok());
+    assert!(circuit.verifier(Engine::Optimized, 109).is_ok());
+    assert!(matches!(
+        circuit.prover(Engine::Optimized, 110),
+        Err(Error::InsufficientSecurity {
+            required: 110,
+            available: 109
+        })
+    ));
 }
 
 #[test]
@@ -54,14 +55,23 @@ fn memory_security_boundary_rejects_exact_bound_above_minimum() {
     let claimed_bits = 78;
     assert!(2 * m * geometry.s_max as u128 * (1u128 << claimed_bits) > q * q);
 
-    let reference = fs::read(
-        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1.json"),
-    )
-    .unwrap();
-    let circuit = Circuit::compile(&reference, geometry, Machine).unwrap();
-    assert!(
-        Verifier::new(&circuit, Engine::Optimized, claimed_bits).is_err(),
-        "public verifier accepts a profile with a memory error bound above 2^-{claimed_bits}"
-    );
+    let circuit = Circuit::compile(geometry, Machine).unwrap();
+    assert_eq!(circuit.security_bits().unwrap(), 77);
+    for result in [
+        circuit
+            .verifier(Engine::Optimized, claimed_bits)
+            .map(|_| ()),
+        circuit.prover(Engine::Optimized, claimed_bits).map(|_| ()),
+        // This gate must reject before it reads a saved circuit.
+        Prover::load("", geometry, Machine, Engine::Optimized, claimed_bits).map(|_| ()),
+    ] {
+        assert!(matches!(
+            result,
+            Err(Error::InsufficientSecurity {
+                required: 78,
+                available: 77
+            })
+        ));
+    }
+    assert!(circuit.verifier(Engine::Optimized, 77).is_ok());
 }

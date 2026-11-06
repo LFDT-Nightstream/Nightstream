@@ -312,7 +312,8 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
 
 - **Controls:** what adversary 4 controls, for a memory application at a
   fixed geometry and program, and from the same tape a claimed memory
-  statement and the final carry. The adversary must be admitted (trust
+  statement and the final carry. The proof carries the carry, and the
+  verifier takes the statement integers from it (`SPEC.md` Algorithm 10). The adversary must be admitted (trust
   item 4).
 - **Wins:** the memory verifier accepts (`SPEC.md` Algorithm 10), and the
   history that the reverse extractor returns does not attest the claim: it
@@ -347,10 +348,10 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
   `B_scan = 3072` and `S_max = 64` has `m_mem = 3074` and passes setup.
   Its one-segment term has 115.414 bits; charging that term over the 64
   allowed segments gives 109.414 bits before transcript-query, collision,
-  and Stage 1 history errors. The numeric gate of `nebula::Verifier::new`
+  and Stage 1 history errors. The numeric gate of `nebula::Circuit::verifier`
   and `nebula::Circuit::prover` charges the term over all `S_max` segments,
   so it rejects a 110-bit minimum for this geometry
-  (`nebula_memory_security_redteam`).
+  (`crates/nightstream/tests/nebula/security.rs`).
   Adding the reference application's conservative one-fold `Q = 0` profile
   term to that 64-segment term gives
   `74·5161/q² + 17²·(1/5^54 + 2^−132) + 64·2·3074/q² ≈ 2^−108.43`.
@@ -945,7 +946,7 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
    null branches in the Lean relation. They do not establish the complete
    Rust-to-Lean application correspondence above or a concrete proof-system
    bound.
-   A public `nebula::CatalogBinding` can leave a catalog memory without a
+   The internal `nebula::CatalogBinding` can leave a catalog memory without a
    region. `CatalogBinding::program` omits its preload, and `rows` adds no
    slot or row for its events. The Lean result
    `Spec.Nebula.MemoryTrace.memoryConsistent_of_executes` requires `InRange`
@@ -953,11 +954,15 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
    event's memory. A modified prover can bypass a host check, so this result
    cannot certify an active host-only memory. The selected `Machine` uses
    the memory slots for both of its ports; this catalog limit adds no
-   identified false proof for it. An application that claims consistency
-   of a host-only memory needs its own verifier check or a bound region.
+   identified false proof for it. The public `nebula::R1csApplication`
+   rejects a size that leaves any catalog memory without a region. A custom
+   `Application` that claims consistency of a host-only memory needs its own
+   verifier check or a bound region.
 6. **Runtime checks.** The verifier's identity and setup checks stay necessary.
-   `Circuit::load_package` takes an identifier pinned by the caller. Its
-   loader recomputes that identifier from the fixed package and the digest of
+   The public `Circuit::compile` uses the embedded reference package and its
+   pinned identifier. Only tests call `Circuit::load_package` with a supplied
+   package and identifier. The loader recomputes that identifier from the
+   fixed package and the digest of
    the application plan, including its assertion rows. The package's
    application rows, witness instructions and batches must equal the plan's
    corresponding suffixes (`decode_application_plan`). A changed application
@@ -1140,13 +1145,22 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
 - A program that the adversary chooses after it sees the setup. Adversary 5
   fixes the program before the adversary runs.
 - The Rust-built memory relation of an application or geometry that no Lean
-  package fixes, the binding rows of the Rust catalog backend, and the
-  relation that links the rows of a batched WASM step (`SPEC.md` section
-  7.6). Lean proves what the slot plan conditions give
+  package fixes, the binding rows of the Rust catalog backend, the rows of
+  `nebula::R1csApplication` that link the rows of a batched step, and the
+  WASM relation itself (`SPEC.md` section 7.6). Lean proves what the slot plan conditions give
   (`Spec.Nebula.MemoryTrace.reorders_of_slotOrder`) and that batched steps
   are memory consistent exactly when their rows are
   (`Spec.Nebula.MemoryTrace.memoryConsistent_batchCatalog_iff`), but not
   that the Rust rows enforce those conditions. Tests check the rows on fixed
-  inputs (trust item 5).
+  inputs (trust item 5). Rust tests also check that each field of the
+  typed WASM state changes its words (`every_state_field_changes_the_state_words`
+  in `crates/neo-wasm/tests/wasm_nebula.rs`), and that a field of `q` or more
+  keeps a word that the terminal check of `SPEC.md` Algorithm 10 refuses
+  (`a_state_field_of_q_or_more_has_no_canonical_word`). So a verifier that
+  reads a field of a proved state reads a proved word, except that `None` and
+  `Some(0)` of `memory_pages` and `max_memory_pages` share the word 0.
+- A prover that picks the WASM size of its proof
+  (`neo_wasm::nebula::WasmSize`). The results hold for each of the three
+  fixed sizes, not for a choice among them.
 - Values for the adversary time and the query counts `Q` and `Q_η`. They
   stay symbolic (`decisions/nebula-memory-checking.md`).

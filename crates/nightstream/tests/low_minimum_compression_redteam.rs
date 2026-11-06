@@ -1,16 +1,9 @@
-use std::{fs, path::PathBuf};
-
-use nightstream::{application::poseidon2_hash_chain_v1, Circuit, Engine, Verifier};
+use nightstream::{application::poseidon2_hash_chain_v1, Circuit, Engine};
 
 #[test]
 fn a_publicly_derived_compression_key_must_have_a_valid_shrink_config() {
-    let reference = fs::read(
-        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1.json"),
-    )
-    .unwrap();
-    let circuit = Circuit::compile(&reference, poseidon2_hash_chain_v1().unwrap()).unwrap();
-    let verifier = Verifier::from_package(&circuit, Engine::Optimized, 1).unwrap();
+    let circuit = Circuit::compile(poseidon2_hash_chain_v1().unwrap()).unwrap();
+    let verifier = circuit.verifier(Engine::Optimized, 1).unwrap();
     let key = verifier.compression_key().unwrap();
     let value = serde_json::to_value(&key).unwrap();
     let bits = value["layer_bits"].as_f64().unwrap();

@@ -1,10 +1,10 @@
 //! Extending a proof whose fresh commitment was edited in its bytes.
 //! Every engine refuses it at the PiDEC commitment check.
 
-use std::{fs, path::PathBuf, time::Instant};
+use std::time::Instant;
 
 use neo_math::D;
-use nightstream::{application::poseidon2_hash_chain_v1, Circuit, Engine, Verifier};
+use nightstream::{application::poseidon2_hash_chain_v1, Circuit, Engine};
 use nightstream_fprime::{
     PI_CCS_V1_2_FRESH_COMMITMENT_WORDS, PI_CCS_V1_2_MATRIX_COUNT, PI_CCS_V1_2_PRIOR_PUBLIC_INPUT_WORDS,
     PI_CCS_V1_2_ROUND_COUNT, PI_DEC_V1_2_CHILD_COUNT,
@@ -13,12 +13,7 @@ use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks as F;
 
 fn compiled() -> Circuit {
-    let reference = fs::read(
-        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1.json"),
-    )
-    .expect("saved selected circuit reference");
-    Circuit::compile(&reference, poseidon2_hash_chain_v1().unwrap()).unwrap()
+    Circuit::compile(poseidon2_hash_chain_v1().unwrap()).unwrap()
 }
 
 /// Add one to the first word of the fresh commitment, which stays below the
@@ -48,7 +43,7 @@ fn extend_refuses_an_edited_fresh_commitment(engine: Engine) {
     let started = Instant::now();
     let circuit = compiled();
     let prover = circuit.prover(engine, 109).unwrap();
-    let verifier = Verifier::from_package(&circuit, Engine::Optimized, 109).unwrap();
+    let verifier = circuit.verifier(Engine::Optimized, 109).unwrap();
     let initial = [202, 203, 204, 205].map(F::from_u64);
     let message = [7, 11, 13, 17].map(F::from_u64);
 

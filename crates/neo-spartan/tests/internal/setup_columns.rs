@@ -123,7 +123,12 @@ fn write_columns(runs: &str, expected: &Key, out: &str) {
     let variables = derived.setup_variables();
     let counts = [run_count, run_count, run_count, slot_count];
     let columns: Vec<Vec<Gl>> = (0..4)
-        .map(|j| oracle(&tables, derived.blocks, kappa() + j, variables))
+        .map(|j| {
+            // Ones, so the check below sees the zeros the oracle writes.
+            let mut column = vec![Gl::ONE; 1 << variables];
+            oracle(&tables, derived.blocks, kappa() + j, &mut column);
+            column
+        })
         .collect();
     for (j, (column, &count)) in columns.iter().zip(&counts).enumerate() {
         assert!(

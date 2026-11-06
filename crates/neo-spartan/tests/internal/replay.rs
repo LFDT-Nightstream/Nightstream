@@ -582,9 +582,13 @@ fn lean_setup_root_matches_the_rust_key() {
     let key = setup.key();
     let (variables, count) = (key.setup_variables(), crate::kappa() + crate::RUN_ORACLES);
     let tables: Vec<Vec<Gl>> = (0..count)
-        .map(|k| crate::oracle(&setup.tables, key.blocks, k, variables))
+        .map(|k| {
+            let mut column = vec![Gl::ZERO; 1 << variables];
+            crate::oracle(&setup.tables, key.blocks, k, &mut column);
+            column
+        })
         .collect();
-    let root = crate::setup::build(variables, count, |k| tables[k].clone(), None).unwrap();
+    let root = crate::setup::build(variables, count, |k, values| values.copy_from_slice(&tables[k]), None).unwrap();
     assert_eq!(root, key.root(), "the key's root commits to these tables");
     let dir = workspace().join("target/lean-replay");
     std::fs::create_dir_all(&dir).unwrap();

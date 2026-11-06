@@ -568,19 +568,27 @@ impl Tables {
     /// Setup oracle `k` of the run columns, zero-padded to `2^variables`:
     /// rows, slots, coefficients, then the slot blocks.
     pub(crate) fn setup_column(&self, k: usize, variables: usize) -> Vec<Gl> {
-        let mut column: Vec<Gl> = match k {
-            0 => self.row.iter().map(|&row| Gl::from_u32(row)).collect(),
-            1 => self.slot.iter().map(|&slot| Gl::from_u32(slot)).collect(),
-            2 => self.coefficient.clone(),
+        (0..1usize << variables)
+            .into_par_iter()
+            .map(|x| self.setup_entry(k, x))
+            .collect()
+    }
+
+    /// Entry `x` of setup oracle `k` of the run columns; zero past the runs.
+    pub(crate) fn setup_entry(&self, k: usize, x: usize) -> Gl {
+        match k {
+            0 => self.row.get(x).map_or(Gl::ZERO, |&row| Gl::from_u32(row)),
+            1 => self
+                .slot
+                .get(x)
+                .map_or(Gl::ZERO, |&slot| Gl::from_u32(slot)),
+            2 => self.coefficient.get(x).copied().unwrap_or(Gl::ZERO),
             3 => self
                 .start
-                .iter()
-                .map(|&start| Gl::from_u64(start / D as u64))
-                .collect(),
+                .get(x)
+                .map_or(Gl::ZERO, |&start| Gl::from_u64(start / D as u64)),
             _ => unreachable!("four run columns"),
-        };
-        column.resize(1 << variables, Gl::ZERO);
-        column
+        }
     }
 
     pub(crate) fn early(&self, r: &[K]) -> Early {

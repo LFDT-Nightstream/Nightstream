@@ -16,9 +16,14 @@ use crate::{poseidon2, CudaActivity, CudaError, BUFFER_LIMIT_BYTES};
 
 mod dft;
 mod gkr;
+mod joint;
+mod masks;
 mod merkle;
 mod production_commitment;
+mod rlc;
 pub use gkr::CudaGkrLayer;
+pub(crate) use joint::CudaPaperJointOracle;
+pub(crate) use masks::CudaWitnessMasks;
 
 /// Bytes that the buffers of every session of the process hold, and the
 /// most that they held since the last `reset_peak_bytes`.

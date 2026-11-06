@@ -6,11 +6,17 @@ use std::sync::Arc;
 use cuda_core::CudaContext;
 use cuda_host::EmbeddedModuleError;
 
+pub(crate) mod assignments;
+pub(crate) mod carried;
+pub(crate) mod dec_forms;
+pub(crate) mod decomposition;
 pub(crate) mod dft;
 pub(crate) mod field;
 pub(crate) mod gkr;
+pub(crate) mod joint;
 pub(crate) mod nightstream;
 pub(crate) mod production_commitment;
+pub(crate) mod relation;
 
 #[cfg(test)]
 #[path = "../../tests/unit/field.rs"]
@@ -23,6 +29,12 @@ pub(crate) struct Kernels {
     pub(crate) production_commitment: production_commitment::production_commitment_kernels::LoadedModule,
     pub(crate) dft: dft::dft_kernels::LoadedModule,
     pub(crate) gkr: gkr::gkr_kernels::LoadedModule,
+    pub(crate) joint: joint::joint_kernels::LoadedModule,
+    pub(crate) assignments: assignments::assignment_kernels::LoadedModule,
+    pub(crate) carried: carried::carried_kernels::LoadedModule,
+    pub(crate) relation: relation::relation_kernels::LoadedModule,
+    pub(crate) dec_forms: dec_forms::dec_form_kernels::LoadedModule,
+    pub(crate) decomposition: decomposition::decomposition_kernels::LoadedModule,
 }
 
 impl Kernels {
@@ -34,7 +46,13 @@ impl Kernels {
         Ok(Self {
             production_commitment: production_commitment::production_commitment_kernels::from_module(module.clone())?,
             dft: dft::dft_kernels::from_module(module.clone())?,
-            gkr: gkr::gkr_kernels::from_module(module)?,
+            gkr: gkr::gkr_kernels::from_module(module.clone())?,
+            joint: joint::joint_kernels::from_module(module.clone())?,
+            assignments: assignments::assignment_kernels::from_module(module.clone())?,
+            carried: carried::carried_kernels::from_module(module.clone())?,
+            relation: relation::relation_kernels::from_module(module.clone())?,
+            dec_forms: dec_forms::dec_form_kernels::from_module(module.clone())?,
+            decomposition: decomposition::decomposition_kernels::from_module(module)?,
             nightstream,
         })
     }

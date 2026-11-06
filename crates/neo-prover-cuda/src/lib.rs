@@ -1,3 +1,86 @@
+//! Native CUDA prover backend for SuperNeo.
+//!
+//! The protocol crates remain authoritative for transcript order, proof
+//! assembly, and verification. This crate owns CUDA device state and the
+//! row evaluator. It is the CUDA port of `neo-prover-metal`: each kernel
+//! file ports one Metal shader file, and each result equals the Metal and
+//! the CPU result.
+
+#![warn(clippy::undocumented_unsafe_blocks)]
+
+pub mod poseidon2;
+
+use thiserror::Error;
+
+#[cfg(feature = "cuda")]
+mod kernels;
+#[cfg(feature = "cuda")]
+mod rows;
+#[cfg(feature = "cuda")]
+mod session;
+#[cfg(feature = "cuda")]
+pub use rows::CudaRowProver;
+#[cfg(feature = "cuda")]
+pub use session::{CudaGkrLayer, CudaSession};
+
+/// The owner's device memory ceiling: the Metal ceiling
+/// (`neo_prover_metal::BUFFER_LIMIT_BYTES`), which is below the 24,564 MiB
+/// of the RTX 4090 that the port targets. It is fixed, never read from the
+/// device. Every session of a process allocates from it; CPU memory is
+/// measured separately.
+pub const BUFFER_LIMIT_BYTES: usize = 24_000_000_000;
+
+pub type PoseidonDigest = [u64; 4];
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct CudaActivity {
+    pub launches: u64,
+    pub host_waits: u64,
+    pub allocated_bytes: u64,
+    pub uploaded_bytes: u64,
+    pub downloaded_bytes: u64,
+}
+
+#[derive(Debug, Error)]
+pub enum CudaError {
+    #[error("CUDA device creation failed: {0}")]
+    Device(String),
+    #[error("CUDA kernel module load failed: {0}")]
+    Module(String),
+    #[error("CUDA buffer allocation failed for {bytes} bytes")]
+    Buffer { bytes: usize },
+    #[error(
+        "CUDA buffer request for {requested} bytes with {allocated} bytes allocated exceeds the {limit}-byte limit"
+    )]
+    MemoryLimit {
+        requested: usize,
+        allocated: usize,
+        limit: usize,
+    },
+    #[error("CUDA command execution failed: {0}")]
+    Execution(String),
+    #[error("CUDA input shape mismatch: {0}")]
+    Shape(&'static str),
+    #[error("CUDA fixed-key commitment input: {0}")]
+    Commitment(#[from] neo_ajtai::AjtaiError),
+}
+
+#[cfg(feature = "cuda")]
+pub(crate) fn oracle_error(error: CudaError) -> neo_reductions::PiCcsError {
+    match error {
+        CudaError::Shape(reason) => neo_reductions::PiCcsError::InvalidInput(reason.into()),
+        CudaError::Commitment(error) => neo_reductions::PiCcsError::InvalidInput(error.to_string()),
+        error => neo_reductions::PiCcsError::BackendFailure {
+            backend: "cuda",
+            reason: error.to_string(),
+        },
+    }
+}
+
+#[cfg(all(test, feature = "cuda"))]
+#[path = "../tests/unit/oracle_errors.rs"]
+mod oracle_errors;
+
 #[cfg(feature = "perf-timers")]
 pub mod perf_ranges {
     pub struct NvtxRange {
@@ -129,5 +212,3 @@ macro_rules! perf_timed {
         $body
     };
 }
-
-pub const CANONICAL_KERNEL_UNAVAILABLE: &str = "the canonical one-joint CUDA NIFS kernel is not implemented";

@@ -69,10 +69,7 @@ impl Backend {
             }),
             Engine::Cuda => Err(EngineError::Unavailable {
                 engine,
-                #[cfg(feature = "cuda")]
-                reason: neo_prover_cuda::CANONICAL_KERNEL_UNAVAILABLE,
-                #[cfg(not(feature = "cuda"))]
-                reason: "build nightstream with the cuda feature; its canonical kernel is not implemented",
+                reason: "the CUDA engine is not connected to nightstream yet",
             }),
         }
     }

@@ -32,7 +32,8 @@ def stateKeys (finish : Package) : Parser (List Word) := do
   unless Spec.OptionB.fits finish do throw "the finish package does not fit its columns (`fits`)"
   pure stateKeys
 
-/-- Rust's program against `lean`, which a task builds while this reads Rust's. -/
+/-- Rust's program against `lean`, which a task builds while this reads Rust's. The digest of the
+program up to layer 1 runs in a second task while this computes the whole program's. -/
 def check (finish : Package) (stateKeys : List Word) (lean : Task (Array Instr)) : Parser String := do
   let rust ← program
   let lean := lean.get
@@ -40,9 +41,11 @@ def check (finish : Package) (stateKeys : List Word) (lean : Task (Array Instr))
   let upToLayer1 : Build Unit := do
     let (_, first) ← OptionB.finishPrefix finish stateKeys
     let _ ← OptionB.seed (fun k => first + k) (OptionB.bitsStart finish.application.1) 0
+  let prefixDigest := Task.spawn fun _ => digest upToLayer1.program
+  let wholeDigest := digest lean
   pure s!"finish package fits; match: all {lean.size} instructions of option B's final program, \
-    {Lowering.Compiled.finishRowCount finish} finish rows, {finish.blocks.length} blocks; digest {digest lean}; \
-    prefix digest {digest upToLayer1.program}"
+    {Lowering.Compiled.finishRowCount finish} finish rows, {finish.blocks.length} blocks; digest {wholeDigest}; \
+    prefix digest {prefixDigest.get}"
 
 end CompressionLeanExe.OptionBCheck
 

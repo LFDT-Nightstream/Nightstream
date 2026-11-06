@@ -460,8 +460,10 @@ impl WasmLimits {
 /// verifier compiles at most three. It takes the size of a proof from the
 /// proof's statement, never from the prover's run. A prover takes the
 /// smallest size that holds the run (`WasmSize::for_run`). Each size holds
-/// runs of up to 16,384 trace rows. Its memory security is at least 109.91
-/// bits (SPEC.md section 7.1, rule 6), so a caller asks for at most 109 bits.
+/// runs of up to 16,384 trace rows. Each segment's memory error meets
+/// SPEC.md section 7.1, rule 6. Across all segments, the memory gate accepts
+/// at most 106 bits for Small and Medium, and 103 for Large. These are not
+/// total-security bounds (`SECURITY_MODEL.md`, adversary 5).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum WasmSize {
     /// ROM and RAM of `2^14` cells: 256 instructions, 32 function

@@ -43,5 +43,10 @@ approved it on 2026-11-03.
    smallest size that holds the program and its run. The size is part of the
    statement, and the verifier compiles the circuit of that size. It never
    takes a region or a geometry from the run.
-5. **Security.** Each size keeps rule 6, so its memory fingerprint error is
-   at most `2^−109.91`. A caller asks for at most 109 bits of security.
+5. **Security.** Each size keeps rule 6, so one segment's memory fingerprint
+   error is at most `2^−109.91`. The gate charges that error across all
+   allowed segments: Small permits 32, Medium 16, and Large 64. The largest
+   accepted integer minimum for this term is 106 bits for Small and Medium,
+   and 103 for Large. These are not total-security bounds; transcript-query,
+   collision, and Stage 1 history errors also apply (`SECURITY_MODEL.md`,
+   adversary 5).

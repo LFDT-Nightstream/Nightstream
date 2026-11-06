@@ -163,7 +163,8 @@ item 5).
   `Lifecycle.OptionB.RandomOracle.RefreshSolver.kernelChance_le_solver`). The
   state-collision terms are the probability of a Poseidon2 collision on two
   named prior states, and a collision finder outputs the colliding input
-  pair (`Lifecycle.OptionB.RandomOracle.HashSolver.hashCollisions_le_finder`).
+  pair, whose two inputs have one length (the sponge pads with zeros and does
+  not encode the length) (`Lifecycle.OptionB.RandomOracle.HashSolver.hashCollisions_le_finder`).
   Averaged over the SHAKE128 key setup at key width `2^26`, the kernel term is
   an MSIS advantage for a uniform matrix at the chain norm plus a programming
   error below `2^−192`, so each fold's bound uses only the two algorithms
@@ -182,7 +183,8 @@ item 5).
   value of a proof, for a fixed application, setup and pair of exported step
   circuits. The adversary must be admitted (trust item 3).
 - **Wins:** the terminal relation accepts, and no `iteration` steps of the
-  application lead from `z0` to `zi` (a false acceptance).
+  application, each with a witness of the application's word count, lead
+  from `z0` to `zi` (a false acceptance).
 - **Result:** under Assumption 1 and the closure premise,
   `Pr[false acceptance] ≤ Σ_j (Pr[collision at visit j] + error(stage j))`
   for `j` below a bound on the adversary's iteration

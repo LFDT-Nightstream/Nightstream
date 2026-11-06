@@ -67,6 +67,11 @@ theorem run_sampleWord {t t' : Transcript} {w : Word} (h : Runs sampleWord t w t
   cases h
   rfl
 
+theorem run_sampleWord_state {t t' : Transcript} {w : Word} (h : Runs sampleWord t w t') :
+    w = t.duplex.sample.1 ∧ t' = { t with duplex := t.duplex.sample.2 } := by
+  cases h
+  exact ⟨rfl, rfl⟩
+
 theorem run_record {t t' : Transcript} {u : Unit} {d : Draw} (h : Runs (record d) t u t') :
     t'.draws = t.draws.push d := by
   cases h
@@ -195,6 +200,79 @@ theorem runs_liftExcept {α : Type} {e : Except String α} {a : α} (h : e = .ok
   subst h
   rfl
 
+inductive QueryPrefix : ℕ → Duplex → Word → Duplex → Prop where
+  | accept (d : Duplex) (accepted : (d.sample.1 + 1 == 0) = false) :
+      QueryPrefix 0 d d.sample.1 d.sample.2
+  | reject {n : ℕ} {d : Duplex} {word : Word} {next : Duplex}
+      (rejected : (d.sample.1 + 1 == 0) = true)
+      (rest : QueryPrefix n d.sample.2 word next) : QueryPrefix (n + 1) d word next
+
+theorem QueryPrefix.accepted {n : ℕ} {d next : Duplex} {word : Word}
+    (h : QueryPrefix n d word next) : (word + 1 == 0) = false := by
+  induction h with
+  | accept _ accepted => exact accepted
+  | reject _ _ ih => exact ih
+
+theorem run_querySample {retries : ℕ} {t t' : Transcript} {word : Word}
+    (h : Runs (querySample retries) t word t') :
+    t'.draws = t.draws ∧ ∃ n ≤ retries, QueryPrefix n t.duplex word t'.duplex := by
+  induction retries generalizing t t' word with
+  | zero =>
+      rw [querySample] at h
+      obtain ⟨sample, t1, hs, h⟩ := run_bind h
+      obtain ⟨rfl, rfl⟩ := run_sampleWord_state hs
+      obtain ⟨_, t2, check, h⟩ := run_bind h
+      obtain ⟨ok, rfl⟩ := run_ensure check
+      obtain ⟨rfl, rfl⟩ := run_pure h
+      refine ⟨rfl, 0, le_rfl, QueryPrefix.accept _ ?_⟩
+      simpa using ok
+  | succ retries ih =>
+      rw [querySample] at h
+      obtain ⟨sample, t1, hs, h⟩ := run_bind h
+      obtain ⟨rfl, rfl⟩ := run_sampleWord_state hs
+      by_cases rejected : (t.duplex.sample.1 + 1 == 0) = true
+      · simp only [rejected, ↓reduceIte] at h
+        obtain ⟨draws, n, bound, hprefix⟩ := ih h
+        exact ⟨draws, n + 1, by omega, .reject rejected hprefix⟩
+      · simp only [rejected] at h
+        obtain ⟨rfl, rfl⟩ := run_pure h
+        exact ⟨rfl, 0, Nat.zero_le _, .accept _ (Bool.eq_false_iff.mpr rejected)⟩
+
+theorem runs_querySample_prefix {n retries : ℕ} {d next : Duplex} {word : Word}
+    (hprefix : QueryPrefix n d word next) (bound : n ≤ retries) (draws : Array Draw) :
+    Runs (querySample retries) ⟨d, draws⟩ word ⟨next, draws⟩ := by
+  induction hprefix generalizing retries with
+  | accept d accepted =>
+      cases retries with
+      | zero =>
+          rw [querySample]
+          refine runs_bind (runs_sampleWord _) ?_
+          exact runs_bind (runs_ensure (by simp [accepted]) _ _) (runs_pure _ _)
+      | succ retries =>
+          rw [querySample]
+          refine runs_bind (runs_sampleWord _) ?_
+          simp only [accepted, Bool.false_eq_true, ↓reduceIte]
+          exact runs_pure _ _
+  | @reject n d word next rejected rest ih =>
+      cases retries with
+      | zero => omega
+      | succ retries =>
+          rw [querySample]
+          refine runs_bind (runs_sampleWord _) ?_
+          simp only [rejected, ↓reduceIte]
+          exact ih (by omega)
+
+theorem querySample_iff {retries : ℕ} {t t' : Transcript} {word : Word} :
+    Runs (querySample retries) t word t' ↔
+      t'.draws = t.draws ∧ ∃ n ≤ retries, QueryPrefix n t.duplex word t'.duplex := by
+  refine ⟨run_querySample, ?_⟩
+  rintro ⟨same, n, bound, hprefix⟩
+  rcases t with ⟨d, draws⟩
+  rcases t' with ⟨next, draws'⟩
+  dsimp only at same hprefix
+  subst draws'
+  exact runs_querySample_prefix hprefix bound draws
+
 def Grows {α : Type} (x : ReplayM α) : Prop :=
   ∀ t a t', Runs x t a t' → ∃ ds : List Draw, t'.draws.toList = t.draws.toList ++ ds
 
@@ -229,6 +307,9 @@ theorem grows_observeExt (v : Ext) : Grows (observeExt v) :=
 theorem grows_sampleWord : Grows sampleWord :=
   grows_of_draws fun _ _ _ h => run_sampleWord h
 
+theorem grows_querySample (retries : ℕ) : Grows (querySample retries) :=
+  grows_of_draws fun _ _ _ h => (run_querySample h).1
+
 theorem grows_record (d : Draw) : Grows (record d) :=
   fun _ _ _ h => ⟨[d], by rw [run_record h, Array.toList_push]⟩
 
@@ -255,7 +336,8 @@ macro "grows" : tactic =>
   `(tactic| repeat (first
     | with_reducible exact grows_observeAll _ | with_reducible exact grows_observeExts _
     | with_reducible exact grows_observeExt _ | with_reducible exact grows_sampleExt
-    | with_reducible exact grows_sampleWord | with_reducible exact grows_record _
+    | with_reducible exact grows_sampleWord | with_reducible exact grows_querySample _
+    | with_reducible exact grows_record _
     | with_reducible exact grows_ensure _ _ | with_reducible exact grows_pure _
     | with_reducible apply grows_bind | with_reducible apply grows_forM | with_reducible apply grows_ite
     | with_reducible intro))

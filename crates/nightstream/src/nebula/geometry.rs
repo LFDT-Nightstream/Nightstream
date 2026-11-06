@@ -122,9 +122,11 @@ impl Geometry {
         self.cells() + self.n * self.b_ops
     }
 
-    /// `-log2` of the memory fingerprint error `2·m_mem/q²` (`SECURITY_MODEL.md`,
-    /// adversary 5). SPEC.md section 7.1, rule 6 requires at least 109.91 bits (Lean
-    /// `Geometry.secure_iff`).
+    /// `-log2` of one segment's memory fingerprint error `2·m_mem/q²`
+    /// (`SECURITY_MODEL.md`, adversary 5). The total memory-round premise also
+    /// depends on the number of `η` transcript evaluations (trust item 7).
+    /// SPEC.md section 7.1, rule 6 requires at least 109.91 bits for this
+    /// per-segment term (Lean `Geometry.secure_iff`).
     pub fn memory_security_bits(&self) -> f64 {
         2.0 * (F::ORDER_U64 as f64).log2() - (2.0 * self.max_tuples() as f64).log2()
     }

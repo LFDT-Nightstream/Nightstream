@@ -415,8 +415,8 @@ fn n1_accept(engine: crate::Engine) {
     let circuit = Package::N1
         .load(&package("nightstream-fprime-stage2-nebula-memory-n1.json"))
         .expect("pinned memory package");
-    let prover = circuit.circuit.prover(engine, 114).unwrap();
-    let verifier = circuit.verifier(engine, 114).unwrap();
+    let prover = circuit.circuit.prover(engine, 109).unwrap();
+    let verifier = circuit.verifier(engine, 109).unwrap();
     let mut run = n1_run();
     let z0 = run.initial_state();
     let mut proof: Option<crate::Proof> = None;
@@ -464,8 +464,8 @@ fn memory_conformance(engine: crate::Engine) {
     let circuit = Package::V1
         .load(&memory_package())
         .expect("pinned memory package");
-    let prover = circuit.circuit.prover(engine, 114).unwrap();
-    let verifier = circuit.verifier(engine, 114).unwrap();
+    let prover = circuit.circuit.prover(engine, 109).unwrap();
+    let verifier = circuit.verifier(engine, 109).unwrap();
     let program = Package::V1.program();
     eprintln!("memory preparation elapsed={:?}", started.elapsed());
 
@@ -599,8 +599,8 @@ fn each_program_verifies_only_its_own_proof_on_cpu() {
     let circuit = Package::V1
         .load(&memory_package())
         .expect("pinned memory package");
-    let prover = circuit.circuit.prover(engine, 114).unwrap();
-    let verifier = circuit.verifier(engine, 114).unwrap();
+    let prover = circuit.circuit.prover(engine, 109).unwrap();
+    let verifier = circuit.verifier(engine, 109).unwrap();
     let prove = |program: &Program| {
         let mut run = Run::new(Machine, program, MachineState::default());
         let z0 = run.initial_state();
@@ -958,12 +958,12 @@ fn rust_built(engine: crate::Engine) {
         .unwrap()
         .write(&path)
         .unwrap();
-    let prover = crate::Prover::load(&path, engine, 114);
+    let prover = crate::Prover::load(&path, engine, 109);
     std::fs::remove_file(&path).unwrap();
     let prover = prover.unwrap();
     let verifier = Circuit::compile(geometry, Machine)
         .unwrap()
-        .verifier(engine, 114)
+        .verifier(engine, 109)
         .unwrap();
     let changed = Circuit::compile(geometry, Changed::Row).unwrap();
     eprintln!("rust-built setup elapsed={:?}", started.elapsed());
@@ -973,7 +973,7 @@ fn rust_built(engine: crate::Engine) {
     verifier
         .verify_parts(&program, &statement, &carry, &proof)
         .unwrap();
-    let (statement, carry, proof) = prove_segment(&changed.circuit.prover(engine, 114).unwrap(), Changed::Row);
+    let (statement, carry, proof) = prove_segment(&changed.circuit.prover(engine, 109).unwrap(), Changed::Row);
     assert!(matches!(
         verifier.verify_parts(&program, &statement, &carry, &proof),
         Err(VerifyError::Proof(_))

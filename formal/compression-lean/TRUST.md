@@ -41,10 +41,61 @@ The claims bound a probability. They take these as part of the model, not as Lea
   with no error. So `calls / 2^t` does not include WHIR's error. `Final/Budget.lean` and
   `Shrink/Budget.lean` take a WHIR error term, and `final_restore_budget` sets it to zero. In
   Rust, `Pcs::new` charges WHIR's terms from Plonky3's Johnson-bound report (`pcs.rs`) together
-  with the terms that the premises `p0`, `p1` and `rust` state, which Rust meets. No
-  Lean proof checks the WHIR figures. This is the weakest numeric layer. The candidates are tables
-  over the base field; candidates over `Ext` are not modeled. WHIR's own Fiat–Shamir step is part
-  of its error.
+  with the terms that the premises `p0`, `p1` and `rust` state, which Rust meets.
+  `pcs.rs` selects `SecurityAssumption::JohnsonBound`, not a capacity estimate.
+  In the pinned `p3-security` 0.8.0 code, this sets the tested proximity below
+  the Johnson boundary by `sqrt(rho) / 20`; it does not use the exact endpoint.
+  Crites and Stewart (ePrint 2025/2046) disprove the stronger up-to-capacity mutual
+  correlated-agreement conjecture; their counterexamples do not refute the selected
+  Johnson-bound claim. Fenzi and Sanso (ePrint 2025/2197, Lemma 4.4) give a
+  list-decoding attack on a toy hash-based argument near capacity. They do not
+  give an efficient prover for that attack. The selected Johnson margin and
+  its list-size charge exclude the paper's stated high-list regime; its toy
+  protocol is not this WHIR verifier. No Lean proof checks the WHIR figures.
+  This is the weakest numeric layer.
+  Jo (ePrint 2026/891, Corollary 4.6) proves that row-wise interleaving adds
+  no affine-line MCA loss, while its separate list-size term remains. The
+  pinned `PrefixProver` first places all table columns in one `Poly<F>` using
+  selector bits. `Layout::commit` then forms a matrix of `2^folding` columns
+  and Reed–Solomon-encodes each column; later WHIR rounds do the same over
+  `Ext` (`p3-sumcheck` 0.8.0 `commit_base`, `p3-whir` 0.8.0
+  `commit_extension`). These rows are a row-wise interleaved code. Each
+  column has at most `k − 1` zeros on a domain of `N = k·2^log_inv_rate`
+  points, so two distinct codewords differ on at least `N − k + 1` rows.
+  The classical Johnson list bound at the selected radius
+  `1 − sqrt(k/N) − sqrt(k/N)/20` therefore applies to this vector alphabet
+  without a width factor; the report charges the conservative
+  `1/(2η sqrt(k/N))` list size. This checks the interleaving factor, not
+  the full numeric report, extension-field assumptions or concrete
+  Fiat–Shamir security.
+  Manzur (ePrint 2026/2617, Theorems 9.1 and 10.1) separates list
+  decodability from affine-line MCA for general linear codes. The pinned
+  Johnson report does not derive MCA from its list-size estimate alone:
+  `p3-security` 0.8.0 uses the Reed–Solomon-specific line-MCA bound of
+  Dao, Kominers and Thaler (ePrint 2026/2056, Theorem 5.12), while Jo's
+  interleaving result is needed for the row code above. Manzur's general-code
+  examples do not refute those selected premises. The exact numeric
+  application of both results to this verifier is still outside Lean.
+  The candidates are tables over the base field; candidates over `Ext` are not modeled.
+  WHIR's own Fiat–Shamir step is part of its error.
+  Chiesa, Guan, Knabenhans and Yu (ePrint 2025/902, Theorem 7.1) derive
+  Fiat–Shamir security for a functional IOP plus commitment from
+  state-restoration soundness and state-restoration function binding. This
+  theorem does not establish the latter property for this WHIR instance or
+  remove the ideal-opening premise above.
+  Holmgren (ePrint 2019/1261, Theorem 1.2) gives a public-coin protocol whose
+  random-oracle Fiat–Shamir transform is sound although the protocol is not
+  sound against state restoration. Thus a Fiat–Shamir bound alone cannot
+  supply this WHIR state-restoration premise.
+  Bartusek, Bronfman, Holmgren, Ma and Rothblum (ePrint 2019/997,
+  Theorems 3.5 and 4.1) construct a collision-resistant hash or an IOP for
+  which the Kilian–Micali Fiat–Shamir compilation is unsound. Their choices
+  are contrived and give no forgery for this fixed WHIR protocol. Guan and
+  Yogev (ePrint 2025/2328, Theorem 1) obtain a positive standard-model
+  result with a function statistically binding vector commitment and a
+  shadow PCP. The selected Merkle/WHIR pair has neither proved premise.
+  Thus Merkle collision resistance alone cannot close this concrete
+  Fiat–Shamir and state-restoration obligation.
 - **Fiat–Shamir.** Poseidon2 acts as a random oracle, and the transcript encoding is injective on
   prefixes (`Game/Restoration.lean`, `Game/Compose.lean`). One permutation call can give `k`
   challenges, so `Q` calls and the `R` draws of one path are at most `k·Q + R` queries of the
@@ -65,6 +116,26 @@ The claims bound a probability. They take these as part of the model, not as Lea
   terminal assignment. That such a run implies a true claim is layer 1 under Fiat–Shamir with
   Poseidon2 inside the program, which the claims assume and do not bound. The openings inside the
   program follow the WHIR model (`WhirOpens`).
+  Bünz, Chen and Guan (ePrint 2026/2326, Sections 1.1–2.2) distinguish
+  challenge-grinding proof of work from the strong proof of work used in
+  extended Fiat–Shamir against diagonalization. Layer 1 has no grinding;
+  shrink's 20-bit grinding does not establish this read condition. Their
+  two-PoW theorem concerns relativized Sigma protocols and does not give a
+  soundness bound for this recursion.
+  Khovratovich, Rothblum and Soukhanov (ePrint 2025/118, Theorems 1 and 2) attack a
+  GKR–MLPCS Fiat–Shamir protocol that does not commit to the complete computation trace
+  before its first challenge. Layer 1 commits its full F′ witness table as P0 before `β`
+  (`neo-spartan/src/prover.rs`), and the shrink layer commits its program trace before `τ`
+  (`neo-spartan/src/shrink/mod.rs`). Their stated trace-timing attack does not directly
+  apply to either layer. This does not prove the read condition or concrete Poseidon2
+  Fiat–Shamir soundness for an application that computes the hash inside its circuit.
+  Ciobotaru, Peter and Velichkov (ePrint 2024/398, Section 4) forge a batched
+  KZG proof when its final challenge omits two evaluation proofs. This path
+  uses WHIR, not KZG. In the custom WHIR verifier, opened values enter the
+  transcript before `α`, and each queried row is checked against a Merkle
+  root fixed before the following `β`. That attack's two free proof elements
+  have no direct analogue here. This check still relies on Merkle binding and
+  does not prove the concrete Fiat–Shamir premise.
 - **Merkle binding.** A setup leaf that reaches the key root at an index below the leaf count
   `2^(n-2)` holds the setup's codeword on that index's coset (`MerkleBinds`). The bound is part
   of the assumption: the path reads only the low `n - 2` bits of an index, so without it the
@@ -79,6 +150,44 @@ The claims bound a probability. They take these as part of the model, not as Lea
   the path length and the value count. `honest_leaves_bind` shows that honest leaves pass at their
   own index. That the shipped key's root is `honestRoot` of the claims' setup is not proved
   (section 5).
+  Coratger et al. (ePrint 2026/089, Theorem 3) prove extractability for a
+  same-permutation overwrite-sponge leaf hash and a full-width two-child
+  compression permutation. Nightstream's node feeds eight child words and
+  eight fixed zeros to a sixteen-word Poseidon2 permutation, then reads four
+  words; its leaf sponge has rate twelve. That theorem does not give a bound
+  for this selected pair of hash modes.
+  Trevisani et al. (ePrint 2026/1271, Theorems 1–4) prove collision and
+  preimage bounds for PA/PAX compression with feed-forward. The selected
+  `TruncatedPermutation` node has no feed-forward, so those bounds do not
+  apply to it.
+  The two hash modes also have no domain tag. An eight-word leaf consisting
+  of two four-word digests hashes exactly as their parent node: both permute
+  those eight words followed by eight zeros and return four words. This is a
+  structural equality, not a Poseidon2 collision. It does not instantiate a
+  selected proof leaf: the setup uses `(κ + 4)·8 = 208` words, and the fixed
+  WHIR folding schedules give at least sixteen base words (or 48 extension
+  words) in each queried row. The verifier fixes those widths and the path
+  length. A change that permits eight-word leaves needs a new Merkle binding
+  argument; the current collision premise alone would not cover it.
+  Merz and Rodríguez García (ePrint 2026/306) show that Poseidon2 attack
+  cost can depend on its hash mode, beyond the permutation's CICO estimate.
+  Their analyzed sponge adds input blocks and their compression uses a
+  feed-forward value. This layer's leaf sponge overwrites rate lanes, while
+  its node truncates one permutation without feed-forward (`hash.rs`). The
+  paper reports no break of its analyzed 128-bit sets, but does not certify
+  this exact leaf/node pair.
+  Li, Liu and Wang (ePrint 2026/1792, Appendix B.7) give nonlinear
+  subspace trails. The selected internal Poseidon2 matrix passes their
+  even-construction balancing check: over Goldilocks, the core determinant
+  is `2691752801020228242` for `E_c = 8`, as in a twelve-rate, four-digest
+  sponge model. This supports a 16-partial-round trail at the matrix level.
+  Their unconstrained compression budget `E_c = t - d = 12` is not the node's
+  input geometry: `TruncatedPermutation` supplies eight child words and
+  eight fixed zeros. Treating those zero lanes as input constraints gives a
+  nominal budget of four; its `3 × 3` even core also has nonzero determinant
+  (`1053191533457625632` modulo Goldilocks). Their single-permutation CICO
+  preimage estimates do not price collisions in this fixed-input node or the
+  multi-block overwrite-sponge leaf.
 - **Query indices.** The model draws each query leaf as a uniform Goldilocks word modulo the leaf
   count, as `sample_bits` does (`Layer1/HonestStage.lean`, `Layer1/Queries.lean`). The budget needs
   at most 35 setup variables (`query_half`), and the replay bridge at most 31. `Relation::new`

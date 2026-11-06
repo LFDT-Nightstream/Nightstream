@@ -32,8 +32,8 @@ fn two_link_hash_chain_base_step_verifies_and_rejects_changes() {
             .commitment_key_words(),
         authority_words(PRODUCTION_VERIFIER_ROWS, columns, &PRODUCTION_SEED)
     );
-    let prover = circuit.prover(Engine::Optimized, 114).unwrap();
-    let verifier = circuit.verifier(Engine::Optimized, 114).unwrap();
+    let prover = circuit.prover(Engine::Optimized, 109).unwrap();
+    let verifier = circuit.verifier(Engine::Optimized, 109).unwrap();
     let initial = [1, 2, 3, 4].map(F::from_u64);
     let message = [5, 6, 7, 8, 9, 10, 11, 12].map(F::from_u64);
     let output = chain(initial, &message);
@@ -139,8 +139,8 @@ fn two_link_hash_chain_base_step_verifies_and_rejects_changes() {
 fn two_link_hash_chain_folds_on_metal() {
     let engine = Engine::Metal;
     let circuit = Circuit::compile(two_link_hash_chain().unwrap()).unwrap();
-    let prover = circuit.prover(engine, 114).unwrap();
-    let verifier = circuit.verifier(engine, 114).unwrap();
+    let prover = circuit.prover(engine, 109).unwrap();
+    let verifier = circuit.verifier(engine, 109).unwrap();
     let initial = [1, 2, 3, 4].map(F::from_u64);
     let first = [5, 6, 7, 8, 9, 10, 11, 12].map(F::from_u64);
     let second = [13, 14, 15, 16, 17, 18, 19, 20].map(F::from_u64);
@@ -172,7 +172,7 @@ fn metal_and_cpu_folds_encode_the_same_proof() {
     let first = [5, 6, 7, 8, 9, 10, 11, 12].map(F::from_u64);
     let second = [13, 14, 15, 16, 17, 18, 19, 20].map(F::from_u64);
     let [metal, cpu] = [Engine::Metal, Engine::Optimized].map(|engine| {
-        let prover = circuit.prover(engine, 114).unwrap();
+        let prover = circuit.prover(engine, 109).unwrap();
         let base = prover.prove(initial, &first).unwrap();
         let proof = prover.extend(&base, &second).unwrap();
         prover.encode_proof(&proof).unwrap()

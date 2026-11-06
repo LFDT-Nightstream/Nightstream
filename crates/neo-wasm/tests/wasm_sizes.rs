@@ -118,27 +118,23 @@ fn the_starstream_test_transactions_fit_small_or_medium() {
     }
 }
 
-/// The memory security of each size is below 114 bits, so a prover that asks
-/// for 114 gets the named security error before it reads its circuit file.
+/// Charge the memory error across all segments. A request one bit above
+/// that bound gets the security error before the prover reads its file.
 #[test]
 fn a_size_refuses_more_security_than_its_memory_gives() {
-    use nightstream::error::ParamsError;
     use nightstream::nebula::Prover;
-    for (size, available) in [(WasmSize::Small, 111), (WasmSize::Medium, 110), (WasmSize::Large, 109)] {
+    for (size, available) in [(WasmSize::Small, 106), (WasmSize::Medium, 106), (WasmSize::Large, 103)] {
+        let required = available + 1;
         let result = Prover::load(
             "no-circuit-file",
             size.geometry(),
             size.application().unwrap(),
             nightstream::Engine::Optimized,
-            114,
+            required,
         );
-        let Err(nightstream::Error::Parameters(error)) = result else {
-            panic!("{size:?} accepts 114 bits");
-        };
-        let error: ParamsError = error;
         assert!(
-            matches!(error, ParamsError::InsufficientStatisticalSecurity { required: 114, available: a } if a == available),
-            "{size:?}: {error}"
+            matches!(result, Err(nightstream::Error::InsufficientSecurity { required: r, available: a }) if r == required && a == available),
+            "{size:?} must reject {required} bits with an available bound of {available}"
         );
     }
 }
@@ -205,8 +201,9 @@ fn a_small_proof_verifies_on_metal() {
     let circuit = Circuit::compile(size.geometry(), app).unwrap();
     eprintln!("compile elapsed={:?}", started.elapsed());
     let engine = nightstream::Engine::Metal;
-    let prover = circuit.prover(engine, 109).unwrap();
-    let verifier = circuit.verifier(engine, 109).unwrap();
+    let minimum = circuit.security_bits().unwrap();
+    let prover = circuit.prover(engine, minimum).unwrap();
+    let verifier = circuit.verifier(engine, minimum).unwrap();
     eprintln!("setup elapsed={:?}", started.elapsed());
 
     let proving = Instant::now();

@@ -151,11 +151,16 @@ encoding, state-hash, transcript, or Fiat--Shamir failure.
   [How to Prove False Statements](https://eprint.iacr.org/2025/118.pdf).
 
 The selected Poseidon2 sponge has four capacity field elements and emits a
-four-field digest. Under the random-permutation model, this gives a generic
-collision ceiling near 128 bits. This is an inference from the
-[Poseidon2 analysis](https://eprint.iacr.org/2023/323.pdf), not a deterministic
-proof about the concrete permutation. End-to-end security is the minimum of
-this boundary and the exact SuperNeo statistical and commitment bounds.
+four-field digest. Under the random-permutation model, its generic *classical*
+collision ceiling is near 128 bits. For a uniform four-field digest, generic
+quantum collision search takes about `|F|^(4/3) = 2^85.33` oracle queries
+([quantum collision finding](https://eprint.iacr.org/2021/1578),
+[quantum sponge bounds](https://eprint.iacr.org/2026/2135)). This is an
+idealized attack-cost inference, not a collision in the selected Poseidon2
+permutation or a complete false-proof attack. The current security model
+covers classical adversaries only. The four-field digest does not support a
+110-bit generic quantum collision premise. End-to-end security also depends
+on the exact SuperNeo statistical and commitment bounds.
 
 This accepted choice changes transcript order and proof bytes. The F-prime
 Stage 1 Lean relation must implement the rule and select a new verifier-owned

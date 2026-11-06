@@ -296,7 +296,10 @@ impl<A: Application> Circuit<A> {
     }
 
     /// The prover of the circuit. `minimum_security_bits` bounds the folding
-    /// profile and the memory fingerprint term (`Geometry::memory_security_bits`).
+    /// profile and the memory fingerprint term of all `S_max` segments
+    /// (`Geometry::memory_security_bits`, SPEC.md section 7.1). Total error
+    /// also depends on challenge evaluations and history depth
+    /// (`SECURITY_MODEL.md`, trust item 7).
     pub fn prover(&self, engine: crate::Engine, minimum_security_bits: u32) -> Result<Prover<A>, crate::Error>
     where
         A: Clone,
@@ -311,7 +314,10 @@ impl<A: Application> Circuit<A> {
 
     /// The verifier of the circuit. It may share the prover's circuit.
     /// `minimum_security_bits` bounds the folding profile and the memory
-    /// fingerprint term (`Geometry::memory_security_bits`).
+    /// fingerprint term of all `S_max` segments
+    /// (`Geometry::memory_security_bits`, SPEC.md section 7.1). Total error
+    /// also depends on challenge evaluations and history depth
+    /// (`SECURITY_MODEL.md`, trust item 7).
     pub fn verifier(&self, engine: crate::Engine, minimum_security_bits: u32) -> Result<Verifier<A>, crate::Error>
     where
         A: Clone,
@@ -323,18 +329,38 @@ impl<A: Application> Circuit<A> {
             crate::Verifier::of_memory(&self.circuit, engine, minimum_security_bits)?,
         ))
     }
+
+    /// The largest `minimum_security_bits` that `prover` and `verifier`
+    /// accept: the lower of the folding profile's
+    /// (`crate::Circuit::security_bits`) and the memory term's.
+    pub fn security_bits(&self) -> Result<u32, crate::Error> {
+        Ok(self
+            .circuit
+            .security_bits()?
+            .min(memory_security_bits(&self.geometry)))
+    }
 }
 
-/// Require the memory fingerprint term of `geometry` to meet
-/// `minimum_security_bits` (SPEC.md section 7.1, rule 6).
+/// The largest `k` with `S_max · 2 · m_mem / q² ≤ 2^-k`: each of the
+/// `S_max` segments adds its own fingerprint term (`SECURITY_MODEL.md`,
+/// adversary 5). Exact integers, so no rounding accepts a larger `k`.
+fn memory_security_bits(geometry: &Geometry) -> u32 {
+    let q = u128::from(F::ORDER_U64);
+    (2 * geometry.max_tuples() as u128)
+        .checked_mul(geometry.s_max as u128)
+        .and_then(|error| (q * q).checked_div(error))
+        .and_then(u128::checked_ilog2)
+        .unwrap_or(0)
+}
+
+/// Require the all-segment memory term to meet the caller's minimum.
 fn memory_security(geometry: &Geometry, minimum_security_bits: u32) -> Result<(), crate::Error> {
-    let available = geometry.memory_security_bits();
-    if available < f64::from(minimum_security_bits) {
-        return Err(neo_params::ParamsError::InsufficientStatisticalSecurity {
+    let available = memory_security_bits(geometry);
+    if available < minimum_security_bits {
+        return Err(crate::Error::InsufficientSecurity {
             required: minimum_security_bits,
-            available: available.floor() as u32,
-        }
-        .into());
+            available,
+        });
     }
     Ok(())
 }
@@ -487,3 +513,7 @@ impl<A: Application> Run<A> {
 #[cfg(test)]
 #[path = "../../tests/nebula/memory.rs"]
 mod memory;
+
+#[cfg(test)]
+#[path = "../../tests/nebula/security.rs"]
+mod security;

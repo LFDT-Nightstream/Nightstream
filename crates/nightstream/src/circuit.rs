@@ -47,6 +47,9 @@ pub enum Error {
     ProofBytes(#[from] ProofCodecError),
     #[error(transparent)]
     Parameters(#[from] neo_params::ParamsError),
+    /// The caller's minimum is above the circuit's `security_bits`.
+    #[error("the circuit gives at most {available} bits of statistical security, below the minimum of {required}")]
+    InsufficientSecurity { required: u32, available: u32 },
 }
 
 impl From<ExtendError> for Error {
@@ -215,6 +218,23 @@ impl Circuit {
         self.compiled.application.as_ref()
     }
 
+    /// The largest `minimum_security_bits` that `prover`, `Prover::load` and
+    /// `verifier` accept for this circuit. It is the
+    /// zero-query error of one fold
+    /// (`Lifecycle.RandomOracleKnowledge.statisticalError`); oracle queries
+    /// and fold depth add to it
+    /// (`Export.Stage1.HyperNovaFalseAcceptance.probability_bound`).
+    pub fn security_bits(&self) -> Result<u32, Error> {
+        let structure = self.compiled.package.ccs_structure_header()?;
+        let params = crate::folding::Params::of_shape(
+            structure.domain_rows(),
+            structure.m(),
+            structure.t(),
+            structure.max_degree(),
+        )?;
+        Ok(params.security_bits())
+    }
+
     /// The size of the Rust application, or `None` for a Lean-emitted package.
     pub fn application_size(&self) -> Option<ApplicationSize> {
         self.compiled
@@ -238,6 +258,10 @@ impl Circuit {
     /// The verifier of the circuit, which may share the prover's circuit.
     /// Reject a profile below the caller's positive statistical minimum, and
     /// a memory relation, whose verifier is `nebula::Circuit::verifier`.
+    /// The profile's error is the zero-query error of one fold
+    /// (`Lifecycle.RandomOracleKnowledge.statisticalError`); oracle queries
+    /// and fold depth add to it
+    /// (`Export.Stage1.HyperNovaFalseAcceptance.probability_bound`).
     pub fn verifier(&self, engine: Engine, minimum_security_bits: u32) -> Result<Verifier, Error> {
         if self.compiled.role == Role::Memory {
             return Err(Error::Circuit("a memory relation needs nebula::Circuit::verifier"));
@@ -246,6 +270,10 @@ impl Circuit {
     }
 
     /// Require the selected profile to meet the caller's positive statistical minimum.
+    /// The profile's error is the zero-query error of one fold
+    /// (`Lifecycle.RandomOracleKnowledge.statisticalError`); oracle queries
+    /// and fold depth add to it
+    /// (`Export.Stage1.HyperNovaFalseAcceptance.probability_bound`).
     pub fn prover(&self, engine: Engine, minimum_security_bits: u32) -> Result<Prover, Error> {
         Prover::new(Arc::clone(&self.compiled), Backend::new(engine)?, minimum_security_bits)
     }

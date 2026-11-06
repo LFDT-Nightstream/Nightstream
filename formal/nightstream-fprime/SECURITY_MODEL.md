@@ -33,10 +33,10 @@ are not checked.
 ## Applications and setups
 
 An application is a step program (`Lifecycle.Stage1.Application.Program`).
-Every adversary result below holds for every application that fits the
+The results for adversaries 1 to 4 hold for every application that fits the
 `2^28` profile (`Export.Stage1.PerApplicationFixedPoint.FitsTwoPow28`), at its
-own relation (`Export.Stage1.PerApplicationFixedPoint.relation`). Adversary 1
-holds for
+own relation (`Export.Stage1.PerApplicationFixedPoint.relation`). Adversary 5
+also requires a valid memory plan and a `PortApp` model. Adversary 1 holds for
 every Ajtai key, adversaries 2 and 4 for every commitment setup
 (`Export.Stage1.PerApplicationCanonicalPackage.CommitmentSetup`, with key
 `Export.Stage1.PerApplicationCanonicalPackage.commitmentKey`), and adversary 3
@@ -62,6 +62,11 @@ one component digest, or two final preimages with one package identity
 (`Export.Stage1.PerApplicationSecurity.packageIdentity_identifies_package_authority_or_collision`).
 The structural identity takes the application only through its application
 digest (`Export.Stage1.PerApplicationCanonicalPackage.structuralValue`).
+
+The adversary may replace all prover code, including witness generation and proof
+serialization. Only the verifier's code and package are fixed. The Lean games
+read arbitrary assignments, proof messages and envelopes, not outputs of an
+honest prover algorithm.
 
 ## Adversaries
 
@@ -114,8 +119,10 @@ digest (`Export.Stage1.PerApplicationCanonicalPackage.structuralValue`).
   bound and a slot (`Lifecycle.RandomOracleTest.Point`).
 - **Does not control:** the application, the setup chunks, which are uniform
   256-bit values (trust item 2), and `H`, a uniform random function of each
-  challenge's address, its exact call list and its slot (trust item 1). The adversary is chosen before
-  the chunks, so it cannot contain a kernel vector of the key.
+  challenge's address, its exact call list and its slot (trust item 1). The
+  adversary is fixed before the chunks and receives no advice about the
+  sampled key. A kernel vector found after reading the chunks is charged to
+  the MSIS term.
 - **Wins:** the oracle verifier accepts the claim, the child witnesses open
   the returned children, the prior preimage links the claim, and extraction
   returns no source-valid witness. The link
@@ -146,6 +153,10 @@ digest (`Export.Stage1.PerApplicationCanonicalPackage.structuralValue`).
     (`Lifecycle.RandomOracleKnowledge.statisticalError_le`), so at `Q = 2^64`
     it is below `2^-51` (about `2^-51.80`;
     `Lifecycle.RandomOracleKnowledge.statisticalError_two_pow_64`).
+    At `Q = 41`, the positive test term alone is
+    `115 · 4589/p² > 2^-109`. Thus this theorem cannot certify a 109-bit
+    one-fold statistical bound for that query budget. This is a limit of
+    the bound, not a 41-query forgery.
   - `Export.Stage1.RandomOracleSetup.msisAdvantage`: the success of an
     explicit MSIS solver on a uniform matrix. It runs the binding reduction
     `Lifecycle.RandomOracleBinding.rerunKernel`, which computes a nonzero
@@ -185,6 +196,42 @@ digest (`Export.Stage1.PerApplicationCanonicalPackage.structuralValue`).
   points of one execution as the sponge does, the two agree
   (`Lifecycle.RandomOracleFidelity.accepts_iff_verify`), and every execution
   has such an oracle (`Lifecycle.RandomOracleFidelity.deployedOracle_deployed`).
+  `Lifecycle.RandomOracleExtraction.Claim` contains an assignment for each
+  child, and its `Accepts` event requires every child assignment to satisfy
+  `CE.Holds`. The public NIFS proof does not carry those assignments. The
+  adversary algorithm in this game can be arbitrary, but its success event is
+  conditional on valid child openings; this theorem alone does not bound all
+  proofs that the official verifier can receive. The reverse history walk
+  obtains child openings from its current source result
+  (`Export.Stage1.HyperNovaVisitedSecurity.Stage.nifs`) and then uses its
+  separate Assumption 1 to extract the preceding source. Neither step follows
+  from this one-fold oracle theorem alone.
+  Oechsner, Pereira and Scholl (ePrint 2025/1835, Section 3.3) show how an
+  unannounced restriction on malicious prover outputs can hide a missing
+  verifier check. This restriction is explicit here, but it must not be
+  treated as unconditional public-verifier soundness.
+  Parno (ePrint 2015/437, Section 3) reuses a QAP proof for a false public
+  statement when the verifier checks only a linearly dependent projection of
+  its input/output values. The selected terminal verifier compares the whole
+  externally expected state, recomputes the state hash from the running
+  claims, requires the children's canonical split of their parent, and checks
+  every fresh witness public coordinate. The compressed terminal also enters
+  the whole state as public circuit words (`lifecycle/verify.rs`,
+  `lifecycle/inputs.rs`, `lifecycle/terminal/mod.rs`). The paper's projection
+  substitution therefore has no identified path here; Poseidon2 binding and
+  the Rust-to-Lean refinement remain separate premises.
+  Tang et al. (ePrint 2024/514, Section 2.2) describe an unused-public-input
+  replay and a prover assignment that has no matching constraint. The
+  selected fresh public input equals the rehashed terminal state and every
+  coordinate equals its witness projection (`lifecycle/verify.rs`). The
+  compressed terminal has nine fixed external statement words; `Shrink::start`
+  absorbs all of them before the commitment, and `shrink::verify` includes
+  all of them in its public-input evaluation and checks the shape-run public
+  words against the statement. Lean's
+  `CompressionLean.Terminal.circuitPackage_implies_terminal` connects the
+  selected terminal circuit to the terminal check under its opening premise.
+  This check finds no omitted external state word in that path; the concrete
+  WHIR and Rust-to-Lean premises remain.
   The deployed system checks every fold only inside the step circuit of
   `F′`, with Poseidon2. The Rust terminal verifier checks the final openings
   and the state-hash link, and runs no fold
@@ -198,6 +245,23 @@ digest (`Export.Stage1.PerApplicationCanonicalPackage.structuralValue`).
   draws the chunks after the adversary is fixed, but the deployed seed is
   fixed and public. An adversary that is precomputed for that seed, or an
   application that is chosen after it, is outside the model.
+  Chiesa and Orrù (ePrint 2025/536, revised 2026-03-27, Construction 3.3
+  and Theorem 1) bound Fiat–Shamir soundness and knowledge error for an
+  *ideal-permutation* duplex with an independent random instance hash,
+  overwrite absorption, and an explicit challenge-decoding bias. Their
+  adversary may also query the inverse permutation. The selected F′
+  transcript starts from a zero state and adds inputs to its rate lanes;
+  its 74 oracle addresses are modeled by a uniform random function, not
+  by that duplex game. Its field-lane coin reads need no reduction into a
+  smaller challenge field, but this does not identify the two games. The
+  paper's `25t² / |Σ|^c` ideal-permutation term and extractor theorem cannot
+  certify the fixed Poseidon2 transcript or a 110-bit public minimum.
+  The raw additive absorb also gives one state to distinct variable-length
+  lists such as `[a]` and `[a, 0]`. The selected public ΠCCS verifier fixes
+  one fresh claim, its 270-word input, every round length, and the output
+  length, so this alias alone gives no accepted false proof. The oracle game
+  permits arbitrary call lists, however, and one-execution sponge fidelity
+  does not prove independent answers for all such lists.
 
 The proof follows the interactive SuperNeo v1.2 extraction and replaces each
 fresh verifier coin by an oracle read. The Lean column names the declaration for each step:
@@ -220,7 +284,8 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
   after any number of folds, up to a symbolic depth, for a fixed application
   and commitment setup. The adversary must be admitted (trust item 4).
 - **Wins:** the terminal is accepted, and no valid history exists: no
-  application witnesses of the circuit's witness length take `z0` to `zi` in
+  application witnesses of the circuit's witness length satisfy the
+  application's validity predicate at each step and take `z0` to `zi` in
   `iteration` steps (`Export.Stage1.HyperNovaFalseAcceptance.FalseAcceptance`).
   Every history that the reverse run returns has that length
   (`Export.Stage1.HyperNovaHistory.run_witness_length`).
@@ -264,7 +329,7 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
   statement read the adversary's own tape
   (`Export.Stage1.NebulaMemorySecurity.input_adversaryTape`). For an
   adversary whose outputs can have more than `S_max · N` steps, the same
-  bound holds for its clamped form
+  bound holds for its clamped form when its start stage is admitted
   (`Export.Stage1.NebulaMemorySecurity.bad_le_clamp`).
 - **Deterministic part:** an accepted run gives an execution, a Poseidon2
   collision among the run's own chain inputs and the `D_init` chain, or a
@@ -279,6 +344,20 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
   transcript collision (`Lifecycle.Nebula.badAt_bound`). Here
   `m_mem = R + M + N · B_ops`, and setup rule 6 keeps `2 · m_mem/q²` at most
   `2^−109.91` (`Spec.Nebula.Geometry.secure_iff`).
+  A public Rust-built geometry with `r = 10`, `μ = 11`, `N = 1`, `B_ops = 2`,
+  `B_scan = 3072` and `S_max = 64` has `m_mem = 3074` and passes setup.
+  Its one-segment term has 115.414 bits; charging that term over the 64
+  allowed segments gives 109.414 bits before transcript-query, collision,
+  and Stage 1 history errors. The numeric gate of `nebula::Circuit::verifier`
+  and `nebula::Circuit::prover` charges the term over all `S_max` segments,
+  so it rejects a 110-bit minimum for this geometry
+  (`crates/nightstream/tests/nebula/security.rs`).
+  Adding the reference application's conservative one-fold `Q = 0` profile
+  term to that 64-segment term gives
+  `74·5161/q² + 17²·(1/5^54 + 2^−132) + 64·2·3074/q² ≈ 2^−108.43`.
+  The two terms come from different idealized games. This sum is a budget
+  illustration, not a theorem for the deployed verifier. It shows that
+  checking each term against 109 bits does not certify a 109-bit total.
 - **Depth:** the depth is `S_max · N`, so the depth limit of adversary 4
   applies.
 
@@ -306,7 +385,122 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
    idealizes one hash call on the whole transcript. The standard
    justification would be duplex-sponge Fiat–Shamir in the ideal-permutation
    model, where the rate lanes of one permutation output are independent;
-   Lean does not prove it. The same sponge also computes the state hash, which the theorem
+   Lean does not prove it. Chiesa and Orrù (ePrint 2025/536, Theorems 6.1 and
+   6.2) bound an overwrite-mode duplex with a separate random input hash.
+   `Poseidon2Transcript::absorb_v1_2` instead adds each chunk to the rate lanes
+   and permutes after it, starting from zero. Their bound does not apply to
+   this selected transcript without a new reduction for its exact schedule.
+   Ashur and Bhati (ePrint 2024/911, Sections 5 and 6) include additive
+   chaining over prime fields in their generalized sponge model. Their
+   random-oracle analysis requires injective padding and treats one hash
+   invocation. It does not directly justify this transcript's intermediate
+   challenge reads, including several lane pairs from one state and the
+   zero-chunk transition after the sixth pair.
+   Dao, Miller, Wright and Grubbs (ePrint 2023/691, Section VI) break a weak
+   Fiat–Shamir Spartan transcript by choosing one public input after its
+   challenges. In Nightstream, `bind_and_sample_with_trace` absorbs the fresh
+   public input before `α`; the official F′ constraints check that its prior
+   digest matches the running claims. Layer 1 starts from its key and claim,
+   and shrink starts from its key and state, before either first challenge.
+   The paper's late-public-input attack does not directly apply to these
+   configured paths. It does not prove the concrete transcript secure.
+   Fenzi (ePrint 2026/1838) attacks generated R1CS when the first
+   Fiat–Shamir challenge does not bind the generated statement. The first
+   Π_CCS absorb includes the fresh public input, which the verifier requires
+   to contain the state hash of the configured relation and application
+   context. Layer 1 absorbs its trusted matrix-root key and statement before
+   its first challenge. The paper's delayed-statement attack therefore needs
+   a state-hash collision or a change to verifier-owned authority here; this
+   does not settle the concrete Poseidon2 random-oracle premise.
+   Merz and Rodríguez García (ePrint 2026/306, Section 3.2) give faster
+   algebraic attacks on Poseidon2's linear layers and on some sponge and
+   compression modes, while reporting no break of the 128-bit sets they
+   analyze. The selected permutation uses 16 Goldilocks words, `x^7`, eight
+   full rounds and 22 partial rounds. Its external layer has the paper's
+   `(I₄ + J₄) ⊗ M₄` shape. Rust's selected `M₄` differs from the paper's
+   displayed block but has determinant `-35 mod q`. Since `x^7` is odd, the
+   paper's local `(X, -X)` subspace condition can be solved for one initial
+   external round with any round constants. This does not establish the input
+   and output conditions or cost of a full attack. Their mode estimates do not
+   bound this additive duplex's repeated intermediate lane reads.
+   Hovhannisyan, Asaturyan and Hovhannisyan
+   (ePrint 2026/409) report no forgery from their coupled Poseidon and
+   Fiat–Shamir algebraic experiments, even with reduced rounds. Those
+   negative experiments are not a security reduction for this transcript.
+   Grassi, Koschatko and Rechberger (ePrint 2025/954, Section 7.2 and
+   Table 3) analyze Poseidon2 sponge subspace attacks near `p = 2^64` with
+   width 16, capacity four and digest four. Their table fixes a cubic S-box
+   and six full rounds, unlike this `x^7`, eight-full-round profile, and they
+   report no break of the instances they analyze. Their estimated costs do
+   not price this selected tuple or its intermediate transcript reads.
+   Vitto (ePrint 2026/1579, revised 2026-09-18, Sections 5.2 and 6.2)
+   constructs a weak Poseidon matrix after seeing the round constants. The
+   selected Poseidon2 external and internal matrices are fixed independently
+   of the seed-derived constants. For the paper's direct, jointly independent
+   four-full-round CICO-4 prefix construction, Proposition 4 requires
+   `4 · (4 + 1) = 20` matrix actions at width 16, so that construction cannot
+   fit. The paper does not rule out dependent constructions, and neither
+   result bounds this additive duplex with intermediate challenge reads.
+   Jo (ePrint 2026/1760, Theorem 1) gives a full 28-round Poseidon
+   feed-forward compression collision over KoalaBear after selecting its MDS
+   matrix from the round constants. The selected construction instead fixes
+   Poseidon2's Goldilocks external and internal layers independently of its
+   round constants, uses `x^7` and 22 partial rounds, and does not use that
+   feed-forward compression. Thus the stated collision construction does not
+   instantiate here; it also supplies no security bound for this transcript.
+   Li, Liu and Wang (ePrint 2026/1792, Sections 4.2–4.3) extend algebraic
+   subspace attacks to nonlinear trails. Their `p ≈ 2^64` sponge estimates use
+   a cubic S-box and six full rounds; their highlighted `x^7` cases use
+   `p ≈ 2^256`. Neither matches this 16-word Goldilocks, `x^7`, eight-full,
+   22-partial-round profile. The method itself does reach the selected
+   internal linear layer: with four capacity words and a four-word digest,
+   its sponge CICO budget is `E_c = 16 - 4 - 4 = 8`. The Appendix B.7 even-
+   construction core `N_e` is `7 × 7`; direct arithmetic modulo Goldilocks
+   with the pinned internal diagonal gives
+   `det(N_e) = 2691752801020228242 ≠ 0`. Thus the matrix-level balancing
+   check supports that paper's 16-partial-round trail here. The selected
+   permutation has 22 partial rounds and eight full rounds. The paper gives
+   no cost for this selected tuple, and its CICO preimage model does not
+   analyze the additive duplex's intermediate challenge reads. This check
+   does not prove a break or the oracle premise.
+   Li and Wang (ePrint 2026/967, Section 4, Proposition 3) show that the
+   `diag(λ) + J` internal layer has no infinite linear subspace trail of
+   their type when its 15 inactive-coordinate diagonal entries are pairwise
+   distinct; the finite linear trail has length at most 15. The pinned
+   Goldilocks diagonal has 15 distinct inactive entries, and their
+   Vandermonde determinant is `11457322283648754730` modulo `p`, not zero.
+   This excludes that paper's repeated-diagonal infinite linear trail here.
+   It does not exclude nonlinear trails, settle the full permutation's
+   algebraic cost, or justify the concrete transcript as a random oracle.
+   Bak, Bariant, Boeuf, Hostettler and Jazeron (ePrint 2026/150, Tables 1–3)
+   analyze a Goldilocks Poseidon2 instance with width eight and `x^7`:
+   their concrete bounty targets have six full and at most 13 partial rounds,
+   while their 8-full/22-partial CICO-1 estimate is for width eight, not the
+   selected width 16. Sanso and Vitto (ePrint 2025/937, Table 2) solve the
+   width-eight 6-full/7-partial Goldilocks bounty instance. Neither result
+   gives a preimage, collision, or cost for this selected 16-word permutation
+   or its multi-read transcript.
+   Bak and Hostettler (ePrint 2026/1905, Table 2) improve the bivariate
+   resultant method for CICO-2 under stated heuristics. Their 128-bit table
+   estimates about `2^169` field operations for an eight-word Poseidon2
+   instance with `x^7`, eight full rounds and 22 partial rounds. Its width,
+   two-coordinate CICO experiment and single-permutation mode differ from
+   this selected 16-word additive transcript with intermediate reads. The
+   table neither gives an attack below 110 bits here nor certifies the
+   selected transcript's concrete security.
+   Zhao, Sanso, Vitto and Ding (ePrint 2025/1916, Section 4.2 and Table 3)
+   speed up Graeffe-based CICO-1 root finding and solve width-eight Goldilocks
+   Poseidon2 targets with six full and 7, 8 or 10 partial rounds. Their
+   measured and estimated costs do not cover the selected width-16,
+   eight-full, 22-partial-round permutation or this transcript mode.
+   Sanso and Vitto (ePrint 2026/1254, Sections 3–4) introduce degree
+   annihilation for cubic Poseidon, with a reduced-round CICO-2 proof of
+   concept. They identify FFT-friendly width-16 settings as natural further
+   targets, but do not give control equations, a solution or an attack cost
+   for this `x^7` Poseidon2 instance with eight full rounds. Their reported
+   full-round estimates do not fall below the claimed security levels of the
+   parameter sets they consider; this is not a bound for the selected tuple.
+   The same sponge also computes the state hash, which the theorem
    treats as a concrete function. The state hash is a four-lane read after its
    own call list (`Lifecycle.TranscriptCoverage.stateHash_eq_run`), and the
    only common prefix of a challenge's call list and a state hash's call list
@@ -320,6 +514,22 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
    scalar is the existing sampler applied to an oracle answer; its law is
    within `2^-132` of uniform on the strong set
    (`Spec.Folding.Nifs.NonInteractive.PiRlcSampler.distance_lt`).
+   The F′ circuit also computes Poseidon2 while it checks the prior Π_CCS
+   fold (`Lifecycle.Stage1.piCcsChild`), and the reference application
+   computes Poseidon2 (`Lifecycle.Stage1.Poseidon2HashChainV1.step`). The
+   random-oracle theorem fixes `ProductionKey.LogicalRelation` before drawing
+   the ideal challenge oracle (`Lifecycle.RandomOracleKnowledge`); it does not
+   model a circuit that queries that same ideal oracle. Arnon and Yogev
+   (ePrint 2025/329, Section 2.4) and Ghosal et al. (ePrint 2026/2114,
+   Section 2.1) explain how a computation that evaluates its own
+   Fiat–Shamir hash can predict a challenge in diagonalization attacks on
+   recursive proof systems. Their examples also need a way to turn that
+   prediction into an accepted false output. No such path has been found in
+   the fixed F′ or reference application, but the theorem above does not
+   prove soundness when the ideal oracle is instantiated by the same
+   Poseidon2 that the circuit computes. This concrete recursive
+   Fiat–Shamir premise remains open even with the state-hash domain
+   separation proved above.
 2. **SHAKE128 as a random oracle (premise P1).** For every setup, each key
    coefficient is one SHAKE128 output chunk reduced modulo `p`
    (`Spec.AjtaiSetupV1.Programming.verifierKey_eq`). The
@@ -331,9 +541,15 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
 3. **Two hardness terms.**
    - If MSIS is hard for a uniform matrix of `22 × blockCount` elements of
      `F_p[X]/Φ₈₁` (degree 54) at norm `8TB`, at the solver's work, then
-     `msisAdvantage` is small. `blockCount` is at most 4,971,027 for every
-     application that fits, and 814,144 for `Poseidon2HashChainV1`. MSIS
-     hardness is stated for solvers with a strict time bound. The solver
+     `msisAdvantage` is small.
+     `Export.Stage1.PerApplicationFixedPoint.FitsTwoPow28.carrier` and the
+     54-coefficient ring layout limit `blockCount` to 4,971,026 for every
+     fitting Lean application. The proof
+     `Export.Stage1.RandomOracleSetup.programmingError_lt_of_fits` uses the
+     conservative upper bound 4,971,027. The public Rust setup caps proofs
+     at 4,708,530 columns (`MAX_MESSAGE_COLUMNS`); `Poseidon2HashChainV1`
+     uses 814,144. MSIS hardness is stated for solvers with a strict time
+     bound. The solver
      `Lifecycle.RandomOracleReduction.solve` with a strict budget of `T`
      adversary runs loses at most `(35 Q + 653) / T`:
      `msisAdvantage ≤ solverAdvantage T + (35 Q + 653) / T`
@@ -341,10 +557,118 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
      `solverAdvantage T` is the success of `solve`. So MSIS hardness at the
      work of `T` runs applies to `solverAdvantage T`. The
      2026-09-08 public-seed MSIS approval covered the ChaCha20 matrix only.
-     For ordinary binding collisions under the SHAKE128 matrix of the
-     reference application,
+     For ordinary binding collisions in the SHAKE128 random-oracle setup
+     game for the reference application,
      `Export.Stage1.Poseidon2HashChainV1Setup.production_binding_lt_solver` gives an
      MSIS solution for a uniform matrix, with error below `2^-190`.
+     Wee and Wu (ePrint 2024/028, Section 4) attack extractability of other
+     lattice functional commitments by deriving a short-preimage basis from
+     their published setup. This setup publishes a matrix description, not
+     those short preimages, and this theorem uses MSIS binding plus a
+     rewind-based protocol extractor rather than an extractable Ajtai
+     commitment premise. Their attack gives no false proof for this
+     selected verifier and does not close this extractor's recursion bound.
+     For the selected Goldilocks prime, `q mod 81 = 4` and
+     `ord_81(q) = 27`; thus `Φ₈₁` has two degree-27 factors over `F_q`.
+     At the selected MSIS norm `8TB = 113,246,208`, `3(8TB)² < q`.
+     `Spec.Phi81StrongSet.lowNormInvertibility` therefore rules out a
+     nonzero short ring word that vanishes in only one CRT factor.
+     The unstructured lattice estimate does not price attacks that use this
+     CRT split. Youmans (ePrint 2026/2420, Theorem 1 and Section 8) proves a
+     subexponential uniform-key Module-SIS algorithm for power-of-two
+     cyclotomic rings and a coefficient bound `q/(ln n)^c` for fixed `c > 0`.
+     Theorem 1 assumes fixed module ranks and a specified asymptotic modulus
+     growth rate. Its proof and concrete cost do not cover this degree-54
+     `Φ₈₁` ring or the selected fixed key. The constant-coefficient
+     restriction below gives an independent uniform flat-SIS subproblem in
+     the uniform-key game, so a related unstructured SIS route remains open.
+     The authors' published `sis_grid.py` is a heuristic diagnostic, not an
+     implemented attack or a lower bound. At `n = 1,188`,
+     `q = 18,446,744,069,414,584,321`, `β = 113,246,207`, and both the
+     reference width 814,144 and Rust cap 4,708,530, it reports no modeled
+     hit on list-exponent grid points 0.1 through 110 in steps of 0.1.
+     This finite result does not establish 110-bit selected-key security.
+     Zhang, Zhou and Qu (ePrint 2026/607, revised 2026-10-16, Section 6)
+     refine a generic q-ary Approx-SVP estimate for MSIS. Their numerical
+     model reduces Dilithium's classical Core-SVP estimates by 3.65 to 6.09
+     bits. It expands Module-SIS to a generic q-ary lattice and does not
+     exploit module structure; it gives no cost for this degree-54 Φ₈₁ key,
+     its 64-bit modulus, selected `8TB` norm, column count or the owner's
+     ADPS16 quantum model. The Dilithium bit changes cannot be subtracted
+     from the selected setup's 110.685-bit post-allowance quantum estimate
+     (`decisions/fprime-stage1-main-ajtai-setup.md`). That narrow estimate
+     remains conditional on its Core-SVP model; no refined selected-key
+     estimate establishes its margin.
+     Koo, Lee, Lee, No and Kim (ePrint 2020/1257, Theorem 3) give a
+     same-prime-modulus reduction from module-SIS to ring-SIS, conditional on
+     a ring-SIS solver and their rank and norm premises. For rank 22, its
+     output Euclidean norm is `(t σ √n · m)^21 β^22`, where `m` is the number
+     of ring columns and `β` is the assumed ring-SIS solution norm. This is
+     not the selected coefficient-infinity bound `8TB`, and the theorem gives
+     no fixed-key attack or cost for it.
+     Porter, Mendelsohn and Ling (ePrint 2021/600, Theorem 8) reduce SVP in
+     either prime ideal above `q` to a two-dimensional subfield problem here:
+     `v₃(q − 1) = 1`, so their parameter `r` is zero and `φ(3) = 2`.
+     This does not yield a short word under `8TB`, by the Lean invertibility
+     bound above. Their module extension (Section 6) requires decomposition
+     group symmetry of the target module; a kernel of a uniform matrix is
+     not generally fixed by those automorphisms. This paper gives no cost
+     for the selected random module-SIS kernel.
+     Cramer, van Gent, Lesavourey and Pellet-Mary (ePrint 2026/1805,
+     Theorems 3–4) likewise reduce module-lattice dimension only when a
+     nontrivial Galois group fixes the module coordinate-wise as a set, under
+     their unramified-discriminant premise. The indexed SHAKE128 key-generation
+     rule imposes no such symmetry. For the selected fixed key, let `A₀` be
+     its first 22 rows and blocks 0–21 over `R_q`, let `b` be block 22, and
+     solve `A₀x = b` by unit-pivot elimination. Independent Python and Rust
+     ring calculations confirmed that `(x, -1)` is in all 22 kernel rows.
+     For each of the 53 nonidentity automorphisms `σ_a: X ↦ X^a` of
+     `Q(ζ₈₁)`, the constant coefficient of row 0 of `Aσ_a(x, -1)` is nonzero;
+     the product of these 53 coefficients modulo `q` is
+     `11665745737130300385`. Thus no nontrivial Galois automorphism fixes
+     this selected q-ary kernel as a set. This excludes the cited dimension
+     reduction for this key; it does not bound other module-SIS attacks.
+     De Perthuis and Trenkić (ePrint 2026/2527, Theorem 1) show that the
+     relative coefficient and canonical embeddings agree up to scaling for
+     `Q(ζ₈₁)` over its degree-two subfield `Q(ζ₃)`: their condition holds
+     because `rad(81) / rad(3) = 1`. Their module-BKZ analysis (Lemma 7)
+     identifies such subfields as favorable under its uSVP heuristics. This
+     is a separate structured attack route that does not need the symmetry
+     used in ePrint 2021/600. The paper's concrete NTRU+ estimates concern
+     a short secret sampled in coefficient geometry; they do not price a
+     short kernel of this uniform matrix under the coefficient infinity
+     bound `8TB`. The selected module-SIS cost remains open.
+     Ducas, Engelberts and de Perthuis (ePrint 2025/1904) predict
+     module-BKZ slope gains for odd-conductor cyclotomic fields, but state
+     that translating a slope gain into a module-SIS attack cost remains an
+     open question. Their asymptotic block-size formula is not a cost for
+     this kernel either.
+     Bollauf, Pouly and Shen (ePrint 2026/225, Theorem 5) give a Gaussian-
+     sampling algorithm for SIS in the infinity norm when the bound is below
+     `q/2`, as `8TB` is here. The full coefficient expansion of this ring
+     matrix has correlated rows. However, restricting each witness ring word
+     to a constant coefficient gives a flat `22 · 54 × blockCount` matrix:
+     its columns are independent and uniform in the uniform-ring-key game.
+     A nonzero integer kernel vector below `8TB` for this flat matrix is a
+     module-SIS kernel by using those integers as constant ring words.
+     Thus their random-matrix attack applies to this restricted subproblem
+     in that game. Their reported 50-bit gain compares with an older
+     provable Wagner algorithm, not with the heuristic BKZ/sieving model
+     used for this profile. Their Dilithium examples give no cost for the
+     `1,188 × blockCount` subproblem or the fixed SHAKE128-expanded key.
+     Ding (ePrint 2010/581, Section 2) proposes a polynomial-time
+     linearization for a near-square flat SIS matrix under its stated
+     `w ≥ binom(w − r + 2β + 1, 2β + 1)` condition, with `r` rows, `w`
+     chosen columns and coefficient bound `β`. Here `r = 1,188`.
+     At `β = 8TB − 1 = 113,246,207`, even `w − r = 1` would require
+     `w ≥ 226,492,416`, beyond the 4,708,530-column Rust cap.
+     Choosing a smaller `β` does not make this condition a useful
+     uniform-key attack: it implies `w − r ≤ 17`, `w ≤ 1,205` and
+     `β ≤ 601`. A union bound over every such column subset and nonzero
+     bounded vector has probability below `2^-47,581` for the uniform flat
+     matrix at the Rust cap (arithmetic outside Lean). This excludes that
+     stated near-square regime in the uniform-key game; it neither prices
+     other high-density algorithms nor bounds the fixed SHAKE128 key.
    - If Poseidon2 state-hash collisions are hard to find, then
      `hashCollisions` is small. Collision hardness is also stated for
      algorithms with a strict time bound. Eighteen finders with a strict
@@ -398,6 +722,20 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
      verifier-context digest. This is the cause of the difference above. So
      `Assumption1` is a premise about the Nightstream transcript, not the
      paper's premise about Construction 3.
+   - SuperNeo v1.2 Lemma 8 makes Π_RLC weak with the full source commitment
+     tuple as its projection: its source-opening extraction compares forks
+     whose projected commitments agree. Lean uses that projection
+     (`Spec.Folding.PiRLC.phi`) and preserves it across Π_CCS outputs
+     (`Spec.Folding.PiCCS.PaperJoint.StrongReduction.repeatedPublicOutputs_same_phi`).
+     The fresh commitment enters the selected transcript directly, but the
+     running commitments enter through the prior-state digest. Applying
+     Lemma 8 to a modified prover that changes those commitments between
+     forks therefore needs the prior-link check and the state-hash collision
+     premise above; a sampled `ρ` alone does not fix the tuple. Lean proves
+     the running-commitment serialization injective
+     (`Layout.Stage1.StateEncoding.serializeRunningFields_injective`), and
+     Rust recomputes the digest from those commitments at the terminal
+     (`lifecycle/inputs.rs`, `lifecycle/verify.rs`).
    - This joint form implies Definition 7's difference form
      `Pr[success] − Pr[extraction] ≤ error`. The converse needs an adversary
      that stops when its own success check fails.
@@ -419,9 +757,13 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
    so far, as one algorithm. An admitted stage gives an admitted NIFS
    adversary, and one reverse step of an admitted stage with an efficient
    extractor is again an admitted stage. The IVC adversary is the start stage,
-   which must be admitted. `Admitted`, `StageAdmitted` and `Efficient` are
-   abstract; their intended meaning is expected polynomial time. Lean has no
-   running-time model, so it states no false claim about running time, and
+   which must be admitted. To cover a modified prover, `StageAdmitted` must
+   include its arbitrary efficient output algorithm, and `Admitted` must
+   include each NIFS algorithm derived from that output. Neither class may
+   require proof messages to come from the official prover. `Admitted`,
+   `StageAdmitted` and `Efficient` are abstract; their intended meaning is
+   expected polynomial time. Lean has no running-time model, so it states no
+   false claim about running time, and
    the closure property is a premise. A `goodActive` visit is a real success
    (`Export.Stage1.HyperNovaVisitedSecurity.realSuccess_of_goodActive`).
    Assumption 1 is the paper's plain-model premise, not a theorem. The step
@@ -464,11 +806,170 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
      `Q_0 = 2^30`. So, with these values, the bound is useful only for a depth
      of one or two folds, and it gives no concrete security for long chains.
      This is the constant-depth limit of Lemma 17; the Lean statement is
-     correct for every depth.
-5. **Rust and Lean agree on recorded inputs only.** The golden conformance runs
-   and the recorded native evidence cover their recorded inputs. No theorem
-   covers arbitrary Rust execution.
+     correct for every depth. As a provisional 64-fold planning case, even
+     assigning each fold only the `Q = 0` one-fold test term gives the
+     arithmetic sum `64 · 74 · 4589 / p² ≈ 2^-103.63`. This is not a
+     recursive-history bound: it omits oracle queries, state-hash collisions,
+     MSIS and the extractor's growing cost. A production fold cap is not yet
+     fixed. Even a hypothetical charge of one `4589/p²` test term per fold
+     gives `64 · 4589/p² ≈ 2^-109.84`, so this simple additive accounting
+     cannot certify 110 bits at depth 64. This is not a lower bound on an
+     attack's success probability.
+     Lee and Seo, ePrint 2024/232 (revised 2026-02-13), give an artificial
+     IVC scheme that meets bounded-depth knowledge soundness but is forgeable
+     at polynomial depth. Their polynomial-depth result for Nova uses the
+     extended algebraic group model and a general zero-testing hash premise.
+     Neither premise has been established for this Ajtai and Poseidon2
+     instantiation, so that result does not close this depth gap.
+     Hall-Andersen and Nielsen, ePrint 2022/542 (Theorem 1), show that a
+     succinct random-oracle IVC cannot have their stated knowledge-sound and
+     zero-knowledge guarantees for every nondeterministic transition while
+     keeping sublinear verification. Their theorem constructs a transition
+     function and concerns sufficiently long polynomial depth. This verifier
+     fixes one application, claims no zero-knowledge guarantee, and has only a
+     provisional 64-fold planning case. The theorem therefore gives neither
+     a forgery for this application nor a 64-fold bound; it reinforces the
+     need to state the exact recursion and oracle assumptions above.
+     Nguyen, Boneh and Setty (ePrint 2023/969, Appendix B) break an older
+     two-curve Nova verifier by splicing valid current pairs from separate
+     chains: its checks do not link a prior fresh pair in one curve to the
+     corresponding running pair in the other. The selected Nightstream
+     relation has one running family. Its F′ step checks the fresh public
+     input against `stateHash(vk, i, z0, zi, U_i)` and checks the NIFS
+     transition from that `U_i` to `U_{i+1}`; the terminal binds the current
+     state to the running family (`SPEC.md`, Algorithms 3 and 6). This
+     excludes that missing-link splice, but is not a separate proof of
+     concrete security at depth 64.
+     Campanelli, Fiore and Pancholi (ePrint 2025/1413, revised 2026-10-16,
+     Theorems 2 and 6) show that an IVC already insecure beyond constant
+     depth has no general graceful soundness degradation, and give a way to
+     boost depth by constructing a different scheme from short chains.
+     Neither result shows this protocol is insecure at 64 folds or gives it
+     a 64-fold security bound.
+     Maller, Mohnblatt and Zapico (ePrint 2025/1663, Theorem 4) prove
+     polynomial-depth HyperNova knowledge soundness in their open-and-sign
+     random-oracle model, over a two-curve cycle. Its oracle records
+     decompositions of elliptic-curve commitments, and the paper does not
+     instantiate it from a plain hash. This Ajtai and Poseidon2 path has no
+     such oracle, so that theorem supplies no 64-fold bound here.
+     Chiesa, Guan, Samocha and Yogev (ePrint 2023/1646, Theorem 1) give a
+     small recursion loss for PCD from a relativized argument with a
+     straightline knowledge extractor, including oracle calls in the proved
+     computation. The extractor used by
+     `Lifecycle.RandomOracleKnowledge.knowledge_error_le` reruns the
+     adversary on changed oracle answers, so it is not straightline. Their
+     theorem therefore does not remove this query growth or justify the
+     provisional 64-fold case.
+     Block, Garreta, Tiwari and Zając (ePrint 2023/1256, Theorem 1.3) show
+     that even special soundness of a multi-round IOP need not imply
+     round-by-round knowledge soundness. Thus a one-fold extraction argument
+     alone cannot be used as that stronger history premise. Their separation
+     does not give a forgery for this fixed SuperNeo and HyperNova path.
+     Chiesa, Guan, Wang and Wu (ePrint 2026/2209, Theorems 1 and 2) show a
+     strict-time black-box rewinding barrier for Kilian-style arguments and
+     give an expected-time analysis for interactive, multi-round
+     commit-and-open IOP arguments with position-binding commitments. The
+     positive theorem does not analyze the Fiat–Shamir transform, this
+     Ajtai/Poseidon2 NIFS inside F′, or repeated recursive extraction. It
+     therefore supplies no concrete 64-fold bound; its expected-time model
+     is consistent with, but does not prove, `StageAdmitted`'s intended
+     reading.
+     Abe, Balbás, Bui, Ohkubo, Shang, Takahashi and Tibouchi
+     (ePrint 2026/1679, Appendix B.4, Lemma 10) give a critical-round tree
+     extractor for Spartan's sumcheck sub-protocol with Pedersen commitments
+     and a dot-product Sigma proof. Its own statement requires surrounding
+     sub-protocols to link extracted openings to the statement. The selected
+     final compression uses WHIR, and recursive folds use SuperNeo/Ajtai.
+     That result supplies no extractor or 64-fold bound for this path.
+     Külaots, Lipmaa, Parisella and Siim (ePrint 2026/326, Theorems 6 and 13)
+     obtain tight Fiat–Shamir knowledge soundness from a special-sound
+     univariate polynomial IOP and a polynomial commitment with the stated
+     evaluation- and degree-binding properties. Theorem 13 treats an
+     interactive univariate PCS with corresponding special-binding notions.
+     Neither theorem supplies special soundness or those binding premises for
+     this rewind-based SuperNeo NIFS or the multilinear WHIR compression.
+     Thus this compiler result does not give a 64-fold history bound here.
+5. **Rust-to-Lean coverage.** The golden conformance runs and recorded native
+   evidence cover their recorded inputs. For the two pinned memory packages,
+   executed tests compare every logical matrix row against the Lean artifact.
+   No theorem covers arbitrary Rust execution. HyperNova Definition 12
+   requires witness-independent, efficiently invertible structure and instance
+   encodings, monotonicity, and default satisfying instances for its NIVC
+   compiler. The selected base case has Lean proofs, but no theorem shows that
+   every public Rust-built application meets those compiler premises. In
+   particular,
+   `Lifecycle.Stage1.Application.Program.spec_iff` is a premise of the Lean
+   application interface: it makes circuit satisfaction imply both the step
+   output and `valid`, which
+   `Export.Stage1.ActualApplicationStep.selectedRowsZero_implies_decodedValid`
+   uses. The public Rust `ApplicationBuilder` writes R1CS records and output
+   rows, but no theorem constructs that Lean `Program` from every Rust-built
+   application or identifies every Rust row check with Lean `RowsZero`.
+   Ozdemir, Wahby, Brown and Barrett (ePrint 2023/778, Appendix G) find a
+   field-blasting comparison bug where a prover can choose inconsistent
+   decomposition bits to make a range test return false. The selected F′
+   `CanonicalU64` gadget constrains all 64 bits, their recomposition and the
+   exceptional high-word case (`Gadgets.Range.CanonicalU64.soundness`). The
+   memory rows constrain operation, timestamp-difference and scan bits, and
+   the catalog gates active addresses to those bits (`Lifecycle.Nebula.Rows.slotRows_iff`,
+   `nebula/rows.rs`, `nebula/catalog.rs`). This sampled check finds no such
+   false comparison in those paths; it does not prove the general Rust-built
+   application interface correct.
+   Stephens, Pailoor and Dillig (ePrint 2025/916, Section 10.5) show that a
+   deterministic circuit can still accept inputs that its witness generator
+   does not produce. For the selected Poseidon2 hash-chain application,
+   `Lifecycle.Stage1.Poseidon2HashChainV1.spec_iff` states the exact step
+   relation. The Rust release test `application_poseidon2` compares its rows
+   and witness values with the saved Lean program on the recorded case and
+   rejects changes to an input, output, private input and intermediate word.
+   Those four tests passed on 2026-11-01. They do not establish consistency
+   for every Rust-built application or every input.
+   Kolozyan et al. (ePrint 2025/2120, Section 3.2) show a second way a
+   deterministic output can be false: the constraints may admit an input
+   outside the program's range, Boolean, or other preconditions. The public
+   `ApplicationBuilder` exposes field arithmetic and explicit equality rows;
+   it does not infer an application's intended preconditions. Its `finish`
+   adds an equality row for each output, and `execute` assigns each generated
+   value from its row, so the sampled builder path has no free output. The
+   selected Nebula memory rows constrain operation and control bits, and
+   `Geometry.is_valid` checks their field-width bounds. These observations
+   do not establish that every caller-built application supplies all of its
+   semantic preconditions or meets `Program.spec_iff`.
+   Liu et al. (ePrint 2026/2235, Section 3.2) construct satisfying
+   null-branch witnesses for a different proof relation even with public
+   output rows: a zero factor removes a semantic equation, and later rows
+   can still be completed. In the selected Lean F′ relation,
+   `Lifecycle.Stage1.RunningTransition.soundness` derives the base and
+   recursive output from any row-satisfying assignment, including zero
+   iteration, while `Gadgets.Poseidon2.Permutation.sboxRows_sound` fixes each
+   `x^7` output even at zero input. These theorems exclude those two sampled
+   null branches in the Lean relation. They do not establish the complete
+   Rust-to-Lean application correspondence above or a concrete proof-system
+   bound.
+   The internal `nebula::CatalogBinding` can leave a catalog memory without a
+   region. `CatalogBinding::program` omits its preload, and `rows` adds no
+   slot or row for its events. The Lean result
+   `Spec.Nebula.MemoryTrace.memoryConsistent_of_executes` requires `InRange`
+   for every event of the claimed trace, which entails a region for that
+   event's memory. A modified prover can bypass a host check, so this result
+   cannot certify an active host-only memory. The selected `Machine` uses
+   the memory slots for both of its ports; this catalog limit adds no
+   identified false proof for it. The public `nebula::R1csApplication`
+   rejects a size that leaves any catalog memory without a region. A custom
+   `Application` that claims consistency of a host-only memory needs its own
+   verifier check or a bound region.
 6. **Runtime checks.** The verifier's identity and setup checks stay necessary.
+   The public `Circuit::compile` uses the embedded reference package and its
+   pinned identifier. Only tests call `Circuit::load_package` with a supplied
+   package and identifier. The loader recomputes that identifier from the
+   fixed package and the digest of
+   the application plan, including its assertion rows. The package's
+   application rows, witness instructions and batches must equal the plan's
+   corresponding suffixes (`decode_application_plan`). A changed application
+   row with a newly computed plan digest therefore still needs a collision
+   against the pinned identifier; a changed package suffix without the plan
+   change is rejected. This check assumes Poseidon2 binding and a trusted
+   caller pin. It does not make an unpinned package authoritative.
 7. **The memory round.** `Export.Stage1.NebulaMemorySecurity.MemoryRound`
    states that, for each stage that trust item 4 admits and the memory
    statement of its tape, the extracted run is accepted and has a segment
@@ -477,20 +978,102 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
    proves the premise when `error_mem` is the probability of the event, so
    its content is that `error_mem` is small. The relation computes `η` with
    Poseidon2 inside the proven step, so no random-oracle proof covers it, as
-   for the challenges of trust item 4. The challenge game of adversary 5
-   motivates the target `(Q_η + 1) · (2 · m_mem/q² + ε_coll(t_1))`, where
+   for the challenges of trust item 4. The `2 · m_mem/q²` term needs the two
+   `K` challenges to be jointly uniform after the roots are fixed. Rust
+   `squeeze_k` takes lane zero from four consecutive Poseidon2 permutation
+   states to form that pair; the circuit constrains the same states. Collision
+   resistance alone does not establish their joint distribution, including
+   when the prover chooses and retries roots. Degabriele, Fischlin and
+   Govinden (ePrint 2026/1275, Theorems 6.1 and B.4) prove online-random-oracle
+   indifferentiability for a duplex that XORs encoded rate bits into its
+   state. This sponge adds Goldilocks words instead. The one-lane reads can
+   discard part of a full-rate output, but the field-additive absorption is
+   outside that theorem's stated XOR mode. It does not directly establish the
+   selected `η` game. Khovratovich, Marhuenda Beltrán and Mennink (ePrint
+   2023/520, Theorem 2) analyze a field-additive sponge with multiple outputs.
+   Their SAFECore starts its capacity with an independent hash of the IO
+   pattern and domain, and uses `SAFECorePad`. This transcript instead starts
+   from zero and absorbs length-framed blocks through the rate, so their bound
+   also needs a reduction before it applies here. The challenge game of
+   adversary 5 motivates the target
+   `(Q_η + 1) · (2 · m_mem/q² + ε_coll(t_1))`, where
    `Q_η` counts the evaluations of the `η` transcript, in the circuit and
    outside it, and `ε_coll(t_1)` is the Poseidon2 collision probability at
    twice the time of one run. The owner chose this form
-   (`decisions/nebula-memory-checking.md`). The record chains need only
-   Poseidon2 collision resistance.
+   (`decisions/nebula-memory-checking.md`). It is conditional on the uniform
+   challenge game. A concrete instantiation needs a separate bound for the
+   selected sponge's challenge distribution and its adaptive evaluations;
+   that error is absent from the displayed target and cannot be charged to
+   `ε_coll`. The record chains need only Poseidon2 collision resistance.
 
 ## Out of scope
 
+- Campanelli, Chakraborty and Ganesh (ePrint 2026/2631, Theorem 5.10)
+  attack simulation soundness of zero-knowledge IVCs whose proofs can be
+  merged after the fact. This review's soundness game asks whether the
+  official verifier accepts a false state; it makes no simulation-soundness
+  or proof-non-malleability claim. The selected HyperNova step links one
+  previous running family to one fresh step (`SPEC.md`, Algorithm 3), and
+  no proof-merging relation is selected. The paper gives no false-state
+  proof for this verifier. A caller that needs non-malleability needs a
+  separate security argument.
+- The layer-1 WHIR query sampler permits two redraws. It fails if the first
+  sample and both redraws equal `p − 1` at one query. This is a completeness
+  limit. Successful queries consume the same words as Plonky3 and preserve
+  its next transcript state (`CompressionLean.Circuit.Whir.queryIndex`,
+  `decisions/whir-query-redraws.md`). No numerical bound for this failure
+  event is proved for the concrete Poseidon2 transcript.
+- The layer-1 leaf sponge and node compression have an exact cross-mode alias
+  on an eight-word leaf: hashing two four-word digests as a leaf equals
+  compressing them as a node. The selected setup leaf has 208 words, and the
+  selected WHIR leaf has at least sixteen base words or 48 extension words.
+  The public verifier fixes these lengths and the path depth, so this alias
+  gives no identified public false-proof path. The Merkle binding premise is
+  for these fixed shapes; a profile with eight-word leaves would need another
+  argument (`formal/compression-lean/TRUST.md`, Merkle binding).
+- SP1 advisories GHSA-p7v2-jjv3-8p8f and GHSA-63x8-x938-vx33 show that a
+  prover-controlled tensor length or separate commitment and evaluation
+  shapes can make a native or recursive verifier accept false data. The
+  selected Stage 1 proof decoder derives all matrix sizes from its verifier
+  package and carries no shape words in the proof. `Mat` deserialization
+  checks dense `rows × cols` and packed mask counts. The custom compression
+  verifier checks GKR and WHIR proof lengths against its configured shape;
+  shrink compares the recorded run shape and public words with its layout and
+  statement. No analogous proof-controlled shape split was identified in
+  these public paths. This check is not a general Rust-to-Lean refinement.
+- Fenzi and Sanso (ePrint 2025/2197, Lemma 4.4) give a large-list adversary
+  against a toy hash-based argument and say that finding its chosen list
+  member appears computationally infeasible. Their high-list estimates use
+  proximity near capacity. This verifier selects `JohnsonBound` with a
+  positive margin and an explicit list-size charge (`neo-spartan/src/pcs.rs`,
+  `p3-security` 0.8.0), so the paper gives no public false proof for this
+  profile. Jo (ePrint 2026/891, Corollary 4.6) leaves list size separate for
+  row-wise interleaved codes. The selected WHIR witness stacks its tables
+  into one polynomial, but each commitment encodes `2^folding` columns as
+  a row-wise interleaved Reed–Solomon code (`p3-sumcheck` 0.8.0
+  `commit_base`, `p3-whir` 0.8.0 `commit_extension`). Its relative minimum
+  row distance is at least `1 − (k − 1)/N` for column degree below `k` and
+  domain height `N`. The classical Johnson list bound is independent of
+  this vector alphabet at the selected below-Johnson radius, so the width
+  does not itself add an uncharged list-size factor. This algebraic check
+  does not prove WHIR's numeric report or its Rust-to-Lean premise.
+- Block et al. (ePrint 2023/1071, Theorem 4.2 and Corollary 4.4) give
+  round-by-round and Fiat–Shamir bounds for batched FRI. Their latter bound
+  charges `Q · ε_rbr + 3(Q² + 1)/2^κ` for `Q` oracle queries and a `κ`-bit
+  oracle; their Section 1.2 notes an extra batch-size factor when one
+  challenge's powers combine the claims. The pinned `p3-security` 0.8.0
+  `initial_claims_error` charges `(N − 1) · L/|Ext|` for its initial
+  power-batched claims, and `p3-whir` 0.8.0 counts every opening claim and
+  commitment OOD sample in `N`. This addresses that initial batch-size
+  factor in the selected report. `Pcs::new` has no adaptive oracle-query
+  budget `Q`, and Block et al.'s theorem is for FRI, not this WHIR verifier.
+  It therefore does not establish an adaptive-query or concrete Poseidon2
+  bound for the selected compression proof.
 - Completeness does not follow from a knowledge bound: a bound on the
   adversary is not evidence that an honest proof is accepted. The honest
   prover has separate results, for every application that fits the `2^28`
-  profile and every commitment setup: the initial statement is accepted
+  profile and every commitment setup: an initial statement with a state of
+  four words is accepted
   (`Export.Stage1.HyperNovaInitial.initial_accepted`), and an accepted proof
   with advice of the application's witness width that satisfies the
   application's validity predicate gives an accepted next proof
@@ -505,14 +1088,53 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
   than `87 · 2^115 / 50 ≈ 2^115.79` oracle queries (addresses) for each unit
   of success, linear in `Q` (`Lifecycle.RandomOracleKnowledge.statisticalError_le`). One
   Poseidon2 state answers up to six addresses, so in permutation calls this
-  is about `2^113.2` (computed outside Lean). The other terms
+  is about `2^113.2` (computed outside Lean). Even at `Q = 0`, the 74 test
+  challenges contribute `74 · 4589/p² ≈ 2^-109.63` to this proof bound
+  (`Lifecycle.RandomOracleUniqueness.challenges_length`,
+  `Lifecycle.Nifs.VerifierErrorBudget.test_error_eq`). This bound cannot
+  certify a 110-bit total error before the other terms. The other terms
   depend on MSIS at the solver's work and on Poseidon2 collisions. 128-bit
   security needs a larger challenge field for `γ`.
+  The 74 include 17 Π_RLC challenges. `RandomOracleTest.coinBad` assigns
+  them the empty bad set, but `RandomOracleUniqueness.checked` queries all
+  74 to locate its stopping point. A separate proof that charged only the
+  57 Π_CCS challenges might give a `Q = 0` test term of about `2^-110.003`.
+  This is not the current theorem. Even its optimistic sum over 64 folds
+  would be about `2^-104.003` before the other errors, below the requested
+  110-bit level.
+  For the reference application, Rust's profile gate (`Params::for_ccs_shape`)
+  charges a conservative upper bound on this `Q = 0` term. Its generic field
+  numerator is `5161`, rather than the selected `ε_test` numerator `4589`,
+  at the 74 challenges. It also charges an upper bound on the Π_RLC sample
+  error 17² times. The gate gives
+  about 109.45 bits against Lean's selected bound of about 109.62 bits. The
+  selected profile thus accepts at most a 109-bit minimum, and
+  `compression_security_bits` subtracts the same term from the requested
+  budget (`statistical_security_redteam`). Oracle queries, fold depth and the
+  computational terms are not in this gate.
 - Concrete attacks on Poseidon2 as a random oracle, or on the additive duplex,
   are outside the model. Attacks that use the hash inside the circuit (KRS)
   are outside every random-oracle model; the verifier's package key fixes the
   relation.
+  Benedikt and Fischlin (ePrint 2025/1846, Section 8.3) study cheaper
+  multiple forgeries of Fiat–Shamir signatures when a sponge hashes the
+  message before the signer's commitment. The selected Π_CCS transcript
+  absorbs its fixed domain, prior-state digest, fresh commitment and public
+  input before its first challenge (`bind_and_sample_with_trace`). The paper's
+  signature game and hash-order result neither give a false proof for this
+  fixed relation nor bound this transcript's concrete multi-proof security.
 - The adversary is a classical algorithm. Quantum adversaries are not modelled.
+  The four-field Poseidon2 state digest has about 256 output bits. A generic
+  quantum collision search for an ideal uniform digest takes about
+  `|F|^(4/3) = 2^85.33` queries, below the selected Ajtai component's
+  roughly 110-bit quantum cost (ePrint 2021/1578 and 2026/2135;
+  `decisions/piccs-prior-state-digest.md`). A collision between a valid
+  one-step state `(1, z, z)` and a false one-step state
+  `(1, z', z' + (1, 0, 0, 0))` for the same zero-private-input identity
+  application would let a prover substitute the false outer state in a
+  public proof: terminal verification checks that state through the digest.
+  This is an idealized cost and a conditional attack path, not a concrete
+  Poseidon2 collision or a produced false proof.
 - No adversary chooses the application or the setup (Applications and
   setups). An application chosen from the adversary's coins, or after the
   setup chunks, is outside the results for adversaries 3 and 4.

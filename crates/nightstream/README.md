@@ -39,9 +39,13 @@ data cannot replace that relation. A memory relation has its verifier in
 `nebula::Circuit::verifier`.
 
 Prover and verifier creation require an explicit, positive statistical-security
-minimum. Preparation rejects a profile below that minimum. The current stored
-Poseidon2 profile's estimator reports 114 bits; this is a statistical estimate,
-not a claim about the complete system's security. The application selects its
+minimum. Preparation rejects a profile below that minimum. The gate charges
+one fold's zero-query statistical error from the Lean random-oracle result, so
+the current stored Poseidon2 profile accepts at most 109 bits.
+`circuit.security_bits()` returns that largest accepted minimum, and a higher
+minimum fails with `Error::InsufficientSecurity`. Oracle queries,
+fold depth and the computational assumptions add to this error, so it is not a
+claim about the complete system's security. The application selects its
 own acceptance policy. Compilation and loading do not change that policy.
 
 `prover.extend(&proof, inputs)` returns a new proof. The supplied proof remains
@@ -164,12 +168,12 @@ On macOS, run the compiled binary under GNU `timeout` and the OS process timer:
 
 ```sh
 timeout --signal=KILL 300 target/release/nightstream-poseidon2-bench compile --output app.nsc > compile.jsonl
-/usr/bin/time -l timeout --foreground --signal=KILL 300 target/release/nightstream-poseidon2-bench run --package app.nsc --engine optimized --steps 3 --minimum-security-bits 114 > cpu.jsonl 2> cpu.time
-/usr/bin/time -l timeout --foreground --signal=KILL 300 target/release/nightstream-poseidon2-bench run --package app.nsc --engine metal --steps 3 --minimum-security-bits 114 > metal.jsonl 2> metal.time
+/usr/bin/time -l timeout --foreground --signal=KILL 300 target/release/nightstream-poseidon2-bench run --package app.nsc --engine optimized --steps 3 --minimum-security-bits 109 > cpu.jsonl 2> cpu.time
+/usr/bin/time -l timeout --foreground --signal=KILL 300 target/release/nightstream-poseidon2-bench run --package app.nsc --engine metal --steps 3 --minimum-security-bits 109 > metal.jsonl 2> metal.time
 ```
 
-These benchmark commands explicitly accept the retained fixture's 114-bit
-estimate. They do not select a production security policy.
+These benchmark commands explicitly accept the retained fixture's 109-bit
+gate. They do not select a production security policy.
 
 `maximum resident set size` in the `.time` file is peak process memory in bytes
 on macOS. It is separate from GPU allocation counters. On Linux, build the CPU

@@ -3,6 +3,7 @@ use super::{
     has_canonical_evaluations, kernels as engine, superneo_has_canonical_x_shape, transcript::Transcript, CeClaim,
     Params, RlcMixer, Structure,
 };
+use crate::engine::Backend;
 use neo_ccs::Mat;
 use neo_math::F;
 use neo_reductions::common::RotRho;
@@ -63,6 +64,7 @@ impl Weights {
 }
 pub(crate) fn prove_refs(
     tr: &mut Transcript,
+    backend: &Backend,
     pp: &Params,
     s: &Structure,
     mix: RlcMixer,
@@ -73,7 +75,7 @@ pub(crate) fn prove_refs(
     validate_input_shape(claims, witnesses)?;
     validate_inputs_before_rho(s, claims)?;
     let rhos = weights.sample(tr, pp, claims.len())?;
-    let (combined, witness) = engine::prove_pi_rlc_refs(pp, s, &rhos, claims, witnesses, mix)?;
+    let (combined, witness) = engine::prove_pi_rlc_refs(backend, pp, s, &rhos, claims, witnesses, mix)?;
     validate_combined_claim(s, claims, &combined)?;
     Ok((
         Output {

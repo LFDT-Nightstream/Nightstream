@@ -3,6 +3,7 @@ use super::{
     has_canonical_evaluations, kernels as engine, superneo_has_canonical_x_shape, transcript::Transcript, CcsClaim,
     CcsWitness, CeClaim, FoldContext, Params, RunningInstance, Structure,
 };
+use crate::engine::Backend;
 use neo_math::D;
 pub(crate) use neo_reductions::api::PiCcsProof as SumcheckProof;
 use neo_reductions::optimized_engine::optimized_prove_with_profile;
@@ -27,6 +28,7 @@ fn reject_auxiliary(fresh: &CcsClaim, running: &[CeClaim]) -> Result<(), Error> 
 }
 pub(crate) fn prove_from_parts_with_rows(
     tr: &mut Transcript,
+    backend: &Backend,
     context: FoldContext<'_>,
     profile: &FoldProfile<'_>,
     fresh_claim: &CcsClaim,
@@ -41,6 +43,7 @@ pub(crate) fn prove_from_parts_with_rows(
     } = context;
     reject_auxiliary(fresh_claim, &running.claims)?;
     validate_input_shape(pp, s, profile, fresh_claim, fresh_witness, running)?;
+    let mut oracle = backend.oracle().map_err(engine::Error::from)?;
     let (outputs, sumcheck, _) = optimized_prove_with_profile(
         tr.inner_mut(),
         pp.inner(),
@@ -51,10 +54,10 @@ pub(crate) fn prove_from_parts_with_rows(
         &running.witnesses,
         rows,
         workspace_bytes,
-        None,
+        oracle.backend(),
         profile,
     )
-    .map_err(engine::Error::from)?;
+    .map_err(|error| engine::Error::from(backend.classify(error)))?;
     validate_v1_2_claims(s, &outputs)?;
     Ok(Proof { sumcheck, outputs })
 }

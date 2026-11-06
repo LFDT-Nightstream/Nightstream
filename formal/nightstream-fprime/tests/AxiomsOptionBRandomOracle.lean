@@ -17,6 +17,7 @@ import NightstreamFPrime.Lifecycle.OptionB.RandomOracle.LightSolver
 import NightstreamFPrime.Lifecycle.OptionB.RandomOracle.RefreshSolver
 import NightstreamFPrime.Lifecycle.OptionB.RandomOracle.HashSolver
 import NightstreamFPrime.Export.OptionB.RandomOracleSetup
+import NightstreamFPrime.Export.OptionB.IvcWalk
 
 #audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Schedule.roundCallCount_pos
 #audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Schedule.roundCalls_length
@@ -353,3 +354,20 @@ import NightstreamFPrime.Export.OptionB.RandomOracleSetup
 #audit_axioms NightstreamFPrime.Export.OptionB.RandomOracleSetup.refresh_production_knowledge_error_two_pow_64
 #audit_axioms NightstreamFPrime.Export.OptionB.RandomOracleSetup.light_production_knowledge_error_lt_solvers
 #audit_axioms NightstreamFPrime.Export.OptionB.RandomOracleSetup.refresh_production_knowledge_error_lt_solvers
+
+/-! The sponge pads with zeros and does not encode the length, so `[0]` and `[0, 0]` share a
+hash. A collision that the finder outputs has inputs of one length, and every witness of a
+reached statement has the application's word count. -/
+
+example (collision : NightstreamFPrime.Lifecycle.OptionB.RandomOracle.HashSolver.PoseidonCollision) :
+    collision.1.1.length = collision.1.2.length :=
+  collision.2.2.1
+
+example (program : NightstreamFPrime.Lifecycle.Stage1.Application.Program)
+    (statement : NightstreamFPrime.Spec.HyperNova.Construction2.Paper.TerminalStatement
+      NightstreamFPrime.Lifecycle.AppState)
+    (reaches : NightstreamFPrime.Export.OptionB.IvcWalk.Reaches program statement) :
+    ∃ advice : List NightstreamFPrime.Lifecycle.AppWitness,
+      ∀ witness ∈ advice, witness.length = program.witnessWordCount :=
+  let ⟨advice, _, lengths, _⟩ := reaches
+  ⟨advice, lengths⟩

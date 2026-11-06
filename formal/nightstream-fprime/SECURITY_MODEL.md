@@ -163,7 +163,8 @@ item 5).
   `Lifecycle.OptionB.RandomOracle.RefreshSolver.kernelChance_le_solver`). The
   state-collision terms are the probability of a Poseidon2 collision on two
   named prior states, and a collision finder outputs the colliding input
-  pair (`Lifecycle.OptionB.RandomOracle.HashSolver.hashCollisions_le_finder`).
+  pair, whose two inputs have one length (the sponge pads with zeros and does
+  not encode the length) (`Lifecycle.OptionB.RandomOracle.HashSolver.hashCollisions_le_finder`).
   Averaged over the SHAKE128 key setup at key width `2^26`, the kernel term is
   an MSIS advantage for a uniform matrix at the chain norm plus a programming
   error below `2^−192`, so each fold's bound uses only the two algorithms
@@ -182,7 +183,8 @@ item 5).
   value of a proof, for a fixed application, setup and pair of exported step
   circuits. The adversary must be admitted (trust item 3).
 - **Wins:** the terminal relation accepts, and no `iteration` steps of the
-  application lead from `z0` to `zi` (a false acceptance).
+  application, each with a witness of the application's word count, lead
+  from `z0` to `zi` (a false acceptance).
 - **Result:** under Assumption 1 and the closure premise,
   `Pr[false acceptance] ≤ Σ_j (Pr[collision at visit j] + error(stage j))`
   for `j` below a bound on the adversary's iteration
@@ -271,6 +273,21 @@ item 5).
   transcript collision (`Lifecycle.Nebula.badAt_bound`). Here
   `m_mem = R + M + N · B_ops`, and setup rule 6 keeps `2 · m_mem/q²` at most
   `2^−109.91` (`Spec.Nebula.Geometry.secure_iff`).
+- **Random-oracle model of `η`:** when `η` comes from a uniform oracle on its
+  input (the plan digest, `ts` and the three roots) in place of Poseidon2,
+  then for every `η` sampler with `Q_η` queries, the event of the memory
+  round has probability at most `(Q_η + 1) · 2 · m_mem/q²` plus the
+  sampler's retry term
+  (`Lifecycle.Nebula.EtaRound.EtaSampler.unbalancedChance_le`). Each pair
+  that the retry term counts is a Poseidon2 transcript collision between the
+  chain inputs of two runs with the same `η` input
+  (`Lifecycle.Nebula.EtaRound.retry_collision`). For a secure geometry, the
+  first term is at most `(Q_η + 1) · 2^−109.91`
+  (`Export.OptionB.NebulaSecurity.romMemoryRound`). The model takes the
+  adversary and the extractor as one sampler, so `Q_η` counts the queries of
+  every rerun. At the Poseidon2 oracle the event is the event of the memory
+  round (`Lifecycle.Nebula.EtaRound.unbalancedIn_deployed`), but no result
+  bounds it there.
 
 ### 6. Final-proof adversary
 
@@ -284,7 +301,9 @@ item 5).
   bits `t`. For the reference application, a Lean proof, a Lean check of
   Rust's files, Rust or a Lean value meets each premise
   (`CompressionLean.Claims.option_b_poseidon2_bound`,
-  `formal/compression-lean/STATUS.md`). The final program's checks on the
+  `formal/compression-lean/STATUS.md`). `Circuit::compile` keeps Lean's
+  packages for the reference hash chain (`SPEC.md` Algorithm 2), so these
+  checks cover the circuit that it builds. The final program's checks on the
   finish package give the finish relation of the last fold
   (`Export.OptionB.FinishRelation.package_finish`). Trust item 7 lists what
   this result assumes.
@@ -480,12 +499,15 @@ item 5).
    and has a segment that passes the product test with unbalanced multisets
    with probability at most `error_mem` of that stage. The relation computes `η`
    with Poseidon2 inside the proven step, so no random-oracle proof covers
-   it. The challenge game of adversary 5 motivates the target
-   `(Q_η + 1) · (2 · m_mem/q² + ε_coll(t_1))`, where `Q_η` counts the
-   evaluations of the `η` transcript, in the circuit and outside it, and
-   `ε_coll(t_1)` is the Poseidon2 collision probability at twice the time of
-   one run. The owner chose this form (`decisions/nebula-memory-checking.md`).
-   The record chains need only Poseidon2 collision resistance.
+   the deployed check. The random-oracle model of `η` in adversary 5 gives
+   the form of `error_mem`: `(Q_η + 1) · 2 · m_mem/q²` plus the retry term,
+   where `Q_η` counts the evaluations of the `η` transcript, in the circuit
+   and outside it. Lean does not bound the retry term with a number, because
+   each pair that it counts is a Poseidon2 collision. The owner chose this
+   form (`decisions/nebula-memory-checking.md`). The model takes the `η`
+   oracle to be independent of the oracle of the folds (trust item 3). Their
+   domain tags differ, but no Lean result separates them. The record chains
+   need only Poseidon2 collision resistance.
 7. **The compressed proof.** `formal/compression-lean/TRUST.md` lists the
    assumptions of adversary 6: WHIR openings are idealized, Poseidon2 is a
    random oracle, Fiat–Shamir runs inside the final program, and the layer-1
@@ -510,12 +532,26 @@ item 5).
   accepted fold, an honest step of either circuit has an assignment in which
   every row of its source layout holds
   (`Layout.OptionB.LightAssemblerCompleteness.complete`,
-  `Layout.OptionB.RefreshAssemblerCompleteness.complete`). Lean does not prove
-  that an honest accumulator's norm stays within `accumulatorBound` over a
-  schedule, that an honest witness satisfies the exported relation, or that
-  the terminal, one IVC step, the finish step or compression accept an
-  honest proof. So Lean does not join these results into a statement that
-  the honest prover's proofs are accepted. Each application promises that its step keeps the state width
+  `Layout.OptionB.RefreshAssemblerCompleteness.complete`). Lean joins these
+  results. Along an honest run, each slot's witness stays within the bound
+  of its depth (`Export.OptionB.StepExtend.Honest`). An honest step's witness
+  satisfies the exported relation at the key's widened slot layout
+  (`Export.OptionB.StepCompleteness.light_complete`,
+  `Export.OptionB.StepCompleteness.refresh_complete`). The terminal accepts
+  the honest proof of every valid run
+  (`Export.OptionB.RunCompleteness.run_complete`) and of every memory
+  execution (`Export.OptionB.NebulaCompleteness.memory_complete`). These
+  results take as premises three package checks that the emitter evaluates
+  (`Export.OptionB.StepExtend.Complete`), key digests of four words, and
+  witnesses of the application's witness length. For the finish step and
+  compression, Lean proves completeness at the claim level: for every valid
+  run of at least one step, the claim of the final verifier holds for the
+  honest statement (`CompressionLean.Claims.option_b_complete`). It does not
+  prove that the honest layer-1 and shrink provers produce proofs that the
+  verifiers accept. That part is an assumption, and the Rust tests of SPEC.md
+  lifecycle rule 2 are its evidence (`decisions/option-b-claim-level-completeness.md`).
+  Rust's completeness is not perfect: a WHIR query sample of `p − 1` and the
+  layer-1 poles of SPEC.md Algorithm 7 make `compress` return an error. Each application promises that its step keeps the state width
   (`Lifecycle.Stage1.Application.Program.step_length`); the counter must stay
   below `q`.
 - The error is not one security level. Lean bounds no fold error in a
@@ -536,6 +572,11 @@ item 5).
   recorded inputs.
 - A program that the adversary chooses after it sees the setup. Adversary 5
   fixes the program before the adversary runs.
+- The step relation that `Circuit::compile` builds with a Rust application
+  other than the reference hash chain, whose rows replace Lean's application
+  region (`SPEC.md` Algorithm 2, step 3). Lean exports only its own packages.
+  `runsCheck`, `setupCheck`, `coverCheck` and the final-program check read
+  files that Rust builds from those packages.
 - The Rust-built memory relation of an application or geometry that no Lean
   package fixes, the binding rows of the Rust catalog backend, the rows of
   `nebula::R1csApplication` that link the rows of a batched step, and the

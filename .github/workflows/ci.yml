@@ -9,6 +9,14 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+defaults:
+  run:
+    # All build and test workers share the same set of at most eight CPUs.
+    shell: >-
+      python3 -c "import os, sys;
+      os.sched_setaffinity(0, sorted(os.sched_getaffinity(0))[:8]);
+      os.execvp('bash', ['bash', '--noprofile', '--norc', '-e', '-o', 'pipefail', sys.argv[1]])" "{0}"
+
 env:
   CARGO_TERM_COLOR: always
 

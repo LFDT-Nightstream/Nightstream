@@ -19,7 +19,8 @@ pub use application_records::{
 };
 pub use option_b::{
     layout::LogicalLayout,
-    load_option_b_finish, load_option_b_packages, option_b_identity, parse_atoms,
+    load_option_b_finish, load_option_b_packages, load_pinned_option_b_finish, load_pinned_option_b_packages,
+    option_b_identity, parse_atoms,
     words::{encode_digest, Child, FoldWords, KWords, Slot, State as OptionBState, StepWords, PUBLIC_WORDS},
     Linear, NativeBlock, NativeShape, OptionBPackages, PlanRows, StepPackage, OPTION_B_FINISH_IDENTITY,
     OPTION_B_PACKAGES_IDENTITY,

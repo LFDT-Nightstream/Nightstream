@@ -13,7 +13,13 @@ on each column that the relation reads (`Reads`) satisfies the relation's plan
 block's constraints give its honest trace
 (`PoseidonSboxSourceCompleteness.equations_of_sourceRows`), and the binding rows because a block's
 outputs are the permutation of its inputs. A column that no row reads has no slot
-(`StepPackage.runsOf`, SPEC.md section 4.4). -/
+(`StepPackage.runsOf`, SPEC.md section 4.4).
+
+The final program checks a package's columns without the slot layout: the rows of the pieces other
+than the blocks, and each block's outputs as the permutation of its inputs. The lowering's fresh
+columns, without the dead locals at 0 or the S-box outputs, satisfy these checks
+(`checks_complete`). A piece's constraints read only the columns that `pieceBelow` checks
+(`piece_varsBelow`), so they still hold there. -/
 
 set_option autoImplicit false
 
@@ -406,5 +412,114 @@ theorem rowsZero_of_holds (fits : Fits publicColumns pieces next width)
     (fun row member => (RowReads.rowColumns_varsSatisfy row).mono row
       fun column columnMember => Or.inl ⟨row, member, columnMember⟩)
     represents (completeEnv_rows packed valid below env holds)
+
+/-! ### The final program's checks -/
+
+theorem subst_varsBelow {inner outer : Nat} (wires : Nat → Expr)
+    (wiresBelow : ∀ column, column < inner → (wires column).VarsBelow outer) :
+    ∀ expression : Expr, expression.VarsBelow inner → (subst wires expression).VarsBelow outer
+  | .var column, below => wiresBelow column below
+  | .const _, _ => trivial
+  | .add left right, below => by
+      show (subst wires left).VarsBelow outer ∧ (subst wires right).VarsBelow outer
+      exact ⟨subst_varsBelow wires wiresBelow left below.1,
+        subst_varsBelow wires wiresBelow right below.2⟩
+  | .mul left right, below => by
+      show (subst wires left).VarsBelow outer ∧ (subst wires right).VarsBelow outer
+      exact ⟨subst_varsBelow wires wiresBelow left below.1,
+        subst_varsBelow wires wiresBelow right below.2⟩
+
+/-- The canonical permutation reads its 16 inputs and its 1,096 locals. -/
+theorem canonical_varsBelow :
+    ∀ expression ∈ PilotData.canonicalConstraints (), expression.VarsBelow 1112 := by
+  intro expression member
+  have scope := recipeConstraints_varsBelow_of_causal 16 (PilotData.canonicalRecipes ())
+    (Permutation.compile_schedule_causal 16 PilotData.canonicalState fun lane => lane.isLt)
+    expression member
+  rw [show (PilotData.canonicalRecipes ()).length = 1096 from
+    Permutation.compile_schedule_recipe_count 16 PilotData.canonicalState] at scope
+  exact scope
+
+/-- The constraints of a piece that reads only columns below `bound` read only columns below
+`bound`. -/
+theorem piece_varsBelow {bound : Nat} :
+    ∀ piece : Piece, pieceBelow bound piece = true →
+      ∀ expression ∈ piece.constraints (PilotData.canonicalConstraints ()),
+        expression.VarsBelow bound
+  | .constraint expression, below, current, member => by
+      simp only [Piece.constraints, List.mem_singleton] at member
+      subst member
+      exact (exprBelow_iff bound _).mp below
+  | .permutation start lanes, below, current, member => by
+      simp only [pieceBelow, Bool.and_eq_true, decide_eq_true_eq] at below
+      simp only [Piece.constraints, List.mem_map] at member
+      obtain ⟨template, inTemplate, rfl⟩ := member
+      refine subst_varsBelow _ (fun column inside => ?_) template
+        (canonical_varsBelow template inTemplate)
+      unfold laneSubst
+      split
+      · exact lanes_below below.1 column
+      · show start + (column - 16) < bound
+        omega
+  | .ringProduct cells start lanes, below, current, member => by
+      simp only [pieceBelow, Bool.and_eq_true, decide_eq_true_eq] at below
+      simp only [Piece.constraints, ringTemplate, List.mem_map, List.mem_ofFn] at member
+      obtain ⟨_, ⟨index, rfl⟩, rfl⟩ := member
+      refine subst_varsBelow _ (fun column inside => ?_) _ (ringConstraint_varsBelow cells index)
+      unfold laneSubst
+      split
+      · exact lanes_below below.1 column
+      · show start + (column - ringInputs cells) < bound
+        omega
+
+/-- The constraints that `split` cut read only columns below `bound` when every piece does. -/
+theorem split_varsBelow {constraints : List Expr} {bound : Nat}
+    (below : (split (PilotData.canonicalConstraints ()) constraints).all (pieceBelow bound) =
+      true) :
+    ∀ expression ∈ constraints, expression.VarsBelow bound := by
+  intro expression member
+  rw [← flatMap_split (PilotData.canonicalConstraints ()) constraints, List.mem_flatMap] at member
+  obtain ⟨piece, pieceMember, inPiece⟩ := member
+  exact piece_varsBelow piece (List.all_eq_true.mp below piece pieceMember) expression inPiece
+
+/-- Completeness of the final program's checks on a package's columns, the converse of
+`CircuitRelation.checks_implies_pieces`: when every piece's constraints hold in `env` and read
+only columns below `next`, the lowering's fresh columns give an environment that agrees with
+`env` below `next`, in which every piece's constraints and the rows of the pieces other than the
+blocks hold, and each block's outputs are the permutation of its inputs. -/
+theorem checks_complete (pieces : List Piece) (valid : ∀ piece ∈ pieces, piece.Valid)
+    (next : Nat) (below : pieces.all (pieceBelow next) = true) (env : Env)
+    (holds : ∀ piece ∈ pieces,
+      ConstraintsHold env (piece.constraints (PilotData.canonicalConstraints ()))) :
+    ∃ completed : Env,
+      (∀ column, column < next → completed column = env column) ∧
+      (∀ piece ∈ pieces,
+        ConstraintsHold completed (piece.constraints (PilotData.canonicalConstraints ()))) ∧
+      R1CS.RowsHold completed
+        (PieceRows.lowerPieces (PilotData.canonicalConstraints ()) (otherPieces pieces) next).1 ∧
+      OutputsHold (blocksOf pieces) completed := by
+  let canonical := PilotData.canonicalConstraints ()
+  have ready : ∀ piece ∈ otherPieces pieces, Ready canonical next env piece := by
+    intro piece member
+    obtain ⟨inPieces, notBlock⟩ := List.mem_filter.mp member
+    refine ⟨valid piece inPieces, List.all_eq_true.mp below piece inPieces, ?_,
+      holds piece inPieces⟩
+    intro blockStart lanes equal
+    subst equal
+    simp [isBlock] at notBlock
+  obtain ⟨agree, rows⟩ :=
+    executePieces_spec canonical (otherPieces pieces) env next ready le_rfl fun _ _ => rfl
+  have kept : ∀ column, column < next →
+      executePieces canonical env (otherPieces pieces) next column = env column :=
+    fun column inside => agree column (Or.inl inside)
+  have piecesHold : ∀ piece ∈ pieces, ConstraintsHold
+      (executePieces canonical env (otherPieces pieces) next) (piece.constraints canonical) :=
+    fun piece member => constraintsHold_of_agree_below env _ _ next
+      (piece_varsBelow piece (List.all_eq_true.mp below piece member)) kept (holds piece member)
+  refine ⟨_, kept, piecesHold, ?_, fun block member => ?_⟩
+  · rw [lowerPieces_eq]
+    exact rows _ fun _ _ => rfl
+  · have pieceMember := permutation_mem_of_block member
+    exact block_outputs (valid _ pieceMember) (piecesHold _ pieceMember)
 
 end NightstreamFPrime.Export.Generic.RelationCompleteness

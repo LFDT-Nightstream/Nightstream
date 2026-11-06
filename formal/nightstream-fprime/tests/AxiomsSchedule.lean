@@ -6,6 +6,8 @@ import NightstreamFPrime.Spec.Folding.Schedule
 #audit_axioms NightstreamFPrime.Spec.Folding.Refresh.production_countNormLaw
 #audit_axioms NightstreamFPrime.Spec.Folding.Refresh.parent_bounded
 #audit_axioms NightstreamFPrime.Spec.Folding.Refresh.complete_bounded
+#audit_axioms NightstreamFPrime.Spec.Folding.Refresh.honestWitness_supported
+#audit_axioms NightstreamFPrime.Spec.Folding.Refresh.parent_supported
 #audit_axioms NightstreamFPrime.Spec.Folding.Schedule.depths_le_cap
 #audit_axioms NightstreamFPrime.Spec.Folding.Schedule.accumulatorBound_succ
 #audit_axioms NightstreamFPrime.Spec.Folding.Schedule.light_bound

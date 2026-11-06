@@ -1,8 +1,7 @@
 //! SPEC.md section 9 rejection cases that need an invalid witness. Each case changes
 //! one record or word of an honest run and keeps every other value
 //! consistent, and the faulty invocation is proved last. Two results are
-//! required: the prover refuses the step at its own check of the fresh
-//! instance, which is the verifier's check (`Relation::holds`), and the
+//! required: the verifier rejects the proof at the fresh instance, and the
 //! first row of the step relation that the witness fails is in the named
 //! check. The names come from Lean (`tests/fixtures/nebula-memory-*-rows.json`)
 //! and count from the application's first row. The Rust-built memory relation
@@ -15,7 +14,7 @@ use super::*;
 use crate::lifecycle::option_b::{OptionBError, CHECK_ROWS, FAILED_ROW};
 use crate::nebula::{Circuit, Machine, MachineState, Package, Step};
 use crate::{Engine, Error};
-use crate::{Proof, Prover};
+use crate::{Proof, Prover, Verifier};
 
 /// `loadi 5; store 0`, then `load 0; halt`.
 const EXECUTE: [Step; 2] = [Step::Execute, Step::Execute];
@@ -39,6 +38,7 @@ const N1: Fixture = Fixture {
 struct Harness {
     context: Context<Machine>,
     prover: Prover,
+    verifier: Verifier,
     checks: Vec<(String, Range<usize>)>,
     /// The application row of each of the step relation's first rows.
     kept: Vec<usize>,
@@ -67,7 +67,11 @@ impl Harness {
             .collect();
         Self {
             context: Context::new(Machine, &fixture.package.program()),
-            prover: circuit.circuit.prover(Engine::Optimized, 114).unwrap(),
+            prover: circuit.circuit.prover(Engine::Optimized, 109).unwrap(),
+            verifier: circuit
+                .circuit
+                .stage1_verifier(Engine::Optimized, 109)
+                .unwrap(),
             checks: named
                 .into_iter()
                 .map(|(name, first, end)| (name, first..end))
@@ -91,19 +95,15 @@ impl Harness {
         }
     }
 
-    /// Prove `invocation` after `proof`, or as the first step. Require the
-    /// rejection at the fresh relation, and require that the first failing
-    /// row is in `check`.
+    /// Prove `invocation` after `proof`, or as the first step, without the
+    /// assertion check. Require the rejection at the fresh relation, and
+    /// require that the first failing row is in `check`.
     fn reject(&self, proof: Option<&Proof>, invocation: &Invocation, check: &str) {
         CHECK_ROWS.set(true);
         FAILED_ROW.set(None);
         let proved = self.step(proof, invocation);
         CHECK_ROWS.set(false);
-        assert!(
-            matches!(proved, Err(Error::OptionB(OptionBError::Fresh(_)))),
-            "{check}: {:?}",
-            proved.err()
-        );
+        let bad = proved.unwrap();
         let row = FAILED_ROW.take().expect("the faulty witness fails a row");
         let named = self.kept.get(row).and_then(|row| {
             self.checks
@@ -113,6 +113,13 @@ impl Harness {
         });
         assert_eq!(named, Some(check), "first failing row {row}");
         eprintln!("rejected at row {row} ({check})");
+        assert!(
+            matches!(
+                self.verifier.verify(&bad.state(), &bad),
+                Err(Error::OptionB(OptionBError::Fresh(_)))
+            ),
+            "{check}"
+        );
     }
 
     /// The first segment's invocations after `fault` edits its execution

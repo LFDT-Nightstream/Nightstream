@@ -1,5 +1,6 @@
 import CompressionLean.Final.OptionBFinish
 import CompressionLean.Final.Parent
+import CompressionLean.Final.ParentComplete
 import CompressionLean.Bridge.Field
 import CompressionLean.Spec.OptionBParent
 import CompressionLean.Final.OptionB
@@ -151,6 +152,37 @@ theorem slot_holds (s : Layer1.Shape) (bar : ℕ → ℕ → Gl) (S : Layer1.Set
       (Lifecycle.OptionB.toClaim (PiRLC.v1_2.InputBinding.relationSource relation) claim)
       (assignmentOf (lw := lw) (pf := pf) s z) :=
   parent_holds s bar S relation ajtai _ shape blocks_le barEq honest rfl rfl rfl holds
+
+/-- The converse of `slot_holds` (CW-10.6), on finish columns `env`: when slot `slot`'s claim
+under a circuit key holds with a witness below the accumulator bound of the light cap plus one and
+zero on every ring block from `width`, and the layer-1 key's norm bound and blocks cover them, the
+slot's words are in their layer-1 relation (through `Final.parent_complete`). -/
+theorem slot_complete (program : Stage1.Application.Program)
+    (finish : NightstreamFPrime.Export.OptionB.StepPackage.Package)
+    (words : finish.application.1 = program.witnessWordCount) (s : Layer1.Shape) (bar : ℕ → ℕ → Gl)
+    (S : Layer1.Setup Gl) (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := lw) (publicFits := pf))
+    (key : Lifecycle.OptionB.CircuitKey lw pf) (shape : ParentShape s lw)
+    (barEq : ∀ p l : Fin ringDegree, bar p l = gl (Phi81CoefficientKernel.nativeBarEntry p l))
+    (honest : HonestSetup s S key.relation ajtai) (env : Env) (slot : Fin 2)
+    {w : PaperAlgebra.Assignment (logicalWidth := lw) (publicFits := pf)}
+    (holds : Spec.CE.Holds (PaperAlgebra.semantics ajtai) productionGlobalParams
+      (Lifecycle.OptionB.toClaim (key.system ajtai)
+        ((refreshOutput (logicalWidth := lw) (publicFits := pf) program 1 env).runningNext slot).1) w)
+    (norm : (PaperAlgebra.semantics ajtai).normBounded
+      (productionGlobalParams.accumulatorBound Folding.Schedule.productionLightFoldCap + 1) w)
+    (normCovers : productionGlobalParams.accumulatorBound Folding.Schedule.productionLightFoldCap ≤ s.normBound)
+    {width : ℕ}
+    (support : ∀ column : Fin (Phi81CarrierLayout.carrierWidth lw),
+      width ≤ ringDegree * (column.val / ringDegree) → w column = 0)
+    (blocksCover : width ≤ ringDegree * s.blocks) :
+    ∃ z, Layer1.Relation s modulus bar S (slotClaim finish slot env) z := by
+  rw [slotClaim_eq (lw := lw) (pf := pf) program finish words
+    (PiRLC.v1_2.InputBinding.relationSource key.relation) env env (fun _ _ => rfl) slot]
+  rw [system_eq] at holds
+  obtain ⟨z, relation_holds, -⟩ := parent_complete s bar S key.relation ajtai _ shape barEq honest rfl holds
+    (fun column => (Nat.le_of_lt_succ (norm column)).trans normCovers)
+    (fun column outside => support column (blocksCover.trans (Nat.mul_le_mul_left ringDegree outside)))
+  exact ⟨z, relation_holds⟩
 
 /-- The final terminal on the emitted finish package, with both slot statements in their layer-1
 relations, gives option B's parent claim. -/

@@ -1,6 +1,7 @@
 import NightstreamFPrime.Lifecycle.OptionB.RandomOracle.Honest
 import NightstreamFPrime.Spec.Folding.Light.SourceTruth
 import NightstreamFPrime.Spec.Folding.Refresh.Bound
+import NightstreamFPrime.Lifecycle.OptionB.BlockSupport
 
 /-! Completeness of the option-B folds at the production keys (CW-10.3). An honest light fold
 (`Spec.Folding.Light.complete`, Cyclo Theorem 3, item 1) and an honest refresh fold
@@ -13,7 +14,11 @@ The light challenge always exists: the Poseidon2 sponge is a deployed oracle
 (`Fidelity.deployedOracle_deployed`), and on it the light key's challenge is the oracle's answer
 (`Fidelity.light_challenge_eq`). The deployed verifiers also name the folded claim in closed form
 (`Fidelity.light_verify_eq`, `Fidelity.refresh_verify_eq`), so the claim reads back as a slot
-(`Honest.slot_of_holds`, `toClaim_of_fromClaim`). No probability is involved. -/
+(`Honest.slot_of_holds`, `toClaim_of_fromClaim`). No probability is involved.
+
+Both folds keep block support (`BlockSupport.Supported`): the folded witness is zero on each ring
+block on which the running witness and the fresh witness are zero (`lightWitness_supported`,
+`Refresh.parent_supported` with `BlockSupport.supportLaw`). -/
 
 set_option autoImplicit false
 
@@ -31,13 +36,32 @@ open NightstreamFPrime.Lifecycle.PaperAlgebra
 open NightstreamFPrime.Lifecycle.OptionB
 open NightstreamFPrime.Lifecycle.RandomOracle
 open NightstreamFPrime.Lifecycle.OptionB.RandomOracle
+open NightstreamFPrime.Lifecycle.OptionB.BlockSupport
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth}
   (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
 
+/-- The light Π_RLC witness `ρ · fresh + running` of supported witnesses is supported. -/
+theorem lightWitness_supported (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (width : Nat) (challenge : RingF)
+    {fresh running : PaperAlgebra.Assignment (logicalWidth := logicalWidth)
+      (publicFits := publicFits)}
+    (freshSupported : Supported width fresh) (runningSupported : Supported width running) :
+    Supported width (Light.Rlc.witness (keys relation ajtai).light.piRlcAlgebra
+      (keys relation ajtai).light.one challenge fresh running) := by
+  show Supported width (Phi81Relation.EvaluationHomomorphism.PiRLCFinite.combineAssignments
+    (Light.Rlc.pair challenge (keys relation ajtai).light.one) (Light.Rlc.pair fresh running))
+  apply combineAssignments_supported
+  intro index
+  unfold Light.Rlc.pair
+  split
+  · exact freshSupported
+  · exact runningSupported
+
 /-- The honest light fold of a slot claim is accepted at the production keys, and its output is a
-slot claim that holds at the input bound plus `T(b − 1)`. -/
+slot claim that holds at the input bound plus `T(b − 1)`. Its witness is zero on each ring block
+on which both source witnesses are zero. -/
 theorem light_folds (key : CircuitKey logicalWidth publicFits)
     (start : SlotClaim logicalWidth publicFits) (fresh : StepFresh logicalWidth publicFits)
     (witness : OutputWitness LightShape (Phi81CarrierLayout.carrierWidth logicalWidth))
@@ -74,7 +98,10 @@ theorem light_folds (key : CircuitKey logicalWidth publicFits)
         Light.Rlc.Holds (semantics ajtai)
           (bound + (keys key.relation ajtai).light.params.expansionT *
             ((keys key.relation ajtai).light.params.b - 1))
-          (toClaim (key.system ajtai) folded) foldedWitness := by
+          (toClaim (key.system ajtai) folded) foldedWitness ∧
+        ∀ width, Supported width (witness.assignments (keys key.relation ajtai).light.freshSource) →
+          Supported width (witness.assignments (keys key.relation ajtai).light.runningSource) →
+          Supported width foldedWitness := by
   let oracle := (Fidelity.deployedOracle (logicalWidth := logicalWidth)
     (publicFits := publicFits)).1
   have deployed : Fidelity.DeployedOn oracle :=
@@ -104,16 +131,22 @@ theorem light_folds (key : CircuitKey logicalWidth publicFits)
     split at romVerified
     · exact (Option.some.inj romVerified).symm
     · cases romVerified
-  obtain ⟨foldedWitness, slotHolds⟩ : ∃ foldedWitness, Light.Rlc.Holds (semantics ajtai)
-      (bound + (keys key.relation ajtai).light.params.expansionT *
-        ((keys key.relation ajtai).light.params.b - 1))
-      (fromLight result) foldedWitness :=
-    ⟨_, (OptionBKeys.boundHolds_fromLight_iff _ _ _).mpr holds⟩
+  obtain ⟨foldedWitness, slotHolds, foldedSupported⟩ : ∃ foldedWitness,
+      Light.Rlc.Holds (semantics ajtai)
+        (bound + (keys key.relation ajtai).light.params.expansionT *
+          ((keys key.relation ajtai).light.params.b - 1))
+        (fromLight result) foldedWitness ∧
+      ∀ width, Supported width (witness.assignments (keys key.relation ajtai).light.freshSource) →
+        Supported width (witness.assignments (keys key.relation ajtai).light.runningSource) →
+        Supported width foldedWitness :=
+    ⟨_, (OptionBKeys.boundHolds_fromLight_iff _ _ _).mpr holds,
+      fun width freshSupported runningSupported =>
+        lightWitness_supported ajtai key.relation width _ freshSupported runningSupported⟩
   obtain ⟨folded, read⟩ := Honest.slot_of_holds ajtai slotHolds
   have claimEq : fromLight result = toClaim (key.system ajtai) folded := by
     rw [resultEq] at read ⊢
     exact toClaim_of_fromClaim rfl rfl read
-  refine ⟨proof, folded, foldedWitness, ?_, claimEq ▸ slotHolds⟩
+  refine ⟨proof, folded, foldedWitness, ?_, claimEq ▸ slotHolds, foldedSupported⟩
   show ((toLightRunning (toClaim (key.system ajtai) start)).bind fun running =>
       (Light.verify (keys key.relation ajtai).light running (freshToLight fresh) proof).map
         fromLight) = _
@@ -263,7 +296,8 @@ theorem light_premises (key : CircuitKey logicalWidth publicFits)
     exact runningEvaluations
 
 /-- The honest light fold of a slot claim that holds at `bound`, with a fresh instance that holds
-under the slot's relation, is accepted, and its output holds at `bound + T(b − 1)`. -/
+under the slot's relation, is accepted, and its output holds at `bound + T(b − 1)`. Its witness is
+zero on each ring block on which the running and fresh witnesses are zero. -/
 theorem light_folds_of_holds (key : CircuitKey logicalWidth publicFits)
     (claim : SlotClaim logicalWidth publicFits) (fresh : StepFresh logicalWidth publicFits)
     (bound : Nat)
@@ -279,11 +313,17 @@ theorem light_folds_of_holds (key : CircuitKey logicalWidth publicFits)
         Light.Rlc.Holds (semantics ajtai)
           (bound + (keys key.relation ajtai).light.params.expansionT *
             ((keys key.relation ajtai).light.params.b - 1))
-          (toClaim (key.system ajtai) folded) foldedWitness := by
+          (toClaim (key.system ajtai) folded) foldedWitness ∧
+        ∀ width, Supported width running → Supported width freshWitness →
+          Supported width foldedWitness := by
   obtain ⟨freshOpening, runningOpening, truth⟩ :=
     light_premises ajtai key claim fresh bound running freshWitness slot freshHolds
-  exact light_folds ajtai key claim fresh (witnessOf running freshWitness) bound freshOpening
-    runningOpening truth
+  obtain ⟨proof, folded, foldedWitness, accepted, foldedHolds, foldedSupported⟩ :=
+    light_folds ajtai key claim fresh (witnessOf running freshWitness) bound freshOpening
+      runningOpening truth
+  exact ⟨proof, folded, foldedWitness, accepted, foldedHolds,
+    fun width runningSupported freshSupported =>
+      foldedSupported width freshSupported runningSupported⟩
 
 /-- The honest refresh fold of a slot claim that holds, with a fresh instance that holds under
 the slot's relation, is accepted, and its output holds below `B`. -/
@@ -327,7 +367,8 @@ theorem countNormLaw : Refresh.CountNormLaw (PaperAlgebra.piRlcAlgebra ajtai) :=
 
 /-- The honest refresh fold of a slot claim that holds, with a fresh instance that holds under
 the slot's relation, is accepted, and its output holds within the depth-0 accumulator bound
-(`Refresh.complete_bounded`, SuperNeo v1.2 Definition 22). -/
+(`Refresh.complete_bounded`, SuperNeo v1.2 Definition 22). Its witness is zero on each ring block
+on which the slot's and the fresh witnesses are zero. -/
 theorem refresh_folds_bounded (key : CircuitKey logicalWidth publicFits)
     (claim : SlotClaim logicalWidth publicFits) (fresh : StepFresh logicalWidth publicFits)
     (assignment freshWitness : PaperAlgebra.Assignment (logicalWidth := logicalWidth)
@@ -343,7 +384,9 @@ theorem refresh_folds_bounded (key : CircuitKey logicalWidth publicFits)
         CE.Holds (semantics ajtai) productionGlobalParams (toClaim (key.system ajtai) folded)
           foldedWitness ∧
         (semantics ajtai).normBounded (productionGlobalParams.accumulatorBound 0 + 1)
-          foldedWitness := by
+          foldedWitness ∧
+        ∀ width, Supported width assignment → Supported width freshWitness →
+          Supported width foldedWitness := by
   let oracle := (Fidelity.deployedOracle (logicalWidth := logicalWidth)
     (publicFits := publicFits)).2
   have deployed : Fidelity.DeployedOn oracle :=
@@ -358,7 +401,8 @@ theorem refresh_folds_bounded (key : CircuitKey logicalWidth publicFits)
         omega)
       exact ⟨((refreshKey key.relation ajtai).openingAgreement _ _ _ _).mpr freshHolds.1,
         freshHolds.2⟩
-  obtain ⟨proof, parent, parentWitness, _, _, verified, parentHolds, parentNorm⟩ := honest _ rfl
+  obtain ⟨proof, parent, parentWitness, _, _, verified, parentHolds, parentNorm, witnessEq⟩ :=
+    honest _ rfl
   have romVerified : RefreshFork.verify key.relation ajtai oracle
       (toClaim (key.system ajtai) claim) fresh proof = some parent :=
     (Fidelity.refresh_verify_eq key.relation ajtai (toClaim (key.system ajtai) claim) fresh proof
@@ -381,7 +425,12 @@ theorem refresh_folds_bounded (key : CircuitKey logicalWidth publicFits)
       fresh proof (Fork.rho oracle (fresh, proof.split) (RefreshSchedule.messages proof.nifs)) =
         toClaim (key.system ajtai) folded :=
     toClaim_of_fromClaim rfl rfl read
-  refine ⟨proof, folded, parentWitness, ?_, claimEq ▸ parentHolds, parentNorm⟩
+  refine ⟨proof, folded, parentWitness, ?_, claimEq ▸ parentHolds, parentNorm,
+    fun width assignmentSupported freshSupported => ?_⟩
+  swap
+  · rw [witnessEq]
+    exact Refresh.parent_supported (refreshKey key.relation ajtai) (supportLaw ajtai width)
+      assignment (fun _ => freshWitness) _ assignmentSupported fun _ => freshSupported
   show Refresh.verify (keys key.relation ajtai).refresh (toClaim (key.system ajtai) claim) fresh
     proof = _
   rw [show (keys key.relation ajtai).refresh = refreshKey key.relation ajtai from rfl, verified,

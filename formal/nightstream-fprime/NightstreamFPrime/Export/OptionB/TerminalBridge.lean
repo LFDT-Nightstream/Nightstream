@@ -143,7 +143,12 @@ theorem stateHash_binds_words {left right : State logicalWidth publicFits}
       | ⟨1, _⟩ => exact key1
     · obtain ⟨slot, differs⟩ := Classical.not_forall.mp slots
       exact Or.inr (Or.inr ⟨slot, differs, digests slot⟩)
-  · exact Or.inr (Or.inl ⟨preimages, same⟩)
+  · have length : ∀ {state : State logicalWidth publicFits}, Shaped state →
+        (statePreimage state).length = 38 := fun shaped => by
+      simp [statePreimage, slotDigest, Poseidon2.hash_length, shaped.verifierKeys, shaped.z0,
+        shaped.current, Poseidon2.digestLen]
+      rfl
+    exact Or.inr (Or.inl ⟨preimages, by rw [length leftShaped, length rightShaped], same⟩)
 
 /-- The next iteration's word is the terminal's, and the terminal's iteration is positive and
 below `q`, so the next iteration does not wrap. -/
@@ -320,6 +325,16 @@ def Exports.last (exports : Exports relation ajtai circuitKeys step cubeFits)
       (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits)) 2) :
     Decoded logicalWidth publicFits :=
   exports.decode (circuitOf payload.pc) payload.freshWitness
+
+/-- A decoded step's witness has the program's word count. -/
+theorem Exports.last_witness_length (exports : Exports relation ajtai circuitKeys step cubeFits)
+    (payload : TerminalProof (SlotData logicalWidth publicFits)
+      (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits))
+      (StepFresh logicalWidth publicFits)
+      (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits)) 2) :
+    (exports.last payload).input.witness.length = exports.program.witnessWordCount := by
+  unfold Exports.last Exports.decode
+  split <;> simp [lightInput, refreshInput]
 
 /-- The collision of the bridge: the next state of the decoded last step and the terminal's state
 collide. -/

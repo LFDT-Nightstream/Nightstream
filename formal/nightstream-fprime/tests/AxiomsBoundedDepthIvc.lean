@@ -53,11 +53,15 @@ import NightstreamFPrime.Export.Generic.WideLayout
 import NightstreamFPrime.Export.OptionB.SlotRuns
 import NightstreamFPrime.Export.OptionB.SlotCompleteness
 import NightstreamFPrime.Export.OptionB.NativeCompleteness
+import NightstreamFPrime.Lifecycle.OptionB.BlockSupport
 import NightstreamFPrime.Lifecycle.OptionB.FoldCompleteness
 import NightstreamFPrime.Export.OptionB.StepExtend
 import NightstreamFPrime.Export.OptionB.RunCompleteness
 import NightstreamFPrime.Export.OptionB.NebulaSecurity
+import NightstreamFPrime.Export.OptionB.NebulaCompleteness
 import NightstreamFPrime.Export.OptionB.FinishRelation
+import NightstreamFPrime.Layout.OptionB.FinishAssemblerCompleteness
+import NightstreamFPrime.Export.OptionB.FinishCompleteness
 import NightstreamFPrime.Lifecycle.OptionB.Terminal
 import NightstreamFPrime.Spec.Folding.Light.RlcModule
 
@@ -328,6 +332,7 @@ open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 #audit_axioms NightstreamFPrime.Layout.OptionB.RefreshPiCCSCompleteness.represents_of_agree_below
 #audit_axioms NightstreamFPrime.Layout.OptionB.RefreshPiCCSCompleteness.completeFrom
 #audit_axioms NightstreamFPrime.Layout.OptionB.RefreshStepCompleteness.appendPrefix
+#audit_axioms NightstreamFPrime.Layout.OptionB.RefreshStepCompleteness.completePriorHashesFrom
 #audit_axioms NightstreamFPrime.Layout.OptionB.RefreshStepCompleteness.completeGadgetsFrom
 #audit_axioms NightstreamFPrime.Layout.OptionB.RefreshStepCompleteness.completeDecFrom
 #audit_axioms NightstreamFPrime.Layout.OptionB.RefreshStepCompleteness.completeRlcPhaseFrom
@@ -335,6 +340,9 @@ open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 #audit_axioms NightstreamFPrime.Layout.OptionB.RefreshAssemblerSource.childEvaluation_eval
 #audit_axioms NightstreamFPrime.Layout.OptionB.RefreshAssemblerSource.digit_eval
 #audit_axioms NightstreamFPrime.Layout.OptionB.RefreshAssemblerSource.stepRepresents
+#audit_axioms NightstreamFPrime.Layout.OptionB.RefreshAssemblerCompleteness.priorSlot_spec
+#audit_axioms NightstreamFPrime.Layout.OptionB.RefreshAssemblerCompleteness.priorState_spec
+#audit_axioms NightstreamFPrime.Layout.OptionB.RefreshAssemblerCompleteness.completeFoldFrom
 #audit_axioms NightstreamFPrime.Layout.OptionB.RefreshAssemblerCompleteness.complete
 #audit_axioms NightstreamFPrime.Layout.OptionB.RefreshAssemblerCircuit.decWired
 #audit_axioms NightstreamFPrime.Layout.OptionB.RefreshAssemblerCircuit.rlcWired
@@ -434,6 +442,7 @@ example : (runDepths 2 (fun _ => 0) 1 (List.replicate 3 [0, 0, 1]).flatten).isNo
   decide
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.FinishStep.rows_implies_finish
 #audit_axioms NightstreamFPrime.Layout.OptionB.FinishAssembler.rows_implies_finish
+#audit_axioms NightstreamFPrime.Layout.OptionB.FinishAssemblerCompleteness.complete
 #audit_axioms NightstreamFPrime.Export.OptionB.FinishRelation.finish_holds
 #audit_axioms NightstreamFPrime.Export.OptionB.FinishRelation.checks_finish
 #audit_axioms NightstreamFPrime.Export.OptionB.FinishRelation.package_finish
@@ -506,6 +515,11 @@ example : (runDepths 2 (fun _ => 0) 1 (List.replicate 3 [0, 0, 1]).flatten).isNo
 #audit_axioms NightstreamFPrime.Export.OptionB.NebulaSecurity.history_of_leads
 #audit_axioms NightstreamFPrime.Export.OptionB.NebulaSecurity.stage1Extraction
 #audit_axioms NightstreamFPrime.Export.OptionB.NebulaSecurity.bad_le
+#audit_axioms NightstreamFPrime.Export.OptionB.NebulaSecurity.romMemoryRound
+#audit_axioms NightstreamFPrime.Export.OptionB.NebulaCompleteness.validFrom_of_history
+#audit_axioms NightstreamFPrime.Export.OptionB.NebulaCompleteness.accepts_of_history
+#audit_axioms NightstreamFPrime.Export.OptionB.NebulaCompleteness.steps_lt
+#audit_axioms NightstreamFPrime.Export.OptionB.NebulaCompleteness.memory_complete
 
 #audit_axioms NightstreamFPrime.Export.Generic.PieceRowsCompleteness.exprBelow_iff
 #audit_axioms NightstreamFPrime.Export.Generic.PieceRowsCompleteness.lanes_below
@@ -547,6 +561,11 @@ example : (runDepths 2 (fun _ => 0) 1 (List.replicate 3 [0, 0, 1]).flatten).isNo
 #audit_axioms NightstreamFPrime.Export.Generic.RelationCompleteness.rowsZero_of_holds
 #audit_axioms NightstreamFPrime.Export.Generic.WideLayout.extend_castLE
 #audit_axioms NightstreamFPrime.Export.Generic.WideLayout.widenForm_eval
+#audit_axioms NightstreamFPrime.Export.Generic.RelationCompleteness.subst_varsBelow
+#audit_axioms NightstreamFPrime.Export.Generic.RelationCompleteness.canonical_varsBelow
+#audit_axioms NightstreamFPrime.Export.Generic.RelationCompleteness.piece_varsBelow
+#audit_axioms NightstreamFPrime.Export.Generic.RelationCompleteness.split_varsBelow
+#audit_axioms NightstreamFPrime.Export.Generic.RelationCompleteness.checks_complete
 #audit_axioms NightstreamFPrime.Export.Generic.WideLayout.sourceEnv_widen
 #audit_axioms NightstreamFPrime.Export.Generic.WideLayout.one_widen
 #audit_axioms NightstreamFPrime.Export.Generic.WideLayout.extend_norm
@@ -589,6 +608,7 @@ example : (runDepths 2 (fun _ => 0) 1 (List.replicate 3 [0, 0, 1]).flatten).isNo
 #audit_axioms NightstreamFPrime.Export.OptionB.SlotCompleteness.norm_of_runs
 #audit_axioms NightstreamFPrime.Export.OptionB.SlotCompleteness.rowsZero_of_holds
 #audit_axioms NightstreamFPrime.Export.OptionB.StepCompleteness.publicInput_withPublic
+#audit_axioms NightstreamFPrime.Export.OptionB.StepCompleteness.constraints_complete
 #audit_axioms NightstreamFPrime.Export.OptionB.StepCompleteness.pieces_complete
 #audit_axioms NightstreamFPrime.Export.OptionB.StepCompleteness.fresh_complete
 #audit_axioms NightstreamFPrime.Export.OptionB.StepCompleteness.digest_getD
@@ -598,6 +618,15 @@ example : (runDepths 2 (fun _ => 0) 1 (List.replicate 3 [0, 0, 1]).flatten).isNo
 #audit_axioms NightstreamFPrime.Export.OptionB.NativeCompleteness.blocks_eq
 #audit_axioms NightstreamFPrime.Export.OptionB.NativeCompleteness.relationRows_eq
 #audit_axioms NightstreamFPrime.Export.OptionB.NativeCompleteness.native_complete
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.BlockSupport.supported_of_tail
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.BlockSupport.supported_zero
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.BlockSupport.add_supported
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.BlockSupport.act_supported
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.BlockSupport.combineAssignments_supported
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.BlockSupport.splitScalar_zero
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.BlockSupport.splitAssignment_supported
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.BlockSupport.supportLaw
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.FoldCompleteness.lightWitness_supported
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.FoldCompleteness.light_folds
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.FoldCompleteness.refresh_folds
 #audit_axioms NightstreamFPrime.Spec.Folding.Light.PiCCS.semanticTruth_of_sources
@@ -609,6 +638,8 @@ example : (runDepths 2 (fun _ => 0) 1 (List.replicate 3 [0, 0, 1]).flatten).isNo
 #audit_axioms NightstreamFPrime.Export.OptionB.StepExtend.accumulatorBound_succ
 #audit_axioms NightstreamFPrime.Export.OptionB.StepExtend.bound_le_bigB
 #audit_axioms NightstreamFPrime.Export.OptionB.StepExtend.normBounded_mono
+#audit_axioms NightstreamFPrime.Export.OptionB.StepExtend.Complete.packageWidth_zero
+#audit_axioms NightstreamFPrime.Export.OptionB.StepExtend.Complete.packageWidth_one
 #audit_axioms NightstreamFPrime.Export.OptionB.StepExtend.light_extend
 #audit_axioms NightstreamFPrime.Export.OptionB.StepExtend.refresh_extend
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.BaseFold.check_zero
@@ -616,3 +647,9 @@ example : (runDepths 2 (fun _ => 0) 1 (List.replicate 3 [0, 0, 1]).flatten).isNo
 #audit_axioms NightstreamFPrime.Export.OptionB.StepExtend.base_extend
 #audit_axioms NightstreamFPrime.Export.OptionB.RunCompleteness.accepts_step
 #audit_axioms NightstreamFPrime.Export.OptionB.RunCompleteness.run_complete
+#audit_axioms NightstreamFPrime.Export.OptionB.FinishCompleteness.package_complete
+#audit_axioms NightstreamFPrime.Export.OptionB.FinishCompleteness.natWord_val_of_lt
+#audit_axioms NightstreamFPrime.Export.OptionB.FinishCompleteness.accumulatorBound_mono
+#audit_axioms NightstreamFPrime.Export.OptionB.FinishCompleteness.slotAt_evalList
+#audit_axioms NightstreamFPrime.Export.OptionB.FinishCompleteness.finish_complete
+#audit_axioms NightstreamFPrime.Export.OptionB.FinishCompleteness.run_finish_complete

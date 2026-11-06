@@ -3,8 +3,9 @@
 //! and a state with two slots. Slot `s` accumulates the instances of circuit
 //! `s`. Each step folds the previous step's instance into the slot of the
 //! circuit that made it: a light fold while that slot's depth is below the
-//! cap, a refresh fold at the cap (`Schedule.Admissible`). The steps run
-//! `((L^(cap+1) R)^cap R)`.
+//! cap, a refresh fold at the cap (`Schedule.Admissible`). The first period of
+//! steps is `(L^(cap+1) R)^(cap+1) R`, and each later period is
+//! `(L^(cap+1) R)^cap R`.
 mod compression;
 mod encoding;
 mod final_program;
@@ -185,7 +186,13 @@ impl OptionB {
             FAILED_ROW.set(relation.first_failing_row(self.package(kind), &step)?);
         }
         let instance = relation.instance(&logical)?;
-        relation.holds(&instance).map_err(OptionBError::Fresh)?;
+        #[cfg(test)]
+        let keeps_faulty = CHECK_ROWS.get();
+        #[cfg(not(test))]
+        let keeps_faulty = false;
+        if !keeps_faulty {
+            relation.holds(&instance).map_err(OptionBError::Fresh)?;
+        }
         Ok(Envelope {
             iteration: envelope.iteration + 1,
             z0: envelope.z0,
@@ -261,7 +268,9 @@ impl OptionB {
 #[cfg(test)]
 thread_local! {
     /// Set by a test that proves an invalid witness: record the first row of
-    /// the step relation that the step fails.
+    /// the step relation that the step fails, and return the faulty proof in
+    /// place of the self-check's error, so the test can show that `verify`
+    /// refuses it.
     pub(crate) static CHECK_ROWS: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
     /// That row, or `None` when every row holds.
     pub(crate) static FAILED_ROW: std::cell::Cell<Option<usize>> = const { std::cell::Cell::new(None) };

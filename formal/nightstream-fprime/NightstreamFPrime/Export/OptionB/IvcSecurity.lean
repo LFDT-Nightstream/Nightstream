@@ -100,7 +100,8 @@ theorem probability_bound (keysShaped : ∀ key, (circuitKeys key).digest.length
   obtain ⟨accepted, unreached⟩ := falseAcceptance
   obtain ⟨j, inside, found⟩ := covered ajtai circuitKeys exports keysShaped control cap
     (adversary.output origin) results (length ▸ depthBound origin supported) accepted
-    fun leads => unreached (reaches_of_leads _ _ _ leads)
+    fun leads => unreached (reaches_of_leads _ _ _ leads
+      (trail_lengths ajtai circuitKeys exports _ _))
   exact ⟨⟨j, length ▸ inside⟩, found⟩
 
 end NightstreamFPrime.Export.OptionB.IvcSecurity

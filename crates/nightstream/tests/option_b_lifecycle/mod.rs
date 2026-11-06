@@ -19,7 +19,7 @@ use neo_math::{D, F};
 use p3_field::PrimeCharacteristicRing;
 use support::{hash_chain_step, packages, words};
 
-const MINIMUM_SECURITY_BITS: u32 = 114;
+const MINIMUM_SECURITY_BITS: u32 = 109;
 
 fn prover(cap: u64) -> OptionB {
     let mut prover = OptionB::new(packages(), MINIMUM_SECURITY_BITS).expect("option-B prover");
@@ -290,7 +290,10 @@ fn final_proof_verifies() {
     use super::final_program::Finish;
     use neo_spartan::shrink::Program;
     let started = std::time::Instant::now();
-    let prover = prover(2);
+    // Keys for a minimum below the production one have fewer layer bits, so
+    // a production verifier must refuse them (the end of this test).
+    let mut prover = OptionB::new(packages(), 105).expect("option-B prover");
+    prover.cap = 2;
     let finish = Finish::new(
         nightstream_fprime::load_option_b_finish(
             &support::artifact("nightstream-fprime-option-b-finish-v1.json"),
@@ -382,4 +385,10 @@ fn final_proof_verifies() {
     assert!(prover
         .verify_final(&keys, &finish, iteration, z0, wrong_current, &moved)
         .is_err());
+    assert!(
+        self::prover(2)
+            .verify_final(&keys, &finish, iteration, z0, current, &proof)
+            .is_err(),
+        "a verifier at the production minimum refuses keys made for 105 bits"
+    );
 }

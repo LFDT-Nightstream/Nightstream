@@ -109,6 +109,7 @@ import NightstreamFPrime.Layout.OptionB.RefreshStepCompleteness
 import NightstreamFPrime.Layout.OptionB.RefreshAssemblerSource
 import NightstreamFPrime.Layout.OptionB.RefreshAssemblerCompleteness
 import NightstreamFPrime.Layout.OptionB.RefreshAssemblerCircuit
+import NightstreamFPrime.Layout.OptionB.FinishAssemblerCompleteness
 import NightstreamFPrime.Layout.OptionB.StepCircuits
 import NightstreamFPrime.Export.Generic.Pieces
 import NightstreamFPrime.Export.Generic.PieceRows
@@ -129,12 +130,15 @@ import NightstreamFPrime.Export.OptionB.IvcSecurity
 import NightstreamFPrime.Export.OptionB.FinishWalk
 import NightstreamFPrime.Export.OptionB.StepCompleteness
 import NightstreamFPrime.Export.OptionB.NativeCompleteness
+import NightstreamFPrime.Lifecycle.OptionB.BlockSupport
 import NightstreamFPrime.Lifecycle.OptionB.FoldCompleteness
 import NightstreamFPrime.Export.OptionB.StepExtend
 import NightstreamFPrime.Export.OptionB.RunCompleteness
 import NightstreamFPrime.Lifecycle.Nebula.EtaOracle
 import NightstreamFPrime.Lifecycle.Nebula.EtaRound
 import NightstreamFPrime.Export.OptionB.NebulaSecurity
+import NightstreamFPrime.Export.OptionB.NebulaCompleteness
 import NightstreamFPrime.Export.OptionB.FinishRelation
+import NightstreamFPrime.Export.OptionB.FinishCompleteness
 import NightstreamFPrime.Export.OptionB.Parity
 import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.ChainBinding

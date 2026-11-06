@@ -16,6 +16,7 @@ use super::super::ProofCodecError;
 use super::{Envelope, OptionB, Slot};
 use crate::folding::{pi_rlc, CcsClaim, CcsInstance, CcsWitness};
 use nightstream_fprime::PUBLIC_WORDS;
+use p3_field::PrimeField64;
 
 const MAGIC: &[u8; 16] = b"NS-OPTIONB-PRF-1";
 const WORD: usize = 8;
@@ -91,7 +92,7 @@ impl OptionB {
         if Some(bytes.len()) != self.proof_length(pc) {
             return Err(ProofCodecError("length differs from these relations' proof size"));
         }
-        let iteration = input.word()?;
+        let iteration = input.field()?.as_canonical_u64();
         let (z0, current) = (input.four()?, input.four()?);
         if pc == 0 {
             if iteration != 0 || z0 != current {
@@ -103,7 +104,7 @@ impl OptionB {
         }
         let mut slots = Vec::with_capacity(2);
         for index in 0..2 {
-            let depth = input.word()?;
+            let depth = input.field()?.as_canonical_u64();
             let claim = input.claim(&self.codec_shape(index))?;
             let blocks = self.relations[index].blocks();
             let witness = Mat::from_row_major(D, blocks, input.fields(D * blocks)?);

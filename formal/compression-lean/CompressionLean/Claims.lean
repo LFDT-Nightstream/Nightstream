@@ -1,12 +1,14 @@
 import CompressionLean.Sim.OptionBEncodes
 import CompressionLean.Final.OptionBParent
 import CompressionLean.Checks.OptionBMatrix
+import CompressionLean.Checks.OptionBCover
 import CompressionLean.Checks.KeyFacts
 import CompressionLean.Final.RustSetup
 import CompressionLean.Checks.SetupFacts
 import CompressionLean.Checks.Runs
 import NightstreamFPrime.Lifecycle.Stage1.Poseidon2HashChainV1
 import CompressionLean.Final.OptionBIvc
+import CompressionLean.Final.OptionBComplete
 
 namespace CompressionLean.Claims
 
@@ -63,6 +65,16 @@ theorem option_b_fits_of_check {p : Export.OptionB.StepPackage.Package} {pushes 
     (start : p.sboxStart = Export.Generic.CircuitRelation.sboxStart pieces next) :
     Export.Generic.CircuitRelation.Fits Export.Generic.CircuitRelation.publicColumns pieces next p.width :=
   Checks.OptionB.fits_of_check pass rows blocks start
+
+/-- A pass of `coverCheck` on a step package and the layer-1 key of its circuit (CW-10.6): the key's
+norm bound is at least the accumulator bound of the light cap, and its blocks hold the package's
+logical width. -/
+theorem option_b_covers_of_check {p : Export.OptionB.StepPackage.Package} {key : Layer1Key}
+    (pass : OptionB.coverFailure p key = none) :
+    productionGlobalParams.accumulatorBound Folding.Schedule.productionLightFoldCap ≤
+        (shapeOf key.relation).normBound ∧
+      Layout.ProductionAssignment.logicalWidth (OptionB.slotsOf p) ≤ ringDegree * (shapeOf key.relation).blocks :=
+  ⟨(Checks.OptionB.coverFailure_sound pass).normCovers, (Checks.OptionB.coverFailure_sound pass).blocksCover⟩
 
 theorem option_b_honest_of_check (key : Layer1Key)
     (setup : AjtaiSetupV1.Setup productionProfile.commitmentWidth
@@ -436,5 +448,114 @@ theorem option_b_poseidon2_bound (packages : Fin 2 → Export.OptionB.StepPackag
       (option_b_runs_of_check (runs slot) (fits slot) (packed slot) (rows slot) (blocks slot) (starts slot)
         (logical slot)))
     fit keysLength L0 L1 h0 h1 t Ls p0 p1 rust calls prover
+
+/-- Completeness of `lifecycle/option_b/compression.rs::OptionB::verify_final` at the claim level
+(CW-10.6): for every valid run of the application of at least one step, the claim of
+`option_b_bound` holds for the run's statement on the emitted finish package. The honest finish
+columns are those of F′'s `FinishCompleteness.run_finish_complete`. Both next slots' words are in
+their layer-1 relations when each slot's layer-1 key passes `coverCheck` on its circuit's step
+package (`option_b_covers_of_check`). No cryptographic assumption is used. The claim does not say
+that the shrink or layer-1 verifiers accept the honest prover's messages (`TRUST.md`,
+"Completeness"). -/
+theorem option_b_complete {lw : ℕ}
+    {pf : ringDegree * PaperAlgebra.publicRingColumns ≤ Phi81CarrierLayout.carrierWidth lw}
+    {relation : ProductionKey.LogicalRelation lw pf}
+    {ajtai : PaperAlgebra.AjtaiKey (logicalWidth := lw) (publicFits := pf)}
+    {circuitKeys : Fin 2 → Lifecycle.OptionB.CircuitKey lw pf} {step : AppState → AppWitness → AppState}
+    {cubeFits : Phi81CarrierLayout.carrierWidth lw ≤ 2 ^ cubeVariables}
+    (exports : Export.OptionB.TerminalBridge.Exports relation ajtai circuitKeys step cubeFits)
+    (complete : Export.OptionB.StepExtend.Complete exports) (next width : ℕ)
+    (batches : List NightstreamFPrime.Circuit.WitnessBatch) (rest : ℕ × ℕ × ℕ × ℕ)
+    (finish : Export.OptionB.FinishCompleteness.FinishComplete exports.program relation next)
+    (stateKeys : List Replay.Word) (keys : Fin 2 → Layer1Key) (S : Fin 2 → Layer1.Setup Gl)
+    (shape : ∀ slot, ParentShape (shapeOf (keys slot).relation) lw)
+    (honest : ∀ slot, HonestSetup (shapeOf (keys slot).relation) (S slot) (circuitKeys slot).relation ajtai)
+    (keyWords : OptionB.KeysAre stateKeys circuitKeys) (keysShaped : ∀ key, (circuitKeys key).digest.length = 4)
+    (lightApplication refreshApplication : ℕ × ℕ × ℕ × ℕ × ℕ)
+    (lightCover : OptionB.coverFailure (Export.OptionB.StepPackage.packageOf 0
+      Export.Generic.CircuitRelation.publicColumns
+      (Export.OptionB.StepCompleteness.lightPieces exports.program relation ajtai) exports.lightFresh
+      exports.lightWidth complete.lightBatches lightApplication) (keys 0) = none)
+    (refreshCover : OptionB.coverFailure (Export.OptionB.StepPackage.packageOf 1
+      Export.Generic.CircuitRelation.publicColumns
+      (Export.OptionB.StepCompleteness.refreshPieces exports.program relation ajtai) exports.refreshFresh
+      exports.refreshWidth complete.refreshBatches refreshApplication) (keys 1) = none)
+    (z0 : AppState) (z0Length : z0.length = Stage1.Application.stateWordCount) (witnesses : List AppWitness)
+    (valid : Export.OptionB.IvcWalk.ValidFrom exports.program z0 witnesses)
+    (lengths : ∀ witness ∈ witnesses, witness.length = exports.program.witnessWordCount)
+    (nonempty : 0 < witnesses.length) (bound : witnesses.length < goldilocksModulus) :
+    OptionB.Holds (shapeOf (keys 0).relation) (shapeOf (keys 1).relation) modulus barOf (S 0) (S 1)
+      (OptionB.FinishTerminal (OptionB.finishPackage exports.program relation next width batches rest) stateKeys)
+      (OptionB.slotClaim (OptionB.finishPackage exports.program relation next width batches rest) 0)
+      (OptionB.slotClaim (OptionB.finishPackage exports.program relation next width batches rest) 1)
+      (OptionB.terminalWords ⟨witnesses.length, z0, witnesses.foldl step z0⟩) := by
+  obtain ⟨lightNorm, lightBlocks⟩ := option_b_covers_of_check lightCover
+  obtain ⟨refreshNorm, refreshBlocks⟩ := option_b_covers_of_check refreshCover
+  -- The logical width of each emitted step package is its circuit's `Complete.packageWidth`.
+  rw [Final.OptionB.logicalWidth_packageOf, ← Export.OptionB.StepExtend.Complete.packageWidth_zero]
+    at lightBlocks
+  rw [Final.OptionB.logicalWidth_packageOf, ← Export.OptionB.StepExtend.Complete.packageWidth_one]
+    at refreshBlocks
+  exact Final.OptionB.holds_of_honest exports.program relation ajtai circuitKeys next width batches rest
+    (fun slot => shapeOf (keys slot).relation) S barOf barOf_eq shape honest complete.packageWidth
+    (Fin.forall_fin_two.mpr ⟨lightNorm, refreshNorm⟩) (Fin.forall_fin_two.mpr ⟨lightBlocks, refreshBlocks⟩)
+    keyWords keysShaped nonempty
+    (Export.OptionB.FinishCompleteness.run_finish_complete exports complete keysShaped 0 (fun _ _ => 0) z0
+      z0Length next width batches (exports.program.witnessWordCount, rest) finish witnesses valid lengths
+      nonempty bound)
+
+/-- The statement of a valid run of at least one step is never a break of `option_b_bound`
+(CW-10.6): no outcome of the final verifier's experiment accepts it while the claim fails
+(`option_b_complete`). -/
+theorem option_b_honest_unbroken {lw : ℕ}
+    {pf : ringDegree * PaperAlgebra.publicRingColumns ≤ Phi81CarrierLayout.carrierWidth lw}
+    {relation : ProductionKey.LogicalRelation lw pf}
+    {ajtai : PaperAlgebra.AjtaiKey (logicalWidth := lw) (publicFits := pf)}
+    {circuitKeys : Fin 2 → Lifecycle.OptionB.CircuitKey lw pf} {step : AppState → AppWitness → AppState}
+    {cubeFits : Phi81CarrierLayout.carrierWidth lw ≤ 2 ^ cubeVariables}
+    (exports : Export.OptionB.TerminalBridge.Exports relation ajtai circuitKeys step cubeFits)
+    (complete : Export.OptionB.StepExtend.Complete exports) (next width : ℕ)
+    (batches : List NightstreamFPrime.Circuit.WitnessBatch) (rest : ℕ × ℕ × ℕ × ℕ)
+    (finish : Export.OptionB.FinishCompleteness.FinishComplete exports.program relation next)
+    (stateKeys : List Replay.Word) (keys : Fin 2 → Layer1Key) (S : Fin 2 → Layer1.Setup Gl)
+    (shape : ∀ slot, ParentShape (shapeOf (keys slot).relation) lw)
+    (honest : ∀ slot, HonestSetup (shapeOf (keys slot).relation) (S slot) (circuitKeys slot).relation ajtai)
+    (keyWords : OptionB.KeysAre stateKeys circuitKeys) (keysShaped : ∀ key, (circuitKeys key).digest.length = 4)
+    (lightApplication refreshApplication : ℕ × ℕ × ℕ × ℕ × ℕ)
+    (lightCover : OptionB.coverFailure (Export.OptionB.StepPackage.packageOf 0
+      Export.Generic.CircuitRelation.publicColumns
+      (Export.OptionB.StepCompleteness.lightPieces exports.program relation ajtai) exports.lightFresh
+      exports.lightWidth complete.lightBatches lightApplication) (keys 0) = none)
+    (refreshCover : OptionB.coverFailure (Export.OptionB.StepPackage.packageOf 1
+      Export.Generic.CircuitRelation.publicColumns
+      (Export.OptionB.StepCompleteness.refreshPieces exports.program relation ajtai) exports.refreshFresh
+      exports.refreshWidth complete.refreshBatches refreshApplication) (keys 1) = none)
+    (z0 : AppState) (z0Length : z0.length = Stage1.Application.stateWordCount) (witnesses : List AppWitness)
+    (valid : Export.OptionB.IvcWalk.ValidFrom exports.program z0 witnesses)
+    (lengths : ∀ witness ∈ witnesses, witness.length = exports.program.witnessWordCount)
+    (nonempty : 0 < witnesses.length) (bound : witnesses.length < goldilocksModulus) (L0 L1 : ℕ) :
+    ¬ ∃ r : OptionB.Outcome Gl Cubic (game (keys 0) (S 0) L0 L1) (game (keys 1) (S 1) L0 L1),
+      OptionB.acceptedOf r.1 = some (OptionB.terminalWords ⟨witnesses.length, z0, witnesses.foldl step z0⟩) ∧
+      OptionB.RestoreBreak (F := Gl)
+        (OptionB.Holds (shapeOf (keys 0).relation) (shapeOf (keys 1).relation) modulus barOf (S 0) (S 1)
+          (OptionB.FinishTerminal (OptionB.finishPackage exports.program relation next width batches rest) stateKeys)
+          (OptionB.slotClaim (OptionB.finishPackage exports.program relation next width batches rest) 0)
+          (OptionB.slotClaim (OptionB.finishPackage exports.program relation next width batches rest) 1))
+        Circuit.Block.poseidonTemplate
+        (OptionB.counts (OptionB.finishPackage exports.program relation next width batches rest) stateKeys keys)
+        (OptionB.shrinkRun (OptionB.finishPackage exports.program relation next width batches rest) stateKeys keys)
+        (game (keys 0) (S 0) L0 L1) (game (keys 1) (S 1) L0 L1)
+        (OptionB.Reads (OptionB.finishPackage exports.program relation next width batches rest) stateKeys keys 0
+          (S 0) L0 L1)
+        (OptionB.Reads (OptionB.finishPackage exports.program relation next width batches rest) stateKeys keys 1
+          (S 1) L0 L1) r := by
+  rintro ⟨r, accepted, tr, shrink, -, notClaim⟩
+  rw [shrink] at accepted
+  have honestWords : tr.inst = OptionB.terminalWords ⟨witnesses.length, z0, witnesses.foldl step z0⟩ :=
+    Option.some.inj accepted
+  rw [honestWords] at notClaim
+  exact notClaim (option_b_complete exports complete next width batches rest finish stateKeys keys S shape honest
+    keyWords keysShaped lightApplication refreshApplication lightCover refreshCover z0 z0Length witnesses valid
+    lengths nonempty bound)
 
 end CompressionLean.Claims

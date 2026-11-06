@@ -207,7 +207,8 @@ theorem finish_walk_covered {relation : ProductionKey.LogicalRelation logicalWid
   · exact Or.inl failed
   · exact Or.inr (covered ajtai circuitKeys exports keysShaped control terminalCap
       (finishOutput input witnesses answer) answers depthBound accepted
-      fun leads => unreached' (reaches_of_leads _ _ _ leads))
+      fun leads => unreached' (reaches_of_leads _ _ _ leads
+        (trail_lengths ajtai circuitKeys exports _ _)))
 
 end Link
 

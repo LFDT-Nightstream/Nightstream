@@ -11,10 +11,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 use neo_math::F;
-use nightstream_fprime::{
-    load_option_b_finish, load_option_b_packages, Linear, NativeBlock, NativeShape, OptionBPackages, StepPackage,
-    OPTION_B_FINISH_IDENTITY, OPTION_B_PACKAGES_IDENTITY,
-};
+use nightstream_fprime::{Linear, NativeBlock, NativeShape, OptionBPackages, StepPackage};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 use crate::application::{ApplicationCircuit, ApplicationError};
@@ -131,6 +128,26 @@ fn read_shape(input: &mut impl Read) -> Result<NativeShape, Error> {
     Ok(shape)
 }
 
+/// The saved form of an application, after the file's magic (`Circuit::load`).
+fn write_application(application: &ApplicationCircuit, output: &mut impl Write) -> Result<(), Error> {
+    output.write_all(&(application.private_input_count() as u64).to_le_bytes())?;
+    output.write_all(&application.prepared_output_forms()?)?;
+    for row in application.prepared_output_rows() {
+        output.write_all(&(row as u64).to_le_bytes())?;
+    }
+    let records = application.records();
+    output.write_all(&(records.row_count() as u64).to_le_bytes())?;
+    output.write_all(&(records.recipe_count() as u64).to_le_bytes())?;
+    records.write_to(output)?;
+    write_shape(output, application.shape())
+}
+
+fn encode_application(application: &ApplicationCircuit) -> Result<Vec<u8>, Error> {
+    let mut bytes = Vec::new();
+    write_application(application, &mut bytes)?;
+    Ok(bytes)
+}
+
 fn cpu_only(engine: Engine) -> Result<(), Error> {
     if engine != Engine::Optimized {
         return Err(EngineError::Unavailable {
@@ -143,8 +160,9 @@ fn cpu_only(engine: Engine) -> Result<(), Error> {
 }
 
 /// The three Lean-emitted packages: the light and refresh step circuits and
-/// the finish circuit (`formal/nightstream-fprime/artifacts`). The crate
-/// embeds the reference copies (`artifacts::references`).
+/// the finish circuit (`formal/nightstream-fprime/artifacts`), for the tests
+/// that load Lean's own packages (`load_packages`).
+#[cfg(test)]
 #[derive(Clone, Copy)]
 pub(crate) struct References<'a> {
     pub(crate) light: &'a [u8],
@@ -166,20 +184,25 @@ pub struct Circuit {
 }
 
 impl Circuit {
-    /// Check the embedded packages' pinned identities, then put
-    /// `application` in place of Lean's application, each permutation as a
-    /// block.
+    /// Put `application` in place of Lean's application in the embedded
+    /// packages, whose identities are their pins (`artifacts`), each
+    /// permutation as a block. The reference hash chain keeps Lean's
+    /// packages: it computes the step of Lean's application region, and the
+    /// Lean checks of Rust's files read those packages.
     pub fn compile(application: ApplicationCircuit) -> Result<Self, Error> {
-        Self::compile_with(crate::artifacts::references(), application)
-    }
-
-    fn compile_with(references: References<'_>, application: ApplicationCircuit) -> Result<Self, Error> {
         crate::application::check_blocks(&application)?;
+        let embedded = crate::artifacts::embedded();
         let witness_words = application.private_input_count();
-        let packages = load_option_b_packages(references.light, references.refresh, OPTION_B_PACKAGES_IDENTITY)?
-            .with_application(application.records().clone(), witness_words, application.shape())?;
-        let finish =
-            load_option_b_finish(references.finish, OPTION_B_FINISH_IDENTITY)?.with_witness_words(witness_words)?;
+        let packages = if encode_application(&application)?
+            == encode_application(&crate::application::poseidon2_hash_chain_v1()?)?
+        {
+            embedded.packages.clone()
+        } else {
+            embedded
+                .packages
+                .with_application(application.records().clone(), witness_words, application.shape())?
+        };
+        let finish = embedded.finish.with_witness_words(witness_words)?;
         Ok(Self {
             packages,
             finish,
@@ -193,9 +216,10 @@ impl Circuit {
     /// which moves to their witness words. Only the tests load Lean packages.
     #[cfg(test)]
     pub(crate) fn load_packages(references: References<'_>, expected: [u64; 4]) -> Result<Self, Error> {
-        let packages = load_option_b_packages(references.light, references.refresh, expected)?;
-        let finish = load_option_b_finish(references.finish, OPTION_B_FINISH_IDENTITY)?
-            .with_witness_words(packages.light().witness_words())?;
+        let packages = nightstream_fprime::load_option_b_packages(references.light, references.refresh, expected)?;
+        let finish =
+            nightstream_fprime::load_option_b_finish(references.finish, nightstream_fprime::OPTION_B_FINISH_IDENTITY)?
+                .with_witness_words(packages.light().witness_words())?;
         Ok(Self {
             packages,
             finish,
@@ -246,16 +270,7 @@ impl Circuit {
             .application
             .as_ref()
             .ok_or(ApplicationError::NoApplication)?;
-        output.write_all(&(application.private_input_count() as u64).to_le_bytes())?;
-        output.write_all(&application.prepared_output_forms()?)?;
-        for row in application.prepared_output_rows() {
-            output.write_all(&(row as u64).to_le_bytes())?;
-        }
-        let records = application.records();
-        output.write_all(&(records.row_count() as u64).to_le_bytes())?;
-        output.write_all(&(records.recipe_count() as u64).to_le_bytes())?;
-        records.write_to(&mut output)?;
-        write_shape(&mut output, application.shape())?;
+        write_application(application, &mut output)?;
         output.flush()?;
         Ok(())
     }
@@ -466,6 +481,7 @@ impl Verifier {
     }
 
     /// Check a finished proof against the expected state and a trusted key.
+    /// A key that a verifier at a lower security minimum derived is refused.
     pub fn verify_final(&self, expected: &State, key: &CompressionKey, proof: &FinalProof) -> Result<(), Error> {
         Ok(self.lifecycle.verify_final(
             &key.0,

@@ -296,15 +296,7 @@ pub fn load_option_b_packages(
     refresh: &[u8],
     expected: [u64; 4],
 ) -> Result<OptionBPackages, PackageError> {
-    let pair = Value::Array(vec![parse_atoms(light)?, parse_atoms(refresh)?]);
-    let [light_value, refresh_value] = exact_array(&pair, 2, "option-B package pair")? else {
-        return Err(PackageError::Malformed("option-B package pair"));
-    };
-    let light = StepPackage::decode(light_value)?;
-    let refresh = StepPackage::decode(refresh_value)?;
-    if light.circuit != 0 || refresh.circuit != 1 {
-        return Err(PackageError::Malformed("option-B circuit indices"));
-    }
+    let (pair, light, refresh) = decode_pair(light, refresh)?;
     let identity = option_b_identity(&pair)?;
     if identity != expected {
         return Err(PackageError::IdentityMismatch {
@@ -320,15 +312,41 @@ pub fn load_option_b_packages(
     })
 }
 
+/// Decodes both packages without hashing them: their identity is `pinned`.
+/// Only for bytes that the caller's binary embeds, whose identity a test
+/// checks with `load_option_b_packages`.
+pub fn load_pinned_option_b_packages(
+    light: &[u8],
+    refresh: &[u8],
+    pinned: [u64; 4],
+) -> Result<OptionBPackages, PackageError> {
+    let (_, light, refresh) = decode_pair(light, refresh)?;
+    Ok(OptionBPackages {
+        identity: pinned,
+        light,
+        refresh,
+    })
+}
+
+fn decode_pair(light: &[u8], refresh: &[u8]) -> Result<(Value, StepPackage, StepPackage), PackageError> {
+    let pair = Value::Array(vec![parse_atoms(light)?, parse_atoms(refresh)?]);
+    let [light_value, refresh_value] = exact_array(&pair, 2, "option-B package pair")? else {
+        return Err(PackageError::Malformed("option-B package pair"));
+    };
+    let light = StepPackage::decode(light_value)?;
+    let refresh = StepPackage::decode(refresh_value)?;
+    if light.circuit != 0 || refresh.circuit != 1 {
+        return Err(PackageError::Malformed("option-B circuit indices"));
+    }
+    Ok((pair, light, refresh))
+}
+
 /// The finish package (`FinishRelation`): the refresh step's layout without
 /// the application and the next hashes. Its identity hashes its canonical
 /// preimage under its own domain.
 pub fn load_option_b_finish(bytes: &[u8], expected: [u64; 4]) -> Result<StepPackage, PackageError> {
     let value = parse_atoms(bytes)?;
-    let package = StepPackage::decode(&value)?;
-    if package.circuit != 2 {
-        return Err(PackageError::Malformed("option-B finish circuit index"));
-    }
+    let package = decode_finish(&value)?;
     let identity = hashed_identity(FINISH_IDENTITY_DOMAIN, &value)?;
     if identity != expected {
         return Err(PackageError::IdentityMismatch {
@@ -336,6 +354,20 @@ pub fn load_option_b_finish(bytes: &[u8], expected: [u64; 4]) -> Result<StepPack
             expected,
             computed: identity,
         });
+    }
+    Ok(package)
+}
+
+/// Decodes the finish package without hashing it, under the rule of
+/// `load_pinned_option_b_packages`.
+pub fn load_pinned_option_b_finish(bytes: &[u8]) -> Result<StepPackage, PackageError> {
+    decode_finish(&parse_atoms(bytes)?)
+}
+
+fn decode_finish(value: &Value) -> Result<StepPackage, PackageError> {
+    let package = StepPackage::decode(value)?;
+    if package.circuit != 2 {
+        return Err(PackageError::Malformed("option-B finish circuit index"));
     }
     Ok(package)
 }

@@ -267,7 +267,7 @@ fn native_memory_step_cost() {
     let circuit = Circuit::compile(geometry, Machine).unwrap();
     let prover = circuit
         .circuit
-        .prover(crate::Engine::Optimized, 114)
+        .prover(crate::Engine::Optimized, 109)
         .unwrap();
     eprintln!("setup elapsed={:?}", started.elapsed());
     let mut run = Run::new(Machine, &Package::V1.program(), MachineState::default());

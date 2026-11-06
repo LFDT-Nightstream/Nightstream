@@ -735,3 +735,5 @@ plans (`SlotPlan`), batched catalogs (`Batch`) and the free application
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.EtaRound.retry_collision
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.EtaRound.mass_le
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.EtaRound.unbalanced_le
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.EtaRound.EtaSampler.unbalancedChance_le
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.EtaRound.EtaSampler.unbalancedChance_le_secure

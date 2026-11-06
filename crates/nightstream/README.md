@@ -16,16 +16,20 @@ let circuit = Circuit::compile(poseidon2_hash_chain_v1()?)?;
 circuit.write("app.nsc")?;
 ```
 
-`Circuit::compile` checks the pinned identities of the three embedded
-packages (`OPTION_B_PACKAGES_IDENTITY` and `OPTION_B_FINISH_IDENTITY` in
-`nightstream-fprime`). Then it puts the Rust application in place of the Lean
-application in both step circuits. `Circuit::identity` returns the identity of
+`Circuit::compile` puts the Rust application in place of the Lean application
+in both step circuits of the three embedded packages. The reference hash chain
+(`poseidon2_hash_chain_v1`) keeps Lean's packages, because it computes the step
+of Lean's application region, so its circuit is the one that the Lean checks
+read. The crate decodes the
+packages once per process, and their identities are their pins
+(`OPTION_B_PACKAGES_IDENTITY` and `OPTION_B_FINISH_IDENTITY` in
+`nightstream-fprime`). A test checks that each embedded copy hashes to its
+pin (`artifacts/README.md`). `Circuit::identity` returns the identity of
 the packages with this application.
 
 `Circuit::write` saves only the application. The destination must not exist.
 A prover loads it with `Prover::load(path, engine, minimum_security_bits)`,
-which compiles it again against the embedded packages and checks the pinned
-identities again. A verifier compiles its own circuit and never loads a saved
+which compiles it again against the embedded packages. A verifier compiles its own circuit and never loads a saved
 file. A memory relation has its verifier in `nebula::Circuit::verifier`.
 
 ## Prove and verify
@@ -42,7 +46,10 @@ verifier.verify(&State::new(2, initial_state, expected_state), &second)?;
 
 The caller sets `minimum_security_bits` from its own security policy. The
 value must be positive. Prover and verifier creation fail when the
-statistical security of a step relation is below this minimum.
+statistical security of a step relation is below this minimum. That
+security is the zero-query error of a refresh fold in Lean's
+random-oracle result, about `2^-109.4`, so the selected profile accepts
+a minimum of at most 109 bits.
 
 Steps prove and verify on the CPU path only (`Engine::Optimized`).
 `Engine::Metal` and `Engine::Cuda` return `EngineError::Unavailable`. The
@@ -85,8 +92,9 @@ that instance. There are two kinds of fold.
   16 children. Then Π_CCS runs over the fresh instance and the 16 children,
   and Π_RLC runs with 17 sampled challenges. The depth becomes 0.
 
-No fold ends with Π_DEC. The steps follow the schedule `((L^(cap+1) R)^cap R)`
-with `cap = 64` (`src/lifecycle/option_b/mod.rs`, `src/folding/option_b.rs`).
+No fold ends with Π_DEC. With `cap = 64`, the first period of steps is
+`(L^(cap+1) R)^(cap+1) R`, and each later period is `(L^(cap+1) R)^cap R`
+(`src/lifecycle/option_b/mod.rs`, `src/folding/option_b.rs`).
 
 ## Final proof
 
@@ -148,7 +156,7 @@ The binary writes one JSON line when each phase starts and stops. Only
 ```sh
 cargo build -p nightstream --release --bin nightstream-poseidon2-bench
 timeout --signal=KILL 300 target/release/nightstream-poseidon2-bench compile --output app.nsc > compile.jsonl
-/usr/bin/time -l timeout --foreground --signal=KILL 300 target/release/nightstream-poseidon2-bench run --package app.nsc --engine optimized --steps 3 --minimum-security-bits 114 > cpu.jsonl 2> cpu.time
+/usr/bin/time -l timeout --foreground --signal=KILL 300 target/release/nightstream-poseidon2-bench run --package app.nsc --engine optimized --steps 3 --minimum-security-bits 109 > cpu.jsonl 2> cpu.time
 ```
 
 The 300-second cap comes from the repository `AGENTS.md`. A run that reaches

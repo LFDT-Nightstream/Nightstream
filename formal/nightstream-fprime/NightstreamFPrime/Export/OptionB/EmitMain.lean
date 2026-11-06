@@ -106,10 +106,21 @@ def completenessChecks (pieces : List Pieces.Piece) (firstFresh : Nat) : Bool ×
   let scope := (pieces.filter fun piece => !PieceRowsCompleteness.pieceBelow firstFresh piece).length
   (scope == 0, scope)
 
+/-- The completeness checks of the finish package (`FinishCompleteness.FinishComplete`): every
+piece reads only columns below the first fresh column, and the shared words, which end at
+`offset`, lie below it. For a failure, also the pieces that read a fresh column. -/
+def finishChecks (pieces : List Pieces.Piece) (offset firstFresh : Nat) : Bool × Nat :=
+  if pieces.all (PieceRowsCompleteness.pieceBelow firstFresh) && decide (offset ≤ firstFresh) then
+    (true, 0)
+  else
+    (false, (pieces.filter fun piece => !PieceRowsCompleteness.pieceBelow firstFresh piece).length)
+
 /-- Writes the circuit's package (`StepPackage.packageOf`); the blocks must pack and start at or
 after the shared words (`FinishRelation.checks_finish` reads the words below them). The finish
 package has no application: its region is the witness words alone, and its fresh columns start
-after the refresh step's locals (`firstFresh`), whose layout its gadgets keep. -/
+after the refresh step's locals (`firstFresh`), whose layout its gadgets keep. Before it writes, it
+runs the package's completeness checks (`completenessChecks` for a step package, `finishChecks`
+for the finish package) and checks that no row of the circuit reads a public column. -/
 def emitPackage (name : String) (circuit : Nat) (ops : List Op) (offset : Nat)
     (pieces : List Pieces.Piece) (firstFresh : Option Nat := none)
     (program : Stage1.Application.Program := program) (stem : String := "")
@@ -123,14 +134,21 @@ def emitPackage (name : String) (circuit : Nat) (ops : List Op) (offset : Nat)
   let firstFresh := firstFresh.getD (offset + localLength ops)
   unless CircuitRelation.publicColumns ≤ firstFresh do
     throw (IO.userError s!"{name}: the first fresh column is inside the public input")
+  let free := StepCompleteness.publicFree (flatConstraints ops)
   if circuit < 2 then
     let (complete, scope) := completenessChecks pieces firstFresh
-    let free := StepCompleteness.publicFree (flatConstraints ops)
     say s!"{name}: completeness checks pass: {complete}, rows read no public column: {free} \
       ({(← IO.monoMsNow) - start} ms)"
     unless complete && free do
       throw (IO.userError s!"{name}: the completeness checks fail: {scope} pieces read a fresh \
         column, rows read no public column: {free}")
+  else
+    let (complete, scope) := finishChecks pieces offset firstFresh
+    say s!"{name}: completeness checks pass: {complete}, rows read no public column: {free} \
+      ({(← IO.monoMsNow) - start} ms)"
+    unless complete && free do
+      throw (IO.userError s!"{name}: the completeness checks fail: {scope} pieces read a fresh \
+        column, shared words end at {offset}, first fresh column {firstFresh}")
   unless write do
     return StepPackage.packageOf circuit CircuitRelation.publicColumns pieces firstFresh width
       (witnesses ops) (program.witnessWordCount, offset, 0, 0, 0)
@@ -174,8 +192,9 @@ def childCensus (name : String) (ops : List Op) : IO Unit := do
       {constraints} other constraints, {rows} other rows"
 
 /-- Writes the finish package (`FinishRelation`): the refresh step's layout without the
-application and the next hashes, with fresh columns after the refresh step's locals. -/
-def emitFinish : IO Unit := do
+application and the next hashes, with fresh columns after the refresh step's locals. Without
+`write`, it only runs the completeness checks. -/
+def emitFinish (write : Bool) : IO Unit := do
   let start ← IO.monoMsNow
   let base := StepRelation.base
   let words := program.witnessWordCount
@@ -189,8 +208,9 @@ def emitFinish : IO Unit := do
     (Pieces.split (PilotData.canonicalConstraints ())
       (FinishRelation.constraints (logicalWidth := StepRelation.keyWidth)
         (publicFits := StepRelation.keyPublicFits) program relation))
-    (some (refreshOffset + localLength refreshOps))
-  say s!"finish package written ({(← IO.monoMsNow) - start} ms)"
+    (some (refreshOffset + localLength refreshOps)) (write := write)
+  say s!"finish {if write then "package written" else "checks done"} \
+    ({(← IO.monoMsNow) - start} ms)"
 
 /-- FNV-1a over the little-endian bytes of `word`. -/
 def fnvWord (hash word : UInt64) : UInt64 := Id.run do
@@ -268,12 +288,13 @@ def nebulaFixture : List String → Option String
 /-- Writes both step packages of the `--program` application (`selected`), and for today's
 fixture the parity file; with `--finish`, only the finish package (one Lean run renders
 at most two packages under the 1,500 s cap); with `--checks`, only runs the completeness checks of
-both step packages and writes nothing; with `--census`, prints the row census first; with
-`--identity`, also computes their one identity (`StepPackage.identityFast`), which the spec
-field arithmetic makes slow: Rust computes it natively. -/
+both step packages, or with `--finish` of the finish package, and writes nothing; with
+`--census`, prints the row census first; with `--identity`, also computes their one identity
+(`StepPackage.identityFast`), which the spec field arithmetic makes slow: Rust computes it
+natively. -/
 def main (arguments : List String) : IO Unit := do
   if arguments.contains "--finish" then
-    emitFinish
+    emitFinish (!arguments.contains "--checks")
     return
   if let [mode, name, path] := arguments then
     if let some text := nebulaFixture [mode, name] then

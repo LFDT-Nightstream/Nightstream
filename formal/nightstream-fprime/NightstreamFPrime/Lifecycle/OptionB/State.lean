@@ -175,9 +175,13 @@ theorem statePreimage_injective {left right : State logicalWidth publicFits}
     | ⟨1, _⟩ => exact digest1
 
 /-- A Poseidon2 collision on an input pair that two states fix: their state preimages, or the
-slot preimages of one slot. -/
+slot preimages of one slot. The two inputs have one length: `Poseidon2.hash` pads with zeros and
+does not encode the length, so inputs of two lengths can share a hash with no collision of the
+permutation. Slot preimages always have one length (`serializeSlot_length_eq`). -/
 def StateCollision (left right : State logicalWidth publicFits) : Prop :=
-  (statePreimage left ≠ statePreimage right ∧ stateHash left = stateHash right) ∨
+  (statePreimage left ≠ statePreimage right ∧
+      (statePreimage left).length = (statePreimage right).length ∧
+      stateHash left = stateHash right) ∨
     ∃ slot, serializeSlot (left.slots slot) ≠ serializeSlot (right.slots slot) ∧
       slotDigest (left.slots slot) = slotDigest (right.slots slot)
 
@@ -201,6 +205,7 @@ theorem stateHash_collision {left right : State logicalWidth publicFits}
     obtain ⟨slot, differs⟩ := slotDiffers
     refine Or.inr ⟨slot, fun inputs => differs ?_, digests slot⟩
     exact serializeSlot_injective (leftWell.depth slot) (rightWell.depth slot) inputs
-  · exact Or.inl ⟨preimages, same⟩
+  · exact Or.inl ⟨preimages,
+      by rw [statePreimage_length leftWell, statePreimage_length rightWell], same⟩
 
 end NightstreamFPrime.Lifecycle.OptionB

@@ -4,7 +4,9 @@ This project proves a soundness bound for Nightstream's compressed proof: the fi
 (`OptionB::verify_final`, `crates/nightstream/src/lifecycle/option_b/compression.rs`) accepts a false statement
 only with a small probability, under the assumptions that `TRUST.md` lists. Two of them carry the
 most weight: the WHIR openings are idealized, and Fiat–Shamir inside the final program is assumed,
-not bounded (`TRUST.md` §3). The claims are the theorems of `CompressionLean/Claims.lean`.
+not bounded (`TRUST.md` §3). It also proves claim-level completeness: for every valid run of at
+least one step, the claim of that bound holds for the run's statement (`option_b_complete`,
+`TRUST.md` "Completeness"). The claims are the theorems of `CompressionLean/Claims.lean`.
 
 ## Strategy
 
@@ -113,4 +115,5 @@ The CI test `lean_ports` (`nightstream`) fails when a Rust item that `ports.json
 ## Cross-checks
 
 `scripts/crosschecks.sh` builds the executables and runs the ignored Rust tests that compare Rust
-with Lean, one after another, each under its cap. Its header says how to update a digest pin.
+with Lean, one after another, each under its cap. After the layer-1 keys are written, it runs
+`coverCheck` on them. Its header says how to update a digest pin.

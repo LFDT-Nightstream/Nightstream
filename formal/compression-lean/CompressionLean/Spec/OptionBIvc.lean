@@ -54,6 +54,48 @@ def terminalOf (x : StateWords) : TerminalStatement AppState :=
   ⟨(x 0).val, List.ofFn fun lane : Fin 4 => x ⟨1 + lane, by omega⟩,
     List.ofFn fun lane : Fin 4 => x ⟨5 + lane, by omega⟩⟩
 
+/-- The final verifier's words of an application statement, the inverse of `terminalOf`: the
+iteration modulo the field, then the words of `z0` and of the current state, each 0 past its
+state. -/
+def terminalWords (st : TerminalStatement AppState) : StateWords := fun k =>
+  if k.val = 0 then ⟨st.iteration % goldilocksModulus, Nat.mod_lt _ (by decide)⟩
+  else if k.val < 5 then st.z0.getD (k.val - 1) 0 else st.zi.getD (k.val - 5) 0
+
+theorem terminalWords_terminalOf (x : StateWords) : terminalWords (terminalOf x) = x := by
+  funext k
+  unfold terminalWords terminalOf
+  fin_cases k
+  · exact Fin.ext (Nat.mod_eq_of_lt (x 0).isLt)
+  all_goals simp
+
+/-- A statement whose iteration is below the field and whose states have
+`Stage1.Application.stateWordCount` words is the statement of its words. -/
+theorem terminalOf_terminalWords (st : TerminalStatement AppState) (small : st.iteration < goldilocksModulus)
+    (start : st.z0.length = Stage1.Application.stateWordCount)
+    (current : st.zi.length = Stage1.Application.stateWordCount) :
+    terminalOf (terminalWords st) = st := by
+  obtain ⟨iteration, z0, zi⟩ := st
+  change iteration < goldilocksModulus at small
+  change z0.length = 4 at start
+  change zi.length = 4 at current
+  unfold terminalOf terminalWords
+  congr 1
+  · exact Nat.mod_eq_of_lt small
+  · apply List.ext_getElem (by simp [start])
+    intro n inside _
+    simp only [List.length_ofFn] at inside
+    rw [List.getElem_ofFn]
+    dsimp only
+    rw [ite_eq_right (show ¬ 1 + n = 0 by omega), ite_eq_left (show 1 + n < 5 by omega),
+      show 1 + n - 1 = n by omega, List.getD_eq_getElem _ _ (by omega)]
+  · apply List.ext_getElem (by simp [current])
+    intro n inside _
+    simp only [List.length_ofFn] at inside
+    rw [List.getElem_ofFn]
+    dsimp only
+    rw [ite_eq_right (show ¬ 5 + n = 0 by omega), ite_eq_right (show ¬ 5 + n < 5 by omega),
+      show 5 + n - 5 = n by omega, List.getD_eq_getElem _ _ (by omega)]
+
 variable {lw : ℕ} {pf : ringDegree * PaperAlgebra.publicRingColumns ≤ Phi81CarrierLayout.carrierWidth lw}
 
 /-- The final program's state keys are the circuit keys' digests. -/

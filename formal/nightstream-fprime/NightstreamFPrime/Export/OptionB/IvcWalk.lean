@@ -101,10 +101,12 @@ theorem validFrom_append (program : Stage1.Application.Program) :
       simp only [List.cons_append, ValidFrom, List.foldl_cons, validFrom_append program _ rest second,
         and_assoc]
 
-/-- `iteration` valid steps of `program` lead from `z0` to `zi`. -/
+/-- `iteration` valid steps of `program`, each with a witness of the program's word count, lead
+from `z0` to `zi`. -/
 def Reaches (program : Stage1.Application.Program) (statement : TerminalStatement AppState) :
     Prop :=
   ∃ advice : List AppWitness, advice.length = statement.iteration ∧
+    (∀ witness ∈ advice, witness.length = program.witnessWordCount) ∧
     ValidFrom program statement.z0 advice ∧ advice.foldl program.step statement.z0 = statement.zi
 
 /-- The decoded steps, from the last back, are valid steps of `program` that lead from `z0` to
@@ -118,16 +120,26 @@ def Leads (program : Stage1.Application.Program) :
         decoded.input.z0 = statement.z0 ∧ decoded.input.iteration + 1 = statement.iteration ∧
         Leads program ⟨decoded.input.iteration, decoded.input.z0, decoded.input.zi⟩ older
 
-/-- The witnesses of decoded steps that lead to `statement` reach it. -/
+/-- The witnesses of decoded steps that lead to `statement`, each of the program's word count,
+reach it. -/
 theorem reaches_of_leads (program : Stage1.Application.Program) :
     ∀ (statement : TerminalStatement AppState) (steps : List (Decoded logicalWidth publicFits)),
-      Leads program statement steps → Reaches program statement
-  | _, [], ⟨zero, same⟩ => ⟨[], zero.symm, trivial, same.symm⟩
-  | statement, decoded :: older, ⟨valid, stepped, z0Eq, iterationEq, earlier⟩ => by
-      obtain ⟨advice, length, validFrom, folded⟩ := reaches_of_leads program _ older earlier
-      refine ⟨advice ++ [decoded.input.witness], ?_, ?_, ?_⟩
+      Leads program statement steps →
+      (∀ decoded ∈ steps, decoded.input.witness.length = program.witnessWordCount) →
+      Reaches program statement
+  | _, [], ⟨zero, same⟩, _ => ⟨[], zero.symm, by simp, trivial, same.symm⟩
+  | statement, decoded :: older, ⟨valid, stepped, z0Eq, iterationEq, earlier⟩, lengths => by
+      obtain ⟨advice, length, adviceLengths, validFrom, folded⟩ :=
+        reaches_of_leads program _ older earlier fun other inside =>
+          lengths other (List.mem_cons_of_mem _ inside)
+      refine ⟨advice ++ [decoded.input.witness], ?_, ?_, ?_, ?_⟩
       · simp only [List.length_append, List.length_singleton, length]
         exact iterationEq
+      · intro witness inside
+        rcases List.mem_append.mp inside with old | new
+        · exact adviceLengths witness old
+        · rw [List.mem_singleton.mp new]
+          exact lengths decoded (by simp)
       · rw [validFrom_append]
         dsimp only at validFrom folded
         rw [← z0Eq, folded]
@@ -456,6 +468,28 @@ def trail : Visit logicalWidth publicFits → List (Answer logicalWidth publicFi
             if 0 < (exports.last payload).input.iteration then
               trail (back ajtai circuitKeys exports visit answer) rest
             else []
+
+/-- Each step of the trail decodes a witness of the program's word count. -/
+theorem trail_lengths :
+    ∀ (visit : Visit logicalWidth publicFits) (answers : List (Answer logicalWidth publicFits)),
+      ∀ decoded ∈ trail ajtai circuitKeys exports visit answers,
+        decoded.input.witness.length = exports.program.witnessWordCount
+  | visit, [], decoded, inside => by
+      unfold trail at inside
+      split at inside
+      · simp at inside
+      · rw [List.mem_singleton.mp inside]
+        exact exports.last_witness_length _
+  | visit, answer :: rest, decoded, inside => by
+      unfold trail at inside
+      split at inside
+      · simp at inside
+      · rcases List.mem_cons.mp inside with first | later
+        · rw [first]
+          exact exports.last_witness_length _
+        · split at later
+          · exact trail_lengths _ rest decoded later
+          · simp at later
 
 /-- With no collision and no failed stage among its first visits, the steps that the walk
 decodes from a relaxed visit lead to its statement, when its iteration is at most the number of

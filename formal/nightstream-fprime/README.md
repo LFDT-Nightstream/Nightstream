@@ -46,7 +46,9 @@ are the authority for the departures from SuperNeo v1.2.
 refresh packages, `artifacts/nightstream-fprime-option-b-light-v1.json` and
 `artifacts/nightstream-fprime-option-b-refresh-v1.json`.
 `lake exe emitOptionB --finish` writes
-`artifacts/nightstream-fprime-option-b-finish-v1.json`. Rust pins the
+`artifacts/nightstream-fprime-option-b-finish-v1.json`. Before it writes a
+package, the emitter runs the package's completeness checks and stops when one
+fails. With `--checks`, it runs only these checks and writes nothing. Rust pins the
 identities of these packages (`OPTION_B_PACKAGES_IDENTITY` and
 `OPTION_B_FINISH_IDENTITY` in `crates/nightstream-fprime/src/option_b.rs`).
 

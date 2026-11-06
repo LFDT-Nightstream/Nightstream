@@ -650,6 +650,16 @@ theorem localLength_eq (interface : Interface) (offset : Nat) :
   exact compile_recipes_length offset (interface.point offset)
     (interface.coefficients offset)
 
+/-- The circuit with its private count from `localLength_eq`, for compiled evaluation: an
+offset after the circuit would otherwise compile its recipes again. -/
+def circuitFast (interface : Interface) : FormalCircuit :=
+  (circuit interface).withPrivateCount
+    (fun offset => 3 * ((interface.coefficients offset).length - 1)) (localLength_eq interface)
+
+@[csimp] theorem circuit_eq_circuitFast : @circuit = @circuitFast := by
+  funext interface
+  exact FormalCircuit.eq_withPrivateCount _ _ _
+
 theorem operations_length (interface : Interface) (offset : Nat) :
     (Circuit.ops (circuit interface).main offset).length = 1 := by
   rfl

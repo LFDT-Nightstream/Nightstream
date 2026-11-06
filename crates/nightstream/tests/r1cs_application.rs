@@ -275,8 +275,8 @@ fn a_relation_of_the_builders_proves_and_verifies_on_cpu() {
     let engine = nightstream::Engine::Optimized;
     let app = application(2);
     let circuit = Circuit::compile(geometry(2), app.clone()).unwrap();
-    let prover = circuit.prover(engine, 114).unwrap();
-    let verifier = circuit.verifier(engine, 114).unwrap();
+    let prover = circuit.prover(engine, 109).unwrap();
+    let verifier = circuit.verifier(engine, 109).unwrap();
     let program = app.program(&preload(TABLE)).unwrap();
 
     let mut run = prover.start(&program, vec![0]).unwrap();

@@ -3,7 +3,7 @@ import CompressionLeanTests.Inventory
 
 open Lean Elab Command CompressionLeanTests.Inventory
 
-def vocabularyFolders : List String := ["Fields", "Production", "Game", "Terminal", "Layer1", "Ports", "Spec"]
+def vocabularyFolders : List String := ["Fields", "Production", "Game", "Layer1", "Ports", "Spec"]
 
 /-- F′, Mathlib and core. -/
 def outsideRoots : List Name := [`NightstreamFPrime, `Mathlib, `Init, `Std, `Lean]

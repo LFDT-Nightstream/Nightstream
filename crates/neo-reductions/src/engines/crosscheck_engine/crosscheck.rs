@@ -148,6 +148,7 @@ pub fn crosscheck_verify(
                 running_claims,
                 outputs,
                 proof,
+                &crate::engines::pi_ccs_joint_protocol::FoldProfile::production(),
             )
         },
         || {

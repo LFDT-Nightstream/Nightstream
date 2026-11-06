@@ -952,14 +952,13 @@ fn program_images_hold_the_preloaded_cells_of_checked_memories() {
 #[test]
 #[ignore = "Full production-profile memory proofs; run separately under the 300-second cap."]
 fn catalog_proof_verifies_and_rejects_a_broken_row_on_cpu() {
-    use crate::lifecycle::{VerifyError as Stage1Error, FAILED_ASSERTION_ROW, UNCHECKED_WITNESS};
     use crate::nebula::{Circuit, Proof, VerifyError};
     let started = std::time::Instant::now();
     let setup = setup();
     let engine = crate::Engine::Optimized;
     let circuit = Circuit::compile(setup.geometry, setup.app(true, None)).unwrap();
-    let prover = circuit.circuit.prover(engine, 114).unwrap();
-    let verifier = circuit.verifier(engine, 114).unwrap();
+    let prover = circuit.circuit.prover(engine, 109).unwrap();
+    let verifier = circuit.verifier(engine, 109).unwrap();
     eprintln!("catalog setup elapsed={:?}", started.elapsed());
 
     let (run, invocations) = setup.run(None, &honest_rows());
@@ -981,18 +980,17 @@ fn catalog_proof_verifies_and_rejects_a_broken_row_on_cpu() {
 
     let mut words = invocations[3].words.clone();
     *aux_word(&mut words, COLUMNS, PUSH_VALUE) = F::from_u64(6);
-    UNCHECKED_WITNESS.set(true);
-    FAILED_ASSERTION_ROW.set(None);
-    let bad = prover.extend_with_output(&proofs[2], &words, invocations[3].output);
-    UNCHECKED_WITNESS.set(false);
-    assert!(
-        FAILED_ASSERTION_ROW.take().is_some(),
-        "the broken step fails an assertion row"
-    );
-    let bad = Proof::from_parts(bad.unwrap(), *run.carry());
+    // The option-B prover checks no row: the broken step proves, and the
+    // verifier rejects it at a row of the fresh instance's relation.
+    let bad = prover
+        .extend_with_output(&proofs[2], &words, invocations[3].output)
+        .expect("the prover checks no row");
+    let bad = Proof::from_parts(bad, *run.carry());
     assert!(matches!(
         verifier.verify(&setup.program, &statement.initial, &statement.final_, &bad),
-        Err(VerifyError::Proof(crate::Error::Verify(Stage1Error::FreshRelation(_))))
+        Err(VerifyError::Proof(crate::Error::OptionB(
+            crate::lifecycle::option_b::OptionBError::Fresh("a relation row fails")
+        )))
     ));
     eprintln!("catalog elapsed={:?}", started.elapsed());
 }

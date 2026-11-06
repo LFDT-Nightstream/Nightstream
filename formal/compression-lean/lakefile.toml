@@ -1,7 +1,7 @@
 name = "compression_lean"
 version = "0.1.0"
-defaultTargets = ["CompressionLean", "CompressionLeanTests", "CompressionLeanExe", "emitTerminal", "replayLayer1",
-  "lowerCheck", "terminalCheck", "setupCheck", "setupRootCheck", "runsCheck", "status"]
+defaultTargets = ["CompressionLean", "CompressionLeanTests", "CompressionLeanExe", "replayLayer1",
+  "lowerCheck", "optionBCheck", "setupCheck", "setupRootCheck", "runsCheck", "coverCheck", "status"]
 allowNonModules = true
 
 [[require]]
@@ -28,11 +28,11 @@ leanOptions = { autoImplicit = false, relaxedAutoImplicit = false, warningAsErro
 # builds its root module (see there).
 [[lean_lib]]
 name = "CompressionLeanExe"
-roots = ["CompressionLeanExe.Digest", "CompressionLeanExe.EmitTerminal",
-  "CompressionLeanExe.Fixtures", "CompressionLeanExe.Key", "CompressionLeanExe.LowerCheck",
+roots = ["CompressionLeanExe.CoverCheck", "CompressionLeanExe.Digest",
+  "CompressionLeanExe.Fixtures", "CompressionLeanExe.Key", "CompressionLeanExe.LowerCheck", "CompressionLeanExe.OptionBCheck", "CompressionLeanExe.PackageJson",
   "CompressionLeanExe.Parse", "CompressionLeanExe.ReplayLayer1", "CompressionLeanExe.Runs",
   "CompressionLeanExe.RunsCheck", "CompressionLeanExe.SetupCheck",
-  "CompressionLeanExe.SetupRootCheck", "CompressionLeanExe.TerminalCheck"]
+  "CompressionLeanExe.SetupRootCheck"]
 leanOptions = { autoImplicit = false, relaxedAutoImplicit = false, warningAsError = true }
 
 # The ports gate reads these files, so a change to them reruns it.
@@ -47,11 +47,6 @@ path = "STATUS.md"
 text = true
 
 [[lean_exe]]
-name = "emitTerminal"
-root = "CompressionLeanExe.EmitTerminal"
-leanOptions = { autoImplicit = false, relaxedAutoImplicit = false, warningAsError = true }
-
-[[lean_exe]]
 name = "replayLayer1"
 root = "CompressionLeanExe.ReplayLayer1"
 leanOptions = { autoImplicit = false, relaxedAutoImplicit = false, warningAsError = true }
@@ -62,8 +57,8 @@ root = "CompressionLeanExe.LowerCheck"
 leanOptions = { autoImplicit = false, relaxedAutoImplicit = false, warningAsError = true }
 
 [[lean_exe]]
-name = "terminalCheck"
-root = "CompressionLeanExe.TerminalCheck"
+name = "optionBCheck"
+root = "CompressionLeanExe.OptionBCheck"
 leanOptions = { autoImplicit = false, relaxedAutoImplicit = false, warningAsError = true }
 
 [[lean_exe]]
@@ -79,6 +74,11 @@ leanOptions = { autoImplicit = false, relaxedAutoImplicit = false, warningAsErro
 [[lean_exe]]
 name = "runsCheck"
 root = "CompressionLeanExe.RunsCheck"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false, warningAsError = true }
+
+[[lean_exe]]
+name = "coverCheck"
+root = "CompressionLeanExe.CoverCheck"
 leanOptions = { autoImplicit = false, relaxedAutoImplicit = false, warningAsError = true }
 
 [[lean_exe]]

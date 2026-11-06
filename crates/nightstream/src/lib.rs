@@ -1,10 +1,10 @@
-//! Native circuit assembly and recursive proving from Lean-exported verifier components.
+//! Recursive proving of an application's steps over circuits that Lean emits,
+//! and compression of the final proof.
 
 pub mod application;
 pub mod error;
 
 mod artifacts;
-mod assembly;
 mod circuit;
 mod engine;
 mod folding;
@@ -12,9 +12,12 @@ mod lifecycle;
 pub mod nebula;
 pub mod relation;
 
-pub use circuit::{ApplicationSize, Circuit, CompressionKey, CompressionSetup, Error, Prover, Verifier};
+#[cfg(test)]
+pub(crate) use circuit::References;
+pub use circuit::{
+    ApplicationSize, Circuit, CompressionKey, CompressionSetup, Error, FinalProof, Proof, Prover, State, Verifier,
+};
 pub use engine::{Engine, EngineError};
-pub use lifecycle::{FinalProof, Stage1Envelope as Proof, Stage1State as State};
 /// The Goldilocks field of every state, input and output word, and the
 /// Plonky3 traits that build and read its elements.
 pub use p3_field::{PrimeCharacteristicRing, PrimeField64};

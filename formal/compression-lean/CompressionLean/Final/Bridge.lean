@@ -136,6 +136,9 @@ theorem toPolynomial_ringFSum {n : ℕ} (terms : Fin n → RingF) :
 theorem degree_toPolynomial' (value : RingF) : (toPolynomial value).degree < 54 :=
   degree_sum_fin_lt (R := Gl) value
 
+theorem modulus_natDegree : modulus.natDegree = ringDegree :=
+  natDegree_eq_of_degree_eq_some degree_modulus
+
 theorem eq_of_dvd {x y : RingF} (holds : modulus ∣ toPolynomial x - toPolynomial y) : x = y := by
   apply toPolynomial_injective
   have small : (toPolynomial x - toPolynomial y).degree < modulus.degree := by
@@ -143,23 +146,33 @@ theorem eq_of_dvd {x y : RingF} (holds : modulus ∣ toPolynomial x - toPolynomi
     exact (degree_sub_le _ _).trans_lt (max_lt (degree_toPolynomial' x) (degree_toPolynomial' y))
   exact sub_eq_zero.mp (eq_zero_of_dvd_of_degree_lt holds small)
 
+/-- A sum of ring products and the sum of their polynomial products agree modulo `Φ₈₁`. -/
+theorem dvd_ringSum {n : ℕ} (W A : Fin n → RingF) :
+    modulus ∣ ∑ b, toPolynomial (W b) * toPolynomial (A b) -
+      toPolynomial (NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Commitment.ringFSum
+        (fun b => ringFMul (W b) (A b))) := by
+  rw [toPolynomial_ringFSum]
+  simp only [toPolynomial_ringFMul_mod]
+  rw [← Finset.sum_sub_distrib]
+  apply Finset.dvd_sum
+  intro b _
+  refine ⟨(toPolynomial (W b) * toPolynomial (A b)) /ₘ modulus, ?_⟩
+  have := modByMonic_add_div (toPolynomial (W b) * toPolynomial (A b)) modulus
+  linear_combination -this
+
 theorem ringSum_eq_of_dvd {n : ℕ} (W A : Fin n → RingF) (y : RingF)
     (holds : modulus ∣ ∑ b, toPolynomial (W b) * toPolynomial (A b) - toPolynomial y) :
     NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Commitment.ringFSum (fun b => ringFMul (W b) (A b)) = y := by
   apply eq_of_dvd
-  have reduce : modulus ∣ ∑ b, toPolynomial (W b) * toPolynomial (A b) -
-      toPolynomial (NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Commitment.ringFSum
-        (fun b => ringFMul (W b) (A b))) := by
-    rw [toPolynomial_ringFSum]
-    simp only [toPolynomial_ringFMul_mod]
-    rw [← Finset.sum_sub_distrib]
-    apply Finset.dvd_sum
-    intro b _
-    refine ⟨(toPolynomial (W b) * toPolynomial (A b)) /ₘ modulus, ?_⟩
-    have := modByMonic_add_div (toPolynomial (W b) * toPolynomial (A b)) modulus
-    linear_combination -this
-  have := dvd_sub holds reduce
+  have := dvd_sub holds (dvd_ringSum W A)
   rwa [sub_sub_sub_cancel_left] at this
+
+/-- The converse of `ringSum_eq_of_dvd`. -/
+theorem dvd_of_ringSum_eq {n : ℕ} (W A : Fin n → RingF) (y : RingF)
+    (holds : NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Commitment.ringFSum
+      (fun b => ringFMul (W b) (A b)) = y) :
+    modulus ∣ ∑ b, toPolynomial (W b) * toPolynomial (A b) - toPolynomial y :=
+  holds ▸ dvd_ringSum W A
 
 theorem ringFSum_apply {n : ℕ} (terms : Fin n → RingF) (p : Fin ringDegree) :
     gl (NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Commitment.ringFSum terms p) = ∑ b, gl (terms b p) := by

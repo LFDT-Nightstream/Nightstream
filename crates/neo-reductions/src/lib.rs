@@ -16,6 +16,7 @@ pub use engines::optimized_engine;
 pub use engines::paper_exact_engine;
 
 pub use engines::optimized_engine::{pi_ccs_prove, pi_ccs_verify, Challenges, PiCcsProof};
+pub use engines::pi_ccs_joint_protocol::{FoldProfile, NormSources};
 
 pub use error::PiCcsError;
 

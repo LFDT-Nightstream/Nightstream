@@ -16,7 +16,7 @@ timeout --signal=KILL 300 cargo test -p nightstream --release
 timeout --signal=KILL 300 cargo test -p neo-ccs --release --test packed_witness
 timeout --signal=KILL 300 cargo test -p neo-reductions --release --test matrix_rows
 timeout --signal=KILL 300 cargo test -p nightstream-fprime --release --lib application_records
-timeout --signal=KILL 300 cargo test -p nightstream-fprime --release --lib package::native_application
+timeout --signal=KILL 300 cargo test -p nightstream-fprime --release --lib option_b::application
 ```
 
 CI runs the selected Rust regression suites. Lean remains a local check.
@@ -27,9 +27,9 @@ supported Mac:
 timeout --signal=KILL 300 cargo test -p neo-prover-metal --release --no-default-features --features metal --lib session::joint::relation::tests
 ```
 
-## Formal and complete-fold checks
+## Formal and cross-checks
 
 Use `formal/nightstream-fprime/scripts/validate.sh` for Lean. Each command
 has a 25-minute cap. Read the active project's `AGENTS.md` before editing.
-[Golden conformance](../../scripts/GOLDEN_CONFORMANCE.md) runs two fresh native
-folds, Lean comparisons, and exact terminal rejection checks.
+`formal/compression-lean/scripts/crosschecks.sh` builds the Lean check
+executables and runs the ignored Rust tests that compare Rust with Lean.

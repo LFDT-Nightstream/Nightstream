@@ -1,78 +1,67 @@
-//! The Rust-built memory circuit of each package has the Lean package's
-//! relation: the same dimensions and the same matrix rows, row for row. The
-//! witness programs differ in encoding (Lean: recipe batches and witness
-//! instructions; Rust: one recipe per variable), so the identifiers differ.
-//! The Rust-built circuit also saves and loads.
+//! The Rust-built memory circuit of each package has the rows of Lean's memory
+//! application: the same rows, row for row, in the same variable order
+//! (`EmitMain.applicationDigest`, `tests/fixtures/nebula-memory-*-digest.json`).
+//! The witness programs differ in encoding (Lean: recipe batches and witness
+//! instructions; Rust: one recipe per variable). The Rust-built circuit also
+//! saves and loads.
 
-use std::{cell::RefCell, collections::BTreeSet, fs, path::PathBuf};
-
-use nightstream_fprime::{
-    load_per_application_package, LoadedPerApplicationPackage, LogicalMatrixRow, StructuralIdentifier,
+use std::{
+    cell::RefCell,
+    collections::{BTreeMap, BTreeSet},
+    fs,
+    ops::ControlFlow,
 };
 
+use p3_field::{PrimeCharacteristicRing, PrimeField64};
+use p3_goldilocks::Goldilocks as F;
+
+use crate::nebula::test_packages::{option_b_packages, references};
 use crate::{
     application::ApplicationCircuit,
-    assembly,
     nebula::{
         Application, Circuit, Expr, Machine, MachineState, Memory, Package, Program, Run, Step, Transition, View,
     },
 };
 
-fn artifact(name: &str) -> Vec<u8> {
-    fs::read(
-        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("artifacts")
-            .join(name),
-    )
-    .unwrap()
+/// FNV-1a over the little-endian bytes of `word`.
+fn fnv(hash: u64, word: u64) -> u64 {
+    word.to_le_bytes()
+        .iter()
+        .fold(hash, |hash, &byte| (hash ^ u64::from(byte)).wrapping_mul(0x100000001b3))
 }
 
-fn assert_same_relation(package: Package, lean: &str) {
-    let reference = artifact("nightstream-fprime-stage1-poseidon2-hash-chain-v1.json");
+/// The digest that Lean's emitter writes for the package's application: each
+/// side's constant, then its terms by variable, with equal variables merged
+/// and zero coefficients dropped.
+fn assert_same_rows(package: Package, fixture: &[u8]) {
     let application = package.application().unwrap();
-    let (actual, _) = assembly::prepare(&reference, &application).unwrap();
-    let expected = load_per_application_package(
-        &artifact(lean),
-        StructuralIdentifier::from_words(package.structural_identifier()),
-    )
-    .unwrap();
-
-    let rows = expected.application().row_range();
-    assert_eq!(actual.application().row_range(), rows, "application rows");
-    assert_eq!(
-        actual.application().private_range(),
-        expected.application().private_range(),
-        "application variables"
-    );
-    assert_eq!(actual.row_count(), expected.row_count(), "package rows");
-    assert_eq!(
-        actual.logical_column_count(),
-        expected.logical_column_count(),
-        "columns"
-    );
-
-    // Every logical row: the shared verifier rows relocated around the
-    // application, the application rows, and the boundary rows. The test
-    // compares one row at a time, because holding every expanded row at once
-    // took about 34 GB.
-    for index in 0..expected.row_count() {
-        assert_eq!(
-            logical_row(&actual, index),
-            logical_row(&expected, index),
-            "logical row {index}"
-        );
+    let records = application.records();
+    let mut hash = fnv(0xcbf29ce484222325, records.row_count() as u64);
+    for row in 0..records.row_count() {
+        let header = records.row_header(row).unwrap();
+        let mut sides: [BTreeMap<usize, F>; 3] = Default::default();
+        let _: ControlFlow<()> = records
+            .visit_terms(row, |term| {
+                *sides[term.form.index()]
+                    .entry(term.variable)
+                    .or_insert(F::ZERO) += F::from_u64(term.coefficient);
+                Ok(ControlFlow::Continue(()))
+            })
+            .unwrap();
+        for (side, constant) in sides.iter().zip(header.constants) {
+            let terms: Vec<_> = side
+                .iter()
+                .filter(|(_, value)| **value != F::ZERO)
+                .collect();
+            hash = fnv(fnv(hash, constant), terms.len() as u64);
+            for (variable, value) in terms {
+                hash = fnv(fnv(hash, *variable as u64), value.as_canonical_u64());
+            }
+        }
     }
-}
-
-fn logical_row(package: &LoadedPerApplicationPackage, index: usize) -> LogicalMatrixRow {
-    let mut found = None;
-    package
-        .visit_matrix_rows(index..index + 1, |_, row| {
-            found = Some(row);
-            Ok(())
-        })
-        .unwrap();
-    found.unwrap()
+    let expected: serde_json::Value = serde_json::from_slice(fixture).unwrap();
+    assert_eq!(Some(records.row_count() as u64), expected["rows"].as_u64(), "rows");
+    assert_eq!(Some(hash), expected["digest"].as_u64(), "row digest");
 }
 
 /// A Stage 1 verifier checks no SPEC.md Algorithm 10 terminal condition, so it would
@@ -80,26 +69,25 @@ fn logical_row(package: &LoadedPerApplicationPackage, index: usize) -> LogicalMa
 /// checked. A memory package makes only the memory verifier.
 #[test]
 fn memory_packages_make_no_stage1_verifier() {
-    let loaded = Package::V1
-        .load(&artifact("nightstream-fprime-stage2-nebula-memory-v1.json"))
-        .unwrap();
+    let packages = option_b_packages("nebula-v1-");
+    let loaded = Package::V1.load(references(&packages)).unwrap();
     assert!(matches!(
-        loaded.circuit.verifier(crate::Engine::Optimized, 114),
+        loaded.circuit.verifier(crate::Engine::Optimized, 109),
         Err(crate::Error::Circuit(
             "a memory relation needs nebula::Circuit::verifier"
         ))
     ));
-    assert!(loaded.verifier(crate::Engine::Optimized, 114).is_ok());
+    assert!(loaded.verifier(crate::Engine::Optimized, 109).is_ok());
 }
 
 #[test]
-fn first_package_relation_matches_lean() {
-    assert_same_relation(Package::V1, "nightstream-fprime-stage2-nebula-memory-v1.json");
+fn first_package_rows_match_lean() {
+    assert_same_rows(Package::V1, include_bytes!("../fixtures/nebula-memory-v1-digest.json"));
 }
 
 #[test]
-fn second_package_relation_matches_lean() {
-    assert_same_relation(Package::N1, "nightstream-fprime-stage2-nebula-memory-n1.json");
+fn second_package_rows_match_lean() {
+    assert_same_rows(Package::N1, include_bytes!("../fixtures/nebula-memory-n1-digest.json"));
 }
 
 /// The Rust circuit's witness program completes every honest invocation of a
@@ -160,7 +148,7 @@ fn rust_built_circuit_writes_and_loads() {
     let loaded = loaded.unwrap();
     assert_eq!(loaded.identity(), circuit.circuit.identity());
     assert!(matches!(
-        loaded.verifier(crate::Engine::Optimized, 114),
+        loaded.verifier(crate::Engine::Optimized, 109),
         Err(crate::Error::Circuit(
             "a memory relation needs nebula::Circuit::verifier"
         ))

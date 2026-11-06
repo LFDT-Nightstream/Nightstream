@@ -27,6 +27,27 @@ theorem subtraction_eq
   change left column + -right column = left column - right column
   exact (Fin.sub_eq_add_neg _ _).symm
 
+/-- Two openings below `bound` differ by less than `2 · bound`. Relaxed binding takes this at `B`
+(`compatible`) and at the chain bound (`PiRLC.ChainBinding.forkCollision`,
+`Light.Rlc.collisionAbove`). -/
+theorem differenceBounded (bound : Nat)
+    (left right : PaperAlgebra.Assignment (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (leftNorm : (ProductionKey.key relation ajtai).piRlcSemantics.normBounded bound left)
+    (rightNorm : (ProductionKey.key relation ajtai).piRlcSemantics.normBounded bound right) :
+    (ProductionKey.key relation ajtai).piRlcSemantics.normBounded (2 * bound)
+      ((PaperExtractionAlgebra.extractionAlgebra
+        (logicalWidth := logicalWidth) (publicFits := publicFits) ajtai).assignmentModule.sub left right) := by
+  change Phi81Relation.assignmentNormBounded (shape := FullShape logicalWidth publicFits) (2 * bound)
+    ((PaperExtractionAlgebra.extractionAlgebra
+      (logicalWidth := logicalWidth) (publicFits := publicFits) ajtai).assignmentModule.sub left right)
+  rw [subtraction_eq (logicalWidth := logicalWidth) (publicFits := publicFits) ajtai left right]
+  have leftBound : Phi81Relation.assignmentNormBounded (shape := FullShape logicalWidth publicFits)
+      bound left := leftNorm
+  have rightBound : Phi81Relation.assignmentNormBounded (shape := FullShape logicalWidth publicFits)
+      bound right := rightNorm
+  simpa only [two_mul] using Binding.difference_bounded (shape := FullShape logicalWidth publicFits)
+    left right leftBound rightBound
+
 theorem compatible :
     PiRLC.PaperForkBinding.Compatible
       (algebra := (ProductionKey.key relation ajtai).piRlcAlgebra)
@@ -44,16 +65,6 @@ theorem compatible :
     refine ⟨left, right, leftValid, rightValid, ?_⟩
     exact ForkStrongSet.ring_sub_eq left right
   · intro left right leftNorm rightNorm
-    change Phi81Relation.assignmentNormBounded (shape := FullShape logicalWidth publicFits)
-      (2 * productionGlobalParams.bigB)
-      ((PaperExtractionAlgebra.extractionAlgebra
-        (logicalWidth := logicalWidth) (publicFits := publicFits) ajtai).assignmentModule.sub left right)
-    rw [subtraction_eq (logicalWidth := logicalWidth) (publicFits := publicFits) ajtai left right]
-    have leftBound : Phi81Relation.assignmentNormBounded (shape := FullShape logicalWidth publicFits)
-        productionGlobalParams.bigB left := leftNorm
-    have rightBound : Phi81Relation.assignmentNormBounded (shape := FullShape logicalWidth publicFits)
-        productionGlobalParams.bigB right := rightNorm
-    simpa only [two_mul] using Binding.difference_bounded (shape := FullShape logicalWidth publicFits)
-      left right leftBound rightBound
+    exact differenceBounded relation ajtai _ left right leftNorm rightNorm
 
 end NightstreamFPrime.Lifecycle.Nifs.BindingBridge

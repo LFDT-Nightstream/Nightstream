@@ -126,6 +126,15 @@ theorem localLength_eq {degree : Nat} (interface : Interface degree)
       privateCount degree :=
   FixedChain.Owned.localLength_eq (coreInterface interface offset) offset
 
+/-- The circuit with its constant private count, for compiled evaluation
+(`Formal.childLength_eq_childLengthFast` reads it for every later offset). -/
+def circuitFast {degree : Nat} (interface : Interface degree) : FormalCircuit :=
+  (circuit interface).withPrivateCount (fun _ => privateCount degree) (localLength_eq interface)
+
+@[csimp] theorem circuit_eq_circuitFast : @circuit = @circuitFast := by
+  funext degree interface
+  exact FormalCircuit.eq_withPrivateCount _ _ _
+
 theorem operations_length {degree : Nat} (interface : Interface degree)
     (offset : Nat) :
     (Circuit.ops (circuit interface).main offset).length = 57 := by
@@ -162,6 +171,84 @@ theorem output_varsBelow {degree : Nat} (interface : Interface degree)
     (output interface offset).VarsBelow (offset + privateCount degree) :=
   FixedChain.Owned.output_varsBelow (coreInterface interface offset) offset
     assumptions
+
+/-- The rows give the fixed SumCheck chain (SuperNeo v1.2 Section 7.3, `SumCheck(T; Q)`) for any
+claimed sum, round polynomials, challenges and terminal claim that the leaf's inputs carry. -/
+theorem spec_implies_chain {degree : Nat} (interface : Interface degree) (offset : Nat)
+    (env : Env) (initial : K)
+    (rounds : Fin productionShape.cubeVariables →
+      SumCheck.Finite.FixedPolynomial K degree)
+    (point : List K) (terminal : K)
+    (initialEq : (interface.initial offset).eval env = initial)
+    (roundsEq : ∀ roundIndex,
+      (interface.round offset roundIndex).semanticPolynomial env = rounds roundIndex)
+    (pointEq : (evalRoundPoint interface offset env).coordinates = point)
+    (terminalEq : (output interface offset).eval env = terminal)
+    (specification : SpecHolds interface offset env) :
+    SumCheck.Finite.FixedPhase.Chain extensionOps.toOps initial (List.ofFn rounds) point
+      terminal := by
+  have roundsListEq :
+      (coreInterface interface offset).rounds.map
+          (FixedChain.Round.semanticPolynomial env) = List.ofFn rounds := by
+    change (List.ofFn (interface.round offset)).map
+        (FixedChain.Round.semanticPolynomial env) = List.ofFn rounds
+    rw [List.map_ofFn]
+    apply congrArg List.ofFn
+    funext roundIndex
+    exact roundsEq roundIndex
+  have challengeListEq :
+      (coreInterface interface offset).rounds.map
+          (fun round => round.challenge.eval env) = point := by
+    simpa [evalRoundPoint] using pointEq
+  have initialCoreEq : (coreInterface interface offset).initial.eval env = initial := by
+    simpa [coreInterface] using initialEq
+  have terminalCoreEq :
+      (FixedChain.Owned.output (coreInterface interface offset) offset).eval env = terminal := by
+    simpa [output] using terminalEq
+  unfold SpecHolds FixedChain.Owned.SpecHolds at specification
+  rw [initialCoreEq, roundsListEq, challengeListEq, terminalCoreEq] at specification
+  exact specification
+
+/-- The converse of `spec_implies_chain`: when the leaf's inputs carry a fixed SumCheck chain
+(SuperNeo v1.2 Section 7.3, `SumCheck(T; Q)`), the rows can be filled, and the terminal word
+carries the chain's terminal claim. -/
+theorem chain_build {degree : Nat} (interface : Interface degree) (offset : Nat) (env : Env)
+    (assumptions : Assumptions interface offset env) (initial : K)
+    (rounds : Fin productionShape.cubeVariables →
+      SumCheck.Finite.FixedPolynomial K degree)
+    (point : List K) (terminal : K)
+    (initialEq : (interface.initial offset).eval env = initial)
+    (roundsEq : ∀ roundIndex,
+      (interface.round offset roundIndex).semanticPolynomial env = rounds roundIndex)
+    (pointEq : (evalRoundPoint interface offset env).coordinates = point)
+    (chain : SumCheck.Finite.FixedPhase.Chain extensionOps.toOps initial (List.ofFn rounds)
+      point terminal) :
+    ∃ completed,
+      AgreesOutside env completed offset
+        (localLength (Circuit.ops (circuit interface).main offset)) ∧
+      holdsFlat completed (Circuit.ops (circuit interface).main offset) ∧
+      (output interface offset).eval completed = terminal := by
+  have roundsListEq :
+      (coreInterface interface offset).rounds.map
+          (FixedChain.Round.semanticPolynomial env) = List.ofFn rounds := by
+    change (List.ofFn (interface.round offset)).map
+        (FixedChain.Round.semanticPolynomial env) = List.ofFn rounds
+    rw [List.map_ofFn]
+    apply congrArg List.ofFn
+    funext roundIndex
+    exact roundsEq roundIndex
+  have challengeListEq :
+      (coreInterface interface offset).rounds.map
+          (fun round => round.challenge.eval env) = point := by
+    simpa [evalRoundPoint] using pointEq
+  have initialCoreEq : (coreInterface interface offset).initial.eval env = initial := by
+    simpa [coreInterface] using initialEq
+  rw [← initialCoreEq, ← roundsListEq, ← challengeListEq] at chain
+  have built := FixedChain.Owned.build (coreInterface interface offset) env offset assumptions
+    terminal chain
+  rw [FixedChain.Owned.main_ops] at built
+  rw [circuit_ops]
+  exact built
 
 theorem spec_implies_keyChain
     {logicalWidth : Nat}

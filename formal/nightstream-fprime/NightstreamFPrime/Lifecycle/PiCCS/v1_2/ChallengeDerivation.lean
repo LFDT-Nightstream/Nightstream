@@ -1031,4 +1031,13 @@ theorem spec_implies_keyExecution_challenges
   exact ⟨derived.1.trans alphaExecution.symm,
     derived.2.1.trans gammaExecution.symm⟩
 
+/-- The circuit with its constant private count, for compiled evaluation
+(`Formal.childLength_eq_childLengthFast` reads it for every later offset). -/
+def circuitFast (interface : Interface) : FormalCircuit :=
+  (circuit interface).withPrivateCount (fun _ => 4384) (localLength_eq interface)
+
+@[csimp] theorem circuit_eq_circuitFast : @circuit = @circuitFast := by
+  funext interface
+  exact FormalCircuit.eq_withPrivateCount _ _ _
+
 end NightstreamFPrime.Lifecycle.PiCCS.v1_2.ChallengeDerivation

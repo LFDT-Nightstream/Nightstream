@@ -2,30 +2,22 @@
 //! Witnesses remain prover data. Public claims acquire authority only through verification.
 
 mod claims;
-mod compose;
 pub(crate) mod kernels;
+pub(crate) mod option_b;
 mod params;
 pub(crate) mod pi_ccs;
 pub(crate) mod pi_dec;
 pub(crate) mod pi_rlc;
-mod proof;
 pub(crate) mod transcript;
 
 pub(crate) use claims::{
-    ajtai_dec_mixer, ajtai_rlc_mixer, has_canonical_evaluations, is_canonical_evaluation,
-    superneo_has_canonical_x_shape, EVALUATION_WIDTH,
+    ajtai_dec_mixer, ajtai_rlc_mixer, has_canonical_evaluations, superneo_has_canonical_x_shape, EVALUATION_WIDTH,
 };
 pub(crate) use claims::{CcsInstance, RunningInstance};
-#[cfg(test)]
-pub(crate) use compose::verify_parent;
-pub(crate) use compose::{
-    prove_owned_with_rows, prove_parent_with_rows, validate_running_children, verify, BoundRunning,
-};
 use neo_ajtai::Commitment;
 pub(crate) use neo_ccs::superneo_public_x_cols;
 use neo_math::{F, K};
 pub(crate) use params::Params;
-pub(crate) use proof::NifsProof;
 pub(crate) type CcsClaim = neo_ccs::CcsClaim<Commitment, F>;
 pub(crate) type CeClaim = neo_ccs::CeClaim<Commitment, F, K>;
 pub(crate) type CcsWitness = neo_ccs::CcsWitness<F>;

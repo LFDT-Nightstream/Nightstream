@@ -392,6 +392,18 @@ def compile (start : Nat) (state : EState) : List Step → Program
       let tail := compile (start + stepSize step) nextState rest
       ⟨recipes ++ tail.recipes, tail.output⟩
 
+/-- `compile` with each input lane evaluated once into an array, for compiled evaluation: the
+layers read each input lane many times, and a lane can be a costly closure (an absorbed duplex
+output). The array is built in this body, so the compiler cannot move it into the lane
+function. -/
+def compileMemo (start : Nat) (state : EState) (steps : List Step) : Program :=
+  let lanes := Array.ofFn state
+  compile start (fun lane => lanes[lane.val]'(by simp [lanes])) steps
+
+@[csimp] theorem compile_eq_compileMemo : @compile = @compileMemo := by
+  funext start state steps
+  simp only [compileMemo, Array.getElem_ofFn]
+
 def scheduleOutput (start : Nat) : EState := freshState (start + 1080)
 
 theorem scheduleOutput_eq_compile (start : Nat) (state : EState) :

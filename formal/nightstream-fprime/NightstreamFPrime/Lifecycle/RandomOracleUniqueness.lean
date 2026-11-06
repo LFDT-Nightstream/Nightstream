@@ -1,6 +1,6 @@
 import NightstreamFPrime.Lifecycle.RandomOracleExtraction
 
-/-! Random-oracle model, SECURITY_MODEL.md Lemma 6. -/
+/-! Random-oracle model, the one-circuit chain's uniqueness step. -/
 
 set_option autoImplicit false
 

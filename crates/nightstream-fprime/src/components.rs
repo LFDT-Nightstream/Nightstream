@@ -7,7 +7,6 @@ use std::collections::BTreeSet;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks;
 use serde::Deserialize;
-use serde_json::Value;
 use thiserror::Error;
 
 // The selected Nightstream profile, in the exported profile field order.
@@ -24,7 +23,7 @@ const PROFILE: [u64; 8] = [
 const MATRIX_PORTS: usize = 4;
 
 #[derive(Debug, Error)]
-pub enum ComponentError {
+pub(crate) enum ComponentError {
     #[error("invalid component JSON: {0}")]
     Json(#[from] serde_json::Error),
     #[error("invalid component: {0}")]
@@ -33,12 +32,12 @@ pub enum ComponentError {
 
 /// Canonical sparse linear form over field-valued columns.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct SparseForm {
+pub(crate) struct SparseForm {
     entries: Vec<(usize, Goldilocks)>,
 }
 
 impl SparseForm {
-    pub fn new(entries: impl IntoIterator<Item = (usize, u64)>) -> Result<Self, ComponentError> {
+    pub(crate) fn new(entries: impl IntoIterator<Item = (usize, u64)>) -> Result<Self, ComponentError> {
         let mut terms = Vec::new();
         for (column, coefficient) in entries {
             if coefficient >= Goldilocks::ORDER_U64 {
@@ -49,27 +48,16 @@ impl SparseForm {
         Ok(Self::canonical(terms))
     }
 
-    pub fn variable(column: usize) -> Self {
+    pub(crate) fn variable(column: usize) -> Self {
         Self {
             entries: vec![(column, Goldilocks::ONE)],
         }
     }
 
-    pub fn entries(&self) -> impl ExactSizeIterator<Item = (usize, u64)> + '_ {
+    pub(crate) fn entries(&self) -> impl ExactSizeIterator<Item = (usize, u64)> + '_ {
         self.entries
             .iter()
             .map(|(column, coefficient)| (*column, coefficient.as_canonical_u64()))
-    }
-
-    pub fn evaluate(&self, values: &[Goldilocks]) -> Result<Goldilocks, ComponentError> {
-        self.entries
-            .iter()
-            .try_fold(Goldilocks::ZERO, |sum, (column, coefficient)| {
-                values
-                    .get(*column)
-                    .map(|value| sum + *coefficient * *value)
-                    .ok_or(ComponentError::Invalid("assignment column out of range"))
-            })
     }
 
     fn canonical(mut entries: Vec<(usize, Goldilocks)>) -> Self {
@@ -112,37 +100,21 @@ impl SparseForm {
 
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
-pub enum PortRole {
+pub(crate) enum PortRole {
     Constant,
     Input,
     Witness,
     Output,
 }
 
-impl PortRole {
-    fn name(self) -> &'static str {
-        match self {
-            Self::Constant => "constant",
-            Self::Input => "input",
-            Self::Witness => "witness",
-            Self::Output => "output",
-        }
-    }
-}
-
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct Port {
+pub(crate) struct Port {
     name: String,
-    role: PortRole,
+    #[serde(rename = "role")]
+    _role: PortRole,
     start: usize,
     count: usize,
-}
-
-impl Port {
-    pub fn range(&self) -> std::ops::Range<usize> {
-        self.start..self.start + self.count
-    }
 }
 
 type RawForm = Vec<(usize, u64)>;
@@ -163,7 +135,8 @@ struct RawComponent {
     ports: Vec<Port>,
     variants: Vec<RawVariant>,
     definitions: Vec<String>,
-    contracts: Vec<String>,
+    #[serde(rename = "contracts")]
+    _contracts: Vec<String>,
 }
 
 #[derive(Deserialize)]
@@ -176,18 +149,18 @@ struct RawLibrary {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct MatrixRow {
+pub(crate) struct MatrixRow {
     ports: [SparseForm; MATRIX_PORTS],
 }
 
 impl MatrixRow {
-    pub fn ports(&self) -> &[SparseForm; MATRIX_PORTS] {
+    pub(crate) fn ports(&self) -> &[SparseForm; MATRIX_PORTS] {
         &self.ports
     }
 }
 
 #[derive(Debug)]
-pub struct FormulaVariant {
+pub(crate) struct FormulaVariant {
     input_count: usize,
     rows: Vec<MatrixRow>,
     outputs: Vec<SparseForm>,
@@ -246,62 +219,11 @@ impl FormulaVariant {
     pub(crate) fn output_templates(&self) -> &[SparseForm] {
         &self.outputs
     }
-
-    fn check_inputs(&self, inputs: &[SparseForm], column_count: usize) -> Result<(), ComponentError> {
-        if inputs.len() != self.input_count {
-            return Err(ComponentError::Invalid("input port width mismatch"));
-        }
-        if inputs.iter().any(|input| {
-            input
-                .entries
-                .iter()
-                .any(|(column, _)| *column >= column_count)
-        }) {
-            return Err(ComponentError::Invalid("input column out of range"));
-        }
-        Ok(())
-    }
-
-    pub fn rows(&self, inputs: &[SparseForm], column_count: usize) -> Result<Vec<MatrixRow>, ComponentError> {
-        self.rows_range(inputs, column_count, 0..self.rows.len())
-    }
-
-    pub fn rows_range(
-        &self,
-        inputs: &[SparseForm],
-        column_count: usize,
-        range: std::ops::Range<usize>,
-    ) -> Result<Vec<MatrixRow>, ComponentError> {
-        let rows = self
-            .rows
-            .get(range)
-            .ok_or(ComponentError::Invalid("row range out of bounds"))?;
-        self.check_inputs(inputs, column_count)?;
-        rows.iter()
-            .map(|row| {
-                let mut ports = std::array::from_fn(|_| SparseForm::default());
-                for (port, form) in ports.iter_mut().zip(&row.ports) {
-                    *port = form.substitute(inputs)?;
-                }
-                Ok(MatrixRow { ports })
-            })
-            .collect()
-    }
-
-    pub fn outputs(&self, inputs: &[SparseForm], column_count: usize) -> Result<Vec<SparseForm>, ComponentError> {
-        self.check_inputs(inputs, column_count)?;
-        self.outputs
-            .iter()
-            .map(|form| form.substitute(inputs))
-            .collect()
-    }
 }
 
 #[derive(Debug)]
-pub struct FormulaComponent {
+pub(crate) struct FormulaComponent {
     id: String,
-    input_count: usize,
-    ports: Vec<Port>,
     variants: Vec<FormulaVariant>,
 }
 
@@ -328,21 +250,10 @@ impl FormulaComponent {
             .into_iter()
             .map(|variant| FormulaVariant::compile(variant, raw.input_count))
             .collect::<Result<Vec<_>, _>>()?;
-        Ok(Self {
-            id: raw.id,
-            input_count: raw.input_count,
-            ports: raw.ports,
-            variants,
-        })
+        Ok(Self { id: raw.id, variants })
     }
 
-    pub fn input_count(&self) -> usize {
-        self.input_count
-    }
-    pub fn ports(&self) -> &[Port] {
-        &self.ports
-    }
-    pub fn variant(&self, index: usize) -> Option<&FormulaVariant> {
+    pub(crate) fn variant(&self, index: usize) -> Option<&FormulaVariant> {
         self.variants.get(index)
     }
 }
@@ -350,13 +261,12 @@ impl FormulaComponent {
 /// Parsed formula data. The circuit owner must supply or check the expected
 /// library; these structural checks are not a proof of provenance.
 #[derive(Debug)]
-pub struct FormulaLibrary {
+pub(crate) struct FormulaLibrary {
     components: Vec<FormulaComponent>,
-    digest: [u64; 4],
 }
 
 impl FormulaLibrary {
-    pub fn from_json(bytes: &[u8]) -> Result<Self, ComponentError> {
+    pub(crate) fn from_json(bytes: &[u8]) -> Result<Self, ComponentError> {
         let raw: RawLibrary = serde_json::from_slice(bytes)?;
         if raw.format != "nightstream.matrix-templates" || raw.version != 1 || raw.profile != PROFILE {
             return Err(ComponentError::Invalid("unsupported format, version or profile"));
@@ -364,8 +274,6 @@ impl FormulaLibrary {
         if raw.components.is_empty() {
             return Err(ComponentError::Invalid("empty formula library"));
         }
-        let digest = crate::identity::formula_library_digest(&library_value(&raw))
-            .map_err(|_| ComponentError::Invalid("formula library digest"))?;
         let mut ids = BTreeSet::new();
         let mut components = Vec::with_capacity(raw.components.len());
         for component in raw.components {
@@ -374,76 +282,14 @@ impl FormulaLibrary {
             }
             components.push(FormulaComponent::compile(component)?);
         }
-        Ok(Self { components, digest })
+        Ok(Self { components })
     }
 
-    /// Lean `SharedFormulas.libraryDigest`, bound by the verification key.
-    pub fn digest(&self) -> [u64; 4] {
-        self.digest
-    }
-
-    pub fn component(&self, id: &str) -> Option<&FormulaComponent> {
+    pub(crate) fn component(&self, id: &str) -> Option<&FormulaComponent> {
         self.components.iter().find(|component| component.id == id)
     }
 }
 
-/// Lean `SharedFormulas.libraryValue`: every field in file order, with each
-/// string as the array of its UTF-8 bytes.
-fn library_value(raw: &RawLibrary) -> Value {
-    fn text(text: &str) -> Value {
-        Value::Array(text.bytes().map(Value::from).collect())
-    }
-    fn texts(texts: &[String]) -> Value {
-        Value::Array(texts.iter().map(|value| text(value)).collect())
-    }
-    fn form(form: &RawForm) -> Value {
-        Value::Array(
-            form.iter()
-                .map(|&(column, coefficient)| Value::Array(vec![column.into(), coefficient.into()]))
-                .collect(),
-        )
-    }
-    fn port(port: &Port) -> Value {
-        Value::Array(vec![
-            text(&port.name),
-            text(port.role.name()),
-            port.start.into(),
-            port.count.into(),
-        ])
-    }
-    fn variant(variant: &RawVariant) -> Value {
-        Value::Array(vec![
-            Value::Array(variant.linear_forms.iter().map(form).collect()),
-            Value::Array(
-                variant
-                    .rows
-                    .iter()
-                    .map(|row| Value::Array(row.iter().map(form).collect()))
-                    .collect(),
-            ),
-            Value::Array(
-                variant
-                    .output_registers
-                    .iter()
-                    .map(|&index| index.into())
-                    .collect(),
-            ),
-        ])
-    }
-    fn component(component: &RawComponent) -> Value {
-        Value::Array(vec![
-            text(&component.id),
-            component.input_count.into(),
-            Value::Array(component.ports.iter().map(port).collect()),
-            Value::Array(component.variants.iter().map(variant).collect()),
-            texts(&component.definitions),
-            texts(&component.contracts),
-        ])
-    }
-    Value::Array(vec![
-        text(&raw.format),
-        raw.version.into(),
-        Value::Array(raw.profile.iter().map(|&value| value.into()).collect()),
-        Value::Array(raw.components.iter().map(component).collect()),
-    ])
-}
+#[cfg(test)]
+#[path = "../tests/unit/component_formula_library.rs"]
+mod tests;

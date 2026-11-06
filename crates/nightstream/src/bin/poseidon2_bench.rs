@@ -179,7 +179,7 @@ fn benchmark(package: &Path, engine: Engine, steps: u64, minimum_security_bits: 
     let started = begin("prove", Some(1))?;
     let mut proof = prover.prove(initial, &message)?;
     end("prove", Some(1), started)?;
-    if proof.state() != &expected {
+    if proof.state() != expected {
         return Err("base proof state differs from native Poseidon2".into());
     }
 
@@ -188,7 +188,7 @@ fn benchmark(package: &Path, engine: Engine, steps: u64, minimum_security_bits: 
         let started = begin("extend", Some(step))?;
         proof = prover.extend(&proof, &message)?;
         end("extend", Some(step), started)?;
-        if proof.state() != &expected {
+        if proof.state() != expected {
             return Err(format!("step {step} differs from native Poseidon2").into());
         }
     }

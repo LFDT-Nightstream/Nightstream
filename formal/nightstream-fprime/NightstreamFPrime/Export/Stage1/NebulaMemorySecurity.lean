@@ -11,7 +11,7 @@ HyperNova reverse extractor's sample.
 * `stage1Extraction`: Stage 1 extraction for the memory program, proved from
   `HyperNovaHistory.run_correct` with no premise. Its failure is the event
   that `HyperNovaVisitedSecurity.history_failure_le` bounds.
-* `MemoryRound`: the memory round (`SECURITY_MODEL.md`, trust item 7) in the
+* `MemoryRound`: the memory round (`SECURITY_MODEL.md`, trust item 6) in the
   form of HyperNova errata Assumption 1, for the stages that Stage 1 admits.
   It is not a theorem here.
 * `adversaryTape`: the IVC adversary's tape inside a reverse stage's tape.
@@ -158,7 +158,7 @@ theorem ClaimedStage.law_snd (c : ClaimedStage app fits setup) :
   rw [ClaimedStage.sampleAt, PMF.map_comp]
   exact PMF.map_id _
 
-/-- The memory round (`SECURITY_MODEL.md`, trust item 7), in the form of HyperNova errata
+/-- The memory round (`SECURITY_MODEL.md`, trust item 6), in the form of HyperNova errata
 Assumption 1: for every claimed stage whose stage is admitted, the mass of
 samples whose extracted run the model accepts with a claimed segment that
 passes the product test with unbalanced multisets is at most `error c`, one

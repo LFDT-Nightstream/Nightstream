@@ -1,35 +1,39 @@
 # compression-lean
 
 This project proves a soundness bound for Nightstream's compressed proof: the final verifier
-(`CompressionKey::verify`, `crates/nightstream/src/lifecycle/finish.rs`) accepts a false statement
+(`OptionB::verify_final`, `crates/nightstream/src/lifecycle/option_b/compression.rs`) accepts a false statement
 only with a small probability, under the assumptions that `TRUST.md` lists. Two of them carry the
 most weight: the WHIR openings are idealized, and Fiat–Shamir inside the final program is assumed,
-not bounded (`TRUST.md` §3). The claims are the theorems of `CompressionLean/Claims.lean`.
+not bounded (`TRUST.md` §3). It also proves claim-level completeness: for every valid run of at
+least one step, the claim of that bound holds for the run's statement (`option_b_complete`,
+`TRUST.md` "Completeness"). The claims are the theorems of `CompressionLean/Claims.lean`.
 
 ## Strategy
 
-The compressed proof has three layers. The terminal package is F′'s Stage 1 rows up to PiRLC. The
-layer-1 verifier (`crates/neo-spartan/src/verifier.rs`) checks a CE(B) claim about the PiRLC parent.
-The shrink verifier (`crates/neo-spartan/src/shrink/mod.rs`) checks a CCS that encodes the final
-program, which is the terminal package and the layer-1 verifier written as a circuit.
+The compressed proof has three layers. The finish package is F′'s finish relation: the last fold,
+a refresh fold, on the proof's words. Two layer-1 verifiers (`crates/neo-spartan/src/verifier.rs`)
+each check a CE(B) claim of one slot under its circuit's relation. The shrink verifier
+(`crates/neo-spartan/src/shrink/mod.rs`) checks a CCS that encodes the final program, which is the
+finish package and both layer-1 verifiers written as a circuit.
 
 1. Each verifier is a public-coin game against an adaptive prover (`Game/`). Each challenge names
    its bad set from the earlier messages. If every path that avoids the bad sets ends in a true
    statement, a prover reaches a false one with probability at most the sum of the bad-set
    densities on the worst path. Under Fiat–Shamir, a state-restoration experiment lets the prover
    ask for challenges at any node; then each query costs at most the game's error.
-2. The terminal package is F′'s rows without change, so its rows give F′'s meaning (`Terminal/`).
+2. The finish package is the package that F′'s emitter writes for the finish relation, so its rows
+   give F′'s meaning (`Final/OptionBParent.lean`).
 3. Layer 1 and the shrink layer each prove that an accepted transcript has a witness, except on a
    bad challenge (`Layer1/`, `Shrink/`). The WHIR openings are idealized; their error is not part
    of the bound.
 4. The chain (`Final/`): the shrink verifier accepts, so a candidate satisfies the CCS of the final
-   program. The encoding premise (`ProgramEncodes`) says that such a witness holds a terminal
-   assignment and accepting layer-1 paths for its parent claim. Layer 1 then gives a witness of
-   that claim, and under the honest setup the claim is F′'s (`ParentClaim`). Both layers run in
-   one experiment, so one bad-set argument covers both. The chain covers a valid program witness
+   program. The encoding premise (`Final.OptionB.Encodes`) says that such a witness holds finish
+   columns and accepting layer-1 paths for both slot claims. Layer 1 then gives a witness of each
+   claim, and under the honest setups the claims are F′'s (`Final/OptionBParent.lean`). All layers
+   run in one experiment, so one bad-set argument covers them. The chain covers a valid program witness
    only where its in-program challenges are the experiment's oracle answers (the read condition,
    `TRUST.md` §3).
-5. The encoding premise is proved for the production final program (`Sim/Encodes.lean`). Lean
+5. The encoding premise is proved for the final program (`Sim/OptionBEncodes.lean`). Lean
    lowers the program to the shrink run as Rust's recorder does (`Lowering/`). A witness of the
    run's CCS gives an accepting run of an executor, and the simulation (`Sim/`) shows that each part
    of the circuit computes the values of an executable replay of the layer-1 verifier
@@ -55,7 +59,6 @@ CompressionLean/
   Fields.lean      Gl, Cubic and the challenge field
   Production.lean  the production constants of the layer-1 key, each named once
   Game/            the game model, paths, state restoration, two games in one experiment
-  Terminal/        F′'s terminal package and its soundness edge
   Layer1/          the layer-1 verifier as a game: model, stages, cost
   Ports/           the hand transcriptions of Rust, definitions only, folders as the Rust modules
   Shrink/          the shrink verifier as a game, over Ports/Shrink/
@@ -68,7 +71,6 @@ CompressionLean/
   Claims.lean      the claims
 CompressionLeanExe/     the executables, their readers and the Lean side of the Rust tests
 CompressionLeanTests/   the build gates
-artifacts/              the emitted terminal package
 scripts/crosschecks.sh  the Rust–Lean cross-checks
 ```
 
@@ -84,7 +86,6 @@ rebuild Mathlib. Without `.lake`, the copy would land in `.lake/mathlib`.
 ```bash
 timeout --signal=KILL 1500 lake build
 timeout --signal=KILL 1500 lake exe status > STATUS.md
-timeout --signal=KILL 1500 .lake/build/bin/emitTerminal artifacts/compression-terminal-v1.json
 ```
 
 `lake build` builds the library, the executables and the gates, with warnings as errors:
@@ -103,17 +104,16 @@ timeout --signal=KILL 1500 .lake/build/bin/emitTerminal artifacts/compression-te
   module, the root included, imports a module of `CompressionLeanExe/` or `CompressionLeanTests/`;
 - the stack gate (`Stack.lean`): `setupCheck` decides a bounded `∀` over the production runs in
   constant stack;
-- the reading gate (`Reading.lean`): a valid program witness has a reading given WHIR's openings
-  and `MerkleBinds`. `Bridge/Merkle.lean` proves that honest leaves meet `MerkleBinds` under the
-  honest key root unless Poseidon2 collides;
+- the reading gate (`Reading.lean`): a valid program witness has a reading for each slot given
+  WHIR's openings and `MerkleBinds`. `Bridge/Merkle.lean` proves that honest leaves meet
+  `MerkleBinds` under the honest key root unless Poseidon2 collides;
 - the vocabulary gate (`Vocabulary.lean`): a claim names only constants of `Spec/`, the model and
   port folders, F′, Mathlib or core.
 
-The `nightstream` crate embeds `artifacts/compression-terminal-v1.json` and pins its identifier
-(`IDENTIFIER` in `crates/nightstream/src/lifecycle/terminal/package.rs`). The CI test
-`lean_ports` (`nightstream`) fails when a Rust item that `ports.json` names changes.
+The CI test `lean_ports` (`nightstream`) fails when a Rust item that `ports.json` names changes.
 
 ## Cross-checks
 
 `scripts/crosschecks.sh` builds the executables and runs the ignored Rust tests that compare Rust
-with Lean, one after another, each under its cap. Its header says how to update a digest pin.
+with Lean, one after another, each under its cap. After the layer-1 keys are written, it runs
+`coverCheck` on them. Its header says how to update a digest pin.

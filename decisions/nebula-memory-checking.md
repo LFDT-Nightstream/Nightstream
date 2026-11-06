@@ -40,10 +40,14 @@ protocol, and section 8 lists the differences from Nebula.
    give about `2^−219.8` for about 2% more coordinates. It is not used.
 5. **The memory round is a premise** (owner, 2026-10-07; form chosen
    2026-10-12). The relation computes `η` with Poseidon2 inside the step, so
-   no random-oracle proof covers it. `SECURITY_MODEL.md` trust item 7 states
-   it in the form of HyperNova errata Assumption 1, as the Stage 1 history
-   premise. The adversary time and the query counts stay symbolic
-   (2026-10-12).
+   no random-oracle proof covers the deployed check. `SECURITY_MODEL.md`
+   trust item 6 states it in the form of HyperNova errata Assumption 1, as
+   the history premise. Its error has the form of the random-oracle model of
+   `η`: `(Q_η + 1) · 2 · m_mem/q²` plus a retry term in which each counted
+   pair is a Poseidon2 transcript collision, with no separate collision
+   premise (owner, 2026-11-04). Lean proves this bound in that model
+   (`Export.OptionB.NebulaSecurity.romMemoryRound`). The adversary time and
+   the query counts stay symbolic (2026-10-12).
 6. **Packages.** Lean emits two test packages for the machine application.
    A package for a production geometry waits for the production application
    (2026-10-12).

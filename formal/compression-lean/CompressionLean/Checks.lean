@@ -3,5 +3,7 @@ import CompressionLean.Checks.KeyFacts
 import CompressionLean.Checks.PoseidonRows
 import CompressionLean.Checks.Runs
 import CompressionLean.Checks.SetupFacts
-import CompressionLean.Checks.Templates
 
+import CompressionLean.Checks.OptionBForms
+import CompressionLean.Checks.OptionBMatrix
+import CompressionLean.Checks.OptionBCover

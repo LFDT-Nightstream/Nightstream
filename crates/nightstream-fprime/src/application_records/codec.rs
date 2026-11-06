@@ -15,7 +15,7 @@ fn write_word(output: &mut (impl Write + ?Sized), value: u64) -> Result<(), Pack
 }
 
 impl ApplicationRecords {
-    pub(crate) fn write_to(&self, output: &mut (impl Write + ?Sized)) -> Result<(), PackageError> {
+    pub fn write_to(&self, output: &mut (impl Write + ?Sized)) -> Result<(), PackageError> {
         write_word(output, word(self.row_count())?)?;
         write_word(output, word(self.recipe_count())?)?;
         for row in 0..self.row_count() {
@@ -55,7 +55,7 @@ impl ApplicationRecords {
         Ok(())
     }
 
-    pub(crate) fn read_from(
+    pub fn read_from(
         input: &mut (impl Read + ?Sized),
         expected_rows: usize,
         expected_recipes: usize,

@@ -25,6 +25,7 @@ pub use crate::engines::pi_ccs_joint_protocol::PaperJointRoundOracle;
 pub use crate::engines::pi_ccs_protocol::{Challenges, PiCcsProof};
 pub use paper_joint::prove_with_complete_oracle as optimized_prove_with_complete_oracle;
 pub use paper_joint::prove_with_matrix_rows as optimized_prove_with_matrix_rows;
+pub use paper_joint::prove_with_profile as optimized_prove_with_profile;
 pub use paper_joint::{PaperJointOracleBackend, PaperJointOracleInput};
 
 pub use common::{dec_reduction_optimized, dec_reduction_optimized_with_digit_flags};
@@ -34,7 +35,7 @@ pub use rlc::{
     rlc_combine_claims, rlc_mix_witnesses, rlc_reduction_optimized_with_commit_mix, rlc_reduction_optimized_with_mixers,
 };
 pub use verify::optimized_verify as pi_ccs_verify;
-pub use verify::optimized_verify_with_trace;
+pub use verify::{optimized_verify_with_profile, optimized_verify_with_trace};
 
 #[cfg(feature = "paper-exact")]
 pub mod canonical_audit {

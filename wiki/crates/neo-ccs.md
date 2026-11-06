@@ -11,7 +11,7 @@ machinery they need. `#![forbid(unsafe_code)]`.
 - **`matrix` / `sparse`** — dense `Mat`, `CsrMatrix`, CSC (`CscMat`, `CcsMatrix`).
 - **`poly`** — `SparsePoly` / `Term` for the CCS constraint polynomial.
 - **`r1cs`** — `r1cs_to_ccs` / `sparse_r1cs_to_ccs` embedding
-  (`f = X₀·X₁ − X₂`), used by the direct-CCS and Bellpepper frontends.
+  (`f = X₀·X₁ − X₂`).
 - **`utils`** — tensor points, `mat_vec_mul_ff/fk`, and the direct-sum combinators
   (`direct_sum_transcript_mixed` is the cancellation-resistant production variant).
 - **`traits::SModuleHomomorphism`** — the commitment-scheme seam `neo-ajtai`

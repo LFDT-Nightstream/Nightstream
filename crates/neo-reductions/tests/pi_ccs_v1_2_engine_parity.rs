@@ -359,6 +359,7 @@ fn every_joint_round_polynomial_and_fold_matches() {
             dims,
             &source,
             workspace_bytes,
+            fresh.len() + running.len(),
         )
         .expect("optimized oracle");
         let points: Vec<K> = (0..=dims.degree)

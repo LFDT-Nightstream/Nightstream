@@ -7,7 +7,7 @@ and `Quot.sound`. This file lists every assumption; the README does not repeat t
 
 A claim means what the definitions that it names mean. `CompressionLeanTests/Vocabulary.lean`
 keeps the constants that a claim's type names in `Spec/`, the model and port folders (`Fields`,
-`Production`, `Game`, `Terminal`, `Layer1`, `Ports`), F′, Mathlib and core. It does not follow
+`Production`, `Game`, `Layer1`, `Ports`), F′, Mathlib and core. It does not follow
 their bodies. Through them a claim also reads generic definitions of `Lib/` (such as `mle` and
 `univ`), `Ccs.Relation` in `Shrink/Ccs.lean`, and these definitions of `Lowering/`: the executor
 and the row semantics in `Lowering/Exec.lean` (`Exec.start`, `Exec.step`, `Exec.run`, the state
@@ -27,7 +27,7 @@ environment with `lean4checker`, or building both from source, removes this laye
 
 ## 2. `nightstream-fprime`
 
-This project imports F′'s definitions and theorems: the terminal package and its rows, the Poseidon2
+This project imports F′'s definitions and theorems: the step and finish packages and their rows, the Poseidon2
 specification, the Ajtai setup and the paper algebra. A claim here is only as good as F′'s, and
 inherits F′'s own trusted layers.
 
@@ -39,7 +39,7 @@ The claims bound a probability. They take these as part of the model, not as Lea
   candidate agrees with every opened value (`Layer1.Opens` in the layer-1 game, `Opens` in the
   shrink game, `WhirOpens` in a reading),
   with no error. So `calls / 2^t` does not include WHIR's error. `Final/Budget.lean` and
-  `Shrink/Budget.lean` take a WHIR error term, and `final_restore_budget` sets it to zero. In
+  `Shrink/Budget.lean` take a WHIR error term, and `Final.OptionB.restore_budget` sets it to zero. In
   Rust, `Pcs::new` charges WHIR's terms from Plonky3's Johnson-bound report (`pcs.rs`) together
   with the terms that the premises `p0`, `p1` and `rust` state, which Rust meets. No
   Lean proof checks the WHIR figures. This is the weakest numeric layer. The candidates are tables
@@ -60,9 +60,9 @@ The claims bound a probability. They take these as part of the model, not as Lea
   from it: a prover that computes the challenges with Poseidon2, as the program does, meets it only
   where Poseidon2's outputs equal the oracle's answers. The claims bound a prover with no valid
   program witness (the shrink layer), and a valid witness only where its challenges are the
-  oracle's answers. For a valid witness Lean proves `ProgramEncodes`: it holds an accepting run of
-  the layer-1 verifier, with the program's Poseidon2 challenges, for the parent claim of its
-  terminal assignment. That such a run implies a true claim is layer 1 under Fiat–Shamir with
+  oracle's answers. For a valid witness Lean proves `Final.OptionB.Encodes`: for each slot, it holds
+  an accepting run of the layer-1 verifier, with the program's Poseidon2 challenges, for the slot's
+  claim in its finish columns. That such a run implies a true claim is layer 1 under Fiat–Shamir with
   Poseidon2 inside the program, which the claims assume and do not bound. The openings inside the
   program follow the WHIR model (`WhirOpens`).
 - **Merkle binding.** A setup leaf that reaches the key root at an index below the leaf count
@@ -93,18 +93,117 @@ The claims bound a probability. They take these as part of the model, not as Lea
 - **Ring.** `Φ` is `Φ81 = X^54 + X^27 + 1`, and `bar` is F′'s closed-form bar transform
   (`nativeBarEntry`). Only the manual test `neo-math/tests/phi81_bar_lean_parity.rs` compares Rust's
   runtime bar matrix with Lean's.
-- **Fields.** `TerminalClaim` and `final_restore_sound` are generic in the base field `F` and the
-  challenge field `K`; the terminal's words enter `F` by `Nat.cast`. The claims fix `F = Gl` and
-  `K = Cubic`. `lowerCheck` runs `lower` in Goldilocks. In another field the zero tests of constant
+- **Fields.** `Final.OptionB.restore_sound` is generic in the base field `F` and the challenge
+  field `K`. The claims fix `F = Gl` and `K = Cubic`. `lowerCheck` runs `lower` in Goldilocks. In another field the zero tests of constant
   folding can differ from Rust's.
 
 ## 4. Premises
 
 A claim that takes a premise says nothing about a key, a package, a setup or runs that do not meet
 it. `STATUS.md` lists every hypothesis of every claim and says, for each premise, how it is met: by a
-Lean proof, by a check of Rust's files, by a Lean value or by Rust. No premise of `poseidon2_bound`
-is open. `CompressionLeanTests/Inventory.lean` holds that list, and `lake build` fails when a premise
-of a claim has no entry there.
+Lean proof, by a check of Rust's files, by a Lean value or by Rust; a completeness claim's run
+premises are its scope instead. No premise of `option_b_poseidon2_bound` is open.
+`CompressionLeanTests/Inventory.lean` holds that list, and `lake build` fails when a premise of a
+claim has no entry there.
+
+## Option B
+
+`option_b_bound` bounds option B's final verifier (`OptionB::verify_final`) at the layer-1 level.
+Its claim is a terminal environment of the finish package's columns in which the final program's
+checks hold (`Spec.OptionB.FinishTerminal`: the statement and state keys on their words, every row
+of the package's pieces, and each Poseidon2 block as the permutation of its lanes), whose two next
+slots' claim words are in their layer-1 relations (`Spec.OptionB.Holds`).
+
+`option_b_parent_bound` gives the same bound for the claim in F′'s terms (`Spec.OptionB.ParentHolds`):
+a refresh step input whose counter and states are the statement, with `FinishHolds`, and whose two
+next slots hold under their circuits' relations (SuperNeo v1.2 Definition 21). It reads the finish
+package as the one that F′'s emitter writes (`Spec.OptionB.finishPackage`).
+
+`option_b_last_fold_bound` gives the same bound for the claim in the terms of F′'s IVC walk
+(`Spec.OptionB.LastFold`). It is the claim of `option_b_parent_bound` with a nonzero iteration and
+the finish checks under the setup's keys. The final program reads the key digests from its state
+keys, and the premise `keyWords` makes the state keys the setup's digests.
+
+`option_b_ivc_bound` joins the final verifier with F′'s IVC bound
+(`Export.OptionB.IvcSecurity.probability_bound`) in one experiment. The experiment draws an outcome
+of the final verifier's experiment (`Game.law`), then the coins of the finish stage's extractor,
+then the coins of the reverse extractor's stages. The finish fold is the first stage of the walk.
+An answer that extracts it makes the last fold's input a terminal that `Terminal.HoldsFor` accepts
+(`FinishWalk.holdsFor_of_extracted`). Three premises are open: HyperNova errata Assumption 1 for
+the folds with Poseidon2, the closure premise of the stages, and that the finish stage's adversary
+and the chain's IVC adversary are admitted. Both adversaries choose the last fold with
+`Classical.epsilon`. The claims prove that a last fold exists. They do not extract one from the
+final proof. So "admitted" asks for knowledge soundness of the final verifier, which no claim
+proves. The experiment's oracle is independent of Poseidon2 (section 3), while Assumption 1 is
+about the folds' Poseidon2 transcripts.
+
+`option_b_poseidon2_bound` meets every premise for the Poseidon2 hash chain. One logical width is
+shared by the finish circuit's relation argument and both circuit keys: the key width
+`StepRelation.keyWidth = 2^26`, which is at least each step circuit's logical width (the emitter
+refuses a package that is wider). The emitter builds the circuits at the key width; the light,
+refresh and finish packages are the same bytes as at the earlier census width `2^24`. Each circuit
+key's relation is its step package's rows through the package's slot layout, widened to the key
+width, then 150 S-box rows for each Poseidon2 block (`Spec.OptionB.keyRelation`). `runsCheck`
+compares Rust's runs of each layer-1 relation with these matrices row by row
+(`keyRunsFailure`, `Checks.OptionB.keyRunsFailure_sound`). Rust pushes one run for each term of a
+row, so the check sorts a row's runs and merges equal runs first, which keeps each column's sum
+(`sortedRuns_sum`). `setupCheck` checks each layer-1 setup over its key's own columns,
+and `optionBCheck` checks that each key's blocks fit the key width.
+
+The bridge from each slot's layer-1 relation to its CE claim pads. Rust's light relation commits
+fewer blocks than the refresh relation, while F′'s option-B model gives both circuit keys one width.
+`Final.parent_holds` reads a slot's witness as zero past the key's committed blocks, so `ParentShape`
+asks only that the committed blocks fit the width, and `HonestSetup` fixes the Ajtai key only on
+the committed blocks.
+
+The converse, `Final.parent_complete` (CW-10.6), puts a slot claim that holds into its layer-1
+relation. Its witness must lie within the key's norm bound and be zero on the blocks past the key's.
+`Final.OptionB.slot_complete` gives both for the honest next slots from two facts about each slot's
+layer-1 key, which the soundness claims do not take. The key's norm bound is at least the
+accumulator bound of the light cap, 17,496 (`normCovers`, `Spec.OptionB.slotBound`, Rust's
+`compression_bound`). The key's blocks hold the logical width of its circuit's step package
+(`blocksCover`). `coverCheck` checks both on Rust's files (`Spec.OptionB.coverFailure`,
+`option_b_covers_of_check`). They are not in `KeyFacts`, so no soundness claim changes.
+
+### Completeness
+
+`option_b_complete` (CW-10.6) is claim-level completeness. Take a valid run of the application of
+at least one step and fewer than `goldilocksModulus` steps, from a state of four words, whose
+witnesses have the application's witness length. Then the claim of `option_b_bound`
+(`Spec.OptionB.Holds` with `FinishTerminal` on the emitted finish package) holds for the run's
+statement words (`Spec.OptionB.terminalWords`). `option_b_honest_unbroken` follows: no outcome of
+the final verifier's experiment accepts that statement as a break (`Spec.OptionB.RestoreBreak`).
+The proof joins F′'s `FinishCompleteness.run_finish_complete` (the honest finish columns and next
+slot witnesses), `Final.OptionB.holds_of_honest` (those columns satisfy the final program's
+terminal) and `Final.OptionB.slot_complete` (each next slot's words are in their layer-1
+relation). It uses no cryptographic assumption: the folds use the deployed Poseidon2 sponge, as
+F′'s `FoldCompleteness` does.
+
+What is not proved:
+
+- That the shrink verifier or the layer-1 verifiers accept the honest prover's messages. Lean has
+  no honest layer-1 or shrink prover, and no converse of the lowering (`Lowering.lower_sound`) or of
+  `Sim.OptionB.optionBEncodes`. The Rust tests `final_proof_verifies` (`nightstream`,
+  `option_b_lifecycle`) and `hash_chain_final_proof_verifies` (`option_b_api.rs`) are the evidence
+  at that level.
+- Perfect completeness at the game level. Rust's WHIR verifier rejects a query sample of `p - 1`
+  (`Replay.whirQueries`, about `2^-64` for each draw), while the Lean game draws from `Fin P` and
+  never rejects. So a completeness theorem about the game would not describe Rust.
+
+The premises are the soundness claims' `shape`, `honest`, `keyWords` and `keysShaped`, the passes
+of `coverCheck` on both step packages (`lightCover`, `refreshCover`), and F′'s finish-package
+checks (`FinishCompleteness.FinishComplete`, which the emitter evaluates). The soundness premises
+`packed`, `starts` and `fit` are not needed. The claim also takes F′'s `Exports` and `Complete`
+as parameters: the setup's keys carry the exported relations, and both step packages pass the
+emitter's completeness checks. No claim builds them for the Poseidon2 hash chain, so there is no
+reference-application form of `option_b_complete`, as there is none of `option_b_ivc_bound`.
+The run premises (`valid`, `lengths`, `nonempty`, `bound`, `z0Length`) are the claim's scope
+(`STATUS.md`).
+
+Three things are trusted, not checked. The emitter writes each package as `packageOf` of its
+circuit's pieces, and the checks read the bytes it writes (the `rows`, `blocks`, `start`,
+`packed` and `finishPacked` premises). Rust embeds those bytes and pins their identifier. The layer-1
+key's root is the honest root of the claim's setup (section 5).
 
 ## 5. The ports
 
@@ -116,7 +215,7 @@ transcriptions are of two kinds.
 **Ports that can make a claim false.** The claims are about these objects. If one differs from its
 Rust, a claim is about a verifier, a program, a file or a check that Rust does not have.
 
-- The shrink verifier, which is the final verifier (`CompressionKey::verify`, `shrink/mod.rs`
+- The shrink verifier, which is the final verifier (`OptionB::verify_final`, `shrink/mod.rs`
   `verify`). Its checks as a game (`Ports/Shrink/Game.lean`), the public value that it computes
   (`Ccs.publicValue`, `Ccs.publicTable`, `Ports/Shrink/Ccs.lean`) and the batching (`batch`,
   `Ports/Shrink/Rounds.lean`). The matrix value: the shape run's total
@@ -133,11 +232,13 @@ Rust, a claim is about a verifier, a program, a file or a check that Rust does n
   that the programs read: the data types (`Ports/Replay/Data.lean`), the fields
   (`Ports/Replay/Field.lean`), the bar transform (`Replay.bar`) and the GKR shape functions
   (`layerCount`, `layerDegree`, `layerFactors`, `partFactors`, `activeTrees`).
-- The terminal loader (`Terminal.Package.load`). Its rows are F′'s row instantiation
-  (`Producer.rows`); Rust pushes the rows of its templates (`expand_matrix`). The final program
-  holds every package row in one `r1cs` instruction, so `final_program_matches_lean` compares each
-  row and term, in order, on the pinned artifact, by hand; in CI, `final_program_digest_is_pinned`
-  pins the run digest of Lean's program. For another package, no check compares the rows.
+- Option B's final program (`Ports/OptionB/Program.lean`, `FinalProgram::run` in
+  `lifecycle/option_b/final_program.rs`). `optionBCheck` decodes the finish package from its
+  artifact (`StepPackage.Package.format`, which round-trips), builds Lean's program with both
+  layer-1 keys, and requires every instruction of Rust's run, rows and terms in order
+  (`option_b_final_program_matches_lean`, by hand). In CI, `option_b_prefix_digest_is_pinned` pins
+  the run up to layer 1; `option_b_program_digest_is_pinned` pins the whole run by hand. Rust writes
+  each row port in Lean's form (`side`), so the rows compare term by term.
 - The setup build and the key expander (`Ports/Setup.lean`). The build is Rust's slot key while
   there are at most `2^24` run classes and the blocks fit 32 bits; `from_rows` refuses wider keys
   (`slot key width`). The proof reads only `ReadsBack` of the port, and the Rust test
@@ -145,11 +246,11 @@ Rust, a claim is about a verifier, a program, a file or a check that Rust does n
   fixture. The Rust tests `lean_setup_vectors_match_rust_and_fips202` and
   `streamed_key_blocks_match_all_lanes_of_authoritative_setup_cases` compare the key expander with
   the vectors that Lean emits. The claims need more than `ReadsBack`: `MerkleBinds` compares an
-  honest leaf with `poseidon2Setup`'s oracles, so if they are not the oracles under the key's root,
-  no valid witness has a reading and the claims say nothing. On the production runs, `setupCheck`
-  compares the run oracles: `production_setup_columns` (`neo-spartan`) requires the runs to derive
-  the committed key and writes the four run oracles that its root covers after the key rows, and
-  `columnsFailure_sound` proves that a pass makes them `poseidon2Setup`'s. The key rows are
+  honest leaf with `setupAt`'s oracles, so if they are not the oracles under the key's root,
+  no valid witness has a reading and the claims say nothing. On each slot's runs, `setupCheck`
+  compares the run oracles: `option_b_setup_columns` (`neo-spartan`) requires the runs to derive
+  the slot's layer-1 key and writes the four run oracles that its root covers after the key rows,
+  and `columnsFailure_sound` proves that a pass makes them `setupAt`'s. The key rows are
   compared only through the expander vectors above. On the toy key,
   `lean_setup_root_matches_the_rust_key` (`neo-spartan`) writes Rust's setup oracle tables and the
   key root, and `setupRootCheck` requires Lean's `tableRoot` of those tables to be that root;
@@ -177,12 +278,12 @@ Rust, a claim is about a verifier, a program, a file or a check that Rust does n
   `kappa`, `matrices` and `publicBlocks`; `ports.json` pins `rustLinear` to `row_count` too.
 - The readers of the files that the Rust tests write, which transcribe their formats:
   `Layer1Key`'s JSON (`layer1_input` and `relation_json` write it), and `readRuns` and
-  `readColumns` (`CompressionLeanExe/Runs.lean`; `setup_runs.rs` and `setup_columns.rs` write
+  `readColumns` (`CompressionLeanExe/Runs.lean`; `runs_file.rs` and `setup_columns.rs` write
   them). `ports.json` pins each reader to its writers.
 
 **Code that a cross-check compares with Rust but that cannot make a claim false.** The rest of
 `Ports/Replay/`: the replay of the layer-1 verifier, with its transcript, stages, formulas, GKR and WHIR.
-The claims read it only inside `Reads` (`Spec/Bound.lean`): the draws of a reading are the
+The claims read it only inside `Reads` (`Spec/OptionBRuns.lean`): the draws of a reading are the
 replay's draws. The simulation (`Sim/`) proves that the circuit's checks give a run of
 the replay, and `Bridge/` proves that a run of the replay gives a path of the layer-1 game. So a
 claim holds whether or not the replay agrees with Rust's native verifier. `ports.json` lists the
@@ -191,7 +292,7 @@ replay, so a change to the Rust items that it transcribes still shows.
 The entries of the shrink CCS and its relation (`Run.ccs` entries, `Ccs.z`, `Ccs.Relation`) cannot
 make a claim false either. The shrink game reads only the sizes and statement words of `Run.ccs`;
 its checks use the verifier's matrix value, and the bad sets that read the entries change no check
-and no draw. The entries and `z` enter the claims only in the read condition (`FinalRestoreBreak`).
+and no draw. The entries and `z` enter the claims only in the read condition (`Spec.OptionB.RestoreBreak`).
 `verifierMatrices_eq` proves that the entries give the matrix value that the verifier computes, and
 `shrinkGame_avoids` proves that an accepted transcript has a candidate that satisfies
 `Ccs.Relation` on `z`. So the relation is the one that the verifier checks, whatever entries Rust's
@@ -211,26 +312,28 @@ These checks compare a transcription with its Rust:
   instance that `deriving` makes needs neither: its type has the entry.
 - Ignored Rust tests compare the replay's draws and verdicts, the programs' instructions, and the
   toy key's setup root with Rust on fixed inputs. They run by hand, not in CI
-  (`scripts/crosschecks.sh`). The terminal checks run on the pinned artifact with one context; the
-  instructions do not depend on the statement values, and the context words enter as constants.
+  (`scripts/crosschecks.sh`). The final-program check runs on the pinned artifacts with one
+  statement; the instructions do not depend on the statement values.
 - The Rust tests `relation_shape_has_the_lean_constants` (`neo-spartan`) and
-  `parent_relation_arguments_are_the_lean_constants` (`nightstream`) pin the production constants of
+  `final_proof_verifies` (`nightstream`) pin the production constants of
   `Production.lean`. The first also pins `Replay.D = 54`: `ports.json` names the alias `D` of
   `ring.rs`, but the value is in an inline module of `neo-params` that `lean_ports` cannot name.
 - The executables (`CompressionLeanExe/`, which `lake build` builds with warnings as errors) check
-  premises of two kinds. `loads` and `valid` are closed propositions about Lean values
-  (`circuitPackage ()`). `terminalCheck` checks them by compiled evaluation, because the kernel does
-  not evaluate a package of this size. They say nothing about a Rust file. `KeyFacts`, `WidthFits`,
-  `setupFailure key pushes = none` and `runsFailure pushes = none` are facts about the files that
-  Rust writes. `lowerCheck`, `terminalCheck`, `setupCheck` and `runsCheck` read those files, and a
-  Rust test requires each pass. `setupCheck` and `runsCheck` read the runs with the same reader, so
+  premises of two kinds. `fit` is a closed proposition about a Lean value: the finish package that
+  `optionBCheck` decodes from its artifact. `optionBCheck` checks it by compiled evaluation, because
+  the kernel does not evaluate a package of this size. It says nothing about a Rust file.
+  `KeyFacts`, `optionBFits`, `setupFailureAt`, `keyRunsFailure` and `coverFailure` are facts about
+  the files that Rust writes. `lowerCheck`, `optionBCheck`, `setupCheck` and `runsCheck` read those
+  files, and a Rust test requires each pass. `coverCheck` reads the step packages and the layer-1
+  keys; `scripts/crosschecks.sh` runs it, and no Rust test requires its pass. `setupCheck` and `runsCheck` read the runs with the same reader, so
   their passes are about the same runs. `runsCheck` checks the rows in parallel tasks
   (`Task.spawn`); in the logic a task is the value of its function, and the compiled evaluator runs
   it on a thread. `lowerCheck` also reads the toy key of `lowering_matches_lean`, which has neither
   production's constants nor an application's width, so it prints each result and does not refuse
-  the key. `key_facts_of_check`, `width_fits_of_check`, `package_templates_of_check`,
-  `setup_facts_of_check` and `runsGive_of_check` prove that a pass gives the premise. That the
-  executables ran on the production artifacts is the evidence of the Rust tests. `STATUS.md` names
+  the key. `key_facts_of_check`, `option_b_shape_of_check`, `option_b_setup_facts_of_check`,
+  `option_b_runs_of_check`, `option_b_logical_of_check` and `option_b_covers_of_check` prove that a
+  pass gives the premise. That the executables ran on the option-B artifacts is the evidence of the
+  Rust tests. `STATUS.md` names
   the executable and the test of each premise. `setupRootCheck` backs no premise and cannot make a
   claim false: it shows, on the toy key, that Rust's root is `tableRoot` of Rust's own tables
   (read by `RootInput`), which is `honestRoot rel S` for any `(rel, S)` whose setup oracles are
@@ -238,12 +341,13 @@ These checks compare a transcription with its Rust:
 
 ## 6. Scope
 
-The final theorems hold for the relation of an application of any logical width. The terminal package
-does not depend on the width: F′'s row builders take it as a parameter but do not use it, and `rfl`
-lemmas (`arithmeticRows_at`, `permutationInvocations_at`) state this. `poseidon2_bound` covers the
-production key: F′'s relation of the Poseidon2 hash-chain application, at 43,963,750 columns and
-814,144 blocks. It takes the premises that `STATUS.md` lists. The claims describe the native verifier
-and the circuit that Rust records; they say nothing about code paths that Lean does not model.
+`option_b_parent_bound` holds for circuit keys of any logical width. `option_b_poseidon2_bound`
+covers F′'s light and refresh circuits of the Poseidon2 hash-chain application at the key width
+`2^26`, as Lean's packages fix them. It takes the premises that `STATUS.md` lists. `Circuit::compile` keeps
+these packages for the reference hash chain. The claim does not cover the circuit of another Rust application,
+whose rows replace the application region. `option_b_complete` holds for any application
+with F′'s `Exports` and `Complete`, for the valid runs that it names. The claims describe the native verifier and
+the circuit that Rust records; they say nothing about code paths that Lean does not model.
 
 ## Not trusted
 

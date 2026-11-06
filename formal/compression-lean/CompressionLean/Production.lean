@@ -1,11 +1,10 @@
 import NightstreamFPrime.Lifecycle.PaperAlgebra
-import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Package
 
-/-! Rust tests `relation_shape_has_the_lean_constants` (`neo-spartan`) and `parent_relation_arguments_are_the_lean_constants` (`nightstream`) pin these constants. -/
+/-! Rust tests `relation_shape_has_the_lean_constants` (`neo-spartan`) and `final_proof_verifies` (`nightstream`) pin these constants. -/
 
 namespace CompressionLean.Production
 
-open NightstreamFPrime NightstreamFPrime.Spec NightstreamFPrime.Export.Stage1
+open NightstreamFPrime NightstreamFPrime.Spec
 
 abbrev kappa : ℕ := productionProfile.commitmentWidth
 
@@ -23,13 +22,10 @@ abbrev pointVariables : ℕ := Lifecycle.cubeVariables
 
 theorem pointVariables_eq : pointVariables = 28 := rfl
 
-abbrev normBound : ℕ := 3672
+/-- `B = 2^16` (`productionGlobalParams.bigB`, `k_rho = 16`). Each slot's honest bound lies below it
+(`option_b/compression.rs::compression_bound`). -/
+abbrev normLimit : ℕ := 65536
 
-abbrev poseidon2Width : ℕ := PerApplicationFixedPoint.logicalWidth Poseidon2HashChainV1Package.application
-
-theorem poseidon2Width_eq : poseidon2Width = 43963750 := Poseidon2HashChainV1Package.logicalWidth
-
-noncomputable abbrev poseidon2Relation := PerApplicationFixedPoint.relation Poseidon2HashChainV1Package.application
-  Poseidon2HashChainV1Package.fits
+theorem normLimit_eq : normLimit = productionGlobalParams.bigB := by decide
 
 end CompressionLean.Production

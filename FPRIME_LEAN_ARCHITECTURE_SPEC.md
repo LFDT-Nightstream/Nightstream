@@ -2,6 +2,12 @@
 
 Status: proposed architecture contract.
 
+Amendment 2026-10-31 (owner approval, option B, draft for review): §2, §3,
+§5, §6, §9 and §10 change from one step circuit to two, a light circuit and a
+refresh circuit. The Lean results in `NightstreamFPrime/Spec/Folding/Light`,
+`Refresh`, `Schedule` and `Spec/HyperNova/Construction2/BoundedDepth*` are the
+authority for the departures from SuperNeo v1.2.
+
 This document defines the required result and its authority boundaries. It is
 not an implementation plan.
 
@@ -55,6 +61,13 @@ The implementation must preserve the obligations in these paper sections.
 - `docs/nebula-paper/09_appendix-a.md`
 - `docs/nebula-paper/11_appendix-c.md`
 
+### Cyclo
+
+- Cyclo, ePrint 2026/359, Theorem 3 item 2 and Section 2.2: folding without
+  a norm check on the accumulator, for a bounded number of folds, then a
+  refresh. SuperNeo v1.2 Section 1.3 states that SuperNeo is compatible with
+  this contribution.
+
 Coral is reference material only. Nightstream can use its ideas to understand
 memory soundness. This specification does not require a Coral implementation,
 a Coral SNARK, or Coral's complete memory checker.
@@ -67,15 +80,22 @@ The production profile is:
 - `b = 2`;
 - `k_rho = 16`;
 - `B = 2^16`;
-- one fresh source;
-- 16 running sources;
-- 17 PiRLC inputs in exact `K + k` order;
-- 16 PiDEC children;
+- two step circuits, light and refresh, in HyperNova Construction 2 (NIVC),
+  with one running accumulator for each circuit;
+- each running accumulator carries its depth, the number of light folds since
+  its last refresh, and the light circuit rejects a fold at depth 64 (the cap);
+- light circuit: one fresh source and one running source, 2 PiRLC inputs in
+  fresh-then-running order with coefficient 1 on the running source, PiCCS norm
+  terms on the fresh source only, no PiDEC;
+- refresh circuit: PiDEC of the input accumulator into 16 children, then 17
+  PiRLC inputs in exact `K + k` order, no PiDEC of the output;
 - 4 CCS matrices;
+- `κ = 22` commitment rows, with relaxed binding at the chain norm
+  `8 · T · (B + 64 · T · (b − 1)) = 137,134,080`;
 - Poseidon2-only protocol binding.
 
-The production package must bind one exact profile. It must not contain a
-radix-four or alternate-profile path.
+The two step circuits are one profile. The production package must bind this
+profile exactly. It must not contain a radix-four or alternate-profile path.
 
 ## 4. Authority model
 
@@ -114,14 +134,17 @@ must include:
 
 - complete prior-state and public-input binding;
 - CCS and LCCCS multi-folding;
-- the complete PiCCS → PiRLC → PiDEC path;
+- the light path PiCCS → PiRLC and the refresh path PiDEC → PiCCS → PiRLC;
 - exact PiRLC ordering, sampling, evaluation, and transcript binding;
-- PiDEC decomposition, low-norm extraction, and all 16 children;
+- in the refresh circuit, PiDEC decomposition, low-norm extraction, and all
+  16 children;
+- the depth guard and the depth update of each running accumulator, bound into
+  the state hash;
 - commitment ownership and opening checks;
 - accumulator and running-instance transitions;
 - Poseidon2 transcript and `XOut` binding;
-- explicit recursive-size closure;
-- a Lean-proved joint domain no larger than `2^28`.
+- explicit recursive-size closure for each step circuit;
+- a Lean-proved joint domain no larger than `2^28` for each step circuit.
 
 Stage 1 must not contain a free memory predicate or an assumed Nebula phase.
 Its public layout must follow its concrete semantics. The current 32-field
@@ -131,7 +154,7 @@ is not automatically a Stage 1 requirement.
 ## 6. Stage 2: Nebula as a new phase
 
 Stage 2 must add one concrete Nebula memory phase to the completed Stage 1
-system.
+system. Both step circuits carry this phase.
 
 The phase must own the commitment-carrying memory state, presence transitions,
 memory-state transitions, arm selection, and terminal memory acceptance. It
@@ -190,7 +213,8 @@ project must not claim global column minimality without a proved lower bound.
 ## 9. Lean-emitted circuit package
 
 Lean must emit one canonical production package that contains the complete
-data required by the Rust proof engine. The package includes:
+data required by the Rust proof engine for both step circuits. The package
+includes:
 
 - the fixed profile and schema;
 - the public-input layout;
@@ -207,8 +231,9 @@ generic optimized primitives to execute it. Any native witness acceleration
 can produce only non-authoritative hints. The emitted rows must check every
 result.
 
-The verifier must bind a verifier-owned expected circuit identity. A different
-accepted package must reduce to a named Poseidon2 collision or binding failure.
+The verifier must bind a verifier-owned expected identity for each step
+circuit. A different accepted package must reduce to a named Poseidon2
+collision or binding failure.
 
 ## 10. Proof boundary
 
@@ -229,9 +254,10 @@ If the production verifier accepts, the F′ lifecycle is valid unless a named
 cryptographic failure event occurred.
 
 The named boundary includes Poseidon2 collision resistance, commitment
-binding, Fiat–Shamir and sampling security, and the complete SuperNeo PiCCS,
-PiRLC, and PiDEC knowledge reduction. Cryptographic assumptions belong only in
-this result.
+binding (relaxed binding at the chain norm), Fiat–Shamir and sampling security,
+and the knowledge reductions of the light fold and the refresh fold (SuperNeo
+PiCCS, PiRLC, and PiDEC with the departures of §3). Cryptographic assumptions
+belong only in this result.
 
 ## 11. Rust boundary
 

@@ -1,122 +1,76 @@
-These application fixtures are extracted from the current Lean exports below.
-The Rust application builder does not read them. Ordinary Rust tests need no
-Lean installation. Saved fold fixtures require a separate fresh conformance run.
+These fixtures are recorded Lean outputs. The Rust tests read them and need no
+Lean installation. The Rust application builder does not read them, and
+`Circuit::compile`, `load`, `prove`, `extend` and `verify` do not read them.
 
-`poseidon2-application-reference.json` is the exact application plan at index
-3 of `formal/nightstream-fprime/artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1.json`.
-It contains the four input state columns, four private message columns, four
-output state columns, all 5,484 application rows, and all 5,480 arithmetic
-witness recipes. These dimensions belong to the selected application.
+## Poseidon2 application
 
-`poseidon2-application-execution.json` contains `[prior_state, message, output]`
-from `formal/nightstream-fprime/artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1-parity.json`.
-The prior state is the current-state block at words 27,815 through 27,818
-of the recorded prior preimage. The saved profile is the Nightstream Goldilocks
-profile with `b = 2`, `k_rho = 16`, and `B = 2^16`.
+`poseidon2-application-reference.json` is the application plan of the Lean
+Poseidon2 hash chain (`Lifecycle/Stage1/Poseidon2HashChainV1.lean`). It holds
+the four input state columns, the four private message columns, the four
+output state columns, all 5,484 application rows and all 5,480 witness
+recipes.
 
-Run this extraction from the repository root after the separate maintainer
-workflow has produced the recorded Lean artifacts:
+`poseidon2-application-execution.json` holds `[prior_state, message, output]`
+of one recorded Lean step.
 
-```python
-import json
-from pathlib import Path
+The Lean emitter of these two files was removed. No command in the repository
+makes them again.
 
-source = Path("formal/nightstream-fprime/artifacts")
-target = Path("crates/nightstream/tests/fixtures")
-package = json.loads((source / "nightstream-fprime-stage1-poseidon2-hash-chain-v1.json").read_text())
-parity = json.loads((source / "nightstream-fprime-stage1-poseidon2-hash-chain-v1-parity.json").read_text())
-fixtures = {
-    "poseidon2-application-reference.json": package[3],
-    "poseidon2-application-execution.json": [parity[1][1][27815:27819], parity[1][2], parity[2][0]],
-}
-for name, value in fixtures.items():
-    (target / name).write_text(json.dumps(value, separators=(",", ":")) + "\n")
-```
+`tests/application_poseidon2.rs` reads them. The row test compares the
+canonical A/B/C coefficients, the variable columns and the row order of the
+Rust Poseidon2 application with the recorded rows. The witness test executes
+the recorded Lean witness recipes and compares every generated value. It also
+compares the output with the recorded output and with the native Poseidon2
+hash. A third test checks that a changed input, output or intermediate value
+fails the constraints. These checks cover this one application. They are not
+a proof for all Rust applications.
 
-The row test compares canonical A/B/C coefficients, physical variable indices,
-and row order after port relocation. The witness test executes the saved Lean
-recipe program separately and compares every generated field value. It also
-compares the recorded output and the native Poseidon2 hash. These checks cover
-this concrete application. They are not a proof for all Rust applications.
-
-The base/recursive computation test reads the two saved Lean caller fixtures
-listed below. It runs the Rust application on each recorded current state and
-message, compares all four output words with the stored Lean output, and checks
-the generated witness against every stored A/B/C application row. The computed
-base output must equal the next fixture's input. A changed output must violate
-a stored row. This test performs no recursive proving and runs no Lean command.
-
-The assembly test also compares the complete raw application plan, including
-duplicate sparse terms and witness expression order. A separate test compares
-the complete assembled package value with the selected saved reference.
-
-The Lean entries below link to the maintained formal artifacts. Native fold
-fixtures and `golden-v1.zip` are regenerated only after fresh CPU execution and
-both complete Lean comparisons pass. The state-request fixture supplies the
-fixed public initial state and application messages; it contains no proof or
-commitment authority.
-
-| Package path | Current source |
-| --- | --- |
-| `lean/nightstream-fprime-stage1-base-step-fixture-v1.json` | The current Lean base emitter. |
-| `lean/nightstream-fprime-stage1-actual-recursive-step-fixture-v1.json` | First fresh checked Lean caller. |
-| `lean/nightstream-fprime-stage1-base-nifs-result-v1.json` | First fresh checked complete ten-field Lean NIFS result. |
-| `stage1_actual_nifs/actual_result.json` | First fresh native fold, compared completely with Lean. |
-| `stage1_actual_nifs/proof.native` | The same fold's exact native proof bytes, also encoded from Lean. |
-| `stage1_recursive_states/nonzero-running.json` | Public state and message request for the second fold. |
-| `golden-v1.zip` | Both checked folds and state interfaces; exactly 19 files. |
-
-The linked files have one copy in Git. The archive excludes private witness
-matrices; fresh conformance separately compares complete physical witnesses.
-See [the workflow](../../../../scripts/GOLDEN_CONFORMANCE.md) and
-the replacement report, `docs/reviews/pirlc-sampler-replacement/REPORT.md` at
-commit `f7e093d8f`.
-
-The selected verifier blueprint has one package copy under `artifacts`, shared
-by assembly and lifecycle tests. These test-only saved outputs are never read
-by `Circuit::compile`, `load`, `prove`, `extend`, or `verify`.
+## Nebula memory applications
 
 `nebula-memory-v1-rows.json` and `nebula-memory-n1-rows.json` name the
-assertion rows of the two Nebula memory packages as `[name, first, end]`,
-counted from the application's first package row. Each name comes from the
-same SPEC.md section 7 check group that defines its rows (`Checks` in
-`Lifecycle/Nebula/RowList.lean` and `MemoryCircuit.lean`).
-The SPEC.md section 9 rejection tests (`tests/nebula/conformance.rs`) use it to name the
+assertion rows of the two Nebula memory applications as `[name, first, end]`,
+counted from the first row of the application. Each name comes from the
+SPEC.md section 7 check group that defines its rows (`Checks` in
+`Lifecycle/Nebula/RowList.lean` and `MemoryCircuit.lean`). The SPEC.md
+section 9 rejection tests (`tests/nebula/conformance.rs`) use them to name the
 check that a faulty step fails.
 
 `nebula-memory-v1-start.json` and `nebula-memory-n1-start.json` hold `D_init`
-of each package's default program (`initRootWords`, proved equal to
+of the default program of each application (`initRootWords`, proved equal to
 `(context plan).initRoot`). `nebula-memory-v1-other-start.json` holds `D_init`
 of `FirstPlan.otherPlan`, a second program of the V1 geometry with a distinct
 nonzero word in every ROM and RAM cell. `tests/nebula_memory.rs` compares the
-verifier's own `D_init` with each.
+`D_init` of the verifier with each.
 
 `nebula-memory-v1-terminal.json` and `nebula-memory-n1-terminal.json` hold
-SPEC.md Algorithm 10 terminal-check cases of each plan (`NebulaMemoryTerminal.cases`):
-the statement, the final carry words, whether every statement integer that
-becomes a field word is below `q`, each `TerminalChecks` field as Lean decides
-it (`terminalChecks_iff`), and the final state words.
-`terminal_checks_match_lean` requires the verifier's terminal check to agree
-on every case.
+SPEC.md Algorithm 10 terminal-check cases of each plan
+(`NebulaMemoryTerminal.cases`). Each case has the statement, the final carry
+words, and whether every statement integer that becomes a field word is below
+`q`. It also has each `TerminalChecks` field as Lean decides it
+(`terminalChecks_iff`) and the final state words. `terminal_checks_match_lean`
+requires the terminal check of the verifier to agree on every case.
 
-Regenerate these fixtures with the memory packages, from `formal/nightstream-fprime`:
+`emitOptionB` makes the rows, start and terminal files again from
+`formal/nightstream-fprime`, after `scripts/validate.sh executables`. The
+output is the same bytes as the committed files:
 
 ```sh
-bash scripts/validate.sh lean-executable .lake/build/bin/emit --application-rows nebula-memory-v1 ../../crates/nightstream/tests/fixtures/nebula-memory-v1-rows.json
-bash scripts/validate.sh lean-executable .lake/build/bin/emit --application-rows nebula-memory-n1 ../../crates/nightstream/tests/fixtures/nebula-memory-n1-rows.json
-bash scripts/validate.sh lean-executable .lake/build/bin/emit --application-start nebula-memory-v1 ../../crates/nightstream/tests/fixtures/nebula-memory-v1-start.json
-bash scripts/validate.sh lean-executable .lake/build/bin/emit --application-start nebula-memory-n1 ../../crates/nightstream/tests/fixtures/nebula-memory-n1-start.json
-bash scripts/validate.sh lean-executable .lake/build/bin/emit --application-start nebula-memory-v1-other ../../crates/nightstream/tests/fixtures/nebula-memory-v1-other-start.json
-bash scripts/validate.sh lean-executable .lake/build/bin/emit --application-terminal nebula-memory-v1 ../../crates/nightstream/tests/fixtures/nebula-memory-v1-terminal.json
-bash scripts/validate.sh lean-executable .lake/build/bin/emit --application-terminal nebula-memory-n1 ../../crates/nightstream/tests/fixtures/nebula-memory-n1-terminal.json
+for mode in rows start terminal; do
+  for plan in nebula-v1 nebula-n1; do
+    timeout --signal=KILL 1500 bash scripts/validate.sh lean-executable .lake/build/bin/emitOptionB --application-$mode $plan ../../crates/nightstream/tests/fixtures/nebula-memory-${plan#nebula-}-$mode.json
+  done
+done
+timeout --signal=KILL 1500 bash scripts/validate.sh lean-executable .lake/build/bin/emitOptionB --application-start nebula-v1-other ../../crates/nightstream/tests/fixtures/nebula-memory-v1-other-start.json
 ```
 
-`compression/key.bin` and `compression/final-proof.bin` are the production
-compression key and one final proof after one fold. CI verifies the proof
-(`committed_final_proof_verifies_and_rejects_changes`) and pins the
-production run digests on the key (`final_program_digest_is_pinned`, and
-`neo-spartan`'s `production_layer1_digest_is_pinned`). After a change to the
-circuit or the final program, run the ignored
-`poseidon_compression_setup_matches_the_derived_key`, then
-`poseidon_compressed_proof_verifies`, each under the 300-second cap, and
-copy `target/compression-setup/key.bin` and `final-proof.bin` here.
+`nebula-memory-v1-digest.json` and `nebula-memory-n1-digest.json` hold the row
+count and a digest of the rows of each memory application, in the variable
+order of the Rust application (`EmitMain.applicationDigest`).
+`tests/nebula/parity.rs` requires the Rust-built memory circuit to have the
+same rows. Make them again from `formal/nightstream-fprime`, after
+`scripts/validate.sh executables`:
+
+```sh
+timeout --signal=KILL 1500 bash scripts/validate.sh lean-executable .lake/build/bin/emitOptionB --application-digest nebula-v1 ../../crates/nightstream/tests/fixtures/nebula-memory-v1-digest.json
+timeout --signal=KILL 1500 bash scripts/validate.sh lean-executable .lake/build/bin/emitOptionB --application-digest nebula-n1 ../../crates/nightstream/tests/fixtures/nebula-memory-n1-digest.json
+```

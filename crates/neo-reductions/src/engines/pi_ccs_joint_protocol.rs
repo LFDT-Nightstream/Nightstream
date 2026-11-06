@@ -18,6 +18,42 @@ use crate::error::PiCcsError;
 
 const RATE: usize = neo_ccs::crypto::poseidon2_goldilocks::RATE;
 
+/// What a fold's PiCCS binds besides its claims, and whose norm terms it
+/// checks. SuperNeo v1.2's fold (`production`) checks every source. Option B's
+/// light fold checks the fresh source only, and its refresh fold binds the
+/// PiDEC children after the statement (Lean `OptionB.Keys`).
+#[derive(Clone, Copy, Debug)]
+pub struct FoldProfile<'a> {
+    pub domain: [F; RATE],
+    pub children: &'a [F],
+    pub norm: NormSources,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NormSources {
+    All,
+    Fresh,
+}
+
+impl NormSources {
+    pub fn count(self, fresh: usize, running: usize) -> usize {
+        match self {
+            Self::All => fresh + running,
+            Self::Fresh => fresh,
+        }
+    }
+}
+
+impl FoldProfile<'static> {
+    pub fn production() -> Self {
+        Self {
+            domain: fold_domain_chunk_v1_2(),
+            children: &[],
+            norm: NormSources::All,
+        }
+    }
+}
+
 pub type V1_2OutputOpening = neo_ccs::V1_2Evaluations<K>;
 
 pub trait PaperJointRoundOracle {
@@ -117,6 +153,7 @@ pub(crate) fn bind_and_sample_with_trace(
     structure: &CcsStructure<F>,
     fresh: &[CcsClaim<Cmt, F>],
     running: &[CeClaim<Cmt, F, K>],
+    profile: &FoldProfile<'_>,
 ) -> Result<(JointDims, Challenges), PiCcsError> {
     let dims = build_joint_dims(params, structure, fresh.len(), running.len())?;
     validate_selected_inputs(structure, fresh, running, dims)?;
@@ -143,13 +180,14 @@ pub(crate) fn bind_and_sample_with_trace(
     }
 
     transcript.reset_v1_2();
-    append(transcript, trace, fold_domain_chunk_v1_2().to_vec());
+    append(transcript, trace, profile.domain.to_vec());
 
     let mut statement = neo_transcript::prior_digest_v1_2(&fresh[0].x).to_vec();
     for claim in fresh {
         statement.extend(commitment_fields(&claim.c, params)?);
         statement.extend_from_slice(&claim.x);
     }
+    statement.extend_from_slice(profile.children);
     append(transcript, trace, statement);
 
     let alpha: Vec<K> = (0..dims.variables)
@@ -363,9 +401,11 @@ pub(crate) fn verify_with_trace(
     running: &[CeClaim<Cmt, F, K>],
     outputs: &[CeClaim<Cmt, F, K>],
     proof: &PiCcsProof,
+    profile: &FoldProfile<'_>,
 ) -> Result<(bool, ProtocolTrace), PiCcsError> {
     let mut trace = ProtocolTrace::default();
-    let (dims, challenges) = bind_and_sample_with_trace(transcript, &mut trace, params, structure, fresh, running)?;
+    let (dims, challenges) =
+        bind_and_sample_with_trace(transcript, &mut trace, params, structure, fresh, running, profile)?;
     let prior_point = crate::engines::utils::shared_me_input_r(running, dims.variables)?;
     let initial = crate::engines::optimized_engine::paper_joint::initial_claim(structure, &challenges, running)?;
     let (point, final_claim) = verify_phase(transcript, &mut trace, dims, initial, &proof.sumcheck_rounds)?;
@@ -375,6 +415,7 @@ pub(crate) fn verify_with_trace(
         params,
         &challenges,
         fresh.len(),
+        profile.norm.count(fresh.len(), running.len()),
         prior_point,
         &point,
         outputs,

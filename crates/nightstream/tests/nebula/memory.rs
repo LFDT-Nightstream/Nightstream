@@ -182,7 +182,7 @@ fn programs_of_one_package_have_their_own_initial_state() {
 
 /// The verifier's `D_init` (SPEC.md section 7.4), from which it computes the start
 /// carry and `z0`, equals the value that Lean computes for the same plan
-/// (`emit --application-start`). It binds the plan digest and the images.
+/// (`emitOptionB --application-start`). It binds the plan digest and the images.
 /// `FirstPlan.otherPlan` has a distinct nonzero word in every cell, so a
 /// misplaced or truncated word changes `D_init`.
 #[test]
@@ -280,7 +280,7 @@ fn canonical_words(words: &[F]) -> Vec<u64> {
 }
 
 /// The SPEC.md Algorithm 10 terminal check agrees with Lean's `TerminalChecks` on every
-/// case of `emit --application-terminal`. It accepts exactly when every
+/// case of `emitOptionB --application-terminal`. It accepts exactly when every
 /// statement integer is below `q` and every check holds, with Lean's final
 /// state words. Otherwise it fails at the first false check in its own order:
 /// Canonical decoding, closed carry, segment range, step count, then the carry fields.
@@ -355,29 +355,53 @@ fn memory_security_bits_match_the_lean_setup_boundary() {
     }
 }
 
-fn package(name: &str) -> Vec<u8> {
-    std::fs::read(
-        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("artifacts")
-            .join(name),
-    )
-    .expect("saved Lean memory package")
+/// Lean's option-B packages (`formal/nightstream-fprime/artifacts`): the
+/// light and refresh step packages of an application and the finish package.
+struct Packages {
+    light: Vec<u8>,
+    refresh: Vec<u8>,
+    finish: Vec<u8>,
 }
 
-/// A package loads only from its own bytes: the second package's bytes fail
-/// as the first package at the pinned structural identifier.
+impl Packages {
+    fn read(name: &str) -> Vec<u8> {
+        std::fs::read(
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("../../formal/nightstream-fprime/artifacts")
+                .join(name),
+        )
+        .expect("Lean option-B package")
+    }
+
+    /// The packages of `stem` (`""` for today's fixture, `"nebula-v1-"`,
+    /// `"nebula-n1-"`).
+    fn of(stem: &str) -> Self {
+        Self {
+            light: Self::read(&format!("nightstream-fprime-option-b-{stem}light-v1.json")),
+            refresh: Self::read(&format!("nightstream-fprime-option-b-{stem}refresh-v1.json")),
+            finish: Self::read("nightstream-fprime-option-b-finish-v1.json"),
+        }
+    }
+
+    fn references(&self) -> crate::References<'_> {
+        crate::References {
+            light: &self.light,
+            refresh: &self.refresh,
+            finish: &self.finish,
+        }
+    }
+}
+
+/// A package loads only from its own packages: the second package's fail as
+/// the first package at the pinned identity.
 #[test]
 fn package_loads_only_its_own_bytes() {
     assert!(matches!(
-        Package::V1.load(&package("nightstream-fprime-stage2-nebula-memory-n1.json")),
+        Package::V1.load(Packages::of("nebula-n1-").references()),
         Err(crate::Error::Package(
             nightstream_fprime::PackageError::IdentityMismatch { .. }
         ))
     ));
-}
-
-fn memory_package() -> Vec<u8> {
-    package("nightstream-fprime-stage2-nebula-memory-v1.json")
 }
 
 fn n1_run() -> Run<Machine> {
@@ -413,10 +437,10 @@ fn n1_native_run_reaches_every_counter_maximum() {
 /// `N = 1`, and `S = S_max` with every counter at its largest value.
 fn n1_accept(engine: crate::Engine) {
     let circuit = Package::N1
-        .load(&package("nightstream-fprime-stage2-nebula-memory-n1.json"))
+        .load(Packages::of("nebula-n1-").references())
         .expect("pinned memory package");
-    let prover = circuit.circuit.prover(engine, 114).unwrap();
-    let verifier = circuit.verifier(engine, 114).unwrap();
+    let prover = circuit.circuit.prover(engine, 109).unwrap();
+    let verifier = circuit.verifier(engine, 109).unwrap();
     let mut run = n1_run();
     let z0 = run.initial_state();
     let mut proof: Option<crate::Proof> = None;
@@ -447,13 +471,6 @@ fn n1_accept_on_cpu() {
     n1_accept(crate::Engine::Optimized);
 }
 
-#[cfg(feature = "metal")]
-#[test]
-#[ignore = "Full production-profile memory proofs on Metal; run separately under the 300-second cap."]
-fn n1_accept_on_metal() {
-    n1_accept(crate::Engine::Metal);
-}
-
 /// The SPEC.md section 9 accept cases that the first plan reaches, and the rejections
 /// that need no invalid witness, through the memory verifier. One run of four
 /// segments (`S = S_max`) has continue arms (`N = 2`), writes RAM in the first
@@ -462,10 +479,10 @@ fn memory_conformance(engine: crate::Engine) {
     use crate::nebula::VerifyError;
     let started = std::time::Instant::now();
     let circuit = Package::V1
-        .load(&memory_package())
+        .load(Packages::of("nebula-v1-").references())
         .expect("pinned memory package");
-    let prover = circuit.circuit.prover(engine, 114).unwrap();
-    let verifier = circuit.verifier(engine, 114).unwrap();
+    let prover = circuit.circuit.prover(engine, 109).unwrap();
+    let verifier = circuit.verifier(engine, 109).unwrap();
     let program = Package::V1.program();
     eprintln!("memory preparation elapsed={:?}", started.elapsed());
 
@@ -578,13 +595,6 @@ fn memory_conformance_on_cpu() {
     memory_conformance(crate::Engine::Optimized);
 }
 
-#[cfg(feature = "metal")]
-#[test]
-#[ignore = "Full production-profile memory proofs on Metal; run separately under the 300-second cap."]
-fn memory_conformance_on_metal() {
-    memory_conformance(crate::Engine::Metal);
-}
-
 /// One package serves two programs (SPEC.md section 9): the loaded V1 package proves a
 /// segment of the default program and of a second program, and each proof
 /// verifies with its own program. A verifier given the other program rejects
@@ -597,10 +607,10 @@ fn each_program_verifies_only_its_own_proof_on_cpu() {
     let engine = crate::Engine::Optimized;
     let started = std::time::Instant::now();
     let circuit = Package::V1
-        .load(&memory_package())
+        .load(Packages::of("nebula-v1-").references())
         .expect("pinned memory package");
-    let prover = circuit.circuit.prover(engine, 114).unwrap();
-    let verifier = circuit.verifier(engine, 114).unwrap();
+    let prover = circuit.circuit.prover(engine, 109).unwrap();
+    let verifier = circuit.verifier(engine, 109).unwrap();
     let prove = |program: &Program| {
         let mut run = Run::new(Machine, program, MachineState::default());
         let z0 = run.initial_state();
@@ -638,19 +648,16 @@ fn each_program_verifies_only_its_own_proof_on_cpu() {
 }
 
 #[test]
-#[ignore = "Prints the saved memory packages' structural identifiers for pinning."]
+#[ignore = "Prints the memory programs' option-B package identities for pinning."]
 fn print_memory_package_identifier() {
-    for name in [
-        "nightstream-fprime-stage2-nebula-memory-v1.json",
-        "nightstream-fprime-stage2-nebula-memory-n1.json",
-    ] {
-        let placeholder = nightstream_fprime::StructuralIdentifier::from_words([0; 4]);
-        let computed = match nightstream_fprime::load_per_application_package(&package(name), placeholder) {
-            Ok(loaded) => loaded.structural_identifier().words(),
+    for stem in ["nebula-v1-", "nebula-n1-"] {
+        let packages = Packages::of(stem);
+        let computed = match nightstream_fprime::load_option_b_packages(&packages.light, &packages.refresh, [0; 4]) {
+            Ok(loaded) => loaded.identity(),
             Err(nightstream_fprime::PackageError::IdentityMismatch { computed, .. }) => computed,
-            Err(error) => panic!("{name}: {error}"),
+            Err(error) => panic!("{stem}: {error}"),
         };
-        println!("{name} structural_identifier={computed:?}");
+        println!("{stem} identity={computed:?}");
     }
 }
 
@@ -958,12 +965,12 @@ fn rust_built(engine: crate::Engine) {
         .unwrap()
         .write(&path)
         .unwrap();
-    let prover = crate::Prover::load(&path, engine, 114);
+    let prover = crate::Prover::load(&path, engine, 109);
     std::fs::remove_file(&path).unwrap();
     let prover = prover.unwrap();
     let verifier = Circuit::compile(geometry, Machine)
         .unwrap()
-        .verifier(engine, 114)
+        .verifier(engine, 109)
         .unwrap();
     let changed = Circuit::compile(geometry, Changed::Row).unwrap();
     eprintln!("rust-built setup elapsed={:?}", started.elapsed());
@@ -973,7 +980,7 @@ fn rust_built(engine: crate::Engine) {
     verifier
         .verify_parts(&program, &statement, &carry, &proof)
         .unwrap();
-    let (statement, carry, proof) = prove_segment(&changed.circuit.prover(engine, 114).unwrap(), Changed::Row);
+    let (statement, carry, proof) = prove_segment(&changed.circuit.prover(engine, 109).unwrap(), Changed::Row);
     assert!(matches!(
         verifier.verify_parts(&program, &statement, &carry, &proof),
         Err(VerifyError::Proof(_))

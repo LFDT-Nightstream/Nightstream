@@ -36,6 +36,26 @@ Also read completely before work:
 - `FPRIME_STAGE1_EXTERNAL_REVIEW.md` and
   `FPRIME_STAGE1_EXTERNAL_FABLE_REVIEW.md`, if they exist
 
+## Option B
+
+The amendment of 2026-10-31 to `FPRIME_LEAN_ARCHITECTURE_SPEC.md` replaces
+the one step circuit with two step circuits and a finish circuit. `SPEC.md`
+describes the protocol. Where this goal names one step circuit, read it with
+these changes:
+
+- The light circuit runs PiCCS on one fresh source and one running source,
+  then PiRLC with 2 inputs and the weight 1 on the running source. It has no
+  PiDEC.
+- The refresh circuit runs PiDEC on the input accumulator into 16 children,
+  then PiCCS and PiRLC with 17 inputs. It does not decompose its output.
+- The state has two slots, one for each circuit. A slot carries one
+  accumulator and its depth, and the light circuit rejects a fold at depth 64.
+- The finish circuit is the refresh circuit without the application and the
+  next hashes. The compressed final proof starts from it.
+- Lean emits one package for each circuit (`Export/OptionB/EmitMain.lean`).
+  The Stage 1 assembly of one step circuit (`Lifecycle/Stage1/Formal.lean`) is
+  not on the production path.
+
 ## External review checkpoints
 
 Other AIs write review feedback to these files at any time:
@@ -106,12 +126,13 @@ fixed Nightstream Goldilocks profile (spec §3), delivered as:
 3. a proved physical layout and lowering;
 4. the deterministic soundness theorem and the security composition theorem
    (spec §10), in the package's axiom gate;
-5. a canonical Lean-emitted circuit package (spec §9) that the production
-   Rust lifecycle loads and uses as its only relation;
+5. canonical Lean-emitted circuit packages (spec §9), one for the light
+   circuit, one for the refresh circuit and one for the finish circuit, that
+   the production Rust lifecycle loads and uses as its only relations;
 6. Lean theorems for the recursive fixed point and a joint domain no larger
-   than `2^28`;
+   than `2^28`, for each step circuit;
 7. one executed production `prove → verify` run through a separately
-   owner-approved backend on that package.
+   owner-approved backend on these packages.
 
 All seven, on one production path, with no test-only relation beside it.
 
@@ -194,9 +215,10 @@ without reading the complete verifier.
 A leaf is one independently understandable paper obligation, not one
 arithmetic operation. Keep small helper expressions with their owner. Use one
 generic indexed leaf when the same formula repeats: one sumcheck-round gadget
-composed for 28 rounds, one PiRLC combination gadget composed for 17 inputs,
-and one PiDEC child gadget composed for 16 children. Do not copy a leaf for
-each index.
+composed for 28 rounds, one PiRLC combination gadget composed for the 17
+inputs of the refresh circuit and the 2 inputs of the light circuit, and one
+PiDEC child gadget composed for the 16 children of the refresh circuit. Do not
+copy a leaf for each index.
 
 Before the first repeated use, prove one offset-safe indexed-composition
 interface. Its theorems must transport each child specification under its
@@ -235,7 +257,7 @@ PiCCS
 │   └── verifier-derived challenges
 ├── sumcheck
 │   ├── one generic round equation
-│   └── the fixed 25-round chain
+│   └── the fixed 28-round chain
 ├── final evaluation
 │   ├── Eval_K: the separate Pad family
 │   ├── Eval_A: the separate 4-matrix family
@@ -261,7 +283,8 @@ exact v1.2 `Accepted` predicate that the gadget proves. A v1.2 gadget beside a
 v1.0 lifecycle verifier is a forbidden second relation.
 
 Apply the same ownership rule to PiRLC and PiDEC. PiRLC must visibly separate
-input binding, transcript and strong-set sampling, the 17-input combination,
+input binding, transcript and strong-set sampling, the 17-input combination
+of the refresh circuit and the 2-input combination of the light circuit,
 commitment and evaluation combinations, and output binding. PiDEC must
 visibly separate the public-input `B`-norm rejection, `split_b`, digit or
 low-norm checks, recombination, the 16 output children, and output binding.
@@ -401,6 +424,9 @@ PiDEC comparison includes acceptance, parent-norm rejection, all 16 digits
 and range results, recombination, all commitment/public-input/`Eval_K`/
 `Eval_A` relations, all 16 child claims, and the outgoing state.
 
+These counts are for the refresh fold. The light fold has 2 sources in
+PiCCS, one `rho` and 2 inputs in PiRLC, and no PiDEC.
+
 ### Incremental composition
 
 Each new phase consumes the exact conformance-closed output of the previous
@@ -411,6 +437,9 @@ PiCCS
 PiCCS → PiRLC
 PiCCS → PiRLC → PiDEC
 ```
+
+The production circuits compose these phases in two orders: PiCCS → PiRLC in
+the light circuit, and PiDEC → PiCCS → PiRLC in the refresh circuit.
 
 The final Stage 1 integration must additionally prove all cross-phase wiring,
 compare the complete Rust matrices with the complete Lean package, execute
@@ -611,8 +640,10 @@ Use one generic gadget when the same formula repeats:
 
 - Use one generic sumcheck-round gadget and compose it for all rounds.
 - Do not create 24 copied sumcheck-round files.
-- Use indexed composition for the 17 PiRLC inputs.
-- Use indexed composition for the 16 PiDEC decomposition components.
+- Use indexed composition for the PiRLC inputs: 17 in the refresh circuit
+  and 2 in the light circuit.
+- Use indexed composition for the 16 PiDEC decomposition components of the
+  refresh circuit.
 - Do not copy the same constraints into separate files.
 
 The source tree shows the mathematical structure, but remains compact.
@@ -724,7 +755,8 @@ The PiRLC tree visibly separates:
 - transcript absorption;
 - strong-set challenge sampling;
 - proof that each sampled `ρ` belongs to the allowed set;
-- the indexed combination of 17 inputs;
+- the indexed combination of the inputs: 17 in the refresh circuit, and 2 in
+  the light circuit with the weight 1 on the running source;
 - commitment combination;
 - evaluation combination;
 - output-claim binding.
@@ -773,9 +805,9 @@ The decomposition has two logical assembly levels:
 ```text
 leaf FormalCircuits
 → one FormalCircuit assembler for each protocol phase
-→ one Stage 1 protocol assembler
+→ one assembler for each step circuit and for the finish circuit
 → proved physical layout
-→ one emitted Stage 1 package
+→ one emitted package for each circuit
 ```
 
 Protocol-specific leaves live under `Lifecycle/<phase>/v1_2/`. Reusable
@@ -791,28 +823,25 @@ Lifecycle/PiDEC/v1_2/Formal.lean
 Each phase assembler exports one `FormalCircuit`, its soundness and
 completeness theorems for the exact phase predicate, its exact symbolic
 footprint, and a mechanical coverage theorem. It owns only child wiring. It
-does not unfold a child's circuit operations.
+does not unfold a child's circuit operations. The light circuit uses its own
+PiCCS and PiRLC layouts for two sources (`Lifecycle/OptionB/LightPiCCSLayout.lean`,
+`Lifecycle/OptionB/LightRlcLayout.lean`), and the refresh circuit uses its own
+PiCCS layout for 17 sources (`Lifecycle/OptionB/RefreshPiCCSLayout.lean`).
 
-The complete protocol assembly is:
+The step circuits are:
 
 ```text
-Lifecycle/Stage1/
-  Interface.lean
-  Formal.lean
-  Soundness.lean
+Lifecycle/OptionB/LightStepLayout.lean
+Lifecycle/OptionB/RefreshStepLayout.lean
+Lifecycle/OptionB/FinishStep.lean
 ```
 
-`Lifecycle/Stage1/Formal.lean` composes prior-state binding, the three phase
-circuits, the application transition, output binding, and terminal checks. It
-exports the only production logical circuit:
-
-```lean
-NightstreamFPrime.Lifecycle.Stage1.circuit : FormalCircuit
-```
-
-The Stage 1 parent proves exact cross-phase value flow, transcript-state
-order, verifier-owned challenges, public binding, separate `Eval_K` and
-`Eval_A`, and coverage without omission or duplication.
+Each step circuit composes the application, the prior and next state hashes
+with their slot hashes, its fold phases on the selected slot, and the slot
+select. The light circuit also has the depth guard. The parent proves exact
+cross-phase value flow, transcript-state order, verifier-owned challenges,
+public binding, separate `Eval_K` and `Eval_A`, and coverage without omission
+or duplication.
 
 The physical hierarchy mirrors the logical hierarchy:
 
@@ -820,30 +849,30 @@ The physical hierarchy mirrors the logical hierarchy:
 Layout/PiCCS/v1_2/{Lowering,Preservation}.lean
 Layout/PiRLC/v1_2/{Lowering,Preservation}.lean
 Layout/PiDEC/v1_2/{Lowering,Preservation}.lean
-Layout/Stage1/{Lowering,Ownership,Preservation}.lean
+Layout/OptionB/{LightAssembler,RefreshAssembler,FinishAssembler,StepCircuits}.lean
 ```
 
-`Layout/Stage1/Lowering.lean` assigns each child one physical interval and
-reuses shared symbolic values where possible. A file boundary does not add a
-copy row.
+The assembler of each step circuit assigns each child one physical interval
+and reuses shared symbolic values where possible. A file boundary does not add
+a copy row.
 
-One final assembler emits the proved Stage 1 circuit:
+The emitter writes one package for each circuit:
 
 ```text
-Export/Stage1/
-  WitnessProgram.lean
-  Package.lean
-  Emit.lean
+Export/OptionB/
+  StepRelation.lean
+  FinishRelation.lean
+  StepPackage.lean
+  EmitMain.lean
 ```
 
-Rust loads this one package. There is no separate pilot, phase-only, or
-Rust-native production relation after the corresponding Stage 1 surface
-closes.
+Rust loads these packages. There is no separate pilot, phase-only, or
+Rust-native production relation.
 
 Maintain the phase map in `formal/nightstream-fprime/README.md`. It maps each
-child of the Stage 1 circuit to its paper rule and Lean module. Row and column
-counts come from Lean theorems, not from a document. Update the map when a
-child or an assembly level changes.
+child of the light, refresh and finish circuits to its paper rule and Lean
+module. Row and column counts come from Lean theorems or from Lean exports,
+not from a document. Update the map when a child or an assembly level changes.
 
 ### Layout and efficiency
 

@@ -825,8 +825,8 @@ fn a_proof_of_two_segments_verifies_on_cpu() {
     let traced = &setup.programs[1];
     let engine = nightstream::Engine::Optimized;
     let circuit = Circuit::compile(geometry, app.clone()).unwrap();
-    let prover = circuit.prover(engine, 114).unwrap();
-    let verifier = circuit.verifier(engine, 114).unwrap();
+    let prover = circuit.prover(engine, 109).unwrap();
+    let verifier = circuit.verifier(engine, 109).unwrap();
     let program = app.program(&traced.preload).unwrap();
     let mut run = prover.start(&program, traced.initial).unwrap();
     for segment in traced.inputs.chunks(geometry.n) {
@@ -880,8 +880,8 @@ fn proof_verifies_and_rejects_a_changed_load_on_cpu(per_step: NonZeroUsize) {
     let traced = &setup.programs[0];
     let engine = nightstream::Engine::Optimized;
     let circuit = Circuit::compile(geometry, app.clone()).unwrap();
-    let prover = circuit.prover(engine, 114).unwrap();
-    let verifier = circuit.verifier(engine, 114).unwrap();
+    let prover = circuit.prover(engine, 109).unwrap();
+    let verifier = circuit.verifier(engine, 109).unwrap();
     eprintln!("wasm setup elapsed={:?}", started.elapsed());
 
     let program = app.program(&traced.preload).unwrap();
@@ -991,9 +991,9 @@ fn wasm_proof_of_two_rows_per_step_verifies_and_rejects_a_changed_load_on_cpu() 
 const FIB_ROUNDS: u32 = 2;
 const FIB_STEPS: usize = 32;
 
-/// Prove and verify one segment of `inputs` from `initial` on Metal, and print
-/// the time of each phase.
-fn time_on_metal<A: Application + Clone>(
+/// Prove and verify one segment of `inputs` from `initial` on the CPU, and
+/// print the time of each phase and of each step.
+fn time_proofs<A: Application + Clone>(
     app: A,
     geometry: Geometry,
     program: &Program,
@@ -1002,14 +1002,14 @@ fn time_on_metal<A: Application + Clone>(
 ) {
     use nightstream::nebula::Circuit;
     use std::time::Instant;
-    let engine = nightstream::Engine::Metal;
+    let engine = nightstream::Engine::Optimized;
     let started = Instant::now();
     eprintln!("{geometry:?}");
     let circuit = Circuit::compile(geometry, app).unwrap();
     eprintln!("compile elapsed={:?}", started.elapsed());
     eprintln!("application size={:?}", circuit.application_size().unwrap());
-    let prover = circuit.prover(engine, 114).unwrap();
-    let verifier = circuit.verifier(engine, 114).unwrap();
+    let prover = circuit.prover(engine, 109).unwrap();
+    let verifier = circuit.verifier(engine, 109).unwrap();
     eprintln!("setup elapsed={:?}", started.elapsed());
 
     let proving = Instant::now();
@@ -1029,9 +1029,9 @@ fn time_on_metal<A: Application + Clone>(
     eprintln!("total elapsed={:?}", started.elapsed());
 }
 
-/// Enzo's Fibonacci program proved and verified on Metal in one segment of
+/// Enzo's Fibonacci program proved and verified on the CPU in one segment of
 /// `steps` steps of `per_step` rows: the largest `fib(n)` whose trace fits.
-fn fibonacci_proof_times_on_metal(steps: usize, per_step: NonZeroUsize) {
+fn fibonacci_proof_times(steps: usize, per_step: NonZeroUsize) {
     let capacity = steps * per_step.get();
     let rounds = (1..)
         .take_while(|n| common::checked_main(&fib_wat(*n)).trace.len() <= capacity)
@@ -1047,40 +1047,40 @@ fn fibonacci_proof_times_on_metal(steps: usize, per_step: NonZeroUsize) {
     let program = app
         .program(&traced.preload)
         .expect("the regions hold the preload");
-    time_on_metal(app, geometry, &program, traced.initial, &traced.inputs);
+    time_proofs(app, geometry, &program, traced.initial, &traced.inputs);
 }
 
 /// `fib(2)` at one row per step: 32 steps.
 #[test]
-#[ignore = "Metal timing run; build with --features nightstream/metal and run separately under the 300-second cap."]
-fn fibonacci_proof_times_on_metal_at_one_row_per_step() {
-    fibonacci_proof_times_on_metal(FIB_STEPS, NonZeroUsize::MIN);
+#[ignore = "Timing run; run separately under the 300-second cap."]
+fn fibonacci_proof_times_at_one_row_per_step() {
+    fibonacci_proof_times(FIB_STEPS, NonZeroUsize::MIN);
 }
 
 /// 16 steps of 2, 4 and 8 rows: one segment geometry, so only the rows per
 /// step change between the three runs.
 #[test]
-#[ignore = "Metal timing run; build with --features nightstream/metal and run separately under the 300-second cap."]
-fn fibonacci_proof_times_on_metal_at_two_rows_per_step() {
-    fibonacci_proof_times_on_metal(16, per_step(2));
+#[ignore = "Timing run; run separately under the 300-second cap."]
+fn fibonacci_proof_times_at_two_rows_per_step() {
+    fibonacci_proof_times(16, per_step(2));
 }
 
 #[test]
-#[ignore = "Metal timing run; build with --features nightstream/metal and run separately under the 300-second cap."]
-fn fibonacci_proof_times_on_metal_at_four_rows_per_step() {
-    fibonacci_proof_times_on_metal(16, per_step(4));
+#[ignore = "Timing run; run separately under the 300-second cap."]
+fn fibonacci_proof_times_at_four_rows_per_step() {
+    fibonacci_proof_times(16, per_step(4));
 }
 
 #[test]
-#[ignore = "Metal timing run; build with --features nightstream/metal and run separately under the 300-second cap."]
-fn fibonacci_proof_times_on_metal_at_eight_rows_per_step() {
-    fibonacci_proof_times_on_metal(16, per_step(8));
+#[ignore = "Timing run; run separately under the 300-second cap."]
+fn fibonacci_proof_times_at_eight_rows_per_step() {
+    fibonacci_proof_times(16, per_step(8));
 }
 
 #[test]
-#[ignore = "Metal timing run; build with --features nightstream/metal and run separately under the 300-second cap."]
-fn fibonacci_proof_times_on_metal_at_sixteen_rows_per_step() {
-    fibonacci_proof_times_on_metal(16, per_step(16));
+#[ignore = "Timing run; run separately under the 300-second cap."]
+fn fibonacci_proof_times_at_sixteen_rows_per_step() {
+    fibonacci_proof_times(16, per_step(16));
 }
 /// The memory rows of a geometry with `width` state words and no private word
 /// or row. Every step is idle.
@@ -1124,12 +1124,12 @@ impl Application for Idle {
     }
 }
 
-/// The control of `fibonacci_proof_times_on_metal`: its geometry and state
+/// The control of `fibonacci_proof_times`: its geometry and state
 /// words with no WASM row and no private word, so a step costs only the
 /// recursion and the memory rows.
 #[test]
-#[ignore = "Metal timing run; build with --features nightstream/metal and run separately under the 300-second cap."]
-fn idle_proof_times_on_metal() {
+#[ignore = "Timing run; run separately under the 300-second cap."]
+fn idle_proof_times() {
     let setup = Setup::of(
         vec![traced(&fib_wat(FIB_ROUNDS), FIB_STEPS, NonZeroUsize::MIN)],
         FIB_STEPS,
@@ -1141,7 +1141,7 @@ fn idle_proof_times_on_metal() {
         b_ops: geometry.b_ops,
     };
     let program = Program::new(geometry, vec![0; 1 << geometry.r], vec![0; 1 << geometry.mu]).unwrap();
-    time_on_metal(app, geometry, &program, (), &vec![(); geometry.n]);
+    time_proofs(app, geometry, &program, (), &vec![(); geometry.n]);
 }
 
 /// The parts of the `fib(2)` step for `scripts/fprime_breakdown.py`: the

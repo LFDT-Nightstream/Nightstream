@@ -11,6 +11,8 @@ instruction per `Backend` call; this check decodes the finish package from its a
 (`StepPackage.Package.format`), builds `OptionB.finalProgram` and requires the same instructions.
 It prints the run digest that the Rust pin `OPTION_B_PROGRAM_DIGEST` records. -/
 
+attribute [local instance high] CompressionLean.Lowering.Compiled.glField
+
 namespace CompressionLeanExe.OptionBCheck
 
 open CompressionLean CompressionLean.Shrink CompressionLean.Circuit CompressionLeanExe.Parse

@@ -12,6 +12,15 @@ open NightstreamFPrime.Spec NightstreamFPrime.Layout NightstreamFPrime.Circuit
 open NightstreamFPrime.Export.Generic NightstreamFPrime.Export.Generic.Pieces
 open NightstreamFPrime.Export.Generic.PieceRows NightstreamFPrime.Spec.Phi81Relation
 
+/-- `Gl`'s field with `Fin`'s ring operations, equal to `ZMod.instField` (`glField_eq`). `ZMod.commRing`
+matches on the modulus inside each operation, so compiled code over Mathlib's instance builds `Fin`'s
+ring for each operation; over this structure the compiler calls `Fin`'s operations. The executables
+make it their local instance. -/
+@[instance_reducible] def glField : Field CompressionLean.Gl :=
+  { Fin.instCommRing goldilocksModulus, ZMod.instField goldilocksModulus with }
+
+theorem glField_eq : glField = ZMod.instField goldilocksModulus := rfl
+
 /-- `evaluation` with the powers of its point read from `powers`. -/
 def evaluationWith (powers : Array F) (lanes : Fin ringDegree → R1CS.LinearCombination) :
     R1CS.LinearCombination :=

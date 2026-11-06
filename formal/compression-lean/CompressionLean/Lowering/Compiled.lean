@@ -1,4 +1,5 @@
 import CompressionLean.Ports.OptionB.Program
+import Mathlib.Data.List.Basic
 
 /-! Faster compiled forms of the finish rows (`OptionB.finishRows`). Each `@[csimp]` theorem proves a
 fast form equal to its definition, so compiled code after the theorem runs the fast form and the proofs
@@ -70,6 +71,26 @@ theorem lane_eq (lanes : List Expr) (k : ℕ) :
   unfold ringRows ringRowsFast
   refine List.flatMap_congr fun cell _ => List.ofFn_inj.mpr (funext fun index => ?_)
   simp only [Array.getElem_ofFn, node, ringRow, lane_eq, evaluation_eq]
+
+/-- `Replay.hashLeaf` with each chunk's lanes read from `values` in place, without the list of
+chunks (`hashLeaf_eq_hashLeafFast`). -/
+def hashLeafFast (values : Array Replay.Word) : Array Replay.Word :=
+  ((List.range ((values.size + Replay.rate - 1) / Replay.rate)).foldl (fun state c =>
+      Replay.permute ((List.range (min (Replay.rate * c + Replay.rate) values.size - Replay.rate * c)).foldl
+        (fun s i => s.set! i values[Replay.rate * c + i]!) state))
+    (Array.replicate Replay.width 0)).extract 0 4
+
+@[csimp] theorem hashLeaf_eq_hashLeafFast : @Replay.hashLeaf = @hashLeafFast := by
+  funext values
+  unfold Replay.hashLeaf hashLeafFast
+  simp only [List.foldl_map]
+  refine congrArg (fun state : Array Replay.Word => state.extract 0 4) ?_
+  refine List.foldl_ext _ _ _ fun state c _ => ?_
+  rw [Array.size_extract]
+  refine congrArg Replay.permute (List.foldl_ext _ _ _ fun s i inside => ?_)
+  have small := List.mem_range.mp inside
+  rw [getElem!_pos _ i (by rw [Array.size_extract]; exact small), Array.getElem_extract,
+    getElem!_pos values (Replay.rate * c + i) (by omega)]
 
 open NightstreamFPrime.Export.OptionB.StepPackage in
 /-- The count of a piece's relation rows, without the rows (`pieceRowCount_eq`). -/

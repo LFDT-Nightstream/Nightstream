@@ -1,4 +1,4 @@
-import CompressionLean.Ports.OptionB.Program
+import CompressionLean.Lowering.Compiled
 import CompressionLean.Spec.OptionBRuns
 import CompressionLeanExe.Parse
 import CompressionLeanExe.Digest

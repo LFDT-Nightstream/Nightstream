@@ -8,6 +8,8 @@
 mod support;
 
 mod final_ir;
+#[cfg(feature = "metal")]
+mod metal_parity;
 mod setup_runs;
 
 use super::{Envelope, OptionB, OptionBError};
@@ -22,7 +24,8 @@ use support::{hash_chain_step, packages, words};
 const MINIMUM_SECURITY_BITS: u32 = 114;
 
 fn prover(cap: u64) -> OptionB {
-    let mut prover = OptionB::new(packages(), MINIMUM_SECURITY_BITS).expect("option-B prover");
+    let mut prover =
+        OptionB::new(packages(), MINIMUM_SECURITY_BITS, crate::engine::Backend::Optimized).expect("option-B prover");
     prover.cap = cap;
     prover
 }
@@ -132,7 +135,8 @@ fn native_application_verifies(application: ApplicationCircuit) {
     let packages = packages()
         .with_application(application.records().clone(), application.private_input_count())
         .expect("packages with the application");
-    let mut prover = OptionB::new(packages, MINIMUM_SECURITY_BITS).expect("option-B prover");
+    let mut prover =
+        OptionB::new(packages, MINIMUM_SECURITY_BITS, crate::engine::Backend::Optimized).expect("option-B prover");
     prover.cap = 1;
     let z0 = words([10, 11, 12, 13]);
     let mut envelope = prover.initial(z0).expect("initial proof");

@@ -46,6 +46,18 @@ pub(crate) struct Compressed {
 }
 
 impl OptionB {
+    /// An error of a compression prover on the engine's accelerator. A
+    /// device failure judged nothing, so it is an engine failure.
+    fn accelerator_error(&self, error: neo_spartan::Error) -> OptionBError {
+        match error {
+            neo_spartan::Error::Device(reason) => OptionBError::Engine(crate::EngineError::Failure {
+                engine: self.backend.engine(),
+                reason,
+            }),
+            error => error.into(),
+        }
+    }
+
     /// Each slot's honest bound below `B`: a slot at the cap after the
     /// refresh's 17 sources (`Light.accumulatorBound cap`).
     fn compression_bound(&self) -> u32 {
@@ -125,10 +137,13 @@ impl OptionB {
         let state = self.state(envelope).hash();
         let (next, proof) = fold::prove(
             Kind::Refresh,
+            &self.backend,
             self.relations[selected].context(),
             fresh.clone(),
             envelope.slots[selected].accumulator.clone(),
         )?;
+        self.backend.release_commitment_key()?;
+        let accelerator = self.backend.accelerator();
         let mut accumulators = [
             envelope.slots[0].accumulator.clone(),
             envelope.slots[1].accumulator.clone(),
@@ -136,14 +151,15 @@ impl OptionB {
         accumulators[selected] = next.clone();
         let layer1 = [0, 1].map(|slot| {
             let relation = Self::layer1_relation(&setups.keys, slot)?;
-            Ok::<_, OptionBError>(neo_spartan::prove(
+            neo_spartan::prove(
                 &relation,
                 &setups.layer1[slot],
-                &neo_spartan::Accelerator::cpu(),
+                &accelerator,
                 Self::layer1_seed(state, slot),
                 &accumulators[slot].claim,
                 &accumulators[slot].witness,
-            )?)
+            )
+            .map_err(|error| self.accelerator_error(error))
         });
         let [light, refresh] = layer1;
         Ok(Compressed {
@@ -223,7 +239,8 @@ impl OptionB {
         let shape = Shape::derive(&self.final_program(finish, [&relations[0], &relations[1]], statement, None))?;
         let layer = Shrink::new(shape, keys.layer_bits)?;
         let program = self.final_program(finish, [&relations[0], &relations[1]], statement, Some(witness));
-        let shrink = neo_spartan::shrink::prove(&layer, &program, &neo_spartan::Accelerator::cpu())?;
+        let shrink = neo_spartan::shrink::prove(&layer, &program, &self.backend.accelerator())
+            .map_err(|error| self.accelerator_error(error))?;
         let checked = self.final_program(finish, [&relations[0], &relations[1]], statement, None);
         neo_spartan::shrink::verify(&layer, &checked, &shrink)?;
         let (iteration, z0, current) = statement;

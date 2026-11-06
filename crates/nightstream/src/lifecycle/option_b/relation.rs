@@ -4,15 +4,16 @@
 //! the parameters that its shape allows.
 use std::ops::Range;
 
+use crate::engine::{Backend, CommitError, DeviceError, EngineError};
 use crate::folding::{
     has_canonical_evaluations, superneo_has_canonical_x_shape, CcsClaim, CcsInstance, CcsWitness, CeClaim, FoldContext,
     Params, Structure,
 };
-use neo_ajtai::nightstream_fprime_setup::{commit_production_signed_unit_prefix_matrix, PRODUCTION_VERIFIER_ROWS};
+use neo_ajtai::nightstream_fprime_setup::PRODUCTION_VERIFIER_ROWS;
 use neo_ccs::poly::{SparsePoly, Term};
 use neo_ccs::{GeometricRowRun, Mat};
 use neo_math::{D, F, K};
-use neo_reductions::superneo_eval::{MatrixRowSink, MatrixRows, MatrixShape, MatrixWindow};
+use neo_reductions::superneo_eval::{MatrixRowSink, MatrixRows, MatrixShape, MatrixWindow, RetainedMatrixWindow};
 use neo_reductions::PiCcsError;
 use nightstream_fprime::{
     LogicalLayout, PackageError, PlanRows, StepPackage, StepWords, PI_CCS_V1_2_ROUND_COUNT, PUBLIC_WORDS,
@@ -30,11 +31,19 @@ pub enum RelationError {
     #[error("option-B relation rows: {0}")]
     Rows(#[from] PiCcsError),
     #[error(transparent)]
-    Commitment(#[from] neo_ajtai::AjtaiError),
+    Commitment(#[from] CommitError),
     #[error("option-B relation header: {0}")]
     Header(#[from] neo_ccs::RelationError),
     #[error("option-B logical assignment has {got} columns, expected {expected}")]
     Width { expected: usize, got: usize },
+}
+
+/// Why `Relation::holds` did not accept an instance: a check failed, or the
+/// engine failed and judged nothing.
+#[derive(Debug)]
+pub(crate) enum Holds {
+    Fails(&'static str),
+    Engine(EngineError),
 }
 
 pub(crate) struct Relation {
@@ -43,6 +52,9 @@ pub(crate) struct Relation {
     structure: Structure,
     params: Params,
     workspace_bytes: usize,
+    /// The compact matrices of every row, kept after their first complete
+    /// load: each fold, opening and row check reads them again.
+    window: RetainedMatrixWindow,
 }
 
 impl Relation {
@@ -81,6 +93,7 @@ impl Relation {
             structure,
             params,
             workspace_bytes: 0,
+            window: RetainedMatrixWindow::default(),
         };
         let payload = 2 * MATRICES * size_of::<K>() + size_of::<F>() + size_of::<K>();
         relation.workspace_bytes =
@@ -100,7 +113,7 @@ impl Relation {
     /// The committed instance of a logical assignment: the public prefix and
     /// the witness matrix, one D-lane column per block, under the production
     /// key.
-    pub(crate) fn instance(&self, logical: &[F]) -> Result<CcsInstance, RelationError> {
+    pub(crate) fn instance(&self, backend: &Backend, logical: &[F]) -> Result<CcsInstance, RelationError> {
         if logical.len() != self.layout.width() {
             return Err(RelationError::Width {
                 expected: self.layout.width(),
@@ -116,7 +129,7 @@ impl Relation {
                 .map(|column| logical.get(column).copied().unwrap_or(F::ZERO))
                 .collect(),
         );
-        let commitment = commit_production_signed_unit_prefix_matrix(&witness)?;
+        let commitment = backend.commit(&[&witness])?.remove(0);
         Ok(CcsInstance {
             claim: CcsClaim {
                 c: commitment,
@@ -171,27 +184,40 @@ impl Relation {
     /// assignment with a zero tail, its public prefix is `x`, the production
     /// key commits it to `c` (so every entry is in {-1, 0, 1}), and every row
     /// of the relation holds on it.
-    pub(crate) fn holds(&self, instance: &CcsInstance) -> Result<(), &'static str> {
+    pub(crate) fn holds(&self, backend: &Backend, instance: &CcsInstance) -> Result<(), Holds> {
         let CcsInstance { claim, witness } = instance;
         let z = &witness.Z;
         if claim.adv.is_some() || claim.m_in != PUBLIC_WORDS || claim.x.len() != PUBLIC_WORDS {
-            return Err("claim shape");
+            return Err(Holds::Fails("claim shape"));
         }
         if z.rows() != D || z.cols() != self.blocks() {
-            return Err("witness shape");
+            return Err(Holds::Fails("witness shape"));
         }
         let logical: Vec<F> = (0..self.blocks() * D)
             .map(|column| z[(column % D, column / D)])
             .collect();
         let width = self.layout.width();
         if logical[width..].iter().any(|value| *value != F::ZERO) {
-            return Err("nonzero witness tail");
+            return Err(Holds::Fails("nonzero witness tail"));
         }
         if logical[..PUBLIC_WORDS] != claim.x[..] {
-            return Err("witness public projection differs from x");
+            return Err(Holds::Fails("witness public projection differs from x"));
         }
-        if commit_production_signed_unit_prefix_matrix(z).map_err(|_| "witness outside {-1, 0, 1}")? != claim.c {
-            return Err("fixed-key commitment differs from the witness");
+        let commitment = match backend.commit(&[z]) {
+            Ok(mut commitments) => commitments.remove(0),
+            Err(CommitError::Input(_)) => return Err(Holds::Fails("witness outside {-1, 0, 1}")),
+            Err(CommitError::Engine(error)) => return Err(Holds::Engine(error)),
+        };
+        if commitment != claim.c {
+            return Err(Holds::Fails("fixed-key commitment differs from the witness"));
+        }
+        if let Some(first) = backend.first_failing_row(self, self.workspace_bytes, &self.structure, z) {
+            return match first {
+                Ok(None) => Ok(()),
+                Ok(Some(_)) => Err(Holds::Fails("a relation row fails")),
+                Err(DeviceError::Engine(error)) => Err(Holds::Engine(error)),
+                Err(DeviceError::Rejected(_)) => Err(Holds::Fails("row evaluation")),
+            };
         }
         let check = |rows: Range<usize>| {
             for row in rows {
@@ -220,6 +246,7 @@ impl Relation {
                 .into_iter()
                 .try_for_each(|worker| worker.join().unwrap_or(Err("row worker panicked")))
         })
+        .map_err(Holds::Fails)
     }
 
     pub(crate) fn blocks(&self) -> usize {
@@ -265,5 +292,9 @@ impl MatrixRows for Relation {
             }
         }
         Ok(())
+    }
+
+    fn retained_window(&self) -> Option<&RetainedMatrixWindow> {
+        Some(&self.window)
     }
 }

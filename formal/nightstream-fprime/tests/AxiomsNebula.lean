@@ -7,6 +7,7 @@ import NightstreamFPrime.Lifecycle.Nebula.RowMeaning
 import NightstreamFPrime.Lifecycle.Nebula.EndToEnd
 import NightstreamFPrime.Lifecycle.Nebula.HonestRun
 import NightstreamFPrime.Lifecycle.Nebula.FreeApp
+import NightstreamFPrime.Lifecycle.Nebula.FixedColumn
 import NightstreamFPrime.Export.Stage1.NebulaMemoryV1Package
 import NightstreamFPrime.Export.Stage1.NebulaMemoryN1Package
 import NightstreamFPrime.Export.Stage1.NebulaMemorySecurity
@@ -626,6 +627,11 @@ packages' bounds. -/
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.AppView.env_aux
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.AppView.env_op
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.env_appVar
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.pinRow_eval
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.eval_fix
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.holds_fix_iff
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.PortApp.fixColumn
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.PortApp.fixColumn_model
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.StepWitness.PolyRows.wellFormed
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.Rows.appRows_iff
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.StepWitness.invocation_ports

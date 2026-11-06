@@ -287,3 +287,89 @@ fn native_memory_step_cost() {
         eprintln!("native step={step} prove={:?}", proving.elapsed());
     }
 }
+
+/// The refresh package's logical width for an `R1csApplication` of two rows
+/// a step whose one-row relation is a counter that reads a ROM, with `bits`
+/// more columns, each made 0 or 1 by a row `x · (x − one)`.
+fn r1cs_width(bits: usize) -> usize {
+    use crate::nebula::{batched_slots, pack_regions, R1csApplication, RowRelation, Size};
+    use crate::relation::{
+        ColumnFamilySpec, ColumnRegistry, ColumnWidth, ConstraintTag, ContinuityCatalog, ContinuityGroup,
+        ContinuityLink, MemoryCatalog, MemoryKind, MemoryPortActivation, MemoryPortKind, MemoryPortSpec, MemorySpec,
+        R1csBuilder,
+    };
+    use crate::{Goldilocks as F, PrimeCharacteristicRing};
+    const ONE: usize = 0;
+    const BEFORE: usize = 1;
+    const AFTER: usize = 2;
+    const VALUE: usize = 3;
+    let columns = 4 + bits;
+    let registry = ColumnRegistry::new([ColumnFamilySpec {
+        region: "counter",
+        start: 0,
+        len: columns,
+        name: "words",
+        role: "test",
+        width: ColumnWidth::U32,
+    }])
+    .unwrap();
+    let mut builder = R1csBuilder::new(columns, 1, ONE).unwrap();
+    builder.with_tag(ConstraintTag::new("count", "counter"), |rows| {
+        rows.push_linear_zero([(AFTER, F::ONE), (BEFORE, -F::ONE), (ONE, -F::ONE)]);
+        for bit in 4..columns {
+            rows.push_boolean(bit);
+        }
+    });
+    let relation = builder.build().unwrap();
+    let catalog = MemoryCatalog::new(
+        [MemorySpec {
+            id: 0u32,
+            kind: MemoryKind::Rom,
+            ports: vec![MemoryPortSpec {
+                address_columns: vec![BEFORE],
+                value_column: VALUE,
+                kind: MemoryPortKind::Read,
+                activation: MemoryPortActivation::Always,
+            }],
+        }],
+        &registry,
+    )
+    .unwrap();
+    let continuity = ContinuityCatalog::new(
+        [ContinuityGroup {
+            name: "count",
+            role: "test",
+            links: vec![ContinuityLink {
+                previous_step_column: AFTER,
+                next_step_column: BEFORE,
+            }],
+        }],
+        &registry,
+    )
+    .unwrap();
+    let rows = std::num::NonZeroUsize::new(2).unwrap();
+    let geometry = Geometry::new(2, 2, 2, 2, 1).unwrap();
+    let (regions, _) = pack_regions(
+        catalog
+            .entries()
+            .iter()
+            .map(|memory| (memory.id, memory.kind, vec![2])),
+    );
+    let size = Size {
+        geometry,
+        rows,
+        regions,
+        slots: batched_slots(&catalog, &[vec![0]], rows),
+    };
+    let app = R1csApplication::new(RowRelation::of(&relation).unwrap(), &continuity, &catalog, size).unwrap();
+    logical_width(&memory_circuit(&geometry, &app).unwrap()).unwrap()
+}
+
+/// Each 0/1 column of an `R1csApplication` costs one coordinate: the row
+/// `x · (x − one)` reads the constant 1 in place of the one column
+/// (`R1csApplication::rows`), so the slot rule gives `x` a bit slot.
+#[test]
+fn each_bit_of_an_r1cs_application_is_one_coordinate() {
+    let (base, bits) = (r1cs_width(0), r1cs_width(8));
+    assert_eq!(bits - base, 8 * 2, "8 bit columns in each of 2 rows: {base} -> {bits}");
+}

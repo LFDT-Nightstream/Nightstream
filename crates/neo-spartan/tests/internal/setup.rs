@@ -21,6 +21,11 @@ fn table(k: usize) -> Vec<Gl> {
         .collect()
 }
 
+/// `build`'s oracle: write `table(k)` into `values`.
+fn fill(k: usize, values: &mut [Gl]) {
+    values.copy_from_slice(&table(k));
+}
+
 fn ext(seed: u64) -> Ext {
     Ext::from_basis_coefficients_fn(|i| Gl::from_u64(word(seed, i as u64)))
 }
@@ -95,14 +100,14 @@ fn streaming_root_matches_a_direct_encoding() {
     // partial block, two full blocks (rate 12).
     for count in 1..=COUNT {
         assert_eq!(
-            build(VARIABLES, count, table, None).unwrap(),
+            build(VARIABLES, count, fill, None).unwrap(),
             direct_root(count),
             "{count} oracles"
         );
     }
     // Control: a different oracle order gives a different root.
     assert_ne!(
-        build(VARIABLES, COUNT, |k| table(COUNT - 1 - k), None).unwrap(),
+        build(VARIABLES, COUNT, |k, values| fill(COUNT - 1 - k, values), None).unwrap(),
         direct_root(COUNT)
     );
 }
@@ -111,7 +116,7 @@ fn streaming_root_matches_a_direct_encoding() {
 fn honest_fold_accepts_and_tampering_rejects() {
     let n = VARIABLES;
     let scratch = Scratch::new("setup-fold");
-    let root = build(n, COUNT, table, Some(&scratch.0)).unwrap();
+    let root = build(n, COUNT, fill, Some(&scratch.0)).unwrap();
     assert!(matches!(
         Store::open(&scratch.0, n, COUNT, &[Gl::ONE; 4]),
         Err(Error::Setup(_))
@@ -140,11 +145,11 @@ fn honest_fold_accepts_and_tampering_rejects() {
     let point: Vec<Ext> = (0..n).map(|t| ext(10 + t as u64)).collect();
     let alpha: [Ext; FOLD] = std::array::from_fn(|t| ext(20 + t as u64));
     for oracle in &combined {
-        let w = partials(oracle, &point[FOLD..]);
+        let w = partials(|x| oracle[x], &point[FOLD..]);
         let low = eq_table(&point[..FOLD]);
         let claim: Ext = low.iter().zip(&w).map(|(&e, &w)| e * w).sum();
         assert_eq!(claim, evaluate(oracle, &point));
-        let folded = fold(oracle, &alpha);
+        let folded = fold(|x| oracle[x], oracle.len(), &alpha);
         let expected: Ext = eq_table(&alpha).iter().zip(&w).map(|(&e, &w)| e * w).sum();
         assert_eq!(evaluate(&folded, &point[FOLD..]), expected);
         // Control: a wrong partial moves the folded claim.
@@ -162,7 +167,10 @@ fn honest_fold_accepts_and_tampering_rejects() {
     }
 
     // Verifier: every leaf gives the fold's value at its query point.
-    let folds: Vec<Vec<Ext>> = combined.iter().map(|oracle| fold(oracle, &alpha)).collect();
+    let folds: Vec<Vec<Ext>> = combined
+        .iter()
+        .map(|oracle| fold(|x| oracle[x], oracle.len(), &alpha))
+        .collect();
     let leaves = 1 << (n + 1 - FOLD);
     for index in 0..leaves {
         let leaf = store.read(index).unwrap();

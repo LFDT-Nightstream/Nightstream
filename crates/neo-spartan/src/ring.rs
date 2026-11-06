@@ -116,35 +116,34 @@ pub(crate) fn key_weights(shape: &Shape, mixing: &Mixing<Ext>, accelerator: &Acc
 
 /// `ω_b` for every block `b < shape.blocks`, from the evaluation point `r`,
 /// the Eval_A weight of every coordinate (`eval_a`) and the key part
-/// (`key_weights`).
+/// (`key_weights`). Block `b` reads only `eval_a[b]`, so `ω` overwrites
+/// `eval_a` in place.
 pub(crate) fn block_weights(
     shape: &Shape,
     r: &[K],
     mixing: &Mixing<Ext>,
-    eval_a: &[[Ext; D]],
+    mut eval_a: Vec<[Ext; D]>,
     key: &[[Ext; D]],
 ) -> Vec<[Ext; D]> {
+    assert_eq!(eval_a.len(), shape.blocks, "one Eval_A weight per block");
     let chi = Chi::new(r);
     let eval_k = mixing.eval_k();
     let bar = bar_rows();
-    (0..shape.blocks)
-        .into_par_iter()
-        .map(|block| {
-            let weight: [Ext; D] = std::array::from_fn(|lane| {
-                project(&mut Native, re_im(chi.at(D * block + lane)), eval_k) + eval_a[block][lane]
-            });
-            let mut out = key[block];
-            for (row, terms) in bar.iter().enumerate() {
-                for &(column, sign) in terms {
-                    out[row] += weight[column] * sign;
-                }
+    eval_a.par_iter_mut().enumerate().for_each(|(block, cell)| {
+        let weight: [Ext; D] =
+            std::array::from_fn(|lane| project(&mut Native, re_im(chi.at(D * block + lane)), eval_k) + cell[lane]);
+        let mut out = key[block];
+        for (row, terms) in bar.iter().enumerate() {
+            for &(column, sign) in terms {
+                out[row] += weight[column] * sign;
             }
-            if block < shape.public_blocks {
-                out[0] += mixing.public(block);
-            }
-            out
-        })
-        .collect()
+        }
+        if block < shape.public_blocks {
+            out[0] += mixing.public(block);
+        }
+        *cell = out;
+    });
+    eval_a
 }
 
 /// `τ_l = Σ_p bar[p][l]·ζ^p`, so that `<bar(w), (ζ^p)_p> = Σ_l τ_l·w_l`.

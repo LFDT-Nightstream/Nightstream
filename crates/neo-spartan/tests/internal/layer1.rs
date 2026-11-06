@@ -54,7 +54,7 @@ fn holds(setup: &Setup, relation: &Relation<'_>, claim: &Claim, witness: &Mat<F>
         shape,
         &claim.r,
         &mixing,
-        &eval_a,
+        eval_a,
         &ring::key_weights(shape, &mixing, &crate::device::Accelerator::cpu()),
     );
     let z = witness_table(shape, witness).unwrap();

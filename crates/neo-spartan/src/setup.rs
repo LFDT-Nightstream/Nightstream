@@ -20,6 +20,7 @@ use std::path::{Path, PathBuf};
 use neo_ccs::crypto::poseidon2_goldilocks::{RATE, WIDTH};
 use p3_dft_v08::{Radix2DFTSmallBatch, TwoAdicSubgroupDft};
 use p3_field_v08::{Field, PrimeCharacteristicRing, PrimeField64, TwoAdicField};
+use p3_matrix_v08::dense::RowMajorMatrix;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -57,31 +58,38 @@ fn leaf_count(variables: usize) -> usize {
 }
 
 /// The root of `count` oracles of `2^variables` values; with `dir`, also
-/// write the store. Holds one codeword and one sponge state per leaf.
+/// write the store. `oracle(k, values)` writes oracle `k` into zeroed
+/// `values`. Holds one codeword, the DFT twiddles and one sponge state per
+/// leaf.
 pub(crate) fn build(
     variables: usize,
     count: usize,
-    oracle: impl Fn(usize) -> Vec<Gl>,
+    oracle: impl Fn(usize, &mut [Gl]),
     dir: Option<&Path>,
 ) -> Result<Digest, Error> {
     assert!(variables >= FOLD);
     let leaves = leaf_count(variables);
     let mut states = vec![[Gl::ZERO; WIDTH]; leaves];
+    // Every oracle reuses the codeword and the DFT. A codeword freed and
+    // allocated again per oracle stays resident in the macOS allocator's
+    // cache, a codeword per oracle; a fresh DFT rebuilds its twiddle tables.
+    let dft = Radix2DFTSmallBatch::<Gl>::new(2 << variables);
+    let mut codeword = vec![Gl::ZERO; 2 << variables];
     let mut at = 0;
     for k in 0..count {
-        let leaf_major = encode(oracle(k), variables);
+        codeword.par_iter_mut().for_each(|value| *value = Gl::ZERO);
+        oracle(k, &mut codeword[..1 << variables]);
+        encode(&dft, &mut codeword, variables);
         if let Some(dir) = dir {
-            write_words(&dir.join(format!("oracle-{k:02}.bin")), &leaf_major)?;
+            write_leaves(&dir.join(format!("oracle-{k:02}.bin")), &codeword, leaves)?;
         }
         let start = at;
-        states
-            .par_iter_mut()
-            .zip(leaf_major.par_chunks(LEAF))
-            .for_each(|(state, values)| {
-                absorb(state, start, values);
-            });
+        states.par_iter_mut().enumerate().for_each(|(leaf, state)| {
+            absorb(state, start, &leaf_values(&codeword, leaves, leaf));
+        });
         at = (at + LEAF) % RATE;
     }
+    drop((dft, codeword));
     let mut layer: Vec<Digest> = states
         .par_iter_mut()
         .map(|state| squeeze(state, at))
@@ -112,37 +120,39 @@ pub(crate) fn build(
     Ok(layer[0])
 }
 
-/// The codeword of one oracle in leaf-major order: monomial coefficients
-/// (Möbius transform), then the coset DFT at rate 1/2.
-fn encode(mut values: Vec<Gl>, variables: usize) -> Vec<Gl> {
-    assert_eq!(values.len(), 1 << variables);
+/// The codeword of one oracle, in place: monomial coefficients (Möbius
+/// transform), then the coset DFT at rate 1/2. `codeword` holds the
+/// oracle's values in its lower half and zeros above.
+fn encode(dft: &Radix2DFTSmallBatch<Gl>, codeword: &mut Vec<Gl>, variables: usize) {
+    assert_eq!(codeword.len(), 2 << variables);
     for t in 0..variables {
-        values.par_chunks_mut(2 << t).for_each(|chunk| {
-            let (low, high) = chunk.split_at_mut(1 << t);
-            for (h, l) in high.iter_mut().zip(low.iter()) {
-                *h -= *l;
-            }
-        });
+        codeword[..1 << variables]
+            .par_chunks_mut(2 << t)
+            .for_each(|chunk| {
+                let (low, high) = chunk.split_at_mut(1 << t);
+                for (h, l) in high.iter_mut().zip(low.iter()) {
+                    *h -= *l;
+                }
+            });
     }
-    values.resize(2 << variables, Gl::ZERO);
-    let codeword = Radix2DFTSmallBatch::<Gl>::default().coset_dft(values, Gl::GENERATOR);
-    let leaves = leaf_count(variables);
-    let mut leaf_major = vec![Gl::ZERO; codeword.len()];
-    leaf_major
-        .par_chunks_mut(LEAF)
-        .enumerate()
-        .for_each(|(leaf, out)| {
-            for (v, value) in out.iter_mut().enumerate() {
-                *value = codeword[leaf + v * leaves];
-            }
-        });
-    leaf_major
+    // The DFT runs in place; `coset_dft` would copy the codeword out.
+    *codeword = dft
+        .coset_dft_batch(RowMajorMatrix::new_col(std::mem::take(codeword)), Gl::GENERATOR)
+        .values;
 }
 
-fn write_words(path: &Path, words: &[Gl]) -> Result<(), Error> {
+/// Leaf `leaf`'s values of `codeword`: the coset `y_leaf·⟨ω_8⟩`.
+fn leaf_values(codeword: &[Gl], leaves: usize, leaf: usize) -> [Gl; LEAF] {
+    std::array::from_fn(|v| codeword[leaf + v * leaves])
+}
+
+/// Write `codeword` in leaf-major order.
+fn write_leaves(path: &Path, codeword: &[Gl], leaves: usize) -> Result<(), Error> {
     let mut file = BufWriter::new(File::create(path)?);
-    for word in words {
-        file.write_all(&word.as_canonical_u64().to_le_bytes())?;
+    for leaf in 0..leaves {
+        for value in leaf_values(codeword, leaves, leaf) {
+            file.write_all(&value.as_canonical_u64().to_le_bytes())?;
+        }
     }
     file.flush()?;
     Ok(())
@@ -299,23 +309,24 @@ pub(crate) fn check<B: Backend>(
     Ok(folded)
 }
 
-/// `w_u = T~(u, rest)` for `u < 2^FOLD`, with `T` low bit first.
-pub(crate) fn partials(table: &[Ext], rest: &[Ext]) -> [Ext; LEAF] {
+/// `w_u = T~(u, rest)` for `u < 2^FOLD`, with `T` low bit first and
+/// `table(x)` its entry `x`.
+pub(crate) fn partials(table: impl Fn(usize) -> Ext + Sync, rest: &[Ext]) -> [Ext; LEAF] {
     let eq = eq_table(rest);
-    assert_eq!(table.len(), LEAF * eq.len());
     std::array::from_fn(|u| {
         eq.par_iter()
             .enumerate()
-            .map(|(y, &w)| w * table[u + LEAF * y])
+            .map(|(y, &w)| w * table(u + LEAF * y))
             .sum()
     })
 }
 
-/// The fold `g[y] = Σ_u eq(α, u)·T[u + 2^FOLD·y]`, the table of `T~(α, ·)`.
-pub(crate) fn fold(table: &[Ext], alpha: &[Ext; FOLD]) -> Vec<Ext> {
+/// The fold `g[y] = Σ_u eq(α, u)·T[u + 2^FOLD·y]` of the `len` entries of
+/// `T`: the table of `T~(α, ·)`.
+pub(crate) fn fold(table: impl Fn(usize) -> Ext + Sync, len: usize, alpha: &[Ext; FOLD]) -> Vec<Ext> {
     let weights = eq_table(alpha);
-    table
-        .par_chunks(LEAF)
-        .map(|chunk| chunk.iter().zip(&weights).map(|(&v, &w)| v * w).sum())
+    (0..len / LEAF)
+        .into_par_iter()
+        .map(|y| (0..LEAF).map(|u| table(u + LEAF * y) * weights[u]).sum())
         .collect()
 }

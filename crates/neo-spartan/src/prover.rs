@@ -68,8 +68,7 @@ pub fn prove(
     let ubar = tables.slot_weights(&early, &mixing.eval_a());
     let key_weights = ring::key_weights(shape, &mixing, accelerator);
     let eval_a = tables.column_weights(&ubar, shape.blocks);
-    let weights = ring::block_weights(shape, &claim.r, &mixing, &eval_a, &key_weights);
-    drop(eval_a);
+    let weights = ring::block_weights(shape, &claim.r, &mixing, eval_a, &key_weights);
     let (quotient, _) = ring::divide(&weights, &z, LANES, &ring::targets(&mut Native, &statement, &mixing));
     challenger.observe_algebra_slice(&quotient);
     let zeta: Ext = challenger.sample_algebra_element();
@@ -83,12 +82,19 @@ pub fn prove(
         .map_err(|_| Error::Witness("ζ is a pole of the lane weights"))?;
     let variables = key.setup_variables();
     let key_point = setup_point(&mut Native, &[lane_point.as_slice(), block_point].concat(), variables);
-    let key_table = key_table(&key_weights, variables);
-    drop(key_weights);
+    // The key and run groups are read entry by entry and never laid out on
+    // the cube. `A_λ~` at the key point is `Σ_u eq(point_low, u)·w_u` of its
+    // partials.
+    let key_group = |x| key_entry(&key_weights, x);
+    let key_partials = setup::partials(key_group, &key_point[FOLD..]);
     let lanes = structure.lane_tables(&mut Native, &ring::tau(&mut Native, zeta));
     let omega_a = tables.block_weights(&ubar, &lanes, shape.block_variables);
     let finals = [
-        sumcheck::evaluate(&key_table, &key_point),
+        eq_table(&key_point[..FOLD])
+            .iter()
+            .zip(&key_partials)
+            .map(|(&eq, &w)| eq * w)
+            .sum(),
         sumcheck::evaluate(&omega_a, block_point),
         z_at_point,
     ];
@@ -96,21 +102,19 @@ pub fn prove(
 
     let mu: Ext = challenger.sample_algebra_element();
     let run_point = setup_point(&mut Native, &claims[1].point, variables);
-    let run_table = run_table(tables, mu, variables);
-    let partials = [
-        setup::partials(&key_table, &key_point[FOLD..]),
-        setup::partials(&run_table, &run_point[FOLD..]),
-    ];
+    let powers: [Ext; RUN_ORACLES] = std::array::from_fn(|k| mu.exp_u64(k as u64));
+    let run_group = |x| run_entry(tables, &powers, x);
+    let partials = [key_partials, setup::partials(run_group, &run_point[FOLD..])];
     for values in &partials {
         challenger.observe_algebra_slice(values);
     }
     let alpha: [Ext; FOLD] = std::array::from_fn(|_| challenger.sample_algebra_element());
     let fold_columns = [
-        coordinates(&setup::fold(&key_table, &alpha)),
-        coordinates(&setup::fold(&run_table, &alpha)),
+        coordinates(&setup::fold(key_group, 1 << variables, &alpha)),
+        coordinates(&setup::fold(run_group, 1 << variables, &alpha)),
     ]
     .concat();
-    drop((key_table, run_table));
+    drop(key_weights);
     let (p1, p1_data) = relation
         .p1
         .commit(vec![fold_columns, coordinates(&omega_a)], &mut challenger, accelerator)?;
@@ -199,29 +203,21 @@ fn observe_pairs(pairs: &[[Ext; 2]], challenger: &mut Challenger) {
     }
 }
 
-/// `A_λ` on the cube, zero on padding lanes and blocks: the key group.
-fn key_table(weights: &[[Ext; D]], variables: usize) -> Vec<Ext> {
-    let mut table = vec![Ext::ZERO; 1 << variables];
-    table
-        .par_chunks_mut(LANES)
-        .zip(weights)
-        .for_each(|(cells, weight)| cells[..D].copy_from_slice(weight));
-    table
+/// `A_λ` on the cube at `x`, zero on padding lanes and blocks: the key group.
+fn key_entry(weights: &[[Ext; D]], x: usize) -> Ext {
+    match weights.get(x / LANES) {
+        Some(weight) if x % LANES < D => weight[x % LANES],
+        _ => Ext::ZERO,
+    }
 }
 
-/// `i + μ·σ + μ²·m + μ³·b'`: the run group.
-fn run_table(tables: &Tables, mu: Ext, variables: usize) -> Vec<Ext> {
-    let mut table = vec![Ext::ZERO; 1 << variables];
-    let mut power = Ext::ONE;
-    for k in 0..RUN_ORACLES {
-        let column = tables.setup_column(k, variables);
-        table
-            .par_iter_mut()
-            .zip(&column)
-            .for_each(|(cell, &value)| *cell += power * value);
-        power *= mu;
-    }
-    table
+/// `i + μ·σ + μ²·m + μ³·b'` at `x`, from `powers` of `μ`: the run group.
+fn run_entry(tables: &Tables, powers: &[Ext; RUN_ORACLES], x: usize) -> Ext {
+    powers
+        .iter()
+        .enumerate()
+        .map(|(k, &power)| power * tables.setup_entry(k, x))
+        .sum()
 }
 
 /// `z` on the cube: `z[64·block + lane] = Z[lane, block]`, zero elsewhere.

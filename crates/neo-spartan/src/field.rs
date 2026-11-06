@@ -102,30 +102,47 @@ pub(crate) fn signed(value: i64) -> Gl {
 
 /// `eq(point, x)` for every `x < 2^point.len()`; index bit `t` pairs with
 /// `point[t]` (low bit first, as everywhere in Nightstream).
+///
+/// Built in place: on macOS a table freed per coordinate stays resident in
+/// the allocator's cache.
 pub(crate) fn eq_table(point: &[Ext]) -> Vec<Ext> {
-    let mut table = vec![Ext::ONE];
-    for &coordinate in point {
-        let mut next = vec![Ext::ZERO; 2 * table.len()];
-        let (low, high) = next.split_at_mut(table.len());
-        low.par_iter_mut()
-            .zip(high.par_iter_mut())
-            .zip(table.par_iter())
-            .for_each(|((low, high), &value)| {
-                // value · (1 - c) = value - value · c.
-                *high = value * coordinate;
-                *low = value - *high;
-            });
-        table = next;
+    let mut table = vec![Ext::ZERO; 1 << point.len()];
+    table[0] = Ext::ONE;
+    for (t, &coordinate) in point.iter().enumerate() {
+        let (low, high) = table[..2 << t].split_at_mut(1 << t);
+        low.par_iter_mut().zip(high).for_each(|(low, high)| {
+            // value · (1 - c) = value - value · c.
+            *high = *low * coordinate;
+            *low -= *high;
+        });
     }
     table
 }
 
-/// Bind the lowest index variable of `table` to `r`.
+/// Bind the lowest index variable of `table` to `r`, in place.
+///
+/// Entry `i` reads entries `2i` and `2i + 1`, which only entries `2i` and
+/// `2i + 1` overwrite. So the entries in `[2^g, 2^(g+1))` fold in parallel
+/// once every entry below them has folded.
 pub(crate) fn fold_low(table: &mut Vec<Ext>, r: Ext) {
-    *table = table
-        .par_chunks_exact(2)
-        .map(|pair| pair[0] + r * (pair[1] - pair[0]))
-        .collect();
+    let half = table.len() / 2;
+    if half == 0 {
+        table.clear();
+        return;
+    }
+    let (low, high) = (table[0], table[1]);
+    table[0] = low + r * (high - low);
+    let mut start = 1;
+    while start < half {
+        let end = (2 * start).min(half);
+        let (done, rest) = table.split_at_mut(2 * start);
+        done[start..end]
+            .par_iter_mut()
+            .zip(rest[..2 * (end - start)].par_chunks_exact(2))
+            .for_each(|(value, pair)| *value = pair[0] + r * (pair[1] - pair[0]));
+        start = end;
+    }
+    table.truncate(half);
 }
 
 /// Plonky3 orders point coordinates from the most significant index bit;

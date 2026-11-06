@@ -206,22 +206,25 @@ fn parents(children: &[[&[Ext]; 2]], p: &mut [Ext], q: &mut [Ext]) {
     });
 }
 
-/// The layer above `level`, from its two halves.
-fn parent(level: &Tree) -> Tree {
+/// Replace `level`, a layer with one factor, by the layer above it, in
+/// place: node `i` of the parent reads only nodes `i` and `i + half`.
+fn rise(level: &mut Tree) {
     let half = level.denominator.len() / 2;
-    let children: Vec<[&[Ext]; 2]> = level
-        .parts()
-        .map(|part| {
-            let (low, high) = part.split_at(half);
-            [low, high]
-        })
-        .collect();
-    let (mut p, mut q) = (vec![Ext::ZERO; half], vec![Ext::ZERO; half]);
-    parents(&children, &mut p, &mut q);
-    Tree {
-        factors: vec![p],
-        denominator: q,
-    }
+    let [p] = level.factors.as_mut_slice() else {
+        unreachable!("a layer above the leaves has one factor")
+    };
+    let (p_low, p_high) = p.split_at_mut(half);
+    let (q_low, q_high) = level.denominator.split_at_mut(half);
+    p_low
+        .par_iter_mut()
+        .zip(q_low)
+        .zip(p_high.par_iter().zip(q_high.par_iter()))
+        .for_each(|((p0, q0), (&p1, &q1))| {
+            *p0 = *p0 * q1 + p1 * *q0;
+            *q0 *= q1;
+        });
+    p.truncate(half);
+    level.denominator.truncate(half);
 }
 
 /// One tree's layer as its sum-check reads it.
@@ -413,12 +416,11 @@ pub(crate) fn prove(
         let mut spilled = Vec::new();
         let mut level = Source::AboveLeaves(leaves).into_tree();
         if level.denominator.len() > 1 {
-            level = parent(&level);
+            rise(&mut level);
         }
         while level.denominator.len() > 1 {
-            let next = parent(&level);
             spilled.push(spill(&file, &mut end, &level)?);
-            level = next;
+            rise(&mut level);
         }
         spilled.reverse();
         roots.push([level.factors[0][0], level.denominator[0]]);

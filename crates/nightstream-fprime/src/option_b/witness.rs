@@ -101,6 +101,9 @@ impl StepPackage {
         columns[..shared.len()].copy_from_slice(shared);
         if let Some(records) = &self.native {
             self.fill_application(records, &mut columns)?;
+            for block in self.blocks() {
+                columns[block.start()..block.outputs()].fill(Goldilocks::ZERO);
+            }
         }
         let mut steps: Vec<_> = self.witness.iter().map(Step::Batch).collect();
         for piece in &self.pieces {

@@ -1,20 +1,26 @@
 //! A step package's logical columns (Lean `Export/Generic/SlotLayout`,
 //! `ProductionAssignment.logicalAssignment`): the 270 public columns, then
-//! one low-norm slot for each live source column in the package's runs. A
-//! field slot holds the 41 balanced-ternary digits of its value; a bit or
-//! centered slot holds the value itself. A source column without a slot is
-//! not a logical column.
+//! one low-norm slot for each source column in the package's runs. A field
+//! slot holds the 41 balanced-ternary digits of its value; a bit or centered
+//! slot holds the value itself. A source column without a slot is not a
+//! logical column. The runs follow Lean's rule (`StepPackage.runsOf`): a slot
+//! only for a column that a row reads, a bit slot only for a column that a
+//! row forces to 0 or 1.
 
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks;
 
 use super::expand::mix;
-use super::StepPackage;
+use super::{Linear, Piece, Row, StepPackage};
 use crate::package::{encode_field, PackageError};
 
 const PUBLIC: usize = 270;
 const FIELD_DIGITS: usize = 41;
 const NO_SLOT: u32 = u32::MAX;
+const RING_DEGREE: usize = 54;
+const SBOX_COLUMNS: usize = 150;
+const BLOCK_OUTPUTS: usize = 1080;
+const BLOCK_LOCALS: usize = 1096;
 
 /// A slot's kind (`LowNormSlot.Kind`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -110,7 +116,115 @@ impl LogicalLayout {
     }
 }
 
+/// Lean `SlotLayout.forcedColumn?`: the column `c` that `row` forces to the
+/// values 0 or 1. The row's terms read only `c` and the constant column 0,
+/// and with `x` at `c` it is `(a₀ + a₁x)(b₀ + b₁x) = c₀ + c₁x` with
+/// `a₁b₁ ≠ 0`, holding at `x = 0` and at `x = 1`.
+fn forced_column(row: &Row) -> Option<usize> {
+    let sides = [&row.a, &row.b, &row.c];
+    let terms = || sides.iter().flat_map(|side| side.terms.iter());
+    let column = terms()
+        .map(|&(column, _)| column)
+        .find(|&column| column != 0)?;
+    if !terms().all(|&(other, _)| other == 0 || other == column) {
+        return None;
+    }
+    let at = |side: &Linear, target: usize| {
+        side.terms
+            .iter()
+            .filter(|&&(other, _)| other == target)
+            .fold(Goldilocks::ZERO, |sum, &(_, coefficient)| sum + coefficient)
+    };
+    let [low_a, low_b, low_c] = sides.map(|side| side.constant + at(side, 0));
+    let [high_a, high_b, high_c] = sides.map(|side| at(side, column));
+    (high_a * high_b != Goldilocks::ZERO
+        && low_a * low_b == low_c
+        && (low_a + high_a) * (low_b + high_b) == low_c + high_c)
+        .then_some(column)
+}
+
 impl StepPackage {
+    /// The columns of the package's `bit` hints (Lean `StepPackage.bitColumns`).
+    pub(crate) fn bit_columns(&self) -> Vec<usize> {
+        self.witness
+            .iter()
+            .flat_map(|batch| batch.bit_columns())
+            .collect()
+    }
+
+    /// Lean `StepPackage.runsOf`: the slot runs from the public columns to the
+    /// last S-box column. A column has a slot only if a row of the relation
+    /// reads it (`PackagePiece.reads`; the S-box rows read every S-box
+    /// column), and the slot is a bit only if `bits` names the column and a
+    /// row forces it to 0 or 1. Every other slot is a field element.
+    pub(crate) fn rule_slots(&self, bits: &[usize]) -> Vec<(usize, usize, u8)> {
+        const BIT: u8 = 0;
+        const FIELD: u8 = 2;
+        let end = self.sbox_start + SBOX_COLUMNS * self.block_count();
+        let mark = |mask: &mut Vec<bool>, columns: &mut dyn Iterator<Item = usize>| {
+            for column in columns {
+                if let Some(marked) = mask.get_mut(column) {
+                    *marked = true;
+                }
+            }
+        };
+        let linear = |lanes: &[Linear]| {
+            lanes
+                .iter()
+                .flat_map(|lane| lane.terms.iter().map(|&(column, _)| column))
+                .collect::<Vec<_>>()
+        };
+        let mut reads = vec![false; end];
+        let mut forced = vec![false; end];
+        for piece in &self.pieces {
+            match piece {
+                Piece::Rows(rows) => {
+                    mark(
+                        &mut reads,
+                        &mut rows
+                            .iter()
+                            .flat_map(|row| [&row.a, &row.b, &row.c])
+                            .flat_map(|side| side.terms.iter().map(|&(column, _)| column)),
+                    );
+                    mark(&mut forced, &mut rows.iter().filter_map(forced_column));
+                }
+                Piece::Ring {
+                    cells,
+                    start,
+                    quotient,
+                    lanes,
+                } => mark(
+                    &mut reads,
+                    &mut (*start..start + RING_DEGREE * cells)
+                        .chain(*quotient..quotient + RING_DEGREE * cells)
+                        .chain(linear(lanes)),
+                ),
+                Piece::Block { start, lanes } => mark(
+                    &mut reads,
+                    &mut (start + BLOCK_OUTPUTS..start + BLOCK_LOCALS).chain(linear(lanes)),
+                ),
+            }
+        }
+        let mut candidates = vec![false; end];
+        mark(&mut candidates, &mut bits.iter().copied());
+        let mut runs: Vec<(usize, usize, u8)> = Vec::new();
+        for column in self.public_columns..end {
+            if !(reads[column] || column >= self.sbox_start) {
+                continue;
+            }
+            let kind = if candidates[column] && forced[column] {
+                BIT
+            } else {
+                FIELD
+            };
+            match runs.last_mut() {
+                Some((start, count, last)) if *last == kind && *start + *count == column => *count += 1,
+                _ => runs.push((column, 1, kind)),
+            }
+        }
+        runs
+    }
+
     /// The logical layout of the package's slot runs (`SlotLayout.layout`).
     pub fn layout(&self) -> Result<LogicalLayout, PackageError> {
         let size = self

@@ -53,11 +53,12 @@ impl OptionBError {
     /// The engine failure inside this error, if the engine failed: a device
     /// failure judged nothing.
     pub(crate) fn engine_failure(&self) -> Option<&EngineError> {
-        use crate::folding::{kernels, pi_ccs, pi_dec, Error as Fold};
+        use crate::folding::{kernels, pi_ccs, pi_dec, pi_rlc, Error as Fold};
         match self {
             Self::Engine(error)
             | Self::Relation(RelationError::Commitment(CommitError::Engine(error)))
             | Self::Fold(Fold::Ccs(pi_ccs::Error::Engine(kernels::Error::Engine(error))))
+            | Self::Fold(Fold::Rlc(pi_rlc::Error::Engine(kernels::Error::Engine(error))))
             | Self::Fold(Fold::Dec(pi_dec::Error::Engine(kernels::Error::Engine(error)))) => Some(error),
             _ => None,
         }

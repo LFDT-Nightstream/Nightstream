@@ -37,7 +37,7 @@ def check (finish : Package) (keys : Fin 2 → Layer1Key) : Parser String := do
     let (_, first) ← OptionB.finishPrefix finish stateKeys
     let _ ← OptionB.seed (fun k => first + k) (OptionB.bitsStart finish.application.1) 0
   pure s!"finish package fits; match: all {lean.size} instructions of option B's final program, \
-    {(OptionB.finishRows finish).length} finish rows, {finish.blocks.length} blocks; digest {digest lean}; \
+    {Lowering.Compiled.finishRowCount finish} finish rows, {finish.blocks.length} blocks; digest {digest lean}; \
     prefix digest {digest upToLayer1.program}"
 
 end CompressionLeanExe.OptionBCheck

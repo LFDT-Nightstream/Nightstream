@@ -71,6 +71,31 @@ theorem lane_eq (lanes : List Expr) (k : ℕ) :
   refine List.flatMap_congr fun cell _ => List.ofFn_inj.mpr (funext fun index => ?_)
   simp only [Array.getElem_ofFn, node, ringRow, lane_eq, evaluation_eq]
 
+open NightstreamFPrime.Export.OptionB.StepPackage in
+/-- The count of a piece's relation rows, without the rows (`pieceRowCount_eq`). -/
+def pieceRowCount : PackagePiece → ℕ
+  | .rows chunk => chunk.length
+  | .ring cells .. => cells * 108
+  | .block .. => 0
+
+open NightstreamFPrime.Export.OptionB.StepPackage in
+theorem pieceRowCount_eq (piece : PackagePiece) : pieceRowCount piece = piece.relationRows.length := by
+  cases piece with
+  | rows chunk => rfl
+  | ring cells start quotient lanes =>
+      simp only [pieceRowCount, PackagePiece.relationRows, ringRows, List.length_flatMap, List.length_ofFn,
+        List.map_const', List.sum_replicate, List.length_range, smul_eq_mul]
+  | block start lanes => rfl
+
+/-- The count of finish rows, without the rows (`finishRowCount_eq`). -/
+def finishRowCount (finish : NightstreamFPrime.Export.OptionB.StepPackage.Package) : ℕ :=
+  (finish.pieces.map pieceRowCount).sum
+
+theorem finishRowCount_eq (finish : NightstreamFPrime.Export.OptionB.StepPackage.Package) :
+    finishRowCount finish = (OptionB.finishRows finish).length := by
+  rw [finishRowCount, OptionB.finishRows, List.length_map, List.length_flatMap]
+  exact congrArg List.sum (List.map_congr_left fun piece _ => pieceRowCount_eq piece)
+
 open Lean Elab Command Meta in
 /-- `compile_again f …` adds, for each definition `f` in order, a copy `fCompiled` with the value of
 `f`, compiled with the `@[csimp]` theorems now in scope, and `@[csimp] theorem f_eq_compiled :

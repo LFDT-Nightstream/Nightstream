@@ -1,7 +1,7 @@
 # Profiling
 
 Use the [current benchmark](../../crates/nightstream/README.md#poseidon2-benchmark)
-for CPU measurements. Steps prove only on the CPU path. Compare the same
+for CPU and Metal measurements (`--engine optimized|metal`). Compare the same
 package, inputs, security minimum, and lifecycle steps. Report compilation
 separately from execution.
 

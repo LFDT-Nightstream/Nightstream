@@ -24,6 +24,7 @@ struct Fixture {
     running: Vec<Mat<F>>,
     challenges: Challenges,
     prior_point: Vec<K>,
+    norm_sources: usize,
 }
 
 impl Fixture {
@@ -105,7 +106,7 @@ impl Fixture {
         }
         fresh[(0, 0)] = F::ONE;
         fresh[(0, 1)] = F::ONE;
-        let running = (0..params.k_rho() as usize)
+        let running: Vec<Mat<F>> = (0..params.k_rho() as usize)
             .map(|source| {
                 let mut witness = Mat::zero(D, blocks, F::ZERO);
                 for column in 0..blocks * D {
@@ -126,10 +127,27 @@ impl Fixture {
             params,
             dims,
             fresh: [CcsWitness { Z: fresh }],
+            norm_sources: 1 + running.len(),
             running,
             challenges: Challenges::new(alpha, extension(3, 5)),
             prior_point,
         }
+    }
+
+    /// Option B's light fold (Lean `Spec/Folding/Light`): one running source
+    /// with entries outside {-1, 0, 1}, and norm terms on the fresh source
+    /// only.
+    fn light(rows: usize) -> Self {
+        let mut fixture = Self::new(rows);
+        fixture.dims = build_joint_dims(&fixture.params, &fixture.structure, 1, 1).unwrap();
+        let blocks = fixture.fresh[0].Z.cols();
+        let mut witness = Mat::zero(D, blocks, F::ZERO);
+        for column in 0..fixture.structure.m() {
+            witness[(column % D, column / D)] = F::from_usize(7919 * column + 3) - F::from_usize(40_000);
+        }
+        fixture.running = vec![witness];
+        fixture.norm_sources = 1;
+        fixture
     }
 
     fn input<'a>(&'a self, source: &'a dyn MatrixRows, workspace_bytes: usize) -> PaperJointOracleInput<'a> {
@@ -143,6 +161,7 @@ impl Fixture {
             dims: self.dims,
             rows: source,
             workspace_bytes,
+            norm_sources: self.norm_sources,
         }
     }
 
@@ -157,7 +176,7 @@ impl Fixture {
             self.dims,
             source,
             workspace_bytes,
-            self.fresh.len() + self.running.len(),
+            self.norm_sources,
         )
         .unwrap()
     }
@@ -303,6 +322,26 @@ fn replay_matches_cpu_and_resident_rounds_transcript_and_complete_openings() {
             "rows={rows}: {} bytes exceeds {workspace}",
             observed.peak_bytes
         );
+    }
+}
+
+#[test]
+fn light_fold_with_a_dense_running_source_matches_cpu() {
+    let session = MetalSession::new().unwrap();
+    for rows in [7, 13] {
+        let fixture = Fixture::light(rows);
+        let source = CachedMatrixRows::new(fixture.cache.superneo()).unwrap();
+        let workspace = matrix_workspace(&source, 0..rows);
+        let mut cpu = fixture.cpu_oracle(&source, workspace);
+        let endpoints = cpu.evals_at(&[K::ZERO, K::ONE]).unwrap();
+        let initial = endpoints[0] + endpoints[1];
+        let expected = run_phase(&mut cpu, initial);
+        let plan = session
+            .prepare_joint_matrix_plan(&source, workspace)
+            .unwrap();
+        let mut metal = MetalPaperJointOracle::new(&session, plan, fixture.input(&source, workspace)).unwrap();
+        assert!(metal.dense.is_some());
+        assert_eq!(run_phase(&mut metal, initial), expected, "rows={rows}");
     }
 }
 

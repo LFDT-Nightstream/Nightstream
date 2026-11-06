@@ -3,12 +3,11 @@ use super::{
     ajtai_dec_mixer, has_canonical_evaluations, kernels as engine, superneo_has_canonical_x_shape,
     superneo_public_x_cols, CeClaim, DecMixer, FoldContext, Params, Structure,
 };
-use neo_ajtai::nightstream_fprime_setup::{
-    commit_production_signed_unit_prefix_matrices, MAX_MESSAGE_COLUMNS, PRODUCTION_VERIFIER_ROWS,
-};
+use crate::engine::Backend;
+use neo_ajtai::nightstream_fprime_setup::{MAX_MESSAGE_COLUMNS, PRODUCTION_VERIFIER_ROWS};
 use neo_ccs::Mat;
 use neo_math::{balanced::within_nc_bound, D, F};
-use neo_reductions::superneo_eval::{eval_real_v1_2_openings_from_rows, MatrixShape, SuperneoZBlocks};
+use neo_reductions::superneo_eval::MatrixShape;
 use p3_field::PrimeField64;
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -32,8 +31,6 @@ pub enum Error {
     Auxiliary,
     #[error(transparent)]
     Engine(#[from] engine::Error),
-    #[error(transparent)]
-    ProductionCommitment(#[from] neo_ajtai::AjtaiError),
 }
 pub(crate) struct Children {
     pub claims: Vec<CeClaim>,
@@ -44,6 +41,7 @@ pub(crate) struct Proof {
     pub children: Vec<CeClaim>,
 }
 pub(crate) fn prove_with_production_key(
+    backend: &Backend,
     context: FoldContext<'_>,
     parent: &CeClaim,
     parent_witness: Mat<F>,
@@ -82,17 +80,14 @@ pub(crate) fn prove_with_production_key(
         neo_reductions::common::split_b_matrix_k_with_nonzero_flags(&parent_witness, pp.k_rho() as usize, pp.b())
             .map_err(engine::Error::from)?;
     drop(parent_witness);
-    let commitments =
-        commit_production_signed_unit_prefix_matrices(split.planes()).map_err(|error| error.into_error())?;
-    let blocks = split
-        .planes()
-        .iter()
-        .map(|witness| SuperneoZBlocks::from_witness_mat(witness, s.m()))
-        .collect::<Result<Vec<_>, _>>()
+    // Commit every child. A child derived from the parent would satisfy the
+    // PiDEC recomposition by construction.
+    let commitments = backend
+        .commit(split.planes())
         .map_err(engine::Error::from)?;
-    let openings =
-        eval_real_v1_2_openings_from_rows(rows, &parent.r, &blocks, workspace_bytes).map_err(engine::Error::from)?;
-    drop(blocks);
+    let openings = backend
+        .child_openings(rows, workspace_bytes, split.planes(), &parent.r, s.m())
+        .map_err(engine::Error::from)?;
     let outcome = neo_reductions::api::dec_children_with_commit_superneo_cached_from_trusted_split_digits(
         neo_reductions::api::FoldingMode::Optimized,
         s,

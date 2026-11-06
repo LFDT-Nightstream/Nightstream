@@ -11,7 +11,7 @@ Workspace members (root `Cargo.toml`), lowest layer first:
 | `neo-ajtai` | Ajtai (module-SIS) commitments, decomposition, S-module | [neo-ajtai](neo-ajtai.md) |
 | `neo-reductions` | Π_CCS / Π_RLC / Π_DEC engines (optimized + paper-exact) | [neo-reductions](neo-reductions.md) |
 | `neo-spartan` | Compression layer 1: a succinct argument for one CE claim, with WHIR commitments | [source](../../crates/neo-spartan/src/lib.rs) |
-| `neo-prover-metal` | Metal device state and row evaluation; `nightstream` does not use it now | [neo-prover-metal](../../crates/neo-prover-metal/README.md) |
+| `neo-prover-metal` | Metal device state and row evaluation for `Engine::Metal` | [neo-prover-metal](../../crates/neo-prover-metal/README.md) |
 | `neo-prover-cuda` | CUDA backend target; construction fails until a canonical kernel exists | [source](../../crates/neo-prover-cuda/src/lib.rs) |
 | `nightstream` | Application compilation, proving, verification and compression | [nightstream](../../crates/nightstream/README.md) |
 | `nightstream-fprime` | Loading of the Lean-emitted light, refresh and finish packages | [source](../../crates/nightstream-fprime/src/lib.rs) |

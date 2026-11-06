@@ -34,21 +34,21 @@ explicit Fiat–Shamir and MSIS assumptions in the security argument.
 
 | Crate | Ownership |
 |---|---|
-| `nightstream` | Application circuits, CPU proving, verification and compression |
+| `nightstream` | Application circuits, proving, verification and compression |
 | `neo-reductions` | Optimized and PaperExact SuperNeo reductions |
 | `neo-ccs` | CCS and committed-evaluation relation types |
 | `neo-ajtai` | Ajtai setup, commitments, and openings |
 | `neo-math` | Goldilocks, extension-field, and ring arithmetic |
 | `neo-transcript` | Poseidon2 Fiat-Shamir transcript |
-| `neo-prover-metal` | Apple Metal prover kernels; `nightstream` does not use them now |
+| `neo-prover-metal` | Apple Metal prover kernels for `Engine::Metal` |
 | `neo-prover-cuda` | Required CUDA backend target |
 
 ## Prover choices
 
 | Choice | Status |
 |---|---|
-| `Engine::Optimized` | Implemented; the only engine that proves and verifies steps |
-| `Engine::Metal` | Returns an error; no CPU fallback |
+| `Engine::Optimized` | Implemented on the CPU |
+| `Engine::Metal` | Implemented on Apple GPUs with the `metal` feature; without it, returns an error; no CPU fallback |
 | `Engine::Cuda` | Required WIP target; returns an error; no CPU fallback |
 
 `PaperExact` is a reference engine of `neo-reductions` only. Its cost is

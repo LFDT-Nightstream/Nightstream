@@ -136,6 +136,7 @@ fn carried_projection_case(rows: usize, columns: usize, zero_sources: &[usize]) 
         dims,
         rows: &source,
         workspace_bytes: workspace,
+        norm_sources: fresh.len() + witnesses.len(),
     };
     let session = MetalSession::new().unwrap();
     let plan = session

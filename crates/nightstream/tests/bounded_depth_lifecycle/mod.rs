@@ -9,6 +9,8 @@ mod support;
 
 mod factored_rows;
 mod final_ir;
+#[cfg(feature = "metal")]
+mod metal_parity;
 mod setup_runs;
 
 use super::{BoundedDepth, BoundedDepthError, Envelope, LIGHT_FOLD_CAP};
@@ -23,7 +25,8 @@ use support::{hash_chain_step, packages, words};
 const MINIMUM_SECURITY_BITS: u32 = 109;
 
 fn prover(cap: u64) -> BoundedDepth {
-    let mut prover = BoundedDepth::new(packages(), MINIMUM_SECURITY_BITS).expect("bounded-depth prover");
+    let mut prover = BoundedDepth::new(packages(), MINIMUM_SECURITY_BITS, crate::engine::Backend::Optimized)
+        .expect("bounded-depth prover");
     prover.cap = cap;
     prover
 }
@@ -180,7 +183,8 @@ fn native_application_verifies(application: ApplicationCircuit) {
             application.shape(),
         )
         .expect("packages with the application");
-    let mut prover = BoundedDepth::new(packages, MINIMUM_SECURITY_BITS).expect("bounded-depth prover");
+    let mut prover = BoundedDepth::new(packages, MINIMUM_SECURITY_BITS, crate::engine::Backend::Optimized)
+        .expect("bounded-depth prover");
     prover.cap = 1;
     let z0 = words([10, 11, 12, 13]);
     let mut envelope = prover.initial(z0).expect("initial proof");
@@ -336,7 +340,8 @@ fn final_proof_verifies() {
     let started = std::time::Instant::now();
     // Keys for a minimum below the production one have fewer layer bits, so
     // a production verifier must refuse them (the end of this test).
-    let mut prover = BoundedDepth::new(packages(), 105).expect("bounded-depth prover");
+    let mut prover =
+        BoundedDepth::new(packages(), 105, crate::engine::Backend::Optimized).expect("bounded-depth prover");
     prover.cap = 2;
     let finish = Finish::new(
         nightstream_fprime::load_bounded_depth_finish(

@@ -15,7 +15,12 @@ path = "src/bin/poseidon2_bench.rs"
 test = false
 bench = false
 
+[features]
+default = []
+metal = ["dep:neo-prover-metal", "neo-prover-metal/metal"]
+
 [dependencies]
+neo-prover-metal = { path = "../neo-prover-metal", default-features = false, optional = true }
 nightstream-fprime = { path = "../nightstream-fprime" }
 neo-math = { path = "../neo-math" }
 neo-params = { path = "../neo-params" }

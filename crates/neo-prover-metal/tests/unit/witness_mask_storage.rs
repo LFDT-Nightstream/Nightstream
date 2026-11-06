@@ -70,7 +70,7 @@ fn zero_suffix_does_not_allocate_host_mask_words() {
     let (single, single_bytes) = measured_masks(&session, &sources[..1]);
     let (family, family_bytes) = measured_masks(&session, &sources);
     assert_eq!(family.active_witnesses(), &[0]);
-    assert!(family.matches_joint(count, 2));
+    assert_eq!((family.witness_count(), family.blocks()), (count, 2));
     assert_eq!(family.words().length(), single.words().length());
     assert_eq!(session.read_buffer::<u64>(family.words(), 4), vec![1, 4, 2, 8]);
     assert_eq!(family_bytes, single_bytes, "zero suffix allocated host mask words");

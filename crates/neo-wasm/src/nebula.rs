@@ -263,7 +263,6 @@ enum Dimension {
     Function,
     Event,
     Slot,
-    ModuleType,
     Stack,
     LinearMemory,
     Global,
@@ -274,13 +273,12 @@ enum Dimension {
 }
 
 impl Dimension {
-    const ALL: [Self; 13] = [
+    const ALL: [Self; 12] = [
         Self::Pc,
         Self::Choice,
         Self::Function,
         Self::Event,
         Self::Slot,
-        Self::ModuleType,
         Self::Stack,
         Self::LinearMemory,
         Self::Global,
@@ -304,7 +302,6 @@ fn dimensions(id: WasmMemoryId) -> &'static [Dimension] {
         | M::ProgramGlobalIndex
         | M::ProgramTableId
         | M::ProgramMemoryOffset
-        | M::ProgramCallIndirectTypeIndex
         | M::ProgramCallIndirectExpectedTypeId
         | M::ProgramI32ConstValue
         | M::ProgramI64ConstValueLo
@@ -326,7 +323,6 @@ fn dimensions(id: WasmMemoryId) -> &'static [Dimension] {
         | M::HostEventSlotVariant
         | M::HostEventSlotImmediate0
         | M::HostEventSlotImmediate1 => &[D::Function, D::Event, D::Slot],
-        M::ModuleType => &[D::ModuleType],
         M::Stack => &[D::Stack],
         M::LinearMemory => &[D::LinearMemory],
         M::GlobalLo | M::GlobalHi => &[D::Global],
@@ -357,8 +353,6 @@ pub struct WasmLimits {
     pub event: usize,
     /// A slot of one host event.
     pub slot: usize,
-    /// A module type.
-    pub module_type: usize,
     /// A stack cell.
     pub stack: usize,
     /// A word of linear memory.
@@ -443,7 +437,6 @@ impl WasmLimits {
             Dimension::Function => &mut self.function,
             Dimension::Event => &mut self.event,
             Dimension::Slot => &mut self.slot,
-            Dimension::ModuleType => &mut self.module_type,
             Dimension::Stack => &mut self.stack,
             Dimension::LinearMemory => &mut self.linear_memory,
             Dimension::Global => &mut self.global,
@@ -505,7 +498,6 @@ impl WasmSize {
             function,
             event: 3,
             slot: 3,
-            module_type: 4,
             stack: log2 - 2,
             linear_memory: log2 - 1,
             global: 6,

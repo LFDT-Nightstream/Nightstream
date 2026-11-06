@@ -23,8 +23,8 @@ use neo_wasm::nebula::{
     WasmStep, WasmStepError,
 };
 use neo_wasm::{
-    build_wasm_relation_layout, plan_wasm_memory_slots, preload_from_program_artifacts, top_level_initial_state,
-    WasmMemoryId, WasmMemoryPreload, WasmStepState,
+    build_wasm_relation_layout, preload_from_program_artifacts, top_level_initial_state, WasmMemoryId,
+    WasmMemoryPreload, WasmStepState,
 };
 use nightstream::nebula::{
     size_parts, Application, CatalogRowError, Expr, Geometry, Memory, Program, R1csStepError, Region, Run,
@@ -483,21 +483,15 @@ fn a_step_of_rows_that_are_not_neighbors_fails_only_its_link_rows() {
     }
 }
 
-/// `plan_wasm_memory_slots` puts the stack reads (ports 10 and 14) in slots 0
-/// and 1 and the stack writes (ports 8 and 9) in slots 6 and 7. Row 2 of the
-/// call trace (`local.get 0`) activates all four, so a stack read shows before
-/// a stack write that comes first in catalog order (SPEC.md section 7.6 I2) and the
-/// honest trace fails. The linear-memory trace runs: the pairs that its rows
-/// show out of catalog order are on distinct memories.
+/// Reversing the slots violates catalog order for dependent ports
+/// (SPEC.md section 7.6 I2), so an honest call trace must be rejected.
 #[test]
-fn enzo_slot_plan_breaks_a_dependent_pair_on_an_honest_row() {
+fn reversed_slot_plan_rejects_a_dependent_pair_on_an_honest_row() {
     let setup = setup(NonZeroUsize::MIN);
-    let plan = plan_wasm_memory_slots(build_wasm_relation_layout().auxiliary.memory.entries());
-    let (app, _) = setup.app(&plan.slots);
-    let (linear, call) = (&setup.programs[0], &setup.programs[1]);
-    let (_, mut run) = setup.run(&app, linear);
-    run.segment(&linear.inputs)
-        .expect("the linear-memory trace runs");
+    let mut slots = plan_ordered_slots(NonZeroUsize::MIN);
+    slots.reverse();
+    let (app, _) = setup.app(&slots);
+    let call = &setup.programs[1];
     let (_, mut run) = setup.run(&app, call);
     let Err(SegmentError::Application(error)) = run.segment(&call.inputs) else {
         panic!("the honest call trace fails");

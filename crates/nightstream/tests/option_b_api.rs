@@ -113,6 +113,14 @@ fn the_gate_refuses_more_bits_than_the_fold_error_gives() {
     assert!(compiled.verifier(Engine::Optimized, 110).is_err());
 }
 
+/// The reference hash chain compiles to Lean's own packages, so the circuit
+/// that ships is the one that Lean exports and that the Lean checks of Rust's
+/// files read.
+#[test]
+fn the_reference_hash_chain_keeps_lean_packages() {
+    assert_eq!(circuit().identity(), nightstream_fprime::OPTION_B_PACKAGES_IDENTITY);
+}
+
 /// Removes a setup folder when it drops, so a failed run frees its disk too.
 struct SetupDir(std::path::PathBuf);
 

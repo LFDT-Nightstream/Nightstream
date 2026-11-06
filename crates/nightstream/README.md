@@ -92,8 +92,9 @@ that instance. There are two kinds of fold.
   16 children. Then Π_CCS runs over the fresh instance and the 16 children,
   and Π_RLC runs with 17 sampled challenges. The depth becomes 0.
 
-No fold ends with Π_DEC. The steps follow the schedule `((L^(cap+1) R)^cap R)`
-with `cap = 64` (`src/lifecycle/option_b/mod.rs`, `src/folding/option_b.rs`).
+No fold ends with Π_DEC. With `cap = 64`, the first period of steps is
+`(L^(cap+1) R)^(cap+1) R`, and each later period is `(L^(cap+1) R)^cap R`
+(`src/lifecycle/option_b/mod.rs`, `src/folding/option_b.rs`).
 
 ## Final proof
 

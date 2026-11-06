@@ -3,8 +3,9 @@
 //! and a state with two slots. Slot `s` accumulates the instances of circuit
 //! `s`. Each step folds the previous step's instance into the slot of the
 //! circuit that made it: a light fold while that slot's depth is below the
-//! cap, a refresh fold at the cap (`Schedule.Admissible`). The steps run
-//! `((L^(cap+1) R)^cap R)`.
+//! cap, a refresh fold at the cap (`Schedule.Admissible`). The first period of
+//! steps is `(L^(cap+1) R)^(cap+1) R`, and each later period is
+//! `(L^(cap+1) R)^cap R`.
 mod compression;
 mod encoding;
 mod final_program;

@@ -68,7 +68,7 @@ impl CudaSession {
 
     fn hash_rows(&self, input: &Buffer, output: &Buffer, width: usize, rows: usize) -> Result<(), CudaError> {
         let kernels = &self.kernels.nightstream;
-        let constants = self.poseidon2_constants.cu_deviceptr() as *const u64;
+        let constants = self.poseidon2_constants.ptr::<u64>();
         self.launch(Grid::Threads(rows), |stream, config| {
             kernels.poseidon2_hash_rows_overwrite(
                 stream,

@@ -6,6 +6,11 @@ fn device_failure_keeps_its_backend_type() {
     for error in [
         CudaError::Device("no device".into()),
         CudaError::Buffer { bytes: 64 },
+        CudaError::MemoryLimit {
+            requested: 64,
+            allocated: crate::BUFFER_LIMIT_BYTES,
+            limit: crate::BUFFER_LIMIT_BYTES,
+        },
         CudaError::Execution("device lost".into()),
     ] {
         assert!(matches!(

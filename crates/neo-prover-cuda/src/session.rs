@@ -117,7 +117,7 @@ pub struct CudaSession {
     context: Arc<CudaContext>,
     stream: Arc<CudaStream>,
     kernels: Kernels,
-    poseidon2_constants: DeviceBuffer<u64>,
+    poseidon2_constants: Buffer,
     // A prover keeps the production key rows after their first commitment;
     // `None` expands the needed rows in every call.
     production_key: Option<Mutex<production_commitment::ResidentKeyRows>>,
@@ -130,16 +130,16 @@ impl CudaSession {
         let context = CudaContext::new(0).map_err(device)?;
         let stream = context.new_stream().map_err(device)?;
         let kernels = Kernels::load(&context).map_err(|error| CudaError::Module(error.to_string()))?;
-        let poseidon2_constants =
-            DeviceBuffer::from_host(&stream, &poseidon2::round_constant_words()).map_err(device)?;
-        Ok(Self {
+        let mut session = Self {
+            poseidon2_constants: allocate(&context, &stream, 0)?,
             context,
             stream,
             kernels,
-            poseidon2_constants,
             production_key: None,
             activity: ActivityCounters::default(),
-        })
+        };
+        session.poseidon2_constants = session.buffer_from_slice(&poseidon2::round_constant_words())?;
+        Ok(session)
     }
 
     /// Keep the production key rows on the device after their first
@@ -157,39 +157,11 @@ impl CudaSession {
 
     /// A zero-filled buffer of `bytes` bytes, inside the process ceiling.
     pub(crate) fn buffer(&self, bytes: usize) -> Result<Buffer, CudaError> {
-        {
-            let mut resident = RESIDENT.lock().unwrap_or_else(PoisonError::into_inner);
-            let allocated = resident.0;
-            match allocated.checked_add(bytes) {
-                Some(total) if total <= BUFFER_LIMIT_BYTES => {
-                    resident.0 = total;
-                    resident.1 = resident.1.max(total);
-                }
-                _ => {
-                    return Err(CudaError::MemoryLimit {
-                        requested: bytes,
-                        allocated,
-                        limit: BUFFER_LIMIT_BYTES,
-                    })
-                }
-            }
-        }
-        let release = || RESIDENT.lock().unwrap_or_else(PoisonError::into_inner).0 -= bytes;
-        if let Err(error) = self.bind() {
-            release();
-            return Err(error);
-        }
-        let memory = match DeviceBuffer::<u8>::zeroed(&self.stream, bytes) {
-            Ok(memory) => memory,
-            Err(_) => {
-                release();
-                return Err(CudaError::Buffer { bytes });
-            }
-        };
+        let buffer = allocate(&self.context, &self.stream, bytes)?;
         self.activity
             .allocated_bytes
             .fetch_add(bytes as u64, Ordering::Relaxed);
-        Ok(Buffer(Arc::new(Allocation { memory, bytes })))
+        Ok(buffer)
     }
 
     pub(crate) fn buffer_from_slice<T: Copy>(&self, values: &[T]) -> Result<Buffer, CudaError> {
@@ -361,6 +333,41 @@ impl CudaSession {
     pub fn reset_peak_allocated_bytes() {
         let mut resident = RESIDENT.lock().unwrap_or_else(PoisonError::into_inner);
         resident.1 = resident.0;
+    }
+}
+
+/// A zero-filled device buffer of `bytes` bytes, counted against
+/// `BUFFER_LIMIT_BYTES` before it is allocated: every device allocation of
+/// the crate comes from here.
+fn allocate(context: &CudaContext, stream: &CudaStream, bytes: usize) -> Result<Buffer, CudaError> {
+    {
+        let mut resident = RESIDENT.lock().unwrap_or_else(PoisonError::into_inner);
+        let allocated = resident.0;
+        match allocated.checked_add(bytes) {
+            Some(total) if total <= BUFFER_LIMIT_BYTES => {
+                resident.0 = total;
+                resident.1 = resident.1.max(total);
+            }
+            _ => {
+                return Err(CudaError::MemoryLimit {
+                    requested: bytes,
+                    allocated,
+                    limit: BUFFER_LIMIT_BYTES,
+                })
+            }
+        }
+    }
+    let release = || RESIDENT.lock().unwrap_or_else(PoisonError::into_inner).0 -= bytes;
+    if let Err(error) = context.bind_to_thread() {
+        release();
+        return Err(CudaError::Execution(error.to_string()));
+    }
+    match DeviceBuffer::<u8>::zeroed(stream, bytes) {
+        Ok(memory) => Ok(Buffer(Arc::new(Allocation { memory, bytes }))),
+        Err(_) => {
+            release();
+            Err(CudaError::Buffer { bytes })
+        }
     }
 }
 

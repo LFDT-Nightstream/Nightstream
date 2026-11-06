@@ -433,6 +433,7 @@ impl Verifier {
     }
 
     /// Check a finished proof against the expected state and a trusted key.
+    /// A key that a verifier at a lower security minimum derived is refused.
     pub fn verify_final(&self, expected: &State, key: &CompressionKey, proof: &FinalProof) -> Result<(), Error> {
         Ok(self.lifecycle.verify_final(
             &key.0,

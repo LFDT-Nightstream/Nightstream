@@ -236,7 +236,8 @@ impl OptionB {
     }
 
     /// Checks a finished proof against the expected statement and the keys,
-    /// which the verifier derives (`compression_keys`).
+    /// which the verifier derives (`compression_keys`). Keys with fewer layer
+    /// bits than this verifier's minimum needs, or another norm bound, fail.
     pub(crate) fn verify_final(
         &self,
         keys: &Keys,
@@ -246,6 +247,11 @@ impl OptionB {
         current: [F; 4],
         proof: &FinalProof,
     ) -> Result<(), OptionBError> {
+        if keys.layer_bits < self.compression_layer_bits()? || keys.bound != self.compression_bound() {
+            return Err(OptionBError::Statement(
+                "the key does not meet this verifier's security minimum",
+            ));
+        }
         if (proof.iteration, proof.z0, proof.current) != (iteration, z0, current) {
             return Err(OptionBError::Statement(
                 "the proof's statement differs from the expected one",

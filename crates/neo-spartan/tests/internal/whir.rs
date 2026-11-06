@@ -148,8 +148,9 @@ fn wide_key(block_variables: usize) -> Key {
 }
 
 /// `query_half` in `formal/compression-lean` needs at most 35 setup
-/// variables. P1 stacks `6·2^(n-3)` cells, and WHIR refuses a first folded
-/// domain above `2^32`, so no relation has more.
+/// variables. P1 stacks `6·2^(n-3)` cells, and WHIR refuses an initial
+/// domain above `2^32` after the first fold of six variables, so P1 alone
+/// allows 37: `Relation::new` keeps the premise (`TRUST.md`, query indices).
 #[test]
 fn relations_refuse_setups_past_31_variables() {
     let p1 = |key: &Key| {
@@ -158,11 +159,11 @@ fn relations_refuse_setups_past_31_variables() {
         })
         .is_ok()
     };
-    let fits = wide_key(29);
-    assert_eq!(fits.setup_variables(), 35);
+    let fits = wide_key(31);
+    assert_eq!(fits.setup_variables(), 37);
     assert!(p1(&fits));
-    let wide = wide_key(30);
-    assert_eq!(wide.setup_variables(), 36);
+    let wide = wide_key(32);
+    assert_eq!(wide.setup_variables(), 38);
     assert!(!p1(&wide));
     // WHIR's own bound is looser: the setup check needs a root of unity of
     // order 2^(setup variables + 1), and Goldilocks has none past 2^32.

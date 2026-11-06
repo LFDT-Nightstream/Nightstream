@@ -129,7 +129,7 @@ theorem relationRows_weight_degree (s : Shape) (bar : ℕ → ℕ → F) (S : Se
     ∀ ρ b, ((relationRows s bar S st).weight ρ b).natDegree ≤ s.D - 1 := by
   intro ρ b
   simp only [relationRows]
-  split_ifs <;> first | exact coeffPoly_natDegree _ _ | simp
+  split_ifs <;> first | with_reducible exact coeffPoly_natDegree _ _ | simp | exact coeffPoly_natDegree _ _
 
 omit [Field K] [Algebra F K] [Fintype K] [DecidableEq K] in
 theorem relationRows_target_degree (s : Shape) (bar : ℕ → ℕ → F) (S : Setup F) (st : Statement F) :

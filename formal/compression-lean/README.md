@@ -62,7 +62,8 @@ CompressionLean/
   Layer1/          the layer-1 verifier as a game: model, stages, cost
   Ports/           the hand transcriptions of Rust, definitions only, folders as the Rust modules
   Shrink/          the shrink verifier as a game, over Ports/Shrink/
-  Lowering/        the proofs about the lowering of a program to a shrink run
+  Lowering/        the proofs about the lowering of a program to a shrink run; the faster compiled
+                   final program (`@[csimp]`, `Compiled.lean`)
   Spec/            the definitions that the claims name and no folder above owns
   Bridge/          an accepted replay is a path of the layer-1 game; the honest setup tree and root
   Final/           the chain of the layers, the budget at Rust's split, F′'s parent claim

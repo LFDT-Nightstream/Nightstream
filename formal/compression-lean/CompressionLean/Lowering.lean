@@ -1,4 +1,5 @@
 import CompressionLean.Lowering.Block
+import CompressionLean.Lowering.Compiled
 import CompressionLean.Lowering.Exec
 import CompressionLean.Lowering.Forms
 import CompressionLean.Lowering.PackageRows

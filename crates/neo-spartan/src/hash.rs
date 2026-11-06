@@ -59,8 +59,12 @@ pub(crate) fn compress(left: [Gl; DIGEST_LEN], right: [Gl; DIGEST_LEN]) -> [Gl; 
 
 /// One sponge block absorbed into `state` in place, as `hash_leaf` does:
 /// overwrite `state[at..at + values.len()]`; permute when the rate is full.
-/// Returns the new fill position. Used to hash many leaves in lockstep.
-pub(crate) fn absorb(state: &mut [Gl; WIDTH], mut at: usize, values: &[Gl]) -> usize {
+/// Returns the new fill position. Used to hash many leaves in lockstep, one
+/// leaf per lane when `T` is `Packed`.
+pub(crate) fn absorb<T: Copy>(state: &mut [T; WIDTH], mut at: usize, values: &[T]) -> usize
+where
+    Perm: Permutation<[T; WIDTH]>,
+{
     for &value in values {
         state[at] = value;
         at += 1;
@@ -73,7 +77,10 @@ pub(crate) fn absorb(state: &mut [Gl; WIDTH], mut at: usize, values: &[Gl]) -> u
 }
 
 /// Close a lockstep sponge: permute a partial block, then squeeze.
-pub(crate) fn squeeze(state: &mut [Gl; WIDTH], at: usize) -> [Gl; DIGEST_LEN] {
+pub(crate) fn squeeze<T: Copy>(state: &mut [T; WIDTH], at: usize) -> [T; DIGEST_LEN]
+where
+    Perm: Permutation<[T; WIDTH]>,
+{
     if at != 0 {
         permutation().permute_mut(state);
     }

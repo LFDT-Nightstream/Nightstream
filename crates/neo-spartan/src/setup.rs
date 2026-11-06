@@ -14,12 +14,12 @@
 //! values at positions `j + v·2^{n-2}`: the coset `y_j·⟨ω_8⟩`, `y_j = g·ω^j`.
 
 use std::fs::File;
-use std::io::{BufWriter, Read, Seek, SeekFrom, Write};
+use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 
 use neo_ccs::crypto::poseidon2_goldilocks::{RATE, WIDTH};
 use p3_dft_v08::{Radix2DFTSmallBatch, TwoAdicSubgroupDft};
-use p3_field_v08::{Field, PrimeCharacteristicRing, PrimeField64, TwoAdicField};
+use p3_field_v08::{Field, PackedValue, PrimeCharacteristicRing, PrimeField64, TwoAdicField};
 use p3_matrix_v08::dense::RowMajorMatrix;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -28,7 +28,9 @@ use crate::circuit::algebra;
 use crate::circuit::hash::{hash_leaf, merkle_root};
 use crate::circuit::Backend;
 use crate::field::{eq_table, Ext, Gl};
-use crate::hash::{absorb, compress, squeeze};
+use crate::hash::{absorb, squeeze, Packed};
+use crate::merkle;
+use crate::scratch;
 use crate::Error;
 
 /// Variables folded per proof; a leaf holds `2^FOLD` values per oracle.
@@ -69,7 +71,11 @@ pub(crate) fn build(
 ) -> Result<Digest, Error> {
     assert!(variables >= FOLD);
     let leaves = leaf_count(variables);
-    let mut states = vec![[Gl::ZERO; WIDTH]; leaves];
+    // State `s` hashes leaves `s·lanes + lane`, one per lane: the packed
+    // permutation hashes two leaves about 1.5 times faster than two scalar
+    // permutations on aarch64. Lanes past the last leaf repeat it.
+    let lanes = Packed::WIDTH;
+    let mut states = vec![[Packed::ZERO; WIDTH]; leaves.div_ceil(lanes)];
     // Every oracle reuses the codeword and the DFT. A codeword freed and
     // allocated again per oracle stays resident in the macOS allocator's
     // cache, a codeword per oracle; a fresh DFT rebuilds its twiddle tables.
@@ -84,38 +90,38 @@ pub(crate) fn build(
             write_leaves(&dir.join(format!("oracle-{k:02}.bin")), &codeword, leaves)?;
         }
         let start = at;
-        states.par_iter_mut().enumerate().for_each(|(leaf, state)| {
-            absorb(state, start, &leaf_values(&codeword, leaves, leaf));
+        states.par_iter_mut().enumerate().for_each(|(s, state)| {
+            let values: [Packed; LEAF] = std::array::from_fn(|v| {
+                Packed::from_fn(|lane| codeword[(s * lanes + lane).min(leaves - 1) + v * leaves])
+            });
+            absorb(state, start, &values);
         });
         at = (at + LEAF) % RATE;
     }
     drop((dft, codeword));
-    let mut layer: Vec<Digest> = states
+    let digests: Vec<[Packed; 4]> = states
         .par_iter_mut()
         .map(|state| squeeze(state, at))
         .collect();
-    let mut file = match dir {
-        Some(dir) => Some(BufWriter::new(File::create(dir.join("tree.bin"))?)),
-        None => None,
-    };
+    drop(states);
+    let mut layer: Vec<Digest> = (0..leaves)
+        .into_par_iter()
+        .map(|leaf| std::array::from_fn(|k| digests[leaf / lanes][k].as_slice()[leaf % lanes]))
+        .collect();
+    drop(digests);
+    let file = dir
+        .map(|dir| File::create(dir.join("tree.bin")))
+        .transpose()?;
+    let mut offset = 0;
     loop {
-        if let Some(file) = &mut file {
-            for digest in &layer {
-                for word in digest {
-                    file.write_all(&word.as_canonical_u64().to_le_bytes())?;
-                }
-            }
+        if let Some(file) = &file {
+            write_words(file, offset, layer.as_flattened())?;
+            offset += 4 * layer.len();
         }
         if layer.len() == 1 {
             break;
         }
-        layer = layer
-            .par_chunks(2)
-            .map(|pair| compress(pair[0], pair[1]))
-            .collect();
-    }
-    if let Some(mut file) = file {
-        file.flush()?;
+        layer = merkle::compress_layer(&layer);
     }
     Ok(layer[0])
 }
@@ -148,13 +154,31 @@ fn leaf_values(codeword: &[Gl], leaves: usize, leaf: usize) -> [Gl; LEAF] {
 
 /// Write `codeword` in leaf-major order.
 fn write_leaves(path: &Path, codeword: &[Gl], leaves: usize) -> Result<(), Error> {
-    let mut file = BufWriter::new(File::create(path)?);
-    for leaf in 0..leaves {
-        for value in leaf_values(codeword, leaves, leaf) {
-            file.write_all(&value.as_canonical_u64().to_le_bytes())?;
-        }
-    }
-    file.flush()?;
+    let file = File::create(path)?;
+    let block = scratch::BLOCK_WORDS / LEAF;
+    (0..leaves.div_ceil(block))
+        .into_par_iter()
+        .try_for_each(|b| {
+            let values: Vec<Gl> = (b * block..leaves.min((b + 1) * block))
+                .flat_map(|leaf| leaf_values(codeword, leaves, leaf))
+                .collect();
+            write_words(&file, b * block * LEAF, &values)
+        })
+}
+
+/// `values` as little-endian canonical words at word `offset`, in parallel
+/// blocks: a store outlives its process, so its byte order is fixed.
+fn write_words(file: &File, offset: usize, values: &[Gl]) -> Result<(), Error> {
+    values
+        .par_chunks(scratch::BLOCK_WORDS)
+        .enumerate()
+        .try_for_each(|(block, values)| {
+            let words: Vec<u64> = values
+                .iter()
+                .map(|value| value.as_canonical_u64().to_le())
+                .collect();
+            scratch::write(file, offset + block * scratch::BLOCK_WORDS, &words)
+        })?;
     Ok(())
 }
 

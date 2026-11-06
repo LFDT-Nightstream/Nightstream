@@ -343,8 +343,9 @@ These checks compare a transcription with its Rust:
 
 `option_b_parent_bound` holds for circuit keys of any logical width. `option_b_poseidon2_bound`
 covers F′'s light and refresh circuits of the Poseidon2 hash-chain application at the key width
-`2^26`, as Lean's packages fix them. It takes the premises that `STATUS.md` lists. It does not cover
-the circuit that `Circuit::compile` builds, which puts Rust's rows in place of the application region. `option_b_complete` holds for any application
+`2^26`, as Lean's packages fix them. It takes the premises that `STATUS.md` lists. `Circuit::compile` keeps
+these packages for the reference hash chain. The claim does not cover the circuit of another Rust application,
+whose rows replace the application region. `option_b_complete` holds for any application
 with F′'s `Exports` and `Complete`, for the valid runs that it names. The claims describe the native verifier and
 the circuit that Rust records; they say nothing about code paths that Lean does not model.
 

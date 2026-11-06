@@ -298,12 +298,12 @@ item 5).
 - **Result:** the claims of `formal/compression-lean`
   (`CompressionLean.Claims.option_b_parent_bound`): such a win has probability
   at most `calls / 2^t` in the state-restoration experiment at Rust's layer
-  bits `t`. For the reference application in Lean's packages, a Lean proof,
-  a Lean check of Rust's files, Rust or a Lean value meets each premise
+  bits `t`. For the reference application, a Lean proof, a Lean check of
+  Rust's files, Rust or a Lean value meets each premise
   (`CompressionLean.Claims.option_b_poseidon2_bound`,
-  `formal/compression-lean/STATUS.md`). `Circuit::compile` puts Rust's rows
-  in place of the application region (`SPEC.md` Algorithm 2), so these
-  checks do not cover the circuit that it builds (Out of scope). The final program's checks on the
+  `formal/compression-lean/STATUS.md`). `Circuit::compile` keeps Lean's
+  packages for the reference hash chain (`SPEC.md` Algorithm 2), so these
+  checks cover the circuit that it builds. The final program's checks on the
   finish package give the finish relation of the last fold
   (`Export.OptionB.FinishRelation.package_finish`). Trust item 7 lists what
   this result assumes.
@@ -572,9 +572,9 @@ item 5).
   recorded inputs.
 - A program that the adversary chooses after it sees the setup. Adversary 5
   fixes the program before the adversary runs.
-- The step relation that `Circuit::compile` builds with a Rust application in
-  place of Lean's application region (`SPEC.md` Algorithm 2, step 3), the
-  Rust reference hash chain included. Lean exports only its own packages.
+- The step relation that `Circuit::compile` builds with a Rust application
+  other than the reference hash chain, whose rows replace Lean's application
+  region (`SPEC.md` Algorithm 2, step 3). Lean exports only its own packages.
   `runsCheck`, `setupCheck`, `coverCheck` and the final-program check read
   files that Rust builds from those packages.
 - The Rust-built memory relation of an application or geometry that no Lean

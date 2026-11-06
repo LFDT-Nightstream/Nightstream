@@ -17,7 +17,10 @@ circuit.write("app.nsc")?;
 ```
 
 `Circuit::compile` puts the Rust application in place of the Lean application
-in both step circuits of the three embedded packages. The crate decodes the
+in both step circuits of the three embedded packages. The reference hash chain
+(`poseidon2_hash_chain_v1`) keeps Lean's packages, because it computes the step
+of Lean's application region, so its circuit is the one that the Lean checks
+read. The crate decodes the
 packages once per process, and their identities are their pins
 (`OPTION_B_PACKAGES_IDENTITY` and `OPTION_B_FINISH_IDENTITY` in
 `nightstream-fprime`). A test checks that each embedded copy hashes to its

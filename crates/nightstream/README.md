@@ -45,9 +45,17 @@ The caller sets `minimum_security_bits` from its own security policy. The
 value must be positive. Prover and verifier creation fail when the
 statistical security of a step relation is below this minimum.
 
-Steps prove and verify on the CPU path only (`Engine::Optimized`).
-`Engine::Metal` and `Engine::Cuda` return `EngineError::Unavailable`. The
-crate does not use the CPU in their place.
+`Engine::Optimized` proves and verifies on the CPU. `Engine::Metal` needs the
+`metal` feature and an Apple GPU. It runs the commitments, the Π_CCS round
+oracle, the Π_DEC openings, the row checks and the compression loops on the
+device. The host keeps the transcript, the proof assembly and every public
+check. Its proofs and final witnesses are byte-identical to those of
+`Engine::Optimized`. The shrink proof grinds with a parallel search, so its
+bytes can differ between two runs on any engine. Without the feature,
+`Engine::Metal` returns `EngineError::Unavailable`. `Engine::Cuda` always
+returns `EngineError::Unavailable`: its kernel does not exist. The crate does
+not use the CPU in place of a device. A device failure returns
+`Error::Engine`.
 
 `prove` makes the proof of the first step from the initial state. `extend`
 makes the proof of the next step. The proof that you give to `extend` does not
@@ -132,9 +140,17 @@ They do not run Lean.
   `verify_final`.
 - `tests/option_b_lifecycle/` holds the lifecycle tests. They compile into
   the library, so `--lib lifecycle::` selects them.
+- `tests/option_b_lifecycle/metal_parity.rs` (feature `metal`) compares
+  `Engine::Metal` with `Engine::Optimized`. Every Metal session of a process
+  shares one device budget, so run these tests one at a time. Two of them
+  are ignored, because the layer-1 setups take about two minutes on the CPU.
 
 ```sh
 timeout --signal=KILL 300 cargo test -p nightstream --release --lib application::poseidon2_tests
+```
+
+```sh
+timeout --signal=KILL 300 cargo test -p nightstream --release --features metal --lib metal_parity -- --test-threads=1
 ```
 
 ## Poseidon2 benchmark

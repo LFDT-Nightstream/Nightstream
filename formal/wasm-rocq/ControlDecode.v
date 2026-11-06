@@ -158,10 +158,10 @@ Definition decodeActive (program : Program) (s : store) (memory : MemoryState) (
       let? inner := pathCode (guestBody f) labels in
       let? heights := pathHeights (programCallees program (guestModule f)) (guestBody f) labels offset in
       check initializationFlagsb boundary && (boundaryZeroRemaining boundary =? 0) &&
-        (moved <=? snd heights)%nat &&
         (0 <=? fbp) && (base =? fbp + Z.of_nat (frameLocals f)) &&
-        (boundarySP boundary =? base + Z.of_nat (totalHeight heights)) && (offset <=? length inner)%nat &&
-        (boundaryPC boundary =? guestEntry f + Z.of_nat (pathOffset (guestBody f) labels offset)) in
+        (boundarySP boundary =? base + Z.of_nat (totalHeight heights)) &&
+        (boundaryPC boundary =? guestEntry f + Z.of_nat (pathOffset (guestBody f) labels offset)) &&
+        (moved <=? snd heights)%nat && (offset <=? length inner)%nat in
       let? stack := readOperands memory base (totalHeight heights) moved distance in
       let? locals := readLocals memory fbp (frameLocals f) in
       let split := splitSegments (fst heights) stack in
@@ -180,10 +180,11 @@ Definition decodeActive (program : Program) (s : store) (memory : MemoryState) (
       let callee := Z.to_nat (reference - 1) in
       let? g := functionAt program callee in
       check initializationFlagsb boundary && (boundaryZeroRemaining boundary =? 0) &&
-        (boundaryMoveRemaining boundary =? 0) && isIndirect i && callsIntob (guestModule f) i callee g &&
-        (1 <=? reference) && (1 <=? snd heights)%nat && (0 <=? fbp) && (base =? fbp + Z.of_nat (frameLocals f)) &&
+        (0 <=? fbp) && (base =? fbp + Z.of_nat (frameLocals f)) &&
         (boundarySP boundary =? base + Z.of_nat (totalHeight heights)) &&
-        (boundaryPC boundary =? guestEntry f + Z.of_nat (pathOffset (guestBody f) labels offset) + 1) in
+        (boundaryPC boundary =? guestEntry f + Z.of_nat (pathOffset (guestBody f) labels offset) + 1) &&
+        (boundaryMoveRemaining boundary =? 0) && isIndirect i && callsIntob (guestModule f) i callee g &&
+        (1 <=? reference) && (1 <=? snd heights)%nat in
       let? stack := readOperands memory base (totalHeight heights - 1) 0 0 in
       let? locals := readLocals memory fbp (frameLocals f) in
       let split := splitSegments (fst heights) stack in

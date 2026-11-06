@@ -92,6 +92,26 @@ fn read_word(input: &mut impl Read) -> Result<usize, Error> {
     usize::try_from(u64::from_le_bytes(bytes)).map_err(|_| Error::Circuit("saved word exceeds usize"))
 }
 
+/// The saved form of an application, after the file's magic (`Circuit::load`).
+fn write_application(application: &ApplicationCircuit, output: &mut impl Write) -> Result<(), Error> {
+    output.write_all(&(application.private_input_count() as u64).to_le_bytes())?;
+    output.write_all(&application.prepared_output_forms()?)?;
+    for row in application.prepared_output_rows() {
+        output.write_all(&(row as u64).to_le_bytes())?;
+    }
+    let records = application.records();
+    output.write_all(&(records.row_count() as u64).to_le_bytes())?;
+    output.write_all(&(records.recipe_count() as u64).to_le_bytes())?;
+    records.write_to(output)?;
+    Ok(())
+}
+
+fn encode_application(application: &ApplicationCircuit) -> Result<Vec<u8>, Error> {
+    let mut bytes = Vec::new();
+    write_application(application, &mut bytes)?;
+    Ok(bytes)
+}
+
 /// The three Lean-emitted packages: the light and refresh step circuits and
 /// the finish circuit (`formal/nightstream-fprime/artifacts`), for the tests
 /// that load Lean's own packages (`load_packages`).
@@ -118,13 +138,22 @@ pub struct Circuit {
 
 impl Circuit {
     /// Put `application` in place of Lean's application in the embedded
-    /// packages, whose identities are their pins (`artifacts`).
+    /// packages, whose identities are their pins (`artifacts`). The reference
+    /// hash chain keeps Lean's packages: it computes the step of Lean's
+    /// application region, and the Lean checks of Rust's files read those
+    /// packages.
     pub fn compile(application: ApplicationCircuit) -> Result<Self, Error> {
         let embedded = crate::artifacts::embedded();
         let witness_words = application.private_input_count();
-        let packages = embedded
-            .packages
-            .with_application(application.records().clone(), witness_words)?;
+        let packages = if encode_application(&application)?
+            == encode_application(&crate::application::poseidon2_hash_chain_v1()?)?
+        {
+            embedded.packages.clone()
+        } else {
+            embedded
+                .packages
+                .with_application(application.records().clone(), witness_words)?
+        };
         let finish = embedded.finish.with_witness_words(witness_words)?;
         Ok(Self {
             packages,
@@ -193,15 +222,7 @@ impl Circuit {
             .application
             .as_ref()
             .ok_or(ApplicationError::NoApplication)?;
-        output.write_all(&(application.private_input_count() as u64).to_le_bytes())?;
-        output.write_all(&application.prepared_output_forms()?)?;
-        for row in application.prepared_output_rows() {
-            output.write_all(&(row as u64).to_le_bytes())?;
-        }
-        let records = application.records();
-        output.write_all(&(records.row_count() as u64).to_le_bytes())?;
-        output.write_all(&(records.recipe_count() as u64).to_le_bytes())?;
-        records.write_to(&mut output)?;
+        write_application(application, &mut output)?;
         output.flush()?;
         Ok(())
     }
@@ -414,6 +435,7 @@ impl Verifier {
     }
 
     /// Check a finished proof against the expected state and a trusted key.
+    /// A key that a verifier at a lower security minimum derived is refused.
     pub fn verify_final(&self, expected: &State, key: &CompressionKey, proof: &FinalProof) -> Result<(), Error> {
         Ok(self.lifecycle.verify_final(
             &key.0,

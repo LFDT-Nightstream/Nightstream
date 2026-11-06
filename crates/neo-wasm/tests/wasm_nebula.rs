@@ -825,8 +825,8 @@ fn a_proof_of_two_segments_verifies_on_cpu() {
     let traced = &setup.programs[1];
     let engine = nightstream::Engine::Optimized;
     let circuit = Circuit::compile(geometry, app.clone()).unwrap();
-    let prover = circuit.prover(engine, 114).unwrap();
-    let verifier = circuit.verifier(engine, 114).unwrap();
+    let prover = circuit.prover(engine, 109).unwrap();
+    let verifier = circuit.verifier(engine, 109).unwrap();
     let program = app.program(&traced.preload).unwrap();
     let mut run = prover.start(&program, traced.initial).unwrap();
     for segment in traced.inputs.chunks(geometry.n) {
@@ -880,8 +880,8 @@ fn proof_verifies_and_rejects_a_changed_load_on_cpu(per_step: NonZeroUsize) {
     let traced = &setup.programs[0];
     let engine = nightstream::Engine::Optimized;
     let circuit = Circuit::compile(geometry, app.clone()).unwrap();
-    let prover = circuit.prover(engine, 114).unwrap();
-    let verifier = circuit.verifier(engine, 114).unwrap();
+    let prover = circuit.prover(engine, 109).unwrap();
+    let verifier = circuit.verifier(engine, 109).unwrap();
     eprintln!("wasm setup elapsed={:?}", started.elapsed());
 
     let program = app.program(&traced.preload).unwrap();
@@ -1008,8 +1008,8 @@ fn time_proofs<A: Application + Clone>(
     let circuit = Circuit::compile(geometry, app).unwrap();
     eprintln!("compile elapsed={:?}", started.elapsed());
     eprintln!("application size={:?}", circuit.application_size().unwrap());
-    let prover = circuit.prover(engine, 114).unwrap();
-    let verifier = circuit.verifier(engine, 114).unwrap();
+    let prover = circuit.prover(engine, 109).unwrap();
+    let verifier = circuit.verifier(engine, 109).unwrap();
     eprintln!("setup elapsed={:?}", started.elapsed());
 
     let proving = Instant::now();

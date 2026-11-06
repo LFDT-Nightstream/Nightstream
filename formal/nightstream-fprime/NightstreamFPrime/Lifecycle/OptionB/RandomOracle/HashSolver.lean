@@ -11,7 +11,8 @@ collision. This is the option-B form of `RandomOracleHashSolver`.
 
 A `StateCollision` of two states names the colliding Poseidon2 inputs: the two state preimages,
 or the two slot preimages of one slot. `collisionInputs` reads that input pair from the two
-states (`PoseidonCollision`: two different inputs with one Poseidon2 hash), and it gives a pair
+states (`PoseidonCollision`: two different inputs of one length with one Poseidon2 hash), and it
+gives a pair
 for every state collision (`collisionInputs_isSome`).
 
 * Uniqueness step. `Reduction.solve` with the kernel `stateKernel` (the input pair of the two
@@ -46,9 +47,12 @@ open NightstreamFPrime.Lifecycle.OptionB.RandomOracle.ForkLink (Attempt Folds)
 
 attribute [local instance low] Classical.propDecidable
 
-/-- A Poseidon2 collision: two different inputs with one hash. -/
+/-- A Poseidon2 collision: two different inputs of one length with one hash. `Poseidon2.hash`
+pads with zeros and does not encode the length, so `[x]` and `[x, 0]` share a hash with no
+collision of the permutation. -/
 def PoseidonCollision : Type :=
-  {pair : List F × List F // pair.1 ≠ pair.2 ∧ Poseidon2.hash pair.1 = Poseidon2.hash pair.2}
+  {pair : List F × List F // pair.1 ≠ pair.2 ∧ pair.1.length = pair.2.length ∧
+    Poseidon2.hash pair.1 = Poseidon2.hash pair.2}
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth}
@@ -64,15 +68,19 @@ theorem slotInputs_collide {left right : State logicalWidth publicFits} {slot : 
     (collides : serializeSlot (left.slots slot) ≠ serializeSlot (right.slots slot) ∧
       slotDigest (left.slots slot) = slotDigest (right.slots slot)) :
     (slotInputs left right slot).1 ≠ (slotInputs left right slot).2 ∧
+      (slotInputs left right slot).1.length = (slotInputs left right slot).2.length ∧
       Poseidon2.hash (slotInputs left right slot).1 =
         Poseidon2.hash (slotInputs left right slot).2 :=
-  ⟨fun same => collides.1 (List.append_cancel_left same), collides.2⟩
+  ⟨fun same => collides.1 (List.append_cancel_left same),
+    by simp only [slotInputs, List.length_append, serializeSlot_length_eq], collides.2⟩
 
 /-- The Poseidon2 input pair that a collision of two states names: the state preimages, else
 the slot preimages of slot 0, else those of slot 1. -/
 noncomputable def collisionInputs (left right : State logicalWidth publicFits) :
     Option PoseidonCollision :=
-  if states : statePreimage left ≠ statePreimage right ∧ stateHash left = stateHash right then
+  if states : statePreimage left ≠ statePreimage right ∧
+      (statePreimage left).length = (statePreimage right).length ∧
+      stateHash left = stateHash right then
     some ⟨(statePreimage left, statePreimage right), states⟩
   else if first : serializeSlot (left.slots 0) ≠ serializeSlot (right.slots 0) ∧
       slotDigest (left.slots 0) = slotDigest (right.slots 0) then
@@ -86,7 +94,9 @@ noncomputable def collisionInputs (left right : State logicalWidth publicFits) :
 theorem collisionInputs_isSome {left right : State logicalWidth publicFits}
     (collision : StateCollision left right) : (collisionInputs left right).isSome := by
   unfold collisionInputs
-  by_cases states : statePreimage left ≠ statePreimage right ∧ stateHash left = stateHash right
+  by_cases states : statePreimage left ≠ statePreimage right ∧
+      (statePreimage left).length = (statePreimage right).length ∧
+      stateHash left = stateHash right
   · rw [dite_eq_left states]
     rfl
   · rw [dite_eq_right states]

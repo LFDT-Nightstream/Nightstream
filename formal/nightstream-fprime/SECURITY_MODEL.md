@@ -163,7 +163,8 @@ item 5).
   `Lifecycle.OptionB.RandomOracle.RefreshSolver.kernelChance_le_solver`). The
   state-collision terms are the probability of a Poseidon2 collision on two
   named prior states, and a collision finder outputs the colliding input
-  pair (`Lifecycle.OptionB.RandomOracle.HashSolver.hashCollisions_le_finder`).
+  pair, whose two inputs have one length (the sponge pads with zeros and does
+  not encode the length) (`Lifecycle.OptionB.RandomOracle.HashSolver.hashCollisions_le_finder`).
   Averaged over the SHAKE128 key setup at key width `2^26`, the kernel term is
   an MSIS advantage for a uniform matrix at the chain norm plus a programming
   error below `2^−192`, so each fold's bound uses only the two algorithms
@@ -182,7 +183,8 @@ item 5).
   value of a proof, for a fixed application, setup and pair of exported step
   circuits. The adversary must be admitted (trust item 3).
 - **Wins:** the terminal relation accepts, and no `iteration` steps of the
-  application lead from `z0` to `zi` (a false acceptance).
+  application, each with a witness of the application's word count, lead
+  from `z0` to `zi` (a false acceptance).
 - **Result:** under Assumption 1 and the closure premise,
   `Pr[false acceptance] ≤ Σ_j (Pr[collision at visit j] + error(stage j))`
   for `j` below a bound on the adversary's iteration
@@ -299,7 +301,9 @@ item 5).
   bits `t`. For the reference application, a Lean proof, a Lean check of
   Rust's files, Rust or a Lean value meets each premise
   (`CompressionLean.Claims.option_b_poseidon2_bound`,
-  `formal/compression-lean/STATUS.md`). The final program's checks on the
+  `formal/compression-lean/STATUS.md`). `Circuit::compile` keeps Lean's
+  packages for the reference hash chain (`SPEC.md` Algorithm 2), so these
+  checks cover the circuit that it builds. The final program's checks on the
   finish package give the finish relation of the last fold
   (`Export.OptionB.FinishRelation.package_finish`). Trust item 7 lists what
   this result assumes.
@@ -568,6 +572,11 @@ item 5).
   recorded inputs.
 - A program that the adversary chooses after it sees the setup. Adversary 5
   fixes the program before the adversary runs.
+- The step relation that `Circuit::compile` builds with a Rust application
+  other than the reference hash chain, whose rows replace Lean's application
+  region (`SPEC.md` Algorithm 2, step 3). Lean exports only its own packages.
+  `runsCheck`, `setupCheck`, `coverCheck` and the final-program check read
+  files that Rust builds from those packages.
 - The Rust-built memory relation of an application or geometry that no Lean
   package fixes, the binding rows of the Rust catalog backend, the rows of
   `nebula::R1csApplication` that link the rows of a batched step, and the

@@ -126,7 +126,7 @@ impl<'a> Reader<'a> {
         Ok(u64::from_le_bytes(self.take(WORD)?.try_into().expect("one word")))
     }
 
-    fn field(&mut self) -> Result<F, ProofCodecError> {
+    pub(super) fn field(&mut self) -> Result<F, ProofCodecError> {
         let word = self.word()?;
         if word >= F::ORDER_U64 {
             return Err(ProofCodecError("noncanonical field word"));

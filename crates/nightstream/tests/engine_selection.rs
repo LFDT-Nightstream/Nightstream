@@ -14,7 +14,7 @@ fn unavailable_engines_fail_before_loading_the_circuit() {
         let result = Prover::load(
             std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("Cargo.toml"),
             engine,
-            114,
+            109,
         );
         assert!(
             matches!(result, Err(Error::Engine(EngineError::Unavailable { engine: actual, .. })) if actual == engine)
@@ -34,7 +34,7 @@ fn available_engines_reach_the_circuit_check() {
             Prover::load(
                 std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("Cargo.toml"),
                 engine,
-                114
+                109
             ),
             Err(Error::Circuit("not a saved option-B application"))
         ));

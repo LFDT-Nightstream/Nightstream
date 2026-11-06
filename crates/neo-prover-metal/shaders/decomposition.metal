@@ -131,6 +131,59 @@ kernel void dec_sparse_ring_partials(
     partials[index] = gl_sub(gl_reduce_sum(positive_lo, positive_hi), gl_reduce_sum(negative_lo, negative_hi));
 }
 
+// `dec_sparse_ring_partials` over running sources without norm terms, whose
+// field values are stored source by source, block by block and lane by lane.
+// Source `s` writes the partials of opening `shape[8] + s`.
+[[max_total_threads_per_threadgroup(128)]]
+kernel void dec_dense_ring_partials(
+    device const ulong *forms [[buffer(0)]],
+    device const ulong *values [[buffer(1)]],
+    device const ulong *shape [[buffer(2)]],
+    device ulong *partials [[buffer(3)]],
+    device const uint *sources [[buffer(4)]],
+    device const uint *active_blocks [[buffer(5)]],
+    device const uint *active_chunk_bases [[buffer(6)]],
+    device const uint *active_chunk_matrices [[buffer(7)]],
+    device const uint *matrix_active_offsets [[buffer(8)]],
+    uint index [[thread_position_in_grid]]) {
+    ulong form_rows = shape[2];
+    ulong blocks = shape[3];
+    ulong chunk_count = shape[4];
+    ulong coefficient = index % RING_PRODUCT_COEFFICIENTS;
+    ulong rest = index / RING_PRODUCT_COEFFICIENTS;
+    ulong component = rest % 2;
+    rest /= 2;
+    ulong chunk = rest % chunk_count;
+    ulong dense = rest / chunk_count;
+    if (dense >= shape[9]) {
+        return;
+    }
+    ulong source = sources[dense];
+    ulong matrix = active_chunk_matrices[chunk];
+    if (2 * matrix + component >= form_rows) {
+        return;
+    }
+    ulong start = active_chunk_bases[chunk];
+    ulong end = min(start + DEC_CHUNK_COLUMNS, (ulong)matrix_active_offsets[matrix + 1]);
+    ulong term_start = coefficient >= RING_DEGREE ? coefficient - (RING_DEGREE - 1) : 0;
+    ulong term_end = coefficient < RING_DEGREE ? coefficient : RING_DEGREE - 1;
+    ulong lo = 0;
+    ulong hi = 0;
+    for (ulong active = start; active < end; ++active) {
+        ulong block = (ulong)active_blocks[active] % blocks;
+        ulong lanes = (source * blocks + block) * RING_DEGREE;
+        ulong form = ((active - shape[7]) * 2 + component) * RING_DEGREE + coefficient;
+        for (ulong term = term_start; term <= term_end; ++term) {
+            ulong value = gl_mul(forms[form - term], values[lanes + term]);
+            ulong next = lo + value;
+            hi += next < lo;
+            lo = next;
+        }
+    }
+    ulong partial = ((shape[8] + dense) * chunk_count + chunk) * 2 + component;
+    partials[partial * RING_PRODUCT_COEFFICIENTS + coefficient] = gl_reduce_sum(lo, hi);
+}
+
 kernel void dec_sparse_ring_sum_chunks(
     device const ulong *partials [[buffer(0)]],
     device const ulong *shape [[buffer(1)]],

@@ -109,8 +109,10 @@ pub struct MetalSession {
     rlc_witness_mix_signed_masks: Pipeline,
     dec_split_base2_masks: Pipeline,
     dec_sparse_ring_partials: Pipeline,
+    dec_dense_ring_partials: Pipeline,
     dec_sparse_ring_sum_chunks: Pipeline,
     joint_carried_projection: Pipeline,
+    joint_carried_projection_dense: Pipeline,
     fe_weighted_row_table: Pipeline,
     dec_ring_reduce_phi81: Pipeline,
     // A prover keeps the production key rows after their first commitment;
@@ -170,8 +172,10 @@ impl MetalSession {
         let rlc_witness_mix_signed_masks = pipeline(&device, &library, "rlc_witness_mix_signed_masks")?;
         let dec_split_base2_masks = pipeline(&device, &library, "dec_split_base2_masks")?;
         let dec_sparse_ring_partials = pipeline(&device, &library, "dec_sparse_ring_partials")?;
+        let dec_dense_ring_partials = pipeline(&device, &library, "dec_dense_ring_partials")?;
         let dec_sparse_ring_sum_chunks = pipeline(&device, &library, "dec_sparse_ring_sum_chunks")?;
         let joint_carried_projection = pipeline(&device, &library, "joint_carried_projection")?;
+        let joint_carried_projection_dense = pipeline(&device, &library, "joint_carried_projection_dense")?;
         let fe_weighted_row_table = pipeline(&device, &library, "fe_weighted_row_table")?;
         let dec_ring_reduce_phi81 = pipeline(&device, &library, "dec_ring_reduce_phi81")?;
         Ok(Self {
@@ -210,8 +214,10 @@ impl MetalSession {
             rlc_witness_mix_signed_masks,
             dec_split_base2_masks,
             dec_sparse_ring_partials,
+            dec_dense_ring_partials,
             dec_sparse_ring_sum_chunks,
             joint_carried_projection,
+            joint_carried_projection_dense,
             fe_weighted_row_table,
             dec_ring_reduce_phi81,
             production_key: None,

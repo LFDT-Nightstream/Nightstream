@@ -10,7 +10,7 @@ use objc2_metal::{MTLCommandBuffer, MTLCommandEncoder};
 use p3_field::PrimeCharacteristicRing;
 use rayon::prelude::*;
 
-use super::{matrix_window::smaller_window, Arg, Buffer, Grid, MetalJointMatrixPlan, MetalSession, MetalWitnessMasks};
+use super::{matrix_window::smaller_window, Arg, Buffer, Grid, JointSources, MetalJointMatrixPlan, MetalSession};
 use crate::MetalError;
 
 mod spans;
@@ -244,28 +244,29 @@ impl OpeningLayout {
 }
 
 impl MetalSession {
-    pub(super) fn eval_streamed_joint_openings(
+    pub(super) fn eval_streamed_joint_openings<'a>(
         &self,
         plan: &MetalJointMatrixPlan<'_>,
-        masks: &MetalWitnessMasks,
+        sources: impl Into<JointSources<'a>>,
         point: &[K],
         witness_count: usize,
         assignment_width: usize,
     ) -> Result<Vec<V1_2Evaluations<K>>, MetalError> {
         Ok(self
-            .eval_streamed_rows(plan, masks, point, witness_count, assignment_width, None)?
+            .eval_streamed_rows(plan, sources, point, witness_count, assignment_width, None)?
             .openings)
     }
 
-    pub(super) fn eval_streamed_rows(
+    pub(super) fn eval_streamed_rows<'a>(
         &self,
         plan: &MetalJointMatrixPlan<'_>,
-        masks: &MetalWitnessMasks,
+        sources: impl Into<JointSources<'a>>,
         point: &[K],
         witness_count: usize,
         assignment_width: usize,
         terminal: Option<&super::relation::TerminalRowCheck<'_>>,
     ) -> Result<neo_reductions::superneo_eval::TerminalEvaluations, MetalError> {
+        let sources = sources.into();
         let domain = 1usize
             .checked_shl(u32::try_from(point.len()).map_err(|_| MetalError::Shape("opening point is too long"))?)
             .ok_or(MetalError::Shape("opening point domain overflow"))?;
@@ -273,12 +274,12 @@ impl MetalSession {
             || witness_count == 0
             || assignment_width > plan.blocks * D
             || domain < plan.rows.max(plan.blocks * D)
-            || !masks.matches_joint(witness_count, plan.blocks)
+            || !sources.matches_joint(witness_count, plan.blocks)
         {
             return Err(MetalError::Shape("streamed opening dimensions are invalid"));
         }
         let mut result = to_evaluations(vec![vec![vec![K::ZERO; D]; plan.matrix_count + 1]; witness_count]);
-        if masks.active_witnesses().is_empty() && terminal.is_none() {
+        if sources.active_count() == 0 && terminal.is_none() {
             return Ok(neo_reductions::superneo_eval::TerminalEvaluations {
                 openings: result,
                 first_unsatisfied_row: None,
@@ -293,7 +294,7 @@ impl MetalSession {
                 max_chunks: pad.div_ceil(CHUNK_BLOCKS),
                 ..OpeningLayout::default()
             }
-            .evaluation_bytes(0, point.len(), masks.active_witnesses().len())?;
+            .evaluation_bytes(0, point.len(), sources.active_count())?;
             let reserved = checked_sum(&[floor, plan.blocks])?;
             let mut requested_end = plan.rows;
             loop {
@@ -315,7 +316,7 @@ impl MetalSession {
                     continue;
                 };
                 let evaluation = layout
-                    .evaluation_bytes(count, point.len(), masks.active_witnesses().len())?
+                    .evaluation_bytes(count, point.len(), sources.active_count())?
                     .max(
                         terminal
                             .map(|check| check.workspace_bytes(count))
@@ -331,7 +332,7 @@ impl MetalSession {
                     requested_end = next_row + smaller_window(count, metadata, budget)?;
                     continue;
                 }
-                if !masks.active_witnesses().is_empty() {
+                if sources.active_count() != 0 {
                     let opening = self.prepare_joint_opening_plan(
                         window.cache.matrix_caches(),
                         plan.blocks * D,
@@ -339,7 +340,7 @@ impl MetalSession {
                         include_pad,
                         &layout,
                     )?;
-                    let values = self.eval_joint_openings(&opening, masks, point, witness_count, assignment_width)?;
+                    let values = self.eval_joint_openings(&opening, sources, point, witness_count, assignment_width)?;
                     for (result, value) in result.iter_mut().zip(values) {
                         if include_pad {
                             result.eval_k = value.eval_k;
@@ -583,14 +584,16 @@ impl MetalSession {
         Ok(plans)
     }
 
-    pub(super) fn eval_joint_openings(
+    pub(super) fn eval_joint_openings<'a>(
         &self,
         plan: &MetalJointOpeningPlan,
-        masks: &MetalWitnessMasks,
+        sources: impl Into<JointSources<'a>>,
         point: &[K],
         witness_count: usize,
         assignment_width: usize,
     ) -> Result<Vec<V1_2Evaluations<K>>, MetalError> {
+        let sources = sources.into();
+        let masks = sources.masks;
         let chi_len = 1usize
             .checked_shl(u32::try_from(point.len()).map_err(|_| MetalError::Shape("opening point is too long"))?)
             .ok_or(MetalError::Shape("one-joint opening tensor length overflow"))?;
@@ -606,13 +609,15 @@ impl MetalSession {
                 .row_start
                 .checked_add(plan.rows)
                 .is_none_or(|end| end > chi_len)
-            || !masks.matches_joint(witness_count, plan.blocks)
+            || !sources.matches_joint(witness_count, plan.blocks)
         {
             return Err(MetalError::Shape("one-joint opening dimensions are invalid"));
         }
         let mut openings = vec![vec![vec![K::ZERO; D]; plan.matrix_count]; witness_count];
         let active_witness_ids = masks.active_witnesses();
-        let active_count = active_witness_ids.len();
+        let masked_count = active_witness_ids.len();
+        let dense_ids = sources.dense.map_or(&[][..], |dense| dense.active());
+        let active_count = sources.active_count();
         if active_count == 0 {
             return Ok(to_evaluations(openings));
         }
@@ -631,7 +636,8 @@ impl MetalSession {
         if max_blocks == 0 {
             return Ok(to_evaluations(openings));
         }
-        let active_witnesses = self.buffer_from_slice(active_witness_ids)?;
+        let active_witnesses = self.buffer_from_slice(super::nonempty_u32(active_witness_ids))?;
+        let dense_sources = self.buffer_from_slice(super::nonempty_u32(dense_ids))?;
         let low_bits = point.len() / 2;
         let chi_low = if low_bits == 0 {
             self.buffer_from_slice(&[1u64, 0])?
@@ -708,7 +714,8 @@ impl MetalSession {
             let chunk_count = (plan.matrix_chunk_offsets[matrix + 1] as usize) - chunk_start;
             let chunk_offsets = self.buffer_from_slice(&[0u32, chunk_count as u32])?;
             let form_words = (active_end - active_start) * 2 * D;
-            let partial_words = active_count * chunk_count * 2 * PRODUCT_COEFFICIENTS;
+            let masked_partial_words = masked_count * chunk_count * 2 * PRODUCT_COEFFICIENTS;
+            let dense_partial_words = dense_ids.len() * chunk_count * 2 * PRODUCT_COEFFICIENTS;
             let sum_words = active_count * 2 * PRODUCT_COEFFICIENTS;
             let mut shape = shape;
             shape[5] = active_start as u64;
@@ -723,6 +730,8 @@ impl MetalSession {
                 0,
                 masks.magnitudes() as u64,
                 active_start as u64,
+                masked_count as u64,
+                dense_ids.len() as u64,
             ])?;
             let command = self.command_buffer("nightstream.pi_ccs.joint.openings")?;
             let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
@@ -873,26 +882,49 @@ impl MetalSession {
             );
             encoder.endEncoding();
 
-            let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
-            encoder.setLabel(Some(&NSString::from_str("dec_sparse_ring_partials")));
-            self.launch(
-                &encoder,
-                &self.dec_sparse_ring_partials,
-                &[
-                    Arg::Buffer(0, &forms),
-                    Arg::Buffer(1, masks.words()),
-                    Arg::Buffer(2, &tail_shape),
-                    Arg::Buffer(3, &partials),
-                    Arg::Buffer(4, &active_witnesses),
-                    Arg::Buffer(5, &plan.active_blocks),
-                    Arg::BufferAt(6, &plan.active_chunk_bases, chunk_start * size_of::<u32>()),
-                    Arg::Buffer(7, &chunk_matrices),
-                    Arg::BufferAt(8, &plan.matrix_active_offsets, matrix * size_of::<u32>()),
-                    Arg::Buffer(9, &active_witnesses),
-                ],
-                Grid::Threads(partial_words),
-            );
-            encoder.endEncoding();
+            if masked_partial_words != 0 {
+                let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
+                encoder.setLabel(Some(&NSString::from_str("dec_sparse_ring_partials")));
+                self.launch(
+                    &encoder,
+                    &self.dec_sparse_ring_partials,
+                    &[
+                        Arg::Buffer(0, &forms),
+                        Arg::Buffer(1, masks.words()),
+                        Arg::Buffer(2, &tail_shape),
+                        Arg::Buffer(3, &partials),
+                        Arg::Buffer(4, &active_witnesses),
+                        Arg::Buffer(5, &plan.active_blocks),
+                        Arg::BufferAt(6, &plan.active_chunk_bases, chunk_start * size_of::<u32>()),
+                        Arg::Buffer(7, &chunk_matrices),
+                        Arg::BufferAt(8, &plan.matrix_active_offsets, matrix * size_of::<u32>()),
+                        Arg::Buffer(9, &active_witnesses),
+                    ],
+                    Grid::Threads(masked_partial_words),
+                );
+                encoder.endEncoding();
+            }
+            if let Some(dense) = sources.dense.filter(|_| dense_partial_words != 0) {
+                let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
+                encoder.setLabel(Some(&NSString::from_str("dec_dense_ring_partials")));
+                self.launch(
+                    &encoder,
+                    &self.dec_dense_ring_partials,
+                    &[
+                        Arg::Buffer(0, &forms),
+                        Arg::Buffer(1, dense.words()),
+                        Arg::Buffer(2, &tail_shape),
+                        Arg::Buffer(3, &partials),
+                        Arg::Buffer(4, &dense_sources),
+                        Arg::Buffer(5, &plan.active_blocks),
+                        Arg::BufferAt(6, &plan.active_chunk_bases, chunk_start * size_of::<u32>()),
+                        Arg::Buffer(7, &chunk_matrices),
+                        Arg::BufferAt(8, &plan.matrix_active_offsets, matrix * size_of::<u32>()),
+                    ],
+                    Grid::Threads(dense_partial_words),
+                );
+                encoder.endEncoding();
+            }
 
             let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
             encoder.setLabel(Some(&NSString::from_str("dec_sparse_ring_sum_chunks")));
@@ -925,7 +957,15 @@ impl MetalSession {
             self.finish(&command)?;
 
             let words = self.read_buffer::<u64>(&output, output_words);
-            for (active, &witness) in active_witness_ids.iter().enumerate() {
+            let dense_witnesses = dense_ids
+                .iter()
+                .map(|&source| masks.witness_count() as u32 + source);
+            for (active, witness) in active_witness_ids
+                .iter()
+                .copied()
+                .chain(dense_witnesses)
+                .enumerate()
+            {
                 let coefficients = &mut openings[witness as usize][matrix];
                 let real = active * 2 * D;
                 let imaginary = real + D;

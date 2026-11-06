@@ -367,7 +367,7 @@ fn workspace() -> PathBuf {
 #[test]
 #[ignore = "needs the Lean check: lake build lowerCheck in formal/compression-lean"]
 fn lowering_matches_lean() {
-    let (toy, setup, _scratch) = setup_toy(8, 4, 6);
+    let (toy, setup, _scratch) = setup_toy(8, 64, 6);
     let relation = relation_of(&toy, setup.key());
     let proof = prove(
         &relation,
@@ -536,15 +536,15 @@ fn option_b_layer1_matches_lean() {
 /// computes it from Lean's program (`digest` on its `layer1` line). Update a
 /// pin only after `lowering_matches_lean` passes, from that line.
 const TOY_LAYER1_DIGEST: [u64; 4] = [
-    458324187185090560,
-    16247591410920104884,
-    15972692791106074973,
-    17533094710872430588,
+    8834770369655573788,
+    14965392242930551430,
+    6049222175714157944,
+    1350642674344842934,
 ];
 
 #[test]
 fn toy_layer1_digest_is_pinned() {
-    let (toy, setup, _scratch) = setup_toy(8, 4, 6);
+    let (toy, setup, _scratch) = setup_toy(8, 64, 6);
     let relation = relation_of(&toy, setup.key());
     assert_eq!(run_digest(&Layer1::shape(&relation)).unwrap(), TOY_LAYER1_DIGEST);
 }

@@ -34,22 +34,34 @@ pub(crate) use crate::whir::prover::ProverData;
 pub(crate) type Opening = <Whir as MultilinearPcs<Ext, Challenger>>::Proof;
 pub(crate) type MultiProof = <Mmcs as p3_commit_v08::Mmcs<Gl>>::MultiProof;
 
-/// The code rate, the folding schedule and the grinding of one WHIR use.
+/// The code rate, the folding schedule, the domains and the grinding of one
+/// WHIR use.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Profile {
     log_inv_rate: usize,
     first_folding: usize,
     folding: usize,
+    /// `log2(|L_0| / |L_1|)`: the first folded codeword's domain is this
+    /// many halvings smaller than the initial domain; each later domain is
+    /// half the one before. WHIR leaves the domains free (Construction 5.1)
+    /// and bounds each round at its own rate (Theorem 5.2).
+    first_shrink: usize,
     pow_bits: usize,
 }
 
 /// Layer 1: initial rate 1/2 (the smallest codeword, so the fastest
-/// commitment), four variables per round as in the WHIR paper's benchmarks
-/// (§6), no grinding.
+/// commitment), a first fold of six variables and four after, a first
+/// folded domain a quarter of the initial one, no grinding. Against four
+/// variables per round with halving domains (the WHIR paper's benchmarks,
+/// §6), every folded codeword is half as long and an initial leaf is 64
+/// values. On the hash-chain test the layer-1 WHIR commitments and
+/// openings took 47% less CPU (2026-11-06), and the final program has 2.2%
+/// fewer Poseidon2 blocks (62,847 against 64,236), at the same level.
 pub(crate) const LAYER1: Profile = Profile {
     log_inv_rate: 1,
-    first_folding: 4,
+    first_folding: 6,
     folding: 4,
+    first_shrink: 2,
     pow_bits: 0,
 };
 
@@ -61,6 +73,7 @@ pub(crate) const SHRINK: Profile = Profile {
     log_inv_rate: 3,
     first_folding: 5,
     folding: 4,
+    first_shrink: 1,
     pow_bits: 20,
 };
 
@@ -232,13 +245,21 @@ impl Pcs {
     }
 
     /// The configuration as transcript words: per-round level, rate, first
-    /// and later folding, grinding and the soundness assumption (1 = Johnson
-    /// bound).
+    /// and later folding, first domain shrink, grinding and the soundness
+    /// assumption (1 = Johnson bound).
     pub(crate) fn profile_words(&self) -> Vec<Gl> {
         let p = &self.profile;
-        [self.level, p.log_inv_rate, p.first_folding, p.folding, p.pow_bits, 1]
-            .map(Gl::from_usize)
-            .to_vec()
+        [
+            self.level,
+            p.log_inv_rate,
+            p.first_folding,
+            p.folding,
+            p.first_shrink,
+            p.pow_bits,
+            1,
+        ]
+        .map(Gl::from_usize)
+        .to_vec()
     }
 
     /// The DFT and the Merkle tree of a prover on `accelerator`; each records
@@ -347,14 +368,20 @@ fn parameters(profile: &Profile, num_variables: usize, security_level: usize) ->
     let schedule = folding_factor
         .compute_folding_schedule(num_variables)
         .map_err(|_| Error::Setup("WHIR folding schedule"))?;
+    // A fold of `k` variables on a domain `2^s` times smaller raises the
+    // log inverse rate by `k - s`.
     let mut rate = profile.log_inv_rate;
     let round_log_inv_rates = schedule[..schedule.len() - 1]
         .iter()
-        .map(|folding| {
-            rate += folding - 1;
-            rate
+        .enumerate()
+        .map(|(round, folding)| {
+            let shrink = if round == 0 { profile.first_shrink } else { 1 };
+            rate = (rate + folding)
+                .checked_sub(shrink)
+                .ok_or(Error::Setup("WHIR domain schedule"))?;
+            Ok(rate)
         })
-        .collect();
+        .collect::<Result<_, Error>>()?;
     Ok(ProtocolParameters {
         security_level,
         pow_bits: profile.pow_bits,

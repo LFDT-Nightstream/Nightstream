@@ -377,7 +377,7 @@ fn relation_shape_has_the_lean_constants() {
 
 #[test]
 fn true_claims_verify_and_every_tampered_part_rejects() {
-    let (toy, setup, _scratch) = setup_toy(2, 4, 6);
+    let (toy, setup, _scratch) = setup_toy(2, 64, 6);
     let relation = relation_of(&toy, setup.key());
     assert!(relation.security_bits() >= BITS);
     let proof = prove(

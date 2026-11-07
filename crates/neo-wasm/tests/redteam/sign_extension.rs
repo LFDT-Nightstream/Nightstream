@@ -40,6 +40,12 @@ const LOAD8: &str = r#"(module
     (func (export "main") (result i32)
         i32.const 0
         i32.load8_s))"#;
+const LOAD16: &str = r#"(module
+    (memory 1)
+    (data (i32.const 0) "\00\80")
+    (func (export "main") (result i32)
+        i32.const 0
+        i32.load16_s))"#;
 const LOAD8_WIDE: &str = r#"(module
     (memory 1)
     (data (i32.const 0) "\80")
@@ -195,6 +201,14 @@ fn signed_byte_load_cannot_return_an_unsigned_value() {
     assert!(
         !public_verifier_accepts_bad_sign(LOAD8, WasmOpcode::I32Load8S, "-128", Some(128), None),
         "the public verifier accepted output 128 for i32.load8_s(0x80), which Wasmtime returns as -128"
+    );
+}
+
+#[test]
+fn signed_halfword_load_cannot_return_an_unsigned_value() {
+    assert!(
+        !public_verifier_accepts_bad_sign(LOAD16, WasmOpcode::I32Load16S, "-32768", Some(32768), None),
+        "the public verifier accepted output 32768 for i32.load16_s(0x8000), which Wasmtime returns as -32768"
     );
 }
 

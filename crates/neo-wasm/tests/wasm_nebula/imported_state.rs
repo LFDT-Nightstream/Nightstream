@@ -3,7 +3,7 @@
 use super::*;
 use nightstream::nebula::Circuit;
 
-fn assert_imported_state_is_bound(local: &str, imported_bytes: &[u8], kind: &str) {
+fn assert_imported_state_is_bound(local: &str, imported_bytes: &[u8], host_memory: WasmMemoryId, kind: &str) {
     let artifacts = neo_wasm::extract_wasm_program_artifacts(imported_bytes).unwrap();
     let setup = setup_of(local, NonZeroUsize::MIN, false);
     let (app, geometry) = setup.complete();
@@ -19,6 +19,10 @@ fn assert_imported_state_is_bound(local: &str, imported_bytes: &[u8], kind: &str
     let local_program = app.program(&traced.preload).unwrap();
     let imported_program = app.program(&imported_preload).unwrap();
     assert_eq!(local_program.d_init(), imported_program.d_init());
+    let mut host_preload = imported_preload.clone();
+    host_preload.insert(host_memory, vec![0], 42);
+    let host_program = app.program(&host_preload).unwrap();
+    assert_ne!(host_program.d_init(), imported_program.d_init());
     let imported_initial = neo_wasm::host_event_top_level_initial_state(
         &artifacts.tables,
         entry_pc,
@@ -40,6 +44,9 @@ fn assert_imported_state_is_bound(local: &str, imported_bytes: &[u8], kind: &str
     verifier
         .verify(&local_program, &traced.initial, &traced.last, &proof)
         .unwrap();
+    assert!(verifier
+        .verify(&host_program, &traced.initial, &traced.last, &proof)
+        .is_err());
     assert!(
         verifier
             .verify(&imported_program, &traced.initial, &traced.last, &proof)
@@ -71,7 +78,7 @@ fn an_imported_global_must_be_bound_to_host_state_before_public_verification() {
         .call(&mut store, ())
         .unwrap();
     assert_eq!(result, 42);
-    assert_imported_state_is_bound(local, &bytes, "global");
+    assert_imported_state_is_bound(local, &bytes, WasmMemoryId::GlobalLo, "global");
 }
 
 #[test]
@@ -94,5 +101,5 @@ fn an_imported_memory_must_be_bound_to_host_state_before_public_verification() {
         .call(&mut store, ())
         .unwrap();
     assert_eq!(result, 42);
-    assert_imported_state_is_bound(local, &bytes, "memory");
+    assert_imported_state_is_bound(local, &bytes, WasmMemoryId::LinearMemory, "memory");
 }

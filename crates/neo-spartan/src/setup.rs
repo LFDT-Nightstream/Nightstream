@@ -13,7 +13,7 @@
 //! generator. Leaf `j < 2^{n-2}` holds, for every oracle in order, the eight
 //! values at positions `j + v·2^{n-2}`: the coset `y_j·⟨ω_8⟩`, `y_j = g·ω^j`.
 
-use std::fs::File;
+use std::fs::{File, OpenOptions};
 use std::io::{BufWriter, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 
@@ -65,6 +65,15 @@ pub(crate) fn build(
     dir: Option<&Path>,
 ) -> Result<Digest, Error> {
     assert!(variables >= FOLD);
+    if let Some(dir) = dir {
+        if std::fs::read_dir(dir)?.next().is_some() {
+            return Err(Error::Setup("setup destination is not empty"));
+        }
+        OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(dir.join(".nightstream-setup-generation"))?;
+    }
     let leaves = leaf_count(variables);
     let mut states = vec![[Gl::ZERO; WIDTH]; leaves];
     let mut at = 0;

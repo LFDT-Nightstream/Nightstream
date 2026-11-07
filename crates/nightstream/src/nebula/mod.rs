@@ -326,7 +326,8 @@ impl<A: Application> Circuit<A> {
 }
 
 /// Charge all allowed segment challenges and the final memory comparison
-/// against the caller's minimum (SECURITY_MODEL.md, trust item 7).
+/// against the caller's minimum (SPEC.md section 7.1, rule 6;
+/// SECURITY_MODEL.md, trust item 7).
 fn memory_security(geometry: &Geometry, minimum_security_bits: u32) -> Result<(), crate::Error> {
     let q = u128::from(F::ORDER_U64);
     let available = (geometry.max_tuples() as u128)

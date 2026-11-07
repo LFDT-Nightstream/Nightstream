@@ -1,5 +1,3 @@
-//! The public security minimum must cover the selected one-fold proof bound.
-
 use nightstream::{application::poseidon2_hash_chain_v1, Circuit, Engine};
 
 #[test]

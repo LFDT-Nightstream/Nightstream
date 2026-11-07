@@ -790,8 +790,6 @@ fn insecure_geometry_makes_no_circuit() {
     ));
 }
 
-/// `SECURITY_MODEL.md` adversary 5 has one memory error per segment. A public
-/// minimum must charge all `S_max` possible segments, even before fold error.
 #[test]
 fn minimum_109_rejects_64_segment_fingerprint_loss() {
     let geometry = crate::nebula::Geometry {

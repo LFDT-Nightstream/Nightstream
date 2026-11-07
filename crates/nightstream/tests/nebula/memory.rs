@@ -791,7 +791,7 @@ fn insecure_geometry_makes_no_circuit() {
 }
 
 #[test]
-fn minimum_109_rejects_64_segment_fingerprint_loss() {
+fn minimum_110_rejects_64_segment_fingerprint_loss() {
     let geometry = crate::nebula::Geometry {
         r: 11,
         mu: 12,
@@ -804,11 +804,11 @@ fn minimum_109_rejects_64_segment_fingerprint_loss() {
     assert!(geometry.is_valid());
     let segment_bits = geometry.memory_security_bits();
     let chain_bits = segment_bits - (geometry.s_max as f64).log2();
-    assert!(segment_bits > 109.0 && chain_bits < 109.0);
+    assert!(segment_bits > 110.0 && chain_bits < 110.0);
     let circuit = crate::nebula::Circuit::compile(geometry, Machine).unwrap();
     assert!(
-        circuit.verifier(crate::Engine::Optimized, 109).is_err(),
-        "the verifier accepted 109 bits with a {segment_bits:.3}-bit one-segment memory bound; a 64-segment union budget of {chain_bits:.3} bits does not certify 109 bits"
+        circuit.verifier(crate::Engine::Optimized, 110).is_err(),
+        "the verifier accepted 110 bits with a {segment_bits:.3}-bit one-segment memory bound; a 64-segment union budget of {chain_bits:.3} bits does not certify 110 bits"
     );
 }
 

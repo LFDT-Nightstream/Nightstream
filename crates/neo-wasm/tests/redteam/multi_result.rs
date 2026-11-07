@@ -5,6 +5,18 @@ const TWO_RESULTS: &str = r#"(module
     (func (export "main") (result i32 i32)
         i32.const 1
         i32.const 2))"#;
+const THREE_RESULTS: &str = r#"(module
+    (func (export "main") (result i32 i32 i32)
+        i32.const 1
+        i32.const 2
+        i32.const 3))"#;
+
+#[test]
+fn an_export_with_three_results_is_rejected_before_capture() {
+    let wasm = wat::parse_str(THREE_RESULTS).unwrap();
+    let error = neo_wasm::collect_wasmtime_steps(&wasm, &HostEventBindings::default(), "main", &[]).unwrap_err();
+    assert!(matches!(error, neo_wasm::WasmBuildError::Unsupported(message) if message.contains("at most two")));
+}
 
 #[test]
 fn valid_two_result_export_has_a_public_proof() {
@@ -16,6 +28,8 @@ fn valid_two_result_export_has_a_public_proof() {
     let last = trace.last().unwrap().state_after;
     assert!(last.is_terminal() && last.output.enabled && !last.trapped);
     assert_eq!(last.output.value_lo, 2);
+    assert!(last.output.second_enabled);
+    assert_eq!(last.output.second_value_lo, 1);
 
     let (export_fref, entry_pc) = artifacts
         .tables
@@ -63,4 +77,62 @@ fn valid_two_result_export_has_a_public_proof() {
             .is_ok(),
         "the public verifier rejected a valid WASM export with two results"
     );
+
+    let mut wrong = traced.last;
+    wrong.output.second_value_lo = 3;
+    assert!(
+        verifier
+            .verify(&program, &traced.initial, &wrong, &proof)
+            .is_err(),
+        "the public verifier ignored the first returned value"
+    );
+
+    let mut forged = trace.clone();
+    let capture = forged.iter().position(|row| row.output_captured).unwrap();
+    for row in &mut forged[capture..] {
+        if row.state_before.output.second_enabled {
+            row.state_before.output.second_value_lo = 3;
+        }
+        if row.state_after.output.second_enabled {
+            row.state_after.output.second_value_lo = 3;
+        }
+    }
+    let relation = neo_wasm::build_wasm_relation().unwrap();
+    let ccs = relation.r1cs().structure();
+    let public_words = relation.r1cs().public_input_count();
+    let mut hidden = trace.clone();
+    for row in &mut hidden[capture..] {
+        if row.state_before.output.second_enabled {
+            row.state_before.output.second_enabled = false;
+            row.state_before.output.second_value_lo = 0;
+            row.state_before.output.second_value_hi = 0;
+        }
+        if row.state_after.output.second_enabled {
+            row.state_after.output.second_enabled = false;
+            row.state_after.output.second_value_lo = 0;
+            row.state_after.output.second_value_hi = 0;
+        }
+    }
+    for (case, tampered) in [("hidden first result", hidden), ("changed first result", forged)] {
+        for (index, row) in tampered.iter().enumerate() {
+            let witness = neo_wasm::witness_builder::build_witness_vector(row);
+            let checked = neo_ccs::check_ccs_rowwise_zero(ccs, &witness[..public_words], &witness[public_words..]);
+            assert!(
+                checked.is_ok(),
+                "{case} has an unrelated CCS row failure at {index}: {checked:?}"
+            );
+        }
+        let inputs = step_inputs(&tampered, n, per_step).unwrap();
+        let mut run = prover.start(&program, traced.initial).unwrap();
+        let result = run.segment(&inputs);
+        assert!(
+            matches!(
+                &result,
+                Err(nightstream::nebula::ProveError::Segment(
+                    nightstream::nebula::SegmentError::Access
+                ))
+            ),
+            "{case} escaped the verifier-owned memory: {result:?}"
+        );
+    }
 }

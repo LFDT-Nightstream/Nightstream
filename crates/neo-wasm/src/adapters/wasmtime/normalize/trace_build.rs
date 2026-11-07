@@ -116,9 +116,7 @@ pub(super) fn build_trace(
     let mut entry_emitted = false;
     // Activation completion latch; export entry or import resume clears it.
     let mut turn_done = false;
-    let mut output_enabled = false;
-    let mut output_value_lo = 0;
-    let mut output_value_hi = 0;
+    let mut output = WasmOutputState::ZERO;
 
     for (idx, current) in supported.iter().enumerate() {
         let next = supported.get(idx + 1);
@@ -232,16 +230,14 @@ pub(super) fn build_trace(
             )));
         }
         // Div/rem traps keep the parse-derived Static edge; `trapped` marks termination.
-        let output_enabled_before = output_enabled;
-        let output_value_lo_before = output_value_lo;
-        let output_value_hi_before = output_value_hi;
+        let output_before = output;
         let mut output_captured = false;
         // A trapped execution has no output: capture is for clean activation returns only
         // (the CCS enforces the same exclusion).
         // A return's results are its frame above fbp less its static slide distance.
-        let has_result = match current.frame_slide {
+        let result_count = match current.frame_slide {
             Some((_, distance)) if current.pc_edge_kind == WasmPcEdgeKind::ReturnLike => {
-                let result_count = sp_before
+                sp_before
                     .checked_sub(fbp)
                     .and_then(|frame_cells| frame_cells.checked_sub(u64::from(distance)))
                     .ok_or_else(|| {
@@ -249,25 +245,38 @@ pub(super) fn build_trace(
                             "return result count underflow at cycle {}: sp {sp_before}, frame base {fbp}, slide distance {distance}",
                             current.cycle
                         ))
-                    })?;
-                result_count != 0
+                    })?
             }
-            _ => !current.operand_stack.is_empty(),
+            _ => u64::from(!current.operand_stack.is_empty()),
         };
-        if activation_finished && !trapped && !output_enabled && has_result {
-            if let Some(value) = current.operand_stack.last().copied() {
-                output_enabled = true;
-                output_value_lo = value;
-                output_value_hi = current.operand_stack_hi.last().copied().unwrap_or(0);
-                output_captured = true;
+        if activation_finished && !trapped && !output.enabled && result_count > 0 {
+            if result_count > 2 {
+                return Err(WasmBuildError::Trace(format!(
+                    "more than two export results at cycle {} are unsupported",
+                    current.cycle
+                )));
             }
+            let top =
+                current.operand_stack.len().checked_sub(1).ok_or_else(|| {
+                    WasmBuildError::Trace(format!("return result missing at cycle {}", current.cycle))
+                })?;
+            output.enabled = true;
+            output.value_lo = current.operand_stack[top];
+            output.value_hi = current.operand_stack_hi.get(top).copied().unwrap_or(0);
+            if result_count == 2 {
+                let prior = top.checked_sub(1).ok_or_else(|| {
+                    WasmBuildError::Trace(format!("first return result missing at cycle {}", current.cycle))
+                })?;
+                output.second_enabled = true;
+                output.second_value_lo = current.operand_stack[prior];
+                output.second_value_hi = current.operand_stack_hi.get(prior).copied().unwrap_or(0);
+            }
+            output_captured = true;
         }
-        let output_enabled_after = output_enabled;
-        let output_value_lo_after = output_value_lo;
-        let output_value_hi_after = output_value_hi;
+        let output_after = output;
         // Model the host consuming a captured result. (Mutable: a host-event
         // host call overrides this below to pop its args on the call row.)
-        let mut sp_after = sp_after - u64::from(output_captured);
+        let mut sp_after = sp_after - u64::from(output_captured) - u64::from(output_captured && output.second_enabled);
         // A clean return also drops the finished activation's frame.
         if activation_finished && !trapped {
             sp_after = fbp;
@@ -454,11 +463,7 @@ pub(super) fn build_trace(
                     pc: pc_before,
                     sp: sp_before,
                     stack_frame_base: current_stack_base,
-                    output: WasmOutputState {
-                        enabled: output_enabled_before,
-                        value_lo: output_value_lo_before,
-                        value_hi: output_value_hi_before,
-                    },
+                    output: output_before,
                     call_stack_depth: call_stack_depth_before,
                     memory_pages: current.memory_pages_before,
                     max_memory_pages: current.max_memory_pages,
@@ -672,7 +677,7 @@ pub(super) fn build_trace(
                 let plans = plan_turn_exit(
                     setup.template,
                     current,
-                    output_captured.then_some((output_value_lo_after, output_value_hi_after)),
+                    output_captured.then_some((output_after.value_lo, output_after.value_hi)),
                     &linear_memory,
                 )?;
                 host_callee_fref = setup.fref;
@@ -702,11 +707,7 @@ pub(super) fn build_trace(
                 pc: pc_before,
                 sp: sp_before,
                 stack_frame_base: current_stack_base,
-                output: WasmOutputState {
-                    enabled: output_enabled_before,
-                    value_lo: output_value_lo_before,
-                    value_hi: output_value_hi_before,
-                },
+                output: output_before,
                 call_stack_depth: call_stack_depth_before,
                 memory_pages: current.memory_pages_before,
                 max_memory_pages: current.max_memory_pages,
@@ -724,11 +725,7 @@ pub(super) fn build_trace(
                 pc: pc_after,
                 sp: sp_after,
                 stack_frame_base: stack_base,
-                output: WasmOutputState {
-                    enabled: output_enabled_after,
-                    value_lo: output_value_lo_after,
-                    value_hi: output_value_hi_after,
-                },
+                output: output_after,
                 call_stack_depth: call_stack_depth_after,
                 memory_pages: current.memory_pages_after,
                 max_memory_pages: current.max_memory_pages,
@@ -855,11 +852,7 @@ pub(super) fn build_trace(
                 pc: pc_after,
                 sp: sp_after,
                 stack_frame_base: stack_base,
-                output: WasmOutputState {
-                    enabled: output_enabled,
-                    value_lo: output_value_lo,
-                    value_hi: output_value_hi,
-                },
+                output,
                 call_stack_depth: call_stack_depth_after,
                 memory_pages: current.memory_pages_after,
                 max_memory_pages: current.max_memory_pages,
@@ -893,11 +886,7 @@ pub(super) fn build_trace(
                 pc: pc_after,
                 sp: sp_after,
                 stack_frame_base: stack_base,
-                output: WasmOutputState {
-                    enabled: output_enabled_after,
-                    value_lo: output_value_lo_after,
-                    value_hi: output_value_hi_after,
-                },
+                output: output_after,
                 call_stack_depth: call_stack_depth_after,
                 memory_pages: current.memory_pages_after,
                 max_memory_pages: current.max_memory_pages,
@@ -970,9 +959,7 @@ pub(super) fn build_trace(
             comm_chain = state.comm_chain;
             event_absorb = state.event_absorb;
             turn_done = state.activation_finished;
-            output_enabled = state.output.enabled;
-            output_value_lo = state.output.value_lo;
-            output_value_hi = state.output.value_hi;
+            output = state.output;
             local_zero_state = state.local_zero;
             frame_move_state = state.frame_move;
         }

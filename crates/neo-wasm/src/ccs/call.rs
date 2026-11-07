@@ -17,14 +17,16 @@ use super::super::layout::{
     COL_HOST_CALLEE_FREF_BEFORE, COL_HOST_EVENT_EXIT_LATCH, COL_IS_PROGRAM_ROW, COL_LOCALS_FBP_AFTER,
     COL_LOCALS_FBP_BEFORE, COL_LOCAL_ZERO_ACTIVE_AFTER, COL_LOCAL_ZERO_ACTIVE_BEFORE, COL_LOCAL_ZERO_REMAINING_AFTER,
     COL_LOCAL_ZERO_REMAINING_AFTER_INV, COL_LOCAL_ZERO_REMAINING_AFTER_IS_ZERO, COL_LOCAL_ZERO_REMAINING_BEFORE,
-    COL_MEMORY_PAGES_AFTER, COL_MEMORY_PAGES_BEFORE, COL_ONE, COL_OUTPUT_CAPTURED, COL_OUTPUT_ENABLED_AFTER,
-    COL_OUTPUT_ENABLED_BEFORE, COL_OUTPUT_VALUE_HI_AFTER, COL_OUTPUT_VALUE_HI_BEFORE, COL_OUTPUT_VALUE_LO_AFTER,
-    COL_OUTPUT_VALUE_LO_BEFORE, COL_PADDING_ACTIVE, COL_PC_AFTER, COL_PC_BEFORE, COL_PC_ROM_CALL_RETURN_CHOICE,
-    COL_PERM_PENDING_BEFORE, COL_PERM_ROUND_BEFORE_IS_ZERO, COL_SP_AFTER, COL_SP_BEFORE, COL_STACK_FRAME_BASE_AFTER,
-    COL_STACK_FRAME_BASE_BEFORE, COL_STACK_READS, COL_STACK_READ_ADDR_LO, COL_STACK_READ_VALUE_HI,
-    COL_STACK_READ_VALUE_LO, COL_STACK_WRITE0_ADDR_LO, COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO,
-    COL_STACK_WRITES, COL_TABLE_INDEX, COL_TABLE_VALUE, COL_TARGET_FUNCTION_IS_GUEST, COL_TRAPPED_AFTER,
-    COL_TRAPPED_BEFORE, COL_TURN_BOUNDARY, PC_ROM_CALL_RETURN_CHOICE,
+    COL_MEMORY_PAGES_AFTER, COL_MEMORY_PAGES_BEFORE, COL_ONE, COL_OUTPUT_CAPTURED, COL_OUTPUT_CAPTURED_SECOND,
+    COL_OUTPUT_ENABLED_AFTER, COL_OUTPUT_ENABLED_BEFORE, COL_OUTPUT_SECOND_ENABLED_AFTER,
+    COL_OUTPUT_SECOND_ENABLED_BEFORE, COL_OUTPUT_SECOND_VALUE_HI_AFTER, COL_OUTPUT_SECOND_VALUE_HI_BEFORE,
+    COL_OUTPUT_SECOND_VALUE_LO_AFTER, COL_OUTPUT_SECOND_VALUE_LO_BEFORE, COL_OUTPUT_VALUE_HI_AFTER,
+    COL_OUTPUT_VALUE_HI_BEFORE, COL_OUTPUT_VALUE_LO_AFTER, COL_OUTPUT_VALUE_LO_BEFORE, COL_PADDING_ACTIVE,
+    COL_PC_AFTER, COL_PC_BEFORE, COL_PC_ROM_CALL_RETURN_CHOICE, COL_PERM_PENDING_BEFORE, COL_PERM_ROUND_BEFORE_IS_ZERO,
+    COL_SP_AFTER, COL_SP_BEFORE, COL_STACK_FRAME_BASE_AFTER, COL_STACK_FRAME_BASE_BEFORE, COL_STACK_READS,
+    COL_STACK_READ_ADDR_LO, COL_STACK_READ_VALUE_HI, COL_STACK_READ_VALUE_LO, COL_STACK_WRITE0_ADDR_LO,
+    COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO, COL_STACK_WRITES, COL_TABLE_INDEX, COL_TABLE_VALUE,
+    COL_TARGET_FUNCTION_IS_GUEST, COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE, COL_TURN_BOUNDARY, PC_ROM_CALL_RETURN_CHOICE,
 };
 use super::super::tagged_r1cs_builder::WasmTaggedR1csBuilder;
 use super::always;
@@ -256,6 +258,9 @@ fn push_simple_output_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
             (COL_OUTPUT_ENABLED_AFTER, COL_OUTPUT_ENABLED_BEFORE),
             (COL_OUTPUT_VALUE_LO_AFTER, COL_OUTPUT_VALUE_LO_BEFORE),
             (COL_OUTPUT_VALUE_HI_AFTER, COL_OUTPUT_VALUE_HI_BEFORE),
+            (COL_OUTPUT_SECOND_ENABLED_AFTER, COL_OUTPUT_SECOND_ENABLED_BEFORE),
+            (COL_OUTPUT_SECOND_VALUE_LO_AFTER, COL_OUTPUT_SECOND_VALUE_LO_BEFORE),
+            (COL_OUTPUT_SECOND_VALUE_HI_AFTER, COL_OUTPUT_SECOND_VALUE_HI_BEFORE),
         ] {
             // Activation completion and boundary rows own output transitions.
             b.push_row(
@@ -291,9 +296,20 @@ fn push_simple_output_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
                 (COL_OUTPUT_ENABLED_AFTER, -F::ONE),
             ],
         );
+        b.push_row(
+            [(COL_TURN_BOUNDARY, F::ONE), (COL_HOST_RESUME, F::ONE)],
+            [(COL_OUTPUT_SECOND_ENABLED_BEFORE, F::ONE)],
+            [
+                (COL_OUTPUT_SECOND_ENABLED_BEFORE, F::ONE),
+                (COL_OUTPUT_CAPTURED_SECOND, F::ONE),
+                (COL_OUTPUT_SECOND_ENABLED_AFTER, -F::ONE),
+            ],
+        );
         // The re-armed output is zeroed.
         push_gated_linear_zero(b, COL_TURN_BOUNDARY, [(COL_OUTPUT_VALUE_LO_AFTER, F::ONE)]);
         push_gated_linear_zero(b, COL_TURN_BOUNDARY, [(COL_OUTPUT_VALUE_HI_AFTER, F::ONE)]);
+        push_gated_linear_zero(b, COL_TURN_BOUNDARY, [(COL_OUTPUT_SECOND_VALUE_LO_AFTER, F::ONE)]);
+        push_gated_linear_zero(b, COL_TURN_BOUNDARY, [(COL_OUTPUT_SECOND_VALUE_HI_AFTER, F::ONE)]);
         b.push_row(
             [(COL_OUTPUT_CAPTURED, F::ONE)],
             [(COL_ONE, F::ONE), (COL_ACTIVATION_FINISHED_AFTER, -F::ONE)],
@@ -302,6 +318,16 @@ fn push_simple_output_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
         b.push_row(
             [(COL_OUTPUT_CAPTURED, F::ONE)],
             [(COL_OUTPUT_ENABLED_BEFORE, F::ONE)],
+            [],
+        );
+        b.push_row(
+            [(COL_OUTPUT_CAPTURED_SECOND, F::ONE)],
+            [(COL_ONE, F::ONE), (COL_OUTPUT_CAPTURED, -F::ONE)],
+            [],
+        );
+        b.push_row(
+            [(COL_OUTPUT_SECOND_ENABLED_AFTER, F::ONE)],
+            [(COL_ONE, F::ONE), (COL_OUTPUT_ENABLED_AFTER, -F::ONE)],
             [],
         );
         // A clean activation return captures exactly its function's results:
@@ -315,6 +341,7 @@ fn push_simple_output_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
                 (COL_LOCALS_FBP_BEFORE, -F::ONE),
                 (COL_EXIT_SLIDE_DISTANCE, -F::ONE),
                 (COL_OUTPUT_CAPTURED, -F::ONE),
+                (COL_OUTPUT_CAPTURED_SECOND, -F::ONE),
             ],
             [],
         );
@@ -345,6 +372,31 @@ fn push_simple_output_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
             [
                 (COL_OUTPUT_VALUE_HI_AFTER, F::ONE),
                 (COL_STACK_READ_VALUE_HI[0], -F::ONE),
+            ],
+            [],
+        );
+        b.push_row(
+            [(COL_OUTPUT_CAPTURED_SECOND, F::ONE)],
+            [
+                (COL_STACK_READ_ADDR_LO[1], F::ONE),
+                (COL_SP_BEFORE, -F::from_u64(2)),
+                (COL_ONE, F::from_u64(4)),
+            ],
+            [],
+        );
+        b.push_row(
+            [(COL_OUTPUT_CAPTURED_SECOND, F::ONE)],
+            [
+                (COL_OUTPUT_SECOND_VALUE_LO_AFTER, F::ONE),
+                (COL_STACK_READ_VALUE_LO[1], -F::ONE),
+            ],
+            [],
+        );
+        b.push_row(
+            [(COL_OUTPUT_CAPTURED_SECOND, F::ONE)],
+            [
+                (COL_OUTPUT_SECOND_VALUE_HI_AFTER, F::ONE),
+                (COL_STACK_READ_VALUE_HI[1], -F::ONE),
             ],
             [],
         );

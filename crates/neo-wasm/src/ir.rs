@@ -228,6 +228,9 @@ pub struct WasmBoundaryState {
     pub output_enabled: bool,
     pub output_value_lo: u32,
     pub output_value_hi: u32,
+    pub output_second_enabled: bool,
+    pub output_second_value_lo: u32,
+    pub output_second_value_hi: u32,
     pub memory_pages: Option<u32>,
     pub locals_fbp: u64,
     pub activation_finished: bool,
@@ -250,6 +253,11 @@ pub struct WasmOutputState {
     pub enabled: bool,
     pub value_lo: u32,
     pub value_hi: u32,
+    /// For two results, this is the result before `value_lo` and `value_hi`
+    /// in Wasm result order (SPEC.md section 7.7).
+    pub second_enabled: bool,
+    pub second_value_lo: u32,
+    pub second_value_hi: u32,
 }
 
 impl WasmOutputState {
@@ -257,6 +265,9 @@ impl WasmOutputState {
         enabled: false,
         value_lo: 0,
         value_hi: 0,
+        second_enabled: false,
+        second_value_lo: 0,
+        second_value_hi: 0,
     };
 }
 
@@ -709,6 +720,9 @@ pub fn boundary_states(trace: &[WasmVmStep]) -> Vec<(WasmBoundaryState, WasmBoun
                     output_enabled: row.state_before.output.enabled,
                     output_value_lo: row.state_before.output.value_lo,
                     output_value_hi: row.state_before.output.value_hi,
+                    output_second_enabled: row.state_before.output.second_enabled,
+                    output_second_value_lo: row.state_before.output.second_value_lo,
+                    output_second_value_hi: row.state_before.output.second_value_hi,
                     memory_pages: row.state_before.memory_pages,
                     locals_fbp: row.state_before.locals_fbp,
                     activation_finished: row.state_before.activation_finished,
@@ -727,6 +741,9 @@ pub fn boundary_states(trace: &[WasmVmStep]) -> Vec<(WasmBoundaryState, WasmBoun
                     output_enabled: row.state_after.output.enabled,
                     output_value_lo: row.state_after.output.value_lo,
                     output_value_hi: row.state_after.output.value_hi,
+                    output_second_enabled: row.state_after.output.second_enabled,
+                    output_second_value_lo: row.state_after.output.second_value_lo,
+                    output_second_value_hi: row.state_after.output.second_value_hi,
                     memory_pages: row.state_after.memory_pages,
                     locals_fbp: row.state_after.locals_fbp,
                     activation_finished: row.state_after.activation_finished,

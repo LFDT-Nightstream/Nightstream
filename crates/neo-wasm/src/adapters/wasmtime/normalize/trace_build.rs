@@ -22,7 +22,7 @@ use super::super::import_inputs::recover_import_inputs;
 use super::super::runtime_read::{read_lane, read_lane_hi};
 use super::super::WasmtimeTraceStep;
 use super::host_event_emit::{
-    emit_block_plan, plan_import_phase, EventBlockPlan, HostCallEventPlan, HostEventRowContext,
+    emit_block_plan, import_result_narrow, plan_import_phase, EventBlockPlan, HostCallEventPlan, HostEventRowContext,
 };
 use super::memory::LinearMemoryImage;
 use super::normalize_step;
@@ -610,6 +610,7 @@ pub(super) fn build_trace(
                     args_base,
                     &arg_limbs,
                     result_limbs,
+                    import_result_narrow(program, host_callee_fref)?,
                     &inputs,
                     current.memory_pages_before,
                     &mut linear_memory,
@@ -944,6 +945,7 @@ pub(super) fn build_trace(
                     &supported[saved.call_index],
                     next_row,
                     bindings,
+                    program,
                     &mut linear_memory,
                 )?;
                 call_stack.pop().expect("host context stack entry");

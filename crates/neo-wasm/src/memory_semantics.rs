@@ -110,6 +110,13 @@ pub fn preload_from_program_artifacts(artifacts: &WasmProgramArtifacts) -> WasmM
             narrow(metadata, "function_call_metadata.metadata"),
         );
     }
+    for &(function_ref, is_narrow) in &tables.function_result_narrow {
+        preload.insert(
+            WasmMemoryId::FunctionResultNarrow,
+            vec![narrow(function_ref, "function_result_narrow.function_ref")],
+            narrow(is_narrow, "function_result_narrow.value"),
+        );
+    }
     for &(function_ref, local_count) in &tables.function_local_counts {
         preload.insert(
             WasmMemoryId::FunctionLocalCount,
@@ -169,7 +176,12 @@ pub fn preload_host_event_tables(
         Limb::Lo => WasmHostEventRomVariant::LowLimb,
         Limb::Hi => WasmHostEventRomVariant::HighLimb,
     };
-    let encode = |source: &SlotBinding| match *source {
+    let result_narrow = preload
+        .entries()
+        .into_iter()
+        .filter_map(|(id, address, value)| (id == WasmMemoryId::FunctionResultNarrow).then(|| (address[0], value)))
+        .collect::<BTreeMap<_, _>>();
+    let encode = |source: &SlotBinding, fref: u32| match *source {
         SlotBinding::EnterOpaque | SlotBinding::OpaqueSaved { .. } | SlotBinding::OpaqueRoot { .. } => {
             let (kind, arg) = opaque_control_encoding(source).expect("control slot");
             (kind.code().into(), arg.into(), 0, 0, 0)
@@ -193,7 +205,11 @@ pub fn preload_host_event_tables(
             0,
             u32::from(limb_variant(limb).encoded()),
             0,
-            0,
+            if matches!(limb, Limb::Hi) {
+                result_narrow.get(&fref).copied().unwrap_or(0)
+            } else {
+                0
+            },
         ),
         SlotBinding::InputLocal { local, limb, .. } => (
             u32::from(WasmHostEventSlotKind::InputLocal.code()),
@@ -286,7 +302,7 @@ pub fn preload_host_event_tables(
         for (event_index, event) in events.into_iter().enumerate() {
             for (slot_index, source) in event.block.iter().enumerate() {
                 let key = vec![fref, event_index as u32, slot_index as u32];
-                let (kind, arg, variant, immediate0, immediate1) = encode(source);
+                let (kind, arg, variant, immediate0, immediate1) = encode(source, fref);
                 // Advice uses the next code range above the raw slot kinds.
                 let kind = kind + WasmHostEventSlotKind::COUNT as u32 * u32::from(!event.absorb);
                 preload.insert(WasmMemoryId::HostEventSlotKind, key.clone(), kind);

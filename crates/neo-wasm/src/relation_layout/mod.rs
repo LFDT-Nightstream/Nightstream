@@ -1141,6 +1141,12 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
             });
         }
     }
+    memories.push(rom_read_spec(
+        WasmMemoryId::FunctionResultNarrow,
+        vec![Column(COL_HOST_CALLEE_FREF_BEFORE)],
+        Column(COL_HOST_EVENT_SLOT_IMMEDIATE1),
+        active_when(Column(crate::ccs::host_event_chain::gather_result_hi_kind_col())),
+    ));
     let columns = crate::witness_layout::range_checked_column_registry();
     let memory = MemoryCatalog::new(memories, &columns).expect("valid WASM memory declarations");
     let continuity = ContinuityCatalog::new(build_ivc_state_continuity_links(), &columns)

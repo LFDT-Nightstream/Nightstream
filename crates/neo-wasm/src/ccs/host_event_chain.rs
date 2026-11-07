@@ -146,6 +146,10 @@ pub(crate) const fn gather_memory_half_width_col() -> usize {
     GMEM_HALF
 }
 
+pub(crate) const fn gather_result_hi_kind_col() -> usize {
+    GK2_HI
+}
+
 /// Product column carrying `host_call_active · call_param_count`: the sp
 /// identity in `ccs.rs` pops all host-call args on the call row itself.
 pub(super) const fn host_call_params_col() -> usize {
@@ -581,6 +585,7 @@ fn push_host_event_gather_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
             [(GSLOT_VALUE, F::ONE), (COL_STACK_WRITE0_VALUE_HI, -F::ONE)],
             [],
         );
+        b.push_row([(SLOT_IMMEDIATE1, F::ONE)], [(COL_STACK_WRITE0_VALUE_HI, F::ONE)], []);
         // The hi-word port gate: raw write0 activity, plus these rows.
         b.push_linear_zero([
             (super::super::layout::COL_STACK_WRITE0_HI_ACTIVE, F::ONE),

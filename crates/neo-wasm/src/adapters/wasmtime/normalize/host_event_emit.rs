@@ -57,11 +57,26 @@ pub(super) struct ResolvedEventMemory {
     pub(super) accesses: Vec<LinearMemoryAccess>,
 }
 
+pub(super) fn import_result_narrow(
+    program: Option<&crate::WasmProgramTables>,
+    fref: u32,
+) -> Result<bool, WasmBuildError> {
+    program
+        .and_then(|program| {
+            program
+                .function_result_narrow
+                .iter()
+                .find_map(|&(key, narrow)| (key == u64::from(fref)).then_some(narrow != 0))
+        })
+        .ok_or_else(|| WasmBuildError::Trace(format!("missing result type for host function {fref}")))
+}
+
 pub(super) fn plan_import_phase(
     events: &[EventBlock],
     args_base: u64,
     args: &[(u32, u32)],
     result: Option<(u32, u32)>,
+    result_narrow: bool,
     inputs: &[u64],
     memory_pages: Option<u32>,
     memory: &mut LinearMemoryImage,
@@ -69,7 +84,15 @@ pub(super) fn plan_import_phase(
     let resolved_memory = resolve_import_memory(events, args, inputs, memory_pages, memory)?;
     let blocks = expand_import_phase(events, args, result, inputs, &resolved_memory.reads)?;
     Ok(HostCallEventPlan {
-        blocks: plan_event_blocks(events, &blocks, args_base, args, result, &resolved_memory.accesses)?,
+        blocks: plan_event_blocks(
+            events,
+            &blocks,
+            args_base,
+            args,
+            result,
+            result_narrow,
+            &resolved_memory.accesses,
+        )?,
         args_base,
     })
 }
@@ -298,6 +321,7 @@ fn plan_event_blocks(
     args_base: u64,
     args: &[(u32, u32)],
     result: Option<(u32, u32)>,
+    result_narrow: bool,
     memory_accesses: &[LinearMemoryAccess],
 ) -> Result<Vec<EventBlockPlan>, WasmBuildError> {
     let mut memory_accesses = memory_accesses.iter();
@@ -370,7 +394,7 @@ fn plan_event_blocks(
                                 0,
                                 WasmHostEventRomVariant::HighLimb,
                                 0,
-                                0,
+                                u32::from(result_narrow),
                             ))
                         },
                         SlotBinding::MemoryRead32 { base, byte_offset }

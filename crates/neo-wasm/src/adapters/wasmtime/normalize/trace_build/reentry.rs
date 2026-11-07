@@ -1,7 +1,7 @@
 //! Normalizer-owned suspended activations and boundary rows. Saved values are
 //! separately authenticated by the relation's context RAM.
 
-use super::super::host_event_emit::{emit_block_plan, plan_import_phase, HostEventRowContext};
+use super::super::host_event_emit::{emit_block_plan, import_result_narrow, plan_import_phase, HostEventRowContext};
 use super::super::{memory::LinearMemoryImage, NormalizedStep};
 use super::turn::{setup_turn, TurnSetup};
 use crate::host_event_bindings::HostEventBindings;
@@ -115,6 +115,7 @@ pub(super) fn resume(
     call: &NormalizedStep,
     next: &NormalizedStep,
     bindings: &HostEventBindings,
+    program: Option<&crate::WasmProgramTables>,
     memory: &mut LinearMemoryImage,
 ) -> Result<(), WasmBuildError> {
     if next.activation_depth != saved.activation_depth
@@ -162,6 +163,7 @@ pub(super) fn resume(
         saved.context.args_base,
         &args,
         result,
+        import_result_narrow(program, saved.context.import_fref)?,
         &inputs,
         next.memory_pages_before,
         memory,

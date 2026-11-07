@@ -3,7 +3,8 @@ mod common;
 use neo_wasm::host_event_bindings::{EventBlock, ExportTemplate, HostEventBindings, ImportTemplate, Limb, SlotBinding};
 use neo_wasm::witness_builder::build_witness_vector;
 use neo_wasm::{
-    extract_first_component_core_program_artifacts, traces_from_wasmtime_steps_with_host_events, WasmHostEventSlotKind,
+    extract_first_component_core_program_artifacts, preload_from_program_artifacts,
+    traces_from_wasmtime_steps_with_host_events, WasmHostEventSlotKind,
 };
 
 fn bindings() -> HostEventBindings {
@@ -83,4 +84,14 @@ fn i32_host_result_high_limb_is_zero() {
 
     let forged = build_witness_vector(&trace[high]);
     common::assert_rejected(&forged, "i32 host result cannot carry a high word");
+
+    trace[high].host_event_rom_slot.as_mut().unwrap().immediate1 = 0;
+    let witnesses = trace.iter().map(build_witness_vector).collect::<Vec<_>>();
+    let mut preload = preload_from_program_artifacts(&artifacts);
+    neo_wasm::memory_semantics::preload_host_event_tables(&mut preload, &bindings);
+    let layout = neo_wasm::relation_layout::build_wasm_relation_layout();
+    assert!(
+        neo_wasm::memory_semantics::sanity_check_memory_rows(&layout, &witnesses, &preload).is_err(),
+        "the result slot and function type must agree on i32 width"
+    );
 }

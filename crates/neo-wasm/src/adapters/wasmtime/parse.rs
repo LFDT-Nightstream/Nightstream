@@ -82,6 +82,7 @@ pub struct WasmProgramTables {
     /// Static `(function_ref, packed_metadata)` rows binding call arity and
     /// guest/import classification in one read.
     pub function_call_metadata: Vec<(u64, u64)>,
+    pub function_result_narrow: Vec<(u64, u64)>,
     /// Static `(function_ref, params_plus_declared_locals)` rows used to bind
     /// frame-base transitions and local-slot addressing.
     pub function_local_counts: Vec<(u64, u64)>,
@@ -153,6 +154,7 @@ pub(crate) struct ParsedFunctionMeta {
     pub(crate) type_id: u32,
     pub(crate) param_count: u8,
     pub(crate) result_count: u8,
+    pub(crate) result_narrow: bool,
     num_locals: u32,
     pub(crate) entry_pc: Option<u64>,
 }
@@ -232,7 +234,7 @@ struct ParsedWasmArtifactsBuilder {
     next_pc: u32,
     imported_function_count: u32,
     raw_type_id_by_index: BTreeMap<u32, u32>,
-    raw_type_shape_by_index: BTreeMap<u32, (u8, u8)>,
+    raw_type_shape_by_index: BTreeMap<u32, (u8, u8, bool)>,
     signature_ids: BTreeMap<String, u32>,
     next_type_id: u32,
     defined_function_type_indices: Vec<u32>,
@@ -363,6 +365,11 @@ impl ParsedWasmArtifactsBuilder {
             .collect::<Vec<_>>();
         function_call_metadata.sort_unstable();
         function_call_metadata.dedup();
+        let function_result_narrow = self
+            .function_metas
+            .iter()
+            .map(|(&function_ref, meta)| (u64::from(function_ref), u64::from(meta.result_narrow)))
+            .collect::<Vec<_>>();
         let mut function_local_counts = self
             .function_metas
             .iter()
@@ -392,6 +399,7 @@ impl ParsedWasmArtifactsBuilder {
                 function_entries: self.function_entries,
                 function_types,
                 function_call_metadata,
+                function_result_narrow,
                 function_local_counts,
                 call_targets: self.call_targets,
                 module_types,
@@ -434,8 +442,12 @@ impl ParsedWasmArtifactsBuilder {
                             func_type.results().len()
                         ))
                     })?;
+                    let result_narrow = func_type
+                        .results()
+                        .first()
+                        .is_some_and(|ty| *ty == wasmparser::ValType::I32);
                     self.raw_type_shape_by_index
-                        .insert(raw_type_index as u32, (param_count, result_count));
+                        .insert(raw_type_index as u32, (param_count, result_count, result_narrow));
                 }
             }
             Payload::ImportSection(reader) => {
@@ -469,7 +481,7 @@ impl ParsedWasmArtifactsBuilder {
                                     "missing normalized type id for imported function type {raw_type_index}"
                                 ))
                             })?;
-                        let (param_count, result_count) = *self
+                        let (param_count, result_count, result_narrow) = *self
                             .raw_type_shape_by_index
                             .get(&raw_type_index)
                             .ok_or_else(|| {
@@ -483,6 +495,7 @@ impl ParsedWasmArtifactsBuilder {
                                 type_id,
                                 param_count,
                                 result_count,
+                                result_narrow,
                                 num_locals: u32::from(param_count),
                                 entry_pc: None,
                             },
@@ -520,7 +533,7 @@ impl ParsedWasmArtifactsBuilder {
                             self.defined_function_index
                         ))
                     })?;
-                let (param_count, result_count) = *self
+                let (param_count, result_count, result_narrow) = *self
                     .raw_type_shape_by_index
                     .get(&raw_type_index)
                     .ok_or_else(|| {
@@ -842,6 +855,7 @@ impl ParsedWasmArtifactsBuilder {
                         type_id,
                         param_count,
                         result_count,
+                        result_narrow,
                         num_locals,
                         entry_pc,
                     },

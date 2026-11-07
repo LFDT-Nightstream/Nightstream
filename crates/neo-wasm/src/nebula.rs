@@ -317,6 +317,7 @@ fn dimensions(id: WasmMemoryId) -> &'static [Dimension] {
         M::FunctionEntry
         | M::FunctionType
         | M::FunctionCallMetadata
+        | M::FunctionResultNarrow
         | M::FunctionLocalCount
         | M::HostEventExportEntryScheduleCount
         | M::HostEventExportExitScheduleCount

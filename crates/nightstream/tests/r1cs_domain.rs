@@ -55,21 +55,23 @@ fn app(
 
 #[test]
 fn rejects_continuity_column_outside_relation() {
-    assert!(app(
-        2,
-        0,
-        Some(ContinuityLink {
-            previous_step_column: 2,
-            next_step_column: 1
-        }),
-        3
-    )
-    .is_err());
+    assert!(matches!(
+        app(
+            2,
+            0,
+            Some(ContinuityLink {
+                previous_step_column: 2,
+                next_step_column: 1
+            }),
+            3
+        ),
+        Err(R1csApplicationError::Column)
+    ));
 }
 
 #[test]
 fn rejects_constant_column_outside_relation() {
-    assert!(app(2, 2, None, 2).is_err());
+    assert!(matches!(app(2, 2, None, 2), Err(R1csApplicationError::Column)));
 }
 
 #[test]

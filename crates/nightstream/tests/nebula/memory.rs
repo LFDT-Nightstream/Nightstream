@@ -790,6 +790,30 @@ fn insecure_geometry_makes_no_circuit() {
     ));
 }
 
+/// `SECURITY_MODEL.md` adversary 5 has one memory error per segment. A public
+/// minimum must charge all `S_max` possible segments, even before fold error.
+#[test]
+fn minimum_109_rejects_64_segment_fingerprint_loss() {
+    let geometry = crate::nebula::Geometry {
+        r: 11,
+        mu: 12,
+        w_ts: 8,
+        b_ops: 2,
+        b_scan: 6144,
+        n: 1,
+        s_max: 64,
+    };
+    assert!(geometry.is_valid());
+    let segment_bits = geometry.memory_security_bits();
+    let chain_bits = segment_bits - (geometry.s_max as f64).log2();
+    assert!(segment_bits > 109.0 && chain_bits < 109.0);
+    let circuit = crate::nebula::Circuit::compile(geometry, Machine).unwrap();
+    assert!(
+        circuit.verifier(crate::Engine::Optimized, 109).is_err(),
+        "the verifier accepted 109 bits with a {segment_bits:.3}-bit one-segment memory bound and only {chain_bits:.3} bits across 64 allowed segments"
+    );
+}
+
 /// Lean `Machine.portApp` is for `bOps = 2`, and Lean `PortApp.portsLength`
 /// gives every step `B_ops` ports. No machine row fixes a third port, so a
 /// step could write any RAM cell through it: the geometry makes no circuit.

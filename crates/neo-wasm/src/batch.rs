@@ -351,7 +351,6 @@ pub fn padding_step_after(prev: &WasmVmStep) -> WasmVmStep {
         table_index: None,
         table_value: None,
         function_type_id: None,
-        call_indirect_type_index: None,
         expected_type_id: None,
         table_size: None,
         function_ref: None,

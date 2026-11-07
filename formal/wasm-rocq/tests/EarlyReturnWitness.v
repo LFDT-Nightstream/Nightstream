@@ -1,6 +1,6 @@
 (* A real run with a return from inside a block: main(7) calls f(7), whose return
    drops the operand below its result. The exported rows meet every premise of
-   run_refinement, and the run returns through a slide that moves the result down. *)
+   active_run_refinement, and the run returns through a slide that moves the result down. *)
 From Stdlib Require Import List ZArith Lia.
 From mathcomp Require Import ssrbool eqtype.
 Require Import R1CS Columns Range MemoryTrace MemoryCatalog TraceRefinement Wasm2 WasmIntegers Locals
@@ -87,7 +87,7 @@ Definition returnMemory := loadProgram returnProgram (fun memory address =>
   if Nat.eqb memory stackId then match address with [0] => Some 7 | [1] => Some 0 | _ => None end
   else None).
 Definition returnWitness := map rowWitness earlyReturnRows.
-Definition returnStart := mkBoundary 0 1 1 0 0 0 0 0 0 0.
+Definition returnStart := mkBoundary 0 1 1 0 0 0 0 0 0 0 0.
 
 Lemma return_run_checks : validRunb returnMemory returnWitness = true.
 Proof. vm_compute. reflexivity. Qed.
@@ -100,7 +100,7 @@ Lemma return_start_config :
     returnMemory returnStart (stackConfig (mk_state returnStore (activeFrame mainGuest [7])) [] mainBody).
 Proof.
   apply (function_start_config returnProgram returnStore 0 mainGuest [7] _ returnStart);
-    try reflexivity; try (cbn; lia).
+    try reflexivity; try (apply TableState.no_tables_loaded; reflexivity); try (cbn; lia).
   - repeat constructor.
   - exact return_program_validated.
   - repeat constructor; unfold i32Modulus; lia.
@@ -115,7 +115,7 @@ Example early_return_witness_refines : fieldPrime ->
       (rowsFinalBoundary returnStart returnWitness) c.
 Proof.
   intros Hprime.
-  destruct (run_refinement _ _ _ _ _ _ _ _ _ Hprime (load_program_loaded _ _) (validRunb_sound _ _ return_run_checks)
+  destruct (active_run_refinement _ _ _ _ _ _ _ _ _ Hprime (load_program_loaded _ _) (validRunb_sound _ _ return_run_checks)
     return_fragment return_start_config) as [shape [c [Hsteps [_ Hconfig]]]].
   exists shape, c. split; assumption.
 Qed.

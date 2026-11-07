@@ -5,10 +5,9 @@ use super::super::gadgets::push_gated_linear_zero;
 use super::super::ir::{FUNCTION_CALL_METADATA_GUEST_FACTOR, FUNCTION_CALL_METADATA_RESULT_FACTOR};
 use super::super::isa::WasmOpcode;
 use super::super::layout::{
-    selector_col, COL_ACTIVATION_FINISHED_AFTER, COL_ACTIVATION_FINISHED_BEFORE, COL_CALL_INDIRECT_IS_NOT_TRAP,
-    COL_CALL_INDIRECT_IS_TRAP, COL_CALL_PARAM_COUNT, COL_CALL_RESULT_COUNT, COL_CALL_STACK_ADDR,
-    COL_CALL_STACK_CALLER_FBP_VALUE, COL_CALL_STACK_CALLER_SP_BASE_VALUE, COL_CALL_STACK_DEPTH_AFTER,
-    COL_CALL_STACK_DEPTH_BEFORE, COL_CALL_STACK_POP_PRESENT, COL_CALL_STACK_PUSH_PRESENT,
+    selector_col, COL_ACTIVATION_FINISHED_AFTER, COL_ACTIVATION_FINISHED_BEFORE, COL_CALL_PARAM_COUNT,
+    COL_CALL_RESULT_COUNT, COL_CALL_STACK_ADDR, COL_CALL_STACK_CALLER_FBP_VALUE, COL_CALL_STACK_CALLER_SP_BASE_VALUE,
+    COL_CALL_STACK_DEPTH_AFTER, COL_CALL_STACK_DEPTH_BEFORE, COL_CALL_STACK_POP_PRESENT, COL_CALL_STACK_PUSH_PRESENT,
     COL_CALL_STACK_RETURN_PC_VALUE, COL_CALL_TARGET_METADATA, COL_CI_HOST_CALL, COL_ENTERED_FUNCTION_NUM_LOCALS,
     COL_EXIT_SLIDE_DISTANCE, COL_FRAME_MOVE_ACTIVE_AFTER, COL_FRAME_MOVE_ACTIVE_BEFORE, COL_FRAME_MOVE_DISTANCE_AFTER,
     COL_FRAME_MOVE_DISTANCE_BEFORE, COL_FRAME_MOVE_REMAINING_AFTER, COL_FRAME_MOVE_REMAINING_AFTER_INV,
@@ -23,8 +22,8 @@ use super::super::layout::{
     COL_PERM_PENDING_BEFORE, COL_PERM_ROUND_BEFORE_IS_ZERO, COL_SP_AFTER, COL_SP_BEFORE, COL_STACK_FRAME_BASE_AFTER,
     COL_STACK_FRAME_BASE_BEFORE, COL_STACK_READS, COL_STACK_READ_ADDR_LO, COL_STACK_READ_VALUE_HI,
     COL_STACK_READ_VALUE_LO, COL_STACK_WRITE0_ADDR_LO, COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO,
-    COL_STACK_WRITES, COL_TABLE_INDEX, COL_TABLE_VALUE, COL_TARGET_FUNCTION_IS_GUEST, COL_TRAPPED_AFTER,
-    COL_TRAPPED_BEFORE, COL_TURN_BOUNDARY, PC_ROM_CALL_RETURN_CHOICE,
+    COL_STACK_WRITES, COL_TARGET_FUNCTION_IS_GUEST, COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE, COL_TURN_BOUNDARY,
+    PC_ROM_CALL_RETURN_CHOICE,
 };
 use super::super::tagged_r1cs_builder::WasmTaggedR1csBuilder;
 use super::always;
@@ -368,8 +367,8 @@ fn push_dynamic_call_stack_arity_constraints(b: &mut WasmTaggedR1csBuilder<'_>) 
     let return_call = selector_col(WasmOpcode::ReturnCall).unwrap();
     let return_call_indirect = selector_col(WasmOpcode::ReturnCallIndirect).unwrap();
 
-    // Call rows read nothing for direct calls, or only the table index for
-    // indirect calls (trapping ones included). Guest args stay in place as
+    // Call rows read nothing for direct calls, or only the checked function
+    // reference for indirect calls. Guest args stay in place as
     // the callee's params; host args are read by gather rows and accounted
     // for in the global sp identity.
     b.push_row(
@@ -386,15 +385,10 @@ fn push_dynamic_call_stack_arity_constraints(b: &mut WasmTaggedR1csBuilder<'_>) 
         ],
         [],
     );
-    push_gated_linear_zero(
-        b,
-        COL_CALL_INDIRECT_IS_NOT_TRAP,
-        [(COL_FUNCTION_REF, F::ONE), (COL_TABLE_VALUE, -F::ONE)],
-    );
-    // Bind the table read to the index popped from the stack top.
+    // Invoke the function reference its resolve step checked, from the stack top.
     b.push_row(
         [(call_indirect, F::ONE), (return_call_indirect, F::ONE)],
-        [(COL_TABLE_INDEX, F::ONE), (COL_STACK_READ_VALUE_LO[0], -F::ONE)],
+        [(COL_FUNCTION_REF, F::ONE), (COL_STACK_READ_VALUE_LO[0], -F::ONE)],
         [],
     );
     b.push_row(
@@ -421,13 +415,14 @@ fn push_dynamic_call_stack_arity_constraints(b: &mut WasmTaggedR1csBuilder<'_>) 
     );
 }
 
-/// Successful call-like rows minus guest entries. Supported tail calls are
-/// guest-only, so they cancel and only ordinary host calls remain.
-pub(super) fn host_call_gate_terms() -> [(usize, F); 4] {
+/// Call-like rows minus guest entries. Supported tail calls are guest-only, so
+/// they cancel and only ordinary host calls remain.
+pub(super) fn host_call_gate_terms() -> [(usize, F); 5] {
     [
         (selector_col(WasmOpcode::Call).unwrap(), F::ONE),
         (selector_col(WasmOpcode::ReturnCall).unwrap(), F::ONE),
-        (COL_CALL_INDIRECT_IS_NOT_TRAP, F::ONE),
+        (selector_col(WasmOpcode::CallIndirect).unwrap(), F::ONE),
+        (selector_col(WasmOpcode::ReturnCallIndirect).unwrap(), F::ONE),
         (COL_GUEST_ENTRY_ACTIVE, -F::ONE),
     ]
 }
@@ -437,9 +432,12 @@ fn push_host_call_attribution_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     // Direct calls get pc_after from the static pc ROM edge, and guest
     // indirect calls from the `function_entries` binding. Indirect host calls
     // use DynamicCallIndirect, so pc_after is bound through the call site's
-    // return-pc slot, gated on `ci_not_trap * (1 - is_guest)`.
+    // return-pc slot, gated on `indirect_call * (1 - is_guest)`.
     b.push_row(
-        [(COL_CALL_INDIRECT_IS_NOT_TRAP, F::ONE)],
+        [
+            (selector_col(WasmOpcode::CallIndirect).unwrap(), F::ONE),
+            (selector_col(WasmOpcode::ReturnCallIndirect).unwrap(), F::ONE),
+        ],
         [(COL_ONE, F::ONE), (COL_TARGET_FUNCTION_IS_GUEST, -F::ONE)],
         [(COL_CI_HOST_CALL, F::ONE)],
     );
@@ -472,7 +470,8 @@ fn push_host_call_attribution_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
             (COL_ONE, F::ONE),
             (selector_col(WasmOpcode::Call).unwrap(), -F::ONE),
             (selector_col(WasmOpcode::ReturnCall).unwrap(), -F::ONE),
-            (COL_CALL_INDIRECT_IS_NOT_TRAP, -F::ONE),
+            (selector_col(WasmOpcode::CallIndirect).unwrap(), -F::ONE),
+            (selector_col(WasmOpcode::ReturnCallIndirect).unwrap(), -F::ONE),
             (COL_GUEST_ENTRY_ACTIVE, F::ONE),
             // ...and host-event boundaries repoint attribution to the current
             // or next turn's export.
@@ -517,11 +516,7 @@ fn push_guest_call_flag_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     push_gated_linear_zero(
         b,
         return_call_indirect,
-        [
-            (COL_TARGET_FUNCTION_IS_GUEST, F::ONE),
-            (COL_ONE, -F::ONE),
-            (COL_CALL_INDIRECT_IS_TRAP, F::ONE),
-        ],
+        [(COL_TARGET_FUNCTION_IS_GUEST, F::ONE), (COL_ONE, -F::ONE)],
     );
 }
 

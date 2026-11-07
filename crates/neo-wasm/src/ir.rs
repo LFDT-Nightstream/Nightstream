@@ -593,7 +593,7 @@ pub struct WasmVmStep {
     pub opcode: WasmOpcode,
     pub info: WasmOpcodeInfo,
     /// Dynamic stack read count when opcode metadata is not enough.
-    /// Call-like rows read only an indirect table index; guest args stay in
+    /// Call-like rows read only an indirect call's checked function reference; guest args stay in
     /// place as the callee's params, and host args are read by gather rows.
     pub stack_reads_override: Option<u8>,
     /// Dynamic stack write count when opcode metadata is not enough.
@@ -637,8 +637,6 @@ pub struct WasmVmStep {
     pub table_value: Option<u32>,
     /// Normalized deduplicated type id for the observed function reference.
     pub function_type_id: Option<u32>,
-    /// Raw module type-section index from the `call_indirect` immediate.
-    pub call_indirect_type_index: Option<u32>,
     /// Normalized deduplicated type id expected by the current opcode.
     pub expected_type_id: Option<u32>,
     /// Size of the referenced table observed by this step.

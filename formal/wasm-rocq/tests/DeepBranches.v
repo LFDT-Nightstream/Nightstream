@@ -4,6 +4,7 @@ From mathcomp Require Import ssrbool eqtype.
 Require Import R1CS Columns Range TraceRefinement MemoryTrace MemoryCatalog OpcodeCatalog Wasm2 WasmIntegers Locals
   StraightLineSpec SpecTecCalls CallerSpec CallerValidation FunctionValidation CodeLayout ProgramSpec ProgramEncoding
   ProgramRefinement ControlDecode Fragment tests.BlockPrograms.
+Require Import TableState.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -86,11 +87,11 @@ Definition deepMemory condition := loadProgram deepProgram (deepRam condition).
 Example deep_initial_config : forall condition,
   0 <= condition < i32Modulus ->
   CircuitConfig deepProgram deepStore 0 (controlShape [] (siteCode (codePosition 0 [] 0)))
-    (deepMemory condition) (mkBoundary 0 9 9 7 0 0 0 0 0 0) (stackConfig (deepState condition) [] deepCode).
+    (deepMemory condition) (mkBoundary 0 9 9 7 0 0 0 0 0 0 0) (stackConfig (deepState condition) [] deepCode).
 Proof.
   intros condition Hcondition.
-  apply (function_start_config deepProgram deepStore 0 deepGuest [condition; 9] _ (mkBoundary 0 9 9 7 0 0 0 0 0 0));
-    try reflexivity; try (cbn; lia).
+  apply (function_start_config deepProgram deepStore 0 deepGuest [condition; 9] _ (mkBoundary 0 9 9 7 0 0 0 0 0 0 0));
+    try reflexivity; try (apply TableState.no_tables_loaded; reflexivity); try (cbn; lia).
   - repeat constructor.
   - exact deep_program_validated.
   - repeat constructor; unfold i32Modulus in *; lia.
@@ -102,12 +103,12 @@ Qed.
 (* Any run from the start refines SpecTec, whichever way the branch goes. *)
 Example deep_program_refines : forall condition rows final,
   fieldPrime -> 0 <= condition < i32Modulus -> validCircuitRun (deepMemory condition) rows final ->
-  runFragment (mkBoundary 0 9 9 7 0 0 0 0 0 0) 0 rows ->
+  runFragment (mkBoundary 0 9 9 7 0 0 0 0 0 0 0) 0 rows ->
   exists shape c, Steps (stackConfig (deepState condition) [] deepCode) c /\ programLoaded deepProgram final /\
-    CircuitConfig deepProgram deepStore 0 shape final (rowsFinalBoundary (mkBoundary 0 9 9 7 0 0 0 0 0 0) rows) c.
+    CircuitConfig deepProgram deepStore 0 shape final (rowsFinalBoundary (mkBoundary 0 9 9 7 0 0 0 0 0 0 0) rows) c.
 Proof.
   intros condition rows final Hprime Hcondition Hrun Hfragment.
-  exact (run_refinement deepProgram deepStore 0 _ rows (deepMemory condition) final _ _ Hprime
+  exact (active_run_refinement deepProgram deepStore 0 _ rows (deepMemory condition) final _ _ Hprime
     (load_program_loaded _ _) Hrun Hfragment (deep_initial_config condition Hcondition)).
 Qed.
 
@@ -117,19 +118,19 @@ Definition branchMemory := loadProgram deepProgram (fun memory address =>
   else deepRam 7 memory address).
 
 Example deep_branch_site_config :
-  CircuitConfig deepProgram deepStore 0 (controlShape [] (siteCode (codePosition 0 [0; 0]%nat 1)))
-    branchMemory (mkBoundary 3 10 9 7 0 0 0 0 0 0)
+  CircuitConfig deepProgram deepStore 0 (controlShape [] (siteCode (codePosition 0 [labelSite 0 0; labelSite 0 0] 1)))
+    branchMemory (mkBoundary 3 10 9 7 0 0 0 0 0 0 0)
     (mk_config (deepState 7)
       [LABEL_ 0%N [] [LABEL_ 0%N [] (i32Constant 7 :: List.map admininstr_instr (skipn 1 innerBody));
         admininstr_instr (LOCAL_GET (mk_uN 1)); admininstr_instr (LOCAL_SET (mk_uN 0))];
        admininstr_instr (LOCAL_GET (mk_uN 0))]).
 Proof.
-  split; [reflexivity | ]. split; [repeat constructor | ]. split; [exact deep_program_validated | ].
+  split; [reflexivity | ]. split; [repeat constructor | ]. split; [exact deep_program_validated | ]. split; [apply no_tables_loaded; reflexivity | ].
   exists True. split; [vm_compute; reflexivity | exact I].
 Qed.
 
 (* A pc that is not the branch's does not decode at this position. *)
 Example deep_branch_wrong_pc_rejected :
-  decodeControl deepProgram deepStore 0 (controlShape [] (siteCode (codePosition 0 [0; 0]%nat 1)))
-    branchMemory (mkBoundary 4 10 9 7 0 0 0 0 0 0) = None.
+  decodeControl deepProgram deepStore 0 (controlShape [] (siteCode (codePosition 0 [labelSite 0 0; labelSite 0 0] 1)))
+    branchMemory (mkBoundary 4 10 9 7 0 0 0 0 0 0 0) = None.
 Proof. vm_compute. reflexivity. Qed.

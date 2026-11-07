@@ -3,6 +3,7 @@ From mathcomp Require Import ssrbool eqtype.
 Require Import R1CS Columns Range Add TraceRefinement MemoryTrace MemoryCatalog OpcodeCatalog Wasm2 WasmIntegers Locals
   StraightLineSpec StackSimulation SpecTecCalls CallerSpec CallerValidation FunctionValidation CodeLayout ProgramSpec
   ProgramEncoding ProgramRefinement ControlDecode ControlInvariant ControlBridge Fragment tests.BlockPrograms.
+Require Import TableState.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -83,7 +84,7 @@ Example computed_body_supported :
   supportedCode (programCallees computedProgram computedModule) computedCode.
 Proof.
   constructor; [ | constructor; [constructor | constructor]].
-  apply supported_block. repeat constructor.
+  apply supported_block; [ | left; reflexivity]. repeat constructor.
 Qed.
 
 Example computed_program_supported : programSupported computedProgram.
@@ -103,11 +104,11 @@ Qed.
 Lemma computed_initial_config : forall condition,
   0 <= condition < i32Modulus ->
   CircuitConfig computedProgram computedStore 0 (controlShape [] (siteCode (codePosition 0 [] 0)))
-    (computedMemory condition) (mkBoundary 0 9 9 7 0 0 0 0 0 0) (stackConfig (computedState condition) [] computedCode).
+    (computedMemory condition) (mkBoundary 0 9 9 7 0 0 0 0 0 0 0) (stackConfig (computedState condition) [] computedCode).
 Proof.
   intros condition Hcondition.
   apply (function_start_config computedProgram computedStore 0 computedGuest [condition; 9] _
-    (mkBoundary 0 9 9 7 0 0 0 0 0 0)); try reflexivity; try (cbn; lia).
+    (mkBoundary 0 9 9 7 0 0 0 0 0 0 0)); try reflexivity; try (apply TableState.no_tables_loaded; reflexivity); try (cbn; lia).
   - exact computed_store_wf.
   - exact computed_program_validated.
   - repeat constructor; unfold i32Modulus in *; lia.
@@ -120,14 +121,14 @@ Qed.
 Example computed_program_refines : forall condition rows final,
   fieldPrime -> 0 <= condition < i32Modulus ->
   validCircuitRun (computedMemory condition) rows final ->
-  runFragment (mkBoundary 0 9 9 7 0 0 0 0 0 0) 0 rows ->
+  runFragment (mkBoundary 0 9 9 7 0 0 0 0 0 0 0) 0 rows ->
   exists shape c,
     Steps (stackConfig (computedState condition) [] computedCode) c /\
     programLoaded computedProgram final /\
-    CircuitConfig computedProgram computedStore 0 shape final (rowsFinalBoundary (mkBoundary 0 9 9 7 0 0 0 0 0 0) rows) c.
+    CircuitConfig computedProgram computedStore 0 shape final (rowsFinalBoundary (mkBoundary 0 9 9 7 0 0 0 0 0 0 0) rows) c.
 Proof.
   intros condition rows final Hprime Hcondition Hrun Hfragment.
-  exact (run_refinement computedProgram computedStore 0 _ rows _ final _ _ Hprime
+  exact (active_run_refinement computedProgram computedStore 0 _ rows _ final _ _ Hprime
     (load_program_loaded _ _) Hrun Hfragment
     (computed_initial_config condition Hcondition)).
 Qed.
@@ -148,14 +149,14 @@ Definition computedInteriorMemory := loadProgram computedProgram (fun memory add
   else computedRam 7 memory address).
 Definition computedInteriorConfig := stackPrefix []
   (instructionSuffix [LOCAL_GET (mk_uN 1)]
-    (SpecTecBranches.blockContext (stackConfig (computedState 7) [4294967294] (skipn 3 computedBranches)))).
+    (SpecTecBranches.blockContext 0 [] (stackConfig (computedState 7) [4294967294] (skipn 3 computedBranches)))).
 
 (* Inside the label, the decoder splits the operand stack at the block's height. *)
 Example computed_interior_config :
-  CircuitConfig computedProgram computedStore 0 (controlShape [] (siteCode (codePosition 0 [0%nat] 3)))
-    computedInteriorMemory (mkBoundary 4 10 9 7 0 0 0 0 0 0) computedInteriorConfig.
+  CircuitConfig computedProgram computedStore 0 (controlShape [] (siteCode (codePosition 0 [labelSite 0 0] 3)))
+    computedInteriorMemory (mkBoundary 4 10 9 7 0 0 0 0 0 0 0) computedInteriorConfig.
 Proof.
-  split; [reflexivity | ]. split; [exact computed_store_wf | ]. split; [exact computed_program_validated | ].
+  split; [reflexivity | ]. split; [exact computed_store_wf | ]. split; [exact computed_program_validated | ]. split; [apply no_tables_loaded; reflexivity | ].
   exists True. split; [vm_compute; reflexivity | exact I].
 Qed.
 
@@ -163,61 +164,68 @@ Qed.
    run's output is precisely the second run's input. *)
 Example computed_interior_two_runs : forall firstRows lastRows final,
   fieldPrime -> validCircuitRun computedInteriorMemory (firstRows ++ lastRows) final ->
-  runFragment (mkBoundary 4 10 9 7 0 0 0 0 0 0) 0 firstRows ->
-  runFragment (rowsFinalBoundary (mkBoundary 4 10 9 7 0 0 0 0 0 0) firstRows) 0 lastRows ->
+  runFragment (mkBoundary 4 10 9 7 0 0 0 0 0 0 0) 0 firstRows ->
+  runFragment (rowsFinalBoundary (mkBoundary 4 10 9 7 0 0 0 0 0 0 0) firstRows) 0 lastRows ->
   exists shape c, Steps computedInteriorConfig c /\ programLoaded computedProgram final /\
     CircuitConfig computedProgram computedStore 0 shape final
-      (rowsFinalBoundary (mkBoundary 4 10 9 7 0 0 0 0 0 0) (firstRows ++ lastRows)) c.
+      (rowsFinalBoundary (mkBoundary 4 10 9 7 0 0 0 0 0 0 0) (firstRows ++ lastRows)) c.
 Proof.
   intros firstRows lastRows final Hprime Hrun Hfirst Hlast.
   destruct (valid_run_split _ _ _ _ Hrun) as [between [Hrun1 Hrun2]].
-  destruct (run_refinement computedProgram computedStore 0 _ firstRows computedInteriorMemory between _ _ Hprime
+  destruct (active_run_refinement computedProgram computedStore 0 _ firstRows computedInteriorMemory between _ _ Hprime
     (load_program_loaded _ _) Hrun1 Hfirst computed_interior_config)
     as [shape1 [c1 [Hsteps1 [Hloaded1 Hconfig1]]]].
-  destruct (run_refinement computedProgram computedStore 0 shape1 lastRows between final _ c1 Hprime Hloaded1 Hrun2
+  destruct (active_run_refinement computedProgram computedStore 0 shape1 lastRows between final _ c1 Hprime Hloaded1 Hrun2
     Hlast Hconfig1) as [shape2 [c2 [Hsteps2 [Hloaded2 Hconfig2]]]].
   exists shape2, c2. split; [eapply spec_steps_transitive; eassumption | ].
   split; [exact Hloaded2 | ]. rewrite rows_final_boundary_app. exact Hconfig2.
 Qed.
 
 Lemma no_block_path : forall code b rest,
-  Forall (fun i => forall bt body, i <> BLOCK bt body) code -> pathCode code (b :: rest) = None.
+  Forall (fun i => forall arm, instrArm i arm = None) code -> pathCode code (b :: rest) = None.
 Proof.
-  intros code b rest H. cbn [pathCode].
-  destruct (nth_error code b) as [i | ] eqn:Hb; [ | reflexivity]. destruct i; try reflexivity.
-  exfalso. eapply (proj1 (Forall_forall _ _) H); [eapply nth_error_In; exact Hb | reflexivity].
+  intros code b rest H. cbn [pathCode]. unfold siteEntry.
+  destruct (nth_error code (siteOffset b)) as [i | ] eqn:Hb; [ | reflexivity].
+  rewrite (proj1 (Forall_forall _ _) H _ (nth_error_In _ _ Hb)). reflexivity.
 Qed.
 
 (* The only code paths: the function body and the block body. *)
 Lemma computed_paths : forall labels,
-  pathCode computedCode labels = None \/ labels = [] \/ labels = [0%nat].
+  pathCode computedCode labels = None \/ labels = [] \/ labels = [labelSite 0 0].
 Proof.
-  intros [ | [ | b] more]; [right; left; reflexivity | | left].
-  - destruct more as [ | b' more]; [right; right; reflexivity | left].
+  intros [ | [[ | b] arm] more]; [right; left; reflexivity | | left].
+  - destruct arm as [ | arm]; [ | left; reflexivity].
+    destruct more as [ | b' more]; [right; right; reflexivity | left].
     change (pathCode computedBranches (b' :: more) = None). apply no_block_path.
-    repeat constructor; intros ? ? ?; discriminate.
+    repeat constructor.
   - destruct b as [ | b]; [reflexivity | destruct b; reflexivity].
 Qed.
 
-Lemma computed_no_call : forall labels offset x,
-  nth_error (innerCode computedGuest (codePosition 0 labels offset)) offset <> Some (CALL x).
+Lemma computed_no_call : forall labels offset i callees callee,
+  nth_error (innerCode computedGuest (codePosition 0 labels offset)) offset = Some i -> ~ callsInto callees i callee.
 Proof.
-  intros labels offset x H. unfold innerCode in H. cbn [positionLabels] in H.
+  intros labels offset i callees callee H Hcall. unfold innerCode in H. cbn [positionLabels] in H.
   change (guestBody computedGuest) with computedCode in H.
   destruct (computed_paths labels) as [Hnone | [-> | ->]].
   - rewrite Hnone in H. destruct offset; discriminate.
-  - apply nth_error_In in H. cbn in H. intuition discriminate.
-  - apply nth_error_In in H. cbn in H. intuition discriminate.
+  - apply nth_error_In in H. cbn in H. repeat destruct H as [<- | H]; cbn in Hcall; tauto.
+  - apply nth_error_In in H. cbn in H. repeat destruct H as [<- | H]; cbn in Hcall; tauto.
 Qed.
 
 (* At pc 4 the frame is at the first br_if, inside the block. *)
 Lemma computed_pc_four_shape : forall cursor memory boundary c,
   ControlState computedProgram computedStore 0 cursor memory boundary c -> boundaryPC boundary = 4 ->
-  shapeOf cursor = controlShape [] (siteCode (codePosition 0 [0%nat] 3)).
+  shapeOf cursor = controlShape [] (siteCode (codePosition 0 [labelSite 0 0] 3)).
 Proof.
   intros [stack active] memory boundary c [f [inner [Hf [Hactive [Hsusp [_ [_ ->]]]]]]] Hpc.
   cbn [activePosition suspendedCalls] in *.
-  destruct active as [[[index labels offset] segments values locals] | function arguments].
+  destruct active as [[[index labels offset] segments values locals] | view callee | function arguments].
+  2: { exfalso. destruct Hactive as [f' [g [i [[Hf' _] [Hi [_ [_ [Hcalls _]]]]]]]].
+       cbn [activeFunction] in Hf. rewrite Hf in Hf'. injection Hf' as <-.
+       destruct view as [[index labels offset] segments values locals].
+       cbn [viewPosition positionFunction] in Hf, Hi.
+       destruct index as [ | index]; [ | destruct index; discriminate]. cbn in Hf. injection Hf as <-.
+       exact (computed_no_call _ _ _ _ _ Hi Hcalls). }
   - destruct Hactive as [f' [[Hf' [Hpath _]] [Hoffset [_ [Hpos _]]]]].
     cbn [activeFunction viewPosition positionFunction positionLabels positionOffset] in *.
     rewrite Hf in Hf'. injection Hf' as <-.
@@ -230,10 +238,10 @@ Proof.
     + unfold innerCode in Hoffset. cbn in Hoffset.
       destruct offset as [ | [ | [ | [ | [ | [ | [ | [ | [ | offset]]]]]]]]]; cbn in Hpos; try lia.
       destruct stack as [ | top more]; [reflexivity | exfalso].
-      destruct Hsusp as [x [[Hg _] [Hcall _]]].
+      destruct Hsusp as [x [[Hg _] [Hcall [Hcallee _]]]].
       destruct (callView top) as [[[ | caller] glabels goffset] gsegments gvalues glocals];
         cbn [viewPosition positionFunction positionLabels positionOffset] in Hg, Hcall; [ | destruct caller; discriminate].
-      cbn in Hg. injection Hg as Hg. rewrite <- Hg in Hcall. exact (computed_no_call _ _ _ Hcall).
+      cbn in Hg. injection Hg as Hg. rewrite <- Hg in Hcall, Hcallee. exact (computed_no_call _ _ _ _ _ Hcall Hcallee).
   - exfalso. destruct Hactive as [f' [Hf' [_ [_ [_ [_ [_ [_ [Hpos _]]]]]]]]].
     destruct function as [ | function]; [ | destruct function; discriminate].
     injection Hf' as <-. cbn in Hpos. lia.
@@ -242,28 +250,28 @@ Qed.
 (* Splitting the raw trace before the first br_if yields the interior shape. *)
 Example computed_split_before_branch : forall firstRows lastRows final,
   fieldPrime -> validCircuitRun (computedMemory 7) (firstRows ++ lastRows) final ->
-  runFragment (mkBoundary 0 9 9 7 0 0 0 0 0 0) 0 firstRows ->
-  runFragment (rowsFinalBoundary (mkBoundary 0 9 9 7 0 0 0 0 0 0) firstRows) 0 lastRows ->
-  boundaryPC (rowsFinalBoundary (mkBoundary 0 9 9 7 0 0 0 0 0 0) firstRows) = 4 ->
+  runFragment (mkBoundary 0 9 9 7 0 0 0 0 0 0 0) 0 firstRows ->
+  runFragment (rowsFinalBoundary (mkBoundary 0 9 9 7 0 0 0 0 0 0 0) firstRows) 0 lastRows ->
+  boundaryPC (rowsFinalBoundary (mkBoundary 0 9 9 7 0 0 0 0 0 0 0) firstRows) = 4 ->
   exists between c1 shape c,
-    CircuitConfig computedProgram computedStore 0 (controlShape [] (siteCode (codePosition 0 [0%nat] 3)))
-      between (rowsFinalBoundary (mkBoundary 0 9 9 7 0 0 0 0 0 0) firstRows) c1 /\
+    CircuitConfig computedProgram computedStore 0 (controlShape [] (siteCode (codePosition 0 [labelSite 0 0] 3)))
+      between (rowsFinalBoundary (mkBoundary 0 9 9 7 0 0 0 0 0 0 0) firstRows) c1 /\
     Steps (stackConfig (computedState 7) [] computedCode) c1 /\ Steps c1 c /\
     programLoaded computedProgram final /\
     CircuitConfig computedProgram computedStore 0 shape final
-      (rowsFinalBoundary (mkBoundary 0 9 9 7 0 0 0 0 0 0) (firstRows ++ lastRows)) c.
+      (rowsFinalBoundary (mkBoundary 0 9 9 7 0 0 0 0 0 0 0) (firstRows ++ lastRows)) c.
 Proof.
   intros firstRows lastRows final Hprime Hrun Hfirst Hlast Hpc.
   destruct (valid_run_split _ _ _ _ Hrun) as [between [Hrun1 Hrun2]].
-  destruct (run_refinement computedProgram computedStore 0 _ firstRows (computedMemory 7) between _ _ Hprime
+  destruct (active_run_refinement computedProgram computedStore 0 _ firstRows (computedMemory 7) between _ _ Hprime
     (load_program_loaded _ _) Hrun1 Hfirst (computed_initial_config 7 ltac:(unfold i32Modulus; lia)))
     as [shape1 [c1 [Hsteps1 [Hloaded1 Hconfig1]]]].
-  destruct (run_refinement computedProgram computedStore 0 shape1 lastRows between final _ c1 Hprime Hloaded1 Hrun2
+  destruct (active_run_refinement computedProgram computedStore 0 shape1 lastRows between final _ c1 Hprime Hloaded1 Hrun2
     Hlast Hconfig1) as [shape2 [c2 [Hsteps2 [Hloaded2 Hconfig2]]]].
-  destruct (circuit_config_state _ _ _ _ _ _ _ Hconfig1) as [cursor Hstate1].
+  destruct (circuit_config_state _ _ _ _ _ _ _ Hconfig1) as [cursor [Hshape Hstate1]].
   exists between, c1, shape2, c2.
   split; [rewrite <- (computed_pc_four_shape _ _ _ _ Hstate1 Hpc);
-    exact (control_state_circuit _ _ _ _ _ _ _ Logic.eq_refl computed_store_wf computed_program_validated Hstate1) | ].
+    exact (control_state_circuit _ _ _ _ _ _ _ Logic.eq_refl computed_store_wf computed_program_validated (no_tables_loaded computedStore _ Logic.eq_refl) Hstate1) | ].
   split; [exact Hsteps1 | ]. split; [exact Hsteps2 | ].
   split; [exact Hloaded2 | ]. rewrite rows_final_boundary_app. exact Hconfig2.
 Qed.

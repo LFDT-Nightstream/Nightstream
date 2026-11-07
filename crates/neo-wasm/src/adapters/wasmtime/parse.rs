@@ -87,9 +87,6 @@ pub struct WasmProgramTables {
     pub function_local_counts: Vec<(u64, u64)>,
     /// Static `(pc_before, function_ref)` rows for direct `call` targets.
     pub call_targets: Vec<(u64, u64)>,
-    /// Static `(raw_type_index, expected_type_id)` rows mapping module type
-    /// section indexes to normalized type ids for `call_indirect`.
-    pub module_types: Vec<(u64, u64)>,
     /// Bytes initialized by active `(data ...)` segments at module
     /// instantiation, as `(byte_addr, byte_value)` pairs. Used by the memory
     /// sanity checker to seed `linear_memory` so the RMW Read check at
@@ -121,10 +118,9 @@ pub struct WasmProgramDecodeEntry {
     pub global_index: u32,
     pub table_id: u32,
     pub memory_offset: u32,
-    pub call_indirect_type_index: u32,
-    /// Normalized type id derived from the same module type-section entry
-    /// checked by the `module_types` ROM, but keyed by program PC so the
-    /// static opcode/immediate row is bound directly to the wasm bytes.
+    /// Normalized type id of the call_indirect type immediate, keyed by
+    /// program PC so the static opcode/immediate row is bound directly to the
+    /// wasm bytes.
     pub call_indirect_expected_type_id: u32,
     pub br_table_len: u32,
     pub i32_const_value: u32,
@@ -225,6 +221,8 @@ struct ParsedWasmArtifactsBuilder {
     pc_edge_kinds: Vec<(u64, u64)>,
     pc_function_refs: Vec<(u64, u64)>,
     unresolved_call_edges: Vec<(u64, u32)>,
+    /// Invocation pcs of indirect calls; only their own resolve step may reach them.
+    indirect_invocations: Vec<u64>,
     function_entries: Vec<(u64, u64)>,
     call_targets: Vec<(u64, u64)>,
     function_metas: BTreeMap<u32, ParsedFunctionMeta>,
@@ -258,6 +256,7 @@ impl Default for ParsedWasmArtifactsBuilder {
             pc_edge_kinds: Vec::new(),
             pc_function_refs: Vec::new(),
             unresolved_call_edges: Vec::new(),
+            indirect_invocations: Vec::new(),
             function_entries: Vec::new(),
             call_targets: Vec::new(),
             function_metas: BTreeMap::new(),
@@ -311,6 +310,23 @@ impl ParsedWasmArtifactsBuilder {
         }
         self.pc_rom.sort_unstable();
         self.pc_rom.dedup();
+        // An invocation trusts the function reference its resolve step checked,
+        // so no edge or entry may reach it other than that step's static edge.
+        for &invocation in &self.indirect_invocations {
+            let bypass = self
+                .pc_rom
+                .iter()
+                .any(|&(pc, choice, target)| target == invocation && (pc + 1 != invocation || choice != 0))
+                || self
+                    .function_entries
+                    .iter()
+                    .any(|&(_, entry)| entry == invocation);
+            if bypass {
+                return Err(WasmProgramError::Invalid(format!(
+                    "indirect call invocation pc {invocation} is reachable without its resolve step"
+                )));
+            }
+        }
         self.pc_edge_kinds.sort_unstable();
         self.pc_edge_kinds.dedup();
         self.pc_function_refs.sort_unstable();
@@ -346,13 +362,6 @@ impl ParsedWasmArtifactsBuilder {
             .collect::<Vec<_>>();
         function_local_counts.sort_unstable();
         function_local_counts.dedup();
-        let mut module_types = self
-            .raw_type_id_by_index
-            .iter()
-            .map(|(&raw_type_index, &type_id)| (u64::from(raw_type_index), u64::from(type_id)))
-            .collect::<Vec<_>>();
-        module_types.sort_unstable();
-        module_types.dedup();
         Ok(WasmProgramArtifacts {
             host_event_bindings: Default::default(),
             tables: WasmProgramTables {
@@ -370,7 +379,6 @@ impl ParsedWasmArtifactsBuilder {
                 function_call_metadata,
                 function_local_counts,
                 call_targets: self.call_targets,
-                module_types,
                 linear_memory_init: self.linear_memory_init,
                 globals_init: self.globals_init,
                 table_sizes_init: self.table_sizes_init,
@@ -537,6 +545,48 @@ impl ParsedWasmArtifactsBuilder {
                     let operator = reader
                         .read()
                         .map_err(|err| WasmProgramError::Invalid(format!("failed to decode wasm operator: {err}")))?;
+                    // A branch to the body's own label leaves the function: a `br` is a
+                    // `return`; a conditional one would need a branch row that returns.
+                    let to_function = |depth: u32| depth as usize == curr_depth;
+                    let operator = match operator {
+                        wasmparser::Operator::Br { relative_depth } if to_function(relative_depth) => {
+                            wasmparser::Operator::Return
+                        }
+                        wasmparser::Operator::BrIf { relative_depth } if to_function(relative_depth) => {
+                            return Err(WasmProgramError::Unsupported(
+                                "br_if to the function's label".to_string(),
+                            ));
+                        }
+                        wasmparser::Operator::BrTable { ref targets }
+                            if to_function(targets.default())
+                                || targets
+                                    .targets()
+                                    .any(|target| target.is_ok_and(&to_function)) =>
+                        {
+                            return Err(WasmProgramError::Unsupported(
+                                "br_table to the function's label".to_string(),
+                            ));
+                        }
+                        operator => operator,
+                    };
+                    // An indirect call takes two pcs: its resolve step, then the
+                    // invocation, which the rest of this iteration lays out. The
+                    // Wasmtime step keeps the first pc, where the instruction starts.
+                    let resolve_pc = matches!(
+                        operator,
+                        wasmparser::Operator::CallIndirect { .. } | wasmparser::Operator::ReturnCallIndirect { .. }
+                    )
+                    .then_some(pc_before);
+                    let pc_before = if resolve_pc.is_some() {
+                        let invocation = self.next_pc;
+                        self.next_pc = invocation.checked_add(1).ok_or_else(|| {
+                            WasmProgramError::Unsupported("wasm instruction PC exceeds u32".to_string())
+                        })?;
+                        self.indirect_invocations.push(u64::from(invocation));
+                        u64::from(invocation)
+                    } else {
+                        pc_before
+                    };
                     let pc_after = u64::from(self.next_pc);
                     let is_function_end = matches!(&operator, wasmparser::Operator::End) && curr_depth == 0;
                     let decoded = match &operator {
@@ -573,7 +623,7 @@ impl ParsedWasmArtifactsBuilder {
                         });
                     }
                     let memory = decode_memory_opcode(&operator);
-                    let (call_indirect_type_index, expected_type_id) = match &operator {
+                    let expected_type_id = match &operator {
                         wasmparser::Operator::CallIndirect { type_index, .. }
                         | wasmparser::Operator::ReturnCallIndirect { type_index, .. } => {
                             let expected_type_id = *self.raw_type_id_by_index.get(type_index).ok_or_else(|| {
@@ -581,9 +631,9 @@ impl ParsedWasmArtifactsBuilder {
                                     "missing normalized type id for call_indirect type {type_index}"
                                 ))
                             })?;
-                            (Some(*type_index), Some(expected_type_id))
+                            Some(expected_type_id)
                         }
-                        _ => (None, None),
+                        _ => None,
                     };
                     if let Some((opcode, immediate)) = decoded {
                         let i64_const = match operator {
@@ -608,16 +658,13 @@ impl ParsedWasmArtifactsBuilder {
                                 _ => 0,
                             },
                             table_id: match opcode {
-                                WasmOpcode::TableGet
-                                | WasmOpcode::TableSet
-                                | WasmOpcode::TableSize
-                                | WasmOpcode::CallIndirect
-                                | WasmOpcode::ReturnCallIndirect => immediate.unwrap_or(0),
+                                WasmOpcode::TableGet | WasmOpcode::TableSet | WasmOpcode::TableSize => {
+                                    immediate.unwrap_or(0)
+                                }
                                 _ => 0,
                             },
                             memory_offset,
-                            call_indirect_type_index: call_indirect_type_index.unwrap_or(0),
-                            call_indirect_expected_type_id: expected_type_id.unwrap_or(0),
+                            call_indirect_expected_type_id: 0,
                             br_table_len: match &operator {
                                 wasmparser::Operator::BrTable { targets } => targets.len(),
                                 _ => 0,
@@ -647,6 +694,28 @@ impl ParsedWasmArtifactsBuilder {
                         .push((pc_before, u64::from(pc_edge_kind.as_u32())));
                     self.pc_function_refs
                         .push((pc_before, u64::from(function_ref)));
+                    if let Some(resolve_pc) = resolve_pc {
+                        let table_id = decoded.and_then(|(_, immediate)| immediate).unwrap_or(0);
+                        self.program_decode.push(WasmProgramDecodeEntry {
+                            pc: resolve_pc,
+                            opcode_code: u32::from(opcode_code(WasmOpcode::CallIndirectResolve)),
+                            local_index: 0,
+                            global_index: 0,
+                            table_id,
+                            memory_offset: 0,
+                            call_indirect_expected_type_id: expected_type_id.unwrap_or(0),
+                            br_table_len: 0,
+                            i32_const_value: 0,
+                            i64_const_value_lo: 0,
+                            i64_const_value_hi: 0,
+                            ref_func_ref: 0,
+                        });
+                        self.pc_edge_kinds
+                            .push((resolve_pc, u64::from(WasmPcEdgeKind::Static.as_u32())));
+                        self.pc_function_refs
+                            .push((resolve_pc, u64::from(function_ref)));
+                        self.push_pc_rom_edge(resolve_pc, 0, pc_before);
+                    }
                     let frame_slides = self.slides_by_offset.remove(&offset).unwrap_or_default();
                     self.frame_slides.extend(
                         frame_slides
@@ -662,7 +731,6 @@ impl ParsedWasmArtifactsBuilder {
                             decoded,
                             control: decode_control_opcode(&operator),
                             pc_edge_kind,
-                            call_indirect_type_index,
                             expected_type_id,
                             pc_after_instruction: pc_after,
                             frame_slides,
@@ -685,6 +753,13 @@ impl ParsedWasmArtifactsBuilder {
                             control_stack.push(frame);
                         }
                         wasmparser::Operator::Else => {
+                            // SpecTec's `if` has no empty-else form, and the pc layout
+                            // follows SpecTec: strip an empty `else` before proving.
+                            if matches!(reader.clone().read(), Ok(wasmparser::Operator::End)) {
+                                return Err(WasmProgramError::Unsupported(
+                                    "empty else-body: remove the `else` before proving".to_string(),
+                                ));
+                            }
                             let frame = control_stack.last_mut().ok_or_else(|| {
                                 WasmProgramError::Invalid("encountered else without an open control frame".to_string())
                             })?;

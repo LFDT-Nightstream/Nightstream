@@ -394,9 +394,8 @@ pub fn build_wasm_relation() -> Result<ApplicationRelation<WasmConstraintScope>,
         // `call_stack_pop_present` for
         // non-final returns; the latter intentionally covers both explicit
         // `return` and a callee's function-ending `end`. A div trap row
-        // halts but keeps its Static edge kind, and a call_indirect trap
-        // row halts but keeps its DynamicCallIndirect edge kind (the per-pc
-        // edge-kind ROM binds both); the -trap terms absorb their `activation_finished`
+        // and a trapping call_indirect resolve row halt but keep their Static
+        // edge kind (the per-pc edge-kind ROM binds it); the -trap terms absorb their `activation_finished`
         // contributions. Entry/resume can clear the latch; the authenticated
         // clear flag cancels that delta only when the latch was set.
         b.push_linear_zero(

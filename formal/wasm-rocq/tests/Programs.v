@@ -1,6 +1,6 @@
 From Stdlib Require Import List ZArith Lia.
 From mathcomp Require Import ssrbool eqtype.
-Require Import R1CS Columns Range MemoryTrace MemoryCatalog OpcodeCatalog TraceRefinement
+Require Import R1CS Columns Range MemoryTrace MemoryCatalog OpcodeCatalog TableState TraceRefinement
   Wasm2 WasmIntegers Locals SpecTecCalls StackSimulation StraightLineSpec CallSpec CallerSpec CallerRefinement
   ProgramSpec ControlDecode ControlInvariant ControlBridge ProgramEncoding ProgramRefinement FunctionValidation
   CallerValidation CodeLayout Fragment tests.Calls tests.Callers.
@@ -120,6 +120,38 @@ Proof.
   - constructor; [apply source_function_validates; [repeat constructor | exact source_body_validates] | constructor].
 Qed.
 
+(* An indirect call takes two slots, as the Rust parser lays it out: the resolve
+   slot binds the table's store address and the expected type's id, and the
+   invocation returns to the slot after it. *)
+Definition indirectModule := MKmoduleinst [i32StackType 0 1; i32StackType 1 1] [0%N; 1%N] [] [3%N] [] [] [] [].
+Definition indirectProgram : Program :=
+  [i32Function indirectModule (mk_uN 0) 0 1 1 readZeroBody;
+   i32Function indirectModule (mk_uN 1) 1 1 0 [LOCAL_GET (mk_uN 0); CALL_INDIRECT (mk_uN 0) (mk_uN 0); NOP]].
+
+Example indirect_call_layout :
+  functionEntry indirectProgram 1 = 2 /\
+  map (fun pc => encodeProgram indirectProgram programOpcodeId [pc]) [3; 4; 5] =
+    [Some CODE_CALL_INDIRECT_RESOLVE; Some CODE_CALL_INDIRECT; Some CODE_NOP] /\
+  map (fun pc => encodeProgram indirectProgram pcEdgeKindId [pc]) [3; 4] = [Some 0; Some 2] /\
+  map (encodeProgram indirectProgram pcRomId) [[3; 0]; [4; 0]; [4; 1]] = [Some 4; None; Some 5] /\
+  encodeProgram indirectProgram programTableId [3] = Some 3 /\
+  encodeProgram indirectProgram expectedTypeId [3] = Some 1 /\
+  map (fun reference => encodeProgram indirectProgram functionTypeId [reference]) [1; 2] = [Some 1; Some 2].
+Proof. vm_compute. repeat split. Qed.
+
+(* Type ids compute and number distinct types densely in first-seen order: the
+   repeated (i32 i32) -> i32 keeps id 1, and the unused () -> i32 still takes id 2. *)
+Definition typesModule := MKmoduleinst
+  [i32StackType 2 1; i32StackType 0 1; i32StackType 2 1; i32StackType 1 0] [] [] [] [] [] [] [].
+
+Example type_ids_first_seen :
+  map (typeId typesModule) [i32StackType 2 1; i32StackType 0 1; i32StackType 1 0] = [1; 2; 3].
+Proof. vm_compute. reflexivity. Qed.
+
+(* The function-type ROM holds each function's id in its module. *)
+Example function_type_rom : encodeProgram sourceProgram functionTypeId [2] = Some 1.
+Proof. vm_compute. reflexivity. Qed.
+
 Example wrong_function_entry_rejected : forall stale,
   ~ programLoaded sourceProgram (update (sourceMemory stale) functionEntryId [1] 99).
 Proof.
@@ -134,33 +166,33 @@ Proof. reflexivity. Qed.
 
 Example source_initial_config : forall stale,
   CircuitConfig sourceProgram sourceStore 0 (controlShape [] (siteCode (codePosition 1 [] 0)))
-    (sourceMemory stale) (mkBoundary 2 8 8 7 0 0 0 0 0 0) (stackConfig sourceInitialState [] getCallAdd).
+    (sourceMemory stale) (mkBoundary 2 8 8 7 0 0 0 0 0 0 0) (stackConfig sourceInitialState [] getCallAdd).
 Proof.
-  intros stale. split; [reflexivity | ]. split; [exact source_store_wf | ]. split; [exact source_program_validated | ].
+  intros stale. split; [reflexivity | ]. split; [exact source_store_wf | ]. split; [exact source_program_validated | ]. split; [apply no_tables_loaded; reflexivity | ].
   exists True. split; [vm_compute; reflexivity | exact I].
 Qed.
 
 (* The decoder reads the caller's one local from memory. *)
 Example source_initial_decodes : forall stale,
   option_map fst (decodeControl sourceProgram sourceStore 0 (controlShape [] (siteCode (codePosition 1 [] 0)))
-    (sourceMemory stale) (mkBoundary 2 8 8 7 0 0 0 0 0 0)) = Some (stackConfig sourceInitialState [] getCallAdd).
+    (sourceMemory stale) (mkBoundary 2 8 8 7 0 0 0 0 0 0 0)) = Some (stackConfig sourceInitialState [] getCallAdd).
 Proof. intros stale. vm_compute. reflexivity. Qed.
 
 (* A pc off the position, a missing operand cell, or a depth without a saved
    caller does not decode. *)
 Example source_wrong_pc_rejected : forall stale,
   decodeControl sourceProgram sourceStore 0 (controlShape [] (siteCode (codePosition 1 [] 0)))
-    (sourceMemory stale) (mkBoundary 3 8 8 7 0 0 0 0 0 0) = None.
+    (sourceMemory stale) (mkBoundary 3 8 8 7 0 0 0 0 0 0 0) = None.
 Proof. intros stale. vm_compute. reflexivity. Qed.
 
 Example source_missing_operand_rejected : forall stale,
   decodeControl sourceProgram sourceStore 0 (controlShape [] (siteCode (codePosition 1 [] 0)))
-    (sourceMemory stale) (mkBoundary 2 9 8 7 0 0 0 0 0 0) = None.
+    (sourceMemory stale) (mkBoundary 2 9 8 7 0 0 0 0 0 0 0) = None.
 Proof. intros stale. vm_compute. reflexivity. Qed.
 
 Example source_unsaved_caller_rejected :
   decodeControl sourceProgram sourceStore 0 (controlShape [codePosition 1 [] 1] (siteCode (codePosition 0 [] 0)))
-    (sourceMemory 3) (mkBoundary 0 10 10 9 1 0 0 0 0 0) = None.
+    (sourceMemory 3) (mkBoundary 0 10 10 9 1 0 0 0 0 0 0) = None.
 Proof. vm_compute. reflexivity. Qed.
 
 (* The caller is suspended at its CALL: its local at cell 7, its operand [5] at
@@ -187,7 +219,7 @@ Definition suspendedConfig (calleeFrame : frame) :=
 Example source_initializing_callee_decodes :
   option_map fst (decodeControl sourceProgram sourceStore 0
     (controlShape [codePosition 1 [] 1] (siteEntering 0))
-    (suspendedMemory None) (mkBoundary 0 9 10 9 1 1 0 1 0 0)) =
+    (suspendedMemory None) (mkBoundary 0 9 10 9 1 1 0 1 0 0 0)) =
   Some (suspendedConfig (MKframe [i32Value 0] callModule)).
 Proof. vm_compute. reflexivity. Qed.
 
@@ -195,7 +227,7 @@ Proof. vm_compute. reflexivity. Qed.
 Example source_suspended_call_decodes :
   option_map fst (decodeControl sourceProgram sourceStore 0
     (controlShape [codePosition 1 [] 1] (siteCode (codePosition 0 [] 0)))
-    (suspendedMemory (Some 0)) (mkBoundary 0 10 10 9 1 0 0 0 0 0)) =
+    (suspendedMemory (Some 0)) (mkBoundary 0 10 10 9 1 0 0 0 0 0 0)) =
   Some (suspendedConfig (MKframe [i32Value 0] callModule)).
 Proof. vm_compute. reflexivity. Qed.
 
@@ -207,12 +239,21 @@ Lemma source_final_shape : forall cursor memory boundary c,
 Proof.
   intros [stack active] memory boundary c [f [inner [Hf [Hactive [Hsusp [_ [_ ->]]]]]]] Hpc.
   cbn [activePosition suspendedCalls] in *.
-  destruct active as [[[index labels offset] segments values locals] | function arguments].
+  destruct active as [[[index labels offset] segments values locals] | view callee | function arguments].
+  2: { exfalso. destruct Hactive as [f' [g [i [[Hf' _] [Hi [Hind _]]]]]].
+       cbn [activeFunction] in Hf. rewrite Hf in Hf'. injection Hf' as <-.
+       destruct view as [[index labels offset] segments values locals].
+       cbn [viewPosition positionFunction positionLabels positionOffset] in Hf, Hi.
+       destruct index as [ | [ | index]]; [ | | destruct index; discriminate]; injection Hf as <-;
+         unfold innerCode in Hi; (destruct labels as [ | b more];
+           [ | destruct b as [[ | [ | [ | [ | b]]]] arm]; cbn in Hi; destruct offset; discriminate]);
+         cbn in Hi; destruct offset as [ | [ | [ | offset]]]; try discriminate; try (destruct offset; discriminate);
+         injection Hi as <-; discriminate Hind. }
   - destruct Hactive as [f' [[Hf' [Hpath _]] [Hoffset [_ [Hpos _]]]]].
     cbn [activeFunction viewPosition positionFunction positionLabels positionOffset] in *.
     rewrite Hf in Hf'. injection Hf' as <-.
     destruct index as [ | [ | index]]; [ | | destruct index; discriminate]; injection Hf as <-;
-      (destruct labels as [ | b more]; [ | destruct b as [ | [ | [ | [ | b]]]]; discriminate]);
+      (destruct labels as [ | b more]; [ | destruct b as [[ | [ | [ | [ | b]]]] arm]; discriminate]);
       unfold innerCode in Hoffset; cbn in Hoffset, Hpos.
     + destruct offset as [ | [ | offset]]; cbn in Hpos; lia.
     + destruct offset as [ | [ | [ | [ | offset]]]]; cbn in Hpos; try lia.
@@ -221,11 +262,10 @@ Proof.
       destruct (callView top) as [[[ | [ | caller]] glabels goffset] gsegments gvalues glocals];
         cbn [viewPosition positionFunction positionLabels positionOffset] in Hg, Hcall, Hcallee;
         [ | | destruct caller; discriminate]; cbn in Hg; injection Hg as Hg; rewrite <- Hg in Hcall, Hcallee;
-        unfold innerCode in Hcall; (destruct glabels as [ | b more']; [ | destruct b as [ | [ | [ | [ | b]]]]; cbn in Hcall; destruct goffset; discriminate]);
-        cbn in Hcall.
-      * destruct goffset as [ | [ | goffset]]; try discriminate; destruct goffset; discriminate.
-      * destruct goffset as [ | [ | [ | goffset]]]; try discriminate; [ | destruct goffset; discriminate].
-        injection Hcall as <-. discriminate Hcallee.
+        unfold innerCode in Hcall; (destruct glabels as [ | b more']; [ | destruct b as [[ | [ | [ | [ | b]]]] arm]; cbn in Hcall; destruct goffset; discriminate]);
+        cbn in Hcall;
+        destruct goffset as [ | [ | [ | goffset]]]; try discriminate; try (destruct goffset; discriminate);
+        injection Hcall as <-; cbn [callsInto] in Hcallee; first [contradiction | discriminate Hcallee].
   - exfalso. destruct Hactive as [f' [Hf' [_ [_ [_ [_ [_ [_ [Hpos _]]]]]]]]].
     destruct function as [ | [ | function]]; try (destruct function; discriminate);
       injection Hf' as <-; cbn in Hpos; lia.
@@ -235,18 +275,18 @@ Qed.
    split may fall anywhere, including inside the call or its frame initialization. *)
 Example source_program_two_runs : forall stale firstRows lastRows final,
   fieldPrime -> validCircuitRun (sourceMemory stale) (firstRows ++ lastRows) final ->
-  runFragment (mkBoundary 2 8 8 7 0 0 0 0 0 0) 0 firstRows ->
-  runFragment (rowsFinalBoundary (mkBoundary 2 8 8 7 0 0 0 0 0 0) firstRows) 0 lastRows ->
+  runFragment (mkBoundary 2 8 8 7 0 0 0 0 0 0 0) 0 firstRows ->
+  runFragment (rowsFinalBoundary (mkBoundary 2 8 8 7 0 0 0 0 0 0 0) firstRows) 0 lastRows ->
   exists shape c, Steps (stackConfig sourceInitialState [] getCallAdd) c /\ programLoaded sourceProgram final /\
     CircuitConfig sourceProgram sourceStore 0 shape final
-      (rowsFinalBoundary (mkBoundary 2 8 8 7 0 0 0 0 0 0) (firstRows ++ lastRows)) c.
+      (rowsFinalBoundary (mkBoundary 2 8 8 7 0 0 0 0 0 0 0) (firstRows ++ lastRows)) c.
 Proof.
   intros stale firstRows lastRows final Hprime Hrun Hfirst Hlast.
   destruct (valid_run_split _ _ _ _ Hrun) as [between [Hrun1 Hrun2]].
-  destruct (run_refinement sourceProgram sourceStore 0 _ firstRows (sourceMemory stale) between _ _ Hprime
+  destruct (active_run_refinement sourceProgram sourceStore 0 _ firstRows (sourceMemory stale) between _ _ Hprime
     (source_program_loaded stale) Hrun1 Hfirst (source_initial_config stale))
     as [shape1 [c1 [Hsteps1 [Hloaded1 Hconfig1]]]].
-  destruct (run_refinement sourceProgram sourceStore 0 shape1 lastRows between final _ c1 Hprime Hloaded1 Hrun2
+  destruct (active_run_refinement sourceProgram sourceStore 0 shape1 lastRows between final _ c1 Hprime Hloaded1 Hrun2
     Hlast Hconfig1) as [shape2 [c2 [Hsteps2 [Hloaded2 Hconfig2]]]].
   exists shape2, c2. split; [eapply spec_steps_transitive; eassumption | ].
   split; [exact Hloaded2 | ]. rewrite rows_final_boundary_app. exact Hconfig2.

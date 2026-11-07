@@ -3,6 +3,7 @@ From mathcomp Require Import ssrbool eqtype.
 Require Import R1CS Columns Range MemoryTrace MemoryCatalog TraceRefinement Wasm2 WasmIntegers Locals SpecTecCalls
   StraightLineSpec CallerSpec ProgramSpec ProgramEncoding ProgramRefinement FunctionValidation
   ControlDecode Fragment.
+Require Import TableState.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -93,7 +94,7 @@ Definition zeroFrame := MKframe [i32Value 0] nestedModule.
 Example nested_suspended_calls_decode :
   option_map fst (decodeControl nestedProgram nestedStore 0
     (controlShape [codePosition 1 [] 0; codePosition 2 [] 0] (siteCode (codePosition 0 [] 0)))
-    nestedMemory (mkBoundary 0 10 10 9 2 0 0 0 0 0)) =
+    nestedMemory (mkBoundary 0 10 10 9 2 0 0 0 0 0 0)) =
   Some (mk_config (mk_state nestedStore zeroFrame)
     [FRAME_ 1%N zeroFrame [LABEL_ 1%N [] [FRAME_ 1%N zeroFrame [LABEL_ 1%N []
       [admininstr_instr (LOCAL_GET (mk_uN 0))]]]]]).
@@ -102,22 +103,22 @@ Proof. vm_compute. reflexivity. Qed.
 (* The start of top: the theorem's premise holds for a nested program. *)
 Example nested_initial_config :
   CircuitConfig nestedProgram nestedStore 0 (controlShape [] (siteCode (codePosition 2 [] 0)))
-    nestedMemory (mkBoundary 4 8 8 7 0 0 0 0 0 0)
+    nestedMemory (mkBoundary 4 8 8 7 0 0 0 0 0 0 0)
     (mk_config (mk_state nestedStore zeroFrame) [admininstr_instr (CALL (mk_uN 1))]).
 Proof.
-  split; [reflexivity | ]. split; [repeat constructor | ]. split; [exact nested_program_validated | ].
+  split; [reflexivity | ]. split; [repeat constructor | ]. split; [exact nested_program_validated | ]. split; [apply no_tables_loaded; reflexivity | ].
   exists True. split; [vm_compute; reflexivity | exact I].
 Qed.
 
 (* Any run of top's rows refines SpecTec, through both nested calls and back. *)
 Example nested_program_refines : forall rows final,
   fieldPrime -> validCircuitRun nestedMemory rows final ->
-  runFragment (mkBoundary 4 8 8 7 0 0 0 0 0 0) 0 rows ->
+  runFragment (mkBoundary 4 8 8 7 0 0 0 0 0 0 0) 0 rows ->
   exists shape c, Steps (mk_config (mk_state nestedStore zeroFrame) [admininstr_instr (CALL (mk_uN 1))]) c /\
     programLoaded nestedProgram final /\
-    CircuitConfig nestedProgram nestedStore 0 shape final (rowsFinalBoundary (mkBoundary 4 8 8 7 0 0 0 0 0 0) rows) c.
+    CircuitConfig nestedProgram nestedStore 0 shape final (rowsFinalBoundary (mkBoundary 4 8 8 7 0 0 0 0 0 0 0) rows) c.
 Proof.
   intros rows final Hprime Hrun Hfragment.
-  exact (run_refinement nestedProgram nestedStore 0 _ rows nestedMemory final _ _ Hprime
+  exact (active_run_refinement nestedProgram nestedStore 0 _ rows nestedMemory final _ _ Hprime
     (load_program_loaded _ _) Hrun Hfragment nested_initial_config).
 Qed.

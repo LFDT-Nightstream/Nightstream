@@ -93,6 +93,9 @@ Proof.
     rewrite repeat_length. reflexivity.
 Qed.
 
+Lemma steps_refl_wf : forall c, wf_config c -> Steps c c.
+Proof. intros [z code] H. apply Steps__refl. exact H. Qed.
+
 Lemma spec_steps_transitive : forall a b c,
   Steps a b -> Steps b c -> Steps a c.
 Proof.

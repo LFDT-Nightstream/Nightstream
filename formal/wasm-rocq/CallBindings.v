@@ -144,17 +144,11 @@ Proof.
     pose proof (value_bound w COL_OUTPUT_CAPTURED). field_linear Hrow. }
   assert (Hhost : w COL_HOST_CALL_ACTIVE = 0).
   { selected_circuit_row COL_SEL_CALL
-      ([(COL_SEL_CALL_INDIRECT, 1); (COL_SEL_RETURN_CALL_INDIRECT, 1)],
-        [(COL_ONE, 1); (COL_CALL_INDIRECT_IS_TRAP, -1)],
-        [(COL_CALL_INDIRECT_IS_NOT_TRAP, 1)]) Hci.
-    assert (HciZero : w COL_CALL_INDIRECT_IS_NOT_TRAP = 0).
-    { pose proof (value_bound w COL_CALL_INDIRECT_IS_NOT_TRAP). field_linear Hci. }
-    selected_circuit_row COL_SEL_CALL
       ([(COL_HOST_CALL_ACTIVE, 1); (COL_SEL_CALL, -1); (COL_SEL_RETURN_CALL, -1);
-        (COL_CALL_INDIRECT_IS_NOT_TRAP, -1); (COL_GUEST_ENTRY_ACTIVE, 1)],
+        (COL_SEL_CALL_INDIRECT, -1); (COL_SEL_RETURN_CALL_INDIRECT, -1); (COL_GUEST_ENTRY_ACTIVE, 1)],
         [(COL_ONE, 1)], ([] : SparseRow)) Hrow.
     destruct (full_direct_guest_call w Hprime Hfull Hchosen Htarget) as [Hguest _].
-    normalize_columns. rewrite Hone, Hguest, HciZero in Hrow.
+    normalize_columns. rewrite Hone, Hguest in Hrow.
     pose proof (value_bound w COL_HOST_CALL_ACTIVE). field_linear Hrow. }
   assert (Hparams : w GHC_PARAMS = 0).
   { full_row hostCallParamsRow Hrow. pose proof (full_no_host_split w Hfull Hhost) as Hsplit. normalize_columns.

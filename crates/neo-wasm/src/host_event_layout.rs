@@ -107,6 +107,6 @@ define_column_region! {
             "multi-turn re-entry row: re-arms the output, loads the next export's entry schedule, jumps to its entry pc",
         COL_PC_FREF_ACTIVE: Boolean =>
             "pc -> function-ref ROM gate: every row except gather rows (post-return exit gathers sit past the last pc)",
-        COL_CI_HOST_CALL: Boolean => "non-trapping call_indirect row targeting a host import",
+        COL_CI_HOST_CALL: Boolean => "call_indirect invocation row targeting a host import",
     ]
 }

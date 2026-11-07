@@ -17,7 +17,8 @@ Qed.
 
 Lemma full_block_context : forall (w : Witness) chosen,
   fieldPrime -> FullRelation.satFull w ->
-  (chosen = COL_SEL_BLOCK \/ chosen = COL_SEL_END) -> w chosen = 1 ->
+  (chosen = COL_SEL_BLOCK \/ chosen = COL_SEL_END \/ chosen = COL_SEL_LOOP \/ chosen = COL_SEL_ELSE \/
+    chosen = COL_SEL_NOP) -> w chosen = 1 ->
   w COL_CALL_STACK_POP_PRESENT = 0 -> w COL_ACTIVATION_FINISHED_AFTER = 0 ->
   w COL_SP_AFTER = w COL_SP_BEFORE /\
   w COL_STACK_FRAME_BASE_AFTER = w COL_STACK_FRAME_BASE_BEFORE /\
@@ -26,7 +27,8 @@ Lemma full_block_context : forall (w : Witness) chosen,
   filter isStackWrite (eventsForRow memories w) = [].
 Proof.
   intros w chosen Hprime Hfull Hkind Hchosen Hpop Hhalt.
-  assert (Hin : In chosen selectorColumns) by (destruct Hkind as [-> | ->]; vm_compute; tauto).
+  assert (Hin : In chosen selectorColumns)
+    by (destruct Hkind as [-> | [-> | [-> | [-> | ->]]]]; vm_compute; tauto).
   pose proof (proj1 Hfull) as Hone.
   pose proof (full_live_capture_zero w Hfull Hhalt) as Hcapture.
   destruct (full_opcode_aux_gates_zero w chosen Hprime Hfull Hin Hchosen) as [Hparam [Hzero Hgather]].
@@ -37,7 +39,7 @@ Proof.
   { exact (full_row_kind_exclusive w COL_IS_PROGRAM_ROW COL_TURN_BOUNDARY Hprime Hfull
       ltac:(cbn; tauto) ltac:(cbn; tauto) ltac:(discriminate)
       (full_selected_is_program_row w chosen Hprime Hfull Hin Hchosen)). }
-  destruct Hkind as [-> | ->];
+  destruct Hkind as [-> | [-> | [-> | [-> | ->]]]];
     match goal with Hchosen : value w ?chosen = 1 |- _ =>
       assert (Hpush : w COL_CALL_STACK_PUSH_PRESENT = 0) by
         (selected_row chosen callStackPushRow Hrow;

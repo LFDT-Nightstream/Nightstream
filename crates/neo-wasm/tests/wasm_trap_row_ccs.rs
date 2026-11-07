@@ -9,8 +9,8 @@ use common::{assert_rejected, assert_satisfied, step};
 use neo_math::F;
 use neo_wasm::layout::{
     COL_ACTIVATION_FINISHED_AFTER, COL_CALL_INDIRECT_IS_NOT_TRAP, COL_CALL_INDIRECT_IS_TRAP, COL_CI_ENTRY_IS_NULL,
-    COL_DIV_OVERFLOW, COL_DIV_TRAP, COL_FUNCTION_CALL_TYPE_LOOKUP_GATE, COL_MEM_OOB, COL_TRAPPED_AFTER,
-    COL_TRAPPED_BEFORE,
+    COL_DIV_OVERFLOW, COL_DIV_TRAP, COL_FUNCTION_CALL_TYPE_LOOKUP_GATE, COL_FUNCTION_REF, COL_MEM_OOB, COL_TABLE_VALUE,
+    COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE,
 };
 use neo_wasm::witness_builder::build_witness_vector;
 use neo_wasm::{opcode_code, StackValueAccess, WasmOpcode};
@@ -246,8 +246,8 @@ fn healthy_call_indirect_row_rejects_faked_trap() {
     let row_index = checked
         .trace
         .iter()
-        .position(|row| row.opcode == WasmOpcode::CallIndirect)
-        .expect("call_indirect row");
+        .position(|row| row.opcode == WasmOpcode::CallIndirectResolve)
+        .expect("call_indirect resolve row");
     let mut witness = checked.witnesses[row_index].clone();
     witness[COL_CALL_INDIRECT_IS_TRAP] = F::ONE;
     witness[COL_TRAPPED_AFTER] = F::ONE;
@@ -266,8 +266,8 @@ fn null_entry_call_indirect_row_rejects_hidden_trap() {
     let row_index = checked
         .trace
         .iter()
-        .position(|row| row.opcode == WasmOpcode::CallIndirect)
-        .expect("call_indirect row");
+        .position(|row| row.opcode == WasmOpcode::CallIndirectResolve)
+        .expect("call_indirect resolve row");
     let mut witness = checked.witnesses[row_index].clone();
     witness[COL_CALL_INDIRECT_IS_TRAP] = F::ZERO;
     witness[COL_TRAPPED_AFTER] = F::ZERO;
@@ -284,8 +284,8 @@ fn null_entry_call_indirect_row_rejects_forged_null_flag() {
     let row_index = checked
         .trace
         .iter()
-        .position(|row| row.opcode == WasmOpcode::CallIndirect)
-        .expect("call_indirect row");
+        .position(|row| row.opcode == WasmOpcode::CallIndirectResolve)
+        .expect("call_indirect resolve row");
     let mut witness = checked.witnesses[row_index].clone();
     witness[COL_CI_ENTRY_IS_NULL] = F::ZERO;
     witness[COL_CALL_INDIRECT_IS_TRAP] = F::ZERO;
@@ -319,14 +319,46 @@ fn oob_call_indirect_row_rejects_hidden_trap() {
     let row_index = checked
         .trace
         .iter()
-        .position(|row| row.opcode == WasmOpcode::CallIndirect)
-        .expect("call_indirect row");
+        .position(|row| row.opcode == WasmOpcode::CallIndirectResolve)
+        .expect("call_indirect resolve row");
     let mut witness = checked.witnesses[row_index].clone();
     witness[COL_CALL_INDIRECT_IS_TRAP] = F::ZERO;
     witness[COL_TRAPPED_AFTER] = F::ZERO;
     witness[COL_ACTIVATION_FINISHED_AFTER] = F::ZERO;
     witness[COL_CALL_INDIRECT_IS_NOT_TRAP] = F::ONE;
     assert_rejected(&witness, "hidden OOB-index call_indirect trap");
+}
+
+const TYPE_MISMATCH_CALL_INDIRECT_WAT: &str = r#"(module
+    (type $t (func (param i32) (result i32)))
+    (type $u (func (result i32)))
+    (func $add_one (type $t)
+        local.get 0
+        i32.const 1
+        i32.add)
+    (table 1 funcref)
+    (elem (i32.const 0) func $add_one)
+    (func (export "main") (result i32)
+        i32.const 0
+        call_indirect (type $u)))"#;
+
+/// The type check must look up the table entry's own type. On a mismatch trap
+/// the looked-up function reference is still bound to the table entry: otherwise
+/// a prover could look up some other function's type and fake a mismatch trap
+/// on a well-typed call.
+#[test]
+fn type_mismatch_call_indirect_row_binds_looked_up_reference() {
+    let checked = common::checked_main(TYPE_MISMATCH_CALL_INDIRECT_WAT);
+    let row_index = checked
+        .trace
+        .iter()
+        .position(|row| row.opcode == WasmOpcode::CallIndirectResolve)
+        .expect("call_indirect resolve row");
+    let mut witness = checked.witnesses[row_index].clone();
+    assert_eq!(witness[COL_CALL_INDIRECT_IS_TRAP], F::ONE);
+    assert_eq!(witness[COL_FUNCTION_CALL_TYPE_LOOKUP_GATE], F::ONE);
+    witness[COL_FUNCTION_REF] = witness[COL_TABLE_VALUE] + F::ONE;
+    assert_rejected(&witness, "type lookup through a reference other than the table entry");
 }
 
 const OOB_LOAD_WAT: &str = r#"(module

@@ -117,7 +117,7 @@ fn honest_out_of_bounds_table_traps_have_public_proofs() {
 }
 
 #[test]
-fn return_call_indirect_oob_trace_is_collected() {
+fn return_call_indirect_oob_has_a_public_proof() {
     let wasm = wat::parse_str(OOB_RETURN_CALL_INDIRECT).unwrap();
     let run = neo_wasm::collect_wasmtime_steps(&wasm, &HostEventBindings::default(), "main", &[])
         .expect("the terminal OOB trap is modeled");
@@ -128,6 +128,22 @@ fn return_call_indirect_oob_trace_is_collected() {
     );
     let trace = neo_wasm::traces_from_wasmtime_steps(&run.steps).unwrap();
     assert!(trace.last().unwrap().state_after.trapped);
+
+    let setup = setup_of(OOB_RETURN_CALL_INDIRECT, NonZeroUsize::MIN, false);
+    let (app, geometry) = setup.complete();
+    let traced = &setup.programs[0];
+    let program = app.program(&traced.preload).unwrap();
+    let circuit = Circuit::compile(geometry, app).unwrap();
+    let prover = circuit.prover(nightstream::Engine::Optimized, 109).unwrap();
+    let verifier = circuit
+        .verifier(nightstream::Engine::Optimized, 109)
+        .unwrap();
+    let mut proving = prover.start(&program, traced.initial).unwrap();
+    proving.segment(&traced.inputs).unwrap();
+    let proof = proving.finish().unwrap();
+    verifier
+        .verify(&program, &traced.initial, &traced.last, &proof)
+        .unwrap();
 }
 
 #[test]

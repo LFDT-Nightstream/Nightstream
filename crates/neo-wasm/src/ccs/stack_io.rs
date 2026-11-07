@@ -19,8 +19,8 @@ use super::super::isa::WasmOpcode;
 use super::super::layout::{
     selector_col, COL_CI_OOB, COL_GLOBAL_VALUE, COL_GLOBAL_VALUE_HI, COL_LOCAL_VALUE, COL_LOCAL_VALUE_HI,
     COL_LOCAL_WRITE_ENABLED, COL_STACK_READ_VALUE_HI, COL_STACK_READ_VALUE_LO, COL_STACK_WRITE0_VALUE_HI,
-    COL_STACK_WRITE0_VALUE_LO, COL_TABLE_INDEX, COL_TABLE_READ_ENABLED, COL_TABLE_SIZE, COL_TABLE_SIZE_READ_ENABLED,
-    COL_TABLE_VALUE,
+    COL_STACK_WRITE0_VALUE_LO, COL_TABLE_INDEX, COL_TABLE_OOB, COL_TABLE_READ_ENABLED, COL_TABLE_SIZE,
+    COL_TABLE_SIZE_READ_ENABLED, COL_TABLE_VALUE,
 };
 use super::super::tagged_r1cs_builder::WasmTaggedR1csBuilder;
 use super::{opcode_tag, shared};
@@ -63,15 +63,18 @@ pub(super) fn push_stack_io_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     });
 
     b.with_tag(shared("table read gate", TABLE_READ_OPS), |b| {
-        // The table-entry read is off on an OOB call_indirect row: there is no
-        // valid entry to read, and the OOB trap must not depend on it.
-        b.push_linear_zero([
-            (COL_TABLE_READ_ENABLED, F::ONE),
-            (selector_col(WasmOpcode::TableGet).unwrap(), -F::ONE),
-            (selector_col(WasmOpcode::CallIndirect).unwrap(), -F::ONE),
-            (selector_col(WasmOpcode::ReturnCallIndirect).unwrap(), -F::ONE),
-            (COL_CI_OOB, F::ONE),
-        ]);
+        let table_get = selector_col(WasmOpcode::TableGet).unwrap();
+        b.push_row(
+            [(table_get, F::ONE)],
+            [(COL_TABLE_OOB, F::ONE)],
+            [
+                (table_get, F::ONE),
+                (selector_col(WasmOpcode::CallIndirect).unwrap(), F::ONE),
+                (selector_col(WasmOpcode::ReturnCallIndirect).unwrap(), F::ONE),
+                (COL_CI_OOB, -F::ONE),
+                (COL_TABLE_READ_ENABLED, -F::ONE),
+            ],
+        );
     });
 
     b.with_tag(shared("table size read gate", TABLE_SIZE_READ_OPS), |b| {

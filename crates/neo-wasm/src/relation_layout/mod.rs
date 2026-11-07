@@ -46,8 +46,8 @@ use super::layout::{
     COL_SIGN_EXT_LOW7, COL_STACK_READ_ACTIVE, COL_STACK_READ_ADDR_HI, COL_STACK_READ_ADDR_LO, COL_STACK_READ_VALUE_HI,
     COL_STACK_READ_VALUE_LO, COL_STACK_WRITE0_ACTIVE, COL_STACK_WRITE0_ADDR_HI, COL_STACK_WRITE0_ADDR_LO,
     COL_STACK_WRITE0_HI_ACTIVE, COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO, COL_TABLE_ID, COL_TABLE_INDEX,
-    COL_TABLE_READ_ENABLED, COL_TABLE_SIZE, COL_TABLE_SIZE_READ_ENABLED, COL_TABLE_VALUE, COL_TURN_BOUNDARY,
-    COL_TURN_EXPORT_FREF_BEFORE,
+    COL_TABLE_READ_ENABLED, COL_TABLE_SET_LIVE, COL_TABLE_SIZE, COL_TABLE_SIZE_READ_ENABLED, COL_TABLE_VALUE,
+    COL_TURN_BOUNDARY, COL_TURN_EXPORT_FREF_BEFORE,
 };
 use super::lookup_semantics::{semantics_for_lookup_family, LookupSemantics};
 use super::tables::WasmLookupArity;
@@ -703,7 +703,7 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
                     kind: MemoryPortKind::Write {
                         value_before_column: None,
                     },
-                    activation: active_when(Column(selector_col(super::isa::WasmOpcode::TableSet).unwrap())),
+                    activation: active_when(Column(COL_TABLE_SET_LIVE)),
                 },
             ],
         },

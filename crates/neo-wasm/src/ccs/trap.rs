@@ -8,7 +8,8 @@ use super::super::layout::{
     COL_EXPECTED_TYPE_ID, COL_FUNCTION_CALL_TYPE_LOOKUP_GATE, COL_FUNCTION_TYPE_ID, COL_GUEST_ENTRY_ACTIVE,
     COL_IS_PROGRAM_ROW, COL_MEMORY_PAGES_BEFORE, COL_MEM_LOAD_LIVE, COL_MEM_OOB, COL_MEM_STORE_LIVE, COL_ONE,
     COL_OUTPUT_CAPTURED, COL_STACK_READ_VALUE_HI, COL_STACK_READ_VALUE_LO, COL_STACK_WRITE0_VALUE_HI,
-    COL_STACK_WRITE0_VALUE_LO, COL_TABLE_INDEX, COL_TABLE_SIZE, COL_TABLE_VALUE, COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE,
+    COL_STACK_WRITE0_VALUE_LO, COL_TABLE_INDEX, COL_TABLE_OOB, COL_TABLE_SET_LIVE, COL_TABLE_SIZE, COL_TABLE_VALUE,
+    COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE,
 };
 use super::super::relation_layout::{LinearMemoryColumns, WasmRelationLayout};
 use super::{always, idx, shared, WasmTaggedR1csBuilder};
@@ -158,7 +159,18 @@ fn push_table_bounds_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
         COL_CMP_LOW,
         COL_CMP_GE,
     );
-    b.push_row([(table_get, F::ONE), (table_set, F::ONE)], [(COL_CMP_GE, F::ONE)], []);
+    b.push_row(
+        [(table_get, F::ONE), (table_set, F::ONE)],
+        [(COL_CMP_GE, F::ONE)],
+        [(COL_TABLE_OOB, F::ONE)],
+    );
+    b.push_row(
+        [(table_set, F::ONE)],
+        [(COL_ONE, F::ONE), (COL_CMP_GE, -F::ONE)],
+        [(COL_TABLE_SET_LIVE, F::ONE)],
+    );
+    push_gated_linear_zero(b, COL_TABLE_OOB, [(COL_STACK_WRITE0_VALUE_LO, F::ONE)]);
+    push_gated_linear_zero(b, COL_TABLE_OOB, [(COL_STACK_WRITE0_VALUE_HI, F::ONE)]);
 }
 
 fn linear_memory_ops() -> Vec<WasmOpcode> {
@@ -364,6 +376,7 @@ fn push_trapped_state_transition_constraints(b: &mut WasmTaggedR1csBuilder<'_>) 
         (COL_DIV_TRAP, -F::ONE),
         (COL_CALL_INDIRECT_IS_TRAP, -F::ONE),
         (COL_MEM_OOB, -F::ONE),
+        (COL_TABLE_OOB, -F::ONE),
     ]);
     b.push_row([(COL_IS_PROGRAM_ROW, F::ONE)], [(COL_TRAPPED_BEFORE, F::ONE)], []);
     b.push_row([(COL_OUTPUT_CAPTURED, F::ONE)], [(COL_TRAPPED_AFTER, F::ONE)], []);

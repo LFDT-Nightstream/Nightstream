@@ -574,6 +574,22 @@ When the plan names each checked port once, each slot shows at most one active p
 
 **Source.** `crates/neo-wasm/src/ccs/call.rs`, `crates/neo-wasm/src/relation_layout/mod.rs`, `crates/neo-wasm/src/ivc_state.rs`, and `crates/neo-wasm/src/adapters/wasmtime/normalize/trace_build.rs` (not checked against Lean).
 
+### 7.8 WASM table access traps
+
+**Input.** A `table.get` or `table.set` row, its table id, its `u32` index, and the current table size.
+
+**Output.** One in-bounds table access, or a trapped terminal state.
+
+**Steps.**
+
+1. Read the table size from the table-size RAM at the program-bound table id, and compare the index with that size.
+2. If the index is below the size, read the table element for `table.get` or write it for `table.set`. Bind the value to the corresponding stack operand or result.
+3. Otherwise, disable the table-element port, mark the execution as trapped, and capture no output. A trapping `table.get` has no table value to read.
+
+**Rejects.** A normal return after an out-of-bounds access, a trapped return for an in-bounds access, or a table-element access on a trapping row.
+
+**Source.** [WebAssembly table execution](https://webassembly.github.io/spec/core/exec/instructions.html); `crates/neo-wasm/src/ccs/trap.rs`, `crates/neo-wasm/src/ccs/stack_io.rs`, and `crates/neo-wasm/src/adapters/wasmtime/normalize/trace_build.rs` (not checked against Lean).
+
 ### Algorithm 9. Memory step
 
 **Input.** The input state, the carry `c` and the application words that open it, the output application words, the private words, the step's lanes, and the proposals.

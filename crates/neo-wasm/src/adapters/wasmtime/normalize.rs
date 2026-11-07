@@ -414,14 +414,10 @@ pub(crate) fn capture_frame<T>(
         _ => None,
     };
     let table_value = match opcode_decoded {
-        Some(WasmOpcode::TableGet) => match (table_id, table_index) {
-            (Some(table_id), Some(table_index)) => Some(read_table_funcref_u32(
-                table_id,
-                table_index,
-                frame,
-                store,
-                func_ref_ids,
-            )?),
+        Some(WasmOpcode::TableGet) => match (table_id, table_index, table_size) {
+            (Some(table_id), Some(table_index), Some(table_size)) if table_index < table_size => Some(
+                read_table_funcref_u32(table_id, table_index, frame, store, func_ref_ids)?,
+            ),
             _ => None,
         },
         Some(WasmOpcode::TableSet) => operand_stack_words.last().copied(),

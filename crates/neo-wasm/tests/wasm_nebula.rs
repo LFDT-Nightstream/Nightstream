@@ -987,6 +987,72 @@ fn wasm_proof_of_two_rows_per_step_verifies_and_rejects_a_changed_load_on_cpu() 
     proof_verifies_and_rejects_a_changed_load_on_cpu(per_step(2));
 }
 
+#[test]
+fn zero_page_memory_presence_is_bound_by_the_public_verifier() {
+    use nightstream::nebula::Circuit;
+
+    let setup = setup_of(
+        r#"(module (memory 0 0) (func (export "main") (result i32) i32.const 7))"#,
+        NonZeroUsize::MIN,
+        false,
+    );
+    let (app, geometry) = setup.complete();
+    let traced = &setup.programs[0];
+    assert_eq!(traced.initial.memory_pages, Some(0));
+    assert_eq!(traced.last.memory_pages, Some(0));
+    assert_eq!(traced.last.max_memory_pages, Some(0));
+
+    let engine = nightstream::Engine::Optimized;
+    let circuit = Circuit::compile(geometry, app.clone()).unwrap();
+    let prover = circuit.prover(engine, 109).unwrap();
+    let verifier = circuit.verifier(engine, 109).unwrap();
+    let program = app.program(&traced.preload).unwrap();
+    let mut run = prover.start(&program, traced.initial).unwrap();
+    run.segment(&traced.inputs).unwrap();
+    let proof = run.finish().unwrap();
+    verifier
+        .verify(&program, &traced.initial, &traced.last, &proof)
+        .unwrap();
+
+    let mut accepted = Vec::new();
+    let mut no_memory = traced.initial;
+    no_memory.memory_pages = None;
+    if verifier
+        .verify(&program, &no_memory, &traced.last, &proof)
+        .is_ok()
+    {
+        accepted.push("initial.memory_pages");
+    }
+    no_memory = traced.last;
+    no_memory.memory_pages = None;
+    if verifier
+        .verify(&program, &traced.initial, &no_memory, &proof)
+        .is_ok()
+    {
+        accepted.push("last.memory_pages");
+    }
+    let mut no_maximum = traced.initial;
+    no_maximum.max_memory_pages = None;
+    if verifier
+        .verify(&program, &no_maximum, &traced.last, &proof)
+        .is_ok()
+    {
+        accepted.push("initial.max_memory_pages");
+    }
+    no_maximum = traced.last;
+    no_maximum.max_memory_pages = None;
+    if verifier
+        .verify(&program, &traced.initial, &no_maximum, &proof)
+        .is_ok()
+    {
+        accepted.push("last.max_memory_pages");
+    }
+    assert!(
+        accepted.is_empty(),
+        "unproved public WASM state changes were accepted: {accepted:?}"
+    );
+}
+
 /// `fib(2)` is 32 rows, so it fills a 32-step segment with no padding step.
 const FIB_ROUNDS: u32 = 2;
 const FIB_STEPS: usize = 32;

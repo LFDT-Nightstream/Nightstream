@@ -43,5 +43,9 @@ approved it on 2026-11-03.
    smallest size that holds the program and its run. The size is part of the
    statement, and the verifier compiles the circuit of that size. It never
    takes a region or a geometry from the run.
-5. **Security.** Each size keeps rule 6, so its memory fingerprint error is
-   at most `2^−109.91`. A caller asks for at most 109 bits of security.
+5. **Security.** Each size keeps rule 6, so one segment's memory fingerprint
+   error is at most `2^−109.91`. The memory gate charges every allowed
+   segment and the final comparison. It permits at most 106 bits for Small
+   or Medium, and 103 bits for Large. The folding gate can set a lower limit.
+   The external challenge-query and collision premises remain in
+   `formal/nightstream-fprime/SECURITY_MODEL.md`, trust item 7.

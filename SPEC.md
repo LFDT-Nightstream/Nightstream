@@ -439,6 +439,8 @@ Setup rejects a geometry that breaks one of these rules (`Spec.Nebula.Geometry.V
 5. **Positive sizes:** `B_ops`, `B_scan`, `N` and `S_max` are at least 1.
 6. **Security:** `R + M + N · B_ops ≤ 139,509`. This holds exactly when the fingerprint error `2(R + M + N · B_ops)/q²` is at most `2^−109.91` (`Spec.Nebula.Geometry.secure_iff` (`fca657b92bff91b6`)), the floor of `decisions/nebula-memory-checking.md`.
 
+At setup, the Rust memory security gate compares the caller's requested minimum with `(S_max + 1) · 2(R + M + N · B_ops)/q²`. It uses integer arithmetic, so rounding cannot admit a larger minimum. This gate charges all allowed segment challenges and the final comparison. It does not discharge the external challenge-query or Poseidon2 collision premises of `formal/nightstream-fprime/SECURITY_MODEL.md`, trust item 7.
+
 Every memory package that `lake exe emit` writes gets its relation from `Export.Stage1.NebulaMemoryPackage.application`, which takes the proofs of rules 1 to 6. The verifier rejects a program whose ROM image does not have `R` words or whose RAM image does not have `M` words before it computes `D_init` (`Spec.Nebula.Plan.Valid`). The segment counter uses `W_seg = ⌈log₂(S_max + 1)⌉` bits.
 
 The plan digest is `Digest("Nightstream/Nebula/v3/plan", [r, μ, W_ts, B_ops, B_scan, N, S_max])` (section 7.4, `Lifecycle.Nebula.planDigest`). The package rows hold it as a constant, as they hold the verifier-context digest.

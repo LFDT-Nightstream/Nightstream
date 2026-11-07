@@ -218,8 +218,8 @@ fn a_small_proof_verifies_on_metal() {
     let circuit = Circuit::compile(size.geometry(), app).unwrap();
     eprintln!("compile elapsed={:?}", started.elapsed());
     let engine = nightstream::Engine::Metal;
-    let prover = circuit.prover(engine, 109).unwrap();
-    let verifier = circuit.verifier(engine, 109).unwrap();
+    let prover = circuit.prover(engine, 106).unwrap();
+    let verifier = circuit.verifier(engine, 106).unwrap();
     eprintln!("setup elapsed={:?}", started.elapsed());
 
     let proving = Instant::now();

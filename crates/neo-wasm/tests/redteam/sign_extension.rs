@@ -14,6 +14,12 @@ const LOAD32: &str = r#"(module
     (func (export "main") (result i64)
         i32.const 0
         i64.load32_s))"#;
+const LOAD8: &str = r#"(module
+    (memory 1)
+    (data (i32.const 0) "\80")
+    (func (export "main") (result i32)
+        i32.const 0
+        i32.load8_s))"#;
 
 fn change_access(access: &mut Option<StackValueAccess>, old: StackValueAccess, bad: StackValueAccess) {
     if let Some(access) = access {
@@ -149,5 +155,13 @@ fn signed_load_cannot_clear_the_high_limb_of_a_negative_word() {
     assert!(
         !public_verifier_accepts_bad_sign(LOAD32, WasmOpcode::I64Load32S, "-2147483648", None, Some(0)),
         "the public verifier accepted +2147483648 for i64.load32_s(0x80000000), which Wasmtime returns as -2147483648"
+    );
+}
+
+#[test]
+fn signed_byte_load_cannot_return_an_unsigned_value() {
+    assert!(
+        !public_verifier_accepts_bad_sign(LOAD8, WasmOpcode::I32Load8S, "-128", Some(128), None),
+        "the public verifier accepted output 128 for i32.load8_s(0x80), which Wasmtime returns as -128"
     );
 }

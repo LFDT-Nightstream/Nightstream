@@ -6,7 +6,7 @@ use neo_wasm::host_event_bindings::HostEventBindings;
 use neo_wasm::memory_semantics::preload_host_event_tables;
 use neo_wasm::nebula::{plan_ordered_slots, step_inputs, WasmApplication, WasmLimits};
 use neo_wasm::{preload_from_program_artifacts, top_level_initial_state, WasmOpcode};
-use nightstream::nebula::{Circuit, Geometry};
+use nightstream::nebula::{Circuit, Geometry, ProveError};
 
 fn bits(value: u64) -> usize {
     (u64::BITS - value.leading_zeros()) as usize
@@ -42,14 +42,19 @@ fn terminal_end_cannot_claim_an_unrelated_pc() {
     let verifier = circuit.verifier(engine, 109).unwrap();
     let program = app.program(&preload).unwrap();
     let initial = top_level_initial_state(&reference.artifacts.tables, forged[0].state_before.pc);
-    let final_state = forged.last().unwrap().state_after;
+    let honest_inputs = step_inputs(&reference.trace, n, per_step).unwrap();
+    let mut honest = prover.start(&program, initial).unwrap();
+    honest.segment(&honest_inputs).unwrap();
+    let honest_proof = honest.finish().unwrap();
+    verifier
+        .verify(
+            &program,
+            &initial,
+            &reference.trace.last().unwrap().state_after,
+            &honest_proof,
+        )
+        .unwrap();
+
     let mut run = prover.start(&program, initial).unwrap();
-    run.segment(&inputs).unwrap();
-    let proof = run.finish().unwrap();
-    assert!(
-        verifier
-            .verify(&program, &initial, &final_state, &proof)
-            .is_err(),
-        "the public verifier accepted an unrelated terminal PC"
-    );
+    assert!(matches!(run.segment(&inputs), Err(ProveError::Proof(_))));
 }

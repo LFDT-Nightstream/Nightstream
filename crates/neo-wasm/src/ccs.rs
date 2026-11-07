@@ -448,6 +448,25 @@ pub fn build_wasm_relation() -> Result<ApplicationRelation<WasmConstraintScope>,
             [(COL_PC_ROM_ACTIVE, F::ONE)],
         );
     });
+    b.with_tag(always("terminal return pc"), |b| {
+        b.push_row(
+            [(COL_IS_PROGRAM_ROW, F::ONE)],
+            [
+                (COL_ACTIVATION_FINISHED_AFTER, F::ONE),
+                (super::layout::COL_TRAPPED_AFTER, -F::ONE),
+            ],
+            [(super::layout::COL_TERMINAL_RETURN_ACTIVE, F::ONE)],
+        );
+        b.push_row(
+            [(super::layout::COL_TERMINAL_RETURN_ACTIVE, F::ONE)],
+            [
+                (super::layout::COL_PC_AFTER, F::ONE),
+                (super::layout::COL_PC_BEFORE, -F::ONE),
+                (COL_ONE, -F::ONE),
+            ],
+            [],
+        );
+    });
 
     // A div trap de-gates the op-table relation; div/rem lookup tables only
     // model completed, non-trapping arithmetic.

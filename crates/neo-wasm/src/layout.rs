@@ -343,10 +343,7 @@ define_column_region! {
         COL_LINEAR_MEM_ACCESS_BYTE5: Byte => "linear-memory access value hi byte 1 (i64 only)",
         COL_LINEAR_MEM_ACCESS_BYTE6: Byte => "linear-memory access value hi byte 2 (i64 only)",
         COL_LINEAR_MEM_ACCESS_BYTE7: Byte => "linear-memory access value hi byte 3 (i64 only)",
-        // Genuine range is 7 bits, [0, 128). Annotated `Byte` as a conservative
-        // (over-)approximation so it gets the same enforcement as other byte
-        // columns. This could be tightened to `Bits(7)`.
-        COL_SIGN_EXT_LOW7: Byte => "sign-extension scratch lower 7 bits of the sign source byte",
+        COL_SIGN_EXT_LOW7: (Bits(7)) => "sign-extension scratch lower 7 bits of the sign source byte",
         COL_SIGN_EXT_BIT: Boolean => "sign-extension scratch sign bit",
         COL_SEL_I32_WRAP_I64: Boolean => "selector for i32.wrap_i64",
         COL_SEL_I64_EXTEND_I32_U: Boolean => "selector for i64.extend_i32_u",

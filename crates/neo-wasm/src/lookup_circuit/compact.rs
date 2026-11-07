@@ -343,6 +343,9 @@ fn enforce_zero_counts(
         .iter()
         .fold(Lc::zero(), |sum, &bit| sum.plus(&Lc::var(bit)));
     builder.enforce_equal_when(&activation, &Lc::from_bits(output), &count);
+    if wide {
+        builder.enforce_zero_when(&activation, &Lc::from_bits(&output[7..]));
+    }
     Ok(())
 }
 
@@ -356,6 +359,9 @@ fn enforce_popcount(
         .iter()
         .fold(Lc::zero(), |sum, &bit| sum.plus(&Lc::var(bit)));
     builder.enforce_equal_when(&opcode_lc(operation), &Lc::from_bits(output), &count);
+    if output.len() == 64 {
+        builder.enforce_zero_when(&opcode_lc(operation), &Lc::from_bits(&output[7..]));
+    }
     Ok(())
 }
 

@@ -704,9 +704,6 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
         MemorySpec {
             id: WasmMemoryId::TableSize,
             kind: MemoryKind::Ram,
-            // Read by table.size and by call_indirect: the latter binds the
-            // authoritative table size for the OOB comparison, so the gate
-            // stays on even on a trapping call_indirect row.
             ports: vec![MemoryPortSpec {
                 address_columns: memory_columns([Column(COL_TABLE_ID)]),
                 value_column: COL_TABLE_SIZE,

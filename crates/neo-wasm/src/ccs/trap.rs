@@ -122,6 +122,12 @@ pub(super) fn push_trap_constraints(b: &mut WasmTaggedR1csBuilder<'_>, layout: &
             push_call_indirect_trap_constraints(b);
         },
     );
+    b.with_tag(
+        shared("table access bounds", &[WasmOpcode::TableGet, WasmOpcode::TableSet]),
+        |b| {
+            push_table_access_bounds_constraints(b);
+        },
+    );
     b.with_tag(shared("linear memory oob trap", &linear_memory_ops()), |b| {
         push_linear_memory_oob_trap_constraints(b, &layout.linear_memory);
     });
@@ -333,6 +339,22 @@ fn push_call_indirect_trap_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
         [(COL_GUEST_ENTRY_ACTIVE, F::ONE)],
         [],
     );
+}
+
+fn push_table_access_bounds_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
+    let access = [
+        selector_col(WasmOpcode::TableGet).unwrap(),
+        selector_col(WasmOpcode::TableSet).unwrap(),
+    ];
+    push_unsigned_ge_gadget(
+        b,
+        access,
+        [(COL_TABLE_INDEX, F::ONE)],
+        [(COL_TABLE_SIZE, F::ONE)],
+        COL_CMP_LOW,
+        COL_CMP_GE,
+    );
+    b.push_row(access.map(|selector| (selector, F::ONE)), [(COL_CMP_GE, F::ONE)], []);
 }
 
 fn push_trapped_state_transition_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {

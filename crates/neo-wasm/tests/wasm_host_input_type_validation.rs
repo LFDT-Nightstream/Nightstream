@@ -36,7 +36,9 @@ fn i32_export_input_high_slot_is_rejected_before_capture() {
     let artifacts = extract_first_component_core_program_artifacts(&component).unwrap();
     let mut bindings = HostEventBindings::default();
     bindings.exports.insert(1, entry_template());
-    let rejection = bindings.validate_against_program(&artifacts.tables).unwrap_err();
+    let rejection = bindings
+        .validate_against_program(&artifacts.tables)
+        .unwrap_err();
     assert!(rejection.to_string().contains("i32 local 0 high lane"), "{rejection}");
     let rejection = neo_wasm::collect_wasmtime_component_run_with_linker_and_args(
         &component,
@@ -55,5 +57,7 @@ fn i64_export_input_high_slot_remains_valid() {
     let artifacts = extract_wasm_program_artifacts(&wasm).unwrap();
     let mut bindings = HostEventBindings::default();
     bindings.exports.insert(1, entry_template());
-    bindings.validate_against_program(&artifacts.tables).unwrap();
+    bindings
+        .validate_against_program(&artifacts.tables)
+        .unwrap();
 }

@@ -83,6 +83,7 @@ pub struct WasmProgramTables {
     /// guest/import classification in one read.
     pub function_call_metadata: Vec<(u64, u64)>,
     pub function_result_narrow: Vec<(u64, u64)>,
+    pub function_local_narrow: Vec<(u64, u64, u64)>,
     /// Static `(function_ref, params_plus_declared_locals)` rows used to bind
     /// frame-base transitions and local-slot addressing.
     pub function_local_counts: Vec<(u64, u64)>,
@@ -235,6 +236,8 @@ struct ParsedWasmArtifactsBuilder {
     imported_function_count: u32,
     raw_type_id_by_index: BTreeMap<u32, u32>,
     raw_type_shape_by_index: BTreeMap<u32, (u8, u8, bool)>,
+    raw_type_param_narrow_by_index: BTreeMap<u32, Vec<bool>>,
+    function_local_narrow: Vec<(u64, u64, u64)>,
     signature_ids: BTreeMap<String, u32>,
     next_type_id: u32,
     defined_function_type_indices: Vec<u32>,
@@ -268,6 +271,8 @@ impl Default for ParsedWasmArtifactsBuilder {
             imported_function_count: 0,
             raw_type_id_by_index: BTreeMap::new(),
             raw_type_shape_by_index: BTreeMap::new(),
+            raw_type_param_narrow_by_index: BTreeMap::new(),
+            function_local_narrow: Vec::new(),
             signature_ids: BTreeMap::new(),
             next_type_id: 1,
             defined_function_type_indices: Vec::new(),
@@ -370,6 +375,8 @@ impl ParsedWasmArtifactsBuilder {
             .iter()
             .map(|(&function_ref, meta)| (u64::from(function_ref), u64::from(meta.result_narrow)))
             .collect::<Vec<_>>();
+        self.function_local_narrow.sort_unstable();
+        self.function_local_narrow.dedup();
         let mut function_local_counts = self
             .function_metas
             .iter()
@@ -400,6 +407,7 @@ impl ParsedWasmArtifactsBuilder {
                 function_types,
                 function_call_metadata,
                 function_result_narrow,
+                function_local_narrow: self.function_local_narrow,
                 function_local_counts,
                 call_targets: self.call_targets,
                 module_types,
@@ -448,6 +456,14 @@ impl ParsedWasmArtifactsBuilder {
                         .is_some_and(|ty| *ty == wasmparser::ValType::I32);
                     self.raw_type_shape_by_index
                         .insert(raw_type_index as u32, (param_count, result_count, result_narrow));
+                    self.raw_type_param_narrow_by_index.insert(
+                        raw_type_index as u32,
+                        func_type
+                            .params()
+                            .iter()
+                            .map(|ty| *ty == wasmparser::ValType::I32)
+                            .collect(),
+                    );
                 }
             }
             Payload::ImportSection(reader) => {
@@ -500,6 +516,13 @@ impl ParsedWasmArtifactsBuilder {
                                 entry_pc: None,
                             },
                         );
+                        for (local, &narrow) in self.raw_type_param_narrow_by_index[&raw_type_index]
+                            .iter()
+                            .enumerate()
+                        {
+                            self.function_local_narrow
+                                .push((u64::from(function_ref), local as u64, u64::from(narrow)));
+                        }
                     }
                 }
             }
@@ -542,12 +565,15 @@ impl ParsedWasmArtifactsBuilder {
                         ))
                     })?;
                 let mut declared_local_count = 0_u32;
+                let mut local_narrow = self.raw_type_param_narrow_by_index[&raw_type_index].clone();
                 let locals_reader = body
                     .get_locals_reader()
                     .map_err(|err| WasmProgramError::Invalid(format!("failed to read wasm locals: {err}")))?;
                 for local_result in locals_reader {
-                    let (count, _) = local_result
+                    let (count, ty) = local_result
                         .map_err(|err| WasmProgramError::Invalid(format!("failed to decode wasm local decl: {err}")))?;
+                    let tracked = (256 - local_narrow.len()).min(count as usize);
+                    local_narrow.extend(std::iter::repeat_n(ty == wasmparser::ValType::I32, tracked));
                     declared_local_count = declared_local_count
                         .checked_add(count)
                         .ok_or_else(|| WasmProgramError::Invalid("declared local count overflow".to_string()))?;
@@ -555,6 +581,10 @@ impl ParsedWasmArtifactsBuilder {
                 let num_locals = u32::from(param_count)
                     .checked_add(declared_local_count)
                     .ok_or_else(|| WasmProgramError::Invalid("total local count overflow".to_string()))?;
+                for (local, narrow) in local_narrow.into_iter().enumerate() {
+                    self.function_local_narrow
+                        .push((u64::from(function_ref), local as u64, u64::from(narrow)));
+                }
                 let mut reader = body
                     .get_operators_reader()
                     .map_err(|err| WasmProgramError::Invalid(format!("failed to read wasm operators: {err}")))?;

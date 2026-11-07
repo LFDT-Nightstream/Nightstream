@@ -420,6 +420,29 @@ impl HostEventBindings {
             })?;
 
             template.validate(local_bound, result_count)?;
+            for slot in template.entry.iter().flat_map(|event| &event.block) {
+                if let SlotBinding::InputLocal {
+                    local, limb: Limb::Hi, ..
+                } = *slot
+                {
+                    let narrow = program
+                        .function_local_narrow
+                        .iter()
+                        .find_map(|&(fref, index, narrow)| {
+                            (fref == u64::from(function_ref) && index == u64::from(local)).then_some(narrow)
+                        })
+                        .ok_or_else(|| {
+                            WasmBuildError::Trace(format!(
+                                "host-event export fref {function_ref} has no type for local {local}"
+                            ))
+                        })?;
+                    if narrow != 0 {
+                        return Err(WasmBuildError::Trace(format!(
+                            "host-event export fref {function_ref} writes i32 local {local} high lane"
+                        )));
+                    }
+                }
+            }
             // Every argument must enter through a declared local write,
             // including on a single-shot export with an otherwise empty schedule.
             for local in 0..param_count {

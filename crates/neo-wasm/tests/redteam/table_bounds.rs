@@ -5,6 +5,7 @@ const LARGE_GET: &str =
     r#"(module (table 6 funcref) (func (export "main") (result i32) i32.const 5 table.get 0 drop i32.const 7))"#;
 const SMALL_GET: &str =
     r#"(module (table 1 funcref) (func (export "main") (result i32) i32.const 5 table.get 0 drop i32.const 7))"#;
+const SMALL_SET: &str = r#"(module (func $f) (elem declare funcref (ref.func $f)) (table 1 funcref) (func (export "main") (result i32) i32.const 5 ref.func $f table.set 0 i32.const 7))"#;
 
 #[test]
 fn table_access_past_declared_size_is_rejected_by_public_verifier() {
@@ -13,7 +14,7 @@ fn table_access_past_declared_size_is_rejected_by_public_verifier() {
         (
             "table.set",
             r#"(module (func $f) (elem declare funcref (ref.func $f)) (table 6 funcref) (func (export "main") (result i32) i32.const 5 ref.func $f table.set 0 i32.const 7))"#,
-            r#"(module (func $f) (elem declare funcref (ref.func $f)) (table 1 funcref) (func (export "main") (result i32) i32.const 5 ref.func $f table.set 0 i32.const 7))"#,
+            SMALL_SET,
         ),
     ];
     let mut accepted = Vec::new();
@@ -79,6 +80,31 @@ fn table_access_past_declared_size_is_rejected_by_public_verifier() {
         accepted.is_empty(),
         "the public verifier accepted a normal return for out-of-bounds table accesses: {accepted:?}"
     );
+}
+
+#[test]
+fn honest_out_of_bounds_table_traps_have_public_proofs() {
+    for (name, wasm) in [("table.get", SMALL_GET), ("table.set", SMALL_SET)] {
+        let setup = setup_of(wasm, NonZeroUsize::MIN, false);
+        let (app, geometry) = setup.complete();
+        let traced = &setup.programs[0];
+        assert!(traced.last.is_terminal() && traced.last.trapped, "{name}");
+        assert!(!traced.last.output.enabled, "{name}");
+
+        let program = app.program(&traced.preload).unwrap();
+        let circuit = Circuit::compile(geometry, app).unwrap();
+        let prover = circuit.prover(nightstream::Engine::Optimized, 109).unwrap();
+        let verifier = circuit
+            .verifier(nightstream::Engine::Optimized, 109)
+            .unwrap();
+        let mut run = prover.start(&program, traced.initial).unwrap();
+        run.segment(&traced.inputs)
+            .unwrap_or_else(|error| panic!("the honest {name} trap has no proof: {error:?}"));
+        let proof = run.finish().unwrap();
+        verifier
+            .verify(&program, &traced.initial, &traced.last, &proof)
+            .unwrap_or_else(|error| panic!("the honest {name} trap does not verify: {error:?}"));
+    }
 }
 
 #[test]

@@ -416,7 +416,7 @@ define_column_region! {
             "load lane gate factor: a load row that is not OOB (de-gates lane reads on an OOB trap)",
         COL_MEM_STORE_LIVE: Boolean =>
             "store lane gate factor: a store row that is not OOB (de-gates lane writes on an OOB trap)",
-        COL_GROW_SUCCESS: Boolean => "memory.grow row: the growth fits under max pages (before + delta <= max)",
+        COL_GROW_SUCCESS: Boolean => "memory.grow returned the old page count",
         COL_ACTIVATION_FINISHED_BEFORE: Boolean => "current activation has returned or trapped before this row",
         COL_BR_TABLE_LEN: U32 => "number of explicit br_table arms, read from the program ROM",
         COL_BR_TABLE_IN_BOUNDS: Boolean => "br_table row with an index below its arm count",

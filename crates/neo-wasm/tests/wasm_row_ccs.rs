@@ -239,8 +239,6 @@ fn non_grow_row_rejects_changed_memory_pages() {
     assert_rejected(&row, "memory_pages changed on a non-grow row");
 }
 
-/// memory.grow within the declared max succeeds: it returns the old page count
-/// and the new size is before + delta.
 #[test]
 fn memory_grow_success_row_is_accepted() {
     let trace = trace_from_wat(

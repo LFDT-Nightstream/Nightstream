@@ -14,6 +14,69 @@ const GROW: &str = r#"(module
         i32.const 7))"#;
 
 #[test]
+fn wasmtime_capture_records_a_resource_limited_grow_failure() {
+    struct StoreData {
+        trace: neo_wasm::WasmtimeTraceRegistry,
+        limits: wasmtime::StoreLimits,
+    }
+
+    impl neo_wasm::WasmTraceSink for StoreData {
+        fn wasm_trace_registry(&self) -> &neo_wasm::WasmtimeTraceRegistry {
+            &self.trace
+        }
+
+        fn wasm_trace_registry_mut(&mut self) -> &mut neo_wasm::WasmtimeTraceRegistry {
+            &mut self.trace
+        }
+    }
+
+    let wasm = wat::parse_str(GROW).unwrap();
+    let mut trace = neo_wasm::WasmtimeTraceRegistry::default();
+    trace
+        .register_module(&wasm, HostEventBindings::default())
+        .unwrap();
+    let mut config = wasmtime::Config::new();
+    config.guest_debug(true);
+    config.wasm_reference_types(true);
+    config.wasm_function_references(true);
+    let engine = wasmtime::Engine::new(&config).unwrap();
+    let module = wasmtime::Module::new(&engine, &wasm).unwrap();
+    let mut store = wasmtime::Store::new(
+        &engine,
+        StoreData {
+            trace,
+            limits: wasmtime::StoreLimitsBuilder::new()
+                .memory_size(65_536)
+                .build(),
+        },
+    );
+    store.limiter(|data| &mut data.limits);
+    store.set_debug_handler(neo_wasm::WasmtimeTraceHandler::<StoreData>::new());
+    store.edit_breakpoints().unwrap().single_step(true).unwrap();
+    let instance =
+        futures::executor::block_on(wasmtime::Linker::new(&engine).instantiate_async(&mut store, &module)).unwrap();
+    let grow = instance.get_func(&mut store, "try_grow").unwrap();
+    let mut result = [wasmtime::Val::I32(0)];
+    futures::executor::block_on(grow.call_async(&mut store, &[], &mut result)).unwrap();
+    assert_eq!(result[0].i32(), Some(-1));
+
+    let steps = store.data().trace.single_instance().unwrap().steps();
+    let grow = steps
+        .iter()
+        .find(|step| step.opcode_decoded == Some(WasmOpcode::MemoryGrow))
+        .unwrap();
+    assert_eq!(grow.memory_pages_before, Some(1));
+    assert_eq!(grow.memory_pages_after, Some(1));
+    let normalized = neo_wasm::traces_from_wasmtime_steps(steps).unwrap();
+    let grow = normalized
+        .iter()
+        .find(|step| step.opcode == WasmOpcode::MemoryGrow)
+        .unwrap();
+    assert_eq!(grow.state_after.memory_pages, Some(1));
+    assert_eq!(grow.stack_write0.as_ref().unwrap().value_lo, u32::MAX);
+}
+
+#[test]
 fn legal_memory_grow_allocation_failure_has_a_public_proof() {
     let wasm = wat::parse_str(GROW).unwrap();
     let engine = wasmtime::Engine::default();

@@ -814,6 +814,29 @@ fn minimum_109_rejects_64_segment_fingerprint_loss() {
     );
 }
 
+#[test]
+fn memory_security_boundary_rejects_exact_bound_above_minimum() {
+    let geometry = crate::nebula::Geometry {
+        r: 0,
+        mu: 0,
+        w_ts: 49,
+        b_ops: 2,
+        b_scan: 2,
+        n: 1,
+        s_max: 140_737_488_289_793,
+    };
+    assert!(geometry.is_valid());
+    let q = (1u128 << 64) - (1u128 << 32) + 1;
+    let m = geometry.max_tuples() as u128;
+    assert!(2 * m * geometry.s_max as u128 * (1u128 << 78) > q * q);
+
+    let circuit = crate::nebula::Circuit::compile(geometry, Machine).unwrap();
+    assert!(
+        circuit.verifier(crate::Engine::Optimized, 78).is_err(),
+        "the verifier accepted 78 bits when the exact 64-bit-field memory bound is below 78"
+    );
+}
+
 /// Lean `Machine.portApp` is for `bOps = 2`, and Lean `PortApp.portsLength`
 /// gives every step `B_ops` ports. No machine row fixes a third port, so a
 /// step could write any RAM cell through it: the geometry makes no circuit.

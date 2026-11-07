@@ -9,15 +9,25 @@ fn assert_imported_state_is_bound(local: &str, imported_bytes: &[u8], kind: &str
     let (app, geometry) = setup.complete();
     let traced = &setup.programs[0];
     let (fref, entry_pc) = artifacts.tables.function_entries[0];
+    let export_fref = u32::try_from(fref).unwrap();
+    let mut bindings = HostEventBindings::default();
+    bindings
+        .exports
+        .insert(export_fref, neo_wasm::host_event_bindings::ExportTemplate::default());
     let mut imported_preload = preload_from_program_artifacts(&artifacts);
-    preload_host_event_tables(
-        &mut imported_preload,
-        &HostEventBindings::import_free(u32::try_from(fref).unwrap()),
-    );
+    preload_host_event_tables(&mut imported_preload, &bindings);
     let local_program = app.program(&traced.preload).unwrap();
     let imported_program = app.program(&imported_preload).unwrap();
     assert_eq!(local_program.d_init(), imported_program.d_init());
-    assert_eq!(traced.initial, top_level_initial_state(&artifacts.tables, entry_pc));
+    let imported_initial = neo_wasm::host_event_top_level_initial_state(
+        &artifacts.tables,
+        entry_pc,
+        &bindings,
+        export_fref,
+        Default::default(),
+    )
+    .unwrap();
+    assert_eq!(traced.initial, imported_initial);
     assert_eq!(traced.last.output.value_lo, 0);
 
     let engine = nightstream::Engine::Optimized;

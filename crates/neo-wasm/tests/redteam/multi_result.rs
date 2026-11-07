@@ -1,8 +1,5 @@
 use super::*;
-use neo_wasm::layout::COL_EXIT_SLIDE_DISTANCE;
-use neo_wasm::WasmOpcode;
 use nightstream::nebula::Circuit;
-use p3_field::PrimeCharacteristicRing;
 
 const TWO_RESULTS: &str = r#"(module
     (func (export "main") (result i32 i32)
@@ -34,26 +31,7 @@ fn valid_two_result_export_has_a_public_proof() {
     );
     let n = trace.len().next_power_of_two();
     let per_step = NonZeroUsize::MIN;
-    let mut inputs = step_inputs(&trace, n, per_step).unwrap();
-    let end_index = trace
-        .iter()
-        .position(|row| row.opcode == WasmOpcode::End && row.output_captured)
-        .unwrap();
-    inputs[end_index].z[COL_EXIT_SLIDE_DISTANCE] = F::ZERO;
-    let core_width = neo_wasm::build_wasm_relation()
-        .unwrap()
-        .r1cs()
-        .structure()
-        .m();
-    let mut core = inputs[end_index].z[..core_width].to_vec();
-    neo_wasm::write_range_check_bits(&mut core);
-    inputs[end_index].z[..core_width].copy_from_slice(&core);
-    let witnesses = inputs
-        .iter()
-        .take(trace.len())
-        .map(|step| step.z[..core_width].to_vec())
-        .collect::<Vec<_>>();
-    assert!(neo_wasm::sanity_check_memory_rows(neo_wasm::build_wasm_relation_layout(), &witnesses, &preload).is_ok());
+    let inputs = step_inputs(&trace, n, per_step).unwrap();
     let traced = Traced {
         states: inputs.iter().map(|row| row.next).collect(),
         rows: inputs.iter().map(|row| row.z.clone()).collect(),

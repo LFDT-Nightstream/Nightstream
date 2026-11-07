@@ -12,6 +12,6 @@ fn minimum_110_rejects_the_selected_profile() {
     assert!(one_fold_test_bits < 110.0);
     assert!(
         circuit.verifier(Engine::Optimized, 110).is_err(),
-        "the verifier accepted a 110-bit minimum, but the formal one-fold test term has only {one_fold_test_bits:.3} bits"
+        "the verifier accepted a 110-bit minimum, but the formal one-fold test term supports only {one_fold_test_bits:.3} bits"
     );
 }

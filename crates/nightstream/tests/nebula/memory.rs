@@ -808,7 +808,7 @@ fn minimum_109_rejects_64_segment_fingerprint_loss() {
     let circuit = crate::nebula::Circuit::compile(geometry, Machine).unwrap();
     assert!(
         circuit.verifier(crate::Engine::Optimized, 109).is_err(),
-        "the verifier accepted 109 bits with a {segment_bits:.3}-bit one-segment memory bound and only {chain_bits:.3} bits across 64 allowed segments"
+        "the verifier accepted 109 bits with a {segment_bits:.3}-bit one-segment memory bound that supports only {chain_bits:.3} bits across 64 allowed segments"
     );
 }
 
@@ -859,7 +859,7 @@ fn one_segment_rejects_a_minimum_above_the_combined_fold_and_memory_bound() {
     let circuit = crate::nebula::Circuit::compile(geometry, Machine).unwrap();
     assert!(
         circuit.verifier(crate::Engine::Optimized, 109).is_err(),
-        "the verifier accepted 109 bits when the one-fold test and one-segment memory errors together have only {:.3} bits",
+        "the verifier accepted 109 bits when the formal fold-plus-memory upper bound supports only {:.3} bits",
         bits(fold_test_numerator + memory_numerator)
     );
 }

@@ -8,6 +8,10 @@ const EXTEND8: &str = r#"(module
     (func (export "main") (result i32)
         i32.const 128
         i32.extend8_s))"#;
+const EXTEND16: &str = r#"(module
+    (func (export "main") (result i32)
+        i32.const 32768
+        i32.extend16_s))"#;
 const LOAD32: &str = r#"(module
     (memory 1)
     (data (i32.const 0) "\00\00\00\80")
@@ -26,6 +30,12 @@ const LOAD8_WIDE: &str = r#"(module
     (func (export "main") (result i64)
         i32.const 0
         i64.load8_s))"#;
+const LOAD16_WIDE: &str = r#"(module
+    (memory 1)
+    (data (i32.const 0) "\00\80")
+    (func (export "main") (result i64)
+        i32.const 0
+        i64.load16_s))"#;
 
 fn change_access(access: &mut Option<StackValueAccess>, old: StackValueAccess, bad: StackValueAccess) {
     if let Some(access) = access {
@@ -177,5 +187,21 @@ fn wide_signed_byte_load_cannot_clear_both_sign_extensions() {
     assert!(
         !public_verifier_accepts_bad_sign(LOAD8_WIDE, WasmOpcode::I64Load8S, "-128", Some(128), Some(0)),
         "the public verifier accepted +128 for i64.load8_s(0x80), which Wasmtime returns as -128"
+    );
+}
+
+#[test]
+fn sign_extension_of_a_negative_halfword_cannot_return_an_unsigned_value() {
+    assert!(
+        !public_verifier_accepts_bad_sign(EXTEND16, WasmOpcode::I32Extend16S, "-32768", Some(32768), None),
+        "the public verifier accepted +32768 for i32.extend16_s(32768), which Wasmtime returns as -32768"
+    );
+}
+
+#[test]
+fn wide_signed_halfword_load_cannot_clear_both_sign_extensions() {
+    assert!(
+        !public_verifier_accepts_bad_sign(LOAD16_WIDE, WasmOpcode::I64Load16S, "-32768", Some(32768), Some(0)),
+        "the public verifier accepted +32768 for i64.load16_s(0x8000), which Wasmtime returns as -32768"
     );
 }

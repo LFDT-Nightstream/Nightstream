@@ -325,14 +325,20 @@ impl<A: Application> Circuit<A> {
     }
 }
 
-/// Require the memory fingerprint term of `geometry` to meet
-/// `minimum_security_bits` (SPEC.md section 7.1, rule 6).
+/// Charge all allowed segment challenges and the final memory comparison
+/// against the caller's minimum (SECURITY_MODEL.md, trust item 7).
 fn memory_security(geometry: &Geometry, minimum_security_bits: u32) -> Result<(), crate::Error> {
-    let available = geometry.memory_security_bits();
-    if available < f64::from(minimum_security_bits) {
+    let q = u128::from(F::ORDER_U64);
+    let available = (geometry.max_tuples() as u128)
+        .checked_mul(2)
+        .and_then(|count| count.checked_mul((geometry.s_max as u128) + 1))
+        .and_then(|error| (q * q).checked_div(error))
+        .and_then(u128::checked_ilog2)
+        .unwrap_or(0);
+    if available < minimum_security_bits {
         return Err(neo_params::ParamsError::InsufficientStatisticalSecurity {
             required: minimum_security_bits,
-            available: available.floor() as u32,
+            available,
         }
         .into());
     }

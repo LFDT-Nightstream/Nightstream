@@ -9,7 +9,7 @@ use neo_wasm::host_event_bindings::HostEventBindings;
 use neo_wasm::memory_semantics::preload_host_event_tables;
 use neo_wasm::nebula::{WasmApplicationError, WasmLimits, WasmSize};
 use neo_wasm::{preload_from_program_artifacts, top_level_initial_state, WasmMemoryPreload, WasmStepState, WasmVmStep};
-use nightstream::nebula::{Application, Run};
+use nightstream::nebula::{Application, Circuit, Run};
 
 /// Enzo's iterative Fibonacci program (`tests/wasm_fibonacci.rs`) with two
 /// loop rounds.
@@ -124,7 +124,7 @@ fn the_starstream_test_transactions_fit_small_or_medium() {
 fn a_size_refuses_more_security_than_its_memory_gives() {
     use nightstream::error::ParamsError;
     use nightstream::nebula::Prover;
-    for (size, available) in [(WasmSize::Small, 111), (WasmSize::Medium, 110), (WasmSize::Large, 109)] {
+    for (size, available) in [(WasmSize::Small, 106), (WasmSize::Medium, 106), (WasmSize::Large, 103)] {
         let result = Prover::load(
             "no-circuit-file",
             size.geometry(),
@@ -141,6 +141,19 @@ fn a_size_refuses_more_security_than_its_memory_gives() {
             "{size:?}: {error}"
         );
     }
+}
+
+#[test]
+fn small_verifier_rejects_109_bits_across_32_segments() {
+    let size = WasmSize::Small;
+    let geometry = size.geometry();
+    assert_eq!(geometry.s_max, 32);
+    assert!(geometry.memory_security_bits() > 109.0);
+    assert!(geometry.memory_security_bits() - (geometry.s_max as f64 + 1.0).log2() < 109.0);
+    let circuit = Circuit::compile(geometry, size.application().unwrap()).unwrap();
+    assert!(circuit
+        .verifier(nightstream::Engine::Optimized, 109)
+        .is_err());
 }
 
 /// Programs of more instructions need larger sizes, and one of 1,100

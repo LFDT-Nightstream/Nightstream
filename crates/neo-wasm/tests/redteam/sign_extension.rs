@@ -20,6 +20,12 @@ const LOAD8: &str = r#"(module
     (func (export "main") (result i32)
         i32.const 0
         i32.load8_s))"#;
+const LOAD8_WIDE: &str = r#"(module
+    (memory 1)
+    (data (i32.const 0) "\80")
+    (func (export "main") (result i64)
+        i32.const 0
+        i64.load8_s))"#;
 
 fn change_access(access: &mut Option<StackValueAccess>, old: StackValueAccess, bad: StackValueAccess) {
     if let Some(access) = access {
@@ -163,5 +169,13 @@ fn signed_byte_load_cannot_return_an_unsigned_value() {
     assert!(
         !public_verifier_accepts_bad_sign(LOAD8, WasmOpcode::I32Load8S, "-128", Some(128), None),
         "the public verifier accepted output 128 for i32.load8_s(0x80), which Wasmtime returns as -128"
+    );
+}
+
+#[test]
+fn wide_signed_byte_load_cannot_clear_both_sign_extensions() {
+    assert!(
+        !public_verifier_accepts_bad_sign(LOAD8_WIDE, WasmOpcode::I64Load8S, "-128", Some(128), Some(0)),
+        "the public verifier accepted +128 for i64.load8_s(0x80), which Wasmtime returns as -128"
     );
 }

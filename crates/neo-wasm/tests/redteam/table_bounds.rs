@@ -1,4 +1,5 @@
 use super::*;
+use neo_wasm::WasmOpcode;
 use nightstream::nebula::Circuit;
 
 const LARGE_GET: &str =
@@ -6,6 +7,14 @@ const LARGE_GET: &str =
 const SMALL_GET: &str =
     r#"(module (table 1 funcref) (func (export "main") (result i32) i32.const 5 table.get 0 drop i32.const 7))"#;
 const SMALL_SET: &str = r#"(module (func $f) (elem declare funcref (ref.func $f)) (table 1 funcref) (func (export "main") (result i32) i32.const 5 ref.func $f table.set 0 i32.const 7))"#;
+const OOB_RETURN_CALL_INDIRECT: &str = r#"(module
+    (type $t (func (result i32)))
+    (table 1 funcref)
+    (func $f (type $t) i32.const 7)
+    (elem (i32.const 0) func $f)
+    (func (export "main") (result i32)
+        i32.const 5
+        return_call_indirect (type $t)))"#;
 
 #[test]
 fn table_access_past_declared_size_is_rejected_by_public_verifier() {
@@ -105,6 +114,20 @@ fn honest_out_of_bounds_table_traps_have_public_proofs() {
             .verify(&program, &traced.initial, &traced.last, &proof)
             .unwrap_or_else(|error| panic!("the honest {name} trap does not verify: {error:?}"));
     }
+}
+
+#[test]
+fn return_call_indirect_oob_trace_is_collected() {
+    let wasm = wat::parse_str(OOB_RETURN_CALL_INDIRECT).unwrap();
+    let run = neo_wasm::collect_wasmtime_steps(&wasm, &HostEventBindings::default(), "main", &[])
+        .expect("the terminal OOB trap is modeled");
+    assert!(run.results.is_empty());
+    assert_eq!(
+        run.steps.last().unwrap().opcode_decoded,
+        Some(WasmOpcode::ReturnCallIndirect)
+    );
+    let trace = neo_wasm::traces_from_wasmtime_steps(&run.steps).unwrap();
+    assert!(trace.last().unwrap().state_after.trapped);
 }
 
 #[test]

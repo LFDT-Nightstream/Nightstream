@@ -412,7 +412,7 @@ define_column_region! {
         COL_CMP_LOW: U32 => "borrow-bit remainder of the active unsigned comparison",
         COL_CMP_GE: Boolean => "result a >= b of the active unsigned comparison",
         COL_CI_OOB: Boolean => "whether an indirect call traps because the table index is >= the table size",
-        COL_TABLE_SIZE_READ_ENABLED: Boolean => "table_sizes read gate: table.size or an indirect call",
+        COL_TABLE_SIZE_READ_ENABLED: Boolean => "table_sizes read gate for table operations",
         COL_MEM_OOB: Boolean =>
             "whether this load/store traps because the access is past the end of linear memory",
         COL_MEM_LOAD_LIVE: Boolean =>

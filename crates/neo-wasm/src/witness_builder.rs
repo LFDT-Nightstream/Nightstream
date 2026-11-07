@@ -298,10 +298,11 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
     } else {
         F::ZERO
     };
-    // table_sizes is read by table.size and by call_indirect (the OOB check).
     wit[COL_TABLE_SIZE_READ_ENABLED] = if matches!(
         trace.opcode,
         super::isa::WasmOpcode::TableSize
+            | super::isa::WasmOpcode::TableGet
+            | super::isa::WasmOpcode::TableSet
             | super::isa::WasmOpcode::CallIndirect
             | super::isa::WasmOpcode::ReturnCallIndirect
     ) {
@@ -811,17 +812,21 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
     // read.
     let sel_call_indirect = wit[selector_col(super::isa::WasmOpcode::CallIndirect).expect("call_indirect selector")]
         + wit[selector_col(super::isa::WasmOpcode::ReturnCallIndirect).expect("return_call_indirect selector")];
-    // ge = (table_index >= table_size); the gadget is gated on call_indirect,
-    // so the columns only carry meaning (and ci_oob) on those rows.
-    if sel_call_indirect == F::ONE {
+    if matches!(
+        trace.opcode,
+        super::isa::WasmOpcode::TableGet
+            | super::isa::WasmOpcode::TableSet
+            | super::isa::WasmOpcode::CallIndirect
+            | super::isa::WasmOpcode::ReturnCallIndirect
+    ) {
         let (cmp_low, cmp_ge) = unsigned_ge_witness(
             trace
                 .table_index
-                .expect("call_indirect binds a table index")
+                .expect("table access binds a table index")
                 .into(),
             trace
                 .table_size
-                .expect("call_indirect binds a table size")
+                .expect("table access binds a table size")
                 .into(),
         );
         wit[COL_CMP_LOW] = cmp_low;

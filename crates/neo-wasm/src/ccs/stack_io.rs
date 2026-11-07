@@ -35,6 +35,8 @@ const TABLE_READ_OPS: &[WasmOpcode] = &[
 ];
 const TABLE_SIZE_READ_OPS: &[WasmOpcode] = &[
     WasmOpcode::TableSize,
+    WasmOpcode::TableGet,
+    WasmOpcode::TableSet,
     WasmOpcode::CallIndirect,
     WasmOpcode::ReturnCallIndirect,
 ];
@@ -76,6 +78,8 @@ pub(super) fn push_stack_io_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
         b.push_linear_zero([
             (COL_TABLE_SIZE_READ_ENABLED, F::ONE),
             (selector_col(WasmOpcode::TableSize).unwrap(), -F::ONE),
+            (selector_col(WasmOpcode::TableGet).unwrap(), -F::ONE),
+            (selector_col(WasmOpcode::TableSet).unwrap(), -F::ONE),
             (selector_col(WasmOpcode::CallIndirect).unwrap(), -F::ONE),
             (selector_col(WasmOpcode::ReturnCallIndirect).unwrap(), -F::ONE),
         ]);

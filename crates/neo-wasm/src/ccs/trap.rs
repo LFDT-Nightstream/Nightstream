@@ -115,6 +115,20 @@ pub(super) fn push_trap_constraints(b: &mut WasmTaggedR1csBuilder<'_>, layout: &
     });
     b.with_tag(
         shared(
+            "table access bounds",
+            &[
+                WasmOpcode::TableGet,
+                WasmOpcode::TableSet,
+                WasmOpcode::CallIndirect,
+                WasmOpcode::ReturnCallIndirect,
+            ],
+        ),
+        |b| {
+            push_table_bounds_constraints(b);
+        },
+    );
+    b.with_tag(
+        shared(
             "indirect call trap",
             &[WasmOpcode::CallIndirect, WasmOpcode::ReturnCallIndirect],
         ),
@@ -128,6 +142,23 @@ pub(super) fn push_trap_constraints(b: &mut WasmTaggedR1csBuilder<'_>, layout: &
     b.with_tag(always("trap transition"), |b| {
         push_trapped_state_transition_constraints(b);
     });
+}
+
+fn push_table_bounds_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
+    let table_get = selector_col(WasmOpcode::TableGet).unwrap();
+    let table_set = selector_col(WasmOpcode::TableSet).unwrap();
+    let call_indirect = selector_col(WasmOpcode::CallIndirect).unwrap();
+    let return_call_indirect = selector_col(WasmOpcode::ReturnCallIndirect).unwrap();
+
+    push_unsigned_ge_gadget(
+        b,
+        [table_get, table_set, call_indirect, return_call_indirect],
+        [(COL_TABLE_INDEX, F::ONE)],
+        [(COL_TABLE_SIZE, F::ONE)],
+        COL_CMP_LOW,
+        COL_CMP_GE,
+    );
+    b.push_row([(table_get, F::ONE), (table_set, F::ONE)], [(COL_CMP_GE, F::ONE)], []);
 }
 
 fn linear_memory_ops() -> Vec<WasmOpcode> {
@@ -259,16 +290,6 @@ fn push_call_indirect_trap_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     let call_indirect = selector_col(WasmOpcode::CallIndirect).unwrap();
     let return_call_indirect = selector_col(WasmOpcode::ReturnCallIndirect).unwrap();
     let indirect_selectors = [(call_indirect, F::ONE), (return_call_indirect, F::ONE)];
-
-    // ge = selector * ( table_index >= table_size )
-    push_unsigned_ge_gadget(
-        b,
-        [call_indirect, return_call_indirect],
-        [(COL_TABLE_INDEX, F::ONE)],
-        [(COL_TABLE_SIZE, F::ONE)],
-        COL_CMP_LOW,
-        COL_CMP_GE,
-    );
 
     // COL_CI_OOB = selector * ge.
     b.push_row(indirect_selectors, [(COL_CMP_GE, F::ONE)], [(COL_CI_OOB, F::ONE)]);

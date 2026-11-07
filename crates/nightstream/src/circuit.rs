@@ -353,9 +353,9 @@ impl Prover {
         Ok(self.lifecycle.encode_proof(proof)?)
     }
 
-    /// Write this circuit's compression setup files into an empty existing
-    /// directory `dir` (about 29 GB, 27 GiB, at the production size) and return the
-    /// setup. Its key is what verifiers need.
+    /// Write this circuit's SPEC.md Algorithm 7 compression setup files into
+    /// an empty existing directory `dir` (about 29 GB, 27 GiB at production
+    /// size). Return the setup. Its key is what verifiers need.
     pub fn compression_setup(&self, dir: impl AsRef<Path>) -> Result<CompressionSetup, Error> {
         Ok(self.lifecycle.compression_setup(dir.as_ref())?)
     }

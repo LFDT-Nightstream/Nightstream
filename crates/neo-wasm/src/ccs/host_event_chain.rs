@@ -754,6 +754,7 @@ fn push_host_event_gather_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
             ],
             [],
         );
+        b.push_row([(GMEM_LOCAL, F::ONE)], [(COL_LOCAL_VALUE_HI, F::ONE)], []);
         b.push_row(
             [
                 (GK_MEMORY_READ, F::ONE),

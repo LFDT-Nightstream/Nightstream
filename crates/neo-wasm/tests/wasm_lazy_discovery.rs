@@ -28,7 +28,7 @@ fn call(store: &mut Store<WasmtimeTraceRegistry>, instance: Instance, name: &str
 }
 
 #[test]
-fn start_discovers_function_references_before_instantiation_returns() {
+fn start_section_is_rejected_before_trace_capture() {
     let bytes = wat::parse_str(
         r#"(module
         (global $value (mut i32) (i32.const 0))
@@ -47,21 +47,10 @@ fn start_discovers_function_references_before_instantiation_returns() {
         .unwrap();
     let mut store = store(registry);
     let module = Module::new(store.engine(), &bytes).unwrap();
-    let instance = instantiate(&mut store, &module);
-    let state = store
-        .data()
-        .instance(instance.debug_index_in_store())
-        .unwrap();
-    assert_eq!(state.steps()[0].opcode_decoded, Some(WasmOpcode::RefFunc));
-    assert_eq!(state.steps()[1].operand_stack_words, [1]);
-    let start_rows = state.steps().len();
-    assert!(start_rows >= 5);
-    assert_eq!(call(&mut store, instance, "run"), 42);
-    let state = store.data().single_instance().unwrap();
-    assert_eq!(state.steps()[start_rows].step, start_rows as u64);
-    assert_eq!(state.steps()[start_rows].opcode_decoded, Some(WasmOpcode::GlobalGet));
-    assert_eq!(state.artifacts().tables.globals_init, [(0, 0, 0)]);
-    // Discovery retains the start prefix; it does not adopt live globals as initialization.
+    let _instance = instantiate(&mut store, &module);
+    let error = store.data().check_errors().unwrap_err();
+    assert!(error.to_string().contains("start sections"));
+    assert!(store.data().single_instance().is_err());
 }
 
 #[test]
@@ -211,7 +200,7 @@ fn discovery_and_frame_errors_prevent_partial_trace_retrieval() {
 }
 
 #[test]
-fn component_selection_skips_unsupported_adapter_and_discovers_guest_start() {
+fn component_selection_skips_unsupported_adapter() {
     let bytes = wat::parse_str(
         r#"(component
         (core module $adapter
@@ -220,8 +209,6 @@ fn component_selection_skips_unsupported_adapter_and_discovers_guest_start() {
             (start $start))
         (core module $guest
             (global $value (mut i32) (i32.const 0))
-            (func $start i32.const 23 global.set $value)
-            (start $start)
             (func (export "run") (result i32) global.get $value))
         (core instance (instantiate $adapter))
         (core instance $guest (instantiate $guest))
@@ -247,10 +234,9 @@ fn component_selection_skips_unsupported_adapter_and_discovers_guest_start() {
     let function = instance.get_func(&mut store, "run").unwrap();
     let mut results = [wasmtime::component::Val::S32(0)];
     block_on(function.call_async(&mut store, &[], &mut results)).unwrap();
-    assert_eq!(results, [wasmtime::component::Val::S32(23)]);
+    assert_eq!(results, [wasmtime::component::Val::S32(0)]);
     let state = store.data().single_instance().unwrap();
-    assert_eq!(state.steps()[0].immediate_i32, Some(23));
-    assert_eq!(state.steps().len(), 5);
+    assert_eq!(state.steps()[0].opcode_decoded, Some(WasmOpcode::GlobalGet));
     assert!(
         neo_wasm::collect_wasmtime_component_run(&bytes, &HostEventBindings::default(), "run")
             .unwrap_err()

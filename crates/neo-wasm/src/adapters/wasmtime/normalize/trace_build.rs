@@ -436,7 +436,6 @@ pub(super) fn build_trace(
         }
         let mut call_stack_depth_after = call_stack_depth;
 
-        let program_cycle = out.len() as u64;
         let frame_move_before = frame_move_state;
         let zero_after = WasmCountdownState {
             active: locals_to_zero != 0 && !frame_move_after.active,
@@ -692,6 +691,7 @@ pub(super) fn build_trace(
         }
 
         let zero_before = local_zero_state;
+        let program_cycle = out.len() as u64;
         out.push(WasmVmStep {
             // Sequential index within the normalized trace. Structural-only opcodes
             // (loop, block, inner End) are filtered before this loop, so this is
@@ -745,7 +745,9 @@ pub(super) fn build_trace(
             },
             control_choice: current.control_choice,
             br_table_len: if current.opcode == WasmOpcode::BrTable {
-                current.immediate_i32.expect("decoded br_table arm count")
+                current.immediate_i32.ok_or_else(|| {
+                    WasmBuildError::Trace(format!("missing br_table arm count at cycle {}", current.cycle))
+                })?
             } else {
                 0
             },

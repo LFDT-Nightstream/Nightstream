@@ -98,7 +98,12 @@ pub(super) fn frame_slides(bytes: &[u8]) -> Result<BTreeMap<u32, FrameSlideEdges
                     }
                     _ if !reachable => vec![],
                     Operator::Br { relative_depth } => {
-                        let (kept, distance) = branch(&function, *relative_depth, 0, offset)?;
+                        let (kept, distance) =
+                            if *relative_depth as usize == function.control_stack_height() as usize - 1 {
+                                function_return(&function, height, offset)?
+                            } else {
+                                branch(&function, *relative_depth, 0, offset)?
+                            };
                         vec![(0, kept, distance)]
                     }
                     Operator::BrIf { relative_depth } => {
@@ -126,6 +131,11 @@ pub(super) fn frame_slides(bytes: &[u8]) -> Result<BTreeMap<u32, FrameSlideEdges
                 }
                 function.op(offset, &operator).map_err(invalid)?;
             }
+            let end_offset = operators.original_position();
+            operators
+                .get_binary_reader()
+                .finish_expression(&function.visitor(end_offset))
+                .map_err(invalid)?;
             allocations = function.into_allocations();
         }
     }

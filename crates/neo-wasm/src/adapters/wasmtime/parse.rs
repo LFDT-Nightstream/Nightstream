@@ -283,6 +283,30 @@ impl Default for ParsedWasmArtifactsBuilder {
 }
 
 impl ParsedWasmArtifactsBuilder {
+    fn const_expr_end(ops: &mut wasmparser::OperatorsReader<'_>, field: &str) -> Result<(), WasmProgramError> {
+        match ops
+            .read()
+            .map_err(|err| WasmProgramError::Invalid(format!("failed to read {field}: {err}")))?
+        {
+            wasmparser::Operator::End if ops.eof() => Ok(()),
+            _ => Err(WasmProgramError::Unsupported(format!(
+                "{field} uses an extended constant expression"
+            ))),
+        }
+    }
+
+    fn segment_fits(offset: u64, len: usize, capacity: u64, field: &str) -> Result<(), WasmProgramError> {
+        let end = offset
+            .checked_add(len as u64)
+            .ok_or_else(|| WasmProgramError::Invalid(format!("{field} end overflow")))?;
+        if end > capacity {
+            return Err(WasmProgramError::Invalid(format!(
+                "{field} ends at {end}, beyond initial size {capacity}"
+            )));
+        }
+        Ok(())
+    }
+
     fn narrow_u32(value: u64, field: &str) -> Result<u32, WasmProgramError> {
         u32::try_from(value).map_err(|_| {
             WasmProgramError::Unsupported(format!(
@@ -537,6 +561,12 @@ impl ParsedWasmArtifactsBuilder {
                     let operator = reader
                         .read()
                         .map_err(|err| WasmProgramError::Invalid(format!("failed to decode wasm operator: {err}")))?;
+                    let operator = match operator {
+                        wasmparser::Operator::Br { relative_depth } if relative_depth as usize == curr_depth => {
+                            wasmparser::Operator::Return
+                        }
+                        operator => operator,
+                    };
                     let pc_after = u64::from(self.next_pc);
                     let is_function_end = matches!(&operator, wasmparser::Operator::End) && curr_depth == 0;
                     let decoded = match &operator {
@@ -841,6 +871,11 @@ impl ParsedWasmArtifactsBuilder {
                     self.table_sizes_init.push((table_id, initial));
                 }
             }
+            Payload::StartSection { .. } => {
+                return Err(WasmProgramError::Unsupported(
+                    "start sections are not represented in the proof program".to_string(),
+                ));
+            }
             Payload::ElementSection(reader) => {
                 for element_result in reader {
                     let element = element_result.map_err(|err| {
@@ -870,6 +905,7 @@ impl ParsedWasmArtifactsBuilder {
                             )));
                         }
                     };
+                    Self::const_expr_end(&mut ops, "element segment offset")?;
                     // Items land in the normalized 1-based funcref id space shared
                     // with `call` / `ref.func`; 0 encodes a null entry.
                     let mut funcrefs = Vec::new();
@@ -902,9 +938,23 @@ impl ParsedWasmArtifactsBuilder {
                                         )));
                                     }
                                 }
+                                Self::const_expr_end(&mut ops, "element initializer")?;
                             }
                         }
                     }
+                    let table_size = self
+                        .table_sizes_init
+                        .get(table_id as usize)
+                        .ok_or_else(|| {
+                            WasmProgramError::Invalid(format!("element segment uses absent table {table_id}"))
+                        })?
+                        .1;
+                    Self::segment_fits(
+                        u64::from(offset),
+                        funcrefs.len(),
+                        u64::from(table_size),
+                        "element segment",
+                    )?;
                     for (i, funcref) in funcrefs.into_iter().enumerate() {
                         let index = offset
                             .checked_add(i as u32)
@@ -938,6 +988,7 @@ impl ParsedWasmArtifactsBuilder {
                                     )));
                                 }
                             };
+                            Self::const_expr_end(&mut reader, "data segment offset")?;
                             (memory_index, offset)
                         }
                         wasmparser::DataKind::Passive => continue,
@@ -947,6 +998,10 @@ impl ParsedWasmArtifactsBuilder {
                             "data segment targeting non-default memory {memory_index} not supported"
                         )));
                     }
+                    let pages = self
+                        .initial_memory_pages
+                        .ok_or_else(|| WasmProgramError::Invalid("data segment uses absent memory 0".to_string()))?;
+                    Self::segment_fits(offset, segment.data.len(), u64::from(pages) * 65_536, "data segment")?;
                     for (i, &byte) in segment.data.iter().enumerate() {
                         self.linear_memory_init.push((offset + i as u64, byte));
                     }
@@ -977,6 +1032,7 @@ impl ParsedWasmArtifactsBuilder {
                             )));
                         }
                     };
+                    Self::const_expr_end(&mut ops, "global initializer")?;
                     let index = self.next_declared_global_index;
                     self.next_declared_global_index = self.next_declared_global_index.saturating_add(1);
                     self.globals_init.push((index, lo, hi));

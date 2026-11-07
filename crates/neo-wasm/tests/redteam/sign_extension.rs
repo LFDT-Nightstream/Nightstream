@@ -12,6 +12,22 @@ const EXTEND16: &str = r#"(module
     (func (export "main") (result i32)
         i32.const 32768
         i32.extend16_s))"#;
+const EXTEND_I32_WIDE: &str = r#"(module
+    (func (export "main") (result i64)
+        i32.const -2147483648
+        i64.extend_i32_s))"#;
+const EXTEND8_WIDE: &str = r#"(module
+    (func (export "main") (result i64)
+        i64.const 128
+        i64.extend8_s))"#;
+const EXTEND16_WIDE: &str = r#"(module
+    (func (export "main") (result i64)
+        i64.const 32768
+        i64.extend16_s))"#;
+const EXTEND32_WIDE: &str = r#"(module
+    (func (export "main") (result i64)
+        i64.const 2147483648
+        i64.extend32_s))"#;
 const LOAD32: &str = r#"(module
     (memory 1)
     (data (i32.const 0) "\00\00\00\80")
@@ -203,5 +219,37 @@ fn wide_signed_halfword_load_cannot_clear_both_sign_extensions() {
     assert!(
         !public_verifier_accepts_bad_sign(LOAD16_WIDE, WasmOpcode::I64Load16S, "-32768", Some(32768), Some(0)),
         "the public verifier accepted +32768 for i64.load16_s(0x8000), which Wasmtime returns as -32768"
+    );
+}
+
+#[test]
+fn wide_extend_i32_cannot_clear_the_sign_limb() {
+    assert!(
+        !public_verifier_accepts_bad_sign(EXTEND_I32_WIDE, WasmOpcode::I64ExtendI32S, "-2147483648", None, Some(0),),
+        "the public verifier accepted +2147483648 for i64.extend_i32_s(-2147483648)"
+    );
+}
+
+#[test]
+fn wide_extend8_cannot_clear_both_sign_extensions() {
+    assert!(
+        !public_verifier_accepts_bad_sign(EXTEND8_WIDE, WasmOpcode::I64Extend8S, "-128", Some(128), Some(0)),
+        "the public verifier accepted +128 for i64.extend8_s(128)"
+    );
+}
+
+#[test]
+fn wide_extend16_cannot_clear_both_sign_extensions() {
+    assert!(
+        !public_verifier_accepts_bad_sign(EXTEND16_WIDE, WasmOpcode::I64Extend16S, "-32768", Some(32768), Some(0)),
+        "the public verifier accepted +32768 for i64.extend16_s(32768)"
+    );
+}
+
+#[test]
+fn wide_extend32_cannot_clear_the_sign_limb() {
+    assert!(
+        !public_verifier_accepts_bad_sign(EXTEND32_WIDE, WasmOpcode::I64Extend32S, "-2147483648", None, Some(0),),
+        "the public verifier accepted +2147483648 for i64.extend32_s(2147483648)"
     );
 }

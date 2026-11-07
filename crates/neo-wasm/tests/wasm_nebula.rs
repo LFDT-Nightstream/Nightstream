@@ -9,8 +9,6 @@
 //! trace order on every row that the relation accepts.
 
 mod common;
-#[path = "wasm_nebula/imported_state.rs"]
-mod imported_state;
 
 use std::cell::RefCell;
 use std::num::NonZeroUsize;

@@ -1138,25 +1138,23 @@ fn a_module_that_cannot_instantiate_is_rejected_by_the_public_verifier() {
 }
 
 #[test]
-fn a_start_section_that_traps_is_bound_by_the_public_verifier() {
+fn a_start_section_that_changes_output_is_bound_by_the_public_verifier() {
     use nightstream::nebula::Circuit;
 
-    let valid = r#"(module (func $start unreachable) (func (export "main") (result i32) i32.const 7))"#;
+    let valid = r#"(module (global $value (mut i32) (i32.const 0)) (func $start i32.const 42 global.set $value) (func (export "main") (result i32) global.get $value))"#;
     let invalid = wat::parse_str(
-        r#"(module (func $start unreachable) (start $start) (func (export "main") (result i32) i32.const 7))"#,
+        r#"(module (global $value (mut i32) (i32.const 0)) (func $start i32.const 42 global.set $value) (start $start) (func (export "main") (result i32) global.get $value))"#,
     )
     .unwrap();
     let artifacts = neo_wasm::extract_wasm_program_artifacts(&invalid).unwrap();
-    let error = neo_wasm::collect_wasmtime_steps(&invalid, &HostEventBindings::default(), "main", &[])
-        .err()
-        .expect("the start function traps during instantiation");
-    assert!(error
-        .to_string()
-        .contains("failed to instantiate Wasmtime module"));
+    let real = neo_wasm::collect_wasmtime_steps(&invalid, &HostEventBindings::default(), "main", &[])
+        .expect("the start function and export execute");
+    assert_eq!(real.results, ["42"]);
 
     let setup = setup_of(valid, NonZeroUsize::MIN, false);
     let (app, geometry) = setup.complete();
     let traced = &setup.programs[0];
+    assert_eq!(traced.last.output.value_lo, 0);
     let (export_fref, entry_pc) = artifacts
         .tables
         .function_entries
@@ -1188,7 +1186,7 @@ fn a_start_section_that_traps_is_bound_by_the_public_verifier() {
         verifier
             .verify(&invalid_program, &invalid_initial, &traced.last, &proof)
             .is_err(),
-        "the public verifier accepted an export from a module whose start function traps"
+        "the public verifier accepted output 0 for a module whose start function makes the real output 42"
     );
 }
 

@@ -6,14 +6,14 @@ Open Scope Z_scope.
 
 Definition publicInputCount : nat := 7%nat.
 Definition oneColumn : nat := 0%nat.
-Definition rowCount : nat := 4449%nat.
+Definition rowCount : nat := 4460%nat.
 
 Definition rows : list Row :=
   [([(19%nat, 1)], [(12%nat, 1); (63%nat, -1); (66%nat, -1); (68%nat, -1); (74%nat, -1); (78%nat, -1); (137%nat, -1); (138%nat, -1); (139%nat, -1); (140%nat, -1); (141%nat, -1); (142%nat, -1); (143%nat, -1); (144%nat, -1); (145%nat, -1); (295%nat, -1); (296%nat, -1); (297%nat, -1); (300%nat, -1); (301%nat, -1); (302%nat, -1); (84%nat, -1); (96%nat, -1); (135%nat, -1); (136%nat, -1); (111%nat, -1); (112%nat, -1); (113%nat, -1); (114%nat, -1); (124%nat, -1); (127%nat, -1); (128%nat, -1); (323%nat, -1); (324%nat, -1); (130%nat, -1); (131%nat, -1); (132%nat, -1); (133%nat, -1); (134%nat, -1); (303%nat, -1); (304%nat, -1); (305%nat, -1); (306%nat, -1); (307%nat, -1); (308%nat, -1); (309%nat, -1); (310%nat, -1); (311%nat, -1); (312%nat, -1); (313%nat, -1); (314%nat, -1); (315%nat, -1); (316%nat, -1); (317%nat, -1); (318%nat, -1); (319%nat, -1); (320%nat, -1); (321%nat, -1); (322%nat, -1)], []);
    ([(200%nat, 1); (69%nat, -1); (70%nat, -1); (71%nat, -1); (72%nat, -1); (73%nat, -1); (74%nat, -1); (75%nat, -1); (76%nat, -1); (77%nat, -1); (78%nat, -1); (137%nat, -1); (138%nat, -1); (139%nat, -1); (140%nat, -1); (141%nat, -1); (142%nat, -1); (143%nat, -1); (144%nat, -1); (145%nat, -1)], [(0%nat, 1)], []);
    ([(146%nat, 1); (131%nat, -1); (132%nat, -1)], [(0%nat, 1)], []);
    ([(151%nat, 1); (82%nat, -1); (128%nat, -1); (324%nat, -1); (345%nat, 1)], [(0%nat, 1)], []);
-   ([(346%nat, 1); (81%nat, -1); (128%nat, -1); (324%nat, -1)], [(0%nat, 1)], []);
+   ([(346%nat, 1); (81%nat, -1); (82%nat, -1); (83%nat, -1); (128%nat, -1); (324%nat, -1)], [(0%nat, 1)], []);
    ([(130%nat, 1)], [(157%nat, 1); (192%nat, -1)], []);
    ([(131%nat, 1)], [(157%nat, 1); (184%nat, -1)], []);
    ([(132%nat, 1)], [(157%nat, 1); (184%nat, -1)], []);
@@ -53,6 +53,10 @@ Definition rows : list Row :=
    ([(36%nat, 1)], [(48%nat, 1); (47%nat, -1)], []);
    ([(36%nat, 1)], [(32%nat, 1); (31%nat, -1)], []);
    ([(36%nat, 1)], [(38%nat, 1); (37%nat, -1)], []);
+   ([(0%nat, 1); (1%nat, -1)], [(3%nat, 1)], []);
+   ([(0%nat, 1); (1%nat, -1)], [(5%nat, 1)], []);
+   ([(0%nat, 1); (2%nat, -1)], [(4%nat, 1)], []);
+   ([(0%nat, 1); (2%nat, -1)], [(6%nat, 1)], []);
    ([(0%nat, 1); (18%nat, -1); (484%nat, -1); (366%nat, -1)], [(2%nat, 1); (1%nat, -1)], []);
    ([(1%nat, 1); (484%nat, -1); (366%nat, -1)], [(2%nat, 1); (1%nat, -1)], []);
    ([(0%nat, 1); (18%nat, -1); (484%nat, -1); (366%nat, -1)], [(4%nat, 1); (3%nat, -1)], []);
@@ -105,6 +109,7 @@ Definition rows : list Row :=
    ([(127%nat, 1); (323%nat, 1); (341%nat, 1); (41%nat, -1)], [(405%nat, 1); (166%nat, -1)], []);
    ([(0%nat, 1); (127%nat, -1); (323%nat, -1); (341%nat, -1); (41%nat, 1); (483%nat, -1); (484%nat, -1); (366%nat, -1)], [(405%nat, 1); (404%nat, -1)], []);
    ([(484%nat, 1)], [(18%nat, 1)], []);
+   ([(18%nat, 1); (351%nat, -1); (384%nat, 1)], [(9%nat, 1); (8%nat, -1); (0%nat, -1)], []);
    ([(484%nat, 1); (367%nat, -1)], [(0%nat, 1); (351%nat, -1)], []);
    ([(484%nat, 1); (367%nat, -1)], [(14%nat, 1)], []);
    ([(484%nat, 1); (367%nat, -1)], [(47%nat, 1)], []);
@@ -228,6 +233,8 @@ Definition rows : list Row :=
    ([(569%nat, 1)], [(431%nat, 1); (582%nat, -1)], []);
    ([(570%nat, 1)], [(582%nat, 1); (477%nat, -1); (478%nat, -4294967296)], []);
    ([(572%nat, 1)], [(476%nat, 1)], [(583%nat, 1)]);
+   ([(572%nat, 1)], [(477%nat, 1); (0%nat, -1)], []);
+   ([(583%nat, 1)], [(12%nat, 1); (478%nat, -1)], []);
    ([(571%nat, 1)], [(178%nat, 1); (470%nat, -2); (475%nat, -2)], []);
    ([(476%nat, 1)], [(187%nat, 1); (184%nat, -1)], [(580%nat, 1); (184%nat, -1)]);
    ([(571%nat, 1)], [(582%nat, 1); (580%nat, -1)], []);
@@ -238,6 +245,8 @@ Definition rows : list Row :=
    ([(583%nat, 1)], [(582%nat, 1); (193%nat, -1)], []);
    ([(59%nat, 1); (58%nat, -1); (583%nat, -1)], [(0%nat, 1)], []);
    ([(481%nat, 1); (573%nat, -1)], [(0%nat, 1)], []);
+   ([(573%nat, 1)], [(12%nat, 1); (478%nat, -1)], []);
+   ([(573%nat, 1)], [(477%nat, 1); (0%nat, -1)], []);
    ([(573%nat, 1)], [(0%nat, 1); (476%nat, -1)], [(482%nat, 1)]);
    ([(573%nat, 1)], [(154%nat, 1); (475%nat, -1)], []);
    ([(482%nat, 1)], [(582%nat, 1); (157%nat, -1)], []);
@@ -254,6 +263,7 @@ Definition rows : list Row :=
    ([(587%nat, 1)], [(207%nat, 4); (197%nat, 1); (3%nat, -1); (477%nat, -1)], []);
    ([(587%nat, 1)], [(5%nat, 1)], []);
    ([(586%nat, 1)], [(207%nat, 4); (197%nat, 1); (157%nat, -1); (477%nat, -1)], []);
+   ([(586%nat, 1)], [(158%nat, 1)], []);
    ([(575%nat, 1); (576%nat, 1); (588%nat, -1); (589%nat, -1)], [(582%nat, 1); (210%nat, -1)], []);
    ([(588%nat, 1)], [(582%nat, 1); (285%nat, -1)], []);
    ([(589%nat, 1)], [(582%nat, 1); (285%nat, -1); (286%nat, -256)], []);
@@ -473,7 +483,7 @@ Definition rows : list Row :=
    ([(206%nat, 1)], [(0%nat, 1); (75%nat, -1); (76%nat, -1); (77%nat, -1); (78%nat, -1); (137%nat, -1); (138%nat, -1); (139%nat, -1)], []);
    ([(341%nat, 1)], [(0%nat, 1); (128%nat, -1); (324%nat, -1)], []);
    ([(342%nat, 1)], [(0%nat, 1); (128%nat, -1); (324%nat, -1)], []);
-   ([(346%nat, 1)], [(0%nat, 1); (81%nat, -1); (128%nat, -1); (324%nat, -1)], []);
+   ([(346%nat, 1)], [(0%nat, 1); (81%nat, -1); (82%nat, -1); (83%nat, -1); (128%nat, -1); (324%nat, -1)], []);
    ([(365%nat, 1)], [(0%nat, 1); (127%nat, -1); (128%nat, -1); (323%nat, -1); (324%nat, -1)], []);
    ([(369%nat, 1)], [(0%nat, 1); (366%nat, -1); (484%nat, -1)], []);
    ([(463%nat, 1)], [(0%nat, 1); (127%nat, -1); (128%nat, -1); (323%nat, -1); (324%nat, -1)], []);
@@ -509,8 +519,9 @@ Definition rows : list Row :=
    ([(120%nat, 1); (121%nat, 1); (122%nat, 1); (123%nat, 1); (316%nat, 1); (317%nat, 1); (318%nat, 1); (319%nat, 1)], [(327%nat, 1)], [(329%nat, 1); (335%nat, -1)]);
    ([(329%nat, 1)], [(192%nat, 1)], []);
    ([(329%nat, 1)], [(193%nat, 1)], []);
-   ([(128%nat, 1); (324%nat, 1)], [(163%nat, 1); (165%nat, -1); (0%nat, 4294967296); (343%nat, -1); (344%nat, -4294967296)], []);
+   ([(82%nat, 1); (83%nat, 1); (128%nat, 1); (324%nat, 1)], [(163%nat, 1); (165%nat, -1); (0%nat, 4294967296); (343%nat, -1); (344%nat, -4294967296)], []);
    ([(128%nat, 1); (324%nat, 1)], [(344%nat, 1)], [(345%nat, 1)]);
+   ([(82%nat, 1); (83%nat, 1)], [(344%nat, 1)], []);
    ([(164%nat, 1)], [(337%nat, 1)], [(0%nat, 1); (336%nat, -1)]);
    ([(164%nat, 1)], [(336%nat, 1)], []);
    ([(172%nat, 1); (173%nat, -1)], [(339%nat, 1)], [(0%nat, 1); (338%nat, -1)]);
@@ -4462,39 +4473,39 @@ Definition rows : list Row :=
 Definition satFull (w : Witness) : Prop :=
   w oneColumn = 1 /\ satAll w rows.
 
-Definition addRowIndex : nat := 537%nat.
-Definition subRowIndex : nat := 538%nat.
+Definition addRowIndex : nat := 548%nat.
+Definition subRowIndex : nat := 549%nat.
 Definition localGetCopyRowIndex : nat := 5%nat.
 Definition localSetCopyRowIndex : nat := 6%nat.
-Definition outputCaptureSupportRow : nat := 437%nat.
-Definition hostCallSupportRow : nat := 467%nat.
-Definition hostCallParamsRow : nat := 186%nat.
-Definition gatherMemoryKindRow : nat := 234%nat.
-Definition gatherHighLimbRow : nat := 218%nat.
-Definition localIndexGateRow : nat := 433%nat.
+Definition outputCaptureSupportRow : nat := 447%nat.
+Definition hostCallSupportRow : nat := 477%nat.
+Definition hostCallParamsRow : nat := 191%nat.
+Definition gatherMemoryKindRow : nat := 243%nat.
+Definition gatherHighLimbRow : nat := 223%nat.
+Definition localIndexGateRow : nat := 443%nat.
 Definition localWriteGateIndex : nat := 2%nat.
-Definition guestEntryFlagRow : nat := 61%nat.
-Definition localsBasePreservedRow : nat := 115%nat.
-Definition stackRead1SupportRow : nat := 445%nat.
-Definition nullaryWriteAddressRow : nat := 527%nat.
-Definition unaryReadAddressRow : nat := 528%nat.
-Definition stackReadsArityRow : nat := 478%nat.
-Definition stackWritesArityRow : nat := 479%nat.
-Definition stackReadsActiveRow : nat := 480%nat.
-Definition stackWritesActiveRow : nat := 481%nat.
-Definition stackRead2SupportRow : nat := 446%nat.
-Definition stackWriteHighActiveRow : nat := 227%nat.
-Definition callStackPushRow : nat := 62%nat.
-Definition callStackPopSupportRow : nat := 101%nat.
-Definition binaryRead0AddressRow : nat := 530%nat.
-Definition binaryRead1AddressRow : nat := 531%nat.
-Definition binaryWriteAddressRow : nat := 532%nat.
-Definition stackWriteHighAddressRow : nat := 526%nat.
-Definition stackPointerBalanceRow : nat := 477%nat.
-Definition stackFrameBasePreservedRow : nat := 111%nat.
-Definition gmemLocalBooleanRow : nat := 4430%nat.
-Definition gmemOutputBooleanRow : nat := 4431%nat.
-Definition gmemByteBooleanRow : nat := 4432%nat.
-Definition gmemHalfBooleanRow : nat := 4433%nat.
-Definition stackRead0BooleanRow : nat := 1672%nat.
-Definition stackRead1BooleanRow : nat := 1673%nat.
+Definition guestEntryFlagRow : nat := 65%nat.
+Definition localsBasePreservedRow : nat := 120%nat.
+Definition stackRead1SupportRow : nat := 455%nat.
+Definition nullaryWriteAddressRow : nat := 538%nat.
+Definition unaryReadAddressRow : nat := 539%nat.
+Definition stackReadsArityRow : nat := 488%nat.
+Definition stackWritesArityRow : nat := 489%nat.
+Definition stackReadsActiveRow : nat := 490%nat.
+Definition stackWritesActiveRow : nat := 491%nat.
+Definition stackRead2SupportRow : nat := 456%nat.
+Definition stackWriteHighActiveRow : nat := 234%nat.
+Definition callStackPushRow : nat := 66%nat.
+Definition callStackPopSupportRow : nat := 106%nat.
+Definition binaryRead0AddressRow : nat := 541%nat.
+Definition binaryRead1AddressRow : nat := 542%nat.
+Definition binaryWriteAddressRow : nat := 543%nat.
+Definition stackWriteHighAddressRow : nat := 537%nat.
+Definition stackPointerBalanceRow : nat := 487%nat.
+Definition stackFrameBasePreservedRow : nat := 116%nat.
+Definition gmemLocalBooleanRow : nat := 4441%nat.
+Definition gmemOutputBooleanRow : nat := 4442%nat.
+Definition gmemByteBooleanRow : nat := 4443%nat.
+Definition gmemHalfBooleanRow : nat := 4444%nat.
+Definition stackRead0BooleanRow : nat := 1683%nat.
+Definition stackRead1BooleanRow : nat := 1684%nat.

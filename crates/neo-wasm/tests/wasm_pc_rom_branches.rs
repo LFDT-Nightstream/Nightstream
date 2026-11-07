@@ -10,7 +10,59 @@ fn check(source: &str) {
             "duplicate edge for pc {pc}, choice {choice}"
         );
     }
-    common::checked_wasm_run(source, "main");
+    let checked = common::checked_wasm_run(source, "main");
+    for (index, row) in checked.run.steps.iter().enumerate() {
+        assert_eq!(row.step, index as u64);
+    }
+}
+
+#[test]
+fn state_machine_function_label_branches_complete_the_activation() {
+    for body in [
+        "i32.const 1 br 0",
+        "i32.const 1 i32.const 1 br_if 0 drop i32.const 2",
+        "i32.const 1 i32.const 0 br_if 0 drop i32.const 2",
+        "i32.const 1 i32.const 0 br_table 0 0",
+        "i32.const 1 i32.const 1 br_table 0 0",
+    ] {
+        check(&format!("(module (func (export \"main\") (result i32) {body}))"));
+    }
+}
+
+#[test]
+fn state_machine_branch_table_can_mix_function_and_block_labels() {
+    for labels in ["0 1", "1 0"] {
+        for selector in [0, 1] {
+            check(&format!(
+                "(module (func (export \"main\") (result i32)
+                 block (result i32) i32.const 42 i32.const {selector} br_table {labels} end
+                 i32.const 1 i32.add))"
+            ));
+        }
+    }
+}
+
+#[test]
+fn state_machine_function_label_branch_returns_to_the_caller() {
+    check(
+        "(module
+           (func $callee (result i32) (local i32)
+             i32.const 99 i32.const 42 i32.const 1 br_if 0 drop)
+           (func (export \"main\") (result i32) i32.const 3 call $callee i32.add))",
+    );
+}
+
+#[test]
+fn state_machine_invalid_operands_are_rejected_before_slide_arithmetic() {
+    for source in [
+        "(module (func (result i32) return))",
+        "(module (func block br_if 0 end))",
+        "(module (func (result i32) block (result i32) br 0 end))",
+    ] {
+        let bytes = wat::parse_str(source).unwrap();
+        let error = neo_wasm::extract_wasm_program_artifacts(&bytes).expect_err("invalid WASM must fail");
+        assert!(matches!(error, neo_wasm::WasmProgramError::Invalid(_)), "{error}");
+    }
 }
 
 #[test]
@@ -72,7 +124,7 @@ fn reject_wrong_edge(source: &str, opcode: neo_wasm::WasmOpcode, choice: u32) {
         .find(|&&(pc, choice, _)| pc == forged.state_before.pc && choice == u64::from(forged.control_choice))
         .expect("both branch edges belong to the program")
         .2;
-    let witness = neo_wasm::witness_builder::build_witness_vector(&forged);
+    let witness = neo_wasm::witness_builder::build_witness_vector(&forged).unwrap();
     let mut prefix = run.witnesses[..=index].to_vec();
     prefix[index] = witness.clone();
     // ROM membership and memory replay alone do not bind the choice to the condition.
@@ -163,7 +215,7 @@ fn br_table_length_is_bound_to_the_program() {
         .find(|&&(pc, choice, _)| pc == forged.state_before.pc && choice == 0)
         .unwrap()
         .2;
-    let witness = neo_wasm::witness_builder::build_witness_vector(&forged);
+    let witness = neo_wasm::witness_builder::build_witness_vector(&forged).unwrap();
     common::assert_satisfied(&witness, "choice is consistent with the forged length");
     let mut prefix = run.witnesses[..=index].to_vec();
     prefix[index] = witness;
@@ -206,7 +258,7 @@ fn rows_without_a_branch_cannot_choose_an_edge() {
         let mut forged = row.clone();
         forged.control_choice = 7;
         common::assert_rejected(
-            &neo_wasm::witness_builder::build_witness_vector(&forged),
+            &neo_wasm::witness_builder::build_witness_vector(&forged).unwrap(),
             "a non-branch row choosing an edge",
         );
     }

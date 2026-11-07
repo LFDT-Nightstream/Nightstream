@@ -244,7 +244,7 @@ fn i64_load8_u_zero_extension_is_enforced() {
         .iter()
         .find(|r| matches!(r.opcode, neo_wasm::WasmOpcode::I64Load8U))
         .expect("i64.load8_u row");
-    let mut wit = build_witness_vector(load);
+    let mut wit = build_witness_vector(load).unwrap();
     let relation = build_wasm_relation().expect("valid WASM relation");
     let ccs = relation.r1cs().structure();
     check_ccs_rowwise_zero(ccs, &wit[..1], &wit[1..]).expect("honest i64.load8_u row should satisfy the CCS");
@@ -295,7 +295,7 @@ fn wasm_trace_run_with_i64_signed_loads() {
             .iter()
             .find(|r| r.opcode.name() == load_op.replace('.', "_"))
             .unwrap_or_else(|| panic!("expected a {load_op} row"));
-        let wit = build_witness_vector(load);
+        let wit = build_witness_vector(load).unwrap();
         assert_eq!(
             wit[COL_STACK_WRITE0_VALUE_LO].as_canonical_u64(),
             expected_lo,
@@ -329,7 +329,7 @@ fn i64_load8_s_sign_extension_is_enforced() {
         .iter()
         .find(|r| matches!(r.opcode, neo_wasm::WasmOpcode::I64Load8S))
         .expect("i64.load8_s row");
-    let mut wit = build_witness_vector(load);
+    let mut wit = build_witness_vector(load).unwrap();
     let relation = build_wasm_relation().expect("valid WASM relation");
     let ccs = relation.r1cs().structure();
     check_ccs_rowwise_zero(ccs, &wit[..1], &wit[1..]).expect("honest negative i64.load8_s row should satisfy the CCS");
@@ -396,7 +396,7 @@ fn i64_load32_u_unaligned_requires_use_lane1() {
         .iter()
         .find(|r| matches!(r.opcode, neo_wasm::WasmOpcode::I64Load32U))
         .expect("i64.load32_u row");
-    let mut wit = build_witness_vector(load);
+    let mut wit = build_witness_vector(load).unwrap();
     let relation = build_wasm_relation().expect("valid WASM relation");
     let ccs = relation.r1cs().structure();
     check_ccs_rowwise_zero(ccs, &wit[..1], &wit[1..])
@@ -438,7 +438,7 @@ fn i64_store8_width_family_pin_is_enforced() {
         .iter()
         .find(|r| matches!(r.opcode, neo_wasm::WasmOpcode::I64Store8))
         .expect("i64.store8 row");
-    let mut wit = build_witness_vector(store);
+    let mut wit = build_witness_vector(store).unwrap();
     let relation = build_wasm_relation().expect("valid WASM relation");
     let ccs = relation.r1cs().structure();
     check_ccs_rowwise_zero(ccs, &wit[..1], &wit[1..]).expect("honest i64.store8 row should satisfy the CCS");

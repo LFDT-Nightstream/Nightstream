@@ -75,7 +75,14 @@ pub(super) fn setup_turn<'g>(
         first.memory_pages_before,
         memory,
     )?;
-    let entry_plans = plan_export_blocks(&template.entry, &entry_blocks, &first.locals_snapshot, &memory_accesses)?;
+    let local_is_i64 = function_local_types(program, fref, first.locals_snapshot.len())?;
+    let entry_plans = plan_export_blocks(
+        &template.entry,
+        &entry_blocks,
+        &first.locals_snapshot,
+        &local_is_i64,
+        &memory_accesses,
+    )?;
     if re_entered && entry_plans.is_empty() && template.exit.is_empty() {
         return Err(WasmBuildError::Trace(format!(
             "re-entered export fref {fref} requires at least one entry or exit event"
@@ -129,8 +136,57 @@ pub(super) fn plan_turn_exit(
         &template.exit,
         &blocks,
         &last.locals_snapshot,
+        &[],
         &resolved_memory.accesses,
     )
+}
+
+fn function_local_types(
+    program: Option<&super::super::super::WasmProgramTables>,
+    fref: u32,
+    local_count: usize,
+) -> Result<Vec<bool>, WasmBuildError> {
+    let Some(program) = program else {
+        return Ok(vec![false; local_count]);
+    };
+    let mut local_types = vec![None; local_count];
+    for &(function_ref, local, is_i64) in &program.function_local_is_i64 {
+        if function_ref != u64::from(fref) {
+            continue;
+        }
+        let local = usize::try_from(local)
+            .map_err(|_| WasmBuildError::Trace(format!("local index for export fref {fref} does not fit usize")))?;
+        let slot = local_types.get_mut(local).ok_or_else(|| {
+            WasmBuildError::Trace(format!(
+                "static local index {local} for export fref {fref} exceeds its runtime local count {local_count}"
+            ))
+        })?;
+        let is_i64 = match is_i64 {
+            0 => false,
+            1 => true,
+            value => {
+                return Err(WasmBuildError::Trace(format!(
+                    "invalid static local type flag {value} for export fref {fref}, local {local}"
+                )));
+            }
+        };
+        if slot.replace(is_i64).is_some() {
+            return Err(WasmBuildError::Trace(format!(
+                "duplicate static local type for export fref {fref}, local {local}"
+            )));
+        }
+    }
+    local_types
+        .into_iter()
+        .enumerate()
+        .map(|(local, value)| {
+            value.ok_or_else(|| {
+                WasmBuildError::Trace(format!(
+                    "missing static local type for export fref {fref}, local {local}"
+                ))
+            })
+        })
+        .collect()
 }
 
 fn validate_runtime_entry_locals(

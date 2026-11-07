@@ -236,8 +236,10 @@ impl Circuit {
     }
 
     /// The verifier of the circuit, which may share the prover's circuit.
-    /// Reject a profile below the caller's positive statistical minimum, and
-    /// a memory relation, whose verifier is `nebula::Circuit::verifier`.
+    /// Reject a profile whose one-fold security level is below the caller's
+    /// positive local minimum, and a memory relation, whose verifier is
+    /// `nebula::Circuit::verifier`. The caller separately budgets recursive
+    /// depth, queries, retries, and concurrent attempts.
     pub fn verifier(&self, engine: Engine, minimum_security_bits: u32) -> Result<Verifier, Error> {
         if self.compiled.role == Role::Memory {
             return Err(Error::Circuit("a memory relation needs nebula::Circuit::verifier"));
@@ -245,7 +247,9 @@ impl Circuit {
         Verifier::configured(self, engine, minimum_security_bits)
     }
 
-    /// Require the selected profile to meet the caller's positive statistical minimum.
+    /// Require one fold of the selected profile to meet the caller's positive
+    /// local minimum. This is not an end-to-end bound over recursive depth or
+    /// multiple attempts.
     pub fn prover(&self, engine: Engine, minimum_security_bits: u32) -> Result<Prover, Error> {
         Prover::new(Arc::clone(&self.compiled), Backend::new(engine)?, minimum_security_bits)
     }
@@ -266,6 +270,8 @@ impl Prover {
 
     /// Load proving data without repeating compilation or whole-circuit hashing.
     /// Saved identities are claims; verification uses an independently configured circuit.
+    /// `minimum_security_bits` gates one fold, not the cumulative error of a
+    /// recursive proof or multiple attempts.
     pub fn load(path: impl AsRef<Path>, engine: Engine, minimum_security_bits: u32) -> Result<Self, Error> {
         let backend = Backend::new(engine)?;
         Self::new(Arc::new(storage::read(path.as_ref())?), backend, minimum_security_bits)

@@ -118,7 +118,7 @@ fn ccs_rejects_forged_chain_update() {
         .into_iter()
         .find(|row| usize::from(row.state_before.event_absorb.perm_round) == comm_chain::COMM_CHAIN_PERM_ROWS - 1)
         .expect("perm group last row");
-    let mut witness = build_witness_vector(last_row);
+    let mut witness = build_witness_vector(last_row).unwrap();
     common::assert_satisfied(&witness, "untampered chain-update row");
     witness[COL_COMM_CHAIN_AFTER[0]] += neo_math::F::ONE;
     common::assert_rejected(&witness, "chain-update row landing a forged chain limb");
@@ -130,7 +130,7 @@ fn ccs_rejects_forged_chain_update() {
 fn ccs_rejects_forged_perm_round_output() {
     let trace = two_event_trace();
     for row in perm_rows(&trace).into_iter().take(2) {
-        let mut witness = build_witness_vector(row);
+        let mut witness = build_witness_vector(row).unwrap();
         common::assert_satisfied(&witness, "untampered perm row");
         witness[COL_PERM_STATE_AFTER[0]] += neo_math::F::ONE;
         common::assert_rejected(&witness, "perm row with a forged round output lane");
@@ -149,7 +149,7 @@ fn ccs_rejects_trace_with_forged_perm_state_after() {
     let mut corrupted = (*original).clone();
     corrupted.state_after.event_absorb.perm_state[0] ^= 1;
 
-    let witness = build_witness_vector(&corrupted);
+    let witness = build_witness_vector(&corrupted).unwrap();
     common::assert_rejected(&witness, "trace row with a forged permutation state");
 }
 
@@ -162,7 +162,7 @@ fn ccs_rejects_forged_absorb_buffer() {
         .into_iter()
         .find(|row| row.state_before.event_absorb.perm_pending)
         .expect("perm group absorb row");
-    let mut witness = build_witness_vector(absorb_row);
+    let mut witness = build_witness_vector(absorb_row).unwrap();
     common::assert_satisfied(&witness, "untampered absorb row");
     witness[COL_EVBUF_BEFORE[4]] += neo_math::F::ONE;
     common::assert_rejected(&witness, "absorb row with a forged buffer word");
@@ -177,7 +177,7 @@ fn ccs_rejects_suppressed_absorb_schedule() {
         .iter()
         .find(|row| !row.state_before.event_absorb.perm_pending && row.state_after.event_absorb.perm_pending)
         .expect("buffer-filling row");
-    let mut witness = build_witness_vector(filling_row);
+    let mut witness = build_witness_vector(filling_row).unwrap();
     common::assert_satisfied(&witness, "untampered buffer-filling row");
     witness[COL_PERM_PENDING_AFTER] = neo_math::F::ZERO;
     common::assert_rejected(&witness, "buffer-filling row suppressing the pending absorb");

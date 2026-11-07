@@ -53,9 +53,12 @@ fn checked_import_run(
     common::ccs_check_trace(&trace);
     let artifacts = neo_wasm::extract_first_component_core_program_artifacts(&component_bytes).expect("artifacts");
     let mut preload = neo_wasm::memory_semantics::preload_from_program_artifacts(&artifacts);
-    neo_wasm::memory_semantics::preload_host_event_tables(&mut preload, &bindings);
+    neo_wasm::memory_semantics::preload_host_event_tables(&mut preload, &bindings, &artifacts);
     let layout = neo_wasm::relation_layout::build_wasm_relation_layout();
-    let witness_rows: Vec<Vec<neo_math::F>> = trace.iter().map(build_witness_vector).collect();
+    let witness_rows: Vec<Vec<neo_math::F>> = trace
+        .iter()
+        .map(|row| build_witness_vector(row).unwrap())
+        .collect();
     for (row, witness) in trace.iter().zip(&witness_rows) {
         neo_wasm::sanity_check_lookup_row(&layout.auxiliary, witness)
             .unwrap_or_else(|err| panic!("lookup semantics rejected {:?}: {err}", row.opcode));
@@ -290,7 +293,7 @@ fn indirect_host_call_with_three_args_is_provable() {
 fn host_call_row_rejects_forged_callee_attribution() {
     let run = five_arg_run();
     let call_row = host_call_row(&run.trace);
-    let mut witness = build_witness_vector(call_row);
+    let mut witness = build_witness_vector(call_row).unwrap();
     common::assert_satisfied(&witness, "untampered host-call row");
     witness[neo_wasm::layout::COL_HOST_CALLEE_FREF_AFTER] += neo_math::F::ONE;
     common::assert_rejected(&witness, "host-call row claiming a different callee");
@@ -302,7 +305,7 @@ fn host_call_row_rejects_forged_callee_attribution() {
 fn gather_row_rejects_switched_callee_attribution() {
     let run = five_arg_run();
     let arg_row = arg_gather_rows(&run.trace)[0];
-    let mut witness = build_witness_vector(arg_row);
+    let mut witness = build_witness_vector(arg_row).unwrap();
     common::assert_satisfied(&witness, "untampered arg gather row");
     witness[neo_wasm::layout::COL_HOST_CALLEE_FREF_AFTER] += neo_math::F::ONE;
     common::assert_rejected(&witness, "arg gather row switching the callee attribution");

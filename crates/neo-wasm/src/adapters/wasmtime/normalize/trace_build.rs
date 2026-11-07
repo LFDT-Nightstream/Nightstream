@@ -165,6 +165,12 @@ pub(super) fn build_trace(
         let is_return_row = matches!(current.opcode, WasmOpcode::Return | WasmOpcode::End)
             && current.pc_edge_kind == WasmPcEdgeKind::ReturnLike
             && call_stack_depth > host_event_state.host_frame_depth;
+        if is_return_row && next.is_none() {
+            return Err(WasmBuildError::Trace(format!(
+                "guest return at cycle {} has no caller continuation",
+                current.cycle
+            )));
+        }
         let next_row_base = if is_return_row {
             call_stack.last().map(|&(_, _, base)| base).unwrap_or(0)
         } else {
@@ -225,6 +231,104 @@ pub(super) fn build_trace(
         // A trap is terminal: wasmtime stops stepping at the faulting
         // instruction, so a trapping opcode can only be the last row.
         let trapped = matches!(current.opcode, WasmOpcode::Unreachable) || div_trap || ci_trap || mem_oob;
+        if matches!(current.opcode, WasmOpcode::ReturnCall | WasmOpcode::ReturnCallIndirect)
+            && !ci_trap
+            && !current.target_function_is_guest
+        {
+            return Err(WasmBuildError::Unsupported(format!(
+                "{} to a host import at cycle {} is not supported yet",
+                current.info.name, current.cycle
+            )));
+        }
+        let is_host_call = matches!(current.opcode, WasmOpcode::Call | WasmOpcode::CallIndirect)
+            && !current.target_function_is_guest
+            && !ci_trap;
+        let host_import = if is_host_call {
+            let callee_fref = current.function_ref.ok_or_else(|| {
+                WasmBuildError::Trace(format!(
+                    "missing callee function ref for host call at cycle {}",
+                    current.cycle
+                ))
+            })?;
+            let template = bindings.imports.get(&callee_fref).ok_or_else(|| {
+                WasmBuildError::Trace(format!(
+                    "no host-event template for host import fref {callee_fref} at cycle {}",
+                    current.cycle
+                ))
+            })?;
+            if !template.is_split() && next.is_some_and(|row| row.activation_depth > current.activation_depth) {
+                return Err(WasmBuildError::Unsupported(
+                    "same-instance reentry under an atomic import".into(),
+                ));
+            }
+            if !template.is_split()
+                && template.input_count > 0
+                && next.is_none_or(|row| Some(u64::from(row.pc)) != current.pc_after_instruction)
+            {
+                return Err(WasmBuildError::Trace(format!(
+                    "import memory recovery at cycle {} requires the caller continuation; \
+                     same-instance reentry is not supported by normalization",
+                    current.cycle
+                )));
+            }
+            let param_count = current.call_param_count.ok_or_else(|| {
+                WasmBuildError::Trace(format!(
+                    "missing call parameter count for host call at cycle {}",
+                    current.cycle
+                ))
+            })?;
+            let result_count = current.call_result_count.ok_or_else(|| {
+                WasmBuildError::Trace(format!(
+                    "missing call result count for host call at cycle {}",
+                    current.cycle
+                ))
+            })?;
+            if result_count > 1 {
+                return Err(WasmBuildError::Unsupported(format!(
+                    "host call with {result_count} results at cycle {} is unsupported: the canonical ABI \
+                     caps flat results at 1 (wider results go through a return pointer)",
+                    current.cycle
+                )));
+            }
+            if next.is_none() && result_count > 0 {
+                return Err(WasmBuildError::Trace(format!(
+                    "host call at cycle {} is the final trace row; its result has no continuation",
+                    current.cycle
+                )));
+            }
+            let result_is_i64 = program
+                .and_then(|tables| {
+                    tables
+                        .function_result_is_i64
+                        .iter()
+                        .find(|&&(function_ref, _)| function_ref == u64::from(callee_fref))
+                })
+                .map(|&(_, result_is_i64)| result_is_i64)
+                .ok_or_else(|| {
+                    WasmBuildError::Trace(format!(
+                        "missing static result type for host import fref {callee_fref} at cycle {}",
+                        current.cycle
+                    ))
+                })?;
+            let result_is_i64 = match result_is_i64 {
+                0 => false,
+                1 => true,
+                value => {
+                    return Err(WasmBuildError::Trace(format!(
+                        "invalid static result type flag {value} for host import fref {callee_fref}"
+                    )));
+                }
+            };
+            Some((callee_fref, template, param_count, result_count, result_is_i64))
+        } else {
+            None
+        };
+        if next.is_none() && !turn_terminal && !trapped {
+            return Err(WasmBuildError::Trace(format!(
+                "trace ends before the activation returns at cycle {}",
+                current.cycle
+            )));
+        }
         if trapped && !activation_finished {
             return Err(WasmBuildError::Trace(format!(
                 "trapping {} row at cycle {} is not the final step",
@@ -364,12 +468,6 @@ pub(super) fn build_trace(
                 }
             }
             WasmOpcode::ReturnCall | WasmOpcode::ReturnCallIndirect if !ci_trap => {
-                if !current.target_function_is_guest {
-                    return Err(WasmBuildError::Unsupported(format!(
-                        "{} to a host import at cycle {} is not supported yet",
-                        current.info.name, current.cycle
-                    )));
-                }
                 let param_count = current.call_param_count.ok_or_else(|| {
                     WasmBuildError::Trace(format!(
                         "missing call parameter count for tail call at cycle {}",
@@ -494,9 +592,6 @@ pub(super) fn build_trace(
             linear_memory.apply_program_access(current)?;
         }
 
-        let is_host_call = matches!(current.opcode, WasmOpcode::Call | WasmOpcode::CallIndirect)
-            && !current.target_function_is_guest
-            && !ci_trap;
         let mut host_event_plan: Option<HostCallEventPlan> = None;
         let mut host_context = None;
         let mut return_count = None;
@@ -504,59 +599,8 @@ pub(super) fn build_trace(
         let host_callee_fref_before = host_callee_fref;
         let comm_chain_before_row = comm_chain;
         let event_absorb_before_row = event_absorb;
-        if is_host_call {
-            host_callee_fref = current.function_ref.ok_or_else(|| {
-                WasmBuildError::Trace(format!(
-                    "missing callee function ref for host call at cycle {}",
-                    current.cycle
-                ))
-            })?;
-            let template = bindings.imports.get(&host_callee_fref).ok_or_else(|| {
-                WasmBuildError::Trace(format!(
-                    "no host-event template for host import fref {host_callee_fref} at cycle {}",
-                    current.cycle
-                ))
-            })?;
-            if !template.is_split() && next.is_some_and(|row| row.activation_depth > current.activation_depth) {
-                return Err(WasmBuildError::Unsupported(
-                    "same-instance reentry under an atomic import".into(),
-                ));
-            }
-            if !template.is_split()
-                && template.input_count > 0
-                && next.is_none_or(|row| Some(u64::from(row.pc)) != current.pc_after_instruction)
-            {
-                return Err(WasmBuildError::Trace(format!(
-                    "import memory recovery at cycle {} requires the caller continuation; \
-                     same-instance reentry is not supported by normalization",
-                    current.cycle
-                )));
-            }
-            let param_count = current.call_param_count.ok_or_else(|| {
-                WasmBuildError::Trace(format!(
-                    "missing call parameter count for host call at cycle {}",
-                    current.cycle
-                ))
-            })?;
-            let result_count = current.call_result_count.ok_or_else(|| {
-                WasmBuildError::Trace(format!(
-                    "missing call result count for host call at cycle {}",
-                    current.cycle
-                ))
-            })?;
-            if result_count > 1 {
-                return Err(WasmBuildError::Unsupported(format!(
-                    "host call with {result_count} results at cycle {} is unsupported: the canonical ABI \
-                     caps flat results at 1 (wider results go through a return pointer)",
-                    current.cycle
-                )));
-            }
-            if next.is_none() && result_count > 0 {
-                return Err(WasmBuildError::Trace(format!(
-                    "host call at cycle {} is the final trace row; its result has no continuation",
-                    current.cycle
-                )));
-            }
+        if let Some((callee_fref, template, param_count, result_count, result_is_i64)) = host_import {
+            host_callee_fref = callee_fref;
             let index_pops = usize::from(matches!(current.opcode, WasmOpcode::CallIndirect));
             let args_start = current
                 .operand_stack
@@ -611,6 +655,7 @@ pub(super) fn build_trace(
                     args_base,
                     &arg_limbs,
                     result_limbs,
+                    result_is_i64,
                     &inputs,
                     current.memory_pages_before,
                     &mut linear_memory,
@@ -643,6 +688,7 @@ pub(super) fn build_trace(
                     context,
                     call_index: idx,
                     activation_depth: current.activation_depth,
+                    result_is_i64,
                     export: export_boundary.as_ref().expect("active export").clone(),
                 });
             } else {

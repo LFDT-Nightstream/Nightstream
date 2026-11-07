@@ -247,8 +247,11 @@ fn host_event_exit_events_remain_attributed_to_the_export_after_a_guest_tail_cal
 
     let artifacts = neo_wasm::extract_first_component_core_program_artifacts(&component).expect("program artifacts");
     let mut preload = neo_wasm::preload_from_program_artifacts(&artifacts);
-    neo_wasm::memory_semantics::preload_host_event_tables(&mut preload, &bindings);
-    let witnesses: Vec<_> = trace.iter().map(build_witness_vector).collect();
+    neo_wasm::memory_semantics::preload_host_event_tables(&mut preload, &bindings, &artifacts);
+    let witnesses: Vec<_> = trace
+        .iter()
+        .map(|row| build_witness_vector(row).unwrap())
+        .collect();
     neo_wasm::sanity_check_memory_rows(neo_wasm::build_wasm_relation_layout(), &witnesses, &preload)
         .expect("memory and bindings ROM bindings");
 }

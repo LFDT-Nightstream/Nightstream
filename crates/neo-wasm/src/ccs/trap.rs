@@ -115,11 +115,16 @@ pub(super) fn push_trap_constraints(b: &mut WasmTaggedR1csBuilder<'_>, layout: &
     });
     b.with_tag(
         shared(
-            "indirect call trap",
-            &[WasmOpcode::CallIndirect, WasmOpcode::ReturnCallIndirect],
+            "table bounds and indirect call trap",
+            &[
+                WasmOpcode::TableGet,
+                WasmOpcode::TableSet,
+                WasmOpcode::CallIndirect,
+                WasmOpcode::ReturnCallIndirect,
+            ],
         ),
         |b| {
-            push_call_indirect_trap_constraints(b);
+            push_table_bounds_and_call_indirect_trap_constraints(b);
         },
     );
     b.with_tag(shared("linear memory oob trap", &linear_memory_ops()), |b| {
@@ -255,15 +260,19 @@ fn push_div_trap_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     push_gated_linear_zero(b, COL_DIV_TRAP, [(COL_STACK_WRITE0_VALUE_HI, F::ONE)]);
 }
 
-fn push_call_indirect_trap_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
+fn push_table_bounds_and_call_indirect_trap_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
+    let table_get = selector_col(WasmOpcode::TableGet).unwrap();
+    let table_set = selector_col(WasmOpcode::TableSet).unwrap();
     let call_indirect = selector_col(WasmOpcode::CallIndirect).unwrap();
     let return_call_indirect = selector_col(WasmOpcode::ReturnCallIndirect).unwrap();
     let indirect_selectors = [(call_indirect, F::ONE), (return_call_indirect, F::ONE)];
 
-    // ge = selector * ( table_index >= table_size )
+    // Every table-indexing opcode authenticates the declared table size.
+    // The unmodeled table.get/table.set trap paths must stay unreachable;
+    // call_indirect consumes the same comparison as a modeled trap.
     push_unsigned_ge_gadget(
         b,
-        [call_indirect, return_call_indirect],
+        [table_get, table_set, call_indirect, return_call_indirect],
         [(COL_TABLE_INDEX, F::ONE)],
         [(COL_TABLE_SIZE, F::ONE)],
         COL_CMP_LOW,
@@ -272,6 +281,9 @@ fn push_call_indirect_trap_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
 
     // COL_CI_OOB = selector * ge.
     b.push_row(indirect_selectors, [(COL_CMP_GE, F::ONE)], [(COL_CI_OOB, F::ONE)]);
+    // table.get/table.set OOB traps are not modeled as terminal rows. Reject
+    // such a row instead of reading or writing a zero-default RAM cell.
+    b.push_row([(table_get, F::ONE), (table_set, F::ONE)], [(COL_CMP_GE, F::ONE)], []);
 
     // 0 encodes the null funcref
     CALL_INDIRECT_ENTRY_ZERO_TEST.push_constraints(b);

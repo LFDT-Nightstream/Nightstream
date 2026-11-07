@@ -20,12 +20,13 @@ pub trait WasmTraceSink {
 
 /// Configure selected core modules before instantiation, then install the debug
 /// handler. Artifacts and instance function identities are discovered on the
-/// first instruction, including instructions executed by a Wasm start section.
+/// first instruction.
 ///
 /// Unconfigured modules are ignored. Registering one after it has executed is
 /// rejected: its missing prefix cannot be recovered. An explicitly registered
 /// module with empty bindings is still traced. Use one registry per store.
-/// Capturing a start function does not establish proof semantics for instantiation.
+/// Configured modules with a start section are rejected because proof
+/// initialization does not model start execution.
 #[derive(Debug, Default)]
 pub struct WasmtimeTraceRegistry {
     bindings: BTreeMap<Vec<u8>, HostEventBindings>,
@@ -285,6 +286,7 @@ pub(super) fn capture_step<T: WasmTraceSink + 'static>(
     row.activation_depth = activation_depth;
     let pending = PendingImport::from_call(&row, &tables, activation_depth)?;
     entry_inputs::capture_entry_memory(&mut row, frame, store, &tables);
+    let function_end = super::normalize::function_end_step(&row, &tables)?;
     let registry = store.data_mut().wasm_trace_registry_mut();
     let state = registry.instances.get_mut(&index).unwrap();
     if let Some(pending) = pending {
@@ -292,5 +294,9 @@ pub(super) fn capture_step<T: WasmTraceSink + 'static>(
     }
     state.next_step += 1;
     state.steps.push(row);
+    if let Some(row) = function_end {
+        state.next_step += 1;
+        state.steps.push(row);
+    }
     Ok(())
 }

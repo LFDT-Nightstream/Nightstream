@@ -69,7 +69,29 @@ use crate::layout::{
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
 
-pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
+pub fn build_witness_vector(trace: &WasmVmStep) -> Result<Vec<F>, super::ir::WasmBuildError> {
+    use super::ir::WasmBuildError;
+
+    if trace.row_kind.is_host_event_perm()
+        && usize::from(trace.state_before.event_absorb.perm_round) >= crate::comm_chain::COMM_CHAIN_PERM_ROWS
+    {
+        return Err(WasmBuildError::Trace(
+            "host-event permutation round is out of range".into(),
+        ));
+    }
+    if trace.row_kind.is_host_event_gather()
+        && usize::from(trace.state_before.host_events.slot_cursor) >= trace.state_after.event_absorb.evbuf.len()
+    {
+        return Err(WasmBuildError::Trace("host-event gather cursor is out of range".into()));
+    }
+    let [memory_pages_before, max_memory_pages_before] = crate::preprocess::memory_page_state_words(
+        trace.state_before.memory_pages,
+        trace.state_before.max_memory_pages,
+    )
+    .ok_or_else(|| WasmBuildError::Trace("invalid default-memory page state before row".into()))?;
+    let [memory_pages_after, max_memory_pages_after] =
+        crate::preprocess::memory_page_state_words(trace.state_after.memory_pages, trace.state_after.max_memory_pages)
+            .ok_or_else(|| WasmBuildError::Trace("invalid default-memory page state after row".into()))?;
     let mut wit = vec![F::ZERO; crate::RANGE_CHECKED_WITNESS_WIDTH];
     wit[COL_ONE] = F::ONE;
     // High-limb stack addresses are constrained unconditionally as
@@ -231,26 +253,21 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
     } else if trace.call_stack_pop.is_some() {
         wit[COL_CALL_STACK_ADDR] = F::from_u64(trace.state_after.call_stack_depth);
     }
-    if let Some(pages) = trace.state_before.memory_pages {
-        wit[COL_MEMORY_PAGES_BEFORE] = F::from_u64(u64::from(pages));
-    }
-    if let Some(pages) = trace.state_after.memory_pages {
-        wit[COL_MEMORY_PAGES_AFTER] = F::from_u64(u64::from(pages));
-    }
-    if let Some(max) = trace.state_before.max_memory_pages {
-        wit[COL_MAX_MEMORY_PAGES_BEFORE] = F::from_u64(u64::from(max));
-    }
-    if let Some(max) = trace.state_after.max_memory_pages {
-        wit[COL_MAX_MEMORY_PAGES_AFTER] = F::from_u64(u64::from(max));
-    }
+    wit[COL_MEMORY_PAGES_BEFORE] = F::from_u64(memory_pages_before);
+    wit[COL_MEMORY_PAGES_AFTER] = F::from_u64(memory_pages_after);
+    wit[COL_MAX_MEMORY_PAGES_BEFORE] = F::from_u64(max_memory_pages_before);
+    wit[COL_MAX_MEMORY_PAGES_AFTER] = F::from_u64(max_memory_pages_after);
     if matches!(trace.opcode, super::isa::WasmOpcode::MemoryGrow) {
-        let before = u64::from(trace.state_before.memory_pages.unwrap_or(0));
-        let max = u64::from(trace.state_before.max_memory_pages.unwrap_or(0));
+        let (Some(before), Some(max)) = (trace.state_before.memory_pages, trace.state_before.max_memory_pages) else {
+            return Err(WasmBuildError::Trace("memory.grow row has no default memory".into()));
+        };
+        let before = u64::from(before);
+        let max = u64::from(max);
         let delta = u64::from(trace.stack_read0.map(|access| access.value_lo).unwrap_or(0));
         // Mirrors the CCS lhs `max_before - pages_before`.
         let available_pages = max
             .checked_sub(before)
-            .expect("validated memory state keeps current pages <= max pages");
+            .ok_or_else(|| WasmBuildError::Trace("memory pages exceed their maximum".into()))?;
         let (cmp_low, cmp_ge) = unsigned_ge_witness(available_pages, delta);
         wit[COL_CMP_LOW] = cmp_low;
         wit[COL_CMP_GE] = cmp_ge;
@@ -298,10 +315,12 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
     } else {
         F::ZERO
     };
-    // table_sizes is read by table.size and by call_indirect (the OOB check).
+    // Table sizes bind table.size results and every table-index bounds check.
     wit[COL_TABLE_SIZE_READ_ENABLED] = if matches!(
         trace.opcode,
         super::isa::WasmOpcode::TableSize
+            | super::isa::WasmOpcode::TableGet
+            | super::isa::WasmOpcode::TableSet
             | super::isa::WasmOpcode::CallIndirect
             | super::isa::WasmOpcode::ReturnCallIndirect
     ) {
@@ -419,7 +438,10 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
             .memory_access_info()
             .is_some_and(|info| info.kind == super::isa::WasmMemoryAccessKind::Store);
         // OOB rows de-gate memory tuples.
-        let pages_before = u64::from(trace.state_before.memory_pages.unwrap_or(0));
+        let Some(pages_before) = trace.state_before.memory_pages else {
+            return Err(WasmBuildError::Trace("linear-memory row has no default memory".into()));
+        };
+        let pages_before = u64::from(pages_before);
         let last_lane_addr =
             access.lane0.word_addr + u64::from(access.lane1.is_some()) + u64::from(access.lane2.is_some());
         let (cmp_low, cmp_ge) = unsigned_ge_witness(last_lane_addr, pages_before * 16384);
@@ -642,14 +664,20 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
                     .and_then(|lane| lane.value_hi)
                     .unwrap_or(0),
             ),
-            _ if is_host_event_byte_memory => (
-                u32::from(access.lane0.value_after.to_le_bytes()[usize::from(access.byte_offset)]),
-                0,
-            ),
+            _ if is_host_event_byte_memory => {
+                let bytes = access.lane0.value_after.to_le_bytes();
+                let value = bytes
+                    .get(usize::from(access.byte_offset))
+                    .ok_or_else(|| WasmBuildError::Trace("host-event memory byte offset is out of range".into()))?;
+                (u32::from(*value), 0)
+            }
             _ if is_host_event_half_memory => {
                 let bytes = access.lane0.value_after.to_le_bytes();
                 let offset = usize::from(access.byte_offset);
-                (u32::from(u16::from_le_bytes([bytes[offset], bytes[offset + 1]])), 0)
+                let bytes = bytes.get(offset..offset + 2).ok_or_else(|| {
+                    WasmBuildError::Trace("host-event memory half-word offset is out of range".into())
+                })?;
+                (u32::from(u16::from_le_bytes([bytes[0], bytes[1]])), 0)
             }
             _ => (0, 0),
         };
@@ -811,17 +839,20 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
     // read.
     let sel_call_indirect = wit[selector_col(super::isa::WasmOpcode::CallIndirect).expect("call_indirect selector")]
         + wit[selector_col(super::isa::WasmOpcode::ReturnCallIndirect).expect("return_call_indirect selector")];
-    // ge = (table_index >= table_size); the gadget is gated on call_indirect,
-    // so the columns only carry meaning (and ci_oob) on those rows.
-    if sel_call_indirect == F::ONE {
+    let sel_table_index = sel_call_indirect
+        + wit[selector_col(super::isa::WasmOpcode::TableGet).expect("table.get selector")]
+        + wit[selector_col(super::isa::WasmOpcode::TableSet).expect("table.set selector")];
+    // ge = (table_index >= table_size). table.get/table.set require ge = 0;
+    // call_indirect turns ge into its modeled OOB trap.
+    if sel_table_index == F::ONE {
         let (cmp_low, cmp_ge) = unsigned_ge_witness(
             trace
                 .table_index
-                .expect("call_indirect binds a table index")
+                .ok_or_else(|| WasmBuildError::Trace("table-indexing opcode has no table index".into()))?
                 .into(),
             trace
                 .table_size
-                .expect("call_indirect binds a table size")
+                .ok_or_else(|| WasmBuildError::Trace("table-indexing opcode has no table size".into()))?
                 .into(),
         );
         wit[COL_CMP_LOW] = cmp_low;
@@ -963,7 +994,7 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
     wit[COL_CMP_AND] = zero_test_lo_is_zero * zero_test_hi_is_zero;
 
     crate::range_check::write_range_check_bits(&mut wit);
-    wit
+    Ok(wit)
 }
 
 /// Host-event absorb machinery witness: carried state columns, the perm-row

@@ -1111,6 +1111,8 @@ fn import_schedule_phase_limits_include_the_presence_bias() {
 
 #[test]
 fn import_schedule_rom_packs_atomic_and_split_phases() {
+    let wasm = wat::parse_str(r#"(module (import "" "" (func)))"#).unwrap();
+    let artifacts = neo_wasm::extract_wasm_program_artifacts(&wasm).unwrap();
     let block = EventBlock {
         block: [SlotBinding::Const(0); 8],
         absorb: false,
@@ -1128,7 +1130,7 @@ fn import_schedule_rom_packs_atomic_and_split_phases() {
             );
             bindings.imports[&1].validate(0, 0).unwrap();
             let mut preload = neo_wasm::WasmMemoryPreload::default();
-            neo_wasm::memory_semantics::preload_host_event_tables(&mut preload, &bindings);
+            neo_wasm::memory_semantics::preload_host_event_tables(&mut preload, &bindings, &artifacts);
             let packed = preload
                 .remove(neo_wasm::WasmMemoryId::HostEventImportScheduleCount, &[1])
                 .unwrap();

@@ -3,7 +3,7 @@ use neo_params::NeoParams;
 #[derive(Clone, Debug)]
 pub(crate) struct Params {
     inner: NeoParams,
-    /// The caller's statistical minimum, in bits.
+    /// The caller's local minimum for one fold, in bits.
     minimum_security_bits: u32,
     /// `-log2` of one fold's exact census error (not floored).
     fold_error_bits: f64,

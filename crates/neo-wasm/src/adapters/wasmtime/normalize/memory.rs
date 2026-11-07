@@ -24,12 +24,6 @@ impl LinearMemoryImage {
         if !host_events_use_linear_memory(bindings) {
             return Ok(None);
         }
-        if program.has_imported_memory {
-            return Err(WasmBuildError::Unsupported(
-                "host-event memory slots require verifier-known memory-zero initialization; imported memory is unsupported"
-                    .to_string(),
-            ));
-        }
         Ok(Some(Self::from_program(program)))
     }
 

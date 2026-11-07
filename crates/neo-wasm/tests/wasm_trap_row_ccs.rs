@@ -31,7 +31,8 @@ fn unreachable_row_requires_activation_finished_boundary() {
         None,
         0,
         true,
-    ));
+    ))
+    .unwrap();
     assert_satisfied(&accepted, "unreachable row");
 
     let rejected = build_witness_vector(&step(
@@ -47,7 +48,8 @@ fn unreachable_row_requires_activation_finished_boundary() {
         None,
         0,
         false,
-    ));
+    ))
+    .unwrap();
     assert_rejected(&rejected, "unreachable row with activation_finished=0");
 }
 
@@ -66,7 +68,8 @@ fn unreachable_row_rejects_clean_trapped_flag() {
         None,
         0,
         true,
-    ));
+    ))
+    .unwrap();
     assert_satisfied(&witness, "unreachable row with trapped_after=1");
     witness[COL_TRAPPED_AFTER] = F::ZERO;
     assert_rejected(&witness, "unreachable row claiming a clean (non-trapped) exit");
@@ -87,7 +90,8 @@ fn non_trap_row_rejects_fake_trapped_flag() {
         None,
         0,
         false,
-    ));
+    ))
+    .unwrap();
     assert_satisfied(&witness, "nop row");
     witness[COL_TRAPPED_AFTER] = F::ONE;
     assert_rejected(&witness, "nop row claiming a trap");
@@ -108,7 +112,8 @@ fn program_row_rejects_execution_after_trap() {
         None,
         0,
         false,
-    ));
+    ))
+    .unwrap();
     // trapped_before = trapped_after = 1 satisfies the transition row, so
     // the rejection must come from `is_program_row · trapped_before = 0`.
     witness[COL_TRAPPED_BEFORE] = F::ONE;
@@ -131,7 +136,8 @@ fn div_by_zero_row_rejects_clean_claim() {
         None,
         0,
         true,
-    ));
+    ))
+    .unwrap();
     assert_satisfied(&witness, "i32.div_u row trapping on a zero divisor");
     // Hiding the trap: div_trap = 0 contradicts (Σ div sel) · divisor_is_zero.
     witness[COL_DIV_TRAP] = F::ZERO;
@@ -153,7 +159,8 @@ fn div_row_rejects_fake_trap_on_nonzero_divisor() {
         None,
         0,
         false,
-    ));
+    ))
+    .unwrap();
     assert_satisfied(&witness, "i32.div_u row with a nonzero divisor");
     // Faking the trap: divisor_is_zero is pinned to 0 by the zero test, so
     // div_trap = (Σ div sel) · 0 must be 0.
@@ -177,7 +184,8 @@ fn signed_div_overflow_row_rejects_clean_claim() {
         None,
         0,
         true,
-    ));
+    ))
+    .unwrap();
     assert_satisfied(&witness, "i32.div_s row trapping on MIN / -1");
     // Hiding the trap: the zero tests pin both overflow flags to 1, so
     // div_overflow = (Σ div_s sel) · 1 forces div_trap = 1.
@@ -201,7 +209,8 @@ fn div_s_row_rejects_fake_overflow_trap() {
         None,
         0,
         false,
-    ));
+    ))
+    .unwrap();
     assert_satisfied(&witness, "i32.div_s row with MIN dividend and divisor 2");
     // Faking the trap: divisor_is_neg1 is pinned to 0 by its zero test, so
     // overflow_cond = is_min · 0 must be 0 and div_overflow must follow.

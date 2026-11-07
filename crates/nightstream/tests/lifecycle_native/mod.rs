@@ -533,6 +533,7 @@ fn saved_proof_and_transcript_match_lean() {
 }
 
 mod base;
+mod extend_predecessor;
 
 mod key_prefix;
 mod matrix_workspace;

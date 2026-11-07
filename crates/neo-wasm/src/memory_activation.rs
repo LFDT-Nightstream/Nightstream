@@ -58,6 +58,8 @@ pub(crate) fn activation_supports() -> BTreeMap<usize, BTreeSet<usize>> {
         COL_TABLE_SIZE_READ_ENABLED,
         [
             selector_col(WasmOpcode::TableSize).unwrap(),
+            selector_col(WasmOpcode::TableGet).unwrap(),
+            selector_col(WasmOpcode::TableSet).unwrap(),
             selector_col(WasmOpcode::CallIndirect).unwrap(),
             selector_col(WasmOpcode::ReturnCallIndirect).unwrap(),
         ],

@@ -236,3 +236,136 @@ fn scratches_with_one_name_do_not_share_a_directory() {
     drop(first);
     assert!(second.0.is_dir());
 }
+
+#[test]
+fn rebuilding_setup_preserves_an_open_store() {
+    let scratch = Scratch::new("setup-rebuild");
+    let root = build(VARIABLES, COUNT, table, Some(&scratch.0)).unwrap();
+    let store = Store::open(&scratch.0, VARIABLES, COUNT, &root).unwrap();
+    let original = store.read(0).unwrap();
+
+    let replacement = build(VARIABLES, COUNT, |k| table(k + COUNT), Some(&scratch.0));
+
+    assert_eq!(
+        store.read(0).unwrap(),
+        original,
+        "rebuilding changed an open setup store"
+    );
+    assert!(replacement.is_err(), "an existing setup must not be replaced");
+}
+
+#[test]
+#[cfg(unix)]
+fn rebuilding_setup_preserves_a_read_only_open_store() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let scratch = Scratch::new("setup-failed-rebuild");
+    let root = build(VARIABLES, COUNT, table, Some(&scratch.0)).unwrap();
+    let store = Store::open(&scratch.0, VARIABLES, COUNT, &root).unwrap();
+    let original = store.read(0).unwrap();
+    let blocked = scratch.0.join("setup/oracle-01.bin");
+    let permissions = std::fs::metadata(&blocked).unwrap().permissions();
+    std::fs::set_permissions(&blocked, std::fs::Permissions::from_mode(0o400)).unwrap();
+    let replacement = build(VARIABLES, COUNT, |k| table(k + COUNT), Some(&scratch.0));
+    std::fs::set_permissions(&blocked, permissions).unwrap();
+
+    assert!(replacement.is_err(), "a ready setup must not be replaced");
+    assert!(Store::open(&scratch.0, VARIABLES, COUNT, &root).is_ok());
+    assert_eq!(
+        store.read(0).unwrap(),
+        original,
+        "rebuilding changed a read-only open setup store"
+    );
+}
+
+#[test]
+fn failed_setup_write_removes_its_candidate_and_allows_retry() {
+    let scratch = Scratch::new("setup-write-failure");
+    let failed = build(
+        VARIABLES,
+        COUNT,
+        |k| {
+            if k == 1 {
+                let paths: Vec<_> = std::fs::read_dir(&scratch.0)
+                    .unwrap()
+                    .map(|entry| entry.unwrap().path())
+                    .collect();
+                assert_eq!(paths.len(), 1, "one private candidate belongs to this build");
+                std::fs::create_dir(paths[0].join("oracle-01.bin")).unwrap();
+            }
+            table(k)
+        },
+        Some(&scratch.0),
+    );
+    assert!(matches!(failed, Err(Error::Io(_))));
+    assert_eq!(std::fs::read_dir(&scratch.0).unwrap().count(), 0);
+
+    let expected = build(VARIABLES, COUNT, table, None).unwrap();
+    assert!(Store::open(&scratch.0, VARIABLES, COUNT, &expected).is_err());
+    let root = build(VARIABLES, COUNT, table, Some(&scratch.0)).unwrap();
+    assert_eq!(root, expected);
+    let store = Store::open(&scratch.0, VARIABLES, COUNT, &root).unwrap();
+    for leaf in 0..1 << (VARIABLES + 1 - FOLD) {
+        assert!(store.read(leaf).is_ok());
+    }
+}
+
+#[test]
+fn concurrent_setup_builds_do_not_publish_mixed_oracles() {
+    use std::sync::mpsc;
+
+    let scratch = Scratch::new("setup-concurrent-build");
+    let references = [
+        Scratch::new("setup-concurrent-first"),
+        Scratch::new("setup-concurrent-second"),
+    ];
+    let roots: [_; 2] = std::array::from_fn(|generation| {
+        build(
+            VARIABLES,
+            COUNT,
+            |k| table(k + generation * COUNT),
+            Some(&references[generation].0),
+        )
+        .unwrap()
+    });
+    let (ready_tx, ready_rx) = mpsc::channel();
+    let (resume_tx, resume_rx) = mpsc::channel();
+
+    let (first, second, partial_rejected) = std::thread::scope(|scope| {
+        let directory = &scratch.0;
+        let first = scope.spawn(move || {
+            build(
+                VARIABLES,
+                COUNT,
+                |k| {
+                    if k == 1 {
+                        ready_tx.send(()).unwrap();
+                        resume_rx.recv().unwrap();
+                    }
+                    table(k)
+                },
+                Some(directory),
+            )
+        });
+        ready_rx.recv().unwrap();
+        let partial_rejected = Store::open(&scratch.0, VARIABLES, COUNT, &roots[0]).is_err();
+        let second = build(VARIABLES, COUNT, |k| table(k + COUNT), Some(&scratch.0));
+        resume_tx.send(()).unwrap();
+        (first.join().unwrap(), second, partial_rejected)
+    });
+
+    assert!(partial_rejected, "an incomplete setup must not be available to open");
+    assert_ne!(first.is_ok(), second.is_ok(), "exactly one setup build must publish");
+    let winner = usize::from(second.is_ok());
+    let root = first.or(second).unwrap();
+    assert_eq!(root, roots[winner]);
+    let store = Store::open(&scratch.0, VARIABLES, COUNT, &root).unwrap();
+    let expected = Store::open(&references[winner].0, VARIABLES, COUNT, &root).unwrap();
+    for leaf in 0..1 << (VARIABLES + 1 - FOLD) {
+        assert_eq!(
+            store.read(leaf).unwrap(),
+            expected.read(leaf).unwrap(),
+            "concurrent builds published mixed oracle files at leaf {leaf}"
+        );
+    }
+}

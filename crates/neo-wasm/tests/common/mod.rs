@@ -89,7 +89,7 @@ pub fn sanity_check_trace_with_bindings(
     let layout = build_wasm_relation_layout();
     let mut witnesses = Vec::with_capacity(trace.len());
     for row in trace {
-        let witness = build_witness_vector(row);
+        let witness = build_witness_vector(row).unwrap();
         sanity_check_lookup_row(&layout.auxiliary, &witness)
             .unwrap_or_else(|err| panic!("lookup semantics rejected {:?}: {err}", row.opcode));
         witnesses.push(witness);
@@ -97,7 +97,7 @@ pub fn sanity_check_trace_with_bindings(
     neo_application::check_continuity_rows(&layout.auxiliary.continuity, &witnesses)
         .unwrap_or_else(|err| panic!("continuity rejected trace: {err}"));
     let mut preload = preload_from_program_artifacts(artifacts);
-    neo_wasm::memory_semantics::preload_host_event_tables(&mut preload, bindings);
+    neo_wasm::memory_semantics::preload_host_event_tables(&mut preload, bindings, artifacts);
     sanity_check_memory_rows(layout, &witnesses, &preload)
         .unwrap_or_else(|err| panic!("memory semantics rejected trace: {err}"));
     check_native_event_hashes(trace).unwrap_or_else(|err| panic!("native event-hash parity failed: {err}"));
@@ -266,7 +266,7 @@ pub fn assert_satisfied(z: &[F], label: &str) {
     // Keep aux bits consistent with any caller-mutated declared columns.
     let mut z = z.to_vec();
     neo_wasm::write_range_check_bits(&mut z);
-    neo_wasm::write_turn_schedule_guard_witness(&mut z);
+    neo_wasm::write_turn_schedule_guard_witness(&mut z).unwrap();
     let (x, w) = (&z[..m_in], &z[m_in..]);
     check_ccs_rowwise_zero(ccs, x, w).unwrap_or_else(|e| panic!("{label}: expected CCS satisfied, got: {e}"));
 }
@@ -278,7 +278,7 @@ pub fn assert_rejected(z: &[F], label: &str) {
     // Keep aux bits consistent so in-range forgeries exercise semantic rows.
     let mut z = z.to_vec();
     neo_wasm::write_range_check_bits(&mut z);
-    neo_wasm::write_turn_schedule_guard_witness(&mut z);
+    neo_wasm::write_turn_schedule_guard_witness(&mut z).unwrap();
     let (x, w) = (&z[..m_in], &z[m_in..]);
     assert!(
         check_ccs_rowwise_zero(ccs, x, w).is_err(),
@@ -292,7 +292,7 @@ pub fn ccs_check_trace(trace: &[WasmVmStep]) {
     let catalog = relation.r1cs().catalog();
     let columns = relation.columns();
     for (idx, row) in trace.iter().enumerate() {
-        let witness = build_witness_vector(row);
+        let witness = build_witness_vector(row).unwrap();
         let m_in = relation.r1cs().public_input_count();
         let (x, w) = (&witness[..m_in], &witness[m_in..]);
         check_ccs_rowwise_zero(ccs, x, w).unwrap_or_else(|err| {
@@ -324,7 +324,7 @@ pub fn ccs_check_trace(trace: &[WasmVmStep]) {
 
 pub fn verifier_initial_state(artifacts: &WasmProgramArtifacts) -> WasmStepState {
     let entry_pc = single_function_entry_pc(artifacts);
-    top_level_initial_state(&artifacts.tables, entry_pc)
+    top_level_initial_state(&artifacts.tables, entry_pc).unwrap()
 }
 
 /// Prover-disclosed final VM state for `neo_wasm::verify`.

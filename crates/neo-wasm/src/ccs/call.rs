@@ -187,6 +187,18 @@ pub(super) fn push_call_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
         // Entry and resume clear activation completion. Other rows preserve
         // the latch; program rows cannot execute while it is set.
         push_gated_linear_zero(b, COL_TURN_BOUNDARY, [(COL_ACTIVATION_FINISHED_AFTER, F::ONE)]);
+        // Every transition that finishes an activation keeps the dense PC's
+        // one-past value. Return-like and terminal edges do not read the
+        // static PC ROM, so this row is their authoritative final-PC binding.
+        b.push_row(
+            [
+                (COL_ACTIVATION_FINISHED_AFTER, F::ONE),
+                (COL_ACTIVATION_FINISHED_BEFORE, -F::ONE),
+                (COL_HOST_CLEAR_ACTIVATION_FINISHED, F::ONE),
+            ],
+            [(COL_PC_AFTER, F::ONE), (COL_PC_BEFORE, -F::ONE), (COL_ONE, -F::ONE)],
+            [],
+        );
         // Root entry requires a finished turn; nested entry requires suspension.
         b.push_row(
             [(COL_TURN_BOUNDARY, F::ONE), (COL_HOST_NESTED_ENTRY, -F::ONE)],
@@ -252,6 +264,17 @@ pub(super) fn push_call_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
 
 fn push_simple_output_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     b.with_tag(always("simple output carry"), |b| {
+        // A disabled output has no payload. Bind both sides so an invalid
+        // initial state cannot enter and a terminal row cannot export free
+        // payload words after the carry gates turn off.
+        for (enabled, value) in [
+            (COL_OUTPUT_ENABLED_BEFORE, COL_OUTPUT_VALUE_LO_BEFORE),
+            (COL_OUTPUT_ENABLED_BEFORE, COL_OUTPUT_VALUE_HI_BEFORE),
+            (COL_OUTPUT_ENABLED_AFTER, COL_OUTPUT_VALUE_LO_AFTER),
+            (COL_OUTPUT_ENABLED_AFTER, COL_OUTPUT_VALUE_HI_AFTER),
+        ] {
+            b.push_row([(COL_ONE, F::ONE), (enabled, -F::ONE)], [(value, F::ONE)], []);
+        }
         for (after, before) in [
             (COL_OUTPUT_ENABLED_AFTER, COL_OUTPUT_ENABLED_BEFORE),
             (COL_OUTPUT_VALUE_LO_AFTER, COL_OUTPUT_VALUE_LO_BEFORE),

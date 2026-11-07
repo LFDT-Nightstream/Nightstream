@@ -11,6 +11,7 @@ pub(super) struct Suspended<'a> {
     pub context: crate::ir::WasmHostContext,
     pub call_index: usize,
     pub activation_depth: usize,
+    pub result_is_i64: bool,
     pub export: TurnSetup<'a>,
 }
 
@@ -162,6 +163,7 @@ pub(super) fn resume(
         saved.context.args_base,
         &args,
         result,
+        saved.result_is_i64,
         &inputs,
         next.memory_pages_before,
         memory,

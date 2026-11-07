@@ -65,7 +65,7 @@ fn call_indirect_param_wasm() -> Vec<u8> {
 fn build_witnesses(trace: &[WasmVmStep]) -> Vec<Vec<neo_math::F>> {
     trace
         .iter()
-        .map(neo_wasm::witness_builder::build_witness_vector)
+        .map(|row| neo_wasm::witness_builder::build_witness_vector(row).unwrap())
         .collect()
 }
 
@@ -293,7 +293,7 @@ fn reused_guest_frame_zeroes_both_lanes_before_a_local_read() {
     common::sanity_check_trace(&checked.trace, &checked.artifacts);
     common::ccs_check_trace(&checked.trace);
 
-    let mut forged = neo_wasm::witness_builder::build_witness_vector(zero_rows[1]);
+    let mut forged = neo_wasm::witness_builder::build_witness_vector(zero_rows[1]).unwrap();
     forged[neo_wasm::layout::COL_STACK_WRITE0_VALUE_HI] = neo_math::F::ONE;
     common::assert_rejected(&forged, "local zero row cannot retain the previous high limb");
 
@@ -374,7 +374,7 @@ fn clean_activation_finished_row_requires_empty_call_stack_depth() {
     final_row.state_before.call_stack_depth = 1;
     final_row.state_after.call_stack_depth = 1;
 
-    let witness = neo_wasm::witness_builder::build_witness_vector(&final_row);
+    let witness = neo_wasm::witness_builder::build_witness_vector(&final_row).unwrap();
     common::assert_rejected(
         &witness,
         "clean activation_finished row with non-empty call stack depth",
@@ -402,7 +402,7 @@ fn nested_trap_may_finish_activation_with_nonempty_call_stack_depth() {
     assert!(trap.state_after.activation_finished);
     assert!(trap.state_after.trapped);
     assert_eq!(trap.state_before.call_stack_depth, 1);
-    let witness = neo_wasm::witness_builder::build_witness_vector(trap);
+    let witness = neo_wasm::witness_builder::build_witness_vector(trap).unwrap();
     common::assert_satisfied(&witness, "nested trap with abandoned caller frame");
 }
 
@@ -415,7 +415,7 @@ fn call_row_pins_return_pc_rom_choice() {
         .iter()
         .find(|row| row.call_stack_push.is_some())
         .expect("call row");
-    let mut witness = neo_wasm::witness_builder::build_witness_vector(call_row);
+    let mut witness = neo_wasm::witness_builder::build_witness_vector(call_row).unwrap();
     witness[COL_PC_ROM_CALL_RETURN_CHOICE] = neo_math::F::ZERO;
     common::assert_rejected(&witness, "call row with unpinned return pc choice");
 }
@@ -456,7 +456,7 @@ fn activation_return_with_a_result_requires_output_capture() {
     final_row.state_after.output.value_hi = 0;
     final_row.state_after.sp = final_row.state_before.sp;
 
-    let witness = neo_wasm::witness_builder::build_witness_vector(&final_row);
+    let witness = neo_wasm::witness_builder::build_witness_vector(&final_row).unwrap();
     common::assert_rejected(&witness, "activation return leaving its result uncaptured");
 }
 
@@ -469,7 +469,7 @@ fn activation_return_output_low_is_row_bound() {
         .iter()
         .find(|row| row.state_after.activation_finished)
         .expect("activation_finished row");
-    let mut witness = neo_wasm::witness_builder::build_witness_vector(final_row);
+    let mut witness = neo_wasm::witness_builder::build_witness_vector(final_row).unwrap();
 
     witness[COL_OUTPUT_VALUE_LO_AFTER] = neo_math::F::from_u64(7);
 
@@ -511,8 +511,8 @@ fn padding_right_after_a_result_move_preserves_the_move_state() {
     assert!(!last_move.state_after.frame_move.active);
     assert_ne!(last_move.state_after.frame_move.distance, 0);
 
-    let padding = neo_wasm::batch::padding_step_after(last_move);
+    let padding = neo_wasm::batch::padding_step_after(last_move).unwrap();
     assert_eq!(padding.state_before, padding.state_after);
-    let witness = neo_wasm::witness_builder::build_witness_vector(&padding);
+    let witness = neo_wasm::witness_builder::build_witness_vector(&padding).unwrap();
     common::assert_satisfied(&witness, "padding after a completed frame move");
 }

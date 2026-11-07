@@ -8,7 +8,12 @@
 
 mod common;
 
-use neo_wasm::WasmOpcode;
+use neo_wasm::host_event_bindings::{EventBlock, ExportTemplate, HostEventBindings, Limb, SlotBinding};
+use neo_wasm::witness_builder::build_witness_vector;
+use neo_wasm::{
+    build_wasm_relation_layout, collect_wasmtime_steps, preload_from_program_artifacts,
+    traces_from_wasmtime_steps_with_host_events, WasmOpcode,
+};
 
 #[test]
 fn unreachable_trap_is_a_provable_terminal_state() {
@@ -214,6 +219,124 @@ fn call_indirect_oob_index_trap_is_a_provable_terminal_state() {
     assert!(last.state_after.trapped);
     assert!(!last.state_after.output.enabled);
     assert!(last.call_stack_push.is_none(), "a trapping call_indirect never calls");
+}
+
+fn assert_unmodeled_table_oob_is_rejected(
+    wat: &str,
+    export_fref: u32,
+    opcode: WasmOpcode,
+    index_from_stack_end: usize,
+) {
+    let wasm = wat::parse_str(wat).expect("valid WAT");
+    let mut slots = [SlotBinding::Const(0); 8];
+    slots[0] = SlotBinding::InputLocal {
+        input: 0,
+        local: 0,
+        limb: Limb::Lo,
+    };
+    let mut bindings = HostEventBindings::default();
+    bindings.exports.insert(
+        export_fref,
+        ExportTemplate {
+            entry: vec![EventBlock {
+                block: slots,
+                absorb: true,
+            }],
+            exit: vec![],
+            entry_input_count: 1,
+        },
+    );
+
+    let honest = collect_wasmtime_steps(&wasm, &bindings, "main", &[0]).expect("in-bounds reference run");
+    assert_eq!(honest.results, ["7"]);
+    let native_error = collect_wasmtime_steps(&wasm, &bindings, "main", &[5])
+        .expect_err("Wasmtime must trap on an out-of-bounds table operation")
+        .to_string();
+    if opcode == WasmOpcode::TableGet {
+        assert!(
+            native_error.contains("table.get out of bounds for table 0 index 5"),
+            "unexpected native error: {native_error}"
+        );
+    }
+
+    let mut forged_steps = honest.steps.clone();
+    let local_get = forged_steps
+        .iter_mut()
+        .find(|row| row.opcode_decoded == Some(WasmOpcode::LocalGet))
+        .expect("local.get row");
+    local_get.locals_words[0].0 = 5;
+    let table_op = forged_steps
+        .iter_mut()
+        .find(|row| row.opcode_decoded == Some(opcode))
+        .expect("table operation row");
+    let index_position = table_op
+        .operand_stack_words
+        .len()
+        .checked_sub(index_from_stack_end)
+        .expect("table index operand position");
+    table_op.operand_stack_words[index_position] = 5;
+    table_op.table_index = Some(5);
+
+    let mut forged = traces_from_wasmtime_steps_with_host_events(&forged_steps, honest.artifacts(), Default::default())
+        .expect("self-consistent forged trace");
+    let table_op = forged
+        .iter()
+        .position(|row| row.opcode == opcode)
+        .expect("normalized table operation row");
+    common::assert_rejected(
+        &build_witness_vector(&forged[table_op]).expect("witness"),
+        "table index outside the authenticated table size",
+    );
+
+    // A prover also cannot hide the OOB index by increasing the claimed
+    // table size. The TableSize RAM read binds the real declared size.
+    forged[table_op].table_size = Some(6);
+    common::ccs_check_trace(&forged);
+    let layout = build_wasm_relation_layout();
+    let witnesses: Vec<_> = forged
+        .iter()
+        .map(|row| build_witness_vector(row).expect("witness"))
+        .collect();
+    for witness in &witnesses {
+        neo_wasm::sanity_check_lookup_row(&layout.auxiliary, witness).expect("lookup semantics");
+    }
+    neo_application::check_continuity_rows(&layout.auxiliary.continuity, &witnesses).expect("forged trace continuity");
+    let mut preload = preload_from_program_artifacts(honest.artifacts());
+    neo_wasm::memory_semantics::preload_host_event_tables(&mut preload, &bindings, honest.artifacts());
+    let error = neo_wasm::sanity_check_memory_rows(layout, &witnesses, &preload)
+        .expect_err("the verifier-owned table size must reject the forged bound");
+    assert!(error.contains("table_size"), "unexpected rejection: {error}");
+}
+
+#[test]
+fn table_get_and_set_oob_cannot_be_hidden_as_ram_accesses() {
+    assert_unmodeled_table_oob_is_rejected(
+        r#"(module
+            (table 1 funcref)
+            (func (export "main") (param i32) (result i32)
+                local.get 0
+                table.get 0
+                drop
+                i32.const 7))"#,
+        1,
+        WasmOpcode::TableGet,
+        1,
+    );
+    assert_unmodeled_table_oob_is_rejected(
+        r#"(module
+            (type $t (func))
+            (func $f (type $t))
+            (elem declare funcref (ref.func $f))
+            (table 1 funcref)
+            (func (export "main") (param i32) (result i32)
+                local.get 0
+                ref.func $f
+                table.set 0
+                i32.const 7))"#,
+        2,
+        WasmOpcode::TableSet,
+        2,
+    );
 }
 
 #[test]

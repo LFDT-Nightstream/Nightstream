@@ -457,6 +457,12 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
                     activation: active_when(Column(crate::ccs::host_event_chain::gather_memory_local_base_col())),
                 },
                 MemoryPortSpec {
+                    address_columns: memory_columns([Column(COL_LOCAL_ADDR_HI)]),
+                    value_column: COL_LOCAL_VALUE_HI,
+                    kind: MemoryPortKind::Read,
+                    activation: active_when(Column(crate::ccs::host_event_chain::gather_memory_local_base_col())),
+                },
+                MemoryPortSpec {
                     address_columns: memory_columns([Column(COL_LOCAL_ADDR_LO)]),
                     value_column: COL_LOCAL_VALUE,
                     kind: MemoryPortKind::Write {

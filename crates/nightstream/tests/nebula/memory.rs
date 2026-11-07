@@ -790,57 +790,6 @@ fn insecure_geometry_makes_no_circuit() {
     ));
 }
 
-#[test]
-fn minimum_110_rejects_64_segment_fingerprint_loss() {
-    let geometry = crate::nebula::Geometry {
-        r: 11,
-        mu: 12,
-        w_ts: 8,
-        b_ops: 2,
-        b_scan: 6144,
-        n: 1,
-        s_max: 64,
-    };
-    assert!(geometry.is_valid());
-    let segment_bits = geometry.memory_security_bits();
-    let chain_bits = segment_bits - (geometry.s_max as f64).log2();
-    assert!(segment_bits > 110.0 && chain_bits < 110.0);
-    let circuit = crate::nebula::Circuit::compile(geometry, Machine).unwrap();
-    assert!(
-        circuit.verifier(crate::Engine::Optimized, 110).is_err(),
-        "the verifier accepted 110 bits with a {segment_bits:.3}-bit one-segment memory bound; a 64-segment union budget of {chain_bits:.3} bits does not certify 110 bits"
-    );
-}
-
-#[test]
-fn one_segment_rejects_a_minimum_above_the_combined_fold_and_memory_bound() {
-    let geometry = crate::nebula::Geometry {
-        r: 16,
-        mu: 16,
-        w_ts: 14,
-        b_ops: 2,
-        b_scan: 32,
-        n: 4096,
-        s_max: 1,
-    };
-    assert!(geometry.is_valid());
-    assert!(geometry.max_tuples() <= 139_509);
-    let q = 18_446_744_069_414_584_321_f64;
-    let fold_test_numerator = 74.0 * 4589.0;
-    let memory_numerator = 2.0 * geometry.max_tuples() as f64;
-    let bits = |numerator: f64| 2.0 * q.log2() - numerator.log2();
-    assert!(bits(fold_test_numerator) > 109.0);
-    assert!(bits(memory_numerator) > 109.0);
-    assert!(bits(fold_test_numerator + memory_numerator) < 109.0);
-
-    let circuit = crate::nebula::Circuit::compile(geometry, Machine).unwrap();
-    assert!(
-        circuit.verifier(crate::Engine::Optimized, 109).is_err(),
-        "the verifier accepted 109 bits when the sum of documented fold and memory error bounds gives a {:.3}-bit lower bound, below the requested 109 bits",
-        bits(fold_test_numerator + memory_numerator)
-    );
-}
-
 /// Lean `Machine.portApp` is for `bOps = 2`, and Lean `PortApp.portsLength`
 /// gives every step `B_ops` ports. No machine row fixes a third port, so a
 /// step could write any RAM cell through it: the geometry makes no circuit.

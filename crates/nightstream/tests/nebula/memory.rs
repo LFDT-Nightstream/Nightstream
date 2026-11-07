@@ -835,6 +835,35 @@ fn memory_security_boundary_rejects_exact_bound_above_minimum() {
     );
 }
 
+#[test]
+fn one_segment_rejects_a_minimum_above_the_combined_fold_and_memory_bound() {
+    let geometry = crate::nebula::Geometry {
+        r: 16,
+        mu: 16,
+        w_ts: 14,
+        b_ops: 2,
+        b_scan: 32,
+        n: 4096,
+        s_max: 1,
+    };
+    assert!(geometry.is_valid());
+    assert!(geometry.max_tuples() <= 139_509);
+    let q = 18_446_744_069_414_584_321_f64;
+    let fold_test_numerator = 74.0 * 4589.0;
+    let memory_numerator = 2.0 * geometry.max_tuples() as f64;
+    let bits = |numerator: f64| 2.0 * q.log2() - numerator.log2();
+    assert!(bits(fold_test_numerator) > 109.0);
+    assert!(bits(memory_numerator) > 109.0);
+    assert!(bits(fold_test_numerator + memory_numerator) < 109.0);
+
+    let circuit = crate::nebula::Circuit::compile(geometry, Machine).unwrap();
+    assert!(
+        circuit.verifier(crate::Engine::Optimized, 109).is_err(),
+        "the verifier accepted 109 bits when the one-fold test and one-segment memory errors together have only {:.3} bits",
+        bits(fold_test_numerator + memory_numerator)
+    );
+}
+
 /// Lean `Machine.portApp` is for `bOps = 2`, and Lean `PortApp.portsLength`
 /// gives every step `B_ops` ports. No machine row fixes a third port, so a
 /// step could write any RAM cell through it: the geometry makes no circuit.

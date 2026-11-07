@@ -91,6 +91,7 @@ define_column_region! {
         GOUT_VAL: Field => "limb-selected export output value",
         GSLOT_VALUE: Field => "word staged by the current gather row",
         GK2_HI: Boolean => "result-slot high-limb write flag",
+        GRESULT_NARROW_ACTIVE: Boolean => "typed narrow result high-limb gate",
         GHC_PARAMS: Field => "host-event host-call and parameter-count product",
         G_ADVICE: Boolean => "advice-event slot flag",
         GMEM_LOCAL: Boolean => "memory pointer comes from an export local",
@@ -585,7 +586,16 @@ fn push_host_event_gather_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
             [(GSLOT_VALUE, F::ONE), (COL_STACK_WRITE0_VALUE_HI, -F::ONE)],
             [],
         );
-        b.push_row([(SLOT_IMMEDIATE1, F::ONE)], [(COL_STACK_WRITE0_VALUE_HI, F::ONE)], []);
+        b.push_row(
+            [(GK2_HI, F::ONE)],
+            [(SLOT_IMMEDIATE1, F::ONE)],
+            [(GRESULT_NARROW_ACTIVE, F::ONE)],
+        );
+        b.push_row(
+            [(GRESULT_NARROW_ACTIVE, F::ONE)],
+            [(COL_STACK_WRITE0_VALUE_HI, F::ONE)],
+            [],
+        );
         // The hi-word port gate: raw write0 activity, plus these rows.
         b.push_linear_zero([
             (super::super::layout::COL_STACK_WRITE0_HI_ACTIVE, F::ONE),
@@ -1144,6 +1154,7 @@ pub(crate) fn fill_witness(wit: &mut [F], trace: &WasmVmStep) {
         if let Some(rom) = trace.host_event_rom_slot {
             wit[GATHER_KIND[rom.kind.index()]] = F::ONE;
             wit[GK2_HI] = bool_f(rom.kind == WasmHostEventSlotKind::Result && rom.variant.is_high_limb());
+            wit[GRESULT_NARROW_ACTIVE] = wit[GK2_HI] * wit[crate::layout::COL_HOST_EVENT_SLOT_IMMEDIATE1];
             wit[G_ADVICE] = bool_f(rom.advice);
             wit[GMEM_LOCAL] = bool_f(rom.variant.uses_local_memory_base());
             wit[GMEM_OUTPUT] = bool_f(rom.variant.uses_output_memory_base());

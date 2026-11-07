@@ -206,7 +206,7 @@ pub fn preload_host_event_tables(
             u32::from(limb_variant(limb).encoded()),
             0,
             if matches!(limb, Limb::Hi) {
-                result_narrow.get(&fref).copied().unwrap_or(0)
+                result_narrow.get(&fref).copied().unwrap_or(1)
             } else {
                 0
             },

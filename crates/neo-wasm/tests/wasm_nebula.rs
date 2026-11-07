@@ -1047,6 +1047,23 @@ fn zero_page_memory_presence_is_bound_by_the_public_verifier() {
     {
         accepted.push("last.max_memory_pages");
     }
+    let no_memory_module = self::traced(
+        r#"(module (func (export "main") (result i32) i32.const 7))"#,
+        setup.n,
+        NonZeroUsize::MIN,
+    );
+    let no_memory_program = app.program(&no_memory_module.preload).unwrap();
+    if verifier
+        .verify(
+            &no_memory_program,
+            &no_memory_module.initial,
+            &no_memory_module.last,
+            &proof,
+        )
+        .is_ok()
+    {
+        accepted.push("program with no memory");
+    }
     assert!(
         accepted.is_empty(),
         "unproved public WASM state changes were accepted: {accepted:?}"

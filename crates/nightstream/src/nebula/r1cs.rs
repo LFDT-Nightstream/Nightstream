@@ -14,7 +14,7 @@
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 
-use neo_application::{ContinuityCatalog, MemoryCatalog, R1csRelation};
+use neo_application::{ContinuityCatalog, MemoryCatalog, MemoryPortActivation, MemoryPortKind, R1csRelation};
 use neo_ccs::CcsMatrix;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks as F;
@@ -127,6 +127,8 @@ pub struct R1csApplication<Id> {
 pub enum R1csApplicationError {
     #[error("a matrix of the relation is not in CSC form")]
     Matrix,
+    #[error("the relation, continuity links, and memory catalog must use columns within the row width")]
+    Column,
     #[error(transparent)]
     Binding(#[from] CatalogBindingError),
     #[error("a memory of the catalog has no region, so the circuit would not check it")]
@@ -174,6 +176,42 @@ impl<Id: Clone + Eq> R1csApplication<Id> {
         catalog: &MemoryCatalog<Id>,
         size: Size<Id>,
     ) -> Result<Self, R1csApplicationError> {
+        let width = relation.width;
+        let relation_columns = relation
+            .rows
+            .iter()
+            .flat_map(|sides| sides.iter())
+            .flat_map(|terms| terms.iter().map(|(column, _)| *column));
+        let link_columns = continuity
+            .links()
+            .flat_map(|link| [link.previous_step_column, link.next_step_column]);
+        let port_columns = catalog.entries().iter().flat_map(|memory| {
+            memory.ports.iter().flat_map(|port| {
+                let activation = match port.activation {
+                    MemoryPortActivation::Always => None,
+                    MemoryPortActivation::When(column) | MemoryPortActivation::Unless(column) => Some(column),
+                };
+                let before = match port.kind {
+                    MemoryPortKind::Read => None,
+                    MemoryPortKind::Write { value_before_column } => value_before_column,
+                };
+                port.address_columns
+                    .iter()
+                    .copied()
+                    .chain([port.value_column])
+                    .chain(before)
+                    .chain(activation)
+            })
+        });
+        if relation.one >= width
+            || width.checked_mul(size.rows.get()).is_none()
+            || relation_columns
+                .chain(link_columns)
+                .chain(port_columns)
+                .any(|column| column >= width)
+        {
+            return Err(R1csApplicationError::Column);
+        }
         let links: Vec<(usize, usize)> = continuity
             .links()
             .map(|link| (link.previous_step_column, link.next_step_column))

@@ -53,9 +53,7 @@ fn push_size_and_grow_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     );
     // memory.grow takes a page delta. The initial state has `before <= max`
     // from the validated memory type, and this transition preserves it.
-    // Success iff `delta <= max - before`; result is old size or -1.
     let grow = selector_col(WasmOpcode::MemoryGrow).unwrap();
-    // success = grow · ( (max - before) >= delta )
     push_unsigned_ge_gadget(
         b,
         [grow],
@@ -67,7 +65,11 @@ fn push_size_and_grow_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
         COL_CMP_LOW,
         COL_CMP_GE,
     );
-    b.push_row([(grow, F::ONE)], [(COL_CMP_GE, F::ONE)], [(COL_GROW_SUCCESS, F::ONE)]);
+    b.push_row(
+        [(COL_GROW_SUCCESS, F::ONE)],
+        [(COL_ONE, F::ONE), (COL_CMP_GE, -F::ONE)],
+        [],
+    );
     // after = before + success * delta.
     b.push_row(
         [(COL_GROW_SUCCESS, F::ONE)],

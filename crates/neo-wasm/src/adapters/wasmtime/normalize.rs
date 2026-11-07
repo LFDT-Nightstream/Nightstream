@@ -483,13 +483,7 @@ pub(crate) fn capture_frame<T>(
             let pages_before = memory_pages_now.ok_or_else(|| {
                 WasmBuildError::Trace("memory.grow observed without memory 0 in current frame".to_string())
             })?;
-            let delta = operand_stack_words.last().copied().unwrap_or(0);
-            // memory.grow takes a delta; failure leaves the size unchanged.
-            let max = memory_max_now.unwrap_or(u32::MAX);
-            let grown = pages_before
-                .checked_add(delta)
-                .filter(|after| *after <= max);
-            (Some(pages_before), Some(grown.unwrap_or(pages_before)))
+            (Some(pages_before), Some(pages_before))
         }
         _ => (memory_pages_now, memory_pages_now),
     };

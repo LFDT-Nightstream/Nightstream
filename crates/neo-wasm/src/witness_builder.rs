@@ -254,7 +254,14 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
         let (cmp_low, cmp_ge) = unsigned_ge_witness(available_pages, delta);
         wit[COL_CMP_LOW] = cmp_low;
         wit[COL_CMP_GE] = cmp_ge;
-        wit[COL_GROW_SUCCESS] = cmp_ge;
+        wit[COL_GROW_SUCCESS] = if trace
+            .stack_write0
+            .is_some_and(|access| access.value_lo != u32::MAX)
+        {
+            F::ONE
+        } else {
+            F::ZERO
+        };
     }
     wit[COL_STACK_READS] = F::from_u64(u64::from(trace.stack_reads_override.unwrap_or(trace.info.stack_reads)));
     wit[COL_STACK_WRITES] = F::from_u64(u64::from(

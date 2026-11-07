@@ -287,6 +287,14 @@ pub(super) fn capture_step<T: WasmTraceSink + 'static>(
     entry_inputs::capture_entry_memory(&mut row, frame, store, &tables);
     let registry = store.data_mut().wasm_trace_registry_mut();
     let state = registry.instances.get_mut(&index).unwrap();
+    if let Some(previous) = state.steps.last_mut() {
+        if previous.opcode_decoded == Some(crate::isa::WasmOpcode::MemoryGrow)
+            && previous.activation_depth == activation_depth
+            && previous.function_index == row.function_index
+        {
+            previous.memory_pages_after = row.memory_pages_before;
+        }
+    }
     if let Some(pending) = pending {
         state.pending_imports.push(pending);
     }

@@ -16,6 +16,7 @@ pub(crate) struct Duplex<B: Backend> {
     pub(crate) state: [B::F; WIDTH],
     pub(crate) input: Vec<B::F>,
     pub(crate) output: Vec<B::F>,
+    pub(crate) cursor: Option<[B::F; RATE + 1]>,
 }
 
 impl<B: Backend> Duplex<B> {
@@ -25,11 +26,13 @@ impl<B: Backend> Duplex<B> {
             state: [zero; WIDTH],
             input: Vec::new(),
             output: Vec::new(),
+            cursor: None,
         }
     }
 
     pub(crate) fn observe(&mut self, b: &mut B, value: B::F) {
         self.output.clear();
+        self.cursor = None;
         self.input.push(value);
         if self.input.len() == RATE {
             self.duplex(b);
@@ -50,12 +53,54 @@ impl<B: Backend> Duplex<B> {
     }
 
     pub(crate) fn sample(&mut self, b: &mut B) -> B::F {
+        if self.cursor.is_some() {
+            let one = b.constant(1);
+            return self.sample_if(b, one);
+        }
         if !self.input.is_empty() || self.output.is_empty() {
             self.duplex(b);
         }
         self.output
             .pop()
             .expect("a duplexed state fills the output")
+    }
+
+    /// `CompressionLean.Circuit.Duplex.sampleIf`: a Boolean enable consumes
+    /// one buffered sample, with no pending input. Disabled calls return zero.
+    pub(crate) fn sample_if(&mut self, b: &mut B, enabled: B::F) -> B::F {
+        assert!(self.input.is_empty());
+        let zero = b.constant(0);
+        let one = b.constant(1);
+        let mut cursor = self.cursor.unwrap_or_else(|| {
+            let count = self.output.len();
+            assert!(count <= RATE);
+            self.output.reverse();
+            self.output.resize(RATE, zero);
+            std::array::from_fn(|i| if i == count { one } else { zero })
+        });
+        let refill = b.mul(enabled, cursor[0]);
+        let next = b.permute(self.state);
+        for (lane, value) in self.state.iter_mut().enumerate() {
+            *value = b.select(refill, *value, next[lane]);
+        }
+        for (lane, value) in self.output.iter_mut().enumerate() {
+            *value = b.select(refill, *value, next[RATE - 1 - lane]);
+        }
+        for (i, value) in cursor.iter_mut().enumerate() {
+            *value = b.select(refill, *value, if i == RATE { one } else { zero });
+        }
+        let result = b.select(enabled, zero, self.output[0]);
+        for i in 0..RATE {
+            let next = self.output.get(i + 1).copied().unwrap_or(zero);
+            self.output[i] = b.select(enabled, self.output[i], next);
+        }
+        for i in 0..=RATE {
+            let next = cursor.get(i + 1).copied().unwrap_or(zero);
+            cursor[i] = b.select(enabled, cursor[i], next);
+        }
+        self.input.clear();
+        self.cursor = Some(cursor);
+        result
     }
 
     /// Coefficient `i` is the `i`-th sample, as `sample_algebra_element`.
@@ -86,6 +131,7 @@ impl<B: Backend> Duplex<B> {
         self.state = b.permute(self.state);
         self.output.clear();
         self.output.extend_from_slice(&self.state[..RATE]);
+        self.cursor = None;
     }
 }
 

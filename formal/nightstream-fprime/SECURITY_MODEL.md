@@ -487,6 +487,12 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
 
 ## Out of scope
 
+- The layer-1 WHIR query sampler permits two redraws. It fails if the first
+  sample and both redraws equal `p − 1` at one query. This is a completeness
+  limit. Successful queries consume the same words as Plonky3 and preserve
+  its next transcript state (`CompressionLean.Circuit.Whir.queryIndex`,
+  `decisions/whir-query-redraws.md`). No numerical bound for this failure
+  event is proved for the concrete Poseidon2 transcript.
 - Completeness does not follow from a knowledge bound: a bound on the
   adversary is not evidence that an honest proof is accepted. The honest
   prover has separate results, for every application that fits the `2^28`

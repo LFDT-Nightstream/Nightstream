@@ -15,6 +15,7 @@ structure Duplex where
   state : Array Var
   input : Array Var
   output : Array Var
+  cursor : Option (Fin 13 → Var) := none
 
 abbrev Transcript := StateT Duplex Build
 
@@ -22,7 +23,7 @@ namespace Duplex
 
 def new : Build Duplex := do
   let zeroWord ← Build.const 0
-  pure ⟨Array.replicate 16 zeroWord, #[], #[]⟩
+  pure ⟨Array.replicate 16 zeroWord, #[], #[], none⟩
 
 def duplexing : Transcript Unit := do
   let d ← get
@@ -37,10 +38,10 @@ def duplexing : Transcript Unit := do
     let tag ← Build.const (Word.ofNat absorbed)
     state := state.set! rate (← Build.add state[rate]! tag)
   let next := Array.ofFn (← Build.permute fun lane => state[lane]!)
-  set ({ state := next, input := #[], output := next.extract 0 rate } : Duplex)
+  set ({ state := next, input := #[], output := next.extract 0 rate, cursor := none } : Duplex)
 
 def observe (value : Var) : Transcript Unit := do
-  modify fun d => { d with output := #[], input := d.input.push value }
+  modify fun d => { d with output := #[], input := d.input.push value, cursor := none }
   if (← get).input.size = rate then duplexing
 
 def observeSlice (values : Array Var) : Transcript Unit :=
@@ -51,12 +52,38 @@ def observeExt (value : ExtVar) : Transcript Unit := do
   observe (value 1)
   observe (value 2)
 
+def sampleIf (enabled : Var) : Transcript Var := do
+  let d ← get
+  let zeroWord ← Build.const 0
+  let one ← Build.const 1
+  let cursor := Array.ofFn (d.cursor.getD fun i => if i.val = d.output.size then one else zeroWord)
+  let output := if d.cursor.isSome then d.output else
+    (Array.range rate).map fun i => d.output.reverse.getD i zeroWord
+  let refill ← Build.mul enabled cursor[0]!
+  let next := Array.ofFn (← Build.permute fun lane => d.state[lane]!)
+  let state ← ((Array.range 16).mapM fun i => Build.select refill d.state[i]! next[i]! : Build (Array Var))
+  let output ← ((Array.range rate).mapM fun i =>
+    Build.select refill output[i]! next[rate - 1 - i]! : Build (Array Var))
+  let remaining ← ((Array.range 13).mapM fun i =>
+    Build.select refill cursor[i]! (if i = rate then one else zeroWord) : Build (Array Var))
+  let result ← Build.select enabled zeroWord output[0]!
+  let output ← ((Array.range rate).mapM fun i =>
+    Build.select enabled output[i]! (output.getD (i + 1) zeroWord) : Build (Array Var))
+  let remaining ← ((Array.range 13).mapM fun i =>
+    Build.select enabled remaining[i]! (remaining.getD (i + 1) zeroWord) : Build (Array Var))
+  set ({ state, input := #[], output, cursor := some fun i => remaining[i]! } : Duplex)
+  pure result
+
 def sample : Transcript Var := do
   let d ← get
-  if !d.input.isEmpty || d.output.isEmpty then duplexing
-  let d ← get
-  set { d with output := d.output.pop }
-  pure d.output.back!
+  if d.cursor.isSome then
+    let one ← Build.const 1
+    sampleIf one
+  else
+    if !d.input.isEmpty || d.output.isEmpty then duplexing
+    let d ← get
+    set { d with output := d.output.pop }
+    pure d.output.back!
 
 def sampleExt : Transcript ExtVar := do
   let x ← sample

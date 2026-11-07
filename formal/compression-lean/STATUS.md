@@ -120,19 +120,19 @@ Parameters: `{pushes : List CompressionLean.Setup.Push}`.
 
 ## Ports
 
-`ports.json` has 570 entries: 517 Lean declarations transcribe 302 Rust items.
+`ports.json` has 573 entries: 520 Lean declarations transcribe 304 Rust items.
 
 | Lean module | Declarations |
 |---|---:|
 | `CompressionLean.Game.SumCheck` | 1 |
 | `CompressionLean.Lib.Cube` | 2 |
 | `CompressionLean.Lib.SumCheck` | 1 |
-| `CompressionLean.Ports.Circuit.Algebra` | 24 |
+| `CompressionLean.Ports.Circuit.Algebra` | 25 |
 | `CompressionLean.Ports.Circuit.Block` | 21 |
 | `CompressionLean.Ports.Circuit.Early` | 11 |
 | `CompressionLean.Ports.Circuit.Fold` | 10 |
 | `CompressionLean.Ports.Circuit.Gkr` | 3 |
-| `CompressionLean.Ports.Circuit.Hash` | 14 |
+| `CompressionLean.Ports.Circuit.Hash` | 15 |
 | `CompressionLean.Ports.Circuit.Honest` | 5 |
 | `CompressionLean.Ports.Circuit.Ir` | 25 |
 | `CompressionLean.Ports.Circuit.Late` | 5 |
@@ -152,7 +152,7 @@ Parameters: `{pushes : List CompressionLean.Setup.Push}`.
 | `CompressionLean.Ports.Replay.Gkr` | 18 |
 | `CompressionLean.Ports.Replay.Stages` | 33 |
 | `CompressionLean.Ports.Replay.Transcript` | 19 |
-| `CompressionLean.Ports.Replay.Whir` | 4 |
+| `CompressionLean.Ports.Replay.Whir` | 5 |
 | `CompressionLean.Ports.Setup` | 15 |
 | `CompressionLean.Ports.Shrink.BlockPart` | 9 |
 | `CompressionLean.Ports.Shrink.Budget` | 1 |
@@ -170,10 +170,10 @@ Parameters: `{pushes : List CompressionLean.Setup.Push}`.
 |---|---:|
 | `crates/neo-math/src/ring.rs` | 3 |
 | `crates/neo-params/src/poseidon2_goldilocks.rs` | 2 |
-| `crates/neo-spartan/src/circuit/algebra.rs` | 24 |
+| `crates/neo-spartan/src/circuit/algebra.rs` | 25 |
 | `crates/neo-spartan/src/circuit/block.rs` | 5 |
 | `crates/neo-spartan/src/circuit/fold.rs` | 8 |
-| `crates/neo-spartan/src/circuit/hash.rs` | 13 |
+| `crates/neo-spartan/src/circuit/hash.rs` | 14 |
 | `crates/neo-spartan/src/circuit/mod.rs` | 7 |
 | `crates/neo-spartan/src/circuit/poseidon2.rs` | 12 |
 | `crates/neo-spartan/src/circuit/r1cs.rs` | 1 |

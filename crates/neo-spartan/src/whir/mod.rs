@@ -5,8 +5,8 @@
 //! of `SuffixProver`, Goldilocks with the cubic extension, no successor
 //! openings, no grinding, non-stratified queries) and the view of an opening
 //! as backend words. Differences from Plonky3, each stricter or equal: every
-//! query is checked with a full Merkle path, and a sample equal to p − 1 is
-//! rejected where Plonky3 draws again (completeness gap 2^-64 per draw).
+//! query is checked with a full Merkle path, and query sampling permits two
+//! redraws before rejecting (SPEC.md Algorithm 8).
 //!
 //! Points are in Plonky3 order (most significant variable first) inside this
 //! file; callers pass low-bit-first points, as everywhere else.
@@ -14,10 +14,6 @@
 pub(crate) mod paths;
 pub(crate) mod prover;
 pub(crate) mod seeds;
-
-#[cfg(test)]
-#[path = "../../tests/internal/whir_sampler.rs"]
-mod sampler_tests;
 
 use p3_field_v08::{PrimeCharacteristicRing, TwoAdicField};
 use p3_sumcheck_v08::layout::plan_stacked_layout;
@@ -401,15 +397,25 @@ impl<B: Backend> Constraint<B> {
     }
 }
 
-/// Draw one query index of `width` bits: reject the sample p − 1, take the low
-/// bits of the canonical value. Returns the bits and the index as a word.
-fn query_index<B: Backend>(b: &mut B, duplex: &mut Duplex<B>, width: usize) -> Result<(Vec<B::F>, B::F), Error> {
-    let sample = duplex.sample(b);
+/// SPEC.md Algorithm 8 permits two redraws of `p - 1` for each query.
+pub(crate) fn query_index<B: Backend>(
+    b: &mut B,
+    duplex: &mut Duplex<B>,
+    width: usize,
+) -> Result<(Vec<B::F>, B::F), Error> {
+    let mut sample = duplex.sample(b);
+    for _ in 0..2 {
+        let one = b.constant(1);
+        let shifted = b.add(sample, one);
+        let rejected = algebra::is_zero(b, shifted)?;
+        let next = duplex.sample_if(b, rejected);
+        sample = b.select(rejected, sample, next);
+    }
     let one = b.constant(1);
     let shifted = b.add(sample, one);
     let zero = b.constant(0);
     let embedded = b.ext([shifted, zero, zero]);
-    b.ext_inverse(embedded, "WHIR query sample p - 1")?;
+    b.ext_inverse(embedded, "WHIR query retry limit")?;
     let mut bits = b.bits(sample, 64, "WHIR query bits")?;
     bits.truncate(width);
     let mut index = b.constant(0);

@@ -14,6 +14,23 @@ use super::{
 use p3_field::{BasedVectorSpace, PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks as F;
 
+#[test]
+fn verifier_charges_all_allowed_memory_segments() {
+    let geometry = super::Geometry {
+        r: 11,
+        mu: 12,
+        w_ts: 8,
+        b_ops: 2,
+        b_scan: 6144,
+        n: 1,
+        s_max: 64,
+    };
+    assert!(geometry.is_valid());
+    assert!(geometry.memory_security_bits() > 109.0);
+    let circuit = super::Circuit::compile(geometry, Machine).unwrap();
+    assert!(circuit.verifier(crate::Engine::Optimized, 109).is_err());
+}
+
 /// The Stage 1 input state that an invocation's own words open to. The carry
 /// words come first; the machine's five words come last (input state, output
 /// state, idle flag).

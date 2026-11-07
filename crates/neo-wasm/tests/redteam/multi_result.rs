@@ -1,0 +1,88 @@
+use super::*;
+use neo_wasm::layout::COL_EXIT_SLIDE_DISTANCE;
+use neo_wasm::WasmOpcode;
+use nightstream::nebula::Circuit;
+use p3_field::PrimeCharacteristicRing;
+
+const TWO_RESULTS: &str = r#"(module
+    (func (export "main") (result i32 i32)
+        i32.const 1
+        i32.const 2))"#;
+
+#[test]
+fn valid_two_result_export_has_a_public_proof() {
+    let wasm = wat::parse_str(TWO_RESULTS).unwrap();
+    let run = neo_wasm::collect_wasmtime_steps(&wasm, &HostEventBindings::default(), "main", &[]).unwrap();
+    assert_eq!(run.results, ["1", "2"]);
+    let artifacts = run.artifacts().clone();
+    let trace = neo_wasm::traces_from_wasmtime_steps(&run.steps).unwrap();
+    let last = trace.last().unwrap().state_after;
+    assert!(last.is_terminal() && last.output.enabled && !last.trapped);
+    assert_eq!(last.output.value_lo, 2);
+
+    let (export_fref, entry_pc) = artifacts
+        .tables
+        .function_entries
+        .iter()
+        .copied()
+        .max_by_key(|(_, pc)| *pc)
+        .unwrap();
+    let mut preload = preload_from_program_artifacts(&artifacts);
+    preload_host_event_tables(
+        &mut preload,
+        &HostEventBindings::import_free(u32::try_from(export_fref).unwrap()),
+    );
+    let n = trace.len().next_power_of_two();
+    let per_step = NonZeroUsize::MIN;
+    let mut inputs = step_inputs(&trace, n, per_step).unwrap();
+    let end_index = trace
+        .iter()
+        .position(|row| row.opcode == WasmOpcode::End && row.output_captured)
+        .unwrap();
+    inputs[end_index].z[COL_EXIT_SLIDE_DISTANCE] = F::ZERO;
+    let core_width = neo_wasm::build_wasm_relation()
+        .unwrap()
+        .r1cs()
+        .structure()
+        .m();
+    let mut core = inputs[end_index].z[..core_width].to_vec();
+    neo_wasm::write_range_check_bits(&mut core);
+    inputs[end_index].z[..core_width].copy_from_slice(&core);
+    let witnesses = inputs
+        .iter()
+        .take(trace.len())
+        .map(|step| step.z[..core_width].to_vec())
+        .collect::<Vec<_>>();
+    assert!(neo_wasm::sanity_check_memory_rows(neo_wasm::build_wasm_relation_layout(), &witnesses, &preload).is_ok());
+    let traced = Traced {
+        states: inputs.iter().map(|row| row.next).collect(),
+        rows: inputs.iter().map(|row| row.z.clone()).collect(),
+        inputs,
+        real: trace.len(),
+        preload,
+        initial: top_level_initial_state(&artifacts.tables, entry_pc),
+        last,
+    };
+    let setup = Setup::of(vec![traced], n, per_step);
+    let (app, geometry) = setup.complete();
+    let traced = &setup.programs[0];
+    let program = app.program(&traced.preload).unwrap();
+    let circuit = Circuit::compile(geometry, app).unwrap();
+    let prover = circuit.prover(nightstream::Engine::Optimized, 109).unwrap();
+    let verifier = circuit
+        .verifier(nightstream::Engine::Optimized, 109)
+        .unwrap();
+    let mut proving = prover.start(&program, traced.initial).unwrap();
+    let result = proving.segment(&traced.inputs);
+    assert!(
+        result.is_ok(),
+        "the public prover rejected a valid WASM export with two results: {result:?}"
+    );
+    let proof = proving.finish().unwrap();
+    assert!(
+        verifier
+            .verify(&program, &traced.initial, &traced.last, &proof)
+            .is_ok(),
+        "the public verifier rejected a valid WASM export with two results"
+    );
+}

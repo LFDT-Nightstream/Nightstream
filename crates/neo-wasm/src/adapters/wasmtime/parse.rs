@@ -293,6 +293,18 @@ impl Default for ParsedWasmArtifactsBuilder {
 }
 
 impl ParsedWasmArtifactsBuilder {
+    fn const_expr_end(ops: &mut wasmparser::OperatorsReader<'_>, field: &str) -> Result<(), WasmProgramError> {
+        match ops
+            .read()
+            .map_err(|err| WasmProgramError::Invalid(format!("failed to read {field}: {err}")))?
+        {
+            wasmparser::Operator::End if ops.eof() => Ok(()),
+            _ => Err(WasmProgramError::Unsupported(format!(
+                "{field} uses an extended constant expression"
+            ))),
+        }
+    }
+
     fn narrow_u32(value: u64, field: &str) -> Result<u32, WasmProgramError> {
         u32::try_from(value).map_err(|_| {
             WasmProgramError::Unsupported(format!(
@@ -1046,6 +1058,7 @@ impl ParsedWasmArtifactsBuilder {
                             )));
                         }
                     };
+                    Self::const_expr_end(&mut ops, "element segment offset")?;
                     // Items land in the normalized 1-based funcref id space shared
                     // with `call` / `ref.func`; 0 encodes a null entry.
                     let mut funcrefs = Vec::new();
@@ -1078,6 +1091,7 @@ impl ParsedWasmArtifactsBuilder {
                                         )));
                                     }
                                 }
+                                Self::const_expr_end(&mut ops, "element initializer")?;
                             }
                         }
                     }
@@ -1141,6 +1155,7 @@ impl ParsedWasmArtifactsBuilder {
                                     )));
                                 }
                             };
+                            Self::const_expr_end(&mut reader, "data segment offset")?;
                             (memory_index, offset)
                         }
                         wasmparser::DataKind::Passive => continue,
@@ -1194,6 +1209,7 @@ impl ParsedWasmArtifactsBuilder {
                             )));
                         }
                     };
+                    Self::const_expr_end(&mut ops, "global initializer")?;
                     let index = u32::try_from(self.globals_init.len())
                         .map_err(|_| WasmProgramError::Unsupported("declared global count exceeds u32".to_string()))?;
                     self.globals_init.push((index, lo, hi));

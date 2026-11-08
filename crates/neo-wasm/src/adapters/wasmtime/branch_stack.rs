@@ -140,6 +140,11 @@ pub(super) fn frame_slides(bytes: &[u8]) -> Result<BTreeMap<u32, FrameSlideEdges
                 }
                 function.op(offset, &operator).map_err(invalid)?;
             }
+            let end_offset = operators.original_position();
+            operators
+                .get_binary_reader()
+                .finish_expression(&function.visitor(end_offset))
+                .map_err(invalid)?;
             allocations = function.into_allocations();
         }
     }

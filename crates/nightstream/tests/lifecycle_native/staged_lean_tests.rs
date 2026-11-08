@@ -49,7 +49,7 @@ fn export_matches_retained_lean_input_and_every_native_c_trace_field() {
         structure.m(),
         structure.t(),
         structure.max_degree(),
-        114,
+        109,
     )
     .unwrap();
     let (accepted, trace) = optimized_verify_with_trace(
@@ -87,23 +87,12 @@ fn retained_pi_ccs_mutations_cover_the_current_matrix_families() {
     )
     .unwrap();
     let structure = loaded.ccs_structure_header().unwrap();
-    let level = Params::production()
-        .inner()
-        .padded_row_security_summary_for_shape(
-            structure.domain_rows(),
-            structure.m(),
-            structure.t(),
-            structure.max_degree(),
-            neo_params::goldilocks_paper_b2::CHALLENGE_ALPHABET.len() as u32,
-        )
-        .unwrap()
-        .security_bits;
     let params = Params::for_ccs_shape(
         structure.domain_rows(),
         structure.m(),
         structure.t(),
         structure.max_degree(),
-        level,
+        109,
     )
     .unwrap();
     let (accepted, _) = optimized_verify_with_trace(

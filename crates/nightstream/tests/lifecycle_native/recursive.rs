@@ -20,7 +20,7 @@ fn fresh_recursive_producer_matches_golden_and_folds_successor() {
     let reference = fs::read(artifact("nightstream-fprime-stage1-poseidon2-hash-chain-v1.json")).unwrap();
     let (prepared, binding) = crate::assembly::prepare(&reference, &application).unwrap();
     let package =
-        PreparedLifecycle::from_package(prepared.into(), binding, crate::engine::Backend::Optimized, 114).unwrap();
+        PreparedLifecycle::from_package(prepared.into(), binding, crate::engine::Backend::Optimized, 109).unwrap();
     eprintln!("recursive preparation elapsed={:?}", started.elapsed());
 
     let base = read(artifact("nightstream-fprime-stage1-base-step-fixture-v1.json"));
@@ -65,7 +65,7 @@ fn fresh_recursive_producer_matches_golden_and_folds_successor() {
         package.structure.m(),
         package.structure.t(),
         package.structure.max_degree(),
-        114,
+        109,
     )
     .unwrap();
     let mut transcript = Transcript::session();

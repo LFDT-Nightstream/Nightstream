@@ -15,6 +15,7 @@ mod shrink;
 mod verifier;
 mod whir;
 mod whir_prover;
+mod whir_sampler;
 mod whir_verify;
 
 use std::path::PathBuf;

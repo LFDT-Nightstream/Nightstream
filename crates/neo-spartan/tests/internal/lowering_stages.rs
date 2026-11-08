@@ -312,6 +312,7 @@ impl Program for Linear<'_> {
         let state = self.state.map(|word| algebra::private(b, word));
         let mut duplex = Duplex {
             state,
+            cursor: None,
             input: self
                 .input
                 .iter()
@@ -475,6 +476,7 @@ impl Program for Honest<'_> {
         let state = self.state.map(|word| algebra::private(b, word));
         let mut duplex = Duplex {
             state,
+            cursor: None,
             input: self
                 .input
                 .iter()
@@ -653,6 +655,7 @@ impl Program for Late<'_> {
             .collect();
         let mut duplex = Duplex {
             state,
+            cursor: None,
             input,
             output: state[..self.output].to_vec(),
         };
@@ -901,6 +904,7 @@ impl Program for Openings<'_> {
         let state = self.state.map(|word| algebra::private(b, word));
         let mut duplex = Duplex {
             state,
+            cursor: None,
             input: words(b, &self.input),
             output: state[..self.output].to_vec(),
         };

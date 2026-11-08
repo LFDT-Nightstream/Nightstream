@@ -51,13 +51,17 @@ and message-column count must be raw verifier authority in the final package.
 
 ## Security calculation
 
-The largest possible ring-column count under the approved domain is
+The Lean programming-error proof uses this conservative ring-column bound
+for the `2^28` domain:
 
 ```text
 ceil(2^28 / 54) = 4,971,027.
 ```
 
-At `κ = 22` and this worst-case width, the pinned estimator model gives:
+The carrier width is a multiple of 54, so the largest width that actually
+fits is `floor(2^28 / 54) = 4,971,026` columns. The selected Rust setup has a
+smaller cap of 4,708,530 columns. At `κ = 22` and the conservative width
+above, the pinned estimator model gives:
 
 ```text
 BKZ block size:                 429

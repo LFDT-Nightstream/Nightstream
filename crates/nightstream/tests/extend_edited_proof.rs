@@ -42,8 +42,8 @@ fn edit_fresh_commitment(mut bytes: Vec<u8>) -> Vec<u8> {
 fn extend_refuses_an_edited_fresh_commitment(engine: Engine) {
     let started = Instant::now();
     let circuit = compiled();
-    let prover = circuit.prover(engine, 114).unwrap();
-    let verifier = circuit.verifier(Engine::Optimized, 114).unwrap();
+    let prover = circuit.prover(engine, 109).unwrap();
+    let verifier = circuit.verifier(Engine::Optimized, 109).unwrap();
     let initial = [202, 203, 204, 205].map(F::from_u64);
     let message = [7, 11, 13, 17].map(F::from_u64);
 

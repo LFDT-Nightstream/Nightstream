@@ -118,7 +118,7 @@ def linear (input : StageInput) : Build Unit := do
   let quotient ← privateExts (Replay.D - 1)
   let rounds ← (Array.range rel.cubeVars).mapM fun _ => privateExts 2
   let finals ← privateExts 3
-  let _ ← (linearStage rel statement quotient rounds finals).run ⟨state, pending, state.extract 0 input.output⟩
+  let _ ← (linearStage rel statement quotient rounds finals).run ⟨state, pending, state.extract 0 input.output, none⟩
 
 def honest (input : StageInput) : Build Unit := do
   let rel := input.relation
@@ -142,7 +142,7 @@ def honest (input : StageInput) : Build Unit := do
       { lanePoint, blockPoint, runPoint, setup, block, commitmentRows, keyValue, partials, p1, leaves }
     for bits in out.indexBits do
       let _ ← queryPoint rel.setupVars bits
-  let _ ← run.run ⟨state, pending, state.extract 0 input.output⟩
+  let _ ← run.run ⟨state, pending, state.extract 0 input.output, none⟩
 
 def late (input : StageInput) : Build Unit := do
   let rel := input.relation
@@ -214,6 +214,6 @@ def openings (input : OpeningsJson) : Build Unit := do
     { queryPoints, keyPoint, runPoint, blockPoint, lateBlockPoint, alpha, queried, omegaValue, lateOmega,
       normPoint, linearPoint, earlyRunPoint, pairPoint, latePairPoint, rowPoint, zLeaf, zValue, lateBlock,
       mult, p1, p0, partials, earlyValues := { runs, pairs, block }, lateValues, p1Opening, p0Opening }
-  let _ ← stage.run ⟨state, pending, state.extract 0 input.output⟩
+  let _ ← stage.run ⟨state, pending, state.extract 0 input.output, none⟩
 
 end CompressionLeanExe.Fixtures

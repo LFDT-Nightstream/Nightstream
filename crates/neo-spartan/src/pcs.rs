@@ -16,7 +16,7 @@ use p3_matrix_v08::Matrix;
 use p3_security_v08::SecurityTerm;
 use p3_sumcheck_v08::layout::{plan_stacked_layout, Layout as _, SuffixProver, Table, Witness};
 use p3_sumcheck_v08::{OpeningBatch, OpeningProtocol, PrescribedPointPcs, TableShape, TableSpec};
-use p3_whir::parameters::{FoldingFactor, ProtocolParameters, SecurityAssumption, WhirConfig};
+use p3_whir::parameters::{FoldingFactor, ProtocolParameters, SecurityAssumption, WhirConfig, WhirConfigError};
 use p3_whir::pcs::prover::WhirProver;
 
 use crate::device::Accelerator;
@@ -179,8 +179,13 @@ impl Pcs {
         // bounds what any configuration can reach.
         let first = required_bits.ceil() as usize;
         for level in first..=<Ext as p3_field_v08::Field>::bits() {
-            let config = WhirConfig::new(num_variables, parameters(&profile, num_variables, level)?)
-                .map_err(|_| Error::Setup("WHIR configuration"))?;
+            let config = match WhirConfig::new(num_variables, parameters(&profile, num_variables, level)?) {
+                Ok(config) => config,
+                // Grinding covers a level at or below `pow_bits`, so WHIR buys
+                // no query there. A higher level buys one.
+                Err(WhirConfigError::ZeroQueries) => continue,
+                Err(_) => return Err(Error::Setup("WHIR configuration")),
+            };
             if !config.check_pow_bits() {
                 return Err(Error::Setup("WHIR configuration needs proof-of-work grinding"));
             }

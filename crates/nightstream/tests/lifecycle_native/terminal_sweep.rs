@@ -346,7 +346,7 @@ fn terminal_rejects_every_authoritative_envelope_change() {
     let bytes = fs::read(artifact("nightstream-fprime-stage1-poseidon2-hash-chain-v1.json")).unwrap();
     let (source, binding) = crate::assembly::prepare(&bytes, &application).unwrap();
     drop(bytes);
-    let package = PreparedLifecycle::from_package(source.into(), binding, Backend::Optimized, 114).unwrap();
+    let package = PreparedLifecycle::from_package(source.into(), binding, Backend::Optimized, 109).unwrap();
     assert_ne!(
         package.structure.m() % D,
         0,

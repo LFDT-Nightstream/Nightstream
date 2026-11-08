@@ -8,6 +8,15 @@ abbrev ExtVar := Fin 3 → Var
 
 namespace Algebra
 
+def isZero (value : Var) : Build Var := do
+  let inverse := (← Build.hint 1) 0
+  let one ← Build.const 1
+  let product ← Build.mul value inverse
+  let result ← Build.sub one product
+  let check ← Build.mul value result
+  Build.assertZero check
+  pure result
+
 def extConstant (value : Ext) : Build ExtVar := Build.extConstant ![value.c0, value.c1, value.c2]
 
 def extZero : Build ExtVar := extConstant 0

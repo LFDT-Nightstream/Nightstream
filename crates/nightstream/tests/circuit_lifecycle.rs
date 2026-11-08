@@ -48,7 +48,7 @@ fn poseidon_metal_proofs_equal_cpu_proofs() {
     let initial = [202, 203, 204, 205].map(F::from_u64);
     let message = [7, 11, 13, 17].map(F::from_u64);
     let proofs = |engine| {
-        let prover = circuit.prover(engine, 114).unwrap();
+        let prover = circuit.prover(engine, 109).unwrap();
         let mut proof = prover.prove(initial, &message).unwrap();
         let mut bytes = vec![prover.encode_proof(&proof).unwrap()];
         for _ in 0..2 {
@@ -82,7 +82,7 @@ fn poseidon_compression_setup_matches_the_derived_key() {
     let dir = compression_dir();
     let _ = fs::remove_dir_all(&dir);
     fs::create_dir_all(&dir).unwrap();
-    let prover = circuit.prover(Engine::Optimized, 114).unwrap();
+    let prover = circuit.prover(Engine::Optimized, 109).unwrap();
     let building = Instant::now();
     let setup = prover.compression_setup(&dir).unwrap();
     eprintln!("compression setup elapsed={:?}", building.elapsed());
@@ -91,7 +91,7 @@ fn poseidon_compression_setup_matches_the_derived_key() {
     // Free the setup before the derivation, so the two peaks do not add.
     drop((setup, prover));
     let deriving = Instant::now();
-    let verifier = circuit.verifier(Engine::Optimized, 114).unwrap();
+    let verifier = circuit.verifier(Engine::Optimized, 109).unwrap();
     assert!(verifier.compression_key().unwrap() == key);
     eprintln!(
         "key derivation elapsed={:?}, key bytes={}",
@@ -119,8 +119,8 @@ fn poseidon_metal_compressed_proof_verifies() {
 fn compressed_proof_verifies(engine: Engine) {
     let started = Instant::now();
     let circuit = Circuit::compile(poseidon2_hash_chain_v1().unwrap()).unwrap();
-    let prover = circuit.prover(engine, 114).unwrap();
-    let verifier = circuit.verifier(Engine::Optimized, 114).unwrap();
+    let prover = circuit.prover(engine, 109).unwrap();
+    let verifier = circuit.verifier(Engine::Optimized, 109).unwrap();
     let key = CompressionKey::from_bytes(&fs::read(compression_dir().join("key.bin")).unwrap()).unwrap();
     let setup = prover
         .open_compression_setup(compression_dir(), &key)
@@ -157,7 +157,7 @@ fn compressed_proof_verifies(engine: Engine) {
 #[test]
 fn committed_final_proof_verifies_and_rejects_changes() {
     let circuit = Circuit::compile(poseidon2_hash_chain_v1().unwrap()).unwrap();
-    let verifier = circuit.verifier(Engine::Optimized, 114).unwrap();
+    let verifier = circuit.verifier(Engine::Optimized, 109).unwrap();
     let fixture = |name| {
         fs::read(
             PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -247,7 +247,7 @@ fn rejects_changes(verifier: &Verifier, key: &CompressionKey, bytes: &[u8]) {
 #[ignore = "Needs the saved final proof; run this test separately under the 300-second cap."]
 fn poseidon_final_verification_time() {
     let circuit = Circuit::compile(poseidon2_hash_chain_v1().unwrap()).unwrap();
-    let verifier = circuit.verifier(Engine::Optimized, 114).unwrap();
+    let verifier = circuit.verifier(Engine::Optimized, 109).unwrap();
     let key = CompressionKey::from_bytes(&fs::read(compression_dir().join("key.bin")).unwrap()).unwrap();
     let proof = FinalProof::from_bytes(&fs::read(compression_dir().join("final-proof.bin")).unwrap()).unwrap();
     let warming = Instant::now();
@@ -280,7 +280,7 @@ fn metal_prover_streams_a_commitment_key_that_does_not_fit() {
     let private = builder.private_inputs().to_vec();
     let outputs = std::array::from_fn(|lane| Affine::from(input[lane]) + Affine::from(private[lane]));
     let circuit = Circuit::compile(builder.finish(outputs).unwrap()).unwrap();
-    let prover = circuit.prover(Engine::Metal, 114).unwrap();
+    let prover = circuit.prover(Engine::Metal, 109).unwrap();
     let initial = [1, 2, 3, 4].map(F::from_u64);
     let values: Vec<F> = (0..words as u64).map(F::from_u64).collect();
     let proof = prover
@@ -288,7 +288,7 @@ fn metal_prover_streams_a_commitment_key_that_does_not_fit() {
         .unwrap();
     let expected = State::new(2, initial, [1, 4, 7, 10].map(F::from_u64));
     circuit
-        .verifier(Engine::Metal, 114)
+        .verifier(Engine::Metal, 109)
         .unwrap()
         .verify(&expected, &proof)
         .unwrap();
@@ -311,8 +311,8 @@ fn poseidon_lifecycle(engine: Engine, recursive: bool) {
     let output = recorded_output.map(F::from_u64);
 
     let circuit = Circuit::compile(poseidon2_hash_chain_v1().unwrap()).unwrap();
-    let prover = circuit.prover(engine, 114).unwrap();
-    let verifier = circuit.verifier(engine, 114).unwrap();
+    let prover = circuit.prover(engine, 109).unwrap();
+    let verifier = circuit.verifier(engine, 109).unwrap();
     assert_eq!(prover.engine(), engine);
     eprintln!("poseidon preparation engine={engine:?} elapsed={:?}", started.elapsed());
     let proving = Instant::now();
@@ -384,8 +384,8 @@ fn rust_addition_base_step_verifies() {
             .into();
     }
     let circuit = Circuit::compile(builder.finish(outputs).unwrap()).unwrap();
-    let prover = circuit.prover(Engine::Optimized, 114).unwrap();
-    let verifier = circuit.verifier(Engine::Optimized, 114).unwrap();
+    let prover = circuit.prover(Engine::Optimized, 109).unwrap();
+    let verifier = circuit.verifier(Engine::Optimized, 109).unwrap();
     eprintln!("addition preparation elapsed={:?}", started.elapsed());
     let initial = [1, 2, 3, 4].map(F::from_u64);
     let private = [5, 6, 7, 8].map(F::from_u64);

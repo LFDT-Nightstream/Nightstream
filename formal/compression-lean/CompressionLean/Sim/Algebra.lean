@@ -336,6 +336,56 @@ section Handles
 
 variable {c : Ctx F} {n : ℕ}
 
+instance Algebra.isZero_appends (value : Var) : Appends (Algebra.isZero value) := by
+  unfold Algebra.isZero; appends
+
+private theorem mul_value_ensures {a b : Var} (ha : a < n) (hb : b < n) :
+    Ensures c n (Build.mul a b) fun h m => h < m ∧ c.val h = c.val a * c.val b :=
+  Ensures.emit _ fun E hl hF _ => by
+    have hE := Ctx.follows_of_step hF
+    refine ⟨by simp [Instr.outputs], ?_⟩
+    rw [← hl, ← Nat.add_zero E.values.length, Ctx.val_next hF (by simp)]
+    change E.value a * E.value b = c.val a * c.val b
+    rw [hE a (hl ▸ ha), hE b (hl ▸ hb)]
+
+private theorem sub_value_ensures [CharP F goldilocksModulus] {a b : Var} (ha : a < n) (hb : b < n) :
+    Ensures c n (Build.sub a b) fun h m => h < m ∧ c.val h = c.val a - c.val b :=
+  Ensures.emit _ fun E hl hF _ => by
+    have hE := Ctx.follows_of_step hF
+    refine ⟨by simp [Instr.outputs], ?_⟩
+    rw [← hl, ← Nat.add_zero E.values.length, Ctx.val_next hF (by simp)]
+    simp [hE a (hl ▸ ha), hE b (hl ▸ hb), word_neg, sub_eq_add_neg]
+
+private theorem assertZero_value_ensures {a : Var} (ha : a < n) :
+    Ensures c n (Build.assertZero a) fun _ _ => c.val a = 0 := by
+  refine (Ensures.emit (Q := fun _ _ => c.val a = 0) (.assertZero a) fun E hl hF hh => ?_).bind
+    fun _ _ _ h => Ensures.pure h
+  have holds : E.holds ∧ E.value a = 0 := hh
+  rw [(Ctx.follows_of_step hF) a (hl ▸ ha)] at holds
+  exact holds.2
+
+theorem isZero_ensures [CharP F goldilocksModulus] {a : Var} {ga : Word} (ha : IsWord c n a ga) :
+    Ensures c n (Algebra.isZero a) fun r m => IsWord c m r (if ga == 0 then 1 else 0) := by
+  unfold Algebra.isZero
+  refine (hint_ensures 1).bind fun inv m₁ le₁ hinv => ?_
+  refine (const_ensures 1).bind fun one m₂ le₂ hone => ?_
+  refine (mul_value_ensures (lt_of_lt_of_le ha.1 (le₁.trans le₂))
+    (lt_of_lt_of_le (hinv 0).2.1 le₂)).bind fun product m₃ le₃ hproduct => ?_
+  refine (sub_value_ensures (lt_of_lt_of_le hone.1 le₃) hproduct.1).bind fun result m₄ le₄ hresult => ?_
+  refine (mul_value_ensures (lt_of_lt_of_le ha.1 (le₁.trans (le₂.trans (le₃.trans le₄))))
+    hresult.1).bind fun check m₅ le₅ hcheck => ?_
+  refine (assertZero_value_ensures hcheck.1).bind fun _ m₆ le₆ hzero => ?_
+  refine Ensures.pure ⟨lt_of_lt_of_le hresult.1 (le₅.trans le₆), ?_⟩
+  by_cases hz : ga = 0
+  · simp [hz, ha.2, hresult.2, hproduct.2, hone.2, BEq.beq]
+  · have hg : ga.toF ≠ 0 := fun h => hz (Word.eq_of_toF (by simpa using h))
+    have hinverse : (Word.cast ga.inv : F) * Word.cast ga = 1 := by
+      rw [word_eq_cast, word_eq_cast, Word.toF_inv, ← map_mul, inv_mul_cancel₀ hg, map_one]
+    have hc : (Word.cast ga : F) * c.val result = 0 := by rwa [hcheck.2, ha.2] at hzero
+    have := congrArg (fun x : F => Word.cast ga.inv * x) hc
+    have hb : (ga == 0) = false := Bool.eq_false_iff.mpr fun e => hz (Word.eq_of_beq e)
+    simpa [hb, ← mul_assoc, hinverse] using this
+
 theorem extConstant_ensures (e : Ext) : Ensures c n (Algebra.extConstant e) fun r m => IsExt c m r e := by
   unfold Algebra.extConstant Build.extConstant
   refine (const_ensures _).bind fun x _ _ hx => (const_ensures _).bind fun y _ _ hy =>

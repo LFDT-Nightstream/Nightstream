@@ -108,8 +108,9 @@ in Game 2, and it is the reduction of a uniform 256-bit integer in Game 1.
 With `r = 2^256 mod q = 2^32 - 1`, the residue weights differ by at most
 `2r / 2^256` in total absolute difference. For `N` independent coefficients,
 the probability of any event of the attacker's view changes by at most
-`2Nr / 2^256`. The production key has `N = 3,826,660,860`, so the change is
-below `2^-190`.
+`2Nr / 2^256`. At the maximum approved width, the key has
+`N = 22 × 4,708,530 × 54 = 5,593,733,640` coefficients, so the change is
+still below `2^-190`.
 
 **Result.** A collision in Game 2 gives a short kernel vector for `A` through
 the existing Lean reduction. So

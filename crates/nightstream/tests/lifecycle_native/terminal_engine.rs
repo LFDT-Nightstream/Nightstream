@@ -14,7 +14,7 @@ fn metal_terminal_accepts_cpu_proof_and_matches_cpu_rejection() {
     let bytes = fs::read(artifact("nightstream-fprime-stage1-poseidon2-hash-chain-v1.json")).unwrap();
     let (source, binding) = crate::assembly::prepare(&bytes, &application).unwrap();
     drop(bytes);
-    let mut package = PreparedLifecycle::from_package(source.into(), binding, Backend::Optimized, 114).unwrap();
+    let mut package = PreparedLifecycle::from_package(source.into(), binding, Backend::Optimized, 109).unwrap();
     let fixture = read(artifact("nightstream-fprime-stage1-base-step-fixture-v1.json"));
     let private: Vec<u64> = serde_json::from_value(fixture[2].clone()).unwrap();
     let initial: [F; 4] = private[INITIAL_STATE_WORDS]

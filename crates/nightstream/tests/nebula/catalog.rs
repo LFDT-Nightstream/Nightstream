@@ -958,8 +958,8 @@ fn catalog_proof_verifies_and_rejects_a_broken_row_on_cpu() {
     let setup = setup();
     let engine = crate::Engine::Optimized;
     let circuit = Circuit::compile(setup.geometry, setup.app(true, None)).unwrap();
-    let prover = circuit.circuit.prover(engine, 114).unwrap();
-    let verifier = circuit.verifier(engine, 114).unwrap();
+    let prover = circuit.circuit.prover(engine, 109).unwrap();
+    let verifier = circuit.verifier(engine, 109).unwrap();
     eprintln!("catalog setup elapsed={:?}", started.elapsed());
 
     let (run, invocations) = setup.run(None, &honest_rows());

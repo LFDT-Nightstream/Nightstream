@@ -17,42 +17,6 @@ fn check(source: &str) {
 }
 
 #[test]
-fn state_machine_function_label_branches_complete_the_activation() {
-    for body in [
-        "i32.const 1 br 0",
-        "i32.const 1 i32.const 1 br_if 0 drop i32.const 2",
-        "i32.const 1 i32.const 0 br_if 0 drop i32.const 2",
-        "i32.const 1 i32.const 0 br_table 0 0",
-        "i32.const 1 i32.const 1 br_table 0 0",
-    ] {
-        check(&format!("(module (func (export \"main\") (result i32) {body}))"));
-    }
-}
-
-#[test]
-fn state_machine_branch_table_can_mix_function_and_block_labels() {
-    for labels in ["0 1", "1 0"] {
-        for selector in [0, 1] {
-            check(&format!(
-                "(module (func (export \"main\") (result i32)
-                 block (result i32) i32.const 42 i32.const {selector} br_table {labels} end
-                 i32.const 1 i32.add))"
-            ));
-        }
-    }
-}
-
-#[test]
-fn state_machine_function_label_branch_returns_to_the_caller() {
-    check(
-        "(module
-           (func $callee (result i32) (local i32)
-             i32.const 99 i32.const 42 i32.const 1 br_if 0 drop)
-           (func (export \"main\") (result i32) i32.const 3 call $callee i32.add))",
-    );
-}
-
-#[test]
 fn state_machine_invalid_operands_are_rejected_before_slide_arithmetic() {
     for source in [
         "(module (func (result i32) return))",

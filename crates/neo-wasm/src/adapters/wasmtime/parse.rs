@@ -144,7 +144,6 @@ pub(crate) struct WasmTraceLoweringTables {
     /// pair so guest-debug frames can recover opcode/immediate metadata
     /// without reparsing at trace time.
     pub(crate) opcode_map: BTreeMap<(u32, u32), DecodedOpcode>,
-    pub(crate) function_exit_targets: BTreeMap<(u64, u64), u32>,
     /// Count of imported functions used to normalize defined function refs
     /// into the same 1-based funcref id space as runtime table values.
     pub(crate) imported_function_count: u32,
@@ -226,7 +225,6 @@ pub(super) fn single_component_core_module(bytes: &[u8]) -> Result<&[u8], WasmPr
 
 struct ParsedWasmArtifactsBuilder {
     opcode_map: BTreeMap<(u32, u32), DecodedOpcode>,
-    function_exit_targets: BTreeMap<(u64, u64), u32>,
     pc_rom: Vec<(u64, u64, u64)>,
     slides_by_offset: BTreeMap<u32, FrameSlideEdges>,
     frame_slides: Vec<(u64, u64, u32, u32)>,
@@ -262,7 +260,6 @@ impl Default for ParsedWasmArtifactsBuilder {
     fn default() -> Self {
         Self {
             opcode_map: BTreeMap::new(),
-            function_exit_targets: BTreeMap::new(),
             pc_rom: Vec::new(),
             slides_by_offset: BTreeMap::new(),
             frame_slides: Vec::new(),
@@ -420,7 +417,6 @@ impl ParsedWasmArtifactsBuilder {
             },
             trace: WasmTraceLoweringTables {
                 opcode_map: self.opcode_map,
-                function_exit_targets: self.function_exit_targets,
                 imported_function_count: self.imported_function_count,
                 function_metas: self.function_metas,
             },
@@ -633,7 +629,7 @@ impl ParsedWasmArtifactsBuilder {
                     .get_operators_reader()
                     .map_err(|err| WasmProgramError::Invalid(format!("failed to read wasm operators: {err}")))?;
                 let mut curr_depth = 0_usize;
-                let mut control_stack = vec![ControlFrame::new(ControlFrameKind::Function, None)];
+                let mut control_stack: Vec<ControlFrame> = Vec::new();
                 let mut entry_pc = None;
                 while !reader.eof() {
                     let offset = reader.original_position() as u32;
@@ -882,17 +878,9 @@ impl ParsedWasmArtifactsBuilder {
                                     self.push_pc_rom_edge(if_pc, 0, pc_after);
                                 }
                                 for (edge_pc, choice) in frame.pending_to_end.drain(..) {
-                                    let target = if frame.kind == ControlFrameKind::Function {
-                                        self.function_exit_targets.insert((edge_pc, choice), pc);
-                                        pc_before
-                                    } else {
-                                        pc_after
-                                    };
-                                    self.push_pc_rom_edge(edge_pc, choice, target);
+                                    self.push_pc_rom_edge(edge_pc, choice, pc_after);
                                 }
-                                if frame.kind != ControlFrameKind::Function {
-                                    self.push_pc_rom_edge(pc_before, 0, pc_after);
-                                }
+                                self.push_pc_rom_edge(pc_before, 0, pc_after);
                             }
                         }
                         wasmparser::Operator::BrIf { relative_depth } => {

@@ -64,7 +64,6 @@ pub(crate) enum DecodedControlOpcode {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ControlFrameKind {
-    Function,
     Block,
     Loop,
     If,

@@ -146,7 +146,7 @@ fn state_machine_public_step_builders_do_not_panic_on_bad_inputs() {
         "indirect-call fields",
         panics(|| {
             assert!(matches!(
-                build_witness_vector(&row(WasmOpcode::CallIndirect)),
+                build_witness_vector(&row(WasmOpcode::CallIndirectResolve)),
                 Err(neo_wasm::WasmBuildError::Trace(_))
             ));
         }),

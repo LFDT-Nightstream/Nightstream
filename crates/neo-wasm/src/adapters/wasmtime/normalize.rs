@@ -572,51 +572,6 @@ pub(crate) fn capture_frame<T>(
     })
 }
 
-pub(super) fn function_end_step(
-    branch: &WasmtimeTraceStep,
-    tables: &LoweringTables,
-) -> Result<Option<WasmtimeTraceStep>, WasmBuildError> {
-    let Some(pc) = branch.pc else {
-        return Ok(None);
-    };
-    let key = (u64::from(pc), u64::from(branch.control_choice.unwrap_or(0)));
-    let Some(&end_pc) = tables.artifacts.trace.function_exit_targets.get(&key) else {
-        return Ok(None);
-    };
-    let results = branch
-        .current_function_ref
-        .and_then(|fref| tables.artifacts.trace.function_metas.get(&fref))
-        .map(|meta| meta.result_count)
-        .ok_or_else(|| WasmBuildError::Trace("function branch has no result arity".into()))?;
-    let condition = usize::from(branch.opcode_decoded != Some(WasmOpcode::Br));
-    let end = branch
-        .operand_stack_words
-        .len()
-        .checked_sub(condition)
-        .ok_or_else(|| WasmBuildError::Trace("function branch has no condition operand".into()))?;
-    let start = end
-        .checked_sub(usize::from(results))
-        .ok_or_else(|| WasmBuildError::Trace("function branch has too few result operands".into()))?;
-    let mut row = branch.clone();
-    row.step += 1;
-    row.pc = Some(end_pc);
-    row.pc_after_instruction = Some(u64::from(end_pc) + 1);
-    row.opcode = Some("End".into());
-    row.opcode_decoded = Some(WasmOpcode::End);
-    row.immediate_i32 = None;
-    row.control_choice = None;
-    row.pc_edge_kind = Some(WasmPcEdgeKind::ReturnLike);
-    row.frame_slide = Some(if row.num_locals == 0 {
-        (0, 0)
-    } else {
-        (u32::from(results), row.num_locals)
-    });
-    row.operand_stack = branch.operand_stack[start..end].to_vec();
-    row.operand_stack_words = branch.operand_stack_words[start..end].to_vec();
-    row.operand_stack_words_hi = branch.operand_stack_words_hi[start..end].to_vec();
-    Ok(Some(row))
-}
-
 fn capture_memory_access<T>(
     decoded_opcode: Option<&DecodedOpcode>,
     frame: &FrameHandle,

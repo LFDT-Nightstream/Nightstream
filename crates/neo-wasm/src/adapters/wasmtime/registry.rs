@@ -286,7 +286,6 @@ pub(super) fn capture_step<T: WasmTraceSink + 'static>(
     row.activation_depth = activation_depth;
     let pending = PendingImport::from_call(&row, &tables, activation_depth)?;
     entry_inputs::capture_entry_memory(&mut row, frame, store, &tables);
-    let function_end = super::normalize::function_end_step(&row, &tables)?;
     let registry = store.data_mut().wasm_trace_registry_mut();
     let state = registry.instances.get_mut(&index).unwrap();
     if let Some(pending) = pending {
@@ -294,9 +293,5 @@ pub(super) fn capture_step<T: WasmTraceSink + 'static>(
     }
     state.next_step += 1;
     state.steps.push(row);
-    if let Some(row) = function_end {
-        state.next_step += 1;
-        state.steps.push(row);
-    }
     Ok(())
 }

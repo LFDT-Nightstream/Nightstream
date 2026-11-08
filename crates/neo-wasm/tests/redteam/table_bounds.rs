@@ -96,28 +96,35 @@ fn table_access_past_declared_size_is_rejected_by_public_verifier() {
 }
 
 #[test]
-fn honest_out_of_bounds_table_traps_have_public_proofs() {
-    for (name, wasm) in [("table.get", SMALL_GET), ("table.set", SMALL_SET)] {
-        let setup = setup_of(wasm, NonZeroUsize::MIN, false);
-        let (app, geometry) = setup.complete();
-        let traced = &setup.programs[0];
-        assert!(traced.last.is_terminal() && traced.last.trapped, "{name}");
-        assert!(!traced.last.output.enabled, "{name}");
+fn honest_out_of_bounds_table_get_trap_has_a_public_proof() {
+    assert_honest_table_trap_proves("table.get", SMALL_GET);
+}
 
-        let program = app.program(&traced.preload).unwrap();
-        let circuit = Circuit::compile(geometry, app).unwrap();
-        let prover = circuit.prover(nightstream::Engine::Optimized, 109).unwrap();
-        let verifier = circuit
-            .verifier(nightstream::Engine::Optimized, 109)
-            .unwrap();
-        let mut run = prover.start(&program, traced.initial).unwrap();
-        run.segment(&traced.inputs)
-            .unwrap_or_else(|error| panic!("the honest {name} trap has no proof: {error:?}"));
-        let proof = run.finish().unwrap();
-        verifier
-            .verify(&program, &traced.initial, &traced.last, &proof)
-            .unwrap_or_else(|error| panic!("the honest {name} trap does not verify: {error:?}"));
-    }
+#[test]
+fn honest_out_of_bounds_table_set_trap_has_a_public_proof() {
+    assert_honest_table_trap_proves("table.set", SMALL_SET);
+}
+
+fn assert_honest_table_trap_proves(name: &str, wasm: &str) {
+    let setup = setup_of(wasm, NonZeroUsize::MIN, false);
+    let (app, geometry) = setup.complete();
+    let traced = &setup.programs[0];
+    assert!(traced.last.is_terminal() && traced.last.trapped, "{name}");
+    assert!(!traced.last.output.enabled, "{name}");
+
+    let program = app.program(&traced.preload).unwrap();
+    let circuit = Circuit::compile(geometry, app).unwrap();
+    let prover = circuit.prover(nightstream::Engine::Optimized, 109).unwrap();
+    let verifier = circuit
+        .verifier(nightstream::Engine::Optimized, 109)
+        .unwrap();
+    let mut run = prover.start(&program, traced.initial).unwrap();
+    run.segment(&traced.inputs)
+        .unwrap_or_else(|error| panic!("the honest {name} trap has no proof: {error:?}"));
+    let proof = run.finish().unwrap();
+    verifier
+        .verify(&program, &traced.initial, &traced.last, &proof)
+        .unwrap_or_else(|error| panic!("the honest {name} trap does not verify: {error:?}"));
 }
 
 #[test]

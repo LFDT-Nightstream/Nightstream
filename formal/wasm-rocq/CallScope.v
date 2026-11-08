@@ -58,7 +58,7 @@ Proof.
   intros initial final w values Hprime Hfull Hchosen Hreplay Hlayout [Hbase [Hsp Hrest]].
   cbn [beforeBoundary boundarySP boundaryStackBase] in Hbase, Hsp.
   pose proof (full_local_get_stack_shape w Hprime Hfull Hchosen ltac:(lia)) as Hshape.
-  destruct (local_get_stack_replay w initial final Hshape Hreplay) as [_ Hwrites].
+  destruct (local_get_stack_replay w initial final Hshape Hreplay) as [_ [_ Hwrites]].
   constructor; [ | exact (body_row_call_context initial final w COL_SEL_LOCAL_GET Hprime Hfull
     ltac:(cbn; auto) Hchosen Hreplay)].
   intros index Hindex. rewrite Hwrites.
@@ -76,7 +76,7 @@ Proof.
   cbn [beforeBoundary boundarySP boundaryStackBase] in Hbase, Hsp.
   rewrite length_app, Nat2Z.inj_add in Hsp. cbn [length] in Hsp.
   pose proof (full_local_set_stack_shape w Hprime Hfull Hchosen ltac:(lia)) as Hshape.
-  destruct (local_set_stack_replay w initial final Hshape Hreplay) as [_ Hwrites].
+  destruct (local_set_stack_replay w initial final Hshape Hreplay) as [_ [_ Hwrites]].
   destruct (full_local_addresses w Hprime Hfull) as [Hlo Hhi].
   pose proof (value_bound w COL_LOCAL_INDEX).
   constructor; [ | exact (body_row_call_context initial final w COL_SEL_LOCAL_SET Hprime Hfull

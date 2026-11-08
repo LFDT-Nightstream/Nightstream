@@ -78,7 +78,7 @@ Proof.
   destruct (full_straight_line_local_gates row _ Hprime Hfull Hchoice Hchosen) as [Hfbp _].
   pose proof (full_local_get_stack_shape row Hprime Hfull Hchosen
     ltac:(pose proof (value_bound row COL_SP_BEFORE); lia)) as Hshape.
-  destruct (local_get_stack_replay row initial final Hshape Hreplay) as [Hread Hfinal].
+  destruct (local_get_stack_replay row initial final Hshape Hreplay) as [Hread [_ Hfinal]].
   destruct (full_local_addresses row Hprime Hfull) as [HaddrLo HaddrHi].
   destruct (locals_match_lookup initial (beforeBoundary row) z x Hlocals HindexBound)
     as [value [Hlocal [Hbound Hcell]]].
@@ -155,7 +155,7 @@ Proof.
   split; [exact Hstep | ]. split; [exact HzAfter | ]. split; [exact Hafter | ]. split.
   - eapply (locals_match_set initial final (beforeBoundary row) (afterBoundary row) z x (row COL_LOCAL_VALUE));
       [exact Hfbp | exact HindexBound | exact Hresult | | | exact Hlocals];
-      destruct (local_set_stack_replay row initial final Hshape Hreplay) as [_ Hfinal].
+      destruct (local_set_stack_replay row initial final Hshape Hreplay) as [_ [_ Hfinal]].
     + cbn [beforeBoundary boundaryLocalsBase]. rewrite Hfinal, HaddrHi, HaddrLo, Hindex.
       rewrite update_other by cell_differs. apply update_same.
     + intros index HindexLocal Hneq. cbn [beforeBoundary boundaryLocalsBase].

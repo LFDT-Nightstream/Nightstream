@@ -385,6 +385,8 @@ Theorem local_set_stack_replay : forall w initial final,
   UnaryStackShape w true true -> Replay initial (eventsForRow MemoryCatalog.memories w) final ->
   initial MemoryCatalog.stackId [w (List.nth 0%nat COL_STACK_READ_ADDR_LO 0%nat)] =
     Some (w (List.nth 0%nat COL_STACK_READ_VALUE_LO 0%nat)) /\
+  initial MemoryCatalog.stackId [w (List.nth 0%nat COL_STACK_READ_ADDR_HI 0%nat)] =
+    Some (w (List.nth 0%nat COL_STACK_READ_VALUE_HI 0%nat)) /\
   forall address, final MemoryCatalog.stackId address =
     update (update initial MemoryCatalog.stackId [w COL_LOCAL_ADDR_LO] (w COL_LOCAL_VALUE))
       MemoryCatalog.stackId [w COL_LOCAL_ADDR_HI] (w COL_LOCAL_VALUE_HI) MemoryCatalog.stackId address.
@@ -393,7 +395,7 @@ Proof.
   rewrite (local_stack_event_prefix w true true Hshape) in Hreplay.
   destruct (replay_app_inv (localStackEvents w true true) _ _ _ Hreplay) as [middle [Hstack Hrest]].
   cbn [localStackEvents negb app] in Hstack. unary_replay_steps.
-  split; [assumption | ]. intro address.
+  split; [assumption | ]. split; [assumption | ]. intro address.
   eapply replay_preserves; [exact Hrest | ].
   apply read_only_row. exact stack_only_first_memory.
 Qed.
@@ -404,6 +406,7 @@ Theorem local_get_stack_replay : forall w initial final,
       (w COL_STACK_WRITE0_VALUE_LO)) MemoryCatalog.stackId [w COL_STACK_WRITE0_ADDR_HI]
       (w COL_STACK_WRITE0_VALUE_HI) in
   pushed MemoryCatalog.stackId [w COL_LOCAL_ADDR_LO] = Some (w COL_LOCAL_VALUE) /\
+  pushed MemoryCatalog.stackId [w COL_LOCAL_ADDR_HI] = Some (w COL_LOCAL_VALUE_HI) /\
   forall address, final MemoryCatalog.stackId address = pushed MemoryCatalog.stackId address.
 Proof.
   intros w initial final Hshape Hreplay pushed.
@@ -416,7 +419,7 @@ Proof.
   | H : EventStep _ _ _ |- _ => inversion H; subst; clear H
   | H : Replay _ [] _ |- _ => inversion H; subst; clear H
   end.
-  split; [assumption | ]. intro address.
+  split; [assumption | ]. split; [assumption | ]. intro address.
   eapply replay_preserves; [exact Hrest | ].
   apply read_only_row. exact stack_only_first_memory.
 Qed.

@@ -32,6 +32,8 @@ i64 local excludes it: its resolve row checks the table entry and leaves SpecTec
 (`TrapRows.v`). Host rows, and blocks and loops with parameters or typed by index are excluded.
 Selected zero-test steps are also proved. `TrapFacts.v` connects the supported opcode set to
 trap accounting: only `unreachable` and an indirect call's resolve step trap in this fragment.
+Separate local.get/set row and memory proofs cover both i32 and i64 cells (`IntegerLocals.v`);
+the decoder and `run_refinement` still require i32 values.
 Field primality and memory-event consistency are assumed; the offline memory
 argument is not proved. ROMs are dense: keys the encoder does not list read 0, so
 proofs never rely on a key being absent. The program ROM encoder covers this guest-only fragment;

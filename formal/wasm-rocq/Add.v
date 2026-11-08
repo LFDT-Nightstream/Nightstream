@@ -1,7 +1,7 @@
 (* The Rust-emitted i32.add row, interpreted over Goldilocks, computes Wasm addition. *)
 From Stdlib Require Import List ZArith Lia Bool.
 From mathcomp Require Import eqtype ssrbool seq.
-Require Import R1CS Columns FullRelation Range Wasm2 WasmIntegers.
+Require Import R1CS Columns FullRelation Range Wasm2 WasmIntegers WasmValues.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -50,26 +50,6 @@ Proof.
   rewrite Z.mod_add by lia.
   rewrite Z.mod_small by lia.
   reflexivity.
-Qed.
-
-Lemma spectec_i32_well_formed : forall z : Z,
-  0 <= z < i32Modulus -> wf_num_ I32 (mk_num__0 Inn_I32 (mk_uN (Z.to_N z))).
-Proof.
-  intros z [Hz0 Hz1].
-  apply num__case_0.
-  - reflexivity.
-  - apply uN_case_0.
-    cbn.
-    change (((0 <=? Z.to_N z)%N && (Z.to_N z <=? 4294967295)%N) = true).
-    apply andb_true_iff.
-    split.
-    + apply N.leb_le. lia.
-    + apply N.leb_le.
-      apply N2Z.inj_le.
-      rewrite Z2N.id by lia.
-      unfold i32Modulus in Hz1.
-      lia.
-  - reflexivity.
 Qed.
 
 Lemma spectec_i32_add_value : forall a b z : Z,

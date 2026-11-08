@@ -237,6 +237,20 @@ fn export_witnesses() {
 
 #[test]
 #[ignore = "regenerates Rocq files"]
+fn export_integer_local_witnesses() {
+    // Both limbs are nonzero, and the unsigned value exceeds Goldilocks.
+    export_witness(
+        r#"(module (func (export "main") (local i64)
+            i64.const -1 local.set 0 local.get 0 drop))"#,
+        &[],
+        "integerLocalRows",
+        "IntegerLocalTrace.v",
+        false,
+    );
+}
+
+#[test]
+#[ignore = "regenerates Rocq files"]
 fn export_terminal_witnesses() {
     export_witness(NOPS, &[7], "nopTerminalRows", "NopTerminalTrace.v", true);
     export_witness(INDIRECT_CALL, &[7, 5], "indirectTrapRows", "IndirectTrapTrace.v", true);

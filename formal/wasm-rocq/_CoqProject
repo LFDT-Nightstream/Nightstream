@@ -7,6 +7,8 @@ MemoryCatalog.v
 OpcodeCatalog.v
 Wasm2.v
 WasmIntegers.v
+WasmValues.v
+IntegerMemory.v
 Range.v
 Selectors.v
 ZeroTest.v
@@ -33,6 +35,7 @@ StackBindings.v
 StraightLineSpec.v
 StackSimulation.v
 LocalSimulation.v
+IntegerLocals.v
 SpecTecCalls.v
 SpecTecBranches.v
 CallSpec.v
@@ -123,3 +126,5 @@ tests/BaseReturnTrace.v
 tests/VoidReturnTrace.v
 tests/TerminalWitness.v
 tests/ReturnWitness.v
+tests/IntegerLocalTrace.v
+tests/IntegerLocals.v

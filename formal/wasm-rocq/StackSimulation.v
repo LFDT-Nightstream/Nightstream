@@ -122,7 +122,7 @@ Lemma i32_constant_wf : forall value,
   0 <= value < i32Modulus -> wf_admininstr (i32Constant value).
 Proof.
   intros value Hbound. unfold i32Constant. constructor.
-  apply Add.spectec_i32_well_formed. exact Hbound.
+  apply WasmValues.spectec_i32_well_formed. exact Hbound.
 Qed.
 
 Lemma stack_config_wf : forall z values code,

@@ -144,7 +144,7 @@ Proof.
       final MemoryCatalog.stackId [2 * (w COL_STACK_FRAME_BASE_BEFORE + Z.of_nat index)] =
       initial MemoryCatalog.stackId [2 * (w COL_STACK_FRAME_BASE_BEFORE + Z.of_nat index)]).
   { destruct local.
-    - destruct (local_set_stack_replay w initial final Hshape Hreplay) as [Hread Hfinal].
+    - destruct (local_set_stack_replay w initial final Hshape Hreplay) as [Hread [_ Hfinal]].
       split; [exact Hread | ]. intros index Hindex. rewrite Hfinal.
       destruct (Hbelow eq_refl). rewrite !update_other by cell_differs. reflexivity.
     - destruct (pop_stack_replay w initial final Hshape Hreplay) as [Hread Hfinal].
@@ -176,7 +176,7 @@ Lemma stack_matches_local_get : forall w initial final values,
 Proof.
   intros w initial final values Hshape Hreplay [Hbase [Hsp [Hbounds Hcells]]] Hresult.
   cbn [beforeBoundary boundarySP boundaryStackBase] in Hbase, Hsp, Hcells.
-  destruct (local_get_stack_replay w initial final Hshape Hreplay) as [_ Hfinal].
+  destruct (local_get_stack_replay w initial final Hshape Hreplay) as [_ [_ Hfinal]].
   unfold stackMatches. cbn [afterBoundary boundarySP boundaryStackBase].
   rewrite (local_stack_base_after w false true Hshape), (local_stack_pointer_after w false true Hshape).
   split; [exact Hbase | ]. split.

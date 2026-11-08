@@ -15,6 +15,21 @@ use crate::Error;
 const VARIABLES: usize = 6;
 const COUNT: usize = 3;
 
+#[test]
+fn rebuilding_a_live_setup_is_rejected() {
+    let scratch = Scratch::new("setup-generation");
+    let root = build(VARIABLES, COUNT, table, Some(&scratch.0)).unwrap();
+    let store = Store::open(&scratch.0, VARIABLES, COUNT, &root).unwrap();
+    let original = store.read(0).unwrap();
+    let replacement = |k| {
+        let mut words = table(k);
+        words[0] += Gl::ONE;
+        words
+    };
+    assert!(build(VARIABLES, COUNT, replacement, Some(&scratch.0)).is_err());
+    assert_eq!(store.read(0).unwrap(), original);
+}
+
 fn table(k: usize) -> Vec<Gl> {
     (0..1 << VARIABLES)
         .map(|x| Gl::from_u64(word(70 + k as u64, x)))

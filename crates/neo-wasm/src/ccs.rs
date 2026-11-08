@@ -41,7 +41,7 @@ use crate::layout::{
     COL_SELECT_COND_IS_ZERO, COL_SELECT_SCRATCH_INV, COL_SEL_SELECT, COL_SP_AFTER, COL_SP_BEFORE, COL_STACK_READS,
     COL_STACK_READ_ACTIVE, COL_STACK_READ_ADDR_HI, COL_STACK_READ_ADDR_LO, COL_STACK_READ_VALUE_HI,
     COL_STACK_READ_VALUE_LO, COL_STACK_WRITE0_ACTIVE, COL_STACK_WRITE0_ADDR_HI, COL_STACK_WRITE0_ADDR_LO,
-    COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO, COL_STACK_WRITES, COL_WIDE_VALUES_ENABLED,
+    COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO, COL_STACK_WRITES, COL_TABLE_OOB, COL_WIDE_VALUES_ENABLED,
     COL_ZERO_TEST_HI_INPUT, COL_ZERO_TEST_HI_INV, COL_ZERO_TEST_HI_IS_ZERO, COL_ZERO_TEST_LO_INPUT,
     COL_ZERO_TEST_LO_INV, COL_ZERO_TEST_LO_IS_ZERO,
 };
@@ -420,8 +420,9 @@ pub fn build_wasm_relation() -> Result<ApplicationRelation<WasmConstraintScope>,
                 (selector_col(WasmOpcode::Unreachable).unwrap(), F::from_u64(2)),
                 (COL_DIV_TRAP, -F::ONE),
                 (COL_CALL_INDIRECT_IS_TRAP, -F::ONE),
-                // An OOB load/store halts but keeps its Static edge kind.
+                // An OOB load/store or table access halts but keeps its Static edge kind.
                 (COL_MEM_OOB, -F::ONE),
+                (COL_TABLE_OOB, -F::ONE),
             ]
             .into_iter(),
         );

@@ -61,10 +61,10 @@ use super::layout::{
     COL_STACK_FRAME_BASE_AFTER, COL_STACK_FRAME_BASE_BEFORE, COL_STACK_READS, COL_STACK_READ_ACTIVE,
     COL_STACK_READ_ADDR_HI, COL_STACK_READ_ADDR_LO, COL_STACK_READ_VALUE_HI, COL_STACK_READ_VALUE_LO,
     COL_STACK_WRITE0_ACTIVE, COL_STACK_WRITE0_ADDR_HI, COL_STACK_WRITE0_ADDR_LO, COL_STACK_WRITE0_VALUE_HI,
-    COL_STACK_WRITE0_VALUE_LO, COL_STACK_WRITES, COL_TABLE_ID, COL_TABLE_INDEX, COL_TABLE_READ_ENABLED, COL_TABLE_SIZE,
-    COL_TABLE_SIZE_READ_ENABLED, COL_TABLE_VALUE, COL_TARGET_FUNCTION_IS_GUEST, COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE,
-    COL_TURN_EXPORT_FREF_AFTER, COL_TURN_EXPORT_FREF_BEFORE, COL_WIDE_AUX0, COL_WIDE_AUX1, COL_WIDE_VALUES_ENABLED,
-    PC_ROM_CALL_RETURN_CHOICE,
+    COL_STACK_WRITE0_VALUE_LO, COL_STACK_WRITES, COL_TABLE_ID, COL_TABLE_INDEX, COL_TABLE_OOB, COL_TABLE_READ_ENABLED,
+    COL_TABLE_SET_LIVE, COL_TABLE_SIZE, COL_TABLE_SIZE_READ_ENABLED, COL_TABLE_VALUE, COL_TARGET_FUNCTION_IS_GUEST,
+    COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE, COL_TURN_EXPORT_FREF_AFTER, COL_TURN_EXPORT_FREF_BEFORE, COL_WIDE_AUX0,
+    COL_WIDE_AUX1, COL_WIDE_VALUES_ENABLED, PC_ROM_CALL_RETURN_CHOICE,
 };
 use crate::layout::{
     COL_CMP_AND, COL_ZERO_TEST_HI_INPUT, COL_ZERO_TEST_HI_IS_ZERO, COL_ZERO_TEST_LO_INPUT, COL_ZERO_TEST_LO_IS_ZERO,
@@ -856,8 +856,8 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Result<Vec<F>, super::ir::Was
     let sel_table_index = sel_resolve
         + wit[selector_col(super::isa::WasmOpcode::TableGet).expect("table.get selector")]
         + wit[selector_col(super::isa::WasmOpcode::TableSet).expect("table.set selector")];
-    // ge = (table_index >= table_size). table.get/table.set require ge = 0;
-    // the resolve step turns ge into its modeled OOB trap.
+    // ge = (table_index >= table_size). Each table-indexing row turns ge into
+    // its modeled OOB trap.
     if sel_table_index == F::ONE {
         let (cmp_low, cmp_ge) = unsigned_ge_witness(
             trace
@@ -874,8 +874,13 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Result<Vec<F>, super::ir::Was
     }
     let ci_oob = sel_resolve * wit[COL_CMP_GE];
     wit[COL_CI_OOB] = ci_oob;
+    let table_get = wit[selector_col(super::isa::WasmOpcode::TableGet).expect("table.get selector")];
+    let table_set = wit[selector_col(super::isa::WasmOpcode::TableSet).expect("table.set selector")];
+    let table_oob = (table_get + table_set) * wit[COL_CMP_GE];
+    wit[COL_TABLE_OOB] = table_oob;
+    wit[COL_TABLE_SET_LIVE] = table_set * (F::ONE - wit[COL_CMP_GE]);
     // No table entry exists at an OOB index: the entry read is de-gated.
-    wit[COL_TABLE_READ_ENABLED] -= ci_oob;
+    wit[COL_TABLE_READ_ENABLED] -= ci_oob + table_get * table_oob;
 
     CALL_INDIRECT_ENTRY_ZERO_TEST.assign(&mut wit);
     let entry_is_null = wit[COL_CI_ENTRY_IS_NULL];

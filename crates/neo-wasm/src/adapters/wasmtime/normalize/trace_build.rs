@@ -17,7 +17,7 @@ mod values;
 use self::frame_move::{emit_frame_move_rows, frame_slide};
 use self::local_zero::emit_local_zero_rows;
 use self::turn::{plan_turn_exit, setup_turn};
-use self::values::{call_indirect_oob, call_indirect_traps, guest_callee_locals, write_lane, write_lane_hi};
+use self::values::{call_indirect_traps, guest_callee_locals, table_index_oob, write_lane, write_lane_hi};
 use super::super::import_inputs::recover_import_inputs;
 use super::super::runtime_read::{read_lane, read_lane_hi};
 use super::super::WasmtimeTraceStep;
@@ -43,7 +43,7 @@ fn split_indirect_call(step: NormalizedStep, out: &mut Vec<NormalizedStep>) {
         out.push(step);
         return;
     }
-    let traps = call_indirect_oob(step.table_index, step.table_size)
+    let traps = table_index_oob(step.table_index, step.table_size)
         || call_indirect_traps(step.table_value, step.expected_type_id, step.function_type_id);
     let mut resolve = step.clone();
     resolve.opcode = WasmOpcode::CallIndirectResolve;
@@ -263,9 +263,11 @@ pub(super) fn build_trace(
             last_lane >= u64::from(current.memory_pages_before.unwrap_or(0)) * 16384
         });
         let ci_trap = current.opcode == WasmOpcode::CallIndirectResolve
-            && (call_indirect_oob(current.table_index, current.table_size)
+            && (table_index_oob(current.table_index, current.table_size)
                 || call_indirect_traps(current.table_value, current.expected_type_id, current.function_type_id));
-        let stack_write0 = if div_trap || mem_oob || ci_trap {
+        let table_oob = matches!(current.opcode, WasmOpcode::TableGet | WasmOpcode::TableSet)
+            && table_index_oob(current.table_index, current.table_size);
+        let stack_write0 = if div_trap || mem_oob || ci_trap || (table_oob && current.opcode == WasmOpcode::TableGet) {
             // No post-state result exists; CCS pins this synthetic write to zero.
             let addr = sp_after.saturating_sub(1).saturating_mul(2);
             let hi = current.wide_values_enabled.then_some(0);
@@ -276,7 +278,7 @@ pub(super) fn build_trace(
         };
         // A trap is terminal: wasmtime stops stepping at the faulting
         // instruction, so a trapping opcode can only be the last row.
-        let trapped = matches!(current.opcode, WasmOpcode::Unreachable) || div_trap || ci_trap || mem_oob;
+        let trapped = matches!(current.opcode, WasmOpcode::Unreachable) || div_trap || ci_trap || mem_oob || table_oob;
         if matches!(current.opcode, WasmOpcode::ReturnCall | WasmOpcode::ReturnCallIndirect)
             && !current.target_function_is_guest
         {

@@ -525,7 +525,7 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
 - The Rust-built memory relation of an application or geometry that no Lean
   package fixes, the binding rows of the Rust catalog backend, the rows of
   `nebula::R1csApplication` that link the rows of a batched step, and the
-  WASM relation itself (`SPEC.md` sections 7.6 and 7.7). Lean proves what the slot plan conditions give
+  WASM relation itself (`SPEC.md` sections 7.6 to 7.8). Lean proves what the slot plan conditions give
   (`Spec.Nebula.MemoryTrace.reorders_of_slotOrder`) and that batched steps
   are memory consistent exactly when their rows are
   (`Spec.Nebula.MemoryTrace.memoryConsistent_batchCatalog_iff`), but not

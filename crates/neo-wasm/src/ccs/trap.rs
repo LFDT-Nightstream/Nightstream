@@ -8,7 +8,8 @@ use super::super::layout::{
     COL_EXPECTED_TYPE_ID, COL_FUNCTION_CALL_TYPE_LOOKUP_GATE, COL_FUNCTION_REF, COL_FUNCTION_TYPE_ID,
     COL_IS_PROGRAM_ROW, COL_MEMORY_PAGES_BEFORE, COL_MEM_LOAD_LIVE, COL_MEM_OOB, COL_MEM_STORE_LIVE, COL_ONE,
     COL_OUTPUT_CAPTURED, COL_STACK_READ_VALUE_HI, COL_STACK_READ_VALUE_LO, COL_STACK_WRITE0_VALUE_HI,
-    COL_STACK_WRITE0_VALUE_LO, COL_TABLE_INDEX, COL_TABLE_SIZE, COL_TABLE_VALUE, COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE,
+    COL_STACK_WRITE0_VALUE_LO, COL_TABLE_INDEX, COL_TABLE_OOB, COL_TABLE_SET_LIVE, COL_TABLE_SIZE, COL_TABLE_VALUE,
+    COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE,
 };
 use super::super::relation_layout::{LinearMemoryColumns, WasmRelationLayout};
 use super::{always, idx, shared, WasmTaggedR1csBuilder};
@@ -260,19 +261,18 @@ fn push_div_trap_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
 }
 
 /// The bounds check of `table.get` / `table.set`, and the resolve step of
-/// `call_indirect` / `return_call_indirect`: the resolve step traps on an
-/// out-of-bounds index, a null entry or a type mismatch; otherwise the
-/// following invocation calls the entry it checked.
+/// `call_indirect` / `return_call_indirect`. An out-of-bounds table access
+/// traps (SPEC.md section 7.8). The resolve step traps on an out-of-bounds
+/// index, a null entry or a type mismatch; otherwise the following invocation
+/// calls the entry it checked.
 fn push_table_bounds_and_call_indirect_trap_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     let table_get = selector_col(WasmOpcode::TableGet).unwrap();
     let table_set = selector_col(WasmOpcode::TableSet).unwrap();
     let resolve = selector_col(WasmOpcode::CallIndirectResolve).unwrap();
     let indirect_selectors = [(resolve, F::ONE)];
 
-    // Every table-indexing opcode authenticates the declared table size.
-    // The unmodeled table.get/table.set trap paths must stay unreachable;
-    // the indirect call's resolve step consumes the same comparison as a
-    // modeled trap.
+    // Every table-indexing opcode authenticates the declared table size and
+    // consumes the comparison as its modeled out-of-bounds trap.
     push_unsigned_ge_gadget(
         b,
         [table_get, table_set, resolve],
@@ -284,9 +284,20 @@ fn push_table_bounds_and_call_indirect_trap_constraints(b: &mut WasmTaggedR1csBu
 
     // COL_CI_OOB = selector * ge.
     b.push_row(indirect_selectors, [(COL_CMP_GE, F::ONE)], [(COL_CI_OOB, F::ONE)]);
-    // table.get/table.set OOB traps are not modeled as terminal rows. Reject
-    // such a row instead of reading or writing a zero-default RAM cell.
-    b.push_row([(table_get, F::ONE), (table_set, F::ONE)], [(COL_CMP_GE, F::ONE)], []);
+    // An out-of-bounds table.get/table.set row touches no table element, and
+    // table.get pushes a zero placeholder instead of an entry.
+    b.push_row(
+        [(table_get, F::ONE), (table_set, F::ONE)],
+        [(COL_CMP_GE, F::ONE)],
+        [(COL_TABLE_OOB, F::ONE)],
+    );
+    b.push_row(
+        [(table_set, F::ONE)],
+        [(COL_ONE, F::ONE), (COL_CMP_GE, -F::ONE)],
+        [(COL_TABLE_SET_LIVE, F::ONE)],
+    );
+    push_gated_linear_zero(b, COL_TABLE_OOB, [(COL_STACK_WRITE0_VALUE_LO, F::ONE)]);
+    push_gated_linear_zero(b, COL_TABLE_OOB, [(COL_STACK_WRITE0_VALUE_HI, F::ONE)]);
 
     // 0 encodes the null funcref
     CALL_INDIRECT_ENTRY_ZERO_TEST.push_constraints(b);
@@ -359,6 +370,7 @@ fn push_trapped_state_transition_constraints(b: &mut WasmTaggedR1csBuilder<'_>) 
         (COL_DIV_TRAP, -F::ONE),
         (COL_CALL_INDIRECT_IS_TRAP, -F::ONE),
         (COL_MEM_OOB, -F::ONE),
+        (COL_TABLE_OOB, -F::ONE),
     ]);
     b.push_row([(COL_IS_PROGRAM_ROW, F::ONE)], [(COL_TRAPPED_BEFORE, F::ONE)], []);
     b.push_row([(COL_OUTPUT_CAPTURED, F::ONE)], [(COL_TRAPPED_AFTER, F::ONE)], []);

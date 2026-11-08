@@ -21,16 +21,16 @@ Lemma entered_frame_locals : forall f arguments,
 Proof. intros. unfold enteredFrame, activeFrame. rewrite map_app, map_repeat. reflexivity. Qed.
 
 (* A frame keeps its view when its operand cells and locals are unchanged. *)
-Lemma frame_at_preserved : forall program memory memory' base fbp pending moved distance f view,
-  FrameAt program memory base fbp pending moved distance f view ->
+Lemma frame_at_preserved : forall program memory memory' base fbp pending remaining distance f view,
+  FrameAt program memory base fbp pending remaining distance f view ->
   (forall index, (index < length (viewOperands view))%nat ->
-    memory' stackId [2 * operandCell base (length (viewOperands view)) moved distance index] =
-    memory stackId [2 * operandCell base (length (viewOperands view)) moved distance index]) ->
+    memory' stackId [2 * operandCell base (length (viewOperands view)) remaining distance index] =
+    memory stackId [2 * operandCell base (length (viewOperands view)) remaining distance index]) ->
   (forall index, (index < length (viewLocals view))%nat ->
     memory' stackId [2 * (fbp + Z.of_nat index)] = memory stackId [2 * (fbp + Z.of_nat index)]) ->
-  FrameAt program memory' base fbp pending moved distance f view.
+  FrameAt program memory' base fbp pending remaining distance f view.
 Proof.
-  intros program memory memory' base fbp pending moved distance f view
+  intros program memory memory' base fbp pending remaining distance f view
     [Hf [Hpath [Hheights [Hfbp [Hbase [Hbounds [Hcells [Hlen [Hlb Hlc]]]]]]]]] Hstack Hlocals.
   unfold FrameAt. split; [exact Hf | ]. split; [exact Hpath | ]. split; [exact Hheights | ].
   split; [exact Hfbp | ]. split; [exact Hbase | ]. split; [exact Hbounds | ].
@@ -95,14 +95,14 @@ Definition SuspendedReady (suspended : SuspendedCall) : Prop :=
   Forall wf_instr (skipn (S (positionOffset position)) (innerCode g position)) /\
   wf_frame (activeFrame g (viewLocals view)).
 
-Lemma frame_ready : forall memory base fbp pending moved distance g view,
-  FrameAt program memory base fbp pending moved distance g view ->
+Lemma frame_ready : forall memory base fbp pending remaining distance g view,
+  FrameAt program memory base fbp pending remaining distance g view ->
   LabelsReady (guestBody g) (positionLabels (viewPosition view)) (viewSegments view) /\
   Forall (fun value => 0 <= value < i32Modulus) (viewValues view) /\
   Forall wf_instr (innerCode g (viewPosition view)) /\
   wf_state (mk_state s (activeFrame g (viewLocals view))).
 Proof.
-  intros memory base fbp pending moved distance g view Hframe.
+  intros memory base fbp pending remaining distance g view Hframe.
   destruct (view_facts _ _ _ _ _ _ _ _ _ _ Hstore Hvalid Hframe) as [_ [_ [_ [_ [Hready Hcode]]]]].
   pose proof Hframe as [Hg [_ [_ [_ [_ [Hoperands [_ [_ [Hlocals _]]]]]]]]].
   unfold viewOperands in Hoperands. apply Forall_app in Hoperands.
@@ -611,7 +611,7 @@ Proof.
      with neither, they are already in place and nothing moves. *)
   assert (HdistAfter : row COL_FRAME_MOVE_DISTANCE_AFTER =
       row COL_STACK_FRAME_BASE_BEFORE - row COL_LOCALS_FBP_BEFORE + Z.of_nat (length dropped)) by lia.
-  assert (Hmoved : (Z.to_nat (row COL_FRAME_MOVE_REMAINING_AFTER) <= length returned)%nat).
+  assert (HremainingBound : (Z.to_nat (row COL_FRAME_MOVE_REMAINING_AFTER) <= length returned)%nat).
   { rewrite HremRom. destruct (_ =? 0); lia. }
   assert (Hcell : forall b n i, operandCell b n (Z.to_nat (row COL_FRAME_MOVE_REMAINING_AFTER))
       (row COL_FRAME_MOVE_DISTANCE_AFTER) i =
@@ -747,7 +747,7 @@ Proof.
   intros baseDepth stack view initial final row c0 Hprime Hfull Hreplay Hmove
     [f [inner [Hactive [Hstate [Hsusp [Hbase0 [Hdepth ->]]]]]]].
   cbn [activePosition activeFunction suspendedCalls] in Hactive, Hstate, Hsusp, Hdepth.
-  destruct Hstate as [f' [Hframe [Hoffset [Hsp [Hpc [[Hma Hza] [Hzr [Hmoved Hinner]]]]]]]].
+  destruct Hstate as [f' [Hframe [Hoffset [Hsp [Hpc [[Hma Hza] [Hzr [HremainingBound Hinner]]]]]]]].
   cbn [beforeBoundary boundaryMoveActive boundaryMoveRemaining boundaryZeroRemaining boundaryMoveDistance
     boundaryStackBase boundaryLocalsBase boundarySP boundaryPC boundaryCallDepth] in *.
   pose proof Hframe as [Hf' [Hpath [Hheights [Hfbp0 [Hlayout [Hbounds [Hcells [Hllen [Hlb Hlc]]]]]]]]].
@@ -771,7 +771,7 @@ Proof.
   set (r := row COL_FRAME_MOVE_REMAINING_BEFORE) in *.
   set (d := row COL_FRAME_MOVE_DISTANCE_BEFORE) in *.
   (* The moved operand: the lowest of the displaced ones. *)
-  assert (Hmoved' : (Z.to_nat r <= n)%nat) by (unfold n, viewOperands; rewrite length_app; lia).
+  assert (HremainingBound' : (Z.to_nat r <= n)%nat) by (unfold n, viewOperands; rewrite length_app; lia).
   set (i0 := (n - Z.to_nat r)%nat).
   assert (Hi0 : (i0 < n)%nat) by (unfold i0; lia).
   destruct (nth_error (viewOperands view) i0) as [v0 | ] eqn:Hv0; [ | apply nth_error_None in Hv0; lia].

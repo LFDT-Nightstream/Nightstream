@@ -23,7 +23,7 @@ Definition ifFunction := i32Function ifModule (mk_uN 0) 2 1 0 ifCode.
 Definition ifProgram := [ifFunction].
 Definition ifStore := MKstore ifProgram [] [] [] [] [].
 Definition ifContext := moduleContext [i32StackType 2 1] [i32StackType 2 1].
-Definition ifGuest := mkGuestFunction 0%N ifModule (mk_uN 0) 2 1 0 ifCode 0.
+Definition ifGuest := mkGuestFunction 0%N ifModule (mk_uN 0) [valtype_I32; valtype_I32] [valtype_I32] [] ifCode 0.
 
 Section Typing.
 Local Open Scope nat_scope.

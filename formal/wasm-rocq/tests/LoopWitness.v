@@ -23,7 +23,8 @@ Definition loopFunction := i32Function loopModule (mk_uN 0) 2 1 1 loopCode.
 Definition loopProgram := [loopFunction].
 Definition loopStore := MKstore loopProgram [] [] [] [] [].
 Definition loopContext := moduleContext [i32StackType 2 1] [i32StackType 2 1].
-Definition loopGuest := mkGuestFunction 0%N loopModule (mk_uN 0) 2 1 1 loopCode 0.
+Definition loopGuest :=
+  mkGuestFunction 0%N loopModule (mk_uN 0) [valtype_I32; valtype_I32] [valtype_I32] [valtype_I32] loopCode 0.
 
 Section Typing.
 Local Open Scope nat_scope.

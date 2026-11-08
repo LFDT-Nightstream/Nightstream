@@ -15,7 +15,7 @@ Open Scope Z_scope.
 Ltac not_call_selector :=
   let H := fresh in intro H; vm_compute in H; repeat (destruct H as [H | H]; [discriminate H | ]); exact H.
 
-(* With no operand moved, a frame's operands sit at plain offsets from its base,
+(* With no move pending, a frame's operands sit at plain offsets from its base,
    and the pending-move distance does not matter. *)
 Lemma frame_at_unmoved_cells : forall program memory base fbp pending distance f view,
   FrameAt program memory base fbp pending 0 distance f view ->
@@ -210,11 +210,11 @@ Proof.
   exact (frame_at_unmoved_cells _ _ _ _ _ _ _ _ Hframe).
 Qed.
 
-Lemma frame_locals_match : forall program memory boundary base pending moved distance f view s,
-  FrameAt program memory base (boundaryLocalsBase boundary) pending moved distance f view ->
+Lemma frame_locals_match : forall program memory boundary base pending remaining distance f view s,
+  FrameAt program memory base (boundaryLocalsBase boundary) pending remaining distance f view ->
   localsMatch memory boundary (mk_state s (activeFrame f (viewLocals view))).
 Proof.
-  intros program memory boundary base pending moved distance f view s
+  intros program memory boundary base pending remaining distance f view s
     [_ [_ [_ [_ [_ [_ [_ [_ [Hlb Hlc]]]]]]]]] index v Hv.
   cbn [stateLocals activeFrame LOCALS] in Hv. rewrite nth_error_map in Hv.
   destruct (nth_error (viewLocals view) index) as [value | ] eqn:Hi; cbn in Hv; [injection Hv as <- | discriminate].
@@ -986,8 +986,8 @@ Qed.
 
 (* The innermost label of a frame at a path, split off: the operands below it are
    its instruction's height less what it consumed. *)
-Lemma innermost_label : forall f index labels offset segments values locals pending moved distance memory base fbp,
-  FrameAt program memory base fbp pending moved distance f
+Lemma innermost_label : forall f index labels offset segments values locals pending remaining distance memory base fbp,
+  FrameAt program memory base fbp pending remaining distance f
     (frameView (codePosition index labels offset) segments values locals) ->
   labels <> [] ->
   exists labels' site segments' segment outer i height,
@@ -1000,7 +1000,7 @@ Lemma innermost_label : forall f index labels offset segments values locals pend
     sourceHeights (programCallees program (guestModule f)) (firstn offset (innerCode f (codePosition index labels offset))) 0 =
       Some (length values + pending)%nat.
 Proof.
-  intros f index labels offset segments values locals pending moved distance memory base fbp Hframe Hne.
+  intros f index labels offset segments values locals pending remaining distance memory base fbp Hframe Hne.
   pose proof Hframe as [_ [Hpath [Hheights _]]].
   cbn [viewPosition viewSegments viewValues positionLabels positionOffset] in Hpath, Hheights.
   assert (Hlen : length segments = length labels)

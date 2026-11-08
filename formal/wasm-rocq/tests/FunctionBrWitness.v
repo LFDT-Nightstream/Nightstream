@@ -17,7 +17,8 @@ Definition mainFunction := i32Function branchModule (mk_uN 0) 2 1 0 mainBody.
 Definition branchFunction := i32Function branchModule (mk_uN 0) 2 1 0 branchBody.
 Definition branchProgram := [mainFunction; branchFunction].
 Definition branchStore := MKstore branchProgram [] [] [] [] [].
-Definition mainGuest := mkGuestFunction 0%N branchModule (mk_uN 0) 2 1 0 mainBody 0.
+Definition mainGuest :=
+  mkGuestFunction 0%N branchModule (mk_uN 0) [valtype_I32; valtype_I32] [valtype_I32] [] mainBody 0.
 
 Definition branchContext := moduleContext [i32StackType 2 1] [i32StackType 2 1; i32StackType 2 1].
 
@@ -73,7 +74,8 @@ Proof.
     + apply branch_function_validates; [repeat constructor | exact branch_body_validates].
   - intros [ | [ | index]] g Hg; cbn in Hg; [injection Hg as <- .. | destruct index; discriminate].
     + split; [ | vm_compute; tauto]. constructor; [constructor | constructor; [constructor | constructor; [ | constructor]]].
-      apply supported_call with (f := mkGuestFunction 1%N branchModule (mk_uN 0) 2 1 0 branchBody 4);
+      apply supported_call with (f :=
+        mkGuestFunction 1%N branchModule (mk_uN 0) [valtype_I32; valtype_I32] [valtype_I32] [] branchBody 4);
         [reflexivity | cbn; lia | cbn; lia].
     + split.
       * constructor; [ | constructor]. apply supported_block; [repeat constructor | right; reflexivity].

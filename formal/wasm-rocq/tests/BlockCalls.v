@@ -18,7 +18,7 @@ Definition blockFunction (body : list instr) := i32Function blockModule (mk_uN 0
 Definition blockProgram := [blockFunction [LOCAL_GET (mk_uN 0)]; blockFunction callerBody].
 Definition blockStore := MKstore blockProgram [] [] [] [] [].
 Definition blockGuest (address : N) (body : list instr) (entry : Z) :=
-  mkGuestFunction address blockModule (mk_uN 0) 0 1 1 body entry.
+  mkGuestFunction address blockModule (mk_uN 0) [] [valtype_I32] [valtype_I32] body entry.
 
 Example block_call_layout :
   functionEntry blockProgram 1 = 2 /\

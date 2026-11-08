@@ -98,7 +98,8 @@ Qed.
 Example source_body_supported : supportedCode (programCallees sourceProgram callModule) getCallAdd.
 Proof.
   constructor; [constructor | constructor; [ | constructor; [constructor | constructor]]].
-  apply supported_call with (f := mkGuestFunction 0%N callModule (mk_uN 0) 0 1 1 readZeroBody 0);
+  apply supported_call with (f :=
+    mkGuestFunction 0%N callModule (mk_uN 0) [] [valtype_I32] [valtype_I32] readZeroBody 0);
     [reflexivity | cbn; lia | cbn; lia].
 Qed.
 

@@ -23,7 +23,8 @@ Definition indirectProgram := [mainFunction; doubleFunction].
 Definition tableType := mk_tabletype (mk_limits (mk_uN 3) None) FUNCREF.
 Definition indirectTable := MKtableinst tableType [REF_FUNC_ADDR 1%N; REF_FUNC_ADDR 0%N; ref_REF_NULL FUNCREF].
 Definition indirectStore := MKstore indirectProgram [] [indirectTable] [] [] [].
-Definition mainGuest := mkGuestFunction 0%N indirectModule (mk_uN 1) 2 1 0 mainBody 0.
+Definition mainGuest :=
+  mkGuestFunction 0%N indirectModule (mk_uN 1) [valtype_I32; valtype_I32] [valtype_I32] [] mainBody 0.
 
 Definition indirectContext := MKcontext indirectTypes [i32StackType 2 1; i32StackType 1 1] [] [tableType]
   [] [] [] [] [] None.

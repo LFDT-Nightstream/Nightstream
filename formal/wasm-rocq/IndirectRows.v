@@ -31,6 +31,7 @@ Lemma function_type_member : forall index f,
 Proof.
   intros index f Hf. destruct (function_at_sound _ _ _ Hf) as [Hnth _].
   pose proof (proj1 (Forall_forall _ _) (proj1 Hvalid) _ (nth_error_In _ _ Hnth)) as Hinst.
+  rewrite (function_at_i32_type _ _ _ Hf).
   exact (function_type_in_module _ _ _ _ _ _ _ Hinst).
 Qed.
 
@@ -161,7 +162,8 @@ Proof.
         (guestBody g)).
       split; [change (nth_error (store_FUNCS s) (N.to_nat a) = Some (i32Function (guestModule g)
         (guestTypeIndex g) (guestParams g) (guestResults g) (guestLocals g) (guestBody g))); rewrite Hstore; exact Hgnth | ].
-      change (guestType g = lookup_total (TYPES (guestModule f)) (y :> N)).
+      change (i32StackType (guestParams g) (guestResults g) = lookup_total (TYPES (guestModule f)) (y :> N)).
+      rewrite <- (function_at_i32_type _ _ _ Hg).
       rewrite (spec_lookup_from_nth_error _ _ _ _ _ Htype). exact HcalleeType. }
   apply Forall_app in Hbounds. destruct Hbounds as [HsegBounds HvalBounds].
   apply Forall_app in HvalBounds. destruct HvalBounds as [HprefixBounds HtopBounds].
@@ -277,7 +279,7 @@ Proof.
   inversion Hhead as [ | | | | | | | | | | | | x' y' p r Htype' Hp Hr _ | | ].
   rewrite Htype in Htype'. injection Htype' as Hpp Hrr.
   apply (f_equal (@length _)) in Hpp, Hrr. rewrite !repeat_length in Hpp, Hrr. subst p r.
-  cbn [callsInto programCallees envTypes] in Hcalls, Htype. rewrite Htype in Hcalls. injection Hcalls as Hgp Hgr.
+  cbn [callsInto programCallees envTypes] in Hcalls, Htype. rewrite Htype, (function_at_i32_type _ _ _ Hg) in Hcalls. injection Hcalls as Hgp Hgr.
   apply (f_equal (@length _)) in Hgp, Hgr. rewrite !repeat_length in Hgp, Hgr.
   destruct (split_top_values values params ltac:(lia)) as [prefix [arguments [-> Hlen]]].
   (* The invocation opcode, its return edge, and the reference on top. *)
@@ -419,7 +421,7 @@ Proof.
     - exact Hlb.
     - intros j v Hv. rewrite HstackFinal. exact (Hlc _ _ Hv). }
   split; [exact Hi | ]. split; [cbn [callsInto programCallees envTypes]; rewrite Htype; f_equal;
-    unfold guestType; rewrite <- Hgp, <- Hgr; reflexivity | ]. split; [reflexivity | ].
+    rewrite (function_at_i32_type _ _ _ Hg), <- Hgp, <- Hgr; reflexivity | ]. split; [reflexivity | ].
   split.
   { unfold viewOperands. cbn [viewSegments viewValues]. rewrite length_app.
     rewrite HfbpAfter, HspAfter, HparamCount. lia. }

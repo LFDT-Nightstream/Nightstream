@@ -49,12 +49,42 @@ Proof.
     [ | discriminate].
   unfold decodeFunction. destruct (forallb i32Type params && forallb i32Type results && forallb i32Local locals)
     eqn:Hshape; [ | discriminate].
-  intros H. injection H as <-. cbn [guestModule guestTypeIndex guestParams guestResults guestLocals guestBody guestAddress guestEntry].
+  intros H. injection H as <-. cbn [guestModule guestTypeIndex guestParams guestResults guestLocals guestParamTypes guestResultTypes guestLocalTypes guestBody guestAddress guestEntry].
+  unfold guestParams, guestResults, guestLocals. cbn [guestParamTypes guestResultTypes guestLocalTypes].
+  rewrite length_map.
   apply andb_true_iff in Hshape. destruct Hshape as [Htypes Hlocals].
   apply andb_true_iff in Htypes. destruct Htypes as [Hparams Hresults].
   split; [ | auto]. unfold i32Function.
   rewrite <- (i32_types_repeat _ Hparams), <- (i32_types_repeat _ Hresults), <- (i32_locals_repeat _ Hlocals).
   reflexivity.
+Qed.
+
+(* The current supported-function filter still restricts these lists to i32. *)
+Lemma function_at_i32_types : forall program index f,
+  functionAt program index = Some f ->
+  guestParamTypes f = repeat valtype_I32 (guestParams f) /\
+  guestResultTypes f = repeat valtype_I32 (guestResults f) /\
+  guestLocalTypes f = repeat valtype_I32 (guestLocals f).
+Proof.
+  intros program index f. unfold functionAt.
+  destruct (nth_error program index) as [[[[params] [results]] module [ti locals body]] | ]; [ | discriminate].
+  unfold decodeFunction. destruct (forallb i32Type params && forallb i32Type results && forallb i32Local locals)
+    eqn:Hshape; [ | discriminate].
+  intros H. injection H as <-. unfold guestParams, guestResults, guestLocals.
+  cbn [guestParamTypes guestResultTypes guestLocalTypes].
+  apply andb_true_iff in Hshape as [Htypes Hlocals]. apply andb_true_iff in Htypes as [Hp Hr].
+  split; [exact (i32_types_repeat _ Hp) | ]. split; [exact (i32_types_repeat _ Hr) | ].
+  rewrite (i32_locals_repeat _ Hlocals), map_map.
+  change (map id (repeat valtype_I32 (length locals)) = repeat valtype_I32
+    (length (map id (repeat valtype_I32 (length locals))))).
+  rewrite map_id, repeat_length. reflexivity.
+Qed.
+
+Lemma function_at_i32_type : forall program index f,
+  functionAt program index = Some f -> guestType f = i32StackType (guestParams f) (guestResults f).
+Proof.
+  intros program index f H. destruct (function_at_i32_types _ _ _ H) as [Hp [Hr _]].
+  unfold guestType, i32StackType. now rewrite Hp, Hr.
 Qed.
 
 Lemma locate_function_pc : forall program index raw offset,

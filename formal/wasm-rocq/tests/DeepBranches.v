@@ -16,7 +16,7 @@ Definition deepModule := MKmoduleinst [i32StackType 0 1] [0%N] [] [] [] [] [] []
 Definition deepFunction := i32Function deepModule (mk_uN 0) 0 1 2 deepCode.
 Definition deepProgram := [deepFunction].
 Definition deepStore := MKstore deepProgram [] [] [] [] [].
-Definition deepGuest := mkGuestFunction 0%N deepModule (mk_uN 0) 0 1 2 deepCode 0.
+Definition deepGuest := mkGuestFunction 0%N deepModule (mk_uN 0) [] [valtype_I32] [valtype_I32; valtype_I32] deepCode 0.
 Definition deepState condition := mk_state deepStore (MKframe [i32Value condition; i32Value 9] deepModule).
 
 (* PCs: 0 and 1 enter the blocks, 3 is the br_if, 6 and 9 are the ENDs, 10 follows. *)

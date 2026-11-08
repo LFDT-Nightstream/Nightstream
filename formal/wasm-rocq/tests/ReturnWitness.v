@@ -28,7 +28,7 @@ Definition baseReturnCode := [BLOCK (_RESULT (Some valtype_I32)) [LOCAL_GET (mk_
 Definition baseReturnFunction := i32Function nopModule (mk_uN 0) 1 1 0 baseReturnCode.
 Definition baseReturnProgram := [baseReturnFunction].
 Definition baseReturnStore := MKstore baseReturnProgram [] [] [] [] [].
-Definition baseReturnGuest := mkGuestFunction 0%N nopModule (mk_uN 0) 1 1 0 baseReturnCode 0.
+Definition baseReturnGuest := mkGuestFunction 0%N nopModule (mk_uN 0) [valtype_I32] [valtype_I32] [] baseReturnCode 0.
 Definition baseReturnMemory := loadProgram baseReturnProgram (exportSchedules 5 1 (fun memory address =>
   if Nat.eqb memory stackId then match address with [0] => Some 7 | [1] => Some 0 | _ => None end else None)).
 Definition baseReturnWitness := map rowWitness baseReturnRows.
@@ -91,7 +91,7 @@ Definition voidFunction := i32Function voidModule (mk_uN 0) 0 0 0 [NOP].
 Definition voidProgram := [voidFunction].
 Definition voidStore := MKstore voidProgram [] [] [] [] [].
 Definition voidContext := moduleContext [i32StackType 0 0] [i32StackType 0 0].
-Definition voidGuest := mkGuestFunction 0%N voidModule (mk_uN 0) 0 0 0 [NOP] 0.
+Definition voidGuest := mkGuestFunction 0%N voidModule (mk_uN 0) [] [] [] [NOP] 0.
 Definition voidMemory := loadProgram voidProgram (exportSchedules 1 0 (fun _ _ => Some 0)).
 Definition voidWitness := map rowWitness voidReturnRows.
 Lemma void_module : Moduleinst_ok voidStore voidModule voidContext.

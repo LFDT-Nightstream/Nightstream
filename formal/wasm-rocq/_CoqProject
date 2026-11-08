@@ -9,6 +9,7 @@ Wasm2.v
 WasmIntegers.v
 WasmValues.v
 IntegerMemory.v
+IntegerDecode.v
 Range.v
 Selectors.v
 ZeroTest.v
@@ -27,6 +28,7 @@ BlockSpec.v
 BlockInstructions.v
 CodeLayout.v
 Fragment.v
+StackTypes.v
 CodeFacts.v
 LocalBindings.v
 CallMemory.v
@@ -128,3 +130,4 @@ tests/TerminalWitness.v
 tests/ReturnWitness.v
 tests/IntegerLocalTrace.v
 tests/IntegerLocals.v
+tests/IntegerDecode.v

@@ -23,8 +23,8 @@ Definition decodeFunction (address : nat) (entry : Z) (f : funcinst) : option Gu
   match f with
   | MKfuncinst (mk_functype (mk_list params) (mk_list results)) module (func_FUNC typeIndex locals body) =>
       if forallb i32Type params && forallb i32Type results && forallb i32Local locals then
-        Some (mkGuestFunction (N.of_nat address) module typeIndex (length params)
-          (length results) (length locals) body entry)
+        Some (mkGuestFunction (N.of_nat address) module typeIndex params
+          results (map (fun l => match l with LOCAL t => t end) locals) body entry)
       else None
   end.
 

@@ -26,15 +26,10 @@ Definition innerCode (f : GuestFunction) (position : CodePosition) : list instr 
 Definition frameConfig (f : GuestFunction) (view : FrameView) (c : config) : config :=
   wrapLabels (guestBody f) (positionLabels (viewPosition view)) (viewSegments view) c.
 
-(* Where a frame's operand `index` sits: from base, except that the top `moved`
-   of `count` operands still sit `distance` cells higher while a move is pending. *)
-Definition operandCell (base : Z) (count moved : nat) (distance : Z) (index : nat) : Z :=
-  base + Z.of_nat index + (if (index <? count - moved)%nat then 0 else distance).
-
 (* A frame in memory: its locals are its first cells from fbp, and its operands
    follow from base = fbp + locals, at the code's static heights, with `pending`
    more that have moved to a callee as its arguments. *)
-Definition FrameAt (program : Program) (memory : MemoryState) (base fbp : Z) (pending moved : nat)
+Definition FrameAt (program : Program) (memory : MemoryState) (base fbp : Z) (pending remaining : nat)
     (distance : Z) (f : GuestFunction) (view : FrameView) : Prop :=
   let position := viewPosition view in
   functionAt program (positionFunction position) = Some f /\
@@ -45,7 +40,7 @@ Definition FrameAt (program : Program) (memory : MemoryState) (base fbp : Z) (pe
   0 <= fbp /\ base = fbp + Z.of_nat (frameLocals f) /\
   Forall (fun value => 0 <= value < i32Modulus) (viewOperands view) /\
   (forall index value, nth_error (viewOperands view) index = Some value ->
-    memory stackId [2 * operandCell base (length (viewOperands view)) moved distance index] = Some value) /\
+    memory stackId [2 * operandCell base (length (viewOperands view)) remaining distance index] = Some value) /\
   length (viewLocals view) = frameLocals f /\
   Forall (fun value => 0 <= value < i32Modulus) (viewLocals view) /\
   (forall index value, nth_error (viewLocals view) index = Some value ->
@@ -75,15 +70,15 @@ Definition ActiveState (program : Program) (s : store) (memory : MemoryState) (b
   match cursor with
   | atCode view => exists f,
       let position := viewPosition view in
-      let moved := Z.to_nat (boundaryMoveRemaining boundary) in
-      FrameAt program memory (boundaryStackBase boundary) (boundaryLocalsBase boundary) 0 moved
+      let remaining := Z.to_nat (boundaryMoveRemaining boundary) in
+      FrameAt program memory (boundaryStackBase boundary) (boundaryLocalsBase boundary) 0 remaining
         (boundaryMoveDistance boundary) f view /\
       (positionOffset position <= length (innerCode f position))%nat /\
       boundarySP boundary = boundaryStackBase boundary + Z.of_nat (length (viewOperands view)) /\
       boundaryPC boundary =
         guestEntry f + Z.of_nat (pathOffset (guestBody f) (positionLabels position) (positionOffset position)) /\
       initializationFlags boundary /\ boundaryZeroRemaining boundary = 0 /\
-      (moved <= length (viewValues view))%nat /\
+      (remaining <= length (viewValues view))%nat /\
       c = frameConfig f view (stackConfig (mk_state s (activeFrame f (viewLocals view))) (viewValues view)
         (skipn (positionOffset position) (innerCode f position)))
   (* The indirect call at the view's position has resolved to `callee`: its

@@ -69,7 +69,7 @@ Proof.
   intros callees i callee below H. destruct i; try contradiction; cbn [callsInto] in H;
     cbn [sourceHeight callOperands]; rewrite H.
   - destruct (Nat.leb_spec (guestParams callee) (below + guestParams callee)); [f_equal; lia | lia].
-  - unfold guestType. cbv beta iota. rewrite !repeat_length.
+  - unfold guestType. cbv beta iota. fold (guestParams callee) (guestResults callee).
     destruct (Nat.leb_spec (S (guestParams callee)) (below + S (guestParams callee))); [f_equal; lia | lia].
 Qed.
 

@@ -283,6 +283,7 @@ Proof.
   unfold programCallees in Hf; cbn [calleeAt] in Hf.
   destruct (nth_error (FUNCS module) (N.to_nat x)) as [address | ] eqn:Ha; [ | discriminate].
   destruct (function_at_sound _ _ _ Hf) as [Hfi _].
+  rewrite (function_at_i32_type _ _ _ Hf).
   exact (module_function_type _ _ _ _ _ _ Hmodule Ha ltac:(rewrite Hstore; exact Hfi)).
 Qed.
 
@@ -408,9 +409,9 @@ Proof.
 Qed.
 
 (* What a frame at its position inherits from the program's validation. *)
-Lemma view_facts : forall program s memory base fbp pending moved distance f view,
+Lemma view_facts : forall program s memory base fbp pending remaining distance f view,
   store_FUNCS s = program -> programValidated program s ->
-  FrameAt program memory base fbp pending moved distance f view ->
+  FrameAt program memory base fbp pending remaining distance f view ->
   let position := viewPosition view in
   let callees := programCallees program (guestModule f) in
   let rest := skipn (positionOffset position) (innerCode f position) in
@@ -424,7 +425,7 @@ Lemma view_facts : forall program s memory base fbp pending moved distance f vie
   LabelsReady (guestBody f) (positionLabels position) (viewSegments view) /\
   Forall wf_instr (innerCode f position).
 Proof.
-  intros program s memory base fbp pending moved distance f view Hstore Hvalid
+  intros program s memory base fbp pending remaining distance f view Hstore Hvalid
     [Hf [Hpath [Hheights [_ [_ [Hoperands _]]]]]] position callees rest arities.
   destruct (function_facts _ _ _ _ Hstore Hvalid Hf) as [Hfacts [Hresults [Hsupport Hbranches]]].
   destruct (path_facts _ _ _ _ _ _ _ _ _ _ _ Hfacts Hsupport Hbranches Hpath Hheights) as [Hrest [Hsup [Hbr Hblock]]].

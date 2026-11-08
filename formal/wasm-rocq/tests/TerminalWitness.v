@@ -80,7 +80,7 @@ Definition trapCallee := i32Function trapModule (mk_uN 0) 0 0 0 trapCalleeCode.
 Definition trapProgram := [trapMain; trapCallee].
 Definition trapStore := MKstore trapProgram [] [] [] [] [].
 Definition trapContext := moduleContext [i32StackType 0 0] [i32StackType 0 0; i32StackType 0 0].
-Definition trapGuest := mkGuestFunction 0%N trapModule (mk_uN 0) 0 0 0 trapMainCode 0.
+Definition trapGuest := mkGuestFunction 0%N trapModule (mk_uN 0) [] [] [] trapMainCode 0.
 
 Lemma trap_module_validates : Moduleinst_ok trapStore trapModule trapContext.
 Proof.
@@ -112,7 +112,7 @@ Proof.
   - split.
     + constructor; [apply supported_block; [ | left; reflexivity] | constructor].
       constructor; [ | constructor].
-      apply supported_call with (f := mkGuestFunction 1%N trapModule (mk_uN 0) 0 0 0 trapCalleeCode 4);
+      apply supported_call with (f := mkGuestFunction 1%N trapModule (mk_uN 0) [] [] [] trapCalleeCode 4);
         [reflexivity | cbn; lia | cbn; lia].
     + vm_compute; tauto.
   - split; [repeat constructor | vm_compute; tauto].

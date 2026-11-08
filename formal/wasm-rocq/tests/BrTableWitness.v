@@ -21,7 +21,8 @@ Definition tableFunction := i32Function tableModule (mk_uN 0) 2 1 0 tableCode.
 Definition tableProgram := [tableFunction].
 Definition tableStore := MKstore tableProgram [] [] [] [] [].
 Definition tableContext := moduleContext [i32StackType 2 1] [i32StackType 2 1].
-Definition tableGuest := mkGuestFunction 0%N tableModule (mk_uN 0) 2 1 0 tableCode 0.
+Definition tableGuest :=
+  mkGuestFunction 0%N tableModule (mk_uN 0) [valtype_I32; valtype_I32] [valtype_I32] [] tableCode 0.
 
 Section Typing.
 Local Open Scope nat_scope.

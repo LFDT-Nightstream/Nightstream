@@ -168,10 +168,10 @@ Proof.
   - inversion Hi; subst. pose proof (Htypes _ _ Hf) as Htype.
     match goal with H : is_true (_ == _) |- _ => apply (elimT eqP) in H end.
     match goal with H : ?lhs = mk_functype _ _ |- _ =>
-      assert (Hlookup : lhs = i32StackType (guestParams f) (guestResults f))
+      assert (Hlookup : lhs = guestType f)
         by (apply spec_lookup_from_nth_error; exact Htype); rewrite Hlookup in H; inversion H; subst end.
-    split; [intros extra; split; [exact Hw | exists f; split; [exact Hf | rewrite repeat_length; lia]] | ].
-    intros extra. left. cbn [sourceHeight]. rewrite Hf, !repeat_length.
+    split; [intros extra; split; [exact Hw | exists f; split; [exact Hf | unfold guestParams; lia]] | ].
+    intros extra. left. cbn [sourceHeight]. rewrite Hf. fold (guestParams f) (guestResults f).
     replace (Nat.leb (guestParams f) (extra + guestParams f)) with true by (symmetry; apply Nat.leb_le; lia).
     f_equal; lia.
   - exfalso. eapply Hnot. reflexivity.

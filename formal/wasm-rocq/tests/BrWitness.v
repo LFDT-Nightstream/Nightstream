@@ -18,7 +18,7 @@ Definition brFunction := i32Function brModule (mk_uN 0) 2 1 0 brCode.
 Definition brProgram := [brFunction].
 Definition brStore := MKstore brProgram [] [] [] [] [].
 Definition brContext := moduleContext [i32StackType 2 1] [i32StackType 2 1].
-Definition brGuest := mkGuestFunction 0%N brModule (mk_uN 0) 2 1 0 brCode 0.
+Definition brGuest := mkGuestFunction 0%N brModule (mk_uN 0) [valtype_I32; valtype_I32] [valtype_I32] [] brCode 0.
 
 Section Typing.
 Local Open Scope nat_scope.

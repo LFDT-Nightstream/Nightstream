@@ -15,7 +15,7 @@ Definition nopFunction := i32Function nopModule (mk_uN 0) 1 1 0 nopCode.
 Definition nopProgram := [nopFunction].
 Definition nopStore := MKstore nopProgram [] [] [] [] [].
 Definition nopContext := moduleContext [i32StackType 1 1] [i32StackType 1 1].
-Definition nopGuest := mkGuestFunction 0%N nopModule (mk_uN 0) 1 1 0 nopCode 0.
+Definition nopGuest := mkGuestFunction 0%N nopModule (mk_uN 0) [valtype_I32] [valtype_I32] [] nopCode 0.
 
 Section Typing.
 Local Open Scope nat_scope.

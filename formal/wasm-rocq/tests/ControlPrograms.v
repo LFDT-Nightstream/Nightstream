@@ -26,7 +26,8 @@ Definition computedMemory condition := loadProgram computedProgram (computedRam 
 
 Definition computedContext := moduleContext [i32StackType 0 1] [i32StackType 0 1].
 Definition computedBodyContext := functionContext computedContext computedFunction.
-Definition computedGuest := mkGuestFunction 0%N computedModule (mk_uN 0) 0 1 2 computedCode 0.
+Definition computedGuest :=
+  mkGuestFunction 0%N computedModule (mk_uN 0) [] [valtype_I32] [valtype_I32; valtype_I32] computedCode 0.
 
 Section Typing.
 Local Open Scope nat_scope.

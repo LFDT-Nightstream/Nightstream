@@ -186,7 +186,9 @@ Proof.
     replace (Z.of_nat (N.to_nat a) + 1) with (row COL_FUNCTION_REF) in HtypeRom' by lia.
     rewrite HtypeRom' in HtypeRead. injection HtypeRead as HtypeId.
     destruct (function_at_sound _ _ _ Hg) as [Hgnth _]. rewrite Hgnth in Hfi. injection Hfi as <-.
-    change (guestType g = lookup_total (TYPES (guestModule f)) (y :> N)) in HfiType.
+    change (i32StackType (guestParams g) (guestResults g) =
+      lookup_total (TYPES (guestModule f)) (y :> N)) in HfiType.
+    rewrite <- (function_at_i32_type _ _ _ Hg) in HfiType.
     rewrite (spec_lookup_from_nth_error _ _ _ _ _ Htype) in HfiType.
     assert (HeqOne : row COL_CI_TYPE_EQ = 1).
     { rewrite Heq, (proj2 (Z.eqb_eq _ _)); [reflexivity | ].

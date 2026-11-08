@@ -11,7 +11,8 @@ Open Scope Z_scope.
 
 Definition unwindingContext := moduleContext [i32StackType 1 1] [i32StackType 1 1].
 Definition unwindingBodyContext := functionContext unwindingContext unwindingFunction.
-Definition unwindingGuest := mkGuestFunction 0%N unwindingModule (mk_uN 0) 1 1 1 unwindingCode 0.
+Definition unwindingGuest :=
+  mkGuestFunction 0%N unwindingModule (mk_uN 0) [valtype_I32] [valtype_I32] [valtype_I32] unwindingCode 0.
 
 Section Typing.
 Local Open Scope nat_scope.

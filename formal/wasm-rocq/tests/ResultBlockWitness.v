@@ -22,7 +22,8 @@ Definition resultFunction := i32Function resultModule (mk_uN 0) 2 1 0 resultCode
 Definition resultProgram := [resultFunction].
 Definition resultStore := MKstore resultProgram [] [] [] [] [].
 Definition resultContext := moduleContext [i32StackType 2 1] [i32StackType 2 1].
-Definition resultGuest := mkGuestFunction 0%N resultModule (mk_uN 0) 2 1 0 resultCode 0.
+Definition resultGuest :=
+  mkGuestFunction 0%N resultModule (mk_uN 0) [valtype_I32; valtype_I32] [valtype_I32] [] resultCode 0.
 
 Section Typing.
 Local Open Scope nat_scope.

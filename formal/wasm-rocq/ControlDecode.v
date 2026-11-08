@@ -7,6 +7,7 @@
 From Stdlib Require Import List ZArith Bool.
 Require Import Wasm2 WasmIntegers R1CS MemoryTrace MemoryCatalog StraightLineSpec SpecTecCalls SpecTecBranches
   CallerSpec ProgramSpec TableState CodeLayout FunctionValidation FrameInitialization Locals Fragment.
+Require Export IntegerDecode StackTypes.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -38,22 +39,6 @@ Definition siteFunction (site : ActiveSite) : nat :=
   | siteEntering function => function
   end.
 
-(* An i32 occupies the low limb of its stack cell. *)
-Definition i32Cell (cell : option Z) : option Z :=
-  match cell with
-  | Some value => if (0 <=? value) && (value <? i32Modulus) then Some value else None
-  | None => None
-  end.
-
-Fixpoint readCells (cell : Z -> option Z) (first : Z) (count : nat) : option (list Z) :=
-  match count with
-  | O => Some []
-  | S count =>
-      let? value := i32Cell (cell first) in
-      let? values := readCells cell (first + 1) count in
-      Some (value :: values)
-  end.
-
 (* Operand values bottom-to-top, and a frame's locals. *)
 Definition readStack (memory : MemoryState) (first : Z) (count : nat) : option (list Z) :=
   readCells (fun index => memory stackId [2 * index]) first count.
@@ -62,43 +47,17 @@ Definition readStack (memory : MemoryState) (first : Z) (count : nat) : option (
 Definition readLocals (memory : MemoryState) (fbp : Z) (count : nat) : option (list Z) :=
   readStack memory fbp count.
 
-(* A frame's operands from its base; while a move is pending, the top `moved`
+(* A frame's operands from its base; while a move is pending, the top `remaining`
    operands still sit `distance` cells higher. *)
-Definition readOperands (memory : MemoryState) (base : Z) (count moved : nat) (distance : Z) : option (list Z) :=
-  let? low := readStack memory base (count - moved) in
-  let? high := readStack memory (base + Z.of_nat (count - moved) + distance) moved in
+Definition readOperands (memory : MemoryState) (base : Z) (count remaining : nat) (distance : Z) : option (list Z) :=
+  let? low := readStack memory base (count - remaining) in
+  let? high := readStack memory (base + Z.of_nat (count - remaining) + distance) remaining in
   Some (low ++ high).
 
 Definition frameLocals (f : GuestFunction) : nat := (guestParams f + guestLocals f)%nat.
 
 Definition activeFrame (f : GuestFunction) (locals : list Z) : frame :=
   MKframe (List.map i32Value locals) (guestModule f).
-
-(* The operand height below each enclosing label, and in the innermost code at
-   the offset, from the code's stack effects. *)
-Fixpoint pathHeights (callees : CalleeEnvironment) (code : list instr) (labels : list LabelSite) (offset : nat)
-    : option (list nat * nat) :=
-  match labels with
-  | [] => option_map (fun top => ([], top)) (sourceHeights callees (firstn offset code) 0)
-  | s :: rest =>
-      match siteEntry code s, sourceHeights callees (firstn (siteOffset s) code) 0 with
-      | Some (i, body), Some height =>
-          option_map (fun heights => (labelBase i height :: fst heights, snd heights))
-            (pathHeights callees body rest offset)
-      | _, _ => None
-      end
-  end.
-
-Lemma path_heights_length : forall callees labels code offset heights top,
-  pathHeights callees code labels offset = Some (heights, top) -> length heights = length labels.
-Proof.
-  intros callees. induction labels as [ | s rest IH]; intros code offset heights top H; cbn [pathHeights] in H.
-  - destruct (sourceHeights callees (firstn offset code) 0); cbn in H; [ | discriminate]. now injection H as <- _.
-  - destruct (siteEntry code s) as [[i body] | ]; [ | discriminate].
-    destruct (sourceHeights callees (firstn (siteOffset s) code) 0); [ | discriminate].
-    destruct (pathHeights callees body rest offset) as [[hs t] | ] eqn:Hin; cbn in H; [ | discriminate].
-    injection H as <- _. cbn [length]. f_equal. exact (IH _ _ _ _ Hin).
-Qed.
 
 Definition totalHeight (heights : list nat * nat) : nat := fold_right Nat.add (snd heights) (fst heights).
 
@@ -152,7 +111,7 @@ Definition decodeActive (program : Program) (s : store) (memory : MemoryState) (
   | siteCode position =>
       let labels := positionLabels position in
       let offset := positionOffset position in
-      let moved := Z.to_nat (boundaryMoveRemaining boundary) in
+      let remaining := Z.to_nat (boundaryMoveRemaining boundary) in
       let distance := boundaryMoveDistance boundary in
       let? f := functionAt program (positionFunction position) in
       let? inner := pathCode (guestBody f) labels in
@@ -161,8 +120,8 @@ Definition decodeActive (program : Program) (s : store) (memory : MemoryState) (
         (0 <=? fbp) && (base =? fbp + Z.of_nat (frameLocals f)) &&
         (boundarySP boundary =? base + Z.of_nat (totalHeight heights)) &&
         (boundaryPC boundary =? guestEntry f + Z.of_nat (pathOffset (guestBody f) labels offset)) &&
-        (moved <=? snd heights)%nat && (offset <=? length inner)%nat in
-      let? stack := readOperands memory base (totalHeight heights) moved distance in
+        (remaining <=? snd heights)%nat && (offset <=? length inner)%nat in
+      let? stack := readOperands memory base (totalHeight heights) remaining distance in
       let? locals := readLocals memory fbp (frameLocals f) in
       let split := splitSegments (fst heights) stack in
       Some (wrapLabels (guestBody f) labels (fst split)

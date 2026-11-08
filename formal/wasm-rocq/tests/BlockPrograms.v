@@ -194,7 +194,7 @@ Example conditional_initial_config : forall condition,
 Proof.
   intros condition Hcondition.
   apply (function_start_config conditionalProgram conditionalStore 0
-    (mkGuestFunction 0%N conditionalModule (mk_uN 0) 0 1 2 conditionalCode 0) [condition; 9] _
+    (mkGuestFunction 0%N conditionalModule (mk_uN 0) [] [valtype_I32] [valtype_I32; valtype_I32] conditionalCode 0) [condition; 9] _
     (mkBoundary 0 9 9 7 0 0 0 0 0 0 0)); try reflexivity; try (apply TableState.no_tables_loaded; reflexivity); try (cbn; lia).
   - repeat constructor.
   - split; [constructor; [apply (conditional_function_validates 0) | constructor] | exact conditional_program_supported].

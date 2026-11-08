@@ -18,6 +18,7 @@ SuperNeo v1.2 defines the folding relation, not the WASM export result ABI.
 
 The public state carries the last result and, when present, the result before
 it. Each pair is bound to its own stack-memory read at the clean return.
-The second capture implies the first. Exports with more than two results are
+The second capture implies the first. A disabled pair has zero value limbs.
+Exports with more than two results are
 unsupported. Host-event output references still require one result.
 SPEC.md section 7.7 defines the accepted relation.

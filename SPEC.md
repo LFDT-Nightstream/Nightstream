@@ -568,9 +568,9 @@ When the plan names each checked port once, each slot shows at most one active p
 
 1. At the clean return that ends the current export turn, read `slide` from the `FrameSlideDistance` ROM at `(PC_before, control_choice)` under the exit latch. Require `SP_before − FBP_before − slide` to equal the sum of the two Boolean capture gates. The second gate implies the first. The relation requires the call-stack depth to equal the host-frame depth at this return.
 2. Bind the last result to a stack-memory read at cell `SP_before − 1`. If the second gate is active, bind the preceding result to a separate read at cell `SP_before − 2`. Each read has low and high 32-bit limbs.
-3. Carry both pairs and their flags through the WASM state links. Clear them at a new turn or host resumption. Algorithm 10 compares every carried word with the verifier's expected final state.
+3. Carry both pairs and their flags through the WASM state links. Require both limbs of each disabled pair to be zero. Clear them at a new turn or host resumption. Algorithm 10 compares every carried word with the verifier's expected final state.
 
-**Rejects.** More than two top-level results, a mismatched result count, a changed result word, or a missing stack-memory read. Output references in host-event templates still require a single-result export.
+**Rejects.** More than two top-level results, a mismatched result count, a changed result word, a nonzero disabled result, or a missing stack-memory read. Output references in host-event templates still require a single-result export.
 
 **Source.** `crates/neo-wasm/src/ccs/call.rs`, `crates/neo-wasm/src/relation_layout/mod.rs`, `crates/neo-wasm/src/ivc_state.rs`, and `crates/neo-wasm/src/adapters/wasmtime/normalize/trace_build.rs` (not checked against Lean).
 

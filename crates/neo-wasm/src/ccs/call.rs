@@ -330,6 +330,14 @@ fn push_simple_output_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
             [(COL_ONE, F::ONE), (COL_OUTPUT_ENABLED_AFTER, -F::ONE)],
             [],
         );
+        for (enabled, value) in [
+            (COL_OUTPUT_ENABLED_AFTER, COL_OUTPUT_VALUE_LO_AFTER),
+            (COL_OUTPUT_ENABLED_AFTER, COL_OUTPUT_VALUE_HI_AFTER),
+            (COL_OUTPUT_SECOND_ENABLED_AFTER, COL_OUTPUT_SECOND_VALUE_LO_AFTER),
+            (COL_OUTPUT_SECOND_ENABLED_AFTER, COL_OUTPUT_SECOND_VALUE_HI_AFTER),
+        ] {
+            b.push_row([(COL_ONE, F::ONE), (enabled, -F::ONE)], [(value, F::ONE)], []);
+        }
         // A clean activation return captures exactly its function's results:
         // the frame above fbp less the return's static slide distance. It drops
         // its whole frame. The boundary term cancels the activation-finished

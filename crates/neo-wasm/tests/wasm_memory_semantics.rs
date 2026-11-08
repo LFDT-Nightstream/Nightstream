@@ -223,8 +223,8 @@ fn memory_semantics_rejects_wrong_program_call_indirect_expected_type() {
     );
     let row_index = trace
         .iter()
-        .position(|row| row.opcode == WasmOpcode::CallIndirect)
-        .expect("call_indirect row");
+        .position(|row| row.opcode == WasmOpcode::CallIndirectResolve)
+        .expect("call_indirect resolve row");
     witnesses[row_index][COL_EXPECTED_TYPE_ID] += F::ONE;
 
     let layout = build_wasm_relation_layout();
@@ -349,7 +349,7 @@ fn memory_semantics_rejects_wrong_call_indirect_target() {
         .iter()
         .find(|row| matches!(row.opcode, WasmOpcode::CallIndirect))
         .expect("call_indirect row");
-    let function_ref = row.table_value.expect("call_indirect function ref");
+    let function_ref = row.function_ref.expect("call_indirect function ref");
     preload.remove(WasmMemoryId::FunctionEntry, &[function_ref]);
     preload.insert(
         WasmMemoryId::FunctionEntry,
@@ -439,8 +439,8 @@ fn memory_semantics_rejects_tampered_table_funcref() {
     let (trace, mut witnesses, preload) = witness_run(TABLE_INIT_WAT);
     let row_index = trace
         .iter()
-        .position(|row| row.opcode == WasmOpcode::CallIndirect)
-        .expect("call_indirect row");
+        .position(|row| row.opcode == WasmOpcode::CallIndirectResolve)
+        .expect("call_indirect resolve row");
     witnesses[row_index][COL_TABLE_VALUE] += F::ONE;
 
     let layout = build_wasm_relation_layout();
@@ -456,8 +456,8 @@ fn memory_semantics_rejects_nonnull_read_of_uninitialized_table_entry() {
     let (trace, mut witnesses, preload) = witness_run(TABLE_INIT_WAT);
     let row_index = trace
         .iter()
-        .position(|row| row.opcode == WasmOpcode::CallIndirect)
-        .expect("call_indirect row");
+        .position(|row| row.opcode == WasmOpcode::CallIndirectResolve)
+        .expect("call_indirect resolve row");
     // Redirect the read to index 0 — in bounds but outside the element
     // segment, so it must be a null funcref (0) at instantiation. Claiming a
     // live funcref there was exactly what `FirstReadDefines` allowed.
@@ -508,8 +508,8 @@ fn memory_semantics_rejects_forged_callee_type_on_mismatch_trap() {
     );
     let row_index = trace
         .iter()
-        .position(|row| row.opcode == WasmOpcode::CallIndirect)
-        .expect("call_indirect row");
+        .position(|row| row.opcode == WasmOpcode::CallIndirectResolve)
+        .expect("call_indirect resolve row");
     assert!(trace[row_index].state_after.trapped);
     witnesses[row_index][COL_FUNCTION_TYPE_ID] = witnesses[row_index][COL_EXPECTED_TYPE_ID];
 
@@ -544,8 +544,8 @@ fn memory_semantics_rejects_forged_table_size_on_oob_trap() {
     );
     let row_index = trace
         .iter()
-        .position(|row| row.opcode == WasmOpcode::CallIndirect)
-        .expect("call_indirect row");
+        .position(|row| row.opcode == WasmOpcode::CallIndirectResolve)
+        .expect("call_indirect resolve row");
     assert!(trace[row_index].state_after.trapped);
     // Claim the table is large enough to make index 5 in bounds.
     witnesses[row_index][COL_TABLE_SIZE] = F::from_u64(6);

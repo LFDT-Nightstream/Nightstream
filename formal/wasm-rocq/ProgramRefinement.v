@@ -2,18 +2,26 @@
    the active frame's code, enters or initializes a callee, or returns to its caller. *)
 From Stdlib Require Import List ZArith Lia.
 Require Import R1CS Columns FullRelation Range MemoryTrace MemoryCatalog TraceRefinement Wasm2
-  StraightLineSpec StackSimulation SpecTecCalls CallerSpec CallerRefinement ProgramSpec ProgramEncoding CallContext CallScope Fragment
-  ControlDecode ControlInvariant FrameFacts ControlBridge FrameRows CallRows.
+  StraightLineSpec StackSimulation SpecTecCalls CallerSpec CallerRefinement ProgramSpec TableState ProgramEncoding CallContext CallScope Fragment
+  ControlDecode ControlInvariant FrameFacts ControlBridge FrameRows BranchRows CallRows IndirectRows TrapFacts BlockEncoding
+  ProgramBinding OpcodeCatalog Selectors.
 Import ListNotations.
 Open Scope Z_scope.
 
 Lemma supported_cases : forall callees i, Supported callees i ->
   (exists op, encodedOpcode i = Some op) \/ (exists x, i = CALL x) \/
-  (exists body, i = BLOCK (_RESULT None) body) \/ (exists l, i = BR_IF l) \/ i = RETURN.
+  (exists bt body, i = BLOCK bt body \/ i = LOOP bt body) \/ (exists l, i = BR_IF l) \/ (exists l, i = BR l) \/
+  (exists ls l, i = BR_TABLE ls l) \/ i = RETURN \/ (exists bt t e, i = IFELSE bt t e) \/ i = NOP \/ i = UNREACHABLE \/
+  (exists x y, i = CALL_INDIRECT x y).
 Proof.
   intros callees i H. inversion H; subst;
-    first [solve [left; eexists; reflexivity] | solve [right; left; eauto] | solve [right; right; left; eauto] |
-      solve [right; right; right; left; eauto] | solve [right; right; right; right; reflexivity]].
+    first [solve [left; eexists; reflexivity] | solve [right; left; eauto] |
+      solve [right; right; left; do 2 eexists; left; reflexivity] |
+      solve [right; right; left; do 2 eexists; right; reflexivity] |
+      solve [do 3 right; left; eauto] | solve [do 4 right; left; eauto] |
+      solve [do 5 right; left; eauto] | solve [do 6 right; left; reflexivity] |
+      solve [do 7 right; left; eauto] | solve [do 8 right; left; reflexivity] |
+      solve [do 9 right; left; reflexivity] | solve [do 10 right; eauto]].
 Qed.
 
 Section Run.
@@ -24,12 +32,13 @@ Hypothesis Hvalid : programValidated program s.
 
 (* One row of a run that stays inside the base frame. *)
 Lemma control_row : forall baseDepth cursor initial final row c0,
-  fieldPrime -> programLoaded program initial -> FullRelation.satFull row ->
+  fieldPrime -> programLoaded program initial -> tablesLoaded s initial -> FullRelation.satFull row ->
   Replay initial (eventsForRow memories row) final -> callerRow baseDepth row ->
   ControlState program s baseDepth cursor initial (beforeBoundary row) c0 ->
-  exists cursor' c1, Steps c0 c1 /\ ControlState program s baseDepth cursor' final (afterBoundary row) c1.
+  exists cursor' c1, cursorRoot cursor' = cursorRoot cursor /\
+    Steps c0 c1 /\ ControlState program s baseDepth cursor' final (afterBoundary row) c1.
 Proof.
-  intros baseDepth [stack active] initial final row c0 Hprime Hloaded Hfull Hreplay [Hkind [Hhalt Hbase]] Hstate.
+  intros baseDepth [stack active] initial final row c0 Hprime Hloaded Htables Hfull Hreplay [Hkind [Hhalt Hbase]] Hstate.
   pose proof Hstate as Hwhole.
   destruct Hstate as [f [inner [Hactive [Hactivestate [Hsusp [Hbase0 [Hdepth ->]]]]]]].
   cbn [activePosition suspendedCalls] in Hactive, Hactivestate, Hsusp, Hdepth.
@@ -37,10 +46,19 @@ Proof.
   (* Padding stutters in any state. *)
   destruct (Z.eq_dec (row COL_PADDING_ACTIVE) 1) as [Hpadding | Hnotpadding].
   { eapply padding_row; eassumption. }
-  destruct active as [view | function arguments].
-  2: eapply init_row; eassumption.
+  destruct active as [view | view callee | function arguments].
+  3: eapply init_row; eassumption.
+  2: { (* A resolved indirect call: its invocation row runs next. *)
+       cbn [activeFunction] in Hactive.
+       pose proof Hactivestate as [f' [g [i [_ [_ [_ [_ [_ [_ [_ [_ [[Hma Hza] [Hzr [Hmr _]]]]]]]]]]]]]].
+       cbn [beforeBoundary boundaryMoveActive boundaryMoveRemaining boundaryZeroActive boundaryZeroRemaining]
+         in Hma, Hza, Hzr, Hmr.
+       assert (Hprogram : row COL_IS_PROGRAM_ROW = 1).
+       { rewrite Hmr in Hma. rewrite Hmr, Hzr in Hza. cbn in Hma, Hza.
+         destruct Hkind as [Hp | [Hz | [Hq | Hpad]]]; first [exact Hp | lia]. }
+       eapply invoke_row; eassumption. }
   cbn [activeFunction] in Hactive.
-  pose proof Hactivestate as [f' [Hframe [Hoffset [_ [_ [[Hma Hza] [Hzr _]]]]]]].
+  pose proof Hactivestate as [f' [Hframe [Hoffset [_ [Hpc [[Hma Hza] [Hzr _]]]]]]].
   pose proof Hframe as [Hf' _]. rewrite Hactive in Hf'. injection Hf' as <-.
   cbn [beforeBoundary boundaryMoveActive boundaryMoveRemaining boundaryZeroActive boundaryZeroRemaining]
     in Hma, Hza, Hzr.
@@ -52,10 +70,14 @@ Proof.
       destruct Hkind as [Hp | [Hz | [Hq | Hpad]]]; first [exact Hp | lia]. }
   (* A row that stays in the active frame keeps every suspended caller. *)
   assert (Hkeep : RowResult program s initial final row f inner view ->
-      exists cursor' c1, Steps (plugCalls stack inner) c1 /\
+      exists cursor' c1, cursorRoot cursor' = rootFunction stack (positionFunction (viewPosition view)) /\
+        Steps (plugCalls stack inner) c1 /\
         ControlState program s baseDepth cursor' final (afterBoundary row) c1).
   { intros [view' [inner' [Hf' [Hsteps [Hstate' [[Hd [Hb Hfbp]] Heffect]]]]]].
     exists (controlCursor stack (atCode view')), (plugCalls stack inner').
+    split.
+    { change (rootFunction stack (positionFunction (viewPosition view')) = rootFunction stack (positionFunction (viewPosition view))).
+      f_equal. eapply function_index_unique; [exact Hf' | exact Hactive]. }
     split; [eapply steps_in_plug_calls; try exact Hsteps; try eassumption; eapply suspended_stack_ready; eassumption | ].
     exists f, inner'. split; [exact Hf' | ]. split; [exact Hstate' | ].
     split; [ | split; [exact Hbase0 | split; [cbn [afterBoundary boundaryCallDepth suspendedCalls] in *; lia |
@@ -63,20 +85,59 @@ Proof.
     cbn [suspendedCalls afterBoundary boundaryLocalsBase boundaryCallDepth].
     rewrite Hd, Hfbp. eapply frame_effect_suspended; [exact Heffect | exact Hsusp]. }
   destruct (nth_error (innerCode f (viewPosition view)) (positionOffset (viewPosition view))) as [i | ] eqn:Hi.
-  - destruct (view_facts _ _ _ _ _ _ _ _ _ _ Hstore Hvalid Hframe) as [_ [[Hsup _] _]].
+  - (* A return, or a br to the function's label, pops back to its caller; in the
+       base frame it would leave the run. *)
+    assert (Hreturns : returnsFrom (length (positionLabels (viewPosition view))) i ->
+        exists cursor' c1, cursorRoot cursor' = rootFunction stack (positionFunction (viewPosition view)) /\
+        Steps (plugCalls stack inner) c1 /\
+          ControlState program s baseDepth cursor' final (afterBoundary row) c1).
+    { intros Hreturn. destruct stack as [ | top rest].
+      - exfalso. pose proof (Hbase ltac:(cbn in Hdepth; lia)) as Hpop.
+        destruct (return_selected program s view f i initial final row _ Hprime Hloaded Hfull
+          Hprogram Hreplay Hactivestate Hactive Hi Hreturn) as [Hsel Hedge].
+        destruct (full_return_exits row COL_SEL_RETURN Hprime Hfull ltac:(cbn; tauto) Hsel Hedge); lia.
+      - eapply early_return_row; eassumption. }
+    destruct (view_facts _ _ _ _ _ _ _ _ _ _ Hstore Hvalid Hframe) as [_ [[Hsup _] _]].
     rewrite (skipn_at_instruction _ _ _ Hi) in Hsup.
-    destruct (supported_cases _ _ (Forall_inv Hsup)) as [Hop | [[x ->] | [[body ->] | [[l ->] | ->]]]].
+    destruct (supported_cases _ _ (Forall_inv Hsup))
+      as [Hop | [[x ->] | [[bt [body Hlabel]] | [[l ->] | [[l ->] | [[ls [l ->]] | [-> | [[bt [t [e ->]]] |
+        [-> | [-> | [x [y ->]]]]]]]]]]]].
     + apply Hkeep. eapply code_ordinary_row; eassumption.
     + eapply call_row; eassumption.
-    + apply Hkeep. eapply code_block_enter_row; eassumption.
+    + apply Hkeep. eapply code_label_enter_row; try eassumption.
+      destruct Hlabel as [-> | ->]; [left | right]; eauto.
     + apply Hkeep. eapply code_branch_row; eassumption.
-    + (* A return pops back to its caller; in the base frame it would leave the run. *)
-      destruct stack as [ | top rest].
-      * exfalso. pose proof (Hbase ltac:(cbn in Hdepth; lia)) as Hpop.
-        destruct (return_selected program s view f initial final row _ Hprime Hloaded Hfull
-          Hprogram Hreplay Hactivestate Hactive Hi) as [Hsel Hedge].
-        destruct (full_return_exits row COL_SEL_RETURN Hprime Hfull ltac:(cbn; tauto) Hsel Hedge); lia.
-      * eapply early_return_row; eassumption.
+    + destruct (Nat.eq_dec (N.to_nat (l :> N)) (length (positionLabels (viewPosition view)))) as [Hto | Hinside].
+      * apply Hreturns. right. exists l. split; [reflexivity | exact Hto].
+      * apply Hkeep. eapply code_br_row; eassumption.
+    + apply Hkeep. eapply code_br_table_row; eassumption.
+    + apply Hreturns. left. reflexivity.
+    + apply Hkeep. eapply code_if_row; eassumption.
+    + apply Hkeep. eapply code_nop_row; eassumption.
+    + exfalso.
+      pose proof Hframe as [_ [Hpath _]].
+      pose proof (encoded_path_unreachable _ _ _ _ Hloaded Hactive _ _ _ Hpath Hi) as [Hop _].
+      cbn [beforeBoundary boundaryPC] in Hpc. unfold pathPC in Hop. rewrite <- Hpc in Hop.
+      pose proof (circuit_row_opcode_fetch _ _ _ Hreplay Hprogram) as Hfetch.
+      rewrite Hop in Hfetch. injection Hfetch as Hcode.
+      assert (Hsel : row COL_SEL_UNREACHABLE = 1).
+      { apply (full_opcode_selects row COL_SEL_UNREACHABLE CODE_UNREACHABLE Hprime Hfull Hprogram);
+          [vm_compute; reflexivity | symmetry; exact Hcode]. }
+      pose proof (full_unreachable_traps row Hprime Hfull Hsel) as [_ Hfinish]. lia.
+    + (* An indirect call's resolve row: the frame stops at its CALL_ADDR. *)
+      destruct (resolve_row program s Hstore Hwf Hvalid _ _ _ _ _ _ _ _ Hprime Hloaded Htables Hfull Hprogram
+        Hhalt Hreplay Hactivestate Hactive Hi) as [view' [callee [inner' [Hposition [Hsteps [Hstate' [[Hd [Hb Hfbp]]
+          Heffect]]]]]]].
+      exists (controlCursor stack (resolved view' callee)), (plugCalls stack inner').
+      split; [change (rootFunction stack (positionFunction (viewPosition view')) =
+        rootFunction stack (positionFunction (viewPosition view))); rewrite Hposition; reflexivity | ].
+      split; [eapply steps_in_plug_calls; try exact Hsteps; eapply suspended_stack_ready; eassumption | ].
+      exists f, inner'. split; [cbn [activePosition activeFunction]; rewrite Hposition; exact Hactive | ].
+      split; [exact Hstate' | ].
+      split; [ | split; [exact Hbase0 | split; [cbn [afterBoundary boundaryCallDepth suspendedCalls] in *; lia |
+        reflexivity]]].
+      cbn [suspendedCalls afterBoundary boundaryLocalsBase boundaryCallDepth].
+      rewrite Hd, Hfbp. eapply frame_effect_suspended; [exact Heffect | exact Hsusp].
   - apply nth_error_None in Hi.
     assert (Hend : positionOffset (viewPosition view) = length (innerCode f (viewPosition view))) by lia.
     destruct (positionLabels (viewPosition view)) as [ | b more] eqn:Hlabels.
@@ -89,7 +150,7 @@ Proof.
           Hprogram Hreplay Hactivestate Hactive Hlabels Hend) as [HselEnd Hedge].
         destruct (full_return_exits row COL_SEL_END Hprime Hfull ltac:(cbn; tauto) HselEnd Hedge); lia.
       * eapply return_row; eassumption.
-    + apply Hkeep. eapply code_block_end_row; try eassumption. rewrite Hlabels. discriminate.
+    + apply Hkeep. eapply code_arm_end_row; try eassumption. rewrite Hlabels. discriminate.
 Qed.
 
 Lemma rows_final_boundary_app : forall prefix suffix boundary,
@@ -99,22 +160,23 @@ Proof. induction prefix; intros; cbn; auto. Qed.
 
 (* Every row is consumed, over the relational invariant. *)
 Lemma control_run : forall baseDepth cursor rows initial final boundary c0,
-  fieldPrime -> programLoaded program initial -> validCircuitRun initial rows final ->
+  fieldPrime -> programLoaded program initial -> tablesLoaded s initial -> validCircuitRun initial rows final ->
   runFragment boundary baseDepth rows ->
   ControlState program s baseDepth cursor initial boundary c0 ->
-  exists cursor' c1, Steps c0 c1 /\ programLoaded program final /\
+  exists cursor' c1, cursorRoot cursor' = cursorRoot cursor /\
+    Steps c0 c1 /\ programLoaded program final /\
     ControlState program s baseDepth cursor' final (rowsFinalBoundary boundary rows) c1.
 Proof.
   intros baseDepth cursor rows. revert cursor.
-  induction rows as [ | row rows IH]; intros cursor initial final boundary c0 Hprime Hloaded Hrun
+  induction rows as [ | row rows IH]; intros cursor initial final boundary c0 Hprime Hloaded Htables Hrun
     [Hstart Hkinds] Hstate.
   - destruct Hrun as [_ [_ Hreplay]]. inversion Hreplay; subst final.
-    exists cursor, c0. split; [apply steps_refl_wf; eapply control_state_wf; eassumption | ].
+    exists cursor, c0. split; [reflexivity | ]. split; [apply steps_refl_wf; eapply control_state_wf; eassumption | ].
     split; [exact Hloaded | exact Hstate].
   - cbn [runStartsAt] in Hstart. subst boundary.
     destruct (valid_run_head _ _ _ _ Hrun) as [middle [Hfull [Hreplay Htail]]].
-    destruct (control_row baseDepth cursor initial middle row c0 Hprime Hloaded Hfull Hreplay
-      (Forall_inv Hkinds) Hstate) as [cursor1 [c1 [Hsteps1 Hstate1]]].
+    destruct (control_row baseDepth cursor initial middle row c0 Hprime Hloaded Htables Hfull Hreplay
+      (Forall_inv Hkinds) Hstate) as [cursor1 [c1 [Hroot1 [Hsteps1 Hstate1]]]].
     assert (Hsingle : validCircuitRun initial [row] middle).
     { split; [constructor; [exact Hfull | constructor] | ]. split; [constructor | ].
       cbn [eventsForTrace flat_map]. rewrite app_nil_r. exact Hreplay. }
@@ -125,9 +187,10 @@ Proof.
       destruct rows as [ | next rows]; [exact I | ].
       cbn [runStartsAt]. symmetry. apply follows_boundary.
       destruct Hrun as [_ [Hchain _]]. inversion Hchain; subst; assumption. }
-    destruct (IH cursor1 middle final (afterBoundary row) c1 Hprime Hloaded1 Htail Hfragment Hstate1)
-      as [cursor2 [c2 [Hsteps2 [Hloaded2 Hstate2]]]].
-    exists cursor2, c2. split; [eapply spec_steps_transitive; eassumption | ].
+    destruct (IH cursor1 middle final (afterBoundary row) c1 Hprime Hloaded1
+      (run_preserves_tables _ _ _ _ _ Hprime Hloaded Hsingle Htables) Htail Hfragment Hstate1)
+      as [cursor2 [c2 [Hroot2 [Hsteps2 [Hloaded2 Hstate2]]]]].
+    exists cursor2, c2. split; [congruence | ]. split; [eapply spec_steps_transitive; eassumption | ].
     split; [exact Hloaded2 | exact Hstate2].
 Qed.
 
@@ -135,7 +198,7 @@ End Run.
 
 (* Every row is consumed. The run may stop anywhere inside the base frame,
    including inside blocks or calls; the final state resumes the next run. *)
-Theorem run_refinement : forall program s baseDepth (shape : ControlShape) rows initial final boundary c0,
+Theorem active_run_refinement : forall program s baseDepth (shape : ControlShape) rows initial final boundary c0,
   fieldPrime -> programLoaded program initial -> validCircuitRun initial rows final ->
   runFragment boundary baseDepth rows ->
   CircuitConfig program s baseDepth shape initial boundary c0 ->
@@ -143,10 +206,10 @@ Theorem run_refinement : forall program s baseDepth (shape : ControlShape) rows 
     CircuitConfig program s baseDepth shape' final (rowsFinalBoundary boundary rows) c1.
 Proof.
   intros program s baseDepth shape rows initial final boundary c0 Hprime Hloaded Hrun Hfragment Hconfig.
-  pose proof Hconfig as [Hfuncs [Hwf [Hvalid _]]].
-  destruct (circuit_config_state _ _ _ _ _ _ _ Hconfig) as [cursor Hstate].
-  destruct (control_run program s Hfuncs Hwf Hvalid _ _ _ _ _ _ _ Hprime Hloaded Hrun Hfragment Hstate)
-    as [cursor' [c1 [Hsteps [Hloaded' Hstate']]]].
+  pose proof Hconfig as [Hfuncs [Hwf [Hvalid [Htables _]]]].
+  destruct (circuit_config_state _ _ _ _ _ _ _ Hconfig) as [cursor [Hshape Hstate]].
+  destruct (control_run program s Hfuncs Hwf Hvalid _ _ _ _ _ _ _ Hprime Hloaded Htables Hrun Hfragment Hstate)
+    as [cursor' [c1 [Hroot [Hsteps [Hloaded' Hstate']]]]].
   exists (shapeOf cursor'), c1. split; [exact Hsteps | ]. split; [exact Hloaded' | ].
-  apply control_state_circuit; assumption.
+  apply control_state_circuit; try assumption. exact (run_preserves_tables _ _ _ _ _ Hprime Hloaded Hrun Htables).
 Qed.

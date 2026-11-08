@@ -11,7 +11,8 @@ fn imported_memory_requires_verifier_bound_initial_state() {
     let engine = wasmtime::Engine::default();
     let module = wasmtime::Module::new(&engine, &imported).expect("valid module");
     let mut store = wasmtime::Store::new(&engine, ());
-    let memory = wasmtime::Memory::new(&mut store, wasmtime::MemoryType::new(1, None)).expect("memory");
+    let memory_type = wasmtime::MemoryType::new(1, None).expect("memory type");
+    let memory = wasmtime::Memory::new(&mut store, memory_type).expect("memory");
     memory
         .write(&mut store, 0, &7i32.to_le_bytes())
         .expect("initialize memory");

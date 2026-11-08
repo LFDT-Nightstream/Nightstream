@@ -17,7 +17,7 @@ Definition supportedStraightLineProgram (program : list instr) : Prop :=
   Forall (fun instruction => exists code, encodedOpcode instruction = Some code) program.
 
 (* The continuity-linked registers a state between two rows depends on: the
-   active frame, the call depth, and the frame-initialization and frame-move
+   active frame, the call and host depths, and the frame-initialization and frame-move
    countdowns. *)
 Record Boundary := mkBoundary {
   boundaryPC : Z;
@@ -29,18 +29,19 @@ Record Boundary := mkBoundary {
   boundaryMoveRemaining : Z;
   boundaryZeroActive : Z;
   boundaryMoveActive : Z;
-  boundaryMoveDistance : Z
+  boundaryMoveDistance : Z;
+  boundaryHostDepth : Z
 }.
 
 Definition beforeBoundary (w : Witness) : Boundary :=
   mkBoundary (w COL_PC_BEFORE) (w COL_SP_BEFORE) (w COL_STACK_FRAME_BASE_BEFORE) (w COL_LOCALS_FBP_BEFORE)
     (w COL_CALL_STACK_DEPTH_BEFORE) (w COL_LOCAL_ZERO_REMAINING_BEFORE) (w COL_FRAME_MOVE_REMAINING_BEFORE)
-    (w COL_LOCAL_ZERO_ACTIVE_BEFORE) (w COL_FRAME_MOVE_ACTIVE_BEFORE) (w COL_FRAME_MOVE_DISTANCE_BEFORE).
+    (w COL_LOCAL_ZERO_ACTIVE_BEFORE) (w COL_FRAME_MOVE_ACTIVE_BEFORE) (w COL_FRAME_MOVE_DISTANCE_BEFORE) (w COL_HOST_FRAME_DEPTH_BEFORE).
 
 Definition afterBoundary (w : Witness) : Boundary :=
   mkBoundary (w COL_PC_AFTER) (w COL_SP_AFTER) (w COL_STACK_FRAME_BASE_AFTER) (w COL_LOCALS_FBP_AFTER)
     (w COL_CALL_STACK_DEPTH_AFTER) (w COL_LOCAL_ZERO_REMAINING_AFTER) (w COL_FRAME_MOVE_REMAINING_AFTER)
-    (w COL_LOCAL_ZERO_ACTIVE_AFTER) (w COL_FRAME_MOVE_ACTIVE_AFTER) (w COL_FRAME_MOVE_DISTANCE_AFTER).
+    (w COL_LOCAL_ZERO_ACTIVE_AFTER) (w COL_FRAME_MOVE_ACTIVE_AFTER) (w COL_FRAME_MOVE_DISTANCE_AFTER) (w COL_HOST_FRAME_DEPTH_AFTER).
 
 (* No frame initialization or move is pending at this boundary. A finished
    move may leave its distance behind; the next program row clears it. *)

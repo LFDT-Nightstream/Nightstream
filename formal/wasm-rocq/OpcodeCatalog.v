@@ -92,6 +92,7 @@ Definition CODE_CALL : Z := 16%Z.
 Definition CODE_CALL_INDIRECT : Z := 17%Z.
 Definition CODE_RETURN_CALL : Z := 18%Z.
 Definition CODE_RETURN_CALL_INDIRECT : Z := 19%Z.
+Definition CODE_CALL_INDIRECT_RESOLVE : Z := 65520%Z.
 Definition CODE_RETURN : Z := 15%Z.
 Definition CODE_LOCAL_GET : Z := 32%Z.
 Definition CODE_LOCAL_SET : Z := 33%Z.
@@ -147,14 +148,14 @@ Definition selectorCodes : SparseRow :=
    (143%nat, CODE_I64_LOAD8_S);
    (144%nat, CODE_I64_LOAD16_S);
    (145%nat, CODE_I64_LOAD32_S);
-   (295%nat, CODE_I32_WRAP_I64);
-   (296%nat, CODE_I64_EXTEND_I32_U);
-   (297%nat, CODE_I64_EXTEND_I32_S);
-   (298%nat, CODE_I32_EXTEND8_S);
-   (299%nat, CODE_I32_EXTEND16_S);
-   (300%nat, CODE_I64_EXTEND8_S);
-   (301%nat, CODE_I64_EXTEND16_S);
-   (302%nat, CODE_I64_EXTEND32_S);
+   (294%nat, CODE_I32_WRAP_I64);
+   (295%nat, CODE_I64_EXTEND_I32_U);
+   (296%nat, CODE_I64_EXTEND_I32_S);
+   (297%nat, CODE_I32_EXTEND8_S);
+   (298%nat, CODE_I32_EXTEND16_S);
+   (299%nat, CODE_I64_EXTEND8_S);
+   (300%nat, CODE_I64_EXTEND16_S);
+   (301%nat, CODE_I64_EXTEND32_S);
    (79%nat, CODE_MEMORY_SIZE);
    (80%nat, CODE_MEMORY_GROW);
    (81%nat, CODE_TABLE_SIZE);
@@ -207,31 +208,32 @@ Definition selectorCodes : SparseRow :=
    (126%nat, CODE_BR_TABLE);
    (127%nat, CODE_CALL);
    (128%nat, CODE_CALL_INDIRECT);
-   (323%nat, CODE_RETURN_CALL);
-   (324%nat, CODE_RETURN_CALL_INDIRECT);
+   (322%nat, CODE_RETURN_CALL);
+   (323%nat, CODE_RETURN_CALL_INDIRECT);
+   (324%nat, CODE_CALL_INDIRECT_RESOLVE);
    (129%nat, CODE_RETURN);
    (130%nat, CODE_LOCAL_GET);
    (131%nat, CODE_LOCAL_SET);
    (132%nat, CODE_LOCAL_TEE);
    (133%nat, CODE_GLOBAL_GET);
    (134%nat, CODE_GLOBAL_SET);
-   (303%nat, CODE_I64_LT_S);
-   (304%nat, CODE_I64_LT_U);
-   (305%nat, CODE_I64_GT_S);
-   (306%nat, CODE_I64_GT_U);
-   (307%nat, CODE_I64_LE_S);
-   (308%nat, CODE_I64_LE_U);
-   (309%nat, CODE_I64_GE_S);
-   (310%nat, CODE_I64_GE_U);
-   (311%nat, CODE_I64_SHL);
-   (312%nat, CODE_I64_SHR_S);
-   (313%nat, CODE_I64_SHR_U);
-   (314%nat, CODE_I64_ROTL);
-   (315%nat, CODE_I64_ROTR);
-   (316%nat, CODE_I64_DIV_S);
-   (317%nat, CODE_I64_DIV_U);
-   (318%nat, CODE_I64_REM_S);
-   (319%nat, CODE_I64_REM_U);
-   (320%nat, CODE_I64_CLZ);
-   (321%nat, CODE_I64_CTZ);
-   (322%nat, CODE_I64_POPCNT)].
+   (302%nat, CODE_I64_LT_S);
+   (303%nat, CODE_I64_LT_U);
+   (304%nat, CODE_I64_GT_S);
+   (305%nat, CODE_I64_GT_U);
+   (306%nat, CODE_I64_LE_S);
+   (307%nat, CODE_I64_LE_U);
+   (308%nat, CODE_I64_GE_S);
+   (309%nat, CODE_I64_GE_U);
+   (310%nat, CODE_I64_SHL);
+   (311%nat, CODE_I64_SHR_S);
+   (312%nat, CODE_I64_SHR_U);
+   (313%nat, CODE_I64_ROTL);
+   (314%nat, CODE_I64_ROTR);
+   (315%nat, CODE_I64_DIV_S);
+   (316%nat, CODE_I64_DIV_U);
+   (317%nat, CODE_I64_REM_S);
+   (318%nat, CODE_I64_REM_U);
+   (319%nat, CODE_I64_CLZ);
+   (320%nat, CODE_I64_CTZ);
+   (321%nat, CODE_I64_POPCNT)].

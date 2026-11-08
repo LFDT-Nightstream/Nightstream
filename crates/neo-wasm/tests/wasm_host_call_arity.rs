@@ -310,3 +310,65 @@ fn gather_row_rejects_switched_callee_attribution() {
     witness[neo_wasm::layout::COL_HOST_CALLEE_FREF_AFTER] += neo_math::F::ONE;
     common::assert_rejected(&witness, "arg gather row switching the callee attribution");
 }
+
+/// A host call whose continuation is an indirect call resumes at the indirect
+/// call's first row, its resolve step, which pops the host result as the index.
+fn host_index_then(indirect_call: &str) -> CheckedImportRun {
+    let template = ImportTemplate {
+        return_events: None,
+        events: vec![EventBlock::op(
+            5,
+            slots(&[
+                (0, SlotBinding::ResultElem { limb: Limb::Lo }),
+                (1, SlotBinding::ResultElem { limb: Limb::Hi }),
+            ]),
+        )],
+        input_count: 0,
+    };
+    let component = format!(
+        r#"
+        (component
+          (type $host-index (func (result s32)))
+          (type $run-type (func (result s32)))
+          (import "host-index" (func $host-index (type $host-index)))
+          (core module $m
+            (type $index-ty (func (result i32)))
+            (import "" "0" (func $host-index-core (type $index-ty)))
+            (table 1 funcref)
+            (elem (i32.const 0) func $seven)
+            (func (export "run") (result i32)
+              call $host-index-core
+              {indirect_call} (type $index-ty))
+            (func $seven (type $index-ty) i32.const 7))
+          (core func $lowered (canon lower (func $host-index)))
+          (core instance $lowered-host
+            (export "0" (func $lowered)))
+          (core instance $i
+            (instantiate $m
+              (with "" (instance $lowered-host))))
+          (alias core export $i "run" (core func $run))
+          (func (export "run") (type $run-type)
+            (canon lift (core func $run))))
+        "#
+    );
+    checked_import_run(&component, template, |linker| {
+        linker
+            .root()
+            .func_wrap("host-index", |_store, (): ()| Ok((0,)))
+            .map_err(|err| WasmBuildError::Trace(format!("failed to define component import: {err}")))
+    })
+}
+
+#[test]
+fn host_call_resumes_at_an_adjacent_call_indirect() {
+    let run = host_index_then("call_indirect");
+    let final_output = run.trace.last().expect("final row").state_after.output;
+    assert_eq!(final_output.value_lo, 7);
+}
+
+#[test]
+fn host_call_resumes_at_an_adjacent_return_call_indirect() {
+    let run = host_index_then("return_call_indirect");
+    let final_output = run.trace.last().expect("final row").state_after.output;
+    assert_eq!(final_output.value_lo, 7);
+}

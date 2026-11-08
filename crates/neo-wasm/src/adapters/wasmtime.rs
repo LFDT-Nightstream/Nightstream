@@ -68,7 +68,6 @@ pub struct WasmtimeTraceStep {
     pub current_function_ref: Option<u32>,
     pub target_function_is_guest: bool,
     pub function_type_id: Option<u32>,
-    pub call_indirect_type_index: Option<u32>,
     pub expected_type_id: Option<u32>,
     pub call_param_count: Option<u8>,
     pub call_result_count: Option<u8>,

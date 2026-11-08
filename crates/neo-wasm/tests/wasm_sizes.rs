@@ -105,7 +105,6 @@ fn the_starstream_test_transactions_fit_small_or_medium() {
         function,
         event,
         slot: 3,
-        module_type: 4,
         stack: 5,
         linear_memory,
         global,

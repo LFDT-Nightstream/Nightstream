@@ -5,6 +5,7 @@ From mathcomp Require Import ssrbool eqtype.
 Require Import R1CS Columns Range MemoryTrace MemoryCatalog OpcodeCatalog TraceRefinement Wasm2 WasmIntegers Locals
   SpecTecCalls StraightLineSpec CallerSpec CallerValidation ProgramSpec ProgramEncoding ProgramRefinement
   FunctionValidation CodeLayout ControlDecode Fragment tests.BlockPrograms.
+Require Import TableState.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -88,8 +89,8 @@ Proof.
   - intros [ | [ | index]] g Hg; cbn in Hg; [injection Hg as <- .. | destruct index; discriminate].
     + split; [repeat constructor | vm_compute; tauto].
     + split; [ | vm_compute; tauto]. constructor; [ | constructor; [constructor | constructor]].
-      apply supported_block. constructor; [ | constructor].
-      apply supported_block. constructor; [ | constructor; [constructor | constructor]].
+      apply supported_block; [ | left; reflexivity]. constructor; [ | constructor].
+      apply supported_block; [ | left; reflexivity]. constructor; [ | constructor; [constructor | constructor]].
       apply supported_call with (f := blockGuest 0 [LOCAL_GET (mk_uN 0)] 0); [reflexivity | cbn; lia | cbn; lia].
 Qed.
 
@@ -109,8 +110,8 @@ Definition zeroFrame := MKframe [i32Value 0] blockModule.
    caller's local.set waits inside the inner label and its local.get after both. *)
 Example block_suspended_call_decodes :
   option_map fst (decodeControl blockProgram blockStore 0
-    (controlShape [codePosition 1 [0; 0]%nat 0] (siteCode (codePosition 0 [] 0)))
-    blockMemory (mkBoundary 0 9 9 8 1 0 0 0 0 0)) =
+    (controlShape [codePosition 1 [labelSite 0 0; labelSite 0 0] 0] (siteCode (codePosition 0 [] 0)))
+    blockMemory (mkBoundary 0 9 9 8 1 0 0 0 0 0 0)) =
   Some (mk_config (mk_state blockStore callerFrame)
     [LABEL_ 0%N [] [LABEL_ 0%N []
       [FRAME_ 1%N zeroFrame [LABEL_ 1%N [] [admininstr_instr (LOCAL_GET (mk_uN 0))]];
@@ -121,27 +122,27 @@ Proof. vm_compute. reflexivity. Qed.
 (* A return pc off the CALL's successor does not decode. *)
 Example block_wrong_return_rejected :
   decodeControl blockProgram blockStore 0
-    (controlShape [codePosition 1 [0; 0]%nat 0] (siteCode (codePosition 0 [] 0)))
-    (update blockMemory callStackReturnPcId [0] 8) (mkBoundary 0 9 9 8 1 0 0 0 0 0) = None.
+    (controlShape [codePosition 1 [labelSite 0 0; labelSite 0 0] 0] (siteCode (codePosition 0 [] 0)))
+    (update blockMemory callStackReturnPcId [0] 8) (mkBoundary 0 9 9 8 1 0 0 0 0 0 0) = None.
 Proof. vm_compute. reflexivity. Qed.
 
 Example block_initial_config :
   CircuitConfig blockProgram blockStore 0 (controlShape [] (siteCode (codePosition 1 [] 0)))
-    blockMemory (mkBoundary 2 8 8 7 0 0 0 0 0 0) (stackConfig (mk_state blockStore callerFrame) [] callerBody).
+    blockMemory (mkBoundary 2 8 8 7 0 0 0 0 0 0 0) (stackConfig (mk_state blockStore callerFrame) [] callerBody).
 Proof.
-  split; [reflexivity | ]. split; [repeat constructor | ]. split; [exact block_program_validated | ].
+  split; [reflexivity | ]. split; [repeat constructor | ]. split; [exact block_program_validated | ]. split; [apply no_tables_loaded; reflexivity | ].
   exists True. split; [vm_compute; reflexivity | exact I].
 Qed.
 
 (* Any run of the caller's rows refines SpecTec, into both blocks, through the call and out. *)
 Example block_program_refines : forall rows final,
   fieldPrime -> validCircuitRun blockMemory rows final ->
-  runFragment (mkBoundary 2 8 8 7 0 0 0 0 0 0) 0 rows ->
+  runFragment (mkBoundary 2 8 8 7 0 0 0 0 0 0 0) 0 rows ->
   exists shape c, Steps (stackConfig (mk_state blockStore callerFrame) [] callerBody) c /\
     programLoaded blockProgram final /\
-    CircuitConfig blockProgram blockStore 0 shape final (rowsFinalBoundary (mkBoundary 2 8 8 7 0 0 0 0 0 0) rows) c.
+    CircuitConfig blockProgram blockStore 0 shape final (rowsFinalBoundary (mkBoundary 2 8 8 7 0 0 0 0 0 0 0) rows) c.
 Proof.
   intros rows final Hprime Hrun Hfragment.
-  exact (run_refinement blockProgram blockStore 0 _ rows blockMemory final _ _ Hprime
+  exact (active_run_refinement blockProgram blockStore 0 _ rows blockMemory final _ _ Hprime
     (load_program_loaded _ _) Hrun Hfragment block_initial_config).
 Qed.

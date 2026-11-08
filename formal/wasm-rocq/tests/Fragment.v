@@ -3,27 +3,35 @@ From Stdlib Require Import List ZArith Lia.
 Require Import Wasm2 CallerSpec Fragment.
 Import ListNotations.
 
-Definition noCallees : CalleeEnvironment := fun _ => None.
+Definition noCallees : CalleeEnvironment := calleeEnvironment (fun _ => None) [] [] True.
 
-Example nop_rejected : forall callees, ~ Supported callees NOP.
-Proof. intros callees H. inversion H. Qed.
+Example unreachable_supported : forall callees, Supported callees UNREACHABLE.
+Proof. intros; constructor. Qed.
 
 Example nested_block_supported :
   Supported noCallees (BLOCK (_RESULT None) [BLOCK (_RESULT None) [LOCAL_GET (mk_uN 0); BR_IF (mk_uN 1)]]).
 Proof. repeat constructor. Qed.
 
 (* The call metadata holds the parameter count in one byte. *)
-Example wide_call_rejected : forall callees x f, callees (x :> N) = Some f -> guestParams f = 256%nat ->
+Example wide_call_rejected : forall (callees : CalleeEnvironment) x f, callees (x :> N) = Some f -> guestParams f = 256%nat ->
   ~ Supported callees (CALL x).
 Proof.
-  intros callees x f Hf Hparams H. inversion H as [ | | | | ? g Hg Hp _ | | | ]; subst.
+  intros callees x f Hf Hparams H. inversion H as [ | | | | ? g Hg Hp _ | | | | | | | | | | ]; subst.
   rewrite Hf in Hg. injection Hg as <-. lia.
 Qed.
 
-Example result_block_rejected : forall callees body, ~ Supported callees (BLOCK (_RESULT (Some valtype_I32)) body).
-Proof. intros callees body H. inversion H. Qed.
+Example result_block_supported :
+  Supported noCallees (BLOCK (_RESULT (Some valtype_I32)) [LOCAL_GET (mk_uN 0)]).
+Proof. apply supported_block; [repeat constructor | right; reflexivity]. Qed.
 
-(* Branches leave blocks, never the function. *)
+(* Blocks hold at most one i32 result and take no parameters. *)
+Example i64_block_rejected : forall callees body, ~ Supported callees (BLOCK (_RESULT (Some valtype_I64)) body).
+Proof. intros callees body H. inversion H as [ | | | | | ? ? _ [Hr | Hr] | | | | | | | | | ]; discriminate. Qed.
+
+Example typed_block_rejected : forall callees x body, ~ Supported callees (BLOCK (_IDX x) body).
+Proof. intros callees x body H. inversion H. Qed.
+
+(* A br_if or br_table leaves blocks, never the function. *)
 Example br_if_outside_block_rejected : ~ codeBranches noCallees 0 [LOCAL_GET (mk_uN 0); BR_IF (mk_uN 0)] 0.
 Proof. intros H. vm_compute in H. intuition lia. Qed.
 
@@ -46,6 +54,30 @@ Proof. vm_compute. repeat split; lia. Qed.
 
 Example outer_branch_above_value : codeBranches noCallees 0 (aboveValue 1) 0.
 Proof. vm_compute. repeat split; lia. Qed.
+
+(* A br leaves an enclosing block; code after it is dead. *)
+Example br_out_of_block : codeBranches noCallees 0 [BLOCK (_RESULT None) [BR (mk_uN 0); LOCAL_SET (mk_uN 0)]] 0.
+Proof. vm_compute. repeat split; lia. Qed.
+
+(* A br may leave the function's own label, as a return; nothing lies beyond it. *)
+Example br_to_function : codeBranches noCallees 0 [BLOCK (_RESULT None) [BR (mk_uN 1)]] 0.
+Proof. vm_compute. repeat split; lia. Qed.
+
+Example br_past_function_rejected : ~ codeBranches noCallees 0 [BLOCK (_RESULT None) [BR (mk_uN 2)]] 0.
+Proof. intros H. vm_compute in H. intuition lia. Qed.
+
+(* Every br_table target leaves an enclosing block. *)
+Example br_table_out_of_block :
+  codeBranches noCallees 0 [BLOCK (_RESULT None) [LOCAL_GET (mk_uN 0); BR_TABLE [mk_uN 0] (mk_uN 0)]] 0.
+Proof. vm_compute. repeat match goal with |- _ /\ _ => split | |- Forall _ _ => constructor | |- _ => lia end. Qed.
+
+Example br_table_to_function_rejected :
+  ~ codeBranches noCallees 0 [BLOCK (_RESULT None) [LOCAL_GET (mk_uN 0); BR_TABLE [mk_uN 1] (mk_uN 0)]] 0.
+Proof.
+  intros H. vm_compute in H.
+  repeat match goal with H : _ /\ _ |- _ => destruct H | H : Forall _ (_ :: _) |- _ => inversion H; clear H end.
+  lia.
+Qed.
 
 Definition unwindingBody :=
   [LOCAL_GET (mk_uN 0); LOCAL_GET (mk_uN 1); BR_IF (mk_uN 0); LOCAL_SET (mk_uN 0)].

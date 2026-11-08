@@ -26,6 +26,15 @@ Lemma label_context_locals : forall results C,
   context_LOCALS (labelContext results C) = context_LOCALS C.
 Proof. reflexivity. Qed.
 
+(* A module's context holds its types, and a table type per table. *)
+Lemma module_context_tables : forall s m C,
+  Moduleinst_ok s m C -> context_TYPES C = TYPES m /\ length (context_TABLES C) = length (TABLES m).
+Proof.
+  intros s m C H. inversion H; subst. split; [reflexivity | ]. cbn.
+  match goal with Hf : Forall2 (fun (_ : tableaddr) (_ : tabletype) => _) _ _ |- _ =>
+    symmetry; exact (Forall2_length Hf) end.
+Qed.
+
 Lemma module_context_locals : forall s m C,
   Moduleinst_ok s m C -> context_LOCALS C = [].
 Proof. intros s m C H; inversion H; reflexivity. Qed.
@@ -98,4 +107,42 @@ Proof.
     destruct (forall2_lookup _ _ _ _ _ Hp _ _ Haddress) as [ft [Htype Hextern]] end.
   destruct (extern_function_lookup _ _ _ Hextern) as [actual [Hactual Heq]].
   rewrite Hfunction in Hactual. injection Hactual as <-. injection Heq as ->. exact Htype.
+Qed.
+
+Lemma externaddr_table_bound : forall s a t, Externaddr_ok s a t ->
+  match a with externaddr_TABLE address => (N.to_nat address < length (store_TABLES s))%nat | _ => True end.
+Proof.
+  intros s a t H. induction H; try exact I; [ | exact IHExternaddr_ok].
+  apply N.ltb_lt in H. change (a < N.of_nat (length (store_TABLES s)))%N in H. lia.
+Qed.
+
+(* A module's table addresses name tables of the store. *)
+Lemma module_table_in_store : forall s m C k ta,
+  Moduleinst_ok s m C -> nth_error (TABLES m) k = Some ta -> (N.to_nat ta < length (store_TABLES s))%nat.
+Proof.
+  intros s m C k ta H Hta. inversion H; subst. cbn [TABLES] in Hta.
+  match goal with Hf : List.Forall2 (fun (_ : tableaddr) (_ : tabletype) => _) _ _ |- _ =>
+    destruct (forall2_lookup _ _ _ _ _ Hf _ _ Hta) as [tt [_ Hok]] end.
+  exact (externaddr_table_bound _ _ _ Hok).
+Qed.
+
+(* A function's type is one of its module's types. *)
+Lemma function_type_in_module : forall s m ti p r l body,
+  Funcinst_ok s (i32Function m ti p r l body) (i32StackType p r) -> In (i32StackType p r) (TYPES m).
+Proof.
+  intros s m ti p r l body Hinst.
+  inversion Hinst as [s' ft m' code C Hft HC Hcode]; subst.
+  destruct (module_context_tables _ _ _ HC) as [Htypes _]. rewrite <- Htypes.
+  inversion Hcode; subst.
+  match goal with He : is_true (_ == mk_functype _ _) |- _ => apply (elimT eqP) in He; rename He into Hlookup end.
+  match goal with Hb : is_true (N.ltb _ (N.of_nat (seq.size (context_TYPES C)))) |- _ =>
+    apply N.ltb_lt in Hb; rename Hb into Hbound end.
+  assert (Hsize : forall (A : Type) (xs : list A), seq.size xs = length xs)
+    by (intros A xs; induction xs as [ | z xs IH]; [reflexivity | cbn; rewrite IH; reflexivity]).
+  rewrite Hsize in Hbound.
+  match type of Hlookup with @lookup_total _ _ _ ?index = ?t =>
+    destruct (nth_error (context_TYPES C) (N.to_nat index)) as [u | ] eqn:Hu;
+    [ | apply nth_error_None in Hu; lia];
+    rewrite (spec_lookup_from_nth_error _ _ _ _ _ Hu) in Hlookup; subst u;
+    exact (nth_error_In _ _ Hu) end.
 Qed.

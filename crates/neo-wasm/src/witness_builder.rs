@@ -8,9 +8,9 @@ use super::gadgets::unsigned_ge_witness;
 use super::ir::{pack_function_call_metadata, WasmHostEventSlotKind, WasmRowKind, WasmVmStep};
 use super::layout::{
     selector_col, COL_ACTIVATION_FINISHED_AFTER, COL_ACTIVATION_FINISHED_BEFORE, COL_CALL_INDIRECT_IS_NOT_TRAP,
-    COL_CALL_INDIRECT_IS_TRAP, COL_CALL_INDIRECT_TYPE_INDEX, COL_CALL_PARAM_COUNT, COL_CALL_RESULT_COUNT,
-    COL_CALL_STACK_ADDR, COL_CALL_STACK_CALLER_FBP_VALUE, COL_CALL_STACK_CALLER_SP_BASE_VALUE,
-    COL_CALL_STACK_DEPTH_AFTER, COL_CALL_STACK_DEPTH_BEFORE, COL_CALL_STACK_POP_PRESENT, COL_CALL_STACK_PUSH_PRESENT,
+    COL_CALL_INDIRECT_IS_TRAP, COL_CALL_PARAM_COUNT, COL_CALL_RESULT_COUNT, COL_CALL_STACK_ADDR,
+    COL_CALL_STACK_CALLER_FBP_VALUE, COL_CALL_STACK_CALLER_SP_BASE_VALUE, COL_CALL_STACK_DEPTH_AFTER,
+    COL_CALL_STACK_DEPTH_BEFORE, COL_CALL_STACK_POP_PRESENT, COL_CALL_STACK_PUSH_PRESENT,
     COL_CALL_STACK_RETURN_PC_VALUE, COL_CALL_TARGET_METADATA, COL_CI_ENTRY_IS_NULL, COL_CI_HOST_CALL, COL_CI_OOB,
     COL_CI_TYPE_EQ, COL_CMP_GE, COL_CMP_LOW, COL_COMM_CHAIN_AFTER, COL_COMM_CHAIN_BEFORE, COL_CONTROL_CHOICE,
     COL_CURRENT_FUNCTION_REF, COL_DIV_DIVIDEND_IS_MIN, COL_DIV_DIVISOR_IS_NEG1, COL_DIV_DIVISOR_IS_ZERO,
@@ -307,9 +307,7 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Result<Vec<F>, super::ir::Was
     };
     wit[COL_TABLE_READ_ENABLED] = if matches!(
         trace.opcode,
-        super::isa::WasmOpcode::TableGet
-            | super::isa::WasmOpcode::CallIndirect
-            | super::isa::WasmOpcode::ReturnCallIndirect
+        super::isa::WasmOpcode::TableGet | super::isa::WasmOpcode::CallIndirectResolve
     ) {
         F::ONE
     } else {
@@ -321,8 +319,7 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Result<Vec<F>, super::ir::Was
         super::isa::WasmOpcode::TableSize
             | super::isa::WasmOpcode::TableGet
             | super::isa::WasmOpcode::TableSet
-            | super::isa::WasmOpcode::CallIndirect
-            | super::isa::WasmOpcode::ReturnCallIndirect
+            | super::isa::WasmOpcode::CallIndirectResolve
     ) {
         F::ONE
     } else {
@@ -826,24 +823,21 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Result<Vec<F>, super::ir::Was
     if let Some(function_type_id) = trace.function_type_id {
         wit[COL_FUNCTION_TYPE_ID] = F::from_u64(u64::from(function_type_id));
     }
-    if let Some(type_index) = trace.call_indirect_type_index {
-        wit[COL_CALL_INDIRECT_TYPE_INDEX] = F::from_u64(u64::from(type_index));
-    }
     if let Some(expected_type_id) = trace.expected_type_id {
         wit[COL_EXPECTED_TYPE_ID] = F::from_u64(u64::from(expected_type_id));
     }
 
-    // Mirror the CCS call_indirect trap gates (OOB index / null table entry /
+    // Mirror the CCS resolve-step trap gates (OOB index / null table entry /
     // callee type mismatch) and the derived read-activation gates. Placed
     // after the table/type columns above, which the comparison and zero tests
     // read.
-    let sel_call_indirect = wit[selector_col(super::isa::WasmOpcode::CallIndirect).expect("call_indirect selector")]
-        + wit[selector_col(super::isa::WasmOpcode::ReturnCallIndirect).expect("return_call_indirect selector")];
-    let sel_table_index = sel_call_indirect
+    let sel_resolve =
+        wit[selector_col(super::isa::WasmOpcode::CallIndirectResolve).expect("call_indirect resolve selector")];
+    let sel_table_index = sel_resolve
         + wit[selector_col(super::isa::WasmOpcode::TableGet).expect("table.get selector")]
         + wit[selector_col(super::isa::WasmOpcode::TableSet).expect("table.set selector")];
     // ge = (table_index >= table_size). table.get/table.set require ge = 0;
-    // call_indirect turns ge into its modeled OOB trap.
+    // the resolve step turns ge into its modeled OOB trap.
     if sel_table_index == F::ONE {
         let (cmp_low, cmp_ge) = unsigned_ge_witness(
             trace
@@ -858,7 +852,7 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Result<Vec<F>, super::ir::Was
         wit[COL_CMP_LOW] = cmp_low;
         wit[COL_CMP_GE] = cmp_ge;
     }
-    let ci_oob = sel_call_indirect * wit[COL_CMP_GE];
+    let ci_oob = sel_resolve * wit[COL_CMP_GE];
     wit[COL_CI_OOB] = ci_oob;
     // No table entry exists at an OOB index: the entry read is de-gated.
     wit[COL_TABLE_READ_ENABLED] -= ci_oob;
@@ -868,16 +862,18 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Result<Vec<F>, super::ir::Was
     CALL_INDIRECT_TYPE_ZERO_TEST.assign(&mut wit);
     let type_eq = wit[COL_CI_TYPE_EQ];
 
-    // A call_indirect is clean exactly when it has a live non-null table entry
+    // A resolve step is clean exactly when it has a live non-null table entry
     // and that entry's callee type matches the instruction's expected type.
-    let ci_type_lookup = (sel_call_indirect - ci_oob) * (F::ONE - entry_is_null);
-    let ci_trap = sel_call_indirect - (ci_type_lookup * type_eq);
+    let ci_type_lookup = (sel_resolve - ci_oob) * (F::ONE - entry_is_null);
+    let ci_trap = sel_resolve - (ci_type_lookup * type_eq);
     wit[COL_CALL_INDIRECT_IS_TRAP] = ci_trap;
     wit[COL_FUNCTION_CALL_TYPE_LOOKUP_GATE] = ci_type_lookup;
-    wit[COL_CALL_INDIRECT_IS_NOT_TRAP] = sel_call_indirect * (F::ONE - ci_trap);
+    wit[COL_CALL_INDIRECT_IS_NOT_TRAP] = sel_resolve * (F::ONE - ci_trap);
     // Indirect host call: binds pc_after through the call site's return-pc
     // pc-ROM slot, so it pins the same choice a guest push would use.
-    wit[COL_CI_HOST_CALL] = wit[COL_CALL_INDIRECT_IS_NOT_TRAP] * (F::ONE - wit[COL_TARGET_FUNCTION_IS_GUEST]);
+    let sel_indirect_call = wit[selector_col(super::isa::WasmOpcode::CallIndirect).expect("call_indirect selector")]
+        + wit[selector_col(super::isa::WasmOpcode::ReturnCallIndirect).expect("return_call_indirect selector")];
+    wit[COL_CI_HOST_CALL] = sel_indirect_call * (F::ONE - wit[COL_TARGET_FUNCTION_IS_GUEST]);
     if wit[COL_CI_HOST_CALL] == F::ONE {
         wit[COL_PC_ROM_CALL_RETURN_CHOICE] = F::from_u64(PC_ROM_CALL_RETURN_CHOICE);
     }
@@ -1056,7 +1052,8 @@ fn fill_event_absorb(wit: &mut [F], trace: &WasmVmStep) {
     );
     let host_call_gate = wit[selector_col(super::isa::WasmOpcode::Call).expect("call selector")]
         + wit[selector_col(super::isa::WasmOpcode::ReturnCall).expect("return_call selector")]
-        + wit[COL_CALL_INDIRECT_IS_NOT_TRAP]
+        + wit[selector_col(super::isa::WasmOpcode::CallIndirect).expect("call_indirect selector")]
+        + wit[selector_col(super::isa::WasmOpcode::ReturnCallIndirect).expect("return_call_indirect selector")]
         - wit[COL_GUEST_ENTRY_ACTIVE];
     wit[crate::layout::COL_HOST_CALL_ACTIVE] = host_call_gate;
     wit[COL_GATHER_LOCAL_WRITE] = if trace.row_kind.is_host_event_gather()

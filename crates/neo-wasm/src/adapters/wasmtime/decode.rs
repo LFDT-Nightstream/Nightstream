@@ -11,6 +11,7 @@ use crate::isa::WasmOpcode;
 
 #[derive(Clone, Debug)]
 pub(crate) struct DecodedOpcode {
+    /// The first pc of the instruction's rows: an indirect call's resolve step.
     pub(crate) pc: u32,
     pub(crate) text: String,
     pub(crate) memory: Option<DecodedMemoryOpcode>,
@@ -18,7 +19,6 @@ pub(crate) struct DecodedOpcode {
     pub(crate) decoded: Option<(WasmOpcode, Option<u32>)>,
     pub(crate) control: Option<DecodedControlOpcode>,
     pub(crate) pc_edge_kind: WasmPcEdgeKind,
-    pub(crate) call_indirect_type_index: Option<u32>,
     pub(crate) expected_type_id: Option<u32>,
     /// Dense PC immediately after this instruction. For `call`
     /// this is the return PC; for branches it is the linear successor.

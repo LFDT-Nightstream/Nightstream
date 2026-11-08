@@ -90,7 +90,6 @@ fn step(
         function_ref: None,
         target_function_is_guest: false,
         function_type_id: None,
-        call_indirect_type_index: None,
         expected_type_id: None,
         table_size: None,
         call_param_count: None,

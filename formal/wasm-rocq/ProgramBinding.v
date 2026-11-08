@@ -169,3 +169,24 @@ Proof.
   apply Z.mod_divide in Hsat; [ | unfold modulus; lia].
   destruct Hsat as [k Hk]. unfold modulus in *; lia.
 Qed.
+
+(* A br_table reads its arm count from the program's table-length ROM. *)
+Definition brTableLenPort : PortSpec :=
+  mkPort [COL_PC_BEFORE] COL_BR_TABLE_LEN Read (When COL_SEL_BR_TABLE).
+
+Lemma circuit_row_br_table_len_fetch : forall initial final (w : Witness),
+  Replay initial (eventsForRow MemoryCatalog.memories w) final ->
+  w COL_SEL_BR_TABLE = 1 ->
+  initial MemoryCatalog.programBrTableLenId [w COL_PC_BEFORE] = Some (w COL_BR_TABLE_LEN).
+Proof.
+  intros initial final w Hreplay Hactive.
+  eapply replay_read_from_initial; [exact Hreplay | apply read_only_row; vm_compute; reflexivity | ].
+  eapply port_event_in_row with
+    (specification := nth MemoryCatalog.programBrTableLenId MemoryCatalog.memories (mkMemory 0%nat Rom []))
+    (port := brTableLenPort).
+  - apply nth_In. vm_compute. lia.
+  - change (In brTableLenPort
+      (ports (nth MemoryCatalog.programBrTableLenId MemoryCatalog.memories (mkMemory 0%nat Rom [])))).
+    left. reflexivity.
+  - unfold portEvent, active, brTableLenPort. simpl. rewrite Hactive. reflexivity.
+Qed.

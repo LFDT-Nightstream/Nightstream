@@ -103,7 +103,6 @@ struct NormalizedStep {
     function_type_id: Option<u32>,
     call_param_count: Option<u8>,
     call_result_count: Option<u8>,
-    call_indirect_type_index: Option<u32>,
     expected_type_id: Option<u32>,
     memory_pages_before: Option<u32>,
     memory_pages_after: Option<u32>,
@@ -150,7 +149,9 @@ fn normalize_step(row: &WasmtimeTraceStep) -> Result<Option<NormalizedStep>, Was
     let operand_stack = row.operand_stack_words.clone();
     let operand_stack_hi = row.operand_stack_words_hi.clone();
     let code = opcode_code(opcode);
-    // Call rows pop only the indirect table index, if any. Guest args stay in
+    // Call rows pop only the indirect table index, if any (the split into a
+    // resolve step and an invocation then turns it into the checked function
+    // reference the invocation pops). Guest args stay in
     // place as the callee's params; host args are read by gather rows and
     // host results are pushed by a host-result aux row.
     let (stack_reads_override, stack_writes_override) = match opcode {
@@ -290,7 +291,6 @@ fn normalize_step(row: &WasmtimeTraceStep) -> Result<Option<NormalizedStep>, Was
         function_type_id: row.function_type_id,
         call_param_count: row.call_param_count,
         call_result_count: row.call_result_count,
-        call_indirect_type_index: row.call_indirect_type_index,
         expected_type_id: row.expected_type_id,
         memory_pages_before,
         memory_pages_after,
@@ -480,12 +480,6 @@ pub(crate) fn capture_frame<T>(
             .map_or((None, None), |(params, results)| (Some(params), Some(results))),
         _ => (None, None),
     };
-    let call_indirect_type_index = match opcode_decoded {
-        Some(WasmOpcode::CallIndirect | WasmOpcode::ReturnCallIndirect) => decoded_opcode
-            .as_ref()
-            .and_then(|d| d.call_indirect_type_index),
-        _ => None,
-    };
     let (memory_pages_before, memory_pages_after) = match opcode_decoded {
         Some(WasmOpcode::MemorySize) => {
             let pages = memory_pages_now.ok_or_else(|| {
@@ -552,7 +546,6 @@ pub(crate) fn capture_frame<T>(
         target_function_is_guest: function_ref
             .is_some_and(|function_ref| function_ref > tables.artifacts.trace.imported_function_count),
         function_type_id,
-        call_indirect_type_index,
         expected_type_id: decoded_opcode.as_ref().and_then(|d| d.expected_type_id),
         call_param_count,
         call_result_count,

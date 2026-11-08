@@ -423,7 +423,7 @@ fn split_import_preserves_caller_arguments_across_callbacks() {
             .memory
             .entries();
         let ports: Vec<_> = memories.iter().flat_map(|memory| &memory.ports).collect();
-        let slots = neo_wasm::plan_wasm_memory_slots(memories);
+        let slots = neo_wasm::plan_ordered_wasm_memory_slots(memories);
         let peak = witnesses
             .iter()
             .map(|w| {

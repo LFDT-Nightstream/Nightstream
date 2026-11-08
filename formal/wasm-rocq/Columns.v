@@ -174,142 +174,142 @@ Definition COL_CALL_PARAM_COUNT : nat := 167%nat.
 Definition COL_CALL_RESULT_COUNT : nat := 168%nat.
 Definition COL_TARGET_FUNCTION_IS_GUEST : nat := 169%nat.
 Definition COL_CALL_TARGET_METADATA : nat := 170%nat.
-Definition COL_CALL_INDIRECT_TYPE_INDEX : nat := 171%nat.
-Definition COL_FUNCTION_TYPE_ID : nat := 172%nat.
-Definition COL_EXPECTED_TYPE_ID : nat := 173%nat.
-Definition COL_MEMORY_PAGES_BEFORE : nat := 174%nat.
-Definition COL_MEMORY_PAGES_AFTER : nat := 175%nat.
-Definition COL_MAX_MEMORY_PAGES_BEFORE : nat := 176%nat.
-Definition COL_MAX_MEMORY_PAGES_AFTER : nat := 177%nat.
-Definition COL_STACK_READ_ADDR_LO : list nat := [178%nat; 179%nat; 180%nat].
-Definition COL_STACK_READ_ADDR_HI : list nat := [181%nat; 182%nat; 183%nat].
-Definition COL_STACK_READ_VALUE_LO : list nat := [184%nat; 185%nat; 186%nat].
-Definition COL_STACK_READ_VALUE_HI : list nat := [187%nat; 188%nat; 189%nat].
-Definition COL_STACK_WRITE0_ADDR_LO : nat := 190%nat.
-Definition COL_STACK_WRITE0_ADDR_HI : nat := 191%nat.
-Definition COL_STACK_WRITE0_VALUE_LO : nat := 192%nat.
-Definition COL_STACK_WRITE0_VALUE_HI : nat := 193%nat.
-Definition COL_WIDE_AUX0 : nat := 194%nat.
-Definition COL_WIDE_AUX1 : nat := 195%nat.
-Definition COL_LINEAR_MEM_IMM_OFFSET : nat := 196%nat.
-Definition COL_LINEAR_MEM_BYTE_OFFSET : nat := 197%nat.
-Definition COL_LINEAR_MEM_USE_LANE1 : nat := 198%nat.
-Definition COL_LINEAR_MEM_USE_LANE2 : nat := 199%nat.
-Definition COL_LINEAR_MEM_USE_LANE0 : nat := 200%nat.
-Definition COL_LINEAR_MEM_LANE_LOAD_ACTIVE : list nat := [201%nat; 202%nat; 203%nat].
-Definition COL_LINEAR_MEM_LANE_STORE_ACTIVE : list nat := [204%nat; 205%nat; 206%nat].
-Definition COL_LINEAR_MEM_LANE_ADDR : list nat := [207%nat; 208%nat; 209%nat].
-Definition COL_LINEAR_MEM_LANE_VALUE : list nat := [210%nat; 211%nat; 212%nat].
-Definition COL_OP_TABLE_ID : nat := 213%nat.
-Definition COL_OP_TABLE_VALUE : nat := 214%nat.
-Definition COL_SELECT_COND_IS_ZERO : nat := 215%nat.
-Definition COL_SELECT_SCRATCH_INV : nat := 216%nat.
-Definition COL_SELECT_OUT_DELTA_LO : nat := 217%nat.
-Definition COL_SELECT_OUT_DELTA_HI : nat := 218%nat.
-Definition COL_ZERO_TEST_LO_INPUT : nat := 219%nat.
-Definition COL_ZERO_TEST_LO_INV : nat := 220%nat.
-Definition COL_ZERO_TEST_LO_IS_ZERO : nat := 221%nat.
-Definition COL_ZERO_TEST_HI_INPUT : nat := 222%nat.
-Definition COL_ZERO_TEST_HI_INV : nat := 223%nat.
-Definition COL_ZERO_TEST_HI_IS_ZERO : nat := 224%nat.
-Definition COL_CMP_AND : nat := 225%nat.
-Definition COL_LINEAR_MEM_OFFSET_IS_0 : nat := 226%nat.
-Definition COL_LINEAR_MEM_OFFSET_IS_1 : nat := 227%nat.
-Definition COL_LINEAR_MEM_OFFSET_IS_2 : nat := 228%nat.
-Definition COL_LINEAR_MEM_OFFSET_IS_3 : nat := 229%nat.
-Definition COL_LINEAR_MEM_IS_BYTE_WIDTH : nat := 230%nat.
-Definition COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_0 : nat := 231%nat.
-Definition COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_1 : nat := 232%nat.
-Definition COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_2 : nat := 233%nat.
-Definition COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_3 : nat := 234%nat.
-Definition COL_LINEAR_MEM_IS_HALF_WIDTH : nat := 235%nat.
-Definition COL_LINEAR_MEM_HALF_WIDTH_OFFSET_IS_0 : nat := 236%nat.
-Definition COL_LINEAR_MEM_HALF_WIDTH_OFFSET_IS_1 : nat := 237%nat.
-Definition COL_LINEAR_MEM_HALF_WIDTH_OFFSET_IS_2 : nat := 238%nat.
-Definition COL_LINEAR_MEM_HALF_WIDTH_OFFSET_IS_3 : nat := 239%nat.
-Definition COL_LINEAR_MEM_IS_FULL_WIDTH : nat := 240%nat.
-Definition COL_LINEAR_MEM_FULL_WIDTH_OFFSET_IS_0 : nat := 241%nat.
-Definition COL_LINEAR_MEM_FULL_WIDTH_OFFSET_IS_1 : nat := 242%nat.
-Definition COL_LINEAR_MEM_FULL_WIDTH_OFFSET_IS_2 : nat := 243%nat.
-Definition COL_LINEAR_MEM_FULL_WIDTH_OFFSET_IS_3 : nat := 244%nat.
-Definition COL_LINEAR_MEM_IS_DOUBLE_WIDTH : nat := 245%nat.
-Definition COL_LINEAR_MEM_DOUBLE_WIDTH_OFFSET_IS_0 : nat := 246%nat.
-Definition COL_LINEAR_MEM_DOUBLE_WIDTH_OFFSET_IS_1 : nat := 247%nat.
-Definition COL_LINEAR_MEM_DOUBLE_WIDTH_OFFSET_IS_2 : nat := 248%nat.
-Definition COL_LINEAR_MEM_DOUBLE_WIDTH_OFFSET_IS_3 : nat := 249%nat.
-Definition COL_LINEAR_MEM_I64_LOAD_OFFSET_IS_0 : nat := 250%nat.
-Definition COL_LINEAR_MEM_I64_LOAD_OFFSET_IS_1 : nat := 251%nat.
-Definition COL_LINEAR_MEM_I64_LOAD_OFFSET_IS_2 : nat := 252%nat.
-Definition COL_LINEAR_MEM_I64_LOAD_OFFSET_IS_3 : nat := 253%nat.
-Definition COL_LINEAR_MEM_I64_STORE_OFFSET_IS_0 : nat := 254%nat.
-Definition COL_LINEAR_MEM_I64_STORE_OFFSET_IS_1 : nat := 255%nat.
-Definition COL_LINEAR_MEM_I64_STORE_OFFSET_IS_2 : nat := 256%nat.
-Definition COL_LINEAR_MEM_I64_STORE_OFFSET_IS_3 : nat := 257%nat.
-Definition COL_LINEAR_MEM_LANE0_BYTE0 : nat := 258%nat.
-Definition COL_LINEAR_MEM_LANE0_BYTE1 : nat := 259%nat.
-Definition COL_LINEAR_MEM_LANE0_BYTE2 : nat := 260%nat.
-Definition COL_LINEAR_MEM_LANE0_BYTE3 : nat := 261%nat.
-Definition COL_LINEAR_MEM_LANE1_BYTE0 : nat := 262%nat.
-Definition COL_LINEAR_MEM_LANE1_BYTE1 : nat := 263%nat.
-Definition COL_LINEAR_MEM_LANE1_BYTE2 : nat := 264%nat.
-Definition COL_LINEAR_MEM_LANE1_BYTE3 : nat := 265%nat.
-Definition COL_LINEAR_MEM_LANE2_BYTE0 : nat := 266%nat.
-Definition COL_LINEAR_MEM_LANE2_BYTE1 : nat := 267%nat.
-Definition COL_LINEAR_MEM_LANE2_BYTE2 : nat := 268%nat.
-Definition COL_LINEAR_MEM_LANE2_BYTE3 : nat := 269%nat.
-Definition COL_LINEAR_MEM_LANE_VALUE_BEFORE : list nat := [270%nat; 271%nat; 272%nat].
-Definition COL_LINEAR_MEM_LANE0_BYTE0_BEFORE : nat := 273%nat.
-Definition COL_LINEAR_MEM_LANE0_BYTE1_BEFORE : nat := 274%nat.
-Definition COL_LINEAR_MEM_LANE0_BYTE2_BEFORE : nat := 275%nat.
-Definition COL_LINEAR_MEM_LANE0_BYTE3_BEFORE : nat := 276%nat.
-Definition COL_LINEAR_MEM_LANE1_BYTE0_BEFORE : nat := 277%nat.
-Definition COL_LINEAR_MEM_LANE1_BYTE1_BEFORE : nat := 278%nat.
-Definition COL_LINEAR_MEM_LANE1_BYTE2_BEFORE : nat := 279%nat.
-Definition COL_LINEAR_MEM_LANE1_BYTE3_BEFORE : nat := 280%nat.
-Definition COL_LINEAR_MEM_LANE2_BYTE0_BEFORE : nat := 281%nat.
-Definition COL_LINEAR_MEM_LANE2_BYTE1_BEFORE : nat := 282%nat.
-Definition COL_LINEAR_MEM_LANE2_BYTE2_BEFORE : nat := 283%nat.
-Definition COL_LINEAR_MEM_LANE2_BYTE3_BEFORE : nat := 284%nat.
-Definition COL_LINEAR_MEM_ACCESS_BYTE0 : nat := 285%nat.
-Definition COL_LINEAR_MEM_ACCESS_BYTE1 : nat := 286%nat.
-Definition COL_LINEAR_MEM_ACCESS_BYTE2 : nat := 287%nat.
-Definition COL_LINEAR_MEM_ACCESS_BYTE3 : nat := 288%nat.
-Definition COL_LINEAR_MEM_ACCESS_BYTE4 : nat := 289%nat.
-Definition COL_LINEAR_MEM_ACCESS_BYTE5 : nat := 290%nat.
-Definition COL_LINEAR_MEM_ACCESS_BYTE6 : nat := 291%nat.
-Definition COL_LINEAR_MEM_ACCESS_BYTE7 : nat := 292%nat.
-Definition COL_SIGN_EXT_LOW7 : nat := 293%nat.
-Definition COL_SIGN_EXT_BIT : nat := 294%nat.
-Definition COL_SEL_I32_WRAP_I64 : nat := 295%nat.
-Definition COL_SEL_I64_EXTEND_I32_U : nat := 296%nat.
-Definition COL_SEL_I64_EXTEND_I32_S : nat := 297%nat.
-Definition COL_SEL_I32_EXTEND8_S : nat := 298%nat.
-Definition COL_SEL_I32_EXTEND16_S : nat := 299%nat.
-Definition COL_SEL_I64_EXTEND8_S : nat := 300%nat.
-Definition COL_SEL_I64_EXTEND16_S : nat := 301%nat.
-Definition COL_SEL_I64_EXTEND32_S : nat := 302%nat.
-Definition COL_SEL_I64_LTS : nat := 303%nat.
-Definition COL_SEL_I64_LTU : nat := 304%nat.
-Definition COL_SEL_I64_GTS : nat := 305%nat.
-Definition COL_SEL_I64_GTU : nat := 306%nat.
-Definition COL_SEL_I64_LES : nat := 307%nat.
-Definition COL_SEL_I64_LEU : nat := 308%nat.
-Definition COL_SEL_I64_GES : nat := 309%nat.
-Definition COL_SEL_I64_GEU : nat := 310%nat.
-Definition COL_SEL_I64_SHL : nat := 311%nat.
-Definition COL_SEL_I64_SHR_S : nat := 312%nat.
-Definition COL_SEL_I64_SHR_U : nat := 313%nat.
-Definition COL_SEL_I64_ROTL : nat := 314%nat.
-Definition COL_SEL_I64_ROTR : nat := 315%nat.
-Definition COL_SEL_I64_DIV_S : nat := 316%nat.
-Definition COL_SEL_I64_DIV_U : nat := 317%nat.
-Definition COL_SEL_I64_REM_S : nat := 318%nat.
-Definition COL_SEL_I64_REM_U : nat := 319%nat.
-Definition COL_SEL_I64_CLZ : nat := 320%nat.
-Definition COL_SEL_I64_CTZ : nat := 321%nat.
-Definition COL_SEL_I64_POPCNT : nat := 322%nat.
-Definition COL_SEL_RETURN_CALL : nat := 323%nat.
-Definition COL_SEL_RETURN_CALL_INDIRECT : nat := 324%nat.
+Definition COL_FUNCTION_TYPE_ID : nat := 171%nat.
+Definition COL_EXPECTED_TYPE_ID : nat := 172%nat.
+Definition COL_MEMORY_PAGES_BEFORE : nat := 173%nat.
+Definition COL_MEMORY_PAGES_AFTER : nat := 174%nat.
+Definition COL_MAX_MEMORY_PAGES_BEFORE : nat := 175%nat.
+Definition COL_MAX_MEMORY_PAGES_AFTER : nat := 176%nat.
+Definition COL_STACK_READ_ADDR_LO : list nat := [177%nat; 178%nat; 179%nat].
+Definition COL_STACK_READ_ADDR_HI : list nat := [180%nat; 181%nat; 182%nat].
+Definition COL_STACK_READ_VALUE_LO : list nat := [183%nat; 184%nat; 185%nat].
+Definition COL_STACK_READ_VALUE_HI : list nat := [186%nat; 187%nat; 188%nat].
+Definition COL_STACK_WRITE0_ADDR_LO : nat := 189%nat.
+Definition COL_STACK_WRITE0_ADDR_HI : nat := 190%nat.
+Definition COL_STACK_WRITE0_VALUE_LO : nat := 191%nat.
+Definition COL_STACK_WRITE0_VALUE_HI : nat := 192%nat.
+Definition COL_WIDE_AUX0 : nat := 193%nat.
+Definition COL_WIDE_AUX1 : nat := 194%nat.
+Definition COL_LINEAR_MEM_IMM_OFFSET : nat := 195%nat.
+Definition COL_LINEAR_MEM_BYTE_OFFSET : nat := 196%nat.
+Definition COL_LINEAR_MEM_USE_LANE1 : nat := 197%nat.
+Definition COL_LINEAR_MEM_USE_LANE2 : nat := 198%nat.
+Definition COL_LINEAR_MEM_USE_LANE0 : nat := 199%nat.
+Definition COL_LINEAR_MEM_LANE_LOAD_ACTIVE : list nat := [200%nat; 201%nat; 202%nat].
+Definition COL_LINEAR_MEM_LANE_STORE_ACTIVE : list nat := [203%nat; 204%nat; 205%nat].
+Definition COL_LINEAR_MEM_LANE_ADDR : list nat := [206%nat; 207%nat; 208%nat].
+Definition COL_LINEAR_MEM_LANE_VALUE : list nat := [209%nat; 210%nat; 211%nat].
+Definition COL_OP_TABLE_ID : nat := 212%nat.
+Definition COL_OP_TABLE_VALUE : nat := 213%nat.
+Definition COL_SELECT_COND_IS_ZERO : nat := 214%nat.
+Definition COL_SELECT_SCRATCH_INV : nat := 215%nat.
+Definition COL_SELECT_OUT_DELTA_LO : nat := 216%nat.
+Definition COL_SELECT_OUT_DELTA_HI : nat := 217%nat.
+Definition COL_ZERO_TEST_LO_INPUT : nat := 218%nat.
+Definition COL_ZERO_TEST_LO_INV : nat := 219%nat.
+Definition COL_ZERO_TEST_LO_IS_ZERO : nat := 220%nat.
+Definition COL_ZERO_TEST_HI_INPUT : nat := 221%nat.
+Definition COL_ZERO_TEST_HI_INV : nat := 222%nat.
+Definition COL_ZERO_TEST_HI_IS_ZERO : nat := 223%nat.
+Definition COL_CMP_AND : nat := 224%nat.
+Definition COL_LINEAR_MEM_OFFSET_IS_0 : nat := 225%nat.
+Definition COL_LINEAR_MEM_OFFSET_IS_1 : nat := 226%nat.
+Definition COL_LINEAR_MEM_OFFSET_IS_2 : nat := 227%nat.
+Definition COL_LINEAR_MEM_OFFSET_IS_3 : nat := 228%nat.
+Definition COL_LINEAR_MEM_IS_BYTE_WIDTH : nat := 229%nat.
+Definition COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_0 : nat := 230%nat.
+Definition COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_1 : nat := 231%nat.
+Definition COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_2 : nat := 232%nat.
+Definition COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_3 : nat := 233%nat.
+Definition COL_LINEAR_MEM_IS_HALF_WIDTH : nat := 234%nat.
+Definition COL_LINEAR_MEM_HALF_WIDTH_OFFSET_IS_0 : nat := 235%nat.
+Definition COL_LINEAR_MEM_HALF_WIDTH_OFFSET_IS_1 : nat := 236%nat.
+Definition COL_LINEAR_MEM_HALF_WIDTH_OFFSET_IS_2 : nat := 237%nat.
+Definition COL_LINEAR_MEM_HALF_WIDTH_OFFSET_IS_3 : nat := 238%nat.
+Definition COL_LINEAR_MEM_IS_FULL_WIDTH : nat := 239%nat.
+Definition COL_LINEAR_MEM_FULL_WIDTH_OFFSET_IS_0 : nat := 240%nat.
+Definition COL_LINEAR_MEM_FULL_WIDTH_OFFSET_IS_1 : nat := 241%nat.
+Definition COL_LINEAR_MEM_FULL_WIDTH_OFFSET_IS_2 : nat := 242%nat.
+Definition COL_LINEAR_MEM_FULL_WIDTH_OFFSET_IS_3 : nat := 243%nat.
+Definition COL_LINEAR_MEM_IS_DOUBLE_WIDTH : nat := 244%nat.
+Definition COL_LINEAR_MEM_DOUBLE_WIDTH_OFFSET_IS_0 : nat := 245%nat.
+Definition COL_LINEAR_MEM_DOUBLE_WIDTH_OFFSET_IS_1 : nat := 246%nat.
+Definition COL_LINEAR_MEM_DOUBLE_WIDTH_OFFSET_IS_2 : nat := 247%nat.
+Definition COL_LINEAR_MEM_DOUBLE_WIDTH_OFFSET_IS_3 : nat := 248%nat.
+Definition COL_LINEAR_MEM_I64_LOAD_OFFSET_IS_0 : nat := 249%nat.
+Definition COL_LINEAR_MEM_I64_LOAD_OFFSET_IS_1 : nat := 250%nat.
+Definition COL_LINEAR_MEM_I64_LOAD_OFFSET_IS_2 : nat := 251%nat.
+Definition COL_LINEAR_MEM_I64_LOAD_OFFSET_IS_3 : nat := 252%nat.
+Definition COL_LINEAR_MEM_I64_STORE_OFFSET_IS_0 : nat := 253%nat.
+Definition COL_LINEAR_MEM_I64_STORE_OFFSET_IS_1 : nat := 254%nat.
+Definition COL_LINEAR_MEM_I64_STORE_OFFSET_IS_2 : nat := 255%nat.
+Definition COL_LINEAR_MEM_I64_STORE_OFFSET_IS_3 : nat := 256%nat.
+Definition COL_LINEAR_MEM_LANE0_BYTE0 : nat := 257%nat.
+Definition COL_LINEAR_MEM_LANE0_BYTE1 : nat := 258%nat.
+Definition COL_LINEAR_MEM_LANE0_BYTE2 : nat := 259%nat.
+Definition COL_LINEAR_MEM_LANE0_BYTE3 : nat := 260%nat.
+Definition COL_LINEAR_MEM_LANE1_BYTE0 : nat := 261%nat.
+Definition COL_LINEAR_MEM_LANE1_BYTE1 : nat := 262%nat.
+Definition COL_LINEAR_MEM_LANE1_BYTE2 : nat := 263%nat.
+Definition COL_LINEAR_MEM_LANE1_BYTE3 : nat := 264%nat.
+Definition COL_LINEAR_MEM_LANE2_BYTE0 : nat := 265%nat.
+Definition COL_LINEAR_MEM_LANE2_BYTE1 : nat := 266%nat.
+Definition COL_LINEAR_MEM_LANE2_BYTE2 : nat := 267%nat.
+Definition COL_LINEAR_MEM_LANE2_BYTE3 : nat := 268%nat.
+Definition COL_LINEAR_MEM_LANE_VALUE_BEFORE : list nat := [269%nat; 270%nat; 271%nat].
+Definition COL_LINEAR_MEM_LANE0_BYTE0_BEFORE : nat := 272%nat.
+Definition COL_LINEAR_MEM_LANE0_BYTE1_BEFORE : nat := 273%nat.
+Definition COL_LINEAR_MEM_LANE0_BYTE2_BEFORE : nat := 274%nat.
+Definition COL_LINEAR_MEM_LANE0_BYTE3_BEFORE : nat := 275%nat.
+Definition COL_LINEAR_MEM_LANE1_BYTE0_BEFORE : nat := 276%nat.
+Definition COL_LINEAR_MEM_LANE1_BYTE1_BEFORE : nat := 277%nat.
+Definition COL_LINEAR_MEM_LANE1_BYTE2_BEFORE : nat := 278%nat.
+Definition COL_LINEAR_MEM_LANE1_BYTE3_BEFORE : nat := 279%nat.
+Definition COL_LINEAR_MEM_LANE2_BYTE0_BEFORE : nat := 280%nat.
+Definition COL_LINEAR_MEM_LANE2_BYTE1_BEFORE : nat := 281%nat.
+Definition COL_LINEAR_MEM_LANE2_BYTE2_BEFORE : nat := 282%nat.
+Definition COL_LINEAR_MEM_LANE2_BYTE3_BEFORE : nat := 283%nat.
+Definition COL_LINEAR_MEM_ACCESS_BYTE0 : nat := 284%nat.
+Definition COL_LINEAR_MEM_ACCESS_BYTE1 : nat := 285%nat.
+Definition COL_LINEAR_MEM_ACCESS_BYTE2 : nat := 286%nat.
+Definition COL_LINEAR_MEM_ACCESS_BYTE3 : nat := 287%nat.
+Definition COL_LINEAR_MEM_ACCESS_BYTE4 : nat := 288%nat.
+Definition COL_LINEAR_MEM_ACCESS_BYTE5 : nat := 289%nat.
+Definition COL_LINEAR_MEM_ACCESS_BYTE6 : nat := 290%nat.
+Definition COL_LINEAR_MEM_ACCESS_BYTE7 : nat := 291%nat.
+Definition COL_SIGN_EXT_LOW7 : nat := 292%nat.
+Definition COL_SIGN_EXT_BIT : nat := 293%nat.
+Definition COL_SEL_I32_WRAP_I64 : nat := 294%nat.
+Definition COL_SEL_I64_EXTEND_I32_U : nat := 295%nat.
+Definition COL_SEL_I64_EXTEND_I32_S : nat := 296%nat.
+Definition COL_SEL_I32_EXTEND8_S : nat := 297%nat.
+Definition COL_SEL_I32_EXTEND16_S : nat := 298%nat.
+Definition COL_SEL_I64_EXTEND8_S : nat := 299%nat.
+Definition COL_SEL_I64_EXTEND16_S : nat := 300%nat.
+Definition COL_SEL_I64_EXTEND32_S : nat := 301%nat.
+Definition COL_SEL_I64_LTS : nat := 302%nat.
+Definition COL_SEL_I64_LTU : nat := 303%nat.
+Definition COL_SEL_I64_GTS : nat := 304%nat.
+Definition COL_SEL_I64_GTU : nat := 305%nat.
+Definition COL_SEL_I64_LES : nat := 306%nat.
+Definition COL_SEL_I64_LEU : nat := 307%nat.
+Definition COL_SEL_I64_GES : nat := 308%nat.
+Definition COL_SEL_I64_GEU : nat := 309%nat.
+Definition COL_SEL_I64_SHL : nat := 310%nat.
+Definition COL_SEL_I64_SHR_S : nat := 311%nat.
+Definition COL_SEL_I64_SHR_U : nat := 312%nat.
+Definition COL_SEL_I64_ROTL : nat := 313%nat.
+Definition COL_SEL_I64_ROTR : nat := 314%nat.
+Definition COL_SEL_I64_DIV_S : nat := 315%nat.
+Definition COL_SEL_I64_DIV_U : nat := 316%nat.
+Definition COL_SEL_I64_REM_S : nat := 317%nat.
+Definition COL_SEL_I64_REM_U : nat := 318%nat.
+Definition COL_SEL_I64_CLZ : nat := 319%nat.
+Definition COL_SEL_I64_CTZ : nat := 320%nat.
+Definition COL_SEL_I64_POPCNT : nat := 321%nat.
+Definition COL_SEL_RETURN_CALL : nat := 322%nat.
+Definition COL_SEL_RETURN_CALL_INDIRECT : nat := 323%nat.
+Definition COL_SEL_CALL_INDIRECT_RESOLVE : nat := 324%nat.
 Definition COL_TRAPPED_BEFORE : nat := 325%nat.
 Definition COL_TRAPPED_AFTER : nat := 326%nat.
 Definition COL_DIV_DIVISOR_IS_ZERO : nat := 327%nat.
@@ -429,10 +429,10 @@ Definition GMEM_HALF : nat := 589%nat.
 Definition TURN_SCHEDULE_COUNT_INV : nat := 590%nat.
 Definition OBJECT_ROOT_LANE : list nat := [591%nat; 592%nat; 593%nat; 594%nat].
 Definition OBJECT_SAVED_LANE : list nat := [595%nat; 596%nat; 597%nat; 598%nat].
-Definition RANGE_BITS : list nat := seq 599%nat 3256%nat.
+Definition RANGE_BITS : list nat := seq 599%nat 3224%nat.
 
 Definition namedColumnCount : nat := 487%nat.
-Definition columnCount : nat := 3855%nat.
+Definition columnCount : nat := 3823%nat.
 
 Definition families : list Family :=
   [(0%nat, 1%nat, Field);
@@ -610,37 +610,37 @@ Definition families : list Family :=
    (174%nat, 1%nat, U32);
    (175%nat, 1%nat, U32);
    (176%nat, 1%nat, U32);
-   (177%nat, 1%nat, U32);
-   (178%nat, 3%nat, U32);
-   (181%nat, 3%nat, U32);
-   (184%nat, 3%nat, U32);
-   (187%nat, 3%nat, U32);
+   (177%nat, 3%nat, U32);
+   (180%nat, 3%nat, U32);
+   (183%nat, 3%nat, U32);
+   (186%nat, 3%nat, U32);
+   (189%nat, 1%nat, U32);
    (190%nat, 1%nat, U32);
    (191%nat, 1%nat, U32);
    (192%nat, 1%nat, U32);
-   (193%nat, 1%nat, U32);
+   (193%nat, 1%nat, Boolean);
    (194%nat, 1%nat, Boolean);
-   (195%nat, 1%nat, Boolean);
+   (195%nat, 1%nat, U32);
    (196%nat, 1%nat, U32);
-   (197%nat, 1%nat, U32);
+   (197%nat, 1%nat, Boolean);
    (198%nat, 1%nat, Boolean);
    (199%nat, 1%nat, Boolean);
-   (200%nat, 1%nat, Boolean);
-   (201%nat, 3%nat, Boolean);
-   (204%nat, 3%nat, Boolean);
-   (207%nat, 3%nat, U32);
-   (210%nat, 3%nat, Field);
-   (213%nat, 1%nat, U32);
-   (214%nat, 1%nat, Field);
-   (215%nat, 1%nat, Boolean);
+   (200%nat, 3%nat, Boolean);
+   (203%nat, 3%nat, Boolean);
+   (206%nat, 3%nat, U32);
+   (209%nat, 3%nat, Field);
+   (212%nat, 1%nat, U32);
+   (213%nat, 1%nat, Field);
+   (214%nat, 1%nat, Boolean);
+   (215%nat, 1%nat, Field);
    (216%nat, 1%nat, Field);
    (217%nat, 1%nat, Field);
    (218%nat, 1%nat, Field);
    (219%nat, 1%nat, Field);
-   (220%nat, 1%nat, Field);
-   (221%nat, 1%nat, Boolean);
+   (220%nat, 1%nat, Boolean);
+   (221%nat, 1%nat, Field);
    (222%nat, 1%nat, Field);
-   (223%nat, 1%nat, Field);
+   (223%nat, 1%nat, Boolean);
    (224%nat, 1%nat, Boolean);
    (225%nat, 1%nat, Boolean);
    (226%nat, 1%nat, Boolean);
@@ -674,7 +674,7 @@ Definition families : list Family :=
    (254%nat, 1%nat, Boolean);
    (255%nat, 1%nat, Boolean);
    (256%nat, 1%nat, Boolean);
-   (257%nat, 1%nat, Boolean);
+   (257%nat, 1%nat, Byte);
    (258%nat, 1%nat, Byte);
    (259%nat, 1%nat, Byte);
    (260%nat, 1%nat, Byte);
@@ -686,8 +686,8 @@ Definition families : list Family :=
    (266%nat, 1%nat, Byte);
    (267%nat, 1%nat, Byte);
    (268%nat, 1%nat, Byte);
-   (269%nat, 1%nat, Byte);
-   (270%nat, 3%nat, Field);
+   (269%nat, 3%nat, Field);
+   (272%nat, 1%nat, Byte);
    (273%nat, 1%nat, Byte);
    (274%nat, 1%nat, Byte);
    (275%nat, 1%nat, Byte);
@@ -708,7 +708,7 @@ Definition families : list Family :=
    (290%nat, 1%nat, Byte);
    (291%nat, 1%nat, Byte);
    (292%nat, 1%nat, Byte);
-   (293%nat, 1%nat, Byte);
+   (293%nat, 1%nat, Boolean);
    (294%nat, 1%nat, Boolean);
    (295%nat, 1%nat, Boolean);
    (296%nat, 1%nat, Boolean);
@@ -859,4 +859,4 @@ Definition families : list Family :=
    (590%nat, 1%nat, Field);
    (591%nat, 4%nat, Boolean);
    (595%nat, 4%nat, Boolean);
-   (599%nat, 3256%nat, Boolean)].
+   (599%nat, 3224%nat, Boolean)].

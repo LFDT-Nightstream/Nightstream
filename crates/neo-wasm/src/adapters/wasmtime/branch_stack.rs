@@ -104,6 +104,13 @@ pub(super) fn frame_slides(bytes: &[u8]) -> Result<BTreeMap<u32, FrameSlideEdges
                         vec![(0, kept, distance)]
                     }
                     _ if !reachable => vec![],
+                    // A `br` to the body's own label is a `return` (see the parser).
+                    Operator::Br { relative_depth }
+                        if *relative_depth as usize == function.control_stack_height() as usize - 1 =>
+                    {
+                        let (kept, distance) = function_return(&function, height, offset)?;
+                        vec![(0, kept, distance)]
+                    }
                     Operator::Br { relative_depth } => {
                         let (kept, distance) = branch(&function, *relative_depth, 0, offset)?;
                         vec![(0, kept, distance)]

@@ -22,6 +22,9 @@ mod multi_result_redteam;
 #[path = "redteam/count_field_alias.rs"]
 mod count_field_alias_redteam;
 
+#[path = "redteam/module_initialization.rs"]
+mod module_initialization_redteam;
+
 use std::cell::RefCell;
 use std::num::NonZeroUsize;
 use std::rc::Rc;

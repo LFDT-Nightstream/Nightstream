@@ -38,6 +38,56 @@ Definition readIntegerCell (memory : MemoryState) (cell : Z) (t : valtype) : opt
   | _, _ => None
   end.
 
+(* Default values for the integer local types supported by the cell reader. *)
+Definition integerZero (t : valtype) : option val :=
+  match t with
+  | valtype_I32 => Some (i32Value 0)
+  | valtype_I64 => Some (i64Value 0)
+  | _ => None
+  end.
+
+Fixpoint integerZeros (types : list valtype) : option (list val) :=
+  match types with
+  | [] => Some []
+  | t :: rest =>
+      match integerZero t, integerZeros rest with
+      | Some value, Some values => Some (value :: values)
+      | _, _ => None
+      end
+  end.
+
+Lemma integer_zeros_i32 : forall count,
+  integerZeros (repeat valtype_I32 count) = Some (repeat (i32Value 0) count).
+Proof. induction count; cbn; [reflexivity | now rewrite IHcount]. Qed.
+
+Lemma integer_zero_cell : forall memory cell t value,
+  integerZero t = Some value ->
+  memory stackId [2 * cell] = Some 0 -> memory stackId [2 * cell + 1] = Some 0 ->
+  CellMatches memory cell value /\ integerValueType value = Some t.
+Proof.
+  intros memory cell t value Hzero Hlo Hhi.
+  destruct t; try discriminate; injection Hzero as <-; split;
+    try reflexivity.
+  - constructor; [unfold i32Modulus; lia | exact Hlo].
+  - change (CellMatches memory cell (i64Value (joinLimbs 0 0))).
+    constructor; try assumption; unfold i32Modulus; lia.
+Qed.
+
+Lemma integer_zeros_types : forall types values,
+  integerZeros types = Some values ->
+  Forall2 (fun t value => integerValueType value = Some t) types values /\
+  Forall2 (fun t value => integerZero t = Some value) types values.
+Proof.
+  induction types as [ | t rest IH]; intros values H; cbn in H.
+  - injection H as <-. split; constructor.
+  - destruct (integerZero t) as [value | ] eqn:Ht; [ | discriminate].
+    destruct (integerZeros rest) as [vs | ] eqn:Hs; [ | discriminate]. injection H as <-.
+    destruct (IH _ eq_refl) as [Htypes Hzeros].
+    assert (Htype : integerValueType value = Some t).
+    { destruct t; try discriminate; injection Ht as <-; reflexivity. }
+    split; constructor; assumption.
+Qed.
+
 (* The address function also covers operands whose frame move is still pending. *)
 Fixpoint readIntegerCells (memory : MemoryState) (address : nat -> Z) (types : list valtype)
     : option (list val) :=
@@ -125,6 +175,40 @@ Proof.
       rewrite (proj2 (read_integer_cell_some _ _ _ _) (conj (Hcells 0%nat _ eq_refl) Htype)).
       rewrite (proj2 (IH _ vs)); [reflexivity | ]. split; [assumption | ].
       intros index value Hlookup. exact (Hcells (S index) value Hlookup).
+Qed.
+
+Lemma integer_zeros_cells : forall types values memory address,
+  integerZeros types = Some values ->
+  (forall index, (index < length types)%nat ->
+    memory stackId [2 * address index] = Some 0 /\
+    memory stackId [2 * address index + 1] = Some 0) ->
+  readIntegerCells memory address types = Some values.
+Proof.
+  induction types as [ | t rest IH]; intros values memory address Hzeros Hmemory; cbn in Hzeros.
+  - injection Hzeros as <-. reflexivity.
+  - destruct (integerZero t) as [value | ] eqn:Ht; [ | discriminate].
+    destruct (integerZeros rest) as [vs | ] eqn:Hs; [ | discriminate]. injection Hzeros as <-.
+    destruct (Hmemory 0%nat ltac:(cbn; lia)) as [Hlo Hhi].
+    cbn [readIntegerCells].
+    rewrite (proj2 (read_integer_cell_some _ _ _ _) (integer_zero_cell _ _ _ _ Ht Hlo Hhi)).
+    rewrite (IH vs memory (fun i => address (S i)) eq_refl); [reflexivity | ].
+    intros index Hindex. apply Hmemory. cbn. lia.
+Qed.
+
+Lemma read_integer_cells_app : forall memory first second address,
+  readIntegerCells memory address (first ++ second) =
+    match readIntegerCells memory address first,
+      readIntegerCells memory (fun i => address (length first + i)%nat) second with
+    | Some prefix, Some suffix => Some (prefix ++ suffix)
+    | _, _ => None
+    end.
+Proof.
+  intros memory first. induction first as [ | t rest IH]; intros second address.
+  - cbn. destruct (readIntegerCells memory address second); reflexivity.
+  - cbn [app readIntegerCells length]. rewrite IH. cbn [Nat.add].
+    destruct (readIntegerCell memory (address 0%nat) t);
+      destruct (readIntegerCells memory (fun i => address (S i)) rest);
+      destruct (readIntegerCells memory (fun i => address (S (length rest + i))) second); reflexivity.
 Qed.
 
 Lemma read_integer_cells_wf : forall memory address types values,

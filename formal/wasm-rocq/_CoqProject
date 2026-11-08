@@ -131,3 +131,4 @@ tests/ReturnWitness.v
 tests/IntegerLocalTrace.v
 tests/IntegerLocals.v
 tests/IntegerDecode.v
+tests/IntegerInitialization.v

@@ -2,7 +2,7 @@
    steps SpecTec to CALL_ADDR, leaving the reference on top; its invocation row
    enters the callee like a direct call. *)
 From Stdlib Require Import List ZArith NArith Bool Lia.
-Require Import Wasm2 WasmIntegers R1CS Columns Range FullRelation MemoryTrace MemoryCatalog OpcodeCatalog
+Require Import WasmValues Wasm2 WasmIntegers R1CS Columns Range FullRelation MemoryTrace MemoryCatalog OpcodeCatalog
   TraceRefinement StraightLineSpec StackSimulation SpecTecCalls SpecTecIndirect CallerSpec CallerRefinement CallSpec
   CallBindings CallContext CallMemory CallInitialization CallScope LocalBindings FrameInitialization
   ProgramSpec TableState ProgramEncoding CodeLayout BlockSpec BlockEncoding BlockTrace Fragment CodeFacts
@@ -239,7 +239,9 @@ Proof.
     split; [exact Hzr | ]. split; [exact Hmr | ]. rewrite Nnat.N2Nat.id. reflexivity.
   - split; [split; [exact HdepthAfter | split; [exact (replace_stack_base _ Hshape) | exact HfbpAfter]] | ].
     constructor.
-    + intros k Hk. apply Hkeep. unfold frameLocals in Hbase0. lia.
+    + intros k limb Hk Hlimb. assert (0 <= limb <= 1) by (destruct Hlimb; lia).
+      rewrite HstackFinal, (replace_write_address _ Hshape), (replace_write_hi_address _ Hshape).
+      unfold frameLocals in Hbase0. rewrite !update_other by cell_differs. reflexivity.
     + intros id column address Hmem. eapply context_preserved_without_push; eassumption.
 Qed.
 
@@ -341,13 +343,14 @@ Proof.
   apply Forall_app in HvalBounds. destruct HvalBounds as [HprefixBounds HargBounds].
   rewrite !length_app in Hsp.
   (* The callee's frame starts at its arguments, below the popped reference. *)
-  assert (Hinit : InitializingFrame final (afterBoundary row) arguments (Z.of_nat (guestLocals g))
+  assert (Hinit : InitializingFrame final (afterBoundary row) (map i32Value arguments) (Z.of_nat (guestLocals g))
       (Z.of_nat (guestLocals g))).
-  { apply initializing_frame_start; cbn [afterBoundary boundarySP boundaryStackBase boundaryLocalsBase].
+  { apply initializing_i32_frame_start; cbn [afterBoundary boundarySP boundaryStackBase boundaryLocalsBase].
     - lia.
     - rewrite HfbpAfter, HspAfter, HparamCount. lia.
     - rewrite HfbpAfter, HspAfter, HparamCount. lia.
     - rewrite HbaseAfter, HfbpAfter, HspAfter, HparamCount. lia.
+    - exact HargBounds.
     - intros j v Hv. rewrite HstackFinal, HfbpAfter, HspAfter, HparamCount.
       replace (row COL_SP_BEFORE - 1 - Z.of_nat (guestParams g) + Z.of_nat j) with
         (row COL_STACK_FRAME_BASE_BEFORE + Z.of_nat (length (concat segments ++ prefix) + j)) by

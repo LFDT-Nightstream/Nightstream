@@ -393,10 +393,14 @@ Proof.
     split; [lia | ]. split; [assumption | ]. split; [assumption | ]. split; [assumption | ].
     split; [assumption | reflexivity].
   - destruct (functionAt program function) as [f | ] eqn:Hf; [ | discriminate].
+    destruct (function_at_i32_types _ _ _ Hf) as [Hparams [_ Hlocals]].
+    rewrite Hparams, Hlocals, integer_zeros_i32 in Hdecode.
+    unfold readLocals in Hdecode. rewrite read_integer_cells_i32 in Hdecode.
+    fold (readStack memory (boundaryLocalsBase boundary) (guestParams f)) in Hdecode.
     destruct (_ && _) eqn:Hchecks; [ | discriminate]. bools.
     repeat match goal with H : initializationFlagsb _ = true |- _ => apply flags_check in H end.
     destruct (readStack _ _ _) as [arguments | ] eqn:Hstack; [ | discriminate].
-    injection Hdecode as <- <-.
+    cbn [option_map] in Hdecode. injection Hdecode as <- <-.
     destruct (proj1 (read_stack_cells _ _ _ _) Hstack) as [Hlen [Hbounds _]].
     exists (entering function arguments). split; [reflexivity | ]. exists f.
     split; [exact Hf | ]. split; [exact Hlen | ]. split; [exact Hbounds | ]. split; [exact Hobligations | ].
@@ -444,9 +448,12 @@ Proof.
     eexists. split; [ | exact I]. unfold frameConfig, innerCode. rewrite Hpath. reflexivity.
   - destruct Hstate as [f [Hf [Hlen [Hbounds [Hinit [Hflags [Hmove [Hpending [Hpc ->]]]]]]]]].
     rewrite Hf. apply flags_check in Hflags. pass_check.
+    destruct (function_at_i32_types _ _ _ Hf) as [Hparams [_ Hlocals]].
+    rewrite Hparams, Hlocals, integer_zeros_i32.
+    unfold readLocals. rewrite read_integer_cells_i32. fold (readStack memory (boundaryLocalsBase boundary) (guestParams f)).
     assert (Hargs : readStack memory (boundaryLocalsBase boundary) (guestParams f) = Some arguments).
     { apply read_stack_cells. split; [exact Hlen | split; [exact Hbounds | ]].
-      intros index value Hi. exact (argument_cells _ _ _ _ _ Hinit index value Hi). }
+      intros index value Hi. exact (initializing_i32_arguments _ _ _ _ _ Hbounds Hinit index value Hi). }
     rewrite Hargs. eexists. split; [reflexivity | exact Hinit].
 Qed.
 

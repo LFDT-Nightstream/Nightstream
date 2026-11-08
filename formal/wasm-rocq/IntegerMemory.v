@@ -91,3 +91,14 @@ Proof.
   - assert (v = lo) by congruence. assert (h = hi) by congruence. subst v h.
     constructor; try assumption; [apply write_cell_low | apply write_cell_high].
 Qed.
+
+Lemma cell_matches_i32_read : forall memory cell value,
+  0 <= value -> CellMatches memory cell (i32Value value) ->
+  memory stackId [2 * cell] = Some value.
+Proof.
+  intros memory cell value Hnonnegative Hcell.
+  inversion Hcell; subst.
+  match goal with H : Z.to_N _ = Z.to_N _ |- _ =>
+    apply Z2N.inj in H; try lia; subst
+  end. assumption.
+Qed.

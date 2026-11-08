@@ -132,7 +132,7 @@ Definition ActiveState (program : Program) (s : store) (memory : MemoryState) (b
   | entering function arguments => exists f,
       functionAt program function = Some f /\ length arguments = guestParams f /\
       Forall (fun value => 0 <= value < i32Modulus) arguments /\
-      InitializingFrame memory boundary arguments (Z.of_nat (guestLocals f)) (boundaryZeroRemaining boundary) /\
+      InitializingFrame memory boundary (map i32Value arguments) (Z.of_nat (guestLocals f)) (boundaryZeroRemaining boundary) /\
       initializationFlags boundary /\ boundaryMoveRemaining boundary = 0 /\
       0 < boundaryZeroRemaining boundary /\
       boundaryPC boundary = guestEntry f /\

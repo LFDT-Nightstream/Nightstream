@@ -74,8 +74,9 @@ Lemma frame_effect_suspended : forall program stack callee fbp depth memory memo
   SuspendedStack program memory callee fbp depth stack ->
   SuspendedStack program memory' callee fbp depth stack.
 Proof.
-  intros program stack callee fbp depth memory memory' [Hstack Hcontext] H.
-  eapply suspended_stack_preserved; [exact H | exact Hstack | ].
+  intros program stack callee fbp depth memory memory' Heffect H.
+  pose proof (preserves_call_context _ _ _ Heffect) as Hcontext.
+  eapply suspended_stack_preserved; [exact H | exact (preserves_below_frame _ _ _ Heffect) | ].
   intros id column address Hin _. eapply Hcontext. exact Hin.
 Qed.
 
@@ -185,7 +186,7 @@ Qed.
 Lemma callee_active_state : forall function callee arguments memory boundary,
   functionAt program function = Some callee -> length arguments = guestParams callee ->
   Forall (fun value => 0 <= value < i32Modulus) arguments ->
-  InitializingFrame memory boundary arguments (Z.of_nat (guestLocals callee)) (boundaryZeroRemaining boundary) ->
+  InitializingFrame memory boundary (map i32Value arguments) (Z.of_nat (guestLocals callee)) (boundaryZeroRemaining boundary) ->
   initializationFlags boundary -> boundaryMoveRemaining boundary = 0 ->
   boundaryPC boundary = guestEntry callee ->
   exists position, activeFunction program position = Some callee /\
@@ -197,7 +198,9 @@ Proof.
   destruct (Z.eq_dec (boundaryZeroRemaining boundary) 0) as [Hz0 | Hpending].
   2: { exists (entering function arguments). split; [exact Hf | ].
        exists callee. repeat (split; [eassumption | ]). split; [lia | ]. split; [exact Hpc | reflexivity]. }
-  pose proof Hinit as [_ Hfbp Hbase Hsp Hargs Hzeros].
+  pose proof (initializing_i32_arguments _ _ _ _ _ Hbounds Hinit) as Hargs.
+  pose proof Hinit as [_ Hfbp Hbase Hsp _ Hzeros].
+  rewrite length_map in Hbase, Hzeros.
   exists (atCode (frameView (codePosition function [] 0) [] [] (arguments ++ repeat 0 (guestLocals callee)))).
   split; [exact Hf | ].
   pose proof (FrameRows.idle_active_state program s memory boundary callee
@@ -230,7 +233,7 @@ Proof.
         assert (Hlt : (index - length arguments < guestLocals callee)%nat).
         { rewrite <- (repeat_length 0 (guestLocals callee)). apply nth_error_Some. rewrite Hv. discriminate. }
         apply nth_error_In, repeat_spec in Hv. subst value.
-        apply Hzeros. lia.
+        exact (proj1 (Hzeros (Z.of_nat index) ltac:(lia))).
   - cbn. lia.
   - rewrite Hsp, Hz0. cbn. lia.
   - rewrite Hpc. cbn. lia.
@@ -414,7 +417,7 @@ Proof.
   { rewrite Hmove in HzFlag. cbn in HzFlag.
     destruct (row COL_LOCAL_ZERO_REMAINING_BEFORE =? 0) eqn:Hz; [apply Z.eqb_eq in Hz; lia | exact HzFlag]. }
   assert (Hkind : initializationKind COL_LOCAL_ZERO_ACTIVE_BEFORE) by (left; reflexivity).
-  pose proof (zero_row_initializes_frame initial final row arguments _ Hprime Hfull Hzero Hreplay Hinit) as Hinit'.
+  pose proof (zero_row_initializes_frame initial final row (map i32Value arguments) _ Hprime Hfull Hzero Hreplay Hinit) as Hinit'.
   pose proof (full_initialization_pc_preserved row _ Hprime Hfull Hkind Hzero) as HpcAfter.
   destruct (full_initialization_preserves_frame row _ Hprime Hfull Hkind Hzero) as [Hfbp [Hbase Hd]].
   destruct (full_initialization_counter_carry row _ Hprime Hfull Hkind Hzero) as [_ Hcarry].
@@ -849,8 +852,9 @@ Proof.
       exists g. split; [exact Hg | ]. split; [exact Hlen | ]. split; [exact Hbounds | ]. split; [ | exact Hfacts].
       destruct Hinit as [Hzb Hfbp Hbase Hsp Hargs Hzeros].
       constructor; try assumption.
-      * intros index value Hv. rewrite Hstack. exact (Hargs _ _ Hv).
-      * intros index Hindex. rewrite Hstack. exact (Hzeros _ Hindex).
+      * intros index value Hv. eapply IntegerMemory.cell_matches_memory; [ | exact (Hargs _ _ Hv)].
+        intros limb _. apply Hstack.
+      * intros index Hindex. rewrite !Hstack. exact (Hzeros _ Hindex).
   - eapply suspended_stack_preserved; [exact Hsusp | intros; apply Hstack | ].
     intros id column address Hin _. exact (Hcontext id column [address] Hin).
 Qed.

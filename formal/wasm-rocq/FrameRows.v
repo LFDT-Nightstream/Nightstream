@@ -153,7 +153,7 @@ Lemma quiet_row_frame_effect : forall initial final row fbp,
   row COL_HOST_SUSPEND = 0 -> row COL_HOST_CONTEXT_READ = 0 -> FrameEffect fbp initial final.
 Proof.
   intros initial final row fbp Hreplay Hwrites Hpush Hsuspend Hread. constructor.
-  - intros index _. eapply no_stack_writes_preserve; eassumption.
+  - intros index limb _ _. eapply no_stack_writes_preserve; eassumption.
   - intros memory column address Hin. eapply context_preserved_without_push; eassumption.
 Qed.
 

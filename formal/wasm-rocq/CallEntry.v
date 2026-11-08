@@ -2,7 +2,7 @@
 From Stdlib Require Import List ZArith NArith Lia.
 Require Import R1CS Columns FullRelation Range Selectors CircuitFacts MemoryTrace MemoryCatalog
   TraceRefinement ProgramBinding StraightLineSpec StackSimulation CallInitialization
-  CallBindings CallMemory FrameInitialization CallSpec SpecTecCalls Wasm2 WasmIntegers LocalBindings.
+  CallBindings CallMemory FrameInitialization CallSpec SpecTecCalls WasmValues Wasm2 WasmIntegers LocalBindings.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -49,7 +49,7 @@ Lemma call_starts_frame_initialization : forall initial final w prefix arguments
   w COL_LOCAL_ZERO_REMAINING_AFTER = Z.of_nat locals ->
   Replay initial (eventsForRow MemoryCatalog.memories w) final ->
   stackMatches initial (beforeBoundary w) (prefix ++ arguments) ->
-  InitializingFrame final (afterBoundary w) arguments (Z.of_nat locals) (w COL_LOCAL_ZERO_REMAINING_AFTER).
+  InitializingFrame final (afterBoundary w) (map i32Value arguments) (Z.of_nat locals) (w COL_LOCAL_ZERO_REMAINING_AFTER).
 Proof.
   intros initial final w prefix arguments locals Hprime Hfull Hcall Htarget Hp Hentered Hz Hreplay Hstack.
   assert (Hin : In COL_SEL_CALL selectorColumns) by (vm_compute; tauto).
@@ -66,11 +66,12 @@ Proof.
   destruct Hstack as [HbaseBefore [Hheight [Hbounds Hcells]]].
   cbn [beforeBoundary boundarySP boundaryStackBase] in HbaseBefore, Hheight, Hcells.
   rewrite length_app, Nat2Z.inj_add in Hheight.
-  rewrite Hz. apply initializing_frame_start; cbn [afterBoundary boundarySP boundaryStackBase boundaryLocalsBase].
+  rewrite Hz. apply initializing_i32_frame_start; cbn [afterBoundary boundarySP boundaryStackBase boundaryLocalsBase].
   - lia.
   - lia.
   - lia.
   - lia.
+  - apply Forall_app in Hbounds. exact (proj2 Hbounds).
   - intros index value Hlookup.
     rewrite (replay_preserves _ _ _ _ _ Hreplay
       (stack_writes_inactive w _ Hlo Hhi HlocalWrite HgatherLocalLo HgatherLocal)).

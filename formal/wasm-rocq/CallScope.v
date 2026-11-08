@@ -2,18 +2,36 @@
 From Stdlib Require Import List ZArith Lia.
 Require Import CircuitFacts TraceRefinement R1CS Columns FullRelation Range Selectors MemoryTrace MemoryCatalog
   StraightLineSpec StackBindings StackSimulation LocalBindings LocalSimulation
-  CallContext CallMemory CallInitialization StraightLineInstructions Wasm2.
+  IntegerMemory CallContext CallMemory CallInitialization StraightLineInstructions Wasm2.
 Import ListNotations.
 Open Scope Z_scope.
 
 (* A frame and everything above it may change; the stack cells below its fbp,
    which hold its suspended callers, and the saved call contexts may not. *)
 Record FrameEffect (fbp : Z) (initial final : MemoryState) : Prop := {
-  preserves_below_frame : forall index, index < fbp ->
-    final stackId [2 * index] = initial stackId [2 * index];
+  preserves_below_frame_limb : forall index limb, index < fbp -> (limb = 0 \/ limb = 1) ->
+    final stackId [2 * index + limb] = initial stackId [2 * index + limb];
   preserves_call_context : forall memory column address, In (memory, column) contextMemories ->
     final memory address = initial memory address
 }.
+
+Lemma preserves_below_frame : forall fbp initial final,
+  FrameEffect fbp initial final -> forall index, index < fbp ->
+  final stackId [2 * index] = initial stackId [2 * index].
+Proof.
+  intros fbp initial final H index Hindex.
+  pose proof (preserves_below_frame_limb _ _ _ H index 0 Hindex (or_introl eq_refl)) as Hlow.
+  now rewrite Z.add_0_r in Hlow.
+Qed.
+
+Lemma frame_effect_cell : forall fbp initial final cell value,
+  FrameEffect fbp initial final -> cell < fbp ->
+  CellMatches initial cell value -> CellMatches final cell value.
+Proof.
+  intros fbp initial final cell value Heffect Hbelow Hcell.
+  eapply cell_matches_memory; [ | exact Hcell].
+  intros limb Hlimb. exact (preserves_below_frame_limb _ _ _ Heffect cell limb Hbelow Hlimb).
+Qed.
 
 Lemma body_row_call_context : forall initial final w chosen,
   fieldPrime -> FullRelation.satFull w -> straightLineSelector chosen -> w chosen = 1 ->
@@ -43,7 +61,7 @@ Proof.
   destruct (binary_stack_replay w initial final Hshape Hreplay) as [_ [_ Hwrites]].
   assert (HlocalChoice : straightLineSelector chosen) by (destruct Hchoice as [-> | ->]; cbn; auto).
   constructor; [ | exact (body_row_call_context initial final w chosen Hprime Hfull HlocalChoice Hchosen Hreplay)].
-  intros index Hindex. rewrite Hwrites.
+  intros index limb Hindex Hlimb. assert (0 <= limb <= 1) by (destruct Hlimb; lia). rewrite Hwrites.
   rewrite (stack_write_address w Hshape), (stack_write_hi_address w Hshape).
   rewrite !update_other by cell_differs. reflexivity.
 Qed.
@@ -61,7 +79,7 @@ Proof.
   destruct (local_get_stack_replay w initial final Hshape Hreplay) as [_ [_ Hwrites]].
   constructor; [ | exact (body_row_call_context initial final w COL_SEL_LOCAL_GET Hprime Hfull
     ltac:(cbn; auto) Hchosen Hreplay)].
-  intros index Hindex. rewrite Hwrites.
+  intros index limb Hindex Hlimb. assert (0 <= limb <= 1) by (destruct Hlimb; lia). rewrite Hwrites.
   rewrite (local_write_address w false true Hshape eq_refl), (local_write_hi_address w false true Hshape eq_refl).
   rewrite !update_other by cell_differs. reflexivity.
 Qed.
@@ -81,7 +99,7 @@ Proof.
   pose proof (value_bound w COL_LOCAL_INDEX).
   constructor; [ | exact (body_row_call_context initial final w COL_SEL_LOCAL_SET Hprime Hfull
     ltac:(cbn; auto) Hchosen Hreplay)].
-  intros index Hindex. rewrite Hwrites, Hhi, Hlo.
+  intros index limb Hindex Hlimb. assert (0 <= limb <= 1) by (destruct Hlimb; lia). rewrite Hwrites, Hhi, Hlo.
   rewrite !update_other by cell_differs. reflexivity.
 Qed.
 
@@ -94,7 +112,7 @@ Lemma initialization_frame_effect : forall initial final w chosen,
 Proof.
   intros initial final w chosen Hprime Hfull Hkind Hchosen Hreplay Habove.
   constructor.
-  - intros index Hindex.
+  - intros index limb Hindex Hlimb. assert (0 <= limb <= 1) by (destruct Hlimb; lia).
     destruct Hkind as [-> | ->].
     + destruct (full_zero_initialization_row w Hprime Hfull Hchosen) as [_ [Haddr _]].
       rewrite (zero_row_stack_replay initial final w Hprime Hfull Hchosen Hreplay).

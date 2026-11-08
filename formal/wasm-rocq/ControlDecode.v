@@ -159,13 +159,14 @@ Definition decodeActive (program : Program) (s : store) (memory : MemoryState) (
       Some (wrapValueLabels (guestBody f) labels (fst split) (valueStackPrefix (snd split)
         (instructionSuffix (skipn (S offset) inner)
           (mk_config (mk_state s (MKframe locals (guestModule f))) [CALL_ADDR (N.of_nat callee)]))), True)
-  (* Entry initialization still uses the i32 InitializingFrame invariant. *)
+  (* The zero countdown initializes declared locals after the typed arguments. *)
   | siteEntering function =>
       let? f := functionAt program function in
       check initializationFlagsb boundary && (boundaryMoveRemaining boundary =? 0) &&
         (0 <? boundaryZeroRemaining boundary) && (boundaryPC boundary =? guestEntry f) in
-      let? arguments := readStack memory fbp (guestParams f) in
-      Some (stackConfig (mk_state s (enteredFrame (guestModule f) arguments (guestLocals f))) [] (guestBody f),
+      let? arguments := readLocals memory fbp (guestParamTypes f) in
+      let? defaults := integerZeros (guestLocalTypes f) in
+      Some (valueStackConfig (mk_state s (MKframe (arguments ++ defaults) (guestModule f))) [] (guestBody f),
         InitializingFrame memory boundary arguments (Z.of_nat (guestLocals f)) (boundaryZeroRemaining boundary))
   end.
 

@@ -440,3 +440,128 @@ Proof.
   - pose proof (path_heights_length _ _ _ _ _ _ Hheights) as H. rewrite length_map in H. exact H.
   - unfold viewOperands in Hoperands. apply Forall_app in Hoperands. exact (proj1 Hoperands).
 Qed.
+
+(* Compatibility with the current i32 fragment. Local-index facts come from
+   CodeFacts, which derives them from SpecTec validation. *)
+Definition i32Callees (callees : CalleeEnvironment) : Prop :=
+  forall x f, callees x = Some f ->
+    guestParamTypes f = repeat valtype_I32 (guestParams f) /\
+    guestResultTypes f = repeat valtype_I32 (guestResults f).
+
+Lemma source_types_i32 : forall localCount resultCount arities (callees : CalleeEnvironment) i height next,
+  i32Callees callees ->
+  instrFacts localCount resultCount arities callees i height -> Supported callees i ->
+  sourceHeight callees i height = Some next ->
+  sourceTypes (repeat valtype_I32 localCount) callees i (repeat valtype_I32 height) =
+    Some (repeat valtype_I32 next).
+Proof.
+  intros localCount resultCount arities callees i height next Hcallees Hfacts Hsup Hheight.
+  assert (Hsignature : exists inputs outputs,
+    instructionTypes (repeat valtype_I32 localCount) callees i =
+      Some (repeat valtype_I32 inputs, repeat valtype_I32 outputs)).
+  { destruct Hsup as [ | | x | x | x f Hf Hp Hr | result body Hbody Hresult | l | l | ls l |
+      | result t e Ht He Hresult | result body Hbody Hresult | x y params results Htype Hp Hr Hready | | ];
+      try (discriminate Hheight).
+    - exists 2, 1. reflexivity.
+    - exists 2, 1. reflexivity.
+    - destruct Hfacts as [_ [Hx _]]. exists 0, 1. cbn [instructionTypes].
+      rewrite nth_error_repeat by exact Hx. reflexivity.
+    - destruct Hfacts as [_ [Hx _]]. exists 1, 0. cbn [instructionTypes].
+      rewrite nth_error_repeat by exact Hx. reflexivity.
+    - destruct (Hcallees _ _ Hf) as [Hparams Hresults].
+      exists (guestParams f), (guestResults f). cbn [instructionTypes]. rewrite Hf. cbn [option_map]. rewrite Hparams, Hresults. reflexivity.
+    - destruct Hresult as [-> | ->]; [exists 0, 0 | exists 0, 1]; reflexivity.
+    - exists 1, 0. reflexivity.
+    - destruct Hresult as [-> | ->]; [exists 1, 0 | exists 1, 1]; reflexivity.
+    - destruct Hresult as [-> | ->]; [exists 0, 0 | exists 0, 1]; reflexivity.
+    - exists (params + 1), results. cbn [instructionTypes]. rewrite Htype.
+      cbn [i32StackType]. rewrite repeat_app. reflexivity.
+    - exists 0, 0. reflexivity. }
+  destruct Hsignature as [inputs [outputs Hsignature]].
+  unfold sourceTypes. rewrite Hsignature, replace_stack_types_i32.
+  pose proof (instruction_types_height _ _ _ _ _ height Hsignature) as Hstep.
+  rewrite !repeat_length, Hheight in Hstep.
+  destruct (inputs <=? height); [injection Hstep as ->; reflexivity | discriminate].
+Qed.
+
+Lemma source_type_prefix_i32 : forall localCount resultCount arities (callees : CalleeEnvironment),
+  i32Callees callees ->
+  forall offset code height next,
+  codeFacts localCount resultCount arities callees height code -> supportedCode callees code ->
+  sourceHeights callees (firstn offset code) height = Some next ->
+  sourceTypeStacks (repeat valtype_I32 localCount) callees (firstn offset code) (repeat valtype_I32 height) =
+    Some (repeat valtype_I32 next).
+Proof.
+  intros localCount resultCount arities callees Hcallees offset.
+  induction offset as [ | offset IH]; intros code height next Hfacts Hsupport Hheight.
+  - cbn in Hheight |- *. now injection Hheight as <-.
+  - destruct code as [ | i rest]; [cbn in Hheight |- *; now injection Hheight as <- | ].
+    destruct Hfacts as [Hhead Htail]. inversion Hsupport as [ | ? ? Hsup Hrest]; subst.
+    cbn [firstn sourceHeights] in Hheight. cbn [firstn sourceTypeStacks].
+    destruct (sourceHeight callees i height) as [middle | ] eqn:Hstep; [ | discriminate].
+    rewrite (source_types_i32 _ _ _ _ _ _ _ Hcallees Hhead Hsup Hstep).
+    apply IH; assumption.
+Qed.
+
+Lemma firstn_repeat_le : forall (A : Type) (x : A) n m,
+  n <= m -> firstn n (repeat x m) = repeat x n.
+Proof.
+  intros A x n. induction n as [ | n IH]; intros m H; [reflexivity | ].
+  destruct m; [lia | ]. cbn. f_equal. apply IH. lia.
+Qed.
+
+(* The existing validation facts determine each type at a reachable code path
+   in the current i32 fragment, including inside labels and around calls. *)
+Lemma path_types_i32 : forall localCount resultCount (callees : CalleeEnvironment),
+  i32Callees callees ->
+  forall labels arities code exits offset heights top,
+  codeFacts localCount resultCount arities callees 0 code -> supportedCode callees code ->
+  codeBranches callees exits code 0 ->
+  pathHeights callees code labels offset = Some (heights, top) ->
+  pathTypes (repeat valtype_I32 localCount) callees code labels offset =
+    Some (map (repeat valtype_I32) heights, repeat valtype_I32 top).
+Proof.
+  intros localCount resultCount callees Hcallees labels.
+  induction labels as [ | site rest IH]; intros arities code exits offset heights top Hfacts Hsup Hbr Hheights;
+    cbn [pathHeights pathTypes] in *.
+  - destruct (sourceHeights callees (firstn offset code) 0) as [h | ] eqn:Hh;
+      cbn in Hheights; [ | discriminate]. injection Hheights as <- <-.
+    pose proof (source_type_prefix_i32 _ _ _ _ Hcallees _ _ _ _ Hfacts Hsup Hh) as Htypes.
+    cbn [repeat] in Htypes. rewrite Htypes. reflexivity.
+  - destruct (siteEntry code site) as [[i body] | ] eqn:Hsite; [ | discriminate].
+    destruct (sourceHeights callees (firstn (siteOffset site) code) 0) as [height | ] eqn:Hheight;
+      [ | discriminate].
+    destruct (pathHeights callees body rest offset) as [[nested inner] | ] eqn:Hnested;
+      cbn in Hheights; [ | discriminate]. injection Hheights as <- <-.
+    pose proof (source_type_prefix_i32 _ _ _ _ Hcallees _ _ _ _ Hfacts Hsup Hheight) as Htypes. cbn [repeat] in Htypes.
+    destruct (site_entry_split _ _ _ _ Hsite) as [Hi Harm].
+    pose proof (code_facts_skip _ _ _ _ _ _ _ _ Hfacts Hheight) as Hat.
+    rewrite (skipn_at_instruction _ _ _ Hi) in Hat. destruct Hat as [Hinstr _].
+    pose proof (code_branches_skip _ _ _ _ _ _ Hbr Hheight) as Hbranch.
+    rewrite (skipn_at_instruction _ _ _ Hi) in Hbranch. destruct Hbranch as [Hibr _].
+    pose proof (proj1 (Forall_forall _ _) Hsup _ (nth_error_In _ _ Hi)) as Hisup.
+    destruct (arm_facts _ _ _ _ _ _ _ _ _ Hinstr Hibr Hisup Harm) as [Hbody [_ [Hbbr Hbsup]]].
+    rewrite Htypes, (IH _ _ _ _ _ _ Hbody Hbsup Hbbr Hnested).
+    cbn [option_map fst snd map]. rewrite repeat_length, firstn_repeat_le by apply label_base_bound.
+    reflexivity.
+Qed.
+
+Lemma function_path_types : forall program s index f labels offset,
+  store_FUNCS s = program -> programValidated program s -> functionAt program index = Some f ->
+  pathTypes (guestFrameTypes f) (programCallees program (guestModule f)) (guestBody f) labels offset =
+    option_map (fun heights => (map (repeat valtype_I32) (fst heights), repeat valtype_I32 (snd heights)))
+      (pathHeights (programCallees program (guestModule f)) (guestBody f) labels offset).
+Proof.
+  intros program s index f labels offset Hstore Hvalid Hf.
+  destruct (function_at_i32_types _ _ _ Hf) as [Hp [_ Hl]].
+  unfold guestFrameTypes. rewrite Hp, Hl, <- repeat_app. fold (frameLocals f).
+  destruct (function_facts _ _ _ _ Hstore Hvalid Hf) as [Hfacts [_ [Hsup Hbr]]].
+  assert (Hcallees : i32Callees (programCallees program (guestModule f))).
+  { intros x g Hg. unfold programCallees in Hg; cbn [calleeAt] in Hg.
+    destruct (nth_error (FUNCS (guestModule f)) (N.to_nat x)); [ | discriminate].
+    destruct (function_at_i32_types _ _ _ Hg) as [Hgp [Hgr _]]. auto. }
+  destruct (pathHeights _ _ _ _) as [[heights top] | ] eqn:Hheight.
+  - exact (path_types_i32 _ _ _ Hcallees _ _ _ _ _ _ _ Hfacts Hsup Hbr Hheight).
+  - cbn [option_map]. destruct (pathTypes _ _ _ _ _) as [[segments top] | ] eqn:Htypes; [ | reflexivity].
+    pose proof (path_types_heights _ _ _ _ _ _ _ Htypes) as H. rewrite Hheight in H. discriminate.
+Qed.

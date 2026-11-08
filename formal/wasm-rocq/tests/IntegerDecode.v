@@ -1,7 +1,7 @@
 (* Cell decoding and source types, independently of the i32 run fragment. *)
 From Stdlib Require Import List ZArith Lia.
 Require Import Wasm2 WasmIntegers WasmValues MemoryTrace MemoryCatalog IntegerMemory IntegerDecode
-  CallerSpec StackTypes CodeLayout.
+  CallerSpec StackTypes CodeLayout ControlDecode.
 Require Import tests.IntegerLocals.
 Import ListNotations.
 Open Scope Z_scope.
@@ -67,6 +67,13 @@ Definition wideCallee := mkGuestFunction 0%N testModule (mk_uN 0)
   [valtype_I32; valtype_I64] [valtype_I64] [valtype_I32] [] 0.
 Definition callees := calleeEnvironment (fun _ => Some wideCallee) [guestType wideCallee] [] True.
 Definition locals := [valtype_I32; valtype_I64].
+
+(* The decoder's local reader uses parameter types followed by declared local
+   types. The second value needs both limbs; the others ignore their high limb. *)
+Example frame_locals_decode_by_declaration :
+  readLocals (writeCell mixedMemory 6 11 maxLimb) 4 (guestFrameTypes wideCallee) =
+    Some [i32Value 7; wideValue; i32Value 11].
+Proof. vm_compute. reflexivity. Qed.
 
 Example frame_types_keep_parameter_types :
   guestFrameTypes wideCallee = [valtype_I32; valtype_I64; valtype_I32].

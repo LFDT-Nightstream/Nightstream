@@ -1,5 +1,6 @@
-(* The decoder and the relational invariant agree: a decoded circuit state is a
-   ControlState, and every ControlState decodes at its own shape. *)
+(* For validated programs in the current i32 fragment, the typed decoder and
+   the relational invariant agree: a decoded state is a ControlState, and every
+   ControlState decodes at its own shape. *)
 From Stdlib Require Import List ZArith Bool Lia.
 Require Import Wasm2 WasmIntegers R1CS MemoryTrace MemoryCatalog Add Locals StraightLineSpec StackSimulation
   SpecTecCalls SpecTecBranches CallerSpec ProgramSpec TableState ProgramEncoding CodeLayout FrameInitialization
@@ -54,12 +55,23 @@ Lemma read_stack_cells : forall memory first count values,
   forall index value, nth_error values index = Some value -> memory stackId [2 * (first + Z.of_nat index)] = Some value.
 Proof. intros. exact (read_cells_some _ _ _ _). Qed.
 
-Lemma read_locals_cells : forall memory fbp count locals,
-  readLocals memory fbp count = Some locals <->
-  length locals = count /\ Forall (fun value => 0 <= value < i32Modulus) locals /\
+Lemma read_locals_cells : forall memory fbp types locals,
+  readLocals memory fbp types = Some locals <->
+  Forall2 (fun t value => integerValueType value = Some t) types locals /\
   forall index value, nth_error locals index = Some value ->
-    memory stackId [2 * (fbp + Z.of_nat index)] = Some value.
-Proof. intros. exact (read_stack_cells _ _ _ _). Qed.
+    IntegerMemory.CellMatches memory (fbp + Z.of_nat index) value.
+Proof. intros. apply read_integer_cells_some. Qed.
+
+Lemma read_locals_i32 : forall program index f memory fbp,
+  functionAt program index = Some f ->
+  readLocals memory fbp (guestFrameTypes f) =
+    option_map (map i32Value) (readStack memory fbp (frameLocals f)).
+Proof.
+  intros program index f memory fbp Hf.
+  destruct (function_at_i32_types _ _ _ Hf) as [Hp [_ Hl]].
+  unfold readLocals, guestFrameTypes. rewrite Hp, Hl, <- repeat_app.
+  apply read_integer_cells_i32.
+Qed.
 
 Lemma nth_error_app_cases : forall (A : Type) (low high : list A) index value,
   nth_error (low ++ high) index = Some value ->
@@ -130,6 +142,64 @@ Proof.
   cbn [readStack readCells]. rewrite app_nil_r. reflexivity.
 Qed.
 
+Lemma read_integer_operands_i32 : forall memory base count remaining distance,
+  (remaining <= count)%nat ->
+  readIntegerOperands memory base (repeat valtype_I32 count) remaining distance =
+    option_map (map i32Value) (readOperands memory base count remaining distance).
+Proof.
+  intros memory base count remaining distance Hremaining.
+  unfold readIntegerOperands. rewrite repeat_length.
+  destruct (readOperands memory base count remaining distance) as [raw | ] eqn:Hraw.
+  - apply (read_operands_cells _ _ _ _ _ _ Hremaining) in Hraw as [Hlen [Hbounds Hcells]].
+    pose proof (read_integer_cells_i32_from _ _ _ Hbounds Hcells) as Hread.
+    rewrite Hlen in Hread. exact Hread.
+  - destruct (readIntegerCells _ _ _) as [values | ] eqn:Hread; [ | reflexivity].
+    destruct (read_integer_cells_i32_inv _ _ _ _ Hread) as [raw [_ [Hlen [Hbounds Hcells]]]].
+    assert (Hsome : readOperands memory base count remaining distance = Some raw).
+    { apply read_operands_cells; [exact Hremaining | auto]. }
+    congruence.
+Qed.
+
+Lemma type_heights_i32 : forall heights,
+  typeHeights (map (repeat valtype_I32) (fst heights), repeat valtype_I32 (snd heights)) = heights.
+Proof.
+  intros [hs top]. unfold typeHeights. cbn [fst snd]. rewrite repeat_length.
+  f_equal. induction hs as [ | h rest IH]; [reflexivity | ]. cbn [map]. rewrite repeat_length, IH. reflexivity.
+Qed.
+
+Lemma operand_types_i32 : forall heights,
+  operandTypes (map (repeat valtype_I32) (fst heights), repeat valtype_I32 (snd heights)) =
+    repeat valtype_I32 (totalHeight heights).
+Proof.
+  intros [hs top]. unfold operandTypes, totalHeight. cbn [fst snd].
+  induction hs as [ | h rest IH]; cbn [map concat fold_right app]; [reflexivity | ].
+  rewrite <- app_assoc, IH, <- repeat_app. reflexivity.
+Qed.
+
+Lemma value_stack_config_i32 : forall z values code,
+  valueStackConfig z (map i32Value values) code = stackConfig z values code.
+Proof. intros. unfold valueStackConfig, stackConfig. rewrite map_map. reflexivity. Qed.
+
+Lemma value_stack_prefix_i32 : forall values c,
+  valueStackPrefix (map i32Value values) c = stackPrefix values c.
+Proof. intros values [z code]. unfold valueStackPrefix, stackPrefix. rewrite map_map. reflexivity. Qed.
+
+Lemma wrap_value_labels_i32 : forall labels code segments c,
+  wrapValueLabels code labels (map (map i32Value) segments) c = wrapLabels code labels segments c.
+Proof.
+  induction labels as [ | site rest IH]; intros code [ | segment more] c; try reflexivity.
+  cbn [map wrapValueLabels wrapLabels]. destruct (siteEntry code site) as [[i body] | ]; [ | reflexivity].
+  rewrite IH, value_stack_prefix_i32. reflexivity.
+Qed.
+
+Lemma split_segments_map : forall (A B : Type) (f : A -> B) heights values,
+  splitSegments heights (map f values) =
+    (map (map f) (fst (splitSegments heights values)), map f (snd (splitSegments heights values))).
+Proof.
+  intros A B f heights. induction heights as [ | h rest IH]; intros values; [reflexivity | ].
+  cbn [splitSegments]. rewrite firstn_map, skipn_map, IH. reflexivity.
+Qed.
+
 Lemma operand_cell_unmoved : forall base count distance index,
   (index < count)%nat -> operandCell base count 0 distance index = base + Z.of_nat index.
 Proof.
@@ -162,11 +232,13 @@ Lemma frame_reads : forall program memory base fbp pending remaining distance f 
   FrameAt program memory base fbp pending remaining distance f view ->
   (remaining <= length (viewOperands view))%nat ->
   readOperands memory base (length (viewOperands view)) remaining distance = Some (viewOperands view) /\
-  readLocals memory fbp (frameLocals f) = Some (viewLocals view).
+  readLocals memory fbp (guestFrameTypes f) = Some (map i32Value (viewLocals view)).
 Proof.
   intros program memory base fbp pending remaining distance f view
-    [_ [_ [_ [_ [_ [Hbounds [Hcells [Hlen [Hlb Hlc]]]]]]]]] HremainingBound.
-  split; [apply read_operands_cells; auto | apply read_locals_cells; auto].
+    [Hf [_ [_ [_ [_ [Hbounds [Hcells [Hlen [Hlb Hlc]]]]]]]]] HremainingBound.
+  split; [apply read_operands_cells; auto | ].
+  rewrite (read_locals_i32 _ _ _ _ _ Hf), (proj2 (read_stack_cells _ _ _ _) (conj Hlen (conj Hlb Hlc))).
+  reflexivity.
 Qed.
 
 Lemma frame_of_reads : forall program memory base fbp pending remaining distance f position inner heights stack locals,
@@ -177,7 +249,7 @@ Lemma frame_of_reads : forall program memory base fbp pending remaining distance
   0 <= fbp -> base = fbp + Z.of_nat (frameLocals f) -> (pending <= snd heights)%nat ->
   (remaining <= totalHeight heights - pending)%nat ->
   readOperands memory base (totalHeight heights - pending) remaining distance = Some stack ->
-  readLocals memory fbp (frameLocals f) = Some locals ->
+  readStack memory fbp (frameLocals f) = Some locals ->
   let view := frameView position (fst (splitSegments (fst heights) stack))
     (snd (splitSegments (fst heights) stack)) locals in
   FrameAt program memory base fbp pending remaining distance f view /\ innerCode f position = inner /\
@@ -186,7 +258,7 @@ Proof.
   intros program memory base fbp pending remaining distance f position inner [hs top] stack locals Hf Hpath Hheights
     Hfbp Hbase Hpending HremainingBound Hstack Hlocals view. cbn [fst snd] in *.
   destruct (proj1 (read_operands_cells _ _ _ _ _ _ HremainingBound) Hstack) as [Hlen [Hbounds Hcells]].
-  destruct (proj1 (read_locals_cells _ _ _ _) Hlocals) as [Hllen [Hlb Hlc]].
+  destruct (proj1 (read_stack_cells _ _ _ _) Hlocals) as [Hllen [Hlb Hlc]].
   destruct (split_stack hs top pending stack Hpending Hlen) as [Hmap [Hvalues Hconcat]].
   assert (Hinner : innerCode f position = inner) by (unfold innerCode; rewrite Hpath; reflexivity).
   assert (Hoperands : viewOperands view = stack) by exact Hconcat.
@@ -247,18 +319,27 @@ Proof. intros program [view | view callee | function arguments]; reflexivity. Qe
 
 (* Decoded active frames satisfy the invariant. *)
 Lemma decoded_active : forall program s memory boundary site c obligations,
+  store_FUNCS s = program -> programValidated program s ->
   decodeActive program s memory boundary site = Some (c, obligations) -> obligations ->
   exists position, siteOf position = site /\ ActiveState program s memory boundary position c.
 Proof.
-  intros program s memory boundary [position | position | function] c obligations Hdecode Hobligations;
+  intros program s memory boundary [position | position | function] c obligations Hstore Hvalid Hdecode Hobligations;
     unfold decodeActive in Hdecode; cbv zeta in Hdecode.
   - destruct (functionAt program (positionFunction position)) as [f | ] eqn:Hf; [ | discriminate].
     destruct (pathCode (guestBody f) (positionLabels position)) as [inner | ] eqn:Hpath; [ | discriminate].
+    rewrite (function_path_types _ _ _ _ _ _ Hstore Hvalid Hf) in Hdecode.
     destruct (pathHeights _ _ _ _) as [heights | ] eqn:Hheights; [ | discriminate].
+    cbn [option_map] in Hdecode. rewrite type_heights_i32, operand_types_i32 in Hdecode.
     destruct (_ && _) eqn:Hchecks; [ | discriminate]. bools.
     repeat match goal with H : initializationFlagsb _ = true |- _ => apply flags_check in H end.
+    assert (HreadBound : (Z.to_nat (boundaryMoveRemaining boundary) <= totalHeight heights)%nat).
+    { destruct heights as [hs top]. rewrite total_height_sum. cbn [snd] in *. lia. }
+    rewrite read_integer_operands_i32 in Hdecode by exact HreadBound.
     destruct (readOperands _ _ _ _ _) as [stack | ] eqn:Hstack; [ | discriminate].
-    destruct (readLocals _ _ _) as [locals | ] eqn:Hlocals; [ | discriminate].
+    rewrite (read_locals_i32 _ _ _ _ _ Hf) in Hdecode.
+    destruct (readStack memory (boundaryLocalsBase boundary) (frameLocals f)) as [locals | ] eqn:Hlocals; [ | discriminate].
+    cbn [option_map] in Hdecode. rewrite split_segments_map in Hdecode. cbn [fst snd] in Hdecode.
+    rewrite value_stack_config_i32, wrap_value_labels_i32 in Hdecode.
     injection Hdecode as <- <-.
     rewrite <- (Nat.sub_0_r (totalHeight heights)) in Hstack.
     assert (HremainingBound : (Z.to_nat (boundaryMoveRemaining boundary) <= totalHeight heights - 0)%nat).
@@ -280,13 +361,20 @@ Proof.
   - destruct (functionAt program (positionFunction position)) as [f | ] eqn:Hf; [ | discriminate].
     destruct (pathCode (guestBody f) (positionLabels position)) as [inner | ] eqn:Hpath; [ | discriminate].
     destruct (nth_error inner (positionOffset position)) as [i | ] eqn:Hi; [ | discriminate].
+    rewrite (function_path_types _ _ _ _ _ _ Hstore Hvalid Hf) in Hdecode.
     destruct (pathHeights _ _ _ _) as [heights | ] eqn:Hheights; [ | discriminate].
+    cbn [option_map] in Hdecode. rewrite type_heights_i32, operand_types_i32 in Hdecode.
     destruct (memory stackId _) as [reference | ] eqn:Href; [ | discriminate].
     destruct (functionAt program (Z.to_nat (reference - 1))) as [g | ] eqn:Hg; [ | discriminate].
     destruct (_ && _) eqn:Hchecks; [ | discriminate]. bools.
     repeat match goal with H : initializationFlagsb _ = true |- _ => apply flags_check in H end.
+    rewrite firstn_repeat_le in Hdecode by lia.
+    rewrite read_integer_operands_i32 in Hdecode by lia.
     destruct (readOperands _ _ _ _ _) as [stack | ] eqn:Hstack; [ | discriminate].
-    destruct (readLocals _ _ _) as [locals | ] eqn:Hlocals; [ | discriminate].
+    rewrite (read_locals_i32 _ _ _ _ _ Hf) in Hdecode.
+    destruct (readStack memory (boundaryLocalsBase boundary) (frameLocals f)) as [locals | ] eqn:Hlocals; [ | discriminate].
+    cbn [option_map] in Hdecode. rewrite split_segments_map in Hdecode. cbn [fst snd] in Hdecode.
+    rewrite value_stack_prefix_i32, wrap_value_labels_i32 in Hdecode.
     injection Hdecode as <- <-.
     assert (Htop : (snd heights <= totalHeight heights)%nat)
       by (destruct heights as [hs top]; rewrite total_height_sum; cbn [snd]; lia).
@@ -317,10 +405,11 @@ Qed.
 
 (* Active frames of the invariant decode at their own site. *)
 Lemma active_decodes : forall program s position memory boundary c,
+  store_FUNCS s = program -> programValidated program s ->
   ActiveState program s memory boundary position c ->
   exists obligations, decodeActive program s memory boundary (siteOf position) = Some (c, obligations) /\ obligations.
 Proof.
-  intros program s [view | view callee | function arguments] memory boundary c Hstate; cbn [siteOf];
+  intros program s [view | view callee | function arguments] memory boundary c Hstore Hvalid Hstate; cbn [siteOf];
     unfold decodeActive; cbv zeta.
   - destruct Hstate as [f [Hframe [Hoffset [Hsp [Hpc [Hflags [Hzero [HremainingBound ->]]]]]]]].
     pose proof Hframe as [Hf [Hpath [_ [Hfbp [Hbase _]]]]].
@@ -328,20 +417,30 @@ Proof.
     assert (HremainingBoundOps : (Z.to_nat (boundaryMoveRemaining boundary) <= length (viewOperands view))%nat).
     { unfold viewOperands. rewrite length_app. lia. }
     destruct (frame_reads _ _ _ _ _ _ _ _ _ Hframe HremainingBoundOps) as [Hstack Hlocals].
-    rewrite Hf, Hpath, Hheights, Htotal. cbn [snd]. rewrite !Nat.add_0_r.
+    rewrite Hf, Hpath, (function_path_types _ _ _ _ _ _ Hstore Hvalid Hf), Hheights.
+    cbn [option_map]. rewrite type_heights_i32, operand_types_i32, Htotal.
+    cbn [snd]. rewrite !Nat.add_0_r.
     apply flags_check in Hflags. pass_check.
-    rewrite Hstack, Hlocals. cbn [fst snd]. unfold viewOperands. rewrite split_concat.
+    rewrite read_integer_operands_i32 by exact HremainingBoundOps.
+    rewrite Hstack, Hlocals. cbn [option_map]. rewrite split_segments_map. cbn [fst snd].
+    rewrite value_stack_config_i32, wrap_value_labels_i32.
+    unfold viewOperands. rewrite split_concat.
     eexists. split; [reflexivity | exact I].
   - destruct Hstate as [f [g [i [Hframe [Hi [Hind [Hg [Hcalls [Href [Hsp [Hpc [Hflags [Hzero [Hmove ->]]]]]]]]]]]]]].
     pose proof Hframe as [Hf [Hpath [_ [Hfbp [Hbase _]]]]].
     destruct (frame_heights _ _ _ _ _ _ _ _ _ Hframe) as [Hheights Htotal].
     destruct (frame_reads _ _ _ _ _ _ _ _ _ Hframe (Nat.le_0_l _)) as [Hstack Hlocals].
     unfold innerCode in Hi. rewrite Hpath in Hi.
-    rewrite Hf, Hpath, Hi, Hheights, Htotal, Nat.add_sub, Href.
+    rewrite Hf, Hpath, Hi, (function_path_types _ _ _ _ _ _ Hstore Hvalid Hf), Hheights.
+    cbn [option_map]. rewrite type_heights_i32, operand_types_i32, Htotal, Nat.add_sub, Href.
     replace (Z.to_nat (Z.of_nat callee + 1 - 1)) with callee by lia. rewrite Hg.
     pose proof (proj2 (calls_into_check _ _ _ _ _ Hg) Hcalls) as Hcallsb.
     cbn [snd]. apply flags_check in Hflags. pass_check.
-    rewrite Hstack, Hlocals. cbn [fst snd]. unfold viewOperands. rewrite split_concat.
+    rewrite firstn_repeat_le by lia.
+    rewrite read_integer_operands_i32 by lia.
+    rewrite Hstack, Hlocals. cbn [option_map]. rewrite split_segments_map. cbn [fst snd].
+    rewrite value_stack_prefix_i32, wrap_value_labels_i32.
+    unfold viewOperands. rewrite split_concat.
     eexists. split; [ | exact I]. unfold frameConfig, innerCode. rewrite Hpath. reflexivity.
   - destruct Hstate as [f [Hf [Hlen [Hbounds [Hinit [Hflags [Hmove [Hpending [Hpc ->]]]]]]]]].
     rewrite Hf. apply flags_check in Hflags. pass_check.
@@ -352,27 +451,36 @@ Proof.
 Qed.
 
 (* Decoded callers form the invariant's suspended stack. *)
-Lemma decoded_calls : forall program memory sites callee f fbp depth inner obligations c result,
+Lemma decoded_calls : forall program s memory sites callee f fbp depth inner obligations c result,
+  store_FUNCS s = program -> programValidated program s ->
   functionAt program callee = Some f ->
   decodeCalls program memory callee fbp depth sites inner obligations = Some (c, result) ->
   result = obligations /\ exists stack, map (fun suspended => viewPosition (callView suspended)) stack = sites /\
     SuspendedStack program memory f fbp depth stack /\ c = plugCalls stack inner.
 Proof.
-  intros program memory sites. induction sites as [ | site sites IH];
-    intros callee f fbp depth inner obligations c result Hf Hdecode; cbn [decodeCalls] in Hdecode.
+  intros program s memory sites. induction sites as [ | site sites IH];
+    intros callee f fbp depth inner obligations c result Hstore Hvalid Hf Hdecode; cbn [decodeCalls] in Hdecode.
   - injection Hdecode as <- <-. split; [reflexivity | exists []; repeat split].
   - destruct (functionAt program (positionFunction site)) as [g | ] eqn:Hg; [ | discriminate].
     rewrite Hf in Hdecode.
     destruct (pathCode (guestBody g) (positionLabels site)) as [code | ] eqn:Hpath; [ | discriminate].
     destruct (nth_error code (positionOffset site)) as [i | ] eqn:Hcall; [ | discriminate].
+    rewrite (function_path_types _ _ _ _ _ _ Hstore Hvalid Hg) in Hdecode.
     destruct (pathHeights _ _ _ _) as [heights | ] eqn:Hheights; [ | discriminate].
+    cbn [option_map] in Hdecode. rewrite type_heights_i32, operand_types_i32 in Hdecode.
     destruct (memory callStackReturnPcId _) as [returnPC | ] eqn:Hret; [ | discriminate].
     destruct (memory callStackCallerFbpId _) as [savedFbp | ] eqn:HsavedFbp; [ | discriminate].
     destruct (memory callStackCallerSpBaseId _) as [savedBase | ] eqn:HsavedBase; [ | discriminate].
     destruct (_ && _) eqn:Hchecks; [ | discriminate]. bools.
+    rewrite firstn_repeat_le in Hdecode by lia.
+    rewrite read_integer_cells_i32 in Hdecode.
+    fold (readStack memory savedBase (totalHeight heights - callOperands i f)) in Hdecode.
     destruct (readStack _ _ _) as [stack | ] eqn:Hstack; [ | discriminate].
-    destruct (readLocals _ _ _) as [locals | ] eqn:Hlocals; [ | discriminate].
-    destruct (IH _ _ _ _ _ _ _ _ Hg Hdecode) as [Hresult [stack' [Hsites [Hsusp ->]]]].
+    rewrite (read_locals_i32 _ _ _ _ _ Hg) in Hdecode.
+    destruct (readStack memory savedFbp (frameLocals g)) as [locals | ] eqn:Hlocals; [ | discriminate].
+    cbn [option_map] in Hdecode. rewrite split_segments_map in Hdecode. cbn [fst snd] in Hdecode.
+    rewrite value_stack_prefix_i32, wrap_value_labels_i32 in Hdecode.
+    destruct (IH _ _ _ _ _ _ _ _ Hstore Hvalid Hg Hdecode) as [Hresult [stack' [Hsites [Hsusp ->]]]].
     split; [exact Hresult | ].
     rewrite <- (read_operands_unmoved memory savedBase _ 0) in Hstack.
     destruct (frame_of_reads program memory savedBase savedFbp (callOperands i f) 0%nat 0 _ _ _ _ _ _ Hg Hpath Hheights
@@ -394,14 +502,15 @@ Proof.
 Qed.
 
 (* The invariant's suspended stack decodes at its own call sites. *)
-Lemma calls_decode : forall program memory stack callee f fbp depth inner obligations,
+Lemma calls_decode : forall program s memory stack callee f fbp depth inner obligations,
+  store_FUNCS s = program -> programValidated program s ->
   functionAt program callee = Some f -> SuspendedStack program memory f fbp depth stack ->
   decodeCalls program memory callee fbp depth
     (map (fun suspended => viewPosition (callView suspended)) stack) inner obligations =
     Some (plugCalls stack inner, obligations).
 Proof.
-  intros program memory stack. induction stack as [ | top stack IH];
-    intros callee f fbp depth inner obligations Hf Hsusp; cbn [map decodeCalls plugCalls]; [reflexivity | ].
+  intros program s memory stack. induction stack as [ | top stack IH];
+    intros callee f fbp depth inner obligations Hstore Hvalid Hf Hsusp; cbn [map decodeCalls plugCalls]; [reflexivity | ].
   destruct Hsusp as [x [Hframe [Hcall [Hcallee [Hres [Hfbp [Hret [HsavedFbp [HsavedBase Hrest]]]]]]]]].
   pose proof Hframe as [Hg [Hpath [_ [Hfbp0 [Hbase0 _]]]]].
   destruct (frame_heights _ _ _ _ _ _ _ _ _ Hframe) as [Hheights Htotal].
@@ -409,11 +518,15 @@ Proof.
   rewrite read_operands_unmoved in Hstack.
   rewrite Hg, Hf, Hpath, Hcall.
   pose proof (proj2 (calls_into_check _ _ _ _ _ Hf) Hcallee) as Hcallsb.
-  rewrite Hheights, Hret, HsavedFbp, HsavedBase.
+  rewrite (function_path_types _ _ _ _ _ _ Hstore Hvalid Hg), Hheights.
+  cbn [option_map]. rewrite type_heights_i32, operand_types_i32, Hret, HsavedFbp, HsavedBase.
   rewrite Htotal, Nat.add_sub. cbn [fst snd]. pass_check.
-  rewrite Hstack, Hlocals.
+  rewrite firstn_repeat_le by lia. rewrite read_integer_cells_i32.
+  fold (readStack memory (callerBase top) (length (viewOperands (callView top)))).
+  rewrite Hstack, Hlocals. cbn [option_map]. rewrite split_segments_map. cbn [fst snd].
+  rewrite value_stack_prefix_i32, wrap_value_labels_i32.
   unfold viewOperands. rewrite split_concat. cbn [fst snd].
-  rewrite <- Hres. exact (IH _ _ _ _ _ _ Hg Hrest).
+  rewrite <- Hres. exact (IH _ _ _ _ _ _ Hstore Hvalid Hg Hrest).
 Qed.
 
 (* The bridge: what the audited statement says, in the invariant's terms. *)
@@ -421,15 +534,15 @@ Theorem circuit_config_state : forall program s baseDepth shape memory boundary 
   CircuitConfig program s baseDepth shape memory boundary c ->
   exists cursor, shapeOf cursor = shape /\ ControlState program s baseDepth cursor memory boundary c.
 Proof.
-  intros program s baseDepth shape memory boundary c [_ [_ [_ [_ [obligations [Hdecode Hobligations]]]]]].
+  intros program s baseDepth shape memory boundary c [Hstore [_ [Hvalid [_ [obligations [Hdecode Hobligations]]]]]].
   unfold decodeControl in Hdecode.
   destruct (_ && _) eqn:Hchecks; [ | discriminate]. bools.
   destruct (decodeActive program s memory boundary (activeSite shape)) as [[inner active] | ] eqn:Hactive;
     [ | discriminate]. cbn [fst snd] in Hdecode.
   destruct (decode_active_function _ _ _ _ _ _ Hactive) as [f Hf].
-  destruct (decoded_calls _ _ _ _ _ _ _ _ _ _ _ Hf Hdecode) as [Hresult [stack [Hsites [Hsusp ->]]]].
+  destruct (decoded_calls _ _ _ _ _ _ _ _ _ _ _ _ Hstore Hvalid Hf Hdecode) as [Hresult [stack [Hsites [Hsusp ->]]]].
   subst obligations.
-  destruct (decoded_active _ _ _ _ _ _ _ Hactive Hobligations) as [position [Hsite Hstate]].
+  destruct (decoded_active _ _ _ _ _ _ _ Hstore Hvalid Hactive Hobligations) as [position [Hsite Hstate]].
   exists (controlCursor stack position). split.
   { unfold shapeOf. cbn [suspendedCalls activePosition]. rewrite Hsites, Hsite. destruct shape; reflexivity. }
   exists f, inner. cbn [activePosition suspendedCalls].
@@ -449,7 +562,7 @@ Proof.
   split; [exact Hfuncs | split; [exact Hwf | split; [exact Hvalid | split; [exact Htables | ]]]].
   unfold decodeControl, shapeOf. cbn [callSites activeSite activePosition suspendedCalls]. rewrite length_map.
   pass_check.
-  destruct (active_decodes _ _ _ _ _ _ Hstate) as [active [Hactive Hobligations]].
+  destruct (active_decodes _ _ _ _ _ _ Hfuncs Hvalid Hstate) as [active [Hactive Hobligations]].
   rewrite Hactive. cbn [fst snd]. rewrite active_function_site in Hf.
-  exists active. split; [exact (calls_decode _ _ _ _ _ _ _ _ _ Hf Hsusp) | exact Hobligations].
+  exists active. split; [exact (calls_decode _ _ _ _ _ _ _ _ _ _ Hfuncs Hvalid Hf Hsusp) | exact Hobligations].
 Qed.

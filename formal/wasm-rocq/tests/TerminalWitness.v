@@ -6,6 +6,7 @@ Require Import R1CS Columns Range MemoryTrace MemoryCatalog TraceRefinement Wasm
   ProgramSpec ProgramEncoding ControlDecode ExecutionSpec ExecutionRefinement
   tests.BlockPrograms tests.WitnessCheck tests.NopWitness tests.NopTerminalTrace
   tests.TrapTrace.
+Require Import ControlInvariant.
 Import ListNotations.
 Open Scope Z_scope.
 

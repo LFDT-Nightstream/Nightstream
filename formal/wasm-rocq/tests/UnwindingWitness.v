@@ -6,6 +6,7 @@ Require Import R1CS Columns Range MemoryTrace MemoryCatalog TraceRefinement Wasm
   StraightLineSpec SpecTecCalls CallerSpec CallerValidation FunctionValidation CodeLayout ProgramSpec ProgramEncoding
   ProgramRefinement ControlDecode Fragment tests.BlockPrograms tests.WitnessCheck tests.UnwindingTrace
   tests.UnwindingRun.
+Require Import ControlInvariant.
 Import ListNotations.
 Open Scope Z_scope.
 

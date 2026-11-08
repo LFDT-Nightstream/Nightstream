@@ -64,6 +64,17 @@ Proof.
   rewrite firstn_app, firstn_all, Nat.sub_diag. cbn [firstn]. rewrite app_nil_r. reflexivity.
 Qed.
 
+Lemma replace_stack_types_i32 : forall inputs outputs height,
+  replaceStackTypes (repeat valtype_I32 inputs) (repeat valtype_I32 outputs) (repeat valtype_I32 height) =
+    if inputs <=? height then Some (repeat valtype_I32 (height - inputs + outputs)) else None.
+Proof.
+  intros inputs outputs height. destruct (inputs <=? height) eqn:Hle.
+  - apply Nat.leb_le in Hle.
+    replace height with (height - inputs + inputs) at 1 by lia.
+    rewrite repeat_app, replace_stack_types_exact, <- repeat_app. reflexivity.
+  - unfold replaceStackTypes. rewrite !repeat_length, Hle. reflexivity.
+Qed.
+
 Lemma replace_stack_types_some : forall inputs outputs stack next,
   replaceStackTypes inputs outputs stack = Some next <->
   exists prefix, stack = prefix ++ inputs /\ next = prefix ++ outputs.

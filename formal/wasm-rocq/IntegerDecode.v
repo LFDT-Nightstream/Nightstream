@@ -158,6 +158,39 @@ Proof.
     destruct (readCells (fun cell => memory stackId [2 * cell]) (first + 1) count); reflexivity.
 Qed.
 
+Lemma read_integer_cells_i32_from : forall memory values address,
+  Forall (fun value => 0 <= value < i32Modulus) values ->
+  (forall index value, nth_error values index = Some value ->
+    memory stackId [2 * address index] = Some value) ->
+  readIntegerCells memory address (repeat valtype_I32 (length values)) = Some (map i32Value values).
+Proof.
+  intros memory values. induction values as [ | value rest IH]; intros address Hbounds Hcells; [reflexivity | ].
+  inversion Hbounds as [ | ? ? Hvalue Hrest]; subst.
+  cbn [length repeat readIntegerCells readIntegerCell map].
+  rewrite (proj2 (i32_cell_some _ _) (conj (Hcells 0%nat _ eq_refl) Hvalue)).
+  rewrite IH; [reflexivity | exact Hrest | ]. intros index v Hv. exact (Hcells (S index) v Hv).
+Qed.
+
+Lemma read_integer_cells_i32_inv : forall memory count address values,
+  readIntegerCells memory address (repeat valtype_I32 count) = Some values ->
+  exists raw, values = map i32Value raw /\ length raw = count /\
+    Forall (fun value => 0 <= value < i32Modulus) raw /\
+    forall index value, nth_error raw index = Some value -> memory stackId [2 * address index] = Some value.
+Proof.
+  intros memory count. induction count as [ | count IH]; intros address values H.
+  - cbn in H. injection H as <-. exists []. repeat split; try constructor. intros [ | ] ? H; discriminate.
+  - cbn [repeat readIntegerCells readIntegerCell] in H.
+    destruct (i32Cell (memory stackId [2 * address 0%nat])) as [lo | ] eqn:Hlo; [ | discriminate].
+    destruct (readIntegerCells memory (fun i => address (S i)) (repeat valtype_I32 count)) as [rest | ] eqn:Hrest;
+      [ | discriminate]. injection H as <-.
+    destruct (IH _ _ Hrest) as [raw [-> [Hlen [Hbounds Hcells]]]].
+    apply i32_cell_some in Hlo as [Hlo Hbound].
+    exists (lo :: raw). split; [reflexivity | ]. split; [cbn; lia | ]. split; [constructor; assumption | ].
+    intros [ | index] value Hv; cbn in Hv.
+    + injection Hv as <-. exact Hlo.
+    + exact (Hcells _ _ Hv).
+Qed.
+
 (* A bottom-up move preserves the decoded values, including when source and
    destination regions overlap. Both limbs of the next cell are copied.
    For a circuit move, both source-read premises must follow from its memory

@@ -8,6 +8,37 @@ Require Import Wasm2 WasmIntegers R1CS MemoryTrace MemoryCatalog StraightLineSpe
 Import ListNotations.
 Open Scope Z_scope.
 
+(* The i32 frame representation used by the current row proofs. The decoder
+   reads typed values directly; ControlBridge connects the two under functionAt's
+   current i32 restriction. *)
+Definition activeFrame (f : GuestFunction) (locals : list Z) : frame :=
+  MKframe (List.map i32Value locals) (guestModule f).
+
+(* A frame's operands from its base; while a move is pending, the top `remaining`
+   operands still sit `distance` cells higher. *)
+Definition readOperands (memory : MemoryState) (base : Z) (count remaining : nat) (distance : Z) : option (list Z) :=
+  match readStack memory base (count - remaining),
+    readStack memory (base + Z.of_nat (count - remaining) + distance) remaining with
+  | Some low, Some high => Some (low ++ high)
+  | _, _ => None
+  end.
+
+
+(* A configuration inside its enclosing labels: each label's operands and the
+   code after its END stay outside its LABEL_. *)
+Fixpoint wrapLabels (code : list instr) (labels : list LabelSite) (segments : list (list Z)) (c : config) : config :=
+  match labels, segments with
+  | s :: rest, segment :: more =>
+      match siteEntry code s with
+      | Some (i, body) =>
+          stackPrefix segment (instructionSuffix (skipn (S (siteOffset s)) code)
+            (blockContext (labelArity i) (labelContinuation i) (wrapLabels body rest more c)))
+      | None => c
+      end
+  | _, _ => c
+  end.
+
+
 (* A frame's dynamic state at a code path: the operands below each enclosing
    label, the operands in the innermost code, and the locals. *)
 Record FrameView := frameView {

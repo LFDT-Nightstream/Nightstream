@@ -601,11 +601,15 @@ fn every_state_field_changes_the_state_words() {
         pc: _,
         sp: _,
         stack_frame_base: _,
-        output: WasmOutputState {
-            enabled: _,
-            value_lo: _,
-            value_hi: _,
-        },
+        output:
+            WasmOutputState {
+                enabled: _,
+                value_lo: _,
+                value_hi: _,
+                second_enabled: _,
+                second_value_lo: _,
+                second_value_hi: _,
+            },
         call_stack_depth: _,
         memory_pages: _,
         max_memory_pages: _,
@@ -654,6 +658,18 @@ fn every_state_field_changes_the_state_words() {
         ("output.enabled".into(), Box::new(|s| s.output.enabled ^= true)),
         ("output.value_lo".into(), Box::new(|s| s.output.value_lo += 1)),
         ("output.value_hi".into(), Box::new(|s| s.output.value_hi += 1)),
+        (
+            "output.second_enabled".into(),
+            Box::new(|s| s.output.second_enabled ^= true),
+        ),
+        (
+            "output.second_value_lo".into(),
+            Box::new(|s| s.output.second_value_lo += 1),
+        ),
+        (
+            "output.second_value_hi".into(),
+            Box::new(|s| s.output.second_value_hi += 1),
+        ),
         ("call_stack_depth".into(), Box::new(|s| s.call_stack_depth += 1)),
         (
             "memory_pages".into(),
@@ -752,7 +768,7 @@ fn every_state_field_changes_the_state_words() {
         change(&mut changed);
         assert_ne!(state_words(changed), words, "{name} has no words");
     }
-    assert_eq!(changes.len(), 29 + 3 * 4 + 8 + 12, "one change for each field and lane");
+    assert_eq!(changes.len(), 32 + 3 * 4 + 8 + 12, "one change for each field and lane");
 }
 
 #[test]

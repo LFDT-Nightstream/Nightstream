@@ -25,14 +25,64 @@ use super::host_event_emit::{
     emit_block_plan, plan_import_phase, EventBlockPlan, HostCallEventPlan, HostEventRowContext,
 };
 use super::memory::LinearMemoryImage;
-use super::normalize_step;
+use super::{normalize_step, NormalizedStep};
 use crate::comm_chain::CommChainState;
 use crate::host_event_bindings::HostEventBindings;
 use crate::ir::{
     StackValueAccess, WasmBuildError, WasmCountdownState, WasmEventAbsorbState, WasmFrameMoveState, WasmOutputState,
     WasmPcEdgeKind, WasmRowKind, WasmStepState, WasmVmStep,
 };
-use crate::isa::WasmOpcode;
+use crate::isa::{opcode_code, opcode_info_from_code, WasmOpcode};
+
+/// Lays out one Wasmtime step: an indirect call becomes its resolve step, at the
+/// step's pc, and, unless that step traps, the invocation one pc later. The
+/// resolve step checks the table entry and leaves the checked function reference
+/// where the index was, which is what the invocation pops and calls.
+fn split_indirect_call(step: NormalizedStep, out: &mut Vec<NormalizedStep>) {
+    if !matches!(step.opcode, WasmOpcode::CallIndirect | WasmOpcode::ReturnCallIndirect) {
+        out.push(step);
+        return;
+    }
+    let traps = call_indirect_oob(step.table_index, step.table_size)
+        || call_indirect_traps(step.table_value, step.expected_type_id, step.function_type_id);
+    let mut resolve = step.clone();
+    resolve.opcode = WasmOpcode::CallIndirectResolve;
+    resolve.info = opcode_info_from_code(opcode_code(WasmOpcode::CallIndirectResolve));
+    resolve.pc = step.pc;
+    resolve.control_choice = 0;
+    resolve.pc_edge_kind = WasmPcEdgeKind::Static;
+    resolve.pc_after_instruction = Some(u64::from(step.pc) + 1);
+    resolve.wide_values_enabled = false;
+    resolve.stack_reads_override = None;
+    resolve.stack_writes_override = None;
+    resolve.target_function_is_guest = false;
+    resolve.call_param_count = None;
+    resolve.call_result_count = None;
+    resolve.host_call_memory = None;
+    out.push(resolve);
+    if traps {
+        return;
+    }
+    let mut invocation = step;
+    invocation.pc += 1;
+    let reference = invocation
+        .table_value
+        .expect("a resolved indirect call has a table entry");
+    if let Some(top) = invocation.operand_stack.last_mut() {
+        *top = reference;
+    }
+    if let Some(top) = invocation.operand_stack_hi.last_mut() {
+        *top = 0;
+    }
+    invocation.entry_memory = None;
+    invocation.table_id = None;
+    invocation.table_index = None;
+    invocation.table_value = None;
+    invocation.table_size = None;
+    invocation.function_type_id = None;
+    invocation.expected_type_id = None;
+    out.push(invocation);
+}
 
 pub(super) fn build_trace(
     rows: &[WasmtimeTraceStep],
@@ -43,7 +93,7 @@ pub(super) fn build_trace(
     let mut supported = Vec::new();
     for row in rows {
         if let Some(normalized) = normalize_step(row)? {
-            supported.push(normalized);
+            split_indirect_call(normalized, &mut supported);
         }
     }
     // Import-free callers get the canonical single-shot bindings: an empty
@@ -208,7 +258,10 @@ pub(super) fn build_trace(
                 access.lane0.word_addr + u64::from(access.lane1.is_some()) + u64::from(access.lane2.is_some());
             last_lane >= u64::from(current.memory_pages_before.unwrap_or(0)) * 16384
         });
-        let stack_write0 = if div_trap || mem_oob {
+        let ci_trap = current.opcode == WasmOpcode::CallIndirectResolve
+            && (call_indirect_oob(current.table_index, current.table_size)
+                || call_indirect_traps(current.table_value, current.expected_type_id, current.function_type_id));
+        let stack_write0 = if div_trap || mem_oob || ci_trap {
             // No post-state result exists; CCS pins this synthetic write to zero.
             let addr = sp_after.saturating_sub(1).saturating_mul(2);
             let hi = current.wide_values_enabled.then_some(0);
@@ -217,11 +270,6 @@ pub(super) fn build_trace(
             let write_value_hi = write_lane_hi(current, next, stack_writes)?;
             write_lane(current, next, sp_after, stack_writes)?.map(|write| write.with_optional_hi(write_value_hi))
         };
-        let ci_trap = matches!(
-            current.opcode,
-            WasmOpcode::CallIndirect | WasmOpcode::ReturnCallIndirect
-        ) && (call_indirect_oob(current.table_index, current.table_size)
-            || call_indirect_traps(current.table_value, current.expected_type_id, current.function_type_id));
         // A trap is terminal: wasmtime stops stepping at the faulting
         // instruction, so a trapping opcode can only be the last row.
         let trapped = matches!(current.opcode, WasmOpcode::Unreachable) || div_trap || ci_trap || mem_oob;
@@ -320,11 +368,10 @@ pub(super) fn build_trace(
         match current.opcode {
             WasmOpcode::Call | WasmOpcode::CallIndirect => {
                 let return_pc = current.pc_after_instruction.unwrap_or(pc_after);
-                if !current.target_function_is_guest || ci_trap {
+                if !current.target_function_is_guest {
                     // Imported/host callees do not produce guest core rows. In that case the next
                     // guest row is already the post-call continuation, so there is no guest
-                    // call-stack boundary to model in this trace. A trapping call_indirect never
-                    // enters the callee either, regardless of the target's guest flag.
+                    // call-stack boundary to model in this trace.
                     call_stack_push = None;
                     call_stack_pop = None;
                 } else {
@@ -334,8 +381,9 @@ pub(super) fn build_trace(
                             current.cycle
                         ))
                     })?;
-                    // Guest call rows pop only the table index (indirect) or
-                    // nothing (direct); the args become the callee's params.
+                    // Guest call rows pop only the checked function reference
+                    // (indirect) or nothing (direct); the args become the
+                    // callee's params.
                     let expected_stack_reads = u8::from(matches!(current.opcode, WasmOpcode::CallIndirect));
                     if stack_reads != expected_stack_reads {
                         return Err(WasmBuildError::Trace(format!(
@@ -494,9 +542,8 @@ pub(super) fn build_trace(
             linear_memory.apply_program_access(current)?;
         }
 
-        let is_host_call = matches!(current.opcode, WasmOpcode::Call | WasmOpcode::CallIndirect)
-            && !current.target_function_is_guest
-            && !ci_trap;
+        let is_host_call =
+            matches!(current.opcode, WasmOpcode::Call | WasmOpcode::CallIndirect) && !current.target_function_is_guest;
         let mut host_event_plan: Option<HostCallEventPlan> = None;
         let mut host_context = None;
         let mut return_count = None;
@@ -793,16 +840,12 @@ pub(super) fn build_trace(
             table_index: current.table_index,
             table_value: current.table_value,
             function_ref: current.function_ref,
-            // A trapping call_indirect never calls: its callee-metadata ROM
-            // reads are de-gated in the CCS, and the freed columns must
-            // satisfy the host-shaped arity rows (is_guest = 0, counts = 0).
-            target_function_is_guest: current.target_function_is_guest && !ci_trap,
+            target_function_is_guest: current.target_function_is_guest,
             function_type_id: current.function_type_id,
             expected_type_id: current.expected_type_id,
-            call_indirect_type_index: current.call_indirect_type_index,
             table_size: current.table_size,
-            call_param_count: current.call_param_count.filter(|_| !ci_trap),
-            call_result_count: current.call_result_count.filter(|_| !ci_trap),
+            call_param_count: current.call_param_count,
+            call_result_count: current.call_result_count,
             call_stack_push,
             call_stack_pop,
             host_context: None,

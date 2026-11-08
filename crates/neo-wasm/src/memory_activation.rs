@@ -48,8 +48,7 @@ pub(crate) fn activation_supports() -> BTreeMap<usize, BTreeSet<usize>> {
         COL_TABLE_READ_ENABLED,
         [
             selector_col(WasmOpcode::TableGet).unwrap(),
-            selector_col(WasmOpcode::CallIndirect).unwrap(),
-            selector_col(WasmOpcode::ReturnCallIndirect).unwrap(),
+            selector_col(WasmOpcode::CallIndirectResolve).unwrap(),
         ],
     );
     insert_derived_activation_support(
@@ -58,8 +57,7 @@ pub(crate) fn activation_supports() -> BTreeMap<usize, BTreeSet<usize>> {
         COL_TABLE_SIZE_READ_ENABLED,
         [
             selector_col(WasmOpcode::TableSize).unwrap(),
-            selector_col(WasmOpcode::CallIndirect).unwrap(),
-            selector_col(WasmOpcode::ReturnCallIndirect).unwrap(),
+            selector_col(WasmOpcode::CallIndirectResolve).unwrap(),
         ],
     );
 
@@ -140,14 +138,19 @@ pub(crate) fn activation_supports() -> BTreeMap<usize, BTreeSet<usize>> {
         insert_derived_activation_support(&mut supports, name, gate, selectors.iter().copied());
     }
 
-    let indirect_call_selectors = opcode_selectors([WasmOpcode::CallIndirect, WasmOpcode::ReturnCallIndirect]);
+    let resolve_selectors = opcode_selectors([WasmOpcode::CallIndirectResolve]);
     for (name, gate) in [
         ("indirect-call type lookups", COL_FUNCTION_CALL_TYPE_LOOKUP_GATE),
-        ("successful indirect calls", COL_CALL_INDIRECT_IS_NOT_TRAP),
-        ("indirect host calls", COL_CI_HOST_CALL),
+        ("successful indirect-call resolutions", COL_CALL_INDIRECT_IS_NOT_TRAP),
     ] {
-        insert_derived_activation_support(&mut supports, name, gate, indirect_call_selectors.iter().copied());
+        insert_derived_activation_support(&mut supports, name, gate, resolve_selectors.iter().copied());
     }
+    insert_derived_activation_support(
+        &mut supports,
+        "indirect host calls",
+        COL_CI_HOST_CALL,
+        opcode_selectors([WasmOpcode::CallIndirect, WasmOpcode::ReturnCallIndirect]),
+    );
 
     insert_derived_activation_support(
         &mut supports,

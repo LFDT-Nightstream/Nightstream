@@ -60,9 +60,112 @@ const EARLY_RETURN: &str = r#"(module
     block local.get 1 local.get 0 return end
     local.get 1))"#;
 
-/// The longest run of program, zero and move rows ending just before the final END,
-/// which finishes the activation, as `name`, one dense row per trace row.
-fn export_witness(wat: &str, params: &[i32], name: &str, file: &str) {
+/// A taken br_if out of a result block: it keeps the block's result and drops the
+/// operand below it, so the result moves down; the outer block's END carries its
+/// result out.
+const RESULT_BLOCKS: &str = r#"(module
+  (func (export "main") (param i32 i32) (result i32)
+    block (result i32)
+      block (result i32) local.get 0 local.get 1 local.get 0 br_if 0 i32.add end
+      local.get 1
+      i32.sub
+    end))"#;
+
+/// A br out of two blocks to a result block: it keeps the block's result and drops
+/// the outer block's operand below it, so the result moves down.
+const BR_OUT: &str = r#"(module
+  (func (export "main") (param i32 i32) (result i32)
+    block (result i32)
+      local.get 0
+      block local.get 1 br 1 end
+    end))"#;
+
+/// Two br_tables: index 1 takes an arm out of a zero-result block; index 7 is past
+/// the arms and takes the default out of a result block, which keeps its result and
+/// drops the operand below it, so the result moves down.
+const BR_TABLES: &str = r#"(module
+  (func (export "main") (param i32 i32) (result i32)
+    block (result i32)
+      local.get 0
+      block local.get 1 br_table 0 0 0 end
+      local.get 1
+      local.get 0
+      br_table 0 0
+    end))"#;
+
+/// Three ifs: a zero condition takes the else-body, a nonzero one the then-body,
+/// whose ELSE jumps past the else-body; a zero condition skips an if with no
+/// else-body.
+const IFS: &str = r#"(module
+  (func (export "main") (param i32 i32) (result i32)
+    local.get 0
+    local.get 1
+    if (result i32) local.get 1 else local.get 0 end
+    i32.add
+    local.get 0
+    if (result i32) local.get 0 else local.get 1 end
+    i32.add
+    local.get 1
+    if local.get 0 local.set 1 end))"#;
+
+/// A loop summing n, n - 1, ..., 1 for main(n, 1): each taken br_if drops the
+/// running sum it pushed and runs the loop again; the last iteration falls out of
+/// the loop with the sum as its result.
+const LOOPS: &str = r#"(module
+  (func (export "main") (param i32 i32) (result i32) (local i32)
+    loop (result i32)
+      local.get 2
+      local.get 0
+      i32.add
+      local.set 2
+      local.get 0
+      local.get 1
+      i32.sub
+      local.set 0
+      local.get 2
+      local.get 0
+      br_if 0
+    end))"#;
+
+/// Nops at the top level and inside a block, around an operand.
+const NOPS: &str = r#"(module
+  (func (export "main") (param i32) (result i32)
+    nop
+    local.get 0
+    block nop end
+    nop))"#;
+
+/// A br to the callee's own label from inside a block: a return of 9 to main,
+/// dropping the 7 below it.
+const FUNCTION_BR: &str = r#"(module
+  (func (export "main") (param i32 i32) (result i32)
+    local.get 0
+    local.get 1
+    call 1)
+  (func (param i32 i32) (result i32)
+    block (result i32)
+      local.get 0
+      local.get 1
+      br 1
+    end))"#;
+
+/// An indirect call through a table holding $double, $main (another type) and
+/// null. The index comes from a parameter: the proved fragment has no constants.
+const INDIRECT_CALL: &str = r#"(module
+  (type $unary (func (param i32) (result i32)))
+  (table 3 funcref)
+  (elem (i32.const 0) $double $main)
+  (func $main (export "main") (param i32 i32) (result i32)
+    local.get 0
+    local.get 1
+    call_indirect (type $unary))
+  (func $double (type $unary)
+    local.get 0
+    local.get 0
+    i32.add))"#;
+
+/// The final run of program, zero and move rows, optionally including its terminal row.
+fn export_witness(wat: &str, params: &[i32], name: &str, file: &str, include_terminal: bool) {
     let wasm = wat::parse_str(wat).expect("wat");
     let run = collect_wasmtime_steps(&wasm, &entry_bindings(&wasm, params.len()), "main", params).expect("trace");
     let trace = if params.is_empty() {
@@ -92,7 +195,10 @@ fn export_witness(wat: &str, params: &[i32], name: &str, file: &str) {
          (* Each row's witness, column by column, in trace order. *)\n\
          Definition {name} : list (list Z) :=\n  ["
     );
-    for (index, row) in trace[start..end].iter().enumerate() {
+    for (index, row) in trace[start..end + usize::from(include_terminal)]
+        .iter()
+        .enumerate()
+    {
         if index > 0 {
             out.push_str(";\n   ");
         }
@@ -115,7 +221,54 @@ fn export_witness(wat: &str, params: &[i32], name: &str, file: &str) {
 #[test]
 #[ignore = "regenerates Rocq files"]
 fn export_witnesses() {
-    export_witness(BLOCK_CALLS, &[], "blockCallRows", "BlockCallTrace.v");
-    export_witness(UNWINDING_BRANCH, &[7], "unwindingRows", "UnwindingTrace.v");
-    export_witness(EARLY_RETURN, &[7], "earlyReturnRows", "EarlyReturnTrace.v");
+    export_witness(BLOCK_CALLS, &[], "blockCallRows", "BlockCallTrace.v", false);
+    export_witness(UNWINDING_BRANCH, &[7], "unwindingRows", "UnwindingTrace.v", false);
+    export_witness(EARLY_RETURN, &[7], "earlyReturnRows", "EarlyReturnTrace.v", false);
+    export_witness(RESULT_BLOCKS, &[7, 9], "resultBlockRows", "ResultBlockTrace.v", false);
+    export_witness(BR_OUT, &[7, 9], "brRows", "BrTrace.v", false);
+    export_witness(BR_TABLES, &[7, 1], "brTableRows", "BrTableTrace.v", false);
+    export_witness(IFS, &[7, 0], "ifRows", "IfTrace.v", false);
+    export_witness(LOOPS, &[3, 1], "loopRows", "LoopTrace.v", false);
+    export_witness(NOPS, &[7], "nopRows", "NopTrace.v", false);
+    export_witness(FUNCTION_BR, &[7, 9], "functionBrRows", "FunctionBrTrace.v", false);
+    export_witness(INDIRECT_CALL, &[7, 0], "indirectRows", "IndirectTrace.v", false);
+}
+
+#[test]
+#[ignore = "regenerates Rocq files"]
+fn export_terminal_witnesses() {
+    export_witness(NOPS, &[7], "nopTerminalRows", "NopTerminalTrace.v", true);
+    export_witness(INDIRECT_CALL, &[7, 5], "indirectTrapRows", "IndirectTrapTrace.v", true);
+    export_witness(
+        INDIRECT_CALL,
+        &[7, 1],
+        "indirectMismatchRows",
+        "IndirectMismatchTrace.v",
+        true,
+    );
+    export_witness(INDIRECT_CALL, &[7, 2], "indirectNullRows", "IndirectNullTrace.v", true);
+    export_witness(
+        r#"(module
+          (func (export "main") block call 1 end)
+          (func block unreachable end))"#,
+        &[],
+        "trapRows",
+        "TrapTrace.v",
+        true,
+    );
+    export_witness(
+        r#"(module (func (export "main") (param i32) (result i32)
+          block (result i32) local.get 0 return end))"#,
+        &[7],
+        "baseReturnRows",
+        "BaseReturnTrace.v",
+        true,
+    );
+    export_witness(
+        r#"(module (func (export "main") nop))"#,
+        &[],
+        "voidReturnRows",
+        "VoidReturnTrace.v",
+        true,
+    );
 }

@@ -68,7 +68,7 @@ fn program_immediate_consumers_require_their_rom_gates() {
             (func (export "main") (result i32)
                 i32.const 0
                 call_indirect (type $t)))"#,
-        WasmOpcode::CallIndirect,
+        WasmOpcode::CallIndirectResolve,
         &[COL_PROGRAM_TABLE_ID_ACTIVE, COL_PROGRAM_CALL_INDIRECT_IMMEDIATES_ACTIVE],
     );
 }
@@ -521,18 +521,26 @@ fn call_indirect_row_is_accepted() {
     .expect("wat");
 
     let trace = traces_from_wasmtime_wasm_bytes(&wasm, "run").expect("normalize");
-    let row = trace
+    // The resolve step checks the table entry at the pc before the invocation,
+    // which then calls the checked reference.
+    let resolve_index = trace
         .iter()
-        .find(|row| row.opcode == WasmOpcode::CallIndirect)
-        .expect("call_indirect row");
-    assert_eq!(row.table_id, Some(0));
-    assert_eq!(row.table_index, Some(0));
-    assert_eq!(row.table_value, Some(1));
-    assert_eq!(row.function_type_id, Some(1));
-    assert_eq!(row.call_indirect_type_index, Some(0));
-    assert_eq!(row.expected_type_id, Some(1));
-    assert_eq!(row.stack_reads_override, Some(1));
-    assert_satisfied(&build_witness_vector(row), "call_indirect row");
+        .position(|row| row.opcode == WasmOpcode::CallIndirectResolve)
+        .expect("call_indirect resolve row");
+    let resolve = &trace[resolve_index];
+    let invocation = &trace[resolve_index + 1];
+    assert_eq!(invocation.opcode, WasmOpcode::CallIndirect);
+    assert_eq!(resolve.table_id, Some(0));
+    assert_eq!(resolve.table_index, Some(0));
+    assert_eq!(resolve.table_value, Some(1));
+    assert_eq!(resolve.function_type_id, Some(1));
+    assert_eq!(resolve.expected_type_id, Some(1));
+    assert_eq!(resolve.state_after.pc, invocation.state_before.pc);
+    assert_eq!(resolve.state_after.pc, resolve.state_before.pc + 1);
+    assert_eq!(invocation.function_ref, Some(1));
+    assert_eq!(invocation.stack_reads_override, Some(1));
+    assert_satisfied(&build_witness_vector(resolve), "call_indirect resolve row");
+    assert_satisfied(&build_witness_vector(invocation), "call_indirect invocation row");
 }
 
 #[test]

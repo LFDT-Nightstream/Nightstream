@@ -375,12 +375,26 @@ fn emit_rocq_memory_catalog() -> String {
         (WasmMemoryId::PcFunctionRef, "pcFunctionRefId"),
         (WasmMemoryId::CallTarget, "callTargetId"),
         (WasmMemoryId::FunctionEntry, "functionEntryId"),
+        (WasmMemoryId::FunctionType, "functionTypeId"),
         (WasmMemoryId::ProgramOpcode, "programOpcodeId"),
         (WasmMemoryId::ProgramLocalIndex, "programLocalIndexId"),
+        (WasmMemoryId::ProgramTableId, "programTableId"),
+        (WasmMemoryId::ProgramCallIndirectExpectedTypeId, "expectedTypeId"),
         (WasmMemoryId::PcEdgeKind, "pcEdgeKindId"),
         (WasmMemoryId::PcRom, "pcRomId"),
         (WasmMemoryId::FrameSlideRemaining, "frameSlideRemainingId"),
         (WasmMemoryId::FrameSlideDistance, "frameSlideDistanceId"),
+        (WasmMemoryId::ProgramBrTableLen, "programBrTableLenId"),
+        (WasmMemoryId::TableElement, "tableElementId"),
+        (WasmMemoryId::TableSize, "tableSizeId"),
+        (
+            WasmMemoryId::HostEventExportEntryScheduleCount,
+            "exportEntryScheduleCountId",
+        ),
+        (
+            WasmMemoryId::HostEventExportExitScheduleCount,
+            "exportExitScheduleCountId",
+        ),
     ] {
         let index = memories
             .iter()

@@ -1,23 +1,34 @@
-(* Zero-result block contexts and branch reduction: a br_if becomes a br, which
-   leaves one label per step. Values below a block remain outside its label;
-   taken branches discard its instruction continuation. *)
+(* Block contexts and branch reduction: a br_if becomes a br, which leaves one
+   label per step. Values below a block remain outside its label; a branch reaching
+   its target keeps the label's arity of top operands and discards the rest and
+   the instruction continuation. *)
 From Stdlib Require Import List ZArith Lia Bool.
 From mathcomp Require Import ssrbool eqtype.
-Require Import Wasm2 WasmIntegers StraightLineSpec StackSimulation SpecTecCalls Locals Add.
+Require Import Wasm2 WasmIntegers StraightLineSpec StackSimulation SpecTecCalls Locals Add Fragment.
 Import ListNotations.
 Open Scope Z_scope.
 
-Definition blockContext (c : config) : config :=
-  match c with mk_config z code => mk_config z [LABEL_ 0%N [] code] end.
+Lemma cat_app : forall (A : Type) (xs ys : list A), seq.cat xs ys = xs ++ ys.
+Proof. intros A xs ys. induction xs as [ | x xs IH]; [reflexivity | cbn; f_equal; exact IH]. Qed.
 
-Lemma block_context_wf : forall z code, wf_config (mk_config z code) ->
-  wf_config (mk_config z [LABEL_ 0%N [] code]).
-Proof. intros z code H; inversion H; subst; repeat constructor; assumption. Qed.
+Lemma i32_constants_values : forall values,
+  map i32Constant values = seq.map (fun v => admininstr_val v) (map i32Value values).
+Proof. induction values as [ | v values IH]; [reflexivity | cbn; f_equal; exact IH]. Qed.
 
-Lemma steps_in_block : forall before after,
-  Steps before after -> Steps (blockContext before) (blockContext after).
+(* A label of arity n around c's code; a branch to it runs `continuation` next. *)
+Definition blockContext (n : nat) (continuation : list instr) (c : config) : config :=
+  match c with mk_config z code => mk_config z [LABEL_ (N.of_nat n) continuation code] end.
+
+Lemma block_context_wf : forall n continuation z code, Forall wf_instr continuation -> wf_config (mk_config z code) ->
+  wf_config (mk_config z [LABEL_ (N.of_nat n) continuation code]).
 Proof.
-  intros before after Hsteps. induction Hsteps.
+  intros n continuation z code Hc H; inversion H; subst; repeat constructor; assumption.
+Qed.
+
+Lemma steps_in_block : forall n continuation before after, Forall wf_instr continuation ->
+  Steps before after -> Steps (blockContext n continuation before) (blockContext n continuation after).
+Proof.
+  intros n continuation before after Hc Hsteps. induction Hsteps.
   - apply Steps__refl. now apply block_context_wf.
   - eapply trans; [apply ctxt_label; eassumption | exact IHHsteps | | | ];
       apply block_context_wf; assumption.
@@ -30,24 +41,59 @@ Proof.
   eapply trans; [exact Hstep | apply Steps__refl; exact Ha | exact Hb | exact Ha | exact Ha].
 Qed.
 
-Lemma enter_empty_block : forall z body,
-  wf_state z -> Forall wf_instr body ->
-  Steps (stackConfig z [] [BLOCK (_RESULT None) body]) (blockContext (stackConfig z [] body)).
+(* A block without parameters takes no operands; its label has the block's arity. *)
+Lemma enter_block : forall z result body,
+  result = None \/ result = Some valtype_I32 -> wf_state z -> Forall wf_instr body ->
+  Steps (stackConfig z [] [BLOCK (_RESULT result) body])
+    (blockContext (blockResults (_RESULT result)) [] (stackConfig z [] body)).
 Proof.
-  intros z body Hz Hbody. apply one_spec_step.
-  - apply stack_config_wf; [exact Hz | constructor | ]. repeat constructor; assumption.
-  - apply block_context_wf. apply stack_config_wf; assumption || constructor.
-  - apply read. apply (Step_read__block z 0%N [] (_RESULT None) body 0%N [] []);
-      apply (introT eqP); reflexivity.
+  intros z result body Hresult Hz Hbody. apply one_spec_step.
+  - apply stack_config_wf; [exact Hz | constructor | ].
+    destruct Hresult as [-> | ->]; repeat constructor; assumption.
+  - apply block_context_wf; [constructor | ]. apply stack_config_wf; assumption || constructor.
+  - apply read. destruct Hresult as [-> | ->].
+    + apply (Step_read__block z 0%N [] (_RESULT None) body 0%N [] []); apply (introT eqP); reflexivity.
+    + apply (Step_read__block z 0%N [] (_RESULT (Some valtype_I32)) body 1%N [] [valtype_I32]);
+        apply (introT eqP); reflexivity.
 Qed.
 
-Lemma exit_empty_block : forall z,
-  wf_state z -> Steps (blockContext (stackConfig z [] [])) (stackConfig z [] []).
+(* A loop without parameters takes no operands; its label keeps nothing and runs
+   the loop again. *)
+Lemma enter_loop : forall z result body,
+  result = None \/ result = Some valtype_I32 -> wf_state z -> Forall wf_instr body ->
+  Steps (stackConfig z [] [LOOP (_RESULT result) body])
+    (blockContext 0 [LOOP (_RESULT result) body] (stackConfig z [] body)).
+Proof.
+  intros z result body Hresult Hz Hbody.
+  assert (Hloop : Forall wf_instr [LOOP (_RESULT result) body])
+    by (destruct Hresult as [-> | ->]; repeat constructor; assumption).
+  apply one_spec_step.
+  - apply stack_config_wf; [exact Hz | constructor | exact Hloop].
+  - apply block_context_wf; [exact Hloop | ]. apply stack_config_wf; assumption || constructor.
+  - apply read. destruct Hresult as [-> | ->].
+    + apply (Step_read__loop z 0%N [] (_RESULT None) body [] 0%N []); apply (introT eqP); reflexivity.
+    + apply (Step_read__loop z 0%N [] (_RESULT (Some valtype_I32)) body [] 1%N [valtype_I32]);
+        apply (introT eqP); reflexivity.
+Qed.
+
+Lemma nop_steps : forall z, wf_state z -> Steps (stackConfig z [] [NOP]) (stackConfig z [] []).
 Proof.
   intros z Hz. apply one_spec_step.
-  - apply block_context_wf. repeat constructor; exact Hz.
-  - repeat constructor; exact Hz.
-  - apply pure. apply (label_vals 0%N [] []).
+  - apply stack_config_wf; [exact Hz | constructor | repeat constructor].
+  - apply stack_config_wf; [exact Hz | constructor | constructor].
+  - apply pure. exact Step_pure__nop.
+Qed.
+
+(* An arm's END: its label leaves the arm's results, whatever it keeps for branches. *)
+Lemma exit_block : forall n continuation z values, Forall wf_instr continuation ->
+  wf_state z -> Forall (fun value => 0 <= value < i32Modulus) values ->
+  Steps (blockContext n continuation (stackConfig z values [])) (stackConfig z values []).
+Proof.
+  intros n continuation z values Hc Hz Hvalues. apply one_spec_step.
+  - apply block_context_wf; [exact Hc | ]. apply stack_config_wf; [exact Hz | exact Hvalues | constructor].
+  - apply stack_config_wf; [exact Hz | exact Hvalues | constructor].
+  - apply pure. unfold blockContext, stackConfig. rewrite app_nil_r, i32_constants_values.
+    apply label_vals.
 Qed.
 
 Lemma wf_label_le : forall k k', (k <= k')%N -> wf_uN 32%N (mk_uN k') -> wf_uN 32%N (mk_uN k).
@@ -84,6 +130,71 @@ Proof.
     exact (steps_with_instruction_suffix rest _ _ Hrest (one_spec_step _ _ Hb Hbr Hstep)).
 Qed.
 
+(* An if with an i32 condition becomes a block of the arm it picks: the
+   then-body on a nonzero condition, the else-body on zero. *)
+Lemma if_steps : forall z condition bt t e rest,
+  wf_state z -> 0 <= condition < i32Modulus -> wf_instr (IFELSE bt t e) -> Forall wf_instr rest ->
+  Steps (stackConfig z [condition] (IFELSE bt t e :: rest))
+    (stackConfig z [] (BLOCK bt (if Z.eqb condition 0 then e else t) :: rest)).
+Proof.
+  intros z condition bt t e rest Hz Hbound Hw Hrest.
+  assert (Hbt : wf_blocktype bt) by (inversion Hw; assumption).
+  assert (Ht : Forall wf_instr t) by (inversion Hw; assumption).
+  assert (He : Forall wf_instr e) by (inversion Hw; assumption).
+  assert (Hb : wf_config (stackConfig z [condition] [IFELSE bt t e])).
+  { apply stack_config_wf; [exact Hz | constructor; [exact Hbound | constructor] | ].
+    constructor; [exact Hw | constructor]. }
+  assert (Ha : wf_config (stackConfig z [] [BLOCK bt (if Z.eqb condition 0 then e else t)])).
+  { apply stack_config_wf; [exact Hz | constructor | ].
+    constructor; [ | constructor]. destruct (Z.eqb condition 0); constructor; assumption. }
+  assert (Hstep : Step (stackConfig z [condition] [IFELSE bt t e])
+      (stackConfig z [] [BLOCK bt (if Z.eqb condition 0 then e else t)])).
+  { apply pure. destruct (Z.eqb condition 0) eqn:Hcondition.
+    - apply Z.eqb_eq in Hcondition. subst condition. apply if_false; reflexivity.
+    - apply Z.eqb_neq in Hcondition. apply if_true; [reflexivity | ].
+      change (is_true (negb (eq_op (Z.to_N condition) 0%N))).
+      apply negb_true_iff. apply (introF eqP). intro Heq. apply (f_equal Z.of_N) in Heq.
+      rewrite Z2N.id in Heq by lia. cbn in Heq. contradiction. }
+  exact (steps_with_instruction_suffix rest _ _ Hrest (one_spec_step _ _ Hb Ha Hstep)).
+Qed.
+
+(* br_table's target for an index: the arm it names, or the default beyond the arms. *)
+Definition brTableTarget (ls : list labelidx) (l : labelidx) (index : Z) : labelidx :=
+  if index <? Z.of_nat (length ls) then nth (Z.to_nat index) ls l else l.
+
+(* br_table with an i32 index becomes a br to its target. *)
+Lemma br_table_steps : forall z index ls l rest,
+  wf_state z -> 0 <= index < i32Modulus -> wf_instr (BR_TABLE ls l) -> Forall wf_instr rest ->
+  Steps (stackConfig z [index] (BR_TABLE ls l :: rest)) (stackConfig z [] (BR (brTableTarget ls l index) :: rest)).
+Proof.
+  intros z index ls l rest Hz Hbound Hw Hrest.
+  assert (Hls : Forall (wf_uN 32%N) ls) by (inversion Hw; assumption).
+  assert (Hl : wf_uN 32%N l) by (inversion Hw; assumption).
+  assert (Htarget : wf_uN 32%N (brTableTarget ls l index)).
+  { unfold brTableTarget. destruct (index <? Z.of_nat (length ls)) eqn:Hlt; [ | exact Hl].
+    apply Z.ltb_lt in Hlt. apply (proj1 (Forall_forall _ _) Hls). apply nth_In. lia. }
+  assert (Hb : wf_config (stackConfig z [index] [BR_TABLE ls l])).
+  { apply stack_config_wf; [exact Hz | constructor; [exact Hbound | constructor] | ]. repeat constructor; assumption. }
+  assert (Ha : wf_config (stackConfig z [] [BR (brTableTarget ls l index)])).
+  { apply stack_config_wf; [exact Hz | constructor | ]. constructor; [constructor; exact Htarget | constructor]. }
+  assert (Hstep : Step (stackConfig z [index] [BR_TABLE ls l]) (stackConfig z [] [BR (brTableTarget ls l index)])).
+  { apply pure. unfold brTableTarget. destruct (index <? Z.of_nat (length ls)) eqn:Hlt.
+    - apply Z.ltb_lt in Hlt.
+      replace (nth (Z.to_nat index) ls l) with (lookup_total ls (Z.to_N index)).
+      + apply br_table_lt; [ | reflexivity].
+        change (is_true (N.ltb (Z.to_N index) (N.of_nat (seq.size ls)))). apply N.ltb_lt.
+        assert (Hsize : seq.size ls = length ls)
+          by (clear; induction ls as [ | x ls IH]; [reflexivity | cbn; rewrite IH; reflexivity]).
+        rewrite Hsize. lia.
+      + apply spec_lookup_from_nth_error. rewrite Z_N_nat. apply nth_error_nth'. lia.
+    - apply Z.ltb_ge in Hlt. apply br_table_ge; [reflexivity | ].
+      change (is_true (N_geb (Z.to_N index) (N.of_nat (seq.size ls)))).
+      assert (Hsize : seq.size ls = length ls)
+        by (clear; induction ls as [ | x ls IH]; [reflexivity | cbn; rewrite IH; reflexivity]).
+      rewrite Hsize. unfold N_geb. apply N.leb_le. lia. }
+  exact (steps_with_instruction_suffix rest _ _ Hrest (one_spec_step _ _ Hb Ha Hstep)).
+Qed.
+
 (* With operands below: the same steps, under them. *)
 Lemma stack_prefix_config : forall z values more code,
   stackPrefix values (stackConfig z more code) = stackConfig z (values ++ more) code.
@@ -92,13 +203,6 @@ Proof. intros. unfold stackPrefix, stackConfig. rewrite map_app, app_assoc. refl
 Lemma instruction_suffix_config : forall z values code more,
   instructionSuffix more (stackConfig z values code) = stackConfig z values (code ++ more).
 Proof. intros. unfold instructionSuffix, stackConfig. rewrite map_app, app_assoc. reflexivity. Qed.
-
-Lemma cat_app : forall (A : Type) (xs ys : list A), seq.cat xs ys = xs ++ ys.
-Proof. intros A xs ys. induction xs as [ | x xs IH]; [reflexivity | cbn; f_equal; exact IH]. Qed.
-
-Lemma i32_constants_values : forall values,
-  map i32Constant values = seq.map (fun v => admininstr_val v) (map i32Value values).
-Proof. induction values as [ | v values IH]; [reflexivity | cbn; f_equal; exact IH]. Qed.
 
 Lemma br_if_steps_below : forall z below condition l rest,
   wf_state z -> Forall (fun value => 0 <= value < i32Modulus) below -> 0 <= condition < i32Modulus ->
@@ -113,46 +217,51 @@ Proof.
 Qed.
 
 (* A branch leaving a label carries every operand on its stack out of it. *)
-Lemma br_exit_label_carrying : forall z values k rest,
+Lemma br_exit_label_carrying : forall n continuation z values k rest, Forall wf_instr continuation ->
   wf_state z -> Forall (fun value => 0 <= value < i32Modulus) values ->
   wf_uN 32%N (mk_uN (k + 1)%N) -> Forall wf_instr rest ->
-  Steps (blockContext (stackConfig z values (BR (mk_uN (k + 1)%N) :: rest))) (stackConfig z values [BR (mk_uN k)]).
+  Steps (blockContext n continuation (stackConfig z values (BR (mk_uN (k + 1)%N) :: rest)))
+    (stackConfig z values [BR (mk_uN k)]).
 Proof.
-  intros z values k rest Hz Hvalues Hl Hrest. apply one_spec_step.
-  - apply block_context_wf. apply stack_config_wf; [exact Hz | exact Hvalues | ].
+  intros n continuation z values k rest Hc Hz Hvalues Hl Hrest. apply one_spec_step.
+  - apply block_context_wf; [exact Hc | ]. apply stack_config_wf; [exact Hz | exact Hvalues | ].
     constructor; [constructor; exact Hl | exact Hrest].
   - apply stack_config_wf; [exact Hz | exact Hvalues | ].
     constructor; [apply instr_case_7; exact (wf_label_le k (k + 1)%N ltac:(lia) Hl) | constructor].
   - apply pure. unfold blockContext, stackConfig. rewrite i32_constants_values.
-    pose proof (br_succ 0%N [] (map i32Value values) (mk_uN k) (map admininstr_instr rest)) as Hstep.
+    pose proof (br_succ (N.of_nat n) continuation (map i32Value values) (mk_uN k) (map admininstr_instr rest)) as Hstep.
     rewrite !cat_app, <- app_assoc in Hstep. exact Hstep.
 Qed.
 
-(* A branch reaching its zero-result target drops every operand on its stack. *)
-Lemma br_exit_target_dropping : forall z values rest,
-  wf_state z -> Forall (fun value => 0 <= value < i32Modulus) values -> Forall wf_instr rest ->
-  Steps (blockContext (stackConfig z values (BR (mk_uN 0) :: rest))) (stackConfig z [] []).
+(* A branch reaching its target keeps the target's arity of top operands, drops
+   the operands below them, and runs the target's continuation. *)
+Lemma br_exit_target : forall continuation z dropped kept rest, Forall wf_instr continuation ->
+  wf_state z -> Forall (fun value => 0 <= value < i32Modulus) (dropped ++ kept) -> Forall wf_instr rest ->
+  Steps (blockContext (length kept) continuation (stackConfig z (dropped ++ kept) (BR (mk_uN 0) :: rest)))
+    (stackConfig z kept continuation).
 Proof.
-  intros z values rest Hz Hvalues Hrest. apply one_spec_step.
-  - apply block_context_wf. apply stack_config_wf; [exact Hz | exact Hvalues | ].
+  intros continuation z dropped kept rest Hc Hz Hvalues Hrest. apply one_spec_step.
+  - apply block_context_wf; [exact Hc | ]. apply stack_config_wf; [exact Hz | exact Hvalues | ].
     constructor; [repeat constructor | exact Hrest].
-  - repeat constructor; exact Hz.
-  - apply pure. unfold blockContext, stackConfig. rewrite i32_constants_values.
-    pose proof (br_zero 0%N [] (map i32Value values) [] (map admininstr_instr rest) Logic.eq_refl) as Hstep.
-    rewrite !cat_app, app_nil_r, <- app_assoc in Hstep. exact Hstep.
+  - apply stack_config_wf; [exact Hz | exact (proj2 (proj1 (Forall_app _ _ _) Hvalues)) | exact Hc].
+  - apply pure. unfold blockContext, stackConfig. rewrite map_app, !i32_constants_values.
+    pose proof (br_zero (N.of_nat (length kept)) continuation (map i32Value dropped) (map i32Value kept)
+      (map admininstr_instr rest)) as Hstep.
+    rewrite !cat_app, <- !app_assoc in Hstep. rewrite <- !app_assoc. apply Hstep.
+    apply (introT eqP). f_equal. clear. induction kept as [ | v kept IH]; [reflexivity | cbn; rewrite IH; reflexivity].
 Qed.
 
 (* A return leaving a label carries every operand on its stack out of it. *)
-Lemma return_label_carrying : forall z values rest,
+Lemma return_label_carrying : forall n continuation z values rest, Forall wf_instr continuation ->
   wf_state z -> Forall (fun value => 0 <= value < i32Modulus) values -> Forall wf_instr rest ->
-  Steps (blockContext (stackConfig z values (RETURN :: rest))) (stackConfig z values [RETURN]).
+  Steps (blockContext n continuation (stackConfig z values (RETURN :: rest))) (stackConfig z values [RETURN]).
 Proof.
-  intros z values rest Hz Hvalues Hrest. apply one_spec_step.
-  - apply block_context_wf. apply stack_config_wf; [exact Hz | exact Hvalues | ].
+  intros n continuation z values rest Hc Hz Hvalues Hrest. apply one_spec_step.
+  - apply block_context_wf; [exact Hc | ]. apply stack_config_wf; [exact Hz | exact Hvalues | ].
     constructor; [constructor | exact Hrest].
   - apply stack_config_wf; [exact Hz | exact Hvalues | ]. repeat constructor.
   - apply pure. unfold blockContext, stackConfig. rewrite i32_constants_values.
-    pose proof (return_label 0%N [] (map i32Value values) (map admininstr_instr rest)) as Hstep.
+    pose proof (return_label (N.of_nat n) continuation (map i32Value values) (map admininstr_instr rest)) as Hstep.
     rewrite !cat_app, <- app_assoc in Hstep. exact Hstep.
 Qed.
 
@@ -199,5 +308,48 @@ Proof.
     apply pure. unfold returning. rewrite map_app, !i32_constants_values.
     pose proof (return_frame n callee (map i32Value dropped) (map i32Value results) []) as Hstep.
     rewrite !cat_app, !app_nil_r in Hstep. apply Hstep.
+    apply (introT eqP). unfold n. rewrite length_map. reflexivity.
+Qed.
+
+(* A branch to the function's own label: the label keeps the results, and the frame
+   returns them, as a return would. *)
+Lemma i32_function_branches_out : forall s caller callee dropped results rest,
+  wf_state (mk_state s caller) -> wf_frame callee ->
+  Forall (fun value => 0 <= value < i32Modulus) (dropped ++ results) -> Forall wf_instr rest ->
+  Steps (callContext caller (N.of_nat (length results))
+      (stackConfig (mk_state s callee) (dropped ++ results) (BR (mk_uN 0) :: rest)))
+    (mk_config (mk_state s caller) (map i32Constant results)).
+Proof.
+  intros s caller callee dropped results rest Hstate Hcallee Hvalues Hrest.
+  set (n := N.of_nat (length results)).
+  assert (Hconstants : forall values, Forall (fun value => 0 <= value < i32Modulus) values ->
+      Forall wf_admininstr (map i32Constant values)).
+  { intros values Hv. apply Forall_map. eapply Forall_impl; [ | exact Hv].
+    intros value Hvalue. constructor. apply spectec_i32_well_formed. exact Hvalue. }
+  pose proof (Hconstants _ Hvalues) as Hall.
+  pose proof (Hconstants _ (proj2 (proj1 (Forall_app _ _ _) Hvalues))) as Hkept.
+  assert (HinnerState : wf_state (mk_state s callee)) by (inversion Hstate; constructor; assumption).
+  set (body := map i32Constant (dropped ++ results) ++ map admininstr_instr (BR (mk_uN 0) :: rest)).
+  assert (Hbody : Forall wf_admininstr body).
+  { apply Forall_app; split; [exact Hall | ]. apply Forall_map. constructor; [repeat constructor | ].
+    eapply Forall_impl; [ | exact Hrest]. intros i Hi. apply instruction_admin_wf. exact Hi. }
+  assert (Hlabel : wf_config (mk_config (mk_state s callee) [LABEL_ n [] body]))
+    by (constructor; [exact HinnerState | repeat constructor; assumption]).
+  assert (HinnerKept : wf_config (mk_config (mk_state s callee) (map i32Constant results))) by (constructor; assumption).
+  assert (Hbefore : wf_config (mk_config (mk_state s caller) [FRAME_ n callee [LABEL_ n [] body]]))
+    by (constructor; [exact Hstate | repeat constructor; assumption]).
+  assert (Hmiddle : wf_config (mk_config (mk_state s caller) [FRAME_ n callee (map i32Constant results)]))
+    by (constructor; [exact Hstate | repeat constructor; assumption]).
+  assert (Hafter : wf_config (mk_config (mk_state s caller) (map i32Constant results))) by (constructor; assumption).
+  change (Steps (mk_config (mk_state s caller) [FRAME_ n callee [LABEL_ n [] body]])
+    (mk_config (mk_state s caller) (map i32Constant results))).
+  eapply trans; [ | | exact Hbefore | exact Hafter | exact Hmiddle].
+  - apply ctxt_frame; [ | exact Hlabel | exact HinnerKept].
+    apply pure. unfold body. rewrite map_app, !i32_constants_values.
+    pose proof (br_zero n [] (map i32Value dropped) (map i32Value results) (map admininstr_instr rest)) as Hstep.
+    rewrite !cat_app, app_nil_r, <- !app_assoc in Hstep. rewrite <- !app_assoc. apply Hstep.
+    apply (introT eqP). unfold n. rewrite length_map. reflexivity.
+  - eapply trans; [ | apply Steps__refl; exact Hafter | exact Hmiddle | exact Hafter | exact Hafter].
+    apply pure. rewrite i32_constants_values. apply frame_vals.
     apply (introT eqP). unfold n. rewrite length_map. reflexivity.
 Qed.

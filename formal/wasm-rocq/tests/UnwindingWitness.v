@@ -1,4 +1,4 @@
-(* The unwinding br_if run meets every premise of run_refinement, so the theorem's
+(* The unwinding br_if run meets every premise of active_run_refinement, so the theorem's
    conclusion holds of an actual run that discards operands on a taken branch. *)
 From Stdlib Require Import List ZArith Lia.
 From mathcomp Require Import ssrbool eqtype.
@@ -61,7 +61,7 @@ Proof.
     split; [repeat constructor | vm_compute; repeat split; lia].
 Qed.
 
-Definition unwindingStart := mkBoundary 0 2 2 0 0 0 0 0 0 0.
+Definition unwindingStart := mkBoundary 0 2 2 0 0 0 0 0 0 0 0.
 
 Lemma unwinding_run_valid :
   validCircuitRun unwindingMemory unwindingWitness (replayed unwindingMemory unwindingWitness).
@@ -76,7 +76,7 @@ Lemma unwinding_start_config :
     (stackConfig (mk_state unwindingStore (activeFrame unwindingGuest [7; 0])) [] unwindingCode).
 Proof.
   apply (function_start_config unwindingProgram unwindingStore 0 unwindingGuest [7; 0] _ unwindingStart);
-    try reflexivity; try (cbn; lia).
+    try reflexivity; try (apply TableState.no_tables_loaded; reflexivity); try (cbn; lia).
   - repeat constructor.
   - exact unwinding_program_validated.
   - repeat constructor; unfold i32Modulus; lia.
@@ -93,7 +93,7 @@ Example unwinding_witness_refines : fieldPrime ->
       (rowsFinalBoundary unwindingStart unwindingWitness) c.
 Proof.
   intros Hprime.
-  destruct (run_refinement _ _ _ _ _ _ _ _ _ Hprime (load_program_loaded _ _) unwinding_run_valid
+  destruct (active_run_refinement _ _ _ _ _ _ _ _ _ Hprime (load_program_loaded _ _) unwinding_run_valid
     unwinding_fragment unwinding_start_config) as [shape [c [Hsteps [_ Hconfig]]]].
   exists shape, c. split; assumption.
 Qed.

@@ -150,7 +150,7 @@ Lemma encoded_function_end : forall program memory index f,
 Proof.
   intros program memory index f Hloaded Hf.
   pose proof (instruction_at_function_pc _ _ _ (codeSize (guestBody f)) Hf ltac:(lia)) as Hpc.
-  assert (Hnone : nth_error (flattenCode (guestBody f)) (codeSize (guestBody f)) = None) by (apply nth_error_None; unfold codeSize; lia).
+  assert (Hnone : nth_error (flattenCode (guestBody f)) (codeSize (guestBody f)) = None) by (apply nth_error_None; rewrite flatten_code_length; lia).
   rewrite Hnone in Hpc. split; program_cell Hloaded; unfold encodeProgram;
     cbn [Nat.eqb pcRomId pcFunctionRefId functionEntryId functionLocalCountId functionCallMetadataId orb];
     unfold instructionRom; rewrite Hpc; reflexivity.
@@ -179,8 +179,80 @@ Lemma encoded_end_slide : forall program memory index f choice,
 Proof.
   intros program memory index f choice Hloaded Hf pc frame.
   assert (Hnone : nth_error (flattenCode (guestBody f)) (codeSize (guestBody f)) = None)
-    by (apply nth_error_None; unfold codeSize; lia).
+    by (apply nth_error_None; rewrite flatten_code_length; lia).
   split; program_cell Hloaded; unfold encodeProgram; cbn [Nat.eqb pcRomId frameSlideRemainingId frameSlideDistanceId orb];
     unfold pc; rewrite (slide_at_function_pc _ _ _ _ (codeSize (guestBody f)) choice Hf ltac:(lia));
-    unfold functionSlide; rewrite Hnone; destruct (choice =? 0); reflexivity.
+    unfold functionSlide; rewrite Hnone; destruct (choice =? 0); try reflexivity;
+    unfold slideWord, frame; cbn [Nat.eqb frameSlideRemainingId frameSlideDistanceId];
+    destruct (guestParams f + guestLocals f)%nat; reflexivity.
+Qed.
+
+Lemma pc_entry_function : forall program index f offset,
+  functionAt program index = Some f -> (offset <= codeSize (guestBody f))%nat ->
+  pcEntry program (guestEntry f + Z.of_nat offset) = guestEntry f.
+Proof.
+  intros program index f offset Hf Hoffset.
+  destruct (function_at_sound _ _ _ Hf) as [Hlookup [_ Hentry]].
+  unfold pcEntry. rewrite Hentry, (locate_function_pc _ _ _ offset Hlookup
+    ltac:(unfold functionSize; cbn [functionBody i32Function CODE]; lia)).
+  reflexivity.
+Qed.
+
+Lemma type_position_found : forall t types, In t types -> nth_error types (typePosition t types) = Some t.
+Proof.
+  intros t types. induction types as [ | u rest IH]; [contradiction | ].
+  intros Hin. cbn. destruct (functypeEqDec t u) as [-> | Hne]; [reflexivity | ].
+  destruct Hin as [Heq | Hin]; [symmetry in Heq; contradiction | exact (IH Hin)].
+Qed.
+
+Lemma first_seen_keeps : forall types seen t, In t seen \/ In t types -> In t (firstSeen seen types).
+Proof.
+  induction types as [ | u rest IH]; intros seen t Hin; cbn.
+  - destruct Hin as [Hin | []]; exact Hin.
+  - apply IH. destruct Hin as [Hin | [<- | Hin]]; [ | | right; exact Hin].
+    + left. destruct (existsb _ seen); [exact Hin | apply in_or_app; left; exact Hin].
+    + left. destruct (existsb _ seen) eqn:Hseen.
+      * apply existsb_exists in Hseen as [v [Hv Heq]].
+        destruct (functypeEqDec u v) as [-> | ]; [exact Hv | discriminate].
+      * apply in_or_app. right. left. reflexivity.
+Qed.
+
+(* Within a module, equal type ids are equal types. *)
+Lemma type_id_injective : forall module t u,
+  In t (TYPES module) -> In u (TYPES module) -> typeId module t = typeId module u -> t = u.
+Proof.
+  intros module t u Ht Hu Hid. unfold typeId in Hid.
+  assert (Hpos : typePosition t (firstSeen [] (TYPES module)) = typePosition u (firstSeen [] (TYPES module))) by lia.
+  pose proof (type_position_found t _ (first_seen_keeps _ [] t (or_intror Ht))) as Hfound.
+  rewrite Hpos, (type_position_found u _ (first_seen_keeps _ [] u (or_intror Hu))) in Hfound.
+  injection Hfound as ->. reflexivity.
+Qed.
+
+(* A function-type read of a nonzero id names a guest function of that type. *)
+Lemma function_type_read : forall program memory reference id,
+  programLoaded program memory -> memory functionTypeId [reference] = Some id -> 1 <= id ->
+  exists g, 1 <= reference /\ functionAt program (Z.to_nat (reference - 1)) = Some g /\
+    id = typeId (guestModule g) (guestType g).
+Proof.
+  intros program memory reference id Hloaded Hread Hid.
+  rewrite (Hloaded functionTypeId ltac:(unfold programRomIds; simpl; tauto)) in Hread.
+  injection Hread as Hread. unfold romValue, encodeProgram in Hread. cbn in Hread.
+  unfold functionRom in Hread.
+  destruct (reference <=? 0) eqn:Hpositive; [subst id; lia | ].
+  destruct (functionAt program (Z.to_nat (reference - 1))) as [g | ] eqn:Hg; [ | subst id; lia].
+  cbn in Hread. exists g. split; [apply Z.leb_gt in Hpositive; lia | ]. split; [reflexivity | ]. lia.
+Qed.
+
+Lemma type_id_positive : forall module t, 1 <= typeId module t.
+Proof. intros. unfold typeId. lia. Qed.
+
+Lemma function_type_rom : forall program memory index g,
+  programLoaded program memory -> functionAt program index = Some g ->
+  memory functionTypeId [Z.of_nat index + 1] = Some (typeId (guestModule g) (guestType g)).
+Proof.
+  intros program memory index g Hloaded Hg.
+  rewrite (Hloaded functionTypeId ltac:(unfold programRomIds; simpl; tauto)).
+  unfold romValue, encodeProgram. cbn. unfold functionRom.
+  replace (Z.of_nat index + 1 <=? 0) with false by (symmetry; apply Z.leb_gt; lia).
+  replace (Z.to_nat (Z.of_nat index + 1 - 1)) with index by lia. rewrite Hg. reflexivity.
 Qed.

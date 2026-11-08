@@ -19,54 +19,6 @@ pub struct WasmMemorySlotPlan {
     pub support_loads: BTreeMap<usize, usize>,
 }
 
-/// Deterministic first-fit coloring of the support-intersection graph.
-/// Ports share a slot only when their supports are disjoint; this does not
-/// deduplicate accesses or promise a minimum coloring. Uses the support bounds
-/// enforced by the WASM relation, never evidence sampled from traces.
-pub fn plan_wasm_memory_slots(memories: &[MemorySpec<WasmMemoryId>]) -> WasmMemorySlotPlan {
-    let supports = activation_supports();
-    let mut singletons = Vec::new();
-    let mut shared: Vec<Vec<usize>> = Vec::new();
-    let mut slot_supports: Vec<BTreeSet<usize>> = Vec::new();
-    let mut support_loads = BTreeMap::new();
-    let mut logical_ports = 0;
-    for (index, port) in memories.iter().flat_map(|memory| &memory.ports).enumerate() {
-        logical_ports += 1;
-        let support = match port.activation {
-            MemoryPortActivation::When(gate) => supports.get(&gate),
-            MemoryPortActivation::Always | MemoryPortActivation::Unless(_) => None,
-        };
-        let Some(support) = support else {
-            singletons.push(vec![index]);
-            continue;
-        };
-        for &atom in support {
-            *support_loads.entry(atom).or_insert(0) += 1;
-        }
-        match slot_supports
-            .iter()
-            .position(|used| used.is_disjoint(support))
-        {
-            Some(slot) => {
-                shared[slot].push(index);
-                slot_supports[slot].extend(support);
-            }
-            None => {
-                shared.push(vec![index]);
-                slot_supports.push(support.clone());
-            }
-        }
-    }
-    let conservative_singletons = singletons.len();
-    singletons.extend(shared);
-    WasmMemorySlotPlan {
-        slots: singletons,
-        logical_ports,
-        conservative_singletons,
-        support_loads,
-    }
-}
-
 /// A slot plan that keeps the order a binding needs: two ports that may be
 /// active on one row get distinct slots, and when they also share a memory
 /// and one of them writes, the earlier port gets the earlier slot. Every other

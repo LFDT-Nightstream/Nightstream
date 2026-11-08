@@ -127,12 +127,15 @@ fn return_call_indirect_replaces_the_current_frame() {
     );
 
     assert_eq!(checked.run.results, ["42"]);
-    let tail = checked
+    let tail_index = checked
         .trace
         .iter()
-        .find(|row| row.opcode == WasmOpcode::ReturnCallIndirect)
+        .position(|row| row.opcode == WasmOpcode::ReturnCallIndirect)
         .expect("return_call_indirect row");
-    assert_eq!(tail.table_index, Some(0));
+    let resolve = &checked.trace[tail_index - 1];
+    let tail = &checked.trace[tail_index];
+    assert_eq!(resolve.opcode, WasmOpcode::CallIndirectResolve);
+    assert_eq!(resolve.table_index, Some(0));
     assert!(tail.target_function_is_guest);
     assert!(tail.call_stack_push.is_none());
     assert_eq!(tail.state_before.call_stack_depth, tail.state_after.call_stack_depth);
@@ -156,8 +159,9 @@ fn return_call_indirect_trap_does_not_enter_a_frame() {
     );
 
     assert!(checked.run.results.is_empty());
+    // The null entry traps on the resolve step; the invocation never runs.
     let last = checked.trace.last().expect("non-empty trace");
-    assert_eq!(last.opcode, WasmOpcode::ReturnCallIndirect);
+    assert_eq!(last.opcode, WasmOpcode::CallIndirectResolve);
     assert!(last.state_after.trapped);
     assert!(!last.state_after.frame_move.active);
     assert!(last.call_stack_push.is_none());

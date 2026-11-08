@@ -17,10 +17,10 @@
 use super::super::gadgets::push_gated_linear_zero;
 use super::super::isa::WasmOpcode;
 use super::super::layout::{
-    selector_col, COL_CI_OOB, COL_GLOBAL_VALUE, COL_GLOBAL_VALUE_HI, COL_LOCAL_VALUE, COL_LOCAL_VALUE_HI,
-    COL_LOCAL_WRITE_ENABLED, COL_STACK_READ_VALUE_HI, COL_STACK_READ_VALUE_LO, COL_STACK_WRITE0_VALUE_HI,
-    COL_STACK_WRITE0_VALUE_LO, COL_TABLE_INDEX, COL_TABLE_READ_ENABLED, COL_TABLE_SIZE, COL_TABLE_SIZE_READ_ENABLED,
-    COL_TABLE_VALUE,
+    selector_col, COL_CALL_INDIRECT_IS_NOT_TRAP, COL_CALL_INDIRECT_IS_TRAP, COL_CI_OOB, COL_FUNCTION_REF,
+    COL_GLOBAL_VALUE, COL_GLOBAL_VALUE_HI, COL_LOCAL_VALUE, COL_LOCAL_VALUE_HI, COL_LOCAL_WRITE_ENABLED,
+    COL_STACK_READ_VALUE_HI, COL_STACK_READ_VALUE_LO, COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO,
+    COL_TABLE_INDEX, COL_TABLE_READ_ENABLED, COL_TABLE_SIZE, COL_TABLE_SIZE_READ_ENABLED, COL_TABLE_VALUE,
 };
 use super::super::tagged_r1cs_builder::WasmTaggedR1csBuilder;
 use super::{opcode_tag, shared};
@@ -28,23 +28,14 @@ use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
 
 const LOCAL_WRITE_OPS: &[WasmOpcode] = &[WasmOpcode::LocalSet, WasmOpcode::LocalTee];
-const TABLE_READ_OPS: &[WasmOpcode] = &[
-    WasmOpcode::TableGet,
-    WasmOpcode::CallIndirect,
-    WasmOpcode::ReturnCallIndirect,
-];
-const TABLE_SIZE_READ_OPS: &[WasmOpcode] = &[
-    WasmOpcode::TableSize,
-    WasmOpcode::CallIndirect,
-    WasmOpcode::ReturnCallIndirect,
-];
+const TABLE_READ_OPS: &[WasmOpcode] = &[WasmOpcode::TableGet, WasmOpcode::CallIndirectResolve];
+const TABLE_SIZE_READ_OPS: &[WasmOpcode] = &[WasmOpcode::TableSize, WasmOpcode::CallIndirectResolve];
 const LOCAL_VALUE_OPS: &[WasmOpcode] = &[WasmOpcode::LocalGet, WasmOpcode::LocalSet, WasmOpcode::LocalTee];
 const GLOBAL_VALUE_OPS: &[WasmOpcode] = &[WasmOpcode::GlobalGet, WasmOpcode::GlobalSet];
 const TABLE_VALUE_OPS: &[WasmOpcode] = &[
     WasmOpcode::TableGet,
     WasmOpcode::TableSet,
-    WasmOpcode::CallIndirect,
-    WasmOpcode::ReturnCallIndirect,
+    WasmOpcode::CallIndirectResolve,
 ];
 
 /// Emit every operand-stack ↔ memory-family binding the wasm VM
@@ -61,13 +52,12 @@ pub(super) fn push_stack_io_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     });
 
     b.with_tag(shared("table read gate", TABLE_READ_OPS), |b| {
-        // The table-entry read is off on an OOB call_indirect row: there is no
+        // The table-entry read is off on an OOB resolve row: there is no
         // valid entry to read, and the OOB trap must not depend on it.
         b.push_linear_zero([
             (COL_TABLE_READ_ENABLED, F::ONE),
             (selector_col(WasmOpcode::TableGet).unwrap(), -F::ONE),
-            (selector_col(WasmOpcode::CallIndirect).unwrap(), -F::ONE),
-            (selector_col(WasmOpcode::ReturnCallIndirect).unwrap(), -F::ONE),
+            (selector_col(WasmOpcode::CallIndirectResolve).unwrap(), -F::ONE),
             (COL_CI_OOB, F::ONE),
         ]);
     });
@@ -76,8 +66,7 @@ pub(super) fn push_stack_io_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
         b.push_linear_zero([
             (COL_TABLE_SIZE_READ_ENABLED, F::ONE),
             (selector_col(WasmOpcode::TableSize).unwrap(), -F::ONE),
-            (selector_col(WasmOpcode::CallIndirect).unwrap(), -F::ONE),
-            (selector_col(WasmOpcode::ReturnCallIndirect).unwrap(), -F::ONE),
+            (selector_col(WasmOpcode::CallIndirectResolve).unwrap(), -F::ONE),
         ]);
     });
 
@@ -183,6 +172,21 @@ fn push_table_value_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
         selector_col(WasmOpcode::TableSet).unwrap(),
         [(COL_TABLE_INDEX, F::ONE), (COL_STACK_READ_VALUE_LO[0], -F::ONE)],
     );
+    // The resolve step reads the index from the stack top and, unless it traps,
+    // writes the checked function reference back in its place for the
+    // invocation; a trapping (terminal) row writes zero.
+    let resolve = selector_col(WasmOpcode::CallIndirectResolve).unwrap();
+    push_gated_linear_zero(
+        b,
+        resolve,
+        [(COL_TABLE_INDEX, F::ONE), (COL_STACK_READ_VALUE_LO[0], -F::ONE)],
+    );
+    push_gated_linear_zero(
+        b,
+        COL_CALL_INDIRECT_IS_NOT_TRAP,
+        [(COL_STACK_WRITE0_VALUE_LO, F::ONE), (COL_FUNCTION_REF, -F::ONE)],
+    );
+    push_gated_linear_zero(b, COL_CALL_INDIRECT_IS_TRAP, [(COL_STACK_WRITE0_VALUE_LO, F::ONE)]);
 }
 
 fn push_table_size_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {

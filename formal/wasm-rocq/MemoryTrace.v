@@ -257,6 +257,34 @@ Proof.
     + left. exact Hid.
 Qed.
 
+(* Every write port of the memory is gated on the column. *)
+Definition writesOnlyWhen (memory : nat) (column : Column) (catalog : list MemorySpec) : bool :=
+  forallb (fun specification =>
+    if Nat.eqb (memoryId specification) memory then
+      forallb (fun port => match portKind port, activation port with
+        | Read, _ => true | Write _, When gate => Nat.eqb gate column | Write _, _ => false end)
+        (ports specification)
+    else true) catalog.
+
+Lemma gated_write_row : forall catalog memory column address (w : Witness),
+  writesOnlyWhen memory column catalog = true -> w column <> 1 ->
+  Forall (NoWriteTo memory address) (eventsForRow catalog w).
+Proof.
+  intros catalog memory column address w Hgated Hoff.
+  apply Forall_forall. intros event Hin.
+  unfold eventsForRow in Hin.
+  apply in_flat_map in Hin. destruct Hin as [specification [Hspec Hin]].
+  apply in_flat_map in Hin. destruct Hin as [port [Hport Hin]].
+  apply forallb_forall with (x := specification) in Hgated; [|exact Hspec].
+  unfold portEvent in Hin.
+  destruct (active w (activation port)) eqn:Hactive; [|contradiction].
+  destruct (portKind port) eqn:Hkind; destruct Hin as [Hevent | []]; subst event; [exact I | ].
+  destruct (Nat.eqb (memoryId specification) memory) eqn:Hid; [ | left; apply Nat.eqb_neq; exact Hid].
+  apply forallb_forall with (x := port) in Hgated; [|exact Hport].
+  rewrite Hkind in Hgated. destruct (activation port) as [ | gate | gate]; try discriminate.
+  apply Nat.eqb_eq in Hgated. subst gate. cbn in Hactive. apply Z.eqb_eq in Hactive. contradiction.
+Qed.
+
 Lemma read_only_trace : forall catalog memory address rows,
   readOnlyMemory memory catalog = true ->
   Forall (NoWriteTo memory address) (eventsForTrace catalog rows).

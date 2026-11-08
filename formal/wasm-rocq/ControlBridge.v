@@ -393,17 +393,14 @@ Proof.
     split; [lia | ]. split; [assumption | ]. split; [assumption | ]. split; [assumption | ].
     split; [assumption | reflexivity].
   - destruct (functionAt program function) as [f | ] eqn:Hf; [ | discriminate].
-    destruct (function_at_i32_types _ _ _ Hf) as [Hparams [_ Hlocals]].
-    rewrite Hparams, Hlocals, integer_zeros_i32 in Hdecode.
-    unfold readLocals in Hdecode. rewrite read_integer_cells_i32 in Hdecode.
-    fold (readStack memory (boundaryLocalsBase boundary) (guestParams f)) in Hdecode.
     destruct (_ && _) eqn:Hchecks; [ | discriminate]. bools.
     repeat match goal with H : initializationFlagsb _ = true |- _ => apply flags_check in H end.
-    destruct (readStack _ _ _) as [arguments | ] eqn:Hstack; [ | discriminate].
-    cbn [option_map] in Hdecode. injection Hdecode as <- <-.
-    destruct (proj1 (read_stack_cells _ _ _ _) Hstack) as [Hlen [Hbounds _]].
-    exists (entering function arguments). split; [reflexivity | ]. exists f.
-    split; [exact Hf | ]. split; [exact Hlen | ]. split; [exact Hbounds | ]. split; [exact Hobligations | ].
+    destruct (readLocals _ _ _) as [arguments | ] eqn:Hstack; [ | discriminate].
+    destruct (integerZeros _) as [defaults | ] eqn:Hdefaults; [ | discriminate].
+    injection Hdecode as <- <-.
+    apply read_integer_cells_some in Hstack as [Htypes _].
+    exists (entering function arguments). split; [reflexivity | ]. exists f, defaults.
+    split; [exact Hf | ]. split; [exact Htypes | ]. split; [exact Hdefaults | ]. split; [exact Hobligations | ].
     split; [assumption | ]. split; [assumption | ]. split; [lia | ]. split; [assumption | reflexivity].
 Qed.
 
@@ -446,15 +443,35 @@ Proof.
     rewrite value_stack_prefix_i32, wrap_value_labels_i32.
     unfold viewOperands. rewrite split_concat.
     eexists. split; [ | exact I]. unfold frameConfig, innerCode. rewrite Hpath. reflexivity.
-  - destruct Hstate as [f [Hf [Hlen [Hbounds [Hinit [Hflags [Hmove [Hpending [Hpc ->]]]]]]]]].
+  - destruct Hstate as [f [defaults [Hf [Htypes [Hdefaults [Hinit [Hflags [Hmove [Hpending [Hpc ->]]]]]]]]]].
     rewrite Hf. apply flags_check in Hflags. pass_check.
-    destruct (function_at_i32_types _ _ _ Hf) as [Hparams [_ Hlocals]].
-    rewrite Hparams, Hlocals, integer_zeros_i32.
-    unfold readLocals. rewrite read_integer_cells_i32. fold (readStack memory (boundaryLocalsBase boundary) (guestParams f)).
-    assert (Hargs : readStack memory (boundaryLocalsBase boundary) (guestParams f) = Some arguments).
-    { apply read_stack_cells. split; [exact Hlen | split; [exact Hbounds | ]].
-      intros index value Hi. exact (initializing_i32_arguments _ _ _ _ _ Hbounds Hinit index value Hi). }
-    rewrite Hargs. eexists. split; [reflexivity | exact Hinit].
+    assert (Hargs : readLocals memory (boundaryLocalsBase boundary) (guestParamTypes f) = Some arguments).
+    { apply read_integer_cells_some. split; [exact Htypes | exact (argument_cells _ _ _ _ _ Hinit)]. }
+    rewrite Hargs, Hdefaults. eexists. split; [reflexivity | exact Hinit].
+Qed.
+
+(* Only the current i32 row proofs need this specialization of typed entry. *)
+Lemma entering_state_i32 : forall program s memory boundary function arguments c,
+  ActiveState program s memory boundary (entering function arguments) c ->
+  exists raw, arguments = map i32Value raw /\ exists f,
+    functionAt program function = Some f /\ length raw = guestParams f /\
+    Forall (fun value => 0 <= value < i32Modulus) raw /\
+    InitializingFrame memory boundary (map i32Value raw) (Z.of_nat (guestLocals f))
+      (boundaryZeroRemaining boundary) /\
+    initializationFlags boundary /\ boundaryMoveRemaining boundary = 0 /\
+    0 < boundaryZeroRemaining boundary /\ boundaryPC boundary = guestEntry f /\
+    c = stackConfig (mk_state s (enteredFrame (guestModule f) raw (guestLocals f))) [] (guestBody f).
+Proof.
+  intros program s memory boundary function arguments c
+    [f [defaults [Hf [Htypes [Hdefaults [Hinit Hrest]]]]]].
+  destruct (function_at_i32_types _ _ _ Hf) as [Hparams [_ Hlocals]].
+  assert (Hargs : readIntegerCells memory (fun i => boundaryLocalsBase boundary + Z.of_nat i)
+      (repeat valtype_I32 (guestParams f)) = Some arguments).
+  { apply read_integer_cells_some. split; [rewrite <- Hparams; exact Htypes | exact (argument_cells _ _ _ _ _ Hinit)]. }
+  destruct (read_integer_cells_i32_inv _ _ _ _ Hargs) as [raw [-> [Hlen [Hbounds Hcells]]]].
+  rewrite Hlocals, integer_zeros_i32 in Hdefaults. injection Hdefaults as <-.
+  exists raw. split; [reflexivity | ]. exists f.
+  split; [exact Hf | ]. split; [exact Hlen | ]. split; [exact Hbounds | ]. split; [exact Hinit | exact Hrest].
 Qed.
 
 (* Decoded callers form the invariant's suspended stack. *)

@@ -267,7 +267,7 @@ Proof.
         cbn in Hcall;
         destruct goffset as [ | [ | [ | goffset]]]; try discriminate; try (destruct goffset; discriminate);
         injection Hcall as <-; cbn [callsInto] in Hcallee; first [contradiction | discriminate Hcallee].
-  - exfalso. destruct Hactive as [f' [Hf' [_ [_ [_ [_ [_ [_ [Hpos _]]]]]]]]].
+  - exfalso. destruct Hactive as [f' [defaults [Hf' [_ [_ [_ [_ [_ [_ [Hpos _]]]]]]]]]].
     destruct function as [ | [ | function]]; try (destruct function; discriminate);
       injection Hf' as <-; cbn in Hpos; lia.
 Qed.

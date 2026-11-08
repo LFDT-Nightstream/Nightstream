@@ -41,7 +41,7 @@ Proof.
         [vm_compute; reflexivity | symmetry; exact Hcode]. }
     pose proof (full_invocation_continues row Hprime Hfull Hsel (eq_sym Hedge)). lia. }
   2: {
-    destruct Hstate as [g [_ [_ [_ [_ [[Hmove Hzflag] [Hremaining [Hzero _]]]]]]]].
+    destruct Hstate as [g [defaults [_ [_ [_ [_ [[Hmove Hzflag] [Hremaining [Hzero _]]]]]]]]].
     cbn [beforeBoundary boundaryMoveRemaining boundaryZeroRemaining boundaryZeroActive] in Hremaining, Hzflag, Hzero.
     rewrite Hremaining in Hzflag. cbn in Hzflag.
     pose proof (full_row_kind_exclusive row COL_IS_PROGRAM_ROW COL_LOCAL_ZERO_ACTIVE_BEFORE Hprime Hfull

@@ -243,7 +243,7 @@ Proof.
       destruct (callView top) as [[[ | caller] glabels goffset] gsegments gvalues glocals];
         cbn [viewPosition positionFunction positionLabels positionOffset] in Hg, Hcall; [ | destruct caller; discriminate].
       cbn in Hg. injection Hg as Hg. rewrite <- Hg in Hcall, Hcallee. exact (computed_no_call _ _ _ _ _ Hcall Hcallee).
-  - exfalso. destruct Hactive as [f' [Hf' [_ [_ [_ [_ [_ [_ [Hpos _]]]]]]]]].
+  - exfalso. destruct Hactive as [f' [defaults [Hf' [_ [_ [_ [_ [_ [_ [Hpos _]]]]]]]]]].
     destruct function as [ | function]; [ | destruct function; discriminate].
     injection Hf' as <-. cbn in Hpos. lia.
 Qed.

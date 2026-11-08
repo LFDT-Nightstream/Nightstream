@@ -1,7 +1,8 @@
 (* The proof invariant between two rows, a relational form of ControlDecode: the
    active frame at a code path and the suspended callers beneath it, with their
-   operands, locals and saved contexts in memory. Typing is not stored here; it
-   follows from the program's validation at each frame's position (FrameFacts). *)
+   operands, locals and saved contexts in memory. At code, typing follows from
+   validation at the frame's position (FrameFacts). Entry carries typed arguments
+   and the defaults of the function's declared locals. *)
 From Stdlib Require Import List ZArith.
 Require Import Wasm2 WasmIntegers R1CS MemoryTrace MemoryCatalog StraightLineSpec SpecTecCalls SpecTecBranches
   CallerSpec ProgramSpec CodeLayout FrameInitialization Locals Fragment ControlDecode.
@@ -80,7 +81,7 @@ Definition FrameAt (program : Program) (memory : MemoryState) (base fbp : Z) (pe
 Inductive ControlPosition :=
 | atCode (view : FrameView)
 | resolved (view : FrameView) (callee : nat)
-| entering (function : nat) (arguments : list Z).
+| entering (function : nat) (arguments : list val).
 
 (* The countdown flags follow the counters, as the circuit computes them on the row
    before this boundary; the next row's kind is fixed by them. A pending move runs
@@ -129,14 +130,15 @@ Definition ActiveState (program : Program) (s : store) (memory : MemoryState) (b
       c = frameConfig f view (stackPrefix (viewValues view)
         (instructionSuffix (skipn (S (positionOffset position)) (innerCode f position))
           (mk_config (mk_state s (activeFrame f (viewLocals view))) [CALL_ADDR (N.of_nat callee)])))
-  | entering function arguments => exists f,
-      functionAt program function = Some f /\ length arguments = guestParams f /\
-      Forall (fun value => 0 <= value < i32Modulus) arguments /\
-      InitializingFrame memory boundary (map i32Value arguments) (Z.of_nat (guestLocals f)) (boundaryZeroRemaining boundary) /\
+  | entering function arguments => exists f defaults,
+      functionAt program function = Some f /\
+      Forall2 (fun t value => integerValueType value = Some t) (guestParamTypes f) arguments /\
+      integerZeros (guestLocalTypes f) = Some defaults /\
+      InitializingFrame memory boundary arguments (Z.of_nat (guestLocals f)) (boundaryZeroRemaining boundary) /\
       initializationFlags boundary /\ boundaryMoveRemaining boundary = 0 /\
       0 < boundaryZeroRemaining boundary /\
       boundaryPC boundary = guestEntry f /\
-      c = stackConfig (mk_state s (enteredFrame (guestModule f) arguments (guestLocals f))) [] (guestBody f)
+      c = valueStackConfig (mk_state s (MKframe (arguments ++ defaults) (guestModule f))) [] (guestBody f)
   end.
 
 (* A caller suspended at a call inside its labels: its view holds the operands

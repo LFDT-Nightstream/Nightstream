@@ -167,7 +167,7 @@ Proof.
     apply stack_prefix_wf; [exact Hvalues | ].
     apply instruction_suffix_wf; [apply forall_skipn; exact Hcode | ].
     constructor; [exact Hz | repeat constructor].
-  - destruct H as [f [Hf [Hlen [Hargs [_ [_ [_ [_ [_ ->]]]]]]]]].
+  - destruct (entering_state_i32 _ _ _ _ _ _ _ H) as [raw [-> [f [Hf [Hlen [Hargs [_ [_ [_ [_ [_ ->]]]]]]]]]]].
     apply (entered_body_wf s (activeFrame f []) _ (guestTypeIndex f) _ (guestResults f)).
     + exact (frame_state_wf _ _ _ _ [] Hstore Hwf Hf (Forall_nil _)).
     + rewrite Hlen. exact (function_inst_wf _ _ Hf).
@@ -196,8 +196,14 @@ Proof.
   intros function callee arguments memory boundary Hf Hlength Hbounds Hinit Hflags Hmove Hpc.
   pose proof (zero_remaining_bounds _ _ _ _ _ Hinit) as Hzb.
   destruct (Z.eq_dec (boundaryZeroRemaining boundary) 0) as [Hz0 | Hpending].
-  2: { exists (entering function arguments). split; [exact Hf | ].
-       exists callee. repeat (split; [eassumption | ]). split; [lia | ]. split; [exact Hpc | reflexivity]. }
+  2: { exists (entering function (map i32Value arguments)). split; [exact Hf | ].
+       exists callee, (repeat (i32Value 0) (guestLocals callee)).
+       destruct (function_at_i32_types _ _ _ Hf) as [Hparams [_ Hlocals]].
+       split; [exact Hf | ]. split.
+       { rewrite Hparams, <- Hlength. clear. induction arguments; cbn; constructor; auto. }
+       split; [rewrite Hlocals; apply integer_zeros_i32 | ].
+       split; [exact Hinit | ]. split; [exact Hflags | ]. split; [exact Hmove | ].
+       split; [lia | ]. split; [exact Hpc | reflexivity]. }
   pose proof (initializing_i32_arguments _ _ _ _ _ Hbounds Hinit) as Hargs.
   pose proof Hinit as [_ Hfbp Hbase Hsp _ Hzeros].
   rewrite length_map in Hbase, Hzeros.
@@ -407,7 +413,9 @@ Proof.
   intros baseDepth stack function arguments initial final row c0 Hprime Hloaded Hfull Hreplay
     [f [inner [Hactive [Hstate [Hsusp [Hbase0 [Hdepth ->]]]]]]].
   cbn [activePosition activeFunction suspendedCalls] in Hactive, Hstate, Hsusp, Hdepth.
-  destruct Hstate as [callee [Hfn [Hlen [Hargs [Hinit [Hflags [Hmove [Hpending [Hpc ->]]]]]]]]].
+  destruct (entering_state_i32 _ _ _ _ _ _ _ Hstate)
+    as [raw [-> [callee [Hfn [Hlen [Hargs [Hinit [Hflags [Hmove [Hpending [Hpc ->]]]]]]]]]]].
+  clear Hstate. rename raw into arguments.
   rewrite Hfn in Hactive. injection Hactive as Hsame. subst callee.
   destruct Hflags as [HmFlag HzFlag].
   cbn [beforeBoundary boundaryZeroRemaining boundaryMoveRemaining boundaryZeroActive boundaryMoveActive
@@ -848,8 +856,8 @@ Proof.
     + destruct Hstate as [g [h [i [Hframe [Hi [Hind [Hh [Hcalls [Hcell Hfacts]]]]]]]]].
       exists g, h, i. split; [eapply frame_at_preserved; [exact Hframe | intros; apply Hstack | intros; apply Hstack] | ].
       repeat (split; [eassumption | ]). split; [rewrite Hstack; exact Hcell | exact Hfacts].
-    + destruct Hstate as [g [Hg [Hlen [Hbounds [Hinit Hfacts]]]]].
-      exists g. split; [exact Hg | ]. split; [exact Hlen | ]. split; [exact Hbounds | ]. split; [ | exact Hfacts].
+    + destruct Hstate as [g [defaults [Hg [Htypes [Hdefaults [Hinit Hfacts]]]]]].
+      exists g, defaults. split; [exact Hg | ]. split; [exact Htypes | ]. split; [exact Hdefaults | ]. split; [ | exact Hfacts].
       destruct Hinit as [Hzb Hfbp Hbase Hsp Hargs Hzeros].
       constructor; try assumption.
       * intros index value Hv. eapply IntegerMemory.cell_matches_memory; [ | exact (Hargs _ _ Hv)].
@@ -884,7 +892,7 @@ Proof.
     - destruct Hactive as [g [h [i [_ [_ [_ [_ [_ [_ [_ [_ [_ [Hzr [Hmr _]]]]]]]]]]]]]].
       cbn [beforeBoundary boundaryMoveRemaining boundaryZeroRemaining] in Hzr, Hmr.
       split; assumption.
-    - destruct Hactive as [g [_ [_ [_ [_ [[HmaFlag HzaFlag] [Hmr [Hzr _]]]]]]]].
+    - destruct Hactive as [g [defaults [_ [_ [_ [_ [[HmaFlag HzaFlag] [Hmr [Hzr _]]]]]]]]].
       cbn [beforeBoundary boundaryMoveActive boundaryMoveRemaining boundaryZeroActive boundaryZeroRemaining]
         in HmaFlag, HzaFlag, Hmr, Hzr.
       exfalso. rewrite Hmr, Hza in HzaFlag. cbn in HzaFlag.

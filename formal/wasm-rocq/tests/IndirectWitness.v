@@ -258,7 +258,7 @@ Proof.
         [ | destruct b as [[ | [ | [ | [ | b]]]] arm]; cbn in Hi; destruct offset; discriminate]);
       cbn in Hi, Hpos; destruct offset as [ | [ | [ | offset]]]; try discriminate; try (destruct offset; discriminate);
       injection Hi as <-; try discriminate Hind; unfold codeOffset, mainBody in Hpos; cbn in Hpos; lia.
-  - exfalso. destruct Hactive as [f' [Hf' [_ [_ [_ [_ [_ [_ [Hpos _]]]]]]]]].
+  - exfalso. destruct Hactive as [f' [defaults [Hf' [_ [_ [_ [_ [_ [_ [Hpos _]]]]]]]]]].
     destruct function as [ | [ | function]]; try (destruct function; discriminate);
       injection Hf' as <-; cbn in Hpos; lia.
 Qed.

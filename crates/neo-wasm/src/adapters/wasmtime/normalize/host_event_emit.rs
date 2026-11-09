@@ -34,9 +34,10 @@ pub(super) struct EventSlotRow {
     pub(super) rom: crate::ir::WasmHostEventRomEntry,
     pub(super) read: Option<(u64, (u32, u32))>,
     pub(super) write: Option<(u64, (u32, u32))>,
-    pub(super) local_read: Option<(u32, u32)>,
+    pub(super) local_read: Option<(u32, (u32, u32))>,
     pub(super) local_write: Option<(u32, u8, u32)>,
     pub(super) linear_memory: Option<LinearMemoryAccess>,
+    pub(super) wide: bool,
 }
 
 /// One ROM group's slot plans and absorb policy. Enter ends a prefix group early.
@@ -62,6 +63,7 @@ pub(super) fn plan_import_phase(
     args_base: u64,
     args: &[(u32, u32)],
     result: Option<(u32, u32)>,
+    result_is_i64: bool,
     inputs: &[u64],
     memory_pages: Option<u32>,
     memory: &mut LinearMemoryImage,
@@ -69,7 +71,15 @@ pub(super) fn plan_import_phase(
     let resolved_memory = resolve_import_memory(events, args, inputs, memory_pages, memory)?;
     let blocks = expand_import_phase(events, args, result, inputs, &resolved_memory.reads)?;
     Ok(HostCallEventPlan {
-        blocks: plan_event_blocks(events, &blocks, args_base, args, result, &resolved_memory.accesses)?,
+        blocks: plan_event_blocks(
+            events,
+            &blocks,
+            args_base,
+            args,
+            result,
+            result_is_i64,
+            &resolved_memory.accesses,
+        )?,
         args_base,
     })
 }
@@ -298,6 +308,7 @@ fn plan_event_blocks(
     args_base: u64,
     args: &[(u32, u32)],
     result: Option<(u32, u32)>,
+    result_is_i64: bool,
     memory_accesses: &[LinearMemoryAccess],
 ) -> Result<Vec<EventBlockPlan>, WasmBuildError> {
     let mut memory_accesses = memory_accesses.iter();
@@ -330,6 +341,7 @@ fn plan_event_blocks(
                         local_read: None,
                         local_write: None,
                         linear_memory: None,
+                        wide: false,
                     };
                     Ok(match *source {
                         SlotBinding::EnterOpaque | SlotBinding::OpaqueSaved { .. } | SlotBinding::OpaqueRoot { .. } => {
@@ -359,18 +371,19 @@ fn plan_event_blocks(
                                 WasmHostEventSlotKind::Result,
                                 0,
                                 WasmHostEventRomVariant::LowLimb,
-                                0,
+                                1,
                                 0,
                             ))
                         },
                         SlotBinding::ResultElem { limb: Limb::Hi } => EventSlotRow {
                             write: Some((args_base, (0, result.expect("validated result").1))),
+                            wide: result_is_i64,
                             ..base_slot_row(entry(
                                 WasmHostEventSlotKind::Result,
                                 0,
                                 WasmHostEventRomVariant::HighLimb,
-                                0,
-                                0,
+                                1,
+                                u32::from(result_is_i64),
                             ))
                         },
                         SlotBinding::MemoryRead32 { base, byte_offset }
@@ -473,6 +486,7 @@ pub(super) fn plan_export_blocks(
     events: &[EventBlock],
     blocks: &[[u64; 8]],
     locals: &[(u32, u32)],
+    local_is_i64: &[bool],
     memory_accesses: &[LinearMemoryAccess],
 ) -> Result<Vec<EventBlockPlan>, WasmBuildError> {
     let mut memory_accesses = memory_accesses.iter();
@@ -505,6 +519,7 @@ pub(super) fn plan_export_blocks(
                         local_read: None,
                         local_write: None,
                         linear_memory: None,
+                        wide: false,
                     };
                     Ok(match *source {
                         SlotBinding::EnterOpaque | SlotBinding::OpaqueSaved { .. } | SlotBinding::OpaqueRoot { .. } => {
@@ -524,7 +539,12 @@ pub(super) fn plan_export_blocks(
                             let bit = u8::from(matches!(limb, Limb::Hi));
                             EventSlotRow {
                                 local_write: Some((u32::from(local), bit, value as u32)),
-                                ..base_slot_row(entry(WasmHostEventSlotKind::InputLocal, local, limb_variant(limb)))
+                                wide: local_is_i64[usize::from(local)],
+                                ..base_slot_row(crate::ir::WasmHostEventRomEntry {
+                                    immediate0: 1,
+                                    immediate1: u32::from(local_is_i64[usize::from(local)]),
+                                    ..entry(WasmHostEventSlotKind::InputLocal, local, limb_variant(limb))
+                                })
                             }
                         }
                         SlotBinding::OutputElem { limb } => {
@@ -572,9 +592,10 @@ pub(super) fn plan_export_blocks(
                             let MemoryBase::Local(_) = base else {
                                 unreachable!("validated export memory base")
                             };
-                            let base_value = memory_pointer(locals, local, "entry local")?;
+                            memory_pointer(locals, local, "entry local")?;
+                            let base_lanes = locals[usize::from(local)];
                             EventSlotRow {
-                                local_read: Some((u32::from(local), base_value)),
+                                local_read: Some((u32::from(local), base_lanes)),
                                 linear_memory: Some(
                                     *memory_accesses
                                         .next()
@@ -800,12 +821,12 @@ pub(super) fn emit_block_plan(
         // Only the result LO slot pushes (the counted write port pair); the
         // HI slot fires the hi-word port alone and leaves sp untouched.
         let pushes = slot.write.is_some() && slot.rom.variant.is_low_limb();
-        // Wide rows: a stack read/write carrying a hi limb, or a hi-lane
-        // locals write (the narrow-row rule pins hi columns to zero
-        // otherwise).
-        let wide = slot.read.is_some_and(|(_, (_, hi))| hi != 0)
-            || slot.write.is_some_and(|(_, (_, hi))| hi != 0)
-            || slot.local_write.is_some_and(|(_, limb, _)| limb == 1);
+        // Wide rows: a stack read/write carrying a hi limb, or an input-local
+        // row whose verifier-owned static type is i64. The narrow-row rule
+        // pins high columns to zero otherwise.
+        let wide = slot.wide
+            || slot.read.is_some_and(|(_, (_, hi))| hi != 0)
+            || slot.write.is_some_and(|(_, (_, hi))| hi != 0);
         let state_before = ctx.state(chain_before, absorb_before, host_event_state_before);
         if pushes {
             ctx.sp += 1;
@@ -822,7 +843,8 @@ pub(super) fn emit_block_plan(
                 .local_write
                 .map(|(index, _, _)| index)
                 .or_else(|| slot.local_read.map(|(index, _)| index)),
-            local_read_value: slot.local_read.map(|(_, value)| value),
+            local_read_value: slot.local_read.map(|(_, (lo, _))| lo),
+            local_read_value_hi: slot.local_read.map(|(_, (_, hi))| hi),
             // Lo rows write (word, 0); hi rows write only the hi lane.
             local_write_value: slot
                 .local_write

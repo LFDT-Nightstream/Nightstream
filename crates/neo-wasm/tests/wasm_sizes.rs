@@ -61,8 +61,13 @@ fn run_of(wat: &str) -> (WasmMemoryPreload, WasmStepState, Vec<WasmVmStep>) {
     preload_host_event_tables(
         &mut preload,
         &HostEventBindings::import_free(u32::try_from(export_fref).unwrap()),
+        &checked.artifacts,
     );
-    (preload, top_level_initial_state(tables, entry_pc), checked.trace)
+    (
+        preload,
+        top_level_initial_state(tables, entry_pc).unwrap(),
+        checked.trace,
+    )
 }
 
 #[test]
@@ -75,7 +80,7 @@ fn each_size_is_a_secure_geometry_whose_regions_fit_its_spaces() {
             geometry.max_tuples() <= 139_509,
             "{size:?} keeps SPEC.md section 7.1, rule 6"
         );
-        let (_, used) = size.limits().regions();
+        let (_, used) = size.limits().regions().unwrap();
         assert!(
             used[0] <= 1 << geometry.r && used[1] <= 1 << geometry.mu,
             "{size:?} uses {used:?}"

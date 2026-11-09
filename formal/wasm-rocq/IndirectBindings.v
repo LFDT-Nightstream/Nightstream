@@ -268,10 +268,10 @@ Proof.
   pose proof (value_bound w COL_CALL_INDIRECT_IS_NOT_TRAP).
   circuit_row ([(COL_PROGRAM_TABLE_ID_ACTIVE, 1); (COL_SEL_TABLE_SIZE, -1); (COL_SEL_TABLE_GET, -1); (COL_SEL_TABLE_SET, -1); (COL_SEL_CALL_INDIRECT_RESOLVE, -1)], [(COL_ONE, 1)], ([] : SparseRow)) Hid. expand_row Hid.
   circuit_row ([(COL_PROGRAM_CALL_INDIRECT_IMMEDIATES_ACTIVE, 1); (COL_SEL_CALL_INDIRECT_RESOLVE, -1)], [(COL_ONE, 1)], ([] : SparseRow)) Himm. expand_row Himm.
-  circuit_row ([(COL_TABLE_SIZE_READ_ENABLED, 1); (COL_SEL_TABLE_SIZE, -1); (COL_SEL_CALL_INDIRECT_RESOLVE, -1)], [(COL_ONE, 1)], ([] : SparseRow)) HsizeRead. expand_row HsizeRead.
-  circuit_row ([(COL_TABLE_READ_ENABLED, 1); (COL_SEL_TABLE_GET, -1); (COL_SEL_CALL_INDIRECT_RESOLVE, -1); (COL_CI_OOB, 1)], [(COL_ONE, 1)], ([] : SparseRow)) Hread'. expand_row Hread'.
+  circuit_row ([(COL_TABLE_SIZE_READ_ENABLED, 1); (COL_SEL_TABLE_SIZE, -1); (COL_SEL_TABLE_GET, -1); (COL_SEL_TABLE_SET, -1); (COL_SEL_CALL_INDIRECT_RESOLVE, -1)], [(COL_ONE, 1)], ([] : SparseRow)) HsizeRead. expand_row HsizeRead.
+  circuit_row ([(COL_SEL_TABLE_GET, 1)], [(COL_TABLE_OOB, 1)], [(COL_SEL_TABLE_GET, 1); (COL_SEL_CALL_INDIRECT_RESOLVE, 1); (COL_CI_OOB, -1); (COL_TABLE_READ_ENABLED, -1)]) Hread'. expand_row Hread'.
   circuit_row ([(COL_SEL_CALL_INDIRECT_RESOLVE, 1)], [(COL_TABLE_INDEX, 1); (List.nth 0%nat COL_STACK_READ_VALUE_LO 0%nat, -1)], ([] : SparseRow)) Hindex. expand_row Hindex.
-  circuit_row ([(COL_SEL_CALL_INDIRECT_RESOLVE, 1)], [(COL_TABLE_INDEX, 1); (COL_TABLE_SIZE, -1); (COL_ONE, 4294967296); (COL_CMP_LOW, -1); (COL_CMP_GE, -4294967296)], ([] : SparseRow)) Hcmp. expand_row Hcmp.
+  circuit_row ([(COL_SEL_TABLE_GET, 1); (COL_SEL_TABLE_SET, 1); (COL_SEL_CALL_INDIRECT_RESOLVE, 1)], [(COL_TABLE_INDEX, 1); (COL_TABLE_SIZE, -1); (COL_ONE, 4294967296); (COL_CMP_LOW, -1); (COL_CMP_GE, -4294967296)], ([] : SparseRow)) Hcmp. expand_row Hcmp.
   circuit_row ([(COL_SEL_CALL_INDIRECT_RESOLVE, 1)], [(COL_CMP_GE, 1)], [(COL_CI_OOB, 1)]) Hoob. expand_row Hoob.
   circuit_row ([(COL_TABLE_VALUE, 1)], [(COL_CI_ENTRY_NULL_INV, 1)], [(COL_ONE, 1); (COL_CI_ENTRY_IS_NULL, -1)]) HnullInv. expand_row HnullInv.
   circuit_row ([(COL_TABLE_VALUE, 1)], [(COL_CI_ENTRY_IS_NULL, 1)], ([] : SparseRow)) HnullZero. expand_row HnullZero.
@@ -344,13 +344,18 @@ Qed.
 
 (* Only table.set writes a table entry, so a row without it reads the entry as it was. *)
 Lemma resolve_entry_read : forall initial final (w : Witness),
+  FullRelation.satFull w ->
   Replay initial (eventsForRow MemoryCatalog.memories w) final -> w COL_SEL_TABLE_SET <> 1 ->
   w COL_TABLE_READ_ENABLED = 1 ->
   initial tableElementId [w COL_TABLE_ID; w COL_TABLE_INDEX] = Some (w COL_TABLE_VALUE).
 Proof.
-  intros initial final w Hreplay Hset Hread.
+  intros initial final w Hfull Hreplay Hset Hread.
   eapply replay_read_from_initial; [eassumption | | ].
-  - apply gated_write_row with (column := COL_SEL_TABLE_SET); [vm_compute; reflexivity | exact Hset].
+  - apply gated_write_row with (column := COL_TABLE_SET_LIVE); [vm_compute; reflexivity | ].
+    intros Hlive. apply Hset. pose proof (proj1 Hfull) as Hone.
+    circuit_row ([(COL_TABLE_SET_LIVE, 1)], [(COL_ONE, 1); (COL_SEL_TABLE_SET, -1)], ([] : SparseRow)) Hrow.
+    expand_row Hrow. rewrite Hone, Hlive in Hrow.
+    pose proof (value_bound w COL_SEL_TABLE_SET). field_linear Hrow.
   - exported_event tableElementId (mkPort [COL_TABLE_ID; COL_TABLE_INDEX] COL_TABLE_VALUE Read
       (When COL_TABLE_READ_ENABLED)).
 Qed.
@@ -403,8 +408,9 @@ Proof.
     expand_row Hrow. rewrite Hprogram in Hrow.
     pose proof (value_bound w COL_ACTIVATION_FINISHED_BEFORE). field_linear Hrow. }
   circuit_row ([(COL_TRAPPED_AFTER, 1); (COL_TRAPPED_BEFORE, -1); (COL_SEL_UNREACHABLE, -1); (COL_DIV_TRAP, -1);
-    (COL_CALL_INDIRECT_IS_TRAP, -1); (COL_MEM_OOB, -1)], [(COL_ONE, 1)], ([] : SparseRow)) Htrapped.
+    (COL_CALL_INDIRECT_IS_TRAP, -1); (COL_MEM_OOB, -1); (COL_TABLE_OOB, -1)], [(COL_ONE, 1)], ([] : SparseRow)) Htrapped.
   circuit_boolean COL_TRAPPED_AFTER Hta. circuit_boolean COL_DIV_TRAP Hdiv. circuit_boolean COL_MEM_OOB Hmem.
+  circuit_boolean COL_TABLE_OOB Htable.
   expand_row Htrapped. normalize_columns. rewrite Hone, Htb, Hothers, Htrap in Htrapped.
   assert (Htrapped' : w COL_TRAPPED_AFTER = 1).
   { normalize_columns. apply Z.mod_divide in Htrapped; [ | unfold modulus; lia].
@@ -516,18 +522,21 @@ Proof.
     (Some [(COL_DIV_OVERFLOW, 1)]) Hoverflow.
   selected_row_where COL_SEL_CALL_INDIRECT_RESOLVE (@None SparseRow) (Some [(COL_CMP_GE, 1)])
     (Some [(COL_MEM_OOB, 1)]) Hmem.
+  selected_row_where COL_SEL_CALL_INDIRECT_RESOLVE (@None SparseRow) (Some [(COL_CMP_GE, 1)])
+    (Some [(COL_TABLE_OOB, 1)]) Htable.
   zero_gather_kinds Hkinds Hmem. rewrite ?Hone in *.
   pose proof (value_bound w COL_DIV_OVERFLOW). pose proof (value_bound w COL_DIV_TRAP).
-  pose proof (value_bound w COL_MEM_OOB).
+  pose proof (value_bound w COL_MEM_OOB). pose proof (value_bound w COL_TABLE_OOB).
   assert (Hov : w COL_DIV_OVERFLOW = 0) by field_linear Hoverflow.
   assert (Hdt : w COL_DIV_TRAP = 0) by field_linear Hdiv.
   assert (Hmo : w COL_MEM_OOB = 0) by field_linear Hmem.
+  assert (Hto : w COL_TABLE_OOB = 0) by field_linear Htable.
   circuit_row ([(COL_ACTIVATION_FINISHED_AFTER, 1); (COL_ACTIVATION_FINISHED_BEFORE, -1); (COL_HOST_CLEAR_ACTIVATION_FINISHED, 1);
     (COL_CALL_STACK_POP_PRESENT, 1); (COL_PC_EDGE_KIND, -1); (COL_SEL_CALL_INDIRECT, 2);
     (COL_SEL_RETURN_CALL_INDIRECT, 2); (COL_SEL_UNREACHABLE, 2); (COL_DIV_TRAP, -1);
-    (COL_CALL_INDIRECT_IS_TRAP, -1); (COL_MEM_OOB, -1)], [(COL_ONE, 1)], ([] : SparseRow)) Hrow.
+    (COL_CALL_INDIRECT_IS_TRAP, -1); (COL_MEM_OOB, -1); (COL_TABLE_OOB, -1)], [(COL_ONE, 1)], ([] : SparseRow)) Hrow.
   expand_row Hrow. circuit_boolean COL_CALL_INDIRECT_IS_TRAP Hci. circuit_boolean COL_ACTIVATION_FINISHED_AFTER Hfa.
-  normalize_columns. rewrite Hone, Hfb, Hclear, Hpop, Hedge, Hindirect, Htail, Hunreachable, Hdt, Hmo in Hrow.
+  normalize_columns. rewrite Hone, Hfb, Hclear, Hpop, Hedge, Hindirect, Htail, Hunreachable, Hdt, Hmo, Hto in Hrow.
   normalize_columns. apply Z.mod_divide in Hrow; [ | unfold modulus; lia]. destruct Hrow as [k Hrow].
   unfold modulus in *; lia.
 Qed.
@@ -562,6 +571,8 @@ Proof.
   selected_row_where COL_SEL_CALL_INDIRECT (@None SparseRow) (Some [(COL_CMP_GE, 1)])
     (Some [(COL_MEM_OOB, 1)]) Hmem.
   selected_row_where COL_SEL_CALL_INDIRECT (@None SparseRow) (Some [(COL_CMP_GE, 1)])
+    (Some [(COL_TABLE_OOB, 1)]) Htable.
+  selected_row_where COL_SEL_CALL_INDIRECT (@None SparseRow) (Some [(COL_CMP_GE, 1)])
     (Some [(COL_CI_OOB, 1)]) Hoob.
   selected_row_where COL_SEL_CALL_INDIRECT (@None SparseRow) (Some [(COL_ONE, 1); (COL_CI_ENTRY_IS_NULL, -1)])
     (Some [(COL_FUNCTION_CALL_TYPE_LOOKUP_GATE, 1)]) Hgate.
@@ -569,11 +580,12 @@ Proof.
     (@None SparseRow) Htype.
   zero_gather_kinds Hkinds Hmem. rewrite ?Hone in *.
   pose proof (value_bound w COL_DIV_OVERFLOW). pose proof (value_bound w COL_DIV_TRAP).
-  pose proof (value_bound w COL_MEM_OOB). pose proof (value_bound w COL_CI_OOB).
+  pose proof (value_bound w COL_MEM_OOB). pose proof (value_bound w COL_TABLE_OOB). pose proof (value_bound w COL_CI_OOB).
   pose proof (value_bound w COL_FUNCTION_CALL_TYPE_LOOKUP_GATE). pose proof (value_bound w COL_CALL_INDIRECT_IS_TRAP).
   assert (Hov : w COL_DIV_OVERFLOW = 0) by field_linear Hoverflow.
   assert (Hdt : w COL_DIV_TRAP = 0) by field_linear Hdiv.
   assert (Hmo : w COL_MEM_OOB = 0) by field_linear Hmem.
+  assert (Hto : w COL_TABLE_OOB = 0) by field_linear Htable.
   assert (Hco : w COL_CI_OOB = 0) by field_linear Hoob.
   normalize_columns. rewrite Hco in Hgate.
   assert (Hg : w COL_FUNCTION_CALL_TYPE_LOOKUP_GATE = 0) by field_linear Hgate.
@@ -582,9 +594,9 @@ Proof.
   circuit_row ([(COL_ACTIVATION_FINISHED_AFTER, 1); (COL_ACTIVATION_FINISHED_BEFORE, -1); (COL_HOST_CLEAR_ACTIVATION_FINISHED, 1);
     (COL_CALL_STACK_POP_PRESENT, 1); (COL_PC_EDGE_KIND, -1); (COL_SEL_CALL_INDIRECT, 2);
     (COL_SEL_RETURN_CALL_INDIRECT, 2); (COL_SEL_UNREACHABLE, 2); (COL_DIV_TRAP, -1);
-    (COL_CALL_INDIRECT_IS_TRAP, -1); (COL_MEM_OOB, -1)], [(COL_ONE, 1)], ([] : SparseRow)) Hrow.
+    (COL_CALL_INDIRECT_IS_TRAP, -1); (COL_MEM_OOB, -1); (COL_TABLE_OOB, -1)], [(COL_ONE, 1)], ([] : SparseRow)) Hrow.
   expand_row Hrow. circuit_boolean COL_CALL_STACK_POP_PRESENT Hpop. circuit_boolean COL_ACTIVATION_FINISHED_AFTER Hfa.
-  normalize_columns. rewrite Hone, Hfb, Hclear, Hedge, Hchosen, Htail, Hunreachable, Hdt, Hmo, Hct in Hrow.
+  normalize_columns. rewrite Hone, Hfb, Hclear, Hedge, Hchosen, Htail, Hunreachable, Hdt, Hmo, Hto, Hct in Hrow.
   normalize_columns. apply Z.mod_divide in Hrow; [ | unfold modulus; lia]. destruct Hrow as [k Hrow].
   unfold modulus in *; lia.
 Qed.

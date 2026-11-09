@@ -607,11 +607,8 @@ fn wasmtime_trace_normalizes_table_size_rows() {
     assert_eq!(row.stack_write0.map(|w| w.value_lo), Some(4));
 }
 
-/// `table.get` OOB raises the same `TableOutOfBounds` trap as `call_indirect`
-/// OOB, but only the latter is modeled. The adapter must keep it a loud error
-/// rather than presenting it as a clean terminal run with no results.
 #[test]
-fn table_get_out_of_bounds_stays_a_loud_error() {
+fn table_get_out_of_bounds_has_a_trapped_trace() {
     let wasm = wat::parse_str(
         r#"(module
             (table 1 funcref)
@@ -621,13 +618,17 @@ fn table_get_out_of_bounds_stays_a_loud_error() {
                 drop))"#,
     )
     .expect("valid WAT");
-    let err = collect_wasmtime_steps(&wasm, &HostEventBindings::default(), "run", &[])
-        .expect_err("table.get OOB must be a hard error");
-    assert!(
-        err.to_string()
-            .contains("table.get out of bounds for table 0 index 5"),
-        "unexpected error: {err:?}"
-    );
+    let run = collect_wasmtime_steps(&wasm, &HostEventBindings::default(), "run", &[])
+        .expect("table.get OOB has a modeled terminal trap");
+    assert!(run.results.is_empty());
+    let last = run.steps.last().unwrap();
+    assert_eq!(last.opcode_decoded, Some(WasmOpcode::TableGet));
+    assert_eq!(last.table_index, Some(5));
+    assert_eq!(last.table_size, Some(1));
+    let trace = traces_from_wasmtime_steps(&run.steps).unwrap();
+    let final_state = trace.last().unwrap().state_after;
+    assert!(final_state.is_terminal() && final_state.trapped);
+    assert!(!final_state.output.enabled);
 }
 
 #[test]

@@ -93,8 +93,11 @@ fn boundary_trace() -> (Vec<WasmVmStep>, HostEventBindings) {
     // Input bootstrap: the RAM model's entry locals start all-zero; the
     // entry gather rows write the runtime inputs into them.
     let mut preload = neo_wasm::memory_semantics::preload_from_program_artifacts(&artifacts);
-    neo_wasm::memory_semantics::preload_host_event_tables(&mut preload, &bindings);
-    let witness_rows: Vec<Vec<neo_math::F>> = trace.iter().map(build_witness_vector).collect();
+    neo_wasm::memory_semantics::preload_host_event_tables(&mut preload, &bindings, &artifacts);
+    let witness_rows: Vec<Vec<neo_math::F>> = trace
+        .iter()
+        .map(|row| build_witness_vector(row).unwrap())
+        .collect();
     let layout = neo_wasm::relation_layout::build_wasm_relation_layout();
     neo_wasm::memory_semantics::sanity_check_memory_rows(&layout, &witness_rows, &preload)
         .expect("bindings ROM + locals reads match");
@@ -173,13 +176,13 @@ fn ccs_rejects_forged_exit_output() {
                     .is_some_and(|rom| rom.kind == WasmHostEventSlotKind::Output)
         })
         .expect("output slot row");
-    let mut witness = build_witness_vector(output_slot_row);
+    let mut witness = build_witness_vector(output_slot_row).unwrap();
     common::assert_satisfied(&witness, "untampered output slot row");
     let cursor = usize::from(output_slot_row.state_before.host_events.slot_cursor);
     witness[neo_wasm::layout::COL_EVBUF_AFTER[cursor]] += neo_math::F::ONE;
     common::assert_rejected(&witness, "exit gather row staging a forged output word");
 
-    let mut witness = build_witness_vector(output_slot_row);
+    let mut witness = build_witness_vector(output_slot_row).unwrap();
     witness[neo_wasm::layout::COL_OUTPUT_ENABLED_BEFORE] = neo_math::F::ZERO;
     witness[neo_wasm::layout::COL_OUTPUT_ENABLED_AFTER] = neo_math::F::ZERO;
     common::assert_rejected(&witness, "output slot row with no captured output");
@@ -199,7 +202,7 @@ fn ccs_rejects_forged_input_word() {
                     .is_some_and(|rom| rom.kind == WasmHostEventSlotKind::InputLocal)
         })
         .expect("input-local slot row");
-    let mut witness = build_witness_vector(input_slot_row);
+    let mut witness = build_witness_vector(input_slot_row).unwrap();
     common::assert_satisfied(&witness, "untampered input-local slot row");
     let cursor = usize::from(input_slot_row.state_before.host_events.slot_cursor);
     witness[neo_wasm::layout::COL_EVBUF_AFTER[cursor]] += neo_math::F::ONE;
@@ -215,7 +218,7 @@ fn ccs_rejects_suppressed_exit_schedule() {
         .iter()
         .find(|row| row.output_captured)
         .expect("capture row");
-    let mut witness = build_witness_vector(capture_row);
+    let mut witness = build_witness_vector(capture_row).unwrap();
     common::assert_satisfied(&witness, "untampered capture row");
     witness[neo_wasm::layout::COL_HOST_EVENTS_REMAINING_AFTER] = neo_math::F::ZERO;
     common::assert_rejected(&witness, "capture row suppressing the exit schedule");
@@ -314,8 +317,11 @@ fn i64_param_bootstraps_both_lanes() {
     // read back out of them.
     let artifacts = neo_wasm::extract_first_component_core_program_artifacts(&component_bytes).expect("artifacts");
     let mut preload = neo_wasm::memory_semantics::preload_from_program_artifacts(&artifacts);
-    neo_wasm::memory_semantics::preload_host_event_tables(&mut preload, &bindings);
-    let witness_rows: Vec<Vec<neo_math::F>> = trace.iter().map(build_witness_vector).collect();
+    neo_wasm::memory_semantics::preload_host_event_tables(&mut preload, &bindings, &artifacts);
+    let witness_rows: Vec<Vec<neo_math::F>> = trace
+        .iter()
+        .map(|row| build_witness_vector(row).unwrap())
+        .collect();
     let layout = neo_wasm::relation_layout::build_wasm_relation_layout();
     neo_wasm::memory_semantics::sanity_check_memory_rows(&layout, &witness_rows, &preload)
         .expect("bindings ROM + lane writes match");
@@ -431,8 +437,11 @@ fn export_exit_memory_reads_use_the_captured_output_pointer() {
 
     let artifacts = neo_wasm::extract_first_component_core_program_artifacts(&component_bytes).expect("artifacts");
     let mut preload = neo_wasm::memory_semantics::preload_from_program_artifacts(&artifacts);
-    neo_wasm::memory_semantics::preload_host_event_tables(&mut preload, &bindings);
-    let witness_rows: Vec<Vec<neo_math::F>> = trace.iter().map(build_witness_vector).collect();
+    neo_wasm::memory_semantics::preload_host_event_tables(&mut preload, &bindings, &artifacts);
+    let witness_rows: Vec<Vec<neo_math::F>> = trace
+        .iter()
+        .map(|row| build_witness_vector(row).unwrap())
+        .collect();
     let layout = neo_wasm::relation_layout::build_wasm_relation_layout();
     neo_wasm::memory_semantics::sanity_check_memory_rows(&layout, &witness_rows, &preload)
         .expect("bindings output base and linear-memory accesses match");
@@ -454,7 +463,7 @@ fn export_exit_memory_reads_use_the_captured_output_pointer() {
                 .is_some_and(|rom| rom.kind == WasmHostEventSlotKind::MemoryRead)
         })
         .expect("memory read gather");
-    let mut forged = build_witness_vector(read);
+    let mut forged = build_witness_vector(read).unwrap();
     common::assert_satisfied(&forged, "untampered output-base memory read");
     forged[neo_wasm::layout::COL_OUTPUT_VALUE_LO_BEFORE] += neo_math::F::ONE;
     forged[neo_wasm::layout::COL_OUTPUT_VALUE_LO_AFTER] += neo_math::F::ONE;

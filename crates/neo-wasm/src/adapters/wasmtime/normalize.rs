@@ -159,6 +159,20 @@ fn normalize_step(row: &WasmtimeTraceStep) -> Result<Option<NormalizedStep>, Was
         WasmOpcode::CallIndirect | WasmOpcode::ReturnCallIndirect => (Some(1), Some(0)),
         _ => (None, None),
     };
+    let info = opcode_info_from_code(code);
+    if operand_stack.len() < usize::from(stack_reads_override.unwrap_or(info.stack_reads)) {
+        return Err(WasmBuildError::Trace(format!(
+            "{} at step {} has too few operand values",
+            opcode.name(),
+            row.step
+        )));
+    }
+    if opcode == WasmOpcode::BrTable && immediate_i32.is_none() {
+        return Err(WasmBuildError::Trace(format!(
+            "br_table at step {} has no arm count",
+            row.step
+        )));
+    }
 
     // For local.get / local.set / local.tee the immediate holds the local index.
     // The frame's locals snapshot (captured before execution) gives the pre-step value.
@@ -252,7 +266,7 @@ fn normalize_step(row: &WasmtimeTraceStep) -> Result<Option<NormalizedStep>, Was
         control_choice,
         pc_edge_kind,
         opcode,
-        info: opcode_info_from_code(code),
+        info,
         wide_values_enabled: opcode.uses_wide_values(),
         stack_reads_override,
         stack_writes_override,
@@ -414,14 +428,10 @@ pub(crate) fn capture_frame<T>(
         _ => None,
     };
     let table_value = match opcode_decoded {
-        Some(WasmOpcode::TableGet) => match (table_id, table_index) {
-            (Some(table_id), Some(table_index)) => Some(read_table_funcref_u32(
-                table_id,
-                table_index,
-                frame,
-                store,
-                func_ref_ids,
-            )?),
+        Some(WasmOpcode::TableGet) => match (table_id, table_index, table_size) {
+            (Some(table_id), Some(table_index), Some(table_size)) if table_index < table_size => Some(
+                read_table_funcref_u32(table_id, table_index, frame, store, func_ref_ids)?,
+            ),
             _ => None,
         },
         Some(WasmOpcode::TableSet) => operand_stack_words.last().copied(),

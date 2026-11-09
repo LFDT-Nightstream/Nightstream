@@ -28,7 +28,7 @@ pub(super) fn call_indirect_traps(
     table_value == Some(0) || (expected_type_id.is_some() && expected_type_id != function_type_id)
 }
 
-pub(super) fn call_indirect_oob(table_index: Option<u32>, table_size: Option<u32>) -> bool {
+pub(super) fn table_index_oob(table_index: Option<u32>, table_size: Option<u32>) -> bool {
     matches!((table_index, table_size), (Some(index), Some(size)) if index >= size)
 }
 

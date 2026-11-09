@@ -33,7 +33,7 @@ fn assert_program_immediate_gates_required(wat_src: &str, opcode: WasmOpcode, ga
         .iter()
         .find(|step| step.opcode == opcode)
         .expect("immediate-consuming row");
-    let honest = build_witness_vector(step);
+    let honest = build_witness_vector(step).unwrap();
     assert_satisfied(&honest, "honest immediate-consuming row");
     for &gate in gates {
         let mut suppressed = honest.clone();
@@ -76,9 +76,9 @@ fn program_immediate_consumers_require_their_rom_gates() {
 #[test]
 fn padding_row_rejects_forged_output_capture() {
     let trace = trace_from_wat(r#"(module (func (export "main") (result i32) i32.const 0))"#);
-    let mut row = build_witness_vector(&neo_wasm::batch::padding_step_after(
-        trace.last().expect("terminal row"),
-    ));
+    let mut row =
+        build_witness_vector(&neo_wasm::batch::padding_step_after(trace.last().expect("terminal row")).unwrap())
+            .unwrap();
     row[COL_OUTPUT_CAPTURED] = F::ONE;
     row[COL_OUTPUT_ENABLED_BEFORE] = F::ZERO;
     row[COL_OUTPUT_ENABLED_AFTER] = F::ONE;
@@ -86,6 +86,40 @@ fn padding_row_rejects_forged_output_capture() {
     row[COL_SP_AFTER] = F::ZERO;
 
     assert_rejected(&row, "padding row cannot capture a program output");
+}
+
+#[test]
+fn terminal_end_row_rejects_a_forged_final_pc() {
+    let trace = trace_from_wat(r#"(module (func (export "main") (result i32) i32.const 0))"#);
+    let terminal = trace.last().expect("terminal End row");
+    assert_eq!(terminal.opcode, WasmOpcode::End);
+    assert_eq!(terminal.state_after.pc, terminal.state_before.pc + 1);
+    let mut forged = terminal.clone();
+    forged.state_after.pc += 1;
+    assert_rejected(
+        &build_witness_vector(&forged).unwrap(),
+        "terminal End must bind its one-past final pc",
+    );
+}
+
+#[test]
+fn terminal_trap_rejects_forged_disabled_output_payloads() {
+    let trace = trace_from_wat(r#"(module (func (export "main") unreachable))"#);
+    let terminal = trace.last().expect("terminal trap row");
+    assert!(terminal.state_after.trapped);
+    assert!(!terminal.state_after.output.enabled);
+    for high in [false, true] {
+        let mut forged = terminal.clone();
+        if high {
+            forged.state_after.output.value_hi = 1;
+        } else {
+            forged.state_after.output.value_lo = 1;
+        }
+        assert_rejected(
+            &build_witness_vector(&forged).unwrap(),
+            "terminal trap must not carry a disabled output payload",
+        );
+    }
 }
 
 #[test]
@@ -103,7 +137,8 @@ fn add_row_rejects_tampered_output_value() {
         None,
         0,
         false,
-    ));
+    ))
+    .unwrap();
     row[COL_STACK_WRITE0_VALUE_LO] = F::from_u64(17);
     assert_rejected(&row, "tampered i32.add output");
 }
@@ -123,7 +158,8 @@ fn add_row_rejects_tampered_static_stack_arity() {
         None,
         0,
         false,
-    ));
+    ))
+    .unwrap();
 
     row[COL_STACK_READS] = F::ONE;
     row[COL_STACK_WRITES] = F::ZERO;
@@ -151,7 +187,8 @@ fn i32_add_wraps_on_overflow() {
         None,
         0,
         false,
-    ));
+    ))
+    .unwrap();
     assert_satisfied(&row, "wrapping i32.add row");
 }
 
@@ -171,7 +208,8 @@ fn i32_sub_wraps_on_underflow() {
         None,
         0,
         false,
-    ));
+    ))
+    .unwrap();
     assert_satisfied(&row, "wrapping i32.sub row");
 }
 
@@ -190,7 +228,8 @@ fn selector_opcode_mismatch_is_rejected() {
         None,
         0,
         false,
-    ));
+    ))
+    .unwrap();
     row[1] = F::from_u64(u64::from(opcode_code(WasmOpcode::I32Sub)));
     assert_rejected(&row, "opcode byte does not match active selector");
 }
@@ -211,7 +250,7 @@ fn i32_load_row_is_accepted() {
         .iter()
         .find(|row| row.opcode == WasmOpcode::I32Load)
         .expect("load row");
-    let row = build_witness_vector(load);
+    let row = build_witness_vector(load).unwrap();
     assert_satisfied(&row, "i32.load row");
 }
 
@@ -232,7 +271,7 @@ fn non_grow_row_rejects_changed_memory_pages() {
         .iter()
         .find(|row| row.opcode == WasmOpcode::I32Load)
         .expect("load row");
-    let mut row = build_witness_vector(load);
+    let mut row = build_witness_vector(load).unwrap();
     assert_satisfied(&row, "in-bounds i32.load row");
     // Inflate the page count on a non-grow row: the carry constraint rejects it.
     row[COL_MEMORY_PAGES_AFTER] += F::ONE;
@@ -257,7 +296,7 @@ fn memory_grow_success_row_is_accepted() {
     assert_eq!(grow.state_before.memory_pages, Some(1));
     assert_eq!(grow.state_after.memory_pages, Some(2), "grew 1 -> 2");
     assert_eq!(grow.stack_write0.map(|w| w.value_lo), Some(1), "returns old size");
-    assert_satisfied(&build_witness_vector(grow), "memory.grow success row");
+    assert_satisfied(&build_witness_vector(grow).unwrap(), "memory.grow success row");
 }
 
 /// memory.grow past the declared max fails: it returns -1 (0xFFFFFFFF) and the
@@ -281,7 +320,7 @@ fn memory_grow_overflow_row_returns_neg1() {
         "page count unchanged on failure"
     );
     assert_eq!(grow.stack_write0.map(|w| w.value_lo), Some(u32::MAX), "returns -1");
-    let mut row = build_witness_vector(grow);
+    let mut row = build_witness_vector(grow).unwrap();
     assert_satisfied(&row, "memory.grow overflow row");
     // Forging a successful grow on the failing row (inflating the new size)
     // breaks `success·delta = after - before` (success is 0 here).
@@ -304,7 +343,7 @@ fn i32_store_row_is_accepted() {
         .iter()
         .find(|row| row.opcode == WasmOpcode::I32Store)
         .expect("store row");
-    let row = build_witness_vector(store);
+    let row = build_witness_vector(store).unwrap();
     assert_satisfied(&row, "i32.store row");
 }
 
@@ -328,8 +367,8 @@ fn i32_load8_u_and_store8_rows_are_accepted() {
         .iter()
         .find(|row| row.opcode == WasmOpcode::I32Load8U)
         .expect("load8_u row");
-    assert_satisfied(&build_witness_vector(store), "i32.store8 row");
-    assert_satisfied(&build_witness_vector(load), "i32.load8_u row");
+    assert_satisfied(&build_witness_vector(store).unwrap(), "i32.store8 row");
+    assert_satisfied(&build_witness_vector(load).unwrap(), "i32.load8_u row");
 }
 
 /// Row-local guard: subword stores must reject changed bytes outside the
@@ -354,8 +393,8 @@ fn i32_load16_u_and_store16_rows_are_accepted() {
         .iter()
         .find(|row| row.opcode == WasmOpcode::I32Load16U)
         .expect("load16_u row");
-    assert_satisfied(&build_witness_vector(store), "i32.store16 row");
-    assert_satisfied(&build_witness_vector(load), "i32.load16_u row");
+    assert_satisfied(&build_witness_vector(store).unwrap(), "i32.store16 row");
+    assert_satisfied(&build_witness_vector(load).unwrap(), "i32.load16_u row");
 }
 
 #[test]
@@ -384,8 +423,8 @@ fn i32_load8_s_and_load16_s_rows_are_accepted() {
         .iter()
         .find(|row| row.opcode == WasmOpcode::I32Load16S)
         .expect("load16_s row");
-    assert_satisfied(&build_witness_vector(load8), "i32.load8_s row");
-    assert_satisfied(&build_witness_vector(load16), "i32.load16_s row");
+    assert_satisfied(&build_witness_vector(load8).unwrap(), "i32.load8_s row");
+    assert_satisfied(&build_witness_vector(load16).unwrap(), "i32.load16_s row");
 }
 
 #[test]
@@ -410,9 +449,9 @@ fn global_get_and_set_rows_are_accepted() {
         .expect("global.set row");
     assert_eq!(get_rows.len(), 2, "expected two global.get rows");
     for (idx, row) in get_rows.into_iter().enumerate() {
-        assert_satisfied(&build_witness_vector(row), &format!("global.get row {idx}"));
+        assert_satisfied(&build_witness_vector(row).unwrap(), &format!("global.get row {idx}"));
     }
-    assert_satisfied(&build_witness_vector(set_row), "global.set row");
+    assert_satisfied(&build_witness_vector(set_row).unwrap(), "global.set row");
 }
 
 #[test]
@@ -438,9 +477,9 @@ fn memory_size_and_grow_rows_are_accepted() {
         .expect("memory.grow row");
     assert_eq!(size_rows.len(), 2, "expected two memory.size rows");
     for (idx, row) in size_rows.into_iter().enumerate() {
-        assert_satisfied(&build_witness_vector(row), &format!("memory.size row {idx}"));
+        assert_satisfied(&build_witness_vector(row).unwrap(), &format!("memory.size row {idx}"));
     }
-    assert_satisfied(&build_witness_vector(grow_row), "memory.grow row");
+    assert_satisfied(&build_witness_vector(grow_row).unwrap(), "memory.grow row");
 }
 
 #[test]
@@ -457,7 +496,7 @@ fn table_size_row_is_accepted() {
         .expect("table.size row");
     assert_eq!(row.table_id, Some(0));
     assert_eq!(row.table_size, Some(4));
-    assert_satisfied(&build_witness_vector(row), "table.size row");
+    assert_satisfied(&build_witness_vector(row).unwrap(), "table.size row");
 }
 
 #[test]
@@ -499,9 +538,9 @@ fn ref_func_and_table_rows_are_accepted() {
     assert_eq!(table_get.table_index, Some(0));
     assert_eq!(table_get.table_value, Some(1));
     assert_eq!(table_get.function_type_id, Some(1));
-    assert_satisfied(&build_witness_vector(ref_func), "ref.func row");
-    assert_satisfied(&build_witness_vector(table_set), "table.set row");
-    assert_satisfied(&build_witness_vector(table_get), "table.get row");
+    assert_satisfied(&build_witness_vector(ref_func).unwrap(), "ref.func row");
+    assert_satisfied(&build_witness_vector(table_set).unwrap(), "table.set row");
+    assert_satisfied(&build_witness_vector(table_get).unwrap(), "table.get row");
 }
 
 #[test]
@@ -539,8 +578,11 @@ fn call_indirect_row_is_accepted() {
     assert_eq!(resolve.state_after.pc, resolve.state_before.pc + 1);
     assert_eq!(invocation.function_ref, Some(1));
     assert_eq!(invocation.stack_reads_override, Some(1));
-    assert_satisfied(&build_witness_vector(resolve), "call_indirect resolve row");
-    assert_satisfied(&build_witness_vector(invocation), "call_indirect invocation row");
+    assert_satisfied(&build_witness_vector(resolve).unwrap(), "call_indirect resolve row");
+    assert_satisfied(
+        &build_witness_vector(invocation).unwrap(),
+        "call_indirect invocation row",
+    );
 }
 
 #[test]
@@ -564,7 +606,7 @@ fn call_indirect_row_rejects_tampered_dynamic_stack_arity() {
         .iter()
         .find(|row| row.opcode == WasmOpcode::CallIndirect)
         .expect("call_indirect row");
-    let mut witness = build_witness_vector(row);
+    let mut witness = build_witness_vector(row).unwrap();
     witness[COL_CALL_PARAM_COUNT] = F::ONE;
 
     assert_rejected(&witness, "call_indirect row with tampered param count");
@@ -619,7 +661,7 @@ fn i64_rows_are_accepted() {
             .find(|row| row.opcode == opcode)
             .expect("i64 row");
         assert!(row.wide_values_enabled, "{opcode:?} should enable wide values");
-        assert_satisfied(&build_witness_vector(row), "i64 row");
+        assert_satisfied(&build_witness_vector(row).unwrap(), "i64 row");
     }
 }
 
@@ -645,7 +687,7 @@ fn i64_linear_memory_rows_are_accepted() {
         .find(|row| row.opcode == WasmOpcode::I64Load)
         .expect("i64.load row");
     assert!(load.wide_values_enabled, "i64.load should enable wide values");
-    assert_satisfied(&build_witness_vector(load), "i64.load row");
+    assert_satisfied(&build_witness_vector(load).unwrap(), "i64.load row");
 }
 
 #[test]
@@ -670,7 +712,7 @@ fn i32_wrap_i64_row_projects_low_limb() {
         .map(|lane| lane.with_optional_hi(Some(0x1234_5678)));
     row.stack_write0 = row.stack_write0.map(|lane| lane.with_optional_hi(Some(0)));
 
-    assert_satisfied(&build_witness_vector(&row), "i32.wrap_i64 row");
+    assert_satisfied(&build_witness_vector(&row).unwrap(), "i32.wrap_i64 row");
 }
 
 #[test]
@@ -695,7 +737,10 @@ fn i32_wrap_i64_row_rejects_tampered_output() {
         .map(|lane| lane.with_optional_hi(Some(0x1234_5678)));
     row.stack_write0 = row.stack_write0.map(|lane| lane.with_optional_hi(Some(0)));
 
-    assert_rejected(&build_witness_vector(&row), "i32.wrap_i64 row with tampered output");
+    assert_rejected(
+        &build_witness_vector(&row).unwrap(),
+        "i32.wrap_i64 row with tampered output",
+    );
 }
 
 #[test]
@@ -718,7 +763,7 @@ fn i32_wrap_i64_row_rejects_tampered_high_output() {
     row.stack_read0 = row
         .stack_read0
         .map(|lane| lane.with_optional_hi(Some(0x1234_5678)));
-    let mut witness = build_witness_vector(&row);
+    let mut witness = build_witness_vector(&row).unwrap();
     witness[COL_STACK_WRITE0_VALUE_HI] = F::ONE;
 
     assert_rejected(&witness, "i32.wrap_i64 row with tampered high output");
@@ -743,7 +788,7 @@ fn i64_extend_i32_u_row_zero_extends() {
     row.wide_values_enabled = true;
     row.stack_write0 = row.stack_write0.map(|lane| lane.with_optional_hi(Some(0)));
 
-    assert_satisfied(&build_witness_vector(&row), "i64.extend_i32_u row");
+    assert_satisfied(&build_witness_vector(&row).unwrap(), "i64.extend_i32_u row");
 }
 
 #[test]
@@ -763,7 +808,7 @@ fn i64_extend_i32_u_row_rejects_nonzero_high_output() {
         false,
     );
     row.wide_values_enabled = true;
-    let mut witness = build_witness_vector(&row);
+    let mut witness = build_witness_vector(&row).unwrap();
     witness[COL_STACK_WRITE0_VALUE_HI] = F::ONE;
 
     assert_rejected(&witness, "i64.extend_i32_u row with nonzero high output");
@@ -790,7 +835,7 @@ fn i64_extend_i32_s_row_sign_extends_negative_value() {
         .stack_write0
         .map(|lane| lane.with_optional_hi(Some(0xffff_ffff)));
 
-    assert_satisfied(&build_witness_vector(&row), "i64.extend_i32_s negative row");
+    assert_satisfied(&build_witness_vector(&row).unwrap(), "i64.extend_i32_s negative row");
 }
 
 #[test]
@@ -812,7 +857,7 @@ fn i64_extend_i32_s_row_sign_extends_positive_value() {
     row.wide_values_enabled = true;
     row.stack_write0 = row.stack_write0.map(|lane| lane.with_optional_hi(Some(0)));
 
-    assert_satisfied(&build_witness_vector(&row), "i64.extend_i32_s positive row");
+    assert_satisfied(&build_witness_vector(&row).unwrap(), "i64.extend_i32_s positive row");
 }
 
 #[test]
@@ -832,7 +877,7 @@ fn i64_extend_i32_s_row_rejects_tampered_high_output() {
         false,
     );
     row.wide_values_enabled = true;
-    let mut witness = build_witness_vector(&row);
+    let mut witness = build_witness_vector(&row).unwrap();
     witness[COL_STACK_WRITE0_VALUE_HI] = F::ZERO;
 
     assert_rejected(&witness, "i64.extend_i32_s row with tampered high output");
@@ -858,7 +903,7 @@ fn i64_store_row_is_accepted() {
         .find(|row| row.opcode == WasmOpcode::I64Store)
         .expect("i64.store row");
     assert!(store.wide_values_enabled, "i64.store should enable wide values");
-    assert_satisfied(&build_witness_vector(store), "i64.store row");
+    assert_satisfied(&build_witness_vector(store).unwrap(), "i64.store row");
 }
 
 #[test]
@@ -888,8 +933,8 @@ fn i64_unaligned_linear_memory_rows_are_accepted() {
         .iter()
         .find(|row| row.opcode == WasmOpcode::I64Load)
         .expect("i64.load row");
-    assert_satisfied(&build_witness_vector(store), "unaligned i64.store row");
-    assert_satisfied(&build_witness_vector(load), "unaligned i64.load row");
+    assert_satisfied(&build_witness_vector(store).unwrap(), "unaligned i64.store row");
+    assert_satisfied(&build_witness_vector(load).unwrap(), "unaligned i64.load row");
 }
 
 #[test]
@@ -908,7 +953,7 @@ fn i32_load_row_accepts_nonzero_offset() {
         .iter()
         .find(|row| row.opcode == WasmOpcode::I32Load)
         .expect("load row");
-    let row = build_witness_vector(load);
+    let row = build_witness_vector(load).unwrap();
     assert_satisfied(&row, "i32.load row with nonzero offset");
 }
 
@@ -927,7 +972,8 @@ fn drop_row_is_accepted() {
         None,
         0,
         false,
-    ));
+    ))
+    .unwrap();
     assert_satisfied(&row, "drop row");
 }
 
@@ -950,7 +996,7 @@ fn drop_i64_row_zeroes_unused_high_limb_in_witness() {
         .find(|row| row.opcode == WasmOpcode::Drop)
         .expect("drop row");
     assert_eq!(row.stack_read0.and_then(|lane| lane.value_hi), Some(1));
-    assert_satisfied(&build_witness_vector(row), "i64 drop row");
+    assert_satisfied(&build_witness_vector(row).unwrap(), "i64 drop row");
 }
 
 #[test]
@@ -968,7 +1014,8 @@ fn nop_row_is_accepted() {
         None,
         0,
         false,
-    ));
+    ))
+    .unwrap();
     assert_satisfied(&row, "nop row");
 }
 
@@ -987,7 +1034,8 @@ fn br_row_is_accepted() {
         None,
         0,
         false,
-    ));
+    ))
+    .unwrap();
     assert_satisfied(&row, "br row");
 }
 
@@ -1006,7 +1054,8 @@ fn if_row_is_accepted() {
         None,
         0,
         false,
-    ));
+    ))
+    .unwrap();
     row[neo_wasm::layout::COL_CONTROL_CHOICE] = F::ONE;
     assert_satisfied(&row, "if row");
 }
@@ -1027,7 +1076,7 @@ fn structured_end_row_is_accepted() {
         .find(|row| row.opcode == WasmOpcode::End && !row.state_after.activation_finished)
         .expect("structured end row");
     assert_eq!(row.pc_edge_kind, WasmPcEdgeKind::Static);
-    assert_satisfied(&build_witness_vector(row), "structured end row");
+    assert_satisfied(&build_witness_vector(row).unwrap(), "structured end row");
 }
 
 #[test]
@@ -1045,7 +1094,8 @@ fn return_row_requires_activation_finished_boundary() {
         None,
         0,
         false,
-    ));
+    ))
+    .unwrap();
     assert_rejected(&row, "return row with activation_finished=0");
 }
 
@@ -1069,7 +1119,7 @@ fn non_final_return_row_is_accepted() {
         .iter()
         .find(|row| row.call_stack_pop.is_some())
         .expect("non-final return row");
-    assert_satisfied(&build_witness_vector(row), "non-final return row");
+    assert_satisfied(&build_witness_vector(row).unwrap(), "non-final return row");
 }
 
 #[test]
@@ -1092,7 +1142,7 @@ fn non_final_return_row_rejects_tampered_return_pc() {
         .iter()
         .find(|row| row.call_stack_pop.is_some())
         .expect("non-final return row");
-    let mut witness = build_witness_vector(row);
+    let mut witness = build_witness_vector(row).unwrap();
     witness[COL_CALL_STACK_RETURN_PC_VALUE] += F::ONE;
     assert_rejected(&witness, "non-final return row with tampered return pc");
 }
@@ -1117,7 +1167,7 @@ fn non_final_return_row_rejects_tampered_caller_fbp() {
         .iter()
         .find(|row| row.call_stack_pop.is_some())
         .expect("non-final return row");
-    let mut witness = build_witness_vector(row);
+    let mut witness = build_witness_vector(row).unwrap();
     witness[COL_CALL_STACK_CALLER_FBP_VALUE] += F::ONE;
     assert_rejected(&witness, "non-final return row with tampered caller fbp");
 }
@@ -1142,7 +1192,7 @@ fn call_row_rejects_tampered_locals_fbp_after() {
         .iter()
         .find(|row| row.opcode == WasmOpcode::Call)
         .expect("call row");
-    let mut witness = build_witness_vector(row);
+    let mut witness = build_witness_vector(row).unwrap();
     witness[COL_LOCALS_FBP_AFTER] += F::ONE;
     assert_rejected(&witness, "call row with tampered locals fbp after");
 }
@@ -1162,7 +1212,7 @@ fn static_program_row_rejects_disabled_pc_rom_active() {
         .iter()
         .find(|row| row.row_kind.is_program() && row.pc_edge_kind == WasmPcEdgeKind::Static)
         .expect("static program row");
-    let mut witness = build_witness_vector(row);
+    let mut witness = build_witness_vector(row).unwrap();
     witness[COL_PC_ROM_ACTIVE] = F::ZERO;
     assert_rejected(&witness, "static program row with disabled pc_rom_active");
 }
@@ -1188,7 +1238,7 @@ fn guest_call_row_rejects_suppressed_guest_call_flag() {
         .find(|row| row.opcode == WasmOpcode::Call)
         .expect("call row");
     assert!(row.target_function_is_guest);
-    let mut witness = build_witness_vector(row);
+    let mut witness = build_witness_vector(row).unwrap();
     witness[COL_GUEST_ENTRY_ACTIVE] = F::ZERO;
     witness[COL_FRAME_MOVE_ACTIVE_AFTER] = F::ZERO;
     witness[COL_FRAME_MOVE_REMAINING_AFTER] = F::ZERO;
@@ -1222,7 +1272,7 @@ fn i64_frame_move_aux_row_is_wide_and_accepted() {
     assert!(aux.wide_values_enabled, "i64 result move row must allow high limbs");
     assert_eq!(aux.stack_read0.and_then(|lane| lane.value_hi), Some(1));
     assert_eq!(aux.stack_write0.and_then(|lane| lane.value_hi), Some(1));
-    let witness = build_witness_vector(aux);
+    let witness = build_witness_vector(aux).unwrap();
     assert_satisfied(&witness, "i64 result move row");
 }
 
@@ -1251,7 +1301,7 @@ fn frame_move_row_copies_one_cell_down_unchanged() {
         mv.state_before.frame_move.distance, 2,
         "the result skips both callee locals"
     );
-    let witness = build_witness_vector(mv);
+    let witness = build_witness_vector(mv).unwrap();
     assert_satisfied(&witness, "result move row");
 
     let mut forged = witness.clone();
@@ -1281,7 +1331,8 @@ fn select_row_accepts_nonzero_condition() {
         None,
         0,
         false,
-    ));
+    ))
+    .unwrap();
     assert_satisfied(&row, "select row with nonzero condition");
 }
 
@@ -1300,7 +1351,8 @@ fn select_row_rejects_nonzero_condition_with_rhs_output() {
         None,
         0,
         false,
-    ));
+    ))
+    .unwrap();
     assert_rejected(&row, "select row with nonzero condition and rhs output");
 }
 
@@ -1321,7 +1373,7 @@ fn i64_select_row_rejects_tampered_high_output() {
         .find(|row| row.opcode == WasmOpcode::Select)
         .expect("i64 select row");
     assert_eq!(select.stack_write0.and_then(|lane| lane.value_hi), Some(2));
-    let mut witness = build_witness_vector(select);
+    let mut witness = build_witness_vector(select).unwrap();
     assert_satisfied(&witness, "i64 select row with nonzero condition");
     witness[COL_STACK_WRITE0_VALUE_HI] = F::ZERO;
     assert_rejected(&witness, "i64 select row with tampered high output");

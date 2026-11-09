@@ -49,6 +49,7 @@ Proof.
       selected_row_where chosen (@None SparseRow) (Some [(COL_DIV_OVERFLOW_COND, 1)])
         (Some [(COL_DIV_OVERFLOW, 1)]) Hoverflow;
       selected_row_where chosen (@None SparseRow) (Some [(COL_CMP_GE, 1)]) (Some [(COL_MEM_OOB, 1)]) Hmem;
+      selected_row_where chosen (@None SparseRow) (Some [(COL_CMP_GE, 1)]) (Some [(COL_TABLE_OOB, 1)]) Htable;
       selected_row_where chosen (@None SparseRow) (Some [(COL_CMP_GE, 1)]) (Some [(COL_CI_OOB, 1)]) Hoob;
       selected_row_where chosen (@None SparseRow) (Some [(COL_ONE, 1); (COL_CI_ENTRY_IS_NULL, -1)])
         (Some [(COL_FUNCTION_CALL_TYPE_LOOKUP_GATE, 1)]) Hgate;
@@ -56,16 +57,17 @@ Proof.
         (@None SparseRow) Htype;
       selected_circuit_row chosen
         ([(COL_TRAPPED_AFTER, 1); (COL_TRAPPED_BEFORE, -1); (COL_SEL_UNREACHABLE, -1); (COL_DIV_TRAP, -1);
-          (COL_CALL_INDIRECT_IS_TRAP, -1); (COL_MEM_OOB, -1)], [(COL_ONE, 1)], ([] : SparseRow)) Htrap
+          (COL_CALL_INDIRECT_IS_TRAP, -1); (COL_MEM_OOB, -1); (COL_TABLE_OOB, -1)], [(COL_ONE, 1)], ([] : SparseRow)) Htrap
     end.
   all: zero_gather_kinds Hkinds Hmem; rewrite ?Hone in *.
   all: pose proof (value_bound w COL_DIV_OVERFLOW); pose proof (value_bound w COL_DIV_TRAP);
-    pose proof (value_bound w COL_MEM_OOB); pose proof (value_bound w COL_CI_OOB);
+    pose proof (value_bound w COL_MEM_OOB); pose proof (value_bound w COL_TABLE_OOB); pose proof (value_bound w COL_CI_OOB);
     pose proof (value_bound w COL_FUNCTION_CALL_TYPE_LOOKUP_GATE);
     pose proof (value_bound w COL_CALL_INDIRECT_IS_TRAP); pose proof (value_bound w COL_TRAPPED_AFTER).
   all: assert (Hov : w COL_DIV_OVERFLOW = 0) by field_linear Hoverflow.
   all: assert (Hdt : w COL_DIV_TRAP = 0) by field_linear Hdiv.
   all: assert (Hmo : w COL_MEM_OOB = 0) by field_linear Hmem.
+  all: assert (Hto : w COL_TABLE_OOB = 0) by field_linear Htable.
   all: assert (Hco : w COL_CI_OOB = 0) by field_linear Hoob.
   all: normalize_columns; rewrite Hco in Hgate.
   all: assert (Hg : w COL_FUNCTION_CALL_TYPE_LOOKUP_GATE = 0) by field_linear Hgate.
@@ -137,9 +139,10 @@ Proof.
     pose proof (value_bound w COL_ACTIVATION_FINISHED_BEFORE). field_linear Hrow. }
   selected_circuit_row COL_SEL_UNREACHABLE
     ([(COL_TRAPPED_AFTER, 1); (COL_TRAPPED_BEFORE, -1); (COL_SEL_UNREACHABLE, -1); (COL_DIV_TRAP, -1);
-      (COL_CALL_INDIRECT_IS_TRAP, -1); (COL_MEM_OOB, -1)], [(COL_ONE, 1)], ([] : SparseRow)) Htrap.
+      (COL_CALL_INDIRECT_IS_TRAP, -1); (COL_MEM_OOB, -1); (COL_TABLE_OOB, -1)], [(COL_ONE, 1)], ([] : SparseRow)) Htrap.
   circuit_boolean COL_TRAPPED_AFTER Hta. circuit_boolean COL_DIV_TRAP Hdiv.
   circuit_boolean COL_CALL_INDIRECT_IS_TRAP Hci. circuit_boolean COL_MEM_OOB Hmem.
+  circuit_boolean COL_TABLE_OOB Htable.
   normalize_columns. rewrite Hone, Htb in Htrap.
   assert (Htrapped : w COL_TRAPPED_AFTER = 1).
   { normalize_columns. apply Z.mod_divide in Htrap; [ | unfold modulus; lia]. destruct Htrap as [k Htrap]. unfold modulus in *; lia. }

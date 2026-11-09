@@ -388,6 +388,123 @@ fn entry_memory_rejects_missing_capture_and_conflicts() {
 }
 
 #[test]
+fn i64_entry_memory_pointer_high_limb_cannot_be_hidden() {
+    let mut advice = [SlotBinding::Const(0); 8];
+    advice[0] = local(0, 0, Limb::Lo);
+    advice[1] = local(1, 0, Limb::Hi);
+    advice[2] = SlotBinding::MemoryWrite32 {
+        input: 2,
+        base: MemoryBase::Local(0),
+        byte_offset: 0,
+    };
+    let mut bindings = HostEventBindings::default();
+    bindings.exports.insert(
+        1,
+        ExportTemplate {
+            entry: vec![
+                EventBlock::op(1, [SlotBinding::Const(0); 7]),
+                EventBlock::advice(advice),
+            ],
+            exit: vec![],
+            entry_input_count: 3,
+        },
+    );
+    let mut runtime = Runtime::new();
+    let (instance, artifacts) = runtime.instantiate(
+        r#"(module
+          (memory (export "memory") 1)
+          (func (export "run") (param i64)
+            local.get 0
+            i32.wrap_i64
+            i32.load
+            drop))"#,
+        &bindings,
+    );
+    runtime.write(instance, 16, &42u32.to_le_bytes());
+    runtime.call(instance, &[Val::I64(16)]);
+    let steps = runtime.steps(instance);
+    let honest = normalize(steps, &artifacts).expect("honest entry-memory trace");
+    common::sanity_check_trace_with_bindings(&honest, &artifacts, &bindings);
+
+    let mut high_pointer_steps = steps.to_vec();
+    high_pointer_steps[0].locals_words[0].1 = 1;
+    let error = normalize(&high_pointer_steps, &artifacts)
+        .expect_err("native replay rejects a non-wasm32 pointer")
+        .to_string();
+    assert!(error.contains("not a wasm32 pointer"), "unexpected error: {error}");
+
+    let mut forged = honest;
+    let input_hi = forged
+        .iter()
+        .position(|row| {
+            row.host_event_rom_slot.is_some_and(|slot| {
+                slot.kind == neo_wasm::WasmHostEventSlotKind::InputLocal && slot.variant.is_high_limb()
+            })
+        })
+        .expect("input-local high row");
+    let cursor = usize::from(forged[input_hi].state_before.host_events.slot_cursor);
+    forged[input_hi].local_write_value_hi = Some(1);
+    forged[input_hi].state_after.event_absorb.evbuf[cursor] = 1;
+    for row in &mut forged[input_hi + 1..] {
+        row.state_before.event_absorb.evbuf[cursor] = 1;
+        row.state_after.event_absorb.evbuf[cursor] = 1;
+    }
+
+    let local_get = forged
+        .iter()
+        .position(|row| row.opcode == neo_wasm::WasmOpcode::LocalGet)
+        .expect("local.get row");
+    forged[local_get].local_read_value_hi = Some(1);
+    forged[local_get]
+        .stack_write0
+        .as_mut()
+        .expect("local.get stack write")
+        .value_hi = Some(1);
+    let wrap = forged
+        .iter()
+        .position(|row| row.opcode == neo_wasm::WasmOpcode::I32WrapI64)
+        .expect("i32.wrap_i64 row");
+    forged[wrap]
+        .stack_read0
+        .as_mut()
+        .expect("i32.wrap_i64 stack read")
+        .value_hi = Some(1);
+
+    let memory_write = forged
+        .iter()
+        .position(|row| {
+            row.host_event_rom_slot
+                .is_some_and(|slot| slot.kind == neo_wasm::WasmHostEventSlotKind::MemoryWrite)
+        })
+        .expect("entry memory-write row");
+    forged[memory_write].local_read_value_hi = Some(1);
+    common::assert_rejected(
+        &neo_wasm::witness_builder::build_witness_vector(&forged[memory_write]).expect("witness"),
+        "local-base memory pointer with a nonzero high limb",
+    );
+
+    // A prover cannot hide that high limb by claiming zero on the memory
+    // event row. The new high-lane read authenticates the local stack cell.
+    forged[memory_write].local_read_value_hi = Some(0);
+    common::ccs_check_trace(&forged);
+    let layout = neo_wasm::build_wasm_relation_layout();
+    let witnesses: Vec<_> = forged
+        .iter()
+        .map(|row| neo_wasm::witness_builder::build_witness_vector(row).expect("witness"))
+        .collect();
+    for witness in &witnesses {
+        neo_wasm::sanity_check_lookup_row(&layout.auxiliary, witness).expect("lookup semantics");
+    }
+    neo_application::check_continuity_rows(&layout.auxiliary.continuity, &witnesses)
+        .expect("self-consistent forged trace");
+    let mut preload = neo_wasm::preload_from_program_artifacts(&artifacts);
+    neo_wasm::memory_semantics::preload_host_event_tables(&mut preload, &bindings, &artifacts);
+    let error = neo_wasm::sanity_check_memory_rows(layout, &witnesses, &preload)
+        .expect_err("the local high-lane read must expose the hidden pointer limb");
+    assert!(error.contains("stack"), "unexpected rejection: {error}");
+}
+
+#[test]
 fn entry_memory_requires_capture_configuration() {
     let mut runtime = Runtime::new();
     let bindings = memory_bindings(2);
@@ -477,7 +594,7 @@ fn capture_and_replay_share_host_event_address_rules() {
             (65536 - width, 0, true, None),
             (65536, 0, true, Some("out of bounds")),
             (u32::MAX, 1, true, Some("overflows wasm32")),
-            (16, 0, false, Some("requires default linear memory")),
+            (16, 0, false, Some("no default memory")),
             (16, 1, true, (width > 1).then_some("not naturally aligned")),
         ] {
             let memory = if has_memory { "(memory 1)" } else { "" };
@@ -524,7 +641,14 @@ fn capture_and_replay_share_host_event_address_rules() {
                 .exports
                 .insert(1, template(2, &[local(0, 0, Limb::Lo), write]));
             let wasm = wat::parse_str(&wat).unwrap();
-            let run = neo_wasm::collect_wasmtime_steps(&wasm, &write_bindings, "run", &[base as i32]).unwrap();
+            let collected = neo_wasm::collect_wasmtime_steps(&wasm, &write_bindings, "run", &[base as i32]);
+            if !has_memory {
+                // Binding validation refuses the memory slot before capture or replay.
+                let message = collected.unwrap_err().to_string();
+                assert!(message.contains(error.unwrap()), "{message}");
+                continue;
+            }
+            let run = collected.unwrap();
             let artifacts = run.artifacts().clone();
             let steps = &run.steps;
             let captured = steps[0].entry_memory.as_ref().unwrap();

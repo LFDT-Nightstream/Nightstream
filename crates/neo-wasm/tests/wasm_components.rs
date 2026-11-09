@@ -175,14 +175,14 @@ fn wasm_component_import_kernel_roundtrip_for_embedded_core_trace() {
     common::ccs_check_trace(&trace);
     let witnesses: Vec<_> = trace
         .iter()
-        .map(neo_wasm::witness_builder::build_witness_vector)
+        .map(|row| neo_wasm::witness_builder::build_witness_vector(row).unwrap())
         .collect();
     let layout = neo_wasm::relation_layout::build_wasm_relation_layout();
     for witness in &witnesses {
         neo_wasm::sanity_check_lookup_row(&layout.auxiliary, witness).expect("lookup semantics");
     }
     let mut preload = neo_wasm::memory_semantics::preload_from_program_artifacts(&artifacts);
-    neo_wasm::memory_semantics::preload_host_event_tables(&mut preload, &bindings);
+    neo_wasm::memory_semantics::preload_host_event_tables(&mut preload, &bindings, &artifacts);
     neo_wasm::memory_semantics::sanity_check_memory_rows(&layout, &witnesses, &preload).expect("memory semantics");
     common::check_native_event_hashes(&trace).expect("native event hashes");
 }

@@ -22,6 +22,24 @@ use crate::relation_layout::build_wasm_relation_layout;
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
 
+/// One above the wasm32 page limit. Valid page counts cannot use this word,
+/// so it gives `None` a distinct carried representation without another
+/// continuity column.
+pub(crate) const NO_DEFAULT_MEMORY_PAGE_WORD: u64 = 65_537;
+
+/// The carried words for the current and maximum default-memory page counts.
+/// A valid state either has no default memory or has both counts with
+/// `current <= maximum <= 65_536`.
+pub(crate) fn memory_page_state_words(pages: Option<u32>, maximum: Option<u32>) -> Option<[u64; 2]> {
+    match (pages, maximum) {
+        (None, None) => Some([NO_DEFAULT_MEMORY_PAGE_WORD; 2]),
+        (Some(pages), Some(maximum)) if pages <= maximum && u64::from(maximum) < NO_DEFAULT_MEMORY_PAGE_WORD => {
+            Some([u64::from(pages), u64::from(maximum)])
+        }
+        _ => None,
+    }
+}
+
 /// Top-level VM state before executing a parameterless exported wasm function
 /// of an import-free program: [`host_event_top_level_initial_state`] specialized to
 /// the canonical import-free bindings (empty boundary template for the
@@ -29,8 +47,8 @@ use p3_field::PrimeCharacteristicRing;
 ///
 /// The entry PC is an explicit verifier input: callers should resolve it from
 /// the export they intend to prove.
-pub fn top_level_initial_state(tables: &WasmProgramTables, entry_pc: u64) -> WasmStepState {
-    let export_fref = export_fref_for_entry_pc(tables, entry_pc);
+pub fn top_level_initial_state(tables: &WasmProgramTables, entry_pc: u64) -> Result<WasmStepState, WasmBuildError> {
+    let export_fref = export_fref_for_entry_pc(tables, entry_pc)?;
     host_event_top_level_initial_state(
         tables,
         entry_pc,
@@ -38,18 +56,18 @@ pub fn top_level_initial_state(tables: &WasmProgramTables, entry_pc: u64) -> Was
         export_fref,
         CommChainState::default(),
     )
-    .expect("canonical import-free bindings require a parameterless export")
 }
 
 /// The function ref whose body starts at `entry_pc`; the verifier-side
 /// counterpart of the normalizer reading the entered export off the trace.
-pub(crate) fn export_fref_for_entry_pc(tables: &WasmProgramTables, entry_pc: u64) -> u32 {
-    tables
+pub(crate) fn export_fref_for_entry_pc(tables: &WasmProgramTables, entry_pc: u64) -> Result<u32, WasmBuildError> {
+    let fref = tables
         .function_entries
         .iter()
         .find(|&&(_, pc)| pc == entry_pc)
-        .map(|&(fref, _)| u32::try_from(fref).expect("function refs fit in u32"))
-        .unwrap_or_else(|| panic!("entry pc {entry_pc} is not a function entry"))
+        .map(|&(fref, _)| fref)
+        .ok_or_else(|| WasmBuildError::Trace(format!("entry pc {entry_pc} is not a function entry")))?;
+    u32::try_from(fref).map_err(|_| WasmBuildError::Trace("function reference does not fit u32".into()))
 }
 
 /// Host-event initial state: seeds the commitment chain and loads the invoked
@@ -63,12 +81,7 @@ pub fn host_event_top_level_initial_state(
     initial_comm_chain: CommChainState,
 ) -> Result<WasmStepState, WasmBuildError> {
     bindings.validate_against_program(tables)?;
-    let entry_fref = tables
-        .function_entries
-        .iter()
-        .find(|&&(_, pc)| pc == entry_pc)
-        .map(|&(fref, _)| u32::try_from(fref).expect("function refs fit in u32"))
-        .ok_or_else(|| WasmBuildError::Trace(format!("entry pc {entry_pc} is not a function entry")))?;
+    let entry_fref = export_fref_for_entry_pc(tables, entry_pc)?;
     if entry_fref != export_fref {
         return Err(WasmBuildError::Trace(format!(
             "export fref {export_fref} enters at a different pc than selected entry pc {entry_pc} (which belongs to fref {entry_fref})"
@@ -147,6 +160,8 @@ pub(crate) fn continuity_values(state: WasmStepState) -> Vec<u64> {
 }
 
 fn carried_state_field(state: WasmStepState, column: usize) -> u64 {
+    let [memory_pages, max_memory_pages] =
+        memory_page_state_words(state.memory_pages, state.max_memory_pages).unwrap_or([u64::MAX; 2]);
     for (columns, values) in [
         (
             COL_OUTER_CHAIN_BEFORE.as_slice(),
@@ -181,8 +196,8 @@ fn carried_state_field(state: WasmStepState, column: usize) -> u64 {
         COL_OUTPUT_VALUE_LO_BEFORE => u64::from(state.output.value_lo),
         COL_OUTPUT_VALUE_HI_BEFORE => u64::from(state.output.value_hi),
         COL_CALL_STACK_DEPTH_BEFORE => state.call_stack_depth,
-        COL_MEMORY_PAGES_BEFORE => u64::from(state.memory_pages.unwrap_or(0)),
-        COL_MAX_MEMORY_PAGES_BEFORE => u64::from(state.max_memory_pages.unwrap_or(0)),
+        COL_MEMORY_PAGES_BEFORE => memory_pages,
+        COL_MAX_MEMORY_PAGES_BEFORE => max_memory_pages,
         COL_LOCALS_FBP_BEFORE => state.locals_fbp,
         COL_LOCAL_ZERO_ACTIVE_BEFORE => u64::from(state.local_zero.active),
         COL_LOCAL_ZERO_REMAINING_BEFORE => u64::from(state.local_zero.remaining),

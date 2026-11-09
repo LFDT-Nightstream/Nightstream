@@ -18,9 +18,9 @@ fn host_event_trace_satisfies_batched_ccs() {
     let relation = neo_wasm::build_wasm_relation().expect("valid WASM relation");
     let n_single = relation.r1cs().structure().n();
     let catalog = relation.r1cs().catalog();
-    let n_batches = neo_wasm::batch::batch_count(setup.trace.len(), batch_size);
+    let n_batches = neo_wasm::batch::batch_count(setup.trace.len(), batch_size).unwrap();
     for batch_idx in 0..n_batches {
-        let witness = neo_wasm::batch::build_batched_witness(&setup.trace, batch_size, batch_idx);
+        let witness = neo_wasm::batch::build_batched_witness(&setup.trace, batch_size, batch_idx).unwrap();
         batched
             .sparse_r1cs
             .is_satisfied_by(&witness)

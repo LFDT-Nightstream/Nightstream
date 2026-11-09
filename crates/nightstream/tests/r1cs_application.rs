@@ -103,13 +103,14 @@ fn application(rows: usize) -> R1csApplication<u32> {
             .entries()
             .iter()
             .map(|memory| (memory.id, memory.kind, vec![2])),
-    );
+    )
+    .unwrap();
     assert_eq!(used, [4, 4], "four ROM cells and four RAM cells");
     let size = Size {
         geometry: geometry(rows.get()),
         rows,
         regions,
-        slots: batched_slots(&catalog, &[vec![0], vec![1]], rows),
+        slots: batched_slots(&catalog, &[vec![0], vec![1]], rows).unwrap(),
     };
     R1csApplication::new(RowRelation::of(&relation()).unwrap(), &continuity(), &catalog, size).unwrap()
 }
@@ -233,13 +234,14 @@ fn a_size_must_give_each_memory_a_region() {
             .entries()
             .iter()
             .map(|memory| (memory.id, memory.kind, vec![2])),
-    );
+    )
+    .unwrap();
     regions.retain(|(id, _)| *id == 0);
     let size = Size {
         geometry: geometry(1),
         rows,
         regions,
-        slots: batched_slots(&catalog, &[vec![0], vec![]], rows),
+        slots: batched_slots(&catalog, &[vec![0], vec![]], rows).unwrap(),
     };
     assert!(matches!(
         R1csApplication::new(RowRelation::of(&relation()).unwrap(), &continuity(), &catalog, size),
@@ -265,6 +267,136 @@ fn a_relation_of_the_builders_runs_through_nebula() {
         let mut run = Run::new(app, &program, vec![0]);
         assert!(matches!(run.segment(&wrong), Err(SegmentError::Access)));
     }
+}
+
+#[test]
+fn construction_rejects_invalid_geometry_before_loading_a_file() {
+    let invalid = [
+        Geometry { r: 64, ..geometry(1) },
+        Geometry { mu: 64, ..geometry(1) },
+        Geometry {
+            n: usize::MAX,
+            ..geometry(1)
+        },
+        Geometry {
+            r: 16,
+            mu: 16,
+            w_ts: 18,
+            b_ops: 1,
+            b_scan: 1,
+            n: 1 << 17,
+            s_max: 1,
+        },
+    ];
+    for geometry in invalid {
+        let result = nightstream::nebula::Prover::load("", geometry, application(1), nightstream::Engine::Optimized, 1);
+        assert!(matches!(result, Err(nightstream::Error::Circuit(_))));
+    }
+    let valid = nightstream::nebula::Prover::load("", geometry(1), application(1), nightstream::Engine::Optimized, 1);
+    assert!(matches!(valid, Err(nightstream::Error::Io(_))));
+}
+
+#[test]
+fn construction_rejects_a_rank_in_an_empty_catalog_without_panicking() {
+    let empty = MemoryCatalog::<u32>::new([], &registry()).unwrap();
+    assert_eq!(
+        batched_slots(&empty, &[vec![0]], NonZeroUsize::MIN),
+        Err(CatalogBindingError::Plan)
+    );
+    assert_eq!(batched_slots(&empty, &[], NonZeroUsize::MIN), Ok(Vec::new()));
+    assert_eq!(
+        batched_slots(&catalog(), &[vec![2]], NonZeroUsize::MIN),
+        Err(CatalogBindingError::Plan)
+    );
+    assert_eq!(
+        batched_slots(&catalog(), &[vec![0], vec![1]], NonZeroUsize::new(usize::MAX).unwrap()),
+        Err(CatalogBindingError::Plan)
+    );
+    assert_eq!(
+        batched_slots(&catalog(), &[vec![0], vec![1]], NonZeroUsize::new(2).unwrap()),
+        Ok(vec![vec![0], vec![2], vec![1], vec![3]])
+    );
+}
+
+#[test]
+fn construction_does_not_wrap_region_sizes() {
+    for widths in [vec![64], vec![usize::MAX, 1]] {
+        assert_eq!(
+            pack_regions([(0u32, MemoryKind::Rom, widths)]),
+            Err(CatalogBindingError::Region)
+        );
+    }
+    assert_eq!(
+        pack_regions([(0u32, MemoryKind::Rom, vec![63]), (1, MemoryKind::Rom, vec![63])]),
+        Err(CatalogBindingError::Region)
+    );
+    let (_, used) = pack_regions([(0u32, MemoryKind::Rom, vec![63])]).unwrap();
+    assert_eq!(used, [1u64 << 63, 0]);
+}
+
+#[test]
+fn construction_rejects_columns_outside_the_row() {
+    let catalog = catalog();
+    let (regions, _) = pack_regions(
+        catalog
+            .entries()
+            .iter()
+            .map(|memory| (memory.id, memory.kind, vec![2])),
+    )
+    .unwrap();
+    let size = Size {
+        geometry: geometry(1),
+        rows: NonZeroUsize::MIN,
+        regions,
+        slots: batched_slots(&catalog, &[vec![0], vec![1]], NonZeroUsize::MIN).unwrap(),
+    };
+    let original = RowRelation::of(&relation()).unwrap();
+    let mut term = original.clone();
+    term.rows[0][0].push((COLUMNS, F::ONE));
+    let mut one = original.clone();
+    one.one = COLUMNS;
+    let mut port = original.clone();
+    port.width = COLUMNS - 1;
+    for invalid in [term, one, port] {
+        assert!(matches!(
+            R1csApplication::new(invalid, &continuity(), &catalog, size.clone()),
+            Err(R1csApplicationError::Column)
+        ));
+    }
+    let wider = ColumnRegistry::new([ColumnFamilySpec {
+        region: "counter",
+        start: 0,
+        len: COLUMNS + 1,
+        name: "words",
+        role: "test",
+        width: ColumnWidth::U32,
+    }])
+    .unwrap();
+    let link = ContinuityCatalog::new(
+        [ContinuityGroup {
+            name: "count",
+            role: "test",
+            links: vec![ContinuityLink {
+                previous_step_column: COLUMNS,
+                next_step_column: BEFORE,
+            }],
+        }],
+        &wider,
+    )
+    .unwrap();
+    assert!(matches!(
+        R1csApplication::new(original.clone(), &link, &catalog, size.clone()),
+        Err(R1csApplicationError::Column)
+    ));
+    let mut overflow = original.clone();
+    overflow.width = usize::MAX;
+    let mut large = size.clone();
+    large.rows = NonZeroUsize::new(2).unwrap();
+    assert!(matches!(
+        R1csApplication::new(overflow, &continuity(), &catalog, large),
+        Err(R1csApplicationError::Dimension)
+    ));
+    assert!(R1csApplication::new(original, &continuity(), &catalog, size).is_ok());
 }
 
 /// The circuit of two rows in each step proves the honest run. The verifier

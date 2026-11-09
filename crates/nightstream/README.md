@@ -24,13 +24,18 @@ loads a saved file:
 ```rust
 use nightstream::{Circuit, Engine, Prover};
 
-// Set this from the integrating application's security policy.
-let minimum_security_bits = policy.minimum_statistical_security_bits;
+// This gates one fold. Account for proof depth and all attempts separately.
+let minimum_security_bits = policy.minimum_per_fold_security_bits;
 let prover = Prover::load("app.nsc", Engine::Metal, minimum_security_bits)?;
 let verifier = Circuit::compile(application)?.verifier(Engine::Metal, minimum_security_bits)?;
 let proof = prover.prove(initial_state, &private_inputs)?;
 verifier.verify(&expected_state, &proof)?;
 ```
+
+`minimum_security_bits` is not an end-to-end security claim. It gates the
+selected one-fold error. A Nebula circuit also compares it with one memory
+fingerprint challenge. The deployment must account separately for recursive
+depth, adversary queries, failed retries, and concurrent attempts.
 
 Loading checks the format, layout, dimensions and recipe structure. It does not
 repeat whole-circuit identity hashing, so a saved identity is only a claim.

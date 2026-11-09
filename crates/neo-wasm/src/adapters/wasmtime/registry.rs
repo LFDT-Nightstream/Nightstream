@@ -20,12 +20,13 @@ pub trait WasmTraceSink {
 
 /// Configure selected core modules before instantiation, then install the debug
 /// handler. Artifacts and instance function identities are discovered on the
-/// first instruction, including instructions executed by a Wasm start section.
+/// first instruction.
 ///
 /// Unconfigured modules are ignored. Registering one after it has executed is
 /// rejected: its missing prefix cannot be recovered. An explicitly registered
 /// module with empty bindings is still traced. Use one registry per store.
-/// Capturing a start function does not establish proof semantics for instantiation.
+/// Configured modules with a start section are rejected because proof
+/// initialization does not model start execution.
 #[derive(Debug, Default)]
 pub struct WasmtimeTraceRegistry {
     bindings: BTreeMap<Vec<u8>, HostEventBindings>,

@@ -38,7 +38,7 @@ use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
 
 use crate::ccs::build_wasm_relation;
-use crate::ir::{WasmAuxOpcode, WasmPcEdgeKind, WasmRowKind, WasmStepState, WasmVmStep};
+use crate::ir::{WasmAuxOpcode, WasmBuildError, WasmPcEdgeKind, WasmRowKind, WasmStepState, WasmVmStep};
 use crate::isa::{opcode_info_from_code, WasmOpcode};
 use crate::layout::COL_ONE;
 use crate::lookup_circuit::{self, LookupCircuitError};
@@ -57,6 +57,14 @@ pub struct BatchedWasmCcs {
 pub enum BatchError {
     #[error("batch_size must be at least 1")]
     BatchSizeZero,
+    #[error("trace must be non-empty")]
+    EmptyTrace,
+    #[error("batch dimensions or index are out of range")]
+    Dimensions,
+    #[error("cannot allocate the batch witness: {0}")]
+    Allocation(#[from] std::collections::TryReserveError),
+    #[error(transparent)]
+    Trace(#[from] WasmBuildError),
     #[error("wasm batch relation has {actual} width declarations for {expected} columns")]
     WidthCount { actual: usize, expected: usize },
     #[error(transparent)]
@@ -200,53 +208,61 @@ pub(crate) fn batch_wasm_relation(
 /// in trace order. If `traces[batch_idx * batch_size..]` is shorter than
 /// `batch_size`, the tail is padded with synthetic state-preserving
 /// padding rows (see [`padding_step_after`]).
-pub fn build_batched_witness(traces: &[WasmVmStep], batch_size: usize, batch_idx: usize) -> Vec<F> {
-    assert!(batch_size >= 1, "batch_size must be at least 1");
-    let start = batch_idx * batch_size;
-    assert!(
-        start < traces.len(),
-        "batch_idx {batch_idx} out of range for trace len {}",
-        traces.len()
-    );
-
-    let real_end = ((batch_idx + 1) * batch_size).min(traces.len());
+pub fn build_batched_witness(traces: &[WasmVmStep], batch_size: usize, batch_idx: usize) -> Result<Vec<F>, BatchError> {
+    if batch_size == 0 {
+        return Err(BatchError::BatchSizeZero);
+    }
+    let start = batch_idx
+        .checked_mul(batch_size)
+        .filter(|&start| start < traces.len())
+        .ok_or(BatchError::Dimensions)?;
+    let real_end = start
+        .checked_add(batch_size)
+        .ok_or(BatchError::Dimensions)?
+        .min(traces.len());
+    let padding = (real_end - start < batch_size)
+        .then(|| padding_step_after(&traces[real_end - 1]))
+        .transpose()?;
     let real_witnesses: Vec<Vec<F>> = traces[start..real_end]
         .iter()
         .map(build_step_witness)
-        .collect();
+        .collect::<Result<_, _>>()?;
 
     let single_width = real_witnesses[0].len();
-    let mut witness = Vec::with_capacity(batch_size * single_width);
+    let length = batch_size
+        .checked_mul(single_width)
+        .ok_or(BatchError::Dimensions)?;
+    let mut witness = Vec::new();
+    witness.try_reserve_exact(length)?;
     for w in &real_witnesses {
         witness.extend_from_slice(w);
     }
-    if real_witnesses.len() < batch_size {
-        let last_real = &traces[real_end - 1];
-        let mut padding = padding_step_after(last_real);
+    if let Some(padding) = padding {
+        let padding = build_step_witness(&padding)?;
         let pad_count = batch_size - real_witnesses.len();
         for _ in 0..pad_count {
-            witness.extend_from_slice(&build_step_witness(&padding));
-            // Each subsequent padding row starts from the previous one,
-            // which is state-preserving — so `_after` is the same as the
-            // first padding row's `_after`. Reuse `padding` directly.
-            padding = padding_step_after(&padding);
+            witness.extend_from_slice(&padding);
         }
     }
-    debug_assert_eq!(witness.len(), batch_size * single_width);
-    witness
+    debug_assert_eq!(witness.len(), length);
+    Ok(witness)
 }
 
-fn build_step_witness(step: &WasmVmStep) -> Vec<F> {
-    lookup_circuit::extend_witness(build_witness_vector(step)).expect("valid WASM lookup witness")
+fn build_step_witness(step: &WasmVmStep) -> Result<Vec<F>, BatchError> {
+    Ok(lookup_circuit::extend_witness(build_witness_vector(step)?)?)
 }
 
 /// How many batches a trace of length `n` produces at `batch_size`,
 /// counting the partial-final batch (padded by [`build_batched_witness`])
 /// as one full batch.
-pub fn batch_count(trace_len: usize, batch_size: usize) -> usize {
-    assert!(batch_size >= 1, "batch_size must be at least 1");
-    assert!(trace_len > 0, "trace must be non-empty");
-    trace_len.div_ceil(batch_size)
+pub fn batch_count(trace_len: usize, batch_size: usize) -> Result<usize, BatchError> {
+    if batch_size == 0 {
+        return Err(BatchError::BatchSizeZero);
+    }
+    if trace_len == 0 {
+        return Err(BatchError::EmptyTrace);
+    }
+    Ok(trace_len.div_ceil(batch_size))
 }
 
 /// Build a synthetic state-preserving `WasmVmStep` whose `_before`
@@ -257,7 +273,16 @@ pub fn batch_count(trace_len: usize, batch_size: usize) -> usize {
 /// rows (see the `non-program row shape` and `padding row state
 /// preservation` constraint groups in `ccs/call.rs`); the witness we
 /// build here is just the values that satisfy those rows.
-pub fn padding_step_after(prev: &WasmVmStep) -> WasmVmStep {
+pub fn padding_step_after(prev: &WasmVmStep) -> Result<WasmVmStep, BatchError> {
+    let state = prev.state_after;
+    if state.frame_move.active
+        || state.local_zero.active
+        || state.event_absorb.perm_pending
+        || state.event_absorb.perm_round != 0
+        || state.host_events.suspend_pending
+    {
+        return Err(WasmBuildError::Trace("cannot pad an unfinished auxiliary group".into()).into());
+    }
     let pages = prev.state_after.memory_pages;
     let max_pages = prev.state_after.max_memory_pages;
     let fbp = prev.state_after.locals_fbp;
@@ -266,21 +291,12 @@ pub fn padding_step_after(prev: &WasmVmStep) -> WasmVmStep {
     let stack_frame_base = prev.state_after.stack_frame_base;
     let call_stack_depth = prev.state_after.call_stack_depth;
     let frame_move = prev.state_after.frame_move;
-    debug_assert!(!frame_move.active, "padding inside a frame move is unsupported");
-    debug_assert!(
-        !prev.state_after.local_zero.active,
-        "padding inside local zeroing is unsupported"
-    );
     let host_callee_fref = prev.state_after.host_callee_fref;
     let comm_chain = prev.state_after.comm_chain;
     let event_absorb = prev.state_after.event_absorb;
     let host_events = prev.state_after.host_events;
-    debug_assert!(
-        !event_absorb.perm_pending && event_absorb.perm_round == 0,
-        "padding inside a host-event perm group is unsupported"
-    );
-    WasmVmStep {
-        cycle: prev.cycle + 1,
+    Ok(WasmVmStep {
+        cycle: prev.cycle.checked_add(1).ok_or(BatchError::Dimensions)?,
         row_kind: WasmRowKind::Aux(WasmAuxOpcode::Padding),
         state_before: WasmStepState {
             pc,
@@ -364,7 +380,7 @@ pub fn padding_step_after(prev: &WasmVmStep) -> WasmVmStep {
         host_event_rom_slot: None,
         host_event_initial_schedule_count: None,
         host_event_exit_schedule_count: None,
-    }
+    })
 }
 
 fn matrix_triplets(m: &CcsMatrix<F>) -> Vec<(usize, usize, F)> {

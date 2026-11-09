@@ -1,4 +1,4 @@
-import NightstreamFPrime.Lifecycle.Nebula.WitnessWords
+import NightstreamFPrime.Lifecycle.Nebula.FactorWords
 import NightstreamFPrime.Circuit.Quadratic
 import NightstreamFPrime.Circuit.VariableSupport
 
@@ -202,32 +202,40 @@ def scanLane (base : ℕ) : List Circuit.Expr :=
 def tsWord : Circuit.Expr := Expr.bits fun k : Fin p.wTs => word (Words.tsBits p k)
 def segWord : Circuit.Expr := Expr.bits fun k : Fin p.segWidth => word (Words.segBits p k)
 
-/-- `cnt` before slot `k` (row O2). -/
-def cntBefore (k : ℕ) : Circuit.Expr :=
-  Expr.sum ((List.ofFn fun j : Fin p.bOps => 1 - pad p j).take k)
+/-- The counter `cnt_j` of slot `j` (row O2). -/
+def cnt (j : ℕ) : Circuit.Expr := word (Words.cnt p j)
 
-def wt (j : ℕ) : Circuit.Expr := cIn 2 + cntBefore p (j + 1)
+/-- `cnt` before slot `k`: `0`, then the counter of slot `k − 1`. -/
+def cntBefore (k : ℕ) : Circuit.Expr := if k = 0 then 0 else cnt p (k - 1)
+
+def wt (j : ℕ) : Circuit.Expr := cIn 2 + cnt p j
 
 def globalIndex (j : ℕ) : Circuit.Expr := addr p j + isRam p j * constE (natWord p.romSize)
 
 def scanIndex (j : ℕ) : Circuit.Expr := idxEff * constE (natWord p.bScan) + constE (natWord j)
 
-def startProduct (k : ℕ) : KExpr :=
-  KExpr.add (embedE isOpen) (KExpr.mul (embedE (1 - isOpen)) (kOfE (cIn k) (cIn (k + 1))))
+/-- Coefficient `c` of start product `s` (0 RS, 1 WS, 2 IS, 3 FS). -/
+def startWord (s c : ℕ) : Circuit.Expr := word (Words.start p s c)
 
 def opsProductAfter (pair k : ℕ) : KExpr :=
-  if k = 0 then startProduct (7 + 2 * pair)
+  if k = 0 then kOfE (startWord p pair 0) (startWord p pair 1)
   else if k - 1 < p.bOps then
     kOfE (word (Words.opsProducts p (k - 1) (2 * pair % 4)))
       (word (Words.opsProducts p (k - 1) ((2 * pair + 1) % 4)))
   else KExpr.zero
 
 def scanProductAfter (pair k : ℕ) : KExpr :=
-  if k = 0 then startProduct (11 + 2 * pair)
+  if k = 0 then kOfE (startWord p (2 + pair) 0) (startWord p (2 + pair) 1)
   else if k - 1 < p.bScan then
     kOfE (word (Words.scanProducts p (k - 1) (2 * pair % 4)))
       (word (Words.scanProducts p (k - 1) ((2 * pair + 1) % 4)))
   else KExpr.zero
+
+/-- Factor word `c` of fingerprint `pair` of operation slot `j`. -/
+def opsFactor (j pair c : ℕ) : Circuit.Expr := word (Words.opsFactor p j pair c)
+
+/-- Factor word `c` of fingerprint `pair` of scan slot `j`. -/
+def scanFactor (j pair c : ℕ) : Circuit.Expr := word (Words.scanFactor p j pair c)
 
 end Sym
 
@@ -322,12 +330,15 @@ theorem eval_segWord : (segWord p).eval v = bitsWord (W).segBits := by
   rw [segWord, Expr.eval_bits]
   rfl
 
-theorem eval_cntBefore (k : ℕ) : (cntBefore p k).eval v = (W).cntBefore k := by
-  rw [cntBefore, Expr.eval_sum, StepWitness.cntBefore, List.map_take, List.map_ofFn]
-  simp [Function.comp_def, pad, word, StepWitness.pad, StepWitness.ofWords, OpSlotBits.ofWords]
+omit a in
+theorem eval_cntBefore (k : ℕ) :
+    (cntBefore p k).eval v = if k = 0 then 0 else v (Words.cnt p (k - 1)) := by
+  unfold cntBefore
+  split <;> rfl
 
-theorem eval_wt (j : Fin p.bOps) : (wt p j).eval v = (W).wt j := by
-  simp only [wt, StepWitness.wt, Circuit.Expr.eval_hadd, eval_cIn p a v, eval_cntBefore p a v]
+theorem eval_wt (j : ℕ) : (wt p j).eval v = (W).cIn 2 + v (Words.cnt p j) := by
+  simp only [wt, Circuit.Expr.eval_hadd, eval_cIn p a v]
+  rfl
 
 theorem eval_globalIndex (j : Fin p.bOps) : (globalIndex p j).eval v = (W).globalIndex j := by
   simp only [globalIndex, StepWitness.globalIndex, Circuit.Expr.eval_hadd, Circuit.Expr.eval_hmul,
@@ -339,20 +350,26 @@ theorem eval_scanIndex (j : Fin p.bScan) : (scanIndex p j).eval v = (W).scanInde
     constE, Circuit.Expr.eval_const]
   rfl
 
-theorem eval_startProduct (k : ℕ) : (startProduct k).eval v = (W).startProduct k := by
-  simp only [startProduct, StepWitness.startProduct, KExpr.eval_add, KExpr.eval_mul, eval_embedE,
-    Circuit.Expr.eval_sub, eval_kOfE, eval_cIn p a v, Expr.eval_one]
-  rfl
+omit a in
+theorem eval_opsProductAfter_zero (pair : ℕ) :
+    (opsProductAfter p pair 0).eval v = kOf (v (Words.start p pair 0)) (v (Words.start p pair 1)) := rfl
 
-theorem eval_opsProductAfter (pair k : ℕ) :
-    (opsProductAfter p pair k).eval v = (W).opsProductAfter pair k := by
+omit a in
+theorem eval_scanProductAfter_zero (pair : ℕ) :
+    (scanProductAfter p pair 0).eval v =
+      kOf (v (Words.start p (2 + pair) 0)) (v (Words.start p (2 + pair) 1)) := rfl
+
+theorem eval_opsProductAfter_succ (pair k : ℕ) :
+    (opsProductAfter p pair (k + 1)).eval v = (W).opsProductAfter pair (k + 1) := by
   unfold opsProductAfter StepWitness.opsProductAfter
-  split_ifs <;> first | exact eval_startProduct p a v _ | rfl
+  rw [ite_eq_right (Nat.succ_ne_zero k), ite_eq_right (Nat.succ_ne_zero k)]
+  split_ifs <;> rfl
 
-theorem eval_scanProductAfter (pair k : ℕ) :
-    (scanProductAfter p pair k).eval v = (W).scanProductAfter pair k := by
+theorem eval_scanProductAfter_succ (pair k : ℕ) :
+    (scanProductAfter p pair (k + 1)).eval v = (W).scanProductAfter pair (k + 1) := by
   unfold scanProductAfter StepWitness.scanProductAfter
-  split_ifs <;> first | exact eval_startProduct p a v _ | rfl
+  rw [ite_eq_right (Nat.succ_ne_zero k), ite_eq_right (Nat.succ_ne_zero k)]
+  split_ifs <;> rfl
 
 end Sym
 

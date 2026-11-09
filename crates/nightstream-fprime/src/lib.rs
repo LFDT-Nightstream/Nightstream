@@ -22,7 +22,8 @@ pub use option_b::{
     load_option_b_finish, load_option_b_packages, load_pinned_option_b_finish, load_pinned_option_b_packages,
     option_b_identity, parse_atoms,
     words::{encode_digest, Child, FoldWords, KWords, Slot, State as OptionBState, StepWords, PUBLIC_WORDS},
-    OptionBPackages, PlanRows, StepPackage, OPTION_B_FINISH_IDENTITY, OPTION_B_PACKAGES_IDENTITY,
+    Linear, NativeBlock, NativeShape, OptionBPackages, PlanRows, StepPackage, OPTION_B_FINISH_IDENTITY,
+    OPTION_B_PACKAGES_IDENTITY,
 };
 pub use package::{
     derive_light_transcript, derive_refresh_transcript, IdentityKind, PackageError, PiCcsV1_2Transcript, LIGHT_DOMAIN,

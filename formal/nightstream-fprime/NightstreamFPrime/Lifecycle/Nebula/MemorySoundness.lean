@@ -213,7 +213,7 @@ theorem soundness (inputs : Application.InputsBelow i offset)
   have poly : ConstraintsHold (values p app i offset env) (Rows.polyRows p app) := fun e member => by
     have zero := assertion_holds rows (mem_poly (i := i) (offset := offset) member)
     rwa [sub_eval] at zero
-  obtain ⟨polyRows, appRows⟩ := (Rows.polyRows_iff p _ app).mp poly
+  obtain ⟨polyRows, auxHonest, appRows⟩ := (Rows.polyRows_iff p _ app).mp poly
   -- Digest rows.
   have inputEq : stateWords (List.ofFn (W).appIn) (List.ofFn (W).carryIn) =
       Application.inputState i offset env := by
@@ -297,7 +297,7 @@ theorem soundness (inputs : Application.InputsBelow i offset)
     rw [← etaAbsorbed']
     exact Prod.ext (congrArg₂ K.mk e0 e1) (congrArg₂ K.mk e2 e3)
   refine ⟨outputEq, ?_, (congrArg (fun e => ConstraintsHold e app.rows)
-    (view_env p app i offset env)).mpr appRows⟩
+    (view_env p app i offset env)).mpr appRows, auxHonest⟩
   exact {
     toPolyRows := polyRows, chainOps := chainOpsEq, chainInitial := chainInitialEq,
     chainFinal := chainFinalEq, freshEta := freshEq, stateIn := inputEq }

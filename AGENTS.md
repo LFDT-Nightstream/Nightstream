@@ -53,9 +53,12 @@ value.
 
 - Put tests in `tests/`, not in the implementation file.
 - Use `FoldingMode::Optimized`. `PaperExact` needs approval.
-- Run Rust tests with `--release` and a 5-minute timeout. Lean commands get
-  25 minutes. A run that reaches its timeout fails. A longer run needs
-  approval for that run.
+- Run Rust tests with `--release`. Each test gets 5 minutes. The limit is
+  for one test, not for a test binary or a suite, so do not stop a suite
+  after 5 minutes. A test that reaches its limit fails. A test that needs
+  more time needs approval for that run.
+- Each Lean command gets 25 minutes. A command that reaches its limit
+  fails. A longer command needs approval for that run.
 
 ## Protocol
 

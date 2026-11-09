@@ -115,7 +115,10 @@ import NightstreamFPrime.Export.Generic.Pieces
 import NightstreamFPrime.Export.Generic.PieceRows
 import NightstreamFPrime.Export.Generic.Frame
 import NightstreamFPrime.Export.Generic.CircuitRelation
+import NightstreamFPrime.Export.Generic.NativeBlock
 import NightstreamFPrime.Export.Generic.SlotLayout
+import NightstreamFPrime.Export.Generic.PieceRowsCompleteness
+import NightstreamFPrime.Export.Generic.RowReads
 import NightstreamFPrime.Export.Generic.LogicalPlan
 import NightstreamFPrime.Export.OptionB.StepRelation
 import NightstreamFPrime.Export.OptionB.StepPackage
@@ -126,6 +129,7 @@ import NightstreamFPrime.Export.OptionB.RandomOracleSetup
 import NightstreamFPrime.Export.OptionB.IvcSecurity
 import NightstreamFPrime.Export.OptionB.FinishWalk
 import NightstreamFPrime.Export.OptionB.StepCompleteness
+import NightstreamFPrime.Export.OptionB.NativeCompleteness
 import NightstreamFPrime.Lifecycle.OptionB.BlockSupport
 import NightstreamFPrime.Lifecycle.OptionB.FoldCompleteness
 import NightstreamFPrime.Export.OptionB.StepExtend

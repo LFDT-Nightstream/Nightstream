@@ -11,7 +11,8 @@ use std::path::Path;
 use std::sync::Arc;
 
 use neo_math::F;
-use nightstream_fprime::{OptionBPackages, StepPackage};
+use nightstream_fprime::{Linear, NativeBlock, NativeShape, OptionBPackages, StepPackage};
+use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 use crate::application::{ApplicationCircuit, ApplicationError};
 use crate::engine::{Backend, Engine, EngineError};
@@ -92,6 +93,51 @@ fn read_word(input: &mut impl Read) -> Result<usize, Error> {
     usize::try_from(u64::from_le_bytes(bytes)).map_err(|_| Error::Circuit("saved word exceeds usize"))
 }
 
+fn read_field(input: &mut impl Read) -> Result<F, Error> {
+    let mut bytes = [0; 8];
+    input.read_exact(&mut bytes)?;
+    let word = u64::from_le_bytes(bytes);
+    if word >= F::ORDER_U64 {
+        return Err(Error::Circuit("saved field word is not canonical"));
+    }
+    Ok(F::from_u64(word))
+}
+
+/// The shape after the records: the blocks, each its first local and its
+/// lanes (constant, term count, terms).
+fn write_shape(output: &mut impl Write, shape: &NativeShape) -> Result<(), Error> {
+    let mut word = |value: u64| output.write_all(&value.to_le_bytes());
+    word(shape.blocks.len() as u64)?;
+    for block in &shape.blocks {
+        word(block.first_local as u64)?;
+        for lane in &block.lanes {
+            word(lane.constant.as_canonical_u64())?;
+            word(lane.terms.len() as u64)?;
+            for &(variable, coefficient) in &lane.terms {
+                word(variable as u64)?;
+                word(coefficient.as_canonical_u64())?;
+            }
+        }
+    }
+    Ok(())
+}
+
+fn read_shape(input: &mut impl Read) -> Result<NativeShape, Error> {
+    let mut shape = NativeShape::default();
+    for _ in 0..read_word(input)? {
+        let first_local = read_word(input)?;
+        let mut lanes: [Linear; 16] = Default::default();
+        for lane in &mut lanes {
+            lane.constant = read_field(input)?;
+            for _ in 0..read_word(input)? {
+                lane.terms.push((read_word(input)?, read_field(input)?));
+            }
+        }
+        shape.blocks.push(NativeBlock { first_local, lanes });
+    }
+    Ok(shape)
+}
+
 /// The saved form of an application, after the file's magic (`Circuit::load`).
 fn write_application(application: &ApplicationCircuit, output: &mut impl Write) -> Result<(), Error> {
     output.write_all(&(application.private_input_count() as u64).to_le_bytes())?;
@@ -103,7 +149,7 @@ fn write_application(application: &ApplicationCircuit, output: &mut impl Write) 
     output.write_all(&(records.row_count() as u64).to_le_bytes())?;
     output.write_all(&(records.recipe_count() as u64).to_le_bytes())?;
     records.write_to(output)?;
-    Ok(())
+    write_shape(output, application.shape())
 }
 
 fn encode_application(application: &ApplicationCircuit) -> Result<Vec<u8>, Error> {
@@ -138,11 +184,12 @@ pub struct Circuit {
 
 impl Circuit {
     /// Put `application` in place of Lean's application in the embedded
-    /// packages, whose identities are their pins (`artifacts`). The reference
-    /// hash chain keeps Lean's packages: it computes the step of Lean's
-    /// application region, and the Lean checks of Rust's files read those
-    /// packages.
+    /// packages, whose identities are their pins (`artifacts`), each
+    /// permutation as a block. The reference hash chain keeps Lean's
+    /// packages: it computes the step of Lean's application region, and the
+    /// Lean checks of Rust's files read those packages.
     pub fn compile(application: ApplicationCircuit) -> Result<Self, Error> {
+        crate::application::check_blocks(&application)?;
         let embedded = crate::artifacts::embedded();
         let witness_words = application.private_input_count();
         let packages = if encode_application(&application)?
@@ -152,7 +199,7 @@ impl Circuit {
         } else {
             embedded
                 .packages
-                .with_application(application.records().clone(), witness_words)?
+                .with_application(application.records().clone(), witness_words, application.shape())?
         };
         let finish = embedded.finish.with_witness_words(witness_words)?;
         Ok(Self {
@@ -247,7 +294,8 @@ impl Circuit {
         }
         let (row_count, recipe_count) = (read_word(&mut input)?, read_word(&mut input)?);
         let records = nightstream_fprime::ApplicationRecords::read_from(&mut input, row_count, recipe_count)?;
-        let application = ApplicationCircuit::from_records(Arc::new(records), private_count, forms, rows)?;
+        let shape = read_shape(&mut input)?;
+        let application = ApplicationCircuit::from_records(Arc::new(records), private_count, forms, rows, shape)?;
         let circuit = Self::compile(application)?;
         Ok(if memory { circuit.into_memory() } else { circuit })
     }

@@ -100,22 +100,11 @@ def applicationRegion (name : String) (words : Nat) (ops : List Op) (offset firs
   pure (words, offset, localLength [application], own.length,
     StepPackage.freshAfter own firstFresh - firstFresh)
 
-/-- The completeness checks of a step package (`PieceRowsCompleteness.pieceBelow`,
-`SlotCompleteness.bitsSafe`), and for a failure the pieces that read a fresh column, the bit
-slots at or after the first fresh column, and the pieces that read a quiet column. -/
-def completenessChecks (pieces : List Pieces.Piece) (firstFresh : Nat)
-    (batches : List WitnessBatch) : Bool × Nat × Nat × Nat :=
-  let below := pieces.all (PieceRowsCompleteness.pieceBelow firstFresh)
-  let safe := SlotCompleteness.bitsSafe CircuitRelation.publicColumns pieces firstFresh batches
-  if below && safe then (true, 0, 0, 0) else
-    let codes := SlotRuns.slotCodes pieces firstFresh batches
-    let quiet := SlotCompleteness.quietMarks CircuitRelation.publicColumns pieces firstFresh batches
-    let scope := (pieces.filter fun piece => !PieceRowsCompleteness.pieceBelow firstFresh piece).length
-    let late := ((List.range (SlotRuns.slotSize pieces firstFresh)).filter fun column =>
-      !(decide (2 ≤ codes.getD column 3) || decide (column < firstFresh))).length
-    let loud := (pieces.filter fun piece =>
-      !(SlotCompleteness.pieceReads piece).all fun column => !quiet.getD column false).length
-    (false, scope, late, loud)
+/-- The completeness check of a step package (`PieceRowsCompleteness.pieceBelow`), and the number
+of pieces that read a fresh column. -/
+def completenessChecks (pieces : List Pieces.Piece) (firstFresh : Nat) : Bool × Nat :=
+  let scope := (pieces.filter fun piece => !PieceRowsCompleteness.pieceBelow firstFresh piece).length
+  (scope == 0, scope)
 
 /-- The completeness checks of the finish package (`FinishCompleteness.FinishComplete`): every
 piece reads only columns below the first fresh column, and the shared words, which end at
@@ -147,13 +136,12 @@ def emitPackage (name : String) (circuit : Nat) (ops : List Op) (offset : Nat)
     throw (IO.userError s!"{name}: the first fresh column is inside the public input")
   let free := StepCompleteness.publicFree (flatConstraints ops)
   if circuit < 2 then
-    let (complete, scope, late, loud) := completenessChecks pieces firstFresh (witnesses ops)
+    let (complete, scope) := completenessChecks pieces firstFresh
     say s!"{name}: completeness checks pass: {complete}, rows read no public column: {free} \
       ({(← IO.monoMsNow) - start} ms)"
     unless complete && free do
       throw (IO.userError s!"{name}: the completeness checks fail: {scope} pieces read a fresh \
-        column, {late} bit slots at or after the first fresh column, {loud} pieces read a quiet \
-        column")
+        column, rows read no public column: {free}")
   else
     let (complete, scope) := finishChecks pieces offset firstFresh
     say s!"{name}: completeness checks pass: {complete}, rows read no public column: {free} \

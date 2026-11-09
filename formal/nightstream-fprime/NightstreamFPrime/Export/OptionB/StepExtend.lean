@@ -65,8 +65,6 @@ structure Complete (exports : Exports relation ajtai circuitKeys step cubeFits) 
   lightBelow : (lightPieces exports.program relation ajtai).all (pieceBelow exports.lightFresh) =
     true
   lightPublicBelow : publicColumns ≤ exports.lightFresh
-  lightSafe : bitsSafe publicColumns (lightPieces exports.program relation ajtai)
-    exports.lightFresh lightBatches = true
   lightFree : publicFree (flatConstraints (Circuit.ops
     (LightAssemblerCircuit.stepCircuit exports.program base relation 0 ajtai).main
     (LightAssembler.sharedEnd base exports.program.witnessWordCount))) = true
@@ -79,8 +77,6 @@ structure Complete (exports : Exports relation ajtai circuitKeys step cubeFits) 
   refreshBelow : (refreshPieces exports.program relation ajtai).all
     (pieceBelow exports.refreshFresh) = true
   refreshPublicBelow : publicColumns ≤ exports.refreshFresh
-  refreshSafe : bitsSafe publicColumns (refreshPieces exports.program relation ajtai)
-    exports.refreshFresh refreshBatches = true
   refreshFree : publicFree (flatConstraints (Circuit.ops
     (RefreshAssemblerCircuit.stepCircuit exports.program base relation 1 ajtai).main
     (RefreshAssembler.sharedEnd base exports.program.witnessWordCount))) = true
@@ -247,7 +243,7 @@ theorem light_extend (exports : Exports relation ajtai circuitKeys step cubeFits
   obtain ⟨assignment, freshNext, freshZero⟩ := light_complete exports.program relation ajtai
     circuitKeys input output proof env rows represents complete.lightFree exports.lightFresh
     exports.lightWidth exports.lightFits complete.lightPacked complete.lightBelow
-    complete.lightPublicBelow complete.lightBatches complete.lightSafe complete.lightWide cubeFits
+    complete.lightPublicBelow complete.lightBatches complete.lightWide cubeFits
   have keyEq : (circuitKeys 0).relation = (CircuitRelation.plan publicColumns _ exports.lightFresh
       exports.lightWidth exports.lightFits
       (WideLayout.widen (SlotLayout.layout _) complete.lightWide)).logicalRelation
@@ -396,8 +392,7 @@ theorem refresh_extend (exports : Exports relation ajtai circuitKeys step cubeFi
   obtain ⟨assignment, freshNext, freshZero⟩ := refresh_complete exports.program relation ajtai
     circuitKeys input output proof env rows represents complete.refreshFree exports.refreshFresh
     exports.refreshWidth exports.refreshFits complete.refreshPacked complete.refreshBelow
-    complete.refreshPublicBelow complete.refreshBatches complete.refreshSafe complete.refreshWide
-    cubeFits
+    complete.refreshPublicBelow complete.refreshBatches complete.refreshWide cubeFits
   have keyEq : (circuitKeys 1).relation = (CircuitRelation.plan publicColumns _
       exports.refreshFresh exports.refreshWidth exports.refreshFits
       (WideLayout.widen (SlotLayout.layout _) complete.refreshWide)).logicalRelation
@@ -510,8 +505,7 @@ theorem base_extend (exports : Exports relation ajtai circuitKeys step cubeFits)
   obtain ⟨assignment, freshNext, freshZero⟩ := light_complete exports.program relation ajtai
     circuitKeys input output BaseFold.zeroProof env rows represents complete.lightFree
     exports.lightFresh exports.lightWidth exports.lightFits complete.lightPacked
-    complete.lightBelow complete.lightPublicBelow complete.lightBatches complete.lightSafe
-    complete.lightWide cubeFits
+    complete.lightBelow complete.lightPublicBelow complete.lightBatches complete.lightWide cubeFits
   have keyEq : (circuitKeys 0).relation = (CircuitRelation.plan publicColumns _ exports.lightFresh
       exports.lightWidth exports.lightFits
       (WideLayout.widen (SlotLayout.layout _) complete.lightWide)).logicalRelation

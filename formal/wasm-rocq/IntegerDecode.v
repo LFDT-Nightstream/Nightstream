@@ -353,3 +353,35 @@ Proof.
   exists (value :: rest). cbn [readCells].
   rewrite (proj2 (i32_cell_some _ _) (conj Hvalue Hrange)), Hrest. reflexivity.
 Qed.
+
+(* The reader is unchanged if both limbs of every cell it reads are unchanged. *)
+Lemma read_integer_cells_preserved : forall initial final types address values,
+  readIntegerCells initial address types = Some values ->
+  (forall index limb, (index < length types)%nat -> (limb = 0 \/ limb = 1) ->
+    final stackId [2 * address index + limb] = initial stackId [2 * address index + limb]) ->
+  readIntegerCells final address types = Some values.
+Proof.
+  intros initial final types address values Hread Hmemory.
+  apply read_integer_cells_some in Hread as [Htypes Hcells].
+  apply read_integer_cells_some. split; [exact Htypes | ].
+  intros index value Hv. eapply cell_matches_memory; [ | exact (Hcells _ _ Hv)].
+  intros limb Hlimb. apply Hmemory; [ | exact Hlimb].
+  rewrite (Forall2_length Htypes). apply nth_error_Some. rewrite Hv. discriminate.
+Qed.
+
+(* Function-entry defaults agree with SpecTec, including mixed integer locals. *)
+Lemma integer_zeros_spectec : forall types values,
+  integerZeros types = Some values ->
+  values = map (fun t => the (default_ t)) types /\
+  Forall (fun t => default_ t <> None) types /\ Forall wf_val values.
+Proof.
+  induction types as [ | t types IH]; intros values H; cbn in H.
+  - injection H as <-. repeat split; constructor.
+  - destruct (integerZero t) as [value | ] eqn:Ht; [ | discriminate].
+    destruct (integerZeros types) as [rest | ] eqn:Hs; [ | discriminate]. injection H as <-.
+    destruct (IH _ eq_refl) as [Hvalues [Hdefault Hwf]].
+    destruct t; try discriminate; injection Ht as <-; cbn [map].
+    all: split; [now rewrite Hvalues | split; constructor; try assumption; try discriminate].
+    + apply i32_value_wf. unfold i32Modulus; lia.
+    + apply i64_value_wf. unfold i64Modulus; lia.
+Qed.

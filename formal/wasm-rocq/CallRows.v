@@ -764,8 +764,8 @@ Proof.
   pose proof Hframe as [Hf' [Hpath [Hheights [Hfbp0 [Hlayout [Hbounds [Hcells [Hllen [Hlb Hlc]]]]]]]]].
   rewrite Hactive in Hf'. injection Hf' as Hsame. subst f'.
   assert (Hkind : initializationKind COL_FRAME_MOVE_ACTIVE_BEFORE) by (right; reflexivity).
-  destruct (full_frame_move_row row Hprime Hfull Hmove) as [Hdec [HdistSame [HwriteAddr [HreadAddr [HvalueLo _]]]]].
-  destruct (move_row_stack_replay initial final row Hprime Hfull Hmove Hreplay) as [Hread Hfinal].
+  destruct (full_frame_move_row row Hprime Hfull Hmove) as [Hdec [HdistSame [HwriteAddr _]]].
+  destruct (move_row_stack_replay initial final row Hprime Hfull Hmove Hreplay) as [_ [_ Hfinal]].
   pose proof (full_initialization_stack row _ Hprime Hfull Hkind Hmove) as Hshape.
   pose proof (init_stack_pointer row _ Hshape) as HspAfter. cbn in HspAfter. rewrite Z.add_0_r in HspAfter.
   pose proof (full_initialization_pc_preserved row _ Hprime Hfull Hkind Hmove) as HpcAfter.
@@ -784,39 +784,28 @@ Proof.
   (* The moved operand: the lowest of the displaced ones. *)
   assert (HremainingBound' : (Z.to_nat r <= n)%nat) by (unfold n, viewOperands; rewrite length_app; lia).
   set (i0 := (n - Z.to_nat r)%nat).
-  assert (Hi0 : (i0 < n)%nat) by (unfold i0; lia).
-  destruct (nth_error (viewOperands view) i0) as [v0 | ] eqn:Hv0; [ | apply nth_error_None in Hv0; lia].
-  assert (Hsource : row (List.nth 0%nat COL_STACK_READ_ADDR_LO 0%nat) = 2 * operandCell
-      (row COL_STACK_FRAME_BASE_BEFORE) n (Z.to_nat r) d i0).
-  { unfold operandCell. replace (i0 <? n - Z.to_nat r)%nat with false by (symmetry; apply Nat.ltb_ge; lia).
-    rewrite HreadAddr, HwriteAddr. unfold i0. lia. }
-  rewrite Hsource, (Hcells _ _ Hv0) in Hread. injection Hread as HreadValue.
   assert (Hdest : row COL_STACK_WRITE0_ADDR_LO = 2 * (row COL_STACK_FRAME_BASE_BEFORE + Z.of_nat i0))
     by (rewrite HwriteAddr; unfold i0; lia).
+  assert (HtypedBefore : readIntegerOperands initial (row COL_STACK_FRAME_BASE_BEFORE)
+      (repeat valtype_I32 n) (Z.to_nat r) d = Some (map i32Value (viewOperands view))).
+  { unfold readIntegerOperands. rewrite repeat_length. unfold n.
+    apply read_integer_cells_i32_from; assumption. }
+  pose proof (move_row_preserves_integer_operands initial final row (row COL_STACK_FRAME_BASE_BEFORE)
+    (repeat valtype_I32 n) (map i32Value (viewOperands view)) Hprime Hfull Hmove Hreplay
+    ltac:(rewrite repeat_length; exact Hsp) ltac:(rewrite repeat_length; exact HremainingBound')
+    HtypedBefore) as HtypedAfter.
+  unfold readIntegerOperands in HtypedAfter. rewrite repeat_length, HdistSame in HtypedAfter.
+  destruct (proj1 (read_integer_cells_some _ _ _ _) HtypedAfter) as [_ HtypedCells].
   (* The frame after the row: one fewer operand displaced. *)
   assert (Hframe' : FrameAt program final (row COL_STACK_FRAME_BASE_BEFORE) (row COL_LOCALS_FBP_BEFORE) 0
       (Z.to_nat (row COL_FRAME_MOVE_REMAINING_AFTER)) d f view).
   { split; [exact Hactive | ]. split; [exact Hpath | ]. split; [exact Hheights | ]. split; [exact Hfbp0 | ].
     split; [exact Hlayout | ]. split; [exact Hbounds | ].
     split; [ | split; [exact Hllen | split; [exact Hlb | ]]].
-    - intros i value Hv. fold n. rewrite Hfinal, Hdest.
-      assert (Hi : (i < n)%nat) by (apply nth_error_Some; rewrite Hv; discriminate).
-      destruct (Nat.eq_dec i i0) as [-> | Hne].
-      + unfold operandCell. replace (i0 <? n - Z.to_nat (row COL_FRAME_MOVE_REMAINING_AFTER))%nat with true
-          by (symmetry; apply Nat.ltb_lt; unfold i0; lia).
-        rewrite Z.add_0_r, update_other by cell_differs. rewrite update_same.
-        rewrite Hv0 in Hv. injection Hv as <-. normalize_columns. congruence.
-      + rewrite !update_other by (unfold operandCell; destruct (_ <? _)%nat eqn:Hb;
-          [apply Nat.ltb_lt in Hb | apply Nat.ltb_ge in Hb]; unfold i0 in *; cell_differs).
-        rewrite <- (Hcells _ _ Hv). f_equal. f_equal. unfold operandCell.
-        destruct (Nat.lt_ge_cases i i0) as [Hlt | Hge].
-        * replace (i <? n - Z.to_nat (row COL_FRAME_MOVE_REMAINING_AFTER))%nat with true
-            by (symmetry; apply Nat.ltb_lt; unfold i0 in *; lia).
-          replace (i <? n - Z.to_nat r)%nat with true by (symmetry; apply Nat.ltb_lt; unfold i0 in *; lia). reflexivity.
-        * replace (i <? n - Z.to_nat (row COL_FRAME_MOVE_REMAINING_AFTER))%nat with false
-            by (symmetry; apply Nat.ltb_ge; unfold i0 in *; lia).
-          replace (i <? n - Z.to_nat r)%nat with false by (symmetry; apply Nat.ltb_ge; unfold i0 in *; lia).
-          reflexivity.
+    - intros i value Hv. fold n.
+      eapply IntegerMemory.cell_matches_i32_read.
+      + exact (proj1 (proj1 (Forall_forall _ _) Hbounds _ (nth_error_In _ _ Hv))).
+      + apply HtypedCells. rewrite nth_error_map, Hv. reflexivity.
     - intros index value Hv. rewrite Hfinal, Hdest.
       assert (Hindex : (index < length (viewLocals view))%nat) by (apply nth_error_Some; rewrite Hv; discriminate).
       rewrite !update_other by cell_differs. exact (Hlc _ _ Hv). }

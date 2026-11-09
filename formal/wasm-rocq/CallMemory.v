@@ -229,6 +229,8 @@ Theorem move_row_stack_replay : forall initial final w,
   Replay initial (eventsForRow MemoryCatalog.memories w) final ->
   initial stackId [w (List.nth 0%nat COL_STACK_READ_ADDR_LO 0%nat)] =
     Some (w (List.nth 0%nat COL_STACK_READ_VALUE_LO 0%nat)) /\
+  initial stackId [w (List.nth 0%nat COL_STACK_READ_ADDR_LO 0%nat) + 1] =
+    Some (w (List.nth 0%nat COL_STACK_READ_VALUE_HI 0%nat)) /\
   forall address, final stackId address =
     update (update initial stackId [w COL_STACK_WRITE0_ADDR_LO] (w (List.nth 0%nat COL_STACK_READ_VALUE_LO 0%nat)))
       stackId [w COL_STACK_WRITE0_ADDR_LO + 1] (w (List.nth 0%nat COL_STACK_READ_VALUE_HI 0%nat)) stackId address.
@@ -246,7 +248,9 @@ Proof.
   | H : EventStep _ _ _ |- _ => inversion H; subst; clear H
   | H : Replay _ [] _ |- _ => inversion H; subst; clear H
   end.
-  split; [assumption | ]. intro address.
+  split; [assumption | ]. split.
+  - rewrite <- (init_read_hi_address w _ Hshape). assumption.
+  - intro address.
   erewrite replay_preserves; [ | exact Hrest | apply read_only_row; vm_compute; reflexivity].
   rewrite HaddrHi, <- Hlo, <- Hhi. reflexivity.
 Qed.

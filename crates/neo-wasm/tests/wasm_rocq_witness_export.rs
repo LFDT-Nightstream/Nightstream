@@ -294,6 +294,23 @@ fn export_integer_local_witnesses() {
 
 #[test]
 #[ignore = "regenerates Rocq files"]
+fn export_integer_call_witnesses() {
+    export_witness_format(
+        r#"(module
+          (func (export "main") (result i64) (local i32 i64)
+            i64.const -1 call 1)
+          (func (param i64) (result i64) (local i32 i64)
+            local.get 0))"#,
+        &[],
+        "integerCallRows",
+        "IntegerCallTrace.v",
+        false,
+        true,
+    );
+}
+
+#[test]
+#[ignore = "regenerates Rocq files"]
 fn export_terminal_witnesses() {
     export_witness(NOPS, &[7], "nopTerminalRows", "NopTerminalTrace.v", true);
     export_witness(INDIRECT_CALL, &[7, 5], "indirectTrapRows", "IndirectTrapTrace.v", true);

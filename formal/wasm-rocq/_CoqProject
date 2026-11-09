@@ -133,3 +133,5 @@ tests/IntegerLocalTrace.v
 tests/IntegerLocals.v
 tests/IntegerDecode.v
 tests/IntegerInitialization.v
+tests/IntegerCallTrace.v
+tests/IntegerCalls.v

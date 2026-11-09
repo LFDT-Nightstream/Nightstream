@@ -49,25 +49,43 @@ Proof.
 Qed.
 
 (* Func_ok types the body in exactly functionContext, from an empty stack to the results. *)
-Lemma funcinst_body_validated : forall s m ti p r l body,
-  Funcinst_ok s (i32Function m ti p r l body) (i32StackType p r) ->
+Lemma typed_funcinst_body_validated : forall s m ti params results locals body,
+  Funcinst_ok s (typedFunction m ti params results locals body)
+    (mk_functype (mk_list _ params) (mk_list _ results)) ->
   exists C, Moduleinst_ok s m C /\
-    Instrs_ok (functionContext C (i32Function m ti p r l body)) body (i32StackType 0 r).
+    Instrs_ok (functionContext C (typedFunction m ti params results locals body)) body
+      (mk_functype (mk_list _ []) (mk_list _ results)).
 Proof.
-  intros s m ti p r l body Hinst.
+  intros s m ti params results locals body Hinst.
   inversion Hinst; subst. match goal with H : Func_ok _ _ _ |- _ => inversion H; subst end.
-  assert (Ht : t_lst = repeat valtype_I32 l).
-  { change (map LOCAL t_lst = map LOCAL (repeat valtype_I32 l)) in H0.
+  assert (Ht : t_lst = locals).
+  { change (map LOCAL t_lst = map LOCAL locals) in H0.
     apply (f_equal (map (fun x => match x with LOCAL t => t end))) in H0.
-    rewrite !map_map in H0. change (map (fun x : valtype => x) t_lst = map (fun x : valtype => x) (repeat valtype_I32 l)) in H0.
+    rewrite !map_map in H0.
+    change (map (fun x : valtype => x) t_lst = map (fun x : valtype => x) locals) in H0.
     now rewrite !map_id in H0. }
   subst t_lst.
   match goal with H : Expr_ok _ _ _ |- _ => inversion H; subst end.
   exists C. split; [assumption | ].
-  unfold functionContext, i32Function. cbn [funcinst_TYPE CODE]. rewrite map_map.
-  change (map (fun x : valtype => x) (repeat valtype_I32 l)) with (map id (repeat valtype_I32 l)).
+  unfold functionContext, typedFunction. cbn [funcinst_TYPE CODE]. rewrite map_map.
+  change (map (fun x : valtype => x) locals) with (map id locals).
   rewrite map_id. assumption.
 Qed.
+
+Lemma typed_function_context_locals : forall C m ti params results locals body,
+  context_LOCALS C = [] ->
+  context_LOCALS (functionContext C (typedFunction m ti params results locals body)) = params ++ locals.
+Proof.
+  intros. cbn [functionContext typedFunction funcinst_TYPE CODE _append_context context_LOCALS].
+  rewrite map_map. change ((params ++ map (fun x : valtype => x) locals) ++ context_LOCALS C = params ++ locals).
+  now rewrite map_id, H, app_nil_r.
+Qed.
+
+Lemma funcinst_body_validated : forall s m ti p r l body,
+  Funcinst_ok s (i32Function m ti p r l body) (i32StackType p r) ->
+  exists C, Moduleinst_ok s m C /\
+    Instrs_ok (functionContext C (i32Function m ti p r l body)) body (i32StackType 0 r).
+Proof. intros. eapply typed_funcinst_body_validated. exact H. Qed.
 
 Lemma extern_function_lookup : forall s a t,
   Externaddr_ok s a t ->

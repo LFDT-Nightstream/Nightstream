@@ -117,7 +117,7 @@ Proof.
     + destruct (full_zero_initialization_row w Hprime Hfull Hchosen) as [_ [Haddr _]].
       rewrite (zero_row_stack_replay initial final w Hprime Hfull Hchosen Hreplay).
       rewrite !update_other by cell_differs. reflexivity.
-    + destruct (move_row_stack_replay initial final w Hprime Hfull Hchosen Hreplay) as [_ Hwrites].
+    + destruct (move_row_stack_replay initial final w Hprime Hfull Hchosen Hreplay) as [_ [_ Hwrites]].
       rewrite Hwrites. rewrite !update_other by cell_differs. reflexivity.
   - intros memory column address Hin.
     destruct (full_host_switch_absent w chosen Hprime Hfull (initialization_kind_in chosen Hkind)

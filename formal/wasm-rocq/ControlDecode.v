@@ -66,12 +66,6 @@ Fixpoint splitSegments {A : Type} (heights : list nat) (values : list A) : list 
   | h :: rest => let split := splitSegments rest (skipn h values) in (firstn h values :: fst split, snd split)
   end.
 
-Definition valueStackConfig (z : state) (values : list val) (code : list instr) : config :=
-  mk_config z (map admininstr_val values ++ map admininstr_instr code).
-
-Definition valueStackPrefix (values : list val) (c : config) : config :=
-  match c with mk_config z code => mk_config z (map admininstr_val values ++ code) end.
-
 (* A configuration inside its enclosing labels: each label's operands and the
    code after its END stay outside its LABEL_. *)
 Fixpoint wrapValueLabels (code : list instr) (labels : list LabelSite) (segments : list (list val))

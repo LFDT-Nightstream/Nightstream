@@ -118,3 +118,36 @@ Proof.
   intros index Hindex. cbn. apply (zeroed_locals _ _ _ _ _ Hinit).
   rewrite Nat2Z.inj_add, Hlength. lia.
 Qed.
+
+(* Both source limbs come from replay; this applies to i32 and i64 results alike. *)
+Lemma move_row_preserves_integer_operands : forall initial final w base types values,
+  fieldPrime -> FullRelation.satFull w -> w COL_FRAME_MOVE_ACTIVE_BEFORE = 1 ->
+  Replay initial (eventsForRow memories w) final ->
+  w COL_SP_BEFORE = base + Z.of_nat (length types) ->
+  (Z.to_nat (w COL_FRAME_MOVE_REMAINING_BEFORE) <= length types)%nat ->
+  readIntegerOperands initial base types (Z.to_nat (w COL_FRAME_MOVE_REMAINING_BEFORE))
+    (w COL_FRAME_MOVE_DISTANCE_BEFORE) = Some values ->
+  readIntegerOperands final base types (Z.to_nat (w COL_FRAME_MOVE_REMAINING_AFTER))
+    (w COL_FRAME_MOVE_DISTANCE_AFTER) = Some values.
+Proof.
+  intros initial final w base types values Hprime Hfull Hmove Hreplay Hsp Hbound Hread.
+  destruct (full_frame_move_row w Hprime Hfull Hmove) as [Hdec [Hdistance [Hdest [Hsource _]]]].
+  destruct (move_row_stack_replay _ _ _ Hprime Hfull Hmove Hreplay) as [Hlo [Hhi Hmemory]].
+  pose proof (value_bound w COL_FRAME_MOVE_REMAINING_BEFORE) as Hbefore.
+  pose proof (value_bound w COL_FRAME_MOVE_REMAINING_AFTER) as Hafter.
+  pose proof (value_bound w COL_FRAME_MOVE_DISTANCE_BEFORE) as Hdist.
+  set (remaining := Z.to_nat (w COL_FRAME_MOVE_REMAINING_BEFORE)) in *.
+  set (target := base + Z.of_nat (length types - remaining)).
+  assert (Htarget : w COL_STACK_WRITE0_ADDR_LO = 2 * target) by (unfold target, remaining; lia).
+  assert (Haddress : w (List.nth 0%nat COL_STACK_READ_ADDR_LO 0%nat) =
+      2 * (target + w COL_FRAME_MOVE_DISTANCE_BEFORE)) by lia.
+  rewrite Haddress in Hlo, Hhi. rewrite Hdistance.
+  replace (Z.to_nat (w COL_FRAME_MOVE_REMAINING_AFTER)) with (Nat.pred remaining) by (unfold remaining; lia).
+  pose proof (read_integer_operands_copy initial base types remaining (w COL_FRAME_MOVE_DISTANCE_BEFORE)
+    values (w (List.nth 0%nat COL_STACK_READ_VALUE_LO 0%nat))
+    (w (List.nth 0%nat COL_STACK_READ_VALUE_HI 0%nat)) ltac:(unfold remaining in *; lia)
+    ltac:(lia) Hread Hlo Hhi) as Hcopy.
+  unfold readIntegerOperands in Hcopy |- *.
+  eapply read_integer_cells_preserved; [exact Hcopy | ].
+  intros index limb _ _. unfold writeCell. rewrite Hmemory, Htarget. reflexivity.
+Qed.

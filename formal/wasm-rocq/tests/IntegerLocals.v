@@ -14,15 +14,6 @@ Definition localRows := [setRow; getRow].
 Definition maxLimb : Z := 4294967295.
 Definition maxI64 := i64Value (joinLimbs maxLimb maxLimb).
 
-(* Only non-stack reads supply inputs here. Stack cells are set explicitly below. *)
-Fixpoint readInputs (events : list Event) : MemoryState :=
-  match events with
-  | [] => fun _ _ => None
-  | ReadEvent memory address value :: rest =>
-      if Nat.eqb memory stackId then readInputs rest
-      else update (readInputs rest) memory address value
-  | _ :: rest => readInputs rest
-  end.
 Definition initial := writeCell
   (writeCell (readInputs (eventsForTrace memories localRows)) 0 0 0) 1 maxLimb maxLimb.
 Definition final := replayed initial localRows.

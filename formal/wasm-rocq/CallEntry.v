@@ -2,7 +2,7 @@
 From Stdlib Require Import List ZArith NArith Lia.
 Require Import R1CS Columns FullRelation Range Selectors CircuitFacts MemoryTrace MemoryCatalog
   TraceRefinement ProgramBinding StraightLineSpec StackSimulation CallInitialization
-  CallBindings CallMemory FrameInitialization CallSpec SpecTecCalls WasmValues Wasm2 WasmIntegers LocalBindings.
+  CallBindings CallMemory IntegerMemory FrameInitialization CallSpec SpecTecCalls WasmValues Wasm2 WasmIntegers LocalBindings.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -41,17 +41,20 @@ Proof.
   repeat split; try assumption; congruence || lia.
 Qed.
 
-Lemma call_starts_frame_initialization : forall initial final w prefix arguments locals,
+Lemma call_starts_integer_frame_initialization : forall initial final w prefix arguments locals,
   fieldPrime -> FullRelation.satFull w -> w COL_SEL_CALL = 1 ->
   w COL_TARGET_FUNCTION_IS_GUEST = 1 ->
   w COL_CALL_PARAM_COUNT = Z.of_nat (length arguments) ->
   w COL_ENTERED_FUNCTION_NUM_LOCALS = Z.of_nat (length arguments) + Z.of_nat locals ->
   w COL_LOCAL_ZERO_REMAINING_AFTER = Z.of_nat locals ->
   Replay initial (eventsForRow MemoryCatalog.memories w) final ->
-  stackMatches initial (beforeBoundary w) (prefix ++ arguments) ->
-  InitializingFrame final (afterBoundary w) (map i32Value arguments) (Z.of_nat locals) (w COL_LOCAL_ZERO_REMAINING_AFTER).
+  0 <= w COL_STACK_FRAME_BASE_BEFORE ->
+  w COL_SP_BEFORE = w COL_STACK_FRAME_BASE_BEFORE + Z.of_nat (length (prefix ++ arguments)) ->
+  (forall index value, nth_error (prefix ++ arguments) index = Some value ->
+    CellMatches initial (w COL_STACK_FRAME_BASE_BEFORE + Z.of_nat index) value) ->
+  InitializingFrame final (afterBoundary w) arguments (Z.of_nat locals) (w COL_LOCAL_ZERO_REMAINING_AFTER).
 Proof.
-  intros initial final w prefix arguments locals Hprime Hfull Hcall Htarget Hp Hentered Hz Hreplay Hstack.
+  intros initial final w prefix arguments locals Hprime Hfull Hcall Htarget Hp Hentered Hz Hreplay HbaseBefore Hheight Hcells.
   assert (Hin : In COL_SEL_CALL selectorColumns) by (vm_compute; tauto).
   assert (Hone : w COL_ONE = 1) by exact (proj1 Hfull).
   destruct (full_direct_guest_call w Hprime Hfull Hcall Htarget) as [Hguest [Hpush Hpop]].
@@ -63,24 +66,43 @@ Proof.
   assert (HlocalWrite : w COL_LOCAL_WRITE_ENABLED = 0).
   { selected_row COL_SEL_CALL localWriteGateIndex Hrow. rewrite Hone in Hrow.
     pose proof (value_bound w COL_LOCAL_WRITE_ENABLED). field_linear Hrow. }
-  destruct Hstack as [HbaseBefore [Hheight [Hbounds Hcells]]].
-  cbn [beforeBoundary boundarySP boundaryStackBase] in HbaseBefore, Hheight, Hcells.
   rewrite length_app, Nat2Z.inj_add in Hheight.
-  rewrite Hz. apply initializing_i32_frame_start; cbn [afterBoundary boundarySP boundaryStackBase boundaryLocalsBase].
+  rewrite Hz. apply initializing_frame_start; cbn [afterBoundary boundarySP boundaryStackBase boundaryLocalsBase].
   - lia.
   - lia.
   - lia.
   - lia.
-  - apply Forall_app in Hbounds. exact (proj2 Hbounds).
   - intros index value Hlookup.
-    rewrite (replay_preserves _ _ _ _ _ Hreplay
-      (stack_writes_inactive w _ Hlo Hhi HlocalWrite HgatherLocalLo HgatherLocal)).
     specialize (Hcells (length prefix + index)%nat value).
     rewrite nth_error_app2 in Hcells by lia.
     replace (length prefix + index - length prefix)%nat with index in Hcells by lia.
     specialize (Hcells Hlookup).
     rewrite Nat2Z.inj_add in Hcells.
-    replace (2 * (w COL_LOCALS_FBP_AFTER + Z.of_nat index)) with
-      (2 * (w COL_STACK_FRAME_BASE_BEFORE + (Z.of_nat (length prefix) + Z.of_nat index))) by lia.
-    exact Hcells.
+    replace (w COL_LOCALS_FBP_AFTER + Z.of_nat index) with
+      (w COL_STACK_FRAME_BASE_BEFORE + (Z.of_nat (length prefix) + Z.of_nat index)) by lia.
+    eapply cell_matches_memory; [ | exact Hcells]. intros limb _.
+    exact (replay_preserves _ _ _ _ _ Hreplay
+      (stack_writes_inactive w _ Hlo Hhi HlocalWrite HgatherLocalLo HgatherLocal)).
+Qed.
+
+Lemma call_starts_frame_initialization : forall initial final w prefix arguments locals,
+  fieldPrime -> FullRelation.satFull w -> w COL_SEL_CALL = 1 ->
+  w COL_TARGET_FUNCTION_IS_GUEST = 1 ->
+  w COL_CALL_PARAM_COUNT = Z.of_nat (length arguments) ->
+  w COL_ENTERED_FUNCTION_NUM_LOCALS = Z.of_nat (length arguments) + Z.of_nat locals ->
+  w COL_LOCAL_ZERO_REMAINING_AFTER = Z.of_nat locals ->
+  Replay initial (eventsForRow MemoryCatalog.memories w) final ->
+  stackMatches initial (beforeBoundary w) (prefix ++ arguments) ->
+  InitializingFrame final (afterBoundary w) (map i32Value arguments) (Z.of_nat locals) (w COL_LOCAL_ZERO_REMAINING_AFTER).
+Proof.
+  intros initial final w prefix arguments locals Hprime Hfull Hcall Htarget Hp Hentered Hz Hreplay
+    [Hbase [Hsp [Hbounds Hcells]]].
+  eapply call_starts_integer_frame_initialization with (prefix := map i32Value prefix);
+    rewrite ?length_map; try eassumption.
+  - rewrite <- map_app, length_map. exact Hsp.
+  - intros index value Hlookup. rewrite <- map_app, nth_error_map in Hlookup.
+    destruct (nth_error (prefix ++ arguments) index) as [v | ] eqn:Hv; [ | discriminate].
+    injection Hlookup as <-. constructor.
+    + exact (proj1 (Forall_forall _ _) Hbounds _ (nth_error_In _ _ Hv)).
+    + exact (Hcells _ _ Hv).
 Qed.

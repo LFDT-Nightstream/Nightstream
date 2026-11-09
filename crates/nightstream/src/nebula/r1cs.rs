@@ -331,9 +331,13 @@ impl<Id: Clone + Eq> Application for R1csApplication<Id> {
     /// Each rank-one row as `C·z − (A·z)(B·z)`; `z[one] = 1`; the
     /// `next_step_column`s of the first row equal the input state and the
     /// `previous_step_column`s of the last row the output state; then the
-    /// binding rows.
+    /// binding rows. Every row but `z[one] = 1` reads the constant 1 in place
+    /// of `z[one]` (Lean `PortApp.fixColumn`), so a row `x · (x − one)` reads
+    /// only `x` and gives `x` a bit slot (SPEC.md section 7.6).
     fn rows(&self, view: &View) -> Result<Vec<Expr>, crate::Error> {
-        let z: Vec<Expr> = (0..self.aux()).map(|column| view.aux(column)).collect();
+        let one = view.aux(self.one);
+        let mut z: Vec<Expr> = (0..self.aux()).map(|column| view.aux(column)).collect();
+        z[self.one] = Expr::constant(1);
         let affine = |terms: &Terms| {
             terms
                 .iter()
@@ -346,7 +350,7 @@ impl<Id: Clone + Eq> Application for R1csApplication<Id> {
             .iter()
             .map(|[a, b, c]| affine(c) - affine(a) * affine(b))
             .collect();
-        rows.push(z[self.one].clone() - Expr::constant(1));
+        rows.push(one - Expr::constant(1));
         let last = self.rows.get() - 1;
         for (k, link) in self.links.iter().enumerate() {
             rows.push(z[self.column(0, next(link))].clone() - view.input(k));

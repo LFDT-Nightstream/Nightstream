@@ -49,7 +49,7 @@ private theorem evaluation_ext (left right : EvaluationFamily Extension shape)
   cases right
   simp_all
 
-private theorem runningEvaluations_eq_iff
+theorem runningEvaluations_eq_iff
     (extensionOps : InterpolationOps Extension)
     (extensionLaws : InterpolationEvaluationLaws extensionOps)
     (lift : F → Extension) (openingMaps : OpeningMaps Commitment PublicInput columns)

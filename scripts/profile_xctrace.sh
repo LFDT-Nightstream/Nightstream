@@ -38,9 +38,8 @@ if [ $# -lt 3 ]; then
   echo "Run 'xcrun xctrace list templates' for full list"
   echo ""
   echo "Examples:"
-  echo "  $0 nightstream circuit_lifecycle poseidon_base_step_matches_lean_and_verifies --ignored"
-  echo "  $0 nightstream circuit_lifecycle poseidon_base_step_matches_lean_and_verifies --ignored --template Allocations"
-  echo "  $0 nightstream circuit_lifecycle poseidon_metal_recursive_lifecycle --ignored --features metal --template \"Metal System Trace\" --instrument \"Metal GPU Counters\" --time-limit 60s"
+  echo "  $0 nightstream option_b_api hash_chain_proves_and_verifies"
+  echo "  $0 nightstream option_b_api hash_chain_proves_and_verifies --template Allocations"
   echo "  $0 nightstream r1cs_application a_relation_of_the_builders_runs_through_nebula --time-limit 20"
   exit 1
 fi

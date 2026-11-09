@@ -996,6 +996,19 @@ def program (interface : Interface) (offset : Nat) : Program :=
 def output (interface : Interface) (offset : Nat) : EState :=
   (program interface offset).output
 
+/-- The output state without the recipes. A layout that reads a duplex's output evaluates it
+once per lane access, and `compile` builds every recipe each time, so compiled emitters would
+take exponential time through chained duplexes. -/
+def outputFast (interface : Interface) (offset : Nat) : EState :=
+  (compileWiringLazy offset (fun _ => interface.initial offset)
+    (interface.actions offset)).output
+
+@[csimp] theorem output_eq_outputFast : @output = @outputFast := by
+  funext interface offset
+  rw [outputFast, compileWiringLazy_eq offset _ (interface.initial offset) _ rfl,
+    (compileWiring_matches offset (interface.initial offset) (interface.actions offset)).2]
+  rfl
+
 def Assumptions (interface : Interface) (offset : Nat) (_env : Env) : Prop :=
   (∀ lane, (interface.initial offset lane).VarsBelow offset) ∧
     ActionsBelow offset (interface.actions offset)
@@ -1238,6 +1251,18 @@ def circuit (interface : Interface) : FormalCircuit where
   spec := SpecHolds interface
   soundness := soundness interface
   completeness := completeness interface
+
+/-- The circuit with its private count from `recipeCount`, for compiled evaluation: an offset
+after the duplex would otherwise compile all of its recipes again. -/
+def circuitFast (interface : Interface) : FormalCircuit :=
+  (circuit interface).withPrivateCount (fun offset => recipeCount (interface.actions offset))
+    fun offset => by
+      change localLength (opsAt interface offset) = _
+      rw [opsAt_localLength, program, compile_recipes_length]
+
+@[csimp] theorem circuit_eq_circuitFast : @circuit = @circuitFast := by
+  funext interface
+  exact FormalCircuit.eq_withPrivateCount _ _ _
 
 end Owned
 

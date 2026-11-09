@@ -391,6 +391,13 @@ impl RotRho {
         Self(rho)
     }
 
+    /// The rotation matrix of the ring's one: option B's light fold puts it on
+    /// the running source (Lean `Light.Rlc`, Cyclo contribution 2). It is not a
+    /// sampled challenge, so the strong-set check does not apply.
+    pub fn identity() -> Self {
+        Self(Mat::identity(D))
+    }
+
     #[inline]
     pub fn as_mat(&self) -> &Mat<F> {
         &self.0

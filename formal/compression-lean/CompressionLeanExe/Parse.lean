@@ -28,12 +28,25 @@ def token : Parser ByteArray := do
 def text : Parser String := do
   pure (String.fromUTF8! (← token))
 
+/-- The number that the bytes of `data` from `pos` to `stop` spell after `value`; `none` at a byte
+that is not a digit. -/
+def digits (data : ByteArray) (stop pos value : ℕ) : Option ℕ :=
+  if h : pos < stop ∧ pos < data.size then
+    let b := data[pos]
+    if 48 ≤ b ∧ b ≤ 57 then digits data stop (pos + 1) (10 * value + (b - 48).toNat) else none
+  else some value
+termination_by stop - pos
+
+/-- A token of digits, read in place: a number token is most of a Rust export. -/
 def nat : Parser ℕ := do
-  let bytes ← token
-  if bytes.size = 0 then throw "expected a number, found the end"
-  bytes.foldlM (init := 0) fun value b =>
-    if 48 ≤ b ∧ b ≤ 57 then pure (10 * value + (b - 48).toNat)
-    else throw s!"expected a number, found {String.fromUTF8! bytes}"
+  let data ← readThe ByteArray
+  let start := skipSpaces data (← get)
+  let stop := tokenEnd data start
+  set stop
+  if stop = start then throw "expected a number, found the end"
+  match digits data stop start 0 with
+  | some value => pure value
+  | none => throw s!"expected a number, found {String.fromUTF8! (data.extract start stop)}"
 
 def keyword (expected : String) : Parser Unit := do
   let got ← text

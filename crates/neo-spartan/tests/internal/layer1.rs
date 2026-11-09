@@ -54,7 +54,7 @@ fn holds(setup: &Setup, relation: &Relation<'_>, claim: &Claim, witness: &Mat<F>
         shape,
         &claim.r,
         &mixing,
-        &eval_a,
+        eval_a,
         &ring::key_weights(shape, &mixing, &crate::device::Accelerator::cpu()),
     );
     let z = witness_table(shape, witness).unwrap();
@@ -362,8 +362,8 @@ fn non_canonical_root_words_do_not_decode() {
 /// `Relation::new` gives the sizes of the Lean `parentShape_of`
 /// (`formal/compression-lean/CompressionLean/Final/RustSetup.lean`): `D = 54`,
 /// six lane variables, `κ = 22`, the key's matrices and blocks, and the public
-/// blocks and bound that the caller passes. The parent passes five public
-/// blocks and 3672 (`nightstream`, `parent_relation_arguments_are_the_lean_constants`).
+/// blocks and bound that the caller passes. Option B's slots pass five public
+/// blocks and a bound below `2^16` (`nightstream`, `final_proof_verifies`).
 #[test]
 fn relation_shape_has_the_lean_constants() {
     let toy = Toy::new(5, 6, 6, 4, BOUND);
@@ -377,7 +377,7 @@ fn relation_shape_has_the_lean_constants() {
 
 #[test]
 fn true_claims_verify_and_every_tampered_part_rejects() {
-    let (toy, setup, _scratch) = setup_toy(2, 4, 6);
+    let (toy, setup, _scratch) = setup_toy(2, 64, 6);
     let relation = relation_of(&toy, setup.key());
     assert!(relation.security_bits() >= BITS);
     let proof = prove(

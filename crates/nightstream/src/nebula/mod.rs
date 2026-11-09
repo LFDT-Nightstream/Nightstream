@@ -23,6 +23,9 @@ mod r1cs;
 mod records;
 mod rows;
 mod segment;
+#[cfg(test)]
+#[path = "../../tests/nebula/packages.rs"]
+pub(crate) mod test_packages;
 mod transcript;
 mod words;
 
@@ -54,22 +57,14 @@ pub use transcript::Digest;
 #[cfg(test)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Package {
-    /// `artifacts/nightstream-fprime-stage2-nebula-memory-v1.json` (`FirstPlan.lean`).
+    /// `FirstPlan.lean`: `artifacts/nightstream-fprime-option-b-nebula-v1-{light,refresh}-v1.json`.
     V1,
-    /// `artifacts/nightstream-fprime-stage2-nebula-memory-n1.json` (`SecondPlan.lean`).
+    /// `SecondPlan.lean`: `artifacts/nightstream-fprime-option-b-nebula-n1-{light,refresh}-v1.json`.
     N1,
 }
 
 #[cfg(test)]
 impl Package {
-    /// Whether `identifier` pins a memory package, whose verifier is
-    /// `nebula::Circuit::verifier`.
-    pub(crate) fn pinned(identifier: [u64; 4]) -> bool {
-        [Package::V1, Package::N1]
-            .into_iter()
-            .any(|package| package.structural_identifier() == identifier)
-    }
-
     /// The memory geometry that the package proves.
     pub fn geometry(self) -> Geometry {
         match self {
@@ -88,37 +83,40 @@ impl Package {
         Program::new(self.geometry(), rom, ram).expect("a default program fits its geometry")
     }
 
-    /// Load the package's circuit from its bytes. `Circuit::load_package`
-    /// recomputes the structural identifier and requires the package's pin.
-    pub fn load(self, bytes: &[u8]) -> Result<Circuit<Machine>, crate::Error> {
+    /// Load the package's option-B circuit: Lean's light and refresh
+    /// packages of the memory program (`EmitMain --program`) and the finish
+    /// package. `Circuit::load_packages` recomputes their identity
+    /// and requires the package's pin.
+    pub fn load(self, references: crate::References<'_>) -> Result<Circuit<Machine>, crate::Error> {
         Ok(Circuit {
             geometry: self.geometry(),
             app: Machine,
-            circuit: crate::Circuit::load_package(bytes, self.structural_identifier())?,
+            circuit: crate::Circuit::load_packages(references, self.option_b_identity())?.into_memory(),
         })
+    }
+
+    /// The identity of the package's option-B light and refresh packages.
+    fn option_b_identity(self) -> [u64; 4] {
+        match self {
+            Package::V1 => [
+                2_318_805_737_995_629_635,
+                18_334_040_708_406_012_233,
+                14_670_066_754_507_228_324,
+                6_234_634_156_483_315_153,
+            ],
+            Package::N1 => [
+                8_562_961_328_907_724_633,
+                5_251_121_021_317_727_900,
+                17_910_250_946_235_491_664,
+                11_779_333_234_232_039_382,
+            ],
+        }
     }
 
     /// The package's relation built in Rust, row for row as Lean builds it
     /// (`tests/nebula/parity.rs`).
     pub(crate) fn application(self) -> Result<crate::application::ApplicationCircuit, crate::Error> {
         circuit::memory_circuit(&self.geometry(), &Machine)
-    }
-
-    fn structural_identifier(self) -> [u64; 4] {
-        match self {
-            Package::V1 => [
-                16124593816834730366,
-                3526578406157962078,
-                13420800549100596370,
-                2876334031716046261,
-            ],
-            Package::N1 => [
-                8020921799501217406,
-                18145530998824220440,
-                8946753667183584570,
-                9385901100025494867,
-            ],
-        }
     }
 }
 
@@ -220,8 +218,8 @@ pub struct SizePart {
 /// The parts of the memory circuit of `geometry` and `app`: the phases of its
 /// rows (the sponges, the hash bindings, the memory rows, and the
 /// application's rows), then the regions of its witness words. They sum to
-/// the application size of `Circuit::compile` for `geometry` and `app`, and
-/// `scripts/fprime_breakdown.py` charts them. It builds no Stage 1 package.
+/// the application size of `Circuit::compile` for `geometry` and `app`. It
+/// builds no step package.
 pub fn size_parts<A: Application>(geometry: &Geometry, app: &A) -> Result<Vec<SizePart>, crate::Error> {
     if !geometry.is_valid() {
         return Err(crate::Error::Circuit("the memory geometry breaks SPEC.md section 7.1"));
@@ -266,8 +264,8 @@ pub struct Circuit<A> {
 impl<A: Application> Circuit<A> {
     /// Build the memory relation of a valid, secure geometry (Lean
     /// `Geometry.Valid` and `Geometry.Secure`) and `app` in Rust, and compile
-    /// it with the embedded Stage 1 reference package. `app` must have the
-    /// geometry's `b_ops` ports (Lean `PortApp.portsLength`).
+    /// it into the embedded step packages (`crate::Circuit::compile`). `app`
+    /// must have the geometry's `b_ops` ports (Lean `PortApp.portsLength`).
     pub fn compile(geometry: Geometry, app: A) -> Result<Self, crate::Error> {
         if !geometry.is_valid() || !geometry.is_secure() {
             return Err(crate::Error::Circuit("the memory geometry breaks SPEC.md section 7.1"));
@@ -275,14 +273,14 @@ impl<A: Application> Circuit<A> {
         check_port_count(&geometry, &app)?;
         let application = circuit::memory_circuit(&geometry, &app)?;
         Ok(Self {
-            circuit: crate::Circuit::compile_memory(application)?,
+            circuit: crate::Circuit::compile(application)?.into_memory(),
             geometry,
             app,
         })
     }
 
     /// Save a `Circuit::compile` circuit for a prover in another process
-    /// (`crate::Prover::load`). The destination must not exist. A Lean
+    /// (`Prover::load`). The destination must not exist. A Lean
     /// package has no Rust application to save. A verifier compiles its own
     /// circuit and never loads this file.
     pub fn write(&self, path: impl AsRef<std::path::Path>) -> Result<(), crate::Error> {
@@ -323,7 +321,8 @@ impl<A: Application> Circuit<A> {
         Ok(Verifier::new(
             self.geometry,
             self.app.clone(),
-            crate::Verifier::of_memory(&self.circuit, engine, minimum_security_bits)?,
+            self.circuit
+                .stage1_verifier(engine, minimum_security_bits)?,
         ))
     }
 }

@@ -1,36 +1,36 @@
 //! SPEC.md section 9 rejection cases that need an invalid witness. Each case changes
 //! one record or word of an honest run and keeps every other value
-//! consistent. The faulty invocation is proved last without the prover's
-//! assertion check. Two results are required: the verifier rejects the proof
-//! at the fresh CCS relation, and the first assertion row that the witness
-//! fails is in the named check. The names come from Lean
-//! (`tests/fixtures/nebula-memory-*-rows.json`).
+//! consistent, and the faulty invocation is proved last. Two results are
+//! required: the verifier rejects the proof at the fresh instance, and the
+//! first row of the step relation that the witness fails is in the named
+//! check. The names come from Lean (`tests/fixtures/nebula-memory-*-rows.json`)
+//! and count from the application's first row. The Rust-built memory relation
+//! has Lean's rows (`tests/nebula/parity.rs`), and option B puts them first in
+//! each step relation, without the rows of its Poseidon2 blocks.
 
 use std::ops::Range;
 
 use super::*;
-use crate::lifecycle::{VerifyError, FAILED_ASSERTION_ROW, UNCHECKED_WITNESS};
-use crate::nebula::{Machine, MachineState, Package, Step};
-use crate::{Engine, Error, Proof, Prover, Verifier};
+use crate::lifecycle::option_b::{OptionBError, CHECK_ROWS, FAILED_ROW};
+use crate::nebula::{Circuit, Machine, MachineState, Package, Step};
+use crate::{Engine, Error};
+use crate::{Proof, Prover, Verifier};
 
 /// `loadi 5; store 0`, then `load 0; halt`.
 const EXECUTE: [Step; 2] = [Step::Execute, Step::Execute];
 
-/// A saved memory package and its row names.
+/// A memory geometry and its row names.
 struct Fixture {
-    artifact: &'static str,
     package: Package,
     rows: &'static [u8],
 }
 
 const FIRST: Fixture = Fixture {
-    artifact: "nightstream-fprime-stage2-nebula-memory-v1.json",
     package: Package::V1,
     rows: include_bytes!("../fixtures/nebula-memory-v1-rows.json"),
 };
 
 const N1: Fixture = Fixture {
-    artifact: "nightstream-fprime-stage2-nebula-memory-n1.json",
     package: Package::N1,
     rows: include_bytes!("../fixtures/nebula-memory-n1-rows.json"),
 };
@@ -40,32 +40,43 @@ struct Harness {
     prover: Prover,
     verifier: Verifier,
     checks: Vec<(String, Range<usize>)>,
+    /// The application row of each of the step relation's first rows.
+    kept: Vec<usize>,
 }
 
 impl Harness {
-    fn new(engine: Engine, fixture: &Fixture) -> Self {
-        let bytes = std::fs::read(
-            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-                .join("artifacts")
-                .join(fixture.artifact),
-        )
-        .expect("saved Lean memory package");
-        let loaded = fixture.package.load(&bytes).unwrap();
-        let rows = loaded.circuit.application_rows();
+    fn new(fixture: &Fixture) -> Self {
+        let circuit = Circuit::compile(fixture.package.geometry(), Machine).unwrap();
         let named: Vec<(String, usize, usize)> = serde_json::from_slice(fixture.rows).unwrap();
+        let application = circuit.circuit.application().unwrap();
         assert_eq!(
             named.last().map(|check| check.2),
-            Some(rows.len()),
+            Some(application.row_count()),
             "names cover the rows"
         );
+        let records = application.records();
+        let first = application.generated_range().start;
+        let mut blocked = vec![false; records.row_count()];
+        for block in &application.shape().blocks {
+            for local in block.first_local..block.first_local + 1096 {
+                blocked[records.recipe_row(local - first).unwrap()] = true;
+            }
+        }
+        let kept = (0..records.row_count())
+            .filter(|&row| !blocked[row])
+            .collect();
         Self {
             context: Context::new(Machine, &fixture.package.program()),
-            prover: loaded.circuit.prover(engine, 114).unwrap(),
-            verifier: Verifier::of_memory(&loaded.circuit, engine, 114).unwrap(),
+            prover: circuit.circuit.prover(Engine::Optimized, 109).unwrap(),
+            verifier: circuit
+                .circuit
+                .stage1_verifier(Engine::Optimized, 109)
+                .unwrap(),
             checks: named
                 .into_iter()
-                .map(|(name, first, end)| (name, rows.start + first..rows.start + end))
+                .map(|(name, first, end)| (name, first..end))
                 .collect(),
+            kept,
         }
     }
 
@@ -88,25 +99,24 @@ impl Harness {
     /// assertion check. Require the rejection at the fresh relation, and
     /// require that the first failing row is in `check`.
     fn reject(&self, proof: Option<&Proof>, invocation: &Invocation, check: &str) {
-        UNCHECKED_WITNESS.set(true);
-        FAILED_ASSERTION_ROW.set(None);
+        CHECK_ROWS.set(true);
+        FAILED_ROW.set(None);
         let proved = self.step(proof, invocation);
-        UNCHECKED_WITNESS.set(false);
+        CHECK_ROWS.set(false);
         let bad = proved.unwrap();
-        let row = FAILED_ASSERTION_ROW
-            .take()
-            .expect("the faulty witness fails an assertion row");
-        let named = self
-            .checks
-            .iter()
-            .find(|(_, rows)| rows.contains(&row))
-            .map(|(name, _)| name.as_str());
+        let row = FAILED_ROW.take().expect("the faulty witness fails a row");
+        let named = self.kept.get(row).and_then(|row| {
+            self.checks
+                .iter()
+                .find(|(_, rows)| rows.contains(row))
+                .map(|(name, _)| name.as_str())
+        });
         assert_eq!(named, Some(check), "first failing row {row}");
         eprintln!("rejected at row {row} ({check})");
         assert!(
             matches!(
-                self.verifier.verify(bad.state(), &bad),
-                Err(Error::Verify(VerifyError::FreshRelation(_)))
+                self.verifier.verify(&bad.state(), &bad),
+                Err(Error::OptionB(OptionBError::Fresh(_)))
             ),
             "{check}"
         );
@@ -160,8 +170,8 @@ struct FirstSegment {
     final_: Vec<Cell>,
 }
 
-fn conformance(engine: Engine) {
-    let h = Harness::new(engine, &FIRST);
+fn conformance() {
+    let h = Harness::new(&FIRST);
     let (geometry, program) = (h.context.geometry(), h.context.program());
     let ram = geometry.rom_size();
     let memory = initial_memory(&program.rom, &program.ram);
@@ -176,6 +186,21 @@ fn conformance(engine: Engine) {
         let mut changed = honest.invocations[0].clone();
         changed.words[word] += F::ONE;
         h.reject(None, &changed, "state_in");
+    }
+
+    // An auxiliary word that is not its honest value (SPEC.md section 7.3,
+    // Lean `AuxHonest`): a start product, a counter, and a factor word of an
+    // operation fingerprint and of a scan fingerprint.
+    let layout = &h.context.layout;
+    for (word, check) in [
+        (layout.start(0, 0), "arm start products"),
+        (layout.cnt(0), "O2 slot 0"),
+        (layout.ops_factor(0, 1, 2), "O9 slot 0"),
+        (layout.scan_factor(0, 0, 4), "S2 slot 0"),
+    ] {
+        let mut changed = honest.invocations[0].clone();
+        changed.words[word] += F::ONE;
+        h.reject(None, &changed, check);
     }
 
     // A base arm that reads the `D_seen` headers from the witness, not from
@@ -203,7 +228,6 @@ fn conformance(engine: Engine) {
 
     // An auxiliary bit equal to −1, with the same diff word: O1.
     let mut changed = honest.invocations[1].clone();
-    let layout = &h.context.layout;
     let (bit0, bit1) = (layout.op(0, layout.op_diff(0)), layout.op(0, layout.op_diff(1)));
     assert_eq!((changed.words[bit0], changed.words[bit1]), (F::ONE, F::ZERO));
     changed.words[bit0] = -F::ONE;
@@ -290,14 +314,7 @@ fn conformance(engine: Engine) {
 #[test]
 #[ignore = "Production-profile memory proofs; run separately under the 300-second cap."]
 fn memory_rejections_on_cpu() {
-    conformance(Engine::Optimized);
-}
-
-#[cfg(feature = "metal")]
-#[test]
-#[ignore = "Production-profile memory proofs on Metal; run separately under the 300-second cap."]
-fn memory_rejections_on_metal() {
-    conformance(Engine::Metal);
+    conformance();
 }
 
 /// SPEC.md section 7.4: the native packing that the chains read puts at most 63 bits
@@ -314,8 +331,8 @@ fn packing_puts_at_most_63_bits_in_one_element() {
 
 /// The case that the first geometry cannot reach: its ROM fills its address
 /// space, so it has no O6 rows. The second geometry has `r < μ`.
-fn n1_conformance(engine: Engine) {
-    let h = Harness::new(engine, &N1);
+fn n1_conformance() {
+    let h = Harness::new(&N1);
     // A ROM address with a bit at or above `r`: O6.
     let invocations = h.first_segment(|s| {
         if let Some(step) = s.executed.first_mut() {
@@ -328,12 +345,5 @@ fn n1_conformance(engine: Engine) {
 #[test]
 #[ignore = "Production-profile memory proofs; run separately under the 300-second cap."]
 fn n1_rejections_on_cpu() {
-    n1_conformance(Engine::Optimized);
-}
-
-#[cfg(feature = "metal")]
-#[test]
-#[ignore = "Production-profile memory proofs on Metal; run separately under the 300-second cap."]
-fn n1_rejections_on_metal() {
-    n1_conformance(Engine::Metal);
+    n1_conformance();
 }

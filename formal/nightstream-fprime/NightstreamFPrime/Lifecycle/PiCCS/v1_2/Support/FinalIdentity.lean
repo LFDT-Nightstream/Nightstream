@@ -108,7 +108,7 @@ theorem flatConstraints_varsSatisfy (interface : Interface) (offset : Nat)
       roundPointSupport coordinate)
     (by intro coordinate; simpa [pointInterfaceAt] using alphaSupport coordinate)
     pointLocal
-  have matrixRows := Power.flatConstraints_varsSatisfy matrixExponent
+  have matrixRows := Power.flatConstraints_varsSatisfy (matrixExponentOf productionShape)
     (matrixPowerInterfaceAt interface offset) (matrixOffset interface offset)
     allowed (by simpa [matrixPowerInterfaceAt] using gammaSupport) matrixLocal
   have pointOutputSupport := PointEquality.Owned.output_varsSatisfy
@@ -117,7 +117,7 @@ theorem flatConstraints_varsSatisfy (interface : Interface) (offset : Nat)
       roundPointSupport coordinate)
     (by intro coordinate; simpa [pointInterfaceAt] using alphaSupport coordinate)
     pointLocal
-  have matrixOutputSupport := Power.output_varsSatisfy matrixExponent
+  have matrixOutputSupport := Power.output_varsSatisfy (matrixExponentOf productionShape)
     (matrixPowerInterfaceAt interface offset) (matrixOffset interface offset)
     allowed (by simpa [matrixPowerInterfaceAt] using gammaSupport) matrixLocal
   have constraintPointSupport : Horner.KSupported
@@ -125,11 +125,11 @@ theorem flatConstraints_varsSatisfy (interface : Interface) (offset : Nat)
         (constraintOffset interface offset)) allowed := by
     simpa [constraintPowerInterfaceAt, gammaMatrixOutput] using
       matrixOutputSupport
-  have constraintRows := Power.flatConstraints_varsSatisfy constraintFactor
+  have constraintRows := Power.flatConstraints_varsSatisfy (constraintFactorOf productionShape)
     (constraintPowerInterfaceAt interface offset)
     (constraintOffset interface offset) allowed constraintPointSupport
     constraintLocal
-  have constraintOutputSupport := Power.output_varsSatisfy constraintFactor
+  have constraintOutputSupport := Power.output_varsSatisfy (constraintFactorOf productionShape)
     (constraintPowerInterfaceAt interface offset)
     (constraintOffset interface offset) allowed constraintPointSupport
     constraintLocal

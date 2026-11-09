@@ -14,21 +14,26 @@ def allowedAxioms : Array Name := #[``propext, ``Classical.choice, ``Quot.sound]
 elab "#audit_library_axioms " root:ident : command => do
   let env ← getEnv
   let mut count := 0
-  for (name, info) in env.constants.toList do
-    unless info matches .thmInfo _ do continue
-    let some idx := env.getModuleIdxFor? name | continue
-    unless root.getId.isPrefixOf env.header.moduleNames[idx.toNat]! do continue
-    count := count + 1
-    let bad := (← liftCoreM (collectAxioms name)).filter fun a => !allowedAxioms.contains a
-    unless bad.isEmpty do
-      throwError m!"{name} depends on disallowed axioms: {bad}"
+  -- The constants of the imported modules under `root`, without a pass over Mathlib's: this
+  -- command runs in the interpreter.
+  for idx in [0:env.header.moduleNames.size] do
+    unless root.getId.isPrefixOf env.header.moduleNames[idx]! do continue
+    for name in env.header.moduleData[idx]!.constNames do
+      unless (env.getModuleIdxFor? name).map (·.toNat) == some idx do continue
+      unless env.find? name matches some (.thmInfo _) do continue
+      count := count + 1
+      let bad := (← liftCoreM (collectAxioms name)).filter fun a => !allowedAxioms.contains a
+      unless bad.isEmpty do
+        throwError m!"{name} depends on disallowed axioms: {bad}"
   logInfo m!"{count} theorems in {root.getId} use only {allowedAxioms}"
 elab "#no_package_axioms" : command => do
   let env ← getEnv
   let roots := `CompressionLean :: upperRoots
-  let mut declared := env.constants.toList.filterMap fun (name, info) =>
-    let m := if (env.getModuleIdxFor? name).isSome then moduleOf env name else env.mainModule
-    if info matches .axiomInfo _ && roots.contains m.getRoot then some name else none
+  let mut declared := env.constants.fold (init := []) fun declared name info =>
+    if info matches .axiomInfo _ then
+      let m := if (env.getModuleIdxFor? name).isSome then moduleOf env name else env.mainModule
+      if roots.contains m.getRoot then name :: declared else declared
+    else declared
   -- This file imports the library and every gate, so only executables remain. Lake builds
   -- them first (`needs`), except `Status`, which imports a gate.
   for m in ← modulesUnder "CompressionLeanExe" do

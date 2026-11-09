@@ -214,19 +214,22 @@ fn key(rows: &dyn MatrixRows, tables: &Tables, dir: Option<&Path>) -> Result<Key
     let root = setup::build(
         variables,
         kappa() + RUN_ORACLES,
-        |k| oracle(tables, blocks, k, variables),
+        |k, values| oracle(tables, blocks, k, values),
         dir,
     )?;
     key.root = root;
     Ok(key)
 }
 
-/// Setup oracle `k`: key row `k` on the cube for `k < κ`, then the run columns.
-fn oracle(tables: &Tables, blocks: usize, k: usize, variables: usize) -> Vec<Gl> {
+/// Setup oracle `k` into zeroed `column`: key row `k` on the cube for
+/// `k < κ`, then the run columns.
+fn oracle(tables: &Tables, blocks: usize, k: usize, column: &mut [Gl]) {
     if k >= kappa() {
-        return tables.setup_column(k - kappa(), variables);
+        return column
+            .par_iter_mut()
+            .enumerate()
+            .for_each(|(x, cell)| *cell = tables.setup_entry(k - kappa(), x));
     }
-    let mut column = vec![Gl::ZERO; 1 << variables];
     column
         .par_chunks_mut(LANES)
         .take(blocks)
@@ -237,7 +240,6 @@ fn oracle(tables: &Tables, blocks: usize, k: usize, variables: usize) -> Vec<Gl>
                 *cell = from_word(coefficient);
             }
         });
-    column
 }
 
 /// The prover's setup: the key, the run and slot tables, and the setup files.

@@ -1,42 +1,35 @@
-//! Loader and execution boundary for the Lean-owned Nightstream F′ package.
-//!
-//! Owns strict decoding, identity binding, generic sparse-matrix expansion,
-//! and witness-program execution. It does not own the F′ relation, its circuit
-//! structure, or a proof backend.
+//! Loader for the Lean-emitted option-B step packages (`option_b`), with the
+//! application records and the PiCCS transcripts of the light and refresh
+//! folds. It does not own the F′ relation, its circuit structure, or a proof
+//! backend.
 
 #[cfg(test)]
 extern crate self as nightstream_fprime;
 
 mod application_records;
-pub mod components;
+mod components;
 mod identity;
+mod option_b;
 mod package;
-mod proof;
-mod sparse;
 mod witness;
 
 pub use application_records::{
     ApplicationForm, ApplicationRecipeNode, ApplicationRecords, ApplicationRecordsWriter, ApplicationRowHeader,
     ApplicationTerm,
 };
-
-pub use identity::{
-    PackageIdentity, PiCcsV1_2VerifierContext, Stage1VerifierBinding, StructuralIdentifier, VerificationKeyDigest,
-    POSEIDON2_HASH_CHAIN_V1_PACKAGE_IDENTITY, POSEIDON2_HASH_CHAIN_V1_STRUCTURAL_IDENTIFIER,
-    POSEIDON2_HASH_CHAIN_V1_VERIFICATION_KEY_DIGEST,
+pub use option_b::{
+    layout::LogicalLayout,
+    load_option_b_finish, load_option_b_packages, load_pinned_option_b_finish, load_pinned_option_b_packages,
+    option_b_identity, parse_atoms,
+    words::{encode_digest, Child, FoldWords, KWords, Slot, State as OptionBState, StepWords, PUBLIC_WORDS},
+    Linear, NativeBlock, NativeShape, OptionBPackages, PlanRows, StepPackage, OPTION_B_FINISH_IDENTITY,
+    OPTION_B_PACKAGES_IDENTITY,
 };
 pub use package::{
-    derive_pi_ccs_v1_2_transcript, load_per_application_package, load_poseidon2_hash_chain_v1_package,
-    load_prepared_application_records, load_prepared_package, load_terminal_package, CcsMatrixSource, IdentityKind,
-    LoadedApplicationPlan, LoadedAssignmentPlan, LoadedPackage, LoadedPerApplicationPackage, LoadedTerminalLayout,
-    LogicalAssignment, LogicalMatrixEntry, LogicalMatrixRow, MatrixRun, PackageCcsRelation, PackageError,
-    PackagePolynomialTerm, PackageR1cs, PackageSparseMatrix, PiCcsV1_2EncodedInputs, PiCcsV1_2OutputEvaluations,
-    PiCcsV1_2PackageInputs, PiCcsV1_2Transcript, PiDecV1_2PackageInputs, TerminalOutputs, DECOMPOSITION_BASE,
-    DECOMPOSITION_K_RHO, DECOMPOSITION_NORM_BOUND, PI_CCS_V1_2_COEFFICIENT_COUNT, PI_CCS_V1_2_FRESH_COMMITMENT_WORDS,
-    PI_CCS_V1_2_MATRIX_COUNT, PI_CCS_V1_2_PRIOR_CHILDREN_WORDS, PI_CCS_V1_2_PRIOR_PUBLIC_INPUT_WORDS,
-    PI_CCS_V1_2_ROUND_COEFFICIENT_COUNT, PI_CCS_V1_2_ROUND_COUNT, PI_CCS_V1_2_SOURCE_COUNT,
-    PI_CCS_V1_2_STATE_PREIMAGE_WORDS, PI_CCS_V1_2_VERIFIER_CONTEXT_WORDS, PI_DEC_V1_2_CHILD_COUNT,
-    PI_DEC_V1_2_COMMITMENT_WORDS_PER_CHILD, PI_DEC_V1_2_EVAL_A_MATRICES_PER_CHILD, PI_DEC_V1_2_EVAL_K_VALUES_PER_CHILD,
-    PI_DEC_V1_2_PUBLIC_INPUT_WORDS_PER_CHILD, PREPARED_FIXED_SOURCE_NODE_LIMIT,
+    derive_light_transcript, derive_refresh_transcript, IdentityKind, PackageError, PiCcsV1_2Transcript, LIGHT_DOMAIN,
+    PI_CCS_V1_2_ROUND_COUNT, REFRESH_DOMAIN,
 };
-pub use proof::WitnessAssignment;
+pub(crate) use package::{
+    DECOMPOSITION_BASE, DECOMPOSITION_K_RHO, DECOMPOSITION_NORM_BOUND, PI_CCS_V1_2_COEFFICIENT_COUNT,
+    PI_CCS_V1_2_MATRIX_COUNT,
+};

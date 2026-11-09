@@ -144,7 +144,7 @@ theorem completeness (env : Env) (inputs : Application.InputsBelow i offset)
       Application.Valid (valid p app) i offset env) :
     ∃ completed, AgreesOutside env completed offset (localLength (opsAt p app i offset)) ∧
       holdsFlat completed (opsAt p app i offset) := by
-  obtain ⟨holdsStep, rowsHold, appRows⟩ := specification
+  obtain ⟨holdsStep, rowsHold, appRows, auxHonest⟩ := specification
   obtain ⟨children, operations⟩ := children_complete p app i offset inputs env
   have agreesBelow : ∀ index, index < offset → children.current index = env index :=
     fun index below => children.agrees index (Or.inl below)
@@ -289,7 +289,7 @@ theorem completeness (env : Env) (inputs : Application.InputsBelow i offset)
     · rw [Circuit.Expr.eval_sub, sub_eq_zero, wireFinal, lane, lane_eval, s3, s2, s1, etaState_eq]
       exact fresh3
     · rw [sub_eval, valuesEq]
-      exact (Rows.polyRows_iff p _ app).mpr ⟨rowsHold.toPolyRows,
+      exact (Rows.polyRows_iff p _ app).mpr ⟨rowsHold.toPolyRows, auxHonest,
         (congrArg (fun e => ConstraintsHold e app.rows) (view_env p app i offset env)).mp appRows⟩
         e' poly
 

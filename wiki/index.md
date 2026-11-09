@@ -5,10 +5,10 @@ Nightstream combines SuperNeo folding with HyperNova-style recursion over
 Goldilocks, Ajtai commitments, and Poseidon2 transcripts. The active formal
 authority is `formal/nightstream-fprime`.
 
-There is one application assembly and witness execution path. The wide
-PiRLC sampler is part of its canonical layout. The old lifecycle, WASM bridge,
-and Spartan consumer are retired. The current terminal verifier checks the
-fresh relation and running witness openings.
+Lean emits a light and a refresh step circuit. The Rust application takes
+the place of the Lean application in both. The state has two slots, one for
+the accumulator of each circuit. The verifier checks the fresh instance and
+the claims of both slots. `neo-spartan` compresses a proof into a final proof.
 
 The code remains research software. Independent review and the concrete
 Fiat–Shamir security argument are separate from component conformance.

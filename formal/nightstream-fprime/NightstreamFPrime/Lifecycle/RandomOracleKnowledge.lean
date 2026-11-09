@@ -1,7 +1,8 @@
 import NightstreamFPrime.Lifecycle.RandomOracleUniqueness
 import NightstreamFPrime.Lifecycle.Nifs.VerifierErrorBudget
 
-/-! Random-oracle model, SECURITY_MODEL.md Lemmas 5 and 6. -/
+/-! Random-oracle model, the one-circuit chain's knowledge bound from its fork step
+(`RandomOracleExtraction`) and its uniqueness step (`RandomOracleUniqueness`). -/
 
 set_option autoImplicit false
 

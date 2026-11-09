@@ -50,8 +50,22 @@ def segBits (k : ℕ) : ℕ := tsBits p p.wTs + k
 def opsProducts (j c : ℕ) : ℕ := segBits p p.segWidth + 4 * j + c
 def scanProducts (j c : ℕ) : ℕ := opsProducts p p.bOps 0 + 4 * j + c
 
+/-- The counter `cnt_j` of operation slot `j` (row O2). -/
+def cnt (j : ℕ) : ℕ := scanProducts p p.bScan 0 + j
+
+/-- Coefficient `c` of start product `s` (0 RS, 1 WS, 2 IS, 3 FS). -/
+def start (s c : ℕ) : ℕ := cnt p p.bOps + 2 * s + c
+
+/-- Factor word `c` of the fingerprint `pair` (0 read, 1 write) of operation
+slot `j` (`Rows.gatedRows`). -/
+def opsFactor (j pair c : ℕ) : ℕ := start p 4 0 + 16 * j + 8 * pair + c
+
+/-- Factor word `c` of the fingerprint `pair` (0 IS, 1 FS) of scan slot `j`
+(`Rows.factorRows`). -/
+def scanFactor (j pair c : ℕ) : ℕ := opsFactor p p.bOps 0 0 + 12 * j + 6 * pair + c
+
 /-- The number of memory words. The application's words follow them. -/
-def memoryCount : ℕ := scanProducts p p.bScan 0
+def memoryCount : ℕ := scanFactor p p.bScan 0 0
 
 variable (a : AppShape)
 

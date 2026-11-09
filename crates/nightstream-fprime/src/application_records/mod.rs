@@ -10,7 +10,6 @@ use crate::PackageError;
 
 mod codec;
 mod storage;
-pub(crate) use storage::PrivateSnapshot;
 use storage::{read_word, Reader, RecipeStack, Writer};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

@@ -12,7 +12,8 @@ foldable. `#![forbid(unsafe_code)]`.
   (`s_mul`, `s_lincomb`, `scale_commitment*`), which is what lets Π_RLC mix
   commitments by challenges without opening them.
 - **(d, m, B)-binding** — binding holds only for openings with ℓ∞ norm below `B`;
-  this is why Π_DEC must re-normalize the accumulator every fold.
+  this is why a refresh fold splits the accumulator with Π_DEC before its norm
+  reaches `B`.
 - **Pay-per-bit** — commitment cost scales with witness bit-width (Sec. 3.2–3.3),
   the property the low-norm F′ bit-image layout exploits.
 

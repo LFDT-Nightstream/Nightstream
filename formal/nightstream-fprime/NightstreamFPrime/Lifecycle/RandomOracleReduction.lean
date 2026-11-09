@@ -1,7 +1,8 @@
 import NightstreamFPrime.Lifecycle.RandomOracleBinding
 import NightstreamFPrime.Spec.RandomOracleBudget
 
-/-! SECURITY_MODEL.md Lemma 6, binding reduction as an algorithm. -/
+/-! The one-circuit random-oracle chain, uniqueness step (`RandomOracleUniqueness`): binding
+reduction as an algorithm. -/
 
 set_option autoImplicit false
 

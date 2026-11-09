@@ -80,9 +80,17 @@ theorem scanWidth_pos : 0 < p.scanWidth := by simp [Geometry.scanWidth]
 
 theorem memoryCount_eq : Words.memoryCount p = 109 + p.bOps * Words.opWords p +
     p.bScan * p.scanWidth + p.bScan * p.scanWidth + p.wTs + p.segWidth + 4 * p.bOps +
-    4 * p.bScan := by
-  simp only [Words.memoryCount, Words.scanProducts, Words.opsProducts, Words.segBits,
-    Words.tsBits, Words.finalStart, Words.initialStart]
+    4 * p.bScan + (p.bOps + 8 + 16 * p.bOps + 12 * p.bScan) := by
+  simp only [Words.memoryCount, Words.scanFactor, Words.opsFactor, Words.start, Words.cnt,
+    Words.scanProducts, Words.opsProducts, Words.segBits, Words.tsBits, Words.finalStart,
+    Words.initialStart]
+  omega
+
+/-- The auxiliary words follow the products and end the memory words. -/
+theorem aux_bounds : Words.cnt p 0 = Words.scanProducts p 0 0 + 4 * p.bScan ∧
+    Words.memoryCount p = Words.cnt p 0 + (p.bOps + 8 + 16 * p.bOps + 12 * p.bScan) := by
+  simp only [Words.memoryCount, Words.scanFactor, Words.opsFactor, Words.start, Words.cnt,
+    Words.scanProducts, Words.opsProducts]
   omega
 
 theorem count_eq : Words.count p a = Words.memoryCount p + 2 * a.width + a.aux := rfl
@@ -90,6 +98,21 @@ theorem count_eq : Words.count p a = Words.memoryCount p + 2 * a.width + a.aux :
 end Words
 
 /-! ### The word vector -/
+
+/-- Word `i` of the auxiliary words of a step witness, in the order of
+`Words.cnt` to `Words.scanFactor`; `0` past them. -/
+def StepWitness.auxAt (w : StepWitness p a) (i : ℕ) : F :=
+  if h : i < p.bOps then w.auxWords.cnt ⟨i, h⟩
+  else if h : i < p.bOps + 8 then
+    w.auxWords.start ⟨(i - p.bOps) / 2, by omega⟩ ⟨(i - p.bOps) % 2, Nat.mod_lt _ (by decide)⟩
+  else if h : i < p.bOps + 8 + 16 * p.bOps then
+    w.auxWords.ops ⟨(i - p.bOps - 8) / 16, by omega⟩ ⟨(i - p.bOps - 8) % 16 / 8, by omega⟩
+      ⟨(i - p.bOps - 8) % 8, Nat.mod_lt _ (by decide)⟩
+  else if h : i < p.bOps + 8 + 16 * p.bOps + 12 * p.bScan then
+    w.auxWords.scan ⟨(i - p.bOps - 8 - 16 * p.bOps) / 12, by omega⟩
+      ⟨(i - p.bOps - 8 - 16 * p.bOps) % 12 / 6, by omega⟩
+      ⟨(i - p.bOps - 8 - 16 * p.bOps) % 6, Nat.mod_lt _ (by decide)⟩
+  else 0
 
 /-- Word `k` past the three slot ranges: the counters, the products, and the
 application words; `0` past `Words.count p a`. -/
@@ -102,10 +125,11 @@ def StepWitness.tailWord (w : StepWitness p a) (k : ℕ) : F :=
     w.opsProducts ⟨(k - Words.opsProducts p 0 0) / 4,
         by simp only [Words.scanProducts, Words.opsProducts] at h ⊢; omega⟩
       ⟨(k - Words.opsProducts p 0 0) % 4, Nat.mod_lt _ (by decide)⟩
-  else if h : Words.scanProducts p 0 0 ≤ k ∧ k < Words.memoryCount p then
+  else if h : Words.scanProducts p 0 0 ≤ k ∧ k < Words.cnt p 0 then
     w.scanProducts ⟨(k - Words.scanProducts p 0 0) / 4,
-        by simp only [Words.memoryCount, Words.scanProducts] at h ⊢; omega⟩
+        by simp only [Words.cnt, Words.scanProducts] at h ⊢; omega⟩
       ⟨(k - Words.scanProducts p 0 0) % 4, Nat.mod_lt _ (by decide)⟩
+  else if _h : Words.cnt p 0 ≤ k ∧ k < Words.memoryCount p then w.auxAt (k - Words.cnt p 0)
   else if h : Words.memoryCount p ≤ k ∧ k < Words.memoryCount p + a.width then
     w.appIn ⟨k - Words.memoryCount p, by omega⟩
   else if h : Words.memoryCount p + a.width ≤ k ∧ k < Words.memoryCount p + 2 * a.width then
@@ -217,8 +241,9 @@ theorem wordAt_tail {k : ℕ} (past : Words.tsBits p 0 ≤ k) : w.wordAt k = w.t
 theorem tail_order : Words.tsBits p 0 ≤ Words.segBits p 0 ∧
     Words.segBits p 0 ≤ Words.opsProducts p 0 0 ∧
     Words.opsProducts p 0 0 ≤ Words.scanProducts p 0 0 ∧
-    Words.scanProducts p 0 0 ≤ Words.memoryCount p := by
-  simp only [Words.memoryCount, Words.scanProducts, Words.opsProducts, Words.segBits, Words.tsBits]
+    Words.scanProducts p 0 0 ≤ Words.cnt p 0 ∧ Words.cnt p 0 ≤ Words.memoryCount p := by
+  have := Words.aux_bounds (p := p)
+  simp only [Words.scanProducts, Words.opsProducts, Words.segBits, Words.tsBits] at this ⊢
   omega
 
 theorem wordAt_appIn (i : Fin a.width) : w.wordAt (Words.appIn p i) = w.appIn i := by
@@ -285,10 +310,59 @@ theorem wordAt_scanProducts (j : Fin p.bScan) (c : Fin 4) :
   have scan : Words.scanProducts p 0 0 = Words.finalStart p + p.bScan * p.scanWidth + p.wTs +
       p.segWidth + 4 * p.bOps := by
     simp only [Words.scanProducts, Words.opsProducts, Words.segBits, Words.tsBits]; omega
-  have count : Words.memoryCount p = Words.scanProducts p 0 0 + 4 * p.bScan := by
-    simp only [Words.memoryCount, Words.scanProducts]; omega
+  have count : Words.cnt p 0 = Words.scanProducts p 0 0 + 4 * p.bScan := (Words.aux_bounds (p := p)).1
   rw [wordAt_tail w (by omega)]
   unfold StepWitness.tailWord
+  rw [dite_eq_right (by omega), dite_eq_right (by omega), dite_eq_right (by omega), dite_eq_left (by omega)]
+  congr 1 <;> ext <;> simp only <;> omega
+
+theorem wordAt_auxAt {i : ℕ} (small : i < p.bOps + 8 + 16 * p.bOps + 12 * p.bScan) :
+    w.wordAt (Words.cnt p 0 + i) = w.auxAt i := by
+  have := tail_order (p := p)
+  have := Words.aux_bounds (p := p)
+  rw [wordAt_tail w (by omega)]
+  unfold StepWitness.tailWord
+  simp (disch := omega) only [dite_eq_right, dite_eq_left, Nat.add_sub_cancel_left]
+
+theorem wordAt_cnt (j : Fin p.bOps) : w.wordAt (Words.cnt p j) = w.auxWords.cnt j := by
+  have := j.isLt
+  rw [show Words.cnt p j = Words.cnt p 0 + j.val by simp only [Words.cnt]; omega,
+    wordAt_auxAt w (by omega)]
+  unfold StepWitness.auxAt
+  rw [dite_eq_left j.isLt]
+
+theorem wordAt_start (s : Fin 4) (c : Fin 2) : w.wordAt (Words.start p s c) = w.auxWords.start s c := by
+  have := s.isLt
+  have := c.isLt
+  rw [show Words.start p s c = Words.cnt p 0 + (p.bOps + 2 * s.val + c.val) by
+      simp only [Words.start, Words.cnt]; omega,
+    wordAt_auxAt w (by omega)]
+  unfold StepWitness.auxAt
+  rw [dite_eq_right (by omega), dite_eq_left (by omega)]
+  congr 1 <;> ext <;> simp only <;> omega
+
+theorem wordAt_opsFactor (j : Fin p.bOps) (pair : Fin 2) (c : Fin 8) :
+    w.wordAt (Words.opsFactor p j pair c) = w.auxWords.ops j pair c := by
+  have := j.isLt
+  have := pair.isLt
+  have := c.isLt
+  rw [show Words.opsFactor p j pair c = Words.cnt p 0 + (p.bOps + 8 + (16 * j.val + 8 * pair.val + c.val)) by
+      simp only [Words.opsFactor, Words.start, Words.cnt]; omega,
+    wordAt_auxAt w (by omega)]
+  unfold StepWitness.auxAt
+  rw [dite_eq_right (by omega), dite_eq_right (by omega), dite_eq_left (by omega)]
+  congr 1 <;> ext <;> simp only <;> omega
+
+theorem wordAt_scanFactor (j : Fin p.bScan) (pair : Fin 2) (c : Fin 6) :
+    w.wordAt (Words.scanFactor p j pair c) = w.auxWords.scan j pair c := by
+  have := j.isLt
+  have := pair.isLt
+  have := c.isLt
+  rw [show Words.scanFactor p j pair c =
+        Words.cnt p 0 + (p.bOps + 8 + 16 * p.bOps + (12 * j.val + 6 * pair.val + c.val)) by
+      simp only [Words.scanFactor, Words.opsFactor, Words.start, Words.cnt]; omega,
+    wordAt_auxAt w (by omega)]
+  unfold StepWitness.auxAt
   rw [dite_eq_right (by omega), dite_eq_right (by omega), dite_eq_right (by omega), dite_eq_left (by omega)]
   congr 1 <;> ext <;> simp only <;> omega
 
@@ -352,6 +426,35 @@ theorem ofWords_words : StepWitness.ofWords p a (MemoryApp.wordOf w.words) = w :
   · funext i; have := i.isLt; rw [read _ (by simp only [Words.appIn]; omega), wordAt_appIn]
   · funext i; have := i.isLt; rw [read _ (by simp only [Words.appOut]; omega), wordAt_appOut]
   · funext i; have := i.isLt; rw [read _ (by simp only [Words.aux]; omega), wordAt_aux]
+
+/-- The word list of a witness holds its honest auxiliary words. -/
+theorem auxHonest_words : AuxHonest p a (MemoryApp.wordOf w.words) := by
+  have bounds := Words.aux_bounds (p := p)
+  have total : Words.count p a = Words.memoryCount p + 2 * a.width + a.aux := rfl
+  have read : ∀ k, k < Words.count p a → MemoryApp.wordOf w.words k = w.wordAt k :=
+    fun _ hk => wordOf_words w hk
+  unfold AuxHonest
+  rw [ofWords_words]
+  show AuxWords.mk _ _ _ _ = AuxWords.mk w.auxWords.cnt w.auxWords.start w.auxWords.ops w.auxWords.scan
+  congr 1
+  · funext j
+    have := j.isLt
+    rw [read _ (by simp only [Words.cnt] at bounds ⊢; omega), wordAt_cnt]
+  · funext s c
+    have := s.isLt
+    have := c.isLt
+    rw [read _ (by simp only [Words.start, Words.cnt] at bounds ⊢; omega), wordAt_start]
+  · funext j pair c
+    have := j.isLt
+    have := pair.isLt
+    have := c.isLt
+    rw [read _ (by simp only [Words.opsFactor, Words.start, Words.cnt] at bounds ⊢; omega), wordAt_opsFactor]
+  · funext j pair c
+    have := j.isLt
+    have := pair.isLt
+    have := c.isLt
+    rw [read _ (by simp only [Words.scanFactor, Words.opsFactor, Words.start, Words.cnt] at bounds ⊢; omega),
+      wordAt_scanFactor]
 
 /-- `MemoryApp.decode` reads the word list of a witness back as the witness. -/
 theorem decode_words {app : PortApp p} (w : StepWitness p app.toAppShape) :

@@ -220,7 +220,16 @@ theorem freshRange?_value (input : PiCCSPublicReplay.Input)
           (referencePair input witness powers alpha (first + count))) = _
       simp only [PiCCSPolynomialRange.range, Nat.fold_succ]
 
-def activePairs : Nat := (selectedProgram.rowCount + 1) / 2
+/-- The pairs of `program`'s rows. The kernel checks a closed `(selectedProgram.rowCount + 1) / 2` against
+`activePairs` by evaluating the selected program; through this function it rewrites instead
+(`activePairsOf_eq`). -/
+def activePairsOf (program : NightstreamFPrime.Layout.MatrixProgram.Program) : Nat :=
+  (program.rowCount + 1) / 2
+
+def activePairs : Nat := activePairsOf selectedProgram
+
+private theorem activePairsOf_eq (program : NightstreamFPrime.Layout.MatrixProgram.Program) :
+    activePairsOf program = (program.rowCount + 1) / 2 := rfl
 
 private theorem activePairs_le_domain : activePairs ≤ 2 ^ (cubeVariables - 1) := by
   have rows : selectedProgram.rowCount ≤ 2 ^ cubeVariables := by
@@ -228,6 +237,7 @@ private theorem activePairs_le_domain : activePairs ≤ 2 ^ (cubeVariables - 1) 
       Poseidon2HashChainV1Package.application Poseidon2HashChainV1Package.fits]
     exact PerApplicationFixedPoint.structuralPlan_rowCount_le
       Poseidon2HashChainV1Package.application Poseidon2HashChainV1Package.fits
+  rw [activePairs, activePairsOf_eq]
   change selectedProgram.rowCount ≤ 268435456 at rows
   change (selectedProgram.rowCount + 1) / 2 ≤ 134217728
   omega
@@ -277,7 +287,7 @@ private theorem referencePair_padding (input : PiCCSPublicReplay.Input)
   have beyond : selectedProgram.rowCount ≤ 2 * NumericBooleanDomain.index suffix := by
     rw [NumericBooleanDomain.index_vertex]
     change selectedProgram.rowCount ≤ 2 * index
-    change (selectedProgram.rowCount + 1) / 2 ≤ index at lower
+    rw [activePairs, activePairsOf_eq] at lower
     omega
   have zero := PiCCSFreshPolynomial.reference_ccsPolynomialWithPowers_zero extensionOps extensionLaws
     (PiCCSPublicReplay.verifierInput input) powers

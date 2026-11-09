@@ -16,8 +16,8 @@
 //! all of the logged instructions. The verifier's relation and WHIR keys go
 //! to `target/lean-lowering/layer1.json`, and `Linear`'s, `Honest`'s,
 //! `Late`'s and `Openings`' inputs to `linear.json`, `honest.json`,
-//! `late.json` and `openings.json`. `production_layer1_matches_lean` checks
-//! the verifier's shape run on the production key the same way.
+//! `late.json` and `openings.json`. `option_b_layer1_matches_lean` checks
+//! the verifier's shape run on both option-B slot keys the same way.
 
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
@@ -41,7 +41,7 @@ use crate::device::Accelerator;
 use crate::field::Gl;
 use crate::hash::seed;
 use crate::pcs::Pcs;
-use crate::shrink::{run_digest, Program, Shape};
+use crate::shrink::{run_digest, Program};
 use crate::{prove, Error, Key, Relation};
 
 /// A recorded value and its handle.
@@ -367,7 +367,7 @@ fn workspace() -> PathBuf {
 #[test]
 #[ignore = "needs the Lean check: lake build lowerCheck in formal/compression-lean"]
 fn lowering_matches_lean() {
-    let (toy, setup, _scratch) = setup_toy(8, 4, 6);
+    let (toy, setup, _scratch) = setup_toy(8, 64, 6);
     let relation = relation_of(&toy, setup.key());
     let proof = prove(
         &relation,
@@ -501,82 +501,50 @@ fn lower_check(name: &str, path: &Path, program: &[PathBuf]) -> String {
     stdout.into_owned()
 }
 
-/// The layer-1 key, PiRLC's bound and the layer bits of the production
-/// compression key (`nightstream`'s committed
-/// `tests/fixtures/compression/key.bin`).
-/// The file is the bincode of `CompressionKey` (`finish.rs`): these three,
-/// the context and the shrink shape.
-pub(super) fn production_key() -> (Key, u32, f64) {
-    let path = workspace().join("crates/nightstream/tests/fixtures/compression/key.bin");
-    let bytes = std::fs::read(&path).unwrap_or_else(|error| panic!("{}: {error}", path.display()));
-    let fields: (Key, [u64; 4], u32, f64, Shape) = bincode::deserialize(&bytes).unwrap();
-    assert!(
-        bincode::serialize(&fields).unwrap() == bytes,
-        "the fields are the whole key"
-    );
-    let (key, _, bound, bits, _) = fields;
-    (key, bound, bits)
+/// `OptionB::layer1_relation` (`lifecycle/option_b/compression.rs`): a slot
+/// claim has 270 public words and 28 point variables (`PUBLIC_WORDS`,
+/// `PI_CCS_V1_2_ROUND_COUNT`).
+fn slot_relation(key: &Key, bound: u32, bits: f64) -> Relation<'_> {
+    Relation::new(key, 270 / D, 28, bound, bits).unwrap()
 }
 
-/// `CompressionKey::relation` (`finish.rs`): the parent claim has 270 public
-/// words and 28 point variables (`PI_CCS_V1_2_PRIOR_PUBLIC_INPUT_WORDS`,
-/// `PI_CCS_V1_2_ROUND_COUNT`).
-fn production_relation(key: &Key, bound: u32, bits: f64) -> Relation<'_> {
-    Relation::new(key, 270 / D, 28, bound, bits).unwrap()
+/// Option B's two layer-1 relations, from the keys that nightstream's
+/// `option_b_layer1_keys_are_written` writes: their JSON for `optionBCheck`
+/// and Lean's key facts.
+#[test]
+#[ignore = "needs nightstream's option_b_layer1_keys_are_written and lake build lowerCheck"]
+fn option_b_layer1_matches_lean() {
+    for slot in 0..2 {
+        let name = format!("option_b_layer1_{slot}");
+        let bytes = std::fs::read(workspace().join(format!("target/lean-lowering/{name}.bin")))
+            .unwrap_or_else(|error| panic!("{name}.bin: {error}; run option_b_layer1_keys_are_written first"));
+        let (key, bound, bits): (Key, u32, f64) = bincode::deserialize(&bytes).unwrap();
+        let relation = slot_relation(&key, bound, bits);
+        let layer1 = Layer1::shape(&relation);
+        let path = export(&name, &layer1);
+        let input = workspace().join(format!("target/lean-lowering/{name}.json"));
+        std::fs::write(&input, layer1_input(&relation)).unwrap();
+        let stdout = lower_check(&name, &path, &["layer1".into(), input]);
+        assert!(
+            stdout.contains("key facts hold"),
+            "{name} must have the key facts: {stdout}"
+        );
+    }
 }
 
 /// The run digest of the layer-1 verifier's shape run, as `lowerCheck`
 /// computes it from Lean's program (`digest` on its `layer1` line). Update a
-/// pin only after its Lean check passes, from that line: the toy's in
-/// `lowering_matches_lean`, the production one in
-/// `production_layer1_matches_lean`.
+/// pin only after `lowering_matches_lean` passes, from that line.
 const TOY_LAYER1_DIGEST: [u64; 4] = [
-    458324187185090560,
-    16247591410920104884,
-    15972692791106074973,
-    17533094710872430588,
-];
-const PRODUCTION_LAYER1_DIGEST: [u64; 4] = [
-    14759964186554044085,
-    14010013228992140379,
-    13362137549864309408,
-    12845729127227193231,
+    8834770369655573788,
+    14965392242930551430,
+    6049222175714157944,
+    1350642674344842934,
 ];
 
 #[test]
 fn toy_layer1_digest_is_pinned() {
-    let (toy, setup, _scratch) = setup_toy(8, 4, 6);
+    let (toy, setup, _scratch) = setup_toy(8, 64, 6);
     let relation = relation_of(&toy, setup.key());
     assert_eq!(run_digest(&Layer1::shape(&relation)).unwrap(), TOY_LAYER1_DIGEST);
-}
-
-#[test]
-fn production_layer1_digest_is_pinned() {
-    let (key, bound, bits) = production_key();
-    let relation = production_relation(&key, bound, bits);
-    assert_eq!(run_digest(&Layer1::shape(&relation)).unwrap(), PRODUCTION_LAYER1_DIGEST);
-}
-
-/// The layer-1 verifier on the production key: its shape run's export, the
-/// relation and WHIR keys to `production_layer1.json` (which `nightstream`'s
-/// `final_program_matches_lean` also reads), then `lowerCheck` with Lean's
-/// `layer1` program.
-#[test]
-#[ignore = "needs the Lean check: lake build lowerCheck in formal/compression-lean"]
-fn production_layer1_matches_lean() {
-    let (key, bound, bits) = production_key();
-    let relation = production_relation(&key, bound, bits);
-    let layer1 = Layer1::shape(&relation);
-    let path = export("production_layer1", &layer1);
-    let input = workspace().join("target/lean-lowering/production_layer1.json");
-    std::fs::write(&input, layer1_input(&relation)).unwrap();
-    let stdout = lower_check("production_layer1", &path, &["layer1".into(), input]);
-    assert!(
-        stdout.contains("key facts hold"),
-        "the production key must have the key facts: {stdout}"
-    );
-    assert!(
-        stdout.contains("key width fits the Poseidon2 hash chain"),
-        "the production key must fit the Poseidon2 hash chain's width: {stdout}"
-    );
 }

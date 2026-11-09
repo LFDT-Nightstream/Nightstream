@@ -95,17 +95,18 @@ theorem getD_mem_or_pad (l : List Push) (k : ℕ) : l.getD k Push.pad ∈ l ∨ 
   · exact Or.inl (List.getD_eq_getElem _ _ inside ▸ List.getElem_mem inside)
   · exact Or.inr (List.getD_eq_default _ _ past)
 
-theorem poseidon2Columns_eq : poseidon2Columns = Phi81CarrierLayout.carrierWidth 43963750 := by
-  rw [poseidon2Columns, Production.poseidon2Width_eq]
+theorem keyColumns_div (key : Layer1Key) : keyColumns key / ringDegree = key.relation.key.blocks := by
+  unfold keyColumns
+  exact Nat.mul_div_cancel_left _ (by decide)
 
-theorem setupFailure_sound {key : Layer1Key} {pushes : List Push} (seed : List ℕ)
-    (pass : setupFailure key pushes = none) :
-    build seed poseidon2Columns Production.matrices pushes = some (poseidon2Setup seed pushes) ∧
-      (poseidon2Setup seed pushes).Fits (shapeOf key.relation) ∧
-      (structureOf key.relation.key.layout).Describes (shapeOf key.relation) (poseidon2Setup seed pushes) := by
-  obtain ⟨runs, matrices, bounds, count, blocks, slots, cover, sizes, shapes, -⟩ := all_of_firstFailure pass
-  dsimp only at runs matrices bounds count blocks slots cover sizes shapes
-  unfold poseidon2Setup
+theorem setupFailureAt_sound {key : Layer1Key} {pushes : List Push} {columns : ℕ} (seed : List ℕ)
+    (pass : setupFailureAt columns key pushes = none) :
+    build seed columns Production.matrices pushes = some (setupAt seed columns pushes) ∧
+      (setupAt seed columns pushes).Fits (shapeOf key.relation) ∧
+      (structureOf key.relation.key.layout).Describes (shapeOf key.relation) (setupAt seed columns pushes) := by
+  obtain ⟨wide, runs, matrices, bounds, count, blocks, slots, cover, sizes, shapes, -⟩ := all_of_firstFailure pass
+  dsimp only at wide runs matrices bounds count blocks slots cover sizes shapes
+  unfold setupAt
   obtain ⟨matrices, matrixVars⟩ := matrices
   obtain ⟨slots, slotBits⟩ := slots
   set m := Production.matrices
@@ -136,9 +137,8 @@ theorem setupFailure_sound {key : Layer1Key} {pushes : List Push} (seed : List �
   have word (σ : ℕ) : keys.toList.getD σ 0 = keys.getD σ 0 := by
     rw [List.getD_eq_getElem?_getD, Array.getElem?_toList, Array.getD_eq_getD_getElem?]
   have size (σ : ℕ) := sizes _ (getD_mem_cons keys.toList σ)
-  have accepts : Accepts poseidon2Columns m pushes :=
-    ⟨by rw [poseidon2Columns_eq]; decide, by decide, by rw [poseidon2Columns_eq]; decide,
-      by rw [poseidon2Columns_eq]; decide, fun p member =>
+  have accepts : Accepts columns m pushes :=
+    ⟨wide.1, by decide, wide.2.1, wide.2.2, fun p member =>
       ⟨(runs p member).1, (runs p member).2.1, (runs p member).2.2.1⟩⟩
   refine ⟨by rw [build, ite_eq_left accepts], ?_, ?_⟩ <;> simp only [setupOfRuns, hc, hk]
   · refine ⟨?_, fun k past => ?_, fun k => ?_, fun k => ?_, fun k => ?_, ?_, fun k inside => ?_, fun k inside => ?_,
@@ -182,14 +182,16 @@ theorem setupFailure_sound {key : Layer1Key} {pushes : List Push} (seed : List �
       rw [word]
       exact shape
 
-theorem columnsFailure_sound {key : Layer1Key} {pushes : List Push} {cols : SetupColumns} (seed : List ℕ)
-    (setup : setupFailure key pushes = none) (pass : columnsFailure pushes cols = none) (x : ℕ) :
-    ((poseidon2Setup seed pushes).runRow x : Gl) = cols.row.getD x 0 ∧
-      ((poseidon2Setup seed pushes).runSlot x : Gl) = cols.slot.getD x 0 ∧
-      (poseidon2Setup seed pushes).runCoef x = cols.coef.getD x 0 ∧
-      (if x < (poseidon2Setup seed pushes).slots then ((poseidon2Setup seed pushes).slotBlock x : Gl) else 0) =
+theorem columnsFailure_sound {key : Layer1Key} {pushes : List Push} {cols : SetupColumns} {columns : ℕ}
+    (seed : List ℕ) (setup : setupFailureAt columns key pushes = none) (pass : columnsFailure pushes cols = none)
+    (x : ℕ) :
+    ((setupAt seed columns pushes).runRow x : Gl) = cols.row.getD x 0 ∧
+      ((setupAt seed columns pushes).runSlot x : Gl) = cols.slot.getD x 0 ∧
+      (setupAt seed columns pushes).runCoef x = cols.coef.getD x 0 ∧
+      (if x < (setupAt seed columns pushes).slots then ((setupAt seed columns pushes).slotBlock x : Gl) else 0) =
         cols.block.getD x 0 := by
-  obtain ⟨runs, -⟩ := all_of_firstFailure setup
+  unfold setupFailureAt at setup
+  obtain ⟨-, runs, -⟩ := all_of_firstFailure setup
   obtain ⟨sizes, rows, slots, coefs, blocks, -⟩ := all_of_firstFailure pass
   dsimp only at runs sizes rows slots coefs blocks
   obtain ⟨hc, hk⟩ := runList_sorted (m := Production.matrices) fun p member => (runs p member).1
@@ -205,7 +207,7 @@ theorem columnsFailure_sound {key : Layer1Key} {pushes : List Push} {cols : Setu
   have nodup : (sortedValues (slotKey (sortedValues Push.classCode pushes).toList) pushes).toList.Nodup := by
     rw [sortedValues_toList]
     exact (List.perm_insertionSort _ _).nodup_iff.mpr (List.nodup_dedup _)
-  unfold poseidon2Setup setupOfRuns
+  unfold setupAt setupOfRuns
   dsimp only
   rw [hc, hk]
   rcases Nat.lt_or_ge x (runList Production.matrices pushes).length with inside | past

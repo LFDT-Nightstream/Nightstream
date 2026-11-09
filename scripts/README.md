@@ -1,261 +1,54 @@
-# Profiling Scripts
+# Profiling scripts
 
-This directory contains scripts for profiling Rust tests and benchmarks.
+This directory has scripts that profile Rust tests. The root `AGENTS.md`
+sets the time caps for each run.
 
-## Quick Start
-
-### Profile the Starstream test specifically:
-
-```bash
-./scripts/profile_starstream_test.sh flamegraph
-```
-
-### Profile any test:
+## Profile one test target
 
 ```bash
-./scripts/profile_any_test.sh <package> <test_name> [mode]
+./scripts/profile_any_test.sh <package> <test_target> [mode]
 
 # Examples:
-./scripts/profile_any_test.sh neo-fold test_starstream_tx_valid_optimized flamegraph
+./scripts/profile_any_test.sh nightstream application_poseidon2 flamegraph
 ./scripts/profile_any_test.sh neo-ajtai basic_commit_tests instruments
+./scripts/profile_any_test.sh neo-ccs ccs_property_tests samply
 ```
 
-## Profiling Modes
+`<test_target>` is the name of a file in the `tests/` folder of the package.
+The script builds that target with the `profiling` Cargo profile, which keeps
+the debug symbols. It needs `jq` to find the test binary.
 
-### 1. Flamegraph (Recommended for CPU profiling)
+| Mode | Tool | Output | Needs |
+|---|---|---|---|
+| `flamegraph` (default) | `flamegraph` with DTrace | `flamegraph-<package>-<test_target>.svg` | `cargo install flamegraph` and `sudo` |
+| `instruments` | `xcrun xctrace` with the Time Profiler template | `profile-<package>-<test_target>.trace` | Xcode Command Line Tools |
+| `samply` | `samply record` | `samply-<package>-<test_target>.json`, which opens in the Firefox Profiler | `cargo install samply` |
+| `bench` | `cargo test`, five times | Timing in the terminal | Nothing more |
 
-```bash
-./scripts/profile_starstream_test.sh flamegraph
-```
+The script installs `flamegraph` or `samply` with `cargo install` when it does
+not find it.
+`scripts/check_profiling_tools.sh` shows which tools are installed.
 
-**What it does:**
-- Creates an interactive SVG visualization showing where CPU time is spent
-- Each "flame" represents a function call stack
-- Width shows how much time was spent in that function
-- Click to zoom, search for function names
+## Profile one test function
 
-**Best for:**
-- Finding hot spots in your code
-- Understanding call hierarchies
-- Seeing which functions dominate runtime
+These scripts take a package, a test target and a test function. Each script
+prints its options when you give fewer than three arguments.
 
-**Output:** `flamegraph-*.svg` - Open in any browser
+- `scripts/profile_xctrace.sh` records an Instruments trace and writes a
+  symbolicated text report.
+- `scripts/profile_for_ai.sh` writes a text profile to `profile-output.txt`.
+- `scripts/profile_memory_deep.sh` takes heap snapshots over time and writes
+  `profile-memory-deep.txt`.
 
-**Requires:** sudo access (uses DTrace on macOS)
-
----
-
-### 2. Instruments (macOS Native Profiler)
-
-```bash
-./scripts/profile_starstream_test.sh instruments
-```
-
-**What it does:**
-- Uses Apple's professional profiling tool
-- Beautiful GUI with timeline view
-- Shows detailed CPU usage per thread
-- Can track allocations, system calls, etc.
-
-**Best for:**
-- Detailed performance analysis
-- Thread-level profiling
-- Professional presentation-quality reports
-
-**Output:** `*.trace` file - Opens in Instruments app
-
-**Requires:** Xcode Command Line Tools
-
----
-
-### 3. Samply (Modern Web-Based Profiler)
-
-```bash
-./scripts/profile_starstream_test.sh samply
-```
-
-**What it does:**
-- Modern profiler that opens Firefox Profiler in browser
-- Interactive timeline view
-- Flame charts, call trees, and more
-- Very user-friendly interface
-
-**Best for:**
-- Interactive exploration
-- Sharing results (exports JSON)
-- Modern, familiar web UI
-
-**Output:** Opens automatically in browser
-
-**Requires:** `cargo install samply`
-
----
-
-### 4. Chrome Tracing
-
-```bash
-./scripts/profile_starstream_test.sh chrome
-```
-
-**What it does:**
-- Manual instrumentation-based profiling
-- Shows exact spans you instrument
-- Timeline view in Chrome
-
-**Best for:**
-- When you want precise control over what's measured
-- Understanding specific code paths
-- Debugging performance issues in known areas
-
-**Requires:** 
-- Add to `Cargo.toml`:
-  ```toml
-  [dev-dependencies]
-  tracing = "0.1"
-  tracing-subscriber = "0.3"
-  tracing-chrome = "0.7"
-  ```
-- Instrument your code:
-  ```rust
-  #[tracing::instrument]
-  fn my_function() { ... }
-  ```
-
-**Output:** `trace-*.json` - Open in `chrome://tracing`
-
----
-
-## Comparison
-
-| Mode        | Setup Effort | Detail Level | Ease of Use | Best For |
-|-------------|--------------|--------------|-------------|----------|
-| Flamegraph  | Low          | High         | Easy        | Finding hotspots |
-| Instruments | Low          | Very High    | Medium      | Deep analysis |
-| Samply      | Low          | High         | Very Easy   | Quick exploration |
-| Chrome      | High         | Custom       | Easy        | Specific spans |
-
-## Installation
-
-Most tools will auto-install, but you can pre-install:
-
-```bash
-# Flamegraph
-cargo install flamegraph
-
-# Samply
-cargo install samply
-
-# Instruments (comes with Xcode)
-xcode-select --install
-```
-
-## Tips
-
-### Getting Better Flamegraphs
-- Make sure to build in release mode (scripts do this automatically)
-- Look for wide bars - those are your hot spots
-- Ignore `__pthread_*` and other system internals unless debugging threading
-
-### Understanding Instruments
-- Use the "Time Profiler" template for CPU profiling
-- Check "High Frequency" in settings for more detail
-- Filter to your crate's code using the search box
-
-### Interpreting Results
-- **CPU Time**: Total time function was on CPU
-- **Self Time**: Time in function excluding children
-- **Call Count**: How many times function was called
-- Look for:
-  - Unexpectedly wide/tall flames
-  - Functions called more often than expected
-  - Allocations in hot paths
+`scripts/gpuprof.sh` runs the GPU profiling tool in `scripts/gpuprof/`.
 
 ## Troubleshooting
 
-### "Permission denied" on macOS
-Flamegraph needs sudo for DTrace. The script uses `sudo` automatically.
-
-### "jq: command not found"
-Install jq: `brew install jq`
-
-### Test binary not found
-Make sure package and test names are correct:
-```bash
-cargo test --package neo-fold --list | grep test_
-```
-
-### Profile looks empty
-1. Make sure test actually runs long enough (>100ms)
-2. Try increasing test workload
-3. Check that release mode is being used
-
-## Examples
-
-### Profile and compare two implementations
-
-```bash
-# Profile version A
-git checkout feature-a
-./scripts/profile_any_test.sh neo-fold my_test flamegraph
-mv flamegraph-*.svg flamegraph-a.svg
-
-# Profile version B
-git checkout feature-b
-./scripts/profile_any_test.sh neo-fold my_test flamegraph
-mv flamegraph-*.svg flamegraph-b.svg
-
-# Compare in browser
-open flamegraph-a.svg flamegraph-b.svg
-```
-
-### Quick performance check
-
-```bash
-# Run test 5 times and eyeball the timing
-./scripts/profile_any_test.sh neo-fold test_starstream_tx_valid_optimized bench
-```
-
-### Deep dive with Instruments
-
-```bash
-# Get the full professional view
-./scripts/profile_starstream_test.sh instruments
-# Then in Instruments:
-# - Switch to "Call Tree" view
-# - Click "Invert Call Tree" to see bottom-up
-# - Hide system libraries
-```
-
-## Adding Custom Profiling to Your Tests
-
-You can add manual instrumentation for finer control:
-
-```rust
-use std::time::Instant;
-
-#[test]
-fn my_test() {
-    let start = Instant::now();
-    expensive_operation();
-    println!("Operation took: {:?}", start.elapsed());
-}
-```
-
-Or use the `tracing` crate for structured profiling:
-
-```rust
-use tracing::{info, instrument};
-
-#[instrument]
-fn expensive_operation() {
-    // Automatically tracked when using chrome tracing
-}
-```
-
-## Further Reading
-
-- [Rust Performance Book](https://nnethercote.github.io/perf-book/)
-- [Flamegraph.pl on GitHub](https://github.com/brendangregg/FlameGraph)
-- [Firefox Profiler Docs](https://profiler.firefox.com/docs/)
-- [Instruments User Guide](https://help.apple.com/instruments/)
-
+- If macOS shows "Permission denied", note that the flamegraph mode needs
+  `sudo` for DTrace. The script calls `sudo`.
+- If the shell shows "jq: command not found", install `jq`, for example with
+  `brew install jq`.
+- If the script cannot find the test binary, make sure that the package and
+  the test target exist. `cargo test -p <package> --release -- --list` lists
+  the tests.
+- If the profile is empty, make sure that the test runs for more than 100 ms.

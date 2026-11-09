@@ -139,6 +139,14 @@ private theorem empty_pad_row_zero
       ringFZero := by
   exact PiDECEvaluationRows.row_empty_value assignments child
 
+/-- Pointwise, so that the kernel unfolds `padMatrix` instead of evaluating the selected layout, which it
+does for the same equation between the two functions. -/
+private theorem padMatrix_selected :
+    PaperAlgebra.padMatrix (Lifecycle.PiRLC.v1_2.InputBinding.relationSource selectedRelation) =
+      selectedPadLayout.paddedIdentityEntry (0 : F) 1 := by
+  funext vertex column
+  rfl
+
 theorem padRow_value
     (assignments : Vector (Vector F selectedShape.carrierWidth) productionGlobalParams.k)
     (child : Fin productionGlobalParams.k)
@@ -148,10 +156,7 @@ theorem padRow_value
         (PaperAlgebra.padMatrix
           (Lifecycle.PiRLC.v1_2.InputBinding.relationSource selectedRelation))
         (assignments.get child).get vertex := by
-  change (padRow assignments child (NumericBooleanDomain.index vertex)).get =
-    PiRLC.ExplicitMatrix.rowRing selectedRelation.system
-      (selectedPadLayout.paddedIdentityEntry (0 : F) 1)
-      (assignments.get child).get vertex
+  rw [padMatrix_selected]
   have value := PiDECEvaluationRows.padRow_value (shape := selectedShape)
     selectedRelation.system selectedPadLayout vertex assignments child
   by_cases live : NumericBooleanDomain.index vertex < selectedShape.carrierWidth

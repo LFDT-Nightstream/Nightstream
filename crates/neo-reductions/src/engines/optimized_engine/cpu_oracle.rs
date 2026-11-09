@@ -69,6 +69,7 @@ pub struct OptimizedPaperJointOracle<'a> {
     witness_blocks: Vec<SuperneoZBlocks>,
     evaluation_table: Vec<K>,
     constraint_shift: K,
+    norm_sources: usize,
 }
 
 impl<'a> OptimizedPaperJointOracle<'a> {
@@ -82,6 +83,7 @@ impl<'a> OptimizedPaperJointOracle<'a> {
         dims: JointDims,
         source: &'a dyn MatrixRows,
         workspace_bytes: usize,
+        norm_sources: usize,
     ) -> Result<Self, PiCcsError> {
         let shape = source.shape();
         if !challenges.has_expected_dimension(dims.variables)
@@ -130,6 +132,7 @@ impl<'a> OptimizedPaperJointOracle<'a> {
             witness_blocks,
             evaluation_table,
             constraint_shift: gamma_power(challenges.gamma, running.len() * D * (structure.t() + 1)),
+            norm_sources,
         })
     }
 
@@ -145,11 +148,11 @@ impl<'a> OptimizedPaperJointOracle<'a> {
     }
 
     fn norm_coefficients(&self, weights: &EqualityWeights) -> [K; 4] {
-        norm_coefficients(&self.assignments, self.challenges.gamma, weights)
+        norm_coefficients(&self.assignments[..self.norm_sources], self.challenges.gamma, weights)
     }
 
     fn general_norm(&self, weights: &EqualityWeights, point: K) -> K {
-        self.assignments
+        self.assignments[..self.norm_sources]
             .iter()
             .enumerate()
             .map(|(source, table)| {

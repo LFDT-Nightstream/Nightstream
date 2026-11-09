@@ -141,6 +141,21 @@ fn fingerprint(eta: (K, K), t: u64, g: u64, v: u64) -> K {
     K::from(F::from_u64(g)) + eta.0 * K::from(F::from_u64(v)) + eta.0.square() * K::from(F::from_u64(t)) - eta.1
 }
 
+/// The factor words of the fingerprint `f(t, g, v)`: `η1 · v`, then `f`
+/// (Lean `fingerprintWords`).
+fn fingerprint_words(eta: (K, K), t: u64, g: u64, v: u64) -> [F; 4] {
+    let ([e0, e1], [s0, s1], [d0, d1]) = (k_words(eta.0), k_words(eta.0.square()), k_words(eta.1));
+    let (t, g, v) = (F::from_u64(t), F::from_u64(g), F::from_u64(v));
+    let (a0, a1) = (e0 * v, e1 * v);
+    [a0, a1, s0 * t + (g + a0 - d0), s1 * t + (a1 - d1)]
+}
+
+/// The cross products `prod.c1 · x1` and `prod.c1 · x0` of `prod · x`.
+fn cross_words(prod: K, x0: F, x1: F) -> [F; 2] {
+    let [_, p1] = k_words(prod);
+    [p1 * x1, p1 * x0]
+}
+
 /// The native result of one step: its records, its state words, and its
 /// private words.
 #[derive(Clone)]
@@ -398,10 +413,39 @@ impl<A: Application> Context<A> {
         let eta = effective.eta;
         let idx = effective.idx;
         let mut w = vec![F::ZERO; layout.count()];
-        // Operation slots and the running read and write products.
+        // The start products, the operation slots with their counters and
+        // factor words, and the running read and write products.
+        let start = &effective.products;
+        for (s, product) in [start.read, start.write, start.initial, start.final_]
+            .into_iter()
+            .enumerate()
+        {
+            set_k(&mut w, layout.start(s, 0), product);
+        }
         let mut read = effective.products.read;
         let mut write = effective.products.write;
+        let mut cnt = 0;
         for (j, slot) in step.ops.iter().enumerate() {
+            cnt += u64::from(!slot.pad);
+            w[layout.cnt(j)] = F::from_u64(cnt);
+            let pad = F::from_bool(slot.pad);
+            let access = PortAccess {
+                is_write: slot.is_write,
+                is_ram: slot.is_ram,
+                addr: slot.addr,
+                vr: slot.vr,
+                vw: slot.vw,
+            };
+            let g = access.global_index(geometry) as u64;
+            let wt = effective.ts + cnt;
+            for (pair, prod, t, v) in [(0, read, slot.rt, slot.vr), (1, write, wt, slot.vw)] {
+                let f = fingerprint_words(eta, t, g, v);
+                let gate = [(F::ONE - pad) * f[2] + pad, (F::ONE - pad) * f[3]];
+                let cross = cross_words(prod, gate[0], gate[1]);
+                for (k, word) in f.into_iter().chain(gate).chain(cross).enumerate() {
+                    w[layout.ops_factor(j, pair, k)] = word;
+                }
+            }
             let base = |k: usize| layout.op(j, k);
             w[base(0)] = F::from_bool(slot.pad);
             w[base(1)] = F::from_bool(slot.is_write);
@@ -420,14 +464,6 @@ impl<A: Application> Context<A> {
                     wt.wrapping_sub(slot.rt + 1),
                     geometry.w_ts,
                 );
-                let access = PortAccess {
-                    is_write: slot.is_write,
-                    is_ram: slot.is_ram,
-                    addr: slot.addr,
-                    vr: slot.vr,
-                    vw: slot.vw,
-                };
-                let g = access.global_index(geometry) as u64;
                 read *= fingerprint(eta, slot.rt, g, slot.vr);
                 write *= fingerprint(eta, wt, g, slot.vw);
             }
@@ -443,6 +479,13 @@ impl<A: Application> Context<A> {
             set_bits(&mut w, |k| layout.final_(j, k), final_[j].value, 32);
             set_bits(&mut w, |k| layout.final_(j, 32 + k), final_[j].stamp, geometry.w_ts);
             let g = idx * geometry.b_scan as u64 + j as u64;
+            for (pair, prod, slot) in [(0, is_product, &initial[j]), (1, fs_product, &final_[j])] {
+                let f = fingerprint_words(eta, slot.stamp, g, slot.value);
+                let cross = cross_words(prod, f[2], f[3]);
+                for (k, word) in f.into_iter().chain(cross).enumerate() {
+                    w[layout.scan_factor(j, pair, k)] = word;
+                }
+            }
             is_product *= fingerprint(eta, initial[j].stamp, g, initial[j].value);
             fs_product *= fingerprint(eta, final_[j].stamp, g, final_[j].value);
             set_k(&mut w, layout.scan_products(j, 0), is_product);

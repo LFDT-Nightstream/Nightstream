@@ -389,10 +389,9 @@ fn streamed_records_rebuild_indices_after_interleaved_appends() {
             .unwrap();
     }
     let original = writer.finish().unwrap();
-    let snapshot = PrivateSnapshot::create(|output| original.write_to(output)).unwrap();
-    let restored = snapshot
-        .with_reader(|input| ApplicationRecords::read_from(input, 2, 2))
-        .unwrap();
+    let mut expected = Vec::new();
+    original.write_to(&mut expected).unwrap();
+    let restored = ApplicationRecords::read_from(&mut expected.as_slice(), 2, 2).unwrap();
     for row in 0..2 {
         assert_eq!(restored.row_header(row).unwrap(), original.row_header(row).unwrap());
         assert_eq!(restored.recipe_row(row).unwrap(), row);
@@ -409,8 +408,6 @@ fn streamed_records_rebuild_indices_after_interleaved_appends() {
             3 + 2 * row as u64
         );
     }
-    let mut expected = Vec::new();
-    snapshot.copy_to(&mut expected).unwrap();
     let mut actual = Vec::new();
     restored.write_to(&mut actual).unwrap();
     assert_eq!(actual, expected);
@@ -457,7 +454,7 @@ fn streamed_records_reject_bad_fields_counts_grammar_and_every_truncation() {
 }
 
 #[test]
-fn private_snapshot_streams_bytes_and_propagates_write_failures() {
+fn records_propagate_write_failures() {
     struct FailedOutput;
     impl std::io::Write for FailedOutput {
         fn write(&mut self, _: &[u8]) -> std::io::Result<usize> {
@@ -468,29 +465,6 @@ fn private_snapshot_streams_bytes_and_propagates_write_failures() {
         }
     }
 
-    let value = serde_json::json!([1, [2, 3], []]);
-    let snapshot = PrivateSnapshot::create(|output| {
-        serde_json::to_writer(output, &value)?;
-        Ok(())
-    })
-    .unwrap();
-    let expected = serde_json::to_vec(&value).unwrap();
-    assert_eq!(snapshot.len(), expected.len() as u64);
-    let mut actual = Vec::new();
-    snapshot.copy_to(&mut actual).unwrap();
-    assert_eq!(actual, expected);
-    let decoded: serde_json::Value = snapshot
-        .with_reader(|input| Ok(serde_json::from_reader(input)?))
-        .unwrap();
-    assert_eq!(decoded, value);
-    assert!(matches!(snapshot.copy_to(&mut FailedOutput), Err(PackageError::Io(_))));
     let (records, _) = serialized_records();
     assert!(matches!(records.write_to(&mut FailedOutput), Err(PackageError::Io(_))));
-    assert!(matches!(
-        PrivateSnapshot::create(|output| {
-            output.write_all(b"partial snapshot")?;
-            Err(PackageError::Io(std::io::Error::other("injected snapshot failure")))
-        }),
-        Err(PackageError::Io(_))
-    ));
 }

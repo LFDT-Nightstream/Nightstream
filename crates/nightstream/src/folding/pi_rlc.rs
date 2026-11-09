@@ -5,6 +5,7 @@ use super::{
 };
 use neo_ccs::Mat;
 use neo_math::F;
+use neo_reductions::common::RotRho;
 use p3_field::PrimeField64;
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -35,21 +36,43 @@ pub enum Error {
 pub(crate) struct Proof {
     pub combined: CeClaim,
 }
+#[derive(Clone)]
 pub(crate) struct Output {
     pub claim: CeClaim,
     pub witness: Mat<F>,
+}
+/// How PiRLC weights its inputs: a sampled challenge for each input (SuperNeo
+/// v1.2 Π_RLC), or option B's light rule, a sampled challenge for the fresh
+/// output and 1 for the running output (Lean `lightChallenge`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Weights {
+    Sampled,
+    Light,
+}
+impl Weights {
+    fn sample(self, tr: &mut Transcript, pp: &Params, inputs: usize) -> Result<Vec<RotRho>, Error> {
+        Ok(match self {
+            Weights::Sampled => engine::sample_rho_n(tr.inner_mut(), pp, inputs)?,
+            Weights::Light if inputs == 2 => {
+                let rho = engine::sample_rho_n(tr.inner_mut(), pp, 1)?.remove(0);
+                vec![rho, RotRho::identity()]
+            }
+            Weights::Light => return Err(Error::Shape),
+        })
+    }
 }
 pub(crate) fn prove_refs(
     tr: &mut Transcript,
     pp: &Params,
     s: &Structure,
     mix: RlcMixer,
+    weights: Weights,
     claims: &[CeClaim],
     witnesses: &[&Mat<F>],
 ) -> Result<(Output, Proof), Error> {
     validate_input_shape(claims, witnesses)?;
     validate_inputs_before_rho(s, claims)?;
-    let rhos = engine::sample_rho_n(tr.inner_mut(), pp, claims.len())?;
+    let rhos = weights.sample(tr, pp, claims.len())?;
     let (combined, witness) = engine::prove_pi_rlc_refs(pp, s, &rhos, claims, witnesses, mix)?;
     validate_combined_claim(s, claims, &combined)?;
     Ok((
@@ -59,39 +82,6 @@ pub(crate) fn prove_refs(
         },
         Proof { combined },
     ))
-}
-#[cfg(feature = "metal")]
-pub(crate) fn prove_refs_resident<R>(
-    tr: &mut Transcript,
-    pp: &Params,
-    s: &Structure,
-    mix: RlcMixer,
-    claims: &[CeClaim],
-    witnesses: &[&Mat<F>],
-    mix_witnesses: impl Fn(&[Mat<F>], &[&Mat<F>]) -> R,
-) -> Result<(CeClaim, R, Proof), Error> {
-    validate_input_shape(claims, witnesses)?;
-    validate_inputs_before_rho(s, claims)?;
-    let rhos = engine::sample_rho_n(tr.inner_mut(), pp, claims.len())?;
-    let (combined, resident) = engine::prove_pi_rlc_refs_resident(pp, s, &rhos, claims, witnesses, mix, mix_witnesses)?;
-    validate_combined_claim(s, claims, &combined)?;
-    Ok((combined.clone(), resident, Proof { combined }))
-}
-pub(crate) fn verify(
-    tr: &mut Transcript,
-    pp: &Params,
-    s: &Structure,
-    mix: RlcMixer,
-    claims: &[CeClaim],
-    proof: &Proof,
-) -> Result<CeClaim, Error> {
-    validate_inputs_before_rho(s, claims)?;
-    let rhos = engine::sample_rho_n(tr.inner_mut(), pp, claims.len())?;
-    validate_combined_claim(s, claims, &proof.combined)?;
-    if !engine::verify_pi_rlc(pp, s, &rhos, claims, &proof.combined, mix)? {
-        return Err(Error::VerifyRejected);
-    }
-    Ok(proof.combined.clone())
 }
 fn validate_inputs_before_rho(s: &Structure, inputs: &[CeClaim]) -> Result<(), Error> {
     if inputs.is_empty() {

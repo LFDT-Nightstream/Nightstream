@@ -192,12 +192,12 @@ fn a_run_steps_natively_through_the_segments_of_its_size() {
     }
 }
 
-/// Fibonacci proved on Metal in Small, one segment of 64 steps of 8 rows. The
-/// proof verifies after its bytes round-trip, and a last state with another
-/// `pc` does not verify.
+/// Fibonacci proved in Small, one segment of 64 steps of 8 rows, on the CPU
+/// path, where option B proves. The proof verifies after its bytes
+/// round-trip, and a last state with another `pc` does not verify.
 #[test]
-#[ignore = "Metal proof at a fixed size, about 10 minutes; build with --features nightstream/metal and run it alone, only with approval for a run longer than 300 seconds."]
-fn a_small_proof_verifies_on_metal() {
+#[ignore = "Full proof at a fixed size; run it alone, only with approval for a run longer than 300 seconds."]
+fn a_small_proof_verifies() {
     use nightstream::nebula::{Circuit, VerifyError};
     use std::time::Instant;
     let started = Instant::now();
@@ -208,7 +208,7 @@ fn a_small_proof_verifies_on_metal() {
     let program = app.program(&preload).unwrap();
     let circuit = Circuit::compile(size.geometry(), app).unwrap();
     eprintln!("compile elapsed={:?}", started.elapsed());
-    let engine = nightstream::Engine::Metal;
+    let engine = nightstream::Engine::Optimized;
     let prover = circuit.prover(engine, 109).unwrap();
     let verifier = circuit.verifier(engine, 109).unwrap();
     eprintln!("setup elapsed={:?}", started.elapsed());

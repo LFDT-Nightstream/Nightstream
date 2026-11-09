@@ -458,6 +458,23 @@ def withConstantFootprint (circuit : FormalCircuit)
       rowCount_eq).rowCount offset = rowCount := by
   rfl
 
+/-- A circuit with another proved form of its private count. It is the same circuit
+(`eq_withPrivateCount`); `@[csimp]` lemmas use it to give compiled code a cheap count. -/
+def withPrivateCount (circuit : FormalCircuit) (count : Nat → Nat)
+    (count_eq : ∀ offset, localLength (Circuit.ops circuit.main offset) = count offset) :
+    FormalCircuit :=
+  { circuit with privateCount := count, privateCount_eq := count_eq }
+
+theorem eq_withPrivateCount (circuit : FormalCircuit) (count : Nat → Nat)
+    (count_eq : ∀ offset, localLength (Circuit.ops circuit.main offset) = count offset) :
+    circuit = circuit.withPrivateCount count count_eq := by
+  have counts : circuit.privateCount = count :=
+    funext fun offset => (circuit.privateCount_eq offset).symm.trans (count_eq offset)
+  cases circuit
+  simp only at counts
+  subst counts
+  rfl
+
 def asSubcircuit (circuit : FormalCircuit) (name : String) (offset : Nat) : Subcircuit where
   name := name
   localLength := circuit.privateCount offset

@@ -20,7 +20,7 @@ python3 -B scripts/check_artifacts.py --write
 
 The export contains local sparse formulas, named ports and references to their
 existing Lean definitions and proof contracts. It is not a complete verifier
-package. The separate package and assembly checks remain required.
+package. The separate package checks remain required.
 `tests.SharedFormulas` is an explicit test-library root. Its file check executes
 the local coefficient comparisons and rejection checks. The export equality
 theorem is audited in `tests/AxiomsSharedExports.lean`, which is imported by

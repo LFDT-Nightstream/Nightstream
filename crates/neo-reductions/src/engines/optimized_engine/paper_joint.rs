@@ -12,7 +12,7 @@ use crate::engines::pi_ccs_joint::{
     equality, eval_a_gamma_exponent, eval_k_gamma_exponent, gamma_power, range_product, JointDims, ProtocolTrace,
     TerminalComponents,
 };
-use crate::engines::pi_ccs_joint_protocol::{self, PaperJointRoundOracle, V1_2OutputOpening};
+use crate::engines::pi_ccs_joint_protocol::{self, FoldProfile, NormSources, PaperJointRoundOracle, V1_2OutputOpening};
 use crate::engines::pi_ccs_protocol::{Challenges, PiCcsProof};
 use crate::error::PiCcsError;
 use crate::superneo_eval::{CachedMatrixRows, MatrixRows, MatrixWindow};
@@ -96,6 +96,7 @@ pub(crate) fn terminal_components<Ff>(
     params: &neo_params::NeoParams,
     challenges: &Challenges,
     fresh_count: usize,
+    norm_sources: usize,
     prior_point: Option<&[K]>,
     point: &[K],
     outputs: &[CeClaim<Cmt, Ff, K>],
@@ -126,7 +127,7 @@ where
         fresh_residual += gamma_power(challenges.gamma, source) * structure.f().eval_in_ext::<K>(&matrix_evaluations);
     }
     let mut norm = K::ZERO;
-    for (source, output) in outputs.iter().enumerate() {
+    for (source, output) in outputs.iter().take(norm_sources).enumerate() {
         let assignment = *output
             .eval_k
             .first()
@@ -181,6 +182,7 @@ pub(crate) fn terminal<Ff>(
     params: &neo_params::NeoParams,
     challenges: &Challenges,
     fresh_count: usize,
+    norm_sources: usize,
     prior_point: Option<&[K]>,
     point: &[K],
     outputs: &[CeClaim<Cmt, Ff, K>],
@@ -189,7 +191,17 @@ where
     Ff: Field + PrimeCharacteristicRing + Copy,
     K: From<Ff>,
 {
-    Ok(terminal_components(structure, params, challenges, fresh_count, prior_point, point, outputs)?.terminal)
+    Ok(terminal_components(
+        structure,
+        params,
+        challenges,
+        fresh_count,
+        norm_sources,
+        prior_point,
+        point,
+        outputs,
+    )?
+    .terminal)
 }
 
 pub struct PaperJointOracleInput<'a> {
@@ -337,7 +349,18 @@ fn prove_with_trace_inner(
     running_claims: &[CeClaim<Cmt, F, K>],
     running_witnesses: &[Mat<F>],
     source: OracleSource<'_>,
+    profile: &FoldProfile<'_>,
 ) -> Result<(Vec<CeClaim<Cmt, F, K>>, PiCcsProof, ProtocolTrace), PiCcsError> {
+    let device_oracle = match &source {
+        OracleSource::Cached { backend, .. } | OracleSource::Rows { backend, .. } => backend.is_some(),
+        OracleSource::Complete { .. } => true,
+    };
+    if device_oracle && profile.norm != NormSources::All {
+        return Err(PiCcsError::InvalidInput(
+            "a device PiCCS oracle checks every source's norm".into(),
+        ));
+    }
+    let norm_sources = profile.norm.count(fresh_claims.len(), running_claims.len());
     let cache = match &source {
         OracleSource::Cached { cache, .. } => {
             cache.validate_structure(structure)?;
@@ -383,6 +406,7 @@ fn prove_with_trace_inner(
         structure,
         fresh_claims,
         running_claims,
+        profile,
     )?;
     let prior_point = crate::engines::utils::shared_me_input_r(running_claims, dims.variables)?;
     let initial = initial_claim(structure, &challenges, running_claims)?;
@@ -419,6 +443,7 @@ fn prove_with_trace_inner(
                     dims,
                     rows,
                     workspace_bytes,
+                    norm_sources,
                 )?),
             });
             built_oracle.as_mut().expect("constructed oracle").as_mut()
@@ -451,6 +476,7 @@ fn prove_with_trace_inner(
                     dims,
                     rows,
                     workspace_bytes,
+                    norm_sources,
                 )?),
             });
             built_oracle
@@ -506,6 +532,7 @@ fn prove_with_trace_inner(
         params,
         &challenges,
         fresh_claims.len(),
+        norm_sources,
         prior_point,
         &round_challenges,
         &outputs,
@@ -544,6 +571,7 @@ pub(crate) fn prove_with_trace(
         running_claims,
         running_witnesses,
         OracleSource::Cached { cache, backend: None },
+        &FoldProfile::production(),
     )
 }
 
@@ -570,6 +598,7 @@ pub fn prove_with_complete_oracle(
             oracle,
             challenges: prepared,
         },
+        &FoldProfile::production(),
     )
 }
 
@@ -597,6 +626,35 @@ pub fn prove_with_matrix_rows<'a>(
     workspace_bytes: usize,
     backend: Option<&'a mut dyn PaperJointOracleBackend>,
 ) -> Result<(Vec<CeClaim<Cmt, F, K>>, PiCcsProof, ProtocolTrace), PiCcsError> {
+    prove_with_profile(
+        transcript,
+        params,
+        structure,
+        fresh_claims,
+        fresh_witnesses,
+        running_claims,
+        running_witnesses,
+        rows,
+        workspace_bytes,
+        backend,
+        &FoldProfile::production(),
+    )
+}
+
+/// `prove_with_matrix_rows` under `profile`.
+pub fn prove_with_profile<'a>(
+    transcript: &mut Poseidon2Transcript,
+    params: &neo_params::NeoParams,
+    structure: &CcsStructure<F>,
+    fresh_claims: &[CcsClaim<Cmt, F>],
+    fresh_witnesses: &[CcsWitness<F>],
+    running_claims: &[CeClaim<Cmt, F, K>],
+    running_witnesses: &[Mat<F>],
+    rows: &'a dyn MatrixRows,
+    workspace_bytes: usize,
+    backend: Option<&'a mut dyn PaperJointOracleBackend>,
+    profile: &FoldProfile<'_>,
+) -> Result<(Vec<CeClaim<Cmt, F, K>>, PiCcsProof, ProtocolTrace), PiCcsError> {
     prove_with_trace_inner(
         transcript,
         params,
@@ -610,5 +668,6 @@ pub fn prove_with_matrix_rows<'a>(
             workspace_bytes,
             backend,
         },
+        profile,
     )
 }

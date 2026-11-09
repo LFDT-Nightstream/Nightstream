@@ -56,6 +56,21 @@ def pointLength {variableCount : Nat} (interface : Interface variableCount)
     (offset : Nat) : Nat :=
   localLength (Circuit.ops (pointCircuitAt interface offset).main offset)
 
+/-- `pointLength` from the gadget's closed form, for compiled evaluation: every later offset
+reads it. -/
+def pointLengthFast {variableCount : Nat} (interface : Interface variableCount)
+    (offset : Nat) : Nat :=
+  if 0 < variableCount then 4 * variableCount - 2 else pointLength interface offset
+
+@[csimp] theorem pointLength_eq_pointLengthFast : @pointLength = @pointLengthFast := by
+  funext variableCount interface offset
+  unfold pointLengthFast
+  split
+  · rename_i positive
+    unfold pointLength pointCircuitAt
+    exact PointEquality.localLength_eq_of_positive _ offset positive
+  · rfl
+
 def hornerOffset {variableCount : Nat} (interface : Interface variableCount)
     (offset : Nat) : Nat :=
   offset + pointLength interface offset
@@ -68,6 +83,17 @@ def hornerLength {variableCount : Nat} (interface : Interface variableCount)
     (offset : Nat) : Nat :=
   localLength (Circuit.ops (hornerCircuitAt interface offset).main
     (hornerOffset interface offset))
+
+/-- `hornerLength` from `Horner.localLength_eq`, for compiled evaluation. -/
+def hornerLengthFast {variableCount : Nat} (interface : Interface variableCount)
+    (offset : Nat) : Nat :=
+  3 * ((interface.coefficients offset).length - 1)
+
+@[csimp] theorem hornerLength_eq_hornerLengthFast : @hornerLength = @hornerLengthFast := by
+  funext variableCount interface offset
+  unfold hornerLength hornerCircuitAt hornerLengthFast
+  rw [Horner.localLength_eq]
+  rfl
 
 def finalOffset {variableCount : Nat} (interface : Interface variableCount)
     (offset : Nat) : Nat :=
@@ -547,6 +573,21 @@ def pointLength {variableCount : Nat} (interface : Interface variableCount)
     (offset : Nat) : Nat :=
   localLength (Circuit.ops (pointCircuitAt interface offset).main offset)
 
+/-- `pointLength` from the gadget's closed form, for compiled evaluation: every later offset
+reads it. -/
+def pointLengthFast {variableCount : Nat} (interface : Interface variableCount)
+    (offset : Nat) : Nat :=
+  if 0 < variableCount then 4 * variableCount - 2 else pointLength interface offset
+
+@[csimp] theorem pointLength_eq_pointLengthFast : @pointLength = @pointLengthFast := by
+  funext variableCount interface offset
+  unfold pointLengthFast
+  split
+  · rename_i positive
+    unfold pointLength pointCircuitAt
+    exact PointEquality.Owned.localLength_eq_of_positive _ offset positive
+  · rfl
+
 def hornerOffset {variableCount : Nat} (interface : Interface variableCount)
     (offset : Nat) : Nat :=
   offset + pointLength interface offset
@@ -559,6 +600,17 @@ def hornerLength {variableCount : Nat} (interface : Interface variableCount)
     (offset : Nat) : Nat :=
   localLength (Circuit.ops (hornerCircuitAt interface offset).main
     (hornerOffset interface offset))
+
+/-- `hornerLength` from `Horner.Owned.localLength_eq`, for compiled evaluation. -/
+def hornerLengthFast {variableCount : Nat} (interface : Interface variableCount)
+    (offset : Nat) : Nat :=
+  3 * ((interface.coefficients offset).length - 1)
+
+@[csimp] theorem hornerLength_eq_hornerLengthFast : @hornerLength = @hornerLengthFast := by
+  funext variableCount interface offset
+  unfold hornerLength hornerCircuitAt hornerLengthFast
+  rw [Horner.Owned.localLength_eq]
+  rfl
 
 def finalOffset {variableCount : Nat} (interface : Interface variableCount)
     (offset : Nat) : Nat :=
@@ -831,6 +883,17 @@ theorem localLength_eq {variableCount : Nat}
   change localLength (opsAt interface offset) = _
   rw [opsAt_localLength, pointLength_eq_of_positive interface offset positive,
     hornerLength_eq]
+
+/-- The circuit with its private count from `localLength_eq`, for compiled evaluation. -/
+def circuitFast {variableCount : Nat} (interface : Interface variableCount)
+    (positive : 0 < variableCount) : FormalCircuit :=
+  (circuit interface positive).withPrivateCount
+    (fun offset => (4 * variableCount - 2) + 3 * ((interface.coefficients offset).length - 1))
+    (localLength_eq interface positive)
+
+@[csimp] theorem circuit_eq_circuitFast : @circuit = @circuitFast := by
+  funext variableCount interface positive
+  exact FormalCircuit.eq_withPrivateCount _ _ _
 
 theorem output_varsBelow {variableCount : Nat}
     (interface : Interface variableCount) (positive : 0 < variableCount)

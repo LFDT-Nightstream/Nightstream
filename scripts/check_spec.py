@@ -9,10 +9,12 @@ extension is a repository path, such as `crates/nightstream/` or `Lifecycle/XOut
 must exist under one of BASES.
 
 Between `<!-- params -->` and `<!-- /params -->` SPEC.md holds a table that this script
-generates. Its values come from the integer equations of the Lean theorems in THEOREMS and
-from the header of the Lean-emitted package; the field names come from the Lean formats in
-`Export/Package.lean`. Every value needs a label in LABELS and every label a value, so the
-table never drops or invents a row.
+generates. Its values come from the integer equations of the Lean theorems in THEOREMS, from
+the number definitions in DEFINITIONS, from the headers of the Lean-emitted option-B packages
+in PACKAGES and from the row counts of the Lean-emitted parity file PARITY. The header field
+names come from the Lean format `Package.format` in `Export/OptionB/StepPackage.lean`. Every
+value needs a label in LABELS and every label a value, so the table never drops or invents a
+row.
 
 The repository has one protocol specification (`AGENTS.md`, Specs). So the script also fails when
 a tracked file is in a `specs/` folder, when a Markdown file outside SPEC_FILES has "spec" in its
@@ -35,9 +37,14 @@ SPEC = ROOT / "SPEC.md"
 FPRIME = ROOT / "formal/nightstream-fprime/NightstreamFPrime"
 COMPRESSION = ROOT / "formal/compression-lean/CompressionLean"
 BASES = [ROOT, FPRIME, COMPRESSION]
-PACKAGE = ROOT / "formal/nightstream-fprime/artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1.json"
-FORMATS = FPRIME / "Export/Package.lean"
-SEALED = FPRIME / "Export/Stage1/PerApplicationCanonicalPackage.lean"
+ARTIFACTS = ROOT / "formal/nightstream-fprime/artifacts"
+# The option-B packages of the reference application: the light and refresh step circuits and
+# the finish circuit (`Export/OptionB/EmitMain.lean`).
+PACKAGES = [(name, ARTIFACTS / f"nightstream-fprime-option-b-{name}-v1.json")
+            for name in ("light", "refresh", "finish")]
+PARITY = ARTIFACTS / "nightstream-fprime-option-b-parity-v1.json"
+FORMATS = FPRIME / "Export/OptionB/StepPackage.lean"
+PARITY_SOURCE = FPRIME / "Export/OptionB/Parity.lean"
 BEGIN, END = "<!-- params -->", "<!-- /params -->"
 # The Markdown files whose names say "spec": the protocol specification, a strategy document, and
 # the scope of a profiling tool.
@@ -55,6 +62,15 @@ THEOREMS = [
     (FPRIME / "Spec/Profile.lean", "production_norm_stages"),
     (FPRIME / "Spec/Profile.lean", "production_msis_norm_bound"),
     (FPRIME / "Lifecycle/Nifs/SelectedTestNumerator.lean", "numerator_eq"),
+    (FPRIME / "Spec/Folding/Light/ErrorBudget.lean", "production_testNumerator"),
+    (FPRIME / "Spec/Folding/Light/ErrorBudget.lean", "production_forkCoordinates"),
+    (FPRIME / "Spec/Folding/Schedule.lean", "production_msisChainBound"),
+]
+
+# Lean definitions whose value is a number or a power `base ^ exponent`.
+DEFINITIONS = [
+    (FPRIME / "Spec/Folding/Schedule.lean", "productionLightFoldCap"),
+    (FPRIME / "Export/OptionB/StepRelation.lean", "keyWidth"),
 ]
 
 # Each value's symbol and meaning. A key is the left side of a theorem's equation or a field
@@ -71,43 +87,48 @@ LABELS = {
     "productionProfile.commitmentWidth": ("κ", "The rows of the Ajtai key."),
     "productionProfile.extensionDegree": ("—", "The degree of `K` over `F_q`."),
     "productionProfile.challengeSetBitsFloor": ("—", "A floor of `log₂ |C|`."),
-    "productionProfile.piRlcInputs": ("—", "The Π_RLC inputs: one fresh claim and the running claims."),
-    "productionProfile.piDecChildren": ("—", "The Π_DEC children, which are the next running claims."),
+    "productionProfile.piRlcInputs": ("—", "The Π_RLC inputs of a refresh fold, the fresh claim and the 16 Π_DEC children."),
+    "productionProfile.piDecChildren": ("—", "The Π_DEC children of the accumulator that a refresh fold splits."),
     "productionProfile.ccsMatrices": ("t", "The CCS matrices."),
     "NormStage.bound productionGlobalParams .fresh": ("—", "The norm bound of a fresh witness, `b`."),
     "NormStage.bound productionGlobalParams .combined": ("—", "The norm bound of a Π_RLC parent, `B`."),
     "NormStage.bound productionGlobalParams .ambient": ("—", "The ambient bound, `q/2 + 1`."),
-    "productionGlobalParams.msisNormBound": ("—", "The MSIS norm of the binding reduction, `8TB`."),
-    "numerator": ("—", "The numerator of the Π_CCS test error `ε_test`."),
-    "ε_test": ("ε_test", "The Π_CCS test error, `numerator / q²` (`test_error_eq`).", "over_q2"),
-    "sealed.schema": ("—", "The schema of the sealed package file."),
-    "sealed.logicalPublicInputCount": ("—", "The public input of a claim, in field elements."),
-    "package.schemaVersion": ("—", "The schema of the circuit package."),
-    "package.poseidon.width": ("—", "Poseidon2 state width."),
-    "package.poseidon.rate": ("—", "Poseidon2 rate."),
-    "package.poseidon.digestLength": ("—", "Poseidon2 digest length."),
-    "package.poseidon.initialFullRounds": ("—", "Poseidon2 full rounds before the partial rounds."),
-    "package.poseidon.partialRounds": ("—", "Poseidon2 partial rounds."),
-    "package.poseidon.terminalFullRounds": ("—", "Poseidon2 full rounds after the partial rounds."),
-    "package.poseidon.recipesPerPermutation": ("—", "Witness recipes of the permutation template."),
-    "package.poseidon.outputLocalStart": ("—", "The first output local of the permutation template."),
-    "package.layout.rowCount": ("—", "Rows of the physical layout."),
-    "package.layout.privateColumnCount": ("—", "Private columns of the physical layout."),
-    "package.layout.constantColumn": ("—", "The constant column of the physical layout."),
-    "package.layout.publicColumnCount": ("—", "Public columns of the physical layout."),
-    "package.layout.totalColumnCount": ("—", "All columns of the physical layout."),
-    "package.relation.rowCount": ("n", "Rows of the CCS relation."),
-    "package.relation.columnCount": ("m", "Columns of the CCS relation, the logical width."),
-    "package.relation.cubeVariables": ("ℓ", "Variables of the row cube: `n ≤ 2^ℓ`, and Π_CCS has `ℓ` rounds."),
-    "package.relation.degreeBound": ("—", "The degree bound of a Π_CCS round polynomial."),
-    "package.relation.terms": ("f", "The CCS polynomial over the matrix images `M_j z`."),
-    "package.terminal.rowStart": ("—", "The first row of the terminal layout."),
-    "package.terminal.rowCount": ("—", "Rows of the terminal layout."),
-    "package.terminal.runningClaims": ("—", "Running claims of the terminal layout."),
-    "package.terminal.freshClaims": ("—", "Fresh claims of the terminal layout."),
+    "productionGlobalParams.msisNormBound": ("—", "The MSIS norm `8TB` of SuperNeo v1.2 Section 8, the chain norm at cap 0."),
+    "numerator": ("—", "The numerator of the refresh fold's Π_CCS test error, 17 sources."),
+    "ε_test": ("ε_test", "The refresh fold's Π_CCS test error, `numerator / q²`.", "over_q2"),
+    "testNumerator (shape 28) 8": ("—", "The numerator of the light fold's Π_CCS test error, 2 sources."),
+    "ε_test light": ("—", "The light fold's Π_CCS test error, `testNumerator / q²`.", "over_q2"),
+    "forkCoordinates": ("—", "The `ρ` coordinates of a light fork. A refresh fork has 17."),
+    "msisChainBound productionGlobalParams productionLightFoldCap": ("—", "The chain MSIS norm `8T(B + cap·T·(b − 1))`."),
+    "productionLightFoldCap": ("cap", "The depth at which the light circuit rejects a fold."),
+    "keyWidth": ("—", "The logical width of both circuit keys, `2^26`."),
 }
-HEADER_STRUCTURES = {"poseidon": "PoseidonSchedule", "layout": "PhysicalLayout",
-                     "relation": "CcsRelation", "terminal": "TerminalLayout"}
+# The header fields of a step package (`StepPackage.Package.format`) and the row counts of the
+# parity file, for each circuit.
+HEADER_LABELS = {
+    "circuit": "The circuit index: 0 light, 1 refresh, 2 finish.",
+    "publicColumns": "The public input columns, five ring elements.",
+    "width": "The source width. Every source column is below it.",
+    "firstFresh": "The first fresh lowering column.",
+    "sboxStart": "The first S-box output column.",
+    "pieces": "The pieces, which are lowered rows, ring products and Poseidon2 blocks.",
+    "witness": "Witness batches.",
+    "slots": "Slot runs of the low-norm layout.",
+    "application[0]": "The witness word count of the application region.",
+    "application[1]": "The first local of the application region.",
+    "application[2]": "The local count of the application region.",
+    "application[3]": "The pieces of the application region, from the first piece.",
+    "application[4]": "The fresh columns of the application region, from `firstFresh`.",
+}
+PARITY_LABELS = {
+    "relationRows": "R1CS rows of the {} relation, from the pieces, the ring products and the bindings.",
+    "sboxRows": "S-box rows of the {} relation, 150 for each Poseidon2 block.",
+}
+for circuit in ("light", "refresh", "finish"):
+    LABELS.update({f"{circuit}.{field}": ("—", meaning) for field, meaning in HEADER_LABELS.items()})
+for circuit in ("light", "refresh"):
+    LABELS.update({f"{circuit}.{field}": ("—", meaning.format(circuit))
+                   for field, meaning in PARITY_LABELS.items()})
 
 
 def rel(path):
@@ -134,6 +155,16 @@ def theorem_values(path, theorem):
     return values
 
 
+def definition_value(path, name):
+    """The value of `def name : Nat := number` or `def name : Nat := base ^ exponent`."""
+    text = path.read_text(encoding="utf-8")
+    found = re.search(rf"^def {re.escape(name)} : Nat := ([0-9]+)(?: \^ ([0-9]+))?\s*$", text, re.M)
+    if not found:
+        sys.exit(f"spec: {rel(path)} has no number definition {name}")
+    base, exponent = found.groups()
+    return int(base) ** int(exponent) if exponent else int(base)
+
+
 def format_fields(structure):
     """The fields of `structure` in the order its Lean format encodes them."""
     text = FORMATS.read_text(encoding="utf-8")
@@ -144,28 +175,59 @@ def format_fields(structure):
     return re.findall(r"value\.(\w+)", found.group(1))
 
 
-def sealed_header():
-    """The sealed package's schema, its circuit package and its public-input count."""
-    text = SEALED.read_text(encoding="utf-8")
-    if not re.search(r"\.array \[\s*\.atom sealedPackageSchema,\s*CircuitPackage\.format\.encode"
-                     r".*?\.atom logicalPublicInputCount\]", text, re.S):
-        sys.exit(f"spec: {rel(SEALED)} no longer encodes the schema, the circuit package, ..., "
-                 f"the public-input count")
-    sealed = json.loads(PACKAGE.read_text(encoding="utf-8"))
-    if not (isinstance(sealed, list) and isinstance(sealed[0], int) and isinstance(sealed[-1], int)):
-        sys.exit(f"spec: {rel(PACKAGE)} is not a sealed package")
-    return sealed[0], sealed[1], sealed[-1]
+def nested_pair(value, count):
+    """The `count` numbers of a value that `pair nat (pair nat ...)` encodes."""
+    items = []
+    while len(items) < count - 1:
+        if not (isinstance(value, list) and len(value) == 2 and isinstance(value[0], int)):
+            sys.exit("spec: an application region is not a nested pair of numbers")
+        items.append(value[0])
+        value = value[1]
+    if not isinstance(value, int):
+        sys.exit("spec: an application region does not end in a number")
+    return items + [value]
 
 
-def polynomial(terms, modulus):
-    rendered = []
-    for coefficient, exponents in terms:
-        factors = "·".join(f"M_{j}" + (f"^{e}" if e > 1 else "") for j, e in enumerate(exponents) if e)
-        sign = "−" if coefficient > modulus // 2 else "+"
-        magnitude = modulus - coefficient if sign == "−" else coefficient
-        rendered.append((sign, factors if magnitude == 1 else f"{magnitude}·{factors}"))
-    text = " ".join(f"{sign} {term}" for sign, term in rendered)
-    return text[2:] if text.startswith("+ ") else text
+def package_rows(name, path):
+    """The header of a step package: its numbers, the lengths of its lists, and its application
+    region (`StepPackage.Package.format`)."""
+    package = json.loads(path.read_text(encoding="utf-8"))
+    names = format_fields("Package")
+    if not isinstance(package, list) or len(names) != len(package):
+        sys.exit(f"spec: {rel(path)} has {len(package)} fields; Package encodes {len(names)}")
+    found = []
+    for field, value in zip(names, package):
+        if field == "application":
+            for index, item in enumerate(nested_pair(value, 5)):
+                found.append((f"`{rel(path)}`", f"{name}.application[{index}]", item))
+        elif isinstance(value, int):
+            found.append((f"`{rel(path)}`", f"{name}.{field}", value))
+        elif isinstance(value, list):
+            found.append((f"`{rel(path)}`", f"{name}.{field}", len(value)))
+        else:
+            sys.exit(f"spec: {rel(path)} field {field} is not a number or a list")
+    return found
+
+
+def parity_rows():
+    """The relation rows and the S-box rows of the light and the refresh circuit (`Parity.summary`:
+    its first two entries)."""
+    text = PARITY_SOURCE.read_text(encoding="utf-8")
+    if not re.search(r"\.array \[\.atom rows\.length, \.atom \(150 \* blocks\.length\)", text):
+        sys.exit(f"spec: {rel(PARITY_SOURCE)} no longer starts a summary with the relation rows and "
+                 "the S-box rows")
+    if not re.search(r"\.array \[\.atom 3, summary width light\.1 .*?,\s*summary width refresh\.1",
+                     text, re.S):
+        sys.exit(f"spec: {rel(PARITY_SOURCE)} no longer writes version 3, then the light and the "
+                 "refresh summary")
+    parity = json.loads(PARITY.read_text(encoding="utf-8"))
+    if not (isinstance(parity, list) and parity[0] == 3):
+        sys.exit(f"spec: {rel(PARITY)} is not a version 3 parity file")
+    found = []
+    for name, summary in (("light", parity[1]), ("refresh", parity[2])):
+        found.append((f"`{rel(PARITY)}`", f"{name}.relationRows", summary[0]))
+        found.append((f"`{rel(PARITY)}`", f"{name}.sboxRows", summary[1]))
+    return found
 
 
 def neg_log2_floor(numerator, denominator):
@@ -185,32 +247,15 @@ def rows():
     for path, theorem in THEOREMS:
         for key, value in theorem_values(path, theorem):
             found.append((f"`{short(path)}`, `{theorem}`", key, value))
+    for path, name in DEFINITIONS:
+        found.append((f"`{short(path)}`, `{name}`", name, definition_value(path, name)))
     lean = {key: value for _, key, value in found}
     modulus = lean["productionProfile.global.q"]
-    schema, package, public_count = sealed_header()
-    found.append((f"`{rel(PACKAGE)}`", "sealed.schema", schema))
-    names = format_fields("CircuitPackage")
-    if len(names) != len(package):
-        sys.exit(f"spec: the package header has {len(package)} fields; CircuitPackage encodes {len(names)}")
-    header = dict(zip(names, package))
-    found.append((f"`{rel(PACKAGE)}`", "package.schemaVersion", header["schemaVersion"]))
-    for field, structure in HEADER_STRUCTURES.items():
-        value = header[field]
-        if structure == "TerminalLayout":
-            if value[0] != 1:
-                sys.exit("spec: the package has no terminal layout")
-            value = value[1]
-        fields = format_fields(structure)
-        if len(fields) != len(value):
-            sys.exit(f"spec: {structure} encodes {len(fields)} fields; the package has {len(value)}")
-        for name, item in zip(fields, value):
-            key = f"package.{field}.{name}"
-            if isinstance(item, int):
-                found.append((f"`{rel(PACKAGE)}`", key, item))
-            elif key == "package.relation.terms":
-                found.append((f"`{rel(PACKAGE)}`", key, polynomial(item, modulus)))
-    found.append((f"`{rel(PACKAGE)}`", "sealed.logicalPublicInputCount", public_count))
     found.append(("computed", "ε_test", (lean["numerator"], modulus ** 2)))
+    found.append(("computed", "ε_test light", (lean["testNumerator (shape 28) 8"], modulus ** 2)))
+    for name, path in PACKAGES:
+        found.extend(package_rows(name, path))
+    found.extend(parity_rows())
     return found
 
 

@@ -18,13 +18,12 @@ const COUNT: usize = 3;
 #[test]
 fn rebuilding_a_live_setup_is_rejected() {
     let scratch = Scratch::new("setup-generation");
-    let root = build(VARIABLES, COUNT, table, Some(&scratch.0)).unwrap();
+    let root = build(VARIABLES, COUNT, fill, Some(&scratch.0)).unwrap();
     let store = Store::open(&scratch.0, VARIABLES, COUNT, &root).unwrap();
     let original = store.read(0).unwrap();
-    let replacement = |k| {
-        let mut words = table(k);
-        words[0] += Gl::ONE;
-        words
+    let replacement = |k, values: &mut [Gl]| {
+        fill(k, values);
+        values[0] += Gl::ONE;
     };
     assert!(build(VARIABLES, COUNT, replacement, Some(&scratch.0)).is_err());
     assert_eq!(store.read(0).unwrap(), original);
@@ -34,6 +33,11 @@ fn table(k: usize) -> Vec<Gl> {
     (0..1 << VARIABLES)
         .map(|x| Gl::from_u64(word(70 + k as u64, x)))
         .collect()
+}
+
+/// `build`'s oracle: write `table(k)` into `values`.
+fn fill(k: usize, values: &mut [Gl]) {
+    values.copy_from_slice(&table(k));
 }
 
 fn ext(seed: u64) -> Ext {
@@ -110,14 +114,14 @@ fn streaming_root_matches_a_direct_encoding() {
     // partial block, two full blocks (rate 12).
     for count in 1..=COUNT {
         assert_eq!(
-            build(VARIABLES, count, table, None).unwrap(),
+            build(VARIABLES, count, fill, None).unwrap(),
             direct_root(count),
             "{count} oracles"
         );
     }
     // Control: a different oracle order gives a different root.
     assert_ne!(
-        build(VARIABLES, COUNT, |k| table(COUNT - 1 - k), None).unwrap(),
+        build(VARIABLES, COUNT, |k, values| fill(COUNT - 1 - k, values), None).unwrap(),
         direct_root(COUNT)
     );
 }
@@ -126,7 +130,7 @@ fn streaming_root_matches_a_direct_encoding() {
 fn honest_fold_accepts_and_tampering_rejects() {
     let n = VARIABLES;
     let scratch = Scratch::new("setup-fold");
-    let root = build(n, COUNT, table, Some(&scratch.0)).unwrap();
+    let root = build(n, COUNT, fill, Some(&scratch.0)).unwrap();
     assert!(matches!(
         Store::open(&scratch.0, n, COUNT, &[Gl::ONE; 4]),
         Err(Error::Setup(_))
@@ -155,11 +159,11 @@ fn honest_fold_accepts_and_tampering_rejects() {
     let point: Vec<Ext> = (0..n).map(|t| ext(10 + t as u64)).collect();
     let alpha: [Ext; FOLD] = std::array::from_fn(|t| ext(20 + t as u64));
     for oracle in &combined {
-        let w = partials(oracle, &point[FOLD..]);
+        let w = partials(|x| oracle[x], &point[FOLD..]);
         let low = eq_table(&point[..FOLD]);
         let claim: Ext = low.iter().zip(&w).map(|(&e, &w)| e * w).sum();
         assert_eq!(claim, evaluate(oracle, &point));
-        let folded = fold(oracle, &alpha);
+        let folded = fold(|x| oracle[x], oracle.len(), &alpha);
         let expected: Ext = eq_table(&alpha).iter().zip(&w).map(|(&e, &w)| e * w).sum();
         assert_eq!(evaluate(&folded, &point[FOLD..]), expected);
         // Control: a wrong partial moves the folded claim.
@@ -177,7 +181,10 @@ fn honest_fold_accepts_and_tampering_rejects() {
     }
 
     // Verifier: every leaf gives the fold's value at its query point.
-    let folds: Vec<Vec<Ext>> = combined.iter().map(|oracle| fold(oracle, &alpha)).collect();
+    let folds: Vec<Vec<Ext>> = combined
+        .iter()
+        .map(|oracle| fold(|x| oracle[x], oracle.len(), &alpha))
+        .collect();
     let leaves = 1 << (n + 1 - FOLD);
     for index in 0..leaves {
         let leaf = store.read(index).unwrap();
@@ -255,11 +262,11 @@ fn scratches_with_one_name_do_not_share_a_directory() {
 #[test]
 fn rebuilding_setup_preserves_an_open_store() {
     let scratch = Scratch::new("setup-rebuild");
-    let root = build(VARIABLES, COUNT, table, Some(&scratch.0)).unwrap();
+    let root = build(VARIABLES, COUNT, fill, Some(&scratch.0)).unwrap();
     let store = Store::open(&scratch.0, VARIABLES, COUNT, &root).unwrap();
     let original = store.read(0).unwrap();
 
-    let replacement = build(VARIABLES, COUNT, |k| table(k + COUNT), Some(&scratch.0));
+    let replacement = build(VARIABLES, COUNT, |k, values| fill(k + COUNT, values), Some(&scratch.0));
 
     assert_eq!(
         store.read(0).unwrap(),
@@ -275,13 +282,13 @@ fn rebuilding_setup_preserves_a_read_only_open_store() {
     use std::os::unix::fs::PermissionsExt;
 
     let scratch = Scratch::new("setup-failed-rebuild");
-    let root = build(VARIABLES, COUNT, table, Some(&scratch.0)).unwrap();
+    let root = build(VARIABLES, COUNT, fill, Some(&scratch.0)).unwrap();
     let store = Store::open(&scratch.0, VARIABLES, COUNT, &root).unwrap();
     let original = store.read(0).unwrap();
     let blocked = scratch.0.join("setup/oracle-01.bin");
     let permissions = std::fs::metadata(&blocked).unwrap().permissions();
     std::fs::set_permissions(&blocked, std::fs::Permissions::from_mode(0o400)).unwrap();
-    let replacement = build(VARIABLES, COUNT, |k| table(k + COUNT), Some(&scratch.0));
+    let replacement = build(VARIABLES, COUNT, |k, values| fill(k + COUNT, values), Some(&scratch.0));
     std::fs::set_permissions(&blocked, permissions).unwrap();
 
     assert!(replacement.is_err(), "a ready setup must not be replaced");
@@ -299,7 +306,7 @@ fn failed_setup_write_removes_its_candidate_and_allows_retry() {
     let failed = build(
         VARIABLES,
         COUNT,
-        |k| {
+        |k, values: &mut [Gl]| {
             if k == 1 {
                 let paths: Vec<_> = std::fs::read_dir(&scratch.0)
                     .unwrap()
@@ -308,16 +315,16 @@ fn failed_setup_write_removes_its_candidate_and_allows_retry() {
                 assert_eq!(paths.len(), 1, "one private candidate belongs to this build");
                 std::fs::create_dir(paths[0].join("oracle-01.bin")).unwrap();
             }
-            table(k)
+            fill(k, values)
         },
         Some(&scratch.0),
     );
     assert!(matches!(failed, Err(Error::Io(_))));
     assert_eq!(std::fs::read_dir(&scratch.0).unwrap().count(), 0);
 
-    let expected = build(VARIABLES, COUNT, table, None).unwrap();
+    let expected = build(VARIABLES, COUNT, fill, None).unwrap();
     assert!(Store::open(&scratch.0, VARIABLES, COUNT, &expected).is_err());
-    let root = build(VARIABLES, COUNT, table, Some(&scratch.0)).unwrap();
+    let root = build(VARIABLES, COUNT, fill, Some(&scratch.0)).unwrap();
     assert_eq!(root, expected);
     let store = Store::open(&scratch.0, VARIABLES, COUNT, &root).unwrap();
     for leaf in 0..1 << (VARIABLES + 1 - FOLD) {
@@ -338,7 +345,7 @@ fn concurrent_setup_builds_do_not_publish_mixed_oracles() {
         build(
             VARIABLES,
             COUNT,
-            |k| table(k + generation * COUNT),
+            |k, values| fill(k + generation * COUNT, values),
             Some(&references[generation].0),
         )
         .unwrap()
@@ -352,19 +359,19 @@ fn concurrent_setup_builds_do_not_publish_mixed_oracles() {
             build(
                 VARIABLES,
                 COUNT,
-                |k| {
+                |k, values: &mut [Gl]| {
                     if k == 1 {
                         ready_tx.send(()).unwrap();
                         resume_rx.recv().unwrap();
                     }
-                    table(k)
+                    fill(k, values)
                 },
                 Some(directory),
             )
         });
         ready_rx.recv().unwrap();
         let partial_rejected = Store::open(&scratch.0, VARIABLES, COUNT, &roots[0]).is_err();
-        let second = build(VARIABLES, COUNT, |k| table(k + COUNT), Some(&scratch.0));
+        let second = build(VARIABLES, COUNT, |k, values| fill(k + COUNT, values), Some(&scratch.0));
         resume_tx.send(()).unwrap();
         (first.join().unwrap(), second, partial_rejected)
     });

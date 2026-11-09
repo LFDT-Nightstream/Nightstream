@@ -15,22 +15,21 @@ use super::geometry::Geometry;
 use super::segment::SegmentError;
 use super::transcript::Digest;
 use super::{memory_security, terminal_states, Program, Run, Statement, TerminalError};
-use crate::lifecycle::{ProofCodecError, Stage1Envelope};
+use crate::lifecycle::ProofCodecError;
 
 /// The bytes of the 39 carry words at the start of an encoded proof.
 const CARRY_BYTES: usize = 39 * 8;
 
-/// A memory proof: the Stage 1 proof of every step and the final carry.
-#[derive(Debug)]
+/// A memory proof: the step proof of every invocation and the final carry.
 pub struct Proof {
-    stage1: Stage1Envelope,
+    stage1: crate::Proof,
     carry: Carry,
 }
 
 #[cfg(test)]
 impl Proof {
-    /// A proof from a Stage 1 proof that a test made step by step.
-    pub(crate) fn from_parts(stage1: Stage1Envelope, carry: Carry) -> Self {
+    /// A proof from a step proof that a test made step by step.
+    pub(crate) fn from_parts(stage1: crate::Proof, carry: Carry) -> Self {
         Self { stage1, carry }
     }
 }
@@ -40,25 +39,6 @@ impl Proof {
 pub struct FinalProof {
     stage1: crate::FinalProof,
     carry: Carry,
-}
-
-impl FinalProof {
-    /// The carry words as little-endian words, then the compressed proof.
-    pub fn to_bytes(&self) -> Vec<u8> {
-        let mut bytes = carry_bytes(&self.carry);
-        bytes.extend(self.stage1.to_bytes());
-        bytes
-    }
-
-    /// Strict: the bytes must be the canonical encoding of the decoded proof.
-    /// Acceptance still needs `Verifier::verify_final`.
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self, crate::Error> {
-        let (carry, rest) = decode_carry(bytes)?;
-        Ok(Self {
-            stage1: crate::FinalProof::from_bytes(rest)?,
-            carry,
-        })
-    }
 }
 
 /// What a verified memory proof shows beyond its two states.
@@ -153,15 +133,6 @@ impl<A: Application + Clone> Prover<A> {
         self.stage1.compression_setup(dir)
     }
 
-    /// `crate::Prover::open_compression_setup` of the circuit.
-    pub fn open_compression_setup(
-        &self,
-        dir: impl AsRef<Path>,
-        key: &crate::CompressionKey,
-    ) -> Result<crate::CompressionSetup, crate::Error> {
-        self.stage1.open_compression_setup(dir, key)
-    }
-
     /// Compress `proof` (`crate::Prover::compress`). The carry
     /// does not change.
     pub fn compress(&self, proof: &Proof, setup: &crate::CompressionSetup) -> Result<FinalProof, crate::Error> {
@@ -176,7 +147,7 @@ impl<A: Application + Clone> Prover<A> {
 pub struct Proving<'p, A: Application> {
     prover: &'p Prover<A>,
     run: Run<A>,
-    last: Option<Stage1Envelope>,
+    last: Option<crate::Proof>,
     failed: bool,
 }
 
@@ -190,10 +161,10 @@ impl<A: Application + Clone> Proving<'_, A> {
         self.failed = true;
         let initial = self.run.initial_state();
         for invocation in self.run.segment(inputs)? {
-            let previous = self
-                .last
-                .take()
-                .unwrap_or_else(|| Stage1Envelope::initial(initial));
+            let previous = match self.last.take() {
+                Some(previous) => previous,
+                None => self.prover.stage1.initial(initial)?,
+            };
             self.last = Some(
                 self.prover
                     .stage1
@@ -290,7 +261,7 @@ impl<A: Application> Verifier<A> {
         program: &Program,
         statement: &Statement<A::State>,
         carry: &Carry,
-        stage1: &Stage1Envelope,
+        stage1: &crate::Proof,
     ) -> Result<(), VerifyError> {
         if program.geometry != self.geometry {
             return Err(VerifyError::Geometry);

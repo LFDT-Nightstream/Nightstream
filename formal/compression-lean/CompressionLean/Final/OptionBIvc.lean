@@ -100,7 +100,7 @@ theorem lastFold_of_holds (program : Stage1.Application.Program)
         (slotClaim (finishPackage program relation next width batches rest) slot env) z →
       ∃ witness, Spec.CE.Holds (PaperAlgebra.semantics ajtai) productionGlobalParams
         (Lifecycle.OptionB.toClaim ((circuitKeys slot).system ajtai)
-          ((refreshOutput (logicalWidth := lw) (publicFits := pf) program 1 completed).runningNext slot).1)
+          ((finishStepOutput (logicalWidth := lw) (publicFits := pf) program 1 completed).runningNext slot).1)
         witness := by
     intro slot z relation_holds
     rw [slotClaim_eq (lw := lw) (pf := pf) program _ rfl
@@ -111,7 +111,7 @@ theorem lastFold_of_holds (program : Stage1.Application.Program)
       barEq (honest slot) _ relation_holds⟩
   have both : ∀ slot : Fin 2, ∃ witness, Spec.CE.Holds (PaperAlgebra.semantics ajtai) productionGlobalParams
       (Lifecycle.OptionB.toClaim ((circuitKeys slot).system ajtai)
-        ((refreshOutput (logicalWidth := lw) (publicFits := pf) program 1 completed).runningNext slot).1)
+        ((finishStepOutput (logicalWidth := lw) (publicFits := pf) program 1 completed).runningNext slot).1)
       witness := by
     intro slot
     fin_cases slot
@@ -151,7 +151,7 @@ theorem lastFold_covered {relation : ProductionKey.LogicalRelation lw pf}
   have iterationEq := congrArg (fun statement : TerminalStatement AppState => statement.iteration) statementEq
   rw [outputEq]
   refine finish_covered ajtai circuitKeys exports control cap _
-    (refresh_wellFormed _ ajtai circuitKeys keysShaped _) (refresh_valid _ _) ?_ finish slots
+    (refresh_wellFormed _ circuitKeys keysShaped _) (refresh_valid _ _) ?_ finish slots
     (statementEq ▸ unreached) answer
   change (refreshInput exports.program (lastChoice exports.program ajtai circuitKeys x).1).iteration =
     (x 0).val at iterationEq

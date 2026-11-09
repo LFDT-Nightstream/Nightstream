@@ -175,7 +175,7 @@ open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.accepts_iff
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.stepHolds_iff
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.gadgetDigest_eq
-#audit_axioms NightstreamFPrime.Lifecycle.OptionB.statePreimage_of_gadgets
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.statePreimage_of_digests
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.output_stateHash
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.prior_publicInput
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.builder_implies_output
@@ -262,6 +262,10 @@ open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.SlotSelect.circuit
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.SlotSelect.flag_facts
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.SlotSelect.rows_implies_select
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.DigestSelect.nextSlots_depth
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.DigestSelect.circuit
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.DigestSelect.selected_eq
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.DigestSelect.rows_implies_select
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.LightStepLayout.soundness
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.LightStepSoundness.statePreimageExpr_eval
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.LightStepSoundness.newSlot_value
@@ -282,6 +286,7 @@ open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 #audit_axioms NightstreamFPrime.Layout.OptionB.LightRlcCompleteness.completeFrom
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.SlotWords.selectRows_holds
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.SlotSelect.rows_of_select
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.DigestSelect.rows_of_select
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.DepthGuard.highBitsZero_of_lt
 #audit_axioms NightstreamFPrime.Layout.OptionB.LightStepCompleteness.completeGadgetsFrom
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.LightFold.check_of_folds
@@ -290,11 +295,13 @@ open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.LightStepSoundness.rlcRepresents
 #audit_axioms NightstreamFPrime.Layout.OptionB.LightStepBounds.piccsBelow
 #audit_axioms NightstreamFPrime.Layout.OptionB.LightStepBounds.rlcBelow
+#audit_axioms NightstreamFPrime.Layout.OptionB.LightStepBounds.newSlot_below
 #audit_axioms NightstreamFPrime.Layout.OptionB.LightAssemblerSource.slot_value
 #audit_axioms NightstreamFPrime.Layout.OptionB.LightAssemblerSource.stepRepresents
 #audit_axioms NightstreamFPrime.Layout.OptionB.LightAssemblerCompleteness.complete
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.SlotWords.selectRows_congr
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.SlotSelect.rows_congr
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.DigestSelect.rows_congr
 #audit_axioms NightstreamFPrime.Layout.OptionB.LightAssemblerCircuit.piccsRepresents
 #audit_axioms NightstreamFPrime.Layout.OptionB.LightAssemblerCircuit.completeOfChildren
 #audit_axioms NightstreamFPrime.Layout.OptionB.LightAssemblerCircuit.stepCircuit
@@ -325,6 +332,7 @@ open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 #audit_axioms NightstreamFPrime.Layout.OptionB.RefreshPiCCSBounds.assumptions
 #audit_axioms NightstreamFPrime.Layout.OptionB.RefreshStepBounds.rlcAssumptions_of
 #audit_axioms NightstreamFPrime.Layout.OptionB.RefreshStepBounds.rlcAssumptions
+#audit_axioms NightstreamFPrime.Layout.OptionB.RefreshStepBounds.newSlot_below
 #audit_axioms NightstreamFPrime.Layout.OptionB.RefreshStepBounds.assumptions
 #audit_axioms NightstreamFPrime.Layout.OptionB.RefreshAssembler.inputsBelow
 #audit_axioms NightstreamFPrime.Layout.OptionB.RefreshAssembler.rows_implies_stepHolds
@@ -340,8 +348,10 @@ open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 #audit_axioms NightstreamFPrime.Layout.OptionB.RefreshAssemblerSource.childEvaluation_eval
 #audit_axioms NightstreamFPrime.Layout.OptionB.RefreshAssemblerSource.digit_eval
 #audit_axioms NightstreamFPrime.Layout.OptionB.RefreshAssemblerSource.stepRepresents
+#audit_axioms NightstreamFPrime.Layout.OptionB.RefreshAssemblerSource.nextWords
 #audit_axioms NightstreamFPrime.Layout.OptionB.RefreshAssemblerCompleteness.priorSlot_spec
 #audit_axioms NightstreamFPrime.Layout.OptionB.RefreshAssemblerCompleteness.priorState_spec
+#audit_axioms NightstreamFPrime.Layout.OptionB.RefreshAssemblerCompleteness.completePhasesFrom
 #audit_axioms NightstreamFPrime.Layout.OptionB.RefreshAssemblerCompleteness.completeFoldFrom
 #audit_axioms NightstreamFPrime.Layout.OptionB.RefreshAssemblerCompleteness.complete
 #audit_axioms NightstreamFPrime.Layout.OptionB.RefreshAssemblerCircuit.decWired

@@ -33,18 +33,18 @@ const FINISH_IDENTITY_DOMAIN: &[u8] = b"Nightstream/OptionB/finish/v1";
 
 /// The identity of the finish package in `formal/nightstream-fprime/artifacts`.
 pub const OPTION_B_FINISH_IDENTITY: [u64; 4] = [
-    17_448_616_448_112_065,
-    14_717_438_200_974_449_160,
-    16_608_545_845_770_207_724,
-    3_934_466_518_170_988_461,
+    8_964_031_634_493_460_821,
+    17_218_707_408_510_151_043,
+    14_169_646_730_652_437_123,
+    9_788_444_084_245_226_344,
 ];
 
 /// The identity of the packages in `formal/nightstream-fprime/artifacts`.
 pub const OPTION_B_PACKAGES_IDENTITY: [u64; 4] = [
-    12_437_596_312_348_751_690,
-    4_332_515_956_575_867_193,
-    15_552_907_959_044_075_316,
-    4_843_484_789_033_682_168,
+    1_354_275_387_794_463_770,
+    3_720_968_081_141_137_317,
+    4_771_215_239_776_813_456,
+    6_354_740_205_293_193_189,
 ];
 
 /// A lane or a row side as `Pieces.linear?` reads it: a constant and terms.

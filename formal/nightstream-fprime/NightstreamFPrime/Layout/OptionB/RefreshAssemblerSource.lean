@@ -81,6 +81,7 @@ structure Values (logicalWidth : Nat)
     PaperAlgebra.PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits)
   rounds : Fin productionShape.cubeVariables → SumCheck.Finite.FixedPolynomial K 8
   output : FullOutputCoordinates.FullOutput K productionShape
+  digestSelect : Fin 3 → List F
 
 /-- The light step's values for the shared groups; the light rounds and output lie above the
 columns that the refresh step reads from them. -/
@@ -95,6 +96,7 @@ def lightValues (values : Values logicalWidth publicFits) :
   fresh := values.fresh
   rounds := values.rounds
   output := ⟨fun _ _ => ⟨0, 0⟩, fun _ _ _ => ⟨0, 0⟩⟩
+  digestSelect := values.digestSelect
 
 /-- The refresh step's own groups, from the children's commitments. -/
 def tailColumn (values : Values logicalWidth publicFits) (word : Nat) : F :=
@@ -102,7 +104,8 @@ def tailColumn (values : Values logicalWidth publicFits) (word : Nat) : F :=
   else if word < 27648 then childEvaluationColumn values.split (word - 19008)
   else if word < 31968 then digitColumn values.digits (word - 27648)
   else if word < 32472 then roundColumn values.rounds (word - 31968)
-  else outputColumn values.output (word - 32472)
+  else if word < 41652 then outputColumn values.output (word - 32472)
+  else LightAssemblerSource.quadColumn (by decide) values.digestSelect (word - 41652)
 
 /-- The source columns from `base`, in the layout of `RefreshAssembler.interface`. -/
 def env (base witnessWordCount : Nat) (values : Values logicalWidth publicFits) : Env :=
@@ -145,11 +148,20 @@ theorem tail_round (word : Nat) (bound : word < 504) :
     show ¬31968 + word < 27648 by omega, show ¬31968 + word < 31968 by omega,
     show 31968 + word < 32472 by omega, ↓reduceIte, Nat.add_sub_cancel_left]
 
-theorem tail_output (word : Nat) :
+theorem tail_output (word : Nat) (bound : word < 9180) :
     tailColumn values (32472 + word) = outputColumn values.output word := by
   simp only [tailColumn, show ¬32472 + word < 19008 by omega,
     show ¬32472 + word < 27648 by omega, show ¬32472 + word < 31968 by omega,
-    show ¬32472 + word < 32472 by omega, ↓reduceIte, Nat.add_sub_cancel_left]
+    show ¬32472 + word < 32472 by omega, show 32472 + word < 41652 by omega, ↓reduceIte,
+    Nat.add_sub_cancel_left]
+
+theorem tail_digestSelect (word : Nat) :
+    tailColumn values (41652 + word) =
+      LightAssemblerSource.quadColumn (by decide) values.digestSelect word := by
+  simp only [tailColumn, show ¬41652 + word < 19008 by omega,
+    show ¬41652 + word < 27648 by omega, show ¬41652 + word < 31968 by omega,
+    show ¬41652 + word < 32472 by omega, show ¬41652 + word < 41652 by omega, ↓reduceIte,
+    Nat.add_sub_cancel_left]
 
 section Readback
 
@@ -420,6 +432,10 @@ def honestValues : Values logicalWidth publicFits where
     (input.running selected).1.publicInput (RefreshFold.outputIndex child)
   rounds := proof.nifs.piCcsRounds
   output := proof.nifs.piCcsOutput
+  digestSelect := fun index =>
+    if index.val = 0 then slotDigest folded
+    else if index.val - 1 = selected.val then slotDigest folded
+    else slotDigest (input.running (finAt 2 (by decide) (index.val - 1)))
 
 /-- The honest source columns. -/
 abbrev honestEnv (base witnessWordCount : Nat) : Env :=
@@ -447,7 +463,7 @@ theorem target_light (column : Nat) (bound : column < childCommitmentsStart base
     have := sharedEnd_eq base witnessWordCount
     omega)).trans (env_light base witnessWordCount _ column bound)
 
-theorem target_tail (word : Nat) (bound : word < 41652) :
+theorem target_tail (word : Nat) (bound : word < 41664) :
     target (childCommitmentsStart base witnessWordCount + word) =
       tailColumn (honestValues ajtai circuitKeys input output proof selected folded) word :=
   (agree _ (by
@@ -556,7 +572,17 @@ theorem target_output (word : Nat) (bound : word < 9180) :
     childCommitmentsStart base witnessWordCount + (32472 + word) by
       unfold outputStart roundsStart digitsStart childEvaluationsStart; omega]
   exact (target_tail ajtai circuitKeys input output proof selected folded base witnessWordCount
-    target agree _ (by omega)).trans (tail_output _ word)
+    target agree _ (by omega)).trans (tail_output _ word bound)
+
+theorem target_digestSelect (word : Nat) (bound : word < 12) :
+    target (digestSelectStart base witnessWordCount + word) =
+      LightAssemblerSource.quadColumn (by decide)
+        (honestValues ajtai circuitKeys input output proof selected folded).digestSelect word := by
+  rw [show digestSelectStart base witnessWordCount + word =
+    childCommitmentsStart base witnessWordCount + (41652 + word) by
+      unfold digestSelectStart outputStart roundsStart digitsStart childEvaluationsStart; omega]
+  exact (target_tail ajtai circuitKeys input output proof selected folded base witnessWordCount
+    target agree _ (by omega)).trans (tail_digestSelect _ word)
 
 /-- The words of slot group `slot` carry the honest slot of that group. -/
 theorem target_slot_words (slot : Fin 7)
@@ -619,7 +645,6 @@ theorem stepRepresents (program : Stage1.Application.Program) (circuit : Fin 2)
     (iterationBound : input.iteration < goldilocksModulus)
     (priorPcBound : input.priorPc < goldilocksModulus)
     (priorDepth : ∀ slot, (input.running slot).2 < goldilocksModulus)
-    (nextDepth : ∀ slot, (output.runningNext slot).2 < goldilocksModulus)
     (keyLength : ∀ key, (circuitKeys key).digest.length = 4)
     (z0Length : input.z0.length = 4) (ziLength : input.zi.length = 4)
     (zNextLength : output.zNext.length = 4)
@@ -652,8 +677,6 @@ theorem stepRepresents (program : Stage1.Application.Program) (circuit : Fin 2)
     witness := ?_
     priorSlots := fun slot => ?_
     priorDepth := priorDepth
-    nextSlots := fun slot => ?_
-    nextDepth := nextDepth
     pcNext := pcNext
     outputDigest := ?_
     fresh := ?_
@@ -695,12 +718,6 @@ theorem stepRepresents (program : Stage1.Application.Program) (circuit : Fin 2)
         exact priorDepth slot)
     rw [honest_prior_slot ajtai circuitKeys input output proof selected folded] at words
     exact words
-  · have words := target_slot_words ajtai circuitKeys input output proof selected folded base
-      program.witnessWordCount target agree ⟨5 + slot.val, by omega⟩ (by
-        rw [honest_next_slot ajtai circuitKeys input output proof selected folded]
-        exact nextDepth slot)
-    rw [honest_next_slot ajtai circuitKeys input output proof selected folded] at words
-    exact words
   · rw [← ofFn_getD 0 _ xLength]
     apply congrArg List.ofFn
     funext lane
@@ -734,6 +751,23 @@ theorem stepRepresents (program : Stage1.Application.Program) (circuit : Fin 2)
   · exact outputMatrix_eval target proof.nifs.piCcsOutput (fun word bound => target_output ajtai
       circuitKeys input output proof selected folded base program.witnessWordCount target agree
       word bound)
+
+omit agree in
+/-- On columns that agree with the honest values below `sharedEnd`, the next slots' words carry
+the step's next slots. The finish circuit reads them. -/
+theorem nextWords (program : Stage1.Application.Program)
+    (agree : ∀ column, column < sharedEnd base program.witnessWordCount →
+      target column = honestEnv ajtai circuitKeys input output proof selected folded base
+        program.witnessWordCount column)
+    (nextDepth : ∀ slot, (output.runningNext slot).2 < goldilocksModulus) (slot : Fin 2) :
+    Hash.evalList target ((interface (logicalWidth := logicalWidth) (publicFits := publicFits)
+      base program.witnessWordCount).next slot).words = serializeSlot (output.runningNext slot) := by
+  have words := target_slot_words ajtai circuitKeys input output proof selected folded base
+    program.witnessWordCount target agree ⟨5 + slot.val, by omega⟩ (by
+      rw [honest_next_slot ajtai circuitKeys input output proof selected folded]
+      exact nextDepth slot)
+  rw [honest_next_slot ajtai circuitKeys input output proof selected folded] at words
+  exact words
 
 end Honest
 

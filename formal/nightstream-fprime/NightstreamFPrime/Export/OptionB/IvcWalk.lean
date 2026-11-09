@@ -317,16 +317,18 @@ theorem decode_shaped (circuit : Fin 2)
     Shaped (exports.decode circuit witness) := by
   unfold Exports.decode
   split
-  · have represents := lightRepresents exports.program ajtai circuitKeys 0
+  · have represents := lightRepresents exports.program relation ajtai circuitKeys 0
       (lightEnv exports.program relation ajtai exports.lightLayout
         (Layout.ProductionRelation.Plan.logicalAssignment witness))
     exact ⟨represents.iterationBound, represents.priorPcBound, by simp [lightInput],
-      by simp [lightInput], represents.priorDepth, represents.nextDepth⟩
-  · have represents := refreshRepresents exports.program ajtai circuitKeys 1
+      by simp [lightInput], represents.priorDepth,
+      DigestSelect.nextSlots_depth _ _ _ _ represents.priorDepth (Fin.isLt _)⟩
+  · have represents := refreshRepresents exports.program relation ajtai circuitKeys 1
       (refreshEnv exports.program relation ajtai exports.refreshLayout
         (Layout.ProductionRelation.Plan.logicalAssignment witness))
     exact ⟨represents.iterationBound, represents.priorPcBound, by simp [refreshInput],
-      by simp [refreshInput], represents.priorDepth, represents.nextDepth⟩
+      by simp [refreshInput], represents.priorDepth,
+      DigestSelect.nextSlots_depth _ _ _ _ represents.priorDepth (Fin.isLt _)⟩
 
 theorem initial_relaxed (control : AppState → AppWitness → Fin 2) (cap : Nat)
     (output : TerminalStatement AppState ×

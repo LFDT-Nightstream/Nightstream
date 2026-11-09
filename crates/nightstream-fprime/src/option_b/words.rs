@@ -132,7 +132,8 @@ pub enum FoldWords {
 /// `RefreshAssemblerSource.Values`). The slots are the two prior slots, the
 /// active slot, the two inner slots and the two next slots; the digests are
 /// the two prior slot digests, the two next slot digests and the output
-/// digest.
+/// digest. The digest select's words (`digestSelect`) follow the fold: the new
+/// slot's digest, then the digest of each inner slot.
 #[derive(Clone, Debug)]
 pub struct StepWords {
     pub iteration: u64,
@@ -175,6 +176,7 @@ impl StepWords {
         };
         if !slots_fit
             || !fold_fits
+            || self.selected > 1
             || self.fresh_commitment.len() != COMMITMENT_WORDS
             || self.fresh_public_input.len() != PUBLIC_WORDS
             || self.rounds.len() != POINT_COORDINATES
@@ -216,6 +218,9 @@ impl StepWords {
         for output in outputs {
             columns.extend(output.iter().flatten());
         }
+        columns.extend(self.slots[3 + self.selected as usize].digest());
+        columns.extend(self.slots[3].digest());
+        columns.extend(self.slots[4].digest());
         Ok(columns)
     }
 }

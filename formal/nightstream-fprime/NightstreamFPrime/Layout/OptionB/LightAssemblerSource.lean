@@ -130,6 +130,7 @@ structure Values (logicalWidth : Nat)
   fresh : StepFresh logicalWidth publicFits
   rounds : Fin productionShape.cubeVariables → SumCheck.Finite.FixedPolynomial K 8
   output : FullOutputCoordinates.FullOutput K LightShape
+  digestSelect : Fin 3 → List F
 
 /-- The source columns from `base`, in the layout of `LightAssembler.interface`. -/
 def env (base witnessWordCount : Nat) (values : Values logicalWidth publicFits) : Env :=
@@ -152,7 +153,9 @@ def env (base witnessWordCount : Nat) (values : Values logicalWidth publicFits) 
       freshColumn values.fresh (column - freshStart base witnessWordCount)
     else if column < outputStart base witnessWordCount then
       roundColumn values.rounds (column - roundsStart base witnessWordCount)
-    else outputColumn values.output (column - outputStart base witnessWordCount)
+    else if column < digestSelectStart base witnessWordCount then
+      outputColumn values.output (column - outputStart base witnessWordCount)
+    else quadColumn (by decide) values.digestSelect (column - digestSelectStart base witnessWordCount)
 
 variable (base witnessWordCount : Nat) (values : Values logicalWidth publicFits)
 
@@ -282,7 +285,7 @@ theorem env_round (word : Nat) (bound : word < 504) :
       unfold outputStart; omega,
     ↓reduceIte, Nat.add_sub_cancel_left]
 
-theorem env_output (word : Nat) :
+theorem env_output (word : Nat) (bound : word < 1080) :
     env base witnessWordCount values (outputStart base witnessWordCount + word) =
       outputColumn values.output word := by
   simp only [env, show ¬outputStart base witnessWordCount + word < base by
@@ -304,6 +307,36 @@ theorem env_output (word : Nat) :
     show ¬outputStart base witnessWordCount + word < roundsStart base witnessWordCount by
       unfold outputStart; omega,
     show ¬outputStart base witnessWordCount + word < outputStart base witnessWordCount by omega,
+    show outputStart base witnessWordCount + word < digestSelectStart base witnessWordCount by
+      unfold digestSelectStart; omega,
+    ↓reduceIte, Nat.add_sub_cancel_left]
+
+theorem env_digestSelect (word : Nat) :
+    env base witnessWordCount values (digestSelectStart base witnessWordCount + word) =
+      quadColumn (by decide) values.digestSelect word := by
+  simp only [env, show ¬digestSelectStart base witnessWordCount + word < base by
+      unfold digestSelectStart outputStart roundsStart freshStart digestsStart slotsStart witnessStart
+      omega,
+    show ¬digestSelectStart base witnessWordCount + word < keysStart base by
+      unfold digestSelectStart outputStart roundsStart freshStart digestsStart slotsStart witnessStart keysStart
+      omega,
+    show ¬digestSelectStart base witnessWordCount + word < statesStart base by
+      unfold digestSelectStart outputStart roundsStart freshStart digestsStart slotsStart witnessStart statesStart
+      omega,
+    show ¬digestSelectStart base witnessWordCount + word < witnessStart base by
+      unfold digestSelectStart outputStart roundsStart freshStart digestsStart slotsStart; omega,
+    show ¬digestSelectStart base witnessWordCount + word < slotsStart base witnessWordCount by
+      unfold digestSelectStart outputStart roundsStart freshStart digestsStart; omega,
+    show ¬digestSelectStart base witnessWordCount + word < digestsStart base witnessWordCount by
+      unfold digestSelectStart outputStart roundsStart freshStart; omega,
+    show ¬digestSelectStart base witnessWordCount + word < freshStart base witnessWordCount by
+      unfold digestSelectStart outputStart roundsStart; omega,
+    show ¬digestSelectStart base witnessWordCount + word < roundsStart base witnessWordCount by
+      unfold digestSelectStart outputStart; omega,
+    show ¬digestSelectStart base witnessWordCount + word < outputStart base witnessWordCount by
+      unfold digestSelectStart; omega,
+    show ¬digestSelectStart base witnessWordCount + word <
+      digestSelectStart base witnessWordCount by omega,
     ↓reduceIte, Nat.add_sub_cancel_left]
 
 section Readback
@@ -594,7 +627,7 @@ variable (circuitKeys : Fin 2 → CircuitKey logicalWidth publicFits)
 flag and the selected slot; the key digests; the start, current and next states; the witness; the
 prior slots, the active slot (the selected prior slot), the inner slots (`folded` for the
 selected slot, the prior slot otherwise) and the next slots; the slot and output digests; the
-fresh instance; and the light proof. -/
+fresh instance; the light proof; and the new digest (of `folded`) and the inner digests. -/
 def honestValues : Values logicalWidth publicFits where
   counters := [natWord input.iteration, Hint.inverse (natWord input.iteration),
     if input.iteration = 0 then 0 else 1, natWord input.priorPc, natWord selected.val]
@@ -616,6 +649,10 @@ def honestValues : Values logicalWidth publicFits where
   fresh := input.fresh
   rounds := proof.piCcsRounds
   output := proof.piCcsOutput
+  digestSelect := fun index =>
+    if index.val = 0 then slotDigest folded
+    else if index.val - 1 = selected.val then slotDigest folded
+    else slotDigest (input.running (finAt 2 (by decide) (index.val - 1)))
 
 /-- The honest source columns. -/
 abbrev honestEnv (base witnessWordCount : Nat) : Env :=
@@ -634,10 +671,11 @@ private theorem starts : keysStart base = base + 5 ∧ statesStart base = base +
     freshStart base witnessWordCount = base + 25 + witnessWordCount + 14405 ∧
     roundsStart base witnessWordCount = base + 25 + witnessWordCount + 15863 ∧
     outputStart base witnessWordCount = base + 25 + witnessWordCount + 16367 ∧
-    sharedEnd base witnessWordCount = base + 25 + witnessWordCount + 17447 := by
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
+    digestSelectStart base witnessWordCount = base + 25 + witnessWordCount + 17447 ∧
+    sharedEnd base witnessWordCount = base + 25 + witnessWordCount + 17459 := by
+  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
     simp only [keysStart, statesStart, witnessStart, slotsStart, digestsStart, freshStart,
-      roundsStart, outputStart, sharedEnd, slotWordCount]
+      roundsStart, outputStart, digestSelectStart, sharedEnd, slotWordCount]
 
 include agree
 
@@ -695,7 +733,14 @@ theorem target_round (word : Nat) (bound : word < 504) :
 theorem target_output (word : Nat) (bound : word < 1080) :
     target (outputStart base witnessWordCount + word) = outputColumn proof.piCcsOutput word :=
   (agree _ (by have := starts base witnessWordCount; omega)).trans
-    (env_output base witnessWordCount _ word)
+    (env_output base witnessWordCount _ word bound)
+
+theorem target_digestSelect (word : Nat) (bound : word < 12) :
+    target (digestSelectStart base witnessWordCount + word) =
+      quadColumn (by decide)
+        (honestValues circuitKeys input output proof selected folded).digestSelect word :=
+  (agree _ (by have := starts base witnessWordCount; omega)).trans
+    (env_digestSelect base witnessWordCount _ word)
 
 /-- The words of slot group `slot` carry the honest slot of that group. -/
 theorem target_slot_words (slot : Fin 7)
@@ -724,15 +769,6 @@ theorem honest_prior_slot (slot : Fin 2) :
   simp only [honestValues, show slot.val < 2 from bound, ↓reduceIte]
   exact congrArg input.running (finAt_eq _ slot _ (Nat.mod_eq_of_lt bound))
 
-omit agree in
-theorem honest_next_slot (slot : Fin 2) :
-    (honestValues circuitKeys input output proof selected folded).slots ⟨5 + slot.val, by omega⟩ =
-      output.runningNext slot := by
-  have bound := slot.isLt
-  simp only [honestValues, show ¬5 + slot.val < 2 by omega, show ¬5 + slot.val = 2 by omega,
-    show ¬5 + slot.val < 5 by omega, ↓reduceIte, Nat.add_sub_cancel_left]
-  exact congrArg output.runningNext (finAt_eq _ slot _ (Nat.mod_eq_of_lt bound))
-
 private theorem state_eval (block : Fin 3) (lengths : ∀ block,
       ((honestValues circuitKeys input output proof selected folded).states block).length = 4) :
     List.ofFn (fun lane : Fin 4 => target (statesStart base + 4 * block.val + lane.val)) =
@@ -758,7 +794,6 @@ theorem stepRepresents (program : Stage1.Application.Program)
     (iterationBound : input.iteration < goldilocksModulus)
     (priorPcBound : input.priorPc < goldilocksModulus)
     (priorDepth : ∀ slot, (input.running slot).2 < goldilocksModulus)
-    (nextDepth : ∀ slot, (output.runningNext slot).2 < goldilocksModulus)
     (keyLength : ∀ key, (circuitKeys key).digest.length = 4)
     (z0Length : input.z0.length = 4) (ziLength : input.zi.length = 4)
     (zNextLength : output.zNext.length = 4)
@@ -791,8 +826,6 @@ theorem stepRepresents (program : Stage1.Application.Program)
     witness := ?_
     priorSlots := fun slot => ?_
     priorDepth := priorDepth
-    nextSlots := fun slot => ?_
-    nextDepth := nextDepth
     pcNext := pcNext
     outputDigest := ?_
     fresh := ?_
@@ -831,12 +864,6 @@ theorem stepRepresents (program : Stage1.Application.Program)
         rw [honest_prior_slot circuitKeys input output proof selected folded]
         exact priorDepth slot)
     rw [honest_prior_slot circuitKeys input output proof selected folded] at words
-    exact words
-  · have words := target_slot_words circuitKeys input output proof selected folded base
-      program.witnessWordCount target agree ⟨5 + slot.val, by omega⟩ (by
-        rw [honest_next_slot circuitKeys input output proof selected folded]
-        exact nextDepth slot)
-    rw [honest_next_slot circuitKeys input output proof selected folded] at words
     exact words
   · rw [← ofFn_getD 0 _ xLength]
     apply congrArg List.ofFn

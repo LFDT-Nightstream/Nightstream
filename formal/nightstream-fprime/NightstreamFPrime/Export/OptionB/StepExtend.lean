@@ -237,8 +237,7 @@ theorem light_extend (exports : Exports relation ajtai circuitKeys step cubeFits
       have := pcValid.1
       omega)
     freshPublic (fun _ => rfl) accepted depthLt statementValid.1 pcBound
-    (fun slot => lt_of_le_of_lt (honest.depth slot) small)
-    (fun slot => lt_of_le_of_lt (nextDepthLe slot) small) keysShaped statementValid.2.1
+    (fun slot => lt_of_le_of_lt (honest.depth slot) small) keysShaped statementValid.2.1
     statementValid.2.2 nextLength witnessLength
   obtain ⟨assignment, freshNext, freshZero⟩ := light_complete exports.program relation ajtai
     circuitKeys input output proof env rows represents complete.lightFree exports.lightFresh
@@ -386,8 +385,7 @@ theorem refresh_extend (exports : Exports relation ajtai circuitKeys step cubeFi
       have := pcValid.1
       omega)
     freshPublic (fun _ => rfl) accepted statementValid.1 pcBound
-    (fun slot => lt_of_le_of_lt (honest.depth slot) small)
-    (fun slot => lt_of_le_of_lt (nextDepthLe slot) small) keysShaped statementValid.2.1
+    (fun slot => lt_of_le_of_lt (honest.depth slot) small) keysShaped statementValid.2.1
     statementValid.2.2 nextLength witnessLength
   obtain ⟨assignment, freshNext, freshZero⟩ := refresh_complete exports.program relation ajtai
     circuitKeys input output proof env rows represents complete.refreshFree exports.refreshFresh
@@ -499,7 +497,6 @@ theorem base_extend (exports : Exports relation ajtai circuitKeys step cubeFits)
     (fun nonzero => absurd iterationZero nonzero) accepted
     (show (0 : Nat) < Schedule.productionLightFoldCap by decide) statementValid.1
     (show (0 : Nat) < goldilocksModulus by decide)
-    (fun _ => show (0 : Nat) < goldilocksModulus by decide)
     (fun _ => show (0 : Nat) < goldilocksModulus by decide)
     keysShaped statementValid.2.1 statementValid.2.2 nextLength witnessLength
   obtain ⟨assignment, freshNext, freshZero⟩ := light_complete exports.program relation ajtai

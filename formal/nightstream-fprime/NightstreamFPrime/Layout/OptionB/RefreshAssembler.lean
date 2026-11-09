@@ -8,8 +8,8 @@ is one variable in a source region that starts at `base`. The first groups are t
 next states (12), the application witness, the prior, active, inner and next slots
 (7 × 2,055), the slot and output digests (20) and the fresh instance (1,458). Then come the 16
 children's commitments (19,008) and evaluation families (8,640), their digit words (4,320), the
-round messages (504) and the Π_CCS output of all 17 sources (9,180). The step's gadgets start at
-`sharedEnd`. -/
+round messages (504), the Π_CCS output of all 17 sources (9,180), and the new and inner digests
+(12). The step's gadgets start at `sharedEnd`. -/
 
 namespace NightstreamFPrime.Layout.OptionB.RefreshAssembler
 
@@ -40,12 +40,16 @@ def digitsStart (base witnessWordCount : Nat) : Nat :=
 def roundsStart (base witnessWordCount : Nat) : Nat := digitsStart base witnessWordCount + 4320
 def outputStart (base witnessWordCount : Nat) : Nat := roundsStart base witnessWordCount + 504
 
+/-- The digest select's 12 words: the new slot's digest, then each slot's inner digest. -/
+def digestSelectStart (base witnessWordCount : Nat) : Nat :=
+  outputStart base witnessWordCount + 9180
+
 /-- The first column after the shared words, where the step's gadgets start. -/
-def sharedEnd (base witnessWordCount : Nat) : Nat := outputStart base witnessWordCount + 9180
+def sharedEnd (base witnessWordCount : Nat) : Nat := digestSelectStart base witnessWordCount + 12
 
 theorem sharedEnd_eq (base witnessWordCount : Nat) :
-    sharedEnd base witnessWordCount = base + witnessWordCount + 57540 := by
-  simp only [sharedEnd, outputStart, roundsStart, digitsStart, childEvaluationsStart,
+    sharedEnd base witnessWordCount = base + witnessWordCount + 57552 := by
+  simp only [sharedEnd, digestSelectStart, outputStart, roundsStart, digitsStart, childEvaluationsStart,
     childCommitmentsStart, freshStart, digestsStart, slotsStart, witnessStart, slotWordCount]
   omega
 
@@ -71,6 +75,9 @@ def interface (base witnessWordCount : Nat) :
   nextDigest := fun slot lane =>
     .var (digestsStart base witnessWordCount + 8 + 4 * slot.val + lane.val)
   outputDigest := fun lane => .var (digestsStart base witnessWordCount + 16 + lane.val)
+  newDigest := fun lane => .var (digestSelectStart base witnessWordCount + lane.val)
+  innerDigest := fun slot lane =>
+    .var (digestSelectStart base witnessWordCount + 4 + 4 * slot.val + lane.val)
   fresh :=
     ⟨fun _ row lane => .var (freshStart base witnessWordCount + row.val * ringDegree + lane.val),
       fun _ column => .var (freshStart base witnessWordCount + 1188 + column.val)⟩
@@ -148,11 +155,6 @@ theorem inputsBelow (base witnessWordCount : Nat) :
         rw [endEq, slotsEq]
         simp only [slotWordCount]
         omega)
-      next := fun slot => slotAt_below _ _ (by
-        have slotBound := slot.isLt
-        rw [endEq, slotsEq]
-        simp only [slotWordCount]
-        omega)
       activePoint := fun coordinate => kAt_below _ _ (by
         have coordinateBound := coordinate.isLt
         change coordinate.val < 28 at coordinateBound
@@ -206,6 +208,21 @@ theorem inputsBelow (base witnessWordCount : Nat) :
         show digestsStart base witnessWordCount + 16 + lane.val < _
         rw [endEq]
         simp only [digestsStart, slotsStart, witnessStart, slotWordCount]
+        omega
+      newDigest := fun lane => by
+        have laneBound := lane.isLt
+        show digestSelectStart base witnessWordCount + lane.val < _
+        rw [endEq]
+        simp only [digestSelectStart, outputStart, roundsStart, digitsStart, childEvaluationsStart,
+          childCommitmentsStart, freshStart, digestsStart, slotsStart, witnessStart, slotWordCount]
+        omega
+      innerDigest := fun slot lane => by
+        have slotBound := slot.isLt
+        have laneBound := lane.isLt
+        show digestSelectStart base witnessWordCount + 4 + 4 * slot.val + lane.val < _
+        rw [endEq]
+        simp only [digestSelectStart, outputStart, roundsStart, digitsStart, childEvaluationsStart,
+          childCommitmentsStart, freshStart, digestsStart, slotsStart, witnessStart, slotWordCount]
         omega
       freshCommitment := fun _ row lane => by
         have rowBound := row.isLt
@@ -309,7 +326,16 @@ theorem rows_implies_stepHolds (program : Stage1.Application.Program)
     (input : StepInput logicalWidth publicFits) (output : StepOutput logicalWidth publicFits)
     (proof : Spec.Folding.Refresh.Proof PaperAlgebra.Commitment productionShape 8)
     (represents : RefreshStepSoundness.StepRepresents program
-      (interface base program.witnessWordCount) ajtai circuitKeys circuit input output proof env) :
+      (interface base program.witnessWordCount) ajtai circuitKeys circuit input output proof env)
+    (next : output.runningNext = DigestSelect.nextSlots input.iteration input.running
+      (DigestSelect.selected (RefreshStepLayout.selectInterface program
+          (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base
+            program.witnessWordCount))
+        (RefreshStepLayout.selectOffset program relation circuit
+          (interface base program.witnessWordCount) (sharedEnd base program.witnessWordCount)) env)
+      ((RefreshStepLayout.newSlot program relation circuit
+        (interface base program.witnessWordCount) (sharedEnd base program.witnessWordCount)).value
+        env)) :
     StepHolds Folding.Schedule.productionLightFoldCap ajtai circuitKeys step control circuit input
       output :=
   RefreshStepSoundness.rows_implies_stepHolds program (interface base program.witnessWordCount)
@@ -318,6 +344,6 @@ theorem rows_implies_stepHolds (program : Stage1.Application.Program)
     (RefreshStepBounds.assumptions program relation circuit
       (interface base program.witnessWordCount) (sharedEnd base program.witnessWordCount)
       (inputsBelow base program.witnessWordCount) env)
-    rows input output proof represents
+    rows input output proof represents next
 
 end NightstreamFPrime.Layout.OptionB.RefreshAssembler

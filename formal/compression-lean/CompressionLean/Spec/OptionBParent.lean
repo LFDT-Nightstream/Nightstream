@@ -37,9 +37,9 @@ def ParentHolds (program : Stage1.Application.Program)
       List.ofFn (fun lane : Fin 4 => x ⟨5 + lane, by omega⟩) ∧
     Lifecycle.OptionB.FinishStep.FinishHolds Folding.Schedule.productionLightFoldCap ajtai
       (decodedKeys circuitKeys (refreshInterface (logicalWidth := lw) (publicFits := pf) program).verifierKeys env)
-      1 (refreshInput program env) (refreshOutput program 1 env) ∧
+      1 (refreshInput program env) (finishStepOutput program 1 env) ∧
     ∀ slot, ∃ witness, CE.Holds (PaperAlgebra.semantics ajtai) productionGlobalParams
       (Lifecycle.OptionB.toClaim ((circuitKeys slot).system ajtai)
-        ((refreshOutput (logicalWidth := lw) (publicFits := pf) program 1 env).runningNext slot).1) witness
+        ((finishStepOutput (logicalWidth := lw) (publicFits := pf) program 1 env).runningNext slot).1) witness
 
 end CompressionLean.Spec.OptionB

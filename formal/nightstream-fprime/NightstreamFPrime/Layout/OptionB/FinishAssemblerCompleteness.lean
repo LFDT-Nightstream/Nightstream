@@ -10,7 +10,7 @@ The values start from the refresh step's honest source values
 offset (`RefreshStepCompleteness.completePriorHashesFrom`), and the fold phase and the slot select
 fill from today's Π_DEC offset (`RefreshAssemblerCompleteness.completeFoldFrom`). The finish
 circuit places no rows for the application and the next hashes, so their words keep the source
-values; the prior hashes' rows read only words below the next slot hashes' offset, which is at or
+values; the prior hashes' rows read only words below the next state hash's offset, which is at or
 below today's Π_DEC offset. -/
 
 namespace NightstreamFPrime.Layout.OptionB.FinishAssemblerCompleteness
@@ -31,21 +31,13 @@ variable {logicalWidth : Nat}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
     Phi81CarrierLayout.carrierWidth logicalWidth}
 
-/-- The next slot hashes start at or below today's Π_DEC offset. The layout and the offset are
+/-- The next state hash starts at or below today's Π_DEC offset. The layout and the offset are
 variables here, so the kernel never evaluates a layout length. -/
-private theorem nextSlot_le_dec (program : Stage1.Application.Program) (circuit : Fin 2)
+private theorem nextState_le_dec (program : Stage1.Application.Program) (circuit : Fin 2)
     (layout : RefreshStepLayout.Interface logicalWidth publicFits program.witnessWordCount)
     (offset : Nat) :
-    nextSlotZeroOffset program layout offset ≤ decOffset program circuit layout offset := by
-  have le := fun (child : FormalCircuit) (start : Nat) =>
-    (Nat.le_add_right start _ : start ≤ Formal.nextOffset child start)
-  have oneLe : nextSlotZeroOffset program layout offset ≤
-      nextSlotOneOffset program layout offset := le _ _
-  have stateLe : nextSlotOneOffset program layout offset ≤
-      nextStateOffset program layout offset := le _ _
-  have decLe : nextStateOffset program layout offset ≤
-      decOffset program circuit layout offset := le _ _
-  omega
+    nextStateOffset program layout offset ≤ decOffset program circuit layout offset :=
+  (Nat.le_add_right _ _ : _ ≤ Formal.nextOffset _ _)
 
 /-- An empty prefix ends where it starts. The start is a variable here, so the kernel never
 evaluates a layout offset. -/
@@ -80,7 +72,10 @@ theorem complete (program : Stage1.Application.Program)
     ∃ env, holdsFlat env (Circuit.ops (FinishStep.main program relation circuit
         (interface base program.witnessWordCount)) (sharedEnd base program.witnessWordCount)) ∧
       RefreshStepSoundness.StepRepresents program (interface base program.witnessWordCount) ajtai
-        circuitKeys circuit input output proof env := by
+        circuitKeys circuit input output proof env ∧
+      ∀ slot, Gadgets.Poseidon2.Hash.evalList env ((interface (logicalWidth := logicalWidth)
+        (publicFits := publicFits) base program.witnessWordCount).next slot).words =
+          serializeSlot (output.runningNext slot) := by
   obtain ⟨priorPcValid, facts⟩ := finish
   dsimp only at facts
   obtain ⟨freshPublic, folds, depthZero, others⟩ := facts
@@ -101,7 +96,7 @@ theorem complete (program : Stage1.Application.Program)
     fun column _ => congrFun sourceEq column
   have rep0 := stepRepresents ajtai circuitKeys input output proof selected
     (output.runningNext selected) base source program circuit sourceAgree iterationBound
-    priorPcBound priorDepth nextDepth keyLength z0Length ziLength zNextLength witnessLength xLength
+    priorPcBound priorDepth keyLength z0Length ziLength zNextLength witnessLength xLength
     pcNext (fun _ => proofEq)
   have below := inputsBelow (logicalWidth := logicalWidth) (publicFits := publicFits) base
     program.witnessWordCount
@@ -125,14 +120,14 @@ theorem complete (program : Stage1.Application.Program)
         (output.runningNext selected) base program.witnessWordCount column :=
     fun column bound => (hashes.agrees column (Or.inl (by omega))).trans
       (sourceAgree column bound)
-  obtain ⟨env, keep, foldRows, rep⟩ := completeFoldFrom program relation base ajtai circuitKeys
+  obtain ⟨env, keep, foldRows, rep, nextWordsEnv⟩ := completeFoldFrom program relation base ajtai circuitKeys
     circuit input output proof selected (output.runningNext selected) depthZero
     (Sequence.empty hashes.current (decOffset program circuit
       (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base
         program.witnessWordCount) (sharedEnd base program.witnessWordCount)))
     (empty_end _ _) hashesAgree select folds iterationBound priorPcBound priorDepth nextDepth keyLength
     z0Length ziLength zNextLength witnessLength xLength pcNext (fun _ => proofEq)
-  have gap := nextSlot_le_dec program circuit (interface (logicalWidth := logicalWidth)
+  have gap := nextState_le_dec program circuit (interface (logicalWidth := logicalWidth)
     (publicFits := publicFits) base program.witnessWordCount)
     (sharedEnd base program.witnessWordCount)
   have hashRows : holdsFlat env (FinishStep.hashOps program
@@ -143,7 +138,7 @@ theorem complete (program : Stage1.Application.Program)
     rw [hashesOps] at rows
     unfold holdsFlat FinishStep.hashOps
     simpa only [Sequence.empty, List.nil_append] using rows
-  refine ⟨env, ?_, rep⟩
+  refine ⟨env, ?_, rep, nextWordsEnv⟩
   change holdsFlat env (FinishStep.opsAt program relation circuit
     (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base
       program.witnessWordCount) (sharedEnd base program.witnessWordCount))

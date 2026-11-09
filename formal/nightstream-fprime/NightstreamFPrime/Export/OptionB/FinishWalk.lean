@@ -215,14 +215,11 @@ end Link
 /-- The prior state of an input that the refresh step's words decode is well formed when both
 key digests have four words. -/
 theorem refresh_wellFormed (program : Stage1.Application.Program)
-    (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
     (circuitKeys : Fin 2 → CircuitKey logicalWidth publicFits)
     (keysShaped : ∀ key, (circuitKeys key).digest.length = 4) (env : Circuit.Env) :
     (toState (priorOf circuitKeys (refreshInput (logicalWidth := logicalWidth)
       (publicFits := publicFits) program env))).WellFormed :=
-  have represents := refreshRepresents program ajtai circuitKeys 1 env
-  ⟨keysShaped, List.length_ofFn, List.length_ofFn, represents.iterationBound,
-    represents.priorPcBound, represents.priorDepth⟩
+  ⟨keysShaped, List.length_ofFn, List.length_ofFn, Fin.isLt _, Fin.isLt _, fun _ => Fin.isLt _⟩
 
 /-- The statement of an input that the refresh step's words decode is valid. -/
 theorem refresh_valid (program : Stage1.Application.Program) (env : Circuit.Env) :

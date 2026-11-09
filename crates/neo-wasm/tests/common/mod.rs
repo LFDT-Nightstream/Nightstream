@@ -104,30 +104,57 @@ pub fn sanity_check_trace_with_bindings(
     witnesses
 }
 
-/// Compare each complete permutation group's result with native compression.
-/// This is a test oracle, not a trace verifier: CCS, ROM, and continuity checks
-/// own scheduling, source binding, and opaque save/restore transitions.
+/// The block that each absorb row folds into the chain, in trace order,
+/// object-internal blocks included: the buffer before the row with the staged
+/// slot-seven word.
+pub fn absorbed_blocks(trace: &[WasmVmStep]) -> Vec<[u64; 8]> {
+    trace
+        .iter()
+        .filter(|row| {
+            row.row_kind.is_host_event_gather()
+                && row.state_before.host_events.slot_cursor == 7
+                && row.host_event_rom_slot.is_some_and(|rom| !rom.advice)
+        })
+        .map(|row| {
+            let mut block = row.state_before.event_absorb.evbuf;
+            block[7] = row.host_event_word.expect("absorb row stages its word");
+            block
+        })
+        .collect()
+}
+
+/// Compare each absorb row's chain with native compression. This is a test
+/// oracle, not a trace verifier: CCS, ROM, and continuity checks own
+/// scheduling, source binding, and opaque save/restore transitions.
 pub fn check_native_event_hashes(trace: &[WasmVmStep]) -> Result<(), String> {
-    use neo_application::event_commitment::commit_block;
-    use neo_wasm::comm_chain::COMM_CHAIN_PERM_ROWS;
-    use p3_field::{PrimeCharacteristicRing, PrimeField64};
+    use neo_wasm::comm_chain::absorb_block;
+    use neo_wasm::WasmHostEventSlotKind;
 
     for (index, row) in trace.iter().enumerate() {
-        if !row.row_kind.is_host_event_perm() || row.state_before.event_absorb.perm_round != 0 {
+        let Some(rom) = row
+            .host_event_rom_slot
+            .filter(|_| row.row_kind.is_host_event_gather())
+        else {
+            continue;
+        };
+        if row.state_before.host_events.slot_cursor != 7 || rom.advice {
             continue;
         }
-        let last_perm_row = trace
-            .get(index + COMM_CHAIN_PERM_ROWS - 1)
-            .ok_or_else(|| format!("row {index}: incomplete event permutation group"))?;
-        let expected = commit_block(
-            row.state_before.comm_chain.map(F::from_u64),
-            row.state_before.event_absorb.evbuf.map(F::from_u64),
-        )
-        .map(|value| value.as_canonical_u64());
-        if last_perm_row.state_after.comm_chain != expected {
+        let word = row
+            .host_event_word
+            .ok_or_else(|| format!("row {index}: absorb row without its staged word"))?;
+        let previous = if rom.kind == WasmHostEventSlotKind::OpaqueRoot && rom.arg == 3 {
+            row.state_before.event_absorb.outer_chain
+        } else {
+            row.state_before.comm_chain
+        };
+        let mut block = row.state_before.event_absorb.evbuf;
+        block[7] = word;
+        let expected = absorb_block(previous, block);
+        if row.state_after.comm_chain != expected {
             return Err(format!(
-                "row {index}: permutation group output {:?} differs from native {expected:?}",
-                last_perm_row.state_after.comm_chain
+                "row {index}: absorb output {:?} differs from native {expected:?}",
+                row.state_after.comm_chain
             ));
         }
     }
@@ -247,6 +274,7 @@ pub fn step(
         host_context: None,
         host_event_return_schedule_count: None,
         host_event_rom_slot: None,
+        host_event_word: None,
         // A clean activation return fires the exit latch, which re-reads the (biased)
         // entry-count cell and the exit count; the empty boundary template
         // of a single-shot row is (1, 0).

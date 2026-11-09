@@ -1,8 +1,8 @@
 use super::ccs::{
     dividend_min_zero_test, divisor_neg1_zero_test, CALL_INDIRECT_ENTRY_ZERO_TEST, CALL_INDIRECT_TYPE_ZERO_TEST,
     DIVISOR_ZERO_TEST, FRAME_MOVE_REMAINING_AFTER_ZERO_TEST, HI_ZERO_TEST, HOST_EVENTS_REMAINING_ZERO_TEST,
-    LOCAL_ZERO_REMAINING_AFTER_ZERO_TEST, LO_ZERO_TEST, PC_EDGE_KIND_ZERO_TEST, PERM_ROUND_ZERO_TEST,
-    SELECT_COND_ZERO_TEST, SELECT_HI_MUX, SELECT_LO_MUX,
+    LOCAL_ZERO_REMAINING_AFTER_ZERO_TEST, LO_ZERO_TEST, PC_EDGE_KIND_ZERO_TEST, SELECT_COND_ZERO_TEST, SELECT_HI_MUX,
+    SELECT_LO_MUX,
 };
 use super::gadgets::unsigned_ge_witness;
 use super::ir::{pack_function_call_metadata, WasmHostEventSlotKind, WasmRowKind, WasmVmStep};
@@ -72,13 +72,6 @@ use p3_field::PrimeCharacteristicRing;
 pub fn build_witness_vector(trace: &WasmVmStep) -> Result<Vec<F>, super::ir::WasmBuildError> {
     use super::ir::WasmBuildError;
 
-    if trace.row_kind.is_host_event_perm()
-        && usize::from(trace.state_before.event_absorb.perm_round) >= crate::comm_chain::COMM_CHAIN_PERM_ROWS
-    {
-        return Err(WasmBuildError::Trace(
-            "host-event permutation round is out of range".into(),
-        ));
-    }
     if trace.row_kind.is_host_event_gather()
         && usize::from(trace.state_before.host_events.slot_cursor) >= trace.state_after.event_absorb.evbuf.len()
     {
@@ -998,9 +991,6 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Result<Vec<F>, super::ir::Was
     Ok(wit)
 }
 
-/// Host-event absorb machinery witness: carried state columns, the perm-row
-/// position one-hot, gather decoding, and the S-box power columns (whose unconditional mult rows are witness-filled
-/// with the powers of their linear input expression on every row).
 /// Fill the named host-event absorb interface columns (carried state); the
 /// gadget-internal block is filled by `ccs::host_event_chain::fill_witness`.
 fn fill_event_absorb(wit: &mut [F], trace: &WasmVmStep) {
@@ -1011,8 +1001,7 @@ fn fill_event_absorb(wit: &mut [F], trace: &WasmVmStep) {
         COL_HOST_EVENT_INDEX_AFTER, COL_HOST_EVENT_INDEX_BEFORE, COL_HOST_EVENT_INITIAL_SCHEDULE_COUNT,
         COL_HOST_EVENT_SLOT_ARG, COL_HOST_EVENT_SLOT_CURSOR_AFTER, COL_HOST_EVENT_SLOT_CURSOR_BEFORE,
         COL_HOST_EVENT_SLOT_IMMEDIATE0, COL_HOST_EVENT_SLOT_IMMEDIATE1, COL_HOST_EVENT_SLOT_KIND,
-        COL_HOST_EVENT_SLOT_VARIANT, COL_PERM_PENDING_AFTER, COL_PERM_PENDING_BEFORE, COL_PERM_ROUND_AFTER,
-        COL_PERM_ROUND_BEFORE, COL_PERM_STATE_AFTER, COL_PERM_STATE_BEFORE,
+        COL_HOST_EVENT_SLOT_VARIANT,
     };
 
     let bool_f = |flag: bool| if flag { F::ONE } else { F::ZERO };
@@ -1035,15 +1024,6 @@ fn fill_event_absorb(wit: &mut [F], trace: &WasmVmStep) {
         wit[COL_EVBUF_BEFORE[j]] = F::from_u64(before.evbuf[j]);
         wit[COL_EVBUF_AFTER[j]] = F::from_u64(after.evbuf[j]);
     }
-    wit[COL_PERM_PENDING_BEFORE] = bool_f(before.perm_pending);
-    wit[COL_PERM_PENDING_AFTER] = bool_f(after.perm_pending);
-    wit[COL_PERM_ROUND_BEFORE] = F::from_u64(u64::from(before.perm_round));
-    wit[COL_PERM_ROUND_AFTER] = F::from_u64(u64::from(after.perm_round));
-    PERM_ROUND_ZERO_TEST.assign(wit);
-    for lane in 0..12 {
-        wit[COL_PERM_STATE_BEFORE[lane]] = F::from_u64(before.perm_state[lane]);
-        wit[COL_PERM_STATE_AFTER[lane]] = F::from_u64(after.perm_state[lane]);
-    }
 
     // Gather and host-call interface gates read by the gadget.
     wit[COL_GATHER_ACTIVE] = bool_f(trace.row_kind.is_host_event_gather());
@@ -1051,9 +1031,7 @@ fn fill_event_absorb(wit: &mut [F], trace: &WasmVmStep) {
         !trace.row_kind.is_host_event_gather()
             && !trace.row_kind.is_turn_boundary()
             && !trace.row_kind.is_padding()
-            && !trace.row_kind.is_host_resume()
-            && trace.state_before.event_absorb.perm_round == 0
-            && !trace.state_before.event_absorb.perm_pending,
+            && !trace.row_kind.is_host_resume(),
     );
     let host_call_gate = wit[selector_col(super::isa::WasmOpcode::Call).expect("call selector")]
         + wit[selector_col(super::isa::WasmOpcode::ReturnCall).expect("return_call selector")]

@@ -126,11 +126,10 @@ impl WasmFrameMoveState {
 
 /// Carried state of the in-circuit host-event absorb machinery.
 ///
-/// Gather rows stage event words into `evbuf`; when the 8-word block fills,
-/// `perm_pending` is raised and a group of `HostEventPerm` aux rows runs the
-/// width-12 permutation one round-row at a time (`perm_round` is the position
-/// inside that group, 0 when idle). The group's last row folds the block into
-/// `WasmStepState::comm_chain`, the active chain for both outer and object blocks.
+/// Gather rows stage event words into `evbuf`. The gather row that fills an
+/// absorbing block folds it into `WasmStepState::comm_chain` with one width-12
+/// permutation on that row and clears the buffer. `comm_chain` is the active
+/// chain for both outer and object blocks.
 /// Entering an object saves the outer chain and prefix and zeros the active chain;
 /// four root-copy slots restore the outer context and leave object mode.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -140,18 +139,8 @@ pub struct WasmEventAbsorbState {
     /// Suspended outer chain, restored after copying the final object-root lane.
     pub outer_chain: [u64; 4],
     pub object_active: bool,
-    /// The 8-word block currently being filled (already-absorbed slots are
-    /// zeroed by the group's first perm row).
+    /// The 8-word block currently being filled (zero after an absorbed block).
     pub evbuf: [u64; 8],
-    /// A filled block (or completed event stream) awaits its perm rows.
-    pub perm_pending: bool,
-    /// Row position inside the current perm group (0 when idle).
-    pub perm_round: u8,
-    /// Running permutation state. Meaningful only from the absorb (the row
-    /// raising `perm_pending` premixes `[chain | evbuf]` with the initial
-    /// external linear layer) through the group's rows; carried junk
-    /// in between and never cleared.
-    pub perm_state: [u64; 12],
 }
 
 impl WasmEventAbsorbState {
@@ -160,9 +149,6 @@ impl WasmEventAbsorbState {
         outer_chain: [0; 4],
         object_active: false,
         evbuf: [0; 8],
-        perm_pending: false,
-        perm_round: 0,
-        perm_state: [0; 12],
     };
 }
 
@@ -304,7 +290,7 @@ pub struct WasmStepState {
     /// `event_absorb.outer_chain` and resets it to zero; the final root-copy
     /// restores it. Outside object mode this is the outer transcript commitment.
     pub comm_chain: [u64; 4],
-    /// In-circuit host-event absorb machinery (block buffer + perm rows).
+    /// In-circuit host-event absorb machinery (block buffer and object context).
     pub event_absorb: WasmEventAbsorbState,
     /// Host-event gather machinery state.
     pub host_events: WasmHostEventState,
@@ -348,8 +334,6 @@ impl WasmStepState {
             && !self.host_events.awaiting_host
             && !self.host_events.suspend_pending
             && !self.event_absorb.object_active
-            && !self.event_absorb.perm_pending
-            && self.event_absorb.perm_round == 0
             && self.host_events.events_remaining == 0
             && self.host_events.slot_cursor == 0
     }
@@ -362,13 +346,9 @@ pub enum WasmAuxOpcode {
     FrameMove,
     /// Pushes one zero-initialized declared local of a new frame.
     LocalZero,
-    /// One row of the host-event chain permutation group: a full-round row or
-    /// a partial-pair row of the width-12 Poseidon2 block absorb (see
-    /// [`crate::comm_chain::COMM_CHAIN_PERM_ROWS`]). Scheduled whenever
-    /// `WasmEventAbsorbState::perm_pending` is raised.
-    HostEventPerm,
-    /// Stage an expanded event slot. A full block raises `perm_pending`;
-    /// opaque Enter ends the prefix group early without hashing it.
+    /// Stage an expanded event slot. The slot that fills an absorbing block
+    /// also folds the block into the chain; opaque Enter ends the prefix
+    /// group early without hashing it.
     HostEventGather,
     /// Export entry after a completed root activation or while a split import
     /// is suspended. Loads the declared entry PC, initialization and schedule.
@@ -400,10 +380,6 @@ impl WasmRowKind {
 
     pub fn is_frame_move(self) -> bool {
         matches!(self, Self::Aux(WasmAuxOpcode::FrameMove))
-    }
-
-    pub fn is_host_event_perm(self) -> bool {
-        matches!(self, Self::Aux(WasmAuxOpcode::HostEventPerm))
     }
 
     pub fn is_host_event_gather(self) -> bool {
@@ -659,6 +635,8 @@ pub struct WasmVmStep {
     pub host_event_return_schedule_count: Option<u32>,
     /// Host-event ROM slot entry for `HostEventGather` rows.
     pub host_event_rom_slot: Option<WasmHostEventRomEntry>,
+    /// Word that a `HostEventGather` row stages into the event buffer.
+    pub host_event_word: Option<u64>,
     /// Biased initial-schedule count read when a host-event schedule starts.
     pub host_event_initial_schedule_count: Option<u32>,
     /// Exit-schedule count read at clean activation return and at re-entry for the

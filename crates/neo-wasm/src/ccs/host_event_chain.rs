@@ -1,33 +1,21 @@
-//! In-circuit host-event chain gadget: constrains `HostEventPerm` rows to
-//! advance the width-12 Poseidon2 block absorb one round-row at a time, and
-//! binds the absorb buffer to host-event gather rows. The protocol constants
-//! and the reusable round gadgets live in `neo-application`, so the circuit
-//! and native commitment share one protocol definition.
+//! In-circuit host-event chain gadget: binds the absorb buffer to host-event
+//! gather rows and folds each filled block into the chain on the gather row
+//! that stages its last word. The protocol constants and the reusable
+//! commitment gadget live in `neo-application`, so the circuit and native
+//! commitment share one protocol definition.
 //!
-//! Row schedule per absorbed block (position one-hot `COL_PERM_POS*`):
-//! positions 0-3 initial full rounds (0 also absorbs `[chain | evbuf]`
-//! premixed by the initial external layer), 4-14 partial pairs (2 internal
-//! rounds each), 15-18 terminal full rounds (18 also feeds the chain
-//! forward). Opaque Enter saves and zeros the active chain; the final root-copy
+//! Absorb: a non-advice gather row at slot seven (`ABSORB`) computes
+//! `chain_after = commit_block(previous, [evbuf_before[0..7] | staged word])`
+//! with one width-12 permutation, and clears the buffer. `previous` is the
+//! chain before the row, or the restored outer chain when the same row copies
+//! the final object-root lane. The commitment gadget is unconditional: every
+//! row holds the permutation of its own inputs, and only `ABSORB` reads the
+//! output. Opaque Enter saves and zeros the active chain; the final root-copy
 //! slot restores the saved outer chain. Both contexts use the same hash path.
-//!
-//! Scheduling soundness: `perm_pending` (raised only by the gated write-row
-//! update below) forces the next row to be position 0, the round counter
-//! walks 0→18 in lockstep with the one-hot, and the row-kind one-hot in
-//! `ccs/call.rs` counts `pending + (round ≠ 0)` as the perm row kind — so
-//! `pending = 1 ∧ round ≠ 0` (which would let two positions fire at once)
-//! is unreachable: every row that can raise `pending` provably has
-//! `round_after = 0`, and perm rows never raise it.
-//!
-//! S-box shape: each x^7 is 4 unconditional mult rows over dedicated power
-//! columns (witness-filled with the powers of whatever the linear input
-//! expression evaluates to on non-perm rows, where the round-constant
-//! selectors are all zero), and only the linear round-output rows are gated
-//! by the position one-hot.
 //!
 //! Column ownership: the gadget's shared interface lives in
 //! `host_event_layout` — the carried absorb state (buffer, pending flag,
-//! round counter + its zero-test, permutation lanes) that continuity links,
+//! object context) that continuity links,
 //! the semantic digest, and `ccs/call.rs` refer to. The gadget-internal
 //! witness columns (position one-hot, S-box powers, and gather decoding) are
 //! allocated here in a private block right after
@@ -38,33 +26,20 @@ use super::super::layout::{
     COL_COMM_CHAIN_AFTER, COL_COMM_CHAIN_BEFORE, COL_EVBUF_AFTER, COL_EVBUF_BEFORE, COL_GATHER_ACTIVE,
     COL_HOST_CALLEE_FREF_AFTER, COL_HOST_EVENTS_REMAINING_BEFORE, COL_HOST_EVENTS_REMAINING_BEFORE_INV,
     COL_HOST_EVENTS_REMAINING_BEFORE_IS_ZERO, COL_OBJECT_ACTIVE_AFTER, COL_OBJECT_ACTIVE_BEFORE, COL_ONE,
-    COL_OUTER_CHAIN_AFTER, COL_OUTER_CHAIN_BEFORE, COL_OUTER_PREFIX_AFTER, COL_OUTER_PREFIX_BEFORE,
-    COL_PERM_PENDING_AFTER, COL_PERM_PENDING_BEFORE, COL_PERM_ROUND_AFTER, COL_PERM_ROUND_BEFORE,
-    COL_PERM_ROUND_BEFORE_INV, COL_PERM_ROUND_BEFORE_IS_ZERO, COL_PERM_STATE_AFTER, COL_PERM_STATE_BEFORE,
-    COL_STACK_READS, COL_STACK_READ_VALUE_HI, COL_STACK_READ_VALUE_LO, COL_STACK_WRITE0_VALUE_HI,
-    COL_STACK_WRITE0_VALUE_LO, COL_STACK_WRITES, COL_TURN_BOUNDARY, COL_TURN_EXPORT_FREF_AFTER,
-    COL_TURN_EXPORT_FREF_BEFORE,
+    COL_OUTER_CHAIN_AFTER, COL_OUTER_CHAIN_BEFORE, COL_OUTER_PREFIX_AFTER, COL_OUTER_PREFIX_BEFORE, COL_STACK_READS,
+    COL_STACK_READ_VALUE_HI, COL_STACK_READ_VALUE_LO, COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO,
+    COL_STACK_WRITES, COL_TURN_BOUNDARY, COL_TURN_EXPORT_FREF_AFTER, COL_TURN_EXPORT_FREF_BEFORE,
 };
 use super::super::tagged_r1cs_builder::WasmTaggedR1csBuilder;
 use super::call::host_call_gate_terms;
 use super::host_event;
-use crate::comm_chain::{COMM_CHAIN_PERM_ROWS, PERM_PARTIAL_FIRST_ROW, PERM_TERMINAL_FIRST_ROW};
 use crate::gadgets::push_gated_linear_zero;
 use crate::ir::{WasmHostEventSlotKind, WasmVmStep};
 use crate::layout::{COL_HOST_CLEAR_ACTIVATION_FINISHED, COL_HOST_RESUME, COL_HOST_SPLIT_CALL};
-use neo_application::poseidon2::external_matrix;
-use neo_application::{
-    define_column_region, Poseidon2FullRound12, Poseidon2FullRoundChoice, Poseidon2PartialPair12,
-    Poseidon2PartialPairChoice, ZeroTest,
-};
+use neo_application::event_commitment::{commit_block, EventCommitment, EVENT_COMMITMENT_AUX_COLUMNS};
+use neo_application::{define_column_region, ZeroTest};
 use neo_math::F;
 use p3_field::{Field, PrimeCharacteristicRing};
-
-pub(crate) const PERM_ROUND_ZERO_TEST: ZeroTest = ZeroTest::column(
-    COL_PERM_ROUND_BEFORE,
-    COL_PERM_ROUND_BEFORE_INV,
-    COL_PERM_ROUND_BEFORE_IS_ZERO,
-);
 
 pub(crate) const HOST_EVENTS_REMAINING_ZERO_TEST: ZeroTest = ZeroTest::column(
     COL_HOST_EVENTS_REMAINING_BEFORE,
@@ -83,9 +58,10 @@ define_column_region! {
     families: pub AUX_COLUMN_FAMILIES,
     indices: pub(self),
     columns: [
-        PERM_POSITION: [Boolean; COMM_CHAIN_PERM_ROWS] => "permutation row-position one-hot flags",
-        FULL_ROUND_POWERS: [Field; 48] => "full-round S-box power witnesses",
-        PARTIAL_ROUND_POWERS: [Field; 8] => "partial-round S-box power witnesses",
+        ABSORB: Boolean => "gather row that fills an absorbing block and folds it into the chain",
+        ABSORB_PREVIOUS: [Field; 4] => "chain the block folds into (the outer chain on an object exit)",
+        ABSORB_OUTPUT: [Field; 4] => "event commitment of the previous chain and the filled block",
+        ABSORB_PERMUTATION: [Field; EVENT_COMMITMENT_AUX_COLUMNS] => "width-12 permutation witnesses of the absorb",
         GATHER_WORD_POSITION: [Boolean; 8] => "gather block-word one-hot flags",
         GATHER_KIND: [Boolean; GKINDS] => "gather slot-kind one-hot flags",
         GARG_VAL: Field => "limb-selected stack argument value",
@@ -153,32 +129,14 @@ pub(super) const fn host_call_params_col() -> usize {
     GHC_PARAMS
 }
 
-fn full_round_gadget() -> Poseidon2FullRound12<8> {
-    Poseidon2FullRound12 {
-        choices: [
-            Poseidon2FullRoundChoice::for_round(PERM_POSITION[0], 0),
-            Poseidon2FullRoundChoice::for_round(PERM_POSITION[1], 1),
-            Poseidon2FullRoundChoice::for_round(PERM_POSITION[2], 2),
-            Poseidon2FullRoundChoice::for_round(PERM_POSITION[3], 3),
-            Poseidon2FullRoundChoice::for_round(PERM_POSITION[PERM_TERMINAL_FIRST_ROW], 4),
-            Poseidon2FullRoundChoice::for_round(PERM_POSITION[PERM_TERMINAL_FIRST_ROW + 1], 5),
-            Poseidon2FullRoundChoice::for_round(PERM_POSITION[PERM_TERMINAL_FIRST_ROW + 2], 6),
-            Poseidon2FullRoundChoice::for_round(PERM_POSITION[PERM_TERMINAL_FIRST_ROW + 3], 7),
-        ],
-        state_before: COL_PERM_STATE_BEFORE,
-        state_after: COL_PERM_STATE_AFTER,
-        powers: core::array::from_fn(|lane| core::array::from_fn(|power| FULL_ROUND_POWERS[4 * lane + power])),
-    }
-}
-
-fn partial_pair_gadget() -> Poseidon2PartialPair12<11> {
-    Poseidon2PartialPair12 {
-        choices: core::array::from_fn(|pair| {
-            Poseidon2PartialPairChoice::for_pair(PERM_POSITION[PERM_PARTIAL_FIRST_ROW + pair], pair)
-        }),
-        state_before: COL_PERM_STATE_BEFORE,
-        state_after: COL_PERM_STATE_AFTER,
-        powers: PARTIAL_ROUND_POWERS,
+/// The block absorb: the first seven words are already in the buffer, and the
+/// row stages the eighth.
+fn absorb_commitment() -> EventCommitment {
+    EventCommitment {
+        previous: ABSORB_PREVIOUS,
+        block: core::array::from_fn(|word| if word < 7 { COL_EVBUF_BEFORE[word] } else { GSLOT_VALUE }),
+        output: ABSORB_OUTPUT,
+        auxiliary_start: ABSORB_PERMUTATION[0],
     }
 }
 
@@ -186,12 +144,8 @@ pub(super) fn push_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     push_interface_constraints(b);
     push_host_event_gather_constraints(b);
     push_opaque_constraints(b);
-    push_position_onehot_constraints(b);
-    push_pending_update_constraints(b);
-    push_buffer_write_constraints(b);
     push_absorb_constraints(b);
-    push_full_round_constraints(b);
-    push_partial_pair_constraints(b);
+    push_buffer_write_constraints(b);
     push_chain_update_constraints(b);
 }
 
@@ -203,14 +157,13 @@ fn push_interface_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
                 .into_iter()
                 .chain(host_call_gate_terms().map(|(column, coefficient)| (column, -coefficient))),
         );
-        // Disable the pc-to-function lookup on gather, permutation, turn
-        // boundary, and padding rows, which do not execute a program
+        // Disable the pc-to-function lookup on gather, turn boundary,
+        // padding, and resume rows, which do not execute a program
         // instruction.
         b.push_linear_zero([
             (super::super::layout::COL_PC_FREF_ACTIVE, F::ONE),
-            (COL_PERM_ROUND_BEFORE_IS_ZERO, -F::ONE),
+            (COL_ONE, -F::ONE),
             (COL_GATHER_ACTIVE, F::ONE),
-            (COL_PERM_PENDING_BEFORE, F::ONE),
             (COL_TURN_BOUNDARY, F::ONE),
             (super::super::layout::COL_PADDING_ACTIVE, F::ONE),
             (COL_HOST_RESUME, F::ONE),
@@ -235,23 +188,11 @@ fn push_interface_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
             ],
             [],
         );
-        // Full groups hash unless they are advice; Enter ends its prefix group
-        // before slot seven and is covered by the non-final-slot pending rule.
-        b.push_row(
-            [(GATHER_WORD_POSITION[7], F::ONE)],
-            [(COL_PERM_PENDING_AFTER, F::ONE), (COL_ONE, -F::ONE), (G_ADVICE, F::ONE)],
-            [],
-        );
-        b.push_row(
-            [(COL_GATHER_ACTIVE, F::ONE), (GATHER_WORD_POSITION[7], -F::ONE)],
-            [(COL_PERM_PENDING_AFTER, F::ONE)],
-            [],
-        );
         // Gather rows read the stack on arg slots and on memory slots whose
         // pointer base is an import argument; result slots
         // WRITE it — the lo slot through the counted port pair (the push),
         // the hi slot through the hi-word port alone (no sp effect). Both
-        // preserve the rest of the VM state like permutation rows do.
+        // preserve the rest of the VM state.
         b.push_row(
             [(COL_GATHER_ACTIVE, F::ONE)],
             [
@@ -447,8 +388,7 @@ fn push_host_event_gather_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
             [],
         );
 
-        // Slot cursor + block-word one-hot lockstep (the same pattern as the
-        // perm position one-hot).
+        // Slot cursor + block-word one-hot lockstep.
         b.push_linear_zero(
             (0..8)
                 .map(|k| (GATHER_WORD_POSITION[k], F::ONE))
@@ -492,13 +432,15 @@ fn push_host_event_gather_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
             [],
         );
 
-        // The staged word lands in the buffer slot the cursor points at.
+        // The staged word lands in the buffer slot the cursor points at,
+        // unless the row absorbs the block it fills.
         for k in 0..8 {
-            b.push_row(
-                [(GATHER_WORD_POSITION[k], F::ONE)],
-                [(COL_EVBUF_AFTER[k], F::ONE), (GSLOT_VALUE, -F::ONE)],
-                [],
-            );
+            let gate = if k == 7 {
+                vec![(GATHER_WORD_POSITION[k], F::ONE), (ABSORB, -F::ONE)]
+            } else {
+                vec![(GATHER_WORD_POSITION[k], F::ONE)]
+            };
+            b.push_row(gate, [(COL_EVBUF_AFTER[k], F::ONE), (GSLOT_VALUE, -F::ONE)], []);
         }
 
         // Const slots: the word is the ROM constant (u32 limb pair).
@@ -870,7 +812,7 @@ fn push_host_event_gather_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
 }
 
 /// Opaque objects suspend only the outer prefix and chain. Both contexts use
-/// the same gather buffer, permutation state, round selectors, and S-box advice.
+/// the same gather buffer and absorb gadget.
 fn push_opaque_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     use crate::layout::COL_HOST_EVENT_SLOT_ARG;
     b.with_tag(host_event("opaque value context"), |b| {
@@ -949,70 +891,29 @@ fn push_opaque_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     });
 }
 
-/// Position one-hot ↔ round-counter lockstep.
-fn push_position_onehot_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
-    b.with_tag(host_event("host event perm position"), |b| {
-        PERM_ROUND_ZERO_TEST.push_constraints(b);
-        // sum(pos) = pending + (1 - round_is_zero): exactly one position on
-        // perm rows, none elsewhere.
-        b.push_linear_zero(
-            (0..COMM_CHAIN_PERM_ROWS)
-                .map(|pos| (PERM_POSITION[pos], F::ONE))
-                .chain([
-                    (COL_PERM_PENDING_BEFORE, -F::ONE),
-                    (COL_ONE, -F::ONE),
-                    (COL_PERM_ROUND_BEFORE_IS_ZERO, F::ONE),
-                ]),
-        );
-        // sum(pos * P_pos) = round_before: the one-hot points at the counter.
-        b.push_linear_zero(
-            (0..COMM_CHAIN_PERM_ROWS)
-                .map(|pos| (PERM_POSITION[pos], F::from_u64(pos as u64)))
-                .chain([(COL_PERM_ROUND_BEFORE, -F::ONE)]),
-        );
-        // round_after = round_before + perm_row_gate - 19 * P_last: advance
-        // through the group, wrap to 0 on the last row, preserve elsewhere.
-        b.push_linear_zero([
-            (COL_PERM_ROUND_AFTER, F::ONE),
-            (COL_PERM_ROUND_BEFORE, -F::ONE),
-            (COL_PERM_PENDING_BEFORE, -F::ONE),
-            (COL_ONE, -F::ONE),
-            (COL_PERM_ROUND_BEFORE_IS_ZERO, F::ONE),
-            (
-                PERM_POSITION[COMM_CHAIN_PERM_ROWS - 1],
-                F::from_u64(COMM_CHAIN_PERM_ROWS as u64),
-            ),
-        ]);
-        // pending forces the absorb row now, and only pending rows absorb.
+/// The absorb row: a non-advice gather at slot seven, which never enters an
+/// object, folds `[evbuf_before[0..7] | staged word]` into the chain that the
+/// row's object rules leave.
+fn push_absorb_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
+    let exit = OBJECT_ROOT_LANE[3];
+    b.with_tag(host_event("host event absorb"), |b| {
         b.push_row(
-            [(COL_PERM_PENDING_BEFORE, F::ONE)],
-            [(COL_ONE, F::ONE), (PERM_POSITION[0], -F::ONE)],
-            [],
+            [(GATHER_WORD_POSITION[7], F::ONE)],
+            [(COL_ONE, F::ONE), (G_ADVICE, -F::ONE)],
+            [(ABSORB, F::ONE)],
         );
-        b.push_row(
-            [(PERM_POSITION[0], F::ONE)],
-            [(COL_PERM_PENDING_BEFORE, F::ONE), (COL_ONE, -F::ONE)],
-            [],
-        );
-    });
-}
-
-/// `perm_pending` is raised by the final gather row, cleared on the absorb
-/// row, and preserved everywhere else.
-fn push_pending_update_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
-    b.with_tag(host_event("host event pending update"), |b| {
-        // Absorb row consumes the flag.
-        b.push_row([(PERM_POSITION[0], F::ONE)], [(COL_PERM_PENDING_AFTER, F::ONE)], []);
-        // Everything else preserves it; gather rows set it above.
-        b.push_row(
-            [
-                (COL_ONE, F::ONE),
-                (PERM_POSITION[0], -F::ONE),
-                (COL_GATHER_ACTIVE, -F::ONE),
-            ],
-            [(COL_PERM_PENDING_AFTER, F::ONE), (COL_PERM_PENDING_BEFORE, -F::ONE)],
-            [],
-        );
+        b.push_row([(ABSORB, F::ONE)], [(GK_ENTER, F::ONE)], []);
+        for lane in 0..4 {
+            b.push_row(
+                [(exit, F::ONE)],
+                [
+                    (COL_OUTER_CHAIN_BEFORE[lane], F::ONE),
+                    (COL_COMM_CHAIN_BEFORE[lane], -F::ONE),
+                ],
+                [(ABSORB_PREVIOUS[lane], F::ONE), (COL_COMM_CHAIN_BEFORE[lane], -F::ONE)],
+            );
+        }
+        absorb_commitment().push_constraints(b);
     });
 }
 
@@ -1023,107 +924,36 @@ fn push_buffer_write_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
         // The absorb row consumes the block: the buffer resets to zero so
         // the next block's unwritten slots are the zero padding.
         for j in 0..8 {
-            b.push_row([(PERM_POSITION[0], F::ONE)], [(COL_EVBUF_AFTER[j], F::ONE)], []);
+            b.push_row([(ABSORB, F::ONE)], [(COL_EVBUF_AFTER[j], F::ONE)], []);
         }
 
         // Untouched slots carry: gate out the absorb reset and the gather
-        // position that stages this word.
+        // position that stages this word. `ABSORB` implies slot seven.
         for j in 0..8 {
-            let gate = [
-                (COL_ONE, F::ONE),
-                (PERM_POSITION[0], -F::ONE),
-                (GATHER_WORD_POSITION[j], -F::ONE),
-            ];
+            let mut gate = vec![(COL_ONE, F::ONE), (GATHER_WORD_POSITION[j], -F::ONE)];
+            if j < 7 {
+                gate.push((ABSORB, -F::ONE));
+            }
             b.push_row(gate, [(COL_EVBUF_AFTER[j], F::ONE), (COL_EVBUF_BEFORE[j], -F::ONE)], []);
         }
     });
 }
 
-/// The absorb row's entry state is the premixed block input:
-/// `state_before = M_ext · [chain_before | evbuf_before]`.
-fn push_absorb_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
-    let me = external_matrix();
-    b.with_tag(host_event("host event absorb"), |b| {
-        for lane in 0..12 {
-            let mut terms = vec![(COL_PERM_STATE_BEFORE[lane], F::ONE)];
-            for (k, coeff) in me[lane].iter().enumerate() {
-                let input = if k < 4 {
-                    COL_COMM_CHAIN_BEFORE[k]
-                } else {
-                    COL_EVBUF_BEFORE[k - 4]
-                };
-                terms.push((input, -*coeff));
-            }
-            b.push_row([(PERM_POSITION[0], F::ONE)], terms, []);
-        }
-    });
-}
-
-/// Full-round rows share one selectable round gadget across the eight full
-/// positions. The position one-hot chooses the constants and activates the
-/// output rows; power assignments remain canonical on every trace row.
-fn push_full_round_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
-    b.with_tag(host_event("host event perm full round"), |b| {
-        full_round_gadget().push_constraints_assuming_preconstrained_selectors(b);
-    });
-}
-
-/// Partial-pair rows similarly share one selectable two-round gadget across
-/// the eleven partial positions.
-fn push_partial_pair_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
-    b.with_tag(host_event("host event perm partial pair"), |b| {
-        partial_pair_gadget().push_constraints_assuming_preconstrained_selectors(b);
-    });
-}
-
-/// One active chain for every permutation. Enter zeros it after saving the
-/// outer chain; the final root-copy restores that chain after reading the root.
+/// One active chain for every absorb. Enter zeros it after saving the outer
+/// chain; the absorb row lands on the commitment; every other row carries the
+/// previous chain, which the final root-copy sets to the saved outer chain.
 fn push_chain_update_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
-    let last = PERM_POSITION[COMM_CHAIN_PERM_ROWS - 1];
-    let exit = OBJECT_ROOT_LANE[3];
     b.with_tag(host_event("host event chain update"), |b| {
         for limb in 0..4 {
             b.push_row([(GK_ENTER, F::ONE)], [(COL_COMM_CHAIN_AFTER[limb], F::ONE)], []);
             b.push_row(
-                [(exit, F::ONE)],
-                [
-                    (COL_COMM_CHAIN_AFTER[limb], F::ONE),
-                    (COL_OUTER_CHAIN_BEFORE[limb], -F::ONE),
-                ],
+                [(ABSORB, F::ONE)],
+                [(COL_COMM_CHAIN_AFTER[limb], F::ONE), (ABSORB_OUTPUT[limb], -F::ONE)],
                 [],
             );
             b.push_row(
-                [(last, F::ONE)],
-                [
-                    (COL_COMM_CHAIN_AFTER[limb], F::ONE),
-                    (COL_PERM_STATE_AFTER[limb], -F::ONE),
-                    (COL_COMM_CHAIN_BEFORE[limb], -F::ONE),
-                ],
-                [],
-            );
-            b.push_row(
-                [(COL_ONE, F::ONE), (last, -F::ONE), (GK_ENTER, -F::ONE), (exit, -F::ONE)],
-                [
-                    (COL_COMM_CHAIN_AFTER[limb], F::ONE),
-                    (COL_COMM_CHAIN_BEFORE[limb], -F::ONE),
-                ],
-                [],
-            );
-        }
-        // Rows that neither run the permutation nor raise `pending` (whose
-        // successor's absorb constraint pins the premix through the
-        // continuity link) carry the permutation state unchanged.
-        for lane in 0..12 {
-            b.push_row(
-                [
-                    (COL_PERM_ROUND_BEFORE_IS_ZERO, F::ONE),
-                    (COL_PERM_PENDING_BEFORE, -F::ONE),
-                    (COL_PERM_PENDING_AFTER, -F::ONE),
-                ],
-                [
-                    (COL_PERM_STATE_AFTER[lane], F::ONE),
-                    (COL_PERM_STATE_BEFORE[lane], -F::ONE),
-                ],
+                [(COL_ONE, F::ONE), (ABSORB, -F::ONE), (GK_ENTER, -F::ONE)],
+                [(COL_COMM_CHAIN_AFTER[limb], F::ONE), (ABSORB_PREVIOUS[limb], -F::ONE)],
                 [],
             );
         }
@@ -1161,24 +991,19 @@ pub fn write_turn_schedule_guard_witness(wit: &mut [F]) -> Result<(), crate::Was
 /// Fill the gadget-internal columns for one row.
 pub(crate) fn fill_witness(wit: &mut [F], trace: &WasmVmStep) {
     let bool_f = |flag: bool| if flag { F::ONE } else { F::ZERO };
-    let before = trace.state_before.event_absorb;
-
-    let pos = trace
-        .row_kind
-        .is_host_event_perm()
-        .then_some(usize::from(before.perm_round));
-    if let Some(pos) = pos {
-        wit[PERM_POSITION[pos]] = F::ONE;
-    }
-
-    full_round_gadget().assign_auxiliaries(wit);
-    partial_pair_gadget().assign_auxiliaries(wit);
 
     // Host-event gather one-hots and staged value.
     if trace.row_kind.is_host_event_gather() {
         let cursor = usize::from(trace.state_before.host_events.slot_cursor);
         wit[GATHER_WORD_POSITION[cursor]] = F::ONE;
-        wit[GSLOT_VALUE] = F::from_u64(trace.state_after.event_absorb.evbuf[cursor]);
+        // The absorb row clears the buffer, so only its trace field keeps
+        // the staged word; every other gather row leaves it in the buffer.
+        let absorbs = cursor == 7 && trace.host_event_rom_slot.is_some_and(|rom| !rom.advice);
+        let staged = match trace.host_event_word {
+            Some(word) if absorbs => word,
+            _ => trace.state_after.event_absorb.evbuf[cursor],
+        };
+        wit[GSLOT_VALUE] = F::from_u64(staged);
         if let Some(rom) = trace.host_event_rom_slot {
             wit[GATHER_KIND[rom.kind.index()]] = F::ONE;
             wit[GK2_HI] = bool_f(rom.kind == WasmHostEventSlotKind::Result && rom.variant.is_high_limb());
@@ -1197,6 +1022,27 @@ pub(crate) fn fill_witness(wit: &mut [F], trace: &WasmVmStep) {
             }
         }
     }
+    // The absorb runs on every row; only `ABSORB` rows read its output.
+    wit[ABSORB] = wit[GATHER_WORD_POSITION[7]] * (F::ONE - wit[G_ADVICE]);
+    let exit = wit[OBJECT_ROOT_LANE[3]];
+    let previous: [F; 4] = core::array::from_fn(|lane| {
+        let chain = F::from_u64(trace.state_before.comm_chain[lane]);
+        let outer = F::from_u64(trace.state_before.event_absorb.outer_chain[lane]);
+        chain + exit * (outer - chain)
+    });
+    let block: [F; 8] = core::array::from_fn(|word| {
+        if word < 7 {
+            F::from_u64(trace.state_before.event_absorb.evbuf[word])
+        } else {
+            wit[GSLOT_VALUE]
+        }
+    });
+    let output = commit_block(previous, block);
+    for lane in 0..4 {
+        wit[ABSORB_PREVIOUS[lane]] = previous[lane];
+        wit[ABSORB_OUTPUT[lane]] = output[lane];
+    }
+    absorb_commitment().assign_auxiliaries(wit);
     // Atomic host-call arg pops; split calls defer them until resume.
     wit[GHC_PARAMS] = (wit[super::super::layout::COL_HOST_CALL_ACTIVE] - wit[COL_HOST_SPLIT_CALL])
         * wit[super::super::layout::COL_CALL_PARAM_COUNT];

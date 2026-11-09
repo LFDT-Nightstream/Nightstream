@@ -275,12 +275,7 @@ pub fn batch_count(trace_len: usize, batch_size: usize) -> Result<usize, BatchEr
 /// build here is just the values that satisfy those rows.
 pub fn padding_step_after(prev: &WasmVmStep) -> Result<WasmVmStep, BatchError> {
     let state = prev.state_after;
-    if state.frame_move.active
-        || state.local_zero.active
-        || state.event_absorb.perm_pending
-        || state.event_absorb.perm_round != 0
-        || state.host_events.suspend_pending
-    {
+    if state.frame_move.active || state.local_zero.active || state.host_events.suspend_pending {
         return Err(WasmBuildError::Trace("cannot pad an unfinished auxiliary group".into()).into());
     }
     let pages = prev.state_after.memory_pages;
@@ -378,6 +373,7 @@ pub fn padding_step_after(prev: &WasmVmStep) -> Result<WasmVmStep, BatchError> {
         host_context: None,
         host_event_return_schedule_count: None,
         host_event_rom_slot: None,
+        host_event_word: None,
         host_event_initial_schedule_count: None,
         host_event_exit_schedule_count: None,
     })

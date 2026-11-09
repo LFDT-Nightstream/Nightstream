@@ -76,7 +76,7 @@ use crate::verifier::ProofView;
 pub use crate::circuit::fold::FoldTranscript;
 pub use crate::circuit::r1cs::R1cs;
 pub use crate::circuit::{Backend, Native};
-pub use crate::device::{Accelerator, Device, GkrLayer};
+pub use crate::device::{Accelerator, Device, GkrLayer, SetupOracle};
 pub use crate::prover::prove;
 pub use crate::relation::Relation;
 

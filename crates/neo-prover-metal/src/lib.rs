@@ -20,7 +20,7 @@ mod session;
 #[cfg(feature = "metal")]
 pub use rows::MetalRowProver;
 #[cfg(feature = "metal")]
-pub use session::{MetalGkrLayer, MetalSession};
+pub use session::{MetalGkrLayer, MetalSession, SetupSource};
 
 /// Owner's Metal memory ceiling, chosen so a prover can run on a current
 /// iPhone. Device buffer requests stay below it; CPU memory is measured

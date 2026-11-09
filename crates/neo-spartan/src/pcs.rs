@@ -97,7 +97,7 @@ pub(crate) struct Dft {
 }
 
 impl Dft {
-    pub(crate) fn on(&self, accelerator: &Accelerator) -> Self {
+    fn on(&self, accelerator: &Accelerator) -> Self {
         Self {
             cpu: self.cpu.clone(),
             accelerator: accelerator.clone(),
@@ -106,7 +106,7 @@ impl Dft {
     }
 
     /// Fail when the device failed during a DFT of this prover.
-    pub(crate) fn check(&self) -> Result<(), Error> {
+    fn check(&self) -> Result<(), Error> {
         self.failure
             .get()
             .map_or(Ok(()), |reason| Err(Error::Device(reason.clone())))

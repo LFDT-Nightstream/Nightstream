@@ -501,4 +501,5 @@ kernel void sumcheck_reduce_partials(
 #include "relation.metal"
 #include "production_commitment.metal"
 #include "dft.metal"
+#include "setup.metal"
 #include "gkr.metal"

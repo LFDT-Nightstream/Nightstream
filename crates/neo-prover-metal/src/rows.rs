@@ -69,6 +69,20 @@ impl MetalRowProver {
         self.session.dft_columns(values, width, generator)
     }
 
+    /// `MetalSession::setup_leaves`: the queried leaves of layer-1 setup
+    /// oracles, encoded on the device.
+    pub fn setup_leaves(
+        &self,
+        oracles: &[crate::SetupSource<'_>],
+        variables: usize,
+        leaves: &[u32],
+        generator: u64,
+        shift: u64,
+    ) -> Result<Vec<Vec<[u64; 8]>>, MetalError> {
+        self.session
+            .setup_leaves(oracles, variables, leaves, generator, shift)
+    }
+
     /// Every digest layer of a Merkle tree; see
     /// `MetalSession::poseidon2_merkle_layers`.
     pub fn merkle_layers(

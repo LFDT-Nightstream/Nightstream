@@ -43,7 +43,7 @@ enum KeyRows<'a> {
 impl MetalSession {
     /// SHAKE128 input bytes 0..69 (setup ID and seed) as nine little-endian
     /// lanes; the kernel adds each row and column.
-    fn production_key_prefix(&self) -> Result<Buffer, MetalError> {
+    pub(super) fn production_key_prefix(&self) -> Result<Buffer, MetalError> {
         let fixed = SETUP_ID.len() + PRODUCTION_SEED.len();
         let input = element_input(&PRODUCTION_SEED, 0, 0);
         let prefix: [u64; 9] = std::array::from_fn(|lane| {

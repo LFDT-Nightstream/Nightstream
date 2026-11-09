@@ -122,6 +122,35 @@ impl neo_spartan::Device for CompressionDevice {
         }
     }
 
+    fn setup_leaves(
+        &self,
+        oracles: &[neo_spartan::SetupOracle<'_>],
+        variables: usize,
+        leaves: &[u32],
+        generator: u64,
+        shift: u64,
+    ) -> Result<Option<Vec<Vec<[u64; 8]>>>, String> {
+        let Some(device) = self.lock() else {
+            return Ok(None);
+        };
+        let sources: Vec<neo_prover_metal::SetupSource<'_>> = oracles
+            .iter()
+            .map(|oracle| match *oracle {
+                neo_spartan::SetupOracle::KeyRow { row, blocks } => {
+                    neo_prover_metal::SetupSource::KeyRow { row, blocks }
+                }
+                neo_spartan::SetupOracle::Table(table) => neo_prover_metal::SetupSource::Table(table),
+            })
+            .collect();
+        match device.setup_leaves(&sources, variables, leaves, generator, shift) {
+            Ok(values) => Ok(Some(values)),
+            // A refusal before the first command changes nothing, and the
+            // CPU encodes the oracles.
+            Err(error @ neo_prover_metal::MetalError::Execution(_)) => Err(error.to_string()),
+            Err(_) => Ok(None),
+        }
+    }
+
     fn gkr_layer<'a>(
         &self,
         trees: Vec<Vec<&'a mut [u64]>>,

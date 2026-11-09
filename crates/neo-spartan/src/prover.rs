@@ -9,19 +9,19 @@ use neo_ccs::Mat;
 use neo_math::{D, F};
 use neo_transcript::Poseidon2Transcript;
 use p3_challenger_v08::{CanObserve, FieldChallenger};
-use p3_field_v08::PrimeCharacteristicRing;
+use p3_field_v08::{Field, PrimeCharacteristicRing, PrimeField64, TwoAdicField};
 use rayon::prelude::*;
 
 use crate::circuit::Native;
-use crate::device::Accelerator;
+use crate::device::{Accelerator, SetupOracle};
 use crate::field::{coordinates, eq_table, gl, Ext, Gl};
 use crate::gkr::{self, Leaves, Tree};
 use crate::hash::{self, Challenger};
 use crate::matrix::{EarlyChallenges, EarlyValues, Tables};
-use crate::relation::{p1_points, setup_point, Relation, Shape};
+use crate::relation::{kappa, p1_points, setup_point, Relation, Shape};
 use crate::ring::{self, Mixing};
 use crate::setup::{self, FOLD};
-use crate::{mle, norm, pcs, sumcheck, Claim, ClaimWords, Error, Proof, Setup, LANES, LANE_VARIABLES, RUN_ORACLES};
+use crate::{mle, norm, sumcheck, Claim, ClaimWords, Error, Proof, Setup, LANES, LANE_VARIABLES, RUN_ORACLES};
 
 /// Prove `claim` for `witness` (54 × blocks), continuing `transcript`. The
 /// Merkle leaves hash on `accelerator`.
@@ -115,12 +115,9 @@ pub fn prove(
         .p1
         .commit(vec![fold_columns, coordinates(&omega_a)], &mut challenger, accelerator)?;
     let indices = relation.query_indices(&mut challenger);
-    // The store keeps no codeword: the oracles are encoded again here.
-    let leaves = setup.store.leaves(
-        &indices,
-        |k| crate::oracle(tables, key.blocks, k, variables),
-        &pcs::Dft::default().on(accelerator),
-    )?;
+    let leaves = setup.store.leaves(&indices, |oracles, leaves| {
+        setup_leaves(tables, key.blocks, variables, oracles, leaves, accelerator)
+    })?;
 
     let beta: Ext = challenger.sample_algebra_element();
     let late_trees = tables.late_trees(&ubar, &lanes, &omega_a, beta);
@@ -180,6 +177,76 @@ pub fn prove(
         p1_opening,
         p0_opening,
     })
+}
+
+/// The values at `leaves` of the setup oracles `oracles` (ascending), which
+/// the store does not keep: on the accelerator's device when it runs them,
+/// otherwise encoded again on the CPU. The key rows go to the device
+/// together; each run table goes alone, so the host holds one table at a
+/// time.
+fn setup_leaves(
+    tables: &Tables,
+    blocks: usize,
+    variables: usize,
+    oracles: &[usize],
+    leaves: &[usize],
+    accelerator: &Accelerator,
+) -> Result<Vec<Vec<[Gl; 1 << FOLD]>>, Error> {
+    let positions: Vec<u32> = leaves.iter().map(|&leaf| leaf as u32).collect();
+    let on_device = |sources: &[SetupOracle<'_>]| -> Result<Option<Vec<Vec<[Gl; 1 << FOLD]>>>, Error> {
+        let Some(device) = accelerator.device().filter(|_| !sources.is_empty()) else {
+            return Ok(None);
+        };
+        let generator = Gl::two_adic_generator(variables + 1).as_canonical_u64();
+        let values = device
+            .setup_leaves(
+                sources,
+                variables,
+                &positions,
+                generator,
+                Gl::GENERATOR.as_canonical_u64(),
+            )
+            .map_err(Error::Device)?;
+        Ok(values.map(|oracles| {
+            oracles
+                .into_iter()
+                .map(|values| values.into_iter().map(|leaf| leaf.map(Gl::new)).collect())
+                .collect()
+        }))
+    };
+    let (keys, runs): (Vec<usize>, Vec<usize>) = oracles.iter().partition(|&&k| k < kappa());
+    let rows: Vec<SetupOracle<'_>> = keys
+        .iter()
+        .map(|&k| SetupOracle::KeyRow { row: k as u32, blocks })
+        .collect();
+    let mut values = match on_device(&rows)? {
+        Some(values) => values,
+        None => keys
+            .iter()
+            .map(|&k| setup::encoded_leaves(crate::oracle(tables, blocks, k, variables), variables, leaves))
+            .collect(),
+    };
+    for &k in &runs {
+        let table = crate::oracle(tables, blocks, k, variables);
+        let encoded = match accelerator.device() {
+            Some(_) => {
+                let words: Vec<u64> = table
+                    .par_iter()
+                    .map(|value| value.as_canonical_u64())
+                    .collect();
+                on_device(&[SetupOracle::Table(&words)])?
+            }
+            None => None,
+        };
+        values.push(match encoded {
+            Some(one) => one
+                .into_iter()
+                .next()
+                .ok_or(Error::Device("the device returned no setup oracle".into()))?,
+            None => setup::encoded_leaves(table, variables, leaves),
+        });
+    }
+    Ok(values)
 }
 
 fn early_challenges(challenger: &mut Challenger) -> EarlyChallenges<Ext> {

@@ -11,8 +11,9 @@ use crate::circuit::algebra::eq_eval;
 use crate::circuit::Native;
 use crate::field::{eq_table, Ext, Gl};
 use crate::hash::{compress, hash_leaf};
-use crate::pcs::Dft;
-use crate::setup::{build, build_stored, check, fold, partials, query_point, Leaf, LeafView, Store, FOLD};
+use crate::setup::{
+    build, build_stored, check, encoded_leaves, fold, partials, query_point, Leaf, LeafView, Store, FOLD,
+};
 use crate::sumcheck::evaluate;
 use crate::Error;
 
@@ -23,6 +24,18 @@ fn table(k: usize) -> Vec<Gl> {
     (0..1 << VARIABLES)
         .map(|x| Gl::from_u64(word(70 + k as u64, x)))
         .collect()
+}
+
+/// `Store::leaves`' encoder for the oracles `tables(k)` on the CPU.
+fn encoder(
+    tables: impl Fn(usize) -> Vec<Gl>,
+) -> impl FnOnce(&[usize], &[usize]) -> Result<Vec<Vec<[Gl; 1 << FOLD]>>, Error> {
+    move |oracles, leaves| {
+        oracles
+            .iter()
+            .map(|&k| Ok(encoded_leaves(tables(k), VARIABLES, leaves)))
+            .collect()
+    }
 }
 
 fn ext(seed: u64) -> Ext {
@@ -56,31 +69,38 @@ fn lift(values: &[Gl]) -> Vec<Ext> {
     values.iter().map(|&value| Ext::from(value)).collect()
 }
 
+/// Leaf `j` of an oracle on `2^n` points, value `v`: its extension at the
+/// power point of `g·ω^{j + v·2^{n-2}}`.
+fn direct_leaf(oracle: &[Ext], n: usize, j: usize) -> [Gl; 1 << FOLD] {
+    let leaves = 1 << (n + 1 - FOLD);
+    let omega = Gl::two_adic_generator(n + 1);
+    std::array::from_fn(|v| {
+        let mut y = Gl::GENERATOR * omega.exp_u64((j + v * leaves) as u64);
+        let point: Vec<Ext> = (0..n)
+            .map(|_| {
+                let value = Ext::from(y);
+                y = y.square();
+                value
+            })
+            .collect();
+        let value = evaluate(oracle, &point);
+        let base = <Ext as BasedVectorSpace<Gl>>::as_basis_coefficients_slice(&value)[0];
+        assert_eq!(value, Ext::from(base));
+        base
+    })
+}
+
 /// Leaf j, oracle k, value v: Õ_k at the power point of `g·ω^{j + v·2^{n-2}}`.
 fn direct_root(count: usize) -> [Gl; 4] {
     let n = VARIABLES;
     let leaves = 1 << (n + 1 - FOLD);
-    let omega = Gl::two_adic_generator(n + 1);
     let tables: Vec<Vec<Ext>> = (0..count).map(|k| lift(&table(k))).collect();
     let mut layer: Vec<[Gl; 4]> = (0..leaves)
         .map(|j| {
-            let mut values = Vec::new();
-            for oracle in &tables {
-                for v in 0..1 << FOLD {
-                    let mut y = Gl::GENERATOR * omega.exp_u64((j + v * leaves) as u64);
-                    let point: Vec<Ext> = (0..n)
-                        .map(|_| {
-                            let value = Ext::from(y);
-                            y = y.square();
-                            value
-                        })
-                        .collect();
-                    let value = evaluate(oracle, &point);
-                    let base = <Ext as BasedVectorSpace<Gl>>::as_basis_coefficients_slice(&value)[0];
-                    assert_eq!(value, Ext::from(base));
-                    values.push(base);
-                }
-            }
+            let values: Vec<Gl> = tables
+                .iter()
+                .flat_map(|oracle| direct_leaf(oracle, n, j))
+                .collect();
             hash_leaf(&values)
         })
         .collect();
@@ -109,6 +129,31 @@ fn streaming_root_matches_a_direct_encoding() {
         build(VARIABLES, COUNT, |k| table(COUNT - 1 - k), None).unwrap(),
         direct_root(COUNT)
     );
+}
+
+/// The pruned FFT gives each leaf's values from the definition, for one,
+/// some, repeated and all leaves, from the smallest shape up.
+#[test]
+fn pruned_leaves_match_the_codeword_definition() {
+    for n in [3, 4, 6, 9] {
+        let values: Vec<Gl> = (0..1u64 << n)
+            .map(|x| Gl::from_u64(word(90 + n as u64, x)))
+            .collect();
+        let oracle = lift(&values);
+        let leaves = 1usize << (n + 1 - FOLD);
+        let sets = [
+            vec![0],
+            vec![leaves - 1],
+            vec![leaves / 2, 0, leaves / 2],
+            (0..leaves).rev().collect(),
+        ];
+        for set in sets {
+            let pruned = encoded_leaves(values.clone(), n, &set);
+            for (got, &j) in pruned.iter().zip(&set) {
+                assert_eq!(*got, direct_leaf(&oracle, n, j), "n {n}, leaf {j}");
+            }
+        }
+    }
 }
 
 #[test]
@@ -169,7 +214,7 @@ fn honest_fold_accepts_and_tampering_rejects() {
     let folds: Vec<Vec<Ext>> = combined.iter().map(|oracle| fold(oracle, &alpha)).collect();
     let leaves = 1 << (n + 1 - FOLD);
     let read = store
-        .leaves(&(0..leaves).collect::<Vec<_>>(), table, &Dft::default())
+        .leaves(&(0..leaves).collect::<Vec<_>>(), encoder(table))
         .unwrap();
     for (index, leaf) in read.iter().enumerate() {
         let values = run_check(&root, index, leaf, &groups, &alpha).unwrap();
@@ -234,50 +279,80 @@ fn honest_fold_accepts_and_tampering_rejects() {
     ));
 }
 
-/// A store with fewer tree levels gives the same leaves from a smaller
-/// file, and it catches wrong oracles, a changed node and a cut file.
+/// A store with fewer tree levels and some stored codewords gives the same
+/// leaves as one with the whole tree and no codeword. It catches wrong
+/// oracles, a changed node, a changed codeword and a cut file, and a build
+/// with a smaller budget removes the codeword files past it.
 #[test]
 fn a_store_with_fewer_levels_gives_the_same_leaves() {
     let n = VARIABLES;
-    // 16 leaves: all five levels, or only the levels of 2 and 1 nodes.
+    let codeword = (2 << n) * 8;
+    // 16 leaves: all five levels and no codeword, or only the levels of 2
+    // and 1 nodes and the codewords of oracles 0 and 1.
     let (full, top) = (Scratch::new("setup-full"), Scratch::new("setup-top"));
-    let root = build_stored(n, COUNT, table, Some(&full.0), 4).unwrap();
-    assert_eq!(build_stored(n, COUNT, table, Some(&top.0), 1).unwrap(), root);
-    let bytes = |dir: &Path| std::fs::metadata(dir.join("tree.bin")).unwrap().len();
-    assert_eq!(bytes(&full.0), 31 * 32);
-    assert_eq!(bytes(&top.0), 3 * 32);
-    assert_eq!(std::fs::read_dir(&top.0).unwrap().count(), 1, "only the tree is stored");
+    let root = build_stored(n, COUNT, table, Some(&full.0), 4, 0).unwrap();
+    assert_eq!(
+        build_stored(n, COUNT, table, Some(&top.0), 1, 2 * codeword).unwrap(),
+        root
+    );
+    let bytes = |dir: &Path, name: &str| std::fs::metadata(dir.join(name)).unwrap().len() as usize;
+    let files = |dir: &Path| std::fs::read_dir(dir).unwrap().count();
+    assert_eq!(bytes(&full.0, "tree.bin"), 31 * 32);
+    assert_eq!(files(&full.0), 1, "only the tree is stored");
+    assert_eq!(bytes(&top.0, "tree.bin"), 3 * 32);
+    assert_eq!(bytes(&top.0, "oracle-01.bin"), codeword);
+    assert_eq!(files(&top.0), 3, "the tree and two codewords");
 
     let indices = [0, 5, 6, 15, 5];
     let expected = Store::open(&full.0, n, COUNT, &root)
         .unwrap()
-        .leaves(&indices, table, &Dft::default())
+        .leaves(&indices, encoder(table))
         .unwrap();
     let store = Store::open(&top.0, n, COUNT, &root).unwrap();
-    assert_eq!(store.leaves(&indices, table, &Dft::default()).unwrap(), expected);
+    assert_eq!(store.leaves(&indices, encoder(table)).unwrap(), expected);
     assert!(matches!(
-        store.leaves(&indices, |k| table(k + 1), &Dft::default()),
+        store.leaves(&indices, encoder(|k| table(k + 1))),
         Err(Error::Setup("setup files do not match the oracles"))
     ));
     assert!(matches!(
-        store.leaves(&[16], table, &Dft::default()),
+        store.leaves(&[16], encoder(table)),
         Err(Error::Setup("setup leaf index"))
     ));
 
-    let path = top.0.join("tree.bin");
-    let mut tree = std::fs::read(&path).unwrap();
-    tree[0] ^= 1;
-    std::fs::write(&path, &tree).unwrap();
+    let flip = |name: &str, length: Option<usize>| {
+        let path = top.0.join(name);
+        let mut file = std::fs::read(&path).unwrap();
+        file[0] ^= 1;
+        std::fs::write(&path, &file[..length.unwrap_or(file.len())]).unwrap();
+    };
+    flip("oracle-00.bin", None);
     let changed = Store::open(&top.0, n, COUNT, &root).unwrap();
     assert!(matches!(
-        changed.leaves(&indices, table, &Dft::default()),
+        changed.leaves(&indices, encoder(table)),
         Err(Error::Setup("setup files do not match the oracles"))
     ));
-    std::fs::write(&path, &tree[..64]).unwrap();
+    flip("oracle-00.bin", None);
+    flip("tree.bin", None);
+    let changed = Store::open(&top.0, n, COUNT, &root).unwrap();
+    assert!(matches!(
+        changed.leaves(&indices, encoder(table)),
+        Err(Error::Setup("setup files do not match the oracles"))
+    ));
+    flip("tree.bin", Some(64));
     assert!(matches!(
         Store::open(&top.0, n, COUNT, &root),
         Err(Error::Setup("setup files do not match the key shape"))
     ));
+
+    assert_eq!(build_stored(n, COUNT, table, Some(&top.0), 1, codeword).unwrap(), root);
+    assert_eq!(files(&top.0), 2, "the second codeword is removed");
+    assert_eq!(
+        Store::open(&top.0, n, COUNT, &root)
+            .unwrap()
+            .leaves(&indices, encoder(table))
+            .unwrap(),
+        expected
+    );
 }
 
 #[test]

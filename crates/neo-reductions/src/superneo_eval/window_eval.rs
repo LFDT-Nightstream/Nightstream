@@ -8,8 +8,8 @@ use p3_field::PrimeCharacteristicRing;
 #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
 use super::eval_ring_scratch_real_z_blocks;
 use super::{
-    check_ccs_relation_zero_cached_with_blocks, openings::pad_openings, EqualityWeights, MatrixRows, MatrixWindow,
-    RingEvalScratch, SuperneoCachedRelationError, SuperneoZBlocks,
+    check_ccs_relation_zero_cached_with_blocks, fill, openings::pad_openings, EqualityWeights, MatrixRows,
+    MatrixWindow, RingEvalScratch, SuperneoCachedRelationError, SuperneoZBlocks,
 };
 use crate::PiCcsError;
 
@@ -194,6 +194,18 @@ pub(crate) fn fill_weighted_rows_from_source(
     shape.validate(&(0..shape.rows))?;
     if output.len() != shape.rows || projection.len() != shape.columns || matrix_coefficients.len() != shape.matrices {
         return Err(PiCcsError::InvalidInput("streamed carried projection shape".into()));
+    }
+    if let Some(factored) = source.factored()? {
+        let required = factored.slot_count() * size_of::<K>();
+        if required > workspace_bytes {
+            return Err(PiCcsError::MatrixWorkspace {
+                required,
+                available: workspace_bytes,
+            });
+        }
+        let values = factored.projected_slot_values(projection);
+        fill(output, |row| factored.weighted_row(row, matrix_coefficients, &values));
+        return Ok(());
     }
     let mut next = 0;
     while next < shape.rows {

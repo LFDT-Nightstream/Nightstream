@@ -10,7 +10,7 @@ use std::ops::Range;
 
 use super::prefix;
 use crate::engines::pi_ccs_joint::gamma_power;
-use crate::superneo_eval::{EqualityWeights, MatrixRows, MatrixShape, MatrixWindow, SuperneoZBlocks};
+use crate::superneo_eval::{fill, EqualityWeights, MatrixRows, MatrixShape, MatrixWindow, SuperneoZBlocks};
 use crate::PiCcsError;
 
 #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
@@ -122,6 +122,24 @@ impl ApplicationTables {
             words: vec![K::ZERO; word_count],
             rows,
         };
+        if self.challenges.is_empty() {
+            if let Some(factored) = source.factored()? {
+                let slot_bytes = factored.slot_count() * size_of::<F>();
+                self.record(external + witnesses.len() * slot_bytes)?;
+                let slots: Vec<_> = witnesses
+                    .iter()
+                    .map(|witness| factored.slot_values(witness))
+                    .collect();
+                let count = (row_start + rows).min(self.shape.rows) - row_start;
+                for (table, values) in output.words.chunks_mut(rows).enumerate() {
+                    let (matrix, slots) = (table % self.shape.matrices, &slots[table / self.shape.matrices]);
+                    fill(&mut values[..count], |local| {
+                        K::from(factored.row_value(matrix, row_start + local, slots))
+                    });
+                }
+                return Ok(output);
+            }
+        }
         let span = 1usize
             .checked_shl(self.challenges.len() as u32)
             .ok_or_else(|| invalid("CPU application replay span overflow"))?;

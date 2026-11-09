@@ -484,14 +484,14 @@ impl WasmLimits {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum WasmSize {
     /// ROM and RAM of `2^14` cells: 256 instructions, 32 function
-    /// references, steps of 8 rows, and segments of 64 steps.
+    /// references, steps of 64 rows, and segments of 8 steps.
     Small,
     /// ROM and RAM of `2^15` cells: 512 instructions, 64 function
-    /// references, steps of 8 rows, and segments of 128 steps.
+    /// references, steps of 64 rows, and segments of 16 steps.
     Medium,
     /// ROM and RAM of `2^16` cells, the largest that rule 6 permits: 1,024
-    /// instructions, 128 function references, steps of 2 rows, and segments
-    /// of 128 steps.
+    /// instructions, 128 function references, steps of 32 rows, and segments
+    /// of 16 steps.
     Large,
 }
 
@@ -502,9 +502,9 @@ impl WasmSize {
     /// steps of one segment, and the most segments.
     fn shape(self) -> (usize, usize, usize, usize) {
         match self {
-            Self::Small => (14, 8, 64, 32),
-            Self::Medium => (15, 8, 128, 16),
-            Self::Large => (16, 2, 128, 64),
+            Self::Small => (14, 64, 8, 32),
+            Self::Medium => (15, 64, 16, 16),
+            Self::Large => (16, 32, 16, 32),
         }
     }
 

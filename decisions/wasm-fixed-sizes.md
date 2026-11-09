@@ -35,10 +35,16 @@ approved it on 2026-11-03.
    choice. In the RAM, linear memory takes half of the space and the stack a
    quarter. The four smaller test transactions of Starstream `159bedc` fit
    Small, and the two larger fit Medium.
-3. **Steps and segments.** Small and Medium prove 8 rows in each step, in
-   segments of 64 and 128 steps. Large proves 2 rows in each step, in
-   segments of 128 steps, because rule 6 permits few slots with `2^17` cells.
-   Each size holds runs of up to 16,384 trace rows.
+3. **Steps and segments.** Small and Medium prove 64 rows in each step, in
+   segments of 8 and 16 steps. Large proves 32 rows in each step, in
+   segments of 16 steps. Each size holds runs of up to 16,384 trace rows.
+   The fixed cost of a step changes little with its rows, so fewer and
+   larger steps cost less for each row. The owner approved these shapes on
+   2026-11-09 after CPU measurements on memories with the same step shape: a
+   512-row Small segment took 89 s in place of 251 s, and a Large row took
+   0.28 s in place of 1.35 s. Small and Medium keep 512 and 1,024 rows in
+   each segment. Large has 512 rows in each segment, so a short Large run
+   pads to 512 rows. Its rule 6 count is 138,752, below 139,509.
 4. **The prover selects, the verifier takes.** The prover takes the
    smallest size that holds the program and its run. The size is part of the
    statement, and the verifier compiles the circuit of that size. It never

@@ -242,6 +242,27 @@ fn shared_transcript_fixture_excludes_opaque_internal_blocks() {
     assert_eq!(expected_transcript(&setup.bindings, setup.run_fref), expected);
 }
 
+/// `absorbed_event_blocks` reads the staged word the way the witness does, so a
+/// trace without `host_event_word` on an absorb row that the circuit accepts
+/// still yields every block, folding to the circuit's chain.
+#[test]
+fn absorbed_event_blocks_follow_the_circuit_without_the_staged_word_field() {
+    let mut trace = two_event_trace();
+    let index = trace
+        .iter()
+        .position(|row| absorb_rows(std::slice::from_ref(row)).len() == 1 && row.host_event_word == Some(0))
+        .expect("an absorb row staging a zero word");
+    trace[index].host_event_word = None;
+    common::ccs_check_trace(&trace);
+    let mut chain = trace[0].state_before.comm_chain;
+    let blocks = comm_chain::absorbed_event_blocks(&trace);
+    assert_eq!(blocks.len(), absorb_rows(&trace).len());
+    for block in &blocks {
+        chain = comm_chain::absorb_block(chain, block.words);
+    }
+    assert_eq!(chain, trace.last().unwrap().state_after.comm_chain);
+}
+
 /// The native test oracle compares each absorb row's output with the native
 /// compression, independently of the circuit.
 #[test]

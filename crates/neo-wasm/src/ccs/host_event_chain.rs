@@ -996,14 +996,7 @@ pub(crate) fn fill_witness(wit: &mut [F], trace: &WasmVmStep) {
     if trace.row_kind.is_host_event_gather() {
         let cursor = usize::from(trace.state_before.host_events.slot_cursor);
         wit[GATHER_WORD_POSITION[cursor]] = F::ONE;
-        // The absorb row clears the buffer, so only its trace field keeps
-        // the staged word; every other gather row leaves it in the buffer.
-        let absorbs = cursor == 7 && trace.host_event_rom_slot.is_some_and(|rom| !rom.advice);
-        let staged = match trace.host_event_word {
-            Some(word) if absorbs => word,
-            _ => trace.state_after.event_absorb.evbuf[cursor],
-        };
-        wit[GSLOT_VALUE] = F::from_u64(staged);
+        wit[GSLOT_VALUE] = F::from_u64(crate::comm_chain::staged_word(trace));
         if let Some(rom) = trace.host_event_rom_slot {
             wit[GATHER_KIND[rom.kind.index()]] = F::ONE;
             wit[GK2_HI] = bool_f(rom.kind == WasmHostEventSlotKind::Result && rom.variant.is_high_limb());

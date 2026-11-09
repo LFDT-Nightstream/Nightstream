@@ -75,6 +75,19 @@ pub struct AbsorbedEventBlock {
     pub metadata: AbsorbedEventMetadata,
 }
 
+/// The word a gather row stages: on the absorb row, which clears the buffer,
+/// the row's `host_event_word`; on every other gather row, the buffer slot it
+/// wrote. The witness and [`absorbed_event_blocks`] both read it, so they
+/// agree on every trace.
+pub fn staged_word(row: &WasmVmStep) -> u64 {
+    let cursor = usize::from(row.state_before.host_events.slot_cursor);
+    let absorbs = cursor == COMM_CHAIN_BLOCK_WORDS - 1 && row.host_event_rom_slot.is_some_and(|rom| !rom.advice);
+    match row.host_event_word {
+        Some(word) if absorbs => word,
+        _ => row.state_after.event_absorb.evbuf[cursor],
+    }
+}
+
 /// Committed event blocks of a trace, in absorb order: the
 /// exact stream the carried chain folds, for external consumers rebuilding
 /// the event sequence (e.g. the Starstream interleaving buffer). A block
@@ -95,7 +108,7 @@ pub fn absorbed_event_blocks(trace: &[WasmVmStep]) -> Vec<AbsorbedEventBlock> {
                 return None;
             }
             let mut words = row.state_before.event_absorb.evbuf;
-            words[COMM_CHAIN_BLOCK_WORDS - 1] = row.host_event_word?;
+            words[COMM_CHAIN_BLOCK_WORDS - 1] = staged_word(row);
             Some(AbsorbedEventBlock {
                 words,
                 metadata: AbsorbedEventMetadata {

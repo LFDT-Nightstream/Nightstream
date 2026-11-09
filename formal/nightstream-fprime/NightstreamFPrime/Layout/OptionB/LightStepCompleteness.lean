@@ -4,7 +4,7 @@ import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Completeness.Core
 /-! Completeness of the light step's gadgets (assembler A3c). When the shared words lie below the
 layout's offset, the application step holds on them, the active slot's depth is below the cap,
 and the digest words and the fresh instance's public input carry the hashes of their preimages,
-the seven gadgets before the light Π_CCS can be filled one after another
+the six gadgets before the light Π_CCS can be filled one after another
 (`completeGadgetsFrom`). The application, range and hash gadgets compute or check only shared
 words, so their specs carry over from the starting values; the high-bit rows read the range
 gadget's bits, which the range rows give (`DepthGuard.highBitsZero_of_lt`). -/
@@ -29,7 +29,7 @@ variable {logicalWidth : Nat}
   (interface : LightStepLayout.Interface logicalWidth publicFits program.witnessWordCount)
   (offset : Nat)
 
-/-- Completeness of the light step's seven gadgets after a prefix that ends at the layout's offset.
+/-- Completeness of the light step's six gadgets after a prefix that ends at the layout's offset.
 The gadgets do not read the relation, which only fixes the layout's input scoping. -/
 theorem completeGadgetsFrom (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     {initial : Env} {base : Nat} (before : Sequence.Prefix initial base)
@@ -38,8 +38,8 @@ theorem completeGadgetsFrom (relation : ProductionKey.LogicalRelation logicalWid
     (application : (applicationCircuit program interface).spec offset before.current)
     (depthSmall : (interface.active.depth.eval before.current).val <
       Folding.Schedule.productionLightFoldCap)
-    (priorSlots : ∀ slot,
-      OutputHash.SpecHolds (priorSlotInterface program interface slot) offset before.current)
+    (activeSlot :
+      OutputHash.SpecHolds (activeSlotInterface program interface) offset before.current)
     (priorState :
       PriorStateHash.SpecHolds (priorStateInterface program interface) offset before.current)
     (nextState :
@@ -54,14 +54,17 @@ theorem completeGadgetsFrom (relation : ProductionKey.LogicalRelation logicalWid
       Sequence.PreservesPrefix before completed →
       ∀ index, index < offset → completed.current index = before.current index :=
     fun completed preserves index bound => preserves.values index (by omega)
-  have priorSlotAt : ∀ slot (completed : Sequence.Prefix initial base),
+  have activeSlotAt : ∀ completed : Sequence.Prefix initial base,
       Sequence.PreservesPrefix before completed → ∀ childOffset,
-      OutputHash.SpecHolds (priorSlotInterface program interface slot) childOffset
+      OutputHash.SpecHolds (activeSlotInterface program interface) childOffset
         completed.current :=
-    fun slot completed preserves _ => OutputHash.specHolds_of_agree_below
-      (priorSlotInterface program interface slot) offset before.current completed.current
-      ⟨LightStepBounds.slotPreimage_below _ _ (below.prior slot), below.priorDigest slot⟩
-      (agreesAt completed preserves) (priorSlots slot)
+    fun completed preserves _ => OutputHash.specHolds_of_agree_below
+      (activeSlotInterface program interface) offset before.current completed.current
+      ⟨LightStepBounds.slotPreimage_below _ _ (LightStepBounds.slotWords_below _ _
+          below.activeCommitment below.activePad below.activeMatrix below.activePoint
+          below.activePublicInput below.activeDepth),
+        below.activeDigest⟩
+      (agreesAt completed preserves) activeSlot
   have priorStateAt : ∀ completed : Sequence.Prefix initial base,
       Sequence.PreservesPrefix before completed → ∀ childOffset,
       PriorStateHash.SpecHolds (priorStateInterface program interface) childOffset
@@ -128,46 +131,40 @@ theorem completeGadgetsFrom (relation : ProductionKey.LogicalRelation logicalWid
       simp only [CanonicalU64.bitCount, CanonicalU64.auxiliaryCount]
       omega)
     built3 agrees3 rows3
-  -- Prior slot and state hashes.
+  -- Active slot and prior state hashes.
   have through3 := preserves1.trans (preserves2.trans preserves3)
   obtain ⟨built4, agrees4, rows4⟩ := OutputHash.completeness
-    (priorSlotInterface program interface 0) p3.current
-    (priorSlotZeroOffset program interface offset) (assumptionsAt p3.current).priorSlotZero
-    (priorSlotAt 0 p3 through3 _)
-  obtain ⟨p4, ops4, end4, preserves4, -⟩ := appendBuiltAt p3 "light.prior_slot_0"
-    (priorSlotCircuit program interface 0) (priorSlotZeroOffset program interface offset) end3
-    (OutputHash.flatConstraints_varsBelow _ _ (env := p3.current) (assumptionsAt p3.current).priorSlotZero)
+    (activeSlotInterface program interface) p3.current
+    (activeSlotOffset program interface offset) (assumptionsAt p3.current).activeSlot
+    (activeSlotAt p3 through3 _)
+  obtain ⟨p4, ops4, end4, preserves4, -⟩ := appendBuiltAt p3 "light.active_slot"
+    (activeSlotCircuit program interface) (activeSlotOffset program interface offset) end3
+    (OutputHash.flatConstraints_varsBelow _ _ (env := p3.current)
+      (assumptionsAt p3.current).activeSlot)
     built4 agrees4 rows4
   have through4 := through3.trans preserves4
-  obtain ⟨built5, agrees5, rows5⟩ := OutputHash.completeness
-    (priorSlotInterface program interface 1) p4.current
-    (priorSlotOneOffset program interface offset) (assumptionsAt p4.current).priorSlotOne
-    (priorSlotAt 1 p4 through4 _)
-  obtain ⟨p5, ops5, end5, preserves5, -⟩ := appendBuiltAt p4 "light.prior_slot_1"
-    (priorSlotCircuit program interface 1) (priorSlotOneOffset program interface offset) end4
-    (OutputHash.flatConstraints_varsBelow _ _ (env := p4.current) (assumptionsAt p4.current).priorSlotOne)
+  obtain ⟨built5, agrees5, rows5⟩ := PriorStateHash.completeness
+    (priorStateInterface program interface) p4.current (priorStateOffset program interface offset)
+    (assumptionsAt p4.current).priorState
+    (priorStateAt p4 through4 _)
+  obtain ⟨p5, ops5, end5, preserves5, -⟩ := appendBuiltAt p4 "light.prior_state"
+    (priorStateCircuit program interface) (priorStateOffset program interface offset) end4
+    (PriorStateHash.flatConstraints_varsBelow _ _ (env := p4.current)
+      (assumptionsAt p4.current).priorState)
     built5 agrees5 rows5
-  have through5 := through4.trans preserves5
-  obtain ⟨built6, agrees6, rows6⟩ := PriorStateHash.completeness
-    (priorStateInterface program interface) p5.current (priorStateOffset program interface offset)
-    (assumptionsAt p5.current).priorState
-    (priorStateAt p5 through5 _)
-  obtain ⟨p6, ops6, end6, preserves6, -⟩ := appendBuiltAt p5 "light.prior_state"
-    (priorStateCircuit program interface) (priorStateOffset program interface offset) end5
-    (PriorStateHash.flatConstraints_varsBelow _ _ (env := p5.current) (assumptionsAt p5.current).priorState)
-    built6 agrees6 rows6
   -- Next state hash.
-  have through6 := through5.trans preserves6
-  obtain ⟨built7, agrees7, rows7⟩ := OutputHash.completeness
-    (nextStateInterface program circuit interface) p6.current
-    (nextStateOffset program interface offset) (assumptionsAt p6.current).nextState
-    (nextStateAt p6 through6 _)
-  obtain ⟨p7, ops7, end7, preserves7, -⟩ := appendBuiltAt p6 "light.next_state"
-    (nextStateCircuit program circuit interface) (nextStateOffset program interface offset) end6
-    (OutputHash.flatConstraints_varsBelow _ _ (env := p6.current) (assumptionsAt p6.current).nextState)
-    built7 agrees7 rows7
-  refine ⟨p7, ?_, end7, through6.trans preserves7⟩
-  rw [ops7, ops6, ops5, ops4, ops3, ops2, ops1]
+  have through5 := through4.trans preserves5
+  obtain ⟨built6, agrees6, rows6⟩ := OutputHash.completeness
+    (nextStateInterface program circuit interface) p5.current
+    (nextStateOffset program interface offset) (assumptionsAt p5.current).nextState
+    (nextStateAt p5 through5 _)
+  obtain ⟨p6, ops6, end6, preserves6, -⟩ := appendBuiltAt p5 "light.next_state"
+    (nextStateCircuit program circuit interface) (nextStateOffset program interface offset) end5
+    (OutputHash.flatConstraints_varsBelow _ _ (env := p5.current)
+      (assumptionsAt p5.current).nextState)
+    built6 agrees6 rows6
+  refine ⟨p6, ?_, end6, through5.trans preserves6⟩
+  rw [ops6, ops5, ops4, ops3, ops2, ops1]
   simp only [gadgetOps, List.append_assoc, List.cons_append, List.nil_append]
 
 end NightstreamFPrime.Layout.OptionB.LightStepCompleteness

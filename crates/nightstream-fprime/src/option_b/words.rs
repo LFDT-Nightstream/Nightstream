@@ -133,7 +133,8 @@ pub enum FoldWords {
 /// active slot, the two inner slots and the two next slots; the digests are
 /// the two prior slot digests, the two next slot digests and the output
 /// digest. The digest select's words (`digestSelect`) follow the fold: the new
-/// slot's digest, then the digest of each inner slot.
+/// slot's digest, the digest of each inner slot and, for a light step, the
+/// active slot's digest (Lean `LightAssembler.interface`).
 #[derive(Clone, Debug)]
 pub struct StepWords {
     pub iteration: u64,
@@ -221,6 +222,9 @@ impl StepWords {
         columns.extend(self.slots[3 + self.selected as usize].digest());
         columns.extend(self.slots[3].digest());
         columns.extend(self.slots[4].digest());
+        if let FoldWords::Light { .. } = self.fold {
+            columns.extend(self.slots[2].digest());
+        }
         Ok(columns)
     }
 }

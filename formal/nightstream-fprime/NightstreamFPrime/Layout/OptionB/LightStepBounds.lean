@@ -35,7 +35,6 @@ structure InputsBelow {witnessWordCount : Nat}
   currentState : ∀ lane, (interface.currentState lane).VarsBelow offset
   nextState : ∀ lane, (interface.nextState lane).VarsBelow offset
   witness : ∀ index, (interface.witness index).VarsBelow offset
-  prior : ∀ slot, ∀ word ∈ (interface.prior slot).words, word.VarsBelow offset
   activePoint : ∀ coordinate, (interface.active.point coordinate).VarsBelow offset
   activePad : ∀ coefficient, (interface.active.evaluation.eval_K coefficient).VarsBelow offset
   activeMatrix : ∀ matrix coefficient,
@@ -48,6 +47,7 @@ structure InputsBelow {witnessWordCount : Nat}
   outputDigest : ∀ lane, (interface.outputDigest lane).VarsBelow offset
   newDigest : ∀ lane, (interface.newDigest lane).VarsBelow offset
   innerDigest : ∀ slot lane, (interface.innerDigest slot lane).VarsBelow offset
+  activeDigest : ∀ lane, (interface.activeDigest lane).VarsBelow offset
   freshCommitment : ∀ source row lane,
     (interface.fresh.commitment source row lane).VarsBelow offset
   freshPublicInput : ∀ source column, (interface.fresh.publicInput source column).VarsBelow offset
@@ -138,12 +138,10 @@ theorem piccsBelow : LightPiCCSBounds.InputsBelow (piccsInterface program interf
   have le := fun (child : FormalCircuit) (start : Nat) =>
     (Nat.le_add_right start _ : start ≤ Formal.nextOffset child start)
   have rangeLe : offset ≤ rangeOffset program interface offset := le _ _
-  have priorZeroLe : offset ≤ priorSlotZeroOffset program interface offset :=
+  have activeLe : offset ≤ activeSlotOffset program interface offset :=
     Nat.le_trans rangeLe (Nat.le_trans (le _ _) (le _ _))
-  have priorOneLe : offset ≤ priorSlotOneOffset program interface offset :=
-    Nat.le_trans priorZeroLe (le _ _)
   have priorStateLe : offset ≤ priorStateOffset program interface offset :=
-    Nat.le_trans priorOneLe (le _ _)
+    Nat.le_trans activeLe (le _ _)
   have nextStateLe : offset ≤ nextStateOffset program interface offset :=
     Nat.le_trans priorStateLe (le _ _)
   have piccsLe : offset ≤ piccsOffset program circuit interface offset :=
@@ -167,12 +165,10 @@ theorem rlcBelow : LightRlcBounds.InputsBelow (piccsLeaves program relation circ
   have le := fun (child : FormalCircuit) (start : Nat) =>
     (Nat.le_add_right start _ : start ≤ Formal.nextOffset child start)
   have rangeLe : offset ≤ rangeOffset program interface offset := le _ _
-  have priorZeroLe : offset ≤ priorSlotZeroOffset program interface offset :=
+  have activeLe : offset ≤ activeSlotOffset program interface offset :=
     Nat.le_trans rangeLe (Nat.le_trans (le _ _) (le _ _))
-  have priorOneLe : offset ≤ priorSlotOneOffset program interface offset :=
-    Nat.le_trans priorZeroLe (le _ _)
   have priorStateLe : offset ≤ priorStateOffset program interface offset :=
-    Nat.le_trans priorOneLe (le _ _)
+    Nat.le_trans activeLe (le _ _)
   have nextStateLe : offset ≤ nextStateOffset program interface offset :=
     Nat.le_trans priorStateLe (le _ _)
   have piccsLe : offset ≤ piccsOffset program circuit interface offset :=
@@ -253,8 +249,7 @@ theorem newSlot_le :
   have le := fun (child : FormalCircuit) (start : Nat) =>
     (Nat.le_add_right start _ : start ≤ Formal.nextOffset child start)
   have priorStateLe : offset ≤ priorStateOffset program interface offset :=
-    Nat.le_trans (le _ _) (Nat.le_trans (le _ _) (Nat.le_trans (le _ _)
-      (Nat.le_trans (le _ _) (le _ _))))
+    Nat.le_trans (le _ _) (Nat.le_trans (le _ _) (Nat.le_trans (le _ _) (le _ _)))
   have piccsLe : offset ≤ piccsOffset program circuit interface offset :=
     Nat.le_trans (Nat.le_trans priorStateLe (le _ _)) (le _ _)
   have initialRlcLe : LightPiCCSLayout.initialOffset (piccsInterface program interface)
@@ -316,12 +311,10 @@ theorem assumptions :
   have le := fun (child : FormalCircuit) (start : Nat) =>
     (Nat.le_add_right start _ : start ≤ Formal.nextOffset child start)
   have rangeLe : offset ≤ rangeOffset program interface offset := le _ _
-  have priorZeroLe : offset ≤ priorSlotZeroOffset program interface offset :=
+  have activeLe : offset ≤ activeSlotOffset program interface offset :=
     Nat.le_trans rangeLe (Nat.le_trans (le _ _) (le _ _))
-  have priorOneLe : offset ≤ priorSlotOneOffset program interface offset :=
-    Nat.le_trans priorZeroLe (le _ _)
   have priorStateLe : offset ≤ priorStateOffset program interface offset :=
-    Nat.le_trans priorOneLe (le _ _)
+    Nat.le_trans activeLe (le _ _)
   have nextStateLe : offset ≤ nextStateOffset program interface offset :=
     Nat.le_trans priorStateLe (le _ _)
   have piccsLe : offset ≤ piccsOffset program circuit interface offset :=
@@ -337,12 +330,15 @@ theorem assumptions :
       (applicationInterface program interface) offset env
       ⟨below.currentState, below.witness, below.nextState⟩
     range := Expr.VarsBelow.mono _ below.activeDepth rangeLe
-    priorSlotZero := ⟨slotPreimage_below _ _ fun word member =>
-        Expr.VarsBelow.mono _ (below.prior 0 word member) priorZeroLe,
-      fun lane => Expr.VarsBelow.mono _ (below.priorDigest 0 lane) priorZeroLe⟩
-    priorSlotOne := ⟨slotPreimage_below _ _ fun word member =>
-        Expr.VarsBelow.mono _ (below.prior 1 word member) priorOneLe,
-      fun lane => Expr.VarsBelow.mono _ (below.priorDigest 1 lane) priorOneLe⟩
+    activeSlot := ⟨slotPreimage_below _ _ (slotWords_below _ _
+        (fun row lane => Expr.VarsBelow.mono _ (below.activeCommitment row lane) activeLe)
+        (fun coefficient => KExpr.varsBelow_mono _ (below.activePad coefficient) activeLe)
+        (fun matrix coefficient =>
+          KExpr.varsBelow_mono _ (below.activeMatrix matrix coefficient) activeLe)
+        (fun coordinate => KExpr.varsBelow_mono _ (below.activePoint coordinate) activeLe)
+        (fun column => Expr.VarsBelow.mono _ (below.activePublicInput column) activeLe)
+        (Expr.VarsBelow.mono _ below.activeDepth activeLe)),
+      fun lane => Expr.VarsBelow.mono _ (below.activeDigest lane) activeLe⟩
     priorState := ⟨statePreimage_below program interface _ _ _ _ _
         (keysAt _ priorStateLe) (initialAt _ priorStateLe)
         (Expr.VarsBelow.mono _ below.iteration priorStateLe)

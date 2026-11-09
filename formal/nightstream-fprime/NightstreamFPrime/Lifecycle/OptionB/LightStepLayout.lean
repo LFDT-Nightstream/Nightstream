@@ -1,15 +1,17 @@
 import NightstreamFPrime.Lifecycle.OptionB.LightRlcLayout
-import NightstreamFPrime.Lifecycle.OptionB.DigestSelect
+import NightstreamFPrime.Lifecycle.OptionB.LightSelect
 import NightstreamFPrime.Lifecycle.OptionB.LightStep
 
 /-! The light step circuit's layout (CW-2.5d, d5a). The step's shared words (the counters and
 selector, the key digests, the states and the application witness, the prior and active slots,
 the slot digests, the fresh instance and the light proof) are expressions that the assembler
 allocates. From a parent offset the layout places today's application gadget, the depth guard on
-the active slot's depth word, the prior state hash with its two slot hashes, the next state hash,
-the light Π_CCS and Π_RLC layouts on the active slot, the new slot's hash and the digest select.
-`soundness` gives the gadget specs of `LightStep.SpecHolds` and the digest-select rows from the
-step's rows. -/
+the active slot's depth word, the active slot's hash, the prior state hash over the two prior
+digest words, the next state hash, the light Π_CCS and Π_RLC layouts on the active slot, the new
+slot's hash and the digest select (`LightSelect`). The prior slots' words are not read: the
+active slot's words are hashed, and the other slot enters only as its prior digest word.
+`soundness` gives the gadget specs of `LightStep.SpecHolds`, the active slot's hash and the
+digest-select rows from the step's rows. -/
 
 namespace NightstreamFPrime.Lifecycle.OptionB.LightStepLayout
 
@@ -44,6 +46,7 @@ structure Interface (logicalWidth : Nat)
   outputDigest : Fin 4 → Expr
   newDigest : Fin 4 → Expr
   innerDigest : Fin 2 → Fin 4 → Expr
+  activeDigest : Fin 4 → Expr
   fresh : StatementAbsorption.FreshExpr logicalWidth publicFits
   round : Fin productionShape.cubeVariables → RoundTranscript.Message 8
   output : OutputBinding.ShapeOutputExpr LightShape
@@ -102,27 +105,21 @@ def highBitsOffset : Nat :=
 def highBitsCircuit : FormalCircuit :=
   DepthGuard.highBitsCircuit (rangeOffset program interface offset)
 
-def priorSlotInterface (slot : Fin 2) : OutputHash.Interface :=
-  slotHashInterface (interface.prior slot).words (interface.priorDigest slot)
+/-- The active slot's hash: its preimage is the active slot's words and its digest the active
+digest. -/
+def activeSlotInterface : OutputHash.Interface :=
+  slotHashInterface interface.active.words interface.activeDigest
 
-def priorSlotCircuit (slot : Fin 2) : FormalCircuit :=
-  OutputHash.circuit (priorSlotInterface program interface slot)
+def activeSlotCircuit : FormalCircuit :=
+  OutputHash.circuit (activeSlotInterface program interface)
 
-def priorSlotZeroOffset : Nat :=
+def activeSlotOffset : Nat :=
   Formal.nextOffset (highBitsCircuit program interface offset)
     (highBitsOffset program interface offset)
 
-def priorSlotOneOffset : Nat :=
-  Formal.nextOffset (priorSlotCircuit program interface 0)
-    (priorSlotZeroOffset program interface offset)
-
-def priorSlotOffset (slot : Fin 2) : Nat :=
-  if slot.val = 0 then priorSlotZeroOffset program interface offset
-  else priorSlotOneOffset program interface offset
-
 def priorStateOffset : Nat :=
-  Formal.nextOffset (priorSlotCircuit program interface 1)
-    (priorSlotOneOffset program interface offset)
+  Formal.nextOffset (activeSlotCircuit program interface)
+    (activeSlotOffset program interface offset)
 
 /-- The prior state hash: its preimage is the prior state's words and its public input is the
 fresh instance's public input. -/
@@ -208,7 +205,7 @@ def selectOffset : Nat :=
   Formal.nextOffset (newSlotCircuit program relation circuit interface offset)
     (newSlotOffset program relation circuit interface offset)
 
-def selectInterface : DigestSelect.Interface logicalWidth publicFits where
+def selectInterface : LightSelect.Interface logicalWidth publicFits where
   iteration := fun _ => interface.iteration
   inverse := fun _ => interface.inverse
   recursive := fun _ => interface.recursive
@@ -222,9 +219,18 @@ def selectInterface : DigestSelect.Interface logicalWidth publicFits where
   newDigest := fun _ => interface.newDigest
   innerDigest := fun _ => interface.innerDigest
   nextDigest := fun _ => interface.nextDigest
+  activeDigest := fun _ => interface.activeDigest
 
 def selectCircuit : FormalCircuit :=
-  DigestSelect.circuit (selectInterface program interface)
+  LightSelect.circuit (selectInterface program interface)
+
+/-- The slot that the selector word names: slot 1 when it is 1, slot 0 otherwise. -/
+def selectedSlot (env : Env) : Fin 2 := if interface.selector.eval env = 1 then 1 else 0
+
+theorem select_selected (selectOffset : Nat) (env : Env) :
+    LightSelect.selected (selectInterface program interface) selectOffset env =
+      selectedSlot program interface env :=
+  rfl
 
 /-- The leaves of `LightStep` that this layout places. -/
 def leaves : LightStep.Leaves logicalWidth publicFits program.witnessWordCount where
@@ -234,8 +240,7 @@ def leaves : LightStep.Leaves logicalWidth publicFits program.witnessWordCount w
   depthOffset := rangeOffset program interface offset
   prior := priorStateInterface program interface
   priorOffset := priorStateOffset program interface offset
-  priorSlots := priorSlotInterface program interface
-  priorSlotOffsets := priorSlotOffset program interface offset
+  priorDigest := interface.priorDigest
   next := nextStateInterface program circuit interface
   nextOffset := nextStateOffset program interface offset
   nextDigest := interface.nextDigest
@@ -250,10 +255,8 @@ def gadgetOps : List Op :=
       (rangeOffset program interface offset),
     Formal.childOp "light.depth_high_bits" (highBitsCircuit program interface offset)
       (highBitsOffset program interface offset),
-    Formal.childOp "light.prior_slot_0" (priorSlotCircuit program interface 0)
-      (priorSlotZeroOffset program interface offset),
-    Formal.childOp "light.prior_slot_1" (priorSlotCircuit program interface 1)
-      (priorSlotOneOffset program interface offset),
+    Formal.childOp "light.active_slot" (activeSlotCircuit program interface)
+      (activeSlotOffset program interface offset),
     Formal.childOp "light.prior_state" (priorStateCircuit program interface)
       (priorStateOffset program interface offset),
     Formal.childOp "light.next_state" (nextStateCircuit program circuit interface)
@@ -278,10 +281,8 @@ def main : Circuit Unit :=
 structure Assumptions (env : Env) : Prop where
   application : (applicationCircuit program interface).assumptions offset env
   range : (rangeCircuit program interface).assumptions (rangeOffset program interface offset) env
-  priorSlotZero : (priorSlotCircuit program interface 0).assumptions
-    (priorSlotZeroOffset program interface offset) env
-  priorSlotOne : (priorSlotCircuit program interface 1).assumptions
-    (priorSlotOneOffset program interface offset) env
+  activeSlot : (activeSlotCircuit program interface).assumptions
+    (activeSlotOffset program interface offset) env
   priorState : (priorStateCircuit program interface).assumptions
     (priorStateOffset program interface offset) env
   nextState : (nextStateCircuit program circuit interface).assumptions
@@ -303,7 +304,7 @@ private theorem childSpec_of_rows (name : String) (child : FormalCircuit)
   exact callHolds assumptions
 
 /-- The step's rows give every gadget spec of `LightStep.SpecHolds`, for the relation of any
-circuit key, and the digest-select rows. The application program computes `step`, and its validity
+circuit key, the active slot's hash and the digest-select rows. The application program computes `step`, and its validity
 predicate implies the dispatch `control zi w = circuit`. -/
 theorem soundness (step : AppState → AppWitness → AppState)
     (control : AppState → AppWitness → Fin 2) (stepEq : program.step = step)
@@ -314,7 +315,9 @@ theorem soundness (step : AppState → AppWitness → AppState)
     (target : ProductionKey.LogicalRelation logicalWidth publicFits) :
     LightStep.SpecHolds target step control circuit
         (leaves program relation circuit interface offset) env ∧
-      ConstraintsHold env (DigestSelect.rows (selectInterface program interface)
+      OutputHash.SpecHolds (activeSlotInterface program interface)
+        (activeSlotOffset program interface offset) env ∧
+      ConstraintsHold env (LightSelect.rows (selectInterface program interface)
         (selectOffset program relation circuit interface offset)) := by
   change holds env (opsAt program relation circuit interface offset) at rows
   have member := fun op (inside : op ∈ gadgetOps program circuit interface offset) =>
@@ -332,12 +335,9 @@ theorem soundness (step : AppState → AppWitness → AppState)
   have highBitsSpec := childSpec_of_rows "light.depth_high_bits"
     (highBitsCircuit program interface offset) (highBitsOffset program interface offset) env _
     rows (member _ (by simp [gadgetOps])) trivial
-  have priorZeroSpec := childSpec_of_rows "light.prior_slot_0"
-    (priorSlotCircuit program interface 0) (priorSlotZeroOffset program interface offset) env _
-    rows (member _ (by simp [gadgetOps])) assumptions.priorSlotZero
-  have priorOneSpec := childSpec_of_rows "light.prior_slot_1"
-    (priorSlotCircuit program interface 1) (priorSlotOneOffset program interface offset) env _
-    rows (member _ (by simp [gadgetOps])) assumptions.priorSlotOne
+  have activeSlotSpec := childSpec_of_rows "light.active_slot"
+    (activeSlotCircuit program interface) (activeSlotOffset program interface offset) env _
+    rows (member _ (by simp [gadgetOps])) assumptions.activeSlot
   have priorStateSpec := childSpec_of_rows "light.prior_state"
     (priorStateCircuit program interface) (priorStateOffset program interface offset) env _
     rows (member _ (by simp [gadgetOps])) assumptions.priorState
@@ -367,16 +367,12 @@ theorem soundness (step : AppState → AppWitness → AppState)
     depth := rangeSpec
     depthHigh := highBitsSpec
     prior := priorStateSpec
-    priorSlots := fun slot => ?_
     next := nextStateSpec
     newSlot := newSlotSpec
     piccs := LightPiCCSLayout.soundness relation (piccsOffset program circuit interface offset)
       (piccsInterface program interface) env assumptions.piccs piccsRows target
     rlc := LightRlcLayout.soundness (piccsLeaves program relation circuit interface offset)
       (rlcInterface program interface) (rlcOffset program relation circuit interface offset) env
-      assumptions.rlc rlcRows }, selectSpec⟩
-  match slot with
-  | 0 => exact priorZeroSpec
-  | 1 => exact priorOneSpec
+      assumptions.rlc rlcRows }, activeSlotSpec, selectSpec⟩
 
 end NightstreamFPrime.Lifecycle.OptionB.LightStepLayout

@@ -50,15 +50,12 @@ use super::layout::{
     COL_LOCAL_ZERO_ACTIVE_AFTER, COL_LOCAL_ZERO_ACTIVE_BEFORE, COL_LOCAL_ZERO_REMAINING_AFTER,
     COL_LOCAL_ZERO_REMAINING_BEFORE, COL_MAX_MEMORY_PAGES_AFTER, COL_MAX_MEMORY_PAGES_BEFORE, COL_MEMORY_PAGES_AFTER,
     COL_MEMORY_PAGES_BEFORE, COL_MEM_LOAD_LIVE, COL_MEM_OOB, COL_MEM_STORE_LIVE, COL_ONE, COL_OPCODE_CODE,
-    COL_OP_TABLE_ENABLED, COL_OP_TABLE_ID, COL_OP_TABLE_VALUE, COL_OUTPUT_CAPTURED, COL_OUTPUT_CAPTURED_SECOND,
-    COL_OUTPUT_ENABLED_AFTER, COL_OUTPUT_ENABLED_BEFORE, COL_OUTPUT_SECOND_ENABLED_AFTER,
-    COL_OUTPUT_SECOND_ENABLED_BEFORE, COL_OUTPUT_SECOND_VALUE_HI_AFTER, COL_OUTPUT_SECOND_VALUE_HI_BEFORE,
-    COL_OUTPUT_SECOND_VALUE_LO_AFTER, COL_OUTPUT_SECOND_VALUE_LO_BEFORE, COL_OUTPUT_VALUE_HI_AFTER,
-    COL_OUTPUT_VALUE_HI_BEFORE, COL_OUTPUT_VALUE_LO_AFTER, COL_OUTPUT_VALUE_LO_BEFORE, COL_PADDING_ACTIVE,
-    COL_PC_AFTER, COL_PC_BEFORE, COL_PC_EDGE_KIND, COL_PC_ROM_ACTIVE, COL_PC_ROM_CALL_RETURN_CHOICE,
-    COL_PROGRAM_CALL_INDIRECT_IMMEDIATES_ACTIVE, COL_PROGRAM_GLOBAL_INDEX_ACTIVE, COL_PROGRAM_LOCAL_INDEX_ACTIVE,
-    COL_PROGRAM_TABLE_ID_ACTIVE, COL_SIGN_EXT_BIT, COL_SIGN_EXT_LOW7, COL_SP_AFTER, COL_SP_BEFORE,
-    COL_STACK_FRAME_BASE_AFTER, COL_STACK_FRAME_BASE_BEFORE, COL_STACK_READS, COL_STACK_READ_ACTIVE,
+    COL_OP_TABLE_ENABLED, COL_OP_TABLE_ID, COL_OP_TABLE_VALUE, COL_OUTPUT_CAPTURED, COL_OUTPUT_ENABLED_AFTER,
+    COL_OUTPUT_ENABLED_BEFORE, COL_OUTPUT_VALUE_HI_AFTER, COL_OUTPUT_VALUE_HI_BEFORE, COL_OUTPUT_VALUE_LO_AFTER,
+    COL_OUTPUT_VALUE_LO_BEFORE, COL_PADDING_ACTIVE, COL_PC_AFTER, COL_PC_BEFORE, COL_PC_EDGE_KIND, COL_PC_ROM_ACTIVE,
+    COL_PC_ROM_CALL_RETURN_CHOICE, COL_PROGRAM_CALL_INDIRECT_IMMEDIATES_ACTIVE, COL_PROGRAM_GLOBAL_INDEX_ACTIVE,
+    COL_PROGRAM_LOCAL_INDEX_ACTIVE, COL_PROGRAM_TABLE_ID_ACTIVE, COL_SIGN_EXT_BIT, COL_SIGN_EXT_LOW7, COL_SP_AFTER,
+    COL_SP_BEFORE, COL_STACK_FRAME_BASE_AFTER, COL_STACK_FRAME_BASE_BEFORE, COL_STACK_READS, COL_STACK_READ_ACTIVE,
     COL_STACK_READ_ADDR_HI, COL_STACK_READ_ADDR_LO, COL_STACK_READ_VALUE_HI, COL_STACK_READ_VALUE_LO,
     COL_STACK_WRITE0_ACTIVE, COL_STACK_WRITE0_ADDR_HI, COL_STACK_WRITE0_ADDR_LO, COL_STACK_WRITE0_VALUE_HI,
     COL_STACK_WRITE0_VALUE_LO, COL_STACK_WRITES, COL_TABLE_ID, COL_TABLE_INDEX, COL_TABLE_OOB, COL_TABLE_READ_ENABLED,
@@ -120,8 +117,6 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Result<Vec<F>, super::ir::Was
             trace.opcode,
             super::isa::WasmOpcode::ReturnCall | super::isa::WasmOpcode::ReturnCallIndirect
         );
-    let second_capture = trace.output_captured && trace.state_after.output.second_enabled;
-    let captured_results = u64::from(trace.output_captured) + u64::from(second_capture);
     let clean_return =
         trace.state_after.activation_finished && !trace.state_before.activation_finished && !trace.state_after.trapped;
     let slide = trace.call_stack_pop.is_some()
@@ -134,7 +129,7 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Result<Vec<F>, super::ir::Was
     if clean_return {
         // The ROM checks that this is the return's static slide distance.
         wit[crate::layout::COL_EXIT_SLIDE_DISTANCE] =
-            F::from_u64(trace.state_before.sp - trace.state_before.locals_fbp - captured_results);
+            F::from_u64(trace.state_before.sp - trace.state_before.locals_fbp - u64::from(trace.output_captured));
     }
     if slide || tail_call || clean_return || trace.row_kind.is_turn_boundary() {
         let reads = u64::from(trace.stack_reads_override.unwrap_or(trace.info.stack_reads));
@@ -143,8 +138,8 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Result<Vec<F>, super::ir::Was
                 .stack_writes_override
                 .unwrap_or(trace.info.stack_writes),
         );
-        wit[COL_FRAME_SP_DROP] =
-            F::from_u64(trace.state_before.sp + writes) - F::from_u64(reads + captured_results + trace.state_after.sp);
+        wit[COL_FRAME_SP_DROP] = F::from_u64(trace.state_before.sp + writes)
+            - F::from_u64(reads + u64::from(trace.output_captured) + trace.state_after.sp);
     }
     if trace.opcode == super::isa::WasmOpcode::BrTable {
         use crate::layout::{COL_BR_TABLE_IN_BOUNDS, COL_BR_TABLE_LEN};
@@ -193,14 +188,7 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Result<Vec<F>, super::ir::Was
     wit[COL_OUTPUT_VALUE_LO_AFTER] = F::from_u64(u64::from(trace.state_after.output.value_lo));
     wit[COL_OUTPUT_VALUE_HI_BEFORE] = F::from_u64(u64::from(trace.state_before.output.value_hi));
     wit[COL_OUTPUT_VALUE_HI_AFTER] = F::from_u64(u64::from(trace.state_after.output.value_hi));
-    wit[COL_OUTPUT_SECOND_ENABLED_BEFORE] = F::from_u64(u64::from(trace.state_before.output.second_enabled));
-    wit[COL_OUTPUT_SECOND_ENABLED_AFTER] = F::from_u64(u64::from(trace.state_after.output.second_enabled));
-    wit[COL_OUTPUT_SECOND_VALUE_LO_BEFORE] = F::from_u64(u64::from(trace.state_before.output.second_value_lo));
-    wit[COL_OUTPUT_SECOND_VALUE_LO_AFTER] = F::from_u64(u64::from(trace.state_after.output.second_value_lo));
-    wit[COL_OUTPUT_SECOND_VALUE_HI_BEFORE] = F::from_u64(u64::from(trace.state_before.output.second_value_hi));
-    wit[COL_OUTPUT_SECOND_VALUE_HI_AFTER] = F::from_u64(u64::from(trace.state_after.output.second_value_hi));
     wit[COL_OUTPUT_CAPTURED] = if trace.output_captured { F::ONE } else { F::ZERO };
-    wit[COL_OUTPUT_CAPTURED_SECOND] = if second_capture { F::ONE } else { F::ZERO };
     wit[COL_CALL_STACK_DEPTH_BEFORE] = F::from_u64(trace.state_before.call_stack_depth);
     wit[COL_CALL_STACK_DEPTH_AFTER] = F::from_u64(trace.state_after.call_stack_depth);
     wit[COL_CURRENT_FUNCTION_REF] = F::from_u64(u64::from(trace.current_function_ref));
@@ -387,14 +375,6 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Result<Vec<F>, super::ir::Was
         if let Some(read1_value_hi) = trace.stack_read1.and_then(|read| read.value_hi) {
             wit[COL_STACK_READ_VALUE_HI[1]] = F::from_u64(u64::from(read1_value_hi));
         }
-    }
-    if second_capture {
-        debug_assert!(trace.stack_read1.is_none());
-        let output_addr = trace.state_before.sp.saturating_sub(2).saturating_mul(2);
-        wit[COL_STACK_READ_ADDR_LO[1]] = F::from_u64(output_addr);
-        wit[COL_STACK_READ_ADDR_HI[1]] = F::from_u64(output_addr + 1);
-        wit[COL_STACK_READ_VALUE_LO[1]] = F::from_u64(u64::from(trace.state_after.output.second_value_lo));
-        wit[COL_STACK_READ_VALUE_HI[1]] = F::from_u64(u64::from(trace.state_after.output.second_value_hi));
     }
     if let Some(read) = trace.stack_read2 {
         wit[COL_STACK_READ_ADDR_LO[2]] = F::from_u64(read.addr_lo);

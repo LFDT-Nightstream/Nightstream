@@ -219,9 +219,6 @@ pub(super) fn push_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
             COL_OUTPUT_ENABLED_AFTER,
             COL_OUTPUT_VALUE_LO_AFTER,
             COL_OUTPUT_VALUE_HI_AFTER,
-            COL_OUTPUT_SECOND_ENABLED_AFTER,
-            COL_OUTPUT_SECOND_VALUE_LO_AFTER,
-            COL_OUTPUT_SECOND_VALUE_HI_AFTER,
         ] {
             push_gated_linear_zero(b, COL_HOST_RESUME, [(col, F::ONE)]);
         }

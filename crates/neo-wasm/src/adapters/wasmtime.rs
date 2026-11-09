@@ -190,7 +190,7 @@ pub(crate) struct LoweringTables {
 /// steps (faulting row included) can stand in for a clean run with no results.
 ///
 /// Wasmtime also uses `TableOutOfBounds` for unmodeled table instructions.
-/// The last opcode identifies the modeled fault. See SPEC.md section 7.8 for get and set.
+/// The last opcode identifies the modeled fault. See SPEC.md section 7.7 for get and set.
 fn is_modeled_terminal_trap(trap: Option<&Trap>, last_step: Option<&WasmtimeTraceStep>) -> bool {
     match trap {
         Some(
@@ -221,7 +221,6 @@ fn is_modeled_terminal_trap(trap: Option<&Trap>, last_step: Option<&WasmtimeTrac
 
 /// Capture a core module, discovering its artifacts from the executing frame.
 /// Bindings are installed before instantiation, including start execution.
-/// The selected export may return at most two values (SPEC.md section 7.7).
 pub fn collect_wasmtime_steps(
     wasm_bytes: &[u8],
     bindings: &HostEventBindings,
@@ -260,14 +259,8 @@ pub fn collect_wasmtime_steps(
     let func: Func = instance
         .get_func(&mut store, export)
         .ok_or_else(|| WasmBuildError::Trace(format!("export '{export}' not found")))?;
-    let result_count = func.ty(&store).results().len();
-    if result_count > 2 {
-        return Err(WasmBuildError::Unsupported(format!(
-            "export '{export}' returns {result_count} values; at most two are supported"
-        )));
-    }
     let param_vals: Vec<Val> = params.iter().map(|&v| Val::I32(v)).collect();
-    let mut results = vec![Val::I32(0); result_count];
+    let mut results = vec![Val::I32(0); func.ty(&store).results().len()];
     let call_result = block_on(func.call_async(&mut store, &param_vals, &mut results));
     store.data().check_errors()?;
     let results = match call_result {

@@ -489,7 +489,7 @@ fn parse(output: &str) -> Vec<Run> {
 #[test]
 #[ignore = "needs the Lean replay: lake build replayLayer1 in formal/compression-lean"]
 fn lean_replay_matches_the_rust_verifier() {
-    let (toy, setup, _scratch) = setup_toy(2, 4, 6);
+    let (toy, setup, _scratch) = setup_toy(2, 64, 6);
     let relation = relation_of(&toy, setup.key());
     let proof = prove(
         &relation,

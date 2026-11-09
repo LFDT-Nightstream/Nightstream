@@ -1,8 +1,10 @@
-import CompressionLean.Ports.Circuit.Record
+import CompressionLean.Lowering.Compiled
 import CompressionLeanExe.Parse
 import CompressionLeanExe.Digest
 import CompressionLeanExe.Fixtures
 import CompressionLeanExe.Key
+
+attribute [local instance high] CompressionLean.Lowering.Compiled.glField
 
 namespace CompressionLeanExe.LowerCheck
 

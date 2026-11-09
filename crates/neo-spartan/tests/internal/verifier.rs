@@ -229,7 +229,7 @@ impl<B: Values> Backend for Probe<B> {
 
 #[test]
 fn recorded_layer1_verifier_holds_rejects_and_keeps_its_shape() {
-    let (toy, setup, _scratch) = setup_toy(8, 4, 6);
+    let (toy, setup, _scratch) = setup_toy(8, 64, 6);
     let relation = relation_of(&toy, setup.key());
     let proof = prove(
         &relation,

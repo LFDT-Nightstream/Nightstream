@@ -426,7 +426,7 @@ fn layers(leaves: Vec<Digest>, accelerator: &Accelerator) -> Vec<Vec<Digest>> {
 }
 
 /// The layer above `below`, `Packed::WIDTH` nodes at a time, in parallel.
-fn compress_layer(below: &[Digest]) -> Vec<Digest> {
+pub(crate) fn compress_layer(below: &[Digest]) -> Vec<Digest> {
     let lanes = Packed::WIDTH;
     let compress = Compress::new(permutation().clone());
     let mut layer = vec![[Gl::ZERO; DIGEST_LEN]; below.len() / 2];

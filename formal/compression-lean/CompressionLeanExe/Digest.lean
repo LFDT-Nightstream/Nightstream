@@ -1,6 +1,6 @@
 import CompressionLean.Ports.Circuit.Record
 import CompressionLean.Ports.Circuit.Block
-import CompressionLean.Ports.Replay.Transcript
+import CompressionLean.Lowering.Compiled
 import CompressionLean.Fields
 
 /-! Rust pins these digests (`run_digest`, `Trace::digest`, `TEMPLATE_DIGEST`). -/

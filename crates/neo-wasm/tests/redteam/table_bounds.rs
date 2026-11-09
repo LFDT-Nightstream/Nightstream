@@ -201,7 +201,11 @@ fn fixed_small_size_rejects_table_get_past_declared_size() {
     let circuit = Circuit::compile(size.geometry(), app).unwrap();
     let prover = circuit.prover(nightstream::Engine::Metal, 109).unwrap();
     let verifier = circuit.verifier(nightstream::Engine::Metal, 109).unwrap();
-    let segments = size.segments(&checked.trace).unwrap();
+    let segments = size
+        .segments(&checked.trace)
+        .unwrap()
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap();
     let accepted = prover
         .start(&program, initial)
         .ok()

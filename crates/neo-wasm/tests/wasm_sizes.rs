@@ -7,7 +7,7 @@ mod common;
 
 use neo_wasm::host_event_bindings::HostEventBindings;
 use neo_wasm::memory_semantics::preload_host_event_tables;
-use neo_wasm::nebula::{WasmApplicationError, WasmLimits, WasmSize};
+use neo_wasm::nebula::{step_inputs, WasmApplicationError, WasmLimits, WasmSize};
 use neo_wasm::{preload_from_program_artifacts, top_level_initial_state, WasmMemoryPreload, WasmStepState, WasmVmStep};
 use nightstream::nebula::{Application, Run};
 
@@ -174,7 +174,8 @@ fn a_prover_takes_the_smallest_size_that_holds_the_run() {
 
 /// Fibonacci steps natively through Small in one segment. The 600 `nop`s
 /// step through Large in three segments of 256 rows. Each run ends in the
-/// state after its last trace row.
+/// state after its last trace row. The segments together are the step inputs
+/// of the whole padded run.
 #[test]
 fn a_run_steps_natively_through_the_segments_of_its_size() {
     for (wat, size, segments) in [(FIB.to_string(), WasmSize::Small, 1), (nops(600), WasmSize::Large, 3)] {
@@ -183,8 +184,18 @@ fn a_run_steps_natively_through_the_segments_of_its_size() {
         let app = size.application().unwrap();
         let program = app.program(&preload).unwrap();
         let mut run = Run::new(app, &program, initial);
-        let inputs = size.segments(&trace).unwrap();
+        let inputs = size
+            .segments(&trace)
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
         assert_eq!(inputs.len(), segments, "{size:?}");
+        let steps = inputs.concat();
+        assert_eq!(
+            steps,
+            step_inputs(&trace, steps.len(), size.rows()).unwrap(),
+            "{size:?}"
+        );
         for segment in &inputs {
             run.segment(segment).unwrap();
         }
@@ -216,7 +227,7 @@ fn a_small_proof_verifies() {
     let proving = Instant::now();
     let mut run = prover.start(&program, initial).unwrap();
     for segment in size.segments(&trace).unwrap() {
-        run.segment(&segment).unwrap();
+        run.segment(&segment.unwrap()).unwrap();
     }
     let last = *run.state();
     let proof = run.finish().unwrap();

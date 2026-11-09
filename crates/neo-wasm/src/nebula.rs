@@ -383,33 +383,38 @@ impl WasmLimits {
     /// parts of the active ports of `rows`, the one-row witnesses of
     /// `step_inputs(trace, trace.len(), 1)`.
     pub fn of(preloads: &[&WasmMemoryPreload], rows: &[Vec<F>]) -> Result<Self, WasmApplicationError> {
-        for row in rows {
-            if row.len() < crate::RANGE_CHECKED_WITNESS_WIDTH {
-                return Err(WasmApplicationError::RowLength {
-                    actual: row.len(),
-                    minimum: crate::RANGE_CHECKED_WITNESS_WIDTH,
-                });
-            }
-        }
         let mut limits = Self::default();
         for (id, address, _) in preloads.iter().flat_map(|preload| preload.entries()) {
             limits.hold(id, address.into_iter().map(u64::from));
         }
+        for z in rows {
+            limits.hold_row(z)?;
+        }
+        Ok(limits)
+    }
+
+    /// Widen the limits so that they hold the address parts of the active
+    /// ports of the one-row witness `z`.
+    fn hold_row(&mut self, z: &[F]) -> Result<(), WasmApplicationError> {
+        if z.len() < crate::RANGE_CHECKED_WITNESS_WIDTH {
+            return Err(WasmApplicationError::RowLength {
+                actual: z.len(),
+                minimum: crate::RANGE_CHECKED_WITNESS_WIDTH,
+            });
+        }
         for memory in build_wasm_relation_layout().auxiliary.memory.entries() {
             for port in &memory.ports {
-                for z in rows {
-                    if is_active(z, port.activation)? {
-                        limits.hold(
-                            memory.id,
-                            port.address_columns
-                                .iter()
-                                .map(|column| z[*column].as_canonical_u64()),
-                        );
-                    }
+                if is_active(z, port.activation)? {
+                    self.hold(
+                        memory.id,
+                        port.address_columns
+                            .iter()
+                            .map(|column| z[*column].as_canonical_u64()),
+                    );
                 }
             }
         }
-        Ok(limits)
+        Ok(())
     }
 
     /// Whether each width is at least the width of `other`.
@@ -576,18 +581,27 @@ impl WasmSize {
     /// The smallest size that holds the program of `preload` and its run
     /// `trace`.
     pub fn for_run(preload: &WasmMemoryPreload, trace: &[WasmVmStep]) -> Result<Self, WasmApplicationError> {
-        let rows: Vec<Vec<F>> = step_inputs(trace, trace.len(), NonZeroUsize::MIN)?
-            .into_iter()
-            .map(|step| step.z)
-            .collect();
-        let limits = WasmLimits::of(&[preload], &rows)?;
+        if trace.is_empty() {
+            return Err(WasmApplicationError::EmptyTrace);
+        }
+        let mut limits = WasmLimits::of(&[preload], &[])?;
+        for row in trace {
+            limits.hold_row(&build_batched_witness(std::slice::from_ref(row), 1, 0)?)?;
+        }
         Self::smallest(&limits, trace.len()).ok_or(WasmApplicationError::TooLarge(limits))
     }
 
     /// The step inputs of each segment of the run `trace` in this size: the
-    /// fewest segments, padded as `step_inputs` pads.
-    pub fn segments(self, trace: &[WasmVmStep]) -> Result<Vec<Vec<WasmStep>>, WasmApplicationError> {
+    /// fewest segments, padded as `step_inputs` pads. The iterator builds the
+    /// witnesses of a segment when it yields that segment.
+    pub fn segments(
+        self,
+        trace: &[WasmVmStep],
+    ) -> Result<impl Iterator<Item = Result<Vec<WasmStep>, WasmApplicationError>> + '_, WasmApplicationError> {
         let (_, _, n, s_max) = self.shape();
+        if trace.is_empty() {
+            return Err(WasmApplicationError::EmptyTrace);
+        }
         let segments = trace.len().div_ceil(self.segment_rows());
         if segments > s_max {
             return Err(WasmApplicationError::Steps {
@@ -596,9 +610,8 @@ impl WasmSize {
                 rows: self.rows(),
             });
         }
-        Ok(step_inputs(trace, segments * n, self.rows())?
-            .chunks(n)
-            .map(<[WasmStep]>::to_vec)
-            .collect())
+        Ok(trace
+            .chunks(self.segment_rows())
+            .map(move |segment| step_inputs(segment, n, self.rows())))
     }
 }

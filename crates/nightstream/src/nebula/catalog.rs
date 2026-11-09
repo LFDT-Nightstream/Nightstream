@@ -57,24 +57,34 @@ impl Region {
 /// space the regions go from the largest to the smallest, so each base is a
 /// multiple of its size (SPEC.md section 7.6, rule 3). Returns the regions
 /// and the cells that they take in the ROM space and in the RAM space.
+/// A region size or combined space size that does not fit a `u64` returns `Region`.
 pub fn pack_regions<Id>(
     memories: impl IntoIterator<Item = (Id, MemoryKind, Vec<usize>)>,
-) -> (Vec<(Id, Region)>, [u64; 2]) {
+) -> Result<(Vec<(Id, Region)>, [u64; 2]), CatalogBindingError> {
     let mut memories: Vec<_> = memories
         .into_iter()
-        .map(|(id, kind, widths)| (id, usize::from(kind == MemoryKind::Ram), widths))
-        .collect();
-    memories.sort_by_key(|(_, space, widths)| (*space, std::cmp::Reverse(widths.iter().sum::<usize>())));
+        .map(|(id, kind, widths)| {
+            let width = widths
+                .iter()
+                .try_fold(0usize, |sum, width| sum.checked_add(*width))
+                .filter(|width| *width < u64::BITS as usize)
+                .ok_or(CatalogBindingError::Region)?;
+            Ok((id, usize::from(kind == MemoryKind::Ram), widths, width))
+        })
+        .collect::<Result<_, CatalogBindingError>>()?;
+    memories.sort_by_key(|(_, space, _, width)| (*space, std::cmp::Reverse(*width)));
     let mut used = [0u64; 2];
     let regions = memories
         .into_iter()
-        .map(|(id, space, widths)| {
+        .map(|(id, space, widths, width)| {
             let base = used[space];
-            used[space] += 1 << widths.iter().sum::<usize>();
-            (id, Region { base, widths })
+            used[space] = base
+                .checked_add(1u64 << width)
+                .ok_or(CatalogBindingError::Region)?;
+            Ok((id, Region { base, widths }))
         })
-        .collect();
-    (regions, used)
+        .collect::<Result<_, CatalogBindingError>>()?;
+    Ok((regions, used))
 }
 
 /// Why a catalog, regions, and a slot plan give no binding, or a preload no

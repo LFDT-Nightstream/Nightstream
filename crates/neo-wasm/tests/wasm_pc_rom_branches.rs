@@ -10,7 +10,23 @@ fn check(source: &str) {
             "duplicate edge for pc {pc}, choice {choice}"
         );
     }
-    common::checked_wasm_run(source, "main");
+    let checked = common::checked_wasm_run(source, "main");
+    for (index, row) in checked.run.steps.iter().enumerate() {
+        assert_eq!(row.step, index as u64);
+    }
+}
+
+#[test]
+fn state_machine_invalid_operands_are_rejected_before_slide_arithmetic() {
+    for source in [
+        "(module (func (result i32) return))",
+        "(module (func block br_if 0 end))",
+        "(module (func (result i32) block (result i32) br 0 end))",
+    ] {
+        let bytes = wat::parse_str(source).unwrap();
+        let error = neo_wasm::extract_wasm_program_artifacts(&bytes).expect_err("invalid WASM must fail");
+        assert!(matches!(error, neo_wasm::WasmProgramError::Invalid(_)), "{error}");
+    }
 }
 
 #[test]
@@ -72,7 +88,7 @@ fn reject_wrong_edge(source: &str, opcode: neo_wasm::WasmOpcode, choice: u32) {
         .find(|&&(pc, choice, _)| pc == forged.state_before.pc && choice == u64::from(forged.control_choice))
         .expect("both branch edges belong to the program")
         .2;
-    let witness = neo_wasm::witness_builder::build_witness_vector(&forged);
+    let witness = neo_wasm::witness_builder::build_witness_vector(&forged).unwrap();
     let mut prefix = run.witnesses[..=index].to_vec();
     prefix[index] = witness.clone();
     // ROM membership and memory replay alone do not bind the choice to the condition.
@@ -163,7 +179,7 @@ fn br_table_length_is_bound_to_the_program() {
         .find(|&&(pc, choice, _)| pc == forged.state_before.pc && choice == 0)
         .unwrap()
         .2;
-    let witness = neo_wasm::witness_builder::build_witness_vector(&forged);
+    let witness = neo_wasm::witness_builder::build_witness_vector(&forged).unwrap();
     common::assert_satisfied(&witness, "choice is consistent with the forged length");
     let mut prefix = run.witnesses[..=index].to_vec();
     prefix[index] = witness;
@@ -206,7 +222,7 @@ fn rows_without_a_branch_cannot_choose_an_edge() {
         let mut forged = row.clone();
         forged.control_choice = 7;
         common::assert_rejected(
-            &neo_wasm::witness_builder::build_witness_vector(&forged),
+            &neo_wasm::witness_builder::build_witness_vector(&forged).unwrap(),
             "a non-branch row choosing an edge",
         );
     }

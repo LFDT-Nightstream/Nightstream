@@ -13,7 +13,7 @@ use crate::layout::{
     COL_PC_FREF_ACTIVE, COL_PC_ROM_ACTIVE, COL_PROGRAM_CALL_INDIRECT_IMMEDIATES_ACTIVE,
     COL_PROGRAM_GLOBAL_INDEX_ACTIVE, COL_PROGRAM_LOCAL_INDEX_ACTIVE, COL_PROGRAM_TABLE_ID_ACTIVE,
     COL_STACK_READ_ACTIVE, COL_STACK_WRITE0_ACTIVE, COL_STACK_WRITE0_HI_ACTIVE, COL_TABLE_READ_ENABLED,
-    COL_TABLE_SIZE_READ_ENABLED, COL_TURN_BOUNDARY, SELECTOR_COLS,
+    COL_TABLE_SET_LIVE, COL_TABLE_SIZE_READ_ENABLED, COL_TURN_BOUNDARY, SELECTOR_COLS,
 };
 
 /// Auxiliary row-kind columns that are pairwise disjoint with each other and
@@ -57,8 +57,16 @@ pub(crate) fn activation_supports() -> BTreeMap<usize, BTreeSet<usize>> {
         COL_TABLE_SIZE_READ_ENABLED,
         [
             selector_col(WasmOpcode::TableSize).unwrap(),
+            selector_col(WasmOpcode::TableGet).unwrap(),
+            selector_col(WasmOpcode::TableSet).unwrap(),
             selector_col(WasmOpcode::CallIndirectResolve).unwrap(),
         ],
+    );
+    insert_derived_activation_support(
+        &mut supports,
+        "in-bounds table writes",
+        COL_TABLE_SET_LIVE,
+        [selector_col(WasmOpcode::TableSet).unwrap()],
     );
 
     let immediate_gates: [(&str, usize, fn(WasmOpcode) -> bool); 5] = [

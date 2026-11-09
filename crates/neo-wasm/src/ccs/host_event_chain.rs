@@ -49,6 +49,7 @@ use super::super::tagged_r1cs_builder::WasmTaggedR1csBuilder;
 use super::call::host_call_gate_terms;
 use super::host_event;
 use crate::comm_chain::{COMM_CHAIN_PERM_ROWS, PERM_PARTIAL_FIRST_ROW, PERM_TERMINAL_FIRST_ROW};
+use crate::gadgets::push_gated_linear_zero;
 use crate::ir::{WasmHostEventSlotKind, WasmVmStep};
 use crate::layout::{COL_HOST_CLEAR_ACTIVATION_FINISHED, COL_HOST_RESUME, COL_HOST_SPLIT_CALL};
 use neo_application::poseidon2::external_matrix;
@@ -297,7 +298,7 @@ fn push_host_event_gather_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
         COL_LINEAR_MEM_LANE_VALUE, COL_LINEAR_MEM_OFFSET_IS_1, COL_LINEAR_MEM_OFFSET_IS_3, COL_LOCAL_INDEX,
         COL_LOCAL_VALUE, COL_LOCAL_VALUE_HI, COL_MEM_OOB, COL_OUTPUT_ENABLED_BEFORE, COL_OUTPUT_VALUE_HI_BEFORE,
         COL_OUTPUT_VALUE_LO_BEFORE, COL_SP_BEFORE, COL_STACK_READ_ADDR_LO, COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE,
-        COL_TURN_BOUNDARY,
+        COL_TURN_BOUNDARY, COL_WIDE_VALUES_ENABLED,
     };
     let ci_sel = super::super::layout::selector_col(crate::isa::WasmOpcode::CallIndirect).expect("ci selector");
 
@@ -515,6 +516,20 @@ fn push_host_event_gather_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
         // absorbs it (the stack twin of the kind-4 locals pattern). Boolean
         // by the ROM's 0/1 limb content.
         b.push_row([(GK_RESULT, F::ONE)], [(SLOT_VARIANT, F::ONE)], [(GK2_HI, F::ONE)]);
+        // A host result can enter the VM only when the verifier-owned static
+        // function type has the complete i32/i64 scalar encoding. This bit
+        // is zero for references, vectors, floats, resultless functions, and
+        // multi-result shapes.
+        b.push_row(
+            [(GK_RESULT, F::ONE)],
+            [(SLOT_IMMEDIATE0, F::ONE), (COL_ONE, -F::ONE)],
+            [],
+        );
+        b.push_row(
+            [(GK2_HI, F::ONE)],
+            [(COL_WIDE_VALUES_ENABLED, F::ONE), (SLOT_IMMEDIATE1, -F::ONE)],
+            [],
+        );
 
         // Arg slots: an addressed stack read at the table offset from the
         // argument base, limb-selected into the word.
@@ -597,6 +612,16 @@ fn push_host_event_gather_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
         // hi lane with the input word. Advice words remain existential;
         // absorbing slots bind them through the final transcript.
         b.push_linear_zero([(COL_GATHER_LOCAL_WRITE, F::ONE), (GK_INPUT_LOCAL, -F::ONE)]);
+        b.push_row(
+            [(GK_INPUT_LOCAL, F::ONE)],
+            [(COL_WIDE_VALUES_ENABLED, F::ONE), (SLOT_IMMEDIATE1, -F::ONE)],
+            [],
+        );
+        b.push_row(
+            [(GK_INPUT_LOCAL, F::ONE)],
+            [(SLOT_IMMEDIATE0, F::ONE), (COL_ONE, -F::ONE)],
+            [],
+        );
         b.push_row(
             [(GK_INPUT_LOCAL, F::ONE)],
             [(COL_ONE, F::ONE), (SLOT_VARIANT, -F::ONE)],
@@ -754,6 +779,10 @@ fn push_host_event_gather_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
             ],
             [],
         );
+        // A local-base host memory access is a wasm32 pointer. Authenticate
+        // and reject a nonzero high local lane instead of silently using
+        // only its low word as the address.
+        push_gated_linear_zero(b, GMEM_LOCAL, [(COL_LOCAL_VALUE_HI, F::ONE)]);
         b.push_row(
             [
                 (GK_MEMORY_READ, F::ONE),
@@ -1104,7 +1133,21 @@ fn push_chain_update_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
 /// Recompute the turn-boundary schedule-guard inverse from the named columns.
 /// Derived-only (like the range-check bits), so witness-tampering helpers can
 /// keep it consistent with caller-mutated declared columns.
-pub fn write_turn_schedule_guard_witness(wit: &mut [F]) {
+pub fn write_turn_schedule_guard_witness(wit: &mut [F]) -> Result<(), crate::WasmBuildError> {
+    let last = [
+        super::super::layout::COL_HOST_EVENT_INITIAL_SCHEDULE_COUNT,
+        super::super::layout::COL_HOST_EVENT_EXIT_SCHEDULE_COUNT,
+        super::super::layout::COL_TURN_BOUNDARY,
+        TURN_SCHEDULE_COUNT_INV,
+    ]
+    .into_iter()
+    .max()
+    .expect("schedule columns");
+    if wit.len() <= last {
+        return Err(crate::WasmBuildError::Trace(
+            "turn schedule witness is too short".into(),
+        ));
+    }
     let delta = wit[super::super::layout::COL_HOST_EVENT_INITIAL_SCHEDULE_COUNT] - F::ONE
         + wit[super::super::layout::COL_HOST_EVENT_EXIT_SCHEDULE_COUNT];
     wit[TURN_SCHEDULE_COUNT_INV] = if wit[super::super::layout::COL_TURN_BOUNDARY] == F::ONE {
@@ -1112,6 +1155,7 @@ pub fn write_turn_schedule_guard_witness(wit: &mut [F]) {
     } else {
         F::ZERO
     };
+    Ok(())
 }
 
 /// Fill the gadget-internal columns for one row.
@@ -1156,7 +1200,7 @@ pub(crate) fn fill_witness(wit: &mut [F], trace: &WasmVmStep) {
     // Atomic host-call arg pops; split calls defer them until resume.
     wit[GHC_PARAMS] = (wit[super::super::layout::COL_HOST_CALL_ACTIVE] - wit[COL_HOST_SPLIT_CALL])
         * wit[super::super::layout::COL_CALL_PARAM_COUNT];
-    write_turn_schedule_guard_witness(wit);
+    write_turn_schedule_guard_witness(wit).expect("the complete witness contains the schedule columns");
     // Limb-selected values: filled on every row so the unconditional select
     // rows hold (the limb column is zero off gather rows).
     let read_lo = wit[super::super::layout::COL_STACK_READ_VALUE_LO[0]];

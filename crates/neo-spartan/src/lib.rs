@@ -248,7 +248,8 @@ pub struct Setup {
 }
 
 impl Setup {
-    /// Write the setup files of `rows` into the existing directory `dir`.
+    /// Publish the setup files of `rows` under `dir/setup` in the existing
+    /// directory `dir`. A completed setup cannot be replaced.
     pub fn build(rows: &dyn MatrixRows, dir: &Path) -> Result<Self, Error> {
         let tables = Tables::from_rows(rows)?;
         let key = key(rows, &tables, Some(dir))?;

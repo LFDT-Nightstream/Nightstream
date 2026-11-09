@@ -255,7 +255,7 @@ fn early_enter_skips_only_prefix_padding_at_every_root_position() {
             COL_HOST_EVENT_INDEX_AFTER,
             COL_HOST_EVENTS_REMAINING_AFTER,
         ] {
-            let mut witness = build_witness_vector(row);
+            let mut witness = build_witness_vector(row).unwrap();
             witness[column] += F::ONE;
             common::assert_rejected(&witness, "forged early-Enter cursor or schedule advance");
         }
@@ -475,7 +475,7 @@ fn ccs_rejects_forged_context_roots_prefix_and_chain_updates() {
             let mut forged = row.clone();
             forged.state_after.event_absorb.evbuf[cursor] ^= 1;
             common::assert_rejected(
-                &build_witness_vector(&forged),
+                &build_witness_vector(&forged).unwrap(),
                 "forged copy-back value with regenerated advice",
             );
         }
@@ -493,7 +493,7 @@ fn ccs_rejects_forged_context_roots_prefix_and_chain_updates() {
         .chain(COL_OUTER_PREFIX_AFTER)
         .chain([COL_OBJECT_ACTIVE_AFTER, COL_PERM_PENDING_AFTER])
     {
-        let mut witness = build_witness_vector(enter);
+        let mut witness = build_witness_vector(enter).unwrap();
         witness[column] += F::ONE;
         common::assert_rejected(&witness, "forged enter/reset/save");
     }
@@ -509,7 +509,7 @@ fn ccs_rejects_forged_context_roots_prefix_and_chain_updates() {
         .chain(COL_COMM_CHAIN_AFTER)
         .chain([COL_OBJECT_ACTIVE_AFTER])
     {
-        let mut witness = build_witness_vector(last);
+        let mut witness = build_witness_vector(last).unwrap();
         witness[column] += F::ONE;
         common::assert_rejected(&witness, "forged object permutation target or result");
     }
@@ -522,18 +522,24 @@ fn ccs_rejects_forged_context_roots_prefix_and_chain_updates() {
         .unwrap();
     let mut forged = root_last.clone();
     forged.state_after.event_absorb.object_active = true;
-    common::assert_rejected(&build_witness_vector(&forged), "missing exit with regenerated advice");
+    common::assert_rejected(
+        &build_witness_vector(&forged).unwrap(),
+        "missing exit with regenerated advice",
+    );
     for column in COL_COMM_CHAIN_AFTER
         .into_iter()
         .chain(COL_OUTER_CHAIN_AFTER)
     {
-        let mut witness = build_witness_vector(root_last);
+        let mut witness = build_witness_vector(root_last).unwrap();
         witness[column] += F::ONE;
         common::assert_rejected(&witness, "forged outer-chain restoration or saved chain");
     }
 
     let layout = neo_wasm::build_wasm_relation_layout();
-    let before: Vec<_> = trace.iter().map(build_witness_vector).collect();
+    let before: Vec<_> = trace
+        .iter()
+        .map(|row| build_witness_vector(row).unwrap())
+        .collect();
     for column in COL_OUTER_CHAIN_BEFORE
         .into_iter()
         .chain(COL_OUTER_PREFIX_BEFORE)
@@ -586,8 +592,12 @@ fn internally_consistent_trace_fails_a_different_schema_rom() {
         .unwrap();
     // Both chains are already checked; only the verifier's schema differs.
     let mut preload = neo_wasm::preload_from_program_artifacts(&original.artifacts);
-    neo_wasm::memory_semantics::preload_host_event_tables(&mut preload, &bindings);
-    let rows: Vec<_> = original.trace.iter().map(build_witness_vector).collect();
+    neo_wasm::memory_semantics::preload_host_event_tables(&mut preload, &bindings, &original.artifacts);
+    let rows: Vec<_> = original
+        .trace
+        .iter()
+        .map(|row| build_witness_vector(row).unwrap())
+        .collect();
     assert!(neo_wasm::sanity_check_memory_rows(neo_wasm::build_wasm_relation_layout(), &rows, &preload).is_err());
 }
 
@@ -642,8 +652,8 @@ fn opaque_state_is_bound_across_batches_and_in_the_initial_anchor() {
         .step_by(batch_size)
         .any(|i| setup.trace[i].state_before.event_absorb.object_active));
     let batched = neo_wasm::batch::build_batched_wasm_ccs(batch_size).unwrap();
-    for index in 0..neo_wasm::batch::batch_count(setup.trace.len(), batch_size) {
-        let witness = neo_wasm::batch::build_batched_witness(&setup.trace, batch_size, index);
+    for index in 0..neo_wasm::batch::batch_count(setup.trace.len(), batch_size).unwrap() {
+        let witness = neo_wasm::batch::build_batched_witness(&setup.trace, batch_size, index).unwrap();
         batched.sparse_r1cs.is_satisfied_by(&witness).unwrap();
     }
 }

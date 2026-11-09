@@ -172,7 +172,7 @@ Proof.
     { assert (Hin' : In COL_SEL_CALL_INDIRECT_RESOLVE selectorColumns) by (vm_compute; tauto).
       rewrite (full_opcode_selector_exclusive row _ COL_SEL_TABLE_SET Hprime Hfull Hresolve Hin'
         ltac:(vm_compute; tauto) ltac:(discriminate)). discriminate. }
-    pose proof (resolve_entry_read _ _ _ Hreplay HsetOff ltac:(rewrite HreadActive, HoobZero; reflexivity)) as HentryRead.
+    pose proof (resolve_entry_read _ _ _ Hfull Hreplay HsetOff ltac:(rewrite HreadActive, HoobZero; reflexivity)) as HentryRead.
     pose proof (Hentries _ _ Hentry) as HentryStore. rewrite Z2Nat.id in HentryStore by lia.
     rewrite HtableId, <- Hindex, HentryRead in HentryStore. cbn in HentryStore. injection HentryStore as Hvalue.
     assert (HnullZero : row COL_CI_ENTRY_IS_NULL = 0)

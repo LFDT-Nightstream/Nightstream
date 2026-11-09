@@ -449,7 +449,11 @@ fn split_import_preserves_caller_arguments_across_callbacks() {
             .unwrap();
         let layout = neo_wasm::build_wasm_relation_layout();
         let mut preload = neo_wasm::preload_from_program_artifacts(captured.artifacts());
-        neo_wasm::memory_semantics::preload_host_event_tables(&mut preload, &captured.artifacts().host_event_bindings);
+        neo_wasm::memory_semantics::preload_host_event_tables(
+            &mut preload,
+            &captured.artifacts().host_event_bindings,
+            captured.artifacts(),
+        );
         if callbacks != 0 {
             let nested_exit = trace[resume].state_before;
             assert!(nested_exit.activation_finished);

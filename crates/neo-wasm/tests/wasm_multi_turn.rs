@@ -288,7 +288,7 @@ fn exit_only_template_allows_reentry_and_commits_each_return() {
     forged_rows[boundary][neo_wasm::layout::COL_HOST_EVENT_EXIT_SCHEDULE_COUNT] = neo_math::F::from_u64(2);
     common::assert_satisfied(&forged_rows[boundary], "row-local alternative nonempty count");
     let mut preload = neo_wasm::memory_semantics::preload_from_program_artifacts(&artifacts);
-    neo_wasm::memory_semantics::preload_host_event_tables(&mut preload, &bindings);
+    neo_wasm::memory_semantics::preload_host_event_tables(&mut preload, &bindings, &artifacts);
     assert!(
         neo_wasm::memory_semantics::sanity_check_memory_rows(
             &neo_wasm::build_wasm_relation_layout(),
@@ -307,7 +307,7 @@ fn exit_only_template_allows_reentry_and_commits_each_return() {
         !exit.state_after.is_terminal(),
         "activation completion must still spend the exit schedule"
     );
-    let mut forged = build_witness_vector(exit);
+    let mut forged = build_witness_vector(exit).unwrap();
     forged[neo_wasm::layout::COL_HOST_EVENTS_REMAINING_AFTER] = neo_math::F::ZERO;
     common::assert_rejected(&forged, "activation completion cannot skip its return event");
 }
@@ -400,9 +400,12 @@ fn reentered_export_zeroes_an_unmapped_i64_local() {
     boundary.call_param_count = Some(2);
     boundary.state_after.local_zero.remaining = 0;
     boundary.state_after.local_zero.active = false;
-    let witnesses: Vec<_> = forged.iter().map(build_witness_vector).collect();
+    let witnesses: Vec<_> = forged
+        .iter()
+        .map(|row| build_witness_vector(row).unwrap())
+        .collect();
     let mut preload = neo_wasm::memory_semantics::preload_from_program_artifacts(&run.artifacts);
-    neo_wasm::memory_semantics::preload_host_event_tables(&mut preload, &bindings);
+    neo_wasm::memory_semantics::preload_host_event_tables(&mut preload, &bindings, &run.artifacts);
     let error = neo_wasm::memory_semantics::sanity_check_memory_rows(
         neo_wasm::build_wasm_relation_layout(),
         &witnesses,
@@ -473,11 +476,17 @@ fn export_advice_preserves_arguments_without_absorbing_them() {
         .unwrap();
     let mut forged = input.clone();
     forged.host_event_rom_slot.as_mut().unwrap().advice = false;
-    common::assert_satisfied(&build_witness_vector(&forged), "non-final slot before ROM checking");
-    let mut forged_rows: Vec<_> = trace.iter().map(build_witness_vector).collect();
-    forged_rows[input.cycle as usize] = build_witness_vector(&forged);
+    common::assert_satisfied(
+        &build_witness_vector(&forged).unwrap(),
+        "non-final slot before ROM checking",
+    );
+    let mut forged_rows: Vec<_> = trace
+        .iter()
+        .map(|row| build_witness_vector(row).unwrap())
+        .collect();
+    forged_rows[input.cycle as usize] = build_witness_vector(&forged).unwrap();
     let mut preload = neo_wasm::memory_semantics::preload_from_program_artifacts(&artifacts);
-    neo_wasm::memory_semantics::preload_host_event_tables(&mut preload, &bindings);
+    neo_wasm::memory_semantics::preload_host_event_tables(&mut preload, &bindings, &artifacts);
     assert!(
         neo_wasm::sanity_check_memory_rows(&neo_wasm::build_wasm_relation_layout(), &forged_rows, &preload,).is_err(),
         "export advice flag is verifier-bound"
@@ -488,7 +497,7 @@ fn export_advice_preserves_arguments_without_absorbing_them() {
             row.host_event_rom_slot.is_some_and(|rom| rom.advice) && row.state_before.host_events.slot_cursor == 7
         })
         .unwrap();
-    let mut forged = build_witness_vector(last_advice);
+    let mut forged = build_witness_vector(last_advice).unwrap();
     forged[neo_wasm::layout::COL_PERM_PENDING_AFTER] = neo_math::F::ONE;
     common::assert_rejected(&forged, "export advice cannot start absorption");
 }
@@ -589,8 +598,12 @@ fn memory_model_carries_state_across_turns() {
     let artifacts =
         neo_wasm::extract_first_component_core_program_artifacts(&setup.component_bytes).expect("artifacts");
     let mut preload = neo_wasm::memory_semantics::preload_from_program_artifacts(&artifacts);
-    neo_wasm::memory_semantics::preload_host_event_tables(&mut preload, &setup.bindings);
-    let witness_rows: Vec<Vec<neo_math::F>> = setup.trace.iter().map(build_witness_vector).collect();
+    neo_wasm::memory_semantics::preload_host_event_tables(&mut preload, &setup.bindings, &artifacts);
+    let witness_rows: Vec<Vec<neo_math::F>> = setup
+        .trace
+        .iter()
+        .map(|row| build_witness_vector(row).unwrap())
+        .collect();
     let layout = neo_wasm::relation_layout::build_wasm_relation_layout();
     neo_wasm::memory_semantics::sanity_check_memory_rows(&layout, &witness_rows, &preload)
         .expect("locals overwrite + global persistence check out");
@@ -605,7 +618,7 @@ fn ccs_rejects_forged_turn_boundary() {
         .find(|row| row.row_kind.is_turn_boundary())
         .expect("boundary row");
 
-    let witness = build_witness_vector(tb);
+    let witness = build_witness_vector(tb).unwrap();
     common::assert_satisfied(&witness, "untampered turn boundary");
 
     let mut forged = witness.clone();
@@ -663,7 +676,7 @@ fn ccs_rejects_forged_turn_boundary() {
         .iter()
         .find(|row| row.row_kind.is_program())
         .expect("program row");
-    let mut wedged = build_witness_vector(program_row);
+    let mut wedged = build_witness_vector(program_row).unwrap();
     wedged[neo_wasm::layout::COL_HOST_EVENTS_REMAINING_BEFORE] = -neo_math::F::ONE;
     common::assert_rejected(&wedged, "program row under the poisoned schedule");
 }
@@ -677,7 +690,7 @@ fn memory_model_rejects_boundary_into_undeclared_fref() {
     let artifacts =
         neo_wasm::extract_first_component_core_program_artifacts(&setup.component_bytes).expect("artifacts");
     let mut preload = neo_wasm::memory_semantics::preload_from_program_artifacts(&artifacts);
-    neo_wasm::memory_semantics::preload_host_event_tables(&mut preload, &setup.bindings);
+    neo_wasm::memory_semantics::preload_host_event_tables(&mut preload, &setup.bindings, &artifacts);
     let layout = neo_wasm::relation_layout::build_wasm_relation_layout();
 
     let tb_index = setup
@@ -685,7 +698,11 @@ fn memory_model_rejects_boundary_into_undeclared_fref() {
         .iter()
         .position(|row| row.row_kind.is_turn_boundary())
         .expect("boundary row");
-    let mut witness_rows: Vec<Vec<neo_math::F>> = setup.trace.iter().map(build_witness_vector).collect();
+    let mut witness_rows: Vec<Vec<neo_math::F>> = setup
+        .trace
+        .iter()
+        .map(|row| build_witness_vector(row).unwrap())
+        .collect();
     neo_wasm::memory_semantics::sanity_check_memory_rows(&layout, &witness_rows, &preload)
         .expect("the honest trace must pass");
     witness_rows[tb_index][neo_wasm::layout::COL_HOST_CALLEE_FREF_AFTER] =
@@ -706,7 +723,7 @@ fn ccs_rejects_execution_after_activation_finished() {
         .iter()
         .find(|row| row.row_kind.is_program())
         .expect("program row");
-    let mut witness = build_witness_vector(program_row);
+    let mut witness = build_witness_vector(program_row).unwrap();
     common::assert_satisfied(&witness, "untampered program row");
     witness[neo_wasm::layout::COL_ACTIVATION_FINISHED_BEFORE] = neo_math::F::ONE;
     witness[neo_wasm::layout::COL_ACTIVATION_FINISHED_AFTER] = neo_math::F::ONE;
@@ -718,7 +735,7 @@ fn ccs_rejects_execution_after_activation_finished() {
         .iter()
         .find(|row| row.row_kind.is_program() && row.state_after.activation_finished)
         .expect("activation-finishing row");
-    let mut witness = build_witness_vector(finishing_row);
+    let mut witness = build_witness_vector(finishing_row).unwrap();
     common::assert_satisfied(&witness, "untampered activation-finishing row");
     witness[neo_wasm::layout::COL_ACTIVATION_FINISHED_AFTER] = neo_math::F::ZERO;
     common::assert_rejected(&witness, "activation-finishing row pretending the turn is not done");

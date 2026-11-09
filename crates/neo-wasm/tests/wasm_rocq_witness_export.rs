@@ -205,6 +205,7 @@ fn export_witness(wat: &str, params: &[i32], name: &str, file: &str, include_ter
         // Dense rows: Rocq looks columns up by position, so cost stays linear in the
         // column index instead of in comparisons of unary column numbers.
         let entries = build_witness_vector(row)
+            .unwrap()
             .iter()
             .map(|value| value.as_canonical_u64().to_string())
             .collect::<Vec<_>>()

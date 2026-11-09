@@ -18,7 +18,10 @@ fn witness_run(wat_src: &str) -> (Vec<neo_wasm::WasmVmStep>, Vec<Vec<F>>, WasmMe
     let artifacts = extract_wasm_program_artifacts(&wasm).expect("program artifacts");
     let run = collect_wasmtime_steps(&wasm, &HostEventBindings::default(), "run", &[]).expect("trace");
     let trace = traces_from_wasmtime_steps(&run.steps).expect("normalize");
-    let witnesses = trace.iter().map(build_witness_vector).collect();
+    let witnesses = trace
+        .iter()
+        .map(|row| build_witness_vector(row).unwrap())
+        .collect();
     let mut preload = preload_from_program_artifacts(&artifacts);
     // Import-free traces run under the canonical single-shot bindings; the
     // exit latch reads its (biased) export count cells.
@@ -26,6 +29,7 @@ fn witness_run(wat_src: &str) -> (Vec<neo_wasm::WasmVmStep>, Vec<Vec<F>>, WasmMe
     neo_wasm::memory_semantics::preload_host_event_tables(
         &mut preload,
         &neo_wasm::host_event_bindings::HostEventBindings::import_free(export_fref),
+        &artifacts,
     );
     (trace, witnesses, preload)
 }

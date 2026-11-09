@@ -8,7 +8,8 @@ use super::super::layout::{
     COL_EXPECTED_TYPE_ID, COL_FUNCTION_CALL_TYPE_LOOKUP_GATE, COL_FUNCTION_REF, COL_FUNCTION_TYPE_ID,
     COL_IS_PROGRAM_ROW, COL_MEMORY_PAGES_BEFORE, COL_MEM_LOAD_LIVE, COL_MEM_OOB, COL_MEM_STORE_LIVE, COL_ONE,
     COL_OUTPUT_CAPTURED, COL_STACK_READ_VALUE_HI, COL_STACK_READ_VALUE_LO, COL_STACK_WRITE0_VALUE_HI,
-    COL_STACK_WRITE0_VALUE_LO, COL_TABLE_INDEX, COL_TABLE_SIZE, COL_TABLE_VALUE, COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE,
+    COL_STACK_WRITE0_VALUE_LO, COL_TABLE_INDEX, COL_TABLE_OOB, COL_TABLE_SET_LIVE, COL_TABLE_SIZE, COL_TABLE_VALUE,
+    COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE,
 };
 use super::super::relation_layout::{LinearMemoryColumns, WasmRelationLayout};
 use super::{always, idx, shared, WasmTaggedR1csBuilder};
@@ -113,9 +114,19 @@ pub(super) fn push_trap_constraints(b: &mut WasmTaggedR1csBuilder<'_>, layout: &
     b.with_tag(always("div trap"), |b| {
         push_div_trap_constraints(b);
     });
-    b.with_tag(shared("indirect call trap", &[WasmOpcode::CallIndirectResolve]), |b| {
-        push_call_indirect_trap_constraints(b);
-    });
+    b.with_tag(
+        shared(
+            "table bounds and indirect call trap",
+            &[
+                WasmOpcode::TableGet,
+                WasmOpcode::TableSet,
+                WasmOpcode::CallIndirectResolve,
+            ],
+        ),
+        |b| {
+            push_table_bounds_and_call_indirect_trap_constraints(b);
+        },
+    );
     b.with_tag(shared("linear memory oob trap", &linear_memory_ops()), |b| {
         push_linear_memory_oob_trap_constraints(b, &layout.linear_memory);
     });
@@ -249,17 +260,22 @@ fn push_div_trap_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     push_gated_linear_zero(b, COL_DIV_TRAP, [(COL_STACK_WRITE0_VALUE_HI, F::ONE)]);
 }
 
-/// The resolve step of `call_indirect` / `return_call_indirect`: it traps on an
-/// out-of-bounds index, a null entry or a type mismatch; otherwise the following
-/// invocation calls the entry it checked.
-fn push_call_indirect_trap_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
+/// The bounds check of `table.get` / `table.set`, and the resolve step of
+/// `call_indirect` / `return_call_indirect`. An out-of-bounds table access
+/// traps (SPEC.md section 7.7). The resolve step traps on an out-of-bounds
+/// index, a null entry or a type mismatch; otherwise the following invocation
+/// calls the entry it checked.
+fn push_table_bounds_and_call_indirect_trap_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
+    let table_get = selector_col(WasmOpcode::TableGet).unwrap();
+    let table_set = selector_col(WasmOpcode::TableSet).unwrap();
     let resolve = selector_col(WasmOpcode::CallIndirectResolve).unwrap();
     let indirect_selectors = [(resolve, F::ONE)];
 
-    // ge = selector * ( table_index >= table_size )
+    // Every table-indexing opcode authenticates the declared table size and
+    // consumes the comparison as its modeled out-of-bounds trap.
     push_unsigned_ge_gadget(
         b,
-        [resolve],
+        [table_get, table_set, resolve],
         [(COL_TABLE_INDEX, F::ONE)],
         [(COL_TABLE_SIZE, F::ONE)],
         COL_CMP_LOW,
@@ -268,6 +284,20 @@ fn push_call_indirect_trap_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
 
     // COL_CI_OOB = selector * ge.
     b.push_row(indirect_selectors, [(COL_CMP_GE, F::ONE)], [(COL_CI_OOB, F::ONE)]);
+    // An out-of-bounds table.get/table.set row touches no table element, and
+    // table.get pushes a zero placeholder instead of an entry.
+    b.push_row(
+        [(table_get, F::ONE), (table_set, F::ONE)],
+        [(COL_CMP_GE, F::ONE)],
+        [(COL_TABLE_OOB, F::ONE)],
+    );
+    b.push_row(
+        [(table_set, F::ONE)],
+        [(COL_ONE, F::ONE), (COL_CMP_GE, -F::ONE)],
+        [(COL_TABLE_SET_LIVE, F::ONE)],
+    );
+    push_gated_linear_zero(b, COL_TABLE_OOB, [(COL_STACK_WRITE0_VALUE_LO, F::ONE)]);
+    push_gated_linear_zero(b, COL_TABLE_OOB, [(COL_STACK_WRITE0_VALUE_HI, F::ONE)]);
 
     // 0 encodes the null funcref
     CALL_INDIRECT_ENTRY_ZERO_TEST.push_constraints(b);
@@ -340,6 +370,7 @@ fn push_trapped_state_transition_constraints(b: &mut WasmTaggedR1csBuilder<'_>) 
         (COL_DIV_TRAP, -F::ONE),
         (COL_CALL_INDIRECT_IS_TRAP, -F::ONE),
         (COL_MEM_OOB, -F::ONE),
+        (COL_TABLE_OOB, -F::ONE),
     ]);
     b.push_row([(COL_IS_PROGRAM_ROW, F::ONE)], [(COL_TRAPPED_BEFORE, F::ONE)], []);
     b.push_row([(COL_OUTPUT_CAPTURED, F::ONE)], [(COL_TRAPPED_AFTER, F::ONE)], []);

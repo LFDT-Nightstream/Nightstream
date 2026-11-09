@@ -558,6 +558,22 @@ When the plan names each checked port once, each slot shows at most one active p
 
 **Several rows in one step.** One step can hold `k` rows of a catalog application, so that the rows share the cost of one fold. The step uses the batched catalog (`Spec.Nebula.MemoryTrace.batchCatalog`). It has the memories of the catalog in order. Each memory has the ports of row 0, then of row 1, up to row `k − 1`, and a map `shift i` moves the columns of row `i` to columns of the step witness. At `shift i c`, the step witness holds the value of row `i` at column `c`, for each column `c` that a port reads (`Spec.Nebula.MemoryTrace.HoldsRows`). So a step lists its events memory by memory, and its rows list them row by row. When the memory ids are distinct, each memory's events come in the same order in the two lists. So batched steps are memory consistent exactly when their rows, in order, are memory consistent (`Spec.Nebula.MemoryTrace.memoryConsistent_batchCatalog_iff` (`8884c58e0831ed34`)). When the regions are disjoint, every event of the rows is in range and the initial state holds the program images, an execution whose active ports, step after step, bind a reorder of the batched events of each step makes the trace of the rows memory consistent (`Spec.Nebula.MemoryTrace.memoryConsistent_of_batched_executes` (`d36926c9499e93e5`)). A slot plan that obeys the conditions above in each step gives this reorder (`Spec.Nebula.MemoryTrace.memoryConsistent_of_slotOrder_executes` (`763d05fb5fd4b167`)). Rust `neo_application::MemoryCatalog::batched` builds the batched catalog, and the catalog rejects two memories with one id. The application of an R1CS relation of one row, `nebula::R1csApplication`, keeps the constant-one column for all rows and moves each other column of row `i` by `i` times the row width. Its relation also makes each row's `previous_step_column`s equal to the next row's `next_step_column`s, and its slot plan is the one-row plan for each row in turn. It refuses a size that gives a memory of the catalog no region, so that no memory of it is only host-checked. `RowRelation::of` refuses a relation with a verifier-supplied column other than the constant-one column, because no memory verifier supplies such a column (`crates/nightstream/src/nebula/r1cs.rs`; not checked against Lean). The WASM application `neo_wasm::nebula::WasmApplication` is this application of the WASM relation, with column 0 as the constant-one column. `neo_wasm::nebula::WasmSize` fixes three sizes of it, each a geometry, the rows of one step and the regions of `WasmLimits::regions`. A WASM verifier takes the size from its statement, never from the run (`decisions/wasm-fixed-sizes.md`).
 
+### 7.7 WASM table access traps
+
+**Input.** A `table.get` or `table.set` row, its table id, its `u32` index, and the current table size.
+
+**Output.** One in-bounds table access, or a trapped terminal state.
+
+**Steps.**
+
+1. Read the table size from the table-size RAM at the program-bound table id, and compare the index with that size.
+2. If the index is below the size, read the table element for `table.get` or write it for `table.set`. Bind the value to the corresponding stack operand or result.
+3. Otherwise, disable the table-element port, mark the execution as trapped, and capture no output. A trapping `table.get` has no table value to read.
+
+**Rejects.** A normal return after an out-of-bounds access, a trapped return for an in-bounds access, or a table-element access on a trapping row.
+
+**Source.** [WebAssembly table execution](https://webassembly.github.io/spec/core/exec/instructions.html); `crates/neo-wasm/src/ccs/trap.rs`, `crates/neo-wasm/src/ccs/stack_io.rs`, and `crates/neo-wasm/src/adapters/wasmtime/normalize/trace_build.rs` (not checked against Lean).
+
 ### Algorithm 9. Memory step
 
 **Input.** The input state, the carry `c` and the application words that open it, the output application words, the private words, the step's lanes, and the proposals.

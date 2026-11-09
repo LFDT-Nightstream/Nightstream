@@ -135,7 +135,7 @@ fn integer_sign_extension_rows_are_accepted() {
         (WasmOpcode::I64Extend32S, 0x8000_0001, 4, true),
     ] {
         let row = conversion_row(opcode, value, width_bytes, writes_i64);
-        assert_satisfied(&build_witness_vector(&row), opcode.name());
+        assert_satisfied(&build_witness_vector(&row).unwrap(), opcode.name());
     }
 }
 
@@ -149,7 +149,7 @@ fn integer_sign_extension_rows_reject_tampered_low_output() {
         (WasmOpcode::I64Extend32S, 0x8000_0001, 4, true),
     ] {
         let row = conversion_row(opcode, value, width_bytes, writes_i64);
-        let mut witness = build_witness_vector(&row);
+        let mut witness = build_witness_vector(&row).unwrap();
         witness[COL_STACK_WRITE0_VALUE_LO] += F::ONE;
         assert_rejected(&witness, opcode.name());
     }
@@ -163,7 +163,7 @@ fn i64_sign_extension_rows_reject_tampered_high_output() {
         (WasmOpcode::I64Extend32S, 0x8000_0001, 4),
     ] {
         let row = conversion_row(opcode, value, width_bytes, true);
-        let mut witness = build_witness_vector(&row);
+        let mut witness = build_witness_vector(&row).unwrap();
         witness[COL_STACK_WRITE0_VALUE_HI] = F::ZERO;
         assert_rejected(&witness, opcode.name());
     }

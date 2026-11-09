@@ -382,6 +382,43 @@ impl HostEventBindings {
 
     /// Validate every binding against verifier-owned program tables.
     pub fn validate_against_program(&self, program: &WasmProgramTables) -> Result<(), WasmBuildError> {
+        // Memory slots address default memory 0. Without one, the absent-memory
+        // page word is above every real page count, so it bounds no access.
+        if program.initial_memory_pages.is_none() {
+            let mut blocks = self
+                .imports
+                .values()
+                .flat_map(|template| {
+                    template
+                        .events
+                        .iter()
+                        .chain(template.return_events.iter().flatten())
+                })
+                .chain(
+                    self.exports
+                        .values()
+                        .flat_map(|template| template.entry.iter().chain(&template.exit)),
+                );
+            let touches_memory = blocks.any(|event| {
+                event.block.iter().any(|slot| {
+                    matches!(
+                        slot,
+                        SlotBinding::MemoryRead32 { .. }
+                            | SlotBinding::MemoryRead8 { .. }
+                            | SlotBinding::MemoryRead16 { .. }
+                            | SlotBinding::MemoryWrite32 { .. }
+                            | SlotBinding::MemoryWrite8 { .. }
+                            | SlotBinding::MemoryWrite16 { .. }
+                    )
+                })
+            });
+            if touches_memory {
+                return Err(WasmBuildError::Unsupported(
+                    "host-event memory slot in a module with no default memory".into(),
+                ));
+            }
+        }
+
         for (&function_ref, template) in &self.imports {
             let (param_count, result_count, is_guest) = function_shape(program, function_ref)?;
 

@@ -20,6 +20,7 @@ fn public_builder_pads_blocks_derives_inputs_and_validates_functions() -> Result
     let wasm = wat::parse_str(
         r#"(module
             (import "host" "f" (func $f (param i32) (result i32)))
+            (memory 1)
             (func (export "run") (param i32) (result i32)
                 local.get 0
                 call $f))"#,
@@ -72,6 +73,7 @@ fn public_builder_constructs_and_validates_split_imports() -> Result<(), Box<dyn
         r#"(module
         (import "host" "f" (func (param i32) (result i32)))
         (import "host" "yield" (func))
+        (memory 1)
         (func (export "run")))"#,
     )?;
     let artifacts = neo_wasm::extract_wasm_program_artifacts(&wasm)?;
@@ -1138,4 +1140,40 @@ fn import_schedule_rom_packs_atomic_and_split_phases() {
             assert_eq!(packed >> 16, return_count.map_or(0, |n| n as u32 + 1));
         }
     }
+}
+
+#[test]
+fn memory_slots_need_a_default_memory() {
+    let validate = |source: &str| {
+        let wasm = wat::parse_str(source).unwrap();
+        let artifacts = neo_wasm::extract_wasm_program_artifacts(&wasm).unwrap();
+        let import_fref = u32::try_from(artifacts.tables.call_targets[0].1).expect("import fref");
+        let mut bindings = HostEventBindings::default();
+        bindings.imports.insert(
+            import_fref,
+            ImportTemplate {
+                return_events: None,
+                events: vec![EventBlock::op(
+                    40,
+                    slots(&[(
+                        0,
+                        SlotBinding::MemoryRead32 {
+                            base: MemoryBase::Arg(0),
+                            byte_offset: 0,
+                        },
+                    )]),
+                )],
+                input_count: 0,
+            },
+        );
+        bindings.validate_against_program(&artifacts.tables)
+    };
+    validate(
+        r#"(module (import "host" "f" (func $f (param i32))) (memory 1) (func (export "run") i32.const 0 call $f))"#,
+    )
+    .expect("a memory read validates when the module has a default memory");
+    let error =
+        validate(r#"(module (import "host" "f" (func $f (param i32))) (func (export "run") i32.const 0 call $f))"#)
+            .expect_err("a memory read has nothing to address without a default memory");
+    assert!(error.to_string().contains("no default memory"));
 }

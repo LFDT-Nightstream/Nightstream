@@ -594,7 +594,7 @@ fn capture_and_replay_share_host_event_address_rules() {
             (65536 - width, 0, true, None),
             (65536, 0, true, Some("out of bounds")),
             (u32::MAX, 1, true, Some("overflows wasm32")),
-            (16, 0, false, Some("requires default linear memory")),
+            (16, 0, false, Some("no default memory")),
             (16, 1, true, (width > 1).then_some("not naturally aligned")),
         ] {
             let memory = if has_memory { "(memory 1)" } else { "" };
@@ -641,7 +641,14 @@ fn capture_and_replay_share_host_event_address_rules() {
                 .exports
                 .insert(1, template(2, &[local(0, 0, Limb::Lo), write]));
             let wasm = wat::parse_str(&wat).unwrap();
-            let run = neo_wasm::collect_wasmtime_steps(&wasm, &write_bindings, "run", &[base as i32]).unwrap();
+            let collected = neo_wasm::collect_wasmtime_steps(&wasm, &write_bindings, "run", &[base as i32]);
+            if !has_memory {
+                // Binding validation refuses the memory slot before capture or replay.
+                let message = collected.unwrap_err().to_string();
+                assert!(message.contains(error.unwrap()), "{message}");
+                continue;
+            }
+            let run = collected.unwrap();
             let artifacts = run.artifacts().clone();
             let steps = &run.steps;
             let captured = steps[0].entry_memory.as_ref().unwrap();

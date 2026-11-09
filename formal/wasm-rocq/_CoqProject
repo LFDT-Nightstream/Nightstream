@@ -128,6 +128,7 @@ tests/BaseReturnTrace.v
 tests/VoidReturnTrace.v
 tests/TerminalWitness.v
 tests/ReturnWitness.v
+tests/SparseWitness.v
 tests/IntegerLocalTrace.v
 tests/IntegerLocals.v
 tests/IntegerDecode.v

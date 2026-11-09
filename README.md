@@ -41,7 +41,7 @@ explicit Fiat–Shamir and MSIS assumptions in the security argument.
 | `neo-math` | Goldilocks, extension-field, and ring arithmetic |
 | `neo-transcript` | Poseidon2 Fiat-Shamir transcript |
 | `neo-prover-metal` | Apple Metal prover kernels for `Engine::Metal` |
-| `neo-prover-cuda` | Required CUDA backend target |
+| `neo-prover-cuda` | NVIDIA CUDA prover kernels for `Engine::Cuda` (cuda-oxide) |
 
 ## Prover choices
 
@@ -49,7 +49,7 @@ explicit Fiat–Shamir and MSIS assumptions in the security argument.
 |---|---|
 | `Engine::Optimized` | Implemented on the CPU |
 | `Engine::Metal` | Implemented on Apple GPUs with the `metal` feature; without it, returns an error; no CPU fallback |
-| `Engine::Cuda` | Required WIP target; returns an error; no CPU fallback |
+| `Engine::Cuda` | Implemented on NVIDIA GPUs with the `cuda` feature (cuda-oxide toolchain); without it, returns an error; no CPU fallback |
 
 `PaperExact` is a reference engine of `neo-reductions` only. Its cost is
 exponential.

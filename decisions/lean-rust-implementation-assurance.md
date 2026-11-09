@@ -21,8 +21,7 @@ physical layout, package decoder, Rust implementation, proof backend, or
 deployment.
 
 Those implementation links need separate evidence. The required boundary is
-defined by the [F′ Lean architecture contract](../FPRIME_LEAN_ARCHITECTURE_SPEC.md)
-and the [Stage 1 owner goal](../FPRIME_STAGE1_GOAL.md).
+defined by the [F′ Lean architecture contract](../FPRIME_LEAN_ARCHITECTURE_SPEC.md).
 
 ## Decision
 

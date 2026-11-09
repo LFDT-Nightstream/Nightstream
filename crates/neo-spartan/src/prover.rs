@@ -21,7 +21,7 @@ use crate::matrix::{EarlyChallenges, EarlyValues, Tables};
 use crate::relation::{p1_points, setup_point, Relation, Shape};
 use crate::ring::{self, Mixing};
 use crate::setup::{self, FOLD};
-use crate::{mle, norm, sumcheck, Claim, ClaimWords, Error, Proof, Setup, LANES, LANE_VARIABLES, RUN_ORACLES};
+use crate::{mle, norm, pcs, sumcheck, Claim, ClaimWords, Error, Proof, Setup, LANES, LANE_VARIABLES, RUN_ORACLES};
 
 /// Prove `claim` for `witness` (54 × blocks), continuing `transcript`. The
 /// Merkle leaves hash on `accelerator`.
@@ -115,10 +115,12 @@ pub fn prove(
         .p1
         .commit(vec![fold_columns, coordinates(&omega_a)], &mut challenger, accelerator)?;
     let indices = relation.query_indices(&mut challenger);
-    let leaves = indices
-        .iter()
-        .map(|&index| setup.store.read(index))
-        .collect::<Result<Vec<_>, _>>()?;
+    // The store keeps no codeword: the oracles are encoded again here.
+    let leaves = setup.store.leaves(
+        &indices,
+        |k| crate::oracle(tables, key.blocks, k, variables),
+        &pcs::Dft::default().on(accelerator),
+    )?;
 
     let beta: Ext = challenger.sample_algebra_element();
     let late_trees = tables.late_trees(&ubar, &lanes, &omega_a, beta);

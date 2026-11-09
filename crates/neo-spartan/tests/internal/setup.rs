@@ -1,5 +1,8 @@
 //! Honest setup oracles at toy size: the streaming root against a direct
-//! encoding, the store round trip, and the honest fold with tampering.
+//! encoding, the store round trip with fewer stored levels, and the honest
+//! fold with tampering.
+
+use std::path::Path;
 
 use p3_field_v08::{BasedVectorSpace, Field, PrimeCharacteristicRing, TwoAdicField};
 
@@ -8,7 +11,8 @@ use crate::circuit::algebra::eq_eval;
 use crate::circuit::Native;
 use crate::field::{eq_table, Ext, Gl};
 use crate::hash::{compress, hash_leaf};
-use crate::setup::{build, check, fold, partials, query_point, Leaf, LeafView, Store, FOLD};
+use crate::pcs::Dft;
+use crate::setup::{build, build_stored, check, fold, partials, query_point, Leaf, LeafView, Store, FOLD};
 use crate::sumcheck::evaluate;
 use crate::Error;
 
@@ -164,9 +168,11 @@ fn honest_fold_accepts_and_tampering_rejects() {
     // Verifier: every leaf gives the fold's value at its query point.
     let folds: Vec<Vec<Ext>> = combined.iter().map(|oracle| fold(oracle, &alpha)).collect();
     let leaves = 1 << (n + 1 - FOLD);
-    for index in 0..leaves {
-        let leaf = store.read(index).unwrap();
-        let values = run_check(&root, index, &leaf, &groups, &alpha).unwrap();
+    let read = store
+        .leaves(&(0..leaves).collect::<Vec<_>>(), table, &Dft::default())
+        .unwrap();
+    for (index, leaf) in read.iter().enumerate() {
+        let values = run_check(&root, index, leaf, &groups, &alpha).unwrap();
         let q = point_of(index);
         for (value, folded) in values.iter().zip(&folds) {
             assert_eq!(*value, evaluate(folded, &q), "leaf {index}");
@@ -178,8 +184,7 @@ fn honest_fold_accepts_and_tampering_rejects() {
     forged[3] += Ext::ONE;
     let caught = (0..leaves)
         .filter(|&index| {
-            let leaf = store.read(index).unwrap();
-            let values = run_check(&root, index, &leaf, &groups, &alpha).unwrap();
+            let values = run_check(&root, index, &read[index], &groups, &alpha).unwrap();
             values[0] != evaluate(&forged, &point_of(index))
         })
         .count();
@@ -187,7 +192,7 @@ fn honest_fold_accepts_and_tampering_rejects() {
 
     // Tampered leaves, paths, roots and shapes are rejected.
     let index = 5;
-    let leaf = store.read(index).unwrap();
+    let leaf = read[index].clone();
     let reject = |leaf: &Leaf, root: &[Gl; 4], index: usize| run_check(root, index, leaf, &groups, &alpha).unwrap_err();
     for position in [0, 9, leaf.values.len() - 1] {
         let mut tampered = leaf.clone();
@@ -226,6 +231,52 @@ fn honest_fold_accepts_and_tampering_rejects() {
     assert!(matches!(
         reject(&short, &root, index),
         Error::Rejected("setup leaf shape")
+    ));
+}
+
+/// A store with fewer tree levels gives the same leaves from a smaller
+/// file, and it catches wrong oracles, a changed node and a cut file.
+#[test]
+fn a_store_with_fewer_levels_gives_the_same_leaves() {
+    let n = VARIABLES;
+    // 16 leaves: all five levels, or only the levels of 2 and 1 nodes.
+    let (full, top) = (Scratch::new("setup-full"), Scratch::new("setup-top"));
+    let root = build_stored(n, COUNT, table, Some(&full.0), 4).unwrap();
+    assert_eq!(build_stored(n, COUNT, table, Some(&top.0), 1).unwrap(), root);
+    let bytes = |dir: &Path| std::fs::metadata(dir.join("tree.bin")).unwrap().len();
+    assert_eq!(bytes(&full.0), 31 * 32);
+    assert_eq!(bytes(&top.0), 3 * 32);
+    assert_eq!(std::fs::read_dir(&top.0).unwrap().count(), 1, "only the tree is stored");
+
+    let indices = [0, 5, 6, 15, 5];
+    let expected = Store::open(&full.0, n, COUNT, &root)
+        .unwrap()
+        .leaves(&indices, table, &Dft::default())
+        .unwrap();
+    let store = Store::open(&top.0, n, COUNT, &root).unwrap();
+    assert_eq!(store.leaves(&indices, table, &Dft::default()).unwrap(), expected);
+    assert!(matches!(
+        store.leaves(&indices, |k| table(k + 1), &Dft::default()),
+        Err(Error::Setup("setup files do not match the oracles"))
+    ));
+    assert!(matches!(
+        store.leaves(&[16], table, &Dft::default()),
+        Err(Error::Setup("setup leaf index"))
+    ));
+
+    let path = top.0.join("tree.bin");
+    let mut tree = std::fs::read(&path).unwrap();
+    tree[0] ^= 1;
+    std::fs::write(&path, &tree).unwrap();
+    let changed = Store::open(&top.0, n, COUNT, &root).unwrap();
+    assert!(matches!(
+        changed.leaves(&indices, table, &Dft::default()),
+        Err(Error::Setup("setup files do not match the oracles"))
+    ));
+    std::fs::write(&path, &tree[..64]).unwrap();
+    assert!(matches!(
+        Store::open(&top.0, n, COUNT, &root),
+        Err(Error::Setup("setup files do not match the key shape"))
     ));
 }
 

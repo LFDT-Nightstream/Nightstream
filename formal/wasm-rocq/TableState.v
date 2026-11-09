@@ -3,7 +3,7 @@
    only table.set's selector gates a table write. *)
 From Stdlib Require Import List ZArith Lia.
 Require Import R1CS Columns FullRelation Range MemoryTrace MemoryCatalog OpcodeCatalog Wasm2
-  Selectors ProgramBinding TraceRefinement StraightLineSpec CodeLayout ProgramSpec.
+  Selectors CircuitFacts ProgramBinding TraceRefinement StraightLineSpec CodeLayout ProgramSpec.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -45,7 +45,7 @@ Proof.
 Qed.
 
 Lemma table_element_writes_gated :
-  writesOnlyWhen tableElementId COL_SEL_TABLE_SET memories = true.
+  writesOnlyWhen tableElementId COL_TABLE_SET_LIVE memories = true.
 Proof. vm_compute. reflexivity. Qed.
 
 Lemma table_size_read_only : readOnlyMemory tableSizeId memories = true.
@@ -89,8 +89,13 @@ Proof.
   - intros i r Hr. rewrite <- (Helements i r Hr). eapply replay_preserves; [exact Hreplay | ].
     apply Forall_forall. intros event Hevent.
     unfold eventsForTrace in Hevent. apply in_flat_map in Hevent. destruct Hevent as [w [Hw Hevent]].
-    exact (proj1 (Forall_forall _ _) (gated_write_row _ _ _ _ w table_element_writes_gated
-      (run_table_set_unselected program initial rows final w Hprime Hloaded Hrun Hw)) event Hevent).
+    assert (Hlive : w COL_TABLE_SET_LIVE <> 1).
+    { intros Hlive. apply (run_table_set_unselected program initial rows final w Hprime Hloaded Hrun Hw).
+      pose proof (proj1 (Forall_forall _ _) (proj1 Hrun) w Hw) as Hfull. pose proof (proj1 Hfull) as Hone.
+      circuit_row ([(COL_TABLE_SET_LIVE, 1)], [(COL_ONE, 1); (COL_SEL_TABLE_SET, -1)], ([] : SparseRow)) Hrow.
+      expand_row Hrow. rewrite Hone, Hlive in Hrow.
+      pose proof (value_bound w COL_SEL_TABLE_SET). field_linear Hrow. }
+    exact (proj1 (Forall_forall _ _) (gated_write_row _ _ _ _ w table_element_writes_gated Hlive) event Hevent).
 Qed.
 
 Lemma no_tables_loaded : forall s memory, store_TABLES s = [] -> tablesLoaded s memory.

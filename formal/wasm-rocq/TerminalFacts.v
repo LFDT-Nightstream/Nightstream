@@ -181,14 +181,14 @@ Proof.
       try (vm_compute; tauto); vm_compute in HchosenIn |- *; intuition congruence. }
   destruct Hzero as [Hunreachable [Hindirect Htail]].
   circuit_row ([(COL_TRAPPED_AFTER, 1); (COL_TRAPPED_BEFORE, -1); (COL_SEL_UNREACHABLE, -1); (COL_DIV_TRAP, -1);
-    (COL_CALL_INDIRECT_IS_TRAP, -1); (COL_MEM_OOB, -1)], [(COL_ONE, 1)], ([] : SparseRow)) Htrap.
+    (COL_CALL_INDIRECT_IS_TRAP, -1); (COL_MEM_OOB, -1); (COL_TABLE_OOB, -1)], [(COL_ONE, 1)], ([] : SparseRow)) Htrap.
   circuit_row ([(COL_ACTIVATION_FINISHED_AFTER, 1); (COL_ACTIVATION_FINISHED_BEFORE, -1); (COL_HOST_CLEAR_ACTIVATION_FINISHED, 1);
     (COL_CALL_STACK_POP_PRESENT, 1); (COL_PC_EDGE_KIND, -1); (COL_SEL_CALL_INDIRECT, 2);
     (COL_SEL_RETURN_CALL_INDIRECT, 2); (COL_SEL_UNREACHABLE, 2); (COL_DIV_TRAP, -1);
-    (COL_CALL_INDIRECT_IS_TRAP, -1); (COL_MEM_OOB, -1)], [(COL_ONE, 1)], ([] : SparseRow)) Hedge.
+    (COL_CALL_INDIRECT_IS_TRAP, -1); (COL_MEM_OOB, -1); (COL_TABLE_OOB, -1)], [(COL_ONE, 1)], ([] : SparseRow)) Hedge.
   expand_row Htrap. expand_row Hedge.
   circuit_boolean COL_DIV_TRAP Hdiv. circuit_boolean COL_CALL_INDIRECT_IS_TRAP Hci.
-  circuit_boolean COL_MEM_OOB Hmem. circuit_boolean COL_CALL_STACK_POP_PRESENT Hpop.
+  circuit_boolean COL_MEM_OOB Hmem. circuit_boolean COL_TABLE_OOB Htable. circuit_boolean COL_CALL_STACK_POP_PRESENT Hpop.
   assert (Hkind : 0 <= w COL_PC_EDGE_KIND < 4294967296)
     by (apply (full_u32 w COL_PC_EDGE_KIND Hprime Hfull); vm_compute; reflexivity).
   normalize_columns. rewrite Hone, HtrapAfter, Htb, Hunreachable in Htrap.

@@ -1,4 +1,4 @@
-//! Sparse R1CS value type for the batched and lookup-extended WASM relation.
+//! Sparse R1CS value type for the batched WASM relation with its operation constraints.
 //! Copied from `neo-fold-clean` (`frontends::r1cs_f_prime::SparseR1cs` and the
 //! shape errors of `frontends::direct_ccs::FrontendError`) so this crate does not
 //! depend on that folding stack.

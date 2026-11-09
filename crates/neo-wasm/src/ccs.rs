@@ -23,7 +23,7 @@ pub(crate) use trap::{
 };
 
 use super::gadgets::{push_gated_linear_zero, push_u32_le_bytes_decomp};
-use super::isa::{opcode_code, opcode_info_from_code, WasmOpTable, WasmOpcode};
+use super::isa::{opcode_code, opcode_info_from_code, WasmOpcode, WasmOperation};
 use super::layout::{
     selector_col, Column, COL_LOCALS_FBP_BEFORE, COL_LOCAL_ADDR_HI, COL_LOCAL_ADDR_LO, COL_LOCAL_INDEX,
     COL_LOCAL_ZERO_ACTIVE_BEFORE, COL_ONE, COL_PC_EDGE_KIND, COL_SELECT_OUT_DELTA_HI, COL_SELECT_OUT_DELTA_LO,
@@ -34,8 +34,8 @@ use super::tagged_r1cs_builder::{WasmConstraintScope, WasmConstraintTag, WasmR1c
 use crate::layout::{
     COL_ACTIVATION_FINISHED_AFTER, COL_ACTIVATION_FINISHED_BEFORE, COL_CALL_INDIRECT_IS_TRAP,
     COL_CALL_STACK_POP_PRESENT, COL_CMP_AND, COL_DIV_TRAP, COL_FRAME_MOVE_ACTIVE_BEFORE, COL_GATHER_ACTIVE,
-    COL_GLOBAL_VALUE_HI, COL_IS_PROGRAM_ROW, COL_LOCAL_VALUE_HI, COL_MEM_OOB, COL_OPCODE_CODE, COL_OP_TABLE_ENABLED,
-    COL_OP_TABLE_ID, COL_OP_TABLE_VALUE, COL_OUTPUT_CAPTURED, COL_PC_EDGE_KIND_INV, COL_PC_EDGE_KIND_IS_STATIC,
+    COL_GLOBAL_VALUE_HI, COL_IS_PROGRAM_ROW, COL_LOCAL_VALUE_HI, COL_MEM_OOB, COL_OPCODE_CODE, COL_OPERATION_ENABLED,
+    COL_OPERATION_ID, COL_OPERATION_VALUE, COL_OUTPUT_CAPTURED, COL_PC_EDGE_KIND_INV, COL_PC_EDGE_KIND_IS_STATIC,
     COL_PC_ROM_ACTIVE, COL_PROGRAM_CALL_INDIRECT_IMMEDIATES_ACTIVE, COL_PROGRAM_GLOBAL_INDEX_ACTIVE,
     COL_PROGRAM_LOCAL_INDEX_ACTIVE, COL_PROGRAM_TABLE_ID_ACTIVE, COL_SELECT_COND_IS_ZERO, COL_SELECT_SCRATCH_INV,
     COL_SEL_SELECT, COL_SP_AFTER, COL_SP_BEFORE, COL_STACK_READS, COL_STACK_READ_ACTIVE, COL_STACK_READ_ADDR_HI,
@@ -193,10 +193,9 @@ fn fixed_stack_arity_gate_terms() -> [(usize, F); 6] {
 }
 
 pub fn build_wasm_relation() -> Result<ApplicationRelation<WasmConstraintScope>, String> {
-    let witness_width = crate::RANGE_CHECKED_WITNESS_WIDTH;
     let layout = build_wasm_relation_layout();
     let linear_memory = layout.linear_memory;
-    let mut builder = WasmR1csBuilder::new(witness_width, PUBLIC_INPUTS, COL_ONE).map_err(|error| error.to_string())?;
+    let mut builder = WasmR1csBuilder::new(PUBLIC_INPUTS, COL_ONE).map_err(|error| error.to_string())?;
     let mut b = builder.tagged(always("unlabeled"));
 
     b.with_tag(shared("wide value gating", &wide_value_ops()), |b| {
@@ -449,14 +448,14 @@ pub fn build_wasm_relation() -> Result<ApplicationRelation<WasmConstraintScope>,
         );
     });
 
-    // A div trap de-gates the op-table relation; div/rem lookup tables only
-    // model completed, non-trapping arithmetic.
+    // A division trap disables the operation relation, which only models
+    // completed, non-trapping arithmetic.
     b.push_linear_zero(
-        core::iter::once((COL_OP_TABLE_ENABLED, F::ONE))
+        core::iter::once((COL_OPERATION_ENABLED, F::ONE))
             .chain(
-                WasmOpTable::all()
+                WasmOperation::all()
                     .into_iter()
-                    .map(|op| (selector_for_op_table(op), -F::ONE)),
+                    .map(|op| (selector_for_operation(op), -F::ONE)),
             )
             .chain(core::iter::once((COL_DIV_TRAP, F::ONE))),
     );
@@ -586,8 +585,8 @@ pub fn build_wasm_relation() -> Result<ApplicationRelation<WasmConstraintScope>,
         push_select_constraints(b);
     });
 
-    b.with_tag(always("op_table constraints"), |b| {
-        push_shout_constraints(b);
+    b.with_tag(always("operation constraints"), |b| {
+        push_operation_binding_constraints(b);
     });
     crate::range_check::push_range_check_rows(&mut b);
     b.with_tag(
@@ -660,9 +659,9 @@ pub fn build_wasm_relation() -> Result<ApplicationRelation<WasmConstraintScope>,
             [],
         );
     });
-    let r1cs = builder.build().map_err(|error| error.to_string())?;
-    ApplicationRelation::new(r1cs, crate::witness_layout::range_checked_column_registry())
-        .map_err(|error| error.to_string())
+    let columns = crate::witness_layout::range_checked_column_registry();
+    let r1cs = builder.build(&columns).map_err(|error| error.to_string())?;
+    ApplicationRelation::new(r1cs, columns).map_err(|error| error.to_string())
 }
 
 fn f_u16(v: u16) -> F {
@@ -671,10 +670,6 @@ fn f_u16(v: u16) -> F {
 
 pub(super) fn f_u64(v: u64) -> F {
     F::from_u64(v)
-}
-
-fn selector_for_lookup(op: WasmOpcode) -> usize {
-    selector_col(op).expect("lookup opcode selector column")
 }
 
 fn push_stack_write0_addr_sp_before(b: &mut WasmTaggedR1csBuilder<'_>, ops: &[WasmOpcode]) {
@@ -1120,20 +1115,20 @@ fn push_comparator_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     );
 }
 
-fn push_shout_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
+fn push_operation_binding_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     b.push_row(
-        WasmOpTable::all()
+        WasmOperation::all()
             .into_iter()
-            .map(|op| (selector_for_op_table(op), F::ONE)),
-        [(COL_OP_TABLE_VALUE, F::ONE), (COL_STACK_WRITE0_VALUE_LO, -F::ONE)],
+            .map(|op| (selector_for_operation(op), F::ONE)),
+        [(COL_OPERATION_VALUE, F::ONE), (COL_STACK_WRITE0_VALUE_LO, -F::ONE)],
         [],
     );
     b.push_row(
-        WasmOpTable::all()
+        WasmOperation::all()
             .into_iter()
-            .map(|op| (selector_for_op_table(op), F::from_u64(u64::from(op.op_table_id())))),
+            .map(|op| (selector_for_operation(op), F::from_u64(u64::from(op.operation_id())))),
         [(COL_ONE, F::ONE)],
-        [(COL_OP_TABLE_ID, F::ONE)],
+        [(COL_OPERATION_ID, F::ONE)],
     );
 }
 
@@ -1141,6 +1136,6 @@ pub(super) fn idx(column: Column) -> usize {
     column.0
 }
 
-fn selector_for_op_table(op: WasmOpTable) -> usize {
-    selector_for_lookup(op.opcode())
+fn selector_for_operation(op: WasmOperation) -> usize {
+    selector_col(op.opcode()).expect("operation opcode selector column")
 }

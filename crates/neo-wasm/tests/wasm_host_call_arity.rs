@@ -60,7 +60,7 @@ fn checked_import_run(
         .map(|row| build_witness_vector(row).unwrap())
         .collect();
     for (row, witness) in trace.iter().zip(&witness_rows) {
-        neo_wasm::sanity_check_lookup_row(&layout.auxiliary, witness)
+        neo_wasm::sanity_check_operation_row(&layout.auxiliary, witness)
             .unwrap_or_else(|err| panic!("lookup semantics rejected {:?}: {err}", row.opcode));
     }
     neo_wasm::memory_semantics::sanity_check_memory_rows(&layout, &witness_rows, &preload)

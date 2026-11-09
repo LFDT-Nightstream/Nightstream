@@ -20,7 +20,7 @@ fn range_layout() -> RangeCheckLayout {
                 region: "base",
                 start: ONE,
                 len: 1,
-                name: "ONE",
+                name: "ONE".into(),
                 role: "constant one",
                 width: ColumnWidth::Boolean,
             },
@@ -28,7 +28,7 @@ fn range_layout() -> RangeCheckLayout {
                 region: "base",
                 start: BYTE,
                 len: 1,
-                name: "BYTE",
+                name: "BYTE".into(),
                 role: "byte value",
                 width: ColumnWidth::Byte,
             },
@@ -36,7 +36,7 @@ fn range_layout() -> RangeCheckLayout {
                 region: "base",
                 start: WORD,
                 len: 1,
-                name: "WORD",
+                name: "WORD".into(),
                 role: "32-bit word",
                 width: ColumnWidth::U32,
             },
@@ -44,7 +44,7 @@ fn range_layout() -> RangeCheckLayout {
                 region: "base",
                 start: TWO_BITS,
                 len: 1,
-                name: "TWO_BITS",
+                name: "TWO_BITS".into(),
                 role: "two-bit value",
                 width: ColumnWidth::Bits(2),
             },
@@ -52,7 +52,7 @@ fn range_layout() -> RangeCheckLayout {
                 region: "base",
                 start: FIELD,
                 len: 1,
-                name: "FIELD",
+                name: "FIELD".into(),
                 role: "unrestricted field value",
                 width: ColumnWidth::Field,
             },
@@ -117,12 +117,12 @@ fn range_check_layout_allocates_and_assigns_explicit_bits() {
 #[test]
 fn range_check_constraints_accept_valid_values_and_reject_overflow() {
     let layout = range_layout();
-    let mut builder = R1csBuilder::new(layout.column_count(), 1, ONE).unwrap();
+    let mut builder = R1csBuilder::new(1, ONE).unwrap();
     layout.push_constraints(
         &mut builder.tagged(neo_application::ConstraintTag::new("range checks", "test")),
         "range check",
     );
-    let relation = builder.build().unwrap();
+    let relation = builder.build(layout.columns()).unwrap();
 
     let mut witness = vec![
         F::ONE,

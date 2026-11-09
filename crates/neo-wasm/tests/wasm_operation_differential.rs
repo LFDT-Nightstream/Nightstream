@@ -1,11 +1,11 @@
-//! Differential check of the compact operation table: honest rows pass,
+//! Differential check of the operation circuit: honest rows pass,
 //! forged outputs fail, and every value fits its declared width.
 
 mod common;
 
 use neo_math::F;
 use neo_wasm::layout::{COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO};
-use neo_wasm::{audit_compact_lookup_auxiliary_load_bearing, audit_compact_lookup_witness, write_range_check_bits};
+use neo_wasm::{audit_operation_auxiliary_load_bearing, audit_operation_witness, write_range_check_bits};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use std::collections::HashSet;
 
@@ -67,7 +67,11 @@ fn check(wide: bool, source: &str, opcodes: usize) {
     let relation = neo_wasm::batch::build_batched_wasm_ccs(1).expect("relation");
     let mut representatives = HashSet::new();
     let mut rows = 0;
-    for row in checked.trace.iter().filter(|row| row.info.uses_op_table) {
+    for row in checked
+        .trace
+        .iter()
+        .filter(|row| row.info.uses_operation_relation)
+    {
         rows += 1;
         let assignment =
             neo_wasm::batch::build_batched_witness(std::slice::from_ref(row), 1, 0).expect("batched witness");
@@ -80,10 +84,9 @@ fn check(wide: bool, source: &str, opcodes: usize) {
             );
         }
         let witness = neo_wasm::build_witness_vector(row).expect("witness");
-        audit_compact_lookup_witness(&witness)
-            .unwrap_or_else(|error| panic!("rejected honest {:?}: {error}", row.opcode));
+        audit_operation_witness(&witness).unwrap_or_else(|error| panic!("rejected honest {:?}: {error}", row.opcode));
         if representatives.insert(row.opcode) {
-            audit_compact_lookup_auxiliary_load_bearing(&witness)
+            audit_operation_auxiliary_load_bearing(&witness)
                 .unwrap_or_else(|error| panic!("{:?}: {error}", row.opcode));
         }
         let low = witness[COL_STACK_WRITE0_VALUE_LO].as_canonical_u64();
@@ -104,13 +107,13 @@ fn check(wide: bool, source: &str, opcodes: usize) {
             tampered[COL_STACK_WRITE0_VALUE_HI] = F::from_u64(forged >> 32);
             write_range_check_bits(&mut tampered);
             assert!(
-                audit_compact_lookup_witness(&tampered).is_err(),
+                audit_operation_witness(&tampered).is_err(),
                 "accepted forged {:?} output {forged:#x} (honest {honest:#x})",
                 row.opcode
             );
         }
     }
-    eprintln!("wide={wide}: {rows} op-table rows, {} opcodes", representatives.len());
+    eprintln!("wide={wide}: {rows} operation rows, {} opcodes", representatives.len());
     assert_eq!(representatives.len(), opcodes);
 }
 

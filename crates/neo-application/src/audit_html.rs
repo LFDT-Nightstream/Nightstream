@@ -28,7 +28,7 @@ struct Report {
 struct ColumnRecord {
     index: usize,
     name: String,
-    family: &'static str,
+    family: String,
     region: &'static str,
     width: String,
     role: &'static str,
@@ -45,7 +45,7 @@ struct ColumnRecord {
 #[serde(rename_all = "camelCase")]
 struct RowRecord {
     index: usize,
-    label: &'static str,
+    label: String,
     scope: String,
     a: Vec<TermRecord>,
     b: Vec<TermRecord>,
@@ -64,7 +64,7 @@ struct TermRecord {
 struct GadgetRecord {
     row_start: usize,
     row_end: usize,
-    label: &'static str,
+    label: String,
     scope: String,
     role: String,
 }
@@ -145,7 +145,7 @@ fn build_report<Owner: Display, Id: Display>(
         .enumerate()
         .map(|(row_index, tagged)| RowRecord {
             index: row_index,
-            label: tagged.tag().label(),
+            label: tagged.tag().label().into(),
             scope: tagged.tag().owner().to_string(),
             a: terms(tagged.row().a_terms()),
             b: terms(tagged.row().b_terms()),
@@ -178,7 +178,7 @@ fn build_report<Owner: Display, Id: Display>(
                     GadgetRecord {
                         row_start: occurrence.row_range().start,
                         row_end: occurrence.row_range().end,
-                        label: occurrence.tag().label(),
+                        label: occurrence.tag().label().into(),
                         scope: occurrence.tag().owner().to_string(),
                         role: format_gadget_role(gadget.role()),
                     }
@@ -242,7 +242,7 @@ fn build_report<Owner: Display, Id: Display>(
             ColumnRecord {
                 index: column,
                 name: column_name(relation, column),
-                family: family.name,
+                family: family.name.to_string(),
                 region: family.region,
                 width: format!("{:?}", family.width),
                 role: family.role,
@@ -274,9 +274,9 @@ fn column_name<Owner>(relation: &ApplicationRelation<Owner>, column: usize) -> S
         .family_for_column(column)
         .expect("relation terms and catalogs use in-range columns");
     if family.len == 1 {
-        family.name.to_owned()
+        family.name.to_string()
     } else {
-        format!("{}[{}]", family.name, column - family.start)
+        format!("{}[{}]", family.name.clone(), column - family.start)
     }
 }
 

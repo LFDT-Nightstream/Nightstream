@@ -71,6 +71,7 @@ impl Lc {
 pub(super) struct LookupR1csBuilder {
     values: Vec<F>,
     aux_start: usize,
+    widths: Vec<usize>,
     rows: Vec<LookupR1csRow>,
 }
 
@@ -78,6 +79,7 @@ impl LookupR1csBuilder {
     pub(super) fn new(base_assignment: &[F]) -> Self {
         Self {
             values: base_assignment.to_vec(),
+            widths: Vec::new(),
             aux_start: base_assignment.len(),
             rows: Vec::new(),
         }
@@ -110,9 +112,66 @@ impl LookupR1csBuilder {
         }
     }
 
+    pub(super) fn eval(&self, lc: &Lc) -> F {
+        lc.terms
+            .iter()
+            .fold(F::ZERO, |sum, &(column, coefficient)| {
+                sum + self.values[column] * coefficient
+            })
+    }
+
+    /// Allocate `left * right` of two Boolean forms with one row.
+    pub(super) fn alloc_product(&mut self, left: &Lc, right: &Lc) -> usize {
+        self.alloc_product_with_width(left, right, 1)
+    }
+
+    /// Allocate the product of two 16-bit limbs, a 32-bit value.
+    pub(super) fn alloc_limb_product(&mut self, left: &Lc, right: &Lc) -> usize {
+        self.alloc_product_with_width(left, right, 32)
+    }
+
+    fn alloc_product_with_width(&mut self, left: &Lc, right: &Lc, width: usize) -> usize {
+        let column = self.values.len();
+        self.values.push(self.eval(left) * self.eval(right));
+        self.widths.push(width);
+        self.push_row(left.clone(), right.clone(), Lc::var(column));
+        column
+    }
+
+    /// Allocate `select ? when_true : when_false` with one row. Boolean inputs
+    /// give a Boolean output.
+    pub(super) fn alloc_select(&mut self, select: &Lc, when_true: &Lc, when_false: &Lc) -> usize {
+        let column = self.values.len();
+        let value = self.eval(when_false) + self.eval(select) * (self.eval(when_true) - self.eval(when_false));
+        self.values.push(value);
+        self.widths.push(1);
+        self.push_row(
+            select.clone(),
+            when_true.clone().minus(when_false),
+            Lc::var(column).minus(when_false),
+        );
+        column
+    }
+
+    /// Packed equality of two Boolean vectors: one row per 32 bits.
+    pub(super) fn enforce_bits_equal_when(&mut self, gate: &Lc, left: &[Bit], right: &[Bit]) {
+        assert_eq!(left.len(), right.len());
+        for (left, right) in left.chunks(32).zip(right.chunks(32)) {
+            self.enforce_equal_when(gate, &Lc::from_bits(left), &Lc::from_bits(right));
+        }
+    }
+
+    /// Packed zero test of a Boolean vector: one row per 32 bits.
+    pub(super) fn enforce_bits_zero_when(&mut self, gate: &Lc, bits: &[Bit]) {
+        for chunk in bits.chunks(32) {
+            self.enforce_zero_when(gate, &Lc::from_bits(chunk));
+        }
+    }
+
     pub(super) fn alloc_bit(&mut self, value: bool) -> Bit {
         let column = self.values.len();
         self.values.push(if value { F::ONE } else { F::ZERO });
+        self.widths.push(1);
         self.push_row(Lc::var(column), Lc::var(column).minus(&Lc::one()), Lc::zero());
         column
     }
@@ -132,25 +191,6 @@ impl LookupR1csBuilder {
         Ok(output)
     }
 
-    pub(super) fn alloc_mux(&mut self, select: &Lc, when_true: &Lc, when_false: &Lc) -> Result<Bit, String> {
-        let value = if self.eval_bit(select)? {
-            self.eval_bit(when_true)?
-        } else {
-            self.eval_bit(when_false)?
-        };
-        let output = self.alloc_bit(value);
-        self.push_row(
-            select.clone(),
-            when_true.clone().minus(when_false),
-            Lc::var(output).minus(when_false),
-        );
-        Ok(output)
-    }
-
-    pub(super) fn mask_bit(&mut self, gate: &Lc, source: Bit) -> Result<Bit, String> {
-        self.alloc_and(gate, &Lc::var(source))
-    }
-
     pub(super) fn enforce_equal_when(&mut self, gate: &Lc, left: &Lc, right: &Lc) {
         self.push_row(gate.clone(), left.clone().minus(right), Lc::zero());
     }
@@ -163,12 +203,9 @@ impl LookupR1csBuilder {
         self.push_row(value, Lc::one(), Lc::zero());
     }
 
-    pub(super) fn enforce_product(&mut self, left: Lc, right: Lc, output: Lc) {
-        self.push_row(left, right, output);
-    }
-
-    pub(super) fn finish(self) -> (Vec<LookupR1csRow>, Vec<F>) {
-        (self.rows, self.values[self.aux_start..].to_vec())
+    /// Rows, auxiliary values, and the declared bit width of each auxiliary.
+    pub(super) fn finish(self) -> (Vec<LookupR1csRow>, Vec<F>, Vec<usize>) {
+        (self.rows, self.values[self.aux_start..].to_vec(), self.widths)
     }
 
     fn push_row(&mut self, left: Lc, right: Lc, output: Lc) {

@@ -28,7 +28,7 @@ pub(crate) fn extend_relation(
             expected: base.m,
         });
     }
-    let (lookup_rows, auxiliary_assignment) = fixed_rows(base.m)?;
+    let (lookup_rows, auxiliary_assignment, auxiliary_widths) = fixed_rows(base.m)?;
     let columns = base.m + auxiliary_assignment.len();
     let rows = base.n + lookup_rows.len();
     let mut a = matrix_triplets(&base.a);
@@ -60,20 +60,21 @@ pub(crate) fn extend_relation(
         columns,
         base.m_in,
     )?;
-    widths.resize(columns, 1);
+    widths.extend(auxiliary_widths);
+    debug_assert_eq!(widths.len(), columns);
     Ok(CompactLookupShape { relation, widths })
 }
 
 pub(crate) fn extend_witness(mut base_assignment: Vec<F>) -> Result<Vec<F>, LookupCircuitError> {
-    let (_, auxiliary_assignment) = compact::synthesize(&base_assignment)?;
+    let (_, auxiliary_assignment, _) = compact::synthesize(&base_assignment)?;
     base_assignment.extend(auxiliary_assignment);
     Ok(base_assignment)
 }
 
 #[doc(hidden)]
 pub fn audit_compact_lookup_witness(base_assignment: &[F]) -> Result<usize, LookupCircuitError> {
-    let (rows, fixed_auxiliary) = fixed_rows(base_assignment.len())?;
-    let (_, auxiliary_assignment) = compact::synthesize(base_assignment)?;
+    let (rows, fixed_auxiliary, _) = fixed_rows(base_assignment.len())?;
+    let (_, auxiliary_assignment, _) = compact::synthesize(base_assignment)?;
     if auxiliary_assignment.len() != fixed_auxiliary.len() {
         return Err(LookupCircuitError::AuxiliaryShapeDrift {
             actual: auxiliary_assignment.len(),
@@ -95,8 +96,8 @@ pub fn audit_compact_lookup_witness(base_assignment: &[F]) -> Result<usize, Look
 
 #[doc(hidden)]
 pub fn audit_compact_lookup_auxiliary_load_bearing(base_assignment: &[F]) -> Result<usize, LookupCircuitError> {
-    let (rows, fixed_auxiliary) = fixed_rows(base_assignment.len())?;
-    let (_, auxiliary_assignment) = compact::synthesize(base_assignment)?;
+    let (rows, fixed_auxiliary, _) = fixed_rows(base_assignment.len())?;
+    let (_, auxiliary_assignment, _) = compact::synthesize(base_assignment)?;
     if auxiliary_assignment.len() != fixed_auxiliary.len() {
         return Err(LookupCircuitError::AuxiliaryShapeDrift {
             actual: auxiliary_assignment.len(),
@@ -120,7 +121,9 @@ pub fn audit_compact_lookup_auxiliary_load_bearing(base_assignment: &[F]) -> Res
     Ok(auxiliary_assignment.len())
 }
 
-fn fixed_rows(base_columns: usize) -> Result<(Vec<LookupR1csRow>, Vec<F>), LookupCircuitError> {
+type FixedRows = (Vec<LookupR1csRow>, Vec<F>, Vec<usize>);
+
+fn fixed_rows(base_columns: usize) -> Result<FixedRows, LookupCircuitError> {
     if COL_ONE >= base_columns {
         return Err(LookupCircuitError::MissingConstantColumn {
             columns: base_columns,

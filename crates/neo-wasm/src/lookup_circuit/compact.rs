@@ -12,7 +12,6 @@ use crate::layout::{
 use crate::range_check::range_checked_bit_columns;
 
 const LIMB_BITS: usize = 16;
-const PRODUCT_BITS: usize = 32;
 const CARRY_BITS: usize = 18;
 
 struct Inputs {
@@ -24,37 +23,40 @@ struct Inputs {
     output64: Vec<Bit>,
 }
 
-pub(super) fn synthesize(base_assignment: &[F]) -> Result<(Vec<LookupR1csRow>, Vec<F>), String> {
+type Section = fn(&mut LookupR1csBuilder, &Inputs) -> Result<(), String>;
+
+const SECTIONS: &[(&str, Section)] = &[
+    ("bitwise", |b, i| enforce_bitwise(b, i)),
+    ("compare", |b, i| enforce_comparisons(b, i)),
+    ("shift32", |b, i| {
+        enforce_shifts(b, &i.left32, &i.right32, &i.output32, false)
+    }),
+    ("shift64", |b, i| {
+        enforce_shifts(b, &i.left64, &i.right64, &i.output64, true)
+    }),
+    ("mul", |b, i| enforce_mul(b, i)),
+    ("zcount32", |b, i| enforce_zero_counts(b, &i.left32, &i.output32, false)),
+    ("zcount64", |b, i| enforce_zero_counts(b, &i.left64, &i.output64, true)),
+    ("popcnt32", |b, i| {
+        enforce_popcount(b, &i.left32, &i.output32, WasmOpcode::I32Popcnt)
+    }),
+    ("popcnt64", |b, i| {
+        enforce_popcount(b, &i.left64, &i.output64, WasmOpcode::I64Popcnt)
+    }),
+    ("divrem32", |b, i| {
+        enforce_div_rem(b, &i.left32, &i.right32, &i.output32, false)
+    }),
+    ("divrem64", |b, i| {
+        enforce_div_rem(b, &i.left64, &i.right64, &i.output64, true)
+    }),
+];
+
+pub(super) fn synthesize(base_assignment: &[F]) -> Result<(Vec<LookupR1csRow>, Vec<F>, Vec<usize>), String> {
     let inputs = Inputs::new()?;
     let mut builder = LookupR1csBuilder::new(base_assignment);
-
-    enforce_bitwise(&mut builder, &inputs.left32, &inputs.right32, &inputs.output32, false)?;
-    enforce_bitwise(&mut builder, &inputs.left64, &inputs.right64, &inputs.output64, true)?;
-    enforce_comparisons(&mut builder, &inputs.left32, &inputs.right32, &inputs.output32, false)?;
-    enforce_comparisons(&mut builder, &inputs.left64, &inputs.right64, &inputs.output64, true)?;
-    enforce_shifts(&mut builder, &inputs.left32, &inputs.right32, &inputs.output32, false)?;
-    enforce_shifts(&mut builder, &inputs.left64, &inputs.right64, &inputs.output64, true)?;
-    enforce_mul(
-        &mut builder,
-        &inputs.left32,
-        &inputs.right32,
-        &inputs.output32,
-        WasmOpcode::I32Mul,
-    )?;
-    enforce_mul(
-        &mut builder,
-        &inputs.left64,
-        &inputs.right64,
-        &inputs.output64,
-        WasmOpcode::I64Mul,
-    )?;
-    enforce_zero_counts(&mut builder, &inputs.left32, &inputs.output32, false)?;
-    enforce_zero_counts(&mut builder, &inputs.left64, &inputs.output64, true)?;
-    enforce_popcount(&mut builder, &inputs.left32, &inputs.output32, WasmOpcode::I32Popcnt)?;
-    enforce_popcount(&mut builder, &inputs.left64, &inputs.output64, WasmOpcode::I64Popcnt)?;
-    enforce_div_rem(&mut builder, &inputs.left32, &inputs.right32, &inputs.output32, false)?;
-    enforce_div_rem(&mut builder, &inputs.left64, &inputs.right64, &inputs.output64, true)?;
-
+    for (_, section) in SECTIONS {
+        section(&mut builder, &inputs)?;
+    }
     Ok(builder.finish())
 }
 
@@ -77,121 +79,104 @@ impl Inputs {
     }
 }
 
-fn enforce_bitwise(
-    builder: &mut LookupR1csBuilder,
-    left: &[Bit],
-    right: &[Bit],
-    output: &[Bit],
-    wide: bool,
-) -> Result<(), String> {
-    let operations = if wide {
-        [WasmOpcode::I64And, WasmOpcode::I64Or, WasmOpcode::I64Xor]
-    } else {
-        [WasmOpcode::I32And, WasmOpcode::I32Or, WasmOpcode::I32Xor]
-    };
-    for operation in operations {
-        let gate = opcode_lc(operation);
-        for ((&left, &right), &output) in left.iter().zip(right).zip(output) {
-            let masked_left = builder.mask_bit(&gate, left)?;
-            let product = builder.alloc_and(&Lc::var(masked_left), &Lc::var(right))?;
-            match operation {
-                WasmOpcode::I32And | WasmOpcode::I64And => {
-                    builder.enforce_equal_when(&gate, &Lc::var(output), &Lc::var(product));
-                }
-                WasmOpcode::I32Or | WasmOpcode::I64Or => {
-                    let sum = Lc::var(left).plus(&Lc::var(right)).minus(&Lc::var(output));
-                    builder.enforce_product(gate.clone(), sum, Lc::var(product));
-                }
-                WasmOpcode::I32Xor | WasmOpcode::I64Xor => {
-                    let sum = Lc::var(left).plus(&Lc::var(right)).minus(&Lc::var(output));
-                    builder.enforce_product(gate.clone(), sum, Lc::var(product).scaled(F::from_u64(2)));
-                }
-                _ => unreachable!(),
-            }
-        }
-    }
-    Ok(())
-}
-
-fn enforce_comparisons(
-    builder: &mut LookupR1csBuilder,
-    left: &[Bit],
-    right: &[Bit],
-    output: &[Bit],
-    wide: bool,
-) -> Result<(), String> {
-    let operations = comparison_operations(wide);
-    let selectors = operations
-        .iter()
-        .map(|&(operation, _, _, _)| opcode_selector(operation))
-        .collect::<Vec<_>>();
-    let activation = selector_lc(&selectors);
-    let inactive = Lc::one().minus(&activation);
-    let selected = selected_opcode(
-        builder,
-        &selectors,
-        &operations.iter().map(|entry| entry.0).collect::<Vec<_>>(),
-    )?;
-    let config = selected.and_then(|selected| {
-        operations
-            .iter()
-            .find(|(operation, _, _, _)| *operation == selected)
-            .copied()
-    });
-
-    let mut selected_left = Vec::with_capacity(left.len());
-    let mut selected_right = Vec::with_capacity(right.len());
-    for bit in 0..left.len() {
-        let (left_value, right_value) = if let Some((_, swap, _, _)) = config {
-            if swap {
-                (builder.value_bit(right[bit])?, builder.value_bit(left[bit])?)
+/// One product per bit serves AND, OR and XOR of both widths: AND = l*r,
+/// OR = l + r - l*r, XOR = l + r - 2*l*r.
+fn enforce_bitwise(builder: &mut LookupR1csBuilder, inputs: &Inputs) -> Result<(), String> {
+    use WasmOpcode::*;
+    for index in 0..64 {
+        let gate = |narrow: WasmOpcode, wide: WasmOpcode| {
+            if index < 32 {
+                ops_lc(&[narrow, wide])
             } else {
-                (builder.value_bit(left[bit])?, builder.value_bit(right[bit])?)
+                ops_lc(&[wide])
             }
-        } else {
-            (false, false)
         };
-        let left_wire = builder.alloc_bit(left_value);
-        let right_wire = builder.alloc_bit(right_value);
-        for &(operation, swap, _, _) in &operations {
-            let gate = opcode_lc(operation);
-            let left_source = if swap { right[bit] } else { left[bit] };
-            let right_source = if swap { left[bit] } else { right[bit] };
-            builder.enforce_equal_when(&gate, &Lc::var(left_wire), &Lc::var(left_source));
-            builder.enforce_equal_when(&gate, &Lc::var(right_wire), &Lc::var(right_source));
-        }
-        builder.enforce_zero_when(&inactive, &Lc::var(left_wire));
-        builder.enforce_zero_when(&inactive, &Lc::var(right_wire));
-        selected_left.push(left_wire);
-        selected_right.push(right_wire);
-    }
-
-    let signed = selector_lc(
-        &operations
-            .iter()
-            .filter(|(_, _, signed, _)| *signed)
-            .map(|(operation, _, _, _)| opcode_selector(*operation))
-            .collect::<Vec<_>>(),
-    );
-    let last = left.len() - 1;
-    selected_left[last] = builder.alloc_xor(&Lc::var(selected_left[last]), &signed)?;
-    selected_right[last] = builder.alloc_xor(&Lc::var(selected_right[last]), &signed)?;
-    let less = enforce_less_than(builder, &selected_left, &selected_right)?;
-    let invert = selector_lc(
-        &operations
-            .iter()
-            .filter(|(_, _, _, invert)| *invert)
-            .map(|(operation, _, _, _)| opcode_selector(*operation))
-            .collect::<Vec<_>>(),
-    );
-    let result = builder.alloc_xor(&Lc::var(less), &invert)?;
-    builder.enforce_equal_when(&activation, &Lc::var(output[0]), &Lc::var(result));
-    for &bit in &output[1..] {
-        builder.enforce_zero_when(&activation, &Lc::var(bit));
+        let left = Lc::var(inputs.left64[index]);
+        let right = Lc::var(inputs.right64[index]);
+        let output = Lc::var(inputs.output64[index]);
+        let product = Lc::var(builder.alloc_product(&left, &right));
+        let sum = left.plus(&right);
+        builder.enforce_equal_when(&gate(I32And, I64And), &output, &product);
+        builder.enforce_equal_when(&gate(I32Or, I64Or), &output, &sum.clone().minus(&product));
+        builder.enforce_equal_when(
+            &gate(I32Xor, I64Xor),
+            &output,
+            &sum.minus(&product.scaled(F::from_u64(2))),
+        );
     }
     Ok(())
 }
 
+/// Allocate `left - right - borrow_in + 2^32` for each 32-bit half as 33
+/// bits. The top bit of a half is 1 iff that prefix does not borrow.
+fn no_borrow_bits(
+    builder: &mut LookupR1csBuilder,
+    left: &[Bit],
+    right: &[Bit],
+    borrow_in: &Lc,
+) -> Result<Vec<Bit>, String> {
+    let mut borrow = borrow_in.clone();
+    let mut tops = Vec::new();
+    for (left, right) in left.chunks(32).zip(right.chunks(32)) {
+        let value = (i128::from(bits_u64(builder, left)?)
+            - i128::from(bits_u64(builder, right)?)
+            - i128::from(builder.eval(&borrow).as_canonical_u64())
+            + (1i128 << 32)) as u64;
+        let bits = allocate_u64_bits(builder, value, 33);
+        builder.enforce_linear_zero(
+            Lc::from_bits(&bits)
+                .minus(&Lc::from_bits(left))
+                .plus(&Lc::from_bits(right))
+                .plus(&borrow)
+                .minus(&Lc::one().scaled(F::from_u64(1 << 32))),
+        );
+        borrow = Lc::one().minus(&Lc::var(bits[32]));
+        tops.push(bits[32]);
+    }
+    Ok(tops)
+}
+
+/// All 16 comparisons share one subtraction `l - r - c`. `c = 1` turns
+/// `<` into `<=`; an inverted result gives `>` and `>=`. A signed result is
+/// the unsigned result XOR both sign bits.
+fn enforce_comparisons(builder: &mut LookupR1csBuilder, inputs: &Inputs) -> Result<(), String> {
+    let narrow = comparison_operations(false);
+    let wide = comparison_operations(true);
+    let filter = |table: &[(WasmOpcode, bool, bool, bool)], pick: fn(&(WasmOpcode, bool, bool, bool)) -> bool| {
+        table
+            .iter()
+            .filter(|entry| pick(entry))
+            .map(|entry| entry.0)
+            .collect::<Vec<_>>()
+    };
+    let both = narrow.iter().chain(&wide).copied().collect::<Vec<_>>();
+    let narrow_gate = ops_lc(&filter(&narrow, |_| true));
+    let wide_gate = ops_lc(&filter(&wide, |_| true));
+    let activation = narrow_gate.clone().plus(&wide_gate);
+    let borrow_in = ops_lc(&filter(&both, |entry| entry.1));
+    let invert = ops_lc(&filter(&both, |entry| entry.3));
+    let tops = no_borrow_bits(builder, &inputs.left64, &inputs.right64, &borrow_in)?;
+    let narrow_top = builder.alloc_product(&narrow_gate, &Lc::var(tops[0]));
+    let wide_top = builder.alloc_product(&wide_gate, &Lc::var(tops[1]));
+    let borrow = activation
+        .clone()
+        .minus(&Lc::var(narrow_top))
+        .minus(&Lc::var(wide_top));
+    let narrow_signs = builder.alloc_xor(&Lc::var(inputs.left64[31]), &Lc::var(inputs.right64[31]))?;
+    let wide_signs = builder.alloc_xor(&Lc::var(inputs.left64[63]), &Lc::var(inputs.right64[63]))?;
+    let narrow_flip = builder.alloc_product(&ops_lc(&filter(&narrow, |entry| entry.2)), &Lc::var(narrow_signs));
+    let wide_flip = builder.alloc_product(&ops_lc(&filter(&wide, |entry| entry.2)), &Lc::var(wide_signs));
+    let signed = builder.alloc_xor(&borrow, &Lc::var(narrow_flip).plus(&Lc::var(wide_flip)))?;
+    let result = builder.alloc_xor(&Lc::var(signed), &invert)?;
+    builder.enforce_equal_when(&activation, &Lc::var(inputs.output64[0]), &Lc::var(result));
+    builder.enforce_bits_zero_when(&activation, &inputs.output64[1..32]);
+    builder.enforce_bits_zero_when(&wide_gate, &inputs.output64[32..]);
+    Ok(())
+}
+
+/// One left barrel shifter. Right shifts and `rotr` reverse the input and
+/// the output, so every operation shifts left. The fill of the low bits is
+/// zero, the wrapped bit (rotations), or the sign (`shr_s`).
 fn enforce_shifts(
     builder: &mut LookupR1csBuilder,
     value: &[Bit],
@@ -199,104 +184,97 @@ fn enforce_shifts(
     output: &[Bit],
     wide: bool,
 ) -> Result<(), String> {
-    let operations = if wide {
-        [
-            WasmOpcode::I64Shl,
-            WasmOpcode::I64ShrU,
-            WasmOpcode::I64ShrS,
-            WasmOpcode::I64Rotl,
-            WasmOpcode::I64Rotr,
-        ]
+    use WasmOpcode::*;
+    let [shl, shr_u, shr_s, rotl, rotr] = if wide {
+        [I64Shl, I64ShrU, I64ShrS, I64Rotl, I64Rotr]
     } else {
-        [
-            WasmOpcode::I32Shl,
-            WasmOpcode::I32ShrU,
-            WasmOpcode::I32ShrS,
-            WasmOpcode::I32Rotl,
-            WasmOpcode::I32Rotr,
-        ]
+        [I32Shl, I32ShrU, I32ShrS, I32Rotl, I32Rotr]
     };
-    let selectors = operations.map(opcode_selector);
-    let activation = selector_lc(&selectors);
-    let inactive = Lc::one().minus(&activation);
-    let selected = selected_opcode(builder, &selectors, &operations)?;
-    let mut current = value.to_vec();
+    let width = value.len();
+    let activation = ops_lc(&[shl, shr_u, shr_s, rotl, rotr]);
+    let reverse = ops_lc(&[shr_u, shr_s, rotr]);
+    let rotate = ops_lc(&[rotl, rotr]);
+    let sign = Lc::var(builder.alloc_product(&ops_lc(&[shr_s]), &Lc::var(value[width - 1])));
+    let mut current = vec![Lc::zero(); width];
+    for low in 0..width / 2 {
+        let high = width - 1 - low;
+        let chosen = builder.alloc_select(&reverse, &Lc::var(value[high]), &Lc::var(value[low]));
+        current[low] = Lc::var(chosen);
+        current[high] = Lc::var(value[low])
+            .plus(&Lc::var(value[high]))
+            .minus(&Lc::var(chosen));
+    }
     for (stage, &amount_bit) in amount
         .iter()
-        .take(value.len().trailing_zeros() as usize)
+        .take(width.trailing_zeros() as usize)
         .enumerate()
     {
         let distance = 1usize << stage;
-        let mut next = Vec::with_capacity(value.len());
-        for index in 0..value.len() {
-            let shifted_value = selected
-                .and_then(|operation| shift_source(operation, &current, index, distance))
-                .map(|source| builder.value_bit(source))
-                .transpose()?
-                .unwrap_or(false);
-            let shifted = builder.alloc_bit(shifted_value);
-            for operation in operations {
-                let source = shift_source(operation, &current, index, distance);
-                match source {
-                    Some(source) => {
-                        builder.enforce_equal_when(&opcode_lc(operation), &Lc::var(shifted), &Lc::var(source));
-                    }
-                    None => builder.enforce_zero_when(&opcode_lc(operation), &Lc::var(shifted)),
-                }
-            }
-            builder.enforce_zero_when(&inactive, &Lc::var(shifted));
-            next.push(builder.alloc_mux(&Lc::var(amount_bit), &Lc::var(shifted), &Lc::var(current[index]))?);
+        let mut next = Vec::with_capacity(width);
+        for index in 0..width {
+            let source = if index >= distance {
+                current[index - distance].clone()
+            } else {
+                let wrapped = builder.alloc_product(&rotate, &current[width - distance + index]);
+                Lc::var(wrapped).plus(&sign)
+            };
+            next.push(Lc::var(builder.alloc_select(
+                &Lc::var(amount_bit),
+                &source,
+                &current[index],
+            )));
         }
         current = next;
     }
-    for (&actual, &expected) in output.iter().zip(&current) {
-        builder.enforce_equal_when(&activation, &Lc::var(actual), &Lc::var(expected));
-    }
+    let shifted = current.iter().map(|lc| lc.terms[0].0).collect::<Vec<_>>();
+    let reversed = shifted.iter().rev().copied().collect::<Vec<_>>();
+    builder.enforce_bits_equal_when(&activation.minus(&reverse), output, &shifted);
+    builder.enforce_bits_equal_when(&reverse, output, &reversed);
     Ok(())
 }
 
-fn enforce_mul(
-    builder: &mut LookupR1csBuilder,
-    left: &[Bit],
-    right: &[Bit],
-    output: &[Bit],
-    operation: WasmOpcode,
-) -> Result<(), String> {
-    let gate = opcode_lc(operation);
-    let product_value = bits_u64(builder, left)?.wrapping_mul(bits_u64(builder, right)?);
-    let product_output = allocate_u64_bits(builder, product_value, output.len());
-    let limbs = left.len() / LIMB_BITS;
-    let mut products = vec![Vec::<Lc>::new(); limbs];
+/// One 64-bit multiplier with field limb products. `i32.mul` reads the low
+/// two limbs, which depend only on the low input limbs.
+fn enforce_mul(builder: &mut LookupR1csBuilder, inputs: &Inputs) -> Result<(), String> {
+    let narrow = opcode_lc(WasmOpcode::I32Mul);
+    let wide = opcode_lc(WasmOpcode::I64Mul);
+    let limbs = 4;
+    let mut products = vec![Vec::<usize>::new(); limbs];
     for left_limb in 0..limbs {
         for right_limb in 0..limbs - left_limb {
-            let product = allocate_product_bits(builder, limb(&left, left_limb), limb(&right, right_limb))?;
-            products[left_limb + right_limb].push(Lc::from_bits(&product));
+            products[left_limb + right_limb].push(builder.alloc_limb_product(
+                &Lc::from_bits(limb(&inputs.left64, left_limb)),
+                &Lc::from_bits(limb(&inputs.right64, right_limb)),
+            ));
         }
     }
     let mut carry = Lc::zero();
     let mut carry_value = 0u64;
     for index in 0..limbs {
-        let product_value = products[index]
+        let gate = if index < 2 {
+            narrow.clone().plus(&wide)
+        } else {
+            wide.clone()
+        };
+        let total = products[index]
             .iter()
-            .map(|product| lc_u64(builder, product))
-            .collect::<Result<Vec<_>, _>>()?
-            .into_iter()
-            .sum::<u64>();
-        let total = product_value + carry_value;
-        carry_value = total >> LIMB_BITS;
+            .map(|&product| builder.eval(&Lc::var(product)).as_canonical_u64())
+            .sum::<u64>()
+            + carry_value;
+        carry_value = if builder.eval_bit(&gate)? {
+            total >> LIMB_BITS
+        } else {
+            0
+        };
         let carry_bits = allocate_u64_bits(builder, carry_value, CARRY_BITS);
-        let mut equation = carry
-            .clone()
-            .minus(&Lc::from_bits(limb(&product_output, index)));
-        for product in &products[index] {
-            equation = equation.plus(product);
+        let mut equation = carry.minus(&Lc::from_bits(limb(&inputs.output64, index)));
+        for &product in &products[index] {
+            equation = equation.plus(&Lc::var(product));
         }
         equation = equation.add_scaled(&Lc::from_bits(&carry_bits), -F::from_u64(1 << LIMB_BITS));
-        builder.enforce_linear_zero(equation);
+        builder.enforce_zero_when(&gate, &equation);
+        builder.enforce_bits_zero_when(&Lc::one().minus(&gate), &carry_bits);
         carry = Lc::from_bits(&carry_bits);
-    }
-    for (&actual, &expected) in output.iter().zip(&product_output) {
-        builder.enforce_equal_when(&gate, &Lc::var(actual), &Lc::var(expected));
     }
     Ok(())
 }
@@ -312,40 +290,25 @@ fn enforce_zero_counts(
     } else {
         (WasmOpcode::I32Clz, WasmOpcode::I32Ctz)
     };
-    let activation = selector_lc(&[opcode_selector(leading), opcode_selector(trailing)]);
-    let inactive = Lc::one().minus(&activation);
-    let selected = selected_opcode(
-        builder,
-        &[opcode_selector(leading), opcode_selector(trailing)],
-        &[leading, trailing],
-    )?;
+    let activation = ops_lc(&[leading, trailing]);
+    let width = input.len();
+    let mut source = vec![Lc::zero(); width];
+    for low in 0..width / 2 {
+        let high = width - 1 - low;
+        let chosen = builder.alloc_select(&opcode_lc(leading), &Lc::var(input[high]), &Lc::var(input[low]));
+        source[low] = Lc::var(chosen);
+        source[high] = Lc::var(input[low])
+            .plus(&Lc::var(input[high]))
+            .minus(&Lc::var(chosen));
+    }
     let mut previous = activation.clone();
-    let mut prefix = Vec::with_capacity(input.len());
-    for index in 0..input.len() {
-        let source_index = if selected == Some(leading) {
-            input.len() - 1 - index
-        } else {
-            index
-        };
-        let source = builder.alloc_bit(selected.is_some() && builder.value_bit(input[source_index])?);
-        builder.enforce_equal_when(
-            &opcode_lc(leading),
-            &Lc::var(source),
-            &Lc::var(input[input.len() - 1 - index]),
-        );
-        builder.enforce_equal_when(&opcode_lc(trailing), &Lc::var(source), &Lc::var(input[index]));
-        builder.enforce_zero_when(&inactive, &Lc::var(source));
-        let next = builder.alloc_and(&previous, &Lc::one().minus(&Lc::var(source)))?;
-        prefix.push(next);
+    let mut count = Lc::zero();
+    for bit in &source {
+        let next = builder.alloc_product(&previous, &Lc::one().minus(bit));
+        count = count.plus(&Lc::var(next));
         previous = Lc::var(next);
     }
-    let count = prefix
-        .iter()
-        .fold(Lc::zero(), |sum, &bit| sum.plus(&Lc::var(bit)));
-    builder.enforce_equal_when(&activation, &Lc::from_bits(&output[..32]), &count);
-    if wide {
-        builder.enforce_zero_when(&activation, &Lc::from_bits(&output[32..]));
-    }
+    enforce_count_output(builder, &activation, output, &count);
     Ok(())
 }
 
@@ -358,12 +321,15 @@ fn enforce_popcount(
     let count = input
         .iter()
         .fold(Lc::zero(), |sum, &bit| sum.plus(&Lc::var(bit)));
-    let activation = opcode_lc(operation);
-    builder.enforce_equal_when(&activation, &Lc::from_bits(&output[..32]), &count);
-    if output.len() > 32 {
-        builder.enforce_zero_when(&activation, &Lc::from_bits(&output[32..]));
-    }
+    enforce_count_output(builder, &opcode_lc(operation), output, &count);
     Ok(())
+}
+
+/// A count is at most 64. Pack only the low 32 output bits and force the
+/// rest to zero: a 64-bit packing can wrap modulo p.
+fn enforce_count_output(builder: &mut LookupR1csBuilder, gate: &Lc, output: &[Bit], count: &Lc) {
+    builder.enforce_equal_when(gate, &Lc::from_bits(&output[..32]), count);
+    builder.enforce_bits_zero_when(gate, &output[32..]);
 }
 
 fn enforce_div_rem(
@@ -424,9 +390,9 @@ fn enforce_div_rem(
     let quotient = allocate_u64_bits(builder, quotient_value, dividend.len());
     let remainder = allocate_u64_bits(builder, remainder_value, dividend.len());
     let inactive = Lc::one().minus(&activation);
-    for &bit in quotient.iter().chain(&remainder) {
-        builder.enforce_zero_when(&inactive, &Lc::var(bit));
-        builder.enforce_zero_when(&Lc::var(special_remainder), &Lc::var(bit));
+    for bits in [&quotient, &remainder] {
+        builder.enforce_bits_zero_when(&inactive, bits);
+        builder.enforce_bits_zero_when(&Lc::var(special_remainder), bits);
     }
     for (operation, active) in &active_bits {
         let expected = if matches!(
@@ -437,9 +403,7 @@ fn enforce_div_rem(
         } else {
             &remainder
         };
-        for (&actual, &expected) in output.iter().zip(expected) {
-            builder.enforce_equal_when(&Lc::var(*active), &Lc::var(actual), &Lc::var(expected));
-        }
+        builder.enforce_bits_equal_when(&Lc::var(*active), output, expected);
     }
 
     let dividend_negative = builder.alloc_and(&signed, &Lc::var(*dividend.last().unwrap()))?;
@@ -455,100 +419,65 @@ fn enforce_div_rem(
         builder.alloc_xor(&Lc::var(quotient_expected_negative), &Lc::var(quotient_actual_negative))?;
     let remainder_sign_mismatch =
         builder.alloc_xor(&Lc::var(dividend_negative), &Lc::var(remainder_actual_negative))?;
-    for &bit in &quotient_abs {
-        builder.enforce_zero_when(&Lc::var(quotient_sign_mismatch), &Lc::var(bit));
-    }
-    for &bit in &remainder_abs {
-        builder.enforce_zero_when(&Lc::var(remainder_sign_mismatch), &Lc::var(bit));
-    }
-    let dividend_active = mask_bits(builder, &regular_activation, &dividend_abs)?;
-    let divisor_active = mask_bits(builder, &regular_activation, &divisor_abs)?;
+    builder.enforce_bits_zero_when(&Lc::var(quotient_sign_mismatch), &quotient_abs);
+    builder.enforce_bits_zero_when(&Lc::var(remainder_sign_mismatch), &remainder_abs);
     enforce_exact_division_identity(
         builder,
-        &dividend_active,
-        &divisor_active,
+        &regular_activation,
+        &dividend_abs,
+        &divisor_abs,
         &quotient_abs,
         &remainder_abs,
     )?;
-    let less = enforce_less_than(builder, &remainder_abs, &divisor_active)?;
-    builder.enforce_equal_when(&regular_activation, &Lc::var(less), &Lc::one());
+    // remainder < divisor: the subtraction remainder - divisor borrows.
+    let tops = no_borrow_bits(builder, &remainder_abs, &divisor_abs, &Lc::zero())?;
+    builder.enforce_zero_when(&regular_activation, &Lc::var(*tops.last().unwrap()));
     Ok(())
 }
 
 fn enforce_exact_division_identity(
     builder: &mut LookupR1csBuilder,
+    gate: &Lc,
     dividend: &[Bit],
     divisor: &[Bit],
     quotient: &[Bit],
     remainder: &[Bit],
 ) -> Result<(), String> {
+    let active = builder.eval_bit(gate)?;
     let limbs = dividend.len() / LIMB_BITS;
-    let mut products = vec![Vec::<Lc>::new(); 2 * limbs - 1];
+    let mut products = vec![Vec::<usize>::new(); 2 * limbs - 1];
     for left_limb in 0..limbs {
         for right_limb in 0..limbs {
-            let product = allocate_product_bits(builder, limb(divisor, left_limb), limb(quotient, right_limb))?;
-            products[left_limb + right_limb].push(Lc::from_bits(&product));
+            products[left_limb + right_limb].push(builder.alloc_limb_product(
+                &Lc::from_bits(limb(divisor, left_limb)),
+                &Lc::from_bits(limb(quotient, right_limb)),
+            ));
         }
     }
     let mut carry = Lc::zero();
     let mut carry_value = 0u64;
     for index in 0..2 * limbs {
-        let product_value = products
-            .get(index)
-            .into_iter()
-            .flatten()
-            .map(|product| lc_u64(builder, product))
-            .collect::<Result<Vec<_>, _>>()?
-            .into_iter()
-            .sum::<u64>();
-        let remainder_value = if index < limbs {
-            bits_u64(builder, limb(remainder, index))?
-        } else {
-            0
-        };
-        let total = product_value + remainder_value + carry_value;
         let mut equation = carry.clone();
-        if let Some(group) = products.get(index) {
-            for product in group {
-                equation = equation.plus(product);
-            }
+        let mut total = carry_value;
+        for &product in products.get(index).into_iter().flatten() {
+            equation = equation.plus(&Lc::var(product));
+            total += builder.eval(&Lc::var(product)).as_canonical_u64();
         }
         if index < limbs {
+            total += bits_u64(builder, limb(remainder, index))?;
             equation = equation.plus(&Lc::from_bits(limb(remainder, index)));
             equation = equation.minus(&Lc::from_bits(limb(dividend, index)));
         }
         if index + 1 < 2 * limbs {
-            carry_value = total >> LIMB_BITS;
+            carry_value = if active { total >> LIMB_BITS } else { 0 };
             let next = allocate_u64_bits(builder, carry_value, CARRY_BITS);
+            builder.enforce_bits_zero_when(&Lc::one().minus(gate), &next);
             equation = equation.add_scaled(&Lc::from_bits(&next), -F::from_u64(1 << LIMB_BITS));
             carry = Lc::from_bits(&next);
         }
-        builder.enforce_linear_zero(equation);
+        builder.enforce_zero_when(gate, &equation);
     }
     Ok(())
-}
-
-fn enforce_less_than(builder: &mut LookupR1csBuilder, left: &[Bit], right: &[Bit]) -> Result<Bit, String> {
-    let mut borrow = false;
-    let mut borrow_lc = Lc::zero();
-    let mut last = None;
-    for (&left, &right) in left.iter().zip(right) {
-        let left_value = builder.value_bit(left)?;
-        let right_value = builder.value_bit(right)?;
-        let signed = i8::from(left_value) - i8::from(right_value) - i8::from(borrow);
-        let difference = builder.alloc_bit(signed.rem_euclid(2) == 1);
-        let next_borrow = builder.alloc_bit(signed < 0);
-        let equation = Lc::var(left)
-            .minus(&Lc::var(right))
-            .minus(&borrow_lc)
-            .minus(&Lc::var(difference))
-            .add_scaled(&Lc::var(next_borrow), F::from_u64(2));
-        builder.enforce_linear_zero(equation);
-        borrow = signed < 0;
-        borrow_lc = Lc::var(next_borrow);
-        last = Some(next_borrow);
-    }
-    last.ok_or_else(|| "lookup comparison width is zero".to_owned())
 }
 
 fn conditional_abs(builder: &mut LookupR1csBuilder, input: &[Bit], negative: &Lc) -> Result<Vec<Bit>, String> {
@@ -587,19 +516,6 @@ fn conditional_abs(builder: &mut LookupR1csBuilder, input: &[Bit], negative: &Lc
         carry = Lc::var(next);
     }
     builder.enforce_equal_when(negative, &carry, &Lc::one());
-    Ok(output)
-}
-
-fn mask_bits(builder: &mut LookupR1csBuilder, gate: &Lc, bits: &[Bit]) -> Result<Vec<Bit>, String> {
-    bits.iter()
-        .map(|&bit| builder.mask_bit(gate, bit))
-        .collect()
-}
-
-fn allocate_product_bits(builder: &mut LookupR1csBuilder, left: &[Bit], right: &[Bit]) -> Result<Vec<Bit>, String> {
-    let value = bits_u64(builder, left)? * bits_u64(builder, right)?;
-    let output = allocate_u64_bits(builder, value, PRODUCT_BITS);
-    builder.enforce_product(Lc::from_bits(left), Lc::from_bits(right), Lc::from_bits(&output));
     Ok(output)
 }
 
@@ -661,58 +577,33 @@ fn division_values(
     }
 }
 
+/// (operation, borrow in, signed, invert): `<` is `l - r` borrows, `<=` is
+/// `l - r - 1` borrows, `>` is not `<=`, and `>=` is not `<`.
 fn comparison_operations(wide: bool) -> [(WasmOpcode, bool, bool, bool); 8] {
+    use WasmOpcode::*;
     if wide {
         [
-            (WasmOpcode::I64LtS, false, true, false),
-            (WasmOpcode::I64LtU, false, false, false),
-            (WasmOpcode::I64GtS, true, true, false),
-            (WasmOpcode::I64GtU, true, false, false),
-            (WasmOpcode::I64LeS, true, true, true),
-            (WasmOpcode::I64LeU, true, false, true),
-            (WasmOpcode::I64GeS, false, true, true),
-            (WasmOpcode::I64GeU, false, false, true),
+            (I64LtS, false, true, false),
+            (I64LtU, false, false, false),
+            (I64GtS, true, true, true),
+            (I64GtU, true, false, true),
+            (I64LeS, true, true, false),
+            (I64LeU, true, false, false),
+            (I64GeS, false, true, true),
+            (I64GeU, false, false, true),
         ]
     } else {
         [
-            (WasmOpcode::I32LtS, false, true, false),
-            (WasmOpcode::I32LtU, false, false, false),
-            (WasmOpcode::I32GtS, true, true, false),
-            (WasmOpcode::I32GtU, true, false, false),
-            (WasmOpcode::I32LeS, true, true, true),
-            (WasmOpcode::I32LeU, true, false, true),
-            (WasmOpcode::I32GeS, false, true, true),
-            (WasmOpcode::I32GeU, false, false, true),
+            (I32LtS, false, true, false),
+            (I32LtU, false, false, false),
+            (I32GtS, true, true, true),
+            (I32GtU, true, false, true),
+            (I32LeS, true, true, false),
+            (I32LeU, true, false, false),
+            (I32GeS, false, true, true),
+            (I32GeU, false, false, true),
         ]
     }
-}
-
-fn shift_source(operation: WasmOpcode, current: &[Bit], index: usize, distance: usize) -> Option<Bit> {
-    let width = current.len();
-    match operation {
-        WasmOpcode::I32Shl | WasmOpcode::I64Shl => index.checked_sub(distance).map(|source| current[source]),
-        WasmOpcode::I32ShrU | WasmOpcode::I64ShrU => current.get(index + distance).copied(),
-        WasmOpcode::I32ShrS | WasmOpcode::I64ShrS => current
-            .get(index + distance)
-            .copied()
-            .or_else(|| current.last().copied()),
-        WasmOpcode::I32Rotl | WasmOpcode::I64Rotl => Some(current[(index + width - distance) % width]),
-        WasmOpcode::I32Rotr | WasmOpcode::I64Rotr => Some(current[(index + distance) % width]),
-        _ => unreachable!(),
-    }
-}
-
-fn selected_opcode(
-    builder: &LookupR1csBuilder,
-    selectors: &[usize],
-    operations: &[WasmOpcode],
-) -> Result<Option<WasmOpcode>, String> {
-    for (&selector, &operation) in selectors.iter().zip(operations) {
-        if builder.value_bit(selector)? {
-            return Ok(Some(operation));
-        }
-    }
-    Ok(None)
 }
 
 fn limb(bits: &[Bit], index: usize) -> &[Bit] {
@@ -724,18 +615,6 @@ fn bits_u64(builder: &LookupR1csBuilder, bits: &[Bit]) -> Result<u64, String> {
         .enumerate()
         .try_fold(0u64, |value, (bit, &column)| {
             Ok(value | (u64::from(builder.value_bit(column)?) << bit))
-        })
-}
-
-fn lc_u64(builder: &LookupR1csBuilder, lc: &Lc) -> Result<u64, String> {
-    lc.terms
-        .iter()
-        .try_fold(0u64, |value, &(column, coefficient)| {
-            let coefficient = coefficient.as_canonical_u64();
-            let bit = u64::from(builder.value_bit(column)?);
-            value
-                .checked_add(bit * coefficient)
-                .ok_or_else(|| "lookup limb value overflow".to_owned())
         })
 }
 
@@ -753,6 +632,15 @@ fn wide_bits(low: usize, high: usize) -> Result<Vec<Bit>, String> {
 
 fn opcode_selector(operation: WasmOpcode) -> usize {
     selector_col(operation).expect("operation-table opcode has a selector")
+}
+
+fn ops_lc(operations: &[WasmOpcode]) -> Lc {
+    selector_lc(
+        &operations
+            .iter()
+            .map(|&operation| opcode_selector(operation))
+            .collect::<Vec<_>>(),
+    )
 }
 
 fn opcode_lc(operation: WasmOpcode) -> Lc {

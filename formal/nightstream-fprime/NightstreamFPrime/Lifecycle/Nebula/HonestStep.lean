@@ -185,7 +185,7 @@ theorem complete (valid : p.Valid) {c c' : MemoryCarry} (reach : Reach p c)
     StepWitness.length_words _, ?_, ?_⟩
   · unfold MemoryApp.valid
     rw [StepWitness.decode_words]
-    exact ⟨Honest.rowsHold _ _ _ valid reach accepted, appRows⟩
+    exact ⟨Honest.rowsHold _ _ _ valid reach accepted, appRows, StepWitness.auxHonest_words _⟩
   · unfold MemoryApp.step
     congr 1
     · congr 1

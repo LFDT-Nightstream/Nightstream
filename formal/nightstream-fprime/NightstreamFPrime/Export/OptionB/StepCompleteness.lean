@@ -14,10 +14,10 @@ fresh CCS statement with public input `encHash digest` (`fresh_complete`). The a
 the package's logical width with zeros (`WideLayout.extend`), so it is zero past that width.
 `light_complete` and `refresh_complete` read the digest from the step's output.
 
-Four premises are computed checks on the package, as `CircuitRelation.packable` is: the blocks
+Three premises are computed checks on the package, as `CircuitRelation.packable` is: the blocks
 pack, every piece reads only columns below the first fresh column
-(`PieceRowsCompleteness.pieceBelow`), no piece reads a quiet column (`SlotCompleteness.bitsSafe`),
-and no row of the circuit reads a public column (`publicFree`). -/
+(`PieceRowsCompleteness.pieceBelow`), and no row of the circuit reads a public column
+(`publicFree`). -/
 
 set_option autoImplicit false
 
@@ -46,7 +46,7 @@ variable {logicalWidth : Nat}
 
 /-- No row of the circuit reads a public column. -/
 def publicFree (constraints : List Expr) : Bool :=
-  constraints.all fun expression => (exprVars expression).all fun column =>
+  constraints.all fun expression => (SlotLayout.exprColumns expression).all fun column =>
     decide (publicColumns ≤ column)
 
 /-- `env` with its public columns set to `encHash digest`. -/
@@ -74,7 +74,7 @@ theorem constraints_complete (ops : List Op) (digestColumn : Fin 4 → Nat) (env
   intro expression member
   rcases List.mem_append.mp member with flat | decode
   · have above := List.all_eq_true.mp free expression flat
-    rw [eval_of_vars (right := env) expression fun column read => by
+    rw [RowReads.eval_of_columns (right := env) expression fun column read => by
       have bound := List.all_eq_true.mp above column read
       simp only [decide_eq_true_eq] at bound
       simp [withPublic, not_lt.mpr bound]]
@@ -106,19 +106,6 @@ theorem pieces_complete (circuit : FormalCircuit) (offset : Nat) (digestColumn :
     (CircuitRelation.constraints circuit offset digestColumn)]
   exact List.mem_flatMap.mpr ⟨piece, member, inPiece⟩
 
-theorem quiet_public {pieces : List Piece} {next : Nat}
-    (packed : packable publicColumns pieces = true) (publicBelow : publicColumns ≤ next)
-    (batches : List WitnessBatch) (env : Env) {column : Nat} (inside : column < publicColumns) :
-    completeEnv pieces next (quiet publicColumns pieces next batches env) column = env column := by
-  rw [completeEnv_low (by have := next_le_sboxStart pieces next; omega),
-    executePieces_below _ _ _ _ _ (by omega)]
-  have notQuiet : (quietMarks publicColumns pieces next batches).getD column false = false := by
-    rw [quietMarks_getD]
-    simp only [Bool.and_eq_false_iff, decide_eq_false_iff_not]
-    left; left; right
-    omega
-  simp [liveEnv, packable_public packed inside, quiet, notQuiet]
-
 /-- The fresh CCS statement of an honest step: the commitment to the honest assignment and the
 public input `encHash digest` hold under the relation of the circuit's key, read through the
 package's slot layout widened to the key width. The committed witness is zero past the package's
@@ -133,8 +120,6 @@ theorem fresh_complete (circuit : FormalCircuit) (offset : Nat) (digestColumn : 
     (packed : packable publicColumns (CircuitRelation.pieces circuit offset digestColumn) = true)
     (below : (CircuitRelation.pieces circuit offset digestColumn).all (pieceBelow firstFresh) = true)
     (publicBelow : publicColumns ≤ firstFresh) (batches : List WitnessBatch)
-    (safe : bitsSafe publicColumns (CircuitRelation.pieces circuit offset digestColumn) firstFresh
-      batches = true)
     (wideFits : ProductionAssignment.logicalWidth (SlotLayout.runSlots width
       (StepPackage.slotRuns publicColumns (CircuitRelation.pieces circuit offset digestColumn)
         firstFresh batches)) ≤ logicalWidth)
@@ -170,7 +155,7 @@ theorem fresh_complete (circuit : FormalCircuit) (offset : Nat) (digestColumn : 
     exact encHash_norm (publicFits := publicFits) digest ⟨column, inside⟩
   obtain ⟨rows, bounded⟩ := SlotCompleteness.rowsZero_of_holds fits packed
     (fun piece member => valid_split _ _ piece member)
-    (fun piece member => List.all_eq_true.mp below piece member) publicBelow batches safe wideFits
+    (fun piece member => List.all_eq_true.mp below piece member) publicBelow batches wideFits
     (withPublic (publicFits := publicFits) digest env) piecesHold marker publicNorm
   refine ⟨_, Layout.ProductionRelation.Plan.rowsZero_implies_freshHolds _ cubeFits ajtai _ _ rows
     bounded ?_, ?_⟩
@@ -198,7 +183,7 @@ theorem fresh_complete (circuit : FormalCircuit) (offset : Nat) (digestColumn : 
     show (⟨column.val, narrow⟩ : Fin _) =
       ProductionAssignment.publicColumn ⟨column.val, column.isLt⟩ from rfl,
     ProductionAssignment.logicalAssignment_publicColumn]
-  rw [quiet_public packed publicBelow batches _ column.isLt]
+  rw [completeEnv_public packed publicBelow _ column.isLt]
   exact congrFun (publicInput_withPublic (publicFits := publicFits) digest env) column
 
 /-! ### The light and refresh steps -/
@@ -260,7 +245,6 @@ theorem light_complete (relation : ProductionKey.LogicalRelation logicalWidth pu
     (packed : packable publicColumns (lightPieces program relation ajtai) = true)
     (below : (lightPieces program relation ajtai).all (pieceBelow firstFresh) = true)
     (publicBelow : publicColumns ≤ firstFresh) (batches : List WitnessBatch)
-    (safe : bitsSafe publicColumns (lightPieces program relation ajtai) firstFresh batches = true)
     (wideFits : ProductionAssignment.logicalWidth (SlotLayout.runSlots width
       (StepPackage.slotRuns publicColumns (lightPieces program relation ajtai) firstFresh batches)) ≤
         logicalWidth)
@@ -280,7 +264,7 @@ theorem light_complete (relation : ProductionKey.LogicalRelation logicalWidth pu
             batches)) ≤ column.val →
         Phi81CarrierLayout.extendAssignment 0 assignment column = 0 :=
   fresh_complete _ _ _ env holds output.x (digest_getD represents.outputDigest)
-    (digestColumn_above program) free firstFresh width fits packed below publicBelow batches safe
+    (digestColumn_above program) free firstFresh width fits packed below publicBelow batches
     wideFits cubeFits ajtai
 
 /-- An honest refresh step's assignment (`RefreshAssemblerCompleteness.complete`) gives a fresh
@@ -305,7 +289,6 @@ theorem refresh_complete (relation : ProductionKey.LogicalRelation logicalWidth 
     (packed : packable publicColumns (refreshPieces program relation ajtai) = true)
     (below : (refreshPieces program relation ajtai).all (pieceBelow firstFresh) = true)
     (publicBelow : publicColumns ≤ firstFresh) (batches : List WitnessBatch)
-    (safe : bitsSafe publicColumns (refreshPieces program relation ajtai) firstFresh batches = true)
     (wideFits : ProductionAssignment.logicalWidth (SlotLayout.runSlots width
       (StepPackage.slotRuns publicColumns (refreshPieces program relation ajtai) firstFresh
         batches)) ≤ logicalWidth)
@@ -325,7 +308,7 @@ theorem refresh_complete (relation : ProductionKey.LogicalRelation logicalWidth 
             batches)) ≤ column.val →
         Phi81CarrierLayout.extendAssignment 0 assignment column = 0 :=
   fresh_complete _ _ _ env holds output.x (digest_getD represents.outputDigest)
-    (digestColumn_above program) free firstFresh width fits packed below publicBelow batches safe
+    (digestColumn_above program) free firstFresh width fits packed below publicBelow batches
     wideFits cubeFits ajtai
 
 end Steps

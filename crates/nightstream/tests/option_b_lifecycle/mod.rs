@@ -130,7 +130,11 @@ fn addition() -> ApplicationCircuit {
 /// claims a wrong next state, because the application's rows fail.
 fn native_application_verifies(application: ApplicationCircuit) {
     let packages = packages()
-        .with_application(application.records().clone(), application.private_input_count())
+        .with_application(
+            application.records().clone(),
+            application.private_input_count(),
+            application.shape(),
+        )
         .expect("packages with the application");
     let mut prover = OptionB::new(packages, MINIMUM_SECURITY_BITS).expect("option-B prover");
     prover.cap = 1;
@@ -168,6 +172,75 @@ fn native_hash_chain_verifies() {
 #[test]
 fn native_addition_verifies() {
     native_application_verifies(addition());
+}
+
+/// Σ coefficient · (point³ + unit) over every entry of every plan row, with
+/// unit `4 · row + port` and point `16,777,259 · unit + column + 1`.
+fn plan_sum(rows: &nightstream_fprime::PlanRows) -> F {
+    let mut sum = F::ZERO;
+    for row in 0..rows.row_count() {
+        for port in 0..4 {
+            let unit = (4 * row + port) as u64;
+            for (column, coefficient) in rows.port(row, port) {
+                let point = F::from_u64(unit * 16_777_259 + column as u64 + 1);
+                sum += coefficient * (point * point * point + F::from_u64(unit));
+            }
+        }
+    }
+    sum
+}
+
+/// The Rust hash chain in place of Lean's gives Lean's step packages: the same
+/// blocks, the same plan rows entry for entry, and the same slot for every
+/// column. So each permutation is a block with no slot for its dead locals.
+#[test]
+fn native_hash_chain_packages_are_lean_packages() {
+    let lean = packages();
+    let application = poseidon2_hash_chain_v1().expect("hash chain");
+    assert_eq!(application.shape().blocks.len(), 5);
+    let native = lean
+        .with_application(application.records().clone(), 4, application.shape())
+        .expect("packages with the application");
+    for (lean, native) in [(lean.light(), native.light()), (lean.refresh(), native.refresh())] {
+        assert_eq!(native.block_count(), lean.block_count());
+        let (lean_rows, native_rows) = (lean.plan_rows().expect("rows"), native.plan_rows().expect("rows"));
+        assert_eq!(native_rows.row_count(), lean_rows.row_count());
+        assert_eq!(plan_sum(&native_rows), plan_sum(&lean_rows));
+        let (lean_layout, native_layout) = (lean.layout().expect("layout"), native.layout().expect("layout"));
+        assert_eq!(native_layout.width(), lean_layout.width());
+        let end = lean.sbox_start() + 150 * lean.block_count();
+        assert!((0..end).all(|column| native_layout.slot(column) == lean_layout.slot(column)));
+    }
+}
+
+/// `Circuit::compile` refuses a block whose rows are not the permutation of
+/// its lanes: a lane with another constant, and a block one local late.
+#[test]
+fn a_block_that_is_not_its_permutation_is_refused() {
+    use crate::application::ApplicationError;
+    let honest = poseidon2_hash_chain_v1().expect("hash chain");
+    let forged = |change: &dyn Fn(&mut nightstream_fprime::NativeBlock)| {
+        let mut shape = honest.shape().clone();
+        change(&mut shape.blocks[1]);
+        ApplicationCircuit::from_records(
+            honest.records().clone(),
+            honest.private_input_count(),
+            honest.prepared_output_forms().expect("forms"),
+            honest.prepared_output_rows(),
+            shape,
+        )
+        .expect("application")
+    };
+    assert!(crate::application::check_blocks(&honest).is_ok());
+    for application in [
+        forged(&|block| block.lanes[3].constant += F::ONE),
+        forged(&|block| block.first_local += 1),
+    ] {
+        assert!(matches!(
+            crate::Circuit::compile(application),
+            Err(crate::Error::Application(ApplicationError::Block(1)))
+        ));
+    }
 }
 
 /// The CPU time of each option-B step. Steps 1 to 3 are light; a refresh step

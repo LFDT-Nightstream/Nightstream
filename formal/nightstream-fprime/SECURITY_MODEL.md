@@ -541,7 +541,7 @@ item 5).
   the honest proof of every valid run
   (`Export.OptionB.RunCompleteness.run_complete`) and of every memory
   execution (`Export.OptionB.NebulaCompleteness.memory_complete`). These
-  results take as premises four package checks that the emitter evaluates
+  results take as premises three package checks that the emitter evaluates
   (`Export.OptionB.StepExtend.Complete`), key digests of four words, and
   witnesses of the application's witness length. For the finish step and
   compression, Lean proves completeness at the claim level: for every valid

@@ -33,17 +33,17 @@ const FINISH: &str = "nightstream-fprime-option-b-finish-v1.json";
 /// (`digest` and `prefix digest` on its `match` line). Update them only after
 /// `option_b_final_program_matches_lean` passes.
 const OPTION_B_PROGRAM_DIGEST: [u64; 4] = [
-    6243941552903648443,
-    760004916793754930,
-    2311402051706560037,
-    3978389973766729642,
+    9044411208361155644,
+    8605451508935200214,
+    7642635369954473411,
+    10863209041063832151,
 ];
 
 const OPTION_B_PREFIX_DIGEST: [u64; 4] = [
-    14486531763551752578,
-    13332460791682912240,
-    336403331866124949,
-    12339972930509328780,
+    3016189186810146961,
+    13533441749090092956,
+    13261553799314376047,
+    10890027131309518377,
 ];
 
 pub(super) fn workspace() -> PathBuf {

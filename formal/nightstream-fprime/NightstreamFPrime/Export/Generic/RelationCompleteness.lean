@@ -1,5 +1,6 @@
 import NightstreamFPrime.Export.Generic.CircuitRelation
 import NightstreamFPrime.Export.Generic.PieceRowsCompleteness
+import NightstreamFPrime.Export.Generic.RowReads
 import NightstreamFPrime.Layout.ProductionRelation.PoseidonSboxSourceCompleteness
 
 /-! Completeness of a circuit's packed relation (CW-10.2), the converse of
@@ -7,10 +8,12 @@ import NightstreamFPrime.Layout.ProductionRelation.PoseidonSboxSourceCompletenes
 hold. Set the blocks' dead locals to 0 (`liveEnv`), add the lowering's fresh columns
 (`PieceRowsCompleteness.executePieces`), and put each block's 150 S-box outputs from `sboxStart`,
 read from the block's locals (`completeEnv`). An assignment whose layout reads this environment
-below `slotEnd` satisfies the relation's plan (`rowsZero_of_holds`): the lowered rows by
-`executePieces_spec`, the S-box rows because the block's constraints give its honest trace
+on each column that the relation reads (`Reads`) satisfies the relation's plan
+(`rowsZero_of_holds`): the lowered rows by `executePieces_spec`, the S-box rows because the
+block's constraints give its honest trace
 (`PoseidonSboxSourceCompleteness.equations_of_sourceRows`), and the binding rows because a block's
-outputs are the permutation of its inputs.
+outputs are the permutation of its inputs. A column that no row reads has no slot
+(`StepPackage.runsOf`, SPEC.md section 4.4).
 
 The final program checks a package's columns without the slot layout: the rows of the pieces other
 than the blocks, and each block's outputs as the permutation of its inputs. The lowering's fresh
@@ -108,23 +111,31 @@ theorem ofFn_runF (state : Fin 16 → F) :
   rw [Permutation.runF_eq_reference, Permutation.runReference_schedule]
 
 /-- An expression below `bound` that avoids the dead columns reads the same values in two
-environments that agree on the live columns below `bound`. -/
-theorem eval_live {dead : Nat → Bool} {bound : Nat} {left right : Env}
-    (agree : ∀ column, column < bound → dead column = false → left column = right column) :
-    ∀ expression : Expr, expression.VarsBelow bound → avoids dead expression = true →
-      expression.eval left = expression.eval right
-  | .var column, below, avoid => by
+environments that agree on its live columns below `bound`. -/
+theorem eval_live {dead : Nat → Bool} {bound : Nat} {left right : Env} :
+    ∀ expression : Expr,
+      (∀ column ∈ SlotLayout.exprColumns expression, column < bound → dead column = false →
+        left column = right column) →
+      expression.VarsBelow bound → avoids dead expression = true →
+        expression.eval left = expression.eval right
+  | .var column, agree, below, avoid => by
       have live : dead column = false := by simpa [avoids] using avoid
-      exact agree column below live
-  | .const _, _, _ => rfl
-  | .add first second, below, avoid => by
+      exact agree column (List.mem_singleton_self column) below live
+  | .const _, _, _, _ => rfl
+  | .add first second, agree, below, avoid => by
       simp only [avoids, Bool.and_eq_true] at avoid
-      simp only [Expr.eval_add, eval_live agree first below.1 avoid.1,
-        eval_live agree second below.2 avoid.2]
-  | .mul first second, below, avoid => by
+      simp only [Expr.eval_add,
+        eval_live first (fun column member => agree column (List.mem_append_left _ member))
+          below.1 avoid.1,
+        eval_live second (fun column member => agree column (List.mem_append_right _ member))
+          below.2 avoid.2]
+  | .mul first second, agree, below, avoid => by
       simp only [avoids, Bool.and_eq_true] at avoid
-      simp only [Expr.eval_mul, eval_live agree first below.1 avoid.1,
-        eval_live agree second below.2 avoid.2]
+      simp only [Expr.eval_mul,
+        eval_live first (fun column member => agree column (List.mem_append_left _ member))
+          below.1 avoid.1,
+        eval_live second (fun column member => agree column (List.mem_append_right _ member))
+          below.2 avoid.2]
 
 /-! ### The completed environment -/
 
@@ -177,6 +188,15 @@ theorem completeEnv_sbox {pieces : List Piece} {next : Nat} {env : Env}
   have rowEq : (index.val * 150 + row.val) % 150 = row.val := by omega
   simp only [offset, indexEq, rowEq]
 
+/-- The columns that the packed relation reads: a column of a term of a lowered row, a column of a
+block's lane, a block's output local, which its binding rows read, and an S-box column. -/
+def Reads (pieces : List Piece) (next column : Nat) : Prop :=
+  (∃ row ∈ (PieceRows.lowerPieces (PilotData.canonicalConstraints ()) (otherPieces pieces) next).1,
+      column ∈ SlotLayout.rowColumns row) ∨
+    (∃ block ∈ blocksOf pieces, (∃ lane ∈ block.lanes, column ∈ SlotLayout.exprColumns lane) ∨
+      (block.start + 1080 ≤ column ∧ column < block.start + 1096)) ∨
+    (sboxStart pieces next ≤ column ∧ column < slotEnd pieces next)
+
 /-! ### Completeness -/
 
 variable {publicColumns : Nat} {pieces : List Piece} {next width : Nat}
@@ -186,22 +206,24 @@ theorem next_le_sboxStart (pieces : List Piece) (next : Nat) : next ≤ sboxStar
   rw [lowerPieces_eq]
   exact lowerList_next_le _ _ _
 
-/-- An assignment whose layout reads the completed environment below `slotEnd` satisfies the
-plan of the packed relation, when every piece's constraints hold in `env`, every piece reads only
-columns below `next`, and the blocks pack. -/
-theorem rowsZero_of_holds (fits : Fits publicColumns pieces next width)
-    (packed : packable publicColumns pieces = true)
+/-- The completed environment keeps `env` on the public columns. -/
+theorem completeEnv_public (packed : packable publicColumns pieces = true)
+    (publicBelow : publicColumns ≤ next) (env : Env) {column : Nat}
+    (inside : column < publicColumns) : completeEnv pieces next env column = env column := by
+  rw [completeEnv_low (by have := next_le_sboxStart pieces next; omega),
+    executePieces_below _ _ _ _ _ (by omega)]
+  simp [liveEnv, packable_public packed inside]
+
+/-- The lowered rows hold in the completed environment, when every piece's constraints hold in
+`env`, every piece reads only columns below `next`, and the blocks pack. -/
+theorem completeEnv_rows (packed : packable publicColumns pieces = true)
     (valid : ∀ piece ∈ pieces, piece.Valid) (below : ∀ piece ∈ pieces, pieceBelow next piece = true)
     (env : Env)
     (holds : ∀ piece ∈ pieces,
-      ConstraintsHold env (piece.constraints (PilotData.canonicalConstraints ())))
-    {logicalWidth : Nat} (layout : LogicalPlan.Layout width logicalWidth)
-    (assignment : Assignment F logicalWidth) (one : assignment layout.one = 1)
-    (represents : ∀ column, column < slotEnd pieces next →
-      LogicalPlan.sourceEnv layout assignment column = completeEnv pieces next env column) :
-    (plan publicColumns pieces next width fits layout).RowsZero assignment := by
+      ConstraintsHold env (piece.constraints (PilotData.canonicalConstraints ()))) :
+    R1CS.RowsHold (completeEnv pieces next env)
+      (PieceRows.lowerPieces (PilotData.canonicalConstraints ()) (otherPieces pieces) next).1 := by
   let canonical := PilotData.canonicalConstraints ()
-  have frame := packable_framed packed
   have checks := packed
   simp only [packable, Bool.and_eq_true, List.all_eq_true] at checks
   have ready : ∀ piece ∈ otherPieces pieces, Ready canonical next (liveEnv pieces env) piece := by
@@ -215,17 +237,39 @@ theorem rowsZero_of_holds (fits : Fits publicColumns pieces next width)
     · exact avoidsDead_congr (dead := deadIn (blocksOf pieces)) (before := env)
         (fun column live => by simp [liveEnv, live]) canonical piece notBlock'
         (checks.2 piece inPieces) (holds piece inPieces)
-  obtain ⟨loweredAgree, loweredRows⟩ := executePieces_spec canonical (otherPieces pieces)
-    (liveEnv pieces env) next ready le_rfl (fun _ _ => rfl)
   have startEq : (sboxStart pieces next) = (lowerList canonical (otherPieces pieces) next).2 := by
     simp only [sboxStart, lowerPieces_eq, canonical]
+  rw [lowerPieces_eq]
+  apply (executePieces_spec canonical (otherPieces pieces) (liveEnv pieces env) next ready le_rfl
+    (fun _ _ => rfl)).2
+  intro column columnBelow
+  rw [← startEq] at columnBelow
+  exact completeEnv_low columnBelow
+
+/-- An assignment whose layout reads the completed environment on each column that the relation
+reads satisfies the plan of the packed relation, when every piece's constraints hold in `env`,
+every piece reads only columns below `next`, and the blocks pack. -/
+theorem rowsZero_of_holds (fits : Fits publicColumns pieces next width)
+    (packed : packable publicColumns pieces = true)
+    (valid : ∀ piece ∈ pieces, piece.Valid) (below : ∀ piece ∈ pieces, pieceBelow next piece = true)
+    (env : Env)
+    (holds : ∀ piece ∈ pieces,
+      ConstraintsHold env (piece.constraints (PilotData.canonicalConstraints ())))
+    {logicalWidth : Nat} (layout : LogicalPlan.Layout width logicalWidth)
+    (assignment : Assignment F logicalWidth) (one : assignment layout.one = 1)
+    (represents : ∀ column, Reads pieces next column →
+      LogicalPlan.sourceEnv layout assignment column = completeEnv pieces next env column) :
+    (plan publicColumns pieces next width fits layout).RowsZero assignment := by
+  let canonical := PilotData.canonicalConstraints ()
+  have frame := packable_framed packed
   have nextLe : next ≤ (sboxStart pieces next) := next_le_sboxStart pieces next
   have startLe : (sboxStart pieces next) ≤ slotEnd pieces next := Nat.le_add_right _ _
-  have sourceLive : ∀ column, column < next → deadIn (blocksOf pieces) column = false →
+  have sourceLive : ∀ column, Reads pieces next column → column < next →
+      deadIn (blocksOf pieces) column = false →
       (LogicalPlan.sourceEnv layout assignment) column = env column := by
-    intro column columnBelow live
-    rw [represents column (by omega), completeEnv_low (by omega),
-      loweredAgree column (Or.inl columnBelow)]
+    intro column read columnBelow live
+    rw [represents column read, completeEnv_low (by omega),
+      executePieces_below _ _ _ _ _ columnBelow]
     simp [liveEnv, live]
   -- Each block reads its lanes and its locals below `next`, and its lanes avoid the dead locals.
   have blockFacts : ∀ index : Fin (blocksOf pieces).length,
@@ -243,9 +287,11 @@ theorem rowsZero_of_holds (fits : Fits publicColumns pieces next width)
     by_cases inside : lane.val < ((blocksOf pieces).get index).lanes.length
     · rw [List.getD_eq_getElem _ _ inside]
       have laneMember := List.getElem_mem inside
-      exact eval_live (dead := fun column => ((blocksOf pieces).get index).covers column || deadIn (blocksOf pieces) column)
-        (fun column columnBelow live => sourceLive column columnBelow
-          (Bool.or_eq_false_iff.mp live).2) _
+      exact eval_live (dead := fun column => ((blocksOf pieces).get index).covers column || deadIn (blocksOf pieces) column) _
+        (fun column columnMember columnBelow live => sourceLive column
+          (Or.inr (Or.inl ⟨_, List.get_mem (blocksOf pieces) index,
+            Or.inl ⟨_, laneMember, columnMember⟩⟩))
+          columnBelow (Bool.or_eq_false_iff.mp live).2)
         ((exprBelow_iff next _).mp (List.all_eq_true.mp pieceBelowNext.1 _ laneMember))
         (frame.lanes _ (List.get_mem (blocksOf pieces) index) _ laneMember)
     · rw [List.getD_eq_default _ _ (by omega)]
@@ -268,7 +314,8 @@ theorem rowsZero_of_holds (fits : Fits publicColumns pieces next width)
         env (((blocksOf pieces).get index).start + (PoseidonRetainedSlots.localOutput row).val) := by
     intro index row
     change (layout.form (sboxColumn (sboxStart pieces next) index.val row.val)).eval assignment = _
-    rw [LogicalPlan.Layout.form_eval, represents _ (sboxColumnBound index row).1]
+    rw [LogicalPlan.Layout.form_eval,
+      represents _ (Or.inr (Or.inr ⟨by unfold sboxColumn; omega, (sboxColumnBound index row).1⟩))]
     exact completeEnv_sbox index row
   have inputValue : ∀ (index : Fin (blocksOf pieces).length),
       SparseLayer.evalState assignment (interface.input index) =
@@ -342,7 +389,8 @@ theorem rowsZero_of_holds (fits : Fits publicColumns pieces next width)
             (List.get_mem (blocksOf pieces) index) same
           unfold Separated at separated
           omega
-      rw [sourceLive _ (by omega) live]
+      rw [sourceLive _ (Or.inr (Or.inl ⟨_, List.get_mem (blocksOf pieces) index,
+        Or.inr ⟨by omega, by omega⟩⟩)) (by omega) live]
       have atLane := congrFun (block_outputs linear blockHolds) lane
       exact atLane
     simp only [R1CS.Row.Holds, R1CS.LinearCombination.eval_add, R1CS.LinearCombination.eval_ofVar,
@@ -360,11 +408,10 @@ theorem rowsZero_of_holds (fits : Fits publicColumns pieces next width)
   unfold relationRows
   rw [ite_eq_left packed, R1CS.rowsHold_append]
   refine ⟨?_, binding⟩
-  rw [lowerPieces_eq]
-  apply loweredRows (LogicalPlan.sourceEnv layout assignment)
-  intro column columnBelow
-  rw [← startEq] at columnBelow
-  rw [represents column (by omega), completeEnv_low columnBelow]
+  exact R1CS.rowsHold_of_agree _ (Reads pieces next) (completeEnv pieces next env) _
+    (fun row member => (RowReads.rowColumns_varsSatisfy row).mono row
+      fun column columnMember => Or.inl ⟨row, member, columnMember⟩)
+    represents (completeEnv_rows packed valid below env holds)
 
 /-! ### The final program's checks -/
 

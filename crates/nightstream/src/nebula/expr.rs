@@ -92,10 +92,6 @@ impl KExpr {
         Self::of(x, Expr::constant(0))
     }
 
-    pub(super) fn add(self, rhs: Self) -> Self {
-        Self::of(self.c0 + rhs.c0, self.c1 + rhs.c1)
-    }
-
     pub(super) fn sub(self, rhs: Self) -> Self {
         Self::of(self.c0 - rhs.c0, self.c1 - rhs.c1)
     }

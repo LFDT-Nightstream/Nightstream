@@ -12,6 +12,7 @@ pub mod layout;
 mod witness;
 pub mod words;
 
+pub use application::{NativeBlock, NativeShape};
 pub use expand::PlanRows;
 
 use std::sync::Arc;
@@ -32,25 +33,25 @@ const FINISH_IDENTITY_DOMAIN: &[u8] = b"Nightstream/OptionB/finish/v1";
 
 /// The identity of the finish package in `formal/nightstream-fprime/artifacts`.
 pub const OPTION_B_FINISH_IDENTITY: [u64; 4] = [
-    703_660_054_816_153_897,
-    9_610_984_441_758_868_748,
-    6_107_576_991_013_288_423,
-    4_802_043_085_587_250_043,
+    17_448_616_448_112_065,
+    14_717_438_200_974_449_160,
+    16_608_545_845_770_207_724,
+    3_934_466_518_170_988_461,
 ];
 
 /// The identity of the packages in `formal/nightstream-fprime/artifacts`.
 pub const OPTION_B_PACKAGES_IDENTITY: [u64; 4] = [
-    11_914_402_469_065_390_615,
-    16_999_262_119_374_355_933,
-    5_807_378_991_680_498_619,
-    12_342_705_591_096_310_232,
+    12_437_596_312_348_751_690,
+    4_332_515_956_575_867_193,
+    15_552_907_959_044_075_316,
+    4_843_484_789_033_682_168,
 ];
 
 /// A lane or a row side as `Pieces.linear?` reads it: a constant and terms.
-#[derive(Clone, Debug, Default)]
-pub(crate) struct Linear {
-    pub(crate) constant: Goldilocks,
-    pub(crate) terms: Vec<(usize, Goldilocks)>,
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Linear {
+    pub constant: Goldilocks,
+    pub terms: Vec<(usize, Goldilocks)>,
 }
 
 impl Linear {

@@ -18,6 +18,6 @@ variable {p : Geometry} {app : PortApp p}
 theorem MemoryApp.holds_of_valid {input witness output : List F}
     (valid : MemoryApp.valid p app input witness) (out : output = MemoryApp.step p app input witness) :
     (MemoryApp.decode p app witness).Holds app input output :=
-  ⟨valid.1, valid.2, out⟩
+  ⟨valid.1, valid.2.1, out⟩
 
 end NightstreamFPrime.Lifecycle.Nebula

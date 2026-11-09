@@ -35,7 +35,7 @@ fn other_program() -> Program {
 #[test]
 fn native_run_closes_every_segment_and_passes_the_terminal() {
     let mut run = program_run();
-    assert_eq!(run.context().witness_word_count(), 600);
+    assert_eq!(run.context().witness_word_count(), 690);
     let mut previous = run.initial_state();
     let segments = [
         [Step::Execute, Step::Execute],
@@ -47,7 +47,7 @@ fn native_run_closes_every_segment_and_passes_the_terminal() {
         let invocations = run.segment(&steps).expect("segment runs");
         assert_eq!(invocations.len(), 2);
         for invocation in invocations {
-            assert_eq!(invocation.words.len(), 600);
+            assert_eq!(invocation.words.len(), 690);
             assert_eq!(input_state(&invocation.words), previous, "state link");
             previous = invocation.output;
         }
@@ -572,7 +572,11 @@ fn memory_conformance(engine: crate::Engine) {
 
     // A fold with more than one fresh claim: the proof format has one fresh
     // slot, so the decoder rejects any further payload.
-    let bytes = prover.encode_proof(&proof).unwrap();
+    let bytes = circuit
+        .prover(engine, 109)
+        .unwrap()
+        .encode_proof(&crate::nebula::Proof::from_parts(proof.clone(), *run.carry()))
+        .unwrap();
     assert!(verifier.decode_proof(&bytes).is_ok());
     let mut two = bytes.clone();
     two.extend_from_slice(&bytes[bytes.len() / 2..]);

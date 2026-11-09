@@ -1,5 +1,6 @@
 //! One option-B step circuit's relation as a fold reads it (Lean
-//! `LogicalPlan.plan`): the plan rows read through the slot layout, the gate
+//! `LogicalPlan.plan`): the plan rows read through the slot layout, in
+//! factored form (each entry reads one slot, `SlotLayout.layout`), the gate
 //! `A · B − C + S^7` (`GatePolynomial.terms`) over the 28-variable cube, and
 //! the parameters that its shape allows.
 use std::ops::Range;
@@ -10,12 +11,14 @@ use crate::folding::{
 };
 use neo_ajtai::nightstream_fprime_setup::{commit_production_signed_unit_prefix_matrix, PRODUCTION_VERIFIER_ROWS};
 use neo_ccs::poly::{SparsePoly, Term};
-use neo_ccs::{GeometricRowRun, Mat};
+use neo_ccs::Mat;
 use neo_math::{D, F, K};
-use neo_reductions::superneo_eval::{MatrixRowSink, MatrixRows, MatrixShape, MatrixWindow};
+use neo_reductions::superneo_eval::{
+    FactoredEntries, FactoredRows, FactoredSlots, MatrixRowSink, MatrixRows, MatrixShape, MatrixWindow,
+};
 use neo_reductions::PiCcsError;
 use nightstream_fprime::{
-    LogicalLayout, PackageError, PlanRows, StepPackage, StepWords, PI_CCS_V1_2_ROUND_COUNT, PUBLIC_WORDS,
+    LogicalLayout, PackageError, PlanRows, SlotSpans, StepPackage, StepWords, PI_CCS_V1_2_ROUND_COUNT, PUBLIC_WORDS,
 };
 use p3_field::PrimeCharacteristicRing;
 
@@ -40,6 +43,7 @@ pub enum RelationError {
 pub(crate) struct Relation {
     rows: PlanRows,
     layout: LogicalLayout,
+    spans: SlotSpans,
     structure: Structure,
     params: Params,
     workspace_bytes: usize,
@@ -76,6 +80,7 @@ impl Relation {
             minimum_security_bits,
         )?;
         let mut relation = Self {
+            spans: layout.spans(),
             rows,
             layout,
             structure,
@@ -245,25 +250,28 @@ impl MatrixRows for Relation {
     }
 
     fn visit_rows(&self, rows: Range<usize>, sink: &mut dyn MatrixRowSink) -> Result<(), PiCcsError> {
-        for row in rows {
-            for port in 0..MATRICES {
-                let mut failure = None;
-                self.layout
-                    .visit_runs(&self.rows, row, port, |run| {
-                        if failure.is_none() {
-                            let run = GeometricRowRun::new(row, run.column, run.count, run.coefficient, run.ratio);
-                            failure = sink.push_run(row, port, run).err();
-                        }
-                    })
-                    .map_err(|error| PiCcsError::InvalidInput(error.to_string()))?;
-                if let Some(error) = failure {
-                    return Err(error);
-                }
-                if sink.finish_matrix_row(row, port)?.is_break() {
-                    return Ok(());
-                }
-            }
-        }
-        Ok(())
+        self.factored_rows()?.visit_rows(rows, sink)
+    }
+
+    fn factored(&self) -> Result<Option<FactoredRows<'_>>, PiCcsError> {
+        self.factored_rows().map(Some)
+    }
+}
+
+impl Relation {
+    fn factored_rows(&self) -> Result<FactoredRows<'_>, PiCcsError> {
+        FactoredRows::new(
+            MatrixRows::shape(self),
+            FactoredEntries {
+                offsets: self.rows.offsets(),
+                slots: self.rows.columns(),
+                coefficients: self.rows.coefficients(),
+            },
+            FactoredSlots {
+                starts: &self.spans.starts,
+                widths: &self.spans.widths,
+                ratio: self.spans.ratio,
+            },
+        )
     }
 }

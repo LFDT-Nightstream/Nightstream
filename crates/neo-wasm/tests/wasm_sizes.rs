@@ -173,12 +173,12 @@ fn a_prover_takes_the_smallest_size_that_holds_the_run() {
 }
 
 /// Fibonacci steps natively through Small in one segment. The 600 `nop`s
-/// step through Large in three segments of 256 rows. Each run ends in the
+/// step through Large in two segments of 512 rows. Each run ends in the
 /// state after its last trace row. The segments together are the step inputs
 /// of the whole padded run.
 #[test]
 fn a_run_steps_natively_through_the_segments_of_its_size() {
-    for (wat, size, segments) in [(FIB.to_string(), WasmSize::Small, 1), (nops(600), WasmSize::Large, 3)] {
+    for (wat, size, segments) in [(FIB.to_string(), WasmSize::Small, 1), (nops(600), WasmSize::Large, 2)] {
         let (preload, initial, trace) = run_of(&wat);
         assert_eq!(WasmSize::for_run(&preload, &trace).unwrap(), size);
         let app = size.application().unwrap();
@@ -203,7 +203,7 @@ fn a_run_steps_natively_through_the_segments_of_its_size() {
     }
 }
 
-/// Fibonacci proved in Small, one segment of 64 steps of 8 rows, on the CPU
+/// Fibonacci proved in Small, one segment of 8 steps of 64 rows, on the CPU
 /// path, where option B proves. The proof verifies after its bytes
 /// round-trip, and a last state with another `pc` does not verify.
 #[test]
@@ -231,14 +231,14 @@ fn a_small_proof_verifies() {
     }
     let last = *run.state();
     let proof = run.finish().unwrap();
-    eprintln!("prove 64 steps elapsed={:?}", proving.elapsed());
+    eprintln!("prove 8 steps elapsed={:?}", proving.elapsed());
 
     let bytes = prover.encode_proof(&proof).unwrap();
     let verifying = Instant::now();
     let proof = verifier.decode_proof(&bytes).unwrap();
     let verified = verifier.verify(&program, &initial, &last, &proof).unwrap();
     eprintln!("verify elapsed={:?}, proof bytes={}", verifying.elapsed(), bytes.len());
-    assert_eq!(verified.steps, 64);
+    assert_eq!(verified.steps, 8);
     let mut other = last;
     other.pc += 1;
     assert!(matches!(

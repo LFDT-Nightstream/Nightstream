@@ -28,12 +28,7 @@ type Section = fn(&mut LookupR1csBuilder, &Inputs) -> Result<(), String>;
 const SECTIONS: &[(&str, Section)] = &[
     ("bitwise", |b, i| enforce_bitwise(b, i)),
     ("compare", |b, i| enforce_comparisons(b, i)),
-    ("shift32", |b, i| {
-        enforce_shifts(b, &i.left32, &i.right32, &i.output32, false)
-    }),
-    ("shift64", |b, i| {
-        enforce_shifts(b, &i.left64, &i.right64, &i.output64, true)
-    }),
+    ("shift", |b, i| enforce_shifts(b, i)),
     ("mul", |b, i| enforce_mul(b, i)),
     ("zcount32", |b, i| enforce_zero_counts(b, &i.left32, &i.output32, false)),
     ("zcount64", |b, i| enforce_zero_counts(b, &i.left64, &i.output64, true)),
@@ -174,62 +169,80 @@ fn enforce_comparisons(builder: &mut LookupR1csBuilder, inputs: &Inputs) -> Resu
     Ok(())
 }
 
-/// One left barrel shifter. Right shifts and `rotr` reverse the input and
-/// the output, so every operation shifts left. The fill of the low bits is
-/// zero, the wrapped bit (rotations), or the sign (`shr_s`).
-fn enforce_shifts(
-    builder: &mut LookupR1csBuilder,
-    value: &[Bit],
-    amount: &[Bit],
-    output: &[Bit],
-    wide: bool,
-) -> Result<(), String> {
+/// One 64-bit left barrel shifter for both widths. Right shifts and `rotr`
+/// reverse the input and the output, so every operation shifts left. The
+/// fill of the low bits is zero, the wrapped bit (rotations), or the sign
+/// (`shr_s`).
+///
+/// An i32 operand becomes 64 bits: two copies for rotations, the sign for
+/// `shr_s`, and zeros otherwise. The 32-bit result is the low half of the
+/// 64-bit result when the count is below 32, so i32 operations disable the
+/// sixth stage and bind only the low 32 output bits.
+fn enforce_shifts(builder: &mut LookupR1csBuilder, inputs: &Inputs) -> Result<(), String> {
     use WasmOpcode::*;
-    let [shl, shr_u, shr_s, rotl, rotr] = if wide {
-        [I64Shl, I64ShrU, I64ShrS, I64Rotl, I64Rotr]
-    } else {
-        [I32Shl, I32ShrU, I32ShrS, I32Rotl, I32Rotr]
-    };
-    let width = value.len();
-    let activation = ops_lc(&[shl, shr_u, shr_s, rotl, rotr]);
-    let reverse = ops_lc(&[shr_u, shr_s, rotr]);
-    let rotate = ops_lc(&[rotl, rotr]);
-    let sign = Lc::var(builder.alloc_product(&ops_lc(&[shr_s]), &Lc::var(value[width - 1])));
-    let mut current = vec![Lc::zero(); width];
-    for low in 0..width / 2 {
-        let high = width - 1 - low;
-        let chosen = builder.alloc_select(&reverse, &Lc::var(value[high]), &Lc::var(value[low]));
+    const WIDTH: usize = 64;
+    const NARROW: usize = 32;
+    let value = &inputs.left64;
+    let amount = &inputs.right64;
+    let output = &inputs.output64;
+    let wide = ops_lc(&[I64Shl, I64ShrU, I64ShrS, I64Rotl, I64Rotr]);
+    let activation = ops_lc(&[I32Shl, I32ShrU, I32ShrS, I32Rotl, I32Rotr]).plus(&wide);
+    let reverse = ops_lc(&[I32ShrU, I32ShrS, I32Rotr, I64ShrU, I64ShrS, I64Rotr]);
+    let wide_reverse = ops_lc(&[I64ShrU, I64ShrS, I64Rotr]);
+    let rotate = ops_lc(&[I32Rotl, I32Rotr, I64Rotl, I64Rotr]);
+
+    let narrow_sign = Lc::var(builder.alloc_product(&ops_lc(&[I32ShrS]), &Lc::var(value[NARROW - 1])));
+    let mut prepared = value[..NARROW]
+        .iter()
+        .map(|&bit| Lc::var(bit))
+        .collect::<Vec<_>>();
+    for index in NARROW..WIDTH {
+        let copy = builder.alloc_product(&ops_lc(&[I32Rotl, I32Rotr]), &Lc::var(value[index - NARROW]));
+        prepared.push(Lc::var(builder.alloc_select(
+            &wide,
+            &Lc::var(value[index]),
+            &Lc::var(copy).plus(&narrow_sign),
+        )));
+    }
+    let sign = Lc::var(builder.alloc_product(&ops_lc(&[I32ShrS, I64ShrS]), &prepared[WIDTH - 1]));
+
+    let mut current = vec![Lc::zero(); WIDTH];
+    for low in 0..WIDTH / 2 {
+        let high = WIDTH - 1 - low;
+        let chosen = builder.alloc_select(&reverse, &prepared[high], &prepared[low]);
         current[low] = Lc::var(chosen);
-        current[high] = Lc::var(value[low])
-            .plus(&Lc::var(value[high]))
+        current[high] = prepared[low]
+            .clone()
+            .plus(&prepared[high])
             .minus(&Lc::var(chosen));
     }
-    for (stage, &amount_bit) in amount
-        .iter()
-        .take(width.trailing_zeros() as usize)
-        .enumerate()
-    {
+    for stage in 0..WIDTH.trailing_zeros() as usize {
+        let amount_bit = if (1 << stage) < NARROW {
+            Lc::var(amount[stage])
+        } else {
+            Lc::var(builder.alloc_product(&wide, &Lc::var(amount[stage])))
+        };
         let distance = 1usize << stage;
-        let mut next = Vec::with_capacity(width);
-        for index in 0..width {
+        let mut next = Vec::with_capacity(WIDTH);
+        for index in 0..WIDTH {
             let source = if index >= distance {
                 current[index - distance].clone()
             } else {
-                let wrapped = builder.alloc_product(&rotate, &current[width - distance + index]);
+                let wrapped = builder.alloc_product(&rotate, &current[WIDTH - distance + index]);
                 Lc::var(wrapped).plus(&sign)
             };
-            next.push(Lc::var(builder.alloc_select(
-                &Lc::var(amount_bit),
-                &source,
-                &current[index],
-            )));
+            next.push(Lc::var(builder.alloc_select(&amount_bit, &source, &current[index])));
         }
         current = next;
     }
     let shifted = current.iter().map(|lc| lc.terms[0].0).collect::<Vec<_>>();
     let reversed = shifted.iter().rev().copied().collect::<Vec<_>>();
-    builder.enforce_bits_equal_when(&activation.minus(&reverse), output, &shifted);
-    builder.enforce_bits_equal_when(&reverse, output, &reversed);
+    let forward = activation.minus(&reverse);
+    let wide_forward = wide.minus(&wide_reverse);
+    builder.enforce_bits_equal_when(&forward, &output[..NARROW], &shifted[..NARROW]);
+    builder.enforce_bits_equal_when(&wide_forward, &output[NARROW..], &shifted[NARROW..]);
+    builder.enforce_bits_equal_when(&reverse, &output[..NARROW], &reversed[..NARROW]);
+    builder.enforce_bits_equal_when(&wide_reverse, &output[NARROW..], &reversed[NARROW..]);
     Ok(())
 }
 

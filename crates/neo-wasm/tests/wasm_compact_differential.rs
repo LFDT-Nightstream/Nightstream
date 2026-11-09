@@ -62,8 +62,8 @@ fn program(wide: bool) -> String {
     format!("(module (func (export \"main\") (result i32)\n{body} i32.const 0))")
 }
 
-fn check(wide: bool) {
-    let checked = common::checked_main(&program(wide));
+fn check(wide: bool, source: &str, opcodes: usize) {
+    let checked = common::checked_main(source);
     let relation = neo_wasm::batch::build_batched_wasm_ccs(1).expect("relation");
     let mut representatives = HashSet::new();
     let mut rows = 0;
@@ -111,15 +111,50 @@ fn check(wide: bool) {
         }
     }
     eprintln!("wide={wide}: {rows} op-table rows, {} opcodes", representatives.len());
-    assert_eq!(representatives.len(), 24);
+    assert_eq!(representatives.len(), opcodes);
 }
 
 #[test]
 fn differential_narrow() {
-    check(false);
+    check(false, &program(false), 24);
 }
 
 #[test]
 fn differential_wide() {
-    check(true);
+    check(true, &program(true), 24);
+}
+
+/// Every shift count from 0 to 127 and some large counts. i32 operations
+/// use five count bits and i64 operations use six.
+fn shift_program(wide: bool) -> String {
+    let ty = if wide { "i64" } else { "i32" };
+    let operands: &[i128] = if wide {
+        &[1, -2, 0x0123_4567_89ab_cdef, i64::MIN as i128]
+    } else {
+        &[1, -2, 0x1234_5678, i32::MIN as i128]
+    };
+    let large: &[i128] = if wide {
+        &[-1, 1 << 32, (1 << 32) + 5, i64::MIN as i128 + 37]
+    } else {
+        &[-1, i32::MIN as i128, i32::MIN as i128 + 37]
+    };
+    let mut body = String::new();
+    for &value in operands {
+        for count in (0..128).chain(large.iter().copied()) {
+            for op in ["shl", "shr_u", "shr_s", "rotl", "rotr"] {
+                body += &format!("{ty}.const {value} {ty}.const {count} {ty}.{op} drop\n");
+            }
+        }
+    }
+    format!("(module (func (export \"main\") (result i32)\n{body} i32.const 0))")
+}
+
+#[test]
+fn shift_counts_narrow() {
+    check(false, &shift_program(false), 5);
+}
+
+#[test]
+fn shift_counts_wide() {
+    check(true, &shift_program(true), 5);
 }

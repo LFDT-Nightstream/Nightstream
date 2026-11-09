@@ -54,11 +54,12 @@ theorem constraints_finish (relation : ProductionKey.LogicalRelation logicalWidt
     FinishStep.FinishHolds Folding.Schedule.productionLightFoldCap ajtai
       (decodedKeys circuitKeys (refreshInterface (logicalWidth := logicalWidth)
         (publicFits := publicFits) program).verifierKeys env)
-      1 (refreshInput program env) (refreshOutput program 1 env) :=
+      1 (refreshInput program env) (finishStepOutput program 1 env) :=
   FinishAssembler.rows_implies_finish program relation base ajtai _ 1 env
     (holdsFlat_implies_holds _ _ fun expression member =>
       holds expression (List.mem_append_left _ member))
-    _ _ _ (refreshRepresents program ajtai circuitKeys 1 env) active
+    _ _ _ { refreshRepresents program relation ajtai circuitKeys 1 env with }
+    (fun _ => SlotWords.SlotExpr.words_eval _ env) (fun _ => Fin.isLt _) active
 
 /-- A satisfying assignment of the finish circuit's logical relation gives, in some environment,
 `FinishHolds` for the refresh step input and output that its words carry, when the input's
@@ -78,7 +79,7 @@ theorem finish_holds (relation : ProductionKey.LogicalRelation logicalWidth publ
       FinishStep.FinishHolds Folding.Schedule.productionLightFoldCap ajtai
         (decodedKeys circuitKeys (refreshInterface (logicalWidth := logicalWidth)
           (publicFits := publicFits) program).verifierKeys env)
-        1 (refreshInput program env) (refreshOutput program 1 env) := by
+        1 (refreshInput program env) (finishStepOutput program 1 env) := by
   obtain ⟨holds, _⟩ := CircuitRelation.rowsZero_implies_constraints
     CircuitRelation.publicColumns (constraints program relation) firstFresh width fits layout
     assignment (LogicalPlan.encoded_one layout assignment digest fits.rows.positive encoded)
@@ -107,7 +108,7 @@ theorem checks_finish (relation : ProductionKey.LogicalRelation logicalWidth pub
         FinishStep.FinishHolds Folding.Schedule.productionLightFoldCap ajtai
           (decodedKeys circuitKeys (refreshInterface (logicalWidth := logicalWidth)
             (publicFits := publicFits) program).verifierKeys completed)
-          1 (refreshInput program completed) (refreshOutput program 1 completed)) := by
+          1 (refreshInput program completed) (finishStepOutput program 1 completed)) := by
   obtain ⟨holds, agree⟩ := CircuitRelation.checks_implies_pieces
     (Pieces.valid_split _ _) packed next env rows outputs
   exact ⟨_, fun column below => agree column (CircuitRelation.live_below starts below),
@@ -139,7 +140,7 @@ theorem package_finish (relation : ProductionKey.LogicalRelation logicalWidth pu
         FinishStep.FinishHolds Folding.Schedule.productionLightFoldCap ajtai
           (decodedKeys circuitKeys (refreshInterface (logicalWidth := logicalWidth)
             (publicFits := publicFits) program).verifierKeys completed)
-          1 (refreshInput program completed) (refreshOutput program 1 completed)) := by
+          1 (refreshInput program completed) (finishStepOutput program 1 completed)) := by
   rw [StepPackage.pieceRows_packageOf] at rows
   rw [StepPackage.blocks_packageOf] at blocks
   refine checks_finish program relation ajtai circuitKeys next env packed starts rows fun block member => ?_

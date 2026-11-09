@@ -7,9 +7,9 @@ from the words. Completeness (`completeOfChildren`) fills the children from thei
 gadgets read only shared words (`completeGadgetsFrom`); today's Π_DEC phase holds on the shared
 words (`PiDEC.v1_2.Semantics.phaseHolds_of_agree`); the refresh Π_CCS check accepts the inputs
 that the shared words carry (`RefreshPiCCSPhase.spec_implies_phaseHolds`, then
-`RefreshPiCCSCompleteness.completeFrom`); today's Π_RLC fills from its inputs; and the slot-select
-rows hold again because the folded slot is the same before and after the fill
-(`SlotSelect.rows_congr`). -/
+`RefreshPiCCSCompleteness.completeFrom`); today's Π_RLC fills from its inputs; the new slot's
+hash fills because the folded slot is the same before and after the fill; and the digest-select
+rows read only shared words (`DigestSelect.rows_congr`). -/
 
 namespace NightstreamFPrime.Layout.OptionB.RefreshAssemblerCircuit
 
@@ -313,7 +313,6 @@ theorem completeOfChildren (relation : ProductionKey.LogicalRelation logicalWidt
     circuit (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount) (sharedEnd base program.witnessWordCount) relation (Sequence.empty source (sharedEnd base program.witnessWordCount)) rfl below applicationSpec
     (fun slot => slotSpec_at (stepSpec.priorSlots slot))
     (priorStateSpec_at program (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount) stepSpec.prior)
-    (fun slot => slotSpec_at (stepSpec.nextSlots slot))
     (nextStateSpec_at program circuit (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount) stepSpec.next)
   -- Today's Π_DEC: its phase reads only shared words.
   have decShared : Lifecycle.PiDEC.v1_2.Formal.Assumptions relation (decInterface program (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount))
@@ -419,62 +418,114 @@ theorem completeOfChildren (relation : ProductionKey.LogicalRelation logicalWidt
       Hash.evalList source (newSlot program relation circuit (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount) (sharedEnd base program.witnessWordCount)).words := by
     rw [SlotExpr.words_eval, SlotExpr.words_eval, RefreshStepSoundness.newSlot_value,
       RefreshStepSoundness.newSlot_value, nextEq]
-  have slotBelow := fun (group : Nat) (bound : group < 7) =>
-    slotAt_below (logicalWidth := logicalWidth) (publicFits := publicFits)
-      (slotsStart base program.witnessWordCount + group * slotWordCount) (sharedEnd base program.witnessWordCount) (by
+  -- The new slot's hash.
+  have digestEq : ∀ (digest : Fin 4 → Expr) (target : Env)
+      (agreeTarget : ∀ column, column < (sharedEnd base program.witnessWordCount) → target column = source column),
+      (∀ lane, (digest lane).VarsBelow (sharedEnd base program.witnessWordCount)) → digestValue digest target = digestValue digest source :=
+    fun digest target agreeTarget below => congrArg List.ofFn (funext fun lane =>
+      shared_eval program base source target agreeTarget _ (below lane))
+  have newSpec : OutputHash.SpecHolds (newSlotInterface program relation circuit (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount) (sharedEnd base program.witnessWordCount))
+      (newSlotOffset program relation circuit (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount) (sharedEnd base program.witnessWordCount)) p4.current := by
+    have sourceSpec := stepSpec.newSlot
+    change digestValue (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount).newDigest source =
+      Spec.Poseidon2.hash (Hash.evalList source (slotDomainChunk.map Expr.const ++
+        (newSlot program relation circuit (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount) (sharedEnd base program.witnessWordCount)).words)) at sourceSpec
+    change digestValue (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount).newDigest p4.current =
+      Spec.Poseidon2.hash (Hash.evalList p4.current (slotDomainChunk.map Expr.const ++
+        (newSlot program relation circuit (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount) (sharedEnd base program.witnessWordCount)).words))
+    have preimageEq : Hash.evalList p4.current (slotDomainChunk.map Expr.const ++
+        (newSlot program relation circuit (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount) (sharedEnd base program.witnessWordCount)).words) =
+        Hash.evalList source (slotDomainChunk.map Expr.const ++
+          (newSlot program relation circuit (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount) (sharedEnd base program.witnessWordCount)).words) := by
+      simp only [Hash.evalList, List.map_append] at newEq ⊢
+      rw [newEq]
+      simp [Function.comp_def]
+    rw [preimageEq, digestEq _ p4.current (agreeOf p4) below.newDigest]
+    exact sourceSpec
+  obtain ⟨built5, agrees5, rows5⟩ := OutputHash.completeness
+    (newSlotInterface program relation circuit (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount) (sharedEnd base program.witnessWordCount)) p4.current
+    (newSlotOffset program relation circuit (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount) (sharedEnd base program.witnessWordCount)) (assumptionsAt p4.current).newSlot newSpec
+  obtain ⟨p5, ops5, end5, preserves5, -⟩ :=
+    Formal.CompletenessSupport.appendBuiltAt p4 "refresh.new_slot"
+      (newSlotCircuit program relation circuit (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount) (sharedEnd base program.witnessWordCount))
+      (newSlotOffset program relation circuit (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount) (sharedEnd base program.witnessWordCount)) end4
+      (OutputHash.flatConstraints_varsBelow _ _ (env := p4.current)
+        (assumptionsAt p4.current).newSlot)
+      built5 agrees5 rows5
+  -- The digest-select rows read only shared words.
+  have selectRows5 := DigestSelect.rows_congr (selectInterface program (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount))
+    (selectOffset program relation circuit (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount) (sharedEnd base program.witnessWordCount)) source p5.current
+    (agreeOf p5 base (by omega)) (agreeOf p5 (base + 1) (by omega))
+    (agreeOf p5 (base + 2) (by omega)) (agreeOf p5 (base + 3) (by omega))
+    (agreeOf p5 (base + 4) (by omega))
+    (fun index => shared_eval program base source p5.current (agreeOf p5) _
+      (below.initialState index))
+    (fun index => shared_eval program base source p5.current (agreeOf p5) _
+      (below.currentState index))
+    (fun slot => shared_words program base source p5.current (agreeOf p5) _ (below.prior slot))
+    (shared_words program base source p5.current (agreeOf p5) _ (slotAt_below
+      (logicalWidth := logicalWidth) (publicFits := publicFits)
+      (slotsStart base program.witnessWordCount + 2 * slotWordCount) (sharedEnd base program.witnessWordCount) (by
         simp only [slotsStart, witnessStart, slotWordCount] at endEq ⊢
         rw [endEq]
-        have : group * 2055 ≤ 6 * 2055 := Nat.mul_le_mul_right _ (by omega)
-        omega)
-  have selectRows4 := SlotSelect.rows_congr (selectInterface program relation circuit (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount) (sharedEnd base program.witnessWordCount))
-    (selectOffset program relation circuit (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount) (sharedEnd base program.witnessWordCount)) source p4.current
-    (agreeOf p4 base (by omega)) (agreeOf p4 (base + 1) (by omega))
-    (agreeOf p4 (base + 2) (by omega)) (agreeOf p4 (base + 3) (by omega))
-    (agreeOf p4 (base + 4) (by omega))
-    (fun index => shared_eval program base source p4.current (agreeOf p4) _
-      (below.initialState index))
-    (fun index => shared_eval program base source p4.current (agreeOf p4) _
-      (below.currentState index))
-    (fun slot => shared_words program base source p4.current (agreeOf p4) _ (below.prior slot))
-    (shared_words program base source p4.current (agreeOf p4) _ (slotBelow 2 (by decide)))
-    newEq
-    (fun slot => shared_words program base source p4.current (agreeOf p4) _
-      (slotBelow (3 + slot.val) (by omega)))
-    (fun slot => shared_words program base source p4.current (agreeOf p4) _ (below.next slot))
+        omega)))
+    (fun slot => digestEq _ p5.current (agreeOf p5) (below.priorDigest slot))
+    (digestEq _ p5.current (agreeOf p5) below.newDigest)
+    (fun slot => digestEq _ p5.current (agreeOf p5) (below.innerDigest slot))
+    (fun slot => digestEq _ p5.current (agreeOf p5) (below.nextDigest slot))
     selectRows0
-  have selectLength : localLength (Circuit.ops
-      (selectCircuit program relation circuit (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount) (sharedEnd base program.witnessWordCount)).main
+  have filledRows5 : holdsFlat p5.current
+      (gadgetOps program circuit (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount) (sharedEnd base program.witnessWordCount) ++
+        Circuit.ops (Lifecycle.PiDEC.v1_2.Formal.main relation (decInterface program (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount)))
+          (decOffset program circuit (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount) (sharedEnd base program.witnessWordCount)) ++
+        RefreshPiCCSLayout.opsAt relation (piccsInterface program (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount))
+          (piccsOffset program circuit (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount) (sharedEnd base program.witnessWordCount)) ++
+        Circuit.ops (Lifecycle.PiRLC.v1_2.Formal.main relation
+          (rlcInterface program relation circuit (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount) (sharedEnd base program.witnessWordCount)))
+          (rlcOffset program relation circuit (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount) (sharedEnd base program.witnessWordCount)) ++
+        [Formal.childOp "refresh.new_slot" (newSlotCircuit program relation circuit (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount) (sharedEnd base program.witnessWordCount))
+          (newSlotOffset program relation circuit (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount) (sharedEnd base program.witnessWordCount))]) := by
+    have rows := p5.rows
+    rw [ops5, ops4, ops3, ops2, ops1] at rows
+    simpa only [Sequence.empty, List.nil_append] using rows
+  have selectLength : localLength (Circuit.ops (selectCircuit program (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount)).main
       (selectOffset program relation circuit (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount) (sharedEnd base program.witnessWordCount))) = 0 :=
     assertions_localLength _
-  refine ⟨p4.current, ?_, ?_⟩
+  have split : ∀ (front : List Op) (first second : Op),
+      front ++ [first, second] = (front ++ [first]) ++ [second] := by
+    intro front first second
+    simp
+  refine ⟨p5.current, ?_, ?_⟩
   · have lengthEq : localLength (RefreshStepLayout.opsAt program relation circuit (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount) (sharedEnd base program.witnessWordCount)) =
-        localLength p4.operations := by
-      rw [ops4, ops3, ops2, ops1]
+        localLength p5.operations := by
+      rw [ops5, ops4, ops3, ops2, ops1]
       unfold RefreshStepLayout.opsAt
-      rw [Sequence.localLength_append, Sequence.localLength_singleton,
+      rw [split, Sequence.localLength_append, Sequence.localLength_singleton,
         Formal.CompletenessSupport.childOp_localLength]
       unfold Formal.childLength
       rw [selectLength, Nat.add_zero]
       simp only [Sequence.empty, List.nil_append]
       rfl
-    change AgreesOutside source p4.current (sharedEnd base program.witnessWordCount)
+    change AgreesOutside source p5.current (sharedEnd base program.witnessWordCount)
       (localLength (RefreshStepLayout.opsAt program relation circuit (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount) (sharedEnd base program.witnessWordCount)))
     rw [lengthEq]
-    exact p4.agrees
-  · change holdsFlat p4.current (RefreshStepLayout.opsAt program relation circuit (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount) (sharedEnd base program.witnessWordCount))
-    unfold RefreshStepLayout.opsAt holdsFlat
+    exact p5.agrees
+  · change holdsFlat p5.current (RefreshStepLayout.opsAt program relation circuit (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount) (sharedEnd base program.witnessWordCount))
+    unfold RefreshStepLayout.opsAt
+    rw [split]
+    unfold holdsFlat
     rw [show ∀ left right : List Op, flatConstraints (left ++ right) =
         flatConstraints left ++ flatConstraints right from
       fun left right => by simp [flatConstraints, List.flatMap_append]]
-    refine (constraintsHold_append _ _ _).mpr ⟨filledRows, ?_⟩
+    refine (constraintsHold_append _ _ _).mpr ⟨filledRows5, ?_⟩
     intro row member
     simp only [flatConstraints, List.flatMap_cons, List.flatMap_nil, List.append_nil] at member
-    change row ∈ flatConstraints ((SlotSelect.rows (selectInterface program relation circuit (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount)
-      (sharedEnd base program.witnessWordCount)) (selectOffset program relation circuit (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount) (sharedEnd base program.witnessWordCount))).map Op.assertZero) at member
+    change row ∈ flatConstraints ((DigestSelect.rows (selectInterface program (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount))
+      (selectOffset program relation circuit (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount) (sharedEnd base program.witnessWordCount))).map Op.assertZero) at member
     simp only [flatConstraints, List.flatMap_map, List.mem_flatMap, Op.flatConstraints,
       List.mem_singleton] at member
     obtain ⟨original, inside, rfl⟩ := member
-    exact selectRows4 _ inside
+    exact selectRows5 _ inside
 
 /-- The refresh step circuit at the source layout as one `FormalCircuit`. Its spec is that every
 child's spec holds; it is complete by `completeOfChildren`.

@@ -94,16 +94,17 @@ def circuit : FormalCircuit where
 def selected (env : Env) : Fin 2 :=
   if (interface.selector offset).eval env = 1 then 1 else 0
 
-private theorem mul_eq_zero_of {left right : F} (zero : left * right = 0) :
+/-- Goldilocks is a field: a zero product has a zero factor. -/
+theorem mul_eq_zero_of {left right : F} (zero : left * right = 0) :
     left = 0 ∨ right = 0 := by
   let : Fact (Nat.Prime goldilocksModulus) := ⟨GoldilocksPrime.goldilocks_natPrime⟩
   have key : ∀ first second : ZMod goldilocksModulus, first * second = 0 →
       first = 0 ∨ second = 0 := fun _ _ => mul_eq_zero.mp
   exact key left right zero
 
-private theorem one_ne_zero_F : (1 : F) ≠ 0 := by decide
+theorem one_ne_zero_F : (1 : F) ≠ 0 := by decide
 
-private theorem eval_one (env : Env) : (1 : Expr).eval env = 1 := rfl
+theorem eval_one (env : Env) : (1 : Expr).eval env = 1 := rfl
 
 /-- The flag rows: the recursive flag is 0 at iteration 0 and 1 otherwise, the selector is a bit,
 and after the base case the prior pc is the selector plus one. -/
@@ -141,7 +142,8 @@ private theorem defaultWords_length :
     (defaultWords (publicFits := publicFits)).length = 2055 := by
   rw [defaultWords, List.length_map, serializeSlot_length_eq]
 
-private theorem natWord_eq_zero {count : Nat} (bound : count < goldilocksModulus) :
+/-- Below the modulus, a count's word is 0 exactly when the count is 0. -/
+theorem natWord_eq_zero {count : Nat} (bound : count < goldilocksModulus) :
     natWord count = 0 ↔ count = 0 := by
   constructor
   · intro zero

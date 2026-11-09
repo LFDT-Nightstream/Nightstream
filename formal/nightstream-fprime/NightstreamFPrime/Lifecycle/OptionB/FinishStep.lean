@@ -1,9 +1,10 @@
 import NightstreamFPrime.Lifecycle.OptionB.RefreshStepSoundness
 
 /-! The finish circuit (CW-6.3): the last fold of a compressed option-B proof. It is the refresh
-step circuit (`RefreshStepLayout`) without the application and the next slots' and next state's
-hashes: the prior slots' and prior state's hashes, today's Π_DEC of the selected slot, the
-refresh Π_CCS, today's Π_RLC and the slot select. A refresh may run at any depth, so the last
+step circuit (`RefreshStepLayout`) without the application, the next state's hash, the new slot's
+hash and the digest select: the prior slots' and prior state's hashes, today's Π_DEC of the
+selected slot, the refresh Π_CCS, today's Π_RLC and the slot select, which writes both next slots'
+words for the final program. A refresh may run at any depth, so the last
 fold of every active proof is a refresh. With words that carry the step's input, the rows give
 `FinishHolds`: the fresh public input is the hash of the prior state with both slots, and the
 refresh fold of the fresh instance into the selected slot gives the selected next slot at depth 0
@@ -29,6 +30,28 @@ variable {logicalWidth : Nat}
   (interface : RefreshStepLayout.Interface logicalWidth publicFits program.witnessWordCount)
   (offset : Nat)
 
+/-- The slot select over the refresh step's inner and next slots, with the new slot. -/
+def slotSelectInterface : SlotSelect.Interface logicalWidth publicFits where
+  iteration := fun _ => interface.iteration
+  inverse := fun _ => interface.inverse
+  recursive := fun _ => interface.recursive
+  priorPc := fun _ => interface.priorPc
+  selector := fun _ => interface.selector
+  initialState := fun _ => interface.initialState
+  currentState := fun _ => interface.currentState
+  prior := fun _ => interface.prior
+  active := fun _ => interface.active
+  new := fun _ => newSlot program relation circuit interface offset
+  inner := fun _ => interface.inner
+  next := fun _ => interface.next
+
+def slotSelectCircuit : FormalCircuit :=
+  SlotSelect.circuit (slotSelectInterface program relation circuit interface offset)
+
+/-- The slot select allocates no variables; it follows Π_RLC. -/
+def slotSelectOffset : Nat :=
+  newSlotOffset program relation circuit interface offset
+
 /-- The prior hashes, at the refresh step's offsets. -/
 def hashOps : List Op :=
   [Formal.childOp "refresh.prior_slot_0" (priorSlotCircuit program interface 0)
@@ -48,11 +71,11 @@ def opsAt : List Op :=
         (rlcInterface program relation circuit interface offset))
       (rlcOffset program relation circuit interface offset) ++
     [Formal.childOp "refresh.slot_select"
-      (selectCircuit program relation circuit interface offset)
-      (selectOffset program relation circuit interface offset)]
+      (slotSelectCircuit program relation circuit interface offset)
+      (slotSelectOffset program relation circuit interface offset)]
 
 def main : Circuit Unit :=
-  fun offset => ((), selectOffset program relation circuit interface offset,
+  fun offset => ((), slotSelectOffset program relation circuit interface offset,
     opsAt program relation circuit interface offset)
 
 /-- What the finish rows give for an active proof: the recursive branch of `stepHolds_iff` for a
@@ -88,9 +111,9 @@ private theorem slotPreimage_eval (words : List Expr) (env : Env) :
       slotDomainChunk ++ Hash.evalList env words := by
   simp [Hash.evalList, List.map_map, Function.comp_def]
 
-/-- Soundness of the finish circuit: its rows and words that carry an active proof's input give
-`FinishHolds` at the production cap. The output's next slots are the words the slot select
-fixes; its other fields are not read. -/
+/-- Soundness of the finish circuit: its rows, words that carry an active proof's input and next
+slots that the next slots' words carry give `FinishHolds` at the production cap. The output's
+other fields are not read. -/
 theorem rows_implies_finish
     (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
     (circuitKeys : Fin 2 → CircuitKey logicalWidth publicFits) (env : Env)
@@ -100,6 +123,9 @@ theorem rows_implies_finish
     (proof : Spec.Folding.Refresh.Proof PaperAlgebra.Commitment productionShape 8)
     (represents : RefreshStepSoundness.StepRepresents program interface ajtai circuitKeys circuit
       input output proof env)
+    (nextSlots : ∀ slot,
+      Hash.evalList env (interface.next slot).words = serializeSlot (output.runningNext slot))
+    (nextDepth : ∀ slot, (output.runningNext slot).2 < goldilocksModulus)
     (active : input.iteration ≠ 0) :
     FinishHolds Folding.Schedule.productionLightFoldCap ajtai circuitKeys circuit input output := by
   change holds env (opsAt program relation circuit interface offset) at rows
@@ -133,21 +159,21 @@ theorem rows_implies_finish
       simp only [opsAt, List.mem_append]
       exact Or.inl (Or.inr inside))
   have selectRows := childSpec_of_rows "refresh.slot_select"
-    (selectCircuit program relation circuit interface offset)
-    (selectOffset program relation circuit interface offset) env _ rows (by simp [opsAt]) trivial
+    (slotSelectCircuit program relation circuit interface offset)
+    (slotSelectOffset program relation circuit interface offset) env _ rows (by simp [opsAt])
+    trivial
   obtain ⟨select, activeValue⟩ := SlotSelect.rows_implies_select
-    (RefreshStepLayout.selectInterface program relation circuit interface offset)
-    (RefreshStepLayout.selectOffset program relation circuit interface offset) env input output
+    (slotSelectInterface program relation circuit interface offset)
+    (slotSelectOffset program relation circuit interface offset) env input output
     selectRows represents.iteration represents.iterationBound represents.priorPc
     represents.priorPcBound represents.initialState represents.currentState represents.priorSlots
-    represents.priorDepth represents.nextSlots represents.nextDepth
-  rw [show ((RefreshStepLayout.selectInterface program relation circuit interface offset).new
-      (RefreshStepLayout.selectOffset program relation circuit interface offset)).value env =
+    represents.priorDepth nextSlots nextDepth
+  rw [show ((slotSelectInterface program relation circuit interface offset).new
+      (slotSelectOffset program relation circuit interface offset)).value env =
       _ from RefreshStepSoundness.newSlot_value program interface relation circuit offset env]
     at select
-  generalize SlotSelect.selected
-    (RefreshStepLayout.selectInterface program relation circuit interface offset)
-    (RefreshStepLayout.selectOffset program relation circuit interface offset) env = selected
+  generalize SlotSelect.selected (slotSelectInterface program relation circuit interface offset)
+    (slotSelectOffset program relation circuit interface offset) env = selected
     at select activeValue
   obtain ⟨pcEq, claimEq, depthEq, others⟩ := select.recursive active
   have priorPcValid : Paper.InRange 2 input.priorPc := by
@@ -165,14 +191,16 @@ theorem rows_implies_finish
       (circuit := circuit) (input := input)
       (prior := (leaves program relation circuit interface offset).prior)
       (offset := (leaves program relation circuit interface offset).priorOffset)
-      (slots := (leaves program relation circuit interface offset).priorSlots)
-      (slotOffsets := (leaves program relation circuit interface offset).priorSlotOffsets)
+      (digests := fun slot => gadgetDigest
+        ((leaves program relation circuit interface offset).priorSlots slot)
+        ((leaves program relation circuit interface offset).priorSlotOffsets slot) env)
       priorStateSpec
-      (fun slot => match slot with
-        | 0 => priorZeroSpec
-        | 1 => priorOneSpec)
-      (fun slot => (slotPreimage_eval _ env).trans
-        (congrArg (slotDomainChunk ++ ·) (represents.priorSlots slot)))
+      (fun slot => gadgetDigest_eq
+        (match slot with
+          | 0 => priorZeroSpec
+          | 1 => priorOneSpec)
+        ((slotPreimage_eval _ env).trans
+          (congrArg (slotDomainChunk ++ ·) (represents.priorSlots slot))))
       (by
         unfold StateRepresents
         change Hash.evalList env (statePreimageExpr program interface interface.iteration

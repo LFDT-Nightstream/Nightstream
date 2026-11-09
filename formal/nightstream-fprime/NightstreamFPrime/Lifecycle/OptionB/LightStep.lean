@@ -7,8 +7,8 @@ import NightstreamFPrime.Lifecycle.Stage1.Application
 words that represent the step's input and output, and the slot-select spec give the light case
 of `stepHolds_iff` (HyperNova Construction 2 with option B's two slots). The application gadget
 is today's (`Stage1.Application`); its validity predicate is the dispatch `control zi w =
-circuit`. The slot-select rows give `SelectSpec` with the incremented depth word as the next
-depth. -/
+circuit`. The digest-select rows give `SelectSpec` with the incremented depth word as the next
+depth, and the next slots' digests that the next state hash reads. -/
 
 namespace NightstreamFPrime.Lifecycle.OptionB.LightStep
 
@@ -23,8 +23,8 @@ variable {logicalWidth : Nat}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
     Phi81CarrierLayout.carrierWidth logicalWidth}
 
-/-- The gadgets of the light step circuit and their offsets. The prior and next state hashes
-each read two slot gadgets. -/
+/-- The gadgets of the light step circuit and their offsets. The prior state hash reads two slot
+gadgets; the next state hash reads two digests, and one slot gadget hashes the new slot. -/
 structure Leaves (logicalWidth : Nat)
     (publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth) (witnessWordCount : Nat) where
@@ -38,8 +38,9 @@ structure Leaves (logicalWidth : Nat)
   priorSlotOffsets : Fin 2 → Nat
   next : OutputHash.Interface
   nextOffset : Nat
-  nextSlots : Fin 2 → OutputHash.Interface
-  nextSlotOffsets : Fin 2 → Nat
+  nextDigest : Fin 2 → Fin 4 → Expr
+  newSlot : OutputHash.Interface
+  newSlotOffset : Nat
   piccs : LightPiCCSPhase.Leaves logicalWidth 8 publicFits
   rlc : LightFold.RlcLeaves logicalWidth publicFits
 
@@ -60,8 +61,7 @@ structure SpecHolds (relation : ProductionKey.LogicalRelation logicalWidth publi
   priorSlots : ∀ slot,
     OutputHash.SpecHolds (leaves.priorSlots slot) (leaves.priorSlotOffsets slot) env
   next : OutputHash.SpecHolds leaves.next leaves.nextOffset env
-  nextSlots : ∀ slot,
-    OutputHash.SpecHolds (leaves.nextSlots slot) (leaves.nextSlotOffsets slot) env
+  newSlot : OutputHash.SpecHolds leaves.newSlot leaves.newSlotOffset env
   piccs : LightPiCCSPhase.SpecHolds relation leaves.piccs env
   rlc : LightFold.RlcSpecHolds leaves.rlc env
 
@@ -87,16 +87,14 @@ structure Represents (leaves : Leaves logicalWidth publicFits witnessWordCount) 
   pcNext : output.pcNext = circuit
   priorSlotWords : ∀ slot, SlotRepresents (leaves.priorSlots slot) (leaves.priorSlotOffsets slot)
     env (input.running slot)
-  priorStateWords : StateRepresents (leaves.prior.preimage leaves.priorOffset) leaves.priorSlots
-    leaves.priorSlotOffsets env
+  priorStateWords : StateRepresents (leaves.prior.preimage leaves.priorOffset)
+    (fun slot => gadgetDigest (leaves.priorSlots slot) (leaves.priorSlotOffsets slot) env) env
     (toState (Paper.priorHashPreimage
       ((setup Folding.Schedule.productionLightFoldCap ajtai circuitKeys).forCircuit circuit) input))
   priorPublicInput : ∀ column, (leaves.prior.publicInput leaves.priorOffset column).eval env =
     input.fresh.publicInputs ⟨0, by decide⟩ column
-  nextSlotWords : ∀ slot, SlotRepresents (leaves.nextSlots slot) (leaves.nextSlotOffsets slot)
-    env (output.runningNext slot)
-  nextStateWords : StateRepresents (leaves.next.preimage leaves.nextOffset) leaves.nextSlots
-    leaves.nextSlotOffsets env
+  nextStateWords : StateRepresents (leaves.next.preimage leaves.nextOffset)
+    (fun slot => digestValue (leaves.nextDigest slot) env) env
     (toState (Paper.nextHashPreimage
       ((setup Folding.Schedule.productionLightFoldCap ajtai circuitKeys).forCircuit circuit) input
       output))
@@ -119,7 +117,9 @@ theorem spec_implies_stepHolds (light : BoundedDepth.circuitStep circuit = .ligh
     (specification : SpecHolds (circuitKeys selected).relation step control circuit leaves env)
     (represents : Represents ajtai circuitKeys circuit input output leaves selected proof env)
     (select : SelectSpec input output selected (LightFold.nextSlot leaves.piccs leaves.rlc env)
-      ((leaves.depth.source leaves.depthOffset).eval env + 1).val) :
+      ((leaves.depth.source leaves.depthOffset).eval env + 1).val)
+    (nextDigests : ∀ slot,
+      digestValue (leaves.nextDigest slot) env = slotDigest (output.runningNext slot)) :
     StepHolds Folding.Schedule.productionLightFoldCap ajtai circuitKeys step control circuit input
       output := by
   rw [stepHolds_iff]
@@ -133,8 +133,8 @@ theorem spec_implies_stepHolds (light : BoundedDepth.circuitStep circuit = .ligh
       represents.applicationOutput] at holds
   · exact builder_implies_output (cap := Folding.Schedule.productionLightFoldCap) (ajtai := ajtai)
       (circuitKeys := circuitKeys) (step := step) (control := control) (circuit := circuit)
-      (input := input) (output := output) specification.next specification.nextSlots
-      represents.nextSlotWords represents.nextStateWords represents.nextDigest
+      (input := input) (output := output) specification.next nextDigests
+      represents.nextStateWords represents.nextDigest
   · by_cases zero : input.iteration = 0
     · exact Or.inl ⟨zero, select.base zero⟩
     · right
@@ -155,8 +155,10 @@ theorem spec_implies_stepHolds (light : BoundedDepth.circuitStep circuit = .ligh
       · exact builder_implies_prior (cap := Folding.Schedule.productionLightFoldCap)
           (ajtai := ajtai)
           (circuitKeys := circuitKeys) (step := step) (control := control) (circuit := circuit)
-          (input := input) specification.prior specification.priorSlots
-          represents.priorSlotWords represents.priorStateWords represents.priorPublicInput
+          (input := input) specification.prior
+          (fun slot => gadgetDigest_eq (specification.priorSlots slot)
+            (represents.priorSlotWords slot))
+          represents.priorStateWords represents.priorPublicInput
       · rw [claimEq]
         exact proofEq ▸ LightFold.spec_implies_fold (circuitKeys selected).relation ajtai
           (input.running selected).1 input.fresh proof leaves.piccs leaves.rlc env

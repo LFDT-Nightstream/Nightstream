@@ -4,9 +4,11 @@ import NightstreamFPrime.Layout.OptionB.LightStepBounds
 /-! The light step's source layout (assembler A1). Every shared word of
 `LightStepLayout.Interface` is one variable in a source region that starts at `base`: the counters
 and selector (5), the key digests (8), the start, current and next states (12), the application
-witness, the prior, active, inner and next slots (7 × 2,055, each in the order of
-`SlotExpr.words`), the slot and output digests (20), the fresh instance (1,458), the round
-messages (504) and the Π_CCS output of both sources (1,080). The step's gadgets start at
+witness, seven slots (7 × 2,055, each in the order of `SlotExpr.words`: the prior, active, inner
+and next slots), the slot and output digests (20), the fresh instance (1,458), the round messages
+(504), the Π_CCS output of both sources (1,080), and the new and inner digests (12). The light
+rows read the prior and active slots only; the inner and next slots keep the shared-word prefix
+equal to the refresh step's, whose finish circuit reads them. The step's gadgets start at
 `sharedEnd`. -/
 
 namespace NightstreamFPrime.Layout.OptionB.LightAssembler
@@ -53,14 +55,17 @@ def digestsStart (base witnessWordCount : Nat) : Nat :=
 def freshStart (base witnessWordCount : Nat) : Nat := digestsStart base witnessWordCount + 20
 def roundsStart (base witnessWordCount : Nat) : Nat := freshStart base witnessWordCount + 1458
 def outputStart (base witnessWordCount : Nat) : Nat := roundsStart base witnessWordCount + 504
+/-- The digest select's 12 words: the new slot's digest, then each slot's inner digest. -/
+def digestSelectStart (base witnessWordCount : Nat) : Nat :=
+  outputStart base witnessWordCount + 1080
 
 /-- The first column after the shared words, where the step's gadgets start. -/
-def sharedEnd (base witnessWordCount : Nat) : Nat := outputStart base witnessWordCount + 1080
+def sharedEnd (base witnessWordCount : Nat) : Nat := digestSelectStart base witnessWordCount + 12
 
 theorem sharedEnd_eq (base witnessWordCount : Nat) :
-    sharedEnd base witnessWordCount = base + witnessWordCount + 17472 := by
-  simp only [sharedEnd, outputStart, roundsStart, freshStart, digestsStart, slotsStart,
-    witnessStart, slotWordCount]
+    sharedEnd base witnessWordCount = base + witnessWordCount + 17484 := by
+  simp only [sharedEnd, digestSelectStart, outputStart, roundsStart, freshStart, digestsStart,
+    slotsStart, witnessStart, slotWordCount]
   omega
 
 /-- The step's shared words as source columns from `base`. -/
@@ -78,13 +83,14 @@ def interface (base witnessWordCount : Nat) :
   witness := fun index => .var (witnessStart base + index.val)
   prior := fun slot => slotAt (slotsStart base witnessWordCount + slot.val * slotWordCount)
   active := slotAt (slotsStart base witnessWordCount + 2 * slotWordCount)
-  inner := fun slot => slotAt (slotsStart base witnessWordCount + (3 + slot.val) * slotWordCount)
-  next := fun slot => slotAt (slotsStart base witnessWordCount + (5 + slot.val) * slotWordCount)
   priorDigest := fun slot lane =>
     .var (digestsStart base witnessWordCount + 4 * slot.val + lane.val)
   nextDigest := fun slot lane =>
     .var (digestsStart base witnessWordCount + 8 + 4 * slot.val + lane.val)
   outputDigest := fun lane => .var (digestsStart base witnessWordCount + 16 + lane.val)
+  newDigest := fun lane => .var (digestSelectStart base witnessWordCount + lane.val)
+  innerDigest := fun slot lane =>
+    .var (digestSelectStart base witnessWordCount + 4 + 4 * slot.val + lane.val)
   fresh :=
     ⟨fun _ row lane => .var (freshStart base witnessWordCount + row.val * ringDegree + lane.val),
       fun _ column => .var (freshStart base witnessWordCount + 1188 + column.val)⟩
@@ -202,11 +208,6 @@ theorem inputsBelow (base witnessWordCount : Nat) :
         rw [endEq, slotsEq]
         simp only [slotWordCount]
         omega)
-      next := fun slot => slotAt_below _ _ (by
-        have slotBound := slot.isLt
-        rw [endEq, slotsEq]
-        simp only [slotWordCount]
-        omega)
       activePoint := fun coordinate => kAt_below _ _ (by
         have coordinateBound := coordinate.isLt
         change coordinate.val < 28 at coordinateBound
@@ -264,6 +265,21 @@ theorem inputsBelow (base witnessWordCount : Nat) :
         show digestsStart base witnessWordCount + 16 + lane.val < _
         rw [endEq]
         simp only [digestsStart, slotsStart, witnessStart, slotWordCount]
+        omega
+      newDigest := fun lane => by
+        have laneBound := lane.isLt
+        show digestSelectStart base witnessWordCount + lane.val < _
+        rw [endEq]
+        simp only [digestSelectStart, outputStart, roundsStart, freshStart, digestsStart,
+          slotsStart, witnessStart, slotWordCount]
+        omega
+      innerDigest := fun slot lane => by
+        have slotBound := slot.isLt
+        have laneBound := lane.isLt
+        show digestSelectStart base witnessWordCount + 4 + 4 * slot.val + lane.val < _
+        rw [endEq]
+        simp only [digestSelectStart, outputStart, roundsStart, freshStart, digestsStart,
+          slotsStart, witnessStart, slotWordCount]
         omega
       freshCommitment := fun _ row lane => by
         have rowBound := row.isLt
@@ -327,7 +343,15 @@ theorem rows_implies_stepHolds (program : Stage1.Application.Program)
     (input : StepInput logicalWidth publicFits) (output : StepOutput logicalWidth publicFits)
     (proof : Spec.Folding.Light.Proof LightShape 8)
     (represents : LightStepSoundness.StepRepresents program
-      (interface base program.witnessWordCount) ajtai circuitKeys circuit input output proof env) :
+      (interface base program.witnessWordCount) ajtai circuitKeys circuit input output proof env)
+    (next : output.runningNext = DigestSelect.nextSlots input.iteration input.running
+      (DigestSelect.selected (LightStepLayout.selectInterface program
+          (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base
+            program.witnessWordCount))
+        (LightStepLayout.selectOffset program relation circuit
+          (interface base program.witnessWordCount) (sharedEnd base program.witnessWordCount)) env)
+      ((LightStepLayout.newSlot program relation circuit (interface base program.witnessWordCount)
+        (sharedEnd base program.witnessWordCount)).value env)) :
     StepHolds Folding.Schedule.productionLightFoldCap ajtai circuitKeys step control circuit input
       output :=
   LightStepSoundness.rows_implies_stepHolds program (interface base program.witnessWordCount)
@@ -336,6 +360,6 @@ theorem rows_implies_stepHolds (program : Stage1.Application.Program)
     (LightStepBounds.assumptions program relation circuit
       (interface base program.witnessWordCount) (sharedEnd base program.witnessWordCount)
       (inputsBelow base program.witnessWordCount) env)
-    rows input output proof represents
+    rows input output proof represents next
 
 end NightstreamFPrime.Layout.OptionB.LightAssembler

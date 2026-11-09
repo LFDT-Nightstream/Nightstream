@@ -5,7 +5,7 @@ import NightstreamFPrime.Lifecycle.PiRLC.v1_2.Completeness
 
 /-! Completeness of the refresh step's gadgets (CW-3.7b). When the shared words lie below the
 layout's offset, the application step holds on them, and the digest words and the fresh
-instance's public input carry the hashes of their preimages, the seven gadgets before Π_DEC can
+instance's public input carry the hashes of their preimages, the five gadgets before Π_DEC can
 be filled one after another (`completeGadgetsFrom`). The three prior hashes among them fill from
 the first prior slot hash's offset (`completePriorHashesFrom`), as the finish step places them
 without the application. Today's Π_DEC and Π_RLC phases fill their own rows from a prefix that
@@ -98,7 +98,7 @@ theorem completePriorHashesFrom
             (priorSlotOneOffset program interface offset),
           Formal.childOp "refresh.prior_state" (priorStateCircuit program interface)
             (priorStateOffset program interface offset)] ∧
-      base + localLength after.operations = nextSlotZeroOffset program interface offset ∧
+      base + localLength after.operations = nextStateOffset program interface offset ∧
       Sequence.PreservesPrefix before after := by
   have assumptionsAt := RefreshStepBounds.assumptions program relation 0 interface offset below
   have offsetLe : offset ≤ base + localLength before.operations := by
@@ -158,7 +158,7 @@ theorem completePriorHashesFrom
   rw [ops3, ops2, ops1]
   simp only [List.append_assoc, List.cons_append, List.nil_append]
 
-/-- Completeness of the refresh step's seven gadgets before Π_DEC after a prefix that ends at
+/-- Completeness of the refresh step's five gadgets before Π_DEC after a prefix that ends at
 the layout's offset. The gadgets do not read the relation, which only fixes the layout's input
 scoping. -/
 theorem completeGadgetsFrom (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
@@ -170,8 +170,6 @@ theorem completeGadgetsFrom (relation : ProductionKey.LogicalRelation logicalWid
       OutputHash.SpecHolds (priorSlotInterface program interface slot) offset before.current)
     (priorState :
       PriorStateHash.SpecHolds (priorStateInterface program interface) offset before.current)
-    (nextSlots : ∀ slot,
-      OutputHash.SpecHolds (nextSlotInterface program interface slot) offset before.current)
     (nextState :
       OutputHash.SpecHolds (nextStateInterface program circuit interface) offset before.current) :
     ∃ after : Sequence.Prefix initial base,
@@ -184,14 +182,6 @@ theorem completeGadgetsFrom (relation : ProductionKey.LogicalRelation logicalWid
       Sequence.PreservesPrefix before completed →
       ∀ index, index < offset → completed.current index = before.current index :=
     fun completed preserves index bound => preserves.values index (by omega)
-  have nextSlotAt : ∀ slot (completed : Sequence.Prefix initial base),
-      Sequence.PreservesPrefix before completed → ∀ childOffset,
-      OutputHash.SpecHolds (nextSlotInterface program interface slot) childOffset
-        completed.current :=
-    fun slot completed preserves _ => OutputHash.specHolds_of_agree_below
-      (nextSlotInterface program interface slot) offset before.current completed.current
-      ⟨LightStepBounds.slotPreimage_below _ _ (below.next slot), below.nextDigest slot⟩
-      (agreesAt completed preserves) (nextSlots slot)
   have nextStateAt : ∀ completed : Sequence.Prefix initial base,
       Sequence.PreservesPrefix before completed → ∀ childOffset,
       OutputHash.SpecHolds (nextStateInterface program circuit interface) childOffset
@@ -224,36 +214,16 @@ theorem completeGadgetsFrom (relation : ProductionKey.LogicalRelation logicalWid
       (agreesAt p1 preserves1) priorState)
   have through4 := preserves1.trans preserves4
   obtain ⟨built5, agrees5, rows5⟩ := OutputHash.completeness
-    (nextSlotInterface program interface 0) p4.current
-    (nextSlotZeroOffset program interface offset) (assumptionsAt p4.current).nextSlotZero
-    (nextSlotAt 0 p4 through4 _)
-  obtain ⟨p5, ops5, end5, preserves5, -⟩ := appendBuiltAt p4 "refresh.next_slot_0"
-    (nextSlotCircuit program interface 0) (nextSlotZeroOffset program interface offset) end4
+    (nextStateInterface program circuit interface) p4.current
+    (nextStateOffset program interface offset) (assumptionsAt p4.current).nextState
+    (nextStateAt p4 through4 _)
+  obtain ⟨p5, ops5, end5, preserves5, -⟩ := appendBuiltAt p4 "refresh.next_state"
+    (nextStateCircuit program circuit interface) (nextStateOffset program interface offset) end4
     (OutputHash.flatConstraints_varsBelow _ _ (env := p4.current)
-      (assumptionsAt p4.current).nextSlotZero)
+      (assumptionsAt p4.current).nextState)
     built5 agrees5 rows5
-  have through5 := through4.trans preserves5
-  obtain ⟨built6, agrees6, rows6⟩ := OutputHash.completeness
-    (nextSlotInterface program interface 1) p5.current
-    (nextSlotOneOffset program interface offset) (assumptionsAt p5.current).nextSlotOne
-    (nextSlotAt 1 p5 through5 _)
-  obtain ⟨p6, ops6, end6, preserves6, -⟩ := appendBuiltAt p5 "refresh.next_slot_1"
-    (nextSlotCircuit program interface 1) (nextSlotOneOffset program interface offset) end5
-    (OutputHash.flatConstraints_varsBelow _ _ (env := p5.current)
-      (assumptionsAt p5.current).nextSlotOne)
-    built6 agrees6 rows6
-  have through6 := through5.trans preserves6
-  obtain ⟨built7, agrees7, rows7⟩ := OutputHash.completeness
-    (nextStateInterface program circuit interface) p6.current
-    (nextStateOffset program interface offset) (assumptionsAt p6.current).nextState
-    (nextStateAt p6 through6 _)
-  obtain ⟨p7, ops7, end7, preserves7, -⟩ := appendBuiltAt p6 "refresh.next_state"
-    (nextStateCircuit program circuit interface) (nextStateOffset program interface offset) end6
-    (OutputHash.flatConstraints_varsBelow _ _ (env := p6.current)
-      (assumptionsAt p6.current).nextState)
-    built7 agrees7 rows7
-  refine ⟨p7, ?_, end7, through6.trans preserves7⟩
-  rw [ops7, ops6, ops5, ops4, ops1]
+  refine ⟨p5, ?_, end5, through4.trans preserves5⟩
+  rw [ops5, ops4, ops1]
   simp only [gadgetOps, List.append_assoc, List.cons_append, List.nil_append]
 
 /-- Today's Π_DEC fills its rows after a prefix that ends at its offset, when its phase holds

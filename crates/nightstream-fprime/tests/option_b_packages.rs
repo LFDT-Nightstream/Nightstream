@@ -73,8 +73,8 @@ fn relation_rows_match_the_lean_checksum() {
     let fields = parity();
     let packages = packages();
     for (package, summary, logical_rows) in [
-        (packages.light(), &fields[1], 184_830),
-        (packages.refresh(), &fields[2], 796_563),
+        (packages.light(), &fields[1], 147_738),
+        (packages.refresh(), &fields[2], 759_471),
     ] {
         let [ordinary, sbox, checksum, _, _, _] = words(summary)[..] else {
             panic!("a summary has six words");

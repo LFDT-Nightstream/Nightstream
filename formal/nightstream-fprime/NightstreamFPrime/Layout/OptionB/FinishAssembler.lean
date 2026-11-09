@@ -10,6 +10,7 @@ namespace NightstreamFPrime.Layout.OptionB.FinishAssembler
 
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Circuit
+open NightstreamFPrime.Gadgets.Poseidon2
 open NightstreamFPrime.Spec.HyperNova.Construction2
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Lifecycle
@@ -32,6 +33,10 @@ theorem rows_implies_finish (program : Stage1.Application.Program)
     (proof : Spec.Folding.Refresh.Proof PaperAlgebra.Commitment productionShape 8)
     (represents : RefreshStepSoundness.StepRepresents program
       (interface base program.witnessWordCount) ajtai circuitKeys circuit input output proof env)
+    (nextSlots : ∀ slot, Hash.evalList env ((interface (logicalWidth := logicalWidth)
+      (publicFits := publicFits) base program.witnessWordCount).next slot).words =
+        serializeSlot (output.runningNext slot))
+    (nextDepth : ∀ slot, (output.runningNext slot).2 < goldilocksModulus)
     (active : input.iteration ≠ 0) :
     FinishStep.FinishHolds Folding.Schedule.productionLightFoldCap ajtai circuitKeys circuit input
       output :=
@@ -40,6 +45,6 @@ theorem rows_implies_finish (program : Stage1.Application.Program)
     (RefreshStepBounds.assumptions program relation circuit
       (interface base program.witnessWordCount) (sharedEnd base program.witnessWordCount)
       (inputsBelow base program.witnessWordCount) env)
-    rows input output proof represents active
+    rows input output proof represents nextSlots nextDepth active
 
 end NightstreamFPrime.Layout.OptionB.FinishAssembler

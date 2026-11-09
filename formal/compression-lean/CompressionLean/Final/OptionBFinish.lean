@@ -48,7 +48,7 @@ theorem finishTerminal_holds (program : Stage1.Application.Program)
       Lifecycle.OptionB.FinishStep.FinishHolds Folding.Schedule.productionLightFoldCap ajtai
         (decodedKeys circuitKeys (refreshInterface (logicalWidth := logicalWidth)
           (publicFits := publicFits) program).verifierKeys completed)
-        1 (refreshInput program completed) (refreshOutput program 1 completed) := by
+        1 (refreshInput program completed) (finishStepOutput program 1 completed) := by
   obtain ⟨positive, -, iteration, lanes, -, rows, blocks⟩ := terminal
   obtain ⟨completed, agree, holds⟩ := FinishRelation.package_finish program relation ajtai circuitKeys next
     width batches application env packed starts rows blocks

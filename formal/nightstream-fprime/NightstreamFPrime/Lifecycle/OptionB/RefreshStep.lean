@@ -3,7 +3,8 @@ import NightstreamFPrime.Lifecycle.OptionB.StateHashGadget
 import NightstreamFPrime.Lifecycle.Stage1.Application
 
 /-! The refresh step circuit's soundness (CW-3.3): the rows of the refresh circuit's gadgets, the
-words that represent the step's input and output, and the slot-select spec give the refresh case
+words that represent the step's input and output, the slot-select spec and the next slots'
+digests give the refresh case
 of `stepHolds_iff`. The gadgets are the light step's (`LightStep`) without the depth guard, with
 the refresh fold (`RefreshFold`) in place of the light fold. A refresh may run at any depth, and
 the selected slot takes depth 0 (`Schedule.nextDepth`). -/
@@ -20,8 +21,8 @@ variable {logicalWidth : Nat}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
     Phi81CarrierLayout.carrierWidth logicalWidth}
 
-/-- The gadgets of the refresh step circuit and their offsets. The prior and next state hashes
-each read two slot gadgets. -/
+/-- The gadgets of the refresh step circuit and their offsets. The prior state hash reads two slot
+gadgets; the next state hash reads two digests, and one slot gadget hashes the new slot. -/
 structure Leaves (logicalWidth : Nat)
     (publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth) (witnessWordCount : Nat) where
@@ -33,8 +34,9 @@ structure Leaves (logicalWidth : Nat)
   priorSlotOffsets : Fin 2 → Nat
   next : OutputHash.Interface
   nextOffset : Nat
-  nextSlots : Fin 2 → OutputHash.Interface
-  nextSlotOffsets : Fin 2 → Nat
+  nextDigest : Fin 2 → Fin 4 → Expr
+  newSlot : OutputHash.Interface
+  newSlotOffset : Nat
   dec : Lifecycle.PiDEC.v1_2.Formal.Interface logicalWidth publicFits
   decOffset : Nat
   piccs : RefreshPiCCSPhase.Leaves logicalWidth 8 publicFits
@@ -56,8 +58,7 @@ structure SpecHolds (relation : ProductionKey.LogicalRelation logicalWidth publi
   priorSlots : ∀ slot,
     OutputHash.SpecHolds (leaves.priorSlots slot) (leaves.priorSlotOffsets slot) env
   next : OutputHash.SpecHolds leaves.next leaves.nextOffset env
-  nextSlots : ∀ slot,
-    OutputHash.SpecHolds (leaves.nextSlots slot) (leaves.nextSlotOffsets slot) env
+  newSlot : OutputHash.SpecHolds leaves.newSlot leaves.newSlotOffset env
   dec : Lifecycle.PiDEC.v1_2.Formal.SpecHolds relation leaves.dec leaves.decOffset env
   piccs : RefreshPiCCSPhase.SpecHolds relation leaves.piccs env
   rlc : Lifecycle.PiRLC.v1_2.Formal.SpecHolds relation leaves.rlc leaves.rlcOffset env
@@ -85,16 +86,14 @@ structure Represents (leaves : Leaves logicalWidth publicFits witnessWordCount) 
   pcNext : output.pcNext = circuit
   priorSlotWords : ∀ slot, SlotRepresents (leaves.priorSlots slot) (leaves.priorSlotOffsets slot)
     env (input.running slot)
-  priorStateWords : StateRepresents (leaves.prior.preimage leaves.priorOffset) leaves.priorSlots
-    leaves.priorSlotOffsets env
+  priorStateWords : StateRepresents (leaves.prior.preimage leaves.priorOffset)
+    (fun slot => gadgetDigest (leaves.priorSlots slot) (leaves.priorSlotOffsets slot) env) env
     (toState (Paper.priorHashPreimage
       ((setup Folding.Schedule.productionLightFoldCap ajtai circuitKeys).forCircuit circuit) input))
   priorPublicInput : ∀ column, (leaves.prior.publicInput leaves.priorOffset column).eval env =
     input.fresh.publicInputs ⟨0, by decide⟩ column
-  nextSlotWords : ∀ slot, SlotRepresents (leaves.nextSlots slot) (leaves.nextSlotOffsets slot)
-    env (output.runningNext slot)
-  nextStateWords : StateRepresents (leaves.next.preimage leaves.nextOffset) leaves.nextSlots
-    leaves.nextSlotOffsets env
+  nextStateWords : StateRepresents (leaves.next.preimage leaves.nextOffset)
+    (fun slot => digestValue (leaves.nextDigest slot) env) env
     (toState (Paper.nextHashPreimage
       ((setup Folding.Schedule.productionLightFoldCap ajtai circuitKeys).forCircuit circuit) input
       output))
@@ -116,7 +115,9 @@ theorem spec_implies_stepHolds (refresh : BoundedDepth.circuitStep circuit = .re
     (specification : SpecHolds (circuitKeys selected).relation step control circuit leaves env)
     (represents : Represents ajtai circuitKeys circuit input output leaves selected proof env)
     (select : SelectSpec input output selected
-      (RefreshFold.nextSlot (circuitKeys selected).relation leaves.rlc leaves.rlcOffset env) 0) :
+      (RefreshFold.nextSlot (circuitKeys selected).relation leaves.rlc leaves.rlcOffset env) 0)
+    (nextDigests : ∀ slot,
+      digestValue (leaves.nextDigest slot) env = slotDigest (output.runningNext slot)) :
     StepHolds Folding.Schedule.productionLightFoldCap ajtai circuitKeys step control circuit input
       output := by
   rw [stepHolds_iff]
@@ -130,8 +131,8 @@ theorem spec_implies_stepHolds (refresh : BoundedDepth.circuitStep circuit = .re
       represents.applicationOutput] at holds
   · exact builder_implies_output (cap := Folding.Schedule.productionLightFoldCap) (ajtai := ajtai)
       (circuitKeys := circuitKeys) (step := step) (control := control) (circuit := circuit)
-      (input := input) (output := output) specification.next specification.nextSlots
-      represents.nextSlotWords represents.nextStateWords represents.nextDigest
+      (input := input) (output := output) specification.next nextDigests
+      represents.nextStateWords represents.nextDigest
   · by_cases zero : input.iteration = 0
     · exact Or.inl ⟨zero, select.base zero⟩
     · right
@@ -150,8 +151,10 @@ theorem spec_implies_stepHolds (refresh : BoundedDepth.circuitStep circuit = .re
       · exact builder_implies_prior (cap := Folding.Schedule.productionLightFoldCap)
           (ajtai := ajtai)
           (circuitKeys := circuitKeys) (step := step) (control := control) (circuit := circuit)
-          (input := input) specification.prior specification.priorSlots
-          represents.priorSlotWords represents.priorStateWords represents.priorPublicInput
+          (input := input) specification.prior
+          (fun slot => gadgetDigest_eq (specification.priorSlots slot)
+            (represents.priorSlotWords slot))
+          represents.priorStateWords represents.priorPublicInput
       · rw [claimEq]
         exact proofEq ▸ RefreshFold.spec_implies_fold (circuitKeys selected).relation ajtai
           (input.running selected).1 input.fresh proof leaves.dec leaves.decOffset leaves.piccs

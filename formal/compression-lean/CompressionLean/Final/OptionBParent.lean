@@ -167,7 +167,7 @@ theorem slot_complete (program : Stage1.Application.Program)
     {w : PaperAlgebra.Assignment (logicalWidth := lw) (publicFits := pf)}
     (holds : Spec.CE.Holds (PaperAlgebra.semantics ajtai) productionGlobalParams
       (Lifecycle.OptionB.toClaim (key.system ajtai)
-        ((refreshOutput (logicalWidth := lw) (publicFits := pf) program 1 env).runningNext slot).1) w)
+        ((finishStepOutput (logicalWidth := lw) (publicFits := pf) program 1 env).runningNext slot).1) w)
     (norm : (PaperAlgebra.semantics ajtai).normBounded
       (productionGlobalParams.accumulatorBound Folding.Schedule.productionLightFoldCap + 1) w)
     (normCovers : productionGlobalParams.accumulatorBound Folding.Schedule.productionLightFoldCap ≤ s.normBound)
@@ -213,7 +213,7 @@ theorem parentHolds_of_holds (program : Stage1.Application.Program)
       Layer1.Relation (s slot) modulus bar (S slot) (slotClaim (finishPackage program relation next width batches rest) slot env) z →
       ∃ witness, Spec.CE.Holds (PaperAlgebra.semantics ajtai) productionGlobalParams
         (Lifecycle.OptionB.toClaim ((circuitKeys slot).system ajtai)
-          ((refreshOutput (logicalWidth := lw) (publicFits := pf) program 1 completed).runningNext slot).1) witness := by
+          ((finishStepOutput (logicalWidth := lw) (publicFits := pf) program 1 completed).runningNext slot).1) witness := by
     intro slot z relation_holds
     rw [slotClaim_eq (lw := lw) (pf := pf) program _ rfl (PiRLC.v1_2.InputBinding.relationSource (circuitKeys slot).relation) env
       completed agree slot] at relation_holds

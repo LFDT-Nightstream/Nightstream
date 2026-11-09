@@ -5,7 +5,9 @@ import NightstreamFPrime.Layout.ProductionRelation.AcceptedOpening
 /-! The option-B step relations (CW-5.3). Each step circuit is exported with its shared words at
 `base = 270`, after the public input `x` (`LogicalPlan`). From a satisfying assignment of a
 circuit's logical relation, the decoders read the step's input, output, key digests and fold proof
-from the shared words; `lightRepresents` and `refreshRepresents` hold by construction. With
+from the shared words, with the next slots that the digest select fixes; `lightRepresents` and
+`refreshRepresents` hold by construction. The finish circuit's decoder (`finishStepOutput`) reads
+the next slots' words instead. With
 `CircuitRelation.rowsZero_implies_spec` this gives each circuit's case of the option-B step
 relation (`light_stepHolds`, `refresh_stepHolds`) and the output digest that `x` encodes, in the
 environment that the assignment decodes to (`lightEnv`, `refreshEnv`): the assignment with the
@@ -94,21 +96,30 @@ def lightInput (env : Env) : StepInput logicalWidth publicFits :=
     nifsProof := .light (lightProof (logicalWidth := logicalWidth) (publicFits := publicFits)
       program env) }
 
-def lightOutput (circuit : Fin 2) (env : Env) : StepOutput logicalWidth publicFits :=
+/-- The step's output. Its next slots are the digest select's: the new slot (the light fold's
+claim at the next depth) in the selected slot after the base case (`DigestSelect.nextSlots`). -/
+def lightOutput (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (circuit : Fin 2) (env : Env) : StepOutput logicalWidth publicFits :=
   let interface := lightInterface (logicalWidth := logicalWidth) (publicFits := publicFits) program
+  let input := lightInput (logicalWidth := logicalWidth) (publicFits := publicFits) program env
   { zNext := List.ofFn fun lane => (interface.nextState lane).eval env
-    runningNext := fun slot => (interface.next slot).value env
+    runningNext := DigestSelect.nextSlots input.iteration input.running
+      (DigestSelect.selected (LightStepLayout.selectInterface program interface)
+        (LightStepLayout.selectOffset program relation circuit interface
+          (LightAssembler.sharedEnd base program.witnessWordCount)) env)
+      ((LightStepLayout.newSlot program relation circuit interface
+        (LightAssembler.sharedEnd base program.witnessWordCount)).value env)
     pcNext := circuit
     x := List.ofFn fun lane => (interface.outputDigest lane).eval env }
 
-theorem lightRepresents
+theorem lightRepresents (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
     (circuitKeys : Fin 2 → CircuitKey logicalWidth publicFits) (circuit : Fin 2) (env : Env) :
     LightStepSoundness.StepRepresents program
       (lightInterface (logicalWidth := logicalWidth) (publicFits := publicFits) program) ajtai
       (decodedKeys circuitKeys (lightInterface (logicalWidth := logicalWidth)
         (publicFits := publicFits) program).verifierKeys env)
-      circuit (lightInput program env) (lightOutput program circuit env)
+      circuit (lightInput program env) (lightOutput program relation circuit env)
       (lightProof (logicalWidth := logicalWidth) (publicFits := publicFits) program env) env where
   iteration := (natWord_val _).symm
   iterationBound := Fin.isLt _
@@ -121,8 +132,6 @@ theorem lightRepresents
   witness := rfl
   priorSlots := fun _ => SlotExpr.words_eval _ env
   priorDepth := fun _ => Fin.isLt _
-  nextSlots := fun _ => SlotExpr.words_eval _ env
-  nextDepth := fun _ => Fin.isLt _
   pcNext := rfl
   outputDigest := rfl
   fresh := rfl
@@ -168,15 +177,16 @@ theorem light_stepHolds (relation : ProductionKey.LogicalRelation logicalWidth p
     StepHolds Folding.Schedule.productionLightFoldCap ajtai
         (decodedKeys circuitKeys (lightInterface (logicalWidth := logicalWidth)
           (publicFits := publicFits) program).verifierKeys env)
-        step control 0 (lightInput program env) (lightOutput program 0 env) ∧
-      (lightOutput (logicalWidth := logicalWidth) (publicFits := publicFits) program 0 env).x =
+        step control 0 (lightInput program env) (lightOutput program relation 0 env) ∧
+      (lightOutput (logicalWidth := logicalWidth) (publicFits := publicFits) program relation
+        0 env).x =
         List.ofFn fun word : Fin 4 => digest.getD word.val 0 := by
   obtain ⟨rows, words⟩ := CircuitRelation.rowsZero_implies_spec
     (LightAssemblerCircuit.stepCircuit program base relation 0 ajtai)
     (LightAssembler.sharedEnd base program.witnessWordCount) firstFresh
     (lightDigestColumn program) fits layout assignment digest encoded rowsZero (fun _ => rfl)
   exact ⟨LightAssembler.rows_implies_stepHolds program relation base ajtai _ step control 0 rfl
-    stepEq validControl _ rows _ _ _ (lightRepresents program ajtai circuitKeys 0 _),
+    stepEq validControl _ rows _ _ _ (lightRepresents program relation ajtai circuitKeys 0 _) rfl,
     congrArg List.ofFn (funext words)⟩
 
 end Light
@@ -216,7 +226,26 @@ def refreshInput (env : Env) : StepInput logicalWidth publicFits :=
     nifsProof := .refresh (refreshProof (logicalWidth := logicalWidth)
       (publicFits := publicFits) program env) }
 
-def refreshOutput (circuit : Fin 2) (env : Env) : StepOutput logicalWidth publicFits :=
+/-- The step's output. Its next slots are the digest select's: the new slot (the refresh fold's
+claim at depth 0) in the selected slot after the base case (`DigestSelect.nextSlots`). -/
+def refreshOutput (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (circuit : Fin 2) (env : Env) : StepOutput logicalWidth publicFits :=
+  let interface :=
+    refreshInterface (logicalWidth := logicalWidth) (publicFits := publicFits) program
+  let input := refreshInput (logicalWidth := logicalWidth) (publicFits := publicFits) program env
+  { zNext := List.ofFn fun lane => (interface.nextState lane).eval env
+    runningNext := DigestSelect.nextSlots input.iteration input.running
+      (DigestSelect.selected (RefreshStepLayout.selectInterface program interface)
+        (RefreshStepLayout.selectOffset program relation circuit interface
+          (RefreshAssembler.sharedEnd base program.witnessWordCount)) env)
+      ((RefreshStepLayout.newSlot program relation circuit interface
+        (RefreshAssembler.sharedEnd base program.witnessWordCount)).value env)
+    pcNext := circuit
+    x := List.ofFn fun lane => (interface.outputDigest lane).eval env }
+
+/-- The finish circuit's output: its next slots are the next slots' words, which the finish
+circuit's slot select fixes and its final program reads. -/
+def finishStepOutput (circuit : Fin 2) (env : Env) : StepOutput logicalWidth publicFits :=
   let interface :=
     refreshInterface (logicalWidth := logicalWidth) (publicFits := publicFits) program
   { zNext := List.ofFn fun lane => (interface.nextState lane).eval env
@@ -224,14 +253,14 @@ def refreshOutput (circuit : Fin 2) (env : Env) : StepOutput logicalWidth public
     pcNext := circuit
     x := List.ofFn fun lane => (interface.outputDigest lane).eval env }
 
-theorem refreshRepresents
+theorem refreshRepresents (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
     (circuitKeys : Fin 2 → CircuitKey logicalWidth publicFits) (circuit : Fin 2) (env : Env) :
     RefreshStepSoundness.StepRepresents program
       (refreshInterface (logicalWidth := logicalWidth) (publicFits := publicFits) program) ajtai
       (decodedKeys circuitKeys (refreshInterface (logicalWidth := logicalWidth)
         (publicFits := publicFits) program).verifierKeys env)
-      circuit (refreshInput program env) (refreshOutput program circuit env)
+      circuit (refreshInput program env) (refreshOutput program relation circuit env)
       (refreshProof (logicalWidth := logicalWidth) (publicFits := publicFits) program env)
       env where
   iteration := (natWord_val _).symm
@@ -245,8 +274,6 @@ theorem refreshRepresents
   witness := rfl
   priorSlots := fun _ => SlotExpr.words_eval _ env
   priorDepth := fun _ => Fin.isLt _
-  nextSlots := fun _ => SlotExpr.words_eval _ env
-  nextDepth := fun _ => Fin.isLt _
   pcNext := rfl
   outputDigest := rfl
   fresh := rfl
@@ -294,15 +321,16 @@ theorem refresh_stepHolds (relation : ProductionKey.LogicalRelation logicalWidth
     StepHolds Folding.Schedule.productionLightFoldCap ajtai
         (decodedKeys circuitKeys (refreshInterface (logicalWidth := logicalWidth)
           (publicFits := publicFits) program).verifierKeys env)
-        step control 1 (refreshInput program env) (refreshOutput program 1 env) ∧
-      (refreshOutput (logicalWidth := logicalWidth) (publicFits := publicFits) program 1 env).x =
+        step control 1 (refreshInput program env) (refreshOutput program relation 1 env) ∧
+      (refreshOutput (logicalWidth := logicalWidth) (publicFits := publicFits) program relation
+        1 env).x =
         List.ofFn fun word : Fin 4 => digest.getD word.val 0 := by
   obtain ⟨rows, words⟩ := CircuitRelation.rowsZero_implies_spec
     (RefreshAssemblerCircuit.stepCircuit program base relation 1 ajtai)
     (RefreshAssembler.sharedEnd base program.witnessWordCount) firstFresh
     (refreshDigestColumn program) fits layout assignment digest encoded rowsZero (fun _ => rfl)
   exact ⟨RefreshAssembler.rows_implies_stepHolds program relation base ajtai _ step control 1 rfl
-    stepEq validControl _ rows _ _ _ (refreshRepresents program ajtai circuitKeys 1 _),
+    stepEq validControl _ rows _ _ _ (refreshRepresents program relation ajtai circuitKeys 1 _) rfl,
     congrArg List.ofFn (funext words)⟩
 
 end Refresh
@@ -357,8 +385,9 @@ theorem light_freshHolds (program : Stage1.Application.Program)
     StepHolds Folding.Schedule.productionLightFoldCap ajtai
         (decodedKeys circuitKeys (lightInterface (logicalWidth := logicalWidth)
           (publicFits := publicFits) program).verifierKeys env)
-        step control 0 (lightInput program env) (lightOutput program 0 env) ∧
-      (lightOutput (logicalWidth := logicalWidth) (publicFits := publicFits) program 0 env).x =
+        step control 0 (lightInput program env) (lightOutput program relation 0 env) ∧
+      (lightOutput (logicalWidth := logicalWidth) (publicFits := publicFits) program relation
+        0 env).x =
         List.ofFn fun word : Fin 4 => digest.getD word.val 0 := by
   obtain ⟨rowsZero, publicEq⟩ :=
     Layout.ProductionRelation.Plan.freshHolds_implies_rowsAndPublic _ cubeFits ajtai fresh
@@ -396,8 +425,9 @@ theorem refresh_freshHolds (program : Stage1.Application.Program)
     StepHolds Folding.Schedule.productionLightFoldCap ajtai
         (decodedKeys circuitKeys (refreshInterface (logicalWidth := logicalWidth)
           (publicFits := publicFits) program).verifierKeys env)
-        step control 1 (refreshInput program env) (refreshOutput program 1 env) ∧
-      (refreshOutput (logicalWidth := logicalWidth) (publicFits := publicFits) program 1 env).x =
+        step control 1 (refreshInput program env) (refreshOutput program relation 1 env) ∧
+      (refreshOutput (logicalWidth := logicalWidth) (publicFits := publicFits) program relation
+        1 env).x =
         List.ofFn fun word : Fin 4 => digest.getD word.val 0 := by
   obtain ⟨rowsZero, publicEq⟩ :=
     Layout.ProductionRelation.Plan.freshHolds_implies_rowsAndPublic _ cubeFits ajtai fresh

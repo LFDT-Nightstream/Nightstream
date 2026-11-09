@@ -37,7 +37,6 @@ structure InputsBelow {witnessWordCount : Nat}
   nextState : ∀ lane, (interface.nextState lane).VarsBelow offset
   witness : ∀ index, (interface.witness index).VarsBelow offset
   prior : ∀ slot, ∀ word ∈ (interface.prior slot).words, word.VarsBelow offset
-  next : ∀ slot, ∀ word ∈ (interface.next slot).words, word.VarsBelow offset
   activePoint : ∀ coordinate, (interface.active.point coordinate).VarsBelow offset
   activePad : ∀ coefficient, (interface.active.evaluation.eval_K coefficient).VarsBelow offset
   activeMatrix : ∀ matrix coefficient,
@@ -47,6 +46,8 @@ structure InputsBelow {witnessWordCount : Nat}
   priorDigest : ∀ slot lane, (interface.priorDigest slot lane).VarsBelow offset
   nextDigest : ∀ slot lane, (interface.nextDigest slot lane).VarsBelow offset
   outputDigest : ∀ lane, (interface.outputDigest lane).VarsBelow offset
+  newDigest : ∀ lane, (interface.newDigest lane).VarsBelow offset
+  innerDigest : ∀ slot lane, (interface.innerDigest slot lane).VarsBelow offset
   freshCommitment : ∀ source row lane,
     (interface.fresh.commitment source row lane).VarsBelow offset
   freshPublicInput : ∀ source column, (interface.fresh.publicInput source column).VarsBelow offset
@@ -105,12 +106,8 @@ theorem dec_le : offset ≤ decOffset program circuit interface offset := by
     Nat.le_trans priorZeroLe (le _ _)
   have priorStateLe : offset ≤ priorStateOffset program interface offset :=
     Nat.le_trans priorOneLe (le _ _)
-  have nextZeroLe : offset ≤ nextSlotZeroOffset program interface offset :=
-    Nat.le_trans priorStateLe (le _ _)
-  have nextOneLe : offset ≤ nextSlotOneOffset program interface offset :=
-    Nat.le_trans nextZeroLe (le _ _)
   have nextStateLe : offset ≤ nextStateOffset program interface offset :=
-    Nat.le_trans nextOneLe (le _ _)
+    Nat.le_trans priorStateLe (le _ _)
   exact Nat.le_trans nextStateLe (le _ _)
 
 omit below in
@@ -329,6 +326,117 @@ theorem rlcAssumptions :
     (sourcePad_below program relation circuit interface offset below)
     (sourceMatrix_below program relation circuit interface offset below)
 
+omit below in
+/-- A combination family's outputs, the last step's cells, lie below the family's end. -/
+theorem familyOutput_below {blockCount cellCount : Nat} [NeZero cellCount]
+    (start : Nat) (block : Fin blockCount) (lane : Fin ringDegree) (cell : Fin cellCount) :
+    (Lifecycle.PiRLC.v1_2.CombinationStep.output
+        (Lifecycle.PiRLC.v1_2.CombinationFamily.stepOffset start
+          Lifecycle.PiRLC.v1_2.CombinationFamily.finalSource.val blockCount cellCount)
+        (Lifecycle.PiRLC.v1_2.CombinationStep.indexOf block lane cell)).VarsBelow
+      (start + Lifecycle.PiRLC.v1_2.CombinationFamily.logicalPrivateCount blockCount cellCount) := by
+  have index := (Lifecycle.PiRLC.v1_2.CombinationStep.indexOf block lane cell).isLt
+  have total : Lifecycle.PiRLC.v1_2.CombinationFamily.sourceCount *
+      Lifecycle.PiRLC.v1_2.CombinationFamily.stepSize blockCount cellCount =
+      17 * Lifecycle.PiRLC.v1_2.CombinationFamily.stepSize blockCount cellCount := by
+    rw [Lifecycle.PiRLC.v1_2.CombinationFamily.sourceCount_eq]
+  have final : (Lifecycle.PiRLC.v1_2.CombinationFamily.sourceCount - 1) *
+      Lifecycle.PiRLC.v1_2.CombinationFamily.stepSize blockCount cellCount =
+      16 * Lifecycle.PiRLC.v1_2.CombinationFamily.stepSize blockCount cellCount := by
+    rw [Lifecycle.PiRLC.v1_2.CombinationFamily.sourceCount_eq]
+  change _ < Lifecycle.PiRLC.v1_2.CombinationFamily.stepSize blockCount cellCount at index
+  show start + (Lifecycle.PiRLC.v1_2.CombinationFamily.sourceCount - 1) *
+      Lifecycle.PiRLC.v1_2.CombinationFamily.stepSize blockCount cellCount +
+      (Lifecycle.PiRLC.v1_2.CombinationStep.indexOf block lane cell).val <
+    start + Lifecycle.PiRLC.v1_2.CombinationFamily.sourceCount *
+      Lifecycle.PiRLC.v1_2.CombinationFamily.stepSize blockCount cellCount
+  omega
+
+omit below in
+/-- Today's Π_RLC output groups end at the output binding's offset, for any start. -/
+theorem rlcOutputs_le (start : Nat) :
+    Lifecycle.PiRLC.v1_2.Formal.commitmentOffset start + 20196 ≤
+        Lifecycle.PiRLC.v1_2.Formal.outputBindingOffset start ∧
+      Lifecycle.PiRLC.v1_2.Formal.publicInputOffset start + 4590 ≤
+        Lifecycle.PiRLC.v1_2.Formal.outputBindingOffset start ∧
+      Lifecycle.PiRLC.v1_2.Formal.evalKOffset start + 1836 ≤
+        Lifecycle.PiRLC.v1_2.Formal.outputBindingOffset start ∧
+      Lifecycle.PiRLC.v1_2.Formal.evalAOffset start + 7344 ≤
+        Lifecycle.PiRLC.v1_2.Formal.outputBindingOffset start ∧
+      start ≤ Lifecycle.PiRLC.v1_2.Formal.outputBindingOffset start := by
+  unfold Lifecycle.PiRLC.v1_2.Formal.outputBindingOffset Lifecycle.PiRLC.v1_2.Formal.evalAOffset
+    Lifecycle.PiRLC.v1_2.Formal.evalKOffset Lifecycle.PiRLC.v1_2.Formal.publicInputOffset
+    Lifecycle.PiRLC.v1_2.Formal.commitmentOffset Lifecycle.PiRLC.v1_2.Formal.samplerOffset
+  omega
+
+omit below in
+/-- `familyOutput_below` with the family's size and a later bound. -/
+theorem familyOutput_le {blockCount cellCount count bound : Nat} [NeZero cellCount]
+    {start : Nat} {block : Fin blockCount} {lane : Fin ringDegree} {cell : Fin cellCount}
+    (countEq : Lifecycle.PiRLC.v1_2.CombinationFamily.logicalPrivateCount blockCount cellCount =
+      count)
+    (le : start + count ≤ bound) :
+    (Lifecycle.PiRLC.v1_2.CombinationStep.output
+        (Lifecycle.PiRLC.v1_2.CombinationFamily.stepOffset start
+          Lifecycle.PiRLC.v1_2.CombinationFamily.finalSource.val blockCount cellCount)
+        (Lifecycle.PiRLC.v1_2.CombinationStep.indexOf block lane cell)).VarsBelow bound := by
+  subst countEq
+  exact Expr.VarsBelow.mono _ (familyOutput_below start block lane cell) le
+
+omit below in
+theorem newSlotOffset_eq :
+    newSlotOffset program relation circuit interface offset =
+      Lifecycle.PiRLC.v1_2.Formal.outputBindingOffset
+        (rlcOffset program relation circuit interface offset) :=
+  rfl
+
+omit below in
+/-- The new slot hash follows today's Π_RLC. -/
+theorem rlc_le_newSlot :
+    rlcOffset program relation circuit interface offset ≤
+      newSlotOffset program relation circuit interface offset :=
+  (newSlotOffset_eq program relation circuit interface offset) ▸
+    (rlcOutputs_le (rlcOffset program relation circuit interface offset)).2.2.2.2
+
+/-- The new slot's words, today's Π_RLC outputs and the Π_CCS round point at depth 0, lie below
+the new slot hash's offset. Every bound comes from `rlcOutputs_le` at the Π_RLC offset, so no
+arithmetic runs on the concrete offset. -/
+theorem newSlot_below : ∀ word ∈ (newSlot program relation circuit interface offset).words,
+    word.VarsBelow (newSlotOffset program relation circuit interface offset) := by
+  obtain ⟨commitmentLe, publicLe, evalKLe, evalALe, startLe⟩ :=
+    rlcOutputs_le (rlcOffset program relation circuit interface offset)
+  have commitmentEq := Lifecycle.PiRLC.v1_2.CommitmentCombination.logicalPrivateCount_eq
+  have publicEq := Lifecycle.PiRLC.v1_2.PublicInputCombination.logicalPrivateCount_eq
+  have evalKEq := Lifecycle.PiRLC.v1_2.EvalKCombination.logicalPrivateCount_eq
+  have evalAEq := Lifecycle.PiRLC.v1_2.EvalACombination.logicalPrivateCount_eq
+  rw [newSlotOffset_eq program relation circuit interface offset]
+  apply LightStepBounds.slotWords_below
+  · intro row lane
+    exact familyOutput_le commitmentEq commitmentLe
+  · intro coefficient
+    exact ⟨familyOutput_le evalKEq evalKLe, familyOutput_le evalKEq evalKLe⟩
+  · intro matrix coefficient
+    exact ⟨familyOutput_le evalAEq evalALe, familyOutput_le evalAEq evalALe⟩
+  · intro coordinate
+    have initialLe : RefreshPiCCSLayout.initialOffset (piccsInterface program interface)
+        (piccsOffset program circuit interface offset) ≤
+        rlcOffset program relation circuit interface offset := by
+      rw [rlcOffset_eq program relation circuit interface offset]
+      exact Nat.le_trans (RefreshPiCCSBounds.sumcheck_le _ _) (Nat.le_trans
+        (RefreshPiCCSBounds.evalK_le _ _) (Nat.le_trans (RefreshPiCCSBounds.evalA_le _ _)
+          (Nat.le_trans (RefreshPiCCSBounds.ccs_le _ _) (Nat.le_trans
+            (RefreshPiCCSBounds.norm_le relation _ _) (Nat.le_trans
+              (RefreshPiCCSBounds.finalIdentity_le relation _ _) (Nat.le_trans
+                (RefreshPiCCSBounds.output_le relation _ _) (Nat.le_add_right _ _)))))))
+    exact KExpr.varsBelow_mono _
+      (RefreshPiCCSBounds.roundPoint_below (piccsInterface program interface)
+        (piccsOffset program circuit interface offset)
+        (piccsBelow program circuit interface offset below) coordinate)
+      (Nat.le_trans initialLe startLe)
+  · intro column
+    exact familyOutput_le publicEq publicLe
+  · trivial
+
 /-- Input scoping of the refresh step layout. -/
 theorem assumptions :
     RefreshStepLayout.Assumptions program relation circuit interface offset env := by
@@ -339,12 +447,8 @@ theorem assumptions :
     Nat.le_trans priorZeroLe (le _ _)
   have priorStateLe : offset ≤ priorStateOffset program interface offset :=
     Nat.le_trans priorOneLe (le _ _)
-  have nextZeroLe : offset ≤ nextSlotZeroOffset program interface offset :=
-    Nat.le_trans priorStateLe (le _ _)
-  have nextOneLe : offset ≤ nextSlotOneOffset program interface offset :=
-    Nat.le_trans nextZeroLe (le _ _)
   have nextStateLe : offset ≤ nextStateOffset program interface offset :=
-    Nat.le_trans nextOneLe (le _ _)
+    Nat.le_trans priorStateLe (le _ _)
   have keysAt := fun (bound : Nat) (le : offset ≤ bound) key lane =>
     Expr.VarsBelow.mono _ (below.verifierKeys key lane) le
   have initialAt := fun (bound : Nat) (le : offset ≤ bound) lane =>
@@ -366,12 +470,6 @@ theorem assumptions :
         (Expr.VarsBelow.mono _ below.priorPc priorStateLe)
         (fun slot lane => Expr.VarsBelow.mono _ (below.priorDigest slot lane) priorStateLe),
       fun column => Expr.VarsBelow.mono _ (below.freshPublicInput _ column) priorStateLe⟩
-    nextSlotZero := ⟨LightStepBounds.slotPreimage_below _ _ fun word member =>
-        Expr.VarsBelow.mono _ (below.next 0 word member) nextZeroLe,
-      fun lane => Expr.VarsBelow.mono _ (below.nextDigest 0 lane) nextZeroLe⟩
-    nextSlotOne := ⟨LightStepBounds.slotPreimage_below _ _ fun word member =>
-        Expr.VarsBelow.mono _ (below.next 1 word member) nextOneLe,
-      fun lane => Expr.VarsBelow.mono _ (below.nextDigest 1 lane) nextOneLe⟩
     nextState := ⟨statePreimage_below program interface _ _ _ _ _
         (keysAt _ nextStateLe) (initialAt _ nextStateLe)
         (Expr.VarsBelow.add _ _ _ (Expr.VarsBelow.mono _ below.iteration nextStateLe) trivial)
@@ -382,6 +480,11 @@ theorem assumptions :
     piccs := RefreshPiCCSBounds.assumptions relation (piccsInterface program interface)
       (piccsOffset program circuit interface offset)
       (piccsBelow program circuit interface offset below) env
-    rlc := rlcAssumptions program relation circuit interface offset below env }
+    rlc := rlcAssumptions program relation circuit interface offset below env
+    newSlot := ⟨LightStepBounds.slotPreimage_below _ _
+        (newSlot_below program relation circuit interface offset below),
+      fun lane => Expr.VarsBelow.mono _ (below.newDigest lane)
+        (Nat.le_trans (rlc_le program relation circuit interface offset)
+          (rlc_le_newSlot program relation circuit interface offset))⟩ }
 
 end NightstreamFPrime.Layout.OptionB.RefreshStepBounds

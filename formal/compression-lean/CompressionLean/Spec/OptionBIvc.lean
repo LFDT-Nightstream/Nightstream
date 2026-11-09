@@ -115,10 +115,10 @@ def LastFoldAt (program : Stage1.Application.Program)
   x 0 ≠ 0 ∧
     finishStatement (refreshInput (logicalWidth := lw) (publicFits := pf) program env) = terminalOf x ∧
     Lifecycle.OptionB.FinishStep.FinishHolds Folding.Schedule.productionLightFoldCap ajtai circuitKeys 1
-      (refreshInput program env) (refreshOutput program 1 env) ∧
+      (refreshInput program env) (finishStepOutput program 1 env) ∧
     ∀ slot, CE.Holds (PaperAlgebra.semantics ajtai) productionGlobalParams
       (Lifecycle.OptionB.toClaim ((circuitKeys slot).system ajtai)
-        ((refreshOutput (logicalWidth := lw) (publicFits := pf) program 1 env).runningNext slot).1)
+        ((finishStepOutput (logicalWidth := lw) (publicFits := pf) program 1 env).runningNext slot).1)
       (witnesses slot)
 
 /-- Some finish columns and next-slot witnesses give a last fold for `x`. -/
@@ -141,7 +141,7 @@ noncomputable def lastChoice (x : StateWords) :
 /-- The finish attempt of the last fold that `lastChoice` names. -/
 noncomputable def lastAttempt (x : StateWords) : WalkAttempt lw pf :=
   finishAttempt circuitKeys (refreshInput program (lastChoice program ajtai circuitKeys x).1)
-    (refreshOutput program 1 (lastChoice program ajtai circuitKeys x).1)
+    (finishStepOutput program 1 (lastChoice program ajtai circuitKeys x).1)
     (lastChoice program ajtai circuitKeys x).2
 
 /-- The terminal that the finish answer gives for `x` when its iteration is at most `depth`, and

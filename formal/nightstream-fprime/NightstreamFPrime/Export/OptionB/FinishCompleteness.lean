@@ -224,10 +224,10 @@ def FinishAccepts (firstFresh width : Nat) (batches : List WitnessBatch)
     FinishWalk.finishStatement (refreshInput (logicalWidth := logicalWidth)
       (publicFits := publicFits) program env) = statement ∧
     FinishStep.FinishHolds Schedule.productionLightFoldCap ajtai circuitKeys 1
-      (refreshInput program env) (refreshOutput program 1 env) ∧
+      (refreshInput program env) (finishStepOutput program 1 env) ∧
     ∀ slot, CE.Holds (PaperAlgebra.semantics ajtai) productionGlobalParams
         (toClaim ((circuitKeys slot).system ajtai)
-          ((refreshOutput (logicalWidth := logicalWidth) (publicFits := publicFits) program 1
+          ((finishStepOutput (logicalWidth := logicalWidth) (publicFits := publicFits) program 1
             env).runningNext slot).1)
         (witnesses slot) ∧
       (PaperAlgebra.semantics ajtai).normBounded
@@ -297,7 +297,8 @@ theorem finish_complete (keysShaped : ∀ key, (circuitKeys key).digest.length =
       exact Nat.zero_le _
     · rw [nextOther slot same]
       exact honest.depth slot
-  obtain ⟨env, rows, represents⟩ := FinishAssemblerCompleteness.complete program relation base
+  obtain ⟨env, rows, represents, nextWords⟩ := FinishAssemblerCompleteness.complete program
+    relation base
     ajtai circuitKeys 1 input output proof finishHolds (Nat.pos_iff_ne_zero.mp positive) rfl rfl
     statementValid.1 pcBound (fun slot => lt_of_le_of_lt (honest.depth slot) small)
     (fun slot => lt_of_le_of_lt (nextDepthLe slot) small) keysShaped statementValid.2.1
@@ -359,14 +360,14 @@ theorem finish_complete (keysShaped : ∀ key, (circuitKeys key).digest.length =
   have decodedFinish := FinishRelation.constraints_finish program relation ajtai circuitKeys
     completed constraintsHold (by rw [iterationEq]; exact Nat.pos_iff_ne_zero.mp positive)
   rw [keysEq] at decodedFinish
-  have nextEq : ∀ slot, (refreshOutput (logicalWidth := logicalWidth) (publicFits := publicFits)
+  have nextEq : ∀ slot, (finishStepOutput (logicalWidth := logicalWidth) (publicFits := publicFits)
       program 1 completed).runningNext slot = runningNext slot := by
     intro slot
     have slotBound := slot.isLt
     show ((RefreshAssembler.interface (logicalWidth := logicalWidth) (publicFits := publicFits)
       base program.witnessWordCount).next slot).value completed = _
-    apply SlotExpr.value_eq_of_words _ completed _ (represents.nextDepth slot)
-    refine Eq.trans ?_ (represents.nextSlots slot)
+    apply SlotExpr.value_eq_of_words _ completed _ (lt_of_le_of_lt (nextDepthLe slot) small)
+    refine Eq.trans ?_ (nextWords slot)
     apply slotAt_evalList
     intro column atLeast below
     simp only [LightAssembler.slotsStart, LightAssembler.witnessStart,

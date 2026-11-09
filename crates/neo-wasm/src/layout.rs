@@ -88,7 +88,6 @@ define_column_region! {
         COL_STACK_WRITE0_ACTIVE: Boolean => "stack lane 0 write activity flag",
         COL_STACK_WRITE0_HI_ACTIVE: Boolean =>
             "stack write hi-word port gate: write0_active, plus result-hi gather rows writing only the hi lane",
-        COL_OPERATION_ENABLED: Boolean => "operation gate",
         COL_SEL_NOP: Boolean => "",
         COL_SEL_I32_CONST: Boolean => "",
         COL_SEL_I64_CONST: Boolean => "",
@@ -229,8 +228,6 @@ define_column_region! {
             "linear-memory word-lane store gates (lane is used AND opcode is a store)",
         COL_LINEAR_MEM_LANE_ADDR: [U32; 3] => "linear-memory word-lane addresses",
         COL_LINEAR_MEM_LANE_VALUE: [Field; 3] => "linear-memory word-lane accessed values",
-        COL_OPERATION_ID: U32 => "operation identifier",
-        COL_OPERATION_VALUE: Field => "operation result witness",
         // `COL_SELECT_COND_IS_ZERO` is forced to {0, 1} by the zero-test rows
         // emitted by `push_select_constraints`. Declared `Boolean` so the
         // family declaration reflects its actual range; whichever path eventually enforces

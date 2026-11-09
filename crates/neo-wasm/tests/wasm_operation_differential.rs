@@ -70,7 +70,7 @@ fn check(wide: bool, source: &str, opcodes: usize) {
     for row in checked
         .trace
         .iter()
-        .filter(|row| row.info.uses_operation_relation)
+        .filter(|row| row.info.operation.is_some())
     {
         rows += 1;
         let assignment =

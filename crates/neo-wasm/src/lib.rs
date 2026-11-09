@@ -53,10 +53,6 @@ pub use memory_id::WasmMemoryId;
 pub use memory_routing::{plan_ordered_wasm_memory_slots, WasmMemorySlotPlan};
 pub use memory_semantics::{preload_from_program_artifacts, sanity_check_memory_rows, WasmMemoryPreload};
 pub use operations::r1cs::{audit_operation_auxiliary_load_bearing, audit_operation_witness};
-pub use operations::semantics::{
-    sanity_check_operation_row, OperationBuiltin, OperationExpr, OperationPredicate, OperationSemantics,
-};
-pub use operations::{WasmOperationArity, WasmOperationBindingSpec, WasmOperationFamilySpec};
 pub use preprocess::{continuity_words, host_event_top_level_initial_state, top_level_initial_state};
 pub use range_check::write_range_check_bits;
 pub use relation_layout::{

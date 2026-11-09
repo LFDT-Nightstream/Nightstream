@@ -179,7 +179,7 @@ fn wasm_component_import_kernel_roundtrip_for_embedded_core_trace() {
         .collect();
     let layout = neo_wasm::relation_layout::build_wasm_relation_layout();
     for witness in &witnesses {
-        neo_wasm::sanity_check_operation_row(&layout.auxiliary, witness).expect("lookup semantics");
+        neo_wasm::audit_operation_witness(witness).expect("operation circuit");
     }
     let mut preload = neo_wasm::memory_semantics::preload_from_program_artifacts(&artifacts);
     neo_wasm::memory_semantics::preload_host_event_tables(&mut preload, &bindings, &artifacts);

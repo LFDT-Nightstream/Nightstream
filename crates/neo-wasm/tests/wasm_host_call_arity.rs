@@ -30,7 +30,7 @@ struct CheckedImportRun {
 
 /// Run a single-import component under `template`, normalize with the
 /// bindings, and put the trace through the full native check stack: per-row
-/// CCS, lookup semantics, comm chain, and memory rows with the bindings ROM
+/// CCS, operation circuit, comm chain, and memory rows with the bindings ROM
 /// preloaded.
 fn checked_import_run(
     component_wat: &str,
@@ -60,8 +60,8 @@ fn checked_import_run(
         .map(|row| build_witness_vector(row).unwrap())
         .collect();
     for (row, witness) in trace.iter().zip(&witness_rows) {
-        neo_wasm::sanity_check_operation_row(&layout.auxiliary, witness)
-            .unwrap_or_else(|err| panic!("lookup semantics rejected {:?}: {err}", row.opcode));
+        neo_wasm::audit_operation_witness(witness)
+            .unwrap_or_else(|err| panic!("operation circuit rejected {:?}: {err}", row.opcode));
     }
     neo_wasm::memory_semantics::sanity_check_memory_rows(&layout, &witness_rows, &preload)
         .expect("bindings ROM contents match");

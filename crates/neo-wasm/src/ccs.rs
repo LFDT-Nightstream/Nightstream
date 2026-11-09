@@ -23,7 +23,7 @@ pub(crate) use trap::{
 };
 
 use super::gadgets::{push_gated_linear_zero, push_u32_le_bytes_decomp};
-use super::isa::{opcode_code, opcode_info_from_code, WasmOpcode, WasmOperation};
+use super::isa::{opcode_code, opcode_info_from_code, WasmOpcode};
 use super::layout::{
     selector_col, Column, COL_LOCALS_FBP_BEFORE, COL_LOCAL_ADDR_HI, COL_LOCAL_ADDR_LO, COL_LOCAL_INDEX,
     COL_LOCAL_ZERO_ACTIVE_BEFORE, COL_ONE, COL_PC_EDGE_KIND, COL_SELECT_OUT_DELTA_HI, COL_SELECT_OUT_DELTA_LO,
@@ -34,15 +34,15 @@ use super::tagged_r1cs_builder::{WasmConstraintScope, WasmConstraintTag, WasmR1c
 use crate::layout::{
     COL_ACTIVATION_FINISHED_AFTER, COL_ACTIVATION_FINISHED_BEFORE, COL_CALL_INDIRECT_IS_TRAP,
     COL_CALL_STACK_POP_PRESENT, COL_CMP_AND, COL_DIV_TRAP, COL_FRAME_MOVE_ACTIVE_BEFORE, COL_GATHER_ACTIVE,
-    COL_GLOBAL_VALUE_HI, COL_IS_PROGRAM_ROW, COL_LOCAL_VALUE_HI, COL_MEM_OOB, COL_OPCODE_CODE, COL_OPERATION_ENABLED,
-    COL_OPERATION_ID, COL_OPERATION_VALUE, COL_OUTPUT_CAPTURED, COL_PC_EDGE_KIND_INV, COL_PC_EDGE_KIND_IS_STATIC,
-    COL_PC_ROM_ACTIVE, COL_PROGRAM_CALL_INDIRECT_IMMEDIATES_ACTIVE, COL_PROGRAM_GLOBAL_INDEX_ACTIVE,
-    COL_PROGRAM_LOCAL_INDEX_ACTIVE, COL_PROGRAM_TABLE_ID_ACTIVE, COL_SELECT_COND_IS_ZERO, COL_SELECT_SCRATCH_INV,
-    COL_SEL_SELECT, COL_SP_AFTER, COL_SP_BEFORE, COL_STACK_READS, COL_STACK_READ_ACTIVE, COL_STACK_READ_ADDR_HI,
-    COL_STACK_READ_ADDR_LO, COL_STACK_READ_VALUE_HI, COL_STACK_READ_VALUE_LO, COL_STACK_WRITE0_ACTIVE,
-    COL_STACK_WRITE0_ADDR_HI, COL_STACK_WRITE0_ADDR_LO, COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO,
-    COL_STACK_WRITES, COL_TABLE_OOB, COL_WIDE_VALUES_ENABLED, COL_ZERO_TEST_HI_INPUT, COL_ZERO_TEST_HI_INV,
-    COL_ZERO_TEST_HI_IS_ZERO, COL_ZERO_TEST_LO_INPUT, COL_ZERO_TEST_LO_INV, COL_ZERO_TEST_LO_IS_ZERO,
+    COL_GLOBAL_VALUE_HI, COL_IS_PROGRAM_ROW, COL_LOCAL_VALUE_HI, COL_MEM_OOB, COL_OPCODE_CODE, COL_OUTPUT_CAPTURED,
+    COL_PC_EDGE_KIND_INV, COL_PC_EDGE_KIND_IS_STATIC, COL_PC_ROM_ACTIVE, COL_PROGRAM_CALL_INDIRECT_IMMEDIATES_ACTIVE,
+    COL_PROGRAM_GLOBAL_INDEX_ACTIVE, COL_PROGRAM_LOCAL_INDEX_ACTIVE, COL_PROGRAM_TABLE_ID_ACTIVE,
+    COL_SELECT_COND_IS_ZERO, COL_SELECT_SCRATCH_INV, COL_SEL_SELECT, COL_SP_AFTER, COL_SP_BEFORE, COL_STACK_READS,
+    COL_STACK_READ_ACTIVE, COL_STACK_READ_ADDR_HI, COL_STACK_READ_ADDR_LO, COL_STACK_READ_VALUE_HI,
+    COL_STACK_READ_VALUE_LO, COL_STACK_WRITE0_ACTIVE, COL_STACK_WRITE0_ADDR_HI, COL_STACK_WRITE0_ADDR_LO,
+    COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO, COL_STACK_WRITES, COL_TABLE_OOB, COL_WIDE_VALUES_ENABLED,
+    COL_ZERO_TEST_HI_INPUT, COL_ZERO_TEST_HI_INV, COL_ZERO_TEST_HI_IS_ZERO, COL_ZERO_TEST_LO_INPUT,
+    COL_ZERO_TEST_LO_INV, COL_ZERO_TEST_LO_IS_ZERO,
 };
 use neo_application::{ApplicationRelation, ConditionalSelect, ZeroTest};
 use neo_math::F;
@@ -448,18 +448,6 @@ pub fn build_wasm_relation() -> Result<ApplicationRelation<WasmConstraintScope>,
         );
     });
 
-    // A division trap disables the operation relation, which only models
-    // completed, non-trapping arithmetic.
-    b.push_linear_zero(
-        core::iter::once((COL_OPERATION_ENABLED, F::ONE))
-            .chain(
-                WasmOperation::all()
-                    .into_iter()
-                    .map(|op| (selector_for_operation(op), -F::ONE)),
-            )
-            .chain(core::iter::once((COL_DIV_TRAP, F::ONE))),
-    );
-
     let stack_write0_at_sp_before_ops = opcodes_with_stack_signature(0, 1);
     let stack_read_at_sp_minus1_ops = opcodes_with_stack_reads(1);
     let stack_write0_at_sp_minus1_ops = opcodes_with_stack_signature(1, 1);
@@ -585,9 +573,6 @@ pub fn build_wasm_relation() -> Result<ApplicationRelation<WasmConstraintScope>,
         push_select_constraints(b);
     });
 
-    b.with_tag(always("operation constraints"), |b| {
-        push_operation_binding_constraints(b);
-    });
     crate::range_check::push_range_check_rows(&mut b);
     b.with_tag(
         shared("conditional control choice", &[WasmOpcode::BrIf, WasmOpcode::If]),
@@ -1115,27 +1100,6 @@ fn push_comparator_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     );
 }
 
-fn push_operation_binding_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
-    b.push_row(
-        WasmOperation::all()
-            .into_iter()
-            .map(|op| (selector_for_operation(op), F::ONE)),
-        [(COL_OPERATION_VALUE, F::ONE), (COL_STACK_WRITE0_VALUE_LO, -F::ONE)],
-        [],
-    );
-    b.push_row(
-        WasmOperation::all()
-            .into_iter()
-            .map(|op| (selector_for_operation(op), F::from_u64(u64::from(op.operation_id())))),
-        [(COL_ONE, F::ONE)],
-        [(COL_OPERATION_ID, F::ONE)],
-    );
-}
-
 pub(super) fn idx(column: Column) -> usize {
     column.0
-}
-
-fn selector_for_operation(op: WasmOperation) -> usize {
-    selector_col(op.opcode()).expect("operation opcode selector column")
 }

@@ -1,95 +1,10 @@
 mod common;
 
-use neo_math::F;
-use neo_wasm::layout::{COL_STACK_READ_VALUE_HI, COL_STACK_WRITE0_VALUE_LO};
-use neo_wasm::witness_builder::build_witness_vector;
+use neo_wasm::layout::COL_STACK_WRITE0_VALUE_LO;
+use neo_wasm::WasmOpcode;
 use neo_wasm::WasmOperation;
-use neo_wasm::{build_wasm_relation_layout, sanity_check_operation_row, traces_from_wasmtime_wasm_bytes, WasmOpcode};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use std::collections::HashSet;
-
-fn trace_rows() -> Vec<neo_wasm::WasmVmStep> {
-    let wasm = wat::parse_str(
-        r#"(module
-            (memory 1)
-            (func (export "run") (result i32)
-                i32.const 0
-                i32.const 9
-                i32.store
-                i32.const 6
-                i32.const 7
-                i32.mul
-                drop
-                i64.const 3
-                i64.const 5
-                i64.mul
-                drop
-                i64.const 0x100000001
-                i64.clz
-                drop
-                i64.const -2
-                i64.const 1
-                i64.lt_s
-                drop
-                i32.const 0
-                i32.load)
-        )"#,
-    )
-    .expect("wat");
-    traces_from_wasmtime_wasm_bytes(&wasm, "run").expect("trace")
-}
-
-#[test]
-fn operation_semantics_accept_real_wasm_rows() {
-    let layout = build_wasm_relation_layout();
-    for row in trace_rows() {
-        let witness = build_witness_vector(&row).unwrap();
-        sanity_check_operation_row(&layout.auxiliary, &witness)
-            .unwrap_or_else(|err| panic!("expected operation semantics to accept {:?}: {err}", row.opcode));
-    }
-}
-
-#[test]
-fn operation_semantics_reject_tampered_operation_output() {
-    let layout = build_wasm_relation_layout();
-    let row = trace_rows()
-        .into_iter()
-        .find(|row| row.opcode == WasmOpcode::I32Mul)
-        .expect("i32.mul row");
-    let mut witness = build_witness_vector(&row).unwrap();
-    witness[COL_STACK_WRITE0_VALUE_LO] = F::from_u64(1234);
-    let err =
-        sanity_check_operation_row(&layout.auxiliary, &witness).expect_err("tampered operation output should fail");
-    assert!(err.contains("i32_mul"));
-}
-
-#[test]
-fn operation_semantics_reject_tampered_i64_unary_input_hi() {
-    let layout = build_wasm_relation_layout();
-    let row = trace_rows()
-        .into_iter()
-        .find(|row| row.opcode == WasmOpcode::I64Clz)
-        .expect("i64.clz row");
-    let mut witness = build_witness_vector(&row).unwrap();
-    witness[COL_STACK_READ_VALUE_HI[0]] = F::from_u64(2);
-    let err =
-        sanity_check_operation_row(&layout.auxiliary, &witness).expect_err("tampered i64 unary input should fail");
-    assert!(err.contains("i64_clz"));
-}
-
-#[test]
-fn operation_semantics_reject_tampered_i64_binary_input_hi() {
-    let layout = build_wasm_relation_layout();
-    let row = trace_rows()
-        .into_iter()
-        .find(|row| row.opcode == WasmOpcode::I64LtS)
-        .expect("i64.lt_s row");
-    let mut witness = build_witness_vector(&row).unwrap();
-    witness[COL_STACK_READ_VALUE_HI[0]] = F::ZERO;
-    let err =
-        sanity_check_operation_row(&layout.auxiliary, &witness).expect_err("tampered i64 binary input should fail");
-    assert!(err.contains("i64_lt_s"));
-}
 
 #[test]
 fn operation_relation_covers_and_rejects_all_families() {
@@ -151,7 +66,7 @@ fn operation_relation_covers_and_rejects_all_families() {
     for row in checked
         .trace
         .iter()
-        .filter(|row| row.info.uses_operation_relation)
+        .filter(|row| row.info.operation.is_some())
     {
         seen.insert(row.opcode);
         let assignment = neo_wasm::batch::build_batched_witness(std::slice::from_ref(row), 1, 0).unwrap();

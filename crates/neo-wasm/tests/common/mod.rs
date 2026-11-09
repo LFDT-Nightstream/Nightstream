@@ -7,10 +7,10 @@ use neo_math::F;
 use neo_wasm::host_event_bindings::HostEventBindings;
 use neo_wasm::{
     build_wasm_relation, build_wasm_relation_layout, collect_wasmtime_steps, opcode_info_from_code,
-    preload_from_program_artifacts, sanity_check_memory_rows, sanity_check_operation_row, top_level_initial_state,
-    traces_from_wasmtime_steps, witness_builder::build_witness_vector, LinearMemoryAccess, StackValueAccess,
-    WasmCountdownState, WasmFrameMoveState, WasmOpcode, WasmOutputState, WasmPcEdgeKind, WasmProgramArtifacts,
-    WasmRowKind, WasmStepState, WasmVmStep, WasmtimeTraceRun,
+    preload_from_program_artifacts, sanity_check_memory_rows, top_level_initial_state, traces_from_wasmtime_steps,
+    witness_builder::build_witness_vector, LinearMemoryAccess, StackValueAccess, WasmCountdownState,
+    WasmFrameMoveState, WasmOpcode, WasmOutputState, WasmPcEdgeKind, WasmProgramArtifacts, WasmRowKind, WasmStepState,
+    WasmVmStep, WasmtimeTraceRun,
 };
 
 pub struct CheckedWasmRun {
@@ -90,8 +90,8 @@ pub fn sanity_check_trace_with_bindings(
     let mut witnesses = Vec::with_capacity(trace.len());
     for row in trace {
         let witness = build_witness_vector(row).unwrap();
-        sanity_check_operation_row(&layout.auxiliary, &witness)
-            .unwrap_or_else(|err| panic!("lookup semantics rejected {:?}: {err}", row.opcode));
+        neo_wasm::audit_operation_witness(&witness)
+            .unwrap_or_else(|err| panic!("operation circuit rejected {:?}: {err}", row.opcode));
         witnesses.push(witness);
     }
     neo_application::check_continuity_rows(&layout.auxiliary.continuity, &witnesses)
@@ -256,9 +256,8 @@ pub fn step(
 }
 
 pub fn assert_satisfied(z: &[F], label: &str) {
-    let layout = build_wasm_relation_layout();
-    sanity_check_operation_row(&layout.auxiliary, z)
-        .unwrap_or_else(|e| panic!("{label}: expected lookup semantics satisfied, got: {e}"));
+    neo_wasm::audit_operation_witness(z)
+        .unwrap_or_else(|e| panic!("{label}: expected operation circuit satisfied, got: {e}"));
     let relation = build_wasm_relation().expect("valid WASM relation");
     let ccs = relation.r1cs().structure();
     let m_in = relation.r1cs().public_input_count();

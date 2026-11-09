@@ -48,7 +48,6 @@ use super::layout::{
     COL_TABLE_SIZE, COL_TABLE_SIZE_READ_ENABLED, COL_TABLE_VALUE, COL_TURN_BOUNDARY, COL_TURN_EXPORT_FREF_BEFORE,
 };
 use super::WasmMemoryId;
-use crate::operations::{WasmOperationBindingSpec, WasmOperationFamilySpec};
 use neo_application::{
     ContinuityCatalog, MemoryCatalog, MemoryKind, MemoryPortActivation, MemoryPortKind, MemoryPortSpec, MemorySpec,
 };
@@ -123,8 +122,6 @@ pub struct SignExtensionColumns {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct WasmAuxiliaryRelations {
-    pub operation_families: Vec<WasmOperationFamilySpec>,
-    pub operation_bindings: Vec<WasmOperationBindingSpec>,
     pub memory: MemoryCatalog<WasmMemoryId>,
     pub continuity: ContinuityCatalog,
 }
@@ -288,8 +285,6 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
         low7: Column(COL_SIGN_EXT_LOW7),
         bit: Column(COL_SIGN_EXT_BIT),
     };
-
-    let (operation_families, operation_bindings) = crate::operations::families_and_bindings();
 
     let mut memories = vec![
         MemorySpec {
@@ -1052,12 +1047,7 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
         .expect("valid WASM continuity declarations");
 
     WasmRelationLayout {
-        auxiliary: WasmAuxiliaryRelations {
-            operation_families,
-            operation_bindings,
-            memory,
-            continuity,
-        },
+        auxiliary: WasmAuxiliaryRelations { memory, continuity },
         linear_memory,
         sign_extension,
     }

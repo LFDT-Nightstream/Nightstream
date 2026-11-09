@@ -2,7 +2,7 @@ use super::builder::{bits_u64, eval_bit, selector_lc, CircuitBuilder, ColumnId, 
 use super::compare::no_borrow_bits;
 use super::{limb, opcode_lc, Inputs, CARRY_BITS, LIMB_BITS};
 use crate::isa::WasmOpcode;
-use crate::layout::{COL_DIV_OVERFLOW_COND, COL_OPERATION_ENABLED};
+use crate::layout::{COL_DIV_OVERFLOW_COND, COL_DIV_TRAP};
 use neo_math::F;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
@@ -71,7 +71,8 @@ pub(super) fn enforce_div_rem(
             WasmOpcode::I32RemS,
         ]
     };
-    let enabled = Lc::var(COL_OPERATION_ENABLED);
+    // A trapping row (zero divisor, or signed overflow for div_s) has no result.
+    let enabled = builder.one().minus(&Lc::var(COL_DIV_TRAP));
     let mut active_bits = Vec::with_capacity(operations.len());
     for operation in operations {
         active_bits.push((operation, builder.alloc_and(&enabled, &opcode_lc(operation))?));
@@ -105,7 +106,7 @@ pub(super) fn enforce_div_rem(
                 break;
             }
         }
-        super::super::semantics::division_values(bits_u64(z, &left)?, bits_u64(z, &right)?, selected, wide)
+        division_values(bits_u64(z, &left)?, bits_u64(z, &right)?, selected, wide)
     };
     let quotient_values = values.clone();
     let quotient = builder.alloc_bits("quotient", dividend.len(), move |z| Ok(quotient_values(z)?.0));
@@ -255,4 +256,55 @@ pub(super) fn conditional_abs(
     }
     builder.enforce_equal_when(negative, &carry, &builder.one());
     Ok(output)
+}
+
+/// Quotient and remainder that the assignment writes for the active div/rem
+/// operation. `rem_s(MIN, -1)` is 0; trapping rows never reach here.
+fn division_values(
+    dividend: u64,
+    divisor: u64,
+    operation: Option<WasmOpcode>,
+    wide: bool,
+) -> Result<(u64, u64), String> {
+    let Some(operation) = operation else {
+        return Ok((0, 0));
+    };
+    if divisor == 0 {
+        return Err("active division has a zero divisor".into());
+    }
+    if wide {
+        if matches!(operation, WasmOpcode::I64DivS | WasmOpcode::I64RemS) {
+            let left = dividend as i64;
+            let right = divisor as i64;
+            if operation == WasmOpcode::I64RemS && left == i64::MIN && right == -1 {
+                return Ok((0, 0));
+            }
+            let quotient = left
+                .checked_div(right)
+                .ok_or_else(|| "active signed i64 division overflowed".to_owned())?;
+            let remainder = left
+                .checked_rem(right)
+                .ok_or_else(|| "active signed i64 remainder overflowed".to_owned())?;
+            Ok((quotient as u64, remainder as u64))
+        } else {
+            Ok((dividend / divisor, dividend % divisor))
+        }
+    } else if matches!(operation, WasmOpcode::I32DivS | WasmOpcode::I32RemS) {
+        let left = dividend as u32 as i32;
+        let right = divisor as u32 as i32;
+        if operation == WasmOpcode::I32RemS && left == i32::MIN && right == -1 {
+            return Ok((0, 0));
+        }
+        let quotient = left
+            .checked_div(right)
+            .ok_or_else(|| "active signed i32 division overflowed".to_owned())?;
+        let remainder = left
+            .checked_rem(right)
+            .ok_or_else(|| "active signed i32 remainder overflowed".to_owned())?;
+        Ok((quotient as u32 as u64, remainder as u32 as u64))
+    } else {
+        let left = dividend as u32;
+        let right = divisor as u32;
+        Ok((u64::from(left / right), u64::from(left % right)))
+    }
 }

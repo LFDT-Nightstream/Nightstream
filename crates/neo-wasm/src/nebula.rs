@@ -373,14 +373,19 @@ impl WasmLimits {
     /// The smallest limits that hold the cells of `preloads` and the address
     /// parts of the active ports of `rows`, the one-row witnesses of
     /// `step_inputs(trace, trace.len(), 1)`.
-    pub fn of(preloads: &[&WasmMemoryPreload], rows: &[Vec<F>]) -> Self {
+    pub fn of(preloads: &[&WasmMemoryPreload], rows: impl IntoIterator<Item = Vec<F>>) -> Self {
         let mut limits = Self::default();
         for (id, address, _) in preloads.iter().flat_map(|preload| preload.entries()) {
             limits.hold(id, address.into_iter().map(u64::from));
         }
-        for memory in build_wasm_relation_layout().auxiliary.memory.entries() {
-            for port in &memory.ports {
-                for z in rows.iter().filter(|z| is_active(z, port.activation)) {
+        let memories = build_wasm_relation_layout().auxiliary.memory.entries();
+        for z in rows {
+            for memory in memories {
+                for port in memory
+                    .ports
+                    .iter()
+                    .filter(|port| is_active(&z, port.activation))
+                {
                     limits.hold(
                         memory.id,
                         port.address_columns
@@ -547,18 +552,27 @@ impl WasmSize {
     /// The smallest size that holds the program of `preload` and its run
     /// `trace`.
     pub fn for_run(preload: &WasmMemoryPreload, trace: &[WasmVmStep]) -> Result<Self, WasmApplicationError> {
-        let rows: Vec<Vec<F>> = step_inputs(trace, trace.len(), NonZeroUsize::MIN)?
-            .into_iter()
-            .map(|step| step.z)
-            .collect();
-        let limits = WasmLimits::of(&[preload], &rows);
+        if trace.is_empty() {
+            return Err(WasmApplicationError::EmptyTrace);
+        }
+        let rows = trace
+            .iter()
+            .map(|row| build_batched_witness(std::slice::from_ref(row), 1, 0));
+        let limits = WasmLimits::of(&[preload], rows);
         Self::smallest(&limits, trace.len()).ok_or(WasmApplicationError::TooLarge(limits))
     }
 
     /// The step inputs of each segment of the run `trace` in this size: the
-    /// fewest segments, padded as `step_inputs` pads.
-    pub fn segments(self, trace: &[WasmVmStep]) -> Result<Vec<Vec<WasmStep>>, WasmApplicationError> {
+    /// fewest segments, padded as `step_inputs` pads. The iterator builds the
+    /// witnesses of a segment when it yields that segment.
+    pub fn segments(
+        self,
+        trace: &[WasmVmStep],
+    ) -> Result<impl Iterator<Item = Vec<WasmStep>> + '_, WasmApplicationError> {
         let (_, _, n, s_max) = self.shape();
+        if trace.is_empty() {
+            return Err(WasmApplicationError::EmptyTrace);
+        }
         let segments = trace.len().div_ceil(self.segment_rows());
         if segments > s_max {
             return Err(WasmApplicationError::Steps {
@@ -567,9 +581,8 @@ impl WasmSize {
                 rows: self.rows(),
             });
         }
-        Ok(step_inputs(trace, segments * n, self.rows())?
-            .chunks(n)
-            .map(<[WasmStep]>::to_vec)
-            .collect())
+        Ok(trace.chunks(self.segment_rows()).map(move |segment| {
+            step_inputs(segment, n, self.rows()).expect("a nonempty segment of the trace fits its steps")
+        }))
     }
 }

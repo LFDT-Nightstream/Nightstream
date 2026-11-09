@@ -213,10 +213,7 @@ impl Setup {
                 .iter()
                 .map(|traced| &traced.preload)
                 .collect::<Vec<_>>(),
-            &programs
-                .iter()
-                .flat_map(|traced| traced.rows.clone())
-                .collect::<Vec<_>>(),
+            programs.iter().flat_map(|traced| traced.rows.clone()),
         )
         .regions();
         Setup {

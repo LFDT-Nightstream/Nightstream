@@ -122,7 +122,7 @@ The deterministic Lean theorem proves only that satisfying package rows
 enforce this data flow. The separate security-composition theorem must name
 Poseidon2 collision resistance, commitment binding, Fiat--Shamir and sampling
 security, and the SuperNeo knowledge reduction, as required by the
-[F-prime proof boundary](../FPRIME_LEAN_ARCHITECTURE_SPEC.md#10-proof-boundary).
+[security model](../formal/nightstream-fprime/SECURITY_MODEL.md).
 It must also prove the committed-statement step: accepted digest-bound PiCCS
 implies PiCCS for the exact decoded running statement, or a named context,
 encoding, state-hash, transcript, or Fiat--Shamir failure.

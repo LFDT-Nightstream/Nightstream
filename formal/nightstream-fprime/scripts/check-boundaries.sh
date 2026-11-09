@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Mechanical enforcement of the architecture boundaries in
-# FPRIME_LEAN_ARCHITECTURE_SPEC.md. Every check is a hard failure.
+# Mechanical enforcement of the architecture boundaries in AGENTS.md. Every
+# check is a hard failure.
 #   check-boundaries.sh [package-dir]
 # With no argument, it checks F′. Another package, such as
 # ../compression-lean, gets only the package-wide checks. The layer,

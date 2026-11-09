@@ -1,7 +1,6 @@
 # Nightstream F′ package instructions
 
-These instructions apply to `formal/nightstream-fprime`. The architecture
-contract is `/FPRIME_LEAN_ARCHITECTURE_SPEC.md`. It outranks this file.
+These instructions apply to `formal/nightstream-fprime`.
 
 ## Purpose and proof scope
 

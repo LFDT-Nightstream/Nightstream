@@ -46,9 +46,9 @@ PARITY = ARTIFACTS / "nightstream-fprime-option-b-parity-v1.json"
 FORMATS = FPRIME / "Export/OptionB/StepPackage.lean"
 PARITY_SOURCE = FPRIME / "Export/OptionB/Parity.lean"
 BEGIN, END = "<!-- params -->", "<!-- /params -->"
-# The Markdown files whose names say "spec": the protocol specification, a strategy document, and
-# the scope of a profiling tool.
-SPEC_FILES = {"SPEC.md", "FPRIME_LEAN_ARCHITECTURE_SPEC.md", "scripts/gpuscope/SPEC.md"}
+# The Markdown files whose names say "spec": the protocol specification and the scope of a
+# profiling tool.
+SPEC_FILES = {"SPEC.md", "scripts/gpuscope/SPEC.md"}
 OLD_CITATION = re.compile(r"[Ss]pec §")
 
 PIN = re.compile(r"`((?:Export|Layout|Lifecycle|Spec|CompressionLean)\.[^`\s]*)` \(`([^`\s.]*)`\)")

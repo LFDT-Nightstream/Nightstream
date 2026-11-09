@@ -21,7 +21,7 @@ physical layout, package decoder, Rust implementation, proof backend, or
 deployment.
 
 Those implementation links need separate evidence. The required boundary is
-defined by the [F′ Lean architecture contract](../FPRIME_LEAN_ARCHITECTURE_SPEC.md).
+defined by the [security model](../formal/nightstream-fprime/SECURITY_MODEL.md).
 
 ## Decision
 

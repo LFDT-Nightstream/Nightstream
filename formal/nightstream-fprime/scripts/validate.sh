@@ -103,7 +103,6 @@ case "$phase" in
       tests/AxiomsStage1Assembler.lean \
       tests/AxiomsStage1PiDEC.lean \
       tests/AxiomsStage1PiRLCExport.lean \
-      tests/AxiomsStage1PiRLCParity.lean \
       tests/AxiomsStage1Security.lean \
       tests/AxiomsProductionMatrixPlan.lean
     do

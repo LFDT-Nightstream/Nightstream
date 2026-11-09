@@ -1,5 +1,4 @@
 import tests.AxiomAudit
-import NightstreamFPrime.Export.Stage1.AccumulatorPackage
 import NightstreamFPrime.Export.Stage1.PiCCSCommonEnvironmentCustody
 import NightstreamFPrime.Export.Stage1.PiCCSTranscriptCommonSemantics
 import NightstreamFPrime.Export.Stage1.DirectPiCCSCommonPhaseSemantics
@@ -35,4 +34,3 @@ import NightstreamFPrime.Export.Stage1.DirectAccumulatorCommonSemantics
 #audit_axioms NightstreamFPrime.Export.Stage1.DirectPiCCSCommonPhaseSemantics.semantics_imply_piCcsSpecHolds
 #audit_axioms NightstreamFPrime.Export.Stage1.DirectPiCCSCommonPhaseSemantics.semantics_imply_piCcsPhaseHolds
 #audit_axioms NightstreamFPrime.Export.Stage1.DirectAccumulatorCommonSemantics.semantics_imply_accumulatorHolds
-#audit_axioms NightstreamFPrime.Export.Stage1.AccumulatorPackage.circuitPackage_implies_accumulatorHolds

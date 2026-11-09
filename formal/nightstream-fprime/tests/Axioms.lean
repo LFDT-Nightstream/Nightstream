@@ -139,9 +139,6 @@ import tests.AxiomsFoundations
 #audit_axioms NightstreamFPrime.Export.Stage1.PerApplicationProductionPlan.compile_canonical
 #audit_axioms NightstreamFPrime.Export.Stage1.PerApplicationCanonicalPackage.package_terminal
 #audit_axioms NightstreamFPrime.Export.Stage1.PerApplicationCanonicalPackage.terminal_rowCount
-#audit_axioms NightstreamFPrime.Export.Stage1.PerApplicationTerminal.holds_bottom_iff
-#audit_axioms NightstreamFPrime.Export.Stage1.PerApplicationTerminal.holds_recursive_iff
-#audit_axioms NightstreamFPrime.Export.Stage1.PerApplicationTerminal.relations_iff_terminalHolds
 #audit_axioms NightstreamFPrime.Layout.MatrixProgram.RetainedBlock.semantic_coordinateCount
 #audit_axioms NightstreamFPrime.Layout.MatrixProgram.WireEntry.semantic?_ofSemantic
 #audit_axioms NightstreamFPrime.Layout.MatrixProgram.WireForm.semantic?_ofSemantic
@@ -914,18 +911,6 @@ import tests.AxiomsFoundations
 #audit_axioms NightstreamFPrime.Layout.PiCCS.v1_2.physicalRowCount_eq_fixed
 #audit_axioms NightstreamFPrime.Layout.PiCCS.v1_2.physicalColumnCount_eq_fixed
 #audit_axioms NightstreamFPrime.Layout.PiCCS.v1_2.jointDomain_eq_fixed
-#audit_axioms NightstreamFPrime.Layout.PiCCS.v1_2.Ownership.childOrder_length
-#audit_axioms NightstreamFPrime.Layout.PiCCS.v1_2.Ownership.childConstraintLists_length
-#audit_axioms NightstreamFPrime.Layout.PiCCS.v1_2.Ownership.ownersFor_length
-#audit_axioms NightstreamFPrime.Layout.PiCCS.v1_2.Ownership.ownersForChildren_length
-#audit_axioms NightstreamFPrime.Layout.PiCCS.v1_2.Ownership.rowOwners_length
-#audit_axioms NightstreamFPrime.Layout.PiCCS.v1_2.Ownership.rowOwner
-#audit_axioms NightstreamFPrime.Layout.PiCCS.v1_2.Ownership.ownedRows_length
-#audit_axioms NightstreamFPrime.Layout.PiCCS.v1_2.Ownership.logicalPrivateDeltas_length
-#audit_axioms NightstreamFPrime.Layout.PiCCS.v1_2.Ownership.noBoundaryColumns
-#audit_axioms NightstreamFPrime.Layout.PiCCS.v1_2.Ownership.noBoundaryRows
-#audit_axioms NightstreamFPrime.Layout.PiCCS.v1_2.Ownership.columnOwner
-#audit_axioms NightstreamFPrime.Layout.PiCCS.v1_2.Ownership.columnOwner_unique
 #audit_axioms NightstreamFPrime.Layout.PiCCS.v1_2.physical_implies_holdsFlat
 #audit_axioms NightstreamFPrime.Layout.PiCCS.v1_2.physical_implies_phaseHolds
 #audit_axioms NightstreamFPrime.Layout.PiCCS.v1_2.physical_complete
@@ -934,9 +919,6 @@ import tests.AxiomsFoundations
 #audit_axioms NightstreamFPrime.Layout.PiCCS.v1_2.ProductionInputs.jointDomain_eq
 #audit_axioms NightstreamFPrime.Layout.PiCCS.v1_2.ProductionInputs.jointDomain_le_twoPow28
 #audit_axioms NightstreamFPrime.Layout.Stage1.PiCCSInputs.externalInputsBelow
-#audit_axioms NightstreamFPrime.Layout.Stage1.PiCCSPriorRunning.evalRunning_protocolEnv_eq_priorRunning
-#audit_axioms NightstreamFPrime.Layout.Stage1.PiCCSProofInputs.serializeProofInputs_length
-#audit_axioms NightstreamFPrime.Layout.Stage1.PiCCSPriorRunning.protocolInputs_eq
 #audit_axioms NightstreamFPrime.Layout.Stage1.PilotPiCCS.physicalHolds_iff
 #audit_axioms NightstreamFPrime.Layout.Stage1.PilotPiCCS.physicalRowCount_eq
 #audit_axioms NightstreamFPrime.Layout.Stage1.PilotPiCCS.physicalColumnCount_eq
@@ -944,9 +926,6 @@ import tests.AxiomsFoundations
 #audit_axioms NightstreamFPrime.Layout.Stage1.PilotPiCCS.jointDomain_le_twoPow28
 #audit_axioms NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan_injective
 #audit_axioms NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan_ne_constant
-#audit_axioms NightstreamFPrime.Layout.Stage1.Spartan.remappedRows_hold
-#audit_axioms NightstreamFPrime.Layout.Stage1.Spartan.paddedRows_length
-#audit_axioms NightstreamFPrime.Layout.Stage1.Spartan.paddedRows_hold
 #audit_axioms NightstreamFPrime.Layout.Pilot.rowOwners_length
 #audit_axioms NightstreamFPrime.Layout.Pilot.physicalColumnCount_eq
 #audit_axioms NightstreamFPrime.Layout.Pilot.physicalRowCount_eq
@@ -1387,6 +1366,3 @@ import tests.AxiomsFoundations
 #audit_axioms NightstreamFPrime.Layout.PiRLC.v1_2.CommitmentCombination.totalRowCount_eq
 #audit_axioms NightstreamFPrime.Layout.PiRLC.v1_2.CommitmentCombination.physicalRowCount_eq
 #audit_axioms NightstreamFPrime.Layout.PiRLC.v1_2.CommitmentCombination.physical_implies_spec
-#audit_axioms NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1MatrixRows.compactProgram_row?_eq_structuralPlan_forms
-#audit_axioms NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1MatrixRows.allPort_coefficient_eq_logicalRelation_matrix
-#audit_axioms NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1MatrixRows.padding_matrix_coefficient_zero

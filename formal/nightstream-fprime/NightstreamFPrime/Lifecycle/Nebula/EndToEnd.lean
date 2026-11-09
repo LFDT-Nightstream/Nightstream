@@ -9,7 +9,7 @@ some other history of a statement always contains a collision.
 
 * `Stage1Extraction`: on an accepted sample, the extracted history is a step
   history of the sample's statement for the program, or a named Stage 1
-  failure occurs. `Export/Stage1/NebulaMemorySecurity` proves it for the
+  failure occurs. `Export/OptionB/NebulaSecurity.lean` proves it for the
   HyperNova reverse extractor.
 * `bad_subset`: a bad sample has a Stage 1 failure, a state-link collision, a
   chain collision, or an accepted extracted run with an unbalanced claimed
@@ -17,7 +17,7 @@ some other history of a statement always contains a collision.
 * `bad_le_sum`: the same cover as a bound on the mass of any law.
 
 This module gives no term a number and states no premise about the memory
-round; `Export/Stage1/NebulaMemorySecurity` owns the memory round. -/
+round; `Export/OptionB/NebulaSecurity.lean` owns the memory round. -/
 
 namespace NightstreamFPrime.Lifecycle.Nebula.EndToEnd
 

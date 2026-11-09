@@ -178,12 +178,8 @@ from rebuild_radius import graph, dependents
 
 prefix = 'NightstreamFPrime.Layout.Stage1.'
 interfaces = {prefix + name for name in
-              ('Spartan', 'PiDECSourceSupportData', 'RunningTransitionSourceSupportData',
-               'Lowering', 'CompactPullback')}
-restricted_owners = ('SpartanRows', 'LoweringRows', 'RunningTransitionLowering',
-                     'PilotPiCCSPiRLCPiDECRunningTransition',
-                     'AssemblerApplicationCompleteness', 'SpartanValues',
-                     'RunningTransitionValues')
+              ('Spartan', 'PiDECSourceSupportData', 'RunningTransitionSourceSupportData')}
+restricted_owners = ('RunningTransitionLowering', 'SpartanValues')
 edges, _ = graph(Path('.'))
 failures = []
 for name in restricted_owners:

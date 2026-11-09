@@ -18,16 +18,15 @@ const SIMPLE_ADD_WAT: &str = r#"
 
 fn satisfies_batched_ccs(traces: &[WasmVmStep], batch_size: usize) {
     let batched = build_batched_wasm_ccs(batch_size).expect("build batched CCS");
-    let n_batches = batch_count(traces.len(), batch_size);
+    let n_batches = batch_count(traces.len(), batch_size).unwrap();
     for batch_idx in 0..n_batches {
-        let witness = build_batched_witness(traces, batch_size, batch_idx);
+        let witness = build_batched_witness(traces, batch_size, batch_idx).unwrap();
         batched
             .sparse_r1cs
             .is_satisfied_by(&witness)
             .unwrap_or_else(|err| panic!("batched CCS rejected witness for batch {batch_idx}: {err}"));
     }
 }
-
 #[test]
 fn batched_at_one_includes_lookup_constraints() {
     let single = build_batched_wasm_ccs(1).expect("single-step shape via batch");
@@ -76,11 +75,11 @@ fn batched_lookup_constraints_reject_forged_xor_outputs() {
             }
             // Rebuild both the VM columns and lookup advice from the forged
             // result. Range checks and the core's output bindings still hold.
-            let base = neo_wasm::build_witness_vector(&forged[index]);
+            let base = neo_wasm::build_witness_vector(&forged[index]).unwrap();
             let m_in = core.r1cs().public_input_count();
             neo_ccs::check_ccs_rowwise_zero(core.r1cs().structure(), &base[..m_in], &base[m_in..])
                 .expect("the core alone does not constrain XOR semantics");
-            let witness = build_batched_witness(&forged, batch_size, index / batch_size);
+            let witness = build_batched_witness(&forged, batch_size, index / batch_size).unwrap();
             batched
                 .sparse_r1cs
                 .is_satisfied_by(&witness)
@@ -134,7 +133,7 @@ fn cross_step_link_rejects_inconsistent_pc() {
     assert!(checked.trace.len() >= 2, "test needs at least 2 trace rows");
 
     let batched = build_batched_wasm_ccs(batch_size).expect("batched");
-    let mut witness = build_batched_witness(&checked.trace, batch_size, 0);
+    let mut witness = build_batched_witness(&checked.trace, batch_size, 0).unwrap();
 
     // Tamper with step 1's pc_before to break the pc continuity link.
     let m_single = batched.sparse_r1cs.m / batch_size;
@@ -151,7 +150,7 @@ fn cross_step_link_rejects_inconsistent_locals_fbp() {
     let checked = common::checked_wasm_run(SIMPLE_ADD_WAT, "main");
     let batch_size = 2;
     let batched = build_batched_wasm_ccs(batch_size).expect("batched");
-    let mut witness = build_batched_witness(&checked.trace, batch_size, 0);
+    let mut witness = build_batched_witness(&checked.trace, batch_size, 0).unwrap();
 
     witness[COL_LOCALS_FBP_AFTER] += F::ONE;
 
@@ -166,7 +165,7 @@ fn cross_step_link_rejects_inconsistent_sp() {
     let checked = common::checked_wasm_run(SIMPLE_ADD_WAT, "main");
     let batch_size = 2;
     let batched = build_batched_wasm_ccs(batch_size).expect("batched");
-    let mut witness = build_batched_witness(&checked.trace, batch_size, 0);
+    let mut witness = build_batched_witness(&checked.trace, batch_size, 0).unwrap();
 
     let m_single = batched.sparse_r1cs.m / batch_size;
     witness[m_single + COL_SP_BEFORE] += F::ONE;
@@ -192,7 +191,7 @@ fn block_local_constant_is_an_unreferenced_dont_care() {
     let checked = common::checked_wasm_run(SIMPLE_ADD_WAT, "main");
     let batch_size = 2;
     let batched = build_batched_wasm_ccs(batch_size).expect("batched");
-    let mut witness = build_batched_witness(&checked.trace, batch_size, 0);
+    let mut witness = build_batched_witness(&checked.trace, batch_size, 0).unwrap();
 
     let m_single = batched.sparse_r1cs.m / batch_size;
     witness[m_single /* + COL_ONE = 0 */] = F::from_u64(7);

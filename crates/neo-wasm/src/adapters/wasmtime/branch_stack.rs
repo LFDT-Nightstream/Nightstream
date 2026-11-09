@@ -48,7 +48,11 @@ fn branch<T: WasmModuleResources>(
     offset: usize,
 ) -> Result<(u32, u32), WasmProgramError> {
     let (kept, height) = arity(validator, depth as usize, offset)?;
-    let dropped = validator.operand_stack_height() as usize - condition - height - kept as usize;
+    let dropped = (validator.operand_stack_height() as usize)
+        .checked_sub(condition)
+        .and_then(|available| available.checked_sub(height))
+        .and_then(|available| available.checked_sub(kept as usize))
+        .ok_or_else(|| WasmProgramError::Invalid(format!("branch operand stack underflow at byte {offset}")))?;
     Ok(slide(kept, narrow(dropped, offset)?))
 }
 
@@ -61,7 +65,10 @@ fn function_return<T: WasmModuleResources>(
     let outermost = validator.control_stack_height() as usize - 1;
     let (results, _) = arity(validator, outermost, offset)?;
     let frame = validator.len_locals() as usize + height;
-    Ok(slide(results, narrow(frame - results as usize, offset)?))
+    let dropped = frame
+        .checked_sub(results as usize)
+        .ok_or_else(|| WasmProgramError::Invalid(format!("return operand stack underflow at byte {offset}")))?;
+    Ok(slide(results, narrow(dropped, offset)?))
 }
 
 fn narrow(value: usize, offset: usize) -> Result<u32, WasmProgramError> {
@@ -97,6 +104,13 @@ pub(super) fn frame_slides(bytes: &[u8]) -> Result<BTreeMap<u32, FrameSlideEdges
                         vec![(0, kept, distance)]
                     }
                     _ if !reachable => vec![],
+                    // A `br` to the body's own label is a `return` (see the parser).
+                    Operator::Br { relative_depth }
+                        if *relative_depth as usize == function.control_stack_height() as usize - 1 =>
+                    {
+                        let (kept, distance) = function_return(&function, height, offset)?;
+                        vec![(0, kept, distance)]
+                    }
                     Operator::Br { relative_depth } => {
                         let (kept, distance) = branch(&function, *relative_depth, 0, offset)?;
                         vec![(0, kept, distance)]
@@ -126,6 +140,11 @@ pub(super) fn frame_slides(bytes: &[u8]) -> Result<BTreeMap<u32, FrameSlideEdges
                 }
                 function.op(offset, &operator).map_err(invalid)?;
             }
+            let end_offset = operators.original_position();
+            operators
+                .get_binary_reader()
+                .finish_expression(&function.visitor(end_offset))
+                .map_err(invalid)?;
             allocations = function.into_allocations();
         }
     }

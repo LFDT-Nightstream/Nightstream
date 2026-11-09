@@ -2,22 +2,22 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use neo_application::{MemoryKind, MemoryPortActivation, MemoryPortKind, MemoryPortSpec, MemorySpec};
 use neo_wasm::{
-    build_wasm_relation, build_wasm_relation_layout, layout::*, plan_ordered_wasm_memory_slots, plan_wasm_memory_slots,
-    WasmMemoryId, WasmOpcode,
+    build_wasm_relation, build_wasm_relation_layout, layout::*, plan_ordered_wasm_memory_slots, WasmMemoryId,
+    WasmOpcode,
 };
 
 #[test]
 fn slot_plan_is_deterministic_and_covers_every_logical_port_once() {
     let layout = build_wasm_relation_layout();
     let memories = layout.auxiliary.memory.entries();
-    let plan = plan_wasm_memory_slots(memories);
-    assert_eq!(plan, plan_wasm_memory_slots(memories));
+    let plan = plan_ordered_wasm_memory_slots(memories);
+    assert_eq!(plan, plan_ordered_wasm_memory_slots(memories));
     let mut ports: Vec<_> = plan.slots.iter().flatten().copied().collect();
     ports.sort_unstable();
     assert_eq!(ports, (0..plan.logical_ports).collect::<Vec<_>>());
     assert!(plan.slots.iter().all(|slot| !slot.is_empty()));
     let max_load = plan.support_loads.values().copied().max().unwrap();
-    assert_eq!((plan.logical_ports, plan.slots.len(), max_load), (98, 21, 21));
+    assert_eq!((plan.logical_ports, plan.slots.len(), max_load), (97, 15, 15));
     assert!(plan.slots.len() >= max_load + plan.conservative_singletons);
     assert!(plan.slots.len() < plan.logical_ports);
     assert_eq!(
@@ -53,8 +53,8 @@ fn sharing_requires_disjoint_supports_and_unknown_gates_stay_dedicated() {
             })
             .collect(),
     }];
-    let plan = plan_wasm_memory_slots(&memories);
-    assert_eq!(plan.slots, vec![vec![4], vec![5], vec![6], vec![0, 1], vec![2, 3]]);
+    let plan = plan_ordered_wasm_memory_slots(&memories);
+    assert_eq!(plan.slots, vec![vec![0, 1], vec![2, 3], vec![4], vec![5], vec![6]]);
     assert_eq!(plan.logical_ports, 7);
     assert_eq!(plan.conservative_singletons, 3);
     assert_eq!(plan.support_loads[&get], 2);
@@ -151,8 +151,7 @@ fn ordered_slot_plan_keeps_dependent_pairs_in_catalog_order_wherever_the_relatio
     assert_eq!(plan.logical_ports, ports.len());
 
     eprintln!(
-        "ordered slots={} (plan_wasm_memory_slots: {}), {reordered} pairs that may be active together swap",
-        plan.slots.len(),
-        plan_wasm_memory_slots(memories).slots.len()
+        "ordered slots={}, {reordered} pairs that may be active together swap",
+        plan.slots.len()
     );
 }

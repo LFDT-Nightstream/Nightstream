@@ -458,6 +458,48 @@ fn float_global_initializer_is_rejected_at_parse() {
 }
 
 #[test]
+fn empty_else_is_rejected_at_parse() {
+    let wasm = wat::parse_str(
+        r#"(module
+            (func (export "run") (param i32) (result i32)
+                local.get 0
+                if
+                    local.get 0
+                    local.set 0
+                else
+                end
+                local.get 0)
+        )"#,
+    )
+    .expect("wat");
+
+    let err = extract_wasm_program_artifacts(&wasm).expect_err("an empty else must be rejected");
+    assert!(
+        err.to_string().contains("empty else-body"),
+        "expected empty-else rejection, got: {err}",
+    );
+}
+
+#[test]
+fn br_if_to_function_label_is_rejected_at_parse() {
+    let wasm = wat::parse_str(
+        r#"(module
+            (func (export "run") (param i32) (result i32)
+                local.get 0
+                local.get 0
+                br_if 0)
+        )"#,
+    )
+    .expect("wat");
+
+    let err = extract_wasm_program_artifacts(&wasm).expect_err("a br_if to the function label must be rejected");
+    assert!(
+        err.to_string().contains("br_if to the function's label"),
+        "expected function-label br_if rejection, got: {err}",
+    );
+}
+
+#[test]
 fn unsupported_operator_in_uncalled_function_is_rejected_at_parse() {
     let wasm = wat::parse_str(
         r#"(module
@@ -565,11 +607,8 @@ fn wasmtime_trace_normalizes_table_size_rows() {
     assert_eq!(row.stack_write0.map(|w| w.value_lo), Some(4));
 }
 
-/// `table.get` OOB raises the same `TableOutOfBounds` trap as `call_indirect`
-/// OOB, but only the latter is modeled. The adapter must keep it a loud error
-/// rather than presenting it as a clean terminal run with no results.
 #[test]
-fn table_get_out_of_bounds_stays_a_loud_error() {
+fn table_get_out_of_bounds_has_a_trapped_trace() {
     let wasm = wat::parse_str(
         r#"(module
             (table 1 funcref)
@@ -579,13 +618,17 @@ fn table_get_out_of_bounds_stays_a_loud_error() {
                 drop))"#,
     )
     .expect("valid WAT");
-    let err = collect_wasmtime_steps(&wasm, &HostEventBindings::default(), "run", &[])
-        .expect_err("table.get OOB must be a hard error");
-    assert!(
-        err.to_string()
-            .contains("table.get out of bounds for table 0 index 5"),
-        "unexpected error: {err:?}"
-    );
+    let run = collect_wasmtime_steps(&wasm, &HostEventBindings::default(), "run", &[])
+        .expect("table.get OOB has a modeled terminal trap");
+    assert!(run.results.is_empty());
+    let last = run.steps.last().unwrap();
+    assert_eq!(last.opcode_decoded, Some(WasmOpcode::TableGet));
+    assert_eq!(last.table_index, Some(5));
+    assert_eq!(last.table_size, Some(1));
+    let trace = traces_from_wasmtime_steps(&run.steps).unwrap();
+    let final_state = trace.last().unwrap().state_after;
+    assert!(final_state.is_terminal() && final_state.trapped);
+    assert!(!final_state.output.enabled);
 }
 
 #[test]
@@ -653,17 +696,23 @@ fn wasmtime_trace_normalizes_call_indirect_row() {
     let artifacts = extract_wasm_program_artifacts(&wasm).expect("program artifacts");
     let run = collect_wasmtime_steps(&wasm, &HostEventBindings::default(), "run", &[]).expect("trace");
     let trace = traces_from_wasmtime_steps(&run.steps).expect("normalize");
-    let row = trace
+    // The resolve step checks the table entry; the invocation, one pc later,
+    // pops the checked reference and calls it.
+    let resolve_index = trace
         .iter()
-        .find(|r| r.opcode == WasmOpcode::CallIndirect)
-        .expect("call_indirect row");
+        .position(|r| r.opcode == WasmOpcode::CallIndirectResolve)
+        .expect("call_indirect resolve row");
+    let resolve = &trace[resolve_index];
+    let row = &trace[resolve_index + 1];
+    assert_eq!(row.opcode, WasmOpcode::CallIndirect);
+    assert_eq!(row.state_before.pc, resolve.state_before.pc + 1);
 
-    assert_eq!(row.table_id, Some(0));
-    assert_eq!(row.table_index, Some(0));
-    assert_eq!(row.table_value, Some(1));
-    assert_eq!(row.function_type_id, Some(1));
-    assert_eq!(row.call_indirect_type_index, Some(0));
-    assert_eq!(row.expected_type_id, Some(1));
+    assert_eq!(resolve.table_id, Some(0));
+    assert_eq!(resolve.table_index, Some(0));
+    assert_eq!(resolve.table_value, Some(1));
+    assert_eq!(resolve.function_type_id, Some(1));
+    assert_eq!(resolve.expected_type_id, Some(1));
+    assert_eq!(row.function_ref, Some(1));
     assert_eq!(row.stack_reads_override, Some(1));
     assert_eq!(
         artifacts

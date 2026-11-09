@@ -11,6 +11,67 @@ fn main_returning(result: &str, body: &str) -> String {
     format!("(module (func (export \"main\") (result {result}) {body}))")
 }
 
+#[test]
+fn state_machine_missing_branch_metadata_returns_an_error() {
+    let wasm =
+        wat::parse_str("(module (func (export \"main\") (result i32) block i32.const 0 br_table 0 end i32.const 42))")
+            .unwrap();
+    let run = neo_wasm::collect_wasmtime_steps(
+        &wasm,
+        &neo_wasm::host_event_bindings::HostEventBindings::default(),
+        "main",
+        &[],
+    )
+    .unwrap();
+    let mut steps = run.steps.clone();
+    steps
+        .iter_mut()
+        .find(|step| step.opcode_decoded == Some(WasmOpcode::BrTable))
+        .unwrap()
+        .immediate_i32 = None;
+    let error = neo_wasm::traces_from_wasmtime_steps(&steps).expect_err("missing branch metadata must fail");
+    assert!(matches!(error, neo_wasm::WasmBuildError::Trace(_)), "{error}");
+    assert!(neo_wasm::traces_from_wasmtime_steps(&run.steps).is_ok());
+}
+
+#[test]
+fn state_machine_branch_cannot_read_below_its_operand_stack() {
+    let row = neo_wasm::WasmtimeTraceStep {
+        pc: Some(0),
+        opcode_decoded: Some(WasmOpcode::BrTable),
+        immediate_i32: Some(0),
+        pc_edge_kind: Some(neo_wasm::WasmPcEdgeKind::Static),
+        frame_slide: Some((0, 0)),
+        current_function_ref: Some(1),
+        num_locals: 1,
+        locals_words: vec![(0, 0)],
+        ..Default::default()
+    };
+    let error = neo_wasm::traces_from_wasmtime_steps(&[row]).expect_err("branch operand is missing");
+    assert!(matches!(error, neo_wasm::WasmBuildError::Trace(_)), "{error}");
+}
+
+#[test]
+fn state_machine_truncated_activation_returns_an_error() {
+    let wasm = wat::parse_str("(module (func (export \"main\") i32.const 7 drop))").unwrap();
+    let run = neo_wasm::collect_wasmtime_steps(
+        &wasm,
+        &neo_wasm::host_event_bindings::HostEventBindings::default(),
+        "main",
+        &[],
+    )
+    .unwrap();
+    let end = run
+        .steps
+        .iter()
+        .position(|step| step.opcode_decoded == Some(WasmOpcode::End))
+        .unwrap();
+    let error = neo_wasm::traces_from_wasmtime_steps(&run.steps[..end])
+        .expect_err("a trace prefix does not complete the activation");
+    assert!(matches!(error, neo_wasm::WasmBuildError::Trace(_)), "{error}");
+    assert!(neo_wasm::traces_from_wasmtime_steps(&run.steps).is_ok());
+}
+
 fn moves(run: &common::CheckedWasmRun) -> usize {
     run.trace
         .iter()
@@ -148,7 +209,7 @@ fn a_clean_return_cannot_claim_a_dropped_operand() {
     forged.state_after.output.value_lo = 7;
     // The row is locally consistent; its claimed slide distance is not the return's.
     common::assert_satisfied(
-        &neo_wasm::witness_builder::build_witness_vector(&forged),
+        &neo_wasm::witness_builder::build_witness_vector(&forged).unwrap(),
         "clean return claiming a result",
     );
     reject_memory(&run, index, &forged, "a resultless return capturing its temporary");
@@ -163,7 +224,7 @@ fn slide_row(run: &common::CheckedWasmRun, opcode: WasmOpcode) -> usize {
 
 fn reject_memory(run: &common::CheckedWasmRun, index: usize, forged: &neo_wasm::WasmVmStep, label: &str) {
     let mut prefix = run.witnesses[..=index].to_vec();
-    prefix[index] = neo_wasm::witness_builder::build_witness_vector(forged);
+    prefix[index] = neo_wasm::witness_builder::build_witness_vector(forged).unwrap();
     let result = sanity_check_memory_rows(
         build_wasm_relation_layout(),
         &prefix,
@@ -184,7 +245,7 @@ fn a_branch_cannot_skip_its_slide() {
     forged.state_after.sp = forged.state_before.sp;
     // The row is locally consistent; only the slide ROM rejects it.
     common::assert_satisfied(
-        &neo_wasm::witness_builder::build_witness_vector(&forged),
+        &neo_wasm::witness_builder::build_witness_vector(&forged).unwrap(),
         "branch row with no slide",
     );
     reject_memory(&run, index, &forged, "a branch must take its edge's slide");
@@ -200,7 +261,7 @@ fn a_slide_must_drop_sp_by_its_distance() {
     let mut forged = run.trace[index].clone();
     forged.state_after.sp += 1;
     common::assert_rejected(
-        &neo_wasm::witness_builder::build_witness_vector(&forged),
+        &neo_wasm::witness_builder::build_witness_vector(&forged).unwrap(),
         "slide sp must drop by the distance",
     );
 }
@@ -218,7 +279,7 @@ fn a_return_cannot_skip_its_slide() {
     forged.state_after.frame_move.distance -= 1;
     forged.state_after.sp += 1;
     common::assert_satisfied(
-        &neo_wasm::witness_builder::build_witness_vector(&forged),
+        &neo_wasm::witness_builder::build_witness_vector(&forged).unwrap(),
         "return row keeping both operands",
     );
     reject_memory(&run, index, &forged, "a return must take its static slide");

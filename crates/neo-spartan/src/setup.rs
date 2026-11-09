@@ -13,9 +13,12 @@
 //! generator. Leaf `j < 2^{n-2}` holds, for every oracle in order, the eight
 //! values at positions `j + v·2^{n-2}`: the coset `y_j·⟨ω_8⟩`, `y_j = g·ω^j`.
 
-use std::fs::File;
-use std::io::{Read, Seek, SeekFrom};
+use std::fs::{self, File};
+use std::io::{self, Read, Seek, SeekFrom};
+#[cfg(unix)]
+use std::os::unix::fs::DirBuilderExt;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use neo_ccs::crypto::poseidon2_goldilocks::{RATE, WIDTH};
 use p3_dft_v08::{Radix2DFTSmallBatch, TwoAdicSubgroupDft};
@@ -37,6 +40,8 @@ use crate::Error;
 pub(crate) const FOLD: usize = 3;
 const LEAF: usize = 1 << FOLD;
 const WORD: usize = 8;
+const STORE_DIRECTORY: &str = "setup";
+static NEXT_DIRECTORY: AtomicU64 = AtomicU64::new(0);
 
 pub(crate) type Digest = [Gl; 4];
 
@@ -55,6 +60,33 @@ pub(crate) struct Store {
     count: usize,
 }
 
+struct PendingSetup {
+    path: PathBuf,
+}
+
+impl PendingSetup {
+    fn create(parent: &Path) -> io::Result<Self> {
+        loop {
+            let ordinal = NEXT_DIRECTORY.fetch_add(1, Ordering::Relaxed);
+            let path = parent.join(format!(".nightstream-setup-{}-{ordinal}", std::process::id()));
+            let mut builder = fs::DirBuilder::new();
+            #[cfg(unix)]
+            builder.mode(0o700);
+            match builder.create(&path) {
+                Ok(()) => return Ok(Self { path }),
+                Err(error) if error.kind() == io::ErrorKind::AlreadyExists => continue,
+                Err(error) => return Err(error),
+            }
+        }
+    }
+}
+
+impl Drop for PendingSetup {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir_all(&self.path);
+    }
+}
+
 fn leaf_count(variables: usize) -> usize {
     1 << (variables + 1 - FOLD)
 }
@@ -70,6 +102,8 @@ pub(crate) fn build(
     dir: Option<&Path>,
 ) -> Result<Digest, Error> {
     assert!(variables >= FOLD);
+    let pending = dir.map(PendingSetup::create).transpose()?;
+    let output_dir = pending.as_ref().map(|pending| pending.path.as_path());
     let leaves = leaf_count(variables);
     // State `s` hashes leaves `s·lanes + lane`, one per lane: the packed
     // permutation hashes two leaves about 1.5 times faster than two scalar
@@ -86,7 +120,7 @@ pub(crate) fn build(
         codeword.par_iter_mut().for_each(|value| *value = Gl::ZERO);
         oracle(k, &mut codeword[..1 << variables]);
         encode(&dft, &mut codeword, variables);
-        if let Some(dir) = dir {
+        if let Some(dir) = output_dir {
             write_leaves(&dir.join(format!("oracle-{k:02}.bin")), &codeword, leaves)?;
         }
         let start = at;
@@ -109,7 +143,7 @@ pub(crate) fn build(
         .map(|leaf| std::array::from_fn(|k| digests[leaf / lanes][k].as_slice()[leaf % lanes]))
         .collect();
     drop(digests);
-    let file = dir
+    let file = output_dir
         .map(|dir| File::create(dir.join("tree.bin")))
         .transpose()?;
     let mut offset = 0;
@@ -122,6 +156,10 @@ pub(crate) fn build(
             break;
         }
         layer = merkle::compress_layer(&layer);
+    }
+    if let (Some(pending), Some(dir)) = (pending, dir) {
+        // A completed destination is nonempty, so rename cannot replace it.
+        fs::rename(&pending.path, dir.join(STORE_DIRECTORY))?;
     }
     Ok(layer[0])
 }
@@ -197,11 +235,11 @@ impl Store {
     /// detects stale files, it does not make the files authoritative.
     pub(crate) fn open(dir: &Path, variables: usize, count: usize, root: &Digest) -> Result<Self, Error> {
         let store = Self {
-            dir: dir.to_path_buf(),
+            dir: dir.join(STORE_DIRECTORY),
             variables,
             count,
         };
-        let mut tree = File::open(dir.join("tree.bin"))?;
+        let mut tree = File::open(store.dir.join("tree.bin"))?;
         let nodes = 2 * leaf_count(variables) - 1;
         let stored = read_words(&mut tree, ((nodes - 1) * 4 * WORD) as u64, 4)?;
         if stored.as_slice() != root.as_slice() {

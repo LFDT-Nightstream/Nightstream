@@ -37,6 +37,8 @@ file. A memory relation has its verifier in `nebula::Circuit::verifier`.
 ```rust
 use nightstream::{Engine, Prover, State};
 
+// This gates one fold. Account for proof depth and all attempts separately.
+let minimum_security_bits = policy.minimum_per_fold_security_bits;
 let prover = Prover::load("app.nsc", Engine::Optimized, minimum_security_bits)?;
 let verifier = circuit.verifier(Engine::Optimized, minimum_security_bits)?;
 let first = prover.prove(initial_state, &private_inputs)?;
@@ -50,6 +52,11 @@ statistical security of a step relation is below this minimum. That
 security is the zero-query error of a refresh fold in Lean's
 random-oracle result, about `2^-109.4`, so the selected profile accepts
 a minimum of at most 109 bits.
+
+`minimum_security_bits` is not an end-to-end security claim. It gates the
+selected one-fold error. A Nebula circuit also compares it with one memory
+fingerprint challenge. The deployment must account separately for recursive
+depth, adversary queries, failed retries, and concurrent attempts.
 
 Steps prove and verify on the CPU path only (`Engine::Optimized`).
 `Engine::Metal` and `Engine::Cuda` return `EngineError::Unavailable`. The

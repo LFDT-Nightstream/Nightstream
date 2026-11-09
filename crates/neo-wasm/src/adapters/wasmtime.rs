@@ -68,7 +68,6 @@ pub struct WasmtimeTraceStep {
     pub current_function_ref: Option<u32>,
     pub target_function_is_guest: bool,
     pub function_type_id: Option<u32>,
-    pub call_indirect_type_index: Option<u32>,
     pub expected_type_id: Option<u32>,
     pub call_param_count: Option<u8>,
     pub call_result_count: Option<u8>,
@@ -190,10 +189,8 @@ pub(crate) struct LoweringTables {
 /// Whether a wasmtime trap has a modeled terminal state, so the collected
 /// steps (faulting row included) can stand in for a clean run with no results.
 ///
-/// Most accepted traps are raised by a unique opcode. `TableOutOfBounds` is
-/// the exception: wasmtime raises it for `table.get` / `table.set` /
-/// `table.init` OOB too, but only `call_indirect` OOB is modeled, so it is
-/// accepted only when the faulting (last collected) step is a `call_indirect`.
+/// Wasmtime also uses `TableOutOfBounds` for unmodeled table instructions.
+/// The last opcode identifies the modeled fault. See SPEC.md section 7.7 for get and set.
 fn is_modeled_terminal_trap(trap: Option<&Trap>, last_step: Option<&WasmtimeTraceStep>) -> bool {
     match trap {
         Some(
@@ -206,7 +203,12 @@ fn is_modeled_terminal_trap(trap: Option<&Trap>, last_step: Option<&WasmtimeTrac
         Some(Trap::TableOutOfBounds) => {
             matches!(
                 last_step.and_then(|step| step.opcode_decoded),
-                Some(WasmOpcode::CallIndirect)
+                Some(
+                    WasmOpcode::TableGet
+                        | WasmOpcode::TableSet
+                        | WasmOpcode::CallIndirect
+                        | WasmOpcode::ReturnCallIndirect
+                )
             )
         }
         // OOB linear-memory access is modeled only for load/store opcodes.
@@ -265,8 +267,7 @@ pub fn collect_wasmtime_steps(
         Ok(()) => results.iter().map(|&v| val_to_string(v)).collect(),
         // Traps with a modeled terminal state: keep the collected steps
         // (the faulting row included) and report no results. Other trap
-        // causes (e.g. OOB access) are not provable yet and stay hard
-        // errors.
+        // causes stay hard errors.
         Err(err)
             if is_modeled_terminal_trap(
                 err.downcast_ref::<Trap>(),

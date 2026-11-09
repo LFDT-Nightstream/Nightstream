@@ -10,6 +10,21 @@
 
 mod common;
 
+#[path = "redteam/table_bounds.rs"]
+mod table_bounds_redteam;
+
+#[path = "redteam/sign_extension.rs"]
+mod sign_extension_redteam;
+
+#[path = "redteam/inactive_output.rs"]
+mod inactive_output_redteam;
+
+#[path = "redteam/count_field_alias.rs"]
+mod count_field_alias_redteam;
+
+#[path = "redteam/module_initialization.rs"]
+mod module_initialization_redteam;
+
 use std::cell::RefCell;
 use std::num::NonZeroUsize;
 use std::rc::Rc;
@@ -23,8 +38,8 @@ use neo_wasm::nebula::{
     WasmStep, WasmStepError,
 };
 use neo_wasm::{
-    build_wasm_relation_layout, plan_wasm_memory_slots, preload_from_program_artifacts, top_level_initial_state,
-    WasmMemoryId, WasmMemoryPreload, WasmStepState,
+    build_wasm_relation_layout, preload_from_program_artifacts, top_level_initial_state, WasmMemoryId,
+    WasmMemoryPreload, WasmStepState,
 };
 use nightstream::nebula::{
     size_parts, Application, CatalogRowError, Expr, Geometry, Memory, Program, R1csStepError, Region, Run,
@@ -144,6 +159,7 @@ fn traced(wat: &str, steps: usize, per_step: NonZeroUsize) -> Traced {
     preload_host_event_tables(
         &mut preload,
         &HostEventBindings::import_free(u32::try_from(export_fref).unwrap()),
+        &checked.artifacts,
     );
     let rows = step_inputs(&checked.trace, steps * per_step.get(), NonZeroUsize::MIN).expect("the trace fits");
     Traced {
@@ -152,7 +168,7 @@ fn traced(wat: &str, steps: usize, per_step: NonZeroUsize) -> Traced {
         inputs: step_inputs(&checked.trace, steps, per_step).expect("the trace fits one segment"),
         real: checked.trace.len(),
         preload,
-        initial: top_level_initial_state(tables, entry_pc),
+        initial: top_level_initial_state(tables, entry_pc).unwrap(),
         last: checked.trace.last().expect("a trace row").state_after,
     }
 }
@@ -218,7 +234,9 @@ impl Setup {
                 .flat_map(|traced| traced.rows.clone())
                 .collect::<Vec<_>>(),
         )
-        .regions();
+        .unwrap()
+        .regions()
+        .unwrap();
         Setup {
             activations: catalog
                 .entries()
@@ -244,7 +262,7 @@ impl Setup {
     /// The application of the static plan that keeps each dependent pair in
     /// trace order.
     fn complete(&self) -> (WasmApplication, Geometry) {
-        self.app(&plan_ordered_slots(self.per_step))
+        self.app(&plan_ordered_slots(self.per_step).unwrap())
     }
 
     fn run(&self, app: &WasmApplication, traced: &Traced) -> (Program, Run<WasmApplication>) {
@@ -372,7 +390,7 @@ fn honest_padded_traces_run_through_nebula() {
                     setup
                         .activations
                         .iter()
-                        .all(|activation| !is_active(z, *activation)),
+                        .all(|activation| !is_active(z, *activation).unwrap()),
                     "a padding row activates no port"
                 );
             }
@@ -383,7 +401,7 @@ fn honest_padded_traces_run_through_nebula() {
                     setup
                         .activations
                         .iter()
-                        .filter(|activation| is_active(z, **activation))
+                        .filter(|activation| is_active(z, **activation).unwrap())
                         .count() as u64
                 })
                 .sum::<u64>();
@@ -483,21 +501,15 @@ fn a_step_of_rows_that_are_not_neighbors_fails_only_its_link_rows() {
     }
 }
 
-/// `plan_wasm_memory_slots` puts the stack reads (ports 10 and 14) in slots 0
-/// and 1 and the stack writes (ports 8 and 9) in slots 6 and 7. Row 2 of the
-/// call trace (`local.get 0`) activates all four, so a stack read shows before
-/// a stack write that comes first in catalog order (SPEC.md section 7.6 I2) and the
-/// honest trace fails. The linear-memory trace runs: the pairs that its rows
-/// show out of catalog order are on distinct memories.
+/// Reversing the slots violates catalog order for dependent ports
+/// (SPEC.md section 7.6 I2), so an honest call trace must be rejected.
 #[test]
-fn enzo_slot_plan_breaks_a_dependent_pair_on_an_honest_row() {
+fn reversed_slot_plan_rejects_a_dependent_pair_on_an_honest_row() {
     let setup = setup(NonZeroUsize::MIN);
-    let plan = plan_wasm_memory_slots(build_wasm_relation_layout().auxiliary.memory.entries());
-    let (app, _) = setup.app(&plan.slots);
-    let (linear, call) = (&setup.programs[0], &setup.programs[1]);
-    let (_, mut run) = setup.run(&app, linear);
-    run.segment(&linear.inputs)
-        .expect("the linear-memory trace runs");
+    let mut slots = plan_ordered_slots(NonZeroUsize::MIN).unwrap();
+    slots.reverse();
+    let (app, _) = setup.app(&slots);
+    let call = &setup.programs[1];
     let (_, mut run) = setup.run(&app, call);
     let Err(SegmentError::Application(error)) = run.segment(&call.inputs) else {
         panic!("the honest call trace fails");
@@ -583,7 +595,6 @@ fn step_inputs_reject_a_trace_longer_than_the_run() {
 /// Every field of `WasmStepState` changes its words, so a verifier that reads
 /// a field of a proved last state reads a proved value. The pattern names
 /// every field, so a new field does not compile until it gets a change here.
-/// `None` and `Some(0)` of the two page counts share the word 0.
 #[test]
 fn every_state_field_changes_the_state_words() {
     use neo_wasm::{WasmCountdownState, WasmEventAbsorbState, WasmFrameMoveState, WasmHostEventState, WasmOutputState};
@@ -747,6 +758,20 @@ fn every_state_field_changes_the_state_words() {
     assert_eq!(changes.len(), 29 + 3 * 4 + 8 + 12, "one change for each field and lane");
 }
 
+#[test]
+fn absent_memory_and_zero_page_memory_have_different_state_words() {
+    let checked = common::checked_main(NOPS);
+    let absent = checked.trace.last().unwrap().state_after;
+    assert_eq!((absent.memory_pages, absent.max_memory_pages), (None, None));
+    let present = WasmStepState {
+        memory_pages: Some(0),
+        max_memory_pages: Some(0),
+        ..absent
+    };
+    assert_ne!(absent, present);
+    assert_ne!(state_words(absent), state_words(present));
+}
+
 /// A field raised by `q` keeps a word of `q` or more, which the terminal check
 /// of SPEC.md Algorithm 10 refuses, so a claim cannot name a field that differs
 /// from the proved word by `q`. A step input whose next state is raised by `q`
@@ -792,7 +817,7 @@ fn a_state_field_of_q_or_more_has_no_canonical_word() {
 /// (`S_max = 2`).
 fn two_segments() -> (Setup, WasmApplication, Geometry) {
     let setup = setup(NonZeroUsize::MIN);
-    let slots = plan_ordered_slots(NonZeroUsize::MIN);
+    let slots = plan_ordered_slots(NonZeroUsize::MIN).unwrap();
     let geometry = smallest_geometry(setup.log2, slots.len(), N / 2, 2);
     let app = WasmApplication::with_slots(&geometry, setup.regions.clone(), NonZeroUsize::MIN, &slots)
         .expect("an application");
@@ -819,7 +844,7 @@ fn a_trace_runs_in_two_segments() {
 #[test]
 #[ignore = "Full production-profile memory proof; run separately under the 300-second cap."]
 fn a_proof_of_two_segments_verifies_on_cpu() {
-    use nightstream::nebula::Circuit;
+    use nightstream::nebula::{Circuit, ProveError};
     let started = std::time::Instant::now();
     let (setup, app, geometry) = two_segments();
     let traced = &setup.programs[1];
@@ -838,6 +863,39 @@ fn a_proof_of_two_segments_verifies_on_cpu() {
         .verify(&program, &traced.initial, &last, &proof)
         .unwrap();
     assert_eq!(verified.steps, 8);
+    let aliased_last = WasmStepState {
+        memory_pages: Some(0),
+        max_memory_pages: Some(0),
+        ..last
+    };
+    assert_ne!(aliased_last, last);
+    assert!(
+        verifier
+            .verify(&program, &traced.initial, &aliased_last, &proof)
+            .is_err(),
+        "a proof must not verify for a distinct typed memory state"
+    );
+
+    let mut forged_inputs = traced.inputs.clone();
+    let forged_last_input = forged_inputs
+        .last_mut()
+        .expect("the call trace has a final End row");
+    forged_last_input.z[neo_wasm::layout::COL_PC_AFTER] += F::ONE;
+    let forged_pc = forged_last_input.next.pc + 1;
+    for (bit, column) in neo_wasm::range_check::range_checked_bit_columns(neo_wasm::layout::COL_PC_AFTER)
+        .expect("pc has range bits")
+        .enumerate()
+    {
+        forged_last_input.z[column] = F::from_u64((forged_pc >> bit) & 1);
+    }
+    neo_wasm::write_turn_schedule_guard_witness(&mut forged_last_input.z).unwrap();
+    forged_last_input.next.pc += 1;
+    let mut forged_run = prover.start(&program, traced.initial).unwrap();
+    let error = forged_inputs
+        .chunks(geometry.n)
+        .try_for_each(|segment| forged_run.segment(segment))
+        .expect_err("a forged terminal pc must not have a proof");
+    assert!(matches!(error, ProveError::Proof(_)));
     eprintln!("two segments elapsed={:?}", started.elapsed());
 }
 
@@ -859,7 +917,7 @@ fn access(traced: &Traced, write: bool) -> (usize, usize) {
                 .ports
                 .iter()
                 .find(|port| {
-                    matches!(port.kind, MemoryPortKind::Write { .. }) == write && is_active(z, port.activation)
+                    matches!(port.kind, MemoryPortKind::Write { .. }) == write && is_active(z, port.activation).unwrap()
                 })
                 .map(|port| (row, port.value_column))
         })

@@ -6,8 +6,9 @@
 //! state is a `WasmStepState`, whose words are the continuity words
 //! (`state_words`), so a verifier reads the last state of a proof as a typed
 //! value. Every field has words (test `every_state_field_changes_the_state_words`),
-//! and a field of `q` or more has no canonical word, except that `None` and
-//! `Some(0)` of `memory_pages` and `max_memory_pages` share the word 0. One circuit serves every program whose memories fit its
+//! and a field of `q` or more has no canonical word. Absence of a default
+//! memory uses a reserved word above the wasm32 page limit, so it differs
+//! from a present zero-page memory. One circuit serves every program whose memories fit its
 //! regions. A deployment proves in the fixed sizes of `WasmSize`.
 
 use std::num::NonZeroUsize;
@@ -55,6 +56,10 @@ pub enum WasmApplicationError {
     Matrix,
     #[error(transparent)]
     Application(#[from] R1csApplicationError),
+    #[error(transparent)]
+    Catalog(#[from] CatalogBindingError),
+    #[error("witness row has {actual} words, needs at least {minimum}")]
+    RowLength { actual: usize, minimum: usize },
     #[error("a run needs at least one trace row")]
     EmptyTrace,
     #[error("no WASM size holds the program and its run, which need {0:?}")]
@@ -71,7 +76,7 @@ pub enum WasmApplicationError {
 /// plan of `plan_ordered_wasm_memory_slots`, so each dependent pair stays in
 /// order (`SPEC.md` section 7.6 rule 2). It has `rows` times the one-row
 /// slots.
-pub fn plan_ordered_slots(rows: NonZeroUsize) -> Vec<Vec<usize>> {
+pub fn plan_ordered_slots(rows: NonZeroUsize) -> Result<Vec<Vec<usize>>, CatalogBindingError> {
     let catalog = &build_wasm_relation_layout().auxiliary.memory;
     batched_slots(catalog, &plan_ordered_wasm_memory_slots(catalog.entries()).slots, rows)
 }
@@ -85,7 +90,7 @@ impl WasmApplication {
         regions: Vec<(WasmMemoryId, Region)>,
         rows: NonZeroUsize,
     ) -> Result<Self, WasmApplicationError> {
-        Self::with_slots(geometry, regions, rows, &plan_ordered_slots(rows))
+        Self::with_slots(geometry, regions, rows, &plan_ordered_slots(rows)?)
     }
 
     /// The application of `rows` trace rows per step for `geometry`,
@@ -231,7 +236,7 @@ pub fn step_inputs(
             steps,
             rows,
         })?;
-    let batch = build_batched_witness(trace, capacity, 0);
+    let batch = build_batched_witness(trace, capacity, 0)?;
     Ok(batch
         .chunks(batch.len() / steps)
         .enumerate()
@@ -243,12 +248,16 @@ pub fn step_inputs(
 }
 
 /// Lean `active`: whether a port with `activation` is active on row `z`.
-pub fn is_active(z: &[F], activation: MemoryPortActivation) -> bool {
-    match activation {
-        MemoryPortActivation::Always => true,
-        MemoryPortActivation::When(column) => z[column] == F::ONE,
-        MemoryPortActivation::Unless(column) => z[column] == F::ZERO,
-    }
+pub fn is_active(z: &[F], activation: MemoryPortActivation) -> Result<bool, WasmApplicationError> {
+    let (column, expected) = match activation {
+        MemoryPortActivation::Always => return Ok(true),
+        MemoryPortActivation::When(column) => (column, F::ONE),
+        MemoryPortActivation::Unless(column) => (column, F::ZERO),
+    };
+    Ok(*z.get(column).ok_or(WasmApplicationError::RowLength {
+        actual: z.len(),
+        minimum: column.saturating_add(1),
+    })? == expected)
 }
 
 fn bits(value: u64) -> usize {
@@ -263,7 +272,6 @@ enum Dimension {
     Function,
     Event,
     Slot,
-    ModuleType,
     Stack,
     LinearMemory,
     Global,
@@ -274,13 +282,12 @@ enum Dimension {
 }
 
 impl Dimension {
-    const ALL: [Self; 13] = [
+    const ALL: [Self; 12] = [
         Self::Pc,
         Self::Choice,
         Self::Function,
         Self::Event,
         Self::Slot,
-        Self::ModuleType,
         Self::Stack,
         Self::LinearMemory,
         Self::Global,
@@ -304,7 +311,6 @@ fn dimensions(id: WasmMemoryId) -> &'static [Dimension] {
         | M::ProgramGlobalIndex
         | M::ProgramTableId
         | M::ProgramMemoryOffset
-        | M::ProgramCallIndirectTypeIndex
         | M::ProgramCallIndirectExpectedTypeId
         | M::ProgramI32ConstValue
         | M::ProgramI64ConstValueLo
@@ -326,7 +332,6 @@ fn dimensions(id: WasmMemoryId) -> &'static [Dimension] {
         | M::HostEventSlotVariant
         | M::HostEventSlotImmediate0
         | M::HostEventSlotImmediate1 => &[D::Function, D::Event, D::Slot],
-        M::ModuleType => &[D::ModuleType],
         M::Stack => &[D::Stack],
         M::LinearMemory => &[D::LinearMemory],
         M::GlobalLo | M::GlobalHi => &[D::Global],
@@ -357,8 +362,6 @@ pub struct WasmLimits {
     pub event: usize,
     /// A slot of one host event.
     pub slot: usize,
-    /// A module type.
-    pub module_type: usize,
     /// A stack cell.
     pub stack: usize,
     /// A word of linear memory.
@@ -379,24 +382,34 @@ impl WasmLimits {
     /// The smallest limits that hold the cells of `preloads` and the address
     /// parts of the active ports of `rows`, the one-row witnesses of
     /// `step_inputs(trace, trace.len(), 1)`.
-    pub fn of(preloads: &[&WasmMemoryPreload], rows: &[Vec<F>]) -> Self {
+    pub fn of(preloads: &[&WasmMemoryPreload], rows: &[Vec<F>]) -> Result<Self, WasmApplicationError> {
+        for row in rows {
+            if row.len() < crate::RANGE_CHECKED_WITNESS_WIDTH {
+                return Err(WasmApplicationError::RowLength {
+                    actual: row.len(),
+                    minimum: crate::RANGE_CHECKED_WITNESS_WIDTH,
+                });
+            }
+        }
         let mut limits = Self::default();
         for (id, address, _) in preloads.iter().flat_map(|preload| preload.entries()) {
             limits.hold(id, address.into_iter().map(u64::from));
         }
         for memory in build_wasm_relation_layout().auxiliary.memory.entries() {
             for port in &memory.ports {
-                for z in rows.iter().filter(|z| is_active(z, port.activation)) {
-                    limits.hold(
-                        memory.id,
-                        port.address_columns
-                            .iter()
-                            .map(|column| z[*column].as_canonical_u64()),
-                    );
+                for z in rows {
+                    if is_active(z, port.activation)? {
+                        limits.hold(
+                            memory.id,
+                            port.address_columns
+                                .iter()
+                                .map(|column| z[*column].as_canonical_u64()),
+                        );
+                    }
                 }
             }
         }
-        limits
+        Ok(limits)
     }
 
     /// Whether each width is at least the width of `other`.
@@ -410,7 +423,7 @@ impl WasmLimits {
     /// One region for each memory of the catalog, with the widths of its
     /// dimensions (`pack_regions`), and the cells that they take in the ROM
     /// and in the RAM.
-    pub fn regions(&self) -> (Vec<(WasmMemoryId, Region)>, [u64; 2]) {
+    pub fn regions(&self) -> Result<(Vec<(WasmMemoryId, Region)>, [u64; 2]), CatalogBindingError> {
         let mut limits = *self;
         pack_regions(
             build_wasm_relation_layout()
@@ -443,7 +456,6 @@ impl WasmLimits {
             Dimension::Function => &mut self.function,
             Dimension::Event => &mut self.event,
             Dimension::Slot => &mut self.slot,
-            Dimension::ModuleType => &mut self.module_type,
             Dimension::Stack => &mut self.stack,
             Dimension::LinearMemory => &mut self.linear_memory,
             Dimension::Global => &mut self.global,
@@ -460,8 +472,10 @@ impl WasmLimits {
 /// verifier compiles at most three. It takes the size of a proof from the
 /// proof's statement, never from the prover's run. A prover takes the
 /// smallest size that holds the run (`WasmSize::for_run`). Each size holds
-/// runs of up to 16,384 trace rows. Its memory security is at least 109.91
-/// bits (SPEC.md section 7.1, rule 6), so a caller asks for at most 109 bits.
+/// runs of up to 16,384 trace rows. Its one-challenge memory-fingerprint term
+/// is at least 109.91 bits (SPEC.md section 7.1, rule 6), so the runtime gate
+/// accepts at most 109 bits. This is not an end-to-end security level: the
+/// deployment query count, retries, and recursive depth remain separate.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum WasmSize {
     /// ROM and RAM of `2^14` cells: 256 instructions, 32 function
@@ -505,7 +519,6 @@ impl WasmSize {
             function,
             event: 3,
             slot: 3,
-            module_type: 4,
             stack: log2 - 2,
             linear_memory: log2 - 1,
             global: 6,
@@ -523,14 +536,22 @@ impl WasmSize {
 
     pub fn geometry(self) -> Geometry {
         let (log2, _, n, s_max) = self.shape();
-        Geometry::new(log2, log2, plan_ordered_slots(self.rows()).len(), n, s_max)
-            .expect("each WASM size keeps SPEC.md section 7.1")
+        Geometry::new(
+            log2,
+            log2,
+            plan_ordered_slots(self.rows())
+                .expect("fixed WASM slot plan")
+                .len(),
+            n,
+            s_max,
+        )
+        .expect("each WASM size keeps SPEC.md section 7.1")
     }
 
     /// The application of the size: its regions (`WasmLimits::regions`) and
     /// the slot plan of `plan_ordered_slots`.
     pub fn application(self) -> Result<WasmApplication, WasmApplicationError> {
-        WasmApplication::new(&self.geometry(), self.limits().regions().0, self.rows())
+        WasmApplication::new(&self.geometry(), self.limits().regions()?.0, self.rows())
     }
 
     /// The trace rows of one segment.
@@ -559,7 +580,7 @@ impl WasmSize {
             .into_iter()
             .map(|step| step.z)
             .collect();
-        let limits = WasmLimits::of(&[preload], &rows);
+        let limits = WasmLimits::of(&[preload], &rows)?;
         Self::smallest(&limits, trace.len()).ok_or(WasmApplicationError::TooLarge(limits))
     }
 

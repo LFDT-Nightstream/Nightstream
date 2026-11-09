@@ -5,10 +5,11 @@ use super::super::layout::{
     COL_CI_ENTRY_NULL_INV, COL_CI_OOB, COL_CI_TYPE_EQ, COL_CI_TYPE_EQ_INV, COL_CMP_GE, COL_CMP_LOW,
     COL_DIV_DIVIDEND_IS_MIN, COL_DIV_DIVIDEND_MIN_INV, COL_DIV_DIVISOR_INV, COL_DIV_DIVISOR_IS_NEG1,
     COL_DIV_DIVISOR_IS_ZERO, COL_DIV_DIVISOR_NEG1_INV, COL_DIV_OVERFLOW, COL_DIV_OVERFLOW_COND, COL_DIV_TRAP,
-    COL_EXPECTED_TYPE_ID, COL_FUNCTION_CALL_TYPE_LOOKUP_GATE, COL_FUNCTION_TYPE_ID, COL_GUEST_ENTRY_ACTIVE,
+    COL_EXPECTED_TYPE_ID, COL_FUNCTION_CALL_TYPE_LOOKUP_GATE, COL_FUNCTION_REF, COL_FUNCTION_TYPE_ID,
     COL_IS_PROGRAM_ROW, COL_MEMORY_PAGES_BEFORE, COL_MEM_LOAD_LIVE, COL_MEM_OOB, COL_MEM_STORE_LIVE, COL_ONE,
     COL_OUTPUT_CAPTURED, COL_STACK_READ_VALUE_HI, COL_STACK_READ_VALUE_LO, COL_STACK_WRITE0_VALUE_HI,
-    COL_STACK_WRITE0_VALUE_LO, COL_TABLE_INDEX, COL_TABLE_SIZE, COL_TABLE_VALUE, COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE,
+    COL_STACK_WRITE0_VALUE_LO, COL_TABLE_INDEX, COL_TABLE_OOB, COL_TABLE_SET_LIVE, COL_TABLE_SIZE, COL_TABLE_VALUE,
+    COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE,
 };
 use super::super::relation_layout::{LinearMemoryColumns, WasmRelationLayout};
 use super::{always, idx, shared, WasmTaggedR1csBuilder};
@@ -115,11 +116,15 @@ pub(super) fn push_trap_constraints(b: &mut WasmTaggedR1csBuilder<'_>, layout: &
     });
     b.with_tag(
         shared(
-            "indirect call trap",
-            &[WasmOpcode::CallIndirect, WasmOpcode::ReturnCallIndirect],
+            "table bounds and indirect call trap",
+            &[
+                WasmOpcode::TableGet,
+                WasmOpcode::TableSet,
+                WasmOpcode::CallIndirectResolve,
+            ],
         ),
         |b| {
-            push_call_indirect_trap_constraints(b);
+            push_table_bounds_and_call_indirect_trap_constraints(b);
         },
     );
     b.with_tag(shared("linear memory oob trap", &linear_memory_ops()), |b| {
@@ -255,15 +260,22 @@ fn push_div_trap_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     push_gated_linear_zero(b, COL_DIV_TRAP, [(COL_STACK_WRITE0_VALUE_HI, F::ONE)]);
 }
 
-fn push_call_indirect_trap_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
-    let call_indirect = selector_col(WasmOpcode::CallIndirect).unwrap();
-    let return_call_indirect = selector_col(WasmOpcode::ReturnCallIndirect).unwrap();
-    let indirect_selectors = [(call_indirect, F::ONE), (return_call_indirect, F::ONE)];
+/// The bounds check of `table.get` / `table.set`, and the resolve step of
+/// `call_indirect` / `return_call_indirect`. An out-of-bounds table access
+/// traps (SPEC.md section 7.7). The resolve step traps on an out-of-bounds
+/// index, a null entry or a type mismatch; otherwise the following invocation
+/// calls the entry it checked.
+fn push_table_bounds_and_call_indirect_trap_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
+    let table_get = selector_col(WasmOpcode::TableGet).unwrap();
+    let table_set = selector_col(WasmOpcode::TableSet).unwrap();
+    let resolve = selector_col(WasmOpcode::CallIndirectResolve).unwrap();
+    let indirect_selectors = [(resolve, F::ONE)];
 
-    // ge = selector * ( table_index >= table_size )
+    // Every table-indexing opcode authenticates the declared table size and
+    // consumes the comparison as its modeled out-of-bounds trap.
     push_unsigned_ge_gadget(
         b,
-        [call_indirect, return_call_indirect],
+        [table_get, table_set, resolve],
         [(COL_TABLE_INDEX, F::ONE)],
         [(COL_TABLE_SIZE, F::ONE)],
         COL_CMP_LOW,
@@ -272,6 +284,20 @@ fn push_call_indirect_trap_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
 
     // COL_CI_OOB = selector * ge.
     b.push_row(indirect_selectors, [(COL_CMP_GE, F::ONE)], [(COL_CI_OOB, F::ONE)]);
+    // An out-of-bounds table.get/table.set row touches no table element, and
+    // table.get pushes a zero placeholder instead of an entry.
+    b.push_row(
+        [(table_get, F::ONE), (table_set, F::ONE)],
+        [(COL_CMP_GE, F::ONE)],
+        [(COL_TABLE_OOB, F::ONE)],
+    );
+    b.push_row(
+        [(table_set, F::ONE)],
+        [(COL_ONE, F::ONE), (COL_CMP_GE, -F::ONE)],
+        [(COL_TABLE_SET_LIVE, F::ONE)],
+    );
+    push_gated_linear_zero(b, COL_TABLE_OOB, [(COL_STACK_WRITE0_VALUE_LO, F::ONE)]);
+    push_gated_linear_zero(b, COL_TABLE_OOB, [(COL_STACK_WRITE0_VALUE_HI, F::ONE)]);
 
     // 0 encodes the null funcref
     CALL_INDIRECT_ENTRY_ZERO_TEST.push_constraints(b);
@@ -281,15 +307,15 @@ fn push_call_indirect_trap_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     //
     // we have 3 possible trap cases, characterized by the following two equations:
     //
-    // 1. type_lookup = call_indirect * !oob * !null
-    // -> (r1cs trick, works because oob is already gated by call_indirect)
-    // 1. type_lookup = (call_indirect - oob) * (1 - null)
+    // 1. type_lookup = resolve * !oob * !null
+    // -> (r1cs trick, works because oob is already gated by resolve)
+    // 1. type_lookup = (resolve - oob) * (1 - null)
     //
-    // 2. type_lookup * type_eq = call_indirect - is_trap
+    // 2. type_lookup * type_eq = resolve - is_trap
     //
     // if type_lookup = 1,
     //
-    // type_lookup => call_indirect (because of 1)
+    // type_lookup => resolve (because of 1)
     //
     // so
     //
@@ -299,9 +325,9 @@ fn push_call_indirect_trap_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     //
     // if type_lookup = 0, then
     //
-    // either call_indirect = 0, so 0 = 0 - 0 and is_trap = 0
+    // either resolve = 0, so 0 = 0 - 0 and is_trap = 0
     //
-    // or call_indirect = 1, and is_trap = 1
+    // or resolve = 1, and is_trap = 1
     //
     // which forces either oob or null
     //
@@ -326,12 +352,13 @@ fn push_call_indirect_trap_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
         [(COL_ONE, F::ONE), (COL_CALL_INDIRECT_IS_TRAP, -F::ONE)],
         [(COL_CALL_INDIRECT_IS_NOT_TRAP, F::ONE)],
     );
-    // A trapping row never enters the callee: no call-stack push (and via
-    // the guest-entry gating, no new frame).
-    b.push_row(
-        [(COL_CALL_INDIRECT_IS_TRAP, F::ONE)],
-        [(COL_GUEST_ENTRY_ACTIVE, F::ONE)],
-        [],
+    // The type check looks up the table entry's own type: bound whenever the
+    // lookup runs, mismatch traps included, so a trap cannot be faked through
+    // another function's type.
+    push_gated_linear_zero(
+        b,
+        COL_FUNCTION_CALL_TYPE_LOOKUP_GATE,
+        [(COL_FUNCTION_REF, F::ONE), (COL_TABLE_VALUE, -F::ONE)],
     );
 }
 
@@ -343,6 +370,7 @@ fn push_trapped_state_transition_constraints(b: &mut WasmTaggedR1csBuilder<'_>) 
         (COL_DIV_TRAP, -F::ONE),
         (COL_CALL_INDIRECT_IS_TRAP, -F::ONE),
         (COL_MEM_OOB, -F::ONE),
+        (COL_TABLE_OOB, -F::ONE),
     ]);
     b.push_row([(COL_IS_PROGRAM_ROW, F::ONE)], [(COL_TRAPPED_BEFORE, F::ONE)], []);
     b.push_row([(COL_OUTPUT_CAPTURED, F::ONE)], [(COL_TRAPPED_AFTER, F::ONE)], []);

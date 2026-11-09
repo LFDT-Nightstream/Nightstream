@@ -151,8 +151,11 @@ fn host_event_trace_from(initial_comm_chain: neo_wasm::CommChainState) -> Vec<Wa
     let component_bytes = wat::parse_str(mul_sink_component_wat()).expect("component wat");
     let artifacts = neo_wasm::extract_first_component_core_program_artifacts(&component_bytes).expect("artifacts");
     let mut preload = neo_wasm::memory_semantics::preload_from_program_artifacts(&artifacts);
-    neo_wasm::memory_semantics::preload_host_event_tables(&mut preload, &bindings);
-    let witness_rows: Vec<Vec<neo_math::F>> = trace.iter().map(build_witness_vector).collect();
+    neo_wasm::memory_semantics::preload_host_event_tables(&mut preload, &bindings, &artifacts);
+    let witness_rows: Vec<Vec<neo_math::F>> = trace
+        .iter()
+        .map(|row| build_witness_vector(row).unwrap())
+        .collect();
     let layout = neo_wasm::relation_layout::build_wasm_relation_layout();
     neo_wasm::memory_semantics::sanity_check_memory_rows(&layout, &witness_rows, &preload)
         .expect("bindings ROM contents match");
@@ -248,8 +251,11 @@ fn i64_result_lane_writes() {
     common::ccs_check_trace(&trace);
     let artifacts = neo_wasm::extract_first_component_core_program_artifacts(&component_bytes).expect("artifacts");
     let mut preload = neo_wasm::memory_semantics::preload_from_program_artifacts(&artifacts);
-    neo_wasm::memory_semantics::preload_host_event_tables(&mut preload, &bindings);
-    let witness_rows: Vec<Vec<neo_math::F>> = trace.iter().map(build_witness_vector).collect();
+    neo_wasm::memory_semantics::preload_host_event_tables(&mut preload, &bindings, &artifacts);
+    let witness_rows: Vec<Vec<neo_math::F>> = trace
+        .iter()
+        .map(|row| build_witness_vector(row).unwrap())
+        .collect();
     let layout = neo_wasm::relation_layout::build_wasm_relation_layout();
     neo_wasm::memory_semantics::sanity_check_memory_rows(&layout, &witness_rows, &preload)
         .expect("bindings ROM contents match");
@@ -269,7 +275,7 @@ fn i64_result_lane_writes() {
     assert_eq!((write.value_lo, write.value_hi), (0, Some(0)));
     assert_eq!(lo_row.state_after.sp, lo_row.state_before.sp + 1, "the lo slot pushes");
 
-    let witness = build_witness_vector(lo_row);
+    let witness = build_witness_vector(lo_row).unwrap();
     common::assert_satisfied(&witness, "untampered result-lo gather row");
     let mut forged = witness.clone();
     forged[neo_wasm::layout::COL_STACK_WRITE0_ADDR_LO] += neo_math::F::from_u64(2);
@@ -304,7 +310,7 @@ fn i64_result_lane_writes() {
     );
     let hi_write = hi_row.stack_write0.expect("hi lane write");
     assert_eq!(hi_write.value_hi, Some(3));
-    let witness = build_witness_vector(hi_row);
+    let witness = build_witness_vector(hi_row).unwrap();
     common::assert_satisfied(&witness, "untampered result-hi gather row");
     let mut forged = witness.clone();
     forged[neo_wasm::layout::COL_STACK_WRITE0_ADDR_LO] += neo_math::F::from_u64(2);
@@ -356,8 +362,11 @@ fn advice_import_pushes_without_absorbing() {
     let component_bytes = wat::parse_str(mul_sink_component_wat()).expect("component wat");
     let artifacts = neo_wasm::extract_first_component_core_program_artifacts(&component_bytes).expect("artifacts");
     let mut preload = neo_wasm::memory_semantics::preload_from_program_artifacts(&artifacts);
-    neo_wasm::memory_semantics::preload_host_event_tables(&mut preload, &bindings);
-    let witness_rows: Vec<Vec<neo_math::F>> = trace.iter().map(build_witness_vector).collect();
+    neo_wasm::memory_semantics::preload_host_event_tables(&mut preload, &bindings, &artifacts);
+    let witness_rows: Vec<Vec<neo_math::F>> = trace
+        .iter()
+        .map(|row| build_witness_vector(row).unwrap())
+        .collect();
     let layout = neo_wasm::relation_layout::build_wasm_relation_layout();
     neo_wasm::memory_semantics::sanity_check_memory_rows(&layout, &witness_rows, &preload)
         .expect("bindings ROM contents match");
@@ -403,7 +412,7 @@ fn advice_import_pushes_without_absorbing() {
 
     // The final advice row cannot start a permutation or shed its ROM flag.
     let word7 = advice_rows.last().expect("word 7");
-    let witness = build_witness_vector(word7);
+    let witness = build_witness_vector(word7).unwrap();
     common::assert_satisfied(&witness, "untampered advice word-7 row");
     let mut forged = witness.clone();
     forged[neo_wasm::layout::COL_PERM_PENDING_AFTER] = neo_math::F::ONE;
@@ -494,7 +503,7 @@ fn ccs_rejects_forged_gather_word() {
                 && row.state_before.host_events.slot_cursor == 0
         })
         .expect("discriminant slot row");
-    let mut witness = build_witness_vector(disc_row);
+    let mut witness = build_witness_vector(disc_row).unwrap();
     common::assert_satisfied(&witness, "untampered discriminant slot row");
     witness[neo_wasm::layout::COL_EVBUF_AFTER[0]] += neo_math::F::ONE;
     common::assert_rejected(&witness, "gather row staging a forged discriminant");
@@ -513,7 +522,7 @@ fn ccs_rejects_redirected_gather_read() {
                     .is_some_and(|rom| rom.kind == WasmHostEventSlotKind::Arg)
         })
         .expect("arg slot row");
-    let mut witness = build_witness_vector(arg_slot_row);
+    let mut witness = build_witness_vector(arg_slot_row).unwrap();
     common::assert_satisfied(&witness, "untampered arg slot row");
     witness[neo_wasm::layout::COL_STACK_READ_ADDR_LO[0]] += neo_math::F::from_u64(2);
     common::assert_rejected(&witness, "arg slot row reading a different stack slot");
@@ -549,8 +558,11 @@ fn memory_rows_reject_forged_rom_claim() {
     let component_bytes = wat::parse_str(mul_sink_component_wat()).expect("component wat");
     let artifacts = neo_wasm::extract_first_component_core_program_artifacts(&component_bytes).expect("artifacts");
     let mut preload = neo_wasm::memory_semantics::preload_from_program_artifacts(&artifacts);
-    neo_wasm::memory_semantics::preload_host_event_tables(&mut preload, &bindings);
-    let witness_rows: Vec<Vec<neo_math::F>> = trace.iter().map(build_witness_vector).collect();
+    neo_wasm::memory_semantics::preload_host_event_tables(&mut preload, &bindings, &artifacts);
+    let witness_rows: Vec<Vec<neo_math::F>> = trace
+        .iter()
+        .map(|row| build_witness_vector(row).unwrap())
+        .collect();
     let layout = neo_wasm::relation_layout::build_wasm_relation_layout();
     assert!(
         neo_wasm::memory_semantics::sanity_check_memory_rows(&layout, &witness_rows, &preload).is_err(),
@@ -568,7 +580,7 @@ fn ccs_rejects_broken_event_schedule() {
         .iter()
         .find(|row| row.row_kind.is_program())
         .expect("program row");
-    let mut witness = build_witness_vector(program_row);
+    let mut witness = build_witness_vector(program_row).unwrap();
     common::assert_satisfied(&witness, "untampered program row");
     witness[neo_wasm::layout::COL_HOST_EVENTS_REMAINING_BEFORE] = neo_math::F::ONE;
     witness[neo_wasm::layout::COL_HOST_EVENTS_REMAINING_BEFORE_IS_ZERO] = neo_math::F::ZERO;
@@ -579,7 +591,7 @@ fn ccs_rejects_broken_event_schedule() {
         .iter()
         .find(|row| row.row_kind.is_host_event_gather())
         .expect("gather row");
-    let mut witness = build_witness_vector(gather_row);
+    let mut witness = build_witness_vector(gather_row).unwrap();
     common::assert_satisfied(&witness, "untampered gather row");
     witness[neo_wasm::layout::COL_HOST_EVENTS_REMAINING_BEFORE] = neo_math::F::ZERO;
     witness[neo_wasm::layout::COL_HOST_EVENTS_REMAINING_BEFORE_IS_ZERO] = neo_math::F::ONE;
@@ -600,7 +612,7 @@ fn ccs_forces_untemplated_import_into_poisoned_schedule() {
                 && !row.target_function_is_guest
         })
         .expect("host-call row");
-    let witness = build_witness_vector(call_row);
+    let witness = build_witness_vector(call_row).unwrap();
     common::assert_satisfied(&witness, "untampered host-call row");
 
     // An undeclared import's cell is 0; a normal schedule can't load from it.
@@ -631,7 +643,7 @@ fn count_families_are_split_and_biased() {
         .insert(export_fref, neo_wasm::host_event_bindings::ExportTemplate::default());
 
     let mut preload = neo_wasm::memory_semantics::WasmMemoryPreload::default();
-    neo_wasm::memory_semantics::preload_host_event_tables(&mut preload, &bindings);
+    neo_wasm::memory_semantics::preload_host_event_tables(&mut preload, &bindings, run.artifacts());
     let cell = |family: WasmMemoryId, fref: u32| {
         preload
             .entries()

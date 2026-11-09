@@ -40,7 +40,7 @@ fn i32_store8_row_rejects_tampered_unselected_byte() {
         .iter()
         .find(|row| row.opcode == WasmOpcode::I32Store8)
         .expect("store8 row");
-    let mut witness = build_witness_vector(store);
+    let mut witness = build_witness_vector(store).unwrap();
     witness[COL_LINEAR_MEM_LANE0_BYTE1] = F::from_u64(0x42);
     witness[COL_LINEAR_MEM_LANE_VALUE[0]] = F::from_u64(0x42FF);
     assert_rejected(
@@ -64,7 +64,7 @@ fn i32_store8_row_rejects_forged_lane2_write() {
         .iter()
         .find(|row| row.opcode == WasmOpcode::I32Store8)
         .expect("store8 row");
-    let mut witness = build_witness_vector(store);
+    let mut witness = build_witness_vector(store).unwrap();
     assert_satisfied(&witness, "untampered i32.store8 row");
 
     witness[COL_LINEAR_MEM_USE_LANE2] = F::ONE;
@@ -96,7 +96,10 @@ fn i32_store8_memory_check_rejects_tampered_consistent_prior_state() {
         .enumerate()
         .find(|(_, row)| row.opcode == WasmOpcode::I32Store8)
         .expect("store8 row");
-    let mut witnesses: Vec<Vec<F>> = trace.iter().map(build_witness_vector).collect();
+    let mut witnesses: Vec<Vec<F>> = trace
+        .iter()
+        .map(|row| build_witness_vector(row).unwrap())
+        .collect();
 
     // Preserve untouched bytes against the fake prior so row-local CCS passes.
     let claimed_prior: u32 = 0xDEAD_BEEF;
@@ -156,7 +159,7 @@ fn i64_store_row_rejects_tampered_high_lane() {
         .iter()
         .find(|row| row.opcode == WasmOpcode::I64Store)
         .expect("i64.store row");
-    let mut row = build_witness_vector(store);
+    let mut row = build_witness_vector(store).unwrap();
     row[COL_LINEAR_MEM_LANE_VALUE[1]] += F::ONE;
     assert_rejected(&row, "tampered i64.store high lane");
 }
@@ -184,7 +187,7 @@ fn i64_unaligned_load_row_rejects_tampered_lane2() {
         .iter()
         .find(|row| row.opcode == WasmOpcode::I64Load)
         .expect("i64.load row");
-    let mut row = build_witness_vector(load);
+    let mut row = build_witness_vector(load).unwrap();
     row[COL_LINEAR_MEM_LANE_VALUE[2]] += F::ONE;
     assert_rejected(&row, "tampered unaligned i64.load lane2");
 }
@@ -208,7 +211,7 @@ fn i64_unaligned_store_row_rejects_tampered_lane2() {
         .iter()
         .find(|row| row.opcode == WasmOpcode::I64Store)
         .expect("i64.store row");
-    let mut row = build_witness_vector(store);
+    let mut row = build_witness_vector(store).unwrap();
     row[COL_LINEAR_MEM_LANE_VALUE[2]] += F::ONE;
     assert_rejected(&row, "tampered unaligned i64.store lane2");
 }
@@ -229,7 +232,7 @@ fn i32_load_row_rejects_wrong_linear_memory_word_addr() {
         .iter()
         .find(|row| row.opcode == WasmOpcode::I32Load)
         .expect("load row");
-    let mut row = build_witness_vector(load);
+    let mut row = build_witness_vector(load).unwrap();
     row[COL_LINEAR_MEM_LANE_ADDR[0]] = F::from_u64(2);
     assert_rejected(&row, "tampered i32.load linear memory word addr");
 }
@@ -252,7 +255,7 @@ fn i32_load_row_accepts_unaligned_word_recomposition() {
         .find(|row| row.opcode == WasmOpcode::I32Load)
         .expect("unaligned load row");
 
-    let row = build_witness_vector(load);
+    let row = build_witness_vector(load).unwrap();
 
     assert_satisfied(&row, "unaligned i32.load row");
 }
@@ -273,7 +276,7 @@ fn i32_load_row_rejects_tampered_unaligned_output() {
         .iter()
         .find(|row| row.opcode == WasmOpcode::I32Load)
         .expect("unaligned load row");
-    let mut row = build_witness_vector(load);
+    let mut row = build_witness_vector(load).unwrap();
     row[COL_STACK_WRITE0_VALUE_LO] = F::from_u64(0);
     assert_rejected(&row, "tampered unaligned i32.load output");
 }

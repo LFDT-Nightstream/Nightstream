@@ -41,8 +41,8 @@ use crate::layout::{
     COL_SEL_SELECT, COL_SP_AFTER, COL_SP_BEFORE, COL_STACK_READS, COL_STACK_READ_ACTIVE, COL_STACK_READ_ADDR_HI,
     COL_STACK_READ_ADDR_LO, COL_STACK_READ_VALUE_HI, COL_STACK_READ_VALUE_LO, COL_STACK_WRITE0_ACTIVE,
     COL_STACK_WRITE0_ADDR_HI, COL_STACK_WRITE0_ADDR_LO, COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO,
-    COL_STACK_WRITES, COL_WIDE_VALUES_ENABLED, COL_ZERO_TEST_HI_INPUT, COL_ZERO_TEST_HI_INV, COL_ZERO_TEST_HI_IS_ZERO,
-    COL_ZERO_TEST_LO_INPUT, COL_ZERO_TEST_LO_INV, COL_ZERO_TEST_LO_IS_ZERO,
+    COL_STACK_WRITES, COL_TABLE_OOB, COL_WIDE_VALUES_ENABLED, COL_ZERO_TEST_HI_INPUT, COL_ZERO_TEST_HI_INV,
+    COL_ZERO_TEST_HI_IS_ZERO, COL_ZERO_TEST_LO_INPUT, COL_ZERO_TEST_LO_INV, COL_ZERO_TEST_LO_IS_ZERO,
 };
 use neo_application::{ApplicationRelation, ConditionalSelect, ZeroTest};
 use neo_math::F;
@@ -394,9 +394,8 @@ pub fn build_wasm_relation() -> Result<ApplicationRelation<WasmConstraintScope>,
         // `call_stack_pop_present` for
         // non-final returns; the latter intentionally covers both explicit
         // `return` and a callee's function-ending `end`. A div trap row
-        // halts but keeps its Static edge kind, and a call_indirect trap
-        // row halts but keeps its DynamicCallIndirect edge kind (the per-pc
-        // edge-kind ROM binds both); the -trap terms absorb their `activation_finished`
+        // and a trapping call_indirect resolve row halt but keep their Static
+        // edge kind (the per-pc edge-kind ROM binds it); the -trap terms absorb their `activation_finished`
         // contributions. Entry/resume can clear the latch; the authenticated
         // clear flag cancels that delta only when the latch was set.
         b.push_linear_zero(
@@ -411,8 +410,9 @@ pub fn build_wasm_relation() -> Result<ApplicationRelation<WasmConstraintScope>,
                 (selector_col(WasmOpcode::Unreachable).unwrap(), F::from_u64(2)),
                 (COL_DIV_TRAP, -F::ONE),
                 (COL_CALL_INDIRECT_IS_TRAP, -F::ONE),
-                // An OOB load/store halts but keeps its Static edge kind.
+                // An OOB load/store or table access halts but keeps its Static edge kind.
                 (COL_MEM_OOB, -F::ONE),
+                (COL_TABLE_OOB, -F::ONE),
             ]
             .into_iter(),
         );

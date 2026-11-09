@@ -50,7 +50,10 @@ fn i64_local_get_after_set_rejects_tampered_hi() {
         .find(|(_, row)| row.opcode == WasmOpcode::LocalGet)
         .expect("local.get row");
 
-    let mut witnesses: Vec<Vec<F>> = trace.iter().map(build_witness_vector).collect();
+    let mut witnesses: Vec<Vec<F>> = trace
+        .iter()
+        .map(|row| build_witness_vector(row).unwrap())
+        .collect();
 
     let w = &mut witnesses[get_idx];
     w[COL_LOCAL_VALUE_HI] = F::ZERO;
@@ -92,7 +95,10 @@ fn i64_local_get_uninitialized_rejects_nonzero_hi() {
         .find(|(_, row)| row.opcode == WasmOpcode::LocalGet)
         .expect("local.get row");
 
-    let mut witnesses: Vec<Vec<F>> = trace.iter().map(build_witness_vector).collect();
+    let mut witnesses: Vec<Vec<F>> = trace
+        .iter()
+        .map(|row| build_witness_vector(row).unwrap())
+        .collect();
 
     // Keep the row-local constraints consistent while changing the high limb.
     let w = &mut witnesses[get_idx];
@@ -144,7 +150,10 @@ fn i64_global_get_after_set_rejects_tampered_hi() {
         .find(|(_, row)| row.opcode == WasmOpcode::GlobalGet)
         .expect("global.get row");
 
-    let mut witnesses: Vec<Vec<F>> = trace.iter().map(build_witness_vector).collect();
+    let mut witnesses: Vec<Vec<F>> = trace
+        .iter()
+        .map(|row| build_witness_vector(row).unwrap())
+        .collect();
 
     let w = &mut witnesses[get_idx];
     w[COL_GLOBAL_VALUE_HI] = F::ZERO;
@@ -185,7 +194,10 @@ fn i64_global_get_first_read_rejects_tampered_initializer() {
         .find(|(_, row)| row.opcode == WasmOpcode::GlobalGet)
         .expect("global.get row");
 
-    let mut witnesses: Vec<Vec<F>> = trace.iter().map(build_witness_vector).collect();
+    let mut witnesses: Vec<Vec<F>> = trace
+        .iter()
+        .map(|row| build_witness_vector(row).unwrap())
+        .collect();
 
     let w = &mut witnesses[get_idx];
     w[COL_GLOBAL_VALUE_HI] = F::ZERO;

@@ -293,8 +293,10 @@ impl<A: Application> Circuit<A> {
         self.circuit.application_size()
     }
 
-    /// The prover of the circuit. `minimum_security_bits` bounds the folding
-    /// profile and the memory fingerprint term (`Geometry::memory_security_bits`).
+    /// The prover of the circuit. `minimum_security_bits` separately gates
+    /// one fold and one memory fingerprint challenge
+    /// (`Geometry::memory_security_bits`). It does not account for recursive
+    /// depth, queries, retries, or concurrent attempts.
     pub fn prover(&self, engine: crate::Engine, minimum_security_bits: u32) -> Result<Prover<A>, crate::Error>
     where
         A: Clone,
@@ -308,8 +310,9 @@ impl<A: Application> Circuit<A> {
     }
 
     /// The verifier of the circuit. It may share the prover's circuit.
-    /// `minimum_security_bits` bounds the folding profile and the memory
-    /// fingerprint term (`Geometry::memory_security_bits`).
+    /// `minimum_security_bits` separately gates one fold and one memory
+    /// fingerprint challenge (`Geometry::memory_security_bits`). It is not an
+    /// end-to-end security bound.
     pub fn verifier(&self, engine: crate::Engine, minimum_security_bits: u32) -> Result<Verifier<A>, crate::Error>
     where
         A: Clone,
@@ -327,6 +330,9 @@ impl<A: Application> Circuit<A> {
 /// Require the memory fingerprint term of `geometry` to meet
 /// `minimum_security_bits` (SPEC.md section 7.1, rule 6).
 fn memory_security(geometry: &Geometry, minimum_security_bits: u32) -> Result<(), crate::Error> {
+    if !geometry.is_valid() || !geometry.is_secure() {
+        return Err(crate::Error::Circuit("the memory geometry breaks SPEC.md section 7.1"));
+    }
     let available = geometry.memory_security_bits();
     if available < f64::from(minimum_security_bits) {
         return Err(neo_params::ParamsError::InsufficientStatisticalSecurity {

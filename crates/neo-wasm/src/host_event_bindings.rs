@@ -382,12 +382,60 @@ impl HostEventBindings {
 
     /// Validate every binding against verifier-owned program tables.
     pub fn validate_against_program(&self, program: &WasmProgramTables) -> Result<(), WasmBuildError> {
+        // Memory slots address default memory 0. Without one, the absent-memory
+        // page word is above every real page count, so it bounds no access.
+        if program.initial_memory_pages.is_none() {
+            let mut blocks = self
+                .imports
+                .values()
+                .flat_map(|template| {
+                    template
+                        .events
+                        .iter()
+                        .chain(template.return_events.iter().flatten())
+                })
+                .chain(
+                    self.exports
+                        .values()
+                        .flat_map(|template| template.entry.iter().chain(&template.exit)),
+                );
+            let touches_memory = blocks.any(|event| {
+                event.block.iter().any(|slot| {
+                    matches!(
+                        slot,
+                        SlotBinding::MemoryRead32 { .. }
+                            | SlotBinding::MemoryRead8 { .. }
+                            | SlotBinding::MemoryRead16 { .. }
+                            | SlotBinding::MemoryWrite32 { .. }
+                            | SlotBinding::MemoryWrite8 { .. }
+                            | SlotBinding::MemoryWrite16 { .. }
+                    )
+                })
+            });
+            if touches_memory {
+                return Err(WasmBuildError::Unsupported(
+                    "host-event memory slot in a module with no default memory".into(),
+                ));
+            }
+        }
+
         for (&function_ref, template) in &self.imports {
             let (param_count, result_count, is_guest) = function_shape(program, function_ref)?;
 
             if is_guest {
                 return Err(WasmBuildError::Trace(format!(
                     "host-event import fref {function_ref} names a guest function"
+                )));
+            }
+
+            if result_count > 1 {
+                return Err(WasmBuildError::Unsupported(format!(
+                    "host-event import fref {function_ref} has {result_count} results; the host boundary supports at most one"
+                )));
+            }
+            if result_count == 1 && !result_is_host_scalar(program, function_ref)? {
+                return Err(WasmBuildError::Unsupported(format!(
+                    "host-event import fref {function_ref} returns a value without a complete verifier-bound i32/i64 encoding"
                 )));
             }
 
@@ -419,7 +467,24 @@ impl HostEventBindings {
                 ))
             })?;
 
+            for local in 0..param_count {
+                if !local_is_host_scalar(program, function_ref, local)? {
+                    return Err(WasmBuildError::Unsupported(format!(
+                        "host-event export fref {function_ref} parameter {local} has no complete verifier-bound i32/i64 encoding"
+                    )));
+                }
+            }
+
             template.validate(local_bound, result_count)?;
+            for slot in template.entry.iter().flat_map(|event| &event.block) {
+                if let SlotBinding::InputLocal { local, .. } = *slot {
+                    if local >= param_count {
+                        return Err(WasmBuildError::Trace(format!(
+                            "host-event export fref {function_ref} initializes declared local {local}; only its {param_count} parameter locals may receive entry inputs"
+                        )));
+                    }
+                }
+            }
             // Every argument must enter through a declared local write,
             // including on a single-shot export with an otherwise empty schedule.
             for local in 0..param_count {
@@ -449,6 +514,37 @@ fn function_shape(program: &WasmProgramTables, function_ref: u32) -> Result<(u8,
         })?;
 
     Ok(function_call_metadata_shape(metadata))
+}
+
+fn result_is_host_scalar(program: &WasmProgramTables, function_ref: u32) -> Result<bool, WasmBuildError> {
+    boolean_program_flag(
+        program
+            .function_result_is_host_scalar
+            .iter()
+            .find_map(|&(fref, flag)| (fref == u64::from(function_ref)).then_some(flag)),
+        &format!("host-event binding fref {function_ref} result type"),
+    )
+}
+
+fn local_is_host_scalar(program: &WasmProgramTables, function_ref: u32, local: u8) -> Result<bool, WasmBuildError> {
+    boolean_program_flag(
+        program
+            .function_local_is_host_scalar
+            .iter()
+            .find_map(|&(fref, index, flag)| {
+                (fref == u64::from(function_ref) && index == u64::from(local)).then_some(flag)
+            }),
+        &format!("host-event binding fref {function_ref} local {local} type"),
+    )
+}
+
+fn boolean_program_flag(flag: Option<u64>, what: &str) -> Result<bool, WasmBuildError> {
+    match flag {
+        Some(0) => Ok(false),
+        Some(1) => Ok(true),
+        Some(value) => Err(WasmBuildError::Trace(format!("{what} flag {value} is not boolean"))),
+        None => Err(WasmBuildError::Trace(format!("missing {what}"))),
+    }
 }
 
 impl ImportTemplate {

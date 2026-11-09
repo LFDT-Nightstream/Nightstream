@@ -244,8 +244,11 @@ fn import_memory_fixture() -> ImportMemoryFixture {
 fn check_memory_rows(component_bytes: &[u8], bindings: &HostEventBindings, trace: &[WasmVmStep]) {
     let artifacts = neo_wasm::extract_first_component_core_program_artifacts(component_bytes).expect("artifacts");
     let mut preload = neo_wasm::memory_semantics::preload_from_program_artifacts(&artifacts);
-    neo_wasm::memory_semantics::preload_host_event_tables(&mut preload, bindings);
-    let witnesses: Vec<Vec<neo_math::F>> = trace.iter().map(build_witness_vector).collect();
+    neo_wasm::memory_semantics::preload_host_event_tables(&mut preload, bindings, &artifacts);
+    let witnesses: Vec<Vec<neo_math::F>> = trace
+        .iter()
+        .map(|row| build_witness_vector(row).unwrap())
+        .collect();
     let layout = neo_wasm::relation_layout::build_wasm_relation_layout();
     neo_wasm::memory_semantics::sanity_check_memory_rows(layout, &witnesses, &preload)
         .expect("bindings argument base and linear-memory accesses match");
@@ -368,7 +371,7 @@ fn host_event_memory_reads_reject_forged_addresses() {
                 .is_some_and(|rom| rom.kind == WasmHostEventSlotKind::MemoryRead)
         })
         .expect("memory read gather");
-    let baseline = build_witness_vector(read);
+    let baseline = build_witness_vector(read).unwrap();
     common::assert_satisfied(&baseline, "untampered argument-base memory read");
 
     let mut forged = baseline.clone();
@@ -383,7 +386,7 @@ fn host_event_memory_reads_reject_forged_addresses() {
         .expect("pointer argument read")
         .value_hi = Some(1);
     common::assert_rejected(
-        &build_witness_vector(&high_pointer),
+        &build_witness_vector(&high_pointer).unwrap(),
         "bindings memory read with a nonzero pointer high limb",
     );
 
@@ -400,7 +403,7 @@ fn host_event_memory_reads_reject_forged_addresses() {
         .expect("bindings memory access")
         .lane0
         .word_addr = first_oob_word;
-    let forged = build_witness_vector(&oob_read);
+    let forged = build_witness_vector(&oob_read).unwrap();
     assert_eq!(forged[neo_wasm::layout::COL_CMP_GE], neo_math::F::ONE);
     assert_eq!(forged[neo_wasm::layout::COL_MEM_OOB], neo_math::F::ONE);
     common::assert_rejected(&forged, "aligned OOB bindings memory read");
@@ -421,7 +424,10 @@ fn host_event_subword_routing_rejects_forged_offsets() {
                     .is_some_and(|access| access.width_bytes == 1 && access.byte_offset == 3)
         })
         .expect("byte memory read gather");
-    common::assert_satisfied(&build_witness_vector(byte_read), "untampered bindings byte read");
+    common::assert_satisfied(
+        &build_witness_vector(byte_read).unwrap(),
+        "untampered bindings byte read",
+    );
     let mut redirected = byte_read.clone();
     redirected
         .linear_memory
@@ -429,7 +435,7 @@ fn host_event_subword_routing_rejects_forged_offsets() {
         .expect("byte access")
         .byte_offset = 2;
     common::assert_rejected(
-        &build_witness_vector(&redirected),
+        &build_witness_vector(&redirected).unwrap(),
         "bindings byte read with a forged intra-word offset",
     );
 
@@ -444,7 +450,7 @@ fn host_event_subword_routing_rejects_forged_offsets() {
                     .is_some_and(|access| access.width_bytes == 1 && access.byte_offset == 1)
         })
         .expect("byte read beside an equal-valued byte");
-    let mut forged = build_witness_vector(equal_neighbor_read);
+    let mut forged = build_witness_vector(equal_neighbor_read).unwrap();
     common::assert_satisfied(&forged, "untampered bindings byte offset selector");
     forged[neo_wasm::layout::COL_LINEAR_MEM_OFFSET_IS_1] = neo_math::F::ZERO;
     forged[neo_wasm::layout::COL_LINEAR_MEM_OFFSET_IS_2] = neo_math::F::ONE;
@@ -466,7 +472,10 @@ fn host_event_subword_routing_rejects_forged_offsets() {
                 })
         })
         .expect("zero-valued aligned half-word read");
-    common::assert_satisfied(&build_witness_vector(half_read), "untampered bindings half-word read");
+    common::assert_satisfied(
+        &build_witness_vector(half_read).unwrap(),
+        "untampered bindings half-word read",
+    );
     let mut misaligned = half_read.clone();
     misaligned
         .stack_read0
@@ -479,7 +488,7 @@ fn host_event_subword_routing_rejects_forged_offsets() {
         .expect("half-word access")
         .byte_offset = 1;
     common::assert_rejected(
-        &build_witness_vector(&misaligned),
+        &build_witness_vector(&misaligned).unwrap(),
         "bindings half-word read with an odd effective address",
     );
 }
@@ -499,7 +508,7 @@ fn host_event_memory_writes_bind_values_and_preserve_unselected_bytes() {
                     .is_some_and(|access| access.width_bytes == 4)
         })
         .expect("word memory write gather");
-    let mut forged = build_witness_vector(word_write);
+    let mut forged = build_witness_vector(word_write).unwrap();
     common::assert_satisfied(&forged, "untampered bindings word write");
     forged[neo_wasm::layout::COL_LINEAR_MEM_LANE_VALUE[0]] += neo_math::F::ONE;
     common::assert_rejected(&forged, "bindings memory write diverging from the staged claim");
@@ -515,7 +524,7 @@ fn host_event_memory_writes_bind_values_and_preserve_unselected_bytes() {
                     .is_some_and(|access| access.width_bytes == 1)
         })
         .expect("byte memory write gather");
-    let mut forged = build_witness_vector(byte_write);
+    let mut forged = build_witness_vector(byte_write).unwrap();
     common::assert_satisfied(&forged, "untampered bindings byte write");
     forged[neo_wasm::layout::COL_LINEAR_MEM_LANE_VALUE[0]] += neo_math::F::ONE;
     forged[neo_wasm::layout::COL_LINEAR_MEM_LANE0_BYTE0] += neo_math::F::ONE;
@@ -532,7 +541,7 @@ fn host_event_memory_writes_bind_values_and_preserve_unselected_bytes() {
                     .is_some_and(|access| access.width_bytes == 2)
         })
         .expect("half-word memory write gather");
-    let mut forged = build_witness_vector(half_write);
+    let mut forged = build_witness_vector(half_write).unwrap();
     common::assert_satisfied(&forged, "untampered bindings half-word write");
     forged[neo_wasm::layout::COL_LINEAR_MEM_LANE_VALUE[0]] += neo_math::F::ONE;
     forged[neo_wasm::layout::COL_LINEAR_MEM_LANE0_BYTE0] += neo_math::F::ONE;
@@ -553,7 +562,11 @@ fn host_event_memory_replay_authenticates_prior_values() {
                     .is_some_and(|access| access.width_bytes == 1)
         })
         .expect("byte memory write gather");
-    let mut forged_rows: Vec<Vec<neo_math::F>> = fixture.trace.iter().map(build_witness_vector).collect();
+    let mut forged_rows: Vec<Vec<neo_math::F>> = fixture
+        .trace
+        .iter()
+        .map(|row| build_witness_vector(row).unwrap())
+        .collect();
     forged_rows[byte_write_index][neo_wasm::layout::COL_LINEAR_MEM_LANE_VALUE_BEFORE[0]] +=
         neo_math::F::from_u64(1 << 16);
     forged_rows[byte_write_index][neo_wasm::layout::COL_LINEAR_MEM_LANE0_BYTE2_BEFORE] += neo_math::F::ONE;
@@ -561,7 +574,7 @@ fn host_event_memory_replay_authenticates_prior_values() {
     let artifacts =
         neo_wasm::extract_first_component_core_program_artifacts(&fixture.component_bytes).expect("artifacts");
     let mut preload = neo_wasm::memory_semantics::preload_from_program_artifacts(&artifacts);
-    neo_wasm::memory_semantics::preload_host_event_tables(&mut preload, &fixture.bindings);
+    neo_wasm::memory_semantics::preload_host_event_tables(&mut preload, &fixture.bindings, &artifacts);
     let layout = neo_wasm::relation_layout::build_wasm_relation_layout();
     neo_wasm::memory_semantics::sanity_check_memory_rows(layout, &forged_rows, &preload)
         .expect_err("bindings byte write must authenticate its prior word");

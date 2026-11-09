@@ -17,7 +17,7 @@ mod values;
 use self::frame_move::{emit_frame_move_rows, frame_slide};
 use self::local_zero::emit_local_zero_rows;
 use self::turn::{plan_turn_exit, setup_turn};
-use self::values::{call_indirect_oob, call_indirect_traps, guest_callee_locals, write_lane, write_lane_hi};
+use self::values::{call_indirect_traps, guest_callee_locals, table_index_oob, write_lane, write_lane_hi};
 use super::super::import_inputs::recover_import_inputs;
 use super::super::runtime_read::{read_lane, read_lane_hi};
 use super::super::WasmtimeTraceStep;
@@ -25,14 +25,64 @@ use super::host_event_emit::{
     emit_block_plan, plan_import_phase, EventBlockPlan, HostCallEventPlan, HostEventRowContext,
 };
 use super::memory::LinearMemoryImage;
-use super::normalize_step;
+use super::{normalize_step, NormalizedStep};
 use crate::comm_chain::CommChainState;
 use crate::host_event_bindings::HostEventBindings;
 use crate::ir::{
     StackValueAccess, WasmBuildError, WasmCountdownState, WasmEventAbsorbState, WasmFrameMoveState, WasmOutputState,
     WasmPcEdgeKind, WasmRowKind, WasmStepState, WasmVmStep,
 };
-use crate::isa::WasmOpcode;
+use crate::isa::{opcode_code, opcode_info_from_code, WasmOpcode};
+
+/// Lays out one Wasmtime step: an indirect call becomes its resolve step, at the
+/// step's pc, and, unless that step traps, the invocation one pc later. The
+/// resolve step checks the table entry and leaves the checked function reference
+/// where the index was, which is what the invocation pops and calls.
+fn split_indirect_call(step: NormalizedStep, out: &mut Vec<NormalizedStep>) {
+    if !matches!(step.opcode, WasmOpcode::CallIndirect | WasmOpcode::ReturnCallIndirect) {
+        out.push(step);
+        return;
+    }
+    let traps = table_index_oob(step.table_index, step.table_size)
+        || call_indirect_traps(step.table_value, step.expected_type_id, step.function_type_id);
+    let mut resolve = step.clone();
+    resolve.opcode = WasmOpcode::CallIndirectResolve;
+    resolve.info = opcode_info_from_code(opcode_code(WasmOpcode::CallIndirectResolve));
+    resolve.pc = step.pc;
+    resolve.control_choice = 0;
+    resolve.pc_edge_kind = WasmPcEdgeKind::Static;
+    resolve.pc_after_instruction = Some(u64::from(step.pc) + 1);
+    resolve.wide_values_enabled = false;
+    resolve.stack_reads_override = None;
+    resolve.stack_writes_override = None;
+    resolve.target_function_is_guest = false;
+    resolve.call_param_count = None;
+    resolve.call_result_count = None;
+    resolve.host_call_memory = None;
+    out.push(resolve);
+    if traps {
+        return;
+    }
+    let mut invocation = step;
+    invocation.pc += 1;
+    let reference = invocation
+        .table_value
+        .expect("a resolved indirect call has a table entry");
+    if let Some(top) = invocation.operand_stack.last_mut() {
+        *top = reference;
+    }
+    if let Some(top) = invocation.operand_stack_hi.last_mut() {
+        *top = 0;
+    }
+    invocation.entry_memory = None;
+    invocation.table_id = None;
+    invocation.table_index = None;
+    invocation.table_value = None;
+    invocation.table_size = None;
+    invocation.function_type_id = None;
+    invocation.expected_type_id = None;
+    out.push(invocation);
+}
 
 pub(super) fn build_trace(
     rows: &[WasmtimeTraceStep],
@@ -43,7 +93,7 @@ pub(super) fn build_trace(
     let mut supported = Vec::new();
     for row in rows {
         if let Some(normalized) = normalize_step(row)? {
-            supported.push(normalized);
+            split_indirect_call(normalized, &mut supported);
         }
     }
     // Import-free callers get the canonical single-shot bindings: an empty
@@ -165,6 +215,12 @@ pub(super) fn build_trace(
         let is_return_row = matches!(current.opcode, WasmOpcode::Return | WasmOpcode::End)
             && current.pc_edge_kind == WasmPcEdgeKind::ReturnLike
             && call_stack_depth > host_event_state.host_frame_depth;
+        if is_return_row && next.is_none() {
+            return Err(WasmBuildError::Trace(format!(
+                "guest return at cycle {} has no caller continuation",
+                current.cycle
+            )));
+        }
         let next_row_base = if is_return_row {
             call_stack.last().map(|&(_, _, base)| base).unwrap_or(0)
         } else {
@@ -208,7 +264,12 @@ pub(super) fn build_trace(
                 access.lane0.word_addr + u64::from(access.lane1.is_some()) + u64::from(access.lane2.is_some());
             last_lane >= u64::from(current.memory_pages_before.unwrap_or(0)) * 16384
         });
-        let stack_write0 = if div_trap || mem_oob {
+        let ci_trap = current.opcode == WasmOpcode::CallIndirectResolve
+            && (table_index_oob(current.table_index, current.table_size)
+                || call_indirect_traps(current.table_value, current.expected_type_id, current.function_type_id));
+        let table_oob = matches!(current.opcode, WasmOpcode::TableGet | WasmOpcode::TableSet)
+            && table_index_oob(current.table_index, current.table_size);
+        let stack_write0 = if div_trap || mem_oob || ci_trap || (table_oob && current.opcode == WasmOpcode::TableGet) {
             // No post-state result exists; CCS pins this synthetic write to zero.
             let addr = sp_after.saturating_sub(1).saturating_mul(2);
             let hi = current.wide_values_enabled.then_some(0);
@@ -217,14 +278,105 @@ pub(super) fn build_trace(
             let write_value_hi = write_lane_hi(current, next, stack_writes)?;
             write_lane(current, next, sp_after, stack_writes)?.map(|write| write.with_optional_hi(write_value_hi))
         };
-        let ci_trap = matches!(
-            current.opcode,
-            WasmOpcode::CallIndirect | WasmOpcode::ReturnCallIndirect
-        ) && (call_indirect_oob(current.table_index, current.table_size)
-            || call_indirect_traps(current.table_value, current.expected_type_id, current.function_type_id));
         // A trap is terminal: wasmtime stops stepping at the faulting
         // instruction, so a trapping opcode can only be the last row.
-        let trapped = matches!(current.opcode, WasmOpcode::Unreachable) || div_trap || ci_trap || mem_oob;
+        let trapped = matches!(current.opcode, WasmOpcode::Unreachable) || div_trap || ci_trap || mem_oob || table_oob;
+        if matches!(current.opcode, WasmOpcode::ReturnCall | WasmOpcode::ReturnCallIndirect)
+            && !current.target_function_is_guest
+        {
+            return Err(WasmBuildError::Unsupported(format!(
+                "{} to a host import at cycle {} is not supported yet",
+                current.info.name, current.cycle
+            )));
+        }
+        let is_host_call =
+            matches!(current.opcode, WasmOpcode::Call | WasmOpcode::CallIndirect) && !current.target_function_is_guest;
+        let host_import = if is_host_call {
+            let callee_fref = current.function_ref.ok_or_else(|| {
+                WasmBuildError::Trace(format!(
+                    "missing callee function ref for host call at cycle {}",
+                    current.cycle
+                ))
+            })?;
+            let template = bindings.imports.get(&callee_fref).ok_or_else(|| {
+                WasmBuildError::Trace(format!(
+                    "no host-event template for host import fref {callee_fref} at cycle {}",
+                    current.cycle
+                ))
+            })?;
+            if !template.is_split() && next.is_some_and(|row| row.activation_depth > current.activation_depth) {
+                return Err(WasmBuildError::Unsupported(
+                    "same-instance reentry under an atomic import".into(),
+                ));
+            }
+            if !template.is_split()
+                && template.input_count > 0
+                && next.is_none_or(|row| Some(u64::from(row.pc)) != current.pc_after_instruction)
+            {
+                return Err(WasmBuildError::Trace(format!(
+                    "import memory recovery at cycle {} requires the caller continuation; \
+                     same-instance reentry is not supported by normalization",
+                    current.cycle
+                )));
+            }
+            let param_count = current.call_param_count.ok_or_else(|| {
+                WasmBuildError::Trace(format!(
+                    "missing call parameter count for host call at cycle {}",
+                    current.cycle
+                ))
+            })?;
+            let result_count = current.call_result_count.ok_or_else(|| {
+                WasmBuildError::Trace(format!(
+                    "missing call result count for host call at cycle {}",
+                    current.cycle
+                ))
+            })?;
+            if result_count > 1 {
+                return Err(WasmBuildError::Unsupported(format!(
+                    "host call with {result_count} results at cycle {} is unsupported: the canonical ABI \
+                     caps flat results at 1 (wider results go through a return pointer)",
+                    current.cycle
+                )));
+            }
+            if next.is_none() && result_count > 0 {
+                return Err(WasmBuildError::Trace(format!(
+                    "host call at cycle {} is the final trace row; its result has no continuation",
+                    current.cycle
+                )));
+            }
+            let result_is_i64 = program
+                .and_then(|tables| {
+                    tables
+                        .function_result_is_i64
+                        .iter()
+                        .find(|&&(function_ref, _)| function_ref == u64::from(callee_fref))
+                })
+                .map(|&(_, result_is_i64)| result_is_i64)
+                .ok_or_else(|| {
+                    WasmBuildError::Trace(format!(
+                        "missing static result type for host import fref {callee_fref} at cycle {}",
+                        current.cycle
+                    ))
+                })?;
+            let result_is_i64 = match result_is_i64 {
+                0 => false,
+                1 => true,
+                value => {
+                    return Err(WasmBuildError::Trace(format!(
+                        "invalid static result type flag {value} for host import fref {callee_fref}"
+                    )));
+                }
+            };
+            Some((callee_fref, template, param_count, result_count, result_is_i64))
+        } else {
+            None
+        };
+        if next.is_none() && !turn_terminal && !trapped {
+            return Err(WasmBuildError::Trace(format!(
+                "trace ends before the activation returns at cycle {}",
+                current.cycle
+            )));
+        }
         if trapped && !activation_finished {
             return Err(WasmBuildError::Trace(format!(
                 "trapping {} row at cycle {} is not the final step",
@@ -320,11 +472,10 @@ pub(super) fn build_trace(
         match current.opcode {
             WasmOpcode::Call | WasmOpcode::CallIndirect => {
                 let return_pc = current.pc_after_instruction.unwrap_or(pc_after);
-                if !current.target_function_is_guest || ci_trap {
+                if !current.target_function_is_guest {
                     // Imported/host callees do not produce guest core rows. In that case the next
                     // guest row is already the post-call continuation, so there is no guest
-                    // call-stack boundary to model in this trace. A trapping call_indirect never
-                    // enters the callee either, regardless of the target's guest flag.
+                    // call-stack boundary to model in this trace.
                     call_stack_push = None;
                     call_stack_pop = None;
                 } else {
@@ -334,8 +485,9 @@ pub(super) fn build_trace(
                             current.cycle
                         ))
                     })?;
-                    // Guest call rows pop only the table index (indirect) or
-                    // nothing (direct); the args become the callee's params.
+                    // Guest call rows pop only the checked function reference
+                    // (indirect) or nothing (direct); the args become the
+                    // callee's params.
                     let expected_stack_reads = u8::from(matches!(current.opcode, WasmOpcode::CallIndirect));
                     if stack_reads != expected_stack_reads {
                         return Err(WasmBuildError::Trace(format!(
@@ -364,12 +516,6 @@ pub(super) fn build_trace(
                 }
             }
             WasmOpcode::ReturnCall | WasmOpcode::ReturnCallIndirect if !ci_trap => {
-                if !current.target_function_is_guest {
-                    return Err(WasmBuildError::Unsupported(format!(
-                        "{} to a host import at cycle {} is not supported yet",
-                        current.info.name, current.cycle
-                    )));
-                }
                 let param_count = current.call_param_count.ok_or_else(|| {
                     WasmBuildError::Trace(format!(
                         "missing call parameter count for tail call at cycle {}",
@@ -436,7 +582,6 @@ pub(super) fn build_trace(
         }
         let mut call_stack_depth_after = call_stack_depth;
 
-        let program_cycle = out.len() as u64;
         let frame_move_before = frame_move_state;
         let zero_after = WasmCountdownState {
             active: locals_to_zero != 0 && !frame_move_after.active,
@@ -494,9 +639,6 @@ pub(super) fn build_trace(
             linear_memory.apply_program_access(current)?;
         }
 
-        let is_host_call = matches!(current.opcode, WasmOpcode::Call | WasmOpcode::CallIndirect)
-            && !current.target_function_is_guest
-            && !ci_trap;
         let mut host_event_plan: Option<HostCallEventPlan> = None;
         let mut host_context = None;
         let mut return_count = None;
@@ -504,59 +646,8 @@ pub(super) fn build_trace(
         let host_callee_fref_before = host_callee_fref;
         let comm_chain_before_row = comm_chain;
         let event_absorb_before_row = event_absorb;
-        if is_host_call {
-            host_callee_fref = current.function_ref.ok_or_else(|| {
-                WasmBuildError::Trace(format!(
-                    "missing callee function ref for host call at cycle {}",
-                    current.cycle
-                ))
-            })?;
-            let template = bindings.imports.get(&host_callee_fref).ok_or_else(|| {
-                WasmBuildError::Trace(format!(
-                    "no host-event template for host import fref {host_callee_fref} at cycle {}",
-                    current.cycle
-                ))
-            })?;
-            if !template.is_split() && next.is_some_and(|row| row.activation_depth > current.activation_depth) {
-                return Err(WasmBuildError::Unsupported(
-                    "same-instance reentry under an atomic import".into(),
-                ));
-            }
-            if !template.is_split()
-                && template.input_count > 0
-                && next.is_none_or(|row| Some(u64::from(row.pc)) != current.pc_after_instruction)
-            {
-                return Err(WasmBuildError::Trace(format!(
-                    "import memory recovery at cycle {} requires the caller continuation; \
-                     same-instance reentry is not supported by normalization",
-                    current.cycle
-                )));
-            }
-            let param_count = current.call_param_count.ok_or_else(|| {
-                WasmBuildError::Trace(format!(
-                    "missing call parameter count for host call at cycle {}",
-                    current.cycle
-                ))
-            })?;
-            let result_count = current.call_result_count.ok_or_else(|| {
-                WasmBuildError::Trace(format!(
-                    "missing call result count for host call at cycle {}",
-                    current.cycle
-                ))
-            })?;
-            if result_count > 1 {
-                return Err(WasmBuildError::Unsupported(format!(
-                    "host call with {result_count} results at cycle {} is unsupported: the canonical ABI \
-                     caps flat results at 1 (wider results go through a return pointer)",
-                    current.cycle
-                )));
-            }
-            if next.is_none() && result_count > 0 {
-                return Err(WasmBuildError::Trace(format!(
-                    "host call at cycle {} is the final trace row; its result has no continuation",
-                    current.cycle
-                )));
-            }
+        if let Some((callee_fref, template, param_count, result_count, result_is_i64)) = host_import {
+            host_callee_fref = callee_fref;
             let index_pops = usize::from(matches!(current.opcode, WasmOpcode::CallIndirect));
             let args_start = current
                 .operand_stack
@@ -611,6 +702,7 @@ pub(super) fn build_trace(
                     args_base,
                     &arg_limbs,
                     result_limbs,
+                    result_is_i64,
                     &inputs,
                     current.memory_pages_before,
                     &mut linear_memory,
@@ -643,6 +735,7 @@ pub(super) fn build_trace(
                     context,
                     call_index: idx,
                     activation_depth: current.activation_depth,
+                    result_is_i64,
                     export: export_boundary.as_ref().expect("active export").clone(),
                 });
             } else {
@@ -692,6 +785,7 @@ pub(super) fn build_trace(
         }
 
         let zero_before = local_zero_state;
+        let program_cycle = out.len() as u64;
         out.push(WasmVmStep {
             // Sequential index within the normalized trace. Structural-only opcodes
             // (loop, block, inner End) are filtered before this loop, so this is
@@ -793,16 +887,12 @@ pub(super) fn build_trace(
             table_index: current.table_index,
             table_value: current.table_value,
             function_ref: current.function_ref,
-            // A trapping call_indirect never calls: its callee-metadata ROM
-            // reads are de-gated in the CCS, and the freed columns must
-            // satisfy the host-shaped arity rows (is_guest = 0, counts = 0).
-            target_function_is_guest: current.target_function_is_guest && !ci_trap,
+            target_function_is_guest: current.target_function_is_guest,
             function_type_id: current.function_type_id,
             expected_type_id: current.expected_type_id,
-            call_indirect_type_index: current.call_indirect_type_index,
             table_size: current.table_size,
-            call_param_count: current.call_param_count.filter(|_| !ci_trap),
-            call_result_count: current.call_result_count.filter(|_| !ci_trap),
+            call_param_count: current.call_param_count,
+            call_result_count: current.call_result_count,
             call_stack_push,
             call_stack_pop,
             host_context: None,

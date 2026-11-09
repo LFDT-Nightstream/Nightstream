@@ -301,8 +301,10 @@ impl Circuit {
         Ok(if memory { circuit.into_memory() } else { circuit })
     }
 
-    /// Require the profile to meet the caller's positive statistical minimum.
-    /// Option B proves and verifies on the CPU path (`Engine::Optimized`).
+    /// Require one fold of the selected profile to meet the caller's positive
+    /// local minimum. This is not an end-to-end bound over recursive depth or
+    /// multiple attempts. Option B proves and verifies on the CPU path
+    /// (`Engine::Optimized`).
     pub fn prover(&self, engine: Engine, minimum_security_bits: u32) -> Result<Prover, Error> {
         cpu_only(engine)?;
         Ok(Prover {
@@ -313,7 +315,10 @@ impl Circuit {
     }
 
     /// A verifier of this circuit; the caller selects it independently of any
-    /// proof.
+    /// proof. Reject a profile whose one-fold security level is below the
+    /// caller's positive local minimum, and a memory relation, whose verifier
+    /// is `nebula::Circuit::verifier`. The caller separately budgets recursive
+    /// depth, queries, retries, and concurrent attempts.
     pub fn verifier(&self, engine: Engine, minimum_security_bits: u32) -> Result<Verifier, Error> {
         if self.memory {
             return Err(Error::Circuit("a memory relation needs nebula::Circuit::verifier"));
@@ -363,6 +368,8 @@ pub struct Prover {
 impl Prover {
     /// Load the prover of a circuit that `Circuit::write` saved. A verifier
     /// compiles its own circuit and never loads this file.
+    /// `minimum_security_bits` gates one fold, not the cumulative error of a
+    /// recursive proof or multiple attempts.
     pub fn load(path: impl AsRef<Path>, engine: Engine, minimum_security_bits: u32) -> Result<Self, Error> {
         Circuit::load(path)?.prover(engine, minimum_security_bits)
     }

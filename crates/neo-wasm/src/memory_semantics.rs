@@ -33,11 +33,6 @@ pub fn preload_from_program_artifacts(artifacts: &WasmProgramArtifacts) -> WasmM
         preload.insert(WasmMemoryId::ProgramTableId, vec![pc], entry.table_id);
         preload.insert(WasmMemoryId::ProgramMemoryOffset, vec![pc], entry.memory_offset);
         preload.insert(
-            WasmMemoryId::ProgramCallIndirectTypeIndex,
-            vec![pc],
-            entry.call_indirect_type_index,
-        );
-        preload.insert(
             WasmMemoryId::ProgramCallIndirectExpectedTypeId,
             vec![pc],
             entry.call_indirect_expected_type_id,
@@ -124,13 +119,6 @@ pub fn preload_from_program_artifacts(artifacts: &WasmProgramArtifacts) -> WasmM
             narrow(function_ref, "call_targets.function_ref"),
         );
     }
-    for &(raw_type_index, expected_type_id) in &tables.module_types {
-        preload.insert(
-            WasmMemoryId::ModuleType,
-            vec![narrow(raw_type_index, "module_types.raw_type_index")],
-            narrow(expected_type_id, "module_types.expected_type_id"),
-        );
-    }
     // Pack data-section bytes into the word-addressed linear_memory cells.
     // Bytes outside any data segment stay absent from the preload, so
     // ZeroReadDefault catches first reads at those addresses (the wasm spec
@@ -154,7 +142,8 @@ pub fn preload_from_program_artifacts(artifacts: &WasmProgramArtifacts) -> WasmM
     preload
 }
 
-/// Preload the event-template ROM families from verifier-authored bindings:
+/// Preload the event-template ROM families from verifier-authored bindings
+/// and program-derived parameter, host-scalar, and value-width flags:
 /// per-slot source descriptors keyed by `(fref, event_index, slot_cursor)`
 /// (exports number entry events then exit events) and the per-fref event
 /// counts. Call after [`preload_from_program_artifacts`] when checking a
@@ -162,6 +151,7 @@ pub fn preload_from_program_artifacts(artifacts: &WasmProgramArtifacts) -> WasmM
 pub fn preload_host_event_tables(
     preload: &mut WasmMemoryPreload,
     bindings: &crate::host_event_bindings::HostEventBindings,
+    artifacts: &WasmProgramArtifacts,
 ) {
     use crate::host_event_bindings::{memory_rom_arg_variant, opaque_control_encoding, EventBlock, Limb, SlotBinding};
     use crate::ir::{WasmHostEventMemoryWidth, WasmHostEventRomVariant, WasmHostEventSlotKind};
@@ -169,7 +159,61 @@ pub fn preload_host_event_tables(
         Limb::Lo => WasmHostEventRomVariant::LowLimb,
         Limb::Hi => WasmHostEventRomVariant::HighLimb,
     };
-    let encode = |source: &SlotBinding| match *source {
+    let result_is_i64 = |fref: u32| {
+        artifacts
+            .tables
+            .function_result_is_i64
+            .iter()
+            .find_map(|&(function_ref, is_i64)| (function_ref == u64::from(fref)).then_some(is_i64))
+            .map(|is_i64| u32::try_from(is_i64).expect("static result type flag fits u32"))
+            .filter(|is_i64| *is_i64 <= 1)
+            .unwrap_or_else(|| panic!("missing or invalid static result type for function {fref}"))
+    };
+    let result_is_host_scalar = |fref: u32| {
+        artifacts
+            .tables
+            .function_result_is_host_scalar
+            .iter()
+            .find_map(|&(function_ref, is_host_scalar)| (function_ref == u64::from(fref)).then_some(is_host_scalar))
+            .map(|flag| u32::try_from(flag).expect("static result host-scalar flag fits u32"))
+            .filter(|flag| *flag <= 1)
+            .unwrap_or_else(|| panic!("missing or invalid static result host-scalar flag for function {fref}"))
+    };
+    let local_is_i64 = |fref: u32, local: u8| {
+        artifacts
+            .tables
+            .function_local_is_i64
+            .iter()
+            .find_map(|&(function_ref, local_index, is_i64)| {
+                (function_ref == u64::from(fref) && local_index == u64::from(local)).then_some(is_i64)
+            })
+            .map(|is_i64| u32::try_from(is_i64).expect("static local type flag fits u32"))
+            .filter(|is_i64| *is_i64 <= 1)
+            .unwrap_or_else(|| panic!("missing or invalid static type for function {fref}, local {local}"))
+    };
+    let local_is_host_scalar = |fref: u32, local: u8| {
+        artifacts
+            .tables
+            .function_local_is_host_scalar
+            .iter()
+            .find_map(|&(function_ref, local_index, flag)| {
+                (function_ref == u64::from(fref) && local_index == u64::from(local)).then_some(flag)
+            })
+            .map(|flag| u32::try_from(flag).expect("static local host-scalar flag fits u32"))
+            .filter(|flag| *flag <= 1)
+            .unwrap_or_else(|| panic!("missing or invalid static host-scalar flag for function {fref}, local {local}"))
+    };
+    let parameter_count = |fref: u32| {
+        artifacts
+            .tables
+            .function_call_metadata
+            .iter()
+            .find_map(|&(function_ref, metadata)| {
+                (function_ref == u64::from(fref)).then_some(crate::ir::function_call_metadata_shape(metadata).0)
+            })
+            .unwrap_or_else(|| panic!("missing static call metadata for function {fref}"))
+    };
+    let encode = |fref: u32, source: &SlotBinding| match *source {
         SlotBinding::EnterOpaque | SlotBinding::OpaqueSaved { .. } | SlotBinding::OpaqueRoot { .. } => {
             let (kind, arg) = opaque_control_encoding(source).expect("control slot");
             (kind.code().into(), arg.into(), 0, 0, 0)
@@ -192,15 +236,15 @@ pub fn preload_host_event_tables(
             u32::from(WasmHostEventSlotKind::Result.code()),
             0,
             u32::from(limb_variant(limb).encoded()),
-            0,
-            0,
+            result_is_host_scalar(fref),
+            u32::from(matches!(limb, Limb::Hi)) * result_is_i64(fref),
         ),
         SlotBinding::InputLocal { local, limb, .. } => (
             u32::from(WasmHostEventSlotKind::InputLocal.code()),
             u32::from(local),
             u32::from(limb_variant(limb).encoded()),
-            0,
-            0,
+            u32::from(local < parameter_count(fref)) * local_is_host_scalar(fref, local),
+            local_is_i64(fref, local),
         ),
         SlotBinding::OutputElem { limb } => (
             u32::from(WasmHostEventSlotKind::Output.code()),
@@ -286,7 +330,7 @@ pub fn preload_host_event_tables(
         for (event_index, event) in events.into_iter().enumerate() {
             for (slot_index, source) in event.block.iter().enumerate() {
                 let key = vec![fref, event_index as u32, slot_index as u32];
-                let (kind, arg, variant, immediate0, immediate1) = encode(source);
+                let (kind, arg, variant, immediate0, immediate1) = encode(fref, source);
                 // Advice uses the next code range above the raw slot kinds.
                 let kind = kind + WasmHostEventSlotKind::COUNT as u32 * u32::from(!event.absorb);
                 preload.insert(WasmMemoryId::HostEventSlotKind, key.clone(), kind);

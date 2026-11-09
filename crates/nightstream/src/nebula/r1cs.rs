@@ -14,7 +14,7 @@
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 
-use neo_application::{ContinuityCatalog, MemoryCatalog, R1csRelation};
+use neo_application::{ContinuityCatalog, MemoryCatalog, MemoryPortActivation, MemoryPortKind, R1csRelation};
 use neo_ccs::CcsMatrix;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks as F;
@@ -88,24 +88,47 @@ pub struct Size<Id> {
 /// one row in order keeps it in order across the rows too (SPEC.md section
 /// 7.6, rule 2), because two dependent ports share a memory. The batched plan
 /// has `rows` times the one-row slots.
-pub fn batched_slots<Id>(catalog: &MemoryCatalog<Id>, plan: &[Vec<usize>], rows: NonZeroUsize) -> Vec<Vec<usize>> {
+/// A rank outside the catalog or an unrepresentable batched plan returns `Plan`.
+pub fn batched_slots<Id>(
+    catalog: &MemoryCatalog<Id>,
+    plan: &[Vec<usize>],
+    rows: NonZeroUsize,
+) -> Result<Vec<Vec<usize>>, CatalogBindingError> {
     let memories = catalog.entries();
     let mut offsets = Vec::with_capacity(memories.len());
-    let mut ranks = 0;
+    let mut ranks = 0usize;
     for memory in memories {
         offsets.push(ranks);
-        ranks += memory.ports.len();
+        ranks = ranks
+            .checked_add(memory.ports.len())
+            .ok_or(CatalogBindingError::Plan)?;
     }
+    if plan.iter().flatten().any(|rank| *rank >= ranks) {
+        return Err(CatalogBindingError::Plan);
+    }
+    if plan.is_empty() {
+        return Ok(Vec::new());
+    }
+    ranks
+        .checked_mul(rows.get())
+        .ok_or(CatalogBindingError::Plan)?;
+    let slots = plan
+        .len()
+        .checked_mul(rows.get())
+        .ok_or(CatalogBindingError::Plan)?;
+    let mut batched = Vec::new();
+    batched
+        .try_reserve_exact(slots)
+        .map_err(|_| CatalogBindingError::Plan)?;
     let rank = |row: usize, s: usize| {
         let m = offsets.partition_point(|offset| *offset <= s) - 1;
         rows.get() * offsets[m] + row * memories[m].ports.len() + (s - offsets[m])
     };
-    (0..rows.get())
-        .flat_map(|row| {
-            plan.iter()
-                .map(move |slot| slot.iter().map(|s| rank(row, *s)).collect())
-        })
-        .collect()
+    batched.extend((0..rows.get()).flat_map(|row| {
+        plan.iter()
+            .map(move |slot| slot.iter().map(|s| rank(row, *s)).collect())
+    }));
+    Ok(batched)
 }
 
 /// A relation of one row as a Nebula application, `rows` rows in each step.
@@ -133,6 +156,10 @@ pub enum R1csApplicationError {
     Unchecked,
     #[error("the relation has a verifier-supplied column other than the constant-one column, which no memory verifier supplies")]
     PublicInput,
+    #[error("a relation, continuity, or memory column is outside the row witness")]
+    Column,
+    #[error("the batched witness or relation dimensions overflow")]
+    Dimension,
 }
 
 /// Why a step input has no step.
@@ -168,6 +195,8 @@ impl<Id: Clone + Eq> R1csApplication<Id> {
     /// The application of `relation`, its continuity links, and its memory
     /// catalog for `size`. The size must give each memory of the catalog a
     /// region, so that the circuit checks every memory.
+    /// Every relation, continuity, and memory column must be inside the row.
+    /// Batched witness and relation dimensions must fit the address space.
     pub fn new(
         relation: RowRelation,
         continuity: &ContinuityCatalog,
@@ -179,6 +208,51 @@ impl<Id: Clone + Eq> R1csApplication<Id> {
             .map(|link| (link.previous_step_column, link.next_step_column))
             .collect();
         let (row_width, one) = (relation.width, relation.one);
+        let check_column = |column| {
+            if column < row_width {
+                Ok(())
+            } else {
+                Err(R1csApplicationError::Column)
+            }
+        };
+        check_column(one)?;
+        for (column, _) in relation.rows.iter().flatten().flatten() {
+            check_column(*column)?;
+        }
+        for (previous, next) in &links {
+            check_column(*previous)?;
+            check_column(*next)?;
+        }
+        for port in catalog.entries().iter().flat_map(|memory| &memory.ports) {
+            for column in &port.address_columns {
+                check_column(*column)?;
+            }
+            check_column(port.value_column)?;
+            if let MemoryPortKind::Write {
+                value_before_column: Some(column),
+            } = port.kind
+            {
+                check_column(column)?;
+            }
+            match port.activation {
+                MemoryPortActivation::When(column) | MemoryPortActivation::Unless(column) => check_column(column)?,
+                MemoryPortActivation::Always => {}
+            }
+        }
+        row_width
+            .checked_mul(size.rows.get())
+            .ok_or(R1csApplicationError::Dimension)?;
+        relation
+            .rows
+            .len()
+            .checked_mul(size.rows.get())
+            .and_then(|rows| {
+                links
+                    .len()
+                    .checked_mul(size.rows.get() - 1)
+                    .and_then(|continuity| rows.checked_add(continuity))
+            })
+            .ok_or(R1csApplicationError::Dimension)?;
         let column = |row: usize, column: usize| step_column(row_width, one, row, column);
         let batched = catalog.batched(size.rows, column);
         let binding = CatalogBinding::new(&batched, &size.geometry, size.regions, &size.slots)?;

@@ -445,6 +445,11 @@ pub enum WasmOpcode {
     CallIndirect,
     ReturnCall,
     ReturnCallIndirect,
+    /// Synthetic first half of `call_indirect` / `return_call_indirect`: checks
+    /// the table entry and replaces the index on the stack with the function
+    /// reference the following invocation calls. It has its own pc, just before
+    /// the invocation's.
+    CallIndirectResolve,
     Return,
     LocalGet,
     LocalSet,
@@ -456,7 +461,7 @@ pub enum WasmOpcode {
 }
 
 impl WasmOpcode {
-    pub fn supported() -> [Self; 115] {
+    pub fn supported() -> [Self; 116] {
         [
             Self::Nop,
             Self::I32Const,
@@ -547,6 +552,7 @@ impl WasmOpcode {
             Self::CallIndirect,
             Self::ReturnCall,
             Self::ReturnCallIndirect,
+            Self::CallIndirectResolve,
             Self::Return,
             Self::LocalGet,
             Self::LocalSet,
@@ -693,6 +699,7 @@ impl WasmOpcode {
             Self::I64Popcnt => Some(112),
             Self::ReturnCall => Some(113),
             Self::ReturnCallIndirect => Some(114),
+            Self::CallIndirectResolve => Some(115),
             Self::Trap | Self::Unsupported => None,
         }
     }
@@ -718,13 +725,13 @@ impl WasmOpcode {
     pub fn uses_table_id_immediate(self) -> bool {
         matches!(
             self,
-            Self::TableSize | Self::TableGet | Self::TableSet | Self::CallIndirect | Self::ReturnCallIndirect
+            Self::TableSize | Self::TableGet | Self::TableSet | Self::CallIndirectResolve
         )
     }
 
     /// True when the instruction consumes the call-indirect type immediates.
     pub fn uses_call_indirect_immediates(self) -> bool {
-        matches!(self, Self::CallIndirect | Self::ReturnCallIndirect)
+        matches!(self, Self::CallIndirectResolve)
     }
 
     /// True for opcodes whose row carries a meaningful `wide_values_enabled`
@@ -1042,6 +1049,7 @@ impl WasmOpcode {
             Self::CallIndirect => "call_indirect",
             Self::ReturnCall => "return_call",
             Self::ReturnCallIndirect => "return_call_indirect",
+            Self::CallIndirectResolve => "call_indirect_resolve",
             Self::Return => "return",
             Self::LocalGet => "local_get",
             Self::LocalSet => "local_set",
@@ -1183,11 +1191,14 @@ pub fn opcode_info_from_code(code: u16) -> WasmOpcodeInfo {
         Op::BrIf => info(op, code, Class::ControlFlow, 1, 0, false, None),
         Op::BrTable => info(op, code, Class::ControlFlow, 1, 0, false, None),
         // Call-like arity is dynamic: direct rows read 0, indirect rows read
-        // the table index, and aux rows handle arguments and host results.
+        // the checked function reference, and aux rows handle arguments and
+        // host results.
         Op::Call => info(op, code, Class::ControlFlow, 0, 0, false, None),
         Op::CallIndirect => info(op, code, Class::ControlFlow, 0, 0, false, None),
         Op::ReturnCall => info(op, code, Class::ControlFlow, 0, 0, false, None),
         Op::ReturnCallIndirect => info(op, code, Class::ControlFlow, 0, 0, false, None),
+        // Reads the table index, writes the checked function reference in its place.
+        Op::CallIndirectResolve => info(op, code, Class::ControlFlow, 1, 1, false, None),
         Op::Return => info(op, code, Class::System, 0, 0, false, None),
         // stack_reads/writes are the operand stack effects only; local memory accesses
         // are tracked separately via local_read_value / local_write_value in the IR.
@@ -1316,6 +1327,7 @@ pub fn opcode_code(op: WasmOpcode) -> u16 {
         WasmOpcode::CallIndirect => 0x11,
         WasmOpcode::ReturnCall => 0x12,
         WasmOpcode::ReturnCallIndirect => 0x13,
+        WasmOpcode::CallIndirectResolve => 0xFFF0,
         WasmOpcode::Return => 0x0F,
         WasmOpcode::LocalGet => 0x20,
         WasmOpcode::LocalSet => 0x21,
@@ -1438,6 +1450,7 @@ fn opcode_from_code(code: u16) -> WasmOpcode {
         x if x == opcode_code(WasmOpcode::CallIndirect) => WasmOpcode::CallIndirect,
         x if x == opcode_code(WasmOpcode::ReturnCall) => WasmOpcode::ReturnCall,
         x if x == opcode_code(WasmOpcode::ReturnCallIndirect) => WasmOpcode::ReturnCallIndirect,
+        x if x == opcode_code(WasmOpcode::CallIndirectResolve) => WasmOpcode::CallIndirectResolve,
         x if x == opcode_code(WasmOpcode::Return) => WasmOpcode::Return,
         x if x == opcode_code(WasmOpcode::LocalGet) => WasmOpcode::LocalGet,
         x if x == opcode_code(WasmOpcode::LocalSet) => WasmOpcode::LocalSet,

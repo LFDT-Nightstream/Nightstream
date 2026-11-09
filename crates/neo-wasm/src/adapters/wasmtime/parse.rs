@@ -40,13 +40,6 @@ pub struct WasmProgramArtifacts {
 /// unexecuted operators. Byte offsets belong only to the trace adapter.
 #[derive(Clone, Debug)]
 pub struct WasmProgramTables {
-    /// Whether default linear memory 0 is supplied by the host. Its initial
-    /// contents are not derivable from the module and therefore cannot seed a
-    /// sound proof without an additional verifier-bound host-state input.
-    pub has_imported_memory: bool,
-    /// Number of leading globals supplied by the host. Their initial values are
-    /// deliberately absent from `globals_init`.
-    pub imported_global_count: u32,
     /// Initial page count for default linear memory 0, or `None` when the
     /// module has no default memory. This seeds the VM boundary state; data
     /// segment contents are tracked separately in `linear_memory_init`.
@@ -82,14 +75,27 @@ pub struct WasmProgramTables {
     /// Static `(function_ref, packed_metadata)` rows binding call arity and
     /// guest/import classification in one read.
     pub function_call_metadata: Vec<(u64, u64)>,
+    /// Static `(function_ref, result_is_i64)` rows. A single i64 result uses
+    /// both stack limbs; every other supported result shape has a zero high
+    /// limb. Host-result gather rows read this table before they can write
+    /// the high limb.
+    pub function_result_is_i64: Vec<(u64, u64)>,
+    /// Static `(function_ref, result_is_host_scalar)` rows. The host-result
+    /// state machine can introduce only one `i32` or `i64`; reference,
+    /// vector, and floating-point results have no complete verifier encoding.
+    pub function_result_is_host_scalar: Vec<(u64, u64)>,
+    /// Static `(function_ref, local_index, local_is_i64)` rows for defined
+    /// functions. Export-entry local writes read this table so an i32 input
+    /// cannot introduce a nonzero high limb.
+    pub function_local_is_i64: Vec<(u64, u64, u64)>,
+    /// Static `(function_ref, local_index, local_is_host_scalar)` rows.
+    /// Export-entry inputs may initialize only `i32` and `i64` parameters.
+    pub function_local_is_host_scalar: Vec<(u64, u64, u64)>,
     /// Static `(function_ref, params_plus_declared_locals)` rows used to bind
     /// frame-base transitions and local-slot addressing.
     pub function_local_counts: Vec<(u64, u64)>,
     /// Static `(pc_before, function_ref)` rows for direct `call` targets.
     pub call_targets: Vec<(u64, u64)>,
-    /// Static `(raw_type_index, expected_type_id)` rows mapping module type
-    /// section indexes to normalized type ids for `call_indirect`.
-    pub module_types: Vec<(u64, u64)>,
     /// Bytes initialized by active `(data ...)` segments at module
     /// instantiation, as `(byte_addr, byte_value)` pairs. Used by the memory
     /// sanity checker to seed `linear_memory` so the RMW Read check at
@@ -121,10 +127,9 @@ pub struct WasmProgramDecodeEntry {
     pub global_index: u32,
     pub table_id: u32,
     pub memory_offset: u32,
-    pub call_indirect_type_index: u32,
-    /// Normalized type id derived from the same module type-section entry
-    /// checked by the `module_types` ROM, but keyed by program PC so the
-    /// static opcode/immediate row is bound directly to the wasm bytes.
+    /// Normalized type id of the call_indirect type immediate, keyed by
+    /// program PC so the static opcode/immediate row is bound directly to the
+    /// wasm bytes.
     pub call_indirect_expected_type_id: u32,
     pub br_table_len: u32,
     pub i32_const_value: u32,
@@ -153,6 +158,8 @@ pub(crate) struct ParsedFunctionMeta {
     pub(crate) type_id: u32,
     pub(crate) param_count: u8,
     pub(crate) result_count: u8,
+    pub(crate) result_is_i64: bool,
+    pub(crate) result_is_host_scalar: bool,
     num_locals: u32,
     pub(crate) entry_pc: Option<u64>,
 }
@@ -225,24 +232,26 @@ struct ParsedWasmArtifactsBuilder {
     pc_edge_kinds: Vec<(u64, u64)>,
     pc_function_refs: Vec<(u64, u64)>,
     unresolved_call_edges: Vec<(u64, u32)>,
+    /// Invocation pcs of indirect calls; only their own resolve step may reach them.
+    indirect_invocations: Vec<u64>,
     function_entries: Vec<(u64, u64)>,
     call_targets: Vec<(u64, u64)>,
+    function_local_is_i64: Vec<(u64, u64, u64)>,
+    function_local_is_host_scalar: Vec<(u64, u64, u64)>,
     function_metas: BTreeMap<u32, ParsedFunctionMeta>,
     defined_function_index: u32,
     next_pc: u32,
     imported_function_count: u32,
     raw_type_id_by_index: BTreeMap<u32, u32>,
-    raw_type_shape_by_index: BTreeMap<u32, (u8, u8)>,
+    raw_type_shape_by_index: BTreeMap<u32, (u8, u8, bool, bool)>,
+    raw_param_types_by_index: BTreeMap<u32, Vec<(bool, bool)>>,
     signature_ids: BTreeMap<String, u32>,
     next_type_id: u32,
     defined_function_type_indices: Vec<u32>,
-    has_imported_memory: bool,
-    imported_global_count: u32,
     initial_memory_pages: Option<u32>,
     max_memory_pages: Option<u32>,
     linear_memory_init: Vec<(u64, u8)>,
     globals_init: Vec<(u32, u32, u32)>,
-    next_declared_global_index: u32,
     table_sizes_init: Vec<(u32, u32)>,
     tables_init: Vec<(u32, u32, u32)>,
 }
@@ -258,24 +267,25 @@ impl Default for ParsedWasmArtifactsBuilder {
             pc_edge_kinds: Vec::new(),
             pc_function_refs: Vec::new(),
             unresolved_call_edges: Vec::new(),
+            indirect_invocations: Vec::new(),
             function_entries: Vec::new(),
             call_targets: Vec::new(),
+            function_local_is_i64: Vec::new(),
+            function_local_is_host_scalar: Vec::new(),
             function_metas: BTreeMap::new(),
             defined_function_index: 0,
             next_pc: 0,
             imported_function_count: 0,
             raw_type_id_by_index: BTreeMap::new(),
             raw_type_shape_by_index: BTreeMap::new(),
+            raw_param_types_by_index: BTreeMap::new(),
             signature_ids: BTreeMap::new(),
             next_type_id: 1,
             defined_function_type_indices: Vec::new(),
-            has_imported_memory: false,
-            imported_global_count: 0,
             initial_memory_pages: None,
             max_memory_pages: None,
             linear_memory_init: Vec::new(),
             globals_init: Vec::new(),
-            next_declared_global_index: 0,
             table_sizes_init: Vec::new(),
             tables_init: Vec::new(),
         }
@@ -283,6 +293,18 @@ impl Default for ParsedWasmArtifactsBuilder {
 }
 
 impl ParsedWasmArtifactsBuilder {
+    fn const_expr_end(ops: &mut wasmparser::OperatorsReader<'_>, field: &str) -> Result<(), WasmProgramError> {
+        match ops
+            .read()
+            .map_err(|err| WasmProgramError::Invalid(format!("failed to read {field}: {err}")))?
+        {
+            wasmparser::Operator::End if ops.eof() => Ok(()),
+            _ => Err(WasmProgramError::Unsupported(format!(
+                "{field} uses an extended constant expression"
+            ))),
+        }
+    }
+
     fn narrow_u32(value: u64, field: &str) -> Result<u32, WasmProgramError> {
         u32::try_from(value).map_err(|_| {
             WasmProgramError::Unsupported(format!(
@@ -311,6 +333,23 @@ impl ParsedWasmArtifactsBuilder {
         }
         self.pc_rom.sort_unstable();
         self.pc_rom.dedup();
+        // An invocation trusts the function reference its resolve step checked,
+        // so no edge or entry may reach it other than that step's static edge.
+        for &invocation in &self.indirect_invocations {
+            let bypass = self
+                .pc_rom
+                .iter()
+                .any(|&(pc, choice, target)| target == invocation && (pc + 1 != invocation || choice != 0))
+                || self
+                    .function_entries
+                    .iter()
+                    .any(|&(_, entry)| entry == invocation);
+            if bypass {
+                return Err(WasmProgramError::Invalid(format!(
+                    "indirect call invocation pc {invocation} is reachable without its resolve step"
+                )));
+            }
+        }
         self.pc_edge_kinds.sort_unstable();
         self.pc_edge_kinds.dedup();
         self.pc_function_refs.sort_unstable();
@@ -339,6 +378,24 @@ impl ParsedWasmArtifactsBuilder {
             .collect::<Vec<_>>();
         function_call_metadata.sort_unstable();
         function_call_metadata.dedup();
+        let mut function_result_is_i64 = self
+            .function_metas
+            .iter()
+            .map(|(&function_ref, meta)| (u64::from(function_ref), u64::from(meta.result_is_i64)))
+            .collect::<Vec<_>>();
+        function_result_is_i64.sort_unstable();
+        function_result_is_i64.dedup();
+        let mut function_result_is_host_scalar = self
+            .function_metas
+            .iter()
+            .map(|(&function_ref, meta)| (u64::from(function_ref), u64::from(meta.result_is_host_scalar)))
+            .collect::<Vec<_>>();
+        function_result_is_host_scalar.sort_unstable();
+        function_result_is_host_scalar.dedup();
+        self.function_local_is_i64.sort_unstable();
+        self.function_local_is_i64.dedup();
+        self.function_local_is_host_scalar.sort_unstable();
+        self.function_local_is_host_scalar.dedup();
         let mut function_local_counts = self
             .function_metas
             .iter()
@@ -346,18 +403,9 @@ impl ParsedWasmArtifactsBuilder {
             .collect::<Vec<_>>();
         function_local_counts.sort_unstable();
         function_local_counts.dedup();
-        let mut module_types = self
-            .raw_type_id_by_index
-            .iter()
-            .map(|(&raw_type_index, &type_id)| (u64::from(raw_type_index), u64::from(type_id)))
-            .collect::<Vec<_>>();
-        module_types.sort_unstable();
-        module_types.dedup();
         Ok(WasmProgramArtifacts {
             host_event_bindings: Default::default(),
             tables: WasmProgramTables {
-                has_imported_memory: self.has_imported_memory,
-                imported_global_count: self.imported_global_count,
                 initial_memory_pages: self.initial_memory_pages,
                 max_memory_pages: self.max_memory_pages,
                 program_decode: self.program_decode,
@@ -368,9 +416,12 @@ impl ParsedWasmArtifactsBuilder {
                 function_entries: self.function_entries,
                 function_types,
                 function_call_metadata,
+                function_result_is_i64,
+                function_result_is_host_scalar,
+                function_local_is_i64: self.function_local_is_i64,
+                function_local_is_host_scalar: self.function_local_is_host_scalar,
                 function_local_counts,
                 call_targets: self.call_targets,
-                module_types,
                 linear_memory_init: self.linear_memory_init,
                 globals_init: self.globals_init,
                 table_sizes_init: self.table_sizes_init,
@@ -410,8 +461,28 @@ impl ParsedWasmArtifactsBuilder {
                             func_type.results().len()
                         ))
                     })?;
-                    self.raw_type_shape_by_index
-                        .insert(raw_type_index as u32, (param_count, result_count));
+                    let result_is_i64 = matches!(func_type.results(), [wasmparser::ValType::I64]);
+                    let result_is_host_scalar = matches!(
+                        func_type.results(),
+                        [wasmparser::ValType::I32] | [wasmparser::ValType::I64]
+                    );
+                    self.raw_type_shape_by_index.insert(
+                        raw_type_index as u32,
+                        (param_count, result_count, result_is_i64, result_is_host_scalar),
+                    );
+                    self.raw_param_types_by_index.insert(
+                        raw_type_index as u32,
+                        func_type
+                            .params()
+                            .iter()
+                            .map(|value_type| {
+                                (
+                                    matches!(value_type, wasmparser::ValType::I64),
+                                    matches!(value_type, wasmparser::ValType::I32 | wasmparser::ValType::I64),
+                                )
+                            })
+                            .collect(),
+                    );
                 }
             }
             Payload::ImportSection(reader) => {
@@ -419,9 +490,9 @@ impl ParsedWasmArtifactsBuilder {
                     let import = import_result
                         .map_err(|err| WasmProgramError::Invalid(format!("failed to decode wasm import: {err}")))?;
                     if matches!(import.ty, wasmparser::TypeRef::Global(_)) {
-                        // Imported globals occupy the leading global indexes.
-                        self.imported_global_count = self.imported_global_count.saturating_add(1);
-                        self.next_declared_global_index = self.next_declared_global_index.saturating_add(1);
+                        return Err(WasmProgramError::Unsupported(
+                            "imported globals require verifier-bound host initialization".to_string(),
+                        ));
                     }
                     if matches!(import.ty, wasmparser::TypeRef::Table(_)) {
                         // An imported table's size and contents are host-defined, so the
@@ -430,9 +501,10 @@ impl ParsedWasmArtifactsBuilder {
                             "imported tables are not supported by the wasm proof tables".to_string(),
                         ));
                     }
-                    if let wasmparser::TypeRef::Memory(memory) = import.ty {
-                        self.has_imported_memory = true;
-                        self.set_initial_memory_pages(memory)?;
+                    if matches!(import.ty, wasmparser::TypeRef::Memory(_)) {
+                        return Err(WasmProgramError::Unsupported(
+                            "imported memory requires verifier-bound host initialization".to_string(),
+                        ));
                     }
                     if let wasmparser::TypeRef::Func(raw_type_index) = import.ty {
                         let function_ref = self.imported_function_count.saturating_add(1);
@@ -445,7 +517,7 @@ impl ParsedWasmArtifactsBuilder {
                                     "missing normalized type id for imported function type {raw_type_index}"
                                 ))
                             })?;
-                        let (param_count, result_count) = *self
+                        let (param_count, result_count, result_is_i64, result_is_host_scalar) = *self
                             .raw_type_shape_by_index
                             .get(&raw_type_index)
                             .ok_or_else(|| {
@@ -459,6 +531,8 @@ impl ParsedWasmArtifactsBuilder {
                                 type_id,
                                 param_count,
                                 result_count,
+                                result_is_i64,
+                                result_is_host_scalar,
                                 num_locals: u32::from(param_count),
                                 entry_pc: None,
                             },
@@ -496,7 +570,7 @@ impl ParsedWasmArtifactsBuilder {
                             self.defined_function_index
                         ))
                     })?;
-                let (param_count, result_count) = *self
+                let (param_count, result_count, result_is_i64, result_is_host_scalar) = *self
                     .raw_type_shape_by_index
                     .get(&raw_type_index)
                     .ok_or_else(|| {
@@ -504,16 +578,61 @@ impl ParsedWasmArtifactsBuilder {
                             "missing raw type shape for defined function type {raw_type_index}"
                         ))
                     })?;
+                let param_types = self
+                    .raw_param_types_by_index
+                    .get(&raw_type_index)
+                    .ok_or_else(|| {
+                        WasmProgramError::Invalid(format!(
+                            "missing parameter types for defined function type {raw_type_index}"
+                        ))
+                    })?
+                    .clone();
+                if param_types.len() != usize::from(param_count) {
+                    return Err(WasmProgramError::Invalid(format!(
+                        "parameter type count for defined function type {raw_type_index} does not match its shape"
+                    )));
+                }
+                self.function_local_is_i64.extend(
+                    param_types
+                        .iter()
+                        .enumerate()
+                        .map(|(local, &(is_i64, _))| (u64::from(function_ref), local as u64, u64::from(is_i64))),
+                );
+                self.function_local_is_host_scalar
+                    .extend(
+                        param_types
+                            .into_iter()
+                            .enumerate()
+                            .map(|(local, (_, is_host_scalar))| {
+                                (u64::from(function_ref), local as u64, u64::from(is_host_scalar))
+                            }),
+                    );
                 let mut declared_local_count = 0_u32;
                 let locals_reader = body
                     .get_locals_reader()
                     .map_err(|err| WasmProgramError::Invalid(format!("failed to read wasm locals: {err}")))?;
                 for local_result in locals_reader {
-                    let (count, _) = local_result
+                    let (count, value_type) = local_result
                         .map_err(|err| WasmProgramError::Invalid(format!("failed to decode wasm local decl: {err}")))?;
+                    let first_local = u32::from(param_count)
+                        .checked_add(declared_local_count)
+                        .ok_or_else(|| WasmProgramError::Invalid("local index overflow".to_string()))?;
                     declared_local_count = declared_local_count
                         .checked_add(count)
                         .ok_or_else(|| WasmProgramError::Invalid("declared local count overflow".to_string()))?;
+                    let end_local = u32::from(param_count)
+                        .checked_add(declared_local_count)
+                        .ok_or_else(|| WasmProgramError::Invalid("local index overflow".to_string()))?;
+                    let is_i64 = matches!(value_type, wasmparser::ValType::I64);
+                    self.function_local_is_i64.extend(
+                        (first_local..end_local)
+                            .map(|local| (u64::from(function_ref), u64::from(local), u64::from(is_i64))),
+                    );
+                    let is_host_scalar = matches!(value_type, wasmparser::ValType::I32 | wasmparser::ValType::I64);
+                    self.function_local_is_host_scalar.extend(
+                        (first_local..end_local)
+                            .map(|local| (u64::from(function_ref), u64::from(local), u64::from(is_host_scalar))),
+                    );
                 }
                 let num_locals = u32::from(param_count)
                     .checked_add(declared_local_count)
@@ -537,6 +656,48 @@ impl ParsedWasmArtifactsBuilder {
                     let operator = reader
                         .read()
                         .map_err(|err| WasmProgramError::Invalid(format!("failed to decode wasm operator: {err}")))?;
+                    // A branch to the body's own label leaves the function: a `br` is a
+                    // `return`; a conditional one would need a branch row that returns.
+                    let to_function = |depth: u32| depth as usize == curr_depth;
+                    let operator = match operator {
+                        wasmparser::Operator::Br { relative_depth } if to_function(relative_depth) => {
+                            wasmparser::Operator::Return
+                        }
+                        wasmparser::Operator::BrIf { relative_depth } if to_function(relative_depth) => {
+                            return Err(WasmProgramError::Unsupported(
+                                "br_if to the function's label".to_string(),
+                            ));
+                        }
+                        wasmparser::Operator::BrTable { ref targets }
+                            if to_function(targets.default())
+                                || targets
+                                    .targets()
+                                    .any(|target| target.is_ok_and(&to_function)) =>
+                        {
+                            return Err(WasmProgramError::Unsupported(
+                                "br_table to the function's label".to_string(),
+                            ));
+                        }
+                        operator => operator,
+                    };
+                    // An indirect call takes two pcs: its resolve step, then the
+                    // invocation, which the rest of this iteration lays out. The
+                    // Wasmtime step keeps the first pc, where the instruction starts.
+                    let resolve_pc = matches!(
+                        operator,
+                        wasmparser::Operator::CallIndirect { .. } | wasmparser::Operator::ReturnCallIndirect { .. }
+                    )
+                    .then_some(pc_before);
+                    let pc_before = if resolve_pc.is_some() {
+                        let invocation = self.next_pc;
+                        self.next_pc = invocation.checked_add(1).ok_or_else(|| {
+                            WasmProgramError::Unsupported("wasm instruction PC exceeds u32".to_string())
+                        })?;
+                        self.indirect_invocations.push(u64::from(invocation));
+                        u64::from(invocation)
+                    } else {
+                        pc_before
+                    };
                     let pc_after = u64::from(self.next_pc);
                     let is_function_end = matches!(&operator, wasmparser::Operator::End) && curr_depth == 0;
                     let decoded = match &operator {
@@ -573,7 +734,7 @@ impl ParsedWasmArtifactsBuilder {
                         });
                     }
                     let memory = decode_memory_opcode(&operator);
-                    let (call_indirect_type_index, expected_type_id) = match &operator {
+                    let expected_type_id = match &operator {
                         wasmparser::Operator::CallIndirect { type_index, .. }
                         | wasmparser::Operator::ReturnCallIndirect { type_index, .. } => {
                             let expected_type_id = *self.raw_type_id_by_index.get(type_index).ok_or_else(|| {
@@ -581,9 +742,9 @@ impl ParsedWasmArtifactsBuilder {
                                     "missing normalized type id for call_indirect type {type_index}"
                                 ))
                             })?;
-                            (Some(*type_index), Some(expected_type_id))
+                            Some(expected_type_id)
                         }
-                        _ => (None, None),
+                        _ => None,
                     };
                     if let Some((opcode, immediate)) = decoded {
                         let i64_const = match operator {
@@ -608,16 +769,13 @@ impl ParsedWasmArtifactsBuilder {
                                 _ => 0,
                             },
                             table_id: match opcode {
-                                WasmOpcode::TableGet
-                                | WasmOpcode::TableSet
-                                | WasmOpcode::TableSize
-                                | WasmOpcode::CallIndirect
-                                | WasmOpcode::ReturnCallIndirect => immediate.unwrap_or(0),
+                                WasmOpcode::TableGet | WasmOpcode::TableSet | WasmOpcode::TableSize => {
+                                    immediate.unwrap_or(0)
+                                }
                                 _ => 0,
                             },
                             memory_offset,
-                            call_indirect_type_index: call_indirect_type_index.unwrap_or(0),
-                            call_indirect_expected_type_id: expected_type_id.unwrap_or(0),
+                            call_indirect_expected_type_id: 0,
                             br_table_len: match &operator {
                                 wasmparser::Operator::BrTable { targets } => targets.len(),
                                 _ => 0,
@@ -647,6 +805,28 @@ impl ParsedWasmArtifactsBuilder {
                         .push((pc_before, u64::from(pc_edge_kind.as_u32())));
                     self.pc_function_refs
                         .push((pc_before, u64::from(function_ref)));
+                    if let Some(resolve_pc) = resolve_pc {
+                        let table_id = decoded.and_then(|(_, immediate)| immediate).unwrap_or(0);
+                        self.program_decode.push(WasmProgramDecodeEntry {
+                            pc: resolve_pc,
+                            opcode_code: u32::from(opcode_code(WasmOpcode::CallIndirectResolve)),
+                            local_index: 0,
+                            global_index: 0,
+                            table_id,
+                            memory_offset: 0,
+                            call_indirect_expected_type_id: expected_type_id.unwrap_or(0),
+                            br_table_len: 0,
+                            i32_const_value: 0,
+                            i64_const_value_lo: 0,
+                            i64_const_value_hi: 0,
+                            ref_func_ref: 0,
+                        });
+                        self.pc_edge_kinds
+                            .push((resolve_pc, u64::from(WasmPcEdgeKind::Static.as_u32())));
+                        self.pc_function_refs
+                            .push((resolve_pc, u64::from(function_ref)));
+                        self.push_pc_rom_edge(resolve_pc, 0, pc_before);
+                    }
                     let frame_slides = self.slides_by_offset.remove(&offset).unwrap_or_default();
                     self.frame_slides.extend(
                         frame_slides
@@ -662,7 +842,6 @@ impl ParsedWasmArtifactsBuilder {
                             decoded,
                             control: decode_control_opcode(&operator),
                             pc_edge_kind,
-                            call_indirect_type_index,
                             expected_type_id,
                             pc_after_instruction: pc_after,
                             frame_slides,
@@ -685,6 +864,13 @@ impl ParsedWasmArtifactsBuilder {
                             control_stack.push(frame);
                         }
                         wasmparser::Operator::Else => {
+                            // SpecTec's `if` has no empty-else form, and the pc layout
+                            // follows SpecTec: strip an empty `else` before proving.
+                            if matches!(reader.clone().read(), Ok(wasmparser::Operator::End)) {
+                                return Err(WasmProgramError::Unsupported(
+                                    "empty else-body: remove the `else` before proving".to_string(),
+                                ));
+                            }
                             let frame = control_stack.last_mut().ok_or_else(|| {
                                 WasmProgramError::Invalid("encountered else without an open control frame".to_string())
                             })?;
@@ -812,6 +998,8 @@ impl ParsedWasmArtifactsBuilder {
                         type_id,
                         param_count,
                         result_count,
+                        result_is_i64,
+                        result_is_host_scalar,
                         num_locals,
                         entry_pc,
                     },
@@ -870,6 +1058,7 @@ impl ParsedWasmArtifactsBuilder {
                             )));
                         }
                     };
+                    Self::const_expr_end(&mut ops, "element segment offset")?;
                     // Items land in the normalized 1-based funcref id space shared
                     // with `call` / `ref.func`; 0 encodes a null entry.
                     let mut funcrefs = Vec::new();
@@ -902,12 +1091,40 @@ impl ParsedWasmArtifactsBuilder {
                                         )));
                                     }
                                 }
+                                Self::const_expr_end(&mut ops, "element initializer")?;
                             }
                         }
                     }
+                    let table = usize::try_from(table_id).map_err(|_| {
+                        WasmProgramError::Invalid(format!("element segment table index {table_id} does not fit usize"))
+                    })?;
+                    let table_size = self
+                        .table_sizes_init
+                        .get(table)
+                        .filter(|(id, _)| *id == table_id)
+                        .map(|(_, size)| *size)
+                        .ok_or_else(|| {
+                            WasmProgramError::Invalid(format!(
+                                "active element segment targets missing table {table_id}"
+                            ))
+                        })?;
+                    let segment_len = u32::try_from(funcrefs.len()).map_err(|_| {
+                        WasmProgramError::Invalid("active element segment length exceeds u32".to_string())
+                    })?;
+                    let segment_end = offset.checked_add(segment_len).ok_or_else(|| {
+                        WasmProgramError::Invalid("active element segment end overflows u32".to_string())
+                    })?;
+                    if segment_end > table_size {
+                        return Err(WasmProgramError::Invalid(format!(
+                            "active element segment [{offset}, {segment_end}) exceeds table {table_id} initial size {table_size}"
+                        )));
+                    }
                     for (i, funcref) in funcrefs.into_iter().enumerate() {
+                        let i = u32::try_from(i).map_err(|_| {
+                            WasmProgramError::Invalid("active element segment index exceeds u32".to_string())
+                        })?;
                         let index = offset
-                            .checked_add(i as u32)
+                            .checked_add(i)
                             .ok_or_else(|| WasmProgramError::Invalid("element segment index overflow".to_string()))?;
                         self.tables_init.push((table_id, index, funcref));
                     }
@@ -938,6 +1155,7 @@ impl ParsedWasmArtifactsBuilder {
                                     )));
                                 }
                             };
+                            Self::const_expr_end(&mut reader, "data segment offset")?;
                             (memory_index, offset)
                         }
                         wasmparser::DataKind::Passive => continue,
@@ -945,6 +1163,20 @@ impl ParsedWasmArtifactsBuilder {
                     if memory_index != 0 {
                         return Err(WasmProgramError::Unsupported(format!(
                             "data segment targeting non-default memory {memory_index} not supported"
+                        )));
+                    }
+                    let initial_pages = self.initial_memory_pages.ok_or_else(|| {
+                        WasmProgramError::Invalid("active data segment targets a missing default memory".to_string())
+                    })?;
+                    let segment_len = u64::try_from(segment.data.len())
+                        .map_err(|_| WasmProgramError::Invalid("active data segment length exceeds u64".to_string()))?;
+                    let segment_end = offset.checked_add(segment_len).ok_or_else(|| {
+                        WasmProgramError::Invalid("active data segment end overflows u64".to_string())
+                    })?;
+                    let initial_bytes = u64::from(initial_pages) * 65_536;
+                    if segment_end > initial_bytes {
+                        return Err(WasmProgramError::Invalid(format!(
+                            "active data segment [{offset}, {segment_end}) exceeds default memory initial size {initial_bytes} bytes"
                         )));
                     }
                     for (i, &byte) in segment.data.iter().enumerate() {
@@ -977,10 +1209,16 @@ impl ParsedWasmArtifactsBuilder {
                             )));
                         }
                     };
-                    let index = self.next_declared_global_index;
-                    self.next_declared_global_index = self.next_declared_global_index.saturating_add(1);
+                    Self::const_expr_end(&mut ops, "global initializer")?;
+                    let index = u32::try_from(self.globals_init.len())
+                        .map_err(|_| WasmProgramError::Unsupported("declared global count exceeds u32".to_string()))?;
                     self.globals_init.push((index, lo, hi));
                 }
+            }
+            Payload::StartSection { func, .. } => {
+                return Err(WasmProgramError::Unsupported(format!(
+                    "WASM start function {func} is not supported by the proof initialization model"
+                )));
             }
             _ => {}
         }

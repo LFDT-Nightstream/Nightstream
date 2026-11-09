@@ -354,12 +354,13 @@ fn r1cs_width(bits: usize) -> usize {
             .entries()
             .iter()
             .map(|memory| (memory.id, memory.kind, vec![2])),
-    );
+    )
+    .unwrap();
     let size = Size {
         geometry,
         rows,
         regions,
-        slots: batched_slots(&catalog, &[vec![0]], rows),
+        slots: batched_slots(&catalog, &[vec![0]], rows).unwrap(),
     };
     let app = R1csApplication::new(RowRelation::of(&relation).unwrap(), &continuity, &catalog, size).unwrap();
     logical_width(&memory_circuit(&geometry, &app).unwrap()).unwrap()

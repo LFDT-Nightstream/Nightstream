@@ -1,15 +1,14 @@
 use super::isa::{WasmOpTable, WasmOpcode};
 use super::ivc_state::build_ivc_state_continuity_links;
 use super::layout::{
-    selector_col, Column, COL_CALL_INDIRECT_IS_NOT_TRAP, COL_CALL_INDIRECT_TYPE_INDEX, COL_CALL_STACK_ADDR,
-    COL_CALL_STACK_CALLER_FBP_VALUE, COL_CALL_STACK_CALLER_SP_BASE_VALUE, COL_CALL_STACK_POP_PRESENT,
-    COL_CALL_STACK_PUSH_PRESENT, COL_CALL_STACK_RETURN_PC_VALUE, COL_CALL_TARGET_METADATA, COL_CI_HOST_CALL,
-    COL_CONTROL_CHOICE, COL_CURRENT_FUNCTION_REF, COL_ENTERED_FUNCTION_NUM_LOCALS, COL_EXIT_SLIDE_DISTANCE,
-    COL_EXPECTED_TYPE_ID, COL_FRAME_MOVE_DISTANCE_AFTER, COL_FRAME_MOVE_REMAINING_AFTER, COL_FRAME_SLIDE_ACTIVE,
-    COL_FUNCTION_CALL_TYPE_LOOKUP_GATE, COL_FUNCTION_REF, COL_FUNCTION_TYPE_ID, COL_GATHER_ACTIVE,
-    COL_GATHER_LOCAL_WRITE, COL_GATHER_LOCAL_WRITE_LO, COL_GLOBAL_INDEX, COL_GLOBAL_VALUE, COL_GLOBAL_VALUE_HI,
-    COL_GUEST_ENTRY_ACTIVE, COL_HOST_CALLEE_FREF_AFTER, COL_HOST_CALLEE_FREF_BEFORE, COL_HOST_CALL_ACTIVE,
-    COL_HOST_EVENT_EXIT_LATCH, COL_HOST_EVENT_EXIT_SCHEDULE_COUNT, COL_HOST_EVENT_INDEX_BEFORE,
+    selector_col, Column, COL_CALL_STACK_ADDR, COL_CALL_STACK_CALLER_FBP_VALUE, COL_CALL_STACK_CALLER_SP_BASE_VALUE,
+    COL_CALL_STACK_POP_PRESENT, COL_CALL_STACK_PUSH_PRESENT, COL_CALL_STACK_RETURN_PC_VALUE, COL_CALL_TARGET_METADATA,
+    COL_CI_HOST_CALL, COL_CONTROL_CHOICE, COL_CURRENT_FUNCTION_REF, COL_ENTERED_FUNCTION_NUM_LOCALS,
+    COL_EXIT_SLIDE_DISTANCE, COL_EXPECTED_TYPE_ID, COL_FRAME_MOVE_DISTANCE_AFTER, COL_FRAME_MOVE_REMAINING_AFTER,
+    COL_FRAME_SLIDE_ACTIVE, COL_FUNCTION_CALL_TYPE_LOOKUP_GATE, COL_FUNCTION_REF, COL_FUNCTION_TYPE_ID,
+    COL_GATHER_ACTIVE, COL_GATHER_LOCAL_WRITE, COL_GATHER_LOCAL_WRITE_LO, COL_GLOBAL_INDEX, COL_GLOBAL_VALUE,
+    COL_GLOBAL_VALUE_HI, COL_GUEST_ENTRY_ACTIVE, COL_HOST_CALLEE_FREF_AFTER, COL_HOST_CALLEE_FREF_BEFORE,
+    COL_HOST_CALL_ACTIVE, COL_HOST_EVENT_EXIT_LATCH, COL_HOST_EVENT_EXIT_SCHEDULE_COUNT, COL_HOST_EVENT_INDEX_BEFORE,
     COL_HOST_EVENT_INITIAL_SCHEDULE_COUNT, COL_HOST_EVENT_SLOT_ARG, COL_HOST_EVENT_SLOT_CURSOR_BEFORE,
     COL_HOST_EVENT_SLOT_IMMEDIATE0, COL_HOST_EVENT_SLOT_IMMEDIATE1, COL_HOST_EVENT_SLOT_KIND,
     COL_HOST_EVENT_SLOT_VARIANT, COL_IS_PROGRAM_ROW, COL_LINEAR_MEM_ACCESS_BYTE0, COL_LINEAR_MEM_ACCESS_BYTE1,
@@ -46,8 +45,8 @@ use super::layout::{
     COL_SIGN_EXT_LOW7, COL_STACK_READ_ACTIVE, COL_STACK_READ_ADDR_HI, COL_STACK_READ_ADDR_LO, COL_STACK_READ_VALUE_HI,
     COL_STACK_READ_VALUE_LO, COL_STACK_WRITE0_ACTIVE, COL_STACK_WRITE0_ADDR_HI, COL_STACK_WRITE0_ADDR_LO,
     COL_STACK_WRITE0_HI_ACTIVE, COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO, COL_TABLE_ID, COL_TABLE_INDEX,
-    COL_TABLE_READ_ENABLED, COL_TABLE_SIZE, COL_TABLE_SIZE_READ_ENABLED, COL_TABLE_VALUE, COL_TURN_BOUNDARY,
-    COL_TURN_EXPORT_FREF_BEFORE,
+    COL_TABLE_READ_ENABLED, COL_TABLE_SET_LIVE, COL_TABLE_SIZE, COL_TABLE_SIZE_READ_ENABLED, COL_TABLE_VALUE,
+    COL_TURN_BOUNDARY, COL_TURN_EXPORT_FREF_BEFORE,
 };
 use super::lookup_semantics::{semantics_for_lookup_family, LookupSemantics};
 use super::tables::WasmLookupArity;
@@ -457,6 +456,12 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
                     activation: active_when(Column(crate::ccs::host_event_chain::gather_memory_local_base_col())),
                 },
                 MemoryPortSpec {
+                    address_columns: memory_columns([Column(COL_LOCAL_ADDR_HI)]),
+                    value_column: COL_LOCAL_VALUE_HI,
+                    kind: MemoryPortKind::Read,
+                    activation: active_when(Column(crate::ccs::host_event_chain::gather_memory_local_base_col())),
+                },
+                MemoryPortSpec {
                     address_columns: memory_columns([Column(COL_LOCAL_ADDR_LO)]),
                     value_column: COL_LOCAL_VALUE,
                     kind: MemoryPortKind::Write {
@@ -691,16 +696,16 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
                     kind: MemoryPortKind::Write {
                         value_before_column: None,
                     },
-                    activation: active_when(Column(selector_col(super::isa::WasmOpcode::TableSet).unwrap())),
+                    activation: active_when(Column(COL_TABLE_SET_LIVE)),
                 },
             ],
         },
         MemorySpec {
             id: WasmMemoryId::TableSize,
             kind: MemoryKind::Ram,
-            // Read by table.size and by call_indirect: the latter binds the
-            // authoritative table size for the OOB comparison, so the gate
-            // stays on even on a trapping call_indirect row.
+            // Read by table.size and by call_indirect's resolve step: the latter
+            // binds the authoritative table size for the OOB comparison, so the
+            // gate stays on even on a trapping resolve row.
             ports: vec![MemoryPortSpec {
                 address_columns: memory_columns([Column(COL_TABLE_ID)]),
                 value_column: COL_TABLE_SIZE,
@@ -737,12 +742,6 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
             vec![Column(COL_PC_BEFORE)],
             linear_memory.imm_offset,
             active_when(linear_memory.use_lane0),
-        ),
-        rom_read_spec(
-            WasmMemoryId::ProgramCallIndirectTypeIndex,
-            vec![Column(COL_PC_BEFORE)],
-            Column(COL_CALL_INDIRECT_TYPE_INDEX),
-            active_when(Column(COL_PROGRAM_CALL_INDIRECT_IMMEDIATES_ACTIVE)),
         ),
         rom_read_spec(
             WasmMemoryId::ProgramCallIndirectExpectedTypeId,
@@ -829,9 +828,15 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
                     address_columns: memory_columns([Column(COL_FUNCTION_REF)]),
                     value_column: COL_CALL_TARGET_METADATA,
                     kind: MemoryPortKind::Read,
-                    // De-gated on call_indirect trap rows: no call happens,
-                    // so the callee metadata is unread and unconstrained.
-                    activation: active_when(Column(COL_CALL_INDIRECT_IS_NOT_TRAP)),
+                    activation: active_when(Column(selector_col(super::isa::WasmOpcode::CallIndirect).unwrap())),
+                },
+                MemoryPortSpec {
+                    address_columns: memory_columns([Column(COL_FUNCTION_REF)]),
+                    value_column: COL_CALL_TARGET_METADATA,
+                    kind: MemoryPortKind::Read,
+                    activation: active_when(Column(
+                        selector_col(super::isa::WasmOpcode::ReturnCallIndirect).unwrap(),
+                    )),
                 },
                 MemoryPortSpec {
                     address_columns: memory_columns([Column(COL_HOST_CALLEE_FREF_AFTER)]),
@@ -840,19 +845,6 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
                     activation: active_when(Column(COL_TURN_BOUNDARY)),
                 },
             ],
-        },
-        MemorySpec {
-            id: WasmMemoryId::ModuleType,
-            kind: MemoryKind::Rom,
-            ports: [WasmOpcode::CallIndirect, WasmOpcode::ReturnCallIndirect]
-                .into_iter()
-                .map(|opcode| MemoryPortSpec {
-                    address_columns: memory_columns([Column(COL_CALL_INDIRECT_TYPE_INDEX)]),
-                    value_column: COL_EXPECTED_TYPE_ID,
-                    kind: MemoryPortKind::Read,
-                    activation: active_when(Column(selector_col(opcode).unwrap())),
-                })
-                .collect(),
         },
         MemorySpec {
             id: WasmMemoryId::CallTarget,
@@ -872,9 +864,7 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
             kind: MemoryKind::Rom,
             ports: vec![
                 // Gated on guest-call rows only: host imports have no entry
-                // pc (host calls fall through to pc+1, pinned by a CCS row),
-                // and a trapping call_indirect row is terminal and never
-                // binds a callee entry pc.
+                // pc (host calls fall through to pc+1, pinned by a CCS row).
                 MemoryPortSpec {
                     address_columns: memory_columns([Column(COL_FUNCTION_REF)]),
                     value_column: COL_PC_AFTER,

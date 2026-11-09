@@ -9,8 +9,8 @@ use common::{assert_rejected, assert_satisfied, step};
 use neo_math::F;
 use neo_wasm::layout::{
     COL_ACTIVATION_FINISHED_AFTER, COL_CALL_INDIRECT_IS_NOT_TRAP, COL_CALL_INDIRECT_IS_TRAP, COL_CI_ENTRY_IS_NULL,
-    COL_DIV_OVERFLOW, COL_DIV_TRAP, COL_FUNCTION_CALL_TYPE_LOOKUP_GATE, COL_MEM_OOB, COL_TRAPPED_AFTER,
-    COL_TRAPPED_BEFORE,
+    COL_DIV_OVERFLOW, COL_DIV_TRAP, COL_FUNCTION_CALL_TYPE_LOOKUP_GATE, COL_FUNCTION_REF, COL_MEM_OOB, COL_TABLE_VALUE,
+    COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE,
 };
 use neo_wasm::witness_builder::build_witness_vector;
 use neo_wasm::{opcode_code, StackValueAccess, WasmOpcode};
@@ -31,7 +31,8 @@ fn unreachable_row_requires_activation_finished_boundary() {
         None,
         0,
         true,
-    ));
+    ))
+    .unwrap();
     assert_satisfied(&accepted, "unreachable row");
 
     let rejected = build_witness_vector(&step(
@@ -47,7 +48,8 @@ fn unreachable_row_requires_activation_finished_boundary() {
         None,
         0,
         false,
-    ));
+    ))
+    .unwrap();
     assert_rejected(&rejected, "unreachable row with activation_finished=0");
 }
 
@@ -66,7 +68,8 @@ fn unreachable_row_rejects_clean_trapped_flag() {
         None,
         0,
         true,
-    ));
+    ))
+    .unwrap();
     assert_satisfied(&witness, "unreachable row with trapped_after=1");
     witness[COL_TRAPPED_AFTER] = F::ZERO;
     assert_rejected(&witness, "unreachable row claiming a clean (non-trapped) exit");
@@ -87,7 +90,8 @@ fn non_trap_row_rejects_fake_trapped_flag() {
         None,
         0,
         false,
-    ));
+    ))
+    .unwrap();
     assert_satisfied(&witness, "nop row");
     witness[COL_TRAPPED_AFTER] = F::ONE;
     assert_rejected(&witness, "nop row claiming a trap");
@@ -108,7 +112,8 @@ fn program_row_rejects_execution_after_trap() {
         None,
         0,
         false,
-    ));
+    ))
+    .unwrap();
     // trapped_before = trapped_after = 1 satisfies the transition row, so
     // the rejection must come from `is_program_row · trapped_before = 0`.
     witness[COL_TRAPPED_BEFORE] = F::ONE;
@@ -131,7 +136,8 @@ fn div_by_zero_row_rejects_clean_claim() {
         None,
         0,
         true,
-    ));
+    ))
+    .unwrap();
     assert_satisfied(&witness, "i32.div_u row trapping on a zero divisor");
     // Hiding the trap: div_trap = 0 contradicts (Σ div sel) · divisor_is_zero.
     witness[COL_DIV_TRAP] = F::ZERO;
@@ -153,7 +159,8 @@ fn div_row_rejects_fake_trap_on_nonzero_divisor() {
         None,
         0,
         false,
-    ));
+    ))
+    .unwrap();
     assert_satisfied(&witness, "i32.div_u row with a nonzero divisor");
     // Faking the trap: divisor_is_zero is pinned to 0 by the zero test, so
     // div_trap = (Σ div sel) · 0 must be 0.
@@ -177,7 +184,8 @@ fn signed_div_overflow_row_rejects_clean_claim() {
         None,
         0,
         true,
-    ));
+    ))
+    .unwrap();
     assert_satisfied(&witness, "i32.div_s row trapping on MIN / -1");
     // Hiding the trap: the zero tests pin both overflow flags to 1, so
     // div_overflow = (Σ div_s sel) · 1 forces div_trap = 1.
@@ -201,7 +209,8 @@ fn div_s_row_rejects_fake_overflow_trap() {
         None,
         0,
         false,
-    ));
+    ))
+    .unwrap();
     assert_satisfied(&witness, "i32.div_s row with MIN dividend and divisor 2");
     // Faking the trap: divisor_is_neg1 is pinned to 0 by its zero test, so
     // overflow_cond = is_min · 0 must be 0 and div_overflow must follow.
@@ -246,8 +255,8 @@ fn healthy_call_indirect_row_rejects_faked_trap() {
     let row_index = checked
         .trace
         .iter()
-        .position(|row| row.opcode == WasmOpcode::CallIndirect)
-        .expect("call_indirect row");
+        .position(|row| row.opcode == WasmOpcode::CallIndirectResolve)
+        .expect("call_indirect resolve row");
     let mut witness = checked.witnesses[row_index].clone();
     witness[COL_CALL_INDIRECT_IS_TRAP] = F::ONE;
     witness[COL_TRAPPED_AFTER] = F::ONE;
@@ -266,8 +275,8 @@ fn null_entry_call_indirect_row_rejects_hidden_trap() {
     let row_index = checked
         .trace
         .iter()
-        .position(|row| row.opcode == WasmOpcode::CallIndirect)
-        .expect("call_indirect row");
+        .position(|row| row.opcode == WasmOpcode::CallIndirectResolve)
+        .expect("call_indirect resolve row");
     let mut witness = checked.witnesses[row_index].clone();
     witness[COL_CALL_INDIRECT_IS_TRAP] = F::ZERO;
     witness[COL_TRAPPED_AFTER] = F::ZERO;
@@ -284,8 +293,8 @@ fn null_entry_call_indirect_row_rejects_forged_null_flag() {
     let row_index = checked
         .trace
         .iter()
-        .position(|row| row.opcode == WasmOpcode::CallIndirect)
-        .expect("call_indirect row");
+        .position(|row| row.opcode == WasmOpcode::CallIndirectResolve)
+        .expect("call_indirect resolve row");
     let mut witness = checked.witnesses[row_index].clone();
     witness[COL_CI_ENTRY_IS_NULL] = F::ZERO;
     witness[COL_CALL_INDIRECT_IS_TRAP] = F::ZERO;
@@ -319,14 +328,46 @@ fn oob_call_indirect_row_rejects_hidden_trap() {
     let row_index = checked
         .trace
         .iter()
-        .position(|row| row.opcode == WasmOpcode::CallIndirect)
-        .expect("call_indirect row");
+        .position(|row| row.opcode == WasmOpcode::CallIndirectResolve)
+        .expect("call_indirect resolve row");
     let mut witness = checked.witnesses[row_index].clone();
     witness[COL_CALL_INDIRECT_IS_TRAP] = F::ZERO;
     witness[COL_TRAPPED_AFTER] = F::ZERO;
     witness[COL_ACTIVATION_FINISHED_AFTER] = F::ZERO;
     witness[COL_CALL_INDIRECT_IS_NOT_TRAP] = F::ONE;
     assert_rejected(&witness, "hidden OOB-index call_indirect trap");
+}
+
+const TYPE_MISMATCH_CALL_INDIRECT_WAT: &str = r#"(module
+    (type $t (func (param i32) (result i32)))
+    (type $u (func (result i32)))
+    (func $add_one (type $t)
+        local.get 0
+        i32.const 1
+        i32.add)
+    (table 1 funcref)
+    (elem (i32.const 0) func $add_one)
+    (func (export "main") (result i32)
+        i32.const 0
+        call_indirect (type $u)))"#;
+
+/// The type check must look up the table entry's own type. On a mismatch trap
+/// the looked-up function reference is still bound to the table entry: otherwise
+/// a prover could look up some other function's type and fake a mismatch trap
+/// on a well-typed call.
+#[test]
+fn type_mismatch_call_indirect_row_binds_looked_up_reference() {
+    let checked = common::checked_main(TYPE_MISMATCH_CALL_INDIRECT_WAT);
+    let row_index = checked
+        .trace
+        .iter()
+        .position(|row| row.opcode == WasmOpcode::CallIndirectResolve)
+        .expect("call_indirect resolve row");
+    let mut witness = checked.witnesses[row_index].clone();
+    assert_eq!(witness[COL_CALL_INDIRECT_IS_TRAP], F::ONE);
+    assert_eq!(witness[COL_FUNCTION_CALL_TYPE_LOOKUP_GATE], F::ONE);
+    witness[COL_FUNCTION_REF] = witness[COL_TABLE_VALUE] + F::ONE;
+    assert_rejected(&witness, "type lookup through a reference other than the table entry");
 }
 
 const OOB_LOAD_WAT: &str = r#"(module

@@ -90,7 +90,6 @@ fn step(
         function_ref: None,
         target_function_is_guest: false,
         function_type_id: None,
-        call_indirect_type_index: None,
         expected_type_id: None,
         table_size: None,
         call_param_count: None,
@@ -116,7 +115,8 @@ fn i32_eqz_row_accepts_zero_and_nonzero_inputs() {
             None,
             Some(StackValueAccess::new(0, result)),
             false,
-        ));
+        ))
+        .unwrap();
         assert_satisfied(&row, &format!("i32.eqz({input})"));
     }
 }
@@ -132,7 +132,8 @@ fn i32_eqz_row_rejects_tampered_output() {
         None,
         Some(StackValueAccess::new(0, 1)),
         false,
-    ));
+    ))
+    .unwrap();
     row[COL_STACK_WRITE0_VALUE_LO] = F::ONE;
     assert_rejected(&row, "tampered i32.eqz output");
 }
@@ -148,7 +149,8 @@ fn i64_eqz_row_accepts_zero_and_nonzero_inputs() {
             None,
             Some(StackValueAccess::new(0, result)),
             true,
-        ));
+        ))
+        .unwrap();
         assert_satisfied(&row, &format!("i64.eqz(lo={lo}, hi={hi})"));
     }
 }
@@ -168,7 +170,8 @@ fn i64_eqz_row_rejects_goldilocks_modulus_collision() {
         None,
         Some(StackValueAccess::new(0, 1)),
         true,
-    ));
+    ))
+    .unwrap();
     row[COL_STACK_READ_VALUE_LO[0]] = F::from_u64(1);
     row[COL_STACK_READ_VALUE_HI[0]] = F::from_u64(0xFFFF_FFFFu64);
     row[COL_ZERO_TEST_LO_INPUT] = F::ZERO;
@@ -188,7 +191,8 @@ fn i32_eq_and_ne_rows_accept_equal_and_distinct_inputs() {
             Some(StackValueAccess::new(1, rhs)),
             Some(StackValueAccess::new(0, eq_out)),
             false,
-        ));
+        ))
+        .unwrap();
         assert_satisfied(&eq_row, &format!("i32.eq({lhs}, {rhs})"));
         let ne_row = build_witness_vector(&step(
             WasmOpcode::I32Ne,
@@ -198,7 +202,8 @@ fn i32_eq_and_ne_rows_accept_equal_and_distinct_inputs() {
             Some(StackValueAccess::new(1, rhs)),
             Some(StackValueAccess::new(0, ne_out)),
             false,
-        ));
+        ))
+        .unwrap();
         assert_satisfied(&ne_row, &format!("i32.ne({lhs}, {rhs})"));
     }
 }
@@ -213,7 +218,8 @@ fn i32_eq_row_rejects_tampered_output() {
         Some(StackValueAccess::new(1, 7)),
         Some(StackValueAccess::new(0, 1)),
         false,
-    ));
+    ))
+    .unwrap();
     row[COL_STACK_WRITE0_VALUE_LO] = F::ZERO;
     assert_rejected(&row, "tampered i32.eq output");
 }
@@ -239,7 +245,8 @@ fn i64_eq_and_ne_rows_accept_equal_and_distinct_inputs() {
                 Some(StackValueAccess::with_hi(1, r_lo, r_hi)),
                 Some(StackValueAccess::new(0, expected)),
                 true,
-            ));
+            ))
+            .unwrap();
             assert_satisfied(&row, &format!("{opcode:?}(lhs=({l_lo},{l_hi}), rhs=({r_lo},{r_hi}))"));
         }
     }
@@ -259,7 +266,8 @@ fn i64_eq_row_rejects_goldilocks_modulus_collision() {
         Some(StackValueAccess::new(1, 0)),
         Some(StackValueAccess::new(0, 1)),
         true,
-    ));
+    ))
+    .unwrap();
     row[COL_STACK_READ_VALUE_LO[0]] = F::from_u64(1);
     row[COL_STACK_READ_VALUE_HI[0]] = F::from_u64(0xFFFF_FFFFu64);
     row[COL_STACK_READ_VALUE_LO[1]] = F::ZERO;
@@ -281,7 +289,8 @@ fn i64_ne_row_rejects_tampered_output() {
         Some(StackValueAccess::new(1, 5)),
         Some(StackValueAccess::new(0, 0)),
         true,
-    ));
+    ))
+    .unwrap();
     row[COL_STACK_WRITE0_VALUE_LO] = F::ONE;
     assert_rejected(&row, "tampered i64.ne output");
 }

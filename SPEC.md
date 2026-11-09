@@ -607,6 +607,22 @@ A Rust-built application in an option-B step package (`Export.OptionB.StepPackag
 
 **Source.** Soundness: when the S-box rows are zero and the other rows and the binding rows hold, the outputs of each block are the Poseidon2 permutation of its lanes, and an environment that differs only on the dead locals satisfies the other rows and the 1,096 template constraints of every block (`Export.Generic.NativeBlock.blocks_sound` (`342cf54f1709fba4`)). Completeness: an honest template trace, with each S-box column at its template local, makes the S-box rows zero and the binding rows hold (`Export.Generic.NativeBlock.blocks_complete` (`50cfe996b332136e`)). A package with a native application is complete too. Its pieces are one rows piece with the native rows, then the package pieces of Lean pieces, in which each native block is a permutation piece. So its rows are the native rows and the rows of the Lean pieces (`Export.OptionB.NativeCompleteness.relationRows_eq` (`7ed781a3a5bef84c`)). Let the constraints of the Lean pieces and the native rows hold in the honest values, let the Lean pieces meet the premises of section 4.4, and let the native rows read only columns below the first fresh column and no dead local, as step 1 requires. Then the honest assignment of the slots of step 4, read from the values of section 4.4, makes the rows and the S-box rows of the package zero, carries the honest public columns, and is in the norm bound, whatever the bit candidates are (`Export.OptionB.NativeCompleteness.native_complete` (`c9266e415e384302`)). A value 0 or 1 is valid in a bit slot (`Export.Generic.NativeBlock.bit_valid_of_boolean` (`b39dadbdb89f5988`)). A bit slot whose coordinate passes the norm check decodes to −1, 0 or 1 (`Export.Generic.NativeBlock.bitSlot_sound` (`84d40cc422a4c3ef`)), so the row that forces the word makes it 0 or 1. The relation is sound for every slot layout (`Export.Generic.CircuitRelation.rowsZero_implies_spec` (`3b73c3d6c26f3999`)). Rust: `StepPackage::with_application` in `crates/nightstream-fprime/src/option_b/application.rs` and `check_blocks` in `crates/nightstream/src/application/poseidon2.rs` (not checked against Lean). Rust's rule (`StepPackage::rule_slots` in `crates/nightstream-fprime/src/option_b/layout.rs`) gives the slots of each package that Lean emits (the test `lean_packages_follow_the_slot_rule`).
 
+### 7.7 WASM table access traps
+
+**Input.** A `table.get` or `table.set` row, its table id, its `u32` index, and the current table size.
+
+**Output.** One in-bounds table access, or a trapped terminal state.
+
+**Steps.**
+
+1. Read the table size from the table-size RAM at the program-bound table id, and compare the index with that size.
+2. If the index is below the size, read the table element for `table.get` or write it for `table.set`. Bind the value to the corresponding stack operand or result.
+3. Otherwise, disable the table-element port, mark the execution as trapped, and capture no output. A trapping `table.get` has no table value to read.
+
+**Rejects.** A normal return after an out-of-bounds access, a trapped return for an in-bounds access, or a table-element access on a trapping row.
+
+**Source.** [WebAssembly table execution](https://webassembly.github.io/spec/core/exec/instructions.html); `crates/neo-wasm/src/ccs/trap.rs`, `crates/neo-wasm/src/ccs/stack_io.rs`, and `crates/neo-wasm/src/adapters/wasmtime/normalize/trace_build.rs` (not checked against Lean).
+
 ### Algorithm 9. Memory step
 
 **Input.** The input state, the carry `c` and the application words that open it, the output application words, the private words, the step's lanes, and the proposals.

@@ -508,11 +508,13 @@ example : (runDepths 2 (fun _ => 0) 1 (List.replicate 3 [0, 0, 1]).flatten).isNo
 #audit_axioms NightstreamFPrime.Export.OptionB.IvcWalk.claimHolds_bigB
 #audit_axioms NightstreamFPrime.Export.OptionB.IvcWalk.decode_shaped
 #audit_axioms NightstreamFPrime.Export.OptionB.IvcWalk.validFrom_append
+#audit_axioms NightstreamFPrime.Export.OptionB.IvcWalk.reachedBy_of_leads
 #audit_axioms NightstreamFPrime.Export.OptionB.IvcWalk.reaches_of_leads
 #audit_axioms NightstreamFPrime.Export.OptionB.IvcWalk.initial_relaxed
 #audit_axioms NightstreamFPrime.Export.OptionB.IvcWalk.walk_step
 #audit_axioms NightstreamFPrime.Export.OptionB.IvcWalk.walk_leads
 #audit_axioms NightstreamFPrime.Export.OptionB.IvcWalk.covered
+#audit_axioms NightstreamFPrime.Export.OptionB.IvcSecurity.extraction_bound
 #audit_axioms NightstreamFPrime.Export.OptionB.IvcSecurity.probability_bound
 #audit_axioms NightstreamFPrime.Export.OptionB.FinishWalk.attempt_succeeds
 #audit_axioms NightstreamFPrime.Export.OptionB.FinishWalk.holdsFor_of_extracted

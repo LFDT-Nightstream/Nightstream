@@ -2,12 +2,13 @@
 
 pub mod host_event_fixture;
 
-use neo_ccs::check_ccs_rowwise_zero;
+use neo_application::R1csCheckError;
 use neo_math::F;
 use neo_wasm::host_event_bindings::HostEventBindings;
+use neo_wasm::operations::r1cs::operation_circuit;
 use neo_wasm::{
-    build_wasm_relation, build_wasm_relation_layout, collect_wasmtime_steps, opcode_info_from_code,
-    preload_from_program_artifacts, sanity_check_memory_rows, top_level_initial_state, traces_from_wasmtime_steps,
+    build_wasm_relation_layout, collect_wasmtime_steps, opcode_info_from_code, preload_from_program_artifacts,
+    sanity_check_memory_rows, top_level_initial_state, traces_from_wasmtime_steps,
     witness_builder::build_witness_vector, LinearMemoryAccess, StackValueAccess, WasmCountdownState,
     WasmFrameMoveState, WasmOpcode, WasmOutputState, WasmPcEdgeKind, WasmProgramArtifacts, WasmRowKind, WasmStepState,
     WasmVmStep, WasmtimeTraceRun,
@@ -283,51 +284,69 @@ pub fn step(
     }
 }
 
-pub fn assert_satisfied(z: &[F], label: &str) {
-    neo_wasm::audit_operation_witness(z)
-        .unwrap_or_else(|e| panic!("{label}: expected operation circuit satisfied, got: {e}"));
-    let relation = build_wasm_relation().expect("valid WASM relation");
-    let ccs = relation.r1cs().structure();
-    let m_in = relation.r1cs().public_input_count();
-    // Keep aux bits consistent with any caller-mutated declared columns.
+/// `z` with its range bits and turn-schedule guard recomputed from its
+/// declared columns, so that in-range forgeries exercise the semantic rows.
+fn consistent(z: &[F]) -> Vec<F> {
     let mut z = z.to_vec();
     neo_wasm::write_range_check_bits(&mut z);
     neo_wasm::write_turn_schedule_guard_witness(&mut z).unwrap();
-    let (x, w) = (&z[..m_in], &z[m_in..]);
-    check_ccs_rowwise_zero(ccs, x, w).unwrap_or_else(|e| panic!("{label}: expected CCS satisfied, got: {e}"));
+    z
+}
+
+/// The complete one-row witness of the base witness `z`: its operation
+/// advice and its own shared absorb block. `None` when the advice has no
+/// assignment.
+pub fn complete_witness(z: &[F]) -> Option<Vec<F>> {
+    let circuit = operation_circuit().expect("the operation circuit");
+    let mut witness = z.to_vec();
+    witness.resize(circuit.relation().r1cs().column_count(), F::default());
+    circuit.assign(&mut witness).ok().map(|()| witness)
+}
+
+/// Whether the complete one-row relation holds on the base witness `z`.
+fn holds(z: &[F]) -> Result<(), String> {
+    let witness = complete_witness(z).ok_or("the operation advice has no assignment")?;
+    complete_holds(&witness)
+}
+
+/// Whether the complete one-row relation holds on the complete witness `w`.
+pub fn complete_holds(w: &[F]) -> Result<(), String> {
+    let relation = operation_circuit()
+        .expect("the operation circuit")
+        .relation();
+    relation
+        .r1cs()
+        .check_rows(w)
+        .map_err(|error| format!("{error:?}"))
+}
+
+pub fn assert_satisfied(z: &[F], label: &str) {
+    holds(&consistent(z)).unwrap_or_else(|e| panic!("{label}: expected the one-row relation satisfied, got: {e}"));
 }
 
 pub fn assert_rejected(z: &[F], label: &str) {
-    let relation = build_wasm_relation().expect("valid WASM relation");
-    let ccs = relation.r1cs().structure();
-    let m_in = relation.r1cs().public_input_count();
-    // Keep aux bits consistent so in-range forgeries exercise semantic rows.
-    let mut z = z.to_vec();
-    neo_wasm::write_range_check_bits(&mut z);
-    neo_wasm::write_turn_schedule_guard_witness(&mut z).unwrap();
-    let (x, w) = (&z[..m_in], &z[m_in..]);
     assert!(
-        check_ccs_rowwise_zero(ccs, x, w).is_err(),
-        "{label}: expected CCS rejection, but the witness was accepted"
+        holds(&consistent(z)).is_err(),
+        "{label}: expected the one-row relation to reject, but the witness was accepted"
     );
 }
 
+/// Each row of `trace` holds the complete one-row relation with its own
+/// shared absorb block; on failure, the row's tag and terms are named.
 pub fn ccs_check_trace(trace: &[WasmVmStep]) {
-    let relation = build_wasm_relation().expect("valid WASM relation");
-    let ccs = relation.r1cs().structure();
+    let relation = operation_circuit()
+        .expect("the operation circuit")
+        .relation();
     let catalog = relation.r1cs().catalog();
     let columns = relation.columns();
     for (idx, row) in trace.iter().enumerate() {
-        let witness = build_witness_vector(row).unwrap();
-        let m_in = relation.r1cs().public_input_count();
-        let (x, w) = (&witness[..m_in], &witness[m_in..]);
-        check_ccs_rowwise_zero(ccs, x, w).unwrap_or_else(|err| {
-            let detail = err.to_string();
-            let row_idx = detail
-                .split_once("row ")
-                .and_then(|(_, rest)| rest.split_once(':'))
-                .and_then(|(row, _)| row.parse::<usize>().ok());
-            let tagged = row_idx.and_then(|row| catalog.rows().get(row));
+        let witness = complete_witness(&build_witness_vector(row).unwrap())
+            .unwrap_or_else(|| panic!("trace row {idx}: the operation advice has no assignment"));
+        relation.r1cs().check_rows(&witness).unwrap_or_else(|err| {
+            let tagged = match err {
+                R1csCheckError::Row { row } => catalog.rows().get(row),
+                _ => None,
+            };
             let tag = tagged.map(|row| row.tag());
             let terms = tagged
                 .map(|tagged| {
@@ -341,7 +360,7 @@ pub fn ccs_check_trace(trace: &[WasmVmStep]) {
                 })
                 .unwrap_or_else(|| "terms unavailable".to_string());
             panic!(
-                "trace row {idx} {:?} pc {}->{} sp {}->{} activation_finished={} failed CCS satisfaction: {err}; tag={tag:?}; {terms}",
+                "trace row {idx} {:?} pc {}->{} sp {}->{} activation_finished={} failed CCS satisfaction: {err:?}; tag={tag:?}; {terms}",
                 row.opcode, row.state_before.pc, row.state_after.pc, row.state_before.sp, row.state_after.sp, row.state_after.activation_finished
             );
         });

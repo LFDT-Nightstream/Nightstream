@@ -124,3 +124,23 @@ impl EventCommitment {
         permutation.assign_columns(assignment, true);
     }
 }
+
+/// The permutation auxiliaries of `commit_block(previous, block)`, in the
+/// order that `EventCommitment::assign_auxiliaries` writes them after
+/// `auxiliary_start`.
+pub fn commitment_auxiliaries(
+    previous: [F; EVENT_COMMITMENT_STATE_WIDTH],
+    block: [F; EVENT_COMMITMENT_BLOCK_WIDTH],
+) -> Vec<F> {
+    let gadget = EventCommitment {
+        previous: columns(0),
+        block: columns(EVENT_COMMITMENT_STATE_WIDTH),
+        output: columns(POSEIDON2_WIDTH + EVENT_COMMITMENT_AUX_COLUMNS),
+        auxiliary_start: POSEIDON2_WIDTH,
+    };
+    let mut scratch = vec![F::ZERO; POSEIDON2_WIDTH + EVENT_COMMITMENT_AUX_COLUMNS + EVENT_COMMITMENT_STATE_WIDTH];
+    scratch[..EVENT_COMMITMENT_STATE_WIDTH].copy_from_slice(&previous);
+    scratch[EVENT_COMMITMENT_STATE_WIDTH..POSEIDON2_WIDTH].copy_from_slice(&block);
+    gadget.assign_auxiliaries(&mut scratch);
+    scratch[gadget.auxiliary_range()].to_vec()
+}

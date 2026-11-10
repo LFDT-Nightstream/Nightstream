@@ -29,10 +29,15 @@ The owner chose this design on 2026-11-09.
    not change, so the chain digest of a run is the digest of the earlier
    design. `previous` is the chain before the row, or the restored outer chain
    when the row also copies the last root lane of an opaque object.
-3. **One gadget on every row.** Each row holds the R1CS form of
-   `commit_block` for its own inputs, and only the absorb row reads its
-   output. This costs every row the permutation's witness columns. Only some
-   rows could carry it (typed rows); that is a separate choice.
+3. **One gadget for each group of rows.** The owner chose this rule on
+   2026-11-10; before it, each row held its own permutation. Each group of
+   `gcd(k, 8)` consecutive rows of a step of `k` rows shares one block: the
+   permutation's input lanes, its witness words and its output lanes
+   (`SPEC.md` section 7.6, "Shared columns"). A row that absorbs requires
+   the block's input to be its own input and lands on the block's output, so
+   soundness needs no bound on the absorbs of a group. Two absorbs are at
+   least eight rows apart (`Lifecycle.Nebula.SharedAbsorb.absorbs_apart`),
+   so an honest group has at most one.
 4. **The staged word in the trace.** A gather row records its word
    (`WasmVmStep::host_event_word`), because the absorb row clears the buffer
    that held it.

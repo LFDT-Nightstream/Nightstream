@@ -29,17 +29,18 @@ use std::cell::RefCell;
 use std::num::NonZeroUsize;
 use std::rc::Rc;
 
+use common::host_event_fixture::{expected_transcript, host_event_lifecycle_setup, HostEventLifecycleSetup};
 use neo_math::F;
-use neo_wasm::batch::build_batched_wasm_ccs;
+use neo_wasm::comm_chain::fold_event_blocks;
 use neo_wasm::host_event_bindings::HostEventBindings;
 use neo_wasm::memory_semantics::preload_host_event_tables;
 use neo_wasm::nebula::{
-    is_active, plan_ordered_slots, state_words, step_inputs, WasmApplication, WasmApplicationError, WasmLimits,
+    is_active, plan_ordered_slots, shared, state_words, step_inputs, WasmApplication, WasmApplicationError, WasmLimits,
     WasmStep, WasmStepError,
 };
 use neo_wasm::{
-    build_wasm_relation_layout, preload_from_program_artifacts, top_level_initial_state, WasmMemoryId,
-    WasmMemoryPreload, WasmStepState,
+    build_wasm_relation_layout, extract_first_component_core_program_artifacts, host_event_top_level_initial_state,
+    preload_from_program_artifacts, top_level_initial_state, WasmMemoryId, WasmMemoryPreload, WasmStepState,
 };
 use nightstream::nebula::{
     size_parts, Application, CatalogRowError, Expr, Geometry, Memory, Program, R1csStepError, Region, Run,
@@ -274,10 +275,14 @@ impl Setup {
     }
 
     /// The step input and the column in it of column `column` of trace row
-    /// `row`: each step input is `per_step` one-row witnesses in trace order.
+    /// `row`, which is not a shared column: each step input is the
+    /// `per_step` one-row witnesses without their shared columns in trace
+    /// order, then the shared blocks.
     fn position(&self, traced: &Traced, row: usize, column: usize) -> (usize, usize) {
         let per_step = self.per_step.get();
-        (row / per_step, row % per_step * traced.rows[0].len() + column)
+        let block = traced.rows[0].len() - shared(self.per_step).columns;
+        assert!(column < block, "a column of the row block");
+        (row / per_step, row % per_step * block + column)
     }
 }
 
@@ -479,17 +484,24 @@ fn a_step_of_rows_that_are_not_neighbors_fails_only_its_link_rows() {
         .collect();
     rows.remove(1);
     rows.push(rows[rows.len() - 1]);
+    // No row absorbs, so each group takes the shared block of its first row.
+    let block = rows[0].0.len() - shared(per_step(2)).columns;
     let inputs: Vec<WasmStep> = rows
         .chunks(2)
         .map(|pair| WasmStep {
-            z: pair.iter().flat_map(|(z, _)| z.iter().copied()).collect(),
+            z: [&pair[0].0[..block], &pair[1].0[..block], &pair[0].0[block..]].concat(),
             next: pair[1].1,
         })
         .collect();
 
     let (_, mut run) = setup.run(&app, traced);
     let invocations = run.segment(&inputs).expect("the runner accepts the steps");
-    let links = 2 * build_batched_wasm_ccs(1).unwrap().sparse_r1cs.n..app.relation_rows();
+    let link_count = build_wasm_relation_layout()
+        .auxiliary
+        .continuity
+        .links()
+        .count();
+    let links = app.relation_rows() - link_count..app.relation_rows();
     let failed = failing(&relation, &invocations[0].words);
     assert!(!failed.is_empty(), "the skipped row breaks a link");
     assert!(
@@ -556,6 +568,153 @@ fn runner_rejects_a_load_of_another_value() {
     assert!(matches!(run.segment(&inputs), Err(SegmentError::Access)));
 }
 
+/// The host-event fixture (export entry, two import calls, export exit) in
+/// one segment of steps of `per_step` rows.
+fn traced_host_events(fixture: &HostEventLifecycleSetup, per_step: NonZeroUsize) -> Traced {
+    let artifacts = extract_first_component_core_program_artifacts(&fixture.component_bytes).unwrap();
+    let mut preload = preload_from_program_artifacts(&artifacts);
+    preload_host_event_tables(&mut preload, &fixture.bindings, &artifacts);
+    let entry_pc = common::entry_pc_for_function_ref(&artifacts, u64::from(fixture.run_fref));
+    let steps = fixture
+        .trace
+        .len()
+        .div_ceil(per_step.get())
+        .next_power_of_two();
+    let rows = step_inputs(&fixture.trace, steps * per_step.get(), NonZeroUsize::MIN).unwrap();
+    Traced {
+        states: rows.iter().map(|row| row.next).collect(),
+        rows: rows.into_iter().map(|row| row.z).collect(),
+        inputs: step_inputs(&fixture.trace, steps, per_step).unwrap(),
+        real: fixture.trace.len(),
+        preload,
+        initial: host_event_top_level_initial_state(
+            &artifacts.tables,
+            entry_pc,
+            &fixture.bindings,
+            fixture.run_fref,
+            Default::default(),
+        )
+        .unwrap(),
+        last: fixture.trace.last().unwrap().state_after,
+    }
+}
+
+/// Steps of eight rows share one host-event absorb block (SPEC.md section
+/// 7.6, "Shared columns"). The honest fixture keeps the premises of Lean
+/// `Lifecycle.Nebula.SharedAbsorb.group_complete`: the slot cursor rises at
+/// most one per row, and an absorb has cursor 7 before it and 0 after it, so
+/// its absorbs are at least eight rows apart. Each step holds its relation and
+/// runs through Nebula. Each absorbing row lands on its group's output lanes,
+/// which equal the commitment of its own input, and the final chain is the
+/// fold of the expected transcript that Starstream compares. A changed output
+/// lane breaks a row of the step.
+#[test]
+fn host_event_steps_of_eight_rows_share_one_absorb_block() {
+    let fixture = host_event_lifecycle_setup();
+    let absorbing: Vec<usize> = (0..fixture.trace.len())
+        .filter(|&t| {
+            let row = &fixture.trace[t];
+            row.row_kind.is_host_event_gather()
+                && row.state_before.host_events.slot_cursor == 7
+                && row.host_event_rom_slot.is_some_and(|rom| !rom.advice)
+        })
+        .collect();
+    assert!(absorbing.len() >= 2, "the fixture absorbs blocks");
+    for (t, row) in fixture.trace.iter().enumerate() {
+        let (before, after) = (
+            row.state_before.host_events.slot_cursor,
+            row.state_after.host_events.slot_cursor,
+        );
+        assert!(after <= before + 1, "row {t}");
+        if absorbing.contains(&t) {
+            assert_eq!((before, after), (7, 0), "row {t}");
+        }
+    }
+    assert!(absorbing.windows(2).all(|pair| pair[1] >= pair[0] + 8));
+
+    let per_step = per_step(8);
+    let shared = shared(per_step);
+    assert_eq!(shared.rows, per_step, "one block for each step");
+    let traced = traced_host_events(&fixture, per_step);
+    let steps = traced.inputs.len();
+    let setup = Setup::of(vec![traced], steps, per_step);
+    let (app, _) = setup.complete();
+    // The permutation rows of the block, which read only the block, are kept
+    // once for the step; every other row once for each of the eight rows.
+    let complete = neo_wasm::operations::r1cs::operation_circuit().unwrap();
+    let block_rows = complete.shared().rows.len() - 16;
+    let one_row = complete.relation().r1cs().catalog().len();
+    let links = build_wasm_relation_layout()
+        .auxiliary
+        .continuity
+        .links()
+        .count();
+    assert_eq!(app.relation_rows(), 8 * (one_row - block_rows) + block_rows + 7 * links);
+    let traced = &setup.programs[0];
+    for (step, input) in traced.inputs.iter().enumerate() {
+        assert!(app.check(&input.z).is_ok(), "step {step}");
+    }
+    let (_, mut run) = setup.run(&app, traced);
+    run.segment(&traced.inputs).expect("the honest trace runs");
+    let expected = expected_transcript(&fixture.bindings, fixture.run_fref);
+    assert_eq!(
+        run.state().comm_chain,
+        fold_event_blocks(Default::default(), &expected).canonical_u64()
+    );
+
+    let block = traced.rows[0].len() - shared.columns;
+    let output = per_step.get() * block + shared.columns - 4..per_step.get() * block + shared.columns;
+    for &t in &absorbing {
+        let z = &traced.inputs[t / per_step.get()].z;
+        let own = &traced.rows[t][traced.rows[t].len() - 4..];
+        assert_eq!(&z[output.clone()], own);
+        assert_eq!(own, fixture.trace[t].state_after.comm_chain.map(F::from_u64));
+        let mut wrong = z.clone();
+        wrong[output.start] += F::ONE;
+        assert!(matches!(app.check(&wrong), Err(R1csStepError::Relation { .. })));
+    }
+}
+
+/// The host-event fixture in steps of eight rows, one shared absorb block
+/// each, through `Circuit::compile`, the prover, and the memory verifier. The
+/// honest proof verifies, and a last state with another event chain does not.
+#[test]
+#[ignore = "Full production-profile memory proof; run separately under the 300-second cap."]
+fn host_event_proof_of_eight_rows_per_step_verifies_on_cpu() {
+    use nightstream::nebula::{Circuit, VerifyError};
+    let started = std::time::Instant::now();
+    let fixture = host_event_lifecycle_setup();
+    let per_step = per_step(8);
+    let traced = traced_host_events(&fixture, per_step);
+    let steps = traced.inputs.len();
+    let setup = Setup::of(vec![traced], steps, per_step);
+    let (app, geometry) = setup.complete();
+    let traced = &setup.programs[0];
+    let engine = nightstream::Engine::Optimized;
+    let circuit = Circuit::compile(geometry, app.clone()).unwrap();
+    let prover = circuit.prover(engine, 109).unwrap();
+    let verifier = circuit.verifier(engine, 109).unwrap();
+    let program = app.program(&traced.preload).unwrap();
+    let mut run = prover.start(&program, traced.initial).unwrap();
+    run.segment(&traced.inputs).unwrap();
+    let last = *run.state();
+    let proof = run.finish().unwrap();
+    let verified = verifier
+        .verify(&program, &traced.initial, &last, &proof)
+        .unwrap();
+    assert_eq!(verified.steps, steps as u64);
+    let mut changed = last;
+    changed.comm_chain[0] ^= 1;
+    assert!(matches!(
+        verifier.verify(&program, &traced.initial, &changed, &proof),
+        Err(VerifyError::Proof(_))
+    ));
+    eprintln!(
+        "host-event proof of {steps} steps of {per_step} rows elapsed={:?}",
+        started.elapsed()
+    );
+}
+
 /// A run has room for the trace only when its steps have at least one row
 /// per trace row.
 #[test]
@@ -580,12 +739,16 @@ fn step_inputs_reject_a_trace_longer_than_the_run() {
     );
     let inputs = step_inputs(&checked.trace, rows.div_ceil(2), per_step(2)).unwrap();
     let one_row = step_inputs(&checked.trace, 2 * rows.div_ceil(2), NonZeroUsize::MIN).unwrap();
+    // A step input is its rows without their shared absorb block, then the
+    // block of the group. No row absorbs, so the group takes the block of its
+    // first row.
+    let block = one_row[0].z.len() - shared(per_step(2)).columns;
     assert_eq!(
         inputs,
         one_row
             .chunks(2)
             .map(|pair| WasmStep {
-                z: pair.iter().flat_map(|row| row.z.iter().copied()).collect(),
+                z: [&pair[0].z[..block], &pair[1].z[..block], &pair[0].z[block..]].concat(),
                 next: pair[1].next,
             })
             .collect::<Vec<_>>()

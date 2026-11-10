@@ -95,9 +95,13 @@ item 5).
 - **Result:** acceptance gives the step that the fresh witness decodes to
   (`Export.OptionB.TerminalBridge.Exports.decode`). The step relation holds
   on it at the production cap, under the setup's keys, and it ends in the
-  terminal's statement, or its next state and the terminal's state collide
-  (`Export.OptionB.TerminalBridge.bridge`,
-  `Export.OptionB.TerminalBridge.Collision`). The terminal is
+  terminal's statement, or its next state and the terminal's state collide,
+  or the step is light and its next state's words and the terminal's state
+  preimage collide (`Export.OptionB.TerminalBridge.bridge`,
+  `Export.OptionB.TerminalBridge.Collision`,
+  `Export.OptionB.TerminalBridge.WordCollision`). A light step's other slot
+  is the terminal's slot, because the light circuit reads only the active
+  slot's words (`Export.OptionB.StepRelation.lightInput`). The terminal is
   `Lifecycle.OptionB.Terminal.HoldsFor`. Two well-formed states with one state
   hash are equal or give a Poseidon2 collision on an input pair that the two
   states fix (`Lifecycle.OptionB.stateHash_collision`,
@@ -204,8 +208,9 @@ item 5).
   acceptance has a collision or a failed extraction at one of its first
   `iteration` visits (`Export.OptionB.IvcWalk.covered`).
 - **Collision term:** the collision at a visit is a Poseidon2 collision on
-  the next state of the decoded step and the visit's terminal state
-  (`Export.OptionB.TerminalBridge.Collision`). The stage computes both states
+  the next state of the decoded step and the visit's terminal state, or on
+  a light step's next state words and the terminal's 38-word state preimage
+  (`Export.OptionB.TerminalBridge.Collision`). The stage computes both inputs
   from its tape, so a reduction that runs the stage outputs the colliding
   pair. Lean does not bound this probability (trust item 2).
 - **Per slot:** the earlier one-slot result,
@@ -219,11 +224,15 @@ item 5).
   (`Export.OptionB.IvcWalk.Reaches`). The bridge's selector returns the
   circuit that ran only on a valid step (`Export.OptionB.TerminalBridge.chosen`),
   so each decoded step is valid (`Export.OptionB.TerminalBridge.valid_of_chosen`).
-- **Paper:** HyperNova Definition 11 (ii) states knowledge soundness: its
-  event is on the witnesses that the extractor returns. This result bounds a
-  false acceptance, which is the weaker soundness form. For one run,
-  `Export.OptionB.IvcWalk.covered` gives the extractor form without
-  probabilities: the walk gives the witnesses, a collision or a failed stage.
+- **Knowledge form:** HyperNova Definition 11 (ii) states knowledge
+  soundness: its event is on the witnesses that the extractor returns. The
+  same sum bounds the probability of an extraction failure: the terminal
+  relation accepts, and the witnesses of the walk's trail are not `iteration`
+  valid steps from `z0` to `zi`
+  (`Export.OptionB.IvcSecurity.ExtractionFailure`,
+  `Export.OptionB.IvcSecurity.extraction_bound`). Its law is the adversary's
+  tape and the coins of each stage's extractor. A false acceptance is an
+  extraction failure, so the result above follows from this one.
 - **Start from a final proof:** the finish fold of a last fold is one more
   stage before the walk. An answer that extracts it gives an accepted
   terminal for the finish step's input

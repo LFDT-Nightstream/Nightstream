@@ -23,12 +23,6 @@ fn state_machine_padding_refuses_unfinished_auxiliary_groups() {
     zeroing.state_after.local_zero.active = true;
     zeroing.state_after.local_zero.remaining = 1;
     cases.push(("local zero", zeroing));
-    let mut pending = row(WasmOpcode::Nop);
-    pending.state_after.event_absorb.perm_pending = true;
-    cases.push(("pending permutation", pending));
-    let mut permuting = row(WasmOpcode::Nop);
-    permuting.state_after.event_absorb.perm_round = 1;
-    cases.push(("permutation round", permuting));
     let mut suspending = row(WasmOpcode::Nop);
     suspending.state_after.host_events.suspend_pending = true;
     cases.push(("pending host suspension", suspending));
@@ -73,18 +67,6 @@ fn state_machine_public_step_builders_do_not_panic_on_bad_inputs() {
             failures.push(name);
         }
     };
-    let mut perm = row(WasmOpcode::Nop);
-    perm.row_kind = WasmRowKind::Aux(WasmAuxOpcode::HostEventPerm);
-    perm.state_before.event_absorb.perm_round = neo_wasm::comm_chain::COMM_CHAIN_PERM_ROWS as u8;
-    check(
-        "permutation position",
-        panics(|| {
-            assert!(matches!(
-                build_witness_vector(&perm),
-                Err(neo_wasm::WasmBuildError::Trace(_))
-            ));
-        }),
-    );
     let mut gather = row(WasmOpcode::Nop);
     gather.row_kind = WasmRowKind::Aux(WasmAuxOpcode::HostEventGather);
     gather.state_before.host_events.slot_cursor = 8;

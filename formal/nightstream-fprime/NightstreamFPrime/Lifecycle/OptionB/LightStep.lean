@@ -8,7 +8,8 @@ words that represent the step's input and output, and the slot-select spec give 
 of `stepHolds_iff` (HyperNova Construction 2 with option B's two slots). The application gadget
 is today's (`Stage1.Application`); its validity predicate is the dispatch `control zi w =
 circuit`. The digest-select rows give `SelectSpec` with the incremented depth word as the next
-depth, and the next slots' digests that the next state hash reads. -/
+depth, and the next slots' digests that the next state hash reads. The prior state hash reads the
+prior digest words; after the base case each is the digest of its prior slot (`priorDigests`). -/
 
 namespace NightstreamFPrime.Lifecycle.OptionB.LightStep
 
@@ -23,8 +24,8 @@ variable {logicalWidth : Nat}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
     Phi81CarrierLayout.carrierWidth logicalWidth}
 
-/-- The gadgets of the light step circuit and their offsets. The prior state hash reads two slot
-gadgets; the next state hash reads two digests, and one slot gadget hashes the new slot. -/
+/-- The gadgets of the light step circuit and their offsets. The prior and next state hashes read
+two digests each, and one slot gadget hashes the new slot. -/
 structure Leaves (logicalWidth : Nat)
     (publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth) (witnessWordCount : Nat) where
@@ -34,8 +35,7 @@ structure Leaves (logicalWidth : Nat)
   depthOffset : Nat
   prior : PriorStateHash.Interface
   priorOffset : Nat
-  priorSlots : Fin 2 → OutputHash.Interface
-  priorSlotOffsets : Fin 2 → Nat
+  priorDigest : Fin 2 → Fin 4 → Expr
   next : OutputHash.Interface
   nextOffset : Nat
   nextDigest : Fin 2 → Fin 4 → Expr
@@ -58,8 +58,6 @@ structure SpecHolds (relation : ProductionKey.LogicalRelation logicalWidth publi
   depth : CanonicalU64.SpecHolds leaves.depth leaves.depthOffset env
   depthHigh : DepthGuard.HighBitsZero leaves.depthOffset env
   prior : PriorStateHash.SpecHolds leaves.prior leaves.priorOffset env
-  priorSlots : ∀ slot,
-    OutputHash.SpecHolds (leaves.priorSlots slot) (leaves.priorSlotOffsets slot) env
   next : OutputHash.SpecHolds leaves.next leaves.nextOffset env
   newSlot : OutputHash.SpecHolds leaves.newSlot leaves.newSlotOffset env
   piccs : LightPiCCSPhase.SpecHolds relation leaves.piccs env
@@ -85,10 +83,8 @@ structure Represents (leaves : Leaves logicalWidth publicFits witnessWordCount) 
     Stage1.Application.outputState leaves.application leaves.applicationOffset env =
       output.zNext
   pcNext : output.pcNext = circuit
-  priorSlotWords : ∀ slot, SlotRepresents (leaves.priorSlots slot) (leaves.priorSlotOffsets slot)
-    env (input.running slot)
   priorStateWords : StateRepresents (leaves.prior.preimage leaves.priorOffset)
-    (fun slot => gadgetDigest (leaves.priorSlots slot) (leaves.priorSlotOffsets slot) env) env
+    (fun slot => digestValue (leaves.priorDigest slot) env) env
     (toState (Paper.priorHashPreimage
       ((setup Folding.Schedule.productionLightFoldCap ajtai circuitKeys).forCircuit circuit) input))
   priorPublicInput : ∀ column, (leaves.prior.publicInput leaves.priorOffset column).eval env =
@@ -109,8 +105,9 @@ structure Represents (leaves : Leaves logicalWidth publicFits witnessWordCount) 
   recursive : input.iteration ≠ 0 →
     input.nifsProof = .light proof ∧ (input.running selected).2 < goldilocksModulus
 
-/-- Soundness of the light step circuit: its rows, its words and the slot select give the step
-relation of a light circuit (`stepHolds_iff`) at the production cap. -/
+/-- Soundness of the light step circuit: its rows, its words, the slot select and, after the base
+case, prior digests that are the prior slots' digests give the step relation of a light circuit
+(`stepHolds_iff`) at the production cap. -/
 theorem spec_implies_stepHolds (light : BoundedDepth.circuitStep circuit = .light)
     (leaves : Leaves logicalWidth publicFits witnessWordCount) (selected : Fin 2)
     (proof : Spec.Folding.Light.Proof LightShape 8) (env : Env)
@@ -118,6 +115,8 @@ theorem spec_implies_stepHolds (light : BoundedDepth.circuitStep circuit = .ligh
     (represents : Represents ajtai circuitKeys circuit input output leaves selected proof env)
     (select : SelectSpec input output selected (LightFold.nextSlot leaves.piccs leaves.rlc env)
       ((leaves.depth.source leaves.depthOffset).eval env + 1).val)
+    (priorDigests : input.iteration ≠ 0 → ∀ slot,
+      digestValue (leaves.priorDigest slot) env = slotDigest (input.running slot))
     (nextDigests : ∀ slot,
       digestValue (leaves.nextDigest slot) env = slotDigest (output.runningNext slot)) :
     StepHolds Folding.Schedule.productionLightFoldCap ajtai circuitKeys step control circuit input
@@ -155,10 +154,7 @@ theorem spec_implies_stepHolds (light : BoundedDepth.circuitStep circuit = .ligh
       · exact builder_implies_prior (cap := Folding.Schedule.productionLightFoldCap)
           (ajtai := ajtai)
           (circuitKeys := circuitKeys) (step := step) (control := control) (circuit := circuit)
-          (input := input) specification.prior
-          (fun slot => gadgetDigest_eq (specification.priorSlots slot)
-            (represents.priorSlotWords slot))
-          represents.priorStateWords represents.priorPublicInput
+          (input := input) specification.prior (priorDigests zero) represents.priorStateWords represents.priorPublicInput
       · rw [claimEq]
         exact proofEq ▸ LightFold.spec_implies_fold (circuitKeys selected).relation ajtai
           (input.running selected).1 input.fresh proof leaves.piccs leaves.rlc env

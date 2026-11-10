@@ -327,3 +327,7 @@ mod first_round_norm_tests;
 #[cfg(test)]
 #[path = "../../../tests/unit/carried_table_storage.rs"]
 mod carried_storage_tests;
+
+#[cfg(test)]
+#[path = "../../../tests/unit/factored_oracle.rs"]
+mod factored_oracle_tests;

@@ -196,7 +196,6 @@ Proof.
   circuit_boolean COL_PADDING_ACTIVE Hb4.
   circuit_boolean COL_GATHER_ACTIVE Hb5. circuit_boolean COL_TURN_BOUNDARY Hb6.
   circuit_boolean COL_HOST_RESUME Hb7. circuit_boolean COL_HOST_SUSPEND Hb8.
-  circuit_boolean COL_PERM_PENDING_BEFORE Hb9. circuit_boolean COL_PERM_ROUND_BEFORE_IS_ZERO Hb10.
   pose proof (Range.in_full_sat w _ (proj2 Hfull) row_kind_row_in_full) as Hkinds.
   unfold sat, rowKindRow in Hkinds. cbn [eval fold_right] in Hkinds. change (w COL_ONE = 1) in Hone.
   rewrite Hone, Hprogram in Hkinds. apply Z.mod_divide in Hkinds; [ | unfold modulus; lia].

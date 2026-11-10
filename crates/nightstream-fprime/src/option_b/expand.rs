@@ -46,6 +46,18 @@ impl PlanRows {
         self.columns.len()
     }
 
+    pub fn offsets(&self) -> &[usize] {
+        &self.offsets
+    }
+
+    pub fn columns(&self) -> &[u32] {
+        &self.columns
+    }
+
+    pub fn coefficients(&self) -> &[Goldilocks] {
+        &self.coefficients
+    }
+
     /// The rows of each ring piece.
     pub fn ring_rows(&self) -> &[Range<usize>] {
         &self.rings

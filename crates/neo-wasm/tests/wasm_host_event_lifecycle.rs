@@ -116,7 +116,7 @@ fn host_event_folding_proof_covers_import_and_export_events() {
     .expect("bindings anchor");
     assert_eq!(initial_state.comm_chain, initial_comm_chain.canonical_u64());
 
-    // batch_size 8 forces perm groups, gather runs, and the entry/exit
+    // batch_size 8 forces staged blocks, gather runs, and the entry/exit
     // boundaries across batch edges, so the carried state must hold the
     // whole event state (chain, absorb, and schedule) correctly.
     // Check the claim rather than trusting the trace shape: some batch
@@ -130,8 +130,8 @@ fn host_event_folding_proof_covers_import_and_export_events() {
     assert!(
         boundary_states
             .iter()
-            .any(|s| s.event_absorb.perm_round != 0 || s.event_absorb.perm_pending),
-        "no batch boundary falls inside a permutation group"
+            .any(|s| s.event_absorb.evbuf != [0; 8]),
+        "no batch boundary falls inside a partly staged block"
     );
     assert!(
         boundary_states

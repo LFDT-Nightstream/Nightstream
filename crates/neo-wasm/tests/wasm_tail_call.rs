@@ -240,13 +240,8 @@ fn host_event_exit_events_remain_attributed_to_the_export_after_a_guest_tail_cal
         row.state_before.host_callee_fref == export_fref && row.state_before.host_events.turn_export_fref == export_fref
     }));
     assert_eq!(
-        exit_rows
-            .last()
-            .expect("exit word 7")
-            .state_after
-            .event_absorb
-            .evbuf,
-        [17, 42, 0, 0, 0, 0, 0, 0]
+        common::absorbed_blocks(&trace).last(),
+        Some(&[17, 42, 0, 0, 0, 0, 0, 0])
     );
 
     let artifacts = neo_wasm::extract_first_component_core_program_artifacts(&component).expect("program artifacts");

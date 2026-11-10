@@ -120,6 +120,7 @@ fn conversion_row(opcode: WasmOpcode, value: u32, width_bytes: usize, writes_i64
         host_context: None,
         host_event_return_schedule_count: None,
         host_event_rom_slot: None,
+        host_event_word: None,
         host_event_initial_schedule_count: None,
         host_event_exit_schedule_count: None,
     }

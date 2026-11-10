@@ -63,6 +63,7 @@ import NightstreamFPrime.Export.OptionB.FinishRelation
 import NightstreamFPrime.Layout.OptionB.FinishAssemblerCompleteness
 import NightstreamFPrime.Export.OptionB.FinishCompleteness
 import NightstreamFPrime.Lifecycle.OptionB.Terminal
+import NightstreamFPrime.Lifecycle.OptionB.FreshInstance
 import NightstreamFPrime.Spec.Folding.Light.RlcModule
 
 open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
@@ -270,6 +271,14 @@ open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.LightStepSoundness.statePreimageExpr_eval
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.LightStepSoundness.newSlot_value
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.LightStepSoundness.rows_implies_stepHolds
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.LightStepSoundness.rows_nextWords
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.LightSelect.circuit
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.LightSelect.priorRows_eval
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.LightSelect.rows_implies_select
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.LightSelect.next_other
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.DigestSelect.control_facts
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.DigestSelect.select_of_digestRows
+#audit_axioms NightstreamFPrime.Layout.OptionB.LightAssembler.rows_nextWords
 #audit_axioms NightstreamFPrime.Layout.OptionB.LightAssembler.sharedEnd_eq
 #audit_axioms NightstreamFPrime.Layout.OptionB.LightPiCCSBounds.assumptions
 #audit_axioms NightstreamFPrime.Layout.OptionB.LightRlcBounds.assumptions
@@ -299,9 +308,15 @@ open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 #audit_axioms NightstreamFPrime.Layout.OptionB.LightAssemblerSource.slot_value
 #audit_axioms NightstreamFPrime.Layout.OptionB.LightAssemblerSource.stepRepresents
 #audit_axioms NightstreamFPrime.Layout.OptionB.LightAssemblerCompleteness.complete
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.LightSelect.rows_of_select
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.DigestSelect.controlRows_holds
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.DigestSelect.digestRows_holds
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.SlotWords.selectRows_congr
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.SlotSelect.rows_congr
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.DigestSelect.rows_congr
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.LightSelect.rows_congr
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.DigestSelect.controlRows_congr
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.DigestSelect.digestRows_congr
 #audit_axioms NightstreamFPrime.Layout.OptionB.LightAssemblerCircuit.piccsRepresents
 #audit_axioms NightstreamFPrime.Layout.OptionB.LightAssemblerCircuit.completeOfChildren
 #audit_axioms NightstreamFPrime.Layout.OptionB.LightAssemblerCircuit.stepCircuit
@@ -362,6 +377,10 @@ open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.Terminal.transition_forCircuit
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.Terminal.holdsFor_recursive_iff
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.Terminal.rejects_counter_shift
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.FreshInstance.Masks.unit_of_norm
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.FreshInstance.Masks.assignment_norm
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.FreshInstance.Masks.assignment_ofAssignment
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.FreshInstance.built_holds_iff
 #audit_axioms NightstreamFPrime.Layout.OptionB.StepCircuits.soundness
 #audit_axioms NightstreamFPrime.Export.Generic.Pieces.linear?_eval
 #audit_axioms NightstreamFPrime.Export.Generic.Pieces.flatMap_split
@@ -412,6 +431,7 @@ open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 #audit_axioms NightstreamFPrime.Export.OptionB.StepPackage.identityFast_eq
 #audit_axioms NightstreamFPrime.Export.OptionB.TerminalBridge.serializeSlot_words
 #audit_axioms NightstreamFPrime.Export.OptionB.TerminalBridge.stateHash_binds_words
+#audit_axioms NightstreamFPrime.Export.OptionB.TerminalBridge.statePreimage_length
 #audit_axioms NightstreamFPrime.Export.OptionB.TerminalBridge.iteration_of_words
 #audit_axioms NightstreamFPrime.Export.OptionB.TerminalBridge.ofFn_getD
 #audit_axioms NightstreamFPrime.Export.OptionB.TerminalBridge.decodedKeys_eq
@@ -427,6 +447,13 @@ open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 #audit_axioms NightstreamFPrime.Export.OptionB.StepRelation.refresh_stepHolds
 #audit_axioms NightstreamFPrime.Export.OptionB.StepRelation.publicInput_eq_project
 #audit_axioms NightstreamFPrime.Export.OptionB.StepRelation.light_freshHolds
+#audit_axioms NightstreamFPrime.Export.OptionB.StepRelation.light_freshWords
+#audit_axioms NightstreamFPrime.Export.OptionB.StepRelation.light_rowsWords
+#audit_axioms NightstreamFPrime.Export.OptionB.StepRelation.nextDigests_of_words
+#audit_axioms NightstreamFPrime.Export.OptionB.StepRelation.lightNextWords_length
+#audit_axioms NightstreamFPrime.Export.OptionB.StepRelation.lightInput_depth
+#audit_axioms NightstreamFPrime.Export.OptionB.StepRelation.slotDigest_wordDepth
+#audit_axioms NightstreamFPrime.Export.OptionB.StepRelation.wordDepth_of_lt
 #audit_axioms NightstreamFPrime.Export.OptionB.StepRelation.refresh_freshHolds
 #audit_axioms NightstreamFPrime.Circuit.FormalCircuit.eq_withPrivateCount
 #audit_axioms NightstreamFPrime.Gadgets.Poseidon2.Permutation.compile_eq_compileMemo
@@ -508,11 +535,13 @@ example : (runDepths 2 (fun _ => 0) 1 (List.replicate 3 [0, 0, 1]).flatten).isNo
 #audit_axioms NightstreamFPrime.Export.OptionB.IvcWalk.claimHolds_bigB
 #audit_axioms NightstreamFPrime.Export.OptionB.IvcWalk.decode_shaped
 #audit_axioms NightstreamFPrime.Export.OptionB.IvcWalk.validFrom_append
+#audit_axioms NightstreamFPrime.Export.OptionB.IvcWalk.reachedBy_of_leads
 #audit_axioms NightstreamFPrime.Export.OptionB.IvcWalk.reaches_of_leads
 #audit_axioms NightstreamFPrime.Export.OptionB.IvcWalk.initial_relaxed
 #audit_axioms NightstreamFPrime.Export.OptionB.IvcWalk.walk_step
 #audit_axioms NightstreamFPrime.Export.OptionB.IvcWalk.walk_leads
 #audit_axioms NightstreamFPrime.Export.OptionB.IvcWalk.covered
+#audit_axioms NightstreamFPrime.Export.OptionB.IvcSecurity.extraction_bound
 #audit_axioms NightstreamFPrime.Export.OptionB.IvcSecurity.probability_bound
 #audit_axioms NightstreamFPrime.Export.OptionB.FinishWalk.attempt_succeeds
 #audit_axioms NightstreamFPrime.Export.OptionB.FinishWalk.holdsFor_of_extracted

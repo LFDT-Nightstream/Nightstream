@@ -1,13 +1,13 @@
 //! Host-event emission: how expanded blocks become trace rows.
 //!
-//! Owns the gather/perm aux-row plans and their emission — the per-slot
-//! gather plans (`EventSlotRow`/`EventBlockPlan`/`HostCallEventPlan`),
-//! the perm-group row plan probed from the native chain, and the shared
-//! row context (`HostEventRowContext`) every emitted aux row repeats. Does not
+//! Owns the gather aux-row plans and their emission — the per-slot
+//! gather plans (`EventSlotRow`/`EventBlockPlan`/`HostCallEventPlan`) and
+//! the shared row context (`HostEventRowContext`) every emitted aux row
+//! repeats. Does not
 //! own the trace state machine or per-opcode normalization — that is
 //! `trace_build`, which drives these emitters.
 
-use crate::comm_chain::{perm_row_checkpoints, COMM_CHAIN_BLOCK_WORDS, COMM_CHAIN_PERM_ROWS};
+use crate::comm_chain::absorb_block;
 use crate::host_event_bindings::{
     expand_import_phase, memory_rom_arg_variant, opaque_control_encoding, EventBlock, Limb, MemoryBase, SlotBinding,
 };
@@ -17,8 +17,6 @@ use crate::ir::{
     WasmPcEdgeKind, WasmRowKind, WasmStepState, WasmVmStep,
 };
 use crate::isa::{opcode_code, opcode_info_from_code, WasmOpcode};
-use p3_field::{PrimeCharacteristicRing, PrimeField64};
-use p3_goldilocks::Goldilocks;
 
 use super::super::memory_address::memory_pointer;
 use super::memory::LinearMemoryImage;
@@ -452,36 +450,6 @@ fn plan_event_blocks(
         .collect()
 }
 
-/// The permutation input for one absorbed block premixed with the initial
-/// external linear layer (canonical u64 lanes): what the row raising
-/// `perm_pending` hands the perm group's first row as `perm_state`.
-pub(super) fn absorb_premix(chain: [u64; 4], evbuf: [u64; 8]) -> [u64; 12] {
-    let mut state = [Goldilocks::ZERO; 12];
-    for (lane, limb) in state.iter_mut().zip(chain.iter().chain(evbuf.iter())) {
-        *lane = Goldilocks::from_u64(*limb);
-    }
-    crate::comm_chain::perm_external_linear(&mut state);
-    state.map(|lane| lane.as_canonical_u64())
-}
-
-/// Row-level plan of one absorbed block's perm group: the perm state entering
-/// each of the [`COMM_CHAIN_PERM_ROWS`] rows (plus the permutation output)
-/// and the fed-forward chain the group's last row lands on.
-pub(super) fn perm_group_plan(chain: [u64; 4], evbuf: [u64; 8]) -> ([[u64; 12]; COMM_CHAIN_PERM_ROWS + 1], [u64; 4]) {
-    let prev = chain.map(Goldilocks::from_u64);
-    let mut words = [Goldilocks::ZERO; COMM_CHAIN_BLOCK_WORDS];
-    for (word, limb) in words.iter_mut().zip(evbuf) {
-        *word = Goldilocks::from_u64(limb);
-    }
-    let checkpoints = perm_row_checkpoints(prev, words);
-    let updated: [u64; 4] =
-        core::array::from_fn(|i| (checkpoints[COMM_CHAIN_PERM_ROWS][i] + prev[i]).as_canonical_u64());
-    (
-        checkpoints.map(|state| state.map(|lane| lane.as_canonical_u64())),
-        updated,
-    )
-}
-
 pub(super) fn plan_export_blocks(
     events: &[EventBlock],
     blocks: &[[u64; 8]],
@@ -625,7 +593,7 @@ pub(super) fn plan_export_blocks(
         .collect()
 }
 
-/// Shared shape of the gather/permutation rows emitted outside the per-opcode
+/// Shared shape of the gather rows emitted outside the per-opcode
 /// flow: the carried context every such row repeats.
 pub(super) struct HostEventRowContext {
     pub(super) pc: u64,
@@ -723,51 +691,18 @@ impl HostEventRowContext {
             host_context: None,
             host_event_return_schedule_count: None,
             host_event_rom_slot: None,
+            host_event_word: None,
             host_event_initial_schedule_count: None,
             host_event_exit_schedule_count: None,
         }
     }
 }
 
-/// Emit the perm-row group absorbing the pending block (see
-/// `WasmAuxOpcode::HostEventPerm`): folds the chain forward on the group's
-/// last row and clears the buffer on its first.
-pub(super) fn emit_perm_group(
-    out: &mut Vec<WasmVmStep>,
-    ctx: &HostEventRowContext,
-    comm_chain: &mut [u64; 4],
-    absorb: &mut WasmEventAbsorbState,
-    host_events: crate::ir::WasmHostEventState,
-) {
-    debug_assert!(absorb.perm_pending);
-    let (checkpoints, updated_chain) = perm_group_plan(*comm_chain, absorb.evbuf);
-    debug_assert_eq!(absorb.perm_state, checkpoints[0]);
-    for pos in 0..COMM_CHAIN_PERM_ROWS {
-        let chain_before = *comm_chain;
-        let absorb_before = *absorb;
-        let last = pos + 1 == COMM_CHAIN_PERM_ROWS;
-        if pos == 0 {
-            absorb.evbuf = [0; 8];
-            absorb.perm_pending = false;
-        }
-        absorb.perm_round = if last { 0 } else { pos as u8 + 1 };
-        absorb.perm_state = checkpoints[pos + 1];
-        if last {
-            *comm_chain = updated_chain;
-        }
-        out.push(ctx.row(
-            out.len() as u64,
-            WasmAuxOpcode::HostEventPerm,
-            ctx.state(chain_before, absorb_before, host_events),
-            ctx.state(*comm_chain, *absorb, host_events),
-        ));
-    }
-}
-
 /// Emit one host-event group: up to eight gather rows (one word each, with the
 /// arg/result stack read, the result-lo stack WRITE that pushes the host
-/// result, or the input-local lane write the slot inputs). Absorbing blocks
-/// then run their permutation group; Enter ends a prefix group without hashing.
+/// result, or the input-local lane write the slot inputs). The slot that fills
+/// an absorbing block folds it into the chain on its own row and clears the
+/// buffer; Enter ends a prefix group without hashing.
 /// A result push bumps `ctx.sp` for every subsequent row.
 pub(super) fn emit_block_plan(
     out: &mut Vec<WasmVmStep>,
@@ -804,10 +739,10 @@ pub(super) fn emit_block_plan(
         }
         host_event_state.slot_cursor = if enter_opaque { 0 } else { ((word + 1) % 8) as u8 };
         if word == 7 || enter_opaque {
-            // Advice blocks advance the schedule without starting a permutation.
+            // Advice blocks advance the schedule without hashing.
             if plan.absorb && !enter_opaque {
-                absorb.perm_pending = true;
-                absorb.perm_state = absorb_premix(*comm_chain, absorb.evbuf);
+                *comm_chain = absorb_block(*comm_chain, absorb.evbuf);
+                absorb.evbuf = [0; 8];
             }
             host_event_state.events_remaining -= 1;
             host_event_state.event_index += 1;
@@ -855,6 +790,7 @@ pub(super) fn emit_block_plan(
             host_context: None,
             host_event_return_schedule_count: None,
             host_event_rom_slot: Some(slot.rom),
+            host_event_word: Some(slot.value),
             ..ctx.row(
                 out.len() as u64,
                 WasmAuxOpcode::HostEventGather,
@@ -865,8 +801,5 @@ pub(super) fn emit_block_plan(
         if enter_opaque {
             break;
         }
-    }
-    if absorb.perm_pending {
-        emit_perm_group(out, ctx, comm_chain, absorb, *host_event_state);
     }
 }

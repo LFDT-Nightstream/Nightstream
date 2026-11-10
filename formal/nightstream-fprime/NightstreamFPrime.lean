@@ -80,6 +80,7 @@ import NightstreamFPrime.Lifecycle.OptionB.RefreshPiCCSLayout
 import NightstreamFPrime.Lifecycle.OptionB.RefreshStepLayout
 import NightstreamFPrime.Lifecycle.OptionB.RefreshStepSoundness
 import NightstreamFPrime.Lifecycle.OptionB.Terminal
+import NightstreamFPrime.Lifecycle.OptionB.FreshInstance
 import NightstreamFPrime.Lifecycle.OptionB.LightFold
 import NightstreamFPrime.Lifecycle.OptionB.LightStep
 import NightstreamFPrime.Lifecycle.OptionB.LightPiCCSLayout
@@ -87,6 +88,7 @@ import NightstreamFPrime.Lifecycle.OptionB.LightRlcLayout
 import NightstreamFPrime.Lifecycle.OptionB.SlotWords
 import NightstreamFPrime.Lifecycle.OptionB.SlotSelect
 import NightstreamFPrime.Lifecycle.OptionB.DigestSelect
+import NightstreamFPrime.Lifecycle.OptionB.LightSelect
 import NightstreamFPrime.Lifecycle.OptionB.LightStepLayout
 import NightstreamFPrime.Lifecycle.OptionB.LightStepSoundness
 import NightstreamFPrime.Layout.OptionB.LightAssembler

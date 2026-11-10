@@ -12,6 +12,7 @@ mod cache;
 mod compact;
 mod digit;
 mod equality;
+mod factored;
 mod geometric;
 mod matrix_cache_impl;
 mod matrix_rows;
@@ -40,6 +41,8 @@ use digit::{
     accumulate_pair_by_signed_unit_masks, mul_by_digit_block, mul_by_signed_unit_masks,
 };
 pub use equality::EqualityWeights;
+pub(crate) use factored::fill;
+pub use factored::{FactoredEntries, FactoredRows, FactoredSlots};
 pub use matrix_rows::{CachedMatrixRows, MatrixRowSink, MatrixRows, MatrixShape};
 pub use matrix_window::{MatrixWindow, RetainedMatrixWindow};
 use row_block::{CompactRowBlock, DenseRowBlock, COMPACT_SINGLE_BLOCK_MASK};

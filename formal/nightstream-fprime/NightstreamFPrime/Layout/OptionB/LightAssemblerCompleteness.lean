@@ -7,10 +7,10 @@ import NightstreamFPrime.Layout.OptionB.LightRlcCompleteness
 with the application's validity, the prior-state binding of the fresh instance, a light proof
 that the light fold accepts for the selected slot, and an active depth below the cap) has an
 assignment of the circuit at the source layout: the honest source values
-(`LightAssemblerSource.honestValues`), then the nine step gadgets (`completeGadgetsFrom`), the
+(`LightAssemblerSource.honestValues`), then the six step gadgets (`completeGadgetsFrom`), the
 light Π_CCS (`LightPiCCSCompleteness.completeFrom`), the light Π_RLC
 (`LightRlcCompleteness.completeFrom`), the new slot's hash, and the digest-select rows
-(`DigestSelect.rows_of_select`).
+(`LightSelect.rows_of_select`).
 Every row holds, and the words carry the step (`complete`). -/
 
 namespace NightstreamFPrime.Layout.OptionB.LightAssemblerCompleteness
@@ -83,7 +83,7 @@ theorem digest_lanes (block : Fin 5) (start : Nat)
     program.witnessWordCount target agree (4 * block.val + lane.val) (by omega)).trans
     (quadColumn_eq _ _ block _ laneBound)
 
-theorem digestSelect_lanes (block : Fin 3) (start : Nat)
+theorem digestSelect_lanes (block : Fin 4) (start : Nat)
     (startEq : start = digestSelectStart base program.witnessWordCount + 4 * block.val)
     (length :
       ((honestValues circuitKeys input output proof selected folded).digestSelect block).length =
@@ -143,13 +143,19 @@ theorem innerDigest_group (slot : Fin 2) :
         ⟨1 + slot.val, by omega⟩ =
       slotDigest (if slot = selected then folded else input.running slot) := by
   have bound := slot.isLt
-  simp only [honestValues, show 1 + slot.val ≠ 0 by omega, ↓reduceIte, Nat.add_sub_cancel_left]
+  simp only [honestValues, show 1 + slot.val ≠ 0 by omega, show 1 + slot.val ≠ 3 by omega,
+    ↓reduceIte, Nat.add_sub_cancel_left]
   by_cases same : slot = selected
   · simp only [same, ↓reduceIte]
   · have different : slot.val ≠ selected.val := fun equal => same (Fin.ext equal)
     simp only [same, different, ↓reduceIte]
     exact congrArg (fun index => slotDigest (input.running index))
       (finAt_eq _ slot _ (Nat.mod_eq_of_lt bound))
+
+theorem activeDigest_group :
+    (honestValues circuitKeys input output proof selected folded).digestSelect ⟨3, by decide⟩ =
+      slotDigest (input.running selected) := by
+  simp only [honestValues, show (3 : Nat) ≠ 0 by decide, ↓reduceIte]
 
 theorem priorDigest_group (slot : Fin 2) :
     (honestValues circuitKeys input output proof selected folded).digests ⟨slot.val, by omega⟩ =
@@ -321,6 +327,19 @@ theorem complete (program : Stage1.Application.Program)
       (digestSelectLength _)
     rw [innerDigest_group] at lanes
     exact lanes
+  have activeDigestWords : ∀ (target : Env) (agree : ∀ column,
+      column < sharedEnd base program.witnessWordCount → target column =
+        honestEnv circuitKeys input output proof selected foldedSlot base program.witnessWordCount
+          column),
+      List.ofFn (fun lane => ((interface (logicalWidth := logicalWidth) (publicFits := publicFits)
+        base program.witnessWordCount).activeDigest lane).eval target) =
+          slotDigest (input.running selected) := by
+    intro target agree
+    have lanes := digestSelect_lanes program circuitKeys input output proof selected foldedSlot
+      base target agree ⟨3, by decide⟩ (digestSelectStart base program.witnessWordCount + 12)
+      (by simp only) (digestSelectLength _)
+    rw [activeDigest_group] at lanes
+    exact lanes
   have rep0 := repAt source sourceAgree
   -- The step gadgets on the source values.
   have application : (applicationCircuit program (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount)).spec
@@ -351,18 +370,25 @@ theorem complete (program : Stage1.Application.Program)
       program.witnessWordCount).active.value source).2 < _
     rw [depthEq]
     exact depthSmall
-  have priorSlotSpec : ∀ slot, OutputHash.SpecHolds
-      (priorSlotInterface program (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount) slot)
+  have activeSlotSpec : OutputHash.SpecHolds
+      (activeSlotInterface program (interface (logicalWidth := logicalWidth)
+        (publicFits := publicFits) base program.witnessWordCount))
       (sharedEnd base program.witnessWordCount) source := by
-    intro slot
     change List.ofFn (fun lane => ((interface (logicalWidth := logicalWidth)
-        (publicFits := publicFits) base program.witnessWordCount).priorDigest slot lane).eval
+        (publicFits := publicFits) base program.witnessWordCount).activeDigest lane).eval
           source) =
       Spec.Poseidon2.hash (Hash.evalList source (slotDomainChunk.map Expr.const ++
-        ((interface (logicalWidth := logicalWidth) (publicFits := publicFits) base
-          program.witnessWordCount).prior slot).words))
-    rw [slotPreimage_eval, rep0.priorSlots slot]
-    exact priorDigestWords source sourceAgree slot
+        (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base
+          program.witnessWordCount).active.words))
+    have words := group_words program circuitKeys input output proof selected foldedSlot base
+      source sourceAgree ⟨2, by decide⟩ (by
+        rw [active_group]
+        exact priorDepth selected)
+    rw [active_group] at words
+    rw [slotPreimage_eval, show Hash.evalList source (interface (logicalWidth := logicalWidth)
+        (publicFits := publicFits) base program.witnessWordCount).active.words =
+          serializeSlot (input.running selected) from words]
+    exact activeDigestWords source sourceAgree
   have priorStateSpec : PriorStateHash.SpecHolds
       (priorStateInterface program (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount))
       (sharedEnd base program.witnessWordCount) source := by
@@ -410,7 +436,7 @@ theorem complete (program : Stage1.Application.Program)
   obtain ⟨p1, ops1, end1, preserves1⟩ := LightStepCompleteness.completeGadgetsFrom program circuit
     (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount) (sharedEnd base program.witnessWordCount) relation
     (Sequence.empty source (sharedEnd base program.witnessWordCount)) rfl below application
-    depth0 priorSlotSpec priorStateSpec nextStateSpec
+    depth0 activeSlotSpec priorStateSpec nextStateSpec
   have piccsBelow := LightStepBounds.piccsBelow program circuit
     (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount) (sharedEnd base program.witnessWordCount) below
   have rlcBelow := LightStepBounds.rlcBelow program relation circuit
@@ -549,9 +575,9 @@ theorem complete (program : Stage1.Application.Program)
   have selectorValues : ∀ chosen : Fin 2,
       (natWord chosen.val = 0 ∨ natWord chosen.val = 1) ∧
         (if natWord chosen.val = 1 then (1 : Fin 2) else 0) = chosen := by decide
-  have selectedEq : DigestSelect.selected (selectInterface program (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount))
+  have selectedEq : LightSelect.selected (selectInterface program (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount))
       (selectOffset program relation circuit (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount) (sharedEnd base program.witnessWordCount)) p4.current = selected := by
-    rw [DigestSelect.selected_eq]
+    rw [LightStepLayout.select_selected]
     change (if (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount).selector.eval p4.current = 1 then (1 : Fin 2) else 0) = selected
     rw [selectorWord]
     exact (selectorValues selected).2
@@ -609,17 +635,14 @@ theorem complete (program : Stage1.Application.Program)
         (rep4.initialState.trans (sameState.trans rep4.currentState.symm))) index
     · dsimp only at facts
       exact absurd (recursiveZero zero) (Nat.pos_iff_ne_zero.mp facts.1)
-  have activeWords : Hash.evalList p4.current (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount).active.words =
-      Hash.evalList p4.current ((interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount).prior (DigestSelect.selected (selectInterface program (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount))
-        (selectOffset program relation circuit (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount) (sharedEnd base program.witnessWordCount)) p4.current)).words := by
-    rw [selectedEq, rep4.priorSlots selected]
-    have words := group_words program circuitKeys input output proof selected foldedSlot base
-      p4.current (agreeOf p4) ⟨2, by decide⟩ (by
-        rw [active_group]
-        exact priorDepth selected)
-    rw [active_group] at words
-    exact words
-  have innerSelected : digestValue ((interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount).innerDigest (DigestSelect.selected
+  have priorSelected : digestValue ((interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount).priorDigest (LightSelect.selected
+      (selectInterface program (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount)) (selectOffset program relation circuit (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount) (sharedEnd base program.witnessWordCount)) p4.current))
+        p4.current = digestValue (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount).activeDigest p4.current := by
+    rw [selectedEq]
+    change List.ofFn (fun lane => ((interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount).priorDigest selected lane).eval p4.current) =
+      List.ofFn (fun lane => ((interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount).activeDigest lane).eval p4.current)
+    rw [priorDigestWords p4.current (agreeOf p4) selected, activeDigestWords p4.current (agreeOf p4)]
+  have innerSelected : digestValue ((interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount).innerDigest (LightSelect.selected
       (selectInterface program (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount)) (selectOffset program relation circuit (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount) (sharedEnd base program.witnessWordCount)) p4.current))
         p4.current = digestValue (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount).newDigest p4.current := by
     rw [selectedEq]
@@ -627,7 +650,7 @@ theorem complete (program : Stage1.Application.Program)
       List.ofFn (fun lane => ((interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount).newDigest lane).eval p4.current)
     rw [innerDigestWords p4.current (agreeOf p4) selected, newDigestWords p4.current (agreeOf p4)]
     simp only [↓reduceIte]
-  have innerOther : ∀ slot, slot ≠ DigestSelect.selected (selectInterface program (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount))
+  have innerOther : ∀ slot, slot ≠ LightSelect.selected (selectInterface program (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount))
       (selectOffset program relation circuit (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount) (sharedEnd base program.witnessWordCount)) p4.current →
       digestValue ((interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount).innerDigest slot) p4.current =
         digestValue ((interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount).priorDigest slot) p4.current := by
@@ -665,9 +688,9 @@ theorem complete (program : Stage1.Application.Program)
       exact congrArg slotDigest (Prod.ext claimEq depthEq)
     · simp only [same, ↓reduceIte]
       rw [others slot same]
-  have selectRows := DigestSelect.rows_of_select (selectInterface program (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount))
+  have selectRows := LightSelect.rows_of_select (selectInterface program (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount))
     (selectOffset program relation circuit (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount) (sharedEnd base program.witnessWordCount)) p4.current flags selectorBit pcLink
-    baseState activeWords innerSelected innerOther nextBase nextRecursive
+    baseState priorSelected innerSelected innerOther nextBase nextRecursive
   -- Every row on the filled values.
   have filledRows : holdsFlat p4.current
       (gadgetOps program circuit (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount) (sharedEnd base program.witnessWordCount) ++
@@ -693,7 +716,7 @@ theorem complete (program : Stage1.Application.Program)
   refine (constraintsHold_append _ _ _).mpr ⟨filledRows, ?_⟩
   intro row member
   simp only [flatConstraints, List.flatMap_cons, List.flatMap_nil, List.append_nil] at member
-  change row ∈ flatConstraints ((DigestSelect.rows (selectInterface program (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount))
+  change row ∈ flatConstraints ((LightSelect.rows (selectInterface program (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount))
     (selectOffset program relation circuit (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount) (sharedEnd base program.witnessWordCount))).map Op.assertZero) at member
   simp only [flatConstraints, List.flatMap_map, List.mem_flatMap, Op.flatConstraints,
     List.mem_singleton] at member

@@ -16,14 +16,11 @@ import NightstreamFPrime.Lifecycle.PiDEC.v1_2.RingKRecomposition
 import NightstreamFPrime.Lifecycle.PiDEC.v1_2.SignedSplitScalar
 import NightstreamFPrime.Layout.PiDEC.v1_2.Ownership
 import NightstreamFPrime.Layout.Stage1.PiDECInputs
-import NightstreamFPrime.Layout.Stage1.PiDECInputBounds
 import NightstreamFPrime.Layout.Stage1.PilotPiCCSPiRLCPiDEC
 import NightstreamFPrime.Layout.Stage1.SpartanBounds
 import NightstreamFPrime.Layout.Stage1.RunningTransitionSourceSupport
 import NightstreamFPrime.Lifecycle.Stage1.RunningTransitionSupport
 import NightstreamFPrime.Export.Stage1.PiDECArithmetic
-import NightstreamFPrime.Export.Stage1.PiDECEnvironmentCustody
-import NightstreamFPrime.Export.Stage1.DirectPiDECCommonPhaseSemantics
 import NightstreamFPrime.Spec.Folding.Nifs.PaperNonInteractive.Verifier
 import NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.PaperVerifier
 import NightstreamFPrime.Layout.Stage1.SpartanValues
@@ -221,9 +218,6 @@ import NightstreamFPrime.Export.NativeGoldilocks
 #audit_axioms NightstreamFPrime.Layout.Stage1.PiDECInputs.proofInputStart_matches_piRlc
 #audit_axioms NightstreamFPrime.Layout.Stage1.PiDECInputs.proofInputColumnCount_eq
 #audit_axioms NightstreamFPrime.Layout.Stage1.PiDECInputs.inputStarts_eq
-#audit_axioms NightstreamFPrime.Layout.Stage1.PiDECInputs.combinationOutput_varsBelow
-#audit_axioms NightstreamFPrime.Layout.Stage1.PiDECInputs.inputsBelow
-#audit_axioms NightstreamFPrime.Layout.Stage1.PiDECInputs.assumptions
 #audit_axioms NightstreamFPrime.Layout.Stage1.PilotPiCCSPiRLCPiDEC.piDecOffset_eq
 #audit_axioms NightstreamFPrime.Layout.Stage1.PilotPiCCSPiRLCPiDEC.physicalHolds_iff
 #audit_axioms NightstreamFPrime.Layout.Stage1.PilotPiCCSPiRLCPiDEC.physicalRowCount_eq
@@ -290,10 +284,6 @@ import NightstreamFPrime.Export.NativeGoldilocks
 #audit_axioms NightstreamFPrime.Export.Stage1.RunningTransitionArithmetic.canonicalPlan_rowCount
 #audit_axioms NightstreamFPrime.Export.Stage1.Package.circuitPackage_implies_runningTransitionArithmeticRows
 #audit_axioms NightstreamFPrime.Layout.PiDEC.v1_2.physicalRows_varsBelow_of_phase
-#audit_axioms NightstreamFPrime.Export.Stage1.PiDECEnvironmentCustody.semanticEnv_source_eq_transitionEnv_of_afterPiDECProof
-#audit_axioms NightstreamFPrime.Export.Stage1.PiDECEnvironmentCustody.semanticEnv_source_eq_transitionEnv
-#audit_axioms NightstreamFPrime.Export.Stage1.PiDECEnvironmentCustody.semanticEnv_eq_transitionEnv_of_target
-#audit_axioms NightstreamFPrime.Export.Stage1.DirectPiDECCommonPhaseSemantics.semantics_imply_piDecPhaseHolds
 
 #audit_axioms NightstreamFPrime.Lifecycle.PiDEC.v1_2.SignedSplitScalar.exactPrivateCount_pos
 

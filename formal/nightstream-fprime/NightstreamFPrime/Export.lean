@@ -65,7 +65,6 @@ import NightstreamFPrime.Export.Stage1.NebulaMemoryN1Package
 import NightstreamFPrime.Export.Stage1.NebulaMemoryTerminal
 import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Setup
 import NightstreamFPrime.Export.Stage1.PerApplicationFixedPoint
-import NightstreamFPrime.Export.Stage1.PerApplicationFixedPointSoundness
 import NightstreamFPrime.Export.Stage1.PerApplicationProductionPlan
 import NightstreamFPrime.Export.Stage1.PerApplicationAssignmentPlan
 import NightstreamFPrime.Export.Stage1.PerApplicationAssignmentBlocks
@@ -73,7 +72,6 @@ import NightstreamFPrime.Export.Stage1.PerApplicationAssignmentTransport
 import NightstreamFPrime.Export.Stage1.PerApplicationMatrixProgram
 import NightstreamFPrime.Export.Stage1.PerApplicationMatrixProgramSemantics
 import NightstreamFPrime.Export.Stage1.PerApplicationPackage
-import NightstreamFPrime.Export.Stage1.PerApplicationSecurity
 import NightstreamFPrime.Export.Stage1.PerApplicationPreservation
 import NightstreamFPrime.Export.Stage1.TerminalPackage
 import NightstreamFPrime.Export.Stage1.CompactRows
@@ -96,18 +94,7 @@ import NightstreamFPrime.Export.Stage1.InvocationLastOutput
 import NightstreamFPrime.Export.Stage1.PiCCSTranscriptDirectSemantics
 import NightstreamFPrime.Export.Stage1.PiCCSTranscriptEndpointPlan
 import NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryDirectPlan
-import NightstreamFPrime.Export.Stage1.PiRLCSamplerRetainedCustody
 import NightstreamFPrime.Export.Stage1.DirectPiRLCSamplerCompletePrefixPlan
-import NightstreamFPrime.Export.Stage1.PiRLCSamplerDirectSemantics
-import NightstreamFPrime.Export.Stage1.PiRLCSamplerFullSemantics
-import NightstreamFPrime.Export.Stage1.PiRLCDirectPhaseSemantics
-import NightstreamFPrime.Export.Stage1.DirectPiRLCSamplerCompletePhaseSemantics
-import NightstreamFPrime.Export.Stage1.PiDECEnvironmentCustody
-import NightstreamFPrime.Export.Stage1.DirectPiDECCommonPhaseSemantics
-import NightstreamFPrime.Export.Stage1.PiCCSCommonEnvironmentCustody
-import NightstreamFPrime.Export.Stage1.PiCCSTranscriptCommonSemantics
-import NightstreamFPrime.Export.Stage1.DirectPiCCSCommonPhaseSemantics
-import NightstreamFPrime.Export.Stage1.DirectAccumulatorCommonSemantics
 import NightstreamFPrime.Export.Stage1.DirectPrefixPlan
 import NightstreamFPrime.Export.Stage1.LaterPoseidonRetainedBlocks
 import NightstreamFPrime.Export.Stage1.PiRLCRetainedGeometry

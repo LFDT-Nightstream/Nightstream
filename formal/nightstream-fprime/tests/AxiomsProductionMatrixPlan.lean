@@ -1,6 +1,4 @@
-import NightstreamFPrime.Export.Stage1.PiDECValueWiring
 import NightstreamFPrime.Export.Stage1.PiRLCValueMatrixProgram
-import NightstreamFPrime.Export.Stage1.PerApplicationCanonicalEncodes
 import tests.AxiomAudit
 import NightstreamFPrime.Layout.BalancedTernary
 import NightstreamFPrime.Layout.LowNormAssignment
@@ -40,7 +38,6 @@ import NightstreamFPrime.Export.Stage1.DirectApplicationPrefixPlan
 import NightstreamFPrime.Export.Stage1.PerApplicationFixedPoint
 import NightstreamFPrime.Export.Stage1.PerApplicationMatrixProgramSemantics
 import NightstreamFPrime.Export.Stage1.PerApplicationAssignmentPlan
-import NightstreamFPrime.Export.Stage1.PerApplicationVerifierBoundAssignment
 import NightstreamFPrime.Export.MatrixProgram.Affine
 import NightstreamFPrime.Export.Stage1.PiCCSPayloadMatrix
 import NightstreamFPrime.Layout.ProductionRelation.SboxRow
@@ -94,6 +91,8 @@ import NightstreamFPrime.Export.Stage1.DirectPiDECPrefixPlan
 import NightstreamFPrime.Export.Stage1.PiCCSOrdinaryDirectSource
 import NightstreamFPrime.Export.Stage1.PiCCSOrdinaryRetainedBlocks
 import NightstreamFPrime.Export.Stage1.PiCCSOrdinaryRetainedGeometry
+import NightstreamFPrime.Export.AffineRuns
+import NightstreamFPrime.Export.Stage1.PerApplicationAssignmentTransport
 
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOrdinaryDirectSource.sourceRows_length
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOrdinaryDirectSource.sourceRows_varsBelow
@@ -734,8 +733,6 @@ import NightstreamFPrime.Export.Stage1.PiCCSOrdinaryRetainedGeometry
 #audit_axioms NightstreamFPrime.Export.Stage1.ApplicationRetainedGeometry.pilotGeometry
 #audit_axioms NightstreamFPrime.Export.Stage1.ApplicationDirectPlan.Location.input_form_eq_pilot
 #audit_axioms NightstreamFPrime.Export.Stage1.ApplicationDirectPlan.Location.output_form_eq_pilot
-#audit_axioms NightstreamFPrime.Export.Stage1.PerApplicationVerifierBoundAssignment.transitionExpectedContext
-#audit_axioms NightstreamFPrime.Export.Stage1.PerApplicationVerifierBoundAssignment.semantics_imply_contextKey
 #audit_axioms NightstreamFPrime.Layout.MatrixProgram.Affine.Form.semantic?_ofSemantic
 #audit_axioms NightstreamFPrime.Layout.MatrixProgram.Affine.Table.combination?_ofSemantic
 #audit_axioms NightstreamFPrime.Layout.MatrixProgram.Affine.Table.compile?_ofSemantic
@@ -750,15 +747,6 @@ import NightstreamFPrime.Export.Stage1.PiCCSOrdinaryRetainedGeometry
 #audit_axioms NightstreamFPrime.Export.Stage1.PiRLCValueMatrixProgram.substitution_form?
 #audit_axioms NightstreamFPrime.Export.Stage1.PerApplicationAssignmentTransport.phi81ValueSources_eq_direct
 #audit_axioms NightstreamFPrime.Export.Stage1.PerApplicationAssignmentTransport.phi81ValueSources_at
-#audit_axioms NightstreamFPrime.Export.Stage1.PerApplicationCanonicalEncodes.productValuesPreserve
-#audit_axioms NightstreamFPrime.Export.Stage1.PiDECValueWiring.parentCommitment_form_eq_output
-#audit_axioms NightstreamFPrime.Export.Stage1.PiDECValueWiring.parentCommitmentEncodes
-#audit_axioms NightstreamFPrime.Export.Stage1.PiDECValueWiring.parentPublicInput_form_eq_output
-#audit_axioms NightstreamFPrime.Export.Stage1.PiDECValueWiring.parentPublicInputEncodes
-#audit_axioms NightstreamFPrime.Export.Stage1.PiDECValueWiring.parentEvalK_form_eq_output
-#audit_axioms NightstreamFPrime.Export.Stage1.PiDECValueWiring.parentEvalKEncodes
-#audit_axioms NightstreamFPrime.Export.Stage1.PiDECValueWiring.parentEvalA_form_eq_output
-#audit_axioms NightstreamFPrime.Export.Stage1.PiDECValueWiring.parentEvalAEncodes
 
 #audit_axioms NightstreamFPrime.Export.Stage1.PiRLCProductSchedule.Descriptor.invocation_val
 

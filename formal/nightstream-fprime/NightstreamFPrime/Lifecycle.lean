@@ -57,7 +57,6 @@ import NightstreamFPrime.Lifecycle.PiDEC.v1_2.RadixRecomposition
 import NightstreamFPrime.Lifecycle.PiDEC.v1_2.RingKRecomposition
 import NightstreamFPrime.Lifecycle.PiDEC.v1_2.Semantics
 import NightstreamFPrime.Lifecycle.PiDEC.v1_2.SignedSplitScalar
-import NightstreamFPrime.Lifecycle.Stage1.Accumulator
 import NightstreamFPrime.Lifecycle.Stage1.Application
 import NightstreamFPrime.Lifecycle.Stage1.Poseidon2HashChainV1
 import NightstreamFPrime.Lifecycle.Stage1.VerificationKey

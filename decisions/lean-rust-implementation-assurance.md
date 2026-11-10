@@ -15,7 +15,7 @@ that claim as complete protocol security.
 
 ## SuperNeo
 
-SuperNeo v1.1 defines the interactive folding relations and their mathematical
+SuperNeo v1.2 defines the interactive folding relations and their mathematical
 security arguments. It does not certify a Lean model, circuit compiler,
 physical layout, package decoder, Rust implementation, proof backend, or
 deployment.
@@ -25,7 +25,7 @@ defined by the [security model](../formal/nightstream-fprime/SECURITY_MODEL.md).
 
 ## Decision
 
-Lean is the semantic authority for the fixed Nightstream SuperNeo v1.1
+Lean is the semantic authority for the fixed Nightstream SuperNeo v1.2
 relation. Lean must connect the concrete verifier predicate to logical circuit
 rows, prove that physical lowering preserves those rows, and emit the only
 package that production can use. Rust owns efficient execution of that

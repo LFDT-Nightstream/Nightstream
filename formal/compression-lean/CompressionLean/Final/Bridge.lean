@@ -4,6 +4,11 @@ import NightstreamFPrime.Lifecycle.PaperAlgebra
 import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.RingFPolynomial
 import CompressionLean.Lib.List
 import CompressionLean.Spec.Parent
+import NightstreamFPrime.Spec
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.GoldilocksCausal
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.TargetConvention
+import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
 
 namespace CompressionLean.Final
 

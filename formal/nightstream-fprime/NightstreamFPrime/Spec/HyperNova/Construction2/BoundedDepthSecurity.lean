@@ -1,5 +1,6 @@
 import NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthReverse
 import Mathlib.Probability.ProbabilityMassFunction.Constructions
+import NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthKnowledge
 
 /-! HyperNova Lemma 17 (Appendix H.3) for one slot of option B, with probabilities. Stage `0`
 is the IVC adversary; stage `j + 1` runs stage `j` and then the extractor that Assumption 1 gives

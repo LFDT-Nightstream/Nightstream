@@ -1,4 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PiCCSPoseidonMatrixProgram
+import NightstreamFPrime.Export.Stage1.PiCCSPoseidonPlan
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSPoseidonMatrixProgram
 

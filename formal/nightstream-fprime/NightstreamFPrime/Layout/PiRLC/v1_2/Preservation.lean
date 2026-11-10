@@ -1,5 +1,6 @@
 import NightstreamFPrime.Layout.PiRLC.v1_2.Lowering
 import NightstreamFPrime.Layout.R1CS.Completeness
+import NightstreamFPrime.Lifecycle.PiRLC.v1_2.Completeness
 
 namespace NightstreamFPrime.Layout.PiRLC.v1_2
 

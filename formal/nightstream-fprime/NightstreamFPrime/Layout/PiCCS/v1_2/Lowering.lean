@@ -1,5 +1,4 @@
 import NightstreamFPrime.Layout.R1CS
-import NightstreamFPrime.Layout.PiCCS.v1_2.Leaves.StatementBinding
 import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Completeness
 
 /-!

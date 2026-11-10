@@ -16,6 +16,19 @@ import NightstreamFPrime.Layout.R1CS.Segments
 import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtraction
 import NightstreamFPrime.Spec.Phi81StrongSet
 import NightstreamFPrime.Export.Stage1.DirectPiRLCSamplerCompletePrefixPlan
+import NightstreamFPrime.Export.MatrixProgram.Program
+import NightstreamFPrime.Export.SharedFormulas
+import NightstreamFPrime.Export.Stage1.DirectLowNormFootprint
+import NightstreamFPrime.Layout.PiDEC.v1_2.Ownership
+import NightstreamFPrime.Layout.ProductionRelation.MultiplicationFamilyPlan
+import NightstreamFPrime.Layout.Stage1.RunningTransitionSourceSupport
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Support.CcsTerminal
+import NightstreamFPrime.Lifecycle.Stage1.Terminal
+import NightstreamFPrime.Lifecycle.Stage1.VerificationKey
+import NightstreamFPrime.Spec
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.GoldilocksCausal
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.TargetConvention
+import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
 
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSTranscriptEndpointPlan.outputFinalState_endpoint_of_shape
 

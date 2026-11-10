@@ -1,6 +1,7 @@
 import NightstreamFPrime.Gadgets.Sampling.WideReduction.OutputExecution
 import NightstreamFPrime.Gadgets.Sampling.WideReduction.CanonicalChildren
 import NightstreamFPrime.Gadgets.Sampling.WideReduction.ReadSupport
+import NightstreamFPrime.Gadgets.Sampling.WideReduction.HelperExecution
 
 /-! Executable wide-sampler circuit. Temporary hints precede one opaque
 checked gadget. Production selection and retained-column placement are

@@ -1,4 +1,4 @@
-import NightstreamFPrime.Export.PermutationOutput
+import NightstreamFPrime.Layout.ProductionRelation.PoseidonRetainedSlots
 
 namespace NightstreamFPrime.Export.PermutationOutput.Readout
 

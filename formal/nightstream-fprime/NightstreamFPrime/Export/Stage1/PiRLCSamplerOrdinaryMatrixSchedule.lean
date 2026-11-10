@@ -1,5 +1,5 @@
-import NightstreamFPrime.Export.MatrixProgram
-import NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryDirectSource
+import NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryRows
+import NightstreamFPrime.Layout.MatrixProgram
 
 namespace NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryMatrixSchedule
 

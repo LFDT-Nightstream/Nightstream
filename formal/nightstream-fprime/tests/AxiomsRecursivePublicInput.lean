@@ -1,5 +1,10 @@
 import tests.AxiomAudit
 import NightstreamFPrime.Lifecycle.XOut
+import NightstreamFPrime.Spec
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.GoldilocksCausal
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.TargetConvention
+import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
 
 #audit_axioms NightstreamFPrime.Lifecycle.encHash_marker
 #audit_axioms NightstreamFPrime.Lifecycle.encHash_digestBitNat

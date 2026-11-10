@@ -1,4 +1,6 @@
-import NightstreamFPrime.Spec
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81MatrixSource
+import NightstreamFPrime.Spec.Poseidon2
+import NightstreamFPrime.Spec.Profile
 
 /-! HyperNova Construction 2. -/
 

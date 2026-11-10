@@ -1,7 +1,7 @@
-import NightstreamFPrime.Export.Stage1.PerApplicationCanonicalPackage
-import NightstreamFPrime.Layout.Poseidon2
-import NightstreamFPrime.Lifecycle.Nebula.ProgramSoundness
+import NightstreamFPrime.Export.Stage1.ApplicationRetainedBlocks
+import NightstreamFPrime.Lifecycle.Nebula.MemoryProgram
 import NightstreamFPrime.Lifecycle.Nebula.RowNames
+import NightstreamFPrime.Spec.Nebula.SetupCheck
 
 /-!
 Owns the package geometry of a memory application for any memory geometry

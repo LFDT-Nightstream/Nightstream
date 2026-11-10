@@ -1,6 +1,7 @@
 import NightstreamFPrime.Layout.Stage1.PiCCSOrdinarySourceSupportData
 import NightstreamFPrime.Layout.Stage1.RunningTransitionData
 import NightstreamFPrime.Lifecycle.Stage1.NextPreimage
+import NightstreamFPrime.Layout.Stage1.RunningTransitionOutputBounds
 
 namespace NightstreamFPrime.Layout.Stage1.NextPreimageInputs
 

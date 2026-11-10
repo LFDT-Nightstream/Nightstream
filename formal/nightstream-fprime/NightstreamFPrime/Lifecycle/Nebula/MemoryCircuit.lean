@@ -1,7 +1,8 @@
-import NightstreamFPrime.Lifecycle.Nebula.SpongeTranscript
-import NightstreamFPrime.Lifecycle.Nebula.RowMeaning
-import NightstreamFPrime.Lifecycle.Stage1.Application
 import NightstreamFPrime.Circuit.Sequence
+import NightstreamFPrime.Lifecycle.Nebula.RowList
+import NightstreamFPrime.Lifecycle.Nebula.SpongeTranscript
+import NightstreamFPrime.Lifecycle.Stage1.Application
+import NightstreamFPrime.Lifecycle.Nebula.FactorWords
 
 /-! Owns the circuit of a memory application as a Stage 1 application: its
 witness wires (the `Words` layout), nine sponge children (the two state

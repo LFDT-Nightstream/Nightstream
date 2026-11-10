@@ -10,6 +10,12 @@ import NightstreamFPrime.Spec.Folding.Nifs.PaperWeakCompleteness
 import NightstreamFPrime.Spec.Folding.Nifs.PaperWeakSuffix
 
 import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.RingFPolynomial
+import NightstreamFPrime.Spec
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.GoldilocksCausal
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SignedMixingProbability
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.TargetConvention
+import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
 
 #audit_axioms NightstreamFPrime.Spec.ProductionRelation.GatePolynomial.termData_length
 

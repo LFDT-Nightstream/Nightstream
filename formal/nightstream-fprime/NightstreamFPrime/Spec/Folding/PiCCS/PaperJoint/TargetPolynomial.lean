@@ -1,5 +1,4 @@
-import Std
-import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.TargetConvention
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Coefficients
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.TargetPolynomial
 

@@ -1,5 +1,6 @@
 import NightstreamFPrime.Lifecycle.Nebula.HonestRows
 import NightstreamFPrime.Lifecycle.Nebula.WitnessEncoding
+import NightstreamFPrime.Lifecycle.Nebula.FactorWords
 
 /-! Owns completeness of the relation of a memory application: every step that the
 model's `invoke` accepts from a reachable carry, with one application step on

@@ -1,4 +1,5 @@
 import NightstreamFPrime.Gadgets.Poseidon2.Layer
+import NightstreamFPrime.Circuit.StraightLine
 
 namespace NightstreamFPrime.Gadgets.Poseidon2.Permutation
 

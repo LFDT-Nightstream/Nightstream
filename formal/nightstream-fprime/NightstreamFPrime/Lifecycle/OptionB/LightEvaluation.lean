@@ -1,5 +1,6 @@
-import NightstreamFPrime.Lifecycle.OptionB.LightCommitment
+import NightstreamFPrime.Lifecycle.OptionB.Keys
 import NightstreamFPrime.Lifecycle.PiRLC.v1_2.RingKCombination
+import NightstreamFPrime.Spec.Folding.Light.RlcModule
 
 /-! The light Π_RLC evaluation family `y = y_running + ρ · y_fresh` (Cyclo, ePrint 2026/359,
 Figure 3, step 6, on SuperNeo v1.2 Section 7.4, verifier Step 1) as one `CombinationStep` with

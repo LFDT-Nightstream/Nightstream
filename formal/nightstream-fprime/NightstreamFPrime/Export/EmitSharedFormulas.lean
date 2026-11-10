@@ -1,4 +1,12 @@
 import NightstreamFPrime.Export.SharedFormulas
+import NightstreamFPrime.Export.MatrixProgram
+import NightstreamFPrime.Layout.MatrixProgram.Phi81Product
+import NightstreamFPrime.Layout.MatrixProgram.Poseidon
+import NightstreamFPrime.Layout.ProductionRelation.OrdinarySourcePlan
+import NightstreamFPrime.Spec
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.GoldilocksCausal
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.TargetConvention
+import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
 
 def main (arguments : List String) : IO UInt32 := do
   match arguments with

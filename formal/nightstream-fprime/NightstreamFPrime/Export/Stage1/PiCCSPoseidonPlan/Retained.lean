@@ -1,6 +1,7 @@
 import NightstreamFPrime.Export.Stage1.LaterPoseidonRetainedBlocks
 import NightstreamFPrime.Export.Stage1.PiCCSActionPayloadBlock
 import NightstreamFPrime.Layout.ProductionRelation.PoseidonRetainedFamily
+import NightstreamFPrime.Export.Stage1.PiRLCPoseidonGeometry
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSPoseidonPlan
 

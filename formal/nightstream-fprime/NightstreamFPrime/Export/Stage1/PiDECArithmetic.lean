@@ -1,6 +1,7 @@
 import NightstreamFPrime.Export.Stage1.PiCCSArithmetic
 import NightstreamFPrime.Layout.Stage1.PiDECInputs
 import NightstreamFPrime.Layout.Stage1.PiDECStarts
+import NightstreamFPrime.Layout.PiDEC.v1_2.Lowering
 
 namespace NightstreamFPrime.Export.Stage1.PiDECArithmetic
 

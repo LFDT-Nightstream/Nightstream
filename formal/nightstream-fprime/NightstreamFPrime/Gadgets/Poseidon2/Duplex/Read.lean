@@ -1,5 +1,5 @@
 import NightstreamFPrime.Circuit.Quadratic
-import NightstreamFPrime.Gadgets.Poseidon2.Permutation
+import NightstreamFPrime.Gadgets.Poseidon2.Layer
 
 namespace NightstreamFPrime.Gadgets.Poseidon2.Duplex.Read
 

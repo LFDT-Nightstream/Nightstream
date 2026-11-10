@@ -1,5 +1,7 @@
 import NightstreamFPrime.Lifecycle.Nebula.HonestStep
 import NightstreamFPrime.Lifecycle.Nebula.EndToEnd
+import NightstreamFPrime.Lifecycle.Nebula.MemoryProgram
+import NightstreamFPrime.Spec.Nebula.Completeness
 
 /-! Owns completeness for runs of a memory application: the model's `invoke` keeps a
 carry reachable, a run that the model accepts is a Stage 1 step history of the

@@ -1,4 +1,6 @@
 import NightstreamFPrime.Lifecycle.Nebula.MemorySupport
+import NightstreamFPrime.Lifecycle.Nebula.MemoryEval
+import NightstreamFPrime.Lifecycle.Nebula.RowMeaning
 
 /-! Owns the soundness of the memory-application circuit: when its rows hold
 and the caller's wires lie below the call offset, the output state is the step

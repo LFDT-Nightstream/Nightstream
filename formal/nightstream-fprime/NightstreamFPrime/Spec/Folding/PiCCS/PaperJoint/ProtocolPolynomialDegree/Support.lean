@@ -1,7 +1,5 @@
-import NightstreamFPrime.Spec.SumCheck.FixedPhase
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ProtocolPolynomial
-import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.FiniteSumAlgebra
-import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SumCheckTruthPath
+import NightstreamFPrime.Spec.SumCheck.FixedPolynomial
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ProtocolPolynomialDegree.Support
 

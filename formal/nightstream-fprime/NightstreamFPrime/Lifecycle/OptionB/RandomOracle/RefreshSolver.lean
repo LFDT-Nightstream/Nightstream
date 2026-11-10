@@ -1,5 +1,6 @@
 import NightstreamFPrime.Lifecycle.OptionB.RandomOracle.RefreshUniqueness
 import NightstreamFPrime.Lifecycle.RandomOracle.Solver
+import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.ChainBinding
 
 /-! The refresh fold's MSIS solver in the random-oracle model: `Solver` on the refresh game
 `RefreshFork.game`, with the binding step of `RefreshUniqueness` as the kernel.

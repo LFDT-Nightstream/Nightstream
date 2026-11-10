@@ -1,7 +1,5 @@
 import NightstreamFPrime.Lifecycle.Types
-import NightstreamFPrime.Spec.ProductionRelation
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.FullOutputCoordinates
-import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.BooleanReproduction
 
 /-! SuperNeo v1.2 Section 7.3. -/
 

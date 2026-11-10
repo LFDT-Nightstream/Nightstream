@@ -4,6 +4,10 @@ import CompressionLean.Spec.Program
 import CompressionLean.Spec.Relation
 import CompressionLean.Bridge.Relation
 import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.RingFPolynomial
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier.NoZeroDivisors
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.TargetConvention
+import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.BaseLinear
 
 /-! The statement words that a final program reads first (`statementHandles`), and the two
 constants that its layer-1 calls share with the native relation (`phi_eq_modulus`, `barOf_eq`). -/

@@ -1,3 +1,4 @@
+import Mathlib.Data.ZMod.Defs
 import NightstreamFPrime.Spec.ProductionRelation.GatePolynomial
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier.Algebra
 

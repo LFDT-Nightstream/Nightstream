@@ -1,5 +1,7 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SignedCoefficientObject
 import NightstreamFPrime.Spec.SumCheck.GoldilocksCausal
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.TargetConvention
+import NightstreamFPrime.Spec.SumCheck.FixedPhase.Sequential
 
 set_option autoImplicit false
 

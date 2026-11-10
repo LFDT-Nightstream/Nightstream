@@ -1,4 +1,4 @@
-import NightstreamFPrime.Layout.PiDEC.v1_2.Lowering
+import NightstreamFPrime.Layout.PiDEC.v1_2.Composition
 import NightstreamFPrime.Lifecycle.PiDEC.v1_2.PublicInputSplit.Values
 
 namespace NightstreamFPrime.Layout.PiDEC.v1_2

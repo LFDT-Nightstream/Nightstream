@@ -2,6 +2,7 @@ import NightstreamFPrime.Export.PermutationOutput.Readout
 import NightstreamFPrime.Export.Stage1.PoseidonRetainedBlock
 import NightstreamFPrime.Layout.Stage1.PiCCSOrdinarySourceSupportData
 import NightstreamFPrime.Layout.Stage1.SpartanValues
+import NightstreamFPrime.Export.PermutationOutput
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSTranscriptReadout
 

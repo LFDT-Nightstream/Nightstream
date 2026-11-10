@@ -1,9 +1,9 @@
 import Lean.Data.Json
-import NightstreamFPrime.Export.MatrixProgram
 import NightstreamFPrime.Export.Package
+import NightstreamFPrime.Layout.MatrixProgram
+import NightstreamFPrime.Layout.ProductionRelation.Phi81ProductPlan
 import NightstreamFPrime.Lifecycle.VerifierContext
-import NightstreamFPrime.Layout.MatrixProgram.Phi81Product
-import NightstreamFPrime.Layout.MatrixProgram.Poseidon
+import NightstreamFPrime.Layout.ProductionRelation.PoseidonSboxPlan
 
 namespace NightstreamFPrime.Export.SharedFormulas
 

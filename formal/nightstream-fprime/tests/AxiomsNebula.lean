@@ -13,6 +13,16 @@ import NightstreamFPrime.Export.Stage1.NebulaMemoryN1Package
 import NightstreamFPrime.Export.Stage1.NebulaMemoryTerminal
 import NightstreamFPrime.Lifecycle.Nebula.EtaOracle
 import NightstreamFPrime.Lifecycle.Nebula.EtaRound
+import NightstreamFPrime.Export.Stage1.DirectLowNormFootprint
+import NightstreamFPrime.Layout.PiDEC.v1_2.Ownership
+import NightstreamFPrime.Layout.ProductionRelation.MultiplicationFamilyPlan
+import NightstreamFPrime.Layout.Stage1.RunningTransitionSourceSupport
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Support.CcsTerminal
+import NightstreamFPrime.Lifecycle.Stage1.Terminal
+import NightstreamFPrime.Spec
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.GoldilocksCausal
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.TargetConvention
+import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
 
 /-! Axiom audits for the Nebula memory-phase model (`Spec/Nebula`) and its
 memory application layer (`Lifecycle/Nebula`): framing, carry, step rows,

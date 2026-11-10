@@ -1,4 +1,5 @@
 import NightstreamFPrime.Gadgets.Poseidon2.Permutation
+import NightstreamFPrime.Circuit.StraightLine
 
 namespace NightstreamFPrime.Layout.ProductionRelation.PoseidonStepTrace
 

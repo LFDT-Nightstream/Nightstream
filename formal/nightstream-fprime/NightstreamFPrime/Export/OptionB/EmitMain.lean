@@ -9,6 +9,21 @@ import NightstreamFPrime.Export.Stage1.ApplicationPackage
 import NightstreamFPrime.Export.Stage1.NebulaMemoryTerminal
 import NightstreamFPrime.Lifecycle.Nebula.SecondPlan
 import NightstreamFPrime.Lifecycle.Nebula.ThirdPlan
+import NightstreamFPrime.Export.Stage1.DirectLowNormFootprint
+import NightstreamFPrime.Layout.OptionB.LightAssemblerCompleteness
+import NightstreamFPrime.Layout.OptionB.RefreshAssemblerCompleteness
+import NightstreamFPrime.Layout.OptionB.StepCircuits
+import NightstreamFPrime.Layout.PiDEC.v1_2.Ownership
+import NightstreamFPrime.Layout.ProductionRelation.MultiplicationFamilyPlan
+import NightstreamFPrime.Layout.Stage1.RunningTransitionSourceSupport
+import NightstreamFPrime.Lifecycle.Nebula.ProgramSoundness
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Support.CcsTerminal
+import NightstreamFPrime.Lifecycle.Stage1.Terminal
+import NightstreamFPrime.Spec
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.GoldilocksCausal
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.TargetConvention
+import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
+import NightstreamFPrime.Spec.Nebula
 
 /-! The option-B emitter (CW-5.5), first part: the row census of the light and the refresh step
 circuits for today's fixture application (`Poseidon2HashChainV1.program`). For each circuit it

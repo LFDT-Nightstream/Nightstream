@@ -1,10 +1,7 @@
 import NightstreamFPrime.Export.Stage1.PiCCSOrdinaryDirectSource
-import NightstreamFPrime.Gadgets.Multilinear.PointWeightedHornerSupport
 import NightstreamFPrime.Gadgets.Polynomial.SparseSupport
-import NightstreamFPrime.Layout.R1CS.Support
 import NightstreamFPrime.Layout.Stage1.PiCCSInputSupport
 import NightstreamFPrime.Layout.Stage1.PiCCSTranscriptSupport
-import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Support.CcsTerminal
 import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Support.EvalATerminal
 import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Support.EvalKTerminal
 import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Support.FinalIdentity

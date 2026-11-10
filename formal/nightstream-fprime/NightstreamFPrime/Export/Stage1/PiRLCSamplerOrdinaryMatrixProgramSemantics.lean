@@ -1,4 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryMatrixProgram
+import NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryMatrixSchedule
 
 namespace NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryMatrixProgram
 

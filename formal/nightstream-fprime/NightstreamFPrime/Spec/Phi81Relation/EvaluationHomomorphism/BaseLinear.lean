@@ -1,5 +1,5 @@
 import NightstreamFPrime.Spec.Phi81Relation.Evaluation
-import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81Evaluation
 
 /-! SuperNeo v1.2 Theorem 11. -/
 

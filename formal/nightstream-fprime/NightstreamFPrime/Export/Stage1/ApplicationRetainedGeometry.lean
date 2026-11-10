@@ -1,5 +1,6 @@
 import NightstreamFPrime.Export.Stage1.ApplicationRetainedBlocks
 import NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryRetainedGeometry
+import NightstreamFPrime.Export.Stage1.PiRLCPoseidonGeometry
 
 namespace NightstreamFPrime.Export.Stage1.ApplicationRetainedGeometry
 

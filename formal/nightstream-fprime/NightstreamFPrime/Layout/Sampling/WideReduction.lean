@@ -1,5 +1,5 @@
+import NightstreamFPrime.Gadgets.Sampling.WideReduction.Footprint
 import NightstreamFPrime.Layout.Range.CanonicalU64
-import NightstreamFPrime.Gadgets.Sampling.WideReduction.Program
 
 namespace NightstreamFPrime.Layout.Sampling.WideReduction
 

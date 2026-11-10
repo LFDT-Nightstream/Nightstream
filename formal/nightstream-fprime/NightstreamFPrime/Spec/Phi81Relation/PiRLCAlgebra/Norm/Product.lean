@@ -1,5 +1,10 @@
 import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.CarrierAction
 import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Norm.Centered
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier.NoZeroDivisors
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.TargetConvention
+import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.BaseLinear
+import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Challenge
 
 namespace NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Norm.Product
 

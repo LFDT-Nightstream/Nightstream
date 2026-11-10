@@ -1,5 +1,6 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CoefficientKernel
 import CompressionLean.Ports.Replay.Data
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.TargetConvention
 
 namespace CompressionLean.Replay
 

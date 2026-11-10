@@ -1,5 +1,7 @@
 import NightstreamFPrime.Lifecycle.PiRLC.v1_2.Formal
 import NightstreamFPrime.Spec.Folding.Nifs.PaperProfile
+import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Challenge
+import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.PublicInput
 
 namespace NightstreamFPrime.Lifecycle.PiRLC.v1_2.Semantics
 

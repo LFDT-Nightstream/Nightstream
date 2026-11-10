@@ -1,5 +1,6 @@
 import NightstreamFPrime.Spec.Folding.Light.Strong
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.RoundByRound
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
 
 /-! SuperNeo v1.2 Appendix B.2 for the light Π_CCS. When the light Π_CCS accepts, the output
 claims open at the ambient bound, and the source claims are false (`¬ SemanticTruth`), one

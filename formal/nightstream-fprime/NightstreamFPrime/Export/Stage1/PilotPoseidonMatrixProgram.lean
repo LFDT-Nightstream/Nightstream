@@ -1,5 +1,5 @@
-import NightstreamFPrime.Export.MatrixProgram.Program
 import NightstreamFPrime.Export.Stage1.PilotPoseidonPlan
+import NightstreamFPrime.Layout.MatrixProgram.Program
 
 namespace NightstreamFPrime.Export.Stage1.PilotPoseidonMatrixProgram
 

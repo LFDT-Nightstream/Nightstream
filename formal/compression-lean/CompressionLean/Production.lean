@@ -1,4 +1,9 @@
 import NightstreamFPrime.Lifecycle.PaperAlgebra
+import NightstreamFPrime.Spec
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.GoldilocksCausal
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.TargetConvention
+import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
 
 /-! Rust tests `relation_shape_has_the_lean_constants` (`neo-spartan`) and `final_proof_verifies` (`nightstream`) pin these constants. -/
 

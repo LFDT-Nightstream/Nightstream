@@ -1,4 +1,5 @@
 import NightstreamFPrime.Layout.Stage1.ApplicationInputs
+import NightstreamFPrime.Spec.HyperNova.Construction2.Paper
 
 namespace NightstreamFPrime.Layout.Stage1.ApplicationInputs
 

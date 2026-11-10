@@ -1,8 +1,7 @@
-import NightstreamFPrime.Spec.Folding.PiCCS.TranscriptReplay
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StrongReduction
-import NightstreamFPrime.Spec.Folding.PiRLC.PaperCompleteness
+import NightstreamFPrime.Spec.Folding.PiCCS.TranscriptReplay
 import NightstreamFPrime.Spec.Folding.PiDEC.PaperVerifier
-import NightstreamFPrime.Spec.SumCheck.FixedPhase
+import NightstreamFPrime.Spec.Folding.PiRLC
 
 /-! SuperNeo Sections 7.3–7.5; HyperNova Definition 12. -/
 

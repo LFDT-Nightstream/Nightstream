@@ -1,6 +1,7 @@
 import NightstreamFPrime.Layout.ProductionRelation.PlanComposition
 import NightstreamFPrime.Lifecycle.Relation
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLinearAlgebra
+import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Commitment
 
 namespace NightstreamFPrime.Layout.ProductionRelation.Plan
 

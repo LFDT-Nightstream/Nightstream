@@ -1,7 +1,5 @@
-import NightstreamFPrime.Circuit.Quadratic
 import NightstreamFPrime.Lifecycle.PiDEC.v1_2.SignedSplitScalar
 import NightstreamFPrime.Lifecycle.XOut
-import NightstreamFPrime.Spec.GoldilocksPrime
 
 namespace NightstreamFPrime.Lifecycle.PiCCS.v1_2.StateBinding
 

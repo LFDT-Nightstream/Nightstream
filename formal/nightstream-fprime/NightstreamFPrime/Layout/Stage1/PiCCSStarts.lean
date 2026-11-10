@@ -1,4 +1,4 @@
-import NightstreamFPrime.Layout.Stage1.PilotPiCCS
+import NightstreamFPrime.Layout.Stage1.PiCCSInputs
 import NightstreamFPrime.Lifecycle.PiCCS.v1_2.FormalRows
 
 /-! Paper authority: SuperNeo v1.2, section 7.3, PiCCS Steps 1--5. -/

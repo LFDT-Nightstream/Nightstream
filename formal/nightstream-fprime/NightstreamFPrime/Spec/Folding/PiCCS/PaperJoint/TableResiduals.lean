@@ -1,5 +1,4 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.BooleanTable
-import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.TargetConvention
 
 /-! Literal SuperNeo v1.2 Lemma 9 is not proved here. -/
 

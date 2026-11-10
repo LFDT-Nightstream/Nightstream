@@ -1,4 +1,5 @@
 import NightstreamFPrime.Lifecycle.Nebula.PortApp
+import NightstreamFPrime.Spec.GoldilocksExtensionRing
 
 /-! Owns the refinement of the memory rows of one invocation: when the rows of
 `StepWitness.RowsHold` hold and the input carry is reachable, the model's

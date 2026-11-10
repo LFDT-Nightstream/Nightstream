@@ -1,6 +1,7 @@
-import NightstreamFPrime.Layout.MatrixProgram.PlanBridge
-import NightstreamFPrime.Export.Stage1.ApplicationDirectPlan
+import NightstreamFPrime.Export.Stage1.ApplicationRetainedGeometry
 import NightstreamFPrime.Export.Stage1.PerApplicationSourceProjection
+import NightstreamFPrime.Layout.MatrixProgram.Program
+import NightstreamFPrime.Export.Stage1.PiRLCPoseidonGeometry
 
 namespace NightstreamFPrime.Export.Stage1.ApplicationMatrixProgram
 

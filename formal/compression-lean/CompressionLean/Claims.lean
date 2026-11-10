@@ -9,6 +9,11 @@ import CompressionLean.Checks.Runs
 import NightstreamFPrime.Lifecycle.Stage1.Poseidon2HashChainV1
 import CompressionLean.Final.OptionBIvc
 import CompressionLean.Final.OptionBComplete
+import NightstreamFPrime.Spec
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.GoldilocksCausal
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.TargetConvention
+import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
 
 namespace CompressionLean.Claims
 

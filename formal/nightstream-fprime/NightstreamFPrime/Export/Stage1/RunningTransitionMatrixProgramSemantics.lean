@@ -1,4 +1,5 @@
 import NightstreamFPrime.Export.Stage1.RunningTransitionMatrixProgramSubstitution
+import NightstreamFPrime.Export.Stage1.RunningTransitionDirectPlan
 
 namespace NightstreamFPrime.Export.Stage1.RunningTransitionMatrixProgram
 

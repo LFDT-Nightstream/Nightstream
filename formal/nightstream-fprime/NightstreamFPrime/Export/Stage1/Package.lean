@@ -8,6 +8,7 @@ import NightstreamFPrime.Layout.PiDEC.v1_2.Preservation
 import NightstreamFPrime.Lifecycle.PiRLC.v1_2.Semantics
 import NightstreamFPrime.Lifecycle.VerifierContext
 import NightstreamFPrime.Lifecycle.PiCCS.v1_2.FormalPhase
+import NightstreamFPrime.Spec.HyperNova.Construction2.Paper
 
 namespace NightstreamFPrime.Export.Stage1.Package
 

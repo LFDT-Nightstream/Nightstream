@@ -1,5 +1,4 @@
 import NightstreamFPrime.Export.Stage1.PerApplicationPreservation
-import NightstreamFPrime.Export.Stage1.PoseidonRetainedBlock
 import NightstreamFPrime.Layout.LowNormBlock
 
 namespace NightstreamFPrime.Export.Stage1.PoseidonInputRetainedBlock

@@ -1,5 +1,6 @@
 import NightstreamFPrime.Lifecycle.OptionB.LightFold
 import NightstreamFPrime.Lifecycle.OptionB.LightPiCCSLayout
+import NightstreamFPrime.Lifecycle.OptionB.LightCommitment
 
 /-! The light Π_RLC layout (CW-2.5d, d3). One sampler draws `ρ` from the transcript state after
 the light Π_CCS output binding, and the commitment, public-input and evaluation combinations

@@ -1,4 +1,5 @@
-import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.BaseLinear
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CoefficientKernel
 
 /-! SuperNeo v1.2 Theorem 11. -/
 

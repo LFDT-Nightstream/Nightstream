@@ -104,7 +104,7 @@ pub fn split_b_matrix_k_with_nonzero_flags(Z: &Mat<F>, k: usize, b: u32) -> Resu
         PiCcsError::ProtocolError(format!(
             "DEC split: Z[{},{}] = {} (0x{:X}) is out of range for k_rho={}, b={}\n\
              Matrix Z is {}×{}\n\
-             Balanced range: [{}, {}), where B = b^k_rho = {}^{} = {}\n\
+             Accepted range: ({}, {}), where B = b^k_rho = {}^{} = {}\n\
              This typically means witness values grew too large during RLC for the configured rotation challenge set",
             idx / Z_cols,
             idx % Z_cols,

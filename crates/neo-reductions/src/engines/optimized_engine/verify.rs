@@ -1,4 +1,4 @@
-//! Optimized verifier entrypoints for the selected one-joint PiCCS protocol.
+//! Optimized verifier entrypoints for the selected one-joint PiCCS protocol. Only tests call them.
 
 use neo_ajtai::Commitment as Cmt;
 use neo_ccs::{CcsClaim, CcsStructure, CeClaim};

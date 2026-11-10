@@ -167,7 +167,8 @@ impl Relation {
         Ok(())
     }
 
-    /// `CCS.Holds` for a fresh instance: its witness is one logical
+    /// Lean `CCS.Holds` for a fresh instance, and a zero tail that Lean does
+    /// not require (SPEC.md Algorithm 6): its witness is one logical
     /// assignment with a zero tail, its public prefix is `x`, the production
     /// key commits it to `c` (so every entry is in {-1, 0, 1}), and every row
     /// of the relation holds on it.

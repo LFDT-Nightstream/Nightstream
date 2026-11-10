@@ -3,9 +3,9 @@
 //! Owns the proof byte layout. Does not own acceptance: a decoded proof still
 //! needs `verify`. The prepared circuit fixes every size, so the decoder
 //! checks the exact byte length before it allocates. The bytes carry exactly
-//! the values that `verify` reads: no frame digest, which no check reads, and
-//! no private witness copy `w`, which `extend` clears. Each proof has one
-//! encoding: field words are below the modulus, evaluations carry exactly
+//! the values that `verify` reads, with no frame digest, which no check
+//! reads. Each proof has one encoding: field words are below the modulus,
+//! evaluations carry exactly
 //! `D` coefficients, and each witness column is a pair of disjoint `+1` and
 //! `-1` lane masks. The fixed-key commitment already rejects witness values
 //! outside `{-1, 0, 1}`, so the mask form keeps every proof that `verify`

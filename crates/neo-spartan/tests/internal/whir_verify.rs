@@ -95,9 +95,11 @@ fn plans() -> Vec<Vec<TablePlan>> {
             width: 1,
             points: vec![vec![0]; 2],
         }],
+        // Large enough that the final phase has fewer queries than leaves:
+        // otherwise WHIR opens every leaf and the opening has no sibling.
         vec![
             TablePlan {
-                variables: 11,
+                variables: 13,
                 width: 1,
                 points: vec![vec![0]; 2],
             },

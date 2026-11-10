@@ -179,6 +179,14 @@ terminal) and `Final.OptionB.slot_complete` (each next slot's words are in their
 relation). It uses no cryptographic assumption: the folds use the deployed Poseidon2 sponge, as
 F′'s `FoldCompleteness` does.
 
+The final program gives a cell only to each finish column that it reads (`OptionB.live`), and the
+constant 0 to each other column below the S-box columns. `Sim.OptionB.holds_live` keeps the claim
+complete for columns of that form. Finish columns in which the claim holds keep the program's
+checks and both slot claims when each column without a cell becomes 0
+(`Sim.OptionB.finishTerminal_live`, `Sim.OptionB.slotClaim_live`). Each check reads only columns
+of `Spec.OptionB.readColumns`, and a read column below the S-box columns is live
+(`Sim.OptionB.live_iff`). The premises are `fit` and `keysLength`.
+
 What is not proved:
 
 - That the shrink verifier or the layer-1 verifiers accept the honest prover's messages. Lean has
@@ -236,9 +244,11 @@ Rust, a claim is about a verifier, a program, a file or a check that Rust does n
   `lifecycle/option_b/final_program.rs`). `optionBCheck` decodes the finish package from its
   artifact (`StepPackage.Package.format`, which round-trips), builds Lean's program with both
   layer-1 keys, and requires every instruction of Rust's run, rows and terms in order
-  (`option_b_final_program_matches_lean`, by hand). In CI, `option_b_prefix_digest_is_pinned` pins
-  the run up to layer 1; `option_b_program_digest_is_pinned` pins the whole run by hand. Rust writes
-  each row port in Lean's form (`side`), so the rows compare term by term.
+  (`option_b_final_program_matches_lean`, by hand). The run holds the live columns: the count of
+  the hint's cells and the handle of each column in the R1CS block. In CI,
+  `option_b_prefix_digest_is_pinned` pins the run up to layer 1;
+  `option_b_program_digest_is_pinned` pins the whole run by hand. Rust writes each row port in
+  Lean's form (`side`), so the rows compare term by term.
 - The setup build and the key expander (`Ports/Setup.lean`). The build is Rust's slot key while
   there are at most `2^24` run classes and the blocks fit 32 bits; `from_rows` refuses wider keys
   (`slot key width`). The proof reads only `ReadsBack` of the port, and the Rust test

@@ -393,9 +393,13 @@ fn final_proof_verifies() {
         Err(error) => assert!(error.to_string().contains(expected), "{expected}: {error}"),
         Ok(()) => panic!("{expected}: accepted"),
     };
+    // `witness.columns` holds one word for each live column, in column order.
+    let live = finish.live();
     let changed = |column: usize| {
+        assert!(live[column], "the final program reads column {column}");
+        let cell = live[..column].iter().filter(|&&live| live).count();
         let mut columns = witness.columns.clone();
-        columns[column] = columns[column].wrapping_add(1) % 18_446_744_069_414_584_321;
+        columns[cell] = columns[cell].wrapping_add(1) % 18_446_744_069_414_584_321;
         super::final_program::FinalWitness {
             columns,
             layer1: witness.layer1.clone(),

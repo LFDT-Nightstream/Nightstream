@@ -36,24 +36,83 @@ const WITNESS: usize = CURRENT + 8;
 pub(crate) struct Finish {
     package: StepPackage,
     system: R1cs,
+    /// The columns below `sbox_start` that the final program reads. The
+    /// others are the blocks' dead locals and the columns that only the
+    /// S-box and binding rows read (SPEC.md section 7.7): no row of the
+    /// program reads them, so the program gives them the value 0 and no cell.
+    live: Vec<bool>,
 }
 
 impl Finish {
     pub(crate) fn new(package: StepPackage) -> Result<Self, nightstream_fprime::PackageError> {
         let rows: PlanRows = package.plan_rows()?;
         let mut system = R1cs::new(package.sbox_start());
+        let mut live = vec![false; package.sbox_start()];
         let binding = rows.binding_rows();
         for row in (0..rows.ordinary_row_count()).filter(|row| !binding.contains(row)) {
-            system.push(&side(&rows, row, 0), &side(&rows, row, 1), &side(&rows, row, 2));
+            let sides = [0, 1, 2].map(|port| side(&rows, row, port));
+            for &(column, _) in sides.iter().flatten() {
+                live[column] = true;
+            }
+            system.push(&sides[0], &sides[1], &sides[2]);
         }
-        Ok(Self { package, system })
+        for block in package.blocks() {
+            for (_, terms) in block.lane_forms() {
+                for &(column, _) in terms {
+                    live[column] = true;
+                }
+            }
+            live[block.outputs()..block.outputs() + BLOCK_LANES].fill(true);
+        }
+        let finish = Self {
+            package,
+            system,
+            live: Vec::new(),
+        };
+        for range in finish.program_reads() {
+            live[range].fill(true);
+        }
+        Ok(Self { live, ..finish })
+    }
+
+    /// The words of slot `slot` among the step's seven slots.
+    fn slot_start(&self, slot: usize) -> usize {
+        WITNESS + self.witness_words() + slot * SLOT_WORDS
+    }
+
+    fn fresh_public_start(&self) -> usize {
+        self.slot_start(7) + 20 + KAPPA_WORDS
+    }
+
+    /// The columns that `FinalProgram::run` reads outside the rows and the
+    /// blocks: the constant, the statement and key words, the two slot
+    /// claims of layer 1 and the bits of the state hash.
+    fn program_reads(&self) -> Vec<std::ops::Range<usize>> {
+        let mut reads = vec![
+            0..1,
+            ITERATION..ITERATION + 1,
+            KEYS..KEYS + 8,
+            Z0..Z0 + 4,
+            CURRENT..CURRENT + 4,
+        ];
+        reads.extend((0..2).map(|slot| {
+            let start = self.slot_start(5 + slot);
+            start..start + SLOT_WORDS - 1
+        }));
+        let hash_bits = self.fresh_public_start() + 1;
+        reads.push(hash_bits..hash_bits + 4 * 64);
+        reads
+    }
+
+    pub(crate) fn live(&self) -> &[bool] {
+        &self.live
     }
 
     pub(crate) fn package(&self) -> &StepPackage {
         &self.package
     }
 
-    /// The witness words below `sbox_start`.
+    /// The witness words of the live columns, in column order.
     pub(crate) fn columns(&self, words: &nightstream_fprime::StepWords) -> Result<Vec<u64>, super::OptionBError> {
         let columns = self.package.circuit_columns(&words.columns()?)?;
         let columns = self
@@ -61,7 +120,9 @@ impl Finish {
             .relation_columns(columns, &self.package.plan_rows()?)?;
         Ok(columns[..self.package.sbox_start()]
             .iter()
-            .map(PrimeField64::as_canonical_u64)
+            .zip(&self.live)
+            .filter(|&(_, &live)| live)
+            .map(|(word, _)| word.as_canonical_u64())
             .collect())
     }
 
@@ -103,34 +164,49 @@ pub(crate) struct FinalProgram<'a> {
     pub(crate) witness: Option<&'a FinalWitness>,
 }
 
+/// The finish columns of one run: a cell for each live column and the
+/// constant 0 for each other column.
+struct Columns<'a, F> {
+    forms: Vec<F>,
+    live: &'a [bool],
+}
+
+impl<F: Copy> Columns<'_, F> {
+    /// Column `column`, which the program reads. A read of a column that
+    /// `Finish::live` leaves out is a fault of that list.
+    fn at(&self, column: usize) -> F {
+        assert!(
+            self.live[column],
+            "the final program reads a finish column that has no cell"
+        );
+        self.forms[column]
+    }
+}
+
 impl FinalProgram<'_> {
-    /// The words of slot `slot` among the step's seven slots.
-    fn slot_start(&self, slot: usize) -> usize {
-        WITNESS + self.finish.witness_words() + slot * SLOT_WORDS
-    }
-
-    fn fresh_public_start(&self) -> usize {
-        self.slot_start(7) + 20 + KAPPA_WORDS
-    }
-
-    fn claim<B: Backend>(columns: &[B::F], start: usize) -> ClaimWords<B::F> {
+    fn claim<B: Backend>(columns: &Columns<'_, B::F>, start: usize) -> ClaimWords<B::F> {
         let pairs = |from: usize, count: usize| -> Vec<[B::F; 2]> {
             (0..count)
-                .map(|index| [columns[from + 2 * index], columns[from + 2 * index + 1]])
+                .map(|index| [columns.at(from + 2 * index), columns.at(from + 2 * index + 1)])
                 .collect()
         };
         let ring = |from: usize| -> [[B::F; 2]; D] {
-            std::array::from_fn(|coefficient| [columns[from + 2 * coefficient], columns[from + 2 * coefficient + 1]])
+            std::array::from_fn(|coefficient| {
+                [
+                    columns.at(from + 2 * coefficient),
+                    columns.at(from + 2 * coefficient + 1),
+                ]
+            })
         };
         let evaluations = start + KAPPA_WORDS;
         let point = evaluations + EVALUATION_WORDS;
         let public = point + POINT_WORDS;
         ClaimWords {
             commitment: (0..KAPPA_WORDS / D)
-                .map(|row| std::array::from_fn(|lane| columns[start + row * D + lane]))
+                .map(|row| std::array::from_fn(|lane| columns.at(start + row * D + lane)))
                 .collect(),
             public: (0..PUBLIC_WORDS / D)
-                .map(|block| std::array::from_fn(|lane| columns[public + block * D + lane]))
+                .map(|block| std::array::from_fn(|lane| columns.at(public + block * D + lane)))
                 .collect(),
             point: pairs(point, POINT_WORDS / 2),
             eval_k: ring(evaluations),
@@ -143,17 +219,17 @@ impl FinalProgram<'_> {
     /// Layer 1's transcript for `slot`: the domain chunk, then the state hash
     /// that the fresh public input's bits encode and the slot
     /// (`OptionB::layer1_seed`).
-    fn seed<B: Backend>(&self, b: &mut B, columns: &[B::F], slot: usize) -> FoldTranscript<B> {
+    fn seed<B: Backend>(&self, b: &mut B, columns: &Columns<'_, B::F>, slot: usize) -> FoldTranscript<B> {
         let mut domain = Poseidon2Transcript::new_v1_2();
         domain.absorb_v1_2(&domain_chunk_v1_2(SEED_DOMAIN));
         let mut state: [B::F; WIDTH] = domain
             .state()
             .map(|lane| b.constant(lane.as_canonical_u64()));
-        let bits = self.fresh_public_start() + 1;
+        let bits = self.finish.fresh_public_start() + 1;
         for word in 0..4 {
             let mut value = b.constant(0);
             for bit in 0..64 {
-                let scaled = b.scale(columns[bits + 64 * word + bit], 1 << bit);
+                let scaled = b.scale(columns.at(bits + 64 * word + bit), 1 << bit);
                 value = b.add(value, scaled);
             }
             state[word] = b.add(state[word], value);
@@ -206,22 +282,39 @@ impl neo_spartan::shrink::Program for FinalProgram<'_> {
         let one = b.constant(1);
         b.assert_equal(product, one, "positive iteration")?;
 
-        let width = self.finish.package().sbox_start();
-        let columns = b.hint(&[], width, &|_| {
-            self.witness
-                .map_or_else(|| vec![0; width], |witness| witness.columns.clone())
-        });
-        b.assert_equal(columns[0], one, "constant column")?;
-        b.assert_equal(columns[ITERATION], statement[0], "iteration word")?;
+        let live = self.finish.live();
+        let count = live.iter().filter(|&&live| live).count();
+        let mut cells = b
+            .hint(&[], count, &|_| {
+                self.witness
+                    .map_or_else(|| vec![0; count], |witness| witness.columns.clone())
+            })
+            .into_iter();
+        let zero = b.constant(0);
+        let columns = Columns {
+            forms: live
+                .iter()
+                .map(|&live| {
+                    if live {
+                        cells.next().expect("one cell for each live column")
+                    } else {
+                        zero
+                    }
+                })
+                .collect(),
+            live,
+        };
+        b.assert_equal(columns.at(0), one, "constant column")?;
+        b.assert_equal(columns.at(ITERATION), statement[0], "iteration word")?;
         for lane in 0..4 {
-            b.assert_equal(columns[Z0 + lane], statement[1 + lane], "z0 word")?;
-            b.assert_equal(columns[CURRENT + lane], statement[5 + lane], "current word")?;
+            b.assert_equal(columns.at(Z0 + lane), statement[1 + lane], "z0 word")?;
+            b.assert_equal(columns.at(CURRENT + lane), statement[5 + lane], "current word")?;
         }
         for (index, word) in self.keys.iter().flatten().enumerate() {
             let key = b.constant(word.as_canonical_u64());
-            b.assert_equal(columns[KEYS + index], key, "key word")?;
+            b.assert_equal(columns.at(KEYS + index), key, "key word")?;
         }
-        b.r1cs(&self.finish.system, &columns, "finish package")?;
+        b.r1cs(&self.finish.system, &columns.forms, "finish package")?;
         for block in self.finish.package().blocks() {
             let lanes: Vec<B::F> = block
                 .lane_forms()
@@ -229,7 +322,7 @@ impl neo_spartan::shrink::Program for FinalProgram<'_> {
                     terms.iter().fold(
                         b.constant(constant.as_canonical_u64()),
                         |sum, &(column, coefficient)| {
-                            let term = b.scale(columns[column], coefficient.as_canonical_u64());
+                            let term = b.scale(columns.at(column), coefficient.as_canonical_u64());
                             b.add(sum, term)
                         },
                     )
@@ -237,11 +330,11 @@ impl neo_spartan::shrink::Program for FinalProgram<'_> {
                 .collect();
             let state: [B::F; WIDTH] = lanes.try_into().map_err(|_| Error::Shape("block lanes"))?;
             for (lane, output) in b.permute(state).into_iter().enumerate().take(BLOCK_LANES) {
-                b.assert_equal(columns[block.outputs() + lane], output, "Poseidon2 block")?;
+                b.assert_equal(columns.at(block.outputs() + lane), output, "Poseidon2 block")?;
             }
         }
         for slot in 0..2 {
-            let claim = Self::claim::<B>(&columns, self.slot_start(5 + slot));
+            let claim = Self::claim::<B>(&columns, self.finish.slot_start(5 + slot));
             let transcript = self.seed(b, &columns, slot);
             neo_spartan::verify_with(
                 b,

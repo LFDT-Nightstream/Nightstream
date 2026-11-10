@@ -26,12 +26,12 @@ digest-only schedule is implemented in
 
 ## SuperNeo
 
-SuperNeo v1.1 Section 7.3 defines an interactive public-coin PiCCS protocol.
+SuperNeo v1.2 Section 7.3 defines an interactive public-coin PiCCS protocol.
 The complete input is fixed before the verifier samples uniform `alpha` and
 `gamma`. Each SumCheck message is also fixed before its challenge. The paper
 does not define a concrete Fiat--Shamir hash, field-word encoding, transcript
 framing rule, or statement-compression rule. See the
-[SuperNeo v1.1 PiCCS protocol](../docs/superneo-paper-v1_1/07_superneo_folding_scheme_for_ccs.md).
+[SuperNeo v1.2 PiCCS protocol](../docs/superneo-paper-v1_2/07_superneo_folding_scheme_for_ccs.md).
 
 The general HyperNova construction uses a hash of the complete recursive state
 as the public link to its next step. Its non-interactive folding security is in

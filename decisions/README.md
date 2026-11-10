@@ -6,7 +6,7 @@ not define accepted proofs or verifier behavior.
 
 Authority is separate:
 
-- `docs/superneo-paper/` contains the reviewed paper.
+- `docs/superneo-paper-v1_2/` contains the reviewed paper. It is a local folder and is not in git.
 - `formal/nightstream-fprime/SECURITY_MODEL.md` states the production proof
   authority.
 - Rust and Lean provide implementation and proof evidence.

@@ -16,6 +16,30 @@ def inputChunks {Alpha : Type} (input : List Alpha) : List (List Alpha) :=
     Spec.Poseidon2.rate)).map fun chunk =>
       (input.drop (chunk * Spec.Poseidon2.rate)).take Spec.Poseidon2.rate
 
+/-- `count` chunks of `rest`, one pass. -/
+def chunksFrom {Alpha : Type} : Nat → List Alpha → List (List Alpha)
+  | 0, _ => []
+  | count + 1, rest =>
+      rest.take Spec.Poseidon2.rate :: chunksFrom count (rest.drop Spec.Poseidon2.rate)
+
+theorem chunksFrom_eq {Alpha : Type} :
+    ∀ (count : Nat) (rest : List Alpha),
+      chunksFrom count rest = (List.range count).map fun chunk =>
+        (rest.drop (chunk * Spec.Poseidon2.rate)).take Spec.Poseidon2.rate
+  | 0, _ => rfl
+  | count + 1, rest => by
+      rw [chunksFrom, chunksFrom_eq count, List.range_succ_eq_map]
+      simp [List.drop_drop, Nat.succ_mul, Nat.add_comm]
+
+/-- Compiled code chunks the input in one pass; `inputChunks` drops from the start for each
+chunk. -/
+def inputChunksFast {Alpha : Type} (input : List Alpha) : List (List Alpha) :=
+  chunksFrom ((input.length + Spec.Poseidon2.rate - 1) / Spec.Poseidon2.rate) input
+
+@[csimp] theorem inputChunks_eq_inputChunksFast : @inputChunks = @inputChunksFast := by
+  funext Alpha input
+  rw [inputChunksFast, chunksFrom_eq, inputChunks]
+
 def zeroE : EState := fun _ => 0
 def zeroF : FState := fun _ => 0
 

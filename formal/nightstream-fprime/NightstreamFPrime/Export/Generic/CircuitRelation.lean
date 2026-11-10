@@ -329,6 +329,31 @@ def bindingRows (width : Nat) (blocks : List Block) (sboxStart : Nat) : List R1C
 def sboxStart (pieces : List Piece) (next : Nat) : Nat :=
   (PieceRows.lowerPieces (PilotData.canonicalConstraints ()) (otherPieces pieces) next).2
 
+/-- The next fresh column after the pieces, with no ring row built. -/
+def nextAfter (canonical : List Expr) : List Piece → Nat → Nat
+  | [], next => next
+  | .ringProduct cells _ _ :: rest, next => nextAfter canonical rest (next + ringDegree * cells)
+  | piece :: rest, next =>
+      nextAfter canonical rest (R1CS.lowerConstraints (piece.constraints canonical) next).next
+
+theorem lowerPiecesAux_next (canonical : List Expr) :
+    ∀ (pieces : List Piece) (next : Nat) (rowsReversed : List R1CS.Row),
+      (PieceRows.lowerPiecesAux canonical pieces next rowsReversed).2 =
+        nextAfter canonical pieces next
+  | [], _, _ => rfl
+  | piece :: rest, next, rowsReversed => by
+      cases piece <;>
+        simp only [PieceRows.lowerPiecesAux, PieceRows.lowerPiece, nextAfter,
+          lowerPiecesAux_next canonical rest]
+
+/-- Compiled code finds the first fresh S-box column and builds no ring row. -/
+def sboxStartFast (pieces : List Piece) (next : Nat) : Nat :=
+  nextAfter (PilotData.canonicalConstraints ()) (otherPieces pieces) next
+
+@[csimp] theorem sboxStart_eq_sboxStartFast : @sboxStart = @sboxStartFast := by
+  funext pieces next
+  rw [sboxStart, PieceRows.lowerPieces, lowerPiecesAux_next, sboxStartFast]
+
 /-- The R1CS rows of the relation: the other pieces and the binding rows when the blocks pack,
 every piece otherwise. -/
 def relationRows (publicColumns : Nat) (pieces : List Piece) (next width : Nat) :

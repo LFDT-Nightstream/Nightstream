@@ -55,14 +55,14 @@ Names of the F′ package omit its namespace `NightstreamFPrime`. A Lean path in
 
 ### 2.3 Commitments
 
-- A witness `z ∈ F_q^m` packs into `⌈m/d⌉` ring elements: coefficient `h` of element `j` is `z_{d·j + h}`, or 0 past the end (`Spec.packAssignment`).
-- The Ajtai key `A` has `κ` rows of `⌈m/d⌉` ring elements. The commitment of `z` is `A · pack(z) ∈ R_q^κ` (`Spec.ajtaiCommit`). Algorithm 1 derives `A`.
+- A witness `z ∈ F_q^m` packs into `⌈m/d⌉` ring elements: coefficient `h` of element `j` is `z_{d·j + h}`, or 0 past the end (`Spec.Phi81Relation.EvaluationHomomorphism.CarrierAction.assignmentBlock`).
+- The Ajtai key `A` has `κ` rows of `⌈m/d⌉` ring elements. The commitment of `z` is `A · pack(z) ∈ R_q^κ` (`Spec.Phi81Relation.PiRLCAlgebra.Commitment.commit`). Algorithm 1 derives `A`.
 
 ### 2.4 The relations
 
 - Each step circuit has its own relation, a CCS over `F_q` with `t = 4` matrices `M_0, …, M_3` (`Lifecycle.ProductionKey.LogicalRelation`). Each matrix has its rows on the cube `{0,1}^ℓ` and `m` columns, and each row past the relation's `n` rows is zero. An assignment `z` satisfies the CCS when `f((M_0 z)_r, …, (M_3 z)_r) = 0` for every row `r`, where `f = M_0·M_1 − M_2 + M_3^7` (`Spec.ProductionRelation.polynomial`).
 - Both circuit keys have the logical width `m = 2^26` (`Export.OptionB.StepRelation.keyWidth`). A circuit with fewer columns commits a witness that is zero past them.
-- The public input of `z` is its first 270 entries, five ring elements (`Spec.projectPublicInput`, `Lifecycle.PaperAlgebra.publicRingColumns`).
+- The public input of `z` is its first 270 entries, five ring elements (`Spec.Phi81Relation.projectPublicInput`, `Lifecycle.PaperAlgebra.publicRingColumns`).
 - `eq(x, y) = ∏_i (x_i y_i + (1 − x_i)(1 − y_i))` for `x, y ∈ K^ℓ`. `ỹ(r)` is the multilinear extension of a table `y` on `{0,1}^ℓ`, evaluated at `r ∈ K^ℓ`.
 
 ### 2.5 Claims, slots and fold proofs
@@ -607,7 +607,7 @@ A Rust-built application in an option-B step package (`Export.OptionB.StepPackag
 
 **Source.** Soundness: when the S-box rows are zero and the other rows and the binding rows hold, the outputs of each block are the Poseidon2 permutation of its lanes, and an environment that differs only on the dead locals satisfies the other rows and the 1,096 template constraints of every block (`Export.Generic.NativeBlock.blocks_sound` (`342cf54f1709fba4`)). Completeness: an honest template trace, with each S-box column at its template local, makes the S-box rows zero and the binding rows hold (`Export.Generic.NativeBlock.blocks_complete` (`50cfe996b332136e`)). A package with a native application is complete too. Its pieces are one rows piece with the native rows, then the package pieces of Lean pieces, in which each native block is a permutation piece. So its rows are the native rows and the rows of the Lean pieces (`Export.OptionB.NativeCompleteness.relationRows_eq` (`7ed781a3a5bef84c`)). Let the constraints of the Lean pieces and the native rows hold in the honest values, let the Lean pieces meet the premises of section 4.4, and let the native rows read only columns below the first fresh column and no dead local, as step 1 requires. Then the honest assignment of the slots of step 4, read from the values of section 4.4, makes the rows and the S-box rows of the package zero, carries the honest public columns, and is in the norm bound, whatever the bit candidates are (`Export.OptionB.NativeCompleteness.native_complete` (`c9266e415e384302`)). A value 0 or 1 is valid in a bit slot (`Export.Generic.NativeBlock.bit_valid_of_boolean` (`b39dadbdb89f5988`)). A bit slot whose coordinate passes the norm check decodes to −1, 0 or 1 (`Export.Generic.NativeBlock.bitSlot_sound` (`84d40cc422a4c3ef`)), so the row that forces the word makes it 0 or 1. The relation is sound for every slot layout (`Export.Generic.CircuitRelation.rowsZero_implies_spec` (`3b73c3d6c26f3999`)). Rust: `StepPackage::with_application` in `crates/nightstream-fprime/src/option_b/application.rs` and `check_blocks` in `crates/nightstream/src/application/poseidon2.rs` (not checked against Lean). Rust's rule (`StepPackage::rule_slots` in `crates/nightstream-fprime/src/option_b/layout.rs`) gives the slots of each package that Lean emits (the test `lean_packages_follow_the_slot_rule`).
 
-### 7.7 WASM table access traps
+### 7.8 WASM table access traps
 
 **Input.** A `table.get` or `table.set` row, its table id, its `u32` index, and the current table size.
 
@@ -660,7 +660,6 @@ A Rust-built application in an option-B step package (`Export.OptionB.StepPackag
 
 **Source.** `nebula::Verifier::verify` and `nebula::Verifier::verify_final` (`crates/nightstream/src/nebula/proving.rs`), with steps 2 to 4 in `terminal_states` (`crates/nightstream/src/nebula/mod.rs`; not checked against Lean). Steps 3 and 4 are `Lifecycle.Nebula.TerminalChecks`. A chain of valid steps with these checks gives a run that the memory model accepts, or a state-digest collision in the run (`Lifecycle.Nebula.accepts_or_collision` (`31d12d5e456bee76`)). For an honest execution, steps 3 and 4 pass and Algorithm 6 accepts the honest proof (`Export.OptionB.NebulaCompleteness.memory_complete` (`346dfe79958cb9b1`)). Algorithm 6 alone does not make steps 2 to 4, so `nightstream::Circuit::verifier` refuses a memory relation: a pinned Lean memory package, a circuit from `nebula::Circuit::compile`, or a saved memory circuit, whose file starts with `NSOPTM`, 0, 1 (`crates/nightstream/src/circuit.rs`; not checked against Lean). A verifier compiles its own circuit and never loads a saved file.
 
-## 8. Differences from the papers
 ## 8. Differences from the papers
 
 Each row is a place where Nightstream differs from SuperNeo v1.2 (ePrint 2026/242), HyperNova or Nebula.

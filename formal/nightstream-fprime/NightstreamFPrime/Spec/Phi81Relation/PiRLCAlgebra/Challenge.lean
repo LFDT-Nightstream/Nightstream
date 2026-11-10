@@ -18,10 +18,10 @@ theorem embedScalar_valid (scalar : Scalar) :
   embedScalar_member scalar
 
 theorem pairwiseSecure_of_lowNormInvertibility
-    (theorem8 : LowNormInvertibility) :
+    (invertibility : LowNormInvertibility) :
     forall {left right : RingF},
       challengeValid left -> challengeValid right -> left ≠ right ->
         RingFInvertible (ringFSub left right) := by
-  exact productionSet_strong theorem8
+  exact productionSet_strong invertibility
 
 end NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Challenge

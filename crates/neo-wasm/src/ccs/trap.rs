@@ -262,7 +262,7 @@ fn push_div_trap_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
 
 /// The bounds check of `table.get` / `table.set`, and the resolve step of
 /// `call_indirect` / `return_call_indirect`. An out-of-bounds table access
-/// traps (SPEC.md section 7.7). The resolve step traps on an out-of-bounds
+/// traps (SPEC.md section 7.8). The resolve step traps on an out-of-bounds
 /// index, a null entry or a type mismatch; otherwise the following invocation
 /// calls the entry it checked.
 fn push_table_bounds_and_call_indirect_trap_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {

@@ -155,11 +155,11 @@ def StrongSamplingSet : Prop :=
     RingFInvertible (ringFSub left right)
 
 theorem productionSet_strong
-    (theorem8 : LowNormInvertibility) : StrongSamplingSet := by
+    (invertibility : LowNormInvertibility) : StrongSamplingSet := by
   intro left right leftMember rightMember different
   obtain ⟨leftScalar, rfl⟩ := leftMember
   obtain ⟨rightScalar, rfl⟩ := rightMember
-  apply theorem8.invertible_of_bound _ 4
+  apply invertibility.invertible_of_bound _ 4
   · intro differenceZero
     exact different ((ringFSub_eq_zero_iff _ _).mp differenceZero)
   · exact embeddedDifference_normAtMostFour leftScalar rightScalar

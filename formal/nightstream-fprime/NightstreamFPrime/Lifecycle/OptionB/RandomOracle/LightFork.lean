@@ -1,7 +1,6 @@
 import NightstreamFPrime.Lifecycle.OptionB.RandomOracle.ForkLink
 import NightstreamFPrime.Lifecycle.OptionB.RandomOracle.LightTest
-import NightstreamFPrime.Spec.Folding.Light.Binding
-import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.ForkStrongSet
+import NightstreamFPrime.Spec.Folding.PiRLC.NormFreeFork
 import NightstreamFPrime.Spec.Phi81StrongSet.LowNormInvertibility
 
 /-! The light fold's fork step in the random-oracle model: `Fork` on the light schedule, which

@@ -1,6 +1,7 @@
 import NightstreamFPrime.Lifecycle.OptionB.RandomOracle.Fidelity
 import NightstreamFPrime.Spec.Folding.Light.Completeness
 import NightstreamFPrime.Spec.Folding.Refresh.Completeness
+import NightstreamFPrime.Lifecycle.OptionB.RandomOracle.LightUniqueness
 
 /-! The random-oracle success event (`RomModel.Succeeds`) holds for honest folds on a deployed
 oracle (`Fidelity.Deployed`), so the success event of `Assumption1.romAssumption1` is not

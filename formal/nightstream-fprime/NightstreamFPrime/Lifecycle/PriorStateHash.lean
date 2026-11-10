@@ -1,5 +1,6 @@
 import NightstreamFPrime.Lifecycle.PriorStateHashCore
 import NightstreamFPrime.Lifecycle.Relation
+import NightstreamFPrime.Spec.HyperNova.Construction2.Paper
 
 namespace NightstreamFPrime.Lifecycle.PriorStateHash
 

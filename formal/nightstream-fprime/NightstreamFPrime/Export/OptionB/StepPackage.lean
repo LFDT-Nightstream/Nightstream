@@ -1,6 +1,7 @@
 import NightstreamFPrime.Export.Generic.CircuitRelation
 import NightstreamFPrime.Export.StreamingIdentity
 import NightstreamFPrime.Export.Generic.SlotLayout
+import NightstreamFPrime.Export.Generic.PieceRows
 
 /-! The package of an option-B step circuit (CW-5.9). It lists the circuit's pieces in the
 relation's order: the lowered R1CS rows of each constraint, each Π_RLC ring product with its fresh

@@ -2,6 +2,18 @@ import CompressionLean.Final.OptionBParent
 import CompressionLean.Spec.OptionBIvc
 import CompressionLean.Spec.OptionBMatrix
 import NightstreamFPrime.Export.OptionB.FinishCompleteness
+import NightstreamFPrime.Layout.OptionB.StepCircuits
+import NightstreamFPrime.Layout.PiCCS.v1_2.Leaves.OutputBinding
+import NightstreamFPrime.Lifecycle.Nebula.FactorWords
+import NightstreamFPrime.Lifecycle.OptionB.RandomOracle.LightKnowledge
+import NightstreamFPrime.Lifecycle.OptionB.RandomOracle.RefreshKnowledge
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Completeness
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.ZeroRunningPolynomial
+import NightstreamFPrime.Lifecycle.RandomOracle.Budgeted
+import NightstreamFPrime.Spec
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.TargetConvention
+import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
+import NightstreamFPrime.Spec.Nebula
 
 /-! Claim-level completeness of option B's final verifier (CW-10.6), the converse of
 `parentHolds_of_holds`. F′'s `FinishCompleteness.FinishAccepts` names finish columns that the

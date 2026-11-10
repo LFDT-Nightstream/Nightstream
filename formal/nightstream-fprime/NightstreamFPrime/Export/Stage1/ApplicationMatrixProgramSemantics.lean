@@ -1,4 +1,5 @@
 import NightstreamFPrime.Export.Stage1.ApplicationMatrixProgramSubstitution
+import NightstreamFPrime.Export.Stage1.ApplicationDirectPlan
 
 namespace NightstreamFPrime.Export.Stage1.ApplicationMatrixProgram
 

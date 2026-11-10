@@ -1,4 +1,5 @@
 import NightstreamFPrime.Layout.MatrixProgram.Ordinary
+import NightstreamFPrime.Layout.MatrixProgram
 
 namespace NightstreamFPrime.Layout.MatrixProgram.Affine
 

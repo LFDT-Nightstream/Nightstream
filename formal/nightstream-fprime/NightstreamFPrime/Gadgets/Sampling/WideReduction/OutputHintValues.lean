@@ -1,5 +1,5 @@
-import NightstreamFPrime.Gadgets.Sampling.WideReduction.HelperExecution
 import NightstreamFPrime.Gadgets.Sampling.WideReduction.CheckQuotient
+import NightstreamFPrime.Gadgets.Sampling.WideReduction.HelperValues
 
 /-! The result-bit hints read the proved temporary quotient and remainders.
 Their values agree with the gadget's explicit honest completion. -/

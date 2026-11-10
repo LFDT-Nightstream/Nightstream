@@ -1,7 +1,6 @@
-import NightstreamFPrime.Lifecycle.OptionB.RefreshPiCCSLayout
-import NightstreamFPrime.Layout.PiCCS.v1_2.Leaves.StatementAbsorption
-import NightstreamFPrime.Layout.PiCCS.v1_2.Leaves.OutputBinding
 import NightstreamFPrime.Layout.PiCCS.v1_2.Leaves.NormTerminal
+import NightstreamFPrime.Layout.PiCCS.v1_2.Leaves.StatementAbsorption
+import NightstreamFPrime.Lifecycle.OptionB.RefreshPiCCSLayout
 
 /-! Input scoping of the refresh Π_CCS layout (CW-3.6): when the external words lie below the
 parent offset, every leaf's inputs lie below the leaf's offset, so

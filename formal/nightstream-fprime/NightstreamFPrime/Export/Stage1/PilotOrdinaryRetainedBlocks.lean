@@ -1,6 +1,4 @@
 import NightstreamFPrime.Export.Stage1.PiCCSOrdinaryRetainedBlocks
-import NightstreamFPrime.Export.Stage1.PilotOrdinaryDirectSource
-import NightstreamFPrime.Layout.Stage1.SpartanValues
 
 namespace NightstreamFPrime.Export.Stage1.PilotOrdinaryRetainedBlocks
 

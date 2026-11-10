@@ -1,6 +1,9 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.GoldilocksCausal
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SignedMixingProbability
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SignedMixingRoots
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StrongReduction
+import NightstreamFPrime.Spec.SumCheck.GoldilocksCausal
 
 set_option autoImplicit false
 

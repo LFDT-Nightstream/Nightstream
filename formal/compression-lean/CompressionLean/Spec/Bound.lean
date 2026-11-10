@@ -7,6 +7,10 @@ import CompressionLean.Shrink.Ccs
 import CompressionLean.Ports.Shrink.Game
 import CompressionLean.Game.Path
 import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.RingFPolynomial
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier.NoZeroDivisors
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.TargetConvention
+import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.BaseLinear
 
 namespace CompressionLean.Spec
 

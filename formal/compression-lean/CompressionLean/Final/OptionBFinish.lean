@@ -1,5 +1,17 @@
 import CompressionLean.Spec.OptionBRuns
 import NightstreamFPrime.Export.OptionB.FinishRelation
+import NightstreamFPrime.Layout.OptionB.LightAssemblerCompleteness
+import NightstreamFPrime.Layout.OptionB.RefreshAssemblerCompleteness
+import NightstreamFPrime.Layout.OptionB.StepCircuits
+import NightstreamFPrime.Layout.PiCCS.v1_2.Leaves.OutputBinding
+import NightstreamFPrime.Layout.ProductionRelation.CcsOpening
+import NightstreamFPrime.Lifecycle.Nebula.FactorWords
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Completeness
+import NightstreamFPrime.Spec
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.GoldilocksCausal
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.TargetConvention
+import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
+import NightstreamFPrime.Spec.Nebula
 
 /-! The terminal of option B's final program in F′'s terms (CW-6.5). When the finish package is the
 one that the emitter writes for the finish relation's pieces (`StepPackage.packageOf`), with blocks

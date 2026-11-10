@@ -1,4 +1,5 @@
 import NightstreamFPrime.Lifecycle.Nebula.StepRefinement
+import NightstreamFPrime.Spec.GoldilocksExtensionRing
 
 /-! Owns the refinement of one invocation: the step rows give the
 model's `step` (SPEC.md section 7.5) on the step-start carry, the close rows give

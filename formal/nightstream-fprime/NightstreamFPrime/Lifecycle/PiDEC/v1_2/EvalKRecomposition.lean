@@ -1,5 +1,5 @@
-import NightstreamFPrime.Lifecycle.PiCCS.v1_2.StatementAbsorption
 import NightstreamFPrime.Lifecycle.PiDEC.v1_2.RingKRecomposition
+import NightstreamFPrime.Lifecycle.Types
 
 /-!
 Paper authority: SuperNeo v1.2, Section 7.5, verifier equation

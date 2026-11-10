@@ -1,4 +1,4 @@
-import NightstreamFPrime.Gadgets.Sampling.WideReduction.Completeness
+import NightstreamFPrime.Gadgets.Sampling.WideReduction
 
 /-! Concrete execution of the four canonical input children. Each call
 uses the existing proved hint-and-recipe construction. -/

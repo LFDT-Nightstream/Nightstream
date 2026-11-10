@@ -1,5 +1,4 @@
-import NightstreamFPrime.Layout.Stage1.RunningTransitionInputs
-import NightstreamFPrime.Layout.Polynomial.Horner
+import NightstreamFPrime.Layout.Stage1.RunningTransitionPointBoundsDirect
 
 namespace NightstreamFPrime.Layout.Stage1.RunningTransitionLayout
 

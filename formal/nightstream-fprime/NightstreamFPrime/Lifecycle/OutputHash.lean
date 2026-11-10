@@ -1,6 +1,7 @@
 import NightstreamFPrime.Circuit.VariableSupport
 import NightstreamFPrime.Gadgets.Poseidon2.Formal
 import NightstreamFPrime.Lifecycle.Relation
+import NightstreamFPrime.Spec.HyperNova.Construction2.Paper
 
 /-! HyperNova Construction 2, public output digest. -/
 

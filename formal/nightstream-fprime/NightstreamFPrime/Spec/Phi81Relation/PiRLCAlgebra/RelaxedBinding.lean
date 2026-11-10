@@ -2,6 +2,8 @@ import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Binding
 import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Norm.Product
 import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.RingFLaws
 import NightstreamFPrime.Spec.Profile
+import NightstreamFPrime.Spec.Folding.PiRLC
+import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Challenge
 
 namespace NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Binding
 

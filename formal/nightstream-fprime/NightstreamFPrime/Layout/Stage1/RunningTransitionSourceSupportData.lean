@@ -2,6 +2,7 @@ import NightstreamFPrime.Layout.Stage1.RunningTransitionInputs
 import NightstreamFPrime.Layout.Stage1.RunningTransitionCost
 import NightstreamFPrime.Layout.Stage1.RunningTransitionPointBoundsDirect
 import NightstreamFPrime.Layout.Stage1.Spartan
+import NightstreamFPrime.Layout.Stage1.RunningTransitionOutputBounds
 
 namespace NightstreamFPrime.Layout.Stage1.RunningTransitionSourceSupport
 

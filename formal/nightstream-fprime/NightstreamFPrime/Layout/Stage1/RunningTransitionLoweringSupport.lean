@@ -1,6 +1,5 @@
-import NightstreamFPrime.Layout.R1CS.Support
 import NightstreamFPrime.Layout.Stage1.RunningTransitionInputsSupport
-import NightstreamFPrime.Layout.Stage1.RunningTransitionPreservation
+import NightstreamFPrime.Layout.Stage1.RunningTransitionLowering
 import NightstreamFPrime.Layout.Stage1.SpartanBounds
 
 namespace NightstreamFPrime.Layout.Stage1.RunningTransitionSourceSupport

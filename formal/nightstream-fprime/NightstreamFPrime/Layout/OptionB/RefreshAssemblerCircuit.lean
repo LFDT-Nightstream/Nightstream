@@ -1,4 +1,6 @@
-import NightstreamFPrime.Layout.OptionB.RefreshAssemblerCompleteness
+import NightstreamFPrime.Layout.OptionB.RefreshAssembler
+import NightstreamFPrime.Layout.OptionB.RefreshPiCCSCompleteness
+import NightstreamFPrime.Layout.OptionB.RefreshStepCompleteness
 
 /-! The refresh step circuit as one `FormalCircuit` at the source layout (CW-3.9). Its spec is
 that every child's spec holds, as for the light step circuit (`LightAssemblerCircuit`). Soundness

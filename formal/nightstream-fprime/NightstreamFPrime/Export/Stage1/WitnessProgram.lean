@@ -1,7 +1,6 @@
-import NightstreamFPrime.Export.WitnessEncoding
-import NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryRows
 import NightstreamFPrime.Export.Stage1.PiDECArithmetic
-import NightstreamFPrime.Export.Stage1.RunningTransitionArithmetic
+import NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryRows
+import NightstreamFPrime.Export.WitnessEncoding
 
 namespace NightstreamFPrime.Export.Stage1.WitnessProgram
 

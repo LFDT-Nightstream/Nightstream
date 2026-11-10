@@ -1,6 +1,4 @@
-import NightstreamFPrime.Export.Stage1.Package
-import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Completeness
-import NightstreamFPrime.Layout.Stage1.SpartanValues
+import NightstreamFPrime.Export.Stage1.PiCCSArithmetic
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSCompleteness
 

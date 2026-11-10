@@ -1,5 +1,6 @@
 import NightstreamFPrime.Layout.MatrixProgram.SourceProjection
-import NightstreamFPrime.Layout.ProductionRelation.OrdinarySourcePlan
+import NightstreamFPrime.Layout.MatrixProgram
+import NightstreamFPrime.Layout.ProductionRelation.SourceCompiler
 
 namespace NightstreamFPrime.Layout.MatrixProgram.Ordinary
 

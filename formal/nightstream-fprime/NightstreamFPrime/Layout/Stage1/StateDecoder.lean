@@ -1,6 +1,7 @@
 import Mathlib.Data.List.OfFn
 import NightstreamFPrime.Layout.Stage1.RunningTransitionData
 import NightstreamFPrime.Layout.Stage1.StateEncoding
+import NightstreamFPrime.Spec.HyperNova.Construction2.Paper
 
 namespace NightstreamFPrime.Layout.Stage1.StateDecoder
 

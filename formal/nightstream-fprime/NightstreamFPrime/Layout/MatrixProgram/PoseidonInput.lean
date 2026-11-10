@@ -1,3 +1,4 @@
+import Batteries.Data.Fin.Coding
 import Mathlib.Tactic.FinCases
 import NightstreamFPrime.Layout.MatrixProgram
 import NightstreamFPrime.Layout.MatrixProgram.Affine

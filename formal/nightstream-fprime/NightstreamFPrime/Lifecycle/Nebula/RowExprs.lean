@@ -1,6 +1,6 @@
-import NightstreamFPrime.Lifecycle.Nebula.FactorWords
 import NightstreamFPrime.Circuit.Quadratic
 import NightstreamFPrime.Circuit.VariableSupport
+import NightstreamFPrime.Lifecycle.Nebula.WitnessWords
 
 /-! Owns the symbolic step witness: one expression per witness value over the
 word variables of `Words` (variable `k` is witness word `k`), and the

@@ -1,3 +1,4 @@
+import Mathlib.Logic.Function.CompTypeclasses
 import NightstreamFPrime.Lifecycle.RandomOracle.Sponge
 import NightstreamFPrime.Spec.Folding.PiCCS.TranscriptReplay
 

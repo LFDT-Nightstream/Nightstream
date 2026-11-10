@@ -1,6 +1,6 @@
 import Mathlib.Tactic.FinCases
 import NightstreamFPrime.Layout.LowNormBlock
-import NightstreamFPrime.Layout.ProductionRelation.PoseidonSboxPlan
+import NightstreamFPrime.Layout.ProductionRelation.SparseLayer
 
 namespace NightstreamFPrime.Layout.MatrixProgram
 

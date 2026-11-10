@@ -1,4 +1,12 @@
 import NightstreamFPrime.Lifecycle.OptionB.RefreshPiCCS
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.CcsTerminal
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.EvalATerminal
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.EvalKTerminal
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.FinalIdentity
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.InitialClaim
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.NormTerminal
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.OutputBinding
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.SumcheckChain
 
 /-! The refresh Π_CCS phase (CW-3.1). Today's production-shape Π_CCS leaves, with the refresh
 statement absorption (`RefreshPiCCS.statementActions`) and the wires of `Wired`, make the refresh

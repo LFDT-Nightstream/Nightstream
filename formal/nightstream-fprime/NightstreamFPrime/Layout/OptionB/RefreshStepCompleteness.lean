@@ -1,7 +1,7 @@
 import NightstreamFPrime.Layout.OptionB.RefreshStepBounds
-import NightstreamFPrime.Layout.OptionB.LightStepCompleteness
 import NightstreamFPrime.Lifecycle.PiDEC.v1_2.Completeness
 import NightstreamFPrime.Lifecycle.PiRLC.v1_2.Completeness
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Completeness.Core
 
 /-! Completeness of the refresh step's gadgets (CW-3.7b). When the shared words lie below the
 layout's offset, the application step holds on them, and the digest words and the fresh

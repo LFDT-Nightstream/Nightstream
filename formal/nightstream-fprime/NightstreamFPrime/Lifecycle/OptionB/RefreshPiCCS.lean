@@ -1,4 +1,6 @@
-import NightstreamFPrime.Lifecycle.OptionB.LightPiCCS
+import NightstreamFPrime.Lifecycle.OptionB.Keys
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.RoundTranscript
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.StatementAbsorption
 
 /-! The refresh Π_CCS statement (CW-3.1). The refresh key is today's production key with the
 refresh transcript (`Keys.refreshKey`): it absorbs the refresh fold domain, then the fresh

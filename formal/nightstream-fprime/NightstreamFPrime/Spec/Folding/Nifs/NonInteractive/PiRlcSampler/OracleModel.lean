@@ -1,5 +1,5 @@
 import NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.Conditional
-import NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.Transcript
+import NightstreamFPrime.Spec.Poseidon2
 
 /-! Ideal classical block-oracle model; Poseidon2 is assumed, not proved, to follow it. -/
 

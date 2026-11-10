@@ -1,3 +1,5 @@
+import Mathlib.Basic.Real.Basic
+import Mathlib.Tactic.Ring.Basic
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Coefficients
 import NightstreamFPrime.Spec.Profile
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.IndependentExecution

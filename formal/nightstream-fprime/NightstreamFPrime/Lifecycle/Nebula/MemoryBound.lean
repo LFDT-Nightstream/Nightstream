@@ -1,5 +1,6 @@
 import NightstreamFPrime.Lifecycle.Nebula.Framing
 import NightstreamFPrime.Spec.Nebula.Game
+import NightstreamFPrime.Spec.GoldilocksExtensionRing
 
 /-! Owns the per-slot bound of the challenge game of the memory round
 (`SECURITY_MODEL.md`, trust item 6), for

@@ -1,5 +1,6 @@
 import NightstreamFPrime.Layout.OptionB.LightRlcBounds
 import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Completeness.Core
+import NightstreamFPrime.Lifecycle.OptionB.LightCommitment
 
 /-! Completeness of the light Π_RLC layout (assembler A3b). The sampler and the commitment,
 public-input and evaluation combinations compute their outputs from their inputs and check no

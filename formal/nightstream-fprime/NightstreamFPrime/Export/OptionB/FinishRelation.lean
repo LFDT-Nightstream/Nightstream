@@ -1,6 +1,7 @@
 import NightstreamFPrime.Export.OptionB.StepRelation
 import NightstreamFPrime.Layout.OptionB.FinishAssembler
 import NightstreamFPrime.Export.OptionB.StepPackage
+import NightstreamFPrime.Export.Generic.PieceRows
 
 /-! The finish circuit's exported relation (CW-6.3). The finish package holds the finish circuit
 (`FinishStep.main`) at the refresh step's source layout, with the refresh step's shared words, and

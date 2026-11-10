@@ -1,5 +1,6 @@
-import NightstreamFPrime.Lifecycle.Nebula.MemoryProgram
+import NightstreamFPrime.Lifecycle.Nebula.MemoryCircuit
 import NightstreamFPrime.Lifecycle.Nebula.RunLink
+import NightstreamFPrime.Lifecycle.Nebula.FactorWords
 
 /-! Owns the join of the memory program's contract to the run link: each step
 that the Stage 1 relation accepts for `MemoryApp.program` is a

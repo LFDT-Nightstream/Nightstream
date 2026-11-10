@@ -1,4 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PiDECMatrixProgramSubstitution
+import NightstreamFPrime.Export.Stage1.PiDECDirectPlan
+import NightstreamFPrime.Layout.MatrixProgram.PlanBridge
 
 namespace NightstreamFPrime.Export.Stage1.PiDECMatrixProgram
 

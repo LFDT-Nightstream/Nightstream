@@ -1,5 +1,6 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CausalExecution
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SignedMixingProbability
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.GoldilocksCausal
 
 /-! SuperNeo v1.2 Appendix B.2, Equation (14). -/
 

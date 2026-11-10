@@ -1,6 +1,6 @@
 import NightstreamFPrime.Layout.Poseidon2.Duplex
 import NightstreamFPrime.Layout.R1CS.Completeness
-import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Completeness
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal
 
 /-!
 Paper authority: SuperNeo v1.2, section 7.3, Steps 3 and 5, and the

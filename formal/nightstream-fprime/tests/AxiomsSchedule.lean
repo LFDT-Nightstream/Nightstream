@@ -1,6 +1,11 @@
 import tests.AxiomAudit
 import NightstreamFPrime.Spec.Folding.Refresh.Bound
 import NightstreamFPrime.Spec.Folding.Schedule
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.GoldilocksCausal
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.TargetConvention
+import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
+import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Norm
 
 #audit_axioms NightstreamFPrime.Spec.Folding.Refresh.honest_inputs
 #audit_axioms NightstreamFPrime.Spec.Folding.Refresh.production_countNormLaw

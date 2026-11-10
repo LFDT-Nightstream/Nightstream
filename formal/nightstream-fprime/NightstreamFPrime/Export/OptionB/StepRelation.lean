@@ -1,5 +1,6 @@
 import NightstreamFPrime.Export.Generic.CircuitRelation
-import NightstreamFPrime.Layout.OptionB.StepCircuits
+import NightstreamFPrime.Layout.OptionB.LightAssemblerCircuit
+import NightstreamFPrime.Layout.OptionB.RefreshAssemblerCircuit
 import NightstreamFPrime.Layout.ProductionRelation.AcceptedOpening
 
 /-! The option-B step relations (CW-5.3). Each step circuit is exported with its shared words at

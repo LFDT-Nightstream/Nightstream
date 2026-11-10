@@ -1,4 +1,3 @@
-import NightstreamFPrime.Layout.MatrixProgram
 import NightstreamFPrime.Layout.R1CS.ColumnMap
 import NightstreamFPrime.Layout.R1CS.Completeness
 

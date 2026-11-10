@@ -1,4 +1,5 @@
 import NightstreamFPrime.Lifecycle.Nebula.RowList
+import NightstreamFPrime.Lifecycle.Nebula.FactorWords
 
 /-! Owns the meaning of the polynomial row list: on a word vector, the rows of
 `Rows.polyRows` evaluate to zero exactly when the decoded witness satisfies

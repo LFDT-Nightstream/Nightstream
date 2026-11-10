@@ -2,6 +2,7 @@ import NightstreamFPrime.Export.PilotData
 import NightstreamFPrime.Export.RowSemantics
 import NightstreamFPrime.Layout.PilotSpartan
 import NightstreamFPrime.Layout.Poseidon2
+import NightstreamFPrime.Spec.HyperNova.Construction2.Paper
 
 namespace NightstreamFPrime.Export.Pilot
 

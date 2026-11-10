@@ -1,16 +1,13 @@
-import NightstreamFPrime.Circuit.Sequence
-import NightstreamFPrime.Lifecycle.PiCCS.v1_2.StatementBinding
-import NightstreamFPrime.Lifecycle.PiCCS.v1_2.StatementAbsorption
-import NightstreamFPrime.Lifecycle.PiCCS.v1_2.ChallengeDerivation
-import NightstreamFPrime.Lifecycle.PiCCS.v1_2.RoundTranscript
-import NightstreamFPrime.Lifecycle.PiCCS.v1_2.InitialClaim
-import NightstreamFPrime.Lifecycle.PiCCS.v1_2.SumcheckChain
-import NightstreamFPrime.Lifecycle.PiCCS.v1_2.EvalKTerminal
-import NightstreamFPrime.Lifecycle.PiCCS.v1_2.EvalATerminal
 import NightstreamFPrime.Lifecycle.PiCCS.v1_2.CcsTerminal
-import NightstreamFPrime.Lifecycle.PiCCS.v1_2.NormTerminal
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.EvalATerminal
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.EvalKTerminal
 import NightstreamFPrime.Lifecycle.PiCCS.v1_2.FinalIdentity
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.InitialClaim
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.NormTerminal
 import NightstreamFPrime.Lifecycle.PiCCS.v1_2.OutputBinding
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.RoundTranscript
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.StatementBinding
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.SumcheckChain
 
 /-!
 Paper authority: SuperNeo v1.2, Section 7.3, complete `Pi_CCS` reduction.

@@ -12,6 +12,7 @@ import Mathlib.Tactic.Positivity
 import Mathlib.Tactic.Ring
 import NightstreamFPrime.Spec.AjtaiSetupV1.ReductionBias
 import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Binding
+import NightstreamFPrime.Spec.AjtaiSetupV1
 
 /-! Assumes SHAKE128 is a random oracle (premise P1); P1 is not proved here. -/
 

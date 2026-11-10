@@ -2,6 +2,8 @@ import NightstreamFPrime.Spec.SumCheck.GoldilocksCausalTrace
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StrongReduction
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
 import NightstreamFPrime.Spec.GoldilocksPrime
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.TargetConvention
+import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Challenge
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.GoldilocksCausal
 

@@ -1,6 +1,5 @@
-import NightstreamFPrime.Layout.Stage1.RunningTransitionOutputBounds
 import NightstreamFPrime.Layout.Stage1.RunningTransitionSourceSupportData
-import NightstreamFPrime.Lifecycle.Stage1.RunningTransitionSupport
+import NightstreamFPrime.Layout.Stage1.RunningTransitionOutputBounds
 
 namespace NightstreamFPrime.Layout.Stage1.RunningTransitionSourceSupport
 

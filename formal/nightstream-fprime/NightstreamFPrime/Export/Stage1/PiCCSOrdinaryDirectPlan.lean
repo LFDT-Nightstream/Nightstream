@@ -1,6 +1,7 @@
 import NightstreamFPrime.Export.Stage1.PiCCSOrdinaryDirectSupport
 import NightstreamFPrime.Export.Stage1.PiCCSOrdinaryRetainedGeometry
 import NightstreamFPrime.Export.Stage1.RunningTransitionDirectPlan
+import NightstreamFPrime.Export.Stage1.PiRLCPoseidonGeometry
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSOrdinaryDirectPlan
 

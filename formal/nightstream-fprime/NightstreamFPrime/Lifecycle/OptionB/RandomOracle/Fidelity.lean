@@ -1,4 +1,5 @@
 import NightstreamFPrime.Lifecycle.OptionB.RandomOracle.RomModel
+import NightstreamFPrime.Spec.Folding.Nifs.PaperStrongInterface
 
 /-! The random-oracle fold verifiers are the deployed ones at the sponge oracle.
 

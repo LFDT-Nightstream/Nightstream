@@ -1,5 +1,6 @@
 import NightstreamFPrime.Lifecycle.Transcript
-import NightstreamFPrime.Spec.Nebula
+import NightstreamFPrime.Spec.Nebula.Soundness
+import NightstreamFPrime.Spec.GoldilocksExtensionRing
 
 /-! Owns the concrete Poseidon2 framing of the Nebula memory phase: the
 framed-block transcript of SPEC.md section 7.4 over the Stage 1 sponge absorb, the

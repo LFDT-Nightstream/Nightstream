@@ -1,6 +1,12 @@
 import CompressionLean.Ports.Terminal.Program
 import CompressionLean.Ports.Circuit.Verifier
 import NightstreamFPrime.Export.OptionB.StepPackage
+import NightstreamFPrime.Lifecycle.Nebula.FactorWords
+import NightstreamFPrime.Spec
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.GoldilocksCausal
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.TargetConvention
+import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
+import NightstreamFPrime.Spec.Nebula
 
 /-! `lifecycle/option_b/final_program.rs::FinalProgram::run` (CW-6.5): the statement and a positive
 iteration; the finish package's columns below its S-box columns, with column 0 one and the

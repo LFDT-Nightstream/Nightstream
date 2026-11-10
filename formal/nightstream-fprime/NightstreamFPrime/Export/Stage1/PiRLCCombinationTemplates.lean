@@ -143,12 +143,12 @@ theorem constraint_varsBelow (firstSource : Bool)
         norm_num [valueInputStart, inputCount]
         omega
 
-set_option maxRecDepth 100000 in -- fixed-size: 54 normalized lane templates
 theorem template_localColumnCount (firstSource : Bool)
     (lane : Fin ringDegree) :
     (template firstSource lane).localColumnCount =
       CombinationStep.laneFreshCount lane := by
-  fin_cases lane <;> cases firstSource <;> rfl
+  revert firstSource lane
+  decide +kernel
 
 theorem template_rows_length (firstSource : Bool)
     (lane : Fin ringDegree) :
@@ -206,11 +206,11 @@ theorem template_getElem? (source : Nat) (lane : Fin ringDegree) :
 
 theorem laneFreshCount_sum :
     (List.ofFn CombinationStep.laneFreshCount).sum = 8100 := by
-  rfl
+  decide +kernel
 
 theorem laneRowCount_sum :
     (List.ofFn fun lane : Fin ringDegree =>
       CombinationStep.laneFreshCount lane + 1).sum = 8154 := by
-  rfl
+  decide +kernel
 
 end NightstreamFPrime.Export.Stage1.PiRLCCombinationTemplates

@@ -49,13 +49,11 @@ def phi81Kernel : CoefficientKernel F ringDegree where
   weight := fun output row assignment =>
     ringFMul (barBasis row) (ringFMonomial assignment.val 1) output
 
-set_option maxRecDepth 100000 in -- fixed-size: ring degree 54, not artifact data
-set_option maxHeartbeats 2000000 in -- fixed-size: ring degree 54, not artifact data
 theorem basisConstantTerm :
     forall row assignment : Fin ringDegree,
       phi81Kernel.weight phi81Kernel.constant row assignment =
         if row = assignment then 1 else 0 := by
-  decide
+  decide +kernel
 
 theorem phi81ConstantTermLaw :
     ConstantTermLaw ConcreteCarrier.baseOps phi81Kernel := by

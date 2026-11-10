@@ -136,7 +136,7 @@ theorem compilePlan?_eq : compilePlan? = some plan := by
   rfl
 
 @[simp] theorem plan_length : plan.length = 31 := by
-  rfl
+  decide +kernel
 
 @[simp] theorem plan_records_eq :
     plan.map (fun step => step.record) = PoseidonScheduleTrace.records := by
@@ -144,15 +144,15 @@ theorem compilePlan?_eq : compilePlan? = some plan := by
 
 @[simp] theorem sboxRowCount_eq :
     (plan.map fun step => step.sboxes.length).sum = 150 := by
-  rfl
+  decide +kernel
 
 @[simp] theorem outputRowCount_eq :
     (plan.map fun step => step.outputs.length).sum = 496 := by
-  rfl
+  decide +kernel
 
 @[simp] theorem directRowCount_eq :
     (plan.map fun step => step.sboxes.length + step.outputs.length).sum = 646 := by
-  rfl
+  decide +kernel
 
 private theorem map_eq_map_of_forall_mem {α β : Type}
     (rows : List α) (left right : α → β)

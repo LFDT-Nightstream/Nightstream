@@ -178,8 +178,16 @@ fn a_geometry_derives_its_widths_and_keeps_the_rules() {
     );
     assert_eq!(
         Geometry::new(3, 2, 2, 4, 1),
-        None,
-        "rule 4: the RAM is at least the ROM"
+        Some(Geometry {
+            r: 3,
+            mu: 2,
+            w_ts: 4,
+            b_ops: 2,
+            b_scan: 3,
+            n: 4,
+            s_max: 1,
+        }),
+        "rule 4: the RAM can be smaller than the ROM"
     );
     assert_eq!(Geometry::new(2, 2, 2, 3, 1), None, "rule 1: n divides the cells");
     assert_eq!(Geometry::new(2, 2, 2, 16, 1), None, "rule 1: each space has n cells");

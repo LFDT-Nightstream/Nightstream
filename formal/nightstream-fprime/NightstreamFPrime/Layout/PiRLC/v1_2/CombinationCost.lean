@@ -288,7 +288,7 @@ private theorem totalFreshCountOfFn {count : Nat}
 
 private theorem laneFreshCountSum :
     (List.ofFn laneFreshCount).sum = 8100 := by
-  rfl
+  decide +kernel
 
 private theorem listSumOfFn {count : Nat} (values : Fin count → Nat) :
     (List.ofFn values).sum = ∑ index, values index := by

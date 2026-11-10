@@ -278,7 +278,7 @@ private theorem canonicalRows_scope :
     (PilotData.canonicalConstraints ()) 1112 canonicalConstraints_scope
   have noFresh : Layout.R1CS.totalFreshCount
       (PilotData.canonicalConstraints ()) = 0 := by
-    rfl
+    decide +kernel
   simpa [PilotData.canonicalRows, noFresh] using scope
 
 theorem canonicalPermutationTemplate_rowWithin (row : TemplateRow)

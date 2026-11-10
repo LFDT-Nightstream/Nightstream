@@ -1,4 +1,4 @@
-import Mathlib.Tactic
+import Mathlib.Algebra.GroupWithZero.Nat
 import NightstreamFPrime.Spec.Algebra
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CCSResidualTable
 import NightstreamFPrime.Spec.Profile

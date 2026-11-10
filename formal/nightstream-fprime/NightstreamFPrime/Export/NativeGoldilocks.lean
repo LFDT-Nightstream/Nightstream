@@ -1,3 +1,5 @@
+import Mathlib.Tactic.Ring
+import Mathlib.Tactic.NormNum
 import NightstreamFPrime.Export.StreamingIdentity
 
 namespace NightstreamFPrime.Export.NativePoseidon2

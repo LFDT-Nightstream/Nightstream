@@ -1,95 +1,13 @@
 mod common;
 
-use neo_math::F;
-use neo_wasm::layout::{COL_STACK_READ_VALUE_HI, COL_STACK_WRITE0_VALUE_LO};
-use neo_wasm::witness_builder::build_witness_vector;
-use neo_wasm::WasmOpTable;
-use neo_wasm::{build_wasm_relation_layout, sanity_check_lookup_row, traces_from_wasmtime_wasm_bytes, WasmOpcode};
+use neo_wasm::layout::COL_STACK_WRITE0_VALUE_LO;
+use neo_wasm::WasmOpcode;
+use neo_wasm::WasmOperation;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use std::collections::HashSet;
 
-fn trace_rows() -> Vec<neo_wasm::WasmVmStep> {
-    let wasm = wat::parse_str(
-        r#"(module
-            (memory 1)
-            (func (export "run") (result i32)
-                i32.const 0
-                i32.const 9
-                i32.store
-                i32.const 6
-                i32.const 7
-                i32.mul
-                drop
-                i64.const 3
-                i64.const 5
-                i64.mul
-                drop
-                i64.const 0x100000001
-                i64.clz
-                drop
-                i64.const -2
-                i64.const 1
-                i64.lt_s
-                drop
-                i32.const 0
-                i32.load)
-        )"#,
-    )
-    .expect("wat");
-    traces_from_wasmtime_wasm_bytes(&wasm, "run").expect("trace")
-}
-
 #[test]
-fn lookup_semantics_accept_real_wasm_rows() {
-    let layout = build_wasm_relation_layout();
-    for row in trace_rows() {
-        let witness = build_witness_vector(&row).unwrap();
-        sanity_check_lookup_row(&layout.auxiliary, &witness)
-            .unwrap_or_else(|err| panic!("expected lookup semantics to accept {:?}: {err}", row.opcode));
-    }
-}
-
-#[test]
-fn lookup_semantics_reject_tampered_shout_output() {
-    let layout = build_wasm_relation_layout();
-    let row = trace_rows()
-        .into_iter()
-        .find(|row| row.opcode == WasmOpcode::I32Mul)
-        .expect("i32.mul row");
-    let mut witness = build_witness_vector(&row).unwrap();
-    witness[COL_STACK_WRITE0_VALUE_LO] = F::from_u64(1234);
-    let err = sanity_check_lookup_row(&layout.auxiliary, &witness).expect_err("tampered op_table output should fail");
-    assert!(err.contains("i32_mul"));
-}
-
-#[test]
-fn lookup_semantics_reject_tampered_i64_unary_input_hi() {
-    let layout = build_wasm_relation_layout();
-    let row = trace_rows()
-        .into_iter()
-        .find(|row| row.opcode == WasmOpcode::I64Clz)
-        .expect("i64.clz row");
-    let mut witness = build_witness_vector(&row).unwrap();
-    witness[COL_STACK_READ_VALUE_HI[0]] = F::from_u64(2);
-    let err = sanity_check_lookup_row(&layout.auxiliary, &witness).expect_err("tampered i64 unary input should fail");
-    assert!(err.contains("i64_clz"));
-}
-
-#[test]
-fn lookup_semantics_reject_tampered_i64_binary_input_hi() {
-    let layout = build_wasm_relation_layout();
-    let row = trace_rows()
-        .into_iter()
-        .find(|row| row.opcode == WasmOpcode::I64LtS)
-        .expect("i64.lt_s row");
-    let mut witness = build_witness_vector(&row).unwrap();
-    witness[COL_STACK_READ_VALUE_HI[0]] = F::ZERO;
-    let err = sanity_check_lookup_row(&layout.auxiliary, &witness).expect_err("tampered i64 binary input should fail");
-    assert!(err.contains("i64_lt_s"));
-}
-
-#[test]
-fn compact_lookup_relation_covers_and_rejects_all_families() {
+fn operation_relation_covers_and_rejects_all_families() {
     let checked = common::checked_main(
         r#"(module
             (func (export "main") (result i32)
@@ -143,9 +61,13 @@ fn compact_lookup_relation_covers_and_rejects_all_families() {
                 i64.const 81985529216486895 i64.popcnt drop
                 i32.const 0))"#,
     );
-    let full_relation = neo_wasm::batch::build_batched_wasm_ccs(1).expect("lookup relation");
+    let full_relation = neo_wasm::batch::build_batched_wasm_ccs(1).expect("operation relation");
     let mut seen = HashSet::new();
-    for row in checked.trace.iter().filter(|row| row.info.uses_op_table) {
+    for row in checked
+        .trace
+        .iter()
+        .filter(|row| row.info.operation.is_some())
+    {
         seen.insert(row.opcode);
         let assignment = neo_wasm::batch::build_batched_witness(std::slice::from_ref(row), 1, 0).unwrap();
         full_relation
@@ -153,31 +75,31 @@ fn compact_lookup_relation_covers_and_rejects_all_families() {
             .is_satisfied_by(&assignment)
             .unwrap_or_else(|error| panic!("full relation rejected honest {:?}: {error}", row.opcode));
         let witness = neo_wasm::build_witness_vector(row).unwrap();
-        neo_wasm::audit_compact_lookup_witness(&witness)
-            .unwrap_or_else(|error| panic!("compact lookup relation rejected honest {:?}: {error}", row.opcode));
+        neo_wasm::audit_operation_witness(&witness)
+            .unwrap_or_else(|error| panic!("operation circuit rejected honest {:?}: {error}", row.opcode));
 
         let mut tampered = witness;
         let value = tampered[COL_STACK_WRITE0_VALUE_LO].as_canonical_u64() ^ 1;
         tampered[COL_STACK_WRITE0_VALUE_LO] = neo_math::F::from_u64(value);
         neo_wasm::write_range_check_bits(&mut tampered);
         assert!(
-            neo_wasm::audit_compact_lookup_witness(&tampered).is_err(),
-            "compact lookup relation accepted a forged {:?} output",
+            neo_wasm::audit_operation_witness(&tampered).is_err(),
+            "operation circuit accepted a forged {:?} output",
             row.opcode
         );
     }
-    let expected = WasmOpTable::all()
+    let expected = WasmOperation::all()
         .into_iter()
-        .map(WasmOpTable::opcode)
+        .map(WasmOperation::opcode)
         .collect::<HashSet<_>>();
     assert_eq!(
         seen, expected,
-        "fixture must execute every lookup family exactly at least once"
+        "fixture must execute every operation family exactly at least once"
     );
 }
 
 #[test]
-fn compact_lookup_signed_division_edges_and_advice_are_bound() {
+fn operation_signed_division_edges_and_advice_are_bound() {
     let checked = common::checked_main(
         r#"(module
             (func (export "main") (result i32)
@@ -204,31 +126,30 @@ fn compact_lookup_signed_division_edges_and_advice_are_bound() {
     assert_eq!(rows.len(), 8);
     for row in &rows {
         let witness = neo_wasm::build_witness_vector(row).unwrap();
-        neo_wasm::audit_compact_lookup_witness(&witness)
+        neo_wasm::audit_operation_witness(&witness)
             .unwrap_or_else(|error| panic!("signed division edge {:?} failed: {error}", row.opcode));
         let mut tampered = witness;
         let value = tampered[COL_STACK_WRITE0_VALUE_LO].as_canonical_u64() ^ 1;
         tampered[COL_STACK_WRITE0_VALUE_LO] = neo_math::F::from_u64(value);
         neo_wasm::write_range_check_bits(&mut tampered);
         assert!(
-            neo_wasm::audit_compact_lookup_witness(&tampered).is_err(),
+            neo_wasm::audit_operation_witness(&tampered).is_err(),
             "signed division edge accepted a forged {:?} result",
             row.opcode
         );
     }
 
     let representative = neo_wasm::build_witness_vector(rows.last().expect("signed division row")).unwrap();
-    let auxiliary_columns =
-        neo_wasm::audit_compact_lookup_witness(&representative).expect("honest signed division witness");
+    let auxiliary_columns = neo_wasm::audit_operation_witness(&representative).expect("honest signed division witness");
     assert_eq!(
-        neo_wasm::audit_compact_lookup_auxiliary_load_bearing(&representative)
-            .expect("every compact lookup auxiliary must be load-bearing"),
+        neo_wasm::audit_operation_auxiliary_load_bearing(&representative)
+            .expect("every operation auxiliary must be load-bearing"),
         auxiliary_columns,
     );
 }
 
 #[test]
-fn compact_lookup_accepts_nontrapping_signed_remainder_overflow() {
+fn operation_accepts_nontrapping_signed_remainder_overflow() {
     let checked = common::checked_main(
         r#"(module
             (func (export "main") (result i32)
@@ -245,12 +166,12 @@ fn compact_lookup_accepts_nontrapping_signed_remainder_overflow() {
     for row in rows {
         assert!(!row.state_after.trapped, "signed remainder overflow does not trap");
         let mut witness = neo_wasm::build_witness_vector(row).unwrap();
-        neo_wasm::audit_compact_lookup_witness(&witness)
-            .unwrap_or_else(|error| panic!("compact lookup rejected honest {:?}: {error}", row.opcode));
+        neo_wasm::audit_operation_witness(&witness)
+            .unwrap_or_else(|error| panic!("operation circuit rejected honest {:?}: {error}", row.opcode));
         witness[COL_STACK_WRITE0_VALUE_LO] = neo_math::F::ONE;
         neo_wasm::write_range_check_bits(&mut witness);
         assert!(
-            neo_wasm::audit_compact_lookup_witness(&witness).is_err(),
+            neo_wasm::audit_operation_witness(&witness).is_err(),
             "signed remainder overflow accepted a nonzero {:?} result",
             row.opcode
         );

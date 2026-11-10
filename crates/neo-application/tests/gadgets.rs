@@ -22,10 +22,12 @@ const ZERO_TEST: ZeroTest<2> = ZeroTest {
 
 #[test]
 fn zero_test_retains_semantics_and_assigns_satisfying_auxiliaries() {
-    let mut builder = R1csBuilder::new(5, 1, ONE).expect("valid test layout");
+    let mut builder = R1csBuilder::new(1, ONE).expect("valid test layout");
     let tag = ConstraintTag::new("inputs are equal", Owner::Predicate);
     ZERO_TEST.push_constraints(&mut builder.tagged(tag.clone()));
-    let relation = builder.build().expect("valid zero-test relation");
+    let relation = builder
+        .build(&test_columns(5))
+        .expect("valid zero-test relation");
 
     let [occurrence] = relation.catalog().gadget_occurrences() else {
         panic!("expected one retained gadget occurrence");
@@ -72,10 +74,12 @@ const SELECT: ConditionalSelect = ConditionalSelect {
 
 #[test]
 fn conditional_select_retains_semantics_and_assigns_only_its_delta() {
-    let mut builder = R1csBuilder::new(7, 1, ONE).expect("valid test layout");
+    let mut builder = R1csBuilder::new(1, ONE).expect("valid test layout");
     let tag = ConstraintTag::new("select input", Owner::Predicate);
     SELECT.push_constraints(&mut builder.tagged(tag.clone()));
-    let relation = builder.build().expect("valid conditional-select relation");
+    let relation = builder
+        .build(&test_columns(7))
+        .expect("valid conditional-select relation");
 
     let [occurrence] = relation.catalog().gadget_occurrences() else {
         panic!("expected one retained gadget occurrence");
@@ -129,4 +133,16 @@ fn conditional_select_retains_semantics_and_assigns_only_its_delta() {
     SELECT.assign_delta(&mut tampered);
     tampered[DELTA] += F::ONE;
     assert!(check_ccs_rowwise_zero(relation.structure(), &tampered[..1], &tampered[1..]).is_err());
+}
+
+fn test_columns(len: usize) -> neo_application::ColumnRegistry {
+    neo_application::ColumnRegistry::new([neo_application::ColumnFamilySpec {
+        region: "test",
+        start: 0,
+        len,
+        name: "ALL".into(),
+        role: "test columns",
+        width: neo_application::ColumnWidth::Field,
+    }])
+    .unwrap()
 }

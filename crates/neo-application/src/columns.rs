@@ -1,6 +1,16 @@
 //! Domain-neutral witness-column metadata and index ownership.
 
+use std::borrow::Cow;
 use std::collections::BTreeSet;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ColumnId(pub usize);
+
+impl From<usize> for ColumnId {
+    fn from(index: usize) -> Self {
+        Self(index)
+    }
+}
 
 /// Declared intrinsic width of a witness column.
 ///
@@ -26,12 +36,12 @@ impl ColumnWidth {
 }
 
 /// Declares one contiguous family of witness columns with a shared value width.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ColumnFamilySpec {
     pub region: &'static str,
     pub start: usize,
     pub len: usize,
-    pub name: &'static str,
+    pub name: Cow<'static, str>,
     pub role: &'static str,
     pub width: ColumnWidth,
 }
@@ -74,7 +84,7 @@ macro_rules! define_column_region {
                 region: $region,
                 start: $crate::define_column_region!(@start $name, $shape),
                 len: $crate::define_column_region!(@len $shape),
-                name: stringify!($name),
+                name: ::std::borrow::Cow::Borrowed(stringify!($name)),
                 role: $role,
                 width: $crate::define_column_region!(@width $shape),
             }),+
@@ -151,28 +161,34 @@ impl ColumnRegistry {
         let mut names = BTreeSet::new();
         for family in &families {
             if family.region.is_empty() {
-                return Err(ColumnRegistryError::EmptyRegion { name: family.name });
+                return Err(ColumnRegistryError::EmptyRegion {
+                    name: family.name.clone(),
+                });
             }
             if family.name.is_empty() {
                 return Err(ColumnRegistryError::EmptyName { start: family.start });
             }
             if family.len == 0 {
-                return Err(ColumnRegistryError::EmptyFamily { name: family.name });
+                return Err(ColumnRegistryError::EmptyFamily {
+                    name: family.name.clone(),
+                });
             }
             if let ColumnWidth::Bits(bits) = family.width {
                 if bits == 0 || bits > 63 {
                     return Err(ColumnRegistryError::InvalidBitWidth {
-                        name: family.name,
+                        name: family.name.clone(),
                         bits,
                     });
                 }
             }
-            if !names.insert(family.name) {
-                return Err(ColumnRegistryError::DuplicateName { name: family.name });
+            if !names.insert(family.name.clone()) {
+                return Err(ColumnRegistryError::DuplicateName {
+                    name: family.name.clone(),
+                });
             }
             if family.start != expected_start {
                 return Err(ColumnRegistryError::NonContiguous {
-                    name: family.name,
+                    name: family.name.clone(),
                     expected_start,
                     actual_start: family.start,
                 });
@@ -180,7 +196,9 @@ impl ColumnRegistry {
             expected_start = family
                 .start
                 .checked_add(family.len)
-                .ok_or(ColumnRegistryError::IndexOverflow { name: family.name })?;
+                .ok_or(ColumnRegistryError::IndexOverflow {
+                    name: family.name.clone(),
+                })?;
         }
 
         Ok(Self {
@@ -217,21 +235,21 @@ pub enum ColumnRegistryError {
     #[error("column registry requires at least one column family")]
     Empty,
     #[error("column family `{name}` has an empty region name")]
-    EmptyRegion { name: &'static str },
+    EmptyRegion { name: Cow<'static, str> },
     #[error("column family at index {start} has an empty name")]
     EmptyName { start: usize },
     #[error("column family `{name}` must contain at least one column")]
-    EmptyFamily { name: &'static str },
+    EmptyFamily { name: Cow<'static, str> },
     #[error("column family `{name}` has custom bit width {bits}; expected 1..=63")]
-    InvalidBitWidth { name: &'static str, bits: u8 },
+    InvalidBitWidth { name: Cow<'static, str>, bits: u8 },
     #[error("column family name `{name}` is declared more than once")]
-    DuplicateName { name: &'static str },
+    DuplicateName { name: Cow<'static, str> },
     #[error("column family `{name}` starts at {actual_start}, expected {expected_start}")]
     NonContiguous {
-        name: &'static str,
+        name: Cow<'static, str>,
         expected_start: usize,
         actual_start: usize,
     },
     #[error("column family `{name}` overflows the column index space")]
-    IndexOverflow { name: &'static str },
+    IndexOverflow { name: Cow<'static, str> },
 }

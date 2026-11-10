@@ -6,7 +6,7 @@
 //!
 //! Outputs, all in `formal/wasm-rocq/`:
 //! - `Columns.v` — the complete base witness column registry and widths.
-//! - `FullRelation.v` — every base R1CS row; the compact operation circuit is separate.
+//! - `FullRelation.v` — every base R1CS row; the operation circuit is separate.
 //! - `MemoryCatalog.v` — logical memory ports and cross-step continuity links.
 //! - `OpcodeCatalog.v` — opcode bytes used by the program ROM.
 

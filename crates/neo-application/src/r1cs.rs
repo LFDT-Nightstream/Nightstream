@@ -1,5 +1,7 @@
 //! Tagged R1CS construction with authoritative row and gadget catalogs.
 
+use std::borrow::Cow;
+
 use neo_ccs::{sparse_r1cs_to_ccs, CcsMatrix, CcsStructure, CscMat};
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
@@ -9,17 +11,20 @@ use crate::{GadgetDescriptor, GadgetOccurrence};
 /// Consumer-defined semantic ownership attached to one constraint row.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ConstraintTag<Owner> {
-    label: &'static str,
+    label: Cow<'static, str>,
     owner: Owner,
 }
 
 impl<Owner> ConstraintTag<Owner> {
-    pub const fn new(label: &'static str, owner: Owner) -> Self {
-        Self { label, owner }
+    pub fn new(label: impl Into<Cow<'static, str>>, owner: Owner) -> Self {
+        Self {
+            label: label.into(),
+            owner,
+        }
     }
 
-    pub const fn label(&self) -> &'static str {
-        self.label
+    pub fn label(&self) -> &str {
+        &self.label
     }
 
     pub const fn owner(&self) -> &Owner {
@@ -159,7 +164,7 @@ pub enum R1csCheckError {
 /// Builds an R1CS relation over the concrete Nightstream field.
 #[derive(Clone, Debug)]
 pub struct R1csBuilder<Owner> {
-    column_count: usize,
+    minimum_column_count: usize,
     public_input_count: usize,
     const_one_column: usize,
     rows: Vec<TaggedR1csRow<Owner>>,
@@ -181,24 +186,8 @@ impl<Owner> R1csBuilder<Owner> {
     ///
     /// The first `public_input_count` columns are the verifier-supplied `x`;
     /// all remaining columns are the private witness `w`. `const_one_column`
-    /// must lie in that public prefix.
-    pub fn new(
-        column_count: usize,
-        public_input_count: usize,
-        const_one_column: usize,
-    ) -> Result<Self, R1csBuildError> {
-        if public_input_count > column_count {
-            return Err(R1csBuildError::PublicInputCount {
-                count: public_input_count,
-                column_count,
-            });
-        }
-        if const_one_column >= column_count {
-            return Err(R1csBuildError::ConstantOneOutOfRange {
-                column: const_one_column,
-                column_count,
-            });
-        }
+    /// must lie in that public prefix. The final allocation is supplied to [`Self::build`].
+    pub fn new(public_input_count: usize, const_one_column: usize) -> Result<Self, R1csBuildError> {
         if const_one_column >= public_input_count {
             return Err(R1csBuildError::ConstantOneNotPublic {
                 column: const_one_column,
@@ -207,7 +196,7 @@ impl<Owner> R1csBuilder<Owner> {
         }
 
         Ok(Self {
-            column_count,
+            minimum_column_count: public_input_count,
             public_input_count,
             const_one_column,
             rows: Vec::new(),
@@ -272,13 +261,40 @@ impl<Owner> R1csBuilder<Owner> {
         )
     }
 
-    pub fn build(self) -> Result<R1csRelation<Owner>, R1csBuildError> {
+    /// Extend the exact tagged relation, including its gadget catalog.
+    pub fn from_relation(relation: &R1csRelation<Owner>) -> Self
+    where
+        Owner: Clone,
+    {
+        Self {
+            minimum_column_count: relation.column_count(),
+            public_input_count: relation.public_input_count,
+            const_one_column: relation.const_one_column,
+            rows: relation.catalog.rows.clone(),
+            gadget_occurrences: relation.catalog.gadget_occurrences.clone(),
+        }
+    }
+
+    /// Build using the registry's final column count, rejecting out-of-range term indices.
+    pub fn build(self, columns: &crate::ColumnRegistry) -> Result<R1csRelation<Owner>, R1csBuildError> {
+        let column_count = columns.column_count();
+        if self.public_input_count > column_count {
+            return Err(R1csBuildError::PublicInputCount {
+                count: self.public_input_count,
+                column_count,
+            });
+        }
+        if column_count < self.minimum_column_count {
+            return Err(R1csBuildError::InsufficientColumns {
+                required: self.minimum_column_count,
+                actual: column_count,
+            });
+        }
         if self.rows.is_empty() {
             return Err(R1csBuildError::EmptyRelation);
         }
 
         let row_count = self.rows.len();
-        let column_count = self.column_count;
         let mut a = Vec::new();
         let mut b = Vec::new();
         let mut c = Vec::new();
@@ -307,7 +323,7 @@ impl<Owner> R1csBuilder<Owner> {
 }
 
 impl<Owner: Clone> TaggedR1csBuilder<'_, Owner> {
-    pub(crate) fn next_row_index(&self) -> usize {
+    pub fn next_row_index(&self) -> usize {
         self.inner.rows.len()
     }
 
@@ -406,10 +422,10 @@ pub enum R1csSide {
 
 #[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
 pub enum R1csBuildError {
+    #[error("registry has {actual} columns, but the builder requires at least {required}")]
+    InsufficientColumns { required: usize, actual: usize },
     #[error("public input count {count} exceeds relation column count {column_count}")]
     PublicInputCount { count: usize, column_count: usize },
-    #[error("constant-one column {column} is outside relation column count {column_count}")]
-    ConstantOneOutOfRange { column: usize, column_count: usize },
     #[error("constant-one column {column} is outside the public input prefix of length {public_input_count}")]
     ConstantOneNotPublic {
         column: usize,

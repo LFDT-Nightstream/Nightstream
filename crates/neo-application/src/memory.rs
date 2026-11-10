@@ -122,7 +122,7 @@ impl<Id: Eq> MemoryCatalog<Id> {
                             memory: memory_index,
                             port: port_index,
                             column,
-                            family: family.name,
+                            family: family.name.to_string(),
                             width: family.width,
                         });
                     }
@@ -234,7 +234,7 @@ pub enum MemoryCatalogError {
         memory: usize,
         port: usize,
         column: usize,
-        family: &'static str,
+        family: String,
         width: ColumnWidth,
     },
 }

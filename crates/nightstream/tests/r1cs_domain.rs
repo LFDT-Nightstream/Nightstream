@@ -11,7 +11,7 @@ fn columns(width: usize) -> ColumnRegistry {
         region: "test",
         start: 0,
         len: width,
-        name: "row",
+        name: "row".into(),
         role: "test",
         width: ColumnWidth::Field,
     }])

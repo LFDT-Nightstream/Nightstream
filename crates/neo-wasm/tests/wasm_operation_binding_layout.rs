@@ -46,6 +46,7 @@ fn every_selector_column_is_declared_boolean() {
             named_column_family(col)
                 .expect("declared selector column")
                 .name
+                .as_ref()
         })
         .collect();
     assert!(

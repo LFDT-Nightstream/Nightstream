@@ -3,7 +3,8 @@
 use std::{fs, path::Path};
 
 use neo_application::render_column_audit_html;
-use neo_wasm::{build_wasm_relation, build_wasm_relation_layout, RANGE_BITS_REGION};
+use neo_wasm::operations::{r1cs::operation_circuit, OPERATIONS_REGION};
+use neo_wasm::{build_wasm_relation_layout, RANGE_BITS_REGION};
 
 fn main() {
     if let Err(error) = run() {
@@ -18,14 +19,14 @@ fn run() -> Result<(), String> {
         return Err("this command takes no arguments".to_owned());
     }
 
-    let relation = build_wasm_relation()?;
+    let relation = operation_circuit().map_err(|e| e.to_string())?.relation();
     let layout = build_wasm_relation_layout();
     let document = render_column_audit_html(
         "WASM column audit",
-        &relation,
+        relation,
         &layout.auxiliary.memory,
         &layout.auxiliary.continuity,
-        &[RANGE_BITS_REGION],
+        &[RANGE_BITS_REGION, OPERATIONS_REGION],
     );
 
     let workspace = Path::new(env!("CARGO_MANIFEST_DIR"))

@@ -1,4 +1,4 @@
-use super::isa::{WasmOpTable, WasmOpcode};
+use super::isa::WasmOpcode;
 use super::ivc_state::build_ivc_state_continuity_links;
 use super::layout::{
     selector_col, Column, COL_CALL_STACK_ADDR, COL_CALL_STACK_CALLER_FBP_VALUE, COL_CALL_STACK_CALLER_SP_BASE_VALUE,
@@ -38,45 +38,20 @@ use super::layout::{
     COL_LINEAR_MEM_LANE_VALUE, COL_LINEAR_MEM_LANE_VALUE_BEFORE, COL_LINEAR_MEM_OFFSET_IS_0,
     COL_LINEAR_MEM_OFFSET_IS_1, COL_LINEAR_MEM_OFFSET_IS_2, COL_LINEAR_MEM_OFFSET_IS_3, COL_LINEAR_MEM_USE_LANE0,
     COL_LINEAR_MEM_USE_LANE1, COL_LINEAR_MEM_USE_LANE2, COL_LOCAL_ADDR_HI, COL_LOCAL_ADDR_LO, COL_LOCAL_INDEX,
-    COL_LOCAL_VALUE, COL_LOCAL_VALUE_HI, COL_LOCAL_WRITE_ENABLED, COL_OPCODE_CODE, COL_OP_TABLE_ENABLED,
-    COL_OP_TABLE_ID, COL_OUTPUT_CAPTURED, COL_PC_AFTER, COL_PC_BEFORE, COL_PC_EDGE_KIND, COL_PC_FREF_ACTIVE,
-    COL_PC_ROM_ACTIVE, COL_PC_ROM_CALL_RETURN_CHOICE, COL_PROGRAM_CALL_INDIRECT_IMMEDIATES_ACTIVE,
-    COL_PROGRAM_GLOBAL_INDEX_ACTIVE, COL_PROGRAM_LOCAL_INDEX_ACTIVE, COL_PROGRAM_TABLE_ID_ACTIVE, COL_SIGN_EXT_BIT,
-    COL_SIGN_EXT_LOW7, COL_STACK_READ_ACTIVE, COL_STACK_READ_ADDR_HI, COL_STACK_READ_ADDR_LO, COL_STACK_READ_VALUE_HI,
-    COL_STACK_READ_VALUE_LO, COL_STACK_WRITE0_ACTIVE, COL_STACK_WRITE0_ADDR_HI, COL_STACK_WRITE0_ADDR_LO,
-    COL_STACK_WRITE0_HI_ACTIVE, COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO, COL_TABLE_ID, COL_TABLE_INDEX,
-    COL_TABLE_READ_ENABLED, COL_TABLE_SET_LIVE, COL_TABLE_SIZE, COL_TABLE_SIZE_READ_ENABLED, COL_TABLE_VALUE,
-    COL_TURN_BOUNDARY, COL_TURN_EXPORT_FREF_BEFORE,
+    COL_LOCAL_VALUE, COL_LOCAL_VALUE_HI, COL_LOCAL_WRITE_ENABLED, COL_OPCODE_CODE, COL_OUTPUT_CAPTURED, COL_PC_AFTER,
+    COL_PC_BEFORE, COL_PC_EDGE_KIND, COL_PC_FREF_ACTIVE, COL_PC_ROM_ACTIVE, COL_PC_ROM_CALL_RETURN_CHOICE,
+    COL_PROGRAM_CALL_INDIRECT_IMMEDIATES_ACTIVE, COL_PROGRAM_GLOBAL_INDEX_ACTIVE, COL_PROGRAM_LOCAL_INDEX_ACTIVE,
+    COL_PROGRAM_TABLE_ID_ACTIVE, COL_SIGN_EXT_BIT, COL_SIGN_EXT_LOW7, COL_STACK_READ_ACTIVE, COL_STACK_READ_ADDR_HI,
+    COL_STACK_READ_ADDR_LO, COL_STACK_READ_VALUE_HI, COL_STACK_READ_VALUE_LO, COL_STACK_WRITE0_ACTIVE,
+    COL_STACK_WRITE0_ADDR_HI, COL_STACK_WRITE0_ADDR_LO, COL_STACK_WRITE0_HI_ACTIVE, COL_STACK_WRITE0_VALUE_HI,
+    COL_STACK_WRITE0_VALUE_LO, COL_TABLE_ID, COL_TABLE_INDEX, COL_TABLE_READ_ENABLED, COL_TABLE_SET_LIVE,
+    COL_TABLE_SIZE, COL_TABLE_SIZE_READ_ENABLED, COL_TABLE_VALUE, COL_TURN_BOUNDARY, COL_TURN_EXPORT_FREF_BEFORE,
 };
-use super::lookup_semantics::{semantics_for_lookup_family, LookupSemantics};
-use super::tables::WasmLookupArity;
 use super::WasmMemoryId;
 use neo_application::{
     ContinuityCatalog, MemoryCatalog, MemoryKind, MemoryPortActivation, MemoryPortKind, MemoryPortSpec, MemorySpec,
 };
 use std::sync::OnceLock;
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct WasmLookupFamilySpec {
-    pub name: &'static str,
-    pub arity: WasmLookupArity,
-    pub kind: WasmLookupFamilyKind,
-    pub semantics: LookupSemantics,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum WasmLookupFamilyKind {
-    OpTable(WasmOpTable),
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct WasmLookupBindingSpec {
-    pub name: &'static str,
-    pub family: &'static str,
-    pub columns: Vec<Column>,
-    pub gate: Option<Column>,
-    pub role: &'static str,
-}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct LinearMemoryColumns {
@@ -147,8 +122,6 @@ pub struct SignExtensionColumns {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct WasmAuxiliaryRelations {
-    pub lookup_families: Vec<WasmLookupFamilySpec>,
-    pub lookup_bindings: Vec<WasmLookupBindingSpec>,
     pub memory: MemoryCatalog<WasmMemoryId>,
     pub continuity: ContinuityCatalog,
 }
@@ -312,63 +285,6 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
         low7: Column(COL_SIGN_EXT_LOW7),
         bit: Column(COL_SIGN_EXT_BIT),
     };
-
-    let lookup_families: Vec<WasmLookupFamilySpec> = WasmOpTable::all()
-        .into_iter()
-        .map(|op_table| {
-            let family = WasmLookupFamilySpec {
-                name: op_table.name(),
-                arity: match op_table {
-                    WasmOpTable::I32Clz | WasmOpTable::I32Ctz | WasmOpTable::I32Popcnt => WasmLookupArity::Unary,
-                    op if op.is_i64_binary() => WasmLookupArity::Tuple(4),
-                    op if op.is_i64_unary() => WasmLookupArity::Tuple(2),
-                    _ => WasmLookupArity::Binary,
-                },
-                kind: WasmLookupFamilyKind::OpTable(op_table),
-                semantics: LookupSemantics {
-                    predicate: super::lookup_semantics::LookupPredicate::And(Vec::new()),
-                },
-            };
-            WasmLookupFamilySpec {
-                semantics: semantics_for_lookup_family(&family),
-                ..family
-            }
-        })
-        .collect();
-
-    let lookup_bindings: Vec<WasmLookupBindingSpec> = WasmOpTable::all()
-        .into_iter()
-        .map(|table| WasmLookupBindingSpec {
-            name: table.name(),
-            family: table.name(),
-            columns: match table {
-                op if op.is_i64_binary() => vec![
-                    Column(COL_OP_TABLE_ID),
-                    Column(COL_STACK_READ_VALUE_LO[0]),
-                    Column(COL_STACK_READ_VALUE_HI[0]),
-                    Column(COL_STACK_READ_VALUE_LO[1]),
-                    Column(COL_STACK_READ_VALUE_HI[1]),
-                    Column(COL_STACK_WRITE0_VALUE_LO),
-                    Column(COL_STACK_WRITE0_VALUE_HI),
-                ],
-                op if op.is_i64_unary() => vec![
-                    Column(COL_OP_TABLE_ID),
-                    Column(COL_STACK_READ_VALUE_LO[0]),
-                    Column(COL_STACK_READ_VALUE_HI[0]),
-                    Column(COL_STACK_WRITE0_VALUE_LO),
-                    Column(COL_STACK_WRITE0_VALUE_HI),
-                ],
-                _ => vec![
-                    Column(COL_OP_TABLE_ID),
-                    Column(COL_STACK_READ_VALUE_LO[0]),
-                    Column(COL_STACK_READ_VALUE_LO[1]),
-                    Column(COL_STACK_WRITE0_VALUE_LO),
-                ],
-            },
-            gate: Some(Column(COL_OP_TABLE_ENABLED)),
-            role: "op-table row binding",
-        })
-        .collect();
 
     let mut memories = vec![
         MemorySpec {
@@ -1131,12 +1047,7 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
         .expect("valid WASM continuity declarations");
 
     WasmRelationLayout {
-        auxiliary: WasmAuxiliaryRelations {
-            lookup_families,
-            lookup_bindings,
-            memory,
-            continuity,
-        },
+        auxiliary: WasmAuxiliaryRelations { memory, continuity },
         linear_memory,
         sign_extension,
     }

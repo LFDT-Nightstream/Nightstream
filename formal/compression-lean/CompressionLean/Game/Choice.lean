@@ -1,7 +1,7 @@
 import CompressionLean.Game.Compose
 
 /-! Two games behind one choice (CW-6.5). The prover names a side, then plays that side's game.
-Option B's final program runs one layer-1 verifier per slot, each on its own relation; one
+The bounded-depth scheme's final program runs one layer-1 verifier per slot, each on its own relation; one
 restoration game over the shrink game and this choice restores both (`restorePair`). The choice
 draws nothing, so it avoids what both sides avoid (`choice_avoids`) at the larger of their
 densities (`choice_density`). A position of a side is a position of the choice that ends where it

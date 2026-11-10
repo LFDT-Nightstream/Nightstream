@@ -19,9 +19,9 @@ use crate::error::PiCcsError;
 const RATE: usize = neo_ccs::crypto::poseidon2_goldilocks::RATE;
 
 /// What a fold's PiCCS binds besides its claims, and whose norm terms it
-/// checks. SuperNeo v1.2's fold (`production`) checks every source. Option B's
+/// checks. SuperNeo v1.2's fold (`production`) checks every source. The bounded-depth scheme's
 /// light fold checks the fresh source only, and its refresh fold binds the
-/// PiDEC children after the statement (Lean `OptionB.Keys`).
+/// PiDEC children after the statement (Lean `BoundedDepth.Keys`).
 #[derive(Clone, Copy, Debug)]
 pub struct FoldProfile<'a> {
     pub domain: [F; RATE],

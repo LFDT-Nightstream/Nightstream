@@ -13,7 +13,7 @@ const WIDTH: usize = neo_ccs::crypto::poseidon2_goldilocks::WIDTH;
 const CUBE_VARIABLES: usize = PI_CCS_V1_2_ROUND_COUNT;
 const SOURCE_COUNT: usize = 17;
 const LIGHT_SOURCE_COUNT: usize = 2;
-/// The fold domains of option B's light and refresh PiCCS (Lean `OptionB.Keys`).
+/// The fold domains of the bounded-depth scheme's light and refresh PiCCS (Lean `BoundedDepth.Keys`).
 pub const LIGHT_DOMAIN: &[u8] = b"Nightstream/SuperNeo/fold/light/v1";
 pub const REFRESH_DOMAIN: &[u8] = b"Nightstream/SuperNeo/fold/refresh/v1";
 const CHILD_WORDS: usize = 16 * (COMMITMENT_WORDS + EVALUATION_WORDS);
@@ -41,7 +41,7 @@ impl PiCcsV1_2Transcript {
     }
 }
 
-/// The light fold's transcript (`OptionB.lightPiCcsOracle`): the production
+/// The light fold's transcript (`BoundedDepth.lightPiCcsOracle`): the production
 /// transcript under the light fold's domain, with the two sources' outputs.
 pub fn derive_light_transcript(
     fresh_commitment: &[u64],
@@ -60,7 +60,7 @@ pub fn derive_light_transcript(
     )
 }
 
-/// The refresh fold's transcript (`OptionB.refreshWords`): the 16 Π_DEC
+/// The refresh fold's transcript (`BoundedDepth.refreshWords`): the 16 Π_DEC
 /// children's commitments and evaluation families follow the statement.
 pub fn derive_refresh_transcript(
     fresh_commitment: &[u64],

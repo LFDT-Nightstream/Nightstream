@@ -10,7 +10,7 @@ def printFacts (key : Circuit.Layer1Key) : IO Bool := do
   | none => IO.println "key facts hold"; pure true
 
 def printWithin (key : Circuit.Layer1Key) : IO Bool := do
-  if Spec.optionBFits key then IO.println "key commits within option B's key width"; pure true
-  else IO.println "key commits past option B's key width"; pure false
+  if Spec.boundedDepthFits key then IO.println "key commits within the bounded-depth scheme's key width"; pure true
+  else IO.println "key commits past the bounded-depth scheme's key width"; pure false
 
 end CompressionLeanExe.Key

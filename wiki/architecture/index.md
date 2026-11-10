@@ -10,9 +10,9 @@ the step packages. Production compilation and execution do not run Lean.
 | `nightstream/src/application` | Application program and witness construction |
 | `nightstream/src/circuit.rs` | The public API that compiles, saves and loads the application and makes the prover and verifier |
 | `nightstream/src/folding` | PiCCS, PiRLC, PiDEC, the light and refresh folds, and the verifier-driven transcript |
-| `nightstream/src/lifecycle/option_b` | Steps, verification, proof bytes and the final proof |
+| `nightstream/src/lifecycle/bounded_depth` | Steps, verification, proof bytes and the final proof |
 | `nightstream/src/nebula` | Nebula memory applications |
-| `nightstream-fprime/src/option_b` | Loading of the option-B packages, their identity and their words |
+| `nightstream-fprime/src/bounded_depth` | Loading of the bounded-depth packages, their identity and their words |
 | `nightstream-fprime/src/package` | Package formats, matrix programs and the PiCCS transcripts of the folds |
 | `neo-reductions` | Folding arithmetic and sum-check engines |
 | `neo-ajtai` | Fixed-key commitments and low-norm decomposition |

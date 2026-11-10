@@ -16,8 +16,8 @@
 //! all of the logged instructions. The verifier's relation and WHIR keys go
 //! to `target/lean-lowering/layer1.json`, and `Linear`'s, `Honest`'s,
 //! `Late`'s and `Openings`' inputs to `linear.json`, `honest.json`,
-//! `late.json` and `openings.json`. `option_b_layer1_matches_lean` checks
-//! the verifier's shape run on both option-B slot keys the same way.
+//! `late.json` and `openings.json`. `bounded_depth_layer1_matches_lean` checks
+//! the verifier's shape run on both bounded-depth slot keys the same way.
 
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
@@ -501,23 +501,23 @@ fn lower_check(name: &str, path: &Path, program: &[PathBuf]) -> String {
     stdout.into_owned()
 }
 
-/// `OptionB::layer1_relation` (`lifecycle/option_b/compression.rs`): a slot
+/// `BoundedDepth::layer1_relation` (`lifecycle/bounded_depth/compression.rs`): a slot
 /// claim has 270 public words and 28 point variables (`PUBLIC_WORDS`,
 /// `PI_CCS_V1_2_ROUND_COUNT`).
 fn slot_relation(key: &Key, bound: u32, bits: f64) -> Relation<'_> {
     Relation::new(key, 270 / D, 28, bound, bits).unwrap()
 }
 
-/// Option B's two layer-1 relations, from the keys that nightstream's
-/// `option_b_layer1_keys_are_written` writes: their JSON for `optionBCheck`
+/// The bounded-depth scheme's two layer-1 relations, from the keys that nightstream's
+/// `bounded_depth_layer1_keys_are_written` writes: their JSON for `boundedDepthCheck`
 /// and Lean's key facts.
 #[test]
-#[ignore = "needs nightstream's option_b_layer1_keys_are_written and lake build lowerCheck"]
-fn option_b_layer1_matches_lean() {
+#[ignore = "needs nightstream's bounded_depth_layer1_keys_are_written and lake build lowerCheck"]
+fn bounded_depth_layer1_matches_lean() {
     for slot in 0..2 {
-        let name = format!("option_b_layer1_{slot}");
+        let name = format!("bounded_depth_layer1_{slot}");
         let bytes = std::fs::read(workspace().join(format!("target/lean-lowering/{name}.bin")))
-            .unwrap_or_else(|error| panic!("{name}.bin: {error}; run option_b_layer1_keys_are_written first"));
+            .unwrap_or_else(|error| panic!("{name}.bin: {error}; run bounded_depth_layer1_keys_are_written first"));
         let (key, bound, bits): (Key, u32, f64) = bincode::deserialize(&bytes).unwrap();
         let relation = slot_relation(&key, bound, bits);
         let layer1 = Layer1::shape(&relation);

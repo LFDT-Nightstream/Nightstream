@@ -4,6 +4,6 @@ import CompressionLean.Checks.PoseidonRows
 import CompressionLean.Checks.Runs
 import CompressionLean.Checks.SetupFacts
 
-import CompressionLean.Checks.OptionBForms
-import CompressionLean.Checks.OptionBMatrix
-import CompressionLean.Checks.OptionBCover
+import CompressionLean.Checks.BoundedDepthForms
+import CompressionLean.Checks.BoundedDepthMatrix
+import CompressionLean.Checks.BoundedDepthCover

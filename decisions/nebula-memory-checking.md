@@ -46,7 +46,7 @@ protocol, and section 8 lists the differences from Nebula.
    `η`: `(Q_η + 1) · 2 · m_mem/q²` plus a retry term in which each counted
    pair is a Poseidon2 transcript collision, with no separate collision
    premise (owner, 2026-11-04). Lean proves this bound in that model
-   (`Export.OptionB.NebulaSecurity.romMemoryRound`). The adversary time and
+   (`Export.BoundedDepth.NebulaSecurity.romMemoryRound`). The adversary time and
    the query counts stay symbolic (2026-10-12).
 6. **Packages.** Lean emits two test packages for the machine application.
    A package for a production geometry waits for the production application

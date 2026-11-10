@@ -922,8 +922,8 @@ theorem spec_implies_keyInitialState
     _ = _ := by rfl
 
 /-- The statement absorption of a fold transcript that starts from `domain`: the domain chunk,
-then the prior digest and the fresh blocks. Option B's light and refresh transcripts start from
-their own domains (`OptionB.foldDomainChunks_distinct`). -/
+then the prior digest and the fresh blocks. The bounded-depth scheme's light and refresh transcripts start from
+their own domains (`BoundedDepth.foldDomainChunks_distinct`). -/
 def domainActions {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}

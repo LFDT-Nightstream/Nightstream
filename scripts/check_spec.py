@@ -10,9 +10,9 @@ must exist under one of BASES.
 
 Between `<!-- params -->` and `<!-- /params -->` SPEC.md holds a table that this script
 generates. Its values come from the integer equations of the Lean theorems in THEOREMS, from
-the number definitions in DEFINITIONS, from the headers of the Lean-emitted option-B packages
+the number definitions in DEFINITIONS, from the headers of the Lean-emitted bounded-depth packages
 in PACKAGES and from the row counts of the Lean-emitted parity file PARITY. The header field
-names come from the Lean format `Package.format` in `Export/OptionB/StepPackage.lean`. Every
+names come from the Lean format `Package.format` in `Export/BoundedDepth/StepPackage.lean`. Every
 value needs a label in LABELS and every label a value, so the table never drops or invents a
 row.
 
@@ -38,13 +38,13 @@ FPRIME = ROOT / "formal/nightstream-fprime/NightstreamFPrime"
 COMPRESSION = ROOT / "formal/compression-lean/CompressionLean"
 BASES = [ROOT, FPRIME, COMPRESSION]
 ARTIFACTS = ROOT / "formal/nightstream-fprime/artifacts"
-# The option-B packages of the reference application: the light and refresh step circuits and
-# the finish circuit (`Export/OptionB/EmitMain.lean`).
-PACKAGES = [(name, ARTIFACTS / f"nightstream-fprime-option-b-{name}-v1.json")
+# The bounded-depth packages of the reference application: the light and refresh step circuits and
+# the finish circuit (`Export/BoundedDepth/EmitMain.lean`).
+PACKAGES = [(name, ARTIFACTS / f"nightstream-fprime-bounded-depth-{name}-v1.json")
             for name in ("light", "refresh", "finish")]
-PARITY = ARTIFACTS / "nightstream-fprime-option-b-parity-v1.json"
-FORMATS = FPRIME / "Export/OptionB/StepPackage.lean"
-PARITY_SOURCE = FPRIME / "Export/OptionB/Parity.lean"
+PARITY = ARTIFACTS / "nightstream-fprime-bounded-depth-parity-v1.json"
+FORMATS = FPRIME / "Export/BoundedDepth/StepPackage.lean"
+PARITY_SOURCE = FPRIME / "Export/BoundedDepth/Parity.lean"
 BEGIN, END = "<!-- params -->", "<!-- /params -->"
 # The Markdown files whose names say "spec": the protocol specification and the scope of a
 # profiling tool.
@@ -70,7 +70,7 @@ THEOREMS = [
 # Lean definitions whose value is a number or a power `base ^ exponent`.
 DEFINITIONS = [
     (FPRIME / "Spec/Folding/Schedule.lean", "productionLightFoldCap"),
-    (FPRIME / "Export/OptionB/StepRelation.lean", "keyWidth"),
+    (FPRIME / "Export/BoundedDepth/StepRelation.lean", "keyWidth"),
 ]
 
 # Each value's symbol and meaning. A key is the left side of a theorem's equation or a field

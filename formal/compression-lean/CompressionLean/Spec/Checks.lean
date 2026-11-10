@@ -4,11 +4,11 @@ import CompressionLean.Ports.Setup
 import CompressionLean.Production
 import CompressionLean.Layer1.Soundness
 import NightstreamFPrime.Export.PackageExpansion
-import NightstreamFPrime.Export.OptionB.StepRelation
+import NightstreamFPrime.Export.BoundedDepth.StepRelation
 import Std.Data.HashSet
-import NightstreamFPrime.Layout.OptionB.LightAssemblerCompleteness
-import NightstreamFPrime.Layout.OptionB.RefreshAssemblerCompleteness
-import NightstreamFPrime.Layout.OptionB.StepCircuits
+import NightstreamFPrime.Layout.BoundedDepth.LightAssemblerCompleteness
+import NightstreamFPrime.Layout.BoundedDepth.RefreshAssemblerCompleteness
+import NightstreamFPrime.Layout.BoundedDepth.StepCircuits
 import NightstreamFPrime.Layout.PiCCS.v1_2.Leaves.OutputBinding
 import NightstreamFPrime.Layout.ProductionRelation.CcsOpening
 import NightstreamFPrime.Lifecycle.Nebula.FactorWords
@@ -128,7 +128,7 @@ def keyChecks (key : Layer1Key) : List Fact :=
 def keyFailure (key : Layer1Key) : Option String :=
   firstFailure (keyChecks key)
 
-/-- The key commits at most the blocks of `lw`. Option B's light key commits fewer blocks than its
+/-- The key commits at most the blocks of `lw`. The bounded-depth scheme's light key commits fewer blocks than its
 key width, and its witness is zero past them (`Final.parent_holds`). -/
 def KeyWithin (key : Layer1Key) (lw : ℕ) : Prop :=
   key.relation.key.blocks ≤ NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81ColumnLayout.blockCount lw
@@ -136,8 +136,8 @@ def KeyWithin (key : Layer1Key) (lw : ℕ) : Prop :=
 instance (key : Layer1Key) (lw : ℕ) : Decidable (KeyWithin key lw) :=
   inferInstanceAs (Decidable (_ ≤ _))
 
-def optionBFits (key : Layer1Key) : Bool :=
-  decide (KeyWithin key NightstreamFPrime.Export.OptionB.StepRelation.keyWidth)
+def boundedDepthFits (key : Layer1Key) : Bool :=
+  decide (KeyWithin key NightstreamFPrime.Export.BoundedDepth.StepRelation.keyWidth)
 
 def sortedValues (f : Push → ℕ) (pushes : List Push) : Array ℕ :=
   ((pushes.foldl (fun set p => set.insert (f p)) (∅ : Std.HashSet ℕ)).toList.mergeSort).toArray

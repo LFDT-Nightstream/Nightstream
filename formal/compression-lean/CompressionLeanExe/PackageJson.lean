@@ -1,5 +1,5 @@
 import CompressionLeanExe.Parse
-import NightstreamFPrime.Export.OptionB.StepPackage
+import NightstreamFPrime.Export.BoundedDepth.StepPackage
 import NightstreamFPrime.Lifecycle.Nebula.FactorWords
 import NightstreamFPrime.Spec
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.GoldilocksCausal
@@ -7,14 +7,14 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.TargetConvention
 import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
 import NightstreamFPrime.Spec.Nebula
 
-/-! An option-B step package from its artifact. The package grammar is natural numbers and arrays
+/-! A bounded-depth step package from its artifact. The package grammar is natural numbers and arrays
 (`StepPackage.Package.format`), nested deeper than a general JSON reader allows. -/
 
 namespace CompressionLeanExe.PackageJson
 
 open CompressionLeanExe.Parse
 open NightstreamFPrime.Export.Codec (Value)
-open NightstreamFPrime.Export.OptionB.StepPackage (Package)
+open NightstreamFPrime.Export.BoundedDepth.StepPackage (Package)
 
 def digitsEnd (data : ByteArray) (pos : ℕ) : ℕ :=
   if h : pos < data.size then if 48 ≤ data[pos] ∧ data[pos] ≤ 57 then digitsEnd data (pos + 1) else pos

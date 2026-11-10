@@ -1,19 +1,19 @@
 import CompressionLean
 
-/-! Non-vacuity gate for each slot's `Spec.OptionB.Reads` (`reads_of_witness`). No theorem here joins
+/-! Non-vacuity gate for each slot's `Spec.BoundedDepth.Reads` (`reads_of_witness`). No theorem here joins
 it with `Bridge.merkleBinds_of_root`. -/
 
 namespace CompressionLeanTests.Reading
 
-open CompressionLean CompressionLean.Spec CompressionLean.Spec.OptionB CompressionLean.Sim.OptionB
+open CompressionLean CompressionLean.Spec CompressionLean.Spec.BoundedDepth CompressionLean.Sim.BoundedDepth
 open CompressionLean.Lowering CompressionLean.Circuit CompressionLean.Bridge CompressionLean.Layer1
-open NightstreamFPrime.Export.OptionB.StepPackage (Package)
+open NightstreamFPrime.Export.BoundedDepth.StepPackage (Package)
 
 theorem reads_of_witness {finish : Package} {stateKeys : List Replay.Word} {keys : Fin 2 → Layer1Key}
     (S : Fin 2 → Setup Gl) (facts : ∀ slot, KeyFacts (keys slot))
     (fits : ∀ slot, (S slot).Fits (shapeOf (keys slot).relation))
     (describes : ∀ slot, (structureOf (keys slot).relation.key.layout).Describes (shapeOf (keys slot).relation) (S slot))
-    (L0 L1 : ℕ) (fit : OptionB.fits finish = true) (keysLength : stateKeys.length ≤ 8)
+    (L0 L1 : ℕ) (fit : BoundedDepth.fits finish = true) (keysLength : stateKeys.length ≤ 8)
     (x : StateWords) (wit : ℕ → Gl)
     (holds : ((shrinkRun finish stateKeys keys x).ccs Block.poseidonTemplate (counts finish stateKeys keys)).Relation
       wit)

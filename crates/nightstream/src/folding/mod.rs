@@ -1,9 +1,9 @@
-//! The prover side of the option-B folds (SPEC.md Algorithm 4).
+//! The prover side of the bounded-depth folds (SPEC.md Algorithm 4).
 //! Witnesses remain prover data. Public claims acquire authority only through verification.
 
+pub(crate) mod bounded_depth;
 mod claims;
 pub(crate) mod kernels;
-pub(crate) mod option_b;
 mod params;
 pub(crate) mod pi_ccs;
 pub(crate) mod pi_dec;

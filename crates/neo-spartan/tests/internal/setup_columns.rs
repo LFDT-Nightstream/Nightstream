@@ -1,4 +1,4 @@
-//! Writes the run oracles of each option-B layer-1 key for the Lean `setupCheck`.
+//! Writes the run oracles of each bounded-depth layer-1 key for the Lean `setupCheck`.
 //!
 //! The file is little endian: the run count and the slot count (`u64`), then
 //! per run its row, per run its slot (`u32`), per run its coefficient
@@ -90,17 +90,17 @@ fn workspace() -> PathBuf {
 }
 
 #[test]
-#[ignore = "needs option_b_runs_{0,1}.bin of nightstream's option_b_runs_rebuild_the_layer1_keys and \
-            option_b_layer1_{0,1}.bin of its option_b_layer1_keys_are_written"]
-fn option_b_setup_columns() {
+#[ignore = "needs bounded_depth_runs_{0,1}.bin of nightstream's bounded_depth_runs_rebuild_the_layer1_keys and \
+            bounded_depth_layer1_{0,1}.bin of its bounded_depth_layer1_keys_are_written"]
+fn bounded_depth_setup_columns() {
     let dir = workspace().join("target/lean-lowering");
     for slot in 0..2 {
-        let bytes = std::fs::read(dir.join(format!("option_b_layer1_{slot}.bin"))).unwrap();
+        let bytes = std::fs::read(dir.join(format!("bounded_depth_layer1_{slot}.bin"))).unwrap();
         let (layer1, ..): (Key, u32, f64) = bincode::deserialize(&bytes).unwrap();
         write_columns(
-            &format!("option_b_runs_{slot}.bin"),
+            &format!("bounded_depth_runs_{slot}.bin"),
             &layer1,
-            &format!("option_b_setup_columns_{slot}.bin"),
+            &format!("bounded_depth_setup_columns_{slot}.bin"),
         );
     }
 }

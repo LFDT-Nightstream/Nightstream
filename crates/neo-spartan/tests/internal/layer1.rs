@@ -356,7 +356,7 @@ fn non_canonical_root_words_do_not_decode() {
 /// `Relation::new` gives the sizes of the Lean `parentShape_of`
 /// (`formal/compression-lean/CompressionLean/Final/RustSetup.lean`): `D = 54`,
 /// six lane variables, `κ = 22`, the key's matrices and blocks, and the public
-/// blocks and bound that the caller passes. Option B's slots pass five public
+/// blocks and bound that the caller passes. The bounded-depth scheme's slots pass five public
 /// blocks and a bound below `2^16` (`nightstream`, `final_proof_verifies`).
 #[test]
 fn relation_shape_has_the_lean_constants() {

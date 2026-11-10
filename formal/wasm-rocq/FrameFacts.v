@@ -3,7 +3,7 @@
 From Stdlib Require Import List ZArith Lia.
 Require Import Wasm2 WasmIntegers StraightLineSpec StackSimulation SpecTecCalls SpecTecBranches CallerSpec
   CallerValidation FunctionValidation ProgramSpec ProgramEncoding CodeLayout Fragment CodeFacts ControlDecode
-  ControlInvariant.
+  ControlInvariant TypeFacts.
 Import ListNotations.
 Open Scope nat_scope.
 
@@ -282,8 +282,7 @@ Proof.
   intros program s module C Hstore Hmodule x f Hf.
   unfold programCallees in Hf; cbn [calleeAt] in Hf.
   destruct (nth_error (FUNCS module) (N.to_nat x)) as [address | ] eqn:Ha; [ | discriminate].
-  destruct (function_at_sound _ _ _ Hf) as [Hfi _].
-  rewrite (function_at_i32_type _ _ _ Hf).
+  destruct (function_at_typed _ _ _ Hf) as [Hfi _].
   exact (module_function_type _ _ _ _ _ _ Hmodule Ha ltac:(rewrite Hstore; exact Hfi)).
 Qed.
 
@@ -300,6 +299,69 @@ Proof.
   rewrite Forall_forall in Hvalid. apply Hvalid. eapply nth_error_In; exact Hfi.
 Qed.
 
+(* Keep the declared types when extracting the body judgement. *)
+Lemma function_body_validation : forall program s index f,
+  programValidated program s -> functionAt program index = Some f ->
+  exists C, Moduleinst_ok s (guestModule f) C /\
+    Instrs_ok (functionContext C (typedFunction (guestModule f) (guestTypeIndex f)
+      (guestParamTypes f) (guestResultTypes f) (guestLocalTypes f) (guestBody f))) (guestBody f)
+      (mk_functype (mk_list _ []) (mk_list _ (guestResultTypes f))).
+Proof.
+  intros program s index f [Hfuncs _] Hf.
+  destruct (function_at_typed _ _ _ Hf) as [Hnth _].
+  pose proof (proj1 (Forall_forall _ _) Hfuncs _ (nth_error_In _ _ Hnth)) as Hinst.
+  exact (typed_funcinst_body_validated _ _ _ _ _ _ _ Hinst).
+Qed.
+
+Lemma function_concrete_types : forall program index f,
+  functionAt program index = Some f ->
+  concreteTypes (guestFrameTypes f) /\ concreteTypes (guestResultTypes f).
+Proof.
+  intros program index f Hf. destruct (function_at_i32_types _ _ _ Hf) as [Hp [Hr Hl]].
+  unfold guestFrameTypes. rewrite Hp, Hr, Hl. split; [apply Forall_app; split | ];
+    apply Forall_forall; intros t Ht; apply repeat_spec in Ht; subst t; discriminate.
+Qed.
+
+(* The decoder's computed types also validate the continuation in SpecTec's
+   actual function and label contexts. No synthetic all-i32 context is used. *)
+Lemma function_path_validation : forall program s index f labels offset segments top,
+  store_FUNCS s = program -> programValidated program s -> functionAt program index = Some f ->
+  pathTypes (guestFrameTypes f) (programCallees program (guestModule f))
+    (guestBody f) labels offset = Some (segments, top) ->
+  exists C inner current outputs,
+    Moduleinst_ok s (guestModule f) C /\
+    pathCode (guestBody f) labels = Some inner /\
+    pathValidationContext
+      (functionContext C (typedFunction (guestModule f) (guestTypeIndex f)
+        (guestParamTypes f) (guestResultTypes f) (guestLocalTypes f) (guestBody f)))
+      (guestResultTypes f) (guestBody f) labels = Some (current, outputs) /\
+    context_LOCALS current = guestFrameTypes f /\ concreteTypes top /\
+    Instrs_ok current (skipn offset inner) (mk_functype (mk_list _ top) (mk_list _ outputs)).
+Proof.
+  intros program s index f labels offset segments top Hstore Hvalid Hf Hpath.
+  destruct (function_body_validation _ _ _ _ Hvalid Hf) as [C [HC Hbody]].
+  set (FC := functionContext C (typedFunction (guestModule f) (guestTypeIndex f)
+    (guestParamTypes f) (guestResultTypes f) (guestLocalTypes f) (guestBody f))) in *.
+  assert (Hlocals : context_LOCALS FC = guestFrameTypes f).
+  { unfold FC, guestFrameTypes. apply typed_function_context_locals.
+    exact (module_context_locals _ _ _ HC). }
+  assert (Hcallees : calleeTypes FC (programCallees program (guestModule f))).
+  { exact (program_callee_types _ _ _ _ Hstore HC). }
+  assert (Htypes : context_TYPES FC = envTypes (programCallees program (guestModule f))).
+  { exact (proj1 (module_context_tables _ _ _ HC)). }
+  destruct (function_concrete_types _ _ _ Hf) as [HlocalTypes _]. rewrite <- Hlocals in HlocalTypes, Hpath.
+  assert (HresultTypes : forall x g, programCallees program (guestModule f) x = Some g ->
+    concreteTypes (guestResultTypes g)).
+  { intros x g Hg. unfold programCallees in Hg; cbn [calleeAt] in Hg.
+    destruct (nth_error (FUNCS (guestModule f)) (N.to_nat x)); [ | discriminate].
+    exact (proj2 (function_concrete_types _ _ _ Hg)). }
+  destruct (validated_path_types _ _ _ _ _ _ _ _ Hbody (proj1 (proj2 Hvalid index f Hf))
+    Hcallees Htypes HlocalTypes HresultTypes Hpath)
+    as [inner [current [outputs [Hinner [Hcontext [Hcurrent [Hconcrete Htail]]]]]]].
+  exists C, inner, current, outputs. rewrite Hcurrent, Hlocals.
+  repeat split; assumption.
+Qed.
+
 (* A function's body: its facts from height 0, its result height, its support,
    and its branch sites. *)
 Lemma function_facts : forall program s index f,
@@ -309,23 +371,22 @@ Lemma function_facts : forall program s index f,
   endsAt callees (guestBody f) 0 (guestResults f) /\
   supportedCode callees (guestBody f) /\ codeBranches callees 0 (guestBody f) 0.
 Proof.
-  intros program s index f Hstore [Hfuncs Hsupported] Hf callees.
-  destruct (function_at_sound _ _ _ Hf) as [Hnth _].
-  pose proof (proj1 (Forall_forall _ _) Hfuncs _ (nth_error_In _ _ Hnth)) as Hinst.
-  destruct (funcinst_body_validated _ _ _ _ _ _ _ Hinst) as [C [HC Hbody]].
+  intros program s index f Hstore Hvalid Hf callees.
+  destruct (function_body_validation _ _ _ _ Hvalid Hf) as [C [HC Hbody]].
+  destruct Hvalid as [_ Hsupported].
   pose proof (code_validation_facts (S (codeSize (guestBody f))) _ _ _ Hbody ltac:(lia)) as H.
-  cbn [i32StackType] in H.
   destruct (Hsupported index f Hf) as [Hsupport Hbranches].
-  assert (Hfits : contextFits (functionContext C (i32Function (guestModule f) (guestTypeIndex f)
-      (guestParams f) (guestResults f) (guestLocals f) (guestBody f))) (frameLocals f) (guestResults f)
+  assert (Hfits : contextFits (functionContext C (typedFunction (guestModule f) (guestTypeIndex f)
+      (guestParamTypes f) (guestResultTypes f) (guestLocalTypes f) (guestBody f))) (frameLocals f) (guestResults f)
       [guestResults f] callees).
-  { split; [rewrite function_context_locals by (eapply module_context_locals; exact HC); reflexivity | ].
+  { split; [rewrite typed_function_context_locals by (eapply module_context_locals; exact HC);
+      rewrite length_app; reflexivity | ].
     split; [inversion HC; subst; reflexivity | ].
     split; [inversion HC; subst; reflexivity | ].
     split; [intros x g Hg; exact (program_callee_types _ _ _ _ Hstore HC x g Hg) | ].
     destruct (module_context_tables _ _ _ HC) as [Htypes Htables]. exact (conj Htypes Htables). }
   destruct (H (frameLocals f) (guestResults f) _ _ Hfits Hsupport) as [Hfacts [Hheights _]].
-  rewrite !repeat_length in Hfacts, Hheights.
+  cbn [length] in Hfacts, Hheights. fold (guestResults f) in Hfacts, Hheights.
   split; [pose proof (Hfacts 0%nat [] I) as Hf0; rewrite app_nil_r in Hf0; exact Hf0 | ].
   split; [exact (Hheights 0%nat) | split; assumption].
 Qed.

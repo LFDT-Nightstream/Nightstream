@@ -1,7 +1,7 @@
 (* What SpecTec validation gives the row proofs about supported code: each
    instruction's facts at the operand height it runs at, down into nested blocks,
    and the code's stack heights. Validation stays a premise; these are its
-   consequences for the i32 fragment. *)
+   consequences for the supported fragment. *)
 From Stdlib Require Import List ZArith NArith Lia.
 From mathcomp Require Import ssrbool eqtype.
 Require Import Wasm2 StraightLineSpec StraightLineInstructions StraightLineValidation SpecTecCalls
@@ -108,11 +108,15 @@ Lemma if_facts : forall localCount resultCount arities callees bt t e height,
     codeFacts localCount resultCount (blockResults bt :: arities) callees 0 e.
 Proof. reflexivity. Qed.
 
-(* The typing context matches the frame's locals, results, labels and callees. *)
+Definition resultArity (types : res_list valtype) : nat :=
+  match types with mk_list types => length types end.
+
+(* Height facts use arities, not the types occupying those positions. The
+   SpecTec validation judgement retains the actual local and result types. *)
 Definition contextFits (C : context) (localCount resultCount : nat) (arities : list nat)
     (callees : CalleeEnvironment) : Prop :=
-  context_LOCALS C = repeat valtype_I32 localCount /\ context_RETURN C = Some (i32Results resultCount) /\
-  LABELS C = map i32Results arities /\ calleeTypes C callees /\
+  length (context_LOCALS C) = localCount /\ option_map resultArity (context_RETURN C) = Some resultCount /\
+  map resultArity (LABELS C) = arities /\ calleeTypes C callees /\
   context_TYPES C = envTypes callees /\ length (context_TABLES C) = length (envTables callees).
 
 Lemma source_heights_app : forall callees a b h,
@@ -135,8 +139,23 @@ Lemma label_fits : forall C localCount resultCount arities callees n,
 Proof.
   intros C localCount resultCount arities callees n [Hlocals [Hreturn [Hlabels [Htypes [HtypeList Htables]]]]].
   split; [rewrite label_context_locals; exact Hlocals | ]. split; [exact Hreturn | ].
-  split; [cbn; rewrite Hlabels; reflexivity | ].
+  split; [change (length (repeat valtype_I32 n) :: map resultArity (LABELS C) = n :: arities);
+    rewrite repeat_length, Hlabels; reflexivity | ].
   split; [intros x f Hf; exact (Htypes x f Hf) | ]. split; [exact HtypeList | exact Htables].
+Qed.
+
+Lemma label_arity_lookup : forall labels index types,
+  (N.to_nat index < length labels)%nat ->
+  proj_list_0 valtype (lookup_total labels index) = types ->
+  nth_error (map resultArity labels) (N.to_nat index) = Some (length types).
+Proof.
+  intros labels index types Hbound Hlookup.
+  destruct (nth_error labels (N.to_nat index)) as [[actual] | ] eqn:Hnth;
+    [ | apply nth_error_None in Hnth; lia].
+  rewrite (spec_lookup_from_nth_error _ _ _ _ _ Hnth) in Hlookup.
+  cbn [proj_list_0] in Hlookup. subst actual.
+  rewrite nth_error_map.
+  exact (f_equal (option_map resultArity) Hnth).
 Qed.
 
 (* One instruction other than a block: its facts and its height step. *)
@@ -150,11 +169,14 @@ Lemma flat_instruction_facts : forall C i inputs outputs localCount resultCount 
 Proof.
   intros C i inputs outputs localCount resultCount arities callees Hi Hw [Hlocals [Hreturn [Hlabels [Htypes [HtypeList Htables]]]]] Hsupport
     Hnot Hnot' Hnot''.
+  assert (HlabelLookup : forall index, nth_error arities index = option_map resultArity (nth_error (LABELS C) index)).
+  { intro index. rewrite <- Hlabels, nth_error_map. reflexivity. }
+  clear Hlabels. rename HlabelLookup into Hlabels.
   assert (Hordinary : (exists op, encodedOpcode i = Some op) -> forall extra,
       wf_instr i /\ programTyped localCount (extra + length inputs) [i]).
   { intros Hop extra. split; [exact Hw | ].
     pose proof (proj1 (validated_instruction_height _ _ _ _ Hi Hop) extra [] I) as H.
-    rewrite Hlocals, repeat_length in H. exact H. }
+    rewrite Hlocals in H. exact H. }
   inversion Hsupport as [ | | | | x f Hf Hp Hr | result body | l | l | ls l | | result t e | result body
     | x y params results Htype Hp Hr Hready | | ]; subst.
   - split; [exact (Hordinary ltac:(eexists; reflexivity)) | ].
@@ -177,33 +199,28 @@ Proof.
   - exfalso. eapply Hnot. reflexivity.
   - inversion Hi; subst.
     match goal with H : is_true (_ == _) |- _ => apply (elimT eqP) in H; rename H into Hlabel end.
+    match type of Hlabel with _ = ?types => set (kept := types) in * end.
     match goal with H : is_true (N.ltb _ _) |- _ => apply N.ltb_lt in H; rename H into Hbound end.
-    rewrite Hlabels in Hlabel, Hbound.
-    assert (Hsize : forall (xs : list (res_list valtype)), seq.size xs = length xs)
-      by (induction xs as [ | x xs IH]; [reflexivity | cbn; rewrite IH; reflexivity]).
-    rewrite Hsize, length_map in Hbound.
-    destruct (nth_error arities (N.to_nat (l :> N))) as [n | ] eqn:Hn; [ | apply nth_error_None in Hn; lia].
-    erewrite spec_lookup_from_nth_error in Hlabel; [ | rewrite nth_error_map, Hn; reflexivity].
-    cbn [i32Results proj_list_0] in Hlabel. subst.
-    split; [intros extra; split; [exact Hw | exists n; split; [exact Hn | ]] | ].
-    { rewrite length_app, repeat_length. cbn [length]. lia. }
+    assert (Hn : nth_error arities (N.to_nat (l :> N)) = Some (length kept)).
+    { rewrite Hlabels, <- nth_error_map. apply label_arity_lookup; [ | exact Hlabel].
+      change (N.lt (l :> N) (N.of_nat (length (LABELS C)))) in Hbound.
+      change (Nat.lt (N.to_nat (l :> N)) (@length resulttype (LABELS C))). lia. }
+    split; [intros extra; split; [exact Hw | exists (length kept); split; [exact Hn | ]] | ].
+    { rewrite length_app. cbn [length]. lia. }
     intros extra. left. rewrite length_app. cbn [length].
-    match goal with |- sourceHeight _ _ (extra + (length ?ts + 1)) = _ =>
-      replace (extra + (length ts + 1))%nat with (S (extra + length ts)) by lia end. reflexivity.
+    replace (extra + (length kept + 1))%nat with (S (extra + length kept)) by lia. reflexivity.
   - inversion Hi; subst.
     match goal with H : is_true (_ == _) |- _ => apply (elimT eqP) in H; rename H into Hlabel end.
+    match type of Hlabel with _ = ?types => set (kept := types) in * end.
     match goal with H : is_true (N.ltb _ _) |- _ => apply N.ltb_lt in H; rename H into Hbound end.
-    rewrite Hlabels in Hlabel, Hbound.
-    assert (Hsize : forall (xs : list (res_list valtype)), seq.size xs = length xs)
-      by (induction xs as [ | x xs IH]; [reflexivity | cbn; rewrite IH; reflexivity]).
-    rewrite Hsize, length_map in Hbound.
-    destruct (nth_error arities (N.to_nat (l :> N))) as [n | ] eqn:Hn; [ | apply nth_error_None in Hn; lia].
-    erewrite spec_lookup_from_nth_error in Hlabel; [ | rewrite nth_error_map, Hn; reflexivity].
-    cbn [i32Results proj_list_0] in Hlabel. subst.
-    split; [intros extra; split; [exact Hw | exists n; split; [exact Hn | ]] | intros extra; right; reflexivity].
-    assert (Hlength : forall (xs ys : list valtype), length (seq.cat xs ys) = (length xs + length ys)%nat)
+    assert (Hn : nth_error arities (N.to_nat (l :> N)) = Some (length kept)).
+    { rewrite Hlabels, <- nth_error_map. apply label_arity_lookup; [ | exact Hlabel].
+      change (N.lt (l :> N) (N.of_nat (length (LABELS C)))) in Hbound.
+      change (Nat.lt (N.to_nat (l :> N)) (@length resulttype (LABELS C))). lia. }
+    split; [intros extra; split; [exact Hw | exists (length kept); split; [exact Hn | ]] | intros extra; right; reflexivity].
+    assert (Hlength : forall (xs ys : list valtype), length (seq.cat xs ys) = length xs + length ys)
       by (intros xs ys; induction xs as [ | x xs IH]; [reflexivity | cbn; rewrite IH; reflexivity]).
-    rewrite Hlength, repeat_length. lia.
+    rewrite Hlength. lia.
   - inversion Hi; subst.
     assert (Hsize : forall (A : Type) (xs : list A), seq.size xs = length xs)
       by (intros A xs; induction xs as [ | x xs IH]; [reflexivity | cbn; rewrite IH; reflexivity]).
@@ -215,11 +232,13 @@ Proof.
       assert (Htarget : forall target : labelidx, is_true ((target :> N) <? (|LABELS C|))%BN ->
         Resulttype_sub (mk_list _ kept) (@lookup_total _ inst (LABELS C) (target :> N)) ->
         nth_error arities (N.to_nat (target :> N)) = Some (length kept)) end.
-    { intros target Hb Hs. rewrite Hlabels in Hb, Hs. apply N.ltb_lt in Hb. rewrite Hsize, length_map in Hb.
-      destruct (nth_error arities (N.to_nat (target :> N))) as [m | ] eqn:Hm; [ | apply nth_error_None in Hm; lia].
-      erewrite spec_lookup_from_nth_error in Hs; [ | rewrite nth_error_map, Hm; reflexivity].
-      inversion Hs as [t1 t2 Hlen _]; subst. apply (elimT eqP) in Hlen.
-      rewrite !Hsize, repeat_length in Hlen. f_equal. lia. }
+    { intros target Hb Hs. apply N.ltb_lt in Hb.
+      rewrite Hsize in Hb.
+      destruct (nth_error (LABELS C) (N.to_nat (target :> N))) as [[actual] | ] eqn:Hm;
+        [ | apply nth_error_None in Hm; lia].
+      erewrite spec_lookup_from_nth_error in Hs by exact Hm.
+      pose proof (result_sub_length _ _ Hs) as Hlen.
+      rewrite Hlabels, Hm. cbn [option_map resultArity]. now rewrite Hlen. }
     split; [intros extra; split; [exact Hw | exists (length kept); split] | intros extra; right; reflexivity].
     + constructor; [apply (Htarget l); assumption | ].
       apply Forall_forall. intros target Hin.
@@ -230,11 +249,12 @@ Proof.
     + rewrite !Hlength. cbn [length]. lia.
   - inversion Hi; subst.
     match goal with H : is_true (_ == _) |- _ => apply (elimT eqP) in H end.
-    rewrite Hreturn in *. match goal with H : Some _ = Some _ |- _ => injection H as Hresults end.
+    match goal with H : context_RETURN C = Some _ |- _ => rewrite H in Hreturn end.
+    cbn [option_map resultArity] in Hreturn. injection Hreturn as Hresults.
     split; [intros extra; split; [exact Hw | ] | intros extra; right; reflexivity].
     assert (Hlength : forall (xs ys : list valtype), length (seq.cat xs ys) = (length xs + length ys)%nat)
       by (intros xs ys; induction xs as [ | x xs IH]; [reflexivity | cbn; rewrite IH; reflexivity]).
-    rewrite Hlength, <- Hresults, repeat_length. lia.
+    rewrite Hlength. lia.
   - exfalso. eapply Hnot'. reflexivity.
   - exfalso. eapply Hnot''. reflexivity.
   - inversion Hi; subst.

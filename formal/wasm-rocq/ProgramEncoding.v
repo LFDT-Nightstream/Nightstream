@@ -38,25 +38,23 @@ Proof.
   cbn. f_equal. exact (IH Hts).
 Qed.
 
-Lemma function_at_sound : forall program index f,
+Lemma function_at_typed : forall program index f,
   functionAt program index = Some f ->
-  nth_error program index = Some (i32Function (guestModule f) (guestTypeIndex f)
-    (guestParams f) (guestResults f) (guestLocals f) (guestBody f)) /\
+  nth_error program index = Some (typedFunction (guestModule f) (guestTypeIndex f)
+    (guestParamTypes f) (guestResultTypes f) (guestLocalTypes f) (guestBody f)) /\
   guestAddress f = N.of_nat index /\ guestEntry f = functionEntry program index.
 Proof.
   intros program index f. unfold functionAt.
-  destruct (nth_error program index) as [[[ [params] [results]] module [typeIndex locals body]] | ] eqn:Hlookup;
+  destruct (nth_error program index) as [[[[params] [results]] module [ti locals body]] | ] eqn:Hlookup;
     [ | discriminate].
-  unfold decodeFunction. destruct (forallb i32Type params && forallb i32Type results && forallb i32Local locals)
-    eqn:Hshape; [ | discriminate].
-  intros H. injection H as <-. cbn [guestModule guestTypeIndex guestParams guestResults guestLocals guestParamTypes guestResultTypes guestLocalTypes guestBody guestAddress guestEntry].
-  unfold guestParams, guestResults, guestLocals. cbn [guestParamTypes guestResultTypes guestLocalTypes].
-  rewrite length_map.
-  apply andb_true_iff in Hshape. destruct Hshape as [Htypes Hlocals].
-  apply andb_true_iff in Htypes. destruct Htypes as [Hparams Hresults].
-  split; [ | auto]. unfold i32Function.
-  rewrite <- (i32_types_repeat _ Hparams), <- (i32_types_repeat _ Hresults), <- (i32_locals_repeat _ Hlocals).
-  reflexivity.
+  unfold decodeFunction. destruct (forallb i32Type params && forallb i32Type results && forallb i32Local locals);
+    [ | discriminate].
+  intros H. injection H as <-. cbn [guestModule guestTypeIndex guestParamTypes guestResultTypes
+    guestLocalTypes guestBody guestAddress guestEntry].
+  split; [ | auto]. unfold typedFunction. rewrite map_map.
+  assert (Hlocals : map (fun l => LOCAL (match l with LOCAL t => t end)) locals = locals).
+  { clear Hlookup. induction locals as [ | [t] rest IH]; [reflexivity | cbn; f_equal; exact IH]. }
+  now rewrite Hlocals.
 Qed.
 
 (* The current supported-function filter still restricts these lists to i32. *)
@@ -78,6 +76,18 @@ Proof.
   change (map id (repeat valtype_I32 (length locals)) = repeat valtype_I32
     (length (map id (repeat valtype_I32 (length locals))))).
   rewrite map_id, repeat_length. reflexivity.
+Qed.
+
+Lemma function_at_sound : forall program index f,
+  functionAt program index = Some f ->
+  nth_error program index = Some (i32Function (guestModule f) (guestTypeIndex f)
+    (guestParams f) (guestResults f) (guestLocals f) (guestBody f)) /\
+  guestAddress f = N.of_nat index /\ guestEntry f = functionEntry program index.
+Proof.
+  intros program index f Hf.
+  destruct (function_at_typed _ _ _ Hf) as [Hinstance Hlocation].
+  destruct (function_at_i32_types _ _ _ Hf) as [Hp [Hr Hl]].
+  rewrite Hp, Hr, Hl in Hinstance. exact (conj Hinstance Hlocation).
 Qed.
 
 Lemma function_at_i32_type : forall program index f,

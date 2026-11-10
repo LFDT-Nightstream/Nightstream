@@ -29,6 +29,7 @@ BlockInstructions.v
 CodeLayout.v
 Fragment.v
 StackTypes.v
+TypeFacts.v
 CodeFacts.v
 LocalBindings.v
 CallMemory.v
@@ -85,6 +86,7 @@ tests/Callers.v
 tests/Programs.v
 tests/Segmentation.v
 tests/Validation.v
+tests/TypeFacts.v
 tests/Branches.v
 tests/BlockPrograms.v
 tests/ControlPrograms.v

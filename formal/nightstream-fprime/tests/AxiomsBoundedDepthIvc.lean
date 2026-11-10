@@ -430,6 +430,14 @@ open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 #audit_axioms NightstreamFPrime.Export.OptionB.StepRelation.refresh_freshHolds
 #audit_axioms NightstreamFPrime.Circuit.FormalCircuit.eq_withPrivateCount
 #audit_axioms NightstreamFPrime.Gadgets.Poseidon2.Permutation.compile_eq_compileMemo
+#audit_axioms NightstreamFPrime.Gadgets.Poseidon2.Permutation.stepRecipes_eq_stepRecipesFast
+#audit_axioms NightstreamFPrime.Gadgets.Poseidon2.Hash.chunksFrom_eq
+#audit_axioms NightstreamFPrime.Gadgets.Poseidon2.Hash.inputChunks_eq_inputChunksFast
+#audit_axioms NightstreamFPrime.Gadgets.Poseidon2.Duplex.Formal.Action.recipeCount_eq_recipeCountFast
+#audit_axioms NightstreamFPrime.Export.Generic.PieceRows.scaleByPowers_eq
+#audit_axioms NightstreamFPrime.Export.Generic.PieceRows.evaluation_eq_evaluationFast
+#audit_axioms NightstreamFPrime.Export.Generic.CircuitRelation.lowerPiecesAux_next
+#audit_axioms NightstreamFPrime.Export.Generic.CircuitRelation.sboxStart_eq_sboxStartFast
 #audit_axioms NightstreamFPrime.Gadgets.Poseidon2.Duplex.Formal.Owned.output_eq_outputFast
 #audit_axioms NightstreamFPrime.Gadgets.Poseidon2.Duplex.Formal.Owned.circuit_eq_circuitFast
 #audit_axioms NightstreamFPrime.Gadgets.Polynomial.Horner.Owned.circuit_eq_circuitFast

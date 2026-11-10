@@ -271,7 +271,7 @@ Parameters: `{lw : ℕ}`, `{relation : NightstreamFPrime.Lifecycle.ProductionKey
 
 ## Ports
 
-`ports.json` has 579 entries: 518 Lean declarations transcribe 310 Rust items.
+`ports.json` has 580 entries: 518 Lean declarations transcribe 311 Rust items.
 
 | Lean module | Declarations |
 |---|---:|
@@ -351,7 +351,7 @@ Parameters: `{lw : ℕ}`, `{relation : NightstreamFPrime.Lifecycle.ProductionKey
 | `crates/neo-spartan/tests/internal/setup_columns.rs` | 1 |
 | `crates/neo-transcript/src/poseidon2.rs` | 2 |
 | `crates/nightstream-fprime/src/option_b.rs` | 6 |
-| `crates/nightstream-fprime/src/option_b/expand.rs` | 3 |
+| `crates/nightstream-fprime/src/option_b/expand.rs` | 4 |
 | `crates/nightstream-fprime/src/option_b/words.rs` | 1 |
 | `crates/nightstream/src/lifecycle/option_b/compression.rs` | 2 |
 | `crates/nightstream/src/lifecycle/option_b/final_program.rs` | 14 |

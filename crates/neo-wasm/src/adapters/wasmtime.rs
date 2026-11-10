@@ -225,17 +225,6 @@ pub fn collect_wasmtime_steps(
     wasm_bytes: &[u8],
     bindings: &HostEventBindings,
     export: &str,
-    params: &[i32],
-) -> Result<WasmtimeTraceRun, WasmBuildError> {
-    let values: Vec<Val> = params.iter().map(|&v| Val::I32(v)).collect();
-    collect_wasmtime_steps_with_args(wasm_bytes, bindings, export, &values)
-}
-
-/// Capture a core export with explicitly typed arguments, including i64 values.
-pub fn collect_wasmtime_steps_with_args(
-    wasm_bytes: &[u8],
-    bindings: &HostEventBindings,
-    export: &str,
     params: &[Val],
 ) -> Result<WasmtimeTraceRun, WasmBuildError> {
     let mut trace_state = WasmtimeTraceRegistry::default();

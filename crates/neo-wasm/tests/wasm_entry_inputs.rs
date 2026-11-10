@@ -641,7 +641,8 @@ fn capture_and_replay_share_host_event_address_rules() {
                 .exports
                 .insert(1, template(2, &[local(0, 0, Limb::Lo), write]));
             let wasm = wat::parse_str(&wat).unwrap();
-            let collected = neo_wasm::collect_wasmtime_steps(&wasm, &write_bindings, "run", &[base as i32]);
+            let collected =
+                neo_wasm::collect_wasmtime_steps(&wasm, &write_bindings, "run", &[wasmtime::Val::I32(base as i32)]);
             if !has_memory {
                 // Binding validation refuses the memory slot before capture or replay.
                 let message = collected.unwrap_err().to_string();

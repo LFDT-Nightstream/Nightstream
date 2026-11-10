@@ -171,7 +171,8 @@ fn export_witness(wat: &str, params: &[i32], name: &str, file: &str, include_ter
 
 fn export_witness_format(wat: &str, params: &[i32], name: &str, file: &str, include_terminal: bool, sparse: bool) {
     let wasm = wat::parse_str(wat).expect("wat");
-    let run = collect_wasmtime_steps(&wasm, &entry_bindings(&wasm, params.len()), "main", params).expect("trace");
+    let values: Vec<_> = params.iter().copied().map(wasmtime::Val::I32).collect();
+    let run = collect_wasmtime_steps(&wasm, &entry_bindings(&wasm, params.len()), "main", &values).expect("trace");
     let trace = if params.is_empty() {
         traces_from_wasmtime_steps(&run.steps)
     } else {
@@ -427,9 +428,8 @@ fn export_mixed_refinement_witnesses() {
         let mut builder = HostEventBindingsBuilder::new(&artifacts.tables);
         builder.export(1, entry, exit).expect("export");
         let bindings = builder.finish().expect("bindings");
-        let run =
-            neo_wasm::collect_wasmtime_steps_with_args(&wasm, &bindings, "main", &[Val::I64(-1), Val::I32(condition)])
-                .expect("typed trace");
+        let run = neo_wasm::collect_wasmtime_steps(&wasm, &bindings, "main", &[Val::I64(-1), Val::I32(condition)])
+            .expect("typed trace");
         assert_eq!(run.results, ["-1"]);
         let trace = traces_from_wasmtime_steps_with_host_events(&run.steps, run.artifacts(), CommChainState::default())
             .expect("normalize");

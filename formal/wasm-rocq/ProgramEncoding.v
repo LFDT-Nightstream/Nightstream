@@ -22,22 +22,6 @@ Proof.
   unfold programRomIds in Hin. repeat destruct Hin as [<- | Hin]; try contradiction; reflexivity.
 Qed.
 
-Lemma i32_types_repeat : forall types,
-  forallb i32Type types = true -> types = repeat valtype_I32 (length types).
-Proof.
-  induction types as [ | t types IH]; [reflexivity | ].
-  cbn. rewrite andb_true_iff. intros [Ht Hts]. destruct t; try discriminate.
-  cbn. f_equal. exact (IH Hts).
-Qed.
-
-Lemma i32_locals_repeat : forall locals,
-  forallb i32Local locals = true -> locals = map LOCAL (repeat valtype_I32 (length locals)).
-Proof.
-  induction locals as [ | [t] locals IH]; [reflexivity | ].
-  cbn. rewrite andb_true_iff. intros [Ht Hts]. destruct t; try discriminate.
-  cbn. f_equal. exact (IH Hts).
-Qed.
-
 Lemma function_at_typed : forall program index f,
   functionAt program index = Some f ->
   nth_error program index = Some (typedFunction (guestModule f) (guestTypeIndex f)
@@ -47,7 +31,7 @@ Proof.
   intros program index f. unfold functionAt.
   destruct (nth_error program index) as [[[[params] [results]] module [ti locals body]] | ] eqn:Hlookup;
     [ | discriminate].
-  unfold decodeFunction. destruct (forallb i32Type params && forallb i32Type results && forallb i32Local locals);
+  unfold decodeFunction. destruct (forallb integerType params && forallb integerType results && forallb integerLocal locals);
     [ | discriminate].
   intros H. injection H as <-. cbn [guestModule guestTypeIndex guestParamTypes guestResultTypes
     guestLocalTypes guestBody guestAddress guestEntry].
@@ -57,44 +41,24 @@ Proof.
   now rewrite Hlocals.
 Qed.
 
-(* The current supported-function filter still restricts these lists to i32. *)
-Lemma function_at_i32_types : forall program index f,
+Lemma function_integer_types : forall program index f,
   functionAt program index = Some f ->
-  guestParamTypes f = repeat valtype_I32 (guestParams f) /\
-  guestResultTypes f = repeat valtype_I32 (guestResults f) /\
-  guestLocalTypes f = repeat valtype_I32 (guestLocals f).
+  Forall (fun t => t = valtype_I32 \/ t = valtype_I64) (guestParamTypes f) /\
+  Forall (fun t => t = valtype_I32 \/ t = valtype_I64) (guestResultTypes f) /\
+  Forall (fun t => t = valtype_I32 \/ t = valtype_I64) (guestLocalTypes f).
 Proof.
   intros program index f. unfold functionAt.
   destruct (nth_error program index) as [[[[params] [results]] module [ti locals body]] | ]; [ | discriminate].
-  unfold decodeFunction. destruct (forallb i32Type params && forallb i32Type results && forallb i32Local locals)
+  unfold decodeFunction. destruct (forallb integerType params && forallb integerType results && forallb integerLocal locals)
     eqn:Hshape; [ | discriminate].
-  intros H. injection H as <-. unfold guestParams, guestResults, guestLocals.
-  cbn [guestParamTypes guestResultTypes guestLocalTypes].
-  apply andb_true_iff in Hshape as [Htypes Hlocals]. apply andb_true_iff in Htypes as [Hp Hr].
-  split; [exact (i32_types_repeat _ Hp) | ]. split; [exact (i32_types_repeat _ Hr) | ].
-  rewrite (i32_locals_repeat _ Hlocals), map_map.
-  change (map id (repeat valtype_I32 (length locals)) = repeat valtype_I32
-    (length (map id (repeat valtype_I32 (length locals))))).
-  rewrite map_id, repeat_length. reflexivity.
-Qed.
-
-Lemma function_at_sound : forall program index f,
-  functionAt program index = Some f ->
-  nth_error program index = Some (i32Function (guestModule f) (guestTypeIndex f)
-    (guestParams f) (guestResults f) (guestLocals f) (guestBody f)) /\
-  guestAddress f = N.of_nat index /\ guestEntry f = functionEntry program index.
-Proof.
-  intros program index f Hf.
-  destruct (function_at_typed _ _ _ Hf) as [Hinstance Hlocation].
-  destruct (function_at_i32_types _ _ _ Hf) as [Hp [Hr Hl]].
-  rewrite Hp, Hr, Hl in Hinstance. exact (conj Hinstance Hlocation).
-Qed.
-
-Lemma function_at_i32_type : forall program index f,
-  functionAt program index = Some f -> guestType f = i32StackType (guestParams f) (guestResults f).
-Proof.
-  intros program index f H. destruct (function_at_i32_types _ _ _ H) as [Hp [Hr _]].
-  unfold guestType, i32StackType. now rewrite Hp, Hr.
+  intros H. injection H as <-. cbn [guestParamTypes guestResultTypes guestLocalTypes].
+  apply andb_true_iff in Hshape as [Htypes Hl]. apply andb_true_iff in Htypes as [Hp Hr].
+  assert (Htypes : forall ts, forallb integerType ts = true -> Forall (fun t => t = valtype_I32 \/ t = valtype_I64) ts).
+  { intros ts Hts. apply Forall_forall. intros t Ht. apply (proj1 (forallb_forall _ _) Hts) in Ht.
+    destruct t; cbn in Ht; intuition discriminate. }
+  split; [apply Htypes; exact Hp | ]. split; [apply Htypes; exact Hr | ].
+  apply Forall_map, Forall_forall. intros [t] Ht.
+  apply (proj1 (forallb_forall _ _) Hl) in Ht. destruct t; cbn in Ht; intuition discriminate.
 Qed.
 
 Lemma locate_function_pc : forall program index raw offset,
@@ -122,15 +86,15 @@ Qed.
 Lemma instruction_at_function_pc : forall program index f offset,
   functionAt program index = Some f -> (offset <= codeSize (guestBody f))%nat ->
   instructionAtPC program (guestEntry f + Z.of_nat offset) =
-    Some (i32Function (guestModule f) (guestTypeIndex f) (guestParams f) (guestResults f) (guestLocals f) (guestBody f),
+    Some (typedFunction (guestModule f) (guestTypeIndex f) (guestParamTypes f) (guestResultTypes f) (guestLocalTypes f) (guestBody f),
       nth_error (flattenCode (guestBody f)) offset).
 Proof.
   intros program index f offset Hf Hoffset.
-  destruct (function_at_sound _ _ _ Hf) as [Hlookup [_ Hentry]].
+  destruct (function_at_typed _ _ _ Hf) as [Hlookup [_ Hentry]].
   unfold instructionAtPC. rewrite Hentry.
   assert (Hnonneg : (functionEntry program index + Z.of_nat offset <? 0) = false).
   { apply Z.ltb_ge. unfold functionEntry. lia. }
-  rewrite Hnonneg, (locate_function_pc _ _ _ offset Hlookup ltac:(unfold functionSize; cbn [functionBody i32Function CODE]; lia)), Hlookup.
+  rewrite Hnonneg, (locate_function_pc _ _ _ offset Hlookup ltac:(unfold functionSize; cbn [functionBody typedFunction CODE]; lia)), Hlookup.
   reflexivity.
 Qed.
 
@@ -146,12 +110,12 @@ Lemma encoded_frame_image : forall program memory index f offset s values,
   callerFrameImage memory (guestEntry f + Z.of_nat offset) (mk_state s (MKframe values (guestModule f))).
 Proof.
   intros program memory index f offset s values Hloaded Hf Hoffset Hcount.
-  destruct (function_at_sound _ _ _ Hf) as [Hlookup [Haddress Hentry]].
+  destruct (function_at_typed _ _ _ Hf) as [Hlookup [Haddress Hentry]].
   exists (Z.of_nat index + 1). split.
   - program_cell Hloaded. unfold encodeProgram. cbn [Nat.eqb pcRomId pcFunctionRefId].
     rewrite Hentry. assert (Hnonneg : (functionEntry program index + Z.of_nat offset <? 0) = false)
       by (apply Z.ltb_ge; unfold functionEntry; lia).
-    rewrite Hnonneg, (locate_function_pc _ _ _ offset Hlookup ltac:(unfold functionSize; cbn [functionBody i32Function CODE]; lia)).
+    rewrite Hnonneg, (locate_function_pc _ _ _ offset Hlookup ltac:(unfold functionSize; cbn [functionBody typedFunction CODE]; lia)).
     cbn. f_equal. lia.
   - program_cell Hloaded. unfold encodeProgram. cbn [Nat.eqb pcRomId pcFunctionRefId functionEntryId functionLocalCountId functionCallMetadataId orb].
     unfold functionRom.
@@ -165,7 +129,7 @@ Lemma encoded_guest_image : forall program memory index f,
   guestFunctionImage memory (guestAddress f) (guestEntry f) (guestParams f) (guestResults f) (guestLocals f).
 Proof.
   intros program memory index f Hloaded Hf.
-  destruct (function_at_sound _ _ _ Hf) as [Hlookup [Haddress Hentry]].
+  destruct (function_at_typed _ _ _ Hf) as [Hlookup [Haddress Hentry]].
   unfold guestFunctionImage. rewrite Haddress.
   replace (Z.of_N (N.of_nat index)) with (Z.of_nat index) by lia.
   assert (Hpositive : (Z.of_nat index + 1 <=? 0) = false) by (apply Z.leb_gt; lia).
@@ -200,11 +164,11 @@ Lemma slide_at_function_pc : forall program memory index f offset choice,
   slideRom program memory (guestEntry f + Z.of_nat offset) choice = functionSlide program memory f offset choice.
 Proof.
   intros program memory index f offset choice Hf Hoffset.
-  destruct (function_at_sound _ _ _ Hf) as [Hlookup [_ Hentry]].
+  destruct (function_at_typed _ _ _ Hf) as [Hlookup [_ Hentry]].
   unfold slideRom. rewrite Hentry.
   assert (Hnonneg : (functionEntry program index + Z.of_nat offset <? 0) = false).
   { apply Z.ltb_ge. unfold functionEntry. lia. }
-  rewrite Hnonneg, (locate_function_pc _ _ _ offset Hlookup ltac:(unfold functionSize; cbn [functionBody i32Function CODE]; lia)), Hf.
+  rewrite Hnonneg, (locate_function_pc _ _ _ offset Hlookup ltac:(unfold functionSize; cbn [functionBody typedFunction CODE]; lia)), Hf.
   reflexivity.
 Qed.
 
@@ -232,9 +196,9 @@ Lemma pc_entry_function : forall program index f offset,
   pcEntry program (guestEntry f + Z.of_nat offset) = guestEntry f.
 Proof.
   intros program index f offset Hf Hoffset.
-  destruct (function_at_sound _ _ _ Hf) as [Hlookup [_ Hentry]].
+  destruct (function_at_typed _ _ _ Hf) as [Hlookup [_ Hentry]].
   unfold pcEntry. rewrite Hentry, (locate_function_pc _ _ _ offset Hlookup
-    ltac:(unfold functionSize; cbn [functionBody i32Function CODE]; lia)).
+    ltac:(unfold functionSize; cbn [functionBody typedFunction CODE]; lia)).
   reflexivity.
 Qed.
 

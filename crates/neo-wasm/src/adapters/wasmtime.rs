@@ -227,6 +227,17 @@ pub fn collect_wasmtime_steps(
     export: &str,
     params: &[i32],
 ) -> Result<WasmtimeTraceRun, WasmBuildError> {
+    let values: Vec<Val> = params.iter().map(|&v| Val::I32(v)).collect();
+    collect_wasmtime_steps_with_args(wasm_bytes, bindings, export, &values)
+}
+
+/// Capture a core export with explicitly typed arguments, including i64 values.
+pub fn collect_wasmtime_steps_with_args(
+    wasm_bytes: &[u8],
+    bindings: &HostEventBindings,
+    export: &str,
+    params: &[Val],
+) -> Result<WasmtimeTraceRun, WasmBuildError> {
     let mut trace_state = WasmtimeTraceRegistry::default();
     trace_state.register_module(wasm_bytes, bindings.clone())?;
 
@@ -259,9 +270,8 @@ pub fn collect_wasmtime_steps(
     let func: Func = instance
         .get_func(&mut store, export)
         .ok_or_else(|| WasmBuildError::Trace(format!("export '{export}' not found")))?;
-    let param_vals: Vec<Val> = params.iter().map(|&v| Val::I32(v)).collect();
     let mut results = vec![Val::I32(0); func.ty(&store).results().len()];
-    let call_result = block_on(func.call_async(&mut store, &param_vals, &mut results));
+    let call_result = block_on(func.call_async(&mut store, params, &mut results));
     store.data().check_errors()?;
     let results = match call_result {
         Ok(()) => results.iter().map(|&v| val_to_string(v)).collect(),

@@ -4,7 +4,7 @@ From Stdlib Require Import List ZArith Lia.
 Require Import R1CS Columns Range FullRelation MemoryTrace Wasm2 WasmIntegers Locals StraightLineSpec
   StackSimulation SpecTecCalls SpecTecBranches CallerSpec ProgramSpec ProgramEncoding CodeLayout Fragment CodeFacts
   ControlDecode ControlInvariant FrameFacts FrameRows SlideLayout.
-Require Import IntegerDecode.
+Require Import IntegerDecode TypeFacts.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -12,6 +12,48 @@ Definition exitsFunction (f : GuestFunction) (view : FrameView) : Prop :=
   (positionLabels (viewPosition view) = [] /\ positionOffset (viewPosition view) = length (guestBody f)) \/
   exists i, nth_error (innerCode f (viewPosition view)) (positionOffset (viewPosition view)) = Some i /\
     returnsFrom (length (positionLabels (viewPosition view))) i.
+
+Lemma function_return_types : forall program s view f dropped returned,
+  store_FUNCS s = program -> programValidated program s ->
+  functionAt program (positionFunction (viewPosition view)) = Some f ->
+  FrameTyping program f view 0 -> exitsFunction f view ->
+  viewOperands view = dropped ++ returned -> length returned = guestResults f ->
+  valueTypes returned = guestResultTypes f.
+Proof.
+  intros program s view f dropped returned Hstore Hvalid Hf Htyping Hexit Hsplit Hlength.
+  apply frame_typing_idle in Htyping.
+  destruct (function_path_validation _ _ _ _ _ _ _ _ Hstore Hvalid Hf Htyping)
+    as [C [inner [current [outputs [HC [Hpath [Hcontext [Hlocals [Hconcrete Hrest]]]]]]]]].
+  assert (HinnerTypes : exists prefix, valueTypes (viewValues view) = prefix ++ guestResultTypes f).
+  { destruct Hexit as [[Hlabels Hend] | [i [Hi Hreturn]]].
+    - rewrite Hlabels in Hcontext, Hpath. cbn [pathValidationContext] in Hcontext.
+      injection Hcontext as <- <-. cbn [pathCode] in Hpath. injection Hpath as <-.
+      rewrite Hend, skipn_all in Hrest. exists [].
+      exact (empty_concrete_types _ _ _ Hrest eq_refl Hconcrete).
+    - unfold innerCode in Hi. rewrite Hpath in Hi. rewrite (skipn_at_instruction _ _ _ Hi) in Hrest.
+      destruct (validation_concrete_head _ _ _ Hrest i _ eq_refl Hconcrete)
+        as [prefix [inputs [results [Hinput [Hhead Htail]]]]].
+      assert (Hinputs : exists before, inputs = before ++ guestResultTypes f).
+      { destruct Hreturn as [-> | [l [-> Hlevel]]].
+        - eapply validated_return_suffix; [exact Hhead | ].
+          rewrite (path_context_return _ _ _ _ _ _ Hcontext). reflexivity.
+        - assert (Hlabel : nth_error (LABELS current) (N.to_nat (l :> N)) =
+              Some (mk_list _ (guestResultTypes f))).
+          { rewrite Hlevel. replace (length (positionLabels (viewPosition view))) with
+              (length (positionLabels (viewPosition view)) + 0)%nat by lia.
+            eapply path_context_outer_label; [exact Hcontext | reflexivity]. }
+          destruct (validated_branch_suffix _ _ _ _ _ _ Hhead (or_introl eq_refl) Hlabel
+            ltac:(rewrite Hinput in Hconcrete; exact (proj2 (proj1 (Forall_app _ _ _) Hconcrete)))) as [before Hbefore].
+          cbn [branchConditionTypes] in Hbefore. rewrite app_nil_r in Hbefore. eauto. }
+      destruct Hinputs as [before ->]. exists (prefix ++ before). rewrite Hinput, app_assoc. reflexivity. }
+  destruct HinnerTypes as [prefix Htypes].
+  assert (Hwhole : valueTypes (viewOperands view) = (valueTypes (concat (viewSegments view)) ++ prefix) ++ guestResultTypes f).
+  { unfold viewOperands, valueTypes. rewrite map_app. fold (valueTypes (viewValues view)). rewrite Htypes, app_assoc.
+    reflexivity. }
+  rewrite Hsplit in Hwhole. unfold valueTypes in Hwhole. rewrite map_app in Hwhole.
+  apply (app_suffix_eq _ (map valueType dropped) (map valueType returned) (map valueType (concat (viewSegments view)) ++ prefix) (guestResultTypes f));
+    [unfold guestResults in Hlength; rewrite length_map; exact Hlength | exact Hwhole].
+Qed.
 
 Lemma function_result_values : forall program s view f memory row inner,
   store_FUNCS s = program -> wf_store s -> programValidated program s ->
@@ -32,7 +74,6 @@ Proof.
   rewrite Hf in Hf'. injection Hf' as <-.
   destruct (view_facts _ _ _ _ _ _ _ _ _ _ Hstore Hvalid Hframe)
     as [Hfacts [_ [_ [Hresults [Hready Hwfcode]]]]].
-  apply i32_operands_wf in Hbounds.
   assert (Hz : wf_state (mk_state s (activeFrame f (viewLocals view))))
     by (eapply frame_state_wf; [eassumption | eassumption | eassumption | exact (values_typed_wf _ _ Hlb)]).
   assert (Hcallee : wf_frame (activeFrame f (viewLocals view))) by (inversion Hz; assumption).

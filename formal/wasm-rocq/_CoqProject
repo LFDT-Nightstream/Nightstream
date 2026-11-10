@@ -142,3 +142,8 @@ tests/IntegerControl.v
 tests/IntegerStackTrace.v
 tests/IntegerStack.v
 tests/IntegerInstructions.v
+
+tests/MixedPrograms.v
+tests/MixedCallTrace.v
+tests/MixedIndirectTrace.v
+tests/MixedWitness.v

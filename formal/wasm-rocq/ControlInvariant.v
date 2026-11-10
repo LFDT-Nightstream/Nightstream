@@ -46,10 +46,19 @@ Definition innerCode (f : GuestFunction) (position : CodePosition) : list instr 
 Definition frameConfig (f : GuestFunction) (view : FrameView) (c : config) : config :=
   wrapValueLabels (guestBody f) (positionLabels (viewPosition view)) (viewSegments view) c.
 
+(* Pending operands have left this frame (call arguments or an indirect-call
+   index). Their types remain at the end of the source stack at this position. *)
+Definition FrameTyping (program : Program) (f : GuestFunction) (view : FrameView) (pending : nat) : Prop :=
+  exists pendingTypes,
+    length pendingTypes = pending /\
+    pathTypes (guestFrameTypes f) (programCallees program (guestModule f)) (guestBody f)
+      (positionLabels (viewPosition view)) (positionOffset (viewPosition view)) =
+      Some (map valueTypes (viewSegments view), valueTypes (viewValues view) ++ pendingTypes).
+
 (* A frame in memory: its locals are its first cells from fbp, and its operands
    follow from base = fbp + locals, at the code's static heights, with `pending`
    more that have moved to a callee as its arguments. Operands retain their
-   SpecTec values; i32Operand records the current fragment restriction. *)
+   SpecTec values and their types at the source position. *)
 Definition FrameAt (program : Program) (memory : MemoryState) (base fbp : Z) (pending remaining : nat)
     (distance : Z) (f : GuestFunction) (view : FrameView) : Prop :=
   let position := viewPosition view in
@@ -59,13 +68,14 @@ Definition FrameAt (program : Program) (memory : MemoryState) (base fbp : Z) (pe
     (positionOffset position) =
     Some (map (@length val) (viewSegments view), (length (viewValues view) + pending)%nat) /\
   0 <= fbp /\ base = fbp + Z.of_nat (frameLocals f) /\
-  Forall i32Operand (viewOperands view) /\
+  Forall wf_val (viewOperands view) /\
   (forall index value, nth_error (viewOperands view) index = Some value ->
     CellMatches memory (operandCell base (length (viewOperands view)) remaining distance index) value) /\
   length (viewLocals view) = frameLocals f /\
   valuesTyped (guestFrameTypes f) (viewLocals view) /\
   (forall index value, nth_error (viewLocals view) index = Some value ->
-    CellMatches memory (fbp + Z.of_nat index) value).
+    CellMatches memory (fbp + Z.of_nat index) value) /\
+  FrameTyping program f view pending.
 
 Inductive ControlPosition :=
 | atCode (view : FrameView)

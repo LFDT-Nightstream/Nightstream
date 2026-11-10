@@ -7,20 +7,20 @@ Import ListNotations.
 Open Scope Z_scope.
 
 Lemma direct_call_entry_bound : forall initial final w pc returnPC caller index address module typeIndex
-    (arguments : list Z) results locals body entry,
+    (params results locals : list valtype) body entry,
   fieldPrime -> FullRelation.satFull w -> w COL_IS_PROGRAM_ROW = 1 ->
   w COL_PC_BEFORE = pc ->
   Replay initial (eventsForRow MemoryCatalog.memories w) final ->
   directCallImage initial pc returnPC caller index address module typeIndex
-    (length arguments) results locals body entry ->
-  (length arguments < 256)%nat -> (results < 256)%nat ->
+    params results locals body entry ->
+  (length params < 256)%nat -> (length results < 256)%nat ->
   w COL_SEL_CALL = 1 /\ w COL_TARGET_FUNCTION_IS_GUEST = 1 /\
-  w COL_CALL_PARAM_COUNT = Z.of_nat (length arguments) /\
-  w COL_LOCAL_ZERO_REMAINING_AFTER = Z.of_nat locals /\
-  w COL_ENTERED_FUNCTION_NUM_LOCALS = Z.of_nat (length arguments) + Z.of_nat locals /\
+  w COL_CALL_PARAM_COUNT = Z.of_nat (length params) /\
+  w COL_LOCAL_ZERO_REMAINING_AFTER = Z.of_nat (length locals) /\
+  w COL_ENTERED_FUNCTION_NUM_LOCALS = Z.of_nat (length params) + Z.of_nat (length locals) /\
   w COL_PC_AFTER = entry.
 Proof.
-  intros initial final w pc returnPC caller index address module typeIndex arguments results locals body entry
+  intros initial final w pc returnPC caller index address module typeIndex params results locals body entry
     Hprime Hfull Hprogram Hpc Hreplay [_ [_ [Hop [Htarget [_ [Hmeta [Htotal [Hentry Href]]]]]]]] Hp Hr.
   pose proof (circuit_row_opcode_fetch _ _ _ Hreplay Hprogram) as Hfetch.
   rewrite Hpc, Hop in Hfetch. injection Hfetch as Hcode.
@@ -29,7 +29,7 @@ Proof.
   destruct (direct_call_target_read _ _ _ Hreplay Hcall) as [HtargetRead HmetaRead].
   rewrite Hpc, Htarget in HtargetRead. injection HtargetRead as Hreference.
   rewrite <- Hreference, Hmeta in HmetaRead. injection HmetaRead as Hmetadata.
-  destruct (guest_metadata_decodes w (Z.of_nat (length arguments)) (Z.of_nat results)
+  destruct (guest_metadata_decodes w (Z.of_nat (length params)) (Z.of_nat (length results))
     Hprime Hfull ltac:(lia) ltac:(lia) (eq_sym Hmetadata)) as [Hparams [Hresults HguestTarget]].
   destruct (full_direct_guest_call w Hprime Hfull Hcall HguestTarget) as [Hguest _].
   destruct (guest_entry_reads _ _ _ Hreplay Hguest) as [HtotalRead HentryRead].

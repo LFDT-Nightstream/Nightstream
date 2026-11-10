@@ -14,19 +14,18 @@ Definition outerFrame module := MKframe [] module.
 Definition entryShape := controlShape [] (siteCode (codePosition 0 [] 0)).
 
 (* Returning outcomes are determined by the row, not chosen by the existential. *)
-Lemma terminal_return_decodes : forall program s caller depth root memory boundary rows outcome c row value,
+Lemma terminal_return_decodes : forall program s caller depth root memory boundary rows outcome c row values,
   ExecutionConfig program s caller depth root memory boundary rows outcome c ->
   lastRow rows = Some row -> row COL_ACTIVATION_FINISHED_AFTER = 1 -> row COL_TRAPPED_AFTER = 0 ->
-  row COL_OUTPUT_CAPTURED = 1 -> row COL_OUTPUT_VALUE_LO_AFTER = value ->
-  c = mk_config (mk_state s caller) [i32Constant value].
+  (forall f, functionAt program root = Some f -> capturedValues row (guestResultTypes f) = Some values) ->
+  c = mk_config (mk_state s caller) (map admininstr_val values).
 Proof.
-  intros program s caller depth root memory boundary rows outcome c row value H Hlast Hfinish Htrap Hcapture Hvalue.
-  destruct outcome as [shape | | [v | ]]; cbn [ExecutionConfig] in H.
+  intros program s caller depth root memory boundary rows outcome c row values H Hlast Hfinish Htrap Hvalues.
+  destruct outcome as [shape | | returned]; cbn [ExecutionConfig] in H.
   - destruct H as [Hflag _]. rewrite Hlast in Hflag; congruence.
   - destruct H as [last [Hlast' [_ [Ht _]]]]. rewrite Hlast in Hlast'; injection Hlast' as <-; congruence.
-  - destruct H as [last [Hlast' [_ [_ [[Hcap Hv] ->]]]]]. rewrite Hlast in Hlast'; injection Hlast' as <-.
-    congruence.
-  - destruct H as [last [Hlast' [_ [_ [Hcap _]]]]]. rewrite Hlast in Hlast'; injection Hlast' as <-; congruence.
+  - destruct H as [last [Hlast' [_ [_ [[f [Hf Hv]] ->]]]]].
+    rewrite Hlast in Hlast'; injection Hlast' as <-. specialize (Hvalues f Hf). congruence.
 Qed.
 
 (* The terminal row also checks the host schedule of export reference 1. *)
@@ -69,8 +68,9 @@ Proof.
     (validRunb_sound _ _ nop_complete_valid) nop_complete_fragment Hstart)
     as [outcome [c [Hsteps [_ Hconfig]]]].
   replace c with (mk_config (mk_state nopStore (outerFrame nopModule)) [i32Constant 7]) in Hsteps; [exact Hsteps | ].
-  symmetry. eapply terminal_return_decodes with (row := rowWitness (List.last nopTerminalRows []));
-    [exact Hconfig | reflexivity | | | | ]; vm_compute; reflexivity.
+  symmetry. eapply terminal_return_decodes with (values := [i32Value 7]) (row := rowWitness (List.last nopTerminalRows []));
+    [exact Hconfig | reflexivity | vm_compute; reflexivity | vm_compute; reflexivity | ].
+  intros f Hf. change (Some nopGuest = Some f) in Hf. injection Hf as <-. vm_compute; reflexivity.
 Qed.
 
 Definition trapModule := MKmoduleinst [i32StackType 0 0] [0%N; 1%N] [] [] [] [] [] [].

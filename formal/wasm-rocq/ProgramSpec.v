@@ -1,5 +1,5 @@
 (* Source functions, their ROM encoding, and what a program and a run must satisfy.
-   This encoder covers i32 guest functions without imports. Blocks occupy
+   This encoder covers i32/i64 guest functions without imports. Blocks occupy
    flattened instruction addresses; each function also has one trailing END. *)
 From Stdlib Require Import List ZArith Bool.
 Require Import R1CS Columns Wasm2 MemoryTrace MemoryCatalog OpcodeCatalog StraightLineSpec CallerSpec FunctionValidation SpecTecCalls CodeLayout Fragment.
@@ -16,13 +16,13 @@ Definition functionSize (f : funcinst) : nat := S (codeSize (functionBody f)).
 Definition functionEntry (program : Program) (function : nat) : Z :=
   Z.of_nat (fold_right (fun f size => functionSize f + size)%nat 0%nat (firstn function program)).
 
-Definition i32Type (t : valtype) : bool := match t with valtype_I32 => true | _ => false end.
-Definition i32Local (l : local) : bool := match l with LOCAL t => i32Type t end.
+Definition integerType (t : valtype) : bool := match t with valtype_I32 | valtype_I64 => true | _ => false end.
+Definition integerLocal (l : local) : bool := match l with LOCAL t => integerType t end.
 
 Definition decodeFunction (address : nat) (entry : Z) (f : funcinst) : option GuestFunction :=
   match f with
   | MKfuncinst (mk_functype (mk_list params) (mk_list results)) module (func_FUNC typeIndex locals body) =>
-      if forallb i32Type params && forallb i32Type results && forallb i32Local locals then
+      if forallb integerType params && forallb integerType results && forallb integerLocal locals then
         Some (mkGuestFunction (N.of_nat address) module typeIndex params
           results (map (fun l => match l with LOCAL t => t end) locals) body entry)
       else None

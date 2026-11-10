@@ -162,7 +162,7 @@ Fixpoint ValueLabelsReady (code : list instr) (labels : list LabelSite) (segment
   | _, _ => True
   end.
 
-(* The current row invariant still stores i32 operands as integers. *)
+(* Scalar wrappers used by the existing i32-only helper lemmas. *)
 Definition LabelsReady code labels segments :=
   ValueLabelsReady code labels (map (map i32Value) segments).
 
@@ -367,13 +367,13 @@ Qed.
 Lemma program_callee_validates : forall program s module x f,
   Forall (fun fi => Funcinst_ok s fi (funcinst_TYPE fi)) program ->
   programCallees program module x = Some f ->
-  Funcinst_ok s (i32Function (guestModule f) (guestTypeIndex f)
-    (guestParams f) (guestResults f) (guestLocals f) (guestBody f))
-    (i32StackType (guestParams f) (guestResults f)).
+  Funcinst_ok s (typedFunction (guestModule f) (guestTypeIndex f)
+    (guestParamTypes f) (guestResultTypes f) (guestLocalTypes f) (guestBody f))
+    (guestType f).
 Proof.
   intros program s module x f Hvalid Hf. unfold programCallees in Hf; cbn [calleeAt] in Hf.
   destruct (nth_error (FUNCS module) (N.to_nat x)) as [address | ]; [ | discriminate].
-  destruct (function_at_sound _ _ _ Hf) as [Hfi _].
+  destruct (function_at_typed _ _ _ Hf) as [Hfi _].
   rewrite Forall_forall in Hvalid. apply Hvalid. eapply nth_error_In; exact Hfi.
 Qed.
 
@@ -395,9 +395,9 @@ Lemma function_concrete_types : forall program index f,
   functionAt program index = Some f ->
   concreteTypes (guestFrameTypes f) /\ concreteTypes (guestResultTypes f).
 Proof.
-  intros program index f Hf. destruct (function_at_i32_types _ _ _ Hf) as [Hp [Hr Hl]].
-  unfold guestFrameTypes. rewrite Hp, Hr, Hl. split; [apply Forall_app; split | ];
-    apply Forall_forall; intros t Ht; apply repeat_spec in Ht; subst t; discriminate.
+  intros program index f Hf. destruct (function_integer_types _ _ _ Hf) as [Hp [Hr Hl]].
+  unfold guestFrameTypes. split; [apply Forall_app; split | ];
+    eapply Forall_impl; try eassumption; intros t [-> | ->]; discriminate.
 Qed.
 
 (* The decoder's computed types also validate the continuation in SpecTec's
@@ -577,130 +577,401 @@ Proof.
   split; [ | exact (path_code_wf _ _ _ Hwf Hpath)].
   apply (value_labels_ready _ _ _ _ Hwf Hpath).
   - pose proof (path_heights_length _ _ _ _ _ _ Hheights) as H. rewrite length_map in H. exact H.
-  - unfold viewOperands in Hoperands. apply Forall_app in Hoperands. apply i32_operands_wf. exact (proj1 Hoperands).
+  - unfold viewOperands in Hoperands. apply Forall_app in Hoperands. exact (proj1 Hoperands).
 Qed.
 
-(* Compatibility with the current i32 fragment. Local-index facts come from
-   CodeFacts, which derives them from SpecTec validation. *)
-Definition i32Callees (callees : CalleeEnvironment) : Prop :=
-  forall x f, callees x = Some f ->
-    guestParamTypes f = repeat valtype_I32 (guestParams f) /\
-    guestResultTypes f = repeat valtype_I32 (guestResults f).
+Lemma frame_typing : forall program memory base fbp pending remaining distance f view,
+  FrameAt program memory base fbp pending remaining distance f view -> FrameTyping program f view pending.
+Proof. intros. unfold FrameAt in H. tauto. Qed.
 
-Lemma source_types_i32 : forall localCount resultCount arities (callees : CalleeEnvironment) i height next,
-  i32Callees callees ->
-  instrFacts localCount resultCount arities callees i height -> Supported callees i ->
-  sourceHeight callees i height = Some next ->
-  sourceTypes (repeat valtype_I32 localCount) callees i (repeat valtype_I32 height) =
-    Some (repeat valtype_I32 next).
+Lemma frame_typing_idle : forall program f view,
+  FrameTyping program f view 0 <->
+  pathTypes (guestFrameTypes f) (programCallees program (guestModule f)) (guestBody f)
+    (positionLabels (viewPosition view)) (positionOffset (viewPosition view)) =
+    Some (map valueTypes (viewSegments view), valueTypes (viewValues view)).
 Proof.
-  intros localCount resultCount arities callees i height next Hcallees Hfacts Hsup Hheight.
-  assert (Hsignature : exists inputs outputs,
-    instructionTypes (repeat valtype_I32 localCount) callees i =
-      Some (repeat valtype_I32 inputs, repeat valtype_I32 outputs)).
-  { destruct Hsup as [ | | x | x | x f Hf Hp Hr | result body Hbody Hresult | l | l | ls l |
-      | result t e Ht He Hresult | result body Hbody Hresult | x y params results Htype Hp Hr Hready | | ];
-      try (discriminate Hheight).
-    - exists 2, 1. reflexivity.
-    - exists 2, 1. reflexivity.
-    - destruct Hfacts as [_ [Hx _]]. exists 0, 1. cbn [instructionTypes].
-      rewrite nth_error_repeat by exact Hx. reflexivity.
-    - destruct Hfacts as [_ [Hx _]]. exists 1, 0. cbn [instructionTypes].
-      rewrite nth_error_repeat by exact Hx. reflexivity.
-    - destruct (Hcallees _ _ Hf) as [Hparams Hresults].
-      exists (guestParams f), (guestResults f). cbn [instructionTypes]. rewrite Hf. cbn [option_map]. rewrite Hparams, Hresults. reflexivity.
-    - destruct Hresult as [-> | ->]; [exists 0, 0 | exists 0, 1]; reflexivity.
-    - exists 1, 0. reflexivity.
-    - destruct Hresult as [-> | ->]; [exists 1, 0 | exists 1, 1]; reflexivity.
-    - destruct Hresult as [-> | ->]; [exists 0, 0 | exists 0, 1]; reflexivity.
-    - exists (params + 1), results. cbn [instructionTypes]. rewrite Htype.
-      cbn [i32StackType]. rewrite repeat_app. reflexivity.
-    - exists 0, 0. reflexivity. }
-  destruct Hsignature as [inputs [outputs Hsignature]].
-  unfold sourceTypes. rewrite Hsignature, replace_stack_types_i32.
-  pose proof (instruction_types_height _ _ _ _ _ height Hsignature) as Hstep.
-  rewrite !repeat_length, Hheight in Hstep.
-  destruct (inputs <=? height); [injection Hstep as ->; reflexivity | discriminate].
+  intros program f view. split.
+  - intros [pending [Hlen Hpath]]. apply length_zero_iff_nil in Hlen. subst pending.
+    now rewrite app_nil_r in Hpath.
+  - intros Hpath. exists []. split; [reflexivity | now rewrite app_nil_r].
 Qed.
 
-Lemma source_type_prefix_i32 : forall localCount resultCount arities (callees : CalleeEnvironment),
-  i32Callees callees ->
-  forall offset code height next,
-  codeFacts localCount resultCount arities callees height code -> supportedCode callees code ->
-  sourceHeights callees (firstn offset code) height = Some next ->
-  sourceTypeStacks (repeat valtype_I32 localCount) callees (firstn offset code) (repeat valtype_I32 height) =
-    Some (repeat valtype_I32 next).
+Lemma frame_typing_heights : forall program f view pending,
+  FrameTyping program f view pending ->
+  pathHeights (programCallees program (guestModule f)) (guestBody f)
+    (positionLabels (viewPosition view)) (positionOffset (viewPosition view)) =
+    Some (map (@length val) (viewSegments view), (length (viewValues view) + pending)%nat).
 Proof.
-  intros localCount resultCount arities callees Hcallees offset.
-  induction offset as [ | offset IH]; intros code height next Hfacts Hsupport Hheight.
-  - cbn in Hheight |- *. now injection Hheight as <-.
-  - destruct code as [ | i rest]; [cbn in Hheight |- *; now injection Hheight as <- | ].
-    destruct Hfacts as [Hhead Htail]. inversion Hsupport as [ | ? ? Hsup Hrest]; subst.
-    cbn [firstn sourceHeights] in Hheight. cbn [firstn sourceTypeStacks].
-    destruct (sourceHeight callees i height) as [middle | ] eqn:Hstep; [ | discriminate].
-    rewrite (source_types_i32 _ _ _ _ _ _ _ Hcallees Hhead Hsup Hstep).
-    apply IH; assumption.
+  intros program f view pending [extra [Hlen Htypes]].
+  pose proof (path_types_heights _ _ _ _ _ _ _ Htypes) as H.
+  unfold valueTypes in H. rewrite map_map, length_app, length_map, Hlen in H.
+  erewrite map_ext in H; [exact H | ]. intros values. apply length_map.
 Qed.
 
-Lemma firstn_repeat_le : forall (A : Type) (x : A) n m,
-  n <= m -> firstn n (repeat x m) = repeat x n.
+Lemma frame_typing_decode : forall program f view pending,
+  FrameTyping program f view pending -> exists types,
+  pathTypes (guestFrameTypes f) (programCallees program (guestModule f)) (guestBody f)
+    (positionLabels (viewPosition view)) (positionOffset (viewPosition view)) = Some types /\
+  typeHeights types = (map (@length val) (viewSegments view), (length (viewValues view) + pending)%nat) /\
+  firstn (length (operandTypes types) - pending) (operandTypes types) = valueTypes (viewOperands view).
 Proof.
-  intros A x n. induction n as [ | n IH]; intros m H; [reflexivity | ].
-  destruct m; [lia | ]. cbn. f_equal. apply IH. lia.
+  intros program f view pending [extra [Hlen Hpath]]. eexists. split; [exact Hpath | ]. split.
+  - unfold typeHeights, valueTypes. cbn [fst snd]. rewrite map_map, length_app, length_map, Hlen.
+    f_equal. apply map_ext. intros values. apply length_map.
+  - unfold operandTypes. cbn [fst snd].
+    assert (Hconcat : concat (map valueTypes (viewSegments view)) = valueTypes (concat (viewSegments view))).
+    { clear Hpath. unfold valueTypes. induction (viewSegments view) as [ | segment rest IH]; cbn [map concat]; [reflexivity | ].
+      now rewrite map_app, IH. }
+    rewrite Hconcat. unfold valueTypes, viewOperands. rewrite app_assoc, <- map_app, length_app, Hlen.
+    rewrite Nat.add_sub, firstn_app, firstn_all, Nat.sub_diag. cbn [firstn]. apply app_nil_r.
 Qed.
 
-(* The existing validation facts determine each type at a reachable code path
-   in the current i32 fragment, including inside labels and around calls. *)
-Lemma path_types_i32 : forall localCount resultCount (callees : CalleeEnvironment),
-  i32Callees callees ->
-  forall labels arities code exits offset heights top,
-  codeFacts localCount resultCount arities callees 0 code -> supportedCode callees code ->
-  codeBranches callees exits code 0 ->
-  pathHeights callees code labels offset = Some (heights, top) ->
-  pathTypes (repeat valtype_I32 localCount) callees code labels offset =
-    Some (map (repeat valtype_I32) heights, repeat valtype_I32 top).
+Lemma frame_ordinary_types : forall program s f view i,
+  store_FUNCS s = program -> programValidated program s ->
+  functionAt program (positionFunction (viewPosition view)) = Some f ->
+  FrameTyping program f view 0 ->
+  nth_error (innerCode f (viewPosition view)) (positionOffset (viewPosition view)) = Some i ->
+  (exists opcode, encodedOpcode i = Some opcode) ->
+  exists next, sourceTypes (guestFrameTypes f) (programCallees program (guestModule f)) i
+    (valueTypes (viewValues view)) = Some next.
 Proof.
-  intros localCount resultCount callees Hcallees labels.
-  induction labels as [ | site rest IH]; intros arities code exits offset heights top Hfacts Hsup Hbr Hheights;
-    cbn [pathHeights pathTypes] in *.
-  - destruct (sourceHeights callees (firstn offset code) 0) as [h | ] eqn:Hh;
-      cbn in Hheights; [ | discriminate]. injection Hheights as <- <-.
-    pose proof (source_type_prefix_i32 _ _ _ _ Hcallees _ _ _ _ Hfacts Hsup Hh) as Htypes.
-    cbn [repeat] in Htypes. rewrite Htypes. reflexivity.
+  intros program s f view i Hstore Hvalid Hf Htyping Hi Hop.
+  apply frame_typing_idle in Htyping.
+  destruct (function_path_validation _ _ _ _ _ _ _ _ Hstore Hvalid Hf Htyping)
+    as [C [inner [current [outputs [HC [Hpath [Hcontext [Hlocals [Hconcrete HvalidRest]]]]]]]]].
+  unfold innerCode in Hi. rewrite Hpath in Hi.
+  rewrite (skipn_at_instruction _ _ _ Hi) in HvalidRest.
+  destruct (validation_concrete_head _ _ _ HvalidRest i _ eq_refl Hconcrete)
+    as [prefix [consumed [produced [Hinput [Hhead Htail]]]]].
+  exists (prefix ++ produced). rewrite Hinput, <- Hlocals.
+  eapply validated_ordinary_types; eassumption.
+Qed.
+
+Lemma frame_condition_type : forall program s f view i prefix value,
+  store_FUNCS s = program -> programValidated program s ->
+  functionAt program (positionFunction (viewPosition view)) = Some f ->
+  FrameTyping program f view 0 ->
+  nth_error (innerCode f (viewPosition view)) (positionOffset (viewPosition view)) = Some i ->
+  consumesI32Condition i = true -> viewValues view = prefix ++ [value] -> valueType value = valtype_I32.
+Proof.
+  intros program s f view i prefix value Hstore Hvalid Hf Htyping Hi Hcondition Hvalues.
+  apply frame_typing_idle in Htyping.
+  destruct (function_path_validation _ _ _ _ _ _ _ _ Hstore Hvalid Hf Htyping)
+    as [C [inner [current [outputs [HC [Hpath [Hcontext [Hlocals [Hconcrete HvalidRest]]]]]]]]].
+  unfold innerCode in Hi. rewrite Hpath in Hi.
+  rewrite (skipn_at_instruction _ _ _ Hi) in HvalidRest.
+  destruct (validation_concrete_head _ _ _ HvalidRest i _ eq_refl Hconcrete)
+    as [below [consumed [produced [Hinput [Hhead Htail]]]]].
+  destruct (validated_condition_suffix _ _ _ _ Hhead Hcondition) as [args ->].
+  rewrite Hvalues in Hinput. unfold valueTypes in Hinput. rewrite map_app, app_assoc in Hinput.
+  pose proof (f_equal (@rev valtype) Hinput) as Hrev.
+  rewrite !rev_app_distr in Hrev. cbn [map rev app] in Hrev. now injection Hrev.
+Qed.
+
+Lemma split_stack_types : forall segments top stack,
+  valueTypes stack = concat segments ++ top ->
+  map valueTypes (fst (splitSegments (map (@length valtype) segments) stack)) = segments /\
+  valueTypes (snd (splitSegments (map (@length valtype) segments) stack)) = top.
+Proof.
+  induction segments as [ | types rest IH]; intros top stack Htypes; cbn [map splitSegments fst snd] in *.
+  - split; [reflexivity | exact Htypes].
+  - cbn [concat] in Htypes. rewrite <- app_assoc in Htypes.
+    assert (Hprefix : valueTypes (firstn (length types) stack) = types).
+    { unfold valueTypes. rewrite <- firstn_map. fold (valueTypes stack). rewrite Htypes.
+      rewrite firstn_app, firstn_all, Nat.sub_diag. cbn [firstn]. apply app_nil_r. }
+    assert (Hsuffix : valueTypes (skipn (length types) stack) = concat rest ++ top).
+    { unfold valueTypes. rewrite <- skipn_map. fold (valueTypes stack). rewrite Htypes.
+      rewrite skipn_app, skipn_all, Nat.sub_diag. reflexivity. }
+    destruct (splitSegments (map (@length valtype) rest) (skipn (length types) stack)) as [parts values] eqn:Hsplit.
+    destruct (IH _ _ Hsuffix) as [Hparts Hvalues]. rewrite Hsplit in Hparts, Hvalues. cbn [fst snd] in Hparts, Hvalues.
+    cbn [fst snd map]. split; [now rewrite Hprefix, Hparts | exact Hvalues].
+Qed.
+
+Lemma operand_types_length : forall segments top,
+  length (concat segments ++ top) = totalHeight (map (@length valtype) segments, length top).
+Proof.
+  intros segments top. unfold totalHeight. cbn [fst snd]. rewrite length_app.
+  induction segments as [ | types rest IH]; cbn [concat map fold_right]; [reflexivity | ].
+  rewrite length_app. lia.
+Qed.
+
+Lemma operand_types_without_pending : forall segments top pending,
+  (pending <= length top)%nat ->
+  firstn (totalHeight (map (@length valtype) segments, length top) - pending) (concat segments ++ top) =
+    concat segments ++ firstn (length top - pending) top.
+Proof.
+  intros segments top pending Hpending. rewrite <- operand_types_length, length_app, firstn_app.
+  rewrite firstn_all2 by lia. f_equal. f_equal. lia.
+Qed.
+
+(* A condition's i32 type comes from SpecTec validation; its numeric range
+   comes from the cell representation. Values below it can have either type. *)
+Lemma frame_condition_value : forall program s memory base fbp remaining distance f view i prefix value,
+  store_FUNCS s = program -> programValidated program s ->
+  FrameAt program memory base fbp 0 remaining distance f view ->
+  nth_error (innerCode f (viewPosition view)) (positionOffset (viewPosition view)) = Some i ->
+  consumesI32Condition i = true -> viewValues view = prefix ++ [value] ->
+  exists raw, (0 <= raw < i32Modulus)%Z /\ value = i32Value raw.
+Proof.
+  intros program s memory base fbp remaining distance f view i prefix value Hstore Hvalid Hframe Hi Hcondition Hvalues.
+  pose proof Hframe as [Hf [_ [_ [_ [_ [_ [Hcells _]]]]]]].
+  pose proof (frame_condition_type _ _ _ _ _ _ _ Hstore Hvalid Hf
+    (frame_typing _ _ _ _ _ _ _ _ _ Hframe) Hi Hcondition Hvalues) as Htype.
+  assert (Hnth : nth_error (viewOperands view) (length (concat (viewSegments view) ++ prefix)) = Some value).
+  { unfold viewOperands. rewrite Hvalues, app_assoc, nth_error_app2 by lia.
+    rewrite Nat.sub_diag. reflexivity. }
+  exact (cell_i32_operand _ _ _ (Hcells _ _ Hnth) Htype).
+Qed.
+
+Lemma path_code_supported : forall callees labels code inner,
+  supportedCode callees code -> pathCode code labels = Some inner -> supportedCode callees inner.
+Proof.
+  intros callees labels. induction labels as [ | site rest IH]; intros code inner Hsupported Hpath;
+    cbn [pathCode] in Hpath.
+  - injection Hpath as <-. exact Hsupported.
   - destruct (siteEntry code site) as [[i body] | ] eqn:Hsite; [ | discriminate].
-    destruct (sourceHeights callees (firstn (siteOffset site) code) 0) as [height | ] eqn:Hheight;
-      [ | discriminate].
-    destruct (pathHeights callees body rest offset) as [[nested inner] | ] eqn:Hnested;
-      cbn in Hheights; [ | discriminate]. injection Hheights as <- <-.
-    pose proof (source_type_prefix_i32 _ _ _ _ Hcallees _ _ _ _ Hfacts Hsup Hheight) as Htypes. cbn [repeat] in Htypes.
+    apply (IH body inner); [ | exact Hpath].
     destruct (site_entry_split _ _ _ _ Hsite) as [Hi Harm].
-    pose proof (code_facts_skip _ _ _ _ _ _ _ _ Hfacts Hheight) as Hat.
-    rewrite (skipn_at_instruction _ _ _ Hi) in Hat. destruct Hat as [Hinstr _].
-    pose proof (code_branches_skip _ _ _ _ _ _ Hbr Hheight) as Hbranch.
-    rewrite (skipn_at_instruction _ _ _ Hi) in Hbranch. destruct Hbranch as [Hibr _].
-    pose proof (proj1 (Forall_forall _ _) Hsup _ (nth_error_In _ _ Hi)) as Hisup.
-    destruct (arm_facts _ _ _ _ _ _ _ _ _ Hinstr Hibr Hisup Harm) as [Hbody [_ [Hbbr Hbsup]]].
-    rewrite Htypes, (IH _ _ _ _ _ _ Hbody Hbsup Hbbr Hnested).
-    cbn [option_map fst snd map]. rewrite repeat_length, firstn_repeat_le by apply label_base_bound.
-    reflexivity.
+    pose proof (proj1 (Forall_forall _ _) Hsupported _ (nth_error_In _ _ Hi)) as Hsi.
+    destruct i; try discriminate; destruct (siteArm site) as [ | [ | arm]]; try discriminate;
+      cbn [instrArm] in Harm.
+    all: try match type of Harm with match ?code with [] => _ | _ :: _ => _ end = _ =>
+      destruct code; [discriminate | ] end.
+    all: injection Harm as <-; inversion Hsi; assumption.
 Qed.
 
-Lemma function_path_types : forall program s index f labels offset,
+Lemma function_structured_resume_types : forall program s index f labels offset segments stack inner i arm body,
   store_FUNCS s = program -> programValidated program s -> functionAt program index = Some f ->
   pathTypes (guestFrameTypes f) (programCallees program (guestModule f)) (guestBody f) labels offset =
-    option_map (fun heights => (map (repeat valtype_I32) (fst heights), repeat valtype_I32 (snd heights)))
-      (pathHeights (programCallees program (guestModule f)) (guestBody f) labels offset).
+    Some (segments, stack) ->
+  pathCode (guestBody f) labels = Some inner -> nth_error inner offset = Some i ->
+  instrArm i arm = Some body ->
+  pathTypes (guestFrameTypes f) (programCallees program (guestModule f)) (guestBody f) labels (S offset) =
+    Some (segments, firstn (labelBase i (length stack)) stack ++ structuredResults i).
 Proof.
-  intros program s index f labels offset Hstore Hvalid Hf.
-  destruct (function_at_i32_types _ _ _ Hf) as [Hp [_ Hl]].
-  unfold guestFrameTypes. rewrite Hp, Hl, <- repeat_app. fold (frameLocals f).
-  destruct (function_facts _ _ _ _ Hstore Hvalid Hf) as [Hfacts [_ [Hsup Hbr]]].
-  assert (Hcallees : i32Callees (programCallees program (guestModule f))).
-  { intros x g Hg. unfold programCallees in Hg; cbn [calleeAt] in Hg.
-    destruct (nth_error (FUNCS (guestModule f)) (N.to_nat x)); [ | discriminate].
-    destruct (function_at_i32_types _ _ _ Hg) as [Hgp [Hgr _]]. auto. }
-  destruct (pathHeights _ _ _ _) as [[heights top] | ] eqn:Hheight.
-  - exact (path_types_i32 _ _ _ Hcallees _ _ _ _ _ _ _ Hfacts Hsup Hbr Hheight).
-  - cbn [option_map]. destruct (pathTypes _ _ _ _ _) as [[segments top] | ] eqn:Htypes; [ | reflexivity].
-    pose proof (path_types_heights _ _ _ _ _ _ _ Htypes) as H. rewrite Hheight in H. discriminate.
+  intros program s index f labels offset segments stack inner i arm body Hstore Hvalid Hf Htypes Hpath Hi Harm.
+  destruct (function_path_validation _ _ _ _ _ _ _ _ Hstore Hvalid Hf Htypes)
+    as [C [inner' [current [outputs [HC [Hpath' [Hcontext [Hlocals [Hconcrete Hrest]]]]]]]]].
+  rewrite Hpath in Hpath'. injection Hpath' as <-.
+  rewrite (skipn_at_instruction _ _ _ Hi) in Hrest.
+  destruct (validation_concrete_head _ _ _ Hrest i _ eq_refl Hconcrete)
+    as [prefix [inputs [results [Hstack [Hhead Htail]]]]].
+  pose proof (proj1 (proj2 Hvalid index f Hf)) as Hsupported.
+  pose proof (path_code_supported _ _ _ _ Hsupported Hpath) as HinnerSupported.
+  eapply path_types_step; [exact Hpath | exact Hi | exact Htypes | ]. rewrite Hstack.
+  eapply structured_instruction_types; [exact Hhead | | exact Harm].
+  exact (proj1 (Forall_forall _ _) HinnerSupported _ (nth_error_In _ _ Hi)).
+Qed.
+
+(* Falling out of a label keeps exactly its declared result types. *)
+Lemma frame_label_end_typing : forall program s index f labels site segments segment values locals offset body outer i,
+  store_FUNCS s = program -> programValidated program s -> functionAt program index = Some f ->
+  FrameTyping program f (frameView (codePosition index (labels ++ [site]) offset)
+    (segments ++ [segment]) values locals) 0 ->
+  pathCode (guestBody f) labels = Some outer -> siteEntry outer site = Some (i, body) ->
+  offset = length body ->
+  FrameTyping program f (frameView (codePosition index labels (S (siteOffset site)))
+    segments (segment ++ values) locals) 0.
+Proof.
+  intros program s index f labels site segments segment values locals offset body outer i
+    Hstore Hvalid Hf Htyping Hpath Hsite Hend.
+  apply frame_typing_idle in Htyping. apply frame_typing_idle.
+  cbn [viewPosition positionLabels positionOffset viewSegments viewValues] in Htyping |- *.
+  destruct (path_types_split _ _ labels site [] _ _ _ _ Htyping)
+    as [outer' [i' [body' [heads [stack [tails [Hpath' [Hsite' [Hentry [Hsegments Htail]]]]]]]]]].
+  rewrite Hpath in Hpath'. injection Hpath' as <-. rewrite Hsite in Hsite'. injection Hsite' as <- <-.
+  cbn [pathTypes] in Htail.
+  destruct (sourceTypeStacks _ _ _ []) as [top | ] eqn:Htop; [ | discriminate]. injection Htail as Htails Hvalues. subst tails.
+  rewrite map_app in Hsegments. cbn [map] in Hsegments.
+  apply app_inj_tail in Hsegments as [Hheads Hsegment]. subst heads.
+  destruct (function_path_validation _ _ _ _ _ _ _ _ Hstore Hvalid Hf Htyping)
+    as [C [inner [current [outputs [HC [Hinner [Hcontext [Hlocal [Hconcrete Hrest]]]]]]]]].
+  rewrite (path_context_snoc _ _ _ _ _ _ _ _ Hpath Hsite) in Hcontext.
+  destruct (pathValidationContext _ _ _ labels) as [[parent resultTypes] | ]; [ | discriminate].
+  injection Hcontext as <- <-.
+  rewrite path_code_snoc, Hpath, Hsite in Hinner. cbn [pathCode] in Hinner. injection Hinner as <-.
+  rewrite Hend, skipn_all in Hrest.
+  pose proof (empty_concrete_types _ _ _ Hrest eq_refl Hconcrete) as Hresults.
+  destruct (site_entry_split _ _ _ _ Hsite) as [Hi Harm].
+  pose proof (function_structured_resume_types _ _ _ _ _ _ _ _ _ _ _ _ Hstore Hvalid Hf Hentry Hpath Hi Harm)
+    as Hresume.
+  unfold valueTypes at 2. rewrite map_app. fold (valueTypes segment) (valueTypes values).
+  rewrite Hsegment, Hresults. exact Hresume.
+Qed.
+
+Lemma app_split_eq : forall (A : Type) (a b c d : list A), length a = length c -> a ++ b = c ++ d -> a = c /\ b = d.
+Proof.
+  intros A a b c d Hlen Heq. pose proof (f_equal (firstn (length a)) Heq) as H1.
+  pose proof (f_equal (skipn (length a)) Heq) as H2.
+  rewrite firstn_app, Nat.sub_diag, firstn_all, app_nil_r in H1.
+  rewrite Hlen, firstn_app, Nat.sub_diag, firstn_all, app_nil_r in H1.
+  rewrite skipn_app, Nat.sub_diag, skipn_all in H2. rewrite Hlen, skipn_app, Nat.sub_diag, skipn_all in H2.
+  split; [exact H1 | exact H2].
+Qed.
+
+Lemma app_suffix_eq : forall (A : Type) (prefix suffix before after : list A),
+  length suffix = length after -> prefix ++ suffix = before ++ after -> suffix = after.
+Proof.
+  intros A prefix suffix before after Hlen Heq.
+  assert (Hprefix : length prefix = length before).
+  { pose proof (f_equal (@length A) Heq) as H. repeat rewrite length_app in H. lia. }
+  exact (proj2 (app_split_eq _ _ _ _ _ Hprefix Heq)).
+Qed.
+
+(* The saved operands below a label retain the types at its entry. *)
+Definition LabelTyping (program : Program) (f : GuestFunction) (pre : list LabelSite) (site : LabelSite)
+    (segments : list (list val)) (below : list val) (i : instr) : Prop :=
+  exists stack,
+    pathTypes (guestFrameTypes f) (programCallees program (guestModule f)) (guestBody f) pre (siteOffset site) =
+      Some (map valueTypes segments, stack) /\
+    firstn (labelBase i (length stack)) stack = valueTypes below.
+
+Lemma frame_label_typing : forall program f index pre site post segments below tails values locals offset outer i body,
+  FrameTyping program f (frameView (codePosition index (pre ++ site :: post) offset)
+    (segments ++ below :: tails) values locals) 0 ->
+  length segments = length pre -> pathCode (guestBody f) pre = Some outer ->
+  siteEntry outer site = Some (i, body) -> LabelTyping program f pre site segments below i.
+Proof.
+  intros program f index pre site post segments below tails values locals offset outer i body
+    Htyping Hlen Hpath Hsite.
+  apply frame_typing_idle in Htyping.
+  cbn [viewPosition positionLabels positionOffset viewSegments viewValues] in Htyping.
+  destruct (path_types_split _ _ pre site post _ _ _ _ Htyping)
+    as [outer' [i' [body' [heads [stack [more [Hpath' [Hsite' [Hentry [Hsegments Htail]]]]]]]]]].
+  rewrite Hpath in Hpath'. injection Hpath' as <-. rewrite Hsite in Hsite'. injection Hsite' as <- <-.
+  pose proof (path_types_heights _ _ _ _ _ _ _ Hentry) as Hheights.
+  pose proof (path_heights_length _ _ _ _ _ _ Hheights) as Hheads. rewrite length_map in Hheads.
+  rewrite map_app in Hsegments. cbn [map] in Hsegments.
+  destruct (app_split_eq _ (map valueTypes segments) _ heads _ ltac:(rewrite length_map; lia) Hsegments) as [Heq Hrest].
+  injection Hrest as Hbelow _. subst heads. exists stack. split; [exact Hentry | symmetry; exact Hbelow].
+Qed.
+
+Lemma label_typing_resume : forall program s index f pre site segments below i outer body kept,
+  store_FUNCS s = program -> programValidated program s -> functionAt program index = Some f ->
+  LabelTyping program f pre site segments below i ->
+  pathCode (guestBody f) pre = Some outer -> siteEntry outer site = Some (i, body) ->
+  valueTypes kept = structuredResults i ->
+  forall locals, FrameTyping program f (frameView (codePosition index pre (S (siteOffset site)))
+    segments (below ++ kept) locals) 0.
+Proof.
+  intros program s index f pre site segments below i outer body kept Hstore Hvalid Hf [stack [Htypes Hbelow]]
+    Hpath Hsite Hkept locals.
+  destruct (site_entry_split _ _ _ _ Hsite) as [Hi Harm].
+  apply frame_typing_idle. cbn [viewPosition positionLabels positionOffset viewSegments viewValues].
+  unfold valueTypes at 2. rewrite map_app. fold (valueTypes below) (valueTypes kept).
+  rewrite Hkept, <- Hbelow. eapply function_structured_resume_types; eassumption.
+Qed.
+
+Lemma frame_branch_types : forall program s index f pre site post segments below tails values locals offset outer ti body i l
+    dropped kept condition,
+  store_FUNCS s = program -> programValidated program s -> functionAt program index = Some f ->
+  FrameTyping program f (frameView (codePosition index (pre ++ site :: post) offset)
+    (segments ++ below :: tails) values locals) 0 ->
+  pathCode (guestBody f) pre = Some outer -> siteEntry outer site = Some (ti, body) ->
+  nth_error (innerCode f (codePosition index (pre ++ site :: post) offset)) offset = Some i ->
+  branchTargets i l -> N.to_nat (l :> N) = length post ->
+  values = (dropped ++ kept) ++ condition -> valueTypes condition = branchConditionTypes i ->
+  length kept = length (structuredLabel ti) -> valueTypes kept = structuredLabel ti.
+Proof.
+  intros program s index f pre site post segments below tails values locals offset outer ti body i l
+    dropped kept condition Hstore Hvalid Hf Htyping Hpath Hsite Hi Htarget Hlevel Hvalues Hcondition Hlength.
+  apply frame_typing_idle in Htyping.
+  cbn [viewPosition positionLabels positionOffset viewSegments viewValues] in Htyping.
+  destruct (function_path_validation _ _ _ _ _ _ _ _ Hstore Hvalid Hf Htyping)
+    as [C [inner [current [outputs [HC [Hinner [Hcontext [Hlocal [Hconcrete Hrest]]]]]]]]].
+  unfold innerCode in Hi. cbn [positionLabels] in Hi. rewrite Hinner in Hi.
+  rewrite (skipn_at_instruction _ _ _ Hi) in Hrest.
+  destruct (validation_concrete_head _ _ _ Hrest i _ eq_refl Hconcrete)
+    as [prefix [inputs [results [Hinput [Hhead Htail]]]]].
+  pose proof (path_context_target _ _ _ _ _ _ _ _ _ _ _ Hpath Hsite Hcontext) as Hlabel.
+  rewrite <- Hlevel in Hlabel.
+  assert (HconcreteInput : concreteTypes inputs)
+    by (rewrite Hinput in Hconcrete; exact (proj2 (proj1 (Forall_app _ _ _) Hconcrete))).
+  destruct (validated_branch_suffix _ _ _ _ _ _ Hhead Htarget Hlabel HconcreteInput) as [discarded Hinputs].
+  rewrite Hinputs, Hvalues in Hinput. unfold valueTypes in Hinput. rewrite !map_app in Hinput.
+  fold (valueTypes dropped) (valueTypes kept) (valueTypes condition) in Hinput.
+  rewrite Hcondition in Hinput. rewrite !app_assoc in Hinput.
+  apply app_inv_tail in Hinput.
+  assert (HprefixLength : length (valueTypes dropped) = length (prefix ++ discarded)).
+  { pose proof (f_equal (@length valtype) Hinput) as Hlen.
+    unfold valueTypes in Hlen |- *. repeat rewrite length_app in Hlen. repeat rewrite length_map in Hlen.
+    rewrite length_map, length_app. lia. }
+  exact (proj2 (app_split_eq _ _ _ _ _ HprefixLength Hinput)).
+Qed.
+
+(* The source call still carries the index type while an indirect call is
+   resolved. Only the arguments remain in its suspended operand view. *)
+Lemma frame_call_argument_types : forall program s f view pending i callee prefix arguments,
+  store_FUNCS s = program -> programValidated program s ->
+  functionAt program (positionFunction (viewPosition view)) = Some f ->
+  FrameTyping program f view pending ->
+  nth_error (innerCode f (viewPosition view)) (positionOffset (viewPosition view)) = Some i ->
+  callsInto (programCallees program (guestModule f)) i callee ->
+  pending = length (callIndexTypes i) -> viewValues view = prefix ++ arguments ->
+  length arguments = guestParams callee -> valueTypes arguments = guestParamTypes callee.
+Proof.
+  intros program s f view pending i callee prefix arguments Hstore Hvalid Hf
+    [pendingTypes [Hpending Htyping]] Hi Hcall Hindex Hvalues Hlength.
+  destruct (function_path_validation _ _ _ _ _ _ _ _ Hstore Hvalid Hf Htyping)
+    as [C [inner [current [outputs [HC [Hpath [Hcontext [Hlocals [Hconcrete Hrest]]]]]]]]].
+  unfold innerCode in Hi. rewrite Hpath in Hi. rewrite (skipn_at_instruction _ _ _ Hi) in Hrest.
+  destruct (validation_concrete_head _ _ _ Hrest i _ eq_refl Hconcrete)
+    as [below [inputs [results [Hinput [Hhead Htail]]]]].
+  destruct (path_context_functions _ _ _ _ _ _ Hcontext) as [Hfuncs Htypes].
+  assert (Hcallees : calleeTypes current (programCallees program (guestModule f))).
+  { unfold calleeTypes. rewrite Hfuncs. exact (program_callee_types _ _ _ _ Hstore HC). }
+  assert (HmoduleTypes : context_TYPES current = envTypes (programCallees program (guestModule f))).
+  { rewrite Htypes. exact (proj1 (module_context_tables _ _ _ HC)). }
+  destruct (validated_call_signature _ _ _ _ _ _ Hhead Hcall Hcallees HmoduleTypes) as [Hinputs _].
+  rewrite Hinputs, Hvalues in Hinput. unfold valueTypes in Hinput. rewrite map_app, <- app_assoc in Hinput.
+  assert (HprefixLength : length (valueTypes prefix) = length below).
+  { pose proof (f_equal (@length valtype) Hinput) as Hlen.
+    repeat rewrite length_app in Hlen. repeat rewrite length_map in Hlen.
+    unfold valueTypes. rewrite length_map. unfold guestParams in Hlength. lia. }
+  destruct (app_split_eq _ _ _ _ _ HprefixLength Hinput) as [_ Hargs].
+  apply (proj1 (app_split_eq _ _ _ _ _ ltac:(unfold valueTypes; rewrite length_map; exact Hlength) Hargs)).
+Qed.
+
+Lemma frame_call_resume_types : forall program s f view i callee returned,
+  store_FUNCS s = program -> programValidated program s ->
+  functionAt program (positionFunction (viewPosition view)) = Some f ->
+  FrameTyping program f view (callOperands i callee) ->
+  nth_error (innerCode f (viewPosition view)) (positionOffset (viewPosition view)) = Some i ->
+  callsInto (programCallees program (guestModule f)) i callee ->
+  valueTypes returned = guestResultTypes callee ->
+  FrameTyping program f (frameView
+    (codePosition (positionFunction (viewPosition view)) (positionLabels (viewPosition view))
+      (S (positionOffset (viewPosition view))))
+    (viewSegments view) (viewValues view ++ returned) (viewLocals view)) 0.
+Proof.
+  intros program s f view i callee returned Hstore Hvalid Hf [pending [Hpending Htyping]] Hi Hcall Hreturned.
+  destruct (function_path_validation _ _ _ _ _ _ _ _ Hstore Hvalid Hf Htyping)
+    as [C [inner [current [outputs [HC [Hpath [Hcontext [Hlocals [Hconcrete Hrest]]]]]]]]].
+  unfold innerCode in Hi. rewrite Hpath in Hi. rewrite (skipn_at_instruction _ _ _ Hi) in Hrest.
+  destruct (validation_concrete_head _ _ _ Hrest i _ eq_refl Hconcrete)
+    as [below [inputs [results [Hinput [Hhead Htail]]]]].
+  destruct (path_context_functions _ _ _ _ _ _ Hcontext) as [Hfuncs Htypes].
+  assert (Hcallees : calleeTypes current (programCallees program (guestModule f))).
+  { unfold calleeTypes. rewrite Hfuncs. exact (program_callee_types _ _ _ _ Hstore HC). }
+  assert (HmoduleTypes : context_TYPES current = envTypes (programCallees program (guestModule f))).
+  { rewrite Htypes. exact (proj1 (module_context_tables _ _ _ HC)). }
+  destruct (validated_call_signature _ _ _ _ _ _ Hhead Hcall Hcallees HmoduleTypes) as [Hinputs _].
+  rewrite Hinputs in Hinput.
+  assert (HprefixLength : length (valueTypes (viewValues view)) = length below).
+  { pose proof (f_equal (@length valtype) Hinput) as Hlen. repeat rewrite length_app in Hlen.
+    rewrite <- (call_index_arity i callee) in Hpending. unfold guestParams in Hpending. lia. }
+  destruct (app_split_eq _ _ _ _ _ HprefixLength Hinput) as [Hbelow Hargs].
+  apply frame_typing_idle. cbn [viewPosition positionLabels positionOffset viewSegments viewValues].
+  unfold valueTypes at 2. rewrite map_app. fold (valueTypes (viewValues view)) (valueTypes returned).
+  rewrite Hreturned. eapply path_types_step; [exact Hpath | exact Hi | exact Htyping | ].
+  rewrite Hargs. apply calls_into_types. exact Hcall.
+Qed.
+
+Lemma function_integer_defaults : forall program index f,
+  functionAt program index = Some f -> exists defaults, integerZeros (guestLocalTypes f) = Some defaults.
+Proof.
+  intros program index f Hf. destruct (function_integer_types _ _ _ Hf) as [_ [_ Hlocals]].
+  induction Hlocals as [ | t types Ht Htypes [defaults Hdefaults]].
+  - exists []; reflexivity.
+  - destruct Ht as [-> | ->]; cbn [integerZeros]; rewrite Hdefaults; eexists; reflexivity.
 Qed.

@@ -160,8 +160,8 @@ Proof.
   rewrite update_same in H. discriminate.
 Qed.
 
-Example non_i32_function_rejected :
-  functionAt [MKfuncinst (mk_functype (mk_list _ [valtype_I64]) (mk_list _ [])) callModule
+Example float_function_rejected :
+  functionAt [MKfuncinst (mk_functype (mk_list _ [valtype_F32]) (mk_list _ [])) callModule
     (func_FUNC (mk_uN 0) [] [])] 0 = None.
 Proof. reflexivity. Qed.
 

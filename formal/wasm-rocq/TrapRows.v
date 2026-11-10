@@ -108,14 +108,12 @@ Proof.
   rewrite (skipn_at_instruction _ _ _ Hi) in Hfacts, Hsup.
   destruct Hfacts as [[Hwi [Htable [params [results [Htype Hheight]]]]] _]. rewrite Nat.add_0_r in Hheight.
   inversion Hsup as [ | ? ? Hhead _].
-  inversion Hhead as [ | | | | | | | | | | | | x' y' p r Htype' Hp Hr Hready_ | | ].
+  inversion Hhead as [ | | | | | | | | | | | | x' y' p r Htype' Hp Hr Hinteger Hready_ | | ].
   cbn [programCallees envTypes envTables indirectReady] in Htype, Htable, Hready_.
   destruct (split_top_values values 1 ltac:(lia)) as [prefix [top [-> Htop]]].
   destruct top as [ | tableIndex [ | ? ?]]; try discriminate. clear Htop.
-  assert (HindexOperand : i32Operand tableIndex).
-  { apply (proj1 (Forall_forall _ _) Hbounds). apply in_or_app; right.
-    apply in_or_app; right. left. reflexivity. }
-  destruct HindexOperand as [tableIndexRaw [HindexRange ->]].
+  destruct (frame_condition_value _ _ _ _ _ _ _ _ _ _ _ _ Hstore Hvalid Hframe Hi
+    eq_refl eq_refl) as [tableIndexRaw [HindexRange ->]].
   destruct (nth_error (TABLES (guestModule f)) (N.to_nat (x :> N))) as [ta | ] eqn:Hta;
     [ | apply nth_error_None in Hta; lia].
   destruct (encoded_path_resolve _ _ _ _ Hloaded Hf _ _ _ _ _ Hpath Hi) as [Himage [HtableRom HtypeRom]].
@@ -191,10 +189,9 @@ Proof.
     pose proof (function_type_rom _ _ _ _ Hloaded Hg) as HtypeRom'.
     replace (Z.of_nat (N.to_nat a) + 1) with (row COL_FUNCTION_REF) in HtypeRom' by lia.
     rewrite HtypeRom' in HtypeRead. injection HtypeRead as HtypeId.
-    destruct (function_at_sound _ _ _ Hg) as [Hgnth _]. rewrite Hgnth in Hfi. injection Hfi as <-.
-    change (i32StackType (guestParams g) (guestResults g) =
+    destruct (function_at_typed _ _ _ Hg) as [Hgnth _]. rewrite Hgnth in Hfi. injection Hfi as <-.
+    change (guestType g =
       lookup_total (TYPES (guestModule f)) (y :> N)) in HfiType.
-    rewrite <- (function_at_i32_type _ _ _ Hg) in HfiType.
     rewrite (spec_lookup_from_nth_error _ _ _ _ _ Htype) in HfiType.
     assert (HeqOne : row COL_CI_TYPE_EQ = 1).
     { rewrite Heq, (proj2 (Z.eqb_eq _ _)); [reflexivity | ].

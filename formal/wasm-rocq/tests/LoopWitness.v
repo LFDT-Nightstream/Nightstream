@@ -69,7 +69,7 @@ Proof.
     + repeat constructor.
   - intros [ | index] g Hg; cbn in Hg; [injection Hg as <- | destruct index; discriminate].
     split.
-    + constructor; [ | constructor]. apply supported_loop; [repeat constructor | right; reflexivity].
+    + constructor; [ | constructor]. apply supported_loop; [repeat constructor | right; left; reflexivity].
     + vm_compute. repeat match goal with
         | |- _ /\ _ => split | |- Forall _ _ => constructor | |- True => exact I | |- _ => lia end.
 Qed.

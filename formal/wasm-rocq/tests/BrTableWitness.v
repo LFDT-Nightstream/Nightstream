@@ -76,7 +76,7 @@ Proof.
     + repeat constructor.
   - intros [ | index] g Hg; cbn in Hg; [injection Hg as <- | destruct index; discriminate].
     split.
-    + constructor; [ | constructor]. apply supported_block; [ | right; reflexivity].
+    + constructor; [ | constructor]. apply supported_block; [ | right; left; reflexivity].
       constructor; [constructor | constructor; [apply supported_block; [repeat constructor | left; reflexivity] |
         repeat constructor]].
     + vm_compute. repeat match goal with

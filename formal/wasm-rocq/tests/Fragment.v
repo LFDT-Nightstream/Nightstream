@@ -22,11 +22,17 @@ Qed.
 
 Example result_block_supported :
   Supported noCallees (BLOCK (_RESULT (Some valtype_I32)) [LOCAL_GET (mk_uN 0)]).
-Proof. apply supported_block; [repeat constructor | right; reflexivity]. Qed.
+Proof. apply supported_block; [repeat constructor | right; left; reflexivity]. Qed.
 
-(* Blocks hold at most one i32 result and take no parameters. *)
-Example i64_block_rejected : forall callees body, ~ Supported callees (BLOCK (_RESULT (Some valtype_I64)) body).
-Proof. intros callees body H. inversion H as [ | | | | | ? ? _ [Hr | Hr] | | | | | | | | | ]; discriminate. Qed.
+Example i64_block_supported :
+  Supported noCallees (BLOCK (_RESULT (Some valtype_I64)) [LOCAL_GET (mk_uN 0)]).
+Proof. apply supported_block; [repeat constructor | right; right; reflexivity]. Qed.
+
+(* Blocks hold at most one integer result and take no parameters. *)
+Example float_block_rejected : forall callees body, ~ Supported callees (BLOCK (_RESULT (Some valtype_F32)) body).
+Proof.
+  intros callees body H. inversion H as [ | | | | | ? ? _ [Hr | [Hr | Hr]] | | | | | | | | | ]; discriminate.
+Qed.
 
 Example typed_block_rejected : forall callees x body, ~ Supported callees (BLOCK (_IDX x) body).
 Proof. intros callees x body H. inversion H. Qed.

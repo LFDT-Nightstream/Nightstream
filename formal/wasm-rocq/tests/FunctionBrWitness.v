@@ -79,7 +79,7 @@ Proof.
         mkGuestFunction 1%N branchModule (mk_uN 0) [valtype_I32; valtype_I32] [valtype_I32] [] branchBody 4);
         [reflexivity | cbn; lia | cbn; lia].
     + split.
-      * constructor; [ | constructor]. apply supported_block; [repeat constructor | right; reflexivity].
+      * constructor; [ | constructor]. apply supported_block; [repeat constructor | right; left; reflexivity].
       * vm_compute. repeat match goal with
           | |- _ /\ _ => split | |- Forall _ _ => constructor | |- True => exact I | |- _ => lia end.
 Qed.

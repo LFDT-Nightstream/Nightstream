@@ -76,8 +76,8 @@ Proof.
     + repeat constructor.
   - intros [ | index] g Hg; cbn in Hg; [injection Hg as <- | destruct index; discriminate].
     split; [ | vm_compute; repeat split; lia].
-    constructor; [ | constructor]. apply supported_block; [ | right; reflexivity].
-    constructor; [apply supported_block; [repeat constructor | right; reflexivity] | repeat constructor].
+    constructor; [ | constructor]. apply supported_block; [ | right; left; reflexivity].
+    constructor; [apply supported_block; [repeat constructor | right; left; reflexivity] | repeat constructor].
 Qed.
 
 (* The arguments 7 and 9, as the entry rows before the run left them. *)

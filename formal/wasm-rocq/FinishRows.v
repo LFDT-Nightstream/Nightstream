@@ -4,7 +4,7 @@ Require Import R1CS Columns FullRelation Range MemoryTrace MemoryCatalog Wasm2 W
   StraightLineSpec StackSimulation SpecTecCalls CallerSpec ProgramSpec ProgramEncoding CodeLayout BlockEncoding
   Fragment CodeFacts ControlDecode ControlInvariant ControlBridge FrameFacts FrameRows CallRows SlideLayout ProgramBinding
   OpcodeCatalog Selectors CircuitFacts CallContext TrapFacts TerminalFacts FunctionResults.
-Require Import IntegerMemory IntegerDecode.
+Require Import IntegerMemory IntegerDecode IntegerLocals ExecutionSpec.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -63,11 +63,10 @@ Lemma finish_function_row : forall program s view f initial final row inner call
   row COL_ACTIVATION_FINISHED_AFTER = 1 -> Replay initial (eventsForRow memories row) final -> wf_frame caller ->
   ActiveState program s initial (beforeBoundary row) (atCode view) inner ->
   functionAt program (positionFunction (viewPosition view)) = Some f -> exitsFunction f view ->
-  exists result, row COL_TRAPPED_AFTER = 0 /\
-    (match result with None => row COL_OUTPUT_CAPTURED = 0
-      | Some value => row COL_OUTPUT_CAPTURED = 1 /\ row COL_OUTPUT_VALUE_LO_AFTER = value end) /\
+  exists values, row COL_TRAPPED_AFTER = 0 /\
+    capturedValues row (guestResultTypes f) = Some values /\
     Steps (callContext caller (N.of_nat (guestResults f)) inner)
-      (mk_config (mk_state s caller) (match result with None => [] | Some v => [i32Constant v] end)).
+      (mk_config (mk_state s caller) (map admininstr_val values)).
 Proof.
   intros program s view f initial final row inner caller Hstore Hwf Hvalid Hprime Hloaded Hfull Hprogram
     Hfinish Hreplay Hcaller Hstate Hf Hleaves.
@@ -91,23 +90,34 @@ Proof.
   rewrite Hsplit, length_app, Nat2Z.inj_add in Hsp.
   assert (Hcount : row COL_OUTPUT_CAPTURED = Z.of_nat (length returned)) by lia.
   pose proof (Hsteps caller ltac:(constructor; assumption)) as Hreturn.
+  assert (Htypes : valueTypes returned = guestResultTypes f).
+  { eapply function_return_types; [exact Hstore | exact Hvalid | exact Hf |
+      exact (frame_typing _ _ _ _ _ _ _ _ _ Hframe) | exact Hleaves | exact Hsplit | exact Hlength]. }
+  exists returned. split; [exact Htrap | ]. split; [ | exact Hreturn].
+  rewrite <- Htypes.
   destruct returned as [ | v [ | v' rest]].
-  - exists None. split; [exact Htrap | ]. split; [cbn in Hcount; exact Hcount | exact Hreturn].
-  - assert (Hv : i32Operand v).
-    { apply (proj1 (Forall_forall _ _) Hbounds). rewrite Hsplit.
-      apply in_or_app; right. left. reflexivity. }
-    destruct Hv as [raw [Hraw ->]].
-    exists (Some raw). split; [exact Htrap | ]. split; [split | exact Hreturn].
-    + exact Hcount.
-    + assert (Hcap : row COL_OUTPUT_CAPTURED = 1) by exact Hcount.
-      assert (Haddr := full_capture_address row Hprime Hfull Hcap ltac:(cbn in Hsp; lia)).
-      pose proof (captured_stack_read _ _ _ Hreplay Hcap) as Hread.
-      assert (Hvalue : initial stackId [2 * (row COL_STACK_FRAME_BASE_BEFORE + Z.of_nat (length dropped))] = Some raw).
-      { apply cell_matches_i32_read; [exact (proj1 Hraw) | ]. apply Hcells. rewrite Hsplit, nth_error_app2, Nat.sub_diag by lia. reflexivity. }
-      rewrite Haddr in Hread. replace (2 * row COL_SP_BEFORE - 2)
-        with (2 * (row COL_STACK_FRAME_BASE_BEFORE + Z.of_nat (length dropped))) in Hread by (cbn in Hsp; lia).
-      rewrite Hvalue in Hread. injection Hread as Hread.
-      rewrite (full_capture_value row Hfull Hcap). symmetry; exact Hread.
+  - cbn [capturedValues valueTypes map]. rewrite Hcount. reflexivity.
+  - assert (Hcap : row COL_OUTPUT_CAPTURED = 1) by exact Hcount.
+    pose proof (full_capture_address row Hprime Hfull Hcap ltac:(cbn in Hsp; lia)) as Haddr.
+    destruct (captured_stack_reads _ _ _ Hreplay Hcap) as [Hread HreadHi].
+    rewrite (full_stack_read0_high_address row Hprime Hfull) in HreadHi.
+    rewrite Haddr in Hread, HreadHi.
+    replace (2 * row COL_SP_BEFORE - 2)
+      with (2 * (row COL_STACK_FRAME_BASE_BEFORE + Z.of_nat (length dropped))) in Hread, HreadHi
+      by (cbn in Hsp; lia).
+    assert (Hcell : CellMatches initial (row COL_STACK_FRAME_BASE_BEFORE + Z.of_nat (length dropped)) v).
+    { apply Hcells. rewrite Hsplit, nth_error_app2, Nat.sub_diag by lia. reflexivity. }
+    destruct Hcell as [lo Hlo Hcell | lo hi Hlo Hhi Hcell HcellHi].
+    + rewrite Hcell in Hread. injection Hread as Hread.
+      cbn [valueTypes valueType integerValueType i32Value map capturedValues]. rewrite Hcap.
+      rewrite (full_capture_value row Hfull Hcap). normalize_columns. rewrite <- Hread.
+      rewrite (proj2 (i32_cell_some _ _) (conj eq_refl Hlo)). reflexivity.
+    + rewrite Hcell in Hread. injection Hread as Hread.
+      rewrite HcellHi in HreadHi. injection HreadHi as HreadHi.
+      cbn [valueTypes valueType integerValueType i64Value map capturedValues]. rewrite Hcap.
+      rewrite (full_capture_value row Hfull Hcap), (full_capture_value_hi row Hfull Hcap).
+      normalize_columns. rewrite <- Hread, <- HreadHi.
+      rewrite (proj2 (i32_cell_some _ _) (conj eq_refl Hlo)), (proj2 (i32_cell_some _ _) (conj eq_refl Hhi)). reflexivity.
   - exfalso.
     assert (Hboolean : row COL_OUTPUT_CAPTURED = 0 \/ row COL_OUTPUT_CAPTURED = 1).
     { circuit_boolean COL_OUTPUT_CAPTURED Hcap. exact Hcap. }

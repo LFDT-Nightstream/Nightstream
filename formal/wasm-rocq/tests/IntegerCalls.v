@@ -1,5 +1,5 @@
-(* A real wide call, its zero rows and result move. These check the typed row
-   lemmas; the control invariant is still being migrated to mixed-width values. *)
+(* A real wide call, its zero rows and result move, checked by typed row lemmas.
+   MixedWitness.v also checks complete runs through run_refinement. *)
 From Stdlib Require Import List ZArith Lia.
 Require Import R1CS Columns Range FullRelation Wasm2 WasmIntegers WasmValues MemoryTrace MemoryCatalog
   TraceRefinement StraightLineSpec IntegerMemory IntegerDecode IntegerLocals LocalBindings

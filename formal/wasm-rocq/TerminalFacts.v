@@ -84,20 +84,26 @@ Proof.
   - unfold portEvent, active, exitDistancePort. simpl. rewrite Hactive. reflexivity.
 Qed.
 
-Lemma captured_stack_read : forall initial final (w : Witness),
+Lemma captured_stack_reads : forall initial final (w : Witness),
   Replay initial (eventsForRow memories w) final -> w COL_OUTPUT_CAPTURED = 1 ->
   initial stackId [w (List.nth 0%nat COL_STACK_READ_ADDR_LO 0%nat)] =
-    Some (w (List.nth 0%nat COL_STACK_READ_VALUE_LO 0%nat)).
+    Some (w (List.nth 0%nat COL_STACK_READ_VALUE_LO 0%nat)) /\
+  initial stackId [w (List.nth 0%nat COL_STACK_READ_ADDR_HI 0%nat)] =
+    Some (w (List.nth 0%nat COL_STACK_READ_VALUE_HI 0%nat)).
 Proof.
   intros initial final w Hreplay Hcapture.
   assert (Hprefix : exists suffix, eventsForRow memories w =
     ReadEvent stackId [w (List.nth 0%nat COL_STACK_READ_ADDR_LO 0%nat)]
-      (w (List.nth 0%nat COL_STACK_READ_VALUE_LO 0%nat)) :: suffix).
+      (w (List.nth 0%nat COL_STACK_READ_VALUE_LO 0%nat)) ::
+      ReadEvent stackId [w (List.nth 0%nat COL_STACK_READ_ADDR_HI 0%nat)]
+        (w (List.nth 0%nat COL_STACK_READ_VALUE_HI 0%nat)) :: suffix).
   { change (exists suffix,
       flat_map (fun p => match portEvent stackId w p with Some e => [e] | None => [] end)
         (ports (hd (mkMemory 0%nat Ram []) memories)) ++ eventsForRow (tl memories) w =
       ReadEvent stackId [w (List.nth 0%nat COL_STACK_READ_ADDR_LO 0%nat)]
-        (w (List.nth 0%nat COL_STACK_READ_VALUE_LO 0%nat)) :: suffix).
+        (w (List.nth 0%nat COL_STACK_READ_VALUE_LO 0%nat)) ::
+      ReadEvent stackId [w (List.nth 0%nat COL_STACK_READ_ADDR_HI 0%nat)]
+        (w (List.nth 0%nat COL_STACK_READ_VALUE_HI 0%nat)) :: suffix).
     cbn [hd memories ports flat_map portEvent active activation addressColumns valueColumn portKind map option_map].
     unfold portEvent, active. cbn [activation addressColumns valueColumn portKind map option_map].
     normalize_columns. rewrite Hcapture.
@@ -105,7 +111,11 @@ Proof.
       cbn [COL_STACK_READ_ACTIVE List.nth] in Hr; rewrite Hr; eexists; reflexivity. }
 
   destruct Hprefix as [suffix Hprefix]. rewrite Hprefix in Hreplay.
-  inversion Hreplay; subst. match goal with H : EventStep _ _ _ |- _ => inversion H; subst; assumption end.
+  inversion Hreplay; subst.
+  match goal with H : EventStep _ _ _ |- _ => inversion H; subst end.
+  split; [assumption | ].
+  match goal with H : Replay _ (ReadEvent _ _ _ :: _) _ |- _ => inversion H; subst end.
+  match goal with H : EventStep _ _ _ |- _ => inversion H; subst; assumption end.
 Qed.
 
 Lemma full_capture_value : forall (w : Witness),
@@ -118,6 +128,18 @@ Proof.
   expand_row Hrow. normalize_columns. rewrite Hcapture in Hrow.
   pose proof (value_bound w COL_OUTPUT_VALUE_LO_AFTER).
   pose proof (value_bound w (List.nth 0%nat COL_STACK_READ_VALUE_LO 0%nat)). field_linear Hrow.
+Qed.
+
+Lemma full_capture_value_hi : forall (w : Witness),
+  FullRelation.satFull w -> w COL_OUTPUT_CAPTURED = 1 ->
+  w COL_OUTPUT_VALUE_HI_AFTER = w (List.nth 0%nat COL_STACK_READ_VALUE_HI 0%nat).
+Proof.
+  intros w Hfull Hcapture.
+  circuit_row ([(COL_OUTPUT_CAPTURED, 1)],
+    [(COL_OUTPUT_VALUE_HI_AFTER, 1); (List.nth 0%nat COL_STACK_READ_VALUE_HI 0%nat, -1)], ([] : SparseRow)) Hrow.
+  expand_row Hrow. normalize_columns. rewrite Hcapture in Hrow.
+  pose proof (value_bound w COL_OUTPUT_VALUE_HI_AFTER).
+  pose proof (value_bound w (List.nth 0%nat COL_STACK_READ_VALUE_HI 0%nat)). field_linear Hrow.
 Qed.
 
 Lemma full_capture_address : forall (w : Witness),

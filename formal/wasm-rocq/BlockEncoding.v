@@ -10,8 +10,8 @@ Open Scope Z_scope.
 Lemma encoded_slot : forall program index f offset slot,
   functionAt program index = Some f -> nth_error (flattenCode (guestBody f)) offset = Some slot ->
   instructionAtPC program (guestEntry f + Z.of_nat offset) =
-    Some (SpecTecCalls.i32Function (guestModule f) (guestTypeIndex f) (guestParams f)
-      (guestResults f) (guestLocals f) (guestBody f), Some slot).
+    Some (SpecTecCalls.typedFunction (guestModule f) (guestTypeIndex f) (guestParamTypes f)
+      (guestResultTypes f) (guestLocalTypes f) (guestBody f), Some slot).
 Proof.
   intros program index f offset slot Hf Hslot.
   rewrite (instruction_at_function_pc _ _ _ _ Hf).
@@ -58,8 +58,8 @@ Definition sitePC (pre : list LabelSite) (s : LabelSite) (i : instr) : Z :=
 Lemma encoded_path_head : forall labels inner offset i,
   pathCode (guestBody f) labels = Some inner -> nth_error inner offset = Some i ->
   instructionAtPC program (pathPC labels offset) =
-    Some (SpecTecCalls.i32Function (guestModule f) (guestTypeIndex f) (guestParams f)
-      (guestResults f) (guestLocals f) (guestBody f),
+    Some (SpecTecCalls.typedFunction (guestModule f) (guestTypeIndex f) (guestParamTypes f)
+      (guestResultTypes f) (guestLocalTypes f) (guestBody f),
       Some (flatInstruction (opInstr i)
         (slotTargets (pathTargets (guestBody f) labels) (pathOffset (guestBody f) labels offset) i))).
 Proof.
@@ -280,7 +280,7 @@ Lemma encoded_path_call : forall labels inner offset s values x callee,
   let z := mk_state s (MKframe values (guestModule f)) in
   directCallImage memory (pathPC labels offset) (pathPC labels offset + 1) z x
     (guestAddress callee) (guestModule callee) (guestTypeIndex callee)
-    (guestParams callee) (guestResults callee) (guestLocals callee) (guestBody callee) (guestEntry callee) /\
+    (guestParamTypes callee) (guestResultTypes callee) (guestLocalTypes callee) (guestBody callee) (guestEntry callee) /\
   callerFrameImage memory (pathPC labels offset) z.
 Proof.
   intros labels inner offset s values x callee Hpath Hi Hstore Hcount Hcallee z.
@@ -288,15 +288,15 @@ Proof.
   pose proof (path_offset_inside _ _ _ _ Hpath Hi) as Hbound.
   unfold programCallees in Hcallee; cbn [calleeAt] in Hcallee.
   destruct (nth_error (FUNCS (guestModule f)) (N.to_nat (x :> N))) as [address | ] eqn:Haddress; [ | discriminate].
-  destruct (function_at_sound _ _ _ Hcallee) as [Hinstance [HcalleeAddress Hentry]].
+  destruct (function_at_typed _ _ _ Hcallee) as [Hinstance [HcalleeAddress Hentry]].
   replace (N.of_nat (N.to_nat address)) with address in HcalleeAddress by lia.
   split.
   - unfold directCallImage. split.
     + change (nth_error (FUNCS (guestModule f)) (N.to_nat (x :> N)) = Some (guestAddress callee)).
       rewrite HcalleeAddress. exact Haddress.
     + split.
-      * change (nth_error (store_FUNCS s) (N.to_nat (guestAddress callee)) = Some (SpecTecCalls.i32Function
-          (guestModule callee) (guestTypeIndex callee) (guestParams callee) (guestResults callee) (guestLocals callee)
+      * change (nth_error (store_FUNCS s) (N.to_nat (guestAddress callee)) = Some (SpecTecCalls.typedFunction
+          (guestModule callee) (guestTypeIndex callee) (guestParamTypes callee) (guestResultTypes callee) (guestLocalTypes callee)
           (guestBody callee))).
         rewrite Hstore, HcalleeAddress. exact Hinstance.
       * split.

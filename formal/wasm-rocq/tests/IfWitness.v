@@ -85,7 +85,7 @@ Proof.
   - intros [ | index] g Hg; cbn in Hg; [injection Hg as <- | destruct index; discriminate].
     split.
     + cbn. repeat first [apply Forall_nil | apply Forall_cons | apply supported_if | apply supported_local_get |
-        apply supported_local_set | apply supported_i32_add | (left; reflexivity) | (right; reflexivity)].
+        apply supported_local_set | apply supported_i32_add | (left; reflexivity) | (right; left; reflexivity)].
     + vm_compute. repeat match goal with
         | |- _ /\ _ => split | |- Forall _ _ => constructor | |- True => exact I | |- _ => lia end.
 Qed.

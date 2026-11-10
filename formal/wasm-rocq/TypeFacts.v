@@ -1,6 +1,6 @@
 (* SpecTec validation determines the computed operand types. BOT is used by
    validation for unreachable code; it is not the type of a decoded value. *)
-From Stdlib Require Import List NArith Lia.
+From Stdlib Require Import PeanoNat List NArith Lia.
 From mathcomp Require Import ssrbool eqtype.
 Require Import Wasm2 SpecTecCalls CallerSpec CallerValidation FunctionValidation CodeLayout Fragment StackTypes StackSimulation.
 Import ListNotations.
@@ -24,7 +24,7 @@ Lemma instruction_outputs_concrete : forall locals (callees : CalleeEnvironment)
 Proof.
   intros locals callees i inputs outputs Hlocals Hcallees Hsupported Hsignature.
   inversion Hsupported as [ | | x | x | x f Hf Hp Hr | result body Hbody Hresult | l | l | ls l | | result t e Ht He Hresult | result body Hbody Hresult
-    | x y params results Htype Hp Hr Hready | | ]; subst;
+    | x y params results Htype Hp Hr Hinteger Hready | | ]; subst;
     cbn [instructionTypes] in Hsignature; try discriminate.
   - injection Hsignature as <- <-. repeat constructor; discriminate.
   - injection Hsignature as <- <-. repeat constructor; discriminate.
@@ -34,12 +34,13 @@ Proof.
   - destruct (nth_error locals (N.to_nat (x :> N))); [ | discriminate].
     injection Hsignature as <- <-. constructor.
   - rewrite Hf in Hsignature. injection Hsignature as <- <-. exact (Hcallees _ _ Hf).
-  - injection Hsignature as <- <-. destruct Hresult as [-> | ->]; repeat constructor; discriminate.
+  - injection Hsignature as <- <-. destruct Hresult as [-> | [-> | ->]]; repeat constructor; discriminate.
   - injection Hsignature as <- <-. constructor.
-  - injection Hsignature as <- <-. destruct Hresult as [-> | ->]; repeat constructor; discriminate.
-  - injection Hsignature as <- <-. destruct Hresult as [-> | ->]; repeat constructor; discriminate.
+  - injection Hsignature as <- <-. destruct Hresult as [-> | [-> | ->]]; repeat constructor; discriminate.
+  - injection Hsignature as <- <-. destruct Hresult as [-> | [-> | ->]]; repeat constructor; discriminate.
   - rewrite Htype in Hsignature. injection Hsignature as <- <-.
-    apply Forall_forall. intros t Ht. apply repeat_spec in Ht. subst t. discriminate.
+    apply Forall_app in Hinteger as [_ Hresults].
+    eapply Forall_impl; [ | exact Hresults]. intros t [-> | ->]; discriminate.
   - injection Hsignature as <- <-. constructor.
 Qed.
 
@@ -67,7 +68,7 @@ Lemma validated_instruction_types : forall C i inputs outputs callees prefix,
 Proof.
   intros C i inputs outputs callees prefix Hvalid Hsupported Hcallees Htypes.
   inversion Hsupported as [ | | x | x | x f Hf Hp Hr | result body Hbody Hresult | l | l | ls l | | result t e Ht He Hresult | result body Hbody Hresult
-    | x y params results Htype Hp Hr Hready | | ]; subst.
+    | x y params results Htype Hp Hr Hinteger Hready | | ]; subst.
   1-4: right; eapply validated_ordinary_types; [exact Hvalid | eexists; reflexivity].
   - right. inversion Hvalid; subst.
     match goal with H : is_true (_ == _) |- _ => apply (elimT eqP) in H end.
@@ -289,4 +290,196 @@ Proof.
       as [inner [current [outputs [Hinner [Hcontext [Hlocal Htail]]]]]].
     exists inner, current, outputs. cbn [pathCode pathValidationContext]. rewrite Hsite.
     split; [exact Hinner | ]. split; [exact Hcontext | ]. split; assumption.
+Qed.
+
+Definition consumesI32Condition (i : instr) : bool :=
+  match i with BR_IF _ | BR_TABLE _ _ | IFELSE _ _ _ | CALL_INDIRECT _ _ => true | _ => false end.
+
+Lemma validated_condition_suffix : forall C i inputs outputs,
+  Instr_ok C i (mk_functype (mk_list _ inputs) (mk_list _ outputs)) ->
+  consumesI32Condition i = true -> exists prefix, inputs = prefix ++ [valtype_I32].
+Proof.
+  intros C i inputs outputs Hvalid Hcondition.
+  destruct i; cbn [consumesI32Condition] in Hcondition; try discriminate;
+    inversion Hvalid; subst; try (eexists; reflexivity).
+  exists (t_1_lst ++ t_lst). apply app_assoc.
+Qed.
+
+Lemma path_context_functions : forall labels C results code current outputs,
+  pathValidationContext C results code labels = Some (current, outputs) ->
+  context_FUNCS current = context_FUNCS C /\ context_TYPES current = context_TYPES C.
+Proof.
+  induction labels as [ | site rest IH]; intros C results code current outputs H; cbn [pathValidationContext] in H.
+  - injection H as <- <-. split; reflexivity.
+  - destruct (siteEntry code site) as [[i body] | ]; [ | discriminate].
+    exact (IH _ _ _ _ _ H).
+Qed.
+
+Lemma path_context_snoc : forall labels C results code inner site i body,
+  pathCode code labels = Some inner -> siteEntry inner site = Some (i, body) ->
+  pathValidationContext C results code (labels ++ [site]) =
+    match pathValidationContext C results code labels with
+    | Some (current, _) => Some (labelContext (structuredLabel i) current, structuredResults i)
+    | None => None
+    end.
+Proof.
+  intros labels. induction labels as [ | outer rest IH]; intros C results code inner site i body Hpath Hsite;
+    cbn [pathCode pathValidationContext app] in *.
+  - injection Hpath as <-. rewrite Hsite. reflexivity.
+  - destruct (siteEntry code outer) as [[j nested] | ]; [ | discriminate].
+    eapply IH; eassumption.
+Qed.
+
+Lemma structured_instruction_types : forall C callees i inputs outputs prefix locals arm body,
+  Instr_ok C i (mk_functype (mk_list _ inputs) (mk_list _ outputs)) ->
+  Supported callees i -> instrArm i arm = Some body ->
+  sourceTypes locals callees i (prefix ++ inputs) =
+    Some (firstn (labelBase i (length (prefix ++ inputs))) (prefix ++ inputs) ++ structuredResults i).
+Proof.
+  intros C callees i inputs outputs prefix locals arm body Hvalid Hsupported Harm.
+  destruct i; try discriminate; inversion Hsupported; subst; inversion Hvalid; subst.
+  all: match goal with H : Blocktype_ok _ _ _ |- _ => inversion H; subst end.
+  all: unfold sourceTypes, instructionTypes; rewrite replace_stack_types_exact.
+  all: cbn [labelBase structuredResults].
+  all: try (rewrite firstn_all, app_nil_r; reflexivity).
+  cbn [seq.cat].
+  rewrite length_app. cbn [length]. rewrite Nat.add_sub, firstn_app, firstn_all, Nat.sub_diag.
+  cbn [firstn]. now rewrite app_nil_r.
+Qed.
+
+Lemma path_context_outer_label : forall labels C results code current outputs level t,
+  pathValidationContext C results code labels = Some (current, outputs) ->
+  nth_error (LABELS C) level = Some t ->
+  nth_error (LABELS current) (length labels + level) = Some t.
+Proof.
+  intros labels. induction labels as [ | site rest IH]; intros C results code current outputs level t Hpath Hlabel;
+    cbn [pathValidationContext length] in *.
+  - injection Hpath as <- <-. exact Hlabel.
+  - destruct (siteEntry code site) as [[i body] | ]; [ | discriminate].
+    replace (S (length rest) + level)%nat with (length rest + S level)%nat by lia.
+    eapply IH; [exact Hpath | exact Hlabel].
+Qed.
+
+Lemma path_context_app : forall pre post C results code inner,
+  pathCode code pre = Some inner ->
+  pathValidationContext C results code (pre ++ post) =
+    match pathValidationContext C results code pre with
+    | Some (current, outputs) => pathValidationContext current outputs inner post
+    | None => None
+    end.
+Proof.
+  intros pre. induction pre as [ | site rest IH]; intros post C results code inner Hpath;
+    cbn [pathCode pathValidationContext app] in *.
+  - injection Hpath as <-. reflexivity.
+  - destruct (siteEntry code site) as [[i body] | ]; [ | discriminate]. eapply IH. exact Hpath.
+Qed.
+
+Lemma path_context_target : forall pre site post C results code inner i body current outputs,
+  pathCode code pre = Some inner -> siteEntry inner site = Some (i, body) ->
+  pathValidationContext C results code (pre ++ site :: post) = Some (current, outputs) ->
+  nth_error (LABELS current) (length post) = Some (mk_list _ (structuredLabel i)).
+Proof.
+  intros pre site post C results code inner i body current outputs Hpath Hsite Hcontext.
+  rewrite (path_context_app _ _ _ _ _ _ Hpath) in Hcontext.
+  destruct (pathValidationContext _ _ _ pre) as [[parent parentResults] | ]; [ | discriminate].
+  cbn [pathValidationContext] in Hcontext. rewrite Hsite in Hcontext.
+  replace (length post) with (length post + 0)%nat by lia.
+  eapply path_context_outer_label; [exact Hcontext | reflexivity].
+Qed.
+
+Definition branchTargets (i : instr) (l : labelidx) : Prop :=
+  i = BR l \/ i = BR_IF l \/ exists ls default, i = BR_TABLE ls default /\ In l (default :: ls).
+
+Definition branchConditionTypes (i : instr) : list valtype :=
+  match i with BR_IF _ | BR_TABLE _ _ => [valtype_I32] | _ => [] end.
+
+Lemma validated_branch_suffix : forall C i inputs outputs l target,
+  Instr_ok C i (mk_functype (mk_list _ inputs) (mk_list _ outputs)) ->
+  branchTargets i l -> nth_error (LABELS C) (N.to_nat (l :> N)) = Some (mk_list _ target) ->
+  concreteTypes inputs ->
+  exists below, inputs = below ++ target ++ branchConditionTypes i.
+Proof.
+  intros C i inputs outputs l target Hvalid Htarget Hlookup Hconcrete.
+  destruct Htarget as [-> | [-> | [ls [default [-> Hmember]]]]]; inversion Hvalid; subst.
+  - match goal with H : is_true (_ == _) |- _ =>
+      apply (elimT eqP) in H; erewrite spec_lookup_from_nth_error in H by exact Hlookup;
+      cbn in H; subst end.
+    eexists. cbn [branchConditionTypes]. now rewrite app_nil_r.
+  - match goal with H : is_true (_ == _) |- _ =>
+      apply (elimT eqP) in H; erewrite spec_lookup_from_nth_error in H by exact Hlookup;
+      cbn in H; subst end.
+    exists []. reflexivity.
+  - assert (Hsub : Resulttype_sub (mk_list _ t_lst) (mk_list _ target)).
+    { destruct Hmember as [<- | Hmember].
+      - match goal with H : Resulttype_sub (mk_list _ t_lst) _ |- _ =>
+          erewrite spec_lookup_from_nth_error in H by exact Hlookup; exact H end.
+      - pose proof (proj1 (Forall_forall _ _) H4 l Hmember) as Hselected.
+        cbn beta in Hselected. erewrite spec_lookup_from_nth_error in Hselected by exact Hlookup.
+        exact Hselected. }
+    assert (Hct : concreteTypes t_lst).
+    { apply Forall_app in Hconcrete as [_ H]. apply Forall_app in H as [H _]. exact H. }
+    pose proof (concrete_sub_equal _ _ Hct Hsub) as ->. eexists. reflexivity.
+Qed.
+
+Lemma structured_label_length : forall i, length (structuredLabel i) = labelArity i.
+Proof.
+  intros i. destruct i; try reflexivity; destruct v_blocktype; try reflexivity;
+    match goal with t : option valtype |- _ => destruct t; reflexivity end.
+Qed.
+
+Definition callIndexTypes (i : instr) : list valtype :=
+  match i with CALL_INDIRECT _ _ => [valtype_I32] | _ => [] end.
+
+Lemma validated_call_signature : forall C callees i callee inputs outputs,
+  Instr_ok C i (mk_functype (mk_list _ inputs) (mk_list _ outputs)) ->
+  callsInto callees i callee -> calleeTypes C callees -> context_TYPES C = envTypes callees ->
+  inputs = guestParamTypes callee ++ callIndexTypes i /\ outputs = guestResultTypes callee.
+Proof.
+  intros C callees i callee inputs outputs Hvalid Hcall Hcallees Htypes.
+  destruct i; try contradiction; cbn [callsInto] in Hcall; inversion Hvalid; subst.
+  - match goal with H : is_true (_ == _) |- _ => apply (elimT eqP) in H end.
+    match goal with H : ?lhs = mk_functype _ _ |- _ =>
+      assert (Hlookup : lhs = guestType callee)
+        by (apply spec_lookup_from_nth_error; exact (Hcallees _ _ Hcall));
+      rewrite Hlookup in H; inversion H; subst end.
+    cbn [callIndexTypes]. now rewrite app_nil_r.
+  - match goal with H : is_true (@lookup_total _ _ (context_TYPES C) _ == _) |- _ =>
+      apply (elimT eqP) in H; rewrite Htypes in H;
+      erewrite spec_lookup_from_nth_error in H by exact Hcall; inversion H; subst end.
+    split; reflexivity.
+Qed.
+
+Lemma calls_into_types : forall locals callees i callee prefix,
+  callsInto callees i callee ->
+  sourceTypes locals callees i (prefix ++ (guestParamTypes callee ++ callIndexTypes i)) =
+    Some (prefix ++ guestResultTypes callee).
+Proof.
+  intros locals callees i callee prefix Hcall. destruct i; try contradiction;
+    cbn [callsInto] in Hcall; unfold sourceTypes, instructionTypes; rewrite Hcall.
+  - cbn [option_map callIndexTypes]. rewrite app_nil_r. apply replace_stack_types_exact.
+  - unfold guestType. cbn [callIndexTypes]. apply replace_stack_types_exact.
+Qed.
+
+Lemma call_index_arity : forall i callee,
+  (guestParams callee + length (callIndexTypes i))%nat = callOperands i callee.
+Proof. intros i callee. destruct i; cbn [callIndexTypes callOperands length]; lia. Qed.
+
+Lemma path_context_return : forall labels C results code current outputs,
+  pathValidationContext C results code labels = Some (current, outputs) ->
+  context_RETURN current = context_RETURN C.
+Proof.
+  intros labels. induction labels as [ | site rest IH]; intros C results code current outputs Hpath;
+    cbn [pathValidationContext] in Hpath.
+  - injection Hpath as <- <-. reflexivity.
+  - destruct (siteEntry code site) as [[i body] | ]; [ | discriminate].
+    exact (IH _ _ _ _ _ Hpath).
+Qed.
+
+Lemma validated_return_suffix : forall C inputs outputs results,
+  Instr_ok C RETURN (mk_functype (mk_list _ inputs) (mk_list _ outputs)) ->
+  context_RETURN C = Some (mk_list _ results) -> exists below, inputs = below ++ results.
+Proof.
+  intros C inputs outputs results Hvalid Hresults. inversion Hvalid; subst.
+  match goal with H : is_true (_ == _) |- _ =>
+    apply (elimT eqP) in H; rewrite Hresults in H; injection H as <- end. eexists. reflexivity.
 Qed.

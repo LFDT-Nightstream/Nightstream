@@ -119,8 +119,7 @@ Proof.
     exact (Hcells (S index) v Hnth).
 Qed.
 
-(* Compatibility predicate for the current i32-only program fragment. The
-   frame representation keeps values typed even while this restriction holds. *)
+(* An i32 value with its unsigned representative, used by scalar helper lemmas. *)
 Definition i32Operand (value : val) : Prop :=
   exists raw, 0 <= raw < i32Modulus /\ value = i32Value raw.
 

@@ -1,6 +1,5 @@
-(* Direct guest calls with i32 parameters, results and locals: the ROM images of
-   a call site, an instruction and a callee's entry. Early return and
-   call_indirect are outside this fragment. *)
+(* ROM bindings for direct guest calls and ordinary instructions. Function
+   types belong to SpecTec; the circuit metadata stores their arities. *)
 From Stdlib Require Import List ZArith NArith.
 Require Import MemoryTrace MemoryCatalog OpcodeCatalog Wasm2 SpecTecCalls StraightLineSpec.
 Import ListNotations.
@@ -18,14 +17,14 @@ Definition guestFunctionImage (memory : MemoryState) (address : N) (entry : Z)
 
 Definition directCallImage (memory : MemoryState) (pc returnPC : Z) (caller : state)
     (index : idx) (address : N) (module : moduleinst) (typeIndex : typeidx)
-    (params results locals : nat) (body : list instr) (entry : Z) : Prop :=
+    (params results locals : list valtype) (body : list instr) (entry : Z) : Prop :=
   nth_error (fun_funcaddr caller) (N.to_nat (index :> N)) = Some address /\
   nth_error (fun_funcinst caller) (N.to_nat address) =
-    Some (i32Function module typeIndex params results locals body) /\
+    Some (typedFunction module typeIndex params results locals body) /\
   memory programOpcodeId [pc] = Some CODE_CALL /\
   memory callTargetId [pc] = Some (Z.of_N address + 1) /\
   memory pcRomId [pc; 1] = Some returnPC /\
-  guestFunctionImage memory address entry params results locals.
+  guestFunctionImage memory address entry (length params) (length results) (length locals).
 
 Definition instructionImage (memory : MemoryState) (pc : Z) (instruction : instr) : Prop :=
   memory programOpcodeId [pc] = encodedOpcode instruction /\

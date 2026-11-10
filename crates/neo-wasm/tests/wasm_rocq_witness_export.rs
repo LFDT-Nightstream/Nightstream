@@ -178,6 +178,10 @@ fn export_witness_format(wat: &str, params: &[i32], name: &str, file: &str, incl
         traces_from_wasmtime_steps_with_host_events(&run.steps, run.artifacts(), CommChainState::default())
     }
     .expect("normalize");
+    export_rows(&trace, name, file, include_terminal, sparse);
+}
+
+fn export_rows(trace: &[neo_wasm::WasmVmStep], name: &str, file: &str, include_terminal: bool, sparse: bool) {
     let end = trace
         .iter()
         .position(|row| row.state_after.activation_finished)
@@ -363,4 +367,72 @@ fn export_terminal_witnesses() {
         "VoidReturnTrace.v",
         true,
     );
+}
+
+/// Full mixed-type runs, starting at the first opcode after the host input rows.
+#[test]
+#[ignore = "regenerates Rocq files"]
+fn export_mixed_refinement_witnesses() {
+    use wasmtime::Val;
+    let programs = [
+        (
+            r#"(module
+          (func (export "main") (param i64 i32) (result i64) (local i64)
+            block (result i64)
+              local.get 0
+              block local.get 0 local.get 1 br_if 1 local.set 2 end
+            end
+            call 1)
+          (func (param i64) (result i64) (local i32 i64)
+            local.get 0 local.set 2
+            block block local.get 2 call 2 return end end
+            local.get 2)
+          (func (param i64) (result i64) local.get 0))"#,
+            "mixedCallRows",
+            "MixedCallTrace.v",
+            1,
+        ),
+        (
+            r#"(module
+          (type (func (param i64) (result i64)))
+          (func (export "main") (param i64 i32) (result i64)
+            local.get 0 local.get 1 call_indirect (type 0))
+          (func (type 0) local.get 0)
+          (table 1 funcref) (elem (i32.const 0) func 1))"#,
+            "mixedIndirectRows",
+            "MixedIndirectTrace.v",
+            0,
+        ),
+    ];
+    for (wat, name, file, condition) in programs {
+        let wasm = wat::parse_str(wat).expect("wat");
+        let artifacts = extract_wasm_program_artifacts(&wasm).expect("artifacts");
+        let entry = EventSequenceBuilder::op(1)
+            .opaque(
+                [1, 2, 3, 4],
+                EventSources::new()
+                    .input_local_i64(0, 0)
+                    .expect("wide input"),
+            )
+            .expect("wide input event")
+            .opaque([1, 2, 3, 4], EventSources::new().input_local_i32(2, 1))
+            .expect("index input event")
+            .finish()
+            .expect("entry");
+        let exit = EventSequenceBuilder::absorbing()
+            .output_i64()
+            .expect("wide output")
+            .finish()
+            .expect("exit");
+        let mut builder = HostEventBindingsBuilder::new(&artifacts.tables);
+        builder.export(1, entry, exit).expect("export");
+        let bindings = builder.finish().expect("bindings");
+        let run =
+            neo_wasm::collect_wasmtime_steps_with_args(&wasm, &bindings, "main", &[Val::I64(-1), Val::I32(condition)])
+                .expect("typed trace");
+        assert_eq!(run.results, ["-1"]);
+        let trace = traces_from_wasmtime_steps_with_host_events(&run.steps, run.artifacts(), CommChainState::default())
+            .expect("normalize");
+        export_rows(&trace, name, file, true, true);
+    }
 }

@@ -16,7 +16,7 @@ Lemma terminal_control_row : forall program s baseDepth cursor root f initial fi
   functionAt program root = Some f -> cursorRoot cursor = root ->
   ControlState program s baseDepth cursor initial (beforeBoundary row) inner ->
   exists outcome c1, Steps (callContext caller (N.of_nat (guestResults f)) inner) c1 /\
-    TerminalConfig s caller row outcome c1.
+    TerminalConfig program root s caller row outcome c1.
 Proof.
   intros program s baseDepth [stack position] root base initial final row inner caller Hstore Hwf Hvalid Hprime
     Hloaded Htables Hfull Hreplay [Hprogram Hfinish] Hhost Hcaller Hroot Hindex
@@ -51,7 +51,7 @@ Proof.
   cbn [activeFunction] in Hf.
   assert (HfinishReturn : exitsFunction f view -> exists outcome c1,
       Steps (callContext caller (N.of_nat (guestResults base)) (plugCalls stack active)) c1 /\
-      TerminalConfig s caller row outcome c1).
+      TerminalConfig program root s caller row outcome c1).
   { intros Hleaves.
     destruct (finish_function_row program s view f initial final row active caller Hstore Hwf Hvalid Hprime
       Hloaded Hfull Hprogram Hfinish Hreplay Hcaller Hstate Hf Hleaves)
@@ -61,8 +61,8 @@ Proof.
     change (positionFunction (viewPosition view) = root) in Hindex. rewrite Hindex, Hroot in Hf.
     injection Hf as <-.
     exists (returned result), (mk_config (mk_state s caller)
-      (match result with None => [] | Some value => [i32Constant value] end)).
-    split; [exact Hsteps | ]. split; [exact Hfinish | ]. split; [exact Htrap | ]. split; [exact Hcapture | reflexivity]. }
+      (map admininstr_val result)).
+    split; [exact Hsteps | ]. split; [exact Hfinish | ]. split; [exact Htrap | ]. split; [exists base; split; [exact Hroot | exact Hcapture] | reflexivity]. }
   destruct (nth_error (innerCode f (viewPosition view)) (positionOffset (viewPosition view))) as [i | ] eqn:Hi.
   - destruct (terminal_instruction program s view f i initial final row active Hstore Hvalid Hprime Hloaded Hfull
       Hprogram Hfinish Hreplay Hstate Hf Hi) as [-> | [[x [y ->]] | Hreturns]].

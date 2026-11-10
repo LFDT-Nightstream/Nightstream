@@ -52,7 +52,7 @@ Proof.
   - constructor; [ | constructor]. function_validates nopContext base_return_module base_return_body.
   - intros [ | index] f H; cbn in H; [injection H as <- | destruct index; discriminate].
     split; [ | vm_compute; tauto].
-    constructor; [apply supported_block; [repeat constructor | right; reflexivity] | constructor].
+    constructor; [apply supported_block; [repeat constructor | right; left; reflexivity] | constructor].
 Qed.
 Lemma base_return_valid_run : validRunb baseReturnMemory baseReturnWitness = true.
 Proof. vm_compute; reflexivity. Qed.
@@ -83,8 +83,9 @@ Proof.
   destruct (run_refinement _ _ _ _ _ _ _ _ _ _ _ Hprime (load_program_loaded _ _)
     (validRunb_sound _ _ base_return_valid_run) base_return_fragment Hstart) as [outcome [c [Hsteps [_ Hconfig]]]].
   replace c with (mk_config (mk_state baseReturnStore (outerFrame nopModule)) [i32Constant 7]) in Hsteps; [exact Hsteps | ].
-  symmetry. eapply terminal_return_decodes with (row := rowWitness (List.last baseReturnRows []));
-    [exact Hconfig | reflexivity | | | | ]; vm_compute; reflexivity.
+  symmetry. eapply terminal_return_decodes with (values := [i32Value 7]) (row := rowWitness (List.last baseReturnRows []));
+    [exact Hconfig | reflexivity | vm_compute; reflexivity | vm_compute; reflexivity | ].
+  intros f Hf. change (Some baseReturnGuest = Some f) in Hf. injection Hf as <-. vm_compute; reflexivity.
 Qed.
 
 Definition voidModule := MKmoduleinst [i32StackType 0 0] [0%N] [] [] [] [] [] [].
@@ -134,9 +135,11 @@ Proof.
     row COL_TRAPPED_AFTER = 0 /\ row COL_OUTPUT_CAPTURED = 0).
   { exists (rowWitness (List.last voidReturnRows [])). split; [reflexivity | ]. vm_compute; repeat split; reflexivity. }
   destruct Hlast as [row [Hlast [Hfinish [Htrap Hcapture]]]].
-  destruct outcome as [shape | | [v | ]].
-  - destruct Hconfig as [Hflag _]. rewrite Hlast in Hflag; congruence.
-  - destruct Hconfig as [last [Hlast' [_ [Ht _]]]]. rewrite Hlast in Hlast'; injection Hlast' as <-; congruence.
-  - destruct Hconfig as [last [Hlast' [_ [_ [[Hcap _] _]]]]]. rewrite Hlast in Hlast'; injection Hlast' as <-; congruence.
-  - destruct Hconfig as [last [Hlast' [_ [_ [_ Hc]]]]]. rewrite <- Hc; exact Hsteps.
+  assert (Hc : c = mk_config (mk_state voidStore (outerFrame voidModule)) []).
+  { change (c = mk_config (mk_state voidStore (outerFrame voidModule)) (map admininstr_val [])).
+    eapply terminal_return_decodes; [exact Hconfig | exact Hlast | exact Hfinish | exact Htrap | ].
+    intros f Hf. change (Some voidGuest = Some f) in Hf. injection Hf as <-.
+    change ((if row COL_OUTPUT_CAPTURED =? 0 then Some ([] : list val) else None) = Some []).
+    rewrite Hcapture. reflexivity. }
+  rewrite <- Hc. exact Hsteps.
 Qed.

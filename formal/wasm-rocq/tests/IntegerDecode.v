@@ -1,4 +1,4 @@
-(* Cell decoding and source types, independently of the i32 run fragment. *)
+(* Unit checks for integer cell decoding and source stack types. *)
 From Stdlib Require Import List ZArith Lia.
 Require Import Wasm2 WasmIntegers WasmValues MemoryTrace MemoryCatalog IntegerMemory IntegerDecode
   CallerSpec StackTypes CodeLayout ControlDecode.

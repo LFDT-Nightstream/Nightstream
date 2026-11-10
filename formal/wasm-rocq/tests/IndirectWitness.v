@@ -86,7 +86,7 @@ Proof.
   - intros [ | [ | index]] g Hg; cbn in Hg; [injection Hg as <- .. | destruct index; discriminate].
     + split; [ | vm_compute; tauto].
       repeat apply Forall_cons; try apply Forall_nil; try apply supported_local_get.
-      apply (supported_call_indirect _ _ _ 1 1); [reflexivity | lia | lia | ].
+      apply (supported_call_indirect _ _ _ [valtype_I32] [valtype_I32]); [reflexivity | cbn; lia | cbn; lia | repeat constructor; auto | ].
       intros [ | [ | a]] fi Hfi; cbn in Hfi; [ | | destruct a; discriminate].
       1-2: eexists; split; reflexivity.
     + split; [ | vm_compute; tauto]. repeat constructor.

@@ -409,3 +409,64 @@ Proof. intros. unfold valueStackPrefix, valueStackConfig. rewrite List.map_app. 
 Lemma value_instruction_suffix_config : forall z values code more,
   instructionSuffix more (valueStackConfig z values code) = valueStackConfig z values (code ++ more).
 Proof. intros. unfold instructionSuffix, valueStackConfig. rewrite List.map_app. rewrite <- List.app_assoc. reflexivity. Qed.
+
+Lemma typed_entered_body_wf : forall s module typeIndex arguments params results locals body defaults,
+  wf_store s -> wf_funcinst (typedFunction module typeIndex params results locals body) ->
+  Forall wf_val arguments -> Forall wf_val defaults ->
+  wf_config (valueStackConfig (mk_state s (MKframe (arguments ++ defaults) module)) [] body).
+Proof.
+  intros s module typeIndex arguments params results locals body defaults Hstore Hfunc Hargs Hdefaults.
+  inversion Hfunc; subst.
+  apply value_stack_config_wf; [ | constructor | ].
+  - constructor; [exact Hstore | constructor; [apply Forall_app; auto | assumption]].
+  - match goal with H : wf_func _ |- _ => inversion H; assumption end.
+Qed.
+
+Lemma defaults_defined : forall types,
+  Forall (fun t => default_ t <> None) types ->
+  Forall (fun t => default_ t != None) types.
+Proof.
+  intros types H. eapply Forall_impl; [ | exact H].
+  intros t Ht. apply /eqP. exact Ht.
+Qed.
+
+Lemma direct_typed_call_enters : forall s caller index address module typeIndex arguments params results locals body defaults,
+  wf_state (mk_state s caller) -> wf_uN 32%N index ->
+  nth_error (fun_funcaddr (mk_state s caller)) (N.to_nat (index :> N)) = Some address ->
+  nth_error (fun_funcinst (mk_state s caller)) (N.to_nat address) =
+    Some (typedFunction module typeIndex params results locals body) ->
+  wf_funcinst (typedFunction module typeIndex params results locals body) ->
+  length arguments = length params -> Forall wf_val arguments ->
+  Forall (fun t => default_ t != None) locals ->
+  defaults = List.map (fun t => the (default_ t)) locals -> Forall wf_val defaults ->
+  Steps (valueStackConfig (mk_state s caller) arguments [CALL index])
+    (callContext caller (N.of_nat (length results))
+      (valueStackConfig (mk_state s (MKframe (arguments ++ defaults) module)) [] body)).
+Proof.
+  intros s caller index address module typeIndex arguments params results locals body defaults
+    Hz Hindex Haddress Hfunction Hfunc Hlen Hargs Hdefault Hdefaults HdefaultWf.
+  assert (HsmallBefore : wf_config (mk_config (mk_state s caller) [admininstr_CALL index]))
+    by (constructor; [exact Hz | repeat constructor; assumption]).
+  assert (HsmallAfter : wf_config (mk_config (mk_state s caller) [CALL_ADDR address]))
+    by (constructor; [exact Hz | repeat constructor]).
+  assert (Hbefore : wf_config (valueStackConfig (mk_state s caller) arguments [CALL index]))
+    by (apply value_stack_config_wf; [exact Hz | exact Hargs | repeat constructor; assumption]).
+  assert (Hmiddle : wf_config (mk_config (mk_state s caller) (map admininstr_val arguments ++ [CALL_ADDR address]))).
+  { change (wf_config (valueStackPrefix arguments (mk_config (mk_state s caller) [CALL_ADDR address]))).
+    apply value_stack_prefix_wf; assumption. }
+  assert (Hafter : wf_config (callContext caller (N.of_nat (length results))
+      (valueStackConfig (mk_state s (MKframe (arguments ++ defaults) module)) [] body))).
+  { apply call_context_wf; [inversion Hz; assumption | ].
+    eapply typed_entered_body_wf; [inversion Hz; assumption | exact Hfunc | exact Hargs | exact HdefaultWf]. }
+  assert (Hstep : Step (valueStackConfig (mk_state s caller) arguments [CALL index])
+      (mk_config (mk_state s caller) (map admininstr_val arguments ++ [CALL_ADDR address]))).
+  { destruct arguments as [ | argument arguments].
+    - apply direct_call_expands. exact Haddress.
+    - unfold valueStackConfig. cbn [List.map admininstr_instr].
+    replace [admininstr_CALL index] with ([admininstr_CALL index] ++ []) by reflexivity.
+    replace [CALL_ADDR address] with ([CALL_ADDR address] ++ []) by reflexivity.
+    apply ctxt_instrs with (val_lst := argument :: arguments); [apply direct_call_expands; exact Haddress | reflexivity | exact HsmallBefore | exact HsmallAfter]. }
+  eapply trans; [exact Hstep | | exact Hbefore | exact Hafter | exact Hmiddle].
+  eapply trans; [ | apply Steps__refl; exact Hafter | exact Hmiddle | exact Hafter | exact Hafter].
+  eapply call_address_enters_frame; eassumption.
+Qed.

@@ -43,36 +43,40 @@ Qed.
 
 (* A block without parameters takes no operands; its label has the block's arity. *)
 Lemma enter_block : forall z result body,
-  result = None \/ result = Some valtype_I32 -> wf_state z -> Forall wf_instr body ->
+  result = None \/ result = Some valtype_I32 \/ result = Some valtype_I64 -> wf_state z -> Forall wf_instr body ->
   Steps (stackConfig z [] [BLOCK (_RESULT result) body])
     (blockContext (blockResults (_RESULT result)) [] (stackConfig z [] body)).
 Proof.
   intros z result body Hresult Hz Hbody. apply one_spec_step.
   - apply stack_config_wf; [exact Hz | constructor | ].
-    destruct Hresult as [-> | ->]; repeat constructor; assumption.
+    destruct Hresult as [-> | [-> | ->]]; repeat constructor; assumption.
   - apply block_context_wf; [constructor | ]. apply stack_config_wf; assumption || constructor.
-  - apply read. destruct Hresult as [-> | ->].
+  - apply read. destruct Hresult as [-> | [-> | ->]].
     + apply (Step_read__block z 0%N [] (_RESULT None) body 0%N [] []); apply (introT eqP); reflexivity.
     + apply (Step_read__block z 0%N [] (_RESULT (Some valtype_I32)) body 1%N [] [valtype_I32]);
+        apply (introT eqP); reflexivity.
+    + apply (Step_read__block z 0%N [] (_RESULT (Some valtype_I64)) body 1%N [] [valtype_I64]);
         apply (introT eqP); reflexivity.
 Qed.
 
 (* A loop without parameters takes no operands; its label keeps nothing and runs
    the loop again. *)
 Lemma enter_loop : forall z result body,
-  result = None \/ result = Some valtype_I32 -> wf_state z -> Forall wf_instr body ->
+  result = None \/ result = Some valtype_I32 \/ result = Some valtype_I64 -> wf_state z -> Forall wf_instr body ->
   Steps (stackConfig z [] [LOOP (_RESULT result) body])
     (blockContext 0 [LOOP (_RESULT result) body] (stackConfig z [] body)).
 Proof.
   intros z result body Hresult Hz Hbody.
   assert (Hloop : Forall wf_instr [LOOP (_RESULT result) body])
-    by (destruct Hresult as [-> | ->]; repeat constructor; assumption).
+    by (destruct Hresult as [-> | [-> | ->]]; repeat constructor; assumption).
   apply one_spec_step.
   - apply stack_config_wf; [exact Hz | constructor | exact Hloop].
   - apply block_context_wf; [exact Hloop | ]. apply stack_config_wf; assumption || constructor.
-  - apply read. destruct Hresult as [-> | ->].
+  - apply read. destruct Hresult as [-> | [-> | ->]].
     + apply (Step_read__loop z 0%N [] (_RESULT None) body [] 0%N []); apply (introT eqP); reflexivity.
     + apply (Step_read__loop z 0%N [] (_RESULT (Some valtype_I32)) body [] 1%N [valtype_I32]);
+        apply (introT eqP); reflexivity.
+    + apply (Step_read__loop z 0%N [] (_RESULT (Some valtype_I64)) body [] 1%N [valtype_I64]);
         apply (introT eqP); reflexivity.
 Qed.
 

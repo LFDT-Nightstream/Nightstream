@@ -145,6 +145,26 @@ Proof.
 Qed.
 
 (* A function's type is one of its module's types. *)
+Lemma typed_function_type_in_module : forall s m ti p r l body,
+  Funcinst_ok s (typedFunction m ti p r l body) (mk_functype (mk_list _ p) (mk_list _ r)) -> In (mk_functype (mk_list _ p) (mk_list _ r)) (TYPES m).
+Proof.
+  intros s m ti p r l body Hinst.
+  inversion Hinst as [s' ft m' code C Hft HC Hcode]; subst.
+  destruct (module_context_tables _ _ _ HC) as [Htypes _]. rewrite <- Htypes.
+  inversion Hcode; subst.
+  match goal with He : is_true (_ == mk_functype _ _) |- _ => apply (elimT eqP) in He; rename He into Hlookup end.
+  match goal with Hb : is_true (N.ltb _ (N.of_nat (seq.size (context_TYPES C)))) |- _ =>
+    apply N.ltb_lt in Hb; rename Hb into Hbound end.
+  assert (Hsize : forall (A : Type) (xs : list A), seq.size xs = length xs)
+    by (intros A xs; induction xs as [ | z xs IH]; [reflexivity | cbn; rewrite IH; reflexivity]).
+  rewrite Hsize in Hbound.
+  match type of Hlookup with @lookup_total _ _ _ ?index = ?t =>
+    destruct (nth_error (context_TYPES C) (N.to_nat index)) as [u | ] eqn:Hu;
+    [ | apply nth_error_None in Hu; lia];
+    rewrite (spec_lookup_from_nth_error _ _ _ _ _ Hu) in Hlookup; subst u;
+    exact (nth_error_In _ _ Hu) end.
+Qed.
+
 Lemma function_type_in_module : forall s m ti p r l body,
   Funcinst_ok s (i32Function m ti p r l body) (i32StackType p r) -> In (i32StackType p r) (TYPES m).
 Proof.

@@ -22,7 +22,7 @@ in both step circuits of the three embedded packages. The reference hash chain
 of Lean's application region, so its circuit is the one that the Lean checks
 read. The crate decodes the
 packages once per process, and their identities are their pins
-(`OPTION_B_PACKAGES_IDENTITY` and `OPTION_B_FINISH_IDENTITY` in
+(`BOUNDED_DEPTH_PACKAGES_IDENTITY` and `BOUNDED_DEPTH_FINISH_IDENTITY` in
 `nightstream-fprime`). A test checks that each embedded copy hashes to its
 pin (`artifacts/README.md`). `Circuit::identity` returns the identity of
 the packages with this application.
@@ -103,7 +103,7 @@ that instance. There are two kinds of fold.
 
 No fold ends with Π_DEC. With `cap = 64`, the first period of steps is
 `(L^(cap+1) R)^(cap+1) R`, and each later period is `(L^(cap+1) R)^cap R`
-(`src/lifecycle/option_b/mod.rs`, `src/folding/option_b.rs`).
+(`src/lifecycle/bounded_depth/mod.rs`, `src/folding/bounded_depth.rs`).
 
 ## Final proof
 
@@ -144,9 +144,9 @@ They do not run Lean.
 
 - `tests/application_poseidon2.rs` compares the Rust Poseidon2 application
   with the recorded Lean application, row by row and value by value.
-- `tests/option_b_api.rs` runs the public API from compilation to
+- `tests/bounded_depth_api.rs` runs the public API from compilation to
   `verify_final`.
-- `tests/option_b_lifecycle/` holds the lifecycle tests. They compile into
+- `tests/bounded_depth_lifecycle/` holds the lifecycle tests. They compile into
   the library, so `--lib lifecycle::` selects them.
 
 ```sh

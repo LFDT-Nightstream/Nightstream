@@ -17,7 +17,7 @@ import CompressionLean.Ports.Circuit.Verifier
 import CompressionLean.Ports.Circuit.Views
 import CompressionLean.Ports.Circuit.Whir
 import CompressionLean.Ports.Layer1.Budget
-import CompressionLean.Ports.OptionB.Program
+import CompressionLean.Ports.BoundedDepth.Program
 import CompressionLean.Ports.Replay.Data
 import CompressionLean.Ports.Replay.Field
 import CompressionLean.Ports.Replay.Formulas

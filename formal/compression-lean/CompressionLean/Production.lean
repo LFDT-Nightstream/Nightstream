@@ -28,7 +28,7 @@ abbrev pointVariables : ℕ := Lifecycle.cubeVariables
 theorem pointVariables_eq : pointVariables = 28 := rfl
 
 /-- `B = 2^16` (`productionGlobalParams.bigB`, `k_rho = 16`). Each slot's honest bound lies below it
-(`option_b/compression.rs::compression_bound`). -/
+(`bounded_depth/compression.rs::compression_bound`). -/
 abbrev normLimit : ℕ := 65536
 
 theorem normLimit_eq : normLimit = productionGlobalParams.bigB := by decide

@@ -30,7 +30,7 @@ def geometry : Geometry where
 def plan : Plan := { geometry with rom := fun a => romImage.getD a 0, ram := fun _ => 0 }
 
 /-- A second program of the geometry with distinct nonzero words in every
-cell, for the Rust `D_init` check (`emitOptionB --application-start nebula-v1-other`). -/
+cell, for the Rust `D_init` check (`emitBoundedDepth --application-start nebula-v1-other`). -/
 def otherPlan : Plan :=
   { geometry with
     rom := fun a => [4294967295, 2147483649, 305419896, 1].getD a 0

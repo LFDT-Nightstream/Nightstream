@@ -42,7 +42,7 @@ pub(crate) struct Output {
     pub witness: Mat<F>,
 }
 /// How PiRLC weights its inputs: a sampled challenge for each input (SuperNeo
-/// v1.2 Π_RLC), or option B's light rule, a sampled challenge for the fresh
+/// v1.2 Π_RLC), or the bounded-depth scheme's light rule, a sampled challenge for the fresh
 /// output and 1 for the running output (Lean `lightChallenge`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Weights {

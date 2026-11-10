@@ -1,7 +1,7 @@
 name = "compression_lean"
 version = "0.1.0"
 defaultTargets = ["CompressionLean", "CompressionLeanTests", "CompressionLeanExe", "replayLayer1",
-  "lowerCheck", "optionBCheck", "setupCheck", "setupRootCheck", "runsCheck", "coverCheck", "status"]
+  "lowerCheck", "boundedDepthCheck", "setupCheck", "setupRootCheck", "runsCheck", "coverCheck", "status"]
 allowNonModules = true
 
 [[require]]
@@ -29,7 +29,7 @@ leanOptions = { autoImplicit = false, relaxedAutoImplicit = false, warningAsErro
 [[lean_lib]]
 name = "CompressionLeanExe"
 roots = ["CompressionLeanExe.CoverCheck", "CompressionLeanExe.Digest",
-  "CompressionLeanExe.Fixtures", "CompressionLeanExe.Key", "CompressionLeanExe.LowerCheck", "CompressionLeanExe.OptionBCheck", "CompressionLeanExe.PackageJson",
+  "CompressionLeanExe.Fixtures", "CompressionLeanExe.Key", "CompressionLeanExe.LowerCheck", "CompressionLeanExe.BoundedDepthCheck", "CompressionLeanExe.PackageJson",
   "CompressionLeanExe.Parse", "CompressionLeanExe.ReplayLayer1", "CompressionLeanExe.Runs",
   "CompressionLeanExe.RunsCheck", "CompressionLeanExe.SetupCheck",
   "CompressionLeanExe.SetupRootCheck"]
@@ -57,8 +57,8 @@ root = "CompressionLeanExe.LowerCheck"
 leanOptions = { autoImplicit = false, relaxedAutoImplicit = false, warningAsError = true }
 
 [[lean_exe]]
-name = "optionBCheck"
-root = "CompressionLeanExe.OptionBCheck"
+name = "boundedDepthCheck"
+root = "CompressionLeanExe.BoundedDepthCheck"
 leanOptions = { autoImplicit = false, relaxedAutoImplicit = false, warningAsError = true }
 
 [[lean_exe]]

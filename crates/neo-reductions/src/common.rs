@@ -391,7 +391,7 @@ impl RotRho {
         Self(rho)
     }
 
-    /// The rotation matrix of the ring's one: option B's light fold puts it on
+    /// The rotation matrix of the ring's one: the bounded-depth scheme's light fold puts it on
     /// the running source (Lean `Light.Rlc`, Cyclo contribution 2). It is not a
     /// sampled challenge, so the strong-set check does not apply.
     pub fn identity() -> Self {

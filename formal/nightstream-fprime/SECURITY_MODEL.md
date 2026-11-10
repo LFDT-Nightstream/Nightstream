@@ -33,7 +33,7 @@ are not checked.
 ## Applications and setups
 
 An application is a step program (`Lifecycle.Stage1.Application.Program`).
-Both step circuits run the same application step (`Lifecycle.OptionB.machine`).
+Both step circuits run the same application step (`Lifecycle.BoundedDepth.machine`).
 Adversary 1 holds for every application at the relation that Lean exports for
 it, and adversary 2 for every setup whose circuit keys carry these relations.
 Adversaries 3 and 4 hold for every key of the light and refresh folds.
@@ -47,12 +47,12 @@ Algorithm 2). A memory application (adversary 5) is such an application: its
 packages also fix the memory geometry, and the verifier takes the program,
 which the adversary does not choose. The identity is the Poseidon2 hash of the
 encoding of the light and refresh packages
-(`Export.OptionB.StepPackage.identity`), and every format decodes what it
+(`Export.BoundedDepth.StepPackage.identity`), and every format decodes what it
 encodes. No Lean theorem states that equal identities give equal packages or
 a Poseidon2 collision.
 
 The state hash binds the key digest of each circuit
-(`Lifecycle.OptionB.statePreimage`). Rust computes each key digest as the
+(`Lifecycle.BoundedDepth.statePreimage`). Rust computes each key digest as the
 Poseidon2 hash of a domain, the identity and the circuit index, and it
 derives each circuit's relation from its package (`SPEC.md` section 4.4, not
 checked against Lean). So when the verifier of one pair of packages accepts a
@@ -71,16 +71,16 @@ item 5).
   encodes a digest, but the circuit's case of the step relation does not hold
   with that digest as its output hash.
 - **Result:** no such win, for the light circuit
-  (`Export.OptionB.StepRelation.light_stepHolds`) and for the refresh circuit
-  (`Export.OptionB.StepRelation.refresh_stepHolds`). The step holds in an
+  (`Export.BoundedDepth.StepRelation.light_stepHolds`) and for the refresh circuit
+  (`Export.BoundedDepth.StepRelation.refresh_stepHolds`). The step holds in an
   environment that agrees with the assignment on the public input and
   differs only on dead Poseidon2 locals. The package rows are the relation's
-  rows (`Export.OptionB.StepPackage.relationRows_packageOf`), and the rows of
+  rows (`Export.BoundedDepth.StepPackage.relationRows_packageOf`), and the rows of
   either circuit give its case of the step relation
-  (`Layout.OptionB.StepCircuits.soundness`). Each result takes as a premise
+  (`Layout.BoundedDepth.StepCircuits.soundness`). Each result takes as a premise
   that every valid step of the circuit's application has the selector value
   of that circuit. The selector that returns the circuit that runs on a valid step and the
-  other circuit otherwise (`Export.OptionB.TerminalBridge.chosen`) meets this
+  other circuit otherwise (`Export.BoundedDepth.TerminalBridge.chosen`) meets this
   premise for every application (trust item 4). The decoded key digests are the words that
   the assignment carries; adversary 2 binds them to the verifier's keys. The
   result is deterministic and needs no hardness premise.
@@ -93,25 +93,25 @@ item 5).
 - **Wins:** the terminal relation accepts, but no step holds under the
   verifier's keys that ends in the statement.
 - **Result:** acceptance gives the step that the fresh witness decodes to
-  (`Export.OptionB.TerminalBridge.Exports.decode`). The step relation holds
+  (`Export.BoundedDepth.TerminalBridge.Exports.decode`). The step relation holds
   on it at the production cap, under the setup's keys, and it ends in the
   terminal's statement, or its next state and the terminal's state collide,
   or the step is light and its next state's words and the terminal's state
-  preimage collide (`Export.OptionB.TerminalBridge.bridge`,
-  `Export.OptionB.TerminalBridge.Collision`,
-  `Export.OptionB.TerminalBridge.WordCollision`). A light step's other slot
+  preimage collide (`Export.BoundedDepth.TerminalBridge.bridge`,
+  `Export.BoundedDepth.TerminalBridge.Collision`,
+  `Export.BoundedDepth.TerminalBridge.WordCollision`). A light step's other slot
   is the terminal's slot, because the light circuit reads only the active
-  slot's words (`Export.OptionB.StepRelation.lightInput`). The terminal is
-  `Lifecycle.OptionB.Terminal.HoldsFor`. Two well-formed states with one state
+  slot's words (`Export.BoundedDepth.StepRelation.lightInput`). The terminal is
+  `Lifecycle.BoundedDepth.Terminal.HoldsFor`. Two well-formed states with one state
   hash are equal or give a Poseidon2 collision on an input pair that the two
-  states fix (`Lifecycle.OptionB.stateHash_collision`,
-  `Lifecycle.OptionB.StateCollision`). The bridge reads each counter as
+  states fix (`Lifecycle.BoundedDepth.stateHash_collision`,
+  `Lifecycle.BoundedDepth.StateCollision`). The bridge reads each counter as
   one word, so it gives the depth words and not the depths
-  (`Export.OptionB.TerminalBridge.stateHash_binds_words`). The result is
+  (`Export.BoundedDepth.TerminalBridge.stateHash_binds_words`). The result is
   deterministic. It is about the Lean terminal relation, not about the Rust
   verifier (trust item 5). It concludes the step relation with the selector
   that returns the circuit that ran, and the terminal does not read the
-  selector (`Export.OptionB.TerminalBridge.holdsFor_recursive_control`), so
+  selector (`Export.BoundedDepth.TerminalBridge.holdsFor_recursive_control`), so
   its premises hold for the reference packages, whose two circuits run one
   application. The decode is a function of the proof, so the collision names
   two states that a reduction computes from the proof.
@@ -129,7 +129,7 @@ item 5).
   true at the prior point, or a Π_CCS bad event occurred: a mixing root of
   `α` and `γ`, or a sum-check failure
   (`Spec.Folding.Light.accepted_implies_securityOutcome`; Cyclo, ePrint
-  2026/359, Theorem 3, item 2; `Lifecycle.OptionB.lightExtractionNormLaw`).
+  2026/359, Theorem 3, item 2; `Lifecycle.BoundedDepth.lightExtractionNormLaw`).
   For a refresh fold, the extracted fresh witnesses satisfy the CCS and the
   recomposed children open the input accumulator below `B`, or a Π_CCS bad
   event occurred (`Spec.Folding.Refresh.accepted_implies_securityOutcome`).
@@ -152,28 +152,28 @@ item 5).
   random oracle and an adversary that makes at most `Q` queries, the
   probability that a fold succeeds and the extractor does not return its
   witnesses is at most a statistical term, a state-collision term and a
-  kernel term (`Lifecycle.OptionB.RandomOracle.LightKnowledge.knowledge_error_le`,
-  `Lifecycle.OptionB.RandomOracle.RefreshKnowledge.knowledge_error_le`). The
+  kernel term (`Lifecycle.BoundedDepth.RandomOracle.LightKnowledge.knowledge_error_le`,
+  `Lifecycle.BoundedDepth.RandomOracle.RefreshKnowledge.knowledge_error_le`). The
   statistical term is at most `(Q + 58) · 531/2^128` for light and
   `(Q + 74) · 50/(87 · 2^115)` for refresh
-  (`Lifecycle.OptionB.RandomOracle.LightKnowledge.statisticalError_le`,
-  `Lifecycle.OptionB.RandomOracle.RefreshKnowledge.statisticalError_le`).
+  (`Lifecycle.BoundedDepth.RandomOracle.LightKnowledge.statisticalError_le`,
+  `Lifecycle.BoundedDepth.RandomOracle.RefreshKnowledge.statisticalError_le`).
   The kernel term is the probability that the binding reduction returns a
   short kernel vector of the Ajtai key at the chain norm. A black-box
   rewinding machine outputs that vector with at most `budget` adversary runs,
   so the kernel term is at most its success plus `(3Q + 61)/budget` for light
   and `(35Q + 653)/budget` for refresh
-  (`Lifecycle.OptionB.RandomOracle.LightSolver.kernelChance_le_solver`,
-  `Lifecycle.OptionB.RandomOracle.RefreshSolver.kernelChance_le_solver`). The
+  (`Lifecycle.BoundedDepth.RandomOracle.LightSolver.kernelChance_le_solver`,
+  `Lifecycle.BoundedDepth.RandomOracle.RefreshSolver.kernelChance_le_solver`). The
   state-collision terms are the probability of a Poseidon2 collision on two
   named prior states, and a collision finder outputs the colliding input
   pair, whose two inputs have one length (the sponge pads with zeros and does
-  not encode the length) (`Lifecycle.OptionB.RandomOracle.HashSolver.hashCollisions_le_finder`).
+  not encode the length) (`Lifecycle.BoundedDepth.RandomOracle.HashSolver.hashCollisions_le_finder`).
   Averaged over the SHAKE128 key setup at key width `2^26`, the kernel term is
   an MSIS advantage for a uniform matrix at the chain norm plus a programming
   error below `2^−192`, so each fold's bound uses only the two algorithms
-  (`Export.OptionB.RandomOracleSetup.light_production_knowledge_error_lt_solvers`,
-  `Export.OptionB.RandomOracleSetup.refresh_production_knowledge_error_lt_solvers`).
+  (`Export.BoundedDepth.RandomOracleSetup.light_production_knowledge_error_lt_solvers`,
+  `Export.BoundedDepth.RandomOracleSetup.refresh_production_knowledge_error_lt_solvers`).
   Lean bounds neither the MSIS advantage nor the collision advantage
   numerically (trust item 2), and it states the machines' work in adversary
   runs, not in time.
@@ -192,25 +192,25 @@ item 5).
 - **Result:** under Assumption 1 and the closure premise,
   `Pr[false acceptance] ≤ Σ_j (Pr[collision at visit j] + error(stage j))`
   for `j` below a bound on the adversary's iteration
-  (`Export.OptionB.IvcSecurity.probability_bound`). The reverse extractor
+  (`Export.BoundedDepth.IvcSecurity.probability_bound`). The reverse extractor
   walks back from the terminal one step per stage
-  (`Export.OptionB.IvcWalk`). At each visit, the fresh witness decodes to the
-  last step (`Export.OptionB.TerminalBridge.Exports.decode`). When that step
+  (`Export.BoundedDepth.IvcWalk`). At each visit, the fresh witness decodes to the
+  last step (`Export.BoundedDepth.TerminalBridge.Exports.decode`). When that step
   is recursive, the stage's attempt is its fold of the slot that its prior
   program counter selects, linked to the step's prior state, with the slot's
   witness at the slot's bound. An answer that extracts the fold gives the
   prior visit, whose statement and slots are the step's input. Each slot keeps
   its own bound: a light fold adds `T(b − 1)` and a refresh fold returns it to
   `B`, so each attempt stays within `B + cap · T · (b − 1)`
-  (`Export.OptionB.IvcWalk.DepthWithin`). At a visit without a collision, an
+  (`Export.BoundedDepth.IvcWalk.DepthWithin`). At a visit without a collision, an
   answer that extracts gives a valid prior visit one iteration back, or the
-  last step is the base step (`Export.OptionB.IvcWalk.walk_step`). So a false
+  last step is the base step (`Export.BoundedDepth.IvcWalk.walk_step`). So a false
   acceptance has a collision or a failed extraction at one of its first
-  `iteration` visits (`Export.OptionB.IvcWalk.covered`).
+  `iteration` visits (`Export.BoundedDepth.IvcWalk.covered`).
 - **Collision term:** the collision at a visit is a Poseidon2 collision on
   the next state of the decoded step and the visit's terminal state, or on
   a light step's next state words and the terminal's 38-word state preimage
-  (`Export.OptionB.TerminalBridge.Collision`). The stage computes both inputs
+  (`Export.BoundedDepth.TerminalBridge.Collision`). The stage computes both inputs
   from its tape, so a reduction that runs the stage outputs the colliding
   pair. Lean does not bound this probability (trust item 2).
 - **Per slot:** the earlier one-slot result,
@@ -221,30 +221,30 @@ item 5).
   (`Spec.HyperNova.Construction2.BoundedDepthKnowledge.execution_extracts`).
 - **Validity:** a false acceptance has no list of witnesses that are valid
   for the application and that its step maps from `z0` to `zi`
-  (`Export.OptionB.IvcWalk.Reaches`). The bridge's selector returns the
-  circuit that ran only on a valid step (`Export.OptionB.TerminalBridge.chosen`),
-  so each decoded step is valid (`Export.OptionB.TerminalBridge.valid_of_chosen`).
+  (`Export.BoundedDepth.IvcWalk.Reaches`). The bridge's selector returns the
+  circuit that ran only on a valid step (`Export.BoundedDepth.TerminalBridge.chosen`),
+  so each decoded step is valid (`Export.BoundedDepth.TerminalBridge.valid_of_chosen`).
 - **Knowledge form:** HyperNova Definition 11 (ii) states knowledge
   soundness: its event is on the witnesses that the extractor returns. The
   same sum bounds the probability of an extraction failure: the terminal
   relation accepts, and the witnesses of the walk's trail are not `iteration`
   valid steps from `z0` to `zi`
-  (`Export.OptionB.IvcSecurity.ExtractionFailure`,
-  `Export.OptionB.IvcSecurity.extraction_bound`). Its law is the adversary's
+  (`Export.BoundedDepth.IvcSecurity.ExtractionFailure`,
+  `Export.BoundedDepth.IvcSecurity.extraction_bound`). Its law is the adversary's
   tape and the coins of each stage's extractor. A false acceptance is an
   extraction failure, so the result above follows from this one.
 - **Start from a final proof:** the finish fold of a last fold is one more
   stage before the walk. An answer that extracts it gives an accepted
   terminal for the finish step's input
-  (`Export.OptionB.FinishWalk.holdsFor_of_extracted`), whose visit has each
-  slot at bound `B` (`Export.OptionB.FinishWalk.finish_relaxed`). So, if no
+  (`Export.BoundedDepth.FinishWalk.holdsFor_of_extracted`), whose visit has each
+  slot at bound `B` (`Export.BoundedDepth.FinishWalk.finish_relaxed`). So, if no
   valid steps reach that statement, the finish answer does not extract, or
   the walk from the finish output has a collision or a failed stage at one of
   its first `iteration` visits
-  (`Export.OptionB.FinishWalk.finish_walk_covered`). Adversary 6 uses this.
+  (`Export.BoundedDepth.FinishWalk.finish_walk_covered`). Adversary 6 uses this.
 - **Gaps:** Lean derives Assumption 1 with an explicit `error` only in a
   random-oracle model of the folds
-  (`Lifecycle.OptionB.RandomOracle.Assumption1.romAssumption1`). The bound
+  (`Lifecycle.BoundedDepth.RandomOracle.Assumption1.romAssumption1`). The bound
   here still takes Assumption 1 for the concrete hash as a premise, and it
   gives no concrete security for a long history (trust item 3).
 
@@ -264,11 +264,11 @@ item 5).
   gives and the reverse extractor's sample, the mass of wins is at most the
   collision and stage terms of adversary 4, the state-link and chain
   collision masses of the extracted runs, and the memory-round error of the
-  last stage (`Export.OptionB.NebulaSecurity.bad_le`). The extracted history
-  is the steps that adversary 4's walk decodes (`Export.OptionB.IvcWalk.trail`),
+  last stage (`Export.BoundedDepth.NebulaSecurity.bad_le`). The extracted history
+  is the steps that adversary 4's walk decodes (`Export.BoundedDepth.IvcWalk.trail`),
   so every event reads data of the sample. The walk meets the extraction
   premise of `Lifecycle.Nebula.EndToEnd.Stage1Extraction`
-  (`Export.OptionB.NebulaSecurity.stage1Extraction`), and
+  (`Export.BoundedDepth.NebulaSecurity.stage1Extraction`), and
   `Lifecycle.Nebula.EndToEnd.bad_subset` reduces a win to a failure of that
   extraction, a state-link collision, a chain collision, or an accepted run
   with an unbalanced segment that passes the product test. A win counts only
@@ -297,7 +297,7 @@ item 5).
   chain inputs of two runs with the same `η` input
   (`Lifecycle.Nebula.EtaRound.retry_collision`). For a secure geometry, the
   first term is at most `(Q_η + 1) · 2^−109.91`
-  (`Export.OptionB.NebulaSecurity.romMemoryRound`). The model takes the
+  (`Export.BoundedDepth.NebulaSecurity.romMemoryRound`). The model takes the
   adversary and the extractor as one sampler, so `Q_η` counts the queries of
   every rerun. At the Poseidon2 oracle the event is the event of the memory
   round (`Lifecycle.Nebula.EtaRound.unbalancedIn_deployed`), but no result
@@ -310,16 +310,16 @@ item 5).
 - **Wins:** the final verifier accepts, but no last fold exists whose finish
   checks hold and whose two slot claims hold under their circuits' relations.
 - **Result:** the claims of `formal/compression-lean`
-  (`CompressionLean.Claims.option_b_parent_bound`): such a win has probability
+  (`CompressionLean.Claims.bounded_depth_parent_bound`): such a win has probability
   at most `calls / 2^t` in the state-restoration experiment at Rust's layer
   bits `t`. For the reference application, a Lean proof, a Lean check of
   Rust's files, Rust or a Lean value meets each premise
-  (`CompressionLean.Claims.option_b_poseidon2_bound`,
+  (`CompressionLean.Claims.bounded_depth_poseidon2_bound`,
   `formal/compression-lean/STATUS.md`). `Circuit::compile` keeps Lean's
   packages for the reference hash chain (`SPEC.md` Algorithm 2), so these
   checks cover the circuit that it builds. The final program's checks on the
   finish package give the finish relation of the last fold
-  (`Export.OptionB.FinishRelation.package_finish`). Trust item 7 lists what
+  (`Export.BoundedDepth.FinishRelation.package_finish`). Trust item 7 lists what
   this result assumes.
 - **With the IVC bound:** the last fold starts the reverse walk of adversary
   4. One experiment draws an outcome of the final verifier's experiment, then
@@ -328,12 +328,12 @@ item 5).
   a statement whose iteration is at most `depth` and that no valid steps
   reach is at most `calls / 2^t`, plus the finish stage's Assumption 1 error,
   plus the terms of adversary 4
-  (`CompressionLean.Claims.option_b_ivc_bound`).
+  (`CompressionLean.Claims.bounded_depth_ivc_bound`).
 - **Gaps:** that bound has two more premises. The finish adversary, which
   outputs the finish fold of the last fold, is admitted. The chain adversary,
   which outputs the terminal that the finish answer gives, is an admitted
-  stage (`CompressionLean.Spec.OptionB.finishAdversary`,
-  `CompressionLean.Spec.OptionB.chainAdversary`). Both select the last fold
+  stage (`CompressionLean.Spec.BoundedDepth.finishAdversary`,
+  `CompressionLean.Spec.BoundedDepth.chainAdversary`). Both select the last fold
   with `Classical.epsilon`. The compression claims prove that a last fold
   exists, but no Lean algorithm computes it from the final proof. So Lean
   does not show that these two adversaries are efficient (trust item 3).
@@ -361,9 +361,9 @@ item 5).
      Theorem 3, this bound is at most `accumulatorBound cap = 17,496`
      (`Spec.GlobalParams.accumulatorBound`, `SPEC.md` Algorithm 6), and Lean
      proves that an honest run stays within it
-     (`Export.OptionB.StepExtend.Honest`). A refresh fold recovers its input
+     (`Export.BoundedDepth.StepExtend.Honest`). A refresh fold recovers its input
      only below `B`, so the terminal relation of the security results keeps
-     `B` (`Export.OptionB.RunCompleteness.holds_of_verifies`). The recovered
+     `B` (`Export.BoundedDepth.RunCompleteness.holds_of_verifies`). The recovered
      bound, and so the chain norm, comes from `B`, not from the bound of the
      depth.
    - *The κ estimate.* A lattice-estimator run outside Lean (commit 38618db),
@@ -385,8 +385,8 @@ item 5).
 3. **The history: HyperNova errata Assumption 1 for the two fold kinds.**
    `Spec.HyperNova.ReverseStages.Assumption1` states Assumption 1 in the form
    of HyperNova Definition 7 knowledge soundness. Adversary 4 uses it with the
-   success event `Export.OptionB.IvcWalk.WalkSucceeds` and the extraction
-   event `Export.OptionB.IvcWalk.WalkExtracted`; the one-slot result uses
+   success event `Export.BoundedDepth.IvcWalk.WalkSucceeds` and the extraction
+   event `Export.BoundedDepth.IvcWalk.WalkExtracted`; the one-slot result uses
    `Spec.HyperNova.Construction2.BoundedDepthSecurity.Assumption1` with the
    same events.
    For every admitted fold adversary there is an efficient extractor that
@@ -406,10 +406,10 @@ item 5).
    `Spec.Folding.Schedule.extractedBefore`). These are the differences from
    Definition 7:
    - The success event has a prior-state link. The light transcript does
-     not absorb the running claim (`Lifecycle.OptionB.lightAbsorbPublicInput`),
+     not absorb the running claim (`Lifecycle.BoundedDepth.lightAbsorbPublicInput`),
      and the refresh transcript absorbs the children's commitments and
      evaluations but not the accumulator's point or public input
-     (`Lifecycle.OptionB.refreshWords`). Both bind the accumulator only
+     (`Lifecycle.BoundedDepth.refreshWords`). Both bind the accumulator only
      through the prior digest in the fresh public input. So the adversary
      also outputs a prior state, and a success needs `PriorLink` of that
      state, the running claim and the fold
@@ -422,10 +422,10 @@ item 5).
      the fold's running claim
      (`Spec.HyperNova.Construction2.BoundedDepthSecurity.StepLink`,
      `Spec.HyperNova.Construction2.BoundedDepthSecurity.slot_runsBack`).
-     Option B's link also requires a well-formed prior state
-     (`Lifecycle.OptionB.PriorLink`). Two linked folds with one fresh instance
+     The bounded-depth scheme's link also requires a well-formed prior state
+     (`Lifecycle.BoundedDepth.PriorLink`). Two linked folds with one fresh instance
      then start from one running claim, or their two prior states give a
-     state-hash collision (`Lifecycle.OptionB.priorLink_binds`). So the
+     state-hash collision (`Lifecycle.BoundedDepth.priorLink_binds`). So the
      transcript fixes the running claim before the challenges, up to a
      collision on a pair of states that the adversary outputs.
    - The relations have a key. A claim holds under the key of its slot, and
@@ -470,13 +470,13 @@ item 5).
    Assumption 1 holds with an explicit error: adversary 3's knowledge errors
    for each circuit key plus a truncation loss `2 · ((Q + 1) + 17 · (Q + 17))
    / budget` for an extractor with its own oracle coins and `budget` reruns
-   (`Lifecycle.OptionB.RandomOracle.Assumption1.romAssumption1`). At an
+   (`Lifecycle.BoundedDepth.RandomOracle.Assumption1.romAssumption1`). At an
    oracle that answers like the Poseidon2 sponge, the model's success and
    extraction events are the walk's
-   (`Export.OptionB.RomWalk.succeeds_iff_walkSucceeds`,
-   `Export.OptionB.RomWalk.extracted_iff_walkExtracted`), and an honest fold
-   meets the success event (`Lifecycle.OptionB.RandomOracle.Honest.light_honest`,
-   `Lifecycle.OptionB.RandomOracle.Honest.refresh_honest`). One fixed oracle
+   (`Export.BoundedDepth.RomWalk.succeeds_iff_walkSucceeds`,
+   `Export.BoundedDepth.RomWalk.extracted_iff_walkExtracted`), and an honest fold
+   meets the success event (`Lifecycle.BoundedDepth.RandomOracle.Honest.light_honest`,
+   `Lifecycle.BoundedDepth.RandomOracle.Honest.refresh_honest`). One fixed oracle
    carries no probability, so this does not prove the premise for the
    concrete hash; it gives the value of `error` that the premise asks for.
    Lean has no random-oracle closure premise, because the query bound of a
@@ -499,11 +499,11 @@ item 5).
    finds the last fold from the final proof. Lean does not show this.
 4. **The circuit selection.** HyperNova NIVC selects the circuit of a step
    with `φ(z_i, w_i)`. The Lean step relation takes it from the machine's
-   selector of the application state and witness (`Lifecycle.OptionB.machine`,
-   `Lifecycle.OptionB.stepHolds_iff`). Both option-B circuits run the same
+   selector of the application state and witness (`Lifecycle.BoundedDepth.machine`,
+   `Lifecycle.BoundedDepth.stepHolds_iff`). Both bounded-depth circuits run the same
    application step, so the selector does not change the computed state.
-   `Export.OptionB.TerminalBridge.bridge` takes the selector that returns the
-   circuit that ran on a valid step (`Export.OptionB.TerminalBridge.chosen`),
+   `Export.BoundedDepth.TerminalBridge.bridge` takes the selector that returns the
+   circuit that ran on a valid step (`Export.BoundedDepth.TerminalBridge.chosen`),
    so the prover picks the circuit. Rust picks it from the depth of the selected slot
    (`SPEC.md` Algorithm 5): a light fold below the cap and a refresh fold at
    the cap. The light depth guard rejects a light fold at the cap for every
@@ -514,7 +514,7 @@ item 5).
    and its logical assignment with Lean exports, and they check the
    lifecycle on fixed inputs (`SPEC.md` section 9). No theorem covers
    arbitrary Rust execution.
-6. **The memory round.** `Export.OptionB.NebulaSecurity.MemoryRound` states
+6. **The memory round.** `Export.BoundedDepth.NebulaSecurity.MemoryRound` states
    the memory round for the two step circuits as a premise: for each admitted
    stage and the memory statement of its tape, the extracted run is accepted
    and has a segment that passes the product test with unbalanced multisets
@@ -535,10 +535,10 @@ item 5).
    key's root is the honest root of the claims' setup. The premises about the
    keys and the setups are met for the reference application only
    (`formal/compression-lean/STATUS.md`).
-   The bound with the IVC bound (`CompressionLean.Claims.option_b_ivc_bound`)
+   The bound with the IVC bound (`CompressionLean.Claims.bounded_depth_ivc_bound`)
    also needs the final program's state keys to be the digests of the circuit
-   keys (`CompressionLean.Spec.OptionB.KeysAre`). Rust meets this premise:
-   `OptionB::new` gives the same digests to the step states and to the final
+   keys (`CompressionLean.Spec.BoundedDepth.KeysAre`). Rust meets this premise:
+   `BoundedDepth::new` gives the same digests to the step states and to the final
    program (not checked against Lean).
 
 ## Out of scope
@@ -552,30 +552,30 @@ item 5).
   (`Spec.Folding.Schedule.honest_bounds`, arithmetic only), and, given an
   accepted fold, an honest step of either circuit has an assignment in which
   every row of its source layout holds
-  (`Layout.OptionB.LightAssemblerCompleteness.complete`,
-  `Layout.OptionB.RefreshAssemblerCompleteness.complete`). Lean joins these
+  (`Layout.BoundedDepth.LightAssemblerCompleteness.complete`,
+  `Layout.BoundedDepth.RefreshAssemblerCompleteness.complete`). Lean joins these
   results. Along an honest run, each slot's witness stays within the bound
-  of its depth (`Export.OptionB.StepExtend.Honest`). An honest step's witness
+  of its depth (`Export.BoundedDepth.StepExtend.Honest`). An honest step's witness
   satisfies the exported relation at the key's widened slot layout
-  (`Export.OptionB.StepCompleteness.light_complete`,
-  `Export.OptionB.StepCompleteness.refresh_complete`). The terminal accepts
+  (`Export.BoundedDepth.StepCompleteness.light_complete`,
+  `Export.BoundedDepth.StepCompleteness.refresh_complete`). The terminal accepts
   the honest proof of every valid run
-  (`Export.OptionB.RunCompleteness.run_complete`) and of every memory
-  execution (`Export.OptionB.NebulaCompleteness.memory_complete`). HyperNova
+  (`Export.BoundedDepth.RunCompleteness.run_complete`) and of every memory
+  execution (`Export.BoundedDepth.NebulaCompleteness.memory_complete`). HyperNova
   Definition 11 (i) extends each proof that the verifier accepts. The
   terminal verifier holds each slot to the bound of its depth
-  (`Export.OptionB.RunCompleteness.Verifies`, `SPEC.md` Algorithm 6), and one
+  (`Export.BoundedDepth.RunCompleteness.Verifies`, `SPEC.md` Algorithm 6), and one
   valid step extends each proof that it accepts
-  (`Export.OptionB.RunCompleteness.verifies_step`). These
+  (`Export.BoundedDepth.RunCompleteness.verifies_step`). These
   results take as premises three package checks that the emitter evaluates
-  (`Export.OptionB.StepExtend.Complete`), key digests of four words, and
+  (`Export.BoundedDepth.StepExtend.Complete`), key digests of four words, and
   witnesses of the application's witness length. For the finish step and
   compression, Lean proves completeness at the claim level: for every valid
   run of at least one step, the claim of the final verifier holds for the
-  honest statement (`CompressionLean.Claims.option_b_complete`). It does not
+  honest statement (`CompressionLean.Claims.bounded_depth_complete`). It does not
   prove that the honest layer-1 and shrink provers produce proofs that the
   verifiers accept. That part is an assumption, and the Rust tests of SPEC.md
-  lifecycle rule 2 are its evidence (`decisions/option-b-claim-level-completeness.md`).
+  lifecycle rule 2 are its evidence (`decisions/bounded-depth-claim-level-completeness.md`).
   Rust's completeness is not perfect: a WHIR query sample of `p − 1` and the
   layer-1 poles of SPEC.md Algorithm 7 make `compress` return an error. Each application promises that its step keeps the state width
   (`Lifecycle.Stage1.Application.Program.step_length`); the counter must stay

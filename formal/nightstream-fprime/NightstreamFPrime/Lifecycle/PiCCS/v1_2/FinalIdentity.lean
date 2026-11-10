@@ -104,7 +104,7 @@ theorem gammaFreshPower_eq (gamma : K) :
   simpa [productionShape, productionProfile, Phi81MatrixSource.phi81Shape,
     TargetPolynomial.power] using extensionLaws.mul_one gamma
 
-/-- The leaf's inputs for a Π_CCS shape: the production shape, or option B's light shape. -/
+/-- The leaf's inputs for a Π_CCS shape: the production shape, or the bounded-depth scheme's light shape. -/
 structure ShapeInterface (shape : Shape) where
   roundPoint : Nat → Fin shape.cubeVariables → KExpr
   alpha : Nat → Fin shape.cubeVariables → KExpr

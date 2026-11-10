@@ -1,7 +1,7 @@
 import NightstreamFPrime.Spec.HyperNova.Construction2.PerCircuit
 import NightstreamFPrime.Spec.Folding.Schedule
 
-/-! Option B on per-circuit Construction 2: slot 0 is the light circuit and slot 1 the refresh
+/-! The bounded-depth scheme on per-circuit Construction 2: slot 0 is the light circuit and slot 1 the refresh
 circuit. A running claim carries its depth, so the state hash binds it. The light verifier
 rejects a claim at the depth cap, and the refresh verifier resets the depth to 0.
 

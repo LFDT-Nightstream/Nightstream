@@ -1,11 +1,11 @@
 # compression-lean
 
 This project proves a soundness bound for Nightstream's compressed proof: the final verifier
-(`OptionB::verify_final`, `crates/nightstream/src/lifecycle/option_b/compression.rs`) accepts a false statement
+(`BoundedDepth::verify_final`, `crates/nightstream/src/lifecycle/bounded_depth/compression.rs`) accepts a false statement
 only with a small probability, under the assumptions that `TRUST.md` lists. Two of them carry the
 most weight: the WHIR openings are idealized, and Fiat–Shamir inside the final program is assumed,
 not bounded (`TRUST.md` §3). It also proves claim-level completeness: for every valid run of at
-least one step, the claim of that bound holds for the run's statement (`option_b_complete`,
+least one step, the claim of that bound holds for the run's statement (`bounded_depth_complete`,
 `TRUST.md` "Completeness"). The claims are the theorems of `CompressionLean/Claims.lean`.
 
 ## Strategy
@@ -22,18 +22,18 @@ finish package and both layer-1 verifiers written as a circuit.
    densities on the worst path. Under Fiat–Shamir, a state-restoration experiment lets the prover
    ask for challenges at any node; then each query costs at most the game's error.
 2. The finish package is the package that F′'s emitter writes for the finish relation, so its rows
-   give F′'s meaning (`Final/OptionBParent.lean`).
+   give F′'s meaning (`Final/BoundedDepthParent.lean`).
 3. Layer 1 and the shrink layer each prove that an accepted transcript has a witness, except on a
    bad challenge (`Layer1/`, `Shrink/`). The WHIR openings are idealized; their error is not part
    of the bound.
 4. The chain (`Final/`): the shrink verifier accepts, so a candidate satisfies the CCS of the final
-   program. The encoding premise (`Final.OptionB.Encodes`) says that such a witness holds finish
+   program. The encoding premise (`Final.BoundedDepth.Encodes`) says that such a witness holds finish
    columns and accepting layer-1 paths for both slot claims. Layer 1 then gives a witness of each
-   claim, and under the honest setups the claims are F′'s (`Final/OptionBParent.lean`). All layers
+   claim, and under the honest setups the claims are F′'s (`Final/BoundedDepthParent.lean`). All layers
    run in one experiment, so one bad-set argument covers them. The chain covers a valid program witness
    only where its in-program challenges are the experiment's oracle answers (the read condition,
    `TRUST.md` §3).
-5. The encoding premise is proved for the final program (`Sim/OptionBEncodes.lean`). Lean
+5. The encoding premise is proved for the final program (`Sim/BoundedDepthEncodes.lean`). Lean
    lowers the program to the shrink run as Rust's recorder does (`Lowering/`). A witness of the
    run's CCS gives an accepting run of an executor, and the simulation (`Sim/`) shows that each part
    of the circuit computes the values of an executable replay of the layer-1 verifier

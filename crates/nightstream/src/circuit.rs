@@ -11,12 +11,12 @@ use std::path::Path;
 use std::sync::Arc;
 
 use neo_math::F;
-use nightstream_fprime::{Linear, NativeBlock, NativeShape, OptionBPackages, StepPackage};
+use nightstream_fprime::{BoundedDepthPackages, Linear, NativeBlock, NativeShape, StepPackage};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 use crate::application::{ApplicationCircuit, ApplicationError};
 use crate::engine::{Engine, EngineError};
-use crate::lifecycle::option_b::{self as lifecycle, Finish};
+use crate::lifecycle::bounded_depth::{self as lifecycle, Finish};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -36,7 +36,7 @@ pub enum Error {
     #[error(transparent)]
     Parameters(#[from] neo_params::ParamsError),
     #[error(transparent)]
-    OptionB(#[from] crate::lifecycle::option_b::OptionBError),
+    BoundedDepth(#[from] crate::lifecycle::bounded_depth::BoundedDepthError),
 }
 
 /// The size of an application: its witness words, its local words and its
@@ -174,7 +174,7 @@ pub(crate) struct References<'a> {
 /// Lean's (`compile`), or Lean's own (`load_packages`), whose witness program
 /// fills its locals from the witness words and the output state.
 pub struct Circuit {
-    packages: OptionBPackages,
+    packages: BoundedDepthPackages,
     finish: StepPackage,
     application: Option<ApplicationCircuit>,
     /// A memory relation: only `nebula::Circuit::verifier` verifies it,
@@ -216,10 +216,12 @@ impl Circuit {
     /// which moves to their witness words. Only the tests load Lean packages.
     #[cfg(test)]
     pub(crate) fn load_packages(references: References<'_>, expected: [u64; 4]) -> Result<Self, Error> {
-        let packages = nightstream_fprime::load_option_b_packages(references.light, references.refresh, expected)?;
-        let finish =
-            nightstream_fprime::load_option_b_finish(references.finish, nightstream_fprime::OPTION_B_FINISH_IDENTITY)?
-                .with_witness_words(packages.light().witness_words())?;
+        let packages = nightstream_fprime::load_bounded_depth_packages(references.light, references.refresh, expected)?;
+        let finish = nightstream_fprime::load_bounded_depth_finish(
+            references.finish,
+            nightstream_fprime::BOUNDED_DEPTH_FINISH_IDENTITY,
+        )?
+        .with_witness_words(packages.light().witness_words())?;
         Ok(Self {
             packages,
             finish,
@@ -284,7 +286,7 @@ impl Circuit {
         let memory = match &magic {
             magic if magic == MAGIC => false,
             magic if magic == MEMORY_MAGIC => true,
-            _ => return Err(Error::Circuit("not a saved option-B application")),
+            _ => return Err(Error::Circuit("not a saved bounded-depth application")),
         };
         let private_count = read_word(&mut input)?;
         let mut forms = [0; 4];
@@ -303,12 +305,12 @@ impl Circuit {
 
     /// Require one fold of the selected profile to meet the caller's positive
     /// local minimum. This is not an end-to-end bound over recursive depth or
-    /// multiple attempts. Option B proves and verifies on the CPU path
+    /// multiple attempts. The bounded-depth scheme proves and verifies on the CPU path
     /// (`Engine::Optimized`).
     pub fn prover(&self, engine: Engine, minimum_security_bits: u32) -> Result<Prover, Error> {
         cpu_only(engine)?;
         Ok(Prover {
-            lifecycle: lifecycle::OptionB::new(self.packages.clone(), minimum_security_bits)?,
+            lifecycle: lifecycle::BoundedDepth::new(self.packages.clone(), minimum_security_bits)?,
             finish: Finish::new(self.finish.clone())?,
             application: self.application.clone(),
         })
@@ -330,7 +332,7 @@ impl Circuit {
     pub(crate) fn stage1_verifier(&self, engine: Engine, minimum_security_bits: u32) -> Result<Verifier, Error> {
         cpu_only(engine)?;
         Ok(Verifier {
-            lifecycle: lifecycle::OptionB::new(self.packages.clone(), minimum_security_bits)?,
+            lifecycle: lifecycle::BoundedDepth::new(self.packages.clone(), minimum_security_bits)?,
             finish: Finish::new(self.finish.clone())?,
         })
     }
@@ -360,7 +362,7 @@ pub struct CompressionKey(lifecycle::Keys);
 pub struct CompressionSetup(lifecycle::Setups);
 
 pub struct Prover {
-    lifecycle: lifecycle::OptionB,
+    lifecycle: lifecycle::BoundedDepth,
     finish: Finish,
     application: Option<ApplicationCircuit>,
 }
@@ -462,7 +464,7 @@ impl Prover {
 }
 
 pub struct Verifier {
-    lifecycle: lifecycle::OptionB,
+    lifecycle: lifecycle::BoundedDepth,
     finish: Finish,
 }
 

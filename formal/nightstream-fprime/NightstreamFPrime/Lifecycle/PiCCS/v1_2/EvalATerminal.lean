@@ -35,7 +35,7 @@ open NightstreamFPrime.Spec.Folding.Nifs.PaperNonInteractive
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
 
-/-- The leaf's inputs for a Π_CCS shape: the production shape, or option B's light shape. -/
+/-- The leaf's inputs for a Π_CCS shape: the production shape, or the bounded-depth scheme's light shape. -/
 structure ShapeInterface (shape : Shape) where
   roundPoint : Nat → Fin shape.cubeVariables → KExpr
   priorPoint : Nat → Fin shape.cubeVariables → KExpr

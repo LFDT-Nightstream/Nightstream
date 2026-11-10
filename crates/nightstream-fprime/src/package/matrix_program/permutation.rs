@@ -1,5 +1,5 @@
 //! One Poseidon2 permutation's rows and its external layer from the Lean
-//! formula library, over caller forms. The option-B packages use it for each
+//! formula library, over caller forms. The bounded-depth packages use it for each
 //! packed block (`CircuitRelation.sboxInterface`, `CircuitRelation.bindingRows`).
 
 use std::ops::ControlFlow;

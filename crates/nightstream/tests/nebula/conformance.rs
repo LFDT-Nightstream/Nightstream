@@ -5,13 +5,13 @@
 //! first row of the step relation that the witness fails is in the named
 //! check. The names come from Lean (`tests/fixtures/nebula-memory-*-rows.json`)
 //! and count from the application's first row. The Rust-built memory relation
-//! has Lean's rows (`tests/nebula/parity.rs`), and option B puts them first in
+//! has Lean's rows (`tests/nebula/parity.rs`), and the bounded-depth scheme puts them first in
 //! each step relation, without the rows of its Poseidon2 blocks.
 
 use std::ops::Range;
 
 use super::*;
-use crate::lifecycle::option_b::{OptionBError, CHECK_ROWS, FAILED_ROW};
+use crate::lifecycle::bounded_depth::{BoundedDepthError, CHECK_ROWS, FAILED_ROW};
 use crate::nebula::{Circuit, Machine, MachineState, Package, Step};
 use crate::{Engine, Error};
 use crate::{Proof, Prover, Verifier};
@@ -116,7 +116,7 @@ impl Harness {
         assert!(
             matches!(
                 self.verifier.verify(&bad.state(), &bad),
-                Err(Error::OptionB(OptionBError::Fresh(_)))
+                Err(Error::BoundedDepth(BoundedDepthError::Fresh(_)))
             ),
             "{check}"
         );

@@ -17,7 +17,7 @@ if [ $# -lt 3 ]; then
   echo "It shows how memory grows over time and which functions allocate the most."
   echo ""
   echo "Example:"
-  echo "  $0 nightstream option_b_api hash_chain_proves_and_verifies"
+  echo "  $0 nightstream bounded_depth_api hash_chain_proves_and_verifies"
   echo ""
   echo "Output: profile-memory-deep.txt"
   exit 1

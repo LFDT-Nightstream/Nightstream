@@ -1,4 +1,4 @@
-//! Option B's light PiCCS (`NormSources::Fresh`, Lean `OptionB.lightPiCcsOracle`)
+//! The bounded-depth scheme's light PiCCS (`NormSources::Fresh`, Lean `BoundedDepth.lightPiCcsOracle`)
 //! checks the fresh source's norm only: a running witness outside the digit
 //! range folds under the light profile and fails under the production one.
 

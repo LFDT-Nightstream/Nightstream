@@ -1,6 +1,6 @@
 import NightstreamFPrime.Spec.Folding.Light.Bound
 
-/-! The bounded-depth schedule of option B (Cyclo, ePrint 2026/359, Section 2.2). An accumulator
+/-! The bounded-depth schedule (Cyclo, ePrint 2026/359, Section 2.2). An accumulator
 takes light folds up to a cap, and a refresh fold resets its depth to 0.
 
 Honest runs: an accumulator at depth `d` has norm at most `accumulatorBound d`, below `B` for

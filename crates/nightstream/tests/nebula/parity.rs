@@ -15,7 +15,7 @@ use std::{
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks as F;
 
-use crate::nebula::test_packages::{option_b_packages, references};
+use crate::nebula::test_packages::{bounded_depth_packages, references};
 use crate::{
     application::ApplicationCircuit,
     nebula::{
@@ -69,7 +69,7 @@ fn assert_same_rows(package: Package, fixture: &[u8]) {
 /// checked. A memory package makes only the memory verifier.
 #[test]
 fn memory_packages_make_no_stage1_verifier() {
-    let packages = option_b_packages("nebula-v1-");
+    let packages = bounded_depth_packages("nebula-v1-");
     let loaded = Package::V1.load(references(&packages)).unwrap();
     assert!(matches!(
         loaded.circuit.verifier(crate::Engine::Optimized, 109),
@@ -145,17 +145,17 @@ fn assert_native_packages_match_lean(package: Package, stem: &str) {
     let bits = forced_words(&application);
     assert!(bits > 0);
     let load = |stem: &str, identity| {
-        let bytes = option_b_packages(stem);
-        nightstream_fprime::load_option_b_packages(&bytes[0], &bytes[1], identity).unwrap()
+        let bytes = bounded_depth_packages(stem);
+        nightstream_fprime::load_bounded_depth_packages(&bytes[0], &bytes[1], identity).unwrap()
     };
-    let native = load("", nightstream_fprime::OPTION_B_PACKAGES_IDENTITY)
+    let native = load("", nightstream_fprime::BOUNDED_DEPTH_PACKAGES_IDENTITY)
         .with_application(
             application.records().clone(),
             application.private_input_count(),
             application.shape(),
         )
         .unwrap();
-    let lean = load(stem, package.option_b_identity());
+    let lean = load(stem, package.bounded_depth_identity());
     for (native, lean) in [(native.light(), lean.light()), (native.refresh(), lean.refresh())] {
         assert_eq!(native.block_count(), lean.block_count());
         assert_eq!(

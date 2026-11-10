@@ -50,17 +50,17 @@ words, and whether every statement integer that becomes a field word is below
 (`terminalChecks_iff`) and the final state words. `terminal_checks_match_lean`
 requires the terminal check of the verifier to agree on every case.
 
-`emitOptionB` makes the rows, start and terminal files again from
+`emitBoundedDepth` makes the rows, start and terminal files again from
 `formal/nightstream-fprime`, after `scripts/validate.sh executables`. The
 output is the same bytes as the committed files:
 
 ```sh
 for mode in rows start terminal; do
   for plan in nebula-v1 nebula-n1; do
-    timeout --signal=KILL 1500 bash scripts/validate.sh lean-executable .lake/build/bin/emitOptionB --application-$mode $plan ../../crates/nightstream/tests/fixtures/nebula-memory-${plan#nebula-}-$mode.json
+    timeout --signal=KILL 1500 bash scripts/validate.sh lean-executable .lake/build/bin/emitBoundedDepth --application-$mode $plan ../../crates/nightstream/tests/fixtures/nebula-memory-${plan#nebula-}-$mode.json
   done
 done
-timeout --signal=KILL 1500 bash scripts/validate.sh lean-executable .lake/build/bin/emitOptionB --application-start nebula-v1-other ../../crates/nightstream/tests/fixtures/nebula-memory-v1-other-start.json
+timeout --signal=KILL 1500 bash scripts/validate.sh lean-executable .lake/build/bin/emitBoundedDepth --application-start nebula-v1-other ../../crates/nightstream/tests/fixtures/nebula-memory-v1-other-start.json
 ```
 
 `nebula-memory-v1-digest.json` and `nebula-memory-n1-digest.json` hold the row
@@ -71,6 +71,6 @@ same rows. Make them again from `formal/nightstream-fprime`, after
 `scripts/validate.sh executables`:
 
 ```sh
-timeout --signal=KILL 1500 bash scripts/validate.sh lean-executable .lake/build/bin/emitOptionB --application-digest nebula-v1 ../../crates/nightstream/tests/fixtures/nebula-memory-v1-digest.json
-timeout --signal=KILL 1500 bash scripts/validate.sh lean-executable .lake/build/bin/emitOptionB --application-digest nebula-n1 ../../crates/nightstream/tests/fixtures/nebula-memory-n1-digest.json
+timeout --signal=KILL 1500 bash scripts/validate.sh lean-executable .lake/build/bin/emitBoundedDepth --application-digest nebula-v1 ../../crates/nightstream/tests/fixtures/nebula-memory-v1-digest.json
+timeout --signal=KILL 1500 bash scripts/validate.sh lean-executable .lake/build/bin/emitBoundedDepth --application-digest nebula-n1 ../../crates/nightstream/tests/fixtures/nebula-memory-n1-digest.json
 ```

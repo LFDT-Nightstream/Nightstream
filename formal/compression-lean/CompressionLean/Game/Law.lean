@@ -4,7 +4,7 @@ import Mathlib.Probability.ProbabilityMassFunction.Constructions
 /-! The law of a game's outcome under a strategy (CW-10.1). Each draw is uniform over its type
 (`uniform`) and each message is the strategy's (`law`). The probability that `prob` gives an event
 is the event's measure under the law (`prob_eq_law`). So a bound on `prob` is a bound on a `PMF`
-event, the form in which F′ states its IVC bound (`Export.OptionB.IvcSecurity`). -/
+event, the form in which F′ states its IVC bound (`Export.BoundedDepth.IvcSecurity`). -/
 
 set_option autoImplicit false
 

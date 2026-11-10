@@ -1,4 +1,5 @@
 import NightstreamFPrime.Export.Generic.CircuitRelation
+import NightstreamFPrime.Export.Generic.NativeBlock
 import NightstreamFPrime.Export.Generic.PieceRowsCompleteness
 import NightstreamFPrime.Export.Generic.RowReads
 import NightstreamFPrime.Layout.ProductionRelation.PoseidonSboxSourceCompleteness
@@ -188,13 +189,14 @@ theorem completeEnv_sbox {pieces : List Piece} {next : Nat} {env : Env}
   have rowEq : (index.val * 150 + row.val) % 150 = row.val := by omega
   simp only [offset, indexEq, rowEq]
 
-/-- The columns that the packed relation reads: a column of a term of a lowered row, a column of a
-block's lane, a block's output local, which its binding rows read, and an S-box column. -/
+/-- The columns that the packed relation reads: a column of a term of a lowered row or of a
+block's lane that is no output local of a block, and an S-box column. A row and a lane read the
+form of an output local in place of the local (`CircuitRelation.outputForms`). -/
 def Reads (pieces : List Piece) (next column : Nat) : Prop :=
-  (∃ row ∈ (PieceRows.lowerPieces (PilotData.canonicalConstraints ()) (otherPieces pieces) next).1,
-      column ∈ SlotLayout.rowColumns row) ∨
-    (∃ block ∈ blocksOf pieces, (∃ lane ∈ block.lanes, column ∈ SlotLayout.exprColumns lane) ∨
-      (block.start + 1080 ≤ column ∧ column < block.start + 1096)) ∨
+  (outputIn (blocksOf pieces) column = false ∧
+    ((∃ row ∈ (PieceRows.lowerPieces (PilotData.canonicalConstraints ()) (otherPieces pieces)
+        next).1, column ∈ SlotLayout.rowColumns row) ∨
+      ∃ block ∈ blocksOf pieces, ∃ lane ∈ block.lanes, column ∈ SlotLayout.exprColumns lane)) ∨
     (sboxStart pieces next ≤ column ∧ column < slotEnd pieces next)
 
 /-! ### Completeness -/
@@ -246,6 +248,43 @@ theorem completeEnv_rows (packed : packable publicColumns pieces = true)
   rw [← startEq] at columnBelow
   exact completeEnv_low columnBelow
 
+/-- An output local of a block has its value in `env`, in the environment with the output forms
+and in the completed environment, when the layout reads the completed environment on the S-box
+columns, the block's constraints hold in `env`, and the blocks pack below `next`. -/
+theorem outputEnv_complete (packed : packable publicColumns pieces = true)
+    (below : ∀ piece ∈ pieces, pieceBelow next piece = true) (env : Env)
+    (holds : ∀ piece ∈ pieces,
+      ConstraintsHold env (piece.constraints (PilotData.canonicalConstraints ())))
+    {logicalWidth : Nat} (layout : LogicalPlan.Layout width logicalWidth)
+    (assignment : Assignment F logicalWidth)
+    (represents : ∀ column, Reads pieces next column →
+      LogicalPlan.sourceEnv layout assignment column = completeEnv pieces next env column)
+    (index : Fin (blocksOf pieces).length) (lane : Fin 16) :
+    NativeBlock.outputEnv (blocksOf pieces) (sboxStart pieces next) layout assignment
+        (((blocksOf pieces).get index).start + 1080 + lane.val) =
+        env (((blocksOf pieces).get index).start + 1080 + lane.val) ∧
+      completeEnv pieces next env (((blocksOf pieces).get index).start + 1080 + lane.val) =
+        env (((blocksOf pieces).get index).start + 1080 + lane.val) := by
+  have frame := packable_framed packed
+  have nextLe : next ≤ (sboxStart pieces next) := next_le_sboxStart pieces next
+  have member := permutation_mem_of_block (List.get_mem (blocksOf pieces) index)
+  have pieceBelowNext := below _ member
+  simp only [pieceBelow, Bool.and_eq_true, decide_eq_true_eq] at pieceBelowNext
+  have laneLt := lane.isLt
+  constructor
+  · refine NativeBlock.outputEnv_honest frame _ layout assignment env index (holds _ member)
+      (fun row => ?_) lane
+    have rowLt : row.val < 150 := by simpa using row.isLt
+    have room : index.val * 150 + 150 ≤ (blocksOf pieces).length * 150 := by
+      have := Nat.mul_le_mul_right 150 (Nat.succ_le_of_lt index.isLt)
+      simpa [Nat.succ_mul] using this
+    rw [represents _ (Or.inr ⟨by unfold sboxColumn; omega, by unfold sboxColumn slotEnd; omega⟩)]
+    exact completeEnv_sbox index row
+  · have live := NativeBlock.output_live frame (List.get_mem (blocksOf pieces) index) lane
+    simp only [List.get_eq_getElem] at live
+    rw [completeEnv_low (by omega), executePieces_below _ _ _ _ _ (by omega)]
+    simp [liveEnv, live]
+
 /-- An assignment whose layout reads the completed environment on each column that the relation
 reads satisfies the plan of the packed relation, when every piece's constraints hold in `env`,
 every piece reads only columns below `next`, and the blocks pack. -/
@@ -271,10 +310,59 @@ theorem rowsZero_of_holds (fits : Fits publicColumns pieces next width)
     rw [represents column read, completeEnv_low (by omega),
       executePieces_below _ _ _ _ _ columnBelow]
     simp [liveEnv, live]
+  have rowBound : sboxStart pieces next + (blocksOf pieces).length * 150 ≤ width :=
+    (fits.blocks packed).sboxColumns
+  let interface := sboxInterface layout (blocksOf pieces) (sboxStart pieces next)
+  let star := NativeBlock.outputEnv (blocksOf pieces) (sboxStart pieces next) layout assignment
+  have sboxColumnBound : ∀ (index : Fin (blocksOf pieces).length) (row : Fin PoseidonRetainedSlots.rows.length),
+      sboxColumn (sboxStart pieces next) index.val row.val < slotEnd pieces next ∧
+        sboxColumn (sboxStart pieces next) index.val row.val < width := by
+    intro index row
+    have rowLt : row.val < 150 := by simpa using row.isLt
+    have room : index.val * 150 + 150 ≤ (blocksOf pieces).length * 150 := by
+      have := Nat.mul_le_mul_right 150 (Nat.succ_le_of_lt index.isLt)
+      simpa [Nat.succ_mul] using this
+    unfold sboxColumn slotEnd
+    constructor <;> omega
+  have sboxSource : ∀ (index : Fin (blocksOf pieces).length) (row : Fin PoseidonRetainedSlots.rows.length),
+      LogicalPlan.sourceEnv layout assignment (sboxColumn (sboxStart pieces next) index.val row.val) =
+        env (((blocksOf pieces).get index).start + (PoseidonRetainedSlots.localOutput row).val) := by
+    intro index row
+    rw [represents _ (Or.inr ⟨by unfold sboxColumn; omega, (sboxColumnBound index row).1⟩)]
+    exact completeEnv_sbox index row
+  have sboxValue : ∀ (index : Fin (blocksOf pieces).length) (row : Fin PoseidonRetainedSlots.rows.length),
+      (interface.sboxOutput index row).eval assignment =
+        env (((blocksOf pieces).get index).start + (PoseidonRetainedSlots.localOutput row).val) := by
+    intro index row
+    change (layout.form (sboxColumn (sboxStart pieces next) index.val row.val)).eval assignment = _
+    rw [LogicalPlan.Layout.form_eval]
+    exact sboxSource index row
+  -- An output local in the environment with the output forms has its value in `env`.
+  have starOutput : ∀ (index : Fin (blocksOf pieces).length) (lane : Fin 16),
+      star (((blocksOf pieces).get index).start + 1080 + lane.val) =
+        env (((blocksOf pieces).get index).start + 1080 + lane.val) := by
+    intro index lane
+    exact NativeBlock.outputEnv_honest frame _ layout assignment env index
+      (holds _ (permutation_mem_of_block (List.get_mem (blocksOf pieces) index)))
+      (fun row => sboxSource index row) lane
+  have starLive : ∀ column, column < next → deadIn (blocksOf pieces) column = false →
+      ((∃ row ∈ (PieceRows.lowerPieces (PilotData.canonicalConstraints ()) (otherPieces pieces)
+          next).1, column ∈ SlotLayout.rowColumns row) ∨
+        ∃ block ∈ blocksOf pieces, ∃ lane ∈ block.lanes, column ∈ SlotLayout.exprColumns lane) →
+      star column = env column := by
+    intro column columnBelow live read
+    by_cases output : outputIn (blocksOf pieces) column = true
+    · obtain ⟨index, lane, rfl⟩ := outputIn_get output
+      exact starOutput index lane
+    · have outside : outputIn (blocksOf pieces) column = false := by simpa using output
+      show Substitute.refill _ _ column = _
+      unfold Substitute.refill
+      rw [outputForms_of_not_outputIn width _ outside]
+      exact sourceLive column (Or.inl ⟨outside, read⟩) columnBelow live
   -- Each block reads its lanes and its locals below `next`, and its lanes avoid the dead locals.
   have blockFacts : ∀ index : Fin (blocksOf pieces).length,
       LinearLanes ((blocksOf pieces).get index).lanes ∧
-        (∀ lane : Fin 16, (((blocksOf pieces).get index).lanes.getD lane.val 0).eval (LogicalPlan.sourceEnv layout assignment) =
+        (∀ lane : Fin 16, (((blocksOf pieces).get index).lanes.getD lane.val 0).eval star =
           (((blocksOf pieces).get index).lanes.getD lane.val 0).eval env) ∧
         ((blocksOf pieces).get index).start + 1096 ≤ next ∧
         ConstraintsHold env ((Piece.permutation ((blocksOf pieces).get index).start
@@ -288,45 +376,25 @@ theorem rowsZero_of_holds (fits : Fits publicColumns pieces next width)
     · rw [List.getD_eq_getElem _ _ inside]
       have laneMember := List.getElem_mem inside
       exact eval_live (dead := fun column => ((blocksOf pieces).get index).covers column || deadIn (blocksOf pieces) column) _
-        (fun column columnMember columnBelow live => sourceLive column
-          (Or.inr (Or.inl ⟨_, List.get_mem (blocksOf pieces) index,
-            Or.inl ⟨_, laneMember, columnMember⟩⟩))
-          columnBelow (Bool.or_eq_false_iff.mp live).2)
+        (fun column columnMember columnBelow live => starLive column columnBelow
+          (Bool.or_eq_false_iff.mp live).2
+          (Or.inr ⟨_, List.get_mem (blocksOf pieces) index, _, laneMember, columnMember⟩))
         ((exprBelow_iff next _).mp (List.all_eq_true.mp pieceBelowNext.1 _ laneMember))
         (frame.lanes _ (List.get_mem (blocksOf pieces) index) _ laneMember)
     · rw [List.getD_eq_default _ _ (by omega)]
       rfl
-  have rowBound : sboxStart pieces next + (blocksOf pieces).length * 150 ≤ width :=
-    (fits.blocks packed).sboxColumns
-  let interface := sboxInterface layout (blocksOf pieces) (sboxStart pieces next)
-  have sboxColumnBound : ∀ (index : Fin (blocksOf pieces).length) (row : Fin PoseidonRetainedSlots.rows.length),
-      sboxColumn (sboxStart pieces next) index.val row.val < slotEnd pieces next ∧
-        sboxColumn (sboxStart pieces next) index.val row.val < width := by
-    intro index row
-    have rowLt : row.val < 150 := by simpa using row.isLt
-    have room : index.val * 150 + 150 ≤ (blocksOf pieces).length * 150 := by
-      have := Nat.mul_le_mul_right 150 (Nat.succ_le_of_lt index.isLt)
-      simpa [Nat.succ_mul] using this
-    unfold sboxColumn slotEnd
-    constructor <;> omega
-  have sboxValue : ∀ (index : Fin (blocksOf pieces).length) (row : Fin PoseidonRetainedSlots.rows.length),
-      (interface.sboxOutput index row).eval assignment =
-        env (((blocksOf pieces).get index).start + (PoseidonRetainedSlots.localOutput row).val) := by
-    intro index row
-    change (layout.form (sboxColumn (sboxStart pieces next) index.val row.val)).eval assignment = _
-    rw [LogicalPlan.Layout.form_eval,
-      represents _ (Or.inr (Or.inr ⟨by unfold sboxColumn; omega, (sboxColumnBound index row).1⟩))]
-    exact completeEnv_sbox index row
   have inputValue : ∀ (index : Fin (blocksOf pieces).length),
       SparseLayer.evalState assignment (interface.input index) =
         ((blocksOf pieces).get index).input env := by
     intro index
     funext lane
     obtain ⟨linear, lanesSame, _, _⟩ := blockFacts index
-    change (layout.combination
-      (invocationInputCombination ((blocksOf pieces).get index).invocation lane.val).toR1CS).eval assignment = _
-    rw [LogicalPlan.Layout.combination_eval layout assignment one]
-    change ((blocksOf pieces).get index).input (LogicalPlan.sourceEnv layout assignment) lane = _
+    change (layout.combination (Substitute.substitute
+      (outputForms width (blocksOf pieces) (sboxStart pieces next))
+      (invocationInputCombination ((blocksOf pieces).get index).invocation lane.val).toR1CS)).eval
+        assignment = _
+    rw [LogicalPlan.Layout.combination_eval layout assignment one, Substitute.substitute_eval]
+    change ((blocksOf pieces).get index).input star lane = _
     rw [block_input linear, block_input linear, lanesSame]
   have sboxRows : (PoseidonSboxFamilyPlan.plan interface
       (by have := (fits.blocks packed).rowCount; omega)).RowsZero assignment := by
@@ -347,71 +415,35 @@ theorem rowsZero_of_holds (fits : Fits publicColumns pieces next width)
       exact (Pilot.canonicalInvocationEnv_local ((blocksOf pieces).get index).invocation env
         (PoseidonRetainedSlots.localOutput row).val).symm
     · exact block_canonical linear blockHolds
-  have outputValue : ∀ (index : Fin (blocksOf pieces).length),
-      SparseLayer.evalState assignment (PoseidonSboxFamilyPlan.Interface.output interface index) =
-        Permutation.runF Permutation.schedule (((blocksOf pieces).get index).input env) := by
-    intro index
-    have permuted := PoseidonSboxFamilyPlan.planRowsZero_implies_permute _ _ assignment one
-      sboxRows index
-    rw [inputValue index, ← ofFn_runF] at permuted
-    exact List.ofFn_injective permuted
-  have binding : R1CS.RowsHold (LogicalPlan.sourceEnv layout assignment) (bindingRows width (blocksOf pieces) (sboxStart pieces next)) := by
-    intro row member
-    obtain ⟨index, -, laneMember⟩ := List.mem_flatMap.mp member
-    obtain ⟨lane, rfl⟩ := List.mem_ofFn.mp laneMember
-    obtain ⟨linear, _, startBelow, blockHolds⟩ := blockFacts index
-    have finals : SparseLayer.evalState (fun column : Fin width => (LogicalPlan.sourceEnv layout assignment) column.val)
-          (fun lane => sboxOutputs (width := width) (blocksOf pieces) (sboxStart pieces next) index
-            (PoseidonRetainedSlots.finalRow lane)) =
-        SparseLayer.evalState assignment
-          (fun lane => interface.sboxOutput index (PoseidonRetainedSlots.finalRow lane)) := by
-      funext current
-      simp only [SparseLayer.evalState, sboxOutputs,
-        formOf_ofVar_eval _ _ (sboxColumnBound index (PoseidonRetainedSlots.finalRow current)).2]
-      change (LogicalPlan.sourceEnv layout assignment) _ = (layout.form _).eval assignment
-      rw [LogicalPlan.Layout.form_eval]
-    have outputs := congrFun (outputValue index) lane
-    simp only [PoseidonSboxFamilyPlan.Interface.output, SparseLayer.evalState,
-      SparseLayer.eval_external] at outputs
-    have localValue : (LogicalPlan.sourceEnv layout assignment) (((blocksOf pieces).get index).start + 1080 + lane.val) =
-        Permutation.runF Permutation.schedule (((blocksOf pieces).get index).input env) lane := by
-      have live : deadIn (blocksOf pieces) (((blocksOf pieces).get index).start + 1080 + lane.val) = false := by
-        have laneLt := lane.isLt
-        unfold deadIn
-        rw [List.any_eq_false]
-        intro other otherMember
-        simp only [Block.dead, Bool.and_eq_true, decide_eq_true_eq, not_and, not_lt]
-        intro otherStart
-        by_cases same : other = (blocksOf pieces).get index
-        · subst same
-          omega
-        · have separated := separated_of_mem frame.separated otherMember
-            (List.get_mem (blocksOf pieces) index) same
-          unfold Separated at separated
-          omega
-      rw [sourceLive _ (Or.inr (Or.inl ⟨_, List.get_mem (blocksOf pieces) index,
-        Or.inr ⟨by omega, by omega⟩⟩)) (by omega) live]
-      have atLane := congrFun (block_outputs linear blockHolds) lane
-      exact atLane
-    simp only [R1CS.Row.Holds, R1CS.LinearCombination.eval_add, R1CS.LinearCombination.eval_ofVar,
-      R1CS.LinearCombination.eval_scale, R1CS.LinearCombination.eval_one,
-      R1CS.LinearCombination.eval_zero, mul_one, toCombination_eval]
-    rw [localValue, ← outputs]
-    change _ + -1 * (SparseLayer.external (fun lane => sboxOutputs (width := width) (blocksOf pieces)
-      (sboxStart pieces next) index (PoseidonRetainedSlots.finalRow lane)) lane).eval
-        (fun column => LogicalPlan.sourceEnv layout assignment column.val) = 0
-    rw [SparseLayer.eval_external, finals, neg_one_mul, add_neg_cancel]
   unfold plan
   rw [dite_eq_left packed, Plan.append_rowsZero_iff]
   refine ⟨(LogicalPlan.rowsZero_iff_rowsHold _ width fits.rows layout assignment one).mpr ?_,
     sboxRows⟩
   unfold relationRows
-  rw [ite_eq_left packed, R1CS.rowsHold_append]
-  refine ⟨?_, binding⟩
-  exact R1CS.rowsHold_of_agree _ (Reads pieces next) (completeEnv pieces next env) _
+  rw [ite_eq_left packed, Substitute.rowsHold_substitute]
+  change R1CS.RowsHold star _
+  refine R1CS.rowsHold_of_agree _
+    (fun column => ∃ row ∈ (PieceRows.lowerPieces (PilotData.canonicalConstraints ())
+      (otherPieces pieces) next).1, column ∈ SlotLayout.rowColumns row)
+    (completeEnv pieces next env) star
     (fun row member => (RowReads.rowColumns_varsSatisfy row).mono row
-      fun column columnMember => Or.inl ⟨row, member, columnMember⟩)
-    represents (completeEnv_rows packed valid below env holds)
+      fun column columnMember => ⟨row, member, columnMember⟩)
+    ?_ (completeEnv_rows packed valid below env holds)
+  intro column read
+  by_cases output : outputIn (blocksOf pieces) column = true
+  · obtain ⟨index, lane, rfl⟩ := outputIn_get output
+    obtain ⟨_, _, startBelow, _⟩ := blockFacts index
+    have laneLt := lane.isLt
+    rw [starOutput index lane, completeEnv_low (by omega),
+      executePieces_below _ _ _ _ _ (by omega)]
+    have live := NativeBlock.output_live frame (List.get_mem (blocksOf pieces) index) lane
+    simp only [List.get_eq_getElem] at live
+    simp [liveEnv, live]
+  · have outside : outputIn (blocksOf pieces) column = false := by simpa using output
+    show Substitute.refill _ _ column = _
+    unfold Substitute.refill
+    rw [outputForms_of_not_outputIn width _ outside]
+    exact represents column (Or.inl ⟨outside, Or.inl read⟩)
 
 /-! ### The final program's checks -/
 

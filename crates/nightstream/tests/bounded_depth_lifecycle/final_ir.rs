@@ -33,17 +33,17 @@ const FINISH: &str = "nightstream-fprime-bounded-depth-finish-v1.json";
 /// (`digest` and `prefix digest` on its `match` line). Update them only after
 /// `bounded_depth_final_program_matches_lean` passes.
 const BOUNDED_DEPTH_PROGRAM_DIGEST: [u64; 4] = [
-    15784576640903226257,
-    18033717694290237781,
-    10391104671215674562,
-    8238677054024326082,
+    12948837266933635502,
+    8714809877665705510,
+    4025962287031259389,
+    10967310879514092364,
 ];
 
 const BOUNDED_DEPTH_PREFIX_DIGEST: [u64; 4] = [
-    1127690888971602825,
-    8298036602455951323,
-    11644551335968869541,
-    5423398277105987646,
+    11693528108443280707,
+    17132485333513349236,
+    15197135264679049804,
+    1966207159448576460,
 ];
 
 pub(super) fn workspace() -> PathBuf {

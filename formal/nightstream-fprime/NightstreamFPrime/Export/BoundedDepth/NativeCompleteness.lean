@@ -41,18 +41,19 @@ theorem blocks_eq
   simp only [Package.blocks, piecesEq, List.filterMap_cons, PackagePiece.block?,
     SlotRuns.packagePieces_blocks]
 
-/-- The rows of a package with a native application: the native rows, then the relation rows of
-the Lean pieces. -/
+/-- The rows of a package with a native application: the native rows with the output forms, then
+the relation rows of the Lean pieces. -/
 theorem relationRows_eq
     (piecesEq : package.pieces = .rows nativeRows :: packagePieces pieces package.firstFresh)
     (sboxEq : package.sboxStart = sboxStart pieces package.firstFresh)
     (packed : packable publicColumns pieces = true) :
     package.relationRows =
-      nativeRows ++ CircuitRelation.relationRows publicColumns pieces package.firstFresh
-        package.width := by
+      nativeRows.map (Substitute.row (outputForms package.width (blocksOf pieces)
+          (sboxStart pieces package.firstFresh))) ++
+        CircuitRelation.relationRows publicColumns pieces package.firstFresh package.width := by
   rw [Package.relationRows, blocks_eq piecesEq, sboxEq, piecesEq, List.flatMap_cons,
     SlotRuns.packagePieces_rows, CircuitRelation.relationRows, ite_eq_left packed]
-  simp only [PackagePiece.relationRows, List.append_assoc]
+  simp only [PackagePiece.relationRows, List.map_append]
 
 /-- A package with a native application is complete. Let the constraints of the Lean pieces and
 the native rows hold in `env`, and let the native rows read only columns below the first fresh
@@ -108,10 +109,12 @@ theorem native_complete (bits : List Nat)
       package.slots)) (honestAssignment (SlotLayout.runSlots package.width package.slots)
         completed) column = completed column
     rw [slotsEq, sboxEq]
-    refine represents_of_runs room below _ bits (fun piece member => ?_) ?_ completed read
+    refine represents_of_runs room below _ bits (fun piece member => ?_) ?_ ?_ completed read
     · rw [piecesEq]
       exact List.mem_cons_of_mem _ member
     · rw [← Package.blocks, blocks_eq piecesEq]
+    · have outputs := SlotRuns.outputs_outputIn package.pieces
+      rwa [← Package.blocks, blocks_eq piecesEq] at outputs
   have one : honestAssignment slots completed (SlotLayout.layout slots).one = 1 :=
     (ProductionAssignment.logicalAssignment_publicColumn _ slots _ ⟨0, by decide⟩).trans
       completeOne
@@ -131,7 +134,10 @@ theorem native_complete (bits : List Nat)
     R1CS.rowsHold_of_agree_below nativeRows package.firstFresh (liveEnv pieces env) completed
       nativeBelow (fun column columnBelow => (completeEnv_low (by omega)).trans
         (executePieces_below _ _ _ _ _ columnBelow)) liveHold
-  have nativeAt : R1CS.RowsHold (LogicalPlan.sourceEnv layout assignment) nativeRows := by
+  have nativeAt : R1CS.RowsHold (LogicalPlan.sourceEnv layout assignment)
+      (nativeRows.map (Substitute.row (outputForms package.width (blocksOf pieces)
+        (sboxStart pieces package.firstFresh)))) := by
+    rw [Substitute.rowsHold_substitute]
     refine R1CS.rowsHold_of_agree nativeRows
       (fun column => column ∈ (PackagePiece.rows nativeRows).reads ∧
         column < package.firstFresh) completed _ (fun row member => ?_) (fun column read => ?_)
@@ -140,25 +146,40 @@ theorem native_complete (bits : List Nat)
         ⟨List.mem_flatMap.mpr ⟨row, member, columnMember⟩,
           RowReads.rowColumns_of_varsSatisfy (allowed := (· < package.firstFresh))
             (nativeBelow row member) column columnMember⟩
-    · rw [WideLayout.sourceEnv_widen]
-      show LogicalPlan.sourceEnv (SlotLayout.layout (SlotLayout.runSlots package.width
-        package.slots)) (honestAssignment (SlotLayout.runSlots package.width package.slots)
-          completed) column = completed column
-      have inside : column < package.width := by omega
-      apply sourceEnv_honest _ completed inside
-      by_cases isPublic : column < LogicalPlan.publicCount
-      · exact Or.inl isPublic
-      · have publicEq : publicColumns = 270 := rfl
-        have countEq : LogicalPlan.publicCount = 270 := rfl
-        have sizeEq : SlotRuns.runsSize package.sboxStart package.pieces =
-            slotEnd pieces package.firstFresh := by
-          unfold SlotRuns.runsSize slotEnd
-          rw [← Package.blocks, blocks_eq piecesEq, sboxEq, Nat.mul_comm]
-        rw [slotsEq]
-        refine Or.inr (SlotRuns.runsOf_covers (by omega) (by omega) inside
-          (Or.inr ⟨.rows nativeRows, ?_, read.1⟩))
-        rw [piecesEq]
-        exact List.mem_cons_self
+    · by_cases output : outputIn (blocksOf pieces) column = true
+      · obtain ⟨index, lane, rfl⟩ := outputIn_get output
+        obtain ⟨atForms, atCompleted⟩ := outputEnv_complete packed below env holds layout
+          assignment (fun column read => by
+            rw [WideLayout.sourceEnv_widen]
+            exact represents column read) index lane
+        exact atForms.trans atCompleted.symm
+      · have outside : outputIn (blocksOf pieces) column = false := by simpa using output
+        have noOutput : ∀ piece ∈ package.pieces, column ∉ piece.outputs := by
+          intro piece member inPiece
+          have marked := SlotRuns.outputs_outputIn package.pieces piece member column inPiece
+          rw [← Package.blocks, blocks_eq piecesEq, outside] at marked
+          exact Bool.noConfusion marked
+        show Substitute.refill _ _ column = _
+        unfold Substitute.refill
+        rw [outputForms_of_not_outputIn _ _ outside, WideLayout.sourceEnv_widen]
+        show LogicalPlan.sourceEnv (SlotLayout.layout (SlotLayout.runSlots package.width
+          package.slots)) (honestAssignment (SlotLayout.runSlots package.width package.slots)
+            completed) column = completed column
+        have inside : column < package.width := by omega
+        apply sourceEnv_honest _ completed inside
+        by_cases isPublic : column < LogicalPlan.publicCount
+        · exact Or.inl isPublic
+        · have publicEq : publicColumns = 270 := rfl
+          have countEq : LogicalPlan.publicCount = 270 := rfl
+          have sizeEq : SlotRuns.runsSize package.sboxStart package.pieces =
+              slotEnd pieces package.firstFresh := by
+            unfold SlotRuns.runsSize slotEnd
+            rw [← Package.blocks, blocks_eq piecesEq, sboxEq, Nat.mul_comm]
+          rw [slotsEq]
+          refine Or.inr (SlotRuns.runsOf_covers (by omega) (by omega) inside
+            (Or.inr ⟨⟨.rows nativeRows, ?_, read.1⟩, noOutput⟩))
+          rw [piecesEq]
+          exact List.mem_cons_self
   have sboxAt : ∀ (blocks : List Block) (start : Nat), blocks = blocksOf pieces →
       start = sboxStart pieces package.firstFresh →
       ∀ count : blocks.length * 150 ≤ 2 ^ cubeVariables,

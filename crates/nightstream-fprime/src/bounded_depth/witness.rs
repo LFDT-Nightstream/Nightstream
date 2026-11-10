@@ -148,8 +148,11 @@ impl StepPackage {
     }
 
     /// Extends the circuit's columns with the relation's fresh columns: each
-    /// lowering column `f` from its row `a * b = f`, each ring piece's
-    /// quotients, and each block's S-box outputs from `rows`.
+    /// block's S-box outputs from `rows`, then each lowering column `f` from
+    /// its row `a * b = f` and each ring piece's quotients. The S-box columns
+    /// come first, because a row can read the form of a block output, which
+    /// is over S-box columns. A block's lanes read only circuit columns and
+    /// outputs of blocks before it.
     pub fn relation_columns(
         &self,
         mut columns: Vec<Goldilocks>,
@@ -157,6 +160,12 @@ impl StepPackage {
     ) -> Result<Vec<Goldilocks>, PackageError> {
         let width = self.sbox_start + 150 * self.block_count();
         columns.resize(width, Goldilocks::ZERO);
+        for row in rows.ordinary_row_count()..rows.row_count() {
+            let [(column, _)] = rows.port(row, 2).collect::<Vec<_>>()[..] else {
+                return Err(PackageError::Malformed("bounded-depth S-box row output"));
+            };
+            columns[column] = rows.evaluate(row, 3, &columns).exp_u64(7);
+        }
         let mut next = self.first_fresh;
         let mut row = 0;
         for piece in &self.pieces {
@@ -192,12 +201,6 @@ impl StepPackage {
         }
         if next != self.sbox_start {
             return Err(PackageError::Malformed("bounded-depth fresh columns end"));
-        }
-        for row in rows.ordinary_row_count()..rows.row_count() {
-            let [(column, _)] = rows.port(row, 2).collect::<Vec<_>>()[..] else {
-                return Err(PackageError::Malformed("bounded-depth S-box row output"));
-            };
-            columns[column] = rows.evaluate(row, 3, &columns).exp_u64(7);
         }
         Ok(columns)
     }

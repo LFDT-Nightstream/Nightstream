@@ -5,8 +5,8 @@
 //!
 //! The rows are the package's relation rows as one R1CS block, each port in
 //! Lean's form (`side`), and each Poseidon2 block as a permutation of its
-//! input lanes into its output locals, which is what the block's S-box and
-//! binding rows encode. Lean's copy is `Ports/BoundedDepth/Program.lean` in
+//! input lanes into its output locals, which is what the block's S-box
+//! rows encode. Lean's copy is `Ports/BoundedDepth/Program.lean` in
 //! `formal/compression-lean`. The
 //! statement and the state keys are bound to their shared words; the slot
 //! claims that layer 1 reads are the next slots that the slot select fixes.
@@ -31,25 +31,24 @@ const Z0: usize = KEYS + 8;
 const CURRENT: usize = Z0 + 4;
 const WITNESS: usize = CURRENT + 8;
 
-/// The finish package and the R1CS block of its relation rows without the
-/// blocks' S-box and binding rows.
+/// The finish package and the R1CS block of its rows on the source columns,
+/// without the blocks' S-box rows.
 pub(crate) struct Finish {
     package: StepPackage,
     system: R1cs,
     /// The columns below `sbox_start` that the final program reads. The
     /// others are the blocks' dead locals and the columns that only the
-    /// S-box and binding rows read (SPEC.md section 7.7): no row of the
-    /// program reads them, so the program gives them the value 0 and no cell.
+    /// S-box rows read (SPEC.md section 7.7): no row of the program reads
+    /// them, so the program gives them the value 0 and no cell.
     live: Vec<bool>,
 }
 
 impl Finish {
     pub(crate) fn new(package: StepPackage) -> Result<Self, nightstream_fprime::PackageError> {
-        let rows: PlanRows = package.plan_rows()?;
+        let rows: PlanRows = package.source_rows()?;
         let mut system = R1cs::new(package.sbox_start());
         let mut live = vec![false; package.sbox_start()];
-        let binding = rows.binding_rows();
-        for row in (0..rows.ordinary_row_count()).filter(|row| !binding.contains(row)) {
+        for row in 0..rows.ordinary_row_count() {
             let sides = [0, 1, 2].map(|port| side(&rows, row, port));
             for &(column, _) in sides.iter().flatten() {
                 live[column] = true;
@@ -117,7 +116,7 @@ impl Finish {
         let columns = self.package.circuit_columns(&words.columns()?)?;
         let columns = self
             .package
-            .relation_columns(columns, &self.package.plan_rows()?)?;
+            .relation_columns(columns, &self.package.source_rows()?)?;
         Ok(columns[..self.package.sbox_start()]
             .iter()
             .zip(&self.live)

@@ -245,6 +245,7 @@ def runsSize (sboxStart : Nat) (pieces : List PackagePiece) : Nat :=
 def codeOf (sboxStart : Nat) (pieces : List PackagePiece) (bits : List Nat) : Nat → Nat :=
   let empty := Array.replicate (runsSize sboxStart pieces) false
   slotCode sboxStart (pieces.foldl (fun mask piece => SlotLayout.markColumns mask piece.reads) empty)
+    (pieces.foldl (fun mask piece => SlotLayout.markColumns mask piece.outputs) empty)
     (SlotLayout.markColumns empty bits)
     (pieces.foldl (fun mask piece => SlotLayout.markColumns mask piece.forced) empty)
 
@@ -254,18 +255,29 @@ theorem runsOf_eq (publicColumns sboxStart : Nat) (pieces : List PackagePiece) (
         (runStep (codeOf sboxStart pieces bits)) []).reverse :=
   rfl
 
-/-- A column that a piece reads below `runsSize`, and each S-box column, has a code other than 3. -/
+/-- A column below `runsSize` that a piece reads and that is no output local of a block, and each
+S-box column, has a code other than 3. -/
 theorem codeOf_ne {sboxStart : Nat} {pieces : List PackagePiece} {bits : List Nat} {column : Nat}
     (high : column < runsSize sboxStart pieces)
-    (read : sboxStart ≤ column ∨ ∃ piece ∈ pieces, column ∈ piece.reads) :
+    (read : sboxStart ≤ column ∨ ((∃ piece ∈ pieces, column ∈ piece.reads) ∧
+      ∀ piece ∈ pieces, column ∉ piece.outputs)) :
     codeOf sboxStart pieces bits column ≠ 3 := by
-  have marked : (pieces.foldl (fun mask piece => SlotLayout.markColumns mask piece.reads)
-      (Array.replicate (runsSize sboxStart pieces) false)).getD column false = true ∨
+  have marked : ((pieces.foldl (fun mask piece => SlotLayout.markColumns mask piece.reads)
+      (Array.replicate (runsSize sboxStart pieces) false)).getD column false = true ∧
+      (pieces.foldl (fun mask piece => SlotLayout.markColumns mask piece.outputs)
+        (Array.replicate (runsSize sboxStart pieces) false)).getD column false = false) ∨
       sboxStart ≤ column := by
-    rcases read with sbox | ⟨piece, member, inPiece⟩
+    rcases read with sbox | ⟨⟨piece, member, inPiece⟩, noOutput⟩
     · exact Or.inr sbox
-    · exact Or.inl ((markAll_getD PackagePiece.reads pieces _ column).mpr
-        (Or.inr ⟨by simpa using high, piece, member, inPiece⟩))
+    · refine Or.inl ⟨(markAll_getD PackagePiece.reads pieces _ column).mpr
+        (Or.inr ⟨by simpa using high, piece, member, inPiece⟩), ?_⟩
+      apply Bool.eq_false_iff.mpr
+      intro output
+      rcases (markAll_getD PackagePiece.outputs pieces _ column).mp output with
+        start | ⟨_, other, otherMember, inOther⟩
+      · rw [replicate_getD] at start
+        exact absurd start (by decide)
+      · exact noOutput other otherMember inOther
   simp only [codeOf, slotCode]
   split
   · split <;> decide
@@ -273,7 +285,7 @@ theorem codeOf_ne {sboxStart : Nat} {pieces : List PackagePiece} {bits : List Na
     exfalso
     apply outside
     rcases marked with marked | high
-    · simp [marked]
+    · simp [marked.1, marked.2]
     · simp [high]
 
 /-- A code is 2 or 3, or 0 on a column that a piece forces to 0 or 1. -/
@@ -295,12 +307,13 @@ theorem codeOf_cases (sboxStart : Nat) (pieces : List PackagePiece) (bits : List
     · exact Or.inl rfl
   · exact Or.inr (Or.inl rfl)
 
-/-- Each column from the public columns to the last S-box column that a piece reads, and each
-S-box column there, has a slot. -/
+/-- Each column from the public columns to the last S-box column that a piece reads and that is
+no output local of a block, and each S-box column there, has a slot. -/
 theorem runsOf_covers {publicColumns sboxStart width column : Nat} {pieces : List PackagePiece}
     {bits : List Nat} (low : publicColumns ≤ column) (high : column < runsSize sboxStart pieces)
     (inside : column < width)
-    (read : sboxStart ≤ column ∨ ∃ piece ∈ pieces, column ∈ piece.reads) :
+    (read : sboxStart ≤ column ∨ ((∃ piece ∈ pieces, column ∈ piece.reads) ∧
+      ∀ piece ∈ pieces, column ∉ piece.outputs)) :
     ∃ slot ∈ SlotLayout.runSlots width (runsOf publicColumns sboxStart pieces bits),
       slot.source.val = column := by
   rw [runsOf_eq]
@@ -357,6 +370,21 @@ theorem forced_row :
   | .block .., _, member => by simp [PackagePiece.forced] at member
 
 /-! ### The package pieces of a circuit -/
+
+/-- An output local of a package piece is an output local of a block of the package. -/
+theorem outputs_outputIn (packageList : List PackagePiece) :
+    ∀ piece ∈ packageList, ∀ column ∈ piece.outputs,
+      CircuitRelation.outputIn (packageList.filterMap PackagePiece.block?) column = true := by
+  intro piece member column inPiece
+  cases piece with
+  | rows chunk => simp [PackagePiece.outputs] at inPiece
+  | ring cells start quotient lanes => simp [PackagePiece.outputs] at inPiece
+  | block start lanes =>
+      simp only [PackagePiece.outputs, List.mem_range'_1] at inPiece
+      simp only [CircuitRelation.outputIn, List.any_eq_true, decide_eq_true_eq]
+      exact ⟨⟨start, lanes⟩, List.mem_filterMap.mpr ⟨_, member, rfl⟩, inPiece.1, by
+        have := inPiece.2
+        omega⟩
 
 theorem packagePieces_rows (pieces : List Piece) (next : Nat) :
     (packagePieces pieces next).flatMap PackagePiece.relationRows =
@@ -438,14 +466,12 @@ theorem packageSpec_reads (bound : Nat) :
         | permutation start lanes =>
             simp only [PieceRowsCompleteness.pieceBelow, Bool.and_eq_true,
               decide_eq_true_eq] at headBelow
-            simp only [pieceOf, PackagePiece.reads, List.mem_append, List.mem_range'_1,
-              List.mem_flatMap] at read
+            simp only [pieceOf, PackagePiece.reads, List.mem_flatMap] at read
             simp only [freshAfter, pieceOf] at restLe ⊢
-            rcases read with ⟨_, high⟩ | ⟨lane, laneMember, columnMember⟩
-            · omega
-            · have := exprColumns_below (List.all_eq_true.mp headBelow.1 lane laneMember) column
-                columnMember
-              omega
+            obtain ⟨lane, laneMember, columnMember⟩ := read
+            have := exprColumns_below (List.all_eq_true.mp headBelow.1 lane laneMember) column
+              columnMember
+            omega
         | ringProduct cells start lanes =>
             simp only [PieceRowsCompleteness.pieceBelow, Bool.and_eq_true,
               decide_eq_true_eq] at headBelow

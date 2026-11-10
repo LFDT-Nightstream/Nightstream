@@ -318,12 +318,12 @@ def Exports.decode (exports : Exports relation ajtai circuitKeys step cubeFits) 
     Decoded logicalWidth publicFits :=
   let assignment := Layout.ProductionRelation.Plan.logicalAssignment witness
   if circuit = 0 then
-    let env := lightEnv exports.program relation ajtai exports.lightLayout assignment
+    let env := lightEnv exports.program relation ajtai exports.lightFresh exports.lightLayout assignment
     ⟨lightInput exports.program running env, lightOutput exports.program relation 0 running env,
       decodedKeys circuitKeys (lightInterface (logicalWidth := logicalWidth)
         (publicFits := publicFits) exports.program).verifierKeys env⟩
   else
-    let env := refreshEnv exports.program relation ajtai exports.refreshLayout assignment
+    let env := refreshEnv exports.program relation ajtai exports.refreshFresh exports.refreshLayout assignment
     ⟨refreshInput exports.program env, refreshOutput exports.program relation 1 env,
       decodedKeys circuitKeys (refreshInterface (logicalWidth := logicalWidth)
         (publicFits := publicFits) exports.program).verifierKeys env⟩
@@ -360,7 +360,7 @@ def Exports.lightNextWords (exports : Exports relation ajtai circuitKeys step cu
       (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits)) 2) : List F :=
   StepRelation.lightNextWords (logicalWidth := logicalWidth) (publicFits := publicFits)
     exports.program 0
-    (lightEnv exports.program relation ajtai exports.lightLayout
+    (lightEnv exports.program relation ajtai exports.lightFresh exports.lightLayout
       (Layout.ProductionRelation.Plan.logicalAssignment payload.freshWitness))
 
 /-- The collision of the bridge: the next state of the decoded last step and the terminal's state
@@ -454,11 +454,11 @@ theorem bridge_linked (exports : Exports relation ajtai circuitKeys step cubeFit
     simp only [Collision, Exports.last, Exports.lightNextWords, circuitEq, Exports.decode,
       ↓reduceIte]
     by_cases same : StepRelation.lightNextWords (logicalWidth := logicalWidth)
-        (publicFits := publicFits) exports.program 0 (lightEnv exports.program relation ajtai exports.lightLayout
+        (publicFits := publicFits) exports.program 0 (lightEnv exports.program relation ajtai exports.lightFresh exports.lightLayout
           (Layout.ProductionRelation.Plan.logicalAssignment payload.freshWitness)) =
         statePreimage (terminalState circuitKeys statement payload.running payload.pc)
     · have others : OtherDigest exports.program payload.running
-          (lightEnv exports.program relation ajtai exports.lightLayout
+          (lightEnv exports.program relation ajtai exports.lightFresh exports.lightLayout
             (Layout.ProductionRelation.Plan.logicalAssignment payload.freshWitness)) := by
         intro nonzero slot other
         rw [← nextOther nonzero slot other]

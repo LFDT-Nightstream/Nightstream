@@ -1,7 +1,7 @@
 //! The bounded-depth step packages expand into the plan rows that Lean describes:
-//! the relation rows match Lean's parity file, the S-box and binding rows
-//! compute Rust's native Poseidon2 permutation, and the identity uses Lean's
-//! identity encoding.
+//! the relation rows match Lean's parity file, the S-box rows and the output
+//! forms compute Rust's native Poseidon2 permutation, and the identity uses
+//! Lean's identity encoding.
 
 use std::fs;
 use std::path::PathBuf;
@@ -74,8 +74,8 @@ fn relation_rows_match_the_lean_checksum() {
     let fields = parity();
     let packages = packages();
     for (package, summary, logical_rows) in [
-        (packages.light(), &fields[1], 116_803),
-        (packages.refresh(), &fields[2], 759_471),
+        (packages.light(), &fields[1], 106_595),
+        (packages.refresh(), &fields[2], 698_303),
     ] {
         let [ordinary, sbox, checksum, _, _, _] = words(summary)[..] else {
             panic!("a summary has six words");
@@ -110,8 +110,9 @@ fn loader_rejects_another_identity() {
 }
 
 /// Each block's output locals take the native permutation of its lanes, block
-/// by block; the S-box rows fill the S-box columns; every binding row and every
-/// S-box row then holds.
+/// by block; the S-box rows fill the S-box columns. Every S-box row then
+/// holds, and each port of each row has the value of its port on the source
+/// columns, so each output form has the value of its output local.
 #[test]
 fn block_rows_compute_the_native_permutation() {
     let packages = packages();
@@ -139,9 +140,23 @@ fn block_rows_compute_the_native_permutation() {
         assert_eq!(coefficient, G::ONE);
         assignment[column] = rows.evaluate(row, 3, &assignment).exp_u64(7);
     }
-    for row in rows.binding_rows().start..rows.row_count() {
+    for row in rows.sbox_rows() {
         assert_eq!(rows.residual(row, &assignment).as_canonical_u64(), 0, "row {row}");
     }
+    let source = light.source_rows().expect("source rows");
+    assert_eq!(source.row_count(), rows.row_count());
+    let mut with_form = 0;
+    for row in 0..rows.row_count() {
+        for port in 0..4 {
+            assert_eq!(
+                rows.evaluate(row, port, &assignment),
+                source.evaluate(row, port, &assignment),
+                "row {row}, port {port}"
+            );
+            with_form += usize::from(!rows.port(row, port).eq(source.port(row, port)));
+        }
+    }
+    assert!(with_form > 0, "some port reads an output form");
 }
 
 /// Rust's witness program and native ranges give the columns that Lean's
@@ -163,8 +178,8 @@ fn circuit_columns_match_the_lean_witness() {
     }
 }
 
-/// The fresh columns make every ring, binding and S-box row hold, whatever
-/// the shared columns are.
+/// The fresh columns make every ring and S-box row hold, whatever the shared
+/// columns are.
 #[test]
 fn fresh_columns_satisfy_the_rows_that_define_them() {
     let fields = parity();
@@ -177,11 +192,7 @@ fn fresh_columns_satisfy_the_rows_that_define_them() {
         let columns = package
             .relation_columns(columns, &rows)
             .expect("relation columns");
-        let defining = rows
-            .ring_rows()
-            .iter()
-            .cloned()
-            .chain([rows.binding_rows(), rows.sbox_rows()]);
+        let defining = rows.ring_rows().iter().cloned().chain([rows.sbox_rows()]);
         for row in defining.flatten() {
             assert_eq!(
                 rows.residual(row, &columns).as_canonical_u64(),

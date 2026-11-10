@@ -1,8 +1,11 @@
 //! A step package's plan rows (`CircuitRelation.plan`): one row for each row
 //! of `Package.relationRows`, then 150 S-box rows for each block, block-major.
 //! A row has four port forms over the logical columns: A, B, C and the S-box
-//! input. An R1CS row fills A, B and C, and its constant reads column 0.
+//! input. An R1CS row fills A, B and C, and its constant reads column 0. A
+//! port reads, in place of an output local of a block, the local's form over
+//! the block's last 16 S-box columns (`CircuitRelation.outputForms`).
 
+use std::collections::HashMap;
 use std::ops::Range;
 
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
@@ -21,11 +24,11 @@ const BLOCK_OUTPUTS: usize = 1080;
 const FINAL_SBOX: usize = 134;
 
 /// Plan rows in compressed sparse form: the entries of port `port` of row
-/// `row` are `offsets[4 * row + port]..offsets[4 * row + port + 1]`. Zero
-/// coefficients are not stored.
+/// `row` are `offsets[4 * row + port]..offsets[4 * row + port + 1]`, in
+/// column order with one entry for each column. Zero coefficients are not
+/// stored.
 pub struct PlanRows {
     ordinary: usize,
-    binding: usize,
     rings: Vec<Range<usize>>,
     offsets: Vec<usize>,
     columns: Vec<u32>,
@@ -61,11 +64,6 @@ impl PlanRows {
     /// The rows of each ring piece.
     pub fn ring_rows(&self) -> &[Range<usize>] {
         &self.rings
-    }
-
-    /// The blocks' binding rows, the last relation rows.
-    pub fn binding_rows(&self) -> Range<usize> {
-        self.binding..self.ordinary
     }
 
     pub fn sbox_rows(&self) -> Range<usize> {
@@ -115,22 +113,42 @@ pub(super) fn mix(unit: u64, column: u64) -> Goldilocks {
 
 struct Builder {
     width: usize,
+    /// `CircuitRelation.outputForms`: the form of each output local.
+    forms: HashMap<usize, Entries>,
+    /// The entries of the port that is open.
+    port: Entries,
     rows: PlanRows,
 }
 
 impl Builder {
+    /// Adds a term to the open port (`Substitute.term`).
     fn push(&mut self, column: usize, coefficient: Goldilocks) -> Result<(), PackageError> {
         if column >= self.width {
             return Err(PackageError::Malformed("bounded-depth plan column beyond the width"));
         }
-        if coefficient != Goldilocks::ZERO {
-            self.rows.columns.push(column as u32);
-            self.rows.coefficients.push(coefficient);
+        match self.forms.get(&column) {
+            Some(form) => self.port.extend(
+                form.iter()
+                    .map(|&(column, factor)| (column, factor * coefficient)),
+            ),
+            None => self.port.push((column, coefficient)),
         }
         Ok(())
     }
 
+    /// Closes the open port: one entry for each column, in column order.
     fn end_port(&mut self) {
+        self.port.sort_by_key(|&(column, _)| column);
+        let mut entries = self.port.drain(..).peekable();
+        while let Some((column, mut coefficient)) = entries.next() {
+            while let Some((_, more)) = entries.next_if(|&(next, _)| next == column) {
+                coefficient += more;
+            }
+            if coefficient != Goldilocks::ZERO {
+                self.rows.columns.push(column as u32);
+                self.rows.coefficients.push(coefficient);
+            }
+        }
         self.rows.offsets.push(self.rows.columns.len());
     }
 
@@ -197,22 +215,59 @@ impl Builder {
 }
 
 impl StepPackage {
-    /// Expands the package into its circuit's plan rows: the pieces' rows in
-    /// order (a block contributes none), the blocks' binding rows, then the
-    /// blocks' S-box rows from the shared formula library.
+    /// Expands the package into its circuit's plan rows
+    /// (`Package.relationRows`): the pieces' rows in order (a block
+    /// contributes none), then the blocks' S-box rows from the shared formula
+    /// library. Each port reads the form of an output local in place of the
+    /// local.
     pub fn plan_rows(&self) -> Result<PlanRows, PackageError> {
+        self.rows(true)
+    }
+
+    /// The same rows on the source columns, where a port reads an output
+    /// local itself. The final program checks these rows and each block as a
+    /// permutation (`FinishRelation.package_finish`).
+    pub fn source_rows(&self) -> Result<PlanRows, PackageError> {
+        self.rows(false)
+    }
+
+    fn rows(&self, with_forms: bool) -> Result<PlanRows, PackageError> {
+        let mut blocks = Vec::new();
+        for piece in &self.pieces {
+            if let Piece::Block { start, lanes } = piece {
+                if lanes.len() != BLOCK_LANES {
+                    return Err(PackageError::Malformed("bounded-depth block lane count"));
+                }
+                blocks.push((*start, lanes.as_slice()));
+            }
+        }
+        let mut forms = HashMap::new();
+        if with_forms {
+            for (index, &(start, _)) in blocks.iter().enumerate() {
+                let sbox = self.sbox_start + index * SBOX_ROWS;
+                let finals: Vec<usize> = (0..BLOCK_LANES)
+                    .map(|lane| sbox + FINAL_SBOX + lane)
+                    .collect();
+                for (lane, form) in external_outputs(&finals, self.width)?
+                    .into_iter()
+                    .enumerate()
+                {
+                    forms.insert(start + BLOCK_OUTPUTS + lane, form);
+                }
+            }
+        }
         let mut builder = Builder {
             width: self.width,
+            forms,
+            port: Vec::new(),
             rows: PlanRows {
                 ordinary: 0,
-                binding: 0,
                 rings: Vec::new(),
                 offsets: vec![0],
                 columns: Vec::new(),
                 coefficients: Vec::new(),
             },
         };
-        let mut blocks = Vec::new();
         for piece in &self.pieces {
             match piece {
                 Piece::Rows(rows) => {
@@ -230,48 +285,31 @@ impl StepPackage {
                     builder.push_ring(*cells, *start, *quotient, lanes)?;
                     builder.rows.rings.push(first..builder.rows.row_count());
                 }
-                Piece::Block { start, lanes } => {
-                    if lanes.len() != BLOCK_LANES {
-                        return Err(PackageError::Malformed("bounded-depth block lane count"));
-                    }
-                    blocks.push((*start, lanes.as_slice()));
-                }
-            }
-        }
-        builder.rows.binding = builder.rows.row_count();
-        for (index, &(start, _)) in blocks.iter().enumerate() {
-            let sbox = self.sbox_start + index * SBOX_ROWS;
-            let finals: Vec<usize> = (0..BLOCK_LANES)
-                .map(|lane| sbox + FINAL_SBOX + lane)
-                .collect();
-            for (lane, output) in external_outputs(&finals, self.width)?
-                .into_iter()
-                .enumerate()
-            {
-                let mut a = vec![(start + BLOCK_OUTPUTS + lane, Goldilocks::ONE)];
-                a.extend(
-                    output
-                        .into_iter()
-                        .map(|(column, coefficient)| (column, -coefficient)),
-                );
-                builder.push_entries(&a)?;
-                builder.push_entries(&[(0, Goldilocks::ONE)])?;
-                builder.push_entries(&[])?;
-                builder.end_port();
+                Piece::Block { .. } => {}
             }
         }
         builder.rows.ordinary = builder.rows.row_count();
         for (index, &(_, lanes)) in blocks.iter().enumerate() {
-            let forms: Vec<Entries> = lanes
-                .iter()
-                .map(|lane| {
-                    std::iter::once((0, lane.constant))
-                        .chain(lane.terms.iter().copied())
-                        .collect()
-                })
-                .collect();
+            // A lane's entries pass through a port, so they carry the output
+            // forms with one entry for each column.
+            let mut lane_forms: Vec<Entries> = Vec::with_capacity(BLOCK_LANES);
+            for lane in lanes {
+                builder.push_linear(lane)?;
+                let end = builder.rows.columns.len();
+                let begin = builder.rows.offsets[builder.rows.offsets.len() - 2];
+                lane_forms.push(
+                    builder.rows.columns[begin..end]
+                        .iter()
+                        .zip(&builder.rows.coefficients[begin..end])
+                        .map(|(&column, &coefficient)| (column as usize, coefficient))
+                        .collect(),
+                );
+                builder.rows.columns.truncate(begin);
+                builder.rows.coefficients.truncate(begin);
+                builder.rows.offsets.pop();
+            }
             let rows = &mut builder;
-            permutation_rows(&forms, self.sbox_start + index * SBOX_ROWS, self.width, |ports| {
+            permutation_rows(&lane_forms, self.sbox_start + index * SBOX_ROWS, self.width, |ports| {
                 for port in &ports {
                     rows.push_entries(port)?;
                 }

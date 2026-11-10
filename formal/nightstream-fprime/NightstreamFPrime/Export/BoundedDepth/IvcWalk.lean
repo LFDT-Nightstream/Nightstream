@@ -347,7 +347,7 @@ theorem decode_shaped (circuit : Fin 2)
       DigestSelect.nextSlots_depth _ _ _ _ (lightInput_depth exports.program running _)
         (Fin.isLt _)⟩
   · have represents := refreshRepresents exports.program relation ajtai circuitKeys 1
-      (refreshEnv exports.program relation ajtai exports.refreshLayout
+      (refreshEnv exports.program relation ajtai exports.refreshFresh exports.refreshLayout
         (Layout.ProductionRelation.Plan.logicalAssignment witness))
     exact ⟨represents.iterationBound, represents.priorPcBound, by simp [refreshInput],
       by simp [refreshInput], represents.priorDepth,

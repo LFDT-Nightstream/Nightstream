@@ -2,7 +2,8 @@
 
 ## Status
 
-Accepted (owner, 2026-11-03).
+Accepted (owner, 2026-11-03). Changed on 2026-11-09 (owner): an output local of
+a block has no slot.
 
 ## Problem
 
@@ -23,7 +24,9 @@ witness coordinates.
 
 A package gives a column a slot only if a row of its exported relation reads
 the column: a term of a row, a lane, output or quotient of a ring piece, a lane
-or output local of a block, or an S-box column. The slot is a bit only if the
+of a block, or an S-box column. An output local of a block has no slot: each
+row reads the local's linear form over the last 16 S-box columns of the block
+(`Export.Generic.CircuitRelation.outputForms`). The slot is a bit only if the
 column is a bit candidate (a `bit` hint, or a live column of a native
 application: a witness word or a local that is not a dead local) and a row
 forces it to 0 or 1; every other slot is a field element. Lean defines the

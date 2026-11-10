@@ -5,18 +5,19 @@ import NightstreamFPrime.Spec.GoldilocksPrime
 import NightstreamFPrime.Export.Generic.SlotLayout
 
 /-! Native Poseidon2 blocks and bit slots (CW-8.3). A Rust-built application can place each
-Poseidon2 permutation as a bounded-depth block (`Frame.Block`) instead of its 1,096 template rows: 150
-S-box rows (`PoseidonSboxFamilyPlan`) on S-box columns from `sboxStart`, 16 binding rows
-(`CircuitRelation.bindingRows`), and no slot for its 1,080 dead locals. The statements hold for any
-blocks, rows, layout and assignment, whoever builds the package.
+Poseidon2 permutation as an bounded-depth block (`Frame.Block`) instead of its 1,096 template rows: 150
+S-box rows (`PoseidonSboxFamilyPlan`) on S-box columns from `sboxStart`, and no slot for its 1,096
+locals. Each row reads the form of an output local (`CircuitRelation.outputForms`) in place of the
+local. The statements hold for any blocks, rows, layout and assignment, whoever builds the package.
 
-Soundness (`blocks_sound`): when the S-box rows are zero and the other rows and the binding rows
-hold, each block's outputs are `Spec.Poseidon2.permute` of its lanes, and an environment that
-differs only on the dead locals satisfies the other rows and every block's 1,096 template rows.
-It needs the frame (`Frame.Framed`, checked by `Frame.checkFrame`) and other rows that read no
-dead local (`rowAvoids`). Completeness (`blocks_complete`): an honest template trace, read off the
-dead locals and with each S-box column at its template local, makes the S-box rows zero and the
-binding rows hold.
+Soundness (`blocks_sound`): when the S-box rows are zero and the other rows hold with the output
+forms, each block's outputs in the environment with the output forms (`outputEnv`) are
+`Spec.Poseidon2.permute` of its lanes, and an environment that differs from it only on the dead
+locals satisfies the other rows and every block's 1,096 template rows. It needs the frame
+(`Frame.Framed`, checked by `Frame.checkFrame`) and other rows that read no dead local
+(`rowAvoids`). Completeness (`blocks_complete`): an honest template trace, read off the blocks'
+locals and with each S-box column at its template local, makes the S-box rows zero, and the
+environment with the output forms is the honest one off the dead locals.
 
 A `bit` slot commits one coordinate. A value 0 or 1 encodes within the norm bound
 (`LowNormSlot.encode_norm`, `bitHint_valid`, `bit_valid_of_boolean`), and a slot whose coordinate
@@ -148,25 +149,44 @@ theorem formOf_ofVar_sourceEnv {width logicalWidth : Nat}
   rw [formOf, termsForm_eval_any, identityEnv_sourceEnv]
   simp [R1CS.LinearCombination.ofVar]
 
-/-- The S-box rows and the binding rows give each block's outputs as the permutation of its
-inputs: `CircuitRelation.outputsHold` for any blocks and S-box start, without the width premise. -/
+/-- The source environment with each output local of a block at the value of its form. -/
+def outputEnv {width logicalWidth : Nat} (blocks : List Block) (sboxStart : Nat)
+    (layout : LogicalPlan.Layout width logicalWidth) (assignment : Assignment F logicalWidth) :
+    Env :=
+  Substitute.refill (outputForms width blocks sboxStart) (LogicalPlan.sourceEnv layout assignment)
+
+/-- An output local in the environment with the output forms: the external layer of the block's
+final S-box columns. -/
+theorem outputEnv_output {width logicalWidth : Nat} {blocks : List Block}
+    (separated : blocks.Pairwise Separated) (sboxStart : Nat)
+    (layout : LogicalPlan.Layout width logicalWidth) (assignment : Assignment F logicalWidth)
+    (index : Fin blocks.length) (lane : Fin 16) :
+    outputEnv blocks sboxStart layout assignment ((blocks.get index).start + 1080 + lane.val) =
+      (outputState (width := width) blocks sboxStart index lane).eval
+        (fun column => LogicalPlan.sourceEnv layout assignment column.val) := by
+  unfold outputEnv Substitute.refill
+  rw [outputForms_output width _ _ separated index lane]
+  exact toCombination_eval _ _
+
+/-- The S-box rows give each block's outputs, in the environment with the output forms, as the
+permutation of its inputs: `CircuitRelation.outputsHold` for any blocks and S-box start, without
+the width premise. -/
 theorem outputsHold_of_rows {width logicalWidth : Nat} (blocks : List Block) (sboxStart : Nat)
+    (separated : blocks.Pairwise Separated)
     (layout : LogicalPlan.Layout width logicalWidth) (assignment : Assignment F logicalWidth)
     (one : assignment layout.one = 1) (rowCount_le : blocks.length * 150 ≤ 2 ^ cubeVariables)
     (sboxRows : (PoseidonSboxFamilyPlan.plan (sboxInterface layout blocks sboxStart)
-      rowCount_le).RowsZero assignment)
-    (binding : R1CS.RowsHold (LogicalPlan.sourceEnv layout assignment)
-      (bindingRows width blocks sboxStart)) :
-    OutputsHold blocks (LogicalPlan.sourceEnv layout assignment) := by
+      rowCount_le).RowsZero assignment) :
+    OutputsHold blocks (outputEnv blocks sboxStart layout assignment) := by
   intro block member
   obtain ⟨index, rfl⟩ := List.mem_iff_get.mp member
   have permuted := PoseidonSboxFamilyPlan.planRowsZero_implies_permute _ _ assignment one
     sboxRows index
   have inputs : SparseLayer.evalState assignment
       ((sboxInterface layout blocks sboxStart).input index) =
-      (blocks.get index).input (LogicalPlan.sourceEnv layout assignment) := by
+      (blocks.get index).input (outputEnv blocks sboxStart layout assignment) := by
     funext lane
-    exact layout.combination_eval assignment one _
+    exact (layout.combination_eval assignment one _).trans (Substitute.substitute_eval _ _ _)
   have finals : SparseLayer.evalState assignment
       (fun lane => (sboxInterface layout blocks sboxStart).sboxOutput index
         (PoseidonRetainedSlots.finalRow lane)) =
@@ -179,14 +199,9 @@ theorem outputsHold_of_rows {width logicalWidth : Nat} (blocks : List Block) (sb
       LogicalPlan.Layout.form_eval]
   have outputs : SparseLayer.evalState assignment
       ((sboxInterface layout blocks sboxStart).output index) =
-      (blocks.get index).output (LogicalPlan.sourceEnv layout assignment) := by
+      (blocks.get index).output (outputEnv blocks sboxStart layout assignment) := by
     funext lane
-    have row := binding _ (List.mem_flatMap.mpr ⟨index, List.mem_finRange index,
-      List.mem_ofFn.mpr ⟨lane, rfl⟩⟩)
-    simp only [R1CS.Row.Holds, R1CS.LinearCombination.eval_add, R1CS.LinearCombination.eval_ofVar,
-      R1CS.LinearCombination.eval_scale, R1CS.LinearCombination.eval_one,
-      R1CS.LinearCombination.eval_zero, mul_one, toCombination_eval] at row
-    rw [neg_one_mul, ← sub_eq_add_neg, sub_eq_zero] at row
+    have row := outputEnv_output separated sboxStart layout assignment index lane
     simp only [Block.output, SparseLayer.evalState, PoseidonSboxFamilyPlan.Interface.output,
       SparseLayer.eval_external]
     have external := congrArg (fun state => Layer.externalF state lane) finals
@@ -228,8 +243,8 @@ theorem completed_rows {blocks : List Block} (frame : Framed blocks) {rows : Lis
   exact ⟨completed.2 block member, permutation_sound 0 0 block.start block.lanes
     (frame.linear block member) _ (completed.2 block member)⟩
 
-/-- Soundness of native blocks. The rows are a package's rows before the binding rows
-(`StepPackage.Package.relationRows` is `rows ++ bindingRows`). -/
+/-- Soundness of native blocks. The rows are a package's rows before the substitution
+(`StepPackage.Package.relationRows` substitutes the output forms). -/
 theorem blocks_sound {width logicalWidth : Nat} {blocks : List Block} (frame : Framed blocks)
     (sboxStart : Nat) {rows : List R1CS.Row} (avoid : rows.all (rowAvoids (deadIn blocks)) = true)
     (layout : LogicalPlan.Layout width logicalWidth) (assignment : Assignment F logicalWidth)
@@ -237,23 +252,22 @@ theorem blocks_sound {width logicalWidth : Nat} {blocks : List Block} (frame : F
     (sboxRows : (PoseidonSboxFamilyPlan.plan (sboxInterface layout blocks sboxStart)
       rowCount_le).RowsZero assignment)
     (rowsHold : R1CS.RowsHold (LogicalPlan.sourceEnv layout assignment)
-      (rows ++ bindingRows width blocks sboxStart)) :
-    (∀ block ∈ blocks, List.ofFn (block.output (LogicalPlan.sourceEnv layout assignment)) =
+      (rows.map (Substitute.row (outputForms width blocks sboxStart)))) :
+    (∀ block ∈ blocks, List.ofFn (block.output (outputEnv blocks sboxStart layout assignment)) =
       Spec.Poseidon2.permute (List.ofFn fun lane : Fin 16 =>
-        (block.lanes.getD lane.val 0).eval (LogicalPlan.sourceEnv layout assignment))) ∧
+        (block.lanes.getD lane.val 0).eval (outputEnv blocks sboxStart layout assignment))) ∧
     ∃ completed : Env,
       (∀ column, deadIn blocks column = false →
-        completed column = LogicalPlan.sourceEnv layout assignment column) ∧
+        completed column = outputEnv blocks sboxStart layout assignment column) ∧
       R1CS.RowsHold completed rows ∧
       ∀ block ∈ blocks,
         PermutationInvocationHolds (PilotData.circuitPackage ()) block.invocation completed ∧
         ConstraintsHold completed ((Piece.permutation block.start block.lanes).constraints
           (PilotData.canonicalConstraints ())) := by
-  rw [R1CS.rowsHold_append] at rowsHold
-  have outputs := outputsHold_of_rows blocks sboxStart layout assignment one rowCount_le sboxRows
-    rowsHold.2
+  have outputs := outputsHold_of_rows blocks sboxStart frame.separated layout assignment one
+    rowCount_le sboxRows
   exact ⟨fun block member => output_permute outputs member (frame.linear block member),
-    completed_rows frame avoid rowsHold.1 outputs⟩
+    completed_rows frame avoid ((Substitute.rowsHold_substitute _ _ _).mp rowsHold) outputs⟩
 
 /-! ### Completeness -/
 
@@ -318,72 +332,94 @@ theorem output_live {blocks : List Block} (frame : Framed blocks) {block : Block
     unfold Separated at separated
     omega
 
+/-- An output local in the environment with the output forms has its honest value, when the
+block's template constraints hold in `honest` and each S-box column of the block is at its
+template local. -/
+theorem outputEnv_honest {width logicalWidth : Nat} {blocks : List Block} (frame : Framed blocks)
+    (sboxStart : Nat) (layout : LogicalPlan.Layout width logicalWidth)
+    (assignment : Assignment F logicalWidth) (honest : Env) (index : Fin blocks.length)
+    (templates : ConstraintsHold honest ((Piece.permutation (blocks.get index).start
+      (blocks.get index).lanes).constraints (PilotData.canonicalConstraints ())))
+    (sboxes : ∀ row : Fin PoseidonRetainedSlots.rows.length,
+      LogicalPlan.sourceEnv layout assignment (sboxColumn sboxStart index.val row.val) =
+        honest (sboxLocal (blocks.get index) row))
+    (lane : Fin 16) :
+    outputEnv blocks sboxStart layout assignment ((blocks.get index).start + 1080 + lane.val) =
+      honest ((blocks.get index).start + 1080 + lane.val) := by
+  have blockMember := List.get_mem blocks index
+  have invocationHolds := (constraints_iff_invocation 0 0 _ _ (frame.linear _ blockMember)
+    honest).mp templates
+  have final : honest ((blocks.get index).start + 1080 + lane.val) =
+      Layer.externalF (fun lane => honest
+        (sboxLocal (blocks.get index) (PoseidonRetainedSlots.finalRow lane))) lane :=
+    congrFun (PermutationOutput.invocation_finalLayer _ honest invocationHolds) lane
+  have finals : SparseLayer.evalState
+      (fun column : Fin width => LogicalPlan.sourceEnv layout assignment column.val)
+      (fun lane => sboxOutputs (width := width) blocks sboxStart index
+        (PoseidonRetainedSlots.finalRow lane)) =
+      fun lane => honest
+        (sboxLocal (blocks.get index) (PoseidonRetainedSlots.finalRow lane)) := by
+    funext lane
+    simp only [SparseLayer.evalState, sboxOutputs, formOf_ofVar_sourceEnv]
+    exact sboxes _
+  rw [outputEnv_output frame.separated sboxStart layout assignment index lane]
+  simp only [outputState, SparseLayer.eval_external]
+  rw [finals]
+  exact final.symm
+
 /-- Completeness of native blocks: an honest environment where every block's template
-constraints hold, read by the assignment off the dead locals, with each S-box column at its
-template local, makes the S-box rows zero and the binding rows hold. -/
+constraints hold, read by the assignment off the blocks' locals, with each S-box column at its
+template local, makes the S-box rows zero, and the environment with the output forms is the
+honest one off the dead locals. -/
 theorem blocks_complete {width logicalWidth : Nat} {blocks : List Block} (frame : Framed blocks)
     (sboxStart : Nat) (layout : LogicalPlan.Layout width logicalWidth)
     (assignment : Assignment F logicalWidth) (one : assignment layout.one = 1)
     (rowCount_le : blocks.length * 150 ≤ 2 ^ cubeVariables) (honest : Env)
     (templates : ∀ block ∈ blocks, ConstraintsHold honest
       ((Piece.permutation block.start block.lanes).constraints (PilotData.canonicalConstraints ())))
-    (live : ∀ column, deadIn blocks column = false →
+    (live : ∀ column, deadIn blocks column = false → outputIn blocks column = false →
       LogicalPlan.sourceEnv layout assignment column = honest column)
     (sboxes : ∀ (index : Fin blocks.length) (row : Fin PoseidonRetainedSlots.rows.length),
       LogicalPlan.sourceEnv layout assignment (sboxColumn sboxStart index.val row.val) =
         honest (sboxLocal (blocks.get index) row)) :
     (PoseidonSboxFamilyPlan.plan (sboxInterface layout blocks sboxStart) rowCount_le).RowsZero
         assignment ∧
-      R1CS.RowsHold (LogicalPlan.sourceEnv layout assignment)
-        (bindingRows width blocks sboxStart) := by
-  constructor
-  · apply PoseidonSboxFamilyPlan.equations_imply_planRowsZero
-    intro index
-    have member := List.get_mem blocks index
-    refine ⟨?_, fun lane => by rw [PoseidonSboxFamilyPlan.invocation_output_eq_trace]⟩
-    apply sboxEquations_of_block _ assignment one (blocks.get index) honest _ _
-      (templates _ member)
-    · intro lane
-      show (layout.combination
-        (invocationInputCombination (blocks.get index).invocation lane.val).toR1CS).eval
-          assignment = _
-      rw [layout.combination_eval assignment one]
-      change (blocks.get index).input (LogicalPlan.sourceEnv layout assignment) lane = _
-      rw [input_eq frame member]
-      apply eval_congr (dead := fun column => (blocks.get index).covers column || deadIn blocks column)
-      · intro column avoid
-        simp only [Bool.or_eq_false_iff] at avoid
-        exact live column avoid.2
-      · exact lane_avoids frame member lane.val
-    · intro row
-      show (layout.form (sboxColumn sboxStart index.val row.val)).eval assignment = _
-      rw [LogicalPlan.Layout.form_eval]
-      exact sboxes index row
-  · intro row member
-    obtain ⟨index, _, rowMember⟩ := List.mem_flatMap.mp member
-    obtain ⟨lane, rfl⟩ := List.mem_ofFn.mp rowMember
-    have blockMember := List.get_mem blocks index
-    have invocationHolds := (constraints_iff_invocation 0 0 _ _ (frame.linear _ blockMember)
-      honest).mp (templates _ blockMember)
-    have final : honest ((blocks.get index).start + 1080 + lane.val) =
-        Layer.externalF (fun lane => honest
-          (sboxLocal (blocks.get index) (PoseidonRetainedSlots.finalRow lane))) lane :=
-      congrFun (PermutationOutput.invocation_finalLayer _ honest invocationHolds) lane
-    have finals : SparseLayer.evalState
-        (fun column : Fin width => LogicalPlan.sourceEnv layout assignment column.val)
-        (fun lane => sboxOutputs (width := width) blocks sboxStart index
-          (PoseidonRetainedSlots.finalRow lane)) =
-        fun lane => honest (sboxLocal (blocks.get index) (PoseidonRetainedSlots.finalRow lane)) := by
-      funext lane
-      simp only [SparseLayer.evalState, sboxOutputs, formOf_ofVar_sourceEnv]
-      exact sboxes index _
-    simp only [R1CS.Row.Holds, R1CS.LinearCombination.eval_add, R1CS.LinearCombination.eval_ofVar,
-      R1CS.LinearCombination.eval_scale, R1CS.LinearCombination.eval_one,
-      R1CS.LinearCombination.eval_zero, mul_one, toCombination_eval]
-    rw [neg_one_mul, ← sub_eq_add_neg, sub_eq_zero, live _ (output_live frame blockMember lane)]
-    simp only [outputState, SparseLayer.eval_external]
-    rw [finals]
-    exact final
+      ∀ column, deadIn blocks column = false →
+        outputEnv blocks sboxStart layout assignment column = honest column := by
+  have agree : ∀ column, deadIn blocks column = false →
+      outputEnv blocks sboxStart layout assignment column = honest column := by
+    intro column alive
+    by_cases output : outputIn blocks column = true
+    · obtain ⟨index, lane, rfl⟩ := outputIn_get output
+      exact outputEnv_honest frame sboxStart layout assignment honest index
+        (templates _ (List.get_mem blocks index)) (sboxes index) lane
+    · have outside : outputIn blocks column = false := by simpa using output
+      unfold outputEnv Substitute.refill
+      rw [outputForms_of_not_outputIn width sboxStart outside]
+      exact live column alive outside
+  refine ⟨?_, agree⟩
+  apply PoseidonSboxFamilyPlan.equations_imply_planRowsZero
+  intro index
+  have member := List.get_mem blocks index
+  refine ⟨?_, fun lane => by rw [PoseidonSboxFamilyPlan.invocation_output_eq_trace]⟩
+  apply sboxEquations_of_block _ assignment one (blocks.get index) honest _ _
+    (templates _ member)
+  · intro lane
+    show (layout.combination (Substitute.substitute (outputForms width blocks sboxStart)
+      (invocationInputCombination (blocks.get index).invocation lane.val).toR1CS)).eval
+        assignment = _
+    rw [layout.combination_eval assignment one, Substitute.substitute_eval]
+    change (blocks.get index).input (outputEnv blocks sboxStart layout assignment) lane = _
+    rw [input_eq frame member]
+    apply eval_congr (dead := fun column => (blocks.get index).covers column || deadIn blocks column)
+    · intro column avoid
+      simp only [Bool.or_eq_false_iff] at avoid
+      exact agree column avoid.2
+    · exact lane_avoids frame member lane.val
+  · intro row
+    show (layout.form (sboxColumn sboxStart index.val row.val)).eval assignment = _
+    rw [LogicalPlan.Layout.form_eval]
+    exact sboxes index row
 
 /-! ### Bit slots -/
 

@@ -160,11 +160,11 @@ fn block(first_local: usize, lane: usize) -> NativeBlock {
 
 /// Two blocks of the chain's locals replace their rows: the application's
 /// pieces are its four output rows, its three bit rows and the two blocks,
-/// the dead locals get no slot, and each block gets 150 S-box columns. A
-/// witness word or a live local that a row forces to 0 or 1 gets one
-/// coordinate; a state word that a row forces keeps its field slot. A
-/// witness word that no row reads gets no slot. The identity binds the
-/// blocks.
+/// a block's locals get no slot (a row reads the form of an output local),
+/// and each block gets 150 S-box columns. A witness word that a row forces
+/// to 0 or 1 gets one coordinate; a state word that a row forces keeps its
+/// field slot. A witness word that no row reads gets no slot. The identity
+/// binds the blocks.
 #[test]
 fn native_blocks_replace_their_rows_and_bits_take_one_coordinate() {
     let packages = packages();
@@ -194,8 +194,8 @@ fn native_blocks_replace_their_rows_and_bits_take_one_coordinate() {
         };
         assert_eq!(kind(FIRST_LOCAL), None);
         assert_eq!(kind(FIRST_LOCAL + BLOCK + 1079), None);
-        assert_eq!(kind(FIRST_LOCAL + 1080), Some(Kind::Bit));
-        assert_eq!(kind(FIRST_LOCAL + 1081), Some(Kind::Field));
+        assert_eq!(kind(FIRST_LOCAL + 1080), None);
+        assert_eq!(kind(FIRST_LOCAL + 1081), None);
         assert_eq!(kind(5), Some(Kind::Bit));
         assert_eq!(kind(4), Some(Kind::Field));
         assert_eq!(kind(0), Some(Kind::Field));
@@ -203,13 +203,15 @@ fn native_blocks_replace_their_rows_and_bits_take_one_coordinate() {
         for column in [packed.sbox_start(), packed.sbox_start() + 299] {
             assert_eq!(layout.slot(column).map(|(_, kind)| kind), Some(Kind::Field));
         }
+        // In the plain package, each local has a field slot, and the forced
+        // output local has a bit slot.
         assert_eq!(
-            layout.width() + 41 * 2 * 1080,
+            layout.width() + 41 * (2 * BLOCK - 1) + 1,
             plain.layout().expect("layout").width() + 41 * 2 * 150
         );
         assert_eq!(
             packed.plan_rows().expect("rows").row_count() + 2 * BLOCK,
-            plain.plan_rows().expect("rows").row_count() + 2 * (150 + 16)
+            plain.plan_rows().expect("rows").row_count() + 2 * 150
         );
     }
     let one_lane = NativeShape {

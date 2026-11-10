@@ -148,12 +148,12 @@ def lightDigestColumn (word : Fin 4) : Nat :=
 (`CircuitRelation.decodeEnv`). -/
 def lightEnv (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
-    {width : Nat} (layout : LogicalPlan.Layout width logicalWidth)
+    (firstFresh : Nat) {width : Nat} (layout : LogicalPlan.Layout width logicalWidth)
     (assignment : Assignment F logicalWidth) : Env :=
   CircuitRelation.decodeEnv CircuitRelation.publicColumns (CircuitRelation.pieces
     (LightAssemblerCircuit.stepCircuit program base relation 0 ajtai)
-    (LightAssembler.sharedEnd base program.witnessWordCount) (lightDigestColumn program)) layout
-    assignment
+    (LightAssembler.sharedEnd base program.witnessWordCount) (lightDigestColumn program))
+    firstFresh layout assignment
 
 /-- A satisfying assignment of the light circuit's logical relation whose public input encodes
 `digest` gives the light case of the option-B step relation, with output hash `digest`. -/
@@ -173,7 +173,7 @@ theorem light_stepHolds (relation : ProductionKey.LogicalRelation logicalWidth p
     (encoded : LogicalPlan.publicInput (publicFits := publicFits)
       (LogicalPlan.sourceEnv layout assignment) = encHash digest)
     (rowsZero : (CircuitRelation.plan _ _ firstFresh width fits layout).RowsZero assignment) :
-    let env := lightEnv program relation ajtai layout assignment
+    let env := lightEnv program relation ajtai firstFresh layout assignment
     StepHolds Folding.Schedule.productionLightFoldCap ajtai
         (decodedKeys circuitKeys (lightInterface (logicalWidth := logicalWidth)
           (publicFits := publicFits) program).verifierKeys env)
@@ -291,12 +291,12 @@ def refreshDigestColumn (word : Fin 4) : Nat :=
 (`CircuitRelation.decodeEnv`). -/
 def refreshEnv (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
-    {width : Nat} (layout : LogicalPlan.Layout width logicalWidth)
+    (firstFresh : Nat) {width : Nat} (layout : LogicalPlan.Layout width logicalWidth)
     (assignment : Assignment F logicalWidth) : Env :=
   CircuitRelation.decodeEnv CircuitRelation.publicColumns (CircuitRelation.pieces
     (RefreshAssemblerCircuit.stepCircuit program base relation 1 ajtai)
-    (RefreshAssembler.sharedEnd base program.witnessWordCount) (refreshDigestColumn program)) layout
-    assignment
+    (RefreshAssembler.sharedEnd base program.witnessWordCount) (refreshDigestColumn program))
+    firstFresh layout assignment
 
 /-- A satisfying assignment of the refresh circuit's logical relation whose public input
 encodes `digest` gives the refresh case of the option-B step relation, with output hash
@@ -317,7 +317,7 @@ theorem refresh_stepHolds (relation : ProductionKey.LogicalRelation logicalWidth
     (encoded : LogicalPlan.publicInput (publicFits := publicFits)
       (LogicalPlan.sourceEnv layout assignment) = encHash digest)
     (rowsZero : (CircuitRelation.plan _ _ firstFresh width fits layout).RowsZero assignment) :
-    let env := refreshEnv program relation ajtai layout assignment
+    let env := refreshEnv program relation ajtai firstFresh layout assignment
     StepHolds Folding.Schedule.productionLightFoldCap ajtai
         (decodedKeys circuitKeys (refreshInterface (logicalWidth := logicalWidth)
           (publicFits := publicFits) program).verifierKeys env)
@@ -380,7 +380,7 @@ theorem light_freshHolds (program : Stage1.Application.Program)
     (accepted : CCS.Holds (PaperAlgebra.semantics ajtai) productionGlobalParams
       (freshStatement ((CircuitRelation.plan _ _ firstFresh width fits layout).logicalRelation
         (publicFits := publicFits) cubeFits) fresh) assignment) :
-    let env := lightEnv program relation ajtai layout
+    let env := lightEnv program relation ajtai firstFresh layout
       (Layout.ProductionRelation.Plan.logicalAssignment assignment)
     StepHolds Folding.Schedule.productionLightFoldCap ajtai
         (decodedKeys circuitKeys (lightInterface (logicalWidth := logicalWidth)
@@ -420,7 +420,7 @@ theorem refresh_freshHolds (program : Stage1.Application.Program)
     (accepted : CCS.Holds (PaperAlgebra.semantics ajtai) productionGlobalParams
       (freshStatement ((CircuitRelation.plan _ _ firstFresh width fits layout).logicalRelation
         (publicFits := publicFits) cubeFits) fresh) assignment) :
-    let env := refreshEnv program relation ajtai layout
+    let env := refreshEnv program relation ajtai firstFresh layout
       (Layout.ProductionRelation.Plan.logicalAssignment assignment)
     StepHolds Folding.Schedule.productionLightFoldCap ajtai
         (decodedKeys circuitKeys (refreshInterface (logicalWidth := logicalWidth)

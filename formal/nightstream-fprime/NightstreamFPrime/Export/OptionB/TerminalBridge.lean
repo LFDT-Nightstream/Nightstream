@@ -307,12 +307,12 @@ def Exports.decode (exports : Exports relation ajtai circuitKeys step cubeFits) 
     Decoded logicalWidth publicFits :=
   let assignment := Layout.ProductionRelation.Plan.logicalAssignment witness
   if circuit = 0 then
-    let env := lightEnv exports.program relation ajtai exports.lightLayout assignment
+    let env := lightEnv exports.program relation ajtai exports.lightFresh exports.lightLayout assignment
     ⟨lightInput exports.program env, lightOutput exports.program relation 0 env,
       decodedKeys circuitKeys (lightInterface (logicalWidth := logicalWidth)
         (publicFits := publicFits) exports.program).verifierKeys env⟩
   else
-    let env := refreshEnv exports.program relation ajtai exports.refreshLayout assignment
+    let env := refreshEnv exports.program relation ajtai exports.refreshFresh exports.refreshLayout assignment
     ⟨refreshInput exports.program env, refreshOutput exports.program relation 1 env,
       decodedKeys circuitKeys (refreshInterface (logicalWidth := logicalWidth)
         (publicFits := publicFits) exports.program).verifierKeys env⟩

@@ -318,13 +318,13 @@ theorem decode_shaped (circuit : Fin 2)
   unfold Exports.decode
   split
   · have represents := lightRepresents exports.program relation ajtai circuitKeys 0
-      (lightEnv exports.program relation ajtai exports.lightLayout
+      (lightEnv exports.program relation ajtai exports.lightFresh exports.lightLayout
         (Layout.ProductionRelation.Plan.logicalAssignment witness))
     exact ⟨represents.iterationBound, represents.priorPcBound, by simp [lightInput],
       by simp [lightInput], represents.priorDepth,
       DigestSelect.nextSlots_depth _ _ _ _ represents.priorDepth (Fin.isLt _)⟩
   · have represents := refreshRepresents exports.program relation ajtai circuitKeys 1
-      (refreshEnv exports.program relation ajtai exports.refreshLayout
+      (refreshEnv exports.program relation ajtai exports.refreshFresh exports.refreshLayout
         (Layout.ProductionRelation.Plan.logicalAssignment witness))
     exact ⟨represents.iterationBound, represents.priorPcBound, by simp [refreshInput],
       by simp [refreshInput], represents.priorDepth,

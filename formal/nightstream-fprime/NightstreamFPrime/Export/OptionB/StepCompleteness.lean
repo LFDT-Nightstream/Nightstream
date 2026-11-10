@@ -1,5 +1,6 @@
 import NightstreamFPrime.Export.OptionB.SlotCompleteness
 import NightstreamFPrime.Export.OptionB.StepRelation
+import NightstreamFPrime.Layout.ProductionRelation.CcsOpening
 
 /-! Completeness of the exported step relations (CW-10.2), the converse of
 `StepRelation.light_freshHolds` and `StepRelation.refresh_freshHolds`. Take an environment in

@@ -1,4 +1,5 @@
 import NightstreamFPrime.Lifecycle.OptionB.LightStepLayout
+import NightstreamFPrime.Lifecycle.OptionB.LightCommitment
 
 /-! The light step circuit's soundness (CW-2.5d, d5b). `StepRepresents` states what the step's
 shared words carry: the counters, key digests, states and witness of the step's input and output,

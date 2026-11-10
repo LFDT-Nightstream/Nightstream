@@ -1,5 +1,6 @@
 import NightstreamFPrime.Export.Generic.CircuitRelation
-import NightstreamFPrime.Layout.OptionB.StepCircuits
+import NightstreamFPrime.Layout.OptionB.LightAssemblerCircuit
+import NightstreamFPrime.Layout.OptionB.RefreshAssemblerCircuit
 import NightstreamFPrime.Layout.ProductionRelation.AcceptedOpening
 
 /-! The option-B step relations (CW-5.3). Each step circuit is exported with its shared words at
@@ -163,6 +164,19 @@ def lightOutput (relation : ProductionKey.LogicalRelation logicalWidth publicFit
     pcNext := circuit
     x := List.ofFn fun lane => (interface.outputDigest lane).eval env }
 
+/-- The output's next slots, for an environment that is not unfolded. -/
+theorem lightOutput_runningNext (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (circuit : Fin 2) (running : Fin 2 → SlotData logicalWidth publicFits) (env : Env) :
+    (lightOutput program relation circuit running env).runningNext =
+      DigestSelect.nextSlots (lightInput program running env).iteration
+        (lightInput program running env).running
+        (LightStepLayout.selectedSlot program
+          (lightInterface (logicalWidth := logicalWidth) (publicFits := publicFits) program) env)
+        ((LightStepLayout.newSlot program relation circuit
+          (lightInterface (logicalWidth := logicalWidth) (publicFits := publicFits) program)
+          (LightAssembler.sharedEnd base program.witnessWordCount)).value env) :=
+  rfl
+
 theorem lightRepresents (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
     (circuitKeys : Fin 2 → CircuitKey logicalWidth publicFits) (circuit : Fin 2)
@@ -246,7 +260,8 @@ theorem light_stepHolds (relation : ProductionKey.LogicalRelation logicalWidth p
     (lightDigestColumn program) fits layout assignment digest encoded rowsZero (fun _ => rfl)
   exact ⟨LightAssembler.rows_implies_stepHolds program relation base ajtai _ step control 0 rfl
     stepEq validControl _ rows _ _ _
-    (lightRepresents program relation ajtai circuitKeys 0 running _ others) rfl,
+    (lightRepresents program relation ajtai circuitKeys 0 running _ others)
+    (lightOutput_runningNext program relation 0 running _),
     congrArg List.ofFn (funext words)⟩
 
 /-- The words of the light step's next state, which its output hash hashes. -/
@@ -371,6 +386,26 @@ def refreshOutput (relation : ProductionKey.LogicalRelation logicalWidth publicF
     pcNext := circuit
     x := List.ofFn fun lane => (interface.outputDigest lane).eval env }
 
+/-- The output's next slots, for an environment that is not unfolded. -/
+theorem refreshOutput_runningNext
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits) (circuit : Fin 2)
+    (env : Env) :
+    (refreshOutput program relation circuit env).runningNext =
+      DigestSelect.nextSlots
+        (refreshInput (logicalWidth := logicalWidth) (publicFits := publicFits) program
+          env).iteration
+        (refreshInput (logicalWidth := logicalWidth) (publicFits := publicFits) program
+          env).running
+        (DigestSelect.selected (RefreshStepLayout.selectInterface program
+            (refreshInterface (logicalWidth := logicalWidth) (publicFits := publicFits) program))
+          (RefreshStepLayout.selectOffset program relation circuit
+            (refreshInterface (logicalWidth := logicalWidth) (publicFits := publicFits) program)
+            (RefreshAssembler.sharedEnd base program.witnessWordCount)) env)
+        ((RefreshStepLayout.newSlot program relation circuit
+          (refreshInterface (logicalWidth := logicalWidth) (publicFits := publicFits) program)
+          (RefreshAssembler.sharedEnd base program.witnessWordCount)).value env) :=
+  rfl
+
 /-- The finish circuit's output: its next slots are the next slots' words, which the finish
 circuit's slot select fixes and its final program reads. -/
 def finishStepOutput (circuit : Fin 2) (env : Env) : StepOutput logicalWidth publicFits :=
@@ -458,7 +493,8 @@ theorem refresh_stepHolds (relation : ProductionKey.LogicalRelation logicalWidth
     (RefreshAssembler.sharedEnd base program.witnessWordCount) firstFresh
     (refreshDigestColumn program) fits layout assignment digest encoded rowsZero (fun _ => rfl)
   exact ⟨RefreshAssembler.rows_implies_stepHolds program relation base ajtai _ step control 1 rfl
-    stepEq validControl _ rows _ _ _ (refreshRepresents program relation ajtai circuitKeys 1 _) rfl,
+    stepEq validControl _ rows _ _ _ (refreshRepresents program relation ajtai circuitKeys 1 _)
+    (refreshOutput_runningNext program relation 1 _),
     congrArg List.ofFn (funext words)⟩
 
 end Refresh

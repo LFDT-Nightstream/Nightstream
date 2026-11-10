@@ -1,5 +1,4 @@
-import NightstreamFPrime.Export.Generic.PieceRows
-import NightstreamFPrime.Export.Pilot
+import NightstreamFPrime.Export.Generic.Pieces
 
 /-! The frame of packed Poseidon2 blocks (CW-5.8). A packed block keeps only its 16 output locals
 live; the packed rows do not constrain its other 1,080 locals (S-box powers and linear-layer

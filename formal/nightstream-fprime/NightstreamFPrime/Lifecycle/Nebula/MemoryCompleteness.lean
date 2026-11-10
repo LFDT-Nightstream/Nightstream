@@ -1,4 +1,6 @@
 import NightstreamFPrime.Lifecycle.Nebula.MemorySoundness
+import NightstreamFPrime.Lifecycle.Nebula.MemoryEval
+import NightstreamFPrime.Lifecycle.Nebula.RowMeaning
 
 /-! Owns the completeness of the memory-application circuit: when the caller's
 wires lie below the call offset and the step is valid with its output state,

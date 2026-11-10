@@ -1,3 +1,4 @@
+import Mathlib.Tactic.NormNum.Basic
 import NightstreamFPrime.Lifecycle.PiRLC.v1_2.CombinationFamily
 import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Commitment
 

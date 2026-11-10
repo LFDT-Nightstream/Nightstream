@@ -1,10 +1,11 @@
 import CompressionLean.Sim.Statement
 import CompressionLean.Sim.Merkle
 import CompressionLean.Lowering.PackageRows
-import CompressionLean.Spec.OptionBRuns
+import CompressionLean.Sim.OptionBColumns
 
 /-! Option B's final program before layer 1 (CW-6.5): an accepted run gives the finish columns an
-environment in which every check of the program holds (`Spec.OptionB.FinishTerminal`). A lane's
+environment in which every check of the program holds (`Spec.OptionB.FinishTerminal`). The
+environment is the value of its cell on a live column and 0 on every other column (`finishEnv`). A lane's
 linear form evaluates to the lane (`linearForm_eval`), so each block's checks give its outputs as
 the permutation of its lanes (`checkBlock_ensures`); the R1CS block gives every row of the
 package's pieces (`Lowering.Package.row_holds`). The package must fit its columns (`Fits`). -/
@@ -270,10 +271,10 @@ theorem fits_spec {finish : Package} (h : fits finish = true) :
   exact ⟨h.1, fun block member => ⟨(h.2 block member).1.1, (h.2 block member).1.2,
     fun lane inside => laneFits_spec ((h.2 block member).2 lane inside)⟩⟩
 
-/-- The finish columns that a run gives: column `k` of the hint from `first`, below the S-box
-columns. -/
-def finishEnv (c : Ctx F) (first sboxStart : ℕ) : Env :=
-  fun k => if k < sboxStart then c.val (first + k) else 0
+/-- The finish columns that a run gives: the value of its cell on a live column, and 0 on every
+other column. -/
+def finishEnv (c : Ctx F) (live : Array Bool) (column : ℕ → Var) : Env :=
+  fun k => if live.getD k false then c.val (column k) else 0
 
 theorem checkBlocks_ensures (hperm : c.perm = NightstreamFPrime.Spec.Poseidon2.permute) {column : ℕ → Var}
     {env : Env} {n bound : ℕ} {blocks : List NightstreamFPrime.Export.Generic.Frame.Block}
@@ -343,15 +344,85 @@ theorem bindWords_ensures {column : ℕ → Var} {env : Env} {n bound : ℕ} {st
         fun lane inside => h₃ lane (List.mem_range.mpr inside) inside, fun k inside => ?_⟩
       exact h₄ (stateKeys[k], k) (List.mem_zipIdx_iff_getElem?.mpr (List.getElem?_eq_getElem inside))
 
+instance finishColumns_appends (rows : List (Shrink.R1csRow Word))
+    (blocks : List NightstreamFPrime.Export.Generic.Frame.Block) (live : Array Bool) (statement : Array Var)
+    (one : Var) (stateKeys : List Word) : Appends (finishColumns rows blocks live statement one stateKeys) := by
+  unfold finishColumns; appends
+
 instance finishPrefix_appends (finish : Package) (stateKeys : List Word) :
     Appends (finishPrefix finish stateKeys) := by
   unfold finishPrefix; appends
 
+/-- The checks of `finishColumns` hold on the finish columns `env`, and each column's handle holds
+it. -/
+def ColumnsHold (c : Ctx F) (rows : List (Shrink.R1csRow Word))
+    (blocks : List NightstreamFPrime.Export.Generic.Frame.Block) (stateKeys : List Word) (bound : ℕ) (env : Env)
+    (column : ℕ → Var) (m : ℕ) : Prop :=
+  (env 0 = 1 ∧ env iterationWord = statementOf c 0 ∧
+    (∀ lane (inside : lane < 4), env (z0Word + lane) = statementOf c ⟨1 + lane, by omega⟩ ∧
+      env (currentWord + lane) = statementOf c ⟨5 + lane, by omega⟩) ∧
+    ∀ k (inside : k < stateKeys.length), env (keysWord + k) = Word.cast stateKeys[k]) ∧
+  (∀ r ∈ rows, R1csRow.Holds env r) ∧
+  (∀ block ∈ blocks, (fun lane : Fin 16 => env (block.start + 1080 + lane)) =
+    Permutation.runF Permutation.schedule fun lane => (block.lanes.getD lane 0).eval env) ∧
+  ∀ k < bound, ColumnIs c column env m k
+
+/-- The hint of the finish columns to the blocks, for any rows, blocks and live columns below
+`bound`: the checks hold on the cells of the live columns and 0 on every other column. -/
+theorem finishColumns_ensures (hperm : c.perm = NightstreamFPrime.Spec.Poseidon2.permute)
+    {rows : List (Shrink.R1csRow Word)} {blocks : List NightstreamFPrime.Export.Generic.Frame.Block}
+    {live : Array Bool} {statement : Array Var} {one : Var} {stateKeys : List Word} {bound n : ℕ}
+    (size : live.size = bound) (reads : ReadsStatement c) (hstatement : statement = (List.range' 0 9).toArray)
+    (nine : 9 ≤ n) (hone : IsWord c n one 1) (room : keysWord + stateKeys.length ≤ bound)
+    (words : currentWord + 4 ≤ bound)
+    (fit : ∀ block ∈ blocks, block.lanes.length = 16 ∧ block.start + 1096 ≤ bound ∧
+      ∀ lane ∈ block.lanes, ∃ form, linearForm lane = some form ∧ ∀ t ∈ form.2, t.1 < bound) :
+    Ensures c n (finishColumns rows blocks live statement one stateKeys) fun column m =>
+      ColumnsHold c rows blocks stateKeys bound (finishEnv c live column) column m := by
+  unfold finishColumns
+  refine (Ensures.emit (Q := fun h m => h = n ∧ m = n + live.count true) (.hint (live.count true))
+    fun E hE _ _ => by simp [Instr.outputs]).bind fun start m₁ le₁ hstart => ?_
+  obtain ⟨rfl, rfl⟩ := hstart
+  refine (const_ensures 0).bind fun zeroForm m₂ le₂ hzero => ?_
+  obtain ⟨formsSize, forms⟩ := columnForms_spec live start zeroForm
+  rw [size] at formsSize forms
+  let column : ℕ → Var := fun k => (columnForms live start zeroForm).getD k zeroForm
+  let env := finishEnv c live column
+  have columns : ∀ k < bound, ColumnIs c column env m₂ k := fun k inside => by
+    cases flag : live.getD k false with
+    | true => exact ⟨lt_of_lt_of_le ((forms k inside).1 flag).2 le₂, by simp [env, finishEnv, flag]⟩
+    | false =>
+        have dead : column k = zeroForm := (forms k inside).2 flag
+        exact ⟨dead ▸ hzero.1, by simp [env, finishEnv, flag, dead, hzero.2]⟩
+  refine (bindWords_ensures (env := env) (bound := bound) reads hstatement (by omega) (hone.mono (by omega))
+    columns room words).bind fun _ m₃ le₃ hwords => ?_
+  refine (r1cs_ensures (rows := rows) (columns := (columnForms live start zeroForm).toList)
+    fun h member => ?_).bind fun _ m₄ le₄ hrows => ?_
+  · obtain ⟨k, inside, rfl⟩ := List.getElem_of_mem member
+    have below : k < bound := by rw [← formsSize]; simpa using inside
+    have form : column k = (columnForms live start zeroForm).toList[k] := by
+      simp [column, Array.getD_eq_getD_getElem?, formsSize, below]
+    exact form ▸ lt_of_lt_of_le (columns k below).1 le₃
+  refine (checkBlocks_ensures hperm (env := env) (fun k inside => (columns k inside).mono (le₃.trans le₄))
+    fit).bind fun _ m₅ le₅ hblocks => Ensures.pure ⟨hwords, ?_, hblocks,
+      fun k inside => (columns k inside).mono ((le₃.trans le₄).trans le₅)⟩
+  have envRows : (fun j => (((columnForms live start zeroForm).toList).map c.val).getD j 0) = env := by
+    funext j
+    by_cases inside : j < bound
+    · rw [← (columns j inside).2]
+      simp [column, List.getD_eq_getElem?_getD, Array.getD_eq_getD_getElem?, formsSize, inside]
+    · have dead : live.getD j false = false := by
+        rw [Array.getD_eq_getD_getElem?, Array.getElem?_eq_none (by rw [size]; exact Nat.le_of_not_lt inside)]
+        rfl
+      simp [env, finishEnv, dead, List.getD_eq_getElem?_getD, formsSize, inside]
+  rw [envRows] at hrows
+  exact hrows
+
 /-- What `finishPrefix` hands layer 1: the program's checks hold on the finish columns, and each
 column's handle holds it. -/
-def Handoff (c : Ctx F) (finish : Package) (stateKeys : List Word) (r : Array Var × Var) (m : ℕ) : Prop :=
-  FinishTerminal finish stateKeys (statementOf c) (finishEnv c r.2 finish.sboxStart) ∧
-    ∀ k < finish.sboxStart, ColumnIs c (fun k => r.2 + k) (finishEnv c r.2 finish.sboxStart) m k
+def Handoff (c : Ctx F) (finish : Package) (stateKeys : List Word) (r : Array Var × (ℕ → Var)) (m : ℕ) : Prop :=
+  FinishTerminal finish stateKeys (statementOf c) (finishEnv c (live finish) r.2) ∧
+    ∀ k < finish.sboxStart, ColumnIs c r.2 (finishEnv c (live finish) r.2) m k
 
 theorem finishPrefix_ensures (hperm : c.perm = NightstreamFPrime.Spec.Poseidon2.permute) {finish : Package}
     {stateKeys : List Word} (fit : fits finish = true) (keys : stateKeys.length ≤ 8) (reads : ReadsStatement c) :
@@ -359,6 +430,12 @@ theorem finishPrefix_ensures (hperm : c.perm = NightstreamFPrime.Spec.Poseidon2.
   obtain ⟨words, blocks⟩ := fits_spec fit
   have below : ∀ k, k ≤ keysWord + 8 ∨ k < currentWord + 4 → k < finish.sboxStart := fun k inside => by
     unfold bitsStart slotStart witnessWord currentWord z0Word keysWord publicWords at *
+    omega
+  have room : keysWord + stateKeys.length ≤ finish.sboxStart := by
+    have := below (keysWord + 8) (Or.inl le_rfl)
+    omega
+  have current : currentWord + 4 ≤ finish.sboxStart := by
+    have := below (currentWord + 3) (Or.inr (by omega))
     omega
   unfold finishPrefix
   refine (statementHandles_ensures (c := c) (n := 0)).bind (fun statement m₀ _ hstatement => ?_)
@@ -370,38 +447,20 @@ theorem finishPrefix_ensures (hperm : c.perm = NightstreamFPrime.Spec.Poseidon2.
   refine (mul_ensures first ⟨hinverse, (cast_ofF _).symm⟩).bind fun product m₂ le₂ hproduct => ?_
   refine (const_ensures 1).bind fun one m₃ le₃ hone => ?_
   refine (assertEqual_ensures hproduct.mono hone).bind fun _ m₄ le₄ hpositive => ?_
-  refine (Ensures.emit (Q := fun h m => h = m₄ ∧ m = m₄ + finish.sboxStart) (.hint finish.sboxStart)
-    fun E hE _ _ => by simp [Instr.outputs]).bind fun start m₅ le₅ hstart => ?_
-  obtain ⟨rfl, rfl⟩ := hstart
-  let env := finishEnv c start finish.sboxStart
-  have columns : ∀ k < finish.sboxStart, ColumnIs c (fun k => start + k) env (start + finish.sboxStart) k :=
-    fun k inside => ⟨Nat.add_lt_add_left inside start, by simp [env, finishEnv, inside]⟩
-  refine (bindWords_ensures (env := env) (bound := finish.sboxStart) reads hstatement.1 (by omega)
-    (hone.mono (by omega)) columns (by have := below (keysWord + 8) (Or.inl le_rfl); omega)
-    (by have := below (currentWord + 3) (Or.inr (by omega)); omega)).bind fun _ m₆ le₆ hwords => ?_
-  refine (r1cs_ensures (rows := finishRows finish)
-    (columns := (List.range finish.sboxStart).map fun k => start + k) fun h member => ?_).bind
-      fun _ m₇ le₇ hrows => ?_
-  · obtain ⟨k, inside, rfl⟩ := List.mem_map.mp member
-    exact Nat.lt_of_lt_of_le (Nat.add_lt_add_left (List.mem_range.mp inside) start) le₆
-  refine (checkBlocks_ensures hperm (env := env) (fun k inside => (columns k inside).mono (by omega))
-    blocks).bind fun _ m₈ le₈ hblocks => Ensures.pure ⟨⟨?_, hwords.1, hwords.2.1,
-      fun lane => hwords.2.2.1 lane lane.isLt, hwords.2.2.2, ?_, hblocks⟩,
-      fun k inside => (columns k inside).mono (by omega)⟩
-  · intro zero
+  have nine : 9 ≤ m₄ := by omega
+  have positive : statementOf c 0 ≠ 0 := by
+    intro zero
     have := congrArg (Word.cast : Word → F) hpositive
     rw [word_mul, cast_ofF, cast_ofF, word_one] at this
     change statementOf c 0 * _ = 1 at this
     rw [zero, zero_mul] at this
     exact absurd this (by decide)
-  · have envRows : (fun j => (((List.range finish.sboxStart).map fun k => start + k).map c.val).getD j 0) = env := by
-      funext j
-      by_cases inside : j < finish.sboxStart
-      · simp [env, finishEnv, inside, List.getD_eq_getElem?_getD]
-      · simp [env, finishEnv, inside, List.getD_eq_getElem?_getD]
-    intro r member
-    have holds := hrows (Terminal.Package.row 0 r) (List.mem_map_of_mem member)
-    rw [envRows] at holds
-    exact (Lowering.Package.row_holds env 0 hwords.1 r).mp holds
+  refine (finishColumns_ensures hperm (live := live finish) (live_size finish) reads hstatement.1 nine
+    (hone.mono le₄) room current blocks).bind fun column m₅ le₅ holds => Ensures.pure ?_
+  obtain ⟨hwords, hrows, hblocks, columns⟩ := holds
+  refine ⟨⟨positive, hwords.1, hwords.2.1, fun lane => hwords.2.2.1 lane lane.isLt, hwords.2.2.2,
+    fun r member => ?_, hblocks⟩, columns⟩
+  exact (Lowering.Package.row_holds _ 0 hwords.1 r).mp
+    (hrows (Terminal.Package.row 0 r) (List.mem_map_of_mem member))
 
 end CompressionLean.Sim.OptionB

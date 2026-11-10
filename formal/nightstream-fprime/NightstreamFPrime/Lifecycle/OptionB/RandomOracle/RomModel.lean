@@ -1,6 +1,6 @@
-import NightstreamFPrime.Lifecycle.OptionB.RandomOracle.LightKnowledge
-import NightstreamFPrime.Lifecycle.OptionB.RandomOracle.RefreshKnowledge
-import NightstreamFPrime.Lifecycle.RandomOracle.Budgeted
+import NightstreamFPrime.Lifecycle.OptionB.RandomOracle.LightFork
+import NightstreamFPrime.Lifecycle.OptionB.RandomOracle.RefreshFork
+import NightstreamFPrime.Lifecycle.OptionB.RandomOracle.UniquenessLink
 
 /-! The random-oracle model of both option-B folds as one oracle. A point is a light or a
 refresh transcript address (`Point`), and the oracle is its light and refresh parts (`Oracle`).

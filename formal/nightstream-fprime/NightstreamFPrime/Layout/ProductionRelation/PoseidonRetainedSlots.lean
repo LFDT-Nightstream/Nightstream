@@ -13,7 +13,7 @@ def rows : List (PoseidonSourceRows.SboxSource SourceWidth) :=
   PoseidonTemplatePlan.plan.flatMap fun step => step.sboxes
 
 @[simp] theorem rows_length : rows.length = 150 := by
-  rfl
+  decide +kernel
 
 def slots : List (LowNormAssignment.Slot SourceWidth) :=
   rows.map fun row =>
@@ -21,7 +21,7 @@ def slots : List (LowNormAssignment.Slot SourceWidth) :=
       kind := .field }
 
 @[simp] theorem slots_length : slots.length = 150 := by
-  rfl
+  decide +kernel
 
 @[simp] theorem slots_logicalWidth :
     LowNormAssignment.logicalWidth slots = 6150 := by

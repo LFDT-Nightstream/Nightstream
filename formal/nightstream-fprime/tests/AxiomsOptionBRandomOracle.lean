@@ -18,6 +18,17 @@ import NightstreamFPrime.Lifecycle.OptionB.RandomOracle.RefreshSolver
 import NightstreamFPrime.Lifecycle.OptionB.RandomOracle.HashSolver
 import NightstreamFPrime.Export.OptionB.RandomOracleSetup
 import NightstreamFPrime.Export.OptionB.IvcWalk
+import NightstreamFPrime.Layout.OptionB.LightAssemblerCompleteness
+import NightstreamFPrime.Layout.OptionB.RefreshAssemblerCompleteness
+import NightstreamFPrime.Layout.OptionB.StepCircuits
+import NightstreamFPrime.Layout.PiCCS.v1_2.Leaves.OutputBinding
+import NightstreamFPrime.Layout.ProductionRelation.CcsOpening
+import NightstreamFPrime.Lifecycle.Nebula.FactorWords
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Completeness
+import NightstreamFPrime.Spec
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.TargetConvention
+import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
+import NightstreamFPrime.Spec.Nebula
 
 #audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Schedule.roundCallCount_pos
 #audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Schedule.roundCalls_length

@@ -1,4 +1,5 @@
 import NightstreamFPrime.Lifecycle.Relation
+import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Commitment
 
 /-! SuperNeo v1.2 Definition 21. -/
 

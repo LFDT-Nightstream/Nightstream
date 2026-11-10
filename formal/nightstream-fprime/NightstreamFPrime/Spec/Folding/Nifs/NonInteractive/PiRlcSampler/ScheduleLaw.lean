@@ -1,4 +1,5 @@
 import NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.OracleModel
+import NightstreamFPrime.Spec.Poseidon2
 
 namespace NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.ScheduleLaw
 

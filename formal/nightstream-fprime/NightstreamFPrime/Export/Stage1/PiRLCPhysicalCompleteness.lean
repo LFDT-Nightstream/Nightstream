@@ -1,4 +1,4 @@
-import NightstreamFPrime.Export.Stage1.Package
+import NightstreamFPrime.Export.Stage1.Data
 import NightstreamFPrime.Layout.PiRLC.v1_2.Preservation
 
 namespace NightstreamFPrime.Export.Stage1.PiRLCPhysicalCompleteness

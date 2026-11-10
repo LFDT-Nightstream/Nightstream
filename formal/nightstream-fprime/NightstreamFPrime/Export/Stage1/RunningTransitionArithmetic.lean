@@ -1,4 +1,4 @@
-import NightstreamFPrime.Export.Stage1.PiDECArithmetic
+import NightstreamFPrime.Export.Stage1.PiCCSArithmetic
 import NightstreamFPrime.Layout.Stage1.RunningTransitionLowering
 
 namespace NightstreamFPrime.Export.Stage1.RunningTransitionArithmetic

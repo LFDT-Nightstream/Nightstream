@@ -51,29 +51,34 @@ pub(crate) struct Profile {
 
 /// Layer 1: initial rate 1/2 (the smallest codeword, so the fastest
 /// commitment), a first fold of six variables and four after, a first
-/// folded domain a quarter of the initial one, no grinding. Against four
-/// variables per round with halving domains (the WHIR paper's benchmarks,
-/// §6), every folded codeword is half as long and an initial leaf is 64
-/// values. On the hash-chain test the layer-1 WHIR commitments and
-/// openings took 47% less CPU (2026-11-06), and the final program has 2.2%
-/// fewer Poseidon2 blocks (62,847 against 64,236), at the same level.
+/// folded domain a sixteenth of the initial one, no grinding. Each step of
+/// `first_shrink` halves every folded codeword and adds queries to the
+/// later rounds, which the final program pays in Poseidon2 blocks. On the
+/// hash-chain test (2026-11-10, CPU seconds of all layer-1 WHIR commitments
+/// and openings): 230 at a quarter, 195 at an eighth, 156 at a sixteenth,
+/// with 61,912, 63,609 and 65,777 blocks. The shrink witness stays at 2^24
+/// cells; a profile that crosses it doubles the shrink work.
 pub(crate) const LAYER1: Profile = Profile {
     log_inv_rate: 1,
     first_folding: 6,
     folding: 4,
-    first_shrink: 2,
+    first_shrink: 4,
     pow_bits: 0,
 };
 
-/// The shrink layer: rate 1/8, a first fold of five variables, 20 bits of
-/// grinding (owner limit, 2026-10-07). Owner choice (2026-10-09) after a
-/// production sweep at 2^24: 1/8 gives a 129.5 KB final proof and an 8 s
-/// shrink; 1/64 gives 97.6 KB and 36 s; lower rates save under 3 s more.
+/// The shrink layer: rate 1/8, a first fold of five variables, a first
+/// folded domain an eighth of the initial one, 20 bits of grinding (owner
+/// limit, 2026-10-07). Owner choice (2026-10-09) after a production sweep
+/// at 2^24: 1/8 gives a 129.5 KB final proof and an 8 s shrink; 1/64 gives
+/// 97.6 KB and 36 s; lower rates save under 3 s more. Owner choice
+/// (2026-11-10, speed before size) of `first_shrink` at 2^24 cells: 1, 2
+/// and 3 give 62, 42 and 32 CPU seconds of shrink WHIR and shrink proofs of
+/// 124,914, 130,338 and 138,178 bytes.
 pub(crate) const SHRINK: Profile = Profile {
     log_inv_rate: 3,
     first_folding: 5,
     folding: 4,
-    first_shrink: 1,
+    first_shrink: 3,
     pow_bits: 20,
 };
 

@@ -1,5 +1,17 @@
 import CompressionLean.Spec.OptionBRuns
 import NightstreamFPrime.Export.OptionB.FinishRelation
+import NightstreamFPrime.Layout.OptionB.LightAssemblerCompleteness
+import NightstreamFPrime.Layout.OptionB.RefreshAssemblerCompleteness
+import NightstreamFPrime.Layout.OptionB.StepCircuits
+import NightstreamFPrime.Layout.PiCCS.v1_2.Leaves.OutputBinding
+import NightstreamFPrime.Layout.ProductionRelation.CcsOpening
+import NightstreamFPrime.Lifecycle.Nebula.FactorWords
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Completeness
+import NightstreamFPrime.Spec
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.GoldilocksCausal
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.TargetConvention
+import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
+import NightstreamFPrime.Spec.Nebula
 
 /-! The claim of option B's final verifier in F′'s terms (CW-6.5): SuperNeo v1.2 Definition 21 for
 the last fold. A refresh step input whose counter and states are the statement, whose finish

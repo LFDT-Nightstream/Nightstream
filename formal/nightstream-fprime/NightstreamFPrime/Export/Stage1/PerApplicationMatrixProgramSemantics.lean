@@ -8,6 +8,9 @@ import NightstreamFPrime.Export.Stage1.PiRLCSamplerPoseidonMatrixProgramSemantic
 import NightstreamFPrime.Export.Stage1.PilotOrdinaryMatrixProgramSemantics
 import NightstreamFPrime.Export.Stage1.PilotPoseidonMatrixProgramSemantics
 import NightstreamFPrime.Export.Stage1.RunningTransitionMatrixProgramSemantics
+import NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryMatrixSchedule
+import NightstreamFPrime.Export.Stage1.PilotOrdinaryDirectSource
+import NightstreamFPrime.Layout.MatrixProgram.PlanBridge
 
 namespace NightstreamFPrime.Export.Stage1.PerApplicationMatrixProgramSemantics
 

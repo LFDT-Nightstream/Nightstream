@@ -1,4 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PilotOrdinaryMatrixProgram
+import NightstreamFPrime.Export.Stage1.PilotOrdinaryDirectSource
 
 namespace NightstreamFPrime.Export.Stage1.PilotOrdinaryMatrixProgram
 

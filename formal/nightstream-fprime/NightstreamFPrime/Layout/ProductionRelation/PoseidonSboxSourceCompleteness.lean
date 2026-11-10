@@ -1,4 +1,5 @@
 import NightstreamFPrime.Layout.ProductionRelation.PoseidonSboxPlan
+import NightstreamFPrime.Circuit.StraightLine
 
 set_option autoImplicit false
 

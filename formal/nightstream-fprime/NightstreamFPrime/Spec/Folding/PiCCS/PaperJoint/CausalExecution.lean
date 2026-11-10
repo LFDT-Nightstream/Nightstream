@@ -1,4 +1,5 @@
-import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.GoldilocksCausal
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StrongReduction
+import NightstreamFPrime.Spec.SumCheck.GoldilocksCausalTrace
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CausalExecution
 

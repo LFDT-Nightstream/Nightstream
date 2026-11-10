@@ -1,6 +1,5 @@
 import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.PiRLC
 import NightstreamFPrime.Spec.Phi81Relation.Semantics
-import NightstreamFPrime.Spec.Folding.PiRLC
 
 /-! SuperNeo v1.2 Theorem 11. -/
 

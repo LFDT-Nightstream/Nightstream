@@ -1,5 +1,6 @@
 import NightstreamFPrime.Lifecycle.OptionB.RandomOracle.LightUniqueness
 import NightstreamFPrime.Lifecycle.RandomOracle.Solver
+import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.ChainBinding
 
 /-! The light fold's MSIS solver in the random-oracle model: `Solver` on the light game
 `LightFork.game`, with the binding step of `LightUniqueness` as the kernel.

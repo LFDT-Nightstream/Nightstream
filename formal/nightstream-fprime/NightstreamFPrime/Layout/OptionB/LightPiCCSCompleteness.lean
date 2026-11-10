@@ -1,5 +1,6 @@
 import NightstreamFPrime.Layout.OptionB.LightPiCCSBounds
 import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Completeness.Core
+import NightstreamFPrime.Circuit.Sequence
 
 /-! Completeness of the light Π_CCS layout (assembler A3a). When the external words carry a
 running claim, a fresh instance and a light proof that the light Π_CCS check accepts, the eleven

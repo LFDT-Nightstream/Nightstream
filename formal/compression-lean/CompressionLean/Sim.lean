@@ -10,7 +10,9 @@ import CompressionLean.Sim.Instr
 import CompressionLean.Sim.Late
 import CompressionLean.Sim.Linear
 import CompressionLean.Sim.Merkle
+import CompressionLean.Sim.OptionBColumns
 import CompressionLean.Sim.OptionBEncodes
+import CompressionLean.Sim.OptionBLive
 import CompressionLean.Sim.OptionBPrefix
 import CompressionLean.Sim.OptionBSlots
 import CompressionLean.Sim.Ring

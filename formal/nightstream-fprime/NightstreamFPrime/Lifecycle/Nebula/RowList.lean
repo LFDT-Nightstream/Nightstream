@@ -1,5 +1,6 @@
 import NightstreamFPrime.Lifecycle.Nebula.RowExprs
 import NightstreamFPrime.Lifecycle.Nebula.PortApp
+import NightstreamFPrime.Spec.GoldilocksPrime
 
 /-! Owns the polynomial rows of the memory-application circuit as expressions
 over the witness words: the memory rows, grouped by the spec check that names

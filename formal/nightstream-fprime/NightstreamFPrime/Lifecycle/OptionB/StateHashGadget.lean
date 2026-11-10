@@ -1,6 +1,6 @@
 import NightstreamFPrime.Lifecycle.OptionB.Step
 import NightstreamFPrime.Lifecycle.OutputHash
-import NightstreamFPrime.Lifecycle.PriorStateHash
+import NightstreamFPrime.Lifecycle.PriorStateHashCore
 
 /-! Option B's state hash in a step circuit (CW-2.4): one `OutputHash` gadget per hashed slot and
 one hash gadget for the 38-word state preimage, whose last eight words are two slot digests.

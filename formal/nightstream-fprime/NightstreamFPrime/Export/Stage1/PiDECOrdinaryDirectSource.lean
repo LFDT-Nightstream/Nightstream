@@ -1,6 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PiDECDirectSupport
-import NightstreamFPrime.Layout.ProductionRelation.OrdinarySourcePlan
-import NightstreamFPrime.Layout.R1CS.Support
+import NightstreamFPrime.Layout.ProductionRelation.SourceCompiler
 import NightstreamFPrime.Layout.Stage1.SpartanBounds
 
 namespace NightstreamFPrime.Export.Stage1.PiDECOrdinaryDirectSource

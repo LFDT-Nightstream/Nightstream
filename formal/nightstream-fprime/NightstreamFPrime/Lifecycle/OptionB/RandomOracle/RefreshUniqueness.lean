@@ -2,6 +2,9 @@ import NightstreamFPrime.Lifecycle.OptionB.RandomOracle.RefreshFork
 import NightstreamFPrime.Lifecycle.OptionB.RandomOracle.UniquenessLink
 import NightstreamFPrime.Lifecycle.Nifs.BindingBridge
 import NightstreamFPrime.Spec.Folding.PiRLC.ChainBinding
+import NightstreamFPrime.Spec.Folding.Nifs.PaperStrongInterface
+import NightstreamFPrime.Spec.Folding.Refresh.Security
+import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.ChainBinding
 
 /-! The refresh fold's uniqueness step in the random-oracle model: `Uniqueness` on the refresh
 game `RefreshFork.game`.

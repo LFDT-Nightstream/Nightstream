@@ -2,6 +2,7 @@ import NightstreamFPrime.Export.Generic.Frame
 import NightstreamFPrime.Export.Generic.LogicalPlan
 import NightstreamFPrime.Export.Generic.Substitute
 import NightstreamFPrime.Layout.ProductionRelation.PoseidonSboxFamilyPlan
+import NightstreamFPrime.Export.Generic.PieceRows
 
 /-! The logical relation of a step circuit (CW-5.8). The circuit's constraints, with the decode
 constraints of its output digest, are split into pieces (`Pieces.split`). When the Poseidon2

@@ -1,10 +1,8 @@
 import NightstreamFPrime.Lifecycle.OptionB.RandomOracle.ForkLink
 import NightstreamFPrime.Lifecycle.OptionB.RandomOracle.RefreshTest
-import NightstreamFPrime.Lifecycle.PaperExtractionAlgebra
-import NightstreamFPrime.Spec.Folding.Refresh.Security
-import NightstreamFPrime.Spec.Folding.Nifs.PaperStrongInterface
-import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.ForkStrongSet
+import NightstreamFPrime.Spec.Folding.PiRLC.NormFreeFork
 import NightstreamFPrime.Spec.Phi81StrongSet.LowNormInvertibility
+import NightstreamFPrime.Spec.Folding.Nifs.PaperStrongInterface
 
 /-! The refresh fold's fork step in the random-oracle model: `Fork` on the refresh schedule,
 which has 17 `ρ` challenges. `verify` is `Refresh.verify` with the Π_CCS coins and the `ρ`

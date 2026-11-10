@@ -3,6 +3,7 @@ import NightstreamFPrime.Lifecycle.OptionB.LightSampler
 import NightstreamFPrime.Lifecycle.OptionB.LightPublicInput
 import NightstreamFPrime.Lifecycle.OptionB.LightEvaluation
 import NightstreamFPrime.Lifecycle.OptionB.Step
+import NightstreamFPrime.Lifecycle.OptionB.LightCommitment
 
 /-! The light fold (CW-2.5b). The light Π_CCS phase, one Π_RLC challenge sampler and the three
 Π_RLC combinations make the option-B light fold accept the slot's claim, with the output slot

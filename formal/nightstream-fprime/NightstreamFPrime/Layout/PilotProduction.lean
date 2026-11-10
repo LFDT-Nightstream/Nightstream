@@ -2,6 +2,7 @@ import NightstreamFPrime.Layout.Pilot
 import NightstreamFPrime.Layout.PilotValues
 import NightstreamFPrime.Layout.Poseidon2
 import NightstreamFPrime.Layout.Range.CanonicalPublicU64
+import NightstreamFPrime.Spec.HyperNova.Construction2.Paper
 
 namespace NightstreamFPrime.Layout.PilotProduction
 

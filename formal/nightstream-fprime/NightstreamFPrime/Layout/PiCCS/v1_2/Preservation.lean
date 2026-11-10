@@ -1,5 +1,6 @@
 import NightstreamFPrime.Layout.PiCCS.v1_2.Lowering
 import NightstreamFPrime.Layout.R1CS.Completeness
+import NightstreamFPrime.Circuit.Sequence
 
 /-!
 Paper authority: SuperNeo v1.2, section 7.3, PiCCS steps 1--5.

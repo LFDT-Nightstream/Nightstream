@@ -1,6 +1,6 @@
-import NightstreamFPrime.Lifecycle.Nebula.RowMeaning
-import NightstreamFPrime.Lifecycle.Nebula.StepRefinement
 import NightstreamFPrime.Lifecycle.Nebula.Machine
+import NightstreamFPrime.Lifecycle.Nebula.RowList
+import NightstreamFPrime.Lifecycle.Nebula.StepRefinement
 
 /-! Owns the first memory application at the circuit level: the machine of
 `Machine` as a `PortApp` of a geometry with two ports. Its state words are

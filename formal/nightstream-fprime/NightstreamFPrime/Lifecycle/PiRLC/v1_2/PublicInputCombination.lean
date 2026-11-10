@@ -1,5 +1,6 @@
 import NightstreamFPrime.Lifecycle.PiRLC.v1_2.CombinationFamily
 import NightstreamFPrime.Lifecycle.PaperAlgebra
+import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.PublicInput
 
 /-!
 Paper authority: SuperNeo v1.2, Section 7.4, verifier Step 1, equation

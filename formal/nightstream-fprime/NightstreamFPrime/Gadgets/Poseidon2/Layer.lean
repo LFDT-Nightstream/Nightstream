@@ -2,7 +2,7 @@ import Mathlib.Data.List.GetD
 import Mathlib.Data.List.OfFn
 import Mathlib.Tactic.FinCases
 import Mathlib.Tactic.IntervalCases
-import NightstreamFPrime.Circuit.StraightLine
+import NightstreamFPrime.Circuit.Basic
 import NightstreamFPrime.Spec.Poseidon2
 
 namespace NightstreamFPrime.Gadgets.Poseidon2.Layer

@@ -4,6 +4,7 @@ import NightstreamFPrime.Export.Stage1.Rows
 import NightstreamFPrime.Lifecycle.Stage1.Application
 import NightstreamFPrime.Lifecycle.VerifierContext
 import NightstreamFPrime.Layout.Stage1.ApplicationSemantics
+import NightstreamFPrime.Spec.HyperNova.Construction2.Paper
 
 namespace NightstreamFPrime.Export.Stage1.ApplicationPackage
 

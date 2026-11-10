@@ -1,6 +1,7 @@
 import NightstreamFPrime.Export.OptionB.IvcSecurity
 import NightstreamFPrime.Lifecycle.Nebula.EndToEnd
 import NightstreamFPrime.Lifecycle.Nebula.EtaRound
+import NightstreamFPrime.Lifecycle.Nebula.MemoryProgram
 
 /-! The end-to-end bound of a memory application on option B (`SECURITY_MODEL.md`, adversary 5),
 on the joint law of the memory statement that the IVC adversary claims and the reverse

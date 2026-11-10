@@ -1,4 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PiDECMatrixProgram
+import NightstreamFPrime.Export.Stage1.PiDECDirectPlan
 
 namespace NightstreamFPrime.Export.Stage1.PiDECMatrixProgram
 

@@ -1,4 +1,3 @@
-import NightstreamFPrime.Layout.OptionB.FinishAssembler
 import NightstreamFPrime.Layout.OptionB.RefreshAssemblerCompleteness
 
 /-! Completeness of the finish circuit at the refresh step's source layout (CW-10.6), the converse

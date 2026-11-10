@@ -1,5 +1,4 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier.Algebra
-import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier.NoZeroDivisors
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ProtocolDataRefinement
 
 /-! SuperNeo v1.2 Section 7.3, Appendix B.2. -/

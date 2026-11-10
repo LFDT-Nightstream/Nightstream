@@ -1,7 +1,5 @@
-import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.BooleanHypercubeSum
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.FiniteSumAlgebra
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
-import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.TargetPolynomial
 
 /-! SuperNeo v1.2 Section 7.3, Appendix B.2. -/
 

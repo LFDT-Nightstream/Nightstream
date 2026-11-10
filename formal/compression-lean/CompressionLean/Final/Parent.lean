@@ -1,6 +1,10 @@
 import CompressionLean.Final.Bridge
 import NightstreamFPrime.Lifecycle.PiRLC.v1_2.OutputBinding
 import CompressionLean.Spec.Parent
+import NightstreamFPrime.Spec
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.GoldilocksCausal
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.TargetConvention
+import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
 
 namespace CompressionLean.Final
 

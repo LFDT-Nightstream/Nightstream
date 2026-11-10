@@ -1,7 +1,6 @@
-import NightstreamFPrime.Export.Stage1.PiCCSInvocations
-import NightstreamFPrime.Export.Stage1.PiRLCPoseidonGeometry
-import NightstreamFPrime.Export.Stage1.PoseidonActionSchedule
 import NightstreamFPrime.Export.Stage1.PiCCSTranscriptReadout
+import NightstreamFPrime.Export.Stage1.PiRLCRetainedGeometry
+import NightstreamFPrime.Export.Stage1.PoseidonActionSchedule
 import NightstreamFPrime.Layout.ProductionRelation.FieldSuffixBlock
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSActionPayloadBlock

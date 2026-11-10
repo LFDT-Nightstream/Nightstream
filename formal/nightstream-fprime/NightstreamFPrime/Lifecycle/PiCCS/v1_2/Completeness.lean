@@ -2,6 +2,7 @@ import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Completeness.Transcript
 import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Completeness.Evaluation
 import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Completeness.Terminal
 import NightstreamFPrime.Lifecycle.PiCCS.v1_2.FormalPhase
+import NightstreamFPrime.Circuit.Sequence
 
 namespace NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal
 

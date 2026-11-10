@@ -4,6 +4,7 @@ import NightstreamFPrime.Lifecycle.Nifs.BindingBridge
 import NightstreamFPrime.Spec.Folding.Light.Security
 import NightstreamFPrime.Spec.Folding.Light.RunningBinding
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SourceMembership
+import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.ChainBinding
 
 /-! The light fold's uniqueness step in the random-oracle model: `Uniqueness` on the light game
 `LightFork.game`.

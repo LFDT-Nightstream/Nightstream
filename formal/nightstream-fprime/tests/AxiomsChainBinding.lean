@@ -3,6 +3,10 @@ import NightstreamFPrime.Spec.Folding.Light.Binding
 import NightstreamFPrime.Spec.Folding.Light.RunningBinding
 import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.ChainBinding
 import NightstreamFPrime.Lifecycle.Nifs.BindingBridge
+import NightstreamFPrime.Spec
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.GoldilocksCausal
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.TargetConvention
+import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
 
 #audit_axioms NightstreamFPrime.Spec.Folding.PiRLC.ChainBinding.normFreeCompatible
 #audit_axioms NightstreamFPrime.Spec.Folding.PiRLC.ChainBinding.forkCollision

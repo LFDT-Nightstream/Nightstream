@@ -2,6 +2,7 @@ import NightstreamFPrime.Lifecycle.OptionB.RefreshPiCCSPhase
 import NightstreamFPrime.Lifecycle.OptionB.Step
 import NightstreamFPrime.Lifecycle.PiDEC.v1_2.Semantics
 import NightstreamFPrime.Lifecycle.PiRLC.v1_2.Semantics
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.OutputBinding
 
 /-! The refresh fold (CW-3.2). Today's Π_DEC on the slot's claim, the refresh Π_CCS phase on the
 16 children and the fresh instance, and today's Π_RLC make the option-B refresh fold accept the

@@ -12,6 +12,20 @@ import NightstreamFPrime.Lifecycle.Stage1.VerificationKey
 import NightstreamFPrime.Lifecycle.Stage1.Terminal
 import NightstreamFPrime.Layout.Stage1.ApplicationSemantics
 import NightstreamFPrime.Layout.R1CS.ColumnMap
+import NightstreamFPrime.Export.MatrixProgram
+import NightstreamFPrime.Export.MatrixProgram.SourceProjection
+import NightstreamFPrime.Export.SharedFormulas
+import NightstreamFPrime.Export.Stage1.DirectLowNormFootprint
+import NightstreamFPrime.Export.Stage1.PilotOrdinaryDirectSource
+import NightstreamFPrime.Layout.MatrixProgram.PlanBridge
+import NightstreamFPrime.Layout.PiDEC.v1_2.Ownership
+import NightstreamFPrime.Layout.ProductionRelation.MultiplicationFamilyPlan
+import NightstreamFPrime.Layout.Stage1.RunningTransitionPreservation
+import NightstreamFPrime.Layout.Stage1.RunningTransitionSourceSupport
+import NightstreamFPrime.Spec
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.GoldilocksCausal
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.TargetConvention
+import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
 
 #audit_axioms NightstreamFPrime.Lifecycle.Stage1.Application.inputState_length
 #audit_axioms NightstreamFPrime.Lifecycle.Stage1.Application.witnessValue_length

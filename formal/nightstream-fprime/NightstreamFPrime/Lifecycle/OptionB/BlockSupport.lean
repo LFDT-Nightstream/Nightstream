@@ -1,5 +1,6 @@
 import NightstreamFPrime.Lifecycle.PaperAlgebra
 import NightstreamFPrime.Spec.Folding.Refresh.Bound
+import NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.Radix
 
 /-! Block support of a witness (CW-10.6). A witness packs into ring elements of `ringDegree`
 coordinates, block `j` holding coordinates `54j` to `54j + 53` (SPEC.md section 2.3). A witness is

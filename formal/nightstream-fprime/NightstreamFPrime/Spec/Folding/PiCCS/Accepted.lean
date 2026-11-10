@@ -1,8 +1,4 @@
 import NightstreamFPrime.Spec.Folding.Nifs.PaperNonInteractive.Verifier
-import NightstreamFPrime.Spec.Folding.PiCCS.Statement
-import NightstreamFPrime.Spec.Folding.PiCCS.EvalK
-import NightstreamFPrime.Spec.Folding.PiCCS.EvalA
-import NightstreamFPrime.Spec.Folding.PiCCS.FinalIdentity
 
 /-!
 Paper authority: SuperNeo v1.2, Section 7.3, complete `Pi_CCS` verifier.

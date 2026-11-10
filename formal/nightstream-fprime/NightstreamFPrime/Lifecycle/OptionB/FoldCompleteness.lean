@@ -2,6 +2,7 @@ import NightstreamFPrime.Lifecycle.OptionB.RandomOracle.Honest
 import NightstreamFPrime.Spec.Folding.Light.SourceTruth
 import NightstreamFPrime.Spec.Folding.Refresh.Bound
 import NightstreamFPrime.Lifecycle.OptionB.BlockSupport
+import NightstreamFPrime.Lifecycle.OptionB.RandomOracle.LightUniqueness
 
 /-! Completeness of the option-B folds at the production keys (CW-10.3). An honest light fold
 (`Spec.Folding.Light.complete`, Cyclo Theorem 3, item 1) and an honest refresh fold

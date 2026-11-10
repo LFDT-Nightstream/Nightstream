@@ -1,4 +1,5 @@
 import NightstreamFPrime.Lifecycle.OptionB.LightRlcLayout
+import NightstreamFPrime.Lifecycle.OptionB.LightCommitment
 
 /-! Input scoping of the light Π_RLC layout (assembler A2b): when the sampler's start state, the
 Π_CCS output words, the slot claim's words and the fresh instance's words lie below the parent

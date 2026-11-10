@@ -1,7 +1,6 @@
-import NightstreamFPrime.Spec.Profile
 import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.BaseLinear
 import NightstreamFPrime.Spec.Phi81Relation.Semantics
-import NightstreamFPrime.Spec.Folding.PiDEC
+import NightstreamFPrime.Spec.Profile
 
 namespace NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.PiDEC
 

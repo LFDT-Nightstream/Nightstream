@@ -3,6 +3,7 @@ import NightstreamFPrime.Lifecycle.Nebula.EtaOracle
 import NightstreamFPrime.Lifecycle.Nebula.MemoryBound
 import NightstreamFPrime.Spec.Nebula.GoldilocksFingerprint
 import NightstreamFPrime.Spec.RandomOracle
+import NightstreamFPrime.Spec.Nebula.SetupCheck
 
 /-! The memory round in the random-oracle model of `η` (CW-10.8). A computation with `Q` queries
 to an `η` oracle returns a sample. `unbalanced_le` bounds the chance over a uniform oracle that

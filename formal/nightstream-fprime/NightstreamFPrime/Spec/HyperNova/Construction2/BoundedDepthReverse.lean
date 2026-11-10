@@ -1,4 +1,4 @@
-import NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthKnowledge
+import NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 
 /-! The deterministic part of HyperNova Lemma 17 (Appendix H.3) for one slot of option B, in
 the form the probabilistic layer uses. The reverse extractor's stage `j` hands its NIFS

@@ -66,6 +66,16 @@ import NightstreamFPrime.Export.OptionB.FinishCompleteness
 import NightstreamFPrime.Lifecycle.OptionB.Terminal
 import NightstreamFPrime.Lifecycle.OptionB.FreshInstance
 import NightstreamFPrime.Spec.Folding.Light.RlcModule
+import NightstreamFPrime.Layout.PiCCS.v1_2.Leaves.OutputBinding
+import NightstreamFPrime.Lifecycle.OptionB.RandomOracle.LightKnowledge
+import NightstreamFPrime.Lifecycle.OptionB.RandomOracle.RefreshKnowledge
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Completeness
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.ZeroRunningPolynomial
+import NightstreamFPrime.Lifecycle.RandomOracle.Budgeted
+import NightstreamFPrime.Spec
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.TargetConvention
+import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
+import NightstreamFPrime.Spec.Nebula
 
 open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 
@@ -458,8 +468,10 @@ open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 #audit_axioms NightstreamFPrime.Export.OptionB.TerminalBridge.linked_of_holdsFor
 #audit_axioms NightstreamFPrime.Export.OptionB.TerminalBridge.bridge_linked
 #audit_axioms NightstreamFPrime.Export.OptionB.TerminalBridge.bridge
+#audit_axioms NightstreamFPrime.Export.OptionB.StepRelation.lightOutput_runningNext
 #audit_axioms NightstreamFPrime.Export.OptionB.StepRelation.lightRepresents
 #audit_axioms NightstreamFPrime.Export.OptionB.StepRelation.light_stepHolds
+#audit_axioms NightstreamFPrime.Export.OptionB.StepRelation.refreshOutput_runningNext
 #audit_axioms NightstreamFPrime.Export.OptionB.StepRelation.refreshRepresents
 #audit_axioms NightstreamFPrime.Export.OptionB.StepRelation.refresh_stepHolds
 #audit_axioms NightstreamFPrime.Export.OptionB.StepRelation.publicInput_eq_project

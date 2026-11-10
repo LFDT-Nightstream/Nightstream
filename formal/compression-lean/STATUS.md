@@ -271,7 +271,7 @@ Parameters: `{lw : ℕ}`, `{relation : NightstreamFPrime.Lifecycle.ProductionKey
 
 ## Ports
 
-`ports.json` has 580 entries: 518 Lean declarations transcribe 311 Rust items.
+`ports.json` has 590 entries: 524 Lean declarations transcribe 315 Rust items.
 
 | Lean module | Declarations |
 |---|---:|
@@ -297,7 +297,7 @@ Parameters: `{lw : ℕ}`, `{relation : NightstreamFPrime.Lifecycle.ProductionKey
 | `CompressionLean.Ports.Circuit.Views` | 17 |
 | `CompressionLean.Ports.Circuit.Whir` | 19 |
 | `CompressionLean.Ports.Layer1.Budget` | 5 |
-| `CompressionLean.Ports.OptionB.Program` | 24 |
+| `CompressionLean.Ports.OptionB.Program` | 30 |
 | `CompressionLean.Ports.Replay.Data` | 39 |
 | `CompressionLean.Ports.Replay.Field` | 16 |
 | `CompressionLean.Ports.Replay.Formulas` | 39 |
@@ -354,7 +354,7 @@ Parameters: `{lw : ℕ}`, `{relation : NightstreamFPrime.Lifecycle.ProductionKey
 | `crates/nightstream-fprime/src/option_b/expand.rs` | 4 |
 | `crates/nightstream-fprime/src/option_b/words.rs` | 1 |
 | `crates/nightstream/src/lifecycle/option_b/compression.rs` | 2 |
-| `crates/nightstream/src/lifecycle/option_b/final_program.rs` | 14 |
+| `crates/nightstream/src/lifecycle/option_b/final_program.rs` | 18 |
 | `crates/nightstream/tests/option_b_lifecycle/runs_file.rs` | 4 |
 
 ## Digest pins

@@ -1,4 +1,5 @@
 import NightstreamFPrime.Lifecycle.Nebula.HonestWitness
+import NightstreamFPrime.Spec.GoldilocksExtensionRing
 
 /-! Owns the polynomial rows of the honest witness (completeness of the relation):
 for a reachable carry and an invocation that `invoke` accepts, every row of

@@ -2,6 +2,7 @@ import NightstreamFPrime.Export.Stage1.PiRLCCombinationConformance
 import NightstreamFPrime.Export.Stage1.PiRLCCombinationProjection
 import NightstreamFPrime.Export.Stage1.PiRLCPackageCompleteness
 import NightstreamFPrime.Layout.R1CS.Segments
+import NightstreamFPrime.Export.Stage1.Package
 
 namespace NightstreamFPrime.Export.Stage1.PiRLCCombinationCompleteness
 

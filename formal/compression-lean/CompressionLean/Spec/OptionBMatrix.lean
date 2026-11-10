@@ -2,6 +2,12 @@ import CompressionLean.Spec.Runs
 import CompressionLean.Spec.Checks
 import NightstreamFPrime.Export.OptionB.StepPackage
 import NightstreamFPrime.Export.Generic.SlotLayout
+import NightstreamFPrime.Lifecycle.Nebula.FactorWords
+import NightstreamFPrime.Spec
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.GoldilocksCausal
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.TargetConvention
+import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
+import NightstreamFPrime.Spec.Nebula
 
 /-! The matrices of option B's circuit keys (CW-6.5). A circuit key's relation is its circuit's rows
 read through a layout at the key width, then 150 S-box rows for each Poseidon2 block

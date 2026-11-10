@@ -5,6 +5,8 @@ import NightstreamFPrime.Export.Stage1.PiCCSOrdinaryMatrixProgram
 import NightstreamFPrime.Export.Stage1.PiDECOrdinaryDirectSource
 import NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryMatrixSchedule
 import NightstreamFPrime.Export.Stage1.PilotOrdinaryMatrixProgram
+import NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryDirectSource
+import NightstreamFPrime.Export.Stage1.PilotOrdinaryDirectSource
 
 namespace NightstreamFPrime.Export.Stage1.PerApplicationPackageSourceRows
 

@@ -29,11 +29,10 @@ def output (_interface : Interface) (offset : Nat) : EState :=
 def operations (interface : Interface) (offset : Nat) : List Op :=
   [.witness (WitnessBatch.arithmetic offset (program interface offset).recipes)]
 
-set_option maxRecDepth 100000 in -- fixed-size: one Poseidon2 permutation, not artifact data
 theorem flatConstraints_operations (interface : Interface) (offset : Nat) :
     flatConstraints (operations interface offset) =
-      recipeConstraints offset (program interface offset).recipes := by
-  rfl
+      recipeConstraints offset (program interface offset).recipes :=
+  flatConstraints_singleton _
 
 def main (interface : Interface) : Circuit Unit := fun offset =>
   ((), offset + (program interface offset).recipes.length,

@@ -6,7 +6,7 @@ not define accepted proofs or verifier behavior.
 
 Authority is separate:
 
-- `docs/superneo-paper/` contains the reviewed paper.
+- `docs/superneo-paper-v1_2/` contains the reviewed paper. It is a local folder and is not in git.
 - `formal/nightstream-fprime/SECURITY_MODEL.md` states the production proof
   authority.
 - Rust and Lean provide implementation and proof evidence.
@@ -18,7 +18,9 @@ Each decision must use one kebab-case file with these sections:
 3. **SuperNeo**: what the paper fixes and what it leaves open.
 4. **Decision**: the selected rule and its required assumptions.
 
-Keep each record short. Link to the normative rule and its evidence. Do not
+Keep each record short. Link to the normative rule and its evidence. A Lean
+name in backticks must exist: `validate.sh axioms` and `validate.sh compression`
+fail when a record cites a name that is not a declaration or a module. Do not
 put implementation history, migration plans, generated row counts, benchmark
 results, or status diaries here. A decision that changes accepted inputs,
 proof messages, transcript order, or proof bytes must also update

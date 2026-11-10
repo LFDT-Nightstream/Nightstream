@@ -1,4 +1,4 @@
-//! Selected PiRLC. Public verification recomputes every parent coordinate.
+//! Selected PiRLC, prover side. The rows of the step circuit check the parent (SPEC.md Algorithm 3).
 use super::{
     has_canonical_evaluations, kernels as engine, superneo_has_canonical_x_shape, transcript::Transcript, CeClaim,
     Params, RlcMixer, Structure,

@@ -1,6 +1,7 @@
 import NightstreamFPrime.Spec.Phi81Relation.Types
 
-/-! SuperNeo v1.2 Definition 21. -/
+/-! The matrix evaluations `y_j` of SuperNeo v1.2 Definition 21.
+`Lifecycle.PaperAlgebra.padEvaluation` is the Pad evaluation `y`. -/
 
 namespace NightstreamFPrime.Spec.Phi81Relation
 

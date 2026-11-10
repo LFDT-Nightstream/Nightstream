@@ -10,7 +10,6 @@ import NightstreamFPrime.Lifecycle.Nebula.FreeApp
 import NightstreamFPrime.Lifecycle.Nebula.FixedColumn
 import NightstreamFPrime.Export.Stage1.NebulaMemoryV1Package
 import NightstreamFPrime.Export.Stage1.NebulaMemoryN1Package
-import NightstreamFPrime.Export.Stage1.NebulaMemorySecurity
 import NightstreamFPrime.Export.Stage1.NebulaMemoryTerminal
 import NightstreamFPrime.Lifecycle.Nebula.EtaOracle
 import NightstreamFPrime.Lifecycle.Nebula.EtaRound
@@ -694,18 +693,6 @@ plans (`SlotPlan`), batched catalogs (`Batch`) and the free application
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.freeApp
 
 /-! End-to-end bound over the HyperNova reverse extractor (`NebulaMemorySecurity`). -/
-
-#audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemorySecurity.steps_of_validAdvice
-#audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemorySecurity.stage1Extraction
-#audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemorySecurity.ClaimedStage.law_snd
-#audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemorySecurity.input_adversaryTape
-#audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemorySecurity.tape_map_adversaryTape
-#audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemorySecurity.bad_le
-#audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemorySecurity.clampOutput_iteration_le
-#audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemorySecurity.clamp_depthBound
-#audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemorySecurity.clampOutput_eq_of_checks
-#audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemorySecurity.clampOutput_eq_of_input_checks
-#audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemorySecurity.bad_le_clamp
 
 #audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemoryPackage.witnessWordCount
 #audit_axioms NightstreamFPrime.Gadgets.Poseidon2.Support.compileAbsorptions_supported

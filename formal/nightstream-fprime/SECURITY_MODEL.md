@@ -224,6 +224,11 @@ item 5).
   (`Export.OptionB.IvcWalk.Reaches`). The bridge's selector returns the
   circuit that ran only on a valid step (`Export.OptionB.TerminalBridge.chosen`),
   so each decoded step is valid (`Export.OptionB.TerminalBridge.valid_of_chosen`).
+- **Paper:** HyperNova Definition 11 (ii) states knowledge soundness: its
+  event is on the witnesses that the extractor returns. This result bounds a
+  false acceptance, which is the weaker soundness form. For one run,
+  `Export.OptionB.IvcWalk.covered` gives the extractor form without
+  probabilities: the walk gives the witnesses, a collision or a failed stage.
 - **Start from a final proof:** the finish fold of a last fold is one more
   stage before the walk. An answer that extracts it gives an accepted
   terminal for the finish step's input
@@ -348,11 +353,12 @@ item 5).
      `2^27.03` (`Spec.Folding.Schedule.production_msisChainBound`). It is the
      SuperNeo v1.2 Section 8 norm `8TB` with `B` replaced by the largest
      recovered bound (`Spec.Folding.Schedule.msisChainBound_zero`). The
-     decider checks each slot below `B`. By Cyclo Theorem 3, an honest slot
-     stays below `accumulatorBound cap = 17,496`
-     (`Spec.GlobalParams.accumulatorBound`, `SPEC.md` Algorithm 7); Lean does
-     not prove this over a schedule. The recovered bound, and so the chain norm,
-     comes from the decider bound `B`, not from the honest bound.
+     decider checks each slot below `B`. By Cyclo Theorem 3, the norm of an
+     honest slot is at most `accumulatorBound cap = 17,496`
+     (`Spec.GlobalParams.accumulatorBound`, `SPEC.md` Algorithm 7), and Lean
+     proves this along an honest run (`Export.OptionB.StepExtend.Honest`). The
+     recovered bound, and so the chain norm, comes from the decider bound `B`,
+     not from the honest bound.
    - *The κ estimate.* A lattice-estimator run outside Lean (commit 38618db),
      with the method and the matrix of 22 × 4,708,530 ring elements of the
      baseline in `decisions/fprime-ajtai-public-seed-msis-assumption.md`,
@@ -417,9 +423,12 @@ item 5).
      collision on a pair of states that the adversary outputs.
    - The relations have a key. A claim holds under the key of its slot, and
      every fold of an accepted history uses the slot's key.
-   - The transcript is not the one of HyperNova Construction 3, which absorbs
-     `sid` (the structure and the public parameters) and the running instance
-     before the first challenge. The fold transcripts absorb a domain block,
+   - The transcript is not the one of HyperNova Construction 3. The published
+     construction hashes the public parameters and the structure into the
+     first challenge and derives each later challenge from the prover's
+     message. The errata's construction absorbs `sid` (the structure and the
+     public parameters) and the instances before the first challenge. The
+     fold transcripts absorb a domain block,
      the fresh statement, the children of a refresh fold and the prover
      messages (`SPEC.md` section 5.2). The structure, the keys and the
      accumulator enter only through the prior digest. So `Assumption1` is a
@@ -545,7 +554,11 @@ item 5).
   `Export.OptionB.StepCompleteness.refresh_complete`). The terminal accepts
   the honest proof of every valid run
   (`Export.OptionB.RunCompleteness.run_complete`) and of every memory
-  execution (`Export.OptionB.NebulaCompleteness.memory_complete`). These
+  execution (`Export.OptionB.NebulaCompleteness.memory_complete`). HyperNova
+  Definition 11 (i) extends each proof that the verifier accepts. Lean extends
+  the initial proof and each accepted proof whose slots are honest
+  (`Export.OptionB.RunCompleteness.accepts_step`). The terminal accepts each
+  slot witness below `B`, which is a larger bound. These
   results take as premises three package checks that the emitter evaluates
   (`Export.OptionB.StepExtend.Complete`), key digests of four words, and
   witnesses of the application's witness length. For the finish step and
@@ -585,7 +598,7 @@ item 5).
 - The Rust-built memory relation of an application or geometry that no Lean
   package fixes, the binding rows of the Rust catalog backend, the rows of
   `nebula::R1csApplication` that link the rows of a batched step, and the
-  WASM relation itself (`SPEC.md` sections 7.6 and 7.7). Lean proves what the slot plan conditions give
+  WASM relation itself (`SPEC.md` sections 7.6 to 7.8). Lean proves what the slot plan conditions give
   (`Spec.Nebula.MemoryTrace.reorders_of_slotOrder`) and that batched steps
   are memory consistent exactly when their rows are
   (`Spec.Nebula.MemoryTrace.memoryConsistent_batchCatalog_iff`), but not

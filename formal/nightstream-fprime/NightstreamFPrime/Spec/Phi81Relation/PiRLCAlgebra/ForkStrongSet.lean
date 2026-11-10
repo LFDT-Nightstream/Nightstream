@@ -52,12 +52,12 @@ theorem ringLaws : CommutativeRingLaws ring where
   right_distrib := EvaluationHomomorphism.CarrierAction.ringFMul_add_left
 
 noncomputable def strongSetUnits
-    (theorem8 : Phi81StrongSet.LowNormInvertibility) :
+    (invertibility : Phi81StrongSet.LowNormInvertibility) :
     StrongSetUnits ring Challenge.challengeValid where
   differenceUnit := by
     intro left right leftValid rightValid different
     have invertible := Challenge.pairwiseSecure_of_lowNormInvertibility
-      theorem8 leftValid rightValid different
+      invertibility leftValid rightValid different
     let inverse := Classical.choose invertible
     have inverseLaws := Classical.choose_spec invertible
     refine {

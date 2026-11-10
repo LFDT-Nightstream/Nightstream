@@ -29,7 +29,7 @@ The matrix is `A := Expand(seed, params)` with the following fixed inputs.
 | Profile | `b=2`, `k_rho=16`, `B=65536`, `T=216` |
 | Required MSIS norm | Strict coefficient bound `8TB=113246208` |
 
-The implementation sources are `Spec/AjtaiSetupV1.lean`, `Spec/AjtaiSetupV1/ChaCha20.lean`, `Spec/Profile.lean`, and the selected `Export/Stage1/Poseidon2HashChainV1Setup*.lean` modules. Their deterministic execution, framing, coefficient ranges and selected dimensions have checked Lean evidence.
+The implementation sources are `Spec/AjtaiSetupV1.lean`, `Spec/AjtaiSetupV1/ChaCha20.lean` (removed in commit `e81c9756e`, which changed the expander to SHAKE128), `Spec/Profile.lean`, and the selected `Export/Stage1/Poseidon2HashChainV1Setup*.lean` modules. Their deterministic execution, framing, coefficient ranges and selected dimensions have checked Lean evidence.
 
 ## Hardness premise and seed independence
 

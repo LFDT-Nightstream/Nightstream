@@ -99,7 +99,9 @@ impl Relation {
 
     /// The committed instance of a logical assignment: the public prefix and
     /// the witness matrix, one D-lane column per block, under the production
-    /// key.
+    /// key. The key commits entries in {-1, 0, 1} only, so the matrix holds
+    /// one mask of the 1 lanes and one of the -1 lanes for each block (Lean
+    /// `FreshInstance.Masks`, `FreshInstance.built`).
     pub(crate) fn instance(&self, logical: &[F]) -> Result<CcsInstance, RelationError> {
         if logical.len() != self.layout.width() {
             return Err(RelationError::Width {
@@ -107,15 +109,22 @@ impl Relation {
                 got: logical.len(),
             });
         }
-        let blocks = self.blocks();
-        let witness = Mat::from_row_major(
-            D,
-            blocks,
-            (0..D)
-                .flat_map(|lane| (0..blocks).map(move |block| block * D + lane))
-                .map(|column| logical.get(column).copied().unwrap_or(F::ZERO))
-                .collect(),
-        );
+        let (mut positive, mut negative) = (vec![0u64; self.blocks()], vec![0u64; self.blocks()]);
+        for (column, &value) in logical.iter().enumerate() {
+            if value == F::ONE {
+                positive[column / D] |= 1 << (column % D);
+            } else if value == -F::ONE {
+                negative[column / D] |= 1 << (column % D);
+            } else if value != F::ZERO {
+                return Err(neo_ajtai::AjtaiError::RangeViolation {
+                    value: neo_math::balanced::to_balanced_i128(value),
+                    bound: 2,
+                }
+                .into());
+            }
+        }
+        let witness = Mat::compact_signed_unit_from_column_masks(D, self.blocks(), &positive, &negative)
+            .expect("one disjoint mask pair of D lanes for each block");
         let commitment = commit_production_signed_unit_prefix_matrix(&witness)?;
         Ok(CcsInstance {
             claim: CcsClaim {
@@ -180,9 +189,18 @@ impl Relation {
         if z.rows() != D || z.cols() != self.blocks() {
             return Err("witness shape");
         }
-        let logical: Vec<F> = (0..self.blocks() * D)
-            .map(|column| z[(column % D, column / D)])
-            .collect();
+        let logical: Vec<F> = match z.packed_signed_unit_column_masks() {
+            Some((positive, negative)) => positive
+                .iter()
+                .zip(negative)
+                .flat_map(|(&positive, &negative)| {
+                    (0..D).map(move |lane| F::from_u64((positive >> lane) & 1) - F::from_u64((negative >> lane) & 1))
+                })
+                .collect(),
+            None => (0..self.blocks() * D)
+                .map(|column| z[(column % D, column / D)])
+                .collect(),
+        };
         let width = self.layout.width();
         if logical[width..].iter().any(|value| *value != F::ZERO) {
             return Err("nonzero witness tail");
@@ -193,12 +211,14 @@ impl Relation {
         if commit_production_signed_unit_prefix_matrix(z).map_err(|_| "witness outside {-1, 0, 1}")? != claim.c {
             return Err("fixed-key commitment differs from the witness");
         }
+        self.rows_hold(&logical[..width])
+    }
+
+    /// Every row of the relation holds on the logical assignment `logical`.
+    pub(crate) fn rows_hold(&self, logical: &[F]) -> Result<(), &'static str> {
         let check = |rows: Range<usize>| {
             for row in rows {
-                let [a, b, c, s] = [0, 1, 2, 3].map(|port| {
-                    self.layout
-                        .evaluate(&self.rows, row, port, &logical[..width])
-                });
+                let [a, b, c, s] = [0, 1, 2, 3].map(|port| self.layout.evaluate(&self.rows, row, port, logical));
                 let (Ok(a), Ok(b), Ok(c), Ok(s)) = (a, b, c, s) else {
                     return Err("row evaluation");
                 };

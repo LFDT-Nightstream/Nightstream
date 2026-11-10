@@ -63,6 +63,7 @@ import NightstreamFPrime.Export.OptionB.FinishRelation
 import NightstreamFPrime.Layout.OptionB.FinishAssemblerCompleteness
 import NightstreamFPrime.Export.OptionB.FinishCompleteness
 import NightstreamFPrime.Lifecycle.OptionB.Terminal
+import NightstreamFPrime.Lifecycle.OptionB.FreshInstance
 import NightstreamFPrime.Spec.Folding.Light.RlcModule
 
 open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
@@ -362,6 +363,10 @@ open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.Terminal.transition_forCircuit
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.Terminal.holdsFor_recursive_iff
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.Terminal.rejects_counter_shift
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.FreshInstance.Masks.unit_of_norm
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.FreshInstance.Masks.assignment_norm
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.FreshInstance.Masks.assignment_ofAssignment
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.FreshInstance.built_holds_iff
 #audit_axioms NightstreamFPrime.Layout.OptionB.StepCircuits.soundness
 #audit_axioms NightstreamFPrime.Export.Generic.Pieces.linear?_eval
 #audit_axioms NightstreamFPrime.Export.Generic.Pieces.flatMap_split

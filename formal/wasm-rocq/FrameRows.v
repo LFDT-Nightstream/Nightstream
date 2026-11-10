@@ -5,7 +5,7 @@
 From Stdlib Require Import List ZArith Lia.
 Require Import Wasm2 WasmIntegers WasmValues Add R1CS Columns Range FullRelation MemoryTrace MemoryCatalog OpcodeCatalog SlideLayout
   TraceRefinement StraightLineSpec StackSimulation LocalSimulation SpecTecCalls SpecTecBranches CallerSpec
-  CallerRefinement ProgramSpec ProgramEncoding CodeLayout BlockSpec BlockBindings BlockEncoding BlockInstructions
+  CallerRefinement ProgramSpec ProgramEncoding CodeLayout BlockSpec BlockBindings BlockEncoding IntegerInstructions
   BlockTrace BranchBindings StackBindings CallInitialization Selectors CallScope CallContext CallMemory LocalBindings
   StraightLineInstructions ProgramBinding Fragment CodeFacts ControlDecode ControlInvariant FrameFacts ControlBridge
   CallSpec CircuitFacts IntegerMemory IntegerDecode IntegerStack.
@@ -155,27 +155,6 @@ Proof.
   intros initial final row fbp Hreplay Hwrites Hpush Hsuspend Hread. constructor.
   - intros index limb _ _. eapply no_stack_writes_preserve; eassumption.
   - intros memory column address Hin. eapply context_preserved_without_push; eassumption.
-Qed.
-
-(* An ordinary row under a stack prefix: the prefix is just more of the frame's stack. *)
-Lemma framed_row_scope : forall prefix values i z initial final row,
-  fieldPrime -> FullRelation.satFull row -> row COL_IS_PROGRAM_ROW = 1 ->
-  Replay initial (eventsForRow memories row) final -> encodedOpcode i = Some (row COL_OPCODE_CODE) ->
-  wf_state z -> wf_instr i -> programTyped (length (stateLocals z)) (length values) [i] ->
-  stackMatches initial (beforeBoundary row) (prefix ++ values) -> localsMatch initial (beforeBoundary row) z ->
-  row COL_LOCALS_FBP_BEFORE <= row COL_STACK_FRAME_BASE_BEFORE ->
-  FrameEffect (row COL_LOCALS_FBP_BEFORE) initial final /\
-  frameRegistersPreserved row.
-Proof.
-  intros prefix values i z initial final row Hprime Hfull Hprogram Hreplay Hcode Hz Hi Htyped Hstack Hlocals Hlayout.
-  eapply frame_row_scope with (z := z) (rest := []) (c0 := stackConfig z (prefix ++ values) [i]); try eassumption.
-  split.
-  - rewrite (stack_matches_height _ _ _ Hstack), length_app, Nat.add_comm.
-    destruct (encoded_opcode_cases _ _ Hcode) as [[-> _] | [[-> _] | [[x [-> _]] | [x [-> _]]]]];
-      cbn [programTyped instructionStackHeight] in Htyped |- *;
-      destruct (length values) as [ | [ | n]]; cbn in Htyped |- *; tauto.
-  - exists (prefix ++ values). split; [exact Hstack | ]. split; [reflexivity | ]. split; [ | exact Hlocals].
-    apply stack_config_wf; [exact Hz | exact (proj1 (proj2 (proj2 Hstack))) | constructor; [exact Hi | constructor]].
 Qed.
 
 (* The frame's SpecTec state and its memory representation. *)
@@ -350,9 +329,9 @@ Proof.
   split; [symmetry; apply firstn_skipn | rewrite length_skipn; lia].
 Qed.
 
-(* The four ordinary row proofs still use their scalar i32 interface. This
-   adapter converts only their inputs and outputs; frame storage stays typed. *)
-Lemma value_framed_instruction : forall prefix values instruction z initial final row,
+(* Specialize integer_instruction to the current frame invariant. The row
+   engine itself preserves mixed operands and locals. *)
+Lemma value_framed_instruction : forall prefix values instruction z initial final row (callees : CalleeEnvironment),
   fieldPrime -> FullRelation.satFull row -> row COL_IS_PROGRAM_ROW = 1 ->
   Replay initial (eventsForRow memories row) final ->
   instructionImage initial (row COL_PC_BEFORE) instruction ->
@@ -372,29 +351,45 @@ Lemma value_framed_instruction : forall prefix values instruction z initial fina
     row COL_PC_AFTER = row COL_PC_BEFORE + 1 /\ frameRegistersPreserved row /\
     FrameEffect (row COL_LOCALS_FBP_BEFORE) initial final.
 Proof.
-  intros prefix values instruction z initial final row Hprime Hfull Hprogram Hreplay Himage Hz Hi Htyped
+  intros prefix values instruction z initial final row callees Hprime Hfull Hprogram Hreplay Himage Hz Hi Htyped
     Hbounds Hstack Hlocals Hlayout.
-  apply Forall_app in Hbounds as [Hp Hv].
-  destruct (i32_operands_inv _ Hp) as [rawPrefix [-> Hprefix]].
-  destruct (i32_operands_inv _ Hv) as [raw [-> Hraw]].
-  rewrite length_map in Htyped. rewrite <- map_app in Hstack.
-  assert (Hbounds : Forall (fun v => 0 <= v < i32Modulus) (rawPrefix ++ raw))
-    by (apply Forall_app; auto).
-  apply (proj1 (value_stack_matches_i32 _ _ _ Hbounds)) in Hstack.
-  destruct (framed_instruction rawPrefix raw instruction z initial final row Hprime Hfull Hprogram Hreplay Himage
-    Hz Hi Htyped Hstack Hlocals Hlayout)
-    as [z' [raw' [[Hstep [Hz' [Hstack' [Hlocals' [Hsame Hheight]]]]] [Hnext Hregs]]]].
   pose proof (circuit_row_opcode_fetch _ _ _ Hreplay Hprogram) as Hfetch.
   rewrite (proj1 Himage) in Hfetch.
-  destruct (framed_row_scope rawPrefix raw instruction z initial final row Hprime Hfull Hprogram Hreplay Hfetch
-    Hz Hi Htyped Hstack Hlocals ltac:(cbn [beforeBoundary boundaryLocalsBase boundaryStackBase] in Hlayout; lia))
-    as [Heffect _].
-  pose proof (proj1 (proj2 (proj2 Hstack'))) as Hbounds'.
-  exists z', (map i32Value raw'). rewrite !length_map, <- map_app, !value_stack_config_i32.
-  split; [exact Hstep | ]. split; [exact Hz' | ].
-  split; [apply (proj2 (value_stack_matches_i32 _ _ _ Hbounds')); exact Hstack' | ].
-  split; [exact Hlocals' | ]. split; [exact Hsame | ]. split; [exact Hheight | ].
-  split; [apply i32_operands_map; exact Hbounds' | ]. auto.
+  assert (HlocalBounds : Forall i32Operand (stateLocals z)).
+  { apply Forall_forall. intros value Hin. apply In_nth_error in Hin as [index Hnth].
+    destruct (Hlocals _ _ Hnth) as [raw [-> [Hbound _]]]. exists raw. auto. }
+  assert (HlocalCells : valueLocalsMatch initial (row COL_LOCALS_FBP_BEFORE) (stateLocals z)).
+  { intros index value Hnth. destruct (Hlocals _ _ Hnth) as [raw [-> [Hbound Hcell]]].
+    constructor; [exact Hbound | exact Hcell]. }
+  destruct (ordinary_i32_types _ _ _ callees
+    ltac:(eexists; exact Hfetch) Htyped) as [next [Hheight Htypes]].
+  rewrite <- (i32_operand_types _ HlocalBounds),
+    <- (i32_operand_types _ (proj2 (proj1 (Forall_app _ _ _) Hbounds))) in Htypes.
+  destruct (integer_instruction prefix values instruction z initial final row _ _ Hprime Hfull Hprogram
+    Hreplay Himage Hz Hi Htypes Hstack HlocalCells Hlayout)
+    as [z' [values' [[Hstep [Hz' [Hstack' [Hlocals' [Hsame [HlocalTypes HvalueTypes]]]]]] [Hnext Hregs]]]].
+  assert (HvalueLen : length values' = next).
+  { pose proof (f_equal (@length valtype) HvalueTypes) as H.
+    unfold valueTypes in H. rewrite length_map, repeat_length in H. exact H. }
+  assert (Hbounds' : Forall i32Operand (prefix ++ values')).
+  { eapply cell_values_i32; [ | exact (proj2 (proj2 Hstack'))].
+    unfold valueTypes at 1. rewrite map_app. fold (valueTypes prefix) (valueTypes values').
+    rewrite (i32_operand_types _ (proj1 (proj1 (Forall_app _ _ _) Hbounds))), HvalueTypes,
+      length_app, HvalueLen, repeat_app. reflexivity. }
+  assert (HlocalsBound' : Forall i32Operand (stateLocals z')).
+  { eapply cell_values_i32; [ | exact Hlocals'].
+    rewrite HlocalTypes, (i32_operand_types _ HlocalBounds), (proj2 (proj2 Hsame)). reflexivity. }
+  exists z', values'. split; [exact Hstep | ]. split; [exact Hz' | ]. split; [exact Hstack' | ]. split.
+  - intros index value Hnth.
+    destruct (proj1 (Forall_forall _ _) HlocalsBound' _ (nth_error_In _ _ Hnth)) as [raw [Hbound ->]].
+    exists raw. split; [reflexivity | ]. split; [exact Hbound | ].
+    destruct Hregs as [_ [_ Hfbp]]. cbn [afterBoundary boundaryLocalsBase]. rewrite Hfbp.
+    eapply cell_matches_i32_read; [exact (proj1 Hbound) | exact (Hlocals' _ _ Hnth)].
+  - split; [exact Hsame | ]. split; [now rewrite HvalueLen | ]. split; [exact Hbounds' | ].
+    split; [exact Hnext | ]. split; [exact Hregs | ].
+    eapply integer_row_scope; [exact Hprime | exact Hfull | exact Hprogram | exact Hreplay | exact Hfetch |
+      exact Htypes | exact Hstack | ].
+    cbn [beforeBoundary boundaryLocalsBase boundaryStackBase] in Hlayout. lia.
 Qed.
 
 Lemma value_instruction_suffix_steps : forall z z' values values' i rest,
@@ -462,7 +457,7 @@ Proof.
       boundaryStackBase (beforeBoundary row))
     by (cbn [z beforeBoundary boundaryLocalsBase boundaryStackBase stateLocals activeFrame LOCALS];
         rewrite Hllen0; lia).
-  destruct (value_framed_instruction (concat segments) values i z initial final row Hprime Hfull Hprogram Hreplay
+  destruct (value_framed_instruction (concat segments) values i z initial final row (programCallees program (guestModule f)) Hprime Hfull Hprogram Hreplay
     Himage Hz Hwi Htyped' Hbounds Hstack Hlocals Hlayout)
     as [z' [values' [Hstep [Hz' [Hstack' [Hlocals' [Hsame [Hheight' [Hbounds' [Hnext [Hregs Heffect]]]]]]]]]]].
   destruct Hsame as [Hstore' [Hmodule' Hlen']].

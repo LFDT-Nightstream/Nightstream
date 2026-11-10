@@ -58,6 +58,67 @@ Proof.
   intros values H; induction H; cbn; constructor; [split; [reflexivity | apply i32_value_wf; assumption] | assumption].
 Qed.
 
+(* These projections are used only on values read through CellMatches. The
+   fallback cannot occur there; cell_value_type proves that fact. *)
+Definition valueType (value : val) : valtype :=
+  match integerValueType value with Some t => t | None => BOT end.
+Definition valueTypes (values : list val) : list valtype := map valueType values.
+
+Lemma cell_value_type : forall memory cell value,
+  CellMatches memory cell value -> integerValueType value = Some (valueType value).
+Proof. intros memory cell value H; destruct H; reflexivity. Qed.
+
+Lemma cell_i32_operand : forall memory cell value,
+  CellMatches memory cell value -> valueType value = valtype_I32 ->
+  exists raw, 0 <= raw < i32Modulus /\ value = i32Value raw.
+Proof.
+  intros memory cell value Hcell Htype. destruct Hcell; [eauto | discriminate].
+Qed.
+
+Lemma values_typed_projection : forall types values,
+  valuesTyped types values -> valueTypes values = types.
+Proof.
+  intros types values H. induction H as [ | t value types values [Ht Hw] Hrest IH];
+    cbn [valueTypes map]; [reflexivity | ].
+  unfold valueType. rewrite Ht. f_equal. exact IH.
+Qed.
+
+Lemma values_typed_app : forall types values types' values',
+  valuesTyped types values -> valuesTyped types' values' ->
+  valuesTyped (types ++ types') (values ++ values').
+Proof. intros. now apply Forall2_app. Qed.
+
+Lemma values_typed_firstn : forall types values count,
+  valuesTyped types values -> valuesTyped (firstn count types) (firstn count values).
+Proof.
+  intros types values count H. revert count. induction H; intros [ | count]; cbn; constructor; auto; apply IHForall2.
+Qed.
+
+Lemma values_typed_skipn : forall types values count,
+  valuesTyped types values -> valuesTyped (skipn count types) (skipn count values).
+Proof.
+  intros types values count H. revert count. induction H; intros [ | count]; cbn; auto; try constructor; auto.
+Qed.
+
+Lemma values_typed_nth : forall types values index value,
+  valuesTyped types values -> nth_error values index = Some value ->
+  nth_error types index = Some (valueType value).
+Proof.
+  intros types values index value H Hnth. rewrite <- (values_typed_projection _ _ H).
+  unfold valueTypes. now rewrite nth_error_map, Hnth.
+Qed.
+
+Lemma cell_values_typed : forall memory address values,
+  (forall index value, nth_error values index = Some value -> CellMatches memory (address index) value) ->
+  valuesTyped (valueTypes values) values.
+Proof.
+  intros memory address values. revert address.
+  induction values as [ | value rest IH]; intros address Hcells; cbn [valueTypes map]; constructor.
+  - split; [eapply cell_value_type | eapply cell_matches_wf]; apply (Hcells 0%nat); reflexivity.
+  - apply (IH (fun index => address (S index))). intros index v Hnth.
+    exact (Hcells (S index) v Hnth).
+Qed.
+
 (* Compatibility predicate for the current i32-only program fragment. The
    frame representation keeps values typed even while this restriction holds. *)
 Definition i32Operand (value : val) : Prop :=
@@ -83,6 +144,26 @@ Proof.
   intros values H. induction H as [ | value values [raw [Hr ->]] Hvalues [rest [-> Hrest]]].
   - exists []. split; constructor.
   - exists (raw :: rest). split; [reflexivity | constructor; assumption].
+Qed.
+
+Lemma i32_operand_types : forall values,
+  Forall i32Operand values -> valueTypes values = repeat valtype_I32 (length values).
+Proof.
+  intros values H. induction H as [ | value values [raw [Hbound ->]] Hrest IH]; cbn; [reflexivity | ].
+  unfold valueTypes in *. cbn [map length repeat valueType integerValueType i32Value]. now rewrite IH.
+Qed.
+
+Lemma cell_values_i32 : forall memory address values,
+  valueTypes values = repeat valtype_I32 (length values) ->
+  (forall index value, nth_error values index = Some value -> CellMatches memory (address index) value) ->
+  Forall i32Operand values.
+Proof.
+  intros memory address values Htypes Hcells. apply Forall_forall. intros value Hin.
+  apply In_nth_error in Hin as [index Hnth]. apply (cell_i32_operand _ _ _ (Hcells _ _ Hnth)).
+  pose proof (f_equal (fun types => nth_error types index) Htypes) as H.
+  unfold valueTypes in H. rewrite nth_error_map, Hnth in H.
+  rewrite nth_error_repeat in H by (apply nth_error_Some; rewrite Hnth; discriminate).
+  now injection H.
 Qed.
 
 Definition readIntegerCell (memory : MemoryState) (cell : Z) (t : valtype) : option val :=
@@ -275,6 +356,22 @@ Proof.
   intros memory address types values H. apply read_integer_cells_some in H as [_ Hcells].
   apply Forall_forall. intros value Hin. apply In_nth_error in Hin as [index Hindex].
   eapply cell_matches_wf. exact (Hcells _ _ Hindex).
+Qed.
+
+Lemma read_integer_operands_cells : forall memory base types remaining distance values,
+  readIntegerOperands memory base types remaining distance = Some values <->
+  valuesTyped types values /\
+  (forall index value, nth_error values index = Some value ->
+    CellMatches memory (operandCell base (length values) remaining distance index) value).
+Proof.
+  intros memory base types remaining distance values. unfold readIntegerOperands. split.
+  - intros Hread. pose proof (read_integer_cells_wf _ _ _ _ Hread) as Hwf.
+    apply read_integer_cells_some in Hread as [Htypes Hcells].
+    pose proof (Forall2_length Htypes) as Hlength. rewrite Hlength in Hcells.
+    split; [apply values_typed_intro; assumption | exact Hcells].
+  - intros [Htypes Hcells]. apply read_integer_cells_some.
+    split; [apply values_typed_types; exact Htypes | ].
+    rewrite (Forall2_length Htypes). exact Hcells.
 Qed.
 
 Lemma read_integer_cells_addresses : forall memory types first second,

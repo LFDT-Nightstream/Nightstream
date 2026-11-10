@@ -91,6 +91,21 @@ Proof.
   - intros [prefix [-> ->]]. apply replace_stack_types_exact.
 Qed.
 
+Lemma replace_stack_types_suffix : forall inputs outputs prefix actual next,
+  length actual = length inputs ->
+  replaceStackTypes inputs outputs (prefix ++ actual) = Some next ->
+  actual = inputs /\ next = prefix ++ outputs.
+Proof.
+  intros inputs outputs prefix actual next Hlength.
+  unfold replaceStackTypes. rewrite length_app, Hlength.
+  replace (length inputs <=? length prefix + length inputs) with true by (symmetry; apply Nat.leb_le; lia).
+  replace (length prefix + length inputs - length inputs) with (length prefix) by lia.
+  rewrite skipn_app, skipn_all, Nat.sub_diag. cbn [skipn app].
+  destruct (list_eq_dec valtype_eq_dec actual inputs) as [Heq | ]; [ | discriminate].
+  rewrite firstn_app, firstn_all, Nat.sub_diag. cbn [firstn]. rewrite app_nil_r.
+  intros H. injection H as <-. auto.
+Qed.
+
 Lemma source_type_stacks_app : forall locals callees prefix suffix stack,
   sourceTypeStacks locals callees (prefix ++ suffix) stack =
     match sourceTypeStacks locals callees prefix stack with
@@ -148,6 +163,40 @@ Proof.
     | apply nth_error_None in Hnth; lia ]).
   - rewrite app_nil_r. apply local_get_types. exact Hlocal.
   - rewrite app_nil_r. apply local_set_types. exact Hlocal.
+Qed.
+
+Lemma ordinary_i32_types : forall locals height i callees,
+  (exists code, StraightLineSpec.encodedOpcode i = Some code) ->
+  StraightLineSpec.programTyped locals height [i] ->
+  exists next, StraightLineSpec.instructionStackHeight i height = Some next /\
+    sourceTypes (repeat valtype_I32 locals) callees i (repeat valtype_I32 height) =
+      Some (repeat valtype_I32 next).
+Proof.
+  intros locals height i callees [code Hcode] Htyped.
+  destruct (StraightLineInstructions.encoded_opcode_cases _ _ Hcode)
+    as [[-> _] | [[-> _] | [[x [-> _]] | [x [-> _]]]]].
+  - destruct height as [ | [ | h]]; try contradiction.
+    exists (S h). split; [reflexivity | ].
+    change (replaceStackTypes (repeat valtype_I32 2) (repeat valtype_I32 1)
+      (repeat valtype_I32 (S (S h))) = Some (repeat valtype_I32 (S h))).
+    rewrite replace_stack_types_i32. cbn [Nat.leb Nat.sub]. f_equal. f_equal. lia.
+  - destruct height as [ | [ | h]]; try contradiction.
+    exists (S h). split; [reflexivity | ].
+    change (replaceStackTypes (repeat valtype_I32 2) (repeat valtype_I32 1)
+      (repeat valtype_I32 (S (S h))) = Some (repeat valtype_I32 (S h))).
+    rewrite replace_stack_types_i32. cbn [Nat.leb Nat.sub]. f_equal. f_equal. lia.
+  - exists (S height). split; [reflexivity | ].
+    unfold sourceTypes, instructionTypes. rewrite nth_error_repeat by exact (proj1 Htyped).
+    cbn [option_map].
+    change (replaceStackTypes (repeat valtype_I32 0) (repeat valtype_I32 1)
+      (repeat valtype_I32 height) = Some (repeat valtype_I32 (S height))).
+    rewrite replace_stack_types_i32. cbn [Nat.leb Nat.sub]. f_equal. f_equal. lia.
+  - destruct Htyped as [Hindex Hheight]. destruct height as [ | h]; [contradiction | ].
+    exists h. split; [reflexivity | ]. unfold sourceTypes, instructionTypes.
+    rewrite nth_error_repeat by exact Hindex. cbn [option_map].
+    change (replaceStackTypes (repeat valtype_I32 1) (repeat valtype_I32 0)
+      (repeat valtype_I32 (S h)) = Some (repeat valtype_I32 h)).
+    rewrite replace_stack_types_i32. cbn [Nat.leb Nat.sub]. rewrite Nat.add_0_r, Nat.sub_0_r. reflexivity.
 Qed.
 
 Lemma instruction_types_height : forall locals callees i inputs outputs height,
@@ -257,4 +306,73 @@ Proof.
     cbn [length] in Hheight. rewrite Hheight, (IH _ _ _ _ Hinner).
     cbn [option_map map fst snd].
     rewrite length_firstn, Nat.min_l by apply label_base_bound. reflexivity.
+Qed.
+
+(* The type stacks evolve at the same source positions as the encoded PCs. *)
+Lemma path_types_step : forall locals callees labels code inner offset i segments top next,
+  pathCode code labels = Some inner -> nth_error inner offset = Some i ->
+  pathTypes locals callees code labels offset = Some (segments, top) ->
+  sourceTypes locals callees i top = Some next ->
+  pathTypes locals callees code labels (S offset) = Some (segments, next).
+Proof.
+  intros locals callees. induction labels as [ | site rest IH];
+    intros code inner offset i segments top next Hpath Hi Htypes Hstep; cbn [pathCode pathTypes] in *.
+  - injection Hpath as <-. rewrite (firstn_at_instruction _ _ _ Hi), source_type_stacks_app.
+    destruct (sourceTypeStacks locals callees (firstn offset code) []) as [stack | ]; cbn in Htypes;
+      [ | discriminate].
+    injection Htypes as <- <-. cbn [sourceTypeStacks]. rewrite Hstep. reflexivity.
+  - destruct (siteEntry code site) as [[j body] | ]; [ | discriminate].
+    destruct (sourceTypeStacks locals callees (firstn (siteOffset site) code) []); [ | discriminate].
+    destruct (pathTypes locals callees body rest offset) as [[ss t] | ] eqn:Hin; cbn in Htypes;
+      [ | discriminate].
+    injection Htypes as <- <-. rewrite (IH _ _ _ _ _ _ _ Hpath Hi Hin Hstep). reflexivity.
+Qed.
+
+Lemma path_types_snoc : forall locals callees labels code inner site i body segments stack offset,
+  pathCode code labels = Some inner -> siteEntry inner site = Some (i, body) ->
+  pathTypes locals callees code labels (siteOffset site) = Some (segments, stack) ->
+  pathTypes locals callees code (labels ++ [site]) offset =
+    option_map (fun top => (segments ++ [firstn (labelBase i (length stack)) stack], top))
+      (sourceTypeStacks locals callees (firstn offset body) []).
+Proof.
+  intros locals callees. induction labels as [ | outer rest IH];
+    intros code inner site i body segments stack offset Hpath Hsite Htypes; cbn [app pathCode pathTypes] in *.
+  - injection Hpath as <-. rewrite Hsite.
+    destruct (sourceTypeStacks locals callees (firstn (siteOffset site) code) []) as [ts | ];
+      cbn in Htypes; [ | discriminate].
+    injection Htypes as <- <-. cbn.
+    destruct (sourceTypeStacks locals callees (firstn offset body) []); reflexivity.
+  - destruct (siteEntry code outer) as [[j nested] | ]; [ | discriminate].
+    destruct (sourceTypeStacks locals callees (firstn (siteOffset outer) code) []) as [ts | ]; [ | discriminate].
+    destruct (pathTypes locals callees nested rest (siteOffset site)) as [[ss top] | ] eqn:Hin;
+      cbn in Htypes; [ | discriminate].
+    injection Htypes as <- <-. rewrite (IH _ _ _ _ _ _ _ offset Hpath Hsite Hin).
+    destruct (sourceTypeStacks locals callees (firstn offset body) []); reflexivity.
+Qed.
+
+Lemma path_types_split : forall locals callees pre site post code offset segments top,
+  pathTypes locals callees code (pre ++ site :: post) offset = Some (segments, top) ->
+  exists outer i body headSegments stack tailSegments,
+    pathCode code pre = Some outer /\ siteEntry outer site = Some (i, body) /\
+    pathTypes locals callees code pre (siteOffset site) = Some (headSegments, stack) /\
+    segments = headSegments ++ firstn (labelBase i (length stack)) stack :: tailSegments /\
+    pathTypes locals callees body post offset = Some (tailSegments, top).
+Proof.
+  intros locals callees. induction pre as [ | outer rest IH]; intros site post code offset segments top H;
+    cbn [app pathTypes] in H.
+  - destruct (siteEntry code site) as [[i body] | ] eqn:Hsite; [ | discriminate].
+    destruct (sourceTypeStacks locals callees (firstn (siteOffset site) code) []) as [stack | ] eqn:Hstack;
+      [ | discriminate].
+    destruct (pathTypes locals callees body post offset) as [[ss t] | ] eqn:Hin; cbn in H; [ | discriminate].
+    injection H as <- <-. exists code, i, body, [], stack, ss.
+    cbn [pathCode pathTypes]. rewrite Hstack. repeat split; assumption || reflexivity.
+  - destruct (siteEntry code outer) as [[j nested] | ] eqn:Houter; [ | discriminate].
+    destruct (sourceTypeStacks locals callees (firstn (siteOffset outer) code) []) as [stack | ] eqn:Hstack;
+      [ | discriminate].
+    destruct (pathTypes locals callees nested (rest ++ site :: post) offset) as [[ss t] | ] eqn:Hin;
+      cbn in H; [ | discriminate].
+    injection H as <- <-.
+    destruct (IH _ _ _ _ _ _ Hin) as [inner [i [body [heads [ts [tails [Hpath [Hsite [Htypes [-> Htail]]]]]]]]]].
+    exists inner, i, body, (firstn (labelBase j (length stack)) stack :: heads), ts, tails.
+    cbn [pathCode pathTypes]. rewrite Houter, Hstack, Htypes. repeat split; assumption || reflexivity.
 Qed.

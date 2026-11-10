@@ -25,7 +25,7 @@ ProgramBinding.v
 BranchBindings.v
 BlockBindings.v
 BlockSpec.v
-BlockInstructions.v
+IntegerInstructions.v
 CodeLayout.v
 Fragment.v
 StackTypes.v
@@ -141,3 +141,4 @@ tests/IntegerCalls.v
 tests/IntegerControl.v
 tests/IntegerStackTrace.v
 tests/IntegerStack.v
+tests/IntegerInstructions.v

@@ -35,7 +35,7 @@ fn other_program() -> Program {
 #[test]
 fn native_run_closes_every_segment_and_passes_the_terminal() {
     let mut run = program_run();
-    assert_eq!(run.context().witness_word_count(), 690);
+    assert_eq!(run.context().witness_word_count(), 664);
     let mut previous = run.initial_state();
     let segments = [
         [Step::Execute, Step::Execute],
@@ -47,7 +47,7 @@ fn native_run_closes_every_segment_and_passes_the_terminal() {
         let invocations = run.segment(&steps).expect("segment runs");
         assert_eq!(invocations.len(), 2);
         for invocation in invocations {
-            assert_eq!(invocation.words.len(), 690);
+            assert_eq!(invocation.words.len(), 664);
             assert_eq!(input_state(&invocation.words), previous, "state link");
             previous = invocation.output;
         }
@@ -748,14 +748,14 @@ fn runner_rejects_a_misread_port_and_a_short_port_list() {
 
 /// The Lean `Geometry.Valid` rules gate both a program and a Rust-built
 /// circuit, so no proof exists for a geometry that the memory theorems do
-/// not cover. A ROM wider than the RAM, too few timestamp bits, scans that
+/// not cover. A ROM of `2^64` cells, too few timestamp bits, scans that
 /// do not cover memory, a zero count, and `μ = 64` each fail.
 #[test]
 fn invalid_geometries_make_no_program_and_no_circuit() {
     let valid = Package::V1.geometry();
     assert!(valid.is_valid() && Package::N1.geometry().is_valid());
     let cases: [(&str, fn(&mut crate::nebula::Geometry)); 5] = [
-        ("r > μ", |g| g.r = 3),
+        ("r = 64", |g| g.r = 64),
         ("timestamps", |g| g.w_ts = 4),
         ("exact cover", |g| g.b_scan = 3),
         ("zero ports", |g| g.b_ops = 0),

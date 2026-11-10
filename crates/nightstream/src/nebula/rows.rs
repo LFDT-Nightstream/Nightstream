@@ -84,14 +84,6 @@ impl<'a> Sym<'a> {
         }
     }
 
-    fn eta1(&self) -> KExpr {
-        KExpr::of(self.c_out(3), self.c_out(4))
-    }
-
-    fn eta1_sq(&self) -> KExpr {
-        KExpr::of(self.word(words::ETA1_SQUARE), self.word(words::ETA1_SQUARE + 1))
-    }
-
     fn is_open(&self) -> Expr {
         self.word(words::IS_OPEN)
     }
@@ -127,7 +119,7 @@ impl<'a> Sym<'a> {
     }
 
     fn addr_bits(&self, j: usize) -> Vec<Expr> {
-        self.bits(j, Layout::op_addr, self.geometry.mu)
+        self.bits(j, Layout::op_addr, self.geometry.addr_width())
     }
 
     fn vr_bits(&self, j: usize) -> Vec<Expr> {
@@ -256,14 +248,14 @@ impl<'a> Sym<'a> {
         self.product_after(2, pair, k, self.geometry.b_scan, Layout::scan_products)
     }
 
-    /// `Rows.fingerprintRows`: `a 0, a 1 = η1 · v` and `(a 2, a 3) = f`. Each
-    /// row is `word − recipe` with one product, so it lowers to one R1CS row.
+    /// `Rows.fingerprintRows`: `(a 0, a 1) = f`. The word `v + 2^32 · t` is
+    /// affine, so each row is `word − recipe` with one product and lowers to
+    /// one R1CS row.
     fn fingerprint_rows(&self, a: &impl Fn(usize) -> Expr, t: Expr, g: Expr, v: Expr) -> Vec<Expr> {
+        let packed = v + c(1 << 32) * t;
         vec![
-            a(0) - self.c_out(3) * v.clone(),
-            a(1) - self.c_out(4) * v,
-            a(2) - (self.word(words::ETA1_SQUARE) * t.clone() + (g + a(0) - self.c_out(5))),
-            a(3) - (self.word(words::ETA1_SQUARE + 1) * t + (a(1) - self.c_out(6))),
+            a(0) - (self.c_out(3) * packed.clone() + (g - self.c_out(5))),
+            a(1) - (self.c_out(4) * packed - self.c_out(6)),
         ]
     }
 
@@ -278,14 +270,14 @@ impl<'a> Sym<'a> {
         ]
     }
 
-    /// `Rows.factorRows`: an ungated fingerprint step over six factor words.
+    /// `Rows.factorRows`: an ungated fingerprint step over four factor words.
     fn factor_rows(&self, a: impl Fn(usize) -> Expr, prod: KExpr, next: KExpr, t: Expr, g: Expr, v: Expr) -> Vec<Expr> {
         let mut rows = self.fingerprint_rows(&a, t, g, v);
-        rows.extend(Self::product_rows(prod, next, a(2), a(3), a(4), a(5)));
+        rows.extend(Self::product_rows(prod, next, a(0), a(1), a(2), a(3)));
         rows
     }
 
-    /// `Rows.gatedRows`: a gated fingerprint step over eight factor words.
+    /// `Rows.gatedRows`: a gated fingerprint step over six factor words.
     fn gated_rows(
         &self,
         a: impl Fn(usize) -> Expr,
@@ -297,9 +289,9 @@ impl<'a> Sym<'a> {
         v: Expr,
     ) -> Vec<Expr> {
         let mut rows = self.fingerprint_rows(&a, t, g, v);
-        rows.push(a(4) - ((c(1) - pad.clone()) * a(2) + pad.clone()));
-        rows.push(a(5) - (c(1) - pad) * a(3));
-        rows.extend(Self::product_rows(prod, next, a(4), a(5), a(6), a(7)));
+        rows.push(a(2) - ((c(1) - pad.clone()) * a(0) + pad.clone()));
+        rows.push(a(3) - (c(1) - pad) * a(1));
+        rows.extend(Self::product_rows(prod, next, a(2), a(3), a(4), a(5)));
         rows
     }
 
@@ -363,7 +355,6 @@ impl<'a> Sym<'a> {
             self.c_out(3 + i)
                 - (is_open.clone() * self.word(words::ETA_FRESH + i) + (c(1) - is_open.clone()) * self.c_in(3 + i))
         }));
-        rows.extend(self.eta1_sq().equalities(self.eta1().mul(self.eta1())));
         for s in 0..4 {
             rows.push(self.start_word(s, 0) - ((c(1) - is_open.clone()) * self.c_in(7 + 2 * s) + is_open.clone()));
             rows.push(self.start_word(s, 1) - (c(1) - is_open.clone()) * self.c_in(8 + 2 * s));
@@ -387,6 +378,13 @@ impl<'a> Sym<'a> {
                 .enumerate()
                 .filter(|(k, _)| geometry.r <= *k)
                 .map(|(_, bit)| (c(1) - is_ram.clone()) * bit),
+        );
+        rows.extend(
+            self.addr_bits(j)
+                .into_iter()
+                .enumerate()
+                .filter(|(k, _)| geometry.mu <= *k)
+                .map(|(_, bit)| is_ram.clone() * bit),
         );
         rows.extend(self.op_lane(j).into_iter().skip(1).map(|x| pad.clone() * x));
         for (pair, stamp, value) in [(0, chunk(self.rt_bits(j)), vr), (1, self.wt(j), vw)] {
@@ -518,9 +516,9 @@ impl<'a> View<'a> {
         self.sym.geometry
     }
 
-    /// The `μ` address bits of slot `j`, least significant first.
+    /// The address bits of slot `j`, least significant first.
     pub(super) fn addr_bits(&self, j: usize) -> Vec<Expr> {
-        self.slot_bits(j, Layout::op_addr, self.sym.geometry.mu)
+        self.slot_bits(j, Layout::op_addr, self.sym.geometry.addr_width())
     }
 
     /// The address of slot `j` from its `μ` bits.

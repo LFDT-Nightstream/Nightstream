@@ -230,11 +230,6 @@ theorem eta_row (i : Fin 4) :
     rfl
   · simp [h, bitWord]
 
-theorem square_row :
-    (witness p c inv appIn appOut aux).eta1Sq = K.mul (witness p c inv appIn appOut aux).eta1 (witness p c inv appIn appOut aux).eta1 := by
-  rw [← GoldilocksExtensionRing.mul_eq]
-  rfl
-
 
 /-! ### Operation slots -/
 
@@ -305,10 +300,21 @@ theorem noRomWrite_row (accepted : Accepted p c inv) (j : Fin p.bOps) :
   · rw [rows.noRomWrite h]
     simp [bitWord]
 
-theorem romRange_row (accepted : Accepted p c inv) (j : Fin p.bOps) (k : Fin p.μ)
+theorem ramRange_row (accepted : Accepted p c inv) (j : Fin p.bOps) (k : Fin p.addrWidth)
+    (high : p.μ ≤ k.val) :
+    (witness p c inv appIn appOut aux).isRam j * ((witness p c inv appIn appOut aux).ops j).addr k = 0 := by
+  show bitWord (opSlot inv j).isRam * natBits p.addrWidth (opSlot inv j).addr k = 0
+  have rows := accepted.rows.slots _ (opSlot_mem accepted j)
+  cases h : (opSlot inv j).isRam
+  · simp [bitWord]
+  · have below : (opSlot inv j).addr < 2 ^ k.val :=
+      lt_of_lt_of_le (rows.ramRange h) (Nat.pow_le_pow_right (by norm_num) high)
+    simp [natBits, Nat.testBit_lt_two_pow below, bitWord]
+
+theorem romRange_row (accepted : Accepted p c inv) (j : Fin p.bOps) (k : Fin p.addrWidth)
     (high : p.r ≤ k.val) :
     (1 - (witness p c inv appIn appOut aux).isRam j) * ((witness p c inv appIn appOut aux).ops j).addr k = 0 := by
-  show (1 - bitWord (opSlot inv j).isRam) * natBits p.μ (opSlot inv j).addr k = 0
+  show (1 - bitWord (opSlot inv j).isRam) * natBits p.addrWidth (opSlot inv j).addr k = 0
   have rows := accepted.rows.slots _ (opSlot_mem accepted j)
   cases h : (opSlot inv j).isRam
   · have below : (opSlot inv j).addr < 2 ^ k.val :=
@@ -438,9 +444,6 @@ theorem eta_pair : ((witness p c inv appIn appOut aux).eta1, (witness p c inv ap
   rw [← finished_eta]
   rfl
 
-theorem squareEq : (witness p c inv appIn appOut aux).eta1Sq = (witness p c inv appIn appOut aux).eta1 * (witness p c inv appIn appOut aux).eta1 := by
-  rw [square_row, GoldilocksExtensionRing.mul_eq]
-
 theorem natWord_val_small {n k : ℕ} (small : n < 2 ^ k) (width : k ≤ 63) :
     (natWord n).val = n :=
   natWord_val (lt_trans small (two_pow_lt_modulus width))
@@ -450,16 +453,21 @@ theorem globalIndex_val (valid : p.Valid) (accepted : Accepted p c inv) (j : Fin
       ⟨(opSlot inv j).isWrite, (opSlot inv j).isRam, (opSlot inv j).addr, (opSlot inv j).vr,
         (opSlot inv j).vw⟩ := by
   have fits := accepted.rows.shaped.opsFit _ (opSlot_mem accepted j)
-  show (bitsWord (natBits p.μ (opSlot inv j).addr) + bitWord (opSlot inv j).isRam *
+  show (bitsWord (natBits p.addrWidth (opSlot inv j).addr) + bitWord (opSlot inv j).isRam *
     natWord p.romSize).val = _
   rw [bitsWord_natBits fits.1]
   have cells := valid.belowModulus
   have addr := fits.1
   unfold Geometry.cells Geometry.ramSize at cells
-  cases (opSlot inv j).isRam
-  · simp only [bitWord, Bool.false_eq_true, ite_false, zero_mul, add_zero, PortAccess.globalIndex]
+  have rows := accepted.rows.slots _ (opSlot_mem accepted j)
+  have ramPos : 0 < 2 ^ p.μ := Nat.two_pow_pos _
+  cases h : (opSlot inv j).isRam
+  · have small := rows.romRange h
+    simp only [bitWord, Bool.false_eq_true, ite_false, zero_mul, add_zero, PortAccess.globalIndex]
     exact natWord_val (by omega)
-  · simp only [bitWord, ite_true, one_mul, PortAccess.globalIndex, ← natWord_add]
+  · have small := rows.ramRange h
+    unfold Geometry.ramSize at small
+    simp only [bitWord, ite_true, one_mul, PortAccess.globalIndex, ← natWord_add]
     rw [natWord_val (by omega)]
     omega
 
@@ -467,13 +475,13 @@ theorem readProduct_row (valid : p.Valid) (accepted : Accepted p c inv) (j : Fin
     (witness p c inv appIn appOut aux).opsProductAfter 0 (j.val + 1) = K.mul
       ((witness p c inv appIn appOut aux).opsProductAfter 0 j.val)
       (gatedK ((witness p c inv appIn appOut aux).pad j) (fingerprintK (witness p c inv appIn appOut aux).eta1
-        (witness p c inv appIn appOut aux).eta2 (witness p c inv appIn appOut aux).eta1Sq ((witness p c inv appIn appOut aux).rt j)
+        (witness p c inv appIn appOut aux).eta2  ((witness p c inv appIn appOut aux).rt j)
         ((witness p c inv appIn appOut aux).globalIndex j) ((witness p c inv appIn appOut aux).vr j))) := by
   have fits := accepted.rows.shaped.opsFit _ (opSlot_mem accepted j)
   rw [(opsProductAfter_val appIn appOut aux (j.val + 1) j.isLt).1, (opsProductAfter_val appIn appOut aux j.val j.isLt.le).1,
     ← GoldilocksExtensionRing.mul_eq,
     gatedK_bit (show IsBit ((witness p c inv appIn appOut aux).pad j) from bitWord_isBit _),
-    fingerprintK_eq _ _ _ (squareEq appIn appOut aux), eta_pair, globalIndex_val appIn appOut aux valid accepted j]
+    fingerprintK_eq, eta_pair, globalIndex_val appIn appOut aux valid accepted j]
   show _ = _ * (if toBool (bitWord (opSlot inv j).pad) then 1 else fingerprint (start p c inv).eta
     ((bitsWord (natBits p.wTs (opSlot inv j).rt)).val, _, (bitsWord (natBits 32 (opSlot inv j).vr)).val))
   rw [toBool_bitWord, bitsWord_natBits fits.2.2.2, bitsWord_natBits fits.2.1,
@@ -486,13 +494,13 @@ theorem writeProduct_row (valid : p.Valid) (accepted : Accepted p c inv) (j : Fi
     (witness p c inv appIn appOut aux).opsProductAfter 1 (j.val + 1) = K.mul
       ((witness p c inv appIn appOut aux).opsProductAfter 1 j.val)
       (gatedK ((witness p c inv appIn appOut aux).pad j) (fingerprintK (witness p c inv appIn appOut aux).eta1
-        (witness p c inv appIn appOut aux).eta2 (witness p c inv appIn appOut aux).eta1Sq ((witness p c inv appIn appOut aux).wt j)
+        (witness p c inv appIn appOut aux).eta2  ((witness p c inv appIn appOut aux).wt j)
         ((witness p c inv appIn appOut aux).globalIndex j) ((witness p c inv appIn appOut aux).vw j))) := by
   have fits := accepted.rows.shaped.opsFit _ (opSlot_mem accepted j)
   rw [(opsProductAfter_val appIn appOut aux (j.val + 1) j.isLt).2, (opsProductAfter_val appIn appOut aux j.val j.isLt.le).2,
     ← GoldilocksExtensionRing.mul_eq,
     gatedK_bit (show IsBit ((witness p c inv appIn appOut aux).pad j) from bitWord_isBit _),
-    fingerprintK_eq _ _ _ (squareEq appIn appOut aux), eta_pair, globalIndex_val appIn appOut aux valid accepted j]
+    fingerprintK_eq, eta_pair, globalIndex_val appIn appOut aux valid accepted j]
   show _ = _ * (if toBool (bitWord (opSlot inv j).pad) then 1 else fingerprint (start p c inv).eta
     (((witness p c inv appIn appOut aux).cIn 2 + (witness p c inv appIn appOut aux).cntBefore (j.val + 1)).val, _,
       (bitsWord (natBits 32 (opSlot inv j).vw)).val))
@@ -537,7 +545,7 @@ theorem initialProduct_row (valid : p.Valid) (reach : Reach p c) (accepted : Acc
     (j : Fin p.bScan) :
     (witness p c inv appIn appOut aux).scanProductAfter 0 (j.val + 1) = K.mul
       ((witness p c inv appIn appOut aux).scanProductAfter 0 j.val)
-      (fingerprintK (witness p c inv appIn appOut aux).eta1 (witness p c inv appIn appOut aux).eta2 (witness p c inv appIn appOut aux).eta1Sq
+      (fingerprintK (witness p c inv appIn appOut aux).eta1 (witness p c inv appIn appOut aux).eta2 
         (bitsWord ((witness p c inv appIn appOut aux).initial j).stamp) ((witness p c inv appIn appOut aux).scanIndex j)
         (bitsWord ((witness p c inv appIn appOut aux).initial j).value)) := by
   have length := accepted.rows.shaped.initialLength
@@ -547,7 +555,7 @@ theorem initialProduct_row (valid : p.Valid) (reach : Reach p c) (accepted : Acc
     exact List.getElem_mem _
   have fits := accepted.rows.shaped.initialFit _ member
   rw [(scanProductAfter_val appIn appOut aux (j.val + 1) j.isLt).1, (scanProductAfter_val appIn appOut aux j.val j.isLt.le).1,
-    ← GoldilocksExtensionRing.mul_eq, fingerprintK_eq _ _ _ (squareEq appIn appOut aux), eta_pair,
+    ← GoldilocksExtensionRing.mul_eq, fingerprintK_eq, eta_pair,
     scanIndex_val appIn appOut aux valid reach]
   show _ = _ * fingerprint (start p c inv).eta
     ((bitsWord (natBits p.wTs (initialSlot inv j).stamp)).val, _,
@@ -564,7 +572,7 @@ theorem finalProduct_row (valid : p.Valid) (reach : Reach p c) (accepted : Accep
     (j : Fin p.bScan) :
     (witness p c inv appIn appOut aux).scanProductAfter 1 (j.val + 1) = K.mul
       ((witness p c inv appIn appOut aux).scanProductAfter 1 j.val)
-      (fingerprintK (witness p c inv appIn appOut aux).eta1 (witness p c inv appIn appOut aux).eta2 (witness p c inv appIn appOut aux).eta1Sq
+      (fingerprintK (witness p c inv appIn appOut aux).eta1 (witness p c inv appIn appOut aux).eta2 
         (bitsWord ((witness p c inv appIn appOut aux).final j).stamp) ((witness p c inv appIn appOut aux).scanIndex j)
         (bitsWord ((witness p c inv appIn appOut aux).final j).value)) := by
   have length := accepted.rows.shaped.finalLength
@@ -574,7 +582,7 @@ theorem finalProduct_row (valid : p.Valid) (reach : Reach p c) (accepted : Accep
     exact List.getElem_mem _
   have fits := accepted.rows.shaped.finalFit _ member
   rw [(scanProductAfter_val appIn appOut aux (j.val + 1) j.isLt).2, (scanProductAfter_val appIn appOut aux j.val j.isLt.le).2,
-    ← GoldilocksExtensionRing.mul_eq, fingerprintK_eq _ _ _ (squareEq appIn appOut aux), eta_pair,
+    ← GoldilocksExtensionRing.mul_eq, fingerprintK_eq, eta_pair,
     scanIndex_val appIn appOut aux valid reach]
   show _ = _ * fingerprint (start p c inv).eta
     ((bitsWord (natBits p.wTs (finalSlot inv j).stamp)).val, _,
@@ -772,11 +780,11 @@ theorem polyRows (valid : p.Valid) (reach : Reach p c) (accepted : Accepted p c 
   seenPrev := seenPrev_row appIn appOut aux
   proposed := proposed_row appIn appOut aux
   eta := eta_row appIn appOut aux
-  square := square_row appIn appOut aux
   readKeeps := readKeeps_row appIn appOut aux accepted
   fresh := fresh_row appIn appOut aux accepted
   noRomWrite := noRomWrite_row appIn appOut aux accepted
   romRange := romRange_row appIn appOut aux accepted
+  ramRange := ramRange_row appIn appOut aux accepted
   padZero := padZero_row appIn appOut aux accepted
   readProduct := readProduct_row appIn appOut aux valid accepted
   writeProduct := writeProduct_row appIn appOut aux valid accepted

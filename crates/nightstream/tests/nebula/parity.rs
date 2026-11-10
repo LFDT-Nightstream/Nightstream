@@ -34,7 +34,10 @@ fn fnv(hash: u64, word: u64) -> u64 {
 /// side's constant, then its terms by variable, with equal variables merged
 /// and zero coefficients dropped.
 fn assert_same_rows(package: Package, fixture: &[u8]) {
-    let application = package.application().unwrap();
+    assert_rows(&package.application().unwrap(), fixture);
+}
+
+fn assert_rows(application: &ApplicationCircuit, fixture: &[u8]) {
     let records = application.records();
     let mut hash = fnv(0xcbf29ce484222325, records.row_count() as u64);
     for row in 0..records.row_count() {
@@ -88,6 +91,14 @@ fn first_package_rows_match_lean() {
 #[test]
 fn second_package_rows_match_lean() {
     assert_same_rows(Package::N1, include_bytes!("../fixtures/nebula-memory-n1-digest.json"));
+}
+
+/// A RAM smaller than the ROM: the address field has `r` bits and row O6 has
+/// its RAM range rows (`ThirdPlan.lean`).
+#[test]
+fn rows_of_a_ram_smaller_than_the_rom_match_lean() {
+    let application = super::memory_circuit(&crate::nebula::Geometry::third(), &Machine).unwrap();
+    assert_rows(&application, include_bytes!("../fixtures/nebula-memory-r1-digest.json"));
 }
 
 /// The slot coordinates of each kind (`Kind::width`) of `package`'s columns.

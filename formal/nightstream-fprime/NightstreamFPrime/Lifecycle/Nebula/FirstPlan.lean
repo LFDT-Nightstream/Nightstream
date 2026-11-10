@@ -43,7 +43,6 @@ theorem valid : geometry.Valid where
   timestampRange := by decide
   fieldEncoding := by decide
   laneBits := by decide
-  addressWidth := le_rfl
   belowModulus := by decide
   positive := by decide
 

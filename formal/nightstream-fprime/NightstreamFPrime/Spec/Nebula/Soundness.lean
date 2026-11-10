@@ -56,7 +56,7 @@ private theorem port_valid {p : Geometry} {s : OpSlot} {a : PortAccess} (rows : 
   refine ⟨?_, vr, vw, rows.readKeeps, rows.noRomWrite⟩
   cases ram : s.isRam
   · simpa [ram] using rows.romRange ram
-  · simpa [ram, Geometry.ramSize] using addr
+  · simpa [ram] using rows.ramRange ram
 
 /-- The active operations of rows that hold are fresh and valid. -/
 private theorem segmentOps_rows {p : Geometry} {ts : ℕ} {rs : List StepRecords}

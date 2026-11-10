@@ -63,7 +63,8 @@ done
 timeout --signal=KILL 1500 bash scripts/validate.sh lean-executable .lake/build/bin/emitBoundedDepth --application-start nebula-v1-other ../../crates/nightstream/tests/fixtures/nebula-memory-v1-other-start.json
 ```
 
-`nebula-memory-v1-digest.json` and `nebula-memory-n1-digest.json` hold the row
+`nebula-memory-v1-digest.json`, `nebula-memory-n1-digest.json` and
+`nebula-memory-r1-digest.json` (a RAM smaller than the ROM, `ThirdPlan.lean`) hold the row
 count and a digest of the rows of each memory application, in the variable
 order of the Rust application (`EmitMain.applicationDigest`).
 `tests/nebula/parity.rs` requires the Rust-built memory circuit to have the
@@ -73,4 +74,5 @@ same rows. Make them again from `formal/nightstream-fprime`, after
 ```sh
 timeout --signal=KILL 1500 bash scripts/validate.sh lean-executable .lake/build/bin/emitBoundedDepth --application-digest nebula-v1 ../../crates/nightstream/tests/fixtures/nebula-memory-v1-digest.json
 timeout --signal=KILL 1500 bash scripts/validate.sh lean-executable .lake/build/bin/emitBoundedDepth --application-digest nebula-n1 ../../crates/nightstream/tests/fixtures/nebula-memory-n1-digest.json
+--application-digest nebula-r1 ../../crates/nightstream/tests/fixtures/nebula-memory-r1-digest.json
 ```

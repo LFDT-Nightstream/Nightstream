@@ -28,14 +28,13 @@ def openInverse : ℕ := 87
 def isClose : ℕ := 88
 def closeInverse : ℕ := 89
 def etaFresh (i : ℕ) : ℕ := 90 + i
-def eta1Square (i : ℕ) : ℕ := 94 + i
-def seenPrev (i : ℕ) : ℕ := 96 + i
-def idxEff : ℕ := 108
+def seenPrev (i : ℕ) : ℕ := 94 + i
+def idxEff : ℕ := 106
 
 /-- Word `k` of operation slot `j`. -/
-def op (j k : ℕ) : ℕ := 109 + j * opWords p + k
+def op (j k : ℕ) : ℕ := 107 + j * opWords p + k
 
-def initialStart : ℕ := 109 + p.bOps * opWords p
+def initialStart : ℕ := 107 + p.bOps * opWords p
 
 /-- Word `k` of IS slot `j`. -/
 def initial (j k : ℕ) : ℕ := initialStart p + j * p.scanWidth + k
@@ -58,11 +57,11 @@ def start (s c : ℕ) : ℕ := cnt p p.bOps + 2 * s + c
 
 /-- Factor word `c` of the fingerprint `pair` (0 read, 1 write) of operation
 slot `j` (`Rows.gatedRows`). -/
-def opsFactor (j pair c : ℕ) : ℕ := start p 4 0 + 16 * j + 8 * pair + c
+def opsFactor (j pair c : ℕ) : ℕ := start p 4 0 + 12 * j + 6 * pair + c
 
 /-- Factor word `c` of the fingerprint `pair` (0 IS, 1 FS) of scan slot `j`
 (`Rows.factorRows`). -/
-def scanFactor (j pair c : ℕ) : ℕ := opsFactor p p.bOps 0 0 + 12 * j + 6 * pair + c
+def scanFactor (j pair c : ℕ) : ℕ := opsFactor p p.bOps 0 0 + 8 * j + 4 * pair + c
 
 /-- The number of memory words. The application's words follow them. -/
 def memoryCount : ℕ := scanFactor p p.bScan 0 0
@@ -82,9 +81,9 @@ def opPad : ℕ := 0
 def opIsWrite : ℕ := 1
 def opIsRam : ℕ := 2
 def opAddr (k : ℕ) : ℕ := 3 + k
-def opVr (k : ℕ) : ℕ := 3 + p.μ + k
-def opVw (k : ℕ) : ℕ := 3 + p.μ + 32 + k
-def opRt (k : ℕ) : ℕ := 3 + p.μ + 64 + k
+def opVr (k : ℕ) : ℕ := 3 + p.addrWidth + k
+def opVw (k : ℕ) : ℕ := 3 + p.addrWidth + 32 + k
+def opRt (k : ℕ) : ℕ := 3 + p.addrWidth + 64 + k
 def opDiff (k : ℕ) : ℕ := p.opWidth + k
 def scanValue (k : ℕ) : ℕ := k
 def scanStamp (k : ℕ) : ℕ := 32 + k
@@ -119,7 +118,6 @@ def StepWitness.ofWords (p : Geometry) (a : AppShape) (v : ℕ → F) : StepWitn
   isClose := v Words.isClose
   closeInverse := v Words.closeInverse
   etaFresh i := v (Words.etaFresh i)
-  eta1Square i := v (Words.eta1Square i)
   seenPrev i := v (Words.seenPrev i)
   idxEff := v Words.idxEff
   ops j := OpSlotBits.ofWords p v j

@@ -376,3 +376,36 @@ Proof.
     + exact (instruction_suffix_wf code _ Hcode Ha).
     + exact (instruction_suffix_wf code _ Hcode Hm).
 Qed.
+
+Lemma value_stack_config_i32 : forall z values code,
+  valueStackConfig z (map i32Value values) code = stackConfig z values code.
+Proof. intros. unfold valueStackConfig, stackConfig. rewrite map_map. reflexivity. Qed.
+
+Lemma value_stack_prefix_i32 : forall values c,
+  valueStackPrefix (map i32Value values) c = stackPrefix values c.
+Proof. intros values [z code]. unfold valueStackPrefix, stackPrefix. rewrite map_map. reflexivity. Qed.
+
+Lemma value_stack_config_wf : forall z values code,
+  wf_state z -> Forall wf_val values -> Forall wf_instr code ->
+  wf_config (valueStackConfig z values code).
+Proof.
+  intros z values code Hz Hv Hcode. constructor; [exact Hz | ].
+  apply Forall_app. split; apply Forall_map.
+  - eapply Forall_impl; [ | exact Hv]. intros v H. now apply value_admin_wf.
+  - eapply Forall_impl; [ | exact Hcode]. intros i H. now apply instruction_admin_wf.
+Qed.
+
+Lemma i32_values_wf : forall values,
+  Forall (fun value => 0 <= value < i32Modulus) values -> Forall wf_val (List.map i32Value values).
+Proof.
+  intros values H. apply Forall_map. eapply Forall_impl; [ | exact H].
+  intros value Hv. now apply i32_value_wf.
+Qed.
+
+Lemma value_stack_prefix_config : forall z values more code,
+  valueStackPrefix values (valueStackConfig z more code) = valueStackConfig z (values ++ more) code.
+Proof. intros. unfold valueStackPrefix, valueStackConfig. rewrite List.map_app. rewrite <- List.app_assoc. reflexivity. Qed.
+
+Lemma value_instruction_suffix_config : forall z values code more,
+  instructionSuffix more (valueStackConfig z values code) = valueStackConfig z values (code ++ more).
+Proof. intros. unfold instructionSuffix, valueStackConfig. rewrite List.map_app. rewrite <- List.app_assoc. reflexivity. Qed.

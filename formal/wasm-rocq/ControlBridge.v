@@ -176,22 +176,6 @@ Proof.
   rewrite <- app_assoc, IH, <- repeat_app. reflexivity.
 Qed.
 
-Lemma value_stack_config_i32 : forall z values code,
-  valueStackConfig z (map i32Value values) code = stackConfig z values code.
-Proof. intros. unfold valueStackConfig, stackConfig. rewrite map_map. reflexivity. Qed.
-
-Lemma value_stack_prefix_i32 : forall values c,
-  valueStackPrefix (map i32Value values) c = stackPrefix values c.
-Proof. intros values [z code]. unfold valueStackPrefix, stackPrefix. rewrite map_map. reflexivity. Qed.
-
-Lemma wrap_value_labels_i32 : forall labels code segments c,
-  wrapValueLabels code labels (map (map i32Value) segments) c = wrapLabels code labels segments c.
-Proof.
-  induction labels as [ | site rest IH]; intros code [ | segment more] c; try reflexivity.
-  cbn [map wrapValueLabels wrapLabels]. destruct (siteEntry code site) as [[i body] | ]; [ | reflexivity].
-  rewrite IH, value_stack_prefix_i32. reflexivity.
-Qed.
-
 Lemma split_segments_map : forall (A B : Type) (f : A -> B) heights values,
   splitSegments heights (map f values) =
     (map (map f) (fst (splitSegments heights values)), map f (snd (splitSegments heights values))).

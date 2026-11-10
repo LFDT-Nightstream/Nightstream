@@ -1,7 +1,7 @@
 (* What a frame at a code path inherits from the program's validation, and how
    code paths, heights and enclosing labels compose. *)
 From Stdlib Require Import List ZArith Lia.
-Require Import Wasm2 WasmIntegers StraightLineSpec StackSimulation SpecTecCalls SpecTecBranches CallerSpec
+Require Import Wasm2 WasmIntegers WasmValues StraightLineSpec StackSimulation SpecTecCalls SpecTecBranches CallerSpec
   CallerValidation FunctionValidation ProgramSpec ProgramEncoding CodeLayout Fragment CodeFacts ControlDecode
   ControlInvariant TypeFacts.
 Import ListNotations.
@@ -142,18 +142,36 @@ Proof.
   rewrite <- app_assoc, Hconcat. apply firstn_skipn.
 Qed.
 
-(* Enclosing labels that are ready to run their inner code: their operands are
-   i32 values and the code after each one's instruction is well formed. *)
-Fixpoint LabelsReady (code : list instr) (labels : list LabelSite) (segments : list (list Z)) : Prop :=
+Lemma wrap_value_labels_i32 : forall labels code segments c,
+  wrapValueLabels code labels (map (map i32Value) segments) c = wrapLabels code labels segments c.
+Proof.
+  induction labels as [ | site rest IH]; intros code [ | segment more] c; try reflexivity.
+  cbn [map wrapValueLabels wrapLabels]. destruct (siteEntry code site) as [[i body] | ]; [ | reflexivity].
+  rewrite IH, value_stack_prefix_i32. reflexivity.
+Qed.
+
+(* Enclosing labels with well-formed operands and continuations. *)
+Fixpoint ValueLabelsReady (code : list instr) (labels : list LabelSite) (segments : list (list val)) : Prop :=
   match labels, segments with
   | s :: rest, segment :: more =>
-      Forall (fun value => 0 <= value < i32Modulus)%Z segment /\ Forall wf_instr (skipn (S (siteOffset s)) code) /\
+      Forall wf_val segment /\ Forall wf_instr (skipn (S (siteOffset s)) code) /\
       match siteEntry code s with
-      | Some (i, body) => Forall wf_instr (labelContinuation i) /\ LabelsReady body rest more
+      | Some (i, body) => Forall wf_instr (labelContinuation i) /\ ValueLabelsReady body rest more
       | None => True
       end
   | _, _ => True
   end.
+
+(* The current row invariant still stores i32 operands as integers. *)
+Definition LabelsReady code labels segments :=
+  ValueLabelsReady code labels (map (map i32Value) segments).
+
+Lemma concat_map_values : forall segments,
+  concat (map (map i32Value) segments) = map i32Value (concat segments).
+Proof.
+  induction segments as [ | segment rest IH]; [reflexivity | ].
+  cbn [map concat]. now rewrite IH, map_app.
+Qed.
 
 Lemma forall_skipn : forall (A : Type) (P : A -> Prop) k xs, Forall P xs -> Forall P (skipn k xs).
 Proof.
@@ -178,58 +196,85 @@ Proof.
   destruct i; cbn [labelContinuation]; constructor; [exact Hw | constructor].
 Qed.
 
-Lemma labels_ready : forall labels code inner segments,
+Lemma value_labels_ready : forall labels code inner segments,
   Forall wf_instr code -> pathCode code labels = Some inner -> length segments = length labels ->
-  Forall (fun value => 0 <= value < i32Modulus)%Z (concat segments) -> LabelsReady code labels segments.
+  Forall wf_val (concat segments) -> ValueLabelsReady code labels segments.
 Proof.
   induction labels as [ | s rest IH]; intros code inner segments Hwf Hpath Hlen Hvalues; [exact I | ].
   destruct segments as [ | seg more]; [discriminate | ]. cbn [concat] in Hvalues. apply Forall_app in Hvalues.
-  cbn [pathCode] in Hpath. cbn [LabelsReady].
+  cbn [pathCode] in Hpath. cbn [ValueLabelsReady].
   split; [exact (proj1 Hvalues) | ]. split; [apply forall_skipn; exact Hwf | ].
   destruct (siteEntry code s) as [[i body] | ] eqn:Hs; [ | discriminate].
   split; [exact (continuation_wf _ _ _ _ Hwf Hs) | ].
   exact (IH _ _ more (site_wf _ _ _ _ Hwf Hs) Hpath ltac:(cbn in Hlen; lia) (proj2 Hvalues)).
 Qed.
 
+Lemma labels_ready : forall labels code inner segments,
+  Forall wf_instr code -> pathCode code labels = Some inner -> length segments = length labels ->
+  Forall (fun value => 0 <= value < i32Modulus)%Z (concat segments) -> LabelsReady code labels segments.
+Proof.
+  intros labels code inner segments Hwf Hpath Hlen Hvalues.
+  apply value_labels_ready with (inner := inner); try assumption.
+  - now rewrite length_map.
+  - rewrite concat_map_values. now apply i32_values_wf.
+Qed.
+
+Lemma steps_in_value_labels : forall labels code segments before after,
+  ValueLabelsReady code labels segments -> Steps before after ->
+  Steps (wrapValueLabels code labels segments before) (wrapValueLabels code labels segments after).
+Proof.
+  induction labels as [ | s rest IH]; intros code segments before after Hready Hsteps; [exact Hsteps | ].
+  destruct segments as [ | seg more]; [exact Hsteps | ]. destruct Hready as [Hseg [Hcont Hinner]].
+  cbn [wrapValueLabels]. destruct (siteEntry code s) as [[i body] | ]; [ | exact Hsteps]. destruct Hinner as [Hk Hinner].
+  apply steps_with_value_prefix; [exact Hseg | ]. apply steps_with_instruction_suffix; [exact Hcont | ].
+  apply steps_in_block; [exact Hk | ]. exact (IH _ _ _ _ Hinner Hsteps).
+Qed.
+
 Lemma steps_in_labels : forall labels code segments before after,
   LabelsReady code labels segments -> Steps before after ->
   Steps (wrapLabels code labels segments before) (wrapLabels code labels segments after).
 Proof.
-  induction labels as [ | s rest IH]; intros code segments before after Hready Hsteps; [exact Hsteps | ].
-  destruct segments as [ | seg more]; [exact Hsteps | ]. destruct Hready as [Hseg [Hcont Hinner]].
-  cbn [wrapLabels]. destruct (siteEntry code s) as [[i body] | ]; [ | exact Hsteps]. destruct Hinner as [Hk Hinner].
-  apply steps_with_stack_prefix; [exact Hseg | ]. apply steps_with_instruction_suffix; [exact Hcont | ].
-  apply steps_in_block; [exact Hk | ]. exact (IH _ _ _ _ Hinner Hsteps).
+  intros labels code segments before after Hready Hsteps.
+  pose proof (steps_in_value_labels labels code (map (map i32Value) segments) before after Hready Hsteps) as H.
+  rewrite !wrap_value_labels_i32 in H. exact H.
 Qed.
 
-Lemma wrap_labels_wf : forall labels code segments c,
-  LabelsReady code labels segments -> wf_config c -> wf_config (wrapLabels code labels segments c).
+Lemma wrap_value_labels_wf : forall labels code segments c,
+  ValueLabelsReady code labels segments -> wf_config c -> wf_config (wrapValueLabels code labels segments c).
 Proof.
   induction labels as [ | s rest IH]; intros code segments c Hready Hwf; [exact Hwf | ].
   destruct segments as [ | seg more]; [exact Hwf | ]. destruct Hready as [Hseg [Hcont Hinner]].
-  cbn [wrapLabels]. destruct (siteEntry code s) as [[i body] | ]; [ | exact Hwf]. destruct Hinner as [Hk Hinner].
-  apply stack_prefix_wf; [exact Hseg | ]. apply instruction_suffix_wf; [exact Hcont | ].
+  cbn [wrapValueLabels]. destruct (siteEntry code s) as [[i body] | ]; [ | exact Hwf]. destruct Hinner as [Hk Hinner].
+  apply value_stack_prefix_wf; [exact Hseg | ]. apply instruction_suffix_wf; [exact Hcont | ].
   pose proof (IH _ _ _ Hinner Hwf) as H.
   match type of H with wf_config ?inner => destruct inner as [z code'] end.
   apply block_context_wf; [exact Hk | exact H].
 Qed.
 
+Lemma wrap_labels_wf : forall labels code segments c,
+  LabelsReady code labels segments -> wf_config c -> wf_config (wrapLabels code labels segments c).
+Proof.
+  intros labels code segments c Hready Hwf.
+  pose proof (wrap_value_labels_wf labels code (map (map i32Value) segments) c Hready Hwf) as H.
+  rewrite wrap_value_labels_i32 in H. exact H.
+Qed.
+
 (* A branch out of labels: br k+n inside n labels leaves them as br k, carrying
    their operands out and dropping the code after each one's END. *)
-Lemma wrap_labels_exit : forall labels code inner segments z values m rest,
-  pathCode code labels = Some inner -> length segments = length labels -> LabelsReady code labels segments ->
-  wf_state z -> Forall (fun value => 0 <= value < i32Modulus)%Z (concat segments ++ values) ->
+Lemma wrap_value_labels_exit : forall labels code inner segments z values m rest,
+  pathCode code labels = Some inner -> length segments = length labels -> ValueLabelsReady code labels segments ->
+  wf_state z -> Forall wf_val (concat segments ++ values) ->
   wf_uN 32%N (mk_uN (N.of_nat (length labels + m))) -> Forall wf_instr rest ->
   exists rest', Forall wf_instr rest' /\
-    Steps (wrapLabels code labels segments (stackConfig z values (BR (mk_uN (N.of_nat (length labels + m))) :: rest)))
-      (stackConfig z (concat segments ++ values) (BR (mk_uN (N.of_nat m)) :: rest')).
+    Steps (wrapValueLabels code labels segments (valueStackConfig z values (BR (mk_uN (N.of_nat (length labels + m))) :: rest)))
+      (valueStackConfig z (concat segments ++ values) (BR (mk_uN (N.of_nat m)) :: rest')).
 Proof.
   induction labels as [ | s more IH]; intros code inner segments z values m rest Hpath Hlen Hready Hz Hbounds Hl Hrest.
-  - destruct segments; [ | discriminate]. exists rest. split; [exact Hrest | ]. cbn [wrapLabels length Nat.add concat app].
-    apply Steps__refl. apply stack_config_wf; [exact Hz | exact Hbounds | ].
+  - destruct segments; [ | discriminate]. exists rest. split; [exact Hrest | ]. cbn [wrapValueLabels length Nat.add concat app].
+    apply Steps__refl. apply value_stack_config_wf; [exact Hz | exact Hbounds | ].
     constructor; [constructor; exact Hl | exact Hrest].
   - destruct segments as [ | seg segments]; [discriminate | ].
-    destruct Hready as [Hseg [Hcont Hinner]]. cbn [pathCode wrapLabels concat] in *.
+    destruct Hready as [Hseg [Hcont Hinner]]. cbn [pathCode wrapValueLabels concat] in *.
     destruct (siteEntry code s) as [[i body] | ]; [ | discriminate]. destruct Hinner as [Hk Hinner].
     replace (length (s :: more) + m) with (length more + S m) in * by (cbn; lia).
     rewrite <- app_assoc in Hbounds. apply Forall_app in Hbounds as [_ Hcarried].
@@ -238,17 +283,59 @@ Proof.
     replace (N.of_nat (S m)) with (N.of_nat m + 1)%N in Hsteps by lia.
     assert (Hk' : wf_uN 32%N (mk_uN (N.of_nat m + 1)%N)) by (eapply wf_label_le; [ | exact Hl]; lia).
     exists (skipn (S (siteOffset s)) code). split; [exact Hcont | ].
-    rewrite <- app_assoc, <- stack_prefix_config.
+    rewrite <- app_assoc, <- value_stack_prefix_config.
     replace (BR (mk_uN (N.of_nat m)) :: skipn (S (siteOffset s)) code)
       with ([BR (mk_uN (N.of_nat m))] ++ skipn (S (siteOffset s)) code) by reflexivity.
-    rewrite <- instruction_suffix_config.
-    apply (steps_with_stack_prefix seg _ _ Hseg). apply (steps_with_instruction_suffix _ _ _ Hcont).
+    rewrite <- value_instruction_suffix_config.
+    apply (steps_with_value_prefix seg _ _ Hseg). apply (steps_with_instruction_suffix _ _ _ Hcont).
     eapply spec_steps_transitive; [exact (steps_in_block _ _ _ _ Hk Hsteps) | ].
-    exact (br_exit_label_carrying _ _ z _ (N.of_nat m) rest' Hk Hz Hcarried Hk' Hrest').
+    exact (value_br_exit_label_carrying _ _ z _ (N.of_nat m) rest' Hk Hz Hcarried Hk' Hrest').
+Qed.
+
+Lemma wrap_labels_exit : forall labels code inner segments z values m rest,
+  pathCode code labels = Some inner -> length segments = length labels -> LabelsReady code labels segments ->
+  wf_state z -> Forall (fun value => 0 <= value < i32Modulus)%Z (concat segments ++ values) ->
+  wf_uN 32%N (mk_uN (N.of_nat (length labels + m))) -> Forall wf_instr rest ->
+  exists rest', Forall wf_instr rest' /\
+    Steps (wrapLabels code labels segments (stackConfig z values (BR (mk_uN (N.of_nat (length labels + m))) :: rest)))
+      (stackConfig z (concat segments ++ values) (BR (mk_uN (N.of_nat m)) :: rest')).
+Proof.
+  intros labels code inner segments z values m rest Hp Hl Hr Hz Hv Hlabel Hrest.
+  assert (Hvalues : Forall wf_val (concat (map (map i32Value) segments) ++ map i32Value values)).
+  { rewrite concat_map_values, <- map_app. now apply i32_values_wf. }
+  destruct (wrap_value_labels_exit labels code inner (map (map i32Value) segments) z (map i32Value values) m rest Hp ltac:(now rewrite length_map)
+    Hr Hz Hvalues Hlabel Hrest) as [rest' [Hrest' Hsteps]].
+  exists rest'. split; [exact Hrest' | ].
+  rewrite concat_map_values, <- map_app, !value_stack_config_i32, wrap_value_labels_i32 in Hsteps. exact Hsteps.
 Qed.
 
 (* A return inside labels leaves them all, carrying their operands out and
    dropping the code after each one's END. *)
+Lemma wrap_value_labels_return : forall labels code inner segments z values rest,
+  pathCode code labels = Some inner -> length segments = length labels -> ValueLabelsReady code labels segments ->
+  wf_state z -> Forall wf_val (concat segments ++ values) -> Forall wf_instr rest ->
+  exists rest', Forall wf_instr rest' /\
+    Steps (wrapValueLabels code labels segments (valueStackConfig z values (RETURN :: rest)))
+      (valueStackConfig z (concat segments ++ values) (RETURN :: rest')).
+Proof.
+  induction labels as [ | s more IH]; intros code inner segments z values rest Hpath Hlen Hready Hz Hbounds Hrest.
+  - destruct segments; [ | discriminate]. exists rest. split; [exact Hrest | ]. cbn [wrapValueLabels concat app].
+    apply Steps__refl. apply value_stack_config_wf; [exact Hz | exact Hbounds | ]. constructor; [constructor | exact Hrest].
+  - destruct segments as [ | seg segments]; [discriminate | ].
+    destruct Hready as [Hseg [Hcont Hinner]]. cbn [pathCode wrapValueLabels concat] in *.
+    destruct (siteEntry code s) as [[i body] | ]; [ | discriminate]. destruct Hinner as [Hk Hinner].
+    rewrite <- app_assoc in Hbounds. apply Forall_app in Hbounds as [_ Hcarried].
+    destruct (IH _ _ segments z values rest Hpath ltac:(cbn in Hlen; lia) Hinner Hz Hcarried Hrest)
+      as [rest' [Hrest' Hsteps]].
+    exists (skipn (S (siteOffset s)) code). split; [exact Hcont | ].
+    rewrite <- app_assoc, <- value_stack_prefix_config.
+    replace (RETURN :: skipn (S (siteOffset s)) code) with ([RETURN] ++ skipn (S (siteOffset s)) code) by reflexivity.
+    rewrite <- value_instruction_suffix_config.
+    apply (steps_with_value_prefix seg _ _ Hseg). apply (steps_with_instruction_suffix _ _ _ Hcont).
+    eapply spec_steps_transitive; [exact (steps_in_block _ _ _ _ Hk Hsteps) | ].
+    exact (value_return_label_carrying _ _ z _ rest' Hk Hz Hcarried Hrest').
+Qed.
+
 Lemma wrap_labels_return : forall labels code inner segments z values rest,
   pathCode code labels = Some inner -> length segments = length labels -> LabelsReady code labels segments ->
   wf_state z -> Forall (fun value => 0 <= value < i32Modulus)%Z (concat segments ++ values) -> Forall wf_instr rest ->
@@ -256,22 +343,13 @@ Lemma wrap_labels_return : forall labels code inner segments z values rest,
     Steps (wrapLabels code labels segments (stackConfig z values (RETURN :: rest)))
       (stackConfig z (concat segments ++ values) (RETURN :: rest')).
 Proof.
-  induction labels as [ | s more IH]; intros code inner segments z values rest Hpath Hlen Hready Hz Hbounds Hrest.
-  - destruct segments; [ | discriminate]. exists rest. split; [exact Hrest | ]. cbn [wrapLabels concat app].
-    apply Steps__refl. apply stack_config_wf; [exact Hz | exact Hbounds | ]. constructor; [constructor | exact Hrest].
-  - destruct segments as [ | seg segments]; [discriminate | ].
-    destruct Hready as [Hseg [Hcont Hinner]]. cbn [pathCode wrapLabels concat] in *.
-    destruct (siteEntry code s) as [[i body] | ]; [ | discriminate]. destruct Hinner as [Hk Hinner].
-    rewrite <- app_assoc in Hbounds. apply Forall_app in Hbounds as [_ Hcarried].
-    destruct (IH _ _ segments z values rest Hpath ltac:(cbn in Hlen; lia) Hinner Hz Hcarried Hrest)
-      as [rest' [Hrest' Hsteps]].
-    exists (skipn (S (siteOffset s)) code). split; [exact Hcont | ].
-    rewrite <- app_assoc, <- stack_prefix_config.
-    replace (RETURN :: skipn (S (siteOffset s)) code) with ([RETURN] ++ skipn (S (siteOffset s)) code) by reflexivity.
-    rewrite <- instruction_suffix_config.
-    apply (steps_with_stack_prefix seg _ _ Hseg). apply (steps_with_instruction_suffix _ _ _ Hcont).
-    eapply spec_steps_transitive; [exact (steps_in_block _ _ _ _ Hk Hsteps) | ].
-    exact (return_label_carrying _ _ z _ rest' Hk Hz Hcarried Hrest').
+  intros labels code inner segments z values rest Hp Hl Hr Hz Hv Hrest.
+  assert (Hvalues : Forall wf_val (concat (map (map i32Value) segments) ++ map i32Value values)).
+  { rewrite concat_map_values, <- map_app. now apply i32_values_wf. }
+  destruct (wrap_value_labels_return labels code inner (map (map i32Value) segments) z (map i32Value values) rest Hp ltac:(now rewrite length_map)
+    Hr Hz Hvalues Hrest) as [rest' [Hrest' Hsteps]].
+  exists rest'. split; [exact Hrest' | ].
+  rewrite concat_map_values, <- map_app, !value_stack_config_i32, wrap_value_labels_i32 in Hsteps. exact Hsteps.
 Qed.
 
 (* Callee types and validation come from the module context SpecTec instantiated. *)

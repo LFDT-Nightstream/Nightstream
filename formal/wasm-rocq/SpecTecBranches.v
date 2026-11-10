@@ -85,15 +85,24 @@ Proof.
 Qed.
 
 (* An arm's END: its label leaves the arm's results, whatever it keeps for branches. *)
+Lemma value_exit_block : forall n continuation z values, Forall wf_instr continuation ->
+  wf_state z -> Forall wf_val values ->
+  Steps (blockContext n continuation (valueStackConfig z values [])) (valueStackConfig z values []).
+Proof.
+  intros n continuation z values Hc Hz Hvalues. apply one_spec_step.
+  - apply block_context_wf; [exact Hc | ]. apply value_stack_config_wf; [exact Hz | exact Hvalues | constructor].
+  - apply value_stack_config_wf; [exact Hz | exact Hvalues | constructor].
+  - apply pure. unfold blockContext, valueStackConfig. rewrite app_nil_r.
+    apply label_vals.
+Qed.
+
 Lemma exit_block : forall n continuation z values, Forall wf_instr continuation ->
   wf_state z -> Forall (fun value => 0 <= value < i32Modulus) values ->
   Steps (blockContext n continuation (stackConfig z values [])) (stackConfig z values []).
 Proof.
-  intros n continuation z values Hc Hz Hvalues. apply one_spec_step.
-  - apply block_context_wf; [exact Hc | ]. apply stack_config_wf; [exact Hz | exact Hvalues | constructor].
-  - apply stack_config_wf; [exact Hz | exact Hvalues | constructor].
-  - apply pure. unfold blockContext, stackConfig. rewrite app_nil_r, i32_constants_values.
-    apply label_vals.
+  intros n continuation z values Hc Hz Hv.
+  pose proof (value_exit_block n continuation z (map i32Value values) Hc Hz (i32_values_wf values Hv)) as H.
+  rewrite !value_stack_config_i32 in H. exact H.
 Qed.
 
 Lemma wf_label_le : forall k k', (k <= k')%N -> wf_uN 32%N (mk_uN k') -> wf_uN 32%N (mk_uN k).
@@ -204,6 +213,20 @@ Lemma instruction_suffix_config : forall z values code more,
   instructionSuffix more (stackConfig z values code) = stackConfig z values (code ++ more).
 Proof. intros. unfold instructionSuffix, stackConfig. rewrite map_app, app_assoc. reflexivity. Qed.
 
+Lemma value_br_if_steps_below : forall z below condition l rest,
+  wf_state z -> Forall wf_val below -> 0 <= condition < i32Modulus ->
+  wf_uN 32%N l -> Forall wf_instr rest ->
+  Steps (valueStackConfig z (below ++ [i32Value condition]) (BR_IF l :: rest))
+    (if Z.eqb condition 0 then valueStackConfig z below rest else valueStackConfig z below (BR l :: rest)).
+Proof.
+  intros z below condition l rest Hz Hbelow Hbound Hl Hrest.
+  pose proof (br_if_steps z condition l rest Hz Hbound Hl Hrest) as H.
+  change (Steps (valueStackConfig z [i32Value condition] (BR_IF l :: rest))
+    (if Z.eqb condition 0 then valueStackConfig z [] rest else valueStackConfig z [] (BR l :: rest))) in H.
+  pose proof (steps_with_value_prefix below _ _ Hbelow H) as Hsteps.
+  destruct (Z.eqb condition 0); rewrite !value_stack_prefix_config, app_nil_r in Hsteps; exact Hsteps.
+Qed.
+
 Lemma br_if_steps_below : forall z below condition l rest,
   wf_state z -> Forall (fun value => 0 <= value < i32Modulus) below -> 0 <= condition < i32Modulus ->
   wf_uN 32%N l -> Forall wf_instr rest ->
@@ -211,81 +234,113 @@ Lemma br_if_steps_below : forall z below condition l rest,
     (if Z.eqb condition 0 then stackConfig z below rest else stackConfig z below (BR l :: rest)).
 Proof.
   intros z below condition l rest Hz Hbelow Hbound Hl Hrest.
-  rewrite <- stack_prefix_config.
-  pose proof (steps_with_stack_prefix below _ _ Hbelow (br_if_steps z condition l rest Hz Hbound Hl Hrest)) as H.
-  destruct (Z.eqb condition 0); rewrite !stack_prefix_config in *; rewrite ?app_nil_r in H; exact H.
+  pose proof (value_br_if_steps_below z (map i32Value below) condition l rest Hz
+    (i32_values_wf below Hbelow) Hbound Hl Hrest) as H.
+  change [i32Value condition] with (map i32Value [condition]) in H.
+  rewrite <- map_app, !value_stack_config_i32 in H. exact H.
 Qed.
 
 (* A branch leaving a label carries every operand on its stack out of it. *)
+Lemma value_br_exit_label_carrying : forall n continuation z values k rest, Forall wf_instr continuation ->
+  wf_state z -> Forall wf_val values ->
+  wf_uN 32%N (mk_uN (k + 1)%N) -> Forall wf_instr rest ->
+  Steps (blockContext n continuation (valueStackConfig z values (BR (mk_uN (k + 1)%N) :: rest)))
+    (valueStackConfig z values [BR (mk_uN k)]).
+Proof.
+  intros n continuation z values k rest Hc Hz Hvalues Hl Hrest. apply one_spec_step.
+  - apply block_context_wf; [exact Hc | ]. apply value_stack_config_wf; [exact Hz | exact Hvalues | ].
+    constructor; [constructor; exact Hl | exact Hrest].
+  - apply value_stack_config_wf; [exact Hz | exact Hvalues | ].
+    constructor; [apply instr_case_7; exact (wf_label_le k (k + 1)%N ltac:(lia) Hl) | constructor].
+  - apply pure. unfold blockContext, valueStackConfig.
+    pose proof (br_succ (N.of_nat n) continuation values (mk_uN k) (map admininstr_instr rest)) as Hstep.
+    rewrite !cat_app, <- app_assoc in Hstep. exact Hstep.
+Qed.
+
 Lemma br_exit_label_carrying : forall n continuation z values k rest, Forall wf_instr continuation ->
   wf_state z -> Forall (fun value => 0 <= value < i32Modulus) values ->
   wf_uN 32%N (mk_uN (k + 1)%N) -> Forall wf_instr rest ->
   Steps (blockContext n continuation (stackConfig z values (BR (mk_uN (k + 1)%N) :: rest)))
     (stackConfig z values [BR (mk_uN k)]).
 Proof.
-  intros n continuation z values k rest Hc Hz Hvalues Hl Hrest. apply one_spec_step.
-  - apply block_context_wf; [exact Hc | ]. apply stack_config_wf; [exact Hz | exact Hvalues | ].
-    constructor; [constructor; exact Hl | exact Hrest].
-  - apply stack_config_wf; [exact Hz | exact Hvalues | ].
-    constructor; [apply instr_case_7; exact (wf_label_le k (k + 1)%N ltac:(lia) Hl) | constructor].
-  - apply pure. unfold blockContext, stackConfig. rewrite i32_constants_values.
-    pose proof (br_succ (N.of_nat n) continuation (map i32Value values) (mk_uN k) (map admininstr_instr rest)) as Hstep.
-    rewrite !cat_app, <- app_assoc in Hstep. exact Hstep.
+  intros n continuation z values k rest Hc Hz Hv Hl Hr.
+  pose proof (value_br_exit_label_carrying n continuation z (map i32Value values) k rest Hc Hz (i32_values_wf values Hv) Hl Hr) as H.
+  rewrite !value_stack_config_i32 in H. exact H.
 Qed.
 
 (* A branch reaching its target keeps the target's arity of top operands, drops
    the operands below them, and runs the target's continuation. *)
+Lemma value_br_exit_target : forall continuation z dropped kept rest, Forall wf_instr continuation ->
+  wf_state z -> Forall wf_val (dropped ++ kept) -> Forall wf_instr rest ->
+  Steps (blockContext (length kept) continuation (valueStackConfig z (dropped ++ kept) (BR (mk_uN 0) :: rest)))
+    (valueStackConfig z kept continuation).
+Proof.
+  intros continuation z dropped kept rest Hc Hz Hvalues Hrest. apply one_spec_step.
+  - apply block_context_wf; [exact Hc | ]. apply value_stack_config_wf; [exact Hz | exact Hvalues | ].
+    constructor; [repeat constructor | exact Hrest].
+  - apply value_stack_config_wf; [exact Hz | exact (proj2 (proj1 (Forall_app _ _ _) Hvalues)) | exact Hc].
+  - apply pure. unfold blockContext, valueStackConfig. rewrite map_app.
+    pose proof (br_zero (N.of_nat (length kept)) continuation dropped kept
+      (map admininstr_instr rest)) as Hstep.
+    rewrite !cat_app, <- !app_assoc in Hstep. rewrite <- !app_assoc. apply Hstep.
+    apply (introT eqP). reflexivity.
+Qed.
+
 Lemma br_exit_target : forall continuation z dropped kept rest, Forall wf_instr continuation ->
   wf_state z -> Forall (fun value => 0 <= value < i32Modulus) (dropped ++ kept) -> Forall wf_instr rest ->
   Steps (blockContext (length kept) continuation (stackConfig z (dropped ++ kept) (BR (mk_uN 0) :: rest)))
     (stackConfig z kept continuation).
 Proof.
-  intros continuation z dropped kept rest Hc Hz Hvalues Hrest. apply one_spec_step.
-  - apply block_context_wf; [exact Hc | ]. apply stack_config_wf; [exact Hz | exact Hvalues | ].
-    constructor; [repeat constructor | exact Hrest].
-  - apply stack_config_wf; [exact Hz | exact (proj2 (proj1 (Forall_app _ _ _) Hvalues)) | exact Hc].
-  - apply pure. unfold blockContext, stackConfig. rewrite map_app, !i32_constants_values.
-    pose proof (br_zero (N.of_nat (length kept)) continuation (map i32Value dropped) (map i32Value kept)
-      (map admininstr_instr rest)) as Hstep.
-    rewrite !cat_app, <- !app_assoc in Hstep. rewrite <- !app_assoc. apply Hstep.
-    apply (introT eqP). f_equal. clear. induction kept as [ | v kept IH]; [reflexivity | cbn; rewrite IH; reflexivity].
+  intros continuation z dropped kept rest Hc Hz Hv Hr.
+  pose proof (value_br_exit_target continuation z (map i32Value dropped) (map i32Value kept) rest Hc Hz) as H.
+  rewrite <- map_app in H. specialize (H (i32_values_wf _ Hv) Hr).
+  rewrite !length_map, !value_stack_config_i32 in H. exact H.
 Qed.
 
 (* A return leaving a label carries every operand on its stack out of it. *)
+Lemma value_return_label_carrying : forall n continuation z values rest, Forall wf_instr continuation ->
+  wf_state z -> Forall wf_val values -> Forall wf_instr rest ->
+  Steps (blockContext n continuation (valueStackConfig z values (RETURN :: rest))) (valueStackConfig z values [RETURN]).
+Proof.
+  intros n continuation z values rest Hc Hz Hvalues Hrest. apply one_spec_step.
+  - apply block_context_wf; [exact Hc | ]. apply value_stack_config_wf; [exact Hz | exact Hvalues | ].
+    constructor; [constructor | exact Hrest].
+  - apply value_stack_config_wf; [exact Hz | exact Hvalues | ]. repeat constructor.
+  - apply pure. unfold blockContext, valueStackConfig.
+    pose proof (return_label (N.of_nat n) continuation values (map admininstr_instr rest)) as Hstep.
+    rewrite !cat_app, <- app_assoc in Hstep. exact Hstep.
+Qed.
+
 Lemma return_label_carrying : forall n continuation z values rest, Forall wf_instr continuation ->
   wf_state z -> Forall (fun value => 0 <= value < i32Modulus) values -> Forall wf_instr rest ->
   Steps (blockContext n continuation (stackConfig z values (RETURN :: rest))) (stackConfig z values [RETURN]).
 Proof.
-  intros n continuation z values rest Hc Hz Hvalues Hrest. apply one_spec_step.
-  - apply block_context_wf; [exact Hc | ]. apply stack_config_wf; [exact Hz | exact Hvalues | ].
-    constructor; [constructor | exact Hrest].
-  - apply stack_config_wf; [exact Hz | exact Hvalues | ]. repeat constructor.
-  - apply pure. unfold blockContext, stackConfig. rewrite i32_constants_values.
-    pose proof (return_label (N.of_nat n) continuation (map i32Value values) (map admininstr_instr rest)) as Hstep.
-    rewrite !cat_app, <- app_assoc in Hstep. exact Hstep.
+  intros n continuation z values rest Hc Hz Hv Hr.
+  pose proof (value_return_label_carrying n continuation z (map i32Value values) rest Hc Hz (i32_values_wf values Hv) Hr) as H.
+  rewrite !value_stack_config_i32 in H. exact H.
 Qed.
 
 (* A return reaching its function's frame: the function's label passes it on, and
    the frame keeps the results, dropping every operand below them. *)
-Lemma i32_function_returns_early : forall s caller callee dropped results rest,
+Lemma value_function_returns_early : forall s caller callee dropped results rest,
   wf_state (mk_state s caller) -> wf_frame callee ->
-  Forall (fun value => 0 <= value < i32Modulus) (dropped ++ results) -> Forall wf_instr rest ->
+  Forall wf_val (dropped ++ results) -> Forall wf_instr rest ->
   Steps (callContext caller (N.of_nat (length results))
-      (stackConfig (mk_state s callee) (dropped ++ results) (RETURN :: rest)))
-    (mk_config (mk_state s caller) (map i32Constant results)).
+      (valueStackConfig (mk_state s callee) (dropped ++ results) (RETURN :: rest)))
+    (mk_config (mk_state s caller) (map admininstr_val results)).
 Proof.
   intros s caller callee dropped results rest Hstate Hcallee Hvalues Hrest.
   set (n := N.of_nat (length results)).
-  assert (Hconstants : forall values, Forall (fun value => 0 <= value < i32Modulus) values ->
-      Forall wf_admininstr (map i32Constant values)).
+  assert (Hconstants : forall values, Forall wf_val values ->
+      Forall wf_admininstr (map admininstr_val values)).
   { intros values Hv. apply Forall_map. eapply Forall_impl; [ | exact Hv].
-    intros value Hvalue. constructor. apply spectec_i32_well_formed. exact Hvalue. }
+    intros value Hvalue. now apply value_admin_wf. }
   pose proof (Hconstants _ Hvalues) as Hall.
   pose proof (Hconstants _ (proj2 (proj1 (Forall_app _ _ _) Hvalues))) as Hkept.
   assert (HinnerState : wf_state (mk_state s callee)) by (inversion Hstate; constructor; assumption).
-  set (returning := map i32Constant (dropped ++ results) ++ [admininstr_RETURN]).
+  set (returning := map admininstr_val (dropped ++ results) ++ [admininstr_RETURN]).
   assert (Hreturning : Forall wf_admininstr returning) by (apply Forall_app; split; [exact Hall | repeat constructor]).
-  set (body := map i32Constant (dropped ++ results) ++ map admininstr_instr (RETURN :: rest)).
+  set (body := map admininstr_val (dropped ++ results) ++ map admininstr_instr (RETURN :: rest)).
   assert (Hbody : Forall wf_admininstr body).
   { apply Forall_app; split; [exact Hall | ]. apply Forall_map. constructor; [constructor | ].
     eapply Forall_impl; [ | exact Hrest]. intros i Hi. apply instruction_admin_wf. exact Hi. }
@@ -296,23 +351,77 @@ Proof.
     by (constructor; [exact Hstate | repeat constructor; assumption]).
   assert (Hmiddle : wf_config (mk_config (mk_state s caller) [FRAME_ n callee returning]))
     by (constructor; [exact Hstate | repeat constructor; assumption]).
-  assert (Hafter : wf_config (mk_config (mk_state s caller) (map i32Constant results))) by (constructor; assumption).
+  assert (Hafter : wf_config (mk_config (mk_state s caller) (map admininstr_val results))) by (constructor; assumption).
   change (Steps (mk_config (mk_state s caller) [FRAME_ n callee [LABEL_ n [] body]])
-    (mk_config (mk_state s caller) (map i32Constant results))).
+    (mk_config (mk_state s caller) (map admininstr_val results))).
   eapply trans; [ | | exact Hbefore | exact Hafter | exact Hmiddle].
   - apply ctxt_frame; [ | exact Hlabel | exact HinnerReturning].
-    apply pure. unfold returning, body. rewrite i32_constants_values.
-    pose proof (return_label n [] (map i32Value (dropped ++ results)) (map admininstr_instr rest)) as Hstep.
+    apply pure. unfold returning, body.
+    pose proof (return_label n [] (dropped ++ results) (map admininstr_instr rest)) as Hstep.
     rewrite !cat_app, <- app_assoc in Hstep. exact Hstep.
   - eapply trans; [ | apply Steps__refl; exact Hafter | exact Hmiddle | exact Hafter | exact Hafter].
-    apply pure. unfold returning. rewrite map_app, !i32_constants_values.
-    pose proof (return_frame n callee (map i32Value dropped) (map i32Value results) []) as Hstep.
+    apply pure. unfold returning. rewrite map_app.
+    pose proof (return_frame n callee dropped results []) as Hstep.
     rewrite !cat_app, !app_nil_r in Hstep. apply Hstep.
-    apply (introT eqP). unfold n. rewrite length_map. reflexivity.
+    apply (introT eqP). unfold n. reflexivity.
+Qed.
+
+Lemma i32_function_returns_early : forall s caller callee dropped results rest,
+  wf_state (mk_state s caller) -> wf_frame callee ->
+  Forall (fun value => 0 <= value < i32Modulus) (dropped ++ results) -> Forall wf_instr rest ->
+  Steps (callContext caller (N.of_nat (length results))
+      (stackConfig (mk_state s callee) (dropped ++ results) (RETURN :: rest)))
+    (mk_config (mk_state s caller) (map i32Constant results)).
+Proof.
+  intros s caller callee dropped results rest Hs Hc Hv Hr.
+  pose proof (value_function_returns_early s caller callee (map i32Value dropped) (map i32Value results) rest Hs Hc) as H.
+  rewrite <- map_app in H. specialize (H (i32_values_wf _ Hv) Hr).
+  rewrite !length_map, !value_stack_config_i32, !map_map in H. exact H.
 Qed.
 
 (* A branch to the function's own label: the label keeps the results, and the frame
    returns them, as a return would. *)
+Lemma value_function_branches_out : forall s caller callee dropped results rest,
+  wf_state (mk_state s caller) -> wf_frame callee ->
+  Forall wf_val (dropped ++ results) -> Forall wf_instr rest ->
+  Steps (callContext caller (N.of_nat (length results))
+      (valueStackConfig (mk_state s callee) (dropped ++ results) (BR (mk_uN 0) :: rest)))
+    (mk_config (mk_state s caller) (map admininstr_val results)).
+Proof.
+  intros s caller callee dropped results rest Hstate Hcallee Hvalues Hrest.
+  set (n := N.of_nat (length results)).
+  assert (Hconstants : forall values, Forall wf_val values ->
+      Forall wf_admininstr (map admininstr_val values)).
+  { intros values Hv. apply Forall_map. eapply Forall_impl; [ | exact Hv].
+    intros value Hvalue. now apply value_admin_wf. }
+  pose proof (Hconstants _ Hvalues) as Hall.
+  pose proof (Hconstants _ (proj2 (proj1 (Forall_app _ _ _) Hvalues))) as Hkept.
+  assert (HinnerState : wf_state (mk_state s callee)) by (inversion Hstate; constructor; assumption).
+  set (body := map admininstr_val (dropped ++ results) ++ map admininstr_instr (BR (mk_uN 0) :: rest)).
+  assert (Hbody : Forall wf_admininstr body).
+  { apply Forall_app; split; [exact Hall | ]. apply Forall_map. constructor; [repeat constructor | ].
+    eapply Forall_impl; [ | exact Hrest]. intros i Hi. apply instruction_admin_wf. exact Hi. }
+  assert (Hlabel : wf_config (mk_config (mk_state s callee) [LABEL_ n [] body]))
+    by (constructor; [exact HinnerState | repeat constructor; assumption]).
+  assert (HinnerKept : wf_config (mk_config (mk_state s callee) (map admininstr_val results))) by (constructor; assumption).
+  assert (Hbefore : wf_config (mk_config (mk_state s caller) [FRAME_ n callee [LABEL_ n [] body]]))
+    by (constructor; [exact Hstate | repeat constructor; assumption]).
+  assert (Hmiddle : wf_config (mk_config (mk_state s caller) [FRAME_ n callee (map admininstr_val results)]))
+    by (constructor; [exact Hstate | repeat constructor; assumption]).
+  assert (Hafter : wf_config (mk_config (mk_state s caller) (map admininstr_val results))) by (constructor; assumption).
+  change (Steps (mk_config (mk_state s caller) [FRAME_ n callee [LABEL_ n [] body]])
+    (mk_config (mk_state s caller) (map admininstr_val results))).
+  eapply trans; [ | | exact Hbefore | exact Hafter | exact Hmiddle].
+  - apply ctxt_frame; [ | exact Hlabel | exact HinnerKept].
+    apply pure. unfold body. rewrite map_app.
+    pose proof (br_zero n [] dropped results (map admininstr_instr rest)) as Hstep.
+    rewrite !cat_app, app_nil_r, <- !app_assoc in Hstep. rewrite <- !app_assoc. apply Hstep.
+    apply (introT eqP). unfold n. reflexivity.
+  - eapply trans; [ | apply Steps__refl; exact Hafter | exact Hmiddle | exact Hafter | exact Hafter].
+    apply pure. apply frame_vals.
+    apply (introT eqP). unfold n. reflexivity.
+Qed.
+
 Lemma i32_function_branches_out : forall s caller callee dropped results rest,
   wf_state (mk_state s caller) -> wf_frame callee ->
   Forall (fun value => 0 <= value < i32Modulus) (dropped ++ results) -> Forall wf_instr rest ->
@@ -320,36 +429,8 @@ Lemma i32_function_branches_out : forall s caller callee dropped results rest,
       (stackConfig (mk_state s callee) (dropped ++ results) (BR (mk_uN 0) :: rest)))
     (mk_config (mk_state s caller) (map i32Constant results)).
 Proof.
-  intros s caller callee dropped results rest Hstate Hcallee Hvalues Hrest.
-  set (n := N.of_nat (length results)).
-  assert (Hconstants : forall values, Forall (fun value => 0 <= value < i32Modulus) values ->
-      Forall wf_admininstr (map i32Constant values)).
-  { intros values Hv. apply Forall_map. eapply Forall_impl; [ | exact Hv].
-    intros value Hvalue. constructor. apply spectec_i32_well_formed. exact Hvalue. }
-  pose proof (Hconstants _ Hvalues) as Hall.
-  pose proof (Hconstants _ (proj2 (proj1 (Forall_app _ _ _) Hvalues))) as Hkept.
-  assert (HinnerState : wf_state (mk_state s callee)) by (inversion Hstate; constructor; assumption).
-  set (body := map i32Constant (dropped ++ results) ++ map admininstr_instr (BR (mk_uN 0) :: rest)).
-  assert (Hbody : Forall wf_admininstr body).
-  { apply Forall_app; split; [exact Hall | ]. apply Forall_map. constructor; [repeat constructor | ].
-    eapply Forall_impl; [ | exact Hrest]. intros i Hi. apply instruction_admin_wf. exact Hi. }
-  assert (Hlabel : wf_config (mk_config (mk_state s callee) [LABEL_ n [] body]))
-    by (constructor; [exact HinnerState | repeat constructor; assumption]).
-  assert (HinnerKept : wf_config (mk_config (mk_state s callee) (map i32Constant results))) by (constructor; assumption).
-  assert (Hbefore : wf_config (mk_config (mk_state s caller) [FRAME_ n callee [LABEL_ n [] body]]))
-    by (constructor; [exact Hstate | repeat constructor; assumption]).
-  assert (Hmiddle : wf_config (mk_config (mk_state s caller) [FRAME_ n callee (map i32Constant results)]))
-    by (constructor; [exact Hstate | repeat constructor; assumption]).
-  assert (Hafter : wf_config (mk_config (mk_state s caller) (map i32Constant results))) by (constructor; assumption).
-  change (Steps (mk_config (mk_state s caller) [FRAME_ n callee [LABEL_ n [] body]])
-    (mk_config (mk_state s caller) (map i32Constant results))).
-  eapply trans; [ | | exact Hbefore | exact Hafter | exact Hmiddle].
-  - apply ctxt_frame; [ | exact Hlabel | exact HinnerKept].
-    apply pure. unfold body. rewrite map_app, !i32_constants_values.
-    pose proof (br_zero n [] (map i32Value dropped) (map i32Value results) (map admininstr_instr rest)) as Hstep.
-    rewrite !cat_app, app_nil_r, <- !app_assoc in Hstep. rewrite <- !app_assoc. apply Hstep.
-    apply (introT eqP). unfold n. rewrite length_map. reflexivity.
-  - eapply trans; [ | apply Steps__refl; exact Hafter | exact Hmiddle | exact Hafter | exact Hafter].
-    apply pure. rewrite i32_constants_values. apply frame_vals.
-    apply (introT eqP). unfold n. rewrite length_map. reflexivity.
+  intros s caller callee dropped results rest Hs Hc Hv Hr.
+  pose proof (value_function_branches_out s caller callee (map i32Value dropped) (map i32Value results) rest Hs Hc) as H.
+  rewrite <- map_app in H. specialize (H (i32_values_wf _ Hv) Hr).
+  rewrite !length_map, !value_stack_config_i32, !map_map in H. exact H.
 Qed.

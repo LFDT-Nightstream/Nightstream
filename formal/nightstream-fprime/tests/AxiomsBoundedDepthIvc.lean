@@ -623,6 +623,8 @@ example : (runDepths 2 (fun _ => 0) 1 (List.replicate 3 [0, 0, 1]).flatten).isNo
 #audit_axioms NightstreamFPrime.Export.OptionB.StepCompleteness.fresh_complete
 #audit_axioms NightstreamFPrime.Export.OptionB.StepCompleteness.digest_getD
 #audit_axioms NightstreamFPrime.Export.OptionB.StepCompleteness.digestColumn_above
+#audit_axioms NightstreamFPrime.Export.OptionB.StepCompleteness.piecesOf_lightOps
+#audit_axioms NightstreamFPrime.Export.OptionB.StepCompleteness.piecesOf_refreshOps
 #audit_axioms NightstreamFPrime.Export.OptionB.StepCompleteness.light_complete
 #audit_axioms NightstreamFPrime.Export.OptionB.StepCompleteness.refresh_complete
 #audit_axioms NightstreamFPrime.Export.OptionB.NativeCompleteness.blocks_eq

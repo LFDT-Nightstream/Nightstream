@@ -191,11 +191,7 @@ fn fresh_columns_satisfy_the_rows_that_define_them() {
         let columns = package
             .relation_columns(columns, &rows)
             .expect("relation columns");
-        let defining = rows
-            .ring_rows()
-            .iter()
-            .cloned()
-            .chain([rows.sbox_rows()]);
+        let defining = rows.ring_rows().iter().cloned().chain([rows.sbox_rows()]);
         for row in defining.flatten() {
             assert_eq!(
                 rows.residual(row, &columns).as_canonical_u64(),

@@ -115,9 +115,10 @@ impl Builder {
             return Err(PackageError::Malformed("option-B plan column beyond the width"));
         }
         match self.forms.get(&column) {
-            Some(form) => self
-                .port
-                .extend(form.iter().map(|&(column, factor)| (column, factor * coefficient))),
+            Some(form) => self.port.extend(
+                form.iter()
+                    .map(|&(column, factor)| (column, factor * coefficient)),
+            ),
             None => self.port.push((column, coefficient)),
         }
         Ok(())
@@ -128,7 +129,7 @@ impl Builder {
         self.port.sort_by_key(|&(column, _)| column);
         let mut entries = self.port.drain(..).peekable();
         while let Some((column, mut coefficient)) = entries.next() {
-            while let Some(&(_, more)) = entries.next_if(|&(next, _)| next == column) {
+            while let Some((_, more)) = entries.next_if(|&(next, _)| next == column) {
                 coefficient += more;
             }
             if coefficient != Goldilocks::ZERO {

@@ -41,10 +41,10 @@ pub const OPTION_B_FINISH_IDENTITY: [u64; 4] = [
 
 /// The identity of the packages in `formal/nightstream-fprime/artifacts`.
 pub const OPTION_B_PACKAGES_IDENTITY: [u64; 4] = [
-    1_354_275_387_794_463_770,
-    3_720_968_081_141_137_317,
-    4_771_215_239_776_813_456,
-    6_354_740_205_293_193_189,
+    9_010_282_608_690_190_800,
+    7_537_486_564_851_467_438,
+    3_005_977_060_106_124_109,
+    17_948_740_413_145_393_863,
 ];
 
 /// A lane or a row side as `Pieces.linear?` reads it: a constant and terms.

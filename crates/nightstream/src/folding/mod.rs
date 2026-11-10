@@ -1,4 +1,4 @@
-//! Native selected C/R/D composition.
+//! The prover side of the option-B folds (SPEC.md Algorithm 4).
 //! Witnesses remain prover data. Public claims acquire authority only through verification.
 
 mod claims;

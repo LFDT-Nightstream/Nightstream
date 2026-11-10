@@ -54,6 +54,20 @@ def FalseAcceptance (control : AppState → AppWitness → Fin 2) (cap : Nat)
   Terminal.HoldsFor cap ajtai circuitKeys step control output.1 output.2 ∧
     ¬ Reaches exports.program output.1
 
+/-- The witnesses that the reverse extractor returns for a visit and its answers: one for each
+step of the walk's trail, first step first. -/
+def extracted (visit : Visit logicalWidth publicFits)
+    (answers : List (Answer logicalWidth publicFits)) : List AppWitness :=
+  witnessesOf (trail ajtai circuitKeys exports visit answers)
+
+/-- The terminal accepts the visit, and the extracted witnesses are not `iteration` valid steps
+of the application that lead from `z0` to `zi` (HyperNova Definition 11 (ii)). -/
+def ExtractionFailure (control : AppState → AppWitness → Fin 2) (cap : Nat)
+    (visit : Visit logicalWidth publicFits) (answers : List (Answer logicalWidth publicFits)) :
+    Prop :=
+  Terminal.HoldsFor cap ajtai circuitKeys step control visit.statement visit.proof ∧
+    ¬ ReachedBy exports.program visit.statement (extracted ajtai circuitKeys exports visit answers)
+
 /-- The walk's start: the IVC adversary's output with every slot at bound `B`. -/
 def walkAdversary (adversary : IvcAdversary (Output logicalWidth publicFits)) :
     IvcAdversary (Visit logicalWidth publicFits) :=
@@ -72,7 +86,36 @@ variable {Admitted : NifsAdversary (WalkAttempt logicalWidth publicFits) → Pro
 
 local notation "stages" => reverseStages assumption closed (walkAdversary adversary) admitted
 
-/-- HyperNova Lemma 17 for option B. -/
+/-- HyperNova Lemma 17 for option B, on the extractor's output: the probability that the terminal
+accepts the adversary's output and the witnesses that the reverse extractor returns do not lead
+from `z0` to `zi`. The law is the one of the last stage: the adversary's tape and the coins of
+each stage's extractor. -/
+theorem extraction_bound (keysShaped : ∀ key, (circuitKeys key).digest.length = 4)
+    (control : AppState → AppWitness → Fin 2) (cap depth : Nat)
+    (depthBound : ∀ tape ∈ adversary.tape.support, (adversary.output tape).1.iteration ≤ depth) :
+    ((stages depth).1.tape.toOuterMeasure
+        {tape | ExtractionFailure ajtai circuitKeys exports control cap
+          ((stages depth).1.input tape) ((stages depth).1.results tape)}).toReal ≤
+      ∑ j : Fin depth,
+        (((stages j.val).1.tape.toOuterMeasure
+            {tape | WalkCollision ajtai circuitKeys exports
+              (visitAfter (back ajtai circuitKeys exports) ((stages j.val).1.input tape)
+                ((stages j.val).1.results tape))}).toReal +
+          error ((stages j.val).1.nifs (attemptOf ajtai circuitKeys exports)
+            (back ajtai circuitKeys exports))) := by
+  refine bad_le assumption closed (walkAdversary adversary) admitted depth
+    (ExtractionFailure ajtai circuitKeys exports control cap)
+    (WalkCollision ajtai circuitKeys exports) ?_
+  intro origin supported results length failure
+  obtain ⟨accepted, unreached⟩ := failure
+  obtain ⟨j, inside, found⟩ := covered ajtai circuitKeys exports keysShaped control cap
+    (adversary.output origin) results (length ▸ depthBound origin supported) accepted
+    fun leads => unreached (reachedBy_of_leads _ _ _ leads
+      (trail_lengths ajtai circuitKeys exports _ _))
+  exact ⟨⟨j, length ▸ inside⟩, found⟩
+
+/-- HyperNova Lemma 17 for option B. A false acceptance is an extraction failure, because no
+list of witnesses reaches its statement. -/
 theorem probability_bound (keysShaped : ∀ key, (circuitKeys key).digest.length = 4)
     (control : AppState → AppWitness → Fin 2) (cap depth : Nat)
     (depthBound : ∀ tape ∈ adversary.tape.support, (adversary.output tape).1.iteration ≤ depth) :
@@ -94,14 +137,10 @@ theorem probability_bound (keysShaped : ∀ key, (circuitKeys key).digest.length
       {tape | FalseAcceptance ajtai circuitKeys exports control cap
         (adversary.output tape)} = _ at moved
   rw [moved]
-  refine bad_le assumption closed (walkAdversary adversary) admitted depth
-    (fun input _ => input ∈ event) (WalkCollision ajtai circuitKeys exports) ?_
-  intro origin supported results length falseAcceptance
-  obtain ⟨accepted, unreached⟩ := falseAcceptance
-  obtain ⟨j, inside, found⟩ := covered ajtai circuitKeys exports keysShaped control cap
-    (adversary.output origin) results (length ▸ depthBound origin supported) accepted
-    fun leads => unreached (reaches_of_leads _ _ _ leads
-      (trail_lengths ajtai circuitKeys exports _ _))
-  exact ⟨⟨j, length ▸ inside⟩, found⟩
+  refine (ENNReal.toReal_mono (event_ne_top _ _) (MeasureTheory.measure_mono ?_)).trans
+    (extraction_bound ajtai circuitKeys exports assumption closed adversary admitted keysShaped
+      control cap depth depthBound)
+  intro tape falseAcceptance
+  exact ⟨falseAcceptance.1, fun reached => falseAcceptance.2 ⟨_, reached⟩⟩
 
 end NightstreamFPrime.Export.OptionB.IvcSecurity

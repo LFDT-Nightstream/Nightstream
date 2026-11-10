@@ -63,6 +63,7 @@ import NightstreamFPrime.Export.OptionB.FinishRelation
 import NightstreamFPrime.Layout.OptionB.FinishAssemblerCompleteness
 import NightstreamFPrime.Export.OptionB.FinishCompleteness
 import NightstreamFPrime.Lifecycle.OptionB.Terminal
+import NightstreamFPrime.Lifecycle.OptionB.FreshInstance
 import NightstreamFPrime.Spec.Folding.Light.RlcModule
 
 open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
@@ -362,6 +363,10 @@ open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.Terminal.transition_forCircuit
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.Terminal.holdsFor_recursive_iff
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.Terminal.rejects_counter_shift
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.FreshInstance.Masks.unit_of_norm
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.FreshInstance.Masks.assignment_norm
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.FreshInstance.Masks.assignment_ofAssignment
+#audit_axioms NightstreamFPrime.Lifecycle.OptionB.FreshInstance.built_holds_iff
 #audit_axioms NightstreamFPrime.Layout.OptionB.StepCircuits.soundness
 #audit_axioms NightstreamFPrime.Export.Generic.Pieces.linear?_eval
 #audit_axioms NightstreamFPrime.Export.Generic.Pieces.flatMap_split
@@ -508,11 +513,13 @@ example : (runDepths 2 (fun _ => 0) 1 (List.replicate 3 [0, 0, 1]).flatten).isNo
 #audit_axioms NightstreamFPrime.Export.OptionB.IvcWalk.claimHolds_bigB
 #audit_axioms NightstreamFPrime.Export.OptionB.IvcWalk.decode_shaped
 #audit_axioms NightstreamFPrime.Export.OptionB.IvcWalk.validFrom_append
+#audit_axioms NightstreamFPrime.Export.OptionB.IvcWalk.reachedBy_of_leads
 #audit_axioms NightstreamFPrime.Export.OptionB.IvcWalk.reaches_of_leads
 #audit_axioms NightstreamFPrime.Export.OptionB.IvcWalk.initial_relaxed
 #audit_axioms NightstreamFPrime.Export.OptionB.IvcWalk.walk_step
 #audit_axioms NightstreamFPrime.Export.OptionB.IvcWalk.walk_leads
 #audit_axioms NightstreamFPrime.Export.OptionB.IvcWalk.covered
+#audit_axioms NightstreamFPrime.Export.OptionB.IvcSecurity.extraction_bound
 #audit_axioms NightstreamFPrime.Export.OptionB.IvcSecurity.probability_bound
 #audit_axioms NightstreamFPrime.Export.OptionB.FinishWalk.attempt_succeeds
 #audit_axioms NightstreamFPrime.Export.OptionB.FinishWalk.holdsFor_of_extracted

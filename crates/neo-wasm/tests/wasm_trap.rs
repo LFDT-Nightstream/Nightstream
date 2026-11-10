@@ -2,7 +2,7 @@
 //!
 //! Modeled trap causes (`unreachable`, div/rem by zero, signed division
 //! overflow, indirect-call OOB index / null entry / callee type mismatch,
-//! table access OOB (SPEC.md section 7.7), and linear-memory load/store OOB)
+//! table access OOB (SPEC.md section 7.8), and linear-memory load/store OOB)
 //! end the trace at the faulting row with
 //! `trapped: true` and no captured output. Unmodeled causes still stay loud
 //! trace-collection errors.

@@ -86,25 +86,4 @@ def centeredMagnitude (x : F) : Nat :=
 def normBounded (bound : Nat) (z : List F) : Prop :=
   ∀ x ∈ z, centeredMagnitude x < bound
 
-def packedCoeff (z : List F) (block : Nat) (rho : Fin ringDegree) : F :=
-  z.getD (block * ringDegree + rho.val) 0
-
-def packAssignment (z : List F) : List RingF :=
-  (List.range ((z.length + ringDegree - 1) / ringDegree)).map
-    (fun block rho => packedCoeff z block rho)
-
-def ringFDot : List RingF → List RingF → RingF
-  | a :: as, b :: bs => ringFAdd (ringFMul a b) (ringFDot as bs)
-  | _, _ => ringFZero
-
-abbrev AjtaiKey := List (List RingF)
-abbrev Commitment := List RingF
-
-def ajtaiCommit (key : AjtaiKey) (z : List F) : Commitment :=
-  let packed := packAssignment z
-  key.map (fun row => ringFDot row packed)
-
-def projectPublicInput (publicWidth : Nat) (z : List F) : List F :=
-  z.take publicWidth
-
 end NightstreamFPrime.Spec

@@ -1,6 +1,6 @@
 import NightstreamFPrime.Spec.Folding.BatchArity
 
-/-! SuperNeo v1.2 Lemma 8. -/
+/-! SuperNeo v1.2 Section 7.4 and Lemma 11. -/
 
 namespace NightstreamFPrime.Spec.Folding.PiRLC
 

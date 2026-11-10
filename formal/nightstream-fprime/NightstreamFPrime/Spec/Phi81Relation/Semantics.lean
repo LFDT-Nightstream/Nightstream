@@ -1,7 +1,8 @@
 import NightstreamFPrime.Spec.Phi81Relation.Evaluation
 import NightstreamFPrime.Spec.Relation
 
-/-! SuperNeo v1.2 Definitions 19–21. -/
+/-! SuperNeo v1.2 Definitions 19 and 20, and Definition 21 without the Pad evaluation `y`.
+`Lifecycle.PaperAlgebra.semantics` is the relation with the Pad evaluation. -/
 
 namespace NightstreamFPrime.Spec.Phi81Relation
 

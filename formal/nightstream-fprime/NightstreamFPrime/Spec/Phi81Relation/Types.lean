@@ -1,6 +1,6 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81Evaluation
 
-/-! SuperNeo v1.2 Definitions 19–21. -/
+/-! The types of SuperNeo v1.2 Definitions 19 to 21. -/
 
 namespace NightstreamFPrime.Spec.Phi81Relation
 

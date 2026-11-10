@@ -1,14 +1,20 @@
 import NightstreamFPrime.Export.OptionB.StepExtend
 import NightstreamFPrime.Export.OptionB.IvcWalk
 
-/-! Completeness of option-B IVC (CW-10.4): the terminal accepts the honest prover's proof of
-every valid run. A statement is honestly accepted when the terminal accepts the bottom proof, or a
-recursive proof whose slots are honest at the package widths (`Accepts`). One valid step keeps
-this (`accepts_step`): from the bottom proof by `StepExtend.base_extend`, and from a recursive
-proof by `StepExtend.light_extend` when the selected slot is below the light cap and by
+/-! Completeness of option-B IVC (CW-10.4). The verifier of a proof with its witnesses
+(`Verifies`, SPEC.md Algorithm 6) requires the terminal relation and, for a recursive proof, the
+slot checks `StepExtend.Honest`: the depth of each slot is at most the light cap, and its witness
+is within the accumulator bound of its depth (Cyclo, ePrint 2026/359, Theorem 3 item 1). The
+terminal relation alone admits each slot witness below `B`. It is the relation that extraction
+reaches (`FinishWalk.holdsFor_of_extracted`), and the verifier implies it (`holds_of_verifies`).
+
+One valid step extends each proof that the verifier accepts (`verifies_step`, HyperNova
+Definition 11 (i)): the bottom proof by `StepExtend.base_extend`, and a recursive proof by
+`StepExtend.light_extend` when the selected slot is below the light cap and by
 `StepExtend.refresh_extend` otherwise, as Rust picks the circuit from the slot depth. The terminal
 does not read the circuit selector (`TerminalBridge.holdsFor_recursive_control`), so each step may
-pick its own. Induction over the run gives `run_complete`. -/
+pick its own. A statement is honestly accepted when the verifier accepts some proof of it
+(`Accepts`, `accepts_step`). Induction over the run gives `run_complete`. -/
 
 set_option autoImplicit false
 
@@ -43,16 +49,56 @@ def Accepts (packageWidths : Fin 2 → Nat) (cap : Nat) (control : AppState → 
     ∃ payload, Terminal.HoldsFor cap ajtai circuitKeys step control statement (.recursive payload) ∧
       Honest (ajtai := ajtai) packageWidths payload
 
-/-- One valid step keeps the terminal's honest acceptance. -/
-theorem accepts_step (exports : Exports relation ajtai circuitKeys step cubeFits)
+variable (ajtai circuitKeys step) in
+/-- The verifier of a proof with its witnesses: the terminal relation accepts the proof, and the
+slots and the fresh instance of a recursive proof pass the checks of `StepExtend.Honest`. -/
+def Verifies (packageWidths : Fin 2 → Nat) (cap : Nat) (control : AppState → AppWitness → Fin 2)
+    (statement : TerminalStatement AppState)
+    (proof : Terminal.ProofEnvelope (logicalWidth := logicalWidth) (publicFits := publicFits)) :
+    Prop :=
+  Terminal.HoldsFor cap ajtai circuitKeys step control statement proof ∧
+    match proof with
+    | .bottom => True
+    | .recursive payload => Honest (ajtai := ajtai) packageWidths payload
+
+/-- The verifier accepts only what the terminal relation accepts, so each bound on an acceptance
+of the terminal relation is a bound on an acceptance of the verifier. -/
+theorem holds_of_verifies {packageWidths : Fin 2 → Nat} {cap : Nat}
+    {control : AppState → AppWitness → Fin 2} {statement : TerminalStatement AppState}
+    {proof : Terminal.ProofEnvelope (logicalWidth := logicalWidth) (publicFits := publicFits)}
+    (verifies : Verifies ajtai circuitKeys step packageWidths cap control statement proof) :
+    Terminal.HoldsFor cap ajtai circuitKeys step control statement proof :=
+  And.left verifies
+
+theorem verifies_bottom_iff (packageWidths : Fin 2 → Nat) (cap : Nat)
+    (control : AppState → AppWitness → Fin 2) (statement : TerminalStatement AppState) :
+    Verifies ajtai circuitKeys step packageWidths cap control statement .bottom ↔
+      Terminal.HoldsFor cap ajtai circuitKeys step control statement .bottom :=
+  ⟨And.left, fun holds => And.intro holds True.intro⟩
+
+theorem verifies_recursive_iff (packageWidths : Fin 2 → Nat) (cap : Nat)
+    (control : AppState → AppWitness → Fin 2) (statement : TerminalStatement AppState)
+    (payload : TerminalProof (SlotData logicalWidth publicFits)
+      (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits))
+      (StepFresh logicalWidth publicFits)
+      (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits)) 2) :
+    Verifies ajtai circuitKeys step packageWidths cap control statement (.recursive payload) ↔
+      Terminal.HoldsFor cap ajtai circuitKeys step control statement (.recursive payload) ∧
+        Honest (ajtai := ajtai) packageWidths payload :=
+  Iff.rfl
+
+/-- HyperNova Definition 11 (i) for option B: one valid step extends each proof that the verifier
+accepts to a recursive proof that the verifier accepts at the next iteration. -/
+theorem verifies_step (exports : Exports relation ajtai circuitKeys step cubeFits)
     (complete : Complete exports) (keysShaped : ∀ key, (circuitKeys key).digest.length = 4)
     (cap : Nat) (control : AppState → AppWitness → Fin 2) (statement : TerminalStatement AppState)
-    (accepts : Accepts ajtai circuitKeys step complete.packageWidth cap control statement)
+    (proof : Terminal.ProofEnvelope (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (verifies : Verifies ajtai circuitKeys step complete.packageWidth cap control statement proof)
     (witness : AppWitness) (valid : exports.program.valid statement.zi witness)
     (iterationNext : statement.iteration + 1 < goldilocksModulus)
     (witnessLength : witness.length = exports.program.witnessWordCount) :
-    Accepts ajtai circuitKeys step complete.packageWidth cap control
-      ⟨statement.iteration + 1, statement.z0, step statement.zi witness⟩ := by
+    ∃ next, Verifies ajtai circuitKeys step complete.packageWidth cap control
+      ⟨statement.iteration + 1, statement.z0, step statement.zi witness⟩ (.recursive next) := by
   have nextLength : ∀ (current : AppState),
       current.length = Stage1.Application.stateWordCount →
         (step current witness).length = Stage1.Application.stateWordCount := by
@@ -66,16 +112,22 @@ theorem accepts_step (exports : Exports relation ajtai circuitKeys step cubeFits
           ⟨statement.iteration + 1, statement.z0, step statement.zi witness⟩ (.recursive payload) :=
     fun control' payload holds =>
       (holdsFor_recursive_control cap ajtai circuitKeys step control' control _ payload).mp holds
-  rcases accepts with bottom | ⟨payload, holds, honest⟩
-  · obtain ⟨statementValid, iterationZero, ziEq⟩ :=
+  cases proof with
+  | bottom =>
+    have bottom := (verifies_bottom_iff complete.packageWidth cap control statement).mp verifies
+    obtain ⟨statementValid, iterationZero, ziEq⟩ :=
       (Terminal.holdsFor_bottom_iff cap ajtai circuitKeys step control statement).mp bottom
     have bottom' := (Terminal.holdsFor_bottom_iff cap ajtai circuitKeys step (fun _ _ => 0)
       statement).mpr ⟨statementValid, iterationZero, ziEq⟩
     obtain ⟨next, nextHolds, nextHonest⟩ := base_extend exports complete keysShaped cap
       (fun _ _ => 0) statement bottom' witness valid rfl (nextLength _ statementValid.2.2)
       witnessLength
-    exact Or.inr ⟨next, transport _ next nextHolds, nextHonest⟩
-  · obtain ⟨statementValid, pcValid, _⟩ :=
+    exact ⟨next, (verifies_recursive_iff complete.packageWidth cap control _ next).mpr
+      ⟨transport _ next nextHolds, nextHonest⟩⟩
+  | recursive payload =>
+    obtain ⟨holds, honest⟩ :=
+      (verifies_recursive_iff complete.packageWidth cap control statement payload).mp verifies
+    obtain ⟨statementValid, pcValid, _⟩ :=
       (Terminal.holdsFor_recursive_iff cap ajtai circuitKeys step control statement payload).mp
         holds
     have selectedEq : ∀ other : InRange 2 payload.pc, selectedIndex other = selectedIndex pcValid :=
@@ -87,13 +139,39 @@ theorem accepts_step (exports : Exports relation ajtai circuitKeys step cubeFits
         (fun _ _ => 0) statement payload holds' honest witness valid rfl
         (fun other => by rw [selectedEq other]; exact room) iterationNext
         (nextLength _ statementValid.2.2) witnessLength
-      exact Or.inr ⟨next, transport _ next nextHolds, nextHonest⟩
+      exact ⟨next, (verifies_recursive_iff complete.packageWidth cap control _ next).mpr
+        ⟨transport _ next nextHolds, nextHonest⟩⟩
     · have holds' := (holdsFor_recursive_control cap ajtai circuitKeys step control (fun _ _ => 1)
         statement payload).mp holds
       obtain ⟨next, nextHolds, nextHonest⟩ := refresh_extend exports complete keysShaped cap
         (fun _ _ => 1) statement payload holds' honest witness valid rfl iterationNext
         (nextLength _ statementValid.2.2) witnessLength
-      exact Or.inr ⟨next, transport _ next nextHolds, nextHonest⟩
+      exact ⟨next, (verifies_recursive_iff complete.packageWidth cap control _ next).mpr
+        ⟨transport _ next nextHolds, nextHonest⟩⟩
+
+/-- One valid step keeps the honest acceptance of a statement. -/
+theorem accepts_step (exports : Exports relation ajtai circuitKeys step cubeFits)
+    (complete : Complete exports) (keysShaped : ∀ key, (circuitKeys key).digest.length = 4)
+    (cap : Nat) (control : AppState → AppWitness → Fin 2) (statement : TerminalStatement AppState)
+    (accepts : Accepts ajtai circuitKeys step complete.packageWidth cap control statement)
+    (witness : AppWitness) (valid : exports.program.valid statement.zi witness)
+    (iterationNext : statement.iteration + 1 < goldilocksModulus)
+    (witnessLength : witness.length = exports.program.witnessWordCount) :
+    Accepts ajtai circuitKeys step complete.packageWidth cap control
+      ⟨statement.iteration + 1, statement.z0, step statement.zi witness⟩ := by
+  rcases accepts with bottom | ⟨payload, holds, honest⟩
+  · obtain ⟨next, verified⟩ := verifies_step exports complete keysShaped cap control statement
+      .bottom ((verifies_bottom_iff complete.packageWidth cap control statement).mpr bottom)
+      witness valid iterationNext witnessLength
+    exact Or.inr ⟨next, (verifies_recursive_iff complete.packageWidth cap control _ next).mp
+      verified⟩
+  · obtain ⟨next, verified⟩ := verifies_step exports complete keysShaped cap control statement
+      (.recursive payload)
+      ((verifies_recursive_iff complete.packageWidth cap control statement payload).mpr
+        ⟨holds, honest⟩)
+      witness valid iterationNext witnessLength
+    exact Or.inr ⟨next, (verifies_recursive_iff complete.packageWidth cap control _ next).mp
+      verified⟩
 
 /-- Completeness of option-B IVC: for every valid run of the application from `z0` whose
 witnesses have the application's witness length, the terminal accepts the honest prover's proof

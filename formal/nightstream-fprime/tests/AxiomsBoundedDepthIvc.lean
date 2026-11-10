@@ -694,6 +694,10 @@ example : (runDepths 2 (fun _ => 0) 1 (List.replicate 3 [0, 0, 1]).flatten).isNo
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.BaseFold.check_zero
 #audit_axioms NightstreamFPrime.Lifecycle.OptionB.BaseFold.zero_folds
 #audit_axioms NightstreamFPrime.Export.OptionB.StepExtend.base_extend
+#audit_axioms NightstreamFPrime.Export.OptionB.RunCompleteness.holds_of_verifies
+#audit_axioms NightstreamFPrime.Export.OptionB.RunCompleteness.verifies_bottom_iff
+#audit_axioms NightstreamFPrime.Export.OptionB.RunCompleteness.verifies_recursive_iff
+#audit_axioms NightstreamFPrime.Export.OptionB.RunCompleteness.verifies_step
 #audit_axioms NightstreamFPrime.Export.OptionB.RunCompleteness.accepts_step
 #audit_axioms NightstreamFPrime.Export.OptionB.RunCompleteness.run_complete
 #audit_axioms NightstreamFPrime.Export.OptionB.FinishCompleteness.package_complete

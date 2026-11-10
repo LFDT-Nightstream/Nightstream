@@ -49,8 +49,7 @@ impl OptionB {
     /// Each slot's honest bound below `B`: a slot at the cap after the
     /// refresh's 17 sources (`Light.accumulatorBound cap`).
     fn compression_bound(&self) -> u32 {
-        let params = self.relations[0].params();
-        (1 + LIGHT_FOLD_CAP as u32 + params.k_rho()) * params.inner().T() * (params.b() - 1)
+        self.accumulator_bound(LIGHT_FOLD_CAP) as u32
     }
 
     /// Layer 1 of each slot and the shrink layer each take a quarter of the

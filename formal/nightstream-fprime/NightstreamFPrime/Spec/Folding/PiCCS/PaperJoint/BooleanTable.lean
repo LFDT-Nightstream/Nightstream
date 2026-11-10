@@ -1,4 +1,3 @@
-import Std
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Coefficients
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint

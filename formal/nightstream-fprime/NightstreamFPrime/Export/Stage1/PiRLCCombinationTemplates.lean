@@ -1,3 +1,4 @@
+import Mathlib.Tactic.NormNum
 import NightstreamFPrime.Export.Stage1.CompactRows
 import NightstreamFPrime.Layout.PiRLC.v1_2.CombinationCost
 

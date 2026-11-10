@@ -4,8 +4,8 @@ import NightstreamFPrime.Export.OptionB.StepPackage
 
 /-! `lifecycle/option_b/final_program.rs::FinalProgram::run` (CW-6.5): the statement and a positive
 iteration; the finish package's columns below its S-box columns, with column 0 one and the
-statement and the state keys bound to their shared words; the package's rows other than the
-blocks' S-box and binding rows as one R1CS block, each row with its constant on column 0
+statement and the state keys bound to their shared words; the package's rows on its source
+columns, without the blocks' S-box rows, as one R1CS block, each row with its constant on column 0
 (`Terminal.Package.row`); each Poseidon2 block as the permutation of its input lanes into its
 output locals; then, for each slot, the layer-1 verifier of the next slot's claim words, seeded
 with the state hash that the fresh public input's bits encode and the slot. The word positions are
@@ -66,7 +66,8 @@ def linearForm :
   | .mul left (.const factor) => scaleForm factor <$> linearForm left
   | .mul _ _ => none
 
-/-- `final_program.rs::Finish::new`: the rows of the package's pieces, before the binding rows. -/
+/-- `final_program.rs::Finish::new`: the rows of the package's pieces on the source columns, where
+a row reads an output local of a block and not its form. -/
 def finishRows (finish : Package) : List (Shrink.R1csRow Word) :=
   (finish.pieces.flatMap PackagePiece.relationRows).map (Terminal.Package.row 0)
 

@@ -52,6 +52,21 @@ impl Geometry {
         }
     }
 
+    /// The third test geometry (`ThirdPlan.lean`): ROM of eight words and RAM
+    /// of four (`μ < r`), so the RAM range rows of row O6 exist.
+    #[cfg(test)]
+    pub(super) fn third() -> Self {
+        Self {
+            r: 3,
+            mu: 2,
+            w_ts: 5,
+            b_ops: 2,
+            b_scan: 6,
+            n: 2,
+            s_max: 4,
+        }
+    }
+
     /// The geometry of a ROM of `2^r` cells and a RAM of `2^mu` cells, with
     /// `b_ops` operation slots in each step, segments of `n` steps, and at
     /// most `s_max` segments. `w_ts` is the fewest bits that hold
@@ -75,10 +90,10 @@ impl Geometry {
     }
 
     /// Lean `Geometry.Valid`: SPEC.md section 7.1, rules 1 to 5 and positive counts. The
-    /// memory theorems hold only for a valid geometry. `μ ≥ 64` breaks
+    /// memory theorems hold only for a valid geometry. `r ≥ 64` or `μ ≥ 64` breaks
     /// `R + M < q`, so the shifts below cannot overflow.
     pub fn is_valid(&self) -> bool {
-        if self.mu >= 64 || self.r > self.mu || self.w_ts > 62 {
+        if self.r >= 64 || self.mu >= 64 || self.w_ts > 31 {
             return false;
         }
         let q = u128::from(F::ORDER_U64);
@@ -129,9 +144,15 @@ impl Geometry {
         2.0 * (F::ORDER_U64 as f64).log2() - (2.0 * self.max_tuples() as f64).log2()
     }
 
+    /// Bits of an address field (Lean `Geometry.addrWidth`): enough for a
+    /// ROM address and for a RAM address.
+    pub(crate) fn addr_width(&self) -> usize {
+        self.r.max(self.mu)
+    }
+
     /// Bits of one operation slot (SPEC.md section 7.2).
     pub(crate) fn op_width(&self) -> usize {
-        3 + self.mu + 64 + self.w_ts
+        3 + self.addr_width() + 64 + self.w_ts
     }
 
     /// Bits of one scan slot (SPEC.md section 7.2).

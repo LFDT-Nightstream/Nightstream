@@ -20,17 +20,12 @@ open Fin.CommRing
 theorem val_add_one {x : F} (small : x.val + 1 < goldilocksModulus) : (x + 1).val = x.val + 1 := by
   rw [← natWord_of_val x, ← natWord_one, ← natWord_add, natWord_val small, natWord_of_val]
 
-theorem Geometry.two_pow_mu_lt {p : Geometry} (valid : p.Valid) : 2 ^ p.μ < goldilocksModulus := by
-  have below := valid.belowModulus
-  have ram : 2 ^ p.μ ≤ p.cells := Nat.le_add_left _ _
-  omega
+theorem Geometry.two_pow_mu_lt {p : Geometry} (valid : p.Valid) :
+    2 ^ p.addrWidth < goldilocksModulus :=
+  lt_of_le_of_lt (Geometry.two_pow_addrWidth_le_cells p) valid.belowModulus
 
-theorem Geometry.mu_le {p : Geometry} (valid : p.Valid) : p.μ ≤ 63 := by
-  have below := Geometry.two_pow_mu_lt valid
-  by_contra large
-  have : 2 ^ 64 ≤ 2 ^ p.μ := Nat.pow_le_pow_right (by norm_num) (by omega)
-  have : (2 : ℕ) ^ 64 > goldilocksModulus := by decide
-  omega
+theorem Geometry.mu_le {p : Geometry} (valid : p.Valid) : p.addrWidth ≤ 63 :=
+  Geometry.addrWidth_le valid
 
 /-- The low two bits of a 32-bit word and the rest. -/
 theorem bitsNat_split (vr : Fin 32 → F) :
@@ -168,11 +163,11 @@ def idleE : Circuit.Expr := .var 4
 def padE (p : Geometry) (j : ℕ) : Circuit.Expr := slotE p j 0
 def isWriteE (p : Geometry) (j : ℕ) : Circuit.Expr := slotE p j 1
 def isRamE (p : Geometry) (j : ℕ) : Circuit.Expr := slotE p j 2
-def addrE (p : Geometry) (j : ℕ) : Circuit.Expr := Expr.bits fun k : Fin p.μ => slotE p j (3 + k)
-def vrBitE (p : Geometry) (j k : ℕ) : Circuit.Expr := slotE p j (3 + p.μ + k)
+def addrE (p : Geometry) (j : ℕ) : Circuit.Expr := Expr.bits fun k : Fin p.addrWidth => slotE p j (3 + k)
+def vrBitE (p : Geometry) (j k : ℕ) : Circuit.Expr := slotE p j (3 + p.addrWidth + k)
 def vrE (p : Geometry) (j : ℕ) : Circuit.Expr := Expr.bits fun k : Fin 32 => vrBitE p j k
 def vwE (p : Geometry) (j : ℕ) : Circuit.Expr :=
-  Expr.bits fun k : Fin 32 => slotE p j (3 + p.μ + 32 + k)
+  Expr.bits fun k : Fin 32 => slotE p j (3 + p.addrWidth + 32 + k)
 def isLoadE (p : Geometry) : Circuit.Expr := vrBitE p 0 0 * (1 - vrBitE p 0 1)
 def isStoreE (p : Geometry) : Circuit.Expr := (1 - vrBitE p 0 0) * vrBitE p 0 1
 def isLoadiE (p : Geometry) : Circuit.Expr := vrBitE p 0 0 * vrBitE p 0 1
@@ -194,7 +189,7 @@ def rows (p : Geometry) : List Circuit.Expr :=
     outE 0 - (inE 0 + isLoadE p + isStoreE p + isLoadiE p),
     outE 1 - (isLoadE p * vrE p 1 + isLoadiE p * argumentE p + (1 - isLoadE p - isLoadiE p) * inE 1)]
 
-theorem opWords_eq : Words.opWords p = 3 + p.μ + 64 + p.wTs + p.wTs := by
+theorem opWords_eq : Words.opWords p = 3 + p.addrWidth + 64 + p.wTs + p.wTs := by
   simp [Words.opWords, Geometry.opWidth]
 
 theorem eval_slotE (j : Fin p.bOps) {k : ℕ} (hk : k < Words.opWords p) :

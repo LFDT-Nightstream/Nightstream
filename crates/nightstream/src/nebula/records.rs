@@ -78,7 +78,7 @@ impl OpSlot {
     /// SPEC.md section 7.2 encoding: field order, little-endian bits.
     pub fn bits(&self, geometry: &Geometry) -> Vec<bool> {
         let mut bits = vec![self.pad, self.is_write, self.is_ram];
-        push_bits(&mut bits, self.addr, geometry.mu);
+        push_bits(&mut bits, self.addr, geometry.addr_width());
         push_bits(&mut bits, self.vr, 32);
         push_bits(&mut bits, self.vw, 32);
         push_bits(&mut bits, self.rt, geometry.w_ts);

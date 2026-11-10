@@ -61,7 +61,7 @@ def port (s : OpSlot) : Option PortAccess :=
 
 /-- Field widths of row O1. -/
 def Fits (p : Geometry) (s : OpSlot) : Prop :=
-  s.addr < 2 ^ p.μ ∧ s.vr < 2 ^ 32 ∧ s.vw < 2 ^ 32 ∧ s.rt < 2 ^ p.wTs
+  s.addr < 2 ^ p.addrWidth ∧ s.vr < 2 ^ 32 ∧ s.vw < 2 ^ 32 ∧ s.rt < 2 ^ p.wTs
 
 end OpSlot
 
@@ -158,7 +158,7 @@ def bitsLE (w x : ℕ) : List Bool := (List.range w).map x.testBit
 
 /-- SPEC.md section 7.2 encoding of one operation slot: field order, little-endian bits. -/
 def OpSlot.bits (p : Geometry) (s : OpSlot) : List Bool :=
-  [s.pad, s.isWrite, s.isRam] ++ bitsLE p.μ s.addr ++ bitsLE 32 s.vr ++
+  [s.pad, s.isWrite, s.isRam] ++ bitsLE p.addrWidth s.addr ++ bitsLE 32 s.vr ++
     bitsLE 32 s.vw ++ bitsLE p.wTs s.rt
 
 /-- SPEC.md section 7.2 encoding of one scan slot. IS and FS share it. -/

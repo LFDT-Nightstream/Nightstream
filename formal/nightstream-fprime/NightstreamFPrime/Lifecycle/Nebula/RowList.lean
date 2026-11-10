@@ -95,7 +95,7 @@ namespace Rows
 
 variable (p : Geometry)
 
-open _root_.NightstreamFPrime.Lifecycle.Nebula.Sym (word cIn cOut eta1 eta2 eta1Sq isOpen openInverse isClose closeInverse idxEff
+open _root_.NightstreamFPrime.Lifecycle.Nebula.Sym (word cIn cOut eta1 eta2 isOpen openInverse isClose closeInverse idxEff
   isWrite isRam addrBit vrBit vwBit rtBit diffBit addr vr vw rt diff opLane scanValue scanStamp
   scanLane tsWord segWord cnt cntBefore wt globalIndex scanIndex startWord opsProductAfter scanProductAfter
   opsFactor scanFactor)
@@ -106,12 +106,12 @@ Each row below is `word − recipe` with at most one product, so it lowers to
 one R1CS row and no fresh column. A bit chunk is affine, so a fingerprint
 reads its chunks once and allocates nothing. -/
 
-/-- The rows of the fingerprint `f(t, g, v)` over factor words `a 0 … a 3`:
-`a 0, a 1 = η1 · v` and `(a 2, a 3) = f` (`fingerprintWords`). -/
+/-- The rows of the fingerprint `f(t, g, v)` over factor words `a 0` and
+`a 1`: `(a 0, a 1) = f` (`fingerprintWords`). The word `v + 2^32 · t` is
+affine, so each row has one product. -/
 def fingerprintRows (a : ℕ → Circuit.Expr) (t g v : Circuit.Expr) : List Circuit.Expr :=
-  [a 0 - cOut 3 * v, a 1 - cOut 4 * v,
-    a 2 - (word (Words.eta1Square 0) * t + (g + a 0 - cOut 5)),
-    a 3 - (word (Words.eta1Square 1) * t + (a 1 - cOut 6))]
+  [a 0 - (cOut 3 * (v + constE (natWord (2 ^ 32)) * t) + (g - cOut 5)),
+    a 1 - (cOut 4 * (v + constE (natWord (2 ^ 32)) * t) - cOut 6)]
 
 /-- The rows of `next = prod · x` with the cross products `m = prod.c1 · x1`
 and `n = prod.c1 · x0`. -/
@@ -120,17 +120,17 @@ def productRows (prod next : KExpr) (x0 x1 m n : Circuit.Expr) : List Circuit.Ex
     next.c1 - (prod.c0 * x1 + n)]
 
 /-- An ungated fingerprint step `next = prod · f` (rows S2 and S3) over the
-factor words `a 0 … a 5` (`scanFactorWords`). -/
+factor words `a 0 … a 3` (`scanFactorWords`). -/
 def factorRows (a : ℕ → Circuit.Expr) (prod next : KExpr) (t g v : Circuit.Expr) :
     List Circuit.Expr :=
-  fingerprintRows a t g v ++ productRows prod next (a 2) (a 3) (a 4) (a 5)
+  fingerprintRows a t g v ++ productRows prod next (a 0) (a 1) (a 2) (a 3)
 
 /-- A gated fingerprint step `next = prod · (pad + (1 − pad) · f)` (rows O8
-and O9) over the factor words `a 0 … a 7` (`opsFactorWords`). -/
+and O9) over the factor words `a 0 … a 5` (`opsFactorWords`). -/
 def gatedRows (a : ℕ → Circuit.Expr) (pad : Circuit.Expr) (prod next : KExpr)
     (t g v : Circuit.Expr) : List Circuit.Expr :=
-  fingerprintRows a t g v ++ [a 4 - ((1 - pad) * a 2 + pad), a 5 - (1 - pad) * a 3] ++
-    productRows prod next (a 4) (a 5) (a 6) (a 7)
+  fingerprintRows a t g v ++ [a 2 - ((1 - pad) * a 0 + pad), a 3 - (1 - pad) * a 1] ++
+    productRows prod next (a 2) (a 3) (a 4) (a 5)
 
 /-! ### Bits and flags -/
 
@@ -163,7 +163,6 @@ def armChecks : Checks :=
       (isOpen * word (Words.proposal i.val) + (1 - isOpen) * cIn (15 + i.val)))),
     ("arm eta", (List.finRange 4).map (fun i : Fin 4 => cOut (3 + i.val) -
       (isOpen * word (Words.etaFresh i.val) + (1 - isOpen) * cIn (3 + i.val)))),
-    ("arm eta1 square", KExpr.equalities eta1Sq (KExpr.mul eta1 eta1)),
     ("arm start products", (List.finRange 4).flatMap (fun s : Fin 4 =>
       [startWord p s 0 - ((1 - isOpen) * cIn (7 + 2 * s.val) + isOpen),
         startWord p s 1 - (1 - isOpen) * cIn (8 + 2 * s.val)]))]
@@ -177,8 +176,10 @@ def slotChecks (j : Fin p.bOps) : Checks :=
     (s!"O3 slot {j.val}", [(1 - isWrite p j) * (vw p j - vr p j)]),
     (s!"O4 slot {j.val}", [(1 - Sym.pad p j) * (wt p j - rt p j - 1 - diff p j)]),
     (s!"O5 slot {j.val}", [isWrite p j * (1 - isRam p j)]),
-    (s!"O6 slot {j.val}", ((List.finRange p.μ).filter (fun k : Fin p.μ => p.r ≤ k.val)).map
-      (fun k : Fin p.μ => (1 - isRam p j) * addrBit p j k.val)),
+    (s!"O6 slot {j.val}", ((List.finRange p.addrWidth).filter (fun k : Fin p.addrWidth => p.r ≤ k.val)).map
+        (fun k : Fin p.addrWidth => (1 - isRam p j) * addrBit p j k.val) ++
+      ((List.finRange p.addrWidth).filter (fun k : Fin p.addrWidth => p.μ ≤ k.val)).map
+        (fun k : Fin p.addrWidth => isRam p j * addrBit p j k.val)),
     (s!"O7 slot {j.val}", (opLane p j).tail.map (fun x => Sym.pad p j * x)),
     (s!"O8 slot {j.val}", gatedRows (opsFactor p j 0) (Sym.pad p j) (opsProductAfter p 0 j.val)
       (opsProductAfter p 0 (j.val + 1)) (rt p j) (globalIndex p j) (vr p j)),

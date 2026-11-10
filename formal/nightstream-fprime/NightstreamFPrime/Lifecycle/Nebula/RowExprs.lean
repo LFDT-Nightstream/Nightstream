@@ -128,15 +128,13 @@ theorem eval_kOfE (env : Env) (a b : Circuit.Expr) : (kOfE a b).eval env = kOf (
   rfl
 
 /-- The symbolic fingerprint of SPEC.md section 7.3. -/
-def fingerprintE (η1 η2 η1sq : KExpr) (t g v : Circuit.Expr) : KExpr :=
-  KExpr.sub (KExpr.add (KExpr.add (embedE g) (KExpr.mul η1 (embedE v)))
-    (KExpr.mul η1sq (embedE t))) η2
+def fingerprintE (η1 η2 : KExpr) (t g v : Circuit.Expr) : KExpr :=
+  KExpr.sub (KExpr.add (embedE g) (KExpr.mul η1 (embedE (v + constE (natWord (2 ^ 32)) * t)))) η2
 
-theorem eval_fingerprintE (env : Env) (η1 η2 η1sq : KExpr) (t g v : Circuit.Expr) :
-    (fingerprintE η1 η2 η1sq t g v).eval env =
-      fingerprintK (η1.eval env) (η2.eval env) (η1sq.eval env) (t.eval env) (g.eval env)
-        (v.eval env) := by
-  simp [fingerprintE, fingerprintK, eval_embedE]
+theorem eval_fingerprintE (env : Env) (η1 η2 : KExpr) (t g v : Circuit.Expr) :
+    (fingerprintE η1 η2 t g v).eval env =
+      fingerprintK (η1.eval env) (η2.eval env) (t.eval env) (g.eval env) (v.eval env) := by
+  simp [fingerprintE, fingerprintK, eval_embedE, constE]
 
 /-- The symbolic O8/O9 gate `pad + (1 − pad) · f`. -/
 def gatedE (pad : Circuit.Expr) (f : KExpr) : KExpr :=
@@ -160,7 +158,6 @@ def cOut (k : ℕ) : Circuit.Expr := carryWord Words.carryOut k
 
 def eta1 : KExpr := kOfE (cOut 3) (cOut 4)
 def eta2 : KExpr := kOfE (cOut 5) (cOut 6)
-def eta1Sq : KExpr := kOfE (word (Words.eta1Square 0)) (word (Words.eta1Square 1))
 
 def isOpen : Circuit.Expr := word Words.isOpen
 def openInverse : Circuit.Expr := word Words.openInverse
@@ -177,7 +174,7 @@ def vwBit (j k : ℕ) : Circuit.Expr := word (Words.op p j (Words.opVw p k))
 def rtBit (j k : ℕ) : Circuit.Expr := word (Words.op p j (Words.opRt p k))
 def diffBit (j k : ℕ) : Circuit.Expr := word (Words.op p j (Words.opDiff p k))
 
-def addr (j : ℕ) : Circuit.Expr := Expr.bits fun k : Fin p.μ => addrBit p j k
+def addr (j : ℕ) : Circuit.Expr := Expr.bits fun k : Fin p.addrWidth => addrBit p j k
 def vr (j : ℕ) : Circuit.Expr := Expr.bits fun k : Fin 32 => vrBit p j k
 def vw (j : ℕ) : Circuit.Expr := Expr.bits fun k : Fin 32 => vwBit p j k
 def rt (j : ℕ) : Circuit.Expr := Expr.bits fun k : Fin p.wTs => rtBit p j k
@@ -185,7 +182,7 @@ def diff (j : ℕ) : Circuit.Expr := Expr.bits fun k : Fin p.wTs => diffBit p j 
 
 /-- The lane bits of operation slot `j`, in SPEC.md section 7.2 order. -/
 def opLane (j : ℕ) : List Circuit.Expr :=
-  [pad p j, isWrite p j, isRam p j] ++ List.ofFn (fun k : Fin p.μ => addrBit p j k) ++
+  [pad p j, isWrite p j, isRam p j] ++ List.ofFn (fun k : Fin p.addrWidth => addrBit p j k) ++
     List.ofFn (fun k : Fin 32 => vrBit p j k) ++ List.ofFn (fun k : Fin 32 => vwBit p j k) ++
     List.ofFn (fun k : Fin p.wTs => rtBit p j k)
 
@@ -265,8 +262,6 @@ theorem eval_eta1 : (eta1).eval v = (W).eta1 := by
 
 theorem eval_eta2 : (eta2).eval v = (W).eta2 := by
   rw [eta2, StepWitness.eta2, eval_kOfE, eval_cOut p a v, eval_cOut p a v]
-
-theorem eval_eta1Sq : (eta1Sq).eval v = (W).eta1Sq := rfl
 
 theorem eval_addr (j : Fin p.bOps) : (addr p j).eval v = (W).addr j := by
   rw [addr, Expr.eval_bits]

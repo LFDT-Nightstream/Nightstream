@@ -17,7 +17,7 @@ set_option backward.isDefEq.respectTransparency false in
 theorem OpSlotBits.ofWords_word (slot : OpSlotBits p) (v : ℕ → F) (j : ℕ)
     (words : ∀ k < Words.opWords p, v (Words.op p j k) = slot.word k) :
     OpSlotBits.ofWords p v j = slot := by
-  have opWords : Words.opWords p = 3 + p.μ + 64 + p.wTs + p.wTs := by
+  have opWords : Words.opWords p = 3 + p.addrWidth + 64 + p.wTs + p.wTs := by
     simp [Words.opWords, Geometry.opWidth]
   cases slot with
   | mk pad isWrite isRam addr vr vw rt diff =>
@@ -79,9 +79,9 @@ namespace Words
 
 theorem scanWidth_pos : 0 < p.scanWidth := by simp [Geometry.scanWidth]
 
-theorem memoryCount_eq : Words.memoryCount p = 109 + p.bOps * Words.opWords p +
+theorem memoryCount_eq : Words.memoryCount p = 107 + p.bOps * Words.opWords p +
     p.bScan * p.scanWidth + p.bScan * p.scanWidth + p.wTs + p.segWidth + 4 * p.bOps +
-    4 * p.bScan + (p.bOps + 8 + 16 * p.bOps + 12 * p.bScan) := by
+    4 * p.bScan + (p.bOps + 8 + 12 * p.bOps + 8 * p.bScan) := by
   simp only [Words.memoryCount, Words.scanFactor, Words.opsFactor, Words.start, Words.cnt,
     Words.scanProducts, Words.opsProducts, Words.segBits, Words.tsBits, Words.finalStart,
     Words.initialStart]
@@ -89,7 +89,7 @@ theorem memoryCount_eq : Words.memoryCount p = 109 + p.bOps * Words.opWords p +
 
 /-- The auxiliary words follow the products and end the memory words. -/
 theorem aux_bounds : Words.cnt p 0 = Words.scanProducts p 0 0 + 4 * p.bScan ∧
-    Words.memoryCount p = Words.cnt p 0 + (p.bOps + 8 + 16 * p.bOps + 12 * p.bScan) := by
+    Words.memoryCount p = Words.cnt p 0 + (p.bOps + 8 + 12 * p.bOps + 8 * p.bScan) := by
   simp only [Words.memoryCount, Words.scanFactor, Words.opsFactor, Words.start, Words.cnt,
     Words.scanProducts, Words.opsProducts]
   omega
@@ -106,13 +106,13 @@ def StepWitness.auxAt (w : StepWitness p a) (i : ℕ) : F :=
   if h : i < p.bOps then w.auxWords.cnt ⟨i, h⟩
   else if h : i < p.bOps + 8 then
     w.auxWords.start ⟨(i - p.bOps) / 2, by omega⟩ ⟨(i - p.bOps) % 2, Nat.mod_lt _ (by decide)⟩
-  else if h : i < p.bOps + 8 + 16 * p.bOps then
-    w.auxWords.ops ⟨(i - p.bOps - 8) / 16, by omega⟩ ⟨(i - p.bOps - 8) % 16 / 8, by omega⟩
-      ⟨(i - p.bOps - 8) % 8, Nat.mod_lt _ (by decide)⟩
-  else if h : i < p.bOps + 8 + 16 * p.bOps + 12 * p.bScan then
-    w.auxWords.scan ⟨(i - p.bOps - 8 - 16 * p.bOps) / 12, by omega⟩
-      ⟨(i - p.bOps - 8 - 16 * p.bOps) % 12 / 6, by omega⟩
-      ⟨(i - p.bOps - 8 - 16 * p.bOps) % 6, Nat.mod_lt _ (by decide)⟩
+  else if h : i < p.bOps + 8 + 12 * p.bOps then
+    w.auxWords.ops ⟨(i - p.bOps - 8) / 12, by omega⟩ ⟨(i - p.bOps - 8) % 12 / 6, by omega⟩
+      ⟨(i - p.bOps - 8) % 6, Nat.mod_lt _ (by decide)⟩
+  else if h : i < p.bOps + 8 + 12 * p.bOps + 8 * p.bScan then
+    w.auxWords.scan ⟨(i - p.bOps - 8 - 12 * p.bOps) / 8, by omega⟩
+      ⟨(i - p.bOps - 8 - 12 * p.bOps) % 8 / 4, by omega⟩
+      ⟨(i - p.bOps - 8 - 12 * p.bOps) % 4, Nat.mod_lt _ (by decide)⟩
   else 0
 
 /-- Word `k` past the three slot ranges: the counters, the products, and the
@@ -150,10 +150,9 @@ def StepWitness.wordAt (w : StepWitness p a) (k : ℕ) : F :=
   else if k = 88 then w.isClose
   else if k = 89 then w.closeInverse
   else if h : k < 94 then w.etaFresh ⟨k - 90, by omega⟩
-  else if h : k < 96 then w.eta1Square ⟨k - 94, by omega⟩
-  else if h : k < 108 then w.seenPrev ⟨k - 96, by omega⟩
-  else if k = 108 then w.idxEff
-  else match slotAt 109 (Words.opWords p) p.bOps k with
+  else if h : k < 106 then w.seenPrev ⟨k - 94, by omega⟩
+  else if k = 106 then w.idxEff
+  else match slotAt 107 (Words.opWords p) p.bOps k with
   | some (j, i) => (w.ops j).word i
   | none => match slotAt (Words.initialStart p) p.scanWidth p.bScan k with
   | some (j, i) => (w.initial j).word i
@@ -198,9 +197,6 @@ theorem wordAt_closeInverse : w.wordAt Words.closeInverse = w.closeInverse := by
 theorem wordAt_etaFresh (i : Fin 4) : w.wordAt (Words.etaFresh i) = w.etaFresh i := by
   have := i.isLt; simp only [Words.etaFresh]; read_word
 
-theorem wordAt_eta1Square (i : Fin 2) : w.wordAt (Words.eta1Square i) = w.eta1Square i := by
-  have := i.isLt; simp only [Words.eta1Square]; read_word
-
 theorem wordAt_seenPrev (i : Fin 12) : w.wordAt (Words.seenPrev i) = w.seenPrev i := by
   have := i.isLt; simp only [Words.seenPrev]; read_word
 
@@ -215,7 +211,7 @@ theorem wordAt_op (j : Fin p.bOps) {k : ℕ} (hk : k < Words.opWords p) :
 theorem wordAt_initial (j : Fin p.bScan) {k : ℕ} (hk : k < p.scanWidth) :
     w.wordAt (Words.initial p j k) = (w.initial j).word k := by
   have := Words.opWords_pos (p := p)
-  have start : Words.initialStart p = 109 + p.bOps * Words.opWords p := rfl
+  have start : Words.initialStart p = 107 + p.bOps * Words.opWords p := rfl
   simp only [Words.initial]
   simp (disch := omega) only [StepWitness.wordAt, dite_eq_right, ite_eq_right, slotAt_above,
     slotAt_slot j.isLt hk, Fin.eta]
@@ -224,7 +220,7 @@ theorem wordAt_final (j : Fin p.bScan) {k : ℕ} (hk : k < p.scanWidth) :
     w.wordAt (Words.final p j k) = (w.final j).word k := by
   have := Words.opWords_pos (p := p)
   have := Words.scanWidth_pos (p := p)
-  have start : Words.initialStart p = 109 + p.bOps * Words.opWords p := rfl
+  have start : Words.initialStart p = 107 + p.bOps * Words.opWords p := rfl
   have final : Words.finalStart p = Words.initialStart p + p.bScan * p.scanWidth := rfl
   simp only [Words.final]
   simp (disch := omega) only [StepWitness.wordAt, dite_eq_right, ite_eq_right, slotAt_above,
@@ -317,7 +313,7 @@ theorem wordAt_scanProducts (j : Fin p.bScan) (c : Fin 4) :
   rw [dite_eq_right (by omega), dite_eq_right (by omega), dite_eq_right (by omega), dite_eq_left (by omega)]
   congr 1 <;> ext <;> simp only <;> omega
 
-theorem wordAt_auxAt {i : ℕ} (small : i < p.bOps + 8 + 16 * p.bOps + 12 * p.bScan) :
+theorem wordAt_auxAt {i : ℕ} (small : i < p.bOps + 8 + 12 * p.bOps + 8 * p.bScan) :
     w.wordAt (Words.cnt p 0 + i) = w.auxAt i := by
   have := tail_order (p := p)
   have := Words.aux_bounds (p := p)
@@ -342,25 +338,25 @@ theorem wordAt_start (s : Fin 4) (c : Fin 2) : w.wordAt (Words.start p s c) = w.
   rw [dite_eq_right (by omega), dite_eq_left (by omega)]
   congr 1 <;> ext <;> simp only <;> omega
 
-theorem wordAt_opsFactor (j : Fin p.bOps) (pair : Fin 2) (c : Fin 8) :
+theorem wordAt_opsFactor (j : Fin p.bOps) (pair : Fin 2) (c : Fin 6) :
     w.wordAt (Words.opsFactor p j pair c) = w.auxWords.ops j pair c := by
   have := j.isLt
   have := pair.isLt
   have := c.isLt
-  rw [show Words.opsFactor p j pair c = Words.cnt p 0 + (p.bOps + 8 + (16 * j.val + 8 * pair.val + c.val)) by
+  rw [show Words.opsFactor p j pair c = Words.cnt p 0 + (p.bOps + 8 + (12 * j.val + 6 * pair.val + c.val)) by
       simp only [Words.opsFactor, Words.start, Words.cnt]; omega,
     wordAt_auxAt w (by omega)]
   unfold StepWitness.auxAt
   rw [dite_eq_right (by omega), dite_eq_right (by omega), dite_eq_left (by omega)]
   congr 1 <;> ext <;> simp only <;> omega
 
-theorem wordAt_scanFactor (j : Fin p.bScan) (pair : Fin 2) (c : Fin 6) :
+theorem wordAt_scanFactor (j : Fin p.bScan) (pair : Fin 2) (c : Fin 4) :
     w.wordAt (Words.scanFactor p j pair c) = w.auxWords.scan j pair c := by
   have := j.isLt
   have := pair.isLt
   have := c.isLt
   rw [show Words.scanFactor p j pair c =
-        Words.cnt p 0 + (p.bOps + 8 + 16 * p.bOps + (12 * j.val + 6 * pair.val + c.val)) by
+        Words.cnt p 0 + (p.bOps + 8 + 12 * p.bOps + (8 * j.val + 4 * pair.val + c.val)) by
       simp only [Words.scanFactor, Words.opsFactor, Words.start, Words.cnt]; omega,
     wordAt_auxAt w (by omega)]
   unfold StepWitness.auxAt
@@ -390,8 +386,6 @@ theorem ofWords_words : StepWitness.ofWords p a (MemoryApp.wordOf w.words) = w :
   · rw [read _ (by simp only [Words.isClose]; omega), wordAt_isClose]
   · rw [read _ (by simp only [Words.closeInverse]; omega), wordAt_closeInverse]
   · funext i; have := i.isLt; rw [read _ (by simp only [Words.etaFresh]; omega), wordAt_etaFresh]
-  · funext i; have := i.isLt
-    rw [read _ (by simp only [Words.eta1Square]; omega), wordAt_eta1Square]
   · funext i; have := i.isLt; rw [read _ (by simp only [Words.seenPrev]; omega), wordAt_seenPrev]
   · rw [read _ (by simp only [Words.idxEff]; omega), wordAt_idxEff]
   · funext j

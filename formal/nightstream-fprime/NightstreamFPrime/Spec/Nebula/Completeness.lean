@@ -281,22 +281,23 @@ private theorem activeOps_honestSlots (p : Geometry) (m : Machine)
 
 private theorem padSlot_fits_rows (p : Geometry) : OpSlot.padSlot.Fits p ∧ OpSlot.padSlot.Rows p :=
   ⟨⟨Nat.two_pow_pos _, Nat.two_pow_pos _, Nat.two_pow_pos _, Nat.two_pow_pos _⟩,
-    ⟨fun _ => rfl, fun h => absurd h (by decide), fun _ => Nat.two_pow_pos _, fun _ => rfl⟩⟩
+    ⟨fun _ => rfl, fun h => absurd h (by decide), fun _ => Nat.two_pow_pos _,
+      fun h => absurd h (by decide), fun _ => rfl⟩⟩
 
-private theorem activeSlot_fits_rows {p : Geometry} (valid : p.Valid) {a : PortAccess}
+private theorem activeSlot_fits_rows {p : Geometry} {a : PortAccess}
     (ok : a.Valid p) {t : ℕ} (ht : t < 2 ^ p.wTs) :
     (OpSlot.mk false a.isWrite a.isRam a.addr a.vr a.vw t).Fits p ∧
       (OpSlot.mk false a.isWrite a.isRam a.addr a.vr a.vw t).Rows p := by
   obtain ⟨range, vr, vw, keeps, noRom⟩ := ok
   have rom : a.isRam = false → a.addr < p.romSize := fun h => by simpa [h] using range
-  have addr : a.addr < 2 ^ p.μ := by
+  have ram : a.isRam = true → a.addr < p.ramSize := fun h => by simpa [h] using range
+  have addr : a.addr < 2 ^ p.addrWidth := by
     cases h : a.isRam
-    · exact lt_of_lt_of_le (rom h) (Geometry.romSize_le_ramSize valid)
-    · have ram : a.addr < p.ramSize := by simpa [h] using range
-      exact ram
-  exact ⟨⟨addr, vr, vw, ht⟩, ⟨keeps, noRom, rom, fun h => by simp at h⟩⟩
+    · exact lt_of_lt_of_le (rom h) (Nat.pow_le_pow_right Nat.zero_lt_two (le_max_left _ _))
+    · exact lt_of_lt_of_le (ram h) (Nat.pow_le_pow_right Nat.zero_lt_two (le_max_right _ _))
+  exact ⟨⟨addr, vr, vw, ht⟩, ⟨keeps, noRom, rom, ram, fun h => by simp at h⟩⟩
 
-private theorem honestSlots_fit {p : Geometry} (valid : p.Valid) {m : Machine}
+private theorem honestSlots_fit {p : Geometry} {m : Machine}
     {ports : List (Option PortAccess)} (below : ∀ g, (m.memory g).stamp ≤ m.ts)
     (bound : m.ts + (ports.filterMap id).length < 2 ^ p.wTs)
     (accessValid : ∀ a ∈ ports.filterMap id, a.Valid p) :
@@ -315,7 +316,7 @@ private theorem honestSlots_fit {p : Geometry} (valid : p.Valid) {m : Machine}
       have accessValid' : ∀ b ∈ a :: rest.filterMap id, b.Valid p := accessValid
       rcases List.mem_cons.1 hs with rfl | hs
       · have stamp := below (a.globalIndex p)
-        exact activeSlot_fits_rows valid (accessValid' a (List.mem_cons.2 (Or.inl rfl)))
+        exact activeSlot_fits_rows (accessValid' a (List.mem_cons.2 (Or.inl rfl)))
           (by omega)
       · refine ih (apply_below a below) ?_ (fun b hb => accessValid' b (List.mem_cons.2 (Or.inr hb)))
           s hs
@@ -367,7 +368,7 @@ private theorem honest_stepRows (valid : p.Valid) (width : ∀ ports ∈ steps, 
   have next : (ms i).ts + (stepAccesses steps i).length < 2 ^ p.wTs := by
     rw [← trace_ts_succ tr hi]
     exact trace_ts_lt width bound tr hi
-  have slots := honestSlots_fit valid.toValid (trace_below tr i hi.le) next (trace_valid tr hi)
+  have slots := honestSlots_fit (trace_below tr i hi.le) next (trace_valid tr hi)
   refine ⟨⟨?_, ?_, ?_, fun s hs => (slots s hs).1, scans _ hstart, scans _ hend⟩,
     fun s hs => (slots s hs).2, ?_, ?_⟩
   · rw [show (honestRecords p.toGeometry ms steps i).ops = honestSlots p.toGeometry (ms i) (steps.getD i []) from rfl,

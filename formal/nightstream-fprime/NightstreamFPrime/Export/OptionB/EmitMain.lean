@@ -8,6 +8,7 @@ import NightstreamFPrime.Export.Stage1.NebulaMemoryN1Package
 import NightstreamFPrime.Export.Stage1.ApplicationPackage
 import NightstreamFPrime.Export.Stage1.NebulaMemoryTerminal
 import NightstreamFPrime.Lifecycle.Nebula.SecondPlan
+import NightstreamFPrime.Lifecycle.Nebula.ThirdPlan
 import NightstreamFPrime.Export.Stage1.DirectLowNormFootprint
 import NightstreamFPrime.Layout.OptionB.LightAssemblerCompleteness
 import NightstreamFPrime.Layout.OptionB.RefreshAssemblerCompleteness
@@ -56,6 +57,9 @@ def selected (arguments : List String) : IO (Stage1.Application.Program × Strin
   match arguments.dropWhile (· != "--program") with
   | _ :: "nebula-v1" :: _ => pure (Export.Stage1.NebulaMemoryV1Package.application, "nebula-v1-")
   | _ :: "nebula-n1" :: _ => pure (Export.Stage1.NebulaMemoryN1Package.application, "nebula-n1-")
+  | _ :: "nebula-r1" :: _ => pure (Export.Stage1.NebulaMemoryPackage.application
+      ⟨Nebula.ThirdPlan.geometry, Nebula.ThirdPlan.valid, Nebula.ThirdPlan.secure⟩ Nebula.ThirdPlan.app,
+      "nebula-r1-")
   | _ :: name :: _ => throw (IO.userError s!"unknown program {name}")
   | _ => pure (program, "")
 

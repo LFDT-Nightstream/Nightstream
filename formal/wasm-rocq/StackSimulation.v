@@ -1,7 +1,7 @@
 (* Relates stack memory and row boundaries to contextual SpecTec steps. *)
 From Stdlib Require Import List ZArith Lia Bool.
 Require Import R1CS Columns FullRelation Range MemoryTrace MemoryCatalog
-  OpcodeCatalog Selectors TraceRefinement ProgramBinding Wasm2 WasmIntegers Add Locals StackBindings StraightLineSpec.
+  OpcodeCatalog Selectors TraceRefinement ProgramBinding Wasm2 WasmIntegers Add Locals StackBindings StraightLineSpec IntegerStack.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -44,57 +44,18 @@ Lemma stack_matches_binary_step : forall w initial final prefix a b,
   w (List.nth 1%nat COL_STACK_READ_VALUE_LO 0%nat) = b /\
   stackMatches final (afterBoundary w) (prefix ++ [w COL_STACK_WRITE0_VALUE_LO]).
 Proof.
-  intros w initial final prefix a b Hshape Hreplay [Hbase [Hheight [Hbounds Hcells]]] Hresult.
-  cbn [beforeBoundary boundarySP boundaryStackBase] in Hbase, Hheight, Hcells.
-  rewrite length_app in Hheight. cbn [length] in Hheight.
-  rewrite Nat2Z.inj_add in Hheight.
-  destruct (binary_stack_replay w initial final Hshape Hreplay) as [Hread0 [Hread1 Hfinal]].
-  assert (Ha : nth_error (prefix ++ [a; b]) (length prefix) = Some a).
-  { rewrite nth_error_app2 by lia. rewrite Nat.sub_diag. reflexivity. }
-  assert (Hb : nth_error (prefix ++ [a; b]) (S (length prefix)) = Some b).
-  { rewrite nth_error_app2 by lia.
-    replace (S (length prefix) - length prefix)%nat with 1%nat by lia. reflexivity. }
-  pose proof (Hcells _ _ Ha) as HcellA.
-  pose proof (Hcells _ _ Hb) as HcellB.
-  rewrite (stack_read0_address w Hshape) in Hread0.
-  rewrite (stack_read1_address w Hshape) in Hread1.
-  replace (2 * (w COL_SP_BEFORE - 2)) with
-    (2 * (w COL_STACK_FRAME_BASE_BEFORE + Z.of_nat (length prefix))) in Hread0 by lia.
-  replace (2 * (w COL_SP_BEFORE - 1)) with
-    (2 * (w COL_STACK_FRAME_BASE_BEFORE + Z.of_nat (S (length prefix)))) in Hread1
-    by (rewrite Nat2Z.inj_succ; lia).
-  split; [congruence | ]. split; [congruence | ].
-  unfold stackMatches. cbn [afterBoundary boundarySP boundaryStackBase].
-  rewrite (stack_base_after w Hshape), (stack_pointer_after w Hshape).
-  split; [exact Hbase | ]. split.
-  - rewrite length_app, Nat2Z.inj_add. cbn. lia.
-  - split.
-    + apply Forall_app in Hbounds. apply Forall_app. split; [exact (proj1 Hbounds) | ].
-      constructor; [exact Hresult | constructor].
-    + intros index value Hlookup. rewrite Hfinal.
-      rewrite update_other.
-      2: { right. rewrite (stack_write_hi_address w Hshape).
-           intro Heq. injection Heq as Heq.
-           change (2 * (w COL_SP_BEFORE - 2) + 1 =
-             2 * (w COL_STACK_FRAME_BASE_BEFORE + Z.of_nat index)) in Heq. lia. }
-      destruct (Nat.lt_ge_cases index (length prefix)) as [Hinside | Houtside].
-      * rewrite update_other.
-        2: { right. rewrite (stack_write_address w Hshape).
-             intro Heq. injection Heq as Heq.
-             change (2 * (w COL_SP_BEFORE - 2) =
-               2 * (w COL_STACK_FRAME_BASE_BEFORE + Z.of_nat index)) in Heq.
-             apply Nat2Z.inj_lt in Hinside. lia. }
-        apply Hcells. rewrite nth_error_app1 by exact Hinside.
-        rewrite nth_error_app1 in Hlookup by exact Hinside. exact Hlookup.
-      * rewrite nth_error_app2 in Hlookup by exact Houtside.
-        destruct (index - length prefix)%nat as [ |n] eqn:Hindex.
-        -- cbn in Hlookup. inversion Hlookup; subst value.
-           assert (HindexEq : index = length prefix) by lia. subst index.
-           replace (2 * (w COL_STACK_FRAME_BASE_BEFORE + Z.of_nat (length prefix)))
-             with (w COL_STACK_WRITE0_ADDR_LO)
-             by (rewrite (stack_write_address w Hshape); lia).
-           apply update_same.
-        -- destruct n; discriminate.
+  intros w initial final prefix a b Hshape Hreplay Hstack Hresult.
+  pose proof (proj1 (proj2 (proj2 Hstack))) as Hbounds.
+  pose proof (proj2 (value_stack_matches_i32 _ _ _ Hbounds) Hstack) as Htyped.
+  rewrite map_app in Htyped. cbn [map] in Htyped.
+  apply Forall_app in Hbounds as [Hprefix Hargs].
+  inversion Hargs; subst. match goal with H : Forall _ [b] |- _ => inversion H; subst end.
+  destruct (value_stack_matches_binary _ _ _ _ _ _ Hshape Hreplay Htyped ltac:(lia) ltac:(lia) Hresult)
+    as [Hread0 [Hread1 Hafter]].
+  split; [exact Hread0 | ]. split; [exact Hread1 | ].
+  assert (Hout : Forall (fun value => 0 <= value < i32Modulus) (prefix ++ [w COL_STACK_WRITE0_VALUE_LO])).
+  { apply Forall_app. split; [exact Hprefix | constructor; [exact Hresult | constructor]]. }
+  apply (proj1 (value_stack_matches_i32 _ _ _ Hout)). rewrite map_app. exact Hafter.
 Qed.
 
 Lemma skipn_at_instruction : forall (program : list instr) pc instruction,

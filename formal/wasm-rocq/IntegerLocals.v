@@ -2,7 +2,7 @@
    relation handles i32 and i64; no single field element stores an i64 value. *)
 From Stdlib Require Import List ZArith Lia.
 Require Import R1CS Columns FullRelation Range Selectors CircuitFacts MemoryTrace MemoryCatalog
-  LocalBindings StackBindings IntegerMemory Locals Wasm2.
+  LocalBindings StackBindings IntegerMemory IntegerStack Locals Wasm2.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -78,4 +78,44 @@ Proof.
   eapply cell_matches_memory.
   - intros limb _. apply Hfinal.
   - eapply copy_cell; eassumption.
+Qed.
+
+(* Local transfers on a complete typed operand stack, including an untouched
+   mixed-width prefix. The local's cell lies below the operand base. *)
+Theorem local_get_value_stack : forall w initial final values value,
+  fieldPrime -> FullRelation.satFull w -> w COL_SEL_LOCAL_GET = 1 ->
+  Replay initial (eventsForRow memories w) final ->
+  w COL_LOCALS_FBP_BEFORE + w COL_LOCAL_INDEX < w COL_STACK_FRAME_BASE_BEFORE ->
+  valueStackMatches initial (StraightLineSpec.beforeBoundary w) values ->
+  CellMatches initial (w COL_LOCALS_FBP_BEFORE + w COL_LOCAL_INDEX) value ->
+  valueStackMatches final (StraightLineSpec.afterBoundary w) (values ++ [value]).
+Proof.
+  intros w initial final values value Hprime Hfull Hget Hreplay Hbelow Hstack Hcell.
+  pose proof Hstack as [Hbase [Hsp _]].
+  cbn [StraightLineSpec.beforeBoundary StraightLineSpec.boundaryStackBase StraightLineSpec.boundarySP] in Hbase, Hsp.
+  eapply value_stack_matches_push; [ | exact Hreplay | exact Hstack | ].
+  - exact (full_local_get_stack_shape w Hprime Hfull Hget ltac:(lia)).
+  - eapply local_get_cell; eauto; lia.
+Qed.
+
+Theorem local_set_value_stack : forall w initial final prefix value,
+  fieldPrime -> FullRelation.satFull w -> w COL_SEL_LOCAL_SET = 1 ->
+  Replay initial (eventsForRow memories w) final ->
+  w COL_LOCALS_FBP_BEFORE + w COL_LOCAL_INDEX < w COL_STACK_FRAME_BASE_BEFORE ->
+  valueStackMatches initial (StraightLineSpec.beforeBoundary w) (prefix ++ [value]) ->
+  valueStackMatches final (StraightLineSpec.afterBoundary w) prefix /\
+  CellMatches final (w COL_LOCALS_FBP_BEFORE + w COL_LOCAL_INDEX) value.
+Proof.
+  intros w initial final prefix value Hprime Hfull Hset Hreplay Hbelow Hstack.
+  pose proof Hstack as [Hbase [Hsp Hcells]].
+  cbn [StraightLineSpec.beforeBoundary StraightLineSpec.boundaryStackBase StraightLineSpec.boundarySP] in Hbase, Hsp, Hcells.
+  rewrite length_app, Nat2Z.inj_add in Hsp. cbn [length] in Hsp.
+  pose proof (full_local_set_stack_shape w Hprime Hfull Hset ltac:(lia)) as Hshape.
+  split.
+  - eapply value_stack_matches_pop; [exact Hshape | exact Hreplay | discriminate | | exact Hstack].
+    intros _. destruct (full_local_addresses w Hprime Hfull) as [Hlo Hhi].
+    rewrite Hhi, Hlo. split; lia.
+  - eapply local_set_cell; [exact Hprime | exact Hfull | exact Hset | exact Hreplay | lia | ].
+    replace (w COL_SP_BEFORE - 1) with (w COL_STACK_FRAME_BASE_BEFORE + Z.of_nat (length prefix)) by lia.
+    apply Hcells. rewrite nth_error_app2 by lia. rewrite Nat.sub_diag. reflexivity.
 Qed.

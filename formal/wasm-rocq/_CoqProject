@@ -36,6 +36,7 @@ CallMemory.v
 FrameInitialization.v
 StackBindings.v
 StraightLineSpec.v
+IntegerStack.v
 StackSimulation.v
 LocalSimulation.v
 IntegerLocals.v
@@ -138,3 +139,5 @@ tests/IntegerInitialization.v
 tests/IntegerCallTrace.v
 tests/IntegerCalls.v
 tests/IntegerControl.v
+tests/IntegerStackTrace.v
+tests/IntegerStack.v

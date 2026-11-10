@@ -294,6 +294,23 @@ fn export_integer_local_witnesses() {
 
 #[test]
 #[ignore = "regenerates Rocq files"]
+fn export_integer_stack_witnesses() {
+    // The i64 prefix must survive arithmetic and local transfers, including its high limb.
+    export_witness_format(
+        r#"(module (func (export "main") (result i64) (local i64)
+            i64.const 4294967305
+            i32.const 7 i32.const 9 i32.add drop
+            i64.const -1 local.set 0 local.get 0 drop))"#,
+        &[],
+        "integerStackRows",
+        "IntegerStackTrace.v",
+        false,
+        true,
+    );
+}
+
+#[test]
+#[ignore = "regenerates Rocq files"]
 fn export_integer_call_witnesses() {
     export_witness_format(
         r#"(module

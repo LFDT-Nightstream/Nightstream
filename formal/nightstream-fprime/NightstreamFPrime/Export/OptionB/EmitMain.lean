@@ -55,14 +55,12 @@ def ringProducts (pieces : List Pieces.Piece) : Nat :=
     | .ringProduct cells .. => total + cells
     | _ => total) 0
 
-def census (name : String) (ops : List Op) (offset : Nat) (digestColumn : Fin 4 → Nat) :
-    IO (List Pieces.Piece) := do
+def census (name : String) (ops : List Op) (offset : Nat) (digestColumn : Fin 4 → Nat)
+    (pieces : List Pieces.Piece) : IO Unit := do
   let start ← IO.monoMsNow
-  let canonical := PilotData.canonicalConstraints ()
   let constraints := flatConstraints ops ++ LogicalPlan.decodeConstraints digestColumn
   let firstFresh := offset + localLength ops
   IO.println s!"{name}: {constraints.length} constraints, {localLength ops} locals from {offset}"
-  let pieces := Pieces.split canonical constraints
   let blocks := (CircuitRelation.blocksOf pieces).length
   let products := ringProducts pieces
   let generic := Pieces.genericConstraints pieces
@@ -78,7 +76,6 @@ def census (name : String) (ops : List Op) (offset : Nat) (digestColumn : Fin 4 
   IO.println s!"{name}: {rows.length} R1CS rows + {sboxRows} S-box rows = \
     {rows.length + sboxRows} logical rows; largest R1CS column {LogicalPlan.rowsMax rows}, \
     columns below {lastColumn} ({(← IO.monoMsNow) - start} ms)"
-  return pieces
 
 /-- The application's region (`StepPackage.Package.application`): its witness word count, its
 first local, its local count, its pieces and its fresh columns. The application is the circuit's first child; the
@@ -205,9 +202,8 @@ def emitFinish (write : Bool) : IO Unit := do
     refreshOffset
   let finishOps := Circuit.ops (OptionB.FinishStep.main program relation 1 interface) refreshOffset
   let _ ← emitPackage "finish" 2 finishOps refreshOffset
-    (Pieces.split (PilotData.canonicalConstraints ())
-      (FinishRelation.constraints (logicalWidth := StepRelation.keyWidth)
-        (publicFits := StepRelation.keyPublicFits) program relation))
+    (FinishRelation.pieces (logicalWidth := StepRelation.keyWidth)
+      (publicFits := StepRelation.keyPublicFits) program relation)
     (some (refreshOffset + localLength refreshOps)) (write := write)
   say s!"finish {if write then "package written" else "checks done"} \
     ({(← IO.monoMsNow) - start} ms)"
@@ -315,33 +311,22 @@ def main (arguments : List String) : IO Unit := do
   let words := program.witnessWordCount
   let lightOffset := LightAssembler.sharedEnd base words
   say s!"start ({(← IO.monoMsNow) - start} ms)"
-  let lightOps := Circuit.ops (OptionB.LightStepLayout.main program relation 0
-      (LightAssembler.interface (logicalWidth := StepRelation.keyWidth)
-        (publicFits := StepRelation.keyPublicFits) base words))
-      lightOffset
-  let lightPieces ← if withCensus then do
-      let pieces ← census "light" lightOps lightOffset (StepRelation.lightDigestColumn program)
-      childCensus "light" lightOps
-      pure pieces
-    else pure (Pieces.split (PilotData.canonicalConstraints ())
-      (flatConstraints lightOps ++
-        LogicalPlan.decodeConstraints (StepRelation.lightDigestColumn program)))
+  let lightOps := StepCompleteness.lightOps program relation
+  let lightPieces := StepCompleteness.piecesOf lightOps (StepRelation.lightDigestColumn program)
+  if withCensus then
+    census "light" lightOps lightOffset (StepRelation.lightDigestColumn program) lightPieces
+    childCensus "light" lightOps
   let light ← emitPackage "light" 0 lightOps lightOffset lightPieces (program := program)
     (stem := stem) (write := write)
   let refreshOffset := RefreshAssembler.sharedEnd base words
   say s!"light done ({(← IO.monoMsNow) - start} ms)"
-  let refreshOps := Circuit.ops (OptionB.RefreshStepLayout.main program relation 1
-      (RefreshAssembler.interface (logicalWidth := StepRelation.keyWidth)
-        (publicFits := StepRelation.keyPublicFits) base words))
-      refreshOffset
-  let refreshPieces ← if withCensus then do
-      let pieces ← census "refresh" refreshOps refreshOffset
-        (StepRelation.refreshDigestColumn program)
-      childCensus "refresh" refreshOps
-      pure pieces
-    else pure (Pieces.split (PilotData.canonicalConstraints ())
-      (flatConstraints refreshOps ++
-        LogicalPlan.decodeConstraints (StepRelation.refreshDigestColumn program)))
+  let refreshOps := StepCompleteness.refreshOps program relation
+  let refreshPieces := StepCompleteness.piecesOf refreshOps
+    (StepRelation.refreshDigestColumn program)
+  if withCensus then
+    census "refresh" refreshOps refreshOffset (StepRelation.refreshDigestColumn program)
+      refreshPieces
+    childCensus "refresh" refreshOps
   let refresh ← emitPackage "refresh" 1 refreshOps refreshOffset refreshPieces
     (program := program) (stem := stem) (write := write)
   unless write do

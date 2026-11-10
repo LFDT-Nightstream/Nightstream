@@ -16,7 +16,7 @@ mod stack_io;
 mod trap;
 
 pub(crate) use call::{FRAME_MOVE_REMAINING_AFTER_ZERO_TEST, LOCAL_ZERO_REMAINING_AFTER_ZERO_TEST};
-pub(crate) use host_event_chain::{HOST_EVENTS_REMAINING_ZERO_TEST, PERM_ROUND_ZERO_TEST};
+pub(crate) use host_event_chain::HOST_EVENTS_REMAINING_ZERO_TEST;
 pub(crate) use trap::{
     dividend_min_zero_test, divisor_neg1_zero_test, CALL_INDIRECT_ENTRY_ZERO_TEST, CALL_INDIRECT_TYPE_ZERO_TEST,
     DIVISOR_ZERO_TEST,

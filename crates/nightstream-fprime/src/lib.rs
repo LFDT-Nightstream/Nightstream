@@ -18,7 +18,7 @@ pub use application_records::{
     ApplicationTerm,
 };
 pub use option_b::{
-    layout::LogicalLayout,
+    layout::{LogicalLayout, SlotSpans},
     load_option_b_finish, load_option_b_packages, load_pinned_option_b_finish, load_pinned_option_b_packages,
     option_b_identity, parse_atoms,
     words::{encode_digest, Child, FoldWords, KWords, Slot, State as OptionBState, StepWords, PUBLIC_WORDS},

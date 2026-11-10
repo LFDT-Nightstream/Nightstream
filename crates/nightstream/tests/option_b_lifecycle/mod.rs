@@ -7,6 +7,7 @@
 #[path = "../option_b_support/mod.rs"]
 mod support;
 
+mod factored_rows;
 mod final_ir;
 mod setup_runs;
 

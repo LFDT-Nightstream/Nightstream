@@ -224,11 +224,15 @@ item 5).
   (`Export.OptionB.IvcWalk.Reaches`). The bridge's selector returns the
   circuit that ran only on a valid step (`Export.OptionB.TerminalBridge.chosen`),
   so each decoded step is valid (`Export.OptionB.TerminalBridge.valid_of_chosen`).
-- **Paper:** HyperNova Definition 11 (ii) states knowledge soundness: its
-  event is on the witnesses that the extractor returns. This result bounds a
-  false acceptance, which is the weaker soundness form. For one run,
-  `Export.OptionB.IvcWalk.covered` gives the extractor form without
-  probabilities: the walk gives the witnesses, a collision or a failed stage.
+- **Knowledge form:** HyperNova Definition 11 (ii) states knowledge
+  soundness: its event is on the witnesses that the extractor returns. The
+  same sum bounds the probability of an extraction failure: the terminal
+  relation accepts, and the witnesses of the walk's trail are not `iteration`
+  valid steps from `z0` to `zi`
+  (`Export.OptionB.IvcSecurity.ExtractionFailure`,
+  `Export.OptionB.IvcSecurity.extraction_bound`). Its law is the adversary's
+  tape and the coins of each stage's extractor. A false acceptance is an
+  extraction failure, so the result above follows from this one.
 - **Start from a final proof:** the finish fold of a last fold is one more
   stage before the walk. An answer that extracts it gives an accepted
   terminal for the finish step's input

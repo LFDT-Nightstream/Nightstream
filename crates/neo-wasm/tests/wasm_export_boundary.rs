@@ -113,15 +113,7 @@ fn export_boundary_folds_entry_and_exit_events() {
     assert!(trace[0].row_kind.is_host_event_gather());
     assert_eq!(trace[0].state_before.host_events.events_remaining, 2);
 
-    let staged: Vec<[u64; 8]> = trace
-        .iter()
-        .filter(|row| {
-            row.row_kind.is_host_event_gather()
-                && row.state_after.event_absorb.perm_pending
-                && !row.state_before.event_absorb.perm_pending
-        })
-        .map(|row| row.state_after.event_absorb.evbuf)
-        .collect();
+    let staged: Vec<[u64; 8]> = common::absorbed_blocks(&trace);
     assert_eq!(
         staged,
         vec![
@@ -296,15 +288,7 @@ fn i64_param_bootstraps_both_lanes() {
     common::check_native_event_hashes(&trace).expect("native event hashes");
     common::ccs_check_trace(&trace);
 
-    let staged: Vec<[u64; 8]> = trace
-        .iter()
-        .filter(|row| {
-            row.row_kind.is_host_event_gather()
-                && row.state_after.event_absorb.perm_pending
-                && !row.state_before.event_absorb.perm_pending
-        })
-        .map(|row| row.state_after.event_absorb.evbuf)
-        .collect();
+    let staged: Vec<[u64; 8]> = common::absorbed_blocks(&trace);
     assert_eq!(
         staged,
         vec![

@@ -81,7 +81,7 @@ fn host_event_constraints_have_semantic_scope() {
         "host event interface",
         "host-event gather binding",
         "host event buffer write",
-        "host event perm full round",
+        "host event absorb",
         "host event chain update",
     ] {
         assert!(

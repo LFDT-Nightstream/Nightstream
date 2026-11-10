@@ -19,10 +19,8 @@ use super::layout::{
     COL_OBJECT_ACTIVE_AFTER, COL_OBJECT_ACTIVE_BEFORE, COL_OUTER_CHAIN_AFTER, COL_OUTER_CHAIN_BEFORE,
     COL_OUTER_PREFIX_AFTER, COL_OUTER_PREFIX_BEFORE, COL_OUTPUT_ENABLED_AFTER, COL_OUTPUT_ENABLED_BEFORE,
     COL_OUTPUT_VALUE_HI_AFTER, COL_OUTPUT_VALUE_HI_BEFORE, COL_OUTPUT_VALUE_LO_AFTER, COL_OUTPUT_VALUE_LO_BEFORE,
-    COL_PC_AFTER, COL_PC_BEFORE, COL_PERM_PENDING_AFTER, COL_PERM_PENDING_BEFORE, COL_PERM_ROUND_AFTER,
-    COL_PERM_ROUND_BEFORE, COL_PERM_STATE_AFTER, COL_PERM_STATE_BEFORE, COL_SP_AFTER, COL_SP_BEFORE,
-    COL_STACK_FRAME_BASE_AFTER, COL_STACK_FRAME_BASE_BEFORE, COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE,
-    COL_TURN_EXPORT_FREF_AFTER, COL_TURN_EXPORT_FREF_BEFORE,
+    COL_PC_AFTER, COL_PC_BEFORE, COL_SP_AFTER, COL_SP_BEFORE, COL_STACK_FRAME_BASE_AFTER, COL_STACK_FRAME_BASE_BEFORE,
+    COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE, COL_TURN_EXPORT_FREF_AFTER, COL_TURN_EXPORT_FREF_BEFORE,
 };
 
 const fn link(previous_step_column: usize, next_step_column: usize) -> ContinuityLink {
@@ -151,18 +149,13 @@ pub(crate) fn build_ivc_state_continuity_links() -> Vec<ContinuityGroup> {
         },
         ContinuityGroup {
             name: "event_absorb_continuity",
-            role: "row[i].host-event absorb state (block buffer and perm group) must match row[i+1]",
+            role: "row[i].host-event absorb state (block buffer and object context) must match row[i+1]",
             links: {
-                let mut links = vec![
-                    link(COL_OBJECT_ACTIVE_AFTER, COL_OBJECT_ACTIVE_BEFORE),
-                    link(COL_PERM_PENDING_AFTER, COL_PERM_PENDING_BEFORE),
-                    link(COL_PERM_ROUND_AFTER, COL_PERM_ROUND_BEFORE),
-                ];
+                let mut links = vec![link(COL_OBJECT_ACTIVE_AFTER, COL_OBJECT_ACTIVE_BEFORE)];
                 links.extend(
                     COL_EVBUF_AFTER
                         .into_iter()
                         .zip(COL_EVBUF_BEFORE)
-                        .chain(COL_PERM_STATE_AFTER.into_iter().zip(COL_PERM_STATE_BEFORE))
                         .chain(
                             COL_OUTER_CHAIN_AFTER
                                 .into_iter()

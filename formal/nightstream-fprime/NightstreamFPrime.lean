@@ -80,6 +80,7 @@ import NightstreamFPrime.Lifecycle.OptionB.RefreshPiCCSLayout
 import NightstreamFPrime.Lifecycle.OptionB.RefreshStepLayout
 import NightstreamFPrime.Lifecycle.OptionB.RefreshStepSoundness
 import NightstreamFPrime.Lifecycle.OptionB.Terminal
+import NightstreamFPrime.Lifecycle.OptionB.FreshInstance
 import NightstreamFPrime.Lifecycle.OptionB.LightFold
 import NightstreamFPrime.Lifecycle.OptionB.LightStep
 import NightstreamFPrime.Lifecycle.OptionB.LightPiCCSLayout

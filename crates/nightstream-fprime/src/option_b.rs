@@ -33,10 +33,10 @@ const FINISH_IDENTITY_DOMAIN: &[u8] = b"Nightstream/OptionB/finish/v1";
 
 /// The identity of the finish package in `formal/nightstream-fprime/artifacts`.
 pub const OPTION_B_FINISH_IDENTITY: [u64; 4] = [
-    8_964_031_634_493_460_821,
-    17_218_707_408_510_151_043,
-    14_169_646_730_652_437_123,
-    9_788_444_084_245_226_344,
+    503_609_614_388_367_041,
+    7_644_005_157_041_270_037,
+    14_871_096_991_768_929_597,
+    6_590_892_341_288_072_932,
 ];
 
 /// The identity of the packages in `formal/nightstream-fprime/artifacts`.

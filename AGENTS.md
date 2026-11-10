@@ -63,8 +63,11 @@ value.
 ## Protocol
 
 - Cite SuperNeo only by its v1.2 numbers.
-- Use only Poseidon2 in proof, transcript, and public-digest paths. Do not add
-  other hash families there without approval.
+- Use only Poseidon2 and the Ajtai commitment of the scheme as hashes in
+  proof, transcript, and public-digest paths. Poseidon2 makes each
+  Fiat–Shamir challenge. The Ajtai commitment can be a digest where collision
+  resistance is sufficient. Do not add other hash families there, for example
+  BLAKE3, without approval.
 - Decomposition uses `b = 2` and `B = 2^k_rho`. Use `k_rho = 16` by default.
   Use `k_rho = 18` only when a requirement or a measurement shows that 16 is
   not sufficient. Each profile binds exactly one of these two values. Any

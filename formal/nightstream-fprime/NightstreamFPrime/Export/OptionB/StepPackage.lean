@@ -305,7 +305,8 @@ over the block's last S-box columns (`CircuitRelation.outputForms`). The S-box r
 `PoseidonSboxFamilyPlan` on the blocks from `sboxStart`. -/
 def Package.relationRows (package : Package) : List R1CS.Row :=
   (package.pieces.flatMap PackagePiece.relationRows).map
-    (Substitute.row (CircuitRelation.outputForms package.width package.blocks package.sboxStart))
+    (Substitute.row (Substitute.lookup
+      (CircuitRelation.outputTable package.width package.sboxStart package.blocks)))
 
 /-! ### The slots -/
 

@@ -335,10 +335,16 @@ def outputWrites (width sboxStart : Nat) (blocks : List Block) :
 def tableSize (blocks : List Block) : Nat :=
   blocks.foldl (fun size block => max size (block.start + 1096)) 0
 
-/-- The form of each output local of the blocks, read from a table. No other column has a form. -/
-@[inline] def outputForms (width : Nat) (blocks : List Block) (sboxStart : Nat) :
+/-- The table of the forms of the output locals of the blocks. A definition that computes builds
+this table one time and reads it with `Substitute.lookup`. -/
+def outputTable (width sboxStart : Nat) (blocks : List Block) :
+    Array (Option R1CS.LinearCombination) :=
+  Substitute.table (tableSize blocks) (outputWrites width sboxStart blocks)
+
+/-- The form of each output local of the blocks. No other column has a form. -/
+abbrev outputForms (width : Nat) (blocks : List Block) (sboxStart : Nat) :
     Nat → Option R1CS.LinearCombination :=
-  Substitute.lookup (Substitute.table (tableSize blocks) (outputWrites width sboxStart blocks))
+  Substitute.lookup (outputTable width sboxStart blocks)
 
 theorem foldl_max_le (blocks : List Block) (size : Nat) :
     size ≤ blocks.foldl (fun size block => max size (block.start + 1096)) size ∧
@@ -362,6 +368,7 @@ def outputIn (blocks : List Block) (column : Nat) : Bool :=
 theorem outputForms_of_not_outputIn (width : Nat) {blocks : List Block} (sboxStart : Nat)
     {column : Nat} (outside : outputIn blocks column = false) :
     outputForms width blocks sboxStart column = none := by
+  show Substitute.lookup (Substitute.table _ _) _ = none
   apply Substitute.lookup_table_none
   intro write member same
   simp only [outputWrites, List.mem_flatMap, List.mem_ofFn] at member
@@ -391,6 +398,8 @@ theorem outputForms_output (width sboxStart : Nat) (blocks : List Block)
     outputForms width blocks sboxStart ((blocks.get index).start + 1080 + lane.val) =
       some (toCombination (outputStateAt (width := width) sboxStart index.val lane)) := by
   have laneLt := lane.isLt
+  show Substitute.lookup (Substitute.table (tableSize blocks)
+    (outputWrites width sboxStart blocks)) _ = _
   apply Substitute.lookup_table_some (tableSize blocks) (outputWrites width sboxStart blocks)
     ((blocks.get index).start + 1080 + lane.val,
       toCombination (outputStateAt (width := width) sboxStart index.val lane))
@@ -439,12 +448,13 @@ theorem outputForms_output (width sboxStart : Nat) (blocks : List Block)
 layout. A lane reads the form of each output local that it names. -/
 def sboxInterface {width logicalWidth : Nat} (layout : LogicalPlan.Layout width logicalWidth)
     (blocks : List Block) (sboxStart : Nat) :
-    PoseidonSboxFamilyPlan.Interface logicalWidth blocks.length where
-  oneColumn := layout.one
-  input := fun index lane =>
-    layout.combination (Substitute.substitute (outputForms width blocks sboxStart)
-      (invocationInputCombination (blocks.get index).invocation lane.val).toR1CS)
-  sboxOutput := fun index row => layout.form (sboxColumn sboxStart index.val row.val)
+    PoseidonSboxFamilyPlan.Interface logicalWidth blocks.length :=
+  let forms := outputTable width sboxStart blocks
+  { oneColumn := layout.one
+    input := fun index lane =>
+      layout.combination (Substitute.substitute (Substitute.lookup forms)
+        (invocationInputCombination (blocks.get index).invocation lane.val).toR1CS)
+    sboxOutput := fun index row => layout.form (sboxColumn sboxStart index.val row.val) }
 
 /-- The first fresh S-box column: after the fresh columns of the other pieces. -/
 def sboxStart (pieces : List Piece) (next : Nat) : Nat :=
@@ -456,7 +466,8 @@ def relationRows (publicColumns : Nat) (pieces : List Piece) (next width : Nat) 
     List R1CS.Row :=
   if packable publicColumns pieces then
     (PieceRows.lowerPieces (PilotData.canonicalConstraints ()) (otherPieces pieces) next).1.map
-      (Substitute.row (outputForms width (blocksOf pieces) (sboxStart pieces next)))
+      (Substitute.row (Substitute.lookup
+        (outputTable width (sboxStart pieces next) (blocksOf pieces))))
   else (PieceRows.lowerPieces (PilotData.canonicalConstraints ()) pieces next).1
 
 structure BlockFits (pieces : List Piece) (next width rowCount : Nat) : Prop where

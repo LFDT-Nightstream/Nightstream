@@ -244,7 +244,7 @@ def packageFits (p : StepPackage.Package) : Bool :=
   decide (p.relationRows.length + p.blocks.length * 150 ≤ 2 ^ Lifecycle.cubeVariables) &&
     decide (LogicalPlan.rowsMax p.relationRows < p.width) &&
     decide (p.sboxStart + p.blocks.length * 150 ≤ p.width) &&
-    let forms := CircuitRelation.outputForms p.width p.blocks p.sboxStart
+    let forms := Substitute.lookup (CircuitRelation.outputTable p.width p.sboxStart p.blocks)
     p.blocks.all fun block => (List.range 16).all fun lane =>
       (laneCombination forms block lane).terms.all fun term => decide (term.1 < p.width)
 
@@ -261,7 +261,7 @@ def keyRunsFailure (p : StepPackage.Package) (pushes : List Push) : Option Strin
       match pushes.find? (total ≤ ·.row) with
       | some push => some s!"row {push.row}, matrix {push.matrix}: past the relation's {total} rows"
       | none =>
-          let forms := CircuitRelation.outputForms p.width blocks p.sboxStart
+          let forms := Substitute.lookup (CircuitRelation.outputTable p.width p.sboxStart blocks)
           let byRow := runsByRow total pushes
           let runs (i : ℕ) := (byRow.getD i []).reverse
           let ordinary := rows.zipIdx.map fun (row, i) =>

@@ -10,11 +10,11 @@ import CompressionLean.Sim.Instr
 import CompressionLean.Sim.Late
 import CompressionLean.Sim.Linear
 import CompressionLean.Sim.Merkle
-import CompressionLean.Sim.OptionBColumns
-import CompressionLean.Sim.OptionBEncodes
-import CompressionLean.Sim.OptionBLive
-import CompressionLean.Sim.OptionBPrefix
-import CompressionLean.Sim.OptionBSlots
+import CompressionLean.Sim.BoundedDepthColumns
+import CompressionLean.Sim.BoundedDepthEncodes
+import CompressionLean.Sim.BoundedDepthLive
+import CompressionLean.Sim.BoundedDepthPrefix
+import CompressionLean.Sim.BoundedDepthSlots
 import CompressionLean.Sim.Ring
 import CompressionLean.Sim.Run
 import CompressionLean.Sim.SetupLeaf

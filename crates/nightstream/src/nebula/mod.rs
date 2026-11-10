@@ -57,9 +57,9 @@ pub use transcript::Digest;
 #[cfg(test)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Package {
-    /// `FirstPlan.lean`: `artifacts/nightstream-fprime-option-b-nebula-v1-{light,refresh}-v1.json`.
+    /// `FirstPlan.lean`: `artifacts/nightstream-fprime-bounded-depth-nebula-v1-{light,refresh}-v1.json`.
     V1,
-    /// `SecondPlan.lean`: `artifacts/nightstream-fprime-option-b-nebula-n1-{light,refresh}-v1.json`.
+    /// `SecondPlan.lean`: `artifacts/nightstream-fprime-bounded-depth-nebula-n1-{light,refresh}-v1.json`.
     N1,
 }
 
@@ -83,7 +83,7 @@ impl Package {
         Program::new(self.geometry(), rom, ram).expect("a default program fits its geometry")
     }
 
-    /// Load the package's option-B circuit: Lean's light and refresh
+    /// Load the package's bounded-depth circuit: Lean's light and refresh
     /// packages of the memory program (`EmitMain --program`) and the finish
     /// package. `Circuit::load_packages` recomputes their identity
     /// and requires the package's pin.
@@ -91,12 +91,12 @@ impl Package {
         Ok(Circuit {
             geometry: self.geometry(),
             app: Machine,
-            circuit: crate::Circuit::load_packages(references, self.option_b_identity())?.into_memory(),
+            circuit: crate::Circuit::load_packages(references, self.bounded_depth_identity())?.into_memory(),
         })
     }
 
-    /// The identity of the package's option-B light and refresh packages.
-    fn option_b_identity(self) -> [u64; 4] {
+    /// The identity of the package's bounded-depth light and refresh packages.
+    fn bounded_depth_identity(self) -> [u64; 4] {
         match self {
             Package::V1 => [
                 14_767_641_099_710_183_942,

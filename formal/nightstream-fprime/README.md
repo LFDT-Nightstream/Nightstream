@@ -17,7 +17,7 @@ theorem.
 
 ## Step circuits
 
-Option B has two step circuits (`Layout/OptionB/StepCircuits.lean`). Circuit 0
+The bounded-depth scheme has two step circuits (`Layout/BoundedDepth/StepCircuits.lean`). Circuit 0
 runs a light fold, and circuit 1 runs a refresh fold. Both run the same
 application step. The state has two slots, one for the accumulator of each
 circuit. Each module header states what the module owns. Do not copy row or
@@ -25,31 +25,31 @@ column counts into a document.
 
 | Circuit | Lean layout | Gadgets, in order |
 |---|---|---|
-| Light | `Lifecycle/OptionB/LightStepLayout.lean` | The application, the depth guard on the depth word of the active slot, the prior state hash with its two slot hashes, the next state hash with its two slot hashes, the light Π_CCS and Π_RLC on the active slot, and the slot select. |
-| Refresh | `Lifecycle/OptionB/RefreshStepLayout.lean` | The application, the prior state hash with its two slot hashes, the next state hash with its two slot hashes, Π_DEC on the active slot, the refresh Π_CCS on the 16 children, Π_RLC, and the slot select. There is no depth guard, and the new depth of the slot is 0. |
-| Finish | `Lifecycle/OptionB/FinishStep.lean` | The last fold of a compressed proof. It is the refresh step circuit without the application and without the hashes of the next slots and the next state. |
+| Light | `Lifecycle/BoundedDepth/LightStepLayout.lean` | The application, the depth guard on the depth word of the active slot, the prior state hash with its two slot hashes, the next state hash with its two slot hashes, the light Π_CCS and Π_RLC on the active slot, and the slot select. |
+| Refresh | `Lifecycle/BoundedDepth/RefreshStepLayout.lean` | The application, the prior state hash with its two slot hashes, the next state hash with its two slot hashes, Π_DEC on the active slot, the refresh Π_CCS on the 16 children, Π_RLC, and the slot select. There is no depth guard, and the new depth of the slot is 0. |
+| Finish | `Lifecycle/BoundedDepth/FinishStep.lean` | The last fold of a compressed proof. It is the refresh step circuit without the application and without the hashes of the next slots and the next state. |
 
-`Lifecycle/OptionB/Step.lean` states the step relation (`stepHolds_iff`).
+`Lifecycle/BoundedDepth/Step.lean` states the step relation (`stepHolds_iff`).
 `LightStep.lean` and `RefreshStep.lean` give its two cases from the rows of
 each circuit, and `StepCircuits.soundness` gives the case of either circuit.
 `LightAssemblerCompleteness.complete` and
 `RefreshAssemblerCompleteness.complete` give completeness.
-`Lifecycle/OptionB/Terminal.lean` owns the terminal relation.
-`Export/OptionB/StepRelation.lean` and `Export/OptionB/TerminalBridge.lean`
+`Lifecycle/BoundedDepth/Terminal.lean` owns the terminal relation.
+`Export/BoundedDepth/StepRelation.lean` and `Export/BoundedDepth/TerminalBridge.lean`
 connect the exported relations to the step relation and the terminal.
 The Lean results in `Spec/Folding/Light`, `Spec/Folding/Refresh`,
 `Spec/Folding/Schedule.lean` and `Spec/HyperNova/Construction2/BoundedDepth*`
 are the authority for the departures from SuperNeo v1.2.
 
-`lake exe emitOptionB` (`Export/OptionB/EmitMain.lean`) writes the light and
-refresh packages, `artifacts/nightstream-fprime-option-b-light-v1.json` and
-`artifacts/nightstream-fprime-option-b-refresh-v1.json`.
-`lake exe emitOptionB --finish` writes
-`artifacts/nightstream-fprime-option-b-finish-v1.json`. Before it writes a
+`lake exe emitBoundedDepth` (`Export/BoundedDepth/EmitMain.lean`) writes the light and
+refresh packages, `artifacts/nightstream-fprime-bounded-depth-light-v1.json` and
+`artifacts/nightstream-fprime-bounded-depth-refresh-v1.json`.
+`lake exe emitBoundedDepth --finish` writes
+`artifacts/nightstream-fprime-bounded-depth-finish-v1.json`. Before it writes a
 package, the emitter runs the package's completeness checks and stops when one
 fails. With `--checks`, it runs only these checks and writes nothing. Rust pins the
-identities of these packages (`OPTION_B_PACKAGES_IDENTITY` and
-`OPTION_B_FINISH_IDENTITY` in `crates/nightstream-fprime/src/option_b.rs`).
+identities of these packages (`BOUNDED_DEPTH_PACKAGES_IDENTITY` and
+`BOUNDED_DEPTH_FINISH_IDENTITY` in `crates/nightstream-fprime/src/bounded_depth.rs`).
 
 ## Credits
 

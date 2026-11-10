@@ -204,7 +204,7 @@ fn a_run_steps_natively_through_the_segments_of_its_size() {
 }
 
 /// Fibonacci proved in Small, one segment of 8 steps of 64 rows, on the CPU
-/// path, where option B proves. The proof verifies after its bytes
+/// path, where the bounded-depth scheme proves. The proof verifies after its bytes
 /// round-trip, and a last state with another `pc` does not verify.
 #[test]
 #[ignore = "Full proof at a fixed size; run it alone, only with approval for a run longer than 300 seconds."]

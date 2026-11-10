@@ -2,7 +2,7 @@ import NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthReverse
 import Mathlib.Probability.ProbabilityMassFunction.Constructions
 import NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthKnowledge
 
-/-! HyperNova Lemma 17 (Appendix H.3) for one slot of option B, with probabilities. Stage `0`
+/-! HyperNova Lemma 17 (Appendix H.3) for one slot of the bounded-depth scheme, with probabilities. Stage `0`
 is the IVC adversary; stage `j + 1` runs stage `j` and then the extractor that Assumption 1 gives
 for stage `j`'s NIFS adversary, which attacks the `j`-th fold from the end. Then
 
@@ -84,7 +84,7 @@ def ExtractionFails (adversary : NifsAdversary Prior Key Claim Fresh Proof Claim
   ∃ attempt, adversary.run draw.1 = some attempt ∧ Succeeds p cap folds PriorLink Holds attempt ∧
     ¬ Extracted p Holds FreshHolds attempt (extractor.run draw.1 draw.2)
 
-/-- HyperNova errata Assumption 1 in Definition 7 form for the folds of option B. -/
+/-- HyperNova errata Assumption 1 in Definition 7 form for the folds of the bounded-depth scheme. -/
 def Assumption1 (Admitted : NifsAdversary Prior Key Claim Fresh Proof ClaimWitness → Prop)
     (Efficient : (adversary : NifsAdversary Prior Key Claim Fresh Proof ClaimWitness) →
       NifsExtractor FreshWitness adversary → Prop)
@@ -326,7 +326,7 @@ theorem per_tape (depth : Nat)
   refine returned_of_no_failure _ _ _ _ _ _ runs holds (by omega) (by omega) fun j small failed => ?_
   exact none ⟨⟨j, by omega⟩, failed⟩
 
-/-- HyperNova Lemma 17 for one slot of option B: the chance that the slot's history is accepted
+/-- HyperNova Lemma 17 for one slot of the bounded-depth scheme: the chance that the slot's history is accepted
 but the reverse extractor does not return it is at most the stages' Assumption 1 errors. -/
 theorem history_failure_le (depth : Nat)
     (depthBound : ∀ tape ∈ adversary.tape.support, (adversary.output tape).back.length ≤ depth) :

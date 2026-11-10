@@ -1,7 +1,7 @@
-import CompressionLean.Ports.OptionB.Program
+import CompressionLean.Ports.BoundedDepth.Program
 import Mathlib.Data.List.Basic
 
-/-! Faster compiled forms of the finish rows (`OptionB.finishRows`). Each `@[csimp]` theorem proves a
+/-! Faster compiled forms of the finish rows (`BoundedDepth.finishRows`). Each `@[csimp]` theorem proves a
 fast form equal to its definition, so compiled code after the theorem runs the fast form and the proofs
 keep reading the definition. `Ports/` holds no theorem and compiles before these theorems, so
 `compile_again` compiles the definitions on the path from the executables to the fast forms again,
@@ -92,14 +92,14 @@ def hashLeafFast (values : Array Replay.Word) : Array Replay.Word :=
   rw [getElem!_pos _ i (by rw [Array.size_extract]; exact small), Array.getElem_extract,
     getElem!_pos values (Replay.rate * c + i) (by omega)]
 
-open NightstreamFPrime.Export.OptionB.StepPackage in
+open NightstreamFPrime.Export.BoundedDepth.StepPackage in
 /-- The count of a piece's relation rows, without the rows (`pieceRowCount_eq`). -/
 def pieceRowCount : PackagePiece → ℕ
   | .rows chunk => chunk.length
   | .ring cells .. => cells * 108
   | .block .. => 0
 
-open NightstreamFPrime.Export.OptionB.StepPackage in
+open NightstreamFPrime.Export.BoundedDepth.StepPackage in
 theorem pieceRowCount_eq (piece : PackagePiece) : pieceRowCount piece = piece.relationRows.length := by
   cases piece with
   | rows chunk => rfl
@@ -109,12 +109,12 @@ theorem pieceRowCount_eq (piece : PackagePiece) : pieceRowCount piece = piece.re
   | block start lanes => rfl
 
 /-- The count of finish rows, without the rows (`finishRowCount_eq`). -/
-def finishRowCount (finish : NightstreamFPrime.Export.OptionB.StepPackage.Package) : ℕ :=
+def finishRowCount (finish : NightstreamFPrime.Export.BoundedDepth.StepPackage.Package) : ℕ :=
   (finish.pieces.map pieceRowCount).sum
 
-theorem finishRowCount_eq (finish : NightstreamFPrime.Export.OptionB.StepPackage.Package) :
-    finishRowCount finish = (OptionB.finishRows finish).length := by
-  rw [finishRowCount, OptionB.finishRows, List.length_map, List.length_flatMap]
+theorem finishRowCount_eq (finish : NightstreamFPrime.Export.BoundedDepth.StepPackage.Package) :
+    finishRowCount finish = (BoundedDepth.finishRows finish).length := by
+  rw [finishRowCount, BoundedDepth.finishRows, List.length_map, List.length_flatMap]
   exact congrArg List.sum (List.map_congr_left fun piece _ => pieceRowCount_eq piece)
 
 open Lean Elab Command Meta in
@@ -133,7 +133,7 @@ local elab "compile_again " ids:ident+ : command => liftTermElabM do
     addDecl (.thmDecl (mkTheoremValEx equal info.levelParams statement (← mkEqRefl (mkConst name levels)) []))
     Compiler.CSimp.add equal .global
 
-compile_again NightstreamFPrime.Export.OptionB.StepPackage.PackagePiece.relationRows
-  CompressionLean.OptionB.finishRows CompressionLean.OptionB.finishPrefix CompressionLean.OptionB.finalProgram
+compile_again NightstreamFPrime.Export.BoundedDepth.StepPackage.PackagePiece.relationRows
+  CompressionLean.BoundedDepth.finishRows CompressionLean.BoundedDepth.finishPrefix CompressionLean.BoundedDepth.finalProgram
 
 end CompressionLean.Lowering.Compiled

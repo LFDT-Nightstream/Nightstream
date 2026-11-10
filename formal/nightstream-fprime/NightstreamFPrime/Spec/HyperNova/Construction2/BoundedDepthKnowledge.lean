@@ -1,6 +1,6 @@
 import NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 
-/-! The reverse extraction of HyperNova Lemma 17 (Appendix H.3) for option B, without
+/-! The reverse extraction of HyperNova Lemma 17 (Appendix H.3) for the bounded-depth scheme, without
 probabilities. `StepKnowledge` is Definition 7 for one fold: from an output witness at norm `β`,
 the input claim has a witness at `Schedule.extractedBefore step β` and the fresh instance has a
 witness, or the fold's failure event holds. The light and refresh security theorems give this
@@ -226,7 +226,7 @@ theorem slot_runs (verifierKeys : Fin 2 → Key) (defaultClaim : Claim)
         rw [kept] at tail
         exact tail
 
-/-- HyperNova Lemma 17's reverse extraction for option B on one slot of an accepted execution:
+/-- HyperNova Lemma 17's reverse extraction for the bounded-depth scheme on one slot of an accepted execution:
 from a witness of the slot's final claim below `B`, every claim the slot held has a witness at a
 bound of at most `B + cap · T · (b − 1)` and every fresh instance it folded has a witness, or a
 fold of the slot failed. -/

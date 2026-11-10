@@ -182,7 +182,7 @@ fn programs_of_one_package_have_their_own_initial_state() {
 
 /// The verifier's `D_init` (SPEC.md section 7.4), from which it computes the start
 /// carry and `z0`, equals the value that Lean computes for the same plan
-/// (`emitOptionB --application-start`). It binds the plan digest and the images.
+/// (`emitBoundedDepth --application-start`). It binds the plan digest and the images.
 /// `FirstPlan.otherPlan` has a distinct nonzero word in every cell, so a
 /// misplaced or truncated word changes `D_init`.
 #[test]
@@ -280,7 +280,7 @@ fn canonical_words(words: &[F]) -> Vec<u64> {
 }
 
 /// The SPEC.md Algorithm 10 terminal check agrees with Lean's `TerminalChecks` on every
-/// case of `emitOptionB --application-terminal`. It accepts exactly when every
+/// case of `emitBoundedDepth --application-terminal`. It accepts exactly when every
 /// statement integer is below `q` and every check holds, with Lean's final
 /// state words. Otherwise it fails at the first false check in its own order:
 /// Canonical decoding, closed carry, segment range, step count, then the carry fields.
@@ -355,7 +355,7 @@ fn memory_security_bits_match_the_lean_setup_boundary() {
     }
 }
 
-/// Lean's option-B packages (`formal/nightstream-fprime/artifacts`): the
+/// Lean's bounded-depth packages (`formal/nightstream-fprime/artifacts`): the
 /// light and refresh step packages of an application and the finish package.
 struct Packages {
     light: Vec<u8>,
@@ -370,16 +370,16 @@ impl Packages {
                 .join("../../formal/nightstream-fprime/artifacts")
                 .join(name),
         )
-        .expect("Lean option-B package")
+        .expect("Lean bounded-depth package")
     }
 
     /// The packages of `stem` (`""` for today's fixture, `"nebula-v1-"`,
     /// `"nebula-n1-"`).
     fn of(stem: &str) -> Self {
         Self {
-            light: Self::read(&format!("nightstream-fprime-option-b-{stem}light-v1.json")),
-            refresh: Self::read(&format!("nightstream-fprime-option-b-{stem}refresh-v1.json")),
-            finish: Self::read("nightstream-fprime-option-b-finish-v1.json"),
+            light: Self::read(&format!("nightstream-fprime-bounded-depth-{stem}light-v1.json")),
+            refresh: Self::read(&format!("nightstream-fprime-bounded-depth-{stem}refresh-v1.json")),
+            finish: Self::read("nightstream-fprime-bounded-depth-finish-v1.json"),
         }
     }
 
@@ -652,11 +652,12 @@ fn each_program_verifies_only_its_own_proof_on_cpu() {
 }
 
 #[test]
-#[ignore = "Prints the memory programs' option-B package identities for pinning."]
+#[ignore = "Prints the memory programs' bounded-depth package identities for pinning."]
 fn print_memory_package_identifier() {
     for stem in ["nebula-v1-", "nebula-n1-"] {
         let packages = Packages::of(stem);
-        let computed = match nightstream_fprime::load_option_b_packages(&packages.light, &packages.refresh, [0; 4]) {
+        let computed = match nightstream_fprime::load_bounded_depth_packages(&packages.light, &packages.refresh, [0; 4])
+        {
             Ok(loaded) => loaded.identity(),
             Err(nightstream_fprime::PackageError::IdentityMismatch { computed, .. }) => computed,
             Err(error) => panic!("{stem}: {error}"),

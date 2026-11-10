@@ -1,4 +1,4 @@
-//! Strict bytes of the claims and witnesses in an option-B proof (SPEC.md section 4.5).
+//! Strict bytes of the claims and witnesses in a bounded-depth proof (SPEC.md section 4.5).
 //!
 //! Owns the proof byte layout. Does not own acceptance: a decoded proof still
 //! needs `verify`. The prepared circuit fixes every size, so the decoder

@@ -28,7 +28,7 @@ noncomputable def runEntry (S : Layer1.Setup Gl) (D j i c : ℕ) : Gl :=
     S.runCoef k * S.slotRatio (S.runSlot k) ^ (c - (D * S.slotBlock (S.runSlot k) + S.slotLane (S.runSlot k)))
 
 /-- The layer-1 shape of a parent claim. The key commits at most the carrier's blocks: a key with
-fewer blocks, such as option B's light relation, commits a witness that is zero past them. -/
+fewer blocks, such as the bounded-depth scheme's light relation, commits a witness that is zero past them. -/
 structure ParentShape (s : Layer1.Shape) (lw : ℕ) : Prop where
   D : s.D = ringDegree
   laneVars : s.laneVars = 6

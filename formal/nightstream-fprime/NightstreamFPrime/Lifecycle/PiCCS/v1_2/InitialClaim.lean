@@ -30,7 +30,7 @@ open NightstreamFPrime.Gadgets.Polynomial
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
 
-/-- The leaf's inputs for a Π_CCS shape: the production shape, or option B's light shape with
+/-- The leaf's inputs for a Π_CCS shape: the production shape, or the bounded-depth scheme's light shape with
 one running source. -/
 structure ShapeInterface (shape : Shape) where
   gamma : Nat → KExpr

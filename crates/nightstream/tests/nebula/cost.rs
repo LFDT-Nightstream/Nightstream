@@ -13,7 +13,7 @@
 use std::sync::OnceLock;
 
 use neo_ajtai::nightstream_fprime_setup::MAX_CARRIER_WIDTH;
-use nightstream_fprime::{load_option_b_packages, OptionBPackages, OPTION_B_PACKAGES_IDENTITY};
+use nightstream_fprime::{load_bounded_depth_packages, BoundedDepthPackages, BOUNDED_DEPTH_PACKAGES_IDENTITY};
 
 use super::memory_circuit;
 use crate::application::ApplicationCircuit;
@@ -21,10 +21,10 @@ use crate::nebula::{Application, Expr, Geometry, Memory, Transition, View};
 
 /// The logical width of the refresh relation with `circuit` in place of Lean's application.
 fn logical_width(circuit: &ApplicationCircuit) -> Result<usize, crate::Error> {
-    static PACKAGES: OnceLock<OptionBPackages> = OnceLock::new();
+    static PACKAGES: OnceLock<BoundedDepthPackages> = OnceLock::new();
     let packages = PACKAGES.get_or_init(|| {
-        let bytes = crate::nebula::test_packages::option_b_packages("");
-        load_option_b_packages(&bytes[0], &bytes[1], OPTION_B_PACKAGES_IDENTITY).unwrap()
+        let bytes = crate::nebula::test_packages::bounded_depth_packages("");
+        load_bounded_depth_packages(&bytes[0], &bytes[1], BOUNDED_DEPTH_PACKAGES_IDENTITY).unwrap()
     });
     let packages = packages.with_application(
         circuit.records().clone(),
@@ -216,7 +216,7 @@ fn size_parts_sum_to_the_circuit_counts() {
 /// The committed size of the step packages with `circuit` in place of the
 /// fixture's application: per package, the logical width, the slot
 /// coordinates of each kind, the plan rows and the blocks.
-fn print_package_size(name: &str, packages: &OptionBPackages) {
+fn print_package_size(name: &str, packages: &BoundedDepthPackages) {
     for (kind, package) in [("light", packages.light()), ("refresh", packages.refresh())] {
         let layout = package.layout().unwrap();
         let rows = package.plan_rows().unwrap();
@@ -244,8 +244,8 @@ fn native_memory_step_cost() {
         circuit.generated_range().len(),
         circuit.row_count()
     );
-    let bytes = crate::nebula::test_packages::option_b_packages("");
-    let fixture = load_option_b_packages(&bytes[0], &bytes[1], OPTION_B_PACKAGES_IDENTITY).unwrap();
+    let bytes = crate::nebula::test_packages::bounded_depth_packages("");
+    let fixture = load_bounded_depth_packages(&bytes[0], &bytes[1], BOUNDED_DEPTH_PACKAGES_IDENTITY).unwrap();
     print_package_size(
         "native",
         &fixture
@@ -256,12 +256,15 @@ fn native_memory_step_cost() {
             )
             .unwrap(),
     );
-    let lean = crate::nebula::test_packages::option_b_packages("nebula-v1-");
-    let computed = match load_option_b_packages(&lean[0], &lean[1], [0; 4]) {
+    let lean = crate::nebula::test_packages::bounded_depth_packages("nebula-v1-");
+    let computed = match load_bounded_depth_packages(&lean[0], &lean[1], [0; 4]) {
         Err(nightstream_fprime::PackageError::IdentityMismatch { computed, .. }) => computed,
         other => panic!("{:?}", other.map(|packages| packages.identity())),
     };
-    print_package_size("lean", &load_option_b_packages(&lean[0], &lean[1], computed).unwrap());
+    print_package_size(
+        "lean",
+        &load_bounded_depth_packages(&lean[0], &lean[1], computed).unwrap(),
+    );
 
     let started = std::time::Instant::now();
     let circuit = Circuit::compile(geometry, Machine).unwrap();

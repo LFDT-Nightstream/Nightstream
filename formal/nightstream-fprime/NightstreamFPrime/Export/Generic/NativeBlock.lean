@@ -5,7 +5,7 @@ import NightstreamFPrime.Spec.GoldilocksPrime
 import NightstreamFPrime.Export.Generic.SlotLayout
 
 /-! Native Poseidon2 blocks and bit slots (CW-8.3). A Rust-built application can place each
-Poseidon2 permutation as an option-B block (`Frame.Block`) instead of its 1,096 template rows: 150
+Poseidon2 permutation as a bounded-depth block (`Frame.Block`) instead of its 1,096 template rows: 150
 S-box rows (`PoseidonSboxFamilyPlan`) on S-box columns from `sboxStart`, 16 binding rows
 (`CircuitRelation.bindingRows`), and no slot for its 1,080 dead locals. The statements hold for any
 blocks, rows, layout and assignment, whoever builds the package.

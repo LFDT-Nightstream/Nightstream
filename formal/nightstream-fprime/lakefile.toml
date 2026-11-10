@@ -19,12 +19,12 @@ leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
 
 [[lean_lib]]
 name = "NightstreamFPrimeTests"
-roots = ["tests.AxiomsSharedExports", "tests.SharedFormulas", "tests.AxiomAudit", "tests.Axioms", "tests.AxiomsFoundations", "tests.AxiomsPiRlcSampler", "tests.AxiomsAjtaiSetupV1", "tests.AxiomsPiCCSClosure", "tests.AxiomsNifsClosure", "tests.AxiomsPiRLCTail", "tests.AxiomsProductionMatrixPlan", "tests.AxiomsRecursivePublicInput", "tests.AxiomsStage1Accumulator", "tests.AxiomsStage1Application", "tests.AxiomsStage1Assembler", "tests.AxiomsStage1PiDEC", "tests.AxiomsStage1PiRLCExport", "tests.AxiomsStage1Security", "tests.AxiomsLightFold", "tests.AxiomsRefreshFold", "tests.AxiomsOptionBRandomOracle", "tests.AxiomsSchedule", "tests.AxiomsBoundedDepthIvc", "tests.AxiomsChainBinding", "tests.NativePoseidon2Halving", "tests.PerApplicationEmitterFixture", "tests.EndpointCensus", "tests.AxiomsNebula"]
+roots = ["tests.AxiomsSharedExports", "tests.SharedFormulas", "tests.AxiomAudit", "tests.Axioms", "tests.AxiomsFoundations", "tests.AxiomsPiRlcSampler", "tests.AxiomsAjtaiSetupV1", "tests.AxiomsPiCCSClosure", "tests.AxiomsNifsClosure", "tests.AxiomsPiRLCTail", "tests.AxiomsProductionMatrixPlan", "tests.AxiomsRecursivePublicInput", "tests.AxiomsStage1Accumulator", "tests.AxiomsStage1Application", "tests.AxiomsStage1Assembler", "tests.AxiomsStage1PiDEC", "tests.AxiomsStage1PiRLCExport", "tests.AxiomsStage1Security", "tests.AxiomsLightFold", "tests.AxiomsRefreshFold", "tests.AxiomsBoundedDepthRandomOracle", "tests.AxiomsSchedule", "tests.AxiomsBoundedDepthIvc", "tests.AxiomsChainBinding", "tests.NativePoseidon2Halving", "tests.PerApplicationEmitterFixture", "tests.EndpointCensus", "tests.AxiomsNebula"]
 leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
 
 [[lean_exe]]
-name = "emitOptionB"
-root = "NightstreamFPrime.Export.OptionB.EmitMain"
+name = "emitBoundedDepth"
+root = "NightstreamFPrime.Export.BoundedDepth.EmitMain"
 leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
 
 [[lean_exe]]

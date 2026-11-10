@@ -24,7 +24,7 @@ variable (geometry : Spec.Nebula.Geometry) (app : PortApp geometry)
 
 /-- SPEC.md section 7.1 setup: the memory relation of a package, for a geometry that
 passes rules 1–5 (`Geometry.Valid`) and rule 6 (`Geometry.Secure`). Both memory
-packages that `lake exe emitOptionB --program` writes select their relation here. The relation
+packages that `lake exe emitBoundedDepth --program` writes select their relation here. The relation
 `MemoryApp.program` is defined for every geometry, so the rule binds these
 packages, not every Lean term. -/
 def application (geometry : {p : Spec.Nebula.Geometry // p.Valid ∧ p.Secure}) (app : PortApp geometry.1) :

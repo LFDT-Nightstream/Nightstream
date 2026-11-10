@@ -25,14 +25,14 @@ relation a bound that grows by a fixed amount at each fold.
 
 The terminal verifier requires, for each slot, a depth of at most the light
 cap and a witness within `accumulatorBound` of that depth
-(`Export.OptionB.RunCompleteness.Verifies`, [SPEC.md](../SPEC.md) Algorithm 6).
+(`Export.BoundedDepth.RunCompleteness.Verifies`, [SPEC.md](../SPEC.md) Algorithm 6).
 One valid step extends each proof that this verifier accepts
-(`Export.OptionB.RunCompleteness.verifies_step`).
+(`Export.BoundedDepth.RunCompleteness.verifies_step`).
 
 The terminal relation of the security results keeps `B`
-(`Lifecycle.OptionB.Terminal.HoldsFor`). Extraction reaches only that bound,
+(`Lifecycle.BoundedDepth.Terminal.HoldsFor`). Extraction reaches only that bound,
 because a refresh fold recovers its input below `B`. The verifier accepts only
 what the terminal relation accepts
-(`Export.OptionB.RunCompleteness.holds_of_verifies`), so each security bound
+(`Export.BoundedDepth.RunCompleteness.holds_of_verifies`), so each security bound
 applies to it. The step circuits, the packages and the proof bytes do not
 change.

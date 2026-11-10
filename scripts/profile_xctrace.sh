@@ -38,8 +38,8 @@ if [ $# -lt 3 ]; then
   echo "Run 'xcrun xctrace list templates' for full list"
   echo ""
   echo "Examples:"
-  echo "  $0 nightstream option_b_api hash_chain_proves_and_verifies"
-  echo "  $0 nightstream option_b_api hash_chain_proves_and_verifies --template Allocations"
+  echo "  $0 nightstream bounded_depth_api hash_chain_proves_and_verifies"
+  echo "  $0 nightstream bounded_depth_api hash_chain_proves_and_verifies --template Allocations"
   echo "  $0 nightstream r1cs_application a_relation_of_the_builders_runs_through_nebula --time-limit 20"
   exit 1
 fi

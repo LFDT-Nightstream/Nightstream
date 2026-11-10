@@ -980,7 +980,7 @@ fn catalog_proof_verifies_and_rejects_a_broken_row_on_cpu() {
 
     let mut words = invocations[3].words.clone();
     *aux_word(&mut words, COLUMNS, PUSH_VALUE) = F::from_u64(6);
-    // The option-B prover checks no row: the broken step proves, and the
+    // The bounded-depth prover checks no row: the broken step proves, and the
     // verifier rejects it at a row of the fresh instance's relation.
     let bad = prover
         .extend_with_output(&proofs[2], &words, invocations[3].output)
@@ -988,8 +988,8 @@ fn catalog_proof_verifies_and_rejects_a_broken_row_on_cpu() {
     let bad = Proof::from_parts(bad, *run.carry());
     assert!(matches!(
         verifier.verify(&setup.program, &statement.initial, &statement.final_, &bad),
-        Err(VerifyError::Proof(crate::Error::OptionB(
-            crate::lifecycle::option_b::OptionBError::Fresh("a relation row fails")
+        Err(VerifyError::Proof(crate::Error::BoundedDepth(
+            crate::lifecycle::bounded_depth::BoundedDepthError::Fresh("a relation row fails")
         )))
     ));
     eprintln!("catalog elapsed={:?}", started.elapsed());

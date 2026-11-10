@@ -1,6 +1,6 @@
 # Lifecycle
 
-`crates/nightstream/src/lifecycle/option_b/` owns proving, extension,
+`crates/nightstream/src/lifecycle/bounded_depth/` owns proving, extension,
 verification and the final proof. A caller compiles or loads a `Circuit`,
 selects a prover and verifier with an explicit security minimum, calls
 `prove` and `extend`, then checks the expected final state with

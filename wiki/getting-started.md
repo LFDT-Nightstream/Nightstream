@@ -12,8 +12,8 @@ compilation, package saving and loading, proving, extension, and verification.
 The caller selects an explicit minimum statistical-security level.
 
 Start reading `crates/nightstream/src/circuit.rs`, `application/`,
-`folding/`, and `lifecycle/option_b/`. The package loader is in
-`crates/nightstream-fprime/src/option_b/`. The active formal authority is
+`folding/`, and `lifecycle/bounded_depth/`. The package loader is in
+`crates/nightstream-fprime/src/bounded_depth/`. The active formal authority is
 `formal/nightstream-fprime`.
 
 Follow [AGENTS.md](../AGENTS.md): release tests, a five-minute non-Lean test

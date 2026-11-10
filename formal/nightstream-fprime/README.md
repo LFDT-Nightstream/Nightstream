@@ -8,8 +8,7 @@ found with cvc5. Work must close an obligation on that path; architecture
 changes must address a demonstrated ownership, dependency or verification
 problem.
 The authority path is the Lean relation, logical circuit, physical layout,
-emitted package, and Rust consumer. See the [architecture contract](../../FPRIME_LEAN_ARCHITECTURE_SPEC.md)
-and [Stage 1 goal](../../FPRIME_STAGE1_GOAL.md).
+emitted package, and Rust consumer.
 
 Lean is the source of truth for every result. [SECURITY_MODEL.md](SECURITY_MODEL.md)
 states the adversaries that the results protect against, the Lean result for

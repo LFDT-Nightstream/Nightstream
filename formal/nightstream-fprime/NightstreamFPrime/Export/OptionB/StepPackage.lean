@@ -300,23 +300,29 @@ def Package.format : Format Package where
 def Package.blocks (package : Package) : List Frame.Block :=
   package.pieces.filterMap PackagePiece.block?
 
-/-- Rust's expansion: the pieces' rows, then one binding row per block output lane. The S-box rows
-are `PoseidonSboxFamilyPlan` on the blocks from `sboxStart`. -/
+/-- Rust's expansion: the pieces' rows, with each output local of a block replaced by its form
+over the block's last S-box columns (`CircuitRelation.outputForms`). The S-box rows are
+`PoseidonSboxFamilyPlan` on the blocks from `sboxStart`. -/
 def Package.relationRows (package : Package) : List R1CS.Row :=
-  package.pieces.flatMap PackagePiece.relationRows ++
-    CircuitRelation.bindingRows package.width package.blocks package.sboxStart
+  (package.pieces.flatMap PackagePiece.relationRows).map
+    (Substitute.row (CircuitRelation.outputForms package.width package.blocks package.sboxStart))
 
 /-! ### The slots -/
 
-/-- The columns that the relation reads from a piece: the terms of a rows piece; a ring piece's
-outputs, quotients and lanes; a block's output locals and lanes, which its binding rows and its
-S-box rows read. -/
+/-- The columns that the relation reads from a piece, before the output forms replace the output
+locals: the terms of a rows piece; a ring piece's outputs, quotients and lanes; a block's lanes,
+which its S-box rows read. -/
 def PackagePiece.reads : PackagePiece → List Nat
   | .rows chunk => chunk.flatMap SlotLayout.rowColumns
   | .ring cells start quotient lanes =>
       List.range' start (ringDegree * cells) ++ List.range' quotient (ringDegree * cells) ++
         lanes.flatMap SlotLayout.exprColumns
-  | .block start lanes => List.range' (start + 1080) 16 ++ lanes.flatMap SlotLayout.exprColumns
+  | .block _ lanes => lanes.flatMap SlotLayout.exprColumns
+
+/-- A block's 16 output locals. The relation reads their forms, so they have no slot. -/
+def PackagePiece.outputs : PackagePiece → List Nat
+  | .block start _ => List.range' (start + 1080) 16
+  | _ => []
 
 /-- The columns that the rows of a rows piece force to 0 or 1 (`SlotLayout.forcedColumn?`). -/
 def PackagePiece.forced : PackagePiece → List Nat
@@ -330,10 +336,11 @@ def bitColumns (batches : List WitnessBatch) : List Nat :=
     | _ => none
 
 /-- The kind code of a column (`SlotLayout.kindOf`), or 3 for no slot. A column that a row reads
-and each S-box column has a slot; the slot is a bit when the column is a bit candidate and a row
-forces it to 0 or 1, and a field element otherwise. -/
-def slotCode (sboxStart : Nat) (reads bits forced : Array Bool) (column : Nat) : Nat :=
-  if (reads.getD column false || decide (sboxStart ≤ column)) = true then
+and that is no output local of a block, and each S-box column, has a slot; the slot is a bit when
+the column is a bit candidate and a row forces it to 0 or 1, and a field element otherwise. -/
+def slotCode (sboxStart : Nat) (reads outputs bits forced : Array Bool) (column : Nat) : Nat :=
+  if ((reads.getD column false && !outputs.getD column false) ||
+      decide (sboxStart ≤ column)) = true then
     if (bits.getD column false && forced.getD column false) = true then 0 else 2
   else 3
 
@@ -349,15 +356,17 @@ def runStep (code : Nat → Nat) (runs : List (Nat × Nat × Nat)) (column : Nat
 
 /-- A package's slot runs `(start, count, kind)` from the public columns to the last S-box
 column: a column has a slot only if a row of the relation reads it (`PackagePiece.reads`, and the
-S-box rows read each S-box column), and the slot is a bit only if `bits` names the column and a row
-forces it to 0 or 1 (`PackagePiece.forced`). Every other slot is a field element. A block's dead
-locals have no slot, because no row reads them. -/
+S-box rows read each S-box column) and it is no output local of a block (`PackagePiece.outputs`),
+and the slot is a bit only if `bits` names the column and a row forces it to 0 or 1
+(`PackagePiece.forced`). Every other slot is a field element. A block's locals have no slot: no
+row reads its dead locals, and each row reads the form of an output local. -/
 def runsOf (publicColumns sboxStart : Nat) (pieces : List PackagePiece) (bits : List Nat) :
     List (Nat × Nat × Nat) :=
   let size := sboxStart + 150 * (pieces.filterMap PackagePiece.block?).length
   let empty := Array.replicate size false
   let code := slotCode sboxStart
     (pieces.foldl (fun mask piece => SlotLayout.markColumns mask piece.reads) empty)
+    (pieces.foldl (fun mask piece => SlotLayout.markColumns mask piece.outputs) empty)
     (SlotLayout.markColumns empty bits)
     (pieces.foldl (fun mask piece => SlotLayout.markColumns mask piece.forced) empty)
   (((List.range size).drop publicColumns).foldl (runStep code) []).reverse
@@ -385,8 +394,8 @@ theorem relationRows_packageOf (circuit publicColumns : Nat) (pieces : List Piec
     List.reverse_nil, List.nil_append, blocks_packageSpec, CircuitRelation.relationRows, packed,
     ite_true, PieceRows.lowerPieces, lowerPiecesAux_eq _ rfl, flatMap_packageSpec]
 
-/-- The rows of the package's pieces, before the binding rows, are the lowering of the pieces
-outside the blocks. -/
+/-- The rows of the package's pieces, before the output forms replace the output locals, are the
+lowering of the pieces outside the blocks. -/
 theorem pieceRows_packageOf (circuit publicColumns : Nat) (pieces : List Piece) (next width : Nat)
     (batches : List WitnessBatch) (application : Nat × Nat × Nat × Nat × Nat) :
     (packageOf circuit publicColumns pieces next width batches application).pieces.flatMap

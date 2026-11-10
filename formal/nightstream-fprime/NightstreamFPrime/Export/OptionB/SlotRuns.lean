@@ -371,6 +371,21 @@ theorem forced_row :
 
 /-! ### The package pieces of a circuit -/
 
+/-- An output local of a package piece is an output local of a block of the package. -/
+theorem outputs_outputIn (packageList : List PackagePiece) :
+    ∀ piece ∈ packageList, ∀ column ∈ piece.outputs,
+      CircuitRelation.outputIn (packageList.filterMap PackagePiece.block?) column = true := by
+  intro piece member column inPiece
+  cases piece with
+  | rows chunk => simp [PackagePiece.outputs] at inPiece
+  | ring cells start quotient lanes => simp [PackagePiece.outputs] at inPiece
+  | block start lanes =>
+      simp only [PackagePiece.outputs, List.mem_range'_1] at inPiece
+      simp only [CircuitRelation.outputIn, List.any_eq_true, decide_eq_true_eq]
+      exact ⟨⟨start, lanes⟩, List.mem_filterMap.mpr ⟨_, member, rfl⟩, inPiece.1, by
+        have := inPiece.2
+        omega⟩
+
 theorem packagePieces_rows (pieces : List Piece) (next : Nat) :
     (packagePieces pieces next).flatMap PackagePiece.relationRows =
       (PieceRows.lowerPieces (PilotData.canonicalConstraints ())

@@ -78,12 +78,14 @@ theorem slotEnd_le (fits : Fits publicColumns pieces next width)
   omega
 
 /-- At the slots of `runsOf` over package pieces that include the package pieces of `pieces`
-and have their blocks, the honest assignment reads `env` on each column that the relation of
-`pieces` reads. -/
+and have their blocks and no other output local, the honest assignment reads `env` on each column
+that the relation of `pieces` reads. -/
 theorem represents_of_runs (room : slotEnd pieces next ≤ width)
     (below : ∀ piece ∈ pieces, pieceBelow next piece = true) (packageList : List PackagePiece)
     (bits : List Nat) (includes : ∀ piece ∈ packagePieces pieces next, piece ∈ packageList)
     (blocks : (packageList.filterMap PackagePiece.block?).length = (blocksOf pieces).length)
+    (outputs : ∀ piece ∈ packageList, ∀ column ∈ piece.outputs,
+      outputIn (blocksOf pieces) column = true)
     (env : Env) {column : Nat} (read : Reads pieces next column) :
     LogicalPlan.sourceEnv (SlotLayout.layout (SlotLayout.runSlots width
         (runsOf publicColumns (sboxStart pieces next) packageList bits)))
@@ -97,20 +99,25 @@ theorem represents_of_runs (room : slotEnd pieces next ≤ width)
     rw [blocks, Nat.mul_comm]
   have startLe : sboxStart pieces next ≤ slotEnd pieces next := Nat.le_add_right _ _
   have scope : column < slotEnd pieces next ∧
-      (sboxStart pieces next ≤ column ∨ ∃ piece ∈ packageList, column ∈ piece.reads) := by
-    rcases read with ⟨row, rowMember, columnMember⟩ | ⟨block, blockMember, choice⟩ | sbox
-    · rw [← SlotRuns.packagePieces_rows] at rowMember
-      obtain ⟨piece, pieceMember, inPiece⟩ := List.mem_flatMap.mp rowMember
-      have reads := SlotRuns.relationRows_reads piece row inPiece column columnMember
-      have low := SlotRuns.reads_below below piece pieceMember column reads
-      exact ⟨by omega, Or.inr ⟨piece, includes piece pieceMember, reads⟩⟩
-    · have member := SlotRuns.block_mem (next := next) blockMember
-      have reads : column ∈ (PackagePiece.block block.start block.lanes).reads := by
-        rcases choice with ⟨lane, laneMember, columnMember⟩ | ⟨outputLow, outputHigh⟩
-        · exact List.mem_append_right _ (List.mem_flatMap.mpr ⟨lane, laneMember, columnMember⟩)
-        · exact List.mem_append_left _ (List.mem_range'_1.mpr ⟨outputLow, by omega⟩)
-      have low := SlotRuns.reads_below below _ member column reads
-      exact ⟨by omega, Or.inr ⟨_, includes _ member, reads⟩⟩
+      (sboxStart pieces next ≤ column ∨ ((∃ piece ∈ packageList, column ∈ piece.reads) ∧
+        ∀ piece ∈ packageList, column ∉ piece.outputs)) := by
+    rcases read with ⟨outside, choice⟩ | sbox
+    · have noOutput : ∀ piece ∈ packageList, column ∉ piece.outputs := by
+        intro piece member inPiece
+        rw [outputs piece member column inPiece] at outside
+        exact Bool.noConfusion outside
+      rcases choice with ⟨row, rowMember, columnMember⟩ | ⟨block, blockMember, lane, laneMember,
+        columnMember⟩
+      · rw [← SlotRuns.packagePieces_rows] at rowMember
+        obtain ⟨piece, pieceMember, inPiece⟩ := List.mem_flatMap.mp rowMember
+        have reads := SlotRuns.relationRows_reads piece row inPiece column columnMember
+        have low := SlotRuns.reads_below below piece pieceMember column reads
+        exact ⟨by omega, Or.inr ⟨⟨piece, includes piece pieceMember, reads⟩, noOutput⟩⟩
+      · have member := SlotRuns.block_mem (next := next) blockMember
+        have reads : column ∈ (PackagePiece.block block.start block.lanes).reads :=
+          List.mem_flatMap.mpr ⟨lane, laneMember, columnMember⟩
+        have low := SlotRuns.reads_below below _ member column reads
+        exact ⟨by omega, Or.inr ⟨⟨_, includes _ member, reads⟩, noOutput⟩⟩
     · exact ⟨sbox.2, Or.inl sbox.1⟩
   have inside : column < width := by omega
   apply sourceEnv_honest _ env inside
@@ -176,7 +183,10 @@ theorem rowsZero_of_holds (fits : Fits publicColumns pieces next width)
     WideLayout.extend_norm _ (norm_of_runs _ _ _ _ _ (fun column inside => ?_) ?_)⟩
   · rw [WideLayout.sourceEnv_widen]
     exact represents_of_runs (slotEnd_le fits packed) below _ _ (fun _ member => member)
-      (by rw [SlotRuns.packagePieces_blocks]) _ read
+      (by rw [SlotRuns.packagePieces_blocks])
+      (by
+        have outputs := SlotRuns.outputs_outputIn (packagePieces pieces next)
+        rwa [SlotRuns.packagePieces_blocks] at outputs) _ read
   · rw [publicValue column inside]
     exact publicNorm column inside
   · intro piece member column inPiece

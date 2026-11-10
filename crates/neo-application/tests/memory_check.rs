@@ -39,7 +39,7 @@ fn columns() -> ColumnRegistry {
                 region: "test",
                 start,
                 len: 1,
-                name,
+                name: name.into(),
                 role: "memory checker test",
                 width,
             }),

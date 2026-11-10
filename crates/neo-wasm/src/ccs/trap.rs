@@ -236,7 +236,7 @@ fn push_div_trap_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     );
     // The scratch predicate is meaningful on signed div/rem rows, while only
     // div_s turns it into a trap. rem_s(MIN, -1) is the valid zero-remainder
-    // special case consumed by the compact lookup relation.
+    // special case that the operation circuit accepts.
     b.push_row(
         signed_div_ops()
             .into_iter()
@@ -255,14 +255,14 @@ fn push_div_trap_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
         [(COL_DIV_TRAP, F::ONE), (COL_DIV_OVERFLOW, -F::ONE)],
     );
     // The faulting row has normal stack arity, but no real result: pin
-    // the synthetic write to zero and de-gate the op-table lookup below.
+    // the synthetic write to zero and turn off the operation circuit below.
     push_gated_linear_zero(b, COL_DIV_TRAP, [(COL_STACK_WRITE0_VALUE_LO, F::ONE)]);
     push_gated_linear_zero(b, COL_DIV_TRAP, [(COL_STACK_WRITE0_VALUE_HI, F::ONE)]);
 }
 
 /// The bounds check of `table.get` / `table.set`, and the resolve step of
 /// `call_indirect` / `return_call_indirect`. An out-of-bounds table access
-/// traps (SPEC.md section 7.7). The resolve step traps on an out-of-bounds
+/// traps (SPEC.md section 7.8). The resolve step traps on an out-of-bounds
 /// index, a null entry or a type mismatch; otherwise the following invocation
 /// calls the entry it checked.
 fn push_table_bounds_and_call_indirect_trap_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {

@@ -16,8 +16,8 @@ also needs one unambiguous low-norm opening.
 SuperNeo requires `‖z‖∞ < b` and selects `b = 2` and ring degree
 `d = 54` for its Goldilocks profile. Its coefficient embedding does not define
 an encoding for an arbitrary field value. See
-[Definition 12](../docs/superneo-paper/07-7-neo-s-folding-scheme-for-ccs.md)
-and [Appendix B.2](../docs/superneo-paper/11-b-concrete-parameters.md).
+[Definition 20](../docs/superneo-paper-v1_2/07_superneo_folding_scheme_for_ccs.md)
+and [Section 8.2](../docs/superneo-paper-v1_2/08_concrete_parameters.md) of SuperNeo v1.2.
 
 ## Decision
 

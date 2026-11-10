@@ -2,7 +2,7 @@
 //!
 //! Modeled trap causes (`unreachable`, div/rem by zero, signed division
 //! overflow, indirect-call OOB index / null entry / callee type mismatch,
-//! table access OOB (SPEC.md section 7.7), and linear-memory load/store OOB)
+//! table access OOB (SPEC.md section 7.8), and linear-memory load/store OOB)
 //! end the trace at the faulting row with
 //! `trapped: true` and no captured output. Unmodeled causes still stay loud
 //! trace-collection errors.
@@ -290,7 +290,7 @@ fn assert_hidden_table_oob_is_rejected(wat: &str, export_fref: u32, opcode: Wasm
         .map(|row| build_witness_vector(row).expect("witness"))
         .collect();
     for witness in &witnesses {
-        neo_wasm::sanity_check_lookup_row(&layout.auxiliary, witness).expect("lookup semantics");
+        neo_wasm::audit_operation_witness(witness).expect("operation circuit");
     }
     neo_application::check_continuity_rows(&layout.auxiliary.continuity, &witnesses).expect("forged trace continuity");
     let mut preload = preload_from_program_artifacts(honest.artifacts());

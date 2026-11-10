@@ -31,15 +31,12 @@ fn html_report_embeds_unique_rows_and_per_column_references() {
     let rows = report["rows"].as_array().expect("unique row records");
 
     assert_eq!(report["title"], "WASM column audit");
-    assert_eq!(columns.len(), neo_wasm::RANGE_CHECKED_WITNESS_WIDTH);
-    assert_eq!(
-        rows.len(),
-        neo_wasm::build_wasm_relation()
-            .unwrap()
-            .r1cs()
-            .catalog()
-            .len()
-    );
+    let circuit = neo_wasm::operations::r1cs::operation_circuit().unwrap();
+    assert_eq!(columns.len(), circuit.relation().r1cs().column_count());
+    assert!(columns
+        .iter()
+        .any(|column| column["region"] == "operations"));
+    assert_eq!(rows.len(), circuit.relation().r1cs().catalog().len());
     let select_condition = columns
         .iter()
         .find(|column| column["name"] == "COL_SELECT_COND_IS_ZERO")

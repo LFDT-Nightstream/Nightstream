@@ -123,3 +123,13 @@ elab "#spec_census " path:str space:str roots:str* : command =>
   DocumentCensus.census path.getString
     (if space.getString.isEmpty then .anonymous else space.getString.toName)
     (roots.toList.map (·.getString)) true
+
+-- `#folder_census "folder" "Namespace" "Root." ...`: every Markdown file of the folder, without pins.
+open Lean Elab Command in
+elab "#folder_census " folder:str space:str roots:str* : command => do
+  let entries ← System.FilePath.readDir folder.getString
+  let files := (entries.map (·.path.toString)).filter (·.endsWith ".md")
+  for file in files.qsort (· < ·) do
+    DocumentCensus.census file
+      (if space.getString.isEmpty then .anonymous else space.getString.toName)
+      (roots.toList.map (·.getString)) false

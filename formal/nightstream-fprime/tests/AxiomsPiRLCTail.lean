@@ -53,15 +53,6 @@ import NightstreamFPrime
 #audit_axioms NightstreamFPrime.Layout.PiRLC.v1_2.PacketBoundaries.evalKConstraints_eq
 #audit_axioms NightstreamFPrime.Layout.PiRLC.v1_2.PacketBoundaries.evalAConstraints_eq
 #audit_axioms NightstreamFPrime.Layout.PiRLC.v1_2.PacketBoundaries.outputConstraints_eq_nil
-#audit_axioms NightstreamFPrime.Layout.PiRLC.v1_2.Ownership.childOrder_length
-#audit_axioms NightstreamFPrime.Layout.PiRLC.v1_2.Ownership.childConstraintLists_length
-#audit_axioms NightstreamFPrime.Layout.PiRLC.v1_2.Ownership.ownersFor_length
-#audit_axioms NightstreamFPrime.Layout.PiRLC.v1_2.Ownership.ownersForChildren_length
-#audit_axioms NightstreamFPrime.Layout.PiRLC.v1_2.Ownership.rowOwners_length
-#audit_axioms NightstreamFPrime.Layout.PiRLC.v1_2.Ownership.ownedRows_length
-#audit_axioms NightstreamFPrime.Layout.PiRLC.v1_2.Ownership.noBoundaryColumns
-#audit_axioms NightstreamFPrime.Layout.PiRLC.v1_2.Ownership.noBoundaryRows
-#audit_axioms NightstreamFPrime.Layout.PiRLC.v1_2.Ownership.columnOwner_unique
 #audit_axioms NightstreamFPrime.Layout.R1CS.constraintRowCount_eq_fresh_add_one
 #audit_axioms NightstreamFPrime.Layout.R1CS.totalRowCount_eq_fresh_add_length
 #audit_axioms NightstreamFPrime.Layout.PiRLC.v1_2.CombinationStep.constraintFreshCountEqLane
@@ -108,11 +99,6 @@ import NightstreamFPrime
 #audit_axioms NightstreamFPrime.Export.Stage1.PiRLCSamplerRows.rows_length
 #audit_axioms NightstreamFPrime.Export.Stage1.PiRLCSamplerRows.freshCount_eq
 #audit_axioms NightstreamFPrime.Export.Stage1.PiRLCSamplerRows.rows_imply_relation
-#audit_axioms NightstreamFPrime.Export.Stage1.PiRLCNonzero.sourceCount_eq
-#audit_axioms NightstreamFPrime.Export.Stage1.PiRLCNonzero.attempt_output_commitment
-#audit_axioms NightstreamFPrime.Export.Stage1.PiRLCNonzero.attempt_output_publicInput
-#audit_axioms NightstreamFPrime.Export.Stage1.PiRLCNonzero.attempt_output_evaluations
-#audit_axioms NightstreamFPrime.Export.Stage1.PiRLCNonzero.accepted
 #audit_axioms NightstreamFPrime.Export.Stage1.Data.compactRowTemplates_eq
 #audit_axioms NightstreamFPrime.Export.Stage1.Data.compactRowInvocations_eq
 #audit_axioms NightstreamFPrime.Export.Stage1.Data.Components.toCircuitPackage_compactRowTemplates
@@ -121,7 +107,3 @@ import NightstreamFPrime
 #audit_axioms NightstreamFPrime.Export.Stage1.Data.circuitPackage_compactRowInvocations
 #audit_axioms NightstreamFPrime.Export.Stage1.CompactRows.instantiateRows_eq_package
 #audit_axioms NightstreamFPrime.Export.Stage1.Package.circuitPackage_implies_piCcsArithmeticRows
-#audit_axioms NightstreamFPrime.Export.Stage1.PackagePlan.canonicalCombinationBlock_expand
-#audit_axioms NightstreamFPrime.Export.Stage1.PackagePlan.canonicalCompactBlocks_expand
-#audit_axioms NightstreamFPrime.Export.Stage1.PackagePlan.canonical_expand
-#audit_axioms NightstreamFPrime.Export.Stage1.PackagePlan.canonical_decode_encode

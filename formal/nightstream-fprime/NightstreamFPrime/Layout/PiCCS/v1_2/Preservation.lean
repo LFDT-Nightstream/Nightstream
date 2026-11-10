@@ -14,9 +14,6 @@ Outputs:
 - satisfaction of the logical rows;
 - exact `Formal.PhaseHolds`, including `Accepted` and the outgoing transcript state.
 - constructive completion of all logical and physical witness columns.
-
-Parent coverage:
-- `Layout/Stage1/Preservation.lean` consumes this theorem as the PiCCS phase edge.
 -/
 
 namespace NightstreamFPrime.Layout.PiCCS.v1_2

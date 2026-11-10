@@ -1,8 +1,6 @@
 # Nightstream F′ package instructions
 
-These instructions apply to `formal/nightstream-fprime`. The architecture
-contract is `/FPRIME_LEAN_ARCHITECTURE_SPEC.md`; the goal is
-`/FPRIME_STAGE1_GOAL.md`. Both outrank this file.
+These instructions apply to `formal/nightstream-fprime`.
 
 ## Purpose and proof scope
 

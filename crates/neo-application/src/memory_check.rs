@@ -311,8 +311,8 @@ fn read_u32_column<Id: Copy + Debug + Display>(
         column,
         family: columns
             .family_for_column(column)
-            .map(|family| family.name)
-            .unwrap_or("?"),
+            .map(|family| family.name.to_string())
+            .unwrap_or_else(|| "?".into()),
         value,
         row,
     })
@@ -336,7 +336,7 @@ where
         memory: Id,
         role: &'static str,
         column: usize,
-        family: &'static str,
+        family: String,
         value: u64,
         row: usize,
     },

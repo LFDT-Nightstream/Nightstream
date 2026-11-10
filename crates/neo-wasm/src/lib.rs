@@ -11,19 +11,17 @@ pub mod ir;
 pub mod isa;
 mod ivc_state;
 pub mod layout;
-mod lookup_circuit;
-pub mod lookup_semantics;
 mod memory_activation;
 mod memory_id;
 mod memory_routing;
 pub mod memory_semantics;
 pub mod nebula;
+pub mod operations;
 #[doc(hidden)]
 pub mod preprocess;
 pub mod range_check;
 pub mod relation_layout;
 mod sparse_r1cs;
-pub mod tables;
 pub mod tagged_r1cs_builder;
 pub mod witness_builder;
 mod witness_layout;
@@ -47,23 +45,19 @@ pub use ir::{
     WasmHostEventState, WasmOutputState, WasmPcEdgeKind, WasmProgramError, WasmRowKind, WasmStepState, WasmVmStep,
 };
 pub use isa::{
-    opcode_code, opcode_info_from_code, WasmMemoryAccessInfo, WasmMemoryAccessKind, WasmMemoryExtension, WasmOpTable,
-    WasmOpcode, WasmOpcodeClass, WasmOpcodeInfo,
+    opcode_code, opcode_info_from_code, WasmMemoryAccessInfo, WasmMemoryAccessKind, WasmMemoryExtension, WasmOpcode,
+    WasmOpcodeClass, WasmOpcodeInfo, WasmOperation,
 };
 pub use layout::{column_families, named_column_family, Column, ColumnFamilySpec, ColumnWidth, NAMED_COLUMN_COUNT};
-#[doc(hidden)]
-pub use lookup_circuit::{audit_compact_lookup_auxiliary_load_bearing, audit_compact_lookup_witness};
-pub use lookup_semantics::{sanity_check_lookup_row, LookupBuiltin, LookupExpr, LookupPredicate, LookupSemantics};
 pub use memory_id::WasmMemoryId;
 pub use memory_routing::{plan_ordered_wasm_memory_slots, WasmMemorySlotPlan};
 pub use memory_semantics::{preload_from_program_artifacts, sanity_check_memory_rows, WasmMemoryPreload};
+pub use operations::r1cs::{audit_operation_auxiliary_load_bearing, audit_operation_witness};
 pub use preprocess::{continuity_words, host_event_top_level_initial_state, top_level_initial_state};
 pub use range_check::write_range_check_bits;
 pub use relation_layout::{
-    build_wasm_relation_layout, LinearMemoryColumns, SignExtensionColumns, WasmAuxiliaryRelations,
-    WasmLookupBindingSpec, WasmLookupFamilyKind, WasmLookupFamilySpec, WasmRelationLayout,
+    build_wasm_relation_layout, LinearMemoryColumns, SignExtensionColumns, WasmAuxiliaryRelations, WasmRelationLayout,
 };
-pub use tables::WasmLookupArity;
 pub use tagged_r1cs_builder::{WasmConstraintCatalog, WasmConstraintScope, WasmConstraintTag};
 pub use witness_builder::build_witness_vector;
 pub use witness_layout::{RANGE_BITS_REGION, RANGE_CHECKED_WITNESS_WIDTH};

@@ -95,7 +95,7 @@ structure CoefficientKernel (Base : Type uBase) (coefficientCount : Nat) where
   weight : Fin coefficientCount -> Fin coefficientCount ->
     Fin coefficientCount -> Base
 
-/-- SuperNeo v1.2 Theorems 8 and 9. -/
+/-- SuperNeo v1.2 Lemma 6 at basis vectors. -/
 structure ConstantTermLaw
     {Base : Type uBase}
     (ops : InterpolationOps Base)

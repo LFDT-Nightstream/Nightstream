@@ -14,7 +14,7 @@ fn test_columns() -> ColumnRegistry {
         region: "test",
         start: 0,
         len: 8,
-        name: "TEST_COLUMNS",
+        name: "TEST_COLUMNS".into(),
         role: "synthetic audit columns",
         width: ColumnWidth::Boolean,
     }])
@@ -22,7 +22,7 @@ fn test_columns() -> ColumnRegistry {
 }
 
 fn test_relation() -> ApplicationRelation<&'static str> {
-    let mut builder = R1csBuilder::new(8, 1, 0).expect("valid builder shape");
+    let mut builder = R1csBuilder::new(1, 0).expect("valid builder shape");
     let mut tagged = builder.tagged(ConstraintTag::new("synthetic rows", "test"));
     tagged.push_row([(2, F::ONE), (2, -F::ONE)], [(3, F::from_u64(2))], [(2, -F::ONE)]);
     ZeroTest::column(2, 4, 5).push_constraints(&mut tagged);
@@ -36,7 +36,7 @@ fn test_relation() -> ApplicationRelation<&'static str> {
     }
     .push_constraints(&mut tagged);
 
-    let r1cs = builder.build().expect("valid relation");
+    let r1cs = builder.build(&test_columns()).expect("valid relation");
     ApplicationRelation::new(r1cs, test_columns()).expect("matching relation and registry")
 }
 

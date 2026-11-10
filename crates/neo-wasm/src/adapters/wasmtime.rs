@@ -37,7 +37,7 @@ pub use parse::{WasmProgramArtifacts, WasmProgramDecodeEntry, WasmProgramTables}
 pub struct WasmtimeTraceStep {
     /// Host-to-guest activation depth, distinct from guest call-stack depth.
     pub activation_depth: usize,
-    /// The cycle for memory and op-table lookups
+    /// The cycle of this step
     pub step: u64,
     pub function: String,
     pub function_index: Option<u32>,
@@ -190,7 +190,7 @@ pub(crate) struct LoweringTables {
 /// steps (faulting row included) can stand in for a clean run with no results.
 ///
 /// Wasmtime also uses `TableOutOfBounds` for unmodeled table instructions.
-/// The last opcode identifies the modeled fault. See SPEC.md section 7.7 for get and set.
+/// The last opcode identifies the modeled fault. See SPEC.md section 7.8 for get and set.
 fn is_modeled_terminal_trap(trap: Option<&Trap>, last_step: Option<&WasmtimeTraceStep>) -> bool {
     match trap {
         Some(

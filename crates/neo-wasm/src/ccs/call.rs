@@ -19,11 +19,10 @@ use super::super::layout::{
     COL_MEMORY_PAGES_AFTER, COL_MEMORY_PAGES_BEFORE, COL_ONE, COL_OUTPUT_CAPTURED, COL_OUTPUT_ENABLED_AFTER,
     COL_OUTPUT_ENABLED_BEFORE, COL_OUTPUT_VALUE_HI_AFTER, COL_OUTPUT_VALUE_HI_BEFORE, COL_OUTPUT_VALUE_LO_AFTER,
     COL_OUTPUT_VALUE_LO_BEFORE, COL_PADDING_ACTIVE, COL_PC_AFTER, COL_PC_BEFORE, COL_PC_ROM_CALL_RETURN_CHOICE,
-    COL_PERM_PENDING_BEFORE, COL_PERM_ROUND_BEFORE_IS_ZERO, COL_SP_AFTER, COL_SP_BEFORE, COL_STACK_FRAME_BASE_AFTER,
-    COL_STACK_FRAME_BASE_BEFORE, COL_STACK_READS, COL_STACK_READ_ADDR_LO, COL_STACK_READ_VALUE_HI,
-    COL_STACK_READ_VALUE_LO, COL_STACK_WRITE0_ADDR_LO, COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO,
-    COL_STACK_WRITES, COL_TARGET_FUNCTION_IS_GUEST, COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE, COL_TURN_BOUNDARY,
-    PC_ROM_CALL_RETURN_CHOICE,
+    COL_SP_AFTER, COL_SP_BEFORE, COL_STACK_FRAME_BASE_AFTER, COL_STACK_FRAME_BASE_BEFORE, COL_STACK_READS,
+    COL_STACK_READ_ADDR_LO, COL_STACK_READ_VALUE_HI, COL_STACK_READ_VALUE_LO, COL_STACK_WRITE0_ADDR_LO,
+    COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO, COL_STACK_WRITES, COL_TARGET_FUNCTION_IS_GUEST,
+    COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE, COL_TURN_BOUNDARY, PC_ROM_CALL_RETURN_CHOICE,
 };
 use super::super::tagged_r1cs_builder::WasmTaggedR1csBuilder;
 use super::always;
@@ -68,12 +67,6 @@ pub(super) fn push_call_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     });
 
     b.with_tag(always("row kind one hot"), |b| {
-        // The host-event perm row kind is the derived flag
-        // `perm_pending_before + (perm_round_before != 0)`; writing the sum
-        // as `... + pending - round_is_zero = 0` folds its `+1` into the
-        // one-hot's `-1`. `pending = 1 ∧ round != 0` would double-count, but
-        // is unreachable: every row that raises `pending` provably lands
-        // `round_after = 0` (see `ccs/poseidon.rs`).
         b.push_linear_zero([
             (COL_IS_PROGRAM_ROW, F::ONE),
             (COL_FRAME_MOVE_ACTIVE_BEFORE, F::ONE),
@@ -83,8 +76,7 @@ pub(super) fn push_call_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
             (COL_TURN_BOUNDARY, F::ONE),
             (COL_HOST_RESUME, F::ONE),
             (COL_HOST_SUSPEND, F::ONE),
-            (COL_PERM_PENDING_BEFORE, F::ONE),
-            (COL_PERM_ROUND_BEFORE_IS_ZERO, -F::ONE),
+            (COL_ONE, -F::ONE),
         ]);
     });
 
@@ -144,26 +136,16 @@ pub(super) fn push_call_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
 
     b.with_tag(always("non-program row shape"), |b| {
         // Aux rows keep pc fixed. Padding rows read and write nothing;
-        // frame-move rows copy one cell each. Host-event perm rows read
-        // and write nothing too; their rows live in `ccs/host_event_chain.rs`. The
-        // pc-pin gate folds the perm-row flag `pending + 1 - round_is_zero`
-        // in directly.
-        let aux_row_gate_with_perm = [
+        // frame-move rows copy one cell each.
+        let aux_row_gate = [
             (COL_HOST_SUSPEND, F::ONE),
             (COL_FRAME_MOVE_ACTIVE_BEFORE, F::ONE),
             (COL_LOCAL_ZERO_ACTIVE_BEFORE, F::ONE),
             (COL_PADDING_ACTIVE, F::ONE),
             (COL_GATHER_ACTIVE, F::ONE),
-            (COL_PERM_PENDING_BEFORE, F::ONE),
-            (COL_ONE, F::ONE),
-            (COL_PERM_ROUND_BEFORE_IS_ZERO, -F::ONE),
         ];
 
-        b.push_row(
-            aux_row_gate_with_perm,
-            [(COL_PC_AFTER, F::ONE), (COL_PC_BEFORE, -F::ONE)],
-            [],
-        );
+        b.push_row(aux_row_gate, [(COL_PC_AFTER, F::ONE), (COL_PC_BEFORE, -F::ONE)], []);
     });
 
     b.with_tag(always("guest call flag"), |b| {
@@ -209,7 +191,7 @@ pub(super) fn push_call_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     b.with_tag(always("turn boundary row"), |b| {
         // Root entry requires empty operand and call stacks and starts a
         // fresh frame at the stack bottom. Other state-machine constraints
-        // require spent event schedules and an idle permutation.
+        // require spent event schedules.
         b.push_row(
             [(COL_TURN_BOUNDARY, F::ONE), (COL_HOST_NESTED_ENTRY, -F::ONE)],
             [(COL_SP_BEFORE, F::ONE)],

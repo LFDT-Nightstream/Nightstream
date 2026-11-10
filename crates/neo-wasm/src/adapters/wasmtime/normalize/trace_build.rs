@@ -133,8 +133,8 @@ pub(super) fn build_trace(
     let mut host_callee_fref: u32 = 0;
     // Host-event commitment chain; each absorbed block folds it forward.
     let mut comm_chain = initial_comm_chain.canonical_u64();
-    // Host-event absorb machinery (block buffer and perm group
-    // state); carried across rows, mutated only by host-call events.
+    // Host-event absorb machinery (block buffer and object context);
+    // carried across rows, mutated only by host-call events.
     let mut event_absorb = WasmEventAbsorbState::ZERO;
     // Host-event gather state (schedule, args base, cursor).
     let mut host_event_state = crate::ir::WasmHostEventState::ZERO;
@@ -832,7 +832,7 @@ pub(super) fn build_trace(
                 frame_move: frame_move_after,
                 local_zero: zero_after,
                 host_callee_fref,
-                // The chain only moves on permutation rows.
+                // The chain only moves on absorb rows.
                 comm_chain,
                 event_absorb,
                 host_events: host_event_state,
@@ -898,6 +898,7 @@ pub(super) fn build_trace(
             host_context: None,
             host_event_return_schedule_count: return_count,
             host_event_rom_slot: None,
+            host_event_word: None,
             // Count cells carry the presence bias (count + 1).
             host_event_initial_schedule_count: host_event_plan
                 .as_ref()

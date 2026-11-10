@@ -233,15 +233,9 @@ fn coordinator_utxo_effect_handler_preserves_each_instances_event_order() {
             &captured.artifacts().host_event_bindings,
         );
         common::ccs_check_trace(&trace);
-        let events: Vec<_> = trace
-            .iter()
-            .filter(|row| row.row_kind.is_host_event_perm() && row.state_before.event_absorb.perm_pending)
-            .map(|row| {
-                (
-                    row.state_before.event_absorb.evbuf[0],
-                    row.state_before.event_absorb.evbuf[1],
-                )
-            })
+        let events: Vec<_> = common::absorbed_blocks(&trace)
+            .into_iter()
+            .map(|block| (block[0], block[1]))
             .collect();
         assert_eq!(events, expected);
     }

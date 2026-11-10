@@ -4,7 +4,7 @@
 mod common;
 
 use neo_math::F;
-use neo_wasm::comm_chain::{absorbed_event_blocks, fold_event_blocks, COMM_CHAIN_PERM_ROWS};
+use neo_wasm::comm_chain::{absorbed_event_blocks, fold_event_blocks};
 use neo_wasm::host_event_bindings::{
     absorbed_blocks, expand_export_entry, expand_export_exit, expand_import_events, opaque_value_root, EventBlock,
     EventSequenceBuilder, EventSources, ExportTemplate, HostEventBindings, HostEventBindingsBuilder, ImportTemplate,
@@ -220,13 +220,7 @@ fn early_enter_skips_only_prefix_padding_at_every_root_position() {
             .count(),
         old_gather_count - saved_rows
     );
-    assert_eq!(
-        trace
-            .iter()
-            .filter(|row| row.row_kind.is_host_event_perm())
-            .count(),
-        permutations * COMM_CHAIN_PERM_ROWS
-    );
+    assert_eq!(common::absorbed_blocks(&trace).len(), permutations);
     assert_eq!(
         absorbed_event_blocks(&trace)
             .iter()
@@ -454,13 +448,7 @@ fn opaque_import_and_export_effects_share_one_permutation_and_match_native_roots
     );
     assert_eq!(trace.last().unwrap().state_after.output.value_lo, 48);
     assert!(!trace.last().unwrap().state_after.event_absorb.object_active);
-    assert_eq!(
-        trace
-            .iter()
-            .filter(|r| r.row_kind.is_host_event_perm())
-            .count(),
-        12 * COMM_CHAIN_PERM_ROWS
-    );
+    assert_eq!(common::absorbed_blocks(trace).len(), 12);
 }
 
 #[test]
@@ -491,7 +479,7 @@ fn ccs_rejects_forged_context_roots_prefix_and_chain_updates() {
         .into_iter()
         .chain(COL_COMM_CHAIN_AFTER)
         .chain(COL_OUTER_PREFIX_AFTER)
-        .chain([COL_OBJECT_ACTIVE_AFTER, COL_PERM_PENDING_AFTER])
+        .chain([COL_OBJECT_ACTIVE_AFTER])
     {
         let mut witness = build_witness_vector(enter).unwrap();
         witness[column] += F::ONE;
@@ -501,7 +489,9 @@ fn ccs_rejects_forged_context_roots_prefix_and_chain_updates() {
         .iter()
         .find(|r| {
             r.state_before.event_absorb.object_active
-                && usize::from(r.state_before.event_absorb.perm_round) + 1 == COMM_CHAIN_PERM_ROWS
+                && r.row_kind.is_host_event_gather()
+                && r.state_before.host_events.slot_cursor == 7
+                && r.host_event_rom_slot.is_some_and(|rom| !rom.advice)
         })
         .unwrap();
     for column in COL_OUTER_CHAIN_AFTER
@@ -511,7 +501,7 @@ fn ccs_rejects_forged_context_roots_prefix_and_chain_updates() {
     {
         let mut witness = build_witness_vector(last).unwrap();
         witness[column] += F::ONE;
-        common::assert_rejected(&witness, "forged object permutation target or result");
+        common::assert_rejected(&witness, "forged object absorb target or result");
     }
     let root_last = trace
         .iter()
@@ -561,15 +551,13 @@ fn activation_finished_export_is_not_terminal_until_opaque_exit_finishes() {
         assert_eq!(row.state_after.is_terminal(), index + 1 == trace.len());
     }
     let final_state = trace.last().unwrap().state_after;
-    for mutation in 0..6 {
+    for mutation in 0..4 {
         let mut incomplete = final_state;
         match mutation {
             0 => incomplete.activation_finished = false,
             1 => incomplete.event_absorb.object_active = true,
-            2 => incomplete.event_absorb.perm_pending = true,
-            3 => incomplete.event_absorb.perm_round = 1,
-            4 => incomplete.host_events.events_remaining = 1,
-            5 => incomplete.host_events.slot_cursor = 1,
+            2 => incomplete.host_events.events_remaining = 1,
+            3 => incomplete.host_events.slot_cursor = 1,
             _ => unreachable!(),
         }
         assert!(

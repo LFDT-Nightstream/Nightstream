@@ -54,21 +54,8 @@ define_column_region! {
         COL_TURN_EXPORT_FREF_AFTER: U32 => "export function ref owning the current host-event turn after this row",
         COL_COMM_CHAIN_BEFORE: [Field; 4] => "active commitment chain before this row",
         COL_COMM_CHAIN_AFTER: [Field; 4] => "active commitment chain after this row",
-        // The block buffer, pending flag, round cursor, and running state
-        // form the carried interface of the permutation rows.
         COL_EVBUF_BEFORE: [Field; 8] => "host-event block buffer before this row",
         COL_EVBUF_AFTER: [Field; 8] => "host-event block buffer after this row",
-        COL_PERM_PENDING_BEFORE: Boolean => "a filled host-event block awaits its perm rows before this row",
-        COL_PERM_PENDING_AFTER: Boolean => "a filled host-event block awaits its perm rows after this row",
-        COL_PERM_ROUND_BEFORE: Field =>
-            "perm-group row position before this row (0 when idle; bounded by the position one-hot)",
-        COL_PERM_ROUND_AFTER: Field =>
-            "perm-group row position after this row (0 when idle; bounded by the position one-hot)",
-        COL_PERM_ROUND_BEFORE_IS_ZERO: Boolean =>
-            "zero-test flag for the perm-group row position before this row",
-        COL_PERM_ROUND_BEFORE_INV: Field => "inverse witness for the perm-group row position before this row",
-        COL_PERM_STATE_BEFORE: [Field; 12] => "chain permutation state before this row",
-        COL_PERM_STATE_AFTER: [Field; 12] => "chain permutation state after this row",
         COL_GATHER_ACTIVE: Boolean => "row staging one expanded event block into the absorb buffer",
         COL_HOST_CALL_ACTIVE: Boolean => "non-trapping host-import call row",
         // Host-event schedule carry and the per-row verifier-owned ROM interface.

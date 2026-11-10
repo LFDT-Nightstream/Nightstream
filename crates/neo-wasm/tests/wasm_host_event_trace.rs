@@ -397,8 +397,8 @@ fn advice_import_pushes_without_absorbing() {
     assert!(
         advice_rows
             .iter()
-            .all(|row| !row.state_after.event_absorb.perm_pending),
-        "advice rows never raise pending"
+            .all(|row| row.state_after.comm_chain == row.state_before.comm_chain),
+        "advice rows never absorb"
     );
     let lo_row = advice_rows
         .iter()
@@ -410,13 +410,18 @@ fn advice_import_pushes_without_absorbing() {
     assert_eq!(lo_row.stack_write0.expect("push").value_lo, 42);
     assert_eq!(lo_row.state_after.sp, lo_row.state_before.sp + 1);
 
-    // The final advice row cannot start a permutation or shed its ROM flag.
+    // The final advice row cannot absorb its block or shed its ROM flag.
     let word7 = advice_rows.last().expect("word 7");
     let witness = build_witness_vector(word7).unwrap();
     common::assert_satisfied(&witness, "untampered advice word-7 row");
-    let mut forged = witness.clone();
-    forged[neo_wasm::layout::COL_PERM_PENDING_AFTER] = neo_math::F::ONE;
-    common::assert_rejected(&forged, "advice row absorbing its block");
+    let mut absorbing = (*word7).clone();
+    absorbing.state_after.comm_chain =
+        neo_wasm::comm_chain::absorb_block(word7.state_before.comm_chain, word7.state_after.event_absorb.evbuf);
+    absorbing.state_after.event_absorb.evbuf = [0; 8];
+    common::assert_rejected(
+        &build_witness_vector(&absorbing).unwrap(),
+        "advice row absorbing its block",
+    );
     let mut forged = witness.clone();
     forged[neo_wasm::layout::COL_HOST_EVENT_SLOT_KIND] -= neo_math::F::from_u64(WasmHostEventSlotKind::COUNT as u64);
     common::assert_rejected(&forged, "advice row shedding the advice flag");
@@ -426,16 +431,8 @@ fn advice_import_pushes_without_absorbing() {
 fn host_event_trace_folds_expanded_blocks() {
     let trace = host_event_trace();
     // Three bindings events → three completed blocks (each staged by 8 slot
-    // rows; the one raising `pending` holds the full block).
-    let staged: Vec<[u64; 8]> = trace
-        .iter()
-        .filter(|row| {
-            row.row_kind.is_host_event_gather()
-                && row.state_after.event_absorb.perm_pending
-                && !row.state_before.event_absorb.perm_pending
-        })
-        .map(|row| row.state_after.event_absorb.evbuf)
-        .collect();
+    // rows; the last one absorbs the full block).
+    let staged: Vec<[u64; 8]> = common::absorbed_blocks(&trace);
     assert_eq!(
         staged,
         vec![
@@ -463,14 +460,9 @@ fn host_event_trace_folds_from_explicit_initial_state() {
     let f = p3_goldilocks::Goldilocks::from_u64;
     let initial = neo_wasm::CommChainState::new([f(11), f(22), f(33), f(44)]);
     let trace = host_event_trace_from(initial);
-    let staged: Vec<[p3_goldilocks::Goldilocks; 8]> = trace
-        .iter()
-        .filter(|row| {
-            row.row_kind.is_host_event_gather()
-                && row.state_after.event_absorb.perm_pending
-                && !row.state_before.event_absorb.perm_pending
-        })
-        .map(|row| row.state_after.event_absorb.evbuf.map(f))
+    let staged: Vec<[p3_goldilocks::Goldilocks; 8]> = common::absorbed_blocks(&trace)
+        .into_iter()
+        .map(|block| block.map(f))
         .collect();
 
     assert_eq!(trace[0].state_before.comm_chain, initial.canonical_u64());

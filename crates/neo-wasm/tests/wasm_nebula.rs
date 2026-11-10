@@ -633,9 +633,6 @@ fn every_state_field_changes_the_state_words() {
                 outer_chain: _,
                 object_active: _,
                 evbuf: _,
-                perm_pending: _,
-                perm_round: _,
-                perm_state: _,
             },
         host_events:
             WasmHostEventState {
@@ -681,14 +678,6 @@ fn every_state_field_changes_the_state_words() {
         (
             "event_absorb.object_active".into(),
             Box::new(|s| s.event_absorb.object_active ^= true),
-        ),
-        (
-            "event_absorb.perm_pending".into(),
-            Box::new(|s| s.event_absorb.perm_pending ^= true),
-        ),
-        (
-            "event_absorb.perm_round".into(),
-            Box::new(|s| s.event_absorb.perm_round += 1),
         ),
         (
             "host_events.turn_export_fref".into(),
@@ -743,19 +732,13 @@ fn every_state_field_changes_the_state_words() {
             Box::new(move |s| s.event_absorb.evbuf[lane] += 1),
         ));
     }
-    for lane in 0..12 {
-        changes.push((
-            format!("event_absorb.perm_state[{lane}]"),
-            Box::new(move |s| s.event_absorb.perm_state[lane] += 1),
-        ));
-    }
     let words = state_words(base);
     for (name, change) in &changes {
         let mut changed = base;
         change(&mut changed);
         assert_ne!(state_words(changed), words, "{name} has no words");
     }
-    assert_eq!(changes.len(), 29 + 3 * 4 + 8 + 12, "one change for each field and lane");
+    assert_eq!(changes.len(), 27 + 3 * 4 + 8, "one change for each field and lane");
 }
 
 #[test]

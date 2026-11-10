@@ -16,6 +16,7 @@ use crate::package::{encode_field, PackageError};
 
 const PUBLIC: usize = 270;
 const FIELD_DIGITS: usize = 41;
+const FIELD_RATIO: u64 = 3;
 const NO_SLOT: u32 = u32::MAX;
 const RING_DEGREE: usize = 54;
 const SBOX_COLUMNS: usize = 150;
@@ -55,6 +56,14 @@ pub struct LogicalLayout {
     width: usize,
 }
 
+pub struct SlotSpans {
+    pub starts: Vec<u32>,
+    /// 0 for a source column without a slot.
+    pub widths: Vec<u8>,
+    /// The ratio of a field slot's digits.
+    pub ratio: Goldilocks,
+}
+
 impl LogicalLayout {
     /// The number of logical columns.
     pub fn width(&self) -> usize {
@@ -69,6 +78,21 @@ impl LogicalLayout {
         }
         let offset = *self.offsets.get(column)?;
         (offset != NO_SLOT).then(|| (offset as usize, self.kinds[column]))
+    }
+
+    /// Lean `SlotLayout.layout`.
+    pub fn spans(&self) -> SlotSpans {
+        let (starts, widths) = (0..self.offsets.len())
+            .map(|column| {
+                self.slot(column)
+                    .map_or((0, 0), |(offset, kind)| (offset as u32, kind.width() as u8))
+            })
+            .unzip();
+        SlotSpans {
+            starts,
+            widths,
+            ratio: Goldilocks::from_u64(FIELD_RATIO),
+        }
     }
 
     /// The honest logical assignment of the source columns `columns`.
@@ -295,7 +319,7 @@ impl LogicalLayout {
                 count: kind.width(),
                 coefficient,
                 ratio: if kind == Kind::Field {
-                    Goldilocks::from_u64(3)
+                    Goldilocks::from_u64(FIELD_RATIO)
                 } else {
                     Goldilocks::ONE
                 },

@@ -327,8 +327,7 @@ Qed.
 Definition rowKindRow : Row :=
   ([(COL_IS_PROGRAM_ROW, 1); (COL_FRAME_MOVE_ACTIVE_BEFORE, 1);
     (COL_LOCAL_ZERO_ACTIVE_BEFORE, 1); (COL_PADDING_ACTIVE, 1); (COL_GATHER_ACTIVE, 1);
-    (COL_TURN_BOUNDARY, 1); (COL_HOST_RESUME, 1); (COL_HOST_SUSPEND, 1);
-    (COL_PERM_PENDING_BEFORE, 1); (COL_PERM_ROUND_BEFORE_IS_ZERO, -1)],
+    (COL_TURN_BOUNDARY, 1); (COL_HOST_RESUME, 1); (COL_HOST_SUSPEND, 1); (COL_ONE, -1)],
    [(COL_ONE, 1)], []).
 
 Lemma row_kind_row_in_full : Range.inFull rowKindRow = true.
@@ -368,8 +367,6 @@ Proof.
   pose proof (Range.full_boolean w COL_TURN_BOUNDARY Hprime (conj Hone Hall) ltac:(vm_compute; reflexivity)) as Hturn.
   pose proof (Range.full_boolean w COL_HOST_RESUME Hprime (conj Hone Hall) ltac:(vm_compute; reflexivity)) as Hresume.
   pose proof (Range.full_boolean w COL_HOST_SUSPEND Hprime (conj Hone Hall) ltac:(vm_compute; reflexivity)) as Hsuspend.
-  pose proof (Range.full_boolean w COL_PERM_PENDING_BEFORE Hprime (conj Hone Hall) ltac:(vm_compute; reflexivity)) as Hpending.
-  pose proof (Range.full_boolean w COL_PERM_ROUND_BEFORE_IS_ZERO Hprime (conj Hone Hall) ltac:(vm_compute; reflexivity)) as Hround.
   pose proof (Range.in_full_sat w _ Hall row_kind_row_in_full) as Hrow.
   unfold sat, rowKindRow in Hrow.
   cbn [eval fold_right] in Hrow.

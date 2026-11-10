@@ -42,9 +42,10 @@ fn batched_at_one_includes_lookup_constraints() {
         single.sparse_r1cs.n > core.structure().n(),
         "lookup constraints must be included"
     );
-    assert!(single.widths[core.structure().m()..]
-        .iter()
-        .all(|&width| width == 1));
+    // Advice is Boolean, except the 16-by-16-bit limb products.
+    let advice = &single.widths[core.structure().m()..];
+    assert!(advice.iter().all(|&width| width == 1 || width == 32));
+    assert!(advice.contains(&32), "limb products must declare 32 bits");
     assert_eq!(single.sparse_r1cs.m_in, core.public_input_count());
 }
 

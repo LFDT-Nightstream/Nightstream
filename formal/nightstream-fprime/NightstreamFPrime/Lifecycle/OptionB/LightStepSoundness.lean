@@ -2,11 +2,14 @@ import NightstreamFPrime.Lifecycle.OptionB.LightStepLayout
 
 /-! The light step circuit's soundness (CW-2.5d, d5b). `StepRepresents` states what the step's
 shared words carry: the counters, key digests, states and witness of the step's input and output,
-both prior slots, the fresh instance, the light proof and the output hash. With it and next slots
-that `DigestSelect.nextSlots` gives, the rows of `LightStepLayout.main` give the light case of
-`stepHolds_iff` at the production cap (`rows_implies_stepHolds`): the digest-select rows pick the
-active slot and the next slots' digests, the two fold layouts fold the active slot with the fresh
-instance, and `LightStep.spec_implies_stepHolds` assembles the step. -/
+the active slot as the selected prior slot, after the base case the other slot's prior digest word
+as the digest of the other prior slot, the fresh instance, the light proof and the output hash.
+With it and next slots that `DigestSelect.nextSlots` gives, the rows of `LightStepLayout.main`
+give the light case of `stepHolds_iff` at the production cap (`rows_implies_stepHolds`): the
+active slot's hash and the digest-select rows give the prior and next slots' digests, the two
+fold layouts fold the active slot with the fresh instance, and `LightStep.spec_implies_stepHolds`
+assembles the step. The other slot's digest word is a premise: the circuit does not read that
+slot's words. -/
 
 namespace NightstreamFPrime.Lifecycle.OptionB.LightStepSoundness
 
@@ -63,9 +66,9 @@ structure StepRepresents (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logical
   currentState : List.ofFn (fun lane => (interface.currentState lane).eval env) = input.zi
   nextState : List.ofFn (fun lane => (interface.nextState lane).eval env) = output.zNext
   witness : List.ofFn (fun index => (interface.witness index).eval env) = input.witness
-  priorSlots : ∀ slot,
-    Hash.evalList env (interface.prior slot).words = serializeSlot (input.running slot)
-  priorDepth : ∀ slot, (input.running slot).2 < goldilocksModulus
+  active : interface.active.value env = input.running (selectedSlot program interface env)
+  otherDigests : input.iteration ≠ 0 → ∀ slot, slot ≠ selectedSlot program interface env →
+    digestValue (interface.priorDigest slot) env = slotDigest (input.running slot)
   pcNext : output.pcNext = circuit
   outputDigest : output.x = List.ofFn (fun lane => (interface.outputDigest lane).eval env)
   fresh : StatementAbsorption.evalFresh interface.fresh env = input.fresh
@@ -78,11 +81,6 @@ structure StepRepresents (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logical
     (interface.output.matrixCoordinate source matrix coefficient).eval env =
       proof.piCcsOutput.matrixCoordinate source matrix coefficient
   proof : input.iteration ≠ 0 → input.nifsProof = .light proof
-
-private theorem slotPreimage_eval (words : List Expr) (env : Env) :
-    Hash.evalList env (slotDomainChunk.map Expr.const ++ words) =
-      slotDomainChunk ++ Hash.evalList env words := by
-  simp [Hash.evalList, List.map_map, Function.comp_def]
 
 private theorem natWord_succ (count : Nat) : natWord (count + 1) = natWord count + 1 := by
   apply Fin.ext
@@ -165,43 +163,43 @@ theorem rows_implies_stepHolds
     (represents : StepRepresents program interface ajtai circuitKeys circuit input output proof
       env)
     (next : output.runningNext = DigestSelect.nextSlots input.iteration input.running
-      (DigestSelect.selected (LightStepLayout.selectInterface program interface)
-        (LightStepLayout.selectOffset program relation circuit interface offset) env)
+      (selectedSlot program interface env)
       ((newSlot program relation circuit interface offset).value env)) :
     StepHolds Folding.Schedule.productionLightFoldCap ajtai circuitKeys step control circuit input
       output := by
-  obtain ⟨specification, selectRows⟩ := LightStepLayout.soundness program relation circuit
-    interface offset step control stepEq validControl env assumptions rows
-    (circuitKeys (DigestSelect.selected (LightStepLayout.selectInterface program interface)
-      (LightStepLayout.selectOffset program relation circuit interface offset) env)).relation
-  have priorDigests := fun slot => gadgetDigest_eq (specification.priorSlots slot)
-    ((slotPreimage_eval _ env).trans (congrArg (slotDomainChunk ++ ·) (represents.priorSlots slot)))
-  obtain ⟨select, activeValue, nextDigests⟩ := DigestSelect.rows_implies_select
+  obtain ⟨specification, activeSpec, selectRows⟩ := LightStepLayout.soundness program relation
+    circuit interface offset step control stepEq validControl env assumptions rows
+    (circuitKeys (selectedSlot program interface env)).relation
+  have activeDigest : digestValue interface.activeDigest env =
+      slotDigest (input.running (selectedSlot program interface env)) := by
+    rw [← represents.active]
+    exact slotHash_digest _ _ _ env activeSpec
+  obtain ⟨select, priorDigests, nextDigests⟩ := LightSelect.rows_implies_select
     (LightStepLayout.selectInterface program interface)
     (LightStepLayout.selectOffset program relation circuit interface offset) env input output
     ((newSlot program relation circuit interface offset).value env)
     selectRows represents.iteration represents.iterationBound represents.priorPc
-    represents.priorPcBound represents.initialState represents.currentState represents.priorSlots
-    represents.priorDepth priorDigests
-    (slotHash_digest _ _ _ env specification.newSlot) next
+    represents.priorPcBound represents.initialState represents.currentState activeDigest
+    represents.otherDigests (slotHash_digest _ _ _ env specification.newSlot) next
+  have select : SelectSpec input output (selectedSlot program interface env)
+      ((newSlot program relation circuit interface offset).value env).1
+      ((newSlot program relation circuit interface offset).value env).2 := select
+  have activeValue := represents.active
   rw [newSlot_value program interface relation circuit offset env] at select
-  generalize DigestSelect.selected (LightStepLayout.selectInterface program interface)
-    (LightStepLayout.selectOffset program relation circuit interface offset) env = selected
+  generalize selectedSlot program interface env = selected
     at specification select activeValue
   refine LightStep.spec_implies_stepHolds ajtai circuitKeys step control circuit input output
     light (LightStepLayout.leaves program relation circuit interface offset) selected proof env
     specification ⟨represents.currentState, represents.witness, represents.nextState,
-      represents.pcNext, fun slot => ?_, ?_, fun column => ?_, ?_, represents.outputDigest,
+      represents.pcNext, ?_, fun column => ?_, ?_, represents.outputDigest,
       LightPiCCSLayout.wired relation (piccsOffset program circuit interface offset)
         (circuitKeys selected).relation ajtai (LightFold.lightRunning (input.running selected).1)
         (OptionBFolds.freshToLight input.fresh) proof (piccsInterface program interface) env ?_,
       LightRlcLayout.wired (piccsLeaves program relation circuit interface offset)
         (rlcInterface program interface) (rlcOffset program relation circuit interface offset)
         (input.running selected).1 input.fresh proof.piCcsOutput env ?_, ?_,
-      fun nonzero => ⟨represents.proof nonzero, represents.priorDepth selected⟩⟩ select
-    nextDigests
-  · exact (slotPreimage_eval _ env).trans
-      (congrArg (slotDomainChunk ++ ·) (represents.priorSlots slot))
+      fun nonzero => ⟨represents.proof nonzero, by rw [← activeValue]; exact Fin.isLt _⟩⟩ select
+    priorDigests nextDigests
   · unfold StateRepresents
     change Hash.evalList env (statePreimageExpr program interface interface.iteration
       interface.currentState interface.priorPc interface.priorDigest) = _
@@ -224,5 +222,30 @@ theorem rows_implies_stepHolds
       proof env represents selected activeValue
   · rw [← activeValue]
     exact (SlotExpr.natWord_val _).symm
+
+/-- The rows alone give the output digest as the hash of the next state's words, and after the
+base case the other slot's next digest word is its prior digest word. The terminal bridge reads
+the other slot's digest from these words. -/
+theorem rows_nextWords (step : AppState → AppWitness → AppState)
+    (control : AppState → AppWitness → Fin 2) (circuit : Fin 2) (stepEq : program.step = step)
+    (validControl : ∀ state witness, program.valid state witness →
+      control state witness = circuit)
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits) (offset : Nat) (env : Env)
+    (assumptions : LightStepLayout.Assumptions program relation circuit interface offset env)
+    (rows : holds env (Circuit.ops (LightStepLayout.main program relation circuit interface)
+      offset)) :
+    digestValue interface.outputDigest env =
+        Poseidon2.hash (Hash.evalList env (statePreimageExpr program interface
+          (interface.iteration + 1) interface.nextState (Expr.const (natWord (circuit.val + 1)))
+          interface.nextDigest)) ∧
+      (interface.iteration.eval env ≠ 0 → ∀ slot, slot ≠ selectedSlot program interface env →
+        digestValue (interface.nextDigest slot) env =
+          digestValue (interface.priorDigest slot) env) := by
+  obtain ⟨specification, _, selectRows⟩ := LightStepLayout.soundness program relation circuit
+    interface offset step control stepEq validControl env assumptions rows relation
+  exact ⟨specification.next, fun nonzero slot other => LightSelect.next_other
+    (LightStepLayout.selectInterface program interface)
+    (LightStepLayout.selectOffset program relation circuit interface offset) env selectRows
+    nonzero slot other⟩
 
 end NightstreamFPrime.Lifecycle.OptionB.LightStepSoundness

@@ -70,9 +70,11 @@ change. The Rust application computes the output state.
 authority. `Verifier::verify` checks the proof and its witnesses against it.
 At iteration 0, the current state must equal `z0`. At a later iteration, the
 public input of the fresh instance must be the hash of the state with both
-slots. The claim of each slot must hold under the relation of its circuit,
-with a norm below `B`. The fresh instance must hold under the relation of the
-circuit that ran last.
+slots. The claim of each slot must hold under the relation of its circuit.
+The depth of the slot must be at most 64, and the norm of its witness must be
+at most `(17 + depth) · 216`, the bound of an honest slot at that depth. So
+`extend` and `finish` work on each proof that `verify` accepts. The fresh
+instance must hold under the relation of the circuit that ran last.
 
 `Prover::encode_proof` returns the strict bytes of a proof with its
 witnesses. The bytes start with the tag `NS-OPTIONB-PRF-1`.

@@ -308,19 +308,19 @@ fn r1cs_width(bits: usize) -> usize {
         region: "counter",
         start: 0,
         len: columns,
-        name: "words",
+        name: "words".into(),
         role: "test",
         width: ColumnWidth::U32,
     }])
     .unwrap();
-    let mut builder = R1csBuilder::new(columns, 1, ONE).unwrap();
+    let mut builder = R1csBuilder::new(1, ONE).unwrap();
     builder.with_tag(ConstraintTag::new("count", "counter"), |rows| {
         rows.push_linear_zero([(AFTER, F::ONE), (BEFORE, -F::ONE), (ONE, -F::ONE)]);
         for bit in 4..columns {
             rows.push_boolean(bit);
         }
     });
-    let relation = builder.build().unwrap();
+    let relation = builder.build(&registry).unwrap();
     let catalog = MemoryCatalog::new(
         [MemorySpec {
             id: 0u32,

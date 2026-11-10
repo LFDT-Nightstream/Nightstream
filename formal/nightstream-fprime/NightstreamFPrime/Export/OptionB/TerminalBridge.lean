@@ -9,8 +9,14 @@ the step's output hash is the terminal's state hash. The state hash binds the de
 to the setup's keys, and the counters, states and slot claims to the terminal's, or Poseidon2 has
 a collision on the decoded next state and the terminal's state (`stateHash_binds_words`,
 `Collision`). So the last step holds under the setup's keys and ends in the terminal's statement
-(`bridge`). The decode is a function of the proof, so the collision names two states that a
+(`bridge`). The decode is a function of the proof, so the collision names two inputs that a
 reduction computes from the proof.
+
+The light circuit reads only the active slot's words (`StepRelation.lightInput`), so the decode
+takes the other slot from the terminal's slots. Its step relation needs the other slot's prior
+digest word to be that slot's digest. After the base case the light rows copy that word into the
+next state's words, which the output hash hashes; so either the next state's words are the
+terminal's state preimage and the premise holds, or the two lists collide (`WordCollision`).
 
 The circuit selector of Construction 2 (`Paper.Machine.control`) reads only the application state
 and witness. Option B's scheduler picks the circuit from the slot depth, which the application
@@ -109,6 +115,13 @@ theorem serializeSlot_words {left right : SlotData logicalWidth publicFits}
   subst publicInput point commitment evaluations
   rfl
 
+/-- A shaped state's preimage has 38 words. -/
+theorem statePreimage_length {state : State logicalWidth publicFits} (shaped : Shaped state) :
+    (statePreimage state).length = 38 := by
+  simp [statePreimage, slotDigest, Poseidon2.hash_length, shaped.verifierKeys, shaped.z0,
+    shaped.current, Poseidon2.digestLen]
+  rfl
+
 /-- Two shaped states with one state hash have the same words, or they collide. -/
 theorem stateHash_binds_words {left right : State logicalWidth publicFits}
     (leftShaped : Shaped left) (rightShaped : Shaped right)
@@ -143,12 +156,8 @@ theorem stateHash_binds_words {left right : State logicalWidth publicFits}
       | ⟨1, _⟩ => exact key1
     · obtain ⟨slot, differs⟩ := Classical.not_forall.mp slots
       exact Or.inr (Or.inr ⟨slot, differs, digests slot⟩)
-  · have length : ∀ {state : State logicalWidth publicFits}, Shaped state →
-        (statePreimage state).length = 38 := fun shaped => by
-      simp [statePreimage, slotDigest, Poseidon2.hash_length, shaped.verifierKeys, shaped.z0,
-        shaped.current, Poseidon2.digestLen]
-      rfl
-    exact Or.inr (Or.inl ⟨preimages, by rw [length leftShaped, length rightShaped], same⟩)
+  · exact Or.inr (Or.inl ⟨preimages, by
+      rw [statePreimage_length leftShaped, statePreimage_length rightShaped], same⟩)
 
 /-- The next iteration's word is the terminal's, and the terminal's iteration is positive and
 below `q`, so the next iteration does not wrap. -/
@@ -301,14 +310,16 @@ structure Exports where
 
 variable {relation ajtai circuitKeys step cubeFits}
 
-/-- The step that a fresh witness of `circuit` decodes to. -/
+/-- The step that a fresh witness of `circuit` decodes to. A light step takes its other slot from
+`running`. -/
 def Exports.decode (exports : Exports relation ajtai circuitKeys step cubeFits) (circuit : Fin 2)
-    (witness : Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits)) :
+    (witness : Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (running : Fin 2 → SlotData logicalWidth publicFits) :
     Decoded logicalWidth publicFits :=
   let assignment := Layout.ProductionRelation.Plan.logicalAssignment witness
   if circuit = 0 then
     let env := lightEnv exports.program relation ajtai exports.lightFresh exports.lightLayout assignment
-    ⟨lightInput exports.program env, lightOutput exports.program relation 0 env,
+    ⟨lightInput exports.program running env, lightOutput exports.program relation 0 running env,
       decodedKeys circuitKeys (lightInterface (logicalWidth := logicalWidth)
         (publicFits := publicFits) exports.program).verifierKeys env⟩
   else
@@ -317,14 +328,14 @@ def Exports.decode (exports : Exports relation ajtai circuitKeys step cubeFits) 
       decodedKeys circuitKeys (refreshInterface (logicalWidth := logicalWidth)
         (publicFits := publicFits) exports.program).verifierKeys env⟩
 
-/-- The step that a recursive terminal's fresh witness decodes to. -/
+/-- The step that a recursive terminal's fresh witness decodes to, with the terminal's slots. -/
 def Exports.last (exports : Exports relation ajtai circuitKeys step cubeFits)
     (payload : TerminalProof (SlotData logicalWidth publicFits)
       (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits))
       (StepFresh logicalWidth publicFits)
       (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits)) 2) :
     Decoded logicalWidth publicFits :=
-  exports.decode (circuitOf payload.pc) payload.freshWitness
+  exports.decode (circuitOf payload.pc) payload.freshWitness payload.running
 
 /-- A decoded step's witness has the program's word count. -/
 theorem Exports.last_witness_length (exports : Exports relation ajtai circuitKeys step cubeFits)
@@ -336,7 +347,24 @@ theorem Exports.last_witness_length (exports : Exports relation ajtai circuitKey
   unfold Exports.last Exports.decode
   split <;> simp [lightInput, refreshInput]
 
+/-- A Poseidon2 collision on two inputs of one length. -/
+def WordCollision (left right : List F) : Prop :=
+  left ≠ right ∧ left.length = right.length ∧ Poseidon2.hash left = Poseidon2.hash right
+
+/-- The next state's words of the light step that a recursive terminal's fresh witness decodes
+to. -/
+def Exports.lightNextWords (exports : Exports relation ajtai circuitKeys step cubeFits)
+    (payload : TerminalProof (SlotData logicalWidth publicFits)
+      (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits))
+      (StepFresh logicalWidth publicFits)
+      (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits)) 2) : List F :=
+  StepRelation.lightNextWords (logicalWidth := logicalWidth) (publicFits := publicFits)
+    exports.program 0
+    (lightEnv exports.program relation ajtai exports.lightFresh exports.lightLayout
+      (Layout.ProductionRelation.Plan.logicalAssignment payload.freshWitness))
+
 /-- The collision of the bridge: the next state of the decoded last step and the terminal's state
+collide, or the last step is light and its next state's words and the terminal's state preimage
 collide. -/
 def Collision (exports : Exports relation ajtai circuitKeys step cubeFits)
     (statement : TerminalStatement AppState)
@@ -345,10 +373,12 @@ def Collision (exports : Exports relation ajtai circuitKeys step cubeFits)
       (StepFresh logicalWidth publicFits)
       (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits)) 2) : Prop :=
   StateCollision
-    (toState (nextHashPreimage
-      ((setup Folding.Schedule.productionLightFoldCap ajtai (exports.last payload).keys).forCircuit
-        (circuitOf payload.pc)) (exports.last payload).input (exports.last payload).output))
-    (terminalState circuitKeys statement payload.running payload.pc)
+      (toState (nextHashPreimage
+        ((setup Folding.Schedule.productionLightFoldCap ajtai (exports.last payload).keys).forCircuit
+          (circuitOf payload.pc)) (exports.last payload).input (exports.last payload).output))
+      (terminalState circuitKeys statement payload.running payload.pc) ∨
+    (circuitOf payload.pc = 0 ∧ WordCollision (exports.lightNextWords payload)
+      (statePreimage (terminalState circuitKeys statement payload.running payload.pc)))
 
 /-- What the bridge reads from a recursive terminal: a valid statement, a program counter that
 names a circuit, a positive iteration, a fresh public input that encodes the terminal's state
@@ -417,16 +447,36 @@ theorem bridge_linked (exports : Exports relation ajtai circuitKeys step cubeFit
   rcases cases with ranLight | ranRefresh
   · have circuitEq : circuitOf payload.pc = 0 := by simp [circuitOf, ranLight]
     rw [circuitEq, exports.lightKey] at freshHolds
-    obtain ⟨holds, words⟩ := light_freshHolds exports.program relation ajtai circuitKeys
-      step (chosen exports.program 0) exports.programStep (fun _ _ valid => ite_eq_left valid)
-      exports.lightFresh exports.lightWidth
-      exports.lightFits exports.lightLayout cubeFits exports.lightInside payload.fresh
-      payload.freshWitness _ freshHash freshHolds
-    simp only [Collision, Exports.last, circuitEq, Exports.decode, ↓reduceIte]
-    exact bind_step _ ajtai circuitKeys keysShaped step (chosen exports.program 0) 0 _ _ _ _ holds
-      (Fin.isLt _)
-      List.length_ofFn List.length_ofFn statement valid positive payload.running payload.pc
-      pcValid (words.trans digestEq)
+    obtain ⟨hashEq, nextOther⟩ := light_freshWords exports.program relation ajtai step
+      (chosen exports.program 0) exports.programStep (fun _ _ valid => ite_eq_left valid)
+      exports.lightFresh exports.lightWidth exports.lightFits exports.lightLayout cubeFits
+      exports.lightInside payload.fresh payload.freshWitness _ freshHash freshHolds
+    simp only [Collision, Exports.last, Exports.lightNextWords, circuitEq, Exports.decode,
+      ↓reduceIte]
+    by_cases same : StepRelation.lightNextWords (logicalWidth := logicalWidth)
+        (publicFits := publicFits) exports.program 0 (lightEnv exports.program relation ajtai exports.lightFresh exports.lightLayout
+          (Layout.ProductionRelation.Plan.logicalAssignment payload.freshWitness)) =
+        statePreimage (terminalState circuitKeys statement payload.running payload.pc)
+    · have others : OtherDigest exports.program payload.running
+          (lightEnv exports.program relation ajtai exports.lightFresh exports.lightLayout
+            (Layout.ProductionRelation.Plan.logicalAssignment payload.freshWitness)) := by
+        intro nonzero slot other
+        rw [← nextOther nonzero slot other]
+        exact nextDigests_of_words exports.program same slot
+      obtain ⟨holds, words⟩ := light_freshHolds exports.program relation ajtai circuitKeys
+        step (chosen exports.program 0) exports.programStep (fun _ _ valid => ite_eq_left valid)
+        exports.lightFresh exports.lightWidth
+        exports.lightFits exports.lightLayout cubeFits exports.lightInside payload.fresh
+        payload.freshWitness _ freshHash freshHolds payload.running others
+      exact (bind_step _ ajtai circuitKeys keysShaped step (chosen exports.program 0) 0 _ _ _ _
+        holds (Fin.isLt _)
+        List.length_ofFn List.length_ofFn statement valid positive payload.running payload.pc
+        pcValid (words.trans digestEq)).imp_right Or.inl
+    · exact Or.inr (Or.inr ⟨trivial, same,
+        (lightNextWords_length exports.program 0 _).trans
+          (statePreimage_length (state := terminalState circuitKeys statement payload.running
+            payload.pc) ⟨keysShaped, valid.2.1, valid.2.2⟩).symm,
+        hashEq.trans digestEq⟩)
   · have circuitEq : circuitOf payload.pc = 1 := by simp [circuitOf, ranRefresh]
     rw [circuitEq, exports.refreshKey] at freshHolds
     obtain ⟨holds, words⟩ := refresh_freshHolds exports.program relation ajtai circuitKeys
@@ -436,10 +486,10 @@ theorem bridge_linked (exports : Exports relation ajtai circuitKeys step cubeFit
       exports.refreshInside payload.fresh payload.freshWitness _ freshHash freshHolds
     simp only [Collision, Exports.last, circuitEq, Exports.decode, Fin.one_eq_zero_iff,
       OfNat.ofNat_ne_one, ↓reduceIte]
-    exact bind_step _ ajtai circuitKeys keysShaped step (chosen exports.program 1) 1 _ _ _ _ holds
-      (Fin.isLt _)
+    exact (bind_step _ ajtai circuitKeys keysShaped step (chosen exports.program 1) 1 _ _ _ _
+      holds (Fin.isLt _)
       List.length_ofFn List.length_ofFn statement valid positive payload.running payload.pc
-      pcValid (words.trans digestEq)
+      pcValid (words.trans digestEq)).imp_right Or.inl
 
 /-- `bridge_linked` for a recursive terminal that the terminal relation accepts under any
 selector. -/

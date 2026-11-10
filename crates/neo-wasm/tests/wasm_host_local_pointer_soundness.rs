@@ -152,7 +152,7 @@ fn high_i64_local_pointer_cannot_authorize_memory_write() {
     common::ccs_check_trace(&forged);
     for (index, witness) in witnesses.iter().enumerate() {
         common::assert_satisfied(witness, &format!("forged row {index}"));
-        neo_wasm::audit_compact_lookup_witness(witness).unwrap_or_else(|error| panic!("compact row {index}: {error}"));
+        neo_wasm::audit_operation_witness(witness).unwrap_or_else(|error| panic!("operation row {index}: {error}"));
     }
     let expected_words = [13, 16, 1, 42, 0, 0, 0, 0].map(F::from_u64);
     let expected_chain = fold_event_blocks(CommChainState::default(), &[expected_words]).canonical_u64();

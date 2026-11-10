@@ -120,19 +120,35 @@ def Leads (program : Stage1.Application.Program) :
         decoded.input.z0 = statement.z0 ∧ decoded.input.iteration + 1 = statement.iteration ∧
         Leads program ⟨decoded.input.iteration, decoded.input.z0, decoded.input.zi⟩ older
 
+/-- `advice` is `iteration` valid steps of `program`, each with a witness of the program's word
+count, that lead from `z0` to `zi`: `Reaches` for one list of witnesses. -/
+def ReachedBy (program : Stage1.Application.Program) (statement : TerminalStatement AppState)
+    (advice : List AppWitness) : Prop :=
+  advice.length = statement.iteration ∧
+    (∀ witness ∈ advice, witness.length = program.witnessWordCount) ∧
+    ValidFrom program statement.z0 advice ∧ advice.foldl program.step statement.z0 = statement.zi
+
+/-- The witnesses of decoded steps, first step first. -/
+def witnessesOf (steps : List (Decoded logicalWidth publicFits)) : List AppWitness :=
+  (steps.map fun decoded => decoded.input.witness).reverse
+
 /-- The witnesses of decoded steps that lead to `statement`, each of the program's word count,
 reach it. -/
-theorem reaches_of_leads (program : Stage1.Application.Program) :
+theorem reachedBy_of_leads (program : Stage1.Application.Program) :
     ∀ (statement : TerminalStatement AppState) (steps : List (Decoded logicalWidth publicFits)),
       Leads program statement steps →
       (∀ decoded ∈ steps, decoded.input.witness.length = program.witnessWordCount) →
-      Reaches program statement
-  | _, [], ⟨zero, same⟩, _ => ⟨[], zero.symm, by simp, trivial, same.symm⟩
+      ReachedBy program statement (witnessesOf steps)
+  | _, [], ⟨zero, same⟩, _ => ⟨zero.symm, by simp [witnessesOf], trivial, same.symm⟩
   | statement, decoded :: older, ⟨valid, stepped, z0Eq, iterationEq, earlier⟩, lengths => by
-      obtain ⟨advice, length, adviceLengths, validFrom, folded⟩ :=
-        reaches_of_leads program _ older earlier fun other inside =>
+      obtain ⟨length, adviceLengths, validFrom, folded⟩ :=
+        reachedBy_of_leads program _ older earlier fun other inside =>
           lengths other (List.mem_cons_of_mem _ inside)
-      refine ⟨advice ++ [decoded.input.witness], ?_, ?_, ?_, ?_⟩
+      have split : witnessesOf (decoded :: older) =
+          witnessesOf older ++ [decoded.input.witness] := by
+        simp [witnessesOf]
+      rw [split]
+      refine ⟨?_, ?_, ?_, ?_⟩
       · simp only [List.length_append, List.length_singleton, length]
         exact iterationEq
       · intro witness inside
@@ -147,6 +163,14 @@ theorem reaches_of_leads (program : Stage1.Application.Program) :
       · dsimp only at folded
         rw [List.foldl_append, ← z0Eq, folded]
         exact stepped
+
+theorem reaches_of_leads (program : Stage1.Application.Program) :
+    ∀ (statement : TerminalStatement AppState) (steps : List (Decoded logicalWidth publicFits)),
+      Leads program statement steps →
+      (∀ decoded ∈ steps, decoded.input.witness.length = program.witnessWordCount) →
+      Reaches program statement :=
+  fun statement steps leads lengths =>
+    ⟨witnessesOf steps, reachedBy_of_leads program statement steps leads lengths⟩
 
 theorem cap_lt_modulus : productionLightFoldCap < goldilocksModulus := by
   decide
@@ -313,16 +337,15 @@ structure Shaped (decoded : Decoded logicalWidth publicFits) : Prop where
   nextDepth : ∀ slot, (decoded.output.runningNext slot).2 < goldilocksModulus
 
 theorem decode_shaped (circuit : Fin 2)
-    (witness : Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits)) :
-    Shaped (exports.decode circuit witness) := by
+    (witness : Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (running : Fin 2 → SlotData logicalWidth publicFits) :
+    Shaped (exports.decode circuit witness running) := by
   unfold Exports.decode
   split
-  · have represents := lightRepresents exports.program relation ajtai circuitKeys 0
-      (lightEnv exports.program relation ajtai exports.lightFresh exports.lightLayout
-        (Layout.ProductionRelation.Plan.logicalAssignment witness))
-    exact ⟨represents.iterationBound, represents.priorPcBound, by simp [lightInput],
-      by simp [lightInput], represents.priorDepth,
-      DigestSelect.nextSlots_depth _ _ _ _ represents.priorDepth (Fin.isLt _)⟩
+  · exact ⟨Fin.isLt _, Fin.isLt _, by simp [lightInput], by simp [lightInput],
+      lightInput_depth exports.program running _,
+      DigestSelect.nextSlots_depth _ _ _ _ (lightInput_depth exports.program running _)
+        (Fin.isLt _)⟩
   · have represents := refreshRepresents exports.program relation ajtai circuitKeys 1
       (refreshEnv exports.program relation ajtai exports.refreshFresh exports.refreshLayout
         (Layout.ProductionRelation.Plan.logicalAssignment witness))
@@ -379,7 +402,7 @@ theorem walk_step (keysShaped : ∀ key, (circuitKeys key).digest.length = 4)
   swap
   · exact absurd collision safe
   have shaped := decode_shaped ajtai circuitKeys exports (circuitOf payload.pc)
-    payload.freshWitness
+    payload.freshWitness payload.running
   obtain ⟨dispatch, _, zNext, _, branch⟩ :=
     (stepHolds_iff _ ajtai circuitKeys step _ _ _ _).1 stepHolds
   have stepped : exports.program.step (exports.last payload).input.zi

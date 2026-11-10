@@ -29,7 +29,7 @@ fn registry() -> ColumnRegistry {
         region: "counter",
         start: 0,
         len: COLUMNS,
-        name: "words",
+        name: "words".into(),
         role: "test",
         width: ColumnWidth::U32,
     }])
@@ -38,11 +38,11 @@ fn registry() -> ColumnRegistry {
 
 /// `count_after = count_before + 1`.
 fn relation() -> R1csRelation<&'static str> {
-    let mut builder = R1csBuilder::new(COLUMNS, 1, ONE).unwrap();
+    let mut builder = R1csBuilder::new(1, ONE).unwrap();
     builder.with_tag(ConstraintTag::new("count", "counter"), |rows| {
         rows.push_linear_zero([(AFTER, F::ONE), (BEFORE, -F::ONE), (ONE, -F::ONE)]);
     });
-    builder.build().unwrap()
+    builder.build(&registry()).unwrap()
 }
 
 /// Memory 0 is the table ROM, memory 1 the RAM. Both ports are always active.
@@ -197,11 +197,11 @@ fn a_geometry_derives_its_widths_and_keeps_the_rules() {
 /// the column would be a free word of each row.
 #[test]
 fn a_relation_with_another_public_input_is_refused() {
-    let mut builder = R1csBuilder::new(COLUMNS, 2, ONE).unwrap();
+    let mut builder = R1csBuilder::new(2, ONE).unwrap();
     builder.with_tag(ConstraintTag::new("count", "counter"), |rows| {
         rows.push_linear_zero([(AFTER, F::ONE), (BEFORE, -F::ONE), (ONE, -F::ONE)]);
     });
-    let relation = builder.build().unwrap();
+    let relation = builder.build(&registry()).unwrap();
     assert!(matches!(
         RowRelation::of(&relation),
         Err(R1csApplicationError::PublicInput)
@@ -367,7 +367,7 @@ fn construction_rejects_columns_outside_the_row() {
         region: "counter",
         start: 0,
         len: COLUMNS + 1,
-        name: "words",
+        name: "words".into(),
         role: "test",
         width: ColumnWidth::U32,
     }])

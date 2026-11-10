@@ -497,9 +497,16 @@ fn export_advice_preserves_arguments_without_absorbing_them() {
             row.host_event_rom_slot.is_some_and(|rom| rom.advice) && row.state_before.host_events.slot_cursor == 7
         })
         .unwrap();
-    let mut forged = build_witness_vector(last_advice).unwrap();
-    forged[neo_wasm::layout::COL_PERM_PENDING_AFTER] = neo_math::F::ONE;
-    common::assert_rejected(&forged, "export advice cannot start absorption");
+    let mut absorbing = last_advice.clone();
+    absorbing.state_after.comm_chain = neo_wasm::comm_chain::absorb_block(
+        last_advice.state_before.comm_chain,
+        last_advice.state_after.event_absorb.evbuf,
+    );
+    absorbing.state_after.event_absorb.evbuf = [0; 8];
+    common::assert_rejected(
+        &build_witness_vector(&absorbing).unwrap(),
+        "export advice cannot start absorption",
+    );
 }
 
 #[test]

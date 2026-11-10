@@ -69,6 +69,34 @@ theorem evaluation_eval (env : Env) (point : F)
   simp only [evaluation, sumCombinations_eval, List.map_ofFn, Function.comp_def,
     R1CS.LinearCombination.eval_scale, QuotientProduct.evaluate, mul_comm]
 
+/-- Scales each combination by the next power of `point`, from `power`. -/
+def scaleByPowers (point : F) : F → List R1CS.LinearCombination → List R1CS.LinearCombination
+  | _, [] => []
+  | power, combination :: rest =>
+      .scale power combination :: scaleByPowers point (power * point) rest
+
+theorem scaleByPowers_eq (point : F) :
+    ∀ (power : F) (combinations : List R1CS.LinearCombination),
+      scaleByPowers point power combinations =
+        combinations.mapIdx fun index combination => .scale (power * point ^ index) combination
+  | _, [] => rfl
+  | power, combination :: rest => by
+      rw [scaleByPowers, scaleByPowers_eq point _ rest, List.mapIdx_cons]
+      simp only [pow_zero, mul_one, pow_succ, mul_assoc, mul_comm point]
+
+/-- Compiled code keeps a running power of `point`; `evaluation` raises `point` to each lane. -/
+def evaluationFast (point : F) (lanes : Fin ringDegree → R1CS.LinearCombination) :
+    R1CS.LinearCombination :=
+  sumCombinations (scaleByPowers point 1 (List.ofFn lanes))
+
+@[csimp] theorem evaluation_eq_evaluationFast : @evaluation = @evaluationFast := by
+  funext point lanes
+  rw [evaluationFast, scaleByPowers_eq, evaluation]
+  refine congrArg sumCombinations (List.ext_getElem ?_ ?_)
+  · simp only [List.length_ofFn, List.length_mapIdx]
+  · intro index _ _
+    simp only [List.getElem_ofFn, List.getElem_mapIdx, one_mul]
+
 /-! ### The rows of a ring-product piece -/
 
 /-- The column of output `lane` of `cell` in a block of `cells` ring products from `start`, as

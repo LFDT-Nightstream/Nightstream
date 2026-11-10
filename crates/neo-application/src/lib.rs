@@ -26,7 +26,7 @@ pub use audit::{
 };
 #[cfg(feature = "audit-html")]
 pub use audit_html::render_column_audit_html;
-pub use columns::{ColumnFamilySpec, ColumnRegistry, ColumnRegistryError, ColumnWidth};
+pub use columns::{ColumnFamilySpec, ColumnId, ColumnRegistry, ColumnRegistryError, ColumnWidth};
 pub use continuity::{
     check_continuity_rows, ContinuityCatalog, ContinuityCatalogError, ContinuityCheckError, ContinuityGroup,
     ContinuityLink,
@@ -52,3 +52,8 @@ pub use range_check::{
     RangeCheckLayout, RangeCheckLayoutError,
 };
 pub use relation::{ApplicationRelation, ApplicationRelationError};
+
+mod auxiliary;
+mod expression;
+pub use auxiliary::{AuxiliaryAssignmentError, AuxiliaryBuilder, AuxiliaryLayout};
+pub use expression::LinearExpression;

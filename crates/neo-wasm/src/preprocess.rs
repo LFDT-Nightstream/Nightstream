@@ -14,9 +14,8 @@ use crate::layout::{
     COL_HOST_EVENT_INDEX_BEFORE, COL_HOST_EVENT_SLOT_CURSOR_BEFORE, COL_LOCALS_FBP_BEFORE,
     COL_LOCAL_ZERO_ACTIVE_BEFORE, COL_LOCAL_ZERO_REMAINING_BEFORE, COL_MAX_MEMORY_PAGES_BEFORE,
     COL_MEMORY_PAGES_BEFORE, COL_OBJECT_ACTIVE_BEFORE, COL_OUTER_CHAIN_BEFORE, COL_OUTER_PREFIX_BEFORE,
-    COL_OUTPUT_ENABLED_BEFORE, COL_OUTPUT_VALUE_HI_BEFORE, COL_OUTPUT_VALUE_LO_BEFORE, COL_PC_BEFORE,
-    COL_PERM_PENDING_BEFORE, COL_PERM_ROUND_BEFORE, COL_PERM_STATE_BEFORE, COL_SP_BEFORE, COL_STACK_FRAME_BASE_BEFORE,
-    COL_TRAPPED_BEFORE, COL_TURN_EXPORT_FREF_BEFORE,
+    COL_OUTPUT_ENABLED_BEFORE, COL_OUTPUT_VALUE_HI_BEFORE, COL_OUTPUT_VALUE_LO_BEFORE, COL_PC_BEFORE, COL_SP_BEFORE,
+    COL_STACK_FRAME_BASE_BEFORE, COL_TRAPPED_BEFORE, COL_TURN_EXPORT_FREF_BEFORE,
 };
 use crate::relation_layout::build_wasm_relation_layout;
 use neo_math::F;
@@ -173,10 +172,6 @@ fn carried_state_field(state: WasmStepState, column: usize) -> u64 {
         ),
         (COL_COMM_CHAIN_BEFORE.as_slice(), state.comm_chain.as_slice()),
         (COL_EVBUF_BEFORE.as_slice(), state.event_absorb.evbuf.as_slice()),
-        (
-            COL_PERM_STATE_BEFORE.as_slice(),
-            state.event_absorb.perm_state.as_slice(),
-        ),
     ] {
         if let Some(lane) = columns.iter().position(|&candidate| candidate == column) {
             return values[lane];
@@ -210,8 +205,6 @@ fn carried_state_field(state: WasmStepState, column: usize) -> u64 {
         COL_HOST_EVENT_INDEX_BEFORE => u64::from(state.host_events.event_index),
         COL_HOST_EVENT_ARGS_BASE_BEFORE => state.host_events.args_base,
         COL_HOST_EVENT_SLOT_CURSOR_BEFORE => u64::from(state.host_events.slot_cursor),
-        COL_PERM_PENDING_BEFORE => u64::from(state.event_absorb.perm_pending),
-        COL_PERM_ROUND_BEFORE => u64::from(state.event_absorb.perm_round),
         COL_TRAPPED_BEFORE => u64::from(state.trapped),
         other => panic!("unsupported initial semantic-state column {other}"),
     }

@@ -139,6 +139,40 @@ impl OptionB {
         }
     }
 
+    /// `Spec.GlobalParams.accumulatorBound`: the largest coefficient of an
+    /// honest slot witness `depth` light folds after its refresh.
+    fn accumulator_bound(&self, depth: u64) -> u64 {
+        let params = self.relations[0].params();
+        (1 + depth + u64::from(params.k_rho())) * u64::from(params.inner().T()) * u64::from(params.b() - 1)
+    }
+
+    /// The slot checks of `StepExtend.Honest` that the bytes do not fix: the
+    /// depth is at most the light cap, and each coefficient of the witness is
+    /// within the accumulator bound of that depth (Cyclo Theorem 3 item 1).
+    /// The next light fold and the final proof need this bound.
+    fn slot_within_depth_bound(&self, slot: &Slot) -> Result<(), &'static str> {
+        if slot.depth > LIGHT_FOLD_CAP {
+            return Err("depth is above the light fold cap");
+        }
+        let bound = self.accumulator_bound(slot.depth);
+        let within = |value: &F| {
+            let value = value.as_canonical_u64();
+            value.min(F::ORDER_U64 - value) <= bound
+        };
+        let witness = &slot.accumulator.witness;
+        // A packed witness has coefficients in {-1, 0, 1}, and each bound is
+        // at least 1.
+        let fits = match witness.virtual_constant_value() {
+            Some(value) => within(value),
+            None => witness.is_packed_signed_unit() || witness.as_slice().iter().all(within),
+        };
+        if fits {
+            Ok(())
+        } else {
+            Err("witness norm is above the bound of the slot's depth")
+        }
+    }
+
     fn package(&self, kind: Kind) -> &StepPackage {
         match kind {
             Kind::Light => self.packages.light(),
@@ -148,9 +182,11 @@ impl OptionB {
 
     /// The next proof: the step from `envelope.current` to `next` with the
     /// application witness `witness`. The first step is the light circuit's
-    /// base step; every later step folds the previous step's instance. The new
-    /// instance must hold under its circuit's relation (`Relation::holds`),
-    /// whose rows verify the fold, before the proof returns.
+    /// base step; every later step folds the previous step's instance. Every
+    /// row of the circuit's relation, whose rows verify the fold, must hold on
+    /// the new assignment before the proof returns. The instance that
+    /// `Relation::instance` builds then holds under the relation (Lean
+    /// `FreshInstance.built_holds_iff`).
     pub(crate) fn extend(&self, envelope: &Envelope, witness: &[F], next: [F; 4]) -> Result<Envelope, OptionBError> {
         let prior = self.state(envelope);
         let mut slots = envelope.slots.clone();
@@ -191,7 +227,7 @@ impl OptionB {
         #[cfg(not(test))]
         let keeps_faulty = false;
         if !keeps_faulty {
-            relation.holds(&instance).map_err(OptionBError::Fresh)?;
+            relation.rows_hold(&logical).map_err(OptionBError::Fresh)?;
         }
         Ok(Envelope {
             iteration: envelope.iteration + 1,
@@ -203,11 +239,13 @@ impl OptionB {
         })
     }
 
-    /// `Terminal.HoldsFor`: at iteration 0 the current state is `z0`;
+    /// `RunCompleteness.Verifies`: at iteration 0 the current state is `z0`;
     /// otherwise the fresh instance's public input is the hash of the state
     /// with both slots, every slot's claim holds under its circuit's relation
-    /// below `B`, and the fresh instance holds under the relation of the
-    /// circuit that ran last.
+    /// within the bound of the slot's depth, and the fresh instance holds
+    /// under the relation of the circuit that ran last. So `extend` and
+    /// `finish` work on each proof that this accepts
+    /// (`RunCompleteness.verifies_step`, `FinishCompleteness.finish_complete`).
     pub(crate) fn verify(
         &self,
         iteration: u64,
@@ -243,9 +281,13 @@ impl OptionB {
                     slot: index,
                     reason: reason.into(),
                 })?;
-            // The verifier splits the witness itself: PiDEC's digits reject a
-            // norm at or above `B`, and its recomposition reproduces the
-            // claim's commitment, evaluations and public input.
+            self.slot_within_depth_bound(slot)
+                .map_err(|reason| OptionBError::Slot {
+                    slot: index,
+                    reason: reason.into(),
+                })?;
+            // The verifier splits the witness itself: PiDEC's recomposition
+            // reproduces the claim's commitment, evaluations and public input.
             pi_dec::prove_with_production_key(
                 relation.context(),
                 &slot.accumulator.claim,

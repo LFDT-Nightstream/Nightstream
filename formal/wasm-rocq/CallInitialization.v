@@ -8,31 +8,29 @@ Open Scope Z_scope.
 Definition rowKindFlags : list Column :=
   [COL_IS_PROGRAM_ROW; COL_FRAME_MOVE_ACTIVE_BEFORE; COL_LOCAL_ZERO_ACTIVE_BEFORE;
    COL_PADDING_ACTIVE; COL_GATHER_ACTIVE; COL_TURN_BOUNDARY;
-   COL_HOST_RESUME; COL_HOST_SUSPEND; COL_PERM_PENDING_BEFORE].
+   COL_HOST_RESUME; COL_HOST_SUSPEND].
 
 Lemma full_row_kind_sum : forall (w : Witness),
   fieldPrime -> FullRelation.satFull w ->
-  selectorSum w rowKindFlags = w COL_PERM_ROUND_BEFORE_IS_ZERO /\
-  w COL_PERM_ROUND_BEFORE_IS_ZERO <= 1.
+  selectorSum w rowKindFlags = 1.
 Proof.
   intros w Hprime Hfull.
   assert (Hone : w COL_ONE = 1) by exact (proj1 Hfull).
   assert (Hbits : Forall (fun c => w c = 0 \/ w c = 1) rowKindFlags).
   { unfold rowKindFlags. repeat apply Forall_cons; try apply Forall_nil;
       match goal with |- value _ ?column = 0 \/ _ => circuit_boolean column H; exact H end. }
-  circuit_boolean COL_PERM_ROUND_BEFORE_IS_ZERO Hperm.
   circuit_row (map (fun c => (c, 1)) rowKindFlags ++
-    [(COL_PERM_ROUND_BEFORE_IS_ZERO, -1)], [(COL_ONE, 1)], ([] : SparseRow)) Hrow.
+    [(COL_ONE, -1)], [(COL_ONE, 1)], ([] : SparseRow)) Hrow.
   unfold sat in Hrow. change
-    ((eval w (map (fun c => (c, 1)) rowKindFlags ++ [(COL_PERM_ROUND_BEFORE_IS_ZERO, -1)]) *
+    ((eval w (map (fun c => (c, 1)) rowKindFlags ++ [(COL_ONE, -1)]) *
       (1 * w COL_ONE + 0) - 0) mod modulus = 0) in Hrow.
-  rewrite eval_app, selector_sum_eval, Hone in Hrow.
-  cbn [eval fold_right] in Hrow.
+  rewrite eval_app, selector_sum_eval in Hrow.
+  cbn [eval fold_right] in Hrow. rewrite Hone in Hrow.
   pose proof (selector_sum_boolean_bound w rowKindFlags Hbits) as Hbound.
-  change (0 <= selectorSum w rowKindFlags <= 9) in Hbound.
+  change (0 <= selectorSum w rowKindFlags <= 8) in Hbound.
   apply Z.mod_divide in Hrow; [ | unfold modulus; lia].
   destruct Hrow as [k Hrow]. unfold modulus in Hrow.
-  destruct Hperm; split; lia.
+  lia.
 Qed.
 
 Lemma full_row_kind_exclusive : forall (w : Witness) active other,
@@ -41,7 +39,7 @@ Lemma full_row_kind_exclusive : forall (w : Witness) active other,
   w active = 1 -> w other = 0.
 Proof.
   intros w active other Hprime Hfull Ha Ho Hneq Hone.
-  destruct (full_row_kind_sum w Hprime Hfull) as [Hsum Hbound].
+  pose proof (full_row_kind_sum w Hprime Hfull) as Hsum.
   pose proof (selector_sum_two w rowKindFlags active other Hneq Ha Ho).
   pose proof (value_bound w other). lia.
 Qed.
@@ -326,12 +324,8 @@ Proof.
   assert (Hone : w COL_ONE = 1) by exact (proj1 Hfull).
   assert (Hother : forall c, In c rowKindFlags -> c <> chosen -> w c = 0).
   { intros c Hc Hneq. exact (full_row_kind_exclusive w chosen c Hprime Hfull Hin Hc ltac:(congruence) Hchosen). }
-  assert (Hperm : w COL_PERM_ROUND_BEFORE_IS_ZERO = 1).
-  { destruct (full_row_kind_sum w Hprime Hfull) as [Hsum Hbound].
-    pose proof (selector_sum_one w rowKindFlags chosen Hin). lia. }
   circuit_row ([(COL_HOST_SUSPEND, 1); (COL_FRAME_MOVE_ACTIVE_BEFORE, 1); (COL_LOCAL_ZERO_ACTIVE_BEFORE, 1);
-    (COL_PADDING_ACTIVE, 1); (COL_GATHER_ACTIVE, 1);
-    (COL_PERM_PENDING_BEFORE, 1); (COL_ONE, 1); (COL_PERM_ROUND_BEFORE_IS_ZERO, -1)],
+    (COL_PADDING_ACTIVE, 1); (COL_GATHER_ACTIVE, 1)],
     [(COL_PC_AFTER, 1); (COL_PC_BEFORE, -1)], ([] : SparseRow)) Hrow.
   expand_row Hrow.
   destruct Hkind as [-> | ->];
@@ -339,7 +333,7 @@ Proof.
   | context [value w ?c] =>
       rewrite (Hother c ltac:(cbn; tauto) ltac:(discriminate)) in Hrow
   end;
-  normalize_columns; rewrite Hone, Hchosen, Hperm in Hrow;
+  normalize_columns; rewrite Hchosen in Hrow;
   pose proof (value_bound w COL_PC_BEFORE); pose proof (value_bound w COL_PC_AFTER);
   field_linear Hrow.
 Qed.

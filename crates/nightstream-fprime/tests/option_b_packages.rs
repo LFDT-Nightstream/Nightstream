@@ -73,7 +73,7 @@ fn relation_rows_match_the_lean_checksum() {
     let fields = parity();
     let packages = packages();
     for (package, summary, logical_rows) in [
-        (packages.light(), &fields[1], 134_746),
+        (packages.light(), &fields[1], 106_595),
         (packages.refresh(), &fields[2], 698_303),
     ] {
         let [ordinary, sbox, checksum, _, _, _] = words(summary)[..] else {

@@ -37,7 +37,7 @@ fn test_columns() -> ColumnRegistry {
             region: "system",
             start: ONE,
             len: 1,
-            name: "ONE",
+            name: "ONE".into(),
             role: "verifier-supplied constant",
             width: ColumnWidth::Field,
         },
@@ -45,7 +45,7 @@ fn test_columns() -> ColumnRegistry {
             region: "state",
             start: BIT,
             len: 1,
-            name: "BIT",
+            name: "BIT".into(),
             role: "transition selector",
             width: ColumnWidth::Boolean,
         },
@@ -53,7 +53,7 @@ fn test_columns() -> ColumnRegistry {
             region: "input",
             start: FACTOR,
             len: 1,
-            name: "FACTOR",
+            name: "FACTOR".into(),
             role: "private factor",
             width: ColumnWidth::Field,
         },
@@ -61,7 +61,7 @@ fn test_columns() -> ColumnRegistry {
             region: "state",
             start: PRODUCT,
             len: 1,
-            name: "PRODUCT",
+            name: "PRODUCT".into(),
             role: "selected product",
             width: ColumnWidth::Field,
         },
@@ -83,26 +83,36 @@ fn exported_macro_declares_contiguous_indices_and_families() {
     assert_eq!(MACRO_TEST_FAMILIES[3].len, 2);
     assert_eq!(MACRO_TEST_FAMILIES[3].width, ColumnWidth::Bits(4));
 
-    let registry = ColumnRegistry::new(MACRO_TEST_FAMILIES.iter().copied()).expect("valid generated registry");
+    let registry = ColumnRegistry::new(MACRO_TEST_FAMILIES.iter().cloned()).expect("valid generated registry");
     assert_eq!(registry.column_count(), MACRO_TEST_WIDTH);
     assert_eq!(
-        registry.family_for_column(0).map(|family| family.name),
+        registry
+            .family_for_column(0)
+            .map(|family| family.name.as_ref()),
         Some("MACRO_FLAG")
     );
     assert_eq!(
-        registry.family_for_column(1).map(|family| family.name),
+        registry
+            .family_for_column(1)
+            .map(|family| family.name.as_ref()),
         Some("MACRO_BYTES")
     );
     assert_eq!(
-        registry.family_for_column(3).map(|family| family.name),
+        registry
+            .family_for_column(3)
+            .map(|family| family.name.as_ref()),
         Some("MACRO_BYTES")
     );
     assert_eq!(
-        registry.family_for_column(4).map(|family| family.name),
+        registry
+            .family_for_column(4)
+            .map(|family| family.name.as_ref()),
         Some("MACRO_TWO_BITS")
     );
     assert_eq!(
-        registry.family_for_column(6).map(|family| family.name),
+        registry
+            .family_for_column(6)
+            .map(|family| family.name.as_ref()),
         Some("MACRO_NIBBLES")
     );
     assert_eq!(registry.family_for_column(7), None);
@@ -115,7 +125,7 @@ fn column_registry_rejects_invalid_custom_bit_widths() {
             region: "invalid",
             start: 0,
             len: 1,
-            name: "INVALID_BITS",
+            name: "INVALID_BITS".into(),
             role: "invalid custom-width value",
             width: ColumnWidth::Bits(bits),
         }])
@@ -123,7 +133,7 @@ fn column_registry_rejects_invalid_custom_bit_widths() {
         assert_eq!(
             error,
             ColumnRegistryError::InvalidBitWidth {
-                name: "INVALID_BITS",
+                name: "INVALID_BITS".into(),
                 bits,
             }
         );
@@ -133,7 +143,7 @@ fn column_registry_rejects_invalid_custom_bit_widths() {
 #[test]
 fn builds_ccs_and_catalog_from_the_same_tagged_rows() {
     let columns = test_columns();
-    let mut builder = R1csBuilder::new(columns.column_count(), 1, ONE).expect("valid builder layout");
+    let mut builder = R1csBuilder::new(1, ONE).expect("valid builder layout");
     builder.with_tag(ConstraintTag::new("selector is boolean", Owner::Domain), |domain| {
         domain.push_boolean(BIT);
         domain.with_tag(
@@ -148,7 +158,7 @@ fn builds_ccs_and_catalog_from_the_same_tagged_rows() {
         equality.push_linear_zero([(PRODUCT, F::ONE), (FACTOR, -F::ONE)]);
     }
 
-    let r1cs = builder.build().expect("valid R1CS relation");
+    let r1cs = builder.build(&columns).expect("valid R1CS relation");
     let relation = ApplicationRelation::new(r1cs, columns).expect("complete application relation");
     assert_eq!(relation.r1cs().structure().n(), 3);
     assert_eq!(relation.r1cs().structure().m(), 4);
@@ -184,13 +194,13 @@ fn builds_ccs_and_catalog_from_the_same_tagged_rows() {
 #[test]
 fn gated_linear_zero_only_enforces_the_expression_when_active() {
     let columns = test_columns();
-    let mut builder = R1csBuilder::new(columns.column_count(), 1, ONE).expect("valid builder layout");
+    let mut builder = R1csBuilder::new(1, ONE).expect("valid builder layout");
     builder.with_tag(ConstraintTag::new("gated equality", Owner::Transition), |b| {
         b.push_boolean(BIT);
         b.push_gated_linear_zero(BIT, [(PRODUCT, F::ONE), (FACTOR, -F::ONE)]);
     });
 
-    let relation = ApplicationRelation::new(builder.build().expect("valid R1CS relation"), columns)
+    let relation = ApplicationRelation::new(builder.build(&columns).expect("valid R1CS relation"), columns)
         .expect("complete application relation");
     let public = [F::ONE];
 
@@ -224,7 +234,7 @@ fn rejects_ambiguous_layouts_and_out_of_range_terms() {
             region: "system",
             start: 0,
             len: 1,
-            name: "ONE",
+            name: "ONE".into(),
             role: "",
             width: ColumnWidth::Field,
         },
@@ -232,7 +242,7 @@ fn rejects_ambiguous_layouts_and_out_of_range_terms() {
             region: "state",
             start: 2,
             len: 1,
-            name: "VALUE",
+            name: "VALUE".into(),
             role: "",
             width: ColumnWidth::Field,
         },
@@ -241,14 +251,14 @@ fn rejects_ambiguous_layouts_and_out_of_range_terms() {
     assert_eq!(
         layout_error,
         ColumnRegistryError::NonContiguous {
-            name: "VALUE",
+            name: "VALUE".into(),
             expected_start: 1,
             actual_start: 2,
         }
     );
 
-    let public_constant_error = R1csBuilder::<Owner>::new(test_columns().column_count(), 0, ONE)
-        .expect_err("the constant-one column must be verifier-supplied");
+    let public_constant_error =
+        R1csBuilder::<Owner>::new(0, ONE).expect_err("the constant-one column must be verifier-supplied");
     assert_eq!(
         public_constant_error,
         R1csBuildError::ConstantOneNotPublic {
@@ -257,13 +267,13 @@ fn rejects_ambiguous_layouts_and_out_of_range_terms() {
         }
     );
 
-    let mut builder = R1csBuilder::new(test_columns().column_count(), 1, ONE).expect("valid builder layout");
+    let mut builder = R1csBuilder::new(1, ONE).expect("valid builder layout");
     builder
         .tagged(ConstraintTag::new("invalid column", Owner::Domain))
         .push_linear_zero([(4, F::ONE)]);
     assert_eq!(
         builder
-            .build()
+            .build(&test_columns())
             .expect_err("out-of-range term must be rejected"),
         R1csBuildError::TermOutOfRange {
             row: 0,
@@ -273,12 +283,24 @@ fn rejects_ambiguous_layouts_and_out_of_range_terms() {
         }
     );
 
-    let mut wider_builder = R1csBuilder::new(5, 1, ONE).expect("valid wider R1CS");
+    let mut wider_builder = R1csBuilder::new(1, ONE).expect("valid wider R1CS");
     wider_builder
         .tagged(ConstraintTag::new("fifth-column relation", Owner::Domain))
         .push_linear_zero([(4, F::ONE)]);
     let coverage_error = ApplicationRelation::new(
-        wider_builder.build().expect("valid wider R1CS relation"),
+        wider_builder
+            .build(
+                &ColumnRegistry::new([ColumnFamilySpec {
+                    region: "test",
+                    start: 0,
+                    len: 5,
+                    name: "WIDE".into(),
+                    role: "test",
+                    width: ColumnWidth::Field,
+                }])
+                .unwrap(),
+            )
+            .expect("valid wider R1CS relation"),
         test_columns(),
     )
     .expect_err("application metadata must cover every R1CS column");

@@ -37,11 +37,10 @@ use neo_ccs::{CcsMatrix, CscMat};
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
 
-use crate::ccs::build_wasm_relation;
 use crate::ir::{WasmAuxOpcode, WasmBuildError, WasmPcEdgeKind, WasmRowKind, WasmStepState, WasmVmStep};
 use crate::isa::{opcode_info_from_code, WasmOpcode};
 use crate::layout::COL_ONE;
-use crate::lookup_circuit::{self, LookupCircuitError};
+use crate::operations::r1cs::{self, OperationCircuitError};
 use crate::relation_layout::build_wasm_relation_layout;
 use crate::sparse_r1cs::{FrontendError, SparseR1cs};
 use crate::witness_builder::build_witness_vector;
@@ -68,44 +67,30 @@ pub enum BatchError {
     #[error("wasm batch relation has {actual} width declarations for {expected} columns")]
     WidthCount { actual: usize, expected: usize },
     #[error(transparent)]
-    Lookup(#[from] LookupCircuitError),
+    Operation(#[from] OperationCircuitError),
     #[error(transparent)]
     Frontend(#[from] FrontendError),
 }
 
 /// Build the batched wasm R1CS for the requested batch size.
 ///
-/// Extends [`build_wasm_relation`] with operation-table constraints before
+/// Extends [`crate::build_wasm_relation`] with operation constraints before
 /// batching. Sources cross-step links from [`build_wasm_relation_layout`]. Every
 /// declared continuity link is emitted as a linking row.
 pub fn build_batched_wasm_ccs(batch_size: usize) -> Result<BatchedWasmCcs, BatchError> {
-    let lookup = single_wasm_relation()?;
-    batch_wasm_relation(&lookup.relation, &lookup.widths, batch_size)
+    let operation = single_wasm_relation()?;
+    batch_wasm_relation(&operation.relation, &operation.widths, batch_size)
 }
 
-/// The single-step WASM relation with its operation-table constraints, which
+/// The single-step WASM relation with its operation constraints, which
 /// `build_batched_wasm_ccs` replicates.
-pub(crate) fn single_wasm_relation() -> Result<lookup_circuit::CompactLookupShape, BatchError> {
-    let relation = build_wasm_relation().expect("valid WASM relation");
-    let core = relation.r1cs();
-    let m_single = core.column_count();
-    assert_eq!(m_single, crate::RANGE_CHECKED_WITNESS_WIDTH);
-    let structure = core.structure();
-    let single = SparseR1cs::new(
-        structure.matrices()[0].clone(),
-        structure.matrices()[1].clone(),
-        structure.matrices()[2].clone(),
-        structure.n(),
-        structure.m(),
-        core.public_input_count(),
-    )?;
-    let widths = crate::witness_layout::range_checked_variable_widths(relation.columns());
-    Ok(lookup_circuit::extend_relation(&single, widths)?)
+pub(crate) fn single_wasm_relation() -> Result<r1cs::OperationShape, BatchError> {
+    Ok(r1cs::single_relation()?)
 }
 
 /// Replicate one authoritative single-step WASM relation into an ordered
-/// batch. This is also used after compact lookup closure, so every block owns
-/// the same arithmetic, lookup, and range-check rows as the single-step path.
+/// batch. This is also used after operation construction, so every block owns
+/// the same arithmetic, operation, and range-check rows as the single-step path.
 pub(crate) fn batch_wasm_relation(
     single: &SparseR1cs,
     single_widths: &[usize],
@@ -203,7 +188,7 @@ pub(crate) fn batch_wasm_relation(
 
 /// Build the witness vector for one batch.
 ///
-/// Each step includes the VM columns, range bits, and lookup advice.
+/// Each step includes the VM columns, range bits, and operation advice.
 /// Each batch covers `batch_size` consecutive step witnesses, concatenated
 /// in trace order. If `traces[batch_idx * batch_size..]` is shorter than
 /// `batch_size`, the tail is padded with synthetic state-preserving
@@ -249,7 +234,7 @@ pub fn build_batched_witness(traces: &[WasmVmStep], batch_size: usize, batch_idx
 }
 
 fn build_step_witness(step: &WasmVmStep) -> Result<Vec<F>, BatchError> {
-    Ok(lookup_circuit::extend_witness(build_witness_vector(step)?)?)
+    Ok(r1cs::extend_witness(build_witness_vector(step)?)?)
 }
 
 /// How many batches a trace of length `n` produces at `batch_size`,
@@ -275,12 +260,7 @@ pub fn batch_count(trace_len: usize, batch_size: usize) -> Result<usize, BatchEr
 /// build here is just the values that satisfy those rows.
 pub fn padding_step_after(prev: &WasmVmStep) -> Result<WasmVmStep, BatchError> {
     let state = prev.state_after;
-    if state.frame_move.active
-        || state.local_zero.active
-        || state.event_absorb.perm_pending
-        || state.event_absorb.perm_round != 0
-        || state.host_events.suspend_pending
-    {
+    if state.frame_move.active || state.local_zero.active || state.host_events.suspend_pending {
         return Err(WasmBuildError::Trace("cannot pad an unfinished auxiliary group".into()).into());
     }
     let pages = prev.state_after.memory_pages;
@@ -378,6 +358,7 @@ pub fn padding_step_after(prev: &WasmVmStep) -> Result<WasmVmStep, BatchError> {
         host_context: None,
         host_event_return_schedule_count: None,
         host_event_rom_slot: None,
+        host_event_word: None,
         host_event_initial_schedule_count: None,
         host_event_exit_schedule_count: None,
     })

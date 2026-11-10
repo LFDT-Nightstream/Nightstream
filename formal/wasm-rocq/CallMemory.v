@@ -279,10 +279,6 @@ Proof.
   pose proof (Hother COL_TURN_BOUNDARY ltac:(cbn; tauto) ltac:(discriminate)) as Hturn.
   pose proof (Hother COL_HOST_RESUME ltac:(cbn; tauto) ltac:(discriminate)) as Hresume.
   pose proof (Hother COL_HOST_SUSPEND ltac:(cbn; tauto) ltac:(discriminate)) as Hsuspend.
-  pose proof (Hother COL_PERM_PENDING_BEFORE ltac:(cbn; tauto) ltac:(discriminate)) as Hpending.
-  assert (Hperm : w COL_PERM_ROUND_BEFORE_IS_ZERO = 1).
-  { destruct (full_row_kind_sum w Hprime Hfull) as [Hsum Hbound].
-    pose proof (selector_sum_one w rowKindFlags COL_PADDING_ACTIVE ltac:(cbn; tauto)). lia. }
   pose proof (full_aux_selectors_zero w Hprime Hfull Hprogram) as Hselectors.
   pose proof (full_quiet_from_gates w Hprime Hfull Hgather) as [Hkinds Hhi Hlocal Houtput].
   destruct (full_no_gather_local_ports w Hfull Hgather) as [HgatherLocal HgatherLocalLo].
@@ -344,8 +340,7 @@ Proof.
   circuit_range COL_FRAME_MOVE_REMAINING_AFTER Hmra. circuit_range COL_LOCAL_ZERO_REMAINING_AFTER Hzra.
   circuit_range COL_FRAME_MOVE_DISTANCE_BEFORE Hdib. circuit_range COL_FRAME_MOVE_DISTANCE_AFTER Hdia.
   circuit_row ([(COL_HOST_SUSPEND, 1); (COL_FRAME_MOVE_ACTIVE_BEFORE, 1); (COL_LOCAL_ZERO_ACTIVE_BEFORE, 1);
-    (COL_PADDING_ACTIVE, 1); (COL_GATHER_ACTIVE, 1); (COL_PERM_PENDING_BEFORE, 1); (COL_ONE, 1);
-    (COL_PERM_ROUND_BEFORE_IS_ZERO, -1)], [(COL_PC_AFTER, 1); (COL_PC_BEFORE, -1)], ([] : SparseRow)) Hpc.
+    (COL_PADDING_ACTIVE, 1); (COL_GATHER_ACTIVE, 1)], [(COL_PC_AFTER, 1); (COL_PC_BEFORE, -1)], ([] : SparseRow)) Hpc.
   circuit_row ([(COL_PADDING_ACTIVE, 1)], [(COL_LOCALS_FBP_AFTER, 1); (COL_LOCALS_FBP_BEFORE, -1)],
     ([] : SparseRow)) Hfbp.
   circuit_row ([(COL_PADDING_ACTIVE, 1)], [(COL_STACK_FRAME_BASE_AFTER, 1); (COL_STACK_FRAME_BASE_BEFORE, -1)],
@@ -361,7 +356,7 @@ Proof.
     [(COL_LOCAL_ZERO_REMAINING_AFTER, 1); (COL_LOCAL_ZERO_REMAINING_BEFORE, -1)], ([] : SparseRow)) Hzero.
   expand_row Hpc. expand_row Hfbp. expand_row Hbase. expand_row Hdepth. expand_row Hmove. expand_row Hdistance.
   expand_row Hzero.
-  rewrite Hsuspend, Hma, Hza, Hpadding, Hgather, Hpending, Hone, Hperm in Hpc.
+  rewrite Hsuspend, Hma, Hza, Hpadding, Hgather in Hpc.
   rewrite Hpadding in Hfbp, Hbase, Hdepth, Hmove. rewrite Hma, Hpadding in Hdistance.
   rewrite Hone, Hguest, Hturn, Hza, Hzr in Hzero.
   assert (HmoveAfter : w COL_FRAME_MOVE_REMAINING_AFTER = 0) by (rewrite Hmr in Hmove; field_linear Hmove).

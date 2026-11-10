@@ -223,6 +223,42 @@ abbrev refreshPieces (relation : ProductionKey.LogicalRelation logicalWidth publ
     (RefreshAssembler.sharedEnd StepRelation.base program.witnessWordCount)
     (StepRelation.refreshDigestColumn program)
 
+/-- The operations of the light circuit at its shared end. -/
+def lightOps (relation : ProductionKey.LogicalRelation logicalWidth publicFits) : List Op :=
+  Circuit.ops (LightStepLayout.main program relation 0
+      (LightAssembler.interface (logicalWidth := logicalWidth) (publicFits := publicFits)
+        StepRelation.base program.witnessWordCount))
+    (LightAssembler.sharedEnd StepRelation.base program.witnessWordCount)
+
+/-- The operations of the refresh circuit at its shared end. -/
+def refreshOps (relation : ProductionKey.LogicalRelation logicalWidth publicFits) : List Op :=
+  Circuit.ops (RefreshStepLayout.main program relation 1
+      (RefreshAssembler.interface (logicalWidth := logicalWidth) (publicFits := publicFits)
+        StepRelation.base program.witnessWordCount))
+    (RefreshAssembler.sharedEnd StepRelation.base program.witnessWordCount)
+
+/-- The pieces that the emitter writes for a step circuit: the pieces of the circuit's
+constraints, then of the decode constraints of its output digest. -/
+def piecesOf (ops : List Op) (digestColumn : Fin 4 → Nat) : List Piece :=
+  split (PilotData.canonicalConstraints ())
+    (flatConstraints ops ++ LogicalPlan.decodeConstraints digestColumn)
+
+/-- The emitter's light pieces are the pieces of `StepRelation.light_stepHolds` and
+`light_complete`, for every commitment key. -/
+theorem piecesOf_lightOps (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits)) :
+    piecesOf (lightOps program relation) (StepRelation.lightDigestColumn program) =
+      lightPieces program relation ajtai :=
+  rfl
+
+/-- The emitter's refresh pieces are the pieces of `StepRelation.refresh_stepHolds` and
+`refresh_complete`, for every commitment key. -/
+theorem piecesOf_refreshOps (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits)) :
+    piecesOf (refreshOps program relation) (StepRelation.refreshDigestColumn program) =
+      refreshPieces program relation ajtai :=
+  rfl
+
 /-- An honest light step's assignment (`LightAssemblerCompleteness.complete`) gives a fresh
 instance with public input `encHash` of the step's output hash that holds under the light key,
 with a witness that is zero past the package's logical width. -/

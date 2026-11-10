@@ -121,7 +121,7 @@ HEADER_LABELS = {
     "application[4]": "The fresh columns of the application region, from `firstFresh`.",
 }
 PARITY_LABELS = {
-    "relationRows": "R1CS rows of the {} relation, from the pieces, the ring products and the bindings.",
+    "relationRows": "R1CS rows of the {} relation, from the pieces and the ring products.",
     "sboxRows": "S-box rows of the {} relation, 150 for each Poseidon2 block.",
 }
 for circuit in ("light", "refresh", "finish"):

@@ -248,6 +248,43 @@ theorem completeEnv_rows (packed : packable publicColumns pieces = true)
   rw [← startEq] at columnBelow
   exact completeEnv_low columnBelow
 
+/-- An output local of a block has its value in `env`, in the environment with the output forms
+and in the completed environment, when the layout reads the completed environment on the S-box
+columns, the block's constraints hold in `env`, and the blocks pack below `next`. -/
+theorem outputEnv_complete (packed : packable publicColumns pieces = true)
+    (below : ∀ piece ∈ pieces, pieceBelow next piece = true) (env : Env)
+    (holds : ∀ piece ∈ pieces,
+      ConstraintsHold env (piece.constraints (PilotData.canonicalConstraints ())))
+    {logicalWidth : Nat} (layout : LogicalPlan.Layout width logicalWidth)
+    (assignment : Assignment F logicalWidth)
+    (represents : ∀ column, Reads pieces next column →
+      LogicalPlan.sourceEnv layout assignment column = completeEnv pieces next env column)
+    (index : Fin (blocksOf pieces).length) (lane : Fin 16) :
+    NativeBlock.outputEnv (blocksOf pieces) (sboxStart pieces next) layout assignment
+        (((blocksOf pieces).get index).start + 1080 + lane.val) =
+        env (((blocksOf pieces).get index).start + 1080 + lane.val) ∧
+      completeEnv pieces next env (((blocksOf pieces).get index).start + 1080 + lane.val) =
+        env (((blocksOf pieces).get index).start + 1080 + lane.val) := by
+  have frame := packable_framed packed
+  have nextLe : next ≤ (sboxStart pieces next) := next_le_sboxStart pieces next
+  have member := permutation_mem_of_block (List.get_mem (blocksOf pieces) index)
+  have pieceBelowNext := below _ member
+  simp only [pieceBelow, Bool.and_eq_true, decide_eq_true_eq] at pieceBelowNext
+  have laneLt := lane.isLt
+  constructor
+  · refine NativeBlock.outputEnv_honest frame _ layout assignment env index (holds _ member)
+      (fun row => ?_) lane
+    have rowLt : row.val < 150 := by simpa using row.isLt
+    have room : index.val * 150 + 150 ≤ (blocksOf pieces).length * 150 := by
+      have := Nat.mul_le_mul_right 150 (Nat.succ_le_of_lt index.isLt)
+      simpa [Nat.succ_mul] using this
+    rw [represents _ (Or.inr ⟨by unfold sboxColumn; omega, by unfold sboxColumn slotEnd; omega⟩)]
+    exact completeEnv_sbox index row
+  · have live := NativeBlock.output_live frame (List.get_mem (blocksOf pieces) index) lane
+    simp only [List.get_eq_getElem] at live
+    rw [completeEnv_low (by omega), executePieces_below _ _ _ _ _ (by omega)]
+    simp [liveEnv, live]
+
 /-- An assignment whose layout reads the completed environment on each column that the relation
 reads satisfies the plan of the packed relation, when every piece's constraints hold in `env`,
 every piece reads only columns below `next`, and the blocks pack. -/

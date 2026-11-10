@@ -9,7 +9,8 @@ import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
 import NightstreamFPrime.Spec.Nebula
 
 /-! `lifecycle/option_b/final_program.rs::FinalProgram::run` (CW-6.5): the statement and a positive
-iteration; the finish package's columns below its S-box columns, with column 0 one and the
+iteration; the finish package's columns below its S-box columns, a cell for each column that the
+program reads (`live`) and the constant 0 for each other column, with column 0 one and the
 statement and the state keys bound to their shared words; the package's rows other than the
 blocks' S-box and binding rows as one R1CS block, each row with its constant on column 0
 (`Terminal.Package.row`); each Poseidon2 block as the permutation of its input lanes into its
@@ -44,11 +45,11 @@ def witnessWord : ℕ := currentWord + 8
 /-- `final_program.rs::SLOT_WORDS`. -/
 def slotWords : ℕ := 2055
 
-/-- `final_program.rs::FinalProgram::slot_start`: slot `slot` of the step's seven. -/
+/-- `final_program.rs::Finish::slot_start`: slot `slot` of the step's seven. -/
 def slotStart (witnessWords slot : ℕ) : ℕ := witnessWord + witnessWords + slot * slotWords
 
-/-- The fresh public input's first bit (`FinalProgram::seed`): after the slot and output digests,
-the fresh commitment and the public input's constant one. -/
+/-- The fresh public input's first bit (`Finish::fresh_public_start`, `FinalProgram::seed`): after
+the slot and output digests, the fresh commitment and the public input's constant one. -/
 def bitsStart (witnessWords : ℕ) : ℕ := slotStart witnessWords 7 + 20 + 1188 + 1
 
 /-- `option_b.rs::Linear::scale`. -/
@@ -75,6 +76,39 @@ def linearForm :
 /-- `final_program.rs::Finish::new`: the rows of the package's pieces, before the binding rows. -/
 def finishRows (finish : Package) : List (Shrink.R1csRow Word) :=
   (finish.pieces.flatMap PackagePiece.relationRows).map (Terminal.Package.row 0)
+
+/-- `final_program.rs::Finish::program_reads`: the columns that `FinalProgram::run` reads outside the
+rows and the blocks. They are the constant, the statement and key words, the two slot claims of
+layer 1 and the bits of the state hash. -/
+def programReads (witnessWords : ℕ) : List ℕ :=
+  ([(0, 1), (iterationWord, 1), (keysWord, 8), (z0Word, 4), (currentWord, 4),
+      (slotStart witnessWords 5, slotWords - 1), (slotStart witnessWords 6, slotWords - 1),
+      (bitsStart witnessWords, 4 * 64)] : List (ℕ × ℕ)).flatMap fun range => List.range' range.1 range.2
+
+/-- `Finish::new`: `live` with the column of each term set. -/
+def mark {α : Type} (column : α → ℕ) (live : Array Bool) (terms : List α) : Array Bool :=
+  terms.foldl (fun live term => live.set! (column term) true) live
+
+/-- `Finish::new`: the columns below the S-box columns that the final program reads (`live`). They
+are the columns of the rows, of each block's lanes and outputs, and `programReads`. -/
+def liveColumns (rows : List (Shrink.R1csRow Word)) (blocks : List NightstreamFPrime.Export.Generic.Frame.Block)
+    (witnessWords sboxStart : ℕ) : Array Bool :=
+  let live := rows.foldl (fun live row => mark Prod.fst (mark Prod.fst (mark Prod.fst live row.a) row.b) row.c)
+    (Array.replicate sboxStart false)
+  let live := blocks.foldl (fun live block =>
+    mark id (block.lanes.foldl (fun live lane => mark Prod.fst live ((linearForm lane).getD (0, [])).2) live)
+      (List.range' (block.start + 1080) 16)) live
+  mark id live (programReads witnessWords)
+
+/-- `Finish::live`: the live columns of the finish package. -/
+def live (finish : Package) : Array Bool :=
+  liveColumns (finishRows finish) finish.blocks finish.application.1 finish.sboxStart
+
+/-- `FinalProgram::run`, the forms of `Columns`: the next cell from `first` for each live column,
+`zeroForm` for each other column. -/
+def columnForms (live : Array Bool) (first zeroForm : Var) : Array Var :=
+  (live.foldl (fun (state : Array Var × Var) flag =>
+    if flag then (state.1.push state.2, state.2 + 1) else (state.1.push zeroForm, state.2)) (#[], first)).1
 
 /-- One input lane of a block (`FinalProgram::run`): its constant, plus each scaled term. -/
 def laneValue (column : ℕ → Var) (lane : NightstreamFPrime.Circuit.Expr) : Build Var := do
@@ -142,23 +176,34 @@ def bindWords (column : ℕ → Var) (statement : Array Var) (one : Var) (stateK
 def checkBlocks (column : ℕ → Var) (blocks : List NightstreamFPrime.Export.Generic.Frame.Block) : Build Unit :=
   blocks.forM (checkBlock column)
 
-/-- `FinalProgram::run` before layer 1: the statement handles, the finish columns' first handle. -/
-def finishPrefix (finish : Package) (stateKeys : List Word) : Build (Array Var × Var) := do
+/-- `FinalProgram::run` from the hint of the finish columns to the blocks. A live column has its
+cell of the hint, and each other column has the constant 0. The result is the handle of each
+column (`Columns::at`). -/
+def finishColumns (rows : List (Shrink.R1csRow Word)) (blocks : List NightstreamFPrime.Export.Generic.Frame.Block)
+    (live : Array Bool) (statement : Array Var) (one : Var) (stateKeys : List Word) : Build (ℕ → Var) := do
+  let first ← Build.emit (.hint (live.count true))
+  let zeroForm ← Build.const 0
+  let forms := columnForms live first zeroForm
+  let column : ℕ → Var := fun k => forms.getD k zeroForm
+  bindWords column statement one stateKeys
+  Build.r1cs rows forms.toList
+  checkBlocks column blocks
+  pure column
+
+/-- `FinalProgram::run` before layer 1: the statement handles and the handle of each finish column. -/
+def finishPrefix (finish : Package) (stateKeys : List Word) : Build (Array Var × (ℕ → Var)) := do
   let statement ← (Array.range Terminal.Program.statementWords).mapM fun _ => Build.pub
   let inverse ← Build.emit (.hint 1)
   let product ← Build.mul (statement.getD 0 0) inverse
   let one ← Build.const 1
   Build.assertEqual product one
-  let first ← Build.emit (.hint finish.sboxStart)
-  let column : ℕ → Var := fun k => first + k
-  bindWords column statement one stateKeys
-  Build.r1cs (finishRows finish) ((List.range finish.sboxStart).map column)
-  checkBlocks column finish.blocks
-  pure (statement, first)
+  let rows := finishRows finish
+  let column ← finishColumns rows finish.blocks
+    (liveColumns rows finish.blocks finish.application.1 finish.sboxStart) statement one stateKeys
+  pure (statement, column)
 
 /-- `FinalProgram::run` for one slot: its seed, then the layer-1 verifier of its next claim. -/
-def slotLayer1 (finish : Package) (key : Layer1Key) (first slot : ℕ) : Build Unit := do
-  let column : ℕ → Var := fun k => first + k
+def slotLayer1 (finish : Package) (key : Layer1Key) (column : ℕ → Var) (slot : ℕ) : Build Unit := do
   let state ← seed column (bitsStart finish.application.1) slot
   verifyWith key state (claimAt column (slotStart finish.application.1 (5 + slot)))
 

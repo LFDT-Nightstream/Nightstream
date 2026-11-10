@@ -35,8 +35,8 @@ instance verifyWith_appends (key : Layer1Key) (state : Fin 16 → Var) (claim : 
 instance seed_appends (column : ℕ → Var) (bits slot : ℕ) : Appends (seed column bits slot) := by
   unfold seed; appends
 
-instance slotLayer1_appends (finish : Package) (key : Layer1Key) (first slot : ℕ) :
-    Appends (slotLayer1 finish key first slot) := by
+instance slotLayer1_appends (finish : Package) (key : Layer1Key) (column : ℕ → Var) (slot : ℕ) :
+    Appends (slotLayer1 finish key column slot) := by
   unfold slotLayer1; appends
 
 /-- Every builder ensures `True`. -/
@@ -73,7 +73,7 @@ theorem EnsuresAt.bind_run {α β : Type} {p : Builder} {b : Build α} {f : α �
   exact EnsuresAt.bind hb hf hb' hf'
 
 theorem seedRun_eq (finish : Package) (stateKeys : List Word) (keys : Fin 2 → Layer1Key) (slot : Fin 2) :
-    (seed (fun k => (prefixRun finish stateKeys).1.2 + k) (bitsStart finish.application.1) slot).run
+    (seed (prefixRun finish stateKeys).1.2 (bitsStart finish.application.1) slot).run
       (slotBuilder finish stateKeys keys slot) = seedRun finish stateKeys keys slot := by
   unfold seedRun; rfl
 
@@ -113,7 +113,7 @@ theorem slotLayer1_at {finish : Package} {stateKeys : List Word} {keys : Fin 2 �
       s.classIndex < (keys slot).relation.key.layout.classes.size ∧ s.lane < Replay.D)
     (fit : fits finish = true)
     (columns : ∀ k < finish.sboxStart,
-      (prefixRun finish stateKeys).1.2 + k < (slotBuilder finish stateKeys keys slot).values) :
+      (prefixRun finish stateKeys).1.2 k < (slotBuilder finish stateKeys keys slot).values) :
     EnsuresAt c (slotBuilder finish stateKeys keys slot)
       (slotLayer1 finish (keys slot) (prefixRun finish stateKeys).1.2 slot)
       fun _ _ => ∃ points t', Spec.Runs (Replay.verify (keys slot).relation (seedWith finish stateKeys keys slot w)

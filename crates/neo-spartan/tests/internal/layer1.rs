@@ -152,18 +152,12 @@ pub(super) fn whir_mutations(proof: &Proof) -> Vec<(&'static str, Proof)> {
         change(&mut changed);
         cases.push((name, changed));
     };
-    // A WHIR part is changed in each opening that has it, and every part is
-    // in at least one opening.
+    // Each WHIR part is changed in both openings, so the toy must give both
+    // every part: a round, and a final phase with fewer queries than leaves
+    // (otherwise WHIR opens every leaf and the opening has no sibling).
     let mut whir = |names: [&'static str; 2], change: &dyn Fn(&mut crate::pcs::Opening) -> bool| {
-        let in_p1 = change(&mut proof.p1_opening.clone());
-        let in_p0 = change(&mut proof.p0_opening.clone());
-        assert!(in_p1 || in_p0, "no opening has {}", names[0]);
-        if in_p1 {
-            push(names[0], &|p| assert!(change(&mut p.p1_opening)));
-        }
-        if in_p0 {
-            push(names[1], &|p| assert!(change(&mut p.p0_opening)));
-        }
+        push(names[0], &|p| assert!(change(&mut p.p1_opening), "no {}", names[0]));
+        push(names[1], &|p| assert!(change(&mut p.p0_opening), "no {}", names[1]));
     };
     whir(["P1 WHIR initial OOD", "P0 WHIR initial OOD"], &|o| {
         bump(o.whir.initial_ood_answers.first_mut())
@@ -377,7 +371,7 @@ fn relation_shape_has_the_lean_constants() {
 
 #[test]
 fn true_claims_verify_and_every_tampered_part_rejects() {
-    let (toy, setup, _scratch) = setup_toy(2, 64, 6);
+    let (toy, setup, _scratch) = setup_toy(2, 256, 6);
     let relation = relation_of(&toy, setup.key());
     assert!(relation.security_bits() >= BITS);
     let proof = prove(

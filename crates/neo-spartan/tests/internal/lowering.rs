@@ -536,10 +536,10 @@ fn option_b_layer1_matches_lean() {
 /// computes it from Lean's program (`digest` on its `layer1` line). Update a
 /// pin only after `lowering_matches_lean` passes, from that line.
 const TOY_LAYER1_DIGEST: [u64; 4] = [
-    8834770369655573788,
-    14965392242930551430,
-    6049222175714157944,
-    1350642674344842934,
+    7060537862107334524,
+    14186011307060127537,
+    17274890029042770224,
+    2034888625771091173,
 ];
 
 #[test]

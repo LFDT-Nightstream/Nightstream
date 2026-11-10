@@ -39,8 +39,8 @@ def check (finish : Package) (stateKeys : List Word) (lean : Task (Array Instr))
   let lean := lean.get
   samePrograms lean rust
   let upToLayer1 : Build Unit := do
-    let (_, first) ← OptionB.finishPrefix finish stateKeys
-    let _ ← OptionB.seed (fun k => first + k) (OptionB.bitsStart finish.application.1) 0
+    let (_, column) ← OptionB.finishPrefix finish stateKeys
+    let _ ← OptionB.seed column (OptionB.bitsStart finish.application.1) 0
   let prefixDigest := Task.spawn fun _ => digest upToLayer1.program
   let wholeDigest := digest lean
   pure s!"finish package fits; match: all {lean.size} instructions of option B's final program, \

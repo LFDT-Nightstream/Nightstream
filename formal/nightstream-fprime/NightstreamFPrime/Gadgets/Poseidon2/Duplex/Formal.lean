@@ -23,6 +23,16 @@ def Action.recipeCount : Action → Nat
   | .absorb input => (Hash.inputChunks input).length * 1096
   | .readK _ _ => 0
 
+/-- Compiled code counts the chunks from the input length and builds no chunk. -/
+def Action.recipeCountFast : Action → Nat
+  | .absorb input => (input.length + Spec.Poseidon2.rate - 1) / Spec.Poseidon2.rate * 1096
+  | .readK _ _ => 0
+
+@[csimp] theorem Action.recipeCount_eq_recipeCountFast :
+    @Action.recipeCount = @Action.recipeCountFast := by
+  funext action
+  cases action <;> simp [Action.recipeCount, Action.recipeCountFast, Hash.inputChunks]
+
 def recipeCount (actions : List Action) : Nat :=
   (actions.map Action.recipeCount).sum
 

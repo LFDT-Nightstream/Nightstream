@@ -374,6 +374,42 @@ def stepRecipes (start : Nat) : Step → EState → List Expr
       sboxes.recipes ++ List.ofFn
         (Layer.internalE (partialSboxState start round state))
 
+/-- `stepRecipes` with the S-box outputs of a full round built once into an array, for compiled
+evaluation: `fullSboxState` compiles the 16 S-boxes again for each lane that the external layer
+reads. The array is built in this body, so the compiler cannot move it into the lane function. -/
+def stepRecipesFast (start : Nat) : Step → EState → List Expr
+  | .initialLayer, state => List.ofFn (Layer.externalE state)
+  | .initialFullRound round, state =>
+      let sboxes := compileSboxes start
+        (fullInputs Spec.Poseidon2.initialConstants round state)
+      let outputs := sboxes.outputs.toArray
+      sboxes.recipes ++ List.ofFn (Layer.externalE fun lane => outputs.getD lane.val 0)
+  | .terminalFullRound round, state =>
+      let sboxes := compileSboxes start
+        (fullInputs Spec.Poseidon2.terminalConstants round state)
+      let outputs := sboxes.outputs.toArray
+      sboxes.recipes ++ List.ofFn (Layer.externalE fun lane => outputs.getD lane.val 0)
+  | .partialRound round, state =>
+      let sboxes := compileSboxes start [partialInput round state]
+      let lanes := Array.ofFn (partialSboxState start round state)
+      sboxes.recipes ++ List.ofFn
+        (Layer.internalE fun lane => lanes[lane.val]'(by simp [lanes]))
+
+@[csimp] theorem stepRecipes_eq_stepRecipesFast : @stepRecipes = @stepRecipesFast := by
+  funext start step state
+  have full : ∀ (rows : List (List Nat)) (round : Nat),
+      (fun lane : Fin 16 => (compileSboxes start
+        (fullInputs rows round state)).outputs.toArray.getD lane.val 0) =
+      fullSboxState start rows round state := by
+    intro rows round
+    funext lane
+    simp [fullSboxState, Array.getD_eq_getD_getElem?, List.getD_eq_getElem?_getD]
+  cases step with
+  | initialLayer => rfl
+  | initialFullRound round => simp only [stepRecipes, stepRecipesFast, full]
+  | terminalFullRound round => simp only [stepRecipes, stepRecipesFast, full]
+  | partialRound round => simp only [stepRecipes, stepRecipesFast, Array.getElem_ofFn]
+
 def stepOutput (start : Nat) : Step → EState
   | .initialLayer => freshState start
   | .initialFullRound _ | .terminalFullRound _ =>

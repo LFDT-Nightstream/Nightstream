@@ -37,7 +37,7 @@ pub use parse::{WasmProgramArtifacts, WasmProgramDecodeEntry, WasmProgramTables}
 pub struct WasmtimeTraceStep {
     /// Host-to-guest activation depth, distinct from guest call-stack depth.
     pub activation_depth: usize,
-    /// The cycle for memory and op-table lookups
+    /// The cycle of this step
     pub step: u64,
     pub function: String,
     pub function_index: Option<u32>,

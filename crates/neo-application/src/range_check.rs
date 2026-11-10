@@ -72,12 +72,12 @@ impl RangeCheckLayout {
                 base_columns
                     .families()
                     .iter()
-                    .copied()
+                    .cloned()
                     .chain([ColumnFamilySpec {
                         region: bit_family.region,
                         start: base_column_count,
                         len: bit_column_count,
-                        name: bit_family.name,
+                        name: bit_family.name.into(),
                         role: bit_family.role,
                         width: ColumnWidth::Boolean,
                     }]),
@@ -126,14 +126,14 @@ impl RangeCheckLayout {
             match family.width {
                 ColumnWidth::Field => {}
                 ColumnWidth::Boolean => {
-                    builder.with_tag(ConstraintTag::new(family.name, owner.clone()), |builder| {
+                    builder.with_tag(ConstraintTag::new(family.name.clone(), owner.clone()), |builder| {
                         for column in family.start..family.end() {
                             builder.push_boolean(column);
                         }
                     });
                 }
                 ColumnWidth::Byte | ColumnWidth::U32 | ColumnWidth::Bits(_) => {
-                    builder.with_tag(ConstraintTag::new(family.name, owner.clone()), |builder| {
+                    builder.with_tag(ConstraintTag::new(family.name.clone(), owner.clone()), |builder| {
                         for column in family.start..family.end() {
                             let bits = self
                                 .bit_columns_for(column)

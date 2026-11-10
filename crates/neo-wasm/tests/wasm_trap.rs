@@ -290,7 +290,7 @@ fn assert_hidden_table_oob_is_rejected(wat: &str, export_fref: u32, opcode: Wasm
         .map(|row| build_witness_vector(row).expect("witness"))
         .collect();
     for witness in &witnesses {
-        neo_wasm::sanity_check_lookup_row(&layout.auxiliary, witness).expect("lookup semantics");
+        neo_wasm::audit_operation_witness(witness).expect("operation circuit");
     }
     neo_application::check_continuity_rows(&layout.auxiliary.continuity, &witnesses).expect("forged trace continuity");
     let mut preload = preload_from_program_artifacts(honest.artifacts());

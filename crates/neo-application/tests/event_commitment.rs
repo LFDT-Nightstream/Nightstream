@@ -66,9 +66,9 @@ fn pow7_assigns_all_powers_and_rejects_tampering() {
         expression: [(1, F::ONE)],
         powers: [2, 3, 4, 5],
     };
-    let mut builder = R1csBuilder::new(6, 1, ONE).unwrap();
+    let mut builder = R1csBuilder::new(1, ONE).unwrap();
     gadget.push_constraints(&mut builder.tagged(ConstraintTag::new("x^7", "test")));
-    let relation = builder.build().unwrap();
+    let relation = builder.build(&test_columns(6)).unwrap();
     let mut assignment = vec![F::ONE, F::from_u64(9), F::ZERO, F::ZERO, F::ZERO, F::ZERO];
     gadget.assign(&mut assignment);
     assert_satisfied(&relation, &assignment);
@@ -106,11 +106,11 @@ fn selectable_rounds_match_the_native_round_functions() {
         state_after: partial_after,
         powers: core::array::from_fn(|offset| PARTIAL_POWERS + offset),
     };
-    let mut builder = R1csBuilder::new(WIDTH, 1, ONE).unwrap();
+    let mut builder = R1csBuilder::new(1, ONE).unwrap();
     let mut tagged = builder.tagged(ConstraintTag::new("round", "test"));
     full.push_constraints(&mut tagged);
     partial.push_constraints(&mut tagged);
-    let relation = builder.build().unwrap();
+    let relation = builder.build(&test_columns(WIDTH)).unwrap();
 
     let mut assignment = vec![F::ZERO; WIDTH];
     assignment[ONE] = F::ONE;
@@ -184,9 +184,9 @@ fn unrolled_commitment_matches_native_and_retains_one_semantic_occurrence() {
         output: core::array::from_fn(|lane| OUTPUT + lane),
         auxiliary_start: AUXILIARY,
     };
-    let mut builder = R1csBuilder::new(WIDTH, 1, ONE).unwrap();
+    let mut builder = R1csBuilder::new(1, ONE).unwrap();
     gadget.push_constraints(&mut builder.tagged(ConstraintTag::new("event block", "test")));
-    let relation = builder.build().unwrap();
+    let relation = builder.build(&test_columns(WIDTH)).unwrap();
 
     assert_eq!(gadget.auxiliary_range(), AUXILIARY..WIDTH);
     // 12 premix + 8 × (48 S-box + 12 output) + 11 × (8 S-box + 12 output)
@@ -244,4 +244,16 @@ fn grouped_round_order_matches_the_native_permutation() {
     }
     let compressed: [F; 4] = core::array::from_fn(|lane| state[lane] + previous[lane]);
     assert_eq!(compressed, commit_block(previous, block));
+}
+
+fn test_columns(len: usize) -> neo_application::ColumnRegistry {
+    neo_application::ColumnRegistry::new([neo_application::ColumnFamilySpec {
+        region: "test",
+        start: 0,
+        len,
+        name: "ALL".into(),
+        role: "test columns",
+        width: neo_application::ColumnWidth::Field,
+    }])
+    .unwrap()
 }

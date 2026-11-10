@@ -8,10 +8,7 @@ use std::sync::OnceLock;
 
 use crate::ccs::host_event_chain::{AUX_COLUMN_FAMILIES, AUX_WIDTH};
 use crate::layout::{ColumnFamilySpec, HOST_EVENT_COLUMN_FAMILIES, NAMED_COLUMN_COUNT, WASM_COLUMN_FAMILIES};
-use neo_application::{
-    decomposition_bit_count, range_checked_variable_widths as shared_variable_widths, ColumnRegistry,
-    RangeCheckBitFamily, RangeCheckLayout,
-};
+use neo_application::{decomposition_bit_count, ColumnRegistry, RangeCheckBitFamily, RangeCheckLayout};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct WitnessRegion {
@@ -85,7 +82,7 @@ pub const RANGE_CHECKED_WITNESS_WIDTH: usize = RANGE_BITS.end();
 pub(crate) fn range_check_layout() -> &'static RangeCheckLayout {
     static LAYOUT: OnceLock<RangeCheckLayout> = OnceLock::new();
     LAYOUT.get_or_init(|| {
-        let layout = RangeCheckLayout::new(declared_witness_column_families().copied(), RANGE_BITS_FAMILY)
+        let layout = RangeCheckLayout::new(declared_witness_column_families().cloned(), RANGE_BITS_FAMILY)
             .expect("valid WASM range-check layout");
         assert_eq!(layout.base_column_count(), DECLARED_WITNESS_COLUMN_COUNT);
         assert_eq!(layout.column_count(), RANGE_CHECKED_WITNESS_WIDTH);
@@ -95,12 +92,4 @@ pub(crate) fn range_check_layout() -> &'static RangeCheckLayout {
 
 pub(crate) fn range_checked_column_registry() -> ColumnRegistry {
     range_check_layout().columns().clone()
-}
-
-/// Declared F' widths of the variables in the range-checked WASM witness.
-pub(crate) fn range_checked_variable_widths(columns: &ColumnRegistry) -> Vec<usize> {
-    let widths = shared_variable_widths(columns);
-
-    assert_eq!(widths.len(), RANGE_CHECKED_WITNESS_WIDTH);
-    widths
 }

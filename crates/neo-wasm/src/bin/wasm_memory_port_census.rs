@@ -9,7 +9,7 @@ fn main() {
     println!("conservative singleton slots: {}", plan.conservative_singletons);
     for (&atom, &load) in &plan.support_loads {
         if load == max_load {
-            let name = named_column_family(atom).map_or("unknown", |family| family.name);
+            let name = named_column_family(atom).map_or("unknown", |family| family.name.as_ref());
             println!("busiest support atom: {name} (column {atom})");
         }
     }

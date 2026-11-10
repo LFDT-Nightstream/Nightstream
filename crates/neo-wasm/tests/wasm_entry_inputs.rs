@@ -493,7 +493,7 @@ fn i64_entry_memory_pointer_high_limb_cannot_be_hidden() {
         .map(|row| neo_wasm::witness_builder::build_witness_vector(row).expect("witness"))
         .collect();
     for witness in &witnesses {
-        neo_wasm::sanity_check_lookup_row(&layout.auxiliary, witness).expect("lookup semantics");
+        neo_wasm::audit_operation_witness(witness).expect("operation circuit");
     }
     neo_application::check_continuity_rows(&layout.auxiliary.continuity, &witnesses)
         .expect("self-consistent forged trace");

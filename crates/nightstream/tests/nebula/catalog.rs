@@ -76,11 +76,11 @@ fn port(address: &[usize], value: usize, kind: MemoryPortKind, activation: Memor
 }
 
 fn registry(flags: usize, columns: usize) -> ColumnRegistry {
-    let family = |start, len, name, width| ColumnFamilySpec {
+    let family = |start, len, name: &'static str, width| ColumnFamilySpec {
         region: "test",
         start,
         len,
-        name,
+        name: name.into(),
         role: "test",
         width,
     };

@@ -41,6 +41,7 @@ import NightstreamFPrime.Export.OptionB.StepRelation
 import NightstreamFPrime.Export.OptionB.StepPackage
 import NightstreamFPrime.Export.Generic.SlotLayout
 import NightstreamFPrime.Export.Generic.NativeBlock
+import NightstreamFPrime.Export.Generic.Substitute
 import NightstreamFPrime.Export.Generic.PieceRowsCompleteness
 import NightstreamFPrime.Layout.OptionB.RefreshAssemblerCompleteness
 import NightstreamFPrime.Export.OptionB.TerminalBridge
@@ -399,7 +400,18 @@ open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 #audit_axioms NightstreamFPrime.Export.Generic.LogicalPlan.encoded_one
 #audit_axioms NightstreamFPrime.Export.Generic.SlotLayout.kindOf_kindCode
 #audit_axioms NightstreamFPrime.Export.Generic.CircuitRelation.toCombination_eval
+#audit_axioms NightstreamFPrime.Export.Generic.Substitute.term_eval
+#audit_axioms NightstreamFPrime.Export.Generic.Substitute.substitute_eval
+#audit_axioms NightstreamFPrime.Export.Generic.Substitute.row_holds
+#audit_axioms NightstreamFPrime.Export.Generic.Substitute.rowsHold_substitute
+#audit_axioms NightstreamFPrime.Export.Generic.Substitute.substitute_terms
+#audit_axioms NightstreamFPrime.Export.Generic.CircuitRelation.outputState_eq
+#audit_axioms NightstreamFPrime.Export.Generic.CircuitRelation.outputFormsFrom_none
+#audit_axioms NightstreamFPrime.Export.Generic.CircuitRelation.outputForms_of_not_outputIn
+#audit_axioms NightstreamFPrime.Export.Generic.CircuitRelation.outputIn_get
+#audit_axioms NightstreamFPrime.Export.Generic.CircuitRelation.outputFormsFrom_output
 #audit_axioms NightstreamFPrime.Export.Generic.CircuitRelation.outputsHold
+#audit_axioms NightstreamFPrime.Export.Generic.CircuitRelation.outputForms_public
 #audit_axioms NightstreamFPrime.Export.Generic.CircuitRelation.rowsZero_implies_pieces
 #audit_axioms NightstreamFPrime.Export.Generic.CircuitRelation.rowsZero_implies_constraints
 #audit_axioms NightstreamFPrime.Export.Generic.CircuitRelation.rowsZero_implies_spec
@@ -467,6 +479,7 @@ example : (runDepths 2 (fun _ => 0) 1 (List.replicate 3 [0, 0, 1]).flatten).isNo
 #audit_axioms NightstreamFPrime.Export.Generic.NativeBlock.termsForm_eval_any
 #audit_axioms NightstreamFPrime.Export.Generic.NativeBlock.identityEnv_sourceEnv
 #audit_axioms NightstreamFPrime.Export.Generic.NativeBlock.formOf_ofVar_sourceEnv
+#audit_axioms NightstreamFPrime.Export.Generic.NativeBlock.outputEnv_output
 #audit_axioms NightstreamFPrime.Export.Generic.NativeBlock.outputsHold_of_rows
 #audit_axioms NightstreamFPrime.Export.Generic.NativeBlock.output_permute
 #audit_axioms NightstreamFPrime.Export.Generic.NativeBlock.completed_rows
@@ -474,6 +487,7 @@ example : (runDepths 2 (fun _ => 0) 1 (List.replicate 3 [0, 0, 1]).flatten).isNo
 #audit_axioms NightstreamFPrime.Export.Generic.NativeBlock.sboxEquations_of_block
 #audit_axioms NightstreamFPrime.Export.Generic.NativeBlock.lane_avoids
 #audit_axioms NightstreamFPrime.Export.Generic.NativeBlock.output_live
+#audit_axioms NightstreamFPrime.Export.Generic.NativeBlock.outputEnv_honest
 #audit_axioms NightstreamFPrime.Export.Generic.NativeBlock.blocks_complete
 #audit_axioms NightstreamFPrime.Export.Generic.NativeBlock.bitHint_valid
 #audit_axioms NightstreamFPrime.Export.Generic.NativeBlock.bit_valid_of_boolean
@@ -568,6 +582,7 @@ example : (runDepths 2 (fun _ => 0) 1 (List.replicate 3 [0, 0, 1]).flatten).isNo
 #audit_axioms NightstreamFPrime.Export.Generic.RelationCompleteness.next_le_sboxStart
 #audit_axioms NightstreamFPrime.Export.Generic.RelationCompleteness.completeEnv_public
 #audit_axioms NightstreamFPrime.Export.Generic.RelationCompleteness.completeEnv_rows
+#audit_axioms NightstreamFPrime.Export.Generic.RelationCompleteness.outputEnv_complete
 #audit_axioms NightstreamFPrime.Export.Generic.RelationCompleteness.rowsZero_of_holds
 #audit_axioms NightstreamFPrime.Export.Generic.WideLayout.extend_castLE
 #audit_axioms NightstreamFPrime.Export.Generic.WideLayout.widenForm_eval
@@ -579,6 +594,7 @@ example : (runDepths 2 (fun _ => 0) 1 (List.replicate 3 [0, 0, 1]).flatten).isNo
 #audit_axioms NightstreamFPrime.Export.Generic.WideLayout.sourceEnv_widen
 #audit_axioms NightstreamFPrime.Export.Generic.WideLayout.one_widen
 #audit_axioms NightstreamFPrime.Export.Generic.WideLayout.extend_norm
+#audit_axioms NightstreamFPrime.Export.OptionB.SlotRuns.outputs_outputIn
 #audit_axioms NightstreamFPrime.Export.OptionB.SlotRuns.markColumns_size
 #audit_axioms NightstreamFPrime.Export.OptionB.SlotRuns.set!_getD
 #audit_axioms NightstreamFPrime.Export.OptionB.SlotRuns.markColumns_getD

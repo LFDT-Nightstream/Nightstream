@@ -31,8 +31,8 @@ const Z0: usize = KEYS + 8;
 const CURRENT: usize = Z0 + 4;
 const WITNESS: usize = CURRENT + 8;
 
-/// The finish package and the R1CS block of its relation rows without the
-/// blocks' S-box and binding rows.
+/// The finish package and the R1CS block of its rows on the source columns,
+/// without the blocks' S-box rows.
 pub(crate) struct Finish {
     package: StepPackage,
     system: R1cs,
@@ -40,10 +40,9 @@ pub(crate) struct Finish {
 
 impl Finish {
     pub(crate) fn new(package: StepPackage) -> Result<Self, nightstream_fprime::PackageError> {
-        let rows: PlanRows = package.plan_rows()?;
+        let rows: PlanRows = package.source_rows()?;
         let mut system = R1cs::new(package.sbox_start());
-        let binding = rows.binding_rows();
-        for row in (0..rows.ordinary_row_count()).filter(|row| !binding.contains(row)) {
+        for row in 0..rows.ordinary_row_count() {
             system.push(&side(&rows, row, 0), &side(&rows, row, 1), &side(&rows, row, 2));
         }
         Ok(Self { package, system })
@@ -58,7 +57,7 @@ impl Finish {
         let columns = self.package.circuit_columns(&words.columns()?)?;
         let columns = self
             .package
-            .relation_columns(columns, &self.package.plan_rows()?)?;
+            .relation_columns(columns, &self.package.source_rows()?)?;
         Ok(columns[..self.package.sbox_start()]
             .iter()
             .map(PrimeField64::as_canonical_u64)

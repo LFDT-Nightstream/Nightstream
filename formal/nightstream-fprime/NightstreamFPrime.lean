@@ -112,6 +112,7 @@ import NightstreamFPrime.Layout.OptionB.StepCircuits
 import NightstreamFPrime.Export.Generic.Pieces
 import NightstreamFPrime.Export.Generic.PieceRows
 import NightstreamFPrime.Export.Generic.Frame
+import NightstreamFPrime.Export.Generic.Substitute
 import NightstreamFPrime.Export.Generic.CircuitRelation
 import NightstreamFPrime.Export.Generic.NativeBlock
 import NightstreamFPrime.Export.Generic.SlotLayout

@@ -350,6 +350,31 @@ theorem outputFormsFrom_none (width sboxStart : Nat) :
       exact outputFormsFrom_none width sboxStart rest (position + 1) column
         fun other member => outside other (List.mem_cons_of_mem _ member)
 
+/-- A column is an output local of a block. -/
+def outputIn (blocks : List Block) (column : Nat) : Bool :=
+  blocks.any fun block => decide (block.start + 1080 ≤ column ∧ column < block.start + 1096)
+
+/-- A column that is no output local has no form. -/
+theorem outputForms_of_not_outputIn (width : Nat) {blocks : List Block} (sboxStart : Nat)
+    {column : Nat} (outside : outputIn blocks column = false) :
+    outputForms width blocks sboxStart column = none := by
+  apply outputFormsFrom_none
+  intro block member inside
+  have output : outputIn blocks column = true := by
+    simp only [outputIn, List.any_eq_true, decide_eq_true_eq]
+    exact ⟨block, member, inside⟩
+  rw [outside] at output
+  exact Bool.false_ne_true output
+
+/-- An output local is a lane of a block of the list. -/
+theorem outputIn_get {blocks : List Block} {column : Nat} (output : outputIn blocks column = true) :
+    ∃ (index : Fin blocks.length) (lane : Fin 16),
+      column = (blocks.get index).start + 1080 + lane.val := by
+  simp only [outputIn, List.any_eq_true, decide_eq_true_eq] at output
+  obtain ⟨block, blockMember, inside⟩ := output
+  obtain ⟨index, rfl⟩ := List.mem_iff_get.mp blockMember
+  exact ⟨index, ⟨column - ((blocks.get index).start + 1080), by omega⟩, by simp only; omega⟩
+
 /-- Output lane `lane` of block `index` has the block's output state as its form. -/
 theorem outputFormsFrom_output (width sboxStart : Nat) :
     ∀ (blocks : List Block) (position : Nat), blocks.Pairwise Separated →

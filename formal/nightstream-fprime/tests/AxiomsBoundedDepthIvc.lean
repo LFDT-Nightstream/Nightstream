@@ -406,10 +406,15 @@ open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 #audit_axioms NightstreamFPrime.Export.Generic.Substitute.rowsHold_substitute
 #audit_axioms NightstreamFPrime.Export.Generic.Substitute.substitute_terms
 #audit_axioms NightstreamFPrime.Export.Generic.CircuitRelation.outputState_eq
-#audit_axioms NightstreamFPrime.Export.Generic.CircuitRelation.outputFormsFrom_none
+#audit_axioms NightstreamFPrime.Export.Generic.Substitute.fill_size
+#audit_axioms NightstreamFPrime.Export.Generic.Substitute.fill_absent
+#audit_axioms NightstreamFPrime.Export.Generic.Substitute.fill_present
+#audit_axioms NightstreamFPrime.Export.Generic.Substitute.lookup_table_none
+#audit_axioms NightstreamFPrime.Export.Generic.Substitute.lookup_table_some
+#audit_axioms NightstreamFPrime.Export.Generic.CircuitRelation.foldl_max_le
 #audit_axioms NightstreamFPrime.Export.Generic.CircuitRelation.outputForms_of_not_outputIn
 #audit_axioms NightstreamFPrime.Export.Generic.CircuitRelation.outputIn_get
-#audit_axioms NightstreamFPrime.Export.Generic.CircuitRelation.outputFormsFrom_output
+#audit_axioms NightstreamFPrime.Export.Generic.CircuitRelation.outputForms_output
 #audit_axioms NightstreamFPrime.Export.Generic.CircuitRelation.outputsHold
 #audit_axioms NightstreamFPrime.Export.Generic.CircuitRelation.outputForms_public
 #audit_axioms NightstreamFPrime.Export.Generic.CircuitRelation.rowsZero_implies_pieces

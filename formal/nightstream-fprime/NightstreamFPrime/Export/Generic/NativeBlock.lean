@@ -164,8 +164,8 @@ theorem outputEnv_output {width logicalWidth : Nat} {blocks : List Block}
     outputEnv blocks sboxStart layout assignment ((blocks.get index).start + 1080 + lane.val) =
       (outputState (width := width) blocks sboxStart index lane).eval
         (fun column => LogicalPlan.sourceEnv layout assignment column.val) := by
-  unfold outputEnv Substitute.refill outputForms
-  rw [outputFormsFrom_output width _ _ 0 separated index lane, Nat.zero_add]
+  unfold outputEnv Substitute.refill
+  rw [outputForms_output width _ _ separated index lane]
   exact toCombination_eval _ _
 
 /-- The S-box rows give each block's outputs, in the environment with the output forms, as the

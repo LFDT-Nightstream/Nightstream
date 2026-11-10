@@ -323,32 +323,36 @@ theorem outputState_eq {width : Nat} (blocks : List Block) (sboxStart : Nat)
     outputState (width := width) blocks sboxStart index = outputStateAt sboxStart index.val :=
   rfl
 
-/-- The form of an output local of a block from `position`: the output state of its block. -/
-def outputFormsFrom (width sboxStart : Nat) :
-    List Block → Nat → Nat → Option R1CS.LinearCombination
-  | [], _, _ => none
-  | block :: rest, position, column =>
-      if inside : block.start + 1080 ≤ column ∧ column < block.start + 1096 then
-        some (toCombination (outputStateAt (width := width) sboxStart position
-          ⟨column - (block.start + 1080), by omega⟩))
-      else outputFormsFrom width sboxStart rest (position + 1) column
+/-- One write for each output local of each block: the local's column and the output state of
+its block. -/
+def outputWrites (width sboxStart : Nat) (blocks : List Block) :
+    List (Nat × R1CS.LinearCombination) :=
+  blocks.zipIdx.flatMap fun entry => List.ofFn fun lane : Fin 16 =>
+    (entry.1.start + 1080 + lane.val,
+      toCombination (outputStateAt (width := width) sboxStart entry.2 lane))
 
-/-- The form of each output local of the blocks. No other column has a form. -/
-def outputForms (width : Nat) (blocks : List Block) (sboxStart : Nat) :
+/-- A column count that covers every block. -/
+def tableSize (blocks : List Block) : Nat :=
+  blocks.foldl (fun size block => max size (block.start + 1096)) 0
+
+/-- The form of each output local of the blocks, read from a table. No other column has a form. -/
+@[inline] def outputForms (width : Nat) (blocks : List Block) (sboxStart : Nat) :
     Nat → Option R1CS.LinearCombination :=
-  outputFormsFrom width sboxStart blocks 0
+  Substitute.lookup (Substitute.table (tableSize blocks) (outputWrites width sboxStart blocks))
 
-/-- A column outside every block's output locals has no form. -/
-theorem outputFormsFrom_none (width sboxStart : Nat) :
-    ∀ (blocks : List Block) (position column : Nat),
-      (∀ block ∈ blocks, ¬ (block.start + 1080 ≤ column ∧ column < block.start + 1096)) →
-        outputFormsFrom width sboxStart blocks position column = none
-  | [], _, _, _ => rfl
-  | block :: rest, position, column, outside => by
-      unfold outputFormsFrom
-      rw [dite_eq_right (outside block List.mem_cons_self)]
-      exact outputFormsFrom_none width sboxStart rest (position + 1) column
-        fun other member => outside other (List.mem_cons_of_mem _ member)
+theorem foldl_max_le (blocks : List Block) (size : Nat) :
+    size ≤ blocks.foldl (fun size block => max size (block.start + 1096)) size ∧
+      ∀ block ∈ blocks,
+        block.start + 1096 ≤ blocks.foldl (fun size block => max size (block.start + 1096)) size := by
+  induction blocks generalizing size with
+  | nil => simp
+  | cons head rest hypothesis =>
+      obtain ⟨grows, covers⟩ := hypothesis (max size (head.start + 1096))
+      refine ⟨by simp only [List.foldl_cons]; omega, fun block member => ?_⟩
+      simp only [List.foldl_cons]
+      rcases List.mem_cons.mp member with rfl | inRest
+      · omega
+      · exact covers block inRest
 
 /-- A column is an output local of a block. -/
 def outputIn (blocks : List Block) (column : Nat) : Bool :=
@@ -358,11 +362,17 @@ def outputIn (blocks : List Block) (column : Nat) : Bool :=
 theorem outputForms_of_not_outputIn (width : Nat) {blocks : List Block} (sboxStart : Nat)
     {column : Nat} (outside : outputIn blocks column = false) :
     outputForms width blocks sboxStart column = none := by
-  apply outputFormsFrom_none
-  intro block member inside
+  apply Substitute.lookup_table_none
+  intro write member same
+  simp only [outputWrites, List.mem_flatMap, List.mem_ofFn] at member
+  obtain ⟨entry, entryMember, lane, rfl⟩ := member
+  have blockMember : entry.1 ∈ blocks := by
+    have := List.mem_zipIdx entryMember
+    exact List.mem_iff_getElem.mpr ⟨entry.2 - 0, by omega, by simpa using this.2.2.symm⟩
   have output : outputIn blocks column = true := by
     simp only [outputIn, List.any_eq_true, decide_eq_true_eq]
-    exact ⟨block, member, inside⟩
+    have := lane.isLt
+    exact ⟨entry.1, blockMember, by simp only at same; omega, by simp only at same; omega⟩
   rw [outside] at output
   exact Bool.false_ne_true output
 
@@ -376,44 +386,54 @@ theorem outputIn_get {blocks : List Block} {column : Nat} (output : outputIn blo
   exact ⟨index, ⟨column - ((blocks.get index).start + 1080), by omega⟩, by simp only; omega⟩
 
 /-- Output lane `lane` of block `index` has the block's output state as its form. -/
-theorem outputFormsFrom_output (width sboxStart : Nat) :
-    ∀ (blocks : List Block) (position : Nat), blocks.Pairwise Separated →
-      ∀ (index : Fin blocks.length) (lane : Fin 16),
-        outputFormsFrom width sboxStart blocks position
-            ((blocks.get index).start + 1080 + lane.val) =
-          some (toCombination (outputStateAt (width := width) sboxStart (position + index.val)
-            lane))
-  | [], _, _, index, _ => index.elim0
-  | block :: rest, position, separated, ⟨0, _⟩, lane => by
-      have inside : block.start + 1080 ≤ block.start + 1080 + lane.val ∧
-          block.start + 1080 + lane.val < block.start + 1096 := by
-        have := lane.isLt
-        omega
-      show outputFormsFrom width sboxStart (block :: rest) position
-        (block.start + 1080 + lane.val) = _
-      unfold outputFormsFrom
-      rw [dite_eq_left inside]
-      have laneEq : (⟨block.start + 1080 + lane.val - (block.start + 1080), by omega⟩ : Fin 16) =
-          lane := Fin.ext (by simp)
-      rw [laneEq]
-      rfl
-  | block :: rest, position, separated, ⟨index + 1, bound⟩, lane => by
-      have restBound : index < rest.length := by simpa using bound
-      have later : rest.get ⟨index, restBound⟩ ∈ rest := List.get_mem _ _
-      have apart := (List.pairwise_cons.mp separated).1 _ later
-      have outside : ¬ (block.start + 1080 ≤ (rest.get ⟨index, restBound⟩).start + 1080 +
-          lane.val ∧ (rest.get ⟨index, restBound⟩).start + 1080 + lane.val <
-            block.start + 1096) := by
-        have := lane.isLt
-        unfold Separated at apart
-        omega
-      show outputFormsFrom width sboxStart (block :: rest) position
-        ((rest.get ⟨index, restBound⟩).start + 1080 + lane.val) = _
-      unfold outputFormsFrom
-      rw [dite_eq_right outside, outputFormsFrom_output width sboxStart rest (position + 1)
-        (List.pairwise_cons.mp separated).2 ⟨index, restBound⟩ lane]
-      have positionEq : position + 1 + index = position + (index + 1) := by omega
-      simp only [positionEq]
+theorem outputForms_output (width sboxStart : Nat) (blocks : List Block)
+    (separated : blocks.Pairwise Separated) (index : Fin blocks.length) (lane : Fin 16) :
+    outputForms width blocks sboxStart ((blocks.get index).start + 1080 + lane.val) =
+      some (toCombination (outputStateAt (width := width) sboxStart index.val lane)) := by
+  have laneLt := lane.isLt
+  apply Substitute.lookup_table_some (tableSize blocks) (outputWrites width sboxStart blocks)
+    ((blocks.get index).start + 1080 + lane.val,
+      toCombination (outputStateAt (width := width) sboxStart index.val lane))
+  · simp only [outputWrites, List.mem_flatMap, List.mem_ofFn]
+    refine ⟨(blocks.get index, index.val), ?_, lane, rfl⟩
+    rw [List.mem_zipIdx_iff_getElem?]
+    simp
+  · have covers := (foldl_max_le blocks 0).2 _ (List.get_mem blocks index)
+    show _ < tableSize blocks
+    unfold tableSize
+    omega
+  · intro other member same
+    simp only [outputWrites, List.mem_flatMap, List.mem_ofFn] at member
+    obtain ⟨entry, entryMember, otherLane, rfl⟩ := member
+    rw [List.mem_zipIdx_iff_getElem?] at entryMember
+    have otherLt := otherLane.isLt
+    simp only at same
+    obtain ⟨position, positionBound, blockEq⟩ : ∃ (position : Nat) (bound : position < blocks.length),
+        entry.2 = position ∧ blocks[position] = entry.1 := by
+      have found := entryMember
+      rw [List.getElem?_eq_some_iff] at found
+      obtain ⟨bound, value⟩ := found
+      exact ⟨entry.2, bound, rfl, value⟩
+    obtain ⟨positionEq, blockAt⟩ := blockEq
+    by_cases samePosition : position = index.val
+    · subst samePosition
+      have blockSame : entry.1 = blocks.get index := blockAt.symm
+      rw [blockSame] at same
+      have laneSame : otherLane = lane := Fin.ext (by omega)
+      rw [blockSame, positionEq, laneSame]
+    · exfalso
+      have apart : Separated blocks[position] (blocks.get index) := by
+        rcases Nat.lt_or_gt_of_ne samePosition with before | after
+        · exact (List.pairwise_iff_getElem.mp separated) position index.val positionBound
+            index.isLt before
+        · have reversed := (List.pairwise_iff_getElem.mp separated) index.val position
+            index.isLt positionBound after
+          unfold Separated at reversed ⊢
+          simp only [List.get_eq_getElem]
+          omega
+      rw [blockAt] at apart
+      unfold Separated at apart
+      omega
 
 /-- The S-box family's interface: each block's input lanes and S-box outputs read through the
 layout. A lane reads the form of each output local that it names. -/
@@ -526,9 +546,8 @@ theorem outputsHold {publicColumns : Nat} {pieces : List Piece} {next width logi
         (((blocksOf pieces).get index).start + 1080 + lane.val) =
         (outputState (width := width) (blocksOf pieces) (sboxStart pieces next) index lane).eval
           (fun column => LogicalPlan.sourceEnv layout assignment column.val) := by
-      unfold outputEnv Substitute.refill outputForms
-      rw [outputFormsFrom_output width _ _ 0 (packable_framed packed).separated index lane,
-        Nat.zero_add]
+      unfold outputEnv Substitute.refill
+      rw [outputForms_output width _ _ (packable_framed packed).separated index lane]
       exact toCombination_eval _ _
     simp only [Block.output, SparseLayer.evalState, PoseidonSboxFamilyPlan.Interface.output,
       SparseLayer.eval_external]
@@ -547,9 +566,11 @@ theorem outputForms_public {publicColumns : Nat} {pieces : List Piece}
   simp only [packable, Bool.and_eq_true] at packed
   have starts := packed.1.2
   simp only [startsFrom, List.all_eq_true, decide_eq_true_eq] at starts
-  exact outputFormsFrom_none width sboxStart _ 0 column fun block member inside => by
-    have := starts block member
-    omega
+  apply outputForms_of_not_outputIn
+  simp only [outputIn, List.any_eq_false, decide_eq_true_eq]
+  intro block member inside
+  have := starts block member
+  omega
 
 /-- The environment that an assignment decodes to: the layout's source environment, with the
 output locals of the Poseidon2 blocks at their forms and the dead locals completed when the

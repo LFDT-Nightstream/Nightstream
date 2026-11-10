@@ -100,4 +100,81 @@ theorem substitute_terms (forms : Nat → Option R1CS.LinearCombination)
         · exact Or.inl ⟨source, List.mem_cons_of_mem _ sourceMember, noForm, equal⟩
         · exact Or.inr ⟨source, List.mem_cons_of_mem _ sourceMember, form, formEq, inForm⟩
 
+/-! ### A table of forms -/
+
+/-- `writes` on `start`: a later write to a column replaces an earlier one. -/
+def fill (start : Array (Option R1CS.LinearCombination))
+    (writes : List (Nat × R1CS.LinearCombination)) : Array (Option R1CS.LinearCombination) :=
+  writes.foldl (fun table write => table.setIfInBounds write.1 (some write.2)) start
+
+/-- The table of `writes` over `size` columns. -/
+def table (size : Nat) (writes : List (Nat × R1CS.LinearCombination)) :
+    Array (Option R1CS.LinearCombination) :=
+  fill (Array.replicate size none) writes
+
+/-- The form of a column in a table, or none past the table. -/
+def lookup (forms : Array (Option R1CS.LinearCombination)) (column : Nat) :
+    Option R1CS.LinearCombination :=
+  forms.getD column none
+
+theorem fill_size (start : Array (Option R1CS.LinearCombination))
+    (writes : List (Nat × R1CS.LinearCombination)) : (fill start writes).size = start.size := by
+  induction writes generalizing start with
+  | nil => rfl
+  | cons head rest hypothesis =>
+      show (fill (start.setIfInBounds head.1 (some head.2)) rest).size = start.size
+      rw [hypothesis]
+      simp
+
+theorem fill_absent (start : Array (Option R1CS.LinearCombination))
+    (writes : List (Nat × R1CS.LinearCombination)) (column : Nat)
+    (absent : ∀ write ∈ writes, write.1 ≠ column) :
+    lookup (fill start writes) column = lookup start column := by
+  induction writes generalizing start with
+  | nil => rfl
+  | cons head rest hypothesis =>
+      show lookup (fill (start.setIfInBounds head.1 (some head.2)) rest) column = _
+      rw [hypothesis _ fun write member => absent write (List.mem_cons_of_mem _ member)]
+      have other : head.1 ≠ column := absent head List.mem_cons_self
+      simp only [lookup, Array.getD_eq_getD_getElem?, Array.getElem?_setIfInBounds, other,
+        ↓reduceIte]
+
+theorem fill_present (start : Array (Option R1CS.LinearCombination))
+    (writes : List (Nat × R1CS.LinearCombination)) (write : Nat × R1CS.LinearCombination)
+    (member : write ∈ writes) (inside : write.1 < start.size)
+    (unique : ∀ other ∈ writes, other.1 = write.1 → other = write) :
+    lookup (fill start writes) write.1 = some write.2 := by
+  induction writes generalizing start with
+  | nil => simp at member
+  | cons head rest hypothesis =>
+      show lookup (fill (start.setIfInBounds head.1 (some head.2)) rest) write.1 = _
+      by_cases later : write ∈ rest
+      · exact hypothesis _ later (by simpa using inside)
+          fun other otherMember => unique other (List.mem_cons_of_mem _ otherMember)
+      · have here : write = head := by
+          rcases List.mem_cons.mp member with equal | inRest
+          · exact equal
+          · exact absurd inRest later
+        subst here
+        rw [fill_absent _ rest write.1 fun other otherMember same =>
+          later (unique other (List.mem_cons_of_mem _ otherMember) same ▸ otherMember)]
+        simp only [lookup, Array.getD_eq_getD_getElem?, Array.getElem?_setIfInBounds, ↓reduceIte,
+          inside]
+        rfl
+
+/-- A column that no write names has no form. -/
+theorem lookup_table_none (size : Nat) (writes : List (Nat × R1CS.LinearCombination))
+    (column : Nat) (absent : ∀ write ∈ writes, write.1 ≠ column) :
+    lookup (table size writes) column = none := by
+  rw [table, fill_absent _ _ _ absent]
+  simp only [lookup, Array.getD_eq_getD_getElem?, Array.getElem?_replicate]
+  split <;> rfl
+
+/-- A column that one write names, below the size, has that write's form. -/
+theorem lookup_table_some (size : Nat) (writes : List (Nat × R1CS.LinearCombination))
+    (write : Nat × R1CS.LinearCombination) (member : write ∈ writes) (inside : write.1 < size)
+    (unique : ∀ other ∈ writes, other.1 = write.1 → other = write) :
+    lookup (table size writes) write.1 = some write.2 :=
+  fill_present _ writes write member (by simpa using inside) unique
+
 end NightstreamFPrime.Export.Generic.Substitute

@@ -174,12 +174,12 @@ abbrev blockInterface (blocks : List Frame.Block) (sboxStart : ℕ) {k : ℕ} (i
     ⟨k, inside⟩
 
 theorem blockAtoms_form {blocks : List Frame.Block} {sboxStart k : ℕ} (inside : k < blocks.length)
-    (each : ∀ c ∈ (blockColumns blocks[k] sboxStart k).filter (· < p.width),
+    (each : ∀ c ∈ (blockColumns (CircuitRelation.outputForms p.width blocks sboxStart) blocks[k] sboxStart k).filter (· < p.width),
       (fastForm (tableOf (slotsOf p)) c).isSome = true)
     (a : ℕ) (small : a < 167) (c : Fin StepRelation.keyWidth) :
-    ((blockAtoms (tableOf (slotsOf p)) blocks[k] sboxStart k).form a).coefficient c =
+    ((blockAtoms (tableOf (slotsOf p)) (CircuitRelation.outputForms p.width blocks sboxStart) blocks[k] sboxStart k).form a).coefficient c =
       (atomOf (blockInterface logical blocks sboxStart inside) a).coefficient c := by
-  have confirmedAt : ∀ x ∈ blockColumns blocks[k] sboxStart k, x < p.width →
+  have confirmedAt : ∀ x ∈ blockColumns (CircuitRelation.outputForms p.width blocks sboxStart) blocks[k] sboxStart k, x < p.width →
       (fastForm (tableOf (slotsOf p)) x).isSome = true :=
     fun x member below => each x (List.mem_filter.mpr ⟨member, by simpa using below⟩)
   unfold Atoms.form atomOf
@@ -283,7 +283,7 @@ theorem rowSum_congr {n : ℕ} {forms other : RowForms n} {runs : List Push} (pa
 /-- An S-box row of a block that the check accepts has runs that sum to its forms' coefficients
 under the key layout. -/
 theorem block_rows {blocks : List Frame.Block} {sboxStart k : ℕ} (inside : k < blocks.length)
-    {runs : ℕ → List Push} (pass : blockFailure (tableOf (slotsOf p)) blocks[k] sboxStart k runs = none)
+    {runs : ℕ → List Push} (pass : blockFailure (tableOf (slotsOf p)) (CircuitRelation.outputForms p.width blocks sboxStart) blocks[k] sboxStart k runs = none)
     {r : ℕ} (small : r < 150) (j : Fin Spec.ProductionRelation.meaningfulPortCount) (x : ℕ) :
     (((runs r).filter (·.matrix = j.val)).map (·.value x)).sum =
       if h : x < StepRelation.keyWidth then
@@ -300,7 +300,7 @@ theorem block_rows {blocks : List Frame.Block} {sboxStart k : ℕ} (inside : k <
     simpa using equal.symm
   have checked := List.findSome?_eq_none_iff.mp pass r (List.mem_range.mpr small)
   rw [Option.map_eq_none_iff] at checked
-  have rs : r < (atomRows.map (blockAtoms (tableOf (slotsOf p)) blocks[k] sboxStart k).row).size := by
+  have rs : r < (atomRows.map (blockAtoms (tableOf (slotsOf p)) (CircuitRelation.outputForms p.width blocks sboxStart) blocks[k] sboxStart k).row).size := by
     rw [Array.size_map, length]; exact small
   have atR : r < atomRows.size := by rw [length]; exact small
   rw [Array.getD_eq_getD_getElem?, Array.getElem?_eq_getElem rs, Option.getD_some] at checked
@@ -325,7 +325,7 @@ theorem block_rows {blocks : List Frame.Block} {sboxStart k : ℕ} (inside : k <
         ite_eq_left (show 16 + atomRows[r].output < 166 by omega),
         show 16 + atomRows[r].output - 16 = atomRows[r].output by omega] at form
       exact form
-    · have none : (blockAtoms (tableOf (slotsOf p)) blocks[k] sboxStart k).sbox[atomRows[r].output]? = none := by
+    · have none : (blockAtoms (tableOf (slotsOf p)) (CircuitRelation.outputForms p.width blocks sboxStart) blocks[k] sboxStart k).sbox[atomRows[r].output]? = none := by
         simp [sbox]
       rw [none, PoseidonSboxPlan.sboxOutputAt, dite_eq_right (by rw [PoseidonRetainedSlots.rows_length]; exact sbox)]
       rfl

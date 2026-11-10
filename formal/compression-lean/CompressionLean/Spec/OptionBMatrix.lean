@@ -206,25 +206,34 @@ def ordinaryFailure {width : ℕ} (table : SlotTable width) (row : R1CS.Row) (ru
     else some "a column's slot is not confirmed"
   else some "a term is past the source width"
 
+/-- Lane `lane` of a block, with each output local of a block replaced by its form
+(`CircuitRelation.sboxInterface`). -/
+def laneCombination (forms : ℕ → Option R1CS.LinearCombination) (block : Frame.Block) (lane : ℕ) :
+    R1CS.LinearCombination :=
+  Substitute.substitute forms (invocationInputCombination block.invocation lane).toR1CS
+
 /-- Block `block`'s atoms (`PoseidonRows.Atoms`): its input lanes and its S-box outputs as forms. -/
-def blockAtoms {width : ℕ} (table : SlotTable width) (block : Frame.Block) (sboxStart index : ℕ) :
+def blockAtoms {width : ℕ} (table : SlotTable width) (forms : ℕ → Option R1CS.LinearCombination)
+    (block : Frame.Block) (sboxStart index : ℕ) :
     PoseidonRows.Atoms StepRelation.keyWidth where
   inputs := Vector.ofFn fun lane =>
-    PoseidonRows.normalize (fastCombination table (invocationInputCombination block.invocation lane.val).toR1CS)
+    PoseidonRows.normalize (fastCombination table (laneCombination forms block lane.val))
   sbox := Vector.ofFn fun row =>
     (fastFormAt table (CircuitRelation.sboxColumn sboxStart index row.val)).entries
   one := oneColumn
 
 /-- The source columns that a block's atoms read. -/
-def blockColumns (block : Frame.Block) (sboxStart index : ℕ) : List ℕ :=
-  (List.range 16).flatMap (fun lane => termColumns (invocationInputCombination block.invocation lane).toR1CS) ++
+def blockColumns (forms : ℕ → Option R1CS.LinearCombination) (block : Frame.Block)
+    (sboxStart index : ℕ) : List ℕ :=
+  (List.range 16).flatMap (fun lane => termColumns (laneCombination forms block lane)) ++
     (List.range 150).map (CircuitRelation.sboxColumn sboxStart index)
 
 /-- A block's first failing row and matrix, or why its forms do not evaluate. -/
-def blockFailure {width : ℕ} (table : SlotTable width) (block : Frame.Block) (sboxStart index : ℕ)
+def blockFailure {width : ℕ} (table : SlotTable width) (forms : ℕ → Option R1CS.LinearCombination)
+    (block : Frame.Block) (sboxStart index : ℕ)
     (runs : ℕ → List Push) : Option String :=
-  if confirmed table ((blockColumns block sboxStart index).filter (· < width)) then
-    let rows := PoseidonRows.atomRows.map (blockAtoms table block sboxStart index).row
+  if confirmed table ((blockColumns forms block sboxStart index).filter (· < width)) then
+    let rows := PoseidonRows.atomRows.map (blockAtoms table forms block sboxStart index).row
     (List.range 150).findSome? fun r =>
       (rowFailure (rows.getD r ⟨.empty, .empty⟩).meaningfulForm (sortedRuns (runs r))).map
         fun j => s!"S-box row {r}, matrix {j}"
@@ -235,8 +244,9 @@ def packageFits (p : StepPackage.Package) : Bool :=
   decide (p.relationRows.length + p.blocks.length * 150 ≤ 2 ^ Lifecycle.cubeVariables) &&
     decide (LogicalPlan.rowsMax p.relationRows < p.width) &&
     decide (p.sboxStart + p.blocks.length * 150 ≤ p.width) &&
+    let forms := CircuitRelation.outputForms p.width p.blocks p.sboxStart
     p.blocks.all fun block => (List.range 16).all fun lane =>
-      (invocationInputCombination block.invocation lane).toR1CS.terms.all fun term => decide (term.1 < p.width)
+      (laneCombination forms block lane).terms.all fun term => decide (term.1 < p.width)
 
 /-- The first row where Rust's runs differ from the circuit key's matrices: each ordinary row of the
 package, then 150 S-box rows for each block, and no runs past them. -/
@@ -251,12 +261,13 @@ def keyRunsFailure (p : StepPackage.Package) (pushes : List Push) : Option Strin
       match pushes.find? (total ≤ ·.row) with
       | some push => some s!"row {push.row}, matrix {push.matrix}: past the relation's {total} rows"
       | none =>
+          let forms := CircuitRelation.outputForms p.width blocks p.sboxStart
           let byRow := runsByRow total pushes
           let runs (i : ℕ) := (byRow.getD i []).reverse
           let ordinary := rows.zipIdx.map fun (row, i) =>
             Task.spawn fun _ => (ordinaryFailure table row (runs i)).map (s!"row {i}, " ++ ·)
           let sbox := blocks.zipIdx.map fun (block, k) =>
-            Task.spawn fun _ => (blockFailure table block p.sboxStart k
+            Task.spawn fun _ => (blockFailure table forms block p.sboxStart k
               (fun r => runs (rows.length + 150 * k + r))).map (s!"block {k}, " ++ ·)
           (ordinary ++ sbox).findSome? Task.get
     else some "the slots' sources do not increase"

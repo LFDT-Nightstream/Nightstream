@@ -348,12 +348,15 @@ item 5).
      `2^27.03` (`Spec.Folding.Schedule.production_msisChainBound`). It is the
      SuperNeo v1.2 Section 8 norm `8TB` with `B` replaced by the largest
      recovered bound (`Spec.Folding.Schedule.msisChainBound_zero`). The
-     decider checks each slot below `B`. By Cyclo Theorem 3, the norm of an
-     honest slot is at most `accumulatorBound cap = 17,496`
-     (`Spec.GlobalParams.accumulatorBound`, `SPEC.md` Algorithm 7), and Lean
-     proves this along an honest run (`Export.OptionB.StepExtend.Honest`). The
-     recovered bound, and so the chain norm, comes from the decider bound `B`,
-     not from the honest bound.
+     terminal verifier checks each slot at the bound of its depth. By Cyclo
+     Theorem 3, this bound is at most `accumulatorBound cap = 17,496`
+     (`Spec.GlobalParams.accumulatorBound`, `SPEC.md` Algorithm 6), and Lean
+     proves that an honest run stays within it
+     (`Export.OptionB.StepExtend.Honest`). A refresh fold recovers its input
+     only below `B`, so the terminal relation of the security results keeps
+     `B` (`Export.OptionB.RunCompleteness.holds_of_verifies`). The recovered
+     bound, and so the chain norm, comes from `B`, not from the bound of the
+     depth.
    - *The κ estimate.* A lattice-estimator run outside Lean (commit 38618db),
      with the method and the matrix of 22 × 4,708,530 ring elements of the
      baseline in `decisions/fprime-ajtai-public-seed-msis-assumption.md`,
@@ -550,10 +553,11 @@ item 5).
   the honest proof of every valid run
   (`Export.OptionB.RunCompleteness.run_complete`) and of every memory
   execution (`Export.OptionB.NebulaCompleteness.memory_complete`). HyperNova
-  Definition 11 (i) extends each proof that the verifier accepts. Lean extends
-  the initial proof and each accepted proof whose slots are honest
-  (`Export.OptionB.RunCompleteness.accepts_step`). The terminal accepts each
-  slot witness below `B`, which is a larger bound. These
+  Definition 11 (i) extends each proof that the verifier accepts. The
+  terminal verifier holds each slot to the bound of its depth
+  (`Export.OptionB.RunCompleteness.Verifies`, `SPEC.md` Algorithm 6), and one
+  valid step extends each proof that it accepts
+  (`Export.OptionB.RunCompleteness.verifies_step`). These
   results take as premises three package checks that the emitter evaluates
   (`Export.OptionB.StepExtend.Complete`), key digests of four words, and
   witnesses of the application's witness length. For the finish step and

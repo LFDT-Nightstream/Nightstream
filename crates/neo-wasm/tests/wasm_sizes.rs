@@ -128,7 +128,7 @@ fn the_starstream_test_transactions_fit_small_or_medium() {
 fn a_size_refuses_more_security_than_its_memory_gives() {
     use nightstream::error::ParamsError;
     use nightstream::nebula::Prover;
-    for (size, available) in [(WasmSize::Small, 111), (WasmSize::Medium, 110), (WasmSize::Large, 109)] {
+    for (size, available) in [(WasmSize::Small, 112), (WasmSize::Medium, 111), (WasmSize::Large, 110)] {
         let result = Prover::load(
             "no-circuit-file",
             size.geometry(),

@@ -5,7 +5,7 @@ checks and the challenge input read the plan, the hash and the plan digest, but 
 context's challenge function: changing it (`Context.withEta`) keeps them, and the segment's
 challenges become the new function at the same input (`eta_withEta`). So a random-oracle model
 that reads `η` from the input alone changes only the product test. The input's timestamp is
-canonical, because a segment that closes opens below `2 ^ W_ts ≤ 2 ^ 62`
+canonical, because a segment that closes opens below `2 ^ W_ts ≤ 2 ^ 31`
 (`ClosesAt.openTs_lt`). -/
 
 set_option autoImplicit false

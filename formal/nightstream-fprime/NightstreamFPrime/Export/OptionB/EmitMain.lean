@@ -8,6 +8,7 @@ import NightstreamFPrime.Export.Stage1.NebulaMemoryN1Package
 import NightstreamFPrime.Export.Stage1.ApplicationPackage
 import NightstreamFPrime.Export.Stage1.NebulaMemoryTerminal
 import NightstreamFPrime.Lifecycle.Nebula.SecondPlan
+import NightstreamFPrime.Lifecycle.Nebula.ThirdPlan
 
 /-! The option-B emitter (CW-5.5), first part: the row census of the light and the refresh step
 circuits for today's fixture application (`Poseidon2HashChainV1.program`). For each circuit it
@@ -41,6 +42,9 @@ def selected (arguments : List String) : IO (Stage1.Application.Program × Strin
   match arguments.dropWhile (· != "--program") with
   | _ :: "nebula-v1" :: _ => pure (Export.Stage1.NebulaMemoryV1Package.application, "nebula-v1-")
   | _ :: "nebula-n1" :: _ => pure (Export.Stage1.NebulaMemoryN1Package.application, "nebula-n1-")
+  | _ :: "nebula-r1" :: _ => pure (Export.Stage1.NebulaMemoryPackage.application
+      ⟨Nebula.ThirdPlan.geometry, Nebula.ThirdPlan.valid, Nebula.ThirdPlan.secure⟩ Nebula.ThirdPlan.app,
+      "nebula-r1-")
   | _ :: name :: _ => throw (IO.userError s!"unknown program {name}")
   | _ => pure (program, "")
 

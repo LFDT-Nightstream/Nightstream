@@ -19,7 +19,7 @@ structure OpSlotBits (p : Geometry) where
   pad : F
   isWrite : F
   isRam : F
-  addr : Fin p.μ → F
+  addr : Fin p.addrWidth → F
   vr : Fin 32 → F
   vw : Fin 32 → F
   rt : Fin p.wTs → F
@@ -234,7 +234,8 @@ structure StepWitness.PolyRows {p : Geometry} {a : AppShape} (w : StepWitness p 
   readKeeps : ∀ j, (1 - w.isWrite j) * (w.vw j - w.vr j) = 0
   fresh : ∀ j, (1 - w.pad j) * (w.wt j - w.rt j - 1 - w.diff j) = 0
   noRomWrite : ∀ j, w.isWrite j * (1 - w.isRam j) = 0
-  romRange : ∀ j (k : Fin p.μ), p.r ≤ k.val → (1 - w.isRam j) * (w.ops j).addr k = 0
+  romRange : ∀ j (k : Fin p.addrWidth), p.r ≤ k.val → (1 - w.isRam j) * (w.ops j).addr k = 0
+  ramRange : ∀ j (k : Fin p.addrWidth), p.μ ≤ k.val → w.isRam j * (w.ops j).addr k = 0
   padZero : ∀ j, ∀ x ∈ ((w.ops j).lane).tail, w.pad j * x = 0
   readProduct : ∀ j, w.opsProductAfter 0 (j.val + 1) = K.mul (w.opsProductAfter 0 j.val)
     (gatedK (w.pad j) (fingerprintK w.eta1 w.eta2 w.eta1Sq (w.rt j) (w.globalIndex j) (w.vr j)))

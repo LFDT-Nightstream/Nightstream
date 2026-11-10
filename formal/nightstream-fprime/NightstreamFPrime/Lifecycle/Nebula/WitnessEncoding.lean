@@ -16,7 +16,7 @@ set_option backward.isDefEq.respectTransparency false in
 theorem OpSlotBits.ofWords_word (slot : OpSlotBits p) (v : ℕ → F) (j : ℕ)
     (words : ∀ k < Words.opWords p, v (Words.op p j k) = slot.word k) :
     OpSlotBits.ofWords p v j = slot := by
-  have opWords : Words.opWords p = 3 + p.μ + 64 + p.wTs + p.wTs := by
+  have opWords : Words.opWords p = 3 + p.addrWidth + 64 + p.wTs + p.wTs := by
     simp [Words.opWords, Geometry.opWidth]
   cases slot with
   | mk pad isWrite isRam addr vr vw rt diff =>

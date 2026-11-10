@@ -190,10 +190,11 @@ theorem PolyRows.wellFormed (rows : w.PolyRows) (j : Fin p.bOps) : (w.ops j).Wel
   readKeeps := rows.readKeeps j
 
 /-- Rows O3, O5, O6, O7 give the typed slot rows. -/
-theorem RowsHold.slotRows (valid : p.Valid) (rows : w.RowsHold zIn) (j : Fin p.bOps) :
+theorem RowsHold.slotRows (rows : w.RowsHold zIn) (j : Fin p.bOps) :
     (w.ops j).decode.Rows p := by
   obtain ⟨padBit, writeBit, ramBit, addrBits, vrBits, vwBits, rtBits⟩ := rows.slotBits w j
-  refine ⟨fun readSlot => ?_, fun writeSlot => ?_, fun romSlot => ?_, fun padSlot => ?_⟩
+  refine ⟨fun readSlot => ?_, fun writeSlot => ?_, fun romSlot => ?_, fun ramSlot => ?_,
+    fun padSlot => ?_⟩
   · have zero : (w.ops j).isWrite = 0 := (toBool_false writeBit).mp readSlot
     have keeps := rows.readKeeps j
     rw [StepWitness.isWrite, zero, sub_zero, one_mul, sub_eq_zero] at keeps
@@ -203,9 +204,13 @@ theorem RowsHold.slotRows (valid : p.Valid) (rows : w.RowsHold zIn) (j : Fin p.b
     rw [StepWitness.isWrite, one, one_mul, sub_eq_zero] at rom
     exact toBool_true.mpr rom.symm
   · have zero : (w.ops j).isRam = 0 := (toBool_false ramBit).mp romSlot
-    refine bitsNat_lt_of_high_zero valid.addressWidth fun k high => ?_
+    refine bitsNat_lt_of_high_zero (le_max_left _ _) fun k high => ?_
     have range := rows.romRange j k high
     rwa [StepWitness.isRam, zero, sub_zero, one_mul] at range
+  · have one : (w.ops j).isRam = 1 := toBool_true.mp ramSlot
+    refine bitsNat_lt_of_high_zero (le_max_right _ _) fun k high => ?_
+    have range := rows.ramRange j k high
+    rwa [StepWitness.isRam, one, one_mul] at range
   · have one : (w.ops j).pad = 1 := toBool_true.mp padSlot
     obtain ⟨write, ram, addr, vr, vw, rt⟩ := rows.padTail w j one
     simp only [OpSlotBits.decode, OpSlot.padSlot, one, write, ram, toBool, bitsNat_zero addr,
@@ -342,7 +347,7 @@ theorem RowsHold.stepRows (valid : p.Valid) (rows : w.RowsHold zIn)
   slots := by
     intro s member
     obtain ⟨j, rfl⟩ := List.mem_ofFn.mp member
-    exact rows.slotRows w valid j
+    exact rows.slotRows w j
   fresh := rows.activeFresh w valid tsRange
   boundary := (rows.boundary w valid tsRange).1
 
@@ -561,24 +566,24 @@ def slotIndex (j : Fin p.bOps) : ℕ :=
 theorem RowsHold.globalIndex_val (valid : p.Valid) (rows : w.RowsHold zIn) (j : Fin p.bOps) :
     (w.globalIndex j).val = w.slotIndex j := by
   obtain ⟨-, -, ramBit, addrBits, -⟩ := rows.slotBits w j
-  have μSmall : p.μ ≤ 63 := by
-    have below := valid.belowModulus
-    have ram : 2 ^ p.μ ≤ p.cells := Nat.le_add_left _ _
-    by_contra large
-    have : 2 ^ 64 ≤ 2 ^ p.μ := Nat.pow_le_pow_right (by norm_num) (by omega)
-    have : (2 : ℕ) ^ 64 > goldilocksModulus := by decide
-    omega
+  have μSmall : p.addrWidth ≤ 63 := Geometry.addrWidth_le valid
   have addr : w.addr j = natWord (bitsNat (w.ops j).addr) := bitsWord_eq addrBits
   have addrSmall := bitsNat_lt (w.ops j).addr
   have cells := valid.belowModulus
-  unfold Geometry.cells Geometry.ramSize at cells
+  unfold Geometry.cells Geometry.ramSize Geometry.romSize at cells
+  have slot := rows.slotRows w j
+  have romPos : 0 < 2 ^ p.r := Nat.two_pow_pos _
+  have ramPos : 0 < 2 ^ p.μ := Nat.two_pow_pos _
+  have romEq : p.romSize = 2 ^ p.r := rfl
   rcases ramBit with zero | one
   · have decodeRam : (w.ops j).decode.isRam = false := by
       simp [OpSlotBits.decode, zero, toBool, modulus_ne_one]
+    have small : bitsNat (w.ops j).addr < 2 ^ p.r := slot.romRange decodeRam
     simp only [globalIndex, isRam, zero, zero_mul, add_zero, addr, slotIndex, PortAccess.globalIndex,
       decodeRam]
     exact natWord_val (by unfold goldilocksModulus at *; omega)
   · have decodeRam : (w.ops j).decode.isRam = true := by simp [OpSlotBits.decode, one, toBool]
+    have small : bitsNat (w.ops j).addr < 2 ^ p.μ := slot.ramRange decodeRam
     simp only [globalIndex, isRam, one, one_mul, addr, slotIndex, PortAccess.globalIndex,
       decodeRam, ite_true, ← natWord_add]
     rw [natWord_val (by unfold goldilocksModulus at *; omega)]

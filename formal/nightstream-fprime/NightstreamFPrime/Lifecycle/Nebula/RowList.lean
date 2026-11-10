@@ -176,8 +176,10 @@ def slotChecks (j : Fin p.bOps) : Checks :=
     (s!"O3 slot {j.val}", [(1 - isWrite p j) * (vw p j - vr p j)]),
     (s!"O4 slot {j.val}", [(1 - Sym.pad p j) * (wt p j - rt p j - 1 - diff p j)]),
     (s!"O5 slot {j.val}", [isWrite p j * (1 - isRam p j)]),
-    (s!"O6 slot {j.val}", ((List.finRange p.μ).filter (fun k : Fin p.μ => p.r ≤ k.val)).map
-      (fun k : Fin p.μ => (1 - isRam p j) * addrBit p j k.val)),
+    (s!"O6 slot {j.val}", ((List.finRange p.addrWidth).filter (fun k : Fin p.addrWidth => p.r ≤ k.val)).map
+        (fun k : Fin p.addrWidth => (1 - isRam p j) * addrBit p j k.val) ++
+      ((List.finRange p.addrWidth).filter (fun k : Fin p.addrWidth => p.μ ≤ k.val)).map
+        (fun k : Fin p.addrWidth => isRam p j * addrBit p j k.val)),
     (s!"O7 slot {j.val}", (opLane p j).tail.map (fun x => Sym.pad p j * x)),
     (s!"O8 slot {j.val}", gatedRows (opsFactor p j 0) (Sym.pad p j) (opsProductAfter p 0 j.val)
       (opsProductAfter p 0 (j.val + 1)) (rt p j) (globalIndex p j) (vr p j)),

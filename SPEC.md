@@ -455,14 +455,14 @@ A geometry is seven integers (`Spec.Nebula.Geometry`). A program is two images: 
 | `N` | the steps of a segment |
 | `S_max` | the largest segment count of a proof |
 
-A package is the relation of one application at one geometry. The relation reads no image, so one package and one setup serve every program of the geometry (`Lifecycle.Nebula.MemoryApp.program_eq_of_geometry` (`5dd69fecc234f6a6`)). The program enters a proof only through `D_init` (section 7.4), which the verifier computes from the images.
+A package is the relation of one application at one geometry. The relation reads no image, so one package and one setup serve every program of the geometry (`Lifecycle.Nebula.MemoryApp.program_eq_of_geometry` (`63f08ffc4873d1ce`)). The program enters a proof only through `D_init` (section 7.4), which the verifier computes from the images.
 
 Setup rejects a geometry that breaks one of these rules (`Spec.Nebula.Geometry.Valid`, `Spec.Nebula.Geometry.Secure`):
 
 1. **Exact cover:** `N · B_scan = R + M`.
 2. **Timestamp range:** `S_max · N · B_ops < 2^W_ts`.
-3. **Field encoding:** `W_ts ≤ 62`, `B_ops · (3 + μ + 64 + W_ts) < q` and `B_scan · (32 + W_ts) < q`. Then each timestamp and value is an integer below `q`, row O4 cannot wrap modulo `q`, and the length of each lane is one word.
-4. **Address width:** `r ≤ μ` and `R + M < q`.
+3. **Field encoding:** `W_ts ≤ 62`, `B_ops · (3 + A + 64 + W_ts) < q` and `B_scan · (32 + W_ts) < q`. Then each timestamp and value is an integer below `q`, row O4 cannot wrap modulo `q`, and the length of each lane is one word.
+4. **Address width:** `R + M < q`. The address field of an operation slot has `A = max(r, μ)` bits (`Spec.Nebula.Geometry.addrWidth`), so the RAM can be smaller than the ROM.
 5. **Positive sizes:** `B_ops`, `B_scan`, `N` and `S_max` are at least 1.
 6. **Security:** `R + M + N · B_ops ≤ 139,509`. This holds exactly when the fingerprint error `2(R + M + N · B_ops)/q²` is at most `2^−109.91` (`Spec.Nebula.Geometry.secure_iff` (`fca657b92bff91b6`)), the floor of `decisions/nebula-memory-checking.md`.
 
@@ -481,7 +481,7 @@ An operation slot has these fields, in this order (`Spec.Nebula.OpSlot`):
 | `pad` | 1 | 1 for an inactive slot |
 | `is_write` | 1 | 0 for a read, 1 for a write |
 | `is_ram` | 1 | 0 for ROM, 1 for RAM |
-| `addr` | `μ` | the address |
+| `addr` | `A` | the address |
 | `v_r` | 32 | the value read, or for a write the old value |
 | `v_w` | 32 | the value written, or for a read `v_r` |
 | `rt` | `W_ts` | the timestamp of the last access to the cell |
@@ -490,7 +490,7 @@ An inactive slot has every other field zero, at any position. For slot `j` of a 
 
 A scan slot is a value of 32 bits and a timestamp of `W_ts` bits (`Spec.Nebula.ScanSlot`). Each step has `B_scan` IS slots and `B_scan` FS slots, and slot `j` of step `idx` holds cell `idx · B_scan + j`. The relation computes this index, so a scan slot has no pad.
 
-A step has three lanes: the ops lane of its `B_ops` operation slots, and the IS and FS lanes of its scan slots (`Spec.Nebula.opsLane`, `Spec.Nebula.scanLane`). A lane is its slots in order, each slot its fields in order, each field its bits from the least significant, one bit to a coordinate. So the ops lane has `B_ops · (3 + μ + 64 + W_ts)` coordinates, and each scan lane has `B_scan · (32 + W_ts)`. `pack` splits a lane into chunks of 63 bits, the last one short, and turns each chunk into the word `Σ_k 2^k · b_k`, which is below `2^63 < q` (`Spec.Nebula.pack`). It is injective on the lanes of one length (`Spec.Nebula.pack_injective` (`958e936decf1f7b7`)).
+A step has three lanes: the ops lane of its `B_ops` operation slots, and the IS and FS lanes of its scan slots (`Spec.Nebula.opsLane`, `Spec.Nebula.scanLane`). A lane is its slots in order, each slot its fields in order, each field its bits from the least significant, one bit to a coordinate. So the ops lane has `B_ops · (3 + A + 64 + W_ts)` coordinates, and each scan lane has `B_scan · (32 + W_ts)`. `pack` splits a lane into chunks of 63 bits, the last one short, and turns each chunk into the word `Σ_k 2^k · b_k`, which is below `2^63 < q` (`Spec.Nebula.pack`). It is injective on the lanes of one length (`Spec.Nebula.pack_injective` (`958e936decf1f7b7`)).
 
 **Hash residency.** A fingerprint tuple and its pad gate read only the lane coordinates of their own step, the carry fields `ts` and `idx`, the counters `cnt_j`, the auxiliary words of section 7.3 and constants. `η` and the products are only coefficients and accumulators of the fingerprints. The memory rows keep this rule. The application's rows read only its view (section 7.6), which has no word for `η`, a product or a carry word. Rust `nebula::Circuit::compile` rejects an application row that reads another variable (`crates/nightstream/src/nebula/circuit.rs`; not checked against Lean).
 
@@ -505,7 +505,7 @@ Each step evaluates these rows on its own assignment. They read `η`, the produc
 | O3 | `(1 − is_write_j) · (v_w_j − v_r_j) = 0` |
 | O4 | `(1 − pad_j) · (wt_j − rt_j − 1 − diff_j) = 0`, with `diff_j` a `W_ts`-bit auxiliary word |
 | O5 | `is_write_j · (1 − is_ram_j) = 0` |
-| O6 | `(1 − is_ram_j) · addr_bit_{j,k} = 0` for each `k` from `r` to `μ − 1` |
+| O6 | `(1 − is_ram_j) · addr_bit_{j,k} = 0` for each `k` from `r` to `A − 1`, and `is_ram_j · addr_bit_{j,k} = 0` for each `k` from `μ` to `A − 1` |
 | O7 | `pad_j · w = 0` for each field `w` of the slot after `pad` |
 | O8 | `h_rs_j = h_rs_{j−1} · (pad_j + (1 − pad_j) · f(RS_j))` |
 | O9 | `h_ws_j = h_ws_{j−1} · (pad_j + (1 − pad_j) · f(WS_j))` |
@@ -518,7 +518,7 @@ Each step evaluates these rows on its own assignment. They read `η`, the produc
 
 The fingerprint is `f(t, g, v) = g + η1 · v + η1² · t − η2` in `K` (`Spec.Nebula.fingerprint`), Nebula's `Hash` with the global index for the address. Each product starts from its carry value. The step's outputs are `ts + cnt_{B_ops−1}`, which must be below `2^W_ts`, the last value of each product, and `idx + 1`. Rule 3 keeps every term of O4 below `2^62`, so O4 is an integer equation and gives `rt_j < wt_j` (`Spec.Nebula.StepRows`, `Spec.Nebula.OpSlot.Rows`).
 
-**Auxiliary words.** Each counter `cnt_j` is a witness word, and so is each of the four products at the start of the step. Each fingerprint step `h_j = h_{j−1} · x` has factor words: the two coordinates of `η1 · v`, the two of `f`, for an operation slot the two of the gate `x = pad + (1 − pad) · f`, and the cross products `h_{j−1}.c1 · x.c1` and `h_{j−1}.c1 · x.c0` (`Lifecycle.Nebula.fingerprintWords`, `Lifecycle.Nebula.opsFactorWords`, `Lifecycle.Nebula.scanFactorWords`). So each row of a fingerprint step is a word minus a recipe with one product. It lowers to one R1CS row and no fresh column, and it reads the bit chunks of `t`, `g` and `v` once (`Lifecycle.Nebula.Rows.gatedRows`, `Lifecycle.Nebula.Rows.factorRows`). The rows hold exactly when the equations above hold and the auxiliary words are their honest values (`Lifecycle.Nebula.Rows.polyRows_iff` (`d2c8fb2f6a534141`)), and the validity predicate of the memory program requires these values (`Lifecycle.Nebula.AuxHonest`).
+**Auxiliary words.** Each counter `cnt_j` is a witness word, and so is each of the four products at the start of the step. Each fingerprint step `h_j = h_{j−1} · x` has factor words: the two coordinates of `η1 · v`, the two of `f`, for an operation slot the two of the gate `x = pad + (1 − pad) · f`, and the cross products `h_{j−1}.c1 · x.c1` and `h_{j−1}.c1 · x.c0` (`Lifecycle.Nebula.fingerprintWords`, `Lifecycle.Nebula.opsFactorWords`, `Lifecycle.Nebula.scanFactorWords`). So each row of a fingerprint step is a word minus a recipe with one product. It lowers to one R1CS row and no fresh column, and it reads the bit chunks of `t`, `g` and `v` once (`Lifecycle.Nebula.Rows.gatedRows`, `Lifecycle.Nebula.Rows.factorRows`). The rows hold exactly when the equations above hold and the auxiliary words are their honest values (`Lifecycle.Nebula.Rows.polyRows_iff` (`6ef45fb774ded011`)), and the validity predicate of the memory program requires these values (`Lifecycle.Nebula.AuxHonest`).
 
 ### 7.4 Record chains and the memory challenge
 
@@ -640,7 +640,7 @@ A Rust-built application in an option-B step package (`Export.OptionB.StepPackag
 
 **Rejects.** The relation does not hold.
 
-**Source.** `Lifecycle.Nebula.MemoryApp.program`, the step `Spec.Nebula.invoke`. Rows that hold imply the program's step and validity predicates (`Lifecycle.Nebula.MemoryApp.soundness` (`84fe79a79ffc82be`)). On a reachable input carry, they give one step of `invoke` (`Lifecycle.Nebula.StepWitness.RowsHold.invoke` (`fb47b498ac87650e`)), and an honest step satisfies the rows (`Lifecycle.Nebula.MemoryApp.completeness` (`58b8daea16e25a66`)). Each execution of `S · N` steps with `1 ≤ S ≤ S_max` has a step history whose statement passes Algorithm 10 steps 3 and 4 (`Lifecycle.Nebula.MemoryApp.history_of_execution` (`40f132167d7cfcbd`)). The first step is the base step of the light circuit (Algorithm 3, step 2).
+**Source.** `Lifecycle.Nebula.MemoryApp.program`, the step `Spec.Nebula.invoke`. Rows that hold imply the program's step and validity predicates (`Lifecycle.Nebula.MemoryApp.soundness` (`2bbf14a7cb875a9e`)). On a reachable input carry, they give one step of `invoke` (`Lifecycle.Nebula.StepWitness.RowsHold.invoke` (`43ebfb9d04fe7748`)), and an honest step satisfies the rows (`Lifecycle.Nebula.MemoryApp.completeness` (`5c16c15546fd4196`)). Each execution of `S · N` steps with `1 ≤ S ≤ S_max` has a step history whose statement passes Algorithm 10 steps 3 and 4 (`Lifecycle.Nebula.MemoryApp.history_of_execution` (`200deda3d20fd03d`)). The first step is the base step of the light circuit (Algorithm 3, step 2).
 
 ### Algorithm 10. Memory verifier
 

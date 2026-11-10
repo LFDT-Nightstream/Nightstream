@@ -304,10 +304,21 @@ theorem noRomWrite_row (accepted : Accepted p c inv) (j : Fin p.bOps) :
   · rw [rows.noRomWrite h]
     simp [bitWord]
 
-theorem romRange_row (accepted : Accepted p c inv) (j : Fin p.bOps) (k : Fin p.μ)
+theorem ramRange_row (accepted : Accepted p c inv) (j : Fin p.bOps) (k : Fin p.addrWidth)
+    (high : p.μ ≤ k.val) :
+    (witness p c inv appIn appOut aux).isRam j * ((witness p c inv appIn appOut aux).ops j).addr k = 0 := by
+  show bitWord (opSlot inv j).isRam * natBits p.addrWidth (opSlot inv j).addr k = 0
+  have rows := accepted.rows.slots _ (opSlot_mem accepted j)
+  cases h : (opSlot inv j).isRam
+  · simp [bitWord]
+  · have below : (opSlot inv j).addr < 2 ^ k.val :=
+      lt_of_lt_of_le (rows.ramRange h) (Nat.pow_le_pow_right (by norm_num) high)
+    simp [natBits, Nat.testBit_lt_two_pow below, bitWord]
+
+theorem romRange_row (accepted : Accepted p c inv) (j : Fin p.bOps) (k : Fin p.addrWidth)
     (high : p.r ≤ k.val) :
     (1 - (witness p c inv appIn appOut aux).isRam j) * ((witness p c inv appIn appOut aux).ops j).addr k = 0 := by
-  show (1 - bitWord (opSlot inv j).isRam) * natBits p.μ (opSlot inv j).addr k = 0
+  show (1 - bitWord (opSlot inv j).isRam) * natBits p.addrWidth (opSlot inv j).addr k = 0
   have rows := accepted.rows.slots _ (opSlot_mem accepted j)
   cases h : (opSlot inv j).isRam
   · have below : (opSlot inv j).addr < 2 ^ k.val :=
@@ -449,16 +460,21 @@ theorem globalIndex_val (valid : p.Valid) (accepted : Accepted p c inv) (j : Fin
       ⟨(opSlot inv j).isWrite, (opSlot inv j).isRam, (opSlot inv j).addr, (opSlot inv j).vr,
         (opSlot inv j).vw⟩ := by
   have fits := accepted.rows.shaped.opsFit _ (opSlot_mem accepted j)
-  show (bitsWord (natBits p.μ (opSlot inv j).addr) + bitWord (opSlot inv j).isRam *
+  show (bitsWord (natBits p.addrWidth (opSlot inv j).addr) + bitWord (opSlot inv j).isRam *
     natWord p.romSize).val = _
   rw [bitsWord_natBits fits.1]
   have cells := valid.belowModulus
   have addr := fits.1
   unfold Geometry.cells Geometry.ramSize at cells
-  cases (opSlot inv j).isRam
-  · simp only [bitWord, Bool.false_eq_true, ite_false, zero_mul, add_zero, PortAccess.globalIndex]
+  have rows := accepted.rows.slots _ (opSlot_mem accepted j)
+  have ramPos : 0 < 2 ^ p.μ := Nat.two_pow_pos _
+  cases h : (opSlot inv j).isRam
+  · have small := rows.romRange h
+    simp only [bitWord, Bool.false_eq_true, ite_false, zero_mul, add_zero, PortAccess.globalIndex]
     exact natWord_val (by omega)
-  · simp only [bitWord, ite_true, one_mul, PortAccess.globalIndex, ← natWord_add]
+  · have small := rows.ramRange h
+    unfold Geometry.ramSize at small
+    simp only [bitWord, ite_true, one_mul, PortAccess.globalIndex, ← natWord_add]
     rw [natWord_val (by omega)]
     omega
 
@@ -776,6 +792,7 @@ theorem polyRows (valid : p.Valid) (reach : Reach p c) (accepted : Accepted p c 
   fresh := fresh_row appIn appOut aux accepted
   noRomWrite := noRomWrite_row appIn appOut aux accepted
   romRange := romRange_row appIn appOut aux accepted
+  ramRange := ramRange_row appIn appOut aux accepted
   padZero := padZero_row appIn appOut aux accepted
   readProduct := readProduct_row appIn appOut aux valid accepted
   writeProduct := writeProduct_row appIn appOut aux valid accepted

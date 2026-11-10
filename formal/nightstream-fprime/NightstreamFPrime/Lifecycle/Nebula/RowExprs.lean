@@ -177,7 +177,7 @@ def vwBit (j k : ℕ) : Circuit.Expr := word (Words.op p j (Words.opVw p k))
 def rtBit (j k : ℕ) : Circuit.Expr := word (Words.op p j (Words.opRt p k))
 def diffBit (j k : ℕ) : Circuit.Expr := word (Words.op p j (Words.opDiff p k))
 
-def addr (j : ℕ) : Circuit.Expr := Expr.bits fun k : Fin p.μ => addrBit p j k
+def addr (j : ℕ) : Circuit.Expr := Expr.bits fun k : Fin p.addrWidth => addrBit p j k
 def vr (j : ℕ) : Circuit.Expr := Expr.bits fun k : Fin 32 => vrBit p j k
 def vw (j : ℕ) : Circuit.Expr := Expr.bits fun k : Fin 32 => vwBit p j k
 def rt (j : ℕ) : Circuit.Expr := Expr.bits fun k : Fin p.wTs => rtBit p j k
@@ -185,7 +185,7 @@ def diff (j : ℕ) : Circuit.Expr := Expr.bits fun k : Fin p.wTs => diffBit p j 
 
 /-- The lane bits of operation slot `j`, in SPEC.md section 7.2 order. -/
 def opLane (j : ℕ) : List Circuit.Expr :=
-  [pad p j, isWrite p j, isRam p j] ++ List.ofFn (fun k : Fin p.μ => addrBit p j k) ++
+  [pad p j, isWrite p j, isRam p j] ++ List.ofFn (fun k : Fin p.addrWidth => addrBit p j k) ++
     List.ofFn (fun k : Fin 32 => vrBit p j k) ++ List.ofFn (fun k : Fin 32 => vwBit p j k) ++
     List.ofFn (fun k : Fin p.wTs => rtBit p j k)
 

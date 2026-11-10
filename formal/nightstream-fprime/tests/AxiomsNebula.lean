@@ -19,7 +19,6 @@ memory application layer (`Lifecycle/Nebula`): framing, carry, step rows,
 their refinement to the model, the honest witness (completeness), and the memory
 packages' bounds. -/
 
-#audit_axioms NightstreamFPrime.Spec.Nebula.Geometry.romSize_le_ramSize
 #audit_axioms NightstreamFPrime.Spec.Nebula.pack_lt
 #audit_axioms NightstreamFPrime.Spec.Nebula.pack_injective
 #audit_axioms NightstreamFPrime.Spec.Nebula.pack_cast_injective

@@ -127,7 +127,7 @@ impl<'a> Sym<'a> {
     }
 
     fn addr_bits(&self, j: usize) -> Vec<Expr> {
-        self.bits(j, Layout::op_addr, self.geometry.mu)
+        self.bits(j, Layout::op_addr, self.geometry.addr_width())
     }
 
     fn vr_bits(&self, j: usize) -> Vec<Expr> {
@@ -388,6 +388,13 @@ impl<'a> Sym<'a> {
                 .filter(|(k, _)| geometry.r <= *k)
                 .map(|(_, bit)| (c(1) - is_ram.clone()) * bit),
         );
+        rows.extend(
+            self.addr_bits(j)
+                .into_iter()
+                .enumerate()
+                .filter(|(k, _)| geometry.mu <= *k)
+                .map(|(_, bit)| is_ram.clone() * bit),
+        );
         rows.extend(self.op_lane(j).into_iter().skip(1).map(|x| pad.clone() * x));
         for (pair, stamp, value) in [(0, chunk(self.rt_bits(j)), vr), (1, self.wt(j), vw)] {
             rows.extend(self.gated_rows(
@@ -518,9 +525,9 @@ impl<'a> View<'a> {
         self.sym.geometry
     }
 
-    /// The `μ` address bits of slot `j`, least significant first.
+    /// The address bits of slot `j`, least significant first.
     pub(super) fn addr_bits(&self, j: usize) -> Vec<Expr> {
-        self.slot_bits(j, Layout::op_addr, self.sym.geometry.mu)
+        self.slot_bits(j, Layout::op_addr, self.sym.geometry.addr_width())
     }
 
     /// The address of slot `j` from its `μ` bits.

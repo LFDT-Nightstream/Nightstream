@@ -14,6 +14,7 @@ structure OpSlot.Rows (p : Geometry) (s : OpSlot) : Prop where
   readKeeps : s.isWrite = false → s.vw = s.vr
   noRomWrite : s.isWrite = true → s.isRam = true
   romRange : s.isRam = false → s.addr < p.romSize
+  ramRange : s.isRam = true → s.addr < p.ramSize
   padZero : s.pad = true → s = OpSlot.padSlot
 
 /-- All memory rows of one step entered with timestamp `ts` (SPEC.md section 7.3). -/
@@ -237,7 +238,8 @@ theorem stepMultisets_small {p : Geometry} (valid : p.Valid) {ts idx : ℕ} {z :
     · have := romRange hr
       simp only [Bool.false_eq_true, ite_false]
       exact Nat.lt_add_right _ this
-    · have := fit.1
+    · have := (rows.slots s hs).ramRange hr
+      unfold Geometry.ramSize at this
       simp only [ite_true]
       omega
   have scanBound : ∀ scan : List ScanSlot, scan.length = p.bScan → (∀ c ∈ scan, c.Fits p) →

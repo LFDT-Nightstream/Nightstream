@@ -27,10 +27,10 @@ def OpSlotBits.word (slot : OpSlotBits p) (i : ℕ) : F :=
   if i = 0 then slot.pad
   else if i = 1 then slot.isWrite
   else if i = 2 then slot.isRam
-  else if h : i - 3 < p.μ then slot.addr ⟨i - 3, h⟩
-  else if h : i - 3 - p.μ < 32 then slot.vr ⟨i - 3 - p.μ, h⟩
-  else if h : i - 3 - p.μ - 32 < 32 then slot.vw ⟨i - 3 - p.μ - 32, h⟩
-  else if h : i - 3 - p.μ - 64 < p.wTs then slot.rt ⟨i - 3 - p.μ - 64, h⟩
+  else if h : i - 3 < p.addrWidth then slot.addr ⟨i - 3, h⟩
+  else if h : i - 3 - p.addrWidth < 32 then slot.vr ⟨i - 3 - p.addrWidth, h⟩
+  else if h : i - 3 - p.addrWidth - 32 < 32 then slot.vw ⟨i - 3 - p.addrWidth - 32, h⟩
+  else if h : i - 3 - p.addrWidth - 64 < p.wTs then slot.rt ⟨i - 3 - p.addrWidth - 64, h⟩
   else if h : i - p.opWidth < p.wTs then slot.diff ⟨i - p.opWidth, h⟩
   else 0
 

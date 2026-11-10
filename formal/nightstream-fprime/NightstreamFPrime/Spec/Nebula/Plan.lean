@@ -38,8 +38,11 @@ def ramSize (p : Geometry) : ℕ := 2 ^ p.μ
 /-- All cells `R + M` of the flat address space (SPEC.md section 7.2). -/
 def cells (p : Geometry) : ℕ := p.romSize + p.ramSize
 
+/-- Bits of an address field: enough for a ROM address and for a RAM address. -/
+def addrWidth (p : Geometry) : ℕ := max p.r p.μ
+
 /-- Bits of one operation slot (SPEC.md section 7.2). -/
-def opWidth (p : Geometry) : ℕ := 3 + p.μ + 64 + p.wTs
+def opWidth (p : Geometry) : ℕ := 3 + p.addrWidth + 64 + p.wTs
 
 /-- Bits of one scan slot (SPEC.md section 7.2). -/
 def scanWidth (p : Geometry) : ℕ := 32 + p.wTs
@@ -59,12 +62,23 @@ structure Valid (p : Geometry) : Prop where
   timestampRange : p.sMax * p.n * p.bOps < 2 ^ p.wTs
   fieldEncoding : p.wTs ≤ 62
   laneBits : p.bOps * p.opWidth < goldilocksModulus ∧ p.bScan * p.scanWidth < goldilocksModulus
-  addressWidth : p.r ≤ p.μ
   belowModulus : p.cells < goldilocksModulus
   positive : 0 < p.bOps ∧ 0 < p.bScan ∧ 0 < p.n ∧ 0 < p.sMax
 
-theorem romSize_le_ramSize {p : Geometry} (valid : p.Valid) : p.romSize ≤ p.ramSize :=
-  Nat.pow_le_pow_right Nat.zero_lt_two valid.addressWidth
+theorem two_pow_addrWidth_le_cells (p : Geometry) : 2 ^ p.addrWidth ≤ p.cells := by
+  unfold addrWidth cells romSize ramSize
+  rw [Nat.max_def]
+  split
+  · exact Nat.le_add_left _ _
+  · exact Nat.le_add_right _ _
+
+/-- An address field holds fewer than 64 bits, so its value is a canonical field element. -/
+theorem addrWidth_le {p : Geometry} (valid : p.Valid) : p.addrWidth ≤ 63 := by
+  have below := Nat.lt_of_le_of_lt (two_pow_addrWidth_le_cells p) valid.belowModulus
+  refine Nat.le_of_not_lt fun large => ?_
+  have big : 2 ^ 64 ≤ 2 ^ p.addrWidth := Nat.pow_le_pow_right (by decide) large
+  have : goldilocksModulus < 2 ^ 64 := by decide
+  omega
 
 end Geometry
 

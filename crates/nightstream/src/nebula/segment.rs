@@ -450,7 +450,7 @@ impl<A: Application> Context<A> {
             w[base(0)] = F::from_bool(slot.pad);
             w[base(1)] = F::from_bool(slot.is_write);
             w[base(2)] = F::from_bool(slot.is_ram);
-            set_bits(&mut w, |k| base(layout.op_addr(k)), slot.addr, geometry.mu);
+            set_bits(&mut w, |k| base(layout.op_addr(k)), slot.addr, geometry.addr_width());
             set_bits(&mut w, |k| base(layout.op_vr(k)), slot.vr, 32);
             set_bits(&mut w, |k| base(layout.op_vw(k)), slot.vw, 32);
             set_bits(&mut w, |k| base(layout.op_rt(k)), slot.rt, geometry.w_ts);

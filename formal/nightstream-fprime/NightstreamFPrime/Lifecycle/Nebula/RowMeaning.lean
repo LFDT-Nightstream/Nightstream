@@ -156,7 +156,8 @@ theorem slotRows_iff (j : Fin p.bOps) : ConstraintsHold v (slotRows p j) ↔
       ((1 - (W).isWrite j) * ((W).vw j - (W).vr j) = 0)) ∧
       ((1 - (W).pad j) * ((W).cIn 2 + v (Words.cnt p j) - (W).rt j - 1 - (W).diff j) = 0)) ∧
       ((W).isWrite j * (1 - (W).isRam j) = 0)) ∧
-      (∀ k : Fin p.μ, p.r ≤ k.val → (1 - (W).isRam j) * ((W).ops j).addr k = 0)) ∧
+      ((∀ k : Fin p.addrWidth, p.r ≤ k.val → (1 - (W).isRam j) * ((W).ops j).addr k = 0) ∧
+        (∀ k : Fin p.addrWidth, p.μ ≤ k.val → (W).isRam j * ((W).ops j).addr k = 0))) ∧
       (∀ x ∈ (((W).ops j).lane).tail, (W).pad j * x = 0)) ∧
       ((fun c : Fin 8 => v (Words.opsFactor p j 0 c)) = opsFactorWords (W).eta1 (W).eta2 (W).eta1Sq
           ((opsProductAfter p 0 j.val).eval v) ((W).pad j) ((W).rt j) ((W).globalIndex j) ((W).vr j) ∧
@@ -185,11 +186,18 @@ theorem slotRows_iff (j : Fin p.bOps) : ConstraintsHold v (slotRows p j) ↔
     rfl
   · simp only [Circuit.Expr.eval_hmul, Circuit.Expr.eval_sub, Expr.eval_one]
     rfl
-  · rw [hold_map]
-    simp only [List.mem_filter, List.mem_finRange, true_and, decide_eq_true_eq]
-    refine forall_congr' fun k => imp_congr_right fun _ => ?_
-    simp only [Circuit.Expr.eval_hmul, Circuit.Expr.eval_sub, Expr.eval_one]
-    rfl
+  · rw [constraintsHold_append]
+    refine and_congr ?_ ?_
+    · rw [hold_map]
+      simp only [List.mem_filter, List.mem_finRange, true_and, decide_eq_true_eq]
+      refine forall_congr' fun k => imp_congr_right fun _ => ?_
+      simp only [Circuit.Expr.eval_hmul, Circuit.Expr.eval_sub, Expr.eval_one]
+      rfl
+    · rw [hold_map]
+      simp only [List.mem_filter, List.mem_finRange, true_and, decide_eq_true_eq]
+      refine forall_congr' fun k => imp_congr_right fun _ => ?_
+      simp only [Circuit.Expr.eval_hmul]
+      rfl
   · rw [hold_map, ← Sym.eval_opLane p a v j, ← List.map_tail, List.forall_mem_map]
     rfl
   · simp only [Sym.eval_rt p a v, Sym.eval_globalIndex p a v, Sym.eval_vr p a v]
@@ -404,7 +412,8 @@ theorem polyRows_iff (app : PortApp p) :
       readKeeps := fun j => (slots j).1.1.1.1.1.1.2,
       fresh := fun j => by rw [← wt j]; exact (slots j).1.1.1.1.1.2,
       noRomWrite := fun j => (slots j).1.1.1.1.2,
-      romRange := fun j => (slots j).1.1.1.2,
+      romRange := fun j => (slots j).1.1.1.2.1,
+      ramRange := fun j => (slots j).1.1.1.2.2,
       padZero := fun j => (slots j).1.1.2,
       readProduct := fun j => by
         rw [← ops 0 (by decide), ← ops 0 (by decide)]
@@ -447,7 +456,7 @@ theorem polyRows_iff (app : PortApp p) :
     · exact ⟨⟨⟨⟨⟨⟨⟨⟨rows.openZero, rows.openTest⟩, rows.segRange⟩, rows.idxEff⟩, rows.seenPrev⟩,
         rows.proposed⟩, rows.eta⟩, rows.square⟩, starts⟩
     · rw [wt j, ops 0 (by decide), ops 0 (by decide), ops 1 (by decide), ops 1 (by decide)]
-      exact ⟨⟨⟨⟨⟨⟨⟨chain j, rows.readKeeps j⟩, rows.fresh j⟩, rows.noRomWrite j⟩, rows.romRange j⟩,
+      exact ⟨⟨⟨⟨⟨⟨⟨chain j, rows.readKeeps j⟩, rows.fresh j⟩, rows.noRomWrite j⟩, rows.romRange j, rows.ramRange j⟩,
         rows.padZero j⟩, (opsAux j 0).trans (opsAux_zero p _ v j), rows.readProduct j⟩,
         (opsAux j 1).trans (opsAux_one p _ v j), rows.writeProduct j⟩
     · rw [scan 0 (by decide), scan 0 (by decide), scan 1 (by decide), scan 1 (by decide)]

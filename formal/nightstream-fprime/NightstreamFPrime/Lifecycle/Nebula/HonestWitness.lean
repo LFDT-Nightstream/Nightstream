@@ -61,7 +61,7 @@ theorem mul_fieldInverse {x : F} (nonzero : x ≠ 0) : x * fieldInverse x = 1 :=
 
 /-- The bits of a typed operation slot, with O4 difference bits `diff`. -/
 def encodeOp (p : Geometry) (s : OpSlot) (diff : ℕ) : OpSlotBits p :=
-  ⟨bitWord s.pad, bitWord s.isWrite, bitWord s.isRam, natBits p.μ s.addr, natBits 32 s.vr,
+  ⟨bitWord s.pad, bitWord s.isWrite, bitWord s.isRam, natBits p.addrWidth s.addr, natBits 32 s.vr,
     natBits 32 s.vw, natBits p.wTs s.rt, natBits p.wTs diff⟩
 
 /-- The bits of a typed scan slot. -/

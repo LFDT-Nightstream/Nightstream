@@ -24,7 +24,7 @@ pub struct Layout {
     b_ops: usize,
     op_words: usize,
     op_width: usize,
-    mu: usize,
+    addr_width: usize,
     scan_width: usize,
     initial_start: usize,
     final_start: usize,
@@ -61,7 +61,7 @@ impl Layout {
             b_ops: geometry.b_ops,
             op_words,
             op_width,
-            mu: geometry.mu,
+            addr_width: geometry.addr_width(),
             scan_width,
             initial_start,
             final_start,
@@ -150,15 +150,15 @@ impl Layout {
     }
 
     pub fn op_vr(&self, k: usize) -> usize {
-        3 + self.mu + k
+        3 + self.addr_width + k
     }
 
     pub fn op_vw(&self, k: usize) -> usize {
-        3 + self.mu + 32 + k
+        3 + self.addr_width + 32 + k
     }
 
     pub fn op_rt(&self, k: usize) -> usize {
-        3 + self.mu + 64 + k
+        3 + self.addr_width + 64 + k
     }
 
     pub fn op_diff(&self, k: usize) -> usize {

@@ -83,8 +83,8 @@ structure Values (logicalWidth : Nat)
   output : FullOutputCoordinates.FullOutput K productionShape
   digestSelect : Fin 3 → List F
 
-/-- The light step's values for the shared groups; the light rounds and output lie above the
-columns that the refresh step reads from them. -/
+/-- The light step's values for the shared groups; the light rounds, output and digest select lie
+above the columns that the refresh step reads from them. -/
 def lightValues (values : Values logicalWidth publicFits) :
     LightAssemblerSource.Values logicalWidth publicFits where
   counters := values.counters
@@ -96,7 +96,7 @@ def lightValues (values : Values logicalWidth publicFits) :
   fresh := values.fresh
   rounds := values.rounds
   output := ⟨fun _ _ => ⟨0, 0⟩, fun _ _ _ => ⟨0, 0⟩⟩
-  digestSelect := values.digestSelect
+  digestSelect := fun _ => []
 
 /-- The refresh step's own groups, from the children's commitments. -/
 def tailColumn (values : Values logicalWidth publicFits) (word : Nat) : F :=

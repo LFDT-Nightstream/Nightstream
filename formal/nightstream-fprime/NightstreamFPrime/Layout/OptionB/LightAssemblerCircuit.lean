@@ -8,7 +8,7 @@ gadgets read only shared words (`completeGadgetsFrom`), the light Π_CCS check a
 that the shared words carry (`LightPiCCSPhase.spec_implies_phaseHolds`, then
 `LightPiCCSCompleteness.completeFrom`), the Π_RLC fills from its inputs, the new slot's hash fills
 because the folded slot is the same before and after the fill, and the digest-select rows read
-only shared words (`DigestSelect.rows_congr`). -/
+only shared words (`LightSelect.rows_congr`). -/
 
 namespace NightstreamFPrime.Layout.OptionB.LightAssemblerCircuit
 
@@ -178,7 +178,7 @@ theorem completeOfChildren (relation : ProductionKey.LogicalRelation logicalWidt
     program.witnessWordCount
   have endEq := sharedEnd_eq base program.witnessWordCount
   have assumptionsAt := LightStepBounds.assumptions program relation circuit (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount) (sharedEnd base program.witnessWordCount) below
-  obtain ⟨stepSpec, selectRows0⟩ := LightStepLayout.soundness program relation circuit (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount) (sharedEnd base program.witnessWordCount)
+  obtain ⟨stepSpec, activeSpec, selectRows0⟩ := LightStepLayout.soundness program relation circuit (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount) (sharedEnd base program.witnessWordCount)
     program.step (fun _ _ => circuit) rfl (fun _ _ _ => rfl) source (assumptionsAt source)
     children relation
   have applicationSpec : (applicationCircuit program (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount)).spec (sharedEnd base program.witnessWordCount) source := by
@@ -199,7 +199,7 @@ theorem completeOfChildren (relation : ProductionKey.LogicalRelation logicalWidt
   -- The step gadgets, the light Π_CCS and the light Π_RLC.
   obtain ⟨p1, ops1, end1, preserves1⟩ := LightStepCompleteness.completeGadgetsFrom program
     circuit (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount) (sharedEnd base program.witnessWordCount) relation (Sequence.empty source (sharedEnd base program.witnessWordCount)) rfl below applicationSpec
-    depthSmall (fun slot => slotSpec_at (stepSpec.priorSlots slot))
+    depthSmall (slotSpec_at activeSpec)
     (priorStateSpec_at program (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount) stepSpec.prior)
     (nextStateSpec_at program circuit (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount) stepSpec.next)
   have piccsBelow := LightStepBounds.piccsBelow program circuit (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount) (sharedEnd base program.witnessWordCount) below
@@ -303,7 +303,7 @@ theorem completeOfChildren (relation : ProductionKey.LogicalRelation logicalWidt
         (assumptionsAt p3.current).newSlot)
       built4 agrees4 rows4
   -- The digest-select rows read only shared words.
-  have selectRows4 := DigestSelect.rows_congr (selectInterface program (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount))
+  have selectRows4 := LightSelect.rows_congr (selectInterface program (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount))
     (selectOffset program relation circuit (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount) (sharedEnd base program.witnessWordCount)) source p4.current
     (agreeOf p4 base (by omega)) (agreeOf p4 (base + 1) (by omega))
     (agreeOf p4 (base + 2) (by omega)) (agreeOf p4 (base + 3) (by omega))
@@ -312,13 +312,7 @@ theorem completeOfChildren (relation : ProductionKey.LogicalRelation logicalWidt
       (below.initialState index))
     (fun index => shared_eval program base source p4.current (agreeOf p4) _
       (below.currentState index))
-    (fun slot => shared_words program base source p4.current (agreeOf p4) _ (below.prior slot))
-    (shared_words program base source p4.current (agreeOf p4) _ (slotAt_below
-      (logicalWidth := logicalWidth) (publicFits := publicFits)
-      (slotsStart base program.witnessWordCount + 2 * slotWordCount) (sharedEnd base program.witnessWordCount) (by
-        simp only [slotsStart, witnessStart, slotWordCount] at endEq ⊢
-        rw [endEq]
-        omega)))
+    (digestEq _ p4.current (agreeOf p4) below.activeDigest)
     (fun slot => digestEq _ p4.current (agreeOf p4) (below.priorDigest slot))
     (digestEq _ p4.current (agreeOf p4) below.newDigest)
     (fun slot => digestEq _ p4.current (agreeOf p4) (below.innerDigest slot))
@@ -366,7 +360,7 @@ theorem completeOfChildren (relation : ProductionKey.LogicalRelation logicalWidt
     refine (constraintsHold_append _ _ _).mpr ⟨filledRows4, ?_⟩
     intro row member
     simp only [flatConstraints, List.flatMap_cons, List.flatMap_nil, List.append_nil] at member
-    change row ∈ flatConstraints ((DigestSelect.rows (selectInterface program (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount))
+    change row ∈ flatConstraints ((LightSelect.rows (selectInterface program (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount))
       (selectOffset program relation circuit (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount) (sharedEnd base program.witnessWordCount))).map Op.assertZero) at member
     simp only [flatConstraints, List.flatMap_map, List.mem_flatMap, Op.flatConstraints,
       List.mem_singleton] at member

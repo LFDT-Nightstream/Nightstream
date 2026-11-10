@@ -337,16 +337,15 @@ structure Shaped (decoded : Decoded logicalWidth publicFits) : Prop where
   nextDepth : ∀ slot, (decoded.output.runningNext slot).2 < goldilocksModulus
 
 theorem decode_shaped (circuit : Fin 2)
-    (witness : Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits)) :
-    Shaped (exports.decode circuit witness) := by
+    (witness : Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (running : Fin 2 → SlotData logicalWidth publicFits) :
+    Shaped (exports.decode circuit witness running) := by
   unfold Exports.decode
   split
-  · have represents := lightRepresents exports.program relation ajtai circuitKeys 0
-      (lightEnv exports.program relation ajtai exports.lightLayout
-        (Layout.ProductionRelation.Plan.logicalAssignment witness))
-    exact ⟨represents.iterationBound, represents.priorPcBound, by simp [lightInput],
-      by simp [lightInput], represents.priorDepth,
-      DigestSelect.nextSlots_depth _ _ _ _ represents.priorDepth (Fin.isLt _)⟩
+  · exact ⟨Fin.isLt _, Fin.isLt _, by simp [lightInput], by simp [lightInput],
+      lightInput_depth exports.program running _,
+      DigestSelect.nextSlots_depth _ _ _ _ (lightInput_depth exports.program running _)
+        (Fin.isLt _)⟩
   · have represents := refreshRepresents exports.program relation ajtai circuitKeys 1
       (refreshEnv exports.program relation ajtai exports.refreshLayout
         (Layout.ProductionRelation.Plan.logicalAssignment witness))
@@ -403,7 +402,7 @@ theorem walk_step (keysShaped : ∀ key, (circuitKeys key).digest.length = 4)
   swap
   · exact absurd collision safe
   have shaped := decode_shaped ajtai circuitKeys exports (circuitOf payload.pc)
-    payload.freshWitness
+    payload.freshWitness payload.running
   obtain ⟨dispatch, _, zNext, _, branch⟩ :=
     (stepHolds_iff _ ajtai circuitKeys step _ _ _ _).1 stepHolds
   have stepped : exports.program.step (exports.last payload).input.zi

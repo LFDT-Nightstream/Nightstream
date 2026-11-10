@@ -7,7 +7,7 @@ use neo_ccs::GeometricRowRun;
 use neo_math::{D, F};
 use p3_field::PrimeCharacteristicRing;
 
-use super::{RetainedMatrixWindow, SuperneoEvalCache};
+use super::{FactoredRows, RetainedMatrixWindow, SuperneoEvalCache};
 use crate::PiCcsError;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -40,6 +40,12 @@ pub trait MatrixRows: Sync {
 
     fn retained_window(&self) -> Option<&RetainedMatrixWindow> {
         None
+    }
+
+    /// These rows in factored form, if the source has one. It describes the
+    /// same matrices as `visit_rows`.
+    fn factored(&self) -> Result<Option<FactoredRows<'_>>, PiCcsError> {
+        Ok(None)
     }
 }
 

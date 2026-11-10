@@ -17,6 +17,7 @@ groups=(
   '-p neo-ajtai --test nightstream_fprime_setup_parity --test nightstream_fprime_signed_commitment --test nightstream_fprime_prefix_commitment --test nightstream_fprime_matrix_commitment --test nightstream_fprime_batch_commitment --test red_team'
   '-p neo-reductions --test matrix_rows --test redteam_*'
   '-p neo-reductions --lib superneo_eval::openings::tests::'
+  '-p neo-reductions --lib factored_oracle_tests::'
   '-p neo-reductions --test pi_rlc_lean_parity'
   '-p neo-application'
   '-p neo-wasm'

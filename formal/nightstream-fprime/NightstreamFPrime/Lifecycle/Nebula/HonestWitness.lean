@@ -216,8 +216,6 @@ def witness {a : AppShape} (appIn appOut : Fin a.width → F) (aux : Fin a.aux �
   closeInverse := fieldInverse (natWord (stepped p c inv).idx - natWord p.n)
   etaFresh := ![(fresh p c inv).1.c0, (fresh p c inv).1.c1, (fresh p c inv).2.c0,
     (fresh p c inv).2.c1]
-  eta1Square := ![((finished p c inv).eta.1 * (finished p c inv).eta.1).c0,
-    ((finished p c inv).eta.1 * (finished p c inv).eta.1).c1]
   seenPrev i := carryVector (start p c inv) ⟨23 + i.val, by omega⟩
   idxEff := natWord (start p c inv).idx
   ops j := encodeOp p (opSlot inv j) (diff c inv j)

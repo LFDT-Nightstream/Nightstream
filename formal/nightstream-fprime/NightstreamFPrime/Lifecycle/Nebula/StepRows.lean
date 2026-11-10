@@ -56,7 +56,6 @@ structure StepWitness (p : Geometry) (a : AppShape) where
   isClose : F
   closeInverse : F
   etaFresh : Fin 4 → F
-  eta1Square : Fin 2 → F
   seenPrev : Fin 12 → F
   idxEff : F
   ops : Fin p.bOps → OpSlotBits p
@@ -87,9 +86,10 @@ def kOf (c0 c1 : F) : K := ⟨c0, c1⟩
 /-- A field word as an element of `K`. -/
 def embed (x : F) : K := ⟨x, 0⟩
 
-/-- The fingerprint of SPEC.md section 7.3 over trunk `K` operations. -/
-def fingerprintK (η1 η2 η1sq : K) (t g v : F) : K :=
-  K.sub (K.add (K.add (embed g) (K.mul η1 (embed v))) (K.mul η1sq (embed t))) η2
+/-- The fingerprint of SPEC.md section 7.3 over trunk `K` operations:
+`g + η1 · (v + 2^32 · t) − η2`. -/
+def fingerprintK (η1 η2 : K) (t g v : F) : K :=
+  K.sub (K.add (embed g) (K.mul η1 (embed (v + natWord (2 ^ 32) * t)))) η2
 
 /-- The gated factor `pad + (1 − pad) · f` of rows O8 and O9. -/
 def gatedK (pad : F) (f : K) : K := K.add (embed pad) (K.mul (embed (1 - pad)) f)
@@ -112,9 +112,6 @@ def cOut (k : ℕ) : F := carryWord w.carryOut k
 /-- `(η1, η2)` of the output carry: the challenges that this step uses. -/
 def eta1 : K := kOf (w.cOut 3) (w.cOut 4)
 def eta2 : K := kOf (w.cOut 5) (w.cOut 6)
-
-/-- The square of `η1` that the witness supplies. -/
-def eta1Sq : K := kOf (w.eta1Square 0) (w.eta1Square 1)
 
 /-- The fresh challenges of the `η` transcript. -/
 def freshEta : K × K := (kOf (w.etaFresh 0) (w.etaFresh 1), kOf (w.etaFresh 2) (w.etaFresh 3))
@@ -229,7 +226,6 @@ structure StepWitness.PolyRows {p : Geometry} {a : AppShape} (w : StepWitness p 
     w.seenPrev i = w.isOpen * headerWords p i + (1 - w.isOpen) * w.cIn (23 + i)
   proposed : ∀ i : Fin 8, w.cOut (15 + i) = w.isOpen * w.proposal i + (1 - w.isOpen) * w.cIn (15 + i)
   eta : ∀ i : Fin 4, w.cOut (3 + i) = w.isOpen * w.etaFresh i + (1 - w.isOpen) * w.cIn (3 + i)
-  square : w.eta1Sq = K.mul w.eta1 w.eta1
   -- operation rows
   readKeeps : ∀ j, (1 - w.isWrite j) * (w.vw j - w.vr j) = 0
   fresh : ∀ j, (1 - w.pad j) * (w.wt j - w.rt j - 1 - w.diff j) = 0
@@ -238,15 +234,15 @@ structure StepWitness.PolyRows {p : Geometry} {a : AppShape} (w : StepWitness p 
   ramRange : ∀ j (k : Fin p.addrWidth), p.μ ≤ k.val → w.isRam j * (w.ops j).addr k = 0
   padZero : ∀ j, ∀ x ∈ ((w.ops j).lane).tail, w.pad j * x = 0
   readProduct : ∀ j, w.opsProductAfter 0 (j.val + 1) = K.mul (w.opsProductAfter 0 j.val)
-    (gatedK (w.pad j) (fingerprintK w.eta1 w.eta2 w.eta1Sq (w.rt j) (w.globalIndex j) (w.vr j)))
+    (gatedK (w.pad j) (fingerprintK w.eta1 w.eta2 (w.rt j) (w.globalIndex j) (w.vr j)))
   writeProduct : ∀ j, w.opsProductAfter 1 (j.val + 1) = K.mul (w.opsProductAfter 1 j.val)
-    (gatedK (w.pad j) (fingerprintK w.eta1 w.eta2 w.eta1Sq (w.wt j) (w.globalIndex j) (w.vw j)))
+    (gatedK (w.pad j) (fingerprintK w.eta1 w.eta2 (w.wt j) (w.globalIndex j) (w.vw j)))
   -- scan rows
   initialProduct : ∀ j, w.scanProductAfter 0 (j.val + 1) = K.mul (w.scanProductAfter 0 j.val)
-    (fingerprintK w.eta1 w.eta2 w.eta1Sq (bitsWord (w.initial j).stamp) (w.scanIndex j)
+    (fingerprintK w.eta1 w.eta2 (bitsWord (w.initial j).stamp) (w.scanIndex j)
       (bitsWord (w.initial j).value))
   finalProduct : ∀ j, w.scanProductAfter 1 (j.val + 1) = K.mul (w.scanProductAfter 1 j.val)
-    (fingerprintK w.eta1 w.eta2 w.eta1Sq (bitsWord (w.final j).stamp) (w.scanIndex j)
+    (fingerprintK w.eta1 w.eta2 (bitsWord (w.final j).stamp) (w.scanIndex j)
       (bitsWord (w.final j).value))
   -- boundary rows
   tsOut : w.cOut 2 = w.cIn 2 + w.cntBefore p.bOps

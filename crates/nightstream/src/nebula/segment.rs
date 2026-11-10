@@ -136,18 +136,23 @@ fn memory_lanes(geometry: &Geometry, memory: &[Cell]) -> Vec<Vec<F>> {
         .collect()
 }
 
-/// The SPEC.md section 7.3 fingerprint `g + η1·v + η1²·t − η2`.
-fn fingerprint(eta: (K, K), t: u64, g: u64, v: u64) -> K {
-    K::from(F::from_u64(g)) + eta.0 * K::from(F::from_u64(v)) + eta.0.square() * K::from(F::from_u64(t)) - eta.1
+/// The value and the timestamp of a tuple as one field word, `v + 2^32·t`
+/// (SPEC.md section 7.1, rule 3 keeps it below `2^63`).
+fn packed(t: u64, v: u64) -> F {
+    F::from_u64(v) + F::from_u64(1 << 32) * F::from_u64(t)
 }
 
-/// The factor words of the fingerprint `f(t, g, v)`: `η1 · v`, then `f`
-/// (Lean `fingerprintWords`).
-fn fingerprint_words(eta: (K, K), t: u64, g: u64, v: u64) -> [F; 4] {
-    let ([e0, e1], [s0, s1], [d0, d1]) = (k_words(eta.0), k_words(eta.0.square()), k_words(eta.1));
-    let (t, g, v) = (F::from_u64(t), F::from_u64(g), F::from_u64(v));
-    let (a0, a1) = (e0 * v, e1 * v);
-    [a0, a1, s0 * t + (g + a0 - d0), s1 * t + (a1 - d1)]
+/// The SPEC.md section 7.3 fingerprint `g + η1·(v + 2^32·t) − η2`.
+fn fingerprint(eta: (K, K), t: u64, g: u64, v: u64) -> K {
+    K::from(F::from_u64(g)) + eta.0 * K::from(packed(t, v)) - eta.1
+}
+
+/// The factor words of the fingerprint `f(t, g, v)`: the two coordinates of
+/// `f` (Lean `fingerprintWords`).
+fn fingerprint_words(eta: (K, K), t: u64, g: u64, v: u64) -> [F; 2] {
+    let ([e0, e1], [d0, d1]) = (k_words(eta.0), k_words(eta.1));
+    let (g, u) = (F::from_u64(g), packed(t, v));
+    [e0 * u + (g - d0), e1 * u - d1]
 }
 
 /// The cross products `prod.c1 · x1` and `prod.c1 · x0` of `prod · x`.
@@ -440,7 +445,7 @@ impl<A: Application> Context<A> {
             let wt = effective.ts + cnt;
             for (pair, prod, t, v) in [(0, read, slot.rt, slot.vr), (1, write, wt, slot.vw)] {
                 let f = fingerprint_words(eta, t, g, v);
-                let gate = [(F::ONE - pad) * f[2] + pad, (F::ONE - pad) * f[3]];
+                let gate = [(F::ONE - pad) * f[0] + pad, (F::ONE - pad) * f[1]];
                 let cross = cross_words(prod, gate[0], gate[1]);
                 for (k, word) in f.into_iter().chain(gate).chain(cross).enumerate() {
                     w[layout.ops_factor(j, pair, k)] = word;
@@ -481,7 +486,7 @@ impl<A: Application> Context<A> {
             let g = idx * geometry.b_scan as u64 + j as u64;
             for (pair, prod, slot) in [(0, is_product, &initial[j]), (1, fs_product, &final_[j])] {
                 let f = fingerprint_words(eta, slot.stamp, g, slot.value);
-                let cross = cross_words(prod, f[2], f[3]);
+                let cross = cross_words(prod, f[0], f[1]);
                 for (k, word) in f.into_iter().chain(cross).enumerate() {
                     w[layout.scan_factor(j, pair, k)] = word;
                 }
@@ -547,7 +552,6 @@ impl<A: Application> Context<A> {
         }
         set_k(&mut w, words::ETA_FRESH, fresh.0);
         set_k(&mut w, words::ETA_FRESH + 2, fresh.1);
-        set_k(&mut w, words::ETA1_SQUARE, eta.0.square());
         for (lane, digest) in effective.seen.iter().enumerate() {
             w[words::SEEN_PREV + 4 * lane..words::SEEN_PREV + 4 * lane + 4].copy_from_slice(digest);
         }

@@ -20,7 +20,7 @@ variable (p : Geometry) (a : AppShape) (v : ℕ → F)
 
 local notation "W" => StepWitness.ofWords p a v
 
-open _root_.NightstreamFPrime.Lifecycle.Nebula.Sym (word cIn cOut eta1 eta2 eta1Sq isOpen openInverse isClose closeInverse idxEff
+open _root_.NightstreamFPrime.Lifecycle.Nebula.Sym (word cIn cOut eta1 eta2 isOpen openInverse isClose closeInverse idxEff
   isWrite isRam addrBit vrBit vwBit rtBit diffBit addr vr vw rt diff opLane scanValue scanStamp
   scanLane tsWord segWord cnt cntBefore wt globalIndex scanIndex startWord opsProductAfter scanProductAfter
   opsFactor scanFactor)
@@ -42,10 +42,10 @@ theorem hold_nil : ConstraintsHold v [] ↔ True := by simp [ConstraintsHold]
 
 theorem gatedRows_iff (f : ℕ → Circuit.Expr) (pad : Circuit.Expr) (prod next : KExpr) (t g x : Circuit.Expr) :
     ConstraintsHold v (gatedRows f pad prod next t g x) ↔
-      (fun c : Fin 8 => (f c).eval v) = opsFactorWords (W).eta1 (W).eta2 (W).eta1Sq (prod.eval v) (pad.eval v)
+      (fun c : Fin 6 => (f c).eval v) = opsFactorWords (W).eta1 (W).eta2  (prod.eval v) (pad.eval v)
         (t.eval v) (g.eval v) (x.eval v) ∧
       next.eval v = K.mul (prod.eval v) (gatedK (pad.eval v)
-        (fingerprintK (W).eta1 (W).eta2 (W).eta1Sq (t.eval v) (g.eval v) (x.eval v))) := by
+        (fingerprintK (W).eta1 (W).eta2  (t.eval v) (g.eval v) (x.eval v))) := by
   rw [← opsFactorWords_iff]
   simp only [gatedRows, fingerprintRows, productRows, List.cons_append, List.nil_append, hold_cons, hold_nil,
     and_true, Circuit.Expr.eval_sub, sub_eq_zero, Circuit.Expr.eval_hmul, Circuit.Expr.eval_hadd,
@@ -54,9 +54,9 @@ theorem gatedRows_iff (f : ℕ → Circuit.Expr) (pad : Circuit.Expr) (prod next
 
 theorem factorRows_iff (f : ℕ → Circuit.Expr) (prod next : KExpr) (t g x : Circuit.Expr) :
     ConstraintsHold v (factorRows f prod next t g x) ↔
-      (fun c : Fin 6 => (f c).eval v) = scanFactorWords (W).eta1 (W).eta2 (W).eta1Sq (prod.eval v)
+      (fun c : Fin 4 => (f c).eval v) = scanFactorWords (W).eta1 (W).eta2  (prod.eval v)
         (t.eval v) (g.eval v) (x.eval v) ∧
-      next.eval v = K.mul (prod.eval v) (fingerprintK (W).eta1 (W).eta2 (W).eta1Sq (t.eval v) (g.eval v)
+      next.eval v = K.mul (prod.eval v) (fingerprintK (W).eta1 (W).eta2  (t.eval v) (g.eval v)
         (x.eval v)) := by
   rw [← scanFactorWords_iff]
   simp only [factorRows, fingerprintRows, productRows, List.cons_append, List.nil_append, hold_cons, hold_nil,
@@ -110,14 +110,12 @@ theorem armRows_iff : ConstraintsHold v (armRows p) ↔
       (∀ i : Fin 8, (W).cOut (15 + i) =
         (W).isOpen * (W).proposal i + (1 - (W).isOpen) * (W).cIn (15 + i))) ∧
       (∀ i : Fin 4, (W).cOut (3 + i) =
-        (W).isOpen * (W).etaFresh i + (1 - (W).isOpen) * (W).cIn (3 + i))) ∧
-      (W).eta1Sq = K.mul (W).eta1 (W).eta1) ∧
+        (W).isOpen * (W).etaFresh i + (1 - (W).isOpen) * (W).cIn (3 + i)))) ∧
       (∀ s : Fin 4, kOf (v (Words.start p s 0)) (v (Words.start p s 1)) = (W).startProduct (7 + 2 * s.val)) := by
   simp only [armRows, armChecks, joinChecks, List.foldl_cons, List.foldl_nil, List.nil_append]
-  rw [hold_append, hold_append, hold_append, hold_append, hold_append, hold_append, hold_append, hold_two,
-    hold_single, hold_single, hold_finRange_map, hold_finRange_map, hold_finRange_map, keq_iff,
-    KExpr.eval_mul, Sym.eval_eta1 p a v, Sym.eval_eta1Sq p a v, hold_finRange]
-  refine and_congr (and_congr (and_congr (and_congr (and_congr ?_ ?_) ?_) ?_) Iff.rfl)
+  rw [hold_append, hold_append, hold_append, hold_append, hold_append, hold_append, hold_two,
+    hold_single, hold_single, hold_finRange_map, hold_finRange_map, hold_finRange_map, hold_finRange]
+  refine and_congr (and_congr (and_congr (and_congr ?_ ?_) ?_) ?_)
     (forall_congr' fun s => startRows_iff p a v s)
   · refine and_congr (and_congr (and_congr ?_ ?_) ?_) ?_
     · simp only [Circuit.Expr.eval_hmul, Circuit.Expr.eval_sub, Sym.eval_cIn p a v, constE,
@@ -159,16 +157,16 @@ theorem slotRows_iff (j : Fin p.bOps) : ConstraintsHold v (slotRows p j) ↔
       ((∀ k : Fin p.addrWidth, p.r ≤ k.val → (1 - (W).isRam j) * ((W).ops j).addr k = 0) ∧
         (∀ k : Fin p.addrWidth, p.μ ≤ k.val → (W).isRam j * ((W).ops j).addr k = 0))) ∧
       (∀ x ∈ (((W).ops j).lane).tail, (W).pad j * x = 0)) ∧
-      ((fun c : Fin 8 => v (Words.opsFactor p j 0 c)) = opsFactorWords (W).eta1 (W).eta2 (W).eta1Sq
+      ((fun c : Fin 6 => v (Words.opsFactor p j 0 c)) = opsFactorWords (W).eta1 (W).eta2 
           ((opsProductAfter p 0 j.val).eval v) ((W).pad j) ((W).rt j) ((W).globalIndex j) ((W).vr j) ∧
         (opsProductAfter p 0 (j.val + 1)).eval v = K.mul ((opsProductAfter p 0 j.val).eval v)
-          (gatedK ((W).pad j) (fingerprintK (W).eta1 (W).eta2 (W).eta1Sq ((W).rt j) ((W).globalIndex j)
+          (gatedK ((W).pad j) (fingerprintK (W).eta1 (W).eta2  ((W).rt j) ((W).globalIndex j)
             ((W).vr j))))) ∧
-      ((fun c : Fin 8 => v (Words.opsFactor p j 1 c)) = opsFactorWords (W).eta1 (W).eta2 (W).eta1Sq
+      ((fun c : Fin 6 => v (Words.opsFactor p j 1 c)) = opsFactorWords (W).eta1 (W).eta2 
           ((opsProductAfter p 1 j.val).eval v) ((W).pad j) ((W).cIn 2 + v (Words.cnt p j))
           ((W).globalIndex j) ((W).vw j) ∧
         (opsProductAfter p 1 (j.val + 1)).eval v = K.mul ((opsProductAfter p 1 j.val).eval v)
-          (gatedK ((W).pad j) (fingerprintK (W).eta1 (W).eta2 (W).eta1Sq ((W).cIn 2 + v (Words.cnt p j))
+          (gatedK ((W).pad j) (fingerprintK (W).eta1 (W).eta2  ((W).cIn 2 + v (Words.cnt p j))
             ((W).globalIndex j) ((W).vw j)))) := by
   simp only [slotRows, slotChecks, joinChecks, List.foldl_cons, List.foldl_nil, List.nil_append]
   rw [hold_append, hold_append, hold_append, hold_append, hold_append, hold_append, hold_append,
@@ -208,17 +206,17 @@ theorem slotRows_iff (j : Fin p.bOps) : ConstraintsHold v (slotRows p j) ↔
 /-! ### Scan rows -/
 
 theorem scanRows_iff (j : Fin p.bScan) : ConstraintsHold v (scanRows p j) ↔
-    ((fun c : Fin 6 => v (Words.scanFactor p j 0 c)) = scanFactorWords (W).eta1 (W).eta2 (W).eta1Sq
+    ((fun c : Fin 4 => v (Words.scanFactor p j 0 c)) = scanFactorWords (W).eta1 (W).eta2 
         ((scanProductAfter p 0 j.val).eval v) (bitsWord ((W).initial j).stamp) ((W).scanIndex j)
         (bitsWord ((W).initial j).value) ∧
       (scanProductAfter p 0 (j.val + 1)).eval v = K.mul ((scanProductAfter p 0 j.val).eval v)
-        (fingerprintK (W).eta1 (W).eta2 (W).eta1Sq (bitsWord ((W).initial j).stamp) ((W).scanIndex j)
+        (fingerprintK (W).eta1 (W).eta2  (bitsWord ((W).initial j).stamp) ((W).scanIndex j)
           (bitsWord ((W).initial j).value))) ∧
-    ((fun c : Fin 6 => v (Words.scanFactor p j 1 c)) = scanFactorWords (W).eta1 (W).eta2 (W).eta1Sq
+    ((fun c : Fin 4 => v (Words.scanFactor p j 1 c)) = scanFactorWords (W).eta1 (W).eta2 
         ((scanProductAfter p 1 j.val).eval v) (bitsWord ((W).final j).stamp) ((W).scanIndex j)
         (bitsWord ((W).final j).value) ∧
       (scanProductAfter p 1 (j.val + 1)).eval v = K.mul ((scanProductAfter p 1 j.val).eval v)
-        (fingerprintK (W).eta1 (W).eta2 (W).eta1Sq (bitsWord ((W).final j).stamp) ((W).scanIndex j)
+        (fingerprintK (W).eta1 (W).eta2  (bitsWord ((W).final j).stamp) ((W).scanIndex j)
           (bitsWord ((W).final j).value))) := by
   simp only [scanRows, scanChecks, joinChecks, List.foldl_cons, List.foldl_nil, List.nil_append]
   rw [hold_append, factorRows_iff p a v, factorRows_iff p a v]
@@ -331,9 +329,9 @@ theorem auxHonest_iff : AuxHonest p a v ↔
     (∀ j : Fin p.bOps, v (Words.cnt p j) = (W).cntBefore (j.val + 1)) ∧
     (∀ s : Fin 4, kOf (v (Words.start p s 0)) (v (Words.start p s 1)) = (W).startProduct (7 + 2 * s.val)) ∧
     (∀ (j : Fin p.bOps) (pair : Fin 2),
-      (fun c : Fin 8 => v (Words.opsFactor p j pair c)) = (W).auxWords.ops j pair) ∧
+      (fun c : Fin 6 => v (Words.opsFactor p j pair c)) = (W).auxWords.ops j pair) ∧
     (∀ (j : Fin p.bScan) (pair : Fin 2),
-      (fun c : Fin 6 => v (Words.scanFactor p j pair c)) = (W).auxWords.scan j pair) := by
+      (fun c : Fin 4 => v (Words.scanFactor p j pair c)) = (W).auxWords.scan j pair) := by
   constructor
   · intro honest
     refine ⟨fun j => congrFun (congrArg AuxWords.cnt honest) j, fun s => ?_,
@@ -356,17 +354,17 @@ theorem auxHonest_iff : AuxHonest p a v ↔
     · funext j pair
       exact scan j pair
 
-theorem opsAux_zero (j : Fin p.bOps) : (W).auxWords.ops j 0 = opsFactorWords (W).eta1 (W).eta2 (W).eta1Sq
+theorem opsAux_zero (j : Fin p.bOps) : (W).auxWords.ops j 0 = opsFactorWords (W).eta1 (W).eta2 
     ((W).opsProductAfter 0 j.val) ((W).pad j) ((W).rt j) ((W).globalIndex j) ((W).vr j) := rfl
 
-theorem opsAux_one (j : Fin p.bOps) : (W).auxWords.ops j 1 = opsFactorWords (W).eta1 (W).eta2 (W).eta1Sq
+theorem opsAux_one (j : Fin p.bOps) : (W).auxWords.ops j 1 = opsFactorWords (W).eta1 (W).eta2 
     ((W).opsProductAfter 1 j.val) ((W).pad j) ((W).wt j) ((W).globalIndex j) ((W).vw j) := rfl
 
-theorem scanAux_zero (j : Fin p.bScan) : (W).auxWords.scan j 0 = scanFactorWords (W).eta1 (W).eta2 (W).eta1Sq
+theorem scanAux_zero (j : Fin p.bScan) : (W).auxWords.scan j 0 = scanFactorWords (W).eta1 (W).eta2 
     ((W).scanProductAfter 0 j.val) (bitsWord ((W).initial j).stamp) ((W).scanIndex j)
     (bitsWord ((W).initial j).value) := rfl
 
-theorem scanAux_one (j : Fin p.bScan) : (W).auxWords.scan j 1 = scanFactorWords (W).eta1 (W).eta2 (W).eta1Sq
+theorem scanAux_one (j : Fin p.bScan) : (W).auxWords.scan j 1 = scanFactorWords (W).eta1 (W).eta2 
     ((W).scanProductAfter 1 j.val) (bitsWord ((W).final j).stamp) ((W).scanIndex j)
     (bitsWord ((W).final j).value) := rfl
 
@@ -394,7 +392,7 @@ theorem polyRows_iff (app : PortApp p) :
   · rintro ⟨⟨⟨⟨⟨bits, arm⟩, slots⟩, scans⟩, close⟩, application⟩
     obtain ⟨⟨⟨⟨⟨⟨opsBits, diffBits⟩, initialBits⟩, finalBits⟩, tsBits⟩, segBits⟩, openBit,
       closeBit⟩ := bits
-    obtain ⟨⟨⟨⟨⟨⟨⟨⟨openZero, openTest⟩, segRange⟩, idxEff⟩, seenPrev⟩, proposed⟩, eta⟩, square⟩,
+    obtain ⟨⟨⟨⟨⟨⟨⟨openZero, openTest⟩, segRange⟩, idxEff⟩, seenPrev⟩, proposed⟩, eta⟩,
       starts⟩ := arm
     obtain ⟨⟨⟨⟨⟨⟨⟨⟨⟨⟨tsOut, tsRange⟩, idxOut⟩, ⟨⟨⟨read, write⟩, initial⟩, final⟩⟩, closeZero,
       closeTest⟩, closeOps⟩, closeInitial⟩, closeFinal⟩, closeProducts⟩, segOut⟩, memOut⟩ := close
@@ -408,7 +406,7 @@ theorem polyRows_iff (app : PortApp p) :
       finalBits := finalBits, tsBits := tsBits, segBits := segBits,
       openBit := openBit, closeBit := closeBit, openZero := openZero, openTest := openTest,
       segRange := segRange, idxEff := idxEff, seenPrev := seenPrev, proposed := proposed,
-      eta := eta, square := square,
+      eta := eta,
       readKeeps := fun j => (slots j).1.1.1.1.1.1.2,
       fresh := fun j => by rw [← wt j]; exact (slots j).1.1.1.1.1.2,
       noRomWrite := fun j => (slots j).1.1.1.1.2,
@@ -453,8 +451,8 @@ theorem polyRows_iff (app : PortApp p) :
     refine ⟨⟨⟨⟨⟨?_, ?_⟩, fun j => ?_⟩, fun j => ?_⟩, ?_⟩, application⟩
     · exact ⟨⟨⟨⟨⟨⟨rows.opsBits, rows.diffBits⟩, rows.initialBits⟩, rows.finalBits⟩, rows.tsBits⟩,
         rows.segBits⟩, rows.openBit, rows.closeBit⟩
-    · exact ⟨⟨⟨⟨⟨⟨⟨⟨rows.openZero, rows.openTest⟩, rows.segRange⟩, rows.idxEff⟩, rows.seenPrev⟩,
-        rows.proposed⟩, rows.eta⟩, rows.square⟩, starts⟩
+    · exact ⟨⟨⟨⟨⟨⟨⟨rows.openZero, rows.openTest⟩, rows.segRange⟩, rows.idxEff⟩, rows.seenPrev⟩,
+        rows.proposed⟩, rows.eta⟩, starts⟩
     · rw [wt j, ops 0 (by decide), ops 0 (by decide), ops 1 (by decide), ops 1 (by decide)]
       exact ⟨⟨⟨⟨⟨⟨⟨chain j, rows.readKeeps j⟩, rows.fresh j⟩, rows.noRomWrite j⟩, rows.romRange j, rows.ramRange j⟩,
         rows.padZero j⟩, (opsAux j 0).trans (opsAux_zero p _ v j), rows.readProduct j⟩,

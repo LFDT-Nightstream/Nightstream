@@ -54,13 +54,14 @@ def segWidth (p : Geometry) : ℕ := p.sMax.log2 + 1
 /-- Upper bound `m_mem` on the size of each side of one segment's check. -/
 def maxTuples (p : Geometry) : ℕ := p.cells + p.n * p.bOps
 
-/-- SPEC.md section 7.1, rules 1 to 5. Rule 3 includes the lane widths: each lane has fewer
-than `q` bits, so the length prefix of its packed block (SPEC.md section 7.4) is one
-canonical field element. -/
+/-- SPEC.md section 7.1, rules 1 to 5. Rule 3 bounds the timestamp width by 31, so that
+`v + 2^32 · t` of a fingerprint (SPEC.md section 7.3) is one canonical field element. Rule 3
+includes the lane widths: each lane has fewer than `q` bits, so the length prefix of its
+packed block (SPEC.md section 7.4) is one canonical field element. -/
 structure Valid (p : Geometry) : Prop where
   exactCover : p.n * p.bScan = p.cells
   timestampRange : p.sMax * p.n * p.bOps < 2 ^ p.wTs
-  fieldEncoding : p.wTs ≤ 62
+  fieldEncoding : p.wTs ≤ 31
   laneBits : p.bOps * p.opWidth < goldilocksModulus ∧ p.bScan * p.scanWidth < goldilocksModulus
   belowModulus : p.cells < goldilocksModulus
   positive : 0 < p.bOps ∧ 0 < p.bScan ∧ 0 < p.n ∧ 0 < p.sMax

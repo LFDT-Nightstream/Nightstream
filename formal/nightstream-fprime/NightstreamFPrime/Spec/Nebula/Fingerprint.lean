@@ -15,9 +15,9 @@ namespace NightstreamFPrime.Spec.Nebula
 
 variable {E : Type} [CommRing E]
 
-/-- SPEC.md section 7.3: `f_η(t, g, v) = g + η1 · v + η1² · t − η2`. -/
+/-- SPEC.md section 7.3: `f_η(t, g, v) = g + η1 · (v + 2^32 · t) − η2`. -/
 def fingerprint (η : E × E) (τ : Tuple) : E :=
-  (τ.2.1 : E) + η.1 * (τ.2.2 : E) + η.1 ^ 2 * (τ.1 : E) - η.2
+  (τ.2.1 : E) + η.1 * ((τ.2.2 : E) + 2 ^ 32 * (τ.1 : E)) - η.2
 
 /-- The fingerprint product of a multiset. -/
 def product (η : E × E) (A : Multiset Tuple) : E := (A.map (fingerprint η)).prod
@@ -39,10 +39,11 @@ theorem productEq_of_balanced (η : E × E) {m : Multisets} (balanced : m.Balanc
     m.ProductEq η :=
   (productEq_iff η m).mpr (congrArg (product η) balanced)
 
-/-- Every component below `q`, so the field encoding is injective (SPEC.md section 7.1
-rules 3 and 4). -/
+/-- The timestamp is below `2^31`, the global index is below `q`, and the value is below
+`2^32`. Then `v + 2^32 · t < 2^63 < q`, so the field encoding is injective (SPEC.md
+section 7.1 rules 3 and 4). -/
 def Tuple.Small (τ : Tuple) : Prop :=
-  τ.1 < goldilocksModulus ∧ τ.2.1 < goldilocksModulus ∧ τ.2.2 < goldilocksModulus
+  τ.1 < 2 ^ 31 ∧ τ.2.1 < goldilocksModulus ∧ τ.2.2 < 2 ^ 32
 
 section Polynomial
 
@@ -50,11 +51,11 @@ open MvPolynomial
 
 /-- The fingerprint factor as a polynomial: variable 0 is `η2`, variable 1 is `η1`. -/
 private noncomputable def factor (τ : Tuple) : MvPolynomial (Fin 2) E :=
-  C (τ.2.1 : E) + C (τ.2.2 : E) * X 1 + C (τ.1 : E) * X 1 ^ 2 - X 0
+  C (τ.2.1 : E) + C ((τ.2.2 : E) + 2 ^ 32 * (τ.1 : E)) * X 1 - X 0
 
 /-- The root of `factor τ` in `η2`, as a polynomial in `η1`. -/
 private noncomputable def root (τ : Tuple) : MvPolynomial (Fin 1) E :=
-  C (τ.2.1 : E) + C (τ.2.2 : E) * X 0 + C (τ.1 : E) * X 0 ^ 2
+  C (τ.2.1 : E) + C ((τ.2.2 : E) + 2 ^ 32 * (τ.1 : E)) * X 0
 
 private theorem eval_factor (η : E × E) (τ : Tuple) :
     eval ![η.2, η.1] (factor τ) = fingerprint η τ := by
@@ -66,17 +67,14 @@ private theorem finSuccEquiv_factor (τ : Tuple) :
   have one : (X 1 : MvPolynomial (Fin 2) E) = X (Fin.succ 0) := rfl
   have constant (a : E) : finSuccEquiv E 1 (C a) = Polynomial.C (C a) := by
     simp [finSuccEquiv_apply]
-  simp only [factor, root, one, map_sub, map_add, map_mul, map_pow, constant,
+  simp only [factor, root, one, map_sub, map_add, map_mul, constant,
     finSuccEquiv_X_zero, finSuccEquiv_X_succ]
 
 private theorem totalDegree_factor [Nontrivial E] (τ : Tuple) :
     (factor (E := E) τ).totalDegree ≤ 2 := by
   have linear (a : E) : (C a * X 1 : MvPolynomial (Fin 2) E).totalDegree ≤ 2 :=
     (totalDegree_mul _ _).trans (by simp only [totalDegree_X, totalDegree_C]; omega)
-  have quadratic (a : E) : (C a * X 1 ^ 2 : MvPolynomial (Fin 2) E).totalDegree ≤ 2 :=
-    (totalDegree_mul _ _).trans (by simp only [totalDegree_X_pow, totalDegree_C]; omega)
   refine (totalDegree_sub _ _).trans (max_le ?_ (by simp only [totalDegree_X]; omega))
-  refine (totalDegree_add _ _).trans (max_le ?_ (quadratic _))
   refine (totalDegree_add _ _).trans (max_le ?_ (linear _))
   simp only [totalDegree_C]; omega
 
@@ -108,13 +106,19 @@ private theorem root_injective [CharP E goldilocksModulus] {τ σ : Tuple} (τSm
     CharP.natCast_injOn_Iio E goldilocksModulus aSmall bSmall equal
   have constant := congrArg (·.coeff 0) same
   have linear := congrArg (·.coeff (Finsupp.single 0 1)) same
-  have quadratic := congrArg (·.coeff (Finsupp.single 0 2)) same
-  simp only [root, AddMonoidAlgebra.coeff_add, Finsupp.add_apply, coeff_C, coeff_C_mul, coeff_X,
-    coeff_X_pow]
-    at constant linear quadratic
-  simp [@eq_comm (Fin 1 →₀ ℕ) 0] at constant linear quadratic
-  exact Prod.ext (cast τSmall.1 σSmall.1 quadratic)
-    (Prod.ext (cast τSmall.2.1 σSmall.2.1 constant) (cast τSmall.2.2 σSmall.2.2 linear))
+  simp only [root, AddMonoidAlgebra.coeff_add, Finsupp.add_apply, coeff_C, coeff_C_mul, coeff_X]
+    at constant linear
+  simp [@eq_comm (Fin 1 →₀ ℕ) 0] at constant linear
+  have packedSmall {ρ : Tuple} (small : ρ.Small) : ρ.2.2 + 2 ^ 32 * ρ.1 < goldilocksModulus := by
+    have := small.1
+    have := small.2.2
+    norm_num [goldilocksModulus]
+    omega
+  have packed : τ.2.2 + 2 ^ 32 * τ.1 = σ.2.2 + 2 ^ 32 * σ.1 :=
+    cast (packedSmall τSmall) (packedSmall σSmall) (by exact_mod_cast linear)
+  have := τSmall.2.2
+  have := σSmall.2.2
+  exact Prod.ext (by omega) (Prod.ext (cast τSmall.2.1 σSmall.2.1 constant) (by omega))
 
 private theorem eq_of_map_root_eq [CharP E goldilocksModulus] {A B : Multiset Tuple}
     (small : ∀ τ ∈ A + B, τ.Small) (same : A.map (root (E := E)) = B.map root) : A = B := by

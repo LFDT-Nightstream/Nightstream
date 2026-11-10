@@ -13,10 +13,9 @@ pub const OPEN_INVERSE: usize = 87;
 pub const IS_CLOSE: usize = 88;
 pub const CLOSE_INVERSE: usize = 89;
 pub const ETA_FRESH: usize = 90;
-pub const ETA1_SQUARE: usize = 94;
-pub const SEEN_PREV: usize = 96;
-pub const IDX_EFF: usize = 108;
-const OPS_START: usize = 109;
+pub const SEEN_PREV: usize = 94;
+pub const IDX_EFF: usize = 106;
+const OPS_START: usize = 107;
 
 /// Offsets that depend on the geometry and on the application's word counts.
 #[derive(Clone, Copy, Debug)]
@@ -55,8 +54,8 @@ impl Layout {
         let scan_products = ops_products + 4 * geometry.b_ops;
         let cnt = scan_products + 4 * geometry.b_scan;
         let ops_factor = cnt + geometry.b_ops + 8;
-        let scan_factor = ops_factor + 16 * geometry.b_ops;
-        let memory_count = scan_factor + 12 * geometry.b_scan;
+        let scan_factor = ops_factor + 12 * geometry.b_ops;
+        let memory_count = scan_factor + 8 * geometry.b_scan;
         Self {
             b_ops: geometry.b_ops,
             op_words,
@@ -203,11 +202,11 @@ impl Layout {
 
     /// Factor word `c` of fingerprint `pair` (0 read, 1 write) of operation slot `j`.
     pub fn ops_factor(&self, j: usize, pair: usize, c: usize) -> usize {
-        self.ops_factor + 16 * j + 8 * pair + c
+        self.ops_factor + 12 * j + 6 * pair + c
     }
 
     /// Factor word `c` of fingerprint `pair` (0 IS, 1 FS) of scan slot `j`.
     pub fn scan_factor(&self, j: usize, pair: usize, c: usize) -> usize {
-        self.scan_factor + 12 * j + 6 * pair + c
+        self.scan_factor + 8 * j + 4 * pair + c
     }
 }

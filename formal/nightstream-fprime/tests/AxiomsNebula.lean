@@ -177,6 +177,8 @@ packages' bounds. -/
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.StepWitness.RowsHold.segBelow
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.StepWitness.RowsHold.opened
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.embed_eq
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.embed_add
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.embed_mul
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.fingerprintK_eq
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.gatedK_bit
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.StepWitness.bitsWord_val
@@ -184,7 +186,6 @@ packages' bounds. -/
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.StepWitness.RowsHold.vr_val
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.StepWitness.RowsHold.vw_val
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.StepWitness.RowsHold.globalIndex_val
-#audit_axioms NightstreamFPrime.Lifecycle.Nebula.StepWitness.RowsHold.squareEq
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.StepWitness.RowsHold.wt_val
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.StepWitness.RowsHold.idxEff_lt
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.StepWitness.RowsHold.readProducts
@@ -240,7 +241,6 @@ packages' bounds. -/
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.Sym.eval_cOut
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.Sym.eval_eta1
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.Sym.eval_eta2
-#audit_axioms NightstreamFPrime.Lifecycle.Nebula.Sym.eval_eta1Sq
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.Sym.eval_addr
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.Sym.eval_vr
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.Sym.eval_vw
@@ -487,7 +487,6 @@ packages' bounds. -/
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.StepWitness.wordAt_isClose
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.StepWitness.wordAt_closeInverse
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.StepWitness.wordAt_etaFresh
-#audit_axioms NightstreamFPrime.Lifecycle.Nebula.StepWitness.wordAt_eta1Square
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.StepWitness.wordAt_seenPrev
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.StepWitness.wordAt_idxEff
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.StepWitness.wordAt_op
@@ -549,7 +548,6 @@ packages' bounds. -/
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.Honest.seenPrev_row
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.Honest.proposed_row
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.Honest.eta_row
-#audit_axioms NightstreamFPrime.Lifecycle.Nebula.Honest.square_row
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.Honest.carryVector_ts
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.Honest.opSlot_mem
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.Honest.take_succ_ops
@@ -569,7 +567,6 @@ packages' bounds. -/
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.Honest.opsProductAfter_val
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.Honest.scanProductAfter_val
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.Honest.eta_pair
-#audit_axioms NightstreamFPrime.Lifecycle.Nebula.Honest.squareEq
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.Honest.natWord_val_small
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.Honest.globalIndex_val
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.Honest.readProduct_row

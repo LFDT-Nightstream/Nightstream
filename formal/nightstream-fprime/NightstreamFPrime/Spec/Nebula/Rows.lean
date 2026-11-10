@@ -206,11 +206,8 @@ private theorem mem_scanTuplesFrom {τ : Tuple} {base : ℕ} {scan : List ScanSl
 private theorem tuple_small {p : Geometry} (valid : p.Valid) {τ : Tuple} (ht : τ.1 < 2 ^ p.wTs)
     (hg : τ.2.1 < p.cells) (hv : τ.2.2 < 2 ^ 32) :
     τ.Small ∧ τ.1 < 2 ^ p.wTs ∧ τ.2.1 < p.cells ∧ τ.2.2 < 2 ^ 32 := by
-  have hts : 2 ^ p.wTs < goldilocksModulus :=
-    lt_of_le_of_lt (Nat.pow_le_pow_right (by norm_num) valid.fieldEncoding)
-      (by norm_num [goldilocksModulus])
-  have h32 : 2 ^ 32 < goldilocksModulus := by norm_num [goldilocksModulus]
-  exact ⟨⟨ht.trans hts, hg.trans valid.belowModulus, hv.trans h32⟩, ht, hg, hv⟩
+  have hts : 2 ^ p.wTs ≤ 2 ^ 31 := Nat.pow_le_pow_right (by norm_num) valid.fieldEncoding
+  exact ⟨⟨ht.trans_le hts, hg.trans valid.belowModulus, hv⟩, ht, hg, hv⟩
 
 /-- Tuple ranges: every tuple of a step whose rows hold is
 small, with `t < 2 ^ W_ts`, `g < R + M`, and `v < 2 ^ 32`. -/

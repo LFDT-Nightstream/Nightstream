@@ -93,7 +93,7 @@ impl Geometry {
     /// memory theorems hold only for a valid geometry. `r ≥ 64` or `μ ≥ 64` breaks
     /// `R + M < q`, so the shifts below cannot overflow.
     pub fn is_valid(&self) -> bool {
-        if self.r >= 64 || self.mu >= 64 || self.w_ts > 62 {
+        if self.r >= 64 || self.mu >= 64 || self.w_ts > 31 {
             return false;
         }
         let q = u128::from(F::ORDER_U64);

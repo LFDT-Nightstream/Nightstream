@@ -35,7 +35,7 @@ fn other_program() -> Program {
 #[test]
 fn native_run_closes_every_segment_and_passes_the_terminal() {
     let mut run = program_run();
-    assert_eq!(run.context().witness_word_count(), 690);
+    assert_eq!(run.context().witness_word_count(), 664);
     let mut previous = run.initial_state();
     let segments = [
         [Step::Execute, Step::Execute],
@@ -47,7 +47,7 @@ fn native_run_closes_every_segment_and_passes_the_terminal() {
         let invocations = run.segment(&steps).expect("segment runs");
         assert_eq!(invocations.len(), 2);
         for invocation in invocations {
-            assert_eq!(invocation.words.len(), 690);
+            assert_eq!(invocation.words.len(), 664);
             assert_eq!(input_state(&invocation.words), previous, "state link");
             previous = invocation.output;
         }

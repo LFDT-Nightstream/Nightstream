@@ -127,7 +127,8 @@ impl Drop for SetupDir {
 }
 
 /// The final proof of two steps verifies with the verifier's own key, and
-/// not for another state.
+/// not for another state. The prover makes it from a setup that it opened
+/// again; a setup folder with a changed key or without a key does not open.
 #[test]
 fn hash_chain_final_proof_verifies() {
     let circuit = circuit();
@@ -139,8 +140,20 @@ fn hash_chain_final_proof_verifies() {
         .expect("second step");
     let dir = SetupDir(std::env::temp_dir().join(format!("option-b-api-{}", std::process::id())));
     fs::create_dir_all(&dir.0).expect("setup directory");
+    drop(prover.compression_setup(&dir.0).expect("setup"));
+    let key_file = dir.0.join("light/key.bin");
+    let key_bytes = fs::read(&key_file).expect("the stored key");
+    let mut changed = key_bytes.clone();
+    changed[0] ^= 1;
+    fs::write(&key_file, &changed).expect("write the changed key");
+    assert!(prover.open_compression_setup(&dir.0).is_err(), "a changed root");
+    fs::remove_file(&key_file).expect("remove the key");
+    assert!(prover.open_compression_setup(&dir.0).is_err(), "no key");
+    fs::write(&key_file, &key_bytes).expect("restore the key");
     let final_proof = {
-        let setup = prover.compression_setup(&dir.0).expect("setup");
+        let setup = prover
+            .open_compression_setup(&dir.0)
+            .expect("the setup opens again");
         prover.compress(&proof, &setup).expect("final proof")
     };
     drop(dir);

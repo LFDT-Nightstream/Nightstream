@@ -107,7 +107,10 @@ No fold ends with Π_DEC. With `cap = 64`, the first period of steps is
 ## Final proof
 
 `Prover::compression_setup(dir)` writes the two layer-1 setups into the
-existing directory `dir`, and returns them with their key.
+existing directory `dir`, and returns them with their key. One setup serves
+every proof of its circuit. `Prover::open_compression_setup(dir)` opens the
+setups of an earlier call, also from another process, without building them
+again.
 `Prover::compress(&proof, &setup)` compresses a proof. The proof does not
 change. The last fold is a refresh fold of the last fresh instance into its
 slot. Then one layer-1 proof (`neo-spartan`) for each slot proves the claim of

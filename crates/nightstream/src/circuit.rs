@@ -441,6 +441,14 @@ impl Prover {
         Ok(CompressionSetup(self.lifecycle.compression_setups(dir.as_ref())?))
     }
 
+    /// Open the setups that `compression_setup` wrote into `dir` for this
+    /// circuit, without building them again. Files of another circuit, or
+    /// changed files, are refused here or give a proof that `verify_final`
+    /// rejects.
+    pub fn open_compression_setup(&self, dir: impl AsRef<Path>) -> Result<CompressionSetup, Error> {
+        Ok(CompressionSetup(self.lifecycle.open_compression_setups(dir.as_ref())?))
+    }
+
     /// Compress `proof`; `proof` does not change.
     pub fn compress(&self, proof: &Proof, setup: &CompressionSetup) -> Result<FinalProof, Error> {
         let witness = self

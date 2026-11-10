@@ -30,6 +30,9 @@ pub(crate) struct Keys {
     pub(super) layer_bits: f64,
 }
 
+/// The key file of one layer-1 setup folder.
+const KEY_FILE: &str = "key.bin";
+
 /// The prover's layer-1 setups and their keys.
 pub(crate) struct Setups {
     layer1: [neo_spartan::Setup; 2],
@@ -88,17 +91,40 @@ impl OptionB {
         })
     }
 
-    /// Writes both layer-1 setups under `dir` (`light/`, `refresh/`).
+    /// Writes both layer-1 setups under `dir` (`light/`, `refresh/`), each
+    /// with its key (`key.bin`), so that `open_compression_setups` can open
+    /// them again.
     pub(crate) fn compression_setups(&self, dir: &Path) -> Result<Setups, OptionBError> {
         let build = |relation, name| -> Result<neo_spartan::Setup, OptionBError> {
             let dir = dir.join(name);
             std::fs::create_dir_all(&dir).map_err(neo_spartan::Error::from)?;
-            Ok(neo_spartan::Setup::build(relation, &dir)?)
+            let setup = neo_spartan::Setup::build(relation, &dir)?;
+            std::fs::write(dir.join(KEY_FILE), setup.key().to_bytes()).map_err(neo_spartan::Error::from)?;
+            Ok(setup)
         };
-        let layer1 = [
+        self.setups([
             build(&self.relations[0], "light")?,
             build(&self.relations[1], "refresh")?,
-        ];
+        ])
+    }
+
+    /// Opens the setups that `compression_setups` wrote under `dir`, without
+    /// building them again. The stored key only finds the files: each setup
+    /// must fit its relation and its stored root, and each proof checks the
+    /// leaves that it reads against the stored tree. A prover with wrong
+    /// files gives a proof that fails `verify_final`, because a verifier
+    /// derives its own key.
+    pub(crate) fn open_compression_setups(&self, dir: &Path) -> Result<Setups, OptionBError> {
+        let open = |relation, name| -> Result<neo_spartan::Setup, OptionBError> {
+            let dir = dir.join(name);
+            let bytes = std::fs::read(dir.join(KEY_FILE)).map_err(neo_spartan::Error::from)?;
+            let key = neo_spartan::Key::from_bytes(&bytes)?;
+            Ok(neo_spartan::Setup::open(relation, &dir, &key)?)
+        };
+        self.setups([open(&self.relations[0], "light")?, open(&self.relations[1], "refresh")?])
+    }
+
+    fn setups(&self, layer1: [neo_spartan::Setup; 2]) -> Result<Setups, OptionBError> {
         let keys = Keys {
             layer1: [layer1[0].key().clone(), layer1[1].key().clone()],
             bound: self.compression_bound(),

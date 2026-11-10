@@ -28,6 +28,15 @@ theorem StateFresh.affine {state : Layer.EState}
   rcases fresh with ⟨start, rfl⟩
   exact freshState_affine start
 
+/-- One absorbed block, with every argument a variable so that no program is unfolded. -/
+private theorem compileAbsorptions_cons_output (start : Nat) (state : Layer.EState)
+    (block : List Expr) (rest : List (List Expr)) :
+    (Hash.compileAbsorptions start state (block :: rest)).output =
+      (Hash.compileAbsorptions (start + 1096)
+        (Permutation.compile start (Hash.absorbE state block)
+          Permutation.schedule).output rest).output :=
+  rfl
+
 private theorem compileAbsorptions_output_fresh_of_nonempty
     (start : Nat) (state : Layer.EState) (blocks : List (List Expr))
     (nonempty : blocks ≠ []) :
@@ -40,10 +49,7 @@ private theorem compileAbsorptions_output_fresh_of_nonempty
           refine ⟨start + 1080, ?_⟩
           simp [Hash.compileAbsorptions, compile_schedule_output_eq]
       | cons next rest =>
-          change StateFresh
-            (Hash.compileAbsorptions (start + 1096)
-              (Permutation.compile start (Hash.absorbE state block)
-                Permutation.schedule).output (next :: rest)).output
+          rw [compileAbsorptions_cons_output]
           exact inductionHypothesis (start + 1096)
             (Permutation.compile start (Hash.absorbE state block)
               Permutation.schedule).output (by simp)

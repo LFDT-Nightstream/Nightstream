@@ -441,8 +441,10 @@ open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 #audit_axioms NightstreamFPrime.Export.OptionB.TerminalBridge.linked_of_holdsFor
 #audit_axioms NightstreamFPrime.Export.OptionB.TerminalBridge.bridge_linked
 #audit_axioms NightstreamFPrime.Export.OptionB.TerminalBridge.bridge
+#audit_axioms NightstreamFPrime.Export.OptionB.StepRelation.lightOutput_runningNext
 #audit_axioms NightstreamFPrime.Export.OptionB.StepRelation.lightRepresents
 #audit_axioms NightstreamFPrime.Export.OptionB.StepRelation.light_stepHolds
+#audit_axioms NightstreamFPrime.Export.OptionB.StepRelation.refreshOutput_runningNext
 #audit_axioms NightstreamFPrime.Export.OptionB.StepRelation.refreshRepresents
 #audit_axioms NightstreamFPrime.Export.OptionB.StepRelation.refresh_stepHolds
 #audit_axioms NightstreamFPrime.Export.OptionB.StepRelation.publicInput_eq_project

@@ -1,8 +1,8 @@
 # neo-prover-metal
 
-Metal prover backend for Apple GPUs. `nightstream` does not use it now. Its
-steps prove and verify on the CPU path, and `Engine::Metal` returns an error.
-See [ARCHITECTURE.md](ARCHITECTURE.md) for what the crate owns.
+Metal prover backend for Apple GPUs. `nightstream` uses it for
+`Engine::Metal` when you build it with the `metal` feature. See
+[ARCHITECTURE.md](ARCHITECTURE.md) for what the crate owns.
 
 `build.rs` compiles the shaders with `xcrun metal`. This needs Xcode; the
 Command Line Tools do not include the Metal compiler.

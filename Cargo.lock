@@ -1075,6 +1075,8 @@ dependencies = [
  "neo-ccs",
  "neo-math",
  "neo-params",
+ "neo-prover-cuda",
+ "neo-prover-metal",
  "neo-reductions",
  "neo-spartan",
  "neo-transcript",

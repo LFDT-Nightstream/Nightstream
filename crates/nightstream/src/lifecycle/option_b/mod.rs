@@ -12,6 +12,7 @@ mod final_program;
 mod relation;
 mod words;
 
+use crate::engine::{Backend, CommitError, EngineError};
 use crate::folding::option_b::{prove, Kind};
 use crate::folding::{pi_dec, pi_rlc, CcsInstance, RunningInstance};
 pub(crate) use compression::{FinalProof, Keys, Setups};
@@ -21,8 +22,8 @@ use neo_math::F;
 use neo_transcript::domain_chunk_v1_2;
 use nightstream_fprime::{encode_digest, OptionBPackages, OptionBState, PackageError, StepPackage, PUBLIC_WORDS};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
-pub(crate) use relation::Relation;
 pub use relation::RelationError;
+pub(crate) use relation::{Holds, Relation};
 
 /// `Schedule.productionLightFoldCap`: the light circuit's depth guard admits
 /// depths below 64.
@@ -45,6 +46,33 @@ pub enum OptionBError {
     Slot { slot: usize, reason: String },
     #[error(transparent)]
     Layer1(#[from] neo_spartan::Error),
+    #[error(transparent)]
+    Engine(#[from] EngineError),
+}
+
+impl OptionBError {
+    /// The engine failure inside this error, if the engine failed: a device
+    /// failure judged nothing.
+    pub(crate) fn engine_failure(&self) -> Option<&EngineError> {
+        use crate::folding::{kernels, pi_ccs, pi_dec, pi_rlc, Error as Fold};
+        match self {
+            Self::Engine(error)
+            | Self::Relation(RelationError::Commitment(CommitError::Engine(error)))
+            | Self::Fold(Fold::Ccs(pi_ccs::Error::Engine(kernels::Error::Engine(error))))
+            | Self::Fold(Fold::Rlc(pi_rlc::Error::Engine(kernels::Error::Engine(error))))
+            | Self::Fold(Fold::Dec(pi_dec::Error::Engine(kernels::Error::Engine(error)))) => Some(error),
+            _ => None,
+        }
+    }
+}
+
+impl From<Holds> for OptionBError {
+    fn from(holds: Holds) -> Self {
+        match holds {
+            Holds::Fails(reason) => Self::Fresh(reason),
+            Holds::Engine(error) => Self::Engine(error),
+        }
+    }
 }
 
 /// One slot: the accumulator of its circuit's instances and its depth.
@@ -74,6 +102,7 @@ impl Envelope {
 }
 
 pub(crate) struct OptionB {
+    backend: Backend,
     packages: OptionBPackages,
     relations: [Relation; 2],
     keys: [[F; 4]; 2],
@@ -81,7 +110,11 @@ pub(crate) struct OptionB {
 }
 
 impl OptionB {
-    pub(crate) fn new(packages: OptionBPackages, minimum_security_bits: u32) -> Result<Self, OptionBError> {
+    pub(crate) fn new(
+        packages: OptionBPackages,
+        minimum_security_bits: u32,
+        backend: Backend,
+    ) -> Result<Self, OptionBError> {
         let relations = [
             Relation::new(packages.light(), minimum_security_bits)?,
             Relation::new(packages.refresh(), minimum_security_bits)?,
@@ -94,6 +127,7 @@ impl OptionB {
             poseidon2_hash(&input)
         });
         Ok(Self {
+            backend,
             packages,
             relations,
             keys,
@@ -166,6 +200,7 @@ impl OptionB {
                 };
                 let (folded, proof) = prove(
                     kind,
+                    &self.backend,
                     self.relations[selected].context(),
                     fresh.clone(),
                     slot.accumulator.clone(),
@@ -185,13 +220,13 @@ impl OptionB {
         if CHECK_ROWS.get() {
             FAILED_ROW.set(relation.first_failing_row(self.package(kind), &step)?);
         }
-        let instance = relation.instance(&logical)?;
+        let instance = relation.instance(&self.backend, &logical)?;
         #[cfg(test)]
         let keeps_faulty = CHECK_ROWS.get();
         #[cfg(not(test))]
         let keeps_faulty = false;
         if !keeps_faulty {
-            relation.holds(&instance).map_err(OptionBError::Fresh)?;
+            relation.holds(&self.backend, &instance)?;
         }
         Ok(Envelope {
             iteration: envelope.iteration + 1,
@@ -247,21 +282,23 @@ impl OptionB {
             // norm at or above `B`, and its recomposition reproduces the
             // claim's commitment, evaluations and public input.
             pi_dec::prove_with_production_key(
+                &self.backend,
                 relation.context(),
                 &slot.accumulator.claim,
                 slot.accumulator.witness.clone(),
             )
-            .map_err(|error| OptionBError::Slot {
-                slot: index,
-                reason: error.to_string(),
+            .map_err(|error| match error {
+                pi_dec::Error::Engine(crate::folding::kernels::Error::Engine(error)) => OptionBError::Engine(error),
+                error => OptionBError::Slot {
+                    slot: index,
+                    reason: error.to_string(),
+                },
             })?;
         }
         if fresh.claim.x != encode_digest(self.state(envelope).hash()) {
             return Err(OptionBError::Fresh("public input differs from the hash of the state"));
         }
-        self.relations[(envelope.pc - 1) as usize]
-            .holds(fresh)
-            .map_err(OptionBError::Fresh)
+        Ok(self.relations[(envelope.pc - 1) as usize].holds(&self.backend, fresh)?)
     }
 }
 

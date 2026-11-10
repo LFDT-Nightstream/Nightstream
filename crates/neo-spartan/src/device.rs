@@ -61,6 +61,39 @@ pub trait Device: Send + Sync {
     /// element `j·2^r`. `None` when the device cannot run the layer, with
     /// nothing changed: the caller runs it on the CPU.
     fn gkr_layer<'a>(&self, trees: Vec<Vec<&'a mut [u64]>>, eq: &'a mut [u64]) -> Option<Box<dyn GkrLayer + 'a>>;
+
+    /// For each oracle in `oracles`, the values of the setup leaves `leaves`
+    /// on `2^variables` points (`setup.rs`): the oracle's codeword at
+    /// positions `leaf + v·2^{variables-2}` for `v < 8`. The codeword is
+    /// `Σ_x c_x (shift·ω^p)^x` at position `p`, with `c` the Möbius transform
+    /// (the monomial coefficients) of the oracle's table and `ω` =
+    /// `generator` of order `2^{variables+1}`. Values are canonical.
+    /// `Ok(None)` when the device did not run them: the caller encodes the
+    /// oracles on the CPU, with the same values. `Err` when it failed after
+    /// it started: the proof fails.
+    fn setup_leaves(
+        &self,
+        oracles: &[SetupOracle<'_>],
+        variables: usize,
+        leaves: &[u32],
+        generator: u64,
+        shift: u64,
+    ) -> Result<Option<Vec<Vec<[u64; 8]>>>, String> {
+        let _ = (oracles, variables, leaves, generator, shift);
+        Ok(None)
+    }
+}
+
+/// One layer-1 setup oracle, as `Device::setup_leaves` takes it.
+#[derive(Clone, Copy)]
+pub enum SetupOracle<'a> {
+    /// Row `row` of the production commitment key on the cube
+    /// `x = 64·b + lane`: the `D` coefficients of
+    /// `neo_ajtai::nightstream_fprime_setup::coefficient_block(&PRODUCTION_SEED, row, b)`
+    /// at lanes `0..D` of each block `b < blocks`, and zero elsewhere.
+    KeyRow { row: u32, blocks: usize },
+    /// A table of `2^variables` canonical words.
+    Table(&'a [u64]),
 }
 
 /// The rounds of one batched fraction-sum GKR layer on a device

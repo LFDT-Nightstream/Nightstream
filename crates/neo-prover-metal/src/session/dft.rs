@@ -26,6 +26,10 @@ impl<B> std::ops::Deref for WrappedPages<B> {
     }
 }
 
+/// Stages per `dft_dif_pass` launch, and threads per threadgroup.
+const PASS_BITS: u32 = 8;
+pub(super) const PASS_THREADS: usize = 256;
+
 impl MetalSession {
     /// The DFT of every column of the row-major matrix `values` of `width`
     /// columns, in place: row `k` becomes `Σ_i row_i·ω^{ik}` for `ω` =
@@ -34,9 +38,7 @@ impl MetalSession {
     /// multiple of 16.
     pub fn dft_columns(&self, values: &mut [u64], width: usize, generator: u64) -> Result<(), MetalError> {
         use rayon::prelude::*;
-        const PASS_BITS: u32 = 8;
         const COLUMNS: usize = 16;
-        const THREADS: usize = 256;
         if width == 0 || !values.len().is_multiple_of(width) || (width > COLUMNS && !width.is_multiple_of(COLUMNS)) {
             return Err(MetalError::Shape("a DFT needs whole rows of a supported width"));
         }
@@ -67,18 +69,7 @@ impl MetalSession {
         let twiddles = self.buffer(rows / 2 * size_of::<u64>())?;
         let twiddle_shape = self.buffer_from_slice(&[generator])?;
         let reverse_shape = self.buffer_from_slice(&[u64::from(log_rows), width as u64])?;
-        // The fewest passes of at most PASS_BITS stages, split evenly: a
-        // short pass would launch one threadgroup per two rows.
-        let count = log_rows.div_ceil(PASS_BITS);
-        let mut first = 0;
-        let passes = (0..count)
-            .map(|pass| {
-                let stages = log_rows / count + u32::from(pass < log_rows % count);
-                let shape = [u64::from(log_rows), width as u64, u64::from(first), u64::from(stages)];
-                first += stages;
-                Ok((self.buffer_from_slice(&shape)?, stages))
-            })
-            .collect::<Result<Vec<_>, MetalError>>()?;
+        let passes = self.dif_passes(log_rows, width)?;
         let command = self.command_buffer("nightstream.dft_columns")?;
         let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
         self.launch(
@@ -96,7 +87,7 @@ impl MetalSession {
                 &[Arg::Buffer(0, data), Arg::Buffer(1, &twiddles), Arg::Buffer(2, shape)],
                 Grid::Groups {
                     groups: (rows >> stages) * chunks,
-                    threads: THREADS,
+                    threads: PASS_THREADS,
                 },
             );
         }
@@ -117,6 +108,23 @@ impl MetalSession {
                 .for_each(|(to, from)| to.copy_from_slice(from));
         }
         Ok(())
+    }
+
+    /// The shapes of the `dft_dif_pass` launches over `2^log_rows` rows of
+    /// `width` columns, with their stage counts: the fewest passes of at most
+    /// `PASS_BITS` stages, split evenly, because a short pass would launch
+    /// one threadgroup per two rows.
+    pub(super) fn dif_passes(&self, log_rows: u32, width: usize) -> Result<Vec<(Buffer, u32)>, MetalError> {
+        let count = log_rows.div_ceil(PASS_BITS);
+        let mut first = 0;
+        (0..count)
+            .map(|pass| {
+                let stages = log_rows / count + u32::from(pass < log_rows % count);
+                let shape = [u64::from(log_rows), width as u64, u64::from(first), u64::from(stages)];
+                first += stages;
+                Ok((self.buffer_from_slice(&shape)?, stages))
+            })
+            .collect()
     }
 
     /// `values` as a shared buffer over the same memory, when it starts on a

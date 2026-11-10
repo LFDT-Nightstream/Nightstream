@@ -8,6 +8,8 @@
 mod support;
 
 mod final_ir;
+#[cfg(feature = "metal")]
+mod metal_parity;
 mod setup_runs;
 
 use super::{Envelope, OptionB, OptionBError};
@@ -22,7 +24,8 @@ use support::{hash_chain_step, packages, words};
 const MINIMUM_SECURITY_BITS: u32 = 109;
 
 fn prover(cap: u64) -> OptionB {
-    let mut prover = OptionB::new(packages(), MINIMUM_SECURITY_BITS).expect("option-B prover");
+    let mut prover =
+        OptionB::new(packages(), MINIMUM_SECURITY_BITS, crate::engine::Backend::Optimized).expect("option-B prover");
     prover.cap = cap;
     prover
 }
@@ -136,7 +139,8 @@ fn native_application_verifies(application: ApplicationCircuit) {
             application.shape(),
         )
         .expect("packages with the application");
-    let mut prover = OptionB::new(packages, MINIMUM_SECURITY_BITS).expect("option-B prover");
+    let mut prover =
+        OptionB::new(packages, MINIMUM_SECURITY_BITS, crate::engine::Backend::Optimized).expect("option-B prover");
     prover.cap = 1;
     let z0 = words([10, 11, 12, 13]);
     let mut envelope = prover.initial(z0).expect("initial proof");
@@ -292,7 +296,7 @@ fn final_proof_verifies() {
     let started = std::time::Instant::now();
     // Keys for a minimum below the production one have fewer layer bits, so
     // a production verifier must refuse them (the end of this test).
-    let mut prover = OptionB::new(packages(), 105).expect("option-B prover");
+    let mut prover = OptionB::new(packages(), 105, crate::engine::Backend::Optimized).expect("option-B prover");
     prover.cap = 2;
     let finish = Finish::new(
         nightstream_fprime::load_option_b_finish(

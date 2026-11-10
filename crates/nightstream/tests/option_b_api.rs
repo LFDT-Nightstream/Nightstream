@@ -26,10 +26,6 @@ fn hash_chain_proves_and_verifies() {
     let prover = Prover::load(&path, Engine::Optimized, 109).expect("loaded prover");
     fs::remove_file(&path).expect("remove the saved application");
     let verifier = compiled.verifier(Engine::Optimized, 109).expect("verifier");
-    assert!(
-        compiled.prover(Engine::Metal, 109).is_err(),
-        "option B proves on the CPU path"
-    );
     let initial = words([1, 2, 3, 4]);
     let message = words([5, 6, 7, 8]);
     let mut proof = prover.prove(initial, &message).expect("first step");

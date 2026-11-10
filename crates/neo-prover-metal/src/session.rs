@@ -25,8 +25,10 @@ pub use gkr::MetalGkrLayer;
 mod masks;
 mod production_commitment;
 mod rlc;
+mod setup;
 pub(crate) use joint::MetalPaperJointOracle;
 pub(crate) use masks::MetalWitnessMasks;
+pub use setup::SetupSource;
 
 static METALLIB: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/nightstream-metal.metallib"));
 type Device = Retained<ProtocolObject<dyn MTLDevice>>;
@@ -83,6 +85,13 @@ pub struct MetalSession {
     dft_twiddles: Pipeline,
     dft_dif_pass: Pipeline,
     dft_bit_reverse: Pipeline,
+    setup_key_table: Pipeline,
+    setup_zero: Pipeline,
+    setup_mobius_pass: Pipeline,
+    setup_coset: Pipeline,
+    setup_gather: Pipeline,
+    setup_dif_pass: Pipeline,
+    setup_powers: Pipeline,
     gkr_message: Pipeline,
     gkr_fold: Pipeline,
     production_ajtai_accumulate: Pipeline,
@@ -109,8 +118,10 @@ pub struct MetalSession {
     rlc_witness_mix_signed_masks: Pipeline,
     dec_split_base2_masks: Pipeline,
     dec_sparse_ring_partials: Pipeline,
+    dec_dense_ring_partials: Pipeline,
     dec_sparse_ring_sum_chunks: Pipeline,
     joint_carried_projection: Pipeline,
+    joint_carried_projection_dense: Pipeline,
     fe_weighted_row_table: Pipeline,
     dec_ring_reduce_phi81: Pipeline,
     // A prover keeps the production key rows after their first commitment;
@@ -142,6 +153,13 @@ impl MetalSession {
         let dft_twiddles = pipeline(&device, &library, "dft_twiddles")?;
         let dft_dif_pass = pipeline(&device, &library, "dft_dif_pass")?;
         let dft_bit_reverse = pipeline(&device, &library, "dft_bit_reverse")?;
+        let setup_key_table = pipeline(&device, &library, "setup_key_table")?;
+        let setup_zero = pipeline(&device, &library, "setup_zero")?;
+        let setup_mobius_pass = pipeline(&device, &library, "setup_mobius_pass")?;
+        let setup_coset = pipeline(&device, &library, "setup_coset")?;
+        let setup_gather = pipeline(&device, &library, "setup_gather")?;
+        let setup_dif_pass = pipeline(&device, &library, "setup_dif_pass")?;
+        let setup_powers = pipeline(&device, &library, "setup_powers")?;
         let gkr_message = pipeline(&device, &library, "gkr_message")?;
         let gkr_fold = pipeline(&device, &library, "gkr_fold")?;
         let production_ajtai_accumulate = pipeline(&device, &library, "production_ajtai_accumulate")?;
@@ -170,8 +188,10 @@ impl MetalSession {
         let rlc_witness_mix_signed_masks = pipeline(&device, &library, "rlc_witness_mix_signed_masks")?;
         let dec_split_base2_masks = pipeline(&device, &library, "dec_split_base2_masks")?;
         let dec_sparse_ring_partials = pipeline(&device, &library, "dec_sparse_ring_partials")?;
+        let dec_dense_ring_partials = pipeline(&device, &library, "dec_dense_ring_partials")?;
         let dec_sparse_ring_sum_chunks = pipeline(&device, &library, "dec_sparse_ring_sum_chunks")?;
         let joint_carried_projection = pipeline(&device, &library, "joint_carried_projection")?;
+        let joint_carried_projection_dense = pipeline(&device, &library, "joint_carried_projection_dense")?;
         let fe_weighted_row_table = pipeline(&device, &library, "fe_weighted_row_table")?;
         let dec_ring_reduce_phi81 = pipeline(&device, &library, "dec_ring_reduce_phi81")?;
         Ok(Self {
@@ -184,6 +204,13 @@ impl MetalSession {
             dft_twiddles,
             dft_dif_pass,
             dft_bit_reverse,
+            setup_key_table,
+            setup_zero,
+            setup_mobius_pass,
+            setup_coset,
+            setup_gather,
+            setup_dif_pass,
+            setup_powers,
             gkr_message,
             gkr_fold,
             production_ajtai_accumulate,
@@ -210,8 +237,10 @@ impl MetalSession {
             rlc_witness_mix_signed_masks,
             dec_split_base2_masks,
             dec_sparse_ring_partials,
+            dec_dense_ring_partials,
             dec_sparse_ring_sum_chunks,
             joint_carried_projection,
+            joint_carried_projection_dense,
             fe_weighted_row_table,
             dec_ring_reduce_phi81,
             production_key: None,

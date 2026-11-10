@@ -6,6 +6,14 @@
 //! partial evaluations and fold, and the verifier's leaf check. A root read
 //! from disk is never authority; the verifier's key holds the root.
 //!
+//! The store keeps the tree levels of at most `2^STORED_BITS` nodes (at most
+//! 1 GiB) and the codewords of the first oracles, at most `CODEWORD_BUDGET`
+//! bytes, so a relation's store is at most 4 GiB for any shape. To read the
+//! queried leaves, the prover reads the stored codewords, computes the other
+//! oracles' leaves again, and hashes again the subtrees below the stored
+//! levels. On the CPU, `encoded_leaves` computes only the queried leaves of
+//! a codeword with a pruned FFT.
+//!
 //! Oracle `k` is a table of `2^n` values, low bit first. Its univariate form
 //! `Ô(Y) = Σ_x c_x Y^x` uses the monomial coefficients `c` of the multilinear
 //! extension, so `Õ(y, y^2, y^4, ...) = Ô(y)`. The codeword is `Ô` on the
@@ -13,6 +21,7 @@
 //! generator. Leaf `j < 2^{n-2}` holds, for every oracle in order, the eight
 //! values at positions `j + v·2^{n-2}`: the coset `y_j·⟨ω_8⟩`, `y_j = g·ω^j`.
 
+use std::collections::BTreeSet;
 use std::fs::File;
 use std::io::{BufWriter, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
@@ -34,6 +43,15 @@ use crate::Error;
 pub(crate) const FOLD: usize = 3;
 const LEAF: usize = 1 << FOLD;
 const WORD: usize = 8;
+/// The widest stored tree level has at most `2^STORED_BITS` nodes.
+const STORED_BITS: usize = 24;
+/// The stored codewords of one relation take at most this many bytes.
+const CODEWORD_BUDGET: usize = 3 << 30;
+/// The low Möbius stages run inside blocks of `2^MOBIUS_BLOCK` values.
+const MOBIUS_BLOCK: usize = 12;
+/// Pruned FFT nodes of at least this many values split in parallel.
+const PARALLEL_NODE: usize = 1 << 14;
+const NODE_BYTES: usize = 4 * WORD;
 
 pub(crate) type Digest = [Gl; 4];
 
@@ -45,15 +63,28 @@ pub(crate) struct Leaf {
     pub(crate) path: Vec<Digest>,
 }
 
-/// The prover's store of one setup: oracle codewords and the Merkle tree.
+/// The prover's store of one setup: the top levels of the Merkle tree, and
+/// the codewords of oracles `0..stored` in leaf-major order.
 pub(crate) struct Store {
     dir: PathBuf,
     variables: usize,
     count: usize,
+    /// The tree levels below the stored ones; a stored node of the lowest
+    /// stored level is the root of `2^skipped` leaves.
+    skipped: usize,
+    stored: usize,
 }
 
 fn leaf_count(variables: usize) -> usize {
     1 << (variables + 1 - FOLD)
+}
+
+fn codeword_bytes(variables: usize) -> usize {
+    (2 << variables) * WORD
+}
+
+fn codeword_path(dir: &Path, k: usize) -> PathBuf {
+    dir.join(format!("oracle-{k:02}.bin"))
 }
 
 /// The root of `count` oracles of `2^variables` values; with `dir`, also
@@ -64,14 +95,37 @@ pub(crate) fn build(
     oracle: impl Fn(usize) -> Vec<Gl>,
     dir: Option<&Path>,
 ) -> Result<Digest, Error> {
+    build_stored(variables, count, oracle, dir, STORED_BITS, CODEWORD_BUDGET)
+}
+
+/// `build`, with stored tree levels of at most `2^stored_bits` nodes and
+/// stored codewords of at most `budget` bytes. Codeword files of the
+/// oracles past the budget are removed.
+pub(crate) fn build_stored(
+    variables: usize,
+    count: usize,
+    oracle: impl Fn(usize) -> Vec<Gl>,
+    dir: Option<&Path>,
+    stored_bits: usize,
+    budget: usize,
+) -> Result<Digest, Error> {
     assert!(variables >= FOLD);
     let leaves = leaf_count(variables);
+    let skipped = (variables + 1 - FOLD).saturating_sub(stored_bits);
+    let kept = count.min(budget / codeword_bytes(variables));
     let mut states = vec![[Gl::ZERO; WIDTH]; leaves];
     let mut at = 0;
     for k in 0..count {
         let leaf_major = encode(oracle(k), variables);
         if let Some(dir) = dir {
-            write_words(&dir.join(format!("oracle-{k:02}.bin")), &leaf_major)?;
+            let path = codeword_path(dir, k);
+            if k < kept {
+                write_words(&path, &leaf_major)?;
+            } else if let Err(error) = std::fs::remove_file(&path) {
+                if error.kind() != std::io::ErrorKind::NotFound {
+                    return Err(error.into());
+                }
+            }
         }
         let start = at;
         states
@@ -90,8 +144,8 @@ pub(crate) fn build(
         Some(dir) => Some(BufWriter::new(File::create(dir.join("tree.bin"))?)),
         None => None,
     };
-    loop {
-        if let Some(file) = &mut file {
+    for level in 0.. {
+        if let Some(file) = file.as_mut().filter(|_| level >= skipped) {
             for digest in &layer {
                 for word in digest {
                     file.write_all(&word.as_canonical_u64().to_le_bytes())?;
@@ -112,30 +166,164 @@ pub(crate) fn build(
     Ok(layer[0])
 }
 
-/// The codeword of one oracle in leaf-major order: monomial coefficients
-/// (Möbius transform), then the coset DFT at rate 1/2.
-fn encode(mut values: Vec<Gl>, variables: usize) -> Vec<Gl> {
+/// The monomial coefficients of a table's multilinear extension, in place:
+/// `v[x + 2^t] -= v[x]` for every bit `t` and every `x` without it. The
+/// stages commute, so the low ones run inside cache-sized blocks.
+fn mobius(values: &mut [Gl], variables: usize) {
     assert_eq!(values.len(), 1 << variables);
-    for t in 0..variables {
-        values.par_chunks_mut(2 << t).for_each(|chunk| {
-            let (low, high) = chunk.split_at_mut(1 << t);
-            for (h, l) in high.iter_mut().zip(low.iter()) {
-                *h -= *l;
+    let low = variables.min(MOBIUS_BLOCK);
+    values.par_chunks_mut(1 << low).for_each(|block| {
+        for t in 0..low {
+            for chunk in block.chunks_mut(2 << t) {
+                let (l, h) = chunk.split_at_mut(1 << t);
+                h.iter_mut().zip(l.iter()).for_each(|(h, l)| *h -= *l);
             }
+        }
+    });
+    for t in low..variables {
+        values.par_chunks_mut(2 << t).for_each(|chunk| {
+            let (l, h) = chunk.split_at_mut(1 << t);
+            h.par_chunks_mut(1 << MOBIUS_BLOCK)
+                .zip(l.par_chunks(1 << MOBIUS_BLOCK))
+                .for_each(|(h, l)| h.iter_mut().zip(l).for_each(|(h, l)| *h -= *l));
         });
     }
+}
+
+/// The codeword of one oracle: monomial coefficients (Möbius transform),
+/// then the coset DFT at rate 1/2.
+fn codeword(mut values: Vec<Gl>, variables: usize, dft: &impl TwoAdicSubgroupDft<Gl>) -> Vec<Gl> {
+    mobius(&mut values, variables);
     values.resize(2 << variables, Gl::ZERO);
-    let codeword = Radix2DFTSmallBatch::<Gl>::default().coset_dft(values, Gl::GENERATOR);
-    let leaves = leaf_count(variables);
+    dft.coset_dft(values, Gl::GENERATOR)
+}
+
+/// `out[i] = values[i]·base^i`, or `out[i] *= base^i` without `values`, in
+/// parallel chunks that each start from one power.
+fn scale_by_powers(out: &mut [Gl], values: Option<&[Gl]>, base: Gl) {
+    out.par_chunks_mut(1 << MOBIUS_BLOCK)
+        .enumerate()
+        .for_each(|(chunk, out)| {
+            let start = chunk << MOBIUS_BLOCK;
+            let mut power = base.exp_u64(start as u64);
+            for (i, out) in out.iter_mut().enumerate() {
+                *out = values.map_or(*out, |values| values[start + i]) * power;
+                power *= base;
+            }
+        });
+}
+
+/// One pruned decimation-in-frequency node: `x` holds a DFT of `x.len()`
+/// points at `root` (of that order), and `targets` (sorted by their reversed
+/// remaining bits) are its outputs' residues `r` below `x.len() / 8`, with
+/// their result slots. Split on the low bit of `r` in place, follow only
+/// the halves that hold a target, and at 8 points write the target's
+/// outputs `r + v·x.len()/8`, `v < 8`, which are one leaf.
+fn pruned_node(x: &mut [Gl], root: Gl, targets: &mut [(usize, usize)], results: &[std::sync::Mutex<[Gl; LEAF]>]) {
+    let m = x.len();
+    if m == LEAF {
+        let values: [Gl; LEAF] = std::array::from_fn(|q| {
+            let w = root.exp_u64(q as u64);
+            let mut power = Gl::ONE;
+            let mut sum = Gl::ZERO;
+            for &value in x.iter() {
+                sum += value * power;
+                power *= w;
+            }
+            sum
+        });
+        for &(_, slot) in targets.iter() {
+            *results[slot].lock().expect("one writer per slot") = values;
+        }
+        return;
+    }
+    let split = targets.partition_point(|&(r, _)| r & 1 == 0);
+    let (even, odd) = targets.split_at_mut(split);
+    let (low, high) = x.split_at_mut(m / 2);
+    let butterflies = |(chunk, (low, high)): (usize, (&mut [Gl], &mut [Gl]))| {
+        let mut twiddle = root.exp_u64((chunk * PARALLEL_NODE) as u64);
+        for (a, b) in low.iter_mut().zip(high.iter_mut()) {
+            let (sum, difference) = (*a + *b, (*a - *b) * twiddle);
+            *a = sum;
+            *b = difference;
+            twiddle *= root;
+        }
+    };
+    if m >= 2 * PARALLEL_NODE {
+        low.par_chunks_mut(PARALLEL_NODE)
+            .zip(high.par_chunks_mut(PARALLEL_NODE))
+            .enumerate()
+            .for_each(butterflies);
+    } else {
+        butterflies((0, (low, high)));
+    }
+    let next = root.square();
+    targets_shift(even);
+    targets_shift(odd);
+    let go = |x: &mut [Gl], targets: &mut [(usize, usize)]| {
+        if !targets.is_empty() {
+            pruned_node(x, next, targets, results);
+        }
+    };
+    if m >= 2 * PARALLEL_NODE {
+        rayon::join(|| go(low, even), || go(high, odd));
+    } else {
+        go(low, even);
+        go(high, odd);
+    }
+}
+
+fn targets_shift(targets: &mut [(usize, usize)]) {
+    targets.iter_mut().for_each(|(r, _)| *r >>= 1);
+}
+
+/// The values at `leaves` of the codeword of `table` (`codeword`), with a
+/// decimation-in-frequency FFT pruned to the leaves' branches. Leaf `j` is
+/// the positions `j + v·2^{n-2}`: the FFT reaches them after it splits on
+/// the low `n - 2` bits of `j`, and then they are one 8-point DFT. The
+/// first split also applies the coset: the upper half of the input is zero,
+/// so the even half is `c_x·g^x` and the odd half `c_x·(g·ω)^x`.
+pub(crate) fn encoded_leaves(mut table: Vec<Gl>, variables: usize, leaves: &[usize]) -> Vec<[Gl; LEAF]> {
+    mobius(&mut table, variables);
+    let depth = variables + 1 - FOLD;
+    let reverse = |j: usize| j.reverse_bits() >> (usize::BITS as usize - depth);
+    let mut targets: Vec<(usize, usize)> = leaves.iter().copied().zip(0..).collect();
+    targets.sort_unstable_by_key(|&(j, _)| reverse(j));
+    let results: Vec<std::sync::Mutex<[Gl; LEAF]>> = leaves.iter().map(|_| Default::default()).collect();
+    let omega = Gl::two_adic_generator(variables + 1);
+    let split = targets.partition_point(|&(j, _)| j & 1 == 0);
+    let (even, odd) = targets.split_at_mut(split);
+    targets_shift(even);
+    targets_shift(odd);
+    table.resize(2 << variables, Gl::ZERO);
+    let (low, high) = table.split_at_mut(1 << variables);
+    if !odd.is_empty() {
+        scale_by_powers(high, Some(low), Gl::GENERATOR * omega);
+        pruned_node(high, omega.square(), odd, &results);
+    }
+    if !even.is_empty() {
+        scale_by_powers(low, None, Gl::GENERATOR);
+        pruned_node(low, omega.square(), even, &results);
+    }
+    results
+        .into_iter()
+        .map(|slot| slot.into_inner().expect("no writer panicked"))
+        .collect()
+}
+
+/// The values of leaf `leaf` in `codeword`: positions `leaf + v·2^{n-2}`.
+fn leaf_values(codeword: &[Gl], variables: usize, leaf: usize) -> [Gl; LEAF] {
+    std::array::from_fn(|v| codeword[leaf + v * leaf_count(variables)])
+}
+
+/// The codeword of one oracle in leaf-major order.
+fn encode(values: Vec<Gl>, variables: usize) -> Vec<Gl> {
+    let codeword = codeword(values, variables, &Radix2DFTSmallBatch::<Gl>::default());
     let mut leaf_major = vec![Gl::ZERO; codeword.len()];
     leaf_major
         .par_chunks_mut(LEAF)
         .enumerate()
-        .for_each(|(leaf, out)| {
-            for (v, value) in out.iter_mut().enumerate() {
-                *value = codeword[leaf + v * leaves];
-            }
-        });
+        .for_each(|(leaf, out)| out.copy_from_slice(&leaf_values(&codeword, variables, leaf)));
     leaf_major
 }
 
@@ -158,42 +346,171 @@ fn read_words(file: &mut File, offset: u64, count: usize) -> Result<Vec<Gl>, Err
         .collect())
 }
 
+fn read_node(file: &mut File, node: usize) -> Result<Digest, Error> {
+    let words = read_words(file, (node * NODE_BYTES) as u64, 4)?;
+    Ok(std::array::from_fn(|lane| words[lane]))
+}
+
 impl Store {
-    /// Open a store built for `root`. The stored root must equal it; this
-    /// detects stale files, it does not make the files authoritative.
+    /// Open a store built for `root`. The tree file's size gives the stored
+    /// levels, the codeword files present give the stored oracles, and the
+    /// stored root must equal `root`; this detects stale files, it does not
+    /// make the files authoritative.
     pub(crate) fn open(dir: &Path, variables: usize, count: usize, root: &Digest) -> Result<Self, Error> {
-        let store = Self {
+        let mut tree = File::open(dir.join("tree.bin"))?;
+        let bytes = tree.metadata()?.len() as usize;
+        let leaves = leaf_count(variables);
+        let skipped = (0..=variables + 1 - FOLD)
+            .find(|&skipped| bytes == (2 * (leaves >> skipped) - 1) * NODE_BYTES)
+            .ok_or(Error::Setup("setup files do not match the key shape"))?;
+        let stored = read_node(&mut tree, bytes / NODE_BYTES - 1)?;
+        if stored != *root {
+            return Err(Error::Setup("setup files do not match the key root"));
+        }
+        let mut stored = 0;
+        while stored < count {
+            match std::fs::metadata(codeword_path(dir, stored)) {
+                Ok(file) if file.len() as usize == codeword_bytes(variables) => stored += 1,
+                Ok(_) => return Err(Error::Setup("setup files do not match the key shape")),
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => break,
+                Err(error) => return Err(error.into()),
+            }
+        }
+        Ok(Self {
             dir: dir.to_path_buf(),
             variables,
             count,
-        };
-        let mut tree = File::open(dir.join("tree.bin"))?;
-        let nodes = 2 * leaf_count(variables) - 1;
-        let stored = read_words(&mut tree, ((nodes - 1) * 4 * WORD) as u64, 4)?;
-        if stored.as_slice() != root.as_slice() {
-            return Err(Error::Setup("setup files do not match the key root"));
-        }
-        Ok(store)
+            skipped,
+            stored,
+        })
     }
 
-    /// The leaf at `index`: every oracle's coset values and the path.
-    pub(crate) fn read(&self, index: usize) -> Result<Leaf, Error> {
-        let mut values = Vec::with_capacity(self.count * LEAF);
-        for k in 0..self.count {
-            let mut file = File::open(self.dir.join(format!("oracle-{k:02}.bin")))?;
-            values.extend(read_words(&mut file, (index * LEAF * WORD) as u64, LEAF)?);
+    /// The leaves at `indices`: every oracle's coset values and the path.
+    /// Each subtree below the stored levels that holds a queried leaf is
+    /// hashed again, and its root must equal its stored node. The stored
+    /// codewords give their oracles' values; `encode(oracles, leaves)` must
+    /// give, for each of the other oracles, its values at `leaves`, as
+    /// `build` encoded it.
+    pub(crate) fn leaves(
+        &self,
+        indices: &[usize],
+        encode: impl FnOnce(&[usize], &[usize]) -> Result<Vec<Vec<[Gl; LEAF]>>, Error>,
+    ) -> Result<Vec<Leaf>, Error> {
+        let span = 1 << self.skipped;
+        if indices
+            .iter()
+            .any(|&index| index >= leaf_count(self.variables))
+        {
+            return Err(Error::Setup("setup leaf index"));
         }
+        let subtrees: Vec<usize> = indices
+            .iter()
+            .map(|&index| index >> self.skipped)
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect();
+        // Every leaf of these subtrees, subtree by subtree.
+        let needed: Vec<usize> = subtrees
+            .iter()
+            .flat_map(|&subtree| subtree * span..(subtree + 1) * span)
+            .collect();
+        let mut oracles = (0..self.stored)
+            .map(|k| self.read_codeword(k, &subtrees))
+            .collect::<Result<Vec<_>, _>>()?;
+        let encoded = encode(&(self.stored..self.count).collect::<Vec<_>>(), &needed)?;
+        if encoded.len() != self.count - self.stored || encoded.iter().any(|values| values.len() != needed.len()) {
+            return Err(Error::Setup("setup leaves of a wrong shape"));
+        }
+        oracles.extend(encoded);
+        // One sponge state per needed leaf, as `build` hashes.
+        let mut states = vec![[Gl::ZERO; WIDTH]; needed.len()];
+        let mut at = 0;
+        for oracle in &oracles {
+            let start = at;
+            states
+                .par_iter_mut()
+                .zip(oracle)
+                .for_each(|(state, values)| {
+                    absorb(state, start, values);
+                });
+            at = (at + LEAF) % RATE;
+        }
+        let position = |index: usize| {
+            let subtree = subtrees
+                .binary_search(&(index >> self.skipped))
+                .expect("its subtree");
+            subtree * span + index % span
+        };
+        let values: Vec<Vec<Gl>> = indices
+            .iter()
+            .map(|&index| {
+                oracles
+                    .iter()
+                    .flat_map(|oracle| oracle[position(index)])
+                    .collect()
+            })
+            .collect();
+        // Each subtree's levels, bottom first: leaf digests up to its root.
+        let levels: Vec<Vec<Vec<Digest>>> = states
+            .par_chunks_mut(span)
+            .map(|states| {
+                let mut levels = vec![states
+                    .iter_mut()
+                    .map(|state| squeeze(state, at))
+                    .collect::<Vec<_>>()];
+                while levels[levels.len() - 1].len() > 1 {
+                    let next = levels[levels.len() - 1]
+                        .chunks(2)
+                        .map(|pair| compress(pair[0], pair[1]))
+                        .collect();
+                    levels.push(next);
+                }
+                levels
+            })
+            .collect();
         let mut tree = File::open(self.dir.join("tree.bin"))?;
-        let mut path = Vec::new();
-        let (mut offset, mut width, mut node) = (0, leaf_count(self.variables), index);
-        while width > 1 {
-            let words = read_words(&mut tree, ((offset + (node ^ 1)) * 4 * WORD) as u64, 4)?;
-            path.push(std::array::from_fn(|lane| words[lane]));
-            offset += width;
-            width /= 2;
-            node /= 2;
+        for (&subtree, levels) in subtrees.iter().zip(&levels) {
+            if read_node(&mut tree, subtree)? != levels[self.skipped][0] {
+                return Err(Error::Setup("setup files do not match the oracles"));
+            }
         }
-        Ok(Leaf { values, path })
+        indices
+            .iter()
+            .zip(values)
+            .map(|(&index, values)| {
+                let levels = &levels[subtrees
+                    .binary_search(&(index >> self.skipped))
+                    .expect("its subtree")];
+                let mut path: Vec<Digest> = (0..self.skipped)
+                    .map(|level| levels[level][((index % span) >> level) ^ 1])
+                    .collect();
+                let (mut offset, mut width, mut node) =
+                    (0, leaf_count(self.variables) >> self.skipped, index >> self.skipped);
+                while width > 1 {
+                    path.push(read_node(&mut tree, offset + (node ^ 1))?);
+                    offset += width;
+                    width /= 2;
+                    node /= 2;
+                }
+                Ok(Leaf { values, path })
+            })
+            .collect()
+    }
+
+    /// Oracle `k`'s stored values at every leaf of `subtrees`.
+    fn read_codeword(&self, k: usize, subtrees: &[usize]) -> Result<Vec<[Gl; LEAF]>, Error> {
+        let span = 1 << self.skipped;
+        let mut file = File::open(codeword_path(&self.dir, k))?;
+        let mut values = Vec::with_capacity(subtrees.len() * span);
+        for &subtree in subtrees {
+            let words = read_words(&mut file, (subtree * span * LEAF * WORD) as u64, span * LEAF)?;
+            values.extend(
+                words
+                    .chunks_exact(LEAF)
+                    .map(|leaf| std::array::from_fn(|v| leaf[v])),
+            );
+        }
+        Ok(values)
     }
 }
 

@@ -86,3 +86,11 @@ pub(super) fn nonempty(values: &[u64]) -> &[u64] {
         values
     }
 }
+
+pub(super) fn nonempty_u32(values: &[u32]) -> &[u32] {
+    if values.is_empty() {
+        &[0]
+    } else {
+        values
+    }
+}

@@ -15,7 +15,7 @@ use nightstream_fprime::{Linear, NativeBlock, NativeShape, OptionBPackages, Step
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 use crate::application::{ApplicationCircuit, ApplicationError};
-use crate::engine::{Engine, EngineError};
+use crate::engine::{Backend, Engine, EngineError};
 use crate::lifecycle::option_b::{self as lifecycle, Finish};
 
 #[derive(Debug, thiserror::Error)]
@@ -36,7 +36,17 @@ pub enum Error {
     #[error(transparent)]
     Parameters(#[from] neo_params::ParamsError),
     #[error(transparent)]
-    OptionB(#[from] crate::lifecycle::option_b::OptionBError),
+    OptionB(crate::lifecycle::option_b::OptionBError),
+}
+
+impl From<lifecycle::OptionBError> for Error {
+    /// A device failure judged nothing, so it is an engine failure.
+    fn from(error: lifecycle::OptionBError) -> Self {
+        match error.engine_failure() {
+            Some(engine) => Self::Engine(engine.clone()),
+            None => Self::OptionB(error),
+        }
+    }
 }
 
 /// The size of an application: its witness words, its local words and its
@@ -146,17 +156,6 @@ fn encode_application(application: &ApplicationCircuit) -> Result<Vec<u8>, Error
     let mut bytes = Vec::new();
     write_application(application, &mut bytes)?;
     Ok(bytes)
-}
-
-fn cpu_only(engine: Engine) -> Result<(), Error> {
-    if engine != Engine::Optimized {
-        return Err(EngineError::Unavailable {
-            engine,
-            reason: "steps prove and verify on the CPU path",
-        }
-        .into());
-    }
-    Ok(())
 }
 
 /// The three Lean-emitted packages: the light and refresh step circuits and
@@ -302,11 +301,13 @@ impl Circuit {
     }
 
     /// Require the profile to meet the caller's positive statistical minimum.
-    /// Option B proves and verifies on the CPU path (`Engine::Optimized`).
     pub fn prover(&self, engine: Engine, minimum_security_bits: u32) -> Result<Prover, Error> {
-        cpu_only(engine)?;
+        self.prover_on(Backend::new(engine)?, minimum_security_bits)
+    }
+
+    fn prover_on(&self, backend: Backend, minimum_security_bits: u32) -> Result<Prover, Error> {
         Ok(Prover {
-            lifecycle: lifecycle::OptionB::new(self.packages.clone(), minimum_security_bits)?,
+            lifecycle: lifecycle::OptionB::new(self.packages.clone(), minimum_security_bits, backend)?,
             finish: Finish::new(self.finish.clone())?,
             application: self.application.clone(),
         })
@@ -323,9 +324,8 @@ impl Circuit {
 
     /// The step verifier inside `nebula::Verifier`.
     pub(crate) fn stage1_verifier(&self, engine: Engine, minimum_security_bits: u32) -> Result<Verifier, Error> {
-        cpu_only(engine)?;
         Ok(Verifier {
-            lifecycle: lifecycle::OptionB::new(self.packages.clone(), minimum_security_bits)?,
+            lifecycle: lifecycle::OptionB::new(self.packages.clone(), minimum_security_bits, Backend::new(engine)?)?,
             finish: Finish::new(self.finish.clone())?,
         })
     }
@@ -362,9 +362,11 @@ pub struct Prover {
 
 impl Prover {
     /// Load the prover of a circuit that `Circuit::write` saved. A verifier
-    /// compiles its own circuit and never loads this file.
+    /// compiles its own circuit and never loads this file. An unavailable
+    /// engine fails before the circuit loads.
     pub fn load(path: impl AsRef<Path>, engine: Engine, minimum_security_bits: u32) -> Result<Self, Error> {
-        Circuit::load(path)?.prover(engine, minimum_security_bits)
+        let backend = Backend::new(engine)?;
+        Circuit::load(path)?.prover_on(backend, minimum_security_bits)
     }
 
     pub fn prove(&self, initial_state: [F; 4], private_inputs: &[F]) -> Result<Proof, Error> {

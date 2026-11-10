@@ -1,15 +1,19 @@
 import NightstreamFPrime.Export.Generic.Frame
 import NightstreamFPrime.Export.Generic.LogicalPlan
+import NightstreamFPrime.Export.Generic.Substitute
 import NightstreamFPrime.Layout.ProductionRelation.PoseidonSboxFamilyPlan
 
 /-! The logical relation of a step circuit (CW-5.8). The circuit's constraints, with the decode
 constraints of its output digest, are split into pieces (`Pieces.split`). When the Poseidon2
 blocks pack (`packable`: the frame check, every block after the public columns, and no other piece
-reading a dead local), the relation is the R1CS rows of the other pieces (`PieceRows.lowerPieces`),
-16 rows per block that bind its output locals, and today's `PoseidonSboxFamilyPlan`: 150 S-box rows
-per block on fresh columns. Otherwise every piece is lowered to R1CS rows. Soundness never depends
+reading a dead local), the relation is the R1CS rows of the other pieces (`PieceRows.lowerPieces`)
+and today's `PoseidonSboxFamilyPlan`: 150 S-box rows per block on fresh columns. A block's 16
+output locals are no columns of the relation: each row and each block input reads, in place of an
+output local, the local's linear form over the block's last 16 S-box columns (`outputForms`,
+`Substitute.substitute`). Otherwise every piece is lowered to R1CS rows. Soundness never depends
 on the check: `rowsZero_implies_spec` gives the circuit's spec and the output digest in an
-environment that differs from the assignment only on dead locals (`Frame.complete`). -/
+environment that has each output local at the value of its form (`Substitute.refill`) and each
+dead local of a block at its honest value (`Frame.complete`). -/
 
 namespace NightstreamFPrime.Export.Generic.CircuitRelation
 
@@ -302,45 +306,118 @@ def sboxOutputs {width : Nat} (blocks : List Block) (sboxStart : Nat) :
     Fin blocks.length → Fin PoseidonRetainedSlots.rows.length → SparseForm width :=
   fun index row => formOf (R1CS.LinearCombination.ofVar (sboxColumn sboxStart index.val row.val))
 
-/-- The S-box family's interface: each block's input lanes and S-box outputs read through the
-layout. -/
-def sboxInterface {width logicalWidth : Nat} (layout : LogicalPlan.Layout width logicalWidth)
-    (blocks : List Block) (sboxStart : Nat) :
-    PoseidonSboxFamilyPlan.Interface logicalWidth blocks.length where
-  oneColumn := layout.one
-  input := fun index lane =>
-    layout.combination (invocationInputCombination (blocks.get index).invocation lane.val).toR1CS
-  sboxOutput := fun index row => layout.form (sboxColumn sboxStart index.val row.val)
+/-- The output state of the block at `position`, from its final S-box outputs
+(`Interface.output`). -/
+def outputStateAt {width : Nat} (sboxStart position : Nat) : PoseidonSboxPlan.State width :=
+  SparseLayer.external fun lane => formOf (R1CS.LinearCombination.ofVar
+    (sboxColumn sboxStart position (PoseidonRetainedSlots.finalRow lane).val))
 
-/-- The output state of a block, from its final S-box outputs (`Interface.output`). -/
+/-- The output state of a block of the list. -/
 def outputState {width : Nat} (blocks : List Block) (sboxStart : Nat)
     (index : Fin blocks.length) : PoseidonSboxPlan.State width :=
   SparseLayer.external fun lane =>
     sboxOutputs blocks sboxStart index (PoseidonRetainedSlots.finalRow lane)
 
-/-- Row `output local - output form = 0` for each output lane of each block. -/
-def bindingRows (width : Nat) (blocks : List Block) (sboxStart : Nat) : List R1CS.Row :=
-  (List.finRange blocks.length).flatMap fun index => List.ofFn fun lane : Fin 16 =>
-    ⟨.add (.ofVar ((blocks.get index).start + 1080 + lane.val))
-        (.scale (-1) (toCombination (outputState (width := width) blocks sboxStart index lane))),
-      .one, .zero⟩
+theorem outputState_eq {width : Nat} (blocks : List Block) (sboxStart : Nat)
+    (index : Fin blocks.length) :
+    outputState (width := width) blocks sboxStart index = outputStateAt sboxStart index.val :=
+  rfl
+
+/-- The form of an output local of a block from `position`: the output state of its block. -/
+def outputFormsFrom (width sboxStart : Nat) :
+    List Block → Nat → Nat → Option R1CS.LinearCombination
+  | [], _, _ => none
+  | block :: rest, position, column =>
+      if inside : block.start + 1080 ≤ column ∧ column < block.start + 1096 then
+        some (toCombination (outputStateAt (width := width) sboxStart position
+          ⟨column - (block.start + 1080), by omega⟩))
+      else outputFormsFrom width sboxStart rest (position + 1) column
+
+/-- The form of each output local of the blocks. No other column has a form. -/
+def outputForms (width : Nat) (blocks : List Block) (sboxStart : Nat) :
+    Nat → Option R1CS.LinearCombination :=
+  outputFormsFrom width sboxStart blocks 0
+
+/-- A column outside every block's output locals has no form. -/
+theorem outputFormsFrom_none (width sboxStart : Nat) :
+    ∀ (blocks : List Block) (position column : Nat),
+      (∀ block ∈ blocks, ¬ (block.start + 1080 ≤ column ∧ column < block.start + 1096)) →
+        outputFormsFrom width sboxStart blocks position column = none
+  | [], _, _, _ => rfl
+  | block :: rest, position, column, outside => by
+      unfold outputFormsFrom
+      rw [dite_eq_right (outside block List.mem_cons_self)]
+      exact outputFormsFrom_none width sboxStart rest (position + 1) column
+        fun other member => outside other (List.mem_cons_of_mem _ member)
+
+/-- Output lane `lane` of block `index` has the block's output state as its form. -/
+theorem outputFormsFrom_output (width sboxStart : Nat) :
+    ∀ (blocks : List Block) (position : Nat), blocks.Pairwise Separated →
+      ∀ (index : Fin blocks.length) (lane : Fin 16),
+        outputFormsFrom width sboxStart blocks position
+            ((blocks.get index).start + 1080 + lane.val) =
+          some (toCombination (outputStateAt (width := width) sboxStart (position + index.val)
+            lane))
+  | [], _, _, index, _ => index.elim0
+  | block :: rest, position, separated, ⟨0, _⟩, lane => by
+      have inside : block.start + 1080 ≤ block.start + 1080 + lane.val ∧
+          block.start + 1080 + lane.val < block.start + 1096 := by
+        have := lane.isLt
+        omega
+      show outputFormsFrom width sboxStart (block :: rest) position
+        (block.start + 1080 + lane.val) = _
+      unfold outputFormsFrom
+      rw [dite_eq_left inside]
+      have laneEq : (⟨block.start + 1080 + lane.val - (block.start + 1080), by omega⟩ : Fin 16) =
+          lane := Fin.ext (by simp)
+      rw [laneEq]
+      rfl
+  | block :: rest, position, separated, ⟨index + 1, bound⟩, lane => by
+      have restBound : index < rest.length := by simpa using bound
+      have later : rest.get ⟨index, restBound⟩ ∈ rest := List.get_mem _ _
+      have apart := (List.pairwise_cons.mp separated).1 _ later
+      have outside : ¬ (block.start + 1080 ≤ (rest.get ⟨index, restBound⟩).start + 1080 +
+          lane.val ∧ (rest.get ⟨index, restBound⟩).start + 1080 + lane.val <
+            block.start + 1096) := by
+        have := lane.isLt
+        unfold Separated at apart
+        omega
+      show outputFormsFrom width sboxStart (block :: rest) position
+        ((rest.get ⟨index, restBound⟩).start + 1080 + lane.val) = _
+      unfold outputFormsFrom
+      rw [dite_eq_right outside, outputFormsFrom_output width sboxStart rest (position + 1)
+        (List.pairwise_cons.mp separated).2 ⟨index, restBound⟩ lane]
+      have positionEq : position + 1 + index = position + (index + 1) := by omega
+      simp only [positionEq]
+
+/-- The S-box family's interface: each block's input lanes and S-box outputs read through the
+layout. A lane reads the form of each output local that it names. -/
+def sboxInterface {width logicalWidth : Nat} (layout : LogicalPlan.Layout width logicalWidth)
+    (blocks : List Block) (sboxStart : Nat) :
+    PoseidonSboxFamilyPlan.Interface logicalWidth blocks.length where
+  oneColumn := layout.one
+  input := fun index lane =>
+    layout.combination (Substitute.substitute (outputForms width blocks sboxStart)
+      (invocationInputCombination (blocks.get index).invocation lane.val).toR1CS)
+  sboxOutput := fun index row => layout.form (sboxColumn sboxStart index.val row.val)
 
 /-- The first fresh S-box column: after the fresh columns of the other pieces. -/
 def sboxStart (pieces : List Piece) (next : Nat) : Nat :=
   (PieceRows.lowerPieces (PilotData.canonicalConstraints ()) (otherPieces pieces) next).2
 
-/-- The R1CS rows of the relation: the other pieces and the binding rows when the blocks pack,
-every piece otherwise. -/
+/-- The R1CS rows of the relation: the rows of the other pieces, with each output local of a
+block replaced by its form, when the blocks pack; every piece otherwise. -/
 def relationRows (publicColumns : Nat) (pieces : List Piece) (next width : Nat) :
     List R1CS.Row :=
   if packable publicColumns pieces then
-    (PieceRows.lowerPieces (PilotData.canonicalConstraints ()) (otherPieces pieces) next).1 ++
-      bindingRows width (blocksOf pieces) (sboxStart pieces next)
+    (PieceRows.lowerPieces (PilotData.canonicalConstraints ()) (otherPieces pieces) next).1.map
+      (Substitute.row (outputForms width (blocksOf pieces) (sboxStart pieces next)))
   else (PieceRows.lowerPieces (PilotData.canonicalConstraints ()) pieces next).1
 
 structure BlockFits (pieces : List Piece) (next width rowCount : Nat) : Prop where
   inputs : ∀ block ∈ blocksOf pieces, ∀ lane : Fin 16,
-    ∀ term ∈ (invocationInputCombination block.invocation lane.val).toR1CS.terms, term.1 < width
+    ∀ term ∈ (Substitute.substitute (outputForms width (blocksOf pieces) (sboxStart pieces next))
+      (invocationInputCombination block.invocation lane.val).toR1CS).terms, term.1 < width
   sboxColumns : sboxStart pieces next + (blocksOf pieces).length * 150 ≤ width
   rowCount : rowCount + (blocksOf pieces).length * 150 ≤ 2 ^ cubeVariables
 
@@ -368,26 +445,33 @@ def plan (publicColumns : Nat) (pieces : List Piece) (next width : Nat)
         exact (fits.blocks packed).rowCount)
   else LogicalPlan.plan _ width fits.rows layout
 
-/-- Binding rows and S-box rows give each block's outputs as the permutation of its inputs. -/
+/-- The source environment with each output local of a block at the value of its form. -/
+def outputEnv (pieces : List Piece) (next : Nat) {width logicalWidth : Nat}
+    (layout : LogicalPlan.Layout width logicalWidth) (assignment : Assignment F logicalWidth) :
+    Env :=
+  Substitute.refill (outputForms width (blocksOf pieces) (sboxStart pieces next))
+    (LogicalPlan.sourceEnv layout assignment)
+
+/-- The S-box rows give each block's outputs, in the environment with the output forms, as the
+permutation of its inputs. -/
 theorem outputsHold {publicColumns : Nat} {pieces : List Piece} {next width logicalWidth : Nat}
     (fits : Fits publicColumns pieces next width) (packed : packable publicColumns pieces = true)
     (layout : LogicalPlan.Layout width logicalWidth) (assignment : Assignment F logicalWidth)
     (one : assignment layout.one = 1)
-    (binding : R1CS.RowsHold (LogicalPlan.sourceEnv layout assignment)
-      (bindingRows width (blocksOf pieces) (sboxStart pieces next)))
     (sboxRows : (PoseidonSboxFamilyPlan.plan
         (sboxInterface layout (blocksOf pieces) (sboxStart pieces next))
         (by have := (fits.blocks packed).rowCount; omega)).RowsZero assignment) :
-    OutputsHold (blocksOf pieces) (LogicalPlan.sourceEnv layout assignment) := by
+    OutputsHold (blocksOf pieces) (outputEnv pieces next layout assignment) := by
   intro block member
   obtain ⟨index, rfl⟩ := List.mem_iff_get.mp member
   have permuted := PoseidonSboxFamilyPlan.planRowsZero_implies_permute _ _ assignment one sboxRows
     index
   have inputs : SparseLayer.evalState assignment
       ((sboxInterface layout (blocksOf pieces) (sboxStart pieces next)).input index) =
-      ((blocksOf pieces).get index).input (LogicalPlan.sourceEnv layout assignment) := by
+      ((blocksOf pieces).get index).input (outputEnv pieces next layout assignment) := by
     funext lane
-    exact layout.combination_eval assignment one _
+    exact (layout.combination_eval assignment one _).trans
+      (Substitute.substitute_eval _ _ _)
   have finals : SparseLayer.evalState assignment
       (fun lane => (sboxInterface layout (blocksOf pieces) (sboxStart pieces next)).sboxOutput
         index (PoseidonRetainedSlots.finalRow lane)) =
@@ -411,14 +495,16 @@ theorem outputsHold {publicColumns : Nat} {pieces : List Piece} {next width logi
       formOf_ofVar_eval _ _ bound, LogicalPlan.Layout.form_eval]
   have outputs : SparseLayer.evalState assignment
       ((sboxInterface layout (blocksOf pieces) (sboxStart pieces next)).output index) =
-      ((blocksOf pieces).get index).output (LogicalPlan.sourceEnv layout assignment) := by
+      ((blocksOf pieces).get index).output (outputEnv pieces next layout assignment) := by
     funext lane
-    have row := binding _ (List.mem_flatMap.mpr ⟨index, List.mem_finRange index,
-      List.mem_ofFn.mpr ⟨lane, rfl⟩⟩)
-    simp only [R1CS.Row.Holds, R1CS.LinearCombination.eval_add, R1CS.LinearCombination.eval_ofVar,
-      R1CS.LinearCombination.eval_scale, R1CS.LinearCombination.eval_one,
-      R1CS.LinearCombination.eval_zero, mul_one, toCombination_eval] at row
-    rw [neg_one_mul, ← sub_eq_add_neg, sub_eq_zero] at row
+    have row : outputEnv pieces next layout assignment
+        (((blocksOf pieces).get index).start + 1080 + lane.val) =
+        (outputState (width := width) (blocksOf pieces) (sboxStart pieces next) index lane).eval
+          (fun column => LogicalPlan.sourceEnv layout assignment column.val) := by
+      unfold outputEnv Substitute.refill outputForms
+      rw [outputFormsFrom_output width _ _ 0 (packable_framed packed).separated index lane,
+        Nat.zero_add]
+      exact toCombination_eval _ _
     simp only [Block.output, SparseLayer.evalState, PoseidonSboxFamilyPlan.Interface.output,
       SparseLayer.eval_external]
     have external := congrArg (fun state => Layer.externalF state lane) finals
@@ -428,13 +514,26 @@ theorem outputsHold {publicColumns : Nat} {pieces : List Piece} {next width logi
   apply List.ofFn_injective
   rw [permuted, Permutation.runF_eq_reference, Permutation.runReference_schedule]
 
+/-- A column below the public columns has no form. -/
+theorem outputForms_public {publicColumns : Nat} {pieces : List Piece}
+    (packed : packable publicColumns pieces = true) (width sboxStart : Nat) {column : Nat}
+    (below : column < publicColumns) :
+    outputForms width (blocksOf pieces) sboxStart column = none := by
+  simp only [packable, Bool.and_eq_true] at packed
+  have starts := packed.1.2
+  simp only [startsFrom, List.all_eq_true, decide_eq_true_eq] at starts
+  exact outputFormsFrom_none width sboxStart _ 0 column fun block member inside => by
+    have := starts block member
+    omega
+
 /-- The environment that an assignment decodes to: the layout's source environment, with the
-dead locals of the Poseidon2 blocks completed when the blocks pack. -/
-def decodeEnv (publicColumns : Nat) (pieces : List Piece) {width logicalWidth : Nat}
+output locals of the Poseidon2 blocks at their forms and the dead locals completed when the
+blocks pack. -/
+def decodeEnv (publicColumns : Nat) (pieces : List Piece) (next : Nat) {width logicalWidth : Nat}
     (layout : LogicalPlan.Layout width logicalWidth) (assignment : Assignment F logicalWidth) :
     Env :=
   if packable publicColumns pieces = true then
-    complete (blocksOf pieces) (LogicalPlan.sourceEnv layout assignment)
+    complete (blocksOf pieces) (outputEnv pieces next layout assignment)
   else LogicalPlan.sourceEnv layout assignment
 
 /-- A satisfying assignment gives every piece's constraints in its decoded environment, which
@@ -445,10 +544,10 @@ theorem rowsZero_implies_pieces (publicColumns : Nat) (pieces : List Piece)
     (layout : LogicalPlan.Layout width logicalWidth) (assignment : Assignment F logicalWidth)
     (one : assignment layout.one = 1)
     (rowsZero : (plan publicColumns pieces next width fits layout).RowsZero assignment) :
-    (∀ piece ∈ pieces, ConstraintsHold (decodeEnv publicColumns pieces layout assignment)
+    (∀ piece ∈ pieces, ConstraintsHold (decodeEnv publicColumns pieces next layout assignment)
         (piece.constraints (PilotData.canonicalConstraints ()))) ∧
       ∀ column, column < publicColumns →
-        decodeEnv publicColumns pieces layout assignment column =
+        decodeEnv publicColumns pieces next layout assignment column =
           LogicalPlan.sourceEnv layout assignment column := by
   by_cases packed : packable publicColumns pieces = true
   · unfold plan at rowsZero
@@ -456,11 +555,15 @@ theorem rowsZero_implies_pieces (publicColumns : Nat) (pieces : List Piece)
     have rowsHold := (LogicalPlan.rowsZero_iff_rowsHold _ width fits.rows layout assignment
       one).mp rowsZero.1
     unfold relationRows at rowsHold
-    rw [ite_eq_left packed, R1CS.rowsHold_append] at rowsHold
-    obtain ⟨holds, agree⟩ := checks_implies_pieces valid packed next _ rowsHold.1
-      (outputsHold fits packed layout assignment one rowsHold.2 rowsZero.2)
+    rw [ite_eq_left packed, Substitute.rowsHold_substitute] at rowsHold
+    obtain ⟨holds, agree⟩ := checks_implies_pieces valid packed next
+      (outputEnv pieces next layout assignment) rowsHold
+      (outputsHold fits packed layout assignment one rowsZero.2)
     simp only [decodeEnv, packed, ↓reduceIte]
-    exact ⟨holds, fun column below => agree column (packable_public packed below)⟩
+    refine ⟨holds, fun column below => ?_⟩
+    rw [agree column (packable_public packed below)]
+    unfold outputEnv Substitute.refill
+    rw [outputForms_public packed width _ below]
   · unfold plan at rowsZero
     rw [dite_eq_right packed] at rowsZero
     have rowsHold := (LogicalPlan.rowsZero_iff_rowsHold _ width fits.rows layout assignment
@@ -478,9 +581,9 @@ theorem rowsZero_implies_constraints (publicColumns : Nat) (constraints : List E
     (assignment : Assignment F logicalWidth) (one : assignment layout.one = 1)
     (rowsZero : (plan publicColumns _ next width fits layout).RowsZero assignment) :
     ConstraintsHold (decodeEnv publicColumns (split (PilotData.canonicalConstraints ()) constraints)
-        layout assignment) constraints ∧
+        next layout assignment) constraints ∧
       ∀ column, column < publicColumns →
-        decodeEnv publicColumns (split (PilotData.canonicalConstraints ()) constraints) layout
+        decodeEnv publicColumns (split (PilotData.canonicalConstraints ()) constraints) next layout
           assignment column = LogicalPlan.sourceEnv layout assignment column := by
   obtain ⟨holds, agree⟩ := rowsZero_implies_pieces publicColumns _
     (valid_split _ constraints) next width fits layout assignment one rowsZero
@@ -514,14 +617,15 @@ theorem rowsZero_implies_spec (circuit : FormalCircuit) (offset firstFresh : Nat
       (LogicalPlan.sourceEnv layout assignment) = encHash digest)
     (rowsZero : (plan _ _ firstFresh width fits layout).RowsZero assignment)
     (assumptions : ∀ env, circuit.assumptions offset env) :
-    circuit.spec offset (decodeEnv publicColumns (pieces circuit offset digestColumn) layout
-        assignment) ∧
-      ∀ word, decodeEnv publicColumns (pieces circuit offset digestColumn) layout assignment
-        (digestColumn word) = digest.getD word.val 0 := by
+    circuit.spec offset (decodeEnv publicColumns (pieces circuit offset digestColumn) firstFresh
+        layout assignment) ∧
+      ∀ word, decodeEnv publicColumns (pieces circuit offset digestColumn) firstFresh layout
+        assignment (digestColumn word) = digest.getD word.val 0 := by
   obtain ⟨holds, agree⟩ := rowsZero_implies_constraints publicColumns
     (constraints circuit offset digestColumn) firstFresh width fits layout assignment
     (LogicalPlan.encoded_one layout assignment digest fits.rows.positive encoded) rowsZero
-  let env := decodeEnv publicColumns (pieces circuit offset digestColumn) layout assignment
+  let env := decodeEnv publicColumns (pieces circuit offset digestColumn) firstFresh layout
+    assignment
   have publicEq : LogicalPlan.publicInput (publicFits := publicFits) env =
       LogicalPlan.publicInput (publicFits := publicFits)
         (LogicalPlan.sourceEnv layout assignment) := by

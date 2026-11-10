@@ -37,7 +37,7 @@ noncomputable def wordsOf (x : StateWords) (w : ℕ → NightstreamFPrime.Spec.F
     ((Lowering.Exec.run NightstreamFPrime.Spec.Poseidon2.permute stmt
       (Lowering.tapeOf Circuit.Block.poseidonTemplate L stmt w) L).value h)
 
-@[irreducible] def prefixRun : (Array Var × Var) × Builder := (finishPrefix finish stateKeys).run {}
+@[irreducible] def prefixRun : (Array Var × (ℕ → Var)) × Builder := (finishPrefix finish stateKeys).run {}
 
 /-- The builder before slot `slot`'s layer-1 call. -/
 @[irreducible] def slotBuilder (slot : Fin 2) : Builder :=
@@ -45,7 +45,7 @@ noncomputable def wordsOf (x : StateWords) (w : ℕ → NightstreamFPrime.Spec.F
   else ((slotLayer1 finish (keys 0) (prefixRun finish stateKeys).1.2 0).run (prefixRun finish stateKeys).2).2
 
 @[irreducible] def seedRun (slot : Fin 2) : (Fin 16 → Var) × Builder :=
-  (seed (fun k => (prefixRun finish stateKeys).1.2 + k) (bitsStart finish.application.1) slot).run
+  (seed (prefixRun finish stateKeys).1.2 (bitsStart finish.application.1) slot).run
     (slotBuilder finish stateKeys keys slot)
 
 @[irreducible] def handoffRun (slot : Fin 2) : DigestVar × Builder :=
@@ -57,7 +57,7 @@ noncomputable def wordsOf (x : StateWords) (w : ℕ → NightstreamFPrime.Spec.F
     (handoffRun finish stateKeys keys slot).2
 
 def statementWith (slot : Fin 2) (w : Var → Word) : Replay.Statement :=
-  (claimAt (fun k => (prefixRun finish stateKeys).1.2 + k) (slotStart finish.application.1 (5 + slot))).decode w
+  (claimAt (prefixRun finish stateKeys).1.2 (slotStart finish.application.1 (5 + slot))).decode w
 
 def seedWith (slot : Fin 2) (w : Var → Word) : Array Word :=
   FoldTranscript.handoffWords (Array.ofFn fun lane => w ((seedRun finish stateKeys keys slot).1 lane))
@@ -113,6 +113,21 @@ def fits (finish : Package) : Bool :=
   decide (bitsStart finish.application.1 + 256 ≤ finish.sboxStart) &&
     finish.blocks.all fun block => decide (block.lanes.length = 16) &&
       decide (block.start + 1096 ≤ finish.sboxStart) && block.lanes.all (laneFits finish.sboxStart)
+
+/-- The columns that the final program reads (`final_program.rs::Finish::new`): those of its rows, of
+each block's lanes and outputs, and `programReads`. The live columns are these below the S-box
+columns (`Sim.OptionB.live_iff`). -/
+def readColumns (finish : Package) : List ℕ :=
+  (finishRows finish).flatMap (fun row => (row.a ++ row.b ++ row.c).map Prod.fst) ++
+    finish.blocks.flatMap (fun block =>
+      block.lanes.flatMap (fun lane => ((linearForm lane).getD (0, [])).2.map Prod.fst) ++
+        List.range' (block.start + 1080) 16) ++
+    programReads finish.application.1
+
+/-- The finish columns `env` with 0 on each column that has no cell in the final program: a column
+below the S-box columns that the program does not read. -/
+def liveEnv (finish : Package) (env : NightstreamFPrime.Circuit.Env) : NightstreamFPrime.Circuit.Env :=
+  fun k => if k < finish.sboxStart ∧ (live finish).getD k false = false then 0 else env k
 
 /-- Slot `slot`'s layer-1 statement: its next claim's words in the finish columns `env`. -/
 def slotClaim (finish : Package) (slot : ℕ) (env : NightstreamFPrime.Circuit.Env) : Layer1.Statement Gl :=

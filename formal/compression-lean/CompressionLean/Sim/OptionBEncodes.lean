@@ -44,30 +44,31 @@ theorem prefixRun_eq : (finishPrefix finish stateKeys).run {} = prefixRun finish
 
 end Runs
 
-/-- A slot's claim words, decoded through the column handles, are its claim words in the columns. -/
+/-- A slot's claim words, decoded through the column handles, are its claim words in the columns.
+The claim reads the `slotWords - 1` words from `start`. -/
 theorem claimAt_decode {column : ℕ → Var} {start : ℕ} {w : Var → Word} {g : ℕ → Word}
-    (agree : ∀ k < start + 2055, w (column k) = g k) :
+    (agree : ∀ k, start ≤ k → k < start + 2054 → w (column k) = g k) :
     (claimAt column start).decode w = (claimAt id start).decode g := by
   simp only [ClaimView.decode, claimAt, Array.map_map, Function.comp_def, id]
   congr 1
   · exact Array.map_congr_left fun row inside => Array.map_congr_left fun lane lane_inside => by
       simp only [Array.mem_range] at inside lane_inside
-      exact agree _ (by omega)
+      exact agree _ (by omega) (by omega)
   · exact Array.map_congr_left fun block inside => Array.map_congr_left fun lane lane_inside => by
       simp only [Array.mem_range] at inside lane_inside
-      exact agree _ (by omega)
+      exact agree _ (by omega) (by omega)
   · exact Array.map_congr_left fun k inside => by
       simp only [Array.mem_range] at inside
-      simp only [Prod.map, agree _ (show start + 1728 + 2 * k < start + 2055 by omega),
-        agree _ (show start + 1728 + 2 * k + 1 < start + 2055 by omega)]
+      simp only [Prod.map, agree (start + 1728 + 2 * k) (by omega) (by omega),
+        agree (start + 1728 + 2 * k + 1) (by omega) (by omega)]
   · exact Array.map_congr_left fun k inside => by
       simp only [Array.mem_range] at inside
-      simp only [Prod.map, agree _ (show start + 1188 + 2 * k < start + 2055 by omega),
-        agree _ (show start + 1188 + 2 * k + 1 < start + 2055 by omega)]
+      simp only [Prod.map, agree (start + 1188 + 2 * k) (by omega) (by omega),
+        agree (start + 1188 + 2 * k + 1) (by omega) (by omega)]
   · exact Array.map_congr_left fun family inside => Array.map_congr_left fun k k_inside => by
       simp only [Array.mem_range] at inside k_inside
-      simp only [Prod.map, agree _ (show start + 1188 + (family + 1) * 108 + 2 * k < start + 2055 by omega),
-        agree _ (show start + 1188 + (family + 1) * 108 + 2 * k + 1 < start + 2055 by omega)]
+      simp only [Prod.map, agree (start + 1188 + (family + 1) * 108 + 2 * k) (by omega) (by omega),
+        agree (start + 1188 + (family + 1) * 108 + 2 * k + 1) (by omega) (by omega)]
 
 /-- What an accepted run gives: an environment of the finish columns in which the program's checks
 hold, and for each slot its claim words and the replay of its layer-1 verifier. -/
@@ -93,15 +94,15 @@ theorem readsStatement_of {c : Ctx F} {k : Array Var → Build Unit} (hk : ∀ s
     rw [hval]
     exact c.run_pubs pre j.isLt
 
-theorem statementWith_eq {finish : Package} {stateKeys : List Word} {c : Ctx F} {w : Var → Word}
-    (fit : fits finish = true) (words : ∀ h, w h = Word.ofF (c.val h)) (slot : Fin 2) :
-    Spec.statementOf (statementWith finish stateKeys slot w) =
-      slotClaim finish slot (finishEnv c (prefixRun finish stateKeys).1.2 finish.sboxStart) := by
+/-- A slot's statement is its claim words in the environment `env` that the column handles hold. -/
+theorem statementWith_eq {finish : Package} {stateKeys : List Word} {c : Ctx F} {w : Var → Word} {env : Env}
+    {m : ℕ} (fit : fits finish = true) (words : ∀ h, w h = Word.ofF (c.val h))
+    (columns : ∀ k < finish.sboxStart, ColumnIs c (prefixRun finish stateKeys).1.2 env m k) (slot : Fin 2) :
+    Spec.statementOf (statementWith finish stateKeys slot w) = slotClaim finish slot env := by
   unfold statementWith slotClaim
-  rw [claimAt_decode fun k inside => ?_]
+  rw [claimAt_decode fun k _ inside => ?_]
   have room := slot_room fit slot.isLt
-  rw [words]
-  simp [finishEnv, show k < finish.sboxStart by omega]
+  rw [words, (columns k (by omega)).2]
 
 /-- Stated for `program`, so that a caller can keep it irreducible. -/
 theorem finalProgram_gives {finish : Package} {stateKeys : List Word} {keys : Fin 2 → Layer1Key}
@@ -134,12 +135,12 @@ theorem finalProgram_gives {finish : Package} {stateKeys : List Word} {keys : Fi
       rw [slotBuilder_one]
       exact (slotLayer1_appends _ _ _ _).le _
     have bound1 : ∀ k < finish.sboxStart,
-        (prefixRun finish stateKeys).1.2 + k < (slotBuilder finish stateKeys keys 1).values := fun k inside =>
+        (prefixRun finish stateKeys).1.2 k < (slotBuilder finish stateKeys keys 1).values := fun k inside =>
       Nat.lt_of_lt_of_le (columns k inside).1 grow
     have slot1 := slotLayer1_at (keys := keys) (slot := 1) hp hw (facts 1) (named 1) fit bound1
     rw [slotBuilder_one] at slot1
     simp only [Fin.val_one] at slot1
-    refine slot1.post fun runs1 => ⟨_, terminal, fun slot => ⟨statementWith_eq fit words slot, ?_⟩⟩
+    refine slot1.post fun runs1 => ⟨_, terminal, fun slot => ⟨statementWith_eq fit words columns slot, ?_⟩⟩
     fin_cases slot
     · exact runs0
     · exact runs1

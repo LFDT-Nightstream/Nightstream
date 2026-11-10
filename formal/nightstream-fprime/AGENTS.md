@@ -109,6 +109,19 @@ development impractical.
   not hard-code an arbitrary worker count. Prepare independent blocks in
   parallel, then commit their bytes and identities in the canonical
   Lean-proved order.
+- To make compiled code faster without a change to a statement, add a fast
+  definition and a `@[csimp]` theorem that it equals the original
+  (`Hash.inputChunks_eq_inputChunksFast` is a small example). Proofs continue
+  to read the original definition. List the theorem in a `tests/Axioms*.lean`
+  file.
+- Find the hot spot before the change: run the executable, take a stack
+  sample with `/usr/bin/sample <pid> 30 1 -mayDie -file <out>` two seconds
+  or more after the start, and read the heaviest Lean functions. Common
+  causes are `List.drop` or `List.getD` in a loop, a function-typed state
+  (`Fin n → Expr`) that recomputes on each read, and a list built only for
+  its length.
+- After the change, run the executable again and confirm that the emitted
+  files are byte-identical.
 - The one-build-process rule still applies. Parallel work must occur inside
   that one authorized build, test, emitter, or generator process. Do not start
   competing Lean or Rust processes to obtain parallelism.

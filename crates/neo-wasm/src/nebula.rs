@@ -483,13 +483,13 @@ impl WasmLimits {
 /// deployment query count, retries, and recursive depth remain separate.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum WasmSize {
-    /// ROM and RAM of `2^14` cells: 256 instructions, 32 function
+    /// ROM of `2^14` cells and RAM of `2^10`: 256 instructions, 32 function
     /// references, steps of 64 rows, and segments of 8 steps.
     Small,
-    /// ROM and RAM of `2^15` cells: 512 instructions, 64 function
+    /// ROM of `2^15` cells and RAM of `2^11`: 512 instructions, 64 function
     /// references, steps of 64 rows, and segments of 16 steps.
     Medium,
-    /// ROM and RAM of `2^16` cells, the largest that rule 6 permits: 1,024
+    /// ROM of `2^16` cells and RAM of `2^12`: 1,024
     /// instructions, 128 function references, steps of 32 rows, and segments
     /// of 16 steps.
     Large,
@@ -498,8 +498,8 @@ pub enum WasmSize {
 impl WasmSize {
     pub const ALL: [Self; 3] = [Self::Small, Self::Medium, Self::Large];
 
-    /// The `log2` cells of the ROM and of the RAM, the rows of one step, the
-    /// steps of one segment, and the most segments.
+    /// The `log2` cells of the ROM, the rows of one step, the steps of one
+    /// segment, and the most segments.
     fn shape(self) -> (usize, usize, usize, usize) {
         match self {
             Self::Small => (14, 64, 8, 32),
@@ -508,11 +508,18 @@ impl WasmSize {
         }
     }
 
+    /// The `log2` cells of the RAM: a sixteenth of the ROM. A segment scans
+    /// each cell of both, and the program tables in the ROM need far more
+    /// cells than a run's stack and linear memory.
+    fn ram_log2(self) -> usize {
+        self.shape().0 - 4
+    }
+
     /// The limits of the programs and runs that the size holds. Each memory
     /// family gets a fixed part of its space: in the RAM, half for linear
     /// memory and a quarter for the stack.
     pub fn limits(self) -> WasmLimits {
-        let (log2, ..) = self.shape();
+        let log2 = self.ram_log2();
         let (pc, function) = match self {
             Self::Small => (8, 5),
             Self::Medium => (9, 6),
@@ -526,7 +533,7 @@ impl WasmSize {
             slot: 3,
             stack: log2 - 2,
             linear_memory: log2 - 1,
-            global: 6,
+            global: log2 - 5,
             call_depth: log2 - 6,
             host_depth: 4,
             table: 1,
@@ -543,7 +550,7 @@ impl WasmSize {
         let (log2, _, n, s_max) = self.shape();
         Geometry::new(
             log2,
-            log2,
+            self.ram_log2(),
             plan_ordered_slots(self.rows())
                 .expect("fixed WASM slot plan")
                 .len(),

@@ -4,6 +4,7 @@ Require Import R1CS Columns FullRelation Range MemoryTrace MemoryCatalog Wasm2 W
   StraightLineSpec StackSimulation SpecTecCalls CallerSpec ProgramSpec ProgramEncoding CodeLayout BlockEncoding
   Fragment CodeFacts ControlDecode ControlInvariant ControlBridge FrameFacts FrameRows CallRows SlideLayout ProgramBinding
   OpcodeCatalog Selectors CircuitFacts CallContext TrapFacts TerminalFacts FunctionResults.
+Require Import IntegerMemory IntegerDecode.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -92,13 +93,17 @@ Proof.
   pose proof (Hsteps caller ltac:(constructor; assumption)) as Hreturn.
   destruct returned as [ | v [ | v' rest]].
   - exists None. split; [exact Htrap | ]. split; [cbn in Hcount; exact Hcount | exact Hreturn].
-  - exists (Some v). split; [exact Htrap | ]. split; [split | exact Hreturn].
+  - assert (Hv : i32Operand v).
+    { apply (proj1 (Forall_forall _ _) Hbounds). rewrite Hsplit.
+      apply in_or_app; right. left. reflexivity. }
+    destruct Hv as [raw [Hraw ->]].
+    exists (Some raw). split; [exact Htrap | ]. split; [split | exact Hreturn].
     + exact Hcount.
     + assert (Hcap : row COL_OUTPUT_CAPTURED = 1) by exact Hcount.
       assert (Haddr := full_capture_address row Hprime Hfull Hcap ltac:(cbn in Hsp; lia)).
       pose proof (captured_stack_read _ _ _ Hreplay Hcap) as Hread.
-      assert (Hvalue : initial stackId [2 * (row COL_STACK_FRAME_BASE_BEFORE + Z.of_nat (length dropped))] = Some v).
-      { apply Hcells. rewrite Hsplit, nth_error_app2, Nat.sub_diag by lia. reflexivity. }
+      assert (Hvalue : initial stackId [2 * (row COL_STACK_FRAME_BASE_BEFORE + Z.of_nat (length dropped))] = Some raw).
+      { apply cell_matches_i32_read; [exact (proj1 Hraw) | ]. apply Hcells. rewrite Hsplit, nth_error_app2, Nat.sub_diag by lia. reflexivity. }
       rewrite Haddr in Hread. replace (2 * row COL_SP_BEFORE - 2)
         with (2 * (row COL_STACK_FRAME_BASE_BEFORE + Z.of_nat (length dropped))) in Hread by (cbn in Hsp; lia).
       rewrite Hvalue in Hread. injection Hread as Hread.

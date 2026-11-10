@@ -5,6 +5,7 @@ Require Import R1CS Columns FullRelation Range MemoryTrace MemoryCatalog Wasm2 W
   CodeLayout BlockEncoding Fragment ControlDecode ControlInvariant FrameFacts FrameRows CallRows
   ProgramBinding OpcodeCatalog Selectors TrapFacts SpecTecTraps TableState BlockSpec BlockTrace IndirectBindings
   SpecTecIndirect FunctionValidation IndirectRows.
+Require Import WasmValues IntegerMemory IntegerDecode.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -24,14 +25,14 @@ Proof.
         (mk_config (mk_state s parent) [admininstr_TRAP])).
     { unfold callerConfig, frameConfig.
       eapply spec_steps_transitive.
-      - apply steps_in_labels; [exact Hlabels | ].
-        apply steps_with_stack_prefix; [exact Hvalues | ]. apply steps_with_instruction_suffix; [exact Hcode | ].
+      - apply steps_in_value_labels; [exact Hlabels | ].
+        apply steps_with_value_prefix; [exact Hvalues | ]. apply steps_with_instruction_suffix; [exact Hcode | ].
         apply call_context_traps; assumption.
       - eapply spec_steps_transitive.
-        + apply steps_in_labels; [exact Hlabels | ].
-          cbn [stackPrefix instructionSuffix]. rewrite app_assoc.
-          apply trap_discards_context; assumption.
-        + apply wrap_labels_trap; assumption. }
+        + apply steps_in_value_labels; [exact Hlabels | ].
+          cbn [valueStackPrefix instructionSuffix]. rewrite app_assoc.
+          apply value_trap_discards_context; assumption.
+        + apply wrap_value_labels_trap; assumption. }
     cbn [plugCalls]. eapply spec_steps_transitive.
     + apply steps_in_call_frame; [inversion Hz; assumption | ]. exact (steps_in_plug_calls rest _ _ Hrest Hstep).
     + apply IH; assumption.
@@ -64,14 +65,14 @@ Proof.
   split; [exact Htrap | ]. split; [exact Hfinish | ].
   destruct (frame_ready _ _ Hstore Hwf Hvalid _ _ _ _ _ _ _ _ Hframe) as [Hready [Hvalues [HcodeWf Hz]]].
   assert (Hinner : Steps
-      (frameConfig f view (stackConfig (mk_state s (activeFrame f (viewLocals view))) (viewValues view)
+      (frameConfig f view (valueStackConfig (mk_state s (activeFrame f (viewLocals view))) (viewValues view)
         (skipn (positionOffset (viewPosition view)) (innerCode f (viewPosition view)))))
       (mk_config (mk_state s (activeFrame f (viewLocals view))) [admininstr_TRAP])).
   { unfold frameConfig. rewrite (skipn_at_instruction _ _ _ Hi).
     eapply spec_steps_transitive.
-    - apply steps_in_labels; [exact Hready | ]. apply unreachable_steps; [exact Hz | exact Hvalues | ].
+    - apply steps_in_value_labels; [exact Hready | ]. apply value_unreachable_steps; [exact Hz | exact Hvalues | ].
       apply forall_skipn; exact HcodeWf.
-    - apply wrap_labels_trap; assumption. }
+    - apply wrap_value_labels_trap; assumption. }
   pose proof (suspended_stack_ready _ _ Hstore Hwf Hvalid _ _ _ _ _ Hsusp) as HreadyCalls.
   eapply spec_steps_transitive.
   - apply steps_in_call_frame; [exact Hcaller | ]. exact (steps_in_plug_calls stack _ _ HreadyCalls Hinner).
@@ -111,6 +112,10 @@ Proof.
   cbn [programCallees envTypes envTables indirectReady] in Htype, Htable, Hready_.
   destruct (split_top_values values 1 ltac:(lia)) as [prefix [top [-> Htop]]].
   destruct top as [ | tableIndex [ | ? ?]]; try discriminate. clear Htop.
+  assert (HindexOperand : i32Operand tableIndex).
+  { apply (proj1 (Forall_forall _ _) Hbounds). apply in_or_app; right.
+    apply in_or_app; right. left. reflexivity. }
+  destruct HindexOperand as [tableIndexRaw [HindexRange ->]].
   destruct (nth_error (TABLES (guestModule f)) (N.to_nat (x :> N))) as [ta | ] eqn:Hta;
     [ | apply nth_error_None in Hta; lia].
   destruct (encoded_path_resolve _ _ _ _ Hloaded Hf _ _ _ _ _ Hpath Hi) as [Himage [HtableRom HtypeRom]].
@@ -129,16 +134,17 @@ Proof.
   (* The index on top, and the checks' verdict. *)
   assert (HspPositive : 1 <= row COL_SP_BEFORE).
   { change (row COL_SP_BEFORE = row COL_STACK_FRAME_BASE_BEFORE +
-      Z.of_nat (length (concat segments ++ prefix ++ [tableIndex]))) in Hsp.
+      Z.of_nat (length (concat segments ++ prefix ++ [i32Value tableIndexRaw]))) in Hsp.
     rewrite !length_app in Hsp. cbn [length] in Hsp. lia. }
   pose proof (full_resolve_stack_shape row Hprime Hfull Hresolve HspPositive) as Hshape.
   destruct (replace_stack_replay row initial final Hshape Hreplay) as [Hread _].
-  assert (Htop : initial stackId [2 * (row COL_SP_BEFORE - 1)] = Some tableIndex).
+  assert (Htop : initial stackId [2 * (row COL_SP_BEFORE - 1)] = Some tableIndexRaw).
   { change (row COL_SP_BEFORE = row COL_STACK_FRAME_BASE_BEFORE +
-      Z.of_nat (length (concat segments ++ prefix ++ [tableIndex]))) in Hsp.
+      Z.of_nat (length (concat segments ++ prefix ++ [i32Value tableIndexRaw]))) in Hsp.
     replace (row COL_SP_BEFORE - 1) with
       (row COL_STACK_FRAME_BASE_BEFORE + Z.of_nat (length (concat segments ++ prefix)))
       by (rewrite Hsp, !length_app; cbn [length]; lia).
+    apply cell_matches_i32_read; [exact (proj1 HindexRange) | ].
     apply Hcells. unfold viewOperands. cbn [viewSegments viewValues].
     rewrite app_assoc, nth_error_app2, Nat.sub_diag by lia. reflexivity. }
   rewrite (replace_read_address _ Hshape), Htop in Hread. injection Hread as HindexValue.
@@ -147,15 +153,15 @@ Proof.
   destruct (resolve_rom_reads _ _ _ Hreplay HidActive HimmActive HsizeActive) as [HidRead [HexpRead HsizeRead]].
   rewrite HtableRom in HidRead. injection HidRead as HtableId.
   rewrite HtypeRom in HexpRead. injection HexpRead as Hexpected.
-  assert (Hindex : row COL_TABLE_INDEX = tableIndex) by (rewrite HindexCol; symmetry; exact HindexValue).
-  assert (Hu32 : 0 <= tableIndex < i32Modulus).
+  assert (Hindex : row COL_TABLE_INDEX = tableIndexRaw) by (rewrite HindexCol; symmetry; exact HindexValue).
+  assert (Hu32 : 0 <= tableIndexRaw < i32Modulus).
   { pose proof (full_read0_u32 row Hprime Hfull). normalize_columns. unfold i32Modulus. lia. }
   set (z := mk_state s (activeFrame f locals)).
   (* No function of the expected type sits at the index: otherwise no check fails. *)
-  assert (Hnone : forall a, ~ indirectTarget z x y tableIndex a).
+  assert (Hnone : forall a, ~ indirectTarget z x y tableIndexRaw a).
   { intros a [Hentry [fi [Hfi HfiType]]].
     change (nth_error (REFS (lookup_total (store_TABLES s) (lookup_total (TABLES (guestModule f)) (x :> N))))
-      (Z.to_nat tableIndex) = Some (REF_FUNC_ADDR a)) in Hentry.
+      (Z.to_nat tableIndexRaw) = Some (REF_FUNC_ADDR a)) in Hentry.
     rewrite (spec_lookup_from_nth_error _ _ _ _ _ Hta) in Hentry.
     destruct (function_module_ok program s Hvalid _ _ Hf) as [C HC].
     pose proof (module_table_in_store _ _ _ _ _ HC Hta) as HtaStore.
@@ -164,7 +170,7 @@ Proof.
     destruct (Htables _ _ Ht) as [Hsize Hentries].
     replace (Z.of_nat (N.to_nat ta)) with (Z.of_N ta) in Hsize, Hentries by lia.
     rewrite HtableId, HsizeRead in Hsize. injection Hsize as Hsize.
-    assert (Hbound : (Z.to_nat tableIndex < length (REFS t))%nat)
+    assert (Hbound : (Z.to_nat tableIndexRaw < length (REFS t))%nat)
       by (apply nth_error_Some; rewrite Hentry; discriminate).
     assert (HoobZero : row COL_CI_OOB = 0)
       by (rewrite Hoob, (proj2 (Z.ltb_lt _ _)); [reflexivity | lia]).
@@ -200,23 +206,23 @@ Proof.
   apply Forall_app in Hvalues. destruct Hvalues as [HprefixBounds _].
   assert (Hrest : Forall wf_instr (skipn (S offset) code)) by (apply forall_skipn; exact HcodeWf).
   assert (Hinner : Steps
-      (frameConfig f (frameView (codePosition index labels offset) segments (prefix ++ [tableIndex]) locals)
-        (stackConfig z (prefix ++ [tableIndex]) (skipn offset code)))
+      (frameConfig f (frameView (codePosition index labels offset) segments (prefix ++ [i32Value tableIndexRaw]) locals)
+        (valueStackConfig z (prefix ++ [i32Value tableIndexRaw]) (skipn offset code)))
       (mk_config z [admininstr_TRAP])).
   { unfold frameConfig. cbn [viewPosition viewSegments positionLabels]. rewrite (skipn_at_instruction _ _ _ Hi).
     eapply spec_steps_transitive.
-    - apply steps_in_labels; [exact Hready | ]. rewrite stack_config_split.
-      apply steps_with_stack_prefix; [exact HprefixBounds | ].
+    - apply steps_in_value_labels; [exact Hready | ]. rewrite value_stack_config_split.
+      apply steps_with_value_prefix; [exact HprefixBounds | ].
       apply steps_with_instruction_suffix; [exact Hrest | ].
       apply one_spec_step.
-      + apply stack_config_wf; [exact Hz | constructor; [exact Hu32 | constructor] | constructor; [exact Hwi | constructor]].
+      + apply value_stack_config_wf; [exact Hz | constructor; [apply i32_value_wf; exact Hu32 | constructor] | constructor; [exact Hwi | constructor]].
       + apply trap_config_wf. exact Hz.
-      + exact (indirect_call_traps z x y tableIndex Hu32 Hnone).
-    - eapply spec_steps_transitive with (b := wrapLabels (guestBody f) labels segments (mk_config z [admininstr_TRAP])).
-      + apply steps_in_labels; [exact Hready | ].
-        cbn [stackPrefix instructionSuffix]. rewrite app_assoc.
-        apply trap_discards_context; assumption.
-      + apply wrap_labels_trap; assumption. }
+      + exact (indirect_call_traps z x y tableIndexRaw Hu32 Hnone).
+    - eapply spec_steps_transitive with (b := wrapValueLabels (guestBody f) labels segments (mk_config z [admininstr_TRAP])).
+      + apply steps_in_value_labels; [exact Hready | ].
+        cbn [valueStackPrefix instructionSuffix]. rewrite app_assoc.
+        apply value_trap_discards_context; assumption.
+      + apply wrap_value_labels_trap; assumption. }
   pose proof (suspended_stack_ready _ _ Hstore Hwf Hvalid _ _ _ _ _ Hsusp) as HreadyCalls.
   eapply spec_steps_transitive.
   - apply steps_in_call_frame; [exact Hcaller | ]. exact (steps_in_plug_calls stack _ _ HreadyCalls Hinner).

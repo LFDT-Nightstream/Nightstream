@@ -137,3 +137,33 @@ Proof.
   eapply cell_matches_memory; [intros limb Hl; apply Hmemory; assumption | ].
   apply Hcells. rewrite nth_error_app1 by exact Hin. exact Hindex.
 Qed.
+
+(* An i32 condition is read from the low limb, while the preserved prefix may
+   contain either integer type. *)
+Lemma value_stack_matches_pop_i32 : forall w initial final prefix value local,
+  UnaryStackShape w true local -> Replay initial (eventsForRow memories w) final ->
+  (local = false -> w COL_FRAME_MOVE_DISTANCE_AFTER = 0) ->
+  (local = true -> w COL_LOCAL_ADDR_LO < 2 * w COL_STACK_FRAME_BASE_BEFORE /\
+    w COL_LOCAL_ADDR_HI < 2 * w COL_STACK_FRAME_BASE_BEFORE) ->
+  0 <= value ->
+  valueStackMatches initial (beforeBoundary w) (prefix ++ [i32Value value]) ->
+  w (List.nth 0%nat COL_STACK_READ_VALUE_LO 0%nat) = value /\
+  valueStackMatches final (afterBoundary w) prefix.
+Proof.
+  intros w initial final prefix value local Hshape Hreplay Hslide Hbelow Hv Hstack.
+  pose proof Hstack as [Hbase [Hsp Hcells]].
+  cbn [beforeBoundary boundarySP boundaryStackBase] in Hsp, Hcells.
+  rewrite length_app, Nat2Z.inj_add in Hsp. cbn [length] in Hsp.
+  assert (Hread : initial stackId [w (List.nth 0%nat COL_STACK_READ_ADDR_LO 0%nat)] =
+      Some (w (List.nth 0%nat COL_STACK_READ_VALUE_LO 0%nat))).
+  { destruct local.
+    - exact (proj1 (local_set_stack_replay _ _ _ Hshape Hreplay)).
+    - exact (proj1 (pop_stack_replay _ _ _ Hshape Hreplay)). }
+  assert (Hcell : initial stackId [2 * (w COL_STACK_FRAME_BASE_BEFORE + Z.of_nat (length prefix))] = Some value).
+  { apply cell_matches_i32_read; [exact Hv | ]. apply Hcells.
+    rewrite nth_error_app2 by lia. rewrite Nat.sub_diag. reflexivity. }
+  rewrite (local_read_address _ _ _ Hshape Logic.eq_refl) in Hread.
+  replace (2 * (w COL_SP_BEFORE - 1)) with
+    (2 * (w COL_STACK_FRAME_BASE_BEFORE + Z.of_nat (length prefix))) in Hread by lia.
+  split; [congruence | ]. eapply value_stack_matches_pop; eassumption.
+Qed.

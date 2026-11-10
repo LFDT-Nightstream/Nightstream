@@ -58,6 +58,33 @@ Proof.
   intros values H; induction H; cbn; constructor; [split; [reflexivity | apply i32_value_wf; assumption] | assumption].
 Qed.
 
+(* Compatibility predicate for the current i32-only program fragment. The
+   frame representation keeps values typed even while this restriction holds. *)
+Definition i32Operand (value : val) : Prop :=
+  exists raw, 0 <= raw < i32Modulus /\ value = i32Value raw.
+
+Lemma i32_operand_wf : forall value, i32Operand value -> wf_val value.
+Proof. intros value [raw [Hr ->]]. now apply i32_value_wf. Qed.
+
+Lemma i32_operands_wf : forall values, Forall i32Operand values -> Forall wf_val values.
+Proof. intros values H. eapply Forall_impl; [ | exact H]. exact i32_operand_wf. Qed.
+
+Lemma i32_operands_map : forall raw,
+  Forall (fun value => 0 <= value < i32Modulus) raw -> Forall i32Operand (map i32Value raw).
+Proof.
+  intros raw H. apply Forall_map. eapply Forall_impl; [ | exact H].
+  intros value Hv. exists value. auto.
+Qed.
+
+Lemma i32_operands_inv : forall values,
+  Forall i32Operand values -> exists raw, values = map i32Value raw /\
+    Forall (fun value => 0 <= value < i32Modulus) raw.
+Proof.
+  intros values H. induction H as [ | value values [raw [Hr ->]] Hvalues [rest [-> Hrest]]].
+  - exists []. split; constructor.
+  - exists (raw :: rest). split; [reflexivity | constructor; assumption].
+Qed.
+
 Definition readIntegerCell (memory : MemoryState) (cell : Z) (t : valtype) : option val :=
   match t, i32Cell (memory stackId [2 * cell]) with
   | valtype_I32, Some lo => Some (i32Value lo)

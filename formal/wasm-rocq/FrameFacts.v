@@ -53,17 +53,17 @@ Proof.
     destruct (sourceHeights callees (firstn offset body) 0); reflexivity.
 Qed.
 
-Lemma wrap_labels_snoc : forall labels code inner s i body segments segment c,
+Lemma wrap_value_labels_snoc : forall labels code inner s i body segments segment c,
   pathCode code labels = Some inner -> siteEntry inner s = Some (i, body) ->
   length segments = length labels ->
-  wrapLabels code (labels ++ [s]) (segments ++ [segment]) c =
-    wrapLabels code labels segments
-      (stackPrefix segment (instructionSuffix (skipn (S (siteOffset s)) inner)
+  wrapValueLabels code (labels ++ [s]) (segments ++ [segment]) c =
+    wrapValueLabels code labels segments
+      (valueStackPrefix segment (instructionSuffix (skipn (S (siteOffset s)) inner)
         (blockContext (labelArity i) (labelContinuation i) c))).
 Proof.
   induction labels as [ | s' rest IH]; intros code inner s i body segments segment c Hpath Hs Hlen.
-  - destruct segments; [ | discriminate]. injection Hpath as <-. cbn [app wrapLabels]. rewrite Hs. reflexivity.
-  - destruct segments as [ | seg more]; [discriminate | ]. cbn [app wrapLabels pathCode] in *.
+  - destruct segments; [ | discriminate]. injection Hpath as <-. cbn [app wrapValueLabels]. rewrite Hs. reflexivity.
+  - destruct segments as [ | seg more]; [discriminate | ]. cbn [app wrapValueLabels pathCode] in *.
     destruct (siteEntry code s') as [[j nested] | ]; [ | discriminate].
     rewrite (IH _ _ _ _ _ more segment c Hpath Hs ltac:(cbn in Hlen; lia)). reflexivity.
 Qed.
@@ -76,14 +76,14 @@ Proof.
   destruct (siteEntry code s) as [[i body] | ]; [apply IH | reflexivity].
 Qed.
 
-Lemma wrap_labels_app : forall pre post code outer segmentsPre segmentsPost c,
+Lemma wrap_value_labels_app : forall pre post code outer segmentsPre segmentsPost c,
   pathCode code pre = Some outer -> length segmentsPre = length pre ->
-  wrapLabels code (pre ++ post) (segmentsPre ++ segmentsPost) c =
-    wrapLabels code pre segmentsPre (wrapLabels outer post segmentsPost c).
+  wrapValueLabels code (pre ++ post) (segmentsPre ++ segmentsPost) c =
+    wrapValueLabels code pre segmentsPre (wrapValueLabels outer post segmentsPost c).
 Proof.
   induction pre as [ | s rest IH]; intros post code outer segmentsPre segmentsPost c Hpath Hlen.
   - destruct segmentsPre; [ | discriminate]. injection Hpath as <-. reflexivity.
-  - destruct segmentsPre as [ | seg more]; [discriminate | ]. cbn [app wrapLabels pathCode] in *.
+  - destruct segmentsPre as [ | seg more]; [discriminate | ]. cbn [app wrapValueLabels pathCode] in *.
     destruct (siteEntry code s) as [[i body] | ]; [ | discriminate].
     rewrite (IH _ _ _ more _ c Hpath ltac:(cbn in Hlen; lia)). reflexivity.
 Qed.
@@ -115,7 +115,7 @@ Qed.
 
 (* The operands below each label, then the innermost ones. *)
 Lemma split_concat : forall segments values,
-  splitSegments (map (@length Z) segments) (concat segments ++ values) = (segments, values).
+  splitSegments (map (@length val) segments) (concat segments ++ values) = (segments, values).
 Proof.
   induction segments as [ | seg more IH]; intros values; [reflexivity | ].
   cbn [map concat splitSegments]. rewrite <- app_assoc, firstn_app, Nat.sub_diag, firstn_all, skipn_app,
@@ -123,7 +123,7 @@ Proof.
 Qed.
 
 Lemma total_height_operands : forall segments values pending,
-  totalHeight (map (@length Z) segments, (length values + pending)%nat) =
+  totalHeight (map (@length val) segments, (length values + pending)%nat) =
     (length (concat segments ++ values) + pending)%nat.
 Proof.
   intros. unfold totalHeight. cbn [fst snd]. rewrite length_app.
@@ -132,7 +132,7 @@ Qed.
 
 Lemma split_lengths : forall heights stack,
   (fold_right Nat.add 0 heights <= length stack)%nat ->
-  map (@length Z) (fst (splitSegments heights stack)) = heights /\
+  map (@length val) (fst (splitSegments heights stack)) = heights /\
   concat (fst (splitSegments heights stack)) ++ snd (splitSegments heights stack) = stack.
 Proof.
   induction heights as [ | h rest IH]; intros stack Hlen; [split; reflexivity | ].
@@ -561,7 +561,7 @@ Lemma view_facts : forall program s memory base fbp pending remaining distance f
   (positionLabels position <> [] ->
     endsAt callees (innerCode f position) 0 (pathResults (guestBody f) (positionLabels position))) /\
   (positionLabels position = [] -> endsAt callees (innerCode f position) 0 (guestResults f)) /\
-  LabelsReady (guestBody f) (positionLabels position) (viewSegments view) /\
+  ValueLabelsReady (guestBody f) (positionLabels position) (viewSegments view) /\
   Forall wf_instr (innerCode f position).
 Proof.
   intros program s memory base fbp pending remaining distance f view Hstore Hvalid
@@ -575,9 +575,9 @@ Proof.
   { intros Hnil. unfold innerCode. fold position in Hpath |- *. rewrite Hnil in Hpath |- *.
     cbn in Hpath |- *. exact Hresults. }
   split; [ | exact (path_code_wf _ _ _ Hwf Hpath)].
-  apply (labels_ready _ _ _ _ Hwf Hpath).
+  apply (value_labels_ready _ _ _ _ Hwf Hpath).
   - pose proof (path_heights_length _ _ _ _ _ _ Hheights) as H. rewrite length_map in H. exact H.
-  - unfold viewOperands in Hoperands. apply Forall_app in Hoperands. exact (proj1 Hoperands).
+  - unfold viewOperands in Hoperands. apply Forall_app in Hoperands. apply i32_operands_wf. exact (proj1 Hoperands).
 Qed.
 
 (* Compatibility with the current i32 fragment. Local-index facts come from

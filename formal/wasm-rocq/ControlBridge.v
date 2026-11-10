@@ -84,82 +84,6 @@ Proof.
   - right. rewrite nth_error_app2 in H by exact Hge. auto.
 Qed.
 
-Lemma read_operands_cells : forall memory base count remaining distance values,
-  (remaining <= count)%nat ->
-  readOperands memory base count remaining distance = Some values <->
-  length values = count /\ Forall (fun value => 0 <= value < i32Modulus) values /\
-  forall index value, nth_error values index = Some value ->
-    memory stackId [2 * operandCell base count remaining distance index] = Some value.
-Proof.
-  intros memory base count remaining distance values HremainingBound. unfold readOperands, operandCell.
-  split.
-  - destruct (readStack memory base (count - remaining)) as [low | ] eqn:Hlow; [ | discriminate].
-    destruct (readStack memory _ remaining) as [high | ] eqn:Hhigh; [ | discriminate].
-    intros H. injection H as <-.
-    destruct (proj1 (read_stack_cells _ _ _ _) Hlow) as [Hl [Hlb Hlc]].
-    destruct (proj1 (read_stack_cells _ _ _ _) Hhigh) as [Hh [Hhb Hhc]].
-    split; [rewrite length_app; lia | split; [apply Forall_app; auto | ]].
-    intros index value Hindex.
-    destruct (nth_error_app_cases _ _ _ _ _ Hindex) as [[Hlt Hv] | [Hge Hv]].
-    + replace (index <? count - remaining)%nat with true by (symmetry; apply Nat.ltb_lt; lia).
-      rewrite Z.add_0_r. exact (Hlc _ _ Hv).
-    + replace (index <? count - remaining)%nat with false by (symmetry; apply Nat.ltb_ge; lia).
-      pose proof (Hhc _ _ Hv) as Hcell.
-      replace (base + Z.of_nat (count - remaining) + distance + Z.of_nat (index - length low))
-        with (base + Z.of_nat index + distance) in Hcell by lia. exact Hcell.
-  - intros [Hlen [Hbounds Hcells]].
-    rewrite <- (firstn_skipn (count - remaining) values) in Hbounds, Hcells |- *.
-    apply Forall_app in Hbounds as [Hlb Hhb].
-    assert (Hlowlen : length (firstn (count - remaining) values) = (count - remaining)%nat)
-      by (rewrite length_firstn; lia).
-    rewrite (proj2 (read_stack_cells memory base (count - remaining) (firstn (count - remaining) values))).
-    + rewrite (proj2 (read_stack_cells memory (base + Z.of_nat (count - remaining) + distance) remaining
-        (skipn (count - remaining) values))); [reflexivity | ].
-      split; [rewrite length_skipn; lia | split; [exact Hhb | ]].
-      intros index value Hv.
-      pose proof (Hcells ((count - remaining) + index)%nat value) as Hcell.
-      rewrite nth_error_app2 in Hcell by lia. rewrite Hlowlen in Hcell.
-      replace (count - remaining + index - (count - remaining))%nat with index in Hcell by lia.
-      specialize (Hcell Hv).
-      replace (count - remaining + index <? count - remaining)%nat with false in Hcell by (symmetry; apply Nat.ltb_ge; lia).
-      replace (base + Z.of_nat (count - remaining) + distance + Z.of_nat index)
-        with (base + Z.of_nat (count - remaining + index) + distance) by lia. exact Hcell.
-    + split; [exact Hlowlen | split; [exact Hlb | ]].
-      intros index value Hv.
-      assert (Hlt : (index < count - remaining)%nat).
-      { rewrite <- Hlowlen. apply nth_error_Some. rewrite Hv. discriminate. }
-      pose proof (Hcells index value) as Hcell. rewrite nth_error_app1 in Hcell by lia.
-      specialize (Hcell Hv).
-      replace (index <? count - remaining)%nat with true in Hcell by (symmetry; apply Nat.ltb_lt; lia).
-      rewrite Z.add_0_r in Hcell. exact Hcell.
-Qed.
-
-Lemma read_operands_unmoved : forall memory base count distance,
-  readOperands memory base count 0 distance = readStack memory base count.
-Proof.
-  intros memory base count distance. unfold readOperands. rewrite Nat.sub_0_r.
-  destruct (readStack memory base count) as [low | ]; [ | reflexivity].
-  cbn [readStack readCells]. rewrite app_nil_r. reflexivity.
-Qed.
-
-Lemma read_integer_operands_i32 : forall memory base count remaining distance,
-  (remaining <= count)%nat ->
-  readIntegerOperands memory base (repeat valtype_I32 count) remaining distance =
-    option_map (map i32Value) (readOperands memory base count remaining distance).
-Proof.
-  intros memory base count remaining distance Hremaining.
-  unfold readIntegerOperands. rewrite repeat_length.
-  destruct (readOperands memory base count remaining distance) as [raw | ] eqn:Hraw.
-  - apply (read_operands_cells _ _ _ _ _ _ Hremaining) in Hraw as [Hlen [Hbounds Hcells]].
-    pose proof (read_integer_cells_i32_from _ _ _ Hbounds Hcells) as Hread.
-    rewrite Hlen in Hread. exact Hread.
-  - destruct (readIntegerCells _ _ _) as [values | ] eqn:Hread; [ | reflexivity].
-    destruct (read_integer_cells_i32_inv _ _ _ _ Hread) as [raw [_ [Hlen [Hbounds Hcells]]]].
-    assert (Hsome : readOperands memory base count remaining distance = Some raw).
-    { apply read_operands_cells; [exact Hremaining | auto]. }
-    congruence.
-Qed.
-
 Lemma type_heights_i32 : forall heights,
   typeHeights (map (repeat valtype_I32) (fst heights), repeat valtype_I32 (snd heights)) = heights.
 Proof.
@@ -176,14 +100,6 @@ Proof.
   rewrite <- app_assoc, IH, <- repeat_app. reflexivity.
 Qed.
 
-Lemma split_segments_map : forall (A B : Type) (f : A -> B) heights values,
-  splitSegments heights (map f values) =
-    (map (map f) (fst (splitSegments heights values)), map f (snd (splitSegments heights values))).
-Proof.
-  intros A B f heights. induction heights as [ | h rest IH]; intros values; [reflexivity | ].
-  cbn [splitSegments]. rewrite firstn_map, skipn_map, IH. reflexivity.
-Qed.
-
 Lemma operand_cell_unmoved : forall base count distance index,
   (index < count)%nat -> operandCell base count 0 distance index = base + Z.of_nat index.
 Proof.
@@ -191,8 +107,38 @@ Proof.
   replace (index <? count - 0)%nat with true by (symmetry; apply Nat.ltb_lt; lia). lia.
 Qed.
 
-Lemma concat_length : forall (segments : list (list Z)),
-  length (concat segments) = fold_right Nat.add 0%nat (map (@length Z) segments).
+Lemma read_i32_operands_cells : forall memory base count remaining distance values,
+  (remaining <= count)%nat ->
+  readIntegerOperands memory base (repeat valtype_I32 count) remaining distance = Some values <->
+  length values = count /\ Forall i32Operand values /\
+  forall index value, nth_error values index = Some value ->
+    CellMatches memory (operandCell base count remaining distance index) value.
+Proof.
+  intros memory base count remaining distance values Hremaining.
+  unfold readIntegerOperands. rewrite repeat_length. split.
+  - intros Hread. pose proof Hread as Hcells.
+    apply read_integer_cells_some in Hcells as [_ Hcells].
+    destruct (read_integer_cells_i32_inv _ _ _ _ Hread) as [raw [-> [Hlen [Hbounds _]]]].
+    split; [rewrite length_map; exact Hlen | ].
+    split; [now apply i32_operands_map | exact Hcells].
+  - intros [Hlen [Hbounds Hcells]]. apply read_integer_cells_some.
+    split; [ | exact Hcells].
+    destruct (i32_operands_inv _ Hbounds) as [raw [-> Hraw]].
+    rewrite length_map in Hlen. rewrite <- Hlen.
+    clear - raw.
+    induction raw as [ | value rest IH]; cbn [repeat map length]; constructor; [reflexivity | exact IH].
+Qed.
+
+Lemma read_integer_operands_unmoved : forall memory base types distance,
+  readIntegerOperands memory base types 0 distance =
+    readIntegerCells memory (fun index => base + Z.of_nat index) types.
+Proof.
+  intros. unfold readIntegerOperands. apply read_integer_cells_addresses.
+  intros. now apply operand_cell_unmoved.
+Qed.
+
+Lemma concat_length : forall (segments : list (list val)),
+  length (concat segments) = fold_right Nat.add 0%nat (map (@length val) segments).
 Proof. induction segments as [ | seg more IH]; cbn; [reflexivity | ]. rewrite length_app, IH. reflexivity. Qed.
 
 Lemma total_height_sum : forall heights top,
@@ -202,25 +148,25 @@ Proof. intros heights top. unfold totalHeight. cbn. induction heights as [ | h r
 (* Operands read at a frame's heights split into its label segments and its values. *)
 Lemma split_stack : forall heights top pending stack,
   (pending <= top)%nat -> length stack = (totalHeight (heights, top) - pending)%nat ->
-  map (@length Z) (fst (splitSegments heights stack)) = heights /\
+  map (@length val) (fst (splitSegments heights stack)) = heights /\
   (length (snd (splitSegments heights stack)) + pending)%nat = top /\
   concat (fst (splitSegments heights stack)) ++ snd (splitSegments heights stack) = stack.
 Proof.
   intros heights top pending stack Hpending Hlen. rewrite total_height_sum in Hlen.
   destruct (split_lengths heights stack ltac:(lia)) as [Hmap Hconcat].
   split; [exact Hmap | ]. split; [ | exact Hconcat].
-  pose proof (f_equal (@length Z) Hconcat) as H. rewrite length_app, concat_length, Hmap in H. lia.
+  pose proof (f_equal (@length val) Hconcat) as H. rewrite length_app, concat_length, Hmap in H. lia.
 Qed.
 
 Lemma frame_reads : forall program memory base fbp pending remaining distance f view,
   FrameAt program memory base fbp pending remaining distance f view ->
   (remaining <= length (viewOperands view))%nat ->
-  readOperands memory base (length (viewOperands view)) remaining distance = Some (viewOperands view) /\
+  readIntegerOperands memory base (repeat valtype_I32 (length (viewOperands view))) remaining distance = Some (viewOperands view) /\
   readLocals memory fbp (guestFrameTypes f) = Some (viewLocals view).
 Proof.
   intros program memory base fbp pending remaining distance f view
     [Hf [_ [_ [_ [_ [Hbounds [Hcells [Hlen [Hlb Hlc]]]]]]]]] HremainingBound.
-  split; [apply read_operands_cells; auto | ].
+  split; [apply read_i32_operands_cells; auto | ].
   apply read_locals_cells. split; [exact (values_typed_types _ _ Hlb) | exact Hlc].
 Qed.
 
@@ -249,7 +195,7 @@ Lemma frame_of_reads : forall program memory base fbp pending remaining distance
     (positionOffset position) = Some heights ->
   0 <= fbp -> base = fbp + Z.of_nat (frameLocals f) -> (pending <= snd heights)%nat ->
   (remaining <= totalHeight heights - pending)%nat ->
-  readOperands memory base (totalHeight heights - pending) remaining distance = Some stack ->
+  readIntegerOperands memory base (repeat valtype_I32 (totalHeight heights - pending)) remaining distance = Some stack ->
   readLocals memory fbp (guestFrameTypes f) = Some locals ->
   let view := frameView position (fst (splitSegments (fst heights) stack))
     (snd (splitSegments (fst heights) stack)) locals in
@@ -258,7 +204,7 @@ Lemma frame_of_reads : forall program memory base fbp pending remaining distance
 Proof.
   intros program memory base fbp pending remaining distance f position inner [hs top] stack locals Hf Hpath Hheights
     Hfbp Hbase Hpending HremainingBound Hstack Hlocals view. cbn [fst snd] in *.
-  destruct (proj1 (read_operands_cells _ _ _ _ _ _ HremainingBound) Hstack) as [Hlen [Hbounds Hcells]].
+  destruct (proj1 (read_i32_operands_cells _ _ _ _ _ _ HremainingBound) Hstack) as [Hlen [Hbounds Hcells]].
   destruct (proj1 (read_locals_cells _ _ _ _) Hlocals) as [Hlt Hlc].
   assert (Hlb : valuesTyped (guestFrameTypes f) locals).
   { apply values_typed_intro; [exact Hlt | eapply read_integer_cells_wf; exact Hlocals]. }
@@ -278,8 +224,8 @@ Qed.
 Lemma frame_heights : forall program memory base fbp pending remaining distance f view,
   FrameAt program memory base fbp pending remaining distance f view ->
   pathHeights (programCallees program (guestModule f)) (guestBody f) (positionLabels (viewPosition view))
-    (positionOffset (viewPosition view)) = Some (map (@length Z) (viewSegments view), (length (viewValues view) + pending)%nat) /\
-  totalHeight (map (@length Z) (viewSegments view), (length (viewValues view) + pending)%nat) =
+    (positionOffset (viewPosition view)) = Some (map (@length val) (viewSegments view), (length (viewValues view) + pending)%nat) /\
+  totalHeight (map (@length val) (viewSegments view), (length (viewValues view) + pending)%nat) =
     (length (viewOperands view) + pending)%nat.
 Proof.
   intros program memory base fbp pending remaining distance f view Hframe.
@@ -339,11 +285,8 @@ Proof.
     repeat match goal with H : initializationFlagsb _ = true |- _ => apply flags_check in H end.
     assert (HreadBound : (Z.to_nat (boundaryMoveRemaining boundary) <= totalHeight heights)%nat).
     { destruct heights as [hs top]. rewrite total_height_sum. cbn [snd] in *. lia. }
-    rewrite read_integer_operands_i32 in Hdecode by exact HreadBound.
-    destruct (readOperands _ _ _ _ _) as [stack | ] eqn:Hstack; [ | discriminate].
+    destruct (readIntegerOperands _ _ _ _ _) as [stack | ] eqn:Hstack; [ | discriminate].
     destruct (readLocals memory (boundaryLocalsBase boundary) (guestFrameTypes f)) as [locals | ] eqn:Hlocals; [ | discriminate].
-    cbn [option_map] in Hdecode. rewrite split_segments_map in Hdecode. cbn [fst snd] in Hdecode.
-    rewrite value_stack_config_i32, wrap_value_labels_i32 in Hdecode.
     injection Hdecode as <- <-.
     rewrite <- (Nat.sub_0_r (totalHeight heights)) in Hstack.
     assert (HremainingBound : (Z.to_nat (boundaryMoveRemaining boundary) <= totalHeight heights - 0)%nat).
@@ -358,7 +301,7 @@ Proof.
       (snd (splitSegments (fst heights) stack)) locals)).
     split; [reflexivity | ]. exists f. cbn [viewPosition viewLocals viewValues].
     split; [exact Hframe | ]. rewrite Hinner. split; [assumption | ].
-    split; [rewrite Hoperands; destruct (proj1 (read_operands_cells _ _ _ _ _ _ HremainingBound) Hstack) as [Hlen _];
+    split; [rewrite Hoperands; destruct (proj1 (read_i32_operands_cells _ _ _ _ _ _ HremainingBound) Hstack) as [Hlen _];
       rewrite Hlen, Nat.sub_0_r; assumption | ].
     split; [assumption | ]. split; [assumption | ]. split; [assumption | ].
     split; [lia | reflexivity].
@@ -373,18 +316,15 @@ Proof.
     destruct (_ && _) eqn:Hchecks; [ | discriminate]. bools.
     repeat match goal with H : initializationFlagsb _ = true |- _ => apply flags_check in H end.
     rewrite firstn_repeat_le in Hdecode by lia.
-    rewrite read_integer_operands_i32 in Hdecode by lia.
-    destruct (readOperands _ _ _ _ _) as [stack | ] eqn:Hstack; [ | discriminate].
+    destruct (readIntegerOperands _ _ _ _ _) as [stack | ] eqn:Hstack; [ | discriminate].
     destruct (readLocals memory (boundaryLocalsBase boundary) (guestFrameTypes f)) as [locals | ] eqn:Hlocals; [ | discriminate].
-    cbn [option_map] in Hdecode. rewrite split_segments_map in Hdecode. cbn [fst snd] in Hdecode.
-    rewrite value_stack_prefix_i32, wrap_value_labels_i32 in Hdecode.
     injection Hdecode as <- <-.
     assert (Htop : (snd heights <= totalHeight heights)%nat)
       by (destruct heights as [hs top]; rewrite total_height_sum; cbn [snd]; lia).
     destruct (frame_of_reads program memory (boundaryStackBase boundary) (boundaryLocalsBase boundary) 1%nat
       0%nat 0 _ _ _ _ _ _ Hf Hpath Hheights ltac:(assumption) ltac:(assumption) ltac:(assumption) ltac:(lia)
       Hstack Hlocals) as [Hframe [Hinner Hoperands]].
-    destruct (proj1 (read_operands_cells _ _ _ _ _ _ (Nat.le_0_l _)) Hstack) as [Hlen _].
+    destruct (proj1 (read_i32_operands_cells _ _ _ _ _ _ (Nat.le_0_l _)) Hstack) as [Hlen _].
     exists (resolved (frameView position (fst (splitSegments (fst heights) stack))
       (snd (splitSegments (fst heights) stack)) locals) (Z.to_nat (reference - 1))).
     split; [reflexivity | ]. exists f, g, i. cbn [viewPosition viewLocals viewValues].
@@ -425,9 +365,7 @@ Proof.
     cbn [option_map]. rewrite type_heights_i32, operand_types_i32, Htotal.
     cbn [snd]. rewrite !Nat.add_0_r.
     apply flags_check in Hflags. pass_check.
-    rewrite read_integer_operands_i32 by exact HremainingBoundOps.
-    rewrite Hstack, Hlocals. cbn [option_map]. rewrite split_segments_map. cbn [fst snd].
-    rewrite value_stack_config_i32, wrap_value_labels_i32.
+    rewrite Hstack, Hlocals. cbn [fst snd].
     unfold viewOperands. rewrite split_concat.
     eexists. split; [reflexivity | exact I].
   - destruct Hstate as [f [g [i [Hframe [Hi [Hind [Hg [Hcalls [Href [Hsp [Hpc [Hflags [Hzero [Hmove ->]]]]]]]]]]]]]].
@@ -441,9 +379,7 @@ Proof.
     pose proof (proj2 (calls_into_check _ _ _ _ _ Hg) Hcalls) as Hcallsb.
     cbn [snd]. apply flags_check in Hflags. pass_check.
     rewrite firstn_repeat_le by lia.
-    rewrite read_integer_operands_i32 by lia.
-    rewrite Hstack, Hlocals. cbn [option_map]. rewrite split_segments_map. cbn [fst snd].
-    rewrite value_stack_prefix_i32, wrap_value_labels_i32.
+    rewrite Hstack, Hlocals. cbn [fst snd].
     unfold viewOperands. rewrite split_concat.
     eexists. split; [ | exact I]. unfold frameConfig, innerCode. rewrite Hpath. reflexivity.
   - destruct Hstate as [f [defaults [Hf [Htypes [Hdefaults [Hinit [Hflags [Hmove [Hpending [Hpc ->]]]]]]]]]].
@@ -500,18 +436,14 @@ Proof.
     destruct (memory callStackCallerSpBaseId _) as [savedBase | ] eqn:HsavedBase; [ | discriminate].
     destruct (_ && _) eqn:Hchecks; [ | discriminate]. bools.
     rewrite firstn_repeat_le in Hdecode by lia.
-    rewrite read_integer_cells_i32 in Hdecode.
-    fold (readStack memory savedBase (totalHeight heights - callOperands i f)) in Hdecode.
-    destruct (readStack _ _ _) as [stack | ] eqn:Hstack; [ | discriminate].
+    destruct (readIntegerCells _ _ _) as [stack | ] eqn:Hstack; [ | discriminate].
     destruct (readLocals memory savedFbp (guestFrameTypes g)) as [locals | ] eqn:Hlocals; [ | discriminate].
-    cbn [option_map] in Hdecode. rewrite split_segments_map in Hdecode. cbn [fst snd] in Hdecode.
-    rewrite value_stack_prefix_i32, wrap_value_labels_i32 in Hdecode.
     destruct (IH _ _ _ _ _ _ _ _ Hstore Hvalid Hg Hdecode) as [Hresult [stack' [Hsites [Hsusp ->]]]].
     split; [exact Hresult | ].
-    rewrite <- (read_operands_unmoved memory savedBase _ 0) in Hstack.
+    rewrite <- (read_integer_operands_unmoved memory savedBase _ 0) in Hstack.
     destruct (frame_of_reads program memory savedBase savedFbp (callOperands i f) 0%nat 0 _ _ _ _ _ _ Hg Hpath Hheights
       ltac:(lia) ltac:(lia) ltac:(lia) ltac:(lia) Hstack Hlocals) as [Hframe [Hinner Hoperands]].
-    destruct (proj1 (read_operands_cells memory savedBase (totalHeight heights - callOperands i f) 0 0 stack
+    destruct (proj1 (read_i32_operands_cells memory savedBase (totalHeight heights - callOperands i f) 0 0 stack
       (Nat.le_0_l _)) Hstack) as [Hlen _].
     exists (suspendedCall (frameView site (fst (splitSegments (fst heights) stack))
       (snd (splitSegments (fst heights) stack)) locals) g (guestResults f) savedBase savedFbp :: stack').
@@ -541,16 +473,14 @@ Proof.
   pose proof Hframe as [Hg [Hpath [_ [Hfbp0 [Hbase0 _]]]]].
   destruct (frame_heights _ _ _ _ _ _ _ _ _ Hframe) as [Hheights Htotal].
   destruct (frame_reads _ _ _ _ _ _ _ _ _ Hframe ltac:(lia)) as [Hstack Hlocals].
-  rewrite read_operands_unmoved in Hstack.
+  rewrite read_integer_operands_unmoved in Hstack.
   rewrite Hg, Hf, Hpath, Hcall.
   pose proof (proj2 (calls_into_check _ _ _ _ _ Hf) Hcallee) as Hcallsb.
   rewrite (function_path_types _ _ _ _ _ _ Hstore Hvalid Hg), Hheights.
   cbn [option_map]. rewrite type_heights_i32, operand_types_i32, Hret, HsavedFbp, HsavedBase.
   rewrite Htotal, Nat.add_sub. cbn [fst snd]. pass_check.
-  rewrite firstn_repeat_le by lia. rewrite read_integer_cells_i32.
-  fold (readStack memory (callerBase top) (length (viewOperands (callView top)))).
-  rewrite Hstack, Hlocals. cbn [option_map]. rewrite split_segments_map. cbn [fst snd].
-  rewrite value_stack_prefix_i32, wrap_value_labels_i32.
+  rewrite firstn_repeat_le by lia.
+  rewrite Hstack, Hlocals. cbn [fst snd].
   unfold viewOperands. rewrite split_concat. cbn [fst snd].
   rewrite <- Hres. exact (IH _ _ _ _ _ _ Hstore Hvalid Hg Hrest).
 Qed.

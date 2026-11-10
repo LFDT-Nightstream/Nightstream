@@ -1,4 +1,5 @@
 import NightstreamFPrime.Lifecycle.Nebula.MemoryCircuit
+import NightstreamFPrime.Lifecycle.Nebula.FactorWords
 
 /-! Owns the inverse of the witness word layout: the word vector of a step
 witness, which `MemoryApp.decode` reads back as the same witness. Completeness

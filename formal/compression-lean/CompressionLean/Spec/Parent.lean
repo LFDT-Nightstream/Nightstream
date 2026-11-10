@@ -1,5 +1,9 @@
 import CompressionLean.Ports.Setup
 import NightstreamFPrime.Lifecycle.PiRLC.v1_2.OutputBinding
+import NightstreamFPrime.Spec
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.GoldilocksCausal
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.TargetConvention
+import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
 
 namespace CompressionLean.Spec
 

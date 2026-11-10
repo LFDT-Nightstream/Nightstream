@@ -1,5 +1,6 @@
 import Mathlib.Tactic.IntervalCases
 import NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.ScheduleLaw
+import NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.Transcript
 
 namespace NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.TranscriptHistory
 

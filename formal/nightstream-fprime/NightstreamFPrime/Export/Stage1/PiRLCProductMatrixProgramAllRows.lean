@@ -1,5 +1,4 @@
 import NightstreamFPrime.Export.Stage1.PiRLCProductMatrixProgramSemantics
-import NightstreamFPrime.Export.Stage1.PiRLCRetainedPlan
 
 namespace NightstreamFPrime.Export.Stage1.PiRLCProductMatrixProgram
 

@@ -1,6 +1,6 @@
 import Batteries.Data.Fin.Coding
 import NightstreamFPrime.Layout.MatrixProgram.AffineGrid
-import NightstreamFPrime.Layout.ProductionRelation.MultiplicationFamilyPlan
+import NightstreamFPrime.Layout.ProductionRelation.OrdinaryRow
 
 namespace NightstreamFPrime.Layout.MatrixProgram.MultiplicationGrid
 

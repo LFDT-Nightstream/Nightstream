@@ -1,5 +1,5 @@
 import NightstreamFPrime.Layout.SumCheck.FixedChain
-import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Completeness
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal
 
 /-!
 Paper authority: SuperNeo v1.2, section 7.3, `SumCheck(T; Q)`.

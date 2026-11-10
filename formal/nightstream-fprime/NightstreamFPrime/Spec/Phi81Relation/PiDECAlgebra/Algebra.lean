@@ -1,5 +1,6 @@
 import NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.Commitment
 import NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.PublicInput
+import NightstreamFPrime.Spec.Folding.PiDEC
 
 namespace NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.Algebra
 

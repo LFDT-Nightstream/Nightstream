@@ -1,5 +1,7 @@
 import NightstreamFPrime.Layout.Stage1.RunningTransitionLowering
 import NightstreamFPrime.Layout.R1CS.Completeness
+import NightstreamFPrime.Layout.Stage1.RunningTransitionSemantics
+import NightstreamFPrime.Layout.Stage1.RunningTransitionBounds
 
 namespace NightstreamFPrime.Layout.Stage1.RunningTransitionLayout
 

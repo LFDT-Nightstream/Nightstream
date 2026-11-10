@@ -1,7 +1,5 @@
 import NightstreamFPrime.Gadgets.Polynomial.Horner
-import NightstreamFPrime.Lifecycle.PiCCS.v1_2.ChallengeDerivation
 import NightstreamFPrime.Lifecycle.ProductionKey
-import NightstreamFPrime.Spec.Folding.PiCCS.FinalIdentity
 
 /-!
 Paper authority: SuperNeo v1.2, Section 7.3, Step 4, `N`.

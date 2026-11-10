@@ -1,5 +1,6 @@
 import NightstreamFPrime.Layout.PilotProduction
 import NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.Radix.UniformSignedDigits
+import NightstreamFPrime.Spec.HyperNova.Construction2.Paper
 
 namespace NightstreamFPrime.Layout.Stage1.StateEncoding
 

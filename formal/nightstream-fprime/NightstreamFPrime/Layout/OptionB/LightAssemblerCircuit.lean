@@ -1,4 +1,8 @@
-import NightstreamFPrime.Layout.OptionB.LightAssemblerCompleteness
+import NightstreamFPrime.Layout.OptionB.LightAssembler
+import NightstreamFPrime.Layout.OptionB.LightPiCCSCompleteness
+import NightstreamFPrime.Layout.OptionB.LightRlcCompleteness
+import NightstreamFPrime.Layout.OptionB.LightStepCompleteness
+import NightstreamFPrime.Lifecycle.OptionB.LightCommitment
 
 /-! The light step circuit as one `FormalCircuit` at the source layout (assembler A4). Its spec is
 that every child's spec holds, as for today's step circuit (`Lifecycle.Stage1.circuit`). Soundness

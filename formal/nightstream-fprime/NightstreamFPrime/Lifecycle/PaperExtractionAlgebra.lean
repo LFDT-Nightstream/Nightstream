@@ -1,7 +1,11 @@
+import Mathlib.Data.ZMod.Defs
 import NightstreamFPrime.Lifecycle.PaperAlgebra
 import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtraction
 import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.Embedding
 import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.ForkStrongSet
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StrongReduction
+import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Commitment
+import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.PublicInput
 
 namespace NightstreamFPrime.Lifecycle.PaperExtractionAlgebra
 

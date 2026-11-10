@@ -1,6 +1,7 @@
 import NightstreamFPrime.Lifecycle.Nebula.Framing
 import NightstreamFPrime.Lifecycle.Nebula.Carry
 import NightstreamFPrime.Spec.Nebula.EtaLine
+import NightstreamFPrime.Spec.GoldilocksExtensionRing
 
 /-! A random-oracle model of the Nebula `η` transcript (CW-10.8). The step circuit computes the
 product-test challenge `η` with Poseidon2 from the plan digest, the open timestamp and the three

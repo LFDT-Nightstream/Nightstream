@@ -1,6 +1,7 @@
 import NightstreamFPrime.Export.Stage1.PiCCSActionPayloadBlock
 import NightstreamFPrime.Export.Stage1.RunningTransitionRetainedBlocks
 import NightstreamFPrime.Export.Stage1.PiCCSPoseidonPlan.Retained
+import NightstreamFPrime.Export.Stage1.PiRLCPoseidonGeometry
 
 namespace NightstreamFPrime.Export.Stage1.RunningTransitionRetainedGeometry
 

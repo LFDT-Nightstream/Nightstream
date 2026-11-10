@@ -1,6 +1,7 @@
 import NightstreamFPrime.Lifecycle.XOut
 import NightstreamFPrime.Lifecycle.ProductionKey
 import NightstreamFPrime.Lifecycle.Stage1.Application
+import NightstreamFPrime.Spec.HyperNova.Construction2.Paper
 
 /-! HyperNova Construction 2. -/
 

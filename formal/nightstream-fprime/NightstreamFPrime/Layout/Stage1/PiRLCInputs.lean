@@ -1,6 +1,7 @@
 import NightstreamFPrime.Layout.PiCCS.v1_2.Leaves.OutputBinding
 import NightstreamFPrime.Layout.PiRLC.v1_2.Composition
 import NightstreamFPrime.Layout.Stage1.PiCCSStarts
+import NightstreamFPrime.Layout.Stage1.PilotPiCCS
 
 namespace NightstreamFPrime.Layout.Stage1.PiRLCInputs
 

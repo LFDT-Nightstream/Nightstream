@@ -1,6 +1,7 @@
 import NightstreamFPrime.Layout.OptionB.LightPiCCSBounds
 import NightstreamFPrime.Layout.OptionB.LightRlcBounds
 import NightstreamFPrime.Lifecycle.OptionB.LightStepLayout
+import NightstreamFPrime.Lifecycle.OptionB.LightCommitment
 
 /-! Input scoping of the light step layout (assembler A2c): when the step's shared words lie below
 the parent offset, `LightStepLayout.Assumptions` holds (`assumptions`). The two fold layouts get

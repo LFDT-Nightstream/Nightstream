@@ -1,5 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PiRLCPhysicalCompleteness
 import NightstreamFPrime.Layout.PiRLC.v1_2.PacketProjection
+import NightstreamFPrime.Export.Stage1.PiRLCCombinationConformance
 
 namespace NightstreamFPrime.Export.Stage1.PiRLCPackageCompleteness
 

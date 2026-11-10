@@ -1,5 +1,11 @@
 import CompressionLeanExe.Parse
 import NightstreamFPrime.Export.OptionB.StepPackage
+import NightstreamFPrime.Lifecycle.Nebula.FactorWords
+import NightstreamFPrime.Spec
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.GoldilocksCausal
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.TargetConvention
+import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
+import NightstreamFPrime.Spec.Nebula
 
 /-! An option-B step package from its artifact. The package grammar is natural numbers and arrays
 (`StepPackage.Package.format`), nested deeper than a general JSON reader allows. -/

@@ -37,6 +37,16 @@ import NightstreamFPrime.Export.Stage1.RunningTransitionMatrixProgramSemantics
 import NightstreamFPrime.Layout.Stage1.PiCCSTranscriptSupport
 import NightstreamFPrime.Layout.Stage1.PiDECSourceSupportData
 import NightstreamFPrime.Layout.MatrixProgram.SourceProjection
+import NightstreamFPrime.Export.Stage1.DirectLowNormFootprint
+import NightstreamFPrime.Layout.PiDEC.v1_2.Ownership
+import NightstreamFPrime.Layout.ProductionRelation.MultiplicationFamilyPlan
+import NightstreamFPrime.Layout.Stage1.RunningTransitionSourceSupport
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Support.CcsTerminal
+import NightstreamFPrime.Lifecycle.Stage1.Terminal
+import NightstreamFPrime.Spec
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.GoldilocksCausal
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.TargetConvention
+import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
 
 #audit_axioms NightstreamFPrime.Export.Package.hashRows_hold_iff
 #audit_axioms NightstreamFPrime.Export.Package.permutationRows_hold_iff

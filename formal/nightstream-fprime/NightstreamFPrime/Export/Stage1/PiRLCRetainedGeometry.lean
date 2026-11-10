@@ -1,7 +1,5 @@
-import NightstreamFPrime.Export.Stage1.DirectLowNormFootprint
 import NightstreamFPrime.Export.Stage1.PiRLCProductSourceBlocks
 import NightstreamFPrime.Export.Stage1.PoseidonRetainedBlock
-import NightstreamFPrime.Layout.ProductionRelation.ProductRetainedBlock
 
 namespace NightstreamFPrime.Export.Stage1.PiRLCRetainedGeometry
 

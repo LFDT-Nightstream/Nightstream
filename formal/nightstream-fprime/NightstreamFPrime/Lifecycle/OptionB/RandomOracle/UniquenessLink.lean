@@ -1,7 +1,8 @@
 import NightstreamFPrime.Lifecycle.OptionB.RandomOracle.ForkLink
-import NightstreamFPrime.Lifecycle.Relation
 import NightstreamFPrime.Lifecycle.RandomOracle.Uniqueness
-import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.ChainBinding
+import NightstreamFPrime.Lifecycle.Relation
+import NightstreamFPrime.Spec.Folding.PiRLC.ChainBinding
+import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.RelaxedBinding
 
 /-! The part of the option-B uniqueness step that the light and refresh folds share. The
 extraction target is the walk's `BoundedDepthReverse.Extracted` (`Extracted`): the answer opens

@@ -1,5 +1,8 @@
 import NightstreamFPrime.Lifecycle.OptionB.RandomOracle.RomModel
 import NightstreamFPrime.Spec.HyperNova.ReverseStages
+import NightstreamFPrime.Lifecycle.OptionB.RandomOracle.LightKnowledge
+import NightstreamFPrime.Lifecycle.OptionB.RandomOracle.RefreshKnowledge
+import NightstreamFPrime.Lifecycle.RandomOracle.Budgeted
 
 /-! HyperNova errata Assumption 1 (`ReverseStages.Assumption1`) for both option-B folds in the
 random-oracle model (`romAssumption1`).

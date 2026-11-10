@@ -32,6 +32,9 @@ import NightstreamFPrime.Layout.PiCCS.v1_2.Leaves.RoundTranscript
 import NightstreamFPrime.Layout.PiCCS.v1_2.Leaves.StatementAbsorption
 import NightstreamFPrime.Layout.PiCCS.v1_2.Leaves.SumcheckChain
 import NightstreamFPrime.Layout.PiCCS.v1_2.ProductionInputs
+import NightstreamFPrime.Spec
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.TargetConvention
+import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
 
 #audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SourceMembership.sourceHolds_iff_memberships
 #audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SourceMembership.fixedWidthAcceptedProbe_implies_memberships_or_badEvent

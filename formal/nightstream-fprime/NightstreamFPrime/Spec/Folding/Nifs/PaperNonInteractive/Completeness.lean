@@ -1,6 +1,8 @@
 import NightstreamFPrime.Spec.Folding.Nifs.PaperCausalReplay
 import NightstreamFPrime.Spec.Folding.Nifs.PaperStrongCompleteness
 import NightstreamFPrime.Spec.Folding.Nifs.PaperWeakCompleteness
+import NightstreamFPrime.Spec.Folding.Nifs.PaperStrongInterface
+import NightstreamFPrime.Spec.Folding.PiDEC.OutputWitnessConsumer
 
 set_option autoImplicit false
 

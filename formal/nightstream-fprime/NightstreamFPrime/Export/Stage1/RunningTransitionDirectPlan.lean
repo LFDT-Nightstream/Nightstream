@@ -2,6 +2,8 @@ import NightstreamFPrime.Export.Stage1.RunningTransitionDirectSource
 import NightstreamFPrime.Export.Stage1.RunningTransitionRetainedGeometry
 import NightstreamFPrime.Export.Stage1.PiCCSTranscriptOutputForms
 import NightstreamFPrime.Layout.Stage1.SpartanValues
+import NightstreamFPrime.Export.Stage1.PiRLCPoseidonGeometry
+import NightstreamFPrime.Layout.Stage1.RunningTransitionLoweringSupport
 
 namespace NightstreamFPrime.Export.Stage1.RunningTransitionDirectPlan
 

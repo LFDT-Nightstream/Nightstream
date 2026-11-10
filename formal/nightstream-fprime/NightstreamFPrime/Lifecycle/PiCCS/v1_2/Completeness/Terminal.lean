@@ -1,4 +1,5 @@
 import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Completeness.Evaluation
+import NightstreamFPrime.Circuit.Sequence
 
 namespace NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.CompletenessSupport
 

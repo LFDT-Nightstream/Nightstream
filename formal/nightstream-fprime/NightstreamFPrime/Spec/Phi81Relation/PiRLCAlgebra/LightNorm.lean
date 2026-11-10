@@ -1,5 +1,6 @@
 import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Algebra
 import NightstreamFPrime.Spec.Folding.Light.Rlc
+import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Challenge
 
 /-! Cyclo (ePrint 2026/359) Theorem 3, item 1, on the production algebra: a light Π_RLC adds
 at most `T = 216` to each coordinate of the accumulator. -/

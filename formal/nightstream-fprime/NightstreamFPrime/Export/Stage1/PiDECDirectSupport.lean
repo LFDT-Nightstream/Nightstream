@@ -1,7 +1,6 @@
-import NightstreamFPrime.Layout.Stage1.RunningTransitionSourceSupportData
 import NightstreamFPrime.Export.Stage1.PiDECArithmetic
-import NightstreamFPrime.Layout.R1CS.Support
 import NightstreamFPrime.Layout.Stage1.PiDECSourceSupportData
+import NightstreamFPrime.Layout.Stage1.RunningTransitionSourceSupportData
 import NightstreamFPrime.Lifecycle.PiDEC.v1_2.Support.VariableSupport
 
 namespace NightstreamFPrime.Export.Stage1.PiDECDirectSupport

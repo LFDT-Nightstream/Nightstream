@@ -1,6 +1,4 @@
-import NightstreamFPrime.Layout.MatrixProgram.PlanBridge
 import NightstreamFPrime.Export.Stage1.NextPreimageDirectPlan
-import NightstreamFPrime.Export.Stage1.PerApplicationPackage
 import NightstreamFPrime.Export.Stage1.PiCCSOrdinaryMatrixProgram
 
 /-! HyperNova Construction 2. -/

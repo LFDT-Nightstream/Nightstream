@@ -1,4 +1,5 @@
 import NightstreamFPrime.Lifecycle.Nebula.StepInvoke
+import NightstreamFPrime.Spec.GoldilocksExtensionRing
 
 /-! Owns the run-level link of a memory application (SPEC.md section 7.5 and
 Algorithms 9 and 10).

@@ -1,4 +1,5 @@
 import NightstreamFPrime.Lifecycle.Nebula.StepInvoke
+import NightstreamFPrime.Spec.GoldilocksExtensionRing
 
 /-! Owns the honest witness of one memory-application invocation: the field
 words that an honest prover writes for a reachable carry, an invocation that

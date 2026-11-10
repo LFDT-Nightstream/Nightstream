@@ -1,4 +1,4 @@
-import NightstreamFPrime.Export.Stage1.PiCCSPoseidonPlan
+import NightstreamFPrime.Export.Stage1.PiCCSPoseidonPlan.Retained
 
 namespace NightstreamFPrime.Export.Stage1.PiRLCSamplerPoseidonPlan
 

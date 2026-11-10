@@ -1,6 +1,5 @@
-import NightstreamFPrime.Lifecycle.OptionB.FoldCompleteness
-import NightstreamFPrime.Lifecycle.PiCCS.v1_2.ZeroRunningPolynomial
-import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ProtocolPolynomialDegree.Support
+import NightstreamFPrime.Lifecycle.OptionB.RandomOracle.Fidelity
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
 
 /-! The base fold of option B (CW-10.4), HyperNova's zero proof on the light key. At iteration 0
 the light step circuit still verifies a light fold. The prover folds the default fresh instance,

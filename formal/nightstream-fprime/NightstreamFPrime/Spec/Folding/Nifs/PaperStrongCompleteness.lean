@@ -1,4 +1,4 @@
-import NightstreamFPrime.Spec.Folding.Nifs.PaperStrongInterface
+import NightstreamFPrime.Spec.Folding.Nifs.PaperNonInteractive.Types
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CausalExecution
 
 set_option autoImplicit false

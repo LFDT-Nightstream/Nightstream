@@ -93,6 +93,15 @@ import NightstreamFPrime.Export.Stage1.PiCCSOrdinaryRetainedBlocks
 import NightstreamFPrime.Export.Stage1.PiCCSOrdinaryRetainedGeometry
 import NightstreamFPrime.Export.AffineRuns
 import NightstreamFPrime.Export.Stage1.PerApplicationAssignmentTransport
+import NightstreamFPrime.Export.SharedFormulas
+import NightstreamFPrime.Layout.PiDEC.v1_2.Ownership
+import NightstreamFPrime.Layout.Stage1.RunningTransitionSourceSupport
+import NightstreamFPrime.Lifecycle.Stage1.Terminal
+import NightstreamFPrime.Lifecycle.Stage1.VerificationKey
+import NightstreamFPrime.Spec
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.GoldilocksCausal
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.TargetConvention
+import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
 
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOrdinaryDirectSource.sourceRows_length
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOrdinaryDirectSource.sourceRows_varsBelow

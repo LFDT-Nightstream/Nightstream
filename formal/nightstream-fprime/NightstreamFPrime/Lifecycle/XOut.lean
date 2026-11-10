@@ -1,9 +1,11 @@
+import Mathlib.Order.Lattice.Nat
 import Mathlib.Data.List.GetD
 import NightstreamFPrime.Lifecycle.PaperAlgebra
 import NightstreamFPrime.Spec.FlatMap
 import NightstreamFPrime.Spec.Poseidon2
 import NightstreamFPrime.Spec.Folding.Nifs
 import NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.Radix.UniformSignedDigits
+import NightstreamFPrime.Spec.HyperNova.Construction2.Paper
 
 /-! HyperNova Construction 2 state hash. Rust parity surface: every function is computable (SPEC.md section 4.2).
 The children's public inputs are the verifier-computed split of the parent (SuperNeo

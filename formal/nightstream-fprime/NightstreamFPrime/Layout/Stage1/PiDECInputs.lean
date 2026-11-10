@@ -1,6 +1,6 @@
-import NightstreamFPrime.Layout.PiDEC.v1_2.Ownership
-import NightstreamFPrime.Layout.Stage1.PilotPiCCSPiRLC
+import NightstreamFPrime.Layout.PiDEC.v1_2.Composition
 import NightstreamFPrime.Layout.Stage1.PiRLCStarts
+import NightstreamFPrime.Layout.Stage1.PilotPiCCSPiRLC
 
 namespace NightstreamFPrime.Layout.Stage1.PiDECInputs
 

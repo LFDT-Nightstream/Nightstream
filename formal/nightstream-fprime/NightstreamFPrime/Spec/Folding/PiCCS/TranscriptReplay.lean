@@ -1,5 +1,5 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.FiatShamir
-import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ProtocolPolynomial
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ProtocolPolynomial.Types
 
 /-! SuperNeo v1.2 Section 7.3, Appendix B.2. -/
 

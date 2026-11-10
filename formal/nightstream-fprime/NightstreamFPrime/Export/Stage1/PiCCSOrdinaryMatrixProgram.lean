@@ -1,7 +1,7 @@
-import NightstreamFPrime.Export.MatrixProgram.Ordinary
-import NightstreamFPrime.Export.MatrixProgram.Program
 import NightstreamFPrime.Export.Stage1.PerApplicationSourceProjection
 import NightstreamFPrime.Export.Stage1.PiCCSOrdinaryDirectPlan
+import NightstreamFPrime.Layout.MatrixProgram.Program
+import NightstreamFPrime.Export.Stage1.PiRLCPoseidonGeometry
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSOrdinaryMatrixProgram
 

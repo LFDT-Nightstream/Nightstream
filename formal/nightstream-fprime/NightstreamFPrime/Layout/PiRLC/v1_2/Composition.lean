@@ -1,11 +1,11 @@
+import NightstreamFPrime.Layout.PiRLC.v1_2.CommitmentCombination
+import NightstreamFPrime.Layout.PiRLC.v1_2.EvalACombination
+import NightstreamFPrime.Layout.PiRLC.v1_2.EvalKCombination
 import NightstreamFPrime.Layout.PiRLC.v1_2.Leaves.InputBinding
 import NightstreamFPrime.Layout.PiRLC.v1_2.Leaves.OutputBinding
-import NightstreamFPrime.Layout.PiRLC.v1_2.SamplerChain
-import NightstreamFPrime.Layout.PiRLC.v1_2.CommitmentCombination
 import NightstreamFPrime.Layout.PiRLC.v1_2.PublicInputCombination
-import NightstreamFPrime.Layout.PiRLC.v1_2.EvalKCombination
-import NightstreamFPrime.Layout.PiRLC.v1_2.EvalACombination
-import NightstreamFPrime.Lifecycle.PiRLC.v1_2.Completeness
+import NightstreamFPrime.Layout.PiRLC.v1_2.SamplerChain.Composition
+import NightstreamFPrime.Lifecycle.PiRLC.v1_2.Formal
 
 namespace NightstreamFPrime.Layout.PiRLC.v1_2
 

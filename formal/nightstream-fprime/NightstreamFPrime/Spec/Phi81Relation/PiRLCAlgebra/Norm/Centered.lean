@@ -1,4 +1,4 @@
-import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Challenge
+import NightstreamFPrime.Spec.Phi81StrongSet
 
 namespace NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Norm.Centered
 

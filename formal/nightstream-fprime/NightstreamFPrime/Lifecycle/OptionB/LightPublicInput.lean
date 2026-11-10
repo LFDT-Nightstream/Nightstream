@@ -1,5 +1,6 @@
-import NightstreamFPrime.Lifecycle.OptionB.LightCommitment
+import NightstreamFPrime.Lifecycle.OptionB.Keys
 import NightstreamFPrime.Lifecycle.PiRLC.v1_2.PublicInputCombination
+import NightstreamFPrime.Spec.Folding.Light.RlcModule
 
 /-! The light Π_RLC public input `x = x_running + ρ · x_fresh` under the coefficient embedding
 (Cyclo, ePrint 2026/359, Figure 3, step 6, on SuperNeo v1.2 Section 7.4, verifier Step 1) as one

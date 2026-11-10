@@ -1,5 +1,6 @@
 import NightstreamFPrime.Export.OptionB.RunCompleteness
 import NightstreamFPrime.Lifecycle.Nebula.HonestRun
+import NightstreamFPrime.Lifecycle.Nebula.MemoryProgram
 
 /-! Completeness of a memory application on option B (CW-10.7, SPEC.md Algorithm 10). Every
 execution of `S · N` steps with `1 ≤ S ≤ S_max` has a statement that passes the memory verifier's

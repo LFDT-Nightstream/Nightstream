@@ -1,4 +1,3 @@
-import NightstreamFPrime.Layout.Stage1.RunningTransitionBounds
 import NightstreamFPrime.Layout.Stage1.StateDecoder
 
 namespace NightstreamFPrime.Layout.Stage1.RunningTransitionInputs

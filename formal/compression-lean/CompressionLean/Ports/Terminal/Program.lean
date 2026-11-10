@@ -1,6 +1,11 @@
 import CompressionLean.Ports.Terminal.Package
 import CompressionLean.Ports.Replay.Data
 import NightstreamFPrime.Lifecycle.XOut
+import NightstreamFPrime.Spec
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.GoldilocksCausal
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.TargetConvention
+import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
 
 namespace CompressionLean.Terminal.Program
 

@@ -1,5 +1,6 @@
 import NightstreamFPrime.Gadgets.Range.CanonicalU64
-import NightstreamFPrime.Lifecycle.OptionB.Step
+import NightstreamFPrime.Lifecycle.XOut
+import NightstreamFPrime.Spec.Folding.Schedule
 
 /-! The light circuit's depth guard and the depth update of `stepHolds_iff` (CW-2.4b). The cap
 is `Schedule.productionLightFoldCap = 64 = 2 ^ 6`, so the guard decomposes the slot's depth word

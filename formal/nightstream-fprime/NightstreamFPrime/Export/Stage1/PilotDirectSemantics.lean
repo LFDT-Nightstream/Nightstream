@@ -1,5 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PilotDigestBindingPlan
 import NightstreamFPrime.Export.Stage1.PilotPoseidonPreservation
+import NightstreamFPrime.Export.Stage1.PilotOrdinaryDirectSource
 
 namespace NightstreamFPrime.Export.Stage1.PilotDirectSemantics
 

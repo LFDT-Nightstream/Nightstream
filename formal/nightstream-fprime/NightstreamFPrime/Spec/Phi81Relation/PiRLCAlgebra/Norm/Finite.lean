@@ -1,6 +1,7 @@
 import NightstreamFPrime.Spec.Profile
 import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.PiRLCFinite
 import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Norm.Product
+import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Challenge
 
 /-! SuperNeo v1.2 Definition 22. -/
 

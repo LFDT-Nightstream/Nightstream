@@ -1,3 +1,4 @@
+import Mathlib.Algebra.Group.Nat.Defs
 import NightstreamFPrime.Lifecycle.Types
 import NightstreamFPrime.Spec.Poseidon2
 

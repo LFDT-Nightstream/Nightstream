@@ -1,5 +1,6 @@
 import NightstreamFPrime.Layout.OptionB.RefreshPiCCSBounds
 import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Completeness.Core
+import NightstreamFPrime.Circuit.Sequence
 
 /-! Completeness of the refresh Π_CCS layout (CW-3.7a). When the external words carry the 16
 children, a fresh instance and a refresh proof that the refresh key's Π_CCS check accepts, the

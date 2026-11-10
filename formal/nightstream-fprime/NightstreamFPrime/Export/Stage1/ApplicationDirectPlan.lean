@@ -1,5 +1,6 @@
 import NightstreamFPrime.Export.Stage1.ApplicationRetainedGeometry
 import NightstreamFPrime.Layout.ProductionRelation.OrdinarySourcePlan
+import NightstreamFPrime.Export.Stage1.PiRLCPoseidonGeometry
 
 namespace NightstreamFPrime.Export.Stage1.ApplicationDirectPlan
 

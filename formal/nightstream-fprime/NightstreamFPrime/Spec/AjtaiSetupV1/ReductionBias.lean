@@ -3,7 +3,7 @@ import Mathlib.Data.Rat.Cast.Order
 import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.NormNum
-import NightstreamFPrime.Spec.AjtaiSetupV1
+import NightstreamFPrime.Spec.Algebra
 
 namespace NightstreamFPrime.Spec.AjtaiSetupV1.ReductionBias
 

@@ -1,5 +1,5 @@
 import NightstreamFPrime.Export.Package
-import NightstreamFPrime.Lifecycle.Stage1.Terminal
+import NightstreamFPrime.Lifecycle.Types
 
 namespace NightstreamFPrime.Export.Stage1.TerminalPackage
 

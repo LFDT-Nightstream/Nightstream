@@ -6,6 +6,18 @@ import CompressionLean.Layer1.Soundness
 import NightstreamFPrime.Export.PackageExpansion
 import NightstreamFPrime.Export.OptionB.StepRelation
 import Std.Data.HashSet
+import NightstreamFPrime.Layout.OptionB.LightAssemblerCompleteness
+import NightstreamFPrime.Layout.OptionB.RefreshAssemblerCompleteness
+import NightstreamFPrime.Layout.OptionB.StepCircuits
+import NightstreamFPrime.Layout.PiCCS.v1_2.Leaves.OutputBinding
+import NightstreamFPrime.Layout.ProductionRelation.CcsOpening
+import NightstreamFPrime.Lifecycle.Nebula.FactorWords
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Completeness
+import NightstreamFPrime.Spec
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.GoldilocksCausal
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.TargetConvention
+import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
+import NightstreamFPrime.Spec.Nebula
 
 namespace CompressionLean.Spec
 

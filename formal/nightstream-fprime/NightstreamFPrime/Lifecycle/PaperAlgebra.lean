@@ -1,4 +1,6 @@
 import NightstreamFPrime.Lifecycle.Types
+import NightstreamFPrime.Spec
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.GoldilocksCausal
 
 namespace NightstreamFPrime.Lifecycle.PaperAlgebra
 

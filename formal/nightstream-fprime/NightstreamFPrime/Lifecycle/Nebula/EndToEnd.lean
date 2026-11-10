@@ -1,6 +1,8 @@
 import NightstreamFPrime.Lifecycle.Nebula.ProgramSoundness
 import NightstreamFPrime.Spec.HyperNova.Construction2.Paper
 import Mathlib.Probability.ProbabilityMassFunction.Constructions
+import NightstreamFPrime.Lifecycle.Nebula.MemoryProgram
+import NightstreamFPrime.Spec.Nebula.EtaLine
 
 /-! Owns the end-to-end soundness of a memory application on the history
 that the Stage 1 extractor returns (`SECURITY_MODEL.md`, adversary 5). No event or

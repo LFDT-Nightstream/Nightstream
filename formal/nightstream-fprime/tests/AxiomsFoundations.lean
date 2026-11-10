@@ -14,6 +14,16 @@ import NightstreamFPrime.Spec.AjtaiSetupV1.Framing
 import NightstreamFPrime.Spec.AjtaiSetupV1.IndexEncoding
 import NightstreamFPrime.Spec.AjtaiSetupV1.Programming
 import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Setup
+import NightstreamFPrime.Export.Stage1.DirectLowNormFootprint
+import NightstreamFPrime.Layout.PiDEC.v1_2.Ownership
+import NightstreamFPrime.Layout.ProductionRelation.MultiplicationFamilyPlan
+import NightstreamFPrime.Layout.Stage1.RunningTransitionSourceSupport
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Support.CcsTerminal
+import NightstreamFPrime.Lifecycle.Stage1.Terminal
+import NightstreamFPrime.Spec
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.GoldilocksCausal
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.TargetConvention
+import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
 
 #audit_axioms NightstreamFPrime.Spec.GoldilocksExtension.sevenProjectiveNonresidue
 #audit_axioms NightstreamFPrime.Spec.GoldilocksExtension.extensionNoZeroDivisors

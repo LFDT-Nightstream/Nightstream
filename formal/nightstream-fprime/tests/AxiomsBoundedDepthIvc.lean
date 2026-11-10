@@ -65,6 +65,16 @@ import NightstreamFPrime.Export.OptionB.FinishCompleteness
 import NightstreamFPrime.Lifecycle.OptionB.Terminal
 import NightstreamFPrime.Lifecycle.OptionB.FreshInstance
 import NightstreamFPrime.Spec.Folding.Light.RlcModule
+import NightstreamFPrime.Layout.PiCCS.v1_2.Leaves.OutputBinding
+import NightstreamFPrime.Lifecycle.OptionB.RandomOracle.LightKnowledge
+import NightstreamFPrime.Lifecycle.OptionB.RandomOracle.RefreshKnowledge
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Completeness
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.ZeroRunningPolynomial
+import NightstreamFPrime.Lifecycle.RandomOracle.Budgeted
+import NightstreamFPrime.Spec
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.TargetConvention
+import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
+import NightstreamFPrime.Spec.Nebula
 
 open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 

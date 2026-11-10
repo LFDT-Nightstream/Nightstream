@@ -1,4 +1,4 @@
-import NightstreamFPrime.Lifecycle.Nebula.MemoryEval
+import NightstreamFPrime.Lifecycle.Nebula.MemoryCircuit
 
 /-! Owns the variable support of the memory-application circuit's inputs: when
 every witness wire reads only allowed variables, so does every block of every

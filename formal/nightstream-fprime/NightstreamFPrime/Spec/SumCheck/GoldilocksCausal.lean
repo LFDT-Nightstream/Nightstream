@@ -1,7 +1,6 @@
-import NightstreamFPrime.Spec.SumCheck.GoldilocksRoots
-import NightstreamFPrime.Spec.SumCheck.FixedPhase.Sequential
 import Mathlib.Algebra.Order.BigOperators.Expect
 import Mathlib.Basic.Real.Basic
+import NightstreamFPrime.Spec.SumCheck.GoldilocksRoots
 
 namespace NightstreamFPrime.Spec.SumCheck.Finite.GoldilocksCausal
 

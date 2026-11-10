@@ -4,6 +4,7 @@ From Stdlib Require Import List ZArith Lia.
 Require Import R1CS Columns Range FullRelation MemoryTrace Wasm2 WasmIntegers Locals StraightLineSpec
   StackSimulation SpecTecCalls SpecTecBranches CallerSpec ProgramSpec ProgramEncoding CodeLayout Fragment CodeFacts
   ControlDecode ControlInvariant FrameFacts FrameRows SlideLayout.
+Require Import IntegerDecode.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -32,7 +33,7 @@ Proof.
   destruct (view_facts _ _ _ _ _ _ _ _ _ _ Hstore Hvalid Hframe)
     as [Hfacts [_ [_ [Hresults [Hready Hwfcode]]]]].
   assert (Hz : wf_state (mk_state s (activeFrame f (viewLocals view))))
-    by (eapply frame_state_wf; eassumption).
+    by (eapply frame_state_wf; [eassumption | eassumption | eassumption | exact (values_typed_wf _ _ Hlb)]).
   assert (Hcallee : wf_frame (activeFrame f (viewLocals view))) by (inversion Hz; assumption).
   unfold exitsFunction in Hexit.
   destruct view as [[index labels offset] segments values locals].

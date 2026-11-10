@@ -96,7 +96,7 @@ Proof. split; [vm_compute; reflexivity | ]. apply callerRowb_sound. vm_compute. 
 
 Lemma result_start_config :
   CircuitConfig resultProgram resultStore 0 (controlShape [] (siteCode (codePosition 0 [] 0)))
-    resultMemory resultStart (stackConfig (mk_state resultStore (activeFrame resultGuest [7; 9])) [] resultCode).
+    resultMemory resultStart (stackConfig (mk_state resultStore (activeFrame resultGuest (map i32Value [7; 9]))) [] resultCode).
 Proof.
   apply (function_start_config resultProgram resultStore 0 resultGuest [7; 9] _ resultStart);
     try reflexivity; try (apply TableState.no_tables_loaded; reflexivity); try (cbn; lia).
@@ -111,7 +111,7 @@ Qed.
 (* The refinement's conclusion for this run. *)
 Example result_block_witness_refines : fieldPrime ->
   exists shape c,
-    Steps (stackConfig (mk_state resultStore (activeFrame resultGuest [7; 9])) [] resultCode) c /\
+    Steps (stackConfig (mk_state resultStore (activeFrame resultGuest (map i32Value [7; 9]))) [] resultCode) c /\
     CircuitConfig resultProgram resultStore 0 shape (replayed resultMemory resultWitness)
       (rowsFinalBoundary resultStart resultWitness) c.
 Proof.

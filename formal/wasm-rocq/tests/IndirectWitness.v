@@ -120,7 +120,7 @@ Proof. split; [vm_compute; reflexivity | ]. apply callerRowb_sound. vm_compute. 
 
 Lemma indirect_start_config :
   CircuitConfig indirectProgram indirectStore 0 (controlShape [] (siteCode (codePosition 0 [] 0)))
-    indirectMemory indirectStart (stackConfig (mk_state indirectStore (activeFrame mainGuest [7; 0])) [] mainBody).
+    indirectMemory indirectStart (stackConfig (mk_state indirectStore (activeFrame mainGuest (map i32Value [7; 0]))) [] mainBody).
 Proof.
   apply (function_start_config indirectProgram indirectStore 0 mainGuest [7; 0] _ indirectStart);
     try reflexivity; try (cbn; lia).
@@ -136,7 +136,7 @@ Qed.
 (* The refinement's conclusion for this run. *)
 Example indirect_witness_refines : fieldPrime ->
   exists shape c,
-    Steps (stackConfig (mk_state indirectStore (activeFrame mainGuest [7; 0])) [] mainBody) c /\
+    Steps (stackConfig (mk_state indirectStore (activeFrame mainGuest (map i32Value [7; 0]))) [] mainBody) c /\
     CircuitConfig indirectProgram indirectStore 0 shape (replayed indirectMemory indirectWitness)
       (rowsFinalBoundary indirectStart indirectWitness) c.
 Proof.
@@ -156,7 +156,7 @@ Proof. vm_compute. reflexivity. Qed.
 
 (* A trapping run from main(7, index): the resolve row is its last row. *)
 Definition trapFrame := MKframe [] indirectModule.
-Definition trapStart index := stackConfig (mk_state indirectStore (activeFrame mainGuest [7; index])) [] mainBody.
+Definition trapStart index := stackConfig (mk_state indirectStore (activeFrame mainGuest (map i32Value [7; index]))) [] mainBody.
 
 Lemma indirect_trap_refines : forall index rows, fieldPrime -> 0 <= index < i32Modulus ->
   validRunb (loadProgram indirectProgram (indirectRam index)) (map rowWitness rows) = true ->
@@ -272,14 +272,14 @@ Proof. vm_compute. reflexivity. Qed.
 Lemma indirect_final_decode :
   option_map fst (decodeControl indirectProgram indirectStore 0 (controlShape [] (siteCode (codePosition 0 [] 3)))
     (replayed indirectMemory indirectWitness) (rowsFinalBoundary indirectStart indirectWitness)) =
-  Some (stackConfig (mk_state indirectStore (activeFrame mainGuest [7; 0])) [14] []).
+  Some (stackConfig (mk_state indirectStore (activeFrame mainGuest (map i32Value [7; 0]))) [14] []).
 Proof. vm_compute. reflexivity. Qed.
 
 (* main(7, 0) runs to 14: the run's final state, whatever its shape, is main's frame
    holding only double's result. *)
 Example indirect_call_returns_double : fieldPrime ->
-  Steps (stackConfig (mk_state indirectStore (activeFrame mainGuest [7; 0])) [] mainBody)
-    (stackConfig (mk_state indirectStore (activeFrame mainGuest [7; 0])) [14] []).
+  Steps (stackConfig (mk_state indirectStore (activeFrame mainGuest (map i32Value [7; 0]))) [] mainBody)
+    (stackConfig (mk_state indirectStore (activeFrame mainGuest (map i32Value [7; 0]))) [14] []).
 Proof.
   intros Hprime.
   destruct (indirect_witness_refines Hprime) as [shape [c [Hsteps Hconfig]]].
@@ -288,5 +288,5 @@ Proof.
   destruct Hconfig as [_ [_ [_ [_ [obligations [Hdecode _]]]]]].
   rewrite <- Hshape, Hfinal in Hdecode.
   pose proof indirect_final_decode as Hresult. rewrite Hdecode in Hresult.
-  injection Hresult as <-. exact Hsteps.
+  injection Hresult as Hresult. rewrite Hresult in Hsteps. exact Hsteps.
 Qed.

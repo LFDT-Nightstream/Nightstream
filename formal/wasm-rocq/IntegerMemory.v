@@ -70,6 +70,11 @@ Proof.
   - constructor; try assumption; [now rewrite Hlo | rewrite Hmemory; auto].
 Qed.
 
+Lemma cell_matches_stack : forall initial final cell value,
+  (forall address, final stackId address = initial stackId address) ->
+  CellMatches initial cell value -> CellMatches final cell value.
+Proof. intros. eapply cell_matches_memory; [intros; apply H | exact H0]. Qed.
+
 Lemma write_cell_preserves : forall memory target lo hi cell value,
   target <> cell -> CellMatches memory cell value ->
   CellMatches (writeCell memory target lo hi) cell value.

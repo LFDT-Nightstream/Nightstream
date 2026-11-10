@@ -8,6 +8,7 @@ Require Import WasmValues Wasm2 WasmIntegers R1CS Columns Range FullRelation Mem
   ProgramSpec TableState ProgramEncoding CodeLayout BlockSpec BlockEncoding BlockTrace Fragment CodeFacts
   FunctionValidation ControlDecode ControlInvariant FrameFacts ControlBridge FrameRows CallRows ProgramBinding
   Selectors CircuitFacts IndirectBindings SpecTecBranches.
+Require Import IntegerMemory IntegerDecode.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -150,7 +151,7 @@ Proof.
     rewrite <- Hmodule. exact (function_type_member _ _ Hg). }
   (* SpecTec resolves the same entry. *)
   set (z := mk_state s (activeFrame f locals)).
-  assert (Hz : wf_state z) by exact (frame_state_wf _ _ _ _ _ Hstore Hwf Hf Hlb0).
+  assert (Hz : wf_state z) by exact (frame_state_wf _ _ _ _ _ Hstore Hwf Hf (values_typed_wf _ _ Hlb0)).
   assert (Hu32 : 0 <= tableIndex < i32Modulus).
   { pose proof (full_read0_u32 row Hprime Hfull). normalize_columns. unfold i32Modulus. lia. }
   assert (Htarget : indirectTarget z x y tableIndex a).
@@ -193,6 +194,11 @@ Proof.
   assert (Hkeep : forall k, k <> row COL_SP_BEFORE - 1 -> final stackId [2 * k] = initial stackId [2 * k]).
   { intros k Hk. rewrite HstackFinal, (replace_write_address _ Hshape), (replace_write_hi_address _ Hshape).
     rewrite !update_other; [reflexivity | cell_differs | cell_differs]. }
+  assert (HkeepCell : forall k value, k <> row COL_SP_BEFORE - 1 ->
+    CellMatches initial k value -> CellMatches final k value).
+  { intros k value Hk Hcell. eapply cell_matches_memory; [ | exact Hcell].
+    intros limb Hlimb. rewrite HstackFinal, (replace_write_address _ Hshape), (replace_write_hi_address _ Hshape).
+    destruct Hlimb as [-> | ->]; rewrite !update_other by cell_differs; reflexivity. }
   assert (HtopFinal : final stackId [2 * (row COL_SP_BEFORE - 1)] = Some (Z.of_N a + 1)).
   { rewrite HstackFinal, (replace_write_address _ Hshape), (replace_write_hi_address _ Hshape).
     rewrite update_other by cell_differs. rewrite update_same, Hwritten. reflexivity. }
@@ -220,10 +226,10 @@ Proof.
         rewrite app_assoc, nth_error_app1 by exact Hlt. exact Hv.
       - exact Hllen0.
       - exact Hlb0.
-      - intros i v Hv. rewrite HfbpAfter, Hkeep.
-        + exact (Hlc0 _ _ Hv).
+      - intros i v Hv. rewrite HfbpAfter. apply HkeepCell.
         + assert (i < length locals)%nat by (apply nth_error_Some; rewrite Hv; discriminate).
-          unfold frameLocals in Hbase0, Hllen0. lia. }
+          unfold frameLocals in Hbase0, Hllen0. lia.
+        + exact (Hlc0 _ _ Hv). }
     split; [exact Hi | ]. split; [reflexivity | ]. split; [exact Hg | ].
     split; [cbn [callsInto programCallees envTypes]; rewrite Htype; f_equal; symmetry; exact HcalleeType | ].
     split.
@@ -365,7 +371,7 @@ Proof.
     ltac:(cbn [afterBoundary boundaryPC]; lia)) as [position [Hactive Hentered]].
   (* SpecTec enters the callee from CALL_ADDR. *)
   set (z := mk_state s (activeFrame f locals)).
-  assert (Hz : wf_state z) by exact (frame_state_wf _ _ _ _ _ Hstore Hwf Hf Hlb).
+  assert (Hz : wf_state z) by exact (frame_state_wf _ _ _ _ _ Hstore Hwf Hf (values_typed_wf _ _ Hlb)).
   assert (Hfuncwf : wf_funcinst (i32Function (guestModule g) (guestTypeIndex g) (length arguments)
       (guestResults g) (guestLocals g) (guestBody g))) by (rewrite Hlen, Hgp; exact (function_inst_wf program s Hvalid _ _ Hg)).
   assert (Hlookup : nth_error (fun_funcinst z) (N.to_nat (N.of_nat callee)) = Some (i32Function (guestModule g)
@@ -422,7 +428,7 @@ Proof.
       rewrite app_assoc, nth_error_app1; [exact Hv | apply nth_error_Some; rewrite Hv; discriminate].
     - exact Hllen.
     - exact Hlb.
-    - intros j v Hv. rewrite HstackFinal. exact (Hlc _ _ Hv). }
+    - intros j v Hv. eapply cell_matches_stack; [exact HstackFinal | exact (Hlc _ _ Hv)]. }
   split; [exact Hi | ]. split; [cbn [callsInto programCallees envTypes]; rewrite Htype; f_equal;
     rewrite (function_at_i32_type _ _ _ Hg), <- Hgp, <- Hgr; reflexivity | ]. split; [reflexivity | ].
   split.
@@ -436,7 +442,7 @@ Proof.
   split; [rewrite HsavedBaseMem, HsavedBase; reflexivity | ].
   (* The callers already suspended keep their memory: the push writes only its own level. *)
   replace (row COL_CALL_STACK_ADDR) with (row COL_CALL_STACK_DEPTH_BEFORE) by lia.
-  eapply suspended_stack_preserved; [exact Hsusp | intros j _; apply HstackFinal | ].
+  eapply suspended_stack_preserved; [exact Hsusp | intros j limb _ _; apply HstackFinal | ].
   intros id column level Hmem Hbelow. eapply context_push_elsewhere;
     [exact Hmem | exact Hsuspend | exact HcontextRead | exact Hreplay | ].
   intros Heq. injection Heq as Heq. lia.

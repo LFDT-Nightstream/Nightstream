@@ -4,7 +4,7 @@
 From Stdlib Require Import List ZArith Bool Lia.
 Require Import Wasm2 WasmIntegers R1CS MemoryTrace MemoryCatalog Add Locals StraightLineSpec StackSimulation
   SpecTecCalls SpecTecBranches CallerSpec ProgramSpec TableState ProgramEncoding CodeLayout FrameInitialization
-  Fragment ControlDecode ControlInvariant FrameFacts.
+  Fragment ControlDecode ControlInvariant FrameFacts IntegerMemory IntegerDecode.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -232,13 +232,30 @@ Lemma frame_reads : forall program memory base fbp pending remaining distance f 
   FrameAt program memory base fbp pending remaining distance f view ->
   (remaining <= length (viewOperands view))%nat ->
   readOperands memory base (length (viewOperands view)) remaining distance = Some (viewOperands view) /\
-  readLocals memory fbp (guestFrameTypes f) = Some (map i32Value (viewLocals view)).
+  readLocals memory fbp (guestFrameTypes f) = Some (viewLocals view).
 Proof.
   intros program memory base fbp pending remaining distance f view
     [Hf [_ [_ [_ [_ [Hbounds [Hcells [Hlen [Hlb Hlc]]]]]]]]] HremainingBound.
   split; [apply read_operands_cells; auto | ].
-  rewrite (read_locals_i32 _ _ _ _ _ Hf), (proj2 (read_stack_cells _ _ _ _) (conj Hlen (conj Hlb Hlc))).
-  reflexivity.
+  apply read_locals_cells. split; [exact (values_typed_types _ _ Hlb) | exact Hlc].
+Qed.
+
+(* Only the ordinary i32 row adapter needs the scalar form of locals. *)
+Lemma frame_locals_i32 : forall program memory base fbp pending remaining distance f view,
+  FrameAt program memory base fbp pending remaining distance f view ->
+  exists raw, viewLocals view = map i32Value raw /\
+    Forall (fun value => 0 <= value < i32Modulus) raw /\
+    forall index value, nth_error raw index = Some value ->
+      memory stackId [2 * (fbp + Z.of_nat index)] = Some value.
+Proof.
+  intros program memory base fbp pending remaining distance f view Hframe.
+  pose proof Hframe as [Hf [_ [_ [_ [_ [_ [_ [_ [Htypes Hcells]]]]]]]]].
+  assert (Hread : readLocals memory fbp (guestFrameTypes f) = Some (viewLocals view)).
+  { apply read_locals_cells. split; [exact (values_typed_types _ _ Htypes) | exact Hcells]. }
+  rewrite (read_locals_i32 _ _ _ _ _ Hf) in Hread.
+  destruct (readStack memory fbp (frameLocals f)) as [raw | ] eqn:Hraw; [ | discriminate].
+  injection Hread as <-. apply read_stack_cells in Hraw as [_ [Hbounds Hmemory]].
+  exists raw. auto.
 Qed.
 
 Lemma frame_of_reads : forall program memory base fbp pending remaining distance f position inner heights stack locals,
@@ -249,7 +266,7 @@ Lemma frame_of_reads : forall program memory base fbp pending remaining distance
   0 <= fbp -> base = fbp + Z.of_nat (frameLocals f) -> (pending <= snd heights)%nat ->
   (remaining <= totalHeight heights - pending)%nat ->
   readOperands memory base (totalHeight heights - pending) remaining distance = Some stack ->
-  readStack memory fbp (frameLocals f) = Some locals ->
+  readLocals memory fbp (guestFrameTypes f) = Some locals ->
   let view := frameView position (fst (splitSegments (fst heights) stack))
     (snd (splitSegments (fst heights) stack)) locals in
   FrameAt program memory base fbp pending remaining distance f view /\ innerCode f position = inner /\
@@ -258,7 +275,11 @@ Proof.
   intros program memory base fbp pending remaining distance f position inner [hs top] stack locals Hf Hpath Hheights
     Hfbp Hbase Hpending HremainingBound Hstack Hlocals view. cbn [fst snd] in *.
   destruct (proj1 (read_operands_cells _ _ _ _ _ _ HremainingBound) Hstack) as [Hlen [Hbounds Hcells]].
-  destruct (proj1 (read_stack_cells _ _ _ _) Hlocals) as [Hllen [Hlb Hlc]].
+  destruct (proj1 (read_locals_cells _ _ _ _) Hlocals) as [Hlt Hlc].
+  assert (Hlb : valuesTyped (guestFrameTypes f) locals).
+  { apply values_typed_intro; [exact Hlt | eapply read_integer_cells_wf; exact Hlocals]. }
+  assert (Hllen : length locals = frameLocals f).
+  { rewrite <- (Forall2_length Hlt). unfold guestFrameTypes. rewrite length_app. reflexivity. }
   destruct (split_stack hs top pending stack Hpending Hlen) as [Hmap [Hvalues Hconcat]].
   assert (Hinner : innerCode f position = inner) by (unfold innerCode; rewrite Hpath; reflexivity).
   assert (Hoperands : viewOperands view = stack) by exact Hconcat.
@@ -336,8 +357,7 @@ Proof.
     { destruct heights as [hs top]. rewrite total_height_sum. cbn [snd] in *. lia. }
     rewrite read_integer_operands_i32 in Hdecode by exact HreadBound.
     destruct (readOperands _ _ _ _ _) as [stack | ] eqn:Hstack; [ | discriminate].
-    rewrite (read_locals_i32 _ _ _ _ _ Hf) in Hdecode.
-    destruct (readStack memory (boundaryLocalsBase boundary) (frameLocals f)) as [locals | ] eqn:Hlocals; [ | discriminate].
+    destruct (readLocals memory (boundaryLocalsBase boundary) (guestFrameTypes f)) as [locals | ] eqn:Hlocals; [ | discriminate].
     cbn [option_map] in Hdecode. rewrite split_segments_map in Hdecode. cbn [fst snd] in Hdecode.
     rewrite value_stack_config_i32, wrap_value_labels_i32 in Hdecode.
     injection Hdecode as <- <-.
@@ -371,8 +391,7 @@ Proof.
     rewrite firstn_repeat_le in Hdecode by lia.
     rewrite read_integer_operands_i32 in Hdecode by lia.
     destruct (readOperands _ _ _ _ _) as [stack | ] eqn:Hstack; [ | discriminate].
-    rewrite (read_locals_i32 _ _ _ _ _ Hf) in Hdecode.
-    destruct (readStack memory (boundaryLocalsBase boundary) (frameLocals f)) as [locals | ] eqn:Hlocals; [ | discriminate].
+    destruct (readLocals memory (boundaryLocalsBase boundary) (guestFrameTypes f)) as [locals | ] eqn:Hlocals; [ | discriminate].
     cbn [option_map] in Hdecode. rewrite split_segments_map in Hdecode. cbn [fst snd] in Hdecode.
     rewrite value_stack_prefix_i32, wrap_value_labels_i32 in Hdecode.
     injection Hdecode as <- <-.
@@ -500,8 +519,7 @@ Proof.
     rewrite read_integer_cells_i32 in Hdecode.
     fold (readStack memory savedBase (totalHeight heights - callOperands i f)) in Hdecode.
     destruct (readStack _ _ _) as [stack | ] eqn:Hstack; [ | discriminate].
-    rewrite (read_locals_i32 _ _ _ _ _ Hg) in Hdecode.
-    destruct (readStack memory savedFbp (frameLocals g)) as [locals | ] eqn:Hlocals; [ | discriminate].
+    destruct (readLocals memory savedFbp (guestFrameTypes g)) as [locals | ] eqn:Hlocals; [ | discriminate].
     cbn [option_map] in Hdecode. rewrite split_segments_map in Hdecode. cbn [fst snd] in Hdecode.
     rewrite value_stack_prefix_i32, wrap_value_labels_i32 in Hdecode.
     destruct (IH _ _ _ _ _ _ _ _ Hstore Hvalid Hg Hdecode) as [Hresult [stack' [Hsites [Hsusp ->]]]].

@@ -59,7 +59,7 @@ Proof. vm_compute; reflexivity. Qed.
 Lemma base_return_fragment : executionFragment nopStart 0 baseReturnWitness.
 Proof. vm_compute. repeat first [split | left; reflexivity | right; repeat split; reflexivity | reflexivity | exact I]. Qed.
 Lemma base_return_initial : CircuitConfig baseReturnProgram baseReturnStore 0 entryShape baseReturnMemory nopStart
-    (stackConfig (mk_state baseReturnStore (activeFrame baseReturnGuest [7])) [] baseReturnCode).
+    (stackConfig (mk_state baseReturnStore (activeFrame baseReturnGuest (map i32Value [7]))) [] baseReturnCode).
 Proof.
   apply (function_start_config baseReturnProgram baseReturnStore 0 baseReturnGuest [7] _ nopStart);
     try reflexivity; try (apply TableState.no_tables_loaded; reflexivity); try (cbn; lia).
@@ -71,14 +71,14 @@ Proof.
 Qed.
 Example base_return_refines : fieldPrime ->
   Steps (callContext (outerFrame nopModule) 1
-    (stackConfig (mk_state baseReturnStore (activeFrame baseReturnGuest [7])) [] baseReturnCode))
+    (stackConfig (mk_state baseReturnStore (activeFrame baseReturnGuest (map i32Value [7]))) [] baseReturnCode))
     (mk_config (mk_state baseReturnStore (outerFrame nopModule)) [i32Constant 7]).
 Proof.
   intros Hprime.
   assert (Hstart : ActivationConfig baseReturnProgram baseReturnStore (outerFrame nopModule) 0 0 entryShape
       baseReturnMemory nopStart (callContext (outerFrame nopModule) 1
-        (stackConfig (mk_state baseReturnStore (activeFrame baseReturnGuest [7])) [] baseReturnCode))).
-  { split; [reflexivity | ]. split; [repeat constructor | ]. split; [reflexivity | ]. exists baseReturnGuest, (stackConfig (mk_state baseReturnStore (activeFrame baseReturnGuest [7])) [] baseReturnCode).
+        (stackConfig (mk_state baseReturnStore (activeFrame baseReturnGuest (map i32Value [7]))) [] baseReturnCode))).
+  { split; [reflexivity | ]. split; [repeat constructor | ]. split; [reflexivity | ]. exists baseReturnGuest, (stackConfig (mk_state baseReturnStore (activeFrame baseReturnGuest (map i32Value [7]))) [] baseReturnCode).
     split; [reflexivity | ]. split; [exact base_return_initial | reflexivity]. }
   destruct (run_refinement _ _ _ _ _ _ _ _ _ _ _ Hprime (load_program_loaded _ _)
     (validRunb_sound _ _ base_return_valid_run) base_return_fragment Hstart) as [outcome [c [Hsteps [_ Hconfig]]]].

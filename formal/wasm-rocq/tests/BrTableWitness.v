@@ -99,7 +99,7 @@ Proof. split; [vm_compute; reflexivity | ]. apply callerRowb_sound. vm_compute. 
 
 Lemma table_start_config :
   CircuitConfig tableProgram tableStore 0 (controlShape [] (siteCode (codePosition 0 [] 0)))
-    tableMemory tableStart (stackConfig (mk_state tableStore (activeFrame tableGuest [7; 1])) [] tableCode).
+    tableMemory tableStart (stackConfig (mk_state tableStore (activeFrame tableGuest (map i32Value [7; 1]))) [] tableCode).
 Proof.
   apply (function_start_config tableProgram tableStore 0 tableGuest [7; 1] _ tableStart);
     try reflexivity; try (apply TableState.no_tables_loaded; reflexivity); try (cbn; lia).
@@ -114,7 +114,7 @@ Qed.
 (* The refinement's conclusion for this run. *)
 Example br_table_witness_refines : fieldPrime ->
   exists shape c,
-    Steps (stackConfig (mk_state tableStore (activeFrame tableGuest [7; 1])) [] tableCode) c /\
+    Steps (stackConfig (mk_state tableStore (activeFrame tableGuest (map i32Value [7; 1]))) [] tableCode) c /\
     CircuitConfig tableProgram tableStore 0 shape (replayed tableMemory tableWitness)
       (rowsFinalBoundary tableStart tableWitness) c.
 Proof.

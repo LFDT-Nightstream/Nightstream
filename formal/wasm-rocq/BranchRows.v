@@ -9,6 +9,7 @@ Require Import Wasm2 WasmIntegers Add R1CS Columns Range FullRelation MemoryTrac
   BlockTrace BranchBindings StackBindings CallInitialization Selectors CallScope CallContext CallMemory LocalBindings
   StraightLineInstructions ProgramBinding Fragment CodeFacts ControlDecode ControlInvariant FrameFacts ControlBridge
   CircuitFacts FrameRows.
+Require Import IntegerMemory IntegerDecode.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -170,9 +171,9 @@ Lemma taken_branch_result : forall initial final row f inner view index pre b po
   (distance <> 0%nat -> boundaryMoveDistance (afterBoundary row) = Z.of_nat distance) ->
   boundarySP (afterBoundary row) =
     boundaryStackBase (afterBoundary row) + Z.of_nat (length (concat segsHead ++ segT ++ kept)) ->
-  length locals = frameLocals f -> Forall (fun value => 0 <= value < i32Modulus) locals ->
+  length locals = frameLocals f -> valuesTyped (guestFrameTypes f) locals ->
   (forall index' value, nth_error locals index' = Some value ->
-    final stackId [2 * (boundaryLocalsBase (afterBoundary row) + Z.of_nat index')] = Some value) ->
+    CellMatches final (boundaryLocalsBase (afterBoundary row) + Z.of_nat index') value) ->
   boundaryPC (afterBoundary row) =
     guestEntry f + Z.of_nat (pathOffset (guestBody f) pre (siteOffset b) + labelTarget ti) ->
   initializationFlags (afterBoundary row) -> boundaryZeroRemaining (afterBoundary row) = 0 ->
@@ -184,7 +185,7 @@ Proof.
     HheightsNext Hsup Hlength Hcarried Hl Hrest Hsteps Hfbp Hbase Hbounds Hcells Hkept Hremaining Hdistance Hsp
     Hllen Hlb Hlc Hpc Hflags Hzero Hregs Heffect.
   set (z := mk_state s (activeFrame f locals)) in *.
-  assert (Hz : wf_state z) by exact (frame_state_wf _ _ _ _ _ Hstore Hwf Hf Hlb).
+  assert (Hz : wf_state z) by exact (frame_state_wf _ _ _ _ _ Hstore Hwf Hf (values_typed_wf _ _ Hlb)).
   destruct (site_entry_split _ _ _ _ Hb) as [Hnth Harm].
   assert (Hsegment : Forall (fun value => 0 <= value < i32Modulus) segT)
     by (apply Forall_app in Hbounds as [_ H]; apply Forall_app in H as [H _]; exact H).
@@ -383,7 +384,7 @@ Proof.
       exact HcontextRead]).
   (* SpecTec: the same choice. *)
   set (z := mk_state s (activeFrame f locals)).
-  assert (Hz : wf_state z) by exact (frame_state_wf _ _ _ _ _ Hstore Hwf Hf Hlb).
+  assert (Hz : wf_state z) by exact (frame_state_wf _ _ _ _ _ Hstore Hwf Hf (values_typed_wf _ _ Hlb)).
   pose proof (forall_skipn _ _ (S offset) _ Hwfcode) as Hwfrest.
   pose proof (br_if_steps_below z under condition l (skipn (S offset) code) Hz Hunder Hcond Hwfl Hwfrest) as Hsteps.
   assert (Hbefore : frameConfig f (frameView (codePosition index (pre ++ b :: post) offset)
@@ -430,7 +431,7 @@ Proof.
         -- exact Hcells1.
         -- exact Hllen.
         -- exact Hlb.
-        -- intros index' value Hv. cbn [afterBoundary boundaryLocalsBase]. rewrite Hfbp, HstackMem. exact (Hlc _ _ Hv).
+        -- intros index' value Hv. cbn [afterBoundary boundaryLocalsBase]. rewrite Hfbp. eapply cell_matches_stack; [exact HstackMem | exact (Hlc _ _ Hv)].
       * assert (offset < length code)%nat by (apply nth_error_Some; rewrite Hi; discriminate). cbn. lia.
       * unfold viewOperands. cbn [viewSegments viewValues]. exact Hsp1.
       * cbn [afterBoundary boundaryPC]. rewrite Hnext, Hpc, (path_offset_step _ _ _ _ _ Hpath Hi).
@@ -482,7 +483,7 @@ Proof.
       unfold distance. rewrite !length_app. cbn [length]. lia.
     * exact Hllen.
     * exact Hlb.
-    * intros index' value Hv. cbn [afterBoundary boundaryLocalsBase]. rewrite Hfbp, HstackMem. exact (Hlc _ _ Hv).
+    * intros index' value Hv. cbn [afterBoundary boundaryLocalsBase]. rewrite Hfbp. eapply cell_matches_stack; [exact HstackMem | exact (Hlc _ _ Hv)].
     * cbn [afterBoundary boundaryPC]. rewrite Hnext. reflexivity.
     * exact (full_initialization_flags row Hprime Hfull).
     * exact (branch_no_zeroing row COL_SEL_BR_IF_EQZ Hprime Hfull ltac:(vm_compute; tauto) Hchosen
@@ -586,7 +587,7 @@ Proof.
       exact HcontextRead]).
   (* SpecTec: the same branch. *)
   set (z := mk_state s (activeFrame f locals)).
-  assert (Hz : wf_state z) by exact (frame_state_wf _ _ _ _ _ Hstore Hwf Hf Hlb).
+  assert (Hz : wf_state z) by exact (frame_state_wf _ _ _ _ _ Hstore Hwf Hf (values_typed_wf _ _ Hlb)).
   pose proof (forall_skipn _ _ (S offset) _ Hwfcode) as Hwfrest.
   assert (Hindex : l = mk_uN (N.of_nat (length post + 0))).
   { destruct l as [ln]. cbn in Hpost |- *. rewrite Nat.add_0_r, Hpost. f_equal. unfold depth. cbn. lia. }
@@ -627,7 +628,7 @@ Proof.
     unfold distance. rewrite !length_app. lia.
   + exact Hllen.
   + exact Hlb.
-  + intros index' value Hv. cbn [afterBoundary boundaryLocalsBase]. rewrite Hfbp, HstackMem. exact (Hlc _ _ Hv).
+  + intros index' value Hv. cbn [afterBoundary boundaryLocalsBase]. rewrite Hfbp. eapply cell_matches_stack; [exact HstackMem | exact (Hlc _ _ Hv)].
   + cbn [afterBoundary boundaryPC]. rewrite Hnext. reflexivity.
   + exact (full_initialization_flags row Hprime Hfull).
   + exact (branch_no_zeroing row COL_SEL_BR Hprime Hfull ltac:(vm_compute; tauto) Hchosen
@@ -762,7 +763,7 @@ Proof.
       exact HcontextRead]).
   (* SpecTec: the table picks the same target, then branches to it. *)
   set (z := mk_state s (activeFrame f locals)).
-  assert (Hz : wf_state z) by exact (frame_state_wf _ _ _ _ _ Hstore Hwf Hf Hlb).
+  assert (Hz : wf_state z) by exact (frame_state_wf _ _ _ _ _ Hstore Hwf Hf (values_typed_wf _ _ Hlb)).
   pose proof (forall_skipn _ _ (S offset) _ Hwfcode) as Hwfrest.
   pose proof (br_table_steps z tableIndex ls l (skipn (S offset) code) Hz Hcond Hwi Hwfrest) as Hsteps.
   assert (Hindex : target = mk_uN (N.of_nat (length post + 0))).
@@ -814,7 +815,7 @@ Proof.
     unfold distance. rewrite !length_app. cbn [length]. lia.
   + exact Hllen.
   + exact Hlb.
-  + intros index' value Hv. cbn [afterBoundary boundaryLocalsBase]. rewrite Hfbp, HstackMem. exact (Hlc _ _ Hv).
+  + intros index' value Hv. cbn [afterBoundary boundaryLocalsBase]. rewrite Hfbp. eapply cell_matches_stack; [exact HstackMem | exact (Hlc _ _ Hv)].
   + cbn [afterBoundary boundaryPC]. rewrite <- Hnext. reflexivity.
   + exact (full_initialization_flags row Hprime Hfull).
   + exact (branch_no_zeroing row COL_SEL_BR_TABLE Hprime Hfull ltac:(vm_compute; tauto) Hchosen

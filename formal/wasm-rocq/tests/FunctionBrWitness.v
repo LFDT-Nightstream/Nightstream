@@ -100,7 +100,7 @@ Proof. split; [vm_compute; reflexivity | ]. apply callerRowb_sound. vm_compute. 
 
 Lemma branch_start_config :
   CircuitConfig branchProgram branchStore 0 (controlShape [] (siteCode (codePosition 0 [] 0)))
-    branchMemory branchStart (stackConfig (mk_state branchStore (activeFrame mainGuest [7; 9])) [] mainBody).
+    branchMemory branchStart (stackConfig (mk_state branchStore (activeFrame mainGuest (map i32Value [7; 9]))) [] mainBody).
 Proof.
   apply (function_start_config branchProgram branchStore 0 mainGuest [7; 9] _ branchStart);
     try reflexivity; try (apply TableState.no_tables_loaded; reflexivity); try (cbn; lia).
@@ -114,7 +114,7 @@ Qed.
 
 Example function_br_witness_refines : fieldPrime ->
   exists shape c,
-    Steps (stackConfig (mk_state branchStore (activeFrame mainGuest [7; 9])) [] mainBody) c /\
+    Steps (stackConfig (mk_state branchStore (activeFrame mainGuest (map i32Value [7; 9]))) [] mainBody) c /\
     CircuitConfig branchProgram branchStore 0 shape (replayed branchMemory branchWitness)
       (rowsFinalBoundary branchStart branchWitness) c.
 Proof.

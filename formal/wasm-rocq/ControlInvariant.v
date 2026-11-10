@@ -5,15 +5,13 @@
    and the defaults of the function's declared locals. *)
 From Stdlib Require Import List ZArith.
 Require Import Wasm2 WasmIntegers R1CS MemoryTrace MemoryCatalog StraightLineSpec SpecTecCalls SpecTecBranches
-  CallerSpec ProgramSpec CodeLayout FrameInitialization Locals Fragment ControlDecode.
+  CallerSpec ProgramSpec CodeLayout FrameInitialization Locals Fragment ControlDecode IntegerMemory IntegerDecode.
 Import ListNotations.
 Open Scope Z_scope.
 
-(* The i32 frame representation used by the current row proofs. The decoder
-   reads typed values directly; ControlBridge connects the two under functionAt's
-   current i32 restriction. *)
-Definition activeFrame (f : GuestFunction) (locals : list Z) : frame :=
-  MKframe (List.map i32Value locals) (guestModule f).
+(* Locals retain their SpecTec types in active and suspended frames. *)
+Definition activeFrame (f : GuestFunction) (locals : list val) : frame :=
+  MKframe locals (guestModule f).
 
 (* A frame's operands from its base; while a move is pending, the top `remaining`
    operands still sit `distance` cells higher. *)
@@ -46,7 +44,7 @@ Record FrameView := frameView {
   viewPosition : CodePosition;
   viewSegments : list (list Z);
   viewValues : list Z;
-  viewLocals : list Z
+  viewLocals : list val
 }.
 
 Definition viewOperands (view : FrameView) : list Z := concat (viewSegments view) ++ viewValues view.
@@ -74,9 +72,9 @@ Definition FrameAt (program : Program) (memory : MemoryState) (base fbp : Z) (pe
   (forall index value, nth_error (viewOperands view) index = Some value ->
     memory stackId [2 * operandCell base (length (viewOperands view)) remaining distance index] = Some value) /\
   length (viewLocals view) = frameLocals f /\
-  Forall (fun value => 0 <= value < i32Modulus) (viewLocals view) /\
+  valuesTyped (guestFrameTypes f) (viewLocals view) /\
   (forall index value, nth_error (viewLocals view) index = Some value ->
-    memory stackId [2 * (fbp + Z.of_nat index)] = Some value).
+    CellMatches memory (fbp + Z.of_nat index) value).
 
 Inductive ControlPosition :=
 | atCode (view : FrameView)

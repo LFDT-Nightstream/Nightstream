@@ -82,7 +82,7 @@ Proof. split; [vm_compute; reflexivity | ]. apply callerRowb_sound. vm_compute. 
 
 Lemma nop_start_config :
   CircuitConfig nopProgram nopStore 0 (controlShape [] (siteCode (codePosition 0 [] 0)))
-    nopMemory nopStart (stackConfig (mk_state nopStore (activeFrame nopGuest [7])) [] nopCode).
+    nopMemory nopStart (stackConfig (mk_state nopStore (activeFrame nopGuest (map i32Value [7]))) [] nopCode).
 Proof.
   apply (function_start_config nopProgram nopStore 0 nopGuest [7] _ nopStart); try reflexivity; try (apply TableState.no_tables_loaded; reflexivity); try (cbn; lia).
   - repeat constructor.
@@ -95,7 +95,7 @@ Qed.
 (* The refinement's conclusion for this run. *)
 Example nop_witness_refines : fieldPrime ->
   exists shape c,
-    Steps (stackConfig (mk_state nopStore (activeFrame nopGuest [7])) [] nopCode) c /\
+    Steps (stackConfig (mk_state nopStore (activeFrame nopGuest (map i32Value [7]))) [] nopCode) c /\
     CircuitConfig nopProgram nopStore 0 shape (replayed nopMemory nopWitness) (rowsFinalBoundary nopStart nopWitness) c.
 Proof.
   intros Hprime.

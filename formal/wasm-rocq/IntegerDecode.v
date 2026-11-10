@@ -27,6 +27,37 @@ Definition integerValueType (value : val) : option valtype :=
   | _ => None
   end.
 
+(* Declared integer types, together with SpecTec's value well-formedness. *)
+Definition valuesTyped (types : list valtype) (values : list val) : Prop :=
+  Forall2 (fun t value => integerValueType value = Some t /\ wf_val value) types values.
+
+Lemma values_typed_wf : forall types values, valuesTyped types values -> Forall wf_val values.
+Proof. intros types values H; induction H; constructor; tauto. Qed.
+
+Lemma values_typed_types : forall types values, valuesTyped types values ->
+  Forall2 (fun t value => integerValueType value = Some t) types values.
+Proof. intros types values H; induction H; constructor; tauto. Qed.
+
+Lemma values_typed_intro : forall types values,
+  Forall2 (fun t value => integerValueType value = Some t) types values ->
+  Forall wf_val values -> valuesTyped types values.
+Proof.
+  intros types values H; induction H; intros Hwf; [constructor | ].
+  inversion Hwf; subst. constructor; [split; assumption | apply IHForall2; assumption].
+Qed.
+
+Lemma values_typed_repeat : forall t values,
+  Forall (fun value => integerValueType value = Some t /\ wf_val value) values ->
+  valuesTyped (repeat t (length values)) values.
+Proof. intros t values H; induction H; cbn; constructor; assumption. Qed.
+
+Lemma values_typed_i32 : forall values,
+  Forall (fun value => 0 <= value < i32Modulus) values ->
+  valuesTyped (repeat valtype_I32 (length values)) (map i32Value values).
+Proof.
+  intros values H; induction H; cbn; constructor; [split; [reflexivity | apply i32_value_wf; assumption] | assumption].
+Qed.
+
 Definition readIntegerCell (memory : MemoryState) (cell : Z) (t : valtype) : option val :=
   match t, i32Cell (memory stackId [2 * cell]) with
   | valtype_I32, Some lo => Some (i32Value lo)

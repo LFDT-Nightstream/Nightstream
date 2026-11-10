@@ -8,7 +8,7 @@ Require Import Wasm2 WasmIntegers WasmValues Add R1CS Columns Range FullRelation
   CallerRefinement ProgramSpec ProgramEncoding CodeLayout BlockSpec BlockBindings BlockEncoding BlockInstructions
   BlockTrace BranchBindings StackBindings CallInitialization Selectors CallScope CallContext CallMemory LocalBindings
   StraightLineInstructions ProgramBinding Fragment CodeFacts ControlDecode ControlInvariant FrameFacts ControlBridge
-  CircuitFacts.
+  CircuitFacts IntegerMemory IntegerDecode.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -40,9 +40,9 @@ Lemma frame_at_unmoved_intro : forall program memory base fbp pending distance f
   (forall index value, nth_error (viewOperands view) index = Some value ->
     memory stackId [2 * (base + Z.of_nat index)] = Some value) ->
   length (viewLocals view) = frameLocals f ->
-  Forall (fun value => 0 <= value < i32Modulus) (viewLocals view) ->
+  valuesTyped (guestFrameTypes f) (viewLocals view) ->
   (forall index value, nth_error (viewLocals view) index = Some value ->
-    memory stackId [2 * (fbp + Z.of_nat index)] = Some value) ->
+    CellMatches memory (fbp + Z.of_nat index) value) ->
   FrameAt program memory base fbp pending 0 distance f view.
 Proof.
   intros program memory base fbp pending distance f view position Hf Hpath Hheights Hfbp Hbase Hbounds Hcells
@@ -191,11 +191,10 @@ Qed.
 
 Lemma frame_state_wf : forall program s index f locals,
   store_FUNCS s = program -> wf_store s -> functionAt program index = Some f ->
-  Forall (fun value => 0 <= value < i32Modulus) locals -> wf_state (mk_state s (activeFrame f locals)).
+  Forall wf_val locals -> wf_state (mk_state s (activeFrame f locals)).
 Proof.
   intros program s index f locals Hfuncs Hwf Hf Hlocals. constructor; [exact Hwf | constructor].
-  - apply Forall_map. eapply Forall_impl; [ | exact Hlocals].
-    intros value Hvalue. apply val_case_0. apply spectec_i32_well_formed. exact Hvalue.
+  - exact Hlocals.
   - eapply function_module_wf; eassumption.
 Qed.
 
@@ -214,42 +213,35 @@ Lemma frame_locals_match : forall program memory boundary base pending remaining
   FrameAt program memory base (boundaryLocalsBase boundary) pending remaining distance f view ->
   localsMatch memory boundary (mk_state s (activeFrame f (viewLocals view))).
 Proof.
-  intros program memory boundary base pending remaining distance f view s
-    [_ [_ [_ [_ [_ [_ [_ [_ [Hlb Hlc]]]]]]]]] index v Hv.
-  cbn [stateLocals activeFrame LOCALS] in Hv. rewrite nth_error_map in Hv.
-  destruct (nth_error (viewLocals view) index) as [value | ] eqn:Hi; cbn in Hv; [injection Hv as <- | discriminate].
-  exists value. split; [reflexivity | ]. split; [exact (proj1 (Forall_forall _ _) Hlb _ (nth_error_In _ _ Hi)) | ].
-  exact (Hlc _ _ Hi).
+  intros program memory boundary base pending remaining distance f view s Hframe index v Hv.
+  destruct (frame_locals_i32 _ _ _ _ _ _ _ _ _ Hframe) as [raw [Hraw [Hbounds Hcells]]].
+  cbn [stateLocals activeFrame LOCALS] in Hv. rewrite Hraw, nth_error_map in Hv.
+  destruct (nth_error raw index) as [value | ] eqn:Hi; cbn in Hv; [injection Hv as <- | discriminate].
+  exists value. split; [reflexivity | ]. split; [exact (proj1 (Forall_forall _ _) Hbounds _ (nth_error_In _ _ Hi)) | ].
+  exact (Hcells _ _ Hi).
 Qed.
 
 (* A state whose frame has f's module and locals in memory is a frame of f. *)
-Lemma state_locals : forall s f z memory boundary,
+Lemma state_locals : forall program index s f z memory boundary,
+  functionAt program index = Some f ->
   fun_store z = s -> fun_moduleinst z = guestModule f -> length (stateLocals z) = frameLocals f ->
   localsMatch memory boundary z ->
   exists locals, z = mk_state s (activeFrame f locals) /\ length locals = frameLocals f /\
-    Forall (fun value => 0 <= value < i32Modulus) locals /\
+    valuesTyped (guestFrameTypes f) locals /\
     forall index value, nth_error locals index = Some value ->
-      memory stackId [2 * (boundaryLocalsBase boundary + Z.of_nat index)] = Some value.
+      CellMatches memory (boundaryLocalsBase boundary + Z.of_nat index) value.
 Proof.
-  intros s f z memory boundary Hstore Hmodule Hlen Hlocals.
-  destruct (read_cells_total (fun index => memory stackId [2 * index])
-    (length (stateLocals z)) (boundaryLocalsBase boundary)) as [locals Hread].
-  { intros index Hindex. destruct (nth_error (stateLocals z) index) as [v | ] eqn:Hv;
-      [ | apply nth_error_None in Hv; lia].
-    destruct (Hlocals index v Hv) as [value [_ [Hrange Hcell]]]. exists value. split; [exact Hcell | exact Hrange]. }
-  destruct (proj1 (read_cells_some _ _ _ _) Hread) as [Hcount [Hbounds Hcells]].
-  exists locals. split; [ | split; [lia | split; [exact Hbounds | exact Hcells]]].
-  destruct z as [s' [values module]]. cbn in Hstore, Hmodule, Hlen, Hcount |- *. subst s' module.
-  unfold activeFrame. f_equal. f_equal.
-  apply nth_error_ext. intros index. rewrite nth_error_map.
-  destruct (nth_error values index) as [v | ] eqn:Hv.
-  - destruct (Hlocals index v Hv) as [value [-> [_ Hcell]]].
-    destruct (nth_error locals index) as [w | ] eqn:Hw.
-    + rewrite (Hcells _ _ Hw) in Hcell. injection Hcell as ->. reflexivity.
-    + apply nth_error_None in Hw. assert (index < length values)%nat by (apply nth_error_Some; rewrite Hv; discriminate).
-      lia.
-  - apply nth_error_None in Hv. replace (nth_error locals index) with (@None Z); [reflexivity | ].
-    symmetry. apply nth_error_None. lia.
+  intros program index s f z memory boundary Hf Hstore Hmodule Hlen Hlocals.
+  exists (stateLocals z). split.
+  { destruct z as [store [locals module]]. cbn in *. subst. reflexivity. }
+  split; [exact Hlen | ]. split.
+  - destruct (function_at_i32_types _ _ _ Hf) as [Hp [_ Hl]].
+    unfold guestFrameTypes. rewrite Hp, Hl, <- repeat_app. fold (frameLocals f). rewrite <- Hlen.
+    apply values_typed_repeat, Forall_forall. intros value Hin.
+    apply In_nth_error in Hin as [n Hnth]. destruct (Hlocals _ _ Hnth) as [raw [-> [Hbound _]]].
+    split; [reflexivity | apply i32_value_wf; exact Hbound].
+  - intros n value Hnth. destruct (Hlocals _ _ Hnth) as [raw [-> [Hbound Hcell]]].
+    constructor; assumption.
 Qed.
 
 (* Heights and addresses one instruction further along a path. *)
@@ -412,25 +404,25 @@ Proof.
   pose proof Hframe as [_ [_ [_ [Hfbp0 [Hbase0 [Hbounds [_ [Hllen0 [Hlb0 _]]]]]]]]].
   cbn [viewLocals] in Hllen0, Hlb0.
   set (z := mk_state s (activeFrame f locals)).
-  assert (Hz : wf_state z) by exact (frame_state_wf _ _ _ _ _ Hstore Hwf Hf Hlb0).
+  assert (Hz : wf_state z) by exact (frame_state_wf _ _ _ _ _ Hstore Hwf Hf (values_typed_wf _ _ Hlb0)).
   pose proof (frame_stack_matches _ _ (beforeBoundary row) _ _ _ _ _ Hframe Hsp) as Hstack. unfold viewOperands in Hstack.
   cbn [viewSegments viewValues] in Hstack.
   pose proof (frame_locals_match _ _ (beforeBoundary row) _ _ _ _ _ _ s Hframe) as Hlocals. cbn [viewLocals] in Hlocals.
   assert (Htyped' : programTyped (length (stateLocals z)) (length values) [i])
-    by (cbn [z stateLocals activeFrame LOCALS]; rewrite length_map, Hllen0; exact Htyped).
+    by (cbn [z stateLocals activeFrame LOCALS]; rewrite Hllen0; exact Htyped).
   assert (Hlayout : boundaryLocalsBase (beforeBoundary row) + Z.of_nat (length (stateLocals z)) <=
       boundaryStackBase (beforeBoundary row))
     by (cbn [z beforeBoundary boundaryLocalsBase boundaryStackBase stateLocals activeFrame LOCALS];
-        rewrite length_map, Hllen0; lia).
+        rewrite Hllen0; lia).
   destruct (framed_instruction (concat segments) values i z initial final row Hprime Hfull Hprogram Hreplay Himage Hz
     Hwi Htyped' Hstack Hlocals Hlayout) as [z' [values' [[Hstep [Hz' [Hstack' [Hlocals' [Hsame Hheight']]]]] [Hnext Hregs]]]].
   pose proof (circuit_row_opcode_fetch _ _ _ Hreplay Hprogram) as Hfetch. rewrite (proj1 Himage) in Hfetch.
   destruct (framed_row_scope (concat segments) values i z initial final row Hprime Hfull Hprogram Hreplay Hfetch Hz
     Hwi Htyped' Hstack Hlocals ltac:(lia)) as [Heffect _].
   destruct Hsame as [Hstore' [Hmodule' Hlen']].
-  destruct (state_locals s f z' final (afterBoundary row) ltac:(rewrite Hstore'; reflexivity)
+  destruct (state_locals program index s f z' final (afterBoundary row) Hf ltac:(rewrite Hstore'; reflexivity)
     ltac:(rewrite Hmodule'; reflexivity) ltac:(rewrite Hlen'; cbn [z stateLocals activeFrame LOCALS];
-      rewrite length_map; exact Hllen0) Hlocals')
+      exact Hllen0) Hlocals')
     as [locals' [-> [Hllen [Hlb Hlc]]]].
   pose proof (proj1 (proj2 (proj2 Hstack'))) as Hbounds'. apply Forall_app in Hbounds'.
   exists (frameView (codePosition index labels (S offset)) segments values' locals'),
@@ -488,9 +480,9 @@ Lemma exit_label_state : forall memory boundary index labels b segments segment 
   boundaryMoveRemaining boundary = slideWord true (length kept) distance ->
   (distance <> 0%nat -> boundaryMoveDistance boundary = Z.of_nat distance) ->
   boundarySP boundary = boundaryStackBase boundary + Z.of_nat (length (concat segments ++ segment ++ kept)) ->
-  length locals = frameLocals f -> Forall (fun value => 0 <= value < i32Modulus) locals ->
+  length locals = frameLocals f -> valuesTyped (guestFrameTypes f) locals ->
   (forall index' value, nth_error locals index' = Some value ->
-    memory stackId [2 * (boundaryLocalsBase boundary + Z.of_nat index')] = Some value) ->
+    CellMatches memory (boundaryLocalsBase boundary + Z.of_nat index') value) ->
   boundaryPC boundary = guestEntry f + Z.of_nat (pathOffset (guestBody f) labels (S b)) ->
   initializationFlags boundary -> boundaryZeroRemaining boundary = 0 ->
   ActiveState program s memory boundary
@@ -632,7 +624,7 @@ Proof.
   rewrite (skipn_at_instruction _ _ _ Hi) in Hsup.
   change (row COL_PC_BEFORE = guestEntry f + Z.of_nat (pathOffset (guestBody f) labels offset)) in Hpc.
   set (z := mk_state s (activeFrame f locals)).
-  assert (Hz : wf_state z) by exact (frame_state_wf _ _ _ _ _ Hstore Hwf Hf Hlb).
+  assert (Hz : wf_state z) by exact (frame_state_wf _ _ _ _ _ Hstore Hwf Hf (values_typed_wf _ _ Hlb)).
   (* The opcode and SpecTec's entry step, for a block or a loop. *)
   assert (Hentry : exists opcode chosen, quietControl opcode chosen /\
       controlImage initial (row COL_PC_BEFORE) opcode (row COL_PC_BEFORE + 1) /\
@@ -699,7 +691,7 @@ Proof.
         exact (Hcells _ _ Hv).
       * exact Hllen.
       * exact Hlb.
-      * intros index' value Hv. cbn [afterBoundary boundaryLocalsBase]. rewrite Hfbp', HstackMem. exact (Hlc _ _ Hv).
+      * intros index' value Hv. cbn [afterBoundary boundaryLocalsBase]. rewrite Hfbp'. eapply cell_matches_stack; [exact HstackMem | exact (Hlc _ _ Hv)].
     + cbn. lia.
     + unfold viewOperands. cbn [viewSegments viewValues]. rewrite concat_app. cbn [concat]. rewrite !app_nil_r.
       cbn [afterBoundary beforeBoundary boundarySP boundaryStackBase] in Hsp |- *. rewrite Hsp', Hbase'. exact Hsp.
@@ -739,7 +731,7 @@ Proof.
     as [Hnext [Hsp' [Hbase' [Hregs [Heffect [HstackMem HidleAfter]]]]]].
   pose proof Hregs as [_ [_ Hfbp']].
   set (z := mk_state s (activeFrame f locals)).
-  assert (Hz : wf_state z) by exact (frame_state_wf _ _ _ _ _ Hstore Hwf Hf Hlb).
+  assert (Hz : wf_state z) by exact (frame_state_wf _ _ _ _ _ Hstore Hwf Hf (values_typed_wf _ _ Hlb)).
   exists (frameView (codePosition index labels (S offset)) segments values locals),
     (frameConfig f (frameView (codePosition index labels (S offset)) segments values locals)
       (stackConfig z values (skipn (S offset) code))).
@@ -773,7 +765,7 @@ Proof.
         exact (Hcells _ _ Hv).
       * exact Hllen.
       * exact Hlb.
-      * intros index' value Hv. cbn [afterBoundary boundaryLocalsBase]. rewrite Hfbp', HstackMem. exact (Hlc _ _ Hv).
+      * intros index' value Hv. cbn [afterBoundary boundaryLocalsBase]. rewrite Hfbp'. eapply cell_matches_stack; [exact HstackMem | exact (Hlc _ _ Hv)].
     + assert (offset < length code)%nat by (apply nth_error_Some; rewrite Hi; discriminate). cbn. lia.
     + cbn [afterBoundary beforeBoundary boundarySP boundaryStackBase] in Hsp |- *. rewrite Hsp', Hbase'. exact Hsp.
     + cbn [afterBoundary boundaryPC]. rewrite Hnext, Hpc, (path_offset_step _ _ _ _ _ Hpath Hi).
@@ -852,7 +844,7 @@ Proof.
     as HidleAfter.
   (* SpecTec: the same choice. *)
   set (z := mk_state s (activeFrame f locals)).
-  assert (Hz : wf_state z) by exact (frame_state_wf _ _ _ _ _ Hstore Hwf Hf Hlb).
+  assert (Hz : wf_state z) by exact (frame_state_wf _ _ _ _ _ Hstore Hwf Hf (values_typed_wf _ _ Hlb)).
   pose proof (forall_skipn _ _ (S offset) _ Hwfcode) as Hwfrest.
   pose proof (if_steps z condition _ t e (skipn (S offset) code) Hz Hcond Hwif Hwfrest) as Hsteps.
   assert (Hlen : length segments = length labels)
@@ -914,8 +906,7 @@ Proof.
         * rewrite concat_app. cbn [concat]. rewrite !app_nil_r. exact Hcells1.
         * exact Hllen.
         * exact Hlb.
-        * intros index' value Hv. cbn [afterBoundary boundaryLocalsBase]. rewrite Hfbp, HstackMem.
-          exact (Hlc _ _ Hv).
+        * intros index' value Hv. cbn [afterBoundary boundaryLocalsBase]. rewrite Hfbp. eapply cell_matches_stack; [exact HstackMem | exact (Hlc _ _ Hv)].
       + cbn. lia.
       + unfold viewOperands. cbn [viewSegments viewValues]. rewrite concat_app. cbn [concat]. rewrite !app_nil_r.
         exact Hsp1.
@@ -961,8 +952,7 @@ Proof.
            ++ exact Hcells1.
            ++ exact Hllen.
            ++ exact Hlb.
-           ++ intros index' value Hv. cbn [afterBoundary boundaryLocalsBase]. rewrite Hfbp, HstackMem.
-              exact (Hlc _ _ Hv).
+           ++ intros index' value Hv. cbn [afterBoundary boundaryLocalsBase]. rewrite Hfbp. eapply cell_matches_stack; [exact HstackMem | exact (Hlc _ _ Hv)].
         -- assert (offset < length code)%nat by (apply nth_error_Some; rewrite Hi; discriminate). cbn. lia.
         -- unfold viewOperands. cbn [viewSegments viewValues]. exact Hsp1.
         -- cbn [afterBoundary boundaryPC]. rewrite Hnext, Hpc, (path_offset_step _ _ _ _ _ Hpath Hi),
@@ -1088,7 +1078,7 @@ Proof.
   destruct (quiet_control_row _ _ row _ _ chosen _ Hprime Hfull Hprogram Hhalt Hreplay Logic.eq_refl Hmarker Himage Hidle)
     as [Hnext [Hsp' [Hbase' [Hregs [Heffect [HstackMem HidleAfter]]]]]].
   set (z := mk_state s (activeFrame f locals)).
-  assert (Hz : wf_state z) by exact (frame_state_wf _ _ _ _ _ Hstore Hwf Hf Hlb).
+  assert (Hz : wf_state z) by exact (frame_state_wf _ _ _ _ _ Hstore Hwf Hf (values_typed_wf _ _ Hlb)).
   exists (frameView (codePosition index labels' (S (siteOffset s0))) segments' (segment ++ values) locals),
     (frameConfig f (frameView (codePosition index labels' (S (siteOffset s0))) segments' (segment ++ values) locals)
       (stackConfig z (segment ++ values) (skipn (S (siteOffset s0)) outer))).
@@ -1127,7 +1117,7 @@ Proof.
     + exact Hllen.
     + exact Hlb.
     + intros index' value Hv. cbn [afterBoundary boundaryLocalsBase]. destruct Hregs as [_ [_ Hfbp']].
-      rewrite Hfbp', HstackMem. exact (Hlc _ _ Hv).
+      rewrite Hfbp'. eapply cell_matches_stack; [exact HstackMem | exact (Hlc _ _ Hv)].
     + cbn [afterBoundary boundaryPC]. rewrite Hnext. reflexivity.
     + unfold initializationFlags. rewrite HmAfter, HzAfter, HmaAfter, HzaAfter. split; reflexivity.
     + exact HzAfter.

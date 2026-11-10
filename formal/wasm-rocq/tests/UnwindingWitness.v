@@ -75,7 +75,7 @@ Proof. split; [vm_compute; reflexivity | ]. apply callerRowb_sound. vm_compute. 
 Lemma unwinding_start_config :
   CircuitConfig unwindingProgram unwindingStore 0 (controlShape [] (siteCode (codePosition 0 [] 0)))
     unwindingMemory unwindingStart
-    (stackConfig (mk_state unwindingStore (activeFrame unwindingGuest [7; 0])) [] unwindingCode).
+    (stackConfig (mk_state unwindingStore (activeFrame unwindingGuest (map i32Value [7; 0]))) [] unwindingCode).
 Proof.
   apply (function_start_config unwindingProgram unwindingStore 0 unwindingGuest [7; 0] _ unwindingStart);
     try reflexivity; try (apply TableState.no_tables_loaded; reflexivity); try (cbn; lia).
@@ -90,7 +90,7 @@ Qed.
 (* The refinement's conclusion for this run. *)
 Example unwinding_witness_refines : fieldPrime ->
   exists shape c,
-    Steps (stackConfig (mk_state unwindingStore (activeFrame unwindingGuest [7; 0])) [] unwindingCode) c /\
+    Steps (stackConfig (mk_state unwindingStore (activeFrame unwindingGuest (map i32Value [7; 0]))) [] unwindingCode) c /\
     CircuitConfig unwindingProgram unwindingStore 0 shape (replayed unwindingMemory unwindingWitness)
       (rowsFinalBoundary unwindingStart unwindingWitness) c.
 Proof.

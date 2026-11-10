@@ -39,7 +39,7 @@ Definition exportSchedules (entryCount exitCount : Z) (ram : MemoryState) : Memo
     else ram memory address.
 Definition nopCompleteMemory := loadProgram nopProgram (exportSchedules 5 1 nopMemory).
 Lemma nop_complete_start : CircuitConfig nopProgram nopStore 0 entryShape nopCompleteMemory nopStart
-    (stackConfig (mk_state nopStore (activeFrame nopGuest [7])) [] nopCode).
+    (stackConfig (mk_state nopStore (activeFrame nopGuest (map i32Value [7]))) [] nopCode).
 Proof.
   apply (function_start_config nopProgram nopStore 0 nopGuest [7] _ nopStart); try reflexivity; try (apply TableState.no_tables_loaded; reflexivity); try (cbn; lia).
   - repeat constructor.
@@ -57,13 +57,13 @@ Proof. vm_compute. repeat first [split | left; reflexivity | right; repeat split
 
 Example nop_complete_refines : fieldPrime ->
   Steps (callContext (outerFrame nopModule) 1
-    (stackConfig (mk_state nopStore (activeFrame nopGuest [7])) [] nopCode))
+    (stackConfig (mk_state nopStore (activeFrame nopGuest (map i32Value [7]))) [] nopCode))
     (mk_config (mk_state nopStore (outerFrame nopModule)) [i32Constant 7]).
 Proof.
   intros Hprime.
   assert (Hstart : ActivationConfig nopProgram nopStore (outerFrame nopModule) 0 0 entryShape nopCompleteMemory nopStart
-      (callContext (outerFrame nopModule) 1 (stackConfig (mk_state nopStore (activeFrame nopGuest [7])) [] nopCode))).
-  { split; [reflexivity | ]. split; [repeat constructor | ]. split; [reflexivity | ]. exists nopGuest, (stackConfig (mk_state nopStore (activeFrame nopGuest [7])) [] nopCode).
+      (callContext (outerFrame nopModule) 1 (stackConfig (mk_state nopStore (activeFrame nopGuest (map i32Value [7]))) [] nopCode))).
+  { split; [reflexivity | ]. split; [repeat constructor | ]. split; [reflexivity | ]. exists nopGuest, (stackConfig (mk_state nopStore (activeFrame nopGuest (map i32Value [7]))) [] nopCode).
     split; [reflexivity | ]. split; [exact nop_complete_start | reflexivity]. }
   destruct (run_refinement _ _ _ _ _ _ _ _ _ _ _ Hprime (load_program_loaded _ _)
     (validRunb_sound _ _ nop_complete_valid) nop_complete_fragment Hstart)

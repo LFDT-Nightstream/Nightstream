@@ -99,7 +99,7 @@ Proof. split; [vm_compute; reflexivity | ]. apply callerRowb_sound. vm_compute. 
 
 Lemma return_start_config :
   CircuitConfig returnProgram returnStore 0 (controlShape [] (siteCode (codePosition 0 [] 0)))
-    returnMemory returnStart (stackConfig (mk_state returnStore (activeFrame mainGuest [7])) [] mainBody).
+    returnMemory returnStart (stackConfig (mk_state returnStore (activeFrame mainGuest (map i32Value [7]))) [] mainBody).
 Proof.
   apply (function_start_config returnProgram returnStore 0 mainGuest [7] _ returnStart);
     try reflexivity; try (apply TableState.no_tables_loaded; reflexivity); try (cbn; lia).
@@ -112,7 +112,7 @@ Qed.
 
 Example early_return_witness_refines : fieldPrime ->
   exists shape c,
-    Steps (stackConfig (mk_state returnStore (activeFrame mainGuest [7])) [] mainBody) c /\
+    Steps (stackConfig (mk_state returnStore (activeFrame mainGuest (map i32Value [7]))) [] mainBody) c /\
     CircuitConfig returnProgram returnStore 0 shape (replayed returnMemory returnWitness)
       (rowsFinalBoundary returnStart returnWitness) c.
 Proof.

@@ -128,7 +128,7 @@ impl ApplicationBuilder {
         });
     }
 
-    fn validate(&self, expression: &Affine, causal: bool) -> Result<(), ApplicationError> {
+    pub(super) fn validate(&self, expression: &Affine, causal: bool) -> Result<(), ApplicationError> {
         expression.expression.validate(
             self.variable_count,
             self.generated_start - 4..self.generated_start,

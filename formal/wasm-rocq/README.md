@@ -47,6 +47,21 @@ files check exported Rust traces against the refinement proofs. The traces
 
 ## Build
 
+`RomSharing.shared_rom_replay` is a separate bridge from shared ROM tables to
+logical memory replay. It permits ROM-read reordering while preserving the
+complete RAM event sequence, including prior values on read-modify-write events.
+Its premises require read-only ROMs, corresponding shared reads, equal initial
+RAM, and agreement of the two initial images at every active logical ROM read.
+Its conclusion supplies a logical replay with unchanged logical ROM and the same
+final RAM. Unused logical ROM cells need not equal the shared table's cells.
+
+This theorem does not prove the Rust table mapping or its ownership and opcode
+conditions. An application must establish `SharedTrace` and `ImagesAgree` for
+that mapping; physical slot compaction remains outside this event-level bridge.
+The instruction refinement theorem is unchanged. The bridge is included in
+`make audit`; `tests/RomSharing.v` checks disjoint sharing, reordered ROM reads,
+and rejection of a changed owned cell, reordered RAM, or an incorrect prior value.
+
 Requires the repository Rust toolchain (see `rust-toolchain.toml`), opam, and the
 checked versions of Coq/Rocq 9.0.1, MathComp ssreflect 2.4.0, and RecordUpdate 0.3.6:
 

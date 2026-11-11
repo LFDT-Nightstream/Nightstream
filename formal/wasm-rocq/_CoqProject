@@ -149,3 +149,5 @@ tests/MixedIndirectTrace.v
 tests/MixedWitness.v
 
 GateExclusions.v
+RomSharing.v
+tests/RomSharing.v

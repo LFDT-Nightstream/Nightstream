@@ -629,9 +629,9 @@ pub fn build_wasm_relation() -> Result<ApplicationRelation<WasmConstraintScope>,
             [],
         );
     });
-    // The control choice is part of the pc-ROM and slide-ROM keys. Only br_if, if
-    // and br_table choose an edge; every other row reads the edge at choice 0, so
-    // a dense ROM's padded entries are never reached.
+    // The pc-ROM and slide-ROM key is `pc_before + control_choice`. Only br_if, if
+    // and br_table choose an edge, and each of them owns the pcs of its choices;
+    // every other row reads the edge at its own pc.
     b.with_tag(always("control choice outside branches"), |b| {
         b.push_row(
             [
@@ -643,6 +643,13 @@ pub fn build_wasm_relation() -> Result<ApplicationRelation<WasmConstraintScope>,
             [(super::layout::COL_CONTROL_CHOICE, F::ONE)],
             [],
         );
+    });
+    b.with_tag(always("edge key"), |b| {
+        b.push_linear_zero([
+            (super::layout::COL_EDGE_ADDR, F::ONE),
+            (super::layout::COL_PC_BEFORE, -F::ONE),
+            (super::layout::COL_CONTROL_CHOICE, -F::ONE),
+        ]);
     });
     let columns = crate::witness_layout::range_checked_column_registry();
     let r1cs = builder.build(&columns).map_err(|error| error.to_string())?;

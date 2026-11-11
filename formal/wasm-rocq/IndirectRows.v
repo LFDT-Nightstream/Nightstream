@@ -296,8 +296,8 @@ Proof.
   pose proof (f_equal (@length _) HgrTypes) as Hgr. fold (guestResults g) in Hgr.
   destruct (split_top_values values (length params) ltac:(lia)) as [prefix [arguments [-> Hlen]]].
   (* The invocation opcode, its return edge, and the reference on top. *)
-  destruct (encoded_path_invoke _ _ _ _ Hloaded Hf _ _ _ _ _ Hpath Hi) as [Hop [_ HretRom]].
-  unfold pathPC in Hop, HretRom. rewrite <- Hpc in Hop, HretRom.
+  destruct (encoded_path_invoke _ _ _ _ Hloaded Hf _ _ _ _ _ Hpath Hi) as [Hop _].
+  unfold pathPC in Hop. rewrite <- Hpc in Hop.
   pose proof (circuit_row_opcode_fetch _ _ _ Hreplay Hprogram) as Hfetch.
   rewrite Hop in Hfetch. injection Hfetch as Hcode.
   assert (Hsel : row COL_SEL_CALL_INDIRECT = 1).
@@ -325,7 +325,7 @@ Proof.
   injection HtotalRead as HtotalValue. injection HentryRead as HentryValue.
   pose proof (full_guest_initialization_seed row Hprime Hfull Hprogram Hguest) as Hseed.
   destruct (full_call_frame_entry row Hprime Hfull Hguest Hpush Hpop Hprogram) as [HfbpAfter [HbaseAfter HdepthAfter]].
-  destruct (full_call_context_push row Hfull Hpush) as [HaddrPush [HsavedFbp [HsavedBase Hchoice]]].
+  destruct (full_call_context_push row Hprime Hfull Hpush) as [HaddrPush [HsavedFbp [HsavedBase HreturnPc]]].
   assert (Hin : In COL_SEL_CALL_INDIRECT selectorColumns) by (vm_compute; tauto).
   destruct (full_selected_no_host_switch row COL_SEL_CALL_INDIRECT Hprime Hfull Hin Hsel)
     as [Hsuspend [_ [_ [_ HcontextRead]]]].
@@ -348,8 +348,8 @@ Proof.
     ltac:(cbn; auto) Hpush Hsuspend HcontextRead Hreplay) as HsavedFbpMem.
   pose proof (context_push_records initial final row callStackCallerSpBaseId COL_CALL_STACK_CALLER_SP_BASE_VALUE
     ltac:(cbn; auto) Hpush Hsuspend HcontextRead Hreplay) as HsavedBaseMem.
-  pose proof (call_return_pc_read initial final row Hreplay Hpush) as HreturnRead.
-  rewrite Hchoice, HretRom in HreturnRead. injection HreturnRead as HreturnValue.
+  assert (HreturnValue : guestEntry f + Z.of_nat (pathOffset (guestBody f) labels offset) + 2 =
+      row COL_CALL_STACK_RETURN_PC_VALUE) by (rewrite HreturnPc, Hpc; lia).
   apply Forall_app in Hbounds. destruct Hbounds as [HsegBounds HvalBounds].
   apply Forall_app in HvalBounds. destruct HvalBounds as [HprefixBounds HargBounds].
   assert (HargTypes : valueTypes arguments = guestParamTypes g).

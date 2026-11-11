@@ -101,7 +101,6 @@ fn each_size_is_a_secure_geometry_whose_regions_fit_its_spaces() {
 fn the_starstream_test_transactions_fit_small_or_medium() {
     let need = |pc, function, event, linear_memory, global| WasmLimits {
         pc,
-        choice: 1,
         function,
         event,
         slot: 3,
@@ -128,7 +127,7 @@ fn the_starstream_test_transactions_fit_small_or_medium() {
 fn a_size_refuses_more_security_than_its_memory_gives() {
     use nightstream::error::ParamsError;
     use nightstream::nebula::Prover;
-    for (size, available) in [(WasmSize::Small, 112), (WasmSize::Medium, 111), (WasmSize::Large, 110)] {
+    for (size, available) in [(WasmSize::Small, 113), (WasmSize::Medium, 112), (WasmSize::Large, 111)] {
         let result = Prover::load(
             "no-circuit-file",
             size.geometry(),

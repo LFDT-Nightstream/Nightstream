@@ -102,35 +102,33 @@ Definition pcEntry (program : Program) (pc : Z) : Z :=
 Definition callAddress (f : funcinst) (index : idx) : option N :=
   nth_error (FUNCS (funcinst_MODULE f)) (N.to_nat (index :> N)).
 
-Definition instructionRom (program : Program) (memory : nat) (pc : Z) (choice : Z) : option Z :=
+(* The ROM word at an encoded address. The pc ROM holds the edge of choice 0 at
+   an instruction's own address and each later edge at its edge slot, so the key
+   of an edge is the instruction's address plus its choice. A call's return
+   address is not here: the circuit pins it to the next address. *)
+Definition instructionRom (program : Program) (memory : nat) (pc : Z) : option Z :=
   match instructionAtPC program pc with
   | None => None
   | Some (f, slot) =>
       if Nat.eqb memory pcRomId then
         match slot with
         | Some (flatInstruction (opInstr (CALL index)) _) =>
-            if choice =? 1 then Some (pc + 1) else if choice =? 0 then
-              option_map (fun address => functionEntry program (N.to_nat address)) (callAddress f index)
-            else None
-        | Some (flatInstruction (opInstr (BR_IF _)) [Some target]) =>
-            if choice =? 0 then Some (pc + 1) else if choice =? 1 then Some (pcEntry program pc + Z.of_nat target)
-            else None
-        | Some (flatInstruction (opInstr (IFELSE _ _ _)) [Some target]) =>
-            if choice =? 1 then Some (pc + 1) else if choice =? 0 then Some (pcEntry program pc + Z.of_nat target)
-            else None
-        | Some (flatInstruction (opInstr (BR _ | BR_TABLE _ _)) targets) | Some (flatInstruction opElse targets) =>
-            if choice <? 0 then None else
-            match nth_error targets (Z.to_nat choice) with
-            | Some (Some target) => Some (pcEntry program pc + Z.of_nat target)
+            option_map (fun address => functionEntry program (N.to_nat address)) (callAddress f index)
+        | Some (flatInstruction (opInstr (BR_IF _)) _) => Some (pc + 2)
+        | Some (flatInstruction (opInstr (IFELSE _ _ _ | BR _ | BR_TABLE _ _)) targets)
+        | Some (flatInstruction (opElse | opEdge _) targets) =>
+            match targets with
+            | Some target :: _ => Some (pcEntry program pc + Z.of_nat target)
             | _ => None
             end
         | Some (flatInstruction (opInstr (RETURN | UNREACHABLE)) _) => None
         (* The callee's entry comes from the function-entry ROM, not from here. *)
-        | Some (flatInstruction opInvoke _) => if choice =? 1 then Some (pc + 1) else None
-        | Some _ => if choice =? 0 then Some (pc + 1) else None
+        | Some (flatInstruction opInvoke _) => None
+        | Some _ => Some (pc + 1)
         | None => None end
       else if Nat.eqb memory programOpcodeId then
         match slot with
+        | Some (flatInstruction (opEdge _) _) => None
         | Some (flatInstruction (opInstr (CALL _)) _) => Some CODE_CALL
         | Some (flatInstruction (opInstr (BLOCK _ _)) _) => Some CODE_BLOCK
         | Some (flatInstruction (opInstr (LOOP _ _)) _) => Some CODE_LOOP
@@ -149,6 +147,7 @@ Definition instructionRom (program : Program) (memory : nat) (pc : Z) (choice : 
         | _ => Some CODE_END end
       else if Nat.eqb memory pcEdgeKindId then
         match slot with
+        | Some (flatInstruction (opEdge _) _) => None
         | Some (flatInstruction (opInstr RETURN) _) | Some (flatInstruction (opInstr (BR _)) [None]) | None => Some 1
         | Some (flatInstruction (opInstr UNREACHABLE) _) => Some 3
         | Some (flatInstruction opInvoke _) => Some 2
@@ -228,11 +227,13 @@ Fixpoint instructionContexts (callees : CalleeEnvironment) (heights arities : li
   | BLOCK _ body | LOOP _ body =>
       None :: bodyContexts innerHeights (labelArity i :: arities) body entered ++ [None]
   | IFELSE _ t e =>
-      None :: bodyContexts innerHeights (labelArity i :: arities) t entered ++
+      None :: None :: bodyContexts innerHeights (labelArity i :: arities) t entered ++
         match e with [] => [] | _ => None :: bodyContexts innerHeights (labelArity i :: arities) e entered end ++
         [None]
   | CALL_INDIRECT _ _ => [option_map (fun h => (heights, arities, h)) height; None]
-  | _ => [option_map (fun h => (heights, arities, h)) height]
+  (* An edge slot has the context of its branch. *)
+  | _ => option_map (fun h => (heights, arities, h)) height ::
+      map (fun _ => option_map (fun h => (heights, arities, h)) height) (edgeLabels i)
   end.
 
 (* A function body runs inside its own label, which holds the results. *)
@@ -254,8 +255,9 @@ Definition slideWord (remaining : bool) (kept distance : nat) : Z :=
    slide: f's END and returns drop its locals too; a br, a br_if's taken edge and
    each br_table edge slide within the frame. A return is the branch to the
    function's own label, the outermost one, and a br to that label is a return.
-   Other slots have none. *)
-Definition functionSlide (program : Program) (memory : nat) (f : GuestFunction) (offset : nat) (choice : Z)
+   A br_if's own slot is its fall-through, which slides nothing; a br_table's is
+   its default. Each later edge is at its edge slot. Other slots have none. *)
+Definition functionSlide (program : Program) (memory : nat) (f : GuestFunction) (offset : nat)
     : option Z :=
   let frame := (guestParams f + guestLocals f)%nat in
   let remaining := Nat.eqb memory frameSlideRemainingId in
@@ -263,35 +265,30 @@ Definition functionSlide (program : Program) (memory : nat) (f : GuestFunction) 
     option_map (fun kept_dropped => slideWord remaining (fst kept_dropped) (base + snd kept_dropped)) slide in
   let contexts := codeContexts (programCallees program (guestModule f)) (guestResults f) (guestBody f) (Some 0%nat) in
   match nth_error (flattenCode (guestBody f)) offset, nth_error contexts offset with
-  | None, _ => if choice =? 0 then Some (slideWord remaining (guestResults f) frame) else None
+  | None, _ => Some (slideWord remaining (guestResults f) frame)
   | Some (flatInstruction (opInstr i) _), Some (Some (heights, arities, h)) =>
       match i with
-      | RETURN => if choice =? 0 then word frame (labelSlide heights arities h (length arities - 1)) else None
+      | RETURN => word frame (labelSlide heights arities h (length arities - 1))
       | BR l =>
           let frameDrop := if Nat.eqb (N.to_nat (l :> N)) (length arities - 1) then frame else 0%nat in
-          if choice =? 0 then word frameDrop (labelSlide heights arities h (N.to_nat (l :> N))) else None
-      | BR_IF l =>
-          if choice =? 0 then Some 0
-          else if choice =? 1 then word 0%nat (branchSlide heights arities h (N.to_nat (l :> N))) else None
-      | BR_TABLE ls l =>
-          if choice <? 0 then None else
-          match nth_error (l :: ls) (Z.to_nat choice) with
-          | Some target => word 0%nat (branchSlide heights arities h (N.to_nat (target :> N)))
-          | None => None
-          end
+          word frameDrop (labelSlide heights arities h (N.to_nat (l :> N)))
+      | BR_IF _ => Some 0
+      | BR_TABLE _ l => word 0%nat (branchSlide heights arities h (N.to_nat (l :> N)))
       | _ => None
       end
+  | Some (flatInstruction (opEdge (Some l)) _), Some (Some (heights, arities, h)) =>
+      word 0%nat (branchSlide heights arities h (N.to_nat (l :> N)))
   | _, _ => None
   end.
 
-Definition slideRom (program : Program) (memory : nat) (pc choice : Z) : option Z :=
+Definition slideRom (program : Program) (memory : nat) (pc : Z) : option Z :=
   if pc <? 0 then None else
   match locatePC program (Z.to_nat pc) with
   | None => None
   | Some (function, offset) =>
       match functionAt program function with
       | None => None
-      | Some f => functionSlide program memory f offset choice
+      | Some f => functionSlide program memory f offset
       end
   end.
 
@@ -301,20 +298,21 @@ Definition programRomIds := [programOpcodeId; programLocalIndexId; programTableI
 
 Definition encodeProgram (program : Program) : MemoryState := fun memory address =>
   match address with
-  | [pc; choice] =>
-      if Nat.eqb memory pcRomId then instructionRom program memory pc choice
-      else if Nat.eqb memory frameSlideRemainingId || Nat.eqb memory frameSlideDistanceId then
-        slideRom program memory pc choice
-      else None
   | [key] =>
-      if Nat.eqb memory pcRomId then None else
-      if Nat.eqb memory pcFunctionRefId then
-        if key <? 0 then None else
-        option_map (fun location => Z.of_nat (fst location + 1)) (locatePC program (Z.to_nat key))
+      if Nat.eqb memory frameSlideRemainingId || Nat.eqb memory frameSlideDistanceId then
+        slideRom program memory key
+      else if Nat.eqb memory pcFunctionRefId then
+        (* An edge slot is no instruction, so it names no function. *)
+        match instructionAtPC program key with
+        | Some (_, Some (flatInstruction (opEdge _) _)) => None
+        | _ =>
+            if key <? 0 then None else
+            option_map (fun location => Z.of_nat (fst location + 1)) (locatePC program (Z.to_nat key))
+        end
       else if Nat.eqb memory functionEntryId || Nat.eqb memory functionTypeId || Nat.eqb memory functionLocalCountId ||
         Nat.eqb memory functionCallMetadataId
         then functionRom program memory key
-      else instructionRom program memory key 0
+      else instructionRom program memory key
   | _ => None
   end.
 

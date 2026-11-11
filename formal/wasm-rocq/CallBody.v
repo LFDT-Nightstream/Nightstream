@@ -16,7 +16,7 @@ Proof.
   pose proof (circuit_row_edge_kind_fetch _ _ _ Hreplay Hprogram) as Hfetch.
   rewrite Hkind in Hfetch.
   pose proof (full_static_pc_rom_active w Hprime Hfull Hprogram ltac:(congruence)) as Hactive.
-  pose proof (circuit_row_next_pc_fetch _ _ _ Hreplay Hactive) as Hread.
+  pose proof (circuit_row_next_pc_fetch _ _ _ Hprime Hfull Hreplay Hactive) as Hread.
   (* A straight-line opcode never chooses an edge. *)
   pose proof (circuit_row_opcode_fetch _ _ _ Hreplay Hprogram) as Hcode. rewrite Hop in Hcode.
   assert (Hchoice : w COL_CONTROL_CHOICE = 0).
@@ -33,5 +33,5 @@ Proof.
     - apply (full_selected_choice_pinned w COL_SEL_LOCAL_SET Hprime Hfull ltac:(vm_compute; tauto)
         (full_opcode_selects w COL_SEL_LOCAL_SET CODE_LOCAL_SET Hprime Hfull Hprogram ltac:(vm_compute; reflexivity) Hc)
         ltac:(vm_compute; intuition discriminate)). }
-  rewrite Hnext, Hchoice in Hread. injection Hread as Hread. exact (eq_sym Hread).
+  rewrite Hchoice, Z.add_0_r, Hnext in Hread. injection Hread as Hread. exact (eq_sym Hread).
 Qed.

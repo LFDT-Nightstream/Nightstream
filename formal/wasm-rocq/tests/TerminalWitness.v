@@ -31,10 +31,10 @@ Qed.
 (* The terminal row also checks the host schedule of export reference 1. *)
 Definition exportSchedules (entryCount exitCount : Z) (ram : MemoryState) : MemoryState :=
   fun memory address =>
-    if Nat.eqb memory exportEntryScheduleCountId then
-      match address with [1] => Some entryCount | _ => None end
-    else if Nat.eqb memory exportExitScheduleCountId then
-      match address with [1] => Some exitCount | _ => None end
+    if Nat.eqb memory exportScheduleCountId then
+      match address with [1] => Some (entryCount + 65536 * exitCount) | _ => None end
+    else if Nat.eqb memory hostEventBaseId then
+      match address with [1] => Some 0 | _ => None end
     else ram memory address.
 Definition nopCompleteMemory := loadProgram nopProgram (exportSchedules 5 1 nopMemory).
 Lemma nop_complete_start : CircuitConfig nopProgram nopStore 0 entryShape nopCompleteMemory nopStart

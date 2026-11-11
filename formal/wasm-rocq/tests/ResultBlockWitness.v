@@ -127,7 +127,7 @@ Qed.
 Example result_branch_slides :
   let branch_row := nth 5 resultWitness (rowWitness []) in
   let move_row := nth 6 resultWitness (rowWitness []) in
-  branch_row COL_SEL_BR_IF_EQZ = 1 /\ branch_row COL_PC_BEFORE = 5 /\ branch_row COL_PC_AFTER = 8 /\
+  branch_row COL_SEL_BR_IF_EQZ = 1 /\ branch_row COL_PC_BEFORE = 5 /\ branch_row COL_PC_AFTER = 9 /\
   branch_row COL_SP_BEFORE = 5 /\ branch_row COL_SP_AFTER = 3 /\
   branch_row (List.nth 0 COL_STACK_READ_VALUE_LO 0%nat) = 7 /\
   branch_row COL_FRAME_MOVE_REMAINING_AFTER = 1 /\ branch_row COL_FRAME_MOVE_DISTANCE_AFTER = 1 /\

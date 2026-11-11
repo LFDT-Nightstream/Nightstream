@@ -23,10 +23,9 @@ Definition blockGuest (address : N) (body : list instr) (entry : Z) :=
 Example block_call_layout :
   functionEntry blockProgram 1 = 2 /\
   encodeProgram blockProgram programOpcodeId [4] = Some CODE_CALL /\
-  encodeProgram blockProgram pcRomId [4; 1] = Some 5 /\
   encodeProgram blockProgram programOpcodeId [6] = Some CODE_END /\
-  encodeProgram blockProgram pcRomId [6; 0] = Some 7 /\
-  encodeProgram blockProgram pcRomId [7; 0] = Some 8 /\
+  encodeProgram blockProgram pcRomId [6] = Some 7 /\
+  encodeProgram blockProgram pcRomId [7] = Some 8 /\
   encodeProgram blockProgram pcEdgeKindId [9] = Some 1.
 Proof. repeat split; reflexivity. Qed.
 

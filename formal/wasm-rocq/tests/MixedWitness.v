@@ -58,8 +58,9 @@ Qed.
 Definition argumentMemory (condition : Z) : MemoryState := fun id address =>
   if Nat.eqb id stackId then
     match address with [0] | [1] => Some 4294967295 | [2] => Some condition | [3] | [4] | [5] => Some 0 | _ => None end
-  else if Nat.eqb id exportEntryScheduleCountId then match address with [1] => Some 9 | _ => None end
-  else if Nat.eqb id exportExitScheduleCountId then match address with [1] => Some 1 | _ => None end
+  (* One word: the entry count plus one, and 65536 times the exit count. *)
+  else if Nat.eqb id exportScheduleCountId then match address with [1] => Some 65545 | _ => None end
+  else if Nat.eqb id hostEventBaseId then match address with [1] => Some 0 | _ => None end
   else None.
 
 Module Calls.

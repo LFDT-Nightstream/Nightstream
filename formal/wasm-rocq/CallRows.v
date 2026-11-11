@@ -324,7 +324,7 @@ Proof.
     as [Hsuspend [_ [_ [_ HcontextRead]]]].
   destruct (full_call_frame_entry row Hprime Hfull Hguest Hpush Hpop Hprogram) as [HfbpAfter [_ HdepthAfter]].
   destruct (full_direct_guest_call_stack row Hprime Hfull HcallSel Htarget) as [_ [_ HspAfter]].
-  destruct (full_call_context_push row Hfull Hpush) as [Haddr [HsavedFbp [HsavedBase Hchoice]]].
+  destruct (full_call_context_push row Hprime Hfull Hpush) as [Haddr [HsavedFbp [HsavedBase HreturnPc]]].
   pose proof (no_stack_writes_preserve _ _ _ Hreplay
     (full_call_return_no_stack_writes row COL_SEL_CALL Hprime Hfull (or_introl Logic.eq_refl) HcallSel)) as HcallStack.
   (* A call seeds no frame move. *)
@@ -344,9 +344,11 @@ Proof.
     ltac:(cbn; auto) Hpush Hsuspend HcontextRead Hreplay) as HsavedFbpMem.
   pose proof (context_push_records initial final row callStackCallerSpBaseId COL_CALL_STACK_CALLER_SP_BASE_VALUE
     ltac:(cbn; auto) Hpush Hsuspend HcontextRead Hreplay) as HsavedBaseMem.
-  pose proof (call_return_pc_read initial final row Hreplay Hpush) as HreturnRead.
   destruct Himage as [Haddress [Hfunction [_ [_ [HreturnImage _]]]]].
-  rewrite Hchoice, HreturnImage in HreturnRead. injection HreturnRead as HreturnValue.
+  match type of HreturnImage with ?returnPC = _ =>
+    assert (HreturnValue : returnPC = row COL_CALL_STACK_RETURN_PC_VALUE)
+      by (rewrite HreturnPc; first [reflexivity | lia | congruence])
+  end.
   (* SpecTec enters the callee. *)
   pose proof (program_callee_validates program s (guestModule f) (x :> N) callee (proj1 Hvalid) Hcallee) as Hinst.
   assert (Hfuncwf : wf_funcinst (typedFunction (guestModule callee) (guestTypeIndex callee)
@@ -528,11 +530,11 @@ Proof.
   { rewrite (full_frame_slide_gate row Hprime Hfull), Hpop.
     repeat rewrite (full_opcode_selector_exclusive row COL_SEL_END) by (assumption || vm_compute; tauto || discriminate).
     reflexivity. }
-  destruct (circuit_row_slide_fetch _ _ _ Hreplay Hslide) as [Hremaining Hdistance].
-  destruct (encoded_end_slide _ _ _ _ (row COL_CONTROL_CHOICE) Hloaded Hf) as [Hrom Hdrom].
-  rewrite <- Hpc in Hrom, Hdrom. rewrite Hremaining in Hrom. rewrite Hdistance in Hdrom.
+  destruct (circuit_row_slide_fetch _ _ _ Hprime Hfull Hreplay Hslide) as [Hremaining Hdistance].
   rewrite (full_selected_choice_pinned row COL_SEL_END Hprime Hfull ltac:(vm_compute; tauto) HselEnd
-    ltac:(vm_compute; intuition discriminate)) in Hrom, Hdrom.
+    ltac:(vm_compute; intuition discriminate)), Z.add_0_r in Hremaining, Hdistance.
+  destruct (encoded_end_slide _ _ _ _ Hloaded Hf) as [Hrom Hdrom].
+  rewrite <- Hpc in Hrom, Hdrom. rewrite Hremaining in Hrom. rewrite Hdistance in Hdrom.
   unfold frameLocals. injection Hrom as ->. injection Hdrom as ->. split; reflexivity.
 Qed.
 
@@ -993,16 +995,16 @@ Proof.
   { rewrite (full_frame_slide_gate row Hprime Hfull), Hpop.
     repeat rewrite (full_opcode_selector_exclusive row COL_SEL_RETURN) by
       (assumption || vm_compute; tauto || discriminate). reflexivity. }
-  destruct (circuit_row_slide_fetch _ _ _ Hreplay Hslide) as [Hremaining Hdistance].
-  destruct (encoded_return_slide _ _ _ _ _ _ _ _ _ _ (row COL_CONTROL_CHOICE) Hloaded Hf Hpath Hi Hreturn Hheights)
+  destruct (circuit_row_slide_fetch _ _ _ Hprime Hfull Hreplay Hslide) as [Hremaining Hdistance].
+  rewrite (full_selected_choice_pinned row COL_SEL_RETURN Hprime Hfull ltac:(vm_compute; tauto) Hsel
+    ltac:(vm_compute; intuition discriminate)), Z.add_0_r in Hremaining, Hdistance.
+  destruct (encoded_return_slide _ _ _ _ _ _ _ _ _ _ Hloaded Hf Hpath Hi Hreturn Hheights)
     as [Hkept Hrom].
   rewrite <- Hpc, Hremaining in Hkept. rewrite <- Hpc, Hdistance in Hrom.
   rewrite Nat.add_0_r, Htotal in Hkept, Hrom.
-  rewrite (full_selected_choice_pinned row COL_SEL_RETURN Hprime Hfull ltac:(vm_compute; tauto) Hsel
-    ltac:(vm_compute; intuition discriminate)) in Hkept, Hrom.
   match type of Hkept with context [Nat.leb ?r ?t] => assert (Hfits : (r <= t)%nat) end.
   { lia. }
-  rewrite (proj2 (Nat.leb_le _ _) Hfits) in Hkept, Hrom. change ((0 =? 0)%Z && true) with true in Hkept, Hrom.
+  rewrite (proj2 (Nat.leb_le _ _) Hfits) in Hkept, Hrom.
   cbn iota in Hkept, Hrom.
   injection Hkept as HremRom. injection Hrom as HdistRom.
   unfold viewOperands in Hfits, HremRom, HdistRom, Hbounds, Hcells, Hsp, Hsplit. cbn [viewSegments viewValues] in *.

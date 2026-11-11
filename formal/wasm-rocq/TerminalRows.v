@@ -30,7 +30,7 @@ Proof.
     destruct Hstate as [f' [g [i [Hframe [Hi [Hind [_ [_ [_ [_ [Hpc _]]]]]]]]]]].
     pose proof Hframe as [Hf' [Hpath _]]. rewrite Hf in Hf'. injection Hf' as <-.
     destruct i; try discriminate Hind.
-    destruct (encoded_path_invoke _ _ _ _ Hloaded Hf _ _ _ _ _ Hpath Hi) as [Hop [Hkind _]].
+    destruct (encoded_path_invoke _ _ _ _ Hloaded Hf _ _ _ _ _ Hpath Hi) as [Hop Hkind].
     unfold pathPC in Hop, Hkind. cbn [beforeBoundary boundaryPC] in Hpc. rewrite <- Hpc in Hop, Hkind.
     pose proof (circuit_row_opcode_fetch _ _ _ Hreplay Hprogram) as Hfetch.
     rewrite Hop in Hfetch. injection Hfetch as Hcode.

@@ -55,7 +55,7 @@ Definition COL_CALL_STACK_CALLER_SP_BASE_VALUE : nat := 46%nat.
 Definition COL_CALL_STACK_DEPTH_BEFORE : nat := 47%nat.
 Definition COL_CALL_STACK_DEPTH_AFTER : nat := 48%nat.
 Definition COL_CALL_STACK_ADDR : nat := 49%nat.
-Definition COL_PC_ROM_CALL_RETURN_CHOICE : nat := 50%nat.
+Definition COL_EDGE_ADDR : nat := 50%nat.
 Definition COL_CURRENT_FUNCTION_REF : nat := 51%nat.
 Definition COL_ENTERED_FUNCTION_NUM_LOCALS : nat := 52%nat.
 Definition COL_STACK_READS : nat := 53%nat.
@@ -395,36 +395,37 @@ Definition COL_HOST_EVENT_SLOT_VARIANT : nat := 445%nat.
 Definition COL_HOST_EVENT_SLOT_IMMEDIATE0 : nat := 446%nat.
 Definition COL_HOST_EVENT_SLOT_IMMEDIATE1 : nat := 447%nat.
 Definition COL_HOST_EVENT_INITIAL_SCHEDULE_COUNT : nat := 448%nat.
-Definition COL_HOST_EVENT_EXIT_SCHEDULE_COUNT : nat := 449%nat.
-Definition COL_GATHER_LOCAL_WRITE : nat := 450%nat.
-Definition COL_GATHER_LOCAL_WRITE_LO : nat := 451%nat.
-Definition COL_HOST_EVENT_EXIT_LATCH : nat := 452%nat.
-Definition COL_TURN_BOUNDARY : nat := 453%nat.
-Definition COL_PC_FREF_ACTIVE : nat := 454%nat.
-Definition COL_CI_HOST_CALL : nat := 455%nat.
-Definition ABSORB : nat := 456%nat.
-Definition ABSORB_PREVIOUS : list nat := [457%nat; 458%nat; 459%nat; 460%nat].
-Definition ABSORB_OUTPUT : list nat := [461%nat; 462%nat; 463%nat; 464%nat].
-Definition ABSORB_PERMUTATION : list nat := seq 465%nat 712%nat.
-Definition GATHER_WORD_POSITION : list nat := [1177%nat; 1178%nat; 1179%nat; 1180%nat; 1181%nat; 1182%nat; 1183%nat; 1184%nat].
-Definition GATHER_KIND : list nat := [1185%nat; 1186%nat; 1187%nat; 1188%nat; 1189%nat; 1190%nat; 1191%nat; 1192%nat; 1193%nat; 1194%nat].
-Definition GARG_VAL : nat := 1195%nat.
-Definition GOUT_VAL : nat := 1196%nat.
-Definition GSLOT_VALUE : nat := 1197%nat.
-Definition GK2_HI : nat := 1198%nat.
-Definition GHC_PARAMS : nat := 1199%nat.
-Definition G_ADVICE : nat := 1200%nat.
-Definition GMEM_LOCAL : nat := 1201%nat.
-Definition GMEM_OUTPUT : nat := 1202%nat.
-Definition GMEM_BYTE : nat := 1203%nat.
-Definition GMEM_HALF : nat := 1204%nat.
-Definition TURN_SCHEDULE_COUNT_INV : nat := 1205%nat.
-Definition OBJECT_ROOT_LANE : list nat := [1206%nat; 1207%nat; 1208%nat; 1209%nat].
-Definition OBJECT_SAVED_LANE : list nat := [1210%nat; 1211%nat; 1212%nat; 1213%nat].
-Definition RANGE_BITS : list nat := seq 1214%nat 3191%nat.
+Definition COL_HOST_EVENT_BASE : nat := 449%nat.
+Definition COL_HOST_EVENT_EXIT_SCHEDULE_COUNT : nat := 450%nat.
+Definition COL_GATHER_LOCAL_WRITE : nat := 451%nat.
+Definition COL_GATHER_LOCAL_WRITE_LO : nat := 452%nat.
+Definition COL_HOST_EVENT_EXIT_LATCH : nat := 453%nat.
+Definition COL_TURN_BOUNDARY : nat := 454%nat.
+Definition COL_PC_FREF_ACTIVE : nat := 455%nat.
+Definition COL_CI_HOST_CALL : nat := 456%nat.
+Definition ABSORB : nat := 457%nat.
+Definition ABSORB_PREVIOUS : list nat := [458%nat; 459%nat; 460%nat; 461%nat].
+Definition ABSORB_OUTPUT : list nat := [462%nat; 463%nat; 464%nat; 465%nat].
+Definition ABSORB_PERMUTATION : list nat := seq 466%nat 712%nat.
+Definition GATHER_WORD_POSITION : list nat := [1178%nat; 1179%nat; 1180%nat; 1181%nat; 1182%nat; 1183%nat; 1184%nat; 1185%nat].
+Definition GATHER_KIND : list nat := [1186%nat; 1187%nat; 1188%nat; 1189%nat; 1190%nat; 1191%nat; 1192%nat; 1193%nat; 1194%nat; 1195%nat].
+Definition GARG_VAL : nat := 1196%nat.
+Definition GOUT_VAL : nat := 1197%nat.
+Definition GSLOT_VALUE : nat := 1198%nat.
+Definition GK2_HI : nat := 1199%nat.
+Definition GHC_PARAMS : nat := 1200%nat.
+Definition G_ADVICE : nat := 1201%nat.
+Definition GMEM_LOCAL : nat := 1202%nat.
+Definition GMEM_OUTPUT : nat := 1203%nat.
+Definition GMEM_BYTE : nat := 1204%nat.
+Definition GMEM_HALF : nat := 1205%nat.
+Definition TURN_SCHEDULE_COUNT_INV : nat := 1206%nat.
+Definition OBJECT_ROOT_LANE : list nat := [1207%nat; 1208%nat; 1209%nat; 1210%nat].
+Definition OBJECT_SAVED_LANE : list nat := [1211%nat; 1212%nat; 1213%nat; 1214%nat].
+Definition RANGE_BITS : list nat := seq 1215%nat 3223%nat.
 
-Definition namedColumnCount : nat := 456%nat.
-Definition columnCount : nat := 4405%nat.
+Definition namedColumnCount : nat := 457%nat.
+Definition columnCount : nat := 4438%nat.
 
 Definition families : list Family :=
   [(0%nat, 1%nat, Field);
@@ -817,30 +818,31 @@ Definition families : list Family :=
    (446%nat, 1%nat, Field);
    (447%nat, 1%nat, Field);
    (448%nat, 1%nat, Field);
-   (449%nat, 1%nat, Field);
-   (450%nat, 1%nat, Boolean);
+   (449%nat, 1%nat, U32);
+   (450%nat, 1%nat, Field);
    (451%nat, 1%nat, Boolean);
    (452%nat, 1%nat, Boolean);
    (453%nat, 1%nat, Boolean);
    (454%nat, 1%nat, Boolean);
    (455%nat, 1%nat, Boolean);
    (456%nat, 1%nat, Boolean);
-   (457%nat, 4%nat, Field);
-   (461%nat, 4%nat, Field);
-   (465%nat, 712%nat, Field);
-   (1177%nat, 8%nat, Boolean);
-   (1185%nat, 10%nat, Boolean);
-   (1195%nat, 1%nat, Field);
+   (457%nat, 1%nat, Boolean);
+   (458%nat, 4%nat, Field);
+   (462%nat, 4%nat, Field);
+   (466%nat, 712%nat, Field);
+   (1178%nat, 8%nat, Boolean);
+   (1186%nat, 10%nat, Boolean);
    (1196%nat, 1%nat, Field);
    (1197%nat, 1%nat, Field);
-   (1198%nat, 1%nat, Boolean);
-   (1199%nat, 1%nat, Field);
-   (1200%nat, 1%nat, Boolean);
+   (1198%nat, 1%nat, Field);
+   (1199%nat, 1%nat, Boolean);
+   (1200%nat, 1%nat, Field);
    (1201%nat, 1%nat, Boolean);
    (1202%nat, 1%nat, Boolean);
    (1203%nat, 1%nat, Boolean);
    (1204%nat, 1%nat, Boolean);
-   (1205%nat, 1%nat, Field);
-   (1206%nat, 4%nat, Boolean);
-   (1210%nat, 4%nat, Boolean);
-   (1214%nat, 3191%nat, Boolean)].
+   (1205%nat, 1%nat, Boolean);
+   (1206%nat, 1%nat, Field);
+   (1207%nat, 4%nat, Boolean);
+   (1211%nat, 4%nat, Boolean);
+   (1215%nat, 3223%nat, Boolean)].

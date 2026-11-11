@@ -215,7 +215,7 @@ fn push_interface_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
 
 /// Host-event gather binding: each gather row stages exactly one block word,
 /// whose value is pinned by the host-event ROM entry at
-/// `(fref, event_index, slot_cursor)` — a flat value, runtime input, or aligned
+/// `(event_index, slot_cursor)` — a flat value, runtime input, or aligned
 /// linear-memory access — and the per-call
 /// event schedule is forced by ROM-loaded countdowns. This closes the
 /// stage-B gap: with these rows, the commitment chain commits exactly the event
@@ -229,8 +229,9 @@ fn push_host_event_gather_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
         COL_HOST_EVENTS_REMAINING_BEFORE as EVENTS_REMAINING_BEFORE,
         COL_HOST_EVENTS_REMAINING_BEFORE_IS_ZERO as EVENTS_REMAINING_IS_ZERO,
         COL_HOST_EVENT_ARGS_BASE_AFTER as ARGS_BASE_AFTER, COL_HOST_EVENT_ARGS_BASE_BEFORE as ARGS_BASE_BEFORE,
-        COL_HOST_EVENT_EXIT_LATCH, COL_HOST_EVENT_EXIT_SCHEDULE_COUNT as EXIT_SCHEDULE_COUNT,
-        COL_HOST_EVENT_INDEX_AFTER as EVENT_INDEX_AFTER, COL_HOST_EVENT_INDEX_BEFORE as EVENT_INDEX_BEFORE,
+        COL_HOST_EVENT_BASE as EVENT_BASE, COL_HOST_EVENT_EXIT_LATCH,
+        COL_HOST_EVENT_EXIT_SCHEDULE_COUNT as EXIT_SCHEDULE_COUNT, COL_HOST_EVENT_INDEX_AFTER as EVENT_INDEX_AFTER,
+        COL_HOST_EVENT_INDEX_BEFORE as EVENT_INDEX_BEFORE,
         COL_HOST_EVENT_INITIAL_SCHEDULE_COUNT as INITIAL_SCHEDULE_COUNT, COL_HOST_EVENT_SLOT_ARG as SLOT_ARG,
         COL_HOST_EVENT_SLOT_CURSOR_AFTER as SLOT_CURSOR_AFTER, COL_HOST_EVENT_SLOT_CURSOR_BEFORE as SLOT_CURSOR_BEFORE,
         COL_HOST_EVENT_SLOT_IMMEDIATE0 as SLOT_IMMEDIATE0, COL_HOST_EVENT_SLOT_IMMEDIATE1 as SLOT_IMMEDIATE1,
@@ -339,8 +340,13 @@ fn push_host_event_gather_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
             [(COL_TURN_BOUNDARY, F::ONE)],
         );
 
-        // Event index: the ROM key component walking the template.
-        b.push_row([(HOST_CALL_ACTIVE, F::ONE)], [(EVENT_INDEX_AFTER, F::ONE)], []);
+        // Event index: the ROM key component walking the template, from the
+        // template's first event row.
+        b.push_row(
+            [(HOST_CALL_ACTIVE, F::ONE)],
+            [(EVENT_INDEX_AFTER, F::ONE), (EVENT_BASE, -F::ONE)],
+            [],
+        );
         b.push_row(
             [(GATHER_WORD_POSITION[7], F::ONE), (GK_ENTER, F::ONE)],
             [
@@ -363,8 +369,13 @@ fn push_host_event_gather_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
             [(EVENT_INDEX_AFTER, F::ONE), (EVENT_INDEX_BEFORE, -F::ONE)],
             [],
         );
-        // Turn boundary: entry events of the next turn are numbered from 0.
-        b.push_row([(COL_TURN_BOUNDARY, F::ONE)], [(EVENT_INDEX_AFTER, F::ONE)], []);
+        // Turn boundary: entry events of the next turn are numbered from the
+        // first event row of the entered export's template.
+        b.push_row(
+            [(COL_TURN_BOUNDARY, F::ONE)],
+            [(EVENT_INDEX_AFTER, F::ONE), (EVENT_BASE, -F::ONE)],
+            [],
+        );
 
         // Argument-region base: latched on the host-call row from bound
         // quantities (sp, the indirect-index pop, the ROM-bound arity).
@@ -795,6 +806,7 @@ fn push_host_event_gather_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
             [(COL_HOST_EVENT_EXIT_LATCH, F::ONE)],
             [
                 (EVENT_INDEX_AFTER, F::ONE),
+                (EVENT_BASE, -F::ONE),
                 (INITIAL_SCHEDULE_COUNT, -F::ONE),
                 (COL_ONE, F::ONE),
             ],

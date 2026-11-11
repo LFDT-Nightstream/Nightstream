@@ -18,8 +18,8 @@ pub enum WasmMemoryId {
     FrameSlideRemaining,
     GlobalLo,
     GlobalHi,
-    HostEventExportEntryScheduleCount,
-    HostEventExportExitScheduleCount,
+    HostEventBase,
+    HostEventExportScheduleCount,
     HostEventImportScheduleCount,
     HostEventSlotArg,
     HostEventSlotImmediate1,
@@ -35,6 +35,10 @@ pub enum WasmMemoryId {
     ProgramI32ConstValue,
     ProgramI64ConstValueHi,
     ProgramI64ConstValueLo,
+    /// Table of the pc-keyed immediates that no two ports read at one pc.
+    ProgramImmediate,
+    /// Table of the second immediate of an instruction that has two.
+    ProgramImmediateHi,
     ProgramLocalIndex,
     ProgramMemoryOffset,
     ProgramOpcode,
@@ -47,6 +51,26 @@ pub enum WasmMemoryId {
 }
 
 impl WasmMemoryId {
+    /// The table that holds this memory. Memories of one table have the same
+    /// key and never own the same cell (`memory_semantics::table_preload`
+    /// checks this for each program), so the catalog gives their ports to one
+    /// memory. Each other memory is its own table.
+    pub const fn table(self) -> Self {
+        match self {
+            Self::ProgramLocalIndex
+            | Self::ProgramGlobalIndex
+            | Self::ProgramTableId
+            | Self::ProgramMemoryOffset
+            | Self::ProgramI32ConstValue
+            | Self::ProgramI64ConstValueLo
+            | Self::ProgramRefFuncRef
+            | Self::ProgramBrTableLen
+            | Self::CallTarget => Self::ProgramImmediate,
+            Self::ProgramCallIndirectExpectedTypeId | Self::ProgramI64ConstValueHi => Self::ProgramImmediateHi,
+            memory => memory,
+        }
+    }
+
     pub const fn name(self) -> &'static str {
         match self {
             Self::CallStackCallerFbp => "call_stack_caller_fbp",
@@ -66,8 +90,8 @@ impl WasmMemoryId {
             Self::FrameSlideRemaining => "frame_slide_remaining",
             Self::GlobalLo => "global",
             Self::GlobalHi => "global_hi",
-            Self::HostEventExportEntryScheduleCount => "host_event_export_entry_schedule_count",
-            Self::HostEventExportExitScheduleCount => "host_event_export_exit_schedule_count",
+            Self::HostEventBase => "host_event_base",
+            Self::HostEventExportScheduleCount => "host_event_export_schedule_count",
             Self::HostEventImportScheduleCount => "host_event_import_schedule_count",
             Self::HostEventSlotArg => "host_event_slot_arg",
             Self::HostEventSlotImmediate1 => "host_event_slot_immediate_1",
@@ -83,6 +107,8 @@ impl WasmMemoryId {
             Self::ProgramI32ConstValue => "program_i32_const_value",
             Self::ProgramI64ConstValueHi => "program_i64_const_value_hi",
             Self::ProgramI64ConstValueLo => "program_i64_const_value_lo",
+            Self::ProgramImmediate => "program_immediate",
+            Self::ProgramImmediateHi => "program_immediate_hi",
             Self::ProgramLocalIndex => "program_local_index",
             Self::ProgramMemoryOffset => "program_memory_offset",
             Self::ProgramOpcode => "program_opcode",

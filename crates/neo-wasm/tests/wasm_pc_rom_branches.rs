@@ -189,7 +189,7 @@ fn br_table_length_is_bound_to_the_program() {
         &preload_from_program_artifacts(&run.artifacts),
     )
     .expect_err("length must match the program ROM");
-    assert!(error.contains("program_br_table_len"), "{error}");
+    assert!(error.contains("program_immediate"), "{error}");
 }
 
 #[test]

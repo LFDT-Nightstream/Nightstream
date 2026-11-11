@@ -1,6 +1,6 @@
 (* Active program rows fetch from the initial opcode ROM through exported ports. *)
 From Stdlib Require Import List ZArith Lia.
-Require Import R1CS Columns FullRelation Range ZeroTest MemoryTrace MemoryCatalog.
+Require Import R1CS Columns FullRelation Range Selectors ZeroTest CircuitFacts MemoryTrace MemoryCatalog.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -92,15 +92,32 @@ Proof.
     + unfold portEvent, active, edgeKindPort. simpl. rewrite Hprogram. reflexivity.
 Qed.
 
+(* The key of an edge: an instruction's choice c is at the c-th address after
+   its own, so the pc and slide ROMs have one address column. *)
+Lemma full_edge_addr : forall (w : Witness),
+  Range.fieldPrime -> FullRelation.satFull w ->
+  w COL_EDGE_ADDR = w COL_PC_BEFORE + w COL_CONTROL_CHOICE.
+Proof.
+  intros w Hprime Hfull.
+  pose proof (proj1 Hfull) as Hone.
+  circuit_range COL_EDGE_ADDR Hedge.
+  circuit_range COL_PC_BEFORE Hpc.
+  circuit_range COL_CONTROL_CHOICE Hchoice.
+  circuit_row ([(COL_EDGE_ADDR, 1); (COL_PC_BEFORE, -1); (COL_CONTROL_CHOICE, -1)], [(COL_ONE, 1)], ([] : SparseRow)) Hrow.
+  expand_row Hrow. normalize_columns. rewrite Hone in Hrow. field_linear Hrow.
+Qed.
+
 Definition nextPcPort : PortSpec :=
-  mkPort [COL_PC_BEFORE; COL_CONTROL_CHOICE] COL_PC_AFTER Read (When COL_PC_ROM_ACTIVE).
+  mkPort [COL_EDGE_ADDR] COL_PC_AFTER Read (When COL_PC_ROM_ACTIVE).
 
 Lemma circuit_row_next_pc_fetch : forall initial final (w : Witness),
+  Range.fieldPrime -> FullRelation.satFull w ->
   Replay initial (eventsForRow MemoryCatalog.memories w) final ->
   w COL_PC_ROM_ACTIVE = 1 ->
-  initial MemoryCatalog.pcRomId [w COL_PC_BEFORE; w COL_CONTROL_CHOICE] = Some (w COL_PC_AFTER).
+  initial MemoryCatalog.pcRomId [w COL_PC_BEFORE + w COL_CONTROL_CHOICE] = Some (w COL_PC_AFTER).
 Proof.
-  intros initial final w Hreplay Hactive.
+  intros initial final w Hprime Hfull Hreplay Hactive.
+  rewrite <- (full_edge_addr w Hprime Hfull).
   eapply replay_read_from_initial; [exact Hreplay | | ].
   - apply read_only_row. exact pc_memory_read_only.
   - eapply port_event_in_row with
@@ -114,19 +131,20 @@ Qed.
 
 (* A slide reads its countdown and distance from the taken edge's static slide. *)
 Definition slideRemainingPort : PortSpec :=
-  mkPort [COL_PC_BEFORE; COL_CONTROL_CHOICE] COL_FRAME_MOVE_REMAINING_AFTER Read (When COL_FRAME_SLIDE_ACTIVE).
+  mkPort [COL_EDGE_ADDR] COL_FRAME_MOVE_REMAINING_AFTER Read (When COL_FRAME_SLIDE_ACTIVE).
 Definition slideDistancePort : PortSpec :=
-  mkPort [COL_PC_BEFORE; COL_CONTROL_CHOICE] COL_FRAME_MOVE_DISTANCE_AFTER Read (When COL_FRAME_SLIDE_ACTIVE).
+  mkPort [COL_EDGE_ADDR] COL_FRAME_MOVE_DISTANCE_AFTER Read (When COL_FRAME_SLIDE_ACTIVE).
 
 Lemma circuit_row_slide_fetch : forall initial final (w : Witness),
+  Range.fieldPrime -> FullRelation.satFull w ->
   Replay initial (eventsForRow MemoryCatalog.memories w) final ->
   w COL_FRAME_SLIDE_ACTIVE = 1 ->
-  initial MemoryCatalog.frameSlideRemainingId [w COL_PC_BEFORE; w COL_CONTROL_CHOICE] =
+  initial MemoryCatalog.frameSlideRemainingId [w COL_PC_BEFORE + w COL_CONTROL_CHOICE] =
     Some (w COL_FRAME_MOVE_REMAINING_AFTER) /\
-  initial MemoryCatalog.frameSlideDistanceId [w COL_PC_BEFORE; w COL_CONTROL_CHOICE] =
+  initial MemoryCatalog.frameSlideDistanceId [w COL_PC_BEFORE + w COL_CONTROL_CHOICE] =
     Some (w COL_FRAME_MOVE_DISTANCE_AFTER).
 Proof.
-  intros initial final w Hreplay Hactive. split;
+  intros initial final w Hprime Hfull Hreplay Hactive. rewrite <- (full_edge_addr w Hprime Hfull). split;
   (eapply replay_read_from_initial; [exact Hreplay | apply read_only_row; vm_compute; reflexivity | ]).
   - eapply port_event_in_row with
       (specification := nth MemoryCatalog.frameSlideRemainingId MemoryCatalog.memories (mkMemory 0%nat Rom []))

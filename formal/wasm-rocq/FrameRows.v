@@ -643,7 +643,8 @@ Proof.
     + unfold viewOperands. cbn [viewSegments viewValues]. rewrite concat_app. cbn [concat]. rewrite !app_nil_r.
       cbn [afterBoundary beforeBoundary boundarySP boundaryStackBase] in Hsp |- *. rewrite Hsp', Hbase'. exact Hsp.
     + cbn [afterBoundary boundaryPC]. rewrite Hnext, Hpc, (path_offset_snoc _ _ _ _ _ _ 0 Hpath Hsite).
-      replace (armStart i (siteArm (labelSite offset 0))) with 1%nat by (destruct i; reflexivity).
+      replace (armStart i (siteArm (labelSite offset 0))) with 1%nat
+        by (destruct Hlabel as [[bt ->] | [bt ->]]; reflexivity).
       unfold codeOffset. cbn [siteOffset firstn codeSize]. lia.
     + exact HidleAfter.
 Qed.
@@ -760,11 +761,11 @@ Proof.
     as [conditionRaw [HcondRange Heq]]. subst condition. rename HcondRange into Hcondition.
   clear Hcond. rename Hcondition into Hcond.
   (* The circuit: pop the condition, then enter an arm or skip the if. *)
-  destruct (encoded_path_if _ _ _ _ Hloaded Hf _ _ _ _ _ _ Hpath Hi) as [Hop [Hkind Hedges]].
-  unfold pathPC in Hop, Hkind, Hedges.
+  destruct (encoded_path_if _ _ _ _ Hloaded Hf _ _ _ _ _ _ Hpath Hi) as [Hop [Hkind [Hfalse Htrue]]].
+  unfold pathPC in Hop, Hkind, Hfalse, Htrue.
   change (row COL_PC_BEFORE = guestEntry f + Z.of_nat (pathOffset (guestBody f) labels offset)) in Hpc.
-  rewrite <- Hpc in Hop, Hkind, Hedges.
-  destruct (circuit_if_control _ _ _ _ _ _ Hprime Hfull Hreplay Hprogram Logic.eq_refl Hop Hkind Hedges)
+  rewrite <- Hpc in Hop, Hkind, Hfalse, Htrue.
+  destruct (circuit_if_control _ _ _ _ _ _ Hprime Hfull Hreplay Hprogram Logic.eq_refl Hop Hkind Hfalse Htrue)
     as [Hchosen Hnext].
   assert (Hin : In COL_SEL_IF selectorColumns) by (vm_compute; tauto).
   destruct (full_selected_no_host_switch row COL_SEL_IF Hprime Hfull Hin Hchosen)

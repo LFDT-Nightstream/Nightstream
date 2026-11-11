@@ -132,18 +132,18 @@ Proof.
 Qed.
 
 (* The condition 0 takes the else-body (choice 0) at pc 2, past the then-body and
-   ELSE; its END at pc 6 falls through. The condition 7 takes the then-body
-   (choice 1) at pc 9, whose ELSE at pc 11 jumps past the else-body. The last
-   condition 0 skips the if with no else-body at pc 16. *)
+   ELSE; its END at pc 7 falls through. The condition 7 takes the then-body
+   (choice 1) at pc 10, whose ELSE at pc 13 jumps past the else-body. The last
+   condition 0 skips the if with no else-body at pc 18. An if takes two pcs. *)
 Example ifs_choose :
   let else_row := nth 2 ifWitness (rowWitness []) in
   let end_row := nth 4 ifWitness (rowWitness []) in
   let then_row := nth 7 ifWitness (rowWitness []) in
   let jump_row := nth 9 ifWitness (rowWitness []) in
   let skip_row := nth 12 ifWitness (rowWitness []) in
-  else_row COL_SEL_IF = 1 /\ else_row COL_CONTROL_CHOICE = 0 /\ else_row COL_PC_AFTER = 5 /\
-  end_row COL_SEL_END = 1 /\ end_row COL_PC_AFTER = 7 /\
-  then_row COL_SEL_IF = 1 /\ then_row COL_CONTROL_CHOICE = 1 /\ then_row COL_PC_AFTER = 10 /\
-  jump_row COL_SEL_ELSE = 1 /\ jump_row COL_PC_BEFORE = 11 /\ jump_row COL_PC_AFTER = 14 /\
-  skip_row COL_SEL_IF = 1 /\ skip_row COL_CONTROL_CHOICE = 0 /\ skip_row COL_PC_AFTER = 20.
+  else_row COL_SEL_IF = 1 /\ else_row COL_CONTROL_CHOICE = 0 /\ else_row COL_PC_AFTER = 6 /\
+  end_row COL_SEL_END = 1 /\ end_row COL_PC_AFTER = 8 /\
+  then_row COL_SEL_IF = 1 /\ then_row COL_CONTROL_CHOICE = 1 /\ then_row COL_PC_AFTER = 12 /\
+  jump_row COL_SEL_ELSE = 1 /\ jump_row COL_PC_BEFORE = 13 /\ jump_row COL_PC_AFTER = 16 /\
+  skip_row COL_SEL_IF = 1 /\ skip_row COL_CONTROL_CHOICE = 0 /\ skip_row COL_PC_AFTER = 23.
 Proof. vm_compute. repeat split; reflexivity. Qed.

@@ -92,7 +92,7 @@ Ltac nontrapping_selector :=
 Lemma supported_opcode_trap_classification : forall callees i program f pc targets opcode,
   Supported callees i ->
   instructionAtPC program pc = Some (f, Some (flatInstruction (opInstr i) targets)) ->
-  instructionRom program MemoryCatalog.programOpcodeId pc 0 = Some opcode ->
+  instructionRom program MemoryCatalog.programOpcodeId pc = Some opcode ->
   (i = UNREACHABLE /\ opcode = CODE_UNREACHABLE) \/
   (exists x y, i = CALL_INDIRECT x y /\ opcode = CODE_CALL_INDIRECT_RESOLVE) \/
   exists chosen, In chosen nonTrappingSelectors /\ In (chosen, opcode) selectorCodes.
@@ -110,7 +110,7 @@ Qed.
 Lemma marker_opcode_nontrapping : forall program f pc marker targets opcode,
   (marker = opEnd \/ marker = opElse) ->
   instructionAtPC program pc = Some (f, Some (flatInstruction marker targets)) ->
-  instructionRom program MemoryCatalog.programOpcodeId pc 0 = Some opcode ->
+  instructionRom program MemoryCatalog.programOpcodeId pc = Some opcode ->
   exists chosen, In chosen nonTrappingSelectors /\ In (chosen, opcode) selectorCodes.
 Proof.
   intros program f pc marker targets opcode Hmarker Hslot Hcode.

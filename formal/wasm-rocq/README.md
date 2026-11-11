@@ -36,7 +36,10 @@ pending moves and captured results. `tests/MixedWitness.v` checks wide values th
 nested calls, local initialization, indirect calls and terminal capture.
 Field primality and memory-event consistency are assumed; the offline memory
 argument is not proved. ROMs are dense: keys the encoder does not list read 0, so
-proofs never rely on a key being absent. The program ROM encoder covers this guest-only fragment;
+proofs never rely on a key being absent. An instruction with k control choices (`if`,
+`br_if`, `br_table`) takes k addresses: the pc ROM and the slide ROMs have one address column,
+and hold the edge of choice c at the instruction's address plus c (`opEdge` slots in
+`CodeLayout.v`). A call's return address is not in a ROM: the circuit pins it to the next address. The program ROM encoder covers this guest-only fragment;
 its correspondence with Rust preprocessing is not yet proved. The `tests/*Witness.v`
 files check exported Rust traces against the refinement proofs. The traces
 (`tests/*Trace.v`) are not in git; `make` generates them with

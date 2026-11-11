@@ -8,14 +8,6 @@ pub use neo_application::{ColumnFamilySpec, ColumnWidth};
 pub use neo_application::ColumnId as Column;
 
 pub const PUBLIC_INPUTS: usize = 7;
-/// Reserved `control_choice` value under which `pc_rom` stores a call site's
-/// continuation pc (the instruction after the call): the return address for
-/// guest calls, the fall-through target for indirect host calls. Shares the
-/// choice axis with the per-opcode branch discriminants (`br_if`, `if`,
-/// `br_table` arms), which use 0/1/arm-index at their own pcs; the
-/// reservation is per call-site pc, not global.
-pub const PC_ROM_CALL_RETURN_CHOICE: u64 = 1;
-
 define_column_region! {
     region: "wasm_named",
     start: 0usize,
@@ -78,8 +70,7 @@ define_column_region! {
         COL_CALL_STACK_DEPTH_BEFORE: U32 => "call return-context stack depth before this row",
         COL_CALL_STACK_DEPTH_AFTER: U32 => "call return-context stack depth after this row",
         COL_CALL_STACK_ADDR: U32 => "call return-context stack address read or written this row",
-        COL_PC_ROM_CALL_RETURN_CHOICE: U32 =>
-            "pc-rom control-choice coordinate for the call-site continuation-pc read (guest pushes and indirect host fall-through)",
+        COL_EDGE_ADDR: U32 => "pc-rom and slide-rom key: pc_before + control_choice",
         COL_CURRENT_FUNCTION_REF: U32 => "normalized function reference for the currently executing frame",
         COL_ENTERED_FUNCTION_NUM_LOCALS: U32 => "verifier-bound local count of the entered function",
         COL_STACK_READS: U32 => "stack delta source",

@@ -24,13 +24,12 @@ Example source_program_layout :
   functionEntry sourceProgram 0 = 0 /\ functionEntry sourceProgram 1 = 2 /\
   encodeProgram sourceProgram programOpcodeId [3] = Some CODE_CALL /\
   encodeProgram sourceProgram callTargetId [3] = Some 1 /\
-  encodeProgram sourceProgram pcRomId [3; 0] = Some 0 /\
-  encodeProgram sourceProgram pcRomId [3; 1] = Some 4 /\
+  encodeProgram sourceProgram pcRomId [3] = Some 0 /\
   encodeProgram sourceProgram programLocalIndexId [4] = Some 0 /\
   encodeProgram sourceProgram functionLocalCountId [2] = Some 1 /\
   encodeProgram sourceProgram programOpcodeId [5] = Some CODE_END /\
   encodeProgram sourceProgram pcEdgeKindId [5] = Some 1 /\
-  encodeProgram sourceProgram pcRomId [5; 0] = None.
+  encodeProgram sourceProgram pcRomId [5] = None.
 Proof. repeat split; reflexivity. Qed.
 
 Example source_program_loaded : forall stale, programLoaded sourceProgram (sourceMemory stale).
@@ -134,7 +133,7 @@ Example indirect_call_layout :
   map (fun pc => encodeProgram indirectProgram programOpcodeId [pc]) [3; 4; 5] =
     [Some CODE_CALL_INDIRECT_RESOLVE; Some CODE_CALL_INDIRECT; Some CODE_NOP] /\
   map (fun pc => encodeProgram indirectProgram pcEdgeKindId [pc]) [3; 4] = [Some 0; Some 2] /\
-  map (encodeProgram indirectProgram pcRomId) [[3; 0]; [4; 0]; [4; 1]] = [Some 4; None; Some 5] /\
+  map (encodeProgram indirectProgram pcRomId) [[3]; [4]] = [Some 4; None] /\
   encodeProgram indirectProgram programTableId [3] = Some 3 /\
   encodeProgram indirectProgram expectedTypeId [3] = Some 1 /\
   map (fun reference => encodeProgram indirectProgram functionTypeId [reference]) [1; 2] = [Some 1; Some 2].

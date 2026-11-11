@@ -107,7 +107,8 @@ fn check_entry_values(
         assert_eq!(state.host_callee_fref, state.host_events.turn_export_fref);
         let template = &bindings.exports[&state.host_events.turn_export_fref];
         let slot = usize::from(state.host_events.slot_cursor);
-        let input = match template.entry[state.host_events.event_index as usize].block[slot] {
+        let event = state.host_events.event_index - bindings.event_base(state.host_events.turn_export_fref);
+        let input = match template.entry[event as usize].block[slot] {
             SlotBinding::InputLocal { input, .. }
             | SlotBinding::MemoryWrite8 { input, .. }
             | SlotBinding::MemoryWrite16 { input, .. }

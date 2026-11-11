@@ -125,7 +125,7 @@ Proof.
 Qed.
 
 (* Index 1 of two arms takes arm 1 (choice 2) at pc 4, out of the zero-result block
-   with nothing to move. Index 7 of one arm takes the default (choice 0) at pc 8:
+   with nothing to move. Index 7 of one arm takes the default (choice 0) at pc 10:
    it keeps the result 1 and drops the 7 below it (sp 5 to 3), and the next row
    moves 1 from cell 3 down to cell 2. *)
 Example br_tables_choose :
@@ -133,10 +133,10 @@ Example br_tables_choose :
   let default_row := nth 7 tableWitness (rowWitness []) in
   let move_row := nth 8 tableWitness (rowWitness []) in
   arm_row COL_SEL_BR_TABLE = 1 /\ arm_row (List.nth 0 COL_STACK_READ_VALUE_LO 0%nat) = 1 /\
-  arm_row COL_BR_TABLE_LEN = 2 /\ arm_row COL_CONTROL_CHOICE = 2 /\ arm_row COL_PC_AFTER = 6 /\
+  arm_row COL_BR_TABLE_LEN = 2 /\ arm_row COL_CONTROL_CHOICE = 2 /\ arm_row COL_PC_AFTER = 8 /\
   arm_row COL_FRAME_MOVE_DISTANCE_AFTER = 0 /\
   default_row COL_SEL_BR_TABLE = 1 /\ default_row (List.nth 0 COL_STACK_READ_VALUE_LO 0%nat) = 7 /\
-  default_row COL_BR_TABLE_LEN = 1 /\ default_row COL_CONTROL_CHOICE = 0 /\ default_row COL_PC_AFTER = 10 /\
+  default_row COL_BR_TABLE_LEN = 1 /\ default_row COL_CONTROL_CHOICE = 0 /\ default_row COL_PC_AFTER = 13 /\
   default_row COL_SP_BEFORE = 5 /\ default_row COL_SP_AFTER = 3 /\
   default_row COL_FRAME_MOVE_REMAINING_AFTER = 1 /\ default_row COL_FRAME_MOVE_DISTANCE_AFTER = 1 /\
   move_row COL_FRAME_MOVE_ACTIVE_BEFORE = 1 /\

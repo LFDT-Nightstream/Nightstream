@@ -41,15 +41,6 @@ Proof.
   - exported_read functionEntryId [COL_FUNCTION_REF] COL_PC_AFTER COL_GUEST_ENTRY_ACTIVE.
 Qed.
 
-Lemma call_return_pc_read : forall initial final (w : Witness),
-  Replay initial (eventsForRow MemoryCatalog.memories w) final -> w COL_CALL_STACK_PUSH_PRESENT = 1 ->
-  initial pcRomId [w COL_PC_BEFORE; w COL_PC_ROM_CALL_RETURN_CHOICE] = Some (w COL_CALL_STACK_RETURN_PC_VALUE).
-Proof.
-  intros initial final w Hreplay Hpush.
-  exported_read pcRomId [COL_PC_BEFORE; COL_PC_ROM_CALL_RETURN_CHOICE]
-    COL_CALL_STACK_RETURN_PC_VALUE COL_CALL_STACK_PUSH_PRESENT.
-Qed.
-
 (* A zero row pushes one cell; a move row reads its source and writes its
    destination. Neither touches a local port or another stack port. *)
 Record InitializationStackShape (w : Witness) (move : bool) : Prop := {

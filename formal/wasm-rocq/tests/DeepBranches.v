@@ -19,13 +19,13 @@ Definition deepStore := MKstore deepProgram [] [] [] [] [].
 Definition deepGuest := mkGuestFunction 0%N deepModule (mk_uN 0) [] [valtype_I32] [valtype_I32; valtype_I32] deepCode 0.
 Definition deepState condition := mk_state deepStore (MKframe [i32Value condition; i32Value 9] deepModule).
 
-(* PCs: 0 and 1 enter the blocks, 3 is the br_if, 6 and 9 are the ENDs, 10 follows. *)
+(* PCs: 0 and 1 enter the blocks, 3 is the br_if and 4 its taken edge, 7 and 10 are the ENDs, 11 follows. *)
 Example deep_layout :
   encodeProgram deepProgram programOpcodeId [3] = Some CODE_BR_IF /\
-  encodeProgram deepProgram pcRomId [3; 0] = Some 4 /\
-  encodeProgram deepProgram pcRomId [3; 1] = Some 10 /\
-  encodeProgram deepProgram programOpcodeId [9] = Some CODE_END /\
-  encodeProgram deepProgram pcRomId [9; 0] = Some 10.
+  encodeProgram deepProgram pcRomId [3] = Some 5 /\
+  encodeProgram deepProgram pcRomId [4] = Some 11 /\
+  encodeProgram deepProgram programOpcodeId [10] = Some CODE_END /\
+  encodeProgram deepProgram pcRomId [10] = Some 11.
 Proof. repeat split; reflexivity. Qed.
 
 Definition deepContext := moduleContext [i32StackType 0 1] [i32StackType 0 1].

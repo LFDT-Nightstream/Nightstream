@@ -103,20 +103,37 @@ Ltac program_cell H :=
     rewrite (H id ltac:(unfold programRomIds; simpl; tauto)); unfold romValue
   end.
 
+(* The function of an address of f that is not an edge slot. *)
+Lemma function_ref_cell : forall program index f offset,
+  functionAt program index = Some f -> (offset <= codeSize (guestBody f))%nat ->
+  (forall l targets, nth_error (flattenCode (guestBody f)) offset <> Some (flatInstruction (opEdge l) targets)) ->
+  encodeProgram program pcFunctionRefId [guestEntry f + Z.of_nat offset] = Some (Z.of_nat index + 1).
+Proof.
+  intros program index f offset Hf Hoffset Hedge.
+  destruct (function_at_typed _ _ _ Hf) as [Hlookup [_ Hentry]].
+  unfold encodeProgram. cbn [Nat.eqb pcRomId pcFunctionRefId frameSlideRemainingId frameSlideDistanceId orb].
+  rewrite (instruction_at_function_pc _ _ _ offset Hf Hoffset).
+  assert (Hnonneg : (guestEntry f + Z.of_nat offset <? 0) = false)
+    by (rewrite Hentry; apply Z.ltb_ge; unfold functionEntry; lia).
+  assert (Hlocate : locatePC program (Z.to_nat (guestEntry f + Z.of_nat offset)) = Some (index, offset))
+    by (rewrite Hentry; apply (locate_function_pc _ _ _ offset Hlookup);
+        unfold functionSize; cbn [functionBody typedFunction CODE]; lia).
+  destruct (nth_error (flattenCode (guestBody f)) offset) as [[[i | | | | l] targets] | ] eqn:Hslot;
+    try (exfalso; exact (Hedge _ _ Logic.eq_refl)); rewrite Hnonneg, Hlocate; cbn; f_equal; lia.
+Qed.
+
 (* A frame of f, with f's locals: its function's local count is in the ROM. *)
 Lemma encoded_frame_image : forall program memory index f offset s values,
   programLoaded program memory -> functionAt program index = Some f ->
-  (offset <= codeSize (guestBody f))%nat -> length values = (guestParams f + guestLocals f)%nat ->
+  (offset <= codeSize (guestBody f))%nat ->
+  (forall l targets, nth_error (flattenCode (guestBody f)) offset <> Some (flatInstruction (opEdge l) targets)) ->
+  length values = (guestParams f + guestLocals f)%nat ->
   callerFrameImage memory (guestEntry f + Z.of_nat offset) (mk_state s (MKframe values (guestModule f))).
 Proof.
-  intros program memory index f offset s values Hloaded Hf Hoffset Hcount.
+  intros program memory index f offset s values Hloaded Hf Hoffset Hedge Hcount.
   destruct (function_at_typed _ _ _ Hf) as [Hlookup [Haddress Hentry]].
   exists (Z.of_nat index + 1). split.
-  - program_cell Hloaded. unfold encodeProgram. cbn [Nat.eqb pcRomId pcFunctionRefId].
-    rewrite Hentry. assert (Hnonneg : (functionEntry program index + Z.of_nat offset <? 0) = false)
-      by (apply Z.ltb_ge; unfold functionEntry; lia).
-    rewrite Hnonneg, (locate_function_pc _ _ _ offset Hlookup ltac:(unfold functionSize; cbn [functionBody typedFunction CODE]; lia)).
-    cbn. f_equal. lia.
+  - program_cell Hloaded. rewrite (function_ref_cell _ _ _ _ Hf Hoffset Hedge). reflexivity.
   - program_cell Hloaded. unfold encodeProgram. cbn [Nat.eqb pcRomId pcFunctionRefId functionEntryId functionLocalCountId functionCallMetadataId orb].
     unfold functionRom.
     assert (Hpositive : (Z.of_nat index + 1 <=? 0) = false) by (apply Z.leb_gt; lia).
@@ -133,18 +150,14 @@ Proof.
   unfold guestFunctionImage. rewrite Haddress.
   replace (Z.of_N (N.of_nat index)) with (Z.of_nat index) by lia.
   assert (Hpositive : (Z.of_nat index + 1 <=? 0) = false) by (apply Z.leb_gt; lia).
-  repeat split; program_cell Hloaded; unfold encodeProgram;
-    cbn [Nat.eqb pcRomId pcFunctionRefId functionEntryId functionLocalCountId functionCallMetadataId orb].
-  all: try (unfold functionRom; rewrite Hpositive;
-    replace (Z.of_nat index + 1 - 1) with (Z.of_nat index) by lia;
-    rewrite Nat2Z.id, Hf; reflexivity).
-  rewrite Hentry.
-  assert (Hnonneg : (functionEntry program index <? 0) = false)
-    by (apply Z.ltb_ge; unfold functionEntry; lia).
-  rewrite Hnonneg.
-  replace (functionEntry program index) with (functionEntry program index + Z.of_nat 0) by lia.
-  rewrite (locate_function_pc _ _ _ 0 Hlookup ltac:(unfold functionSize; lia)).
-  cbn. f_equal. lia.
+  repeat split; program_cell Hloaded;
+    try (unfold encodeProgram;
+      cbn [Nat.eqb pcRomId pcFunctionRefId functionEntryId functionLocalCountId functionCallMetadataId orb];
+      unfold functionRom; rewrite Hpositive;
+      replace (Z.of_nat index + 1 - 1) with (Z.of_nat index) by lia;
+      rewrite Nat2Z.id, Hf; reflexivity).
+  replace (guestEntry f) with (guestEntry f + Z.of_nat 0) by lia.
+  rewrite (function_ref_cell _ _ _ 0%nat Hf ltac:(lia) (flatten_code_first _)). reflexivity.
 Qed.
 
 Lemma encoded_function_end : forall program memory index f,
@@ -159,11 +172,11 @@ Proof.
     cbn [Nat.eqb pcRomId pcFunctionRefId functionEntryId functionLocalCountId functionCallMetadataId orb];
     unfold instructionRom; rewrite Hpc; reflexivity.
 Qed.
-Lemma slide_at_function_pc : forall program memory index f offset choice,
+Lemma slide_at_function_pc : forall program memory index f offset,
   functionAt program index = Some f -> (offset <= codeSize (guestBody f))%nat ->
-  slideRom program memory (guestEntry f + Z.of_nat offset) choice = functionSlide program memory f offset choice.
+  slideRom program memory (guestEntry f + Z.of_nat offset) = functionSlide program memory f offset.
 Proof.
-  intros program memory index f offset choice Hf Hoffset.
+  intros program memory index f offset Hf Hoffset.
   destruct (function_at_typed _ _ _ Hf) as [Hlookup [_ Hentry]].
   unfold slideRom. rewrite Hentry.
   assert (Hnonneg : (functionEntry program index + Z.of_nat offset <? 0) = false).
@@ -173,20 +186,19 @@ Proof.
 Qed.
 
 (* A function's END slides its results down over its locals. *)
-Lemma encoded_end_slide : forall program memory index f choice,
+Lemma encoded_end_slide : forall program memory index f,
   programLoaded program memory -> functionAt program index = Some f ->
   let pc := guestEntry f + Z.of_nat (codeSize (guestBody f)) in
   let frame := Z.of_nat (guestParams f + guestLocals f) in
-  memory frameSlideRemainingId [pc; choice] =
-    Some (if choice =? 0 then (if frame =? 0 then 0 else Z.of_nat (guestResults f)) else 0) /\
-  memory frameSlideDistanceId [pc; choice] = Some (if choice =? 0 then frame else 0).
+  memory frameSlideRemainingId [pc] = Some (if frame =? 0 then 0 else Z.of_nat (guestResults f)) /\
+  memory frameSlideDistanceId [pc] = Some frame.
 Proof.
-  intros program memory index f choice Hloaded Hf pc frame.
+  intros program memory index f Hloaded Hf pc frame.
   assert (Hnone : nth_error (flattenCode (guestBody f)) (codeSize (guestBody f)) = None)
     by (apply nth_error_None; rewrite flatten_code_length; lia).
   split; program_cell Hloaded; unfold encodeProgram; cbn [Nat.eqb pcRomId frameSlideRemainingId frameSlideDistanceId orb];
-    unfold pc; rewrite (slide_at_function_pc _ _ _ _ (codeSize (guestBody f)) choice Hf ltac:(lia));
-    unfold functionSlide; rewrite Hnone; destruct (choice =? 0); try reflexivity;
+    unfold pc; rewrite (slide_at_function_pc _ _ _ _ (codeSize (guestBody f)) Hf ltac:(lia));
+    unfold functionSlide; rewrite Hnone;
     unfold slideWord, frame; cbn [Nat.eqb frameSlideRemainingId frameSlideDistanceId];
     destruct (guestParams f + guestLocals f)%nat; reflexivity.
 Qed.

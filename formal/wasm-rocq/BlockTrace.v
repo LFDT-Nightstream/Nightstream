@@ -19,15 +19,14 @@ Proof.
   pose proof (circuit_row_edge_kind_fetch _ _ _ Hreplay Hprogram) as Hedge.
   rewrite Hpc, Hkind in Hedge.
   pose proof (full_static_pc_rom_active row Hprime Hfull Hprogram ltac:(congruence)) as Hactive.
-  pose proof (circuit_row_next_pc_fetch _ _ _ Hreplay Hactive) as Htarget.
+  pose proof (circuit_row_next_pc_fetch _ _ _ Hprime Hfull Hreplay Hactive) as Htarget.
   assert (Hchosen : row chosen = 1)
     by exact (full_opcode_selects row chosen opcode Hprime Hfull Hprogram Hunique ltac:(congruence)).
   assert (Hin : In chosen selectorColumns).
   { assert (Hentry : In (chosen, opcode) selectorCodes)
       by (apply (proj1 (filter_In (fun entry => Z.eqb (snd entry) opcode) _ _)); rewrite Hunique; left; reflexivity).
     apply (in_map fst), opcode_selector_columns in Hentry. exact Hentry. }
-  rewrite Hpc, Hnext, (full_selected_choice_pinned row chosen Hprime Hfull Hin Hchosen Hstatic) in Htarget.
-  cbn in Htarget. split; [exact Hchosen | congruence].
+  rewrite (full_selected_choice_pinned row chosen Hprime Hfull Hin Hchosen Hstatic), Z.add_0_r, Hpc, Hnext in Htarget. split; [exact Hchosen | congruence].
 Qed.
 
 Lemma control_row_static_edge : forall initial final (row : Witness) pc opcode next,

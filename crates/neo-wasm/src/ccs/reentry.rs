@@ -33,11 +33,25 @@ pub(super) fn push_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
             (COL_HOST_INITIAL_COUNT, -F::ONE),
             (COL_HOST_RETURN_COUNT, -F::from_u64(IMPORT_SCHEDULE_COUNT_FACTOR.into())),
         ]);
+        // At most one of these gates is 1 on a row, so each sum is a gate.
         b.push_row(
-            [(COL_HOST_CALL_ACTIVE, F::ONE), (COL_HOST_RESUME, F::ONE)],
+            [
+                (COL_HOST_CALL_ACTIVE, F::ONE),
+                (COL_HOST_RESUME, F::ONE),
+                (COL_TURN_BOUNDARY, F::ONE),
+                (COL_HOST_EVENT_EXIT_LATCH, F::ONE),
+            ],
             [
                 (COL_HOST_EVENT_INITIAL_SCHEDULE_COUNT, F::ONE),
                 (COL_HOST_INITIAL_COUNT, -F::ONE),
+            ],
+            [],
+        );
+        b.push_row(
+            [(COL_TURN_BOUNDARY, F::ONE), (COL_HOST_EVENT_EXIT_LATCH, F::ONE)],
+            [
+                (crate::layout::COL_HOST_EVENT_EXIT_SCHEDULE_COUNT, F::ONE),
+                (COL_HOST_RETURN_COUNT, -F::ONE),
             ],
             [],
         );
@@ -194,6 +208,7 @@ pub(super) fn push_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
             COL_HOST_RESUME,
             [
                 (COL_HOST_EVENT_INDEX_AFTER, F::ONE),
+                (crate::layout::COL_HOST_EVENT_BASE, -F::ONE),
                 (COL_HOST_EVENT_INITIAL_SCHEDULE_COUNT, -F::ONE),
                 (COL_ONE, F::ONE),
             ],
@@ -239,8 +254,18 @@ pub(crate) fn fill_witness(wit: &mut [F], trace: &WasmVmStep) {
     // Subtraction in the field permits negative-test witnesses; range checks reject them.
     wit[COL_GUEST_DEPTH_BEFORE] = F::from_u64(before.call_stack_depth) - wit[COL_HOST_FRAME_DEPTH_BEFORE];
     wit[COL_GUEST_DEPTH_AFTER] = F::from_u64(after.call_stack_depth) - wit[COL_HOST_FRAME_DEPTH_AFTER];
-    wit[COL_HOST_RETURN_COUNT] = F::from_u64(trace.host_event_return_schedule_count.unwrap_or(0).into());
-    if wit[COL_HOST_CALL_ACTIVE] == F::ONE || trace.row_kind.is_host_resume() {
+    wit[COL_HOST_RETURN_COUNT] = F::from_u64(
+        trace
+            .host_event_return_schedule_count
+            .or(trace.host_event_exit_schedule_count)
+            .unwrap_or(0)
+            .into(),
+    );
+    if wit[COL_HOST_CALL_ACTIVE] == F::ONE
+        || trace.row_kind.is_host_resume()
+        || wit[COL_TURN_BOUNDARY] == F::ONE
+        || wit[COL_HOST_EVENT_EXIT_LATCH] == F::ONE
+    {
         wit[COL_HOST_INITIAL_COUNT] = wit[COL_HOST_EVENT_INITIAL_SCHEDULE_COUNT];
     }
     wit[COL_HOST_IMPORT_SCHEDULE_COUNTS] =

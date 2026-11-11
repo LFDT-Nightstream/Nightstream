@@ -22,17 +22,17 @@ Proof.
   destruct (FrameRows.program_row_active _ _ _ _ _ _ Hprime Hfull Hprogram Hstate)
     as [f' [Hframe [_ [_ [Hpc _]]]]].
   pose proof Hframe as [Hf' [Hpath [Hheights _]]]. rewrite Hf in Hf'. injection Hf' as <-.
-  pose proof (circuit_row_exit_distance_fetch _ _ _ Hreplay Hexit) as Hfetch.
+  pose proof (circuit_row_exit_distance_fetch _ _ _ Hprime Hfull Hreplay Hexit) as Hfetch.
   cbn [beforeBoundary boundaryPC] in Hpc.
   destruct Hleaves as [[Hlabels Hend] | [i [Hi Hreturns]]].
   - destruct (function_end_selected _ _ view f initial final row inner Hprime Hloaded Hfull Hprogram Hreplay
       Hstate Hf Hlabels Hend) as [Hsel _].
-    destruct (encoded_end_slide _ _ _ _ (row COL_CONTROL_CHOICE) Hloaded Hf) as [_ Hrom].
+    destruct (encoded_end_slide _ _ _ _ Hloaded Hf) as [_ Hrom].
     rewrite Hlabels, Hend in Hpc. cbn [pathOffset] in Hpc. rewrite code_offset_end in Hpc.
     change (row COL_PC_BEFORE = guestEntry f + Z.of_nat (codeSize (guestBody f))) in Hpc.
-    rewrite <- Hpc, Hfetch in Hrom.
     rewrite (full_selected_choice_pinned row COL_SEL_END Hprime Hfull ltac:(vm_compute; tauto) Hsel
-      ltac:(vm_compute; intuition discriminate)) in Hrom. injection Hrom as Hdistance.
+      ltac:(vm_compute; intuition discriminate)), Z.add_0_r in Hfetch.
+    rewrite <- Hpc, Hfetch in Hrom. injection Hrom as Hdistance.
     destruct (view_facts _ _ _ _ _ _ _ _ _ _ Hstore Hvalid Hframe) as [_ [_ [_ [Hresults _]]]].
     specialize (Hresults Hlabels). unfold innerCode in Hresults. rewrite Hlabels in Hresults. cbn in Hresults.
     rewrite Hlabels in Hheights. cbn [pathHeights] in Hheights. rewrite Hend, firstn_all in Hheights.
@@ -46,13 +46,13 @@ Proof.
     unfold frameLocals. exact Hdistance.
   - destruct (return_selected _ _ view f i initial final row inner Hprime Hloaded Hfull Hprogram Hreplay
       Hstate Hf Hi Hreturns) as [Hsel _].
-    destruct (encoded_return_slide _ _ _ _ _ _ _ _ _ _ (row COL_CONTROL_CHOICE) Hloaded Hf Hpath Hi Hreturns Hheights)
+    destruct (encoded_return_slide _ _ _ _ _ _ _ _ _ _ Hloaded Hf Hpath Hi Hreturns Hheights)
       as [_ Hrom].
-    rewrite <- Hpc, Hfetch in Hrom.
     rewrite (full_selected_choice_pinned row COL_SEL_RETURN Hprime Hfull ltac:(vm_compute; tauto) Hsel
-      ltac:(vm_compute; intuition discriminate)) in Hrom.
+      ltac:(vm_compute; intuition discriminate)), Z.add_0_r in Hfetch.
+    rewrite <- Hpc, Hfetch in Hrom.
     rewrite Nat.add_0_r, (proj2 (Nat.leb_le _ _) Hfits) in Hrom. cbn iota in Hrom.
-    change ((0 =? 0) && true) with true in Hrom. injection Hrom as Hdistance.
+    injection Hrom as Hdistance.
     destruct (frame_heights _ _ _ _ _ _ _ _ _ Hframe) as [_ Htotal]. rewrite !Nat.add_0_r in Htotal.
     rewrite Htotal in Hdistance. unfold slideWord, frameLocals in *. exact Hdistance.
 Qed.

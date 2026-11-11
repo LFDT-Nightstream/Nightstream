@@ -32,11 +32,11 @@ Lemma opcode_rom_not_table_set : forall program pc,
   romValue (encodeProgram program programOpcodeId [pc]) <> CODE_TABLE_SET.
 Proof.
   intros program pc.
-  change (encodeProgram program programOpcodeId [pc]) with (instructionRom program programOpcodeId pc 0).
+  change (encodeProgram program programOpcodeId [pc]) with (instructionRom program programOpcodeId pc).
   unfold instructionRom.
   destruct (instructionAtPC program pc) as [[f slot] | ]; [ | discriminate].
   cbv [programOpcodeId pcRomId Nat.eqb].
-  destruct slot as [[[i | | | ] targets] | ]; try discriminate.
+  destruct slot as [[[i | | | | l] targets] | ]; try discriminate.
   destruct i; try discriminate; try (destruct targets as [ | [t | ] [ | ]]; discriminate);
     match goal with |- romValue (encodedOpcode ?j) <> _ =>
       destruct (encodedOpcode j) eqn:Hj; cbn [romValue]; intros Hz; [subst | discriminate];

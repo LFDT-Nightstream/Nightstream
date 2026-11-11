@@ -3,13 +3,12 @@ use super::ivc_state::build_ivc_state_continuity_links;
 use super::layout::{
     selector_col, Column, COL_CALL_STACK_ADDR, COL_CALL_STACK_CALLER_FBP_VALUE, COL_CALL_STACK_CALLER_SP_BASE_VALUE,
     COL_CALL_STACK_POP_PRESENT, COL_CALL_STACK_PUSH_PRESENT, COL_CALL_STACK_RETURN_PC_VALUE, COL_CALL_TARGET_METADATA,
-    COL_CI_HOST_CALL, COL_CONTROL_CHOICE, COL_CURRENT_FUNCTION_REF, COL_ENTERED_FUNCTION_NUM_LOCALS,
-    COL_EXIT_SLIDE_DISTANCE, COL_EXPECTED_TYPE_ID, COL_FRAME_MOVE_DISTANCE_AFTER, COL_FRAME_MOVE_REMAINING_AFTER,
-    COL_FRAME_SLIDE_ACTIVE, COL_FUNCTION_CALL_TYPE_LOOKUP_GATE, COL_FUNCTION_REF, COL_FUNCTION_TYPE_ID,
-    COL_GATHER_ACTIVE, COL_GATHER_LOCAL_WRITE, COL_GATHER_LOCAL_WRITE_LO, COL_GLOBAL_INDEX, COL_GLOBAL_VALUE,
-    COL_GLOBAL_VALUE_HI, COL_GUEST_ENTRY_ACTIVE, COL_HOST_CALLEE_FREF_AFTER, COL_HOST_CALLEE_FREF_BEFORE,
-    COL_HOST_CALL_ACTIVE, COL_HOST_EVENT_EXIT_LATCH, COL_HOST_EVENT_EXIT_SCHEDULE_COUNT, COL_HOST_EVENT_INDEX_BEFORE,
-    COL_HOST_EVENT_INITIAL_SCHEDULE_COUNT, COL_HOST_EVENT_SLOT_ARG, COL_HOST_EVENT_SLOT_CURSOR_BEFORE,
+    COL_CURRENT_FUNCTION_REF, COL_EDGE_ADDR, COL_ENTERED_FUNCTION_NUM_LOCALS, COL_EXIT_SLIDE_DISTANCE,
+    COL_EXPECTED_TYPE_ID, COL_FRAME_MOVE_DISTANCE_AFTER, COL_FRAME_MOVE_REMAINING_AFTER, COL_FRAME_SLIDE_ACTIVE,
+    COL_FUNCTION_CALL_TYPE_LOOKUP_GATE, COL_FUNCTION_REF, COL_FUNCTION_TYPE_ID, COL_GATHER_ACTIVE,
+    COL_GATHER_LOCAL_WRITE, COL_GATHER_LOCAL_WRITE_LO, COL_GLOBAL_INDEX, COL_GLOBAL_VALUE, COL_GLOBAL_VALUE_HI,
+    COL_GUEST_ENTRY_ACTIVE, COL_HOST_CALLEE_FREF_AFTER, COL_HOST_CALL_ACTIVE, COL_HOST_EVENT_EXIT_LATCH,
+    COL_HOST_EVENT_INDEX_BEFORE, COL_HOST_EVENT_SLOT_ARG, COL_HOST_EVENT_SLOT_CURSOR_BEFORE,
     COL_HOST_EVENT_SLOT_IMMEDIATE0, COL_HOST_EVENT_SLOT_IMMEDIATE1, COL_HOST_EVENT_SLOT_KIND,
     COL_HOST_EVENT_SLOT_VARIANT, COL_IS_PROGRAM_ROW, COL_LINEAR_MEM_ACCESS_BYTE0, COL_LINEAR_MEM_ACCESS_BYTE1,
     COL_LINEAR_MEM_ACCESS_BYTE2, COL_LINEAR_MEM_ACCESS_BYTE3, COL_LINEAR_MEM_ACCESS_BYTE4, COL_LINEAR_MEM_ACCESS_BYTE5,
@@ -39,7 +38,7 @@ use super::layout::{
     COL_LINEAR_MEM_OFFSET_IS_1, COL_LINEAR_MEM_OFFSET_IS_2, COL_LINEAR_MEM_OFFSET_IS_3, COL_LINEAR_MEM_USE_LANE0,
     COL_LINEAR_MEM_USE_LANE1, COL_LINEAR_MEM_USE_LANE2, COL_LOCAL_ADDR_HI, COL_LOCAL_ADDR_LO, COL_LOCAL_INDEX,
     COL_LOCAL_VALUE, COL_LOCAL_VALUE_HI, COL_LOCAL_WRITE_ENABLED, COL_OPCODE_CODE, COL_OUTPUT_CAPTURED, COL_PC_AFTER,
-    COL_PC_BEFORE, COL_PC_EDGE_KIND, COL_PC_FREF_ACTIVE, COL_PC_ROM_ACTIVE, COL_PC_ROM_CALL_RETURN_CHOICE,
+    COL_PC_BEFORE, COL_PC_EDGE_KIND, COL_PC_FREF_ACTIVE, COL_PC_ROM_ACTIVE,
     COL_PROGRAM_CALL_INDIRECT_IMMEDIATES_ACTIVE, COL_PROGRAM_GLOBAL_INDEX_ACTIVE, COL_PROGRAM_LOCAL_INDEX_ACTIVE,
     COL_PROGRAM_TABLE_ID_ACTIVE, COL_SIGN_EXT_BIT, COL_SIGN_EXT_LOW7, COL_STACK_READ_ACTIVE, COL_STACK_READ_ADDR_HI,
     COL_STACK_READ_ADDR_LO, COL_STACK_READ_VALUE_HI, COL_STACK_READ_VALUE_LO, COL_STACK_WRITE0_ACTIVE,
@@ -122,7 +121,10 @@ pub struct SignExtensionColumns {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct WasmAuxiliaryRelations {
+    /// The tables: each memory's ports under `WasmMemoryId::table`.
     pub memory: MemoryCatalog<WasmMemoryId>,
+    /// The memories before the overlay, one for each declaration.
+    pub logical_memory: Vec<MemorySpec<WasmMemoryId>>,
     pub continuity: ContinuityCatalog,
 }
 
@@ -807,14 +809,14 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
             active_when(Column(COL_IS_PROGRAM_ROW)),
         ),
         // Event-template ROMs (see `docs/host-event-grammar-tables.md` §3.4):
-        // per-slot source descriptors keyed by (fref, event index, slot
-        // cursor) read on gather rows, and per-import event counts read on
+        // per-slot source descriptors keyed by (event index, slot cursor)
+        // read on gather rows, where the event index counts from the first
+        // event row of the template (`HostEventBase`), and per-import event counts read on
         // host-call/result rows. Content is generated from the embedder's
         // `HostEventBindings` (see `host_event_bindings::preload_host_event_tables`).
         rom_read_spec(
             WasmMemoryId::HostEventSlotKind,
             vec![
-                Column(COL_HOST_CALLEE_FREF_BEFORE),
                 Column(COL_HOST_EVENT_INDEX_BEFORE),
                 Column(COL_HOST_EVENT_SLOT_CURSOR_BEFORE),
             ],
@@ -824,7 +826,6 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
         rom_read_spec(
             WasmMemoryId::HostEventSlotArg,
             vec![
-                Column(COL_HOST_CALLEE_FREF_BEFORE),
                 Column(COL_HOST_EVENT_INDEX_BEFORE),
                 Column(COL_HOST_EVENT_SLOT_CURSOR_BEFORE),
             ],
@@ -834,7 +835,6 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
         rom_read_spec(
             WasmMemoryId::HostEventSlotVariant,
             vec![
-                Column(COL_HOST_CALLEE_FREF_BEFORE),
                 Column(COL_HOST_EVENT_INDEX_BEFORE),
                 Column(COL_HOST_EVENT_SLOT_CURSOR_BEFORE),
             ],
@@ -844,7 +844,6 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
         rom_read_spec(
             WasmMemoryId::HostEventSlotImmediate0,
             vec![
-                Column(COL_HOST_CALLEE_FREF_BEFORE),
                 Column(COL_HOST_EVENT_INDEX_BEFORE),
                 Column(COL_HOST_EVENT_SLOT_CURSOR_BEFORE),
             ],
@@ -854,7 +853,6 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
         rom_read_spec(
             WasmMemoryId::HostEventSlotImmediate1,
             vec![
-                Column(COL_HOST_CALLEE_FREF_BEFORE),
                 Column(COL_HOST_EVENT_INDEX_BEFORE),
                 Column(COL_HOST_EVENT_SLOT_CURSOR_BEFORE),
             ],
@@ -878,7 +876,9 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
         // family's narrower configured width). With those bounds, field
         // addition cannot wrap at 2^32: after at most 2^32 blocks the next
         // gather is unsatisfiable while events_remaining remains nonzero.
-        // This enforces template presence in the composed circuit. The bare
+        // An undeclared fref also reads the base 0, so its gathers read the
+        // event rows of the declared templates first; the bound holds the
+        // same. This enforces template presence in the composed circuit. The bare
         // frontend relation does not establish this memory-binding guarantee.
         MemorySpec {
             id: WasmMemoryId::HostEventImportScheduleCount,
@@ -898,84 +898,65 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
                 },
             ],
         },
+        // The first event row of a template. Each row that loads a schedule
+        // reads it with the key of that schedule, so the event index of the
+        // gather rows starts in the template of the bound function.
         MemorySpec {
-            id: WasmMemoryId::HostEventExportEntryScheduleCount,
+            id: WasmMemoryId::HostEventBase,
             kind: MemoryKind::Rom,
-            ports: vec![
-                // Exit latch: re-reads the export's entry count to continue
-                // the event numbering for exit events.
-                MemoryPortSpec {
-                    address_columns: memory_columns([Column(COL_TURN_EXPORT_FREF_BEFORE)]),
-                    value_column: COL_HOST_EVENT_INITIAL_SCHEDULE_COUNT,
-                    kind: MemoryPortKind::Read,
-                    activation: active_when(Column(COL_HOST_EVENT_EXIT_LATCH)),
-                },
-                // Turn boundary: loads the entered export's entry-event
-                // count as the next turn's owed schedule.
-                MemoryPortSpec {
-                    address_columns: memory_columns([Column(COL_HOST_CALLEE_FREF_AFTER)]),
-                    value_column: COL_HOST_EVENT_INITIAL_SCHEDULE_COUNT,
-                    kind: MemoryPortKind::Read,
-                    activation: active_when(Column(COL_TURN_BOUNDARY)),
-                },
-            ],
+            ports: [
+                (COL_FUNCTION_REF, COL_HOST_CALL_ACTIVE),
+                (COL_HOST_CALLEE_FREF_AFTER, crate::layout::COL_HOST_RESUME),
+                (COL_TURN_EXPORT_FREF_BEFORE, COL_HOST_EVENT_EXIT_LATCH),
+                (COL_HOST_CALLEE_FREF_AFTER, COL_TURN_BOUNDARY),
+            ]
+            .into_iter()
+            .map(|(address, gate)| MemoryPortSpec {
+                address_columns: memory_columns([Column(address)]),
+                value_column: crate::layout::COL_HOST_EVENT_BASE,
+                kind: MemoryPortKind::Read,
+                activation: active_when(Column(gate)),
+            })
+            .collect(),
         },
+        // One word for each export: the entry count plus one in the low
+        // half and the exit count in the high half, decoded as the import
+        // word is. The exit latch re-reads it to continue the event
+        // numbering, and the turn boundary loads it as the next turn's owed
+        // schedule (the exit count lets the nonempty-template guard accept
+        // an empty entry schedule).
         MemorySpec {
-            id: WasmMemoryId::HostEventExportExitScheduleCount,
+            id: WasmMemoryId::HostEventExportScheduleCount,
             kind: MemoryKind::Rom,
-            ports: vec![
-                // Exit latch: the export's exit-event count. Raw (no presence
-                // bias): the turn's export fref was bound at entry.
-                MemoryPortSpec {
-                    address_columns: memory_columns([Column(COL_TURN_EXPORT_FREF_BEFORE)]),
-                    value_column: COL_HOST_EVENT_EXIT_SCHEDULE_COUNT,
-                    kind: MemoryPortKind::Read,
-                    activation: active_when(Column(COL_HOST_EVENT_EXIT_LATCH)),
-                },
-                // Turn boundary: bind the next export's exit count so the
-                // nonempty-template guard can accept an empty entry schedule.
-                MemoryPortSpec {
-                    address_columns: memory_columns([Column(COL_HOST_CALLEE_FREF_AFTER)]),
-                    value_column: COL_HOST_EVENT_EXIT_SCHEDULE_COUNT,
-                    kind: MemoryPortKind::Read,
-                    activation: active_when(Column(COL_TURN_BOUNDARY)),
-                },
-            ],
+            ports: [
+                (COL_TURN_EXPORT_FREF_BEFORE, COL_HOST_EVENT_EXIT_LATCH),
+                (COL_HOST_CALLEE_FREF_AFTER, COL_TURN_BOUNDARY),
+            ]
+            .into_iter()
+            .map(|(address, gate)| MemoryPortSpec {
+                address_columns: memory_columns([Column(address)]),
+                value_column: crate::layout::COL_HOST_IMPORT_SCHEDULE_COUNTS,
+                kind: MemoryPortKind::Read,
+                activation: active_when(Column(gate)),
+            })
+            .collect(),
         },
         MemorySpec {
             id: WasmMemoryId::PcRom,
             kind: MemoryKind::Rom,
-            ports: vec![
-                MemoryPortSpec {
-                    address_columns: memory_columns([Column(COL_PC_BEFORE), Column(COL_CONTROL_CHOICE)]),
-                    value_column: COL_PC_AFTER,
-                    kind: MemoryPortKind::Read,
-                    activation: active_when(Column(COL_PC_ROM_ACTIVE)),
-                },
-                MemoryPortSpec {
-                    address_columns: memory_columns([Column(COL_PC_BEFORE), Column(COL_PC_ROM_CALL_RETURN_CHOICE)]),
-                    value_column: COL_CALL_STACK_RETURN_PC_VALUE,
-                    kind: MemoryPortKind::Read,
-                    activation: active_when(Column(COL_CALL_STACK_PUSH_PRESENT)),
-                },
-                // An indirect host call binds its fall-through pc_after to
-                // the call site's return-pc slot: host imports have no
-                // `function_entries` entry, and the DynamicCallIndirect edge
-                // kind bypasses the static pc ROM read.
-                MemoryPortSpec {
-                    address_columns: memory_columns([Column(COL_PC_BEFORE), Column(COL_PC_ROM_CALL_RETURN_CHOICE)]),
-                    value_column: COL_PC_AFTER,
-                    kind: MemoryPortKind::Read,
-                    activation: active_when(Column(COL_CI_HOST_CALL)),
-                },
-            ],
+            ports: vec![MemoryPortSpec {
+                address_columns: memory_columns([Column(COL_EDGE_ADDR)]),
+                value_column: COL_PC_AFTER,
+                kind: MemoryPortKind::Read,
+                activation: active_when(Column(COL_PC_ROM_ACTIVE)),
+            }],
         },
         // A slide's countdown and distance come from the taken edge; a clean
         // activation return (the exit latch) reads its distance to bind its
         // result count, without seeding a move.
         rom_read_spec(
             WasmMemoryId::FrameSlideRemaining,
-            vec![Column(COL_PC_BEFORE), Column(COL_CONTROL_CHOICE)],
+            vec![Column(COL_EDGE_ADDR)],
             Column(COL_FRAME_MOVE_REMAINING_AFTER),
             active_when(Column(COL_FRAME_SLIDE_ACTIVE)),
         ),
@@ -984,13 +965,13 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
             kind: MemoryKind::Rom,
             ports: vec![
                 MemoryPortSpec {
-                    address_columns: memory_columns([Column(COL_PC_BEFORE), Column(COL_CONTROL_CHOICE)]),
+                    address_columns: memory_columns([Column(COL_EDGE_ADDR)]),
                     value_column: COL_FRAME_MOVE_DISTANCE_AFTER,
                     kind: MemoryPortKind::Read,
                     activation: active_when(Column(COL_FRAME_SLIDE_ACTIVE)),
                 },
                 MemoryPortSpec {
-                    address_columns: memory_columns([Column(COL_PC_BEFORE), Column(COL_CONTROL_CHOICE)]),
+                    address_columns: memory_columns([Column(COL_EDGE_ADDR)]),
                     value_column: COL_EXIT_SLIDE_DISTANCE,
                     kind: MemoryPortKind::Read,
                     activation: active_when(Column(COL_HOST_EVENT_EXIT_LATCH)),
@@ -1044,12 +1025,32 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
         }
     }
     let columns = crate::witness_layout::range_checked_column_registry();
+    let logical_memory = memories;
+    let mut memories: Vec<MemorySpec<WasmMemoryId>> = Vec::new();
+    for memory in &logical_memory {
+        let id = memory.id.table();
+        match memories.iter_mut().find(|table| table.id == id) {
+            Some(table) => {
+                assert_eq!(table.kind, memory.kind, "table {id} has one kind");
+                table.ports.extend(memory.ports.iter().cloned());
+            }
+            None => memories.push(MemorySpec {
+                id,
+                kind: memory.kind,
+                ports: memory.ports.clone(),
+            }),
+        }
+    }
     let memory = MemoryCatalog::new(memories, &columns).expect("valid WASM memory declarations");
     let continuity = ContinuityCatalog::new(build_ivc_state_continuity_links(), &columns)
         .expect("valid WASM continuity declarations");
 
     WasmRelationLayout {
-        auxiliary: WasmAuxiliaryRelations { memory, continuity },
+        auxiliary: WasmAuxiliaryRelations {
+            memory,
+            logical_memory,
+            continuity,
+        },
         linear_memory,
         sign_extension,
     }

@@ -1057,6 +1057,7 @@ fn if_row_is_accepted() {
     ))
     .unwrap();
     row[neo_wasm::layout::COL_CONTROL_CHOICE] = F::ONE;
+    row[neo_wasm::layout::COL_EDGE_ADDR] += F::ONE;
     assert_satisfied(&row, "if row");
 }
 

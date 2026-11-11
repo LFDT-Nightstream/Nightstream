@@ -23,13 +23,13 @@ Definition directCallImage (memory : MemoryState) (pc returnPC : Z) (caller : st
     Some (typedFunction module typeIndex params results locals body) /\
   memory programOpcodeId [pc] = Some CODE_CALL /\
   memory callTargetId [pc] = Some (Z.of_N address + 1) /\
-  memory pcRomId [pc; 1] = Some returnPC /\
+  returnPC = pc + 1 /\
   guestFunctionImage memory address entry (length params) (length results) (length locals).
 
 Definition instructionImage (memory : MemoryState) (pc : Z) (instruction : instr) : Prop :=
   memory programOpcodeId [pc] = encodedOpcode instruction /\
   memory pcEdgeKindId [pc] = Some 0 /\
-  (forall choice, memory pcRomId [pc; choice] = if choice =? 0 then Some (pc + 1) else Some 0) /\
+  memory pcRomId [pc] = Some (pc + 1) /\
   match instruction with
   | LOCAL_GET x | LOCAL_SET x => memory programLocalIndexId [pc] = Some (Z.of_N (x :> N))
   | _ => True

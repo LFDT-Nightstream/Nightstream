@@ -14,7 +14,6 @@ use super::decode::{
 };
 use crate::ir::{pack_function_call_metadata, WasmPcEdgeKind, WasmProgramError};
 use crate::isa::{opcode_code, WasmOpcode};
-use crate::layout::PC_ROM_CALL_RETURN_CHOICE;
 use std::collections::BTreeMap;
 use wasmparser::{Parser, Payload};
 
@@ -53,7 +52,8 @@ pub struct WasmProgramTables {
     /// opcode and immediate-bearing witness columns that are derived from the
     /// wasm bytes. Non-applicable immediate slots are encoded as zero.
     pub program_decode: Vec<WasmProgramDecodeEntry>,
-    /// Static next-PC ROM rows `(pc_before, control_choice, pc_after)`.
+    /// Static next-PC ROM rows `(pc_before, control_choice, pc_after)`. The
+    /// ROM key of a row is `pc_before + control_choice`.
     /// Program rows read this table to bind the witnessed PC transition to
     /// the parsed control-flow graph.
     pub pc_rom: Vec<(u64, u64, u64)>,
@@ -680,6 +680,17 @@ impl ParsedWasmArtifactsBuilder {
                         }
                         operator => operator,
                     };
+                    // An instruction with `k` control choices takes `k` pcs, so the
+                    // edge of choice `c` has the one-part key `pc + c`.
+                    let extra_choices = match &operator {
+                        wasmparser::Operator::If { .. } | wasmparser::Operator::BrIf { .. } => 1,
+                        wasmparser::Operator::BrTable { targets } => targets.len(),
+                        _ => 0,
+                    };
+                    self.next_pc = self
+                        .next_pc
+                        .checked_add(extra_choices)
+                        .ok_or_else(|| WasmProgramError::Unsupported("wasm instruction PC exceeds u32".to_string()))?;
                     // An indirect call takes two pcs: its resolve step, then the
                     // invocation, which the rest of this iteration lays out. The
                     // Wasmtime step keeps the first pc, where the instruction starts.
@@ -960,9 +971,6 @@ impl ParsedWasmArtifactsBuilder {
                         | wasmparser::Operator::ReturnCall { function_index } => {
                             let function_ref = function_index.saturating_add(1);
                             self.call_targets.push((pc_before, u64::from(function_ref)));
-                            if matches!(operator, wasmparser::Operator::Call { .. }) {
-                                self.push_pc_rom_edge(pc_before, PC_ROM_CALL_RETURN_CHOICE, pc_after);
-                            }
                             if function_ref <= self.imported_function_count {
                                 self.push_pc_rom_edge(pc_before, 0, pc_after);
                             } else {
@@ -976,11 +984,10 @@ impl ParsedWasmArtifactsBuilder {
                                 }
                             }
                         }
-                        wasmparser::Operator::CallIndirect { .. } => {
-                            self.push_pc_rom_edge(pc_before, PC_ROM_CALL_RETURN_CHOICE, pc_after);
-                        }
-                        wasmparser::Operator::ReturnCallIndirect { .. } => {}
-                        wasmparser::Operator::Unreachable | wasmparser::Operator::Return => {}
+                        wasmparser::Operator::CallIndirect { .. }
+                        | wasmparser::Operator::ReturnCallIndirect { .. }
+                        | wasmparser::Operator::Unreachable
+                        | wasmparser::Operator::Return => {}
                         _ => self.push_pc_rom_edge(pc_before, 0, pc_after),
                     }
                 }

@@ -135,11 +135,11 @@ Proof.
 Qed.
 
 Example computed_branch_layout :
-  encodeProgram computedProgram pcRomId [4; 0] = Some 5 /\
-  encodeProgram computedProgram pcRomId [4; 1] = Some 10 /\
-  encodeProgram computedProgram pcRomId [6; 0] = Some 7 /\
-  encodeProgram computedProgram pcRomId [6; 1] = Some 10 /\
-  encodeProgram computedProgram programOpcodeId [9] = Some CODE_END.
+  encodeProgram computedProgram pcRomId [4] = Some 6 /\
+  encodeProgram computedProgram pcRomId [5] = Some 12 /\
+  encodeProgram computedProgram pcRomId [7] = Some 9 /\
+  encodeProgram computedProgram pcRomId [8] = Some 12 /\
+  encodeProgram computedProgram programOpcodeId [11] = Some CODE_END.
 Proof. repeat split; reflexivity. Qed.
 
 (* After local.get 0; local.get 1; i32.sub, the value is 7 - 9 modulo 2^32.

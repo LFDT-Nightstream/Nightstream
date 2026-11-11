@@ -32,9 +32,9 @@ define_column_region! {
         COL_HOST_CONTEXT_READ: Boolean => "read suspended context at nested entry or resume",
         COL_HOST_CONTEXT_ADDR: U32 => "suspended context call-stack address",
         COL_HOST_CONTEXT: [U32; 8] => "saved pc, fbp, stack base, export, import, args base, parent host depth, sp",
-        COL_HOST_IMPORT_SCHEDULE_COUNTS: U32 => "packed import call/return biased counts",
-        COL_HOST_INITIAL_COUNT: (Bits(IMPORT_SCHEDULE_COUNT_BITS)) => "import call-block count plus one",
-        COL_HOST_RETURN_COUNT: (Bits(IMPORT_SCHEDULE_COUNT_BITS)) => "zero for atomic, otherwise one plus the import return-schedule length",
+        COL_HOST_IMPORT_SCHEDULE_COUNTS: U32 => "packed schedule counts: import call/return, or export entry/exit",
+        COL_HOST_INITIAL_COUNT: (Bits(IMPORT_SCHEDULE_COUNT_BITS)) => "low half: import call-block or export entry-block count plus one",
+        COL_HOST_RETURN_COUNT: (Bits(IMPORT_SCHEDULE_COUNT_BITS)) => "high half: zero for atomic, otherwise one plus the import return-schedule length; the exit count of an export",
         COL_HOST_RETURN_COUNT_IS_ZERO: Boolean => "selected import is atomic",
         COL_HOST_RETURN_COUNT_INV: Field => "inverse witness for return count",
         COL_HOST_CLEAR_ACTIVATION_FINISHED: Boolean => "entry or resume clears the previous activation-finished flag",
@@ -82,6 +82,8 @@ define_column_region! {
             "host-event ROM slot immediate 1; see WasmHostEventRomEntry",
         COL_HOST_EVENT_INITIAL_SCHEDULE_COUNT: Field =>
             "host-event ROM initial-schedule count for the called import or entered export (biased +1; reread to offset export-exit indices)",
+        COL_HOST_EVENT_BASE: U32 =>
+            "host-event ROM first event row of the template that this row loads",
         COL_HOST_EVENT_EXIT_SCHEDULE_COUNT: Field =>
             "host-event ROM exit-schedule count for the returning export",
         COL_GATHER_LOCAL_WRITE: Boolean =>

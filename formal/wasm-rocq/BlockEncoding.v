@@ -30,19 +30,6 @@ Proof.
     by (apply nth_error_Some; rewrite Hslot; discriminate). lia.
 Qed.
 
-(* A one-edge pc-ROM entry: `next` at choice 0, padding elsewhere. *)
-Lemma single_edge : forall pc next choice,
-  Some (match (if choice <? 0 then None else
-    match nth_error [Some next] (Z.to_nat choice) with Some (Some target) => Some (pc + Z.of_nat target)
-    | _ => None end) with Some v => v | None => 0 end) =
-  if choice =? 0 then Some (pc + Z.of_nat next) else Some 0.
-Proof.
-  intros pc next choice. destruct (Z.ltb_spec choice 0) as [Hneg | Hnonneg].
-  - replace (choice =? 0) with false by (symmetry; apply Z.eqb_neq; lia). reflexivity.
-  - destruct (Z.eqb_spec choice 0) as [-> | Hne]; [reflexivity | ].
-    replace (Z.to_nat choice) with (S (Z.to_nat choice - 1)) by lia. destruct (Z.to_nat choice - 1)%nat; reflexivity.
-Qed.
-
 Section Path.
 Variables (program : Program) (memory : MemoryState) (index : nat) (f : GuestFunction).
 Hypothesis Hloaded : programLoaded program memory.
@@ -84,7 +71,9 @@ Qed.
 
 Ltac pc_cell Hpc :=
   program_cell Hloaded; unfold encodeProgram;
-  cbn [Nat.eqb pcRomId pcFunctionRefId functionEntryId functionLocalCountId functionCallMetadataId orb];
+  cbn [Nat.eqb pcRomId pcFunctionRefId functionEntryId functionTypeId functionLocalCountId functionCallMetadataId
+    frameSlideRemainingId frameSlideDistanceId programOpcodeId pcEdgeKindId programLocalIndexId programBrTableLenId
+    callTargetId programTableId expectedTypeId orb];
   unfold instructionRom; rewrite Hpc;
   cbn [Nat.eqb pcRomId programOpcodeId pcEdgeKindId programLocalIndexId programBrTableLenId callTargetId].
 
@@ -96,8 +85,8 @@ Proof.
   pose proof (encoded_path_head _ _ _ _ Hpath Hi) as Hpc.
   destruct (encoded_opcode_cases _ _ Hop) as [[-> _] | [[-> _] | [[x [-> _]] | [x [-> _]]]]];
     cbn [slotTargets] in Hpc;
-    unfold instructionImage; repeat split; try intros choice;
-    try (pc_cell Hpc; try reflexivity; destruct (choice =? 0); reflexivity).
+    unfold instructionImage; repeat split;
+    try (pc_cell Hpc; reflexivity).
 Qed.
 
 Lemma encoded_path_block_entry : forall labels inner offset bt body,
@@ -106,7 +95,7 @@ Lemma encoded_path_block_entry : forall labels inner offset bt body,
 Proof.
   intros labels inner offset bt body Hpath Hi.
   pose proof (encoded_path_head _ _ _ _ Hpath Hi) as Hpc. cbn [slotTargets] in Hpc.
-  unfold controlImage; repeat split; try intro choice; pc_cell Hpc; try reflexivity; destruct (choice =? 0); reflexivity.
+  unfold controlImage; repeat split; pc_cell Hpc; reflexivity.
 Qed.
 
 Lemma encoded_path_nop : forall labels inner offset,
@@ -115,7 +104,7 @@ Lemma encoded_path_nop : forall labels inner offset,
 Proof.
   intros labels inner offset Hpath Hi.
   pose proof (encoded_path_head _ _ _ _ Hpath Hi) as Hpc. cbn [slotTargets] in Hpc.
-  unfold controlImage; repeat split; try intro choice; pc_cell Hpc; try reflexivity; destruct (choice =? 0); reflexivity.
+  unfold controlImage; repeat split; pc_cell Hpc; reflexivity.
 Qed.
 
 Lemma encoded_path_unreachable : forall labels inner offset,
@@ -134,25 +123,39 @@ Lemma encoded_path_loop_entry : forall labels inner offset bt body,
 Proof.
   intros labels inner offset bt body Hpath Hi.
   pose proof (encoded_path_head _ _ _ _ Hpath Hi) as Hpc. cbn [slotTargets] in Hpc.
-  unfold controlImage; repeat split; try intro choice; pc_cell Hpc; try reflexivity; destruct (choice =? 0); reflexivity.
+  unfold controlImage; repeat split; pc_cell Hpc; reflexivity.
 Qed.
 
-(* An if's head: its true edge enters the then-body; its false edge lands past
-   the then-body and ELSE, at the else-body or after the if's END. *)
+(* A slot of the function, at its address. *)
+Lemma encoded_offset_slot : forall offset slot,
+  nth_error (flattenCode (guestBody f)) offset = Some slot ->
+  instructionAtPC program (guestEntry f + Z.of_nat offset) =
+    Some (SpecTecCalls.typedFunction (guestModule f) (guestTypeIndex f) (guestParamTypes f)
+      (guestResultTypes f) (guestLocalTypes f) (guestBody f), Some slot) /\
+  pcEntry program (guestEntry f + Z.of_nat offset) = guestEntry f.
+Proof.
+  intros offset slot Hslot. split; [exact (encoded_slot _ _ _ _ _ Hf Hslot) | exact (slot_pc_entry _ _ _ _ _ Hf Hslot)].
+Qed.
+
+(* An if's head: its false edge, of choice 0, lands past the then-body and ELSE,
+   at the else-body or after the if's END. Its true edge, of choice 1, is the
+   next address, and enters the then-body. *)
 Lemma encoded_path_if : forall labels inner offset bt t e,
   pathCode (guestBody f) labels = Some inner -> nth_error inner offset = Some (IFELSE bt t e) ->
   memory programOpcodeId [pathPC labels offset] = Some CODE_IF /\
   memory pcEdgeKindId [pathPC labels offset] = Some 0 /\
-  forall choice, memory pcRomId [pathPC labels offset; choice] =
-    if choice =? 1 then Some (pathPC labels offset + 1)
-    else if choice =? 0 then Some (pathPC labels offset + Z.of_nat (S (S (codeSize t)))) else Some 0.
+  memory pcRomId [pathPC labels offset] = Some (pathPC labels offset + Z.of_nat (S (S (S (codeSize t))))) /\
+  memory pcRomId [pathPC labels offset + 1] = Some (pathPC labels offset + 2).
 Proof.
   intros labels inner offset bt t e Hpath Hi.
   pose proof (encoded_path_head _ _ _ _ Hpath Hi) as Hpc. cbn [slotTargets] in Hpc.
   pose proof (path_pc_entry _ _ _ _ Hpath Hi) as Hentry.
-  split; [ | split; [ | intros choice]]; pc_cell Hpc; try reflexivity.
-  rewrite Hentry. destruct (choice =? 1); [reflexivity | ]. destruct (choice =? 0); [ | reflexivity].
-  unfold pathPC. f_equal. lia.
+  split; [ | split; [ | split]]; try (pc_cell Hpc; try reflexivity).
+  - rewrite Hentry. unfold pathPC. cbn [romValue]. f_equal. lia.
+  - destruct (encoded_offset_slot _ _ (flatten_at_if_edge _ _ _ _ _ _ _ Hpath Hi)) as [Hedge HedgeEntry].
+    replace (guestEntry f + Z.of_nat (S (pathOffset (guestBody f) labels offset))) with (pathPC labels offset + 1)
+      in Hedge, HedgeEntry by (unfold pathPC; lia).
+    pc_cell Hedge. rewrite HedgeEntry. unfold pathPC. cbn [romValue]. f_equal. lia.
 Qed.
 
 (* The last slot of an arm: an if's then-body ends at its ELSE when it has an
@@ -197,10 +200,10 @@ Proof.
       rewrite if_instruction_size. cbn [codeSize]. lia. }
   unfold controlImage. pose proof (Hoffset (length body)) as Hoff. rewrite code_offset_end in Hoff.
   destruct Hshape as [[Hop [Hend Hsize]] | [Hop Helse]]; rewrite ?Hend, ?Helse in Hpc; rewrite Hop.
-  - repeat split; try intro choice; pc_cell Hpc; try reflexivity.
-    destruct (choice =? 0); [ | reflexivity]. unfold pathPC. rewrite Hoff. f_equal. lia.
-  - repeat split; try intro choice; pc_cell Hpc; try reflexivity.
-    rewrite Hentry, single_edge. destruct (choice =? 0); reflexivity.
+  - repeat split; pc_cell Hpc; try reflexivity.
+    unfold pathPC. rewrite Hoff. cbn [romValue]. f_equal. lia.
+  - repeat split; pc_cell Hpc; try reflexivity.
+    rewrite Hentry. reflexivity.
 Qed.
 
 (* A branch at a path to its label at s after pre lands where that label's
@@ -215,18 +218,34 @@ Proof.
   rewrite Hl. exact (path_target _ _ _ _ _ _ _ _ Hpath Hpre Hentry).
 Qed.
 
+(* A branch's later edge, of choice k + 1, is k + 1 addresses after its head. *)
+Lemma encoded_path_edge : forall labels inner offset i k (l : labelidx) pre s post outer j body,
+  pathCode (guestBody f) labels = Some inner -> nth_error inner offset = Some i ->
+  nth_error (edgeLabels i) k = Some l ->
+  labels = pre ++ s :: post -> N.to_nat (l :> N) = length post ->
+  pathCode (guestBody f) pre = Some outer -> siteEntry outer s = Some (j, body) ->
+  memory pcRomId [pathPC labels offset + Z.of_nat (S k)] = Some (sitePC pre s j).
+Proof.
+  intros labels inner offset i k l pre s post outer j body Hpath Hi Hk Hsplit Hl Hpre Hentry.
+  destruct (encoded_offset_slot _ _ (flatten_at_edge _ _ _ _ _ _ _ Hpath Hi Hk)) as [Hedge HedgeEntry].
+  rewrite (path_branch_target _ _ _ _ _ _ _ _ _ Hpath Hsplit Hl Hpre Hentry) in Hedge.
+  replace (guestEntry f + Z.of_nat (pathOffset (guestBody f) labels offset + S k)) with
+    (pathPC labels offset + Z.of_nat (S k)) in Hedge, HedgeEntry by (unfold pathPC; lia).
+  pc_cell Hedge. rewrite HedgeEntry. reflexivity.
+Qed.
+
+(* A br_if: its fall-through, of choice 0, skips its edge slot; its taken edge,
+   of choice 1, is at that slot. *)
 Lemma encoded_path_branch : forall labels inner offset l pre s post outer j body,
   pathCode (guestBody f) labels = Some inner -> nth_error inner offset = Some (BR_IF l) ->
   labels = pre ++ s :: post -> N.to_nat (l :> N) = length post ->
   pathCode (guestBody f) pre = Some outer -> siteEntry outer s = Some (j, body) ->
-  branchImage memory (pathPC labels offset) (pathPC labels offset + 1) (sitePC pre s j).
+  branchImage memory (pathPC labels offset) (pathPC labels offset + 2) (sitePC pre s j).
 Proof.
   intros labels inner offset l pre s post outer j body Hpath Hi Hsplit Hl Hpre Hentry.
   pose proof (encoded_path_head _ _ _ _ Hpath Hi) as Hpc. cbn [slotTargets branchTargets map] in Hpc.
-  rewrite (path_branch_target _ _ _ _ _ _ _ _ _ Hpath Hsplit Hl Hpre Hentry) in Hpc.
-  pose proof (path_pc_entry _ _ _ _ Hpath Hi) as Hentry_pc.
-  unfold branchImage. repeat split; try intro choice; pc_cell Hpc; try reflexivity.
-  rewrite Hentry_pc. destruct (choice =? 0); [reflexivity | ]. destruct (choice =? 1); reflexivity.
+  unfold branchImage. split; [ | split; [ | split]]; try (pc_cell Hpc; reflexivity).
+  exact (encoded_path_edge _ _ _ _ 0%nat l _ _ _ _ _ _ Hpath Hi Logic.eq_refl Hsplit Hl Hpre Hentry).
 Qed.
 
 (* A br: its one edge lands where its target label's branches land. *)
@@ -240,8 +259,8 @@ Proof.
   pose proof (encoded_path_head _ _ _ _ Hpath Hi) as Hpc. cbn [slotTargets branchTargets map] in Hpc.
   rewrite (path_branch_target _ _ _ _ _ _ _ _ _ Hpath Hsplit Hl Hpre Hentry) in Hpc.
   pose proof (path_pc_entry _ _ _ _ Hpath Hi) as Hentry_pc.
-  unfold controlImage. repeat split; try intro choice; pc_cell Hpc; try reflexivity.
-  rewrite Hentry_pc, single_edge. destruct (choice =? 0); reflexivity.
+  unfold controlImage. repeat split; pc_cell Hpc; try reflexivity.
+  rewrite Hentry_pc. reflexivity.
 Qed.
 
 (* A br_table's ROM image: its opcode, a static edge, its arm count, and each
@@ -254,22 +273,19 @@ Lemma encoded_path_br_table : forall labels inner offset ls l,
   forall k target pre s post outer j body, nth_error (l :: ls) k = Some target ->
     labels = pre ++ s :: post -> N.to_nat (target :> N) = length post ->
     pathCode (guestBody f) pre = Some outer -> siteEntry outer s = Some (j, body) ->
-    memory pcRomId [pathPC labels offset; Z.of_nat k] = Some (sitePC pre s j).
+    memory pcRomId [pathPC labels offset + Z.of_nat k] = Some (sitePC pre s j).
 Proof.
   intros labels inner offset ls l Hpath Hi.
   pose proof (encoded_path_head _ _ _ _ Hpath Hi) as Hpc.
   split; [ | split; [ | split]].
   1-3: pc_cell Hpc; reflexivity.
   intros k target pre s post outer j body Hk Hsplit Htarget Hpre Hentry.
-  assert (Hedge : nth_error (slotTargets (pathTargets (guestBody f) labels) (pathOffset (guestBody f) labels offset)
-      (BR_TABLE ls l)) k = Some (Some (pathOffset (guestBody f) pre (siteOffset s) + labelTarget j)%nat)).
-  { cbn [slotTargets branchTargets]. rewrite nth_error_map, Hk. cbn [Datatypes.option_map].
-    rewrite (path_branch_target _ _ _ _ _ _ _ _ _ Hpath Hsplit Htarget Hpre Hentry).
-    reflexivity. }
-  pose proof (path_pc_entry _ _ _ _ Hpath Hi) as Hentry_pc.
-  pc_cell Hpc.
-  replace (Z.of_nat k <? 0) with false by (symmetry; apply Z.ltb_ge; lia). rewrite Nat2Z.id, Hedge, Hentry_pc.
-  reflexivity.
+  destruct k as [ | k].
+  - injection Hk as <-. cbn [slotTargets branchTargets map] in Hpc.
+    rewrite (path_branch_target _ _ _ _ _ _ _ _ _ Hpath Hsplit Htarget Hpre Hentry) in Hpc.
+    pose proof (path_pc_entry _ _ _ _ Hpath Hi) as Hentry_pc.
+    rewrite Z.add_0_r. pc_cell Hpc. rewrite Hentry_pc. reflexivity.
+  - exact (encoded_path_edge _ _ _ _ k target _ _ _ _ _ _ Hpath Hi Hk Hsplit Htarget Hpre Hentry).
 Qed.
 
 (* A direct call's ROM image at a code path: target, return pc and callee metadata. *)
@@ -310,10 +326,10 @@ Proof.
                 Some (Z.of_N (guestAddress callee) + 1)).
               rewrite Haddress, HcalleeAddress. reflexivity.
            ++ split.
-              ** program_cell Hloaded. unfold encodeProgram. cbn.
-                 unfold instructionRom. rewrite Hpc. reflexivity.
+              ** reflexivity.
               ** eapply encoded_guest_image; eassumption.
-  - unfold pathPC. eapply encoded_frame_image; [exact Hloaded | exact Hf | lia | exact Hcount].
+  - unfold pathPC. eapply encoded_frame_image; [exact Hloaded | exact Hf | lia | | exact Hcount].
+    intros l targets Hslot. rewrite (flatten_at_path _ _ _ _ _ Hpath Hi) in Hslot. discriminate.
 Qed.
 
 (* A return's slot, or a br's to the function's label: the RETURN opcode, with a
@@ -331,26 +347,23 @@ Proof.
   intros labels inner offset x y Hpath Hi.
   pose proof (encoded_path_head _ _ _ _ Hpath Hi) as Hpc. cbn [slotTargets] in Hpc.
   split; [ | split].
-  - unfold controlImage; repeat split; try intro choice; pc_cell Hpc; try reflexivity;
-      destruct (choice =? 0); reflexivity.
+  - unfold controlImage; repeat split; pc_cell Hpc; reflexivity.
   - pc_cell Hpc. reflexivity.
   - pc_cell Hpc. reflexivity.
 Qed.
 
 (* An indirect call's invocation slot, one past its resolve slot: the invocation
-   opcode, the dynamic edge kind, and its return to the slot after it. *)
+   opcode and the dynamic edge kind. The circuit pins its return to the next address. *)
 Lemma encoded_path_invoke : forall labels inner offset x y,
   pathCode (guestBody f) labels = Some inner -> nth_error inner offset = Some (CALL_INDIRECT x y) ->
   memory programOpcodeId [pathPC labels offset + 1] = Some CODE_CALL_INDIRECT /\
-  memory pcEdgeKindId [pathPC labels offset + 1] = Some 2 /\
-  memory pcRomId [pathPC labels offset + 1; 1] = Some (pathPC labels offset + 2).
+  memory pcEdgeKindId [pathPC labels offset + 1] = Some 2.
 Proof.
   intros labels inner offset x y Hpath Hi.
   pose proof (encoded_slot _ _ _ _ _ Hf (flatten_at_invoke _ _ _ _ _ _ Hpath Hi)) as Hpc.
   replace (guestEntry f + Z.of_nat (S (pathOffset (guestBody f) labels offset))) with (pathPC labels offset + 1)
     in Hpc by (unfold pathPC; lia).
-  split; [ | split]; pc_cell Hpc; try reflexivity.
-  cbn. f_equal. lia.
+  split; pc_cell Hpc; reflexivity.
 Qed.
 
 Lemma encoded_path_return : forall labels inner offset i,

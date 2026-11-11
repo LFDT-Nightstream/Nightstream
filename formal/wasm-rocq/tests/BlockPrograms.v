@@ -97,18 +97,18 @@ Definition conditionalContext := moduleContext [i32StackType 0 1] [i32StackType 
 Definition conditionalBodyContext := functionContext conditionalContext conditionalFunction.
 
 Example conditional_layout :
-  codeSize conditionalCode = 7%nat /\
+  codeSize conditionalCode = 8%nat /\
   encodeProgram conditionalProgram programOpcodeId [0] = Some CODE_BLOCK /\
-  encodeProgram conditionalProgram pcRomId [0; 0] = Some 1 /\
+  encodeProgram conditionalProgram pcRomId [0] = Some 1 /\
   encodeProgram conditionalProgram programOpcodeId [2] = Some CODE_BR_IF /\
-  encodeProgram conditionalProgram pcRomId [2; 0] = Some 3 /\
-  encodeProgram conditionalProgram pcRomId [2; 1] = Some 6 /\
-  encodeProgram conditionalProgram programLocalIndexId [4] = Some 1 /\
-  encodeProgram conditionalProgram programOpcodeId [5] = Some CODE_END /\
-  encodeProgram conditionalProgram pcEdgeKindId [5] = Some 0 /\
-  encodeProgram conditionalProgram pcRomId [5; 0] = Some 6 /\
-  encodeProgram conditionalProgram programOpcodeId [7] = Some CODE_END /\
-  encodeProgram conditionalProgram pcEdgeKindId [7] = Some 1.
+  encodeProgram conditionalProgram pcRomId [2] = Some 4 /\
+  encodeProgram conditionalProgram pcRomId [3] = Some 7 /\
+  encodeProgram conditionalProgram programLocalIndexId [5] = Some 1 /\
+  encodeProgram conditionalProgram programOpcodeId [6] = Some CODE_END /\
+  encodeProgram conditionalProgram pcEdgeKindId [6] = Some 0 /\
+  encodeProgram conditionalProgram pcRomId [6] = Some 7 /\
+  encodeProgram conditionalProgram programOpcodeId [8] = Some CODE_END /\
+  encodeProgram conditionalProgram pcEdgeKindId [8] = Some 1.
 Proof. repeat split; reflexivity. Qed.
 
 Example conditional_block_validates :

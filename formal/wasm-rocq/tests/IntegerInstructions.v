@@ -13,7 +13,7 @@ Definition emptyCallees := calleeEnvironment (fun _ => None) [] [] True.
 
 Definition addMemory : MemoryState := fun memory address =>
   if Nat.eqb memory pcRomId then
-    if list_eq_dec Z.eq_dec address [addRow COL_PC_BEFORE; 0]
+    if list_eq_dec Z.eq_dec address [addRow COL_PC_BEFORE]
     then Some (addRow COL_PC_BEFORE + 1) else Some 0
   else addInitial memory address.
 Definition addMemoryFinal := replayed addMemory [addRow].
@@ -37,7 +37,7 @@ Proof.
   rewrite app_nil_r in Hreplay.
   assert (Himage : instructionImage addMemory (addRow COL_PC_BEFORE) (BINOP I32 (mk_binop__0 Inn_I32 ADD))).
   { split; [reflexivity | ]. split; [reflexivity | ]. split; [ | exact I].
-    intros [ | p | p]; vm_compute; reflexivity. }
+    vm_compute; reflexivity. }
   destruct (integer_instruction [] [wide; i32Value 7; i32Value 9] _ emptyState addMemory addMemoryFinal addRow
     emptyCallees [valtype_I64; valtype_I32] Hprime Hrow Logic.eq_refl Hreplay Himage
     ltac:(repeat constructor) ltac:(repeat constructor) Logic.eq_refl add_memory_stack

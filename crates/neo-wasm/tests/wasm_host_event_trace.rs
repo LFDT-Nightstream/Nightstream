@@ -650,13 +650,13 @@ fn count_families_are_split_and_biased() {
             "import cells live in the import family, biased"
         );
         assert_eq!(
-            cell(WasmMemoryId::HostEventExportEntryScheduleCount, fref),
+            cell(WasmMemoryId::HostEventExportScheduleCount, fref),
             None,
             "imports must have no export entry-count cell"
         );
     }
     assert_eq!(
-        cell(WasmMemoryId::HostEventExportEntryScheduleCount, export_fref),
+        cell(WasmMemoryId::HostEventExportScheduleCount, export_fref),
         Some(1),
         "the export's zero-event entry template is the biased 1, distinct from the zero-filled 0"
     );

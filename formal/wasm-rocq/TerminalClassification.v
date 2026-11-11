@@ -9,7 +9,7 @@ Open Scope Z_scope.
 Lemma supported_opcode_exists : forall callees i program f pc targets,
   Supported callees i ->
   instructionAtPC program pc = Some (f, Some (flatInstruction (opInstr i) targets)) ->
-  exists opcode, instructionRom program programOpcodeId pc 0 = Some opcode.
+  exists opcode, instructionRom program programOpcodeId pc = Some opcode.
 Proof.
   intros callees i program f pc targets Hsup Hslot. unfold instructionRom. rewrite Hslot.
   inversion Hsup; subst; destruct targets as [ | [target | ] [ | next rest]]; eexists; reflexivity.
@@ -18,7 +18,7 @@ Qed.
 Lemma source_terminal_instruction : forall callees i program f pc targets offset height,
   Supported callees i -> instrBranches callees i height (length targets) ->
   instructionAtPC program pc = Some (f, Some (flatInstruction (opInstr i) (slotTargets targets offset i))) ->
-  romValue (instructionRom program pcEdgeKindId pc 0) <> 0 ->
+  romValue (instructionRom program pcEdgeKindId pc) <> 0 ->
   i = UNREACHABLE \/ returnsFrom (length targets) i.
 Proof.
   intros callees i program f pc targets offset height Hsup Hbranches Hslot Hkind.
@@ -65,7 +65,7 @@ Proof.
   pose proof (full_opcode_selects_member row chosen opcode Hprime Hfull Hprogram Hcodes (eq_sym Hcode)) as Hsel.
   pose proof (full_nontrapping_finish_edge row chosen Hprime Hfull Hin Hsel Hfinish) as Hedge.
   assert (HromKind : initial pcEdgeKindId [row COL_PC_BEFORE] =
-      Some (romValue (instructionRom program pcEdgeKindId (row COL_PC_BEFORE) 0))).
+      Some (romValue (instructionRom program pcEdgeKindId (row COL_PC_BEFORE)))).
   { program_cell Hloaded. reflexivity. }
   pose proof (circuit_row_edge_kind_fetch _ _ _ Hreplay Hprogram) as Hkind.
   rewrite HromKind in Hkind. injection Hkind as Hkind.

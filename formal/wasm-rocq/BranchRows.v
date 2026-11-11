@@ -346,15 +346,14 @@ Proof.
     { rewrite (full_frame_slide_gate row Hprime Hfull), Hpop, Hchosen.
       repeat rewrite (full_opcode_selector_exclusive row COL_SEL_BR_IF_EQZ) by
         (assumption || vm_compute; tauto || discriminate). reflexivity. }
-    destruct (circuit_row_slide_fetch _ _ _ Hreplay Hslide) as [Hremaining Hdistance].
-    destruct (encoded_branch_slide _ _ _ _ _ _ _ _ _ _ (row COL_CONTROL_CHOICE) Hloaded Hf Hpath Hi Hheights)
-      as [Hkept Hrom].
-    rewrite <- Hpc, Hremaining, (full_br_if_choice row Hprime Hfull Hchosen) in Hkept.
-    rewrite <- Hpc, Hdistance, (full_br_if_choice row Hprime Hfull Hchosen) in Hrom.
+    destruct (circuit_row_slide_fetch _ _ _ Hprime Hfull Hreplay Hslide) as [Hremaining Hdistance].
+    rewrite (full_br_if_choice row Hprime Hfull Hchosen) in Hremaining, Hdistance.
     destruct (Z.eqb (row (nth 0%nat COL_STACK_READ_VALUE_LO 0%nat)) 0).
-    { change ((0 =? 1)%Z) with false in Hkept, Hrom. cbv iota in Hkept, Hrom.
+    { destruct (encoded_branch_slide _ _ _ _ _ _ _ _ _ _ false Hloaded Hf Hpath Hi Hheights) as [Hkept Hrom].
+      cbv iota in Hkept, Hrom. rewrite <- Hpc, Hremaining in Hkept. rewrite <- Hpc, Hdistance in Hrom.
       injection Hkept as ->. injection Hrom as ->. split; reflexivity. }
-    change ((1 =? 1)%Z) with true in Hkept, Hrom. cbv iota in Hkept, Hrom.
+    destruct (encoded_branch_slide _ _ _ _ _ _ _ _ _ _ true Hloaded Hf Hpath Hi Hheights) as [Hkept Hrom].
+    cbv iota in Hkept, Hrom. rewrite <- Hpc, Hremaining in Hkept. rewrite <- Hpc, Hdistance in Hrom.
     match type of Hkept with context [branchSlide ?hs ?ars ?top ?target] =>
       assert (Hcompute : branchSlide hs ars top target = Some (labelArity ti, distance));
       [replace target with depth by reflexivity | rewrite Hcompute in Hkept, Hrom] end.
@@ -456,7 +455,7 @@ Proof.
       * assert (offset < length code)%nat by (apply nth_error_Some; rewrite Hi; discriminate). cbn. lia.
       * unfold viewOperands. cbn [viewSegments viewValues]. exact Hsp1.
       * cbn [afterBoundary boundaryPC]. rewrite Hnext, Hpc, (path_offset_step _ _ _ _ _ Hpath Hi).
-        change (instructionSize (BR_IF l)) with 1%nat. lia.
+        change (instructionSize (BR_IF l)) with 2%nat. lia.
       * exact HidleAfter.
   - (* Taken: carry the operands out of the labels inside the target; the target's
        label keeps its results, `kept`, and drops the operands below them. The
@@ -591,14 +590,14 @@ Proof.
     { rewrite (full_frame_slide_gate row Hprime Hfull), Hpop, Hchosen.
       repeat rewrite (full_opcode_selector_exclusive row COL_SEL_BR) by
         (assumption || vm_compute; tauto || discriminate). reflexivity. }
-    destruct (circuit_row_slide_fetch _ _ _ Hreplay Hslide) as [Hremaining Hdistance].
-    destruct (encoded_br_slide _ _ _ _ _ _ _ _ _ _ (row COL_CONTROL_CHOICE) Hloaded Hf Hpath Hi
+    destruct (circuit_row_slide_fetch _ _ _ Hprime Hfull Hreplay Hslide) as [Hremaining Hdistance].
+    destruct (encoded_br_slide _ _ _ _ _ _ _ _ _ _ Hloaded Hf Hpath Hi
       ltac:(rewrite length_app; cbn [length]; lia) Hheights)
       as [Hkept Hrom].
     pose proof (full_selected_choice_pinned row COL_SEL_BR Hprime Hfull ltac:(vm_compute; tauto) Hchosen
       ltac:(vm_compute; intuition discriminate)) as Hchoice.
-    rewrite <- Hpc, Hremaining, Hchoice in Hkept. rewrite <- Hpc, Hdistance, Hchoice in Hrom.
-    change ((0 =? 0)%Z) with true in Hkept, Hrom. cbv iota in Hkept, Hrom.
+    rewrite Hchoice, Z.add_0_r in Hremaining, Hdistance.
+    rewrite <- Hpc, Hremaining in Hkept. rewrite <- Hpc, Hdistance in Hrom.
     match type of Hkept with context [labelSlide ?hs ?ars ?top ?target] =>
       assert (Hcompute : labelSlide hs ars top target = Some (labelArity ti, distance));
       [replace target with depth by reflexivity | rewrite Hcompute in Hkept, Hrom] end.
@@ -718,7 +717,7 @@ Proof.
   pose proof (circuit_row_edge_kind_fetch _ _ _ Hreplay Hprogram) as HkindFetch.
   rewrite Hkind in HkindFetch. injection HkindFetch as HkindValue.
   pose proof (full_static_pc_rom_active row Hprime Hfull Hprogram ltac:(congruence)) as Hgate.
-  pose proof (circuit_row_next_pc_fetch _ _ _ Hreplay Hgate) as Hnext.
+  pose proof (circuit_row_next_pc_fetch _ _ _ Hprime Hfull Hreplay Hgate) as Hnext.
   destruct (full_selected_no_host_switch row COL_SEL_BR_TABLE Hprime Hfull ltac:(vm_compute; tauto) Hchosen)
     as [Hsuspend [_ [_ [_ HcontextRead]]]].
   pose proof (branch_depth_preserved row COL_SEL_BR_TABLE Hprime Hfull ltac:(cbn; tauto) Hchosen) as Hdepth.
@@ -773,7 +772,7 @@ Proof.
     { rewrite (full_frame_slide_gate row Hprime Hfull), Hpop, Hchosen.
       repeat rewrite (full_opcode_selector_exclusive row COL_SEL_BR_TABLE) by
         (assumption || vm_compute; tauto || discriminate). reflexivity. }
-    destruct (circuit_row_slide_fetch _ _ _ Hreplay Hslide) as [Hremaining Hdistance].
+    destruct (circuit_row_slide_fetch _ _ _ Hprime Hfull Hreplay Hslide) as [Hremaining Hdistance].
     destruct (encoded_br_table_slide _ _ _ _ _ _ _ _ _ _ _ k target Hloaded Hf Hpath Hi Hheights Hk)
       as [Hkept Hrom].
     rewrite <- Hpc, <- HchoiceK, Hremaining in Hkept. rewrite <- Hpc, <- HchoiceK, Hdistance in Hrom.

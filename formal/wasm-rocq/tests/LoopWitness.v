@@ -121,7 +121,7 @@ Qed.
 (* The LOOP at pc 0 enters its body at pc 1. The first two br_ifs at pc 11 are
    taken: each drops the sum below its condition (sp 5 to 3, the loop's base) and
    moves nothing, and runs the body again from pc 1. The third falls through, and
-   the loop's END at pc 12 keeps the sum as its result. *)
+   the loop's END at pc 13 keeps the sum as its result. *)
 Example loop_rows :
   let loop_row := nth 0 loopWitness (rowWitness []) in
   let back_row := nth 11 loopWitness (rowWitness []) in
@@ -130,7 +130,7 @@ Example loop_rows :
   loop_row COL_SEL_LOOP = 1 /\ loop_row COL_PC_AFTER = 1 /\
   back_row COL_SEL_BR_IF_EQZ = 1 /\ back_row COL_PC_BEFORE = 11 /\ back_row COL_PC_AFTER = 1 /\
   back_row COL_SP_BEFORE = 5 /\ back_row COL_SP_AFTER = 3 /\ back_row COL_FRAME_MOVE_REMAINING_AFTER = 0 /\
-  exit_row COL_SEL_BR_IF_EQZ = 1 /\ exit_row COL_PC_AFTER = 12 /\ exit_row COL_SP_AFTER = 4 /\
-  end_row COL_SEL_END = 1 /\ end_row COL_PC_BEFORE = 12 /\ end_row COL_PC_AFTER = 13 /\
+  exit_row COL_SEL_BR_IF_EQZ = 1 /\ exit_row COL_PC_AFTER = 13 /\ exit_row COL_SP_AFTER = 4 /\
+  end_row COL_SEL_END = 1 /\ end_row COL_PC_BEFORE = 13 /\ end_row COL_PC_AFTER = 14 /\
   end_row COL_SP_AFTER = 4.
 Proof. vm_compute. repeat split; reflexivity. Qed.

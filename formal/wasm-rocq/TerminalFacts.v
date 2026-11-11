@@ -67,14 +67,15 @@ Proof.
   split; [field_linear Hcapture | ]. pose proof (value_bound w COL_SP_AFTER). field_linear Hsp.
 Qed.
 
-Definition exitDistancePort := mkPort [COL_PC_BEFORE; COL_CONTROL_CHOICE] COL_EXIT_SLIDE_DISTANCE
+Definition exitDistancePort := mkPort [COL_EDGE_ADDR] COL_EXIT_SLIDE_DISTANCE
   Read (When COL_HOST_EVENT_EXIT_LATCH).
 
 Lemma circuit_row_exit_distance_fetch : forall initial final (w : Witness),
+  fieldPrime -> FullRelation.satFull w ->
   Replay initial (eventsForRow memories w) final -> w COL_HOST_EVENT_EXIT_LATCH = 1 ->
-  initial frameSlideDistanceId [w COL_PC_BEFORE; w COL_CONTROL_CHOICE] = Some (w COL_EXIT_SLIDE_DISTANCE).
+  initial frameSlideDistanceId [w COL_PC_BEFORE + w COL_CONTROL_CHOICE] = Some (w COL_EXIT_SLIDE_DISTANCE).
 Proof.
-  intros initial final w Hreplay Hactive.
+  intros initial final w Hprime Hfull Hreplay Hactive. rewrite <- (ProgramBinding.full_edge_addr w Hprime Hfull).
   eapply replay_read_from_initial; [exact Hreplay | apply read_only_row; vm_compute; reflexivity | ].
   eapply port_event_in_row with
     (specification := nth frameSlideDistanceId memories (mkMemory 0%nat Rom [])) (port := exitDistancePort).

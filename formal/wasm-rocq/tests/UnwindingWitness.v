@@ -101,9 +101,9 @@ Proof.
 Qed.
 
 (* The run takes the branch: the br_if at pc 5 slides by 2, from sp 5 down to the
-   outer block's base at 2, and resumes after the outer block's END at pc 10. *)
+   outer block's base at 2, and resumes after the outer block's END at pc 11. *)
 Example unwinding_branch_taken :
   let row := nth 5 unwindingWitness (rowWitness []) in
-  row COL_SEL_BR_IF_EQZ = 1 /\ row COL_PC_BEFORE = 5 /\ row COL_PC_AFTER = 10 /\
+  row COL_SEL_BR_IF_EQZ = 1 /\ row COL_PC_BEFORE = 5 /\ row COL_PC_AFTER = 11 /\
   row COL_SP_BEFORE = 5 /\ row COL_SP_AFTER = 2 /\ row COL_FRAME_MOVE_DISTANCE_AFTER = 2.
 Proof. vm_compute. repeat split; reflexivity. Qed.

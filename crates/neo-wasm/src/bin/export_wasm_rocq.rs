@@ -33,7 +33,7 @@ fn rocq_dir() -> PathBuf {
 fn emit_rocq_terms(terms: &[(usize, F)]) -> String {
     let entries = terms
         .iter()
-        .map(|(column, coefficient)| format!("({column}%nat, {})", to_balanced_i128(*coefficient)))
+        .map(|(column, coefficient)| format!("(N.to_nat {column}%N, {})", to_balanced_i128(*coefficient)))
         .collect::<Vec<_>>();
     format!("[{}]", entries.join("; "))
 }

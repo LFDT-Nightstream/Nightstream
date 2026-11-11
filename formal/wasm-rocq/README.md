@@ -38,8 +38,9 @@ Field primality and memory-event consistency are assumed; the offline memory
 argument is not proved. ROMs are dense: keys the encoder does not list read 0, so
 proofs never rely on a key being absent. The program ROM encoder covers this guest-only fragment;
 its correspondence with Rust preprocessing is not yet proved. The `tests/*Witness.v`
-files check exported Rust traces against the refinement proofs (regenerate them with
-`cargo test -p neo-wasm --release --test wasm_rocq_witness_export -- --ignored`).
+files check exported Rust traces against the refinement proofs. The traces
+(`tests/*Trace.v`) are not in git; `make` generates them with
+`cargo test -p neo-wasm --release --test wasm_rocq_witness_export -- --ignored`.
 
 ## Build
 
@@ -58,7 +59,8 @@ make
 For an existing switch, install those packages there and run `make` with that
 switch active. `make` and `make audit` first check all four Rust-generated exports
 without rewriting them; `make check-exports` runs that check alone. Regenerate stale
-files with the command below, then rebuild. SpecTec is not needed to build the
+files with the command below, then rebuild. `make` also generates the witness traces
+and rewrites only those that changed; `make traces` runs that step alone. SpecTec is not needed to build the
 checked-in `Wasm2.v`.
 
 Run `make audit` (requires Python 3) to build and print `run_refinement`

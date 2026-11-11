@@ -1,6 +1,6 @@
-.PHONY: all audit check-exports
+.PHONY: all audit check-exports traces
 
-all: check-exports Makefile.coq
+all: check-exports traces Makefile.coq
 	$(MAKE) -f Makefile.coq
 
 audit: all
@@ -11,3 +11,7 @@ Makefile.coq: _CoqProject
 
 check-exports:
 	cargo run --release --manifest-path ../../Cargo.toml -p neo-wasm --bin export_wasm_rocq -- --check
+
+# The witness traces are build outputs. The exporter rewrites only changed files.
+traces:
+	cargo test --release --manifest-path ../../Cargo.toml -p neo-wasm --test wasm_rocq_witness_export -- --ignored

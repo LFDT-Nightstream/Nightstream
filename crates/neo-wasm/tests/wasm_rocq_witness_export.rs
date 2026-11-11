@@ -1,6 +1,7 @@
 //! Export real traces' rows to Rocq, so the refinement theorem's premises can be
 //! checked against actual runs (`formal/wasm-rocq/tests/*Witness.v`).
-//! Regenerate with `cargo test -p neo-wasm --release --test wasm_rocq_witness_export -- --ignored`.
+//! The traces are not in git. `make` in `formal/wasm-rocq` generates them with
+//! `cargo test -p neo-wasm --release --test wasm_rocq_witness_export -- --ignored`.
 
 use neo_wasm::host_event_bindings::{EventSequenceBuilder, EventSources, HostEventBindings, HostEventBindingsBuilder};
 use neo_wasm::witness_builder::build_witness_vector;
@@ -233,7 +234,7 @@ fn export_rows(trace: &[neo_wasm::WasmVmStep], name: &str, file: &str, include_t
                     let name = match neo_wasm::named_column_family(column) {
                         Some(family) if family.len == 1 => family.name.to_string(),
                         Some(family) => format!("(nth {}%nat {} 0%nat)", column - family.start, family.name),
-                        None => format!("{column}%nat"),
+                        None => format!("(N.to_nat {column}%N)"),
                     };
                     Some(format!("({name}, {value})"))
                 })
@@ -263,7 +264,10 @@ fn export_rows(trace: &[neo_wasm::WasmVmStep], name: &str, file: &str, include_t
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../formal/wasm-rocq/tests")
         .join(file);
-    std::fs::write(&path, out).expect("write");
+    // Keep the mtime of an unchanged file, so `make` does not recompile it.
+    if std::fs::read(&path).map_or(true, |old| old != out.as_bytes()) {
+        std::fs::write(&path, out).expect("write");
+    }
 }
 
 #[test]

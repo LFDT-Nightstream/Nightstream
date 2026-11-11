@@ -488,3 +488,23 @@ fn a_loaded_word_other_than_the_memory_cell_fails_the_memory_check() {
     let mut run = Run::new(app, &program, state(&p.trace[0]));
     assert!(run.segment(&steps(p)[..STEPS]).is_ok());
 }
+
+#[test]
+fn a_return_to_another_pc_or_frame_than_the_saved_header_is_rejected() {
+    let row = find(|r| fam_of(r) == Fam::Ret);
+    for flip in [1u64, 1 << 16] {
+        let z = tampered(&row, &|p| p.x ^= flip);
+        assert_eq!(broken(&z), ["control"], "the header bits are the word the frame holds");
+    }
+}
+
+#[test]
+fn a_call_deeper_than_the_frame_region_is_not_provable() {
+    let bytes = corpus("zk_factorial_rec");
+    assert!(prepare("shallow", &bytes, "recursive_factorial", &[10]).is_ok());
+    let deep = prepare("deep", &bytes, "recursive_factorial", &[40]);
+    assert!(
+        matches!(&deep, Err(e) if e == "Bounds"),
+        "the frame region holds every frame or the run has no proof"
+    );
+}

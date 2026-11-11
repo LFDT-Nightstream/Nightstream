@@ -13,7 +13,7 @@ use register::alloc::allocate;
 use register::corpus::{fib_wat, programs};
 use register::cpu::{Cpu, RowInput};
 use register::general::{
-    application, geometry, preload, shape, state, witnesses, Plan, BASELINE, CONTRACT, REDESIGN, ROWS, STEPS,
+    application, geometry, preload, shape, state, witnesses, Plan, BASELINE, CALL, CONTRACT, REDESIGN, ROWS, STEPS,
 };
 use register::lower::{lower, Fam, Lowered, ALLOC_K};
 use register::row::{synthesize_tampered, Cs, Private, LIN_WIDTH};
@@ -54,7 +54,7 @@ fn prepare(name: &str, bytes: &[u8], export: &str, args: &[u64], plan: Plan) -> 
     cpu.trace = Some(Vec::new());
     let regs = cpu.run(args, 1 << 16).map_err(|e| format!("{e:?}"))?;
     let rows = cpu.rows as usize;
-    let segment = ROWS * STEPS;
+    let segment = ROWS * plan.steps;
     let target = rows.div_ceil(segment).max(1) * segment;
     while cpu.trace.as_ref().unwrap().len() < target {
         cpu.step().map_err(|e| format!("{e:?}"))?;
@@ -122,7 +122,7 @@ fn honest_runs(plan: Plan) {
                 .unwrap_or_else(|e| panic!("{}: {e}", p.name));
         }
         let mut run = Run::new(app.clone(), &program, state(&p.trace[0]));
-        for segment in inputs.chunks(STEPS) {
+        for segment in inputs.chunks(plan.steps) {
             run.segment(segment)
                 .unwrap_or_else(|e| panic!("{}: {e:?}", p.name));
         }
@@ -139,7 +139,7 @@ fn honest_runs(plan: Plan) {
             p.instructions,
             p.rows,
             p.rows as f64 / p.instructions as f64,
-            inputs.len() / STEPS
+            inputs.len() / plan.steps
         );
         total.0 += p.instructions;
         total.1 += p.rows;
@@ -149,7 +149,7 @@ fn honest_runs(plan: Plan) {
 
 #[test]
 fn census_of_the_general_row() {
-    for plan in [BASELINE, REDESIGN, CONTRACT] {
+    for plan in [BASELINE, REDESIGN, CONTRACT, CALL] {
         census(plan);
     }
 }
@@ -213,6 +213,18 @@ fn a_baseline_proof_of_a_starstream_contract_verifies() {
         "counter#get-storage",
         &[10],
         BASELINE,
+    );
+}
+
+#[test]
+#[ignore = "Full proof; run it alone."]
+fn a_one_step_proof_of_a_starstream_call_verifies() {
+    prove_with(
+        "starstream_utxo_public",
+        &corpus("starstream_utxo_public"),
+        "counter#get-storage",
+        &[10],
+        CALL,
     );
 }
 
@@ -291,7 +303,7 @@ fn prove_with(name: &str, bytes: &[u8], export: &str, args: &[u64], plan: Plan) 
     let verifier = circuit.verifier(engine, 109).unwrap();
     let proving = Instant::now();
     let mut run = prover.start(&program, initial.clone()).unwrap();
-    for segment in inputs.chunks(STEPS) {
+    for segment in inputs.chunks(plan.steps) {
         run.segment(segment).unwrap();
     }
     let last = run.state().clone();
@@ -573,7 +585,7 @@ fn a_call_deeper_than_the_frame_region_is_not_provable() {
 #[test]
 #[ignore = "Compiles three circuits; run it alone."]
 fn package_census_of_each_plan() {
-    for plan in [BASELINE, REDESIGN, CONTRACT] {
+    for plan in [BASELINE, REDESIGN, CONTRACT, CALL] {
         let (app, _) = application(plan);
         let census = nightstream::nebula::zz_census(&geometry(plan), app, false).unwrap();
         println!(

@@ -39,6 +39,9 @@ pub struct Plan {
     pub code_width: usize,
     pub r: usize,
     pub redesign: bool,
+    /// Steps of a segment: a run pads to whole segments, and each segment
+    /// scans the whole memory once.
+    pub steps: usize,
 }
 
 /// The circuit of milestones 2 to 4: programs of 4,096 rows, ROM `2^14`.
@@ -46,6 +49,7 @@ pub const BASELINE: Plan = Plan {
     code_width: 12,
     r: 14,
     redesign: false,
+    steps: STEPS,
 };
 
 /// The redesign at the baseline sizes.
@@ -53,6 +57,7 @@ pub const REDESIGN: Plan = Plan {
     code_width: 12,
     r: 14,
     redesign: true,
+    steps: STEPS,
 };
 
 /// The redesign for contracts: programs of 1,024 rows, ROM `2^12` (every
@@ -61,6 +66,16 @@ pub const CONTRACT: Plan = Plan {
     code_width: 10,
     r: 12,
     redesign: true,
+    steps: STEPS,
+};
+
+/// `CONTRACT` with segments of one step: a call of at most 64 rows is one
+/// step, which scans the whole memory.
+pub const CALL: Plan = Plan {
+    code_width: 10,
+    r: 12,
+    redesign: true,
+    steps: 1,
 };
 
 pub fn zero_input() -> RowInput {
@@ -176,7 +191,7 @@ pub fn catalog(l: &Layout) -> MemoryCatalog<u32> {
 /// The geometry (r of the plan, μ 10, 8 steps a segment, 32 segments) with
 /// two operation slots for each of the 64 rows of a step.
 pub fn geometry(plan: Plan) -> Geometry {
-    Geometry::new(plan.r, 10, 2 * ROWS, STEPS, 32).unwrap()
+    Geometry::new(plan.r, 10, 2 * ROWS, plan.steps, 32).unwrap()
 }
 
 pub fn application(plan: Plan) -> (R1csApplication<u32>, Layout) {

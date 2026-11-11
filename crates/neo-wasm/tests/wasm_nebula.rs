@@ -532,6 +532,42 @@ fn reversed_slot_plan_rejects_a_dependent_pair_on_an_honest_row() {
     ));
 }
 
+/// `COL_SP_BEFORE` has no range-check rows: the link row copies it from the
+/// range-checked `COL_SP_AFTER` of the row before. A value `2^32` higher on
+/// row 1 fails a link row; raised on both sides of the link, it fails rows
+/// of the relation and no link row.
+#[test]
+fn a_before_column_above_32_bits_fails_its_link_or_the_after_check() {
+    use neo_wasm::layout::{COL_SP_AFTER, COL_SP_BEFORE};
+    let setup = setup_of(NOPS, per_step(2), true);
+    let (app, geometry) = setup.complete();
+    let relation = application_rows(&app, &geometry);
+    let traced = &setup.programs[0];
+    let (_, mut run) = setup.run(&app, traced);
+    let invocations = run.segment(&traced.inputs).expect("the honest trace runs");
+    let link_count = build_wasm_relation_layout()
+        .auxiliary
+        .continuity
+        .links()
+        .count();
+    let links = app.relation_rows() - link_count..app.relation_rows();
+    let raised = |columns: &[(usize, usize)]| {
+        let mut words = invocations[0].words.clone();
+        let start = words.len() - app.aux();
+        for &(row, column) in columns {
+            words[start + setup.position(traced, row, column).1] += F::from_u64(1 << 32);
+        }
+        failing(&relation, &words)
+    };
+    let before = raised(&[(1, COL_SP_BEFORE)]);
+    assert!(before.iter().any(|row| links.contains(row)), "{before:?}");
+    let both = raised(&[(0, COL_SP_AFTER), (1, COL_SP_BEFORE)]);
+    assert!(
+        !both.is_empty() && both.iter().all(|row| !links.contains(row)),
+        "{both:?}"
+    );
+}
+
 /// A column of `PORT_COVERS` has no range-check rows. A value `2^32` higher
 /// fails only binding rows on a row where its port is active, and only rows
 /// of the relation, its cover row among them, on a row where no port is.

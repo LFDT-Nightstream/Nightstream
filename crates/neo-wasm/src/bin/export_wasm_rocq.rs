@@ -454,8 +454,21 @@ fn emit_rocq_opcodes() -> String {
 }
 
 fn main() -> std::io::Result<()> {
-    let dir = rocq_dir();
-    fs::create_dir_all(&dir)?;
+    let args: Vec<_> = std::env::args_os().skip(1).collect();
+    let (check, dir) = match args.as_slice() {
+        [] => (false, rocq_dir()),
+        [flag] if flag == "--check" => (true, rocq_dir()),
+        _ => {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "usage: export_wasm_rocq [--check]",
+            ))
+        }
+    };
+    if !check {
+        fs::create_dir_all(&dir)?;
+    }
+    let mut stale = false;
     let relation = build_wasm_relation().expect("build wasm relation");
     for (name, source) in [
         ("Columns.v", emit_rocq_columns(&relation)),
@@ -464,8 +477,33 @@ fn main() -> std::io::Result<()> {
         ("OpcodeCatalog.v", emit_rocq_opcodes()),
     ] {
         let path = dir.join(name);
-        fs::write(&path, source)?;
-        println!("wrote {}", path.display());
+        if check {
+            match fs::read(&path) {
+                Ok(contents) if contents == source.as_bytes() => println!("checked {}", path.display()),
+                Ok(_) => {
+                    eprintln!("stale export: {}", path.display());
+                    stale = true;
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                    eprintln!("missing export: {}", path.display());
+                    stale = true;
+                }
+                Err(error) => {
+                    return Err(std::io::Error::new(
+                        error.kind(),
+                        format!("{}: {error}", path.display()),
+                    ))
+                }
+            }
+        } else {
+            fs::write(&path, source)?;
+            println!("wrote {}", path.display());
+        }
+    }
+    if stale {
+        return Err(std::io::Error::other(
+            "Rocq exports differ from Rust; regenerate with: cargo run --release -p neo-wasm --bin export_wasm_rocq",
+        ));
     }
     Ok(())
 }

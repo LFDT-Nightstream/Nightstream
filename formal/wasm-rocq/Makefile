@@ -1,6 +1,6 @@
-.PHONY: all audit
+.PHONY: all audit check-exports
 
-all: Makefile.coq
+all: check-exports Makefile.coq
 	$(MAKE) -f Makefile.coq
 
 audit: all
@@ -8,3 +8,6 @@ audit: all
 
 Makefile.coq: _CoqProject
 	coq_makefile -f _CoqProject -o Makefile.coq
+
+check-exports:
+	cargo run --release --manifest-path ../../Cargo.toml -p neo-wasm --bin export_wasm_rocq -- --check

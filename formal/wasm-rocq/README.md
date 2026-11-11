@@ -43,8 +43,8 @@ files check exported Rust traces against the refinement proofs (regenerate them 
 
 ## Build
 
-Requires opam and the checked versions of Coq/Rocq 9.0.1, MathComp ssreflect
-2.4.0, and RecordUpdate 0.3.6:
+Requires the repository Rust toolchain (see `rust-toolchain.toml`), opam, and the
+checked versions of Coq/Rocq 9.0.1, MathComp ssreflect 2.4.0, and RecordUpdate 0.3.6:
 
 ```sh
 opam switch create nightstream-rocq 5.3.0
@@ -56,7 +56,10 @@ make
 ```
 
 For an existing switch, install those packages there and run `make` with that
-switch active. SpecTec is not needed to build the checked-in `Wasm2.v`.
+switch active. `make` and `make audit` first check all four Rust-generated exports
+without rewriting them; `make check-exports` runs that check alone. Regenerate stale
+files with the command below, then rebuild. SpecTec is not needed to build the
+checked-in `Wasm2.v`.
 
 Run `make audit` (requires Python 3) to build and print `run_refinement`
 and its assumptions. It fails if axiom names differ from `scripts/audit.expected`

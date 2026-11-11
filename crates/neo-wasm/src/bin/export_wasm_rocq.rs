@@ -7,7 +7,7 @@
 //! Outputs, all in `formal/wasm-rocq/`:
 //! - `Columns.v` — the complete base witness column registry and widths.
 //! - `FullRelation.v` — every base R1CS row; the operation circuit is separate.
-//! - `MemoryCatalog.v` — logical memory ports and cross-step continuity links.
+//! - `MemoryCatalog.v` — logical memory ports, gate exclusions and cross-step continuity links.
 //! - `OpcodeCatalog.v` — opcode bytes used by the program ROM.
 
 use neo_application::{ApplicationRelation, ColumnWidth, MemoryKind, MemoryPortActivation, MemoryPortKind};
@@ -403,6 +403,17 @@ fn emit_rocq_memory_catalog() -> String {
         out.push_str(&format!("Definition {name} : nat := {index}%nat.\n"));
     }
     out.push('\n');
+    let plan = neo_wasm::plan_ordered_wasm_memory_slots(layout.auxiliary.memory.entries());
+    out.push_str("Definition gateExclusions : list (nat * nat) :=\n  [");
+    out.push_str(
+        &plan
+            .gate_exclusions
+            .iter()
+            .map(|(a, b)| format!("({a}%nat, {b}%nat)"))
+            .collect::<Vec<_>>()
+            .join("; "),
+    );
+    out.push_str("].\n\n");
     out.push_str("Definition continuityLinks : list ContinuityLink :=\n  [");
     for (index, link) in layout.auxiliary.continuity.links().enumerate() {
         if index > 0 {

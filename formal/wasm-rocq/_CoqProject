@@ -147,3 +147,5 @@ tests/MixedPrograms.v
 tests/MixedCallTrace.v
 tests/MixedIndirectTrace.v
 tests/MixedWitness.v
+
+GateExclusions.v

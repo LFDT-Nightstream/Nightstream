@@ -72,6 +72,9 @@ Definition tableSizeId : nat := 8%nat.
 Definition exportEntryScheduleCountId : nat := 32%nat.
 Definition exportExitScheduleCountId : nat := 33%nat.
 
+Definition gateExclusions : list (nat * nat) :=
+  [(20%nat, 452%nat); (42%nat, 432%nat); (42%nat, 455%nat); (55%nat, 450%nat); (55%nat, 451%nat); (55%nat, 1201%nat); (58%nat, 450%nat); (58%nat, 451%nat); (58%nat, 1201%nat); (59%nat, 450%nat); (59%nat, 1201%nat); (319%nat, 432%nat); (320%nat, 432%nat); (450%nat, 1201%nat); (451%nat, 1201%nat); (1190%nat, 1191%nat)].
+
 Definition continuityLinks : list ContinuityLink :=
   [(354%nat, 353%nat);
    (358%nat, 357%nat);

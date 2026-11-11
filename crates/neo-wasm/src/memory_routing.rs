@@ -6,13 +6,18 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use neo_application::{MemoryPortActivation, MemoryPortKind, MemorySpec};
 
-use crate::{memory_activation::activation_supports, WasmMemoryId};
+use crate::{
+    memory_activation::{activation_supports, gate_exclusions},
+    WasmMemoryId,
+};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct WasmMemorySlotPlan {
     /// Candidates per physical slot, indexed in flattened memory/port declaration order.
     pub slots: Vec<Vec<usize>>,
     pub logical_ports: usize,
+    /// Additional disjoint gates, exported and proved in Rocq.
+    pub gate_exclusions: Vec<(usize, usize)>,
     /// Ports without a known positive support receive dedicated slots.
     pub conservative_singletons: usize,
     /// Logical-port load per support atom. This is conservative, not observed execution.
@@ -25,21 +30,28 @@ pub struct WasmMemorySlotPlan {
 /// pair may take either order, because their events swap. So a binding that
 /// keeps each such pair in catalog order accepts every row the relation
 /// accepts. Two `When` ports may be active together only when their supports
-/// intersect; every other port may be active with any port. Each port takes
+/// intersect and no exported gate exclusion separates them. Every other port
+/// may be active with any port. Each port takes
 /// the first free slot after the slots of the earlier such pairs.
 pub fn plan_ordered_wasm_memory_slots(memories: &[MemorySpec<WasmMemoryId>]) -> WasmMemorySlotPlan {
     struct Port<'a> {
         memory: usize,
+        gate: Option<usize>,
         writes: bool,
         support: Option<&'a BTreeSet<usize>>,
     }
     let supports = activation_supports();
+    let gate_exclusions = gate_exclusions();
     let ports: Vec<Port> = memories
         .iter()
         .enumerate()
         .flat_map(|(memory, spec)| spec.ports.iter().map(move |port| (memory, port)))
         .map(|(memory, port)| Port {
             memory,
+            gate: match port.activation {
+                MemoryPortActivation::When(gate) => Some(gate),
+                _ => None,
+            },
             writes: matches!(port.kind, MemoryPortKind::Write { .. }),
             support: match port.activation {
                 MemoryPortActivation::When(gate) => supports.get(&gate),
@@ -54,6 +66,12 @@ pub fn plan_ordered_wasm_memory_slots(memories: &[MemorySpec<WasmMemoryId>]) -> 
     let mut slot_of: Vec<usize> = Vec::with_capacity(ports.len());
     for (index, port) in ports.iter().enumerate() {
         let together: Vec<usize> = (0..index)
+            .filter(|&earlier| {
+                !gate_exclusions.iter().any(|&(a, b)| {
+                    (ports[earlier].gate == Some(a) && port.gate == Some(b))
+                        || (ports[earlier].gate == Some(b) && port.gate == Some(a))
+                })
+            })
             .filter(|&earlier| match (ports[earlier].support, port.support) {
                 (Some(earlier), Some(support)) => !earlier.is_disjoint(support),
                 _ => true,
@@ -79,6 +97,7 @@ pub fn plan_ordered_wasm_memory_slots(memories: &[MemorySpec<WasmMemoryId>]) -> 
     WasmMemorySlotPlan {
         slots,
         logical_ports: ports.len(),
+        gate_exclusions,
         conservative_singletons: ports.iter().filter(|port| port.support.is_none()).count(),
         support_loads,
     }

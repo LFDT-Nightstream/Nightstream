@@ -387,3 +387,31 @@ fn insert_derived_activation_support(
         "activation support {name:?} repeats gate column {gate}",
     )
 }
+
+/// SPEC.md section 7.6: additional disjoint activations used by the slot plan.
+/// The Rocq export includes this entire list; GateExclusions proves every pair
+/// from FullRelation, without adding constraints to the circuit.
+pub(crate) fn gate_exclusions() -> Vec<(usize, usize)> {
+    use crate::ccs::host_event_chain::{
+        gather_memory_local_base_col, gather_memory_read_kind_col, gather_memory_write_kind_col,
+    };
+    use crate::layout::*;
+    vec![
+        (COL_PC_ROM_ACTIVE, COL_HOST_EVENT_EXIT_LATCH),
+        (COL_CALL_STACK_PUSH_PRESENT, COL_HOST_CALL_ACTIVE),
+        (COL_CALL_STACK_PUSH_PRESENT, COL_CI_HOST_CALL),
+        (COL_STACK_READ_ACTIVE[0], COL_GATHER_LOCAL_WRITE),
+        (COL_STACK_READ_ACTIVE[0], COL_GATHER_LOCAL_WRITE_LO),
+        (COL_STACK_READ_ACTIVE[0], gather_memory_local_base_col()),
+        (COL_STACK_WRITE0_ACTIVE, COL_GATHER_LOCAL_WRITE),
+        (COL_STACK_WRITE0_ACTIVE, COL_GATHER_LOCAL_WRITE_LO),
+        (COL_STACK_WRITE0_ACTIVE, gather_memory_local_base_col()),
+        (COL_STACK_WRITE0_HI_ACTIVE, COL_GATHER_LOCAL_WRITE),
+        (COL_STACK_WRITE0_HI_ACTIVE, gather_memory_local_base_col()),
+        (COL_SEL_RETURN_CALL, COL_HOST_CALL_ACTIVE),
+        (COL_SEL_RETURN_CALL_INDIRECT, COL_HOST_CALL_ACTIVE),
+        (COL_GATHER_LOCAL_WRITE, gather_memory_local_base_col()),
+        (COL_GATHER_LOCAL_WRITE_LO, gather_memory_local_base_col()),
+        (gather_memory_read_kind_col(), gather_memory_write_kind_col()),
+    ]
+}

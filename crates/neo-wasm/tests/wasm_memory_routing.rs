@@ -17,8 +17,8 @@ fn slot_plan_is_deterministic_and_covers_every_logical_port_once() {
     assert_eq!(ports, (0..plan.logical_ports).collect::<Vec<_>>());
     assert!(plan.slots.iter().all(|slot| !slot.is_empty()));
     let max_load = plan.support_loads.values().copied().max().unwrap();
-    assert_eq!((plan.logical_ports, plan.slots.len(), max_load), (97, 15, 15));
-    assert!(plan.slots.len() >= max_load + plan.conservative_singletons);
+    assert_eq!((plan.logical_ports, plan.slots.len(), max_load), (97, 13, 15));
+    assert_eq!(plan.gate_exclusions.len(), 16);
     assert!(plan.slots.len() < plan.logical_ports);
     assert_eq!(
         plan.conservative_singletons, 0,
@@ -92,11 +92,11 @@ fn enforced_supports() -> BTreeMap<usize, BTreeSet<usize>> {
 /// SPEC.md section 7.6 I1 and I2 accept a row whose active ports sit in distinct
 /// slots, with each pair of one memory and a write in catalog order. So two
 /// ports that the relation lets be active together must sit in distinct
-/// slots, and in increasing slots when they are such a pair. The ports whose
-/// supports share an atom may all be active together, so a plan from these
-/// supports needs at least the largest support load of slots.
+/// slots, and in increasing slots when they are such a pair. The exported
+/// exclusions refine the coarse supports; GateExclusions proves those pairs
+/// cannot activate together under the full relation.
 #[test]
-fn ordered_slot_plan_keeps_dependent_pairs_in_catalog_order_wherever_the_relation_allows() {
+fn ordered_slot_plan_keeps_dependent_pairs_in_catalog_order_using_exported_gate_exclusions() {
     use MemoryPortActivation::When;
     let layout = build_wasm_relation_layout();
     let memories = layout.auxiliary.memory.entries();
@@ -110,9 +110,20 @@ fn ordered_slot_plan_keeps_dependent_pairs_in_catalog_order_wherever_the_relatio
         When(gate) => supports.get(&gate),
         _ => None,
     };
-    let together = |p: usize, q: usize| match (support(p), support(q)) {
-        (Some(a), Some(b)) => !a.is_disjoint(b),
-        _ => true,
+    let together = |p: usize, q: usize| {
+        if let (When(a), When(b)) = (ports[p].1.activation, ports[q].1.activation) {
+            if plan
+                .gate_exclusions
+                .iter()
+                .any(|&(x, y)| (a == x && b == y) || (a == y && b == x))
+            {
+                return false;
+            }
+        }
+        match (support(p), support(q)) {
+            (Some(a), Some(b)) => !a.is_disjoint(b),
+            _ => true,
+        }
     };
     let writes = |port: usize| matches!(ports[port].1.kind, MemoryPortKind::Write { .. });
     let dependent = |p: usize, q: usize| ports[p].0 == ports[q].0 && (writes(p) || writes(q));
@@ -143,11 +154,8 @@ fn ordered_slot_plan_keeps_dependent_pairs_in_catalog_order_wherever_the_relatio
         *loads.entry(*atom).or_insert(0) += 1;
     }
     let largest = loads.values().copied().max().unwrap();
-    assert_eq!(
-        plan.slots.len(),
-        largest,
-        "the plan has the fewest slots its supports allow"
-    );
+    assert_eq!(largest, 15, "coarse support bound before pair exclusions");
+    assert_eq!(plan.slots.len(), 13);
     assert_eq!(plan.logical_ports, ports.len());
 
     eprintln!(

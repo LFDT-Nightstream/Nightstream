@@ -185,9 +185,9 @@ Qed.
 Definition replaceStackEvents (w : Witness) : list Event :=
   [ReadEvent MemoryCatalog.stackId [w (List.nth 0%nat COL_STACK_READ_ADDR_LO 0%nat)]
      (w (List.nth 0%nat COL_STACK_READ_VALUE_LO 0%nat));
+   WriteEvent MemoryCatalog.stackId [w COL_STACK_WRITE0_ADDR_LO] (w COL_STACK_WRITE0_VALUE_LO) None;
    ReadEvent MemoryCatalog.stackId [w (List.nth 0%nat COL_STACK_READ_ADDR_HI 0%nat)]
      (w (List.nth 0%nat COL_STACK_READ_VALUE_HI 0%nat));
-   WriteEvent MemoryCatalog.stackId [w COL_STACK_WRITE0_ADDR_LO] (w COL_STACK_WRITE0_VALUE_LO) None;
    WriteEvent MemoryCatalog.stackId [w COL_STACK_WRITE0_ADDR_HI] (w COL_STACK_WRITE0_VALUE_HI) None].
 
 Lemma replace_stack_event_prefix : forall w,

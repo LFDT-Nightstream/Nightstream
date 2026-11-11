@@ -105,7 +105,7 @@ Proof.
   intros Hprime. destruct (row_valid 4 ltac:(lia)) as [Hfull Hreplay].
   eapply cell_matches_memory.
   - intros limb _. exact (no_stack_writes_preserve _ _ _ Hreplay
-      (full_call_end_no_stack_writes (row 4) COL_SEL_END Hprime Hfull (or_intror eq_refl) eq_refl) _).
+      (full_call_return_no_stack_writes (row 4) COL_SEL_END Hprime Hfull (or_intror (or_introl eq_refl)) eq_refl) _).
   - assert (Hm : before 4 = after 3) by (unfold after; cbn [before]; reflexivity). rewrite Hm.
     exact (local_get_keeps_wide_argument Hprime).
 Qed.

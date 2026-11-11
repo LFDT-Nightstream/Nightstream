@@ -291,6 +291,8 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
             id: WasmMemoryId::Stack,
             kind: MemoryKind::Ram,
             ports: vec![
+                // SPEC.md section 7.6 binds slots to this event order. Keep
+                // each limb's order, with low-limb ports before high-limb ports.
                 MemoryPortSpec {
                     address_columns: memory_columns([Column(COL_STACK_READ_ADDR_LO[0])]),
                     value_column: COL_STACK_READ_VALUE_LO[0],
@@ -298,20 +300,8 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
                     activation: active_when(Column(COL_STACK_READ_ACTIVE[0])),
                 },
                 MemoryPortSpec {
-                    address_columns: memory_columns([Column(COL_STACK_READ_ADDR_HI[0])]),
-                    value_column: COL_STACK_READ_VALUE_HI[0],
-                    kind: MemoryPortKind::Read,
-                    activation: active_when(Column(COL_STACK_READ_ACTIVE[0])),
-                },
-                MemoryPortSpec {
                     address_columns: memory_columns([Column(COL_STACK_READ_ADDR_LO[0])]),
                     value_column: COL_STACK_READ_VALUE_LO[0],
-                    kind: MemoryPortKind::Read,
-                    activation: active_when(Column(COL_OUTPUT_CAPTURED)),
-                },
-                MemoryPortSpec {
-                    address_columns: memory_columns([Column(COL_STACK_READ_ADDR_HI[0])]),
-                    value_column: COL_STACK_READ_VALUE_HI[0],
                     kind: MemoryPortKind::Read,
                     activation: active_when(Column(COL_OUTPUT_CAPTURED)),
                 },
@@ -322,20 +312,8 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
                     activation: active_when(Column(COL_STACK_READ_ACTIVE[1])),
                 },
                 MemoryPortSpec {
-                    address_columns: memory_columns([Column(COL_STACK_READ_ADDR_HI[1])]),
-                    value_column: COL_STACK_READ_VALUE_HI[1],
-                    kind: MemoryPortKind::Read,
-                    activation: active_when(Column(COL_STACK_READ_ACTIVE[1])),
-                },
-                MemoryPortSpec {
                     address_columns: memory_columns([Column(COL_STACK_READ_ADDR_LO[2])]),
                     value_column: COL_STACK_READ_VALUE_LO[2],
-                    kind: MemoryPortKind::Read,
-                    activation: active_when(Column(COL_STACK_READ_ACTIVE[2])),
-                },
-                MemoryPortSpec {
-                    address_columns: memory_columns([Column(COL_STACK_READ_ADDR_HI[2])]),
-                    value_column: COL_STACK_READ_VALUE_HI[2],
                     kind: MemoryPortKind::Read,
                     activation: active_when(Column(COL_STACK_READ_ACTIVE[2])),
                 },
@@ -347,17 +325,6 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
                     },
                     activation: active_when(Column(COL_STACK_WRITE0_ACTIVE)),
                 },
-                // The hi-word port has its own gate: it fires with the lo
-                // port on ordinary writes, and ALONE on result-hi gather
-                // rows (which write only the pushed cell's hi lane).
-                MemoryPortSpec {
-                    address_columns: memory_columns([Column(COL_STACK_WRITE0_ADDR_HI)]),
-                    value_column: COL_STACK_WRITE0_VALUE_HI,
-                    kind: MemoryPortKind::Write {
-                        value_before_column: None,
-                    },
-                    activation: active_when(Column(COL_STACK_WRITE0_HI_ACTIVE)),
-                },
                 // Locals live in their frame at `2 * (fbp + index)`.
                 MemoryPortSpec {
                     address_columns: memory_columns([Column(COL_LOCAL_ADDR_LO)]),
@@ -368,12 +335,6 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
                 MemoryPortSpec {
                     address_columns: memory_columns([Column(COL_LOCAL_ADDR_LO)]),
                     value_column: COL_LOCAL_VALUE,
-                    kind: MemoryPortKind::Read,
-                    activation: active_when(Column(crate::ccs::host_event_chain::gather_memory_local_base_col())),
-                },
-                MemoryPortSpec {
-                    address_columns: memory_columns([Column(COL_LOCAL_ADDR_HI)]),
-                    value_column: COL_LOCAL_VALUE_HI,
                     kind: MemoryPortKind::Read,
                     activation: active_when(Column(crate::ccs::host_event_chain::gather_memory_local_base_col())),
                 },
@@ -394,6 +355,47 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
                         value_before_column: None,
                     },
                     activation: active_when(Column(COL_GATHER_LOCAL_WRITE_LO)),
+                },
+                MemoryPortSpec {
+                    address_columns: memory_columns([Column(COL_STACK_READ_ADDR_HI[0])]),
+                    value_column: COL_STACK_READ_VALUE_HI[0],
+                    kind: MemoryPortKind::Read,
+                    activation: active_when(Column(COL_STACK_READ_ACTIVE[0])),
+                },
+                MemoryPortSpec {
+                    address_columns: memory_columns([Column(COL_STACK_READ_ADDR_HI[0])]),
+                    value_column: COL_STACK_READ_VALUE_HI[0],
+                    kind: MemoryPortKind::Read,
+                    activation: active_when(Column(COL_OUTPUT_CAPTURED)),
+                },
+                MemoryPortSpec {
+                    address_columns: memory_columns([Column(COL_STACK_READ_ADDR_HI[1])]),
+                    value_column: COL_STACK_READ_VALUE_HI[1],
+                    kind: MemoryPortKind::Read,
+                    activation: active_when(Column(COL_STACK_READ_ACTIVE[1])),
+                },
+                MemoryPortSpec {
+                    address_columns: memory_columns([Column(COL_STACK_READ_ADDR_HI[2])]),
+                    value_column: COL_STACK_READ_VALUE_HI[2],
+                    kind: MemoryPortKind::Read,
+                    activation: active_when(Column(COL_STACK_READ_ACTIVE[2])),
+                },
+                // The hi-word port has its own gate: it fires with the lo
+                // port on ordinary writes, and ALONE on result-hi gather
+                // rows (which write only the pushed cell's hi lane).
+                MemoryPortSpec {
+                    address_columns: memory_columns([Column(COL_STACK_WRITE0_ADDR_HI)]),
+                    value_column: COL_STACK_WRITE0_VALUE_HI,
+                    kind: MemoryPortKind::Write {
+                        value_before_column: None,
+                    },
+                    activation: active_when(Column(COL_STACK_WRITE0_HI_ACTIVE)),
+                },
+                MemoryPortSpec {
+                    address_columns: memory_columns([Column(COL_LOCAL_ADDR_HI)]),
+                    value_column: COL_LOCAL_VALUE_HI,
+                    kind: MemoryPortKind::Read,
+                    activation: active_when(Column(crate::ccs::host_event_chain::gather_memory_local_base_col())),
                 },
                 MemoryPortSpec {
                     address_columns: memory_columns([Column(COL_LOCAL_ADDR_HI)]),

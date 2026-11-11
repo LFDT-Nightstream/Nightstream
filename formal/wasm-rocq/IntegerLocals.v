@@ -39,20 +39,17 @@ Proof.
   destruct (local_get_stack_replay w initial final Hshape Hreplay) as [Hlo [Hhi Hfinal]].
   cbn zeta in Hlo, Hhi, Hfinal.
   rewrite HlocalHi in Hhi.
-  rewrite Hlocal, Hwrite, HwriteHi in Hlo, Hhi.
+  rewrite Hlocal, Hwrite in Hlo.
+  rewrite Hlocal, Hwrite, HwriteHi in Hhi.
   rewrite Hwrite, HwriteHi in Hfinal.
-  change (writeCell initial (w COL_SP_BEFORE) (w COL_STACK_WRITE0_VALUE_LO)
-    (w COL_STACK_WRITE0_VALUE_HI) stackId
-    [2 * (w COL_LOCALS_FBP_BEFORE + w COL_LOCAL_INDEX)] = Some (w COL_LOCAL_VALUE)) in Hlo.
+  rewrite update_other in Hlo by cell_differs.
   change (writeCell initial (w COL_SP_BEFORE) (w COL_STACK_WRITE0_VALUE_LO)
     (w COL_STACK_WRITE0_VALUE_HI) stackId
     [2 * (w COL_LOCALS_FBP_BEFORE + w COL_LOCAL_INDEX) + 1] = Some (w COL_LOCAL_VALUE_HI)) in Hhi.
-  replace (2 * (w COL_LOCALS_FBP_BEFORE + w COL_LOCAL_INDEX)) with
-    (2 * (w COL_LOCALS_FBP_BEFORE + w COL_LOCAL_INDEX) + 0) in Hlo by ring.
-  rewrite write_cell_other in Hlo, Hhi by (auto; lia).
+  rewrite write_cell_other in Hhi by (auto; lia).
   pose proof (Locals.full_local_get_value w Hget Hfull) as Hcopy.
   pose proof (Locals.full_local_get_high_value w Hget Hfull) as HcopyHi.
-  rewrite Hcopy in Hlo. rewrite HcopyHi in Hhi. rewrite Z.add_0_r in Hlo.
+  rewrite Hcopy in Hlo. rewrite HcopyHi in Hhi.
   eapply cell_matches_memory.
   - intros limb _. apply Hfinal.
   - eapply copy_cell; eassumption.
@@ -70,7 +67,8 @@ Proof.
   pose proof (local_read_address _ _ _ Hshape eq_refl) as Hread.
   pose proof (full_stack_read0_high_address w Hprime Hfull) as HreadHi.
   destruct (local_set_stack_replay w initial final Hshape Hreplay) as [Hlo [Hhi Hfinal]].
-  rewrite HreadHi, Hread in Hhi. rewrite Hread in Hlo.
+  rewrite HreadHi, Hread, Hlocal in Hhi. rewrite update_other in Hhi by cell_differs.
+  rewrite Hread in Hlo.
   setoid_rewrite HlocalHi in Hfinal. setoid_rewrite Hlocal in Hfinal.
   pose proof (Locals.full_local_set_value w Hset Hfull) as Hcopy.
   pose proof (Locals.full_local_set_high_value w Hset Hfull) as HcopyHi.

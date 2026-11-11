@@ -2,7 +2,7 @@
    distance. These are consequences of the exported constraints and ports. *)
 From Stdlib Require Import List ZArith Lia.
 Require Import R1CS Columns FullRelation Range Selectors CircuitFacts CallContext CallInitialization TrapFacts
-  MemoryTrace MemoryCatalog ProgramBinding OpcodeCatalog.
+  MemoryTrace MemoryCatalog LocalBindings ProgramBinding OpcodeCatalog.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -86,36 +86,34 @@ Qed.
 
 Lemma captured_stack_reads : forall initial final (w : Witness),
   Replay initial (eventsForRow memories w) final -> w COL_OUTPUT_CAPTURED = 1 ->
+  filter isStackWrite (eventsForRow memories w) = [] ->
   initial stackId [w (List.nth 0%nat COL_STACK_READ_ADDR_LO 0%nat)] =
     Some (w (List.nth 0%nat COL_STACK_READ_VALUE_LO 0%nat)) /\
   initial stackId [w (List.nth 0%nat COL_STACK_READ_ADDR_HI 0%nat)] =
     Some (w (List.nth 0%nat COL_STACK_READ_VALUE_HI 0%nat)).
 Proof.
-  intros initial final w Hreplay Hcapture.
-  assert (Hprefix : exists suffix, eventsForRow memories w =
-    ReadEvent stackId [w (List.nth 0%nat COL_STACK_READ_ADDR_LO 0%nat)]
-      (w (List.nth 0%nat COL_STACK_READ_VALUE_LO 0%nat)) ::
-      ReadEvent stackId [w (List.nth 0%nat COL_STACK_READ_ADDR_HI 0%nat)]
-        (w (List.nth 0%nat COL_STACK_READ_VALUE_HI 0%nat)) :: suffix).
-  { change (exists suffix,
-      flat_map (fun p => match portEvent stackId w p with Some e => [e] | None => [] end)
-        (ports (hd (mkMemory 0%nat Ram []) memories)) ++ eventsForRow (tl memories) w =
-      ReadEvent stackId [w (List.nth 0%nat COL_STACK_READ_ADDR_LO 0%nat)]
-        (w (List.nth 0%nat COL_STACK_READ_VALUE_LO 0%nat)) ::
-      ReadEvent stackId [w (List.nth 0%nat COL_STACK_READ_ADDR_HI 0%nat)]
-        (w (List.nth 0%nat COL_STACK_READ_VALUE_HI 0%nat)) :: suffix).
-    cbn [hd memories ports flat_map portEvent active activation addressColumns valueColumn portKind map option_map].
-    unfold portEvent, active. cbn [activation addressColumns valueColumn portKind map option_map].
-    normalize_columns. rewrite Hcapture.
-    destruct (w (List.nth 0%nat COL_STACK_READ_ACTIVE 0%nat) =? 1) eqn:Hr;
-      cbn [COL_STACK_READ_ACTIVE List.nth] in Hr; rewrite Hr; eexists; reflexivity. }
-
-  destruct Hprefix as [suffix Hprefix]. rewrite Hprefix in Hreplay.
-  inversion Hreplay; subst.
-  match goal with H : EventStep _ _ _ |- _ => inversion H; subst end.
-  split; [assumption | ].
-  match goal with H : Replay _ (ReadEvent _ _ _ :: _) _ |- _ => inversion H; subst end.
-  match goal with H : EventStep _ _ _ |- _ => inversion H; subst; assumption end.
+  intros initial final w Hreplay Hcapture Hwrites.
+  assert (Hquiet : forall address, Forall (NoWriteTo stackId address) (eventsForRow memories w)).
+  { intros address. apply Forall_forall. intros event Hin.
+    destruct event as [memory addr value | memory addr value prior]; [exact I | ].
+    left. intro Heq. subst memory.
+    assert (Hfiltered : In (WriteEvent stackId addr value prior)
+      (filter isStackWrite (eventsForRow memories w)))
+      by (apply filter_In; split; [exact Hin | reflexivity]).
+    rewrite Hwrites in Hfiltered. contradiction. }
+  assert (Hread : forall address value,
+    In (mkPort [address] value Read (When COL_OUTPUT_CAPTURED))
+      (ports (hd (mkMemory 0%nat Ram []) memories)) ->
+    initial stackId [w address] = Some (w value)).
+  { intros address value Hport.
+    eapply replay_read_from_initial; [exact Hreplay | apply Hquiet | ].
+    eapply port_event_in_row with (specification := hd (mkMemory 0%nat Ram []) memories)
+      (port := mkPort [address] value Read (When COL_OUTPUT_CAPTURED)).
+    - left. reflexivity.
+    - exact Hport.
+    - unfold portEvent, active. cbn [activation addressColumns valueColumn portKind map memoryId hd memories].
+      rewrite Hcapture. reflexivity. }
+  split; apply Hread; vm_compute; tauto.
 Qed.
 
 Lemma full_capture_value : forall (w : Witness),

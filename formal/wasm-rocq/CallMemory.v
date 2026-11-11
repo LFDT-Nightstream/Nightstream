@@ -173,11 +173,12 @@ Qed.
 Definition initializationStackEvents (w : Witness) (move : bool) : list Event :=
   (if move then
     [ReadEvent stackId [w (List.nth 0%nat COL_STACK_READ_ADDR_LO 0%nat)]
-       (w (List.nth 0%nat COL_STACK_READ_VALUE_LO 0%nat));
-     ReadEvent stackId [w (List.nth 0%nat COL_STACK_READ_ADDR_HI 0%nat)]
+       (w (List.nth 0%nat COL_STACK_READ_VALUE_LO 0%nat))] else []) ++
+  [WriteEvent stackId [w COL_STACK_WRITE0_ADDR_LO] (w COL_STACK_WRITE0_VALUE_LO) None] ++
+  (if move then
+    [ReadEvent stackId [w (List.nth 0%nat COL_STACK_READ_ADDR_HI 0%nat)]
        (w (List.nth 0%nat COL_STACK_READ_VALUE_HI 0%nat))] else []) ++
-  [WriteEvent stackId [w COL_STACK_WRITE0_ADDR_LO] (w COL_STACK_WRITE0_VALUE_LO) None;
-   WriteEvent stackId [w COL_STACK_WRITE0_ADDR_HI] (w COL_STACK_WRITE0_VALUE_HI) None].
+  [WriteEvent stackId [w COL_STACK_WRITE0_ADDR_HI] (w COL_STACK_WRITE0_VALUE_HI) None].
 
 Lemma initialization_stack_event_prefix : forall w move,
   InitializationStackShape w move ->
@@ -238,7 +239,7 @@ Proof.
   intros initial final w Hprime Hfull Hmove Hreplay.
   pose proof (full_initialization_stack w COL_FRAME_MOVE_ACTIVE_BEFORE Hprime Hfull ltac:(right; reflexivity) Hmove)
     as Hshape.
-  destruct (full_frame_move_row w Hprime Hfull Hmove) as [_ [_ [_ [_ [Hlo Hhi]]]]].
+  destruct (full_frame_move_row w Hprime Hfull Hmove) as [_ [_ [_ [Hsource [Hlo Hhi]]]]].
   pose proof (init_write_hi_address w _ Hshape) as HaddrHi.
   rewrite (initialization_stack_event_prefix w _ Hshape) in Hreplay.
   destruct (replay_app_inv _ _ _ _ Hreplay) as [middle [Hstack Hrest]].
@@ -249,7 +250,14 @@ Proof.
   | H : Replay _ [] _ |- _ => inversion H; subst; clear H
   end.
   split; [assumption | ]. split.
-  - rewrite <- (init_read_hi_address w _ Hshape). assumption.
+  - rewrite <- (init_read_hi_address w _ Hshape).
+    assert (Hseparate : [w COL_STACK_WRITE0_ADDR_LO] <>
+      [w (List.nth 0%nat COL_STACK_READ_ADDR_HI 0%nat)]).
+    { intro Heq. injection Heq as Heq.
+      change (w COL_STACK_WRITE0_ADDR_LO = w (List.nth 0%nat COL_STACK_READ_ADDR_HI 0%nat)) in Heq.
+      rewrite (init_read_hi_address w _ Hshape), Hsource in Heq. lia. }
+    match goal with H : update _ _ _ _ stackId _ = Some _ |- _ =>
+      rewrite update_other in H by (right; exact Hseparate); exact H end.
   - intro address.
   erewrite replay_preserves; [ | exact Hrest | apply read_only_row; vm_compute; reflexivity].
   rewrite HaddrHi, <- Hlo, <- Hhi. reflexivity.

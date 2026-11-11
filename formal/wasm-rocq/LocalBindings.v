@@ -81,17 +81,17 @@ Definition isStackWrite (event : Event) : bool :=
 
 Definition writeIf (gate : Z) (event : Event) : list Event := if Z.eqb gate 1 then [event] else [].
 
-(* The stack-memory writes of a row, in port order: the operand write, then the
-   local's cell from local.set/tee or an entry input. *)
+(* The stack-memory writes of a row, low limb then high limb. Within each
+   limb, the operand write precedes local.set/tee and entry-input writes. *)
 Definition stackPortWrites (w : Witness) : list Event :=
   writeIf (w COL_STACK_WRITE0_ACTIVE)
     (WriteEvent MemoryCatalog.stackId [w COL_STACK_WRITE0_ADDR_LO] (w COL_STACK_WRITE0_VALUE_LO) None) ++
-  writeIf (w COL_STACK_WRITE0_HI_ACTIVE)
-    (WriteEvent MemoryCatalog.stackId [w COL_STACK_WRITE0_ADDR_HI] (w COL_STACK_WRITE0_VALUE_HI) None) ++
   writeIf (w COL_LOCAL_WRITE_ENABLED)
     (WriteEvent MemoryCatalog.stackId [w COL_LOCAL_ADDR_LO] (w COL_LOCAL_VALUE) None) ++
   writeIf (w COL_GATHER_LOCAL_WRITE_LO)
     (WriteEvent MemoryCatalog.stackId [w COL_LOCAL_ADDR_LO] (w COL_LOCAL_VALUE) None) ++
+  writeIf (w COL_STACK_WRITE0_HI_ACTIVE)
+    (WriteEvent MemoryCatalog.stackId [w COL_STACK_WRITE0_ADDR_HI] (w COL_STACK_WRITE0_VALUE_HI) None) ++
   writeIf (w COL_LOCAL_WRITE_ENABLED)
     (WriteEvent MemoryCatalog.stackId [w COL_LOCAL_ADDR_HI] (w COL_LOCAL_VALUE_HI) None) ++
   writeIf (w COL_GATHER_LOCAL_WRITE)

@@ -326,7 +326,7 @@ Proof.
   destruct (full_direct_guest_call_stack row Hprime Hfull HcallSel Htarget) as [_ [_ HspAfter]].
   destruct (full_call_context_push row Hfull Hpush) as [Haddr [HsavedFbp [HsavedBase Hchoice]]].
   pose proof (no_stack_writes_preserve _ _ _ Hreplay
-    (full_call_end_no_stack_writes row COL_SEL_CALL Hprime Hfull (or_introl Logic.eq_refl) HcallSel)) as HcallStack.
+    (full_call_return_no_stack_writes row COL_SEL_CALL Hprime Hfull (or_introl Logic.eq_refl) HcallSel)) as HcallStack.
   (* A call seeds no frame move. *)
   assert (HmoveAfter : row COL_FRAME_MOVE_REMAINING_AFTER = 0).
   { destruct Hidle as [_ [Hmr [_ Hma]]]. cbn [beforeBoundary boundaryMoveRemaining boundaryMoveActive] in Hmr, Hma.

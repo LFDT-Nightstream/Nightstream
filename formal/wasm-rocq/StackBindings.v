@@ -141,13 +141,13 @@ Qed.
 Definition binaryStackEvents (w : Witness) : list Event :=
   [ReadEvent MemoryCatalog.stackId [w (List.nth 0%nat COL_STACK_READ_ADDR_LO 0%nat)]
      (w (List.nth 0%nat COL_STACK_READ_VALUE_LO 0%nat));
-   ReadEvent MemoryCatalog.stackId [w (List.nth 0%nat COL_STACK_READ_ADDR_HI 0%nat)]
-     (w (List.nth 0%nat COL_STACK_READ_VALUE_HI 0%nat));
    ReadEvent MemoryCatalog.stackId [w (List.nth 1%nat COL_STACK_READ_ADDR_LO 0%nat)]
      (w (List.nth 1%nat COL_STACK_READ_VALUE_LO 0%nat));
+   WriteEvent MemoryCatalog.stackId [w COL_STACK_WRITE0_ADDR_LO] (w COL_STACK_WRITE0_VALUE_LO) None;
+   ReadEvent MemoryCatalog.stackId [w (List.nth 0%nat COL_STACK_READ_ADDR_HI 0%nat)]
+     (w (List.nth 0%nat COL_STACK_READ_VALUE_HI 0%nat));
    ReadEvent MemoryCatalog.stackId [w (List.nth 1%nat COL_STACK_READ_ADDR_HI 0%nat)]
      (w (List.nth 1%nat COL_STACK_READ_VALUE_HI 0%nat));
-   WriteEvent MemoryCatalog.stackId [w COL_STACK_WRITE0_ADDR_LO] (w COL_STACK_WRITE0_VALUE_LO) None;
    WriteEvent MemoryCatalog.stackId [w COL_STACK_WRITE0_ADDR_HI] (w COL_STACK_WRITE0_VALUE_HI) None].
 
 Lemma binary_stack_event_prefix : forall w,
@@ -323,22 +323,22 @@ Proof.
     pose proof (value_bound w COL_STACK_FRAME_BASE_AFTER). field_linear Hrow.
 Qed.
 
-(* The operand port events, then the local's cell events, in port order. *)
+(* Within each limb, the operand event precedes the local event. *)
 Definition localStackEvents (w : Witness) (isSet local : bool) : list Event :=
   (if isSet then
     [ReadEvent MemoryCatalog.stackId [w (List.nth 0%nat COL_STACK_READ_ADDR_LO 0%nat)]
-       (w (List.nth 0%nat COL_STACK_READ_VALUE_LO 0%nat));
-     ReadEvent MemoryCatalog.stackId [w (List.nth 0%nat COL_STACK_READ_ADDR_HI 0%nat)]
-       (w (List.nth 0%nat COL_STACK_READ_VALUE_HI 0%nat))]
-  else
-    [WriteEvent MemoryCatalog.stackId [w COL_STACK_WRITE0_ADDR_LO] (w COL_STACK_WRITE0_VALUE_LO) None;
-     WriteEvent MemoryCatalog.stackId [w COL_STACK_WRITE0_ADDR_HI] (w COL_STACK_WRITE0_VALUE_HI) None]) ++
+       (w (List.nth 0%nat COL_STACK_READ_VALUE_LO 0%nat))]
+  else [WriteEvent MemoryCatalog.stackId [w COL_STACK_WRITE0_ADDR_LO] (w COL_STACK_WRITE0_VALUE_LO) None]) ++
   (if negb local then [] else if isSet then
-    [WriteEvent MemoryCatalog.stackId [w COL_LOCAL_ADDR_LO] (w COL_LOCAL_VALUE) None;
-     WriteEvent MemoryCatalog.stackId [w COL_LOCAL_ADDR_HI] (w COL_LOCAL_VALUE_HI) None]
-  else
-    [ReadEvent MemoryCatalog.stackId [w COL_LOCAL_ADDR_LO] (w COL_LOCAL_VALUE);
-     ReadEvent MemoryCatalog.stackId [w COL_LOCAL_ADDR_HI] (w COL_LOCAL_VALUE_HI)]).
+    [WriteEvent MemoryCatalog.stackId [w COL_LOCAL_ADDR_LO] (w COL_LOCAL_VALUE) None]
+  else [ReadEvent MemoryCatalog.stackId [w COL_LOCAL_ADDR_LO] (w COL_LOCAL_VALUE)]) ++
+  (if isSet then
+    [ReadEvent MemoryCatalog.stackId [w (List.nth 0%nat COL_STACK_READ_ADDR_HI 0%nat)]
+       (w (List.nth 0%nat COL_STACK_READ_VALUE_HI 0%nat))]
+  else [WriteEvent MemoryCatalog.stackId [w COL_STACK_WRITE0_ADDR_HI] (w COL_STACK_WRITE0_VALUE_HI) None]) ++
+  (if negb local then [] else if isSet then
+    [WriteEvent MemoryCatalog.stackId [w COL_LOCAL_ADDR_HI] (w COL_LOCAL_VALUE_HI) None]
+  else [ReadEvent MemoryCatalog.stackId [w COL_LOCAL_ADDR_HI] (w COL_LOCAL_VALUE_HI)]).
 
 Lemma local_stack_event_prefix : forall w isSet local,
   UnaryStackShape w isSet local ->
@@ -385,7 +385,8 @@ Theorem local_set_stack_replay : forall w initial final,
   UnaryStackShape w true true -> Replay initial (eventsForRow MemoryCatalog.memories w) final ->
   initial MemoryCatalog.stackId [w (List.nth 0%nat COL_STACK_READ_ADDR_LO 0%nat)] =
     Some (w (List.nth 0%nat COL_STACK_READ_VALUE_LO 0%nat)) /\
-  initial MemoryCatalog.stackId [w (List.nth 0%nat COL_STACK_READ_ADDR_HI 0%nat)] =
+  update initial MemoryCatalog.stackId [w COL_LOCAL_ADDR_LO] (w COL_LOCAL_VALUE)
+    MemoryCatalog.stackId [w (List.nth 0%nat COL_STACK_READ_ADDR_HI 0%nat)] =
     Some (w (List.nth 0%nat COL_STACK_READ_VALUE_HI 0%nat)) /\
   forall address, final MemoryCatalog.stackId address =
     update (update initial MemoryCatalog.stackId [w COL_LOCAL_ADDR_LO] (w COL_LOCAL_VALUE))
@@ -405,7 +406,8 @@ Theorem local_get_stack_replay : forall w initial final,
   let pushed := update (update initial MemoryCatalog.stackId [w COL_STACK_WRITE0_ADDR_LO]
       (w COL_STACK_WRITE0_VALUE_LO)) MemoryCatalog.stackId [w COL_STACK_WRITE0_ADDR_HI]
       (w COL_STACK_WRITE0_VALUE_HI) in
-  pushed MemoryCatalog.stackId [w COL_LOCAL_ADDR_LO] = Some (w COL_LOCAL_VALUE) /\
+  update initial MemoryCatalog.stackId [w COL_STACK_WRITE0_ADDR_LO] (w COL_STACK_WRITE0_VALUE_LO)
+    MemoryCatalog.stackId [w COL_LOCAL_ADDR_LO] = Some (w COL_LOCAL_VALUE) /\
   pushed MemoryCatalog.stackId [w COL_LOCAL_ADDR_HI] = Some (w COL_LOCAL_VALUE_HI) /\
   forall address, final MemoryCatalog.stackId address = pushed MemoryCatalog.stackId address.
 Proof.

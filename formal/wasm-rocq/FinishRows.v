@@ -3,7 +3,7 @@ From Stdlib Require Import List ZArith Lia Bool.
 Require Import R1CS Columns FullRelation Range MemoryTrace MemoryCatalog Wasm2 WasmIntegers Locals
   StraightLineSpec StackSimulation SpecTecCalls CallerSpec ProgramSpec ProgramEncoding CodeLayout BlockEncoding
   Fragment CodeFacts ControlDecode ControlInvariant ControlBridge FrameFacts FrameRows CallRows SlideLayout ProgramBinding
-  OpcodeCatalog Selectors CircuitFacts CallContext TrapFacts TerminalFacts FunctionResults.
+  OpcodeCatalog Selectors CircuitFacts CallContext CallReturn LocalBindings TrapFacts TerminalFacts FunctionResults.
 Require Import IntegerMemory IntegerDecode IntegerLocals ExecutionSpec.
 Import ListNotations.
 Open Scope Z_scope.
@@ -70,12 +70,18 @@ Lemma finish_function_row : forall program s view f initial final row inner call
 Proof.
   intros program s view f initial final row inner caller Hstore Hwf Hvalid Hprime Hloaded Hfull Hprogram
     Hfinish Hreplay Hcaller Hstate Hf Hleaves.
-  assert (Htrap : row COL_TRAPPED_AFTER = 0).
+  assert (Hselector : row COL_SEL_END = 1 \/ row COL_SEL_RETURN = 1).
   { destruct Hleaves as [[Hl He] | [i [Hi Hr]]].
-    - destruct (function_end_selected _ _ view f initial final row inner Hprime Hloaded Hfull Hprogram Hreplay
-        Hstate Hf Hl He) as [Hsel _]. eapply full_nontrapping_untrapped; [exact Hprime | exact Hfull | | exact Hsel]. cbn; tauto.
-    - destruct (return_selected _ _ view f i initial final row inner Hprime Hloaded Hfull Hprogram Hreplay
-        Hstate Hf Hi Hr) as [Hsel _]. eapply full_nontrapping_untrapped; [exact Hprime | exact Hfull | | exact Hsel]. cbn; tauto. }
+    - left. exact (proj1 (function_end_selected _ _ view f initial final row inner Hprime Hloaded Hfull Hprogram Hreplay
+        Hstate Hf Hl He)).
+    - right. exact (proj1 (return_selected _ _ view f i initial final row inner Hprime Hloaded Hfull Hprogram Hreplay
+        Hstate Hf Hi Hr)). }
+  assert (Htrap : row COL_TRAPPED_AFTER = 0).
+  { destruct Hselector as [Hsel | Hsel]; eapply full_nontrapping_untrapped;
+      [exact Hprime | exact Hfull | | exact Hsel | exact Hprime | exact Hfull | | exact Hsel]; cbn; tauto. }
+  assert (Hwrites : filter isStackWrite (eventsForRow memories row) = []).
+  { destruct Hselector as [Hsel | Hsel]; eapply full_call_return_no_stack_writes;
+      [exact Hprime | exact Hfull | | exact Hsel | exact Hprime | exact Hfull | | exact Hsel]; tauto. }
   destruct (full_clean_finish row Hprime Hfull Hprogram Hfinish Htrap) as [Hexit [_ [Hcapture _]]].
   destruct (function_result_values program s view f initial row inner Hstore Hwf Hvalid Hprime Hfull Hprogram Hstate Hf Hleaves)
     as [dropped [returned [Hsplit [Hlength [Hfits Hsteps]]]]].
@@ -99,7 +105,7 @@ Proof.
   - cbn [capturedValues valueTypes map]. rewrite Hcount. reflexivity.
   - assert (Hcap : row COL_OUTPUT_CAPTURED = 1) by exact Hcount.
     pose proof (full_capture_address row Hprime Hfull Hcap ltac:(cbn in Hsp; lia)) as Haddr.
-    destruct (captured_stack_reads _ _ _ Hreplay Hcap) as [Hread HreadHi].
+    destruct (captured_stack_reads _ _ _ Hreplay Hcap Hwrites) as [Hread HreadHi].
     rewrite (full_stack_read0_high_address row Hprime Hfull) in HreadHi.
     rewrite Haddr in Hread, HreadHi.
     replace (2 * row COL_SP_BEFORE - 2)

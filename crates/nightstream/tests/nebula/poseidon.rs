@@ -45,7 +45,7 @@ impl PortHash {
         let mut hints = Vec::new();
         let mut lanes: [Expr; WIDTH] = std::array::from_fn(|_| Expr::constant(0));
         lanes[0] = Expr::constant(0x4e53504f52544831);
-        lanes[1] = view.vr(0);
+        lanes[1] = view.vr(0) + Expr::constant(2) * view.vw(0);
         for block in 0..2 {
             if block == 1 && matches!(self.fault, Fault::PriorDeadInput) {
                 lanes[1] = view.aux(0);
@@ -135,7 +135,7 @@ impl Application for PortHash {
         let reference = reference().unwrap();
         let mut lanes = [F::ZERO; WIDTH];
         lanes[0] = F::from_u64(0x4e53504f52544831);
-        lanes[1] = F::from_u64(value);
+        lanes[1] = F::from_u64(value) * F::from_u64(3);
         let mut aux = Vec::new();
         for block in 0..2 {
             let witness = reference.execute([F::ZERO; 4], &lanes).unwrap();
@@ -197,9 +197,11 @@ fn checked_port_hash_reconstructs_source_witness() {
         original.execute(prior, &erased).unwrap();
         prior = invocation.output;
     }
-    let expected =
-        neo_ccs::crypto::poseidon2_goldilocks::poseidon2_hash(&[F::from_u64(0x4e53504f52544831), F::from_u64(12345)])
-            .map(|value| value.as_canonical_u64());
+    let expected = neo_ccs::crypto::poseidon2_goldilocks::poseidon2_hash(&[
+        F::from_u64(0x4e53504f52544831),
+        F::from_u64(3 * 12345),
+    ])
+    .map(|value| value.as_canonical_u64());
     assert_eq!(*run.state(), expected);
 }
 

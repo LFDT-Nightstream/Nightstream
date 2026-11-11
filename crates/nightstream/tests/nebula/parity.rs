@@ -97,7 +97,7 @@ fn second_package_rows_match_lean() {
 /// its RAM range rows (`ThirdPlan.lean`).
 #[test]
 fn rows_of_a_ram_smaller_than_the_rom_match_lean() {
-    let application = super::memory_circuit(&crate::nebula::Geometry::third(), &Machine).unwrap();
+    let application = super::memory_circuit_unshared(&crate::nebula::Geometry::third(), &Machine).unwrap();
     assert_rows(&application, include_bytes!("../fixtures/nebula-memory-r1-digest.json"));
 }
 
@@ -116,7 +116,7 @@ fn coordinates(package: &nightstream_fprime::StepPackage) -> BTreeMap<String, us
 /// The witness words and locals of `application` that one of its rows forces
 /// to 0 or 1: the row reads only that variable and holds at 0 and at 1
 /// (Lean `SlotLayout.forcedColumn?`).
-fn forced_words(application: &ApplicationCircuit) -> usize {
+fn forced_words(application: &ApplicationCircuit) -> BTreeSet<usize> {
     let records = application.records();
     let witness = 4..4 + application.private_input_count();
     let mut forced = BTreeSet::new();
@@ -143,18 +143,17 @@ fn forced_words(application: &ApplicationCircuit) -> usize {
             forced.insert(variable);
         }
     }
-    forced.len()
+    forced
 }
 
 /// The machine's Rust-built memory circuit in place of the fixture's
-/// application gives each Lean memory package's step relation: the same
-/// blocks and plan rows, and the same slots except that each witness word or
-/// local that a row forces to 0 or 1 is a bit slot (1 coordinate) where
-/// Lean's is a field slot (41).
+/// application preserves the Lean package's block and row counts. Directly
+/// forced application words get bit slots, and the coordinate ledger includes
+/// the additional bits inferred from checked rows.
 fn assert_native_packages_match_lean(package: Package, stem: &str) {
     let application = package.application().unwrap();
-    let bits = forced_words(&application);
-    assert!(bits > 0);
+    let forced = forced_words(&application);
+    assert!(!forced.is_empty());
     let load = |stem: &str, identity| {
         let bytes = bounded_depth_packages(stem);
         nightstream_fprime::load_bounded_depth_packages(&bytes[0], &bytes[1], identity).unwrap()
@@ -173,10 +172,28 @@ fn assert_native_packages_match_lean(package: Package, stem: &str) {
             native.plan_rows().unwrap().row_count(),
             lean.plan_rows().unwrap().row_count()
         );
+        assert_eq!(native.width(), lean.width());
+        let layout = native.layout().unwrap();
+        let block = native.blocks().next().unwrap();
+        let first_local = application.shape().blocks[0].first_local;
+        assert_eq!(first_local, application.generated_range().start);
+        for &variable in &forced {
+            let column = if variable < 4 + application.private_input_count() {
+                nightstream_fprime::PUBLIC_WORDS + 5 + 8 + 12 + variable - 4
+            } else {
+                assert!(application.generated_range().contains(&variable));
+                block.start() + variable - first_local
+            };
+            let (_, kind) = layout.slot(column).expect("forced word has a slot");
+            assert_eq!(format!("{kind:?}"), "Bit", "application variable {variable}");
+        }
+        let actual = coordinates(native);
         let mut expected = coordinates(lean);
-        *expected.get_mut("Field").unwrap() -= 41 * bits;
-        *expected.get_mut("Bit").unwrap() += bits;
-        assert_eq!(coordinates(native), expected);
+        let refined = actual["Bit"].checked_sub(expected["Bit"]).unwrap();
+        assert!(refined >= forced.len());
+        *expected.get_mut("Field").unwrap() -= 41 * refined;
+        *expected.get_mut("Bit").unwrap() += refined;
+        assert_eq!(actual, expected);
     }
 }
 

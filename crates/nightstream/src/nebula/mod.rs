@@ -21,6 +21,7 @@ mod machine;
 mod poseidon;
 mod proving;
 mod r1cs;
+mod readonly;
 mod records;
 mod rows;
 mod segment;
@@ -118,7 +119,7 @@ impl Package {
     /// The package's relation built in Rust, row for row as Lean builds it
     /// (`tests/nebula/parity.rs`).
     pub(crate) fn application(self) -> Result<crate::application::ApplicationCircuit, crate::Error> {
-        circuit::memory_circuit(&self.geometry(), &Machine)
+        circuit::memory_circuit_unshared(&self.geometry(), &Machine)
     }
 }
 

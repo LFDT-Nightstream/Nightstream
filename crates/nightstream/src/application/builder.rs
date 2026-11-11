@@ -174,6 +174,11 @@ impl ApplicationBuilder {
         self.equality_row(left, right).map(|_| ())
     }
 
+    /// Constrains `a · b = c` without generating a witness word.
+    pub fn assert_product(&mut self, a: Affine, b: Affine, c: Affine) -> Result<(), ApplicationError> {
+        self.constrain(a, b, c).map(|_| ())
+    }
+
     /// The row `a · b = c` as given, with no generated variable. A circuit
     /// that mirrors a Lean lowering row by row uses it; it returns the row.
     pub(crate) fn constrain(&mut self, a: Affine, b: Affine, c: Affine) -> Result<usize, ApplicationError> {

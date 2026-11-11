@@ -5,6 +5,7 @@ use std::{fmt, ops::ControlFlow};
 
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks;
+use rayon::prelude::*;
 
 use crate::PackageError;
 
@@ -390,6 +391,33 @@ impl ApplicationRecords {
             rows: self.rows.window(),
             recipes: self.recipes.window(),
         }
+    }
+
+    /// The first row whose sides under `value` have `A * B != C`, or the
+    /// first error, both in row order. Ranges of rows run on all cores, each
+    /// range with its own walk.
+    pub fn first_unsatisfied_row<E: From<PackageError> + Send>(
+        &self,
+        value: impl Fn(usize) -> Result<u64, E> + Sync,
+    ) -> Result<Option<usize>, E> {
+        let range = self
+            .row_count
+            .div_ceil(4 * rayon::current_num_threads())
+            .max(1);
+        (0..self.row_count.div_ceil(range))
+            .into_par_iter()
+            .map(|part| {
+                let mut walk = self.walk();
+                for row in part * range..((part + 1) * range).min(self.row_count) {
+                    let [a, b, c] = walk.evaluate_row(row, &value)?.map(Goldilocks::from_u64);
+                    if a * b != c {
+                        return Ok(Some(row));
+                    }
+                }
+                Ok(None)
+            })
+            .find_first(|outcome| !matches!(outcome, Ok(None)))
+            .unwrap_or(Ok(None))
     }
 
     pub fn evaluate_form<E: From<PackageError>>(

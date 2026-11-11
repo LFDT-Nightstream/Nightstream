@@ -1,8 +1,8 @@
 use std::{fmt, ops::Range, sync::Arc};
 
 use nightstream_fprime::{
-    ApplicationForm, ApplicationRecords, ApplicationRecordsWriter, ApplicationRowHeader, ApplicationTerm,
-    ApplicationWalk, Linear, NativeBlock, NativeShape, PackageError,
+    ApplicationForm, ApplicationRecords, ApplicationRecordsWriter, ApplicationRowHeader, ApplicationTerm, Linear,
+    NativeBlock, NativeShape, PackageError,
 };
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks;
@@ -420,7 +420,9 @@ impl ApplicationCircuit {
         let mut walk = self.records.walk();
         for offset in 0..self.records.recipe_count() {
             let row = walk.recipe_row(offset)?;
-            let [a, b, _] = evaluate_row(&mut walk, row, &values)?;
+            let [a, b, _] = walk
+                .evaluate_row(row, lookup(&values))?
+                .map(Goldilocks::from_u64);
             values[self.generated_start + offset] = a * b;
         }
         let mut output_state = [Goldilocks::ZERO; 4];
@@ -443,14 +445,10 @@ impl ApplicationCircuit {
                 actual: values.len(),
             });
         }
-        let mut walk = self.records.walk();
-        for index in 0..self.row_count() {
-            let [a, b, c] = evaluate_row(&mut walk, index, values)?;
-            if a * b != c {
-                return Err(ApplicationError::UnsatisfiedRow(index));
-            }
+        match self.records.first_unsatisfied_row(lookup(values))? {
+            Some(row) => Err(ApplicationError::UnsatisfiedRow(row)),
+            None => Ok(()),
         }
-        Ok(())
     }
 
     fn evaluate(
@@ -459,12 +457,7 @@ impl ApplicationCircuit {
         form: ApplicationForm,
         values: &[Goldilocks],
     ) -> Result<Goldilocks, ApplicationError> {
-        let value = self.records.evaluate_form(row, form, |index| {
-            values
-                .get(index)
-                .map(PrimeField64::as_canonical_u64)
-                .ok_or(ApplicationError::VariableOutOfScope(index))
-        })?;
+        let value = self.records.evaluate_form(row, form, lookup(values))?;
         Ok(Goldilocks::from_u64(value))
     }
 
@@ -483,19 +476,13 @@ impl ApplicationCircuit {
     }
 }
 
-fn evaluate_row(
-    walk: &mut ApplicationWalk<'_>,
-    row: usize,
-    values: &[Goldilocks],
-) -> Result<[Goldilocks; 3], ApplicationError> {
-    Ok(walk
-        .evaluate_row(row, |index| {
-            values
-                .get(index)
-                .map(PrimeField64::as_canonical_u64)
-                .ok_or(ApplicationError::VariableOutOfScope(index))
-        })?
-        .map(Goldilocks::from_u64))
+fn lookup(values: &[Goldilocks]) -> impl Fn(usize) -> Result<u64, ApplicationError> + Sync + '_ {
+    |index| {
+        values
+            .get(index)
+            .map(PrimeField64::as_canonical_u64)
+            .ok_or(ApplicationError::VariableOutOfScope(index))
+    }
 }
 
 #[derive(Clone, Debug)]

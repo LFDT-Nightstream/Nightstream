@@ -236,6 +236,53 @@ fn walks_read_each_row_across_windows_in_any_order() {
 }
 
 #[test]
+fn first_unsatisfied_row_and_first_error_follow_row_order() {
+    let rows = 50_000;
+    let mut writer = ApplicationRecordsWriter::new().unwrap();
+    for row in 0..rows {
+        let term = |form, variable| {
+            Ok(ApplicationTerm {
+                form,
+                variable,
+                coefficient: 1,
+            })
+        };
+        writer
+            .append_row(
+                ApplicationRowHeader {
+                    constants: [0, 1, 0],
+                    term_counts: [1, 0, 1],
+                },
+                [term(ApplicationForm::A, row), term(ApplicationForm::C, rows + row)],
+            )
+            .unwrap();
+    }
+    let records = writer.finish().unwrap();
+    let broken = [30_000, 40_000];
+    let value = |missing: usize| {
+        move |variable: usize| match variable.checked_sub(rows) {
+            _ if variable == missing => Err(PackageError::Input("missing variable")),
+            Some(row) if broken.contains(&row) => Ok(0),
+            Some(row) => Ok(row as u64),
+            None => Ok(variable as u64),
+        }
+    };
+    let none = usize::MAX;
+    assert_eq!(
+        records
+            .first_unsatisfied_row(|variable| Ok::<_, PackageError>((variable % rows) as u64))
+            .unwrap(),
+        None
+    );
+    assert_eq!(records.first_unsatisfied_row(value(none)).unwrap(), Some(30_000));
+    assert_eq!(records.first_unsatisfied_row(value(45_000)).unwrap(), Some(30_000));
+    assert!(matches!(
+        records.first_unsatisfied_row(value(rows + 20_000)),
+        Err(PackageError::Input("missing variable"))
+    ));
+}
+
+#[test]
 fn writer_buffers_do_not_grow_with_distinct_rows_or_terms() {
     let mut writer = ApplicationRecordsWriter::new().unwrap();
     let bytes = writer.buffer_bytes();

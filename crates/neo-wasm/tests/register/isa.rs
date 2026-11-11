@@ -258,6 +258,8 @@ pub struct Program {
     /// `(params, results)` of each type id.
     pub signatures: Vec<(u32, u32)>,
     pub globals: Vec<u64>,
+    /// Whether each global is 64 bits wide.
+    pub global_wide: Vec<bool>,
     pub memory_pages: u64,
     pub data: Vec<(u64, Vec<u8>)>,
 }

@@ -59,6 +59,11 @@ struct RunRecord {
     rows: BTreeMap<String, u64>,
     unaligned: u64,
     depth: usize,
+    /// General-row rows (run by `Cpu`), rows that `native` rows stand for,
+    /// and the reason a run stopped early.
+    general: Option<(u64, u64, String)>,
+    families: BTreeMap<String, u64>,
+    origins: BTreeMap<String, (u64, u64)>,
 }
 
 fn masked(results: &[wasmparser::ValType], v: &[u64]) -> Vec<u64> {
@@ -134,7 +139,47 @@ fn register_rows_per_wasm_instruction_on_the_corpus() {
                 rows: cell.row_mix.clone(),
                 unaligned: cell.unaligned,
                 depth: cell.max_depth,
+                general: None,
+                families: BTreeMap::new(),
+                origins: BTreeMap::new(),
             };
+            if let Ok(p) = allocate(&module.program, register::lower::ALLOC_K) {
+                let low = register::lower::lower(&p, f as usize);
+                let words = (module.program.memory_pages as usize * 16384).max(1);
+                let mut cpu = register::cpu::Cpu::new(&low, words, 1 << 20);
+                let got = cpu.run(&args, 400_000_000);
+                let natives: u64 = cpu.estimated.values().map(|e| e.0).sum();
+                let extra: u64 = cpu.estimated.values().map(|e| e.1).sum();
+                let note = match &got {
+                    Ok(regs) => {
+                        let ok =
+                            matches!(&expected, Ok(e) if masked(results, e) == masked(results, &regs[..results.len()]));
+                        if ok {
+                            "ok".to_string()
+                        } else {
+                            format!("WRONG {expected:?} {:?}", &regs[..results.len()])
+                        }
+                    }
+                    Err(stop) => format!("{stop:?}"),
+                };
+                let natives_note: Vec<String> = cpu
+                    .estimated
+                    .iter()
+                    .map(|(k, v)| format!("{k}={}", v.0))
+                    .collect();
+                record.general = Some((cpu.rows - natives, extra, format!("{note} {}", natives_note.join(","))));
+                record.families = cpu
+                    .families
+                    .iter()
+                    .map(|(k, v)| (format!("{k:?}"), *v))
+                    .collect();
+                let names = register::lower::origins().lock().unwrap();
+                record.origins = cpu
+                    .origins
+                    .iter()
+                    .map(|(k, v)| (names[*k as usize].clone(), *v))
+                    .collect();
+            }
             for k in REGISTERS {
                 let Ok(p) = allocate(&module.program, k) else { continue };
                 let mut m = Machine::new(&p, Some(k));
@@ -179,9 +224,34 @@ fn register_rows_per_wasm_instruction_on_the_corpus() {
                 .join(",")
         });
         line += &format!("|{}|{}|{glue}", r.unaligned, r.depth);
+        if let Some((rows, extra, note)) = &r.general {
+            line += &format!(
+                "|general={:.3} (+{:.3} estimated) {note}",
+                *rows as f64 / r.instr as f64,
+                *extra as f64 / r.instr as f64
+            );
+        }
         println!("{line}");
     }
+    let mut fam_share: BTreeMap<String, f64> = BTreeMap::new();
+    let mut origin_share: BTreeMap<String, (f64, f64)> = BTreeMap::new();
     for r in &counted {
+        if let Some((rows, extra, note)) = &r.general {
+            if note.starts_with("ok") {
+                sums.entry("general".into())
+                    .or_default()
+                    .push((*rows + *extra) as f64 / r.instr as f64);
+                let total: u64 = r.families.values().sum();
+                for (k, v) in &r.families {
+                    *fam_share.entry(k.clone()).or_default() += *v as f64 / total as f64;
+                }
+                for (k, (first, all)) in &r.origins {
+                    let e = origin_share.entry(k.clone()).or_default();
+                    e.0 += *first as f64 / r.instr as f64;
+                    e.1 += *all as f64 / r.instr as f64;
+                }
+            }
+        }
         sums.entry("cell".into())
             .or_default()
             .push(r.cell as f64 / r.instr as f64);
@@ -207,6 +277,20 @@ fn register_rows_per_wasm_instruction_on_the_corpus() {
         println!(
             "SUMMARY|{form}|programs={}|mean={mean:.3}|min={min:.3}|max={max:.3}",
             ratios.len()
+        );
+    }
+    let programs = sums.get("general").map_or(1, |v| v.len()) as f64;
+    for (k, v) in &fam_share {
+        println!("FAMILY|{k}|{:.2}%", 100.0 * v / programs);
+    }
+    let mut origins: Vec<_> = origin_share.into_iter().collect();
+    origins.sort_by(|a, b| b.1 .1.partial_cmp(&a.1 .1).unwrap());
+    for (k, (first, all)) in origins.iter().take(30) {
+        println!(
+            "ORIGIN|{k}|register rows/instr={:.4}|general rows/instr={:.4}|x{:.2}",
+            first / programs,
+            all / programs,
+            all / first
         );
     }
     let mut mix: Vec<_> = mix_share.into_iter().collect();

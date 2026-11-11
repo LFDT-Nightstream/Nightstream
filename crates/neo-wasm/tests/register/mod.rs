@@ -6,6 +6,10 @@
 
 pub mod alloc;
 pub mod corpus;
+pub mod cpu;
+pub mod general;
 pub mod isa;
+pub mod lower;
 pub mod machine;
+pub mod row;
 pub mod translate;

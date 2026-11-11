@@ -108,6 +108,9 @@ pub fn parse(bytes: &[u8]) -> Result<Module, String> {
                     let global = global.map_err(|e| e.to_string())?;
                     let value = const_value(&global.init_expr, &program.globals);
                     program.globals.push(value);
+                    program
+                        .global_wide
+                        .push(global.ty.content_type == ValType::I64);
                 }
             }
             Payload::ExportSection(reader) => {

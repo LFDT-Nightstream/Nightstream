@@ -288,7 +288,7 @@ fn rewrite(program: &Program, f: &Function, k: usize) -> Result<Function, String
             }
             let callee = pinned(p, r, k) as u32;
             for i in callee..p {
-                let home = f.cells + i;
+                let home = f.cells + 1 + i;
                 match at(row.delta + i) {
                     Ok(reg) => items.push(Item::Row(frame_row(false, reg, home, Tag::ArgMove))),
                     Err(c) => {
@@ -302,7 +302,7 @@ fn rewrite(program: &Program, f: &Function, k: usize) -> Result<Function, String
             }
             let moves = (0..callee).map(|i| (i as u8, at(row.delta + i))).collect();
             parallel(&mut items, moves, s0, Tag::ArgMove);
-            call.delta = f.cells;
+            call.delta = f.cells + 1;
             items.push(Item::Row(call));
             let back = results
                 .iter()

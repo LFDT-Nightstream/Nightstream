@@ -150,12 +150,12 @@ pub(super) struct Reader {
 }
 
 impl Reader {
-    pub(super) fn tail(&self, offset: u64) -> Result<BufReader<Cursor<'_>>, PackageError> {
-        let bytes = self
-            .length
-            .checked_sub(offset)
-            .ok_or(PackageError::Malformed("application record offset exceeds file"))?;
-        self.cursor(offset, bytes)
+    pub(super) fn window(&self) -> Window<'_> {
+        Window {
+            reader: self,
+            start: 0,
+            bytes: Vec::new(),
+        }
     }
 
     #[cfg(test)]
@@ -191,6 +191,42 @@ impl Reader {
                 .filter(|&end| end <= self.length)
                 .ok_or(PackageError::Malformed("application index exceeds file"))?,
         })
+    }
+}
+
+/// The bytes that one refill of a `Window` reads.
+pub(super) const WINDOW_BYTES: u64 = 1 << 20;
+
+/// A bounded copy of one part of a record file. A word inside the window
+/// costs no read; a word outside it refills the window from that word, so a
+/// walk at ascending offsets reads each part of the file one time.
+pub(super) struct Window<'a> {
+    reader: &'a Reader,
+    start: u64,
+    bytes: Vec<u8>,
+}
+
+impl Window<'_> {
+    pub(super) fn word(&mut self, offset: u64) -> Result<u64, PackageError> {
+        let end = offset
+            .checked_add(size_of::<u64>() as u64)
+            .filter(|&end| end <= self.reader.length)
+            .ok_or(PackageError::Malformed("application record range exceeds file"))?;
+        if offset < self.start || end > self.start + self.bytes.len() as u64 {
+            let bytes = (self.reader.length - offset).min(WINDOW_BYTES);
+            self.bytes.resize(bytes as usize, 0);
+            Cursor {
+                reader: self.reader,
+                position: offset,
+                end: offset + bytes,
+            }
+            .read_exact(&mut self.bytes)?;
+            self.start = offset;
+        }
+        let at = (offset - self.start) as usize;
+        let mut word = [0; size_of::<u64>()];
+        word.copy_from_slice(&self.bytes[at..at + size_of::<u64>()]);
+        Ok(u64::from_le_bytes(word))
     }
 }
 

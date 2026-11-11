@@ -10,7 +10,7 @@ use crate::PackageError;
 
 mod codec;
 mod storage;
-use storage::{read_word, Reader, RecipeStack, Writer};
+use storage::{read_word, Reader, RecipeStack, Window, Writer};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ApplicationForm {
@@ -381,26 +381,15 @@ impl ApplicationRecords {
         Ok(ControlFlow::Continue(()))
     }
 
-    pub fn evaluate_row<E: From<PackageError>>(
-        &self,
-        row: usize,
-        mut value: impl FnMut(usize) -> Result<u64, E>,
-    ) -> Result<[u64; 3], E> {
-        let mut input = self.data.tail(self.row_offset(row)?)?;
-        let mut values = [Goldilocks::ZERO; 3];
-        let mut counts = [0; 3];
-        for form in 0..3 {
-            values[form] = canonical(read_word(&mut input)?)?;
-            counts[form] = index(read_word(&mut input)?)?;
+    /// A walk over the rows and recipes for callers that visit them in
+    /// ascending order.
+    pub fn walk(&self) -> ApplicationWalk<'_> {
+        ApplicationWalk {
+            records: self,
+            data: self.data.window(),
+            rows: self.rows.window(),
+            recipes: self.recipes.window(),
         }
-        for form in 0..3 {
-            for _ in 0..counts[form] {
-                let variable = index(read_word(&mut input)?)?;
-                let coefficient = canonical(read_word(&mut input)?)?;
-                values[form] += coefficient * canonical(value(variable)?)?;
-            }
-        }
-        Ok(values.map(|value| value.as_canonical_u64()))
     }
 
     pub fn evaluate_form<E: From<PackageError>>(
@@ -437,6 +426,58 @@ impl ApplicationRecords {
         value: impl FnMut(usize) -> Result<u64, PackageError>,
     ) -> Result<u64, PackageError> {
         RecipeEvaluator::new(self)?.evaluate(recipe, value)
+    }
+}
+
+/// Reads each record file through one bounded window, so a walk in
+/// ascending row or recipe order reads each window one time, not each row.
+/// Any order gives the same values.
+pub struct ApplicationWalk<'a> {
+    records: &'a ApplicationRecords,
+    data: Window<'a>,
+    rows: Window<'a>,
+    recipes: Window<'a>,
+}
+
+impl ApplicationWalk<'_> {
+    pub fn recipe_row(&mut self, recipe: usize) -> Result<usize, PackageError> {
+        if recipe >= self.records.recipe_count {
+            return Err(PackageError::Input("application recipe is out of range"));
+        }
+        let entry = add(mul(recipe, 3 * size_of::<u64>())?, 2 * size_of::<u64>())?;
+        index(self.recipes.word(word(entry)?)?)
+    }
+
+    /// The A, B and C sides of `row` under `value`.
+    pub fn evaluate_row<E: From<PackageError>>(
+        &mut self,
+        row: usize,
+        mut value: impl FnMut(usize) -> Result<u64, E>,
+    ) -> Result<[u64; 3], E> {
+        if row >= self.records.row_count {
+            return Err(PackageError::Input("application row is out of range").into());
+        }
+        let mut offset = self.rows.word(word(mul(row, size_of::<u64>())?)?)?;
+        let data = &mut self.data;
+        let mut next = || -> Result<u64, PackageError> {
+            let word = data.word(offset)?;
+            offset += size_of::<u64>() as u64;
+            Ok(word)
+        };
+        let mut values = [Goldilocks::ZERO; 3];
+        let mut counts = [0; 3];
+        for form in 0..3 {
+            values[form] = canonical(next()?)?;
+            counts[form] = index(next()?)?;
+        }
+        for form in 0..3 {
+            for _ in 0..counts[form] {
+                let variable = index(next()?)?;
+                let coefficient = canonical(next()?)?;
+                values[form] += coefficient * canonical(value(variable)?)?;
+            }
+        }
+        Ok(values.map(|value| value.as_canonical_u64()))
     }
 }
 

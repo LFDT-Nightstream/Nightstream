@@ -154,9 +154,10 @@ impl StepPackage {
         records: &ApplicationRecords,
         columns: &mut [Goldilocks],
     ) -> Result<(), PackageError> {
+        let mut walk = records.walk();
         for recipe in 0..records.recipe_count() {
-            let row = records.recipe_row(recipe)?;
-            let [a, b, _] = records.evaluate_row(row, |variable| {
+            let row = walk.recipe_row(recipe)?;
+            let [a, b, _] = walk.evaluate_row(row, |variable| {
                 Ok::<_, PackageError>(columns[self.variable_column(variable)?].as_canonical_u64())
             })?;
             columns[self.application.local_start + recipe] = Goldilocks::from_u64(a) * Goldilocks::from_u64(b);

@@ -1,8 +1,8 @@
 use std::{fmt, ops::Range, sync::Arc};
 
 use nightstream_fprime::{
-    ApplicationForm, ApplicationRecords, ApplicationRecordsWriter, ApplicationRowHeader, ApplicationTerm, Linear,
-    NativeBlock, NativeShape, PackageError,
+    ApplicationForm, ApplicationRecords, ApplicationRecordsWriter, ApplicationRowHeader, ApplicationTerm,
+    ApplicationWalk, Linear, NativeBlock, NativeShape, PackageError,
 };
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks;
@@ -417,9 +417,10 @@ impl ApplicationCircuit {
         values.resize(self.variable_count, Goldilocks::ZERO);
         values[..4].copy_from_slice(&input);
         values[4..self.generated_start - 4].copy_from_slice(private_inputs);
+        let mut walk = self.records.walk();
         for offset in 0..self.records.recipe_count() {
-            let row = self.records.recipe_row(offset)?;
-            let [a, b, _] = self.evaluate_row(row, &values)?;
+            let row = walk.recipe_row(offset)?;
+            let [a, b, _] = evaluate_row(&mut walk, row, &values)?;
             values[self.generated_start + offset] = a * b;
         }
         let mut output_state = [Goldilocks::ZERO; 4];
@@ -442,25 +443,14 @@ impl ApplicationCircuit {
                 actual: values.len(),
             });
         }
+        let mut walk = self.records.walk();
         for index in 0..self.row_count() {
-            let [a, b, c] = self.evaluate_row(index, values)?;
+            let [a, b, c] = evaluate_row(&mut walk, index, values)?;
             if a * b != c {
                 return Err(ApplicationError::UnsatisfiedRow(index));
             }
         }
         Ok(())
-    }
-
-    fn evaluate_row(&self, row: usize, values: &[Goldilocks]) -> Result<[Goldilocks; 3], ApplicationError> {
-        Ok(self
-            .records
-            .evaluate_row(row, |index| {
-                values
-                    .get(index)
-                    .map(PrimeField64::as_canonical_u64)
-                    .ok_or(ApplicationError::VariableOutOfScope(index))
-            })?
-            .map(Goldilocks::from_u64))
     }
 
     fn evaluate(
@@ -491,6 +481,21 @@ impl ApplicationCircuit {
             Ok(value)
         }
     }
+}
+
+fn evaluate_row(
+    walk: &mut ApplicationWalk<'_>,
+    row: usize,
+    values: &[Goldilocks],
+) -> Result<[Goldilocks; 3], ApplicationError> {
+    Ok(walk
+        .evaluate_row(row, |index| {
+            values
+                .get(index)
+                .map(PrimeField64::as_canonical_u64)
+                .ok_or(ApplicationError::VariableOutOfScope(index))
+        })?
+        .map(Goldilocks::from_u64))
 }
 
 #[derive(Clone, Debug)]

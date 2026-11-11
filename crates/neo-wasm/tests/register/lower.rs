@@ -227,7 +227,9 @@ impl Lowering<'_> {
         self.push(row)
     }
 
-    /// `d = v` (any 64-bit constant).
+    /// `d = v` (any 64-bit constant): one row for a sign-extended 32-bit
+    /// value, else the low half (32-bit, so the high limb is zero) and then
+    /// `d + (imm << 32)` with the high half as the immediate.
     fn constant(&mut self, d: u8, v: u64) {
         let small = (v as i64) >= i64::from(i32::MIN) && (v as i64) <= i64::from(i32::MAX);
         let mut row = CRow::new(Fam::Add);
@@ -241,19 +243,16 @@ impl Lowering<'_> {
             self.push(row);
             return;
         }
-        let other = if d == T0 { T1 } else { T0 };
-        let mut hi = row;
-        hi.d = other;
-        hi.imm = (v >> 32) as u32;
-        self.push(hi);
+        row.w64 = false;
         self.push(row);
-        let mut add = CRow::new(Fam::Add);
-        add.w64 = true;
-        add.m[2] = true;
-        add.a = d;
-        add.b = other;
-        add.d = d;
-        self.push(add);
+        let mut high = CRow::new(Fam::Add);
+        high.w64 = true;
+        high.m[2] = true;
+        high.uimm = true;
+        high.a = d;
+        high.d = d;
+        high.imm = (v >> 32) as u32;
+        self.push(high);
     }
 
     fn native(&mut self, op: Op, w: W, estimate: u8, d: u8, a: u8, b: Src) {
@@ -355,6 +354,10 @@ impl Lowering<'_> {
         let w = row.w;
         let bits = if w == W::I64 { 63 } else { 31 };
         match row.op {
+            Op::Add if row.a.is_none() && w == W::I64 && matches!(b, Src::Imm(_)) => {
+                let Src::Imm(v) = b else { unreachable!() };
+                self.constant(d, v as u64);
+            }
             Op::Add | Op::Sub => {
                 let at = if row.a.is_none() {
                     let at = self.alu(Fam::Add, w, d, T1, b);
@@ -561,6 +564,16 @@ impl Lowering<'_> {
                 call.simm = row.delta as u16;
                 let at = self.push(call);
                 self.fixes.push((at, Fix::Function(row.imm as usize)));
+            }
+            Op::Host if row.delta == u32::MAX => {
+                let mut host = CRow::new(Fam::Host);
+                host.a = row.a.map_or(T1, |a| reg(Some(a)));
+                host.b = match b {
+                    Src::Loc(loc) => reg(Some(loc)),
+                    Src::Imm(_) => T1,
+                };
+                host.d = d;
+                self.push(host);
             }
             Op::Host => {
                 let results = self.program.functions[row.imm as usize].results;

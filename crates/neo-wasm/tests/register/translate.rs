@@ -177,8 +177,8 @@ pub fn parse(bytes: &[u8]) -> Result<Module, String> {
         canonical,
         program,
     };
-    for (i, body) in bodies.iter().enumerate() {
-        let function = module.translate(imports + i, body)?;
+    for i in 0..bodies.len() {
+        let function = module.translate(imports + i, &bodies)?;
         module.program.functions.push(function);
     }
     module.program.types = module
@@ -194,8 +194,58 @@ pub fn parse(bytes: &[u8]) -> Result<Module, String> {
     Ok(module)
 }
 
+/// Inline a callee of at most this many operators, at most this deep.
+pub const INLINE_OPERATORS: usize = 64;
+pub const INLINE_DEPTH: usize = 4;
+
+/// What one function body needs for inlining: its operator count, and for
+/// each local whether the body writes it and whether its first access is a
+/// write outside every block (so every read sees a written value).
+struct Shape {
+    operators: usize,
+    written: Vec<bool>,
+    write_first: Vec<bool>,
+}
+
+fn shape(body: &wasmparser::FunctionBody, locals: usize) -> Result<Shape, String> {
+    let mut s = Shape {
+        operators: 0,
+        written: vec![false; locals],
+        write_first: vec![false; locals],
+    };
+    let mut seen = vec![false; locals];
+    let mut depth = 0usize;
+    for op in body.get_operators_reader().map_err(|e| e.to_string())? {
+        s.operators += 1;
+        match op.map_err(|e| e.to_string())? {
+            Operator::Block { .. } | Operator::Loop { .. } | Operator::If { .. } => depth += 1,
+            Operator::End => depth = depth.saturating_sub(1),
+            Operator::LocalGet { local_index } => seen[local_index as usize] = true,
+            Operator::LocalSet { local_index } | Operator::LocalTee { local_index } => {
+                let x = local_index as usize;
+                s.written[x] = true;
+                if !seen[x] {
+                    s.write_first[x] = depth == 0;
+                }
+                seen[x] = true;
+            }
+            _ => {}
+        }
+    }
+    Ok(s)
+}
+
+fn local_count(body: &wasmparser::FunctionBody, params: usize) -> Result<usize, String> {
+    let mut locals = params;
+    for local in body.get_locals_reader().map_err(|e| e.to_string())? {
+        locals += local.map_err(|e| e.to_string())?.0 as usize;
+    }
+    Ok(locals)
+}
+
 struct Builder<'m> {
     module: &'m Module,
+    bodies: &'m [wasmparser::FunctionBody<'m>],
     tables: &'m mut Vec<Vec<usize>>,
     items: Vec<Item>,
     labels: Vec<usize>,
@@ -206,6 +256,15 @@ struct Builder<'m> {
     /// The item of the last row whose result is the top of the stack.
     fresh: Option<usize>,
     reachable: bool,
+    /// What `local.get x` pushes in the function being translated: its cell,
+    /// or the caller's operand for a parameter that an inlined body never
+    /// writes.
+    locals: Vec<V>,
+    /// The control entry that a `return` leaves: 0 for the function itself,
+    /// else the block of the inlined body.
+    ctrl_base: usize,
+    /// The functions being translated, outermost first.
+    chain: Vec<u32>,
 }
 
 impl Builder<'_> {
@@ -388,9 +447,19 @@ impl Builder<'_> {
         self.emit(row);
     }
 
-    /// Move the top `n` values into the slots from height `to`.
+    /// Move the top `n` values into the slots from height `to`. An inlined
+    /// body's locals are slots, so a value that reads a target slot other
+    /// than its own is first put in its own slot.
     fn moves(&mut self, n: usize, to: usize) {
         let from = self.stack.len() - n;
+        let (lo, hi) = (self.base + to as u32, self.base + (to + n) as u32);
+        let clash =
+            (0..n).any(|i| matches!(self.stack[from + i], V::Cell(c) if c >= lo && c < hi && c != lo + i as u32));
+        if clash {
+            for i in 0..n {
+                self.materialize(from + i);
+            }
+        }
         for i in 0..n {
             if from + i != to + i || self.stack[from + i] != V::Slot {
                 let src = self.src(from + i);
@@ -514,6 +583,98 @@ impl Builder<'_> {
         }
     }
 
+    /// `return`: the return sequence of the function, or a branch to the end
+    /// of the inlined body.
+    fn leave(&mut self) {
+        if self.ctrl_base == 0 {
+            let results = self.ctrl[0].results;
+            self.ret(results);
+        } else {
+            let depth = (self.ctrl.len() - 1 - self.ctrl_base) as u32;
+            let (label, n, to) = self.arity(depth);
+            self.moves(n, to);
+            self.target(depth);
+            self.jump(label);
+        }
+        self.reachable = false;
+    }
+
+    fn inlinable(&self, f: u32) -> Result<bool, String> {
+        let m = self.module;
+        if (f as usize) < m.imports || self.chain.contains(&f) || self.chain.len() > INLINE_DEPTH {
+            return Ok(false);
+        }
+        let body = &self.bodies[f as usize - m.imports];
+        let params = m.types[m.func_types[f as usize] as usize].0.len();
+        Ok(shape(body, local_count(body, params)?)?.operators <= INLINE_OPERATORS)
+    }
+
+    /// Translate the body of `f` in place of a call: its locals are the
+    /// slots of its arguments and the slots above them, its operand stack
+    /// starts above its locals, and its results end in the argument slots.
+    fn inline(&mut self, f: u32) -> Result<(), String> {
+        let m = self.module;
+        let (params, results) = &m.types[m.func_types[f as usize] as usize];
+        let (p, r) = (params.len(), results.len());
+        let body = &self.bodies[f as usize - m.imports];
+        let count = local_count(body, p)?;
+        let s = shape(body, count)?;
+        let h = self.stack.len() - p;
+        let mut locals = Vec::with_capacity(count);
+        for x in 0..count {
+            let cell = self.base + (h + x) as u32;
+            locals.push(if x < p {
+                if s.written[x] {
+                    self.materialize(h + x);
+                    V::Cell(cell)
+                } else {
+                    match self.stack[h + x] {
+                        V::Slot => V::Cell(cell),
+                        lazy => lazy,
+                    }
+                }
+            } else if !s.written[x] {
+                V::Imm(0)
+            } else {
+                if !s.write_first[x] {
+                    self.mov(Loc::Cell(cell), Src::Imm(0), Tag::Move);
+                }
+                V::Cell(cell)
+            });
+        }
+        self.stack.truncate(h);
+        self.stack.resize(h + count, V::Slot);
+        self.max = self.max.max(self.stack.len());
+        self.fresh = None;
+        let end = self.label();
+        self.ctrl.push(Ctrl {
+            kind: Kind::Block,
+            label: end,
+            end,
+            else_label: None,
+            height: h,
+            params: 0,
+            results: r,
+            reachable_entry: true,
+            targeted: false,
+        });
+        let saved = (std::mem::replace(&mut self.locals, locals), self.ctrl_base);
+        self.ctrl_base = self.ctrl.len() - 1;
+        self.chain.push(f);
+        let outer = self.ctrl.len() - 1;
+        for op in body.get_operators_reader().map_err(|e| e.to_string())? {
+            self.op(op.map_err(|e| e.to_string())?)?;
+            self.max = self.max.max(self.stack.len());
+            if self.ctrl.len() == outer {
+                break;
+            }
+        }
+        self.chain.pop();
+        (self.locals, self.ctrl_base) = saved;
+        self.fresh = None;
+        Ok(())
+    }
+
     fn op(&mut self, op: Operator) -> Result<(), String> {
         use Operator as O;
         use W::{I32, I64};
@@ -546,12 +707,14 @@ impl Builder<'_> {
         let cmp = |b: &mut Self, c, w| b.binary(Op::Cmp(c), w, matches!(c, Cond::Eq | Cond::Ne));
         match op {
             O::Nop => {}
-            O::LocalGet { local_index } => self.stack.push(V::Cell(local_index)),
+            O::LocalGet { local_index } => self.stack.push(self.locals[local_index as usize]),
             O::I32Const { value } => self.stack.push(V::Imm(i64::from(value))),
             O::I64Const { value } => self.stack.push(V::Imm(value)),
             O::LocalSet { local_index } | O::LocalTee { local_index } => {
                 let tee = matches!(op, O::LocalTee { .. });
-                let x = local_index;
+                let V::Cell(x) = self.locals[local_index as usize] else {
+                    return Err("a written local without a cell".into());
+                };
                 let h = self.stack.len() - 1;
                 let clash = (0..h).any(|i| self.stack[i] == V::Cell(x));
                 for i in 0..h {
@@ -872,28 +1035,27 @@ impl Builder<'_> {
                 }
                 self.reachable = false;
             }
-            O::Return => {
-                let results = self.ctrl[0].results;
-                self.ret(results);
-                self.reachable = false;
-            }
+            O::Return => self.leave(),
             O::Unreachable => {
                 self.emit(Row::new(Op::Trap, I32));
                 self.reachable = false;
             }
             O::Call { function_index } | O::ReturnCall { function_index } => {
                 let (p, r) = &self.module.types[self.module.func_types[function_index as usize] as usize];
-                let op = if (function_index as usize) < self.module.imports {
-                    Op::Host
-                } else {
-                    Op::Call
-                };
-                let r = r.len();
+                let (p, r) = (p.len(), r.len());
                 let tail = matches!(op_tail, Some(true));
-                self.call(op, function_index, p.len(), r, None);
-                if tail {
-                    self.ret(r);
-                    self.reachable = false;
+                if self.inlinable(function_index)? {
+                    self.inline(function_index)?;
+                } else {
+                    let op = if (function_index as usize) < self.module.imports {
+                        Op::Host
+                    } else {
+                        Op::Call
+                    };
+                    self.call(op, function_index, p, r, None);
+                }
+                if tail && self.reachable {
+                    self.leave();
                 }
             }
             O::CallIndirect { type_index, .. } => {
@@ -964,15 +1126,14 @@ impl Builder<'_> {
 }
 
 impl Module {
-    fn translate(&mut self, index: usize, body: &wasmparser::FunctionBody) -> Result<Function, String> {
+    fn translate<'b>(&mut self, index: usize, bodies: &'b [wasmparser::FunctionBody<'b>]) -> Result<Function, String> {
+        let body = &bodies[index - self.imports];
         let (params, results) = self.types[self.func_types[index] as usize].clone();
-        let mut locals = params.len() as u32;
-        for local in body.get_locals_reader().map_err(|e| e.to_string())? {
-            locals += local.map_err(|e| e.to_string())?.0;
-        }
+        let locals = local_count(body, params.len())? as u32;
         let mut tables = std::mem::take(&mut self.program.tables);
         let mut b = Builder {
             module: self,
+            bodies,
             tables: &mut tables,
             items: Vec::new(),
             labels: Vec::new(),
@@ -982,6 +1143,9 @@ impl Module {
             max: 0,
             fresh: None,
             reachable: true,
+            locals: (0..locals).map(V::Cell).collect(),
+            ctrl_base: 0,
+            chain: vec![index as u32],
         };
         let entry = b.label();
         b.place(entry);

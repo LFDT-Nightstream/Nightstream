@@ -123,13 +123,82 @@ fn liveness(program: &Program, f: &Function) -> (Vec<usize>, Vec<Set>) {
     (rows, live_out)
 }
 
-/// The register of each cell (`None`: spilled).
+/// `dst ← src` between two cells: the row writes `src` unchanged.
+fn copy(row: &Row) -> Option<(u32, u32)> {
+    match (row.op, row.w, row.a, row.b, row.dst) {
+        (Op::Add, W::I64, Some(Loc::Cell(s)), Some(Src::Imm(0)), Some(Loc::Cell(d))) => Some((d, s)),
+        _ => None,
+    }
+}
+
+/// The register of each cell (`None`: spilled), by graph colouring: two
+/// cells share a register only when no row defines one while the other is
+/// live after it. Cells `0..pinned` keep registers `0..pinned`; the others
+/// take, heaviest first, a free register that a copy partner or a call
+/// argument position prefers, else the lowest free one.
 fn assign(program: &Program, f: &Function, k: usize) -> Result<Vec<Option<u8>>, String> {
     let avail = k - 2;
     if f.results as usize > avail {
         return Err(format!("{} results for {avail} registers", f.results));
     }
     let pinned = pinned(f.params, f.results, k);
+    let n = f.cells as usize;
+    let (rows, live_out) = liveness(program, f);
+    let mut edges = vec![std::collections::BTreeSet::<u32>::new(); n];
+    let mut prefer: Vec<Vec<u32>> = vec![Vec::new(); n];
+    let mut hint: Vec<Option<u8>> = vec![None; n];
+    let link = |a: u32, b: u32, edges: &mut Vec<std::collections::BTreeSet<u32>>| {
+        if a != b {
+            edges[a as usize].insert(b);
+            edges[b as usize].insert(a);
+        }
+    };
+    for (r, &i) in rows.iter().enumerate() {
+        let Item::Row(row) = &f.items[i] else { unreachable!() };
+        let (_, defs) = uses_defs(program, f, row);
+        let source = copy(row).map(|(_, s)| s);
+        for &d in &defs {
+            for c in 0..n as u32 {
+                if has(&live_out[r], c) && Some(c) != source {
+                    link(d, c, &mut edges);
+                }
+            }
+        }
+        if let Some((d, s)) = copy(row) {
+            prefer[d as usize].push(s);
+            prefer[s as usize].push(d);
+        }
+        if is_call(row) && row.op != Op::Host {
+            let (p, res) = arity(program, row);
+            for i in 0..p.max(res) {
+                let c = (row.delta + i) as usize;
+                if c < n && i < pinned_count(p, res, k) {
+                    hint[c] = Some(i as u8);
+                }
+            }
+        }
+    }
+    if let Some(&first) = rows.first() {
+        let live_in: Vec<u32> = {
+            let Item::Row(row) = &f.items[first] else {
+                unreachable!()
+            };
+            let (uses, defs) = uses_defs(program, f, row);
+            let mut s: Vec<u32> = (0..n as u32)
+                .filter(|&c| has(&live_out[0], c) && !defs.contains(&c))
+                .collect();
+            s.extend(uses);
+            s.extend(0..f.params);
+            s.sort();
+            s.dedup();
+            s
+        };
+        for (x, &a) in live_in.iter().enumerate() {
+            for &b in &live_in[x + 1..] {
+                link(a, b, &mut edges);
+            }
+        }
+    }
     let mut weight = vec![0u64; f.cells as usize];
     let mut depth = vec![0u32; f.items.len()];
     for (i, item) in f.items.iter().enumerate() {
@@ -161,8 +230,15 @@ fn assign(program: &Program, f: &Function, k: usize) -> Result<Vec<Option<u8>>, 
         .filter(|&c| weight[c] > 0)
         .collect();
     order.sort_by_key(|&c| std::cmp::Reverse(weight[c]));
-    for (r, c) in (pinned..avail).zip(order) {
-        regs[c] = Some(r as u8);
+    for c in order {
+        let taken: Vec<u8> = edges[c].iter().filter_map(|&o| regs[o as usize]).collect();
+        let free = |r: u8| (r as usize) < avail && !taken.contains(&r);
+        let wanted = prefer[c]
+            .iter()
+            .filter_map(|&o| regs[o as usize])
+            .chain(hint[c])
+            .find(|&r| free(r));
+        regs[c] = wanted.or_else(|| (0..avail as u8).find(|&r| free(r)));
     }
     Ok(regs)
 }
@@ -171,6 +247,10 @@ fn assign(program: &Program, f: &Function, k: usize) -> Result<Vec<Option<u8>>, 
 /// return; any other parameter is passed in its home in the callee frame.
 fn pinned(params: u32, results: u32, k: usize) -> usize {
     (params.max(results) as usize).min(k - 2)
+}
+
+fn pinned_count(params: u32, results: u32, k: usize) -> u32 {
+    pinned(params, results, k) as u32
 }
 
 fn frame_row(load: bool, reg: u8, home: u32, tag: Tag) -> Row {
@@ -237,6 +317,54 @@ fn parallel(out: &mut Vec<Item>, moves: Vec<(u8, Result<u8, u32>)>, scratch: u8,
     }
 }
 
+/// A host call in place: the host clobbers no register, so nothing is
+/// saved. Each row absorbs two argument registers (a spilled argument is
+/// filled into a scratch register first); the last absorbing row writes
+/// result 0 and one more row writes each other result.
+fn host(items: &mut Vec<Item>, program: &Program, row: &Row, at: &dyn Fn(u32) -> Result<u8, u32>, (s0, s1): (u8, u8)) {
+    let callee = &program.functions[row.imm as usize];
+    let (p, r) = (callee.params, callee.results);
+    let absorbing = p.div_ceil(2).max(1);
+    let write = |items: &mut Vec<Item>, mut out: Row, result: Option<u32>| {
+        let spill = result.and_then(|c| at(row.delta + c).err());
+        out.dst = result.map(|c| Loc::Reg(at(row.delta + c).unwrap_or(s0)));
+        items.push(Item::Row(out));
+        if let Some(home) = spill {
+            items.push(Item::Row(frame_row(false, s0, home, Tag::Spill)));
+        }
+    };
+    for k in 0..absorbing {
+        let mut out = Row::new(Op::Host, W::I64);
+        out.imm = row.imm;
+        out.delta = u32::MAX;
+        for (i, scratch) in [(2 * k, s0), (2 * k + 1, s1)] {
+            if i >= p {
+                continue;
+            }
+            let reg = match at(row.delta + i) {
+                Ok(reg) => reg,
+                Err(home) => {
+                    items.push(Item::Row(frame_row(true, scratch, home, Tag::Fill)));
+                    scratch
+                }
+            };
+            if i % 2 == 0 {
+                out.a = Some(Loc::Reg(reg));
+            } else {
+                out.b = Some(Src::Loc(Loc::Reg(reg)));
+            }
+        }
+        let last = k + 1 == absorbing;
+        write(items, out, (last && r > 0).then_some(0));
+    }
+    for c in 1..r {
+        let mut out = Row::new(Op::Host, W::I64);
+        out.imm = row.imm;
+        out.delta = u32::MAX;
+        write(items, out, Some(c));
+    }
+}
+
 fn rewrite(program: &Program, f: &Function, k: usize) -> Result<Function, String> {
     let regs = assign(program, f, k)?;
     let (rows, live_out) = liveness(program, f);
@@ -269,6 +397,10 @@ fn rewrite(program: &Program, f: &Function, k: usize) -> Result<Function, String
         let live = &live_out[row_index];
         debug_assert_eq!(rows[row_index], rows[row_index]);
         row_index += 1;
+        if row.op == Op::Host {
+            host(&mut items, program, row, &at, (s0, s1));
+            continue;
+        }
         if is_call(row) {
             let (p, r) = arity(program, row);
             let results: Vec<u32> = (row.delta..row.delta + r).collect();
@@ -319,6 +451,11 @@ fn rewrite(program: &Program, f: &Function, k: usize) -> Result<Function, String
                 items.push(Item::Row(frame_row(true, regs[c as usize].unwrap(), c, Tag::Restore)));
             }
             continue;
+        }
+        if let Some((d, s)) = copy(row) {
+            if regs[d as usize].is_some() && regs[d as usize] == regs[s as usize] {
+                continue;
+            }
         }
         let mut out = row.clone();
         if let Some(a) = row.a {

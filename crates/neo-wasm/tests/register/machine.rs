@@ -62,7 +62,8 @@ fn sext(v: u64, bits: u32) -> u64 {
 
 pub fn family(row: &Row) -> String {
     if row.tag != Tag::Core {
-        return format!("glue.{:?}", row.tag);
+        let constant = row.a.is_none() && matches!(row.b, Some(Src::Imm(_)));
+        return format!("glue.{:?}{}", row.tag, if constant { ".const" } else { "" });
     }
     let w = match row.w {
         W::I32 => "32",
@@ -250,6 +251,7 @@ impl<'p> Machine<'p> {
                     ip = function.labels[label];
                     None
                 }
+                Op::Host if row.delta == u32::MAX => Some(0),
                 Op::Call | Op::CallIndirect | Op::Host => {
                     let callee = match row.op {
                         Op::CallIndirect => {

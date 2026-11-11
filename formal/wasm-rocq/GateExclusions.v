@@ -276,16 +276,10 @@ Lemma write0_gather_local_exclusive : forall (w : Witness), fieldPrime -> FullRe
 Proof.
   intros w Hprime Hfull Ha Hb.
   pose proof (proj1 Hfull) as Hone.
-  gate_bound COL_PADDING_ACTIVE B36.
   circuit_range COL_STACK_WRITES B54.
   gate_bound COL_STACK_WRITE0_ACTIVE B58.
-  gate_bound COL_HOST_RESUME B368.
-  gate_bound COL_PERM_PENDING_BEFORE B434.
-  gate_bound COL_PERM_ROUND_BEFORE_IS_ZERO B438.
   gate_bound COL_GATHER_ACTIVE B464.
   gate_bound COL_GATHER_LOCAL_WRITE B483.
-  gate_bound COL_TURN_BOUNDARY B486.
-  gate_bound COL_PC_FREF_ACTIVE B487.
   gate_bound (List.nth 0%nat GATHER_KIND 0%nat) B572.
   gate_bound (List.nth 1%nat GATHER_KIND 0%nat) B573.
   gate_bound (List.nth 2%nat GATHER_KIND 0%nat) B574.
@@ -297,11 +291,6 @@ Proof.
   gate_bound (List.nth 8%nat GATHER_KIND 0%nat) B580.
   gate_bound (List.nth 9%nat GATHER_KIND 0%nat) B581.
   gate_bound GK2_HI B585.
-  circuit_row ([(COL_PC_FREF_ACTIVE, 1); (COL_PERM_ROUND_BEFORE_IS_ZERO, -1); (COL_GATHER_ACTIVE, 1); (COL_PERM_PENDING_BEFORE, 1); (COL_TURN_BOUNDARY, 1); (COL_PADDING_ACTIVE, 1); (COL_HOST_RESUME, 1)], [(COL_ONE, 1)], ([] : SparseRow)) modular_6.
-  expand_row modular_6.
-  assert (equation_6 : ((1 * w COL_PC_FREF_ACTIVE) + (-1 * w COL_PERM_ROUND_BEFORE_IS_ZERO) + (1 * w COL_GATHER_ACTIVE) + (1 * w COL_PERM_PENDING_BEFORE) + (1 * w COL_TURN_BOUNDARY) + (1 * w COL_PADDING_ACTIVE) + (1 * w COL_HOST_RESUME)) * ((1 * w COL_ONE)) - (0) = 0).
-  { normalize_columns. clear - modular_6 Hone B36 B368 B434 B438 B464 B486 B487. apply Z.mod_divide in modular_6; [destruct modular_6 as [k Hk]; unfold modulus in *; nia | unfold modulus; lia]. }
-  clear modular_6.
   circuit_row ([(COL_GATHER_ACTIVE, 1)], [(COL_STACK_WRITES, 1); ((List.nth 2%nat GATHER_KIND 0%nat), -1); (GK2_HI, 1)], ([] : SparseRow)) modular_8.
   expand_row modular_8.
   assert (equation_8 : ((1 * w COL_GATHER_ACTIVE)) * ((1 * w COL_STACK_WRITES) + (-1 * w (List.nth 2%nat GATHER_KIND 0%nat)) + (1 * w GK2_HI)) - (0) = 0).

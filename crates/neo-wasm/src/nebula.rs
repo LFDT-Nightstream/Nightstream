@@ -175,6 +175,10 @@ impl Application for WasmApplication {
         self.0.rows(view)
     }
 
+    fn ignores_idle_slots(&self) -> bool {
+        self.0.ignores_idle_slots()
+    }
+
     fn step(
         &self,
         state: &WasmStepState,

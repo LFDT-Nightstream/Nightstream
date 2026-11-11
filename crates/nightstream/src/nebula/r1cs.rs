@@ -439,6 +439,13 @@ impl<Id: Clone + Eq> Application for R1csApplication<Id> {
         state.clone()
     }
 
+    /// The binding rows read a slot only through `a_p · (…)` for a port `p`
+    /// of the slot, and `1 − pad_j = Σ a_p` (SPEC.md section 7.6, rules 1 to
+    /// 4), so an inactive slot's fields reach no row of the relation.
+    fn ignores_idle_slots(&self) -> bool {
+        true
+    }
+
     /// Each rank-one row as `C·z − (A·z)(B·z)`; `z[one] = 1`; the
     /// `next_step_column`s of the first row equal the input state and the
     /// `previous_step_column`s of the last row the output state; then the

@@ -71,6 +71,18 @@ fn build_structure(n: usize, m: usize) -> CcsStructure<F> {
     CcsStructure::new(vec![m0, m1], f).expect("valid CCS structure")
 }
 
+#[test]
+fn dense_range_validation_reports_the_first_failing_column() {
+    let params = NeoParams::goldilocks_paper_b2();
+    let cols = 4096;
+    let mut witness = Mat::zero(D, cols, F::ZERO);
+    for col in [150_003, 70_001] {
+        witness[(col % D, col / D)] = F::from_u64(1u64 << 60);
+    }
+    let error = validate_packed_witness_dec_representable(&params, &witness, D * cols, "dense").unwrap_err();
+    assert!(error.to_string().contains("carrier_col=70001 "), "{error}");
+}
+
 fn build_wide_structure(n: usize, m: usize) -> CcsStructure<F> {
     let mut m0 = Mat::zero(n, m, F::ZERO);
     for r in 0..n {

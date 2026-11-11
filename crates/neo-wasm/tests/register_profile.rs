@@ -50,6 +50,22 @@ fn exports() -> Vec<Export> {
             .map(|(n, f)| (n.clone(), *f))
             .collect();
         names.sort();
+        if let Some((_, f)) = names.iter().find(|(_, f)| *f as usize >= module.imports) {
+            let low = lower(&allocated, *f as usize);
+            println!(
+                "SIZE|{program}|program rows={}|table words={}|globals={}|data bytes={}",
+                low.rows.len(),
+                low.table.len(),
+                module.program.globals.len(),
+                module
+                    .program
+                    .data
+                    .iter()
+                    .map(|(o, b)| *o as usize + b.len())
+                    .max()
+                    .unwrap_or(0)
+            );
+        }
         for (name, f) in names {
             let (params, results) = &module.types[module.func_types[f as usize] as usize];
             if (f as usize) < module.imports

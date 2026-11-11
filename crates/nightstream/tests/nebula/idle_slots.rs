@@ -59,7 +59,7 @@ fn failing_slot_rows(zero_idle: bool, gate: bool) -> usize {
     let geometry = Geometry::new(4, 4, 2, 2, 1).expect("a valid geometry");
     let layout = Layout::new(&geometry, 0, 0);
     let wires: Vec<Variable> = (0..layout.count()).map(Variable).collect();
-    let sym = Sym::new(&geometry, layout, &wires, [F::ZERO; 12], zero_idle);
+    let sym = Sym::new(&geometry, layout, &wires, [F::ZERO; 12], zero_idle, false);
     let words = idle_slot_words(&geometry, &layout, gate);
     sym.slot_rows(0)
         .iter()

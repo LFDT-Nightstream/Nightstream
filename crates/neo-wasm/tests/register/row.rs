@@ -75,6 +75,10 @@ pub struct Cs {
     /// Check each row as it is added (honest synthesis).
     pub check: bool,
     pub tags: Vec<(&'static str, usize)>,
+    /// The word bits are the code slot's `v_r` bits (`R1csOptions::slot_bits`):
+    /// row O1 forces them and the binding row packs them to the word, so the
+    /// relation has no bit row and no packing row for them.
+    pub slot_word: bool,
 }
 
 impl Cs {
@@ -84,6 +88,7 @@ impl Cs {
             z: vec![F::ONE],
             check,
             tags: Vec::new(),
+            slot_word: false,
         }
     }
 
@@ -178,6 +183,7 @@ pub struct Layout {
     pub flag: usize,
     pub regs: Vec<[usize; 2]>,
     pub word: usize,
+    pub wb: Vec<usize>,
     pub immw: usize,
     pub old: usize,
     pub new: usize,
@@ -327,8 +333,16 @@ pub fn synthesize_tampered(cs: &mut Cs, input: &RowInput, tamper: &dyn Fn(&mut P
 
     cs.tag("program word");
     l.word = cs.col(f(u64::from(input.word)));
-    let wb = cs.bits(u64::from(input.word), 32);
-    cs.zero(chunk(&wb) - v(l.word));
+    let wb = if cs.slot_word {
+        (0..32)
+            .map(|i| cs.col(F::from_bool(input.word >> i & 1 == 1)))
+            .collect()
+    } else {
+        let wb = cs.bits(u64::from(input.word), 32);
+        cs.zero(chunk(&wb) - v(l.word));
+        wb
+    };
+    l.wb = wb.clone();
     let field = |from: usize, n: usize| chunk(&wb[from..from + n]);
     let (w64, uimm) = (wb[5], wb[6]);
     let m = [wb[7], wb[8], wb[9], wb[10]];

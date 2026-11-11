@@ -149,9 +149,9 @@ fn fingerprint(eta: (K, K), t: u64, g: u64, v: u64) -> K {
 
 /// The factor words of the fingerprint `f(t, g, v)`: the two coordinates of
 /// `f` (Lean `fingerprintWords`).
-fn fingerprint_words(eta: (K, K), t: u64, g: u64, v: u64) -> [F; 2] {
+fn fingerprint_words(eta: (K, K), t: F, g: u64, v: u64) -> [F; 2] {
     let ([e0, e1], [d0, d1]) = (k_words(eta.0), k_words(eta.1));
-    let (g, u) = (F::from_u64(g), packed(t, v));
+    let (g, u) = (F::from_u64(g), F::from_u64(v) + F::from_u64(1 << 32) * t);
     [e0 * u + (g - d0), e1 * u - d1]
 }
 
@@ -237,7 +237,11 @@ impl<A: Application> Context<A> {
                     if wt >= 1 << geometry.w_ts {
                         return Err(SegmentError::Timestamp);
                     }
-                    ops.push(OpSlot::active(*access, rt));
+                    let mut slot = OpSlot::active(*access, rt);
+                    if self.app.derived_read_stamps() {
+                        slot.lane_stamp = wt - 1 - rt;
+                    }
+                    ops.push(slot);
                     write_stamps.push(wt);
                     memory[g] = Cell {
                         value: access.vw,
@@ -443,7 +447,13 @@ impl<A: Application> Context<A> {
             };
             let g = access.global_index(geometry) as u64;
             let wt = effective.ts + cnt;
-            for (pair, prod, t, v) in [(0, read, slot.rt, slot.vr), (1, write, wt, slot.vw)] {
+            let derived = self.app.derived_read_stamps();
+            let read_stamp = if derived {
+                F::from_u64(wt) - F::ONE - F::from_u64(slot.lane_stamp)
+            } else {
+                F::from_u64(slot.rt)
+            };
+            for (pair, prod, t, v) in [(0, read, read_stamp, slot.vr), (1, write, F::from_u64(wt), slot.vw)] {
                 let f = fingerprint_words(eta, t, g, v);
                 let gate = [(F::ONE - pad) * f[0] + pad, (F::ONE - pad) * f[1]];
                 let cross = cross_words(prod, gate[0], gate[1]);
@@ -458,17 +468,19 @@ impl<A: Application> Context<A> {
             set_bits(&mut w, |k| base(layout.op_addr(k)), slot.addr, geometry.addr_width());
             set_bits(&mut w, |k| base(layout.op_vr(k)), slot.vr, 32);
             set_bits(&mut w, |k| base(layout.op_vw(k)), slot.vw, 32);
-            set_bits(&mut w, |k| base(layout.op_rt(k)), slot.rt, geometry.w_ts);
+            set_bits(&mut w, |k| base(layout.op_rt(k)), slot.lane_stamp, geometry.w_ts);
             if !slot.pad {
-                let wt = step.write_stamps[j];
-                // A dishonest record with `rt ≥ wt` has no `W_ts`-bit word
-                // here; O4 rejects it.
-                set_bits(
-                    &mut w,
-                    |k| base(layout.op_diff(k)),
-                    wt.wrapping_sub(slot.rt + 1),
-                    geometry.w_ts,
-                );
+                if !derived {
+                    let wt = step.write_stamps[j];
+                    // A dishonest record with `rt ≥ wt` has no `W_ts`-bit word
+                    // here; O4 rejects it.
+                    set_bits(
+                        &mut w,
+                        |k| base(layout.op_diff(k)),
+                        wt.wrapping_sub(slot.rt + 1),
+                        geometry.w_ts,
+                    );
+                }
                 read *= fingerprint(eta, slot.rt, g, slot.vr);
                 write *= fingerprint(eta, wt, g, slot.vw);
             }
@@ -485,7 +497,7 @@ impl<A: Application> Context<A> {
             set_bits(&mut w, |k| layout.final_(j, 32 + k), final_[j].stamp, geometry.w_ts);
             let g = idx * geometry.b_scan as u64 + j as u64;
             for (pair, prod, slot) in [(0, is_product, &initial[j]), (1, fs_product, &final_[j])] {
-                let f = fingerprint_words(eta, slot.stamp, g, slot.value);
+                let f = fingerprint_words(eta, F::from_u64(slot.stamp), g, slot.value);
                 let cross = cross_words(prod, f[0], f[1]);
                 for (k, word) in f.into_iter().chain(cross).enumerate() {
                     w[layout.scan_factor(j, pair, k)] = word;

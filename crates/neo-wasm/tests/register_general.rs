@@ -12,7 +12,9 @@ use nightstream::PrimeCharacteristicRing;
 use register::alloc::allocate;
 use register::corpus::{fib_wat, programs};
 use register::cpu::{Cpu, RowInput};
-use register::general::{application, geometry, preload, shape, state, witnesses, ROWS, STEPS};
+use register::general::{
+    application, geometry, preload, shape, state, witnesses, Plan, BASELINE, CONTRACT, REDESIGN, ROWS, STEPS,
+};
 use register::lower::{lower, Fam, Lowered, ALLOC_K};
 use register::row::{synthesize_tampered, Cs, Private, LIN_WIDTH};
 use register::translate::parse;
@@ -28,7 +30,7 @@ struct Prepared {
     result: Vec<u64>,
 }
 
-fn prepare(name: &str, bytes: &[u8], export: &str, args: &[u64]) -> Result<Prepared, String> {
+fn prepare(name: &str, bytes: &[u8], export: &str, args: &[u64], plan: Plan) -> Result<Prepared, String> {
     let module = parse(bytes)?;
     let f = *module.exports.get(export).ok_or("export")? as usize;
     let mut cell = register::machine::Machine::new(&module.program, None);
@@ -36,7 +38,7 @@ fn prepare(name: &str, bytes: &[u8], export: &str, args: &[u64]) -> Result<Prepa
         .map_err(|e| format!("{e:?}"))?;
     let p = allocate(&module.program, ALLOC_K)?;
     let low = lower(&p, f);
-    if low.rows.len() > 1 << register::general::CODE_WIDTH {
+    if low.rows.len() > 1 << plan.code_width {
         return Err(format!("{} rows of program", low.rows.len()));
     }
     let mut cpu = Cpu::new(&low, 1 << LIN_WIDTH, 1 << register::general::FRAME_WIDTH);
@@ -68,15 +70,15 @@ fn prepare(name: &str, bytes: &[u8], export: &str, args: &[u64]) -> Result<Prepa
     })
 }
 
-fn steps(p: &Prepared) -> Vec<Vec<F>> {
-    witnesses(&p.trace)
+fn steps(p: &Prepared, plan: Plan) -> Vec<Vec<F>> {
+    witnesses(&p.trace, plan)
         .chunks(ROWS)
         .map(|rows| rows.concat())
         .collect()
 }
 
-/// The provable runs of the corpus: those that fit the Small regions.
-fn provable() -> Vec<Prepared> {
+/// The provable runs of the corpus: those that fit the regions of `plan`.
+fn provable(plan: Plan) -> Vec<Prepared> {
     let mut out = Vec::new();
     for (name, bytes) in programs() {
         let Ok(module) = parse(&bytes) else { continue };
@@ -92,7 +94,7 @@ fn provable() -> Vec<Prepared> {
                 continue;
             }
             let args: Vec<u64> = (0..params.len()).map(|i| [10, 7, 3, 2][i]).collect();
-            match prepare(&format!("{name}::{export}"), &bytes, &export, &args) {
+            match prepare(&format!("{name}::{export}"), &bytes, &export, &args, plan) {
                 Ok(p) if p.instructions >= 20 => out.push(p),
                 Ok(_) => {}
                 Err(e) => println!("NOT PROVABLE|{name}::{export}|{e}"),
@@ -104,11 +106,17 @@ fn provable() -> Vec<Prepared> {
 
 #[test]
 fn honest_runs_of_real_programs_hold_every_row_and_the_memory_check() {
-    let (app, _) = application();
+    for plan in [BASELINE, CONTRACT] {
+        honest_runs(plan);
+    }
+}
+
+fn honest_runs(plan: Plan) {
+    let (app, _) = application(plan);
     let mut total = (0u64, 0usize);
-    for p in provable() {
-        let program = app.program(&preload(&p.low)).unwrap();
-        let inputs = steps(&p);
+    for p in provable(plan) {
+        let program = app.program(&preload(&p.low, plan)).unwrap();
+        let inputs = steps(&p, plan);
         for step in &inputs {
             app.check(step)
                 .unwrap_or_else(|e| panic!("{}: {e}", p.name));
@@ -126,7 +134,7 @@ fn honest_runs_of_real_programs_hold_every_row_and_the_memory_check() {
             &p.result
         );
         println!(
-            "PROVABLE|{}|instructions={}|rows={}|rows/instr={:.3}|segments={}",
+            "PROVABLE|{plan:?}|{}|instructions={}|rows={}|rows/instr={:.3}|segments={}",
             p.name,
             p.instructions,
             p.rows,
@@ -136,13 +144,20 @@ fn honest_runs_of_real_programs_hold_every_row_and_the_memory_check() {
         total.0 += p.instructions;
         total.1 += p.rows;
     }
-    println!("PROVABLE TOTAL|instructions={}|rows={}", total.0, total.1);
+    println!("PROVABLE TOTAL|{plan:?}|instructions={}|rows={}", total.0, total.1);
 }
 
 #[test]
 fn census_of_the_general_row() {
-    let (cs, l) = shape();
-    let (app, _) = application();
+    for plan in [BASELINE, REDESIGN, CONTRACT] {
+        census(plan);
+    }
+}
+
+fn census(plan: Plan) {
+    println!("PLAN|{plan:?}");
+    let (cs, l) = shape(plan);
+    let (app, _) = application(plan);
     let terms: usize = cs
         .rows
         .iter()
@@ -164,7 +179,7 @@ fn census_of_the_general_row() {
         app.relation_rows(),
         app.relation_rows() as f64 / ROWS as f64
     );
-    let g = geometry();
+    let g = geometry(plan);
     println!("GEOMETRY|{g:?}");
     for part in size_parts(&g, &app).unwrap() {
         println!(
@@ -174,8 +189,47 @@ fn census_of_the_general_row() {
     }
 }
 
+/// The circuit that the tests below use.
+const P: Plan = CONTRACT;
+
 #[test]
-#[ignore = "Full proof at the Small geometry; run it alone."]
+#[ignore = "Full proof; run it alone."]
+fn a_baseline_proof_of_fibonacci_verifies() {
+    prove_with(
+        "neo_fibonacci",
+        &wat::parse_str(fib_wat(127)).unwrap(),
+        "main",
+        &[],
+        BASELINE,
+    );
+}
+
+#[test]
+#[ignore = "Full proof; run it alone."]
+fn a_baseline_proof_of_a_starstream_contract_verifies() {
+    prove_with(
+        "starstream_utxo_public",
+        &corpus("starstream_utxo_public"),
+        "counter#get-storage",
+        &[10],
+        BASELINE,
+    );
+}
+
+#[test]
+#[ignore = "Full proof; run it alone."]
+fn a_redesign_proof_of_fibonacci_at_the_baseline_size_verifies() {
+    prove_with(
+        "neo_fibonacci",
+        &wat::parse_str(fib_wat(127)).unwrap(),
+        "main",
+        &[],
+        REDESIGN,
+    );
+}
+
+#[test]
+#[ignore = "Full proof; run it alone."]
 fn a_general_row_proof_of_fibonacci_verifies() {
     prove("neo_fibonacci", &wat::parse_str(fib_wat(127)).unwrap(), "main", &[]);
 }
@@ -185,7 +239,7 @@ fn corpus(name: &str) -> Vec<u8> {
 }
 
 #[test]
-#[ignore = "Full proof at the Small geometry; run it alone."]
+#[ignore = "Full proof; run it alone."]
 fn a_general_row_proof_of_recursive_factorial_verifies() {
     prove(
         "zk_factorial_rec",
@@ -196,7 +250,7 @@ fn a_general_row_proof_of_recursive_factorial_verifies() {
 }
 
 #[test]
-#[ignore = "Full proof at the Small geometry; run it alone."]
+#[ignore = "Full proof; run it alone."]
 fn a_general_row_proof_of_a_starstream_contract_verifies() {
     prove(
         "starstream_utxo_public",
@@ -207,26 +261,30 @@ fn a_general_row_proof_of_a_starstream_contract_verifies() {
 }
 
 #[test]
-#[ignore = "Full proof at the Small geometry; run it alone."]
+#[ignore = "Full proof; run it alone."]
 fn a_general_row_proof_of_memory_sum_verifies() {
     prove("zk_memory-sum", &corpus("zk_memory-sum"), "sum_bytes", &[10]);
 }
 
 #[test]
-#[ignore = "Full proof at the Small geometry; run it alone."]
+#[ignore = "Full proof; run it alone."]
 fn a_general_row_proof_of_every_family_verifies() {
     prove("mix_families", &corpus("mix_families"), "main", &[4]);
 }
 
 fn prove(name: &str, bytes: &[u8], export: &str, args: &[u64]) {
+    prove_with(name, bytes, export, args, P);
+}
+
+fn prove_with(name: &str, bytes: &[u8], export: &str, args: &[u64], plan: Plan) {
     use std::time::Instant;
     let started = Instant::now();
-    let p = prepare(name, bytes, export, args).unwrap();
-    let (app, _) = application();
-    let program = app.program(&preload(&p.low)).unwrap();
-    let inputs = steps(&p);
+    let p = prepare(name, bytes, export, args, plan).unwrap();
+    let (app, _) = application(plan);
+    let program = app.program(&preload(&p.low, plan)).unwrap();
+    let inputs = steps(&p, plan);
     let initial = state(&p.trace[0]);
-    let circuit = Circuit::compile(geometry(), app.clone()).unwrap();
+    let circuit = Circuit::compile(geometry(plan), app.clone()).unwrap();
     eprintln!("compile elapsed={:?}", started.elapsed());
     let engine = nightstream::Engine::Optimized;
     let prover = circuit.prover(engine, 109).unwrap();
@@ -256,7 +314,7 @@ fn prove(name: &str, bytes: &[u8], export: &str, args: &[u64]) {
 }
 
 fn fib_prepared() -> Prepared {
-    prepare("fib", &wat::parse_str(fib_wat(40)).unwrap(), "main", &[]).unwrap()
+    prepare("fib", &wat::parse_str(fib_wat(40)).unwrap(), "main", &[], P).unwrap()
 }
 
 /// The first row of family `fam` in the trace, and its index.
@@ -268,21 +326,21 @@ fn row_of(p: &Prepared, fam: Fam) -> usize {
 }
 
 fn relation_fails(z: &[F]) -> bool {
-    let (app, _) = application();
+    let (app, _) = application(P);
     matches!(app.check(z), Err(R1csStepError::Relation { .. }))
 }
 
 #[test]
 fn a_result_other_than_the_sum_is_rejected() {
     let p = fib_prepared();
-    let (_, l) = shape();
+    let (_, l) = shape(P);
     let at = row_of(&p, Fam::Add);
-    let mut inputs = steps(&p);
+    let mut inputs = steps(&p, P);
     let (step, row) = (at / ROWS, at % ROWS);
     let col = |c: usize| row * l.width + c;
     inputs[step][col(l.res[0])] += F::ONE;
     assert!(relation_fails(&inputs[step]), "a wrong result fails its family gate");
-    let mut inputs = steps(&p);
+    let mut inputs = steps(&p, P);
     for &x in &l.x[..32] {
         inputs[step][col(x)] = F::ZERO;
     }
@@ -296,9 +354,9 @@ fn a_result_other_than_the_sum_is_rejected() {
 #[test]
 fn a_program_word_other_than_the_image_fails_the_memory_check() {
     let p = fib_prepared();
-    let (app, l) = application();
-    let program = app.program(&preload(&p.low)).unwrap();
-    let mut inputs = steps(&p);
+    let (app, l) = application(P);
+    let program = app.program(&preload(&p.low, P)).unwrap();
+    let mut inputs = steps(&p, P);
     let at = row_of(&p, Fam::Add);
     inputs[at / ROWS][(at % ROWS) * l.width + l.word] += F::ONE;
     let mut run = Run::new(app, &program, state(&p.trace[0]));
@@ -310,9 +368,9 @@ fn a_program_word_other_than_the_image_fails_the_memory_check() {
 #[test]
 fn a_branch_to_another_pc_is_rejected() {
     let p = fib_prepared();
-    let (_, l) = shape();
+    let (_, l) = shape(P);
     let at = row_of(&p, Fam::Br);
-    let mut inputs = steps(&p);
+    let mut inputs = steps(&p, P);
     inputs[at / ROWS][(at % ROWS) * l.width + l.pc1] += F::ONE;
     assert!(
         relation_fails(&inputs[at / ROWS]),
@@ -323,11 +381,11 @@ fn a_branch_to_another_pc_is_rejected() {
 #[test]
 fn a_write_to_a_register_other_than_the_destination_is_rejected() {
     let p = fib_prepared();
-    let (_, l) = shape();
+    let (_, l) = shape(P);
     let at = row_of(&p, Fam::Add);
     let d = (p.trace[at].word >> 19 & 15) as usize;
     let other = (d + 1) % 16;
-    let mut inputs = steps(&p);
+    let mut inputs = steps(&p, P);
     inputs[at / ROWS][(at % ROWS) * l.width + l.regs1[other][0]] += F::ONE;
     assert!(relation_fails(&inputs[at / ROWS]), "only register D changes");
 }
@@ -335,7 +393,7 @@ fn a_write_to_a_register_other_than_the_destination_is_rejected() {
 /// Every provable run, once.
 fn runs() -> &'static [Prepared] {
     static RUNS: std::sync::OnceLock<Vec<Prepared>> = std::sync::OnceLock::new();
-    RUNS.get_or_init(provable)
+    RUNS.get_or_init(|| provable(P))
 }
 
 /// The first honest row of a provable run that `pick` accepts.
@@ -355,7 +413,7 @@ fn fam_of(r: &RowInput) -> Fam {
 /// The groups of the rows of the one-row relation that `z` breaks, in row
 /// order.
 fn broken(z: &[F]) -> Vec<&'static str> {
-    let (cs, _) = shape();
+    let (cs, _) = shape(P);
     let eval = |t: &Vec<(usize, F)>| t.iter().fold(F::ZERO, |s, (c, x)| s + *x * z[*c]);
     let mut groups: Vec<&'static str> = cs
         .rows
@@ -429,7 +487,7 @@ fn a_wrong_shift_amount_is_rejected_by_the_multiplier_rows() {
 #[test]
 fn an_operand_other_than_register_a_is_rejected_by_the_selectors() {
     let row = find(|r| fam_of(r) == Fam::Add);
-    let (_, l) = shape();
+    let (_, l) = shape(P);
     let mut z = honest(&row);
     z[l.av[0]] += F::ONE;
     assert_eq!(broken(&z)[0], "operands");
@@ -438,7 +496,7 @@ fn an_operand_other_than_register_a_is_rejected_by_the_selectors() {
 #[test]
 fn two_families_at_once_are_rejected_by_the_one_hot_rows() {
     let row = find(|r| fam_of(r) == Fam::Add);
-    let (_, l) = shape();
+    let (_, l) = shape(P);
     let mut z = honest(&row);
     z[l.fam[Fam::Mul as usize]] = F::ONE;
     assert_eq!(broken(&z)[0], "family");
@@ -447,7 +505,7 @@ fn two_families_at_once_are_rejected_by_the_one_hot_rows() {
 #[test]
 fn an_i32_result_with_a_high_limb_is_rejected_by_the_result_rows() {
     let row = find(|r| fam_of(r) == Fam::Add && r.word >> 5 & 1 == 0);
-    let (_, l) = shape();
+    let (_, l) = shape(P);
     let mut z = honest(&row);
     z[l.res[1]] = F::ONE;
     assert_eq!(broken(&z)[0], "result");
@@ -455,7 +513,7 @@ fn an_i32_result_with_a_high_limb_is_rejected_by_the_result_rows() {
 
 #[test]
 fn a_store_or_a_call_that_writes_another_word_is_rejected_by_the_memory_rows() {
-    let (_, l) = shape();
+    let (_, l) = shape(P);
     for fam in [Fam::Store, Fam::Call] {
         let row = find(|r| fam_of(r) == fam);
         let mut z = honest(&row);
@@ -470,7 +528,7 @@ fn a_loaded_word_other_than_the_memory_cell_fails_the_memory_check() {
         .iter()
         .find(|p| p.name == "starstream_utxo_public::counter#get-storage")
         .unwrap();
-    let (app, _) = application();
+    let (app, _) = application(P);
     let mut changed = Lowered {
         rows: p.low.rows.clone(),
         entry: p.low.entry.clone(),
@@ -478,15 +536,15 @@ fn a_loaded_word_other_than_the_memory_cell_fails_the_memory_check() {
         program: p.low.program.clone(),
     };
     changed.program.globals[2] ^= 1;
-    let program = app.program(&preload(&changed)).unwrap();
+    let program = app.program(&preload(&changed, P)).unwrap();
     let mut run = Run::new(app.clone(), &program, state(&p.trace[0]));
     assert!(
-        run.segment(&steps(p)[..STEPS]).is_err(),
+        run.segment(&steps(p, P)[..STEPS]).is_err(),
         "the witness loads the old global, the memory holds another"
     );
-    let program = app.program(&preload(&p.low)).unwrap();
+    let program = app.program(&preload(&p.low, P)).unwrap();
     let mut run = Run::new(app, &program, state(&p.trace[0]));
-    assert!(run.segment(&steps(p)[..STEPS]).is_ok());
+    assert!(run.segment(&steps(p, P)[..STEPS]).is_ok());
 }
 
 #[test]
@@ -501,10 +559,91 @@ fn a_return_to_another_pc_or_frame_than_the_saved_header_is_rejected() {
 #[test]
 fn a_call_deeper_than_the_frame_region_is_not_provable() {
     let bytes = corpus("zk_factorial_rec");
-    assert!(prepare("shallow", &bytes, "recursive_factorial", &[10]).is_ok());
-    let deep = prepare("deep", &bytes, "recursive_factorial", &[40]);
+    assert!(prepare("shallow", &bytes, "recursive_factorial", &[10], P).is_ok());
+    let deep = prepare("deep", &bytes, "recursive_factorial", &[40], P);
     assert!(
         matches!(&deep, Err(e) if e == "Bounds"),
         "the frame region holds every frame or the run has no proof"
     );
+}
+
+/// The compiled light package of each plan: its rows and committed
+/// coordinates (a field slot is 41, a bit slot 1, a Poseidon2 block 150
+/// field slots), by region and phase.
+#[test]
+#[ignore = "Compiles three circuits; run it alone."]
+fn package_census_of_each_plan() {
+    for plan in [BASELINE, REDESIGN, CONTRACT] {
+        let (app, _) = application(plan);
+        let census = nightstream::nebula::zz_census(&geometry(plan), app, false).unwrap();
+        println!(
+            "PACKAGE|{plan:?}|rows={}|sbox rows={}|blocks={}|coordinates={}",
+            census.rows, census.sbox_rows, census.blocks, census.width
+        );
+        for part in &census.parts {
+            println!(
+                "CPART|{plan:?}|{}|rows={}|field={}|bit={}|blocks={}|coordinates={}",
+                part.name,
+                part.rows,
+                part.field,
+                part.bit,
+                part.blocks,
+                41 * part.field + part.bit + 6150 * part.blocks
+            );
+        }
+    }
+}
+
+#[test]
+fn a_row_reads_the_state_that_the_row_before_it_wrote() {
+    let p = fib_prepared();
+    let (app, l) = application(P);
+    let w = l.width;
+    let mut inputs = steps(&p, P);
+    inputs[0][w + l.pc] += F::ONE;
+    inputs[0][w + l.regs[3][0]] += F::ONE;
+    assert!(
+        app.check(&inputs[0]).is_ok(),
+        "no continuity row is left: row 1 reads row 0's output columns, not its own input columns"
+    );
+    let mut inputs = steps(&p, P);
+    inputs[0][l.pc1] += F::ONE;
+    assert!(
+        relation_fails(&inputs[0]),
+        "another state for row 1 is another output of row 0, which row 0's control rows reject"
+    );
+}
+
+/// The proof reads the code slot's `v_r` bits and the previous row's output
+/// columns: the witness columns they replace are read by no row, so changing
+/// them changes neither the proof nor the proved run.
+#[test]
+#[ignore = "Full proof; run it alone."]
+fn a_proof_never_reads_the_replaced_word_bit_and_state_columns() {
+    let p = fib_prepared();
+    let (app, l) = application(P);
+    let program = app.program(&preload(&p.low, P)).unwrap();
+    let mut inputs = steps(&p, P);
+    for step in &mut inputs {
+        for row in 1..ROWS {
+            step[row * l.width + l.pc] += F::ONE;
+            for &b in &l.wb {
+                step[row * l.width + b] = F::ONE - step[row * l.width + b];
+            }
+        }
+    }
+    let initial = state(&p.trace[0]);
+    let circuit = Circuit::compile(geometry(P), app.clone()).unwrap();
+    let prover = circuit.prover(nightstream::Engine::Optimized, 109).unwrap();
+    let verifier = circuit
+        .verifier(nightstream::Engine::Optimized, 109)
+        .unwrap();
+    let mut run = prover.start(&program, initial.clone()).unwrap();
+    for segment in inputs.chunks(STEPS) {
+        run.segment(segment).unwrap();
+    }
+    let last = run.state().clone();
+    let proof = run.finish().unwrap();
+    verifier.verify(&program, &initial, &last, &proof).unwrap();
+    assert_eq!(last[3] | last[4] << 32, p.result[0], "the proved run is the honest run");
 }

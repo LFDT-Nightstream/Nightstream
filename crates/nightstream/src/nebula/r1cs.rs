@@ -175,6 +175,23 @@ pub fn batched_slots<Id>(
     Ok(batched)
 }
 
+/// Scratch options of an `R1csApplication` (register-row study; not in Lean
+/// or SPEC.md).
+#[derive(Clone, Debug, Default)]
+pub struct R1csOptions {
+    /// Each row after the first reads the `previous_step_column`s of the row
+    /// before it in place of its own `next_step_column`s, so the step has no
+    /// continuity rows: the same equalities, by substitution.
+    pub chained: bool,
+    /// `Application::derived_read_stamps`.
+    pub derived_read_stamps: bool,
+    /// `(column, slot, k)`: each row reads bit `k` of `v_r` of its operation
+    /// slot `slot` (an offset into the row's slot plan) in place of its
+    /// one-row column `column`. Row O1 forces the bit, so the relation needs
+    /// no bit row for it; the slot must be active on every row.
+    pub slot_bits: Vec<(usize, usize, usize)>,
+}
+
 /// A relation of one row as a Nebula application, `rows` rows in each step.
 #[derive(Clone, Debug)]
 pub struct R1csApplication<Id> {
@@ -185,17 +202,22 @@ pub struct R1csApplication<Id> {
     links: Arc<Vec<(usize, usize)>>,
     layout: StepLayout,
     binding: CatalogBinding<Id>,
+    options: Arc<R1csOptions>,
+    slots_per_row: usize,
 }
 
 /// Where a step witness of `rows` rows holds each one-row column: the block
 /// of `block` words of each row, then the shared block of each group.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 struct StepLayout {
     rows: NonZeroUsize,
     /// The one-row columns that are not shared.
     block: usize,
     one: usize,
     shared: Shared,
+    /// `R1csOptions::chained`: the `previous_step_column` of each
+    /// `next_step_column`.
+    chain: Option<Arc<Vec<Option<usize>>>>,
 }
 
 impl StepLayout {
@@ -203,6 +225,15 @@ impl StepLayout {
     /// Every row uses the constant-one column of row 0, and the rows of a
     /// group use the group's shared block.
     fn column(&self, row: usize, column: usize) -> usize {
+        if row > 0 {
+            if let Some(previous) = self
+                .chain
+                .as_ref()
+                .and_then(|chain| chain.get(column).copied().flatten())
+            {
+                return self.column(row - 1, previous);
+            }
+        }
         if column == self.one {
             column
         } else if column < self.block {
@@ -270,6 +301,17 @@ impl<Id: Clone + Eq> R1csApplication<Id> {
         continuity: &ContinuityCatalog,
         catalog: &MemoryCatalog<Id>,
         size: Size<Id>,
+    ) -> Result<Self, R1csApplicationError> {
+        Self::with_options(relation, continuity, catalog, size, R1csOptions::default())
+    }
+
+    /// `new` with the scratch `options`.
+    pub fn with_options(
+        relation: RowRelation,
+        continuity: &ContinuityCatalog,
+        catalog: &MemoryCatalog<Id>,
+        size: Size<Id>,
+        options: R1csOptions,
     ) -> Result<Self, R1csApplicationError> {
         let links: Vec<(usize, usize)> = continuity
             .links()
@@ -340,22 +382,34 @@ impl<Id: Clone + Eq> R1csApplication<Id> {
                     .and_then(|continuity| rows.checked_add(continuity))
             })
             .ok_or(R1csApplicationError::Dimension)?;
+        let chain = options.chained.then(|| {
+            let mut chain = vec![None; relation.width];
+            for (previous, next) in &links {
+                chain[*next] = Some(*previous);
+            }
+            Arc::new(chain)
+        });
         let layout = StepLayout {
             rows: size.rows,
             block,
             one: relation.one,
             shared,
+            chain,
         };
+        let slots_per_row = size.slots.len() / size.rows.get();
         let batched = catalog.batched(size.rows, |row, column| layout.column(row, column));
         let binding = CatalogBinding::new(&batched, &size.geometry, size.regions, &size.slots)?;
         if !binding.host_checked().is_empty() {
             return Err(R1csApplicationError::Unchecked);
         }
+        let continuity_rows: &[(usize, usize)] = if options.chained { &[] } else { &links };
         Ok(Self {
-            relation: Arc::new(step_relation(&relation.rows, &links, &layout)),
+            relation: Arc::new(step_relation(&relation.rows, continuity_rows, &layout)),
             links: Arc::new(links),
             layout,
             binding,
+            options: Arc::new(options),
+            slots_per_row,
         })
     }
 
@@ -446,6 +500,10 @@ impl<Id: Clone + Eq> Application for R1csApplication<Id> {
         true
     }
 
+    fn derived_read_stamps(&self) -> bool {
+        self.options.derived_read_stamps
+    }
+
     /// Each rank-one row as `C·z − (A·z)(B·z)`; `z[one] = 1`; the
     /// `next_step_column`s of the first row equal the input state and the
     /// `previous_step_column`s of the last row the output state; then the
@@ -456,6 +514,11 @@ impl<Id: Clone + Eq> Application for R1csApplication<Id> {
         let one = view.aux(self.layout.one);
         let mut z: Vec<Expr> = (0..self.aux()).map(|column| view.aux(column)).collect();
         z[self.layout.one] = Expr::constant(1);
+        for row in 0..self.layout.rows.get() {
+            for &(column, slot, k) in &self.options.slot_bits {
+                z[self.layout.column(row, column)] = view.vr_bits(row * self.slots_per_row + slot)[k].clone();
+            }
+        }
         let affine = |terms: &Terms| {
             terms
                 .iter()

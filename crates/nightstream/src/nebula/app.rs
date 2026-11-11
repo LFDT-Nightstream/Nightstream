@@ -59,6 +59,15 @@ pub trait Application {
         false
     }
 
+    /// Whether the lane carries `diff` in place of `rt`, with the read stamp
+    /// `rt = wt − 1 − diff` (scratch prototype, not in Lean or SPEC.md).
+    /// Row O4 then holds by construction. With `W_ts ≤ 30`, a read tuple
+    /// whose packed word equals a tuple of `IS ∪ WS` has that tuple's
+    /// stamp, a natural below `2^W_ts`, so `rt < wt` as O4 gave.
+    fn derived_read_stamps(&self) -> bool {
+        false
+    }
+
     /// One native step from `state`. `memory` holds the cells before the
     /// step's accesses. The runner applies the active ports in slot order and
     /// rejects a port that is not valid or that reads another value than its

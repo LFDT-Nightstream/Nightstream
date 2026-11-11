@@ -371,6 +371,10 @@ impl StepPackage {
 }
 
 impl StepPackage {
+    pub fn zz_variable_column(&self, variable: usize) -> Option<usize> {
+        self.variable_column(variable).ok()
+    }
+
     /// This package with `witness_words` application witness words and no
     /// application rows: the finish package, which has no application, keeps
     /// the step's shared words.

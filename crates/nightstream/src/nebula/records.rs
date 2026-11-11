@@ -53,6 +53,9 @@ pub struct OpSlot {
     pub vr: u64,
     pub vw: u64,
     pub rt: u64,
+    /// The lane's stamp field: `rt`, or `diff = wt − 1 − rt` when read
+    /// stamps are derived (`Application::derived_read_stamps`).
+    pub lane_stamp: u64,
 }
 
 impl OpSlot {
@@ -72,6 +75,7 @@ impl OpSlot {
             vr: access.vr,
             vw: access.vw,
             rt,
+            lane_stamp: rt,
         }
     }
 
@@ -81,7 +85,7 @@ impl OpSlot {
         push_bits(&mut bits, self.addr, geometry.addr_width());
         push_bits(&mut bits, self.vr, 32);
         push_bits(&mut bits, self.vw, 32);
-        push_bits(&mut bits, self.rt, geometry.w_ts);
+        push_bits(&mut bits, self.lane_stamp, geometry.w_ts);
         bits
     }
 }

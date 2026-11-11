@@ -12,6 +12,26 @@ use p3_field::PrimeCharacteristicRing;
 #[test]
 fn factored_rows_match_the_slot_layout_rows() {
     let packages = packages();
+    check_factored(&packages);
+}
+
+#[test]
+fn packed_application_rows_match_the_slot_layout_rows() {
+    let mut builder = crate::application::ApplicationBuilder::new(32).unwrap();
+    for bit in builder.private_inputs().to_vec() {
+        builder
+            .assert_product(bit.into(), bit.into(), bit.into())
+            .unwrap();
+    }
+    let state = builder.input_state();
+    let application = builder.finish(state.map(Into::into)).unwrap();
+    let packages = packages()
+        .with_application(application.records().clone(), 32, application.shape())
+        .unwrap();
+    check_factored(&packages);
+}
+
+fn check_factored(packages: &nightstream_fprime::BoundedDepthPackages) {
     for package in [packages.light(), packages.refresh()] {
         let relation = Relation::new(package, MINIMUM_SECURITY_BITS).expect("relation");
         let (rows, layout) = (package.plan_rows().expect("rows"), package.layout().expect("layout"));

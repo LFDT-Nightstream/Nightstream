@@ -158,13 +158,6 @@ fn block(first_local: usize, lane: usize) -> NativeBlock {
     }
 }
 
-/// Two blocks of the chain's locals replace their rows: the application's
-/// pieces are its four output rows, its three bit rows and the two blocks,
-/// a block's locals get no slot (a row reads the form of an output local),
-/// and each block gets 150 S-box columns. A witness word that a row forces
-/// to 0 or 1 gets one coordinate; a state word that a row forces keeps its
-/// field slot. A witness word that no row reads gets no slot. The identity
-/// binds the blocks.
 #[test]
 fn native_blocks_replace_their_rows_and_bits_take_one_coordinate() {
     let packages = packages();
@@ -200,6 +193,7 @@ fn native_blocks_replace_their_rows_and_bits_take_one_coordinate() {
         assert_eq!(kind(4), Some(Kind::Field));
         assert_eq!(kind(0), Some(Kind::Field));
         assert_eq!(kind(6), None);
+        assert_eq!(packed.packed_booleans.sources, vec![packed.variable_column(5).unwrap()]);
         for column in [packed.sbox_start(), packed.sbox_start() + 299] {
             assert_eq!(layout.slot(column).map(|(_, kind)| kind), Some(Kind::Field));
         }
@@ -218,12 +212,12 @@ fn native_blocks_replace_their_rows_and_bits_take_one_coordinate() {
             );
         }
         assert_eq!(
-            layout.width() + 41 * 1079 + (2 * BLOCK - 1079),
-            plain_layout.width() + 41 * 2 * 150
+            layout.width() - packed.packed_booleans.sources.len() + 41 * 1079 + (2 * BLOCK - 1079),
+            plain_layout.width() - plain.packed_booleans.sources.len() + 41 * 2 * 150
         );
         assert_eq!(
-            packed.plan_rows().expect("rows").row_count() + 2 * BLOCK,
-            plain.plan_rows().expect("rows").row_count() + 2 * 150
+            packed.source_rows().expect("rows").row_count() + 2 * BLOCK,
+            plain.source_rows().expect("rows").row_count() + 2 * 150
         );
     }
     let one_lane = NativeShape {
@@ -359,11 +353,20 @@ fn inferred_application_bits_keep_the_compact_layout() {
         (&explicit.light, &inferred.light),
         (&explicit.refresh, &inferred.refresh),
     ] {
-        assert_eq!(explicit.slots, inferred.slots);
-        assert_eq!(explicit.layout().unwrap().width(), inferred.layout().unwrap().width());
+        let explicit_layout = explicit.layout().unwrap();
+        let inferred_layout = inferred.layout().unwrap();
+        for variable in 4..7 {
+            let column = explicit.variable_column(variable).unwrap();
+            assert_eq!(explicit_layout.slot(column), inferred_layout.slot(column));
+        }
+        assert_eq!(explicit_layout.width(), inferred_layout.width() + 1);
         assert_eq!(
             explicit.plan_rows().unwrap().row_count(),
-            inferred.plan_rows().unwrap().row_count() + 1
+            inferred.plan_rows().unwrap().row_count()
+        );
+        assert_eq!(
+            explicit.source_rows().unwrap().row_count(),
+            inferred.source_rows().unwrap().row_count() + 1
         );
         let output = inferred.variable_column(6).unwrap();
         assert_eq!(inferred.layout().unwrap().slot(output).unwrap().1, Kind::Bit);
@@ -393,5 +396,25 @@ fn empty_and_unmatched_applications_keep_the_existing_slot_rule() {
             bits.extend((0..count).map(|index| step.variable_column(4 + index).unwrap()));
             assert_eq!(step.slots, step.rule_slots(&bits));
         }
+    }
+}
+
+#[test]
+fn source_and_packed_row_orders_fill_the_same_fresh_columns() {
+    let native = packages()
+        .with_application(chained(0, 4, &[4, 5, 6]), 4, &NativeShape::default())
+        .unwrap();
+    for package in [native.light(), native.refresh()] {
+        let mut shared = vec![Goldilocks::ZERO; package.application.local_start];
+        shared[0] = Goldilocks::ONE;
+        shared[package.variable_column(5).unwrap()] = Goldilocks::ONE;
+        let columns = package.circuit_columns(&shared).unwrap();
+        let plan = package.plan_rows().unwrap();
+        let source = package.source_rows().unwrap();
+        assert_eq!(source.row_count() - plan.row_count(), 2);
+        assert_eq!(
+            package.relation_columns(columns.clone(), &plan).unwrap(),
+            package.relation_columns(columns, &source).unwrap()
+        );
     }
 }

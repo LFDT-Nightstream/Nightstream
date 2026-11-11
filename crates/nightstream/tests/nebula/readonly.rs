@@ -222,10 +222,21 @@ fn compiled_slot_cost_is_an_integer_per_proved_read_port() {
         ] {
             let before = old.plan_rows().unwrap();
             let after = new.plan_rows().unwrap();
-            assert_eq!(before.row_count() - after.row_count(), 33 * reads);
+            let before_source = old.source_rows().unwrap();
+            let after_source = new.source_rows().unwrap();
+            assert_eq!(before_source.row_count() - after_source.row_count(), 33 * reads);
+            let pairs = |package: &nightstream_fprime::StepPackage| {
+                package.layout().unwrap().spans().widths.len() - (package.sbox_start() + 150 * package.block_count())
+            };
+            let (before_pairs, after_pairs) = (pairs(old), pairs(new));
+            assert_eq!(before_pairs - after_pairs, 32 * reads);
+            assert_eq!(
+                before.row_count() - after.row_count(),
+                reads + before_pairs.div_ceil(31) - after_pairs.div_ceil(31)
+            );
             assert_eq!(
                 old.layout().unwrap().width() - new.layout().unwrap().width(),
-                32 * reads
+                64 * reads
             );
             eprintln!("readonly_cost reads={reads} package={name} before_rows={} after_rows={} before_entries={} after_entries={} before_coordinates={} after_coordinates={}",before.row_count(),after.row_count(),before.entry_count(),after.entry_count(),old.layout().unwrap().width(),new.layout().unwrap().width());
         }

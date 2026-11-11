@@ -10,6 +10,7 @@ mod application;
 mod boolean;
 mod expand;
 pub mod layout;
+mod packed_boolean;
 mod witness;
 pub mod words;
 
@@ -71,7 +72,7 @@ impl Linear {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Row {
     pub(crate) a: Linear,
     pub(crate) b: Linear,
@@ -120,6 +121,7 @@ pub struct StepPackage {
     slots: Vec<(usize, usize, u8)>,
     application: Region,
     native: Option<Arc<ApplicationRecords>>,
+    packed_booleans: packed_boolean::PackedBooleans,
 }
 
 impl StepPackage {
@@ -141,6 +143,10 @@ impl StepPackage {
 
     pub fn sbox_start(&self) -> usize {
         self.sbox_start
+    }
+
+    fn source_end(&self) -> usize {
+        (self.sbox_start + 150 * self.block_count()).max(self.packed_booleans.end())
     }
 
     /// The application's witness word count, which places the shared words
@@ -225,6 +231,7 @@ impl StepPackage {
                 .collect::<Result<_, PackageError>>()?,
             application,
             native: None,
+            packed_booleans: packed_boolean::PackedBooleans::default(),
         })
     }
 }

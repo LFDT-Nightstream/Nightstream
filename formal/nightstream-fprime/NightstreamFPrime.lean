@@ -135,6 +135,8 @@ import NightstreamFPrime.Export.BoundedDepth.FinishWalk
 import NightstreamFPrime.Export.BoundedDepth.StepCompleteness
 import NightstreamFPrime.Export.BoundedDepth.NativeCompleteness
 import NightstreamFPrime.Export.BoundedDepth.NativeBooleanCompleteness
+import NightstreamFPrime.Export.Generic.PackedBoolean
+import NightstreamFPrime.Export.BoundedDepth.PackedBooleanCompleteness
 import NightstreamFPrime.Lifecycle.BoundedDepth.BlockSupport
 import NightstreamFPrime.Lifecycle.BoundedDepth.FoldCompleteness
 import NightstreamFPrime.Export.BoundedDepth.StepExtend

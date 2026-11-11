@@ -152,13 +152,14 @@ impl StepPackage {
     /// its row `a * b = f` and each ring piece's quotients. The S-box columns
     /// come first, because a row can read the form of a block output, which
     /// is over S-box columns. A block's lanes read only circuit columns and
-    /// outputs of blocks before it.
+    /// outputs of blocks before it. Finally, append the companions as `1 - x`
+    /// (`Export.Generic.PackedBoolean.extendSource`).
     pub fn relation_columns(
         &self,
         mut columns: Vec<Goldilocks>,
         rows: &PlanRows,
     ) -> Result<Vec<Goldilocks>, PackageError> {
-        let width = self.sbox_start + 150 * self.block_count();
+        let width = self.source_end();
         columns.resize(width, Goldilocks::ZERO);
         for row in rows.ordinary_row_count()..rows.row_count() {
             let [(column, _)] = rows.port(row, 2).collect::<Vec<_>>()[..] else {
@@ -166,19 +167,20 @@ impl StepPackage {
             };
             columns[column] = rows.evaluate(row, 3, &columns).exp_u64(7);
         }
+        if rows.piece_ranges().len() != self.pieces.len() {
+            return Err(PackageError::Malformed("bounded-depth witness row pieces"));
+        }
         let mut next = self.first_fresh;
-        let mut row = 0;
-        for piece in &self.pieces {
+        for (piece, range) in self.pieces.iter().zip(rows.piece_ranges()) {
             match piece {
-                Piece::Rows(lowered) => {
-                    for _ in lowered {
+                Piece::Rows(_) => {
+                    for row in range.clone() {
                         if let [(column, coefficient)] = rows.port(row, 2).collect::<Vec<_>>()[..] {
                             if column == next && coefficient == Goldilocks::ONE {
                                 columns[column] = rows.evaluate(row, 0, &columns) * rows.evaluate(row, 1, &columns);
                                 next += 1;
                             }
                         }
-                        row += 1;
                     }
                 }
                 Piece::Ring {
@@ -194,13 +196,15 @@ impl StepPackage {
                         columns[target..target + RING_DEGREE].copy_from_slice(&coefficients);
                     }
                     next += RING_DEGREE * cells;
-                    row += 108 * cells;
                 }
                 Piece::Block { .. } => {}
             }
         }
         if next != self.sbox_start {
             return Err(PackageError::Malformed("bounded-depth fresh columns end"));
+        }
+        for (index, &source) in self.packed_booleans.sources.iter().enumerate() {
+            columns[self.packed_booleans.start + index] = Goldilocks::ONE - columns[source];
         }
         Ok(columns)
     }

@@ -9,6 +9,7 @@ mod support;
 
 mod factored_rows;
 mod final_ir;
+mod packed_boolean;
 mod setup_runs;
 
 use super::{BoundedDepth, BoundedDepthError, Envelope, LIGHT_FOLD_CAP};

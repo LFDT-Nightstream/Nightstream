@@ -217,7 +217,7 @@ The identity of the light and refresh packages is the Poseidon2 hash of the 31 b
 These digests are Rust's (not checked against Lean).
 
 1. The identity of the finish package is the Poseidon2 hash of the bytes of `Nightstream/OptionB/finish/v1`, one word each, then the words of the finish package (`crates/nightstream-fprime/src/bounded_depth.rs`).
-2. With a Rust application in place of Lean's, the identity is the Poseidon2 hash of the bytes of `Nightstream/OptionB/application/v2`, one word each, then the Lean identity, the witness word count, the application's rows, its recipe rows, its shape, and its realized slot runs. The shape is the block count, then the first local and the lanes of each block. The light slot runs precede the refresh slot runs; each list has its length, then the start, count and kind of each run (section 7.7, step 5) (`crates/nightstream-fprime/src/bounded_depth/application.rs`).
+2. With a Rust application in place of Lean's, the identity is the Poseidon2 hash of the bytes of `Nightstream/OptionB/application/v3`, one word each, then the Lean identity, the witness word count, the application's rows, its recipe rows, its shape, and each realized package layout. The shape is the block count, then the first local and the lanes of each block. The light layout precedes the refresh layout. Each layout gives the first companion column, the length and ordered source columns of the companion map, the length and ordered positions of the removed rows, then the length and start, count and kind of each slot run. Removed-row positions refer to the first application piece after native-block replacement (sections 7.7 and 7.9) (`crates/nightstream-fprime/src/bounded_depth/application.rs`).
 3. The key digest of circuit `c` is `vk_c = Poseidon2.hash(domain ++ identity ++ [c])`, where `domain` is the ASCII bytes of `Nightstream/OptionB/circuit-key/v1` packed 8 bytes to a word in 12 words, `c = 0` for the light circuit and `c = 1` for the refresh circuit (`crates/nightstream/src/lifecycle/bounded_depth/mod.rs`). Lean takes the two key digests as part of the setup (`Lifecycle.BoundedDepth.CircuitKey`).
 
 ### 4.5 Proof bytes
@@ -600,7 +600,7 @@ A Rust-built application in a bounded-depth step package (`Export.BoundedDepth.S
 
 **Input.** The application's rows and recipe rows, and its shape: for each permutation, its first local and its 16 input lanes.
 
-**Output.** The application's pieces of the package. The first piece has every row except the 1,096 recipe rows of each block. Then each permutation is one block (`Export.Generic.Frame.Block`): 150 S-box rows on its S-box columns, which the application's blocks lead, and no slot for its 1,096 locals. Each row reads the form of an output local in place of the local (section 4.4). The live columns of the application are its witness words and its locals that are not dead locals. A live column that a row of the package directly forces to 0 or 1, or that the forward pass in step 4 derives as Boolean, has a bit slot of one coordinate (`Layout.LowNormSlot.Kind`, `Export.Generic.SlotLayout.forcedColumn?`, `Export.Generic.BooleanInference.Derived`). Every other word that a row reads has a field slot of 41 trits. A word that no row reads has no slot.
+**Output.** The application's pieces of the package. Before section 7.9, the first piece has every row except the 1,096 recipe rows of each block. Then each permutation is one block (`Export.Generic.Frame.Block`): 150 S-box rows on its S-box columns, which the application's blocks lead, and no slot for its 1,096 locals. Each row reads the form of an output local in place of the local (section 4.4). The live columns of the application are its witness words and its locals that are not dead locals. A live column that a row of the package directly forces to 0 or 1, or that the forward pass in step 4 derives as Boolean, has a bit slot of one coordinate (`Layout.LowNormSlot.Kind`, `Export.Generic.SlotLayout.forcedColumn?`, `Export.Generic.BooleanInference.Derived`). Every other word that a row reads has a field slot of 41 trits. A word that no row reads has no slot. Section 7.9 then adds the source companions and replaces eligible forcing rows.
 
 **Steps.**
 
@@ -608,7 +608,7 @@ A Rust-built application in a bounded-depth step package (`Export.BoundedDepth.S
 2. Require that the 1,096 rows of each block are the rows of one permutation over its lanes, in the order of `formal/nightstream-fprime/NightstreamFPrime/Gadgets/Poseidon2/Permutation.lean`.
 3. Drop the recipe rows of each block and add its block. Give each dead local no slot and the value 0.
 4. Keep the source-column membership of Lean's rule on the pieces (`Export.BoundedDepth.StepPackage.runsOf`), with its `bit` hints and every live column of the application as the bit candidates. Seed Boolean facts from directly forced columns of the first kept application row piece. In one forward pass, canonicalize each row's affine sides. When A or B is constant, subtract that constant product from C and set both product sides to zero for the inference check. The stored row stays unchanged. Infer a new bit only when the resulting C has one unknown eligible output with a nonzero coefficient, the output is absent from A and B, and all other variables are known bits. At most two distinct input variables are allowed. Check every Boolean input tuple; the row must hold for output 0 or 1 in each case. A missing match retains the field slot. Only live application witness words and generated words are eligible; native outputs and dead-local exclusions stay unchanged.
-5. Bind the shape and the realized light and refresh slot runs into the package identity (section 4.4).
+5. Apply the packed Boolean checks of section 7.9. Bind the shape, companion maps, removed-row positions and realized light and refresh slot runs into the package identity (section 4.4).
 
 **Rejects.** A block outside the locals, a row in two blocks, a lane that reads its own block or a later word, a kept row or a lane that reads a dead local, and a block whose rows are not its permutation.
 
@@ -635,6 +635,24 @@ For source constraints whose renamed zero sets match the kept rows and permutati
 **Rejects.** A normal return after an out-of-bounds access, a trapped return for an in-bounds access, or a table-element access on a trapping row.
 
 **Source.** [WebAssembly table execution](https://webassembly.github.io/spec/core/exec/instructions.html); `crates/neo-wasm/src/ccs/trap.rs`, `crates/neo-wasm/src/ccs/stack_io.rs`, and `crates/neo-wasm/src/adapters/wasmtime/normalize/trace_build.rs` (not checked against Lean).
+
+### 7.9 Packed Boolean checks
+
+**Input.** A native application's first row piece after section 7.7, its source layout, and the fresh assignment with norm below 2. The assignment's constant coordinate is 1.
+
+**Output.** The original application relation with eligible Boolean forcing rows replaced by ordinary linear rows. Each distinct eligible source has one additional committed coordinate.
+
+**Steps.**
+
+1. Select directly forced columns of the first application piece that are application witness words or generated words and already own one-coordinate bit slots. Exclude every local of a native block, including its output locals. Keep all other forcing rows.
+2. Sort and deduplicate the selected source columns. Allocate their companion columns in that order after the complete S-box region. Give each companion a one-coordinate bit slot. Fill companion `y` with `1 - x` after the original source witness is complete.
+3. Remove each forcing row on a selected source. In groups of at most 31 pairs, append `A · 1 = 0`, where `A = Σ_i 4^i (x_i + y_i - 1)`. Each group starts at exponent 0. These rows enter the same four relation matrices as the other ordinary rows.
+4. Seed Boolean inference with the paired sources and companions, as well as the retained forcing rows. Keep the existing source coverage and native-output exclusions. Bind the exact map, removed-row positions and slot runs as section 4.4 specifies.
+5. Keep the original source-row view, with its forcing rows. Generate fresh values using the row ranges of the selected view. The finish circuit uses the original source view and has no packed application pairs.
+
+**Rejects.** A companion outside the source width, an unordered or repeated source, a source at or after its companion region, a removed row that does not force its source, or rows that differ from the specified packing. The accepted fresh relation rejects a wrong pair or a coordinate outside its signed-unit norm. No packed check replaces a terminal source check that lacks that norm.
+
+**Source.** A one-coordinate bit slot inherits the actual fresh coordinate's norm (`Export.Generic.PackedBoolean.source_slot_norm` (`b14452437fad34c6`)). For at most 31 signed-unit pairs, the packed equation is equivalent to Boolean sources with complementary companions (`Export.Generic.PackedBoolean.packed_iff_pairs` (`b030a154ef6665a9`)). The fresh acceptance bridge retains the norm, relation rows and public inputs (`Layout.ProductionRelation.Plan.freshHolds_implies_rowsPublicAndNorm` (`1d2a6bc55654f8eb`)). It restores the original application rows while preserving the appended relation families and public input (`Export.Generic.PackedBoolean.freshHolds_implies_original_rows` (`7be5a8151b9930f1`)). Honest completion follows in the actual order of kept application rows, packed rows and fixed ordinary rows. It uses raw application Boolean derivations before native-output substitution and preserves the native S-box rows, public values and norm on the same widened assignment (`Export.BoundedDepth.PackedBooleanCompleteness.native_complete` (`fc33ec36672e11ad`)). Row coverage, source placement, slot-kind facts and native-piece framing remain explicit constructor conditions. Rust correspondence is checked by tests, not proved for every execution. The base emitted packages, four-matrix polynomial and folding profile stay unchanged.
 
 ### Algorithm 9. Memory step
 

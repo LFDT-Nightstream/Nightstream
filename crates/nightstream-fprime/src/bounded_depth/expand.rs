@@ -29,6 +29,7 @@ const FINAL_SBOX: usize = 134;
 /// stored.
 pub struct PlanRows {
     ordinary: usize,
+    piece_ranges: Vec<Range<usize>>,
     rings: Vec<Range<usize>>,
     offsets: Vec<usize>,
     columns: Vec<u32>,
@@ -36,11 +37,15 @@ pub struct PlanRows {
 }
 
 impl PlanRows {
+    pub(super) fn piece_ranges(&self) -> &[Range<usize>] {
+        &self.piece_ranges
+    }
+
     pub fn row_count(&self) -> usize {
         (self.offsets.len() - 1) / PORTS
     }
 
-    /// The rows of `Package.relationRows`, before the S-box rows.
+    /// The number of ordinary R1CS rows before the S-box rows in this view.
     pub fn ordinary_row_count(&self) -> usize {
         self.ordinary
     }
@@ -224,14 +229,21 @@ impl StepPackage {
         self.rows(true)
     }
 
-    /// The same rows on the source columns, where a port reads an output
-    /// local itself. The final program checks these rows and each block as a
-    /// permutation (`FinishRelation.package_finish`).
+    /// The original source rows before `Export.Generic.PackedBoolean`, where
+    /// a port reads an output local itself. The final program checks these
+    /// rows and each block as a permutation (`FinishRelation.package_finish`).
     pub fn source_rows(&self) -> Result<PlanRows, PackageError> {
         self.rows(false)
     }
 
     fn rows(&self, with_forms: bool) -> Result<PlanRows, PackageError> {
+        if self.native.is_some() {
+            let Some(Piece::Rows(rows)) = self.pieces.first() else {
+                return Err(PackageError::Malformed("bounded-depth native application rows"));
+            };
+            self.packed_booleans
+                .validate(rows, self.sbox_start + SBOX_ROWS * self.block_count(), self.width)?;
+        }
         let mut blocks = Vec::new();
         for piece in &self.pieces {
             if let Piece::Block { start, lanes } = piece {
@@ -262,17 +274,25 @@ impl StepPackage {
             port: Vec::new(),
             rows: PlanRows {
                 ordinary: 0,
+                piece_ranges: Vec::new(),
                 rings: Vec::new(),
                 offsets: vec![0],
                 columns: Vec::new(),
                 coefficients: Vec::new(),
             },
         };
-        for piece in &self.pieces {
+        for (index, piece) in self.pieces.iter().enumerate() {
+            let first = builder.rows.row_count();
             match piece {
                 Piece::Rows(rows) => {
-                    for row in rows {
-                        builder.push_row(row)?;
+                    if index == 0 && !with_forms && self.native.is_some() {
+                        for row in self.packed_booleans.original_rows(rows)? {
+                            builder.push_row(row)?;
+                        }
+                    } else {
+                        for row in rows {
+                            builder.push_row(row)?;
+                        }
                     }
                 }
                 Piece::Ring {
@@ -287,6 +307,10 @@ impl StepPackage {
                 }
                 Piece::Block { .. } => {}
             }
+            builder
+                .rows
+                .piece_ranges
+                .push(first..builder.rows.row_count());
         }
         builder.rows.ordinary = builder.rows.row_count();
         for (index, &(_, lanes)) in blocks.iter().enumerate() {

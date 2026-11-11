@@ -90,9 +90,18 @@ fn inferred_column(row: &Row, known: &[bool], eligible: &[bool]) -> Option<usize
     Some(output)
 }
 
+#[cfg(test)]
 pub(super) fn inferred_columns(rows: &[Row], eligible: &[bool]) -> Vec<usize> {
+    inferred_columns_with_seeds(rows, eligible, &[])
+}
+
+pub(super) fn inferred_columns_with_seeds(rows: &[Row], eligible: &[bool], seeds: &[usize]) -> Vec<usize> {
     let mut known = vec![false; eligible.len()];
-    for column in rows.iter().filter_map(forced_column) {
+    for column in rows
+        .iter()
+        .filter_map(forced_column)
+        .chain(seeds.iter().copied())
+    {
         if let Some(value) = known.get_mut(column) {
             *value = true;
         }

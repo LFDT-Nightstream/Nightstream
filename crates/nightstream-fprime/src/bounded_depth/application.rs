@@ -15,6 +15,7 @@ use neo_ccs::crypto::poseidon2_goldilocks as poseidon2;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks;
 
+use super::packed_boolean::PackedBooleans;
 use super::words::PUBLIC_WORDS;
 use super::{BoundedDepthPackages, Linear, Piece, Region, Row, StepPackage};
 use crate::application_records::ApplicationRecords;
@@ -28,7 +29,7 @@ const BLOCK_LOCALS: usize = 1096;
 const BLOCK_OUTPUTS: usize = 1080;
 const SBOX_COLUMNS: usize = 150;
 const RING_DEGREE: usize = 54;
-const IDENTITY_DOMAIN: &[u8] = b"Nightstream/OptionB/application/v2";
+const IDENTITY_DOMAIN: &[u8] = b"Nightstream/OptionB/application/v3";
 
 fn moved(column: usize, by: i128) -> Option<usize> {
     usize::try_from(column as i128 + by).ok()
@@ -205,7 +206,10 @@ impl StepPackage {
             c => moved(c, sbox),
         };
         let inside = |column: usize| {
-            column < old.local_start || region_locals.contains(&column) || region_fresh.contains(&column)
+            column < old.local_start
+                || region_locals.contains(&column)
+                || region_fresh.contains(&column)
+                || (self.packed_booleans.start..self.packed_booleans.end()).contains(&column)
         };
         if !self.pieces[..old.pieces]
             .iter()
@@ -226,6 +230,7 @@ impl StepPackage {
                 fresh: 0,
             },
             native: Some(Arc::clone(records)),
+            packed_booleans: PackedBooleans::default(),
             pieces: Vec::new(),
             witness: Vec::new(),
             slots: Vec::new(),
@@ -249,7 +254,33 @@ impl StepPackage {
             })
             .collect::<Result<_, _>>()?;
         package.slots = package.native_slots();
+        package.pack_native_booleans()?;
         Ok(package)
+    }
+
+    fn pack_native_booleans(&mut self) -> Result<(), PackageError> {
+        let layout = self.layout()?;
+        let region = self.application;
+        let blocks = self
+            .blocks()
+            .map(|block| block.start()..block.start() + BLOCK_LOCALS)
+            .collect::<Vec<_>>();
+        let eligible = |column| {
+            ((WITNESS_START..WITNESS_START + region.witness_words).contains(&column)
+                || (region.local_start..region.local_start + region.locals).contains(&column))
+                && !blocks.iter().any(|block| block.contains(&column))
+                && layout
+                    .slot(column)
+                    .is_some_and(|(_, kind)| kind == super::layout::Kind::Bit)
+        };
+        let start = self.sbox_start + SBOX_COLUMNS * self.block_count();
+        let Some(Piece::Rows(rows)) = self.pieces.first_mut() else {
+            return Err(PackageError::Malformed("bounded-depth native application rows"));
+        };
+        self.packed_booleans = PackedBooleans::lower(rows, start, eligible);
+        self.packed_booleans.validate(rows, start, self.width)?;
+        self.slots = self.native_slots();
+        Ok(())
     }
 
     /// The application's pieces: one piece of every row outside the blocks,
@@ -350,9 +381,6 @@ impl StepPackage {
             .collect()
     }
 
-    /// The slots of `StepPackage.runsOf` with additional Boolean facts from
-    /// kept application rows (`Export.Generic.BooleanInference.derived_valid`).
-    /// Only live application words are eligible for these additional facts.
     fn native_slots(&self) -> Vec<(usize, usize, u8)> {
         let region = self.application;
         let dead: Vec<_> = self
@@ -366,7 +394,8 @@ impl StepPackage {
             (region.local_start..region.local_start + region.locals)
                 .filter(|column| !dead.iter().any(|locals| locals.contains(column))),
         );
-        let mut eligible = vec![false; self.sbox_start];
+        bits.extend(self.packed_booleans.start..self.packed_booleans.end());
+        let mut eligible = vec![false; self.source_end()];
         for column in (WITNESS_START..WITNESS_START + region.witness_words)
             .chain(region.local_start..region.local_start + region.locals)
         {
@@ -374,10 +403,18 @@ impl StepPackage {
                 eligible[column] = true;
             }
         }
-        let inferred = match self.pieces.first() {
-            Some(Piece::Rows(rows)) => super::boolean::inferred_columns(rows, &eligible),
+        let seeds = self
+            .packed_booleans
+            .sources
+            .iter()
+            .copied()
+            .chain(self.packed_booleans.start..self.packed_booleans.end())
+            .collect::<Vec<_>>();
+        let mut inferred = match self.pieces.first() {
+            Some(Piece::Rows(rows)) => super::boolean::inferred_columns_with_seeds(rows, &eligible, &seeds),
             _ => Vec::new(),
         };
+        inferred.extend(seeds);
         if inferred.is_empty() {
             self.rule_slots(&bits)
         } else {
@@ -400,7 +437,8 @@ impl BoundedDepthPackages {
     /// Both packages with a native application in place of Lean's. The
     /// identity binds the packages' identity, the witness word count, the
     /// application's rows and recipe rows, the shape, and the realized light
-    /// and refresh slot runs. The v2 domain distinguishes this layout binding.
+    /// and refresh companion maps and slot runs. The v3 domain binds the
+    /// lowering of `Export.Generic.PackedBoolean`.
     pub fn with_application(
         &self,
         records: Arc<ApplicationRecords>,
@@ -450,6 +488,15 @@ impl BoundedDepthPackages {
             .refresh
             .with_application(&records, witness_words, shape)?;
         for package in [&light, &refresh] {
+            update(package.packed_booleans.start as u64);
+            update(package.packed_booleans.sources.len() as u64);
+            for &column in &package.packed_booleans.sources {
+                update(column as u64);
+            }
+            update(package.packed_booleans.removed.len() as u64);
+            for &(row, _) in &package.packed_booleans.removed {
+                update(row as u64);
+            }
             update(package.slots.len() as u64);
             for &(start, count, kind) in &package.slots {
                 update(start as u64);

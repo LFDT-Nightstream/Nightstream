@@ -85,6 +85,23 @@ item 5).
   the assignment carries; adversary 2 binds them to the verifier's keys. The
   result is deterministic and needs no hardness premise.
 
+**Packed native Boolean rows.** The adversary also controls both coordinates
+of each packed pair. It wins if the accepted fresh relation holds but one of
+the replaced application forcing rows fails. There is no such assignment
+when each pair names actual one-coordinate slots, each group has at most 31
+pairs, and the original rows are covered by retained or matched forcing rows
+(`Export.Generic.PackedBoolean.freshHolds_implies_original_rows`). The result
+uses the norm of that fresh witness, not the larger accumulator bound.
+`Layout.ProductionRelation.Plan.freshHolds_implies_rowsPublicAndNorm` retains
+this norm from fresh acceptance. There is no new probabilistic test or
+cryptographic assumption. The existing extraction and binding premises still
+apply to the history. Rust must establish the map, coverage, slot and framing
+conditions under trust item 5. Honest completion uses raw application Boolean
+facts before native-output substitution
+(`Export.BoundedDepth.PackedBooleanCompleteness.native_complete`). The terminal
+source relation retains its original forcing rows because its own source
+assignment has no signed-unit premise.
+
 ### 2. Malicious terminal opening
 
 - **Controls:** the terminal statement and every value of the proof: the

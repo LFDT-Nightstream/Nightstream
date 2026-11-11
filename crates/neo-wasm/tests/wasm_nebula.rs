@@ -10,6 +10,9 @@
 
 mod common;
 
+#[path = "wasm_nebula/packed_range.rs"]
+mod packed_range;
+
 #[path = "redteam/table_bounds.rs"]
 mod table_bounds_redteam;
 

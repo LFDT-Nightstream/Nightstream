@@ -101,11 +101,10 @@ fn rows_of_a_ram_smaller_than_the_rom_match_lean() {
     assert_rows(&application, include_bytes!("../fixtures/nebula-memory-r1-digest.json"));
 }
 
-/// The slot coordinates of each kind (`Kind::width`) of `package`'s columns.
 fn coordinates(package: &nightstream_fprime::StepPackage) -> BTreeMap<String, usize> {
     let layout = package.layout().unwrap();
     let mut counts = BTreeMap::new();
-    for column in 270..package.sbox_start() + 150 * package.block_count() {
+    for column in 270..layout.spans().starts.len() {
         if let Some((_, kind)) = layout.slot(column) {
             *counts.entry(format!("{kind:?}")).or_insert(0) += kind.width();
         }
@@ -147,9 +146,9 @@ fn forced_words(application: &ApplicationCircuit) -> BTreeSet<usize> {
 }
 
 /// The machine's Rust-built memory circuit in place of the fixture's
-/// application preserves the Lean package's block and row counts. Directly
-/// forced application words get bit slots, and the coordinate ledger includes
-/// the additional bits inferred from checked rows.
+/// application preserves the Lean package's blocks and source rows. The
+/// coordinate ledger includes inferred bits and packed-check companions
+/// (`Export.Generic.PackedBoolean`).
 fn assert_native_packages_match_lean(package: Package, stem: &str) {
     let application = package.application().unwrap();
     let forced = forced_words(&application);
@@ -169,8 +168,8 @@ fn assert_native_packages_match_lean(package: Package, stem: &str) {
     for (native, lean) in [(native.light(), lean.light()), (native.refresh(), lean.refresh())] {
         assert_eq!(native.block_count(), lean.block_count());
         assert_eq!(
-            native.plan_rows().unwrap().row_count(),
-            lean.plan_rows().unwrap().row_count()
+            native.source_rows().unwrap().row_count(),
+            lean.source_rows().unwrap().row_count()
         );
         assert_eq!(native.width(), lean.width());
         let layout = native.layout().unwrap();
@@ -189,10 +188,14 @@ fn assert_native_packages_match_lean(package: Package, stem: &str) {
         }
         let actual = coordinates(native);
         let mut expected = coordinates(lean);
-        let refined = actual["Bit"].checked_sub(expected["Bit"]).unwrap();
+        let companions = layout.spans().widths.len() - (native.sbox_start() + 150 * native.block_count());
+        assert_eq!(companions, forced.len());
+        let refined = actual["Bit"]
+            .checked_sub(expected["Bit"] + companions)
+            .unwrap();
         assert!(refined >= forced.len());
         *expected.get_mut("Field").unwrap() -= 41 * refined;
-        *expected.get_mut("Bit").unwrap() += refined;
+        *expected.get_mut("Bit").unwrap() += refined + companions;
         assert_eq!(actual, expected);
     }
 }

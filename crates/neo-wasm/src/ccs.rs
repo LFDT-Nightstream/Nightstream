@@ -574,6 +574,7 @@ pub fn build_wasm_relation() -> Result<ApplicationRelation<WasmConstraintScope>,
     });
 
     crate::range_check::push_range_check_rows(&mut b);
+    crate::port_range::push_port_cover_rows(&mut b, layout);
     b.with_tag(
         shared("conditional control choice", &[WasmOpcode::BrIf, WasmOpcode::If]),
         |b| {

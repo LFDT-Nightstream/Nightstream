@@ -104,17 +104,14 @@ fn packed_function_metadata_counts_are_byte_ranged() {
 
 /// An out-of-range value in a column no semantic row pins (the call-stack
 /// return-pc cell on a row that neither pushes nor pops) must be rejected,
-/// and the failing row must be one of that column's own range-check rows,
-/// proving nothing else constrains the value.
+/// and the failing row must be the column's port cover row
+/// (`neo_wasm::port_range`), proving nothing else constrains the value. A
+/// row that pushes or pops binds it to a 32-bit slot field instead.
 #[test]
-fn out_of_range_u32_is_rejected_by_the_column_range_row() {
-    // The invariant under attack: the column is declared as a 32-bit value.
-    assert_eq!(
-        named_column_family(COL_CALL_STACK_RETURN_PC_VALUE)
-            .unwrap()
-            .width,
-        ColumnWidth::U32
-    );
+fn out_of_range_u32_is_rejected_by_the_column_cover_row() {
+    assert!(neo_wasm::port_range::PORT_COVERS
+        .iter()
+        .any(|(column, _)| *column == COL_CALL_STACK_RETURN_PC_VALUE));
 
     let checked =
         common::checked_main(r#"(module (func (export "main") (result i32) i32.const 20 i32.const 22 i32.add))"#);
@@ -142,7 +139,7 @@ fn out_of_range_u32_is_rejected_by_the_column_range_row() {
     let tag = relation.r1cs().catalog().rows()[row_idx].tag();
     assert_eq!(
         tag.label(),
-        "COL_CALL_STACK_RETURN_PC_VALUE",
-        "rejection must come from the column's own range-check row, failed row {row_idx} is tagged {tag:?}"
+        "port range cover",
+        "rejection must come from the column's cover row, failed row {row_idx} is tagged {tag:?}"
     );
 }

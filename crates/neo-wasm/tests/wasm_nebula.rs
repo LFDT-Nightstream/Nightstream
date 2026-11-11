@@ -532,6 +532,46 @@ fn reversed_slot_plan_rejects_a_dependent_pair_on_an_honest_row() {
     ));
 }
 
+/// A column of `PORT_COVERS` has no range-check rows. A value `2^32` higher
+/// fails only binding rows on a row where its port is active, and only rows
+/// of the relation, its cover row among them, on a row where no port is.
+#[test]
+fn a_covered_column_above_32_bits_fails_its_slot_or_its_cover() {
+    use neo_wasm::layout::{COL_CALL_STACK_POP_PRESENT, COL_CALL_STACK_PUSH_PRESENT, COL_CALL_STACK_RETURN_PC_VALUE};
+    let setup = setup(NonZeroUsize::MIN);
+    let (app, geometry) = setup.complete();
+    let relation = application_rows(&app, &geometry);
+    let call = &setup.programs[1];
+    let (_, mut run) = setup.run(&app, call);
+    let invocations = run
+        .segment(&call.inputs)
+        .expect("the honest call trace runs");
+    let on = |z: &[F], column: usize| z[column] == F::ONE;
+    let push = call
+        .rows
+        .iter()
+        .position(|z| on(z, COL_CALL_STACK_PUSH_PRESENT))
+        .expect("a guest call");
+    let idle = call
+        .rows
+        .iter()
+        .position(|z| !on(z, COL_CALL_STACK_PUSH_PRESENT) && !on(z, COL_CALL_STACK_POP_PRESENT))
+        .expect("a row without a call");
+    let bindings = app.relation_rows() + 1 + 2 * app.width();
+    for (row, active) in [(push, true), (idle, false)] {
+        let (step, position) = setup.position(call, row, COL_CALL_STACK_RETURN_PC_VALUE);
+        let mut words = invocations[step].words.clone();
+        let start = words.len() - app.aux();
+        words[start + position] += F::from_u64(1 << 32);
+        let failed = failing(&relation, &words);
+        assert!(!failed.is_empty(), "row {row} fails");
+        assert!(
+            failed.iter().all(|&failed| (failed >= bindings) == active),
+            "row {row}: {failed:?}"
+        );
+    }
+}
+
 /// One segment of step inputs of another number of rows than the
 /// application's: the step rejects them, in both directions.
 #[test]

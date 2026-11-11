@@ -16,7 +16,7 @@ use register::general::{
     application, geometry, preload, shape, state, witnesses, Plan, BASELINE, CALL, CONTRACT, REDESIGN, ROWS, STEPS,
 };
 use register::lower::{lower, Fam, Lowered, ALLOC_K};
-use register::row::{synthesize_tampered, Cs, Private, LIN_WIDTH};
+use register::row::{synthesize_tampered, Cs, Private, Terms, LIN_WIDTH};
 use register::translate::parse;
 
 /// A program run ready for the circuit: its lowering, the trace padded to
@@ -171,8 +171,14 @@ fn census(plan: Plan) {
     );
     let mut tags = cs.tags.clone();
     tags.push(("end", cs.rows.len()));
+    let is_bit = |[a, b, c]: &[Terms; 3]| {
+        let [(x, one)] = a[..] else { return false };
+        one == F::ONE && c.is_empty() && b.len() == 2 && b.contains(&(x, F::ONE)) && b.contains(&(0, -F::ONE))
+    };
     for w in tags.windows(2) {
-        println!("GROUP|{}|{}", w[0].0, w[1].1 - w[0].1);
+        let rows = &cs.rows[w[0].1..w[1].1];
+        let bits = rows.iter().filter(|r| is_bit(r)).count();
+        println!("GROUP|{}|{}|bit rows={bits}", w[0].0, rows.len());
     }
     println!(
         "STEP|relation rows={}|per row={:.1}",

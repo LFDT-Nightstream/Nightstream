@@ -367,7 +367,7 @@ fn host(items: &mut Vec<Item>, program: &Program, row: &Row, at: &dyn Fn(u32) ->
 
 fn rewrite(program: &Program, f: &Function, k: usize) -> Result<Function, String> {
     let regs = assign(program, f, k)?;
-    let (rows, live_out) = liveness(program, f);
+    let (_, live_out) = liveness(program, f);
     let (s0, s1) = ((k - 2) as u8, (k - 1) as u8);
     let mut items = Vec::with_capacity(f.items.len() * 2);
     let mut labels = f.labels.clone();
@@ -395,7 +395,6 @@ fn rewrite(program: &Program, f: &Function, k: usize) -> Result<Function, String
             }
         };
         let live = &live_out[row_index];
-        debug_assert_eq!(rows[row_index], rows[row_index]);
         row_index += 1;
         if row.op == Op::Host {
             host(&mut items, program, row, &at, (s0, s1));

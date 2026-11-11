@@ -263,7 +263,7 @@ pub fn private(input: &RowInput) -> Private {
             let (l, c0) = if sub {
                 (x0.wrapping_sub(y0) & 0xffff_ffff, x0 < y0)
             } else {
-                ((x0 + y0) & 0xffff_ffff, x0 + y0 >> 32 == 1)
+                ((x0 + y0) & 0xffff_ffff, (x0 + y0) >> 32 == 1)
             };
             let (h, c1) = if sub {
                 let t = x1 as i64 - y1 as i64 - c0 as i64;

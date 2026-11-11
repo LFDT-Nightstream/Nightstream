@@ -127,7 +127,7 @@ impl<'l> Cpu<'l> {
 
     fn lin_address(&mut self, row: &CRow, bytes: u64) -> Result<usize, Stop> {
         let ea = (self.regs[row.a as usize] & 0xffff_ffff) + u64::from(row.simm);
-        if ea % bytes != 0 {
+        if !ea.is_multiple_of(bytes) {
             if self.strict {
                 return Err(Stop::Unaligned);
             }

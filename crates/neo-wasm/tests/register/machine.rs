@@ -323,7 +323,7 @@ impl<'p> Machine<'p> {
                 if ea + u64::from(bytes) > self.memory.len() as u64 {
                     return Err(Trap::Memory);
                 }
-                if ea % u64::from(bytes) != 0 {
+                if !ea.is_multiple_of(u64::from(bytes)) {
                     self.unaligned += 1;
                 }
                 let mut v = 0u64;
@@ -350,7 +350,7 @@ impl<'p> Machine<'p> {
                 if ea + u64::from(bytes) > self.memory.len() as u64 {
                     return Err(Trap::Memory);
                 }
-                if ea % u64::from(bytes) != 0 {
+                if !ea.is_multiple_of(u64::from(bytes)) {
                     self.unaligned += 1;
                 }
                 for i in 0..bytes as usize {

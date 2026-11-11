@@ -118,6 +118,7 @@ import NightstreamFPrime.Export.Generic.Substitute
 import NightstreamFPrime.Export.Generic.CircuitRelation
 import NightstreamFPrime.Export.Generic.NativeBlock
 import NightstreamFPrime.Export.Generic.AuxRelocation
+import NightstreamFPrime.Export.Generic.BooleanInference
 import NightstreamFPrime.Export.Generic.SlotLayout
 import NightstreamFPrime.Export.Generic.PieceRowsCompleteness
 import NightstreamFPrime.Export.Generic.RowReads
@@ -132,6 +133,7 @@ import NightstreamFPrime.Export.BoundedDepth.IvcSecurity
 import NightstreamFPrime.Export.BoundedDepth.FinishWalk
 import NightstreamFPrime.Export.BoundedDepth.StepCompleteness
 import NightstreamFPrime.Export.BoundedDepth.NativeCompleteness
+import NightstreamFPrime.Export.BoundedDepth.NativeBooleanCompleteness
 import NightstreamFPrime.Lifecycle.BoundedDepth.BlockSupport
 import NightstreamFPrime.Lifecycle.BoundedDepth.FoldCompleteness
 import NightstreamFPrime.Export.BoundedDepth.StepExtend

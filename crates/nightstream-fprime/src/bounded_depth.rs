@@ -7,6 +7,7 @@
 //! own the relation's meaning, the witness program or the fold.
 
 mod application;
+mod boolean;
 mod expand;
 pub mod layout;
 mod witness;

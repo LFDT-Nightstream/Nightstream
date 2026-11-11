@@ -203,11 +203,23 @@ fn native_blocks_replace_their_rows_and_bits_take_one_coordinate() {
         for column in [packed.sbox_start(), packed.sbox_start() + 299] {
             assert_eq!(layout.slot(column).map(|(_, kind)| kind), Some(Kind::Field));
         }
-        // In the plain package, each local has a field slot, and the forced
-        // output local has a bit slot.
+        let plain_layout = plain.layout().expect("layout");
+        for (local, expected) in [
+            (FIRST_LOCAL + 1079, Kind::Field),
+            (FIRST_LOCAL + 1080, Kind::Bit),
+            (FIRST_LOCAL + 2 * BLOCK - 1, Kind::Bit),
+        ] {
+            assert_eq!(
+                plain_layout
+                    .slot(plain.variable_column(local).unwrap())
+                    .unwrap()
+                    .1,
+                expected
+            );
+        }
         assert_eq!(
-            layout.width() + 41 * (2 * BLOCK - 1) + 1,
-            plain.layout().expect("layout").width() + 41 * 2 * 150
+            layout.width() + 41 * 1080 + (2 * BLOCK - 1080),
+            plain_layout.width() + 41 * 2 * 150
         );
         assert_eq!(
             packed.plan_rows().expect("rows").row_count() + 2 * BLOCK,
@@ -299,4 +311,87 @@ fn native_shape_outside_its_rules_is_refused() {
             "bounded-depth application row reads a dead local"
         ))
     ));
+}
+
+#[test]
+fn inferred_application_bits_keep_the_compact_layout() {
+    let records = |explicit: bool| {
+        let mut writer = ApplicationRecordsWriter::new().unwrap();
+        let mut row = |a, b, c| {
+            writer
+                .append_row(
+                    ApplicationRowHeader {
+                        constants: [0; 3],
+                        term_counts: [1; 3],
+                    },
+                    [
+                        (ApplicationForm::A, a),
+                        (ApplicationForm::B, b),
+                        (ApplicationForm::C, c),
+                    ]
+                    .into_iter()
+                    .map(|(form, variable)| {
+                        Ok(ApplicationTerm {
+                            form,
+                            variable,
+                            coefficient: 1,
+                        })
+                    }),
+                )
+                .unwrap();
+        };
+        row(4, 4, 4);
+        row(5, 5, 5);
+        if explicit {
+            row(6, 6, 6);
+        }
+        row(4, 5, 6);
+        Arc::new(writer.finish().unwrap())
+    };
+    let base = packages();
+    let explicit = base
+        .with_application(records(true), 3, &NativeShape::default())
+        .unwrap();
+    let inferred = base
+        .with_application(records(false), 3, &NativeShape::default())
+        .unwrap();
+    for (explicit, inferred) in [
+        (&explicit.light, &inferred.light),
+        (&explicit.refresh, &inferred.refresh),
+    ] {
+        assert_eq!(explicit.slots, inferred.slots);
+        assert_eq!(explicit.layout().unwrap().width(), inferred.layout().unwrap().width());
+        assert_eq!(
+            explicit.plan_rows().unwrap().row_count(),
+            inferred.plan_rows().unwrap().row_count() + 1
+        );
+        let output = inferred.variable_column(6).unwrap();
+        assert_eq!(inferred.layout().unwrap().slot(output).unwrap().1, Kind::Bit);
+        let mut old_bits = inferred.bit_columns();
+        old_bits.extend([
+            inferred.variable_column(4).unwrap(),
+            inferred.variable_column(5).unwrap(),
+            output,
+        ]);
+        let old_slots = inferred.rule_slots(&old_bits);
+        assert_ne!(old_slots, inferred.slots);
+    }
+}
+
+#[test]
+fn empty_and_unmatched_applications_keep_the_existing_slot_rule() {
+    let base = packages();
+    for (records, count) in [
+        (Arc::new(ApplicationRecordsWriter::new().unwrap().finish().unwrap()), 0),
+        (addition(1), 4),
+    ] {
+        let package = base
+            .with_application(records, count, &NativeShape::default())
+            .unwrap();
+        for step in [&package.light, &package.refresh] {
+            let mut bits = step.bit_columns();
+            bits.extend((0..count).map(|index| step.variable_column(4 + index).unwrap()));
+            assert_eq!(step.slots, step.rule_slots(&bits));
+        }
+    }
 }

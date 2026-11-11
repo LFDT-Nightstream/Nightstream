@@ -5,7 +5,7 @@
 //! slot holds the value itself. A source column without a slot is not a
 //! logical column. The runs follow Lean's rule (`StepPackage.runsOf`): a slot
 //! only for a column that a row reads and that is no output local of a block,
-//! a bit slot only for a column that a row forces to 0 or 1.
+//! a bit slot only for a column that the checked rows force to 0 or 1.
 
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks;
@@ -144,7 +144,7 @@ impl LogicalLayout {
 /// values 0 or 1. The row's terms read only `c` and the constant column 0,
 /// and with `x` at `c` it is `(a₀ + a₁x)(b₀ + b₁x) = c₀ + c₁x` with
 /// `a₁b₁ ≠ 0`, holding at `x = 0` and at `x = 1`.
-fn forced_column(row: &Row) -> Option<usize> {
+pub(super) fn forced_column(row: &Row) -> Option<usize> {
     let sides = [&row.a, &row.b, &row.c];
     let terms = || sides.iter().flat_map(|side| side.terms.iter());
     let column = terms()
@@ -184,6 +184,10 @@ impl StepPackage {
     /// names the column and a row forces it to 0 or 1. Every other slot is a
     /// field element.
     pub(crate) fn rule_slots(&self, bits: &[usize]) -> Vec<(usize, usize, u8)> {
+        self.rule_slots_with_inferred(bits, &[])
+    }
+
+    pub(super) fn rule_slots_with_inferred(&self, bits: &[usize], inferred: &[usize]) -> Vec<(usize, usize, u8)> {
         const BIT: u8 = 0;
         const FIELD: u8 = 2;
         let end = self.sbox_start + SBOX_COLUMNS * self.block_count();
@@ -234,6 +238,7 @@ impl StepPackage {
         }
         let mut candidates = vec![false; end];
         mark(&mut candidates, &mut bits.iter().copied());
+        mark(&mut forced, &mut inferred.iter().copied());
         let mut runs: Vec<(usize, usize, u8)> = Vec::new();
         for column in self.public_columns..end {
             if !((reads[column] && !outputs[column]) || column >= self.sbox_start) {

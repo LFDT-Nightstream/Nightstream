@@ -28,7 +28,7 @@ const BLOCK_LOCALS: usize = 1096;
 const BLOCK_OUTPUTS: usize = 1080;
 const SBOX_COLUMNS: usize = 150;
 const RING_DEGREE: usize = 54;
-const IDENTITY_DOMAIN: &[u8] = b"Nightstream/OptionB/application/v1";
+const IDENTITY_DOMAIN: &[u8] = b"Nightstream/OptionB/application/v2";
 
 fn moved(column: usize, by: i128) -> Option<usize> {
     usize::try_from(column as i128 + by).ok()
@@ -170,7 +170,8 @@ impl StepPackage {
     /// the region keep their order; a dropped piece may read only the shared
     /// words and the region, and a kept piece or batch may not read the
     /// region. The application's blocks lead the S-box columns. The slots
-    /// follow Lean's rule on the new pieces (`native_slots`).
+    /// keep the existing read coverage and the checked Boolean closure
+    /// (`Export.Generic.BooleanInference.derived_valid`).
     fn with_application(
         &self,
         records: &Arc<ApplicationRecords>,
@@ -349,11 +350,9 @@ impl StepPackage {
             .collect()
     }
 
-    /// The slot runs of this package by Lean's rule (`StepPackage.runsOf`).
-    /// The bit candidates are its `bit` hints and every live column of the
-    /// application: its witness words and its locals that are not a block's
-    /// dead locals. A candidate gets a bit slot only if a row forces it to 0
-    /// or 1.
+    /// The slots of `StepPackage.runsOf` with additional Boolean facts from
+    /// kept application rows (`Export.Generic.BooleanInference.derived_valid`).
+    /// Only live application words are eligible for these additional facts.
     fn native_slots(&self) -> Vec<(usize, usize, u8)> {
         let region = self.application;
         let dead: Vec<_> = self
@@ -367,7 +366,23 @@ impl StepPackage {
             (region.local_start..region.local_start + region.locals)
                 .filter(|column| !dead.iter().any(|locals| locals.contains(column))),
         );
-        self.rule_slots(&bits)
+        let mut eligible = vec![false; self.sbox_start];
+        for column in (WITNESS_START..WITNESS_START + region.witness_words)
+            .chain(region.local_start..region.local_start + region.locals)
+        {
+            if !dead.iter().any(|locals| locals.contains(&column)) {
+                eligible[column] = true;
+            }
+        }
+        let inferred = match self.pieces.first() {
+            Some(Piece::Rows(rows)) => super::boolean::inferred_columns(rows, &eligible),
+            _ => Vec::new(),
+        };
+        if inferred.is_empty() {
+            self.rule_slots(&bits)
+        } else {
+            self.rule_slots_with_inferred(&bits, &inferred)
+        }
     }
 }
 
@@ -384,8 +399,8 @@ impl StepPackage {
 impl BoundedDepthPackages {
     /// Both packages with a native application in place of Lean's. The
     /// identity binds the packages' identity, the witness word count, the
-    /// application's rows and recipe rows, then the shape: each block's first
-    /// local and lanes.
+    /// application's rows and recipe rows, the shape, and the realized light
+    /// and refresh slot runs. The v2 domain distinguishes this layout binding.
     pub fn with_application(
         &self,
         records: Arc<ApplicationRecords>,
@@ -428,13 +443,23 @@ impl BoundedDepthPackages {
                 }
             }
         }
+        let light = self
+            .light
+            .with_application(&records, witness_words, shape)?;
+        let refresh = self
+            .refresh
+            .with_application(&records, witness_words, shape)?;
+        for package in [&light, &refresh] {
+            update(package.slots.len() as u64);
+            for &(start, count, kind) in &package.slots {
+                update(start as u64);
+                update(count as u64);
+                update(u64::from(kind));
+            }
+        }
         Ok(Self {
-            light: self
-                .light
-                .with_application(&records, witness_words, shape)?,
-            refresh: self
-                .refresh
-                .with_application(&records, witness_words, shape)?,
+            light,
+            refresh,
             identity: input.finalize().map(|word| word.as_canonical_u64()),
         })
     }

@@ -14,6 +14,7 @@ Range.v
 Selectors.v
 ZeroTest.v
 CircuitFacts.v
+StackPorts.v
 Add.v
 Sub.v
 Eqz.v

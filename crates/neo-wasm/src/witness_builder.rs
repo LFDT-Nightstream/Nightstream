@@ -973,6 +973,18 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Result<Vec<F>, super::ir::Was
     let zero_test_hi_is_zero = wit[COL_ZERO_TEST_HI_IS_ZERO];
     wit[COL_CMP_AND] = zero_test_lo_is_zero * zero_test_hi_is_zero;
 
+    wit[crate::layout::COL_STACK_RMW] = super::isa::WasmOpcode::supported()
+        .into_iter()
+        .filter(|op| op.uses_stack_rmw())
+        .map(|op| wit[selector_col(op).unwrap()])
+        .sum();
+    for (separate, original) in crate::layout::COL_STACK_SEPARATE.into_iter().zip([
+        COL_STACK_READ_ACTIVE[0],
+        COL_STACK_WRITE0_ACTIVE,
+        crate::layout::COL_STACK_WRITE0_HI_ACTIVE,
+    ]) {
+        wit[separate] = wit[original] - wit[crate::layout::COL_STACK_RMW];
+    }
     crate::range_check::write_range_check_bits(&mut wit);
     Ok(wit)
 }

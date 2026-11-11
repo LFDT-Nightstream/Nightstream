@@ -1,6 +1,6 @@
 (* br_if's condition, stack pop, unchanged locals, and selected PC-ROM edge. *)
 From Stdlib Require Import List ZArith Lia.
-Require Import R1CS Columns FullRelation Range Selectors CircuitFacts ZeroTest CallInitialization
+Require Import StackPorts R1CS Columns FullRelation Range Selectors CircuitFacts ZeroTest CallInitialization
   StackBindings LocalBindings MemoryTrace MemoryCatalog ProgramBinding OpcodeCatalog.
 Import ListNotations.
 Open Scope Z_scope.
@@ -84,7 +84,7 @@ Proof.
     rewrite Hone, Hguest, Hturn, Hpop in Hrow.
     pose proof (value_bound w COL_STACK_FRAME_BASE_BEFORE).
     pose proof (value_bound w COL_STACK_FRAME_BASE_AFTER). field_linear Hrow.
-  - rewrite stack_writes_in_row. unfold stackPortWrites, writeIf.
+  - rewrite stack_writes_in_row. unfold stackPortWrites, writeIf. zero_stack_ports.
     rewrite Hwrite, HwriteHi, HlocalWrite, HgatherLocal, HgatherLocalLo. reflexivity.
 Qed.
 

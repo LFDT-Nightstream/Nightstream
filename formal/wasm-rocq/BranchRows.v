@@ -3,7 +3,7 @@
    target's base; a block's or an if's label is left too (the exit state is in
    FrameRows), a loop's runs the loop again. *)
 From Stdlib Require Import List ZArith Lia.
-Require Import Wasm2 WasmIntegers WasmValues Add R1CS Columns Range FullRelation MemoryTrace MemoryCatalog OpcodeCatalog SlideLayout
+Require Import StackPorts Wasm2 WasmIntegers WasmValues Add R1CS Columns Range FullRelation MemoryTrace MemoryCatalog OpcodeCatalog SlideLayout
   TraceRefinement StraightLineSpec StackSimulation LocalSimulation SpecTecCalls SpecTecBranches CallerSpec
   CallerRefinement ProgramSpec ProgramEncoding CodeLayout BlockSpec BlockBindings BlockEncoding
   BlockTrace BranchBindings StackBindings CallInitialization Selectors CallScope CallContext CallMemory LocalBindings
@@ -385,8 +385,14 @@ Proof.
   pose proof (full_branch_fbp_unchanged row COL_SEL_BR_IF_EQZ Hprime Hfull ltac:(cbn; tauto) Hchosen) as Hfbp.
   assert (Hwrites : filter isStackWrite (eventsForRow memories row) = []).
   { rewrite stack_writes_in_row. unfold stackPortWrites, writeIf.
-    rewrite (local_write_active _ _ _ Hshape), (local_write_hi_active _ _ _ Hshape), (local_write_gate _ _ _ Hshape),
-      (local_gather_lo_inactive _ _ _ Hshape), (local_gather_inactive _ _ _ Hshape). reflexivity. }
+    pose proof (local_write_active _ _ _ Hshape) as HwriteZero.
+    change (row COL_STACK_WRITE0_ACTIVE = 0) in HwriteZero.
+    pose proof (local_write_hi_active _ _ _ Hshape) as HwriteHiZero.
+    pose proof (local_write_gate _ _ _ Hshape) as HlocalZero.
+    pose proof (local_gather_lo_inactive _ _ _ Hshape) as HgatherLoZero.
+    pose proof (local_gather_inactive _ _ _ Hshape) as HgatherZero.
+    zero_stack_ports.
+    rewrite HwriteZero, HwriteHiZero, HlocalZero, HgatherLoZero, HgatherZero. reflexivity. }
   assert (Hregs : frameRegistersPreserved row)
     by (split; [exact Hdepth | split; [exact (local_stack_base_after _ _ _ Hshape) | exact Hfbp]]).
   assert (Heffect : FrameEffect (row COL_LOCALS_FBP_BEFORE) initial final)
@@ -787,8 +793,14 @@ Proof.
   destruct HslideAfter as [HkeptAfter HdistAfter].
   assert (Hwrites : filter isStackWrite (eventsForRow memories row) = []).
   { rewrite stack_writes_in_row. unfold stackPortWrites, writeIf.
-    rewrite (local_write_active _ _ _ Hshape), (local_write_hi_active _ _ _ Hshape), (local_write_gate _ _ _ Hshape),
-      (local_gather_lo_inactive _ _ _ Hshape), (local_gather_inactive _ _ _ Hshape). reflexivity. }
+    pose proof (local_write_active _ _ _ Hshape) as HwriteZero.
+    change (row COL_STACK_WRITE0_ACTIVE = 0) in HwriteZero.
+    pose proof (local_write_hi_active _ _ _ Hshape) as HwriteHiZero.
+    pose proof (local_write_gate _ _ _ Hshape) as HlocalZero.
+    pose proof (local_gather_lo_inactive _ _ _ Hshape) as HgatherLoZero.
+    pose proof (local_gather_inactive _ _ _ Hshape) as HgatherZero.
+    zero_stack_ports.
+    rewrite HwriteZero, HwriteHiZero, HlocalZero, HgatherLoZero, HgatherZero. reflexivity. }
   assert (Hregs : frameRegistersPreserved row)
     by (split; [exact Hdepth | split; [exact (local_stack_base_after _ _ _ Hshape) | exact Hfbp]]).
   assert (Heffect : FrameEffect (row COL_LOCALS_FBP_BEFORE) initial final)

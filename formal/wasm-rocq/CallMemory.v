@@ -1,7 +1,7 @@
 (* Bind frame-initialization, frame-move and return-context memory events to the
    exported catalog. *)
 From Stdlib Require Import List ZArith Lia Bool.
-Require Import R1CS Columns FullRelation Range Selectors CircuitFacts
+Require Import StackPorts R1CS Columns FullRelation Range Selectors CircuitFacts
   MemoryTrace MemoryCatalog CallInitialization LocalBindings.
 Import ListNotations.
 Open Scope Z_scope.
@@ -58,7 +58,9 @@ Record InitializationStackShape (w : Witness) (move : bool) : Prop := {
   init_write_hi_address : w COL_STACK_WRITE0_ADDR_HI = w COL_STACK_WRITE0_ADDR_LO + 1;
   init_read_hi_address :
     w (List.nth 0%nat COL_STACK_READ_ADDR_HI 0%nat) = w (List.nth 0%nat COL_STACK_READ_ADDR_LO 0%nat) + 1;
-  init_stack_pointer : w COL_SP_AFTER = w COL_SP_BEFORE + (if move then 0 else 1)
+  init_stack_pointer : w COL_SP_AFTER = w COL_SP_BEFORE + (if move then 0 else 1);
+  init_port_gates : StackPortGates w;
+  init_rmw_inactive : w COL_STACK_RMW = 0
 }.
 
 Lemma full_initialization_stack : forall (w : Witness) chosen,
@@ -68,6 +70,8 @@ Proof.
   intros w chosen Hprime Hfull Hkind Hchosen.
   destruct (full_initialization_auxiliary w chosen Hprime Hfull Hkind Hchosen)
     as [Hprogram [Hguest [Hpush [Hpop [Hturn Hquiet]]]]].
+  pose proof (full_stack_port_gates w Hprime Hfull) as Hports.
+  pose proof (full_aux_stack_rmw w Hprime Hfull Hprogram) as Hrmw.
   pose proof (full_aux_selectors_zero w Hprime Hfull Hprogram) as Hselectors.
   destruct Hquiet as [Hkinds Hhi Hlocal Houtput].
   assert (Hone : w COL_ONE = 1) by exact (proj1 Hfull).
@@ -177,7 +181,7 @@ Lemma initialization_stack_event_prefix : forall w move,
     initializationStackEvents w move ++ eventsForRow (tl MemoryCatalog.memories) w.
 Proof.
   intros w move Hshape.
-  destruct Hshape as [Hr0 Hr1 Hr2 Hw Hwh Hcap Hget Hset Hgmem Hglo Hg _ _ _].
+  destruct Hshape as [Hr0 Hr1 Hr2 Hw Hwh Hcap Hget Hset Hgmem Hglo Hg _ _ _ Hports Hrmw].
   change (flat_map (fun p => match portEvent MemoryCatalog.stackId w p with
       Some event => [event] | None => [] end)
     (ports (hd (mkMemory 0%nat Ram []) MemoryCatalog.memories)) ++
@@ -186,7 +190,8 @@ Proof.
   cbn [hd MemoryCatalog.memories ports flat_map portEvent active activation
     addressColumns valueColumn portKind map option_map].
   unfold portEvent, active. cbn [activation addressColumns valueColumn portKind map option_map].
-  normalize_columns. rewrite Hr0, Hr1, Hr2, Hw, Hwh, Hcap, Hget, Hset, Hgmem, Hglo, Hg.
+  normalize_columns. rewrite_stack_ports Hports.
+  rewrite Hr0, Hr1, Hr2, Hw, Hwh, Hcap, Hget, Hset, Hgmem, Hglo, Hg, Hrmw, !Z.sub_0_r.
   destruct move; reflexivity.
 Qed.
 

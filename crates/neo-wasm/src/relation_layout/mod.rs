@@ -41,10 +41,10 @@ use super::layout::{
     COL_PC_BEFORE, COL_PC_EDGE_KIND, COL_PC_FREF_ACTIVE, COL_PC_ROM_ACTIVE,
     COL_PROGRAM_CALL_INDIRECT_IMMEDIATES_ACTIVE, COL_PROGRAM_GLOBAL_INDEX_ACTIVE, COL_PROGRAM_LOCAL_INDEX_ACTIVE,
     COL_PROGRAM_TABLE_ID_ACTIVE, COL_SIGN_EXT_BIT, COL_SIGN_EXT_LOW7, COL_STACK_READ_ACTIVE, COL_STACK_READ_ADDR_HI,
-    COL_STACK_READ_ADDR_LO, COL_STACK_READ_VALUE_HI, COL_STACK_READ_VALUE_LO, COL_STACK_WRITE0_ACTIVE,
-    COL_STACK_WRITE0_ADDR_HI, COL_STACK_WRITE0_ADDR_LO, COL_STACK_WRITE0_HI_ACTIVE, COL_STACK_WRITE0_VALUE_HI,
-    COL_STACK_WRITE0_VALUE_LO, COL_TABLE_ID, COL_TABLE_INDEX, COL_TABLE_READ_ENABLED, COL_TABLE_SET_LIVE,
-    COL_TABLE_SIZE, COL_TABLE_SIZE_READ_ENABLED, COL_TABLE_VALUE, COL_TURN_BOUNDARY, COL_TURN_EXPORT_FREF_BEFORE,
+    COL_STACK_READ_ADDR_LO, COL_STACK_READ_VALUE_HI, COL_STACK_READ_VALUE_LO, COL_STACK_WRITE0_ADDR_HI,
+    COL_STACK_WRITE0_ADDR_LO, COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO, COL_TABLE_ID, COL_TABLE_INDEX,
+    COL_TABLE_READ_ENABLED, COL_TABLE_SET_LIVE, COL_TABLE_SIZE, COL_TABLE_SIZE_READ_ENABLED, COL_TABLE_VALUE,
+    COL_TURN_BOUNDARY, COL_TURN_EXPORT_FREF_BEFORE,
 };
 use super::WasmMemoryId;
 use neo_application::{
@@ -299,7 +299,7 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
                     address_columns: memory_columns([Column(COL_STACK_READ_ADDR_LO[0])]),
                     value_column: COL_STACK_READ_VALUE_LO[0],
                     kind: MemoryPortKind::Read,
-                    activation: active_when(Column(COL_STACK_READ_ACTIVE[0])),
+                    activation: active_when(Column(crate::layout::COL_STACK_SEPARATE[0])),
                 },
                 MemoryPortSpec {
                     address_columns: memory_columns([Column(COL_STACK_READ_ADDR_LO[0])]),
@@ -325,7 +325,16 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
                     kind: MemoryPortKind::Write {
                         value_before_column: None,
                     },
-                    activation: active_when(Column(COL_STACK_WRITE0_ACTIVE)),
+                    activation: active_when(Column(crate::layout::COL_STACK_SEPARATE[1])),
+                },
+                // SPEC.md section 7.6: keep replacement before the local write.
+                MemoryPortSpec {
+                    address_columns: vec![COL_STACK_WRITE0_ADDR_LO],
+                    value_column: COL_STACK_WRITE0_VALUE_LO,
+                    kind: MemoryPortKind::Write {
+                        value_before_column: Some(COL_STACK_READ_VALUE_LO[0]),
+                    },
+                    activation: active_when(Column(crate::layout::COL_STACK_RMW)),
                 },
                 // Locals live in their frame at `2 * (fbp + index)`.
                 MemoryPortSpec {
@@ -362,7 +371,7 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
                     address_columns: memory_columns([Column(COL_STACK_READ_ADDR_HI[0])]),
                     value_column: COL_STACK_READ_VALUE_HI[0],
                     kind: MemoryPortKind::Read,
-                    activation: active_when(Column(COL_STACK_READ_ACTIVE[0])),
+                    activation: active_when(Column(crate::layout::COL_STACK_SEPARATE[0])),
                 },
                 MemoryPortSpec {
                     address_columns: memory_columns([Column(COL_STACK_READ_ADDR_HI[0])]),
@@ -391,7 +400,16 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
                     kind: MemoryPortKind::Write {
                         value_before_column: None,
                     },
-                    activation: active_when(Column(COL_STACK_WRITE0_HI_ACTIVE)),
+                    activation: active_when(Column(crate::layout::COL_STACK_SEPARATE[2])),
+                },
+                // SPEC.md section 7.6: keep replacement before the local write.
+                MemoryPortSpec {
+                    address_columns: vec![COL_STACK_WRITE0_ADDR_HI],
+                    value_column: COL_STACK_WRITE0_VALUE_HI,
+                    kind: MemoryPortKind::Write {
+                        value_before_column: Some(COL_STACK_READ_VALUE_HI[0]),
+                    },
+                    activation: active_when(Column(crate::layout::COL_STACK_RMW)),
                 },
                 MemoryPortSpec {
                     address_columns: memory_columns([Column(COL_LOCAL_ADDR_HI)]),

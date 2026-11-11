@@ -1,6 +1,6 @@
 (* BLOCK and an inner END preserve the operand stack and current frame. *)
 From Stdlib Require Import List ZArith Lia.
-Require Import R1CS Columns FullRelation Range Selectors CircuitFacts MemoryTrace MemoryCatalog
+Require Import StackPorts R1CS Columns FullRelation Range Selectors CircuitFacts MemoryTrace MemoryCatalog
   LocalBindings LocalSimulation CallMemory CallContext StackBindings StraightLineSpec StackSimulation
   CallInitialization.
 Import ListNotations.
@@ -104,7 +104,7 @@ Proof.
             pose proof (value_bound w COL_LOCALS_FBP_AFTER); field_linear Hrow
           | split;
             [ pose proof (full_call_depth_balance w chosen Hprime Hfull Hin Hchosen); lia
-            | rewrite stack_writes_in_row; unfold stackPortWrites, writeIf;
+            | rewrite stack_writes_in_row; unfold stackPortWrites, writeIf; zero_stack_ports;
               rewrite Hwrite, HwriteHi, HlocalWrite, HgatherLocal, HgatherLocalLo; reflexivity ] ] ] ]
     end.
 Qed.

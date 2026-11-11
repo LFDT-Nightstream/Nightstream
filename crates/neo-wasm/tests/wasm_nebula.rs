@@ -1248,3 +1248,50 @@ fn fibonacci_step_size_for_the_breakdown_chart() {
         flags.join(" ")
     );
 }
+
+#[test]
+fn stack_replacements_bind_prior_values_in_nebula() {
+    let source = r#"(module (type $t (func (result i32)))
+        (table 1 funcref) (elem (i32.const 0) $f)
+        (func $f (result i32) i32.const 7)
+        (memory 1 2)
+        (func (export "main") (result i32) (local i64)
+            i32.const 7 i32.clz drop
+            i32.const 7 i32.const 3 i32.add drop
+            i64.const 0x123456789abcdef0 i64.const 0xfedcba9876543210 i32.const 0 select drop
+            i32.const 1 i64.load drop
+            i32.const 1 memory.grow drop
+            i32.const 0 table.get drop
+            i64.const 0x123456789abcdef0 local.tee 0 drop local.get 0 drop
+            i32.const 0 call_indirect (type $t)))"#;
+    for rows in [1, 2] {
+        let setup = setup_of(source, per_step(rows), true);
+        let (app, geometry) = setup.complete();
+        let relation = application_rows(&app, &geometry);
+        let traced = &setup.programs[0];
+        let (_, mut run) = setup.run(&app, traced);
+        for invocation in run.segment(&traced.inputs).unwrap() {
+            assert!(failing(&relation, &invocation.words).is_empty());
+        }
+        let width = traced.rows[0].len();
+        let replacements: Vec<_> = traced
+            .rows
+            .iter()
+            .enumerate()
+            .filter(|(_, z)| z[neo_wasm::layout::COL_STACK_RMW] == F::ONE)
+            .map(|(i, _)| i)
+            .collect();
+        assert_eq!(replacements.len(), 8);
+        for index in replacements {
+            for prior in [
+                neo_wasm::layout::COL_STACK_READ_VALUE_LO[0],
+                neo_wasm::layout::COL_STACK_READ_VALUE_HI[0],
+            ] {
+                let mut inputs = traced.inputs.clone();
+                inputs[index / rows].z[(index % rows) * width + prior] += F::ONE;
+                let (_, mut run) = setup.run(&app, traced);
+                assert!(run.segment(&inputs).is_err(), "RMW must check both prior limbs");
+            }
+        }
+    }
+}

@@ -82,7 +82,7 @@ Proof.
       (w COL_STACK_FRAME_BASE_BEFORE + (Z.of_nat (length prefix) + Z.of_nat index)) by lia.
     eapply cell_matches_memory; [ | exact Hcells]. intros limb _.
     exact (replay_preserves _ _ _ _ _ Hreplay
-      (stack_writes_inactive w _ Hlo Hhi HlocalWrite HgatherLocalLo HgatherLocal)).
+      (stack_writes_inactive w _ Hprime Hfull Hlo Hhi HlocalWrite HgatherLocalLo HgatherLocal)).
 Qed.
 
 Lemma call_starts_frame_initialization : forall initial final w prefix arguments locals,

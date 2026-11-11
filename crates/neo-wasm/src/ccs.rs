@@ -651,6 +651,29 @@ pub fn build_wasm_relation() -> Result<ApplicationRelation<WasmConstraintScope>,
             (super::layout::COL_CONTROL_CHOICE, -F::ONE),
         ]);
     });
+    b.with_tag(always("stack read-modify-write gates"), |b| {
+        let rmw = super::layout::COL_STACK_RMW;
+        b.push_linear_zero(
+            std::iter::once((rmw, F::ONE)).chain(
+                WasmOpcode::supported()
+                    .into_iter()
+                    .filter(|op| op.uses_stack_rmw())
+                    .map(|op| (selector_col(op).unwrap(), -F::ONE)),
+            ),
+        );
+        for (separate, original) in super::layout::COL_STACK_SEPARATE.into_iter().zip([
+            COL_STACK_READ_ACTIVE[0],
+            COL_STACK_WRITE0_ACTIVE,
+            crate::layout::COL_STACK_WRITE0_HI_ACTIVE,
+        ]) {
+            b.push_linear_zero([(separate, F::ONE), (original, -F::ONE), (rmw, F::ONE)]);
+        }
+        push_gated_linear_zero(
+            b,
+            rmw,
+            [(COL_STACK_READ_ADDR_LO[0], F::ONE), (COL_STACK_WRITE0_ADDR_LO, -F::ONE)],
+        );
+    });
     let columns = crate::witness_layout::range_checked_column_registry();
     let r1cs = builder.build(&columns).map_err(|error| error.to_string())?;
     ApplicationRelation::new(r1cs, columns).map_err(|error| error.to_string())

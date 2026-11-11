@@ -1,6 +1,6 @@
 (* Restore the suspended caller from the context actually written by the call. *)
 From Stdlib Require Import List ZArith Lia.
-Require Import R1CS Columns FullRelation Range Selectors CircuitFacts MemoryTrace MemoryCatalog
+Require Import StackPorts R1CS Columns FullRelation Range Selectors CircuitFacts MemoryTrace MemoryCatalog
   LocalBindings CallBindings CallMemory CallContext.
 Import ListNotations.
 Open Scope Z_scope.
@@ -39,6 +39,6 @@ Proof.
       match goal with Hchosen : value w ?chosen = 1 |- _ =>
         selected_row chosen localWriteGateIndex Hrow; rewrite Hone in Hrow;
         pose proof (value_bound w COL_LOCAL_WRITE_ENABLED); field_linear Hrow end. }
-  rewrite stack_writes_in_row. unfold stackPortWrites, writeIf.
+  rewrite stack_writes_in_row. unfold stackPortWrites, writeIf. zero_stack_ports.
   rewrite Hwrite, HwriteHi, HlocalWrite, HgatherLocal, HgatherLocalLo. reflexivity.
 Qed.

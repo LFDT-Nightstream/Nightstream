@@ -1,7 +1,7 @@
 (* Local gates, frame-base preservation, and the stack-memory writes of a row.
    Locals live in their frame's stack cells, so a row's local writes are stack writes. *)
 From Stdlib Require Import List ZArith Lia Bool.
-Require Import R1CS Columns FullRelation Range Selectors CircuitFacts MemoryTrace MemoryCatalog
+Require Import StackPorts R1CS Columns FullRelation Range Selectors CircuitFacts MemoryTrace MemoryCatalog
   CallInitialization.
 Import ListNotations.
 Open Scope Z_scope.
@@ -84,14 +84,20 @@ Definition writeIf (gate : Z) (event : Event) : list Event := if Z.eqb gate 1 th
 (* The stack-memory writes of a row, low limb then high limb. Within each
    limb, the operand write precedes local.set/tee and entry-input writes. *)
 Definition stackPortWrites (w : Witness) : list Event :=
-  writeIf (w COL_STACK_WRITE0_ACTIVE)
+  writeIf (w (List.nth 1%nat COL_STACK_SEPARATE 0%nat))
     (WriteEvent MemoryCatalog.stackId [w COL_STACK_WRITE0_ADDR_LO] (w COL_STACK_WRITE0_VALUE_LO) None) ++
+  writeIf (w COL_STACK_RMW)
+    (WriteEvent MemoryCatalog.stackId [w COL_STACK_WRITE0_ADDR_LO] (w COL_STACK_WRITE0_VALUE_LO)
+      (Some (w (List.nth 0%nat COL_STACK_READ_VALUE_LO 0%nat)))) ++
   writeIf (w COL_LOCAL_WRITE_ENABLED)
     (WriteEvent MemoryCatalog.stackId [w COL_LOCAL_ADDR_LO] (w COL_LOCAL_VALUE) None) ++
   writeIf (w COL_GATHER_LOCAL_WRITE_LO)
     (WriteEvent MemoryCatalog.stackId [w COL_LOCAL_ADDR_LO] (w COL_LOCAL_VALUE) None) ++
-  writeIf (w COL_STACK_WRITE0_HI_ACTIVE)
+  writeIf (w (List.nth 2%nat COL_STACK_SEPARATE 0%nat))
     (WriteEvent MemoryCatalog.stackId [w COL_STACK_WRITE0_ADDR_HI] (w COL_STACK_WRITE0_VALUE_HI) None) ++
+  writeIf (w COL_STACK_RMW)
+    (WriteEvent MemoryCatalog.stackId [w COL_STACK_WRITE0_ADDR_HI] (w COL_STACK_WRITE0_VALUE_HI)
+      (Some (w (List.nth 0%nat COL_STACK_READ_VALUE_HI 0%nat)))) ++
   writeIf (w COL_LOCAL_WRITE_ENABLED)
     (WriteEvent MemoryCatalog.stackId [w COL_LOCAL_ADDR_HI] (w COL_LOCAL_VALUE_HI) None) ++
   writeIf (w COL_GATHER_LOCAL_WRITE)
@@ -116,6 +122,24 @@ Proof.
     destruct (portKind port); cbn [filter isStackWrite]; [reflexivity | rewrite Hsame; reflexivity].
 Qed.
 
+Lemma filter_stack_port : forall w port,
+  filter isStackWrite (match portEvent MemoryCatalog.stackId w port with
+    Some event => [event] | None => [] end) =
+  match portKind port with
+  | Read => []
+  | Write _ => match portEvent MemoryCatalog.stackId w port with
+      Some event => [event] | None => [] end
+  end.
+Proof.
+  intros w [address value kind gate]. destruct kind;
+    unfold portEvent; cbn [activation portKind]; destruct (active w gate); reflexivity.
+Qed.
+
+Lemma event_list_when : forall (gate : bool) (event : Event),
+  (match (if gate then Some event else None) with Some e => [e] | None => [] end) =
+  if gate then [event] else [].
+Proof. intros [] event; reflexivity. Qed.
+
 Lemma stack_writes_in_row : forall (w : Witness),
   filter isStackWrite (eventsForRow MemoryCatalog.memories w) = stackPortWrites w.
 Proof.
@@ -124,12 +148,11 @@ Proof.
       Some event => [event] | None => [] end) (ports (hd (mkMemory 0%nat Ram []) MemoryCatalog.memories)) ++
     eventsForRow (tl MemoryCatalog.memories) w) = stackPortWrites w).
   rewrite filter_app, filter_read_only_memory by (vm_compute; reflexivity). rewrite app_nil_r.
-  cbn [hd MemoryCatalog.memories ports]. unfold portEvent, active, stackPortWrites, writeIf.
-  cbn [activation addressColumns valueColumn portKind map option_map flat_map].
-  normalize_columns.
-  repeat match goal with |- context [Z.eqb (value w ?c) 1] =>
-    let b := fresh "b" in destruct (Z.eqb (value w c) 1) eqn:b end;
-  reflexivity.
+  cbn [hd MemoryCatalog.memories ports flat_map].
+  repeat rewrite filter_app. repeat rewrite filter_stack_port.
+  cbn [portKind]. unfold portEvent, active, stackPortWrites, writeIf.
+  cbn [activation addressColumns valueColumn portKind map option_map app].
+  repeat rewrite event_list_when. cbn [filter]. rewrite !app_nil_r. reflexivity.
 Qed.
 
 Lemma no_stack_writes_preserve : forall initial events final,
@@ -158,13 +181,14 @@ Proof. reflexivity. Qed.
 
 (* A row with every stack write gate off leaves the stack memory unchanged. *)
 Lemma stack_writes_inactive : forall (w : Witness) address,
+  fieldPrime -> FullRelation.satFull w ->
   w COL_STACK_WRITE0_ACTIVE = 0 -> w COL_STACK_WRITE0_HI_ACTIVE = 0 -> w COL_LOCAL_WRITE_ENABLED = 0 ->
   w COL_GATHER_LOCAL_WRITE_LO = 0 -> w COL_GATHER_LOCAL_WRITE = 0 ->
   Forall (NoWriteTo MemoryCatalog.stackId address) (eventsForRow MemoryCatalog.memories w).
 Proof.
-  intros w address Hlo Hhi Hlocal Hgatherlo Hgather.
+  intros w address Hprime Hfull Hlo Hhi Hlocal Hgatherlo Hgather.
   assert (Hwrites : filter isStackWrite (eventsForRow MemoryCatalog.memories w) = []).
-  { rewrite stack_writes_in_row. unfold stackPortWrites, writeIf.
+  { rewrite stack_writes_in_row. unfold stackPortWrites, writeIf. zero_stack_ports.
     rewrite Hlo, Hhi, Hlocal, Hgatherlo, Hgather. reflexivity. }
   apply Forall_forall. intros event Hin.
   destruct event as [memory addr value | memory addr value prior]; [exact I | ].

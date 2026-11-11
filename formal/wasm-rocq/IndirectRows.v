@@ -2,7 +2,7 @@
    steps SpecTec to CALL_ADDR, leaving the reference on top; its invocation row
    enters the callee like a direct call. *)
 From Stdlib Require Import List ZArith NArith Bool Lia.
-Require Import WasmValues Wasm2 WasmIntegers R1CS Columns Range FullRelation MemoryTrace MemoryCatalog OpcodeCatalog
+Require Import StackPorts WasmValues Wasm2 WasmIntegers R1CS Columns Range FullRelation MemoryTrace MemoryCatalog OpcodeCatalog
   TraceRefinement StraightLineSpec StackSimulation SpecTecCalls SpecTecIndirect CallerSpec CallerRefinement CallSpec
   CallBindings CallContext CallMemory CallInitialization CallScope LocalBindings FrameInitialization
   ProgramSpec TableState ProgramEncoding CodeLayout BlockSpec BlockEncoding BlockTrace Fragment CodeFacts
@@ -304,7 +304,14 @@ Proof.
   { apply (full_opcode_selects row COL_SEL_CALL_INDIRECT CODE_CALL_INDIRECT Hprime Hfull Hprogram);
       [vm_compute; reflexivity | symmetry; exact Hcode]. }
   destruct (full_indirect_reference row Hprime Hfull Hsel ltac:(lia)) as [Hfref [Haddr Hactive0]].
-  pose proof (first_stack_read _ _ _ Hreplay Hactive0) as Hread.
+  assert (Hseparate : row (List.nth 0%nat COL_STACK_SEPARATE 0%nat) = 1).
+  { pose proof (full_stack_port_gates row Hprime Hfull) as Hports.
+    rewrite (separate_read _ Hports), Hactive0.
+    assert (Hin : In COL_SEL_CALL_INDIRECT selectorColumns) by (vm_compute; tauto).
+    assert (Hone : row COL_ONE = 1) by exact (proj1 Hfull).
+    assert (Hrmw : row COL_STACK_RMW = 0) by (selected_stack_rmw COL_SEL_CALL_INDIRECT).
+    rewrite Hrmw. reflexivity. }
+  pose proof (first_stack_read _ _ _ Hreplay Hseparate) as Hread.
   rewrite Haddr in Hread. replace (row COL_SP_BEFORE - 1) with
     (row COL_STACK_FRAME_BASE_BEFORE + Z.of_nat (length (concat segments ++ prefix ++ arguments))) in Hread by lia.
   rewrite Href in Hread. injection Hread as Hreference.

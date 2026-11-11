@@ -567,6 +567,12 @@ impl WasmOpcode {
         self.memory_access_info().is_some()
     }
 
+    /// SPEC.md section 7.6: fixed-arity replacements write over operand zero.
+    pub(crate) fn uses_stack_rmw(self) -> bool {
+        let info = opcode_info_from_code(opcode_code(self));
+        (1..=3).contains(&info.stack_reads) && info.stack_writes == 1
+    }
+
     /// True when the instruction consumes the PC-indexed local immediate.
     pub fn uses_local_index_immediate(self) -> bool {
         matches!(self, Self::LocalGet | Self::LocalSet | Self::LocalTee)

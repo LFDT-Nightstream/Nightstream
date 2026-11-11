@@ -1,5 +1,5 @@
 From Stdlib Require Import List ZArith Lia.
-Require Import R1CS Columns FullRelation Range Selectors CircuitFacts MemoryCatalog.
+Require Import StackPorts R1CS Columns FullRelation Range Selectors CircuitFacts MemoryCatalog.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -712,8 +712,23 @@ Theorem gate_exclusions_sound : forall (w : Witness) a b,
   w a = 1 -> w b <> 1.
 Proof.
   intros w a b Hprime Hfull Hin.
+  pose proof (full_stack_port_gates w Hprime Hfull) as Hports.
+  pose proof (separate_read _ Hports) as Hread.
+  pose proof (separate_write_lo _ Hports) as Hwrite.
+  pose proof (separate_write_hi _ Hports) as Hwritehi.
+  pose proof (rmw_nonnegative _ Hports) as Hrmw.
+  gate_bound (List.nth 0%nat COL_STACK_READ_ACTIVE 0%nat) Bread.
+  gate_bound COL_STACK_WRITE0_ACTIVE Bwrite.
+  gate_bound COL_STACK_WRITE0_HI_ACTIVE Bwritehi.
+  assert (R : w (List.nth 0%nat COL_STACK_SEPARATE 0%nat) = 1 ->
+    w (List.nth 0%nat COL_STACK_READ_ACTIVE 0%nat) = 1) by (normalize_columns; lia).
+  assert (W : w (List.nth 1%nat COL_STACK_SEPARATE 0%nat) = 1 ->
+    w COL_STACK_WRITE0_ACTIVE = 1) by (normalize_columns; lia).
+  assert (WH : w (List.nth 2%nat COL_STACK_SEPARATE 0%nat) = 1 ->
+    w COL_STACK_WRITE0_HI_ACTIVE = 1) by (normalize_columns; lia).
   cbn [gateExclusions] in Hin.
-  repeat destruct Hin as [Hin | Hin]; try contradiction; inversion Hin; subst;
+  repeat destruct Hin as [Hin | Hin]; try contradiction; inversion Hin; subst; intro Ha; normalize_columns;
+    first [apply R in Ha | apply W in Ha | apply WH in Ha | idtac];
     first [eapply pc_exit_exclusive; eassumption
          | eapply push_host_exclusive; eassumption
          | eapply push_indirect_host_exclusive; eassumption

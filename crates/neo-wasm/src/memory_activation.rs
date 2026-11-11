@@ -322,6 +322,25 @@ pub(crate) fn activation_supports() -> BTreeMap<usize, BTreeSet<usize>> {
             crate::layout::COL_HOST_SUSPEND,
         ]),
     );
+    let replacements: BTreeSet<_> = opcode_selectors(
+        WasmOpcode::supported()
+            .into_iter()
+            .filter(|op| op.uses_stack_rmw()),
+    )
+    .into_iter()
+    .collect();
+    supports.insert(crate::layout::COL_STACK_RMW, replacements.clone());
+    for (separate, original) in crate::layout::COL_STACK_SEPARATE.into_iter().zip([
+        COL_STACK_READ_ACTIVE[0],
+        COL_STACK_WRITE0_ACTIVE,
+        COL_STACK_WRITE0_HI_ACTIVE,
+    ]) {
+        let atoms = supports[&original]
+            .difference(&replacements)
+            .copied()
+            .collect();
+        supports.insert(separate, atoms);
+    }
     supports
 }
 
@@ -396,7 +415,7 @@ pub(crate) fn gate_exclusions() -> Vec<(usize, usize)> {
         gather_memory_local_base_col, gather_memory_read_kind_col, gather_memory_write_kind_col,
     };
     use crate::layout::*;
-    vec![
+    let mut pairs = vec![
         (COL_PC_ROM_ACTIVE, COL_HOST_EVENT_EXIT_LATCH),
         (COL_CALL_STACK_PUSH_PRESENT, COL_HOST_CALL_ACTIVE),
         (COL_CALL_STACK_PUSH_PRESENT, COL_CI_HOST_CALL),
@@ -413,5 +432,25 @@ pub(crate) fn gate_exclusions() -> Vec<(usize, usize)> {
         (COL_GATHER_LOCAL_WRITE, gather_memory_local_base_col()),
         (COL_GATHER_LOCAL_WRITE_LO, gather_memory_local_base_col()),
         (gather_memory_read_kind_col(), gather_memory_write_kind_col()),
-    ]
+    ];
+    for (separate, original) in COL_STACK_SEPARATE.into_iter().zip([
+        COL_STACK_READ_ACTIVE[0],
+        COL_STACK_WRITE0_ACTIVE,
+        COL_STACK_WRITE0_HI_ACTIVE,
+    ]) {
+        let extra: Vec<_> = pairs
+            .iter()
+            .filter_map(|&(a, b)| {
+                if a == original {
+                    Some((separate, b))
+                } else if b == original {
+                    Some((a, separate))
+                } else {
+                    None
+                }
+            })
+            .collect();
+        pairs.extend(extra);
+    }
+    pairs
 }

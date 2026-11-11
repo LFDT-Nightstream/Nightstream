@@ -62,6 +62,12 @@ The instruction refinement theorem is unchanged. The bridge is included in
 `make audit`; `tests/RomSharing.v` checks disjoint sharing, reordered ROM reads,
 and rejection of a changed owned cell, reordered RAM, or an incorrect prior value.
 
+`StackPorts.full_stack_port_gates` derives the separate-access and read-modify-write
+gates from the exported circuit. The arithmetic and indirect-resolution stack
+proofs obtain operand zero from the combined write's prior value. Frame moves,
+initialization, and indirect invocation retain separate accesses. The gate theorem
+is included in the audit; the supported instruction fragment is unchanged.
+
 Requires the repository Rust toolchain (see `rust-toolchain.toml`), opam, and the
 checked versions of Coq/Rocq 9.0.1, MathComp ssreflect 2.4.0, and RecordUpdate 0.3.6:
 

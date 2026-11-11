@@ -3,7 +3,7 @@
    state after leaving a label, which branches share (BranchRows). Each keeps the
    frame registers and touches no memory below the frame. *)
 From Stdlib Require Import List ZArith Lia.
-Require Import Wasm2 WasmIntegers WasmValues Add R1CS Columns Range FullRelation MemoryTrace MemoryCatalog OpcodeCatalog SlideLayout
+Require Import StackPorts Wasm2 WasmIntegers WasmValues Add R1CS Columns Range FullRelation MemoryTrace MemoryCatalog OpcodeCatalog SlideLayout
   TraceRefinement StraightLineSpec StackSimulation LocalSimulation SpecTecCalls SpecTecBranches CallerSpec
   CallerRefinement ProgramSpec ProgramEncoding CodeLayout BlockSpec BlockBindings BlockEncoding IntegerInstructions
   BlockTrace BranchBindings StackBindings CallInitialization Selectors CallScope CallContext CallMemory LocalBindings
@@ -788,8 +788,14 @@ Proof.
   pose proof (full_if_fbp_unchanged row Hprime Hfull Hchosen) as Hfbp.
   assert (Hwrites : filter isStackWrite (eventsForRow memories row) = []).
   { rewrite stack_writes_in_row. unfold stackPortWrites, writeIf.
-    rewrite (local_write_active _ _ _ Hshape), (local_write_hi_active _ _ _ Hshape), (local_write_gate _ _ _ Hshape),
-      (local_gather_lo_inactive _ _ _ Hshape), (local_gather_inactive _ _ _ Hshape). reflexivity. }
+    pose proof (local_write_active _ _ _ Hshape) as HwriteZero.
+    change (row COL_STACK_WRITE0_ACTIVE = 0) in HwriteZero.
+    pose proof (local_write_hi_active _ _ _ Hshape) as HwriteHiZero.
+    pose proof (local_write_gate _ _ _ Hshape) as HlocalZero.
+    pose proof (local_gather_lo_inactive _ _ _ Hshape) as HgatherLoZero.
+    pose proof (local_gather_inactive _ _ _ Hshape) as HgatherZero.
+    zero_stack_ports.
+    rewrite HwriteZero, HwriteHiZero, HlocalZero, HgatherLoZero, HgatherZero. reflexivity. }
   pose proof (no_stack_writes_preserve _ _ _ Hreplay Hwrites) as HstackMem.
   assert (Hregs : frameRegistersPreserved row)
     by (split; [lia | split; [exact (local_stack_base_after _ _ _ Hshape) | exact Hfbp]]).

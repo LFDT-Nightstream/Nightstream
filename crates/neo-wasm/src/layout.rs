@@ -408,6 +408,8 @@ define_column_region! {
         COL_ACTIVATION_FINISHED_BEFORE: Boolean => "current activation has returned or trapped before this row",
         COL_BR_TABLE_LEN: U32 => "number of explicit br_table arms, read from the program ROM",
         COL_BR_TABLE_IN_BOUNDS: Boolean => "br_table row with an index below its arm count",
+        COL_STACK_SEPARATE: [Boolean; 3] => "read0, write0 low and write0 high outside in-place replacement",
+        COL_STACK_RMW: Boolean => "fixed-arity in-place stack replacement",
     ]
 }
 

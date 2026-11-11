@@ -130,3 +130,104 @@ fn each_inferred_truth_table_has_only_boolean_outputs() {
         }
     }
 }
+
+#[test]
+fn affine_rows_infer_outputs_from_either_product_side() {
+    let left = Row {
+        a: form(0, &[(2, 1), (1, -1)]),
+        b: form(1, &[]),
+        c: form(0, &[]),
+    };
+    let right = Row {
+        a: form(7, &[]),
+        b: form(0, &[(2, 3), (1, -3)]),
+        c: form(0, &[]),
+    };
+    for row in [left, right] {
+        assert_eq!(inferred_columns(&[bit(1), row], &[true; 3]), vec![2]);
+    }
+}
+
+#[test]
+fn affine_cancellation_keeps_only_constrained_boolean_outputs() {
+    let cancelled_output = Row {
+        a: form(0, &[(2, 1)]),
+        b: form(3, &[]),
+        c: form(0, &[(2, 3)]),
+    };
+    let scaled_copy = Row {
+        a: form(0, &[(2, 2), (1, 1)]),
+        b: form(0, &[(0, 3)]),
+        c: form(0, &[(2, 3), (1, 6)]),
+    };
+    let zero_output = Row {
+        a: form(0, &[]),
+        b: form(0, &[(3, 1)]),
+        c: form(0, &[(2, 1)]),
+    };
+    let free_output = Row {
+        a: form(0, &[]),
+        b: form(0, &[(2, 1)]),
+        c: form(0, &[]),
+    };
+    let constant_one = Row {
+        a: form(0, &[(2, 1)]),
+        b: form(7, &[]),
+        c: form(7, &[]),
+    };
+    let doubled_bit = Row {
+        a: form(0, &[(2, 1), (1, -2)]),
+        b: form(1, &[]),
+        c: form(0, &[]),
+    };
+    let two_unknowns = Row {
+        a: form(0, &[(2, 1), (3, -1)]),
+        b: form(1, &[]),
+        c: form(0, &[]),
+    };
+    for row in [scaled_copy, zero_output, constant_one] {
+        assert_eq!(inferred_columns(&[bit(1), row.clone()], &[true; 4]), vec![2]);
+        assert!(inferred_columns(&[bit(1), row], &[false; 4]).is_empty());
+    }
+    for row in [cancelled_output, free_output, doubled_bit, two_unknowns.clone()] {
+        assert!(inferred_columns(&[bit(1), row], &[true; 4]).is_empty());
+    }
+    assert!(inferred_columns(&[two_unknowns.clone(), two_unknowns], &[true; 4]).is_empty());
+    let outside = Row {
+        a: form(0, &[(9, 1), (1, -1)]),
+        b: form(1, &[]),
+        c: form(0, &[]),
+    };
+    assert!(inferred_columns(&[bit(1), outside], &[true; 4]).is_empty());
+}
+
+#[test]
+fn affine_inference_matches_the_exact_field_solution() {
+    for factor in [-2, -1, 0, 1, 2] {
+        for output_left in [-2, -1, 0, 1, 2] {
+            for input_left in [-2, -1, 0, 1, 2] {
+                for output_right in [-2, -1, 0, 1, 2] {
+                    for input_right in [-2, -1, 0, 1, 2] {
+                        for constant in [-2, -1, 0, 1, 2] {
+                            let variable = form(0, &[(2, output_left), (1, input_left), (0, constant)]);
+                            let scalar = form(0, &[(0, factor)]);
+                            let c = form(0, &[(2, output_right), (1, input_right)]);
+                            let divisor = F::from_i64(factor * output_left - output_right);
+                            let expected = divisor != F::ZERO
+                                && [F::ZERO, F::ONE].into_iter().all(|input| {
+                                    let output = (F::from_i64(input_right - factor * input_left) * input
+                                        - F::from_i64(factor * constant))
+                                        / divisor;
+                                    output == F::ZERO || output == F::ONE
+                                });
+                            for (a, b) in [(variable.clone(), scalar.clone()), (scalar, variable)] {
+                                let found = inferred_columns(&[bit(1), Row { a, b, c: c.clone() }], &[true; 3]);
+                                assert_eq!(found == vec![2], expected);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

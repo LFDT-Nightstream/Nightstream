@@ -36,7 +36,25 @@ impl Form {
 }
 
 fn inferred_column(row: &Row, known: &[bool], eligible: &[bool]) -> Option<usize> {
+    let mut a = Form::canonical(&row.a);
+    let mut b = Form::canonical(&row.b);
     let mut c = Form::canonical(&row.c);
+    if a.terms.is_empty() || b.terms.is_empty() {
+        let (factor, form) = if a.terms.is_empty() {
+            (a.constant, &b)
+        } else {
+            (b.constant, &a)
+        };
+        c.constant -= factor * form.constant;
+        for (&column, &coefficient) in &form.terms {
+            *c.terms.entry(column).or_insert(F::ZERO) -= factor * coefficient;
+        }
+        c.terms.retain(|_, coefficient| *coefficient != F::ZERO);
+        a.constant = F::ZERO;
+        a.terms.clear();
+        b.constant = F::ZERO;
+        b.terms.clear();
+    }
     let mut unknown = c
         .terms
         .keys()
@@ -47,8 +65,6 @@ fn inferred_column(row: &Row, known: &[bool], eligible: &[bool]) -> Option<usize
         return None;
     }
     let coefficient = c.terms.remove(&output)?;
-    let a = Form::canonical(&row.a);
-    let b = Form::canonical(&row.b);
     let inputs = a
         .terms
         .keys()

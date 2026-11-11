@@ -205,7 +205,7 @@ fn native_blocks_replace_their_rows_and_bits_take_one_coordinate() {
         }
         let plain_layout = plain.layout().expect("layout");
         for (local, expected) in [
-            (FIRST_LOCAL + 1079, Kind::Field),
+            (FIRST_LOCAL + 1079, Kind::Bit),
             (FIRST_LOCAL + 1080, Kind::Bit),
             (FIRST_LOCAL + 2 * BLOCK - 1, Kind::Bit),
         ] {
@@ -218,7 +218,7 @@ fn native_blocks_replace_their_rows_and_bits_take_one_coordinate() {
             );
         }
         assert_eq!(
-            layout.width() + 41 * 1080 + (2 * BLOCK - 1080),
+            layout.width() + 41 * 1079 + (2 * BLOCK - 1079),
             plain_layout.width() + 41 * 2 * 150
         );
         assert_eq!(

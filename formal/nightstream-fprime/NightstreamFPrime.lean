@@ -117,6 +117,7 @@ import NightstreamFPrime.Export.Generic.Frame
 import NightstreamFPrime.Export.Generic.Substitute
 import NightstreamFPrime.Export.Generic.CircuitRelation
 import NightstreamFPrime.Export.Generic.NativeBlock
+import NightstreamFPrime.Export.Generic.AuxRelocation
 import NightstreamFPrime.Export.Generic.SlotLayout
 import NightstreamFPrime.Export.Generic.PieceRowsCompleteness
 import NightstreamFPrime.Export.Generic.RowReads

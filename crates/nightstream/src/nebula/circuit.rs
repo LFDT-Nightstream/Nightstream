@@ -202,14 +202,18 @@ pub(super) fn memory_circuit_phases<A: Application>(
     }
     let view = View::new(&sym);
     let readable = view.variables();
-    for row in &app.rows(&view)? {
+    let rows = app.rows(&view)?;
+    for row in &rows {
         if let Some(variable) = row.variable_outside(&readable) {
             return Err(ApplicationError::VariableOutOfScope(variable.index()).into());
         }
-        lower_constraint(&mut builder, row)?;
     }
+    let first_app_row = builder.row_count();
+    let aliases = super::poseidon::lower(&mut builder, &rows, app.poseidon2_hints(&view)?, &view, app.aux())?;
     mark(&builder, "Application rows");
-    Ok((builder.finish_with_output_rows(output_rows)?, phases))
+    let circuit = builder.finish_with_output_rows(output_rows)?;
+    super::poseidon::check_prefix(&circuit, first_app_row, &aliases)?;
+    Ok((circuit, phases))
 }
 
 #[cfg(test)]

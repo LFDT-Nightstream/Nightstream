@@ -11,6 +11,7 @@ use p3_goldilocks::Goldilocks as F;
 
 use super::expr::Expr;
 use super::geometry::Geometry;
+use super::poseidon::Poseidon2Hint;
 use super::records::PortAccess;
 use super::rows::View;
 use super::segment::Cell;
@@ -48,6 +49,12 @@ pub trait Application {
     /// a memory circuit rejects a row with any other variable. An error
     /// means the application has no rows for the view's geometry.
     fn rows(&self, view: &View) -> Result<Vec<Expr>, crate::Error>;
+
+    /// Optional permutation traces in `rows`. The compiler checks their exact
+    /// rows, private-word spans, and inputs before native block lowering.
+    fn poseidon2_hints(&self, _view: &View) -> Result<Vec<Poseidon2Hint>, crate::Error> {
+        Ok(Vec::new())
+    }
 
     /// One native step from `state`. `memory` holds the cells before the
     /// step's accesses. The runner applies the active ports in slot order and

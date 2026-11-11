@@ -18,6 +18,7 @@ mod expr;
 mod geometry;
 #[cfg(test)]
 mod machine;
+mod poseidon;
 mod proving;
 mod r1cs;
 mod records;
@@ -42,6 +43,7 @@ pub use geometry::Geometry;
 #[cfg(test)]
 pub(crate) use machine::{Machine, MachineError, MachineState, Step};
 use neo_application::MemoryPreload;
+pub use poseidon::Poseidon2Hint;
 pub use proving::{FinalProof, Proof, ProveError, Prover, Proving, Verified, Verifier, VerifyError};
 pub use r1cs::{batched_slots, R1csApplication, R1csApplicationError, R1csStepError, RowRelation, Size, Terms};
 pub use records::PortAccess;

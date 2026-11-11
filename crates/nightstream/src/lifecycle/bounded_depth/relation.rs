@@ -4,6 +4,7 @@
 //! `A · B − C + S^7` (`GatePolynomial.terms`) over the 28-variable cube, and
 //! the parameters that its shape allows.
 use std::ops::Range;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use crate::folding::{
     has_canonical_evaluations, superneo_has_canonical_x_shape, CcsClaim, CcsInstance, CcsWitness, CeClaim, FoldContext,
@@ -23,6 +24,7 @@ use nightstream_fprime::{
 use p3_field::PrimeCharacteristicRing;
 
 const MATRICES: usize = 4;
+const ROWS_PER_RANGE: usize = 1024;
 
 #[derive(Debug, thiserror::Error)]
 pub enum RelationError {
@@ -222,29 +224,43 @@ impl Relation {
 
     /// Every row of the relation holds on the logical assignment `logical`.
     pub(crate) fn rows_hold(&self, logical: &[F]) -> Result<(), &'static str> {
-        let check = |rows: Range<usize>| {
-            for row in rows {
-                let [a, b, c, s] = [0, 1, 2, 3].map(|port| self.layout.evaluate(&self.rows, row, port, logical));
-                let (Ok(a), Ok(b), Ok(c), Ok(s)) = (a, b, c, s) else {
-                    return Err("row evaluation");
-                };
-                if a * b - c + s.exp_u64(7) != F::ZERO {
-                    return Err("a relation row fails");
-                }
+        let holds = |row: usize| {
+            let [a, b, c, s] = [0, 1, 2, 3].map(|port| self.layout.evaluate(&self.rows, row, port, logical));
+            let (Ok(a), Ok(b), Ok(c), Ok(s)) = (a, b, c, s) else {
+                return Err("row evaluation");
+            };
+            if a * b - c + s.exp_u64(7) != F::ZERO {
+                return Err("a relation row fails");
             }
             Ok(())
         };
         let count = self.rows.row_count();
+        let next = AtomicUsize::new(0);
+        // The cost of a row varies a lot along the rows, so each worker takes
+        // the next small range until none is left.
+        let first_failure = || loop {
+            let start = next.fetch_add(ROWS_PER_RANGE, Ordering::Relaxed);
+            if start >= count {
+                return None;
+            }
+            for row in start..(start + ROWS_PER_RANGE).min(count) {
+                if let Err(error) = holds(row) {
+                    return Some((row, error));
+                }
+            }
+        };
         let threads = std::thread::available_parallelism().map_or(1, usize::from);
-        let chunk = count.div_ceil(threads).max(1);
         std::thread::scope(|scope| {
-            let workers: Vec<_> = (0..count)
-                .step_by(chunk)
-                .map(|start| scope.spawn(move || check(start..(start + chunk).min(count))))
-                .collect();
-            workers
+            let workers: Vec<_> = (0..threads).map(|_| scope.spawn(first_failure)).collect();
+            let failures = workers
                 .into_iter()
-                .try_for_each(|worker| worker.join().unwrap_or(Err("row worker panicked")))
+                .map(|worker| worker.join().map_err(|_| "row worker panicked"))
+                .collect::<Result<Vec<_>, _>>()?;
+            failures
+                .into_iter()
+                .flatten()
+                .min_by_key(|&(row, _)| row)
+                .map_or(Ok(()), |(_, error)| Err(error))
         })
     }
 

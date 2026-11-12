@@ -111,6 +111,13 @@ pub(crate) struct BoundedDepth {
     cap: u64,
 }
 
+/// `BoundedDepth::fold`'s result.
+pub(crate) struct Folded {
+    kind: Kind,
+    accumulator: pi_rlc::Output,
+    proof: crate::folding::bounded_depth::Proof,
+}
+
 impl BoundedDepth {
     pub(crate) fn new(
         packages: BoundedDepthPackages,
@@ -230,33 +237,69 @@ impl BoundedDepth {
         next: [F; 4],
         locals: Option<&[F]>,
     ) -> Result<Envelope, BoundedDepthError> {
+        let folded = self.fold(envelope)?;
+        self.step(envelope, folded, witness, next, locals)
+    }
+
+    /// The fold of `envelope`'s fresh instance into its selected slot, the
+    /// part of `extend` that needs neither the step's witness nor its output
+    /// state. `None` at iteration 0, which has no fresh instance.
+    pub(crate) fn fold(&self, envelope: &Envelope) -> Result<Option<Folded>, BoundedDepthError> {
+        let Some(fresh) = &envelope.fresh else {
+            return Ok(None);
+        };
+        let selected = (envelope.pc - 1) as usize;
+        let slot = &envelope.slots[selected];
+        let kind = if slot.depth < self.cap {
+            Kind::Light
+        } else {
+            Kind::Refresh
+        };
+        let (accumulator, proof) = prove(
+            kind,
+            &self.backend,
+            self.relations[selected].context(),
+            fresh.clone(),
+            slot.accumulator.clone(),
+        )?;
+        Ok(Some(Folded {
+            kind,
+            accumulator,
+            proof,
+        }))
+    }
+
+    /// `extend` after `fold`: `folded` is `fold`'s result on `envelope`.
+    pub(crate) fn step(
+        &self,
+        envelope: &Envelope,
+        folded: Option<Folded>,
+        witness: &[F],
+        next: [F; 4],
+        locals: Option<&[F]>,
+    ) -> Result<Envelope, BoundedDepthError> {
         let prior = self.state(envelope);
         let mut slots = envelope.slots.clone();
-        let (kind, step) = match &envelope.fresh {
-            None => (Kind::Light, words::base_step(&prior, next, witness)?.0),
-            Some(fresh) => {
+        let (kind, step) = match (&envelope.fresh, folded) {
+            (Some(fresh), Some(folded)) => {
                 let selected = (envelope.pc - 1) as usize;
-                let slot = &envelope.slots[selected];
-                let kind = if slot.depth < self.cap {
-                    Kind::Light
-                } else {
-                    Kind::Refresh
-                };
-                let (folded, proof) = prove(
+                let kind = folded.kind;
+                let (step, _) = words::fold_step(
+                    &prior,
+                    next,
+                    witness,
                     kind,
-                    &self.backend,
-                    self.relations[selected].context(),
-                    fresh.clone(),
-                    slot.accumulator.clone(),
-                )?;
-                let (step, _) =
-                    words::fold_step(&prior, next, witness, kind, &folded.claim, fresh.claim.c.data(), &proof);
+                    &folded.accumulator.claim,
+                    fresh.claim.c.data(),
+                    &folded.proof,
+                );
                 slots[selected] = Slot {
-                    accumulator: folded,
-                    depth: words::next_depth(kind, slot.depth),
+                    accumulator: folded.accumulator,
+                    depth: words::next_depth(kind, envelope.slots[selected].depth),
                 };
                 (kind, step)
             }
+            _ => (Kind::Light, words::base_step(&prior, next, witness)?.0),
         };
         let relation = &self.relations[words::pc(kind) as usize - 1];
         let logical = relation.assignment(self.package(kind), &step, locals)?;

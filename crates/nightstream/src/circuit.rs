@@ -389,13 +389,25 @@ impl Prover {
     /// The next proof; `proof` does not change. The Rust application
     /// computes the output state.
     pub fn extend(&self, proof: &Proof, private_inputs: &[F]) -> Result<Proof, Error> {
-        let witness = self
+        let application = self
             .application
             .as_ref()
-            .ok_or(ApplicationError::NoApplication)?
-            .execute(proof.state().current(), private_inputs)?;
-        Ok(Proof(self.lifecycle.extend(
+            .ok_or(ApplicationError::NoApplication)?;
+        // The application runs on the CPU while the engine folds the last
+        // step; neither needs the other's result.
+        let (witness, folded) = std::thread::scope(|scope| {
+            let run = scope.spawn(|| application.execute(proof.state().current(), private_inputs));
+            let folded = self.lifecycle.fold(&proof.0);
+            (
+                run.join()
+                    .unwrap_or_else(|panic| std::panic::resume_unwind(panic)),
+                folded,
+            )
+        });
+        let witness = witness?;
+        Ok(Proof(self.lifecycle.step(
             &proof.0,
+            folded?,
             private_inputs,
             witness.output_state(),
             Some(witness.locals()),

@@ -16,6 +16,7 @@ mod packed_boolean;
 mod packed_product;
 mod packed_zero;
 mod witness;
+mod word_packing;
 pub mod words;
 
 pub use application::{NativeBlock, NativeShape};
@@ -128,6 +129,7 @@ pub struct StepPackage {
     packed_booleans: packed_boolean::PackedBooleans,
     field_lowering: field_lowering::FieldLowering,
     guard_fusion: guard_fusion::GuardFusion,
+    word_packing: word_packing::WordPacking,
 }
 
 impl StepPackage {
@@ -280,6 +282,7 @@ impl StepPackage {
             packed_booleans: packed_boolean::PackedBooleans::default(),
             field_lowering: field_lowering::FieldLowering::default(),
             guard_fusion: guard_fusion::GuardFusion::default(),
+            word_packing: word_packing::WordPacking::default(),
         })
     }
 }

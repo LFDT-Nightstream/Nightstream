@@ -12,6 +12,63 @@ fn module(value: u32) -> String {
 }
 
 #[test]
+#[ignore = "Full production-profile proof; run alone under the 300-second cap."]
+fn full_wasm_word_packing_proof_checks_memory_control_and_program() {
+    let per_step = per_step(4);
+    let source = [module(42), module(43)];
+    let n = source
+        .iter()
+        .map(|wat| common::checked_main(wat).trace.len())
+        .max()
+        .unwrap()
+        .div_ceil(per_step.get())
+        .next_power_of_two();
+    let setup = Setup::of(source.iter().map(|wat| traced(wat, n, per_step)).collect(), n, per_step);
+    let (app, geometry) = setup.complete();
+    let circuit = nightstream::nebula::Circuit::compile(geometry, app.clone()).unwrap();
+    let prover = circuit.prover(nightstream::Engine::Optimized, 109).unwrap();
+    let verifier = circuit
+        .verifier(nightstream::Engine::Optimized, 109)
+        .unwrap();
+    let trace = &setup.programs[0];
+    let program = app.program(&trace.preload).unwrap();
+    let other_program = app.program(&setup.programs[1].preload).unwrap();
+    let mut run = prover.start(&program, trace.initial).unwrap();
+    run.segment(&trace.inputs).unwrap();
+    let proof = verifier
+        .decode_proof(&prover.encode_proof(&run.finish().unwrap()).unwrap())
+        .unwrap();
+    verifier
+        .verify(&program, &trace.initial, &trace.last, &proof)
+        .unwrap();
+    assert!(verifier
+        .verify(&other_program, &trace.initial, &trace.last, &proof)
+        .is_err());
+    for change in [
+        (|state: &mut WasmStepState| state.pc += 1) as fn(&mut WasmStepState),
+        |state| state.comm_chain[0] ^= 1,
+        |state| state.trapped = !state.trapped,
+    ] {
+        let mut last = trace.last;
+        change(&mut last);
+        assert!(verifier
+            .verify(&program, &trace.initial, &last, &proof)
+            .is_err());
+    }
+    let mut initial = trace.initial;
+    initial.pc += 1;
+    assert!(verifier
+        .verify(&program, &initial, &trace.last, &proof)
+        .is_err());
+    let (row, column) = access(trace, false);
+    let (step, position) = setup.position(&app, row, column);
+    let mut inputs = trace.inputs.clone();
+    inputs[step].z[position] += F::ONE;
+    let mut changed = prover.start(&program, trace.initial).unwrap();
+    assert!(changed.segment(&inputs).is_err());
+}
+
+#[test]
 #[ignore = "Creates retained compression setup files. Run this test alone."]
 fn full_wasm_packed_range_terminal_proof_checks_memory_control_and_program() {
     let per_step = per_step(4);

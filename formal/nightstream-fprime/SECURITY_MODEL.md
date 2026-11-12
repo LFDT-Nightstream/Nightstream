@@ -146,6 +146,24 @@ are not proved. Tests check those boundaries under trust item 5. This
 experiment adds no probabilistic test or cryptographic assumption and does
 not change terminal source checks.
 
+**Common-guard binary equality packing.** The adversary chooses the fresh
+assignment and wins if the packed rows hold but a replaced source row fails.
+The source words use at most 32 bits. Output chunks use at most 63 Boolean
+pairs. The guard can be any field value, including zero. The exact field
+equivalence is `Export.Generic.BoundedWord.common_guard_iff`.
+Every used source bit needs a retained forcing row or a retained packed
+Boolean certificate. The packed certificate requires the actual fresh norm
+and unchanged bit slots, as proved by
+`Export.Generic.WordPacking.Certificate.logical_norm`. A signed unit slot
+alone supplies no Boolean premise. All certificates remain outside the
+selected rows, so one replacement cannot certify another replacement.
+`Export.Generic.WordPacking.ordered_iff` preserves source rows and valid
+assignments under explicit encoding and coverage checks. Trust item 5 covers
+the Rust matcher, normalization, source indices, concrete encodings, group
+coverage, identity binding, and slot correspondence. These checks are not a
+new cryptographic assumption. The change adds no error probability and does
+not change terminal source checks.
+
 ### 2. Malicious terminal opening
 
 - **Controls:** the terminal statement and every value of the proof: the

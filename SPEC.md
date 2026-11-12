@@ -724,6 +724,24 @@ For source constraints whose renamed zero sets match the kept rows and permutati
 
 **Source.** Complementary row equivalence uses a Boolean guard (`Export.Generic.GuardFusion.complementary_rows` (`40b2d44285cb064e`)). A Boolean family total implies exclusion (`Export.Generic.GuardFusion.sum_bit_exclusive` (`92b5ae1dfd149b1c`)). Subset sums are Boolean and disjoint subsets cannot both be active (`Export.Generic.GuardFusion.subset_bit` (`ae380f8f2b7a8a57`), `Export.Generic.GuardFusion.disjoint_sums` (`ea2c0fe4ee4163bf`)). The family equation then preserves its guarded rows (`Export.Generic.GuardFusion.family_rows` (`e79817624726a53b`)). Retained certificates restore original rows, including a framed affine substitution and power chain (`Export.Generic.GuardFusion.restore_sources` (`4aaf4c76ab79691a`), `Export.Generic.GuardFusion.affine_restore_sources` (`ac76a39efa556d72`), `Export.Generic.GuardFusion.power_restore_sources` (`196ee43a7e172c36`)). The Rust family-certificate map does not by itself encode every Boolean premise of the Lean rewrite. The complete bridge must also supply the retained forcing facts or derive the packed seeds from the actual fresh norm. That bridge remains open.
 
+### 7.13 Common-guard binary equality packing
+
+**Input.** The application rows after section 7.12, their resolved forms, retained Boolean certificates, the fresh slot norm, and the original application records.
+
+**Output.** Fewer ordinary product rows with the same source relation, source columns, and logical assignment. The four-matrix polynomial remains `A*B-C+S^7`.
+
+**Steps.**
+
+1. Certify a source bit only through a retained forcing row or a retained packed Boolean row from section 7.9. For a packed source and its companion, require their unchanged bit slots and the actual fresh norm. Exclude every certificate row from replacement candidates. A slot width of one alone does not certify a bit.
+2. Select a row `g*L = 0` whose residual is the difference of two binary words of at most 32 bits. Normalize repeated columns and field coefficients. Each binary position can have at most one positive and one negative certified bit. Constants supply zero or one bits. Keep any row that fails these checks.
+3. Divide each nonzero guard form by its first nonzero coefficient. Group equal normalized guards. Orient each bit pair in canonical order, remove equal pairs, and remove duplicate pairs. These changes preserve the individual equalities.
+4. Split each group's ordered pairs into chunks of at most 63. For each chunk, emit `g*sum_i(2^i*(left_i-right_i)) = 0`. Replace the group only if the new row count is smaller. The two packed unsigned values are each below `2^63`, which is below the Goldilocks modulus. A chunk of 64 pairs is not permitted.
+5. Insert the replacement rows at the first selected source index and omit the other selected indices. Keep all certificate rows and other pieces in their order. Recompute piece ranges from the emitted rows. Bind the source indices, source rows, certificate indices and rows, normalized guard, and ordered pairs into the identity of section 4.4 for both Light and Refresh. Recompute the map before each native or source emission. The source view and assignment reconstruction remain unchanged.
+
+**Rejects.** A changed packing map or an invalid certificate row. An uncertified column, a coefficient collision at one binary position, a source word above 32 bits, or a group that saves no rows remains unchanged.
+
+**Source.** The field equality is exact for any common guard and at most 63 Boolean pairs (`Export.Generic.BoundedWord.common_guard_iff` (`e093a347a2294701`)). A matched source encoding includes the word bound, nonzero guard scaling, and port order (`Export.Generic.WordPacking.matched_source_iff` (`805b6ca9454d4c0b`)). Group coverage permits pair orientation, duplicate removal, and chunk splitting (`Export.Generic.WordPacking.group_iff` (`eb5e0cdd3425c4e9`)). Retained forcing or packed certificates supply the Boolean facts (`Export.Generic.WordPacking.Certificate.valid` (`cccdd44744e395fc`)). The packed certificate norm follows from actual fresh bit slots (`Export.Generic.WordPacking.Certificate.logical_norm` (`db0ddbf1398b518e`)). Coverage of retained and replaced rows gives both directions on the same assignment in source order (`Export.Generic.WordPacking.ordered_iff` (`4728a3de9e413891`)). The Rust numeric matcher, normalization, concrete source encoding, group coverage, and physical slot correspondence remain constructor checks under security trust item 5. Tests check those implementation links. These results add no probabilistic or cryptographic premise.
+
 ### Algorithm 9. Memory step
 
 **Input.** The input state, the carry `c` and the application words that open it, the output application words, the private words, the step's lanes, and the proposals.

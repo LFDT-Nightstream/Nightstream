@@ -61,7 +61,7 @@ fn canonical(form: Linear) -> Linear {
     form.scale(coefficient.inverse())
 }
 
-fn resolved(form: &Linear, forms: &HashMap<usize, Entries>) -> Linear {
+pub(super) fn resolved(form: &Linear, forms: &HashMap<usize, Entries>) -> Linear {
     let mut result = Linear {
         constant: form.constant,
         terms: Vec::new(),

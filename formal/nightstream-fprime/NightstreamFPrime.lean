@@ -140,6 +140,7 @@ import NightstreamFPrime.Export.Generic.PackedProduct
 import NightstreamFPrime.Export.Generic.PackedZero
 import NightstreamFPrime.Export.Generic.NativePower
 import NightstreamFPrime.Export.Generic.GuardFusion
+import NightstreamFPrime.Export.Generic.WordPacking
 import NightstreamFPrime.Export.Generic.IntegerProduct
 import NightstreamFPrime.Export.BoundedDepth.PackedBooleanCompleteness
 import NightstreamFPrime.Lifecycle.BoundedDepth.BlockSupport

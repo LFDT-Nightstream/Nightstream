@@ -290,6 +290,7 @@ impl StepPackage {
             self.packed_booleans
                 .validate(rows, self.sbox_start + SBOX_ROWS * self.block_count(), self.width)?;
             self.guard_fusion.validate(self)?;
+            self.word_packing.validate(self)?;
             let layout = self.layout()?;
             for column in self
                 .packed_booleans
@@ -339,6 +340,7 @@ impl StepPackage {
                 coefficients: Vec::new(),
             },
         };
+        let word_edits = self.word_packing.edits();
         for (index, piece) in self.pieces.iter().enumerate() {
             let first = builder.rows.row_count();
             match piece {
@@ -350,6 +352,12 @@ impl StepPackage {
                     } else {
                         for (row_index, row) in rows.iter().enumerate() {
                             if index == 0 && with_forms {
+                                if let Some(replacements) = word_edits.get(&row_index) {
+                                    for replacement in replacements {
+                                        builder.push_row(replacement)?;
+                                    }
+                                    continue;
+                                }
                                 if let Some(power) = self.field_lowering.powers.get(&row_index) {
                                     builder.push_power(&power.input, power.powers[3])?;
                                 }

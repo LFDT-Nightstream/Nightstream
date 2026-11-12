@@ -233,6 +233,7 @@ impl StepPackage {
             packed_booleans: PackedBooleans::default(),
             field_lowering: super::field_lowering::FieldLowering::default(),
             guard_fusion: super::guard_fusion::GuardFusion::default(),
+            word_packing: super::word_packing::WordPacking::default(),
             pieces: Vec::new(),
             witness: Vec::new(),
             slots: Vec::new(),
@@ -260,6 +261,7 @@ impl StepPackage {
         package.field_lowering = super::field_lowering::FieldLowering::checked(&package)?;
         package.slots = package.native_slots()?;
         package.guard_fusion = super::guard_fusion::GuardFusion::checked(&package)?;
+        package.word_packing = super::word_packing::WordPacking::checked(&package)?;
         Ok(package)
     }
 
@@ -444,7 +446,7 @@ impl BoundedDepthPackages {
     /// Both packages with a native application in place of Lean's. The
     /// identity binds the packages' identity, the witness word count, the
     /// application's rows and recipe rows, the shape, and the realized light
-    /// and refresh companion, product, zero-product, guard, and slot maps.
+    /// and refresh companion, product, zero-product, guard, word equality, and slot maps.
     /// Power and affine maps derive from these inputs (`Export.Generic.NativePower`).
     pub fn with_application(
         &self,
@@ -497,6 +499,7 @@ impl BoundedDepthPackages {
         for package in [&light, &refresh] {
             if let Some(Piece::Rows(rows)) = package.pieces.first() {
                 package.guard_fusion.bind(rows, &mut update);
+                package.word_packing.bind(rows, &mut update);
             }
             update(package.packed_booleans.start as u64);
             update(package.packed_booleans.sources.len() as u64);

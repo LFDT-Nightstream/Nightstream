@@ -8,7 +8,7 @@ use super::packed_zero::{self, ZeroProduct, ZEROS_PER_ROW};
 use super::{layout::forced_column, Linear, Row};
 use crate::package::PackageError;
 
-const PAIRS_PER_ROW: usize = 31;
+pub(super) const PAIRS_PER_ROW: usize = 31;
 
 #[derive(Clone, Debug, Default)]
 pub(super) struct PackedBooleans {
@@ -78,9 +78,8 @@ impl PackedBooleans {
             + self.zeros.len().div_ceil(ZEROS_PER_ROW)
     }
 
-    pub(super) fn rows(&self) -> impl Iterator<Item = Row> + '_ {
-        let pairs = self
-            .sources
+    pub(super) fn pairs(&self) -> impl Iterator<Item = (usize, usize)> + '_ {
+        self.sources
             .iter()
             .enumerate()
             .map(|(index, &source)| (source, self.start + index))
@@ -88,7 +87,10 @@ impl PackedBooleans {
                 let column = self.product_start() + 2 * index;
                 (column, column + 1)
             }))
-            .collect::<Vec<_>>();
+    }
+
+    pub(super) fn rows(&self) -> impl Iterator<Item = Row> + '_ {
+        let pairs = self.pairs().collect::<Vec<_>>();
         let mut rows = pairs
             .chunks(PAIRS_PER_ROW)
             .map(|sources| {

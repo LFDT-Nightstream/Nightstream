@@ -264,16 +264,19 @@ impl BoundedDepth {
         if CHECK_ROWS.get() {
             FAILED_ROW.set(relation.first_failing_row(self.package(kind), &step)?);
         }
-        let instance = relation.instance(&self.backend, &logical)?;
         #[cfg(test)]
         let keeps_faulty = CHECK_ROWS.get();
         #[cfg(not(test))]
         let keeps_faulty = false;
-        if !keeps_faulty {
-            relation
-                .rows_hold(&logical)
-                .map_err(BoundedDepthError::Fresh)?;
-        }
+        // The row check runs while the engine commits the witness.
+        let (instance, held) = std::thread::scope(|scope| {
+            let check = (!keeps_faulty).then(|| scope.spawn(|| relation.rows_hold(&logical)));
+            let instance = relation.instance(&self.backend, &logical);
+            let held = check.map_or(Ok(()), |check| check.join().unwrap_or(Err("row check panicked")));
+            (instance, held)
+        });
+        let instance = instance?;
+        held.map_err(BoundedDepthError::Fresh)?;
         Ok(Envelope {
             iteration: envelope.iteration + 1,
             z0: envelope.z0,

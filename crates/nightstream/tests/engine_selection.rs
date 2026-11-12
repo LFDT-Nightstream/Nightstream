@@ -36,7 +36,7 @@ fn available_engines_reach_the_circuit_check() {
                 engine,
                 114
             ),
-            Err(Error::Circuit("not a saved option-B application"))
+            Err(Error::Circuit("not a saved bounded-depth application"))
         ));
     }
 }

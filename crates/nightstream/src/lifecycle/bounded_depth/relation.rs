@@ -3,6 +3,7 @@
 //! factored form (each entry reads one slot, `SlotLayout.layout`), the gate
 //! `A · B − C + S^7` (`GatePolynomial.terms`) over the 28-variable cube, and
 //! the parameters that its shape allows.
+use rayon::prelude::*;
 use std::ops::Range;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -130,20 +131,29 @@ impl Relation {
                 got: logical.len(),
             });
         }
-        let (mut positive, mut negative) = (vec![0u64; self.blocks()], vec![0u64; self.blocks()]);
-        for (column, &value) in logical.iter().enumerate() {
-            if value == F::ONE {
-                positive[column / D] |= 1 << (column % D);
-            } else if value == -F::ONE {
-                negative[column / D] |= 1 << (column % D);
-            } else if value != F::ZERO {
-                let error = neo_ajtai::AjtaiError::RangeViolation {
-                    value: neo_math::balanced::to_balanced_i128(value),
-                    bound: 2,
-                };
-                return Err(CommitError::Input(error.to_string()).into());
+        let masks = |block: &[F]| {
+            let (mut positive, mut negative) = (0u64, 0u64);
+            for (lane, &value) in block.iter().enumerate() {
+                if value == F::ONE {
+                    positive |= 1 << lane;
+                } else if value == -F::ONE {
+                    negative |= 1 << lane;
+                } else if value != F::ZERO {
+                    let error = neo_ajtai::AjtaiError::RangeViolation {
+                        value: neo_math::balanced::to_balanced_i128(value),
+                        bound: 2,
+                    };
+                    return Err(CommitError::Input(error.to_string()));
+                }
             }
-        }
+            Ok((positive, negative))
+        };
+        let (positive, negative): (Vec<u64>, Vec<u64>) = logical
+            .par_chunks(D)
+            .map(masks)
+            .collect::<Result<Vec<_>, _>>()?
+            .into_iter()
+            .unzip();
         let witness = Mat::compact_signed_unit_from_column_masks(D, self.blocks(), &positive, &negative)
             .expect("one disjoint mask pair of D lanes for each block");
         let commitment = backend.commit(&[&witness])?.remove(0);

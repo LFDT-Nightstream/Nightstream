@@ -6,7 +6,7 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use p3_field::PrimeCharacteristicRing;
+use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks;
 
 use crate::application_records::{
@@ -211,8 +211,13 @@ fn native_blocks_replace_their_rows_and_bits_take_one_coordinate() {
                 expected
             );
         }
+        for local in FIRST_LOCAL..FIRST_LOCAL + 1079 {
+            assert!(plain_layout
+                .slot(plain.variable_column(local).unwrap())
+                .is_none());
+        }
         assert_eq!(
-            layout.width() - packed.packed_booleans.sources.len() + 41 * 1079 + (2 * BLOCK - 1079),
+            layout.width() - packed.packed_booleans.sources.len() + (2 * BLOCK - 1079),
             plain_layout.width() - plain.packed_booleans.sources.len() + 41 * 2 * 150
         );
         assert_eq!(
@@ -340,6 +345,26 @@ fn inferred_application_bits_keep_the_compact_layout() {
             row(6, 6, 6);
         }
         row(4, 5, 6);
+        writer
+            .append_row(
+                ApplicationRowHeader {
+                    constants: [0, 1, 0],
+                    term_counts: [1, 1, 0],
+                },
+                [
+                    (ApplicationForm::A, 4, 1),
+                    (ApplicationForm::B, 5, Goldilocks::NEG_ONE.as_canonical_u64()),
+                ]
+                .into_iter()
+                .map(|(form, variable, coefficient)| {
+                    Ok(ApplicationTerm {
+                        form,
+                        variable,
+                        coefficient,
+                    })
+                }),
+            )
+            .unwrap();
         Arc::new(writer.finish().unwrap())
     };
     let base = packages();
@@ -378,6 +403,18 @@ fn inferred_application_bits_keep_the_compact_layout() {
         ]);
         let old_slots = inferred.rule_slots(&old_bits);
         assert_ne!(old_slots, inferred.slots);
+        let mut shared = vec![Goldilocks::ZERO; inferred.application.local_start];
+        shared[0] = Goldilocks::ONE;
+        for variable in 4..7 {
+            shared[inferred.variable_column(variable).unwrap()] = Goldilocks::ONE;
+        }
+        let columns = inferred.circuit_columns(&shared).unwrap();
+        let plan = inferred.plan_rows().unwrap();
+        let source = inferred.source_rows().unwrap();
+        assert_eq!(
+            inferred.relation_columns(columns.clone(), &plan).unwrap(),
+            inferred.relation_columns(columns, &source).unwrap()
+        );
     }
 }
 

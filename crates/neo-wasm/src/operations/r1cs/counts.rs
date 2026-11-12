@@ -1,7 +1,10 @@
 use super::builder::{CircuitBuilder, ColumnId, Lc};
-use super::{opcode_lc, ops_lc};
+use super::opcode_lc;
+#[cfg(test)]
+use super::ops_lc;
 use crate::isa::WasmOpcode;
 
+#[cfg(test)]
 pub(super) fn enforce_zero_counts(
     builder: &mut CircuitBuilder,
     input: &[ColumnId],

@@ -502,3 +502,7 @@ impl Verifier {
         )?)
     }
 }
+
+#[cfg(test)]
+#[path = "../tests/bounded_depth_lifecycle/native_field_census.rs"]
+mod native_field_census;

@@ -147,8 +147,8 @@ fn forced_words(application: &ApplicationCircuit) -> BTreeSet<usize> {
 
 /// The machine's Rust-built memory circuit in place of the fixture's
 /// application preserves the Lean package's blocks and source rows. The
-/// coordinate ledger includes inferred bits and packed-check companions
-/// (`Export.Generic.PackedBoolean`).
+/// coordinate ledger includes inferred bits and each packed-check coordinate
+/// (`SPEC.md` sections 7.9 and 7.10).
 fn assert_native_packages_match_lean(package: Package, stem: &str) {
     let application = package.application().unwrap();
     let forced = forced_words(&application);
@@ -188,14 +188,17 @@ fn assert_native_packages_match_lean(package: Package, stem: &str) {
         }
         let actual = coordinates(native);
         let mut expected = coordinates(lean);
-        let companions = layout.spans().widths.len() - (native.sbox_start() + 150 * native.block_count());
-        assert_eq!(companions, forced.len());
+        let added_columns = layout.spans().widths.len() - (native.sbox_start() + 150 * native.block_count());
+        assert_eq!(
+            added_columns,
+            forced.len() + 2 * native.packed_product_count() + native.packed_zero_count()
+        );
         let refined = actual["Bit"]
-            .checked_sub(expected["Bit"] + companions)
+            .checked_sub(expected["Bit"] + added_columns)
             .unwrap();
         assert!(refined >= forced.len());
         *expected.get_mut("Field").unwrap() -= 41 * refined;
-        *expected.get_mut("Bit").unwrap() += refined + companions;
+        *expected.get_mut("Bit").unwrap() += refined + added_columns;
         assert_eq!(actual, expected);
     }
 }

@@ -87,6 +87,23 @@ fn ring_operands(cells: usize, cell: usize, lanes: &[Linear], columns: &[Goldilo
 }
 
 impl StepPackage {
+    pub fn source_assignment(&self, logical: &[Goldilocks]) -> Result<Vec<Goldilocks>, PackageError> {
+        if logical.first() != Some(&Goldilocks::ONE) {
+            return Err(PackageError::Input("bounded-depth constant column"));
+        }
+        let mut columns = self.layout()?.source_assignment(logical)?;
+        columns.resize(self.source_end(), Goldilocks::ZERO);
+        for (output, form) in self.output_forms()? {
+            columns[output] = form
+                .iter()
+                .fold(Goldilocks::ZERO, |sum, &(column, coefficient)| {
+                    sum + coefficient * columns[column]
+                });
+        }
+        self.field_lowering.reconstruct(&mut columns)?;
+        Ok(columns)
+    }
+
     /// The circuit's columns below `first_fresh` from `shared`, the columns
     /// below the first local: column 0 is the constant 1. A block's 1,080 dead
     /// locals stay 0, because no row reads them (`Frame.Framed`).
@@ -152,8 +169,8 @@ impl StepPackage {
     /// its row `a * b = f` and each ring piece's quotients. The S-box columns
     /// come first, because a row can read the form of a block output, which
     /// is over S-box columns. A block's lanes read only circuit columns and
-    /// outputs of blocks before it. Finally, append the companions as `1 - x`
-    /// (`Export.Generic.PackedBoolean.extendSource`).
+    /// outputs of blocks before it. Finally, fill the companions, parity
+    /// pairs and zero-product sums (`SPEC.md` sections 7.9 and 7.10).
     pub fn relation_columns(
         &self,
         mut columns: Vec<Goldilocks>,
@@ -205,6 +222,16 @@ impl StepPackage {
         }
         for (index, &source) in self.packed_booleans.sources.iter().enumerate() {
             columns[self.packed_booleans.start + index] = Goldilocks::ONE - columns[source];
+        }
+        self.field_lowering.reconstruct(&mut columns)?;
+        for (index, product) in self.packed_booleans.products.iter().enumerate() {
+            let column = self.packed_booleans.product_start() + 2 * index;
+            columns[column] =
+                columns[product.left] + columns[product.right] - Goldilocks::from_u64(2) * columns[product.output];
+            columns[column + 1] = Goldilocks::ONE - columns[column];
+        }
+        for (index, zero) in self.packed_booleans.zeros.iter().enumerate() {
+            columns[self.packed_booleans.zero_start() + index] = zero.left.value(&columns) + zero.right.value(&columns);
         }
         Ok(columns)
     }

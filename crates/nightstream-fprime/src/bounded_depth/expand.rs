@@ -1,5 +1,7 @@
 //! A step package's plan rows (`CircuitRelation.plan`): one row for each row
 //! of `Package.relationRows`, then 150 S-box rows for each block, block-major.
+//! Native applications use the experimental `NativePower` rewrite.
+//! The source view retains the original application rows.
 //! A row has four port forms over the logical columns: A, B, C and the S-box
 //! input. An R1CS row fills A, B and C, and its constant reads column 0. A
 //! port reads, in place of an output local of a block, the local's form over
@@ -37,7 +39,7 @@ pub struct PlanRows {
 }
 
 impl PlanRows {
-    pub(super) fn piece_ranges(&self) -> &[Range<usize>] {
+    pub fn piece_ranges(&self) -> &[Range<usize>] {
         &self.piece_ranges
     }
 
@@ -45,7 +47,7 @@ impl PlanRows {
         (self.offsets.len() - 1) / PORTS
     }
 
-    /// The number of ordinary R1CS rows before the S-box rows in this view.
+    /// The source-piece rows before the native block S-box rows.
     pub fn ordinary_row_count(&self) -> usize {
         self.ordinary
     }
@@ -174,6 +176,14 @@ impl Builder {
         Ok(())
     }
 
+    fn push_power(&mut self, input: &Linear, output: usize) -> Result<(), PackageError> {
+        self.end_port();
+        self.end_port();
+        self.push(output, Goldilocks::ONE)?;
+        self.end_port();
+        self.push_linear(input)
+    }
+
     /// `PieceRows.ringRows`: for each cell and each of the 108 nodes,
     /// `challenge * value = output - prior + Φ81 * quotient` at the node.
     fn push_ring(&mut self, cells: usize, start: usize, quotient: usize, lanes: &[Linear]) -> Result<(), PackageError> {
@@ -220,16 +230,52 @@ impl Builder {
 }
 
 impl StepPackage {
+    pub(super) fn output_forms(&self) -> Result<HashMap<usize, Entries>, PackageError> {
+        let mut forms = HashMap::new();
+        for (index, block) in self.blocks().enumerate() {
+            let sbox = self.sbox_start + index * SBOX_ROWS;
+            let finals = (0..BLOCK_LANES)
+                .map(|lane| sbox + FINAL_SBOX + lane)
+                .collect::<Vec<_>>();
+            for (lane, form) in external_outputs(&finals, self.width)?
+                .into_iter()
+                .enumerate()
+            {
+                forms.insert(block.start() + BLOCK_OUTPUTS + lane, form);
+            }
+        }
+        Ok(forms)
+    }
+
+    pub(super) fn resolved_forms(&self) -> Result<HashMap<usize, Entries>, PackageError> {
+        let mut forms = self.output_forms()?;
+        for (&column, (_, linear)) in &self.field_lowering.affine {
+            let mut entries = vec![(0, linear.constant)];
+            for &(input, coefficient) in &linear.terms {
+                if let Some(form) = forms.get(&input) {
+                    entries.extend(
+                        form.iter()
+                            .map(|&(source, value)| (source, value * coefficient)),
+                    );
+                } else {
+                    entries.push((input, coefficient));
+                }
+            }
+            forms.insert(column, entries);
+        }
+        Ok(forms)
+    }
+
     /// Expands the package into its circuit's plan rows
     /// (`Package.relationRows`): the pieces' rows in order (a block
     /// contributes none), then the blocks' S-box rows from the shared formula
-    /// library. Each port reads the form of an output local in place of the
-    /// local.
+    /// library. Native applications use the experimental `NativePower`
+    /// rewrite. Each port substitutes native output and affine forms.
     pub fn plan_rows(&self) -> Result<PlanRows, PackageError> {
         self.rows(true)
     }
 
-    /// The original source rows before `Export.Generic.PackedBoolean`, where
+    /// The original source rows before the native rewrites, where
     /// a port reads an output local itself. The final program checks these
     /// rows and each block as a permutation (`FinishRelation.package_finish`).
     pub fn source_rows(&self) -> Result<PlanRows, PackageError> {
@@ -243,6 +289,28 @@ impl StepPackage {
             };
             self.packed_booleans
                 .validate(rows, self.sbox_start + SBOX_ROWS * self.block_count(), self.width)?;
+            self.guard_fusion.validate(self)?;
+            let layout = self.layout()?;
+            for column in self
+                .packed_booleans
+                .products
+                .iter()
+                .flat_map(|product| [product.left, product.right, product.output])
+                .chain(
+                    self.packed_booleans
+                        .zeros
+                        .iter()
+                        .flat_map(|zero| [zero.left.column, zero.right.column]),
+                )
+                .chain(self.packed_booleans.start..self.packed_booleans.end())
+            {
+                if layout
+                    .slot(column)
+                    .is_none_or(|(_, kind)| kind != super::layout::Kind::Bit)
+                {
+                    return Err(PackageError::Malformed("bounded-depth packed product slot"));
+                }
+            }
         }
         let mut blocks = Vec::new();
         for piece in &self.pieces {
@@ -253,21 +321,11 @@ impl StepPackage {
                 blocks.push((*start, lanes.as_slice()));
             }
         }
-        let mut forms = HashMap::new();
-        if with_forms {
-            for (index, &(start, _)) in blocks.iter().enumerate() {
-                let sbox = self.sbox_start + index * SBOX_ROWS;
-                let finals: Vec<usize> = (0..BLOCK_LANES)
-                    .map(|lane| sbox + FINAL_SBOX + lane)
-                    .collect();
-                for (lane, form) in external_outputs(&finals, self.width)?
-                    .into_iter()
-                    .enumerate()
-                {
-                    forms.insert(start + BLOCK_OUTPUTS + lane, form);
-                }
-            }
-        }
+        let forms = if with_forms {
+            self.resolved_forms()?
+        } else {
+            HashMap::new()
+        };
         let mut builder = Builder {
             width: self.width,
             forms,
@@ -290,7 +348,25 @@ impl StepPackage {
                             builder.push_row(row)?;
                         }
                     } else {
-                        for row in rows {
+                        for (row_index, row) in rows.iter().enumerate() {
+                            if index == 0 && with_forms {
+                                if let Some(power) = self.field_lowering.powers.get(&row_index) {
+                                    builder.push_power(&power.input, power.powers[3])?;
+                                }
+                                if self.field_lowering.removed.contains(&row_index)
+                                    || self.guard_fusion.removed.contains(&row_index)
+                                {
+                                    continue;
+                                }
+                            }
+                            let row = if index == 0 && with_forms {
+                                self.guard_fusion
+                                    .replacements
+                                    .get(&row_index)
+                                    .unwrap_or(row)
+                            } else {
+                                row
+                            };
                             builder.push_row(row)?;
                         }
                     }

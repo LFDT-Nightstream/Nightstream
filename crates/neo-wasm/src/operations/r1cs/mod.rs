@@ -1,10 +1,19 @@
 //! Fixed R1CS implementation of the WASM operation relations.
+#[cfg(test)]
 mod bitwise;
 mod builder;
 mod compare;
 mod counts;
+#[cfg(test)]
 mod mul_div;
+mod shared;
+
+#[cfg(test)]
 mod shift;
+
+#[cfg(test)]
+#[path = "../../../tests/operations/shared_legacy.rs"]
+mod shared_legacy;
 
 use crate::sparse_r1cs::SparseR1cs;
 use crate::tagged_r1cs_builder::WasmConstraintScope;
@@ -19,13 +28,14 @@ use crate::layout::{
     COL_STACK_WRITE0_VALUE_LO,
 };
 use crate::range_check::range_checked_bit_columns;
-use bitwise::enforce_bitwise;
 use builder::{selector_lc, CircuitBuilder, ColumnId, Lc};
 use compare::enforce_comparisons;
-use counts::{enforce_popcount, enforce_zero_counts};
-use mul_div::{enforce_div_rem, enforce_mul};
-use shift::enforce_shifts;
+use counts::enforce_popcount;
+#[cfg(test)]
+use counts::enforce_zero_counts;
+#[cfg(test)]
 const LIMB_BITS: usize = 16;
+#[cfg(test)]
 const CARRY_BITS: usize = 18;
 struct Inputs {
     left32: Vec<ColumnId>,
@@ -46,9 +56,9 @@ const SECTIONS: &[Section] = {
     use WasmOpcode::*;
     &[
         Section {
-            name: "bitwise",
-            opcodes: || vec![I32And, I32Or, I32Xor, I64And, I64Or, I64Xor],
-            constrain: enforce_bitwise,
+            name: "shared_binary",
+            opcodes: shared::opcodes,
+            constrain: shared::enforce,
         },
         Section {
             name: "compare",
@@ -62,30 +72,6 @@ const SECTIONS: &[Section] = {
             constrain: enforce_comparisons,
         },
         Section {
-            name: "shift",
-            opcodes: || {
-                vec![
-                    I32Shl, I32ShrU, I32ShrS, I32Rotl, I32Rotr, I64Shl, I64ShrU, I64ShrS, I64Rotl, I64Rotr,
-                ]
-            },
-            constrain: enforce_shifts,
-        },
-        Section {
-            name: "mul",
-            opcodes: || vec![I32Mul, I64Mul],
-            constrain: enforce_mul,
-        },
-        Section {
-            name: "zcount32",
-            opcodes: || vec![I32Clz, I32Ctz],
-            constrain: |b, i| enforce_zero_counts(b, &i.left32, &i.output32, false),
-        },
-        Section {
-            name: "zcount64",
-            opcodes: || vec![I64Clz, I64Ctz],
-            constrain: |b, i| enforce_zero_counts(b, &i.left64, &i.output64, true),
-        },
-        Section {
             name: "popcnt32",
             opcodes: || vec![I32Popcnt],
             constrain: |b, i| enforce_popcount(b, &i.left32, &i.output32, I32Popcnt),
@@ -94,16 +80,6 @@ const SECTIONS: &[Section] = {
             name: "popcnt64",
             opcodes: || vec![I64Popcnt],
             constrain: |b, i| enforce_popcount(b, &i.left64, &i.output64, I64Popcnt),
-        },
-        Section {
-            name: "divrem32",
-            opcodes: || vec![I32DivU, I32DivS, I32RemU, I32RemS],
-            constrain: |b, i| enforce_div_rem(b, &i.left32, &i.right32, &i.output32, false),
-        },
-        Section {
-            name: "divrem64",
-            opcodes: || vec![I64DivU, I64DivS, I64RemU, I64RemS],
-            constrain: |b, i| enforce_div_rem(b, &i.left64, &i.right64, &i.output64, true),
         },
     ]
 };
@@ -127,6 +103,7 @@ impl Inputs {
     }
 }
 
+#[cfg(test)]
 fn limb(bits: &[ColumnId], index: usize) -> &[ColumnId] {
     &bits[index * LIMB_BITS..(index + 1) * LIMB_BITS]
 }

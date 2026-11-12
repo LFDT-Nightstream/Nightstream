@@ -9,8 +9,12 @@
 mod application;
 mod boolean;
 mod expand;
+mod field_lowering;
+mod guard_fusion;
 pub mod layout;
 mod packed_boolean;
+mod packed_product;
+mod packed_zero;
 mod witness;
 pub mod words;
 
@@ -122,6 +126,8 @@ pub struct StepPackage {
     application: Region,
     native: Option<Arc<ApplicationRecords>>,
     packed_booleans: packed_boolean::PackedBooleans,
+    field_lowering: field_lowering::FieldLowering,
+    guard_fusion: guard_fusion::GuardFusion,
 }
 
 impl StepPackage {
@@ -143,6 +149,46 @@ impl StepPackage {
 
     pub fn sbox_start(&self) -> usize {
         self.sbox_start
+    }
+
+    pub fn packed_product_count(&self) -> usize {
+        self.packed_booleans.products.len()
+    }
+
+    pub fn packed_boolean_count(&self) -> usize {
+        self.packed_booleans.sources.len() + self.packed_product_count()
+    }
+
+    pub fn packed_zero_count(&self) -> usize {
+        self.packed_booleans.zeros.len()
+    }
+
+    pub fn packed_zero_products(&self) -> impl Iterator<Item = [usize; 6]> + '_ {
+        self.packed_booleans
+            .zeros
+            .iter()
+            .enumerate()
+            .map(|(index, zero)| {
+                [
+                    zero.row,
+                    zero.left.column,
+                    usize::from(zero.left.complement),
+                    zero.right.column,
+                    usize::from(zero.right.complement),
+                    self.packed_booleans.zero_start() + index,
+                ]
+            })
+    }
+
+    pub fn packed_products(&self) -> impl Iterator<Item = [usize; 6]> + '_ {
+        self.packed_booleans
+            .products
+            .iter()
+            .enumerate()
+            .map(|(index, product)| {
+                let xor = self.packed_booleans.product_start() + 2 * index;
+                [product.row, product.left, product.right, product.output, xor, xor + 1]
+            })
     }
 
     fn source_end(&self) -> usize {
@@ -232,6 +278,8 @@ impl StepPackage {
             application,
             native: None,
             packed_booleans: packed_boolean::PackedBooleans::default(),
+            field_lowering: field_lowering::FieldLowering::default(),
+            guard_fusion: guard_fusion::GuardFusion::default(),
         })
     }
 }

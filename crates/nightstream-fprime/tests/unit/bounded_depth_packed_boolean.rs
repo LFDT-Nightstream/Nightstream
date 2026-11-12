@@ -128,3 +128,47 @@ fn malformed_companion_maps_and_changed_rows_are_rejected() {
     rows[0].a.constant += F::ONE;
     assert!(packed.validate(&rows, 3, 5).is_err());
 }
+
+#[test]
+fn product_maps_restore_raw_rows_and_reject_circular_input_proofs() {
+    let product = |a, b, c| Row {
+        a: form(F::ZERO, &[(a, F::ONE)]),
+        b: form(F::ZERO, &[(b, F::ONE)]),
+        c: form(F::ZERO, &[(c, F::ONE)]),
+    };
+    let original = vec![bit(1), bit(2), product(1, 2, 3), product(3, 2, 4)];
+    let mut rows = original.clone();
+    let packed = PackedBooleans::lower(&mut rows, 5, |_| true);
+    assert_eq!(packed.products.len(), 2);
+    assert_eq!(packed.end(), 11);
+    assert_eq!(packed.row_count(), 2);
+    assert_eq!(
+        packed.original_rows(&rows).unwrap(),
+        original.iter().collect::<Vec<_>>()
+    );
+    packed.validate(&rows, 5, 11).unwrap();
+    for a in 0..=1 {
+        for b in 0..=1 {
+            let mut values = vec![F::ZERO; 11];
+            values[1] = F::from_i64(a);
+            values[2] = F::from_i64(b);
+            values[3] = F::from_i64(a * b);
+            values[4] = F::from_i64(a * b);
+            values[5] = F::ONE - values[1];
+            values[6] = F::ONE - values[2];
+            for (index, gate) in packed.products.iter().enumerate() {
+                let xor = packed.product_start() + 2 * index;
+                values[xor] = values[gate.left] + values[gate.right] - F::from_u64(2) * values[gate.output];
+                values[xor + 1] = F::ONE - values[xor];
+            }
+            assert!(rows.iter().all(|row| residual(row, &values) == F::ZERO));
+        }
+    }
+    let mut wrong = packed.clone();
+    wrong.products[0].left = 4;
+    wrong.removed[2].1 = product(4, 2, 3);
+    let mut forged = wrong.rows().collect::<Vec<_>>();
+    assert!(wrong.validate(&forged, 5, 11).is_err());
+    forged[0].a.constant += F::ONE;
+    assert!(packed.validate(&forged, 5, 11).is_err());
+}

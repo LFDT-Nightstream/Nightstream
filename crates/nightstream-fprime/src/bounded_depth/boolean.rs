@@ -35,7 +35,7 @@ impl Form {
     }
 }
 
-fn inferred_column(row: &Row, known: &[bool], eligible: &[bool]) -> Option<usize> {
+pub(super) fn inferred_column(row: &Row, known: &[bool], eligible: &[bool]) -> Option<usize> {
     let mut a = Form::canonical(&row.a);
     let mut b = Form::canonical(&row.b);
     let mut c = Form::canonical(&row.c);
@@ -92,14 +92,19 @@ fn inferred_column(row: &Row, known: &[bool], eligible: &[bool]) -> Option<usize
 
 #[cfg(test)]
 pub(super) fn inferred_columns(rows: &[Row], eligible: &[bool]) -> Vec<usize> {
-    inferred_columns_with_seeds(rows, eligible, &[])
+    inferred_from_rows(rows.iter(), eligible, &[])
 }
 
-pub(super) fn inferred_columns_with_seeds(rows: &[Row], eligible: &[bool], seeds: &[usize]) -> Vec<usize> {
+pub(super) fn inferred_from_rows<'a>(
+    rows: impl IntoIterator<Item = &'a Row>,
+    eligible: &[bool],
+    seeds: &[usize],
+) -> Vec<usize> {
+    let rows = rows.into_iter().collect::<Vec<_>>();
     let mut known = vec![false; eligible.len()];
     for column in rows
         .iter()
-        .filter_map(forced_column)
+        .filter_map(|row| forced_column(row))
         .chain(seeds.iter().copied())
     {
         if let Some(value) = known.get_mut(column) {

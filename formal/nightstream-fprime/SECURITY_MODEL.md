@@ -102,6 +102,50 @@ facts before native-output substitution
 source relation retains its original forcing rows because its own source
 assignment has no signed-unit premise.
 
+The adversary also controls parity pairs and zero-product sums from section 7.10.
+The product check first recovers each bounded residual
+(`Export.Generic.PackedProduct.packed_implies_residuals`). Boolean input facts
+then force the original product (`Export.Generic.PackedProduct.half_adder`).
+Each removed product uses input derivations from forcing rows or earlier source
+rows, not from the row under restoration (`Export.Generic.PackedProduct.restore_rows`).
+Zero-product checks require both inputs to be directly forced Boolean values
+before decoding their packed residuals (`Export.Generic.PackedZero.packed_implies_residuals`).
+The signed-unit sum then forces the original zero product
+(`Export.Generic.PackedZero.zero_product`). The actual fresh norm supplies every
+new coordinate bound. No accumulator norm or uncommitted affine output supplies
+that bound. Honest values follow from `Export.Generic.PackedProduct.honest_values`
+and `Export.Generic.PackedZero.honest_values`. These results add no cryptographic
+or probabilistic premise. Trust item 5 still covers the Rust constructor's
+framing, map, coverage, source-order and slot checks.
+
+**Experimental native guard fusion.** The adversary chooses the fresh assignment
+and wins if its fused guard rows hold but an original guarded row fails.
+Complementary fusion requires a proved Boolean guard
+(`Export.Generic.GuardFusion.complementary_rows`). A family whose directly
+forced selectors sum to a Boolean value has mutually exclusive selectors
+when its size is below the field modulus
+(`Export.Generic.GuardFusion.sum_bit_exclusive`). Subset sums are Boolean,
+and disjoint subsets are mutually exclusive
+(`Export.Generic.GuardFusion.subset_bit`,
+`Export.Generic.GuardFusion.disjoint_sums`). The family rewrite preserves its
+rows under that exclusion condition
+(`Export.Generic.GuardFusion.family_rows`). The constant coordinate must be 1
+when source column 0 is moved into an affine constant. Nonzero field scaling
+does not make an unchecked affine form Boolean.
+
+Certificates must remain outside the removed guard rows. Retained
+certificates give exact source restoration, including composition with an
+acyclic affine substitution and a framed native power chain
+(`Export.Generic.GuardFusion.restore_sources`,
+`Export.Generic.GuardFusion.affine_restore_sources`,
+`Export.Generic.GuardFusion.power_restore_sources`). A packed seed still
+requires the actual fresh norm and slot correspondence stated above. A kind
+label or a native output alias supplies no Boolean premise. The Rust matcher,
+normalization, original-record map, and complete compiler and slot bridge
+are not proved. Tests check those boundaries under trust item 5. This
+experiment adds no probabilistic test or cryptographic assumption and does
+not change terminal source checks.
+
 ### 2. Malicious terminal opening
 
 - **Controls:** the terminal statement and every value of the proof: the

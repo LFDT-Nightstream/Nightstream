@@ -161,3 +161,31 @@ fn shift_counts_narrow() {
 fn shift_counts_wide() {
     check(true, &shift_program(true), 5);
 }
+
+#[test]
+fn random_integer_pairs() {
+    let mut seed = 0x9e37_79b9_7f4a_7c15u64;
+    for wide in [false, true] {
+        let ty = if wide { "i64" } else { "i32" };
+        let cast = |value: u64| if wide { value as i64 } else { value as u32 as i32 as i64 };
+        let mut body = String::new();
+        for _ in 0..64 {
+            seed ^= seed << 13;
+            seed ^= seed >> 7;
+            seed ^= seed << 17;
+            let left = seed;
+            seed ^= seed << 13;
+            seed ^= seed >> 7;
+            seed ^= seed << 17;
+            let right = seed | 1;
+            for op in BINARY32 {
+                body += &format!("{ty}.const {} {ty}.const {} {ty}.{op} drop\n", cast(left), cast(right));
+            }
+            for op in UNARY {
+                body += &format!("{ty}.const {} {ty}.{op} drop\n", cast(left));
+            }
+        }
+        let source = format!("(module (func (export \"main\") (result i32) {body} i32.const 0))");
+        check(wide, &source, 24);
+    }
+}

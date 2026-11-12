@@ -123,6 +123,26 @@ impl LogicalLayout {
         Ok(logical)
     }
 
+    pub fn source_assignment(&self, logical: &[Goldilocks]) -> Result<Vec<Goldilocks>, PackageError> {
+        if logical.len() != self.width {
+            return Err(PackageError::Input("bounded-depth logical assignment width"));
+        }
+        let mut columns = vec![Goldilocks::ZERO; self.offsets.len().max(PUBLIC)];
+        columns[..PUBLIC].copy_from_slice(&logical[..PUBLIC]);
+        for &column in &self.slots {
+            let offset = self.offsets[column] as usize;
+            let width = self.kinds[column].width();
+            let mut coefficient = Goldilocks::ONE;
+            let mut value = Goldilocks::ZERO;
+            for &digit in &logical[offset..offset + width] {
+                value += coefficient * digit;
+                coefficient *= Goldilocks::from_u64(FIELD_RATIO);
+            }
+            columns[column] = value;
+        }
+        Ok(columns)
+    }
+
     /// Lean `Parity.logicalSum`: the public columns and the digits of each
     /// slot below `limit`, each times `mix(1, logical column)`.
     pub fn checksum(&self, logical: &[Goldilocks], limit: usize) -> u64 {
@@ -234,6 +254,9 @@ impl StepPackage {
         mark(&mut forced, &mut inferred.iter().copied());
         let mut runs: Vec<(usize, usize, u8)> = Vec::new();
         for column in self.public_columns..end {
+            if self.field_lowering.dead.contains(&column) {
+                continue;
+            }
             if !((reads[column] && !outputs[column]) || (self.sbox_start..sbox_end).contains(&column)) {
                 continue;
             }

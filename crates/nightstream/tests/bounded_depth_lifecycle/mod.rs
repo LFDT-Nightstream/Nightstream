@@ -427,6 +427,13 @@ fn final_proof_verifies() {
         .expect("final proof");
     eprintln!("final proof elapsed={:?}", proving.elapsed());
     eprintln!("final proof bytes: {}", proof.shrink.to_bytes().len());
+    let again = prover
+        .prove_final(&keys, &finish, statement, &witness)
+        .expect("second final proof");
+    assert!(
+        proof.shrink.to_bytes() == again.shrink.to_bytes(),
+        "two runs of the final prover give the same bytes"
+    );
     let verifying = std::time::Instant::now();
     prover
         .verify_final(&keys, &finish, iteration, z0, current, &proof)

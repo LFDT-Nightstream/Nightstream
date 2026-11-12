@@ -22,7 +22,7 @@ Lemma direct_call_entry_bound : forall initial final w pc returnPC caller index 
 Proof.
   intros initial final w pc returnPC caller index address module typeIndex params results locals body entry
     Hprime Hfull Hprogram Hpc Hreplay [_ [_ [Hop [Htarget [_ [Hmeta [Htotal Hentry]]]]]]] Hp Hr.
-  pose proof (circuit_row_opcode_fetch _ _ _ Hreplay Hprogram) as Hfetch.
+  pose proof (circuit_row_opcode_fetch _ _ _ Hprime Hfull Hreplay Hprogram) as Hfetch.
   rewrite Hpc, Hop in Hfetch. injection Hfetch as Hcode.
   assert (Hcall : w COL_SEL_CALL = 1).
   { eapply full_opcode_selects with (code := OpcodeCatalog.CODE_CALL); try eassumption; [reflexivity | congruence]. }

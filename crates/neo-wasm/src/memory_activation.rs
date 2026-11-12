@@ -208,15 +208,11 @@ pub(crate) fn activation_supports() -> BTreeMap<usize, BTreeSet<usize>> {
         &mut supports,
         "static pc-ROM reads",
         COL_PC_ROM_ACTIVE,
-        opcode_selectors(WasmOpcode::supported().into_iter().filter(|opcode| {
-            !matches!(
-                opcode,
-                WasmOpcode::CallIndirect
-                    | WasmOpcode::ReturnCallIndirect
-                    | WasmOpcode::Return
-                    | WasmOpcode::Unreachable
-            )
-        })),
+        opcode_selectors(
+            WasmOpcode::supported()
+                .into_iter()
+                .filter(|opcode| opcode.uses_pc_rom()),
+        ),
     );
 
     insert_derived_activation_support(

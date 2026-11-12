@@ -345,6 +345,42 @@ pub fn build_wasm_relation() -> Result<ApplicationRelation<WasmConstraintScope>,
         );
     });
 
+    b.with_tag(always("program header packing"), |b| {
+        b.push_linear_zero([
+            (crate::layout::COL_PROGRAM_HEADER, F::ONE),
+            (COL_OPCODE_CODE, -F::ONE),
+            (COL_PC_EDGE_KIND, -F::from_u64(65536)),
+        ]);
+    });
+    b.with_tag(always("host slot descriptor packing"), |b| {
+        use crate::layout::*;
+        b.push_linear_zero([
+            (COL_HOST_EVENT_SLOT_DESCRIPTOR, F::ONE),
+            (COL_HOST_EVENT_SLOT_KIND, -F::ONE),
+            (COL_HOST_EVENT_SLOT_ARG, -F::from_u64(32)),
+            (COL_HOST_EVENT_SLOT_VARIANT, -F::from_u64(8192)),
+        ]);
+    });
+    b.with_tag(always("pc fallthrough flag"), |b| {
+        b.push_linear_zero(
+            std::iter::once((crate::layout::COL_PC_FALLTHROUGH, F::ONE)).chain(
+                WasmOpcode::supported()
+                    .into_iter()
+                    .filter(|op| op.falls_through())
+                    .map(|op| (selector_col(op).unwrap(), -F::ONE)),
+            ),
+        );
+        push_gated_linear_zero(
+            b,
+            crate::layout::COL_PC_FALLTHROUGH,
+            [
+                (crate::layout::COL_PC_AFTER, F::ONE),
+                (crate::layout::COL_PC_BEFORE, -F::ONE),
+                (COL_ONE, -F::ONE),
+            ],
+        );
+    });
+
     // Stack balance excludes non-popping host-event reads and treats a captured
     // result as consumed by the host.
     b.push_linear_zero([
@@ -387,14 +423,14 @@ pub fn build_wasm_relation() -> Result<ApplicationRelation<WasmConstraintScope>,
 
     b.with_tag(always("pc edge kind constraints"), |b| {
         // Edge kind encodes the next-PC source:
-        // 0 = static pc ROM, 1 = return-like, 2 = call_indirect target,
+        // 0 = fallthrough or static control edge, 1 = return-like, 2 = call_indirect target,
         // 3 = terminal unreachable. Return-like rows are identified by
         // the transition into `activation_finished` for the final frame and by
         // `call_stack_pop_present` for
         // non-final returns; the latter intentionally covers both explicit
         // `return` and a callee's function-ending `end`. A div trap row
         // and a trapping call_indirect resolve row halt but keep their Static
-        // edge kind (the per-pc edge-kind ROM binds it); the -trap terms absorb their `activation_finished`
+        // edge kind (the program header binds it); the -trap terms absorb their `activation_finished`
         // contributions. Entry/resume can clear the latch; the authenticated
         // clear flag cancels that delta only when the latch was set.
         b.push_linear_zero(
@@ -444,7 +480,7 @@ pub fn build_wasm_relation() -> Result<ApplicationRelation<WasmConstraintScope>,
         b.push_row(
             [(COL_IS_PROGRAM_ROW, F::ONE)],
             [(COL_PC_EDGE_KIND_IS_STATIC, F::ONE)],
-            [(COL_PC_ROM_ACTIVE, F::ONE)],
+            [(COL_PC_ROM_ACTIVE, F::ONE), (crate::layout::COL_PC_FALLTHROUGH, F::ONE)],
         );
     });
 

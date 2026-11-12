@@ -54,8 +54,8 @@ pub struct WasmProgramTables {
     pub program_decode: Vec<WasmProgramDecodeEntry>,
     /// Static next-PC ROM rows `(pc_before, control_choice, pc_after)`. The
     /// ROM key of a row is `pc_before + control_choice`.
-    /// Program rows read this table to bind the witnessed PC transition to
-    /// the parsed control-flow graph.
+    /// Static control-flow rows read this table. Ordinary instructions
+    /// enforce pc_after = pc_before + 1 and have no entry here.
     pub pc_rom: Vec<(u64, u64, u64)>,
     /// Static `(pc_before, control_choice, remaining, distance)` frame slides of
     /// branch edges, returns, and function ends, keyed like `pc_rom`.
@@ -972,11 +972,7 @@ impl ParsedWasmArtifactsBuilder {
                                 }
                             }
                         }
-                        wasmparser::Operator::CallIndirect { .. }
-                        | wasmparser::Operator::ReturnCallIndirect { .. }
-                        | wasmparser::Operator::Unreachable
-                        | wasmparser::Operator::Return => {}
-                        _ => self.push_pc_rom_edge(pc_before, 0, pc_after),
+                        _ => {}
                     }
                 }
                 let type_id = *self

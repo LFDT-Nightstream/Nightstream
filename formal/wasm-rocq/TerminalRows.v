@@ -32,9 +32,9 @@ Proof.
     destruct i; try discriminate Hind.
     destruct (encoded_path_invoke _ _ _ _ Hloaded Hf _ _ _ _ _ Hpath Hi) as [Hop Hkind].
     unfold pathPC in Hop, Hkind. cbn [beforeBoundary boundaryPC] in Hpc. rewrite <- Hpc in Hop, Hkind.
-    pose proof (circuit_row_opcode_fetch _ _ _ Hreplay Hprogram) as Hfetch.
+    pose proof (circuit_row_opcode_fetch _ _ _ Hprime Hfull Hreplay Hprogram) as Hfetch.
     rewrite Hop in Hfetch. injection Hfetch as Hcode.
-    pose proof (circuit_row_edge_kind_fetch _ _ _ Hreplay Hprogram) as Hedge.
+    pose proof (circuit_row_edge_kind_fetch _ _ _ Hprime Hfull Hreplay Hprogram) as Hedge.
     rewrite Hkind in Hedge. injection Hedge as Hedge.
     assert (Hsel : row COL_SEL_CALL_INDIRECT = 1).
     { apply (full_opcode_selects row COL_SEL_CALL_INDIRECT CODE_CALL_INDIRECT Hprime Hfull Hprogram);

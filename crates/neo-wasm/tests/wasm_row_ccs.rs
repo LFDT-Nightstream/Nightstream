@@ -8,10 +8,10 @@ use neo_wasm::layout::{
     COL_FRAME_MOVE_ACTIVE_AFTER, COL_FRAME_MOVE_REMAINING_AFTER, COL_FRAME_MOVE_REMAINING_AFTER_INV,
     COL_FRAME_MOVE_REMAINING_AFTER_IS_ZERO, COL_GUEST_ENTRY_ACTIVE, COL_LINEAR_MEM_USE_LANE0, COL_LOCALS_FBP_AFTER,
     COL_LOCALS_FBP_BEFORE, COL_MEMORY_PAGES_AFTER, COL_OUTPUT_CAPTURED, COL_OUTPUT_ENABLED_AFTER,
-    COL_OUTPUT_ENABLED_BEFORE, COL_PC_ROM_ACTIVE, COL_PROGRAM_CALL_INDIRECT_IMMEDIATES_ACTIVE,
-    COL_PROGRAM_GLOBAL_INDEX_ACTIVE, COL_PROGRAM_LOCAL_INDEX_ACTIVE, COL_PROGRAM_TABLE_ID_ACTIVE, COL_SP_AFTER,
-    COL_SP_BEFORE, COL_STACK_READS, COL_STACK_READ_ACTIVE, COL_STACK_WRITE0_ACTIVE, COL_STACK_WRITE0_ADDR_LO,
-    COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO, COL_STACK_WRITES,
+    COL_OUTPUT_ENABLED_BEFORE, COL_PROGRAM_CALL_INDIRECT_IMMEDIATES_ACTIVE, COL_PROGRAM_GLOBAL_INDEX_ACTIVE,
+    COL_PROGRAM_LOCAL_INDEX_ACTIVE, COL_PROGRAM_TABLE_ID_ACTIVE, COL_SP_AFTER, COL_SP_BEFORE, COL_STACK_READS,
+    COL_STACK_READ_ACTIVE, COL_STACK_WRITE0_ACTIVE, COL_STACK_WRITE0_ADDR_LO, COL_STACK_WRITE0_VALUE_HI,
+    COL_STACK_WRITE0_VALUE_LO, COL_STACK_WRITES,
 };
 use neo_wasm::witness_builder::build_witness_vector;
 use neo_wasm::WasmRowKind;
@@ -1199,7 +1199,7 @@ fn call_row_rejects_tampered_locals_fbp_after() {
 }
 
 #[test]
-fn static_program_row_rejects_disabled_pc_rom_active() {
+fn fallthrough_row_rejects_disabled_pc_gate() {
     let wasm = wat::parse_str(
         r#"(module
             (func (export "run") (result i32)
@@ -1211,11 +1211,29 @@ fn static_program_row_rejects_disabled_pc_rom_active() {
     let trace = traces_from_wasmtime_wasm_bytes(&wasm, "run").expect("normalize");
     let row = trace
         .iter()
-        .find(|row| row.row_kind.is_program() && row.pc_edge_kind == WasmPcEdgeKind::Static)
-        .expect("static program row");
+        .find(|row| row.row_kind.is_program() && row.opcode.falls_through())
+        .expect("fallthrough program row");
     let mut witness = build_witness_vector(row).unwrap();
+    assert_eq!(witness[neo_wasm::layout::COL_PC_FALLTHROUGH], F::ONE);
+    assert_satisfied(&witness, "honest fallthrough row");
+    witness[neo_wasm::layout::COL_PC_FALLTHROUGH] = F::ZERO;
+    assert_rejected(&witness, "ordinary program row with disabled fallthrough");
+}
+
+#[test]
+fn control_row_rejects_disabled_pc_rom_gate() {
+    use neo_wasm::layout::COL_PC_ROM_ACTIVE;
+
+    let trace = trace_from_wat("(module (func (export \"main\") block br 0 end))");
+    let row = trace
+        .iter()
+        .find(|row| row.opcode == WasmOpcode::Br)
+        .expect("branch row");
+    let mut witness = build_witness_vector(row).unwrap();
+    assert_eq!(witness[COL_PC_ROM_ACTIVE], F::ONE);
+    assert_satisfied(&witness, "honest static control row");
     witness[COL_PC_ROM_ACTIVE] = F::ZERO;
-    assert_rejected(&witness, "static program row with disabled pc_rom_active");
+    assert_rejected(&witness, "static control row with disabled pc_rom_active");
 }
 
 #[test]

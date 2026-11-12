@@ -1,9 +1,10 @@
 (* The store's tables in the circuit's table memories. The fragment has no table
    writes, so a run keeps them: the encoder never places table.set's opcode, and
    only table.set's selector gates a table write. *)
+Require Import InstructionHeader.
 From Stdlib Require Import List ZArith Lia.
 Require Import R1CS Columns FullRelation Range MemoryTrace MemoryCatalog OpcodeCatalog Wasm2
-  Selectors CircuitFacts ProgramBinding TraceRefinement StraightLineSpec CodeLayout ProgramSpec.
+  Selectors CircuitFacts ProgramBinding TraceRefinement StraightLineSpec CodeLayout ProgramSpec ProgramEncoding.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -29,14 +30,14 @@ Proof.
 Qed.
 
 Lemma opcode_rom_not_table_set : forall program pc,
-  romValue (encodeProgram program programOpcodeId [pc]) <> CODE_TABLE_SET.
+  romValue (instructionOpcode program pc) <> CODE_TABLE_SET.
 Proof.
   intros program pc.
-  change (encodeProgram program programOpcodeId [pc]) with (instructionRom program programOpcodeId pc).
-  unfold instructionRom.
+  unfold instructionOpcode.
   destruct (instructionAtPC program pc) as [[f slot] | ]; [ | discriminate].
-  cbv [programOpcodeId pcRomId Nat.eqb].
+
   destruct slot as [[[i | | | | l] targets] | ]; try discriminate.
+  cbn [slotOpcode].
   destruct i; try discriminate; try (destruct targets as [ | [t | ] [ | ]]; discriminate);
     match goal with |- romValue (encodedOpcode ?j) <> _ =>
       destruct (encodedOpcode j) eqn:Hj; cbn [romValue]; intros Hz; [subst | discriminate];
@@ -71,10 +72,13 @@ Proof.
   { unfold selectorCodes in Hentry. vm_compute in Hentry.
     repeat destruct Hentry as [Hentry | Hentry]; try discriminate; try contradiction.
     injection Hentry as Hc. rewrite <- Hc. reflexivity. }
-  assert (Hrom : initial programOpcodeId [w COL_PC_BEFORE] = Some (w COL_OPCODE_CODE)).
-  { eapply replay_read_from_initial; [exact Hreplay | apply read_only_trace, opcode_memory_read_only | ].
-    unfold eventsForTrace. apply in_flat_map. exists w. split; [exact Hin | exact (opcode_event_in_row w Hprogram)]. }
-  rewrite (Hloaded programOpcodeId ltac:(cbn; tauto)), Hcode, HcodeSet in Hrom. injection Hrom as Hrom.
+  assert (Hheader : initial programHeaderId [w COL_PC_BEFORE] = Some (w COL_PROGRAM_HEADER)).
+  { eapply replay_read_from_initial; [exact Hreplay | apply read_only_trace, header_memory_read_only | ].
+    unfold eventsForTrace. apply in_flat_map. exists w. split; [exact Hin | exact (header_event_in_row w Hprogram)]. }
+  assert (Hrom : opcodeAt initial [w COL_PC_BEFORE] = Some (w COL_OPCODE_CODE)).
+  { unfold opcodeAt. rewrite Hheader, (full_header_packing w Hprime Hw).
+    exact (f_equal (@Some Z) (header_opcode _ _ (full_opcode_u16 w Hprime Hw Hprogram))). }
+  rewrite (proj1 (loaded_header_views _ _ _ Hloaded)), Hcode, HcodeSet in Hrom. injection Hrom as Hrom.
   exact (opcode_rom_not_table_set program _ Hrom).
 Qed.
 

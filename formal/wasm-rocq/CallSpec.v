@@ -1,5 +1,6 @@
 (* ROM bindings for direct guest calls and ordinary instructions. Function
    types belong to SpecTec; the circuit metadata stores their arities. *)
+Require Import InstructionHeader.
 From Stdlib Require Import List ZArith NArith.
 Require Import MemoryTrace MemoryCatalog OpcodeCatalog Wasm2 SpecTecCalls StraightLineSpec.
 Import ListNotations.
@@ -20,15 +21,14 @@ Definition directCallImage (memory : MemoryState) (pc returnPC : Z) (caller : st
   nth_error (fun_funcaddr caller) (N.to_nat (index :> N)) = Some address /\
   nth_error (fun_funcinst caller) (N.to_nat address) =
     Some (typedFunction module typeIndex params results locals body) /\
-  memory programOpcodeId [pc] = Some CODE_CALL /\
+  opcodeAt memory [pc] = Some CODE_CALL /\
   memory callTargetId [pc] = Some (Z.of_N address + 1) /\
   returnPC = pc + 1 /\
   guestFunctionImage memory address entry (length params) (length results) (length locals).
 
 Definition instructionImage (memory : MemoryState) (pc : Z) (instruction : instr) : Prop :=
-  memory programOpcodeId [pc] = encodedOpcode instruction /\
-  memory pcEdgeKindId [pc] = Some 0 /\
-  memory pcRomId [pc] = Some (pc + 1) /\
+  opcodeAt memory [pc] = encodedOpcode instruction /\
+  edgeKindAt memory [pc] = Some 0 /\
   match instruction with
   | LOCAL_GET x | LOCAL_SET x => memory programLocalIndexId [pc] = Some (Z.of_N (x :> N))
   | _ => True

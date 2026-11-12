@@ -1,3 +1,4 @@
+Require Import InstructionHeader.
 From Stdlib Require Import List ZArith Lia.
 From mathcomp Require Import ssrbool eqtype.
 Require Import R1CS Columns Range Add TraceRefinement MemoryTrace MemoryCatalog OpcodeCatalog TableState Wasm2 WasmIntegers Locals
@@ -98,17 +99,17 @@ Definition conditionalBodyContext := functionContext conditionalContext conditio
 
 Example conditional_layout :
   codeSize conditionalCode = 8%nat /\
-  encodeProgram conditionalProgram programOpcodeId [0] = Some CODE_BLOCK /\
+  opcodeAt (encodeProgram conditionalProgram) [0] = Some CODE_BLOCK /\
   encodeProgram conditionalProgram pcRomId [0] = Some 1 /\
-  encodeProgram conditionalProgram programOpcodeId [2] = Some CODE_BR_IF /\
+  opcodeAt (encodeProgram conditionalProgram) [2] = Some CODE_BR_IF /\
   encodeProgram conditionalProgram pcRomId [2] = Some 4 /\
   encodeProgram conditionalProgram pcRomId [3] = Some 7 /\
   encodeProgram conditionalProgram programLocalIndexId [5] = Some 1 /\
-  encodeProgram conditionalProgram programOpcodeId [6] = Some CODE_END /\
-  encodeProgram conditionalProgram pcEdgeKindId [6] = Some 0 /\
+  opcodeAt (encodeProgram conditionalProgram) [6] = Some CODE_END /\
+  edgeKindAt (encodeProgram conditionalProgram) [6] = Some 0 /\
   encodeProgram conditionalProgram pcRomId [6] = Some 7 /\
-  encodeProgram conditionalProgram programOpcodeId [8] = Some CODE_END /\
-  encodeProgram conditionalProgram pcEdgeKindId [8] = Some 1.
+  opcodeAt (encodeProgram conditionalProgram) [8] = Some CODE_END /\
+  edgeKindAt (encodeProgram conditionalProgram) [8] = Some 1.
 Proof. repeat split; reflexivity. Qed.
 
 Example conditional_block_validates :

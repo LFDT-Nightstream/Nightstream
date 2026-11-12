@@ -713,16 +713,17 @@ Proof.
   unfold pathPC in Hop, Hkind, Hlen, Hedges.
   change (row COL_PC_BEFORE = guestEntry f + Z.of_nat (pathOffset (guestBody f) labels offset)) in Hpc.
   rewrite <- Hpc in Hop, Hkind, Hlen, Hedges.
-  pose proof (circuit_row_opcode_fetch _ _ _ Hreplay Hprogram) as Hfetch. rewrite Hop in Hfetch.
+  pose proof (circuit_row_opcode_fetch _ _ _ Hprime Hfull Hreplay Hprogram) as Hfetch. rewrite Hop in Hfetch.
   injection Hfetch as Hcode.
   assert (Hchosen : row COL_SEL_BR_TABLE = 1)
     by (apply (full_opcode_selects row COL_SEL_BR_TABLE CODE_BR_TABLE Hprime Hfull Hprogram);
         [vm_compute; reflexivity | congruence]).
   pose proof (circuit_row_br_table_len_fetch _ _ _ Hreplay Hchosen) as HlenRead.
   rewrite Hlen in HlenRead. injection HlenRead as HlenValue.
-  pose proof (circuit_row_edge_kind_fetch _ _ _ Hreplay Hprogram) as HkindFetch.
+  pose proof (circuit_row_edge_kind_fetch _ _ _ Hprime Hfull Hreplay Hprogram) as HkindFetch.
   rewrite Hkind in HkindFetch. injection HkindFetch as HkindValue.
-  pose proof (full_static_pc_rom_active row Hprime Hfull Hprogram ltac:(congruence)) as Hgate.
+  pose proof (full_fallthrough_flag row COL_SEL_BR_TABLE CODE_BR_TABLE Hprime Hfull ltac:(vm_compute; tauto) Hchosen) as Hfall.
+  pose proof (full_static_pc_rom_active row Hprime Hfull Hprogram ltac:(congruence) Hfall) as Hgate.
   pose proof (circuit_row_next_pc_fetch _ _ _ Hprime Hfull Hreplay Hgate) as Hnext.
   destruct (full_selected_no_host_switch row COL_SEL_BR_TABLE Hprime Hfull ltac:(vm_compute; tauto) Hchosen)
     as [Hsuspend [_ [_ [_ HcontextRead]]]].

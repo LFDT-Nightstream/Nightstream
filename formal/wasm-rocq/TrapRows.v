@@ -56,7 +56,7 @@ Proof.
   pose proof Hframe as [Hf' [Hpath [_ [_ [_ [Hbounds _]]]]]]. rewrite Hf in Hf'. injection Hf' as <-.
   destruct (encoded_path_unreachable _ _ _ _ Hloaded Hf _ _ _ Hpath Hi) as [Hop _].
   cbn [beforeBoundary boundaryPC] in Hpc. unfold pathPC in Hop. rewrite <- Hpc in Hop.
-  pose proof (circuit_row_opcode_fetch _ _ _ Hreplay Hprogram) as Hfetch.
+  pose proof (circuit_row_opcode_fetch _ _ _ Hprime Hfull Hreplay Hprogram) as Hfetch.
   rewrite Hop in Hfetch. injection Hfetch as Hcode.
   assert (Hsel : row COL_SEL_UNREACHABLE = 1).
   { apply (full_opcode_selects row COL_SEL_UNREACHABLE CODE_UNREACHABLE Hprime Hfull Hprogram);
@@ -121,7 +121,7 @@ Proof.
   unfold pathPC in Himage, HtableRom, HtypeRom.
   change (row COL_PC_BEFORE = guestEntry f + Z.of_nat (pathOffset (guestBody f) labels offset)) in Hpc.
   rewrite <- Hpc in Himage, HtableRom, HtypeRom.
-  pose proof (control_row_static_edge _ _ row _ _ _ Hprogram Hreplay Logic.eq_refl Himage) as Hedge.
+  pose proof (control_row_static_edge _ _ row _ _ _ Hprime Hfull Hprogram Hreplay Logic.eq_refl Himage) as Hedge.
   destruct (BlockTrace.control_row _ _ row _ CODE_CALL_INDIRECT_RESOLVE COL_SEL_CALL_INDIRECT_RESOLVE _ Hprime Hfull
     Hprogram Hreplay Logic.eq_refl ltac:(vm_compute; reflexivity) ltac:(vm_compute; intuition discriminate) Himage)
     as [Hresolve _].

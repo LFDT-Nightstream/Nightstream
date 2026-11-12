@@ -1,3 +1,4 @@
+Require Import InstructionHeader.
 From Stdlib Require Import List ZArith Lia.
 From mathcomp Require Import ssrbool eqtype.
 Require Import R1CS Columns Range Add TraceRefinement MemoryTrace MemoryCatalog OpcodeCatalog Wasm2 WasmIntegers Locals
@@ -139,7 +140,7 @@ Example computed_branch_layout :
   encodeProgram computedProgram pcRomId [5] = Some 12 /\
   encodeProgram computedProgram pcRomId [7] = Some 9 /\
   encodeProgram computedProgram pcRomId [8] = Some 12 /\
-  encodeProgram computedProgram programOpcodeId [11] = Some CODE_END.
+  opcodeAt (encodeProgram computedProgram) [11] = Some CODE_END.
 Proof. repeat split; reflexivity. Qed.
 
 (* After local.get 0; local.get 1; i32.sub, the value is 7 - 9 modulo 2^32.

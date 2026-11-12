@@ -1,4 +1,5 @@
 (* br_if 1 from inside two nested blocks: it jumps past the outer block's END. *)
+Require Import InstructionHeader.
 From Stdlib Require Import List ZArith Lia.
 From mathcomp Require Import ssrbool eqtype.
 Require Import R1CS Columns Range TraceRefinement MemoryTrace MemoryCatalog OpcodeCatalog Wasm2 WasmIntegers Locals
@@ -21,10 +22,10 @@ Definition deepState condition := mk_state deepStore (MKframe [i32Value conditio
 
 (* PCs: 0 and 1 enter the blocks, 3 is the br_if and 4 its taken edge, 7 and 10 are the ENDs, 11 follows. *)
 Example deep_layout :
-  encodeProgram deepProgram programOpcodeId [3] = Some CODE_BR_IF /\
+  opcodeAt (encodeProgram deepProgram) [3] = Some CODE_BR_IF /\
   encodeProgram deepProgram pcRomId [3] = Some 5 /\
   encodeProgram deepProgram pcRomId [4] = Some 11 /\
-  encodeProgram deepProgram programOpcodeId [10] = Some CODE_END /\
+  opcodeAt (encodeProgram deepProgram) [10] = Some CODE_END /\
   encodeProgram deepProgram pcRomId [10] = Some 11.
 Proof. repeat split; reflexivity. Qed.
 

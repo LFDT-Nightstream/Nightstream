@@ -1,6 +1,7 @@
 (* The flattened program ROM at a code path: structured instructions' heads, the
    last slot of each arm, and the instructions and branches of any body, at any
    depth of nesting. *)
+Require Import InstructionHeader.
 From Stdlib Require Import List ZArith Lia.
 Require Import Wasm2 R1CS MemoryTrace MemoryCatalog OpcodeCatalog StraightLineSpec CallSpec CallerSpec
   CodeLayout ProgramSpec ProgramEncoding BlockSpec BranchBindings StraightLineInstructions StackSimulation Fragment.
@@ -70,12 +71,16 @@ Proof.
 Qed.
 
 Ltac pc_cell Hpc :=
-  program_cell Hloaded; unfold encodeProgram;
-  cbn [Nat.eqb pcRomId functionEntryId functionTypeId functionLocalCountId functionCallMetadataId
-    frameSlideRemainingId frameSlideDistanceId programOpcodeId pcEdgeKindId programLocalIndexId programBrTableLenId
-    callTargetId programTableId expectedTypeId orb];
-  unfold instructionRom; rewrite Hpc;
-  cbn [Nat.eqb pcRomId programOpcodeId pcEdgeKindId programLocalIndexId programBrTableLenId callTargetId].
+  try match goal with |- context [existsb (Z.eqb ?code) fallthroughCodes] =>
+    let mode := eval vm_compute in (existsb (Z.eqb code) fallthroughCodes) in
+    change (existsb (Z.eqb code) fallthroughCodes) with mode
+  end; cbn beta iota;
+  first [reflexivity | program_cell Hloaded; try unfold encodeProgram;
+    cbn [Nat.eqb pcRomId functionEntryId functionTypeId functionLocalCountId functionCallMetadataId
+      frameSlideRemainingId frameSlideDistanceId programHeaderId programLocalIndexId programBrTableLenId
+      callTargetId programTableId expectedTypeId orb];
+    unfold instructionRom, instructionOpcode, instructionEdgeKind; rewrite Hpc;
+    cbn [slotOpcode slotEdgeKind Nat.eqb pcRomId programHeaderId programLocalIndexId programBrTableLenId callTargetId]].
 
 Lemma encoded_path_ordinary : forall labels inner offset i,
   pathCode (guestBody f) labels = Some inner -> nth_error inner offset = Some i ->
@@ -109,8 +114,8 @@ Qed.
 
 Lemma encoded_path_unreachable : forall labels inner offset,
   pathCode (guestBody f) labels = Some inner -> nth_error inner offset = Some UNREACHABLE ->
-  memory programOpcodeId [pathPC labels offset] = Some CODE_UNREACHABLE /\
-  memory pcEdgeKindId [pathPC labels offset] = Some 3.
+  opcodeAt memory [pathPC labels offset] = Some CODE_UNREACHABLE /\
+  edgeKindAt memory [pathPC labels offset] = Some 3.
 Proof.
   intros labels inner offset Hpath Hi.
   pose proof (encoded_path_head _ _ _ _ Hpath Hi) as Hpc.
@@ -142,8 +147,8 @@ Qed.
    next address, and enters the then-body. *)
 Lemma encoded_path_if : forall labels inner offset bt t e,
   pathCode (guestBody f) labels = Some inner -> nth_error inner offset = Some (IFELSE bt t e) ->
-  memory programOpcodeId [pathPC labels offset] = Some CODE_IF /\
-  memory pcEdgeKindId [pathPC labels offset] = Some 0 /\
+  opcodeAt memory [pathPC labels offset] = Some CODE_IF /\
+  edgeKindAt memory [pathPC labels offset] = Some 0 /\
   memory pcRomId [pathPC labels offset] = Some (pathPC labels offset + Z.of_nat (S (S (S (codeSize t))))) /\
   memory pcRomId [pathPC labels offset + 1] = Some (pathPC labels offset + 2).
 Proof.
@@ -267,8 +272,8 @@ Qed.
    edge's target: the default at choice 0, arm k at choice k + 1. *)
 Lemma encoded_path_br_table : forall labels inner offset ls l,
   pathCode (guestBody f) labels = Some inner -> nth_error inner offset = Some (BR_TABLE ls l) ->
-  memory programOpcodeId [pathPC labels offset] = Some CODE_BR_TABLE /\
-  memory pcEdgeKindId [pathPC labels offset] = Some 0 /\
+  opcodeAt memory [pathPC labels offset] = Some CODE_BR_TABLE /\
+  edgeKindAt memory [pathPC labels offset] = Some 0 /\
   memory programBrTableLenId [pathPC labels offset] = Some (Z.of_nat (length ls)) /\
   forall k target pre s post outer j body, nth_error (l :: ls) k = Some target ->
     labels = pre ++ s :: post -> N.to_nat (target :> N) = length post ->
@@ -313,11 +318,10 @@ Proof.
         (guestBody callee))).
       rewrite Hstore, HcalleeAddress. exact Hinstance.
     + split.
-      * program_cell Hloaded. unfold encodeProgram. cbn.
-         unfold instructionRom. rewrite Hpc. reflexivity.
+      * pc_cell Hpc. reflexivity.
       * split.
          -- program_cell Hloaded. unfold encodeProgram. cbn.
-            unfold instructionRom. rewrite Hpc. cbn [Nat.eqb pcRomId programOpcodeId pcEdgeKindId programLocalIndexId callTargetId].
+            unfold instructionRom. rewrite Hpc. cbn [Nat.eqb pcRomId programHeaderId programLocalIndexId callTargetId].
             change (Some (match option_map (fun address => Z.of_N address + 1)
               (nth_error (FUNCS (guestModule f)) (N.to_nat (x :> N))) with Some v => v | None => 0 end) =
               Some (Z.of_N (guestAddress callee) + 1)).
@@ -351,8 +355,8 @@ Qed.
    opcode and the dynamic edge kind. The circuit pins its return to the next address. *)
 Lemma encoded_path_invoke : forall labels inner offset x y,
   pathCode (guestBody f) labels = Some inner -> nth_error inner offset = Some (CALL_INDIRECT x y) ->
-  memory programOpcodeId [pathPC labels offset + 1] = Some CODE_CALL_INDIRECT /\
-  memory pcEdgeKindId [pathPC labels offset + 1] = Some 2.
+  opcodeAt memory [pathPC labels offset + 1] = Some CODE_CALL_INDIRECT /\
+  edgeKindAt memory [pathPC labels offset + 1] = Some 2.
 Proof.
   intros labels inner offset x y Hpath Hi.
   pose proof (encoded_slot _ _ _ _ _ Hf (flatten_at_invoke _ _ _ _ _ _ Hpath Hi)) as Hpc.
@@ -363,8 +367,8 @@ Qed.
 
 Lemma encoded_path_return : forall labels inner offset i,
   pathCode (guestBody f) labels = Some inner -> nth_error inner offset = Some i -> returnsFrom (length labels) i ->
-  memory programOpcodeId [pathPC labels offset] = Some CODE_RETURN /\
-  memory pcEdgeKindId [pathPC labels offset] = Some 1.
+  opcodeAt memory [pathPC labels offset] = Some CODE_RETURN /\
+  edgeKindAt memory [pathPC labels offset] = Some 1.
 Proof.
   intros labels inner offset i Hpath Hi Hreturn.
   pose proof (encoded_path_head _ _ _ _ Hpath Hi) as Hpc.

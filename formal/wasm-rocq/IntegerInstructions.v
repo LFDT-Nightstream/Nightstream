@@ -251,8 +251,8 @@ Proof.
   intros prefix values instruction z initial final row callees outputTypes Hprime Hfull Hprogram Hreplay Himage Hz Hi
     Htyped Hstack Hlocals Hlayout.
   pose proof (instruction_row_next_pc _ _ _ _ Hprime Hfull Hprogram Hreplay Himage) as Hnext.
-  destruct Himage as [Hop [_ [_ Hlocal]]].
-  pose proof (circuit_row_opcode_fetch _ _ _ Hreplay Hprogram) as Hfetch. rewrite Hop in Hfetch.
+  destruct Himage as [Hop [_ Hlocal]].
+  pose proof (circuit_row_opcode_fetch _ _ _ Hprime Hfull Hreplay Hprogram) as Hfetch. rewrite Hop in Hfetch.
   assert (Hfinish : forall chosen,
     straightLineSelector chosen -> row chosen = 1 ->
     (exists z' values', IntegerResult prefix final row z values instruction outputTypes z' values') ->

@@ -27,6 +27,7 @@ Proof.
   gate_bound COL_ACTIVATION_FINISHED_AFTER B18.
   gate_bound COL_IS_PROGRAM_ROW B19.
   gate_bound COL_PC_ROM_ACTIVE B20.
+  gate_bound COL_PC_FALLTHROUGH Bfall.
   gate_bound COL_PC_EDGE_KIND_IS_STATIC B23.
   gate_bound COL_CALL_STACK_POP_PRESENT B43.
   gate_bound COL_SEL_UNREACHABLE B91.
@@ -61,10 +62,10 @@ Proof.
   assert (equation_21 : ((1 * w COL_PC_EDGE_KIND)) * ((1 * w COL_PC_EDGE_KIND_IS_STATIC)) - (0) = 0).
   { normalize_columns. clear - modular_21 Hone B11 B23. apply Z.mod_divide in modular_21; [destruct modular_21 as [k Hk]; unfold modulus in *; nia | unfold modulus; lia]. }
   clear modular_21.
-  circuit_row ([(COL_IS_PROGRAM_ROW, 1)], [(COL_PC_EDGE_KIND_IS_STATIC, 1)], [(COL_PC_ROM_ACTIVE, 1)]) modular_22.
+  circuit_row ([(COL_IS_PROGRAM_ROW, 1)], [(COL_PC_EDGE_KIND_IS_STATIC, 1)], [(COL_PC_ROM_ACTIVE, 1); (COL_PC_FALLTHROUGH, 1)]) modular_22.
   expand_row modular_22.
-  assert (equation_22 : ((1 * w COL_IS_PROGRAM_ROW)) * ((1 * w COL_PC_EDGE_KIND_IS_STATIC)) - ((1 * w COL_PC_ROM_ACTIVE)) = 0).
-  { normalize_columns. clear - modular_22 Hone B19 B20 B23. apply Z.mod_divide in modular_22; [destruct modular_22 as [k Hk]; unfold modulus in *; nia | unfold modulus; lia]. }
+  assert (equation_22 : ((1 * w COL_IS_PROGRAM_ROW)) * ((1 * w COL_PC_EDGE_KIND_IS_STATIC)) - ((1 * w COL_PC_ROM_ACTIVE) + (1 * w COL_PC_FALLTHROUGH)) = 0).
+  { normalize_columns. clear - modular_22 Hone B19 B20 B23 Bfall. apply Z.mod_divide in modular_22; [destruct modular_22 as [k Hk]; unfold modulus in *; nia | unfold modulus; lia]. }
   clear modular_22.
   normalize_columns. nia.
 Qed.

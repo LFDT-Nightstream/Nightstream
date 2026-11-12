@@ -500,12 +500,12 @@ Proof.
   rewrite Hlabels, Hend in Hpc. cbn [pathOffset] in Hpc. rewrite code_offset_end in Hpc.
   change (row COL_PC_BEFORE = guestEntry f + Z.of_nat (codeSize (guestBody f))) in Hpc.
   destruct (encoded_function_end _ _ _ _ Hloaded Hf) as [Hop Hedge].
-  pose proof (circuit_row_opcode_fetch _ _ _ Hreplay Hprogram) as Hfetch.
+  pose proof (circuit_row_opcode_fetch _ _ _ Hprime Hfull Hreplay Hprogram) as Hfetch.
   rewrite Hpc, Hop in Hfetch. injection Hfetch as Hcode.
   split.
   - apply (full_opcode_selects row COL_SEL_END CODE_END Hprime Hfull Hprogram);
       [vm_compute; reflexivity | symmetry; exact Hcode].
-  - pose proof (circuit_row_edge_kind_fetch _ _ _ Hreplay Hprogram) as Hkind.
+  - pose proof (circuit_row_edge_kind_fetch _ _ _ Hprime Hfull Hreplay Hprogram) as Hkind.
     rewrite Hpc, Hedge in Hkind. injection Hkind as Hkind. lia.
 Qed.
 
@@ -944,12 +944,12 @@ Proof.
   pose proof Hframe as [Hf' [Hpath _]]. rewrite Hf in Hf'. injection Hf' as <-.
   destruct (encoded_path_return _ _ _ _ Hloaded Hf _ _ _ _ Hpath Hi Hreturn) as [Hop Hedge].
   cbn [beforeBoundary boundaryPC] in Hpc. unfold pathPC in Hop, Hedge. rewrite <- Hpc in Hop, Hedge.
-  pose proof (circuit_row_opcode_fetch _ _ _ Hreplay Hprogram) as Hfetch.
+  pose proof (circuit_row_opcode_fetch _ _ _ Hprime Hfull Hreplay Hprogram) as Hfetch.
   rewrite Hop in Hfetch. injection Hfetch as Hcode.
   split.
   - apply (full_opcode_selects row COL_SEL_RETURN CODE_RETURN Hprime Hfull Hprogram);
       [vm_compute; reflexivity | symmetry; exact Hcode].
-  - pose proof (circuit_row_edge_kind_fetch _ _ _ Hreplay Hprogram) as Hkind.
+  - pose proof (circuit_row_edge_kind_fetch _ _ _ Hprime Hfull Hreplay Hprogram) as Hkind.
     rewrite Hedge in Hkind. injection Hkind as Hkind. lia.
 Qed.
 

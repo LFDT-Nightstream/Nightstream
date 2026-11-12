@@ -19,7 +19,7 @@ fn slot_plan_is_deterministic_and_covers_every_logical_port_once() {
     assert_eq!(ports, (0..plan.logical_ports).collect::<Vec<_>>());
     assert!(plan.slots.iter().all(|slot| !slot.is_empty()));
     let max_load = plan.support_loads.values().copied().max().unwrap();
-    assert_eq!((plan.logical_ports, plan.slots.len(), max_load), (98, 11, 15));
+    assert_eq!((plan.logical_ports, plan.slots.len(), max_load), (95, 10, 13));
     assert_eq!(plan.gate_exclusions.len(), 25);
     assert!(plan.slots.len() < plan.logical_ports);
     assert_eq!(
@@ -167,36 +167,12 @@ fn ordered_slot_plan_keeps_dependent_pairs_in_catalog_order_using_exported_gate_
         *loads.entry(*atom).or_insert(0) += 1;
     }
     let largest = loads.values().copied().max().unwrap();
-    assert_eq!(largest, 15, "coarse support bound before pair exclusions");
-    assert_eq!(plan.slots.len(), 11);
+    assert_eq!(largest, 13, "coarse support bound before pair exclusions");
+    assert_eq!(plan.slots.len(), 10);
     assert_eq!(plan.logical_ports, ports.len());
 
     eprintln!(
         "ordered slots={}, {reordered} pairs that may be active together swap",
         plan.slots.len()
     );
-}
-
-#[test]
-fn unaligned_i64_store_uses_all_eleven_slots() {
-    let run = common::checked_main(
-        "(module (memory 1) (func (export \"main\") i32.const 1 i64.const 0x123456789abcdef0 i64.store))",
-    );
-    let i = run
-        .trace
-        .iter()
-        .position(|row| row.opcode == WasmOpcode::I64Store)
-        .unwrap();
-    let memories = build_wasm_relation_layout().auxiliary.memory.entries();
-    let ports: Vec<_> = memories.iter().flat_map(|m| &m.ports).collect();
-    let plan = plan_ordered_wasm_memory_slots(memories);
-    assert_eq!(plan.slots.len(), 11);
-    for slot in &plan.slots {
-        assert_eq!(
-            slot.iter()
-                .filter(|&&p| neo_wasm::nebula::is_active(&run.witnesses[i], ports[p].activation).unwrap())
-                .count(),
-            1
-        );
-    }
 }

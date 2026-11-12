@@ -227,3 +227,31 @@ fn rows_without_a_branch_cannot_choose_an_edge() {
         );
     }
 }
+
+#[test]
+fn ordinary_instructions_advance_without_pc_rom_cells() {
+    use neo_math::F;
+    use neo_wasm::layout::{COL_PC_AFTER, COL_PC_FALLTHROUGH, COL_PC_ROM_ACTIVE};
+    use p3_field::PrimeCharacteristicRing;
+    let run =
+        common::checked_main("(module (func (export \"main\") (result i32) nop i32.const 7 i32.const 9 i32.add))");
+    for (row, witness) in run.trace.iter().zip(&run.witnesses) {
+        if !row.row_kind.is_program() || !row.opcode.falls_through() {
+            continue;
+        }
+        assert!(!run
+            .artifacts
+            .tables
+            .pc_rom
+            .iter()
+            .any(|&(pc, _, _)| pc == row.state_before.pc));
+        assert_eq!(witness[COL_PC_ROM_ACTIVE], F::ZERO);
+        assert_eq!(witness[COL_PC_FALLTHROUGH], F::ONE);
+        let mut forged = witness.clone();
+        forged[COL_PC_AFTER] += F::ONE;
+        common::assert_rejected(&forged, "fallthrough pc is fixed without a ROM read");
+        forged = witness.clone();
+        forged[COL_PC_ROM_ACTIVE] = F::ONE;
+        common::assert_rejected(&forged, "fallthrough cannot enable the PC ROM");
+    }
+}

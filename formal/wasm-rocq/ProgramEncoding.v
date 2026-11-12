@@ -1,4 +1,5 @@
 (* Connect the executable ROM encoding to the instruction/call loading lemmas. *)
+Require Import InstructionHeader.
 From Stdlib Require Import List ZArith Lia Bool.
 Require Import Wasm2 SpecTecCalls MemoryTrace MemoryCatalog OpcodeCatalog StraightLineSpec
   CallerSpec CallerRefinement CallSpec ProgramSpec StraightLineInstructions CodeLayout.
@@ -98,8 +99,42 @@ Proof.
   reflexivity.
 Qed.
 
+Lemma slot_header_views : forall slot,
+  let header := romValue (match slotOpcode slot, slotEdgeKind slot with
+    | Some opcode, Some kind => Some (opcode + 65536 * kind) | _, _ => None end) in
+  header mod 65536 = romValue (slotOpcode slot) /\ header / 65536 = romValue (slotEdgeKind slot).
+Proof.
+  intros [ [[i | | | | l] targets] | ]; try (split; reflexivity).
+  destruct i; cbn [slotOpcode slotEdgeKind];
+    try (destruct targets as [ | [target | ] [ | next rest]]; split; reflexivity);
+    try (split; reflexivity);
+    match goal with |- context [encodedOpcode ?i] =>
+      destruct (encodedOpcode i) eqn:Hcode; [ | split; reflexivity];
+      destruct (encoded_opcode_cases _ _ Hcode) as [[_ ->] | [[_ ->] | [[x [_ ->]] | [x [_ ->]]]]];
+      split; reflexivity
+    end.
+Qed.
+
+Lemma loaded_header_views : forall program memory pc,
+  programLoaded program memory ->
+  opcodeAt memory [pc] = Some (romValue (instructionOpcode program pc)) /\
+  edgeKindAt memory [pc] = Some (romValue (instructionEdgeKind program pc)).
+Proof.
+  intros program memory pc Hloaded. unfold opcodeAt, edgeKindAt.
+  rewrite (Hloaded programHeaderId ltac:(cbn; tauto)).
+  change (option_map (fun header => header mod 65536) (Some (romValue (instructionRom program programHeaderId pc))) = Some (romValue (instructionOpcode program pc)) /\
+    option_map (fun header => header / 65536) (Some (romValue (instructionRom program programHeaderId pc))) = Some (romValue (instructionEdgeKind program pc))).
+  unfold instructionRom, instructionOpcode, instructionEdgeKind.
+  destruct (instructionAtPC program pc) as [[f slot] | ]; [ | split; reflexivity].
+  cbn [Nat.eqb programHeaderId pcRomId option_map].
+  destruct (slot_header_views slot) as [Hop Hkind]. split; f_equal; assumption.
+Qed.
+
 Ltac program_cell H :=
-  match goal with |- ?memory ?id ?address = _ =>
+  match goal with
+  | |- opcodeAt ?memory [?pc] = _ => rewrite (proj1 (loaded_header_views _ memory pc H)); unfold romValue
+  | |- edgeKindAt ?memory [?pc] = _ => rewrite (proj2 (loaded_header_views _ memory pc H)); unfold romValue
+  | |- ?memory ?id ?address = _ =>
     rewrite (H id ltac:(unfold programRomIds; simpl; tauto)); unfold romValue
   end.
 
@@ -112,7 +147,7 @@ Proof.
   unfold guestFunctionImage. rewrite Haddress.
   replace (Z.of_N (N.of_nat index)) with (Z.of_nat index) by lia.
   assert (Hpositive : (Z.of_nat index + 1 <=? 0) = false) by (apply Z.leb_gt; lia).
-  repeat split; program_cell Hloaded; unfold encodeProgram;
+  repeat split; program_cell Hloaded; try unfold encodeProgram;
     cbn [Nat.eqb pcRomId functionEntryId functionLocalCountId functionCallMetadataId orb];
     unfold functionRom; rewrite Hpositive;
     replace (Z.of_nat index + 1 - 1) with (Z.of_nat index) by lia;
@@ -121,15 +156,15 @@ Qed.
 
 Lemma encoded_function_end : forall program memory index f,
   programLoaded program memory -> functionAt program index = Some f ->
-  memory programOpcodeId [guestEntry f + Z.of_nat (codeSize (guestBody f))] = Some CODE_END /\
-  memory pcEdgeKindId [guestEntry f + Z.of_nat (codeSize (guestBody f))] = Some 1.
+  opcodeAt memory [guestEntry f + Z.of_nat (codeSize (guestBody f))] = Some CODE_END /\
+  edgeKindAt memory [guestEntry f + Z.of_nat (codeSize (guestBody f))] = Some 1.
 Proof.
   intros program memory index f Hloaded Hf.
   pose proof (instruction_at_function_pc _ _ _ (codeSize (guestBody f)) Hf ltac:(lia)) as Hpc.
   assert (Hnone : nth_error (flattenCode (guestBody f)) (codeSize (guestBody f)) = None) by (apply nth_error_None; rewrite flatten_code_length; lia).
-  rewrite Hnone in Hpc. split; program_cell Hloaded; unfold encodeProgram;
+  rewrite Hnone in Hpc. split; program_cell Hloaded; try unfold encodeProgram;
     cbn [Nat.eqb pcRomId functionEntryId functionLocalCountId functionCallMetadataId orb];
-    unfold instructionRom; rewrite Hpc; reflexivity.
+    unfold instructionOpcode, instructionEdgeKind; rewrite Hpc; reflexivity.
 Qed.
 Lemma slide_at_function_pc : forall program memory index f offset,
   functionAt program index = Some f -> (offset <= codeSize (guestBody f))%nat ->
@@ -155,7 +190,7 @@ Proof.
   intros program memory index f Hloaded Hf pc frame.
   assert (Hnone : nth_error (flattenCode (guestBody f)) (codeSize (guestBody f)) = None)
     by (apply nth_error_None; rewrite flatten_code_length; lia).
-  split; program_cell Hloaded; unfold encodeProgram; cbn [Nat.eqb pcRomId frameSlideRemainingId frameSlideDistanceId orb];
+  split; program_cell Hloaded; try unfold encodeProgram; cbn [Nat.eqb pcRomId frameSlideRemainingId frameSlideDistanceId orb];
     unfold pc; rewrite (slide_at_function_pc _ _ _ _ (codeSize (guestBody f)) Hf ltac:(lia));
     unfold functionSlide; rewrite Hnone;
     unfold slideWord, frame; cbn [Nat.eqb frameSlideRemainingId frameSlideDistanceId];

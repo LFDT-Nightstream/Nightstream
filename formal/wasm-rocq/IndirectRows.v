@@ -298,7 +298,7 @@ Proof.
   (* The invocation opcode, its return edge, and the reference on top. *)
   destruct (encoded_path_invoke _ _ _ _ Hloaded Hf _ _ _ _ _ Hpath Hi) as [Hop _].
   unfold pathPC in Hop. rewrite <- Hpc in Hop.
-  pose proof (circuit_row_opcode_fetch _ _ _ Hreplay Hprogram) as Hfetch.
+  pose proof (circuit_row_opcode_fetch _ _ _ Hprime Hfull Hreplay Hprogram) as Hfetch.
   rewrite Hop in Hfetch. injection Hfetch as Hcode.
   assert (Hsel : row COL_SEL_CALL_INDIRECT = 1).
   { apply (full_opcode_selects row COL_SEL_CALL_INDIRECT CODE_CALL_INDIRECT Hprime Hfull Hprogram);

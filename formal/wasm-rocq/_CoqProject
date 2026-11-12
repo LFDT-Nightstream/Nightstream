@@ -4,6 +4,7 @@ Columns.v
 FullRelation.v
 MemoryTrace.v
 MemoryCatalog.v
+InstructionHeader.v
 OpcodeCatalog.v
 Wasm2.v
 WasmIntegers.v

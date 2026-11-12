@@ -1,5 +1,6 @@
 (* A call from inside two nested blocks: the suspended caller's operands, labels
    and continuation wrap the callee's configuration. *)
+Require Import InstructionHeader.
 From Stdlib Require Import List ZArith Lia.
 From mathcomp Require Import ssrbool eqtype.
 Require Import R1CS Columns Range MemoryTrace MemoryCatalog OpcodeCatalog TraceRefinement Wasm2 WasmIntegers Locals
@@ -22,11 +23,11 @@ Definition blockGuest (address : N) (body : list instr) (entry : Z) :=
 
 Example block_call_layout :
   functionEntry blockProgram 1 = 2 /\
-  encodeProgram blockProgram programOpcodeId [4] = Some CODE_CALL /\
-  encodeProgram blockProgram programOpcodeId [6] = Some CODE_END /\
+  opcodeAt (encodeProgram blockProgram) [4] = Some CODE_CALL /\
+  opcodeAt (encodeProgram blockProgram) [6] = Some CODE_END /\
   encodeProgram blockProgram pcRomId [6] = Some 7 /\
   encodeProgram blockProgram pcRomId [7] = Some 8 /\
-  encodeProgram blockProgram pcEdgeKindId [9] = Some 1.
+  edgeKindAt (encodeProgram blockProgram) [9] = Some 1.
 Proof. repeat split; reflexivity. Qed.
 
 Definition blockContext' :=

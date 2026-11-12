@@ -8,11 +8,10 @@ use super::layout::{
     COL_FUNCTION_CALL_TYPE_LOOKUP_GATE, COL_FUNCTION_REF, COL_FUNCTION_TYPE_ID, COL_GATHER_ACTIVE,
     COL_GATHER_LOCAL_WRITE, COL_GATHER_LOCAL_WRITE_LO, COL_GLOBAL_INDEX, COL_GLOBAL_VALUE, COL_GLOBAL_VALUE_HI,
     COL_GUEST_ENTRY_ACTIVE, COL_HOST_CALLEE_FREF_AFTER, COL_HOST_CALL_ACTIVE, COL_HOST_EVENT_EXIT_LATCH,
-    COL_HOST_EVENT_INDEX_BEFORE, COL_HOST_EVENT_SLOT_ARG, COL_HOST_EVENT_SLOT_CURSOR_BEFORE,
-    COL_HOST_EVENT_SLOT_IMMEDIATE0, COL_HOST_EVENT_SLOT_IMMEDIATE1, COL_HOST_EVENT_SLOT_KIND,
-    COL_HOST_EVENT_SLOT_VARIANT, COL_IS_PROGRAM_ROW, COL_LINEAR_MEM_ACCESS_BYTE0, COL_LINEAR_MEM_ACCESS_BYTE1,
-    COL_LINEAR_MEM_ACCESS_BYTE2, COL_LINEAR_MEM_ACCESS_BYTE3, COL_LINEAR_MEM_ACCESS_BYTE4, COL_LINEAR_MEM_ACCESS_BYTE5,
-    COL_LINEAR_MEM_ACCESS_BYTE6, COL_LINEAR_MEM_ACCESS_BYTE7, COL_LINEAR_MEM_BYTE_OFFSET,
+    COL_HOST_EVENT_INDEX_BEFORE, COL_HOST_EVENT_SLOT_CURSOR_BEFORE, COL_HOST_EVENT_SLOT_DESCRIPTOR,
+    COL_HOST_EVENT_SLOT_IMMEDIATE0, COL_HOST_EVENT_SLOT_IMMEDIATE1, COL_IS_PROGRAM_ROW, COL_LINEAR_MEM_ACCESS_BYTE0,
+    COL_LINEAR_MEM_ACCESS_BYTE1, COL_LINEAR_MEM_ACCESS_BYTE2, COL_LINEAR_MEM_ACCESS_BYTE3, COL_LINEAR_MEM_ACCESS_BYTE4,
+    COL_LINEAR_MEM_ACCESS_BYTE5, COL_LINEAR_MEM_ACCESS_BYTE6, COL_LINEAR_MEM_ACCESS_BYTE7, COL_LINEAR_MEM_BYTE_OFFSET,
     COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_0, COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_1,
     COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_2, COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_3,
     COL_LINEAR_MEM_DOUBLE_WIDTH_OFFSET_IS_0, COL_LINEAR_MEM_DOUBLE_WIDTH_OFFSET_IS_1,
@@ -37,9 +36,9 @@ use super::layout::{
     COL_LINEAR_MEM_LANE_VALUE, COL_LINEAR_MEM_LANE_VALUE_BEFORE, COL_LINEAR_MEM_OFFSET_IS_0,
     COL_LINEAR_MEM_OFFSET_IS_1, COL_LINEAR_MEM_OFFSET_IS_2, COL_LINEAR_MEM_OFFSET_IS_3, COL_LINEAR_MEM_USE_LANE0,
     COL_LINEAR_MEM_USE_LANE1, COL_LINEAR_MEM_USE_LANE2, COL_LOCAL_ADDR_HI, COL_LOCAL_ADDR_LO, COL_LOCAL_INDEX,
-    COL_LOCAL_VALUE, COL_LOCAL_VALUE_HI, COL_LOCAL_WRITE_ENABLED, COL_OPCODE_CODE, COL_OUTPUT_CAPTURED, COL_PC_AFTER,
-    COL_PC_BEFORE, COL_PC_EDGE_KIND, COL_PC_ROM_ACTIVE, COL_PROGRAM_CALL_INDIRECT_IMMEDIATES_ACTIVE,
-    COL_PROGRAM_GLOBAL_INDEX_ACTIVE, COL_PROGRAM_LOCAL_INDEX_ACTIVE, COL_PROGRAM_TABLE_ID_ACTIVE, COL_SIGN_EXT_BIT,
+    COL_LOCAL_VALUE, COL_LOCAL_VALUE_HI, COL_LOCAL_WRITE_ENABLED, COL_OUTPUT_CAPTURED, COL_PC_AFTER, COL_PC_BEFORE,
+    COL_PC_ROM_ACTIVE, COL_PROGRAM_CALL_INDIRECT_IMMEDIATES_ACTIVE, COL_PROGRAM_GLOBAL_INDEX_ACTIVE,
+    COL_PROGRAM_HEADER, COL_PROGRAM_LOCAL_INDEX_ACTIVE, COL_PROGRAM_TABLE_ID_ACTIVE, COL_SIGN_EXT_BIT,
     COL_SIGN_EXT_LOW7, COL_STACK_READ_ACTIVE, COL_STACK_READ_ADDR_HI, COL_STACK_READ_ADDR_LO, COL_STACK_READ_VALUE_HI,
     COL_STACK_READ_VALUE_LO, COL_STACK_WRITE0_ADDR_HI, COL_STACK_WRITE0_ADDR_LO, COL_STACK_WRITE0_VALUE_HI,
     COL_STACK_WRITE0_VALUE_LO, COL_TABLE_ID, COL_TABLE_INDEX, COL_TABLE_READ_ENABLED, COL_TABLE_SET_LIVE,
@@ -651,9 +650,9 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
             }],
         },
         rom_read_spec(
-            WasmMemoryId::ProgramOpcode,
+            WasmMemoryId::ProgramHeader,
             vec![Column(COL_PC_BEFORE)],
-            Column(COL_OPCODE_CODE),
+            Column(COL_PROGRAM_HEADER),
             active_when(Column(COL_IS_PROGRAM_ROW)),
         ),
         rom_read_spec(
@@ -810,12 +809,6 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
                 },
             ],
         },
-        rom_read_spec(
-            WasmMemoryId::PcEdgeKind,
-            vec![Column(COL_PC_BEFORE)],
-            Column(COL_PC_EDGE_KIND),
-            active_when(Column(COL_IS_PROGRAM_ROW)),
-        ),
         // Event-template ROMs (see `docs/host-event-grammar-tables.md` §3.4):
         // per-slot source descriptors keyed by (event index, slot cursor)
         // read on gather rows, where the event index counts from the first
@@ -823,30 +816,12 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
         // host-call/result rows. Content is generated from the embedder's
         // `HostEventBindings` (see `host_event_bindings::preload_host_event_tables`).
         rom_read_spec(
-            WasmMemoryId::HostEventSlotKind,
+            WasmMemoryId::HostEventSlotDescriptor,
             vec![
                 Column(COL_HOST_EVENT_INDEX_BEFORE),
                 Column(COL_HOST_EVENT_SLOT_CURSOR_BEFORE),
             ],
-            Column(COL_HOST_EVENT_SLOT_KIND),
-            active_when(Column(COL_GATHER_ACTIVE)),
-        ),
-        rom_read_spec(
-            WasmMemoryId::HostEventSlotArg,
-            vec![
-                Column(COL_HOST_EVENT_INDEX_BEFORE),
-                Column(COL_HOST_EVENT_SLOT_CURSOR_BEFORE),
-            ],
-            Column(COL_HOST_EVENT_SLOT_ARG),
-            active_when(Column(COL_GATHER_ACTIVE)),
-        ),
-        rom_read_spec(
-            WasmMemoryId::HostEventSlotVariant,
-            vec![
-                Column(COL_HOST_EVENT_INDEX_BEFORE),
-                Column(COL_HOST_EVENT_SLOT_CURSOR_BEFORE),
-            ],
-            Column(COL_HOST_EVENT_SLOT_VARIANT),
+            Column(COL_HOST_EVENT_SLOT_DESCRIPTOR),
             active_when(Column(COL_GATHER_ACTIVE)),
         ),
         rom_read_spec(

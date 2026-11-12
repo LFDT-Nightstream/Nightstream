@@ -25,9 +25,16 @@ pub fn preload_from_program_artifacts(artifacts: &WasmProgramArtifacts) -> WasmM
         u32::try_from(value)
             .unwrap_or_else(|_| panic!("program table field `{field}` value {value} does not fit in u32"))
     }
+    let edge_kinds: BTreeMap<_, _> = tables.pc_edge_kinds.iter().copied().collect();
     for entry in &tables.program_decode {
         let pc = narrow(entry.pc, "program_decode.pc");
-        preload.insert(WasmMemoryId::ProgramOpcode, vec![pc], entry.opcode_code);
+        let kind = edge_kinds[&entry.pc];
+        assert!(kind <= 3 && entry.opcode_code <= u16::MAX.into());
+        preload.insert(
+            WasmMemoryId::ProgramHeader,
+            vec![pc],
+            entry.opcode_code + ((kind as u32) << 16),
+        );
         // An immediate cell exists only at the pc of an instruction that reads
         // it, so the memories of one table do not own the same cell.
         let opcode = opcode_info_from_code(entry.opcode_code as u16).opcode;
@@ -110,13 +117,6 @@ pub fn preload_from_program_artifacts(artifacts: &WasmProgramArtifacts) -> WasmM
         let key = vec![narrow(pc_before + control_choice, "frame_slides.key")];
         preload.insert(WasmMemoryId::FrameSlideRemaining, key.clone(), remaining);
         preload.insert(WasmMemoryId::FrameSlideDistance, key, distance);
-    }
-    for &(pc_before, edge_kind) in &tables.pc_edge_kinds {
-        preload.insert(
-            WasmMemoryId::PcEdgeKind,
-            vec![narrow(pc_before, "pc_edge_kinds.state_before.pc")],
-            narrow(edge_kind, "pc_edge_kinds.edge_kind"),
-        );
     }
     for &(function_ref, entry_pc) in &tables.function_entries {
         preload.insert(
@@ -367,9 +367,12 @@ pub fn preload_host_event_tables(
                 let (kind, arg, variant, immediate0, immediate1) = encode(fref, source);
                 // Advice uses the next code range above the raw slot kinds.
                 let kind = kind + WasmHostEventSlotKind::COUNT as u32 * u32::from(!event.absorb);
-                preload.insert(WasmMemoryId::HostEventSlotKind, key.clone(), kind);
-                preload.insert(WasmMemoryId::HostEventSlotArg, key.clone(), arg);
-                preload.insert(WasmMemoryId::HostEventSlotVariant, key.clone(), variant);
+                assert!(kind < 32 && arg < 256 && variant < 16);
+                preload.insert(
+                    WasmMemoryId::HostEventSlotDescriptor,
+                    key.clone(),
+                    kind + 32 * arg + 8192 * variant,
+                );
                 preload.insert(WasmMemoryId::HostEventSlotImmediate0, key.clone(), immediate0);
                 preload.insert(WasmMemoryId::HostEventSlotImmediate1, key, immediate1);
             }

@@ -145,6 +145,7 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Result<Vec<F>, super::ir::Was
     wit[COL_CONTROL_CHOICE] = F::from_u64(u64::from(trace.control_choice));
     wit[COL_EDGE_ADDR] = wit[COL_PC_BEFORE] + wit[COL_CONTROL_CHOICE];
     wit[COL_PC_EDGE_KIND] = F::from_u64(u64::from(trace.pc_edge_kind.as_u32()));
+    wit[crate::layout::COL_PROGRAM_HEADER] = wit[COL_OPCODE_CODE] + F::from_u64(65536) * wit[COL_PC_EDGE_KIND];
     PC_EDGE_KIND_ZERO_TEST.assign(&mut wit);
     write_local_zero_state(&mut wit, true, trace.state_before.local_zero);
     write_local_zero_state(&mut wit, false, trace.state_after.local_zero);
@@ -207,11 +208,14 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Result<Vec<F>, super::ir::Was
     wit[COL_TRAPPED_AFTER] = if trace.state_after.trapped { F::ONE } else { F::ZERO };
     wit[COL_IS_PROGRAM_ROW] = if trace.row_kind.is_program() { F::ONE } else { F::ZERO };
     wit[COL_PADDING_ACTIVE] = if trace.row_kind.is_padding() { F::ONE } else { F::ZERO };
-    wit[COL_PC_ROM_ACTIVE] = if trace.row_kind.is_program() && trace.pc_edge_kind.as_u32() == 0 {
-        F::ONE
-    } else {
-        F::ZERO
-    };
+    wit[crate::layout::COL_PC_FALLTHROUGH] =
+        F::from_u64(u64::from(trace.row_kind.is_program() && trace.opcode.falls_through()));
+    wit[COL_PC_ROM_ACTIVE] =
+        if trace.row_kind.is_program() && trace.pc_edge_kind.as_u32() == 0 && trace.opcode.uses_pc_rom() {
+            F::ONE
+        } else {
+            F::ZERO
+        };
     wit[COL_CALL_STACK_POP_PRESENT] = if trace.call_stack_pop.is_some() {
         F::ONE
     } else {
@@ -1079,6 +1083,9 @@ fn fill_event_absorb(wit: &mut [F], trace: &WasmVmStep) {
             F::from_u64(u64::from(rom.kind.code()) + WasmHostEventSlotKind::COUNT as u64 * u64::from(rom.advice));
         wit[COL_HOST_EVENT_SLOT_ARG] = F::from_u64(u64::from(rom.arg));
         wit[COL_HOST_EVENT_SLOT_VARIANT] = F::from_u64(u64::from(rom.variant.encoded()));
+        wit[crate::layout::COL_HOST_EVENT_SLOT_DESCRIPTOR] = wit[COL_HOST_EVENT_SLOT_KIND]
+            + F::from_u64(32) * wit[COL_HOST_EVENT_SLOT_ARG]
+            + F::from_u64(8192) * wit[COL_HOST_EVENT_SLOT_VARIANT];
         wit[COL_HOST_EVENT_SLOT_IMMEDIATE0] = F::from_u64(u64::from(rom.immediate0));
         wit[COL_HOST_EVENT_SLOT_IMMEDIATE1] = F::from_u64(u64::from(rom.immediate1));
     }

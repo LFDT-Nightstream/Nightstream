@@ -2,6 +2,7 @@
    instruction, entering a block, a loop or an if, an arm's END or ELSE, and the
    state after leaving a label, which branches share (BranchRows). Each keeps the
    frame registers and touches no memory below the frame. *)
+Require Import InstructionHeader.
 From Stdlib Require Import List ZArith Lia.
 Require Import StackPorts Wasm2 WasmIntegers WasmValues Add R1CS Columns Range FullRelation MemoryTrace MemoryCatalog OpcodeCatalog SlideLayout
   TraceRefinement StraightLineSpec StackSimulation LocalSimulation SpecTecCalls SpecTecBranches CallerSpec
@@ -123,11 +124,11 @@ Qed.
 Lemma fetched_ordinary_keeps_idle : forall initial final (w : Witness) i,
   fieldPrime -> FullRelation.satFull w -> w COL_IS_PROGRAM_ROW = 1 ->
   Replay initial (eventsForRow memories w) final ->
-  initial programOpcodeId [w COL_PC_BEFORE] = encodedOpcode i -> (exists op, encodedOpcode i = Some op) ->
+  opcodeAt initial [w COL_PC_BEFORE] = encodedOpcode i -> (exists op, encodedOpcode i = Some op) ->
   initializationIdle (beforeBoundary w) -> initializationIdle (afterBoundary w).
 Proof.
   intros initial final w i Hprime Hfull Hprogram Hreplay Hrom [op Hop] Hidle.
-  pose proof (circuit_row_opcode_fetch _ _ _ Hreplay Hprogram) as Hfetch.
+  pose proof (circuit_row_opcode_fetch _ _ _ Hprime Hfull Hreplay Hprogram) as Hfetch.
   rewrite Hrom, Hop in Hfetch. injection Hfetch as Hcode.
   destruct (encoded_opcode_cases _ _ Hop) as [[-> ->] | [[-> ->] | [[x [-> ->]] | [x [-> ->]]]]];
   match goal with |- _ =>
@@ -346,7 +347,7 @@ Proof.
     Hprime Hfull Hprogram Hreplay Himage Hz Hwi Htyped Hstack HlocalCells Hlayout)
     as [z' [values' [[Hstep [Hz' [Hstack' [Hlocals' [Hsame [HlocalTypes HresultTypes]]]]]] [Hnext Hregs]]]].
   assert (Heffect : FrameEffect (row COL_LOCALS_FBP_BEFORE) initial final).
-  { pose proof (circuit_row_opcode_fetch _ _ _ Hreplay Hprogram) as Hfetch. rewrite (proj1 Himage) in Hfetch.
+  { pose proof (circuit_row_opcode_fetch _ _ _ Hprime Hfull Hreplay Hprogram) as Hfetch. rewrite (proj1 Himage) in Hfetch.
     eapply integer_row_scope; [exact Hprime | exact Hfull | exact Hprogram | exact Hreplay | exact Hfetch |
       exact Htyped | exact Hstack | lia]. }
   destruct Hsame as [Hstore' [Hmodule' Hlen']].
@@ -504,7 +505,7 @@ Proof.
   intros initial final row pc opcode chosen next Hprime Hfull Hprogram Hhalt Hreplay Hpc Hkind Himage Hidle.
   assert (Hin : In chosen selectorColumns)
     by (destruct Hkind as [[_ ->] | [[_ ->] | [[_ ->] | [[_ ->] | [_ ->]]]]]; vm_compute; tauto).
-  pose proof (control_row_static_edge _ _ row _ _ _ Hprogram Hreplay Hpc Himage) as Hedge.
+  pose proof (control_row_static_edge _ _ row _ _ _ Hprime Hfull Hprogram Hreplay Hpc Himage) as Hedge.
   assert (Hrow : row chosen = 1 /\ row COL_PC_AFTER = next).
   { destruct Hkind as [[-> ->] | [[-> ->] | [[-> ->] | [[-> ->] | [-> ->]]]]].
     - exact (BlockTrace.control_row _ _ row _ CODE_END COL_SEL_END _ Hprime Hfull Hprogram Hreplay Hpc

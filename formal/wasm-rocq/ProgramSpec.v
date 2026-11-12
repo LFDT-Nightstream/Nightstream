@@ -102,6 +102,38 @@ Definition pcEntry (program : Program) (pc : Z) : Z :=
 Definition callAddress (f : funcinst) (index : idx) : option N :=
   nth_error (FUNCS (funcinst_MODULE f)) (N.to_nat (index :> N)).
 
+Definition slotOpcode (slot : option FlatInstruction) : option Z :=
+  match slot with
+  | Some (flatInstruction (opEdge _) _) => None
+  | Some (flatInstruction (opInstr (CALL _)) _) => Some CODE_CALL
+  | Some (flatInstruction (opInstr (BLOCK _ _)) _) => Some CODE_BLOCK
+  | Some (flatInstruction (opInstr (LOOP _ _)) _) => Some CODE_LOOP
+  | Some (flatInstruction (opInstr (IFELSE _ _ _)) _) => Some CODE_IF
+  | Some (flatInstruction opElse _) => Some CODE_ELSE
+  | Some (flatInstruction (opInstr (BR_IF _)) _) => Some CODE_BR_IF
+  | Some (flatInstruction (opInstr (BR _)) [None]) => Some CODE_RETURN
+  | Some (flatInstruction (opInstr (BR _)) _) => Some CODE_BR
+  | Some (flatInstruction (opInstr (BR_TABLE _ _)) _) => Some CODE_BR_TABLE
+  | Some (flatInstruction (opInstr RETURN) _) => Some CODE_RETURN
+  | Some (flatInstruction (opInstr NOP) _) => Some CODE_NOP
+  | Some (flatInstruction (opInstr UNREACHABLE) _) => Some CODE_UNREACHABLE
+  | Some (flatInstruction (opInstr (CALL_INDIRECT _ _)) _) => Some CODE_CALL_INDIRECT_RESOLVE
+  | Some (flatInstruction opInvoke _) => Some CODE_CALL_INDIRECT
+  | Some (flatInstruction (opInstr i) _) => encodedOpcode i
+  | _ => Some CODE_END end.
+Definition slotEdgeKind (slot : option FlatInstruction) : option Z :=
+  match slot with
+  | Some (flatInstruction (opEdge _) _) => None
+  | Some (flatInstruction (opInstr RETURN) _) | Some (flatInstruction (opInstr (BR _)) [None]) | None => Some 1
+  | Some (flatInstruction (opInstr UNREACHABLE) _) => Some 3
+  | Some (flatInstruction opInvoke _) => Some 2
+  | Some _ => Some 0
+  end.
+Definition instructionOpcode (program : Program) (pc : Z) : option Z :=
+  match instructionAtPC program pc with Some (_, slot) => slotOpcode slot | None => None end.
+Definition instructionEdgeKind (program : Program) (pc : Z) : option Z :=
+  match instructionAtPC program pc with Some (_, slot) => slotEdgeKind slot | None => None end.
+
 (* The ROM word at an encoded address. The pc ROM holds the edge of choice 0 at
    an instruction's own address and each later edge at its edge slot, so the key
    of an edge is the instruction's address plus its choice. A call's return
@@ -124,35 +156,13 @@ Definition instructionRom (program : Program) (memory : nat) (pc : Z) : option Z
         | Some (flatInstruction (opInstr (RETURN | UNREACHABLE)) _) => None
         (* The callee's entry comes from the function-entry ROM, not from here. *)
         | Some (flatInstruction opInvoke _) => None
-        | Some _ => Some (pc + 1)
-        | None => None end
-      else if Nat.eqb memory programOpcodeId then
-        match slot with
-        | Some (flatInstruction (opEdge _) _) => None
-        | Some (flatInstruction (opInstr (CALL _)) _) => Some CODE_CALL
-        | Some (flatInstruction (opInstr (BLOCK _ _)) _) => Some CODE_BLOCK
-        | Some (flatInstruction (opInstr (LOOP _ _)) _) => Some CODE_LOOP
-        | Some (flatInstruction (opInstr (IFELSE _ _ _)) _) => Some CODE_IF
-        | Some (flatInstruction opElse _) => Some CODE_ELSE
-        | Some (flatInstruction (opInstr (BR_IF _)) _) => Some CODE_BR_IF
-        | Some (flatInstruction (opInstr (BR _)) [None]) => Some CODE_RETURN
-        | Some (flatInstruction (opInstr (BR _)) _) => Some CODE_BR
-        | Some (flatInstruction (opInstr (BR_TABLE _ _)) _) => Some CODE_BR_TABLE
-        | Some (flatInstruction (opInstr RETURN) _) => Some CODE_RETURN
-        | Some (flatInstruction (opInstr NOP) _) => Some CODE_NOP
-        | Some (flatInstruction (opInstr UNREACHABLE) _) => Some CODE_UNREACHABLE
-        | Some (flatInstruction (opInstr (CALL_INDIRECT _ _)) _) => Some CODE_CALL_INDIRECT_RESOLVE
-        | Some (flatInstruction opInvoke _) => Some CODE_CALL_INDIRECT
-        | Some (flatInstruction (opInstr i) _) => encodedOpcode i
-        | _ => Some CODE_END end
-      else if Nat.eqb memory pcEdgeKindId then
-        match slot with
-        | Some (flatInstruction (opEdge _) _) => None
-        | Some (flatInstruction (opInstr RETURN) _) | Some (flatInstruction (opInstr (BR _)) [None]) | None => Some 1
-        | Some (flatInstruction (opInstr UNREACHABLE) _) => Some 3
-        | Some (flatInstruction opInvoke _) => Some 2
-        | Some _ => Some 0
-        end
+        | Some (flatInstruction (opInstr (BLOCK _ _ | LOOP _ _ | CALL_INDIRECT _ _)) _)
+        | Some (flatInstruction opEnd _) => Some (pc + 1)
+        | _ => None end
+      else if Nat.eqb memory programHeaderId then
+        match slotOpcode slot, slotEdgeKind slot with
+        | Some opcode, Some kind => Some (opcode + 65536 * kind)
+        | _, _ => None end
       else if Nat.eqb memory programLocalIndexId then
         match slot with
         | Some (flatInstruction (opInstr (LOCAL_GET x)) _)
@@ -292,7 +302,7 @@ Definition slideRom (program : Program) (memory : nat) (pc : Z) : option Z :=
       end
   end.
 
-Definition programRomIds := [programOpcodeId; programLocalIndexId; programTableId; expectedTypeId; pcEdgeKindId; pcRomId;
+Definition programRomIds := [programHeaderId; programLocalIndexId; programTableId; expectedTypeId; pcRomId;
   callTargetId; functionEntryId; functionTypeId; functionLocalCountId; functionCallMetadataId;
   frameSlideRemainingId; frameSlideDistanceId; programBrTableLenId].
 

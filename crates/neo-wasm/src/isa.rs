@@ -317,6 +317,36 @@ pub enum WasmOpcode {
 }
 
 impl WasmOpcode {
+    pub const fn uses_pc_rom(self) -> bool {
+        matches!(
+            self,
+            Self::Block
+                | Self::Loop
+                | Self::If
+                | Self::Else
+                | Self::End
+                | Self::Br
+                | Self::BrIf
+                | Self::BrTable
+                | Self::Call
+                | Self::ReturnCall
+                | Self::CallIndirectResolve
+        )
+    }
+
+    pub const fn falls_through(self) -> bool {
+        !self.uses_pc_rom()
+            && !matches!(
+                self,
+                Self::Return
+                    | Self::Unreachable
+                    | Self::CallIndirect
+                    | Self::ReturnCallIndirect
+                    | Self::Trap
+                    | Self::Unsupported
+            )
+    }
+
     pub fn supported() -> [Self; 116] {
         [
             Self::Nop,

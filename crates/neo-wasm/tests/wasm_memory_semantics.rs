@@ -2,7 +2,7 @@ use neo_math::F;
 use neo_wasm::host_event_bindings::HostEventBindings;
 use neo_wasm::layout::{
     COL_CALL_STACK_RETURN_PC_VALUE, COL_CALL_TARGET_METADATA, COL_ENTERED_FUNCTION_NUM_LOCALS, COL_EXPECTED_TYPE_ID,
-    COL_FUNCTION_TYPE_ID, COL_LINEAR_MEM_IMM_OFFSET, COL_LOCAL_INDEX, COL_OPCODE_CODE, COL_STACK_READ_VALUE_HI,
+    COL_FUNCTION_TYPE_ID, COL_LINEAR_MEM_IMM_OFFSET, COL_LOCAL_INDEX, COL_PROGRAM_HEADER, COL_STACK_READ_VALUE_HI,
     COL_STACK_WRITE0_VALUE_HI, COL_TABLE_INDEX, COL_TABLE_SIZE, COL_TABLE_VALUE,
 };
 use neo_wasm::{
@@ -139,11 +139,11 @@ fn memory_semantics_rejects_wrong_program_opcode() {
         .iter()
         .position(|row| row.row_kind.is_program())
         .expect("program row");
-    witnesses[row_index][COL_OPCODE_CODE] += F::ONE;
+    witnesses[row_index][COL_PROGRAM_HEADER] += F::ONE;
 
     let layout = build_wasm_relation_layout();
     let err = sanity_check_memory_rows(layout, &witnesses, &preload).expect_err("wrong opcode must fail");
-    assert!(err.contains("memory `program_opcode` ROM mismatch"));
+    assert!(err.contains("memory `program_header` ROM mismatch"));
 }
 
 #[test]

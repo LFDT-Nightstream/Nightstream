@@ -666,3 +666,37 @@ fn count_families_are_split_and_biased() {
         "exports must have no import-schedule count cell"
     );
 }
+
+#[test]
+fn packed_slot_descriptor_binds_each_decoded_field() {
+    use neo_math::F;
+    use neo_wasm::layout::*;
+    let setup = common::host_event_fixture::host_event_lifecycle_setup();
+    let row = setup
+        .trace
+        .iter()
+        .find(|row| row.host_event_rom_slot.is_some())
+        .unwrap();
+    let witness = build_witness_vector(row).unwrap();
+    common::assert_satisfied(&witness, "packed slot descriptor");
+    for column in [
+        COL_HOST_EVENT_SLOT_KIND,
+        COL_HOST_EVENT_SLOT_ARG,
+        COL_HOST_EVENT_SLOT_VARIANT,
+        COL_HOST_EVENT_SLOT_DESCRIPTOR,
+    ] {
+        let mut forged = witness.clone();
+        forged[column] += F::ONE;
+        common::assert_rejected(&forged, "decoded slot field must match its ROM descriptor");
+    }
+    // Keep the packed value unchanged across each field boundary.
+    for (low, high, radix) in [
+        (COL_HOST_EVENT_SLOT_KIND, COL_HOST_EVENT_SLOT_ARG, 32),
+        (COL_HOST_EVENT_SLOT_ARG, COL_HOST_EVENT_SLOT_VARIANT, 256),
+    ] {
+        let mut forged = witness.clone();
+        forged[low] += F::from_u64(radix);
+        forged[high] -= F::ONE;
+        common::assert_rejected(&forged, "slot fields cannot carry into an adjacent field");
+    }
+}

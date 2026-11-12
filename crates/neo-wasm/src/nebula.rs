@@ -306,7 +306,7 @@ fn dimensions(id: WasmMemoryId) -> &'static [Dimension] {
     use Dimension as D;
     use WasmMemoryId as M;
     match id {
-        M::ProgramOpcode
+        M::ProgramHeader
         | M::ProgramBrTableLen
         | M::ProgramLocalIndex
         | M::ProgramGlobalIndex
@@ -319,7 +319,6 @@ fn dimensions(id: WasmMemoryId) -> &'static [Dimension] {
         | M::ProgramImmediate
         | M::ProgramImmediateHi
         | M::ProgramRefFuncRef
-        | M::PcEdgeKind
         | M::CallTarget
         | M::PcRom
         | M::FrameSlideRemaining
@@ -331,11 +330,7 @@ fn dimensions(id: WasmMemoryId) -> &'static [Dimension] {
         | M::HostEventExportScheduleCount
         | M::HostEventImportScheduleCount
         | M::HostEventBase => &[D::Function],
-        M::HostEventSlotKind
-        | M::HostEventSlotArg
-        | M::HostEventSlotVariant
-        | M::HostEventSlotImmediate0
-        | M::HostEventSlotImmediate1 => &[D::Event, D::Slot],
+        M::HostEventSlotDescriptor | M::HostEventSlotImmediate0 | M::HostEventSlotImmediate1 => &[D::Event, D::Slot],
         M::Stack => &[D::Stack],
         M::LinearMemory => &[D::LinearMemory],
         M::GlobalLo | M::GlobalHi => &[D::Global],

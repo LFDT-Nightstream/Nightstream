@@ -1,6 +1,5 @@
-(* Active program rows fetch from the initial opcode ROM through exported ports. *)
-From Stdlib Require Import List ZArith Lia.
-Require Import R1CS Columns FullRelation Range Selectors ZeroTest CircuitFacts MemoryTrace MemoryCatalog.
+From Stdlib Require Import List ZArith Lia Bool.
+Require Import InstructionHeader OpcodeCatalog R1CS Columns FullRelation Range Selectors ZeroTest CircuitFacts MemoryTrace MemoryCatalog.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -27,69 +26,136 @@ Proof.
     + unfold portEvent, active, localIndexPort. simpl. rewrite Hactive. reflexivity.
 Qed.
 
-Definition opcodePort : PortSpec :=
-  mkPort [COL_PC_BEFORE] COL_OPCODE_CODE Read (When COL_IS_PROGRAM_ROW).
+Definition headerPort : PortSpec :=
+  mkPort [COL_PC_BEFORE] COL_PROGRAM_HEADER Read (When COL_IS_PROGRAM_ROW).
+Definition headerMemory : MemorySpec :=
+  mkMemory programHeaderId Rom [headerPort].
 
-Definition opcodeMemory : MemorySpec :=
-  mkMemory MemoryCatalog.programOpcodeId Rom [opcodePort].
-
-Lemma opcode_memory_in_catalog :
-  nth_error MemoryCatalog.memories MemoryCatalog.programOpcodeId = Some opcodeMemory.
+Lemma header_memory_in_catalog : nth_error memories programHeaderId = Some headerMemory.
+Proof. vm_compute. reflexivity. Qed.
+Lemma header_memory_read_only : readOnlyMemory programHeaderId memories = true.
+Proof. vm_compute. reflexivity. Qed.
+Lemma pc_memory_read_only : readOnlyMemory pcRomId memories = true.
 Proof. vm_compute. reflexivity. Qed.
 
-Lemma opcode_memory_read_only :
-  readOnlyMemory MemoryCatalog.programOpcodeId MemoryCatalog.memories = true.
-Proof. vm_compute. reflexivity. Qed.
-
-Lemma edge_kind_memory_read_only :
-  readOnlyMemory MemoryCatalog.pcEdgeKindId MemoryCatalog.memories = true.
-Proof. vm_compute. reflexivity. Qed.
-
-Lemma pc_memory_read_only :
-  readOnlyMemory MemoryCatalog.pcRomId MemoryCatalog.memories = true.
-Proof. vm_compute. reflexivity. Qed.
-
-Lemma opcode_event_in_row : forall (w : Witness),
-  w COL_IS_PROGRAM_ROW = 1 ->
-  In (ReadEvent MemoryCatalog.programOpcodeId [w COL_PC_BEFORE] (w COL_OPCODE_CODE))
-    (eventsForRow MemoryCatalog.memories w).
+Lemma header_event_in_row : forall (w : Witness), w COL_IS_PROGRAM_ROW = 1 ->
+  In (ReadEvent programHeaderId [w COL_PC_BEFORE] (w COL_PROGRAM_HEADER)) (eventsForRow memories w).
 Proof.
   intros w Hprogram.
-  eapply port_event_in_row with (specification := opcodeMemory) (port := opcodePort).
-  - eapply nth_error_In. exact opcode_memory_in_catalog.
+  eapply port_event_in_row with (specification := headerMemory) (port := headerPort).
+  - eapply nth_error_In. exact header_memory_in_catalog.
   - left. reflexivity.
-  - unfold portEvent, active, opcodeMemory, opcodePort. simpl.
-    rewrite Hprogram. reflexivity.
+  - unfold portEvent, active, headerMemory, headerPort. simpl. rewrite Hprogram. reflexivity.
+Qed.
+
+Lemma full_header_packing : forall w,
+  fieldPrime -> FullRelation.satFull w ->
+  w COL_PROGRAM_HEADER = w COL_OPCODE_CODE + 65536 * w COL_PC_EDGE_KIND.
+Proof.
+  intros w Hprime Hfull. pose proof (proj1 Hfull) as Hone.
+  pose proof (value_bound w COL_PROGRAM_HEADER) as Hheader. circuit_range COL_OPCODE_CODE Hcode.
+  circuit_range COL_PC_EDGE_KIND Hkind.
+  circuit_row ([(COL_PROGRAM_HEADER, 1); (COL_OPCODE_CODE, -1); (COL_PC_EDGE_KIND, -65536)],
+    [(COL_ONE, 1)], ([] : SparseRow)) Hrow.
+  expand_row Hrow. normalize_columns. rewrite Hone in Hrow. field_linear Hrow.
+Qed.
+
+Lemma full_host_slot_descriptor : forall w,
+  fieldPrime -> FullRelation.satFull w ->
+  w COL_HOST_EVENT_SLOT_DESCRIPTOR = w COL_HOST_EVENT_SLOT_KIND +
+    32 * w COL_HOST_EVENT_SLOT_ARG + 8192 * w COL_HOST_EVENT_SLOT_VARIANT /\
+  0 <= w COL_HOST_EVENT_SLOT_KIND < 32 /\
+  0 <= w COL_HOST_EVENT_SLOT_ARG < 256 /\ 0 <= w COL_HOST_EVENT_SLOT_VARIANT < 16.
+Proof.
+  intros w Hprime Hfull. pose proof (proj1 Hfull) as Hone.
+  pose proof (value_bound w COL_HOST_EVENT_SLOT_DESCRIPTOR) as Hpacked.
+  circuit_range COL_HOST_EVENT_SLOT_KIND Hkind.
+  circuit_range COL_HOST_EVENT_SLOT_ARG Harg.
+  circuit_range COL_HOST_EVENT_SLOT_VARIANT Hvariant.
+  split; [ | lia].
+  circuit_row ([(COL_HOST_EVENT_SLOT_DESCRIPTOR, 1); (COL_HOST_EVENT_SLOT_KIND, -1);
+    (COL_HOST_EVENT_SLOT_ARG, -32); (COL_HOST_EVENT_SLOT_VARIANT, -8192)],
+    [(COL_ONE, 1)], ([] : SparseRow)) Hrow.
+  expand_row Hrow. normalize_columns. rewrite Hone in Hrow. field_linear Hrow.
+Qed.
+
+Lemma full_opcode_u16 : forall w,
+  fieldPrime -> FullRelation.satFull w -> w COL_IS_PROGRAM_ROW = 1 -> 0 <= w COL_OPCODE_CODE < 65536.
+Proof.
+  intros w Hprime Hfull Hprogram.
+  destruct (full_opcode_decode w Hprime Hfull Hprogram) as [chosen [code [Hin [_ ->]]]].
+  assert (Hcheck : forallb (fun entry => (0 <=? snd entry) && (snd entry <? 65536)) selectorCodes = true)
+    by (vm_compute; reflexivity).
+  apply forallb_forall with (x := (chosen, code)) in Hcheck; [ | exact Hin].
+  apply Bool.andb_true_iff in Hcheck as [Hlo Hhi]. cbn in Hlo, Hhi.
+  apply Z.leb_le in Hlo. apply Z.ltb_lt in Hhi. lia.
+Qed.
+
+Lemma circuit_row_header_fetch : forall initial final (w : Witness),
+  Replay initial (eventsForRow memories w) final -> w COL_IS_PROGRAM_ROW = 1 ->
+  initial programHeaderId [w COL_PC_BEFORE] = Some (w COL_PROGRAM_HEADER).
+Proof.
+  intros initial final w Hreplay Hprogram.
+  eapply replay_read_from_initial; [exact Hreplay | apply read_only_row, header_memory_read_only | ].
+  now apply header_event_in_row.
 Qed.
 
 Lemma circuit_row_opcode_fetch : forall initial final (w : Witness),
-  Replay initial (eventsForRow MemoryCatalog.memories w) final ->
-  w COL_IS_PROGRAM_ROW = 1 ->
-  initial MemoryCatalog.programOpcodeId [w COL_PC_BEFORE] = Some (w COL_OPCODE_CODE).
+  fieldPrime -> FullRelation.satFull w ->
+  Replay initial (eventsForRow memories w) final -> w COL_IS_PROGRAM_ROW = 1 ->
+  opcodeAt initial [w COL_PC_BEFORE] = Some (w COL_OPCODE_CODE).
 Proof.
-  intros initial final w Hreplay Hprogram.
-  eapply replay_read_from_initial; [exact Hreplay | | ].
-  - apply read_only_row. exact opcode_memory_read_only.
-  - apply opcode_event_in_row. exact Hprogram.
+  intros initial final w Hprime Hfull Hreplay Hprogram. unfold opcodeAt.
+  rewrite (circuit_row_header_fetch _ _ _ Hreplay Hprogram), (full_header_packing w Hprime Hfull).
+  cbn [option_map]. rewrite header_opcode; [reflexivity | now apply full_opcode_u16].
 Qed.
 
-Definition edgeKindPort : PortSpec :=
-  mkPort [COL_PC_BEFORE] COL_PC_EDGE_KIND Read (When COL_IS_PROGRAM_ROW).
-
 Lemma circuit_row_edge_kind_fetch : forall initial final (w : Witness),
-  Replay initial (eventsForRow MemoryCatalog.memories w) final ->
-  w COL_IS_PROGRAM_ROW = 1 ->
-  initial MemoryCatalog.pcEdgeKindId [w COL_PC_BEFORE] = Some (w COL_PC_EDGE_KIND).
+  fieldPrime -> FullRelation.satFull w ->
+  Replay initial (eventsForRow memories w) final -> w COL_IS_PROGRAM_ROW = 1 ->
+  edgeKindAt initial [w COL_PC_BEFORE] = Some (w COL_PC_EDGE_KIND).
 Proof.
-  intros initial final w Hreplay Hprogram.
-  eapply replay_read_from_initial; [exact Hreplay | | ].
-  - apply read_only_row. exact edge_kind_memory_read_only.
-  - eapply port_event_in_row with
-      (specification := mkMemory MemoryCatalog.pcEdgeKindId Rom [edgeKindPort])
-      (port := edgeKindPort).
-    + apply nth_error_In with (n := MemoryCatalog.pcEdgeKindId). vm_compute. reflexivity.
-    + left. reflexivity.
-    + unfold portEvent, active, edgeKindPort. simpl. rewrite Hprogram. reflexivity.
+  intros initial final w Hprime Hfull Hreplay Hprogram. unfold edgeKindAt.
+  rewrite (circuit_row_header_fetch _ _ _ Hreplay Hprogram), (full_header_packing w Hprime Hfull).
+  cbn [option_map]. rewrite header_edge_kind; [reflexivity | now apply full_opcode_u16].
+Qed.
+
+Definition fallthroughFlagRow : nat := Eval vm_compute in
+  match findRow (fun row => match row with
+    | ((column, _) :: _, [(one, 1)], []) => Nat.eqb column COL_PC_FALLTHROUGH && Nat.eqb one COL_ONE
+    | _ => false end) FullRelation.rows with Some i => i | None => 0%nat end.
+Definition fallthroughFlagShape : Row := Eval vm_compute in
+  List.nth fallthroughFlagRow FullRelation.rows ([], [], []).
+Definition selectedFallthroughRow (code : Z) : Row :=
+  (if existsb (Z.eqb code) fallthroughCodes then [(COL_PC_FALLTHROUGH, 1); (COL_ONE, -1)]
+   else [(COL_PC_FALLTHROUGH, 1)], [(COL_ONE, 1)], []).
+
+Lemma full_fallthrough_flag : forall w chosen code,
+  fieldPrime -> FullRelation.satFull w -> In (chosen, code) selectorCodes -> w chosen = 1 ->
+  w COL_PC_FALLTHROUGH = if existsb (Z.eqb code) fallthroughCodes then 1 else 0.
+Proof.
+  intros w chosen code Hprime Hfull Hin Hchosen.
+  assert (Hcol : In chosen selectorColumns).
+  { rewrite <- opcode_selector_columns. exact (in_map fst _ _ Hin). }
+  pose proof (full_selected_row w chosen fallthroughFlagRow fallthroughFlagShape Hprime Hfull Hcol Hchosen
+    ltac:(vm_compute; reflexivity)) as Hrow.
+  assert (Hcheck : forallb (fun entry => rowsEqual (selectedRow (fst entry) fallthroughFlagShape)
+    (selectedFallthroughRow (snd entry))) selectorCodes = true) by (vm_compute; reflexivity).
+  apply forallb_forall with (x := (chosen, code)) in Hcheck; [ | exact Hin].
+  apply rows_equal_sound in Hcheck. cbn [fst snd] in Hcheck. rewrite Hcheck in Hrow.
+  pose proof (proj1 Hfull) as Hone. circuit_boolean COL_PC_FALLTHROUGH Hbit.
+  unfold selectedFallthroughRow in Hrow. destruct (existsb (Z.eqb code) fallthroughCodes);
+    expand_row Hrow; normalize_columns; rewrite Hone in Hrow; field_linear Hrow.
+Qed.
+
+Lemma full_fallthrough_pc : forall w,
+  fieldPrime -> FullRelation.satFull w -> w COL_PC_FALLTHROUGH = 1 ->
+  w COL_PC_AFTER = w COL_PC_BEFORE + 1.
+Proof.
+  intros w Hprime Hfull Hfall. pose proof (proj1 Hfull) as Hone.
+  circuit_range COL_PC_BEFORE Hb. circuit_range COL_PC_AFTER Ha.
+  circuit_row ([(COL_PC_FALLTHROUGH, 1)], [(COL_PC_AFTER, 1); (COL_PC_BEFORE, -1); (COL_ONE, -1)], ([] : SparseRow)) Hrow.
+  expand_row Hrow. normalize_columns. rewrite Hfall, Hone in Hrow. field_linear Hrow.
 Qed.
 
 (* The key of an edge: an instruction's choice c is at the c-th address after
@@ -167,14 +233,14 @@ Qed.
 Lemma static_pc_gate_rows :
   Range.inFull (ZeroTest.inverseRow COL_PC_EDGE_KIND COL_PC_EDGE_KIND_INV COL_PC_EDGE_KIND_IS_STATIC) = true /\
   Range.inFull (ZeroTest.zeroRow COL_PC_EDGE_KIND COL_PC_EDGE_KIND_IS_STATIC) = true /\
-  Range.inFull ([(COL_IS_PROGRAM_ROW, 1)], [(COL_PC_EDGE_KIND_IS_STATIC, 1)], [(COL_PC_ROM_ACTIVE, 1)]) = true.
+  Range.inFull ([(COL_IS_PROGRAM_ROW, 1)], [(COL_PC_EDGE_KIND_IS_STATIC, 1)], [(COL_PC_ROM_ACTIVE, 1); (COL_PC_FALLTHROUGH, 1)]) = true.
 Proof. vm_compute. repeat split; reflexivity. Qed.
 
 Lemma full_static_pc_rom_active : forall (w : Witness),
   Range.fieldPrime -> FullRelation.satFull w ->
-  w COL_IS_PROGRAM_ROW = 1 -> w COL_PC_EDGE_KIND = 0 -> w COL_PC_ROM_ACTIVE = 1.
+  w COL_IS_PROGRAM_ROW = 1 -> w COL_PC_EDGE_KIND = 0 -> w COL_PC_FALLTHROUGH = 0 -> w COL_PC_ROM_ACTIVE = 1.
 Proof.
-  intros w Hprime [Hone Hall] Hprogram Hkind.
+  intros w Hprime [Hone Hall] Hprogram Hkind Hfall.
   destruct static_pc_gate_rows as [Hinv [Hzero Hgate]].
   pose proof (ZeroTest.zero_test_value w COL_PC_EDGE_KIND COL_PC_EDGE_KIND_INV
     COL_PC_EDGE_KIND_IS_STATIC Hprime Hone
@@ -182,7 +248,7 @@ Proof.
   rewrite Hkind in Hstatic. cbn in Hstatic.
   pose proof (Range.in_full_sat w _ Hall Hgate) as Hsat.
   unfold sat in Hsat. cbn [eval fold_right] in Hsat.
-  rewrite Hprogram, Hstatic in Hsat.
+  rewrite Hprogram, Hstatic, Hfall in Hsat.
   pose proof (value_bound w COL_PC_ROM_ACTIVE) as Hbound.
   apply Z.mod_divide in Hsat; [ | unfold modulus; lia].
   destruct Hsat as [k Hk]. unfold modulus in *; lia.

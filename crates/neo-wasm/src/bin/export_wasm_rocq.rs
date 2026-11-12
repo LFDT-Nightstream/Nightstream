@@ -375,11 +375,10 @@ fn emit_rocq_memory_catalog() -> String {
         (WasmMemoryId::CallTarget, "callTargetId"),
         (WasmMemoryId::FunctionEntry, "functionEntryId"),
         (WasmMemoryId::FunctionType, "functionTypeId"),
-        (WasmMemoryId::ProgramOpcode, "programOpcodeId"),
+        (WasmMemoryId::ProgramHeader, "programHeaderId"),
         (WasmMemoryId::ProgramLocalIndex, "programLocalIndexId"),
         (WasmMemoryId::ProgramTableId, "programTableId"),
         (WasmMemoryId::ProgramCallIndirectExpectedTypeId, "expectedTypeId"),
-        (WasmMemoryId::PcEdgeKind, "pcEdgeKindId"),
         (WasmMemoryId::PcRom, "pcRomId"),
         (WasmMemoryId::FrameSlideRemaining, "frameSlideRemainingId"),
         (WasmMemoryId::FrameSlideDistance, "frameSlideDistanceId"),
@@ -443,6 +442,16 @@ fn emit_rocq_opcodes() -> String {
         ));
     }
     out.push_str("].\n");
+    let fallthrough_codes = WasmOpcode::supported()
+        .into_iter()
+        .filter(|op| op.falls_through())
+        .map(|op| format!("{}%Z", opcode_code(op)))
+        .collect::<Vec<_>>()
+        .join("; ");
+    out.push_str(&format!(
+        "Definition fallthroughCodes : list Z := [{fallthrough_codes}].\n"
+    ));
+
     out
 }
 

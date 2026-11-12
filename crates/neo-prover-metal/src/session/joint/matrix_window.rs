@@ -1,6 +1,7 @@
 //! One original-row cache and its local device metadata. Columns stay global.
 
 use std::ops::Range;
+use std::sync::{Arc, Weak};
 
 use neo_reductions::superneo_eval::{MatrixWindow, SuperneoCompactRowOffsets, SuperneoMatrixCache};
 
@@ -8,11 +9,16 @@ use super::*;
 
 pub(super) struct MetalMatrixWindow {
     pub(super) rows: Range<usize>,
-    pub(super) cache: std::sync::Arc<SuperneoEvalCache>,
-    pub(super) matrices: Vec<MetalCompactMatrix>,
+    pub(super) cache: Arc<SuperneoEvalCache>,
+    pub(super) matrices: Arc<Vec<MetalCompactMatrix>>,
     pub(super) workspace_peak_bytes: usize,
     pub(super) upload_bytes: usize,
 }
+
+const RESIDENT_LOCK: MetalError = MetalError::Shape("resident matrix lock was poisoned");
+
+pub(in crate::session) type ResidentMatrices =
+    std::sync::Mutex<Vec<(Weak<SuperneoEvalCache>, Arc<Vec<MetalCompactMatrix>>)>>;
 
 fn add_bytes(total: usize, bytes: usize) -> Result<usize, MetalError> {
     total
@@ -95,36 +101,79 @@ impl MetalSession {
                     error => MetalError::Execution(error.to_string()),
                 })?;
             let rows = window.rows();
-            let matrices = window.cache().matrix_caches();
+            let (storage_bytes, workspace_peak) = (window.storage_bytes(), window.workspace_peak_bytes());
+            let cache = window.into_cache();
+            let matrices = cache.matrix_caches();
             let (upload_bytes, staging_bytes) = if upload { upload_size(matrices)? } else { (0, 0) };
             let descriptors = if upload { matrices.len() } else { 0 }
                 .checked_mul(size_of::<MetalCompactMatrix>())
                 .ok_or(MetalError::Shape("matrix window descriptor size overflow"))?;
             let live_bytes = add_bytes(
-                add_bytes(add_bytes(window.storage_bytes(), descriptors)?, upload_bytes)?,
+                add_bytes(add_bytes(storage_bytes, descriptors)?, upload_bytes)?,
                 staging_bytes,
             )?;
-            let peak = window.workspace_peak_bytes().max(live_bytes);
+            let peak = workspace_peak.max(live_bytes);
+            let resident = if upload { self.resident_matrices(&cache)? } else { None };
+            // Resident metadata is already in the allocated size.
+            let budget = if resident.is_some() {
+                application::available_workspace(self, reserved_bytes)
+                    .saturating_add(upload_bytes)
+                    .min(plan.workspace_bytes)
+            } else {
+                budget
+            };
             if peak > budget {
                 let count = rows.end - rows.start;
                 requested.end = rows.start + smaller_window(count, peak, budget)?;
                 continue;
             }
-            let mut uploaded = Vec::new();
-            if upload {
-                let empty = self.buffer(size_of::<u64>())?;
-                for matrix in matrices {
-                    uploaded.push(self.upload_matrix_metadata(matrix, &empty)?);
+            let uploaded = match resident {
+                Some(resident) => resident,
+                None if !upload => Arc::default(),
+                None => {
+                    let empty = self.buffer(size_of::<u64>())?;
+                    let uploaded = matrices
+                        .iter()
+                        .map(|matrix| self.upload_matrix_metadata(matrix, &empty))
+                        .collect::<Result<Vec<_>, _>>()?;
+                    self.keep_resident_matrices(&cache, uploaded)?
                 }
-            }
+            };
             return Ok(MetalMatrixWindow {
                 rows,
-                cache: window.into_cache(),
+                cache,
                 matrices: uploaded,
                 workspace_peak_bytes: peak,
                 upload_bytes,
             });
         }
+    }
+
+    /// The device metadata of `cache`, if an earlier window uploaded it and
+    /// the host still holds the cache (a relation's retained window).
+    fn resident_matrices(
+        &self,
+        cache: &Arc<SuperneoEvalCache>,
+    ) -> Result<Option<Arc<Vec<MetalCompactMatrix>>>, MetalError> {
+        let mut resident = self.resident_matrices.lock().map_err(|_| RESIDENT_LOCK)?;
+        resident.retain(|(host, _)| host.strong_count() != 0);
+        Ok(resident
+            .iter()
+            .find(|(host, _)| std::ptr::eq(host.as_ptr(), Arc::as_ptr(cache)))
+            .map(|(_, matrices)| Arc::clone(matrices)))
+    }
+
+    fn keep_resident_matrices(
+        &self,
+        cache: &Arc<SuperneoEvalCache>,
+        matrices: Vec<MetalCompactMatrix>,
+    ) -> Result<Arc<Vec<MetalCompactMatrix>>, MetalError> {
+        let matrices = Arc::new(matrices);
+        self.resident_matrices
+            .lock()
+            .map_err(|_| RESIDENT_LOCK)?
+            .push((Arc::downgrade(cache), Arc::clone(&matrices)));
+        Ok(matrices)
     }
 
     pub(super) fn upload_matrix_metadata(

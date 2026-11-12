@@ -118,6 +118,8 @@ pub struct MetalSession {
     // A prover keeps the production key rows after their first commitment;
     // `None` expands the needed rows in every call.
     production_key: Option<Mutex<production_commitment::ResidentKeyRows>>,
+    // The device metadata of each matrix cache that the host still holds.
+    resident_matrices: joint::ResidentMatrices,
     activity: ActivityCounters,
 }
 
@@ -221,6 +223,7 @@ impl MetalSession {
             fe_weighted_row_table,
             dec_ring_reduce_phi81,
             production_key: None,
+            resident_matrices: Default::default(),
             activity: ActivityCounters::default(),
         })
     }

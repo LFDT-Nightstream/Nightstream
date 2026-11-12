@@ -22,7 +22,7 @@ use transpose::BlockTranspose;
 #[path = "../../../tests/unit/joint_openings.rs"]
 pub(super) mod tests;
 
-const FORM_REDUCTION_THREADS: usize = 256;
+const FORM_REDUCTION_THREADS: usize = 64;
 const PARALLEL_FORM_LIST_THRESHOLD: usize = 128;
 const FORM_TILE_ENTRIES: usize = 16 * 1024;
 const CHUNK_BLOCKS: usize = 512;
@@ -47,7 +47,8 @@ pub(super) struct MetalJointOpeningPlan {
     tiled_form_tiles: Buffer,
     tiled_form_partials: Buffer,
     geometric: Vec<DeviceGeometricOpeningPlan>,
-    parallel_form_list_count: usize,
+    /// Matrix `m` owns the lists `[m]..[m + 1]`; the lists are in matrix order.
+    parallel_form_list_offsets: Vec<usize>,
     tiled_form_list_count: usize,
     tiled_form_tile_count: usize,
     matrix_count: usize,
@@ -440,6 +441,7 @@ impl MetalSession {
         let mut pattern_locals = Vec::with_capacity(layout.coefficients);
         let mut pattern_coefficients = Vec::with_capacity(layout.coefficients);
         let mut parallel_form_lists = Vec::with_capacity(layout.parallel);
+        let mut parallel_form_list_offsets = vec![0usize; 2];
         let mut tiled_form_lists = Vec::with_capacity(layout.tiled);
         let mut tiled_form_tile_offsets = Vec::with_capacity(layout.tiled + 1);
         tiled_form_tile_offsets.push(0u32);
@@ -516,9 +518,9 @@ impl MetalSession {
                 }
             }
             entries.extend(transpose.entries);
+            parallel_form_list_offsets.push(parallel_form_lists.len());
             matrix_active_offsets_host.push(active_count_u32(&active_blocks_host)?);
         }
-        let parallel_form_list_count = parallel_form_lists.len();
         let tiled_form_list_count = tiled_form_lists.len();
         let tiled_form_tile_count = tiled_form_tiles.len() / 3;
         let mut active_chunk_bases = Vec::with_capacity(layout.chunks);
@@ -583,7 +585,7 @@ impl MetalSession {
             })?,
             tiled_form_partials: self.buffer(tiled_form_tile_count.max(1) * 2 * size_of::<u64>())?,
             geometric,
-            parallel_form_list_count,
+            parallel_form_list_offsets,
             tiled_form_list_count,
             tiled_form_tile_count,
             matrix_count,
@@ -799,7 +801,8 @@ impl MetalSession {
             );
             encoder.endEncoding();
 
-            if plan.parallel_form_list_count != 0 {
+            let lists = plan.parallel_form_list_offsets[matrix]..plan.parallel_form_list_offsets[matrix + 1];
+            if !lists.is_empty() {
                 let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
                 self.launch(
                     &encoder,
@@ -812,12 +815,12 @@ impl MetalSession {
                         Arg::Buffer(5, &chi),
                         Arg::Buffer(6, &form_shape),
                         Arg::Buffer(7, &forms),
-                        Arg::Buffer(9, &plan.parallel_form_lists),
+                        Arg::BufferAt(9, &plan.parallel_form_lists, lists.start * size_of::<u32>()),
                         Arg::Buffer(11, &plan.pattern_locals),
                         Arg::Buffer(12, &plan.pattern_coefficients),
                     ],
                     Grid::Groups {
-                        groups: 2 * plan.parallel_form_list_count,
+                        groups: 2 * lists.len(),
                         threads: FORM_REDUCTION_THREADS,
                     },
                 );

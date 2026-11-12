@@ -1,5 +1,5 @@
 From Stdlib Require Import List ZArith Lia.
-Require Import StackPorts R1CS Columns FullRelation Range Selectors CircuitFacts MemoryCatalog.
+Require Import StackPorts R1CS Columns FullRelation Range Selectors CircuitFacts MemoryCatalog CallInitialization TerminalFacts.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -67,6 +67,60 @@ Proof.
   { normalize_columns. clear - modular_22 Hone B19 B20 B23. apply Z.mod_divide in modular_22; [destruct modular_22 as [k Hk]; unfold modulus in *; nia | unfold modulus; lia]. }
   clear modular_22.
   normalize_columns. nia.
+Qed.
+
+(* A clean activation exit is at the host boundary. A guest pop would
+   put the next depth below that boundary, which the u32 decomposition forbids. *)
+Lemma pop_exit_exclusive : forall (w : Witness), fieldPrime -> FullRelation.satFull w ->
+  w COL_CALL_STACK_POP_PRESENT = 1 -> w COL_HOST_EVENT_EXIT_LATCH <> 1.
+Proof.
+  intros w Hprime Hfull Hpop Hexit.
+  pose proof (proj1 Hfull) as Hone.
+  circuit_boolean COL_SEL_RETURN Hr. circuit_boolean COL_SEL_END He.
+  full_row callStackPopSupportRow Hsupport.
+  rewrite Hpop, Hone in Hsupport.
+  assert (Hselected : w COL_SEL_RETURN = 1 \/ w COL_SEL_END = 1) by (field_linear Hsupport).
+  assert (Hprogram : w COL_IS_PROGRAM_ROW = 1).
+  { destruct Hselected as [Hs | Hs].
+    - exact (full_selected_is_program_row w COL_SEL_RETURN Hprime Hfull ltac:(vm_compute; tauto) Hs).
+    - exact (full_selected_is_program_row w COL_SEL_END Hprime Hfull ltac:(vm_compute; tauto) Hs). }
+  assert (Hpush : w COL_CALL_STACK_PUSH_PRESENT = 0).
+  { pose proof (value_bound w COL_CALL_STACK_PUSH_PRESENT).
+    destruct Hselected as [Hchosen | Hchosen].
+    - assert (Hin : In COL_SEL_RETURN selectorColumns) by (vm_compute; tauto).
+      selected_row COL_SEL_RETURN callStackPushRow Hrow. field_linear Hrow.
+    - assert (Hin : In COL_SEL_END selectorColumns) by (vm_compute; tauto).
+      selected_row COL_SEL_END callStackPushRow Hrow. field_linear Hrow. }
+  destruct (full_host_switch_absent w COL_IS_PROGRAM_ROW Hprime Hfull ltac:(cbn; auto 20)
+    ltac:(cbn; discriminate) ltac:(cbn; discriminate) ltac:(cbn; discriminate) Hprogram) as [Hsuspend [Hresume _]].
+  destruct (program_starts_active w Hprime Hfull Hprogram) as [Hfb [Htb Hclear]].
+  circuit_boolean COL_ACTIVATION_FINISHED_AFTER Hfinish.
+  circuit_boolean COL_TRAPPED_AFTER Htrap.
+  circuit_row ([(COL_ACTIVATION_FINISHED_AFTER, 1); (COL_ACTIVATION_FINISHED_BEFORE, -1);
+    (COL_TRAPPED_AFTER, -1); (COL_TRAPPED_BEFORE, 1); (COL_HOST_CLEAR_ACTIVATION_FINISHED, 1);
+    (COL_HOST_EVENT_EXIT_LATCH, -1)], [(COL_ONE, 1)], ([] : SparseRow)) Hexitrow.
+  expand_row Hexitrow. normalize_columns. rewrite Hone, Hfb, Htb, Hclear, Hexit in Hexitrow.
+  assert (Hclean : w COL_ACTIVATION_FINISHED_AFTER = 1 /\ w COL_TRAPPED_AFTER = 0)
+    by (field_linear Hexitrow).
+  destruct Hclean as [Hfinished Htrapped].
+  destruct (full_clean_finish w Hprime Hfull Hprogram Hfinished Htrapped) as [_ [Hboundary _]].
+  circuit_range COL_CALL_STACK_DEPTH_BEFORE Bdb. circuit_range COL_CALL_STACK_DEPTH_AFTER Bda.
+  circuit_range COL_HOST_FRAME_DEPTH_BEFORE Bfb. circuit_range COL_HOST_FRAME_DEPTH_AFTER Bfa.
+  circuit_range COL_GUEST_DEPTH_AFTER Bguest.
+  circuit_row ([(COL_CALL_STACK_DEPTH_AFTER, 1); (COL_CALL_STACK_DEPTH_BEFORE, -1);
+    (COL_CALL_STACK_PUSH_PRESENT, -1); (COL_CALL_STACK_POP_PRESENT, 1);
+    (COL_HOST_SUSPEND, -1); (COL_HOST_RESUME, 1)], [(COL_ONE, 1)], ([] : SparseRow)) Hdepthrow.
+  expand_row Hdepthrow. normalize_columns. rewrite Hone, Hpush, Hpop, Hsuspend, Hresume in Hdepthrow.
+  assert (Hdepth : w COL_CALL_STACK_DEPTH_AFTER = w COL_CALL_STACK_DEPTH_BEFORE - 1)
+    by (field_linear Hdepthrow).
+  circuit_row ([(COL_ONE, 1); (COL_HOST_SUSPEND, -1); (COL_HOST_RESUME, -1)],
+    [(COL_HOST_FRAME_DEPTH_AFTER, 1); (COL_HOST_FRAME_DEPTH_BEFORE, -1)], ([] : SparseRow)) Hfloorrow.
+  expand_row Hfloorrow. normalize_columns. rewrite Hone, Hsuspend, Hresume in Hfloorrow.
+  assert (Hfloor : w COL_HOST_FRAME_DEPTH_AFTER = w COL_HOST_FRAME_DEPTH_BEFORE)
+    by (field_linear Hfloorrow).
+  circuit_row ([(COL_CALL_STACK_DEPTH_AFTER, 1); (COL_HOST_FRAME_DEPTH_AFTER, -1);
+    (COL_GUEST_DEPTH_AFTER, -1)], [(COL_ONE, 1)], ([] : SparseRow)) Hguestrow.
+  expand_row Hguestrow. normalize_columns. rewrite Hone in Hguestrow. field_linear Hguestrow.
 Qed.
 
 Lemma push_host_exclusive : forall (w : Witness), fieldPrime -> FullRelation.satFull w ->
@@ -730,6 +784,7 @@ Proof.
   repeat destruct Hin as [Hin | Hin]; try contradiction; inversion Hin; subst; intro Ha; normalize_columns;
     first [apply R in Ha | apply W in Ha | apply WH in Ha | idtac];
     first [eapply pc_exit_exclusive; eassumption
+         | eapply pop_exit_exclusive; eassumption
          | eapply push_host_exclusive; eassumption
          | eapply push_indirect_host_exclusive; eassumption
          | eapply read0_gather_local_exclusive; eassumption

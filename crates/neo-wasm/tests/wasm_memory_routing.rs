@@ -1,3 +1,5 @@
+mod common;
+
 use std::collections::{BTreeMap, BTreeSet};
 
 use neo_application::{MemoryKind, MemoryPortActivation, MemoryPortKind, MemoryPortSpec, MemorySpec};
@@ -17,8 +19,8 @@ fn slot_plan_is_deterministic_and_covers_every_logical_port_once() {
     assert_eq!(ports, (0..plan.logical_ports).collect::<Vec<_>>());
     assert!(plan.slots.iter().all(|slot| !slot.is_empty()));
     let max_load = plan.support_loads.values().copied().max().unwrap();
-    assert_eq!((plan.logical_ports, plan.slots.len(), max_load), (99, 13, 15));
-    assert_eq!(plan.gate_exclusions.len(), 24);
+    assert_eq!((plan.logical_ports, plan.slots.len(), max_load), (99, 12, 15));
+    assert_eq!(plan.gate_exclusions.len(), 25);
     assert!(plan.slots.len() < plan.logical_ports);
     assert_eq!(
         plan.conservative_singletons, 0,
@@ -155,11 +157,35 @@ fn ordered_slot_plan_keeps_dependent_pairs_in_catalog_order_using_exported_gate_
     }
     let largest = loads.values().copied().max().unwrap();
     assert_eq!(largest, 15, "coarse support bound before pair exclusions");
-    assert_eq!(plan.slots.len(), 13);
+    assert_eq!(plan.slots.len(), 12);
     assert_eq!(plan.logical_ports, ports.len());
 
     eprintln!(
         "ordered slots={}, {reordered} pairs that may be active together swap",
         plan.slots.len()
     );
+}
+
+#[test]
+fn unaligned_i64_store_uses_all_twelve_slots() {
+    let run = common::checked_main(
+        "(module (memory 1) (func (export \"main\") i32.const 1 i64.const 0x123456789abcdef0 i64.store))",
+    );
+    let i = run
+        .trace
+        .iter()
+        .position(|row| row.opcode == WasmOpcode::I64Store)
+        .unwrap();
+    let memories = build_wasm_relation_layout().auxiliary.memory.entries();
+    let ports: Vec<_> = memories.iter().flat_map(|m| &m.ports).collect();
+    let plan = plan_ordered_wasm_memory_slots(memories);
+    assert_eq!(plan.slots.len(), 12);
+    for slot in &plan.slots {
+        assert_eq!(
+            slot.iter()
+                .filter(|&&p| neo_wasm::nebula::is_active(&run.witnesses[i], ports[p].activation).unwrap())
+                .count(),
+            1
+        );
+    }
 }

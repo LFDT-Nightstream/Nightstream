@@ -1,6 +1,6 @@
 mod common;
 
-use neo_application::{MemoryPortActivation, MemoryPortKind};
+use neo_application::MemoryPortKind;
 use neo_math::F;
 use neo_wasm::{build_wasm_relation_layout, layout::*, WasmMemoryId, WasmOpcode};
 use p3_field::PrimeCharacteristicRing;
@@ -109,45 +109,6 @@ fn resolve_binds_both_prior_limbs_on_success_and_traps() {
         }
         rejects_forged_replacement(&run, i);
     }
-}
-
-#[test]
-fn nested_entry_remains_the_thirteen_port_bound() {
-    let layout = build_wasm_relation_layout();
-    let gates = [COL_TURN_BOUNDARY, COL_HOST_CONTEXT_READ];
-    let count = layout
-        .auxiliary
-        .memory
-        .entries()
-        .iter()
-        .flat_map(|m| &m.ports)
-        .filter(|p| matches!(p.activation, MemoryPortActivation::When(g) if gates.contains(&g)))
-        .count();
-    assert_eq!(count, 13);
-}
-
-#[test]
-fn narrower_nested_context_reads_do_not_lower_the_current_plan() {
-    let mut memories = build_wasm_relation_layout()
-        .auxiliary
-        .memory
-        .entries()
-        .to_vec();
-    for m in &mut memories {
-        for p in &mut m.ports {
-            if p.activation == MemoryPortActivation::When(COL_HOST_CONTEXT_READ)
-                && p.value_column != COL_HOST_CONTEXT[7]
-            {
-                p.activation = MemoryPortActivation::When(COL_HOST_RESUME);
-            }
-        }
-    }
-    let plan = neo_wasm::plan_ordered_wasm_memory_slots(&memories);
-    eprintln!(
-        "stack RMW plus narrower nested context reads: {} slots",
-        plan.slots.len()
-    );
-    assert_eq!(plan.slots.len(), 13);
 }
 
 #[test]

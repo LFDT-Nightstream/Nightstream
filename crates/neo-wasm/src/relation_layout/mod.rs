@@ -1004,7 +1004,9 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
         ),
     ];
 
-    use crate::layout::{COL_HOST_CONTEXT, COL_HOST_CONTEXT_ADDR, COL_HOST_CONTEXT_READ, COL_HOST_SUSPEND};
+    use crate::layout::{
+        COL_HOST_CONTEXT, COL_HOST_CONTEXT_ADDR, COL_HOST_CONTEXT_READ, COL_HOST_RESUME, COL_HOST_SUSPEND,
+    };
     let context_memories = [
         WasmMemoryId::CallStackReturnPc,
         WasmMemoryId::CallStackCallerFbp,
@@ -1029,7 +1031,11 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
                 address_columns: memory_columns([Column(COL_HOST_CONTEXT_ADDR)]),
                 value_column,
                 kind: MemoryPortKind::Read,
-                activation: active_when(Column(COL_HOST_CONTEXT_READ)),
+                activation: active_when(Column(if id == WasmMemoryId::HostContextSp {
+                    COL_HOST_CONTEXT_READ
+                } else {
+                    COL_HOST_RESUME
+                })),
             },
         ];
         if let Some(memory) = memories.iter_mut().find(|memory| memory.id == id) {

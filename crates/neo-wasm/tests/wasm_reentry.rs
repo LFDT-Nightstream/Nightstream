@@ -441,6 +441,18 @@ fn split_import_preserves_caller_arguments_across_callbacks() {
             .iter()
             .position(|row| row.row_kind.is_host_resume())
             .unwrap();
+        let context_reads = |w: &[neo_math::F]| {
+            ports
+                .iter()
+                .filter(|p| {
+                    neo_wasm::layout::COL_HOST_CONTEXT.contains(&p.value_column)
+                        && matches!(p.kind, neo_application::MemoryPortKind::Read)
+                        && neo_wasm::nebula::is_active(w, p.activation).unwrap()
+                })
+                .map(|p| p.value_column)
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(context_reads(&witnesses[resume]), neo_wasm::layout::COL_HOST_CONTEXT);
         let layout = neo_wasm::build_wasm_relation_layout();
         let mut preload = neo_wasm::preload_from_program_artifacts(captured.artifacts());
         neo_wasm::memory_semantics::preload_host_event_tables(
@@ -466,6 +478,24 @@ fn split_import_preserves_caller_arguments_across_callbacks() {
                 .iter()
                 .position(|row| row.row_kind.is_turn_boundary() && row.state_before.host_events.awaiting_host)
                 .unwrap();
+            assert_eq!(
+                context_reads(&witnesses[entry]),
+                vec![neo_wasm::layout::COL_HOST_CONTEXT[7]]
+            );
+            assert_eq!(
+                ports
+                    .iter()
+                    .filter(|p| neo_wasm::nebula::is_active(&witnesses[entry], p.activation).unwrap())
+                    .count(),
+                6
+            );
+            let mut unused = witnesses.clone();
+            for column in &neo_wasm::layout::COL_HOST_CONTEXT[..7] {
+                unused[entry][*column] += neo_math::F::ONE;
+            }
+            neo_wasm::write_range_check_bits(&mut unused[entry]);
+            common::assert_satisfied(&unused[entry], "nested entry does not use the other saved fields");
+            neo_wasm::sanity_check_memory_rows(layout, &unused, &preload).unwrap();
             // The entered frame starts at the saved sp; shifting it together
             // with every frame register keeps the row satisfied.
             let mut forged = witnesses.clone();

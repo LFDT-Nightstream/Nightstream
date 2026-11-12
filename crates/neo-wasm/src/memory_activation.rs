@@ -417,6 +417,7 @@ pub(crate) fn gate_exclusions() -> Vec<(usize, usize)> {
     use crate::layout::*;
     let mut pairs = vec![
         (COL_PC_ROM_ACTIVE, COL_HOST_EVENT_EXIT_LATCH),
+        (COL_CALL_STACK_POP_PRESENT, COL_HOST_EVENT_EXIT_LATCH),
         (COL_CALL_STACK_PUSH_PRESENT, COL_HOST_CALL_ACTIVE),
         (COL_CALL_STACK_PUSH_PRESENT, COL_CI_HOST_CALL),
         (COL_STACK_READ_ACTIVE[0], COL_GATHER_LOCAL_WRITE),

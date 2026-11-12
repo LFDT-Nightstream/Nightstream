@@ -121,7 +121,8 @@ fn full_wasm_packed_range_terminal_proof_checks_memory_control_and_program() {
     ));
     std::fs::create_dir(&directory).unwrap();
     eprintln!("packed_range_terminal_setup\t{}", directory.display());
-    let compression = prover.compression_setup(&directory).unwrap();
+    drop(prover.compression_setup(&directory).unwrap());
+    let compression = prover.open_compression_setup(&directory).unwrap();
     let final_proof = prover.compress(&proofs[0], &compression).unwrap();
     let key = verifier.compression_key().unwrap();
     verifier

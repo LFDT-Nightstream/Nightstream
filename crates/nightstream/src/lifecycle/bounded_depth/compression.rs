@@ -94,6 +94,15 @@ impl BoundedDepth {
         Ok(Setups { layer1, keys })
     }
 
+    pub(crate) fn open_compression_setups(&self, dir: &Path) -> Result<Setups, BoundedDepthError> {
+        let keys = self.compression_keys()?;
+        let layer1 = [
+            neo_spartan::Setup::open(&self.relations[0], &dir.join("light"), &keys.layer1[0])?,
+            neo_spartan::Setup::open(&self.relations[1], &dir.join("refresh"), &keys.layer1[1])?,
+        ];
+        Ok(Setups { layer1, keys })
+    }
+
     /// The transcript that layer 1 of `slot` continues: the domain, the hash
     /// of the state before the last fold and the slot.
     fn layer1_seed(state: [F; 4], slot: usize) -> Poseidon2Transcript {

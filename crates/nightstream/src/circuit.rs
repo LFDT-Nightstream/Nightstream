@@ -448,6 +448,12 @@ impl Prover {
         Ok(CompressionSetup(self.lifecycle.compression_setups(dir.as_ref())?))
     }
 
+    /// Reopen both layer-1 setups with keys derived from this circuit's
+    /// relations (SPEC.md Algorithm 7). Stored roots have no authority.
+    pub fn open_compression_setup(&self, dir: impl AsRef<Path>) -> Result<CompressionSetup, Error> {
+        Ok(CompressionSetup(self.lifecycle.open_compression_setups(dir.as_ref())?))
+    }
+
     /// Compress `proof`; `proof` does not change.
     pub fn compress(&self, proof: &Proof, setup: &CompressionSetup) -> Result<FinalProof, Error> {
         let witness = self

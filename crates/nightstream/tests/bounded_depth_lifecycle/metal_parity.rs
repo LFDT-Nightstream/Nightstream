@@ -37,10 +37,12 @@ fn metal_steps_equal_cpu_steps() {
         let message = words([20 + step, 21 + step, 22 + step, 23 + step]);
         let next = hash_chain_step(on_cpu.current, message);
         let started = Instant::now();
-        on_cpu = cpu.extend(&on_cpu, &message, next).expect("CPU step");
+        on_cpu = cpu.extend(&on_cpu, &message, next, None).expect("CPU step");
         let cpu_seconds = started.elapsed().as_secs_f64();
         let started = Instant::now();
-        on_metal = metal.extend(&on_metal, &message, next).expect("Metal step");
+        on_metal = metal
+            .extend(&on_metal, &message, next, None)
+            .expect("Metal step");
         let metal_seconds = started.elapsed().as_secs_f64();
         assert_eq!(
             cpu.encode_proof(&on_cpu).expect("CPU bytes"),
@@ -99,7 +101,7 @@ fn three_steps(prover: &BoundedDepth) -> (Envelope, Finish, SetupDir, Setups) {
     for step in 0..3 {
         let message = words([20 + step, 21 + step, 22 + step, 23 + step]);
         envelope = prover
-            .extend(&envelope, &message, hash_chain_step(envelope.current, message))
+            .extend(&envelope, &message, hash_chain_step(envelope.current, message), None)
             .expect("step");
     }
     let dir = SetupDir(std::env::temp_dir().join(format!("option-b-metal-final-{}", std::process::id())));

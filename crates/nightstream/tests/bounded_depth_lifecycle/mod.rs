@@ -43,7 +43,9 @@ fn run(prover: &BoundedDepth, steps: u64) -> (Envelope, Vec<u64>) {
     for step in 0..steps {
         let message = words([20 + step, 21 + step, 22 + step, 23 + step]);
         let next = hash_chain_step(envelope.current, message);
-        envelope = prover.extend(&envelope, &message, next).expect("step");
+        envelope = prover
+            .extend(&envelope, &message, next, None)
+            .expect("step");
         circuits.push(envelope.pc);
         prover
             .verify(step + 1, z0, next, &envelope)
@@ -198,12 +200,12 @@ fn native_application_verifies(application: ApplicationCircuit) {
         let wrong = [next[0] + F::ONE, next[1], next[2], next[3]];
         assert!(
             matches!(
-                prover.extend(&envelope, message, wrong),
+                prover.extend(&envelope, message, wrong, None),
                 Err(BoundedDepthError::Fresh("a relation row fails"))
             ),
             "step {step} with a wrong next state"
         );
-        envelope = prover.extend(&envelope, message, next).expect("step");
+        envelope = prover.extend(&envelope, message, next, None).expect("step");
         circuits.push(envelope.pc);
         prover
             .verify(step + 1, z0, next, &envelope)
@@ -305,7 +307,9 @@ fn bounded_depth_step_times() {
         let message = words([20 + step, 21 + step, 22 + step, 23 + step]);
         let next = hash_chain_step(envelope.current, message);
         let proving = std::time::Instant::now();
-        envelope = prover.extend(&envelope, &message, next).expect("step");
+        envelope = prover
+            .extend(&envelope, &message, next, None)
+            .expect("step");
         let proved = proving.elapsed();
         let verifying = std::time::Instant::now();
         prover
@@ -356,7 +360,9 @@ fn final_proof_verifies() {
     for step in 0..3 {
         let message = words([20 + step, 21 + step, 22 + step, 23 + step]);
         let next = hash_chain_step(envelope.current, message);
-        envelope = prover.extend(&envelope, &message, next).expect("step");
+        envelope = prover
+            .extend(&envelope, &message, next, None)
+            .expect("step");
     }
     let dir = SetupDir(std::env::temp_dir().join(format!("bounded-depth-final-{}", std::process::id())));
     let (witness, keys) = {

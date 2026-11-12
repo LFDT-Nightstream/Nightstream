@@ -91,6 +91,18 @@ impl StepPackage {
     /// below the first local: column 0 is the constant 1. A block's 1,080 dead
     /// locals stay 0, because no row reads them (`Frame.Framed`).
     pub fn circuit_columns(&self, shared: &[Goldilocks]) -> Result<Vec<Goldilocks>, PackageError> {
+        self.circuit_columns_with(shared, None)
+    }
+
+    /// `circuit_columns` with the native application's locals from the
+    /// caller, in recipe order, when the caller has them from the
+    /// application's execution. The relation's rows check them like every
+    /// other column.
+    pub fn circuit_columns_with(
+        &self,
+        shared: &[Goldilocks],
+        locals: Option<&[Goldilocks]>,
+    ) -> Result<Vec<Goldilocks>, PackageError> {
         if shared.first() != Some(&Goldilocks::ONE) || shared.len() > self.first_fresh {
             return Err(PackageError::Input("bounded-depth shared columns"));
         }
@@ -100,7 +112,15 @@ impl StepPackage {
         let mut columns = vec![Goldilocks::ZERO; self.first_fresh];
         columns[..shared.len()].copy_from_slice(shared);
         if let Some(records) = &self.native {
-            self.fill_application(records, &mut columns)?;
+            match locals {
+                Some(locals) => columns
+                    .get_mut(self.application.local_start..)
+                    .and_then(|columns| columns.get_mut(..records.recipe_count()))
+                    .filter(|columns| columns.len() == locals.len())
+                    .ok_or(PackageError::Input("bounded-depth application locals"))?
+                    .copy_from_slice(locals),
+                None => self.fill_application(records, &mut columns)?,
+            }
             for block in self.blocks() {
                 columns[block.start()..block.outputs()].fill(Goldilocks::ZERO);
             }

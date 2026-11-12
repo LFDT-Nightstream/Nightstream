@@ -68,6 +68,19 @@ struct DeviceGeometricOpeningPlan {
     span_count: usize,
 }
 
+/// A window's opening layout and, after its first use, its device plan.
+pub(in crate::session) struct ResidentOpening {
+    layout: OpeningLayout,
+    plan: std::sync::OnceLock<MetalJointOpeningPlan>,
+}
+
+// SAFETY: the plan holds Metal buffers and host words. Apple documents a
+// buffer as safe to retain, release and bind from any thread, and no code
+// writes these buffers after their upload.
+unsafe impl Send for ResidentOpening {}
+// SAFETY: as for `Send`; shared use only binds the buffers.
+unsafe impl Sync for ResidentOpening {}
+
 #[derive(Default)]
 struct OpeningLayout {
     active: usize,
@@ -308,13 +321,24 @@ impl MetalSession {
                 let host_bytes = plan
                     .workspace_bytes
                     .saturating_sub(window.workspace_peak_bytes);
-                let Some(layout) =
-                    OpeningLayout::measure(window.cache.matrix_caches(), plan.blocks, include_pad, host_bytes)?
-                else {
-                    requested_end =
-                        next_row + smaller_window(count, plan.workspace_bytes.saturating_add(1), plan.workspace_bytes)?;
-                    continue;
+                let key = (plan.blocks, window.rows.start, include_pad);
+                let resident = match self.resident_openings.get(&window.cache, &key)? {
+                    Some(resident) => resident,
+                    None => {
+                        let Some(layout) =
+                            OpeningLayout::measure(window.cache.matrix_caches(), plan.blocks, include_pad, host_bytes)?
+                        else {
+                            requested_end = next_row
+                                + smaller_window(count, plan.workspace_bytes.saturating_add(1), plan.workspace_bytes)?;
+                            continue;
+                        };
+                        std::sync::Arc::new(ResidentOpening {
+                            layout,
+                            plan: std::sync::OnceLock::new(),
+                        })
+                    }
                 };
+                let layout = &resident.layout;
                 let evaluation = layout
                     .evaluation_bytes(count, point.len(), sources.active_count())?
                     .max(
@@ -333,14 +357,23 @@ impl MetalSession {
                     continue;
                 }
                 if sources.active_count() != 0 {
-                    let opening = self.prepare_joint_opening_plan(
-                        window.cache.matrix_caches(),
-                        plan.blocks * D,
-                        window.rows.start,
-                        include_pad,
-                        &layout,
-                    )?;
-                    let values = self.eval_joint_openings(&opening, sources, point, witness_count, assignment_width)?;
+                    if resident.plan.get().is_none() {
+                        let opening = self.prepare_joint_opening_plan(
+                            window.cache.matrix_caches(),
+                            plan.blocks * D,
+                            window.rows.start,
+                            include_pad,
+                            layout,
+                        )?;
+                        if resident.plan.set(opening).is_ok() {
+                            self.resident_openings.keep(&window.cache, key, &resident)?;
+                        }
+                    }
+                    let opening = resident
+                        .plan
+                        .get()
+                        .ok_or(MetalError::Shape("opening plan is absent"))?;
+                    let values = self.eval_joint_openings(opening, sources, point, witness_count, assignment_width)?;
                     for (result, value) in result.iter_mut().zip(values) {
                         if include_pad {
                             result.eval_k = value.eval_k;
@@ -351,7 +384,6 @@ impl MetalSession {
                             }
                         }
                     }
-                    drop(opening);
                 }
                 if let Some(check) = terminal {
                     if let Some(row) = check.check_window(self, plan, &window)? {

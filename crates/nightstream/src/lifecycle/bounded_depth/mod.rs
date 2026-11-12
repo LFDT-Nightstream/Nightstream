@@ -228,6 +228,7 @@ impl BoundedDepth {
         envelope: &Envelope,
         witness: &[F],
         next: [F; 4],
+        locals: Option<&[F]>,
     ) -> Result<Envelope, BoundedDepthError> {
         let prior = self.state(envelope);
         let mut slots = envelope.slots.clone();
@@ -258,7 +259,7 @@ impl BoundedDepth {
             }
         };
         let relation = &self.relations[words::pc(kind) as usize - 1];
-        let logical = relation.assignment(self.package(kind), &step)?;
+        let logical = relation.assignment(self.package(kind), &step, locals)?;
         #[cfg(test)]
         if CHECK_ROWS.get() {
             FAILED_ROW.set(relation.first_failing_row(self.package(kind), &step)?);

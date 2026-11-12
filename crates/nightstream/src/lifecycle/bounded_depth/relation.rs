@@ -161,8 +161,13 @@ impl Relation {
     /// The logical assignment of a step: the package's witness program fills
     /// the circuit's columns from the step words, the relation's fresh
     /// columns follow, and the slot layout lowers them to digits.
-    pub(crate) fn assignment(&self, package: &StepPackage, words: &StepWords) -> Result<Vec<F>, RelationError> {
-        let columns = package.circuit_columns(&words.columns()?)?;
+    pub(crate) fn assignment(
+        &self,
+        package: &StepPackage,
+        words: &StepWords,
+        locals: Option<&[F]>,
+    ) -> Result<Vec<F>, RelationError> {
+        let columns = package.circuit_columns_with(&words.columns()?, locals)?;
         let columns = package.relation_columns(columns, &self.rows)?;
         Ok(self.layout.assignment(&columns)?)
     }

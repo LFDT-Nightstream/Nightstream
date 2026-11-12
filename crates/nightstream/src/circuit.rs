@@ -389,13 +389,17 @@ impl Prover {
     /// The next proof; `proof` does not change. The Rust application
     /// computes the output state.
     pub fn extend(&self, proof: &Proof, private_inputs: &[F]) -> Result<Proof, Error> {
-        let next = self
+        let witness = self
             .application
             .as_ref()
             .ok_or(ApplicationError::NoApplication)?
-            .execute(proof.state().current(), private_inputs)?
-            .output_state();
-        self.extend_with_output(proof, private_inputs, next)
+            .execute(proof.state().current(), private_inputs)?;
+        Ok(Proof(self.lifecycle.extend(
+            &proof.0,
+            private_inputs,
+            witness.output_state(),
+            Some(witness.locals()),
+        )?))
     }
 
     /// The proof of no step from `z0`, which a memory run extends.
@@ -422,7 +426,10 @@ impl Prover {
         private_inputs: &[F],
         output: [F; 4],
     ) -> Result<Proof, Error> {
-        Ok(Proof(self.lifecycle.extend(&proof.0, private_inputs, output)?))
+        Ok(Proof(
+            self.lifecycle
+                .extend(&proof.0, private_inputs, output, None)?,
+        ))
     }
 
     /// The next proof of a memory invocation whose native output state is

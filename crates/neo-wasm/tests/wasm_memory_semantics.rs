@@ -1,10 +1,9 @@
 use neo_math::F;
 use neo_wasm::host_event_bindings::HostEventBindings;
 use neo_wasm::layout::{
-    COL_CALL_STACK_RETURN_PC_VALUE, COL_CALL_TARGET_METADATA, COL_CURRENT_FUNCTION_REF,
-    COL_ENTERED_FUNCTION_NUM_LOCALS, COL_EXPECTED_TYPE_ID, COL_FUNCTION_TYPE_ID, COL_LINEAR_MEM_IMM_OFFSET,
-    COL_LOCAL_INDEX, COL_OPCODE_CODE, COL_STACK_READ_VALUE_HI, COL_STACK_WRITE0_VALUE_HI, COL_TABLE_INDEX,
-    COL_TABLE_SIZE, COL_TABLE_VALUE,
+    COL_CALL_STACK_RETURN_PC_VALUE, COL_CALL_TARGET_METADATA, COL_ENTERED_FUNCTION_NUM_LOCALS, COL_EXPECTED_TYPE_ID,
+    COL_FUNCTION_TYPE_ID, COL_LINEAR_MEM_IMM_OFFSET, COL_LOCAL_INDEX, COL_OPCODE_CODE, COL_STACK_READ_VALUE_HI,
+    COL_STACK_WRITE0_VALUE_HI, COL_TABLE_INDEX, COL_TABLE_SIZE, COL_TABLE_VALUE,
 };
 use neo_wasm::{
     build_wasm_relation_layout, collect_wasmtime_steps, extract_wasm_program_artifacts, preload_from_program_artifacts,
@@ -277,32 +276,6 @@ fn memory_semantics_rejects_wrong_entered_function_local_count() {
     let layout = build_wasm_relation_layout();
     let err = sanity_check_memory_rows(layout, &witnesses, &preload).expect_err("wrong local count must fail");
     assert!(err.contains("memory `function_local_count` ROM mismatch"));
-}
-
-#[test]
-fn memory_semantics_rejects_wrong_current_function_ref() {
-    let (trace, mut witnesses, preload) = witness_run(
-        r#"(module
-            (func $same_shape (result i32)
-                i32.const 7)
-            (func (export "run") (result i32)
-                i32.const 5))
-        "#,
-    );
-    let row_index = trace
-        .iter()
-        .position(|row| matches!(row.opcode, WasmOpcode::I32Const))
-        .expect("program row");
-    let wrong_existing_function_ref = if trace[row_index].current_function_ref == 1 {
-        2
-    } else {
-        1
-    };
-    witnesses[row_index][COL_CURRENT_FUNCTION_REF] = F::from_u64(wrong_existing_function_ref);
-
-    let layout = build_wasm_relation_layout();
-    let err = sanity_check_memory_rows(layout, &witnesses, &preload).expect_err("wrong function ref must fail");
-    assert!(err.contains("memory `pc_function_ref` ROM mismatch"));
 }
 
 #[test]

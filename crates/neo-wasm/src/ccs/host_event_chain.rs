@@ -157,17 +157,6 @@ fn push_interface_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
                 .into_iter()
                 .chain(host_call_gate_terms().map(|(column, coefficient)| (column, -coefficient))),
         );
-        // Disable the pc-to-function lookup on gather, turn boundary,
-        // padding, and resume rows, which do not execute a program
-        // instruction.
-        b.push_linear_zero([
-            (super::super::layout::COL_PC_FREF_ACTIVE, F::ONE),
-            (COL_ONE, -F::ONE),
-            (COL_GATHER_ACTIVE, F::ONE),
-            (COL_TURN_BOUNDARY, F::ONE),
-            (super::super::layout::COL_PADDING_ACTIVE, F::ONE),
-            (COL_HOST_RESUME, F::ONE),
-        ]);
         b.push_row(
             [
                 (COL_ONE, F::ONE),

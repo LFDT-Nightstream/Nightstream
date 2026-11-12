@@ -118,13 +118,6 @@ pub fn preload_from_program_artifacts(artifacts: &WasmProgramArtifacts) -> WasmM
             narrow(edge_kind, "pc_edge_kinds.edge_kind"),
         );
     }
-    for &(pc_before, function_ref) in &tables.pc_function_refs {
-        preload.insert(
-            WasmMemoryId::PcFunctionRef,
-            vec![narrow(pc_before, "pc_function_refs.state_before.pc")],
-            narrow(function_ref, "pc_function_refs.function_ref"),
-        );
-    }
     for &(function_ref, entry_pc) in &tables.function_entries {
         preload.insert(
             WasmMemoryId::FunctionEntry,

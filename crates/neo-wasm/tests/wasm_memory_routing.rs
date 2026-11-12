@@ -19,7 +19,7 @@ fn slot_plan_is_deterministic_and_covers_every_logical_port_once() {
     assert_eq!(ports, (0..plan.logical_ports).collect::<Vec<_>>());
     assert!(plan.slots.iter().all(|slot| !slot.is_empty()));
     let max_load = plan.support_loads.values().copied().max().unwrap();
-    assert_eq!((plan.logical_ports, plan.slots.len(), max_load), (99, 12, 15));
+    assert_eq!((plan.logical_ports, plan.slots.len(), max_load), (98, 11, 15));
     assert_eq!(plan.gate_exclusions.len(), 25);
     assert!(plan.slots.len() < plan.logical_ports);
     assert_eq!(
@@ -70,7 +70,18 @@ fn sharing_requires_disjoint_supports_and_unknown_gates_stay_dedicated() {
 fn enforced_supports() -> BTreeMap<usize, BTreeSet<usize>> {
     let relation = build_wasm_relation().expect("the WASM relation");
     let mut supports: BTreeMap<usize, BTreeSet<usize>> = BTreeMap::new();
+    let mut atoms = BTreeSet::new();
     for tagged in relation.r1cs().catalog().rows() {
+        if matches!(tagged.tag().label(), "row kind one hot" | "opcode selector one hot") {
+            atoms.extend(
+                tagged
+                    .row()
+                    .a_terms()
+                    .iter()
+                    .map(|(column, _)| *column)
+                    .filter(|column| ![COL_ONE, COL_IS_PROGRAM_ROW].contains(column)),
+            );
+        }
         if tagged.tag().label() != "memory activation support" {
             continue;
         }
@@ -86,7 +97,7 @@ fn enforced_supports() -> BTreeMap<usize, BTreeSet<usize>> {
             .collect();
         supports.insert(*gate, atoms);
     }
-    let atoms: BTreeSet<usize> = supports.values().flatten().copied().collect();
+    assert!(supports.values().all(|support| support.is_subset(&atoms)));
     supports.extend(atoms.into_iter().map(|atom| (atom, BTreeSet::from([atom]))));
     supports
 }
@@ -157,7 +168,7 @@ fn ordered_slot_plan_keeps_dependent_pairs_in_catalog_order_using_exported_gate_
     }
     let largest = loads.values().copied().max().unwrap();
     assert_eq!(largest, 15, "coarse support bound before pair exclusions");
-    assert_eq!(plan.slots.len(), 12);
+    assert_eq!(plan.slots.len(), 11);
     assert_eq!(plan.logical_ports, ports.len());
 
     eprintln!(
@@ -167,7 +178,7 @@ fn ordered_slot_plan_keeps_dependent_pairs_in_catalog_order_using_exported_gate_
 }
 
 #[test]
-fn unaligned_i64_store_uses_all_twelve_slots() {
+fn unaligned_i64_store_uses_all_eleven_slots() {
     let run = common::checked_main(
         "(module (memory 1) (func (export \"main\") i32.const 1 i64.const 0x123456789abcdef0 i64.store))",
     );
@@ -179,7 +190,7 @@ fn unaligned_i64_store_uses_all_twelve_slots() {
     let memories = build_wasm_relation_layout().auxiliary.memory.entries();
     let ports: Vec<_> = memories.iter().flat_map(|m| &m.ports).collect();
     let plan = plan_ordered_wasm_memory_slots(memories);
-    assert_eq!(plan.slots.len(), 12);
+    assert_eq!(plan.slots.len(), 11);
     for slot in &plan.slots {
         assert_eq!(
             slot.iter()

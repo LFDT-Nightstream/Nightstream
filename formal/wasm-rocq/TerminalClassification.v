@@ -54,7 +54,7 @@ Proof.
   unfold pathPC in Hslot. cbn [beforeBoundary boundaryPC] in Hpc. rewrite <- Hpc in Hslot.
   destruct (supported_opcode_exists _ _ _ _ _ _ Hsupported Hslot) as [opcode Hop].
   assert (Hrom : initial programOpcodeId [row COL_PC_BEFORE] = Some opcode).
-  { program_cell Hloaded. unfold encodeProgram. cbn [Nat.eqb programOpcodeId pcRomId pcFunctionRefId
+  { program_cell Hloaded. unfold encodeProgram. cbn [Nat.eqb programOpcodeId pcRomId
       functionEntryId functionLocalCountId functionCallMetadataId orb]. rewrite Hop. reflexivity. }
   pose proof (circuit_row_opcode_fetch _ _ _ Hreplay Hprogram) as Hfetch.
   rewrite Hrom in Hfetch. injection Hfetch as Hcode.

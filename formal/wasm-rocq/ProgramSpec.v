@@ -293,7 +293,7 @@ Definition slideRom (program : Program) (memory : nat) (pc : Z) : option Z :=
   end.
 
 Definition programRomIds := [programOpcodeId; programLocalIndexId; programTableId; expectedTypeId; pcEdgeKindId; pcRomId;
-  callTargetId; pcFunctionRefId; functionEntryId; functionTypeId; functionLocalCountId; functionCallMetadataId;
+  callTargetId; functionEntryId; functionTypeId; functionLocalCountId; functionCallMetadataId;
   frameSlideRemainingId; frameSlideDistanceId; programBrTableLenId].
 
 Definition encodeProgram (program : Program) : MemoryState := fun memory address =>
@@ -301,14 +301,6 @@ Definition encodeProgram (program : Program) : MemoryState := fun memory address
   | [key] =>
       if Nat.eqb memory frameSlideRemainingId || Nat.eqb memory frameSlideDistanceId then
         slideRom program memory key
-      else if Nat.eqb memory pcFunctionRefId then
-        (* An edge slot is no instruction, so it names no function. *)
-        match instructionAtPC program key with
-        | Some (_, Some (flatInstruction (opEdge _) _)) => None
-        | _ =>
-            if key <? 0 then None else
-            option_map (fun location => Z.of_nat (fst location + 1)) (locatePC program (Z.to_nat key))
-        end
       else if Nat.eqb memory functionEntryId || Nat.eqb memory functionTypeId || Nat.eqb memory functionLocalCountId ||
         Nat.eqb memory functionCallMetadataId
         then functionRom program memory key

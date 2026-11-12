@@ -71,7 +71,7 @@ Qed.
 
 Ltac pc_cell Hpc :=
   program_cell Hloaded; unfold encodeProgram;
-  cbn [Nat.eqb pcRomId pcFunctionRefId functionEntryId functionTypeId functionLocalCountId functionCallMetadataId
+  cbn [Nat.eqb pcRomId functionEntryId functionTypeId functionLocalCountId functionCallMetadataId
     frameSlideRemainingId frameSlideDistanceId programOpcodeId pcEdgeKindId programLocalIndexId programBrTableLenId
     callTargetId programTableId expectedTypeId orb];
   unfold instructionRom; rewrite Hpc;
@@ -291,45 +291,40 @@ Qed.
 (* A direct call's ROM image at a code path: target, return pc and callee metadata. *)
 Lemma encoded_path_call : forall labels inner offset s values x callee,
   pathCode (guestBody f) labels = Some inner -> nth_error inner offset = Some (CALL x) ->
-  store_FUNCS s = program -> length values = (guestParams f + guestLocals f)%nat ->
+  store_FUNCS s = program ->
   programCallees program (guestModule f) (x :> N) = Some callee ->
   let z := mk_state s (MKframe values (guestModule f)) in
   directCallImage memory (pathPC labels offset) (pathPC labels offset + 1) z x
     (guestAddress callee) (guestModule callee) (guestTypeIndex callee)
-    (guestParamTypes callee) (guestResultTypes callee) (guestLocalTypes callee) (guestBody callee) (guestEntry callee) /\
-  callerFrameImage memory (pathPC labels offset) z.
+    (guestParamTypes callee) (guestResultTypes callee) (guestLocalTypes callee) (guestBody callee) (guestEntry callee).
 Proof.
-  intros labels inner offset s values x callee Hpath Hi Hstore Hcount Hcallee z.
+  intros labels inner offset s values x callee Hpath Hi Hstore Hcallee z.
   pose proof (encoded_path_head _ _ _ _ Hpath Hi) as Hpc. cbn [slotTargets] in Hpc.
-  pose proof (path_offset_inside _ _ _ _ Hpath Hi) as Hbound.
   unfold programCallees in Hcallee; cbn [calleeAt] in Hcallee.
   destruct (nth_error (FUNCS (guestModule f)) (N.to_nat (x :> N))) as [address | ] eqn:Haddress; [ | discriminate].
   destruct (function_at_typed _ _ _ Hcallee) as [Hinstance [HcalleeAddress Hentry]].
   replace (N.of_nat (N.to_nat address)) with address in HcalleeAddress by lia.
-  split.
-  - unfold directCallImage. split.
-    + change (nth_error (FUNCS (guestModule f)) (N.to_nat (x :> N)) = Some (guestAddress callee)).
-      rewrite HcalleeAddress. exact Haddress.
+  unfold directCallImage. split.
+  - change (nth_error (FUNCS (guestModule f)) (N.to_nat (x :> N)) = Some (guestAddress callee)).
+    rewrite HcalleeAddress. exact Haddress.
+  - split.
+    + change (nth_error (store_FUNCS s) (N.to_nat (guestAddress callee)) = Some (SpecTecCalls.typedFunction
+        (guestModule callee) (guestTypeIndex callee) (guestParamTypes callee) (guestResultTypes callee) (guestLocalTypes callee)
+        (guestBody callee))).
+      rewrite Hstore, HcalleeAddress. exact Hinstance.
     + split.
-      * change (nth_error (store_FUNCS s) (N.to_nat (guestAddress callee)) = Some (SpecTecCalls.typedFunction
-          (guestModule callee) (guestTypeIndex callee) (guestParamTypes callee) (guestResultTypes callee) (guestLocalTypes callee)
-          (guestBody callee))).
-        rewrite Hstore, HcalleeAddress. exact Hinstance.
+      * program_cell Hloaded. unfold encodeProgram. cbn.
+         unfold instructionRom. rewrite Hpc. reflexivity.
       * split.
-        -- program_cell Hloaded. unfold encodeProgram. cbn.
-           unfold instructionRom. rewrite Hpc. reflexivity.
-        -- split.
-           ++ program_cell Hloaded. unfold encodeProgram. cbn.
-              unfold instructionRom. rewrite Hpc. cbn [Nat.eqb pcRomId programOpcodeId pcEdgeKindId programLocalIndexId callTargetId].
-              change (Some (match option_map (fun address => Z.of_N address + 1)
-                (nth_error (FUNCS (guestModule f)) (N.to_nat (x :> N))) with Some v => v | None => 0 end) =
-                Some (Z.of_N (guestAddress callee) + 1)).
-              rewrite Haddress, HcalleeAddress. reflexivity.
-           ++ split.
-              ** reflexivity.
-              ** eapply encoded_guest_image; eassumption.
-  - unfold pathPC. eapply encoded_frame_image; [exact Hloaded | exact Hf | lia | | exact Hcount].
-    intros l targets Hslot. rewrite (flatten_at_path _ _ _ _ _ Hpath Hi) in Hslot. discriminate.
+         -- program_cell Hloaded. unfold encodeProgram. cbn.
+            unfold instructionRom. rewrite Hpc. cbn [Nat.eqb pcRomId programOpcodeId pcEdgeKindId programLocalIndexId callTargetId].
+            change (Some (match option_map (fun address => Z.of_N address + 1)
+              (nth_error (FUNCS (guestModule f)) (N.to_nat (x :> N))) with Some v => v | None => 0 end) =
+              Some (Z.of_N (guestAddress callee) + 1)).
+            rewrite Haddress, HcalleeAddress. reflexivity.
+         -- split.
+            ++ reflexivity.
+            ++ eapply encoded_guest_image; eassumption.
 Qed.
 
 (* A return's slot, or a br's to the function's label: the RETURN opcode, with a

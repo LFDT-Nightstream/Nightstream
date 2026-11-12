@@ -12,8 +12,7 @@ Definition guestFunctionImage (memory : MemoryState) (address : N) (entry : Z)
   memory functionCallMetadataId [reference] =
     Some (Z.of_nat params + 256 * Z.of_nat results + 65536) /\
   memory functionLocalCountId [reference] = Some (Z.of_nat (params + locals)) /\
-  memory functionEntryId [reference] = Some entry /\
-  memory pcFunctionRefId [entry] = Some reference.
+  memory functionEntryId [reference] = Some entry.
 
 Definition directCallImage (memory : MemoryState) (pc returnPC : Z) (caller : state)
     (index : idx) (address : N) (module : moduleinst) (typeIndex : typeidx)
@@ -34,9 +33,3 @@ Definition instructionImage (memory : MemoryState) (pc : Z) (instruction : instr
   | LOCAL_GET x | LOCAL_SET x => memory programLocalIndexId [pc] = Some (Z.of_N (x :> N))
   | _ => True
   end.
-
-
-Definition callerFrameImage (memory : MemoryState) (pc : Z) (caller : state) : Prop :=
-  exists reference,
-    memory pcFunctionRefId [pc] = Some reference /\
-    memory functionLocalCountId [reference] = Some (Z.of_nat (length (stateLocals caller))).

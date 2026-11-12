@@ -63,9 +63,6 @@ pub struct WasmProgramTables {
     /// Static `(pc_before, edge_kind)` rows classifying how a PC chooses its
     /// successor, such as fallthrough, conditional branch, call, or return.
     pub pc_edge_kinds: Vec<(u64, u64)>,
-    /// Static `(pc_before, function_ref)` rows binding each code PC to the
-    /// normalized function reference of its containing function.
-    pub pc_function_refs: Vec<(u64, u64)>,
     /// Static `(function_ref, entry_pc)` rows keyed by the normalized funcref
     /// id space used in tables and direct/indirect calls.
     pub function_entries: Vec<(u64, u64)>,
@@ -230,7 +227,6 @@ struct ParsedWasmArtifactsBuilder {
     frame_slides: Vec<(u64, u64, u32, u32)>,
     program_decode: Vec<WasmProgramDecodeEntry>,
     pc_edge_kinds: Vec<(u64, u64)>,
-    pc_function_refs: Vec<(u64, u64)>,
     unresolved_call_edges: Vec<(u64, u32)>,
     /// Invocation pcs of indirect calls; only their own resolve step may reach them.
     indirect_invocations: Vec<u64>,
@@ -265,7 +261,6 @@ impl Default for ParsedWasmArtifactsBuilder {
             frame_slides: Vec::new(),
             program_decode: Vec::new(),
             pc_edge_kinds: Vec::new(),
-            pc_function_refs: Vec::new(),
             unresolved_call_edges: Vec::new(),
             indirect_invocations: Vec::new(),
             function_entries: Vec::new(),
@@ -352,8 +347,6 @@ impl ParsedWasmArtifactsBuilder {
         }
         self.pc_edge_kinds.sort_unstable();
         self.pc_edge_kinds.dedup();
-        self.pc_function_refs.sort_unstable();
-        self.pc_function_refs.dedup();
         self.function_entries.sort_unstable();
         self.function_entries.dedup();
         self.call_targets.sort_unstable();
@@ -412,7 +405,6 @@ impl ParsedWasmArtifactsBuilder {
                 pc_rom: self.pc_rom,
                 frame_slides: self.frame_slides,
                 pc_edge_kinds: self.pc_edge_kinds,
-                pc_function_refs: self.pc_function_refs,
                 function_entries: self.function_entries,
                 function_types,
                 function_call_metadata,
@@ -814,8 +806,6 @@ impl ParsedWasmArtifactsBuilder {
                     };
                     self.pc_edge_kinds
                         .push((pc_before, u64::from(pc_edge_kind.as_u32())));
-                    self.pc_function_refs
-                        .push((pc_before, u64::from(function_ref)));
                     if let Some(resolve_pc) = resolve_pc {
                         let table_id = decoded.and_then(|(_, immediate)| immediate).unwrap_or(0);
                         self.program_decode.push(WasmProgramDecodeEntry {
@@ -834,8 +824,6 @@ impl ParsedWasmArtifactsBuilder {
                         });
                         self.pc_edge_kinds
                             .push((resolve_pc, u64::from(WasmPcEdgeKind::Static.as_u32())));
-                        self.pc_function_refs
-                            .push((resolve_pc, u64::from(function_ref)));
                         self.push_pc_rom_edge(resolve_pc, 0, pc_before);
                     }
                     let frame_slides = self.slides_by_offset.remove(&offset).unwrap_or_default();

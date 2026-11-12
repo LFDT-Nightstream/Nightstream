@@ -105,7 +105,7 @@ fn resolve_binds_both_prior_limbs_on_success_and_traps() {
             }
         )));
         if !run.trace[i].state_after.trapped {
-            assert_eq!(active.len(), 11);
+            assert_eq!(active.len(), 10);
         }
         rejects_forged_replacement(&run, i);
     }
@@ -117,37 +117,37 @@ fn fixed_arity_replacements_save_two_accesses_and_bind_both_prior_limbs() {
         (
             "(module (func (export \"main\") (result i32) i32.const 7 i32.clz))",
             WasmOpcode::I32Clz,
-            6,
+            5,
         ),
         (
             "(module (func (export \"main\") (result i32) i32.const 7 i32.const 3 i32.add))",
             WasmOpcode::I32Add,
-            8,
+            7,
         ),
         (
             "(module (func (export \"main\") (result i64) i64.const 0x123456789abcdef0 i64.const 0xfedcba9876543210 i32.const 0 select))",
             WasmOpcode::Select,
-            10,
+            9,
         ),
         (
             "(module (memory 1) (func (export \"main\") (result i64) i32.const 1 i64.load))",
             WasmOpcode::I64Load,
-            10,
+            9,
         ),
         (
             "(module (memory 1 2) (func (export \"main\") (result i32) i32.const 1 memory.grow))",
             WasmOpcode::MemoryGrow,
-            6,
+            5,
         ),
         (
             "(module (table 1 funcref) (func (export \"main\") i32.const 0 table.get drop))",
             WasmOpcode::TableGet,
-            9,
+            8,
         ),
         (
             "(module (func (export \"main\") (result i64) (local i64) i64.const 0x123456789abcdef0 local.tee 0 drop local.get 0))",
             WasmOpcode::LocalTee,
-            9,
+            8,
         ),
     ] {
         let run = common::checked_main(source);

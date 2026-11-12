@@ -318,7 +318,7 @@ Proof.
   assert (HrefValue : row COL_FUNCTION_REF = Z.of_nat callee + 1) by (normalize_columns; lia). clear Hfref Hreference.
   (* The callee's metadata: a guest with params and results. *)
   destruct (function_at_typed _ _ _ Hg) as [Hgnth [Hgaddr Hgentry]].
-  pose proof (encoded_guest_image _ _ _ _ Hloaded Hg) as [Hmeta [Hcount [Hentry _]]].
+  pose proof (encoded_guest_image _ _ _ _ Hloaded Hg) as [Hmeta [Hcount Hentry]].
   rewrite Hgaddr in Hmeta, Hcount, Hentry. replace (Z.of_N (N.of_nat callee) + 1) with (row COL_FUNCTION_REF)
     in Hmeta, Hcount, Hentry by (rewrite HrefValue; lia).
   pose proof (indirect_metadata_read _ _ _ Hreplay Hsel) as HmetaRead. rewrite Hmeta in HmetaRead.

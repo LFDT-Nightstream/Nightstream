@@ -372,7 +372,6 @@ fn emit_rocq_memory_catalog() -> String {
         (WasmMemoryId::CallStackCallerSpBase, "callStackCallerSpBaseId"),
         (WasmMemoryId::FunctionLocalCount, "functionLocalCountId"),
         (WasmMemoryId::FunctionCallMetadata, "functionCallMetadataId"),
-        (WasmMemoryId::PcFunctionRef, "pcFunctionRefId"),
         (WasmMemoryId::CallTarget, "callTargetId"),
         (WasmMemoryId::FunctionEntry, "functionEntryId"),
         (WasmMemoryId::FunctionType, "functionTypeId"),

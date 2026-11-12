@@ -320,7 +320,6 @@ fn dimensions(id: WasmMemoryId) -> &'static [Dimension] {
         | M::ProgramImmediateHi
         | M::ProgramRefFuncRef
         | M::PcEdgeKind
-        | M::PcFunctionRef
         | M::CallTarget
         | M::PcRom
         | M::FrameSlideRemaining

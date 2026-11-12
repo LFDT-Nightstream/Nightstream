@@ -13,10 +13,10 @@ use super::layout::{
     COL_CALL_STACK_DEPTH_BEFORE, COL_CALL_STACK_POP_PRESENT, COL_CALL_STACK_PUSH_PRESENT,
     COL_CALL_STACK_RETURN_PC_VALUE, COL_CALL_TARGET_METADATA, COL_CI_ENTRY_IS_NULL, COL_CI_HOST_CALL, COL_CI_OOB,
     COL_CI_TYPE_EQ, COL_CMP_GE, COL_CMP_LOW, COL_COMM_CHAIN_AFTER, COL_COMM_CHAIN_BEFORE, COL_CONTROL_CHOICE,
-    COL_CURRENT_FUNCTION_REF, COL_DIV_DIVIDEND_IS_MIN, COL_DIV_DIVISOR_IS_NEG1, COL_DIV_DIVISOR_IS_ZERO,
-    COL_DIV_OVERFLOW, COL_DIV_OVERFLOW_COND, COL_DIV_TRAP, COL_EDGE_ADDR, COL_ENTERED_FUNCTION_NUM_LOCALS,
-    COL_EXPECTED_TYPE_ID, COL_FRAME_MOVE_ACTIVE_AFTER, COL_FRAME_MOVE_ACTIVE_BEFORE, COL_FRAME_MOVE_DISTANCE_AFTER,
-    COL_FRAME_MOVE_DISTANCE_BEFORE, COL_FRAME_MOVE_REMAINING_AFTER, COL_FRAME_MOVE_REMAINING_BEFORE, COL_FRAME_SP_DROP,
+    COL_DIV_DIVIDEND_IS_MIN, COL_DIV_DIVISOR_IS_NEG1, COL_DIV_DIVISOR_IS_ZERO, COL_DIV_OVERFLOW, COL_DIV_OVERFLOW_COND,
+    COL_DIV_TRAP, COL_EDGE_ADDR, COL_ENTERED_FUNCTION_NUM_LOCALS, COL_EXPECTED_TYPE_ID, COL_FRAME_MOVE_ACTIVE_AFTER,
+    COL_FRAME_MOVE_ACTIVE_BEFORE, COL_FRAME_MOVE_DISTANCE_AFTER, COL_FRAME_MOVE_DISTANCE_BEFORE,
+    COL_FRAME_MOVE_REMAINING_AFTER, COL_FRAME_MOVE_REMAINING_BEFORE, COL_FRAME_SP_DROP,
     COL_FUNCTION_CALL_TYPE_LOOKUP_GATE, COL_FUNCTION_REF, COL_FUNCTION_TYPE_ID, COL_GLOBAL_INDEX, COL_GLOBAL_VALUE,
     COL_GLOBAL_VALUE_HI, COL_GROW_SUCCESS, COL_GUEST_ENTRY_ACTIVE, COL_HOST_CALLEE_FREF_AFTER,
     COL_HOST_CALLEE_FREF_BEFORE, COL_IS_PROGRAM_ROW, COL_LINEAR_MEM_ACCESS_BYTE0, COL_LINEAR_MEM_ACCESS_BYTE1,
@@ -184,7 +184,6 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Result<Vec<F>, super::ir::Was
     wit[COL_OUTPUT_CAPTURED] = if trace.output_captured { F::ONE } else { F::ZERO };
     wit[COL_CALL_STACK_DEPTH_BEFORE] = F::from_u64(trace.state_before.call_stack_depth);
     wit[COL_CALL_STACK_DEPTH_AFTER] = F::from_u64(trace.state_after.call_stack_depth);
-    wit[COL_CURRENT_FUNCTION_REF] = F::from_u64(u64::from(trace.current_function_ref));
     if trace.target_function_is_guest || trace.row_kind.is_turn_boundary() {
         // This row still belongs to the outgoing frame. Reconstruct the
         // entered frame's count; its ROM read binds the claim to the callee.
@@ -1025,12 +1024,6 @@ fn fill_event_absorb(wit: &mut [F], trace: &WasmVmStep) {
 
     // Gather and host-call interface gates read by the gadget.
     wit[COL_GATHER_ACTIVE] = bool_f(trace.row_kind.is_host_event_gather());
-    wit[crate::layout::COL_PC_FREF_ACTIVE] = bool_f(
-        !trace.row_kind.is_host_event_gather()
-            && !trace.row_kind.is_turn_boundary()
-            && !trace.row_kind.is_padding()
-            && !trace.row_kind.is_host_resume(),
-    );
     let host_call_gate = wit[selector_col(super::isa::WasmOpcode::Call).expect("call selector")]
         + wit[selector_col(super::isa::WasmOpcode::ReturnCall).expect("return_call selector")]
         + wit[selector_col(super::isa::WasmOpcode::CallIndirect).expect("call_indirect selector")]

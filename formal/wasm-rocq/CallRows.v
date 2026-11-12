@@ -283,8 +283,8 @@ Proof.
   assert (Hidx : wf_uN 32%N x) by (inversion HwfCall; assumption).
   set (z := mk_state s (activeFrame f locals)).
   assert (Hz : wf_state z) by exact (frame_state_wf _ _ _ _ _ Hstore Hwf Hf (values_typed_wf _ _ Hlb)).
-  destruct (encoded_path_call program initial index f Hloaded Hf labels code offset s locals x
-    callee Hpath Hi Hstore Hllen Hcallee) as [Himage _].
+  pose proof (encoded_path_call program initial index f Hloaded Hf labels code offset s locals x
+    callee Hpath Hi Hstore Hcallee) as Himage.
   unfold pathPC in Himage.
   change (row COL_PC_BEFORE = guestEntry f + Z.of_nat (pathOffset (guestBody f) labels offset)) in Hpc.
   rewrite <- Hpc in Himage.

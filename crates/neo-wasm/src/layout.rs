@@ -71,7 +71,6 @@ define_column_region! {
         COL_CALL_STACK_DEPTH_AFTER: U32 => "call return-context stack depth after this row",
         COL_CALL_STACK_ADDR: U32 => "call return-context stack address read or written this row",
         COL_EDGE_ADDR: U32 => "pc-rom and slide-rom key: pc_before + control_choice",
-        COL_CURRENT_FUNCTION_REF: U32 => "normalized function reference for the currently executing frame",
         COL_ENTERED_FUNCTION_NUM_LOCALS: U32 => "verifier-bound local count of the entered function",
         COL_STACK_READS: U32 => "stack delta source",
         COL_STACK_WRITES: U32 => "stack delta destination",

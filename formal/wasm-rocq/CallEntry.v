@@ -21,7 +21,7 @@ Lemma direct_call_entry_bound : forall initial final w pc returnPC caller index 
   w COL_PC_AFTER = entry.
 Proof.
   intros initial final w pc returnPC caller index address module typeIndex params results locals body entry
-    Hprime Hfull Hprogram Hpc Hreplay [_ [_ [Hop [Htarget [_ [Hmeta [Htotal [Hentry Href]]]]]]]] Hp Hr.
+    Hprime Hfull Hprogram Hpc Hreplay [_ [_ [Hop [Htarget [_ [Hmeta [Htotal Hentry]]]]]]] Hp Hr.
   pose proof (circuit_row_opcode_fetch _ _ _ Hreplay Hprogram) as Hfetch.
   rewrite Hpc, Hop in Hfetch. injection Hfetch as Hcode.
   assert (Hcall : w COL_SEL_CALL = 1).

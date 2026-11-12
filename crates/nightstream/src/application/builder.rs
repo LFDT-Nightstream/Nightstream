@@ -417,9 +417,12 @@ impl ApplicationCircuit {
         values.resize(self.variable_count, Goldilocks::ZERO);
         values[..4].copy_from_slice(&input);
         values[4..self.generated_start - 4].copy_from_slice(private_inputs);
+        let mut walk = self.records.walk();
         for offset in 0..self.records.recipe_count() {
-            let row = self.records.recipe_row(offset)?;
-            let [a, b, _] = self.evaluate_row(row, &values)?;
+            let row = walk.recipe_row(offset)?;
+            let [a, b, _] = walk
+                .evaluate_row(row, lookup(&values))?
+                .map(Goldilocks::from_u64);
             values[self.generated_start + offset] = a * b;
         }
         let mut output_state = [Goldilocks::ZERO; 4];
@@ -442,25 +445,10 @@ impl ApplicationCircuit {
                 actual: values.len(),
             });
         }
-        for index in 0..self.row_count() {
-            let [a, b, c] = self.evaluate_row(index, values)?;
-            if a * b != c {
-                return Err(ApplicationError::UnsatisfiedRow(index));
-            }
+        match self.records.first_unsatisfied_row(lookup(values))? {
+            Some(row) => Err(ApplicationError::UnsatisfiedRow(row)),
+            None => Ok(()),
         }
-        Ok(())
-    }
-
-    fn evaluate_row(&self, row: usize, values: &[Goldilocks]) -> Result<[Goldilocks; 3], ApplicationError> {
-        Ok(self
-            .records
-            .evaluate_row(row, |index| {
-                values
-                    .get(index)
-                    .map(PrimeField64::as_canonical_u64)
-                    .ok_or(ApplicationError::VariableOutOfScope(index))
-            })?
-            .map(Goldilocks::from_u64))
     }
 
     fn evaluate(
@@ -469,12 +457,7 @@ impl ApplicationCircuit {
         form: ApplicationForm,
         values: &[Goldilocks],
     ) -> Result<Goldilocks, ApplicationError> {
-        let value = self.records.evaluate_form(row, form, |index| {
-            values
-                .get(index)
-                .map(PrimeField64::as_canonical_u64)
-                .ok_or(ApplicationError::VariableOutOfScope(index))
-        })?;
+        let value = self.records.evaluate_form(row, form, lookup(values))?;
         Ok(Goldilocks::from_u64(value))
     }
 
@@ -490,6 +473,15 @@ impl ApplicationCircuit {
         } else {
             Ok(value)
         }
+    }
+}
+
+fn lookup(values: &[Goldilocks]) -> impl Fn(usize) -> Result<u64, ApplicationError> + Sync + '_ {
+    |index| {
+        values
+            .get(index)
+            .map(PrimeField64::as_canonical_u64)
+            .ok_or(ApplicationError::VariableOutOfScope(index))
     }
 }
 

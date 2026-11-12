@@ -15,7 +15,7 @@ mod witness;
 
 pub use application_records::{
     ApplicationForm, ApplicationRecipeNode, ApplicationRecords, ApplicationRecordsWriter, ApplicationRowHeader,
-    ApplicationTerm,
+    ApplicationTerm, ApplicationWalk,
 };
 pub use bounded_depth::{
     bounded_depth_identity,

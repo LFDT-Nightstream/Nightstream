@@ -13,12 +13,24 @@ inline void joint_carried_project(
     ulong blocks = shape[1];
     ulong column = (ulong)block * RING_DEGREE + lane;
     if (lane >= RING_DEGREE || column >= shape[7]) return;
-    Kx value = Kx{0, 0};
+    // `kx_mul` term by term, with the three products of each term added
+    // unreduced.
+    WideSum real = WideSum{0, 0, 0};
+    WideSum imaginary = WideSum{0, 0, 0};
+    WideSum mixed = WideSum{0, 0, 0};
     for (ulong input = 0; block < blocks && input < RING_DEGREE; ++input) {
         ulong entry = lane * RING_DEGREE + input;
         Kx basis = Kx{gl_from_word(basis_re[entry]), gl_from_word(basis_im[entry])};
-        value = kx_add(value, kx_mul(basis, combined[input]));
+        Kx source = combined[input];
+        wide_sum_add(real, basis.c0, source.c0);
+        wide_sum_add(imaginary, basis.c1, source.c1);
+        wide_sum_add(mixed, gl_add(basis.c0, basis.c1), gl_add(source.c0, source.c1));
     }
+    ulong c0_product = wide_sum_reduce(real);
+    ulong c1_product = wide_sum_reduce(imaginary);
+    Kx value = Kx{
+        gl_add(c0_product, gl_mul_by_7(c1_product)),
+        gl_sub(gl_sub(wide_sum_reduce(mixed), c0_product), c1_product)};
     if (column < shape[8]) value = kx_add(value, load_k(row_sums, column));
     output[2 * column] = value.c0;
     output[2 * column + 1] = value.c1;

@@ -167,21 +167,17 @@ kernel void dec_dense_ring_partials(
     ulong end = min(start + DEC_CHUNK_COLUMNS, (ulong)matrix_active_offsets[matrix + 1]);
     ulong term_start = coefficient >= RING_DEGREE ? coefficient - (RING_DEGREE - 1) : 0;
     ulong term_end = coefficient < RING_DEGREE ? coefficient : RING_DEGREE - 1;
-    ulong lo = 0;
-    ulong hi = 0;
+    WideSum sum = WideSum{0, 0, 0};
     for (ulong active = start; active < end; ++active) {
         ulong block = (ulong)active_blocks[active] % blocks;
         ulong lanes = (source * blocks + block) * RING_DEGREE;
         ulong form = ((active - shape[7]) * 2 + component) * RING_DEGREE + coefficient;
         for (ulong term = term_start; term <= term_end; ++term) {
-            ulong value = gl_mul(forms[form - term], values[lanes + term]);
-            ulong next = lo + value;
-            hi += next < lo;
-            lo = next;
+            wide_sum_add(sum, forms[form - term], values[lanes + term]);
         }
     }
     ulong partial = ((shape[8] + dense) * chunk_count + chunk) * 2 + component;
-    partials[partial * RING_PRODUCT_COEFFICIENTS + coefficient] = gl_reduce_sum(lo, hi);
+    partials[partial * RING_PRODUCT_COEFFICIENTS + coefficient] = wide_sum_reduce(sum);
 }
 
 kernel void dec_sparse_ring_sum_chunks(

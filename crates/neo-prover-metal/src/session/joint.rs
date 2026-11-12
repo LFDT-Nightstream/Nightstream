@@ -13,6 +13,7 @@ use objc2_metal::{MTLBuffer, MTLCommandBuffer, MTLCommandEncoder};
 use p3_field::PrimeCharacteristicRing;
 #[cfg(test)]
 use p3_field::PrimeField64;
+use rayon::prelude::*;
 
 use super::{Arg, Buffer, Grid, MetalSession, MetalWitnessMasks};
 use crate::MetalError;
@@ -798,9 +799,6 @@ impl<'a> MetalPaperJointOracle<'a> {
         let partials = self
             .session
             .buffer(groups * self.coefficient_count * size_of::<K>())?;
-        let reduction_shape = self
-            .session
-            .buffer_from_slice(&[groups as u64, self.coefficient_count as u64])?;
         let command = self
             .session
             .command_buffer("nightstream.pi_ccs.joint.round")?;
@@ -832,25 +830,33 @@ impl<'a> MetalPaperJointOracle<'a> {
         );
         encoder.endEncoding();
 
-        let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
-        self.session.launch(
-            &encoder,
-            &self.session.sumcheck_reduce_partials,
-            &[
-                Arg::Buffer(0, &partials),
-                Arg::Buffer(1, &reduction_shape),
-                Arg::Buffer(2, &self.output),
-            ],
-            Grid::Threads(self.coefficient_count),
-        );
-        encoder.endEncoding();
         self.session.finish(&command)?;
-        Ok(self
-            .session
-            .read_buffer::<u64>(&self.output, self.coefficient_count * 2)
-            .chunks_exact(2)
-            .map(|words| K::from_coeffs([F::from_u64(words[0]), F::from_u64(words[1])]))
-            .collect())
+        // One GPU thread for each coefficient would add the partials in
+        // series; the host cores add them from the shared buffer.
+        let count = self.coefficient_count;
+        let width = 2 * count;
+        let partials = self.session.host_words(&partials, groups * width);
+        let sums = partials
+            .par_chunks(width << 10)
+            .map(|chunk| {
+                let mut sums = vec![K::ZERO; count];
+                for group in chunk.chunks_exact(width) {
+                    for (sum, words) in sums.iter_mut().zip(group.chunks_exact(2)) {
+                        *sum += K::from_coeffs([F::from_u64(words[0]), F::from_u64(words[1])]);
+                    }
+                }
+                sums
+            })
+            .reduce(
+                || vec![K::ZERO; count],
+                |mut left, right| {
+                    left.iter_mut()
+                        .zip(right)
+                        .for_each(|(sum, value)| *sum += value);
+                    left
+                },
+            );
+        Ok(sums)
     }
 
     fn fold_tables(&mut self, challenge: K) -> Result<(), MetalError> {

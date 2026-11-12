@@ -88,7 +88,6 @@ pub struct MetalSession {
     production_ajtai_accumulate: Pipeline,
     production_ajtai_sum_groups: Pipeline,
     tensor_point_expand_k: Pipeline,
-    sumcheck_reduce_partials: Pipeline,
     joint_build_application_tables: Pipeline,
     ccs_first_unsatisfied_row: Pipeline,
     joint_zero_words: Pipeline,
@@ -152,7 +151,6 @@ impl MetalSession {
         let production_ajtai_accumulate = pipeline(&device, &library, "production_ajtai_accumulate")?;
         let production_ajtai_sum_groups = pipeline(&device, &library, "production_ajtai_sum_groups")?;
         let tensor_point_expand_k = pipeline(&device, &library, "tensor_point_expand_k")?;
-        let sumcheck_reduce_partials = pipeline(&device, &library, "sumcheck_reduce_partials")?;
         let joint_build_application_tables = pipeline(&device, &library, "joint_build_application_tables")?;
         let ccs_first_unsatisfied_row = pipeline(&device, &library, "ccs_first_unsatisfied_row")?;
         let joint_zero_words = pipeline(&device, &library, "joint_zero_words")?;
@@ -196,7 +194,6 @@ impl MetalSession {
             production_ajtai_accumulate,
             production_ajtai_sum_groups,
             tensor_point_expand_k,
-            sumcheck_reduce_partials,
             joint_build_application_tables,
             ccs_first_unsatisfied_row,
             joint_zero_words,
@@ -397,6 +394,15 @@ impl MetalSession {
             .downloaded_bytes
             .fetch_add(size_of_val(values) as u64, Ordering::Relaxed);
         values.to_vec()
+    }
+
+    /// The first `len` words of a buffer, in place, after its commands
+    /// finished.
+    fn host_words<'a>(&self, buffer: &'a ProtocolObject<dyn MTLBuffer>, len: usize) -> &'a [u64] {
+        self.activity
+            .downloaded_bytes
+            .fetch_add((len * size_of::<u64>()) as u64, Ordering::Relaxed);
+        host_view(buffer, len)
     }
 
     pub fn activity(&self) -> MetalActivity {

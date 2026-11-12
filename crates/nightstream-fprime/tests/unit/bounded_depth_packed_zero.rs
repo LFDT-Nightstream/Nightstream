@@ -18,7 +18,7 @@ fn forcing(column: usize) -> Row {
 
 #[test]
 fn zero_product_requires_forced_inputs_and_handles_complements() {
-    let raw = vec![
+    let raw = [
         forcing(1),
         forcing(2),
         Row {

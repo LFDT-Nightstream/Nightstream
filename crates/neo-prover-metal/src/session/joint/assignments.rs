@@ -118,6 +118,7 @@ impl AssignmentTables {
     pub(super) fn fold(
         &mut self,
         session: &MetalSession,
+        command: &objc2::runtime::ProtocolObject<dyn objc2_metal::MTLCommandBuffer>,
         masks: &MetalWitnessMasks,
         challenge: K,
     ) -> Result<(), MetalError> {
@@ -158,7 +159,6 @@ impl AssignmentTables {
         let next_values = next_alphabet
             .map(|size| session.buffer(size * size_of::<K>()))
             .transpose()?;
-        let command = session.command_buffer("nightstream.pi_ccs.joint.assignment.fold")?;
         if let Some(values) = &next_values {
             let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
             session.launch(
@@ -189,7 +189,6 @@ impl AssignmentTables {
             Grid::Threads(entries),
         );
         encoder.endEncoding();
-        session.finish(&command)?;
         self.prefix = match next_values {
             Some(values) => Prefix::Codes {
                 data: output,

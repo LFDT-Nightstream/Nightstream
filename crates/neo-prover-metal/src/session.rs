@@ -317,8 +317,8 @@ impl MetalSession {
             // its buffer. `words` is a live slice of `size_of_val(words)`
             // bytes, and Metal copies it before `setBytes` returns. A bound
             // buffer lives until its command completes: the command buffer
-            // (from `commandBuffer`) retains it, and every caller commits and
-            // waits (`finish`) before it returns. The session is not `Sync`,
+            // (from `commandBuffer`) retains it. A command runs only inside
+            // `finish`, which commits it and waits. The session is not `Sync`,
             // so no host code reads or writes `contents()` while a kernel
             // runs, and Metal's default hazard tracking orders the dispatches
             // that share a buffer. Each caller owns the rest. For `grid` and
@@ -448,9 +448,8 @@ fn upload<T: Copy>(buffer: &ProtocolObject<dyn MTLBuffer>, values: &[T]) -> Resu
     // at least `bytes` bytes (checked above) and lives as long as `buffer`.
     // The copy is untyped, so it needs no alignment. The ranges do not
     // overlap, because callers upload only into buffers that Metal
-    // allocated, never into a wrapped one. No command uses the buffer during
-    // the copy: every command finishes inside the call that encodes it (see
-    // `launch`).
+    // allocated, never into a wrapped one. No kernel uses the buffer during
+    // the copy: a command runs only inside `finish` (see `launch`).
     unsafe {
         std::ptr::copy_nonoverlapping(
             values.as_ptr().cast::<u8>(),
@@ -532,9 +531,9 @@ fn host_view<T: Pod>(buffer: &ProtocolObject<dyn MTLBuffer>, len: usize) -> &[T]
     // lives as long as the `buffer` borrow. Metal zero-fills a new buffer,
     // so every byte is initialized, and every bit pattern is a `T` (`Pod`).
     // No Rust reference aliases it, because callers view only buffers that
-    // Metal allocated, never a wrapped one. Every command finishes inside
-    // the call that encodes it (see `launch`), and callers take a view only
-    // after `finish`, so no kernel writes the memory while the view lives.
+    // Metal allocated, never a wrapped one. A command runs only inside
+    // `finish` (see `launch`), and callers take a view only after it, so
+    // no kernel writes the memory while the view lives.
     unsafe { std::slice::from_raw_parts(contents, len) }
 }
 

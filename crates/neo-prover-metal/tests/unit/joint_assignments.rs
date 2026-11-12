@@ -40,7 +40,9 @@ fn encoded_device_prefix_matches_dense_cpu_through_every_fold() {
                 .map(|pair| pair[0] + (pair.get(1).copied().unwrap_or(K::ZERO) - pair[0]) * challenge)
                 .collect();
         }
-        tables.fold(&session, &masks, challenge).unwrap();
+        let command = session.command_buffer("fold").unwrap();
+        tables.fold(&session, &command, &masks, challenge).unwrap();
+        session.finish(&command).unwrap();
         assert_eq!(tables.encoding() as usize, [1, 1, 2, 16, 16, 16, 16][round]);
         assert_eq!(tables.len, expected[0].len());
         let read_k = |buffer: &Buffer, len| {
@@ -101,7 +103,9 @@ fn zero_witnesses_need_no_folded_assignment_buffer() {
         .unwrap();
     let mut tables = AssignmentTables::new(&session, &masks, D).unwrap();
     let before = session.activity();
-    tables.fold(&session, &masks, K::ONE).unwrap();
+    let command = session.command_buffer("fold").unwrap();
+    tables.fold(&session, &command, &masks, K::ONE).unwrap();
+    session.finish(&command).unwrap();
     assert_eq!(tables.count, 0);
     assert!(matches!(tables.prefix, Prefix::Masks(_)));
     assert_eq!(session.activity().allocated_bytes, before.allocated_bytes);

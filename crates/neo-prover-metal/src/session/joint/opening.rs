@@ -27,6 +27,9 @@ const PARALLEL_FORM_LIST_THRESHOLD: usize = 128;
 const FORM_TILE_ENTRIES: usize = 16 * 1024;
 const CHUNK_BLOCKS: usize = 512;
 const PRODUCT_COEFFICIENTS: usize = 2 * D - 1;
+/// The threadgroup width of `dec_dense_ring_partials`: three products of
+/// `D - 1` coefficients each, rounded up to the SIMD width.
+const DENSE_PRODUCT_THREADS: usize = 160;
 
 pub(super) struct MetalJointOpeningPlan {
     active_offsets: Buffer,
@@ -723,6 +726,26 @@ impl MetalSession {
             &[max_blocks, 2, D, size_of::<u64>()],
             "opening form size overflow",
         )?)?;
+        // The middle Karatsuba operands of `dec_dense_ring_partials`.
+        let form_sums = self.buffer(max_blocks.max(1) * D * size_of::<u64>())?;
+        let value_sums = match sources.dense.filter(|_| !dense_ids.is_empty()) {
+            Some(dense) => {
+                let words = objc2_metal::MTLBuffer::length(&**dense.words()) / size_of::<u64>() / 2;
+                let value_sums = self.buffer(words * size_of::<u64>())?;
+                let command = self.command_buffer("nightstream.pi_ccs.joint.openings.dense")?;
+                let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
+                self.launch(
+                    &encoder,
+                    &self.dec_ring_half_sums,
+                    &[Arg::Buffer(0, dense.words()), Arg::Buffer(1, &value_sums)],
+                    Grid::Threads(words),
+                );
+                encoder.endEncoding();
+                self.finish(&command)?;
+                Some(value_sums)
+            }
+            None => None,
+        };
         let partials = self.buffer(checked_product(
             &[active_count, max_chunks, 2, PRODUCT_COEFFICIENTS, size_of::<u64>()],
             "opening partial size overflow",
@@ -749,7 +772,6 @@ impl MetalSession {
             let chunk_offsets = self.buffer_from_slice(&[0u32, chunk_count as u32])?;
             let form_words = (active_end - active_start) * 2 * D;
             let masked_partial_words = masked_count * chunk_count * 2 * PRODUCT_COEFFICIENTS;
-            let dense_partial_words = dense_ids.len() * chunk_count * 2 * PRODUCT_COEFFICIENTS;
             let sum_words = active_count * 2 * PRODUCT_COEFFICIENTS;
             let mut shape = shape;
             shape[5] = active_start as u64;
@@ -939,7 +961,15 @@ impl MetalSession {
                 );
                 encoder.endEncoding();
             }
-            if let Some(dense) = sources.dense.filter(|_| dense_partial_words != 0) {
+            if let Some((dense, value_sums)) = sources.dense.zip(value_sums.as_ref()) {
+                let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
+                self.launch(
+                    &encoder,
+                    &self.dec_ring_half_sums,
+                    &[Arg::Buffer(0, &forms), Arg::Buffer(1, &form_sums)],
+                    Grid::Threads((active_end - active_start) * D),
+                );
+                encoder.endEncoding();
                 let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
                 encoder.setLabel(Some(&NSString::from_str("dec_dense_ring_partials")));
                 self.launch(
@@ -955,8 +985,14 @@ impl MetalSession {
                         Arg::BufferAt(6, &plan.active_chunk_bases, chunk_start * size_of::<u32>()),
                         Arg::Buffer(7, &chunk_matrices),
                         Arg::BufferAt(8, &plan.matrix_active_offsets, matrix * size_of::<u32>()),
+                        Arg::Buffer(9, &form_sums),
+                        Arg::Buffer(10, value_sums),
+                        Arg::Threadgroup(0, DENSE_PRODUCT_THREADS * size_of::<u64>()),
                     ],
-                    Grid::Threads(dense_partial_words),
+                    Grid::Groups {
+                        groups: dense_ids.len() * chunk_count * 2,
+                        threads: DENSE_PRODUCT_THREADS,
+                    },
                 );
                 encoder.endEncoding();
             }

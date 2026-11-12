@@ -109,6 +109,7 @@ pub struct MetalSession {
     dec_split_base2_masks: Pipeline,
     dec_sparse_ring_partials: Pipeline,
     dec_dense_ring_partials: Pipeline,
+    dec_ring_half_sums: Pipeline,
     dec_sparse_ring_sum_chunks: Pipeline,
     joint_carried_projection: Pipeline,
     joint_carried_projection_dense: Pipeline,
@@ -174,6 +175,7 @@ impl MetalSession {
         let dec_split_base2_masks = pipeline(&device, &library, "dec_split_base2_masks")?;
         let dec_sparse_ring_partials = pipeline(&device, &library, "dec_sparse_ring_partials")?;
         let dec_dense_ring_partials = pipeline(&device, &library, "dec_dense_ring_partials")?;
+        let dec_ring_half_sums = pipeline(&device, &library, "dec_ring_half_sums")?;
         let dec_sparse_ring_sum_chunks = pipeline(&device, &library, "dec_sparse_ring_sum_chunks")?;
         let joint_carried_projection = pipeline(&device, &library, "joint_carried_projection")?;
         let joint_carried_projection_dense = pipeline(&device, &library, "joint_carried_projection_dense")?;
@@ -215,6 +217,7 @@ impl MetalSession {
             dec_split_base2_masks,
             dec_sparse_ring_partials,
             dec_dense_ring_partials,
+            dec_ring_half_sums,
             dec_sparse_ring_sum_chunks,
             joint_carried_projection,
             joint_carried_projection_dense,

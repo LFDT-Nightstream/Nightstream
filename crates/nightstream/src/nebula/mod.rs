@@ -46,7 +46,9 @@ pub(crate) use machine::{Machine, MachineError, MachineState, Step};
 use neo_application::MemoryPreload;
 pub use poseidon::Poseidon2Hint;
 pub use proving::{FinalProof, Proof, ProveError, Prover, Proving, Verified, Verifier, VerifyError};
-pub use r1cs::{batched_slots, R1csApplication, R1csApplicationError, R1csStepError, RowRelation, Size, Terms};
+pub use r1cs::{
+    batched_slots, R1csApplication, R1csApplicationError, R1csStepError, RowRelation, SharedColumns, Size, Terms,
+};
 pub use records::PortAccess;
 pub use rows::View;
 use segment::Cell;

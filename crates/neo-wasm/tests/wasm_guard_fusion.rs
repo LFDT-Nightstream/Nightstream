@@ -6,11 +6,10 @@ use neo_wasm::memory_semantics::preload_host_event_tables;
 use neo_wasm::nebula::{plan_ordered_slots, step_inputs, WasmApplication, WasmLimits};
 use nightstream::nebula::{Circuit, Geometry};
 
-#[test]
-fn guarded_native_public_proof_binds_import_and_export_events() {
+fn host_public_proof(per_step: usize) {
     let setup = common::host_event_fixture::host_event_lifecycle_setup();
     let artifacts = neo_wasm::extract_first_component_core_program_artifacts(&setup.component_bytes).unwrap();
-    let per_step = NonZeroUsize::new(4).unwrap();
+    let per_step = NonZeroUsize::new(per_step).unwrap();
     let n = setup
         .trace
         .len()
@@ -35,7 +34,7 @@ fn guarded_native_public_proof_binds_import_and_export_events() {
     let geometry = Geometry::new(r, mu, slots.len(), n, 1).unwrap();
     let application = WasmApplication::with_slots(&geometry, regions, per_step, &slots).unwrap();
     let program = application.program(&preload).unwrap();
-    let circuit = Circuit::compile(geometry, application).unwrap();
+    let circuit = Circuit::compile(geometry, application.clone()).unwrap();
     let prover = circuit.prover(nightstream::Engine::Optimized, 109).unwrap();
     let verifier = circuit
         .verifier(nightstream::Engine::Optimized, 109)
@@ -59,6 +58,17 @@ fn guarded_native_public_proof_binds_import_and_export_events() {
     verifier
         .verify(&program, &initial, &last, &decoded)
         .unwrap();
+    let mut other_preload = preload.clone();
+    let (id, address, value) = preload
+        .entries()
+        .into_iter()
+        .find(|(id, _, _)| *id == neo_wasm::WasmMemoryId::ProgramOpcode)
+        .unwrap();
+    other_preload.insert(id, address, value ^ 1);
+    let other_program = application.program(&other_preload).unwrap();
+    assert!(verifier
+        .verify(&other_program, &initial, &last, &decoded)
+        .is_err());
     let mut changed = last;
     changed.comm_chain[0] ^= 1;
     assert!(verifier
@@ -68,4 +78,14 @@ fn guarded_native_public_proof_binds_import_and_export_events() {
         "guarded_host_public_proof\t1\tminimum_security_bits\t109\ttrace_rows\t{}\t{geometry:?}",
         setup.trace.len()
     );
+}
+
+#[test]
+fn guarded_native_public_proof_binds_import_and_export_events() {
+    host_public_proof(4);
+}
+
+#[test]
+fn shared_host_public_proof_checks_a_short_final_group() {
+    host_public_proof(9);
 }

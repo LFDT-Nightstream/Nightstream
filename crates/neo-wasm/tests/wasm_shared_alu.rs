@@ -62,10 +62,14 @@ fn dynamic_shared_alu_public_proofs_bind_programs_and_accept_traps() {
             preload
         })
         .collect::<Vec<_>>();
-    let witnesses = inputs
+    let witnesses = cases
         .iter()
-        .flatten()
-        .map(|step| step.z.clone())
+        .flat_map(|case| {
+            step_inputs(&case.trace, n * per_step.get(), NonZeroUsize::MIN)
+                .unwrap()
+                .into_iter()
+                .map(|step| step.z)
+        })
         .collect::<Vec<_>>();
     let (regions, used) = WasmLimits::of(&preloads.iter().collect::<Vec<_>>(), &witnesses)
         .unwrap()

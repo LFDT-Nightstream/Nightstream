@@ -2,7 +2,8 @@
 //! 7.6): `nightstream::nebula::R1csApplication` of the one-row WASM relation
 //! with its operation-table rows, its continuity links, and its memory
 //! catalog. One Nebula step proves `rows` consecutive trace rows. Its private
-//! words are the witnesses `z` of its rows (`build_batched_witness`). Its
+//! words are the witnesses `z` of its rows (`build_batched_witness`), with one
+//! shared host-event absorb block per group for steps of more than one row. Its
 //! state is a `WasmStepState`, whose words are the continuity words
 //! (`state_words`), so a verifier reads the last state of a proof as a typed
 //! value. Every field has words (test `every_state_field_changes_the_state_words`),
@@ -10,6 +11,8 @@
 //! memory uses a reserved word above the wasm32 page limit, so it differs
 //! from a present zero-page memory. One circuit serves every program whose memories fit its
 //! regions. A deployment proves in the fixed sizes of `WasmSize`.
+
+mod shared_host;
 
 use std::num::NonZeroUsize;
 
@@ -54,6 +57,8 @@ pub enum WasmApplicationError {
     Relation(#[from] BatchError),
     #[error("a matrix of the WASM relation is not in CSC form")]
     Matrix,
+    #[error("the source relation must contain exactly one matching host-event commitment gadget")]
+    SharedAbsorb,
     #[error(transparent)]
     Application(#[from] R1csApplicationError),
     #[error(transparent)]
@@ -109,11 +114,18 @@ impl WasmApplication {
             regions,
             slots: slots.to_vec(),
         };
-        Ok(Self(R1csApplication::new(
-            relation()?,
+        let mut relation = relation()?;
+        let shared = if rows.get() == 1 {
+            nightstream::nebula::SharedColumns::NONE
+        } else {
+            shared_host::transform(&mut relation)?
+        };
+        Ok(Self(R1csApplication::with_shared(
+            relation,
             &layout.auxiliary.continuity,
             &layout.auxiliary.memory,
             size,
+            shared,
         )?))
     }
 
@@ -126,6 +138,17 @@ impl WasmApplication {
     /// then the continuity rows between neighbor rows.
     pub fn relation_rows(&self) -> usize {
         self.0.relation_rows()
+    }
+
+    /// Source-column location in the grouped witness (SPEC.md section 7.6).
+    pub fn witness_column(&self, row: usize, column: usize) -> Option<usize> {
+        self.0.witness_column(row, column)
+    }
+
+    /// Check the step's rank-one rows, including group bindings and row links.
+    /// Memory checks belong to the complete Nebula relation (SPEC.md section 7.6).
+    pub fn check(&self, z: &[F]) -> Result<(), R1csStepError> {
+        self.0.check(z)
     }
 
     /// The state words that step input `z` ends in: the `_AFTER` columns of
@@ -237,14 +260,21 @@ pub fn step_inputs(
             rows,
         })?;
     let batch = build_batched_witness(trace, capacity, 0)?;
-    Ok(batch
-        .chunks(batch.len() / steps)
+    let width = batch.len() / capacity;
+    batch
+        .chunks(width * rows.get())
         .enumerate()
-        .map(|(step, z)| WasmStep {
-            z: z.to_vec(),
-            next: trace[((step + 1) * rows.get()).min(trace.len()) - 1].state_after,
+        .map(|(step, z)| {
+            Ok(WasmStep {
+                z: if rows.get() == 1 {
+                    z.to_vec()
+                } else {
+                    shared_host::step_witness(width, z)?
+                },
+                next: trace[((step + 1) * rows.get()).min(trace.len()) - 1].state_after,
+            })
         })
-        .collect())
+        .collect()
 }
 
 /// Lean `active`: whether a port with `activation` is active on row `z`.

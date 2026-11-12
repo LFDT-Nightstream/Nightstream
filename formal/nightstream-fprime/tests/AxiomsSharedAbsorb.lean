@@ -1,0 +1,19 @@
+import tests.AxiomAudit
+import NightstreamFPrime.Lifecycle.Nebula.SharedFinite
+
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.SharedAbsorb.groupRows_iff_forall
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.SharedAbsorb.eq_of_gated
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.SharedAbsorb.groupRows_sound
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.SharedAbsorb.groupRows_complete
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.SharedAbsorb.cursor_le
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.SharedAbsorb.absorbs_apart
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.SharedAbsorb.absorbs_unique
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.SharedAbsorb.group_complete
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.SharedAbsorb.checked_absorb_cursor
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.SharedAbsorb.checked_cursor_advance
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.SharedAbsorb.checked_absorbs_apart
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.SharedAbsorb.checked_absorbs_unique
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.SharedAbsorb.checked_group_complete
+
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.SharedAbsorb.finite_absorbs_unique
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.SharedAbsorb.finite_group_complete

@@ -679,6 +679,21 @@ not change terminal source checks.
   (`a_state_field_of_q_or_more_has_no_canonical_word`). So a verifier that
   reads a field of a proved state reads a proved word, except that `None` and
   `Some(0)` of `memory_pages` and `max_memory_pages` share the word 0.
+- The shared host-event transformation in a multirow WASM step. The adversary
+  chooses every row flag, shared input, permutation auxiliary, and shared output.
+  The group argument uses soundness and completeness of the exact width-12
+  Poseidon2 event commitment with its four-lane feed-forward. It does not use
+  collision resistance to replace a row check. The soundness argument allows
+  multiple absorbing rows in a group and forces each to have the shared input.
+  Completeness uses the checked Boolean decoding, position and kind sum rows,
+  cursor transition, absorb equation, Enter exclusion, and cursor continuity.
+  The kind count and eight slot positions must be below the field modulus.
+  No global natural range bound on arbitrary cursor field values is assumed.
+  `Lifecycle.Nebula.SharedAbsorb.CursorRows` states these row premises. The
+  Rust tests compare those rows and check column mutations on fixed inputs.
+  A universal proof that the Rust transformation and shared-column map realize
+  the Lean group relation remains open. The original one-row relation remains
+  the source of all constraints outside the selected commitment input rewrite.
 - A prover that picks the WASM size of its proof
   (`neo_wasm::nebula::WasmSize`). The results hold for each of the three
   fixed sizes, not for a choice among them.

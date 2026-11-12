@@ -77,7 +77,7 @@ fn saved(path: &Path) -> Result<(usize, Arc<ApplicationRecords>, NativeShape), B
 fn main() -> Result<(), Box<dyn Error>> {
     let output = std::env::args()
         .nth(1)
-        .ok_or("usage: native_constraint_census NEW_OUTPUT_DIRECTORY [SAVED_APPLICATION_DIRECTORY]")?;
+        .ok_or("usage: native_constraint_census NEW_OUTPUT_DIRECTORY [SAVED_APPLICATION_DIRECTORY|-] [dump-application|-] [TRACE_ROWS_CSV] [unshared-host]")?;
     let output = Path::new(&output);
     std::fs::create_dir(output)?;
     let artifacts = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../formal/nightstream-fprime/artifacts");
@@ -90,22 +90,57 @@ fn main() -> Result<(), Box<dyn Error>> {
     let slots = plan_ordered_wasm_memory_slots(layout.auxiliary.memory.entries())
         .slots
         .len();
-    let saved_directory = std::env::args().nth(2);
+    let saved_directory = std::env::args().nth(2).filter(|value| value != "-");
+    let unshared = std::env::args().nth(5).as_deref() == Some("unshared-host");
     let mut previous = None;
     let mut previous_refresh = None;
-    for trace_rows in 1..=3 {
+    let mut previous_trace_rows = None;
+    let trace_counts = std::env::args()
+        .nth(4)
+        .unwrap_or_else(|| "1,2,3".into())
+        .split(',')
+        .map(str::parse::<usize>)
+        .collect::<Result<Vec<_>, _>>()?;
+    for trace_rows in trace_counts {
         let mut geometry = WasmSize::Small.geometry();
         geometry.b_ops = trace_rows * slots;
         let path = if let Some(directory) = &saved_directory {
             Path::new(directory).join(format!("rows-{trace_rows}.application"))
         } else {
-            let app = WasmApplication::new(
-                &geometry,
-                WasmSize::Small.limits().regions()?.0,
-                NonZeroUsize::new(trace_rows).unwrap(),
-            )?;
             let path = output.join(format!("rows-{trace_rows}.application"));
-            Circuit::compile(geometry, app)?.write(&path)?;
+            let regions = WasmSize::Small.limits().regions()?.0;
+            let rows = NonZeroUsize::new(trace_rows).unwrap();
+            if unshared {
+                use nightstream::nebula::{R1csApplication, RowRelation, Size};
+                let source = neo_wasm::batch::build_batched_wasm_ccs(1)?.sparse_r1cs;
+                let mut terms = vec![[Vec::new(), Vec::new(), Vec::new()]; source.n];
+                for (side, matrix) in [&source.a, &source.b, &source.c].into_iter().enumerate() {
+                    let neo_ccs::CcsMatrix::Csc(csc) = matrix else {
+                        return Err("expected CSC source".into());
+                    };
+                    for column in 0..csc.ncols() {
+                        for entry in csc.column_range(column) {
+                            terms[csc.row_index(entry)][side].push((column, csc.vals()[entry]));
+                        }
+                    }
+                }
+                let relation = RowRelation {
+                    rows: terms,
+                    width: source.m,
+                    one: neo_wasm::layout::COL_ONE,
+                };
+                let size = Size {
+                    geometry,
+                    rows,
+                    regions,
+                    slots: neo_wasm::nebula::plan_ordered_slots(rows)?,
+                };
+                let app = R1csApplication::new(relation, &layout.auxiliary.continuity, &layout.auxiliary.memory, size)?;
+                Circuit::compile(geometry, app)?.write(&path)?;
+            } else {
+                let app = WasmApplication::new(&geometry, regions, rows)?;
+                Circuit::compile(geometry, app)?.write(&path)?;
+            }
             path
         };
         let (private, records, shape) = saved(&path)?;
@@ -208,8 +243,17 @@ fn main() -> Result<(), Box<dyn Error>> {
                 "k_rho": 16,
             }));
         }
+        let adjacent = previous_trace_rows == trace_rows.checked_sub(1);
         let value = serde_json::json!({
             "trace_rows": trace_rows,
+            "trace_rows_since_previous_sample": previous_trace_rows.map(|before| trace_rows - before),
+            "constraint_difference_from_previous_sample": previous.map(|before| count - before),
+            "native_memory_hash_blocks": shape.blocks.len(),
+            "shared_host": !unshared && trace_rows > 1,
+            "shared_absorb_groups": if !unshared && trace_rows > 1 { trace_rows.div_ceil(8) } else { trace_rows },
+            "new_input_gate_rows": if !unshared && trace_rows > 1 { 12 * trace_rows } else { 0 },
+            "preserved_output_gate_rows": 4 * trace_rows,
+            "shared_source_columns_per_group": if !unshared && trace_rows > 1 { 728 } else { 0 },
             "opcodes":neo_wasm::WasmOpcode::supported().len(),
             "slots_per_trace_row": slots,
             "geometry": {"r":geometry.r,"mu":geometry.mu,"w_ts":geometry.w_ts,"b_scan":geometry.b_scan,"n":geometry.n,"s_max":geometry.s_max},
@@ -227,7 +271,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 "logical_coordinates":refresh_layout.width(),
                 "matrix_source_entries":refresh_source_entries,
                 "matrix_logical_entries":refresh_logical_entries,
-                "added_trace_row_constraints":previous_refresh.map(|before|refresh_count-before),
+                "added_trace_row_constraints":if adjacent { previous_refresh.map(|before|refresh_count-before) } else { None },
             },
             "logical_coordinates":layout.width(),
             "source_columns":layout.spans().widths.len(),
@@ -240,7 +284,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             "packed_boolean_rows":pairs.div_ceil(31),
             "source_minus_plan_rows":source.row_count() - count,
             "circuits":circuits,
-            "added_trace_row_constraints":previous.map(|before| count-before),
+            "added_trace_row_constraints":if adjacent { previous.map(|before| count-before) } else { None },
             "identity":compiled.identity(),
             "fixed_cost_divided_by_trace_rows":false,
         });
@@ -251,6 +295,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         )?;
         previous = Some(count);
         previous_refresh = Some(refresh_count);
+        previous_trace_rows = Some(trace_rows);
     }
     Ok(())
 }

@@ -21,6 +21,7 @@ mod application;
 mod assignments;
 mod dense;
 mod matrix_window;
+pub(super) use matrix_window::ResidentMatrices;
 mod opening;
 mod relation;
 mod support;
@@ -51,7 +52,7 @@ const EQUALITY_CHUNK_VALUES: usize = 1 << EQUALITY_CHUNK_BITS;
 const MAX_COEFFICIENTS: usize = 10;
 const ZERO_FAMILY_LEN: usize = 1;
 
-struct MetalCompactMatrix {
+pub(super) struct MetalCompactMatrix {
     row_offsets: Buffer,
     row_offset_width: u64,
     row_blocks: Buffer,
@@ -64,6 +65,13 @@ struct MetalCompactMatrix {
     geometric_runs: Buffer,
     identity: bool,
 }
+
+// SAFETY: the fields are Metal buffers and plain words. Apple documents a
+// buffer as safe to retain, release and bind from any thread, and no code
+// writes these buffers after their upload.
+unsafe impl Send for MetalCompactMatrix {}
+// SAFETY: as for `Send`; shared use only binds the buffers.
+unsafe impl Sync for MetalCompactMatrix {}
 
 pub(crate) struct MetalJointMatrixPlan<'a> {
     source: &'a dyn MatrixRows,

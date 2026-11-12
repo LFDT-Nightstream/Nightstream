@@ -858,12 +858,9 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Result<Vec<F>, super::ir::Was
     wit[COL_CALL_INDIRECT_IS_TRAP] = ci_trap;
     wit[COL_FUNCTION_CALL_TYPE_LOOKUP_GATE] = ci_type_lookup;
     wit[COL_CALL_INDIRECT_IS_NOT_TRAP] = sel_resolve * (F::ONE - ci_trap);
-    // Indirect host call: binds pc_after through the call site's return-pc
-    // pc-ROM slot, so it pins the same choice a guest push would use.
     let sel_indirect_call = wit[selector_col(super::isa::WasmOpcode::CallIndirect).expect("call_indirect selector")]
         + wit[selector_col(super::isa::WasmOpcode::ReturnCallIndirect).expect("return_call_indirect selector")];
     wit[COL_CI_HOST_CALL] = sel_indirect_call * (F::ONE - wit[COL_TARGET_FUNCTION_IS_GUEST]);
-    if wit[COL_CI_HOST_CALL] == F::ONE {}
 
     fill_event_absorb(&mut wit, trace);
     crate::ccs::reentry::fill_witness(&mut wit, trace);

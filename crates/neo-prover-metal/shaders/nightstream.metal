@@ -478,24 +478,6 @@ kernel void rlc_witness_mix_signed_masks(
 
 constant uint SUMCHECK_REDUCTION_THREADS = 64;
 
-kernel void sumcheck_reduce_partials(
-    device const ulong *partials [[buffer(0)]],
-    device const ulong *shape [[buffer(1)]],
-    device ulong *output [[buffer(2)]],
-    uint coefficient [[thread_position_in_grid]]) {
-    ulong rows = shape[0];
-    ulong coefficient_count = shape[1];
-    if (coefficient >= coefficient_count) {
-        return;
-    }
-    Kx total = Kx{0, 0};
-    for (ulong row = 0; row < rows; ++row) {
-        total = kx_add(total, load_k(partials, row * coefficient_count + coefficient));
-    }
-    output[2 * coefficient] = total.c0;
-    output[2 * coefficient + 1] = total.c1;
-}
-
 #include "dec_forms.metal"
 #include "joint.metal"
 #include "relation.metal"

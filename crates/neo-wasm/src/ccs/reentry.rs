@@ -3,6 +3,7 @@
 
 use crate::gadgets::push_gated_linear_zero;
 use crate::host_event_bindings::IMPORT_SCHEDULE_COUNT_FACTOR;
+use crate::host_event_layout::HOST_CONTEXT_REF_FACTOR;
 use crate::ir::WasmVmStep;
 use crate::layout::*;
 use crate::tagged_r1cs_builder::WasmTaggedR1csBuilder;
@@ -126,7 +127,10 @@ pub(super) fn push_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
         push_gated_linear_zero(
             b,
             COL_HOST_RESUME,
-            [(COL_HOST_FRAME_DEPTH_AFTER, F::ONE), (COL_HOST_CONTEXT[6], -F::ONE)],
+            [
+                (COL_HOST_FRAME_DEPTH_AFTER, F::ONE),
+                (COL_HOST_CONTEXT_STACK[1], -F::ONE),
+            ],
         );
         b.push_row(
             [
@@ -161,35 +165,41 @@ pub(super) fn push_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
                 (COL_ONE, F::ONE),
             ],
         );
-        let sources = [
-            COL_PC_AFTER,
-            COL_LOCALS_FBP_BEFORE,
-            COL_STACK_FRAME_BASE_BEFORE,
-            COL_TURN_EXPORT_FREF_BEFORE,
-            COL_HOST_CALLEE_FREF_BEFORE,
-            COL_HOST_EVENT_ARGS_BASE_AFTER,
-            COL_HOST_FRAME_DEPTH_BEFORE,
-            COL_SP_AFTER,
-        ];
-        for (field, source) in COL_HOST_CONTEXT.into_iter().zip(sources) {
+        // Rocq `ProgramBinding.full_host_context_refs`: one RAM cell binds
+        // both bounded references.
+        b.push_linear_zero([
+            (COL_HOST_CONTEXT_REFS, F::ONE),
+            (COL_HOST_CONTEXT_EXPORT, -F::ONE),
+            (COL_HOST_CONTEXT_IMPORT, -F::from_u32(HOST_CONTEXT_REF_FACTOR)),
+        ]);
+        for (field, source) in [
+            (COL_HOST_CONTEXT_FRAME[0], COL_PC_AFTER),
+            (COL_HOST_CONTEXT_FRAME[1], COL_LOCALS_FBP_BEFORE),
+            (COL_HOST_CONTEXT_FRAME[2], COL_STACK_FRAME_BASE_BEFORE),
+            (COL_HOST_CONTEXT_EXPORT, COL_TURN_EXPORT_FREF_BEFORE),
+            (COL_HOST_CONTEXT_IMPORT, COL_HOST_CALLEE_FREF_BEFORE),
+            (COL_HOST_CONTEXT_STACK[0], COL_HOST_EVENT_ARGS_BASE_AFTER),
+            (COL_HOST_CONTEXT_STACK[1], COL_HOST_FRAME_DEPTH_BEFORE),
+            (COL_HOST_CONTEXT_STACK[2], COL_SP_AFTER),
+        ] {
             push_gated_linear_zero(b, COL_HOST_SUSPEND, [(field, F::ONE), (source, -F::ONE)]);
         }
         // Entry starts its frame above every suspended cell, including args.
         for (target, source) in [
-            (COL_LOCALS_FBP_AFTER, COL_HOST_CONTEXT[7]),
-            (COL_SP_BEFORE, COL_HOST_CONTEXT[7]),
+            (COL_LOCALS_FBP_AFTER, COL_HOST_CONTEXT_STACK[2]),
+            (COL_SP_BEFORE, COL_HOST_CONTEXT_STACK[2]),
         ] {
             push_gated_linear_zero(b, COL_HOST_NESTED_ENTRY, [(target, F::ONE), (source, -F::ONE)]);
         }
         for (target, source) in [
-            (COL_PC_AFTER, COL_HOST_CONTEXT[0]),
-            (COL_LOCALS_FBP_AFTER, COL_HOST_CONTEXT[1]),
-            (COL_STACK_FRAME_BASE_AFTER, COL_HOST_CONTEXT[2]),
-            (COL_TURN_EXPORT_FREF_AFTER, COL_HOST_CONTEXT[3]),
-            (COL_HOST_CALLEE_FREF_AFTER, COL_HOST_CONTEXT[4]),
-            (COL_HOST_EVENT_ARGS_BASE_AFTER, COL_HOST_CONTEXT[5]),
-            (COL_SP_AFTER, COL_HOST_CONTEXT[5]),
-            (COL_SP_BEFORE, COL_HOST_CONTEXT[7]),
+            (COL_PC_AFTER, COL_HOST_CONTEXT_FRAME[0]),
+            (COL_LOCALS_FBP_AFTER, COL_HOST_CONTEXT_FRAME[1]),
+            (COL_STACK_FRAME_BASE_AFTER, COL_HOST_CONTEXT_FRAME[2]),
+            (COL_TURN_EXPORT_FREF_AFTER, COL_HOST_CONTEXT_EXPORT),
+            (COL_HOST_CALLEE_FREF_AFTER, COL_HOST_CONTEXT_IMPORT),
+            (COL_HOST_EVENT_ARGS_BASE_AFTER, COL_HOST_CONTEXT_STACK[0]),
+            (COL_SP_AFTER, COL_HOST_CONTEXT_STACK[0]),
+            (COL_SP_BEFORE, COL_HOST_CONTEXT_STACK[2]),
         ] {
             push_gated_linear_zero(b, COL_HOST_RESUME, [(target, F::ONE), (source, -F::ONE)]);
         }
@@ -280,9 +290,16 @@ pub(crate) fn fill_witness(wit: &mut [F], trace: &WasmVmStep) {
     wit[COL_HOST_CLEAR_ACTIVATION_FINISHED] =
         (wit[COL_TURN_BOUNDARY] + wit[COL_HOST_RESUME]) * flag(before.activation_finished);
     if let Some(context) = trace.host_context {
-        for (col, value) in COL_HOST_CONTEXT.into_iter().zip(context.to_words()) {
-            wit[col] = F::from_u64(value);
-        }
+        wit[COL_HOST_CONTEXT_EXPORT] = F::from_u32(context.export_fref);
+        wit[COL_HOST_CONTEXT_IMPORT] = F::from_u32(context.import_fref);
+        wit[COL_HOST_CONTEXT_FRAME[0]] = F::from_u64(context.continuation_pc);
+        wit[COL_HOST_CONTEXT_FRAME[1]] = F::from_u64(context.locals_fbp);
+        wit[COL_HOST_CONTEXT_FRAME[2]] = F::from_u64(context.stack_frame_base);
+        wit[COL_HOST_CONTEXT_REFS] =
+            wit[COL_HOST_CONTEXT_EXPORT] + F::from_u32(HOST_CONTEXT_REF_FACTOR) * wit[COL_HOST_CONTEXT_IMPORT];
+        wit[COL_HOST_CONTEXT_STACK[0]] = F::from_u64(context.args_base);
+        wit[COL_HOST_CONTEXT_STACK[1]] = F::from_u64(context.parent_host_frame_depth);
+        wit[COL_HOST_CONTEXT_STACK[2]] = F::from_u64(context.retained_sp);
         wit[COL_HOST_CONTEXT_ADDR] = if wit[COL_HOST_SUSPEND] == F::ONE {
             F::from_u64(before.call_stack_depth)
         } else {

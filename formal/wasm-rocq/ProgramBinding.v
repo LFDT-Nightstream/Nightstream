@@ -79,6 +79,29 @@ Proof.
   expand_row Hrow. normalize_columns. rewrite Hone in Hrow. field_linear Hrow.
 Qed.
 
+Lemma full_host_context_refs : forall w,
+  fieldPrime -> FullRelation.satFull w ->
+  w COL_HOST_CONTEXT_REFS = w COL_HOST_CONTEXT_EXPORT + 65536 * w COL_HOST_CONTEXT_IMPORT /\
+  0 <= w COL_HOST_CONTEXT_EXPORT < 65536 /\
+  0 <= w COL_HOST_CONTEXT_IMPORT < 65536 /\
+  0 <= w COL_HOST_CONTEXT_REFS < 4294967296 /\
+  w COL_HOST_CONTEXT_REFS mod 65536 = w COL_HOST_CONTEXT_EXPORT /\
+  w COL_HOST_CONTEXT_REFS / 65536 = w COL_HOST_CONTEXT_IMPORT.
+Proof.
+  intros w Hprime Hfull. pose proof (proj1 Hfull) as Hone.
+  pose proof (value_bound w COL_HOST_CONTEXT_REFS) as Hpacked.
+  circuit_range COL_HOST_CONTEXT_EXPORT Hexport.
+  circuit_range COL_HOST_CONTEXT_IMPORT Himport.
+  assert (Hpacking : w COL_HOST_CONTEXT_REFS =
+    w COL_HOST_CONTEXT_EXPORT + 65536 * w COL_HOST_CONTEXT_IMPORT).
+  { circuit_row ([(COL_HOST_CONTEXT_REFS, 1); (COL_HOST_CONTEXT_EXPORT, -1);
+      (COL_HOST_CONTEXT_IMPORT, -65536)], [(COL_ONE, 1)], ([] : SparseRow)) Hrow.
+    expand_row Hrow. normalize_columns. rewrite Hone in Hrow. field_linear Hrow. }
+  split; [exact Hpacking | ].
+  split; [lia | ]. split; [lia | ]. split; [lia | ].
+  rewrite Hpacking. split; [apply packed_low16 | apply packed_high16]; lia.
+Qed.
+
 Lemma full_opcode_u16 : forall w,
   fieldPrime -> FullRelation.satFull w -> w COL_IS_PROGRAM_ROW = 1 -> 0 <= w COL_OPCODE_CODE < 65536.
 Proof.
@@ -107,7 +130,7 @@ Lemma circuit_row_opcode_fetch : forall initial final (w : Witness),
 Proof.
   intros initial final w Hprime Hfull Hreplay Hprogram. unfold opcodeAt.
   rewrite (circuit_row_header_fetch _ _ _ Hreplay Hprogram), (full_header_packing w Hprime Hfull).
-  cbn [option_map]. rewrite header_opcode; [reflexivity | now apply full_opcode_u16].
+  cbn [option_map]. rewrite packed_low16; [reflexivity | now apply full_opcode_u16].
 Qed.
 
 Lemma circuit_row_edge_kind_fetch : forall initial final (w : Witness),
@@ -117,7 +140,7 @@ Lemma circuit_row_edge_kind_fetch : forall initial final (w : Witness),
 Proof.
   intros initial final w Hprime Hfull Hreplay Hprogram. unfold edgeKindAt.
   rewrite (circuit_row_header_fetch _ _ _ Hreplay Hprogram), (full_header_packing w Hprime Hfull).
-  cbn [option_map]. rewrite header_edge_kind; [reflexivity | now apply full_opcode_u16].
+  cbn [option_map]. rewrite packed_high16; [reflexivity | now apply full_opcode_u16].
 Qed.
 
 Definition fallthroughFlagRow : nat := Eval vm_compute in

@@ -358,77 +358,81 @@ Definition COL_HOST_NESTED_ENTRY : nat := 371%nat.
 Definition COL_HOST_NESTED_EXIT : nat := 372%nat.
 Definition COL_HOST_CONTEXT_READ : nat := 373%nat.
 Definition COL_HOST_CONTEXT_ADDR : nat := 374%nat.
-Definition COL_HOST_CONTEXT : list nat := [375%nat; 376%nat; 377%nat; 378%nat; 379%nat; 380%nat; 381%nat; 382%nat].
-Definition COL_HOST_IMPORT_SCHEDULE_COUNTS : nat := 383%nat.
-Definition COL_HOST_INITIAL_COUNT : nat := 384%nat.
-Definition COL_HOST_RETURN_COUNT : nat := 385%nat.
-Definition COL_HOST_RETURN_COUNT_IS_ZERO : nat := 386%nat.
-Definition COL_HOST_RETURN_COUNT_INV : nat := 387%nat.
-Definition COL_HOST_CLEAR_ACTIVATION_FINISHED : nat := 388%nat.
-Definition COL_HOST_RESUME_POP : nat := 389%nat.
-Definition COL_OBJECT_ACTIVE_BEFORE : nat := 390%nat.
-Definition COL_OBJECT_ACTIVE_AFTER : nat := 391%nat.
-Definition COL_OUTER_CHAIN_BEFORE : list nat := [392%nat; 393%nat; 394%nat; 395%nat].
-Definition COL_OUTER_CHAIN_AFTER : list nat := [396%nat; 397%nat; 398%nat; 399%nat].
-Definition COL_OUTER_PREFIX_BEFORE : list nat := [400%nat; 401%nat; 402%nat; 403%nat].
-Definition COL_OUTER_PREFIX_AFTER : list nat := [404%nat; 405%nat; 406%nat; 407%nat].
-Definition COL_HOST_CALLEE_FREF_BEFORE : nat := 408%nat.
-Definition COL_HOST_CALLEE_FREF_AFTER : nat := 409%nat.
-Definition COL_TURN_EXPORT_FREF_BEFORE : nat := 410%nat.
-Definition COL_TURN_EXPORT_FREF_AFTER : nat := 411%nat.
-Definition COL_COMM_CHAIN_BEFORE : list nat := [412%nat; 413%nat; 414%nat; 415%nat].
-Definition COL_COMM_CHAIN_AFTER : list nat := [416%nat; 417%nat; 418%nat; 419%nat].
-Definition COL_EVBUF_BEFORE : list nat := [420%nat; 421%nat; 422%nat; 423%nat; 424%nat; 425%nat; 426%nat; 427%nat].
-Definition COL_EVBUF_AFTER : list nat := [428%nat; 429%nat; 430%nat; 431%nat; 432%nat; 433%nat; 434%nat; 435%nat].
-Definition COL_GATHER_ACTIVE : nat := 436%nat.
-Definition COL_HOST_CALL_ACTIVE : nat := 437%nat.
-Definition COL_HOST_EVENTS_REMAINING_BEFORE : nat := 438%nat.
-Definition COL_HOST_EVENTS_REMAINING_AFTER : nat := 439%nat.
-Definition COL_HOST_EVENTS_REMAINING_BEFORE_IS_ZERO : nat := 440%nat.
-Definition COL_HOST_EVENTS_REMAINING_BEFORE_INV : nat := 441%nat.
-Definition COL_HOST_EVENT_INDEX_BEFORE : nat := 442%nat.
-Definition COL_HOST_EVENT_INDEX_AFTER : nat := 443%nat.
-Definition COL_HOST_EVENT_ARGS_BASE_BEFORE : nat := 444%nat.
-Definition COL_HOST_EVENT_ARGS_BASE_AFTER : nat := 445%nat.
-Definition COL_HOST_EVENT_SLOT_CURSOR_BEFORE : nat := 446%nat.
-Definition COL_HOST_EVENT_SLOT_CURSOR_AFTER : nat := 447%nat.
-Definition COL_HOST_EVENT_SLOT_DESCRIPTOR : nat := 448%nat.
-Definition COL_HOST_EVENT_SLOT_KIND : nat := 449%nat.
-Definition COL_HOST_EVENT_SLOT_ARG : nat := 450%nat.
-Definition COL_HOST_EVENT_SLOT_VARIANT : nat := 451%nat.
-Definition COL_HOST_EVENT_SLOT_IMMEDIATE0 : nat := 452%nat.
-Definition COL_HOST_EVENT_SLOT_IMMEDIATE1 : nat := 453%nat.
-Definition COL_HOST_EVENT_INITIAL_SCHEDULE_COUNT : nat := 454%nat.
-Definition COL_HOST_EVENT_BASE : nat := 455%nat.
-Definition COL_HOST_EVENT_EXIT_SCHEDULE_COUNT : nat := 456%nat.
-Definition COL_GATHER_LOCAL_WRITE : nat := 457%nat.
-Definition COL_GATHER_LOCAL_WRITE_LO : nat := 458%nat.
-Definition COL_HOST_EVENT_EXIT_LATCH : nat := 459%nat.
-Definition COL_TURN_BOUNDARY : nat := 460%nat.
-Definition COL_CI_HOST_CALL : nat := 461%nat.
-Definition ABSORB : nat := 462%nat.
-Definition ABSORB_PREVIOUS : list nat := [463%nat; 464%nat; 465%nat; 466%nat].
-Definition ABSORB_OUTPUT : list nat := [467%nat; 468%nat; 469%nat; 470%nat].
-Definition ABSORB_PERMUTATION : list nat := seq 471%nat 712%nat.
-Definition GATHER_WORD_POSITION : list nat := [1183%nat; 1184%nat; 1185%nat; 1186%nat; 1187%nat; 1188%nat; 1189%nat; 1190%nat].
-Definition GATHER_KIND : list nat := [1191%nat; 1192%nat; 1193%nat; 1194%nat; 1195%nat; 1196%nat; 1197%nat; 1198%nat; 1199%nat; 1200%nat].
-Definition GARG_VAL : nat := 1201%nat.
-Definition GOUT_VAL : nat := 1202%nat.
-Definition GSLOT_VALUE : nat := 1203%nat.
-Definition GK2_HI : nat := 1204%nat.
-Definition GHC_PARAMS : nat := 1205%nat.
-Definition G_ADVICE : nat := 1206%nat.
-Definition GMEM_LOCAL : nat := 1207%nat.
-Definition GMEM_OUTPUT : nat := 1208%nat.
-Definition GMEM_BYTE : nat := 1209%nat.
-Definition GMEM_HALF : nat := 1210%nat.
-Definition TURN_SCHEDULE_COUNT_INV : nat := 1211%nat.
-Definition OBJECT_ROOT_LANE : list nat := [1212%nat; 1213%nat; 1214%nat; 1215%nat].
-Definition OBJECT_SAVED_LANE : list nat := [1216%nat; 1217%nat; 1218%nat; 1219%nat].
-Definition RANGE_BITS : list nat := seq 1220%nat 3208%nat.
+Definition COL_HOST_CONTEXT_FRAME : list nat := [375%nat; 376%nat; 377%nat].
+Definition COL_HOST_CONTEXT_REFS : nat := 378%nat.
+Definition COL_HOST_CONTEXT_EXPORT : nat := 379%nat.
+Definition COL_HOST_CONTEXT_IMPORT : nat := 380%nat.
+Definition COL_HOST_CONTEXT_STACK : list nat := [381%nat; 382%nat; 383%nat].
+Definition COL_HOST_IMPORT_SCHEDULE_COUNTS : nat := 384%nat.
+Definition COL_HOST_INITIAL_COUNT : nat := 385%nat.
+Definition COL_HOST_RETURN_COUNT : nat := 386%nat.
+Definition COL_HOST_RETURN_COUNT_IS_ZERO : nat := 387%nat.
+Definition COL_HOST_RETURN_COUNT_INV : nat := 388%nat.
+Definition COL_HOST_CLEAR_ACTIVATION_FINISHED : nat := 389%nat.
+Definition COL_HOST_RESUME_POP : nat := 390%nat.
+Definition COL_OBJECT_ACTIVE_BEFORE : nat := 391%nat.
+Definition COL_OBJECT_ACTIVE_AFTER : nat := 392%nat.
+Definition COL_OUTER_CHAIN_BEFORE : list nat := [393%nat; 394%nat; 395%nat; 396%nat].
+Definition COL_OUTER_CHAIN_AFTER : list nat := [397%nat; 398%nat; 399%nat; 400%nat].
+Definition COL_OUTER_PREFIX_BEFORE : list nat := [401%nat; 402%nat; 403%nat; 404%nat].
+Definition COL_OUTER_PREFIX_AFTER : list nat := [405%nat; 406%nat; 407%nat; 408%nat].
+Definition COL_HOST_CALLEE_FREF_BEFORE : nat := 409%nat.
+Definition COL_HOST_CALLEE_FREF_AFTER : nat := 410%nat.
+Definition COL_TURN_EXPORT_FREF_BEFORE : nat := 411%nat.
+Definition COL_TURN_EXPORT_FREF_AFTER : nat := 412%nat.
+Definition COL_COMM_CHAIN_BEFORE : list nat := [413%nat; 414%nat; 415%nat; 416%nat].
+Definition COL_COMM_CHAIN_AFTER : list nat := [417%nat; 418%nat; 419%nat; 420%nat].
+Definition COL_EVBUF_BEFORE : list nat := [421%nat; 422%nat; 423%nat; 424%nat; 425%nat; 426%nat; 427%nat; 428%nat].
+Definition COL_EVBUF_AFTER : list nat := [429%nat; 430%nat; 431%nat; 432%nat; 433%nat; 434%nat; 435%nat; 436%nat].
+Definition COL_GATHER_ACTIVE : nat := 437%nat.
+Definition COL_HOST_CALL_ACTIVE : nat := 438%nat.
+Definition COL_HOST_EVENTS_REMAINING_BEFORE : nat := 439%nat.
+Definition COL_HOST_EVENTS_REMAINING_AFTER : nat := 440%nat.
+Definition COL_HOST_EVENTS_REMAINING_BEFORE_IS_ZERO : nat := 441%nat.
+Definition COL_HOST_EVENTS_REMAINING_BEFORE_INV : nat := 442%nat.
+Definition COL_HOST_EVENT_INDEX_BEFORE : nat := 443%nat.
+Definition COL_HOST_EVENT_INDEX_AFTER : nat := 444%nat.
+Definition COL_HOST_EVENT_ARGS_BASE_BEFORE : nat := 445%nat.
+Definition COL_HOST_EVENT_ARGS_BASE_AFTER : nat := 446%nat.
+Definition COL_HOST_EVENT_SLOT_CURSOR_BEFORE : nat := 447%nat.
+Definition COL_HOST_EVENT_SLOT_CURSOR_AFTER : nat := 448%nat.
+Definition COL_HOST_EVENT_SLOT_DESCRIPTOR : nat := 449%nat.
+Definition COL_HOST_EVENT_SLOT_KIND : nat := 450%nat.
+Definition COL_HOST_EVENT_SLOT_ARG : nat := 451%nat.
+Definition COL_HOST_EVENT_SLOT_VARIANT : nat := 452%nat.
+Definition COL_HOST_EVENT_SLOT_IMMEDIATE0 : nat := 453%nat.
+Definition COL_HOST_EVENT_SLOT_IMMEDIATE1 : nat := 454%nat.
+Definition COL_HOST_EVENT_INITIAL_SCHEDULE_COUNT : nat := 455%nat.
+Definition COL_HOST_EVENT_BASE : nat := 456%nat.
+Definition COL_HOST_EVENT_EXIT_SCHEDULE_COUNT : nat := 457%nat.
+Definition COL_GATHER_LOCAL_WRITE : nat := 458%nat.
+Definition COL_GATHER_LOCAL_WRITE_LO : nat := 459%nat.
+Definition COL_HOST_EVENT_EXIT_LATCH : nat := 460%nat.
+Definition COL_TURN_BOUNDARY : nat := 461%nat.
+Definition COL_CI_HOST_CALL : nat := 462%nat.
+Definition ABSORB : nat := 463%nat.
+Definition ABSORB_PREVIOUS : list nat := [464%nat; 465%nat; 466%nat; 467%nat].
+Definition ABSORB_OUTPUT : list nat := [468%nat; 469%nat; 470%nat; 471%nat].
+Definition ABSORB_PERMUTATION : list nat := seq 472%nat 712%nat.
+Definition GATHER_WORD_POSITION : list nat := [1184%nat; 1185%nat; 1186%nat; 1187%nat; 1188%nat; 1189%nat; 1190%nat; 1191%nat].
+Definition GATHER_KIND : list nat := [1192%nat; 1193%nat; 1194%nat; 1195%nat; 1196%nat; 1197%nat; 1198%nat; 1199%nat; 1200%nat; 1201%nat].
+Definition GARG_VAL : nat := 1202%nat.
+Definition GOUT_VAL : nat := 1203%nat.
+Definition GSLOT_VALUE : nat := 1204%nat.
+Definition GK2_HI : nat := 1205%nat.
+Definition GHC_PARAMS : nat := 1206%nat.
+Definition G_ADVICE : nat := 1207%nat.
+Definition GMEM_LOCAL : nat := 1208%nat.
+Definition GMEM_OUTPUT : nat := 1209%nat.
+Definition GMEM_BYTE : nat := 1210%nat.
+Definition GMEM_HALF : nat := 1211%nat.
+Definition TURN_SCHEDULE_COUNT_INV : nat := 1212%nat.
+Definition OBJECT_ROOT_LANE : list nat := [1213%nat; 1214%nat; 1215%nat; 1216%nat].
+Definition OBJECT_SAVED_LANE : list nat := [1217%nat; 1218%nat; 1219%nat; 1220%nat].
+Definition RANGE_BITS : list nat := seq 1221%nat 3176%nat.
 
-Definition namedColumnCount : nat := 462%nat.
-Definition columnCount : nat := 4428%nat.
+Definition namedColumnCount : nat := 463%nat.
+Definition columnCount : nat := 4397%nat.
 
 Definition families : list Family :=
   [(0%nat, 1%nat, Field);
@@ -784,34 +788,37 @@ Definition families : list Family :=
    (372%nat, 1%nat, Boolean);
    (373%nat, 1%nat, Boolean);
    (374%nat, 1%nat, U32);
-   (375%nat, 8%nat, U32);
-   (383%nat, 1%nat, U32);
-   (384%nat, 1%nat, (Bits 16%nat));
+   (375%nat, 3%nat, U32);
+   (378%nat, 1%nat, Field);
+   (379%nat, 1%nat, (Bits 16%nat));
+   (380%nat, 1%nat, (Bits 16%nat));
+   (381%nat, 3%nat, U32);
+   (384%nat, 1%nat, U32);
    (385%nat, 1%nat, (Bits 16%nat));
-   (386%nat, 1%nat, Boolean);
-   (387%nat, 1%nat, Field);
-   (388%nat, 1%nat, Boolean);
-   (389%nat, 1%nat, U32);
-   (390%nat, 1%nat, Boolean);
+   (386%nat, 1%nat, (Bits 16%nat));
+   (387%nat, 1%nat, Boolean);
+   (388%nat, 1%nat, Field);
+   (389%nat, 1%nat, Boolean);
+   (390%nat, 1%nat, U32);
    (391%nat, 1%nat, Boolean);
-   (392%nat, 4%nat, Field);
-   (396%nat, 4%nat, Field);
-   (400%nat, 4%nat, Field);
-   (404%nat, 4%nat, Field);
-   (408%nat, 1%nat, U32);
+   (392%nat, 1%nat, Boolean);
+   (393%nat, 4%nat, Field);
+   (397%nat, 4%nat, Field);
+   (401%nat, 4%nat, Field);
+   (405%nat, 4%nat, Field);
    (409%nat, 1%nat, U32);
    (410%nat, 1%nat, U32);
    (411%nat, 1%nat, U32);
-   (412%nat, 4%nat, Field);
-   (416%nat, 4%nat, Field);
-   (420%nat, 8%nat, Field);
-   (428%nat, 8%nat, Field);
-   (436%nat, 1%nat, Boolean);
+   (412%nat, 1%nat, U32);
+   (413%nat, 4%nat, Field);
+   (417%nat, 4%nat, Field);
+   (421%nat, 8%nat, Field);
+   (429%nat, 8%nat, Field);
    (437%nat, 1%nat, Boolean);
-   (438%nat, 1%nat, Field);
+   (438%nat, 1%nat, Boolean);
    (439%nat, 1%nat, Field);
-   (440%nat, 1%nat, Boolean);
-   (441%nat, 1%nat, Field);
+   (440%nat, 1%nat, Field);
+   (441%nat, 1%nat, Boolean);
    (442%nat, 1%nat, Field);
    (443%nat, 1%nat, Field);
    (444%nat, 1%nat, Field);
@@ -819,36 +826,37 @@ Definition families : list Family :=
    (446%nat, 1%nat, Field);
    (447%nat, 1%nat, Field);
    (448%nat, 1%nat, Field);
-   (449%nat, 1%nat, (Bits 5%nat));
-   (450%nat, 1%nat, (Bits 8%nat));
-   (451%nat, 1%nat, (Bits 4%nat));
-   (452%nat, 1%nat, Field);
+   (449%nat, 1%nat, Field);
+   (450%nat, 1%nat, (Bits 5%nat));
+   (451%nat, 1%nat, (Bits 8%nat));
+   (452%nat, 1%nat, (Bits 4%nat));
    (453%nat, 1%nat, Field);
    (454%nat, 1%nat, Field);
-   (455%nat, 1%nat, U32);
-   (456%nat, 1%nat, Field);
-   (457%nat, 1%nat, Boolean);
+   (455%nat, 1%nat, Field);
+   (456%nat, 1%nat, U32);
+   (457%nat, 1%nat, Field);
    (458%nat, 1%nat, Boolean);
    (459%nat, 1%nat, Boolean);
    (460%nat, 1%nat, Boolean);
    (461%nat, 1%nat, Boolean);
    (462%nat, 1%nat, Boolean);
-   (463%nat, 4%nat, Field);
-   (467%nat, 4%nat, Field);
-   (471%nat, 712%nat, Field);
-   (1183%nat, 8%nat, Boolean);
-   (1191%nat, 10%nat, Boolean);
-   (1201%nat, 1%nat, Field);
+   (463%nat, 1%nat, Boolean);
+   (464%nat, 4%nat, Field);
+   (468%nat, 4%nat, Field);
+   (472%nat, 712%nat, Field);
+   (1184%nat, 8%nat, Boolean);
+   (1192%nat, 10%nat, Boolean);
    (1202%nat, 1%nat, Field);
    (1203%nat, 1%nat, Field);
-   (1204%nat, 1%nat, Boolean);
-   (1205%nat, 1%nat, Field);
-   (1206%nat, 1%nat, Boolean);
+   (1204%nat, 1%nat, Field);
+   (1205%nat, 1%nat, Boolean);
+   (1206%nat, 1%nat, Field);
    (1207%nat, 1%nat, Boolean);
    (1208%nat, 1%nat, Boolean);
    (1209%nat, 1%nat, Boolean);
    (1210%nat, 1%nat, Boolean);
-   (1211%nat, 1%nat, Field);
-   (1212%nat, 4%nat, Boolean);
-   (1216%nat, 4%nat, Boolean);
-   (1220%nat, 3208%nat, Boolean)].
+   (1211%nat, 1%nat, Boolean);
+   (1212%nat, 1%nat, Field);
+   (1213%nat, 4%nat, Boolean);
+   (1217%nat, 4%nat, Boolean);
+   (1221%nat, 3176%nat, Boolean)].

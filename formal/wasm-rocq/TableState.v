@@ -77,7 +77,7 @@ Proof.
     unfold eventsForTrace. apply in_flat_map. exists w. split; [exact Hin | exact (header_event_in_row w Hprogram)]. }
   assert (Hrom : opcodeAt initial [w COL_PC_BEFORE] = Some (w COL_OPCODE_CODE)).
   { unfold opcodeAt. rewrite Hheader, (full_header_packing w Hprime Hw).
-    exact (f_equal (@Some Z) (header_opcode _ _ (full_opcode_u16 w Hprime Hw Hprogram))). }
+    exact (f_equal (@Some Z) (packed_low16 _ _ (full_opcode_u16 w Hprime Hw Hprogram))). }
   rewrite (proj1 (loaded_header_views _ _ _ Hloaded)), Hcode, HcodeSet in Hrom. injection Hrom as Hrom.
   exact (opcode_rom_not_table_set program _ Hrom).
 Qed.

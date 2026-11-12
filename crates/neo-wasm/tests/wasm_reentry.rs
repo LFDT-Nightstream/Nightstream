@@ -445,14 +445,25 @@ fn split_import_preserves_caller_arguments_across_callbacks() {
             ports
                 .iter()
                 .filter(|p| {
-                    neo_wasm::layout::COL_HOST_CONTEXT.contains(&p.value_column)
+                    p.address_columns == [neo_wasm::layout::COL_HOST_CONTEXT_ADDR]
                         && matches!(p.kind, neo_application::MemoryPortKind::Read)
                         && neo_wasm::nebula::is_active(w, p.activation).unwrap()
                 })
                 .map(|p| p.value_column)
                 .collect::<Vec<_>>()
         };
-        assert_eq!(context_reads(&witnesses[resume]), neo_wasm::layout::COL_HOST_CONTEXT);
+        assert_eq!(
+            context_reads(&witnesses[resume]),
+            [
+                neo_wasm::layout::COL_HOST_CONTEXT_FRAME[0],
+                neo_wasm::layout::COL_HOST_CONTEXT_FRAME[1],
+                neo_wasm::layout::COL_HOST_CONTEXT_FRAME[2],
+                neo_wasm::layout::COL_HOST_CONTEXT_REFS,
+                neo_wasm::layout::COL_HOST_CONTEXT_STACK[0],
+                neo_wasm::layout::COL_HOST_CONTEXT_STACK[1],
+                neo_wasm::layout::COL_HOST_CONTEXT_STACK[2],
+            ]
+        );
         let layout = neo_wasm::build_wasm_relation_layout();
         let mut preload = neo_wasm::preload_from_program_artifacts(captured.artifacts());
         neo_wasm::memory_semantics::preload_host_event_tables(
@@ -480,7 +491,7 @@ fn split_import_preserves_caller_arguments_across_callbacks() {
                 .unwrap();
             assert_eq!(
                 context_reads(&witnesses[entry]),
-                vec![neo_wasm::layout::COL_HOST_CONTEXT[7]]
+                vec![neo_wasm::layout::COL_HOST_CONTEXT_STACK[2]]
             );
             assert_eq!(
                 ports
@@ -490,9 +501,12 @@ fn split_import_preserves_caller_arguments_across_callbacks() {
                 6
             );
             let mut unused = witnesses.clone();
-            for column in &neo_wasm::layout::COL_HOST_CONTEXT[..7] {
-                unused[entry][*column] += neo_math::F::ONE;
+            for column in context_reads(&witnesses[resume]) {
+                if column != neo_wasm::layout::COL_HOST_CONTEXT_STACK[2] {
+                    unused[entry][column] += neo_math::F::ONE;
+                }
             }
+            unused[entry][neo_wasm::layout::COL_HOST_CONTEXT_EXPORT] += neo_math::F::ONE;
             neo_wasm::write_range_check_bits(&mut unused[entry]);
             common::assert_satisfied(&unused[entry], "nested entry does not use the other saved fields");
             neo_wasm::sanity_check_memory_rows(layout, &unused, &preload).unwrap();
@@ -500,7 +514,7 @@ fn split_import_preserves_caller_arguments_across_callbacks() {
             // with every frame register keeps the row satisfied.
             let mut forged = witnesses.clone();
             for column in [
-                neo_wasm::layout::COL_HOST_CONTEXT[7],
+                neo_wasm::layout::COL_HOST_CONTEXT_STACK[2],
                 neo_wasm::layout::COL_SP_BEFORE,
                 neo_wasm::layout::COL_SP_AFTER,
                 neo_wasm::layout::COL_LOCALS_FBP_AFTER,
@@ -529,13 +543,26 @@ fn split_import_preserves_caller_arguments_across_callbacks() {
                 .to_string()
                 .contains("same-instance reentry under an atomic import"));
         }
-        for (field, column) in [
-            (0, neo_wasm::layout::COL_PC_AFTER),
-            (3, neo_wasm::layout::COL_TURN_EXPORT_FREF_AFTER),
-            (4, neo_wasm::layout::COL_HOST_CALLEE_FREF_AFTER),
+        for (field, column, packed_delta) in [
+            (
+                neo_wasm::layout::COL_HOST_CONTEXT_FRAME[0],
+                neo_wasm::layout::COL_PC_AFTER,
+                0,
+            ),
+            (
+                neo_wasm::layout::COL_HOST_CONTEXT_EXPORT,
+                neo_wasm::layout::COL_TURN_EXPORT_FREF_AFTER,
+                1,
+            ),
+            (
+                neo_wasm::layout::COL_HOST_CONTEXT_IMPORT,
+                neo_wasm::layout::COL_HOST_CALLEE_FREF_AFTER,
+                1 << 16,
+            ),
         ] {
             let mut forged = witnesses.clone();
-            forged[resume][neo_wasm::layout::COL_HOST_CONTEXT[field]] += neo_math::F::ONE;
+            forged[resume][field] += neo_math::F::ONE;
+            forged[resume][neo_wasm::layout::COL_HOST_CONTEXT_REFS] += neo_math::F::from_u64(packed_delta);
             forged[resume][column] += neo_math::F::ONE;
             common::assert_satisfied(&forged[resume], "restoration needs context RAM authority");
             assert!(neo_wasm::sanity_check_memory_rows(layout, &forged, &preload).is_err());

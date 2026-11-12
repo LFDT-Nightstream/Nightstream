@@ -335,11 +335,7 @@ fn dimensions(id: WasmMemoryId) -> &'static [Dimension] {
         M::LinearMemory => &[D::LinearMemory],
         M::GlobalLo | M::GlobalHi => &[D::Global],
         M::CallStackReturnPc | M::CallStackCallerFbp | M::CallStackCallerSpBase => &[D::CallDepth],
-        M::HostContextExport
-        | M::HostContextImport
-        | M::HostContextArgsBase
-        | M::HostContextParentDepth
-        | M::HostContextSp => &[D::HostDepth],
+        M::HostContextRefs | M::HostContextArgsBase | M::HostContextParentDepth | M::HostContextSp => &[D::HostDepth],
         M::TableSize => &[D::Table],
         M::TableElement => &[D::Table, D::TableIndex],
     }

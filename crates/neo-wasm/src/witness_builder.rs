@@ -62,6 +62,7 @@ use super::layout::{
     COL_TABLE_VALUE, COL_TARGET_FUNCTION_IS_GUEST, COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE, COL_TURN_EXPORT_FREF_AFTER,
     COL_TURN_EXPORT_FREF_BEFORE, COL_WIDE_AUX0, COL_WIDE_AUX1, COL_WIDE_VALUES_ENABLED,
 };
+use crate::host_event_layout::{HOST_CONTEXT_REF_BITS, HOST_CONTEXT_REF_FACTOR};
 use crate::layout::{
     COL_CMP_AND, COL_ZERO_TEST_HI_INPUT, COL_ZERO_TEST_HI_IS_ZERO, COL_ZERO_TEST_LO_INPUT, COL_ZERO_TEST_LO_IS_ZERO,
 };
@@ -71,6 +72,16 @@ use p3_field::PrimeCharacteristicRing;
 pub fn build_witness_vector(trace: &WasmVmStep) -> Result<Vec<F>, super::ir::WasmBuildError> {
     use super::ir::WasmBuildError;
 
+    if let Some(context) = trace.host_context {
+        for (kind, reference) in [("export", context.export_fref), ("import", context.import_fref)] {
+            if reference >= HOST_CONTEXT_REF_FACTOR {
+                return Err(WasmBuildError::Trace(format!(
+                    "saved host-context {kind} reference {reference} exceeds the {HOST_CONTEXT_REF_BITS}-bit limit {}",
+                    HOST_CONTEXT_REF_FACTOR - 1,
+                )));
+            }
+        }
+    }
     if trace.row_kind.is_host_event_gather()
         && usize::from(trace.state_before.host_events.slot_cursor) >= trace.state_after.event_absorb.evbuf.len()
     {

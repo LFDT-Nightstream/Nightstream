@@ -68,6 +68,12 @@ proofs obtain operand zero from the combined write's prior value. Frame moves,
 initialization, and indirect invocation retain separate accesses. The gate theorem
 is included in the audit; the supported instruction fragment is unchanged.
 
+`ProgramBinding.full_host_context_refs` derives the saved export/import packing
+equation and both 16-bit bounds from the exported circuit. It proves that the
+packed word fits 32 bits and that remainder and division recover the two
+references. The theorem is included in the audit; it does not add host execution
+to the proved instruction fragment.
+
 Requires the repository Rust toolchain (see `rust-toolchain.toml`), opam, and the
 checked versions of Coq/Rocq 9.0.1, MathComp ssreflect 2.4.0, and RecordUpdate 0.3.6:
 

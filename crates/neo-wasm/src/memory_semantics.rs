@@ -465,8 +465,7 @@ fn wasm_memory_check_policy(layout: &WasmRelationLayout) -> Result<MemoryCheckPo
 
 fn memory_init_mode(memory: WasmMemoryId) -> Option<RamInitialization> {
     match memory {
-        WasmMemoryId::HostContextExport
-        | WasmMemoryId::HostContextImport
+        WasmMemoryId::HostContextRefs
         | WasmMemoryId::HostContextArgsBase
         | WasmMemoryId::HostContextParentDepth
         | WasmMemoryId::HostContextSp

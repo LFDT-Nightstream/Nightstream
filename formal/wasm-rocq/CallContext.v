@@ -14,7 +14,11 @@ Definition contextMemories : list (nat * Column) :=
    (callStackCallerSpBaseId, COL_CALL_STACK_CALLER_SP_BASE_VALUE)].
 
 (* A host suspend saves the same context in its own column, which a resume reads. *)
-Definition contextHostColumn (memory : nat) : Column := List.nth (memory - 1) COL_HOST_CONTEXT 0%nat.
+Definition contextHostColumn (memory : nat) : Column :=
+  if Nat.eqb memory callStackReturnPcId then List.nth 0 COL_HOST_CONTEXT_FRAME 0%nat
+  else if Nat.eqb memory callStackCallerFbpId then List.nth 1 COL_HOST_CONTEXT_FRAME 0%nat
+  else if Nat.eqb memory callStackCallerSpBaseId then List.nth 2 COL_HOST_CONTEXT_FRAME 0%nat
+  else 0%nat.
 
 Definition contextSpec (memory : nat) (column : Column) : MemorySpec :=
   mkMemory memory Ram

@@ -970,19 +970,18 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
     ];
 
     use crate::layout::{
-        COL_HOST_CONTEXT, COL_HOST_CONTEXT_ADDR, COL_HOST_CONTEXT_READ, COL_HOST_RESUME, COL_HOST_SUSPEND,
+        COL_HOST_CONTEXT_ADDR, COL_HOST_CONTEXT_FRAME, COL_HOST_CONTEXT_READ, COL_HOST_CONTEXT_REFS,
+        COL_HOST_CONTEXT_STACK, COL_HOST_RESUME, COL_HOST_SUSPEND,
     };
-    let context_memories = [
-        WasmMemoryId::CallStackReturnPc,
-        WasmMemoryId::CallStackCallerFbp,
-        WasmMemoryId::CallStackCallerSpBase,
-        WasmMemoryId::HostContextExport,
-        WasmMemoryId::HostContextImport,
-        WasmMemoryId::HostContextArgsBase,
-        WasmMemoryId::HostContextParentDepth,
-        WasmMemoryId::HostContextSp,
-    ];
-    for (id, value_column) in context_memories.into_iter().zip(COL_HOST_CONTEXT) {
+    for (id, value_column) in [
+        (WasmMemoryId::CallStackReturnPc, COL_HOST_CONTEXT_FRAME[0]),
+        (WasmMemoryId::CallStackCallerFbp, COL_HOST_CONTEXT_FRAME[1]),
+        (WasmMemoryId::CallStackCallerSpBase, COL_HOST_CONTEXT_FRAME[2]),
+        (WasmMemoryId::HostContextRefs, COL_HOST_CONTEXT_REFS),
+        (WasmMemoryId::HostContextArgsBase, COL_HOST_CONTEXT_STACK[0]),
+        (WasmMemoryId::HostContextParentDepth, COL_HOST_CONTEXT_STACK[1]),
+        (WasmMemoryId::HostContextSp, COL_HOST_CONTEXT_STACK[2]),
+    ] {
         let ports = vec![
             MemoryPortSpec {
                 address_columns: memory_columns([Column(COL_HOST_CONTEXT_ADDR)]),
@@ -1030,6 +1029,11 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
             }),
         }
     }
+    // SPEC.md section 7.6: ROM reads commute with RAM events. Plan the PC
+    // lookup first so the greedy allocator can share nine slots. The sort must
+    // be stable to preserve the relative order of all other memories and thus
+    // the complete RAM-event sequence.
+    memories.sort_by_key(|memory| memory.id != WasmMemoryId::PcRom);
     let memory = MemoryCatalog::new(memories, &columns).expect("valid WASM memory declarations");
     let continuity = ContinuityCatalog::new(build_ivc_state_continuity_links(), &columns)
         .expect("valid WASM continuity declarations");

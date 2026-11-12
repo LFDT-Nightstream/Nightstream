@@ -876,19 +876,21 @@ impl<'a> MetalPaperJointOracle<'a> {
             .as_ref()
             .expect("assignment prefixes exist")
             .fold_allocation_bytes()?;
+        // One command for the three folds of the round.
+        let command = self
+            .session
+            .command_buffer("nightstream.pi_ccs.joint.fold")?;
         let application = self
             .application
             .as_mut()
             .expect("application prefixes exist");
         application.fold(
             self.session,
+            &command,
             challenge,
-            common_scratch.max(assignment_scratch) + 4 * size_of::<u64>(),
+            common_scratch + assignment_scratch + 4 * size_of::<u64>(),
         )?;
         self.application_peak_bytes = self.application_peak_bytes.max(application.peak_bytes());
-        let command = self
-            .session
-            .command_buffer("nightstream.pi_ccs.joint.fold")?;
         let next_common = if self.prior_point.is_some() {
             let next_len = self.common_len.div_ceil(2).max(1);
             let output = self.session.buffer(next_len * size_of::<K>())?;
@@ -905,16 +907,15 @@ impl<'a> MetalPaperJointOracle<'a> {
         } else {
             None
         };
+        self.assignments
+            .as_mut()
+            .expect("assignment prefixes exist during SumCheck")
+            .fold(self.session, &command, &self.masks, challenge)?;
         self.session.finish(&command)?;
         if let Some(common) = next_common {
             self.common = Some(common);
             self.common_len = self.common_len.div_ceil(2).max(1);
         }
-        drop(command);
-        self.assignments
-            .as_mut()
-            .expect("assignment prefixes exist during SumCheck")
-            .fold(self.session, &self.masks, challenge)?;
         self.alpha_prefix = restrict_equality_prefix(self.alpha_prefix, self.alpha_point[self.round], challenge);
         if let Some(prior_point) = &self.prior_point {
             self.prior_prefix = restrict_equality_prefix(self.prior_prefix, prior_point[self.round], challenge);

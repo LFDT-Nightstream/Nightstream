@@ -296,7 +296,14 @@ impl ApplicationTables {
         })
     }
 
-    pub(super) fn fold(&mut self, session: &MetalSession, challenge: K, reserved: usize) -> Result<(), MetalError> {
+    /// Encodes the fold into `command`; the caller finishes it.
+    pub(super) fn fold(
+        &mut self,
+        session: &MetalSession,
+        command: &objc2::runtime::ProtocolObject<dyn objc2_metal::MTLCommandBuffer>,
+        challenge: K,
+        reserved: usize,
+    ) -> Result<(), MetalError> {
         self.update_budget(session, reserved);
         if let Some(window) = self.resident.take() {
             let next_rows = window.stride.div_ceil(2);
@@ -311,7 +318,6 @@ impl ApplicationTables {
                 let output = session.buffer(bytes)?;
                 let challenge = session.buffer_from_slice(&k_words(&[challenge]))?;
                 let shape = session.buffer_from_slice(&[window.stride as u64, self.table_count as u64])?;
-                let command = session.command_buffer("nightstream.pi_ccs.application.fold")?;
                 let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
                 let pipeline = if self.challenges.is_empty() {
                     &session.joint_fold_base_tables
@@ -330,7 +336,6 @@ impl ApplicationTables {
                     Grid::Threads(self.table_count * next_rows),
                 );
                 encoder.endEncoding();
-                session.finish(&command)?;
                 self.resident = Some(ApplicationWindow {
                     values: output,
                     stride: next_rows,

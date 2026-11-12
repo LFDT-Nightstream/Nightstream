@@ -1,6 +1,6 @@
 //! `Engine::Metal` against `Engine::Optimized` on the bounded-depth scheme: after each step
-//! the proof bytes are equal, and so is everything that the final program
-//! reads; the Metal final proof verifies. Every Metal session of a process shares one
+//! the proof bytes are equal, and so are the final witness and the final
+//! proof. Every Metal session of a process shares one
 //! device budget (`neo_prover_metal::BUFFER_LIMIT_BYTES`), so run these tests
 //! one at a time (`--test-threads=1`). The printed times are of one run.
 
@@ -111,9 +111,7 @@ fn three_steps(prover: &BoundedDepth) -> (Envelope, Finish, SetupDir, Setups) {
 
 /// What the final program reads of three steps is equal on both engines:
 /// the finish package's columns on the last refresh fold's words, and both
-/// layer-1 proofs. The shrink proof is not compared: its grinding takes the
-/// first witness that a parallel search finds (Plonky3 `find_any`), so its
-/// bytes can differ between two runs on one engine.
+/// layer-1 proofs.
 #[test]
 #[ignore = "about 250 s with the CPU layer-1 setups; run alone with --ignored --test-threads=1"]
 fn metal_final_witness_equals_cpu_final_witness() {
@@ -137,11 +135,11 @@ fn metal_final_witness_equals_cpu_final_witness() {
     }
 }
 
-/// The Metal final proof of three steps verifies on both engines, and not
-/// for another current state.
+/// The Metal final proof of three steps has the bytes of the CPU final proof.
+/// It verifies on both engines, and not for another current state.
 #[test]
 #[ignore = "about 200 s with the CPU layer-1 setups; run alone with --ignored --test-threads=1"]
-fn metal_final_proof_verifies() {
+fn metal_final_proof_equals_cpu_final_proof() {
     let [cpu, metal] = provers(2);
     let (envelope, finish, _dir, setups) = three_steps(&metal);
     let statement = (envelope.iteration, envelope.z0, envelope.current);
@@ -156,6 +154,13 @@ fn metal_final_proof_verifies() {
     eprintln!(
         "final proof on Metal: witness {witnessed:.2} s, shrink {:.2} s",
         started.elapsed().as_secs_f64() - witnessed
+    );
+    let on_cpu = cpu
+        .prove_final(setups.keys(), &finish, statement, &witness)
+        .expect("CPU final proof");
+    assert!(
+        proof.shrink.to_bytes() == on_cpu.shrink.to_bytes(),
+        "the Metal final proof differs from the CPU final proof"
     );
     let (iteration, z0, current) = statement;
     for prover in [&cpu, &metal] {

@@ -10,8 +10,8 @@ the place of the Lean application in both. The state has two slots, one for
 the accumulator of each circuit. The verifier checks the fresh instance and
 the claims of both slots. `Prover::compress` makes a final proof without
 witnesses over the Akita commitment scheme, and `Verifier::verify_final`
-checks it. This part is implemented and tested in Rust and has no Lean
-result.
+checks it. This part is implemented and tested in Rust. Lean bounds the
+soundness of its argument in a model with ideal Akita openings.
 
 The code remains research software. Independent review and the concrete
 Fiat–Shamir security argument are separate from component conformance.

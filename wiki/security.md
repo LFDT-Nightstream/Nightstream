@@ -19,7 +19,9 @@ Self-consistent rehashing is not evidence of a valid witness.
 ## The compressed proof
 
 `Prover::compress` and `Verifier::verify_final` are implemented and tested
-in Rust. They are not proved. Lean has no statement for them.
+in Rust. They are not proved. Lean bounds the soundness of the argument
+in a model with ideal Akita openings, but no Lean result joins it to the
+terminal relation.
 
 - The argument uses the Akita commitment scheme (ePrint 2026/1983) at one
   pinned git revision. Akita is version 0.1.0 and has no audit.
@@ -27,6 +29,8 @@ in Rust. They are not proved. Lean has no statement for them.
   the argument, for the reference application at 4 lookup challenges. This
   number does not include the knowledge error of the Akita opening, the
   error of the PiCCS run of the fresh instance, or the loss of Fiat–Shamir.
+  Lean bounds the argument with `Q` oracle queries by `Q` times an error
+  below `2^-119`, with ideal Akita openings.
 - `verify_final` does not read the Ajtai key. It reads a compression key,
   which holds the Akita commitment of the key rows and Akita's commitments
   of a prefix of its own setup. The library pins the key of each circuit

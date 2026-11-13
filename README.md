@@ -23,7 +23,7 @@ circuits. Rust CI checks the runtime. Local Lean validation checks the active
 - Verification of the fresh instance and the claims of both slots
 - Compression of a proof to a final proof without witnesses
   (`Prover::compress`, `Verifier::verify_final`). It is implemented and
-  tested in Rust, and Lean has no statement for it
+  tested in Rust, and Lean bounds the soundness of its argument in a model
 - A required CUDA backend target that fails explicitly until its canonical
   device kernel is implemented
 

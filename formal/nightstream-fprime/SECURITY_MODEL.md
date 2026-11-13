@@ -5,8 +5,8 @@ against: what each adversary controls, when it wins, the Lean result that
 bounds it, and what you must trust. It does not restate proofs; read the cited
 declaration. `SPEC.md` describes the protocol: two step circuits, a light
 circuit and a refresh circuit, that fold into two slots. Adversary 6, the
-adversary of the compressed proof, has no Lean result. Its entry states the
-aim and the premises only.
+adversary of the compressed proof, has a Lean result for the argument only,
+in a model with ideal Akita openings. No Lean result gives its aim.
 
 Names omit the common `NightstreamFPrime` namespace.
 `tests/EndpointCensus.lean` checks that every name on this page that starts
@@ -308,12 +308,27 @@ item 5).
   proof with witnesses exists that the verifier of `SPEC.md` Algorithm 6
   accepts for the statement
   (`Export.BoundedDepth.RunCompleteness.Verifies`).
-- **Result:** none. Lean has no definition of the final verifier, of its
-  argument, of the compression key, or of a Π_CCS run with one source, and
-  no theorem bounds this adversary. Rust implements the final verifier, and
-  the tests check it on fixed inputs (`SPEC.md` lifecycle rules 2 and 3,
-  trust item 5). `decisions/akita-compression.md` gives the reason for each
-  step.
+- **Result:** for the argument only. Lean models the verifier of the
+  argument as a public-coin game (`Spec.Compression.Verifier.game`). In the
+  state-restoration experiment, a prover with `Q` oracle queries makes the
+  verifier accept claims whose committed `W` does not satisfy
+  `Spec.Compression.Verifier.Relation` with probability at most
+  `Q · error` (`Spec.Compression.Verifier.soundness`). `Relation` gives,
+  for each claim, the 18 Ajtai rows of its commitment, `Eval_K`, each
+  `Eval_A` relative to the abstract matrix weights, its public input and,
+  for a claim with a table, each cell in `[−bound, bound]`
+  (`Spec.Compression.Verifier.game_avoids`). At the production shapes,
+  `error < 2^−119` (`Spec.Compression.Verifier.production_error_lt`). The
+  premises of the theorem, and how Rust meets each one, are in trust item 7.
+  Lean has no definition of the layout, of the compression key, or of a
+  Π_CCS run with one source. It does not join `Relation` to `Spec.CE.Holds`,
+  `Spec.normBounded` or `Spec.GlobalParams.accumulatorBound`, so the norm
+  of the fresh witness comes from the Π_CCS run, outside this result. No
+  Lean result joins the model to the Rust data, and no result states a full
+  honest run or a bound for one interactive run. Rust implements the final
+  verifier, and the tests check it on fixed inputs (`SPEC.md` lifecycle
+  rules 2 and 3, trust item 5). `decisions/akita-compression.md` gives the
+  reason for each step.
 - **Aim:** under the premises of trust item 7, an accepted final proof
   gives three witnesses. The one Akita proof gives the polynomials `W` and
   `V`, and the value of the key polynomial at one point. The key polynomial
@@ -338,11 +353,13 @@ item 5).
   holds, the results of adversaries 2, 4 and 5 apply to a statement that
   the final verifier accepts. No Lean result joins them, and no result
   shows that an extractor of the three witnesses is efficient.
-- **Error:** Rust computes a sum of six terms for one interactive run of
-  the argument (`SPEC.md` section 3): about `2^−119.02` for the reference
-  application at 4 lookup challenges. This sum is not a bound on a win. It
-  does not include the knowledge error of the Akita opening, the error of
-  the Π_CCS run, or the loss of Fiat–Shamir over the adversary's queries.
+- **Error:** Lean bounds the argument by `Q · error`, with `error` below
+  `2^−119` at the production shapes (`SPEC.md` section 3). Rust computes a
+  sum of six terms for one interactive run of the argument, about
+  `2^−119.02` for the reference application at 4 lookup challenges, with no
+  factor for the queries. Where the two differ, the Lean bound is correct.
+  Neither is a bound on a win. Neither includes the knowledge error of the
+  Akita opening or the error of the Π_CCS run.
 - **Gaps:** the final proof is not zero-knowledge. No test uses a slot
   depth near the cap, so no test uses the largest lookup table. The tests
   that compress a step of the reference application are ignored. CI runs
@@ -539,8 +556,28 @@ item 5).
    oracle to be independent of the oracle of the folds (trust item 3). Their
    domain tags differ, but no Lean result separates them. The record chains
    need only Poseidon2 collision resistance.
-7. **The compressed proof.** Adversary 6 has these premises. Lean states
-   none of them.
+7. **The compressed proof.** Adversary 6 has these premises.
+   - *The premises of the Lean result.* `Spec.Compression.Verifier.soundness`
+     takes these hypotheses.
+     `Spec.Compression.Verifier.WellFormed` (each slice is aligned and
+     inside the cube of `W`) and `Spec.Compression.Verifier.CountsNonzero`
+     (`2^vars` is below the characteristic of `F_q`) are assumed. Rust
+     `Layout::new` makes a layout with these properties, but Lean does not
+     model `Layout::new`. `Spec.Compression.Verifier.MatrixSpec` (the
+     verifier's matrix part is the multilinear extension of the matrix
+     weights) is assumed, because Lean keeps the matrix weights abstract.
+     `L ≤ 2^2` and `κ ≤ 2^5` are const asserts in Rust. The key polynomial
+     holds the blocks of each claim, because Rust `Layout::new` rejects a
+     claim with more blocks than the key. The model has three more
+     premises. First, the Akita openings are ideal: an opening is accepted
+     only when the committed table, which the prover fixed before the later
+     challenges, has the opened value. Akita's knowledge error is outside
+     the bound. Second, the key polynomial is the honest key. Rust enforces
+     this with the pin of the full bytes of the verification key
+     (`crates/neo-compress/artifacts/key20.vk`, `crates/neo-compress/artifacts/key30.vk`),
+     not with a digest. Third, each draw is uniform for each query, which
+     takes Poseidon2 as a random oracle. Lean does not model the bytes that
+     the transcript absorbs or its domains.
    - *The compression key.* The verifier's key is the key of `SPEC.md`
      Algorithm 11. It holds the Akita commitment of the key polynomial of
      the production Ajtai key, and Akita's commitments of the prefixes of
@@ -552,6 +589,7 @@ item 5).
      verifier uses. Under another key, Akita gives no binding, and the
      verifier can accept a false statement. The pin is a value in the code,
      and the test is the check of the pin. No Lean result covers either.
+     The Lean result takes the honest key as a premise.
    - *Akita binding and knowledge soundness.* The one Akita proof opens
      the key polynomial, `W` and `V`. It uses Akita (ePrint 2026/1983) at
      git revision `d50f700f`, crate version 0.1.0, with the configuration
@@ -580,10 +618,11 @@ item 5).
      keep the lower estimate of trust item 2.
    - *Poseidon2 as a random oracle for the argument.* The Poseidon2 sponge
      makes each challenge of the Π_CCS run and of the argument (`SPEC.md`
-     section 5.4). Each error term of `SPEC.md` section 3 is for one
-     interactive run. A bound for the non-interactive argument needs
-     Poseidon2 as a random oracle and a count of the adversary's queries.
-     No result gives one.
+     section 5.4). Each term of the Rust sum of `SPEC.md` section 3 is for
+     one interactive run. With Poseidon2 as a random oracle and `Q`
+     queries, Lean bounds the non-interactive argument by `Q · error`
+     (`Spec.Compression.Verifier.soundness`). No result bounds the Π_CCS
+     run with one source in this model.
    - *Separation of the two transcripts.* The session bytes of the Akita
      proof are a label and lanes 0 to 3 of the Poseidon2 sponge state
      after the last message of the argument, so they bind the opening to
@@ -593,10 +632,12 @@ item 5).
      premise is that the Poseidon2 sponge and the Keccak functions are
      independent oracles, and that these domains separate the compression
      transcript from the fold transcripts. No Lean result states either.
-   - *The error of the argument.* For one interactive run it is the sum of
-     `SPEC.md` section 3, about `2^−119.02` for the reference application
-     at 4 lookup challenges, plus the error of a Π_CCS run with one source,
-     which Rust does not compute. Rust holds the Π_CCS test error for 17
+   - *The error of the argument.* Lean bounds it by `Q · error`, with
+     `error < 2^−119` at the production shapes
+     (`Spec.Compression.Verifier.production_error_lt`). Rust computes the
+     sum of `SPEC.md` section 3 for one interactive run, about `2^−119.02`
+     for the reference application at 4 lookup challenges. To either, add
+     the error of a Π_CCS run with one source, which Rust does not compute. Rust holds the Π_CCS test error for 17
      sources to the caller's security minimum (`SPEC.md` section 3).
    - *The Rust code.* Trust item 5 applies. The tests check fixed inputs.
      The verifier does not expand the Ajtai key, but the key polynomial
@@ -637,8 +678,9 @@ item 5).
 - The error is not one security level. Lean bounds no fold error in a
   Fiat–Shamir game (adversary 3), and the other terms depend on MSIS at the
   solver's work and on Poseidon2 collisions.
-- The compressed proof has no Lean result (adversary 6). Its error sum is
-  not a security level, and the final proof is not zero-knowledge.
+- The compressed proof has a Lean result for its argument only
+  (adversary 6). Its error is not a security level, and the final proof is
+  not zero-knowledge.
 - Concrete attacks on Poseidon2 as a random oracle, or on the additive duplex,
   are outside the model. Attacks that use the hash inside the circuit (KRS)
   are outside every random-oracle model; the verifier's packages fix the

@@ -23,7 +23,10 @@ Proposed. Each other entry of this record was selected without the owner and
 waits for the owner's review. This includes the form of the key polynomial,
 the sum-check that reduces the key's part of the weights, the row point, the
 schedule rows, the bytes of the key and their pin, and the four lookup
-challenges. No Lean statement covers the argument of this record.
+challenges. Lean bounds the soundness of the argument of this record in a
+model with ideal Akita openings (`Spec.Compression.Verifier.soundness`,
+SPEC.md Algorithm 10). No Lean statement covers the layout, the key or the
+Π_CCS run with one source.
 
 ## Problem
 
@@ -226,7 +229,10 @@ This sum is not a security level of the final proof. It does not include:
   Rust holds the Π_CCS test error for 17 sources to the security minimum
   (SPEC.md section 3);
 - the loss of Fiat–Shamir with Poseidon2. Each term above is the error of
-  one interactive run;
+  one interactive run. Lean bounds the non-interactive argument by
+  `Q · error` for `Q` queries, with `error < 2^−119` at the production
+  shapes (`Spec.Compression.Verifier.production_error_lt`, SPEC.md
+  section 3). Rust does not compute this bound;
 - Module-SIS for the Akita commitments, which Akita prices at 169 bits of
   quantum Core-SVP cost in the ADPS16 model, and Module-SIS for the Ajtai
   commitments of the claims.
@@ -287,8 +293,8 @@ fails again. The prover can extend one step and then compress.
   the public weights at the point of the sum-check.
 - A review of the soundness of the committed key by a party outside the
   project.
-- A Lean statement of the argument, of the key reduction and of the Π_CCS
-  run with one source.
+- A Lean statement of the Π_CCS run with one source, and a Lean link from
+  the soundness of the argument to `Spec.CE.Holds` and to the Rust data.
 - Security against a quantum adversary of the transcript hashes.
 - A compression with a slot depth near the cap 64, which has the largest
   lookup table. The tests compress after 5 steps or less.

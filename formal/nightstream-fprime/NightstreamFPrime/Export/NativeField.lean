@@ -10,7 +10,7 @@ open Fin.CommRing
 
 abbrev Word := UInt64
 
-private def modulus64 : UInt64 := 0xffffffff00000001
+private def modulus64 : UInt64 := 0xffffffffffffffc5
 def radix : Nat := 4294967296
 
 def _root_.UInt64.denote (value : UInt64) : F := Poseidon2.ofNat value.toNat
@@ -283,22 +283,14 @@ private theorem denote_decompose64 (value : UInt64) :
       _ < fieldModulus := by decide
   rw [Nat.mod_eq_of_lt highProduct, decompose64_toNat]
 
-private theorem radix_square :
-    Poseidon2.ofNat radix * Poseidon2.ofNat radix =
-      Poseidon2.ofNat radix - 1 := by
+/-- `2^64 mod fieldModulus`: the modulus is `2^64 - 59`. -/
+private def fold64 : UInt64 := 59
+
+private theorem fold64_bound : fold64.toNat < radix := by
   decide
 
-private theorem radix_cube :
-    (Poseidon2.ofNat radix * Poseidon2.ofNat radix) * Poseidon2.ofNat radix =
-      Poseidon2.ofNat radix * Poseidon2.ofNat radix - Poseidon2.ofNat radix := by
-  calc
-    (Poseidon2.ofNat radix * Poseidon2.ofNat radix) * Poseidon2.ofNat radix =
-        (Poseidon2.ofNat radix - 1) * Poseidon2.ofNat radix := by rw [radix_square]
-    _ = Poseidon2.ofNat radix * Poseidon2.ofNat radix -
-        Poseidon2.ofNat radix := by ring
-
-private theorem radix_sub_one :
-    Poseidon2.ofNat radix - 1 = Poseidon2.ofNat (radix - 1) := by
+private theorem radix_square :
+    Poseidon2.ofNat radix * Poseidon2.ofNat radix = fold64.denote := by
   decide
 
 private theorem rawAdd64_toNat (a b : UInt64)
@@ -347,82 +339,51 @@ private theorem canonicalize64_denote (value : UInt64) :
   simp only [UInt64.denote, Poseidon2.ofNat]
   rw [canonicalize64_toNat, Nat.mod_mod]
 
-@[inline] private def mulEpsilonLimb64 (value : UInt64) : UInt64 :=
-  shiftLimb64 value - value
+/-- `low + 2^64 * high` for a canonical `low` and a `high` below `2^64`:
+`2^64 * high = 2^32 * (2^32 * high)`, and the top limb of `high` folds with `2^64 = 59`. -/
+@[inline] private def foldLimbs64 (low high : UInt64) : UInt64 :=
+  add64 (add64 low (shiftLimb64 (low64 high)))
+    (limbProduct64 fold64 (high64 high))
 
-private theorem mulEpsilonLimb64_toNat (value : UInt64)
-    (bound : value.toNat < radix) :
-    (mulEpsilonLimb64 value).toNat = (radix - 1) * value.toNat := by
-  have valueLeShift : value ≤ shiftLimb64 value := UInt64.le_iff_toNat_le.2 (by
-    rw [shiftLimb64_toNat value bound]
-    simp only [radix]
-    omega)
-  simp only [mulEpsilonLimb64]
-  rw [UInt64.toNat_sub_of_le _ _ valueLeShift, shiftLimb64_toNat value bound]
-  simp only [radix]
-  omega
-
-private theorem mulEpsilonLimb64_canonical (value : UInt64)
-    (bound : value.toNat < radix) :
-    (mulEpsilonLimb64 value).toNat < fieldModulus := by
-  rw [mulEpsilonLimb64_toNat value bound]
-  calc
-    (radix - 1) * value.toNat ≤ (radix - 1) * (radix - 1) :=
-      Nat.mul_le_mul_left _ (by omega)
-    _ < fieldModulus := by decide
-
-private theorem mulEpsilonLimb64_denote (value : UInt64)
-    (bound : value.toNat < radix) :
-    (mulEpsilonLimb64 value).denote =
-      (Poseidon2.ofNat radix - 1) * value.denote := by
-  have productBound : (radix - 1) * value.toNat < fieldModulus := by
-    calc
-      (radix - 1) * value.toNat ≤ (radix - 1) * (radix - 1) :=
-        Nat.mul_le_mul_left _ (by omega)
-      _ < fieldModulus := by decide
-  rw [radix_sub_one]
-  apply Fin.ext
-  rw [Fin.val_mul]
-  simp only [UInt64.denote, Poseidon2.ofNat]
-  rw [Nat.mod_eq_of_lt (mulEpsilonLimb64_canonical value bound),
-    mulEpsilonLimb64_toNat value bound,
-    Nat.mod_eq_of_lt (by decide : radix - 1 < fieldModulus),
-    Nat.mod_eq_of_lt (Nat.lt_trans bound (by decide)),
-    Nat.mod_eq_of_lt productBound]
-
+/-- `2^64 * value` in the field, as `59 * value` on the two limbs of `value`. -/
 @[inline] private def foldHigh64 (value : UInt64) : UInt64 :=
-  sub64 (mulEpsilonLimb64 (low64 value)) (high64 value)
+  foldLimbs64 (limbProduct64 fold64 (low64 value))
+    (limbProduct64 fold64 (high64 value))
+
+private theorem foldLimbs64_canonical (low high : UInt64)
+    (lowBound : low.toNat < fieldModulus) :
+    (foldLimbs64 low high).toNat < fieldModulus :=
+  add64_canonical _ _
+    (add64_canonical _ _ lowBound (shiftLimb64_canonical _ (low64_bound high)))
+    (limbProduct64_canonical _ _ fold64_bound (high64_bound high))
+
+private theorem foldLimbs64_denote (low high : UInt64)
+    (lowBound : low.toNat < fieldModulus) :
+    (foldLimbs64 low high).denote =
+      low.denote + Poseidon2.ofNat radix * high.denote := by
+  rw [foldLimbs64, add64_denote _ _
+      (add64_canonical _ _ lowBound (shiftLimb64_canonical _ (low64_bound high)))
+      (limbProduct64_canonical _ _ fold64_bound (high64_bound high)),
+    add64_denote _ _ lowBound (shiftLimb64_canonical _ (low64_bound high)),
+    shiftLimb64_denote _ (low64_bound high),
+    limbProduct64_denote _ _ fold64_bound (high64_bound high),
+    denote_decompose64 high, ← radix_square]
+  ring
 
 private theorem foldHigh64_canonical (value : UInt64) :
-    (foldHigh64 value).toNat < fieldModulus := by
-  apply sub64_canonical
-  · exact mulEpsilonLimb64_canonical _ (low64_bound value)
-  · exact Nat.lt_trans (high64_bound value) (by decide)
+    (foldHigh64 value).toNat < fieldModulus :=
+  foldLimbs64_canonical _ _
+    (limbProduct64_canonical _ _ fold64_bound (low64_bound value))
 
 private theorem foldHigh64_denote (value : UInt64) :
     (foldHigh64 value).denote =
       (Poseidon2.ofNat radix * Poseidon2.ofNat radix) * value.denote := by
-  rw [foldHigh64, sub64_denote _ _
-    (mulEpsilonLimb64_canonical _ (low64_bound value))
-    (Nat.lt_trans (high64_bound value) (by decide)),
-    mulEpsilonLimb64_denote _ (low64_bound value),
-    denote_decompose64 value]
-  calc
-    (Poseidon2.ofNat radix - 1) * (low64 value).denote -
-        (high64 value).denote =
-      (Poseidon2.ofNat radix * Poseidon2.ofNat radix) * (low64 value).denote +
-        ((Poseidon2.ofNat radix * Poseidon2.ofNat radix) -
-          Poseidon2.ofNat radix) * (high64 value).denote := by
-      rw [radix_square]
-      ring
-    _ = (Poseidon2.ofNat radix * Poseidon2.ofNat radix) *
-          (low64 value).denote +
-        ((Poseidon2.ofNat radix * Poseidon2.ofNat radix) *
-          Poseidon2.ofNat radix) * (high64 value).denote := by
-      rw [radix_cube]
-    _ = (Poseidon2.ofNat radix * Poseidon2.ofNat radix) *
-        ((low64 value).denote +
-          Poseidon2.ofNat radix * (high64 value).denote) := by ring
+  rw [foldHigh64, foldLimbs64_denote _ _
+      (limbProduct64_canonical _ _ fold64_bound (low64_bound value)),
+    limbProduct64_denote _ _ fold64_bound (low64_bound value),
+    limbProduct64_denote _ _ fold64_bound (high64_bound value),
+    denote_decompose64 value, radix_square]
+  ring
 
 @[inline] def reduceWide64 (low high : UInt64) : UInt64 :=
   add64 (canonicalize64 low) (foldHigh64 high)

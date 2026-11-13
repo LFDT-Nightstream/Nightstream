@@ -20,6 +20,19 @@ timeout --signal=KILL 300 cargo test -p nightstream-fprime --release --lib appli
 timeout --signal=KILL 300 cargo test -p nightstream-fprime --release --lib bounded_depth::application
 ```
 
+The tests that compress a step of the hash chain hold the compression setup
+of 10 GB and need up to 30 GB, so they are ignored. Run them on their own:
+
+```sh
+timeout --signal=KILL 300 cargo test -p nightstream --release --lib lifecycle::bounded_depth::tests::compression -- --ignored --test-threads 1
+timeout --signal=KILL 300 cargo test -p nightstream --release --test compression -- --ignored
+```
+
+`cargo test -p neo-compress --release` runs the argument on small claims,
+with a key polynomial of 512 blocks.
+`scripts/akita_schedules.sh` makes the Akita schedule files of
+`crates/neo-compress/artifacts` again.
+
 CI runs the selected Rust regression suites. Lean remains a local check.
 Until a Mac runner is available, run the Metal relation check locally on a
 supported Mac:

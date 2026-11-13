@@ -11,10 +11,11 @@ alone does not establish total system security.
 
 The compressed proof needs these items
 ([decision record](../decisions/akita-compression.md)): the owner's review of
-the proposed design, a Lean statement of the argument, a succinct verifier
-that reads commitments to the Ajtai key and to the matrices, one batched
-Akita opening, a run with slot depths near the cap 64, a WASM build of the
-verifier, and an audit of Akita.
+the proposed design, a Lean statement of the argument, a verifier that reads
+a commitment to the matrices as it reads the commitment to the Ajtai key, a
+run with slot depths near the cap 64, a WASM build of the verifier, and an
+audit of Akita. SPEC.md section 6 and the decision record do not yet
+describe the compression key.
 
 Device engines for the steps (Metal and CUDA) require separate implementation
 and validation. Removed legacy consumers are not

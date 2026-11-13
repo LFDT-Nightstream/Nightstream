@@ -22,45 +22,64 @@ digests do not replace these checks.
 
 ## Compress a proof
 
-`Prover::compress` makes a `FinalProof` from a proof. The final proof has no
-witness, and `extend` cannot use it. `Verifier::verify_final` checks it
-against the expected state. `FinalProof::to_bytes` and
-`FinalProof::from_bytes` are its byte form. `nebula::Prover::compress` and
-`nebula::Verifier::verify_final` do the same for a memory proof.
+`Prover::compression_setup` makes a `CompressionSetup` once. It expands the
+rows of the Ajtai key that the circuit reads, for the blocks of the larger
+relation up to a power of two, and commits them as one polynomial with the
+Akita commitment scheme. `Prover::compress` makes a `FinalProof` from a
+proof and the setup. The final proof has no witness, and `extend` cannot use
+it. `Verifier::verify_final` checks it against the expected state and a
+`CompressionKey`. `FinalProof::to_bytes` and `FinalProof::from_bytes` are
+the byte form of the proof, and `CompressionKey::to_bytes` and
+`CompressionKey::from_bytes` are the byte form of the key.
+`nebula::Prover` and `nebula::Verifier` have the same functions for a memory
+proof.
+
+The compression key holds the commitment of the key polynomial and Akita's
+commitments of a prefix of its own setup, in about 1 KB. It is a function of
+the public seeds and of the size of the circuit, so each circuit of one size
+has the same key. `verify_final` trusts the key. Take it from
+`CompressionSetup::key` or from `Verifier::compression_key`, which computes
+it again from the seeds, or compare its bytes with a copy that you computed.
 
 The final proof has both slot claims, the CE claim that one PiCCS run makes
 of the fresh instance, and one argument from `crates/neo-compress`. The
-argument commits two polynomials with the Akita commitment scheme: `W` holds
-the three witnesses and the counts of the lookup tables, and `V` holds the
-lookup inverses. One sum-check proves the Ajtai openings, the evaluations,
-the public inputs and the norm bound of each slot. It ends in one Akita
-opening of each polynomial. See [SPEC.md](../../SPEC.md) Algorithms 9 and 10
-and the [decision record](../../decisions/akita-compression.md).
+argument commits two polynomials with Akita: `W` holds the three witnesses
+and the counts of the lookup tables, and `V` holds the lookup inverses. One
+sum-check proves the Ajtai openings, the evaluations, the public inputs and
+the norm bound of each slot. A second sum-check reduces the part of the
+public weights that the Ajtai key gives to one value of the key polynomial.
+One Akita proof opens the key polynomial, `W` and `V`. See the module
+comment of `crates/neo-compress/src/lib.rs` for the transcript and the
+error. [SPEC.md](../../SPEC.md) Algorithms 9 and 10 and the
+[decision record](../../decisions/akita-compression.md) describe the proof
+of commit `b155966de`, before the compression key.
 
 `compress` does not verify its input or its result. `verify_final` computes
 the hash of the state from the slot claims of the proof, as `verify` does.
-It is not succinct: it makes one pass over the Ajtai key and one pass over
-the rows of each relation.
+It expands no element of the Ajtai key. It is not succinct: it makes one
+pass over the rows of each relation.
 
-These numbers are from one run of
-`cargo test -p nightstream --release a_compressed_proof_verifies -- --nocapture`
-at commit `8d924bf32`, on an M5 Ultra with 30 cores, with LTO off, for the
-Poseidon2 hash chain with the cap 2. They are not a benchmark, and a later
-change to the key expansion makes the times lower.
+These numbers are from runs of
+`cargo test -p nightstream --release a_compressed_proof_verifies -- --ignored --nocapture`
+on an M5 Ultra with 30 cores, with LTO off, for the Poseidon2 hash chain
+with the cap 2. The times are the range of four runs. They are not a
+benchmark.
 
 | | Light circuit last | Refresh circuit last |
 |---|---|---|
 | Witness cells in `W` | 41.4 M | 68.4 M |
-| Variables of `W` | 26 | 28 |
-| `compress` | 2.3 s | 3.2 s |
-| `verify_final` | 0.83 to 0.86 s | 0.83 to 0.86 s |
-| Final proof | 201 to 202 KB | 201 to 202 KB |
+| Variables of `W` | 26 | 27 |
+| `compress` | 2.5 to 2.7 s | 3.3 to 3.7 s |
+| `verify_final`, 30 threads | 0.17 to 0.20 s | 0.22 to 0.25 s |
+| `verify_final`, 1 thread | 0.9 to 1.1 s | 1.5 to 1.7 s |
+| Final proof | 133.3 KB | 133.4 KB |
 
-Of the proof bytes, the two Akita openings are about 145 KB and the claims
-are about 50 KB. Of the `verify_final` time, Akita is 14 to 17 ms. The other
-time is the pass over the public data: the verifier expands the Ajtai key
-from SHAKE128, about 18.3 GB of output for each pass.
+Of the proof bytes, the Akita opening is 75.7 KB and the claims are about
+54 KB. Of the `verify_final` time, Akita is 9 ms on 30 threads and 31 ms on
+one thread. The other time is the pass over the rows of the matrices.
 
-The memory of `compress` was not measured. An Akita commitment and opening
-of one polynomial of 28 variables used about 7 GB of resident memory in a
-prototype run on the same machine (one run).
+The compression setup takes 1.0 s and holds about 10 GB: the key rows and
+the copy that Akita opens. `Verifier::compression_key` takes 1.0 s. The
+process of the test that compresses both circuits has a peak of 30 GB of
+resident memory (one run), so the tests that compress a step of the hash
+chain are ignored ([testing](../development/testing.md)).

@@ -34,36 +34,49 @@ explicit Fiat–Shamir and MSIS assumptions in the security argument.
 
 ## Compressed proof
 
-`Prover::compress` proves, over two Akita commitments, that witnesses exist
-for both slot claims and for the fresh instance. `Verifier::verify_final`
-checks the final proof against the expected state. [SPEC.md](SPEC.md)
-Algorithms 9 and 10 give the protocol, and
-[the decision record](decisions/akita-compression.md) gives the design
-choices and their status.
+`Prover::compress` proves that witnesses exist for both slot claims and for
+the fresh instance. `Verifier::verify_final` checks the final proof against
+the expected state. [SPEC.md](SPEC.md) Algorithms 9 and 10 give the
+protocol, and [the decision record](decisions/akita-compression.md) gives
+the design choices and their status. Those two files describe the proof of
+commit `b155966de`, before the compression key.
 
-These numbers are from one run of
-`cargo test -p nightstream --release a_compressed_proof_verifies -- --nocapture`
-at commit `8d924bf32`, on an M5 Ultra with 30 cores, with LTO off, for the
-Poseidon2 hash chain with the cap 2. They are not a benchmark, and a later
-change to the key expansion makes the times lower.
+The verifier does not read the Ajtai key. `Prover::compression_setup`
+expands the key rows that the circuit reads and commits them as one
+polynomial with Akita. `Verifier::verify_final` takes the commitment from a
+`CompressionKey` of about 1 KB, which is authority.
+`Verifier::compression_key` computes the key again from the public seeds.
+One Akita proof opens the key polynomial and the two polynomials of the
+prover.
+
+These numbers are from runs of
+`cargo test -p nightstream --release a_compressed_proof_verifies -- --ignored --nocapture`
+on an M5 Ultra with 30 cores, with LTO off, for the Poseidon2 hash chain
+with the cap 2. The times are the range of four runs. They are not a
+benchmark.
 
 | | Light circuit last | Refresh circuit last |
 |---|---|---|
 | Witness cells in `W` | 41.4 M | 68.4 M |
-| Variables of `W` | 26 | 28 |
-| `compress` | 2.3 s | 3.2 s |
-| `verify_final` | 0.83 to 0.86 s | 0.83 to 0.86 s |
-| Final proof | 201 to 202 KB | 201 to 202 KB |
+| Variables of `W` | 26 | 27 |
+| `compress` | 2.5 to 2.7 s | 3.3 to 3.7 s |
+| `verify_final`, 30 threads | 0.17 to 0.20 s | 0.22 to 0.25 s |
+| `verify_final`, 1 thread | 0.9 to 1.1 s | 1.5 to 1.7 s |
+| Final proof | 133.3 KB | 133.4 KB |
 
-Of the proof bytes, the two Akita openings are about 145 KB and the claims
-are about 50 KB. Of the `verify_final` time, Akita is 14 to 17 ms. The other
-time is the pass over the public data: the verifier expands the Ajtai key
-from SHAKE128, about 18.3 GB of output for each pass.
+The compression setup takes 1.0 s and holds about 10 GB. The test process
+has a peak of 30 GB. Of the proof bytes, the Akita opening is 75.7 KB and
+the claims are about 54 KB. Of the `verify_final` time, Akita is 9 ms on 30
+threads and 31 ms on one thread, and the rest is one pass over the rows of
+the matrices of each claim.
 
-The verifier is not succinct. Akita is version 0.1.0 and has no audit. The
-error that Rust computes for the argument, about `2^-116.7`, does not include
-the error of Akita, of the PiCCS run or of Fiat–Shamir
+The verifier is not succinct: its time is linear in the matrices. Akita is
+version 0.1.0 and has no audit. The error that Rust computes for the
+argument, about `2^-119.02`, does not include the error of Akita, of the
+PiCCS run or of Fiat–Shamir
 ([security model](formal/nightstream-fprime/SECURITY_MODEL.md), adversary 6).
+The argument also needs the compression key to hold the commitment of the
+Ajtai key.
 
 ## Main crates
 

@@ -7,8 +7,8 @@
 //! (`acc ← RAM[arg]`), `2` store (`RAM[arg] ← acc`), `3` loadi (`acc ← arg`).
 //! Port 0 fetches `ROM[pc]`; port 1 is the data port.
 
+use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
-use p3_goldilocks::Goldilocks as F;
 
 use super::app::{Application, Memory, Transition};
 use super::expr::Expr;

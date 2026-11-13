@@ -16,8 +16,8 @@ use std::{
     sync::Arc,
 };
 
+use neo_math::Fq;
 use p3_field::PrimeCharacteristicRing;
-use p3_goldilocks::Goldilocks;
 
 /// An application-local variable. The step packages assign its column.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -32,13 +32,13 @@ impl Variable {
 /// A canonical affine field expression with ordered, nonzero coefficients.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Affine {
-    constant: Goldilocks,
-    terms: Vec<(Variable, Goldilocks)>,
+    constant: Fq,
+    terms: Vec<(Variable, Fq)>,
     pub(crate) expression: Arc<Expression>,
 }
 
 impl Affine {
-    pub fn constant(value: Goldilocks) -> Self {
+    pub fn constant(value: Fq) -> Self {
         Self {
             constant: value,
             terms: Vec::new(),
@@ -48,25 +48,23 @@ impl Affine {
 
     pub fn variable(variable: Variable) -> Self {
         Self {
-            constant: Goldilocks::ZERO,
-            terms: vec![(variable, Goldilocks::ONE)],
+            constant: Fq::ZERO,
+            terms: vec![(variable, Fq::ONE)],
             expression: Arc::new(Expression::Variable(variable)),
         }
     }
 
-    pub fn constant_term(&self) -> Goldilocks {
+    pub fn constant_term(&self) -> Fq {
         self.constant
     }
 
-    pub fn terms(&self) -> &[(Variable, Goldilocks)] {
+    pub fn terms(&self) -> &[(Variable, Fq)] {
         &self.terms
     }
 
     pub(crate) fn as_variable(&self) -> Option<Variable> {
         match self.terms.as_slice() {
-            [(variable, coefficient)] if self.constant == Goldilocks::ZERO && *coefficient == Goldilocks::ONE => {
-                Some(*variable)
-            }
+            [(variable, coefficient)] if self.constant == Fq::ZERO && *coefficient == Fq::ONE => Some(*variable),
             _ => None,
         }
     }
@@ -97,8 +95,8 @@ impl From<Variable> for Affine {
     }
 }
 
-impl From<Goldilocks> for Affine {
-    fn from(value: Goldilocks) -> Self {
+impl From<Fq> for Affine {
+    fn from(value: Fq) -> Self {
         Self::constant(value)
     }
 }
@@ -119,7 +117,7 @@ impl Add for Affine {
                 std::cmp::Ordering::Equal => {
                     let (_, coefficient) = left.next().unwrap();
                     let coefficient = coefficient + right.next().unwrap().1;
-                    if coefficient != Goldilocks::ZERO {
+                    if coefficient != Fq::ZERO {
                         merged.push((a, coefficient));
                     }
                 }
@@ -136,14 +134,14 @@ impl Sub for Affine {
     type Output = Self;
 
     fn sub(self, rhs: Self) -> Self {
-        self + rhs * -Goldilocks::ONE
+        self + rhs * -Fq::ONE
     }
 }
 
-impl Mul<Goldilocks> for Affine {
+impl Mul<Fq> for Affine {
     type Output = Self;
 
-    fn mul(mut self, rhs: Goldilocks) -> Self {
+    fn mul(mut self, rhs: Fq) -> Self {
         self.expression = Arc::new(Expression::Multiply(
             Arc::new(Expression::Constant(rhs)),
             self.expression,
@@ -153,7 +151,7 @@ impl Mul<Goldilocks> for Affine {
             *coefficient *= rhs;
         }
         self.terms
-            .retain(|(_, coefficient)| *coefficient != Goldilocks::ZERO);
+            .retain(|(_, coefficient)| *coefficient != Fq::ZERO);
         self
     }
 }

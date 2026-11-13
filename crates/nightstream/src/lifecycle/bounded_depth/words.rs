@@ -7,20 +7,18 @@ use neo_reductions::common::{sample_rot_rhos_n_typed, RotRing};
 use neo_transcript::Poseidon2Transcript;
 use nightstream_fprime::{
     derive_light_transcript, encode_digest, BoundedDepthState, Child, FoldWords, KWords, PackageError, Slot, StepWords,
-    PUBLIC_WORDS,
+    COMMITMENT_WORDS, EVALUATIONS, PI_CCS_V1_2_ROUND_COEFFICIENT_COUNT as ROUND_COEFFICIENTS,
+    PI_CCS_V1_2_ROUND_COUNT as ROUNDS, PUBLIC_WORDS,
 };
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
-const COMMITMENT_WORDS: usize = 1188;
-const ROUNDS: usize = 28;
-const ROUND_COEFFICIENTS: usize = 9;
-const SOURCE_WORDS: usize = 2 * 270;
+const SOURCE_WORDS: usize = 2 * EVALUATIONS;
 
 fn k_words(value: K) -> KWords {
     value.as_coeffs()
 }
 
-/// A claim's 270 `K` values: `Eval_K`, then the four `Eval_A` families.
+/// A claim's `EVALUATIONS` values of `K`: `Eval_K`, then the four `Eval_A` families.
 fn evaluations(claim: &CeClaim) -> Vec<KWords> {
     claim.eval_k[..D]
         .iter()
@@ -203,8 +201,8 @@ pub(crate) fn base_step(
     let mut sampler = Poseidon2Transcript::from_state_and_absorbed(transcript.outgoing_state().map(F::from_u64), 0);
     let rho = sample_rot_rhos_n_typed(
         &mut sampler,
-        &neo_params::NeoParams::nightstream_goldilocks_k16(),
-        &RotRing::goldilocks(),
+        &neo_params::NeoParams::nightstream_p64_k16(),
+        &RotRing::profile(),
         1,
     )
     .map_err(|_| PackageError::Input("light challenge"))?
@@ -232,7 +230,7 @@ pub(crate) fn base_step(
         commitment: vec![F::ZERO; COMMITMENT_WORDS],
         rounds: vec![[[F::ZERO; 2]; ROUND_COEFFICIENTS]; ROUNDS],
         words: FoldWords::Light {
-            outputs: [vec![[F::ZERO; 2]; 270], vec![[F::ZERO; 2]; 270]],
+            outputs: [vec![[F::ZERO; 2]; EVALUATIONS], vec![[F::ZERO; 2]; EVALUATIONS]],
         },
     };
     Ok(words(prior, next, witness, Kind::Light, fold))

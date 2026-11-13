@@ -7,8 +7,8 @@
 
 use std::collections::BTreeSet;
 
+use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
-use p3_goldilocks::Goldilocks as F;
 
 use super::expr::{Expr, KExpr};
 use super::geometry::Geometry;

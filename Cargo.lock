@@ -993,7 +993,6 @@ dependencies = [
  "neo-math",
  "nightstream",
  "p3-field",
- "p3-goldilocks",
  "serde_json",
  "thiserror",
  "wasmparser 0.240.0",
@@ -1016,7 +1015,6 @@ dependencies = [
  "neo-transcript",
  "nightstream-fprime",
  "p3-field",
- "p3-goldilocks",
  "rayon",
  "ruzstd",
  "serde",
@@ -1155,20 +1153,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "p3-challenger"
-version = "0.5.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8972ccd1d5dc90e46cdb1f2ab4ee2bae49b3917e5e98aa533f0c2b779c010445"
-dependencies = [
- "p3-field",
- "p3-maybe-rayon",
- "p3-monty-31",
- "p3-symmetric",
- "p3-util",
- "tracing",
-]
-
-[[package]]
 name = "p3-dft"
 version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1197,26 +1181,6 @@ dependencies = [
  "rand 0.10.2",
  "serde",
  "tracing",
-]
-
-[[package]]
-name = "p3-goldilocks"
-version = "0.5.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5751c6591a0d2397d726620c2c29a7436ec6c5e19d2ed74ca5d078d4fbb18eb5"
-dependencies = [
- "num-bigint",
- "p3-challenger",
- "p3-dft",
- "p3-field",
- "p3-mds",
- "p3-poseidon1",
- "p3-poseidon2",
- "p3-symmetric",
- "p3-util",
- "paste",
- "rand 0.10.2",
- "serde",
 ]
 
 [[package]]
@@ -1250,41 +1214,6 @@ dependencies = [
  "p3-field",
  "p3-symmetric",
  "p3-util",
- "rand 0.10.2",
-]
-
-[[package]]
-name = "p3-monty-31"
-version = "0.5.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8724f330ea6d19dd4f2436aa0f88b5fcbf88f0f55ca7fccd3fea8b736dbcddad"
-dependencies = [
- "itertools 0.14.0",
- "num-bigint",
- "p3-dft",
- "p3-field",
- "p3-matrix",
- "p3-maybe-rayon",
- "p3-mds",
- "p3-poseidon1",
- "p3-poseidon2",
- "p3-symmetric",
- "p3-util",
- "paste",
- "rand 0.10.2",
- "serde",
- "spin",
- "tracing",
-]
-
-[[package]]
-name = "p3-poseidon1"
-version = "0.5.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "04e2a562fea210baae390a32f9ecf0dd8724ae3f4352d1c8e413077b6f00a162"
-dependencies = [
- "p3-field",
- "p3-symmetric",
  "rand 0.10.2",
 ]
 

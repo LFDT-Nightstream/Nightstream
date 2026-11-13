@@ -7,11 +7,14 @@ use json::canonical_field;
 mod matrix_program;
 pub(crate) use matrix_program::{external_outputs, permutation_rows, Entries};
 mod v1_2;
-pub(crate) use v1_2::{
-    BLOCK_LOCALS, BLOCK_OUTPUTS, COMMITMENT_WORDS, DECOMPOSITION_BASE, DECOMPOSITION_K_RHO, DECOMPOSITION_NORM_BOUND,
-    EVALUATIONS, PI_CCS_V1_2_MATRIX_COUNT, PI_CCS_V1_2_ROUND_COEFFICIENT_COUNT, RING_DEGREE, RING_NODES, SBOX_ROWS,
+pub use v1_2::{
+    BLOCK_LOCALS, COMMITMENT_WORDS, EVALUATIONS, PI_CCS_V1_2_MATRIX_COUNT, PI_CCS_V1_2_ROUND_COEFFICIENT_COUNT,
+    PI_CCS_V1_2_ROUND_COUNT, PUBLIC_WORDS,
 };
-pub use v1_2::{PI_CCS_V1_2_ROUND_COUNT, PUBLIC_WORDS};
+pub(crate) use v1_2::{
+    BLOCK_OUTPUTS, DECOMPOSITION_BASE, DECOMPOSITION_K_RHO, DECOMPOSITION_NORM_BOUND, RING_DEGREE, RING_NODES,
+    SBOX_ROWS,
+};
 mod pi_ccs_v1_2_transcript;
 pub use pi_ccs_v1_2_transcript::{
     derive_light_transcript, derive_refresh_transcript, PiCcsV1_2Transcript, LIGHT_DOMAIN, REFRESH_DOMAIN,

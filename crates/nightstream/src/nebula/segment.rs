@@ -4,9 +4,9 @@
 //! proposed ops and FS roots. Each step's words satisfy `RowsHold` of
 //! `Lifecycle/Nebula/StepRows.lean` and the application's rows.
 
+use neo_math::F;
 use neo_math::K;
 use p3_field::{Field, PrimeCharacteristicRing};
-use p3_goldilocks::Goldilocks as F;
 
 use super::app::{Application, Memory};
 use super::carry::{k_words, Carry, Products};

@@ -15,13 +15,14 @@ use super::super::encoding::{Reader, Shape, Writer};
 use super::super::ProofCodecError;
 use super::{BoundedDepth, Envelope, Slot};
 use crate::folding::{pi_rlc, CcsClaim, CcsInstance, CcsWitness};
-use nightstream_fprime::PUBLIC_WORDS;
+use nightstream_fprime::{
+    COMMITMENT_WORDS as KAPPA_WORDS, EVALUATIONS, PI_CCS_V1_2_MATRIX_COUNT as MATRICES, PI_CCS_V1_2_ROUND_COUNT,
+    PUBLIC_WORDS,
+};
 use p3_field::PrimeField64;
 
 const MAGIC: &[u8; 16] = b"NS-OPTIONB-PRF-1";
 const WORD: usize = 8;
-const KAPPA_WORDS: usize = 1188;
-const MATRICES: usize = 4;
 
 impl BoundedDepth {
     fn codec_shape(&self, circuit: usize) -> Shape {
@@ -34,7 +35,7 @@ impl BoundedDepth {
 
     /// Commitment, public projection, point, `Eval_K`, then `Eval_A`.
     fn claim_bytes() -> usize {
-        WORD * (KAPPA_WORDS + PUBLIC_WORDS + 2 * 28 + (MATRICES + 1) * 2 * D)
+        WORD * (KAPPA_WORDS + PUBLIC_WORDS + 2 * PI_CCS_V1_2_ROUND_COUNT + 2 * EVALUATIONS)
     }
 
     /// The length of a proof of `pc` (0 before the first step).

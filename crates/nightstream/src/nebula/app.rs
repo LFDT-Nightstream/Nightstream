@@ -7,7 +7,7 @@
 
 use std::fmt::Debug;
 
-use p3_goldilocks::Goldilocks as F;
+use neo_math::F;
 
 use super::expr::Expr;
 use super::geometry::Geometry;

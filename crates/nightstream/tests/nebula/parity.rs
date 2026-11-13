@@ -12,10 +12,10 @@ use std::{
     ops::ControlFlow,
 };
 
-use p3_field::{PrimeCharacteristicRing, PrimeField64};
-use p3_goldilocks::Goldilocks as F;
+use neo_math::F;
+use p3_field::PrimeCharacteristicRing;
 
-use crate::nebula::test_packages::{bounded_depth_packages, references};
+use crate::nebula::test_packages::{assert_rows, bounded_depth_packages, references};
 use crate::{
     application::ApplicationCircuit,
     nebula::{
@@ -23,48 +23,8 @@ use crate::{
     },
 };
 
-/// FNV-1a over the little-endian bytes of `word`.
-fn fnv(hash: u64, word: u64) -> u64 {
-    word.to_le_bytes()
-        .iter()
-        .fold(hash, |hash, &byte| (hash ^ u64::from(byte)).wrapping_mul(0x100000001b3))
-}
-
-/// The digest that Lean's emitter writes for the package's application: each
-/// side's constant, then its terms by variable, with equal variables merged
-/// and zero coefficients dropped.
 fn assert_same_rows(package: Package, fixture: &[u8]) {
     assert_rows(&package.application().unwrap(), fixture);
-}
-
-fn assert_rows(application: &ApplicationCircuit, fixture: &[u8]) {
-    let records = application.records();
-    let mut hash = fnv(0xcbf29ce484222325, records.row_count() as u64);
-    for row in 0..records.row_count() {
-        let header = records.row_header(row).unwrap();
-        let mut sides: [BTreeMap<usize, F>; 3] = Default::default();
-        let _: ControlFlow<()> = records
-            .visit_terms(row, |term| {
-                *sides[term.form.index()]
-                    .entry(term.variable)
-                    .or_insert(F::ZERO) += F::from_u64(term.coefficient);
-                Ok(ControlFlow::Continue(()))
-            })
-            .unwrap();
-        for (side, constant) in sides.iter().zip(header.constants) {
-            let terms: Vec<_> = side
-                .iter()
-                .filter(|(_, value)| **value != F::ZERO)
-                .collect();
-            hash = fnv(fnv(hash, constant), terms.len() as u64);
-            for (variable, value) in terms {
-                hash = fnv(fnv(hash, *variable as u64), value.as_canonical_u64());
-            }
-        }
-    }
-    let expected: serde_json::Value = serde_json::from_slice(fixture).unwrap();
-    assert_eq!(Some(records.row_count() as u64), expected["rows"].as_u64(), "rows");
-    assert_eq!(Some(hash), expected["digest"].as_u64(), "row digest");
 }
 
 /// A Stage 1 verifier checks no SPEC.md Algorithm 8 terminal condition, so it would
@@ -105,7 +65,7 @@ fn rows_of_a_ram_smaller_than_the_rom_match_lean() {
 fn coordinates(package: &nightstream_fprime::StepPackage) -> BTreeMap<String, usize> {
     let layout = package.layout().unwrap();
     let mut counts = BTreeMap::new();
-    for column in 270..package.sbox_start() + 150 * package.block_count() {
+    for column in nightstream_fprime::PUBLIC_WORDS..package.sbox_start() + 150 * package.block_count() {
         if let Some((_, kind)) = layout.slot(column) {
             *counts.entry(format!("{kind:?}")).or_insert(0) += kind.width();
         }

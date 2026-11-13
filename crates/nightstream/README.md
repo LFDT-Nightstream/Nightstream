@@ -70,7 +70,7 @@ At iteration 0, the current state must equal `z0`. At a later iteration, the
 public input of the fresh instance must be the hash of the state with both
 slots. The claim of each slot must hold under the relation of its circuit.
 The depth of the slot must be at most 64, and the norm of its witness must be
-at most `(17 + depth) · 216`, the bound of an honest slot at that depth. So
+at most `(17 + depth) · 128`, the bound of an honest slot at that depth. So
 `extend` works on each proof that `verify` accepts. The fresh
 instance must hold under the relation of the circuit that ran last.
 
@@ -106,7 +106,7 @@ No fold ends with Π_DEC. With `cap = 64`, the first period of steps is
 ## Applications
 
 `nightstream::application` builds applications. An application reads four
-Goldilocks state words and a number of private input words, and writes four
+field state words and a number of private input words, and writes four
 state words. `ApplicationBuilder` gives affine operations, multiplication and
 equality assertions. `poseidon2_hash_chain_v1` is the reference application.
 `poseidon2_hash_chain_step` computes its step natively.
@@ -121,10 +121,10 @@ The tests read the Lean packages in `formal/nightstream-fprime/artifacts` and
 the recorded Lean outputs in [`tests/fixtures`](tests/fixtures/README.md).
 They do not run Lean.
 
-- `tests/application_poseidon2.rs` compares the Rust Poseidon2 application
-  with the recorded Lean application, row by row and value by value.
+- `tests/application/poseidon2.rs` compares the rows of the Rust Poseidon2
+  application with the row digest of the Lean application.
 - `tests/bounded_depth_api.rs` runs the public API from compilation to
-  `verify_final`.
+  `verify`.
 - `tests/bounded_depth_lifecycle/` holds the lifecycle tests. They compile into
   the library, so `--lib lifecycle::` selects them.
 

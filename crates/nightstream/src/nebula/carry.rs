@@ -1,9 +1,9 @@
 //! The memory carry of SPEC.md section 7.5 and its 39 words. Mirrors
 //! `Lifecycle/Nebula/Carry.lean` (`carryVector`).
 
+use neo_math::F;
 use neo_math::K;
 use p3_field::{BasedVectorSpace, PrimeCharacteristicRing, PrimeField64};
-use p3_goldilocks::Goldilocks as F;
 
 use super::transcript::Digest;
 

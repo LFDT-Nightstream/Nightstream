@@ -16,8 +16,8 @@ use std::sync::Arc;
 
 use neo_application::{ContinuityCatalog, MemoryCatalog, MemoryPortActivation, MemoryPortKind, R1csRelation};
 use neo_ccs::CcsMatrix;
+use neo_math::F;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
-use p3_goldilocks::Goldilocks as F;
 
 use super::app::{Application, Memory, Transition};
 use super::catalog::{CatalogBinding, CatalogBindingError, CatalogRowError, Region};

@@ -69,7 +69,8 @@ fn metal_steps_equal_cpu_steps() {
     // engines.
     let mut tampered = on_metal.clone();
     let fresh = tampered.fresh.as_mut().expect("fresh instance");
-    let entry = &mut fresh.witness.Z[(300 % D, 300 / D)];
+    let column = nightstream_fprime::PUBLIC_WORDS + 30;
+    let entry = &mut fresh.witness.Z[(column % D, column / D)];
     *entry = if *entry == F::ZERO { F::ONE } else { F::ZERO };
     fresh.claim.c = metal
         .backend

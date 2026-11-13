@@ -13,7 +13,7 @@ mod words;
 use crate::engine::{Backend, CommitError, EngineError};
 use crate::folding::bounded_depth::{prove, Kind};
 use crate::folding::{pi_dec, pi_rlc, CcsInstance, RunningInstance};
-use neo_ccs::crypto::poseidon2_goldilocks::poseidon2_hash;
+use neo_ccs::crypto::poseidon2::poseidon2_hash;
 use neo_math::F;
 use neo_transcript::domain_chunk_v1_2;
 use nightstream_fprime::{
@@ -344,7 +344,7 @@ impl BoundedDepth {
         }
         if iteration >= F::ORDER_U64 {
             return Err(BoundedDepthError::Statement(
-                "iteration is not a canonical Goldilocks counter",
+                "iteration is not a canonical field counter",
             ));
         }
         let Some(fresh) = &envelope.fresh else {

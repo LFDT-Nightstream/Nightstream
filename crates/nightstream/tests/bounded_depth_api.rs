@@ -4,10 +4,10 @@
 
 use std::fs;
 
+use neo_math::F;
 use nightstream::application::{poseidon2_hash_chain_step, poseidon2_hash_chain_v1};
 use nightstream::{Circuit, Prover};
 use nightstream::{Engine, PrimeCharacteristicRing, PrimeField64, State};
-use p3_goldilocks::Goldilocks as F;
 
 fn circuit() -> Circuit {
     Circuit::compile(poseidon2_hash_chain_v1().expect("hash chain")).expect("bounded-depth circuit")
@@ -99,7 +99,8 @@ fn a_word_not_below_q_does_not_decode() {
 }
 
 /// The gate charges the refresh fold's zero-query error of the random-oracle
-/// result (`RefreshKnowledge.statisticalError 0`, about `2^-109.6`), so a
+/// result (`RefreshKnowledge.statisticalError 0`, about `2^-109.15` with the
+/// census numerator 6377 of `neo-params`; SPEC.md section 3), so a
 /// prover or verifier that asks for 110 bits is refused.
 #[test]
 fn the_gate_refuses_more_bits_than_the_fold_error_gives() {

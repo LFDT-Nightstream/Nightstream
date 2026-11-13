@@ -1,4 +1,4 @@
-//! Selected Nightstream Goldilocks k_rho = 16 parameters.
+//! The parameters of the profile Nightstream P64, k_rho = 16.
 use neo_params::NeoParams;
 #[derive(Clone, Debug)]
 pub(crate) struct Params {
@@ -7,7 +7,7 @@ pub(crate) struct Params {
 impl Params {
     pub(crate) fn production() -> Self {
         Self {
-            inner: NeoParams::nightstream_goldilocks_k16(),
+            inner: NeoParams::nightstream_p64_k16(),
         }
     }
     pub(crate) fn for_ccs_shape(
@@ -22,22 +22,20 @@ impl Params {
                 "minimum statistical security must be positive",
             ));
         }
-        let inner = NeoParams::nightstream_goldilocks_k16();
-        let summary = inner.padded_row_security_summary_for_shape(
-            rows,
-            columns,
-            matrix_count,
-            poly_degree,
-            neo_params::goldilocks_paper_b2::CHALLENGE_ALPHABET.len() as u32,
-        )?;
+        let inner = NeoParams::nightstream_p64_k16();
+        let alphabet = neo_params::nightstream_p64_k16::CHALLENGE_ALPHABET.len() as u32;
+        let summary =
+            inner.padded_row_security_summary_for_shape(rows, columns, matrix_count, poly_degree, alphabet)?;
         // Lean `RefreshKnowledge.statisticalError 0`, the larger fold error,
         // since either fold can run under either relation: the Π_CCS test
         // error at each of the 2ℓ + 1 + sources transcript challenges, and
-        // the Π_RLC sample error `1/|C| + 2^-132` sources² times.
+        // the Π_RLC sample error `1/|C| + 2^-173` sources² times
+        // (`PiRlcSampler.distance_lt`).
         let sources = f64::from(1 + inner.k_rho());
         let challenges = 2.0 * f64::from(summary.cube_variables) + 1.0 + sources;
         let test = (challenges * summary.field_factor as f64).log2() - f64::from(inner.s()) * (inner.q() as f64).log2();
-        let sample = sources * sources * (1.0 / summary.challenge_set_cardinality as f64 + (-132.0f64).exp2());
+        let challenge_set = f64::from(alphabet).powi(inner.d() as i32);
+        let sample = sources * sources * (1.0 / challenge_set + (-173.0f64).exp2());
         let fold_error_bits = -(test.exp2() + sample).log2();
         let available = inner
             .lambda()
@@ -68,6 +66,6 @@ impl Params {
         &self.inner
     }
     pub(crate) fn ring(&self) -> neo_reductions::common::RotRing {
-        neo_reductions::common::RotRing::goldilocks()
+        neo_reductions::common::RotRing::profile()
     }
 }

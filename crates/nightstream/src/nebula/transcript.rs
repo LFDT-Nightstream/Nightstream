@@ -3,10 +3,10 @@
 //! to the rate lanes and permuted; a digest is the first four lanes.
 //! Mirrors `Lifecycle/Transcript.lean` and `Lifecycle/Nebula/Framing.lean`.
 
-use neo_ccs::crypto::poseidon2_goldilocks::{permute_state, RATE, WIDTH};
+use neo_ccs::crypto::poseidon2::{permute_state, RATE, WIDTH};
+use neo_math::F;
 use neo_math::K;
 use p3_field::{BasedVectorSpace, PrimeCharacteristicRing};
-use p3_goldilocks::Goldilocks as F;
 
 use super::geometry::Geometry;
 

@@ -1,8 +1,8 @@
 //! Typed memory records of SPEC.md section 7.2 and their lane encoding and packing.
 //! Mirrors `Spec/Nebula/Records.lean` and `Spec/Nebula/Packing.lean`.
 
+use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
-use p3_goldilocks::Goldilocks as F;
 
 use super::geometry::Geometry;
 

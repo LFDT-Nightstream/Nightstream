@@ -6,8 +6,8 @@
 
 use std::path::Path;
 
+use neo_math::F;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
-use p3_goldilocks::Goldilocks as F;
 
 use super::app::Application;
 use super::carry::Carry;

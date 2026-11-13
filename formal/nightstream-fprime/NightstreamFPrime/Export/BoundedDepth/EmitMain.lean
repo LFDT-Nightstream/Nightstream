@@ -51,7 +51,8 @@ abbrev relation := StepRelation.keyRelation
 def program : Stage1.Application.Program := Stage1.Poseidon2HashChainV1.program
 
 /-- The application that `--program` selects and the stem of its package files: today's fixture
-by default, or a Nebula memory program (`NebulaMemoryV1Package`, `NebulaMemoryN1Package`). -/
+by default or by its name `poseidon2-hash-chain-v1`, or a Nebula memory program
+(`NebulaMemoryV1Package`, `NebulaMemoryN1Package`). -/
 def selected (arguments : List String) : IO (Stage1.Application.Program × String) :=
   match arguments.dropWhile (· != "--program") with
   | _ :: "nebula-v1" :: _ => pure (Export.Stage1.NebulaMemoryV1Package.application, "nebula-v1-")
@@ -59,6 +60,7 @@ def selected (arguments : List String) : IO (Stage1.Application.Program × Strin
   | _ :: "nebula-r1" :: _ => pure (Export.Stage1.NebulaMemoryPackage.application
       ⟨Nebula.ThirdPlan.geometry, Nebula.ThirdPlan.valid, Nebula.ThirdPlan.secure⟩ Nebula.ThirdPlan.app,
       "nebula-r1-")
+  | _ :: "poseidon2-hash-chain-v1" :: _ => pure (program, "")
   | _ :: name :: _ => throw (IO.userError s!"unknown program {name}")
   | _ => pure (program, "")
 
@@ -206,7 +208,8 @@ def sideWords (toVariable : Nat → Except String Nat) (side : R1CS.LinearCombin
 /-- The rows of `program`'s application, and their digest in the Rust application's variable
 order (`ApplicationCircuit`): the input state, the witness words, the output state, then the
 locals and the lowering's fresh columns. `tests/nebula/parity.rs` requires the Rust-built
-memory circuit to have the same digest. -/
+memory circuit to have the same digest, and `tests/application/poseidon2.rs` requires it of the
+Rust-built hash chain. -/
 def applicationDigest (program : Stage1.Application.Program) : Except String (Nat × UInt64) := do
   let columns := Export.Stage1.ApplicationPackage.productionColumns program
   let privateStart := Layout.Stage1.ApplicationInputs.localStart program

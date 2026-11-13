@@ -9,8 +9,8 @@
 //! A second plan shows two ports of distinct memories out of catalog order,
 //! and the honest rows still hold.
 
+use neo_math::F;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
-use p3_goldilocks::Goldilocks as F;
 
 use crate::application::ApplicationCircuit;
 use crate::nebula::circuit::memory_circuit;

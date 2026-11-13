@@ -3,8 +3,8 @@
 //! `SecondPlan.lean` own the package geometries. A geometry has no image, so
 //! the relation, the plan digest, and the witness layout read no program.
 
+use neo_math::F;
 use p3_field::PrimeField64;
-use p3_goldilocks::Goldilocks as F;
 
 /// SPEC.md section 7.1 without the images.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

@@ -8,17 +8,17 @@
 use std::fs;
 use std::path::PathBuf;
 
-use neo_ccs::crypto::poseidon2_goldilocks::poseidon2_hash;
+use neo_ccs::crypto::poseidon2::poseidon2_hash;
 use neo_math::D;
+use neo_math::F;
 use neo_params::NeoParams;
 use neo_reductions::common::{sample_rot_rhos_n_typed, RotRing};
 use neo_transcript::Poseidon2Transcript;
 use nightstream_fprime::{
     encode_digest, load_bounded_depth_packages, BoundedDepthPackages, BoundedDepthState, FoldWords, KWords,
-    PiCcsV1_2Transcript, Slot, StepPackage, StepWords, BOUNDED_DEPTH_PACKAGES_IDENTITY,
+    PiCcsV1_2Transcript, Slot, StepPackage, StepWords, BOUNDED_DEPTH_PACKAGES_IDENTITY, COMMITMENT_WORDS, PUBLIC_WORDS,
 };
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
-use p3_goldilocks::Goldilocks as G;
 
 pub fn artifact(name: &str) -> Vec<u8> {
     fs::read(
@@ -38,23 +38,23 @@ pub fn packages() -> BoundedDepthPackages {
     .expect("bounded-depth packages")
 }
 
-pub fn words(values: [u64; 4]) -> [G; 4] {
-    values.map(G::from_u64)
+pub fn words(values: [u64; 4]) -> [F; 4] {
+    values.map(F::from_u64)
 }
 
 /// `Poseidon2HashChainV1.step`: Poseidon2 over the domain tag, the state
 /// and the message.
-pub fn hash_chain_step(state: [G; 4], message: [G; 4]) -> [G; 4] {
-    let mut input: Vec<G> = b"Nightstream/Stage1/Poseidon2HashChain/v1"
+pub fn hash_chain_step(state: [F; 4], message: [F; 4]) -> [F; 4] {
+    let mut input: Vec<F> = b"Nightstream/Stage1/Poseidon2HashChain/v1"
         .iter()
-        .map(|&byte| G::from_u64(u64::from(byte)))
+        .map(|&byte| F::from_u64(u64::from(byte)))
         .collect();
     input.extend(state);
     input.extend(message);
     poseidon2_hash(&input)
 }
 
-pub fn canonical(values: &[G]) -> Vec<u64> {
+pub fn canonical(values: &[F]) -> Vec<u64> {
     values
         .iter()
         .map(|value| value.as_canonical_u64())
@@ -64,12 +64,12 @@ pub fn canonical(values: &[G]) -> Vec<u64> {
 /// Step 0 of the hash chain for circuit `circuit` (0 light, 1 refresh): the
 /// words without the fold, and the fresh public input.
 pub struct StepZero {
-    pub keys: [[G; 4]; 2],
-    pub z0: [G; 4],
-    pub message: [G; 4],
-    pub next: [G; 4],
-    pub output: [G; 4],
-    pub fresh_public_input: Vec<G>,
+    pub keys: [[F; 4]; 2],
+    pub z0: [F; 4],
+    pub message: [F; 4],
+    pub next: [F; 4],
+    pub output: [F; 4],
+    pub fresh_public_input: Vec<F>,
 }
 
 impl StepZero {
@@ -100,19 +100,19 @@ impl StepZero {
     /// public input is the first challenge times the fresh public input, and
     /// the point is the round point.
     pub fn folded(&self, transcript: &PiCcsV1_2Transcript, challenges: usize, depth: u64) -> Slot {
-        let mut sampler = Poseidon2Transcript::from_state_and_absorbed(transcript.outgoing_state().map(G::from_u64), 0);
+        let mut sampler = Poseidon2Transcript::from_state_and_absorbed(transcript.outgoing_state().map(F::from_u64), 0);
         let rho = sample_rot_rhos_n_typed(
             &mut sampler,
-            &NeoParams::nightstream_goldilocks_k16(),
-            &RotRing::goldilocks(),
+            &NeoParams::nightstream_p64_k16(),
+            &RotRing::profile(),
             challenges,
         )
         .expect("challenges")
         .remove(0);
-        let public_input = (0..270)
+        let public_input = (0..PUBLIC_WORDS)
             .map(|column| {
                 let (lane, block) = (column % D, column / D);
-                (0..D).fold(G::ZERO, |sum, source| {
+                (0..D).fold(F::ZERO, |sum, source| {
                     sum + rho.as_mat()[(lane, source)] * self.fresh_public_input[block * D + source]
                 })
             })
@@ -121,7 +121,7 @@ impl StepZero {
             point: transcript
                 .round_point()
                 .iter()
-                .map(|value| value.map(G::from_u64) as KWords)
+                .map(|value| value.map(F::from_u64) as KWords)
                 .collect(),
             public_input,
             depth,
@@ -154,16 +154,16 @@ impl StepZero {
                 default.digest(),
                 self.output,
             ],
-            fresh_commitment: vec![G::ZERO; 1188],
+            fresh_commitment: vec![F::ZERO; COMMITMENT_WORDS],
             fresh_public_input: self.fresh_public_input.clone(),
-            rounds: vec![[[G::ZERO; 2]; 9]; 28],
+            rounds: vec![[[F::ZERO; 2]; 9]; 28],
             fold,
         }
     }
 }
 
 /// Checks every row on the step's witness and returns its logical assignment.
-pub fn assert_every_row_holds(package: &StepPackage, step: &StepWords) -> Vec<G> {
+pub fn assert_every_row_holds(package: &StepPackage, step: &StepWords) -> Vec<F> {
     let shared = step.columns().expect("step words");
     let rows = package.plan_rows().expect("plan rows");
     let columns = package.circuit_columns(&shared).expect("circuit columns");
@@ -171,7 +171,7 @@ pub fn assert_every_row_holds(package: &StepPackage, step: &StepWords) -> Vec<G>
         .relation_columns(columns, &rows)
         .expect("relation columns");
     let failing: Vec<usize> = (0..rows.row_count())
-        .filter(|&row| rows.residual(row, &columns) != G::ZERO)
+        .filter(|&row| rows.residual(row, &columns) != F::ZERO)
         .collect();
     assert!(
         failing.is_empty(),
@@ -188,7 +188,7 @@ pub fn assert_every_row_holds(package: &StepPackage, step: &StepWords) -> Vec<G>
             .expect("logical row")
     };
     let failing: Vec<usize> = (0..rows.row_count())
-        .filter(|&row| port(row, 0) * port(row, 1) - port(row, 2) + port(row, 3).exp_u64(7) != G::ZERO)
+        .filter(|&row| port(row, 0) * port(row, 1) - port(row, 2) + port(row, 3).exp_u64(7) != F::ZERO)
         .collect();
     assert!(
         failing.is_empty(),

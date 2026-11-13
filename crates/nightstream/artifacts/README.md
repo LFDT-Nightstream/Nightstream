@@ -15,7 +15,7 @@ Proving, verification and Rust builds do not run Lean.
 
 The copies are normal Git files, so a Git dependency of `nightstream` builds
 and proves without any file of the repository. Together they add about
-2.2 MB to a binary, and each unpacks once. After a Lean regeneration of a
+1.4 MB to a binary, and each unpacks once. After a Lean regeneration of a
 package, make its copy again from this directory, then run
 `cargo test --release -p nightstream --lib artifacts::`, which checks that
 each copy is the Lean output and hashes to its pin:

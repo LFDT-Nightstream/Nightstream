@@ -15,7 +15,7 @@ pub mod relation;
 pub(crate) use circuit::References;
 pub use circuit::{ApplicationSize, Circuit, Error, Proof, Prover, State, Verifier};
 pub use engine::{Engine, EngineError};
-/// The Goldilocks field of every state, input and output word, and the
+pub use neo_math::Fq;
+/// The field `F_q`, `q = 2^64 − 59`, of every state, input and output word, and the
 /// Plonky3 traits that build and read its elements.
 pub use p3_field::{PrimeCharacteristicRing, PrimeField64};
-pub use p3_goldilocks::Goldilocks;

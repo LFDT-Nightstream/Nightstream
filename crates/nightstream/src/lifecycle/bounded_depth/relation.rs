@@ -196,7 +196,7 @@ impl Relation {
     }
 
     /// The shape that a slot's claim and the state words need: the selected
-    /// commitment, the 270 public words, the 28-coordinate point and canonical
+    /// commitment, the public words, the 28-coordinate point and canonical
     /// evaluations.
     pub(crate) fn shape(&self, claim: &CeClaim) -> Result<(), &'static str> {
         if claim.adv.is_some()

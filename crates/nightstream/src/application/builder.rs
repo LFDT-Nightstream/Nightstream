@@ -1,11 +1,11 @@
 use std::{fmt, ops::Range, sync::Arc};
 
+use neo_math::Fq;
 use nightstream_fprime::{
     ApplicationForm, ApplicationRecords, ApplicationRecordsWriter, ApplicationRowHeader, ApplicationTerm, Linear,
     NativeBlock, NativeShape, PackageError,
 };
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
-use p3_goldilocks::Goldilocks;
 
 use super::{Affine, Expression, R1csRow, Variable};
 
@@ -140,7 +140,7 @@ impl ApplicationBuilder {
         self.validate(&value, true)?;
         let value = value.flatten_if_nested_shared();
         let recipe = value.expression.clone();
-        self.generate(value, Affine::constant(Goldilocks::ONE), recipe)
+        self.generate(value, Affine::constant(Fq::ONE), recipe)
     }
 
     pub fn multiply(&mut self, a: Affine, b: Affine) -> Result<Variable, ApplicationError> {
@@ -197,7 +197,7 @@ impl ApplicationBuilder {
             (
                 R1csRow {
                     a: right,
-                    b: Affine::constant(Goldilocks::ONE),
+                    b: Affine::constant(Fq::ONE),
                     c: left,
                 },
                 ApplicationForm::C,
@@ -206,8 +206,8 @@ impl ApplicationBuilder {
             (
                 R1csRow {
                     a: left - right,
-                    b: Affine::constant(Goldilocks::ONE),
-                    c: Affine::constant(Goldilocks::ZERO),
+                    b: Affine::constant(Fq::ONE),
+                    c: Affine::constant(Fq::ZERO),
                 },
                 ApplicationForm::A,
             )
@@ -399,11 +399,7 @@ impl ApplicationCircuit {
         std::array::from_fn(|lane| Variable(self.generated_start - 4 + lane))
     }
 
-    pub fn execute(
-        &self,
-        input: [Goldilocks; 4],
-        private_inputs: &[Goldilocks],
-    ) -> Result<ApplicationWitness, ApplicationError> {
+    pub fn execute(&self, input: [Fq; 4], private_inputs: &[Fq]) -> Result<ApplicationWitness, ApplicationError> {
         if private_inputs.len() != self.private_inputs.len() {
             return Err(ApplicationError::PrivateInputCount {
                 expected: self.private_inputs.len(),
@@ -414,18 +410,16 @@ impl ApplicationCircuit {
         values
             .try_reserve_exact(self.variable_count)
             .map_err(|_| ApplicationError::Allocation)?;
-        values.resize(self.variable_count, Goldilocks::ZERO);
+        values.resize(self.variable_count, Fq::ZERO);
         values[..4].copy_from_slice(&input);
         values[4..self.generated_start - 4].copy_from_slice(private_inputs);
         let mut walk = self.records.walk();
         for offset in 0..self.records.recipe_count() {
             let row = walk.recipe_row(offset)?;
-            let [a, b, _] = walk
-                .evaluate_row(row, lookup(&values))?
-                .map(Goldilocks::from_u64);
+            let [a, b, _] = walk.evaluate_row(row, lookup(&values))?.map(Fq::from_u64);
             values[self.generated_start + offset] = a * b;
         }
-        let mut output_state = [Goldilocks::ZERO; 4];
+        let mut output_state = [Fq::ZERO; 4];
         for ((value, output), variable) in output_state
             .iter_mut()
             .zip(self.outputs)
@@ -442,7 +436,7 @@ impl ApplicationCircuit {
         })
     }
 
-    pub fn check(&self, values: &[Goldilocks]) -> Result<(), ApplicationError> {
+    pub fn check(&self, values: &[Fq]) -> Result<(), ApplicationError> {
         if values.len() != self.variable_count {
             return Err(ApplicationError::WitnessLength {
                 expected: self.variable_count,
@@ -455,22 +449,12 @@ impl ApplicationCircuit {
         }
     }
 
-    fn evaluate(
-        &self,
-        row: usize,
-        form: ApplicationForm,
-        values: &[Goldilocks],
-    ) -> Result<Goldilocks, ApplicationError> {
+    fn evaluate(&self, row: usize, form: ApplicationForm, values: &[Fq]) -> Result<Fq, ApplicationError> {
         let value = self.records.evaluate_form(row, form, lookup(values))?;
-        Ok(Goldilocks::from_u64(value))
+        Ok(Fq::from_u64(value))
     }
 
-    fn output_expression(
-        &self,
-        output: OutputRow,
-        variable: Variable,
-        values: &[Goldilocks],
-    ) -> Result<Goldilocks, ApplicationError> {
+    fn output_expression(&self, output: OutputRow, variable: Variable, values: &[Fq]) -> Result<Fq, ApplicationError> {
         let value = self.evaluate(output.row, output.form, values)?;
         if output.form == ApplicationForm::A {
             Ok(value + values[variable.0])
@@ -480,7 +464,7 @@ impl ApplicationCircuit {
     }
 }
 
-fn lookup(values: &[Goldilocks]) -> impl Fn(usize) -> Result<u64, ApplicationError> + Sync + '_ {
+fn lookup(values: &[Fq]) -> impl Fn(usize) -> Result<u64, ApplicationError> + Sync + '_ {
     |index| {
         values
             .get(index)
@@ -491,20 +475,20 @@ fn lookup(values: &[Goldilocks]) -> impl Fn(usize) -> Result<u64, ApplicationErr
 
 #[derive(Clone, Debug)]
 pub struct ApplicationWitness {
-    values: Vec<Goldilocks>,
+    values: Vec<Fq>,
     generated_start: usize,
-    output_state: [Goldilocks; 4],
+    output_state: [Fq; 4],
 }
 
 impl ApplicationWitness {
-    pub fn values(&self) -> &[Goldilocks] {
+    pub fn values(&self) -> &[Fq] {
         &self.values
     }
-    pub fn output_state(&self) -> [Goldilocks; 4] {
+    pub fn output_state(&self) -> [Fq; 4] {
         self.output_state
     }
     /// The value of each recipe, in recipe order.
-    pub(crate) fn locals(&self) -> &[Goldilocks] {
+    pub(crate) fn locals(&self) -> &[Fq] {
         &self.values[self.generated_start..]
     }
 }

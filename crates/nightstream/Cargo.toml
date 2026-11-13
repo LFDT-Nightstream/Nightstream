@@ -30,7 +30,6 @@ neo-ajtai = { path = "../neo-ajtai" }
 neo-transcript = { path = "../neo-transcript" }
 neo-reductions = { path = "../neo-reductions" }
 p3-field = { workspace = true }
-p3-goldilocks = { workspace = true }
 rayon = { workspace = true }
 bincode = { workspace = true }
 serde = { workspace = true }

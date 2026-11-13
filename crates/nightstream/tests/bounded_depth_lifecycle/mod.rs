@@ -93,7 +93,11 @@ fn light_folds_and_a_refresh_verify() {
         fresh.claim.c = commit_production_signed_unit_prefix_matrix(&fresh.witness.Z).expect("commitment");
         tampered
     };
-    rejects(&recommitted(300), "a relation row fails");
+    // Coordinate 30 of the first slot after the public words.
+    rejects(
+        &recommitted(nightstream_fprime::PUBLIC_WORDS + 30),
+        "a relation row fails",
+    );
     let blocks = envelope
         .fresh
         .as_ref()
@@ -111,7 +115,7 @@ fn light_folds_and_a_refresh_verify() {
     rejects(&tampered, "fixed-key commitment differs from the witness");
 }
 
-/// The slot check holds a witness to `(17 + depth) · 216`, the Lean
+/// The slot check holds a witness to `(1 + depth + k_rho) · T · (b − 1) = (17 + depth) · 128`, the Lean
 /// `accumulatorBound` of the production parameters, on both signs, and
 /// refuses a depth above the cap. No accepted proof can isolate this check in
 /// `verify`: a slot above its bound needs a second opening of its commitment.
@@ -130,7 +134,7 @@ fn a_slot_is_held_to_the_bound_of_its_depth() {
     );
     let q = F::ORDER_U64;
     for depth in [0, 1, LIGHT_FOLD_CAP] {
-        let bound = (17 + depth) * 216;
+        let bound = (17 + depth) * 128;
         slot.depth = depth;
         for (coefficient, accepted) in [
             (bound, true),

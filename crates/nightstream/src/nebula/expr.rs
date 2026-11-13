@@ -10,8 +10,8 @@ use std::{
     rc::Rc,
 };
 
+use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
-use p3_goldilocks::Goldilocks as F;
 
 use crate::application::{Affine, ApplicationBuilder, ApplicationError, Variable};
 

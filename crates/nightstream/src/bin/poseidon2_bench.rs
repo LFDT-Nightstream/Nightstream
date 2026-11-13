@@ -11,7 +11,7 @@ use std::{
 
 use nightstream::{
     application::{poseidon2_hash_chain_step, poseidon2_hash_chain_v1},
-    Circuit, Engine, Goldilocks as F, PrimeCharacteristicRing, PrimeField64, Prover, State,
+    Circuit, Engine, Fq as F, PrimeCharacteristicRing, PrimeField64, Prover, State,
 };
 use serde_json::{json, Value};
 
@@ -82,7 +82,7 @@ fn options() -> Result<Option<Command>> {
                     .ok_or("--steps requires a positive count")?
                     .parse()?;
                 if count == 0 || count >= F::ORDER_U64 {
-                    return Err("--steps must be positive and below the Goldilocks modulus".into());
+                    return Err("--steps must be positive and below the field modulus".into());
                 }
                 steps = Some(count);
             }
@@ -132,7 +132,7 @@ fn end(phase: &str, step: Option<u64>, started: Instant) -> Result<()> {
 }
 
 fn compile(output: &Path) -> Result<()> {
-    let profile = neo_params::NeoParams::nightstream_goldilocks_k16();
+    let profile = neo_params::NeoParams::nightstream_p64_k16();
     emit(json!({
         "event":"package_compile_started", "schema":2, "benchmark":"poseidon2_hash_chain_v1",
         "output":output,
@@ -153,7 +153,7 @@ fn compile(output: &Path) -> Result<()> {
 }
 
 fn benchmark(package: &Path, engine: Engine, steps: u64, minimum_security_bits: u32) -> Result<()> {
-    let profile = neo_params::NeoParams::nightstream_goldilocks_k16();
+    let profile = neo_params::NeoParams::nightstream_p64_k16();
     emit(json!({
         "event":"benchmark_started", "schema":2, "benchmark":"poseidon2_hash_chain_v1",
         "timing_scope":"prepared_package_load_prove_verify", "package":package,

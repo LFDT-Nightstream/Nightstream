@@ -4,26 +4,17 @@ Lean installation. The Rust application builder does not read them, and
 
 ## Poseidon2 application
 
-`poseidon2-application-reference.json` is the application plan of the Lean
-Poseidon2 hash chain (`Lifecycle/Stage1/Poseidon2HashChainV1.lean`). It holds
-the four input state columns, the four private message columns, the four
-output state columns, all 5,484 application rows and all 5,480 witness
-recipes.
+`poseidon2-hash-chain-v1-digest.json` holds the row count, 5,484, and a digest
+of the rows of the Lean Poseidon2 hash chain
+(`Lifecycle/Stage1/Poseidon2HashChainV1.lean`), in the variable order of the
+Rust application (`EmitMain.applicationDigest`).
 
-`poseidon2-application-execution.json` holds `[prior_state, message, output]`
-of one recorded Lean step.
-
-The Lean emitter of these two files was removed. No command in the repository
-makes them again.
-
-`tests/application_poseidon2.rs` reads them. The row test compares the
-canonical A/B/C coefficients, the variable columns and the row order of the
-Rust Poseidon2 application with the recorded rows. The witness test executes
-the recorded Lean witness recipes and compares every generated value. It also
-compares the output with the recorded output and with the native Poseidon2
-hash. A third test checks that a changed input, output or intermediate value
-fails the constraints. These checks cover this one application. They are not
-a proof for all Rust applications.
+`tests/application/poseidon2.rs` reads it. The row test requires the Rust
+Poseidon2 application to have the same rows, row for row. A second test
+checks that the Rust witness satisfies the rows and that its output is the
+native Poseidon2 hash. A third test checks that a changed input, output or
+intermediate value fails the constraints. These checks cover this one
+application. They are not a proof for all Rust applications.
 
 ## Nebula memory applications
 
@@ -68,11 +59,12 @@ timeout --signal=KILL 1500 bash scripts/validate.sh lean-executable .lake/build/
 count and a digest of the rows of each memory application, in the variable
 order of the Rust application (`EmitMain.applicationDigest`).
 `tests/nebula/parity.rs` requires the Rust-built memory circuit to have the
-same rows. Make them again from `formal/nightstream-fprime`, after
-`scripts/validate.sh executables`:
+same rows. Make the four digest files again from `formal/nightstream-fprime`,
+after `scripts/validate.sh executables`:
 
 ```sh
+timeout --signal=KILL 1500 bash scripts/validate.sh lean-executable .lake/build/bin/emitBoundedDepth --application-digest poseidon2-hash-chain-v1 ../../crates/nightstream/tests/fixtures/poseidon2-hash-chain-v1-digest.json
 timeout --signal=KILL 1500 bash scripts/validate.sh lean-executable .lake/build/bin/emitBoundedDepth --application-digest nebula-v1 ../../crates/nightstream/tests/fixtures/nebula-memory-v1-digest.json
 timeout --signal=KILL 1500 bash scripts/validate.sh lean-executable .lake/build/bin/emitBoundedDepth --application-digest nebula-n1 ../../crates/nightstream/tests/fixtures/nebula-memory-n1-digest.json
---application-digest nebula-r1 ../../crates/nightstream/tests/fixtures/nebula-memory-r1-digest.json
+timeout --signal=KILL 1500 bash scripts/validate.sh lean-executable .lake/build/bin/emitBoundedDepth --application-digest nebula-r1 ../../crates/nightstream/tests/fixtures/nebula-memory-r1-digest.json
 ```

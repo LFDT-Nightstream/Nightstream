@@ -11,8 +11,8 @@ use super::{
     Application, Context, Expr, Machine, MachineError, MachineState, Memory, Package, Program, ProgramError, Run,
     SegmentError, Statement, Step, TerminalError, Transition, View,
 };
+use neo_math::F;
 use p3_field::{BasedVectorSpace, PrimeCharacteristicRing, PrimeField64};
-use p3_goldilocks::Goldilocks as F;
 
 /// The Stage 1 input state that an invocation's own words open to. The carry
 /// words come first; the machine's five words come last (input state, output

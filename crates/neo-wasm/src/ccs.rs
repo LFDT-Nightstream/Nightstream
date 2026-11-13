@@ -985,9 +985,9 @@ const COMPARATOR_OPS: &[WasmOpcode] = &[
 /// `COL_ZERO_TEST_LO_IS_ZERO = (zero_test_lo_input == 0)`.
 ///
 /// **The i64 comparators need a split limb-by-limb zero-test.** The
-/// Goldilocks modulus `q = 2^64 - 2^32 + 1` does not have an injective
+/// modulus `q = 2^64 - 59` does not have an injective
 /// u64 → field-element embedding for the obvious `lo + hi*2^32` map: the
-/// value `(lo=1, hi=0xffffffff)` is exactly `q ≡ 0`, so a single field
+/// value `(lo=0xffffffc5, hi=0xffffffff)` is exactly `q ≡ 0`, so a single field
 /// zero-test would wrongly accept it. For i64.eqz / i64.eq / i64.ne we
 /// pin `COL_ZERO_TEST_HI_INPUT` to the hi-limb diff, zero-test it independently,
 /// and AND the two flags into `COL_CMP_AND`. The i64 write-backs use

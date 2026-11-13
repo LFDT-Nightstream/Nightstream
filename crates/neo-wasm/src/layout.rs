@@ -246,8 +246,8 @@ define_column_region! {
         //
         // The i64 comparators (i64.eqz / i64.eq / i64.ne) need a hi-limb
         // zero-test too: the full u64 value does not embed injectively into
-        // Goldilocks (q = 2^64 - 2^32 + 1 has a nontrivial preimage at
-        // lo=1, hi=0xffffffff). We pin COL_ZERO_TEST_HI_INPUT to the hi-limb input,
+        // the field (q = 2^64 - 59 has a nontrivial preimage at
+        // lo=0xffffffc5, hi=0xffffffff). We pin COL_ZERO_TEST_HI_INPUT to the hi-limb input,
         // zero-test it independently, and AND the two flags into COL_CMP_AND.
         COL_ZERO_TEST_LO_INPUT: Field => "shared zero-test input (lo limb / full i32 input)",
         COL_ZERO_TEST_LO_INV: Field => "shared zero-test inverse witness",

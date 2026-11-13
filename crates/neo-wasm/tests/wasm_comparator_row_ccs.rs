@@ -16,7 +16,13 @@ use neo_wasm::{
     opcode_code, opcode_info_from_code, StackValueAccess, WasmCountdownState, WasmFrameMoveState, WasmOpcode,
     WasmOutputState, WasmPcEdgeKind, WasmRowKind, WasmStepState, WasmVmStep,
 };
-use p3_field::PrimeCharacteristicRing;
+use p3_field::{PrimeCharacteristicRing, PrimeField64};
+
+/// The 32-bit limbs of `q`: the u64 value that is the field zero and not the
+/// integer 0.
+fn modulus_limbs() -> [F; 2] {
+    [F::ORDER_U64 & 0xFFFF_FFFF, F::ORDER_U64 >> 32].map(F::from_u64)
+}
 
 fn step(
     opcode: WasmOpcode,
@@ -156,13 +162,13 @@ fn i64_eqz_row_accepts_zero_and_nonzero_inputs() {
     }
 }
 
-/// Regression: Goldilocks has q = 2^64 - 2^32 + 1, so the u64 value
-/// 0xffff_ffff_0000_0001 = q is the field zero (not the i64's 0). An i64.eqz
+/// Regression: the field has q = 2^64 - 59, so the u64 value
+/// 0xffff_ffff_ffff_ffc5 = q is the field zero (not the i64's 0). An i64.eqz
 /// zero-test over a single field element `lo + hi*2^32` would wrongly accept
-/// `eqz(0xffff_ffff_0000_0001) = 1`. The split limb-by-limb zero-test must
+/// `eqz(0xffff_ffff_ffff_ffc5) = 1`. The split limb-by-limb zero-test must
 /// reject this.
 #[test]
-fn i64_eqz_row_rejects_goldilocks_modulus_collision() {
+fn i64_eqz_row_rejects_modulus_collision() {
     let mut row = build_witness_vector(&step(
         WasmOpcode::I64Eqz,
         1,
@@ -173,12 +179,13 @@ fn i64_eqz_row_rejects_goldilocks_modulus_collision() {
         true,
     ))
     .unwrap();
-    row[COL_STACK_READ_VALUE_LO[0]] = F::from_u64(1);
-    row[COL_STACK_READ_VALUE_HI[0]] = F::from_u64(0xFFFF_FFFFu64);
+    let [lo, hi] = modulus_limbs();
+    row[COL_STACK_READ_VALUE_LO[0]] = lo;
+    row[COL_STACK_READ_VALUE_HI[0]] = hi;
     row[COL_ZERO_TEST_LO_INPUT] = F::ZERO;
     row[COL_ZERO_TEST_LO_INV] = F::ZERO;
     row[COL_ZERO_TEST_LO_IS_ZERO] = F::ONE;
-    assert_rejected(&row, "i64.eqz must reject Goldilocks-modulus collision");
+    assert_rejected(&row, "i64.eqz must reject the modulus collision");
 }
 
 #[test]
@@ -253,12 +260,12 @@ fn i64_eq_and_ne_rows_accept_equal_and_distinct_inputs() {
     }
 }
 
-/// Same Goldilocks-modulus collision concern as `i64_eqz_row_rejects_*`,
+/// Same modulus collision concern as `i64_eqz_row_rejects_*`,
 /// but applied to i64.eq: claim eq(lhs, rhs) = 1 when (lhs-rhs) =
-/// 0xffff_ffff_0000_0001 ≡ 0 mod q. The split limb-by-limb gates must
+/// 0xffff_ffff_ffff_ffc5 ≡ 0 mod q. The split limb-by-limb gates must
 /// still see a nonzero hi-limb diff and reject.
 #[test]
-fn i64_eq_row_rejects_goldilocks_modulus_collision() {
+fn i64_eq_row_rejects_modulus_collision() {
     let mut row = build_witness_vector(&step(
         WasmOpcode::I64Eq,
         2,
@@ -269,14 +276,15 @@ fn i64_eq_row_rejects_goldilocks_modulus_collision() {
         true,
     ))
     .unwrap();
-    row[COL_STACK_READ_VALUE_LO[0]] = F::from_u64(1);
-    row[COL_STACK_READ_VALUE_HI[0]] = F::from_u64(0xFFFF_FFFFu64);
+    let [lo, hi] = modulus_limbs();
+    row[COL_STACK_READ_VALUE_LO[0]] = lo;
+    row[COL_STACK_READ_VALUE_HI[0]] = hi;
     row[COL_STACK_READ_VALUE_LO[1]] = F::ZERO;
     row[COL_STACK_READ_VALUE_HI[1]] = F::ZERO;
     row[COL_ZERO_TEST_LO_INPUT] = F::ZERO;
     row[COL_ZERO_TEST_LO_INV] = F::ZERO;
     row[COL_ZERO_TEST_LO_IS_ZERO] = F::ONE;
-    assert_rejected(&row, "i64.eq must reject Goldilocks-modulus collision");
+    assert_rejected(&row, "i64.eq must reject the modulus collision");
 }
 
 #[test]

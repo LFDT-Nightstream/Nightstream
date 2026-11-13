@@ -49,7 +49,7 @@ pub(crate) fn push_u32_le_bytes_decomp<const N: usize>(
 ///
 /// It enforces `lhs - rhs + 2^32 = low + ge * 2^32`, where `low` is `U32` and
 /// `ge` is boolean. Since `lhs, rhs < 2^32`, the shifted value is in
-/// `[1, 2^33)`, below the Goldilocks modulus, so the split is unique:
+/// `[1, 2^33)`, below the modulus, so the split is unique:
 /// `ge = 1` iff `lhs >= rhs`.
 ///
 /// `gate_cols` activate the row through their sum. Callers normally pass

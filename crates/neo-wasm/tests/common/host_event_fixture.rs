@@ -142,10 +142,7 @@ pub fn host_event_lifecycle_setup() -> HostEventLifecycleSetup {
 
 /// The transcript the verifier expects: export entry, the mul call and its
 /// result, the sink call, and the export exit carrying the output.
-pub fn expected_transcript(
-    bindings: &HostEventBindings,
-    run_fref: u32,
-) -> Vec<[p3_goldilocks::Goldilocks; COMM_CHAIN_BLOCK_WORDS]> {
+pub fn expected_transcript(bindings: &HostEventBindings, run_fref: u32) -> Vec<[neo_math::F; COMM_CHAIN_BLOCK_WORDS]> {
     let template = bindings.exports.get(&run_fref).expect("export template");
     let mut blocks = neo_wasm::host_event_bindings::expand_export_entry(template, &[]).expect("entry");
     blocks = absorbed_blocks(&template.entry, &blocks).expect("absorbed entry");
@@ -186,6 +183,6 @@ pub fn expected_transcript(
     );
     blocks
         .into_iter()
-        .map(|block| block.map(p3_goldilocks::Goldilocks::from_u64))
+        .map(|block| block.map(neo_math::F::from_u64))
         .collect()
 }

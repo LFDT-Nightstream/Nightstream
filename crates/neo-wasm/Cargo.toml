@@ -43,7 +43,6 @@ neo-ccs = { path = "../neo-ccs" }
 neo-math = { path = "../neo-math" }
 futures = "0.3"
 p3-field = { workspace = true }
-p3-goldilocks = { workspace = true }
 thiserror = { workspace = true }
 wasmparser = "0.240"
 wasmtime = { version = "51.0.0-rc.1", default-features = false, features = [

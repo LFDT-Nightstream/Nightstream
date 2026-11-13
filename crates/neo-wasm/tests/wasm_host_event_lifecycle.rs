@@ -104,7 +104,7 @@ fn host_event_folding_proof_covers_import_and_export_events() {
         anchor, trace[0].state_before,
         "verifier initial state must match the trace's first before-state"
     );
-    let f = p3_goldilocks::Goldilocks::from_u64;
+    let f = neo_math::F::from_u64;
     let initial_comm_chain = neo_wasm::CommChainState::new([f(11), f(22), f(33), f(44)]);
     let initial_state = neo_wasm::host_event_top_level_initial_state(
         &artifacts.tables,
@@ -153,7 +153,7 @@ fn host_event_folding_proof_covers_import_and_export_events() {
         "the claimed transcript must match"
     );
     let mut wrong = expected;
-    wrong[0][1] += p3_goldilocks::Goldilocks::ONE;
+    wrong[0][1] += neo_math::F::ONE;
     assert_ne!(
         final_state.comm_chain,
         fold(&wrong),

@@ -4,8 +4,8 @@
 use super::{opaque_control_encoding, EventBlock, SlotBinding};
 use crate::WasmBuildError;
 use neo_application::event_commitment::commit_block;
+use neo_math::F;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
-use p3_goldilocks::Goldilocks;
 
 const DOMAIN: u64 = u64::from_le_bytes(*b"NEOOBJ01");
 
@@ -18,7 +18,7 @@ fn header(schema: [u64; 4], len: usize) -> [u64; 8] {
 }
 
 fn canonical(words: &[u64]) -> Result<(), WasmBuildError> {
-    if words.iter().any(|&word| word >= Goldilocks::ORDER_U64) {
+    if words.iter().any(|&word| word >= F::ORDER_U64) {
         return Err(error("non-canonical field word"));
     }
     Ok(())
@@ -43,7 +43,7 @@ pub fn opaque_value_root(schema: [u64; 4], words: &[u64]) -> Result<[u64; 4], Wa
 }
 
 fn absorb(state: [u64; 4], block: [u64; 8]) -> [u64; 4] {
-    commit_block(state.map(Goldilocks::from_u64), block.map(Goldilocks::from_u64)).map(|value| value.as_canonical_u64())
+    commit_block(state.map(F::from_u64), block.map(F::from_u64)).map(|value| value.as_canonical_u64())
 }
 
 impl EventBlock {

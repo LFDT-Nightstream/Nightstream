@@ -5,8 +5,8 @@
 //! this module owns only wasm's event-block interpretation and row transitions.
 
 use crate::ir::WasmVmStep;
+use neo_math::F;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
-use p3_goldilocks::Goldilocks;
 
 use neo_application::event_commitment::{self, EVENT_COMMITMENT_BLOCK_WIDTH, EVENT_COMMITMENT_STATE_WIDTH};
 
@@ -19,10 +19,7 @@ pub const COMM_CHAIN_EVENT_ARGS: usize = EVENT_COMMITMENT_BLOCK_WIDTH - 1;
 pub use neo_application::event_commitment::EventCommitmentState as CommChainState;
 
 /// Fold event blocks from the supplied initial commitment state.
-pub fn fold_event_blocks(
-    initial_state: CommChainState,
-    blocks: &[[Goldilocks; COMM_CHAIN_BLOCK_WORDS]],
-) -> CommChainState {
+pub fn fold_event_blocks(initial_state: CommChainState, blocks: &[[F; COMM_CHAIN_BLOCK_WORDS]]) -> CommChainState {
     event_commitment::fold_blocks(initial_state, blocks)
 }
 
@@ -32,17 +29,16 @@ pub fn absorb_block(
     chain: [u64; COMM_CHAIN_STATE_LEN],
     evbuf: [u64; COMM_CHAIN_BLOCK_WORDS],
 ) -> [u64; COMM_CHAIN_STATE_LEN] {
-    event_commitment::commit_block(chain.map(Goldilocks::from_u64), evbuf.map(Goldilocks::from_u64))
-        .map(|lane| lane.as_canonical_u64())
+    event_commitment::commit_block(chain.map(F::from_u64), evbuf.map(F::from_u64)).map(|lane| lane.as_canonical_u64())
 }
 
 /// Absorb one host event into the chain: `H([prev | discriminant | args])`.
 pub fn commit_event(
-    prev: [Goldilocks; COMM_CHAIN_STATE_LEN],
-    discriminant: Goldilocks,
-    args: [Goldilocks; COMM_CHAIN_EVENT_ARGS],
-) -> [Goldilocks; COMM_CHAIN_STATE_LEN] {
-    let mut block = [Goldilocks::ZERO; COMM_CHAIN_BLOCK_WORDS];
+    prev: [F; COMM_CHAIN_STATE_LEN],
+    discriminant: F,
+    args: [F; COMM_CHAIN_EVENT_ARGS],
+) -> [F; COMM_CHAIN_STATE_LEN] {
+    let mut block = [F::ZERO; COMM_CHAIN_BLOCK_WORDS];
     block[0] = discriminant;
     block[1..].copy_from_slice(&args);
     event_commitment::commit_block(prev, block)

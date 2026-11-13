@@ -5,9 +5,15 @@
 //! same vectors are pinned by a test there. If either side changes the
 //! permutation instantiation or the compression layout, both tests must be
 //! updated together.
+//!
+//! The digests are those of the width-12 Poseidon2 instance over
+//! `q = 2^64 − 59` (`decisions/poseidon2-p64-instance.md`). They come from the
+//! Python reference permutation of `scripts/poseidon2/check.py` on
+//! `scripts/poseidon2/params.json`, as `permute(prev ‖ discriminant ‖ args)[..4] + prev`.
 
 mod common;
 
+use neo_math::F;
 use neo_wasm::comm_chain::{
     self, commit_event, fold_event_blocks, CommChainState, COMM_CHAIN_EVENT_ARGS, COMM_CHAIN_STATE_LEN,
 };
@@ -15,39 +21,37 @@ use neo_wasm::layout::{COL_COMM_CHAIN_AFTER, COL_EVBUF_AFTER, COL_EVBUF_BEFORE};
 use neo_wasm::witness_builder::build_witness_vector;
 use neo_wasm::WasmVmStep;
 use p3_field::PrimeCharacteristicRing;
-use p3_goldilocks::Goldilocks;
 
-fn f(x: u64) -> Goldilocks {
-    Goldilocks::from_u64(x)
+fn f(x: u64) -> F {
+    F::from_u64(x)
 }
 
 #[test]
 fn comm_chain_fixture_vectors() {
     // Vector 1: genesis state, discriminant 1, args 1..=7.
-    let prev = [Goldilocks::ZERO; COMM_CHAIN_STATE_LEN];
-    let args: [Goldilocks; COMM_CHAIN_EVENT_ARGS] = core::array::from_fn(|i| f(i as u64 + 1));
+    let prev = [F::ZERO; COMM_CHAIN_STATE_LEN];
+    let args: [F; COMM_CHAIN_EVENT_ARGS] = core::array::from_fn(|i| f(i as u64 + 1));
     let state1 = commit_event(prev, f(1), args);
     assert_eq!(
         state1,
         [
-            f(16060384774117980274),
-            f(6217562501851223455),
-            f(9809238410420041413),
-            f(4191298748431046296),
+            f(8614005215749788708),
+            f(11184983940043411839),
+            f(8347397391263611332),
+            f(1249284246966106980),
         ]
     );
 
     // Vector 2: chained on vector 1, discriminant 16, distinctive args.
-    let args2: [Goldilocks; COMM_CHAIN_EVENT_ARGS] =
-        [f(0xffff_ffff), f(0xffff_ffff_0000_0000), f(0), f(42), f(7), f(0), f(1)];
+    let args2: [F; COMM_CHAIN_EVENT_ARGS] = [f(0xffff_ffff), f(0xffff_ffff_0000_0000), f(0), f(42), f(7), f(0), f(1)];
     let state2 = commit_event(state1, f(16), args2);
     assert_eq!(
         state2,
         [
-            f(2581777910110991851),
-            f(4248944502313846729),
-            f(3337412769805346927),
-            f(12455009736376722043),
+            f(849658000895742526),
+            f(2588462337204377226),
+            f(8398268172638123514),
+            f(4047208784159907931),
         ]
     );
 }
@@ -56,7 +60,7 @@ fn comm_chain_fixture_vectors() {
 fn event_blocks_fold_from_explicit_initial_state() {
     let initial_lanes = [f(11), f(22), f(33), f(44)];
     let initial = CommChainState::new(initial_lanes);
-    let block: [Goldilocks; 8] = core::array::from_fn(|i| f(i as u64 + 1));
+    let block: [F; 8] = core::array::from_fn(|i| f(i as u64 + 1));
 
     let expected = commit_event(initial_lanes, block[0], block[1..].try_into().expect("event args"));
     let folded = fold_event_blocks(initial, &[block]);

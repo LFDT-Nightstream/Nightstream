@@ -202,7 +202,7 @@ fn expected_transcript(
     add_fref: u32,
     turns: &[Vec<u64>],
     outputs: &[u32],
-) -> Vec<[p3_goldilocks::Goldilocks; 8]> {
+) -> Vec<[neo_math::F; 8]> {
     let template = bindings.exports.get(&add_fref).expect("template");
     let mut blocks = Vec::new();
     for (turn, &output) in turns.iter().zip(outputs) {
@@ -213,7 +213,7 @@ fn expected_transcript(
     }
     blocks
         .into_iter()
-        .map(|block| block.map(p3_goldilocks::Goldilocks::from_u64))
+        .map(|block| block.map(neo_math::F::from_u64))
         .collect()
 }
 
@@ -869,9 +869,9 @@ fn resultless_turn_can_precede_another_turn() {
         )
         .expect("absorbed read exit"),
     );
-    let lifted: Vec<[p3_goldilocks::Goldilocks; 8]> = blocks
+    let lifted: Vec<[neo_math::F; 8]> = blocks
         .into_iter()
-        .map(|block| block.map(p3_goldilocks::Goldilocks::from_u64))
+        .map(|block| block.map(neo_math::F::from_u64))
         .collect();
     let final_state = common::final_state(&trace);
     assert_eq!((final_state.output.value_lo, final_state.output.enabled), (41, true));

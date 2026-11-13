@@ -372,9 +372,9 @@ fn advice_import_pushes_without_absorbing() {
         .expect("bindings ROM contents match");
 
     // Only `sink` contributes to the chain.
-    let f = p3_goldilocks::Goldilocks::from_u64;
+    let f = neo_math::F::from_u64;
     let expected = neo_wasm::comm_chain::commit_event(
-        [p3_goldilocks::Goldilocks::ZERO; 4],
+        [neo_math::F::ZERO; 4],
         f(SINK_TAG),
         core::array::from_fn(|i| if i == 0 { f(42) } else { f(0) }),
     );
@@ -443,8 +443,8 @@ fn host_event_trace_folds_expanded_blocks() {
     );
 
     // The carried chain equals the fold of exactly those blocks.
-    let f = p3_goldilocks::Goldilocks::from_u64;
-    let mut chain = [p3_goldilocks::Goldilocks::ZERO; 4];
+    let f = neo_math::F::from_u64;
+    let mut chain = [neo_math::F::ZERO; 4];
     for block in &staged {
         chain = neo_wasm::comm_chain::commit_event(chain, f(block[0]), core::array::from_fn(|i| f(block[1 + i])));
     }
@@ -457,10 +457,10 @@ fn host_event_trace_folds_expanded_blocks() {
 
 #[test]
 fn host_event_trace_folds_from_explicit_initial_state() {
-    let f = p3_goldilocks::Goldilocks::from_u64;
+    let f = neo_math::F::from_u64;
     let initial = neo_wasm::CommChainState::new([f(11), f(22), f(33), f(44)]);
     let trace = host_event_trace_from(initial);
-    let staged: Vec<[p3_goldilocks::Goldilocks; 8]> = common::absorbed_blocks(&trace)
+    let staged: Vec<[neo_math::F; 8]> = common::absorbed_blocks(&trace)
         .into_iter()
         .map(|block| block.map(f))
         .collect();

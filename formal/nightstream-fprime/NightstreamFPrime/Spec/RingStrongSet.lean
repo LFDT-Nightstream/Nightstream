@@ -1,12 +1,12 @@
 import NightstreamFPrime.Spec.Algebra
 
-/-! SuperNeo Theorem 4, `z = 3`. -/
+/-! SuperNeo v1.2 Theorem 4, `z = 4`, and Definition 6. -/
 
 namespace NightstreamFPrime.Spec.RingStrongSet
 
 def alphabetSize : Nat := 5
 
-def coefficientCount : Nat := 54
+def coefficientCount : Nat := ringDegree
 
 abbrev Coefficient := Fin alphabetSize
 abbrev Scalar := Fin coefficientCount → Coefficient
@@ -110,17 +110,17 @@ theorem embeddedDifference_nonzero
   apply embedScalar_injective
   exact (ringFSub_eq_zero_iff _ _).mp differenceZero
 
-/-- SuperNeo Theorem 4, `z = 3`. -/
-theorem differenceBound_below_fieldModulus : 3 * 4 ^ 2 < fieldModulus := by
+/-- SuperNeo v1.2 Theorem 4, `z = 4`. -/
+theorem differenceBound_below_fieldModulus : 2 * 4 ^ 2 < fieldModulus := by
   decide
 
-/-- SuperNeo Theorem 4, `z = 3`. -/
+/-- SuperNeo v1.2 Theorem 4, `z = 4`. -/
 structure LowNormInvertibility : Prop where
   invertible_of_bound :
     forall (value : RingF) (bound : Nat),
       value ≠ ringFZero ->
       PointwiseNormAtMost bound value ->
-      3 * bound ^ 2 < fieldModulus ->
+      2 * bound ^ 2 < fieldModulus ->
       RingFInvertible value
 
 def ProductionMember (value : RingF) : Prop :=

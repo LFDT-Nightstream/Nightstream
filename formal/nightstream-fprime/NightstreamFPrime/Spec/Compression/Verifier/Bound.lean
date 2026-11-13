@@ -104,4 +104,46 @@ theorem production_rust_error_lt :
       (344 + 29 + 81 + 2 + 50 : ℝ) / (fieldOrder ^ 2 : ℕ) < 1 / 2 ^ 119 := by
   norm_num [fieldOrder]
 
+omit [Field F] [DecidableEq F] [Field K] [DecidableEq K] [Algebra F K] in
+/-- `error` at the production shapes is at most the expression of `production_error_lt`. -/
+theorem error_le_production (vf : VerifierData P) (card_F : Fintype.card F = fieldOrder)
+    (card_K : Fintype.card K = fieldOrder ^ 2) (claims : P.claims = 3)
+    (equations : P.equations = 23) (lanes : P.lanes = 64) (public_le : maxPublic P ≤ 320)
+    (span_le : P.spanVars ≤ 27) (columns : vf.columnVars = 2) (lookups : P.lookups = 4)
+    (tables : ∀ c, (P.shape c).lookup = true →
+      2 ^ (P.shape c).witness.vars + (2 * (P.shape c).bound + 1) ≤ 2 ^ 25 + 20737) :
+    error vf ≤ 3 * (((2 ^ 25 + 20737 : ℕ) : ℝ) / fieldOrder) ^ 4 +
+      (((3 - 1 + (23 + max (64 - 1) (320 - 1)) : ℕ) : ℝ) / (fieldOrder ^ 2 : ℕ) +
+        ((2 + 27 : ℕ) : ℝ) / (fieldOrder ^ 2 : ℕ)) +
+      3 / (fieldOrder ^ 2 : ℕ) + 2 / (fieldOrder ^ 2 : ℕ) + 2 / (fieldOrder ^ 2 : ℕ) := by
+  have q_pos : (0 : ℝ) < fieldOrder := by norm_num [fieldOrder]
+  have tau : tauError P ≤ 3 * (((2 ^ 25 + 20737 : ℕ) : ℝ) / fieldOrder) ^ 4 := by
+    unfold tauError
+    rw [card_F, lookups]
+    have each : ∀ c : Fin P.claims, (if (P.shape c).lookup then
+        (((2 ^ (P.shape c).witness.vars + (2 * (P.shape c).bound + 1) : ℕ) : ℝ) /
+          fieldOrder) ^ 4 else 0) ≤ (((2 ^ 25 + 20737 : ℕ) : ℝ) / fieldOrder) ^ 4 := fun c => by
+      split
+      · rename_i table
+        refine pow_le_pow_left₀ (by positivity) (div_le_div_of_nonneg_right ?_ q_pos.le) 4
+        exact_mod_cast tables c table
+      · positivity
+    refine (sum_le_sum fun c _ => each c).trans (le_of_eq ?_)
+    rw [sum_const, card_univ, Fintype.card_fin, claims, nsmul_eq_mul]
+    norm_num
+  have challenge : challengeError P ≤
+      (((3 - 1 + (23 + max (64 - 1) (320 - 1)) : ℕ) : ℝ) / (fieldOrder ^ 2 : ℕ) +
+        ((2 + 27 : ℕ) : ℝ) / (fieldOrder ^ 2 : ℕ)) := by
+    unfold challengeError
+    rw [card_K, claims, equations, lanes]
+    refine add_le_add (div_le_div_of_nonneg_right ?_ (by positivity))
+      (div_le_div_of_nonneg_right ?_ (by positivity))
+    · exact_mod_cast (by omega : 3 - 1 + (23 + max (64 - 1) (maxPublic P - 1)) ≤
+        3 - 1 + (23 + max (64 - 1) (320 - 1)))
+    · exact_mod_cast (by omega : 2 + P.spanVars ≤ 2 + 27)
+  unfold error
+  rw [columns, card_K]
+  push_cast at tau challenge ⊢
+  linarith
+
 end NightstreamFPrime.Spec.Compression.Verifier

@@ -164,6 +164,11 @@ import NightstreamFPrime.Spec.Compression
 #audit_axioms NightstreamFPrime.Spec.Compression.Verifier.soundness
 #audit_axioms NightstreamFPrime.Spec.Compression.Verifier.production_error_lt
 #audit_axioms NightstreamFPrime.Spec.Compression.Verifier.production_rust_error_lt
+#audit_axioms NightstreamFPrime.Spec.Compression.Verifier.error_le_production
+#audit_axioms NightstreamFPrime.Spec.Compression.Verifier.lookup_complete
+#audit_axioms NightstreamFPrime.Spec.Compression.Verifier.honest_sum
+#audit_axioms NightstreamFPrime.Spec.Compression.Verifier.key_check_honest
+#audit_axioms NightstreamFPrime.Spec.Compression.Verifier.main_check_honest
 #audit_axioms NightstreamFPrime.Spec.Compression.Verifier.mainComb_degree
 #audit_axioms NightstreamFPrime.Spec.Compression.Verifier.Slice.sum_place
 #audit_axioms NightstreamFPrime.Spec.Compression.Verifier.Slice.mle_place

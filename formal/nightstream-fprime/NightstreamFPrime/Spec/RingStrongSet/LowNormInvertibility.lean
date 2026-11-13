@@ -131,8 +131,8 @@ private theorem toPolynomial_split (value : RingF) :
     simp [low, inside, show ¬32 ≤ index by omega]
   · by_cases inside : index < ringDegree
     · have high : index - 32 < 32 := by change index < 64 at inside; omega
-      simp only [low, inside, high, show 32 ≤ index by omega, dite_eq_left, dite_eq_right, ite_true,
-        not_false_eq_true, zero_add]
+      simp only [low, inside, high, show 32 ≤ index by omega, dite_eq_left, dite_eq_right,
+        ite_true, not_false_eq_true, zero_add]
       congr 2
       omega
     · have high : ¬index - 32 < 32 := by change ¬index < 64 at inside; omega

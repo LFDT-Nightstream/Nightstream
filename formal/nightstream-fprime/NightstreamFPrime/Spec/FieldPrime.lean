@@ -104,7 +104,8 @@ theorem largeOrderFactor_order_factorisation :
 
 set_option maxRecDepth 100000 in -- fixed-size: 43-bit Lucas certificate, not artifact data
 theorem largeOrderFactor_fermat :
-    powMod largeOrderFactor certificateFuel largeOrderFactorGenerator (largeOrderFactor - 1) = 1 := by
+    powMod largeOrderFactor certificateFuel largeOrderFactorGenerator
+      (largeOrderFactor - 1) = 1 := by
   decide
 
 set_option maxRecDepth 100000 in -- fixed-size: 43-bit Lucas certificate, not artifact data
@@ -168,14 +169,10 @@ theorem fermat :
   decide
 
 set_option maxRecDepth 100000 in -- fixed-size: 64-bit Lucas certificate, not artifact data
-theorem order_not_halved :
-    powMod fieldModulus certificateFuel generator ((fieldModulus - 1) / 2)
-      = 18446744073709551556 := by
-  decide
-
-set_option maxRecDepth 100000 in -- fixed-size: 64-bit Lucas certificate, not artifact data
 theorem order_residues :
-    powMod fieldModulus certificateFuel generator ((fieldModulus - 1) / 11)
+    powMod fieldModulus certificateFuel generator ((fieldModulus - 1) / 2)
+        = 18446744073709551556
+      ∧ powMod fieldModulus certificateFuel generator ((fieldModulus - 1) / 11)
         = 7233656613878036887
       ∧ powMod fieldModulus certificateFuel generator ((fieldModulus - 1) / 137)
         = 808296807897363856
@@ -188,10 +185,6 @@ theorem order_residues :
 theorem fermat_zmod :
     ((generator : ZMod fieldModulus) ^ (fieldModulus - 1)) = 1 :=
   pow_eq_one_of_powMod (by decide) fermat
-
-theorem order_not_halved_zmod :
-    ((generator : ZMod fieldModulus) ^ ((fieldModulus - 1) / 2)) ≠ 1 :=
-  pow_ne_one_of_powMod (by decide) order_not_halved (by decide) (by decide)
 
 theorem prime_divisor_order
     {divisor : Nat} (divisorPrime : divisor.Prime) (divides : divisor ∣ fieldModulus - 1) :
@@ -210,9 +203,9 @@ theorem prime_divisor_order
 theorem fieldModulus_natPrime : Nat.Prime fieldModulus := by
   apply lucas_primality fieldModulus (generator : ZMod fieldModulus) fermat_zmod
   intro divisor divisorPrime divides
-  obtain ⟨eleventh, first, second, last⟩ := order_residues
+  obtain ⟨half, eleventh, first, second, last⟩ := order_residues
   rcases prime_divisor_order divisorPrime divides with rfl | rfl | rfl | rfl | rfl
-  · exact order_not_halved_zmod
+  · exact pow_ne_one_of_powMod (by decide) half (by decide) (by decide)
   · exact pow_ne_one_of_powMod (by decide) eleventh (by decide) (by decide)
   · exact pow_ne_one_of_powMod (by decide) first (by decide) (by decide)
   · exact pow_ne_one_of_powMod (by decide) second (by decide) (by decide)

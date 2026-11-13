@@ -95,9 +95,14 @@ uses the norm of that fresh witness, not the larger accumulator bound.
 `Layout.ProductionRelation.Plan.freshHolds_implies_rowsPublicAndNorm` retains
 this norm from fresh acceptance. There is no new probabilistic test or
 cryptographic assumption. The existing extraction and binding premises still
-apply to the history. Rust must establish the map, coverage, slot and framing
-conditions under trust item 5. Honest completion uses raw application Boolean
-facts before native-output substitution
+apply to the history. The constructor packs only the sources, zero products
+and products whose added columns fit in the package width, in that order, and
+keeps the original row of each other candidate
+(`Export.BoundedDepth.PackedBudget.choose_end`). The restorations also hold
+for such a partial packing
+(`Export.BoundedDepth.PackedBudget.restore_chosen_rows`). Rust must establish
+the map, coverage, slot and framing conditions under trust item 5. Honest
+completion uses raw application Boolean facts before native-output substitution
 (`Export.BoundedDepth.PackedBooleanCompleteness.native_complete`). The terminal
 source relation retains its original forcing rows because its own source
 assignment has no signed-unit premise.

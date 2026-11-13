@@ -20,20 +20,32 @@ pub(super) struct PackedBooleans {
 }
 
 impl PackedBooleans {
-    pub(super) fn lower(rows: &mut Vec<Row>, start: usize, eligible: impl Fn(usize) -> bool) -> Self {
-        let sources = rows
+    /// Packs the Boolean rows, zero products and products of `rows` whose
+    /// companion columns fit in `start..width`, in that order of priority
+    /// (`SPEC.md` section 7.9 step 2, Lean `PackedBudget.choose`). A row
+    /// that does not fit stays in `rows` as it is (Lean `PackedBudget.keep`).
+    pub(super) fn lower(rows: &mut Vec<Row>, start: usize, width: usize, eligible: impl Fn(usize) -> bool) -> Self {
+        let mut room = width.saturating_sub(start);
+        let mut sources = rows
             .iter()
             .filter_map(forced_column)
             .filter(|&column| eligible(column))
             .collect::<BTreeSet<_>>()
             .into_iter()
             .collect::<Vec<_>>();
+        sources.truncate(room);
+        room -= sources.len();
+        let mut zeros = ZeroProduct::checked(rows.iter(), &eligible);
+        zeros.truncate(room);
+        room -= zeros.len();
+        let mut products = Product::checked(rows.iter(), &(0..start).map(&eligible).collect::<Vec<_>>());
+        products.truncate(room / 2);
         let mut packed = Self {
             start,
             sources,
             removed: Vec::new(),
-            products: Product::checked(rows.iter(), &(0..start).map(&eligible).collect::<Vec<_>>()),
-            zeros: ZeroProduct::checked(rows.iter(), &eligible),
+            products,
+            zeros,
         };
         *rows = std::mem::take(rows)
             .into_iter()

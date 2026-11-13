@@ -284,7 +284,7 @@ impl StepPackage {
         let Some(Piece::Rows(rows)) = self.pieces.first_mut() else {
             return Err(PackageError::Malformed("bounded-depth native application rows"));
         };
-        self.packed_booleans = PackedBooleans::lower(rows, start, eligible);
+        self.packed_booleans = PackedBooleans::lower(rows, start, self.width, eligible);
         self.packed_booleans.validate(rows, start, self.width)?;
         self.slots = self.native_slots()?;
         Ok(())

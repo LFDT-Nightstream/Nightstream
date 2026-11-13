@@ -31,7 +31,7 @@ def entry (interface : Interface) (coordinate : Nat) : FormalCircuit :=
 def enteredState (interface : Interface) (coordinate : Nat) (offset : Nat) : EState :=
   v1_2.TranscriptAbsorption.output interface coordinate offset
 
-def rateLane (lane : Fin 4) : Fin 16 := ⟨lane.val, lt_trans lane.isLt (by decide)⟩
+def rateLane (lane : Fin WideReduction.fieldCount) : Fin 16 := ⟨lane.val, lt_trans lane.isLt (by decide)⟩
 
 def rangeInterface (interface : Interface) (coordinate : Nat) (offset : Nat) : WideReduction.Interface where
   source := fun lane _ => enteredState interface coordinate offset (rateLane lane)
@@ -84,7 +84,7 @@ structure SpecHolds (interface : Interface) (coordinate : Nat) (offset : Nat) (e
       WideReduction.fieldOfNat ((Spec.Folding.Nifs.NonInteractive.PiRlcSampler.sample
         (referenceBlock (referenceEnter (evalState env (interface.initialState offset)) coordinate)) position).val)
 
-theorem counts : logicalPrivateCount = 4267 ∧ logicalRowCount = 2927 := ⟨rfl, rfl⟩
+theorem counts : logicalPrivateCount = 4873 ∧ logicalRowCount = 3101 := ⟨rfl, rfl⟩
 
 theorem localLength_eq (interface : Interface) (coordinate : Nat) (offset : Nat) :
     localLength (opsAt interface coordinate offset) = logicalPrivateCount := by
@@ -180,7 +180,7 @@ theorem soundness (interface : Interface) (coordinate : Nat) (env : Env) (offset
     funext lane
     change (enteredState interface coordinate offset (rateLane lane)).eval env =
       (List.ofFn (Layer.evalState env (enteredState interface coordinate offset))).getD lane.val 0
-    rw [List.getD_eq_get _ _ ⟨lane.val, by have laneBound : lane.val < 4 := lane.isLt; simp only [List.length_ofFn]; omega⟩]
+    rw [List.getD_eq_get _ _ ⟨lane.val, by have laneBound : lane.val < WideReduction.fieldCount := lane.isLt; unfold WideReduction.fieldCount at laneBound; simp only [List.length_ofFn]; omega⟩]
     simp only [List.get_ofFn, Layer.evalState]
     rfl
   refine ⟨?_, ?_⟩

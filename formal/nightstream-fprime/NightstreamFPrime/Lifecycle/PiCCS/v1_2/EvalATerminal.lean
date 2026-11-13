@@ -203,7 +203,7 @@ theorem output_varsBelow (interface : Interface) (offset : Nat)
     cubeVariables_positive offset env assumptions
 
 theorem coefficientExprs_length (interface : Interface) (offset : Nat) :
-    (coefficientExprs interface offset).length = 3456 := by
+    (coefficientExprs interface offset).length = 4096 := by
   simp only [coefficientExprs, List.length_map]
   simp [canonicalMatrixCoordinates_length, productionShape,
     productionProfile, RingMatrixSource.ringShape,
@@ -217,20 +217,20 @@ theorem pointLength_eq (interface : Interface) (offset : Nat) :
       (coreInterface interface) offset cubeVariables_positive
 
 theorem hornerLength_eq (interface : Interface) (offset : Nat) :
-    hornerLength interface offset = 10365 := by
+    hornerLength interface offset = 12285 := by
   unfold hornerLength
   rw [PointWeightedHorner.Owned.hornerLength_eq]
-  change 3 * ((coefficientExprs interface offset).length - 1) = 10365
+  change 3 * ((coefficientExprs interface offset).length - 1) = 12285
   rw [coefficientExprs_length]
 
-def privateCount : Nat := 10475
+def privateCount : Nat := 12395
 
 theorem localLength_eq (interface : Interface) (offset : Nat) :
-    localLength (Circuit.ops (circuit interface).main offset) = 10475 := by
+    localLength (Circuit.ops (circuit interface).main offset) = 12395 := by
   unfold circuit
   rw [PointWeightedHorner.Owned.localLength_eq]
   change (4 * productionShape.cubeVariables - 2) +
-    3 * ((coefficientExprs interface offset).length - 1) = 10475
+    3 * ((coefficientExprs interface offset).length - 1) = 12395
   rw [coefficientExprs_length]
   norm_num [productionShape, RingMatrixSource.ringShape, cubeVariables]
 
@@ -241,11 +241,11 @@ theorem operations_length (interface : Interface) (offset : Nat) :
 
 theorem flatConstraints_length (interface : Interface) (offset : Nat) :
     (flatConstraints (Circuit.ops (circuit interface).main offset)).length =
-      10475 := by
+      12395 := by
   unfold circuit
   rw [PointWeightedHorner.Owned.flatConstraints_length]
   change (4 * productionShape.cubeVariables - 2) +
-    3 * ((coefficientExprs interface offset).length - 1) = 10475
+    3 * ((coefficientExprs interface offset).length - 1) = 12395
   rw [coefficientExprs_length]
   norm_num [productionShape, RingMatrixSource.ringShape, cubeVariables]
 

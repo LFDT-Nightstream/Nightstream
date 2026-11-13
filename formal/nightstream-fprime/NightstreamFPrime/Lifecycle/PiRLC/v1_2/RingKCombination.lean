@@ -149,15 +149,7 @@ theorem ringKMul_cell (cell : Fin cellCount)
       kCell cell
         (ringKMul (RingKAction.embedChallenge challenge) value lane) := by
   unfold ringFMul ringKMul
-  by_cases foldedLow : lane.val < ringMiddleDegree
-  · by_cases hasTwice :
-      lane.val + (ringDegree + ringMiddleDegree) ≤ 2 * (ringDegree - 1)
-    · simp [foldedLow, hasTwice, rawMulCoeffK_cell]
-    · simp [foldedLow, hasTwice, rawMulCoeffK_cell]
-  · by_cases hasTwice :
-      lane.val + (ringDegree + ringMiddleDegree) ≤ 2 * (ringDegree - 1)
-    · simp [foldedLow, hasTwice, rawMulCoeffK_cell]
-    · simp [foldedLow, hasTwice, rawMulCoeffK_cell]
+  simp [rawMulCoeffK_cell]
 
 private theorem rightCombination_eq_combineEvaluation_cell
     {count : Nat} (challenges : Fin count → RingF)

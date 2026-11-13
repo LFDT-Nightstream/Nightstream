@@ -57,7 +57,7 @@ def outputForm {logicalWidth : Nat} (interface : Interface logicalWidth)
       (evaluateForm interface.quotient point))
 
 def rowAt {logicalWidth : Nat} (interface : Interface logicalWidth)
-    (row : Fin 108) : OrdinaryRow.Forms logicalWidth :=
+    (row : Fin 128) : OrdinaryRow.Forms logicalWidth :=
   let point := RingRelation.QuotientProduct.node row
   { a := evaluateForm interface.left point
     b := evaluateForm interface.right point
@@ -68,11 +68,11 @@ def rows {logicalWidth : Nat} (interface : Interface logicalWidth) :
   List.ofFn (rowAt interface)
 
 @[simp] theorem rows_length {logicalWidth : Nat}
-    (interface : Interface logicalWidth) : (rows interface).length = 108 := by
+    (interface : Interface logicalWidth) : (rows interface).length = 128 := by
   simp only [rows, List.length_ofFn]
 
 def Equation {logicalWidth : Nat} (interface : Interface logicalWidth)
-    (assignment : Assignment F logicalWidth) (row : Fin 108) : Prop :=
+    (assignment : Assignment F logicalWidth) (row : Fin 128) : Prop :=
   let point := RingRelation.QuotientProduct.node row
   RingRelation.QuotientProduct.evaluate
         (evalState assignment interface.left) point *
@@ -88,14 +88,14 @@ def Equation {logicalWidth : Nat} (interface : Interface logicalWidth)
 
 def Equations {logicalWidth : Nat} (interface : Interface logicalWidth)
     (assignment : Assignment F logicalWidth) : Prop :=
-  ∀ row : Fin 108, Equation interface assignment row
+  ∀ row : Fin 128, Equation interface assignment row
 
 def RowsZero {logicalWidth : Nat} (interface : Interface logicalWidth)
     (assignment : Assignment F logicalWidth) : Prop :=
-  ∀ row : Fin 108, (rowAt interface row).residual assignment = 0
+  ∀ row : Fin 128, (rowAt interface row).residual assignment = 0
 
 theorem row_zero_iff {logicalWidth : Nat} (interface : Interface logicalWidth)
-    (assignment : Assignment F logicalWidth) (row : Fin 108) :
+    (assignment : Assignment F logicalWidth) (row : Fin 128) :
     (rowAt interface row).residual assignment = 0 ↔
       Equation interface assignment row := by
   let point := RingRelation.QuotientProduct.node row

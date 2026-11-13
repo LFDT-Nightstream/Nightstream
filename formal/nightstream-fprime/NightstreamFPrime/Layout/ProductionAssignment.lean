@@ -11,7 +11,7 @@ open NightstreamFPrime.Lifecycle.PaperAlgebra
 
 def publicWidth : Nat := ringDegree * publicRingColumns
 
-@[simp] theorem publicWidth_eq : publicWidth = 270 := by
+@[simp] theorem publicWidth_eq : publicWidth = 320 := by
   rfl
 
 def logicalWidth {sourceWidth : Nat}

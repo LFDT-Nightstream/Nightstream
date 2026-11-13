@@ -84,29 +84,28 @@ private theorem rows_fresh (offset : Nat) : R1CS.totalFreshCount (flatConstraint
 
 private theorem children_fresh (interface : Interface) (offset : Nat)
     (inputs : ∀ lane, R1CS.IsAffine (interface.source lane offset)) :
-    R1CS.totalFreshCount (flatConstraints (childOps interface offset)) = 144 := by
+    R1CS.totalFreshCount (flatConstraints (childOps interface offset)) = 0 := by
   have all : ∀ children : List (Fin fieldCount),
       R1CS.totalFreshCount (flatConstraints (children.map (fun lane =>
         Sequence.childOp (childName lane) (Gadgets.Range.CanonicalU64.circuit (childInterface interface offset lane))
-          (childOffset offset lane)))) = children.length * 36 := by
+          (childOffset offset lane)))) = 0 := by
     intro children
     induction children with
     | nil => rfl
     | cons lane rest ih =>
-        simp only [List.map_cons, flatConstraints, List.flatMap_cons, R1CS.totalFreshCount_append, List.length_cons]
+        simp only [List.map_cons, flatConstraints, List.flatMap_cons, R1CS.totalFreshCount_append]
         have head := Range.CanonicalU64.totalFreshCount_eq (childInterface interface offset lane)
           (childOffset offset lane) ⟨inputs lane⟩
         change R1CS.totalFreshCount (Range.CanonicalU64.logicalConstraints _ _) +
           R1CS.totalFreshCount (flatConstraints _) = _
         rw [head, ih]
-        omega
-  simpa only [childOps, List.length_finRange] using! all (List.finRange fieldCount)
+  simpa only [childOps] using! all (List.finRange fieldCount)
 
 theorem counts (interface : Interface) (hints : Nat → List Hint) (offset : Nat)
     (inputs : ∀ lane, R1CS.IsAffine (interface.source lane offset)) :
-    R1CS.totalFreshCount (flatConstraints (operations interface hints offset)) = 144 ∧
-      R1CS.totalRowCount (flatConstraints (operations interface hints offset)) = 825 := by
-  have fresh : R1CS.totalFreshCount (flatConstraints (operations interface hints offset)) = 144 := by
+    R1CS.totalFreshCount (flatConstraints (operations interface hints offset)) = 0 ∧
+      R1CS.totalRowCount (flatConstraints (operations interface hints offset)) = 845 := by
+  have fresh : R1CS.totalFreshCount (flatConstraints (operations interface hints offset)) = 0 := by
     simp only [operations, flatConstraints_append, R1CS.totalFreshCount_append]
     rw [children_fresh interface offset inputs, rows_fresh]
     rfl

@@ -13,7 +13,7 @@ open NightstreamFPrime.Lifecycle.PaperAlgebra
 
 def publicWidth : Nat := ringDegree * publicRingColumns
 
-theorem publicWidth_eq : publicWidth = 270 := by
+theorem publicWidth_eq : publicWidth = 320 := by
   rfl
 
 def markerIndex : Fin publicWidth := ⟨0, by rw [publicWidth_eq]; omega⟩
@@ -28,7 +28,7 @@ def digestBitIndexNat (word : Fin 4) (bit : Nat) : Fin publicWidth :=
 def digestBitIndex (word : Fin 4) (bit : Fin 64) : Fin publicWidth :=
   digestBitIndexNat word bit.val
 
-def tailIndex (lane : Fin 13) : Fin publicWidth :=
+def tailIndex (lane : Fin 63) : Fin publicWidth :=
   ⟨257 + lane.val, by
     have laneBound := lane.isLt
     rw [publicWidth_eq]
@@ -63,7 +63,7 @@ def encodedHash (digest : Digest) : Fin publicWidth → F :=
         (digest.getD word.val 0) bit.val := by
   exact encodedHash_digestBitNat digest word bit.val bit.isLt
 
-@[simp] theorem encodedHash_tail (digest : Digest) (lane : Fin 13) :
+@[simp] theorem encodedHash_tail (digest : Digest) (lane : Fin 63) :
     encodedHash digest (tailIndex lane) = 0 := by
   apply NightstreamFPrime.Lifecycle.encodedHashCells_tail
   simp [tailIndex]
@@ -72,7 +72,7 @@ theorem column_cases (column : Fin publicWidth) :
     column = markerIndex ∨
       (∃ word : Fin 4, ∃ bit : Fin 64,
         column = digestBitIndex word bit) ∨
-      ∃ lane : Fin 13, column = tailIndex lane := by
+      ∃ lane : Fin 63, column = tailIndex lane := by
   by_cases marker : column.val = 0
   · exact Or.inl (Fin.ext marker)
   · by_cases encoded : column.val < 257
@@ -89,9 +89,9 @@ theorem column_cases (column : Fin publicWidth) :
       simp [digestBitIndex, digestBitIndexNat, word, bit, position]
       have columnPositive : 0 < column.val := Nat.pos_of_ne_zero marker
       omega
-    · let lane : Fin 13 := ⟨column.val - 257, by
+    · let lane : Fin 63 := ⟨column.val - 257, by
         have columnBound := column.isLt
-        change column.val < 270 at columnBound
+        change column.val < 320 at columnBound
         omega⟩
       refine Or.inr (Or.inr ⟨lane, ?_⟩)
       apply Fin.ext
@@ -202,7 +202,7 @@ def wordOps (interface : Interface) (offset : Nat) : List Op :=
 
 def bindingAssertions (interface : Interface) (offset : Nat) : List Op :=
   Op.assertZero (interface.publicInput offset markerIndex - 1) ::
-    List.ofFn (fun lane : Fin 13 =>
+    List.ofFn (fun lane : Fin 63 =>
       Op.assertZero (interface.publicInput offset (tailIndex lane)))
 
 def opsAt (interface : Interface) (offset : Nat) : List Op :=
@@ -217,10 +217,10 @@ def main (interface : Interface) : Circuit Unit := fun offset =>
   rfl
 
 def logicalPrivateCount (interface : Interface) (offset : Nat) : Nat :=
-  hashLength interface offset + 264
+  hashLength interface offset + 268
 
 def logicalRowCount (interface : Interface) (offset : Nat) : Nat :=
-  hashLength interface offset + 538
+  hashLength interface offset + 592
 
 private theorem hashOp_localLength (interface : Interface) (offset : Nat) :
     (hashOp interface offset).localLength = hashLength interface offset := by
@@ -248,16 +248,16 @@ private theorem wordOp_localLength (interface : Interface) (offset : Nat)
   exact wordCircuit_localLength_eq interface offset word
 
 private theorem wordOps_localLength (interface : Interface) (offset : Nat) :
-    localLength (wordOps interface offset) = 264 := by
+    localLength (wordOps interface offset) = 268 := by
   change (List.ofFn (fun word : Fin 4 =>
-    (wordOp interface offset word).localLength)).sum = 264
+    (wordOp interface offset word).localLength)).sum = 268
   simp only [wordOp_localLength]
   decide
 
 private theorem bindingAssertions_localLength
     (interface : Interface) (offset : Nat) :
     localLength (bindingAssertions interface offset) = 0 := by
-  change (0 :: List.ofFn (fun _ : Fin 13 => 0)).sum = 0
+  change (0 :: List.ofFn (fun _ : Fin 63 => 0)).sum = 0
   simp
 
 theorem localLength_eq (interface : Interface) (offset : Nat) :
@@ -283,16 +283,16 @@ private theorem wordOp_rowCount (interface : Interface) (offset : Nat)
   rfl
 
 private theorem wordOps_rowCount (interface : Interface) (offset : Nat) :
-    rowCount (wordOps interface offset) = 524 := by
+    rowCount (wordOps interface offset) = 528 := by
   change (List.ofFn (fun word : Fin 4 =>
-    (wordOp interface offset word).rowCount)).sum = 524
+    (wordOp interface offset word).rowCount)).sum = 528
   simp only [wordOp_rowCount]
   decide
 
 private theorem bindingAssertions_rowCount
     (interface : Interface) (offset : Nat) :
-    rowCount (bindingAssertions interface offset) = 14 := by
-  change (1 :: List.ofFn (fun _ : Fin 13 => 1)).sum = 14
+    rowCount (bindingAssertions interface offset) = 64 := by
+  change (1 :: List.ofFn (fun _ : Fin 63 => 1)).sum = 64
   decide
 
 theorem flatConstraints_length_eq (interface : Interface) (offset : Nat) :
@@ -364,7 +364,7 @@ private theorem markerAssertion_mem (interface : Interface) (offset : Nat) :
   simp [bindingAssertions]
 
 private theorem tailAssertion_mem (interface : Interface) (offset : Nat)
-    (lane : Fin 13) :
+    (lane : Fin 63) :
     Op.assertZero (interface.publicInput offset (tailIndex lane)) ∈
       opsAt interface offset := by
   apply List.mem_cons_of_mem
@@ -469,7 +469,7 @@ theorem soundness_of_hash_and_postHash
       simp [bindingAssertions])
   have marker : (interface.publicInput offset markerIndex).eval env = 1 := by
     exact sub_eq_zero.mp (by simpa [Expr.eval_sub] using! markerRow)
-  have tail (lane : Fin 13) :
+  have tail (lane : Fin 63) :
       (interface.publicInput offset (tailIndex lane)).eval env = 0 := by
     apply rows (.assertZero (interface.publicInput offset (tailIndex lane)))
     apply List.mem_append_right
@@ -491,7 +491,7 @@ theorem soundness (interface : Interface) (env : Env) (offset : Nat)
     (markerAssertion_mem interface offset)
   have marker : (interface.publicInput offset markerIndex).eval env = 1 := by
     exact sub_eq_zero.mp (by simpa [Expr.eval_sub] using! markerRow)
-  have tail (lane : Fin 13) :
+  have tail (lane : Fin 63) :
       (interface.publicInput offset (tailIndex lane)).eval env = 0 :=
     rows (.assertZero (interface.publicInput offset (tailIndex lane)))
       (tailAssertion_mem interface offset lane)

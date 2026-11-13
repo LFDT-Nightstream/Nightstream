@@ -89,10 +89,10 @@ private theorem bindingRowTotal_eq
 theorem totalFreshCount_eq
     (interface : CanonicalPublicU64.Interface) (offset : Nat)
     (inputs : InputsAffine interface offset) :
-    R1CS.totalFreshCount (logicalConstraints interface offset) = 36 := by
+    R1CS.totalFreshCount (logicalConstraints interface offset) = 0 := by
   unfold logicalConstraints
   change R1CS.totalFreshCount
-    (flatConstraints (CanonicalPublicU64.opsAt interface offset)) = 36
+    (flatConstraints (CanonicalPublicU64.opsAt interface offset)) = 0
   rw [CanonicalPublicU64.flatConstraints_opsAt,
     R1CS.totalFreshCount_append]
   change R1CS.totalFreshCount
@@ -105,10 +105,10 @@ theorem totalFreshCount_eq
 theorem totalRowCount_eq
     (interface : CanonicalPublicU64.Interface) (offset : Nat)
     (inputs : InputsAffine interface offset) :
-    R1CS.totalRowCount (logicalConstraints interface offset) = 167 := by
+    R1CS.totalRowCount (logicalConstraints interface offset) = 132 := by
   unfold logicalConstraints
   change R1CS.totalRowCount
-    (flatConstraints (CanonicalPublicU64.opsAt interface offset)) = 167
+    (flatConstraints (CanonicalPublicU64.opsAt interface offset)) = 132
   rw [CanonicalPublicU64.flatConstraints_opsAt,
     R1CS.totalRowCount_append]
   change R1CS.totalRowCount

@@ -76,7 +76,7 @@ theorem parentCoverage (interface : Interface) (offset : Nat) (env : Env)
 
 theorem logicalPrivateCount_eq :
     CombinationFamily.logicalPrivateCount blockCount
-      RingKCombination.cellCount = 1836 := by
+      RingKCombination.cellCount = 2176 := by
   rw [CombinationFamily.logicalPrivateCount,
     CombinationFamily.sourceCount_eq]
   norm_num [CombinationFamily.stepSize, CombinationStep.privateCount,
@@ -84,27 +84,27 @@ theorem logicalPrivateCount_eq :
 
 theorem logicalRowCount_eq :
     CombinationFamily.logicalRowCount blockCount
-      RingKCombination.cellCount = 1836 := by
+      RingKCombination.cellCount = 2176 := by
   rw [CombinationFamily.logicalRowCount, logicalPrivateCount_eq]
 
 def circuit (interface : Interface) : FormalCircuit :=
   RingKCombination.circuit (ringInterface interface)
 
 theorem localLength_eq (interface : Interface) (offset : Nat) :
-    localLength (Circuit.ops (circuit interface).main offset) = 1836 := by
+    localLength (Circuit.ops (circuit interface).main offset) = 2176 := by
   rw [(circuit interface).privateCount_eq offset]
   exact logicalPrivateCount_eq
 
 theorem flatConstraints_length (interface : Interface) (offset : Nat) :
     (flatConstraints (Circuit.ops (circuit interface).main offset)).length =
-      1836 := by
+      2176 := by
   rw [(circuit interface).rowCount_eq offset]
   exact logicalRowCount_eq
 
 theorem flatConstraints_varsBelow (interface : Interface) (offset : Nat)
     (env : Env) (assumptions : Assumptions interface offset env) :
     ∀ expression ∈ flatConstraints (Circuit.ops (circuit interface).main offset),
-      expression.VarsBelow (offset + 1836) := by
+      expression.VarsBelow (offset + 2176) := by
   simpa [circuit, RingKCombination.circuit, logicalPrivateCount_eq] using!
     CombinationFamily.flatConstraints_varsBelow
       (RingKCombination.familyInterface (ringInterface interface))

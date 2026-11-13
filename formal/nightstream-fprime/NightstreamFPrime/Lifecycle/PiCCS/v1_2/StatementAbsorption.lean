@@ -18,7 +18,7 @@ Outputs:
 
 Constraint groups:
 - C1: two absorb actions through the generic Duplex circuit: the domain
-  chunk, then the 1,462-word statement stream with no length prefixes;
+  chunk, then the 1,476-word statement stream with no length prefixes;
 - C2: no assertion rows; the compiled final state goes directly to the
   challenge leaf.
 
@@ -152,24 +152,24 @@ theorem serializePointExpr_length
 theorem serializeCommitmentExpr_length
     (commitment : Fin productionProfile.commitmentWidth →
       Fin ringDegree → Expr) :
-    (serializeCommitmentExpr commitment).length = 1188 := by
+    (serializeCommitmentExpr commitment).length = 1152 := by
   simp [serializeCommitmentExpr, productionProfile, ringDegree]
 
 private theorem serializePublicInputExpr_length {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       RingCarrierLayout.carrierWidth logicalWidth}
     (input : Fin (FullShape logicalWidth publicFits).publicWidth → Expr) :
-    (serializePublicInputExpr input).length = 270 := by
+    (serializePublicInputExpr input).length = 320 := by
   simp only [serializePublicInputExpr, List.length_map, List.length_finRange]
   simp [fullShape, RingRelation.Shape.publicWidth, publicRingColumns, ringDegree]
 
 theorem serializeEvalKExpr_length (evaluation : EvaluationExpr) :
-    (serializeEvalKExpr evaluation).length = 108 := by
+    (serializeEvalKExpr evaluation).length = 128 := by
   simp [serializeEvalKExpr, serializeKExpr_length, productionShape,
     productionProfile, RingMatrixSource.ringShape, ringDegree]
 
 theorem serializeEvalAExpr_length (evaluation : EvaluationExpr) :
-    (serializeEvalAExpr evaluation).length = 432 := by
+    (serializeEvalAExpr evaluation).length = 512 := by
   simp [serializeEvalAExpr, serializeKExpr_length, productionShape,
     productionProfile, RingMatrixSource.ringShape, ringDegree]
 
@@ -487,7 +487,7 @@ theorem publicInputBlocks_flatten_length {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
-    (publicInputBlocks interface offset).flatten.length = 1462 := by
+    (publicInputBlocks interface offset).flatten.length = 1476 := by
   unfold publicInputBlocks priorDigestExpr
   dsimp only
   simp [serializeCommitmentExpr_length, serializePublicInputExpr_length,
@@ -498,7 +498,7 @@ private theorem publicInputActions_recipeCount {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
-    Formal.recipeCount (publicInputActions interface offset) = 134808 := by
+    Formal.recipeCount (publicInputActions interface offset) = 135904 := by
   unfold publicInputActions
   simp only [Formal.recipeCount, List.map_cons, List.map_nil]
   rw [List.sum_cons, List.sum_cons, List.sum_nil, domain_recipeCount, absorb_recipeCount,
@@ -538,7 +538,7 @@ def finalStateFast {logicalWidth : Nat}
       RingCarrierLayout.carrierWidth logicalWidth}
     (_interface : Interface logicalWidth publicFits) (offset : Nat) :
     Layer.EState :=
-  Permutation.scheduleOutput (offset + 122 * 1096)
+  Permutation.scheduleOutput (offset + 123 * 1096)
 
 theorem finalState_eq_finalStateFast_pointwise {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -550,19 +550,19 @@ theorem finalState_eq_finalStateFast_pointwise {logicalWidth : Nat}
     rw [inputChunks_length, constantWords_length,
       NightstreamFPrime.Lifecycle.Transcript.foldDomainChunk_length]
   have streamLength : (Hash.inputChunks
-      (publicInputBlocks interface offset).flatten).length = 122 := by
+      (publicInputBlocks interface offset).flatten).length = 123 := by
     rw [inputChunks_length, publicInputBlocks_flatten_length]
   obtain ⟨block, rest, chunksEq⟩ := List.exists_cons_of_length_pos
     (show 0 < (Hash.inputChunks (publicInputBlocks interface offset).flatten).length by
       rw [streamLength]; decide)
-  have restLength : rest.length = 121 := by
+  have restLength : rest.length = 122 := by
     simpa [chunksEq] using streamLength
   rw [finalState, program, ← (Formal.compileWiring_matches offset Hash.zeroE
     (actions interface offset)).2]
   simp only [actions, publicInputActions, Formal.compileWiring]
   rw [chunksEq, Formal.compileAbsorbWiring_output_cons, restLength,
     Formal.compileAbsorbWiring_next, domainLength,
-    show offset + 1 * 1096 + 121 * 1096 = offset + 122 * 1096 by omega]
+    show offset + 1 * 1096 + 122 * 1096 = offset + 123 * 1096 by omega]
   rfl
 
 @[csimp] theorem finalState_eq_finalStateFast :
@@ -801,16 +801,16 @@ theorem recipeCount_eq {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
-    recipeCount interface offset = 134808 := by
+    recipeCount interface offset = 135904 := by
   exact publicInputActions_recipeCount interface offset
 
 @[simp] theorem program_recipes_length {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
-    (program interface offset).recipes.length = 134808 := by
+    (program interface offset).recipes.length = 135904 := by
   change (Formal.compile offset Hash.zeroE
-    (actions interface offset)).recipes.length = 134808
+    (actions interface offset)).recipes.length = 135904
   rw [Formal.compile_recipes_length]
   exact recipeCount_eq interface offset
 
@@ -818,7 +818,7 @@ theorem localLength_eq {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
-    localLength (Circuit.ops (circuit interface).main offset) = 134808 := by
+    localLength (Circuit.ops (circuit interface).main offset) = 135904 := by
   rw [circuit_ops, opsAt_localLength]
   exact program_recipes_length interface offset
 
@@ -834,7 +834,7 @@ theorem flatConstraints_length {logicalWidth : Nat}
       RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     (flatConstraints (Circuit.ops (circuit interface).main offset)).length =
-      134808 := by
+      135904 := by
   rw [circuit_ops, flatConstraints_opsAt, recipeConstraints_length]
   exact program_recipes_length interface offset
 

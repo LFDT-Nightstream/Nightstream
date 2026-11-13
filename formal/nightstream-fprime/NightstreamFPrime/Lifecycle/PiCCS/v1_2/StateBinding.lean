@@ -17,84 +17,83 @@ def fixedWords : List FixedWord :=
   (List.finRange stateDomainChunk.length).map fun index =>
     ⟨index.val, stateDomainChunk.getD index.val 0⟩
 
-def packedWordStart : Nat := 27716
+def packedWordStart : Nat := 28740
 
-def contextWordStart : Nat := 27806
+def contextWordStart : Nat := 28900
 
 theorem fixedWords_length : fixedWords.length = 12 := by
   simp [fixedWords, stateDomainChunk_length]
 
 theorem fixedWord_index_lt (word : FixedWord) (member : word ∈ fixedWords) :
-    word.index < 27819 := by
+    word.index < 28913 := by
   rw [fixedWords, List.mem_map] at member
   rcases member with ⟨index, _indexMember, rfl⟩
   have bound := index.isLt
   have chunkLength := stateDomainChunk_length
-  change index.val < 27819
+  change index.val < 28913
   omega
 
-def packWordExpr (low middle high : Expr) : Expr :=
-  low + Expr.const packRadix * middle + Expr.const (packRadix * packRadix) * high
+def packWordExpr (low high : Expr) : Expr :=
+  low + Expr.const packRadix * high
 
-theorem packWordExpr_eval (low middle high : Expr) (env : Env) :
-    (packWordExpr low middle high).eval env =
-      packWord (low.eval env) (middle.eval env) (high.eval env) := by
+theorem packWordExpr_eval (low high : Expr) (env : Env) :
+    (packWordExpr low high).eval env =
+      packWord (low.eval env) (high.eval env) := by
   simp only [packWordExpr, Expr.eval_hadd, Expr.eval_hmul, Expr.eval_const, packWord]
 
 theorem packWordExpr_closed (Holds : Expr → Prop)
     (add : ∀ left right, Holds left → Holds right → Holds (left + right))
     (scale : ∀ weight value, Holds value → Holds (Expr.const weight * value))
-    {low middle high : Expr} (lowHolds : Holds low) (middleHolds : Holds middle)
-    (highHolds : Holds high) :
-    Holds (packWordExpr low middle high) :=
-  add _ _ (add _ _ lowHolds (scale _ _ middleHolds)) (scale _ _ highHolds)
+    {low high : Expr} (lowHolds : Holds low) (highHolds : Holds high) :
+    Holds (packWordExpr low high) :=
+  add _ _ lowHolds (scale _ _ highHolds)
 
-def signCount : Nat := 3 * packedParentWords
+def signCount : Nat := 2 * packedParentWords
 
-@[simp] theorem signCount_eq : signCount = 270 := by
+@[simp] theorem signCount_eq : signCount = 320 := by
   rfl
 
-def signIndex (word : Fin packedParentWords) (lane : Fin 3) : Fin signCount :=
-  ⟨3 * word.val + lane.val, by
+def signIndex (word : Fin packedParentWords) (lane : Fin 2) : Fin signCount :=
+  ⟨2 * word.val + lane.val, by
     have wordBound := word.isLt
     have laneBound := lane.isLt
     unfold signCount
     omega⟩
 
 def signWordOf (index : Fin signCount) : Fin packedParentWords :=
-  ⟨index.val / 3, by
+  ⟨index.val / 2, by
     have bound := index.isLt
     unfold signCount at bound
     omega⟩
 
-def signLaneOf (index : Fin signCount) : Fin 3 :=
-  ⟨index.val % 3, Nat.mod_lt _ (by decide)⟩
+def signLaneOf (index : Fin signCount) : Fin 2 :=
+  ⟨index.val % 2, Nat.mod_lt _ (by decide)⟩
 
-@[simp] theorem signWordOf_signIndex (word : Fin packedParentWords) (lane : Fin 3) :
+@[simp] theorem signWordOf_signIndex (word : Fin packedParentWords) (lane : Fin 2) :
     signWordOf (signIndex word lane) = word := by
   apply Fin.ext
   have laneBound := lane.isLt
   simp only [signWordOf, signIndex]
   omega
 
-@[simp] theorem signLaneOf_signIndex (word : Fin packedParentWords) (lane : Fin 3) :
+@[simp] theorem signLaneOf_signIndex (word : Fin packedParentWords) (lane : Fin 2) :
     signLaneOf (signIndex word lane) = lane := by
   apply Fin.ext
   have laneBound := lane.isLt
   simp only [signLaneOf, signIndex]
   omega
 
-def signBit (offset : Nat) (word : Fin packedParentWords) (lane : Fin 3) : Expr :=
+def signBit (offset : Nat) (word : Fin packedParentWords) (lane : Fin 2) : Expr :=
   Expr.var (offset + (signIndex word lane).val)
 
 structure Interface where
   priorState : Nat → Nat → Expr
   outputState : Nat → Nat → Expr
   expectedContext : Nat → Fin 4 → Expr
-  priorDigit : Nat → Fin packedParentWords → Fin 3 → Radix.ChildIndex → Expr
+  priorDigit : Nat → Fin packedParentWords → Fin 2 → Radix.ChildIndex → Expr
 
 def signHint (interface : Interface) (offset : Nat)
-    (word : Fin packedParentWords) (lane : Fin 3) : Hint :=
+    (word : Fin packedParentWords) (lane : Fin 2) : Hint :=
   PiDEC.v1_2.SignedSplitScalar.bitHint (PiDEC.v1_2.SignedSplitScalar.recomposeDigits (interface.priorDigit offset word lane))
 
 def signHints (interface : Interface) (offset : Nat) : List Hint :=
@@ -129,11 +128,10 @@ def packedAssertion (interface : Interface) (offset : Nat)
   interface.priorState offset (packedWordStart + word.val) -
     packWordExpr (PiDEC.v1_2.SignedSplitScalar.recomposeDigits (interface.priorDigit offset word 0))
       (PiDEC.v1_2.SignedSplitScalar.recomposeDigits (interface.priorDigit offset word 1))
-      (PiDEC.v1_2.SignedSplitScalar.recomposeDigits (interface.priorDigit offset word 2))
 
 def wordAssertions (interface : Interface) (offset : Nat)
     (word : Fin packedParentWords) : List Expr :=
-  (List.finRange 3).flatMap (fun lane =>
+  (List.finRange 2).flatMap (fun lane =>
       laneAssertions (signBit offset word lane)
         (interface.priorDigit offset word lane)) ++
     [packedAssertion interface offset word]
@@ -167,7 +165,7 @@ def ContextBound (state : Nat → Expr) (expected : Fin 4 → Expr)
       (expected lane).eval env
 
 def priorDigits (interface : Interface) (offset : Nat) (env : Env)
-    (word : Fin packedParentWords) (lane : Fin 3) : Radix.ChildIndex → F :=
+    (word : Fin packedParentWords) (lane : Fin 2) : Radix.ChildIndex → F :=
   fun child => (interface.priorDigit offset word lane child).eval env
 
 structure ChildrenSplit (interface : Interface) (offset : Nat) (env : Env) : Prop where
@@ -178,7 +176,6 @@ structure ChildrenSplit (interface : Interface) (offset : Nat) (env : Env) : Pro
     (interface.priorState offset (packedWordStart + word.val)).eval env =
       packWord (Radix.recomposeScalar (priorDigits interface offset env word 0))
         (Radix.recomposeScalar (priorDigits interface offset env word 1))
-        (Radix.recomposeScalar (priorDigits interface offset env word 2))
 
 structure SpecHolds (interface : Interface) (offset : Nat) (env : Env) : Prop where
   priorCanonical : StateCanonical (interface.priorState offset) env
@@ -198,7 +195,7 @@ theorem ChildrenSplit.congr {left right : Interface} {leftOffset rightOffset : N
       (left.priorDigit leftOffset word lane child).eval env =
         (right.priorDigit rightOffset word lane child).eval env) :
     ChildrenSplit right rightOffset env := by
-  have digitsSame (word : Fin packedParentWords) (lane : Fin 3) :
+  have digitsSame (word : Fin packedParentWords) (lane : Fin 2) :
       priorDigits right rightOffset env word lane =
         priorDigits left leftOffset env word lane :=
     funext fun child => (digit word lane child).symm
@@ -207,7 +204,7 @@ theorem ChildrenSplit.congr {left right : Interface} {leftOffset rightOffset : N
     rw [digitsSame]
     exact split.digits word lane
   · intro word
-    rw [← packed word, digitsSame, digitsSame, digitsSame]
+    rw [← packed word, digitsSame, digitsSame]
     exact split.packed word
 
 theorem SpecHolds.contextPreserved
@@ -264,7 +261,7 @@ private theorem digitRow_mem (sign : Expr) (digits : Radix.ChildIndex → Expr)
   List.mem_cons_of_mem _ (List.mem_ofFn.mpr ⟨child, rfl⟩)
 
 private theorem laneRow_mem {interface : Interface} {offset : Nat}
-    {expression : Expr} (word : Fin packedParentWords) (lane : Fin 3)
+    {expression : Expr} (word : Fin packedParentWords) (lane : Fin 2)
     (member : expression ∈ laneAssertions (signBit offset word lane)
       (interface.priorDigit offset word lane)) :
     expression ∈ childAssertions interface offset :=
@@ -301,11 +298,10 @@ private theorem packedRow_eval (interface : Interface) (offset : Nat) (env : Env
     (packedAssertion interface offset word).eval env = 0 ↔
       (interface.priorState offset (packedWordStart + word.val)).eval env =
         packWord (Radix.recomposeScalar (priorDigits interface offset env word 0))
-          (Radix.recomposeScalar (priorDigits interface offset env word 1))
-          (Radix.recomposeScalar (priorDigits interface offset env word 2)) := by
+          (Radix.recomposeScalar (priorDigits interface offset env word 1)) := by
   unfold packedAssertion
   rw [assertion_holds_iff, packWordExpr_eval, PiDEC.v1_2.SignedSplitScalar.recomposeDigits_eval,
-    PiDEC.v1_2.SignedSplitScalar.recomposeDigits_eval, PiDEC.v1_2.SignedSplitScalar.recomposeDigits_eval]
+    PiDEC.v1_2.SignedSplitScalar.recomposeDigits_eval]
   rfl
 
 private theorem childrenSplit_of_rows (interface : Interface) (offset : Nat) (env : Env)
@@ -480,14 +476,14 @@ theorem childAssertions_closed (Holds : Expr → Prop)
     exact mul _ _ (digitHolds word lane child) (sub _ _ (digitHolds word lane child)
       (sub _ _ one (mul _ _ two (signHolds word lane))))
   · subst expression
-    have recomposed (lane : Fin 3) :
+    have recomposed (lane : Fin 2) :
         Holds (PiDEC.v1_2.SignedSplitScalar.recomposeDigits (interface.priorDigit offset word lane)) :=
       PiDEC.v1_2.SignedSplitScalar.recomposeDigits_closed Holds constant add scale _ (digitHolds word lane)
     exact sub _ _ (packedHolds word)
-      (packWordExpr_closed Holds add scale (recomposed 0) (recomposed 1) (recomposed 2))
+      (packWordExpr_closed Holds add scale (recomposed 0) (recomposed 1))
 
 private theorem signBit_varsBelow (offset : Nat) (word : Fin packedParentWords)
-    (lane : Fin 3) : (signBit offset word lane).VarsBelow (offset + signCount) := by
+    (lane : Fin 2) : (signBit offset word lane).VarsBelow (offset + signCount) := by
   have bound := (signIndex word lane).isLt
   simp only [signBit, Expr.VarsBelow]
   omega
@@ -540,7 +536,7 @@ theorem specHolds_of_agree_below (interface : Interface) (offset : Nat)
   have same : ∀ expression : Expr, expression.VarsBelow offset →
       expression.eval after = expression.eval before := fun expression below =>
     Expr.eval_eq_of_agree_below expression offset after before below agrees
-  have digitsSame (word : Fin packedParentWords) (lane : Fin 3) :
+  have digitsSame (word : Fin packedParentWords) (lane : Fin 2) :
       priorDigits interface offset after word lane =
         priorDigits interface offset before word lane :=
     funext fun child => same _ (assumptions.priorDigit word lane child)
@@ -562,7 +558,7 @@ theorem specHolds_of_agree_below (interface : Interface) (offset : Nat)
       rw [digitsSame]
       exact specification.priorChildren.digits word lane
     · intro word
-      rw [same _ (assumptions.priorPacked word), digitsSame, digitsSame, digitsSame]
+      rw [same _ (assumptions.priorPacked word), digitsSame, digitsSame]
       exact specification.priorChildren.packed word
 
 theorem signHints_readBelow (interface : Interface) (offset : Nat) {env : Env}
@@ -579,7 +575,7 @@ theorem signHints_readBelow (interface : Interface) (offset : Nat) {env : Env}
 theorem signHint_eval_of_agree_below (interface : Interface) (offset : Nat)
     (before after : Env) (assumptions : Assumptions interface offset before)
     (agrees : ∀ index, index < offset → after index = before index)
-    (word : Fin packedParentWords) (lane : Fin 3) :
+    (word : Fin packedParentWords) (lane : Fin 2) :
     (signHint interface offset word lane).eval after =
       (signHint interface offset word lane).eval before := by
   apply Hint.eval_eq_of_agree_below _ offset after before _ agrees
@@ -597,7 +593,7 @@ theorem completeEnv_agrees_below (interface : Interface) (env : Env) (offset : N
 
 theorem completeEnv_sign (interface : Interface) (env : Env) (offset : Nat)
     (assumptions : Assumptions interface offset env)
-    (word : Fin packedParentWords) (lane : Fin 3) :
+    (word : Fin packedParentWords) (lane : Fin 2) :
     (signBit offset word lane).eval (completeEnv interface env offset) =
       (signHint interface offset word lane).eval env := by
   have value := executeHints_value_of_readBelow env offset (signHints interface offset)
@@ -644,20 +640,21 @@ theorem completeness (interface : Interface) (env : Env) (offset : Nat)
 
 private theorem wordAssertions_length (interface : Interface) (offset : Nat)
     (word : Fin packedParentWords) :
-    (wordAssertions interface offset word).length = 52 := by
+    (wordAssertions interface offset word).length = 35 := by
   simp [wordAssertions, laneAssertions, List.length_flatMap, productionGlobalParams]
 
 theorem assertions_length (interface : Interface) (offset : Nat) :
-    (assertions interface offset).length = 4712 := by
-  have children : (childAssertions interface offset).length = 4680 := by
+    (assertions interface offset).length = 5632 := by
+  have children : (childAssertions interface offset).length = 5600 := by
     rw [childAssertions, List.length_flatMap]
-    simp only [wordAssertions_length]
-    simp [packedParentWords]
+    simp only [wordAssertions_length, List.map_const', List.sum_replicate,
+      List.length_finRange, smul_eq_mul]
+    rfl
   simp [assertions, stateWordAssertions, stateAssertions, contextAssertions,
     fixedWords_length, children]
 
 theorem flatConstraints_length (interface : Interface) (offset : Nat) :
-    (flatConstraints (Circuit.ops (main interface) offset)).length = 4712 := by
+    (flatConstraints (Circuit.ops (main interface) offset)).length = 5632 := by
   rw [main_ops, flatConstraints_opsAt, assertions_length]
 
 def circuit (interface : Interface) : FormalCircuit where

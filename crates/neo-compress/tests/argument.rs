@@ -121,6 +121,20 @@ fn a_changed_proof_does_not_verify() {
     }
 }
 
+/// `V` holds the inverses of the claims with a table, so claims without a
+/// table have no layout, and no proof for them verifies.
+#[test]
+fn claims_without_a_table_have_no_layout() {
+    assert!(matches!(Layout::new(&[]), Err(Error::Layout(_))));
+    assert!(matches!(
+        Layout::new(&[(90, Norm::Caller), (61, Norm::Caller)]),
+        Err(Error::Layout(_))
+    ));
+    assert!(Layout::new(&[(90, Norm::Caller), (61, Norm::Table { bound: 1 })]).is_ok());
+    let (instances, proof) = honest();
+    assert!(matches!(accepts(&instances[2..], proof), Err(Error::Layout(_))));
+}
+
 /// Each change makes one part of a claim false: a commitment row, `Eval_K`,
 /// one `Eval_A`, the public input, the point. The verifier rejects the honest
 /// proof for the changed claim, and the proof of a prover that proves the

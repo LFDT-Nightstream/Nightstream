@@ -91,10 +91,17 @@ fn vars_for(cells: usize) -> usize {
 impl Layout {
     /// The layout of claims with `blocks` ring blocks and the norm proof
     /// `norm` each. The witnesses with a table come first, the larger first,
-    /// then the other witnesses, then the counts.
+    /// then the other witnesses, then the counts. One claim or more has a
+    /// table, so `V` has cells.
     pub fn new(claims: &[(usize, Norm)]) -> Result<Self, Error> {
         if claims.iter().any(|&(blocks, _)| blocks == 0) {
             return Err(Error::Layout("a claim has no block"));
+        }
+        if !claims
+            .iter()
+            .any(|&(_, norm)| matches!(norm, Norm::Table { .. }))
+        {
+            return Err(Error::Layout("no claim has a table"));
         }
         let mut order: Vec<usize> = (0..claims.len()).collect();
         order.sort_by_key(|&claim| {
@@ -146,11 +153,7 @@ impl Layout {
             witness_len: cursor,
             span_vars,
             span_len,
-            inverse_vars: if span_len == 0 {
-                0
-            } else {
-                shipped(span_vars + LOOKUP_VARS)?
-            },
+            inverse_vars: shipped(span_vars + LOOKUP_VARS)?,
         })
     }
 

@@ -71,7 +71,7 @@ theorem production_countNormLaw {shape : RingRelation.Shape} {verifierRows : Nat
     assignments valid fresh column
   change centeredMagnitude
       (RingRelation.EvaluationHomomorphism.PiRLCFinite.combineAssignments challenges
-        assignments column) < count * 216 * (2 - 1) + 1
+        assignments column) < count * 128 * (2 - 1) + 1
   omega
 
 variable {Commitment : Type uCommitment} {PublicInput : Type uPublicInput}

@@ -13,10 +13,10 @@ def publicBlock {shape : Shape}
     (input : PublicInput shape) (block : Fin shape.publicRingColumns) : RingF :=
   fun lane => input ⟨block.val * ringDegree + lane.val, by
     have blockLt := block.isLt
-    have laneLt : lane.val < 54 := by
-      change lane.val < 54
+    have laneLt : lane.val < 64 := by
+      change lane.val < 64
       exact lane.isLt
-    change block.val * 54 + lane.val < 54 * shape.publicRingColumns
+    change block.val * 64 + lane.val < 64 * shape.publicRingColumns
     omega⟩
 
 def publicBlockIndex (shape : Shape) (column : Fin shape.publicWidth) :

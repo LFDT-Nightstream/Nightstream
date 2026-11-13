@@ -17,12 +17,12 @@ theorem act_coordinate_le_expansion
     (challengeValid : Challenge.challengeValid challenge)
     (assignmentFresh : assignmentNormBounded 2 assignment)
     (column : Fin shape.carrierWidth) :
-    centeredMagnitude (CarrierAction.act challenge assignment column) <= 216 := by
+    centeredMagnitude (CarrierAction.act challenge assignment column) <= 128 := by
   let packed :=
     NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteRingColumnLayout.decode column
   change centeredMagnitude
       (ringFMul challenge
-        (CarrierAction.assignmentBlock assignment packed.1) packed.2) <= 216
+        (CarrierAction.assignmentBlock assignment packed.1) packed.2) <= 128
   apply Product.ringFMul_le_expansion challenge
       (CarrierAction.assignmentBlock assignment packed.1)
   · exact challengeValid
@@ -40,7 +40,7 @@ theorem combineAssignments_le
     (column : Fin shape.carrierWidth) :
     centeredMagnitude
         (PiRLCFinite.combineAssignments challenges assignments column) <=
-      count * 216 := by
+      count * 128 := by
   induction count with
   | zero =>
       simp [PiRLCFinite.combineAssignments, BaseLinear.assignmentZero,
@@ -60,7 +60,7 @@ theorem combineAssignments_le
             PiRLCFinite.combineAssignments
               (fun index => challenges index.succ)
               (fun index => assignments index.succ) column) <=
-        (count + 1) * 216
+        (count + 1) * 128
       exact Nat.le_trans
         (Centered.centeredMagnitude_add_le _ _)
         (by
@@ -71,10 +71,10 @@ theorem combineAssignments_le
 theorem production_total_bound {count : Nat}
     (totalBound : count <=
       productionGlobalParams.maxFresh + productionGlobalParams.k) :
-    count * 216 < productionGlobalParams.bigB := by
-  have countLe : count <= 303 := by
+    count * 128 < productionGlobalParams.bigB := by
+  have countLe : count <= 511 := by
     simpa [productionGlobalParams] using totalBound
-  change count * 216 < 65536
+  change count * 128 < 65536
   omega
 
 theorem relation_norm_growth

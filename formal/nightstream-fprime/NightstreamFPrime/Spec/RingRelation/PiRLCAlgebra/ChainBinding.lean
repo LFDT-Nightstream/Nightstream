@@ -16,7 +16,7 @@ def collisionAt_to_shortKernel {shape : Shape} {rows : Nat}
     (key : Commitment.Key shape rows) (commitment : Commitment.Value rows) (bound : Nat)
     (collision : CollisionAt (relationSemantics (Commitment.commit key)) productionGlobalParams
       relaxedOps (2 * bound) commitment) :
-    ShortKernelVector key (8 * 216 * bound) := by
+    ShortKernelVector key (8 * 128 * bound) := by
   let pair := collision.collision
   let left := CarrierAction.act pair.delta₁ pair.opening₂
   let right := CarrierAction.act pair.delta₂ pair.opening₁
@@ -39,9 +39,9 @@ def collisionAt_to_shortKernel {shape : Shape} {rows : Nat}
     have rightBound := difference_action_bounded pair.delta₂ pair.opening₁ pair.delta₂Valid
       firstBound column
     have triangle := Norm.Centered.centeredMagnitude_sub_le (left column) (right column)
-    change centeredMagnitude (left column) ≤ 2 * 216 * (2 * bound - 1) at leftBound
-    change centeredMagnitude (right column) ≤ 2 * 216 * (2 * bound - 1) at rightBound
-    change centeredMagnitude (left column - right column) < 8 * 216 * bound
+    change centeredMagnitude (left column) ≤ 2 * 128 * (2 * bound - 1) at leftBound
+    change centeredMagnitude (right column) ≤ 2 * 128 * (2 * bound - 1) at rightBound
+    change centeredMagnitude (left column - right column) < 8 * 128 * bound
     omega
   · apply equal_commitments_difference_kernel key left right
     dsimp only [left, right]

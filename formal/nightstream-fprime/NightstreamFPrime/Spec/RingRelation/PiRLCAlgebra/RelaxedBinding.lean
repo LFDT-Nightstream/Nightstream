@@ -39,7 +39,7 @@ theorem difference_action_bounded {shape : Shape} {bound : Nat}
     (valid : differenceChallenge delta)
     (bounded : ∀ column, centeredMagnitude (assignment column) ≤ bound)
     (column : Fin shape.carrierWidth) :
-    centeredMagnitude (CarrierAction.act delta assignment column) ≤ 2 * 216 * bound := by
+    centeredMagnitude (CarrierAction.act delta assignment column) ≤ 2 * 128 * bound := by
   obtain ⟨left, right, leftValid, rightValid, rfl⟩ := valid
   let packed := Folding.PiCCS.PaperJoint.ConcreteRingColumnLayout.decode column
   let block := CarrierAction.assignmentBlock assignment packed.1
@@ -82,9 +82,9 @@ def relaxedBindingCollision_to_shortKernel {shape : Shape} {rows : Nat}
       collision.delta₂Valid firstBound column
     have triangle := Norm.Centered.centeredMagnitude_sub_le (left column) (right column)
     change centeredMagnitude (left column - right column) < _
-    change centeredMagnitude (left column) ≤ 56622672 at leftBound
-    change centeredMagnitude (right column) ≤ 56622672 at rightBound
-    change centeredMagnitude (left column - right column) < 113246208
+    change centeredMagnitude (left column) ≤ 33554176 at leftBound
+    change centeredMagnitude (right column) ≤ 33554176 at rightBound
+    change centeredMagnitude (left column - right column) < 67108864
     omega
   · apply equal_commitments_difference_kernel key left right
     dsimp only [left, right]

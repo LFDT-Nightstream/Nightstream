@@ -3,7 +3,7 @@ import NightstreamFPrime.Spec.Folding.Light.Rlc
 import NightstreamFPrime.Spec.RingRelation.PiRLCAlgebra.Challenge
 
 /-! Cyclo (ePrint 2026/359) Theorem 3, item 1, on the production algebra: a light Π_RLC adds
-at most `T = 216` to each coordinate of the accumulator. -/
+at most `T = 128` to each coordinate of the accumulator. -/
 
 namespace NightstreamFPrime.Spec.RingRelation.PiRLCAlgebra.LightNorm
 
@@ -33,7 +33,7 @@ theorem norm_law {shape : Shape} {verifierRows : Nat}
   have runningColumn : centeredMagnitude (running column) < bound := runningBounded column
   change centeredMagnitude
       (PiRLCFinite.combineAssignments (Light.Rlc.pair challenge ringFOne)
-        (Light.Rlc.pair fresh running) column) < bound + 216 * (2 - 1)
+        (Light.Rlc.pair fresh running) column) < bound + 128 * (2 - 1)
   simp only [PiRLCFinite.combineAssignments, Light.Rlc.pair, BaseLinear.assignmentAdd,
     BaseLinear.Raw.assignmentAdd, BaseLinear.assignmentZero, BaseLinear.Raw.assignmentZero,
     Fin.val_zero, Fin.val_succ, Nat.zero_add, Nat.one_ne_zero, ↓reduceIte, act_one,
@@ -43,12 +43,12 @@ theorem norm_law {shape : Shape} {verifierRows : Nat}
   omega
 
 /-- The production form of `Light.Rlc.ExtractionNormLaw`: the extracted accumulator
-`w − ρ · u` has each coordinate within `T = 216` of `w`. -/
+`w − ρ · u` has each coordinate within `T = 128` of `w`. -/
 theorem sub_act_bound {shape : Shape} (accumulated fresh : Assignment shape)
     (challenge : RingF) (valid : Challenge.challengeValid challenge) (bound : Nat)
     (accumulatedBounded : assignmentNormBounded bound accumulated)
     (freshTernary : assignmentNormBounded 2 fresh) :
-    assignmentNormBounded (bound + 216)
+    assignmentNormBounded (bound + 128)
       (fun column => accumulated column + -(CarrierAction.act challenge fresh column)) := by
   intro column
   have accumulatedColumn := accumulatedBounded column
@@ -58,7 +58,7 @@ theorem sub_act_bound {shape : Shape} (accumulated fresh : Assignment shape)
     (-(CarrierAction.act challenge fresh column))
   rw [Norm.Centered.centeredMagnitude_neg] at sum
   change centeredMagnitude
-    (accumulated column + -(CarrierAction.act challenge fresh column)) < bound + 216
+    (accumulated column + -(CarrierAction.act challenge fresh column)) < bound + 128
   omega
 
 end NightstreamFPrime.Spec.RingRelation.PiRLCAlgebra.LightNorm

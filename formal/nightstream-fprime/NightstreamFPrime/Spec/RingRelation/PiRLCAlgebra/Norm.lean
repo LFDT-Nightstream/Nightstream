@@ -13,7 +13,7 @@ export Centered
     embedCoefficient_mul_le_two)
 
 export Product
-  (supportActive supportCount totalSupport totalSupport_le_two_degrees
+  (supportActive supportCount totalSupport totalSupport_le_ringDegree
     rawMulCoeffF_le_support ringFMul_le_expansion)
 
 export Finite

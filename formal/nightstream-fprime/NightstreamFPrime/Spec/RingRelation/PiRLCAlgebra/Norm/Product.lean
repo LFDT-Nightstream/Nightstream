@@ -190,113 +190,84 @@ theorem rawMulCoeffF_le_support
   simpa using rawMulCoeffF_le_support_of_bounded (bound := 1) challenge block challengeMember
     (fun lane => Nat.le_of_lt_succ (blockFresh lane)) degree
 
-def foldedDegree (output : Nat) : Nat :=
-  if output < ringMiddleDegree then output + ringDegree
-  else output + ringMiddleDegree
-
-def twiceEnabled (output : Nat) : Bool :=
-  decide (output + 81 <= 106)
-
 def totalSupport (output : Nat) : Nat :=
-  supportCount output + supportCount (foldedDegree output) +
-    if twiceEnabled output then supportCount (output + 81) else 0
+  supportCount output + supportCount (output + ringDegree)
 
-theorem totalSupport_le_two_degrees :
-    forall output : Fin ringDegree,
-      totalSupport output.val <= 2 * ringDegree := by
-  simp [Fin.forall_fin_succ, totalSupport, supportCount, supportActive,
-    foldedDegree, twiceEnabled, ringDegree, ringMiddleDegree]
-  decide
+private theorem filter_length_add_le
+    (indices : List Nat) (first second : Nat -> Bool)
+    (exclusive : forall index, index ∈ indices ->
+      first index = true -> second index = true -> False) :
+    (indices.filter first).length + (indices.filter second).length <=
+      indices.length := by
+  induction indices with
+  | nil => exact Nat.le_refl 0
+  | cons index rest inductionHypothesis =>
+      have tail := inductionHypothesis
+        (fun item member => exclusive item (List.mem_cons_of_mem index member))
+      have head := exclusive index List.mem_cons_self
+      cases firstValue : first index <;> cases secondValue : second index
+      · simp only [List.filter_cons, firstValue, secondValue, Bool.false_eq_true,
+          ite_false, List.length_cons]
+        omega
+      · simp only [List.filter_cons, firstValue, secondValue, Bool.false_eq_true,
+          ite_false, ite_true, List.length_cons]
+        omega
+      · simp only [List.filter_cons, firstValue, secondValue, Bool.false_eq_true,
+          ite_false, ite_true, List.length_cons]
+        omega
+      · exact (head firstValue secondValue).elim
 
-def foldedRaw (challenge block : RingF) (output : Nat) : F :=
-  if output < ringMiddleDegree then
-    rawMulCoeffF challenge block (output + ringDegree)
-  else
-    rawMulCoeffF challenge block (output + ringMiddleDegree)
+/-- An index is in the support of at most one of the raw coefficients `output` and
+`output + ringDegree`. -/
+theorem totalSupport_le_ringDegree (output : Nat) :
+    totalSupport output <= ringDegree := by
+  have bound := filter_length_add_le (List.range ringDegree)
+    (fun index => decide (supportActive output index))
+    (fun index => decide (supportActive (output + ringDegree) index))
+    (by
+      intro index _ first second
+      have firstActive : supportActive output index := of_decide_eq_true first
+      have secondActive : supportActive (output + ringDegree) index :=
+        of_decide_eq_true second
+      unfold supportActive at firstActive secondActive
+      omega)
+  rw [List.length_range] at bound
+  exact bound
 
-def twiceRaw (challenge block : RingF) (output : Nat) : F :=
-  if output + 81 <= 106 then
-    rawMulCoeffF challenge block (output + 81)
-  else
-    0
-
-def reducedValue (challenge block : RingF) (output : Nat) : F :=
-  rawMulCoeffF challenge block output - foldedRaw challenge block output +
-    twiceRaw challenge block output
-
-theorem ringFMul_eq_reducedValue
-    (challenge block : RingF) (output : Fin ringDegree) :
-    ringFMul challenge block output =
-      reducedValue challenge block output.val := by
-  rfl
-
+/-- SuperNeo v1.2 Theorem 5 for `X^64 + 1`: each coefficient of a product is a signed sum of
+`ringDegree` terms, so `T = 2 · ringDegree`. -/
 theorem ringFMul_le_expansion_of_bounded
     {bound : Nat} (challenge : RingF) (block : RingF)
     (challengeMember : ProductionMember challenge)
     (blockBounded : forall lane, centeredMagnitude (block lane) <= bound)
     (output : Fin ringDegree) :
-    centeredMagnitude (ringFMul challenge block output) <= 216 * bound := by
-  let folded := foldedDegree output.val
+    centeredMagnitude (ringFMul challenge block output) <= 128 * bound := by
   have baseBound := rawMulCoeffF_le_support_of_bounded challenge block challengeMember
     blockBounded output.val
   have foldedBound := rawMulCoeffF_le_support_of_bounded challenge block challengeMember
-    blockBounded folded
-  have foldedRawEq : foldedRaw challenge block output.val =
-      rawMulCoeffF challenge block folded := by
-    by_cases low : output.val < ringMiddleDegree
-    · simp [foldedRaw, foldedDegree, folded, low]
-    · simp [foldedRaw, foldedDegree, folded, low]
-  have twiceBound : centeredMagnitude (twiceRaw challenge block output.val) <=
-      (if twiceEnabled output.val then supportCount (output.val + 81) else 0) * (2 * bound) := by
-    by_cases enabled : output.val + 81 <= 106
-    · have rawBound := rawMulCoeffF_le_support_of_bounded challenge block challengeMember
-        blockBounded (output.val + 81)
-      simpa [twiceRaw, twiceEnabled, enabled] using rawBound
-    · simp [twiceRaw, twiceEnabled, enabled,
-        Centered.centeredMagnitude_zero]
-  have reductionTriangle :
-      centeredMagnitude (reducedValue challenge block output.val) <=
-        centeredMagnitude (rawMulCoeffF challenge block output.val) +
-          centeredMagnitude (rawMulCoeffF challenge block folded) +
-            centeredMagnitude (twiceRaw challenge block output.val) := by
-    unfold reducedValue
-    rw [foldedRawEq]
-    exact Nat.le_trans
-      (Centered.centeredMagnitude_add_le
-        (rawMulCoeffF challenge block output.val -
-          rawMulCoeffF challenge block folded)
-        (twiceRaw challenge block output.val))
-      (Nat.add_le_add_right
-        (Centered.centeredMagnitude_sub_le
-          (rawMulCoeffF challenge block output.val)
-          (rawMulCoeffF challenge block folded)) _)
-  have supportBound := totalSupport_le_two_degrees output
-  have expandedBound : totalSupport output.val * (2 * bound) <= 216 * bound := by
-    calc
-      totalSupport output.val * (2 * bound) <= (2 * ringDegree) * (2 * bound) :=
-        Nat.mul_le_mul_right (2 * bound) supportBound
-      _ = 216 * bound := by simp [ringDegree, ← Nat.mul_assoc]
-  rw [ringFMul_eq_reducedValue]
+    blockBounded (output.val + ringDegree)
   calc
-    centeredMagnitude (reducedValue challenge block output.val) <=
+    centeredMagnitude (ringFMul challenge block output) <=
         centeredMagnitude (rawMulCoeffF challenge block output.val) +
-          centeredMagnitude (rawMulCoeffF challenge block folded) +
-            centeredMagnitude (twiceRaw challenge block output.val) :=
-      reductionTriangle
-    _ <= supportCount output.val * (2 * bound) + supportCount folded * (2 * bound) +
-          (if twiceEnabled output.val then
-            supportCount (output.val + 81) else 0) * (2 * bound) :=
-      Nat.add_le_add (Nat.add_le_add baseBound foldedBound) twiceBound
+          centeredMagnitude (rawMulCoeffF challenge block (output.val + ringDegree)) :=
+      Centered.centeredMagnitude_sub_le
+        (rawMulCoeffF challenge block output.val)
+        (rawMulCoeffF challenge block (output.val + ringDegree))
+    _ <= supportCount output.val * (2 * bound) +
+          supportCount (output.val + ringDegree) * (2 * bound) :=
+      Nat.add_le_add baseBound foldedBound
     _ = totalSupport output.val * (2 * bound) := by
-      simp [totalSupport, folded, Nat.add_mul]
-    _ <= 216 * bound := expandedBound
+      rw [totalSupport, Nat.add_mul]
+    _ <= ringDegree * (2 * bound) :=
+      Nat.mul_le_mul_right (2 * bound) (totalSupport_le_ringDegree output.val)
+    _ = 128 * bound := by simp [ringDegree, ← Nat.mul_assoc]
 
 theorem ringFMul_le_expansion
     (challenge : RingF) (block : RingF)
     (challengeMember : ProductionMember challenge)
     (blockFresh : forall lane, centeredMagnitude (block lane) < 2)
     (output : Fin ringDegree) :
-    centeredMagnitude (ringFMul challenge block output) <= 216 := by
+    centeredMagnitude (ringFMul challenge block output) <= 128 := by
   simpa using ringFMul_le_expansion_of_bounded (bound := 1) challenge block challengeMember
     (fun lane => Nat.le_of_lt_succ (blockFresh lane)) output
 

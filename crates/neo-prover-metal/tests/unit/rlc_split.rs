@@ -12,10 +12,9 @@ fn witness(seed: u64, columns: usize) -> Mat<F> {
         state ^= state << 17;
         state
     };
-    let lanes = (1u64 << D) - 1;
     let (positive, negative): (Vec<_>, Vec<_>) = (0..columns)
         .map(|_| {
-            let (signs, nonzero) = (next(), next() & next() & lanes);
+            let (signs, nonzero) = (next(), next() & next());
             (nonzero & signs, nonzero & !signs)
         })
         .unzip();
@@ -102,8 +101,8 @@ fn device_rlc_mix_matches_host_mix() {
     let witnesses = [&signed, &stored, &zero, &dense];
     let mut rhos: Vec<_> = sample_rot_rhos_n_typed(
         &mut neo_transcript::Poseidon2Transcript::new_v1_2(),
-        &neo_params::NeoParams::nightstream_goldilocks_k16(),
-        &RotRing::goldilocks(),
+        &neo_params::NeoParams::nightstream_p64_k16(),
+        &RotRing::profile(),
         4,
     )
     .unwrap()

@@ -86,14 +86,14 @@ fn zero_carried_tables_fit_their_advertised_length() {
         .prepare_joint_matrix_plan(&source, workspace)
         .unwrap();
     let structure = CcsStructure::new_verifier_artifact_header(1, D, 1, SparsePoly::new(1, vec![])).unwrap();
-    let mut params = neo_params::NeoParams::nightstream_goldilocks_k16();
+    let mut params = neo_params::NeoParams::nightstream_p64_k16();
     let security = params
         .padded_row_security_summary_for_shape(
             structure.n(),
             structure.m(),
             structure.t(),
             structure.max_degree(),
-            neo_params::goldilocks_paper_b2::CHALLENGE_ALPHABET.len() as u32,
+            neo_params::nightstream_p64_k16::CHALLENGE_ALPHABET.len() as u32,
         )
         .unwrap();
     params = params
@@ -157,14 +157,14 @@ fn application_storage_does_not_reserve_future_rounds() {
             ],
         );
         let structure = CcsStructure::new_verifier_artifact_header(rows, D, 1, polynomial).unwrap();
-        let mut params = neo_params::NeoParams::nightstream_goldilocks_k16();
+        let mut params = neo_params::NeoParams::nightstream_p64_k16();
         let security = params
             .padded_row_security_summary_for_shape(
                 rows,
                 D,
                 1,
                 structure.max_degree(),
-                neo_params::goldilocks_paper_b2::CHALLENGE_ALPHABET.len() as u32,
+                neo_params::nightstream_p64_k16::CHALLENGE_ALPHABET.len() as u32,
             )
             .unwrap();
         params = params
@@ -235,7 +235,7 @@ fn application_row_scratch_does_not_expand_the_carrier() {
 #[test]
 fn zero_witness_suffix_does_not_allocate_device_masks() {
     let session = MetalSession::new().unwrap();
-    let count = neo_params::NeoParams::nightstream_goldilocks_k16().k_rho() as usize + 1;
+    let count = neo_params::NeoParams::nightstream_p64_k16().k_rho() as usize + 1;
     let blocks = 2;
     let mut words = vec![0u64; count * 2 * blocks];
     words[0] = 1;

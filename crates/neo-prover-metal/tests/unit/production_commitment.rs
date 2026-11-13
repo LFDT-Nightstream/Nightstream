@@ -52,7 +52,7 @@ fn production_key_commitments_match_cpu_across_groups_blocks_and_representations
     let block = session
         .production_ajtai_accumulate
         .maxTotalThreadsPerThreadgroup()
-        / 64;
+        / D;
     while witnesses.len() <= block + 2 {
         witnesses.push(witnesses[3 + witnesses.len() % 3].clone());
     }
@@ -66,13 +66,12 @@ fn production_key_commitments_match_cpu_across_groups_blocks_and_representations
 /// Witnesses whose nonzero columns are `columns`, so occupied positions and
 /// key columns differ.
 fn sparse_witnesses(width: usize, columns: &[usize]) -> Vec<Mat<F>> {
-    let lanes = (1u64 << D) - 1;
     (0..3u64)
         .map(|seed| {
             let mut positive = vec![0; width];
             let mut negative = vec![0; width];
             for (index, &column) in columns.iter().enumerate() {
-                let bits = (0x9e37_79b9_7f4a_7c15u64.rotate_left((seed * 7 + index as u64) as u32)) & lanes;
+                let bits = 0x9e37_79b9_7f4a_7c15u64.rotate_left((seed * 7 + index as u64) as u32);
                 positive[column] = bits & 0x5555_5555_5555_5555;
                 negative[column] = bits & !0x5555_5555_5555_5555;
             }
@@ -113,7 +112,7 @@ fn production_key_coefficients_use_exact_first_and_last_indexed_addresses() {
         positive[column] = 1;
         let witness =
             Mat::compact_signed_unit_from_column_masks(D, column + 1, &positive, &vec![0; column + 1]).unwrap();
-        // Odd batches exercise Metal's 16-byte threadgroup memory alignment.
+        // One witness, and witnesses that share a threadgroup.
         for count in [1, 3] {
             let actual = session
                 .commit_production_prefixes(&vec![witness.clone(); count])
@@ -181,12 +180,11 @@ fn production_commitment_cost_per_witness() {
         state ^= state << 17;
         state
     };
-    let lanes = (1u64 << D) - 1;
     let witnesses: Vec<Mat<F>> = (0..16)
         .map(|_| {
             let (positive, negative): (Vec<_>, Vec<_>) = (0..columns)
                 .map(|_| {
-                    let (signs, nonzero) = (next(), next() & lanes);
+                    let (signs, nonzero) = (next(), next());
                     (nonzero & signs, nonzero & !signs)
                 })
                 .unzip();

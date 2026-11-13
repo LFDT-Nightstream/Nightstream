@@ -2,8 +2,8 @@
 use neo_ajtai::*;
 use neo_math::ring::{cf_inv, Rq as RqEl};
 use neo_math::s_action::SAction;
+use neo_math::Fq;
 use p3_field::PrimeCharacteristicRing;
-use p3_goldilocks::Goldilocks as Fq;
 use rand::rngs::StdRng;
 use rand::{RngCore, SeedableRng};
 
@@ -16,7 +16,7 @@ fn sample_Z(d: usize, m: usize, b: u32) -> Vec<Fq> {
 
 #[test]
 fn s_module_homomorphism() {
-    let d = 54usize;
+    let d = neo_math::D;
     let m = 64usize;
     let kappa = 8usize;
     let mut rng = StdRng::seed_from_u64(1);

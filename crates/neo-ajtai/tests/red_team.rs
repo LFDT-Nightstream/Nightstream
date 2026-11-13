@@ -1,8 +1,8 @@
 #![allow(non_snake_case)]
 use neo_ajtai::{commit, s_lincomb, setup, verify_open, Commitment, PP};
 use neo_math::ring::{Rq as RqEl, D};
+use neo_math::Fq;
 use p3_field::PrimeCharacteristicRing;
-use p3_goldilocks::Goldilocks as Fq;
 use rand::{Rng, SeedableRng};
 use std::convert::TryInto;
 use std::panic::catch_unwind;

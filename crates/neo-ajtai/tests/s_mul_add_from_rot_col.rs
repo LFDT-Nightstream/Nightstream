@@ -1,8 +1,8 @@
 use neo_ajtai::{s_mul, s_mul_add, s_mul_add_from_rot_col, Commitment};
 use neo_math::ring::{cf, Rq as RqEl};
+use neo_math::Fq;
 use neo_math::D;
 use p3_field::PrimeCharacteristicRing;
-use p3_goldilocks::Goldilocks as Fq;
 
 fn sample_commitment_with_kappa(kappa: usize) -> Commitment {
     let mut data = Vec::with_capacity(D * kappa);

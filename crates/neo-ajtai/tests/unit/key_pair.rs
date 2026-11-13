@@ -1,12 +1,14 @@
 use super::{coefficient_pair, split_pair};
-use crate::nightstream_fprime_setup::{coefficient_block, MAX_MESSAGE_COLUMNS, PRODUCTION_SEED};
+use crate::nightstream_fprime_setup::{
+    coefficient_block, MAX_MESSAGE_COLUMNS, PRODUCTION_SEED, PRODUCTION_VERIFIER_ROWS,
+};
 use neo_math::{signed_sums::SignedShiftSums, F};
 use p3_field::PrimeCharacteristicRing;
 
 #[test]
 fn paired_key_coefficients_match_independent_shake128() {
     for seed in [PRODUCTION_SEED, [0; 32], core::array::from_fn(|i| i as u8)] {
-        for row in [0, 1, 21, u32::MAX] {
+        for row in [0, 1, PRODUCTION_VERIFIER_ROWS as u32 - 1, u32::MAX] {
             for columns in [
                 [0, 1],
                 [65_535, 65_536],

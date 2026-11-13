@@ -19,7 +19,8 @@ const WEIGHT_SUM: u64 = WORD_WEIGHTS[0] + WORD_WEIGHTS[1] + WORD_WEIGHTS[2] + WO
 /// carry has weight `2^64 ≡ 59`, so the low limb is below
 /// `2^32 + 59·WEIGHT_SUM`.
 pub const LIMB_BOUND: u128 = (1 << 32) + (FOLD * WEIGHT_SUM) as u128;
-const MAX_TERMS: u64 = 1 << 24;
+/// The most terms that one `SignedShiftSums` holds exactly.
+pub const MAX_TERMS: u64 = 1 << 24;
 
 /// A coefficient position receives at most `D` shifts of each term.
 const _: () = assert!((D as u128) * LIMB_BOUND * (MAX_TERMS as u128) < (1u128 << 63));

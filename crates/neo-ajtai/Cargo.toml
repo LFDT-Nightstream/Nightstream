@@ -25,10 +25,8 @@ thiserror = { workspace = true }
 rayon = { workspace = true }
 
 p3-field = { workspace = true }
-p3-goldilocks = { workspace = true }
 
 [dev-dependencies]
 proptest = { workspace = true }
 serde_json = { workspace = true }
-p3-symmetric = { workspace = true }
 rand_chacha = { workspace = true }

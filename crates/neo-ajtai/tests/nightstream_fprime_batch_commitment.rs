@@ -6,9 +6,9 @@ use neo_ajtai::{
     AjtaiError, Commitment,
 };
 use neo_ccs::Mat;
+use neo_math::Fq as F;
 use neo_math::{Rq, D};
 use p3_field::PrimeCharacteristicRing;
-use p3_goldilocks::Goldilocks as F;
 
 fn dense(columns: usize, entries: &[(usize, usize, i8)]) -> Mat<F> {
     let mut witness = Mat::zero(D, columns, F::ZERO);

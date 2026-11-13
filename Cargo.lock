@@ -158,17 +158,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9330f8b2ff13f34540b44e946ef35111825727b38d33286ef986142615121801"
 
 [[package]]
-name = "chacha20"
-version = "0.10.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d524456ba66e72eb8b115ff89e01e497f8e6d11d78b70b1aa13c0fbd97540a81"
-dependencies = [
- "cfg-if",
- "cpufeatures 0.3.0",
- "rand_core 0.10.1",
-]
-
-[[package]]
 name = "clang-sys"
 version = "1.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -656,7 +645,6 @@ dependencies = [
  "cfg-if",
  "libc",
  "r-efi 6.0.0",
- "rand_core 0.10.1",
 ]
 
 [[package]]
@@ -877,8 +865,6 @@ dependencies = [
  "neo-math",
  "neo-params",
  "p3-field",
- "p3-goldilocks",
- "p3-symmetric",
  "proptest",
  "rand 0.9.5",
  "rand_chacha 0.9.0",
@@ -910,15 +896,10 @@ version = "0.1.0"
 dependencies = [
  "neo-math",
  "neo-params",
- "once_cell",
  "p3-field",
- "p3-goldilocks",
  "p3-matrix",
  "p3-poseidon2",
- "p3-symmetric",
- "rand 0.10.2",
  "rand 0.9.5",
- "rand_chacha 0.10.0",
  "rayon",
  "serde",
  "serde_json",
@@ -1004,8 +985,6 @@ dependencies = [
  "neo-ccs",
  "neo-math",
  "p3-field",
- "p3-goldilocks",
- "p3-symmetric",
 ]
 
 [[package]]
@@ -1484,8 +1463,6 @@ version = "0.10.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c7f5fa3a058cd35567ef9bfa5e75732bee0f9e4c55fa90477bef2dfcdbc4be80"
 dependencies = [
- "chacha20",
- "getrandom 0.4.3",
  "rand_core 0.10.1",
 ]
 

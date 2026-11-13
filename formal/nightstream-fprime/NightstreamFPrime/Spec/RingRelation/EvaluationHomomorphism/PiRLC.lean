@@ -525,7 +525,7 @@ private theorem coefficientMatrix_carrierColumn
   rw [decoded]
   rfl
 
-set_option maxRecDepth 100000 in -- fixed-size: ring degree 54, not artifact data
+set_option maxRecDepth 100000 in -- fixed-size: ring degree 64, not artifact data
 theorem kernelImage_apply
     (row : Fin ringDegree) (block : RingF) (output : Fin ringDegree) :
     CarrierAction.kernelImage row block output =
@@ -538,7 +538,7 @@ theorem kernelImage_apply
           0 := by
   rfl
 
-set_option maxRecDepth 100000 in -- fixed-size: ring degree 54, not artifact data
+set_option maxRecDepth 100000 in -- fixed-size: ring degree 64, not artifact data
 private theorem kernelImage_eq_sumFinF
     (row : Fin ringDegree) (block : RingF) (output : Fin ringDegree) :
     CarrierAction.kernelImage row block output =

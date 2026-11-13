@@ -23,7 +23,9 @@ use neo_ajtai::Commitment;
 use neo_ccs::Mat;
 use neo_compress::{ProverKey, VerificationKey};
 use neo_math::{D, F, K};
-use nightstream_fprime::{PI_CCS_V1_2_MATRIX_COUNT, PUBLIC_WORDS};
+use nightstream_fprime::{
+    PI_CCS_V1_2_MATRIX_COUNT, PI_CCS_V1_2_ROUND_COEFFICIENT_COUNT, PI_CCS_V1_2_ROUND_COUNT, PUBLIC_WORDS,
+};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 const STEPS: u64 = 5;
@@ -174,9 +176,9 @@ fn a_compressed_proof_verifies_and_a_changed_one_does_not() {
             "  verify_final {:.1} ms on 1 thread: {single_times}",
             milliseconds(single_time)
         );
-        last = Some((envelope, proof, bytes));
+        last = Some((envelope, proof));
     }
-    let (envelope, proof, bytes) = last.expect("the last proof");
+    let (envelope, proof) = last.expect("the last proof");
     prover
         .verify(envelope.iteration, envelope.z0, envelope.current, envelope)
         .expect("the proof with its witnesses verifies");
@@ -338,20 +340,84 @@ fn a_compressed_proof_verifies_and_a_changed_one_does_not() {
         let decoded = through_bytes(&changed).unwrap_or_else(|| panic!("{name}: the changed proof decodes"));
         assert!(!accepts(&prover, envelope, &decoded), "{name}");
     }
+}
+
+/// A final proof with the slot claims of `envelope`, the claim of slot 1 as
+/// its fresh claim, and a PiCCS proof and an argument that prove nothing.
+/// The bytes of a proof, and the checks of `verify_final` before the
+/// argument, read no more.
+fn unproven(envelope: &Envelope) -> FinalProof {
+    let slots = envelope.slots.each_ref();
+    let claim = &slots[1].accumulator.claim;
+    FinalProof {
+        iteration: envelope.iteration,
+        z0: envelope.z0,
+        current: envelope.current,
+        steps: Some(Steps {
+            pc: envelope.pc,
+            slots: slots.map(|slot| (slot.accumulator.claim.clone(), slot.depth)),
+            fresh: Fresh {
+                c: claim.c.clone(),
+                r: claim.r.clone(),
+                eval_k: claim.eval_k.clone(),
+                eval_a: claim.eval_a.clone(),
+                fold_digest: [0; 32],
+            },
+            pi_ccs: pi_ccs::SumcheckProof::new(vec![
+                vec![K::ONE; PI_CCS_V1_2_ROUND_COEFFICIENT_COUNT];
+                PI_CCS_V1_2_ROUND_COUNT
+            ]),
+            argument: neo_compress::Proof {
+                witness_commitment: vec![1; 471],
+                inverse_commitment: vec![2; 471],
+                rounds: vec![[K::ONE; 4]; 26],
+                witness_value: K::ONE,
+                inverse_values: [K::ONE; 4],
+                key_weight: K::ONE,
+                key_rounds: vec![[K::ONE; 3]; 25],
+                key_value: K::ONE,
+                opening: vec![3; 1000],
+            },
+        }),
+    }
+}
+
+/// A final proof has one encoding, and `verify_final` checks the circuit
+/// and each slot depth before it reads the argument. The proof of this test
+/// proves nothing, so the test needs no compression setup of the hash chain.
+#[test]
+fn a_final_proof_has_one_encoding_and_a_circuit_and_depths_in_range() {
+    let prover = prover(2);
+    let setup = small_setup();
+    let key = setup.verification_key();
+    let initial = prover.initial(z0()).expect("initial proof");
+    let message = words([20, 21, 22, 23]);
+    let envelope = &prover
+        .extend(&initial, &message, hash_chain_step(initial.current, message), None)
+        .expect("step");
+    let proof = unproven(envelope);
+    let bytes = proof.to_bytes().expect("bytes");
+    let decoded = FinalProof::from_bytes(&bytes).expect("decoded proof");
+    assert_eq!(decoded.to_bytes().expect("bytes"), bytes);
+    // The key of 512 blocks holds no relation of the hash chain.
+    assert!(matches!(
+        prover.verify_final(key, envelope.iteration, envelope.z0, envelope.current, &decoded),
+        Err(BoundedDepthError::Compression(neo_compress::Error::Layout(_)))
+    ));
 
     // A depth above the light fold cap of 64 has no accumulator bound.
     let mut deep = proof.clone();
     deep.steps.as_mut().unwrap().slots[0].1 = 65;
     let deep = through_bytes(&deep).expect("depth 65 decodes");
     assert!(matches!(
-        prover.verify_final(&key, envelope.iteration, envelope.z0, envelope.current, &deep),
+        prover.verify_final(key, envelope.iteration, envelope.z0, envelope.current, &deep),
         Err(BoundedDepthError::Slot { slot: 0, .. })
     ));
     // The circuits are 1 and 2.
     let mut third = proof.clone();
     third.steps.as_mut().unwrap().pc = 3;
     assert!(matches!(
-        prover.verify_final(&key, envelope.iteration, envelope.z0, envelope.current, &third),
+        prover.verify_final(key, envelope.iteration, envelope.z0, envelope.current, &third),
         Err(BoundedDepthError::Statement(_))
     ));
     assert!(through_bytes(&third).is_none(), "circuit 3 decodes");

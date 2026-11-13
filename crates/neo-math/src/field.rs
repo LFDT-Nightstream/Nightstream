@@ -48,14 +48,48 @@ impl Fq {
     /// The sum of the products `a·b`, with one reduction for all terms.
     #[inline]
     pub fn sum_of_products(pairs: impl IntoIterator<Item = (Self, Self)>) -> Self {
-        let (sum, wraps) = pairs
+        pairs
             .into_iter()
-            .fold((0u128, 0u64), |(sum, wraps), (a, b)| {
-                let (sum, wrapped) = sum.overflowing_add(u128::from(a.0) * u128::from(b.0));
-                (sum, wraps + u64::from(wrapped))
-            });
+            .fold(Products::default(), |sum, (a, b)| sum.add(a, b))
+            .value()
+    }
+}
+
+/// The sum of the products `a·b` of base elements `a` and extension
+/// elements `b`, with one reduction for each coordinate of `K`.
+#[inline]
+pub fn sum_of_scaled(pairs: impl IntoIterator<Item = (Fq, K)>) -> K {
+    let [real, imaginary] = pairs
+        .into_iter()
+        .fold([Products::default(); 2], |[real, imaginary], (a, b)| {
+            let [x, y] = b.as_coeffs();
+            [real.add(a, x), imaginary.add(a, y)]
+        });
+    K::from_coeffs([real.value(), imaginary.value()])
+}
+
+/// A sum of products before its reduction: the sum modulo 2^128 and the
+/// number of times it wrapped.
+#[derive(Clone, Copy, Default)]
+struct Products {
+    sum: u128,
+    wraps: u64,
+}
+
+impl Products {
+    #[inline]
+    fn add(self, a: Fq, b: Fq) -> Self {
+        let (sum, wrapped) = self.sum.overflowing_add(u128::from(a.0) * u128::from(b.0));
+        Self {
+            sum,
+            wraps: self.wraps + u64::from(wrapped),
+        }
+    }
+
+    #[inline]
+    fn value(self) -> Fq {
         // Each wrap dropped 2^128 ≡ 59² (mod q).
-        Self::reduce128(sum) + Self::reduce128(u128::from(wraps) * u128::from(FOLD * FOLD))
+        Fq::reduce128(self.sum) + Fq::reduce128(u128::from(self.wraps) * u128::from(FOLD * FOLD))
     }
 }
 

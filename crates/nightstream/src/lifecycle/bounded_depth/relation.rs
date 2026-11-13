@@ -104,6 +104,7 @@ impl Relation {
             workspace_bytes: 0,
             window: RetainedMatrixWindow::default(),
         };
+        relation.factored_rows().checked()?;
         let payload = 2 * MATRICES * size_of::<K>() + size_of::<F>() + size_of::<K>();
         relation.workspace_bytes =
             MatrixWindow::required_workspace(&relation, 0..relation.rows.row_count(), payload)? * 2;
@@ -329,11 +330,11 @@ impl MatrixRows for Relation {
     }
 
     fn visit_rows(&self, rows: Range<usize>, sink: &mut dyn MatrixRowSink) -> Result<(), PiCcsError> {
-        self.factored_rows()?.visit_rows(rows, sink)
+        self.factored_rows().visit_rows(rows, sink)
     }
 
     fn factored(&self) -> Result<Option<FactoredRows<'_>>, PiCcsError> {
-        self.factored_rows().map(Some)
+        Ok(Some(self.factored_rows()))
     }
 
     fn retained_window(&self) -> Option<&RetainedMatrixWindow> {
@@ -342,8 +343,9 @@ impl MatrixRows for Relation {
 }
 
 impl Relation {
-    fn factored_rows(&self) -> Result<FactoredRows<'_>, PiCcsError> {
-        FactoredRows::new(
+    /// The factored rows. `new` checks them once, and they do not change.
+    fn factored_rows(&self) -> FactoredRows<'_> {
+        FactoredRows::new_unchecked(
             MatrixRows::shape(self),
             FactoredEntries {
                 offsets: self.rows.offsets(),

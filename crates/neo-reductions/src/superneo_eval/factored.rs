@@ -6,7 +6,7 @@
 use core::ops::Range;
 
 use neo_ccs::GeometricRowRun;
-use neo_math::{KExtensions, D, F, K};
+use neo_math::{sum_of_scaled, KExtensions, D, F, K};
 use p3_field::PrimeCharacteristicRing;
 #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
 use rayon::prelude::*;
@@ -43,6 +43,19 @@ pub struct FactoredRows<'a> {
 
 impl<'a> FactoredRows<'a> {
     pub fn new(shape: MatrixShape, entries: FactoredEntries<'a>, slots: FactoredSlots<'a>) -> Result<Self, PiCcsError> {
+        Self::new_unchecked(shape, entries, slots).checked()
+    }
+
+    /// `new` without its checks: for tables that passed `checked` once and
+    /// do not change, so that each use does not read every entry again.
+    pub fn new_unchecked(shape: MatrixShape, entries: FactoredEntries<'a>, slots: FactoredSlots<'a>) -> Self {
+        Self { shape, entries, slots }
+    }
+
+    /// These rows, when their tables have the lengths, the offsets and the
+    /// slots that the rows need.
+    pub fn checked(self) -> Result<Self, PiCcsError> {
+        let Self { shape, entries, slots } = self;
         shape.validate(&(0..shape.rows))?;
         let invalid = |reason: &str| Err(PiCcsError::InvalidInput(format!("factored matrix rows: {reason}")));
         let FactoredEntries {
@@ -81,7 +94,7 @@ impl<'a> FactoredRows<'a> {
         }) {
             return invalid("an entry reads no slot");
         }
-        Ok(Self { shape, entries, slots })
+        Ok(self)
     }
 
     pub fn shape(&self) -> MatrixShape {
@@ -90,6 +103,10 @@ impl<'a> FactoredRows<'a> {
 
     pub fn slot_count(&self) -> usize {
         self.slots.starts.len()
+    }
+
+    pub fn slots(&self) -> FactoredSlots<'a> {
+        self.slots
     }
 
     fn range(&self, row: usize, matrix: usize) -> Range<usize> {
@@ -209,14 +226,17 @@ impl<'a> FactoredRows<'a> {
         matrix_coefficients
             .iter()
             .enumerate()
-            .map(|(matrix, &weight)| {
-                weight
-                    * self
-                        .range(row, matrix)
-                        .map(|entry| {
-                            slot_values[self.entries.slots[entry] as usize].scale_base(self.entries.coefficients[entry])
-                        })
-                        .sum::<K>()
+            .filter_map(|(matrix, &weight)| {
+                let entries = self.range(row, matrix);
+                if entries.is_empty() {
+                    return None;
+                }
+                let slots = self.entries.slots[entries.clone()].iter();
+                let coefficients = &self.entries.coefficients[entries];
+                let pairs = slots
+                    .zip(coefficients)
+                    .map(|(&slot, &coefficient)| (coefficient, slot_values[slot as usize]));
+                Some(weight * sum_of_scaled(pairs))
             })
             .sum()
     }

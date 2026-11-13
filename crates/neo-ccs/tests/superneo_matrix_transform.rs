@@ -68,18 +68,11 @@ fn to_ring_blocks(z: &[F]) -> Vec<Rq> {
     out
 }
 
-fn reduce_k_mod_phi_81(coeffs: &mut [K; 2 * D - 1]) {
-    for i in (D..(2 * D - 1)).rev() {
+fn reduce_k_negacyclic(coeffs: &mut [K; 2 * D - 1]) {
+    for i in D..(2 * D - 1) {
         let t = coeffs[i];
         coeffs[i] = K::ZERO;
         coeffs[i - D] -= t;
-        let idx_27 = i - 27;
-        if idx_27 < D {
-            coeffs[idx_27] -= t;
-        } else {
-            coeffs[idx_27 - D] += t;
-            coeffs[idx_27 - 27] += t;
-        }
     }
 }
 
@@ -90,7 +83,7 @@ fn ring_mul_f_by_k(lhs: &Rq, rhs: &[K; D]) -> [K; D] {
             tmp[i + j] += K::from(lhs_coeff) * rhs_coeff;
         }
     }
-    reduce_k_mod_phi_81(&mut tmp);
+    reduce_k_negacyclic(&mut tmp);
     let mut out = [K::ZERO; D];
     out.copy_from_slice(&tmp[..D]);
     out

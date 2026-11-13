@@ -1,10 +1,9 @@
 # neo-params
 
-Typed parameter sets and their checks.
+The parameter set and its checks.
 
-- `NeoParams::nightstream_goldilocks_k16()`: the Nightstream Goldilocks production profile, with
-  k_rho = 16. It uses b = 2, B = 2^16, κ = 22, T = 216, η = 81 and s = 2.
-- `NeoParams::goldilocks_paper_b2()`: the SuperNeo v1.2 Section 8.2 values (k_rho = 14, B = 2^14). They are
-  reference values only. Do not use them for a production proof.
+- `NeoParams::nightstream_p64_k16()`: the only profile, "Nightstream P64, k_rho = 16". It uses
+  q = 2^64 − 59, η = 128, d = 64, b = 2, B = 2^16, κ = 18, T = 128 and s = 2. The constants are in the
+  module `nightstream_p64_k16`. See `decisions/field-2p64-59-ring-x64.md`.
 - The RLC guard `(k + 1)·T·(b − 1) < B`, and the PiCCS security census for a CCS shape.
-- The `goldilocks_auto_*` selectors start from the Section 8.2 values. Tests use them.
+- `poseidon2`: the sponge shape (width, rate, capacity, digest length).

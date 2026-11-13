@@ -340,6 +340,30 @@ impl Proof {
     }
 }
 
+/// A finished proof: the statement and an argument that some proof with
+/// witnesses verifies for it (SPEC.md section 6). It carries no witness and
+/// cannot be extended.
+#[derive(Clone)]
+pub struct FinalProof(lifecycle::FinalProof);
+
+impl FinalProof {
+    pub fn state(&self) -> State {
+        self.0.state()
+    }
+
+    /// The proof's strict bytes, for `FinalProof::from_bytes`.
+    pub fn to_bytes(&self) -> Result<Vec<u8>, Error> {
+        Ok(self.0.to_bytes()?)
+    }
+
+    /// Decode untrusted bytes. A proof has one encoding: each field word is
+    /// below the modulus, and no byte follows the proof. Acceptance still
+    /// needs `Verifier::verify_final`.
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, Error> {
+        Ok(Self(lifecycle::FinalProof::from_bytes(bytes)?))
+    }
+}
+
 pub struct Prover {
     lifecycle: lifecycle::BoundedDepth,
     application: Option<ApplicationCircuit>,
@@ -441,6 +465,12 @@ impl Prover {
     pub fn encode_proof(&self, proof: &Proof) -> Result<Vec<u8>, Error> {
         Ok(self.lifecycle.encode_proof(&proof.0)?)
     }
+
+    /// Compress `proof`, which does not change, for `Verifier::verify_final`.
+    /// The result is not checked here: it verifies when `proof` does.
+    pub fn compress(&self, proof: &Proof) -> Result<FinalProof, Error> {
+        Ok(FinalProof(self.lifecycle.compress(&proof.0)?.0))
+    }
 }
 
 pub struct Verifier {
@@ -460,5 +490,14 @@ impl Verifier {
         Ok(self
             .lifecycle
             .verify(expected.iteration(), expected.z0(), expected.current(), &proof.0)?)
+    }
+
+    /// Check a finished proof against the expected state. The verifier
+    /// derives each key from its circuit, and nothing that the proof carries
+    /// is authority.
+    pub fn verify_final(&self, expected: &State, proof: &FinalProof) -> Result<(), Error> {
+        self.lifecycle
+            .verify_final(expected.iteration(), expected.z0(), expected.current(), &proof.0)?;
+        Ok(())
     }
 }

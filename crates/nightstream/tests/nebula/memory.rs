@@ -460,6 +460,19 @@ fn n1_accept(engine: crate::Engine) {
             proof.as_ref().unwrap(),
         )
         .unwrap();
+    // The memory prover's compressed proof verifies as the proof does.
+    let memory = circuit.prover(engine, 109).unwrap();
+    let proof = super::proving::Proof::from_parts(proof.unwrap(), *run.carry());
+    let compressed = memory.compress(&proof).unwrap();
+    let statement = run.statement();
+    verifier
+        .verify_final(
+            &Package::N1.program(),
+            &statement.initial,
+            &statement.final_,
+            &compressed,
+        )
+        .unwrap();
 }
 
 #[test]

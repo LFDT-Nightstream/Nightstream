@@ -34,6 +34,13 @@ impl Proof {
     }
 }
 
+/// A compressed memory proof (`Prover::compress`) and the final carry.
+#[derive(Clone)]
+pub struct FinalProof {
+    stage1: crate::FinalProof,
+    carry: Carry,
+}
+
 /// What a verified memory proof shows beyond its two states.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Verified {
@@ -119,6 +126,15 @@ impl<A: Application + Clone> Prover<A> {
         let mut bytes = carry_bytes(&proof.carry);
         bytes.extend(self.stage1.encode_proof(&proof.stage1)?);
         Ok(bytes)
+    }
+
+    /// Compress `proof` (`crate::Prover::compress`). The carry does not
+    /// change.
+    pub fn compress(&self, proof: &Proof) -> Result<FinalProof, crate::Error> {
+        Ok(FinalProof {
+            stage1: self.stage1.compress(&proof.stage1)?,
+            carry: proof.carry,
+        })
     }
 }
 
@@ -209,6 +225,20 @@ impl<A: Application> Verifier<A> {
     ) -> Result<Verified, VerifyError> {
         let state = self.terminal(program, initial, last, &proof.carry)?;
         self.stage1.verify(&state, &proof.stage1)?;
+        Ok(verified(&proof.carry, &program.geometry))
+    }
+
+    /// Verify a compressed memory proof as `verify` does: the terminal
+    /// checks, then `crate::Verifier::verify_final`.
+    pub fn verify_final(
+        &self,
+        program: &Program,
+        initial: &A::State,
+        last: &A::State,
+        proof: &FinalProof,
+    ) -> Result<Verified, VerifyError> {
+        let state = self.terminal(program, initial, last, &proof.carry)?;
+        self.stage1.verify_final(&state, &proof.stage1)?;
         Ok(verified(&proof.carry, &program.geometry))
     }
 

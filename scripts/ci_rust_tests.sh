@@ -18,6 +18,7 @@ groups=(
   '-p neo-reductions --lib superneo_eval::openings::tests::'
   '-p neo-reductions --lib factored_oracle_tests::'
   '-p neo-reductions --test pi_rlc_lean_parity'
+  '-p neo-compress'
   '-p neo-application'
   '-p neo-wasm'
 )

@@ -48,7 +48,7 @@ impl Writer {
     }
 
     /// The `D` coefficients of a canonical evaluation vector.
-    fn evaluations(&mut self, values: &[K]) {
+    pub(super) fn evaluations(&mut self, values: &[K]) {
         for value in &values[..D] {
             self.fields(&value.as_coeffs());
         }
@@ -142,12 +142,12 @@ impl<'a> Reader<'a> {
         Ok([self.field()?, self.field()?, self.field()?, self.field()?])
     }
 
-    fn extension(&mut self) -> Result<K, ProofCodecError> {
+    pub(super) fn extension(&mut self) -> Result<K, ProofCodecError> {
         Ok(K::from_coeffs([self.field()?, self.field()?]))
     }
 
     /// `D` coefficients, padded with zeros to the selected length.
-    fn evaluations(&mut self) -> Result<Vec<K>, ProofCodecError> {
+    pub(super) fn evaluations(&mut self) -> Result<Vec<K>, ProofCodecError> {
         let mut values = (0..D)
             .map(|_| self.extension())
             .collect::<Result<Vec<_>, _>>()?;

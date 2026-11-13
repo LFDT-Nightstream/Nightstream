@@ -6,6 +6,7 @@
 //! cap, a refresh fold at the cap (`Schedule.Admissible`). The first period of
 //! steps is `(L^(cap+1) R)^(cap+1) R`, and each later period is
 //! `(L^(cap+1) R)^cap R`.
+mod compression;
 mod encoding;
 mod relation;
 mod words;
@@ -13,6 +14,7 @@ mod words;
 use crate::engine::{Backend, CommitError, EngineError};
 use crate::folding::bounded_depth::{prove, Kind};
 use crate::folding::{pi_dec, pi_rlc, CcsInstance, RunningInstance};
+pub(crate) use compression::FinalProof;
 use neo_ccs::crypto::poseidon2::poseidon2_hash;
 use neo_math::F;
 use neo_transcript::domain_chunk_v1_2;
@@ -44,6 +46,8 @@ pub enum BoundedDepthError {
     Slot { slot: usize, reason: String },
     #[error(transparent)]
     Engine(#[from] EngineError),
+    #[error(transparent)]
+    Compression(#[from] neo_compress::Error),
 }
 
 impl BoundedDepthError {
@@ -103,6 +107,7 @@ pub(crate) struct BoundedDepth {
     relations: [Relation; 2],
     keys: [[F; 4]; 2],
     cap: u64,
+    minimum_security_bits: u32,
 }
 
 /// `BoundedDepth::fold`'s result.
@@ -135,6 +140,7 @@ impl BoundedDepth {
             relations,
             keys,
             cap: LIGHT_FOLD_CAP,
+            minimum_security_bits,
         })
     }
 

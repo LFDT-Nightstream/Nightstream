@@ -1366,6 +1366,7 @@ dependencies = [
  "neo-ajtai",
  "neo-application",
  "neo-ccs",
+ "neo-compress",
  "neo-math",
  "neo-params",
  "neo-prover-metal",

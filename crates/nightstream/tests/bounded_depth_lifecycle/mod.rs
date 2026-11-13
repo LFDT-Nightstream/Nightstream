@@ -7,6 +7,7 @@
 #[path = "../bounded_depth_support/mod.rs"]
 mod support;
 
+mod compression;
 mod factored_rows;
 #[cfg(feature = "metal")]
 mod metal_parity;

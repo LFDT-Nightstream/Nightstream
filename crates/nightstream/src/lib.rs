@@ -13,7 +13,7 @@ pub mod relation;
 
 #[cfg(test)]
 pub(crate) use circuit::References;
-pub use circuit::{ApplicationSize, Circuit, Error, Proof, Prover, State, Verifier};
+pub use circuit::{ApplicationSize, Circuit, Error, FinalProof, Proof, Prover, State, Verifier};
 pub use engine::{Engine, EngineError};
 pub use neo_math::Fq;
 /// The field `F_q`, `q = 2^64 − 59`, of every state, input and output word, and the

@@ -3,6 +3,40 @@ import NightstreamFPrime.Spec.Compression
 
 /-! Axiom audits for the compression argument over Akita (`Spec/Compression`). -/
 
+#audit_axioms NightstreamFPrime.Spec.Compression.Algebra.claim_difference
+#audit_axioms NightstreamFPrime.Spec.Compression.Algebra.coeffPoly_coeff_eq
+#audit_axioms NightstreamFPrime.Spec.Compression.Algebra.density_poly_zero_le
+#audit_axioms NightstreamFPrime.Spec.Compression.Algebra.density_batch_le
+#audit_axioms NightstreamFPrime.Spec.Compression.Algebra.claimBatch_eq
+#audit_axioms NightstreamFPrime.Spec.Compression.Algebra.density_univ_eq_one
+#audit_axioms NightstreamFPrime.Spec.Compression.Algebra.value_zero_density
+#audit_axioms NightstreamFPrime.Spec.Compression.Algebra.density_claimBatch_le
+#audit_axioms NightstreamFPrime.Spec.Compression.Algebra.density_claims_le
+#audit_axioms NightstreamFPrime.Spec.Compression.Algebra.sum_range_mul
+#audit_axioms NightstreamFPrime.Spec.Compression.Algebra.sum_range_ite
+#audit_axioms NightstreamFPrime.Spec.Compression.Algebra.key_sum
+#audit_axioms NightstreamFPrime.Spec.Compression.Algebra.weightAt_spec
+#audit_axioms NightstreamFPrime.Spec.Compression.Algebra.folded_at
+#audit_axioms NightstreamFPrime.Spec.Compression.Algebra.rowPoint_length
+#audit_axioms NightstreamFPrime.Spec.Compression.Algebra.rowPoint_spec
+#audit_axioms NightstreamFPrime.Spec.Compression.Algebra.sum_range_double
+#audit_axioms NightstreamFPrime.Spec.Compression.Algebra.sum_eqProd_cons
+#audit_axioms NightstreamFPrime.Spec.Compression.Algebra.sum_eqProd_full
+#audit_axioms NightstreamFPrime.Spec.Compression.Algebra.prefixLoop_spec
+#audit_axioms NightstreamFPrime.Spec.Compression.Algebra.eqAt_mul_eqAt
+#audit_axioms NightstreamFPrime.Spec.Compression.Algebra.eqAt_zero
+#audit_axioms NightstreamFPrime.Spec.Compression.Algebra.eqAt_append_low
+#audit_axioms NightstreamFPrime.Spec.Compression.Algebra.prefixEquality_spec
+#audit_axioms NightstreamFPrime.Spec.Compression.Algebra.monomial_comm
+#audit_axioms NightstreamFPrime.Spec.Compression.Algebra.value_add
+#audit_axioms NightstreamFPrime.Spec.Compression.Algebra.value_sub
+#audit_axioms NightstreamFPrime.Spec.Compression.Algebra.value_smul
+#audit_axioms NightstreamFPrime.Spec.Compression.Algebra.value_sum
+#audit_axioms NightstreamFPrime.Spec.Compression.Algebra.lanes_eq_monomial
+#audit_axioms NightstreamFPrime.Spec.Compression.Algebra.lanes_eq_split
+#audit_axioms NightstreamFPrime.Spec.Compression.Algebra.value_mul
+#audit_axioms NightstreamFPrime.Spec.Compression.Algebra.value_mul_comm
+#audit_axioms NightstreamFPrime.Spec.Compression.Algebra.mul_conjugate_zero
 #audit_axioms NightstreamFPrime.Spec.Compression.Game.prob_le_one
 #audit_axioms NightstreamFPrime.Spec.Compression.Game.CostLe.nonneg
 #audit_axioms NightstreamFPrime.Spec.Compression.Game.CostLe.mono

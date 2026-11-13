@@ -13,26 +13,26 @@ def sourceWidth (program : Lifecycle.Stage1.Application.Program) : Nat :=
   PiRLCRetainedGeometry.sourceWidth program
 
 private theorem target_lt_basePackage (source : Nat)
-    (bound : source < Spartan.SourceColumnCount) :
-    Spartan.sourceToSpartan source <
+    (bound : source < PackageOrder.SourceColumnCount) :
+    PackageOrder.sourceToPackage source <
       PiRLCProductPlan.basePackage.layout.totalColumnCount := by
-  have mapped := Spartan.sourceToSpartan_lt source bound
+  have mapped := PackageOrder.sourceToPackage_lt source bound
   have total : PiRLCProductPlan.basePackage.layout.totalColumnCount =
       11415253 :=
     NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.2.2
   rw [total]
-  simpa [Spartan.spartanColumnCount] using mapped
+  simpa [PackageOrder.packageColumnCount] using mapped
 
 def packageSourceColumn (program : Lifecycle.Stage1.Application.Program)
-    (source : Nat) (bound : source < Spartan.SourceColumnCount) :
+    (source : Nat) (bound : source < PackageOrder.SourceColumnCount) :
     Fin (sourceWidth program) :=
   PiRLCRetainedPreservation.baseSourceColumn program <|
     PiRLCProductPlan.shiftedPackageColumn program
-      (Spartan.sourceToSpartan source) (target_lt_basePackage source bound)
+      (PackageOrder.sourceToPackage source) (target_lt_basePackage source bound)
 
 def fieldBlock (program : Lifecycle.Stage1.Application.Program)
     (count : Nat) (source : Fin count → Nat)
-    (bounded : ∀ index, source index < Spartan.SourceColumnCount) :
+    (bounded : ∀ index, source index < PackageOrder.SourceColumnCount) :
     LowNormBlock.Block (sourceWidth program) where
   kind := .field
   slotCount := count
@@ -46,7 +46,7 @@ def stateBlock (program : Lifecycle.Stage1.Application.Program) :
       have indexBound := index.isLt
       change index.val < 9 at indexBound
       rw [RunningTransitionSourceSupport.stateStart_eq,
-        Spartan.sourceColumnCount_eq]
+        PackageOrder.sourceColumnCount_eq]
       change 28904 + index.val < 11415252
       omega)
 
@@ -58,7 +58,7 @@ def outputBlock (program : Lifecycle.Stage1.Application.Program) :
       have indexBound := index.isLt
       change index.val < 28913 at indexBound
       rw [RunningTransitionSourceSupport.outputStart_eq,
-        Spartan.sourceColumnCount_eq]
+        PackageOrder.sourceColumnCount_eq]
       change 29233 + index.val < 11415252
       omega)
 
@@ -70,7 +70,7 @@ def piDecBlock (program : Lifecycle.Stage1.Application.Program) :
       have indexBound := index.isLt
       change index.val < 33792 at indexBound
       rw [RunningTransitionSourceSupport.piDecStart_eq,
-        Spartan.sourceColumnCount_eq]
+        PackageOrder.sourceColumnCount_eq]
       change 11381138 + index.val < 11415252
       omega)
 
@@ -85,7 +85,7 @@ def freshBlock (program : Lifecycle.Stage1.Application.Program) :
       have indexBound := index.isLt
       norm_num [freshCount, RunningTransitionSourceSupport.physicalEnd,
         RunningTransitionInputs.phaseOffset,
-        Spartan.SourceColumnCount] at indexBound ⊢
+        PackageOrder.SourceColumnCount] at indexBound ⊢
       omega)
 
 @[simp] theorem stateBlock_slotCount
@@ -116,7 +116,7 @@ def freshBlock (program : Lifecycle.Stage1.Application.Program) :
 @[simp] theorem fieldBlock_coordinateCount
     (program : Lifecycle.Stage1.Application.Program)
     (count : Nat) (source : Fin count → Nat)
-    (bounded : ∀ index, source index < Spartan.SourceColumnCount) :
+    (bounded : ∀ index, source index < PackageOrder.SourceColumnCount) :
     (fieldBlock program count source bounded).coordinateCount = count * 41 := by
   rfl
 

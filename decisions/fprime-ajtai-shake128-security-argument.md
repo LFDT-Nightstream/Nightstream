@@ -7,6 +7,8 @@ ideal-model steps of section 5 (section 7). Premises P1 and P2 stay external,
 and no external review has checked the argument. The seed and domain policy
 (section 6) is still an owner choice.
 
+Superseded in part on 2026-11-13: [`field-2p64-59-ring-x64.md`](./field-2p64-59-ring-x64.md) replaces the Goldilocks prime, the ring `X^54 + X^27 + 1` and the 22 rows of this argument with `q = 2^64 − 59`, the ring `X^64 + 1` and 18 rows. The numbers below are those of the prior profile.
+
 ## 1. Purpose
 
 The current setup rests on a premise about one fixed matrix

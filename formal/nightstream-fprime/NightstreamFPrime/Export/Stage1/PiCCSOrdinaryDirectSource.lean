@@ -1,6 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PackageCompleteness
 import NightstreamFPrime.Layout.ProductionRelation.OrdinarySourcePlan
-import NightstreamFPrime.Layout.Stage1.SpartanBounds
+import NightstreamFPrime.Layout.Stage1.PackageOrderBounds
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSOrdinaryDirectSource
 
@@ -34,9 +34,9 @@ theorem sourceRows_varsBelow
       RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     ∀ row ∈ sourceRows logicalWidth publicFits,
-      row.VarsBelow Spartan.spartanColumnCount := by
+      row.VarsBelow PackageOrder.packageColumnCount := by
   rw [sourceRows, PiCCSCompleteness.arithmeticRows_toR1CS_eq relation]
-  apply Spartan.remapRows_varsBelow
+  apply PackageOrder.remapRows_varsBelow
   have loweredScope := R1CS.lowerConstraints_rows_varsBelow
     (PiCCSCompleteness.emittedConstraints logicalWidth publicFits)
     PiCCSArithmetic.initialClaimFreshStart
@@ -57,7 +57,7 @@ theorem sourceRows_varsBelow
   rw [endEq] at loweredScope
   intro row member
   exact R1CS.Row.VarsBelow.mono row (loweredScope row member) (by
-    rw [Spartan.sourceColumnCount_eq]
+    rw [PackageOrder.sourceColumnCount_eq]
     norm_num [NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset])
 
 theorem sourceRows_rowCount_le
@@ -92,7 +92,7 @@ theorem programRow_bounded
       RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (index : Fin 43517) :
-    (programRow relation index).VarsBelow Spartan.spartanColumnCount := by
+    (programRow relation index).VarsBelow PackageOrder.packageColumnCount := by
   exact sourceRows_varsBelow relation _
     (List.get_mem _ (sourceListIndex relation index))
 
@@ -126,11 +126,11 @@ structure SupportedProgram (rows : List R1CS.Row) where
   rowCount_le : rowCount ≤ 2 ^ NightstreamFPrime.Lifecycle.cubeVariables
   row : Fin rowCount → R1CS.Row
   exactRows : List.ofFn row = rows
-  bounded : ∀ index, (row index).VarsBelow Spartan.spartanColumnCount
+  bounded : ∀ index, (row index).VarsBelow PackageOrder.packageColumnCount
 
 def SupportedProgram.toProgram {rows : List R1CS.Row}
     (source : SupportedProgram rows) :
-    OrdinarySourcePlan.Program Spartan.spartanColumnCount where
+    OrdinarySourcePlan.Program PackageOrder.packageColumnCount where
   rowCount := source.rowCount
   rowCount_le := source.rowCount_le
   row := source.row
@@ -153,7 +153,7 @@ def program
     {publicFits : ringDegree * publicRingColumns ≤
       RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    OrdinarySourcePlan.Program Spartan.spartanColumnCount :=
+    OrdinarySourcePlan.Program PackageOrder.packageColumnCount :=
   (supportedProgram relation).toProgram
 
 @[simp] theorem program_rowCount

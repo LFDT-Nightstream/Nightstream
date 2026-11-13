@@ -22,7 +22,7 @@ theorem sourceRows_length : sourceRows.length = 5 :=
   NextPreimagePackage.sourceRows_length
 
 theorem sourceRows_varsBelow :
-    ∀ row ∈ sourceRows, row.VarsBelow Spartan.spartanColumnCount :=
+    ∀ row ∈ sourceRows, row.VarsBelow PackageOrder.packageColumnCount :=
   NextPreimagePackage.sourceRows_varsBelow
 
 theorem sourceRows_varsSatisfy :
@@ -32,7 +32,7 @@ theorem sourceRows_varsSatisfy :
   have lowered := R1CS.lowerConstraints_rows_varsSatisfy
     NextPreimagePackage.constraints NextPreimagePackage.privateStart
     PiCCSOrdinarySourceSupport.Target
-    (NextPreimageInputs.spartanConstraints_varsSatisfy
+    (NextPreimageInputs.packageConstraints_varsSatisfy
       NextPreimagePackage.privateStart)
   intro row member
   apply R1CS.Row.VarsSatisfy.mono row (lowered row member)
@@ -52,7 +52,7 @@ theorem sourceRows_rowCount_le :
   rw [sourceRows_length]
   norm_num [Lifecycle.cubeVariables]
 
-def program : OrdinarySourcePlan.Program Spartan.spartanColumnCount where
+def program : OrdinarySourcePlan.Program PackageOrder.packageColumnCount where
   rowCount := sourceRows.length
   rowCount_le := sourceRows_rowCount_le
   row := fun index => sourceRows.get index
@@ -92,7 +92,7 @@ private theorem preservesCombination
     (encodes : PiCCSOrdinaryRetainedGeometry.Encodes geometry assignment
       (PiRLCRetainedPreservation.sourceAssignment application base groupValue))
     (combination : R1CS.LinearCombination)
-    (bounded : SourceCompiler.CombinationBounded Spartan.spartanColumnCount
+    (bounded : SourceCompiler.CombinationBounded PackageOrder.packageColumnCount
       combination)
     (scope : combination.VarsSatisfy PiCCSOrdinarySourceSupport.Target) :
     OrdinarySourcePlan.SourceMap.PreservesCombination
@@ -173,15 +173,15 @@ theorem rowsZero_implies_spec
     (rows : (plan geometry).RowsZero assignment) :
     NextPreimage.SpecHolds NextPreimageInputs.sourceInterface
       RunningTransitionInputs.phaseOffset
-      (Spartan.pullback
+      (PackageOrder.pullback
         (RunningTransitionDirectPlan.transitionEnv application base)) := by
   have sourceRowsHold := (rowsZero_iff_rowsHold geometry assignment base
     groupValue encodes one).mp rows
-  have spartanSpec := NextPreimagePackage.sourceRows_imply_spec
+  have packageOrderSpec := NextPreimagePackage.sourceRows_imply_spec
     (RunningTransitionDirectPlan.transitionEnv application base) sourceRowsHold
-  have sourceSpec := (NextPreimageInputs.spartanSpec_iff_sourceSpec
+  have sourceSpec := (NextPreimageInputs.packageOrderSpec_iff_sourceSpec
     NextPreimagePackage.privateStart
-    (RunningTransitionDirectPlan.transitionEnv application base)).mp spartanSpec
+    (RunningTransitionDirectPlan.transitionEnv application base)).mp packageOrderSpec
   refine {
     iteration := ?_
     initialState := fun index => ?_ }

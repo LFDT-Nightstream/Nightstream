@@ -20,20 +20,20 @@ theorem completePhysicalRows
         (NightstreamFPrime.Layout.Stage1.PiRLCInputs.interface
           (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits))
         NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset
-        (NightstreamFPrime.Layout.Stage1.Spartan.pullback env))
+        (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env))
     (phase :
       NightstreamFPrime.Lifecycle.PiRLC.v1_2.Semantics.PhaseHolds relation ajtai
         (NightstreamFPrime.Layout.Stage1.PiRLCInputs.interface
           (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits))
         NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset
-        (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)) :
+        (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env)) :
     ∃ completed,
       AgreesOutside env completed
-          (NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+          (NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
             NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset)
           4786265 ∧
         R1CS.RowsHold completed
-          (NightstreamFPrime.Layout.Stage1.Spartan.remapRows
+          (NightstreamFPrime.Layout.Stage1.PackageOrder.remapRows
             (NightstreamFPrime.Layout.PiRLC.v1_2.physicalRows relation
               (NightstreamFPrime.Layout.Stage1.PiRLCInputs.interface
                 (logicalWidth := Data.logicalWidth)
@@ -44,27 +44,27 @@ theorem completePhysicalRows
       (NightstreamFPrime.Layout.Stage1.PiRLCInputs.interface
         (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits))
       NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset
-      (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)
+      (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env)
       (NightstreamFPrime.Layout.Stage1.PiRLCInputs.inputShapes relation)
       assumptions phase with
     ⟨source, sourceAgrees, sourceRows⟩
   let completed :=
-    NightstreamFPrime.Layout.Stage1.Spartan.copyMappedInterval env source
+    NightstreamFPrime.Layout.Stage1.PackageOrder.copyMappedInterval env source
       NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset 4786265
   refine ⟨completed,
-    NightstreamFPrime.Layout.Stage1.Spartan.copyMappedInterval_agreesOutside
+    NightstreamFPrime.Layout.Stage1.PackageOrder.copyMappedInterval_agreesOutside
       env source NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset
         4786265,
     ?_⟩
-  apply NightstreamFPrime.Layout.Stage1.Spartan.remapRows_hold_copyMappedInterval
-  · norm_num [NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset,
+  apply NightstreamFPrime.Layout.Stage1.PackageOrder.remapRows_hold_copyMappedInterval
+  · norm_num [NightstreamFPrime.Layout.Stage1.PackageOrder.piCcsPhaseOffset,
       NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset]
-  · rw [NightstreamFPrime.Layout.Stage1.Spartan.privateColumnCount_eq]
-    norm_num [NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan,
-      NightstreamFPrime.Layout.Stage1.Spartan.pilotSourceColumnCount,
-      NightstreamFPrime.Layout.Stage1.Spartan.proofInputSourceStart,
-      NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset,
-      NightstreamFPrime.Layout.Stage1.Spartan.piCcsLocalStart,
+  · rw [NightstreamFPrime.Layout.Stage1.PackageOrder.privateColumnCount_eq]
+    norm_num [NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage,
+      NightstreamFPrime.Layout.Stage1.PackageOrder.pilotSourceColumnCount,
+      NightstreamFPrime.Layout.Stage1.PackageOrder.proofInputSourceStart,
+      NightstreamFPrime.Layout.Stage1.PackageOrder.piCcsPhaseOffset,
+      NightstreamFPrime.Layout.Stage1.PackageOrder.piCcsLocalStart,
       NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset]
   · exact sourceAgrees
   · exact sourceRows

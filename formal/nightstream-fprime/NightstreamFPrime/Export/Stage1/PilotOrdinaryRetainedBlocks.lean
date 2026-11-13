@@ -16,7 +16,7 @@ def canonicalLocalBlock (program : Lifecycle.Stage1.Application.Program) :
   PiCCSOrdinaryRetainedBlocks.sourceFieldBlock program 268
     (PriorStateHash.hashEnd PilotProduction.priorInterface
       PilotProduction.witnessOffset) (by
-        rw [Spartan.sourceColumnCount_eq]
+        rw [PackageOrder.sourceColumnCount_eq]
         unfold PriorStateHash.hashEnd
         rw [PilotProduction.priorHashLogicalLength_eq,
           PilotProduction.witnessOffset_eq]
@@ -26,7 +26,7 @@ def outputDigestBlock (program : Lifecycle.Stage1.Application.Program) :
     LowNormBlock.Block (sourceWidth program) :=
   PiCCSOrdinaryRetainedBlocks.sourceFieldBlock program 4
     PilotProduction.outputDigestStart (by
-      rw [Spartan.sourceColumnCount_eq]
+      rw [PackageOrder.sourceColumnCount_eq]
       norm_num [PilotProduction.outputDigestStart,
         PilotProduction.outputPreimageStart,
         PilotProduction.priorPublicInputStart,

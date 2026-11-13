@@ -14,7 +14,7 @@ theorem invocations_scheduleWithin (logicalWidth : Nat)
       RingCarrierLayout.carrierWidth logicalWidth)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     ScheduleWithin
-        (NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+        (NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
           statementWitnessStart)
         invocationCeiling (invocations logicalWidth publicFits) ∧
       InvocationsBefore invocationCeiling
@@ -26,29 +26,29 @@ theorem invocations_scheduleWithin (logicalWidth : Nat)
   have rounds := roundTrace_scheduleWithin logicalWidth publicFits relation
   have output := outputTrace_scheduleWithin logicalWidth publicFits relation
   have statementLocal :
-      NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset ≤
+      NightstreamFPrime.Layout.Stage1.PackageOrder.piCcsPhaseOffset ≤
         statementWitnessStart := by
     unfold statementWitnessStart
     rw [NightstreamFPrime.Layout.Stage1.PiCCSStarts.statementWitnessStart_eq]
-    norm_num [NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset]
+    norm_num [NightstreamFPrime.Layout.Stage1.PackageOrder.piCcsPhaseOffset]
   have challengeLocal :
-      NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset ≤
+      NightstreamFPrime.Layout.Stage1.PackageOrder.piCcsPhaseOffset ≤
         challengeWitnessStart := by
     unfold challengeWitnessStart
     rw [NightstreamFPrime.Layout.Stage1.PiCCSStarts.challengeWitnessStart_eq]
-    norm_num [NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset]
+    norm_num [NightstreamFPrime.Layout.Stage1.PackageOrder.piCcsPhaseOffset]
   have roundLocal :
-      NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset ≤
+      NightstreamFPrime.Layout.Stage1.PackageOrder.piCcsPhaseOffset ≤
         roundWitnessStart := by
     unfold roundWitnessStart
     rw [NightstreamFPrime.Layout.Stage1.PiCCSStarts.roundTranscriptWitnessStart_eq]
-    norm_num [NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset]
+    norm_num [NightstreamFPrime.Layout.Stage1.PackageOrder.piCcsPhaseOffset]
   have outputLocal :
-      NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset ≤
+      NightstreamFPrime.Layout.Stage1.PackageOrder.piCcsPhaseOffset ≤
         outputWitnessStart := by
     unfold outputWitnessStart
     rw [NightstreamFPrime.Layout.Stage1.PiCCSStarts.outputBindingWitnessStart_eq]
-    norm_num [NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset]
+    norm_num [NightstreamFPrime.Layout.Stage1.PackageOrder.piCcsPhaseOffset]
   have statementStrict : statementWitnessStart < challengeWitnessStart := by
     calc
       statementWitnessStart < statementWitnessStart +
@@ -83,32 +83,32 @@ theorem invocations_scheduleWithin (logicalWidth : Nat)
       _ = NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase :=
         outputEnd_eq_logicalFreshBase logicalWidth publicFits
   have statementToChallenge :
-      NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+      NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
           statementWitnessStart ≤
-        NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+        NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
           challengeWitnessStart :=
-    (NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan_lt_of_piCcsLocal
+    (NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage_lt_of_piCcsLocal
       statementWitnessStart challengeWitnessStart statementLocal
       statementStrict).le
   have challengeToRound :
-      NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+      NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
           challengeWitnessStart ≤
-        NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+        NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
           roundWitnessStart :=
-    (NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan_lt_of_piCcsLocal
+    (NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage_lt_of_piCcsLocal
       challengeWitnessStart roundWitnessStart challengeLocal
       challengeStrict).le
   have roundToOutput :
-      NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+      NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
           roundWitnessStart ≤
-        NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+        NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
           outputWitnessStart :=
-    (NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan_lt_of_piCcsLocal
+    (NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage_lt_of_piCcsLocal
       roundWitnessStart outputWitnessStart roundLocal roundStrict).le
   have outputToCeiling :
-      NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+      NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
           outputWitnessStart ≤ invocationCeiling := by
-    exact (NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan_lt_of_piCcsLocal
+    exact (NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage_lt_of_piCcsLocal
       outputWitnessStart
       NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase outputLocal
       outputStrict).le
@@ -125,7 +125,7 @@ theorem invocations_scheduleWithin (logicalWidth : Nat)
   have statementChallengeBeforeOutput := InvocationsBefore.mono
     statementChallengeBeforeRound roundToOutput
   have roundsBeforeOutput := InvocationsBefore.mono rounds.2
-    ((NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan_lt_of_piCcsLocal
+    ((NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage_lt_of_piCcsLocal
       _ outputWitnessStart (by omega)
       (roundEnd_lt_outputStart logicalWidth publicFits)).le)
   have prefixRoundBeforeOutput := InvocationsBefore.append

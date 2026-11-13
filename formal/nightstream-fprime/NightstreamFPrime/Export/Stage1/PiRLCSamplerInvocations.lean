@@ -152,10 +152,10 @@ theorem entryTrace_implies_spec (source : Nat) (env : Env)
       ((sourceInterface (logicalWidth := logicalWidth)
           (publicFits := publicFits) source))
       source (sourceLogicalStart source)
-      (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) := by
+      (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env) := by
   simp only [entryTrace, fastEntryState_eq_entryState] at holds
   have witnessLocal :
-      NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset ≤
+      NightstreamFPrime.Layout.Stage1.PackageOrder.piCcsPhaseOffset ≤
         sourceLogicalStart source := by
     unfold sourceLogicalStart
       NightstreamFPrime.Layout.Stage1.PiRLCStarts.samplerSourceLogicalStart
@@ -164,7 +164,7 @@ theorem entryTrace_implies_spec (source : Nat) (env : Env)
       NightstreamFPrime.Lifecycle.PiRLC.v1_2.Formal.samplerOffset
       NightstreamFPrime.Layout.Stage1.PiRLCStarts.phaseLogicalStart
       NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset
-    norm_num [NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset]
+    norm_num [NightstreamFPrime.Layout.Stage1.PackageOrder.piCcsPhaseOffset]
     omega
   have trace := compileActions_traceHolds phase
     (NightstreamFPrime.Layout.Stage1.PiRLCStarts.entryRowStart source)
@@ -191,7 +191,7 @@ theorem entryTrace_implies_spec (source : Nat) (env : Env)
     ((sourceInterface (logicalWidth := logicalWidth)
         (publicFits := publicFits) source))
     source (sourceLogicalStart source)
-    (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)).mp
+    (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env)).mp
   exact trace
 
 theorem advanceState_affine (source : Nat) :
@@ -205,9 +205,9 @@ theorem advanceInvocation_implies_spec (source : Nat) (env : Env)
       (Sampler.advanceInterface (sourceInterface (logicalWidth := logicalWidth)
         (publicFits := publicFits) source) source (sourceLogicalStart source))
       (NightstreamFPrime.Layout.Stage1.PiRLCStarts.advanceLogicalStart source)
-      (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) := by
+      (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env) := by
   simp only [advanceInvocation, fastAdvanceState_eq] at holds
-  have witnessLocal : NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset ≤
+  have witnessLocal : NightstreamFPrime.Layout.Stage1.PackageOrder.piCcsPhaseOffset ≤
       NightstreamFPrime.Layout.Stage1.PiRLCStarts.advanceLogicalStart source := by
     unfold NightstreamFPrime.Layout.Stage1.PiRLCStarts.advanceLogicalStart
       NightstreamFPrime.Layout.Stage1.PiRLCStarts.samplerSourceLogicalStart
@@ -216,7 +216,7 @@ theorem advanceInvocation_implies_spec (source : Nat) (env : Env)
       NightstreamFPrime.Layout.Stage1.PiRLCStarts.phaseLogicalStart
       NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset
       Sampler.advanceOffset Sampler.rangeOffset SamplerChain.sourceOffset
-    norm_num [NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset]
+    norm_num [NightstreamFPrime.Layout.Stage1.PackageOrder.piCcsPhaseOffset]
     omega
   have transition := invocation_sound phase
     (NightstreamFPrime.Layout.Stage1.PiRLCStarts.advanceRowStart source)
@@ -225,18 +225,18 @@ theorem advanceInvocation_implies_spec (source : Nat) (env : Env)
     env witnessLocal (advanceState_affine (logicalWidth := logicalWidth) (publicFits := publicFits) source) holds
   unfold Permutation.Owned.SpecHolds
   calc
-    _ = List.ofFn (Layer.evalState (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)
+    _ = List.ofFn (Layer.evalState (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env)
         (permutationOutput (NightstreamFPrime.Layout.Stage1.PiRLCStarts.advanceLogicalStart source))) := rfl
     _ = List.ofFn (Permutation.runF Permutation.schedule
-        (Layer.evalState (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)
+        (Layer.evalState (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env)
           (advanceState (logicalWidth := logicalWidth) (publicFits := publicFits) source))) :=
       congrArg List.ofFn transition
     _ = Permutation.runReference Permutation.schedule
-        (List.ofFn (Layer.evalState (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)
+        (List.ofFn (Layer.evalState (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env)
           (advanceState (logicalWidth := logicalWidth) (publicFits := publicFits) source))) :=
       Permutation.runF_eq_reference _ _
     _ = Spec.Poseidon2.permute
-        (List.ofFn (Layer.evalState (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)
+        (List.ofFn (Layer.evalState (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env)
           (advanceState (logicalWidth := logicalWidth) (publicFits := publicFits) source))) :=
       Permutation.runReference_schedule _
     _ = _ := rfl

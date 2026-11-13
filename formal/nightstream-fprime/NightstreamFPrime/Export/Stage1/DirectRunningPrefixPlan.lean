@@ -121,7 +121,7 @@ structure Semantics
     groupValue
   transition : NightstreamFPrime.Layout.Stage1.RunningTransitionLayout.PhysicalHolds
     logicalWidth publicFits
-    (NightstreamFPrime.Layout.Stage1.Spartan.pullback
+    (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback
       (RunningTransitionDirectPlan.transitionEnv program base))
 
 private theorem prefixOne

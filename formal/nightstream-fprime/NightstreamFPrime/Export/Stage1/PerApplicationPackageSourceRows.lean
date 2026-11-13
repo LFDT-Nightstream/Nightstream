@@ -73,7 +73,7 @@ def liftPilotCompiledRow : Rows.CompiledRow → Rows.CompiledRow
 private theorem liftPilotCombination_toR1CS
     (combination : SparseCombination) :
     (Data.liftPilotCombination combination).toR1CS =
-      mapCombinationColumns Spartan.liftPilotColumn combination.toR1CS := by
+      mapCombinationColumns PackageOrder.liftPilotColumn combination.toR1CS := by
   cases combination
   simp [Data.liftPilotCombination, Data.liftPilotTerm,
     SparseCombination.toR1CS, mapCombinationColumns, List.map_map,
@@ -81,7 +81,7 @@ private theorem liftPilotCombination_toR1CS
 
 theorem liftPilotCompiledRow_toR1CS (row : Rows.CompiledRow) :
     (liftPilotCompiledRow row).toR1CS =
-      mapRowColumns Spartan.liftPilotColumn row.toR1CS := by
+      mapRowColumns PackageOrder.liftPilotColumn row.toR1CS := by
   cases row with
   | witness instruction =>
       simp only [liftPilotCompiledRow, Rows.CompiledRow.toR1CS,
@@ -1151,7 +1151,7 @@ def piDecProgramRow
     (_relation : Lifecycle.ProductionKey.LogicalRelation logicalWidth
       publicFits) (index : Fin PiDEC.v1_2.exactRowCount) : R1CS.Row :=
   (PiDECOrdinaryDirectSource.sourceRows logicalWidth publicFits).getD
-    index.val Spartan.zeroRow
+    index.val PackageOrder.zeroRow
 
 theorem piDecProgramRows_eq
     {logicalWidth : Nat}
@@ -1166,12 +1166,12 @@ theorem piDecProgramRows_eq
   have rowsLength : rows.length = PiDEC.v1_2.exactRowCount :=
     PiDECOrdinaryDirectSource.sourceRows_length relation
   change List.ofFn (fun index : Fin PiDEC.v1_2.exactRowCount =>
-    rows.getD index.val Spartan.zeroRow) = rows
+    rows.getD index.val PackageOrder.zeroRow) = rows
   apply List.ext_get
   · rw [List.length_ofFn, rowsLength]
   · intro position leftBound rightBound
     rw [List.get_ofFn]
-    exact List.getD_eq_get rows Spartan.zeroRow ⟨position, rightBound⟩
+    exact List.getD_eq_get rows PackageOrder.zeroRow ⟨position, rightBound⟩
 
 theorem piDecPackageSourceRow?_eq_some
     {logicalWidth : Nat}
@@ -1234,7 +1234,7 @@ theorem piDecProgramRow_public
     piDecProgramRow relation (piDecPublicIndex index) =
       PiDECOrdinaryDirectSource.publicProgramRow relation index := by
   change (PiDECOrdinaryDirectSource.sourceRows logicalWidth publicFits).getD
-      index.val Spartan.zeroRow = _
+      index.val PackageOrder.zeroRow = _
   unfold PiDECOrdinaryDirectSource.sourceRows
   rw [List.append_assoc, List.append_assoc, List.getD_append _ _ _ _ (by
     rw [PiDECOrdinaryDirectSource.publicRows_length relation]
@@ -1245,7 +1245,7 @@ theorem piDecProgramRow_public
       (PiDECOrdinaryDirectSource.publicRows logicalWidth publicFits).length := by
     rw [PiDECOrdinaryDirectSource.publicRows_length relation]
     exact index.isLt
-  rw [List.getD_eq_getElem _ Spartan.zeroRow bound,
+  rw [List.getD_eq_getElem _ PackageOrder.zeroRow bound,
     List.get_eq_getElem]
   simp only [Fin.val_cast]
 
@@ -1262,7 +1262,7 @@ theorem piDecProgramRow_commitment
     piDecProgramRow relation (piDecCommitmentIndex index) =
       PiDECOrdinaryDirectSource.commitmentProgramRow relation index := by
   change (PiDECOrdinaryDirectSource.sourceRows logicalWidth publicFits).getD
-      (PiDEC.v1_2.PublicInputSplit.physicalRowCount + index.val) Spartan.zeroRow = _
+      (PiDEC.v1_2.PublicInputSplit.physicalRowCount + index.val) PackageOrder.zeroRow = _
   unfold PiDECOrdinaryDirectSource.sourceRows
   rw [List.getD_append _ _ _ _ (by
     rw [List.length_append, List.length_append,
@@ -1291,7 +1291,7 @@ theorem piDecProgramRow_commitment
         publicFits).length := by
     rw [PiDECOrdinaryDirectSource.commitmentRows_length relation]
     exact index.isLt
-  rw [List.getD_eq_getElem _ Spartan.zeroRow bound,
+  rw [List.getD_eq_getElem _ PackageOrder.zeroRow bound,
     List.get_eq_getElem]
   simp only [Fin.val_cast]
 
@@ -1308,7 +1308,7 @@ theorem piDecProgramRow_evalK
     piDecProgramRow relation (piDecEvalKIndex index) =
       PiDECOrdinaryDirectSource.evalKProgramRow relation index := by
   change (PiDECOrdinaryDirectSource.sourceRows logicalWidth publicFits).getD
-      ((PiDEC.v1_2.PublicInputSplit.physicalRowCount + PiDEC.v1_2.CommitmentRecomposition.physicalRowCount) + index.val) Spartan.zeroRow = _
+      ((PiDEC.v1_2.PublicInputSplit.physicalRowCount + PiDEC.v1_2.CommitmentRecomposition.physicalRowCount) + index.val) PackageOrder.zeroRow = _
   unfold PiDECOrdinaryDirectSource.sourceRows
   rw [List.getD_append _ _ _ _ (by
     rw [List.length_append, List.length_append,
@@ -1336,7 +1336,7 @@ theorem piDecProgramRow_evalK
       (PiDECOrdinaryDirectSource.evalKRows logicalWidth publicFits).length := by
     rw [PiDECOrdinaryDirectSource.evalKRows_length relation]
     exact index.isLt
-  rw [List.getD_eq_getElem _ Spartan.zeroRow bound,
+  rw [List.getD_eq_getElem _ PackageOrder.zeroRow bound,
     List.get_eq_getElem]
   simp only [Fin.val_cast]
 
@@ -1353,7 +1353,7 @@ theorem piDecProgramRow_evalA
     piDecProgramRow relation (piDecEvalAIndex index) =
       PiDECOrdinaryDirectSource.evalAProgramRow relation index := by
   change (PiDECOrdinaryDirectSource.sourceRows logicalWidth publicFits).getD
-      ((PiDEC.v1_2.PublicInputSplit.physicalRowCount + PiDEC.v1_2.CommitmentRecomposition.physicalRowCount + PiDEC.v1_2.EvalKRecomposition.physicalRowCount) + index.val) Spartan.zeroRow = _
+      ((PiDEC.v1_2.PublicInputSplit.physicalRowCount + PiDEC.v1_2.CommitmentRecomposition.physicalRowCount + PiDEC.v1_2.EvalKRecomposition.physicalRowCount) + index.val) PackageOrder.zeroRow = _
   unfold PiDECOrdinaryDirectSource.sourceRows
   rw [List.getD_append_right _ _ _ _ (by
     rw [List.length_append, List.length_append,
@@ -1378,7 +1378,7 @@ theorem piDecProgramRow_evalA
       (PiDECOrdinaryDirectSource.evalARows logicalWidth publicFits).length := by
     rw [PiDECOrdinaryDirectSource.evalARows_length relation]
     exact index.isLt
-  rw [List.getD_eq_getElem _ Spartan.zeroRow bound,
+  rw [List.getD_eq_getElem _ PackageOrder.zeroRow bound,
     List.get_eq_getElem]
   simp only [Fin.val_cast]
 

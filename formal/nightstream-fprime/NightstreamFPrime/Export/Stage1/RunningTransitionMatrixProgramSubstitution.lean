@@ -40,18 +40,18 @@ private theorem freshRange_after_piDec (program : ApplicationProgram) :
     (piDecRange program).sourceStart + (piDecRange program).sourceCount ≤
       (freshRange program).sourceStart := by
   dsimp only [piDecRange, freshRange, SourceRange.ofSemantic]
-  rw [← Spartan.sourceToSpartan_add_of_piCcsLocal _ _ (by
+  rw [← PackageOrder.sourceToPackage_add_of_piCcsLocal _ _ (by
     rw [RunningTransitionSourceSupport.piDecStart_eq]
-    norm_num [Spartan.piCcsPhaseOffset])]
+    norm_num [PackageOrder.piCcsPhaseOffset])]
   simpa only [RunningTransitionSourceSupport.piDecStart,
     RunningTransitionSourceSupport.piDecCount, PiDECInputs.phaseOffset] using
     PiDECSourceSupport.mapped_logical_start_le_output
 
 private theorem stateTarget (index : Fin RunningTransitionSourceSupport.stateCount) :
-    Spartan.sourceToSpartan
+    PackageOrder.sourceToPackage
         (RunningTransitionSourceSupport.stateStart + index.val) =
       28904 + index.val := by
-  rw [Spartan.sourceToSpartan_add_of_pilotPriorPrivate]
+  rw [PackageOrder.sourceToPackage_add_of_pilotPriorPrivate]
   · rw [RunningTransitionSourceSupport.stateStart_eq]
     rfl
   · have bound := index.isLt
@@ -64,31 +64,31 @@ private theorem stateTarget (index : Fin RunningTransitionSourceSupport.stateCou
 
 private theorem outputTarget
     (index : Fin RunningTransitionSourceSupport.outputCount) :
-    Spartan.sourceToSpartan
+    PackageOrder.sourceToPackage
         (RunningTransitionSourceSupport.outputStart + index.val) =
       28913 + index.val := by
   have bound := index.isLt
   change index.val < 28913 at bound
   rw [RunningTransitionSourceSupport.outputStart_eq]
-  unfold Spartan.sourceToSpartan
-  rw [ite_eq_left (by norm_num [Spartan.pilotSourceColumnCount]; omega)]
-  unfold PilotSpartan.sourceToSpartan
-  rw [ite_eq_right (by rw [PilotSpartan.priorPublicStart_value]; omega)]
-  rw [ite_eq_right (by rw [PilotSpartan.outputPreimageStart_value]; omega)]
-  rw [ite_eq_left (by rw [PilotSpartan.outputDigestStart_value]; omega)]
-  unfold Spartan.liftPilotColumn
+  unfold PackageOrder.sourceToPackage
+  rw [ite_eq_left (by norm_num [PackageOrder.pilotSourceColumnCount]; omega)]
+  unfold PilotPackageOrder.sourceToPackage
+  rw [ite_eq_right (by rw [PilotPackageOrder.priorPublicStart_value]; omega)]
+  rw [ite_eq_right (by rw [PilotPackageOrder.outputPreimageStart_value]; omega)]
+  rw [ite_eq_left (by rw [PilotPackageOrder.outputDigestStart_value]; omega)]
+  unfold PackageOrder.liftPilotColumn
   rw [ite_eq_left (by
-    rw [PilotSpartan.secondPrivateStart_value,
-      PilotSpartan.outputPreimageStart_value]
-    norm_num [Spartan.pilotInputPrivateColumnCount]
+    rw [PilotPackageOrder.secondPrivateStart_value,
+      PilotPackageOrder.outputPreimageStart_value]
+    norm_num [PackageOrder.pilotInputPrivateColumnCount]
     omega)]
-  rw [PilotSpartan.secondPrivateStart_value,
-    PilotSpartan.outputPreimageStart_value]
+  rw [PilotPackageOrder.secondPrivateStart_value,
+    PilotPackageOrder.outputPreimageStart_value]
   omega
 
 private theorem roundTarget
     (coordinate : Fin productionShape.cubeVariables) (component : Fin 2) :
-    Spartan.sourceToSpartan
+    PackageOrder.sourceToPackage
         (PiCCSTranscriptOutputForms.pointSource coordinate component) =
       5503446 + coordinate.val * 2192 + component.val := by
   have grouped : PiCCSTranscriptOutputForms.pointSource coordinate component =
@@ -96,11 +96,11 @@ private theorem roundTarget
         (coordinate.val * RunningTransitionInputs.roundStride + component.val) := by
     unfold PiCCSTranscriptOutputForms.pointSource
     omega
-  rw [grouped, Spartan.sourceToSpartan_add_of_piCcsLocal _ _ (by
+  rw [grouped, PackageOrder.sourceToPackage_add_of_piCcsLocal _ _ (by
     norm_num [PiCCSTranscriptOutputForms.pointSourceStart,
       PiCCSStarts.roundTranscriptWitnessStart_eq,
-      RunningTransitionInputs.roundSampleC0Offset, Spartan.piCcsPhaseOffset])]
-  have start : Spartan.sourceToSpartan
+      RunningTransitionInputs.roundSampleC0Offset, PackageOrder.piCcsPhaseOffset])]
+  have start : PackageOrder.sourceToPackage
       PiCCSTranscriptOutputForms.pointSourceStart = 5503446 := rfl
   rw [start]
   norm_num [RunningTransitionInputs.roundStride]
@@ -108,20 +108,20 @@ private theorem roundTarget
 
 private theorem piDecTarget
     (index : Fin RunningTransitionSourceSupport.piDecCount) :
-    Spartan.sourceToSpartan
+    PackageOrder.sourceToPackage
         (RunningTransitionSourceSupport.piDecStart + index.val) =
-      Spartan.sourceToSpartan RunningTransitionSourceSupport.piDecStart +
+      PackageOrder.sourceToPackage RunningTransitionSourceSupport.piDecStart +
         index.val := by
-  exact Spartan.sourceToSpartan_add_of_piCcsLocal _ _ (by
+  exact PackageOrder.sourceToPackage_add_of_piCcsLocal _ _ (by
     rw [RunningTransitionSourceSupport.piDecStart_eq]
-    norm_num [Spartan.piCcsPhaseOffset])
+    norm_num [PackageOrder.piCcsPhaseOffset])
 
 private theorem freshTarget (index : Fin freshCount) :
-    Spartan.sourceToSpartan
+    PackageOrder.sourceToPackage
         (RunningTransitionInputs.phaseOffset + index.val) =
-      Spartan.sourceToSpartan RunningTransitionInputs.phaseOffset + index.val := by
-  exact Spartan.sourceToSpartan_add_of_piCcsLocal _ _ (by
-    exact Nat.le_trans (by decide : Spartan.piCcsPhaseOffset ≤ PiDECInputs.phaseOffset)
+      PackageOrder.sourceToPackage RunningTransitionInputs.phaseOffset + index.val := by
+  exact PackageOrder.sourceToPackage_add_of_piCcsLocal _ _ (by
+    exact Nat.le_trans (by decide : PackageOrder.piCcsPhaseOffset ≤ PiDECInputs.phaseOffset)
       RunningTransitionInputs.piDecPhaseOffset_le)
 
 theorem stateRange_form?
@@ -129,13 +129,13 @@ theorem stateRange_form?
     (geometry : Geometry program logicalWidth)
     (index : Fin RunningTransitionSourceSupport.stateCount) :
     (stateRange program).form? logicalWidth
-        (Spartan.sourceToSpartan
+        (PackageOrder.sourceToPackage
           (RunningTransitionSourceSupport.stateStart + index.val)) =
       some ((RunningTransitionDirectPlan.Location.state index).form geometry) := by
   rw [stateTarget]
   simpa [stateRange, RunningTransitionDirectPlan.Location.form] using!
     (SourceRange.form?_ofSemantic (stateBlock program) (stateStart program)
-      (Spartan.sourceToSpartan RunningTransitionSourceSupport.stateStart)
+      (PackageOrder.sourceToPackage RunningTransitionSourceSupport.stateStart)
       RunningTransitionSourceSupport.stateCount 0
       (stateFits geometry) (by rfl) index)
 
@@ -144,13 +144,13 @@ theorem outputRange_form?
     (geometry : Geometry program logicalWidth)
     (index : Fin RunningTransitionSourceSupport.outputCount) :
     (outputRange program).form? logicalWidth
-        (Spartan.sourceToSpartan
+        (PackageOrder.sourceToPackage
           (RunningTransitionSourceSupport.outputStart + index.val)) =
       some ((RunningTransitionDirectPlan.Location.output index).form geometry) := by
   rw [outputTarget]
   simpa [outputRange, RunningTransitionDirectPlan.Location.form] using!
     (SourceRange.form?_ofSemantic (outputBlock program) (outputStart program)
-      (Spartan.sourceToSpartan RunningTransitionSourceSupport.outputStart)
+      (PackageOrder.sourceToPackage RunningTransitionSourceSupport.outputStart)
       RunningTransitionSourceSupport.outputCount 0
       (outputFits geometry) (by rfl) index)
 
@@ -159,7 +159,7 @@ theorem roundC0_form?
     (geometry : Geometry program logicalWidth)
     (coordinate : Fin productionShape.cubeVariables) :
     (PiCCSTranscriptOutputForms.pointGrid program).form? logicalWidth
-        (Spartan.sourceToSpartan
+        (PackageOrder.sourceToPackage
           (PiCCSStarts.roundTranscriptWitnessStart +
             coordinate.val * RunningTransitionInputs.roundStride +
               RunningTransitionInputs.roundSampleC0Offset)) =
@@ -174,7 +174,7 @@ theorem roundC1_form?
     (geometry : Geometry program logicalWidth)
     (coordinate : Fin productionShape.cubeVariables) :
     (PiCCSTranscriptOutputForms.pointGrid program).form? logicalWidth
-        (Spartan.sourceToSpartan
+        (PackageOrder.sourceToPackage
           (PiCCSStarts.roundTranscriptWitnessStart +
             coordinate.val * RunningTransitionInputs.roundStride +
               RunningTransitionInputs.roundSampleC1Offset)) =
@@ -189,13 +189,13 @@ theorem piDecRange_form?
     (geometry : Geometry program logicalWidth)
     (index : Fin RunningTransitionSourceSupport.piDecCount) :
     (piDecRange program).form? logicalWidth
-        (Spartan.sourceToSpartan
+        (PackageOrder.sourceToPackage
           (RunningTransitionSourceSupport.piDecStart + index.val)) =
       some ((RunningTransitionDirectPlan.Location.piDec index).form geometry) := by
   rw [piDecTarget]
   simpa [piDecRange, RunningTransitionDirectPlan.Location.form] using!
     (SourceRange.form?_ofSemantic (piDecBlock program) (piDecStart program)
-      (Spartan.sourceToSpartan RunningTransitionSourceSupport.piDecStart)
+      (PackageOrder.sourceToPackage RunningTransitionSourceSupport.piDecStart)
       RunningTransitionSourceSupport.piDecCount 0
       (piDecFits geometry) (by rfl) index)
 
@@ -203,22 +203,22 @@ theorem freshRange_form?
     {program : ApplicationProgram} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth) (index : Fin freshCount) :
     (freshRange program).form? logicalWidth
-        (Spartan.sourceToSpartan
+        (PackageOrder.sourceToPackage
           (RunningTransitionInputs.phaseOffset + index.val)) =
       some ((RunningTransitionDirectPlan.Location.fresh index).form geometry) := by
   rw [freshTarget]
   simpa [freshRange, RunningTransitionDirectPlan.Location.form] using!
     (SourceRange.form?_ofSemantic (freshBlock program) (freshStart program)
-      (Spartan.sourceToSpartan RunningTransitionInputs.phaseOffset)
+      (PackageOrder.sourceToPackage RunningTransitionInputs.phaseOffset)
       freshCount 0 (freshFits geometry) (by rfl) index)
 
 private theorem piDecMappedStart (program : ApplicationProgram) :
-    Spartan.sourceToSpartan RunningTransitionSourceSupport.piDecStart =
+    PackageOrder.sourceToPackage RunningTransitionSourceSupport.piDecStart =
       11380810 := by
   exact (piDecRange_values program).1
 
 private theorem freshMappedStart (program : ApplicationProgram) :
-    Spartan.sourceToSpartan RunningTransitionInputs.phaseOffset =
+    PackageOrder.sourceToPackage RunningTransitionInputs.phaseOffset =
       (freshRange program).sourceStart := by
   simp only [freshRange, SourceRange.ofSemantic]
 
@@ -227,7 +227,7 @@ theorem substitution_location_form?
     (geometry : Geometry program logicalWidth)
     (location : RunningTransitionDirectPlan.Location) :
     (substitution program).form? logicalWidth
-        (Spartan.sourceToSpartan location.sourceColumn) =
+        (PackageOrder.sourceToPackage location.sourceColumn) =
       some (location.form geometry) := by
   rcases stateRange_values program with ⟨stateStartValue, stateCountValue⟩
   rcases outputRange_values program with
@@ -364,7 +364,7 @@ theorem substitution_location_form?
 theorem substitution_agrees_on_target
     {program : ApplicationProgram} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth)
-    (column : Fin Spartan.spartanColumnCount)
+    (column : Fin PackageOrder.packageColumnCount)
     (support : RunningTransitionSourceSupport.Target column.val) :
     (substitution program).form? logicalWidth column.val =
       some ((RunningTransitionDirectPlan.sourceMap geometry).form column) := by
@@ -376,7 +376,7 @@ theorem substitution_agrees_on_target
       | some value => value.location.form geometry)
   rw [found]
   have target :
-      Spartan.sourceToSpartan decoded.location.sourceColumn = column.val := by
+      PackageOrder.sourceToPackage decoded.location.sourceColumn = column.val := by
     rw [decoded.owns, mapped]
   simpa only [target] using
     (substitution_location_form? geometry decoded.location)

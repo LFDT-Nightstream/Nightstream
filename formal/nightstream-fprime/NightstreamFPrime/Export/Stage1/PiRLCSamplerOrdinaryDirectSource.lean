@@ -1,7 +1,7 @@
 import NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryRows
 import NightstreamFPrime.Layout.ProductionRelation.OrdinarySourcePlan
-import NightstreamFPrime.Layout.Stage1.SpartanBounds
-import NightstreamFPrime.Layout.Stage1.SpartanValues
+import NightstreamFPrime.Layout.Stage1.PackageOrderBounds
+import NightstreamFPrime.Layout.Stage1.PackageOrderValues
 
 namespace NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryDirectSource
 
@@ -46,11 +46,11 @@ inductive Source : Nat → Prop where
       Source (PiRLCStarts.challengeWordStart source + position)
 
 def Target (column : Nat) : Prop :=
-  ∃ source, Source source ∧ Spartan.sourceToSpartan source = column
+  ∃ source, Source source ∧ PackageOrder.sourceToPackage source = column
 
 theorem Source.bounded {column : Nat} (supported : Source column) :
-    column < Spartan.SourceColumnCount := by
-  rw [Spartan.sourceColumnCount_eq]
+    column < PackageOrder.SourceColumnCount := by
+  rw [PackageOrder.sourceColumnCount_eq]
   cases supported <;>
     simp only [poseidonSource, coreStart, WideReduction.Program.coreOffset,
       PiRLCStarts.rangeLogicalStart, PiRLCStarts.samplerSourceLogicalStart,
@@ -150,25 +150,25 @@ theorem sourceRows_varsSatisfy :
         (logicalWidth := logicalWidth) (publicFits := publicFits) source).map Rows.CompiledRow.toR1CS :=
       List.mem_map.mpr ⟨compiled, rangeMember, rfl⟩
     rw [PiRLCSamplerOrdinaryRows.rangeRows_toR1CS] at mapped
-    exact Spartan.remapRows_varsSatisfy Source Target _
+    exact PackageOrder.remapRows_varsSatisfy Source Target _
       (rangeLowered_supported source sourceLt)
       (fun column support => ⟨column, support, rfl⟩) _ mapped
   · have mapped : compiled.toR1CS ∈ (PiRLCSamplerOrdinaryRows.wordRows source).map Rows.CompiledRow.toR1CS :=
       List.mem_map.mpr ⟨compiled, wordMember, rfl⟩
     rw [PiRLCSamplerOrdinaryRows.wordRows_toR1CS] at mapped
-    exact Spartan.remapRows_varsSatisfy Source Target _
+    exact PackageOrder.remapRows_varsSatisfy Source Target _
       (wordLowered_supported source sourceLt)
       (fun column support => ⟨column, support, rfl⟩) _ mapped
 
 theorem sourceRows_varsBelow :
     ∀ row ∈ sourceRows (logicalWidth := logicalWidth) (publicFits := publicFits),
-      row.VarsBelow Spartan.spartanColumnCount := by
+      row.VarsBelow PackageOrder.packageColumnCount := by
   intro row member
-  change row.VarsSatisfy (fun column => column < Spartan.spartanColumnCount)
+  change row.VarsSatisfy (fun column => column < PackageOrder.packageColumnCount)
   apply R1CS.Row.VarsSatisfy.mono row (sourceRows_varsSatisfy row member)
   intro column support
   rcases support with ⟨source, supported, rfl⟩
-  exact Spartan.sourceToSpartan_lt source supported.bounded
+  exact PackageOrder.sourceToPackage_lt source supported.bounded
 
 theorem sourceRows_rowCount_le :
     (sourceRows (logicalWidth := logicalWidth)
@@ -204,11 +204,11 @@ structure SupportedProgram (rows : List R1CS.Row) where
   rowCount_le : rowCount ≤ 2 ^ Lifecycle.cubeVariables
   row : Fin rowCount → R1CS.Row
   exactRows : List.ofFn row = rows
-  bounded : ∀ index, (row index).VarsBelow Spartan.spartanColumnCount
+  bounded : ∀ index, (row index).VarsBelow PackageOrder.packageColumnCount
 
 def SupportedProgram.toProgram {rows : List R1CS.Row}
     (source : SupportedProgram rows) :
-    OrdinarySourcePlan.Program Spartan.spartanColumnCount where
+    OrdinarySourcePlan.Program PackageOrder.packageColumnCount where
   rowCount := source.rowCount
   rowCount_le := source.rowCount_le
   row := source.row
@@ -228,7 +228,7 @@ def supportedProgram : SupportedProgram
       (List.get_mem _ (sourceListIndex (logicalWidth := logicalWidth)
         (publicFits := publicFits) index))
 
-def program : OrdinarySourcePlan.Program Spartan.spartanColumnCount :=
+def program : OrdinarySourcePlan.Program PackageOrder.packageColumnCount :=
   (supportedProgram (logicalWidth := logicalWidth)
     (publicFits := publicFits)).toProgram
 
@@ -240,7 +240,7 @@ def program : OrdinarySourcePlan.Program Spartan.spartanColumnCount :=
 theorem programRow_bounded (index : Fin 15453) :
     (programRow (logicalWidth := logicalWidth)
       (publicFits := publicFits) index).VarsBelow
-        Spartan.spartanColumnCount := by
+        PackageOrder.packageColumnCount := by
   unfold programRow
   exact sourceRows_varsBelow (logicalWidth := logicalWidth)
     (publicFits := publicFits) _

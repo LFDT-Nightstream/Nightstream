@@ -1,6 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PilotOrdinaryRetainedGeometry
 import NightstreamFPrime.Export.Stage1.RunningTransitionDirectPlan
-import NightstreamFPrime.Layout.Stage1.SpartanValues
+import NightstreamFPrime.Layout.Stage1.PackageOrderValues
 import NightstreamFPrime.Export.Stage1.PilotOrdinaryDirectSource
 
 namespace NightstreamFPrime.Export.Stage1.PilotOrdinaryDirectPlan
@@ -100,23 +100,23 @@ theorem physicalSupport (location : Location) :
       omega
 
 theorem sourceColumn_lt (location : Location) :
-    location.sourceColumn < PilotSpartan.SourceColumnCount := by
+    location.sourceColumn < PilotPackageOrder.SourceColumnCount := by
   exact physicalSource_lt location.sourceColumn location.physicalSupport
 
 theorem targetColumn_lt (location : Location) :
-    PilotSpartan.sourceToSpartan location.sourceColumn <
-      PilotSpartan.spartanColumnCount :=
-  PilotSpartan.sourceToSpartan_lt location.sourceColumn location.sourceColumn_lt
+    PilotPackageOrder.sourceToPackage location.sourceColumn <
+      PilotPackageOrder.packageColumnCount :=
+  PilotPackageOrder.sourceToPackage_lt location.sourceColumn location.sourceColumn_lt
 
 theorem stage1Map (location : Location) :
-    Spartan.sourceToSpartan location.sourceColumn =
-      Spartan.liftPilotColumn
-        (PilotSpartan.sourceToSpartan location.sourceColumn) := by
-  unfold Spartan.sourceToSpartan
+    PackageOrder.sourceToPackage location.sourceColumn =
+      PackageOrder.liftPilotColumn
+        (PilotPackageOrder.sourceToPackage location.sourceColumn) := by
+  unfold PackageOrder.sourceToPackage
   rw [ite_eq_left]
   have bound := location.sourceColumn_lt
-  rw [PilotSpartan.sourceColumnCount_eq] at bound
-  simpa [Spartan.pilotSourceColumnCount] using bound
+  rw [PilotPackageOrder.sourceColumnCount_eq] at bound
+  simpa [PackageOrder.pilotSourceColumnCount] using bound
 
 def form {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
@@ -222,7 +222,7 @@ structure Decoded where
   owns : location.sourceColumn = source
 
 def classifyTarget (column : Nat) : Option Decoded :=
-  match PilotSpartan.spartanToSource column with
+  match PilotPackageOrder.packageToSource column with
   | none => none
   | some source =>
       match classifySource source with
@@ -231,10 +231,10 @@ def classifyTarget (column : Nat) : Option Decoded :=
 
 theorem classifyTarget_complete {column : Nat} (support : Target column) :
     ∃ decoded, classifyTarget column = some decoded ∧
-      PilotSpartan.sourceToSpartan decoded.source = column := by
+      PilotPackageOrder.sourceToPackage decoded.source = column := by
   rcases support with ⟨source, sourceSupport, rfl⟩
   have bound := physicalSource_lt source sourceSupport
-  have inverse := PilotSpartan.spartanToSource_sourceToSpartan source bound
+  have inverse := PilotPackageOrder.packageToSource_sourceToPackage source bound
   have complete := classifySource_complete sourceSupport
   cases found : classifySource source with
   | none => simp [found] at complete
@@ -245,7 +245,7 @@ theorem classifyTarget_complete {column : Nat} (support : Target column) :
 def sourceMap {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
     (geometry : PilotOrdinaryRetainedGeometry.Geometry program logicalWidth) :
-    SourceCompiler.SourceMap PilotSpartan.spartanColumnCount logicalWidth where
+    SourceCompiler.SourceMap PilotPackageOrder.packageColumnCount logicalWidth where
   form := fun column =>
     match classifyTarget column.val with
     | none => .empty
@@ -254,7 +254,7 @@ def sourceMap {program : Lifecycle.Stage1.Application.Program}
 def pilotEnv (program : Lifecycle.Stage1.Application.Program)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F) : Env :=
   fun column => RunningTransitionDirectPlan.transitionEnv program base
-    (Spartan.liftPilotColumn column)
+    (PackageOrder.liftPilotColumn column)
 
 structure Encodes {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
@@ -270,10 +270,10 @@ structure Encodes {program : Lifecycle.Stage1.Application.Program}
       program base groupValue)
 
 theorem Location.stage1SourceColumn_lt (location : Location) :
-    location.sourceColumn < Spartan.SourceColumnCount := by
+    location.sourceColumn < PackageOrder.SourceColumnCount := by
   have bound := location.sourceColumn_lt
-  rw [PilotSpartan.sourceColumnCount_eq] at bound
-  rw [Spartan.sourceColumnCount_eq]
+  rw [PilotPackageOrder.sourceColumnCount_eq] at bound
+  rw [PackageOrder.sourceColumnCount_eq]
   omega
 
 theorem sourceAssignment_at
@@ -285,7 +285,7 @@ theorem sourceAssignment_at
         (RunningTransitionRetainedBlocks.packageSourceColumn program
           location.sourceColumn location.stage1SourceColumn_lt) =
       pilotEnv program base
-        (PilotSpartan.sourceToSpartan location.sourceColumn) := by
+        (PilotPackageOrder.sourceToPackage location.sourceColumn) := by
   rw [RunningTransitionDirectPlan.sourceAssignment_packageSource
     program base groupValue location.sourceColumn
     location.stage1SourceColumn_lt]
@@ -293,7 +293,7 @@ theorem sourceAssignment_at
     location.sourceColumn location.stage1SourceColumn_lt (by
       left
       have bound := location.sourceColumn_lt
-      rw [PilotSpartan.sourceColumnCount_eq] at bound
+      rw [PilotPackageOrder.sourceColumnCount_eq] at bound
       rw [PiCCSStarts.statementWitnessStart_eq]
       omega)]
   unfold pilotEnv
@@ -308,37 +308,37 @@ private theorem outputLastWitnessStart_eq :
       PiCCSOrdinaryRetainedBlocks.outputLastInvocation = 5359566 := by rfl
 
 private theorem liftPriorDigestTarget (lane : Fin 4) :
-    Spartan.liftPilotColumn (2700266 + lane.val) = 2717922 + lane.val := by
+    PackageOrder.liftPilotColumn (2700266 + lane.val) = 2717922 + lane.val := by
   have laneBound := lane.isLt
-  unfold Spartan.liftPilotColumn
-  rw [ite_eq_right (by norm_num [Spartan.pilotInputPrivateColumnCount]; omega)]
-  rw [ite_eq_left (by norm_num [Spartan.pilotPrivateColumnCount]; omega)]
-  norm_num [Spartan.proofInputColumnCount]
+  unfold PackageOrder.liftPilotColumn
+  rw [ite_eq_right (by norm_num [PackageOrder.pilotInputPrivateColumnCount]; omega)]
+  rw [ite_eq_left (by norm_num [PackageOrder.pilotPrivateColumnCount]; omega)]
+  norm_num [PackageOrder.proofInputColumnCount]
   omega
 
 private theorem liftOutputStateTarget (lane : Fin 4) :
-    Spartan.liftPilotColumn (5342990 + lane.val) = 5360646 + lane.val := by
+    PackageOrder.liftPilotColumn (5342990 + lane.val) = 5360646 + lane.val := by
   have laneBound := lane.isLt
-  unfold Spartan.liftPilotColumn
-  rw [ite_eq_right (by norm_num [Spartan.pilotInputPrivateColumnCount]; omega)]
-  rw [ite_eq_left (by norm_num [Spartan.pilotPrivateColumnCount]; omega)]
-  norm_num [Spartan.proofInputColumnCount]
+  unfold PackageOrder.liftPilotColumn
+  rw [ite_eq_right (by norm_num [PackageOrder.pilotInputPrivateColumnCount]; omega)]
+  rw [ite_eq_left (by norm_num [PackageOrder.pilotPrivateColumnCount]; omega)]
+  norm_num [PackageOrder.proofInputColumnCount]
   omega
 
 private theorem priorFinalColumn_eq (lane : Fin 4) :
     PoseidonRetainedBlock.priorWitnessStart
           PiCCSOrdinaryRetainedBlocks.priorLastInvocation +
         (finalSlot lane).val =
-      Spartan.sourceToSpartan (Location.priorDigest lane).sourceColumn := by
+      PackageOrder.sourceToPackage (Location.priorDigest lane).sourceColumn := by
   have sourceBound : (Location.priorDigest lane).sourceColumn <
-      Spartan.pilotSourceColumnCount := by
+      PackageOrder.pilotSourceColumnCount := by
     have bound := (Location.priorDigest lane).sourceColumn_lt
-    rw [PilotSpartan.sourceColumnCount_eq] at bound
-    simpa [Spartan.pilotSourceColumnCount] using bound
-  unfold Spartan.sourceToSpartan
+    rw [PilotPackageOrder.sourceColumnCount_eq] at bound
+    simpa [PackageOrder.pilotSourceColumnCount] using bound
+  unfold PackageOrder.sourceToPackage
   rw [ite_eq_left sourceBound]
-  change _ = Spartan.liftPilotColumn
-    (PilotSpartan.sourceToSpartan
+  change _ = PackageOrder.liftPilotColumn
+    (PilotPackageOrder.sourceToPackage
       (PilotProduction.priorDigestStart + lane.val))
   rw [PilotOrdinaryDirectSource.priorDigest_targetColumn,
     liftPriorDigestTarget, priorLastWitnessStart_eq]
@@ -349,16 +349,16 @@ private theorem outputFinalColumn_eq (lane : Fin 4) :
     PoseidonRetainedBlock.outputWitnessStart
           PiCCSOrdinaryRetainedBlocks.outputLastInvocation +
         (finalSlot lane).val =
-      Spartan.sourceToSpartan (Location.outputState lane).sourceColumn := by
+      PackageOrder.sourceToPackage (Location.outputState lane).sourceColumn := by
   have sourceBound : (Location.outputState lane).sourceColumn <
-      Spartan.pilotSourceColumnCount := by
+      PackageOrder.pilotSourceColumnCount := by
     have bound := (Location.outputState lane).sourceColumn_lt
-    rw [PilotSpartan.sourceColumnCount_eq] at bound
-    simpa [Spartan.pilotSourceColumnCount] using bound
-  unfold Spartan.sourceToSpartan
+    rw [PilotPackageOrder.sourceColumnCount_eq] at bound
+    simpa [PackageOrder.pilotSourceColumnCount] using bound
+  unfold PackageOrder.sourceToPackage
   rw [ite_eq_left sourceBound]
-  change _ = Spartan.liftPilotColumn
-    (PilotSpartan.sourceToSpartan
+  change _ = PackageOrder.liftPilotColumn
+    (PilotPackageOrder.sourceToPackage
       (PilotProduction.lifecycleOutputOffset +
         PilotValues.absorbCount * 1096 + 1080 + lane.val))
   rw [PilotOrdinaryDirectSource.outputState_targetColumn,
@@ -444,7 +444,7 @@ theorem Location.form_eval
     (location : Location) :
     (location.form geometry).eval assignment =
       pilotEnv program base
-        (PilotSpartan.sourceToSpartan location.sourceColumn) := by
+        (PilotPackageOrder.sourceToPackage location.sourceColumn) := by
   cases location with
   | priorDigest lane =>
       rw [form, LowNormBlock.Block.form_eval
@@ -514,7 +514,7 @@ theorem priorDigest_form_eval_chainOutput
     (env : Env)
     (values : ∀ lane : Fin 4,
       ((Location.priorDigest lane).form geometry).eval assignment =
-        env (PilotSpartan.sourceToSpartan (Location.priorDigest lane).sourceColumn))
+        env (PilotPackageOrder.sourceToPackage (Location.priorDigest lane).sourceColumn))
     (lane : Fin 4) :
     ((Location.priorDigest lane).form geometry).eval assignment =
       NightstreamFPrime.Export.Pilot.chainOutputState PilotData.priorChain
@@ -524,7 +524,7 @@ theorem priorDigest_form_eval_chainOutput
   unfold NightstreamFPrime.Export.Pilot.chainOutputState
     NightstreamFPrime.Export.Package.invocationLocalStart
   change env
-      (PilotSpartan.sourceToSpartan
+      (PilotPackageOrder.sourceToPackage
         (PilotProduction.priorDigestStart + lane.val)) = _
   rw [PilotOrdinaryDirectSource.priorDigest_targetColumn]
   norm_num [PilotData.circuitPackage, PilotData.permutationTemplate,
@@ -539,7 +539,7 @@ theorem outputState_form_eval_chainOutput
     (env : Env)
     (values : ∀ lane : Fin 4,
       ((Location.outputState lane).form geometry).eval assignment =
-        env (PilotSpartan.sourceToSpartan (Location.outputState lane).sourceColumn))
+        env (PilotPackageOrder.sourceToPackage (Location.outputState lane).sourceColumn))
     (lane : Fin 4) :
     ((Location.outputState lane).form geometry).eval assignment =
       NightstreamFPrime.Export.Pilot.chainOutputState PilotData.outputChain
@@ -549,7 +549,7 @@ theorem outputState_form_eval_chainOutput
   unfold NightstreamFPrime.Export.Pilot.chainOutputState
     NightstreamFPrime.Export.Package.invocationLocalStart
   change env
-      (PilotSpartan.sourceToSpartan
+      (PilotPackageOrder.sourceToPackage
         (PilotProduction.lifecycleOutputOffset +
           PilotValues.absorbCount * 1096 + 1080 + lane.val)) = _
   rw [PilotOrdinaryDirectSource.outputState_targetColumn]
@@ -562,7 +562,7 @@ theorem sourceMap_form_eval_of_target
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (encodes : Encodes geometry assignment base groupValue)
-    (column : Fin PilotSpartan.spartanColumnCount)
+    (column : Fin PilotPackageOrder.packageColumnCount)
     (support : Target column.val) :
     ((sourceMap geometry).form column).eval assignment =
       pilotEnv program base column.val := by
@@ -574,7 +574,7 @@ theorem sourceMap_form_eval_of_target
   rw [Location.form_eval geometry assignment base groupValue encodes
     decoded.location]
   have mappedLocation :
-      PilotSpartan.sourceToSpartan decoded.location.sourceColumn =
+      PilotPackageOrder.sourceToPackage decoded.location.sourceColumn =
         column.val := by
     rw [decoded.owns, mapped]
   rw [mappedLocation]
@@ -588,7 +588,7 @@ private theorem preservesCombination
     (encodes : Encodes geometry assignment base groupValue)
     (combination : R1CS.LinearCombination)
     (bounded : SourceCompiler.CombinationBounded
-      PilotSpartan.spartanColumnCount combination)
+      PilotPackageOrder.packageColumnCount combination)
     (scope : combination.VarsSatisfy Target) :
     OrdinarySourcePlan.SourceMap.PreservesCombination (sourceMap geometry)
       assignment (pilotEnv program base) combination bounded := by

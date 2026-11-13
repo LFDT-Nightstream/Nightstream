@@ -1,6 +1,6 @@
 import NightstreamFPrime.Layout.Stage1.RunningTransitionInputsSupport
 import NightstreamFPrime.Layout.Stage1.RunningTransitionLowering
-import NightstreamFPrime.Layout.Stage1.SpartanBounds
+import NightstreamFPrime.Layout.Stage1.PackageOrderBounds
 
 namespace NightstreamFPrime.Layout.Stage1.RunningTransitionSourceSupport
 
@@ -55,10 +55,10 @@ theorem remappedRows_varsSatisfy
     {publicFits : ringDegree * publicRingColumns ≤
       RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    ∀ row ∈ Spartan.remapRows
+    ∀ row ∈ PackageOrder.remapRows
         (RunningTransitionLayout.physicalRows logicalWidth publicFits),
       row.VarsSatisfy Target := by
-  apply Spartan.remapRows_varsSatisfy Source Target _
+  apply PackageOrder.remapRows_varsSatisfy Source Target _
     (physicalRows_varsSatisfy relation)
   intro column support
   exact ⟨column, support, rfl⟩

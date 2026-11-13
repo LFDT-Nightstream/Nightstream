@@ -638,7 +638,7 @@ theorem sourceRows_varsSatisfy
       exact upper
   rw [PiCCSOrdinaryDirectSource.sourceRows,
     PiCCSCompleteness.arithmeticRows_toR1CS_eq relation]
-  apply Spartan.remapRows_varsSatisfy Source Target _ loweredSource
+  apply PackageOrder.remapRows_varsSatisfy Source Target _ loweredSource
   intro column support
   exact source_target column support
 

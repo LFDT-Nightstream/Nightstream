@@ -4,7 +4,7 @@ import NightstreamFPrime.Export.Stage1.PiRLCProductRingSchedule
 import NightstreamFPrime.Layout.ProductionRelation.RingProductFamilyPlan
 import NightstreamFPrime.Layout.ProductionRelation.ProductRetainedBlock
 import NightstreamFPrime.Layout.ProductionRelation.SourceCompiler
-import NightstreamFPrime.Layout.Stage1.SpartanValues
+import NightstreamFPrime.Layout.Stage1.PackageOrderValues
 
 namespace NightstreamFPrime.Export.Stage1.PiRLCProductPlan
 
@@ -99,23 +99,23 @@ def shiftedPackageColumn (program : Lifecycle.Stage1.Application.Program)
   ⟨PerApplicationPackage.shiftColumn program column,
     shiftColumn_lt_baseSourceWidth program column bound⟩
 
-theorem sourceToSpartan_lt_basePackage (column : Nat)
+theorem sourceToPackage_lt_basePackage (column : Nat)
     (bound : column < basePackage.layout.constantColumn) :
-    Spartan.sourceToSpartan column < basePackage.layout.totalColumnCount := by
-  have sourceBound : column < Spartan.SourceColumnCount := by
+    PackageOrder.sourceToPackage column < basePackage.layout.totalColumnCount := by
+  have sourceBound : column < PackageOrder.SourceColumnCount := by
     rw [basePackage_constantColumn] at bound
-    rw [Spartan.sourceColumnCount_eq]
+    rw [PackageOrder.sourceColumnCount_eq]
     omega
-  have mapped := Spartan.sourceToSpartan_lt column sourceBound
+  have mapped := PackageOrder.sourceToPackage_lt column sourceBound
   have total : basePackage.layout.totalColumnCount = 11415253 := by
     exact NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.2.2
-  simpa only [total, Spartan.spartanColumnCount_eq] using mapped
+  simpa only [total, PackageOrder.packageColumnCount_eq] using mapped
 
 def mappedPackageColumn (program : Lifecycle.Stage1.Application.Program)
     (column : Nat) (bound : column < basePackage.layout.constantColumn) :
     Fin (baseSourceWidth program) :=
-  shiftedPackageColumn program (Spartan.sourceToSpartan column)
-    (sourceToSpartan_lt_basePackage column bound)
+  shiftedPackageColumn program (PackageOrder.sourceToPackage column)
+    (sourceToPackage_lt_basePackage column bound)
 
 private theorem challengeColumn_lt_basePackage
     (descriptor : PiRLCProductSchedule.Descriptor)
@@ -303,7 +303,7 @@ def sourceAssignment (program : Lifecycle.Stage1.Application.Program)
 
 def baseEnv (program : Lifecycle.Stage1.Application.Program)
     (base : Fin (baseSourceWidth program) → F) : Env :=
-  Spartan.pullback <|
+  PackageOrder.pullback <|
     PerApplicationPackage.baseEnv program (SourceCompiler.sourceEnv base)
 
 theorem baseEnv_eq_mappedPackageColumn
@@ -312,9 +312,9 @@ theorem baseEnv_eq_mappedPackageColumn
     (column : Nat) (bound : column < basePackage.layout.constantColumn) :
     baseEnv program base column = base (mappedPackageColumn program column bound) := by
   have mappedBound := shiftColumn_lt_baseSourceWidth program
-    (Spartan.sourceToSpartan column)
-    (sourceToSpartan_lt_basePackage column bound)
-  unfold baseEnv Spartan.pullback PerApplicationPackage.baseEnv
+    (PackageOrder.sourceToPackage column)
+    (sourceToPackage_lt_basePackage column bound)
+  unfold baseEnv PackageOrder.pullback PerApplicationPackage.baseEnv
     SourceCompiler.sourceEnv mappedPackageColumn shiftedPackageColumn
   rw [dite_eq_left mappedBound]
 

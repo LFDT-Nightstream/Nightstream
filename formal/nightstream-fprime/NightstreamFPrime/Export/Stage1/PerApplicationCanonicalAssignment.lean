@@ -56,7 +56,7 @@ def outputDigest {application : Program} (raw : RawValues application) : Digest 
     (PilotProduction.outputInterface.digest
       (Lifecycle.Pilot.outputOffset PilotProduction.interface
         PilotProduction.witnessOffset) lane).eval
-      (PilotSpartan.pullback
+      (PilotPackageOrder.pullback
         (PilotOrdinaryDirectPlan.pilotEnv application raw.base))
 
 def retainedSource {application : Program} (raw : RawValues application) :

@@ -558,7 +558,7 @@ theorem packageRows_imply_nextPreimageSpec
     Lifecycle.Stage1.NextPreimage.SpecHolds
       Layout.Stage1.NextPreimageInputs.sourceInterface
       Layout.Stage1.RunningTransitionInputs.phaseOffset
-      (Layout.Stage1.Spartan.pullback env) := by
+      (Layout.Stage1.PackageOrder.pullback env) := by
   let rowStart := nextPreimageRowStart program
   let rows := NextPreimagePackage.compiledRows rowStart
   have instructions : ∀ instruction ∈
@@ -583,10 +583,10 @@ theorem packageRows_imply_nextPreimageSpec
     rw [NextPreimagePackage.sourceRows_eq,
       ← NextPreimagePackage.compiledRows_toR1CS rowStart]
     exact compiled
-  have spartanSpec := NextPreimagePackage.sourceRows_imply_spec env sourceRows
+  have packageOrderSpec := NextPreimagePackage.sourceRows_imply_spec env sourceRows
   have sourceSpec :=
-    (Layout.Stage1.NextPreimageInputs.spartanSpec_iff_sourceSpec
-      NextPreimagePackage.privateStart env).mp spartanSpec
+    (Layout.Stage1.NextPreimageInputs.packageOrderSpec_iff_sourceSpec
+      NextPreimagePackage.privateStart env).mp packageOrderSpec
   refine {
     iteration := ?_
     initialState := fun index => ?_ }

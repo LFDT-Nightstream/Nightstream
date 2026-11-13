@@ -2,7 +2,7 @@ import NightstreamFPrime.Export.Stage1.PiCCSOrdinaryDirectPlan
 import NightstreamFPrime.Export.Stage1.PiCCSTranscriptDirectSemantics
 import NightstreamFPrime.Export.Stage1.InvocationLastOutput
 import NightstreamFPrime.Layout.ProductionRelation.PinFamilyPlan
-import NightstreamFPrime.Layout.Stage1.SpartanValues
+import NightstreamFPrime.Layout.Stage1.PackageOrderValues
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSTranscriptEndpointPlan
 
@@ -224,12 +224,12 @@ private theorem outputTrace_state_endpoint (lane : Fin laneCount) :
   rw [startEq]
 
 theorem endpointColumn_lt_source (family : Fin familyCount)
-    (lane : Fin laneCount) : endpointColumn family lane < Spartan.SourceColumnCount := by
+    (lane : Fin laneCount) : endpointColumn family lane < PackageOrder.SourceColumnCount := by
   have familyBound := family.isLt
   have laneBound := lane.isLt
   change lane.val < 16 at laneBound
   unfold endpointColumn endpointStart familyCount laneCount
-  rw [Spartan.sourceColumnCount_eq]
+  rw [PackageOrder.sourceColumnCount_eq]
   split <;> try split <;> try split
   all_goals
     try simp only [PiCCSInvocations.challengeWitnessStart,
@@ -291,8 +291,8 @@ def proofLogicalIndex (family : Fin familyCount) (_notOutput : family.val ≠ 3)
 
 private theorem packageSourceColumn_congr
     (program : Lifecycle.Stage1.Application.Program)
-    (left right : Nat) (leftBound : left < Spartan.SourceColumnCount)
-    (rightBound : right < Spartan.SourceColumnCount) (same : left = right) :
+    (left right : Nat) (leftBound : left < PackageOrder.SourceColumnCount)
+    (rightBound : right < PackageOrder.SourceColumnCount) (same : left = right) :
     RunningTransitionRetainedBlocks.packageSourceColumn program left leftBound =
       RunningTransitionRetainedBlocks.packageSourceColumn program right
         rightBound := by
@@ -731,7 +731,7 @@ theorem transcriptEnv_eq_transitionEnv_of_lt
     (program : Lifecycle.Stage1.Application.Program)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
-    (column : Nat) (bound : column < Spartan.spartanColumnCount) :
+    (column : Nat) (bound : column < PackageOrder.packageColumnCount) :
     transcriptEnv program base groupValue column =
       RunningTransitionDirectPlan.transitionEnv program base column := by
   exact PiCCSPoseidonPreservation.readout_sourceAssignment
@@ -1234,10 +1234,10 @@ theorem transcriptOutputs_of_encoding
     PiCCSOrdinaryRetainedBlocks.proofLogicalSource_transcriptOutput] at value
   rw [value]
   change transcriptEnv program base groupValue
-      (Spartan.sourceToSpartan
+      (PackageOrder.sourceToPackage
         (PiCCSOrdinaryRetainedBlocks.transcriptOutputSource slot)) = _
   exact transcriptEnv_eq_transitionEnv_of_lt program base groupValue _
-    (Spartan.sourceToSpartan_lt _
+    (PackageOrder.sourceToPackage_lt _
       (PiCCSOrdinaryRetainedBlocks.transcriptOutputSource_lt slot))
 
 theorem reads_of_outputs {program : Lifecycle.Stage1.Application.Program}
@@ -1332,19 +1332,19 @@ theorem traces_and_endpoints_imply_transcriptSpecs
     (assignment : Assignment F logicalWidth)
     (env : Env)
     (traces : PiCCSTranscriptDirectSemantics.Traces poseidonGeometry assignment
-      (Spartan.pullback env))
+      (PackageOrder.pullback env))
     (endpoints : ∀ family,
       PiCCSPoseidonPreservation.valueState poseidonGeometry assignment
           (endpointInvocation family) =
         List.ofFn fun lane : Fin laneCount =>
-          Spartan.pullback env (endpointColumn family lane)) :
+          PackageOrder.pullback env (endpointColumn family lane)) :
     PiCCSInvocations.TranscriptSpecs relationLogicalWidth relationPublicFits env := by
   have endpointFinal (family : Fin familyCount) (finalState : Layer.EState)
       (finalEndpoint : ∀ lane : Fin laneCount,
         finalState lane = Expr.var (endpointColumn family lane)) :
       PiCCSPoseidonPreservation.valueState poseidonGeometry assignment
           (endpointInvocation family) =
-        List.ofFn (Layer.evalState (Spartan.pullback env) finalState) := by
+        List.ofFn (Layer.evalState (PackageOrder.pullback env) finalState) := by
     rw [endpoints family]
     apply congrArg List.ofFn
     funext lane
@@ -1387,7 +1387,7 @@ theorem traces_and_endpoints_imply_transcriptSpecs
   · unfold StatementAbsorption.SpecHolds
     have trace := traces.statement
     rw [statementEndpoint] at trace
-    rw [zeroState_eq_evalZero (Spartan.pullback env)] at trace
+    rw [zeroState_eq_evalZero (PackageOrder.pullback env)] at trace
     simpa [PiCCSActionPayloadBlock.statementActions,
       PiCCSInvocations.statementActions] using! trace
   · apply ChallengeDerivation.trace_implies_specHolds
@@ -1399,7 +1399,7 @@ theorem traces_and_endpoints_imply_transcriptSpecs
   · apply (RoundTranscript.trace_iff_specHolds
       (PiCCSInvocations.roundInterface relationLogicalWidth relationPublicFits)
       PiCCSInvocations.roundWitnessStart
-      (Spartan.pullback env)).mp
+      (PackageOrder.pullback env)).mp
     have trace := traces.rounds
     rw [challengeEndpoint, roundEndpoint] at trace
     rw [← roundInitialState_eq_challengeFinalState_of_shape

@@ -62,7 +62,7 @@ private theorem substitution_agrees_on_row
 
 private theorem projection_recovers_row
     (program : ApplicationProgram) (row : R1CS.Row)
-    (bounded : SourceCompiler.RowBounded Spartan.spartanColumnCount row) :
+    (bounded : SourceCompiler.RowBounded PackageOrder.packageColumnCount row) :
     (PerApplicationSourceProjection.base program).row?
         (PerApplicationSourceProjection.basePackageRow program row) =
       some row := by

@@ -64,7 +64,7 @@ private theorem form_eq_location
   rw [owns] at left
   have right' :
       (PiCCSOrdinaryMatrixProgram.substitution program).form? logicalWidth
-          (Spartan.sourceToSpartan
+          (PackageOrder.sourceToPackage
             (descriptor.valueColumn descriptor.lane)) =
         some ((PiRLCValueWiring.located descriptor.invocation).location.form
           geometry) := by

@@ -61,14 +61,14 @@ theorem rangeConstraints_eq (source : Nat) :
 
 theorem rangeRows_toR1CS (source : Nat) :
     (rangeRows (logicalWidth := logicalWidth) (publicFits := publicFits) source).map Rows.CompiledRow.toR1CS =
-      Layout.Stage1.Spartan.remapRows (R1CS.lowerConstraints
+      Layout.Stage1.PackageOrder.remapRows (R1CS.lowerConstraints
         (rangeConstraints (logicalWidth := logicalWidth) (publicFits := publicFits) source)
         (Layout.Stage1.PiRLCStarts.rangeFreshStart source)).rows :=
   PiCCSArithmetic.compilePacket_toR1CS _ _ _
 
 theorem wordRows_toR1CS (source : Nat) :
     (wordRows source).map Rows.CompiledRow.toR1CS =
-      Layout.Stage1.Spartan.remapRows (R1CS.lowerConstraints (wordConstraints source)
+      Layout.Stage1.PackageOrder.remapRows (R1CS.lowerConstraints (wordConstraints source)
         (Layout.Stage1.PiRLCStarts.rangeFreshStart source)).rows :=
   PiCCSArithmetic.compilePacket_toR1CS _ _ _
 
@@ -118,7 +118,7 @@ theorem rangeRows_imply_spec (source : Nat) (env : Env)
       (publicFits := publicFits) source).map Rows.CompiledRow.toR1CS)) :
     (WideReduction.Program.circuit
       (rangeInterface (logicalWidth := logicalWidth) (publicFits := publicFits) source)).spec
-      (Layout.Stage1.PiRLCStarts.rangeLogicalStart source) (Layout.Stage1.Spartan.pullback env) := by
+      (Layout.Stage1.PiRLCStarts.rangeLogicalStart source) (Layout.Stage1.PackageOrder.pullback env) := by
   have logical := PiCCSArithmetic.compilePacket_sound _ _ _ env held
   exact (WideReduction.Program.circuit _).soundness _ _ inputs
     (holdsFlat_implies_holds _ _ logical)
@@ -126,7 +126,7 @@ theorem rangeRows_imply_spec (source : Nat) (env : Env)
 theorem wordRows_imply_spec (source : Nat) (env : Env)
     (held : R1CS.RowsHold env ((wordRows source).map Rows.CompiledRow.toR1CS)) :
     SamplerWords.SpecHolds (Layout.Stage1.PiRLCStarts.rangeLogicalStart source)
-      (Layout.Stage1.PiRLCStarts.challengeWordStart source) (Layout.Stage1.Spartan.pullback env) := by
+      (Layout.Stage1.PiRLCStarts.challengeWordStart source) (Layout.Stage1.PackageOrder.pullback env) := by
   have logical := PiCCSArithmetic.compilePacket_sound _ _ _ env held
   exact SamplerWords.soundness _ _ _ (holdsFlat_implies_holds _ _ logical)
 

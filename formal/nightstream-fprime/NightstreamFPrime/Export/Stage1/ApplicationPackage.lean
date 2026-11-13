@@ -350,11 +350,11 @@ theorem productionRows_imply_typedTransition
     (priorRepresents : PriorStateHash.RepresentsPreimage
       Layout.PilotProduction.priorInterface
       Layout.PilotProduction.witnessOffset
-      (Layout.Stage1.Spartan.pullback env) prior)
+      (Layout.Stage1.PackageOrder.pullback env) prior)
     (nextRepresents : OutputHash.RepresentsPreimage
       Layout.PilotProduction.outputInterface
       Layout.PilotProduction.lifecycleOutputOffset
-      (Layout.Stage1.Spartan.pullback env) next)
+      (Layout.Stage1.PackageOrder.pullback env) next)
     (witnessRepresents :
       Lifecycle.Stage1.Application.witnessValue
           (Layout.Stage1.ApplicationInputs.interface program)

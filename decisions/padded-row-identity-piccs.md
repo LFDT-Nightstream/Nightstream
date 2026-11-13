@@ -2,6 +2,8 @@
 
 **Status:** Accepted
 
+Changed on 2026-11-13: [`field-2p64-59-ring-x64.md`](./field-2p64-59-ring-x64.md) replaces the ring degree 54 of this record with 64.
+
 ## Problem
 
 Nightstream has rectangular CCS matrices. The PiCCS reference and optimized

@@ -87,7 +87,7 @@ private theorem outputStateTarget_eq (lane : Fin 4) :
   rw [outputChainWitnessStart_eq, outputChainAbsorbCount_eq]
 
 theorem priorDigest_targetColumn (lane : Fin 4) :
-    PilotSpartan.sourceToSpartan
+    PilotPackageOrder.sourceToPackage
         (PilotProduction.priorDigestStart + lane.val) =
       2700266 + lane.val := by
   have sourceEq : PilotProduction.priorDigestStart + lane.val =
@@ -98,13 +98,13 @@ theorem priorDigest_targetColumn (lane : Fin 4) :
       PilotValues.permutationRecipeCount,
       PilotValues.permutationOutputLocalStart]
     omega
-  rw [sourceEq, PilotSpartan.sourceToSpartan_pilotWitness]
+  rw [sourceEq, PilotPackageOrder.sourceToPackage_pilotWitness]
   rw [PilotProduction.absorbCount_eq]
-  norm_num [PilotSpartan.witnessPrivateStart_value]
+  norm_num [PilotPackageOrder.witnessPrivateStart_value]
   omega
 
 theorem outputState_targetColumn (lane : Fin 4) :
-    PilotSpartan.sourceToSpartan
+    PilotPackageOrder.sourceToPackage
         (PilotProduction.lifecycleOutputOffset +
           PilotValues.absorbCount * 1096 + 1080 + lane.val) =
       5342990 + lane.val := by
@@ -120,11 +120,11 @@ theorem outputState_targetColumn (lane : Fin 4) :
       PilotValues.stateHashBaseWords, PilotValues.priorCanonicalPrivateCount,
       Spec.Poseidon2.rate]
     omega
-  rw [sourceEq, PilotSpartan.sourceToSpartan_pilotWitness]
+  rw [sourceEq, PilotPackageOrder.sourceToPackage_pilotWitness]
   have hashCount : PilotValues.hashWitnessCount = 2642456 := by rfl
   have privateCount : PilotValues.priorCanonicalPrivateCount = 268 := by rfl
   have absorbCount : PilotValues.absorbCount = 2410 := by rfl
-  rw [PilotSpartan.witnessPrivateStart_value, hashCount, privateCount,
+  rw [PilotPackageOrder.witnessPrivateStart_value, hashCount, privateCount,
     absorbCount]
   change 57826 + (5285164 + lane.val) = 5342990 + lane.val
   rw [← Nat.add_assoc]
@@ -152,7 +152,7 @@ def PhysicalSource : Nat → Prop :=
 
 def Target (column : Nat) : Prop :=
   ∃ source, PhysicalSource source ∧
-    PilotSpartan.sourceToSpartan source = column
+    PilotPackageOrder.sourceToPackage source = column
 
 private theorem priorDigest_source (word : Fin 4) :
     (PilotProduction.fastPriorDigest word).VarsSatisfy LogicalSource := by
@@ -284,22 +284,22 @@ theorem priorLoweredRows_varsSatisfy :
 private theorem remapCombination_varsSatisfy
     (combination : R1CS.LinearCombination)
     (scope : combination.VarsSatisfy PhysicalSource) :
-    (PilotSpartan.remapCombination combination).VarsSatisfy Target := by
+    (PilotPackageOrder.remapCombination combination).VarsSatisfy Target := by
   intro term member
-  unfold PilotSpartan.remapCombination at member
+  unfold PilotPackageOrder.remapCombination at member
   rcases List.mem_map.mp member with ⟨source, sourceMember, rfl⟩
   exact ⟨source.1, scope source sourceMember, rfl⟩
 
 private theorem remapRow_varsSatisfy (row : R1CS.Row)
     (scope : row.VarsSatisfy PhysicalSource) :
-    (PilotSpartan.remapRow row).VarsSatisfy Target :=
+    (PilotPackageOrder.remapRow row).VarsSatisfy Target :=
   ⟨remapCombination_varsSatisfy row.a scope.1,
     remapCombination_varsSatisfy row.b scope.2.1,
     remapCombination_varsSatisfy row.c scope.2.2⟩
 
 theorem priorRows_eq :
     (PilotData.priorExtraRows ()).map Rows.CompiledRow.toR1CS =
-      PilotSpartan.remapRows
+      PilotPackageOrder.remapRows
         (R1CS.lowerConstraints (PilotData.priorExtraConstraints ())
           PilotValues.logicalColumnCount).rows := by
   rw [PilotData.priorExtraRows, PilotData.remapCompiledRows_toR1CS,
@@ -310,7 +310,7 @@ private theorem priorRows_varsSatisfy :
       row.VarsSatisfy Target := by
   rw [priorRows_eq]
   intro row member
-  unfold PilotSpartan.remapRows at member
+  unfold PilotPackageOrder.remapRows at member
   rcases List.mem_map.mp member with ⟨source, sourceMember, rfl⟩
   exact remapRow_varsSatisfy source
     (priorLoweredRows_varsSatisfy source sourceMember)
@@ -325,33 +325,33 @@ private theorem outputDigestRows_varsSatisfy :
   rw [PilotData.digestRows, List.mem_ofFn'] at sourceMember
   rcases sourceMember with ⟨lane, rfl⟩
   have outputStateMapped :
-      PilotSpartan.sourceToSpartan
+      PilotPackageOrder.sourceToPackage
           (PilotProduction.lifecycleOutputOffset +
             PilotData.outputChain.absorbCount * 1096 + 1080 + lane.val) =
         PilotData.outputChain.witnessStart +
           PilotData.outputChain.absorbCount * 1096 + 1080 + lane.val := by
     rw [outputStateSource_eq lane, outputStateTarget_eq lane]
-    unfold PilotSpartan.sourceToSpartan
-    rw [ite_eq_right (by rw [PilotSpartan.priorPublicStart_value]; omega)]
-    rw [ite_eq_right (by rw [PilotSpartan.outputPreimageStart_value]; omega)]
-    rw [ite_eq_right (by rw [PilotSpartan.outputDigestStart_value]; omega)]
-    rw [ite_eq_right (by rw [PilotSpartan.witnessStart_value]; omega)]
-    rw [PilotSpartan.witnessStart_value,
-      PilotSpartan.witnessPrivateStart_value]
+    unfold PilotPackageOrder.sourceToPackage
+    rw [ite_eq_right (by rw [PilotPackageOrder.priorPublicStart_value]; omega)]
+    rw [ite_eq_right (by rw [PilotPackageOrder.outputPreimageStart_value]; omega)]
+    rw [ite_eq_right (by rw [PilotPackageOrder.outputDigestStart_value]; omega)]
+    rw [ite_eq_right (by rw [PilotPackageOrder.witnessStart_value]; omega)]
+    rw [PilotPackageOrder.witnessStart_value,
+      PilotPackageOrder.witnessPrivateStart_value]
     omega
   have outputDigestMapped :
-      PilotSpartan.sourceToSpartan
+      PilotPackageOrder.sourceToPackage
           (PilotProduction.outputDigestStart + lane.val) =
         PilotData.outputChain.digestStart + lane.val := by
     rw [outputDigestStart_eq, outputChainDigestStart_eq]
     have laneBound := lane.isLt
-    unfold PilotSpartan.sourceToSpartan
-    rw [ite_eq_right (by rw [PilotSpartan.priorPublicStart_value]; omega)]
-    rw [ite_eq_right (by rw [PilotSpartan.outputPreimageStart_value]; omega)]
-    rw [ite_eq_right (by rw [PilotSpartan.outputDigestStart_value]; omega)]
-    rw [ite_eq_left (by rw [PilotSpartan.witnessStart_value]; omega)]
-    rw [PilotSpartan.outputDigestStart_value,
-      PilotSpartan.secondPublicStart_value]
+    unfold PilotPackageOrder.sourceToPackage
+    rw [ite_eq_right (by rw [PilotPackageOrder.priorPublicStart_value]; omega)]
+    rw [ite_eq_right (by rw [PilotPackageOrder.outputPreimageStart_value]; omega)]
+    rw [ite_eq_right (by rw [PilotPackageOrder.outputDigestStart_value]; omega)]
+    rw [ite_eq_left (by rw [PilotPackageOrder.witnessStart_value]; omega)]
+    rw [PilotPackageOrder.outputDigestStart_value,
+      PilotPackageOrder.secondPublicStart_value]
     omega
   constructor
   · intro term member
@@ -449,9 +449,9 @@ theorem physicalSource_lt (source : Nat)
     exact fresh.2
 
 theorem target_lt (column : Nat) (support : Target column) :
-    column < PilotSpartan.spartanColumnCount := by
+    column < PilotPackageOrder.packageColumnCount := by
   rcases support with ⟨source, sourceSupport, rfl⟩
-  exact PilotSpartan.sourceToSpartan_lt source
+  exact PilotPackageOrder.sourceToPackage_lt source
     (physicalSource_lt source sourceSupport)
 
 def programRow (index : Fin 596) : R1CS.Row :=
@@ -469,7 +469,7 @@ theorem programRows_eq : List.ofFn programRow = sourceRows := by
   exact ofFn_cast_get sourceRows sourceRows_length
 
 theorem sourceRows_varsBelow :
-    ∀ row ∈ sourceRows, row.VarsBelow PilotSpartan.spartanColumnCount := by
+    ∀ row ∈ sourceRows, row.VarsBelow PilotPackageOrder.packageColumnCount := by
   intro row member
   exact (sourceRows_varsSatisfy row member).mono row target_lt
 
@@ -478,18 +478,18 @@ structure SupportedProgram (rows : List R1CS.Row) where
   rowCount_le : rowCount ≤ 2 ^ Lifecycle.cubeVariables
   row : Fin rowCount → R1CS.Row
   exactRows : List.ofFn row = rows
-  bounded : ∀ index, (row index).VarsBelow PilotSpartan.spartanColumnCount
+  bounded : ∀ index, (row index).VarsBelow PilotPackageOrder.packageColumnCount
 
 def SupportedProgram.toProgram {rows : List R1CS.Row}
     (source : SupportedProgram rows) :
-    OrdinarySourcePlan.Program PilotSpartan.spartanColumnCount where
+    OrdinarySourcePlan.Program PilotPackageOrder.packageColumnCount where
   rowCount := source.rowCount
   rowCount_le := source.rowCount_le
   row := source.row
   bounded := source.bounded
 
 theorem programRow_bounded (index : Fin 596) :
-    SourceCompiler.RowBounded PilotSpartan.spartanColumnCount
+    SourceCompiler.RowBounded PilotPackageOrder.packageColumnCount
       (programRow index) := by
   exact sourceRows_varsBelow _
     (List.get_mem _ (Fin.cast sourceRows_length.symm index))
@@ -501,7 +501,7 @@ def supportedProgram : SupportedProgram sourceRows where
   exactRows := programRows_eq
   bounded := programRow_bounded
 
-def program : OrdinarySourcePlan.Program PilotSpartan.spartanColumnCount :=
+def program : OrdinarySourcePlan.Program PilotPackageOrder.packageColumnCount :=
   supportedProgram.toProgram
 
 @[simp] theorem program_rowCount : program.rowCount = 596 := by rfl
@@ -562,7 +562,7 @@ theorem sourceRows_hold_implies_packagePredicates (env : Env)
 
 theorem sourceRows_hold_implies_priorConstraints (env : Env)
     (holds : R1CS.RowsHold env sourceRows) :
-    ConstraintsHold (PilotSpartan.pullback env)
+    ConstraintsHold (PilotPackageOrder.pullback env)
       (PilotData.priorExtraConstraints ()) := by
   have predicates := sourceRows_hold_implies_packagePredicates env holds
   have physical : R1CS.RowsHold env
@@ -582,11 +582,11 @@ theorem sourceRows_hold_implies_priorConstraints (env : Env)
   rw [PilotData.priorExtraRows,
     PilotData.remapCompiledRows_toR1CS,
     Rows.compileRowsTR_toR1CS] at physical
-  have sourceRowsHold := (PilotSpartan.remapRows_hold env
+  have sourceRowsHold := (PilotPackageOrder.remapRows_hold env
     (Rows.lowerConstraintsTR (PilotData.priorExtraConstraints ())
       PilotValues.logicalColumnCount).rows).mp physical
   rw [Rows.lowerConstraintsTR_eq] at sourceRowsHold
-  exact R1CS.lowerConstraints_sound (PilotSpartan.pullback env)
+  exact R1CS.lowerConstraints_sound (PilotPackageOrder.pullback env)
     (PilotData.priorExtraConstraints ()) PilotValues.logicalColumnCount
     sourceRowsHold
 

@@ -1,7 +1,7 @@
 import NightstreamFPrime.Export.Stage1.RunningTransitionArithmetic
 import NightstreamFPrime.Layout.ProductionRelation.OrdinarySourcePlan
 import NightstreamFPrime.Layout.Stage1.RunningTransitionPreservation
-import NightstreamFPrime.Layout.Stage1.SpartanBounds
+import NightstreamFPrime.Layout.Stage1.PackageOrderBounds
 
 namespace NightstreamFPrime.Export.Stage1.RunningTransitionDirectSource
 
@@ -18,7 +18,7 @@ def sourceRows
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       RingCarrierLayout.carrierWidth logicalWidth) : List R1CS.Row :=
-  Spartan.remapRows
+  PackageOrder.remapRows
     (RunningTransitionLayout.physicalRows logicalWidth publicFits)
 
 theorem sourceRows_length
@@ -27,7 +27,7 @@ theorem sourceRows_length
       RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     (sourceRows logicalWidth publicFits).length = 28894 := by
-  rw [sourceRows, Spartan.remapRows, List.length_map,
+  rw [sourceRows, PackageOrder.remapRows, List.length_map,
     RunningTransitionLayout.physicalRows_length,
     RunningTransitionLayout.physicalRowCount_eq relation]
 
@@ -37,13 +37,13 @@ theorem sourceRows_varsBelow
       RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     ∀ row ∈ sourceRows logicalWidth publicFits,
-      row.VarsBelow Spartan.spartanColumnCount := by
-  apply Spartan.remapRows_varsBelow
+      row.VarsBelow PackageOrder.packageColumnCount := by
+  apply PackageOrder.remapRows_varsBelow
   intro row member
   have scope := RunningTransitionLayout.physicalRows_varsBelow relation
     row member
   rw [RunningTransitionLayout.physicalColumnCount_eq_physicalEnd relation,
-    ← Spartan.sourceColumnCount_eq_physicalEnd] at scope
+    ← PackageOrder.sourceColumnCount_eq_physicalEnd] at scope
   exact scope
 
 theorem sourceRows_rowCount_le
@@ -61,7 +61,7 @@ def program
     {publicFits : ringDegree * publicRingColumns ≤
       RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    OrdinarySourcePlan.Program Spartan.spartanColumnCount where
+    OrdinarySourcePlan.Program PackageOrder.packageColumnCount where
   rowCount := (sourceRows logicalWidth publicFits).length
   rowCount_le := sourceRows_rowCount_le relation
   row := fun index => (sourceRows logicalWidth publicFits).get index
@@ -125,10 +125,10 @@ theorem program_holds_iff_physical
     (env : Env) :
     (program relation).Holds env ↔
       RunningTransitionLayout.PhysicalHolds logicalWidth publicFits
-        (Spartan.pullback env) := by
+        (PackageOrder.pullback env) := by
   rw [program_holds_iff_rowsHold relation]
   simpa [sourceRows, RunningTransitionLayout.PhysicalHolds] using
-    (Spartan.remapRows_hold env
+    (PackageOrder.remapRows_hold env
       (RunningTransitionLayout.physicalRows logicalWidth publicFits))
 
 end NightstreamFPrime.Export.Stage1.RunningTransitionDirectSource

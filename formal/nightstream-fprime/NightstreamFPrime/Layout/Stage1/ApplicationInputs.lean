@@ -1,4 +1,4 @@
-import NightstreamFPrime.Layout.Stage1.Spartan
+import NightstreamFPrime.Layout.Stage1.PackageOrder
 import NightstreamFPrime.Lifecycle.Stage1.Application
 
 namespace NightstreamFPrime.Layout.Stage1.ApplicationInputs
@@ -18,12 +18,12 @@ def outputSourceColumn
   PilotProduction.outputPreimageStart + currentWordStart + index.val
 
 def inputColumn (index : Lifecycle.Stage1.Application.StateIndex) : Nat :=
-  Spartan.sourceToSpartan (inputSourceColumn index)
+  PackageOrder.sourceToPackage (inputSourceColumn index)
 
 def outputColumn (index : Lifecycle.Stage1.Application.StateIndex) : Nat :=
-  Spartan.sourceToSpartan (outputSourceColumn index)
+  PackageOrder.sourceToPackage (outputSourceColumn index)
 
-def witnessStart : Nat := Spartan.privateColumnCount
+def witnessStart : Nat := PackageOrder.privateColumnCount
 
 def witnessColumn {witnessWordCount : Nat}
     (index : Fin witnessWordCount) : Nat :=
@@ -43,16 +43,16 @@ theorem inputColumn_value
     inputColumn index = currentWordStart + index.val := by
   have bound := index.isLt
   simp only [Lifecycle.Stage1.Application.stateWordCount] at bound
-  change Spartan.sourceToSpartan (28909 + index.val) = 28909 + index.val
-  unfold Spartan.sourceToSpartan
+  change PackageOrder.sourceToPackage (28909 + index.val) = 28909 + index.val
+  unfold PackageOrder.sourceToPackage
   rw [ite_eq_left (by
-    norm_num [Spartan.pilotSourceColumnCount]
+    norm_num [PackageOrder.pilotSourceColumnCount]
     omega)]
-  unfold PilotSpartan.sourceToSpartan
-  rw [ite_eq_left (by rw [PilotSpartan.priorPublicStart_value]; omega)]
-  unfold Spartan.liftPilotColumn
+  unfold PilotPackageOrder.sourceToPackage
+  rw [ite_eq_left (by rw [PilotPackageOrder.priorPublicStart_value]; omega)]
+  unfold PackageOrder.liftPilotColumn
   rw [ite_eq_left (by
-    norm_num [Spartan.pilotInputPrivateColumnCount]
+    norm_num [PackageOrder.pilotInputPrivateColumnCount]
     omega)]
 
 theorem outputColumn_value
@@ -60,22 +60,22 @@ theorem outputColumn_value
     outputColumn index = 57822 + index.val := by
   have bound := index.isLt
   simp only [Lifecycle.Stage1.Application.stateWordCount] at bound
-  change Spartan.sourceToSpartan (58142 + index.val) = 57822 + index.val
-  unfold Spartan.sourceToSpartan
+  change PackageOrder.sourceToPackage (58142 + index.val) = 57822 + index.val
+  unfold PackageOrder.sourceToPackage
   rw [ite_eq_left (by
-    norm_num [Spartan.pilotSourceColumnCount]
+    norm_num [PackageOrder.pilotSourceColumnCount]
     omega)]
-  unfold PilotSpartan.sourceToSpartan
-  rw [ite_eq_right (by rw [PilotSpartan.priorPublicStart_value]; omega)]
-  rw [ite_eq_right (by rw [PilotSpartan.outputPreimageStart_value]; omega)]
-  rw [ite_eq_left (by rw [PilotSpartan.outputDigestStart_value]; omega)]
-  rw [PilotSpartan.secondPrivateStart_value,
-    PilotSpartan.outputPreimageStart_value]
+  unfold PilotPackageOrder.sourceToPackage
+  rw [ite_eq_right (by rw [PilotPackageOrder.priorPublicStart_value]; omega)]
+  rw [ite_eq_right (by rw [PilotPackageOrder.outputPreimageStart_value]; omega)]
+  rw [ite_eq_left (by rw [PilotPackageOrder.outputDigestStart_value]; omega)]
+  rw [PilotPackageOrder.secondPrivateStart_value,
+    PilotPackageOrder.outputPreimageStart_value]
   have difference : 58142 + index.val - 29233 = 28909 + index.val := by omega
   rw [difference]
-  unfold Spartan.liftPilotColumn
+  unfold PackageOrder.liftPilotColumn
   rw [ite_eq_left (by
-    norm_num [Spartan.pilotInputPrivateColumnCount]
+    norm_num [PackageOrder.pilotInputPrivateColumnCount]
     omega)]
   omega
 
@@ -85,10 +85,10 @@ abbrev ExternalBelow (program : Lifecycle.Stage1.Application.Program) : Prop :=
 
 theorem externalBelow (program : Lifecycle.Stage1.Application.Program) :
     ExternalBelow program := by
-  have pilotBelow : Spartan.pilotPrivateColumnCount ≤ localStart program := by
+  have pilotBelow : PackageOrder.pilotPrivateColumnCount ≤ localStart program := by
     calc
-      _ ≤ Spartan.constantColumn := Spartan.pilotPrivateColumnCount_le_constantColumn
-      _ = Spartan.privateColumnCount := Spartan.constantColumn_eq_private
+      _ ≤ PackageOrder.constantColumn := PackageOrder.pilotPrivateColumnCount_le_constantColumn
+      _ = PackageOrder.privateColumnCount := PackageOrder.constantColumn_eq_private
       _ ≤ localStart program := by
         unfold localStart witnessStart
         exact Nat.le_add_right _ _
@@ -100,7 +100,7 @@ theorem externalBelow (program : Lifecycle.Stage1.Application.Program) :
     apply Nat.lt_of_lt_of_le ?_ pilotBelow
     rw [inputColumn_value]
     have bound := index.isLt
-    norm_num [Spartan.pilotPrivateColumnCount,
+    norm_num [PackageOrder.pilotPrivateColumnCount,
       Lifecycle.Stage1.Application.stateWordCount, currentWordStart] at bound ⊢
     omega
   · simp only [interface, Expr.VarsBelow, witnessColumn]
@@ -111,7 +111,7 @@ theorem externalBelow (program : Lifecycle.Stage1.Application.Program) :
     apply Nat.lt_of_lt_of_le ?_ pilotBelow
     rw [outputColumn_value]
     have bound := index.isLt
-    norm_num [Spartan.pilotPrivateColumnCount,
+    norm_num [PackageOrder.pilotPrivateColumnCount,
       Lifecycle.Stage1.Application.stateWordCount] at bound ⊢
     omega
 

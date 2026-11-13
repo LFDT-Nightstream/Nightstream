@@ -4,6 +4,8 @@
 
 Accepted.
 
+Changed on 2026-11-13: [`field-2p64-59-ring-x64.md`](./field-2p64-59-ring-x64.md) replaces the Goldilocks field and `d = 54` of this record with `q = 2^64 − 59` and `d = 64`. The 41-trit rule does not change, because `3^41` is larger than `2^64`.
+
 ## Problem
 
 Auxiliary protocol-binding SIS maps consume general Goldilocks field values,

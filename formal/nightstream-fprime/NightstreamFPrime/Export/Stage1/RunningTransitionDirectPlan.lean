@@ -1,7 +1,7 @@
 import NightstreamFPrime.Export.Stage1.RunningTransitionDirectSource
 import NightstreamFPrime.Export.Stage1.RunningTransitionRetainedGeometry
 import NightstreamFPrime.Export.Stage1.PiCCSTranscriptOutputForms
-import NightstreamFPrime.Layout.Stage1.SpartanValues
+import NightstreamFPrime.Layout.Stage1.PackageOrderValues
 import NightstreamFPrime.Export.Stage1.PiRLCPoseidonGeometry
 import NightstreamFPrime.Layout.Stage1.RunningTransitionLoweringSupport
 
@@ -42,25 +42,25 @@ def sourceColumn : Location → Nat
   | .fresh index => RunningTransitionInputs.phaseOffset + index.val
 
 theorem sourceColumn_lt (location : Location) :
-    location.sourceColumn < Spartan.SourceColumnCount := by
+    location.sourceColumn < PackageOrder.SourceColumnCount := by
   cases location with
   | state index =>
       have bound := index.isLt
       change index.val < 9 at bound
       rw [sourceColumn, RunningTransitionSourceSupport.stateStart_eq,
-        Spartan.sourceColumnCount_eq]
+        PackageOrder.sourceColumnCount_eq]
       omega
   | output index =>
       have bound := index.isLt
       change index.val < 28913 at bound
       rw [sourceColumn, RunningTransitionSourceSupport.outputStart_eq,
-        Spartan.sourceColumnCount_eq]
+        PackageOrder.sourceColumnCount_eq]
       omega
   | roundC0 coordinate =>
       have bound := coordinate.isLt
       change coordinate.val < 28 at bound
       rw [sourceColumn, PiCCSStarts.roundTranscriptWitnessStart_eq,
-        Spartan.sourceColumnCount_eq]
+        PackageOrder.sourceColumnCount_eq]
       norm_num [RunningTransitionInputs.roundStride,
         RunningTransitionInputs.roundSampleC0Offset]
       omega
@@ -68,7 +68,7 @@ theorem sourceColumn_lt (location : Location) :
       have bound := coordinate.isLt
       change coordinate.val < 28 at bound
       rw [sourceColumn, PiCCSStarts.roundTranscriptWitnessStart_eq,
-        Spartan.sourceColumnCount_eq]
+        PackageOrder.sourceColumnCount_eq]
       norm_num [RunningTransitionInputs.roundStride,
         RunningTransitionInputs.roundSampleC1Offset]
       omega
@@ -76,7 +76,7 @@ theorem sourceColumn_lt (location : Location) :
       have bound := index.isLt
       change index.val < 33792 at bound
       rw [sourceColumn, RunningTransitionSourceSupport.piDecStart_eq,
-        Spartan.sourceColumnCount_eq]
+        PackageOrder.sourceColumnCount_eq]
       omega
   | fresh index =>
       have bound := index.isLt
@@ -338,7 +338,7 @@ structure Decoded where
   owns : location.sourceColumn = source
 
 def classifyTarget (column : Nat) : Option Decoded :=
-  match Spartan.spartanToSource column with
+  match PackageOrder.packageToSource column with
   | none => none
   | some source =>
       match classifySource source with
@@ -348,11 +348,11 @@ def classifyTarget (column : Nat) : Option Decoded :=
 theorem classifyTarget_complete {column : Nat}
     (support : RunningTransitionSourceSupport.Target column) :
     ∃ decoded, classifyTarget column = some decoded ∧
-      Spartan.sourceToSpartan decoded.source = column := by
+      PackageOrder.sourceToPackage decoded.source = column := by
   rcases support with ⟨source, sourceSupport, rfl⟩
   have bound :=
     RunningTransitionSourceSupport.source_lt_sourceColumnCount sourceSupport
-  have inverse := Spartan.spartanToSource_sourceToSpartan source bound
+  have inverse := PackageOrder.packageToSource_sourceToPackage source bound
   have complete := classifySource_complete sourceSupport
   cases found : classifySource source with
   | none => simp [found] at complete
@@ -362,7 +362,7 @@ theorem classifyTarget_complete {column : Nat}
 
 def sourceMap {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
-    SourceCompiler.SourceMap Spartan.spartanColumnCount logicalWidth where
+    SourceCompiler.SourceMap PackageOrder.packageColumnCount logicalWidth where
   form := fun column =>
     match classifyTarget column.val with
     | none => .empty
@@ -377,47 +377,47 @@ def transitionEnv (program : Lifecycle.Stage1.Application.Program)
   PiCCSTranscriptReadout.env (packageEnv program base)
 
 private theorem mapped_lt_basePackage (source : Nat)
-    (bound : source < Spartan.SourceColumnCount) :
-    Spartan.sourceToSpartan source <
+    (bound : source < PackageOrder.SourceColumnCount) :
+    PackageOrder.sourceToPackage source <
       PiRLCProductPlan.basePackage.layout.totalColumnCount := by
-  have mapped := Spartan.sourceToSpartan_lt source bound
+  have mapped := PackageOrder.sourceToPackage_lt source bound
   have total : PiRLCProductPlan.basePackage.layout.totalColumnCount = 11415253 :=
     NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.2.2
   rw [total]
-  simpa [Spartan.spartanColumnCount] using mapped
+  simpa [PackageOrder.packageColumnCount] using mapped
 
 theorem sourceAssignment_packageSource
     (program : Lifecycle.Stage1.Application.Program)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
-    (source : Nat) (bound : source < Spartan.SourceColumnCount) :
+    (source : Nat) (bound : source < PackageOrder.SourceColumnCount) :
     PiRLCRetainedPreservation.sourceAssignment program base groupValue
         (packageSourceColumn program source bound) =
-      packageEnv program base (Spartan.sourceToSpartan source) := by
+      packageEnv program base (PackageOrder.sourceToPackage source) := by
   rw [packageSourceColumn,
     PiRLCRetainedPreservation.sourceAssignment_base]
   exact (SourceCompiler.sourceEnv_at base
     (PiRLCProductPlan.shiftedPackageColumn program
-      (Spartan.sourceToSpartan source) (mapped_lt_basePackage source bound))).symm
+      (PackageOrder.sourceToPackage source) (mapped_lt_basePackage source bound))).symm
 
 theorem transitionEnv_of_notTranscript
     (program : Lifecycle.Stage1.Application.Program)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (source : Nat) (bound : source < Spartan.SourceColumnCount)
+    (source : Nat) (bound : source < PackageOrder.SourceColumnCount)
     (outside : ¬ PiCCSOrdinarySourceSupport.TranscriptOutput source) :
-    transitionEnv program base (Spartan.sourceToSpartan source) =
-      packageEnv program base (Spartan.sourceToSpartan source) :=
+    transitionEnv program base (PackageOrder.sourceToPackage source) =
+      packageEnv program base (PackageOrder.sourceToPackage source) :=
   PiCCSTranscriptReadout.env_source_of_notTranscript _ source bound outside
 
 theorem transitionEnv_of_outside
     (program : Lifecycle.Stage1.Application.Program)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (column : Nat) (bound : column < Spartan.SourceColumnCount)
+    (column : Nat) (bound : column < PackageOrder.SourceColumnCount)
     (outside : column < PiCCSStarts.statementWitnessStart ∨
       PiCCSStarts.statementWitnessStart + PiCCSOrdinarySourceSupport.transcriptInvocationCount * 1096 ≤
         column) :
-    transitionEnv program base (Spartan.sourceToSpartan column) =
-      packageEnv program base (Spartan.sourceToSpartan column) := by
+    transitionEnv program base (PackageOrder.sourceToPackage column) =
+      packageEnv program base (PackageOrder.sourceToPackage column) := by
   apply transitionEnv_of_notTranscript program base column bound
   rintro ⟨invocation, lane, same⟩
   have invocationBound := invocation.isLt
@@ -436,7 +436,7 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
       (PiRLCRetainedPreservation.sourceAssignment program base groupValue))
     (location : Location) :
     (location.form geometry).eval assignment =
-      transitionEnv program base (Spartan.sourceToSpartan location.sourceColumn) := by
+      transitionEnv program base (PackageOrder.sourceToPackage location.sourceColumn) := by
   cases location with
   | roundC0 coordinate =>
       rw [form, sourceColumn, ← PiCCSTranscriptOutputForms.pointSource_c0]
@@ -539,7 +539,7 @@ theorem sourceMap_form_eval_of_target
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (encodes : Encodes geometry assignment
       (PiRLCRetainedPreservation.sourceAssignment program base groupValue))
-    (column : Fin Spartan.spartanColumnCount)
+    (column : Fin PackageOrder.packageColumnCount)
     (support : RunningTransitionSourceSupport.Target column.val) :
     ((sourceMap geometry).form column).eval assignment =
       transitionEnv program base column.val := by
@@ -551,7 +551,7 @@ theorem sourceMap_form_eval_of_target
   rw [Location.form_eval geometry assignment base groupValue
     encodes decoded.location]
   have mappedLocation :
-      Spartan.sourceToSpartan decoded.location.sourceColumn = column.val := by
+      PackageOrder.sourceToPackage decoded.location.sourceColumn = column.val := by
     rw [decoded.owns, mapped]
   rw [mappedLocation]
 
@@ -564,7 +564,7 @@ private theorem preservesCombination
     (encodes : Encodes geometry assignment
       (PiRLCRetainedPreservation.sourceAssignment program base groupValue))
     (combination : R1CS.LinearCombination)
-    (bounded : SourceCompiler.CombinationBounded Spartan.spartanColumnCount
+    (bounded : SourceCompiler.CombinationBounded PackageOrder.packageColumnCount
       combination)
     (scope : combination.VarsSatisfy RunningTransitionSourceSupport.Target) :
     OrdinarySourcePlan.SourceMap.PreservesCombination (sourceMap geometry)
@@ -670,7 +670,7 @@ theorem rowsZero_iff_physical
       (PiRLCRetainedPreservation.sourceAssignment program base groupValue)) :
     (plan relation geometry).RowsZero assignment ↔
       RunningTransitionLayout.PhysicalHolds sourceLogicalWidth publicFits
-        (Spartan.pullback (transitionEnv program base)) := by
+        (PackageOrder.pullback (transitionEnv program base)) := by
   rw [plan]
   rw [OrdinarySourcePlan.Program.rowsZero_iff
     (RunningTransitionDirectSource.program relation)

@@ -2,7 +2,7 @@ import NightstreamFPrime.Layout.Stage1.PiCCSInputs
 import NightstreamFPrime.Layout.Stage1.PiCCSStarts
 import NightstreamFPrime.Layout.Stage1.PiRLCInputs
 import NightstreamFPrime.Layout.Stage1.PiDECInputs
-import NightstreamFPrime.Layout.Stage1.Spartan
+import NightstreamFPrime.Layout.Stage1.PackageOrder
 
 namespace NightstreamFPrime.Layout.Stage1.PiCCSOrdinarySourceSupport
 
@@ -78,7 +78,7 @@ def Source (column : Nat) : Prop :=
       column < PiRLCInputs.phaseOffset
 
 def Target (column : Nat) : Prop :=
-  ∃ source, Source source ∧ Spartan.sourceToSpartan source = column
+  ∃ source, Source source ∧ PackageOrder.sourceToPackage source = column
 
 theorem external_prior (column : Nat)
     (support : InRange PilotProduction.priorPreimageStart
@@ -135,15 +135,15 @@ theorem fresh_source (column : Nat)
   Or.inr ⟨lower, upper⟩
 
 theorem source_target (column : Nat) (support : Source column) :
-    Target (Spartan.sourceToSpartan column) :=
+    Target (PackageOrder.sourceToPackage column) :=
   ⟨column, support, rfl⟩
 
 theorem source_lt_sourceColumnCount {column : Nat} (support : Source column) :
-    column < Spartan.SourceColumnCount := by
+    column < PackageOrder.SourceColumnCount := by
   have phaseValue := congrArg (fun starts : List Nat => starts[4]!)
     PiDECInputs.inputStarts_eq
   change PiDECInputs.phaseOffset = 11414930 at phaseValue
-  have sourceLower := Spartan.sourceColumnCount_ge_piDecPhaseOffset
+  have sourceLower := PackageOrder.sourceColumnCount_ge_piDecPhaseOffset
   rw [phaseValue] at sourceLower
   apply Nat.lt_of_lt_of_le ?_ sourceLower
   rcases support with logical | fresh

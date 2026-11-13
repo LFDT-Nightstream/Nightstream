@@ -75,16 +75,16 @@ def finalIdentityLogicalStart : Nat :=
 def compilePacket (rowStart freshStart : Nat) (constraints : List Expr) :
     List Rows.CompiledRow :=
   Rows.compileRowsTR
-    (NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan freshStart)
+    (NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage freshStart)
     rowStart
-    (NightstreamFPrime.Layout.Stage1.Spartan.remapRows
+    (NightstreamFPrime.Layout.Stage1.PackageOrder.remapRows
       (Rows.lowerConstraintsTR constraints freshStart).rows)
 
 theorem compilePacket_toR1CS (rowStart freshStart : Nat)
     (constraints : List Expr) :
     (compilePacket rowStart freshStart constraints).map
       Rows.CompiledRow.toR1CS =
-      NightstreamFPrime.Layout.Stage1.Spartan.remapRows
+      NightstreamFPrime.Layout.Stage1.PackageOrder.remapRows
         (R1CS.lowerConstraints constraints freshStart).rows := by
   rw [compilePacket, Rows.compileRowsTR_toR1CS,
     Rows.lowerConstraintsTR_eq]
@@ -104,44 +104,44 @@ theorem compilePacket_sound (rowStart freshStart : Nat)
       ((compilePacket rowStart freshStart constraints).map
         Rows.CompiledRow.toR1CS)) :
     ConstraintsHold
-      (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) constraints := by
+      (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env) constraints := by
   rw [compilePacket_toR1CS,
-    NightstreamFPrime.Layout.Stage1.Spartan.remapRows_hold] at holds
+    NightstreamFPrime.Layout.Stage1.PackageOrder.remapRows_hold] at holds
   exact R1CS.lowerConstraints_sound
-    (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) constraints
+    (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env) constraints
     freshStart holds
 
 theorem compilePacket_complete (rowStart freshStart : Nat)
     (constraints : List Expr) (env : Env)
-    (startLocal : NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset ≤
+    (startLocal : NightstreamFPrime.Layout.Stage1.PackageOrder.piCcsPhaseOffset ≤
       freshStart)
     (targetEndPrivate :
-      NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan freshStart +
+      NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage freshStart +
           R1CS.totalFreshCount constraints ≤
-        NightstreamFPrime.Layout.Stage1.Spartan.privateColumnCount)
+        NightstreamFPrime.Layout.Stage1.PackageOrder.privateColumnCount)
     (scope : ∀ expression ∈ constraints,
       expression.VarsBelow freshStart)
     (logical : ConstraintsHold
-      (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) constraints) :
+      (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env) constraints) :
     ∃ completed,
       AgreesOutside env completed
-          (NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan freshStart)
+          (NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage freshStart)
           (R1CS.totalFreshCount constraints) ∧
         R1CS.RowsHold completed
           ((compilePacket rowStart freshStart constraints).map
             Rows.CompiledRow.toR1CS) := by
   rcases R1CS.lowerConstraints_complete
-      (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) constraints
+      (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env) constraints
       freshStart scope logical with ⟨source, sourceAgrees, sourceRows⟩
   let completed :=
-    NightstreamFPrime.Layout.Stage1.Spartan.copyMappedInterval env source
+    NightstreamFPrime.Layout.Stage1.PackageOrder.copyMappedInterval env source
       freshStart (R1CS.totalFreshCount constraints)
   refine ⟨completed, ?_, ?_⟩
-  · exact NightstreamFPrime.Layout.Stage1.Spartan.copyMappedInterval_agreesOutside
+  · exact NightstreamFPrime.Layout.Stage1.PackageOrder.copyMappedInterval_agreesOutside
       env source freshStart (R1CS.totalFreshCount constraints)
   · rw [compilePacket_toR1CS]
     exact
-      NightstreamFPrime.Layout.Stage1.Spartan.remapRows_hold_copyMappedInterval
+      NightstreamFPrime.Layout.Stage1.PackageOrder.remapRows_hold_copyMappedInterval
         (R1CS.lowerConstraints constraints freshStart).rows env source
         freshStart (R1CS.totalFreshCount constraints) startLocal
         targetEndPrivate sourceAgrees sourceRows
@@ -150,7 +150,7 @@ theorem compilePacket_complete (rowStart freshStart : Nat)
     (constraints : List Expr) :
     (compilePacket rowStart freshStart constraints).length =
       R1CS.totalRowCount constraints := by
-  simp [compilePacket, NightstreamFPrime.Layout.Stage1.Spartan.remapRows,
+  simp [compilePacket, NightstreamFPrime.Layout.Stage1.PackageOrder.remapRows,
     Rows.lowerConstraintsTR_eq]
 
 def parentInterface
@@ -456,18 +456,18 @@ theorem compilePacket_implies_childSpec
     (constraintsEq : constraints =
       flatConstraints (Circuit.ops child.main childOffset))
     (assumptions : child.assumptions childOffset
-      (NightstreamFPrime.Layout.Stage1.Spartan.pullback env))
+      (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env))
     (packet : R1CS.RowsHold env
       ((compilePacket rowStart freshStart constraints).map
         Rows.CompiledRow.toR1CS)) :
     child.spec childOffset
-      (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) := by
+      (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env) := by
   apply child.soundness
-    (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) childOffset
+    (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env) childOffset
     assumptions
   apply holdsFlat_implies_holds
   change ConstraintsHold
-    (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)
+    (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env)
     (flatConstraints (Circuit.ops child.main childOffset))
   rw [← constraintsEq]
   exact compilePacket_sound rowStart freshStart constraints env packet
@@ -482,35 +482,35 @@ structure ArithmeticSpecs
     (Formal.statementBindingCircuit
       (sharedInterface logicalWidth publicFits)).spec
       statementBindingLogicalStart
-      (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)
+      (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env)
   initialClaim :
     (Formal.initialClaimCircuit (sharedInterface logicalWidth publicFits)).spec
       initialClaimLogicalStart
-      (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)
+      (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env)
   sumcheck :
     (Formal.sumcheckCircuit (sharedInterface logicalWidth publicFits)).spec
       sumcheckLogicalStart
-      (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)
+      (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env)
   eval_K :
     (Formal.evalKCircuit (sharedInterface logicalWidth publicFits)).spec
       evalKLogicalStart
-      (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)
+      (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env)
   eval_A :
     (Formal.evalACircuit (sharedInterface logicalWidth publicFits)).spec
       evalALogicalStart
-      (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)
+      (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env)
   ccs :
     (Formal.ccsCircuit relation
       (sharedInterface logicalWidth publicFits)).spec ccsLogicalStart
-      (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)
+      (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env)
   norm :
     (Formal.normCircuit relation
       (sharedInterface logicalWidth publicFits)).spec normLogicalStart
-      (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)
+      (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env)
   finalIdentity :
     (Formal.finalIdentityCircuit relation
       (sharedInterface logicalWidth publicFits)).spec finalIdentityLogicalStart
-      (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)
+      (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env)
 
 theorem ArithmeticSpecs.statementBinding_parent
     {logicalWidth : Nat}
@@ -522,7 +522,7 @@ theorem ArithmeticSpecs.statementBinding_parent
       (sharedInterface logicalWidth publicFits)).spec
       (Formal.statementBindingOffset
         NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset)
-      (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) := by
+      (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env) := by
   exact specs.statementBinding
 
 theorem ArithmeticSpecs.initialClaim_parent
@@ -534,7 +534,7 @@ theorem ArithmeticSpecs.initialClaim_parent
     (Formal.initialClaimCircuit (sharedInterface logicalWidth publicFits)).spec
       (Formal.initialClaimOffset (parentInterface logicalWidth publicFits)
         NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset)
-      (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) := by
+      (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env) := by
   rw [← initialClaimLogicalStart_matches logicalWidth publicFits]
   exact specs.initialClaim
 
@@ -547,7 +547,7 @@ theorem ArithmeticSpecs.sumcheck_parent
     (Formal.sumcheckCircuit (sharedInterface logicalWidth publicFits)).spec
       (Formal.sumcheckOffset (parentInterface logicalWidth publicFits)
         NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset)
-      (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) := by
+      (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env) := by
   rw [← sumcheckLogicalStart_matches logicalWidth publicFits]
   exact specs.sumcheck
 
@@ -560,7 +560,7 @@ theorem ArithmeticSpecs.evalK_parent
     (Formal.evalKCircuit (sharedInterface logicalWidth publicFits)).spec
       (Formal.evalKOffset (parentInterface logicalWidth publicFits)
         NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset)
-      (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) := by
+      (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env) := by
   rw [← evalKLogicalStart_matches logicalWidth publicFits]
   exact specs.eval_K
 
@@ -573,7 +573,7 @@ theorem ArithmeticSpecs.evalA_parent
     (Formal.evalACircuit (sharedInterface logicalWidth publicFits)).spec
       (Formal.evalAOffset (parentInterface logicalWidth publicFits)
         NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset)
-      (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) := by
+      (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env) := by
   rw [← evalALogicalStart_matches logicalWidth publicFits]
   exact specs.eval_A
 
@@ -586,7 +586,7 @@ theorem ArithmeticSpecs.ccs_parent
     (Formal.ccsCircuit relation (sharedInterface logicalWidth publicFits)).spec
       (Formal.ccsOffset (parentInterface logicalWidth publicFits)
         NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset)
-      (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) := by
+      (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env) := by
   rw [← ccsLogicalStart_matches logicalWidth publicFits]
   exact specs.ccs
 
@@ -599,7 +599,7 @@ theorem ArithmeticSpecs.norm_parent
     (Formal.normCircuit relation (sharedInterface logicalWidth publicFits)).spec
       (Formal.normOffset relation (parentInterface logicalWidth publicFits)
         NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset)
-      (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) := by
+      (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env) := by
   rw [Formal.normOffset_eq_normRowOffset,
     ← normLogicalStart_matches logicalWidth publicFits]
   exact specs.norm
@@ -615,7 +615,7 @@ theorem ArithmeticSpecs.finalIdentity_parent
       (Formal.finalIdentityOffset relation
         (parentInterface logicalWidth publicFits)
         NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset)
-      (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) := by
+      (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env) := by
   rw [Formal.finalIdentityOffset_eq_finalIdentityRowOffset,
     ← finalIdentityLogicalStart_matches logicalWidth publicFits]
   exact specs.finalIdentity
@@ -629,55 +629,55 @@ theorem packetHolds_imply_arithmeticSpecs
     (assumptions : Formal.Assumptions relation
       (parentInterface logicalWidth publicFits)
       NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset
-      (NightstreamFPrime.Layout.Stage1.Spartan.pullback env))
+      (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env))
     (packets : PacketHolds logicalWidth publicFits env) :
     ArithmeticSpecs logicalWidth publicFits relation env := by
   have statementBindingAssumptions :
       (Formal.statementBindingCircuit
         (sharedInterface logicalWidth publicFits)).assumptions
         statementBindingLogicalStart
-        (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) := by
+        (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env) := by
     exact assumptions.statementBinding
   have initialClaimAssumptions :
       (Formal.initialClaimCircuit
         (sharedInterface logicalWidth publicFits)).assumptions
         initialClaimLogicalStart
-        (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) := by
+        (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env) := by
     rw [initialClaimLogicalStart_matches logicalWidth publicFits]
     exact assumptions.initialClaim
   have sumcheckAssumptions :
       (Formal.sumcheckCircuit
         (sharedInterface logicalWidth publicFits)).assumptions
         sumcheckLogicalStart
-        (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) := by
+        (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env) := by
     rw [sumcheckLogicalStart_matches logicalWidth publicFits]
     exact assumptions.sumcheck
   have evalKAssumptions :
       (Formal.evalKCircuit
         (sharedInterface logicalWidth publicFits)).assumptions
         evalKLogicalStart
-        (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) := by
+        (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env) := by
     rw [evalKLogicalStart_matches logicalWidth publicFits]
     exact assumptions.eval_K
   have evalAAssumptions :
       (Formal.evalACircuit
         (sharedInterface logicalWidth publicFits)).assumptions
         evalALogicalStart
-        (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) := by
+        (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env) := by
     rw [evalALogicalStart_matches logicalWidth publicFits]
     exact assumptions.eval_A
   have ccsAssumptions :
       (Formal.ccsCircuit relation
         (sharedInterface logicalWidth publicFits)).assumptions
         ccsLogicalStart
-        (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) := by
+        (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env) := by
     rw [ccsLogicalStart_matches logicalWidth publicFits]
     exact assumptions.ccs
   have normAssumptions :
       (Formal.normCircuit relation
         (sharedInterface logicalWidth publicFits)).assumptions
         normLogicalStart
-        (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) := by
+        (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env) := by
     rw [normLogicalStart_matches logicalWidth publicFits,
       ← Formal.normOffset_eq_normRowOffset relation
         (parentInterface logicalWidth publicFits)
@@ -687,7 +687,7 @@ theorem packetHolds_imply_arithmeticSpecs
       (Formal.finalIdentityCircuit relation
         (sharedInterface logicalWidth publicFits)).assumptions
         finalIdentityLogicalStart
-        (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) := by
+        (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env) := by
     rw [finalIdentityLogicalStart_matches logicalWidth publicFits,
       ← Formal.finalIdentityOffset_eq_finalIdentityRowOffset relation
         (parentInterface logicalWidth publicFits)

@@ -17,22 +17,22 @@ abbrev ApplicationProgram := Lifecycle.Stage1.Application.Program
 
 def stateRange (program : ApplicationProgram) : SourceRange :=
   SourceRange.ofSemantic (stateBlock program) (stateStart program)
-    (Spartan.sourceToSpartan RunningTransitionSourceSupport.stateStart)
+    (PackageOrder.sourceToPackage RunningTransitionSourceSupport.stateStart)
     RunningTransitionSourceSupport.stateCount 0
 
 def outputRange (program : ApplicationProgram) : SourceRange :=
   SourceRange.ofSemantic (outputBlock program) (outputStart program)
-    (Spartan.sourceToSpartan RunningTransitionSourceSupport.outputStart)
+    (PackageOrder.sourceToPackage RunningTransitionSourceSupport.outputStart)
     RunningTransitionSourceSupport.outputCount 0
 
 def piDecRange (program : ApplicationProgram) : SourceRange :=
   SourceRange.ofSemantic (piDecBlock program) (piDecStart program)
-    (Spartan.sourceToSpartan RunningTransitionSourceSupport.piDecStart)
+    (PackageOrder.sourceToPackage RunningTransitionSourceSupport.piDecStart)
     RunningTransitionSourceSupport.piDecCount 0
 
 def freshRange (program : ApplicationProgram) : SourceRange :=
   SourceRange.ofSemantic (freshBlock program) (freshStart program)
-    (Spartan.sourceToSpartan RunningTransitionInputs.phaseOffset) freshCount 0
+    (PackageOrder.sourceToPackage RunningTransitionInputs.phaseOffset) freshCount 0
 
 def substitution (program : ApplicationProgram) : SourceSubstitution where
   ranges := [stateRange program, outputRange program, piDecRange program,

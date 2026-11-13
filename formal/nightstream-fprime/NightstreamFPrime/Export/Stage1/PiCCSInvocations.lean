@@ -3,7 +3,7 @@ import NightstreamFPrime.Layout.PiCCS.v1_2.Assumptions
 import NightstreamFPrime.Layout.Stage1.PiCCSStarts
 import NightstreamFPrime.Layout.Stage1.PiRLCInputs
 import NightstreamFPrime.Layout.Stage1.PiRLCStarts
-import NightstreamFPrime.Layout.Stage1.SpartanValues
+import NightstreamFPrime.Layout.Stage1.PackageOrderValues
 import NightstreamFPrime.Lifecycle.PiCCS.v1_2.FormalRows
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSInvocations
@@ -280,14 +280,14 @@ theorem statementTrace_implies_spec
       PermutationInvocationHolds (PilotData.circuitPackage ()) current env) :
     StatementAbsorption.SpecHolds
       (statementInterface logicalWidth publicFits) statementWitnessStart
-      (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) := by
+      (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env) := by
   have trace := compileActions_traceHolds statementPhase statementRowStart
     statementWitnessStart Hash.zeroE
     (statementActions logicalWidth publicFits) env (by
-      change NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset ≤
+      change NightstreamFPrime.Layout.Stage1.PackageOrder.piCcsPhaseOffset ≤
         NightstreamFPrime.Layout.Stage1.PiCCSStarts.statementWitnessStart
       rw [NightstreamFPrime.Layout.Stage1.PiCCSStarts.statementWitnessStart_eq]
-      norm_num [NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset])
+      norm_num [NightstreamFPrime.Layout.Stage1.PackageOrder.piCcsPhaseOffset])
     NightstreamFPrime.Layout.Poseidon2.zeroE_affine
     (NightstreamFPrime.Layout.PiCCS.v1_2.Leaves.StatementAbsorption.actions_affine
       (statementInterface logicalWidth publicFits) statementWitnessStart
@@ -300,12 +300,12 @@ theorem statementTrace_implies_spec
     holds
   change Formal.TraceHolds
       (List.ofFn (Layer.evalState
-        (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) Hash.zeroE))
+        (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env) Hash.zeroE))
       ((statementActions logicalWidth publicFits).map
         (Formal.Action.eval
-          (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)))
+          (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env)))
       (List.ofFn (Layer.evalState
-        (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)
+        (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env)
         (statementTrace logicalWidth publicFits).state)) at trace
   rw [statementTrace_state_matches logicalWidth publicFits] at trace
   exact trace
@@ -429,7 +429,7 @@ theorem challengeTrace_implies_spec
       PermutationInvocationHolds (PilotData.circuitPackage ()) current env) :
     ChallengeDerivation.SpecHolds
       (challengeInterface logicalWidth publicFits) challengeWitnessStart
-      (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) := by
+      (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env) := by
   let interface := challengeInterface logicalWidth publicFits
   let semantic := challengeSemanticTrace logicalWidth publicFits
   have semanticEq : challengeTrace logicalWidth publicFits = semantic :=
@@ -443,10 +443,10 @@ theorem challengeTrace_implies_spec
   have trace := compileActions_traceHolds challengePhase challengeRowStart
     challengeWitnessStart (interface.initialState challengeWitnessStart)
     (ChallengeDerivation.actions interface challengeWitnessStart) env (by
-      change NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset ≤
+      change NightstreamFPrime.Layout.Stage1.PackageOrder.piCcsPhaseOffset ≤
         NightstreamFPrime.Layout.Stage1.PiCCSStarts.challengeWitnessStart
       rw [NightstreamFPrime.Layout.Stage1.PiCCSStarts.challengeWitnessStart_eq]
-      norm_num [NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset])
+      norm_num [NightstreamFPrime.Layout.Stage1.PackageOrder.piCcsPhaseOffset])
     ((inputShapes logicalWidth publicFits relation).challengeDerivation
       challengeWitnessStart).initialState
     (NightstreamFPrime.Layout.PiCCS.v1_2.Leaves.ChallengeDerivation.actions_affine
@@ -462,18 +462,18 @@ theorem challengeTrace_implies_spec
       (challengeTrace_state_matches logicalWidth publicFits)
   change Formal.TraceHolds
       (List.ofFn (Layer.evalState
-        (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)
+        (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env)
         (interface.initialState challengeWitnessStart)))
       ((ChallengeDerivation.actions interface challengeWitnessStart).map
         (Formal.Action.eval
-          (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)))
+          (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env)))
       (List.ofFn (Layer.evalState
-        (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)
+        (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env)
         semantic.state)) at trace
   rw [stateEq] at trace
   exact ChallengeDerivation.trace_implies_specHolds interface
     challengeWitnessStart
-    (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) trace
+    (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env) trace
 
 theorem roundTrace_eq_semantic
     (logicalWidth : Nat)
@@ -507,7 +507,7 @@ theorem roundTrace_implies_spec
       PermutationInvocationHolds (PilotData.circuitPackage ()) current env) :
     RoundTranscript.SpecHolds (roundInterface logicalWidth publicFits)
       roundWitnessStart
-      (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) := by
+      (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env) := by
   let interface := roundInterface logicalWidth publicFits
   let semantic := roundSemanticTrace logicalWidth publicFits
   have semanticEq : roundTrace logicalWidth publicFits = semantic :=
@@ -521,10 +521,10 @@ theorem roundTrace_implies_spec
   have trace := compileActions_traceHolds roundPhase roundRowStart
     roundWitnessStart (interface.initialState roundWitnessStart)
     (RoundTranscript.actions interface roundWitnessStart) env (by
-      change NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset ≤
+      change NightstreamFPrime.Layout.Stage1.PackageOrder.piCcsPhaseOffset ≤
         NightstreamFPrime.Layout.Stage1.PiCCSStarts.roundTranscriptWitnessStart
       rw [NightstreamFPrime.Layout.Stage1.PiCCSStarts.roundTranscriptWitnessStart_eq]
-      norm_num [NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset])
+      norm_num [NightstreamFPrime.Layout.Stage1.PackageOrder.piCcsPhaseOffset])
     ((inputShapes logicalWidth publicFits relation).roundTranscript
       roundWitnessStart).initialState
     (NightstreamFPrime.Layout.PiCCS.v1_2.Leaves.RoundTranscript.actions_affine
@@ -542,17 +542,17 @@ theorem roundTrace_implies_spec
       (RoundTranscript.actions interface roundWitnessStart)
   change Formal.TraceHolds
       (List.ofFn (Layer.evalState
-        (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)
+        (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env)
         (interface.initialState roundWitnessStart)))
       ((RoundTranscript.actions interface roundWitnessStart).map
         (Formal.Action.eval
-          (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)))
+          (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env)))
       (List.ofFn (Layer.evalState
-        (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)
+        (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env)
         semantic.state)) at trace
   rw [semanticState] at trace
   exact (RoundTranscript.trace_iff_specHolds interface roundWitnessStart
-    (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)).mp trace
+    (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env)).mp trace
 
 theorem roundTrace_state_matches
     (logicalWidth : Nat)
@@ -617,7 +617,7 @@ theorem outputTrace_implies_spec
       PermutationInvocationHolds (PilotData.circuitPackage ()) current env) :
     OutputBinding.SpecHolds (outputInterface logicalWidth publicFits)
       outputWitnessStart
-      (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) := by
+      (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env) := by
   let interface := outputInterface logicalWidth publicFits
   let semantic := outputSemanticTrace logicalWidth publicFits
   have semanticEq : outputTrace logicalWidth publicFits = semantic :=
@@ -631,10 +631,10 @@ theorem outputTrace_implies_spec
   have trace := compileActions_traceHolds outputPhase outputRowStart
     outputWitnessStart (interface.initialState outputWitnessStart)
     (outputActions logicalWidth publicFits) env (by
-      change NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset ≤
+      change NightstreamFPrime.Layout.Stage1.PackageOrder.piCcsPhaseOffset ≤
         NightstreamFPrime.Layout.Stage1.PiCCSStarts.outputBindingWitnessStart
       rw [NightstreamFPrime.Layout.Stage1.PiCCSStarts.outputBindingWitnessStart_eq]
-      norm_num [NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset])
+      norm_num [NightstreamFPrime.Layout.Stage1.PackageOrder.piCcsPhaseOffset])
     ((inputShapes logicalWidth publicFits relation).outputBinding
       outputWitnessStart).initialState
     (NightstreamFPrime.Layout.PiCCS.v1_2.Leaves.OutputBinding.actions_affine
@@ -650,17 +650,17 @@ theorem outputTrace_implies_spec
     outputSemanticTrace_state_matches logicalWidth publicFits
   change Formal.TraceHolds
       (List.ofFn (Layer.evalState
-        (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)
+        (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env)
         (interface.initialState outputWitnessStart)))
       ((outputActions logicalWidth publicFits).map
         (Formal.Action.eval
-          (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)))
+          (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env)))
       (List.ofFn (Layer.evalState
-        (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)
+        (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env)
         semantic.state)) at trace
   rw [semanticState] at trace
   exact OutputBinding.trace_implies_specHolds interface outputWitnessStart
-    (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) trace
+    (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env) trace
 
 def invocations
     (logicalWidth : Nat)
@@ -680,19 +680,19 @@ structure TranscriptSpecs
   statementAbsorption :
     StatementAbsorption.SpecHolds
       (statementInterface logicalWidth publicFits) statementWitnessStart
-      (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)
+      (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env)
   challengeDerivation :
     ChallengeDerivation.SpecHolds
       (challengeInterface logicalWidth publicFits) challengeWitnessStart
-      (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)
+      (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env)
   roundTranscript :
     RoundTranscript.SpecHolds
       (roundInterface logicalWidth publicFits) roundWitnessStart
-      (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)
+      (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env)
   outputBinding :
     OutputBinding.SpecHolds
       (outputInterface logicalWidth publicFits) outputWitnessStart
-      (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)
+      (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env)
 
 theorem TranscriptSpecs.statementAbsorption_parent
     {logicalWidth : Nat}
@@ -703,12 +703,12 @@ theorem TranscriptSpecs.statementAbsorption_parent
       (sharedInterface logicalWidth publicFits)).spec
       (Formal.statementAbsorptionOffset
         (parentInterface logicalWidth publicFits) phaseOffset)
-      (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) := by
+      (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env) := by
   change StatementAbsorption.SpecHolds
     (statementInterface logicalWidth publicFits)
     (Formal.statementAbsorptionOffset
       (parentInterface logicalWidth publicFits) phaseOffset)
-    (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)
+    (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env)
   rw [← statementWitnessStart_matches]
   exact specs.statementAbsorption
 
@@ -721,12 +721,12 @@ theorem TranscriptSpecs.challengeDerivation_parent
       phaseOffset).spec
       (Formal.challengeOffset (parentInterface logicalWidth publicFits)
         phaseOffset)
-      (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) := by
+      (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env) := by
   change ChallengeDerivation.SpecHolds
     (challengeInterface logicalWidth publicFits)
     (Formal.challengeOffset (parentInterface logicalWidth publicFits)
       phaseOffset)
-    (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)
+    (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env)
   rw [← challengeWitnessStart_matches]
   exact specs.challengeDerivation
 
@@ -739,12 +739,12 @@ theorem TranscriptSpecs.roundTranscript_parent
       (sharedInterface logicalWidth publicFits)).spec
       (Formal.roundTranscriptOffset
         (parentInterface logicalWidth publicFits) phaseOffset)
-      (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) := by
+      (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env) := by
   change RoundTranscript.SpecHolds
     (roundInterface logicalWidth publicFits)
     (Formal.roundTranscriptOffset
       (parentInterface logicalWidth publicFits) phaseOffset)
-    (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)
+    (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env)
   rw [← roundWitnessStart_matches]
   exact specs.roundTranscript
 
@@ -758,12 +758,12 @@ theorem TranscriptSpecs.outputBinding_parent
       (sharedInterface logicalWidth publicFits)).spec
       (Formal.outputBindingOffset relation
         (parentInterface logicalWidth publicFits) phaseOffset)
-      (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) := by
+      (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env) := by
   change OutputBinding.SpecHolds
     (outputInterface logicalWidth publicFits)
     (Formal.outputBindingOffset relation
       (parentInterface logicalWidth publicFits) phaseOffset)
-    (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)
+    (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env)
   rw [← outputWitnessStart_matches logicalWidth publicFits relation]
   exact specs.outputBinding
 
@@ -897,21 +897,21 @@ theorem invocations_length
     roundInvocations_length, outputInvocations_length]
 
 def invocationCeiling : Nat :=
-  NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+  NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
     NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase
 theorem invocationCeiling_eq : invocationCeiling = 6591589 := by
   unfold invocationCeiling NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase
   rw [NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq]
-  norm_num [NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan,
-    NightstreamFPrime.Layout.Stage1.Spartan.pilotSourceColumnCount,
-    NightstreamFPrime.Layout.Stage1.Spartan.proofInputSourceStart,
-    NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset,
-    NightstreamFPrime.Layout.Stage1.Spartan.piCcsLocalStart]
+  norm_num [NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage,
+    NightstreamFPrime.Layout.Stage1.PackageOrder.pilotSourceColumnCount,
+    NightstreamFPrime.Layout.Stage1.PackageOrder.proofInputSourceStart,
+    NightstreamFPrime.Layout.Stage1.PackageOrder.piCcsPhaseOffset,
+    NightstreamFPrime.Layout.Stage1.PackageOrder.piCcsLocalStart]
 theorem invocationCeiling_le_private :
     invocationCeiling ≤
-      NightstreamFPrime.Layout.Stage1.Spartan.privateColumnCount := by
+      NightstreamFPrime.Layout.Stage1.PackageOrder.privateColumnCount := by
   rw [invocationCeiling_eq,
-    NightstreamFPrime.Layout.Stage1.Spartan.privateColumnCount_eq]
+    NightstreamFPrime.Layout.Stage1.PackageOrder.privateColumnCount_eq]
   norm_num
 theorem statementInvocationCount_eq (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
@@ -1052,12 +1052,12 @@ theorem statementTrace_scheduleWithin (logicalWidth : Nat)
       RingCarrierLayout.carrierWidth logicalWidth)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     ScheduleWithin
-        (NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+        (NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
           statementWitnessStart)
         invocationCeiling
         (statementTrace logicalWidth publicFits).invocations ∧
       InvocationsBefore
-        (NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+        (NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
           challengeWitnessStart)
         (statementTrace logicalWidth publicFits).invocations := by
   let external :=
@@ -1089,33 +1089,33 @@ theorem statementTrace_scheduleWithin (logicalWidth : Nat)
       (statementActions logicalWidth publicFits) := by
     simpa [statementActions, statementInterface, sharedInterface,
       startMatch] using boundedAtFormal
-  have endLocal : NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset ≤
+  have endLocal : NightstreamFPrime.Layout.Stage1.PackageOrder.piCcsPhaseOffset ≤
       challengeWitnessStart := by
     unfold challengeWitnessStart
     rw [NightstreamFPrime.Layout.Stage1.PiCCSStarts.challengeWitnessStart_eq]
-    norm_num [NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset]
+    norm_num [NightstreamFPrime.Layout.Stage1.PackageOrder.piCcsPhaseOffset]
   have endStrict : challengeWitnessStart <
       NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase := by
     unfold challengeWitnessStart
     rw [NightstreamFPrime.Layout.Stage1.PiCCSStarts.challengeWitnessStart_eq]
     unfold NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase
     rw [NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq]; norm_num
-  have endWithin : NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+  have endWithin : NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
       (statementWitnessStart +
         invocationCount (statementActions logicalWidth publicFits) * 1096) ≤
       invocationCeiling := by
     rw [statementEnd_eq_challengeStart]
-    exact (NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan_lt_of_piCcsLocal
+    exact (NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage_lt_of_piCcsLocal
       challengeWitnessStart
       NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase endLocal
       endStrict).le
   have scheduled := compileActions_scheduleWithin statementPhase
     statementRowStart statementWitnessStart invocationCeiling Hash.zeroE
     (statementActions logicalWidth publicFits) (by
-      change NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset ≤
+      change NightstreamFPrime.Layout.Stage1.PackageOrder.piCcsPhaseOffset ≤
         NightstreamFPrime.Layout.Stage1.PiCCSStarts.statementWitnessStart
       rw [NightstreamFPrime.Layout.Stage1.PiCCSStarts.statementWitnessStart_eq]
-      norm_num [NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset])
+      norm_num [NightstreamFPrime.Layout.Stage1.PackageOrder.piCcsPhaseOffset])
     invocationCeiling_le_private endWithin
     NightstreamFPrime.Layout.Poseidon2.zeroE_affine (by
       intro lane
@@ -1127,12 +1127,12 @@ theorem challengeTrace_scheduleWithin (logicalWidth : Nat)
       RingCarrierLayout.carrierWidth logicalWidth)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     ScheduleWithin
-        (NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+        (NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
           challengeWitnessStart)
         invocationCeiling
         (challengeTrace logicalWidth publicFits).invocations ∧
       InvocationsBefore
-        (NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+        (NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
           roundWitnessStart)
         (challengeTrace logicalWidth publicFits).invocations := by
   let external :=
@@ -1181,23 +1181,23 @@ theorem challengeTrace_scheduleWithin (logicalWidth : Nat)
   have actionsBelow := actionsInvocationInputsBelow_of_actionsBelow
     challengeWitnessStart (challengeActions logicalWidth publicFits)
     (ChallengeDerivation.layoutActions_below challengeWitnessStart)
-  have endLocal : NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset ≤
+  have endLocal : NightstreamFPrime.Layout.Stage1.PackageOrder.piCcsPhaseOffset ≤
       roundWitnessStart := by
     unfold roundWitnessStart
     rw [NightstreamFPrime.Layout.Stage1.PiCCSStarts.roundTranscriptWitnessStart_eq]
-    norm_num [NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset]
+    norm_num [NightstreamFPrime.Layout.Stage1.PackageOrder.piCcsPhaseOffset]
   have endStrict : roundWitnessStart <
       NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase := by
     unfold roundWitnessStart
     rw [NightstreamFPrime.Layout.Stage1.PiCCSStarts.roundTranscriptWitnessStart_eq]
     unfold NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase
     rw [NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq]; norm_num
-  have endWithin : NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+  have endWithin : NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
       (challengeWitnessStart +
         invocationCount (challengeActions logicalWidth publicFits) * 1096) ≤
       invocationCeiling := by
     rw [challengeEnd_eq_roundStart]
-    exact (NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan_lt_of_piCcsLocal
+    exact (NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage_lt_of_piCcsLocal
       roundWitnessStart
       NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase endLocal
       endStrict).le
@@ -1205,10 +1205,10 @@ theorem challengeTrace_scheduleWithin (logicalWidth : Nat)
     challengeRowStart challengeWitnessStart invocationCeiling
     (statementTrace logicalWidth publicFits).state
     (challengeActions logicalWidth publicFits) (by
-      change NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset ≤
+      change NightstreamFPrime.Layout.Stage1.PackageOrder.piCcsPhaseOffset ≤
         NightstreamFPrime.Layout.Stage1.PiCCSStarts.challengeWitnessStart
       rw [NightstreamFPrime.Layout.Stage1.PiCCSStarts.challengeWitnessStart_eq]
-      norm_num [NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset])
+      norm_num [NightstreamFPrime.Layout.Stage1.PackageOrder.piCcsPhaseOffset])
     invocationCeiling_le_private endWithin stateAffine stateBelow actionsAffine
     actionsBelow
   rw [challengeEnd_eq_roundStart] at scheduled
@@ -1218,12 +1218,12 @@ theorem roundTrace_scheduleWithin (logicalWidth : Nat)
       RingCarrierLayout.carrierWidth logicalWidth)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     ScheduleWithin
-        (NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+        (NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
           roundWitnessStart)
         invocationCeiling
         (roundTrace logicalWidth publicFits).invocations ∧
       InvocationsBefore
-        (NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+        (NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
           (roundWitnessStart +
             invocationCount (roundActions logicalWidth publicFits) * 1096))
         (roundTrace logicalWidth publicFits).invocations := by
@@ -1279,15 +1279,15 @@ theorem roundTrace_scheduleWithin (logicalWidth : Nat)
   have actionsBelow := actionsInvocationInputsBelow_of_actionsBelow
     roundWitnessStart (roundActions logicalWidth publicFits) strongBelow
   have endSourceLocal :
-      NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset ≤
+      NightstreamFPrime.Layout.Stage1.PackageOrder.piCcsPhaseOffset ≤
         roundWitnessStart +
           invocationCount (roundActions logicalWidth publicFits) * 1096 := by
     have roundLocal :
-        NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset ≤
+        NightstreamFPrime.Layout.Stage1.PackageOrder.piCcsPhaseOffset ≤
           roundWitnessStart := by
       unfold roundWitnessStart
       rw [NightstreamFPrime.Layout.Stage1.PiCCSStarts.roundTranscriptWitnessStart_eq]
-      norm_num [NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset]
+      norm_num [NightstreamFPrime.Layout.Stage1.PackageOrder.piCcsPhaseOffset]
     omega
   have outputStrict : outputWitnessStart <
       NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase := by
@@ -1299,21 +1299,21 @@ theorem roundTrace_scheduleWithin (logicalWidth : Nat)
       invocationCount (roundActions logicalWidth publicFits) * 1096 <
         NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase :=
     lt_trans (roundEnd_lt_outputStart logicalWidth publicFits) outputStrict
-  have endWithin : NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+  have endWithin : NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
       (roundWitnessStart +
         invocationCount (roundActions logicalWidth publicFits) * 1096) ≤
       invocationCeiling :=
-    (NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan_lt_of_piCcsLocal
+    (NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage_lt_of_piCcsLocal
       _ NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase
       endSourceLocal endStrict).le
   have scheduled := compileActions_scheduleWithin roundPhase roundRowStart
     roundWitnessStart invocationCeiling
     (challengeTrace logicalWidth publicFits).state
     (roundActions logicalWidth publicFits) (by
-      change NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset ≤
+      change NightstreamFPrime.Layout.Stage1.PackageOrder.piCcsPhaseOffset ≤
         NightstreamFPrime.Layout.Stage1.PiCCSStarts.roundTranscriptWitnessStart
       rw [NightstreamFPrime.Layout.Stage1.PiCCSStarts.roundTranscriptWitnessStart_eq]
-      norm_num [NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset])
+      norm_num [NightstreamFPrime.Layout.Stage1.PackageOrder.piCcsPhaseOffset])
     invocationCeiling_le_private endWithin stateAffine stateBelow actionsAffine
     actionsBelow
   exact scheduled
@@ -1322,7 +1322,7 @@ theorem outputTrace_scheduleWithin (logicalWidth : Nat)
       RingCarrierLayout.carrierWidth logicalWidth)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     ScheduleWithin
-        (NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+        (NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
           outputWitnessStart)
         invocationCeiling
         (outputTrace logicalWidth publicFits).invocations ∧
@@ -1383,7 +1383,7 @@ theorem outputTrace_scheduleWithin (logicalWidth : Nat)
       strongBelowAtFormal
   have actionsBelow := actionsInvocationInputsBelow_of_actionsBelow
     outputWitnessStart (outputActions logicalWidth publicFits) strongBelow
-  have endWithin : NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+  have endWithin : NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
       (outputWitnessStart +
         invocationCount (outputActions logicalWidth publicFits) * 1096) ≤
       invocationCeiling := by
@@ -1393,10 +1393,10 @@ theorem outputTrace_scheduleWithin (logicalWidth : Nat)
     outputWitnessStart invocationCeiling
     (roundTrace logicalWidth publicFits).state
     (outputActions logicalWidth publicFits) (by
-      change NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset ≤
+      change NightstreamFPrime.Layout.Stage1.PackageOrder.piCcsPhaseOffset ≤
         NightstreamFPrime.Layout.Stage1.PiCCSStarts.outputBindingWitnessStart
       rw [NightstreamFPrime.Layout.Stage1.PiCCSStarts.outputBindingWitnessStart_eq]
-      norm_num [NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset])
+      norm_num [NightstreamFPrime.Layout.Stage1.PackageOrder.piCcsPhaseOffset])
     invocationCeiling_le_private endWithin stateAffine stateBelow actionsAffine
     actionsBelow
   rw [outputEnd_eq_logicalFreshBase] at scheduled

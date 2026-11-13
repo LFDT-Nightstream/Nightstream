@@ -12,10 +12,10 @@ open NightstreamFPrime.Layout
 open NightstreamFPrime.Layout.Stage1
 open NightstreamFPrime.Lifecycle.Stage1
 
-def privateStart : Nat := Spartan.spartanColumnCount
+def privateStart : Nat := PackageOrder.packageColumnCount
 
 def operations : List Op :=
-  Circuit.ops (NextPreimage.main NextPreimageInputs.spartanInterface) privateStart
+  Circuit.ops (NextPreimage.main NextPreimageInputs.packageInterface) privateStart
 
 def constraints : List Expr := flatConstraints operations
 
@@ -35,11 +35,11 @@ def sourceRows : List R1CS.Row :=
   (compiledRows 0).map Rows.CompiledRow.toR1CS
 
 theorem operations_eq : operations =
-    NextPreimage.opsAt NextPreimageInputs.spartanInterface privateStart := by
+    NextPreimage.opsAt NextPreimageInputs.packageInterface privateStart := by
   rfl
 
 theorem constraints_eq : constraints =
-    NextPreimage.assertions NextPreimageInputs.spartanInterface privateStart := by
+    NextPreimage.assertions NextPreimageInputs.packageInterface privateStart := by
   unfold constraints operations
   rw [NextPreimage.main_ops, NextPreimage.flatConstraints_opsAt]
 
@@ -91,7 +91,7 @@ theorem assertionRows_length (rowStart : Nat) :
 
 theorem sourceRows_imply_spec (env : Env)
     (rows : R1CS.RowsHold env sourceRows) :
-    NextPreimage.SpecHolds NextPreimageInputs.spartanInterface privateStart env := by
+    NextPreimage.SpecHolds NextPreimageInputs.packageInterface privateStart env := by
   have loweredRows : R1CS.RowsHold env lowered.rows := by
     rw [← sourceRows_eq]
     exact rows
@@ -99,17 +99,17 @@ theorem sourceRows_imply_spec (env : Env)
     R1CS.lowerConstraints_sound env constraints privateStart loweredRows
   have flat : holdsFlat env operations := by
     simpa [constraints] using! logical
-  exact NextPreimage.soundness NextPreimageInputs.spartanInterface env
+  exact NextPreimage.soundness NextPreimageInputs.packageInterface env
     privateStart (holdsFlat_implies_holds env operations flat)
 
 theorem sourceRows_varsBelow :
-    ∀ row ∈ sourceRows, row.VarsBelow Spartan.spartanColumnCount := by
+    ∀ row ∈ sourceRows, row.VarsBelow PackageOrder.packageColumnCount := by
   rw [sourceRows_eq]
   apply R1CS.lowerConstraints_rows_varsBelow constraints privateStart
   rw [constraints_eq]
   exact NextPreimage.flatConstraints_varsBelow
-    NextPreimageInputs.spartanInterface privateStart (fun _ => 0)
-    (NextPreimageInputs.spartanAssumptions privateStart (fun _ => 0)
+    NextPreimageInputs.packageInterface privateStart (fun _ => 0)
+    (NextPreimageInputs.packageAssumptions privateStart (fun _ => 0)
       (Nat.le_refl _))
 
 end NightstreamFPrime.Export.Stage1.NextPreimagePackage

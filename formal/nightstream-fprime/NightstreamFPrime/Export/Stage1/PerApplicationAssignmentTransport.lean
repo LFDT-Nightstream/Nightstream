@@ -126,7 +126,7 @@ def physicalExpr (program : Program) (expression : Expr) : Expr :=
   CompactRows.renameExpr (PerApplicationPackage.shiftColumn program) <|
     PermutationOutput.Readout.rewriteExpr PiCCSTranscriptReadout.transcriptStart
       NightstreamFPrime.Layout.Stage1.PiCCSOrdinarySourceSupport.transcriptInvocationCount <|
-        CompactRows.renameExpr NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan expression
+        CompactRows.renameExpr NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage expression
 
 def outputDigestExpression (program : Program) (lane : Fin 4) : Expr :=
   physicalExpr program <|

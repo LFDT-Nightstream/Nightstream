@@ -1,8 +1,8 @@
-import NightstreamFPrime.Layout.PilotSpartan
+import NightstreamFPrime.Layout.PilotPackageOrder
 import NightstreamFPrime.Layout.Stage1.PiCCSInputs
 import NightstreamFPrime.Layout.Stage1.RunningTransitionCost
 
-namespace NightstreamFPrime.Layout.Stage1.Spartan
+namespace NightstreamFPrime.Layout.Stage1.PackageOrder
 
 open NightstreamFPrime.Circuit
 open NightstreamFPrime.Lifecycle
@@ -43,7 +43,7 @@ def privateColumnCount : Nat :=
 
 def constantColumn : Nat := privateColumnCount
 
-def spartanColumnCount : Nat := SourceColumnCount + 1
+def packageColumnCount : Nat := SourceColumnCount + 1
 
 def expectedContextPublicStart : Nat :=
   privateColumnCount + 1 + pilotPublicColumnCount
@@ -52,13 +52,13 @@ attribute [local simp] pilotPrivateColumnCount pilotSourceColumnCount
   expectedContextColumnCount pilotPublicColumnCount
 
 theorem pilotSourceColumnCount_matches :
-    pilotSourceColumnCount = PilotSpartan.SourceColumnCount := by
-  rw [PilotSpartan.sourceColumnCount_eq]
+    pilotSourceColumnCount = PilotPackageOrder.SourceColumnCount := by
+  rw [PilotPackageOrder.sourceColumnCount_eq]
   rfl
 
 theorem pilotPrivateColumnCount_matches :
-    pilotPrivateColumnCount = PilotSpartan.privateColumnCount := by
-  rw [PilotSpartan.privateColumnCount_value]
+    pilotPrivateColumnCount = PilotPackageOrder.privateColumnCount := by
+  rw [PilotPackageOrder.privateColumnCount_value]
   rfl
 
 theorem publicColumnCount_eq : publicColumnCount = 328 := by
@@ -107,11 +107,11 @@ theorem privateColumnCount_decomposition :
   rfl
 
 theorem sourceColumnCount_add_constant :
-    spartanColumnCount = SourceColumnCount + 1 := by
+    packageColumnCount = SourceColumnCount + 1 := by
   rfl
 
-theorem spartanColumnCount_decomposition :
-    spartanColumnCount = privateColumnCount + 1 + publicColumnCount := by
+theorem packageColumnCount_decomposition :
+    packageColumnCount = privateColumnCount + 1 + publicColumnCount := by
   rw [sourceColumnCount_add_constant, sourceColumnCount_decomposition]
   norm_num [privateColumnCount, publicColumnCount]
   omega
@@ -124,9 +124,9 @@ theorem pilotPrivateColumnCount_le_constantColumn :
 private theorem contextColumn_lt (column : Nat)
     (bound : column < proofInputSourceStart) :
     expectedContextPublicStart + (column - pilotSourceColumnCount) <
-      spartanColumnCount := by
+      packageColumnCount := by
   norm_num [expectedContextPublicStart, privateColumnCount,
-    spartanColumnCount, sourceColumnCount_decomposition,
+    packageColumnCount, sourceColumnCount_decomposition,
     proofInputSourceStart] at bound ⊢
   omega
 
@@ -172,27 +172,27 @@ theorem liftPilotColumn_add_of_public (start offset : Nat)
   omega
 
 theorem liftPilotColumn_lt (column : Nat)
-    (bound : column < PilotSpartan.spartanColumnCount) :
-    liftPilotColumn column < spartanColumnCount := by
+    (bound : column < PilotPackageOrder.packageColumnCount) :
+    liftPilotColumn column < packageColumnCount := by
   have appendedBound := proofInputColumnCount_le_appendedPrivateColumnCount
   norm_num [proofInputColumnCount] at appendedBound
-  rw [PilotSpartan.spartanColumnCount_value] at bound
+  rw [PilotPackageOrder.packageColumnCount_value] at bound
   unfold liftPilotColumn
   split
   all_goals try split
-  all_goals (norm_num [privateColumnCount, spartanColumnCount,
+  all_goals (norm_num [privateColumnCount, packageColumnCount,
       sourceColumnCount_decomposition,
       pilotPrivateColumnCount, pilotInputPrivateColumnCount,
       proofInputColumnCount] at *; omega)
 
 theorem liftPilotColumn_ne_constant (column : Nat)
-    (bound : column < PilotSpartan.spartanColumnCount)
-    (notConstant : column ≠ PilotSpartan.constantColumn) :
+    (bound : column < PilotPackageOrder.packageColumnCount)
+    (notConstant : column ≠ PilotPackageOrder.constantColumn) :
     liftPilotColumn column ≠ constantColumn := by
   have appendedBound := proofInputColumnCount_le_appendedPrivateColumnCount
   norm_num [proofInputColumnCount] at appendedBound
-  rw [PilotSpartan.spartanColumnCount_value] at bound
-  rw [PilotSpartan.constantColumn_value] at notConstant
+  rw [PilotPackageOrder.packageColumnCount_value] at bound
+  rw [PilotPackageOrder.constantColumn_value] at notConstant
   unfold liftPilotColumn
   split
   all_goals try split
@@ -200,9 +200,9 @@ theorem liftPilotColumn_ne_constant (column : Nat)
       pilotPrivateColumnCount, pilotInputPrivateColumnCount,
       proofInputColumnCount] at *; omega)
 
-def sourceToSpartan (column : Nat) : Nat :=
+def sourceToPackage (column : Nat) : Nat :=
   if column < pilotSourceColumnCount then
-    liftPilotColumn (PilotSpartan.sourceToSpartan column)
+    liftPilotColumn (PilotPackageOrder.sourceToPackage column)
   else if column < proofInputSourceStart then
     expectedContextPublicStart + (column - pilotSourceColumnCount)
   else if column < piCcsPhaseOffset then
@@ -210,10 +210,10 @@ def sourceToSpartan (column : Nat) : Nat :=
   else
     piCcsLocalStart + (column - piCcsPhaseOffset)
 
-theorem sourceToSpartan_sourceColumnCount :
-    sourceToSpartan SourceColumnCount = privateColumnCount := by
+theorem sourceToPackage_sourceColumnCount :
+    sourceToPackage SourceColumnCount = privateColumnCount := by
   have bound := piCcsPhaseOffset_le_sourceColumnCount
-  unfold sourceToSpartan
+  unfold sourceToPackage
   rw [ite_eq_right (by norm_num [pilotSourceColumnCount, piCcsPhaseOffset] at *; omega),
     ite_eq_right (by norm_num [proofInputSourceStart, piCcsPhaseOffset] at *; omega),
     ite_eq_right (by omega)]
@@ -224,13 +224,13 @@ theorem sourceToSpartan_sourceColumnCount :
     proofInputColumnCount] at appendedBound ⊢
   omega
 
-theorem sourceToSpartan_expectedContext (lane : Fin 4) :
-    sourceToSpartan
+theorem sourceToPackage_expectedContext (lane : Fin 4) :
+    sourceToPackage
         (NightstreamFPrime.Layout.Stage1.PiCCSInputs.expectedContextStart +
           lane.val) =
       expectedContextPublicStart + lane.val := by
   have laneBound := lane.isLt
-  unfold sourceToSpartan
+  unfold sourceToPackage
   rw [ite_eq_right (by
     norm_num [pilotSourceColumnCount,
       NightstreamFPrime.Layout.Stage1.PiCCSInputs.expectedContextStart])]
@@ -241,9 +241,9 @@ theorem sourceToSpartan_expectedContext (lane : Fin 4) :
   norm_num [pilotSourceColumnCount,
     NightstreamFPrime.Layout.Stage1.PiCCSInputs.expectedContextStart]
 
-theorem sourceToSpartan_add_of_pilotPriorPrivate (start offset : Nat)
+theorem sourceToPackage_add_of_pilotPriorPrivate (start offset : Nat)
     (upper : start + offset < PilotProduction.priorPublicInputStart) :
-    sourceToSpartan (start + offset) = sourceToSpartan start + offset := by
+    sourceToPackage (start + offset) = sourceToPackage start + offset := by
   have startUpper : start < PilotProduction.priorPublicInputStart := by omega
   have sumPilot : start + offset < pilotSourceColumnCount := by
     norm_num [PilotProduction.priorPublicInputStart,
@@ -251,14 +251,14 @@ theorem sourceToSpartan_add_of_pilotPriorPrivate (start offset : Nat)
       pilotSourceColumnCount] at upper ⊢
     omega
   have startPilot : start < pilotSourceColumnCount := by omega
-  have sumPrior : start + offset < PilotSpartan.priorPublicStart := by
-    simpa [PilotSpartan.priorPublicStart] using! upper
-  have startPrior : start < PilotSpartan.priorPublicStart := by
-    simpa [PilotSpartan.priorPublicStart] using! startUpper
-  unfold sourceToSpartan
+  have sumPrior : start + offset < PilotPackageOrder.priorPublicStart := by
+    simpa [PilotPackageOrder.priorPublicStart] using! upper
+  have startPrior : start < PilotPackageOrder.priorPublicStart := by
+    simpa [PilotPackageOrder.priorPublicStart] using! startUpper
+  unfold sourceToPackage
   rw [ite_eq_left sumPilot, ite_eq_left startPilot]
-  rw [PilotSpartan.sourceToSpartan, ite_eq_left sumPrior,
-    PilotSpartan.sourceToSpartan, ite_eq_left startPrior]
+  rw [PilotPackageOrder.sourceToPackage, ite_eq_left sumPrior,
+    PilotPackageOrder.sourceToPackage, ite_eq_left startPrior]
   exact liftPilotColumn_add_of_input start offset (by
     norm_num [pilotInputPrivateColumnCount,
       PilotProduction.priorPublicInputStart,
@@ -266,10 +266,10 @@ theorem sourceToSpartan_add_of_pilotPriorPrivate (start offset : Nat)
       at upper ⊢
     omega)
 
-theorem sourceToSpartan_add_of_pilotPriorPublic (start offset : Nat)
+theorem sourceToPackage_add_of_pilotPriorPublic (start offset : Nat)
     (lower : PilotProduction.priorPublicInputStart ≤ start)
     (upper : start + offset < PilotProduction.outputPreimageStart) :
-    sourceToSpartan (start + offset) = sourceToSpartan start + offset := by
+    sourceToPackage (start + offset) = sourceToPackage start + offset := by
   have startUpper : start < PilotProduction.outputPreimageStart := by omega
   have sumPilot : start + offset < pilotSourceColumnCount := by
     norm_num [PilotProduction.outputPreimageStart,
@@ -278,39 +278,39 @@ theorem sourceToSpartan_add_of_pilotPriorPublic (start offset : Nat)
       PriorStateHash.publicWidth_eq, pilotSourceColumnCount] at upper ⊢
     omega
   have startPilot : start < pilotSourceColumnCount := by omega
-  have sumNotPrior : ¬ start + offset < PilotSpartan.priorPublicStart := by
-    simpa [PilotSpartan.priorPublicStart] using! lower.trans (Nat.le_add_right _ _)
-  have startNotPrior : ¬ start < PilotSpartan.priorPublicStart := by
-    simpa [PilotSpartan.priorPublicStart] using! lower
+  have sumNotPrior : ¬ start + offset < PilotPackageOrder.priorPublicStart := by
+    simpa [PilotPackageOrder.priorPublicStart] using! lower.trans (Nat.le_add_right _ _)
+  have startNotPrior : ¬ start < PilotPackageOrder.priorPublicStart := by
+    simpa [PilotPackageOrder.priorPublicStart] using! lower
   have sumBeforeOutput :
-      start + offset < PilotSpartan.outputPreimageStart := by
-    simpa [PilotSpartan.outputPreimageStart, PilotSpartan.priorPublicStart]
+      start + offset < PilotPackageOrder.outputPreimageStart := by
+    simpa [PilotPackageOrder.outputPreimageStart, PilotPackageOrder.priorPublicStart]
       using! upper
-  have startBeforeOutput : start < PilotSpartan.outputPreimageStart := by
-    simpa [PilotSpartan.outputPreimageStart, PilotSpartan.priorPublicStart]
+  have startBeforeOutput : start < PilotPackageOrder.outputPreimageStart := by
+    simpa [PilotPackageOrder.outputPreimageStart, PilotPackageOrder.priorPublicStart]
       using! startUpper
   have pilotAffine :
-      PilotSpartan.sourceToSpartan (start + offset) =
-        PilotSpartan.sourceToSpartan start + offset := by
-    unfold PilotSpartan.sourceToSpartan
+      PilotPackageOrder.sourceToPackage (start + offset) =
+        PilotPackageOrder.sourceToPackage start + offset := by
+    unfold PilotPackageOrder.sourceToPackage
     rw [ite_eq_right sumNotPrior, ite_eq_left sumBeforeOutput,
       ite_eq_right startNotPrior, ite_eq_left startBeforeOutput]
     omega
   have mappedLower : pilotPrivateColumnCount ≤
-      PilotSpartan.sourceToSpartan start := by
-    unfold PilotSpartan.sourceToSpartan
+      PilotPackageOrder.sourceToPackage start := by
+    unfold PilotPackageOrder.sourceToPackage
     rw [ite_eq_right startNotPrior, ite_eq_left startBeforeOutput]
-    rw [PilotSpartan.firstPublicStart_value]
+    rw [PilotPackageOrder.firstPublicStart_value]
     norm_num [pilotPrivateColumnCount]
     omega
-  unfold sourceToSpartan
+  unfold sourceToPackage
   rw [ite_eq_left sumPilot, ite_eq_left startPilot, pilotAffine]
   exact liftPilotColumn_add_of_public _ _ mappedLower
 
-theorem sourceToSpartan_add_of_proofInput (start offset : Nat)
+theorem sourceToPackage_add_of_proofInput (start offset : Nat)
     (lower : proofInputSourceStart ≤ start)
     (upper : start + offset < piCcsPhaseOffset) :
-    sourceToSpartan (start + offset) = sourceToSpartan start + offset := by
+    sourceToPackage (start + offset) = sourceToPackage start + offset := by
   have startUpper : start < piCcsPhaseOffset := by omega
   have pilotBeforeProof : pilotSourceColumnCount < proofInputSourceStart := by
     norm_num [pilotSourceColumnCount, proofInputSourceStart]
@@ -319,25 +319,25 @@ theorem sourceToSpartan_add_of_proofInput (start offset : Nat)
   have startNotPilot : ¬ start < pilotSourceColumnCount := by omega
   have sumNotContext : ¬ start + offset < proofInputSourceStart := by omega
   have startNotContext : ¬ start < proofInputSourceStart := by omega
-  unfold sourceToSpartan
+  unfold sourceToPackage
   rw [ite_eq_right sumNotPilot, ite_eq_right sumNotContext, ite_eq_left upper,
     ite_eq_right startNotPilot, ite_eq_right startNotContext, ite_eq_left startUpper]
   omega
 
-theorem sourceToSpartan_before_piCcsPhase (column : Nat)
+theorem sourceToPackage_before_piCcsPhase (column : Nat)
     (before : column < piCcsPhaseOffset) :
-    sourceToSpartan column < piCcsLocalStart ∨
-      privateColumnCount < sourceToSpartan column := by
+    sourceToPackage column < piCcsLocalStart ∨
+      privateColumnCount < sourceToPackage column := by
   by_cases pilot : column < pilotSourceColumnCount
-  · rw [sourceToSpartan, ite_eq_left pilot]
-    let mapped := PilotSpartan.sourceToSpartan column
-    have sourceBound : column < PilotSpartan.SourceColumnCount := by
+  · rw [sourceToPackage, ite_eq_left pilot]
+    let mapped := PilotPackageOrder.sourceToPackage column
+    have sourceBound : column < PilotPackageOrder.SourceColumnCount := by
       rw [← pilotSourceColumnCount_matches]
       exact pilot
-    have mappedBound : mapped < PilotSpartan.spartanColumnCount :=
-      PilotSpartan.sourceToSpartan_lt column sourceBound
-    have mappedNotConstant : mapped ≠ PilotSpartan.constantColumn :=
-      PilotSpartan.sourceToSpartan_ne_constant column sourceBound
+    have mappedBound : mapped < PilotPackageOrder.packageColumnCount :=
+      PilotPackageOrder.sourceToPackage_lt column sourceBound
+    have mappedNotConstant : mapped ≠ PilotPackageOrder.constantColumn :=
+      PilotPackageOrder.sourceToPackage_ne_constant column sourceBound
     change liftPilotColumn mapped < piCcsLocalStart ∨
       privateColumnCount < liftPilotColumn mapped
     unfold liftPilotColumn
@@ -360,19 +360,19 @@ theorem sourceToSpartan_before_piCcsPhase (column : Nat)
             exact mappedNotConstant
           omega)
   · by_cases context : column < proofInputSourceStart
-    · rw [sourceToSpartan, ite_eq_right pilot, ite_eq_left context]
+    · rw [sourceToPackage, ite_eq_right pilot, ite_eq_left context]
       exact Or.inr (by
         norm_num [expectedContextPublicStart, privateColumnCount, pilotPublicColumnCount] at *
         omega)
-    · rw [sourceToSpartan, ite_eq_right pilot, ite_eq_right context, ite_eq_left before]
+    · rw [sourceToPackage, ite_eq_right pilot, ite_eq_right context, ite_eq_left before]
       exact Or.inl (by
         norm_num [pilotInputPrivateColumnCount, proofInputSourceStart,
           piCcsPhaseOffset, piCcsLocalStart] at *
         omega)
 
-theorem sourceToSpartan_add_of_piCcsLocal (start offset : Nat)
+theorem sourceToPackage_add_of_piCcsLocal (start offset : Nat)
     (startLocal : piCcsPhaseOffset ≤ start) :
-    sourceToSpartan (start + offset) = sourceToSpartan start + offset := by
+    sourceToPackage (start + offset) = sourceToPackage start + offset := by
   have pilotBefore : pilotSourceColumnCount ≤ piCcsPhaseOffset := by
     norm_num [pilotSourceColumnCount, piCcsPhaseOffset]
   have proofInputBefore : proofInputSourceStart ≤ piCcsPhaseOffset := by
@@ -383,16 +383,16 @@ theorem sourceToSpartan_add_of_piCcsLocal (start offset : Nat)
   have sumAfterContext : ¬ start + offset < proofInputSourceStart := by omega
   have startAfterPhase : ¬ start < piCcsPhaseOffset := by omega
   have sumAfterPhase : ¬ start + offset < piCcsPhaseOffset := by omega
-  unfold sourceToSpartan
+  unfold sourceToPackage
   rw [ite_eq_right sumAfterPilot, ite_eq_right sumAfterContext, ite_eq_right sumAfterPhase,
     ite_eq_right startAfterPilot, ite_eq_right startAfterContext,
     ite_eq_right startAfterPhase]
   omega
 
-theorem piCcsLocalStart_le_sourceToSpartan (column : Nat)
+theorem piCcsLocalStart_le_sourceToPackage (column : Nat)
     (localBound : piCcsPhaseOffset ≤ column) :
-    piCcsLocalStart ≤ sourceToSpartan column := by
-  unfold sourceToSpartan
+    piCcsLocalStart ≤ sourceToPackage column := by
+  unfold sourceToPackage
   rw [ite_eq_right (by
     norm_num [pilotSourceColumnCount, piCcsPhaseOffset] at *
     omega), ite_eq_right (by
@@ -400,26 +400,26 @@ theorem piCcsLocalStart_le_sourceToSpartan (column : Nat)
       omega), ite_eq_right (by omega)]
   omega
 
-theorem sourceToSpartan_lt_of_piCcsLocal (left right : Nat)
+theorem sourceToPackage_lt_of_piCcsLocal (left right : Nat)
     (leftLocal : piCcsPhaseOffset ≤ left) (strict : left < right) :
-    sourceToSpartan left < sourceToSpartan right := by
-  have mapped := sourceToSpartan_add_of_piCcsLocal left (right - left)
+    sourceToPackage left < sourceToPackage right := by
+  have mapped := sourceToPackage_add_of_piCcsLocal left (right - left)
     leftLocal
   have restored : left + (right - left) = right := by omega
   rw [restored] at mapped
   rw [mapped]
   omega
 
-theorem sourceToSpartan_before_piCcsLocal (column start : Nat)
+theorem sourceToPackage_before_piCcsLocal (column start : Nat)
     (startLocal : piCcsPhaseOffset ≤ start) (before : column < start) :
-    sourceToSpartan column < sourceToSpartan start ∨
-      privateColumnCount < sourceToSpartan column := by
+    sourceToPackage column < sourceToPackage start ∨
+      privateColumnCount < sourceToPackage column := by
   by_cases beforePhase : column < piCcsPhaseOffset
-  · rcases sourceToSpartan_before_piCcsPhase column beforePhase with
+  · rcases sourceToPackage_before_piCcsPhase column beforePhase with
       mappedBefore | mappedPublic
     · exact Or.inl (by
-        have startMapped : piCcsLocalStart ≤ sourceToSpartan start := by
-          unfold sourceToSpartan
+        have startMapped : piCcsLocalStart ≤ sourceToPackage start := by
+          unfold sourceToPackage
           rw [ite_eq_right (by
             norm_num [pilotSourceColumnCount, piCcsPhaseOffset] at *
             omega), ite_eq_right (by
@@ -428,64 +428,64 @@ theorem sourceToSpartan_before_piCcsLocal (column start : Nat)
           omega
         omega)
     · exact Or.inr mappedPublic
-  · exact Or.inl (sourceToSpartan_lt_of_piCcsLocal column start
+  · exact Or.inl (sourceToPackage_lt_of_piCcsLocal column start
       (by omega) before)
 
-def spartanToSource (column : Nat) : Option Nat :=
+def packageToSource (column : Nat) : Option Nat :=
   if column < pilotInputPrivateColumnCount then
-    PilotSpartan.spartanToSource column
+    PilotPackageOrder.packageToSource column
   else if column < pilotInputPrivateColumnCount + proofInputColumnCount then
     some (proofInputSourceStart +
       (column - pilotInputPrivateColumnCount))
   else if column < piCcsLocalStart then
-    PilotSpartan.spartanToSource (column - proofInputColumnCount)
+    PilotPackageOrder.packageToSource (column - proofInputColumnCount)
   else if column < privateColumnCount then
     some (piCcsPhaseOffset + (column - piCcsLocalStart))
   else if column = constantColumn then
     none
   else if column < expectedContextPublicStart then
-    PilotSpartan.spartanToSource
+    PilotPackageOrder.packageToSource
       (pilotPrivateColumnCount +
         (column - privateColumnCount))
-  else if column < spartanColumnCount then
+  else if column < packageColumnCount then
     some (pilotSourceColumnCount +
       (column - expectedContextPublicStart))
   else
     none
 
-theorem sourceToSpartan_lt (column : Nat) (bound : column < SourceColumnCount) :
-    sourceToSpartan column < spartanColumnCount := by
+theorem sourceToPackage_lt (column : Nat) (bound : column < SourceColumnCount) :
+    sourceToPackage column < packageColumnCount := by
   have appendedBound := proofInputColumnCount_le_appendedPrivateColumnCount
   norm_num [proofInputColumnCount] at appendedBound
-  unfold sourceToSpartan
+  unfold sourceToPackage
   split
-  · have pilotBound : column < PilotSpartan.SourceColumnCount := by
+  · have pilotBound : column < PilotPackageOrder.SourceColumnCount := by
       rw [← pilotSourceColumnCount_matches]
       assumption
     exact liftPilotColumn_lt _
-      (PilotSpartan.sourceToSpartan_lt column pilotBound)
+      (PilotPackageOrder.sourceToPackage_lt column pilotBound)
   · split
     all_goals try split
     all_goals rw [sourceColumnCount_decomposition] at bound
     all_goals (norm_num [pilotSourceColumnCount,
       pilotInputPrivateColumnCount, proofInputSourceStart,
       piCcsPhaseOffset, piCcsLocalStart, expectedContextPublicStart,
-      privateColumnCount, spartanColumnCount,
+      privateColumnCount, packageColumnCount,
       sourceColumnCount_decomposition] at *; omega)
 
-theorem sourceToSpartan_ne_constant (column : Nat)
+theorem sourceToPackage_ne_constant (column : Nat)
     (bound : column < SourceColumnCount) :
-    sourceToSpartan column ≠ constantColumn := by
+    sourceToPackage column ≠ constantColumn := by
   have appendedBound := proofInputColumnCount_le_appendedPrivateColumnCount
   norm_num [proofInputColumnCount] at appendedBound
-  unfold sourceToSpartan
+  unfold sourceToPackage
   split
-  · have pilotBound : column < PilotSpartan.SourceColumnCount := by
+  · have pilotBound : column < PilotPackageOrder.SourceColumnCount := by
       rw [← pilotSourceColumnCount_matches]
       assumption
     exact liftPilotColumn_ne_constant _
-      (PilotSpartan.sourceToSpartan_lt column pilotBound)
-      (PilotSpartan.sourceToSpartan_ne_constant column pilotBound)
+      (PilotPackageOrder.sourceToPackage_lt column pilotBound)
+      (PilotPackageOrder.sourceToPackage_ne_constant column pilotBound)
   · split
     all_goals try split
     all_goals rw [sourceColumnCount_decomposition] at bound
@@ -494,29 +494,29 @@ theorem sourceToSpartan_ne_constant (column : Nat)
       piCcsPhaseOffset, piCcsLocalStart, expectedContextPublicStart, privateColumnCount,
       constantColumn, pilotPrivateColumnCount, expectedContextColumnCount] at *; omega)
 
-theorem spartanToSource_sourceToSpartan (column : Nat)
+theorem packageToSource_sourceToPackage (column : Nat)
     (bound : column < SourceColumnCount) :
-    spartanToSource (sourceToSpartan column) = some column := by
+    packageToSource (sourceToPackage column) = some column := by
   have appendedBound := proofInputColumnCount_le_appendedPrivateColumnCount
   norm_num [proofInputColumnCount] at appendedBound
   by_cases pilot : column < pilotSourceColumnCount
-  · have pilotBound : column < PilotSpartan.SourceColumnCount := by
+  · have pilotBound : column < PilotPackageOrder.SourceColumnCount := by
       rw [← pilotSourceColumnCount_matches]
       exact pilot
-    have oldBound := PilotSpartan.sourceToSpartan_lt column pilotBound
+    have oldBound := PilotPackageOrder.sourceToPackage_lt column pilotBound
     have oldNotConstant :=
-      PilotSpartan.sourceToSpartan_ne_constant column pilotBound
+      PilotPackageOrder.sourceToPackage_ne_constant column pilotBound
     have oldInverse :=
-      PilotSpartan.spartanToSource_sourceToSpartan column pilotBound
-    let mapped := PilotSpartan.sourceToSpartan column
-    have mappedBound : mapped < PilotSpartan.spartanColumnCount := oldBound
-    have mappedNotConstant : mapped ≠ PilotSpartan.constantColumn :=
+      PilotPackageOrder.packageToSource_sourceToPackage column pilotBound
+    let mapped := PilotPackageOrder.sourceToPackage column
+    have mappedBound : mapped < PilotPackageOrder.packageColumnCount := oldBound
+    have mappedNotConstant : mapped ≠ PilotPackageOrder.constantColumn :=
       oldNotConstant
-    rw [sourceToSpartan, ite_eq_left pilot]
+    rw [sourceToPackage, ite_eq_left pilot]
     unfold liftPilotColumn
     by_cases inputPilot : mapped < pilotInputPrivateColumnCount
     · rw [ite_eq_left inputPilot]
-      unfold spartanToSource
+      unfold packageToSource
       rw [ite_eq_left inputPilot]
       exact oldInverse
     · rw [ite_eq_right inputPilot]
@@ -535,7 +535,7 @@ theorem spartanToSource_sourceToSpartan (column : Nat)
           norm_num [pilotPrivateColumnCount, proofInputColumnCount,
             piCcsLocalStart] at *
           omega
-        unfold spartanToSource
+        unfold packageToSource
         rw [ite_eq_right notInput, ite_eq_right notProof, ite_eq_left shiftedBound]
         have restored :
             mapped + proofInputColumnCount - proofInputColumnCount =
@@ -547,7 +547,7 @@ theorem spartanToSource_sourceToSpartan (column : Nat)
         have mappedNotPrivate : mapped ≠ pilotPrivateColumnCount := by
           intro equals
           apply mappedNotConstant
-          rw [PilotSpartan.constantColumn,
+          rw [PilotPackageOrder.constantColumn,
             ← pilotPrivateColumnCount_matches]
           exact equals
         have mappedAbove : pilotPrivateColumnCount < mapped := by
@@ -586,8 +586,8 @@ theorem spartanToSource_sourceToSpartan (column : Nat)
             Nat.sub_pos_of_lt mappedAbove
           omega
         have mappedBoundNumeric : mapped < 5343331 := by
-          rw [PilotSpartan.spartanColumnCount_eq,
-            PilotSpartan.sourceColumnCount_eq] at mappedBound
+          rw [PilotPackageOrder.packageColumnCount_eq,
+            PilotPackageOrder.sourceColumnCount_eq] at mappedBound
           norm_num at mappedBound
           exact mappedBound
         have combinedPilotPublicBound :
@@ -597,7 +597,7 @@ theorem spartanToSource_sourceToSpartan (column : Nat)
           norm_num [expectedContextPublicStart, pilotPublicColumnCount,
             pilotPrivateColumnCount]
           omega
-        unfold spartanToSource
+        unfold packageToSource
         rw [ite_eq_right notPilotPrivate, ite_eq_right notProofInput,
           ite_eq_right notShiftedPilot, ite_eq_right notCombinedPrivate,
           ite_eq_right notCombinedConstant, ite_eq_left combinedPilotPublicBound]
@@ -609,7 +609,7 @@ theorem spartanToSource_sourceToSpartan (column : Nat)
           omega
         rw [restored]
         exact oldInverse
-  · rw [sourceToSpartan, ite_eq_right pilot]
+  · rw [sourceToPackage, ite_eq_right pilot]
     by_cases context : column < proofInputSourceStart
     · rw [ite_eq_left context]
       have notPilotInput :
@@ -648,9 +648,9 @@ theorem spartanToSource_sourceToSpartan (column : Nat)
         omega
       have contextBound :
           expectedContextPublicStart +
-              (column - pilotSourceColumnCount) < spartanColumnCount := by
+              (column - pilotSourceColumnCount) < packageColumnCount := by
         exact contextColumn_lt column context
-      unfold spartanToSource
+      unfold packageToSource
       rw [ite_eq_right notPilotInput, ite_eq_right notProofInput,
         ite_eq_right notShiftedPilot, ite_eq_right notCombinedPrivate,
         ite_eq_right notCombinedConstant, ite_eq_right notPilotPublic,
@@ -673,7 +673,7 @@ theorem spartanToSource_sourceToSpartan (column : Nat)
           norm_num [proofInputSourceStart, piCcsPhaseOffset,
             proofInputColumnCount] at *
           omega
-        unfold spartanToSource
+        unfold packageToSource
         rw [ite_eq_right notPilotInput, ite_eq_left proofBound]
         apply congrArg some
         norm_num [proofInputSourceStart,
@@ -702,37 +702,37 @@ theorem spartanToSource_sourceToSpartan (column : Nat)
           norm_num [piCcsLocalStart, piCcsPhaseOffset,
             privateColumnCount] at *
           omega
-        unfold spartanToSource
+        unfold packageToSource
         rw [ite_eq_right notPilotInput, ite_eq_right notProofInput,
           ite_eq_right notShiftedPilot, ite_eq_left localBound]
         apply congrArg some
         norm_num [piCcsLocalStart, piCcsPhaseOffset] at proofInput ⊢
         omega
 
-theorem sourceToSpartan_injective {left right : Nat}
+theorem sourceToPackage_injective {left right : Nat}
     (leftBound : left < SourceColumnCount)
     (rightBound : right < SourceColumnCount)
-    (equals : sourceToSpartan left = sourceToSpartan right) : left = right := by
-  have leftInverse := spartanToSource_sourceToSpartan left leftBound
-  have rightInverse := spartanToSource_sourceToSpartan right rightBound
+    (equals : sourceToPackage left = sourceToPackage right) : left = right := by
+  have leftInverse := packageToSource_sourceToPackage left leftBound
+  have rightInverse := packageToSource_sourceToPackage right rightBound
   rw [equals, rightInverse] at leftInverse
   exact (Option.some.inj leftInverse).symm
 
 def pullback (target : Env) : Env :=
-  fun source => target (sourceToSpartan source)
+  fun source => target (sourceToPackage source)
 
 def copyMappedInterval (base source : Env) (sourceStart length : Nat) : Env :=
   fun target =>
-    if sourceToSpartan sourceStart ≤ target ∧
-        target < sourceToSpartan sourceStart + length then
-      source (sourceStart + (target - sourceToSpartan sourceStart))
+    if sourceToPackage sourceStart ≤ target ∧
+        target < sourceToPackage sourceStart + length then
+      source (sourceStart + (target - sourceToPackage sourceStart))
     else
       base target
 
 theorem copyMappedInterval_agreesOutside (base source : Env)
     (sourceStart length : Nat) :
     AgreesOutside base (copyMappedInterval base source sourceStart length)
-      (sourceToSpartan sourceStart) length := by
+      (sourceToPackage sourceStart) length := by
   intro target outside
   unfold copyMappedInterval
   rw [ite_eq_right]
@@ -744,21 +744,21 @@ theorem copyMappedInterval_agreesOutside (base source : Env)
 theorem pullback_copyMappedInterval_eq (base source : Env)
     (sourceStart length : Nat)
     (startLocal : piCcsPhaseOffset ≤ sourceStart)
-    (targetEndPrivate : sourceToSpartan sourceStart + length ≤
+    (targetEndPrivate : sourceToPackage sourceStart + length ≤
       privateColumnCount)
     (sourceAgrees : AgreesOutside (pullback base) source sourceStart length) :
     pullback (copyMappedInterval base source sourceStart length) = source := by
   funext column
   by_cases before : column < sourceStart
-  · have mappedOutside : sourceToSpartan column <
-          sourceToSpartan sourceStart ∨
-        sourceToSpartan sourceStart + length ≤ sourceToSpartan column := by
-      rcases sourceToSpartan_before_piCcsLocal column sourceStart startLocal
+  · have mappedOutside : sourceToPackage column <
+          sourceToPackage sourceStart ∨
+        sourceToPackage sourceStart + length ≤ sourceToPackage column := by
+      rcases sourceToPackage_before_piCcsLocal column sourceStart startLocal
           before with mappedBefore | mappedPublic
       · exact Or.inl mappedBefore
       · exact Or.inr (by omega)
     have copiedBase : copyMappedInterval base source sourceStart length
-        (sourceToSpartan column) = base (sourceToSpartan column) := by
+        (sourceToPackage column) = base (sourceToPackage column) := by
       unfold copyMappedInterval
       rw [ite_eq_right]
       intro inside
@@ -770,15 +770,15 @@ theorem pullback_copyMappedInterval_eq (base source : Env)
   · by_cases after : sourceStart + length ≤ column
     · have restored : sourceStart + (column - sourceStart) = column := by
         omega
-      have mapped := sourceToSpartan_add_of_piCcsLocal sourceStart
+      have mapped := sourceToPackage_add_of_piCcsLocal sourceStart
         (column - sourceStart) startLocal
       rw [restored] at mapped
-      have mappedAfter : sourceToSpartan sourceStart + length ≤
-          sourceToSpartan column := by
+      have mappedAfter : sourceToPackage sourceStart + length ≤
+          sourceToPackage column := by
         rw [mapped]
         omega
       have copiedBase : copyMappedInterval base source sourceStart length
-          (sourceToSpartan column) = base (sourceToSpartan column) := by
+          (sourceToPackage column) = base (sourceToPackage column) := by
         unfold copyMappedInterval
         rw [ite_eq_right]
         intro inside
@@ -787,12 +787,12 @@ theorem pullback_copyMappedInterval_eq (base source : Env)
       exact (sourceAgrees column (Or.inr after)).symm
     · have restored : sourceStart + (column - sourceStart) = column := by
         omega
-      have mapped := sourceToSpartan_add_of_piCcsLocal sourceStart
+      have mapped := sourceToPackage_add_of_piCcsLocal sourceStart
         (column - sourceStart) startLocal
       rw [restored] at mapped
-      have mappedInside : sourceToSpartan sourceStart ≤
-          sourceToSpartan column ∧
-          sourceToSpartan column < sourceToSpartan sourceStart + length := by
+      have mappedInside : sourceToPackage sourceStart ≤
+          sourceToPackage column ∧
+          sourceToPackage column < sourceToPackage sourceStart + length := by
         rw [mapped]
         constructor <;> omega
       unfold pullback copyMappedInterval
@@ -803,7 +803,7 @@ theorem pullback_copyMappedInterval_eq (base source : Env)
 def remapCombination (combination : R1CS.LinearCombination) :
     R1CS.LinearCombination :=
   ⟨combination.constant,
-    combination.terms.map fun term => (sourceToSpartan term.1, term.2)⟩
+    combination.terms.map fun term => (sourceToPackage term.1, term.2)⟩
 
 theorem remapCombination_eval (target : Env)
     (combination : R1CS.LinearCombination) :
@@ -841,7 +841,7 @@ theorem remapRows_hold (target : Env) (rows : List R1CS.Row) :
 theorem remapRows_hold_copyMappedInterval (rows : List R1CS.Row)
     (base source : Env) (sourceStart length : Nat)
     (startLocal : piCcsPhaseOffset ≤ sourceStart)
-    (targetEndPrivate : sourceToSpartan sourceStart + length ≤
+    (targetEndPrivate : sourceToPackage sourceStart + length ≤
       privateColumnCount)
     (sourceAgrees : AgreesOutside (pullback base) source sourceStart length)
     (holds : R1CS.RowsHold source rows) :
@@ -856,25 +856,25 @@ def domainSize : Nat := 2 ^ cubeVariables
 
 def paddedConstantColumn : Nat := domainSize
 
-def paddedSpartanColumnCount : Nat :=
+def paddedPackageColumnCount : Nat :=
   domainSize + 1 + publicColumnCount
 
 theorem domainSize_eq : domainSize = 268435456 := by
   norm_num [domainSize, cubeVariables]
 
-def spartanToPadded (column : Nat) : Nat :=
+def packageToPadded (column : Nat) : Nat :=
   if column < constantColumn then
     column
   else
     domainSize + (column - constantColumn)
 
 def paddedPullback (target : Env) : Env :=
-  fun column => target (spartanToPadded column)
+  fun column => target (packageToPadded column)
 
 def padCombination (combination : R1CS.LinearCombination) :
     R1CS.LinearCombination :=
   ⟨combination.constant,
-    combination.terms.map fun term => (spartanToPadded term.1, term.2)⟩
+    combination.terms.map fun term => (packageToPadded term.1, term.2)⟩
 
 def padRow (row : R1CS.Row) : R1CS.Row :=
   ⟨padCombination row.a, padCombination row.b, padCombination row.c⟩
@@ -886,4 +886,4 @@ def zeroRow : R1CS.Row :=
   ⟨R1CS.LinearCombination.zero, R1CS.LinearCombination.zero,
     R1CS.LinearCombination.zero⟩
 
-end NightstreamFPrime.Layout.Stage1.Spartan
+end NightstreamFPrime.Layout.Stage1.PackageOrder

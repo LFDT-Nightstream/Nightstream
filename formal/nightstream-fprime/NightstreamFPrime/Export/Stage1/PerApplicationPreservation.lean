@@ -375,8 +375,8 @@ private theorem piCcsInvocation_witnessBound
   have bound := scheduleWithin_member_witnessBound schedule.1 invocation member
   exact Nat.le_trans bound (by
     change PiCCSInvocations.invocationCeiling ≤
-      NightstreamFPrime.Layout.Stage1.Spartan.constantColumn
-    rw [NightstreamFPrime.Layout.Stage1.Spartan.constantColumn_eq_private]
+      NightstreamFPrime.Layout.Stage1.PackageOrder.constantColumn
+    rw [NightstreamFPrime.Layout.Stage1.PackageOrder.constantColumn_eq_private]
     exact PiCCSInvocations.invocationCeiling_le_private)
 
 private theorem samplerEntryInvocation_witnessStart
@@ -386,7 +386,7 @@ private theorem samplerEntryInvocation_witnessStart
         (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits)
         source) :
     invocation.witnessStart =
-      NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+      NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
         (PiRLCSamplerInvocations.sourceLogicalStart source) := by
   simp [PiRLCSamplerInvocations.entryInvocations,
     PiRLCSamplerInvocations.entryTrace, Invocations.compileActions,
@@ -405,25 +405,25 @@ private theorem samplerInvocation_witnessBound
     (member : invocation ∈ PiRLCSamplerInvocations.invocations
       (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits)) :
     invocation.witnessStart + 1096 ≤ basePackage.layout.constantColumn := by
-  have bounded (start : Nat) (after : Spartan.piCcsPhaseOffset ≤ start)
-      (before : start + 1096 < Spartan.SourceColumnCount) :
-      Spartan.sourceToSpartan start + 1096 ≤ basePackage.layout.constantColumn := by
-    have mapped := Spartan.sourceToSpartan_lt_of_piCcsLocal (start + 1096)
-      Spartan.SourceColumnCount (by omega) before
-    rw [Spartan.sourceToSpartan_add_of_piCcsLocal start 1096 after,
-      Spartan.sourceToSpartan_sourceColumnCount] at mapped
+  have bounded (start : Nat) (after : PackageOrder.piCcsPhaseOffset ≤ start)
+      (before : start + 1096 < PackageOrder.SourceColumnCount) :
+      PackageOrder.sourceToPackage start + 1096 ≤ basePackage.layout.constantColumn := by
+    have mapped := PackageOrder.sourceToPackage_lt_of_piCcsLocal (start + 1096)
+      PackageOrder.SourceColumnCount (by omega) before
+    rw [PackageOrder.sourceToPackage_add_of_piCcsLocal start 1096 after,
+      PackageOrder.sourceToPackage_sourceColumnCount] at mapped
     exact mapped.le
   obtain ⟨source, sourceMember, sourceInvocationMember⟩ := List.mem_flatMap.mp member
   have sourceLt : source < 17 := List.mem_range.mp sourceMember
   rcases List.mem_append.mp sourceInvocationMember with entryMember | advanceMember
   · rw [samplerEntryInvocation_witnessStart source invocation entryMember]
     apply bounded
-    · norm_num [Spartan.piCcsPhaseOffset, PiRLCSamplerInvocations.sourceLogicalStart,
+    · norm_num [PackageOrder.piCcsPhaseOffset, PiRLCSamplerInvocations.sourceLogicalStart,
         PiRLCStarts.samplerSourceLogicalStart, PiRLCStarts.samplerLogicalStart,
         PiRLCStarts.phaseLogicalStart_eq, PiRLC.v1_2.Formal.samplerOffset,
         PiRLC.v1_2.SamplerChain.sourceOffset, PiRLC.v1_2.Sampler.counts.1]
       omega
-    · rw [Spartan.sourceColumnCount_eq]
+    · rw [PackageOrder.sourceColumnCount_eq]
       norm_num [PiRLCSamplerInvocations.sourceLogicalStart, PiRLCStarts.samplerSourceLogicalStart,
         PiRLCStarts.samplerLogicalStart, PiRLCStarts.phaseLogicalStart_eq,
         PiRLC.v1_2.Formal.samplerOffset, PiRLC.v1_2.SamplerChain.sourceOffset,
@@ -433,14 +433,14 @@ private theorem samplerInvocation_witnessBound
     subst invocation
     rw [PiRLCSamplerInvocations.advanceInvocation, Invocations.invocation_witnessStart]
     apply bounded
-    · norm_num [Spartan.piCcsPhaseOffset, PiRLCStarts.advanceLogicalStart,
+    · norm_num [PackageOrder.piCcsPhaseOffset, PiRLCStarts.advanceLogicalStart,
         PiRLCStarts.samplerSourceLogicalStart, PiRLCStarts.samplerLogicalStart,
         PiRLCStarts.phaseLogicalStart_eq, PiRLC.v1_2.Formal.samplerOffset,
         PiRLC.v1_2.SamplerChain.sourceOffset, PiRLC.v1_2.Sampler.advanceOffset,
         PiRLC.v1_2.Sampler.rangeOffset, PiRLC.v1_2.Sampler.counts.1,
         Gadgets.Sampling.WideReduction.Program.privateCount_eq]
       omega
-    · rw [Spartan.sourceColumnCount_eq]
+    · rw [PackageOrder.sourceColumnCount_eq]
       norm_num [PiRLCStarts.advanceLogicalStart, PiRLCStarts.samplerSourceLogicalStart,
         PiRLCStarts.samplerLogicalStart, PiRLCStarts.phaseLogicalStart_eq,
         PiRLC.v1_2.Formal.samplerOffset, PiRLC.v1_2.SamplerChain.sourceOffset,
@@ -471,16 +471,16 @@ theorem canonicalHashChain_private (chain : HashChain)
     exact Data.circuitPackage_hashChains] at member
   simp only [List.mem_cons, List.not_mem_nil, or_false] at member
   have boundary : basePackage.layout.constantColumn =
-      NightstreamFPrime.Layout.Stage1.Spartan.privateColumnCount := by
+      NightstreamFPrime.Layout.Stage1.PackageOrder.privateColumnCount := by
     unfold basePackage
     rw [Data.circuitPackage_layout]
     rfl
   rcases member with rfl | rfl
   all_goals
     constructor
-    · rw [boundary, NightstreamFPrime.Layout.Stage1.Spartan.privateColumnCount_eq]
+    · rw [boundary, NightstreamFPrime.Layout.Stage1.PackageOrder.privateColumnCount_eq]
       decide
-    · rw [boundary, NightstreamFPrime.Layout.Stage1.Spartan.privateColumnCount_eq]
+    · rw [boundary, NightstreamFPrime.Layout.Stage1.PackageOrder.privateColumnCount_eq]
       decide
     · rfl
 
@@ -650,7 +650,7 @@ theorem shiftedCompactInputColumn
   | nil =>
       have zeroPrivate : 0 < basePackage.layout.constantColumn := by
         norm_num [basePackage, Data.circuitPackage_layout, Data.physicalLayout,
-          NightstreamFPrime.Layout.Stage1.Spartan.constantColumn]
+          NightstreamFPrime.Layout.Stage1.PackageOrder.constantColumn]
       simp [compactInputColumn, shiftColumn, zeroPrivate]
   | cons range ranges inductionHypothesis =>
       by_cases selected :

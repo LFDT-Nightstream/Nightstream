@@ -96,11 +96,11 @@ private theorem outputInputPrivate
 
 private theorem priorInputLift (index : Fin Data.priorChain.inputLength) :
     Data.priorChain.inputStart + index.val =
-      Spartan.liftPilotColumn
+      PackageOrder.liftPilotColumn
         (PilotData.priorChain.inputStart + index.val) := by
   have indexBound := index.isLt
   change index.val < 28913 at indexBound
-  have lifted := Spartan.liftPilotColumn_add_of_input
+  have lifted := PackageOrder.liftPilotColumn_add_of_input
     PilotData.priorChain.inputStart index.val (by
       change 0 + index.val < 57826
       omega)
@@ -109,11 +109,11 @@ private theorem priorInputLift (index : Fin Data.priorChain.inputLength) :
 
 private theorem outputInputLift (index : Fin Data.outputChain.inputLength) :
     Data.outputChain.inputStart + index.val =
-      Spartan.liftPilotColumn
+      PackageOrder.liftPilotColumn
         (PilotData.outputChain.inputStart + index.val) := by
   have indexBound := index.isLt
   change index.val < 28913 at indexBound
-  have lifted := Spartan.liftPilotColumn_add_of_input
+  have lifted := PackageOrder.liftPilotColumn_add_of_input
     PilotData.outputChain.inputStart index.val (by
       change 28913 + index.val < 57826
       omega)

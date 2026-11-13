@@ -70,16 +70,16 @@ def base (program : Program) : SourceProjection :=
   .mapped [basePrivateRange, baseSuffixRange program]
 
 def pilotInputRange : SourceProjectionRange :=
-  ⟨0, 0, Spartan.pilotInputPrivateColumnCount⟩
+  ⟨0, 0, PackageOrder.pilotInputPrivateColumnCount⟩
 
 def pilotPrivateRange : SourceProjectionRange :=
-  ⟨Spartan.pilotInputPrivateColumnCount + Spartan.proofInputColumnCount,
-    Spartan.pilotInputPrivateColumnCount,
-    Spartan.pilotPrivateColumnCount - Spartan.pilotInputPrivateColumnCount⟩
+  ⟨PackageOrder.pilotInputPrivateColumnCount + PackageOrder.proofInputColumnCount,
+    PackageOrder.pilotInputPrivateColumnCount,
+    PackageOrder.pilotPrivateColumnCount - PackageOrder.pilotInputPrivateColumnCount⟩
 
 def pilotSuffixRange (program : Program) : SourceProjectionRange :=
-  ⟨finalConstant program, PilotSpartan.privateColumnCount,
-    PilotSpartan.spartanColumnCount - PilotSpartan.privateColumnCount⟩
+  ⟨finalConstant program, PilotPackageOrder.privateColumnCount,
+    PilotPackageOrder.packageColumnCount - PilotPackageOrder.privateColumnCount⟩
 
 def pilot (program : Program) : SourceProjection :=
   .mapped [pilotInputRange, pilotPrivateRange, pilotSuffixRange program]
@@ -143,17 +143,17 @@ theorem base_column (program : Program) (column : Nat)
     simp [base, SourceProjection.column?, first, second]
 
 private theorem pilot_column_input (program : Program) (column : Nat)
-    (inputColumn : column < Spartan.pilotInputPrivateColumnCount) :
+    (inputColumn : column < PackageOrder.pilotInputPrivateColumnCount) :
     (pilot program).column?
         (PerApplicationPackage.shiftColumn program
-          (Spartan.liftPilotColumn column)) = some column := by
-  have lifted : Spartan.liftPilotColumn column = column := by
-    simp [Spartan.liftPilotColumn, inputColumn]
+          (PackageOrder.liftPilotColumn column)) = some column := by
+  have lifted : PackageOrder.liftPilotColumn column = column := by
+    simp [PackageOrder.liftPilotColumn, inputColumn]
   have belowBase :
       column < PerApplicationPackage.basePackage.layout.constantColumn := by
     norm_num [PerApplicationPackage.basePackage,
       Data.circuitPackage_layout, Data.physicalLayout,
-      Spartan.pilotInputPrivateColumnCount, Spartan.constantColumn]
+      PackageOrder.pilotInputPrivateColumnCount, PackageOrder.constantColumn]
       at inputColumn ⊢
     omega
   have first : pilotInputRange.column? column = some column := by
@@ -162,8 +162,8 @@ private theorem pilot_column_input (program : Program) (column : Nat)
         ⟨column, by simpa [pilotInputRange] using inputColumn⟩)
   have second : pilotPrivateRange.column? column = none := by
     apply SourceProjectionRange.column?_eq_none_of_before
-    norm_num [pilotPrivateRange, Spartan.pilotInputPrivateColumnCount,
-      Spartan.proofInputColumnCount] at inputColumn ⊢
+    norm_num [pilotPrivateRange, PackageOrder.pilotInputPrivateColumnCount,
+      PackageOrder.proofInputColumnCount] at inputColumn ⊢
     omega
   have third : (pilotSuffixRange program).column? column = none := by
     have before : column < (pilotSuffixRange program).packageStart := by
@@ -182,94 +182,94 @@ private theorem pilot_column_input (program : Program) (column : Nat)
       third
 
 private theorem pilot_column_private (program : Program) (column : Nat)
-    (inputLe : Spartan.pilotInputPrivateColumnCount ≤ column)
-    (privateColumn : column < Spartan.pilotPrivateColumnCount) :
+    (inputLe : PackageOrder.pilotInputPrivateColumnCount ≤ column)
+    (privateColumn : column < PackageOrder.pilotPrivateColumnCount) :
     (pilot program).column?
         (PerApplicationPackage.shiftColumn program
-          (Spartan.liftPilotColumn column)) = some column := by
-  have notInput : ¬ column < Spartan.pilotInputPrivateColumnCount := by omega
-  have lifted : Spartan.liftPilotColumn column =
-      column + Spartan.proofInputColumnCount := by
-    simp only [Spartan.liftPilotColumn, ite_eq_right notInput, ite_eq_left privateColumn]
+          (PackageOrder.liftPilotColumn column)) = some column := by
+  have notInput : ¬ column < PackageOrder.pilotInputPrivateColumnCount := by omega
+  have lifted : PackageOrder.liftPilotColumn column =
+      column + PackageOrder.proofInputColumnCount := by
+    simp only [PackageOrder.liftPilotColumn, ite_eq_right notInput, ite_eq_left privateColumn]
   have belowBase :
-      column + Spartan.proofInputColumnCount <
+      column + PackageOrder.proofInputColumnCount <
         PerApplicationPackage.basePackage.layout.constantColumn := by
     norm_num [PerApplicationPackage.basePackage,
       Data.circuitPackage_layout, Data.physicalLayout,
-      Spartan.pilotPrivateColumnCount, Spartan.proofInputColumnCount,
-      Spartan.constantColumn] at privateColumn ⊢
+      PackageOrder.pilotPrivateColumnCount, PackageOrder.proofInputColumnCount,
+      PackageOrder.constantColumn] at privateColumn ⊢
     omega
-  let offset := column - Spartan.pilotInputPrivateColumnCount
+  let offset := column - PackageOrder.pilotInputPrivateColumnCount
   have offsetBound : offset < pilotPrivateRange.count := by
-    norm_num [offset, pilotPrivateRange, Spartan.pilotPrivateColumnCount,
-      Spartan.pilotInputPrivateColumnCount] at inputLe privateColumn ⊢
+    norm_num [offset, pilotPrivateRange, PackageOrder.pilotPrivateColumnCount,
+      PackageOrder.pilotInputPrivateColumnCount] at inputLe privateColumn ⊢
     omega
-  have packageEq : column + Spartan.proofInputColumnCount =
+  have packageEq : column + PackageOrder.proofInputColumnCount =
       pilotPrivateRange.packageStart + offset := by
-    norm_num [pilotPrivateRange, offset, Spartan.pilotInputPrivateColumnCount,
-      Spartan.proofInputColumnCount] at inputLe ⊢
+    norm_num [pilotPrivateRange, offset, PackageOrder.pilotInputPrivateColumnCount,
+      PackageOrder.proofInputColumnCount] at inputLe ⊢
     omega
   have sourceEq : pilotPrivateRange.sourceStart + offset = column := by
-    norm_num [pilotPrivateRange, offset, Spartan.pilotInputPrivateColumnCount]
+    norm_num [pilotPrivateRange, offset, PackageOrder.pilotInputPrivateColumnCount]
       at inputLe ⊢
     omega
   have first : pilotInputRange.column?
-      (column + Spartan.proofInputColumnCount) = none := by
+      (column + PackageOrder.proofInputColumnCount) = none := by
     apply SourceProjectionRange.column?_eq_none_of_after
-    norm_num [pilotInputRange, Spartan.pilotInputPrivateColumnCount,
-      Spartan.proofInputColumnCount] at inputLe ⊢
+    norm_num [pilotInputRange, PackageOrder.pilotInputPrivateColumnCount,
+      PackageOrder.proofInputColumnCount] at inputLe ⊢
     omega
   have second : pilotPrivateRange.column?
-      (column + Spartan.proofInputColumnCount) = some column := by
+      (column + PackageOrder.proofInputColumnCount) = some column := by
     rw [packageEq]
     simpa [sourceEq] using
       (SourceProjectionRange.column?_at pilotPrivateRange
         ⟨offset, offsetBound⟩)
   have third : (pilotSuffixRange program).column?
-      (column + Spartan.proofInputColumnCount) = none := by
-    have before : column + Spartan.proofInputColumnCount <
+      (column + PackageOrder.proofInputColumnCount) = none := by
+    have before : column + PackageOrder.proofInputColumnCount <
         (pilotSuffixRange program).packageStart := by
       norm_num [pilotSuffixRange, finalConstant,
         PerApplicationPackage.basePackage, Data.circuitPackage_layout,
-        Data.physicalLayout, Spartan.constantColumn,
-        Spartan.pilotPrivateColumnCount, Spartan.proofInputColumnCount]
+        Data.physicalLayout, PackageOrder.constantColumn,
+        PackageOrder.pilotPrivateColumnCount, PackageOrder.proofInputColumnCount]
         at privateColumn ⊢
       omega
     exact SourceProjectionRange.column?_eq_none_of_before
       (pilotSuffixRange program) _ before
   have shifted := PerApplicationPackage.shiftColumn_private program
-    (column + Spartan.proofInputColumnCount) belowBase
+    (column + PackageOrder.proofInputColumnCount) belowBase
   rw [lifted, shifted]
   simpa only [pilot] using
     SourceProjection.mapped_three_second_column? pilotInputRange
       pilotPrivateRange (pilotSuffixRange program)
-      (column + Spartan.proofInputColumnCount) column first second third
+      (column + PackageOrder.proofInputColumnCount) column first second third
 
 private theorem pilot_column_suffix (program : Program) (column : Nat)
-    (privateLe : Spartan.pilotPrivateColumnCount ≤ column)
-    (bound : column < PilotSpartan.spartanColumnCount) :
+    (privateLe : PackageOrder.pilotPrivateColumnCount ≤ column)
+    (bound : column < PilotPackageOrder.packageColumnCount) :
     (pilot program).column?
         (PerApplicationPackage.shiftColumn program
-          (Spartan.liftPilotColumn column)) = some column := by
-  have notInput : ¬ column < Spartan.pilotInputPrivateColumnCount := by
-    norm_num [Spartan.pilotInputPrivateColumnCount,
-      Spartan.pilotPrivateColumnCount] at privateLe ⊢
+          (PackageOrder.liftPilotColumn column)) = some column := by
+  have notInput : ¬ column < PackageOrder.pilotInputPrivateColumnCount := by
+    norm_num [PackageOrder.pilotInputPrivateColumnCount,
+      PackageOrder.pilotPrivateColumnCount] at privateLe ⊢
     omega
-  have notPrivate : ¬ column < Spartan.pilotPrivateColumnCount := by omega
-  have lifted : Spartan.liftPilotColumn column =
+  have notPrivate : ¬ column < PackageOrder.pilotPrivateColumnCount := by omega
+  have lifted : PackageOrder.liftPilotColumn column =
       PerApplicationPackage.basePackage.layout.constantColumn +
-        (column - Spartan.pilotPrivateColumnCount) := by
-    unfold Spartan.liftPilotColumn
+        (column - PackageOrder.pilotPrivateColumnCount) := by
+    unfold PackageOrder.liftPilotColumn
     rw [ite_eq_right notInput, ite_eq_right notPrivate]
     rfl
-  let offset := column - Spartan.pilotPrivateColumnCount
+  let offset := column - PackageOrder.pilotPrivateColumnCount
   have offsetBound : offset < 325 := by
-    norm_num [offset, Spartan.pilotPrivateColumnCount,
-      PilotSpartan.spartanColumnCount_value] at privateLe bound ⊢
+    norm_num [offset, PackageOrder.pilotPrivateColumnCount,
+      PilotPackageOrder.packageColumnCount_value] at privateLe bound ⊢
     omega
-  have sourceEq : PilotSpartan.privateColumnCount + offset = column := by
-    norm_num [offset, Spartan.pilotPrivateColumnCount,
-      PilotSpartan.privateColumnCount_value] at privateLe ⊢
+  have sourceEq : PilotPackageOrder.privateColumnCount + offset = column := by
+    norm_num [offset, PackageOrder.pilotPrivateColumnCount,
+      PilotPackageOrder.privateColumnCount_value] at privateLe ⊢
     omega
   have baseSuffix :
       PerApplicationPackage.basePackage.layout.constantColumn ≤
@@ -284,7 +284,7 @@ private theorem pilot_column_suffix (program : Program) (column : Nat)
             PerApplicationPackage.basePackage.layout.constantColumn := by
         norm_num [pilotInputRange, PerApplicationPackage.basePackage,
           Data.circuitPackage_layout, Data.physicalLayout,
-          Spartan.constantColumn, Spartan.pilotInputPrivateColumnCount]
+          PackageOrder.constantColumn, PackageOrder.pilotInputPrivateColumnCount]
       exact inputEndLeBase.trans (by
         unfold finalConstant
         omega)
@@ -294,9 +294,9 @@ private theorem pilot_column_suffix (program : Program) (column : Nat)
     apply SourceProjectionRange.column?_eq_none_of_after
     norm_num [pilotPrivateRange, finalConstant,
       PerApplicationPackage.basePackage, Data.circuitPackage_layout,
-      Data.physicalLayout, Spartan.constantColumn,
-      Spartan.pilotPrivateColumnCount, Spartan.pilotInputPrivateColumnCount,
-      Spartan.proofInputColumnCount]
+      Data.physicalLayout, PackageOrder.constantColumn,
+      PackageOrder.pilotPrivateColumnCount, PackageOrder.pilotInputPrivateColumnCount,
+      PackageOrder.proofInputColumnCount]
     omega
   have third : (pilotSuffixRange program).column?
       (finalConstant program + offset) = some column := by
@@ -320,15 +320,15 @@ private theorem pilot_column_suffix (program : Program) (column : Nat)
       second third
 
 theorem pilot_column (program : Program) (column : Nat)
-    (bound : column < PilotSpartan.spartanColumnCount) :
+    (bound : column < PilotPackageOrder.packageColumnCount) :
     (pilot program).column?
         (PerApplicationPackage.shiftColumn program
-          (Spartan.liftPilotColumn column)) = some column := by
-  by_cases inputColumn : column < Spartan.pilotInputPrivateColumnCount
+          (PackageOrder.liftPilotColumn column)) = some column := by
+  by_cases inputColumn : column < PackageOrder.pilotInputPrivateColumnCount
   · exact pilot_column_input program column inputColumn
-  · have inputLe : Spartan.pilotInputPrivateColumnCount ≤ column :=
+  · have inputLe : PackageOrder.pilotInputPrivateColumnCount ≤ column :=
       Nat.le_of_not_gt inputColumn
-    by_cases privateColumn : column < Spartan.pilotPrivateColumnCount
+    by_cases privateColumn : column < PackageOrder.pilotPrivateColumnCount
     · exact pilot_column_private program column inputLe privateColumn
     · exact pilot_column_suffix program column
         (Nat.le_of_not_gt privateColumn) bound
@@ -338,7 +338,7 @@ def basePackageRow (program : Program) (row : R1CS.Row) : R1CS.Row :=
 
 def pilotPackageRow (program : Program) (row : R1CS.Row) : R1CS.Row :=
   mapRowColumns (PerApplicationPackage.shiftColumn program)
-    (mapRowColumns Spartan.liftPilotColumn row)
+    (mapRowColumns PackageOrder.liftPilotColumn row)
 
 theorem base_row (program : Program) (row : R1CS.Row)
     (bounded : row.VarsBelow
@@ -348,14 +348,14 @@ theorem base_row (program : Program) (row : R1CS.Row)
   exact fun column => base_column program column.val column.isLt
 
 theorem pilot_row (program : Program) (row : R1CS.Row)
-    (bounded : row.VarsBelow PilotSpartan.spartanColumnCount) :
+    (bounded : row.VarsBelow PilotPackageOrder.packageColumnCount) :
     (pilot program).row? (pilotPackageRow program row) = some row := by
   unfold pilotPackageRow
   rw [show mapRowColumns (PerApplicationPackage.shiftColumn program)
-        (mapRowColumns Spartan.liftPilotColumn row) =
+        (mapRowColumns PackageOrder.liftPilotColumn row) =
       mapRowColumns
         (fun column => PerApplicationPackage.shiftColumn program
-          (Spartan.liftPilotColumn column)) row by
+          (PackageOrder.liftPilotColumn column)) row by
     cases row; simp [mapRowColumns, mapCombinationColumns, List.map_map,
       Function.comp_def]]
   apply SourceProjection.row?_mapColumns _ _ _ _ bounded

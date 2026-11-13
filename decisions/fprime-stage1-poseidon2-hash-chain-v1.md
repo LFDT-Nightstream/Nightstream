@@ -2,6 +2,8 @@
 
 **Status:** Accepted
 
+Changed on 2026-11-13: [`field-2p64-59-ring-x64.md`](./field-2p64-59-ring-x64.md) replaces the Goldilocks field of this record with the field of `q = 2^64 − 59`. Each field word below is a word of that field.
+
 ## Decision
 
 `Poseidon2HashChainV1` is the first verifier-owned Stage 1 application.

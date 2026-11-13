@@ -11,7 +11,7 @@ open ApplicationRetainedGeometry
 
 private theorem outputEnd_le_witnessStart :
     57826 ≤ ApplicationInputs.witnessStart := by
-  norm_num [ApplicationInputs.witnessStart, Spartan.privateColumnCount]
+  norm_num [ApplicationInputs.witnessStart, PackageOrder.privateColumnCount]
 
 private theorem witnessStart_le_localStart (application : ApplicationProgram) :
     ApplicationInputs.witnessStart ≤ ApplicationInputs.localStart application := by

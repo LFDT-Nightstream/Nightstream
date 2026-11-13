@@ -1,6 +1,6 @@
 import NightstreamFPrime.Layout.PilotProduction
 
-namespace NightstreamFPrime.Layout.PilotSpartan
+namespace NightstreamFPrime.Layout.PilotPackageOrder
 
 open NightstreamFPrime.Circuit
 open NightstreamFPrime.Lifecycle
@@ -16,7 +16,7 @@ def privateColumnCount : Nat :=
 
 def constantColumn : Nat := privateColumnCount
 
-def spartanColumnCount : Nat :=
+def packageColumnCount : Nat :=
   privateColumnCount + 1 + publicColumnCount
 
 def priorPublicStart : Nat := PilotProduction.stateHashWords
@@ -43,7 +43,7 @@ theorem privateColumnCount_value : privateColumnCount = 5343006 := by
 theorem constantColumn_value : constantColumn = 5343006 := by
   rfl
 
-theorem spartanColumnCount_value : spartanColumnCount = 5343331 := by
+theorem packageColumnCount_value : packageColumnCount = 5343331 := by
   rfl
 
 theorem priorPublicStart_value : priorPublicStart = 28913 := by
@@ -85,8 +85,8 @@ theorem privateColumnCount_eq :
   rw [privateColumnCount_value, publicColumnCount_value,
     sourceColumnCount_eq]
 
-theorem spartanColumnCount_eq : spartanColumnCount = SourceColumnCount + 1 := by
-  rw [spartanColumnCount_value, sourceColumnCount_eq]
+theorem packageColumnCount_eq : packageColumnCount = SourceColumnCount + 1 := by
+  rw [packageColumnCount_value, sourceColumnCount_eq]
 
 theorem sourceBoundaries_eq :
     priorPublicStart = PilotProduction.priorPublicInputStart ∧
@@ -110,7 +110,7 @@ def visibility (column : Nat) : Visibility :=
   else
     .privateInput
 
-def sourceToSpartan (column : Nat) : Nat :=
+def sourceToPackage (column : Nat) : Nat :=
   if column < priorPublicStart then
     column
   else if column < outputPreimageStart then
@@ -122,10 +122,10 @@ def sourceToSpartan (column : Nat) : Nat :=
   else
     witnessPrivateStart + (column - witnessStart)
 
-theorem sourceToSpartan_witness (index : Nat) :
-    sourceToSpartan (witnessStart + index) =
+theorem sourceToPackage_witness (index : Nat) :
+    sourceToPackage (witnessStart + index) =
       witnessPrivateStart + index := by
-  unfold sourceToSpartan
+  unfold sourceToPackage
   rw [ite_eq_right (by
     rw [witnessStart_value, priorPublicStart_value]
     omega)]
@@ -138,13 +138,13 @@ theorem sourceToSpartan_witness (index : Nat) :
   rw [ite_eq_right (by omega)]
   omega
 
-theorem sourceToSpartan_pilotWitness (index : Nat) :
-    sourceToSpartan (PilotProduction.witnessOffset + index) =
+theorem sourceToPackage_pilotWitness (index : Nat) :
+    sourceToPackage (PilotProduction.witnessOffset + index) =
       witnessPrivateStart + index := by
   rw [show PilotProduction.witnessOffset = witnessStart by rfl]
-  exact sourceToSpartan_witness index
+  exact sourceToPackage_witness index
 
-def spartanToSource (column : Nat) : Option Nat :=
+def packageToSource (column : Nat) : Option Nat :=
   if column < secondPrivateStart then
     some column
   else if column < witnessPrivateStart then
@@ -155,30 +155,30 @@ def spartanToSource (column : Nat) : Option Nat :=
     none
   else if column < secondPublicStart then
     some (priorPublicStart + (column - firstPublicStart))
-  else if column < spartanColumnCount then
+  else if column < packageColumnCount then
     some (outputDigestStart + (column - secondPublicStart))
   else
     none
 
-theorem sourceToSpartan_lt (column : Nat) (bound : column < SourceColumnCount) :
-    sourceToSpartan column < spartanColumnCount := by
+theorem sourceToPackage_lt (column : Nat) (bound : column < SourceColumnCount) :
+    sourceToPackage column < packageColumnCount := by
   rw [sourceColumnCount_eq] at bound
-  unfold sourceToSpartan
+  unfold sourceToPackage
   all_goals try split
   all_goals try split
   all_goals try split
   all_goals try split
-  all_goals norm_num [spartanColumnCount_value, privateColumnCount_value,
+  all_goals norm_num [packageColumnCount_value, privateColumnCount_value,
     publicColumnCount_value, priorPublicStart_value,
     outputPreimageStart_value, outputDigestStart_value, witnessStart_value,
     secondPrivateStart_value, witnessPrivateStart_value,
     firstPublicStart_value, secondPublicStart_value] at *; omega
 
-theorem spartanToSource_sourceToSpartan (column : Nat)
+theorem packageToSource_sourceToPackage (column : Nat)
     (bound : column < SourceColumnCount) :
-    spartanToSource (sourceToSpartan column) = some column := by
+    packageToSource (sourceToPackage column) = some column := by
   rw [sourceColumnCount_eq] at bound
-  unfold sourceToSpartan spartanToSource
+  unfold sourceToPackage packageToSource
   all_goals try split
   all_goals try split
   all_goals try split
@@ -190,18 +190,18 @@ theorem spartanToSource_sourceToSpartan (column : Nat)
   all_goals try split
   all_goals try split
   all_goals norm_num [privateColumnCount_value, constantColumn_value,
-    spartanColumnCount_value, publicColumnCount_value,
+    packageColumnCount_value, publicColumnCount_value,
     priorPublicStart_value, outputPreimageStart_value,
     outputDigestStart_value, witnessStart_value,
     secondPrivateStart_value, witnessPrivateStart_value,
     firstPublicStart_value, secondPublicStart_value] at *
   all_goals omega
 
-theorem sourceToSpartan_ne_constant (column : Nat)
+theorem sourceToPackage_ne_constant (column : Nat)
     (bound : column < SourceColumnCount) :
-    sourceToSpartan column ≠ constantColumn := by
+    sourceToPackage column ≠ constantColumn := by
   rw [sourceColumnCount_eq] at bound
-  unfold sourceToSpartan constantColumn
+  unfold sourceToPackage constantColumn
   all_goals try split
   all_goals try split
   all_goals try split
@@ -211,22 +211,22 @@ theorem sourceToSpartan_ne_constant (column : Nat)
     secondPrivateStart_value, witnessPrivateStart_value,
     firstPublicStart_value, secondPublicStart_value] at *; omega
 
-theorem sourceToSpartan_injective {left right : Nat}
+theorem sourceToPackage_injective {left right : Nat}
     (leftBound : left < SourceColumnCount)
     (rightBound : right < SourceColumnCount)
-    (equals : sourceToSpartan left = sourceToSpartan right) : left = right := by
-  have leftInverse := spartanToSource_sourceToSpartan left leftBound
-  have rightInverse := spartanToSource_sourceToSpartan right rightBound
+    (equals : sourceToPackage left = sourceToPackage right) : left = right := by
+  have leftInverse := packageToSource_sourceToPackage left leftBound
+  have rightInverse := packageToSource_sourceToPackage right rightBound
   rw [equals, rightInverse] at leftInverse
   exact (Option.some.inj leftInverse).symm
 
 def pullback (target : Env) : Env :=
-  fun source => target (sourceToSpartan source)
+  fun source => target (sourceToPackage source)
 
 def remapCombination (combination : R1CS.LinearCombination) :
     R1CS.LinearCombination :=
   ⟨combination.constant,
-    combination.terms.map fun term => (sourceToSpartan term.1, term.2)⟩
+    combination.terms.map fun term => (sourceToPackage term.1, term.2)⟩
 
 theorem remapCombination_eval (target : Env)
     (combination : R1CS.LinearCombination) :
@@ -265,7 +265,7 @@ def domainSize : Nat := 2 ^ cubeVariables
 
 def paddedConstantColumn : Nat := domainSize
 
-def paddedSpartanColumnCount : Nat :=
+def paddedPackageColumnCount : Nat :=
   domainSize + 1 + publicColumnCount
 
 inductive PaddedColumnRole where
@@ -275,7 +275,7 @@ inductive PaddedColumnRole where
   | publicInput (index : Nat)
 deriving Repr, DecidableEq
 
-def paddedColumnRole (column : Fin paddedSpartanColumnCount) :
+def paddedColumnRole (column : Fin paddedPackageColumnCount) :
     PaddedColumnRole :=
   if column.val < privateColumnCount then
     .sourcePrivate column.val
@@ -316,19 +316,19 @@ theorem privateColumnCount_bounds :
   rw [privateColumnCount_value]
   norm_num [domainSize, cubeVariables]
 
-def spartanToPadded (column : Nat) : Nat :=
+def packageToPadded (column : Nat) : Nat :=
   if column < constantColumn then
     column
   else
     domainSize + (column - constantColumn)
 
 def paddedPullback (target : Env) : Env :=
-  fun column => target (spartanToPadded column)
+  fun column => target (packageToPadded column)
 
 def padCombination (combination : R1CS.LinearCombination) :
     R1CS.LinearCombination :=
   ⟨combination.constant,
-    combination.terms.map fun term => (spartanToPadded term.1, term.2)⟩
+    combination.terms.map fun term => (packageToPadded term.1, term.2)⟩
 
 private theorem padCombination_eval (target : Env)
     (combination : R1CS.LinearCombination) :
@@ -402,4 +402,4 @@ theorem paddedRows_hold (target : Env) :
         ((remapRows_hold (paddedPullback target) (sourceRows ())).mpr holds),
       zeroRows_hold target _⟩
 
-end NightstreamFPrime.Layout.PilotSpartan
+end NightstreamFPrime.Layout.PilotPackageOrder

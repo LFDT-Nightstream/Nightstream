@@ -14,7 +14,7 @@ open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
 def remapExpr : Expr → Expr
-  | .var index => .var (NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan index)
+  | .var index => .var (NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage index)
   | .const value => .const value
   | .add left right => .add (remapExpr left) (remapExpr right)
   | .mul left right => .mul (remapExpr left) (remapExpr right)
@@ -22,7 +22,7 @@ def remapExpr : Expr → Expr
 theorem remapExpr_eval (target : Env) (expression : Expr) :
     (remapExpr expression).eval target =
       expression.eval
-        (NightstreamFPrime.Layout.Stage1.Spartan.pullback target) := by
+        (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback target) := by
   induction expression with
   | var index =>
       rfl
@@ -34,7 +34,7 @@ theorem remapExpr_eval (target : Env) (expression : Expr) :
       simp [remapExpr, Expr.eval, leftIH, rightIH]
 
 def remapBatch (batch : WitnessBatch) : WitnessBatch := WitnessEncoding.batch {
-  start := NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan batch.start
+  start := NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage batch.start
   recipes := batch.recipes.map remapExpr
   hints := batch.hints.map fun hint =>
     match hint with
@@ -45,7 +45,7 @@ def remapBatch (batch : WitnessBatch) : WitnessBatch := WitnessEncoding.batch {
 
 @[simp] theorem remapBatch_start (batch : WitnessBatch) :
     (remapBatch batch).start =
-      NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan batch.start := by
+      NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage batch.start := by
   rfl
 
 @[simp] theorem remapBatch_recipes_length (batch : WitnessBatch) :

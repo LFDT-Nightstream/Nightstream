@@ -172,9 +172,9 @@ theorem classifySource_complete
     (application : Lifecycle.Stage1.Application.Program) {column : Nat}
     (support : ApplicationDirectSource.SourceAllowed application column) :
     (classifySource application column).isSome := by
-  have pilotPrivate := Layout.Stage1.Spartan.pilotPrivateColumnCount_le_constantColumn
-  rw [Layout.Stage1.Spartan.constantColumn_eq_private] at pilotPrivate
-  simp only [Layout.Stage1.Spartan.pilotPrivateColumnCount] at pilotPrivate
+  have pilotPrivate := Layout.Stage1.PackageOrder.pilotPrivateColumnCount_le_constantColumn
+  rw [Layout.Stage1.PackageOrder.constantColumn_eq_private] at pilotPrivate
+  simp only [Layout.Stage1.PackageOrder.pilotPrivateColumnCount] at pilotPrivate
   rcases support with input | witness | output | localSupport
   · rcases input with ⟨index, rfl⟩
     have inside : InRange Layout.Stage1.ApplicationInputs.currentWordStart

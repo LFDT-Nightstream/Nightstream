@@ -62,11 +62,11 @@ theorem decodedEnv_location
     (assignment : Assignment F logicalWidth)
     (location : PiCCSOrdinaryDirectPlan.Location) :
     decodedEnv geometry assignment
-        (Spartan.sourceToSpartan location.sourceColumn) =
+        (PackageOrder.sourceToPackage location.sourceColumn) =
       (location.form geometry).eval assignment := by
-  let column : Fin Spartan.spartanColumnCount :=
-    ⟨Spartan.sourceToSpartan location.sourceColumn,
-      Spartan.sourceToSpartan_lt _ location.sourceColumn_lt⟩
+  let column : Fin PackageOrder.packageColumnCount :=
+    ⟨PackageOrder.sourceToPackage location.sourceColumn,
+      PackageOrder.sourceToPackage_lt _ location.sourceColumn_lt⟩
   have support : PiCCSOrdinarySourceSupport.Target column.val :=
     ⟨location.sourceColumn, location.sourceSupport, rfl⟩
   have mapped := PiCCSOrdinaryMatrixProgram.substitution_agrees_on_target
@@ -97,7 +97,7 @@ theorem rowsZero_implies_arithmeticSpecs
     relation (PiCCSInvocations.parentInterface relationLogicalWidth relationPublicFits)
     PiCCSInputs.phaseOffset
     (PiCCSInputs.externalInputsLinear relationLogicalWidth relationPublicFits)
-    (Spartan.pullback (decodedEnv geometry assignment))
+    (PackageOrder.pullback (decodedEnv geometry assignment))
   exact PiCCSArithmetic.packetHolds_imply_arithmeticSpecs
     relationLogicalWidth relationPublicFits relation (decodedEnv geometry assignment)
     assumptions packets

@@ -32,7 +32,7 @@ def logicalSource (source : Fin sourceCount) (position : Fin logicalCountPerSour
   PiRLCSamplerOrdinaryDirectSource.coreStart source.val + position.val
 
 theorem logicalSource_lt (source : Fin sourceCount) (position : Fin logicalCountPerSource) :
-    logicalSource source position < Spartan.SourceColumnCount :=
+    logicalSource source position < PackageOrder.SourceColumnCount :=
   (PiRLCSamplerOrdinaryDirectSource.Source.logical source.val position.val source.isLt position.isLt).bounded
 
 def logicalBlock (program : Lifecycle.Stage1.Application.Program) :

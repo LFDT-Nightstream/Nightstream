@@ -533,7 +533,7 @@ structure Semantics
     groupValue
   pilot : Lifecycle.Pilot.SpecHolds PilotProduction.interface
     PilotProduction.witnessOffset
-    (PilotSpartan.pullback
+    (PilotPackageOrder.pullback
       (PilotOrdinaryDirectPlan.pilotEnv application base))
   piCcsTranscript : PiCCSInvocations.TranscriptSpecs relationLogicalWidth
     relationPublicFits
@@ -549,7 +549,7 @@ structure Semantics
       relationPublicFits)
   transition : RunningTransitionLayout.PhysicalHolds relationLogicalWidth
     relationPublicFits
-    (Spartan.pullback
+    (PackageOrder.pullback
       (RunningTransitionDirectPlan.transitionEnv application base))
 
 theorem rowsZero_implies_semantics
@@ -654,7 +654,7 @@ theorem rowsZero_implies_piCcsSpecHolds
       (PiCCSInvocations.parentInterface relationLogicalWidth
         relationPublicFits)
       PiCCSInputs.phaseOffset
-      (Spartan.pullback
+      (PackageOrder.pullback
         (PiCCSTranscriptEndpointPlan.transcriptEnv application base groupValue)) := by
   have semantics := rowsZero_implies_semantics relation geometry assignment base
     groupValue one encodes rowsZero
@@ -665,7 +665,7 @@ theorem rowsZero_implies_piCcsSpecHolds
     apply R1CS.rowsHold_of_agree_below
       (PiCCSOrdinaryDirectSource.sourceRows relationLogicalWidth
         relationPublicFits)
-      Spartan.spartanColumnCount
+      PackageOrder.packageColumnCount
       (RunningTransitionDirectPlan.transitionEnv application base)
       (PiCCSTranscriptEndpointPlan.transcriptEnv application base groupValue)
       (PiCCSOrdinaryDirectSource.sourceRows_varsBelow relation)
@@ -683,7 +683,7 @@ theorem rowsZero_implies_piCcsSpecHolds
       PiCCSInputs.phaseOffset
       (PiCCSInputs.externalInputsLinear relationLogicalWidth
         relationPublicFits)
-      (Spartan.pullback
+      (PackageOrder.pullback
         (PiCCSTranscriptEndpointPlan.transcriptEnv application base groupValue))
   have arithmetic := PiCCSArithmetic.packetHolds_imply_arithmeticSpecs
     relationLogicalWidth relationPublicFits relation
@@ -722,7 +722,7 @@ theorem rowsZero_implies_piCcsPhaseHolds
       (PiCCSInvocations.parentInterface relationLogicalWidth
         relationPublicFits)
       PiCCSInputs.phaseOffset
-      (Spartan.pullback
+      (PackageOrder.pullback
         (PiCCSTranscriptEndpointPlan.transcriptEnv application base groupValue)) template := by
   apply Lifecycle.PiCCS.v1_2.Formal.spec_implies_phaseHolds relation ajtai
   exact rowsZero_implies_piCcsSpecHolds relation geometry assignment base
@@ -745,13 +745,13 @@ theorem rowsZero_implies_piDecPhaseHolds
       (PiDECArithmetic.phaseInterface relationLogicalWidth
         relationPublicFits)
       PiDECInputs.phaseOffset
-      (Spartan.pullback
+      (PackageOrder.pullback
         (RunningTransitionDirectPlan.transitionEnv application base)))
     (rowsZero : (plan relation geometry).RowsZero assignment) :
     Lifecycle.PiDEC.v1_2.Semantics.PhaseHolds relation ajtai
       (PiDECArithmetic.phaseInterface relationLogicalWidth relationPublicFits)
       PiDECInputs.phaseOffset
-      (Spartan.pullback
+      (PackageOrder.pullback
         (RunningTransitionDirectPlan.transitionEnv application base)) := by
   have children := (rowsZero_iff relation geometry assignment).mp rowsZero
   rcases children with ⟨_, _, _, _, _, _, _, _, piDecRows, _⟩

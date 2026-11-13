@@ -77,20 +77,20 @@ private theorem sourceFreshPrefix
 theorem remappedPacket_implies_sourceRows (env : Env)
     (packets : PiRLCPackageCompleteness.RemappedPacketRowsHold env)
     (source : Fin SamplerChain.Logical.sourceCount) :
-    R1CS.RowsHold (Spartan.pullback env)
+    R1CS.RowsHold (PackageOrder.pullback env)
       (R1CS.lowerConstraints
         (SamplerChain.childConstraints chainInterface
           PiRLCStarts.samplerLogicalStart source.val)
         (PiRLCStarts.samplerFreshStart + source.val * 0)).rows := by
-  have samplerRows := (Spartan.remapRows_hold env _).mp packets.sampler
-  change R1CS.RowsHold (Spartan.pullback env)
+  have samplerRows := (PackageOrder.remapRows_hold env _).mp packets.sampler
+  change R1CS.RowsHold (PackageOrder.pullback env)
     (R1CS.lowerConstraints
       (SamplerChain.logicalConstraints chainInterface
         PiRLCStarts.samplerLogicalStart)
       PiRLCStarts.samplerFreshStart).rows at samplerRows
   rw [chainConstraints_eq_sourceConstraintLists] at samplerRows
   have segments := (R1CS.rowsHold_flatten_iff _ _ _).mp samplerRows
-  have sourceRows := R1CS.segmentsHold_ofFn_get (Spartan.pullback env)
+  have sourceRows := R1CS.segmentsHold_ofFn_get (PackageOrder.pullback env)
     (fun current : Fin SamplerChain.Logical.sourceCount =>
       SamplerChain.childConstraints chainInterface
         PiRLCStarts.samplerLogicalStart current.val)
@@ -115,7 +115,7 @@ theorem remappedPacket_implies_sourceChildren (env : Env)
     (packets : PiRLCPackageCompleteness.RemappedPacketRowsHold env)
     (source : Fin SamplerChain.Logical.sourceCount) :
     Sampler.ChildRows (sourceInterface source.val) source.val (sourceOffset source.val)
-      (Spartan.pullback env) (PiRLCStarts.samplerFreshStart + source.val * 0) :=
+      (PackageOrder.pullback env) (PiRLCStarts.samplerFreshStart + source.val * 0) :=
   Sampler.rowsHold_implies_childRows _ _ _ _ _ (sourceInputs source.val)
     (remappedPacket_implies_sourceRows env packets source)
 
@@ -226,14 +226,14 @@ private theorem entryProgramRecipes_eq (source : Nat) :
     List.append_nil]
 
 private theorem entryWitnessLocal (source : Nat) :
-    Spartan.piCcsPhaseOffset ≤
+    PackageOrder.piCcsPhaseOffset ≤
       PiRLCSamplerInvocations.sourceLogicalStart source := by
   unfold PiRLCSamplerInvocations.sourceLogicalStart
     PiRLCStarts.samplerSourceLogicalStart PiRLCStarts.samplerLogicalStart
     NightstreamFPrime.Lifecycle.PiRLC.v1_2.Formal.samplerOffset
     PiRLCStarts.phaseLogicalStart PiRLCInputs.phaseOffset
     NightstreamFPrime.Lifecycle.PiRLC.v1_2.SamplerChain.sourceOffset
-  norm_num [Spartan.piCcsPhaseOffset]
+  norm_num [PackageOrder.piCcsPhaseOffset]
   omega
 
 private theorem entryWords_affine (source : Nat) :
@@ -264,7 +264,7 @@ theorem remappedPacket_implies_entryPermutations (env : Env)
   simp only [List.mem_singleton] at member
   subst current
   have rows := (remappedPacket_implies_sourceChildren env packets source).entry
-  have sourceHolds := R1CS.lowerConstraints_sound (Spartan.pullback env) _ _ rows
+  have sourceHolds := R1CS.lowerConstraints_sound (PackageOrder.pullback env) _ _ rows
   rw [entryConstraints_eq_recipeConstraints,
     entryProgramRecipes_eq] at sourceHolds
   apply PermutationCompilerTransport.invocation_complete_of_sourceConstraints
@@ -279,9 +279,9 @@ theorem remappedPacket_implies_advancePermutation (env : Env)
       (PiRLCSamplerInvocations.advanceInvocation
         (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits) source.val) env := by
   have rows := (remappedPacket_implies_sourceChildren env packets source).advance
-  have sourceHolds := R1CS.lowerConstraints_sound (Spartan.pullback env) _ _ rows
+  have sourceHolds := R1CS.lowerConstraints_sound (PackageOrder.pullback env) _ _ rows
   rw [NightstreamFPrime.Lifecycle.PiRLC.v1_2.Sampler.advanceOp, Sampler.child_constraints] at sourceHolds
-  change ConstraintsHold (Spartan.pullback env)
+  change ConstraintsHold (PackageOrder.pullback env)
     (flatConstraints (NightstreamFPrime.Gadgets.Poseidon2.Permutation.Owned.operations
       (NightstreamFPrime.Lifecycle.PiRLC.v1_2.Sampler.advanceInterface
         (sourceInterface source.val) source.val (sourceOffset source.val))
@@ -324,7 +324,7 @@ theorem remappedPacket_implies_rangeRows (env : Env)
       (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits) source.val).map
       Rows.CompiledRow.toR1CS) := by
   have held := (remappedPacket_implies_sourceChildren env packets source).range
-  rw [PiRLCSamplerOrdinaryRows.rangeRows_toR1CS, Spartan.remapRows_hold]
+  rw [PiRLCSamplerOrdinaryRows.rangeRows_toR1CS, PackageOrder.remapRows_hold]
   rw [PiRLCSamplerOrdinaryRows.rangeConstraints_eq]
   exact held
 
@@ -332,7 +332,7 @@ theorem remappedPacket_implies_wordRows (env : Env)
     (packets : PiRLCPackageCompleteness.RemappedPacketRowsHold env)
     (source : Fin SamplerChain.Logical.sourceCount) :
     R1CS.RowsHold env ((PiRLCSamplerOrdinaryRows.wordRows source.val).map Rows.CompiledRow.toR1CS) := by
-  rw [PiRLCSamplerOrdinaryRows.wordRows_toR1CS, Spartan.remapRows_hold]
+  rw [PiRLCSamplerOrdinaryRows.wordRows_toR1CS, PackageOrder.remapRows_hold]
   exact (remappedPacket_implies_sourceChildren env packets source).words
 
 theorem remappedPacket_implies_ordinaryRows (env : Env)

@@ -2,7 +2,7 @@ import NightstreamFPrime.Export.Package
 import NightstreamFPrime.Export.Stage1.Rows
 import NightstreamFPrime.Gadgets.Poseidon2.Permutation
 import NightstreamFPrime.Layout.PilotProduction
-import NightstreamFPrime.Layout.PilotSpartan
+import NightstreamFPrime.Layout.PilotPackageOrder
 import NightstreamFPrime.Layout.PilotValues
 import NightstreamFPrime.Layout.R1CS
 
@@ -111,13 +111,13 @@ def digestRows (chain : HashChain) : List SparseRow :=
   List.ofFn (digestRow chain)
 
 def remapExpr : Expr → Expr
-  | .var index => .var (PilotSpartan.sourceToSpartan index)
+  | .var index => .var (PilotPackageOrder.sourceToPackage index)
   | .const value => .const value
   | .add left right => .add (remapExpr left) (remapExpr right)
   | .mul left right => .mul (remapExpr left) (remapExpr right)
 
 def remapBatch (batch : WitnessBatch) : WitnessBatch where
-  start := PilotSpartan.sourceToSpartan batch.start
+  start := PilotPackageOrder.sourceToPackage batch.start
   recipes := batch.recipes.map remapExpr
   hints := batch.hints.map fun hint =>
     match hint with
@@ -127,7 +127,7 @@ def remapBatch (batch : WitnessBatch) : WitnessBatch where
     | .remainderFive source => .remainderFive (remapExpr source)
 
 def remapSparseTerm (term : SparseTerm) : SparseTerm :=
-  ⟨PilotSpartan.sourceToSpartan term.column, term.coefficient⟩
+  ⟨PilotPackageOrder.sourceToPackage term.column, term.coefficient⟩
 
 def remapSparseCombination (combination : SparseCombination) :
     SparseCombination :=
@@ -136,7 +136,7 @@ def remapSparseCombination (combination : SparseCombination) :
 def remapWitnessInstruction (instruction : WitnessInstruction) :
     WitnessInstruction where
   rowIndex := instruction.rowIndex
-  target := PilotSpartan.sourceToSpartan instruction.target
+  target := PilotPackageOrder.sourceToPackage instruction.target
   a := remapSparseCombination instruction.a
   b := remapSparseCombination instruction.b
 
@@ -150,25 +150,25 @@ def remapCompiledRow : Stage1.Rows.CompiledRow → Stage1.Rows.CompiledRow
 
 theorem remapSparseCombination_toR1CS (combination : SparseCombination) :
     (remapSparseCombination combination).toR1CS =
-      PilotSpartan.remapCombination combination.toR1CS := by
+      PilotPackageOrder.remapCombination combination.toR1CS := by
   cases combination
   simp [remapSparseCombination, remapSparseTerm,
-    SparseCombination.toR1CS, PilotSpartan.remapCombination,
+    SparseCombination.toR1CS, PilotPackageOrder.remapCombination,
     List.map_map, Function.comp_def]
 
 theorem remapCompiledRows_toR1CS (rows : List Stage1.Rows.CompiledRow) :
     (rows.map remapCompiledRow).map Stage1.Rows.CompiledRow.toR1CS =
-      PilotSpartan.remapRows
+      PilotPackageOrder.remapRows
         (rows.map Stage1.Rows.CompiledRow.toR1CS) := by
-  unfold PilotSpartan.remapRows
+  unfold PilotPackageOrder.remapRows
   rw [List.map_map, List.map_map]
   apply List.map_congr_left
   intro row member
   cases row <;>
     simp [remapCompiledRow, remapWitnessInstruction, remapSparseRow,
       Stage1.Rows.CompiledRow.toR1CS, WitnessInstruction.toR1CS,
-      SparseRow.toR1CS, PilotSpartan.remapRow,
-      remapSparseCombination_toR1CS, PilotSpartan.remapCombination,
+      SparseRow.toR1CS, PilotPackageOrder.remapRow,
+      remapSparseCombination_toR1CS, PilotPackageOrder.remapCombination,
       R1CS.LinearCombination.ofVar]
 
 def priorWordBatches (_unit : Unit) : List WitnessBatch :=
@@ -248,7 +248,7 @@ def physicalLayout : PhysicalLayout where
   privateColumnCount := PilotValues.privateColumnCount
   constantColumn := PilotValues.constantColumn
   publicColumnCount := PilotValues.publicColumnCount
-  totalColumnCount := PilotValues.spartanColumnCount
+  totalColumnCount := PilotValues.packageColumnCount
   privateSegments := privateSegments
   publicSegments := publicSegments
 

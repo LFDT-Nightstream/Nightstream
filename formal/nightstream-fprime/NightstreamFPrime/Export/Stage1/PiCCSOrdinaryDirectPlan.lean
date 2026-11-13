@@ -104,7 +104,7 @@ theorem sourceSupport (location : Location) :
         omega
 
 theorem sourceColumn_lt (location : Location) :
-    location.sourceColumn < Spartan.SourceColumnCount :=
+    location.sourceColumn < PackageOrder.SourceColumnCount :=
   PiCCSOrdinarySourceSupport.source_lt_sourceColumnCount location.sourceSupport
 
 def form {program : Lifecycle.Stage1.Application.Program}
@@ -214,7 +214,7 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
     (location : Location) :
     (location.form geometry).eval assignment =
       RunningTransitionDirectPlan.transitionEnv program base
-        (Spartan.sourceToSpartan location.sourceColumn) := by
+        (PackageOrder.sourceToPackage location.sourceColumn) := by
   cases location with
   | priorInput index =>
       rw [form, LowNormBlock.Block.form_eval _ _ _ assignment _ encodes.priorInput index]
@@ -618,7 +618,7 @@ structure Decoded where
   owns : location.sourceColumn = source
 
 def classifyTarget (column : Nat) : Option Decoded :=
-  match Spartan.spartanToSource column with
+  match PackageOrder.packageToSource column with
   | none => none
   | some source =>
       match classifySource source with
@@ -628,9 +628,9 @@ def classifyTarget (column : Nat) : Option Decoded :=
 theorem classifyTarget_complete {column : Nat}
     (support : PiCCSOrdinarySourceSupport.Target column) :
     ∃ decoded, classifyTarget column = some decoded ∧
-      Spartan.sourceToSpartan decoded.source = column := by
+      PackageOrder.sourceToPackage decoded.source = column := by
   rcases support with ⟨source, sourceSupport, rfl⟩
-  have inverse := Spartan.spartanToSource_sourceToSpartan source
+  have inverse := PackageOrder.packageToSource_sourceToPackage source
     (PiCCSOrdinarySourceSupport.source_lt_sourceColumnCount sourceSupport)
   have complete := classifySource_complete sourceSupport
   cases found : classifySource source with
@@ -641,8 +641,8 @@ theorem classifyTarget_complete {column : Nat}
 
 def endpointForm {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth)
-    (column : Fin Spartan.spartanColumnCount) : SparseForm logicalWidth :=
-  match Spartan.spartanToSource column.val with
+    (column : Fin PackageOrder.packageColumnCount) : SparseForm logicalWidth :=
+  match PackageOrder.packageToSource column.val with
   | none => .empty
   | some source =>
       if inside : PiCCSOrdinarySourceSupport.InRange
@@ -654,7 +654,7 @@ def endpointForm {program : Lifecycle.Stage1.Application.Program}
 
 def sourceMap {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
-    SourceCompiler.SourceMap Spartan.spartanColumnCount logicalWidth where
+    SourceCompiler.SourceMap PackageOrder.packageColumnCount logicalWidth where
   form := fun column =>
     match classifyTarget column.val with
     | none => endpointForm geometry column
@@ -668,7 +668,7 @@ theorem sourceMap_form_eval_of_target
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (encodes : Encodes geometry assignment
       (PiRLCRetainedPreservation.sourceAssignment program base groupValue))
-    (column : Fin Spartan.spartanColumnCount)
+    (column : Fin PackageOrder.packageColumnCount)
     (support : PiCCSOrdinarySourceSupport.Target column.val) :
     ((sourceMap geometry).form column).eval assignment =
       RunningTransitionDirectPlan.transitionEnv program base column.val := by
@@ -680,7 +680,7 @@ theorem sourceMap_form_eval_of_target
   rw [Location.form_eval geometry assignment base groupValue
     encodes decoded.location]
   have mappedLocation :
-      Spartan.sourceToSpartan decoded.location.sourceColumn = column.val := by
+      PackageOrder.sourceToPackage decoded.location.sourceColumn = column.val := by
     rw [decoded.owns, mapped]
   rw [mappedLocation]
 
@@ -693,7 +693,7 @@ private theorem preservesCombination
     (encodes : Encodes geometry assignment
       (PiRLCRetainedPreservation.sourceAssignment program base groupValue))
     (combination : R1CS.LinearCombination)
-    (bounded : SourceCompiler.CombinationBounded Spartan.spartanColumnCount
+    (bounded : SourceCompiler.CombinationBounded PackageOrder.packageColumnCount
       combination)
     (scope : combination.VarsSatisfy PiCCSOrdinarySourceSupport.Target) :
     OrdinarySourcePlan.SourceMap.PreservesCombination (sourceMap geometry)

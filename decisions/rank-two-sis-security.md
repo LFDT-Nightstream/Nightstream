@@ -4,6 +4,8 @@
 
 Accepted.
 
+Superseded in part on 2026-11-13: [`field-2p64-59-ring-x64.md`](./field-2p64-59-ring-x64.md) replaces `κ = 22` and the ring degree 54 of this record with `κ = 18` and degree 64, and it states the limit of the auxiliary maps for the new ring.
+
 ## Problem
 
 The symbol `κ` is a module rank, not a security level. Long auxiliary SIS

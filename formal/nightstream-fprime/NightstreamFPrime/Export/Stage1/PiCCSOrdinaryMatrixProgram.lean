@@ -16,7 +16,7 @@ abbrev Program := Lifecycle.Stage1.Application.Program
 def priorInputRange (program : Program) : SourceRange :=
   SourceRange.ofSemantic (PiRLCPoseidonGeometry.priorInputBlock program)
     (PiRLCPoseidonGeometry.priorInputStart program)
-    (Spartan.sourceToSpartan PilotProduction.priorPreimageStart)
+    (PackageOrder.sourceToPackage PilotProduction.priorPreimageStart)
     PilotProduction.stateHashWords 0
 
 theorem priorInputRange_form?
@@ -24,7 +24,7 @@ theorem priorInputRange_form?
     (geometry : Geometry program logicalWidth)
     (index : Fin PilotProduction.stateHashWords) :
     (priorInputRange program).form? logicalWidth
-        (Spartan.sourceToSpartan
+        (PackageOrder.sourceToPackage
           (PilotProduction.priorPreimageStart + index.val)) =
       some ((PiCCSOrdinaryDirectPlan.Location.priorInput index).form
         geometry) := by
@@ -35,13 +35,13 @@ theorem priorInputRange_form?
       PilotProduction.priorPreimageStart,
       PilotProduction.stateHashWords_eq] at bound ⊢
     exact bound
-  rw [Spartan.sourceToSpartan_add_of_pilotPriorPrivate
+  rw [PackageOrder.sourceToPackage_add_of_pilotPriorPrivate
     PilotProduction.priorPreimageStart index.val upper]
   rw [PiCCSOrdinaryDirectPlan.Location.priorInput_form_eq_pilot]
   simpa only [priorInputRange, Nat.zero_add] using!
     (SourceRange.form?_ofSemantic (PiRLCPoseidonGeometry.priorInputBlock program)
       (PiRLCPoseidonGeometry.priorInputStart program)
-      (Spartan.sourceToSpartan PilotProduction.priorPreimageStart)
+      (PackageOrder.sourceToPackage PilotProduction.priorPreimageStart)
       PilotProduction.stateHashWords 0
       (PiRLCPoseidonGeometry.priorInputFits (pilotGeometry geometry))
       (by rfl) index)
@@ -49,13 +49,13 @@ theorem priorInputRange_form?
 def freshPublicInputRange (program : Program) : SourceRange :=
   SourceRange.ofSemantic (freshPublicInputBlock program)
     (freshPublicInputStart program)
-    (Spartan.sourceToSpartan PilotProduction.priorPublicInputStart) 320 0
+    (PackageOrder.sourceToPackage PilotProduction.priorPublicInputStart) 320 0
 
 theorem freshPublicInputRange_form?
     {program : Program} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth) (index : Fin 320) :
     (freshPublicInputRange program).form? logicalWidth
-        (Spartan.sourceToSpartan
+        (PackageOrder.sourceToPackage
           (PilotProduction.priorPublicInputStart + index.val)) =
       some ((PiCCSOrdinaryDirectPlan.Location.freshPublicInput index).form
         geometry) := by
@@ -66,88 +66,88 @@ theorem freshPublicInputRange_form?
       PilotProduction.priorPublicInputStart,
       Lifecycle.PriorStateHash.publicWidth,
       Lifecycle.PaperAlgebra.publicRingColumns, Spec.ringDegree] at bound ⊢
-  rw [Spartan.sourceToSpartan_add_of_pilotPriorPublic
+  rw [PackageOrder.sourceToPackage_add_of_pilotPriorPublic
     PilotProduction.priorPublicInputStart index.val (Nat.le_refl _) upper]
   simpa [freshPublicInputRange,
     PiCCSOrdinaryDirectPlan.Location.form] using!
     (SourceRange.form?_ofSemantic (freshPublicInputBlock program)
       (freshPublicInputStart program)
-      (Spartan.sourceToSpartan PilotProduction.priorPublicInputStart)
+      (PackageOrder.sourceToPackage PilotProduction.priorPublicInputStart)
       320 0 (freshPublicInputFits geometry) (by rfl) index)
 
-private theorem sourceToSpartan_outputInput_add
+private theorem sourceToPackage_outputInput_add
     (offset : Fin PilotProduction.stateHashWords) :
-    Spartan.sourceToSpartan
+    PackageOrder.sourceToPackage
         (PilotProduction.outputPreimageStart + offset.val) =
-      Spartan.sourceToSpartan PilotProduction.outputPreimageStart +
+      PackageOrder.sourceToPackage PilotProduction.outputPreimageStart +
         offset.val := by
-  rw [← PilotSpartan.sourceBoundaries_eq.2.1]
+  rw [← PilotPackageOrder.sourceBoundaries_eq.2.1]
   have bound : offset.val < PilotProduction.stateHashWords := offset.isLt
-  have sumPilot : PilotSpartan.outputPreimageStart + offset.val <
-      Spartan.pilotSourceColumnCount := by
-    rw [PilotSpartan.outputPreimageStart_value]
+  have sumPilot : PilotPackageOrder.outputPreimageStart + offset.val <
+      PackageOrder.pilotSourceColumnCount := by
+    rw [PilotPackageOrder.outputPreimageStart_value]
     norm_num [PilotProduction.stateHashWords_eq,
-      Spartan.pilotSourceColumnCount] at bound ⊢
+      PackageOrder.pilotSourceColumnCount] at bound ⊢
     omega
-  have startPilot : PilotSpartan.outputPreimageStart <
-      Spartan.pilotSourceColumnCount := by omega
-  have sumNotPrior : ¬ PilotSpartan.outputPreimageStart + offset.val <
-      PilotSpartan.priorPublicStart := by
-    rw [PilotSpartan.outputPreimageStart_value,
-      PilotSpartan.priorPublicStart_value]
+  have startPilot : PilotPackageOrder.outputPreimageStart <
+      PackageOrder.pilotSourceColumnCount := by omega
+  have sumNotPrior : ¬ PilotPackageOrder.outputPreimageStart + offset.val <
+      PilotPackageOrder.priorPublicStart := by
+    rw [PilotPackageOrder.outputPreimageStart_value,
+      PilotPackageOrder.priorPublicStart_value]
     omega
-  have startNotPrior : ¬ PilotSpartan.outputPreimageStart <
-      PilotSpartan.priorPublicStart := by
-    rw [PilotSpartan.outputPreimageStart_value,
-      PilotSpartan.priorPublicStart_value]
+  have startNotPrior : ¬ PilotPackageOrder.outputPreimageStart <
+      PilotPackageOrder.priorPublicStart := by
+    rw [PilotPackageOrder.outputPreimageStart_value,
+      PilotPackageOrder.priorPublicStart_value]
     omega
-  have sumNotOutput : ¬ PilotSpartan.outputPreimageStart + offset.val <
-      PilotSpartan.outputPreimageStart := by
+  have sumNotOutput : ¬ PilotPackageOrder.outputPreimageStart + offset.val <
+      PilotPackageOrder.outputPreimageStart := by
     omega
-  have startNotOutput : ¬ PilotSpartan.outputPreimageStart <
-      PilotSpartan.outputPreimageStart := by
+  have startNotOutput : ¬ PilotPackageOrder.outputPreimageStart <
+      PilotPackageOrder.outputPreimageStart := by
     omega
-  have sumBeforeDigest : PilotSpartan.outputPreimageStart + offset.val <
-      PilotSpartan.outputDigestStart := by
-    rw [PilotSpartan.outputPreimageStart_value,
-      PilotSpartan.outputDigestStart_value]
+  have sumBeforeDigest : PilotPackageOrder.outputPreimageStart + offset.val <
+      PilotPackageOrder.outputDigestStart := by
+    rw [PilotPackageOrder.outputPreimageStart_value,
+      PilotPackageOrder.outputDigestStart_value]
     norm_num [PilotProduction.stateHashWords_eq] at bound ⊢
     omega
-  have startBeforeDigest : PilotSpartan.outputPreimageStart <
-      PilotSpartan.outputDigestStart := by
-    rw [PilotSpartan.outputPreimageStart_value,
-      PilotSpartan.outputDigestStart_value]
+  have startBeforeDigest : PilotPackageOrder.outputPreimageStart <
+      PilotPackageOrder.outputDigestStart := by
+    rw [PilotPackageOrder.outputPreimageStart_value,
+      PilotPackageOrder.outputDigestStart_value]
     omega
   have pilotAffine :
-      PilotSpartan.sourceToSpartan
-          (PilotSpartan.outputPreimageStart + offset.val) =
-        PilotSpartan.sourceToSpartan PilotSpartan.outputPreimageStart +
+      PilotPackageOrder.sourceToPackage
+          (PilotPackageOrder.outputPreimageStart + offset.val) =
+        PilotPackageOrder.sourceToPackage PilotPackageOrder.outputPreimageStart +
           offset.val := by
-    unfold PilotSpartan.sourceToSpartan
+    unfold PilotPackageOrder.sourceToPackage
     rw [ite_eq_right sumNotPrior, ite_eq_right sumNotOutput, ite_eq_left sumBeforeDigest,
       ite_eq_right startNotPrior, ite_eq_right startNotOutput, ite_eq_left startBeforeDigest]
     omega
-  unfold Spartan.sourceToSpartan
+  unfold PackageOrder.sourceToPackage
   rw [ite_eq_left sumPilot, ite_eq_left startPilot, pilotAffine]
-  exact Spartan.liftPilotColumn_add_of_input
-    (PilotSpartan.sourceToSpartan PilotSpartan.outputPreimageStart)
+  exact PackageOrder.liftPilotColumn_add_of_input
+    (PilotPackageOrder.sourceToPackage PilotPackageOrder.outputPreimageStart)
     offset.val (by
       have mappedStart :
-          PilotSpartan.sourceToSpartan PilotSpartan.outputPreimageStart =
-            PilotSpartan.secondPrivateStart := by
-        unfold PilotSpartan.sourceToSpartan
+          PilotPackageOrder.sourceToPackage PilotPackageOrder.outputPreimageStart =
+            PilotPackageOrder.secondPrivateStart := by
+        unfold PilotPackageOrder.sourceToPackage
         rw [ite_eq_right startNotPrior, ite_eq_right startNotOutput,
           ite_eq_left startBeforeDigest]
         omega
-      rw [mappedStart, PilotSpartan.secondPrivateStart_value]
-      norm_num [Spartan.pilotInputPrivateColumnCount,
+      rw [mappedStart, PilotPackageOrder.secondPrivateStart_value]
+      norm_num [PackageOrder.pilotInputPrivateColumnCount,
         PilotProduction.stateHashWords_eq] at bound ⊢
       omega)
 
 def outputInputRange (program : Program) : SourceRange :=
   SourceRange.ofSemantic (PiRLCPoseidonGeometry.outputInputBlock program)
     (PiRLCPoseidonGeometry.outputInputStart program)
-    (Spartan.sourceToSpartan PilotProduction.outputPreimageStart)
+    (PackageOrder.sourceToPackage PilotProduction.outputPreimageStart)
     PilotProduction.stateHashWords 0
 
 theorem outputInputRange_form?
@@ -155,45 +155,45 @@ theorem outputInputRange_form?
     (geometry : Geometry program logicalWidth)
     (index : Fin PilotProduction.stateHashWords) :
     (outputInputRange program).form? logicalWidth
-        (Spartan.sourceToSpartan
+        (PackageOrder.sourceToPackage
           (PilotProduction.outputPreimageStart + index.val)) =
       some ((PiCCSOrdinaryDirectPlan.Location.outputInput index).form
         geometry) := by
-  rw [sourceToSpartan_outputInput_add]
+  rw [sourceToPackage_outputInput_add]
   rw [PiCCSOrdinaryDirectPlan.Location.outputInput_form_eq_pilot]
   simpa only [outputInputRange, Nat.zero_add] using!
     (SourceRange.form?_ofSemantic (PiRLCPoseidonGeometry.outputInputBlock program)
       (PiRLCPoseidonGeometry.outputInputStart program)
-      (Spartan.sourceToSpartan PilotProduction.outputPreimageStart)
+      (PackageOrder.sourceToPackage PilotProduction.outputPreimageStart)
       PilotProduction.stateHashWords 0
       (PiRLCPoseidonGeometry.outputInputFits (pilotGeometry geometry))
       (by rfl) index)
 
 def freshRange (program : Program) : SourceRange :=
   SourceRange.ofSemantic (freshBlock program) (freshStart program)
-    (Spartan.sourceToSpartan PiCCSArithmetic.initialClaimFreshStart)
+    (PackageOrder.sourceToPackage PiCCSArithmetic.initialClaimFreshStart)
     freshCount 0
 
 theorem freshRange_form?
     {program : Program} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth) (index : Fin freshCount) :
     (freshRange program).form? logicalWidth
-        (Spartan.sourceToSpartan
+        (PackageOrder.sourceToPackage
           (PiCCSArithmetic.initialClaimFreshStart + index.val)) =
       some ((PiCCSOrdinaryDirectPlan.Location.fresh index).form geometry) := by
-  have phaseBound : Spartan.piCcsPhaseOffset ≤
+  have phaseBound : PackageOrder.piCcsPhaseOffset ≤
       PiCCSArithmetic.initialClaimFreshStart := by
     unfold PiCCSArithmetic.initialClaimFreshStart
       PiCCSStarts.initialClaimFreshStart PiCCSStarts.roundTranscriptFreshStart
       PiCCSStarts.challengeFreshStart PiCCSStarts.statementAbsorptionFreshStart
       PiCCSStarts.statementBindingFreshStart PiCCSStarts.logicalFreshBase
     rw [PiCCSInputs.phaseOffset_eq]
-    norm_num [Spartan.piCcsPhaseOffset]
-  rw [Spartan.sourceToSpartan_add_of_piCcsLocal
+    norm_num [PackageOrder.piCcsPhaseOffset]
+  rw [PackageOrder.sourceToPackage_add_of_piCcsLocal
     PiCCSArithmetic.initialClaimFreshStart index.val phaseBound]
   simpa [freshRange, PiCCSOrdinaryDirectPlan.Location.form] using!
     (SourceRange.form?_ofSemantic (freshBlock program) (freshStart program)
-      (Spartan.sourceToSpartan PiCCSArithmetic.initialClaimFreshStart)
+      (PackageOrder.sourceToPackage PiCCSArithmetic.initialClaimFreshStart)
       freshCount 0 (freshFits geometry) (by rfl) index)
 
 def proofInputRangeCount : Nat := proofInputCount
@@ -204,18 +204,18 @@ def proofInputIndex (index : Fin proofInputRangeCount) :
 
 def callerInputRange (program : Program) : SourceRange :=
   SourceRange.ofSemantic (proofLogicalBlock program) (proofLogicalStart program)
-    (Spartan.sourceToSpartan PiCCSInputs.priorChildrenStart)
+    (PackageOrder.sourceToPackage PiCCSInputs.priorChildrenStart)
     PiCCSOrdinarySourceSupport.callerInputCount 0
 
 def statementSignRange (program : Program) : SourceRange :=
   SourceRange.ofSemantic (proofLogicalBlock program) (proofLogicalStart program)
-    (Spartan.sourceToSpartan PiCCSInputs.phaseOffset)
+    (PackageOrder.sourceToPackage PiCCSInputs.phaseOffset)
     Lifecycle.PiCCS.v1_2.StateBinding.signCount PiCCSOrdinarySourceSupport.callerInputCount
 
 private theorem phaseOffset_piCcsLocal :
-    Spartan.piCcsPhaseOffset ≤ PiCCSInputs.phaseOffset :=
+    PackageOrder.piCcsPhaseOffset ≤ PiCCSInputs.phaseOffset :=
   Nat.le_of_eq (by
-    unfold Spartan.piCcsPhaseOffset
+    unfold PackageOrder.piCcsPhaseOffset
     rw [PiCCSInputs.phaseOffset_eq])
 
 private theorem signSource_eq (index : Fin proofInputRangeCount)
@@ -232,26 +232,26 @@ theorem callerInputRange_form?
     (index : Fin proofInputRangeCount)
     (caller : index.val < PiCCSOrdinarySourceSupport.callerInputCount) :
     (callerInputRange program).form? logicalWidth
-        (Spartan.sourceToSpartan
+        (PackageOrder.sourceToPackage
           (PiCCSInputs.priorChildrenStart + index.val)) =
       some ((PiCCSOrdinaryDirectPlan.Location.proofLogical
         (proofInputIndex index)).form geometry) := by
-  have lower : Spartan.proofInputSourceStart ≤ PiCCSInputs.priorChildrenStart := by
-    norm_num [Spartan.proofInputSourceStart, PiCCSInputs.priorChildrenStart_eq]
+  have lower : PackageOrder.proofInputSourceStart ≤ PiCCSInputs.priorChildrenStart := by
+    norm_num [PackageOrder.proofInputSourceStart, PiCCSInputs.priorChildrenStart_eq]
   have upper : PiCCSInputs.priorChildrenStart + index.val <
-      Spartan.piCcsPhaseOffset := by
+      PackageOrder.piCcsPhaseOffset := by
     have bound := caller
     rw [PiCCSOrdinarySourceSupport.callerInputCount_eq] at bound
     rw [PiCCSInputs.priorChildrenStart_eq]
-    unfold Spartan.piCcsPhaseOffset
+    unfold PackageOrder.piCcsPhaseOffset
     omega
-  rw [Spartan.sourceToSpartan_add_of_proofInput
+  rw [PackageOrder.sourceToPackage_add_of_proofInput
     PiCCSInputs.priorChildrenStart index.val lower upper]
   rw [proofInputIndex, PiCCSOrdinaryDirectPlan.Location.form_proofInput _ index]
   simpa only [callerInputRange, proofInputSlot, Nat.zero_add] using!
     (SourceRange.form?_ofSemantic (proofLogicalBlock program)
       (proofLogicalStart program)
-      (Spartan.sourceToSpartan PiCCSInputs.priorChildrenStart)
+      (PackageOrder.sourceToPackage PiCCSInputs.priorChildrenStart)
       PiCCSOrdinarySourceSupport.callerInputCount 0 (proofLogicalFits geometry)
       (by
         change PiCCSOrdinarySourceSupport.callerInputCount ≤ proofLogicalCount
@@ -264,7 +264,7 @@ theorem statementSignRange_form?
     (index : Fin proofInputRangeCount)
     (sign : PiCCSOrdinarySourceSupport.callerInputCount ≤ index.val) :
     (statementSignRange program).form? logicalWidth
-        (Spartan.sourceToSpartan
+        (PackageOrder.sourceToPackage
           (PiCCSInputs.priorChildrenStart + index.val)) =
       some ((PiCCSOrdinaryDirectPlan.Location.proofLogical
         (proofInputIndex index)).form geometry) := by
@@ -275,12 +275,12 @@ theorem statementSignRange_form?
   have offsetBound : index.val - 17656 < Lifecycle.PiCCS.v1_2.StateBinding.signCount := by
     rw [Lifecycle.PiCCS.v1_2.StateBinding.signCount_eq]
     omega
-  rw [signSource_eq index sign, Spartan.sourceToSpartan_add_of_piCcsLocal
+  rw [signSource_eq index sign, PackageOrder.sourceToPackage_add_of_piCcsLocal
     PiCCSInputs.phaseOffset (index.val - 17656) phaseOffset_piCcsLocal]
   rw [proofInputIndex, PiCCSOrdinaryDirectPlan.Location.form_proofInput _ index]
   have selected := SourceRange.form?_ofSemantic (proofLogicalBlock program)
     (proofLogicalStart program)
-    (Spartan.sourceToSpartan PiCCSInputs.phaseOffset) Lifecycle.PiCCS.v1_2.StateBinding.signCount
+    (PackageOrder.sourceToPackage PiCCSInputs.phaseOffset) Lifecycle.PiCCS.v1_2.StateBinding.signCount
     PiCCSOrdinarySourceSupport.callerInputCount (proofLogicalFits geometry)
     (by
       change PiCCSOrdinarySourceSupport.callerInputCount + Lifecycle.PiCCS.v1_2.StateBinding.signCount ≤ proofLogicalCount
@@ -308,7 +308,7 @@ theorem transcriptOutputGrid_form?
     (geometry : Geometry program logicalWidth)
     (index : Fin transcriptOutputCount) :
     (transcriptOutputGrid program).form? logicalWidth
-        (Spartan.sourceToSpartan (transcriptOutputSource index)) =
+        (PackageOrder.sourceToPackage (transcriptOutputSource index)) =
       some ((PiCCSOrdinaryDirectPlan.Location.proofLogical
         (transcriptOutputSlot index)).form geometry) := by
   rw [PiCCSOrdinaryDirectPlan.Location.form_transcriptOutput]
@@ -332,7 +332,7 @@ def ordinaryLogicalIndex (index : Fin ordinaryLogicalRangeCount) :
 
 def ordinaryLogicalRange (program : Program) : SourceRange :=
   SourceRange.ofSemantic (proofLogicalBlock program) (proofLogicalStart program)
-    (Spartan.sourceToSpartan PiCCSStarts.initialClaimLogicalStart)
+    (PackageOrder.sourceToPackage PiCCSStarts.initialClaimLogicalStart)
     ordinaryLogicalRangeCount (proofInputCount + transcriptOutputCount)
 
 theorem ordinaryLogicalRange_form?
@@ -340,20 +340,20 @@ theorem ordinaryLogicalRange_form?
     (geometry : Geometry program logicalWidth)
     (index : Fin ordinaryLogicalRangeCount) :
     (ordinaryLogicalRange program).form? logicalWidth
-        (Spartan.sourceToSpartan
+        (PackageOrder.sourceToPackage
           (PiCCSStarts.initialClaimLogicalStart + index.val)) =
       some ((PiCCSOrdinaryDirectPlan.Location.proofLogical
         (ordinaryLogicalIndex index)).form geometry) := by
-  rw [Spartan.sourceToSpartan_add_of_piCcsLocal
+  rw [PackageOrder.sourceToPackage_add_of_piCcsLocal
     PiCCSStarts.initialClaimLogicalStart index.val (by
       unfold PiCCSStarts.initialClaimLogicalStart
       rw [PiCCSStarts.roundTranscriptWitnessStart_eq]
-      norm_num [Spartan.piCcsPhaseOffset])]
+      norm_num [PackageOrder.piCcsPhaseOffset])]
   rw [ordinaryLogicalIndex, PiCCSOrdinaryDirectPlan.Location.form_ordinaryLogical _ index]
   simpa only [ordinaryLogicalRange, ordinaryLogicalSlot] using!
     (SourceRange.form?_ofSemantic (proofLogicalBlock program)
       (proofLogicalStart program)
-      (Spartan.sourceToSpartan PiCCSStarts.initialClaimLogicalStart)
+      (PackageOrder.sourceToPackage PiCCSStarts.initialClaimLogicalStart)
       ordinaryLogicalRangeCount (proofInputCount + transcriptOutputCount)
       (proofLogicalFits geometry) (by
         change proofInputCount + transcriptOutputCount +
@@ -363,22 +363,22 @@ theorem ordinaryLogicalRange_form?
 
 def expectedContextRange (program : Program) : SourceRange :=
   SourceRange.ofSemantic (expectedContextBlock program)
-    (expectedContextStart program) Spartan.expectedContextPublicStart
+    (expectedContextStart program) PackageOrder.expectedContextPublicStart
     PiCCSInputs.expectedContextWords 0
 
 theorem expectedContextRange_form?
     {program : Program} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth) (lane : Fin 4) :
     (expectedContextRange program).form? logicalWidth
-        (Spartan.sourceToSpartan
+        (PackageOrder.sourceToPackage
           (PiCCSInputs.expectedContextStart + lane.val)) =
       some ((PiCCSOrdinaryDirectPlan.Location.expectedContext lane).form
         geometry) := by
-  rw [Spartan.sourceToSpartan_expectedContext]
+  rw [PackageOrder.sourceToPackage_expectedContext]
   simpa [expectedContextRange, PiCCSOrdinaryDirectPlan.Location.form,
     PiCCSInputs.expectedContextWords] using!
     (SourceRange.form?_ofSemantic (expectedContextBlock program)
-      (expectedContextStart program) Spartan.expectedContextPublicStart
+      (expectedContextStart program) PackageOrder.expectedContextPublicStart
       PiCCSInputs.expectedContextWords 0 (expectedContextFits geometry)
       (by simp [expectedContextBlock, sourceFieldBlock,
         PiCCSInputs.expectedContextWords]) lane)
@@ -421,26 +421,26 @@ private theorem rangeValues (program : Program) :
     Spec.ringDegree,
     freshCount,
     PiCCSInputs.expectedContextWords,
-    Spartan.sourceToSpartan,
-    Spartan.liftPilotColumn,
-    PilotSpartan.sourceToSpartan,
-    Spartan.pilotSourceColumnCount,
-    Spartan.proofInputSourceStart,
-    Spartan.piCcsPhaseOffset,
-    Spartan.piCcsLocalStart,
-    Spartan.expectedContextPublicStart,
-    Spartan.pilotInputPrivateColumnCount,
-    Spartan.pilotPrivateColumnCount,
-    Spartan.proofInputColumnCount,
-    Spartan.privateColumnCount_eq,
-    PilotSpartan.priorPublicStart_value,
-    PilotSpartan.outputPreimageStart_value,
-    PilotSpartan.outputDigestStart_value,
-    PilotSpartan.witnessStart_value,
-    PilotSpartan.secondPrivateStart_value,
-    PilotSpartan.witnessPrivateStart_value,
-    PilotSpartan.firstPublicStart_value,
-    PilotSpartan.secondPublicStart_value,
+    PackageOrder.sourceToPackage,
+    PackageOrder.liftPilotColumn,
+    PilotPackageOrder.sourceToPackage,
+    PackageOrder.pilotSourceColumnCount,
+    PackageOrder.proofInputSourceStart,
+    PackageOrder.piCcsPhaseOffset,
+    PackageOrder.piCcsLocalStart,
+    PackageOrder.expectedContextPublicStart,
+    PackageOrder.pilotInputPrivateColumnCount,
+    PackageOrder.pilotPrivateColumnCount,
+    PackageOrder.proofInputColumnCount,
+    PackageOrder.privateColumnCount_eq,
+    PilotPackageOrder.priorPublicStart_value,
+    PilotPackageOrder.outputPreimageStart_value,
+    PilotPackageOrder.outputDigestStart_value,
+    PilotPackageOrder.witnessStart_value,
+    PilotPackageOrder.secondPrivateStart_value,
+    PilotPackageOrder.witnessPrivateStart_value,
+    PilotPackageOrder.firstPublicStart_value,
+    PilotPackageOrder.secondPublicStart_value,
     PiCCSInputs.priorChildrenStart_eq]
 
 private theorem transcriptGridValues (program : Program) :
@@ -454,13 +454,13 @@ private theorem transcriptGridValues (program : Program) :
     PiCCSTranscriptOutputForms.transcriptSourceStart
   rw [PiCCSStarts.statementWitnessStart_eq]
   norm_num [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq,
-    Spartan.sourceToSpartan, Spartan.pilotSourceColumnCount,
-    Spartan.proofInputSourceStart, Spartan.piCcsPhaseOffset,
-    Spartan.piCcsLocalStart]
+    PackageOrder.sourceToPackage, PackageOrder.pilotSourceColumnCount,
+    PackageOrder.proofInputSourceStart, PackageOrder.piCcsPhaseOffset,
+    PackageOrder.piCcsLocalStart]
 
 private theorem priorTarget_eq (program : Program)
     (index : Fin PilotProduction.stateHashWords) :
-    Spartan.sourceToSpartan
+    PackageOrder.sourceToPackage
         (PilotProduction.priorPreimageStart + index.val) = index.val := by
   have upper : PilotProduction.priorPreimageStart + index.val <
       PilotProduction.priorPublicInputStart := by
@@ -469,7 +469,7 @@ private theorem priorTarget_eq (program : Program)
       PilotProduction.priorPreimageStart,
       PilotProduction.stateHashWords_eq] at bound ⊢
     exact bound
-  rw [Spartan.sourceToSpartan_add_of_pilotPriorPrivate
+  rw [PackageOrder.sourceToPackage_add_of_pilotPriorPrivate
     PilotProduction.priorPreimageStart index.val upper]
   change (priorInputRange program).sourceStart + index.val = index.val
   have values := rangeValues program
@@ -477,10 +477,10 @@ private theorem priorTarget_eq (program : Program)
 
 private theorem outputTarget_eq (program : Program)
     (index : Fin PilotProduction.stateHashWords) :
-    Spartan.sourceToSpartan
+    PackageOrder.sourceToPackage
         (PilotProduction.outputPreimageStart + index.val) =
       28913 + index.val := by
-  rw [sourceToSpartan_outputInput_add]
+  rw [sourceToPackage_outputInput_add]
   change (outputInputRange program).sourceStart + index.val =
     28913 + index.val
   have values := rangeValues program
@@ -489,17 +489,17 @@ private theorem outputTarget_eq (program : Program)
 private theorem callerInputTarget_eq (program : Program)
     (index : Fin proofInputRangeCount)
     (caller : index.val < PiCCSOrdinarySourceSupport.callerInputCount) :
-    Spartan.sourceToSpartan (PiCCSInputs.priorChildrenStart + index.val) =
+    PackageOrder.sourceToPackage (PiCCSInputs.priorChildrenStart + index.val) =
       57826 + index.val := by
-  have lower : Spartan.proofInputSourceStart ≤ PiCCSInputs.priorChildrenStart := by
-    norm_num [Spartan.proofInputSourceStart, PiCCSInputs.priorChildrenStart_eq]
+  have lower : PackageOrder.proofInputSourceStart ≤ PiCCSInputs.priorChildrenStart := by
+    norm_num [PackageOrder.proofInputSourceStart, PiCCSInputs.priorChildrenStart_eq]
   have upper : PiCCSInputs.priorChildrenStart + index.val <
-      Spartan.piCcsPhaseOffset := by
+      PackageOrder.piCcsPhaseOffset := by
     rw [PiCCSOrdinarySourceSupport.callerInputCount_eq] at caller
     rw [PiCCSInputs.priorChildrenStart_eq]
-    unfold Spartan.piCcsPhaseOffset
+    unfold PackageOrder.piCcsPhaseOffset
     omega
-  rw [Spartan.sourceToSpartan_add_of_proofInput
+  rw [PackageOrder.sourceToPackage_add_of_proofInput
     PiCCSInputs.priorChildrenStart index.val lower upper]
   change (callerInputRange program).sourceStart + index.val =
     57826 + index.val
@@ -509,9 +509,9 @@ private theorem callerInputTarget_eq (program : Program)
 private theorem statementSignTarget_eq (program : Program)
     (index : Fin proofInputRangeCount)
     (sign : PiCCSOrdinarySourceSupport.callerInputCount ≤ index.val) :
-    Spartan.sourceToSpartan (PiCCSInputs.priorChildrenStart + index.val) =
+    PackageOrder.sourceToPackage (PiCCSInputs.priorChildrenStart + index.val) =
       5360662 + (index.val - 17656) := by
-  rw [signSource_eq index sign, Spartan.sourceToSpartan_add_of_piCcsLocal
+  rw [signSource_eq index sign, PackageOrder.sourceToPackage_add_of_piCcsLocal
     PiCCSInputs.phaseOffset (index.val - 17656) phaseOffset_piCcsLocal]
   change (statementSignRange program).sourceStart + (index.val - 17656) =
     5360662 + (index.val - 17656)
@@ -520,14 +520,14 @@ private theorem statementSignTarget_eq (program : Program)
 
 private theorem ordinaryLogicalTarget_eq (program : Program)
     (index : Fin ordinaryLogicalRangeCount) :
-    Spartan.sourceToSpartan
+    PackageOrder.sourceToPackage
         (PiCCSStarts.initialClaimLogicalStart + index.val) =
       5562646 + index.val := by
-  rw [Spartan.sourceToSpartan_add_of_piCcsLocal
+  rw [PackageOrder.sourceToPackage_add_of_piCcsLocal
     PiCCSStarts.initialClaimLogicalStart index.val (by
       unfold PiCCSStarts.initialClaimLogicalStart
       rw [PiCCSStarts.roundTranscriptWitnessStart_eq]
-      norm_num [Spartan.piCcsPhaseOffset])]
+      norm_num [PackageOrder.piCcsPhaseOffset])]
   change (ordinaryLogicalRange program).sourceStart + index.val =
     5562646 + index.val
   have values := rangeValues program
@@ -536,53 +536,53 @@ private theorem ordinaryLogicalTarget_eq (program : Program)
 private theorem transcriptOutputTarget_eq (index : Fin transcriptOutputCount) :
     let decoded : Fin transcriptInvocationCount × Fin Spec.Poseidon2.width :=
       Fin.decodeProd index
-    Spartan.sourceToSpartan (transcriptOutputSource index) =
+    PackageOrder.sourceToPackage (transcriptOutputSource index) =
       5362062 + decoded.1.val * 1096 + decoded.2.val := by
   let decoded : Fin transcriptInvocationCount × Fin Spec.Poseidon2.width :=
     Fin.decodeProd index
   dsimp only
   unfold transcriptOutputSource
-  change Spartan.sourceToSpartan
+  change PackageOrder.sourceToPackage
       (PiCCSStarts.statementWitnessStart + decoded.1.val * 1096 + 1080 + decoded.2.val) = _
   calc
-    _ = Spartan.sourceToSpartan
+    _ = PackageOrder.sourceToPackage
         (transcriptOutputSourceStart +
           (decoded.1.val * 1096 + decoded.2.val)) := by
-        apply congrArg Spartan.sourceToSpartan
+        apply congrArg PackageOrder.sourceToPackage
         unfold transcriptOutputSourceStart
         omega
-    _ = Spartan.sourceToSpartan transcriptOutputSourceStart +
+    _ = PackageOrder.sourceToPackage transcriptOutputSourceStart +
         decoded.1.val * 1096 + decoded.2.val := by
-      have mapped := Spartan.sourceToSpartan_add_of_piCcsLocal
+      have mapped := PackageOrder.sourceToPackage_add_of_piCcsLocal
         transcriptOutputSourceStart
         (decoded.1.val * 1096 + decoded.2.val) (by
           unfold transcriptOutputSourceStart
           rw [PiCCSStarts.statementWitnessStart_eq]
-          norm_num [Spartan.piCcsPhaseOffset])
+          norm_num [PackageOrder.piCcsPhaseOffset])
       simpa only [Nat.add_assoc] using mapped
     _ = _ := by
-      have startEq : Spartan.sourceToSpartan transcriptOutputSourceStart =
+      have startEq : PackageOrder.sourceToPackage transcriptOutputSourceStart =
           5362062 := by
         unfold transcriptOutputSourceStart
         rw [PiCCSStarts.statementWitnessStart_eq]
-        norm_num [Spartan.sourceToSpartan,
-          Spartan.pilotSourceColumnCount, Spartan.proofInputSourceStart,
-          Spartan.piCcsPhaseOffset, Spartan.piCcsLocalStart]
+        norm_num [PackageOrder.sourceToPackage,
+          PackageOrder.pilotSourceColumnCount, PackageOrder.proofInputSourceStart,
+          PackageOrder.piCcsPhaseOffset, PackageOrder.piCcsLocalStart]
       rw [startEq]
 
 private theorem freshTarget_eq (program : Program) (index : Fin freshCount) :
-    Spartan.sourceToSpartan
+    PackageOrder.sourceToPackage
         (PiCCSArithmetic.initialClaimFreshStart + index.val) =
       6591589 + index.val := by
-  have phaseBound : Spartan.piCcsPhaseOffset ≤
+  have phaseBound : PackageOrder.piCcsPhaseOffset ≤
       PiCCSArithmetic.initialClaimFreshStart := by
     unfold PiCCSArithmetic.initialClaimFreshStart
       PiCCSStarts.initialClaimFreshStart PiCCSStarts.roundTranscriptFreshStart
       PiCCSStarts.challengeFreshStart PiCCSStarts.statementAbsorptionFreshStart
       PiCCSStarts.statementBindingFreshStart PiCCSStarts.logicalFreshBase
     rw [PiCCSInputs.phaseOffset_eq]
-    norm_num [Spartan.piCcsPhaseOffset]
-  rw [Spartan.sourceToSpartan_add_of_piCcsLocal
+    norm_num [PackageOrder.piCcsPhaseOffset]
+  rw [PackageOrder.sourceToPackage_add_of_piCcsLocal
     PiCCSArithmetic.initialClaimFreshStart index.val phaseBound]
   change (freshRange program).sourceStart + index.val =
     6591589 + index.val
@@ -590,7 +590,7 @@ private theorem freshTarget_eq (program : Program) (index : Fin freshCount) :
   omega
 
 private theorem freshPublicTarget_eq (program : Program) (index : Fin 320) :
-    Spartan.sourceToSpartan
+    PackageOrder.sourceToPackage
         (PilotProduction.priorPublicInputStart + index.val) =
       11414925 + index.val := by
   have upper : PilotProduction.priorPublicInputStart + index.val <
@@ -600,7 +600,7 @@ private theorem freshPublicTarget_eq (program : Program) (index : Fin 320) :
       PilotProduction.priorPublicInputStart,
       Lifecycle.PriorStateHash.publicWidth,
       Lifecycle.PaperAlgebra.publicRingColumns, Spec.ringDegree] at bound ⊢
-  rw [Spartan.sourceToSpartan_add_of_pilotPriorPublic
+  rw [PackageOrder.sourceToPackage_add_of_pilotPriorPublic
     PilotProduction.priorPublicInputStart index.val (Nat.le_refl _) upper]
   change (freshPublicInputRange program).sourceStart + index.val =
     11414925 + index.val
@@ -608,9 +608,9 @@ private theorem freshPublicTarget_eq (program : Program) (index : Fin 320) :
   omega
 
 private theorem expectedContextTarget_eq (lane : Fin 4) :
-    Spartan.sourceToSpartan (PiCCSInputs.expectedContextStart + lane.val) =
+    PackageOrder.sourceToPackage (PiCCSInputs.expectedContextStart + lane.val) =
       11415249 + lane.val := by
-  rw [Spartan.sourceToSpartan_expectedContext]
+  rw [PackageOrder.sourceToPackage_expectedContext]
   rfl
 
 def substitution (program : Program) : SourceSubstitution where
@@ -769,7 +769,7 @@ theorem substitution_priorInput_form?
     (geometry : Geometry program logicalWidth)
     (index : Fin PilotProduction.stateHashWords) :
     (substitution program).form? logicalWidth
-        (Spartan.sourceToSpartan
+        (PackageOrder.sourceToPackage
           (PilotProduction.priorPreimageStart + index.val)) =
       some ((PiCCSOrdinaryDirectPlan.Location.priorInput index).form
         geometry) := by
@@ -806,7 +806,7 @@ theorem substitution_outputInput_form?
     (geometry : Geometry program logicalWidth)
     (index : Fin PilotProduction.stateHashWords) :
     (substitution program).form? logicalWidth
-        (Spartan.sourceToSpartan
+        (PackageOrder.sourceToPackage
           (PilotProduction.outputPreimageStart + index.val)) =
       some ((PiCCSOrdinaryDirectPlan.Location.outputInput index).form
         geometry) := by
@@ -860,7 +860,7 @@ theorem substitution_proofInput_form?
     (geometry : Geometry program logicalWidth)
     (index : Fin proofInputRangeCount) :
     (substitution program).form? logicalWidth
-        (Spartan.sourceToSpartan
+        (PackageOrder.sourceToPackage
           (PiCCSInputs.priorChildrenStart + index.val)) =
       some ((PiCCSOrdinaryDirectPlan.Location.proofLogical
         (proofInputIndex index)).form geometry) := by
@@ -938,12 +938,12 @@ theorem substitution_transcriptOutput_form?
     (geometry : Geometry program logicalWidth)
     (index : Fin transcriptOutputCount) :
     (substitution program).form? logicalWidth
-        (Spartan.sourceToSpartan (transcriptOutputSource index)) =
+        (PackageOrder.sourceToPackage (transcriptOutputSource index)) =
       some ((PiCCSOrdinaryDirectPlan.Location.proofLogical
         (transcriptOutputSlot index)).form geometry) := by
   let decoded : Fin transcriptInvocationCount × Fin Spec.Poseidon2.width :=
     Fin.decodeProd index
-  have target : Spartan.sourceToSpartan (transcriptOutputSource index) =
+  have target : PackageOrder.sourceToPackage (transcriptOutputSource index) =
       5362062 + decoded.1.val * 1096 + decoded.2.val := by
     simpa only [decoded] using transcriptOutputTarget_eq index
   have selected := transcriptOutputGrid_form? geometry index
@@ -985,7 +985,7 @@ private theorem transcriptOutputGrid_form?_none_at_ordinary
     {program : Program} {logicalWidth : Nat}
     (index : Fin ordinaryLogicalRangeCount) :
     (transcriptOutputGrid program).form? logicalWidth
-        (Spartan.sourceToSpartan
+        (PackageOrder.sourceToPackage
           (PiCCSStarts.initialClaimLogicalStart + index.val)) = none := by
   rw [ordinaryLogicalTarget_eq program index]
   rcases transcriptGridValues program with
@@ -1035,7 +1035,7 @@ theorem substitution_ordinaryLogical_form?
     (geometry : Geometry program logicalWidth)
     (index : Fin ordinaryLogicalRangeCount) :
     (substitution program).form? logicalWidth
-        (Spartan.sourceToSpartan
+        (PackageOrder.sourceToPackage
           (PiCCSStarts.initialClaimLogicalStart + index.val)) =
       some ((PiCCSOrdinaryDirectPlan.Location.proofLogical
         (ordinaryLogicalIndex index)).form geometry) := by
@@ -1071,7 +1071,7 @@ theorem substitution_fresh_form?
     {program : Program} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth) (index : Fin freshCount) :
     (substitution program).form? logicalWidth
-        (Spartan.sourceToSpartan
+        (PackageOrder.sourceToPackage
           (PiCCSArithmetic.initialClaimFreshStart + index.val)) =
       some ((PiCCSOrdinaryDirectPlan.Location.fresh index).form geometry) := by
   have target := freshTarget_eq program index
@@ -1110,7 +1110,7 @@ theorem substitution_freshPublicInput_form?
     {program : Program} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth) (index : Fin 320) :
     (substitution program).form? logicalWidth
-        (Spartan.sourceToSpartan
+        (PackageOrder.sourceToPackage
           (PilotProduction.priorPublicInputStart + index.val)) =
       some ((PiCCSOrdinaryDirectPlan.Location.freshPublicInput index).form
         geometry) := by
@@ -1149,7 +1149,7 @@ theorem substitution_expectedContext_form?
     {program : Program} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth) (lane : Fin 4) :
     (substitution program).form? logicalWidth
-        (Spartan.sourceToSpartan
+        (PackageOrder.sourceToPackage
           (PiCCSInputs.expectedContextStart + lane.val)) =
       some ((PiCCSOrdinaryDirectPlan.Location.expectedContext lane).form
         geometry) := by
@@ -1189,7 +1189,7 @@ theorem substitution_location_form?
     (geometry : Geometry program logicalWidth)
     (location : PiCCSOrdinaryDirectPlan.Location) :
     (substitution program).form? logicalWidth
-        (Spartan.sourceToSpartan location.sourceColumn) =
+        (PackageOrder.sourceToPackage location.sourceColumn) =
       some (location.form geometry) := by
   cases location with
   | priorInput index =>
@@ -1265,7 +1265,7 @@ theorem substitution_location_form?
 theorem substitution_agrees_on_target
     {program : Program} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth)
-    (column : Fin Spartan.spartanColumnCount)
+    (column : Fin PackageOrder.packageColumnCount)
     (support : PiCCSOrdinarySourceSupport.Target column.val) :
     (substitution program).form? logicalWidth column.val =
       some ((PiCCSOrdinaryDirectPlan.sourceMap geometry).form column) := by
@@ -1277,7 +1277,7 @@ theorem substitution_agrees_on_target
       | some value => value.location.form geometry)
   rw [found]
   have target :
-      Spartan.sourceToSpartan decoded.location.sourceColumn = column.val := by
+      PackageOrder.sourceToPackage decoded.location.sourceColumn = column.val := by
     rw [decoded.owns, mapped]
   simpa only [target] using
     (substitution_location_form? geometry decoded.location)
@@ -1338,7 +1338,7 @@ theorem compile_programRow?
     (geometry : Geometry program logicalWidth)
     (index : Fin 43517)
     (bounded : Layout.ProductionRelation.SourceCompiler.RowBounded
-      Spartan.spartanColumnCount
+      PackageOrder.packageColumnCount
       (PiCCSOrdinaryDirectSource.programRow relation index)) :
     Ordinary.compileRow? (substitution program) logicalWidth
         (PiCCSOrdinaryRetainedGeometry.oneColumn geometry).val

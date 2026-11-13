@@ -1,6 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PiCCSPoseidonPlan.Retained
 import NightstreamFPrime.Export.Stage1.PiRLCRetainedPreservation
-import NightstreamFPrime.Layout.Stage1.SpartanValues
+import NightstreamFPrime.Layout.Stage1.PackageOrderValues
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSPoseidonPreservation
 
@@ -19,29 +19,29 @@ def sourceAssignment (program : Lifecycle.Stage1.Application.Program)
     Fin (PiCCSPoseidonPlan.sourceWidth program) → F :=
   PiCCSActionPayloadBlock.sourceAssignment program prefixAssignment
 
-theorem sourceToSpartan_lt_basePackage (column : Nat)
-    (bound : column < NightstreamFPrime.Layout.Stage1.Spartan.SourceColumnCount) :
-    NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan column <
+theorem sourceToPackage_lt_basePackage (column : Nat)
+    (bound : column < NightstreamFPrime.Layout.Stage1.PackageOrder.SourceColumnCount) :
+    NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage column <
       PiRLCProductPlan.basePackage.layout.totalColumnCount := by
-  have mapped := NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan_lt
+  have mapped := NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage_lt
     column bound
-  rw [NightstreamFPrime.Layout.Stage1.Spartan.spartanColumnCount_eq] at mapped
+  rw [NightstreamFPrime.Layout.Stage1.PackageOrder.packageColumnCount_eq] at mapped
   simpa [PiRLCProductPlan.basePackage] using mapped
 
 def logicalPackageColumn (program : Lifecycle.Stage1.Application.Program)
     (column : Nat)
-    (bound : column < NightstreamFPrime.Layout.Stage1.Spartan.SourceColumnCount) :
+    (bound : column < NightstreamFPrime.Layout.Stage1.PackageOrder.SourceColumnCount) :
     Fin (PiRLCProductPlan.baseSourceWidth program) :=
   PiRLCProductPlan.shiftedPackageColumn program
-    (NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan column)
-    (sourceToSpartan_lt_basePackage column bound)
+    (NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage column)
+    (sourceToPackage_lt_basePackage column bound)
 
 theorem retainedPrefix_baseEnv
     (program : Lifecycle.Stage1.Application.Program)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (column : Nat)
-    (bound : column < NightstreamFPrime.Layout.Stage1.Spartan.spartanColumnCount) :
+    (bound : column < NightstreamFPrime.Layout.Stage1.PackageOrder.packageColumnCount) :
     PerApplicationPackage.baseEnv program
         (SourceCompiler.sourceEnv (PiRLCRetainedPreservation.sourceAssignment
           program base groupValue)) column =
@@ -51,7 +51,7 @@ theorem retainedPrefix_baseEnv
     exact Package.circuitPackage_layout_values.2.2.2.2
   have packageBound : column < PiRLCProductPlan.basePackage.layout.totalColumnCount := by
     rw [packageTotal]
-    simpa only [NightstreamFPrime.Layout.Stage1.Spartan.spartanColumnCount_eq] using bound
+    simpa only [NightstreamFPrime.Layout.Stage1.PackageOrder.packageColumnCount_eq] using bound
   have shiftedBase := PiRLCProductPlan.shiftColumn_lt_baseSourceWidth program column packageBound
   have shiftedRetained : PerApplicationPackage.shiftColumn program column <
       PiRLCRetainedGeometry.sourceWidth program := by
@@ -75,7 +75,7 @@ theorem readout_sourceAssignment
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (column : Nat)
-    (bound : column < NightstreamFPrime.Layout.Stage1.Spartan.spartanColumnCount) :
+    (bound : column < NightstreamFPrime.Layout.Stage1.PackageOrder.packageColumnCount) :
     PiCCSTranscriptReadout.env (PerApplicationPackage.baseEnv program
         (SourceCompiler.sourceEnv (PiRLCRetainedPreservation.sourceAssignment
           program base groupValue))) column =
@@ -85,21 +85,21 @@ theorem readout_sourceAssignment
   · exact retainedPrefix_baseEnv program base groupValue column bound
   · intro index lane
     exact retainedPrefix_baseEnv program base groupValue _
-      (PiCCSTranscriptReadout.sboxColumn_lt_spartanColumnCount index lane)
+      (PiCCSTranscriptReadout.sboxColumn_lt_packageColumnCount index lane)
 
 theorem packageEnv_sourceAssignment
     (program : Lifecycle.Stage1.Application.Program)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (column : Nat)
-    (bound : column < NightstreamFPrime.Layout.Stage1.Spartan.SourceColumnCount) :
+    (bound : column < NightstreamFPrime.Layout.Stage1.PackageOrder.SourceColumnCount) :
     PiCCSActionPayloadBlock.packageEnv program
         (PiRLCRetainedPreservation.sourceAssignment program base groupValue) column =
       PiCCSTranscriptReadout.env
         (PerApplicationPackage.baseEnv program (SourceCompiler.sourceEnv base))
-        (NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan column) := by
+        (NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage column) := by
   exact readout_sourceAssignment program base groupValue _
-    (NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan_lt column bound)
+    (NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage_lt column bound)
 
 abbrev InvocationIndex := Fin PiCCSPoseidonPlan.invocationCount
 

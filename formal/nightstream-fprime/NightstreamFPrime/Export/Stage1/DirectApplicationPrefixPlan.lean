@@ -2,7 +2,7 @@ import NightstreamFPrime.Export.Stage1.ApplicationDirectPlan
 import NightstreamFPrime.Export.Stage1.DirectPiRLCSamplerCompletePrefixPlan
 import NightstreamFPrime.Export.Stage1.NextPreimageDirectPlan
 import NightstreamFPrime.Export.Stage1.RecursivePublicOutputPlan
-import NightstreamFPrime.Layout.Stage1.SpartanValues
+import NightstreamFPrime.Layout.Stage1.PackageOrderValues
 
 namespace NightstreamFPrime.Export.Stage1.DirectApplicationPrefixPlan
 
@@ -230,8 +230,8 @@ theorem applicationSourceWidth_le_baseSourceWidth
   have baseTotal : PerApplicationPackage.basePackage.layout.totalColumnCount =
       11415253 := by
     exact Package.circuitPackage_layout_values.2.2.2.2
-  have privateCount : Layout.Stage1.Spartan.privateColumnCount = 11414924 := by
-    exact Layout.Stage1.Spartan.privateColumnCount_eq
+  have privateCount : Layout.Stage1.PackageOrder.privateColumnCount = 11414924 := by
+    exact Layout.Stage1.PackageOrder.privateColumnCount_eq
   rw [baseTotal, privateCount]
   change 11414924 + application.witnessWordCount +
         localLength (ApplicationPackage.operations application
@@ -303,7 +303,7 @@ structure Semantics
   nextPreimage : Lifecycle.Stage1.NextPreimage.SpecHolds
     Layout.Stage1.NextPreimageInputs.sourceInterface
     Layout.Stage1.RunningTransitionInputs.phaseOffset
-    (Spartan.pullback (RunningTransitionDirectPlan.transitionEnv application base))
+    (PackageOrder.pullback (RunningTransitionDirectPlan.transitionEnv application base))
   publicOutput : RecursivePublicOutputPlan.Matches geometry assignment
 
 private theorem prefixOne

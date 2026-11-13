@@ -50,7 +50,7 @@ theorem publicFits : ringDegree * publicRingColumns ≤
   PhaseReference.publicFits
 
 def liftPilotTerm (term : SparseTerm) : SparseTerm :=
-  ⟨NightstreamFPrime.Layout.Stage1.Spartan.liftPilotColumn term.column,
+  ⟨NightstreamFPrime.Layout.Stage1.PackageOrder.liftPilotColumn term.column,
     term.coefficient⟩
 
 def liftPilotCombination (combination : SparseCombination) :
@@ -66,7 +66,7 @@ def liftPilotRows (rows : List SparseRow) : List SparseRow :=
 
 def liftPilotExpr : Expr → Expr
   | .var index =>
-      .var (NightstreamFPrime.Layout.Stage1.Spartan.liftPilotColumn index)
+      .var (NightstreamFPrime.Layout.Stage1.PackageOrder.liftPilotColumn index)
   | .const value => .const value
   | .add left right => .add (liftPilotExpr left) (liftPilotExpr right)
   | .mul left right => .mul (liftPilotExpr left) (liftPilotExpr right)
@@ -78,7 +78,7 @@ def liftPilotHint : Hint → Hint
   | .remainderFive source => .remainderFive (liftPilotExpr source)
 
 def liftPilotBatch (batch : WitnessBatch) : WitnessBatch where
-  start := NightstreamFPrime.Layout.Stage1.Spartan.liftPilotColumn batch.start
+  start := NightstreamFPrime.Layout.Stage1.PackageOrder.liftPilotColumn batch.start
   recipes := batch.recipes.map liftPilotExpr
   hints := batch.hints.map liftPilotHint
 
@@ -89,7 +89,7 @@ def liftPilotInstruction (instruction : WitnessInstruction) :
     WitnessInstruction where
   rowIndex := instruction.rowIndex
   target :=
-    NightstreamFPrime.Layout.Stage1.Spartan.liftPilotColumn instruction.target
+    NightstreamFPrime.Layout.Stage1.PackageOrder.liftPilotColumn instruction.target
   a := liftPilotCombination instruction.a
   b := liftPilotCombination instruction.b
 
@@ -114,55 +114,55 @@ theorem liftPilotInstruction_mem {instruction : WitnessInstruction}
 def liftPilotChain (chain : HashChain) : HashChain :=
   { chain with
     inputStart :=
-      NightstreamFPrime.Layout.Stage1.Spartan.liftPilotColumn chain.inputStart
+      NightstreamFPrime.Layout.Stage1.PackageOrder.liftPilotColumn chain.inputStart
     witnessStart :=
-      NightstreamFPrime.Layout.Stage1.Spartan.liftPilotColumn chain.witnessStart
+      NightstreamFPrime.Layout.Stage1.PackageOrder.liftPilotColumn chain.witnessStart
     digestStart :=
-      NightstreamFPrime.Layout.Stage1.Spartan.liftPilotColumn chain.digestStart }
+      NightstreamFPrime.Layout.Stage1.PackageOrder.liftPilotColumn chain.digestStart }
 
 def priorChain : HashChain := liftPilotChain PilotData.priorChain
 def outputChain : HashChain := liftPilotChain PilotData.outputChain
 
 def proofInputStart : Nat :=
-  NightstreamFPrime.Layout.Stage1.Spartan.pilotInputPrivateColumnCount
+  NightstreamFPrime.Layout.Stage1.PackageOrder.pilotInputPrivateColumnCount
 
 def witnessStart : Nat :=
   proofInputStart +
-    NightstreamFPrime.Layout.Stage1.Spartan.proofInputColumnCount
+    NightstreamFPrime.Layout.Stage1.PackageOrder.proofInputColumnCount
 
 def witnessLength : Nat :=
-  NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+  NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
       NightstreamFPrime.Layout.Stage1.PiDECInputs.proofInputStart - witnessStart
 
 def piDecCommitmentStart : Nat :=
-  NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+  NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
     NightstreamFPrime.Layout.Stage1.PiDECInputs.commitmentInputStart
 
 def piDecEvalKStart : Nat :=
-  NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+  NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
     NightstreamFPrime.Layout.Stage1.PiDECInputs.evalKInputStart
 
 def piDecEvalAStart : Nat :=
-  NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+  NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
     NightstreamFPrime.Layout.Stage1.PiDECInputs.evalAInputStart
 
 def piDecPublicInputStart : Nat :=
-  NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+  NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
     NightstreamFPrime.Layout.Stage1.PiDECInputs.publicInputStart
 
 def piDecWitnessStart : Nat :=
-  NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+  NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
     NightstreamFPrime.Layout.Stage1.PiDECInputs.phaseOffset
 
 def runningTransitionWitnessStart : Nat :=
-  NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+  NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
     NightstreamFPrime.Layout.Stage1.RunningTransitionInputs.phaseOffset
 
 def piDecWitnessLength : Nat :=
   runningTransitionWitnessStart - piDecWitnessStart
 
 def runningTransitionWitnessLength : Nat :=
-  NightstreamFPrime.Layout.Stage1.Spartan.privateColumnCount -
+  NightstreamFPrime.Layout.Stage1.PackageOrder.privateColumnCount -
     runningTransitionWitnessStart
 
 theorem piDecPrivateSegments_contiguous :
@@ -186,7 +186,7 @@ theorem piDecPrivateSegments_contiguous :
       piDecWitnessStart + piDecWitnessLength =
         runningTransitionWitnessStart ∧
       runningTransitionWitnessStart + runningTransitionWitnessLength =
-        NightstreamFPrime.Layout.Stage1.Spartan.privateColumnCount := by
+        NightstreamFPrime.Layout.Stage1.PackageOrder.privateColumnCount := by
   rcases Layout.Stage1.PiDECSourceSupport.mapped_input_ranges_contiguous with
     ⟨commitment, evalK, evalA, publicInput⟩
   exact ⟨by decide, commitment, evalK, evalA, publicInput,
@@ -282,25 +282,25 @@ theorem outputEval_ASegment_mem
 
 def publicSegments : List Segment :=
   [⟨Role.priorPublicInput,
-      NightstreamFPrime.Layout.Stage1.Spartan.constantColumn + 1,
+      NightstreamFPrime.Layout.Stage1.PackageOrder.constantColumn + 1,
       NightstreamFPrime.Layout.PilotValues.priorPublicInputWords⟩,
    ⟨Role.outputDigest,
-      NightstreamFPrime.Layout.Stage1.Spartan.constantColumn + 1 +
+      NightstreamFPrime.Layout.Stage1.PackageOrder.constantColumn + 1 +
         NightstreamFPrime.Layout.PilotValues.priorPublicInputWords,
       NightstreamFPrime.Layout.PilotValues.digestWords⟩,
    ⟨Role.verifierContext,
-      NightstreamFPrime.Layout.Stage1.Spartan.expectedContextPublicStart,
-      NightstreamFPrime.Layout.Stage1.Spartan.expectedContextColumnCount⟩]
+      NightstreamFPrime.Layout.Stage1.PackageOrder.expectedContextPublicStart,
+      NightstreamFPrime.Layout.Stage1.PackageOrder.expectedContextColumnCount⟩]
 
 def physicalLayout : PhysicalLayout where
   rowCount := 11317348
   privateColumnCount :=
-    NightstreamFPrime.Layout.Stage1.Spartan.privateColumnCount
-  constantColumn := NightstreamFPrime.Layout.Stage1.Spartan.constantColumn
+    NightstreamFPrime.Layout.Stage1.PackageOrder.privateColumnCount
+  constantColumn := NightstreamFPrime.Layout.Stage1.PackageOrder.constantColumn
   publicColumnCount :=
-    NightstreamFPrime.Layout.Stage1.Spartan.publicColumnCount
+    NightstreamFPrime.Layout.Stage1.PackageOrder.publicColumnCount
   totalColumnCount :=
-    NightstreamFPrime.Layout.Stage1.Spartan.spartanColumnCount
+    NightstreamFPrime.Layout.Stage1.PackageOrder.packageColumnCount
   privateSegments := privateSegments
   publicSegments := publicSegments
 

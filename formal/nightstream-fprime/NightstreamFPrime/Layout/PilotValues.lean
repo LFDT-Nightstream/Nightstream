@@ -46,7 +46,7 @@ abbrev sourceColumnCount : Nat :=
   logicalColumnCount + priorCanonicalFreshCount
 abbrev privateColumnCount : Nat := sourceColumnCount - publicColumnCount
 abbrev constantColumn : Nat := privateColumnCount
-abbrev spartanColumnCount : Nat :=
+abbrev packageColumnCount : Nat :=
   privateColumnCount + 1 + publicColumnCount
 
 abbrev secondPrivateStart : Nat := stateHashWords

@@ -53,7 +53,7 @@ theorem constraints_eq_samplerChain :
 theorem rows_toR1CS :
     (rows (logicalWidth := logicalWidth) (publicFits := publicFits)).map
         Rows.CompiledRow.toR1CS =
-      NightstreamFPrime.Layout.Stage1.Spartan.remapRows
+      NightstreamFPrime.Layout.Stage1.PackageOrder.remapRows
         (R1CS.lowerConstraints
           (constraints (logicalWidth := logicalWidth)
             (publicFits := publicFits))
@@ -99,7 +99,7 @@ theorem rows_imply_relation (env : Env)
       (samplerInterface (logicalWidth := logicalWidth)
         (publicFits := publicFits))
       NightstreamFPrime.Layout.Stage1.PiRLCStarts.samplerLogicalStart
-      (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) := by
+      (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env) := by
   have logical := PiCCSArithmetic.compilePacket_sound
     NightstreamFPrime.Layout.Stage1.PiRLCStarts.samplerRowStart
     NightstreamFPrime.Layout.Stage1.PiRLCStarts.samplerFreshStart
@@ -109,7 +109,7 @@ theorem rows_imply_relation (env : Env)
   apply NightstreamFPrime.Lifecycle.PiRLC.v1_2.SamplerChain.soundness
     (samplerInterface (logicalWidth := logicalWidth)
       (publicFits := publicFits))
-    (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)
+    (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env)
     NightstreamFPrime.Layout.Stage1.PiRLCStarts.samplerLogicalStart assumptions
   exact holdsFlat_implies_holds _ _ (by
     simpa only [NightstreamFPrime.Layout.PiRLC.v1_2.SamplerChain.logicalConstraints]

@@ -60,13 +60,13 @@ private theorem inputState_eq_prior_slice
         (localStart program) env =
       List.take Lifecycle.Stage1.Application.stateWordCount
         (List.drop currentWordStart
-          (Hash.evalList (Spartan.pullback env)
+          (Hash.evalList (PackageOrder.pullback env)
             (PilotProduction.priorPreimage 0))) := by
   simp only [Lifecycle.Stage1.Application.inputState, interface,
     Hash.evalList, PilotProduction.priorPreimage,
     PilotProduction.variableExprs, List.map_ofFn, Expr.eval_var]
   let values : Fin PilotProduction.stateHashWords → F :=
-    Expr.eval (Spartan.pullback env) ∘
+    Expr.eval (PackageOrder.pullback env) ∘
       fun index => Expr.var (PilotProduction.priorPreimageStart + index.val)
   have fits : currentWordStart +
       Lifecycle.Stage1.Application.stateWordCount ≤
@@ -85,10 +85,10 @@ private theorem inputState_eq_prior_slice
             omega⟩) := by
       apply congrArg (@List.ofFn F 4)
       funext index
-      simp only [values, Spartan.pullback, Function.comp_apply,
+      simp only [values, PackageOrder.pullback, Function.comp_apply,
         Expr.eval_var, inputColumn, inputSourceColumn, currentWordStart]
       apply congrArg env
-      apply congrArg Spartan.sourceToSpartan
+      apply congrArg PackageOrder.sourceToPackage
       omega
     _ = List.take Lifecycle.Stage1.Application.stateWordCount
           (List.drop currentWordStart (List.ofFn values)) :=
@@ -100,13 +100,13 @@ private theorem outputState_eq_output_slice
         (localStart program) env =
       List.take Lifecycle.Stage1.Application.stateWordCount
         (List.drop currentWordStart
-          (Hash.evalList (Spartan.pullback env)
+          (Hash.evalList (PackageOrder.pullback env)
             (PilotProduction.outputPreimage 0))) := by
   simp only [Lifecycle.Stage1.Application.outputState, interface,
     Hash.evalList, PilotProduction.outputPreimage,
     PilotProduction.variableExprs, List.map_ofFn, Expr.eval_var]
   let values : Fin PilotProduction.stateHashWords → F :=
-    Expr.eval (Spartan.pullback env) ∘
+    Expr.eval (PackageOrder.pullback env) ∘
       fun index => Expr.var (PilotProduction.outputPreimageStart + index.val)
   have fits : currentWordStart +
       Lifecycle.Stage1.Application.stateWordCount ≤
@@ -125,10 +125,10 @@ private theorem outputState_eq_output_slice
             omega⟩) := by
       apply congrArg (@List.ofFn F 4)
       funext index
-      simp only [values, Spartan.pullback, Function.comp_apply,
+      simp only [values, PackageOrder.pullback, Function.comp_apply,
         Expr.eval_var, outputColumn, outputSourceColumn, currentWordStart]
       apply congrArg env
-      apply congrArg Spartan.sourceToSpartan
+      apply congrArg PackageOrder.sourceToPackage
       omega
     _ = List.take Lifecycle.Stage1.Application.stateWordCount
           (List.drop currentWordStart (List.ofFn values)) :=
@@ -141,13 +141,13 @@ theorem inputState_eq_current
     (fixed : PilotProduction.FixedPreimage preimage)
     (represented : PriorStateHash.RepresentsPreimage
       PilotProduction.priorInterface PilotProduction.witnessOffset
-      (Spartan.pullback env) preimage) :
+      (PackageOrder.pullback env) preimage) :
     Lifecycle.Stage1.Application.inputState (interface program)
       (localStart program) env = preimage.current := by
   rw [inputState_eq_prior_slice]
   unfold PriorStateHash.RepresentsPreimage at represented
   have representedDirect :
-      Hash.evalList (Spartan.pullback env) (PilotProduction.priorPreimage 0) =
+      Hash.evalList (PackageOrder.pullback env) (PilotProduction.priorPreimage 0) =
         serializePreimage (publicFits := publicFits) preimage := by
     simpa [PilotProduction.priorInterface,
       PilotProduction.makePriorInterface, PilotProduction.priorPreimage] using
@@ -162,13 +162,13 @@ theorem outputState_eq_current
     (fixed : PilotProduction.FixedPreimage preimage)
     (represented : OutputHash.RepresentsPreimage
       PilotProduction.outputInterface PilotProduction.lifecycleOutputOffset
-      (Spartan.pullback env) preimage) :
+      (PackageOrder.pullback env) preimage) :
     Lifecycle.Stage1.Application.outputState (interface program)
       (localStart program) env = preimage.current := by
   rw [outputState_eq_output_slice]
   unfold OutputHash.RepresentsPreimage at represented
   have representedDirect :
-      Hash.evalList (Spartan.pullback env) (PilotProduction.outputPreimage 0) =
+      Hash.evalList (PackageOrder.pullback env) (PilotProduction.outputPreimage 0) =
         serializePreimage (publicFits := publicFits) preimage := by
     simpa [PilotProduction.outputInterface,
       PilotProduction.makeOutputInterface,

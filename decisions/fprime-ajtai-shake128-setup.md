@@ -5,6 +5,8 @@
 Accepted by the owner on 2026-09-29. It supersedes only the expander rules of
 [`fprime-stage1-main-ajtai-setup.md`](./fprime-stage1-main-ajtai-setup.md).
 
+Changed on 2026-11-13: [`field-2p64-59-ring-x64.md`](./field-2p64-59-ring-x64.md) keeps these setup rules and replaces the Goldilocks prime with `q = 2^64 − 59`.
+
 ## Problem
 
 The seed is public, so anyone can compute the key. Pseudorandomness of the

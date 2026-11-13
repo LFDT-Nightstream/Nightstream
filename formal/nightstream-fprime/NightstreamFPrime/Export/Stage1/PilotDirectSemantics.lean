@@ -31,15 +31,15 @@ theorem implies_spec
     (binding : PilotDigestBindingPlan.Matches geometry assignment)
     (priorDigestValues : ∀ lane : Fin 4,
       ((PilotOrdinaryDirectPlan.Location.priorDigest lane).form geometry).eval assignment =
-        env (PilotSpartan.sourceToSpartan
+        env (PilotPackageOrder.sourceToPackage
           (PilotOrdinaryDirectPlan.Location.priorDigest lane).sourceColumn))
     (outputStateValues : ∀ lane : Fin 4,
       ((PilotOrdinaryDirectPlan.Location.outputState lane).form geometry).eval assignment =
-        env (PilotSpartan.sourceToSpartan
+        env (PilotPackageOrder.sourceToPackage
           (PilotOrdinaryDirectPlan.Location.outputState lane).sourceColumn)) :
     Lifecycle.Pilot.SpecHolds PilotProduction.interface
       PilotProduction.witnessOffset
-      (PilotSpartan.pullback
+      (PilotPackageOrder.pullback
         env) := by
   have predicates :=
     PilotOrdinaryDirectSource.sourceRows_hold_implies_packagePredicates
@@ -150,11 +150,11 @@ theorem implies_spec
             PilotData.outputChain env) := hashes.output
   have assertions : ∀ assertion ∈ PilotData.assertionRows (),
       assertion.Holds env := predicates.2
-  have extraLogical : ConstraintsHold (PilotSpartan.pullback env)
+  have extraLogical : ConstraintsHold (PilotPackageOrder.pullback env)
       (PilotData.priorExtraConstraints ()) :=
     PilotOrdinaryDirectSource.sourceRows_hold_implies_priorConstraints
       env ordinaryRows
-  have postHashRows : holdsFlat (PilotSpartan.pullback env)
+  have postHashRows : holdsFlat (PilotPackageOrder.pullback env)
       (PriorStateHash.wordOps PilotProduction.priorInterface
           PilotProduction.witnessOffset ++
         PriorStateHash.bindingAssertions PilotProduction.priorInterface
@@ -163,9 +163,9 @@ theorem implies_spec
       PilotProduction.fastPriorWordOps_eq] at extraLogical
     simpa only [holdsFlat] using extraLogical
   have priorSpec := PriorStateHash.soundness_of_hash_and_postHash
-    PilotProduction.priorInterface (PilotSpartan.pullback env)
+    PilotProduction.priorInterface (PilotPackageOrder.pullback env)
     PilotProduction.witnessOffset
-    (PilotProduction.layoutAssumptions (PilotSpartan.pullback env)).1
+    (PilotProduction.layoutAssumptions (PilotPackageOrder.pullback env)).1
     (NightstreamFPrime.Export.Pilot.priorRawSpec_of_chainHash env
       priorChainHash) postHashRows
   have outputRows := NightstreamFPrime.Export.Pilot.canonicalAssertions_sound

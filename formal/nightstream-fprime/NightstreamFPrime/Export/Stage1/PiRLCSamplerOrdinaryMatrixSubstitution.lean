@@ -12,7 +12,7 @@ open PiRLCSamplerOrdinaryDirectPlan (Location)
 
 abbrev Program := Lifecycle.Stage1.Application.Program
 
-def frameSourceStart : Nat := Spartan.sourceToSpartan PiRLCStarts.samplerLogicalStart
+def frameSourceStart : Nat := PackageOrder.sourceToPackage PiRLCStarts.samplerLogicalStart
 def poseidonSourceStart : Nat := frameSourceStart + 1080
 def logicalSourceStart : Nat := frameSourceStart + 2944
 def wordSourceStart : Nat := frameSourceStart + 4809
@@ -34,33 +34,33 @@ def substitution (program : Program) : SourceSubstitution where
   ranges := []
   grids := [poseidonGrid program, logicalGrid program, wordGrid program]
 
-private theorem samplerLogical_after_piCcs : Spartan.piCcsPhaseOffset ≤ PiRLCStarts.samplerLogicalStart := by
-  norm_num [Spartan.piCcsPhaseOffset, PiRLCStarts.samplerLogicalStart,
+private theorem samplerLogical_after_piCcs : PackageOrder.piCcsPhaseOffset ≤ PiRLCStarts.samplerLogicalStart := by
+  norm_num [PackageOrder.piCcsPhaseOffset, PiRLCStarts.samplerLogicalStart,
     Formal.samplerOffset, PiRLCStarts.phaseLogicalStart_eq]
 
 private theorem scalarTarget (source offset : Nat) :
-    Spartan.sourceToSpartan (PiRLCStarts.samplerLogicalStart + source * 4873 + offset) =
+    PackageOrder.sourceToPackage (PiRLCStarts.samplerLogicalStart + source * 4873 + offset) =
       frameSourceStart + source * 4873 + offset := by
-  rw [Nat.add_assoc, Spartan.sourceToSpartan_add_of_piCcsLocal _ _ samplerLogical_after_piCcs]
+  rw [Nat.add_assoc, PackageOrder.sourceToPackage_add_of_piCcsLocal _ _ samplerLogical_after_piCcs]
   unfold frameSourceStart
   omega
 
 theorem poseidonTarget (source : Fin sourceCount) (lane : Fin 5) :
-    Spartan.sourceToSpartan (Location.poseidon source lane).sourceColumn =
+    PackageOrder.sourceToPackage (Location.poseidon source lane).sourceColumn =
       poseidonSourceStart + source.val * 4873 + lane.val := by
   rw [PiRLCSamplerOrdinaryDirectPlan.poseidonColumn, scalarTarget]
   unfold poseidonSourceStart
   omega
 
 theorem logicalTarget (source : Fin sourceCount) (position : Fin logicalCountPerSource) :
-    Spartan.sourceToSpartan (Location.logical source position).sourceColumn =
+    PackageOrder.sourceToPackage (Location.logical source position).sourceColumn =
       logicalSourceStart + source.val * 4873 + position.val := by
   rw [PiRLCSamplerOrdinaryDirectPlan.logicalColumn, scalarTarget]
   unfold logicalSourceStart
   omega
 
 theorem wordTarget (source : Fin sourceCount) (position : Fin ringDegree) :
-    Spartan.sourceToSpartan (Location.word source position).sourceColumn =
+    PackageOrder.sourceToPackage (Location.word source position).sourceColumn =
       wordSourceStart + source.val * 4873 + position.val := by
   rw [PiRLCSamplerOrdinaryDirectPlan.wordColumn, scalarTarget]
   unfold wordSourceStart
@@ -68,7 +68,7 @@ theorem wordTarget (source : Fin sourceCount) (position : Fin ringDegree) :
 
 theorem logicalGrid_form? {program : Program} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth) (source : Fin sourceCount) (position : Fin logicalCountPerSource) :
-    (logicalGrid program).form? logicalWidth (Spartan.sourceToSpartan (Location.logical source position).sourceColumn) =
+    (logicalGrid program).form? logicalWidth (PackageOrder.sourceToPackage (Location.logical source position).sourceColumn) =
       some ((Location.logical source position).form geometry) := by
   rw [logicalTarget]
   have sourceLt : source.val < 17 := source.isLt
@@ -87,7 +87,7 @@ theorem logicalGrid_form? {program : Program} {logicalWidth : Nat}
 
 theorem wordGrid_form? {program : Program} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth) (source : Fin sourceCount) (position : Fin ringDegree) :
-    (wordGrid program).form? logicalWidth (Spartan.sourceToSpartan (Location.word source position).sourceColumn) =
+    (wordGrid program).form? logicalWidth (PackageOrder.sourceToPackage (Location.word source position).sourceColumn) =
       some ((Location.word source position).form geometry) := by
   rw [wordTarget]
   have sourceLt : source.val < 17 := source.isLt
@@ -111,7 +111,7 @@ theorem wordGrid_form? {program : Program} {logicalWidth : Nat}
 
 theorem poseidonGrid_form? {program : Program} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth) (source : Fin sourceCount) (lane : Fin 5) :
-    (poseidonGrid program).form? logicalWidth (Spartan.sourceToSpartan (Location.poseidon source lane).sourceColumn) =
+    (poseidonGrid program).form? logicalWidth (PackageOrder.sourceToPackage (Location.poseidon source lane).sourceColumn) =
       some ((Location.poseidon source lane).form geometry) := by
   rw [poseidonTarget]
   have sourceLt : source.val < 17 := source.isLt
@@ -192,62 +192,62 @@ private theorem frameGrid_none (grid : SourceGrid) (logicalWidth start offset : 
 
 theorem substitution_location_form? {program : Program} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth) (location : Location) :
-    (substitution program).form? logicalWidth (Spartan.sourceToSpartan location.sourceColumn) =
+    (substitution program).form? logicalWidth (PackageOrder.sourceToPackage location.sourceColumn) =
       some (location.form geometry) := by
   cases location with
   | poseidon source lane =>
       have valueBound : lane.val < 5 := lane.isLt
-      have address : Spartan.sourceToSpartan (Location.poseidon source lane).sourceColumn =
+      have address : PackageOrder.sourceToPackage (Location.poseidon source lane).sourceColumn =
           frameSourceStart + source.val * 4873 + (1080 + lane.val) := by
         rw [poseidonTarget]
         unfold poseidonSourceStart
         omega
       have hit := poseidonGrid_form? geometry source lane
       have missLogical : (logicalGrid program).form? logicalWidth
-          (Spartan.sourceToSpartan (Location.poseidon source lane).sourceColumn) = none := by
+          (PackageOrder.sourceToPackage (Location.poseidon source lane).sourceColumn) = none := by
         rw [address]
         exact frameGrid_none _ logicalWidth 2944 (1080 + lane.val)
           rfl ⟨rfl, rfl, rfl, rfl⟩ (by change 3713 ≤ 4873; decide) source (by omega) (by left; omega)
       have missWord : (wordGrid program).form? logicalWidth
-          (Spartan.sourceToSpartan (Location.poseidon source lane).sourceColumn) = none := by
+          (PackageOrder.sourceToPackage (Location.poseidon source lane).sourceColumn) = none := by
         rw [address]
         exact frameGrid_none _ logicalWidth 4809 (1080 + lane.val)
           rfl ⟨rfl, rfl, rfl, rfl⟩ (by change 4873 ≤ 4873; decide) source (by omega) (by left; omega)
       simp [substitution, SourceSubstitution.form?, hit, missLogical, missWord]
   | logical source position =>
       have valueBound : position.val < 769 := position.isLt
-      have address : Spartan.sourceToSpartan (Location.logical source position).sourceColumn =
+      have address : PackageOrder.sourceToPackage (Location.logical source position).sourceColumn =
           frameSourceStart + source.val * 4873 + (2944 + position.val) := by
         rw [logicalTarget]
         unfold logicalSourceStart
         omega
       have hit := logicalGrid_form? geometry source position
       have missPoseidon : (poseidonGrid program).form? logicalWidth
-          (Spartan.sourceToSpartan (Location.logical source position).sourceColumn) = none := by
+          (PackageOrder.sourceToPackage (Location.logical source position).sourceColumn) = none := by
         rw [address]
         exact frameGrid_none _ logicalWidth 1080 (2944 + position.val)
           rfl ⟨rfl, rfl, rfl, rfl⟩ (by change 1085 ≤ 4873; decide) source (by omega) (by right; change 1080 + 5 ≤ 2944 + position.val; omega)
       have missWord : (wordGrid program).form? logicalWidth
-          (Spartan.sourceToSpartan (Location.logical source position).sourceColumn) = none := by
+          (PackageOrder.sourceToPackage (Location.logical source position).sourceColumn) = none := by
         rw [address]
         exact frameGrid_none _ logicalWidth 4809 (2944 + position.val)
           rfl ⟨rfl, rfl, rfl, rfl⟩ (by change 4873 ≤ 4873; decide) source (by omega) (by left; omega)
       simp [substitution, SourceSubstitution.form?, hit, missPoseidon, missWord]
   | word source position =>
       have valueBound : position.val < 64 := position.isLt
-      have address : Spartan.sourceToSpartan (Location.word source position).sourceColumn =
+      have address : PackageOrder.sourceToPackage (Location.word source position).sourceColumn =
           frameSourceStart + source.val * 4873 + (4809 + position.val) := by
         rw [wordTarget]
         unfold wordSourceStart
         omega
       have hit := wordGrid_form? geometry source position
       have missPoseidon : (poseidonGrid program).form? logicalWidth
-          (Spartan.sourceToSpartan (Location.word source position).sourceColumn) = none := by
+          (PackageOrder.sourceToPackage (Location.word source position).sourceColumn) = none := by
         rw [address]
         exact frameGrid_none _ logicalWidth 1080 (4809 + position.val)
           rfl ⟨rfl, rfl, rfl, rfl⟩ (by change 1085 ≤ 4873; decide) source (by omega) (by right; change 1080 + 5 ≤ 4809 + position.val; omega)
       have missLogical : (logicalGrid program).form? logicalWidth
-          (Spartan.sourceToSpartan (Location.word source position).sourceColumn) = none := by
+          (PackageOrder.sourceToPackage (Location.word source position).sourceColumn) = none := by
         rw [address]
         exact frameGrid_none _ logicalWidth 2944 (4809 + position.val)
           rfl ⟨rfl, rfl, rfl, rfl⟩ (by change 3713 ≤ 4873; decide) source (by omega) (by right; change 2944 + 769 ≤ 4809 + position.val; omega)
@@ -256,13 +256,13 @@ theorem substitution_location_form? {program : Program} {logicalWidth : Nat}
 theorem substitution_agrees_on_target
     {program : Program} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth)
-    (column : Fin Spartan.spartanColumnCount)
+    (column : Fin PackageOrder.packageColumnCount)
     (support : PiRLCSamplerOrdinaryDirectSource.Target column.val) :
     (substitution program).form? logicalWidth column.val =
       some ((PiRLCSamplerOrdinaryDirectPlan.sourceMap geometry).form column) := by
   rcases support with ⟨source, sourceSupport, mapped⟩
-  have sourceBound : source < Spartan.SourceColumnCount := sourceSupport.bounded
-  have inverse := Spartan.spartanToSource_sourceToSpartan source sourceBound
+  have sourceBound : source < PackageOrder.SourceColumnCount := sourceSupport.bounded
+  have inverse := PackageOrder.packageToSource_sourceToPackage source sourceBound
   rw [mapped] at inverse
   rcases PiRLCSamplerOrdinaryDirectPlan.classifyTarget_complete
       ⟨source, sourceSupport, mapped⟩ with ⟨decoded, found⟩
@@ -274,7 +274,7 @@ theorem substitution_agrees_on_target
   have owns :=
     PiRLCSamplerOrdinaryDirectPlan.classifySource_sound decodedFound
   have target :
-      Spartan.sourceToSpartan decoded.sourceColumn = column.val := by
+      PackageOrder.sourceToPackage decoded.sourceColumn = column.val := by
     rw [owns, mapped]
   change (substitution program).form? logicalWidth column.val =
     some (match PiRLCSamplerOrdinaryDirectPlan.classifyTarget column.val with

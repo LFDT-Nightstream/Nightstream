@@ -1,6 +1,6 @@
 import NightstreamFPrime.Export.Stage1.DirectPiDECPrefixPlan
 import NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryRetainedGeometry
-import NightstreamFPrime.Layout.Stage1.SpartanValues
+import NightstreamFPrime.Layout.Stage1.PackageOrderValues
 
 namespace NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryDirectPlan
 
@@ -36,7 +36,7 @@ theorem sourceSupport (location : Location) :
   | logical source position => exact .logical source.val position.val source.isLt position.isLt
   | word source position => exact .word source.val position.val source.isLt position.isLt
 
-theorem sourceColumn_lt (location : Location) : location.sourceColumn < Spartan.SourceColumnCount :=
+theorem sourceColumn_lt (location : Location) : location.sourceColumn < PackageOrder.SourceColumnCount :=
   location.sourceSupport.bounded
 
 end Location
@@ -252,7 +252,7 @@ def form {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
 end Location
 
 def classifyTarget (column : Nat) : Option Location :=
-  match Spartan.spartanToSource column with
+  match PackageOrder.packageToSource column with
   | none => none
   | some source => classifySource source
 
@@ -264,15 +264,15 @@ theorem classifyTarget_complete {column : Nat}
   cases found : classifySource source with
   | none => exact absurd found complete
   | some location =>
-      have sourceBound : source < Spartan.SourceColumnCount := by
+      have sourceBound : source < PackageOrder.SourceColumnCount := by
         have locationBound := location.sourceColumn_lt
         have owns := classifySource_sound found
-        exact Eq.mp (congrArg (fun value => value < Spartan.SourceColumnCount)
+        exact Eq.mp (congrArg (fun value => value < PackageOrder.SourceColumnCount)
           owns) locationBound
-      have inverse := Spartan.spartanToSource_sourceToSpartan source sourceBound
+      have inverse := PackageOrder.packageToSource_sourceToPackage source sourceBound
       refine ⟨location, ?_⟩
       calc
-        classifyTarget (Spartan.sourceToSpartan source) =
+        classifyTarget (PackageOrder.sourceToPackage source) =
             classifySource source := by
           unfold classifyTarget
           rw [inverse]
@@ -296,14 +296,14 @@ def sourceMap {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
     (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry program
       logicalWidth) :
-    SourceCompiler.SourceMap Spartan.spartanColumnCount logicalWidth where
+    SourceCompiler.SourceMap PackageOrder.packageColumnCount logicalWidth where
   form := fun column => resolvedForm geometry column.val
 
 @[simp] theorem sourceMap_form_eval
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry program
       logicalWidth) (assignment : Assignment F logicalWidth)
-    (column : Fin Spartan.spartanColumnCount) :
+    (column : Fin PackageOrder.packageColumnCount) :
     ((sourceMap geometry).form column).eval assignment =
       resolvedEnv geometry assignment column.val := by
   rfl
@@ -313,7 +313,7 @@ private theorem preservesCombination
     (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry program
       logicalWidth) (assignment : Assignment F logicalWidth)
     (combination : R1CS.LinearCombination)
-    (bounded : SourceCompiler.CombinationBounded Spartan.spartanColumnCount
+    (bounded : SourceCompiler.CombinationBounded PackageOrder.packageColumnCount
       combination) :
     OrdinarySourcePlan.SourceMap.PreservesCombination (sourceMap geometry)
       assignment (resolvedEnv geometry assignment) combination bounded := by

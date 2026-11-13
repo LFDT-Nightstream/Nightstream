@@ -120,7 +120,7 @@ theorem sourceSupport (location : Location) : Source location.sourceColumn := by
         omega
 
 theorem sourceColumn_lt (location : Location) :
-    location.sourceColumn < Spartan.SourceColumnCount :=
+    location.sourceColumn < PackageOrder.SourceColumnCount :=
   PiDECSourceSupport.source_lt_sourceColumnCount location.sourceSupport
 
 def form {program : Lifecycle.Stage1.Application.Program}
@@ -315,7 +315,7 @@ structure Decoded where
   owns : location.sourceColumn = source
 
 def classifyTarget (column : Nat) : Option Decoded :=
-  match Spartan.spartanToSource column with
+  match PackageOrder.packageToSource column with
   | none => none
   | some source =>
       match classifySource source with
@@ -324,9 +324,9 @@ def classifyTarget (column : Nat) : Option Decoded :=
 
 theorem classifyTarget_complete {column : Nat} (support : Target column) :
     ∃ decoded, classifyTarget column = some decoded ∧
-      Spartan.sourceToSpartan decoded.source = column := by
+      PackageOrder.sourceToPackage decoded.source = column := by
   rcases support with ⟨source, sourceSupport, rfl⟩
-  have inverse := Spartan.spartanToSource_sourceToSpartan source
+  have inverse := PackageOrder.packageToSource_sourceToPackage source
     (PiDECSourceSupport.source_lt_sourceColumnCount sourceSupport)
   have complete := classifySource_complete sourceSupport
   cases found : classifySource source with
@@ -337,7 +337,7 @@ theorem classifyTarget_complete {column : Nat} (support : Target column) :
 
 def sourceMap {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
-    SourceCompiler.SourceMap Spartan.spartanColumnCount logicalWidth where
+    SourceCompiler.SourceMap PackageOrder.packageColumnCount logicalWidth where
   form := fun column =>
     match classifyTarget column.val with
     | none => .empty
@@ -361,7 +361,7 @@ theorem sourceMap_form_eval_of_target
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (encodes : Encodes geometry assignment
       (PiRLCRetainedPreservation.sourceAssignment program base groupValue))
-    (column : Fin Spartan.spartanColumnCount) (support : Target column.val) :
+    (column : Fin PackageOrder.packageColumnCount) (support : Target column.val) :
     ((sourceMap geometry).form column).eval assignment =
       RunningTransitionDirectPlan.transitionEnv program base column.val := by
   rcases classifyTarget_complete support with ⟨decoded, found, mapped⟩
@@ -374,7 +374,7 @@ theorem sourceMap_form_eval_of_target
     groupValue decoded.location.sourceColumn
     decoded.location.sourceColumn_lt]
   have mappedLocation :
-      Spartan.sourceToSpartan decoded.location.sourceColumn = column.val := by
+      PackageOrder.sourceToPackage decoded.location.sourceColumn = column.val := by
     rw [decoded.owns, mapped]
   rw [← mappedLocation]
   exact (RunningTransitionDirectPlan.transitionEnv_of_outside program base
@@ -390,7 +390,7 @@ private theorem preservesCombination
     (encodes : Encodes geometry assignment
       (PiRLCRetainedPreservation.sourceAssignment application base groupValue))
     (combination : R1CS.LinearCombination)
-    (bounded : SourceCompiler.CombinationBounded Spartan.spartanColumnCount
+    (bounded : SourceCompiler.CombinationBounded PackageOrder.packageColumnCount
       combination) (scope : combination.VarsSatisfy Target) :
     OrdinarySourcePlan.SourceMap.PreservesCombination (sourceMap geometry)
       assignment (RunningTransitionDirectPlan.transitionEnv application base)
@@ -401,7 +401,7 @@ private theorem preservesCombination
 
 def inputs {application : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
-    (sourceProgram : OrdinarySourcePlan.Program Spartan.spartanColumnCount)
+    (sourceProgram : OrdinarySourcePlan.Program PackageOrder.packageColumnCount)
     (geometry : Geometry application logicalWidth) :
     sourceProgram.Inputs logicalWidth where
   oneColumn := oneColumn geometry
@@ -409,7 +409,7 @@ def inputs {application : Lifecycle.Stage1.Application.Program}
 
 theorem inputs_preserve
     {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
-    (sourceProgram : OrdinarySourcePlan.Program Spartan.spartanColumnCount)
+    (sourceProgram : OrdinarySourcePlan.Program PackageOrder.packageColumnCount)
     (geometry : Geometry application logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
@@ -440,12 +440,12 @@ structure SupportedProgram (rows : List R1CS.Row) where
 
 def SupportedProgram.toProgram {rows : List R1CS.Row}
     (source : SupportedProgram rows) :
-    OrdinarySourcePlan.Program Spartan.spartanColumnCount where
+    OrdinarySourcePlan.Program PackageOrder.packageColumnCount where
   rowCount := source.rowCount
   rowCount_le := source.rowCount_le
   row := source.row
   bounded := fun index => (source.supported index).mono _
-    (fun _ support => PiDECOrdinaryDirectSource.target_lt_spartanColumnCount support)
+    (fun _ support => PiDECOrdinaryDirectSource.target_lt_packageColumnCount support)
 
 section
 
@@ -877,13 +877,13 @@ theorem rowsZero_implies_phaseHolds
         (PiDECArithmetic.phaseInterface relationLogicalWidth
           relationPublicFits)
         PiDECInputs.phaseOffset
-        (Spartan.pullback
+        (PackageOrder.pullback
           (RunningTransitionDirectPlan.transitionEnv application base)))
     (accepted : (plan relation geometry).RowsZero assignment) :
     Lifecycle.PiDEC.v1_2.Semantics.PhaseHolds relation ajtai
       (PiDECArithmetic.phaseInterface relationLogicalWidth relationPublicFits)
       PiDECInputs.phaseOffset
-        (Spartan.pullback
+        (PackageOrder.pullback
           (RunningTransitionDirectPlan.transitionEnv application base)) := by
   have canonicalRows :=
     (rowsZero_iff_canonicalRowsHold relation geometry assignment base groupValue one encodes).mp accepted
@@ -893,21 +893,21 @@ theorem rowsZero_implies_phaseHolds
     (PiDECArithmetic.canonicalPlan_matches relation)
   have remappedRows : R1CS.RowsHold
       (RunningTransitionDirectPlan.transitionEnv application base)
-      (Spartan.remapRows (PiDECArithmetic.canonicalLayoutPlan relation).rows) :=
+      (PackageOrder.remapRows (PiDECArithmetic.canonicalLayoutPlan relation).rows) :=
     (predicate_iff_of_eq
       (R1CS.RowsHold (RunningTransitionDirectPlan.transitionEnv application base))
       exactRows).mp canonicalRows
   have physicalRows : R1CS.RowsHold
-      (Spartan.pullback
+      (PackageOrder.pullback
         (RunningTransitionDirectPlan.transitionEnv application base))
       (PiDECArithmetic.canonicalLayoutPlan relation).rows :=
-    (Spartan.remapRows_hold
+    (PackageOrder.remapRows_hold
       (RunningTransitionDirectPlan.transitionEnv application base)
       (PiDECArithmetic.canonicalLayoutPlan relation).rows).mp remappedRows
   exact Layout.PiDEC.v1_2.physical_implies_phaseHolds relation ajtai
     (PiDECArithmetic.phaseInterface relationLogicalWidth relationPublicFits)
     PiDECInputs.phaseOffset
-    (Spartan.pullback
+    (PackageOrder.pullback
       (RunningTransitionDirectPlan.transitionEnv application base))
     assumptions physicalRows
 

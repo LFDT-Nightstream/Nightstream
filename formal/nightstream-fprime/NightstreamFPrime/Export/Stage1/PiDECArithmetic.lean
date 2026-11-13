@@ -127,7 +127,7 @@ structure Plan.MatchesLayout (packagePlan : Plan)
 
 theorem Plan.rows_toR1CS (plan : Plan) :
     plan.rows.map Rows.CompiledRow.toR1CS =
-      NightstreamFPrime.Layout.Stage1.Spartan.remapRows
+      NightstreamFPrime.Layout.Stage1.PackageOrder.remapRows
         (R1CS.lowerConstraints plan.constraints plan.freshStart).rows :=
   PiCCSArithmetic.compilePacket_toR1CS
     plan.rowStart plan.freshStart plan.constraints
@@ -136,13 +136,13 @@ theorem Plan.rows_to_layout (packagePlan : Plan)
     (layoutPlan : R1CS.LoweringPlan)
     (agreement : packagePlan.MatchesLayout layoutPlan) :
     packagePlan.rows.map Rows.CompiledRow.toR1CS =
-      NightstreamFPrime.Layout.Stage1.Spartan.remapRows layoutPlan.rows := by
+      NightstreamFPrime.Layout.Stage1.PackageOrder.remapRows layoutPlan.rows := by
   calc
-    _ = NightstreamFPrime.Layout.Stage1.Spartan.remapRows
+    _ = NightstreamFPrime.Layout.Stage1.PackageOrder.remapRows
         (R1CS.lowerConstraints packagePlan.constraints
           packagePlan.freshStart).rows := packagePlan.rows_toR1CS
-    _ = NightstreamFPrime.Layout.Stage1.Spartan.remapRows layoutPlan.rows := by
-      apply congrArg NightstreamFPrime.Layout.Stage1.Spartan.remapRows
+    _ = NightstreamFPrime.Layout.Stage1.PackageOrder.remapRows layoutPlan.rows := by
+      apply congrArg NightstreamFPrime.Layout.Stage1.PackageOrder.remapRows
       rw [agreement.constraints, agreement.freshStart]
       rfl
 

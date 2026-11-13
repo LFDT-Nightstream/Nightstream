@@ -46,7 +46,7 @@ def packageFieldBlock (program : Lifecycle.Stage1.Application.Program)
     omega)
 
 def sourceFieldBlock (program : Lifecycle.Stage1.Application.Program)
-    (count start : Nat) (bounded : start + count ≤ Spartan.SourceColumnCount) :
+    (count start : Nat) (bounded : start + count ≤ PackageOrder.SourceColumnCount) :
     LowNormBlock.Block (sourceWidth program) where
   kind := .field
   slotCount := count
@@ -60,7 +60,7 @@ def priorInputBlock (program : Lifecycle.Stage1.Application.Program) :
     LowNormBlock.Block (sourceWidth program) :=
   sourceFieldBlock program PilotProduction.stateHashWords
     PilotProduction.priorPreimageStart (by
-      rw [Spartan.sourceColumnCount_eq]
+      rw [PackageOrder.sourceColumnCount_eq]
       norm_num [PilotProduction.priorPreimageStart,
         PilotProduction.stateHashWords_eq])
 
@@ -68,7 +68,7 @@ def outputInputBlock (program : Lifecycle.Stage1.Application.Program) :
     LowNormBlock.Block (sourceWidth program) :=
   sourceFieldBlock program PilotProduction.stateHashWords
     PilotProduction.outputPreimageStart (by
-      rw [Spartan.sourceColumnCount_eq]
+      rw [PackageOrder.sourceColumnCount_eq]
       norm_num [PilotProduction.outputPreimageStart,
         PilotProduction.priorPublicInputStart,
         PilotProduction.priorPreimageStart,
@@ -79,7 +79,7 @@ def outputInputBlock (program : Lifecycle.Stage1.Application.Program) :
 def freshPublicInputBlock (program : Lifecycle.Stage1.Application.Program) :
     LowNormBlock.Block (sourceWidth program) :=
   sourceFieldBlock program 320 PilotProduction.priorPublicInputStart (by
-    rw [Spartan.sourceColumnCount_eq]
+    rw [PackageOrder.sourceColumnCount_eq]
     norm_num [PilotProduction.priorPublicInputStart,
       PilotProduction.priorPreimageStart,
       PilotProduction.stateHashWords_eq])
@@ -110,7 +110,7 @@ def expectedContextBlock (program : Lifecycle.Stage1.Application.Program) :
     LowNormBlock.Block (sourceWidth program) :=
   sourceFieldBlock program PiCCSInputs.expectedContextWords
     PiCCSInputs.expectedContextStart (by
-      rw [PiCCSInputs.expectedContextStart_eq, Spartan.sourceColumnCount_eq]
+      rw [PiCCSInputs.expectedContextStart_eq, PackageOrder.sourceColumnCount_eq]
       norm_num [PiCCSInputs.expectedContextWords])
 
 def proofInputCount : Nat :=
@@ -171,7 +171,7 @@ theorem transcriptOutputSource_support (index : Fin transcriptOutputCount) :
   exact ⟨decoded.1, decoded.2, rfl⟩
 
 theorem transcriptOutputSource_lt (index : Fin transcriptOutputCount) :
-    transcriptOutputSource index < Spartan.SourceColumnCount :=
+    transcriptOutputSource index < PackageOrder.SourceColumnCount :=
   PiCCSOrdinarySourceSupport.source_lt_sourceColumnCount
     (transcriptOutputSource_support index)
 
@@ -219,7 +219,7 @@ theorem proofLogicalSource_support (index : Fin proofLogicalCount) :
       constructor <;> omega
 
 theorem proofLogicalSource_lt (index : Fin proofLogicalCount) :
-    proofLogicalSource index < Spartan.SourceColumnCount :=
+    proofLogicalSource index < PackageOrder.SourceColumnCount :=
   PiCCSOrdinarySourceSupport.source_lt_sourceColumnCount
     (proofLogicalSource_support index)
 
@@ -293,7 +293,7 @@ def outputEndpointBlock (program : Lifecycle.Stage1.Application.Program) :
     LowNormBlock.Block (sourceWidth program) :=
   sourceFieldBlock program 16 outputEndpointStart (by
     unfold outputEndpointStart PiCCSStarts.logicalFreshBase
-    rw [PiCCSInputs.phaseOffset_eq, Spartan.sourceColumnCount_eq]
+    rw [PiCCSInputs.phaseOffset_eq, PackageOrder.sourceColumnCount_eq]
     norm_num)
 
 def freshCount : Nat := 2956
@@ -305,7 +305,7 @@ def freshBlock (program : Lifecycle.Stage1.Application.Program) :
       PiCCSStarts.initialClaimFreshStart PiCCSStarts.roundTranscriptFreshStart
       PiCCSStarts.challengeFreshStart PiCCSStarts.statementAbsorptionFreshStart
       PiCCSStarts.statementBindingFreshStart PiCCSStarts.logicalFreshBase
-    rw [PiCCSInputs.phaseOffset_eq, Spartan.sourceColumnCount_eq]
+    rw [PiCCSInputs.phaseOffset_eq, PackageOrder.sourceColumnCount_eq]
     norm_num [freshCount])
 
 @[simp] theorem retainedSlotCount_eq

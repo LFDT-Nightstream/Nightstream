@@ -4,6 +4,8 @@
 
 Accepted by the owner on 2026-08-31.
 
+Superseded in part on 2026-11-13: [`field-2p64-59-ring-x64.md`](./field-2p64-59-ring-x64.md) replaces the Goldilocks field and the rank `κ = 22` of this record with `q = 2^64 − 59`, the ring `X^64 + 1` and `κ = 18`. The numbers below are those of the prior profile.
+
 The owner first approved `κ = 25`, then corrected the selected rank to
 `κ = 22` on 2026-08-31. The final approval is
 `nightstream-ajtai-chacha20-wide256-v1`,

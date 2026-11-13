@@ -1,7 +1,7 @@
 import NightstreamFPrime.Layout.Stage1.RunningTransitionInputs
 import NightstreamFPrime.Layout.Stage1.RunningTransitionCost
 import NightstreamFPrime.Layout.Stage1.RunningTransitionPointBoundsDirect
-import NightstreamFPrime.Layout.Stage1.Spartan
+import NightstreamFPrime.Layout.Stage1.PackageOrder
 import NightstreamFPrime.Layout.Stage1.RunningTransitionOutputBounds
 
 namespace NightstreamFPrime.Layout.Stage1.RunningTransitionSourceSupport
@@ -69,7 +69,7 @@ def Source (column : Nat) : Prop :=
   External column ∨ (phaseOffset ≤ column ∧ column < physicalEnd)
 
 def Target (column : Nat) : Prop :=
-  ∃ source, Source source ∧ column = Spartan.sourceToSpartan source
+  ∃ source, Source source ∧ column = PackageOrder.sourceToPackage source
 
 @[simp] theorem stateStart_eq : stateStart = 28904 := by
   rfl
@@ -148,8 +148,8 @@ theorem piDecField_inRange {column : Nat} (field : PiDecField column) :
         omega
 
 theorem source_lt_sourceColumnCount {column : Nat} (support : Source column) :
-    column < Spartan.SourceColumnCount := by
-  have phaseLower := Spartan.sourceColumnCount_ge_piDecPhaseOffset
+    column < PackageOrder.SourceColumnCount := by
+  have phaseLower := PackageOrder.sourceColumnCount_ge_piDecPhaseOffset
   rw [PiDECInputs.phaseOffset, PiDECInputs.proofInputStart,
     PiDECInputs.proofInputColumnCount_eq, PiRLCStarts.finalBoundaries_eq.2]
     at phaseLower
@@ -175,7 +175,7 @@ theorem source_lt_sourceColumnCount {column : Nat} (support : Source column) :
       rw [piDecStart_eq, piDecCount_eq] at inside
       omega
   · change phaseOffset ≤ column ∧ column < physicalEnd at fresh
-    rw [Spartan.sourceColumnCount_eq_physicalEnd]
+    rw [PackageOrder.sourceColumnCount_eq_physicalEnd]
     exact fresh.2
 
 theorem logical_state {column : Nat}

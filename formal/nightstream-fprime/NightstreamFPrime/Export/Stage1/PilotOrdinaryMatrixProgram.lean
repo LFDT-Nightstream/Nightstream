@@ -59,21 +59,21 @@ theorem rowSchedule_indexAt (index : Fin 596) :
   rfl
 
 private theorem priorPublicTarget (index : Fin 320) :
-    PilotSpartan.sourceToSpartan
+    PilotPackageOrder.sourceToPackage
         (PilotProduction.priorPublicInputStart + index.val) =
       5343007 + index.val := by
   have bound := index.isLt
-  change PilotSpartan.sourceToSpartan (28913 + index.val) = _
-  unfold PilotSpartan.sourceToSpartan
+  change PilotPackageOrder.sourceToPackage (28913 + index.val) = _
+  unfold PilotPackageOrder.sourceToPackage
   rw [ite_eq_right (by
-    norm_num [PilotSpartan.priorPublicStart_value] at bound ⊢)]
+    norm_num [PilotPackageOrder.priorPublicStart_value] at bound ⊢)]
   rw [ite_eq_left (by
-    norm_num [PilotSpartan.outputPreimageStart_value] at bound ⊢; omega)]
-  norm_num [PilotSpartan.firstPublicStart_value,
-    PilotSpartan.priorPublicStart_value]
+    norm_num [PilotPackageOrder.outputPreimageStart_value] at bound ⊢; omega)]
+  norm_num [PilotPackageOrder.firstPublicStart_value,
+    PilotPackageOrder.priorPublicStart_value]
 
 private theorem canonicalLocalTarget (index : Fin 268) :
-    PilotSpartan.sourceToSpartan
+    PilotPackageOrder.sourceToPackage
         (PriorStateHash.hashEnd PilotProduction.priorInterface
           PilotProduction.witnessOffset + index.val) =
       2700282 + index.val := by
@@ -81,35 +81,35 @@ private theorem canonicalLocalTarget (index : Fin 268) :
   unfold PriorStateHash.hashEnd
   rw [PilotProduction.priorHashLogicalLength_eq,
     PilotProduction.witnessOffset_eq]
-  unfold PilotSpartan.sourceToSpartan
+  unfold PilotPackageOrder.sourceToPackage
   rw [ite_eq_right (by
-    norm_num [PilotSpartan.priorPublicStart_value] at bound ⊢; omega)]
+    norm_num [PilotPackageOrder.priorPublicStart_value] at bound ⊢; omega)]
   rw [ite_eq_right (by
-    norm_num [PilotSpartan.outputPreimageStart_value] at bound ⊢; omega)]
+    norm_num [PilotPackageOrder.outputPreimageStart_value] at bound ⊢; omega)]
   rw [ite_eq_right (by
-    norm_num [PilotSpartan.outputDigestStart_value] at bound ⊢; omega)]
+    norm_num [PilotPackageOrder.outputDigestStart_value] at bound ⊢; omega)]
   rw [ite_eq_right (by
-    norm_num [PilotSpartan.witnessStart_value] at bound ⊢; omega)]
-  norm_num [PilotSpartan.witnessPrivateStart_value,
-    PilotSpartan.witnessStart_value]; omega
+    norm_num [PilotPackageOrder.witnessStart_value] at bound ⊢; omega)]
+  norm_num [PilotPackageOrder.witnessPrivateStart_value,
+    PilotPackageOrder.witnessStart_value]; omega
 
 private theorem outputDigestTarget (index : Fin 4) :
-    PilotSpartan.sourceToSpartan
+    PilotPackageOrder.sourceToPackage
         (PilotProduction.outputDigestStart + index.val) =
       5343327 + index.val := by
   have bound := index.isLt
-  change PilotSpartan.sourceToSpartan (58146 + index.val) = _
-  unfold PilotSpartan.sourceToSpartan
+  change PilotPackageOrder.sourceToPackage (58146 + index.val) = _
+  unfold PilotPackageOrder.sourceToPackage
   rw [ite_eq_right (by
-    norm_num [PilotSpartan.priorPublicStart_value] at bound ⊢; omega)]
+    norm_num [PilotPackageOrder.priorPublicStart_value] at bound ⊢; omega)]
   rw [ite_eq_right (by
-    norm_num [PilotSpartan.outputPreimageStart_value] at bound ⊢; omega)]
+    norm_num [PilotPackageOrder.outputPreimageStart_value] at bound ⊢; omega)]
   rw [ite_eq_right (by
-    norm_num [PilotSpartan.outputDigestStart_value] at bound ⊢)]
+    norm_num [PilotPackageOrder.outputDigestStart_value] at bound ⊢)]
   rw [ite_eq_left (by
-    norm_num [PilotSpartan.witnessStart_value] at bound ⊢; omega)]
-  norm_num [PilotSpartan.secondPublicStart_value,
-    PilotSpartan.outputDigestStart_value]
+    norm_num [PilotPackageOrder.witnessStart_value] at bound ⊢; omega)]
+  norm_num [PilotPackageOrder.secondPublicStart_value,
+    PilotPackageOrder.outputDigestStart_value]
 
 def priorDigestRange (program : Program) : SourceRange :=
   SourceRange.ofSemantic (PiCCSOrdinaryRetainedBlocks.priorLastBlock program)
@@ -152,7 +152,7 @@ theorem priorDigestRange_form?
     {program : Program} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth) (lane : Fin 4) :
     (priorDigestRange program).form? logicalWidth
-        (PilotSpartan.sourceToSpartan
+        (PilotPackageOrder.sourceToPackage
           (PilotProduction.priorDigestStart + lane.val)) =
       some ((PilotOrdinaryDirectPlan.Location.priorDigest lane).form
         geometry) := by
@@ -173,7 +173,7 @@ theorem canonicalLocalRange_form?
     {program : Program} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth) (index : Fin 268) :
     (canonicalLocalRange program).form? logicalWidth
-        (PilotSpartan.sourceToSpartan
+        (PilotPackageOrder.sourceToPackage
           (PriorStateHash.hashEnd PilotProduction.priorInterface
             PilotProduction.witnessOffset + index.val)) =
       some ((PilotOrdinaryDirectPlan.Location.canonicalLocal index).form
@@ -188,7 +188,7 @@ theorem outputStateRange_form?
     {program : Program} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth) (lane : Fin 4) :
     (outputStateRange program).form? logicalWidth
-        (PilotSpartan.sourceToSpartan
+        (PilotPackageOrder.sourceToPackage
           (PilotProduction.lifecycleOutputOffset +
             PilotValues.absorbCount * 1096 + 1080 + lane.val)) =
       some ((PilotOrdinaryDirectPlan.Location.outputState lane).form
@@ -210,7 +210,7 @@ theorem priorPublicRange_form?
     {program : Program} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth) (index : Fin 320) :
     (priorPublicRange program).form? logicalWidth
-        (PilotSpartan.sourceToSpartan
+        (PilotPackageOrder.sourceToPackage
           (PilotProduction.priorPublicInputStart + index.val)) =
       some ((PilotOrdinaryDirectPlan.Location.priorPublic index).form
         geometry) := by
@@ -230,7 +230,7 @@ theorem outputDigestRange_form?
     {program : Program} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth) (index : Fin 4) :
     (outputDigestRange program).form? logicalWidth
-        (PilotSpartan.sourceToSpartan
+        (PilotPackageOrder.sourceToPackage
           (PilotProduction.outputDigestStart + index.val)) =
       some ((PilotOrdinaryDirectPlan.Location.outputDigest index).form
         geometry) := by
@@ -249,7 +249,7 @@ theorem substitution_priorDigest_form?
     {program : Program} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth) (lane : Fin 4) :
     (substitution program).form? logicalWidth
-        (PilotSpartan.sourceToSpartan
+        (PilotPackageOrder.sourceToPackage
           (PilotProduction.priorDigestStart + lane.val)) =
       some ((PilotOrdinaryDirectPlan.Location.priorDigest lane).form
         geometry) := by
@@ -273,7 +273,7 @@ theorem substitution_canonicalLocal_form?
     {program : Program} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth) (index : Fin 268) :
     (substitution program).form? logicalWidth
-        (PilotSpartan.sourceToSpartan
+        (PilotPackageOrder.sourceToPackage
           (PriorStateHash.hashEnd PilotProduction.priorInterface
             PilotProduction.witnessOffset + index.val)) =
       some ((PilotOrdinaryDirectPlan.Location.canonicalLocal index).form
@@ -298,7 +298,7 @@ theorem substitution_outputState_form?
     {program : Program} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth) (lane : Fin 4) :
     (substitution program).form? logicalWidth
-        (PilotSpartan.sourceToSpartan
+        (PilotPackageOrder.sourceToPackage
           (PilotProduction.lifecycleOutputOffset +
             PilotValues.absorbCount * 1096 + 1080 + lane.val)) =
       some ((PilotOrdinaryDirectPlan.Location.outputState lane).form
@@ -323,7 +323,7 @@ theorem substitution_priorPublic_form?
     {program : Program} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth) (index : Fin 320) :
     (substitution program).form? logicalWidth
-        (PilotSpartan.sourceToSpartan
+        (PilotPackageOrder.sourceToPackage
           (PilotProduction.priorPublicInputStart + index.val)) =
       some ((PilotOrdinaryDirectPlan.Location.priorPublic index).form
         geometry) := by
@@ -347,7 +347,7 @@ theorem substitution_outputDigest_form?
     {program : Program} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth) (index : Fin 4) :
     (substitution program).form? logicalWidth
-        (PilotSpartan.sourceToSpartan
+        (PilotPackageOrder.sourceToPackage
           (PilotProduction.outputDigestStart + index.val)) =
       some ((PilotOrdinaryDirectPlan.Location.outputDigest index).form
         geometry) := by
@@ -372,7 +372,7 @@ theorem substitution_location_form?
     (geometry : Geometry program logicalWidth)
     (location : PilotOrdinaryDirectPlan.Location) :
     (substitution program).form? logicalWidth
-        (PilotSpartan.sourceToSpartan location.sourceColumn) =
+        (PilotPackageOrder.sourceToPackage location.sourceColumn) =
       some (location.form geometry) := by
   cases location with
   | priorDigest lane => exact substitution_priorDigest_form? geometry lane
@@ -386,7 +386,7 @@ theorem substitution_location_form?
 theorem substitution_agrees_on_target
     {program : Program} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth)
-    (column : Fin PilotSpartan.spartanColumnCount)
+    (column : Fin PilotPackageOrder.packageColumnCount)
     (support : PilotOrdinaryDirectSource.Target column.val) :
     (substitution program).form? logicalWidth column.val =
       some ((PilotOrdinaryDirectPlan.sourceMap geometry).form column) := by
@@ -398,7 +398,7 @@ theorem substitution_agrees_on_target
       | some value => value.location.form geometry)
   rw [found]
   have target :
-      PilotSpartan.sourceToSpartan decoded.location.sourceColumn =
+      PilotPackageOrder.sourceToPackage decoded.location.sourceColumn =
         column.val := by
     rw [decoded.owns, mapped]
   simpa only [target] using

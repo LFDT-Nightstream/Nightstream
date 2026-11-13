@@ -1,6 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PiDECDirectSupport
 import NightstreamFPrime.Layout.ProductionRelation.SourceCompiler
-import NightstreamFPrime.Layout.Stage1.SpartanBounds
+import NightstreamFPrime.Layout.Stage1.PackageOrderBounds
 
 namespace NightstreamFPrime.Export.Stage1.PiDECOrdinaryDirectSource
 
@@ -98,28 +98,28 @@ theorem evalAFreshStart_eq :
 def publicRows (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       RingCarrierLayout.carrierWidth logicalWidth) : List R1CS.Row :=
-  Spartan.remapRows
+  PackageOrder.remapRows
     (R1CS.lowerConstraints (publicConstraints logicalWidth publicFits)
       publicFreshStart).rows
 
 def commitmentRows (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       RingCarrierLayout.carrierWidth logicalWidth) : List R1CS.Row :=
-  Spartan.remapRows
+  PackageOrder.remapRows
     (R1CS.lowerConstraints (commitmentConstraints logicalWidth publicFits)
       (commitmentFreshStart logicalWidth publicFits)).rows
 
 def evalKRows (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       RingCarrierLayout.carrierWidth logicalWidth) : List R1CS.Row :=
-  Spartan.remapRows
+  PackageOrder.remapRows
     (R1CS.lowerConstraints (evalKConstraints logicalWidth publicFits)
       (evalKFreshStart logicalWidth publicFits)).rows
 
 def evalARows (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       RingCarrierLayout.carrierWidth logicalWidth) : List R1CS.Row :=
-  Spartan.remapRows
+  PackageOrder.remapRows
     (R1CS.lowerConstraints (evalAConstraints logicalWidth publicFits)
       (evalAFreshStart logicalWidth publicFits)).rows
 
@@ -247,7 +247,7 @@ theorem sourceRows_length
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     (sourceRows logicalWidth publicFits).length = Layout.PiDEC.v1_2.exactRowCount := by
   simp only [sourceRows, List.length_append, publicRows, commitmentRows,
-    evalKRows, evalARows, Spartan.remapRows, List.length_map,
+    evalKRows, evalARows, PackageOrder.remapRows, List.length_map,
     R1CS.lowerConstraints_rows_length]
   rw [publicRowCount relation, commitmentRowCount relation,
     evalKRowCount relation, evalARowCount relation]
@@ -267,13 +267,13 @@ theorem sourceRows_eq_canonical :
       (PiDECArithmetic.canonicalPlan logicalWidth publicFits).rows.map
         Rows.CompiledRow.toR1CS := by
   rw [PiDECArithmetic.Plan.rows_toR1CS]
-  change sourceRows logicalWidth publicFits = Spartan.remapRows
+  change sourceRows logicalWidth publicFits = PackageOrder.remapRows
     (R1CS.lowerConstraints
       (PiDECArithmetic.constraints logicalWidth publicFits)
       PiDECStarts.phaseFreshStart).rows
   rw [constraints_eq_sources, lowerFour_rows]
   simp only [sourceRows, publicRows, commitmentRows, evalKRows, evalARows,
-    Spartan.remapRows, List.map_append]
+    PackageOrder.remapRows, List.map_append]
   rw [publicFreshStart_eq, commitmentFreshStart_eq logicalWidth publicFits,
     evalKFreshStart_eq logicalWidth publicFits,
     evalAFreshStart_eq logicalWidth publicFits]
@@ -282,12 +282,12 @@ private theorem remappedRows_varsSatisfy (constraints : List Expr) (start : Nat)
     (scope : PiDECDirectSupport.ConstraintsSupported constraints)
     (freshSupported : ∀ column,
       InRange start (R1CS.totalFreshCount constraints) column → Source column) :
-    ∀ row ∈ Spartan.remapRows
+    ∀ row ∈ PackageOrder.remapRows
         (R1CS.lowerConstraints constraints start).rows,
       row.VarsSatisfy Target := by
   have lowered := R1CS.lowerConstraints_rows_varsSatisfy constraints start Source
     scope.get
-  apply Spartan.remapRows_varsSatisfy Source Target _
+  apply PackageOrder.remapRows_varsSatisfy Source Target _
   · intro row member
     apply (lowered row member).mono row
     intro column support
@@ -348,72 +348,72 @@ theorem evalARows_varsSatisfy
   unfold InRange at support
   omega
 
-theorem target_lt_spartanColumnCount {column : Nat} (support : Target column) :
-    column < Spartan.spartanColumnCount := by
+theorem target_lt_packageColumnCount {column : Nat} (support : Target column) :
+    column < PackageOrder.packageColumnCount := by
   rcases support with ⟨source, sourceSupport, rfl⟩
-  exact Spartan.sourceToSpartan_lt source
+  exact PackageOrder.sourceToPackage_lt source
     (PiDECSourceSupport.source_lt_sourceColumnCount sourceSupport)
 
 private theorem varsBelow_of_target (rows : List R1CS.Row)
     (scope : ∀ row ∈ rows, row.VarsSatisfy Target) :
-    ∀ row ∈ rows, row.VarsBelow Spartan.spartanColumnCount := by
+    ∀ row ∈ rows, row.VarsBelow PackageOrder.packageColumnCount := by
   intro row member
   exact (scope row member).mono row
-    (fun _ support => target_lt_spartanColumnCount support)
+    (fun _ support => target_lt_packageColumnCount support)
 
 theorem publicRows_varsBelow
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     ∀ row ∈ publicRows logicalWidth publicFits,
-      row.VarsBelow Spartan.spartanColumnCount :=
+      row.VarsBelow PackageOrder.packageColumnCount :=
   varsBelow_of_target (publicRows logicalWidth publicFits)
     (publicRows_varsSatisfy relation)
 
 theorem commitmentRows_varsBelow
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     ∀ row ∈ commitmentRows logicalWidth publicFits,
-      row.VarsBelow Spartan.spartanColumnCount :=
+      row.VarsBelow PackageOrder.packageColumnCount :=
   varsBelow_of_target (commitmentRows logicalWidth publicFits)
     (commitmentRows_varsSatisfy relation)
 
 theorem evalKRows_varsBelow
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     ∀ row ∈ evalKRows logicalWidth publicFits,
-      row.VarsBelow Spartan.spartanColumnCount :=
+      row.VarsBelow PackageOrder.packageColumnCount :=
   varsBelow_of_target (evalKRows logicalWidth publicFits)
     (evalKRows_varsSatisfy relation)
 
 theorem evalARows_varsBelow
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     ∀ row ∈ evalARows logicalWidth publicFits,
-      row.VarsBelow Spartan.spartanColumnCount :=
+      row.VarsBelow PackageOrder.packageColumnCount :=
   varsBelow_of_target (evalARows logicalWidth publicFits)
     (evalARows_varsSatisfy relation)
 
 theorem publicRows_length
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     (publicRows logicalWidth publicFits).length = Layout.PiDEC.v1_2.PublicInputSplit.physicalRowCount := by
-  simp only [publicRows, Spartan.remapRows, List.length_map,
+  simp only [publicRows, PackageOrder.remapRows, List.length_map,
     R1CS.lowerConstraints_rows_length]
   exact publicRowCount relation
 
 theorem commitmentRows_length
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     (commitmentRows logicalWidth publicFits).length = Layout.PiDEC.v1_2.CommitmentRecomposition.physicalRowCount := by
-  simp only [commitmentRows, Spartan.remapRows, List.length_map,
+  simp only [commitmentRows, PackageOrder.remapRows, List.length_map,
     R1CS.lowerConstraints_rows_length]
   exact commitmentRowCount relation
 
 theorem evalKRows_length
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     (evalKRows logicalWidth publicFits).length = Layout.PiDEC.v1_2.EvalKRecomposition.physicalRowCount := by
-  simp only [evalKRows, Spartan.remapRows, List.length_map,
+  simp only [evalKRows, PackageOrder.remapRows, List.length_map,
     R1CS.lowerConstraints_rows_length]
   exact evalKRowCount relation
 
 theorem evalARows_length
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     (evalARows logicalWidth publicFits).length = Layout.PiDEC.v1_2.EvalARecomposition.physicalRowCount := by
-  simp only [evalARows, Spartan.remapRows, List.length_map,
+  simp only [evalARows, PackageOrder.remapRows, List.length_map,
     R1CS.lowerConstraints_rows_length]
   exact evalARowCount relation
 
@@ -527,34 +527,34 @@ theorem evalAProgramRow_varsSatisfy
 theorem publicProgramRow_bounded
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (index : Fin Layout.PiDEC.v1_2.PublicInputSplit.physicalRowCount) :
-    SourceCompiler.RowBounded Spartan.spartanColumnCount
+    SourceCompiler.RowBounded PackageOrder.packageColumnCount
       (publicProgramRow relation index) :=
   (publicProgramRow_varsSatisfy relation index).mono _
-    (fun _ support => target_lt_spartanColumnCount support)
+    (fun _ support => target_lt_packageColumnCount support)
 
 theorem commitmentProgramRow_bounded
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (index : Fin Layout.PiDEC.v1_2.CommitmentRecomposition.physicalRowCount) :
-    SourceCompiler.RowBounded Spartan.spartanColumnCount
+    SourceCompiler.RowBounded PackageOrder.packageColumnCount
       (commitmentProgramRow relation index) :=
   (commitmentProgramRow_varsSatisfy relation index).mono _
-    (fun _ support => target_lt_spartanColumnCount support)
+    (fun _ support => target_lt_packageColumnCount support)
 
 theorem evalKProgramRow_bounded
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (index : Fin Layout.PiDEC.v1_2.EvalKRecomposition.physicalRowCount) :
-    SourceCompiler.RowBounded Spartan.spartanColumnCount
+    SourceCompiler.RowBounded PackageOrder.packageColumnCount
       (evalKProgramRow relation index) :=
   (evalKProgramRow_varsSatisfy relation index).mono _
-    (fun _ support => target_lt_spartanColumnCount support)
+    (fun _ support => target_lt_packageColumnCount support)
 
 theorem evalAProgramRow_bounded
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (index : Fin Layout.PiDEC.v1_2.EvalARecomposition.physicalRowCount) :
-    SourceCompiler.RowBounded Spartan.spartanColumnCount
+    SourceCompiler.RowBounded PackageOrder.packageColumnCount
       (evalAProgramRow relation index) :=
   (evalAProgramRow_varsSatisfy relation index).mono _
-    (fun _ support => target_lt_spartanColumnCount support)
+    (fun _ support => target_lt_packageColumnCount support)
 
 end
 

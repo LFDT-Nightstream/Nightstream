@@ -1,7 +1,7 @@
 import NightstreamFPrime.Layout.Stage1.PiDECStarts
 import NightstreamFPrime.Layout.Stage1.RunningTransitionData
 import NightstreamFPrime.Layout.Stage1.RunningTransitionCost
-import NightstreamFPrime.Layout.Stage1.Spartan
+import NightstreamFPrime.Layout.Stage1.PackageOrder
 
 namespace NightstreamFPrime.Layout.Stage1.PiDECSourceSupport
 
@@ -54,7 +54,7 @@ def Source (column : Nat) : Prop :=
     InRange PiDECStarts.phaseFreshStart freshCount column
 
 def Target (column : Nat) : Prop :=
-  ∃ source, Source source ∧ Spartan.sourceToSpartan source = column
+  ∃ source, Source source ∧ PackageOrder.sourceToPackage source = column
 
 @[simp] theorem parentCommitmentStart_eq :
     parentCommitmentStart = 6696146 := by
@@ -115,11 +115,11 @@ theorem fresh_source (column : Nat)
   Or.inr support
 
 theorem source_target (column : Nat) (support : Source column) :
-    Target (Spartan.sourceToSpartan column) :=
+    Target (PackageOrder.sourceToPackage column) :=
   ⟨column, support, rfl⟩
 
 theorem source_ranges_ordered :
-    Spartan.piCcsPhaseOffset ≤ parentCommitmentStart ∧
+    PackageOrder.piCcsPhaseOffset ≤ parentCommitmentStart ∧
     parentCommitmentStart + PiDECInputs.commitmentWordsPerChild ≤
       parentPublicInputStart ∧
     parentPublicInputStart + PiDECInputs.publicInputWordsPerChild ≤
@@ -132,8 +132,8 @@ theorem source_ranges_ordered :
   refine ⟨?_, ?_, ?_, ?_, ?_, rfl, rfl⟩ <;> decide
 
 private theorem runningOffset_le_sourceColumnCount :
-    RunningTransitionInputs.phaseOffset ≤ Spartan.SourceColumnCount := by
-  rw [Spartan.sourceColumnCount_eq_physicalEnd]
+    RunningTransitionInputs.phaseOffset ≤ PackageOrder.SourceColumnCount := by
+  rw [PackageOrder.sourceColumnCount_eq_physicalEnd]
   change RunningTransitionInputs.phaseOffset ≤
     RunningTransitionInputs.phaseOffset +
       Lifecycle.Stage1.RunningTransition.exactPrivateCount +
@@ -153,23 +153,23 @@ private theorem fresh_end_eq_runningOffset :
     PiDECStarts.inputFreshStart, Nat.add_zero, Nat.zero_add]
 
 theorem logical_end_le_sourceColumnCount :
-    PiDECStarts.phaseLogicalStart + logicalCount ≤ Spartan.SourceColumnCount := by
+    PiDECStarts.phaseLogicalStart + logicalCount ≤ PackageOrder.SourceColumnCount := by
   calc
     PiDECStarts.phaseLogicalStart + logicalCount =
         PiDECStarts.phaseFreshStart := rfl
     _ ≤ PiDECStarts.phaseFreshStart + freshCount := Nat.le_add_right _ _
     _ = RunningTransitionInputs.phaseOffset := fresh_end_eq_runningOffset
-    _ ≤ Spartan.SourceColumnCount := runningOffset_le_sourceColumnCount
+    _ ≤ PackageOrder.SourceColumnCount := runningOffset_le_sourceColumnCount
 
 theorem fresh_end_le_sourceColumnCount :
-    PiDECStarts.phaseFreshStart + freshCount ≤ Spartan.SourceColumnCount := by
+    PiDECStarts.phaseFreshStart + freshCount ≤ PackageOrder.SourceColumnCount := by
   rw [fresh_end_eq_runningOffset]
   exact runningOffset_le_sourceColumnCount
 
 theorem source_lt_sourceColumnCount {column : Nat} (support : Source column) :
-    column < Spartan.SourceColumnCount := by
-  have sourceLower : PiDECStarts.phaseLogicalStart ≤ Spartan.SourceColumnCount :=
-    Spartan.sourceColumnCount_ge_piDecPhaseOffset
+    column < PackageOrder.SourceColumnCount := by
+  have sourceLower : PiDECStarts.phaseLogicalStart ≤ PackageOrder.SourceColumnCount :=
+    PackageOrder.sourceColumnCount_ge_piDecPhaseOffset
   rcases source_ranges_ordered with
     ⟨_, commitmentPublic, publicEvalK, evalKEvalA, evalAProof,
       proofLogical, _⟩
@@ -184,50 +184,50 @@ theorem source_lt_sourceColumnCount {column : Nat} (support : Source column) :
   · exact Nat.lt_of_lt_of_le fresh.2 fresh_end_le_sourceColumnCount
 
 theorem mapped_input_ranges_contiguous :
-    Spartan.sourceToSpartan PiDECInputs.commitmentInputStart +
+    PackageOrder.sourceToPackage PiDECInputs.commitmentInputStart +
         PiDECInputs.childCount * PiDECInputs.commitmentWordsPerChild =
-      Spartan.sourceToSpartan PiDECInputs.evalKInputStart ∧
-    Spartan.sourceToSpartan PiDECInputs.evalKInputStart +
+      PackageOrder.sourceToPackage PiDECInputs.evalKInputStart ∧
+    PackageOrder.sourceToPackage PiDECInputs.evalKInputStart +
         PiDECInputs.childCount * PiDECInputs.evalKWordsPerChild =
-      Spartan.sourceToSpartan PiDECInputs.evalAInputStart ∧
-    Spartan.sourceToSpartan PiDECInputs.evalAInputStart +
+      PackageOrder.sourceToPackage PiDECInputs.evalAInputStart ∧
+    PackageOrder.sourceToPackage PiDECInputs.evalAInputStart +
         PiDECInputs.childCount * PiDECInputs.evalAWordsPerChild =
-      Spartan.sourceToSpartan PiDECInputs.publicInputStart ∧
-    Spartan.sourceToSpartan PiDECInputs.publicInputStart +
+      PackageOrder.sourceToPackage PiDECInputs.publicInputStart ∧
+    PackageOrder.sourceToPackage PiDECInputs.publicInputStart +
         PiDECInputs.childCount * PiDECInputs.publicInputWordsPerChild =
-      Spartan.sourceToSpartan PiDECInputs.phaseOffset := by
+      PackageOrder.sourceToPackage PiDECInputs.phaseOffset := by
   refine ⟨?_, ?_, ?_, ?_⟩
-  · rw [← Spartan.sourceToSpartan_add_of_piCcsLocal _ _ (by decide)]
+  · rw [← PackageOrder.sourceToPackage_add_of_piCcsLocal _ _ (by decide)]
     rfl
-  · rw [← Spartan.sourceToSpartan_add_of_piCcsLocal _ _ (by decide)]
+  · rw [← PackageOrder.sourceToPackage_add_of_piCcsLocal _ _ (by decide)]
     rfl
-  · rw [← Spartan.sourceToSpartan_add_of_piCcsLocal _ _ (by decide)]
+  · rw [← PackageOrder.sourceToPackage_add_of_piCcsLocal _ _ (by decide)]
     rfl
-  · rw [← Spartan.sourceToSpartan_add_of_piCcsLocal _ _ (by decide)]
+  · rw [← PackageOrder.sourceToPackage_add_of_piCcsLocal _ _ (by decide)]
     simp only [PiDECInputs.publicInputStart, PiDECInputs.evalAInputStart,
       PiDECInputs.evalKInputStart, PiDECInputs.commitmentInputStart,
       PiDECInputs.phaseOffset, PiDECInputs.proofInputColumnCount,
       Nat.mul_add, Nat.add_assoc]
 
 theorem mapped_logical_start_le_output :
-    Spartan.sourceToSpartan PiDECInputs.phaseOffset ≤
-      Spartan.sourceToSpartan RunningTransitionInputs.phaseOffset := by
+    PackageOrder.sourceToPackage PiDECInputs.phaseOffset ≤
+      PackageOrder.sourceToPackage RunningTransitionInputs.phaseOffset := by
   rcases Nat.eq_or_lt_of_le RunningTransitionInputs.piDecPhaseOffset_le with
     same | before
   · rw [same]
-  · exact Nat.le_of_lt (Spartan.sourceToSpartan_lt_of_piCcsLocal _ _
+  · exact Nat.le_of_lt (PackageOrder.sourceToPackage_lt_of_piCcsLocal _ _
       (by decide) before)
 
 theorem mapped_output_le_private :
-    Spartan.sourceToSpartan RunningTransitionInputs.phaseOffset ≤
-      Spartan.privateColumnCount := by
-  rw [← Spartan.sourceToSpartan_sourceColumnCount]
+    PackageOrder.sourceToPackage RunningTransitionInputs.phaseOffset ≤
+      PackageOrder.privateColumnCount := by
+  rw [← PackageOrder.sourceToPackage_sourceColumnCount]
   rcases Nat.eq_or_lt_of_le runningOffset_le_sourceColumnCount with same | before
   · rw [same]
-  · have lower : Spartan.piCcsPhaseOffset ≤ RunningTransitionInputs.phaseOffset :=
-      Nat.le_trans (by decide : Spartan.piCcsPhaseOffset ≤ PiDECInputs.phaseOffset)
+  · have lower : PackageOrder.piCcsPhaseOffset ≤ RunningTransitionInputs.phaseOffset :=
+      Nat.le_trans (by decide : PackageOrder.piCcsPhaseOffset ≤ PiDECInputs.phaseOffset)
         RunningTransitionInputs.piDecPhaseOffset_le
-    exact Nat.le_of_lt (Spartan.sourceToSpartan_lt_of_piCcsLocal _ _ lower before)
+    exact Nat.le_of_lt (PackageOrder.sourceToPackage_lt_of_piCcsLocal _ _ lower before)
 
 theorem parentStart_le_source {column : Nat} (support : Source column) :
     parentCommitmentStart ≤ column := by

@@ -187,7 +187,7 @@ def Block.format : Format Block where
 private def sequentialWitnessStarts : Nat → Nat → List Nat
   | _witnessStart, 0 => []
   | witnessStart, count + 1 =>
-      NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan witnessStart ::
+      NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage witnessStart ::
         sequentialWitnessStarts (witnessStart + 1096) count
 
 private theorem sequentialWitnessStarts_add
@@ -213,7 +213,7 @@ private theorem sequentialWitnessStarts_length (witnessStart count : Nat) :
 private theorem sequentialWitnessStarts_getD
     (witnessStart count index : Nat) (bound : index < count) :
     (sequentialWitnessStarts witnessStart count).getD index 0 =
-      NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+      NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
         (witnessStart + index * 1096) := by
   induction count generalizing witnessStart index with
   | zero => omega
@@ -223,7 +223,7 @@ private theorem sequentialWitnessStarts_getD
       | succ index =>
           rw [sequentialWitnessStarts, List.getD_cons_succ,
             inductionHypothesis (witnessStart + 1096) index (by omega)]
-          apply congrArg NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+          apply congrArg NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
           omega
 
 private theorem compileBlocks_witnessStarts
@@ -540,10 +540,10 @@ def samplerSourceBlockAt (source : Nat) (step : Fin samplerStepsPerSource) :
 def samplerSourceWitnessStartAt (source : Nat)
     (step : Fin samplerStepsPerSource) : Nat :=
   if step.val = 0 then
-    NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+    NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
       (PiRLCSamplerInvocations.sourceLogicalStart source)
   else
-    NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+    NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
       (NightstreamFPrime.Layout.Stage1.PiRLCStarts.advanceLogicalStart source)
 
 theorem samplerSourceBlockAt_witnessStarts (source : Nat)
@@ -696,7 +696,7 @@ theorem canonicalWitnessStarts_materializes :
 private theorem canonicalWitnessStarts_transcript_getD
     (index : Nat) (bound : index < 184) :
     (canonicalWitnessStarts ()).getD index 0 =
-      NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+      NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
         (NightstreamFPrime.Layout.Stage1.PiCCSStarts.statementWitnessStart +
           index * 1096) := by
   rw [canonicalWitnessStarts, List.getD_append _ _ _ _ (by
@@ -712,7 +712,7 @@ theorem canonicalInvocation_witnessStart_of_transcript
     (index : Fin (Data.permutationInvocations ()).length)
     (bound : index.val < 184) :
     ((Data.permutationInvocations ()).get index).witnessStart =
-      NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+      NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
         (NightstreamFPrime.Layout.Stage1.PiCCSStarts.statementWitnessStart +
           index.val * 1096) := by
   have selected := canonicalWitnessStarts_transcript_getD index.val bound
@@ -727,7 +727,7 @@ theorem canonicalInvocation_witnessStart_of_transcript
 private theorem canonicalWitnessStarts_output_getD
     (index : Nat) (afterTranscript : 184 ≤ index) (bound : index < 1091) :
     (canonicalWitnessStarts ()).getD index 0 =
-      NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+      NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
         (PiCCSInvocations.outputWitnessStart + (index - 184) * 1096) := by
   rw [canonicalWitnessStarts, List.getD_append _ _ _ _ (by
     rw [piCcsWitnessStarts_length]
@@ -743,7 +743,7 @@ theorem canonicalInvocation_witnessStart_of_output
     (index : Fin (Data.permutationInvocations ()).length)
     (afterTranscript : 184 ≤ index.val) (bound : index.val < 1091) :
     ((Data.permutationInvocations ()).get index).witnessStart =
-      NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+      NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
         (PiCCSInvocations.outputWitnessStart + (index.val - 184) * 1096) := by
   have selected := canonicalWitnessStarts_output_getD index.val afterTranscript bound
   rw [canonicalWitnessStarts_materializes] at selected

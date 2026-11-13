@@ -1,7 +1,7 @@
 import NightstreamFPrime.Export.PermutationOutput.Readout
 import NightstreamFPrime.Export.Stage1.PoseidonRetainedBlock
 import NightstreamFPrime.Layout.Stage1.PiCCSOrdinarySourceSupportData
-import NightstreamFPrime.Layout.Stage1.SpartanValues
+import NightstreamFPrime.Layout.Stage1.PackageOrderValues
 import NightstreamFPrime.Export.PermutationOutput
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSTranscriptReadout
@@ -16,19 +16,19 @@ open NightstreamFPrime.Export.Package
 
 abbrev Index := Fin PiCCSOrdinarySourceSupport.transcriptInvocationCount
 
-def transcriptStart : Nat := Spartan.sourceToSpartan PiCCSStarts.statementWitnessStart
+def transcriptStart : Nat := PackageOrder.sourceToPackage PiCCSStarts.statementWitnessStart
 
 theorem transcriptStart_eq : transcriptStart = 5360982 := by
   unfold transcriptStart
   rw [PiCCSStarts.statementWitnessStart_eq]
   rfl
 
-theorem sboxColumn_lt_spartanColumnCount (index : Index) (lane : Fin 16) :
+theorem sboxColumn_lt_packageColumnCount (index : Index) (lane : Fin 16) :
     PermutationOutput.Readout.sboxColumn transcriptStart index lane <
-      Spartan.spartanColumnCount := by
+      PackageOrder.packageColumnCount := by
   apply Nat.lt_of_lt_of_le (PermutationOutput.Readout.sboxColumn_lt_end transcriptStart index lane)
   rw [transcriptStart_eq, PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq,
-    Spartan.spartanColumnCount_eq]
+    PackageOrder.packageColumnCount_eq]
   norm_num
 
 def env (source : Env) : Env :=
@@ -39,37 +39,37 @@ def sourceColumn (index : Index) (lane : Fin 16) : Nat :=
   PiCCSStarts.statementWitnessStart + index.val * 1096 + 1080 + lane.val
 
 theorem sourceColumn_target (index : Index) (lane : Fin 16) :
-    Spartan.sourceToSpartan (sourceColumn index lane) =
+    PackageOrder.sourceToPackage (sourceColumn index lane) =
       PermutationOutput.Readout.outputColumn transcriptStart index lane := by
   unfold sourceColumn PermutationOutput.Readout.outputColumn
     PermutationOutput.Readout.witnessStart transcriptStart
   have combined : PiCCSStarts.statementWitnessStart + index.val * 1096 + 1080 + lane.val =
       PiCCSStarts.statementWitnessStart + (index.val * 1096 + 1080 + lane.val) := by omega
-  rw [combined, Spartan.sourceToSpartan_add_of_piCcsLocal
+  rw [combined, PackageOrder.sourceToPackage_add_of_piCcsLocal
     PiCCSStarts.statementWitnessStart (index.val * 1096 + 1080 + lane.val) (by
-      norm_num [PiCCSStarts.statementWitnessStart_eq, Spartan.piCcsPhaseOffset])]
+      norm_num [PiCCSStarts.statementWitnessStart_eq, PackageOrder.piCcsPhaseOffset])]
   omega
 
 theorem env_source_of_notTranscript (source : Env) (column : Nat)
-    (bound : column < Spartan.SourceColumnCount)
+    (bound : column < PackageOrder.SourceColumnCount)
     (outside : ¬ PiCCSOrdinarySourceSupport.TranscriptOutput column) :
-    env source (Spartan.sourceToSpartan column) =
-      source (Spartan.sourceToSpartan column) := by
+    env source (PackageOrder.sourceToPackage column) =
+      source (PackageOrder.sourceToPackage column) := by
   apply PermutationOutput.Readout.env_of_decode_none
   cases found : PermutationOutput.Readout.decode transcriptStart
       PiCCSOrdinarySourceSupport.transcriptInvocationCount
-      (Spartan.sourceToSpartan column) with
+      (PackageOrder.sourceToPackage column) with
   | none => rfl
   | some selected =>
       rcases selected with ⟨index, lane⟩
       have address := PermutationOutput.Readout.decode_source transcriptStart found
       rw [← sourceColumn_target] at address
-      have selectedBound : sourceColumn index lane < Spartan.SourceColumnCount :=
+      have selectedBound : sourceColumn index lane < PackageOrder.SourceColumnCount :=
         PiCCSOrdinarySourceSupport.source_lt_sourceColumnCount
           (PiCCSOrdinarySourceSupport.transcript_output_source _ ⟨index, lane, rfl⟩)
-      have inverse := congrArg Spartan.spartanToSource address
-      rw [Spartan.spartanToSource_sourceToSpartan column bound,
-        Spartan.spartanToSource_sourceToSpartan _ selectedBound] at inverse
+      have inverse := congrArg PackageOrder.packageToSource address
+      rw [PackageOrder.packageToSource_sourceToPackage column bound,
+        PackageOrder.packageToSource_sourceToPackage _ selectedBound] at inverse
       exact False.elim (outside ⟨index, lane, Option.some.inj inverse⟩)
 
 private def physicalIndex (index : Index) :
@@ -113,9 +113,9 @@ theorem invocation_witnessStart (index : Index) :
   have same : invocation index = (Data.permutationInvocations ()).get selected :=
     Option.some.inj listEq
   rw [same, PermutationPlan.canonicalInvocation_witnessStart_of_transcript selected bound]
-  exact Spartan.sourceToSpartan_add_of_piCcsLocal PiCCSStarts.statementWitnessStart
+  exact PackageOrder.sourceToPackage_add_of_piCcsLocal PiCCSStarts.statementWitnessStart
     (index.val * 1096) (by
-      norm_num [PiCCSStarts.statementWitnessStart_eq, Spartan.piCcsPhaseOffset])
+      norm_num [PiCCSStarts.statementWitnessStart_eq, PackageOrder.piCcsPhaseOffset])
 
 theorem env_eq_of_invocations (source : Env)
     (rows : ∀ index, PermutationInvocationHolds (PilotData.circuitPackage ())

@@ -373,6 +373,10 @@ impl MetalSession {
 #[path = "../tests/unit/buffer_limit.rs"]
 mod buffer_limit_tests;
 
+#[cfg(test)]
+#[path = "../tests/unit/ring_kernels.rs"]
+mod ring_kernel_tests;
+
 /// Copy `values` to the start of `buffer`, a buffer that Metal allocated
 /// and that no command is using.
 fn upload<T: Copy>(buffer: &ProtocolObject<dyn MTLBuffer>, values: &[T]) -> Result<(), MetalError> {

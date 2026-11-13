@@ -463,6 +463,7 @@ fn n1_accept(engine: crate::Engine) {
     // The memory prover's compressed proof verifies as the proof does.
     let memory = circuit.prover(engine, 109).unwrap();
     let proof = super::proving::Proof::from_parts(proof.unwrap(), *run.carry());
+    let key = verifier.compression_key().unwrap();
     let setup = memory.compression_setup().unwrap();
     let compressed = memory.compress(&proof, &setup).unwrap();
     let statement = run.statement();
@@ -471,7 +472,7 @@ fn n1_accept(engine: crate::Engine) {
             &Package::N1.program(),
             &statement.initial,
             &statement.final_,
-            &setup.key(),
+            &key,
             &compressed,
         )
         .unwrap();

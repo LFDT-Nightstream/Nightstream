@@ -22,24 +22,31 @@ digests do not replace these checks.
 
 ## Compress a proof
 
-`Prover::compression_setup` makes a `CompressionSetup` once. It expands the
-rows of the Ajtai key that the circuit reads, for the blocks of the larger
-relation up to a power of two, and commits them as one polynomial with the
-Akita commitment scheme. `Prover::compress` makes a `FinalProof` from a
-proof and the setup. The final proof has no witness, and `extend` cannot use
-it. `Verifier::verify_final` checks it against the expected state and a
-`CompressionKey`. `FinalProof::to_bytes` and `FinalProof::from_bytes` are
-the byte form of the proof, and `CompressionKey::to_bytes` and
-`CompressionKey::from_bytes` are the byte form of the key.
-`nebula::Prover` and `nebula::Verifier` have the same functions for a memory
-proof.
+`Prover::compression_setup` makes a `CompressionSetup` once from the
+prover's circuit. It expands the rows of the Ajtai key that the circuit
+reads, for the blocks of the larger relation up to a power of two, and
+commits them as one polynomial with the Akita commitment scheme.
+`Prover::compress` makes a `FinalProof` from a proof and the setup. The
+final proof has no witness, and `extend` cannot use it.
+`FinalProof::to_bytes` and `FinalProof::from_bytes` are its byte form.
 
-The compression key holds the commitment of the key polynomial and Akita's
-commitments of a prefix of its own setup, in about 1 KB. It is a function of
-the public seeds and of the size of the circuit, so each circuit of one size
-has the same key. `verify_final` trusts the key. Take it from
-`CompressionSetup::key` or from `Verifier::compression_key`, which computes
-it again from the seeds, or compare its bytes with a copy that you computed.
+`Verifier::compression_key` makes the `CompressionKey` once from the
+verifier's circuit and the public seeds. `Verifier::verify_final` checks a
+final proof against the expected state under that key. The key holds the
+commitment of the key polynomial and Akita's commitments of a prefix of its
+own setup, in about 1 KB. No proof carries it, and the prover's setup gives
+it to no one. It is a function of the seeds and of the size of the circuit,
+so a prover and a verifier of one circuit agree, and each circuit of one
+size has the same key.
+
+`CompressionKey::to_bytes` and `Verifier::decode_compression_key` are the
+byte form of the key, for a verifier that cannot make the computation. The
+decoder checks the form and the size of the key only. Loaded bytes are
+trusted input, as the compiled circuit is: under a key that does not hold
+the commitment of the Ajtai key, `verify_final` accepts false statements.
+Any party computes the bytes again with `Verifier::compression_key`.
+`nebula::Prover` and `nebula::Verifier` have the same functions for a
+memory proof.
 
 The final proof has both slot claims, the CE claim that one PiCCS run makes
 of the fresh instance, and one argument from `crates/neo-compress`. The
@@ -79,7 +86,8 @@ Of the proof bytes, the Akita opening is 75.7 KB and the claims are about
 one thread. The other time is the pass over the rows of the matrices.
 
 The compression setup takes 1.0 s and holds about 10 GB: the key rows and
-the copy that Akita opens. `Verifier::compression_key` takes 1.0 s. The
+the copy that Akita opens. `Verifier::compression_key` takes 1.0 s on 30
+threads and 19 s on one thread, with a peak of 6 GB of resident memory. The
 process of the test that compresses both circuits has a peak of 30 GB of
 resident memory (one run), so the tests that compress a step of the hash
 chain are ignored ([testing](../development/testing.md)).

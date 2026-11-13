@@ -7,47 +7,57 @@
 use neo_ajtai::nightstream_fprime_setup::expanded_key_bytes;
 use neo_math::F;
 use nightstream::application::{poseidon2_hash_chain_step, poseidon2_hash_chain_v1};
-use nightstream::{Circuit, CompressionKey, FinalProof};
+use nightstream::{Circuit, FinalProof};
 use nightstream::{Engine, PrimeCharacteristicRing, State};
+
+/// The 18 rows of 2^19 blocks of the Ajtai key, 2,048 bytes of SHAKE128
+/// output for each key element.
+const KEY_BYTES: u64 = 18 * (1 << 19) * 2048;
+
+fn circuit() -> Circuit {
+    Circuit::compile(poseidon2_hash_chain_v1().expect("hash chain")).expect("bounded-depth circuit")
+}
 
 fn words(values: [u64; 4]) -> [F; 4] {
     values.map(F::from_u64)
 }
 
-/// A proof compresses to a proof without witnesses. It verifies from its
-/// bytes under the compression key from its bytes, and not for another
-/// state, after a changed byte or under another key. After the first step
-/// both slots hold the zero accumulator. The setup expands the 18 rows of
-/// 2^19 blocks of the Ajtai key, 2,048 bytes of SHAKE128 output each, and
-/// the verifier expands no key element.
+/// A verifier and a prover each compile the circuit and make their own key
+/// from it: the verifier its compression key, the prover its compression
+/// setup. Each expands the rows of the Ajtai key once. The proofs of the
+/// prover verify from their bytes under the key of the verifier, and not for
+/// another state, after a changed byte or under a changed key. The verifier
+/// expands no key element when it verifies.
 #[test]
 #[ignore = "Production-size compression, 30 GB; run separately under the 300-second cap."]
 fn hash_chain_compresses_and_verifies_without_the_ajtai_key() {
-    let compiled = Circuit::compile(poseidon2_hash_chain_v1().expect("hash chain")).expect("circuit");
-    let prover = compiled.prover(Engine::Optimized, 109).expect("prover");
-    let verifier = compiled.verifier(Engine::Optimized, 109).expect("verifier");
+    let verifier = circuit()
+        .verifier(Engine::Optimized, 109)
+        .expect("verifier");
+    let before = expanded_key_bytes();
+    let key = verifier.compression_key().expect("compression key");
+    assert_eq!(expanded_key_bytes() - before, KEY_BYTES);
+    let key_bytes = key.to_bytes();
+    assert!(key_bytes.len() < 2048, "the key has {} bytes", key_bytes.len());
+    assert_eq!(
+        verifier
+            .decode_compression_key(&key_bytes)
+            .expect("decoded key"),
+        key
+    );
+
+    let prover = circuit().prover(Engine::Optimized, 109).expect("prover");
+    let before = expanded_key_bytes();
+    let setup = prover.compression_setup().expect("compression setup");
+    assert_eq!(expanded_key_bytes() - before, KEY_BYTES);
     let initial = words([1, 2, 3, 4]);
     let message = words([5, 6, 7, 8]);
     let mut proof = prover.prove(initial, &message).expect("first step");
     let mut current = poseidon2_hash_chain_step(initial, message);
-
-    let before = expanded_key_bytes();
-    let setup = prover.compression_setup().expect("compression setup");
-    assert_eq!(expanded_key_bytes() - before, 18 * (1 << 19) * 2048);
-    let key_bytes = setup.key().to_bytes();
-    let key = CompressionKey::from_bytes(&key_bytes).expect("decoded key");
-    assert_eq!(key, setup.key());
-    assert!(key_bytes.len() < 2048, "the key has {} bytes", key_bytes.len());
-
+    // After the first step both slots hold the zero accumulator.
     let first = prover
         .compress(&proof, &setup)
         .expect("compressed first step");
-    let before = expanded_key_bytes();
-    verifier
-        .verify_final(&State::new(1, initial, current), &key, &first)
-        .expect("the compressed first step verifies");
-    assert_eq!(expanded_key_bytes(), before, "the verifier expanded key elements");
-
     for _ in 2..=3 {
         proof = prover.extend(&proof, &message).expect("next step");
         current = poseidon2_hash_chain_step(current, message);
@@ -58,8 +68,17 @@ fn hash_chain_compresses_and_verifies_without_the_ajtai_key() {
     let bytes = compressed.to_bytes().expect("proof bytes");
     assert!(bytes.len() < 150_000, "the proof has {} bytes", bytes.len());
     assert!(60 * bytes.len() < prover.encode_proof(&proof).expect("bytes").len());
-    let decoded = FinalProof::from_bytes(&bytes).expect("decoded proof");
+    drop((setup, prover));
+
     let before = expanded_key_bytes();
+    verifier
+        .verify_final(
+            &State::new(1, initial, poseidon2_hash_chain_step(initial, message)),
+            &key,
+            &first,
+        )
+        .expect("the compressed first step verifies");
+    let decoded = FinalProof::from_bytes(&bytes).expect("decoded proof");
     verifier
         .verify_final(&state, &key, &decoded)
         .expect("the decoded proof verifies");
@@ -86,16 +105,21 @@ fn hash_chain_compresses_and_verifies_without_the_ajtai_key() {
     }
 
     assert!(
-        CompressionKey::from_bytes(&key_bytes[..key_bytes.len() - 1]).is_err(),
+        verifier
+            .decode_compression_key(&key_bytes[..key_bytes.len() - 1])
+            .is_err(),
         "truncated key"
     );
     let mut longer = key_bytes.clone();
     longer.push(0);
-    assert!(CompressionKey::from_bytes(&longer).is_err(), "a byte after the key");
+    assert!(
+        verifier.decode_compression_key(&longer).is_err(),
+        "a byte after the key"
+    );
     for at in [30, 200, key_bytes.len() - 100] {
         let mut changed = key_bytes.clone();
         changed[at] ^= 1;
-        if let Ok(other) = CompressionKey::from_bytes(&changed) {
+        if let Ok(other) = verifier.decode_compression_key(&changed) {
             assert_ne!(other, key, "changed key byte {at}");
             assert!(
                 verifier.verify_final(&state, &other, &decoded).is_err(),
@@ -104,8 +128,4 @@ fn hash_chain_compresses_and_verifies_without_the_ajtai_key() {
         }
     }
     assert_eq!(expanded_key_bytes(), before, "the verifier expanded key elements");
-
-    // The verifier computes the key of the setup from the public seeds.
-    drop(setup);
-    assert_eq!(verifier.compression_key().expect("derived key"), key);
 }

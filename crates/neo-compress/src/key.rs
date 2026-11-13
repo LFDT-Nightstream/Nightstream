@@ -48,8 +48,11 @@ const MAGIC: &[u8; 16] = b"NS-COMPRESS-VK-1";
 /// What the verifier holds in place of the Ajtai key: the Akita commitment
 /// of the key polynomial, and Akita's commitments of the prefixes of its own
 /// setup that the schedule rows of the key offload. Both are functions of
-/// public seeds, and the verifier reads neither table. The key is authority:
-/// its commitment must be the one that `VerificationKey::derive` makes.
+/// public seeds, and the verifier reads neither table.
+///
+/// The key is authority. `VerificationKey::derive` computes it. Bytes from
+/// another party are unchecked input: `from_bytes` checks their form only,
+/// and the argument is sound only under the key that `derive` gives.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct VerificationKey {
     blocks: usize,
@@ -201,6 +204,12 @@ fn fold(table: &[F], omega: K) -> Vec<K> {
             ])
         })
         .collect()
+}
+
+/// The blocks of the key polynomial for claims of at most `blocks` blocks:
+/// `ProverKey::new` and `VerificationKey::derive` make the key of this size.
+pub fn key_blocks(blocks: usize) -> Result<usize, Error> {
+    Ok(schedules_for(blocks)?.blocks())
 }
 
 /// The schedule rows of the smallest key polynomial that holds `blocks`

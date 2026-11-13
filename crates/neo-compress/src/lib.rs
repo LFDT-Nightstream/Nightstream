@@ -113,7 +113,7 @@ use neo_reductions::superneo_eval::MatrixRows;
 use neo_transcript::{domain_chunk_v1_2, Poseidon2Transcript};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
-pub use key::{ProverKey, VerificationKey};
+pub use key::{key_blocks, ProverKey, VerificationKey};
 pub use layout::Layout;
 pub use prover::{commit, Committed, ProverTimes};
 pub use sumcheck::{KeyRound, Round};

@@ -31,4 +31,4 @@ The owner approved this on 2026-11-02.
    the event chain of each last WASM state with the roots of its interleaving
    statement, and another caller folds its own events.
 4. **A verifier compiles its own circuit.** A saved circuit file serves only
-   a prover (`SPEC.md` Algorithm 10, Source).
+   a prover (`SPEC.md` Algorithm 8, Source).

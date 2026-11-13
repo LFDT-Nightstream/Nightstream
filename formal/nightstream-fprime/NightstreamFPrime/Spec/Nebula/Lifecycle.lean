@@ -1,8 +1,8 @@
 import NightstreamFPrime.Spec.Nebula.Rows
 import NightstreamFPrime.Spec.Nebula.Reference
 
-/-! Owns the memory carry of SPEC.md section 7.5, the two memory arms of Algorithm 9, and
-the public statement and terminal checks of Algorithm 10, over an extracted run: one
+/-! Owns the memory carry of SPEC.md section 7.5, the two memory arms of Algorithm 7, and
+the public statement and terminal checks of Algorithm 8, over an extracted run: one
 invocation per step, each with its proposal, its records, and its next
 application state. The input carry selects the arm; no invocation field does.
 The run starts from the closed start carry, so the first invocation reopens.
@@ -68,7 +68,7 @@ structure Invocation (σ Digest : Type) where
   records : StepRecords
   next : σ
 
-/-- The public statement of SPEC.md Algorithm 10. -/
+/-- The public statement of SPEC.md Algorithm 8. -/
 structure Statement (σ Digest : Type) where
   steps : ℕ
   initial : σ
@@ -153,7 +153,7 @@ noncomputable def finishStep (s : Setup E Digest) (c : Carry E Digest) :
     Option (Carry E Digest) :=
   if c.idx = s.geometry.n then closeSegment s c else some c
 
-/-- SPEC.md Algorithm 9: the input carry selects the arm. A closed carry (`idx = N`)
+/-- SPEC.md Algorithm 7: the input carry selects the arm. A closed carry (`idx = N`)
 reopens; any other carry continues. -/
 noncomputable def invoke (s : Setup E Digest) (c : Carry E Digest)
     (inv : Invocation σ Digest) : Option (Carry E Digest) :=
@@ -167,7 +167,7 @@ noncomputable def continueRun (s : Setup E Digest) (c : Carry E Digest)
   run.foldlM (fun c inv => invoke s c inv) c
 
 /-- The final carry of a run, from the start carry. An empty run ends at the
-start carry, whose `seg_idx = 0` fails the terminal check (SPEC.md Algorithm 10 rejects
+start carry, whose `seg_idx = 0` fails the terminal check (SPEC.md Algorithm 8 rejects
 `T = 0`). -/
 noncomputable def finalCarry (ctx : Context E Digest) (run : List (Invocation σ Digest)) :
     Option (Carry E Digest) :=
@@ -178,7 +178,7 @@ def AppThread {p : Geometry} (app : Application p σ) : σ → List (Invocation 
   | s, [], s' => s = s'
   | s, inv :: rest, s' => app.Step s inv.ports inv.next ∧ AppThread app inv.next rest s'
 
-/-- SPEC.md Algorithms 9 and 10 on an extracted run: the terminal checks, the final
+/-- SPEC.md Algorithms 7 and 8 on an extracted run: the terminal checks, the final
 carry, and the application thread. -/
 structure Accepts (ctx : Context E Digest) (app : Application ctx.plan.toGeometry σ)
     (stmt : Statement σ Digest) (run : List (Invocation σ Digest)) : Prop where

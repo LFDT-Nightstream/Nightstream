@@ -2,7 +2,7 @@ import NightstreamFPrime.Lifecycle.Nebula.Carry
 
 /-! Owns the witness of one invocation of a Nebula memory application and the
 field equations that the memory rows check: the rows of SPEC.md section 7.3, the carry
-actions and the two arms of SPEC.md section 7.5 and Algorithm 9, the three
+actions and the two arms of SPEC.md section 7.5 and Algorithm 7, the three
 record chains and the `η` transcript of section 7.4, and the input state digest. The witness also
 holds the application's state words and private words; the application's
 own rows (section 7.6) are in `PortApp`. Every value the relation needs is a witness

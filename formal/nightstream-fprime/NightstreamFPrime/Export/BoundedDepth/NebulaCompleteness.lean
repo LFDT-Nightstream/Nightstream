@@ -2,7 +2,7 @@ import NightstreamFPrime.Export.BoundedDepth.RunCompleteness
 import NightstreamFPrime.Lifecycle.Nebula.HonestRun
 import NightstreamFPrime.Lifecycle.Nebula.MemoryProgram
 
-/-! Completeness of a memory application on the bounded-depth scheme (CW-10.7, SPEC.md Algorithm 10). Every
+/-! Completeness of a memory application on the bounded-depth scheme (CW-10.7, SPEC.md Algorithm 8). Every
 execution of `S · N` steps with `1 ≤ S ≤ S_max` has a statement that passes the memory verifier's
 checks (steps 3 and 4, `MemoryApp.history_of_execution`), and the bounded-depth terminal accepts the
 honest prover's recursive proof of it (step 5, `memory_complete`). The proof is recursive because
@@ -98,7 +98,7 @@ theorem steps_lt {p : Plan} (valid : p.Valid) {segments : ℕ} (most : segments 
     _ < 2 ^ p.wTs := valid.timestampRange
     _ < fieldModulus := encoding
 
-/-- Completeness of a memory application (SPEC.md Algorithm 10): for every execution of `S · N`
+/-- Completeness of a memory application (SPEC.md Algorithm 8): for every execution of `S · N`
 steps with `1 ≤ S ≤ S_max`, the statement that the verifier computes passes its checks, and the
 bounded-depth terminal accepts the honest prover's recursive proof of it. -/
 theorem memory_complete {p : Plan} {app : PortApp p.toGeometry} (valid : p.Valid)

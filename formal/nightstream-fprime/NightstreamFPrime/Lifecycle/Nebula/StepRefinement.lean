@@ -80,7 +80,7 @@ theorem cOut_eq {k : ℕ} (h : k < 39) : w.cOut k = w.carryOut ⟨k, h⟩ := by
 
 variable {w} {zIn : List F}
 
-/-- SPEC.md Algorithm 9: the rows select the reopen arm exactly when the input carry is
+/-- SPEC.md Algorithm 7: the rows select the reopen arm exactly when the input carry is
 closed. -/
 theorem RowsHold.arm (valid : p.Valid) (rows : w.RowsHold zIn) :
     (w.isOpen = 1 ∧ w.inCarry.idx = p.n) ∨ (w.isOpen = 0 ∧ w.inCarry.idx ≠ p.n) := by

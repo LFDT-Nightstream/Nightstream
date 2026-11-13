@@ -67,7 +67,7 @@ fn assert_rows(application: &ApplicationCircuit, fixture: &[u8]) {
     assert_eq!(Some(hash), expected["digest"].as_u64(), "row digest");
 }
 
-/// A Stage 1 verifier checks no SPEC.md Algorithm 10 terminal condition, so it would
+/// A Stage 1 verifier checks no SPEC.md Algorithm 8 terminal condition, so it would
 /// accept a state inside an open segment, whose reads no product test has
 /// checked. A memory package makes only the memory verifier.
 #[test]

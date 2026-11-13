@@ -244,7 +244,7 @@ def nebulaStart (plan : Spec.Nebula.Plan) : String :=
   "{\"d_init\":[" ++ ",".intercalate ((Lifecycle.Nebula.initRootWords plan).map (toString ·.val)) ++ "]}\n"
 
 /-- The memory fixtures that the Rust tests read: the named row ranges, `D_init` and the
-SPEC.md Algorithm 10 terminal-check cases (`NebulaMemoryTerminal.fixture`). -/
+SPEC.md Algorithm 8 terminal-check cases (`NebulaMemoryTerminal.fixture`). -/
 def nebulaFixture : List String → Option String
   | ["--application-rows", "nebula-v1"] => some (nebulaRows Stage1.NebulaMemoryV1Package.namedRowRanges)
   | ["--application-rows", "nebula-n1"] => some (nebulaRows Stage1.NebulaMemoryN1Package.namedRowRanges)

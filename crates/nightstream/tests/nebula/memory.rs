@@ -1,4 +1,4 @@
-//! The first Nebula memory application: native segment runs and SPEC.md Algorithm 10
+//! The first Nebula memory application: native segment runs and SPEC.md Algorithm 8
 //! terminal checks, the generic runner's checks on an application, and
 //! (ignored, production profile) SPEC.md section 9 conformance proofs over the
 //! Lean-emitted packages and the Rust-built circuit.
@@ -79,7 +79,7 @@ fn native_run_closes_every_segment_and_passes_the_terminal() {
     );
 }
 
-/// Canonical decoding (SPEC.md Algorithm 10, step 2): an integer of the
+/// Canonical decoding (SPEC.md Algorithm 8, step 2): an integer of the
 /// statement that becomes a field word must be below `q`. Otherwise `v` and
 /// `v + q` give one word, and the proof of the honest statement also verifies
 /// the second one.
@@ -279,7 +279,7 @@ fn canonical_words(words: &[F]) -> Vec<u64> {
     words.iter().map(|word| word.as_canonical_u64()).collect()
 }
 
-/// The SPEC.md Algorithm 10 terminal check agrees with Lean's `TerminalChecks` on every
+/// The SPEC.md Algorithm 8 terminal check agrees with Lean's `TerminalChecks` on every
 /// case of `emitBoundedDepth --application-terminal`. It accepts exactly when every
 /// statement integer is below `q` and every check holds, with Lean's final
 /// state words. Otherwise it fails at the first false check in its own order:
@@ -558,7 +558,7 @@ fn memory_conformance(engine: crate::Engine) {
         Err(VerifyError::Terminal(TerminalError::OpenCarry))
     ));
 
-    // The Stage 1 initial envelope (`T = 0`): reject (SPEC.md Algorithm 10).
+    // The Stage 1 initial envelope (`T = 0`): reject (SPEC.md Algorithm 8).
     let mut empty = statement.clone();
     empty.steps = 0;
     empty.segments = 0;

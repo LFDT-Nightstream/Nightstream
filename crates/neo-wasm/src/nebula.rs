@@ -208,7 +208,7 @@ fn relation() -> Result<RowRelation, WasmApplicationError> {
 
 /// The state words of `state`: the integers of its continuity words, before
 /// their reduction to field words. A field of `q` or more keeps a word of `q`
-/// or more, which the terminal check of SPEC.md Algorithm 10 refuses, so a
+/// or more, which the terminal check of SPEC.md Algorithm 8 refuses, so a
 /// claim cannot name a field that differs from the proved word by a multiple
 /// of `q` (test `a_state_field_of_q_or_more_has_no_canonical_word`).
 pub fn state_words(state: WasmStepState) -> Vec<u64> {

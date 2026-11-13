@@ -756,7 +756,7 @@ fn absent_memory_and_zero_page_memory_have_different_state_words() {
 }
 
 /// A field raised by `q` keeps a word of `q` or more, which the terminal check
-/// of SPEC.md Algorithm 10 refuses, so a claim cannot name a field that differs
+/// of SPEC.md Algorithm 8 refuses, so a claim cannot name a field that differs
 /// from the proved word by `q`. A step input whose next state is raised by `q`
 /// has no step.
 #[test]

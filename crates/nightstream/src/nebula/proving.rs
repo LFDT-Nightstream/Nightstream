@@ -1,5 +1,5 @@
 //! The memory prover and the memory verifier of a circuit (SPEC.md
-//! Algorithm 9 and Algorithm 10). The prover runs each segment natively,
+//! Algorithm 7 and Algorithm 8). The prover runs each segment natively,
 //! proves its invocations, and keeps only the last proof. The proof carries
 //! the final carry, which the final Stage 1 state binds, so the verifier
 //! reads every statement integer from it and the caller never moves a carry.
@@ -172,7 +172,7 @@ impl<A: Application + Clone> Proving<'_, A> {
 }
 
 /// The memory verifier of one circuit (`Circuit::verifier`): the SPEC.md
-/// Algorithm 10 terminal checks, then the Stage 1 verifier of the circuit's
+/// Algorithm 8 terminal checks, then the Stage 1 verifier of the circuit's
 /// relation. It verifies proofs of every program of the circuit's geometry.
 pub struct Verifier<A> {
     geometry: Geometry,
@@ -196,7 +196,7 @@ impl<A: Application> Verifier<A> {
     }
 
     /// Verify a memory proof of `program` from `initial` to `last` (SPEC.md
-    /// Algorithm 10). The statement integers come from the proof's carry, so
+    /// Algorithm 8). The statement integers come from the proof's carry, so
     /// the terminal checks on them and the final Stage 1 state bind the
     /// carry. The initial state opens the start carry, which holds the
     /// program's `D_init` (`Program::d_init`).
@@ -231,7 +231,7 @@ impl<A: Application> Verifier<A> {
         Ok(())
     }
 
-    /// The SPEC.md Algorithm 10 statement of `carry` and its terminal checks.
+    /// The SPEC.md Algorithm 8 statement of `carry` and its terminal checks.
     fn terminal(
         &self,
         program: &Program,

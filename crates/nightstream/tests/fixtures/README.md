@@ -43,7 +43,7 @@ nonzero word in every ROM and RAM cell. `tests/nebula_memory.rs` compares the
 `D_init` of the verifier with each.
 
 `nebula-memory-v1-terminal.json` and `nebula-memory-n1-terminal.json` hold
-SPEC.md Algorithm 10 terminal-check cases of each plan
+SPEC.md Algorithm 8 terminal-check cases of each plan
 (`NebulaMemoryTerminal.cases`). Each case has the statement, the final carry
 words, and whether every statement integer that becomes a field word is below
 `q`. It also has each `TerminalChecks` field as Lean decides it

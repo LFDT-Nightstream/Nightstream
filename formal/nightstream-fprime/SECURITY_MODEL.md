@@ -244,9 +244,9 @@ item 5).
 - **Controls:** what adversary 4 controls, for a memory application at a
   fixed geometry and program, and from the same tape a claimed memory
   statement and the final carry. The proof carries the carry, and the
-  verifier takes the statement integers from it (`SPEC.md` Algorithm 10). The
+  verifier takes the statement integers from it (`SPEC.md` Algorithm 8). The
   adversary must be admitted (trust item 3).
-- **Wins:** the memory verifier accepts (`SPEC.md` Algorithm 10), and the
+- **Wins:** the memory verifier accepts (`SPEC.md` Algorithm 8), and the
   history that an extractor returns does not attest the claim: it is not an
   execution from the claim's initial words and the program's memory to its
   final words in which each memory access reads the last value written.
@@ -545,7 +545,7 @@ item 5).
   inputs (trust item 5). Rust tests also check that each field of the
   typed WASM state changes its words (`every_state_field_changes_the_state_words`
   in `crates/neo-wasm/tests/wasm_nebula.rs`), and that a field of `q` or more
-  keeps a word that the terminal check of `SPEC.md` Algorithm 10 refuses
+  keeps a word that the terminal check of `SPEC.md` Algorithm 8 refuses
   (`a_state_field_of_q_or_more_has_no_canonical_word`). So a verifier that
   reads a field of a proved state reads a proved word, except that `None` and
   `Some(0)` of `memory_pages` and `max_memory_pages` share the word 0.

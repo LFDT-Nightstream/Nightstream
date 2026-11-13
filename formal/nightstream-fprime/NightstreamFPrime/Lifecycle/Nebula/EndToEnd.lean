@@ -37,7 +37,7 @@ def History (program : Application.Program) (statement : TerminalStatement AppSt
     ∀ i < statement.iteration,
       program.valid (z i) (witness i) ∧ z (i + 1) = program.step (z i) (witness i)
 
-/-- The memory fields of the SPEC.md Algorithm 10 statement, with `width` application
+/-- The memory fields of the SPEC.md Algorithm 8 statement, with `width` application
 words, and the prover's final carry words. -/
 structure MemoryStatement (width : ℕ) where
   initialApp : Fin width → F
@@ -49,7 +49,7 @@ structure MemoryStatement (width : ℕ) where
 
 variable {p : Plan} {app : PortApp p.toGeometry}
 
-/-- The checks of the Rust `nebula::Verifier::verify` (SPEC.md Algorithm 10) on a Stage 1
+/-- The checks of the Rust `nebula::Verifier::verify` (SPEC.md Algorithm 8) on a Stage 1
 statement: it opens to the memory statement's states, and the terminal checks
 hold. -/
 structure VerifierChecks {width : ℕ} (p : Plan) (statement : TerminalStatement AppState)
@@ -127,7 +127,7 @@ all segment slots at once. -/
 def Unbalanced (s : Sample) : Prop :=
   x.UnbalancedIn app (context p).eta s
 
-/-- An accepted sample that passes the SPEC.md Algorithm 10 checks, but whose extracted
+/-- An accepted sample that passes the SPEC.md Algorithm 8 checks, but whose extracted
 history is not a history that attests the claim (`SECURITY_MODEL.md`, adversary 5). -/
 def Bad (Accepted : Sample → Prop) (s : Sample) : Prop :=
   Accepted s ∧ VerifierChecks p (x.statement s) (x.memory s) ∧

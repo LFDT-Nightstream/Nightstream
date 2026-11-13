@@ -174,7 +174,7 @@ pub struct Circuit {
     packages: BoundedDepthPackages,
     application: Option<ApplicationCircuit>,
     /// A memory relation: only `nebula::Circuit::verifier` verifies it,
-    /// because this verifier checks no SPEC.md Algorithm 10 terminal
+    /// because this verifier checks no SPEC.md Algorithm 8 terminal
     /// condition.
     memory: bool,
 }

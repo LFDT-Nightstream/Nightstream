@@ -1,7 +1,7 @@
 //! Native side of Nebula memory checking (SPEC.md section 7) for any application of
 //! the `Application` contract: the geometry and the program, the record
 //! chains and challenge transcript, the carry, the segment runner that writes
-//! each invocation's witness words, the SPEC.md Algorithm 10 terminal checks,
+//! each invocation's witness words, the SPEC.md Algorithm 8 terminal checks,
 //! the memory circuit, the memory prover and verifier, the memory backend of
 //! catalog applications (`CatalogBinding`), and the application of an R1CS
 //! relation of one row (`R1csApplication`). A public memory circuit comes
@@ -167,7 +167,7 @@ impl Program {
     }
 }
 
-/// The SPEC.md Algorithm 10 public statement of a memory proof over application states `S`.
+/// The SPEC.md Algorithm 8 public statement of a memory proof over application states `S`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Statement<S> {
     pub steps: u64,
@@ -180,7 +180,7 @@ pub(crate) struct Statement<S> {
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 pub enum TerminalError {
-    /// Canonical decoding (SPEC.md Algorithm 10, step 2): an integer of the
+    /// Canonical decoding (SPEC.md Algorithm 8, step 2): an integer of the
     /// statement that becomes a field word is not below `q`, so it has the
     /// word of a smaller integer.
     #[error("a statement integer is not a canonical field element")]
@@ -346,7 +346,7 @@ fn memory_security(geometry: &Geometry, minimum_security_bits: u32) -> Result<()
 
 #[cfg(test)]
 impl<A: Application> Context<A> {
-    /// SPEC.md Algorithm 10: check the final carry against the statement and return the
+    /// SPEC.md Algorithm 8: check the final carry against the statement and return the
     /// initial and final Stage 1 states for the Stage 1 terminal check.
     pub fn terminal_states(
         &self,
@@ -475,7 +475,7 @@ impl<A: Application> Run<A> {
         Ok(segment.invocations)
     }
 
-    /// The SPEC.md Algorithm 10 statement of the run so far.
+    /// The SPEC.md Algorithm 8 statement of the run so far.
     #[cfg(test)]
     pub(crate) fn statement(&self) -> Statement<A::State> {
         Statement {

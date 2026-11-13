@@ -12,28 +12,28 @@ open NightstreamFPrime.Layout
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
-def pilotSourceColumnCount : Nat := 5141760
+def pilotSourceColumnCount : Nat := 5343330
 
-def pilotPrivateColumnCount : Nat := 5141486
+def pilotPrivateColumnCount : Nat := 5343006
 
-def pilotInputPrivateColumnCount : Nat := 55638
+def pilotInputPrivateColumnCount : Nat := 57826
 
-def proofInputColumnCount : Nat := 15192
+def proofInputColumnCount : Nat := 17656
 
 def expectedContextColumnCount : Nat := 4
 
-def proofInputSourceStart : Nat := 5141764
+def proofInputSourceStart : Nat := 5343334
 
-def piCcsPhaseOffset : Nat := 5156956
+def piCcsPhaseOffset : Nat := 5360990
 
-def piCcsLocalStart : Nat := 5156678
+def piCcsLocalStart : Nat := 5360662
 
 def SourceColumnCount : Nat := RunningTransitionLayout.physicalEnd
 
 def appendedPrivateColumnCount : Nat :=
   SourceColumnCount - (pilotSourceColumnCount + expectedContextColumnCount)
 
-def pilotPublicColumnCount : Nat := 274
+def pilotPublicColumnCount : Nat := 324
 
 def publicColumnCount : Nat :=
   pilotPublicColumnCount + expectedContextColumnCount
@@ -61,7 +61,7 @@ theorem pilotPrivateColumnCount_matches :
   rw [PilotSpartan.privateColumnCount_value]
   rfl
 
-theorem publicColumnCount_eq : publicColumnCount = 278 := by
+theorem publicColumnCount_eq : publicColumnCount = 328 := by
   rfl
 
 theorem constantColumn_eq_private :
@@ -585,7 +585,7 @@ theorem spartanToSource_sourceToSpartan (column : Nat)
           have positive : 0 < mapped - pilotPrivateColumnCount :=
             Nat.sub_pos_of_lt mappedAbove
           omega
-        have mappedBoundNumeric : mapped < 5141761 := by
+        have mappedBoundNumeric : mapped < 5343331 := by
           rw [PilotSpartan.spartanColumnCount_eq,
             PilotSpartan.sourceColumnCount_eq] at mappedBound
           norm_num at mappedBound

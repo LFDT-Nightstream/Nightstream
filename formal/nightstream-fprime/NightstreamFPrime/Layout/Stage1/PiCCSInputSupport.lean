@@ -86,7 +86,7 @@ theorem externalInputsSupported
     simp only [PiCCSInputs.interface, PiCCSInputs.priorStateWord,
       Expr.VarsSatisfy]
     apply external_prior
-    have bound : word.val < 90 := word.isLt
+    have bound : word.val < 160 := word.isLt
     unfold InRange
     norm_num [StateBinding.packedWordStart, PilotProduction.priorPreimageStart,
       PilotProduction.stateHashWords_eq]
@@ -122,7 +122,7 @@ theorem externalInputsSupported
       PiCCSInputs.runningPublicInput, Expr.VarsSatisfy]
     apply external_proof
     have sourceBound : source.val < 16 := source.isLt
-    have columnBound : column.val < 270 := column.isLt
+    have columnBound : column.val < 320 := column.isLt
     unfold InRange
     rw [callerInputCount_eq]
     unfold PiCCSInputs.runningPublicStart PiCCSInputs.runningPublicWords
@@ -145,9 +145,9 @@ theorem externalInputsSupported
         PilotProduction.stateHashWords_eq] <;> omega
   · intro source matrix coefficient
     change External (PiCCSInputs.runningEvalAStart source.val +
-          matrix.val * 108 + coefficient.val * 2) ∧
+          matrix.val * 128 + coefficient.val * 2) ∧
       External (PiCCSInputs.runningEvalAStart source.val +
-          matrix.val * 108 + coefficient.val * 2 + 1)
+          matrix.val * 128 + coefficient.val * 2 + 1)
     have sourceBound := source.isLt
     have matrixBound := matrix.isLt
     have coefficientBound := coefficient.isLt
@@ -209,9 +209,9 @@ theorem externalInputsSupported
       omega
   · intro source coefficient
     change External (PiCCSInputs.outputEvaluationStart +
-          source.val * 540 + coefficient.val * 2) ∧
+          source.val * 640 + coefficient.val * 2) ∧
       External (PiCCSInputs.outputEvaluationStart +
-          source.val * 540 + coefficient.val * 2 + 1)
+          source.val * 640 + coefficient.val * 2 + 1)
     have sourceBound := source.isLt
     have coefficientBound := coefficient.isLt
     norm_num [productionShape, productionProfile,
@@ -229,9 +229,9 @@ theorem externalInputsSupported
       omega
   · intro source matrix coefficient
     change External (PiCCSInputs.outputEvaluationStart +
-          source.val * 540 + 108 + matrix.val * 108 + coefficient.val * 2) ∧
+          source.val * 640 + 128 + matrix.val * 128 + coefficient.val * 2) ∧
       External (PiCCSInputs.outputEvaluationStart +
-          source.val * 540 + 108 + matrix.val * 108 + coefficient.val * 2 + 1)
+          source.val * 640 + 128 + matrix.val * 128 + coefficient.val * 2 + 1)
     have sourceBound := source.isLt
     have matrixBound := matrix.isLt
     have coefficientBound := coefficient.isLt

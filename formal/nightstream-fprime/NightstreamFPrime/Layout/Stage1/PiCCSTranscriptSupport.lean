@@ -78,7 +78,7 @@ private theorem statementPermutationCount
     (interface : StatementAbsorption.Interface logicalWidth publicFits)
     (offset : Nat) :
     Duplex.Formal.permutationCount
-      (StatementAbsorption.actions interface offset) = 123 := by
+      (StatementAbsorption.actions interface offset) = 124 := by
   have recipes := Duplex.Formal.recipeCount_eq_permutationCount_mul
     (StatementAbsorption.actions interface offset)
   change StatementAbsorption.recipeCount interface offset =
@@ -114,7 +114,7 @@ private theorem statementFinalState_outputPrefix_supported
       (PiCCSInputs.interface logicalWidth publicFits) PiCCSInputs.phaseOffset
     Duplex.Formal.StateSupported
       (Formal.statementFinalState shared PiCCSInputs.phaseOffset)
-      (Duplex.Formal.OutputPrefix External (PiCCSInputs.phaseOffset + StateBinding.signCount) 123) := by
+      (Duplex.Formal.OutputPrefix External (PiCCSInputs.phaseOffset + StateBinding.signCount) 124) := by
   dsimp only
   let shared := Formal.atOffset
     (PiCCSInputs.interface logicalWidth publicFits) PiCCSInputs.phaseOffset
@@ -142,21 +142,21 @@ private theorem challengeWiring_outputPrefix_supported
       (ChallengeDerivation.layoutWiring interface
           (Formal.challengeStart shared)).samples,
       Duplex.Formal.KSupported sample
-        (Duplex.Formal.OutputPrefix External (PiCCSInputs.phaseOffset + StateBinding.signCount) 127)) ∧
+        (Duplex.Formal.OutputPrefix External (PiCCSInputs.phaseOffset + StateBinding.signCount) 128)) ∧
       Duplex.Formal.StateSupported
         (ChallengeDerivation.finalState interface
           (Formal.challengeStart shared))
-        (Duplex.Formal.OutputPrefix External (PiCCSInputs.phaseOffset + StateBinding.signCount) 127) := by
+        (Duplex.Formal.OutputPrefix External (PiCCSInputs.phaseOffset + StateBinding.signCount) 128) := by
   dsimp only
   let shared := Formal.atOffset
     (PiCCSInputs.interface logicalWidth publicFits) PiCCSInputs.phaseOffset
   let interface := Formal.challengeInterface shared PiCCSInputs.phaseOffset
   let start := Formal.challengeStart shared
   have incoming : Duplex.Formal.StateSupported (interface.initialState start)
-      (Duplex.Formal.OutputPrefix External (PiCCSInputs.phaseOffset + StateBinding.signCount) 123) := by
+      (Duplex.Formal.OutputPrefix External (PiCCSInputs.phaseOffset + StateBinding.signCount) 124) := by
     simpa [interface, Formal.challengeInterface_initialState] using
       statementFinalState_outputPrefix_supported logicalWidth publicFits
-  have startEq : (PiCCSInputs.phaseOffset + StateBinding.signCount) + 123 * 1096 = start := by
+  have startEq : (PiCCSInputs.phaseOffset + StateBinding.signCount) + 124 * 1096 = start := by
     have value := Formal.challengeOffset_eq
       (PiCCSInputs.interface logicalWidth publicFits) PiCCSInputs.phaseOffset
     rw [StateBinding.signCount_eq]
@@ -164,7 +164,7 @@ private theorem challengeWiring_outputPrefix_supported
     rw [Formal.challengeStart_atOffset]
     omega
   have projected := Duplex.Formal.compileWiring_outputPrefix_supported External
-    (PiCCSInputs.phaseOffset + StateBinding.signCount) 123 (interface.initialState start)
+    (PiCCSInputs.phaseOffset + StateBinding.signCount) 124 (interface.initialState start)
     ChallengeDerivation.layoutActions incoming
   rw [startEq] at projected
   rw [← ChallengeDerivation.layoutWiring_eq_compileWiring] at projected
@@ -173,10 +173,10 @@ private theorem challengeWiring_outputPrefix_supported
   change
     (∀ value ∈ (ChallengeDerivation.layoutWiring interface start).samples,
       Duplex.Formal.KSupported value
-        (Duplex.Formal.OutputPrefix External (PiCCSInputs.phaseOffset + StateBinding.signCount) 127)) ∧
+        (Duplex.Formal.OutputPrefix External (PiCCSInputs.phaseOffset + StateBinding.signCount) 128)) ∧
       Duplex.Formal.StateSupported
         (ChallengeDerivation.finalState interface start)
-        (Duplex.Formal.OutputPrefix External (PiCCSInputs.phaseOffset + StateBinding.signCount) 127)
+        (Duplex.Formal.OutputPrefix External (PiCCSInputs.phaseOffset + StateBinding.signCount) 128)
   refine ⟨projected.1, ?_⟩
   rw [ChallengeDerivation.finalState_eq_finalStateFast_pointwise]
   exact projected.2
@@ -192,7 +192,7 @@ private theorem roundWiring_outputPrefix_supported
       (RoundTranscript.layoutWiring interface
         (Formal.roundTranscriptStart shared)).samples,
       Duplex.Formal.KSupported sample
-        (Duplex.Formal.OutputPrefix External (PiCCSInputs.phaseOffset + StateBinding.signCount) 183) := by
+        (Duplex.Formal.OutputPrefix External (PiCCSInputs.phaseOffset + StateBinding.signCount) 184) := by
   dsimp only
   let shared := Formal.atOffset
     (PiCCSInputs.interface logicalWidth publicFits) PiCCSInputs.phaseOffset
@@ -203,11 +203,11 @@ private theorem roundWiring_outputPrefix_supported
   have challengeSupport :=
     challengeWiring_outputPrefix_supported logicalWidth publicFits
   have incoming : Duplex.Formal.StateSupported (interface.initialState start)
-      (Duplex.Formal.OutputPrefix External (PiCCSInputs.phaseOffset + StateBinding.signCount) 127) := by
+      (Duplex.Formal.OutputPrefix External (PiCCSInputs.phaseOffset + StateBinding.signCount) 128) := by
     simpa [interface, Formal.roundTranscriptInterface,
       Formal.challengeFinalState, challengeInterface, shared, Formal.atOffset]
       using challengeSupport.2
-  have startEq : (PiCCSInputs.phaseOffset + StateBinding.signCount) + 127 * 1096 = start := by
+  have startEq : (PiCCSInputs.phaseOffset + StateBinding.signCount) + 128 * 1096 = start := by
     have value := Formal.challengeOffset_eq
       (PiCCSInputs.interface logicalWidth publicFits) PiCCSInputs.phaseOffset
     rw [StateBinding.signCount_eq]
@@ -215,7 +215,7 @@ private theorem roundWiring_outputPrefix_supported
     rw [Formal.roundTranscriptStart_atOffset, Formal.roundTranscriptOffset_eq]
     omega
   have projected := Duplex.Formal.compileWiring_outputPrefix_supported External
-    (PiCCSInputs.phaseOffset + StateBinding.signCount) 127 (interface.initialState start)
+    (PiCCSInputs.phaseOffset + StateBinding.signCount) 128 (interface.initialState start)
     (RoundTranscript.layoutActions interface start) incoming
   rw [startEq] at projected
   rw [← RoundTranscript.layoutWiring_eq_compileWiring] at projected
@@ -223,7 +223,7 @@ private theorem roundWiring_outputPrefix_supported
   rw [count] at projected
   change ∀ value ∈ (RoundTranscript.layoutWiring interface start).samples,
     Duplex.Formal.KSupported value
-      (Duplex.Formal.OutputPrefix External (PiCCSInputs.phaseOffset + StateBinding.signCount) 183)
+      (Duplex.Formal.OutputPrefix External (PiCCSInputs.phaseOffset + StateBinding.signCount) 184)
   exact projected.1
 
 theorem challengeWiring_supported
@@ -241,7 +241,7 @@ theorem challengeWiring_supported
   have precise := challengeWiring_outputPrefix_supported logicalWidth publicFits
   intro sample member
   exact (precise.1 sample member).mono
-    (outputPrefix_source 127 (by
+    (outputPrefix_source 128 (by
       rw [transcriptInvocationCount_eq]
       omega))
 
@@ -260,7 +260,7 @@ private theorem roundWiring_supported
   have precise := roundWiring_outputPrefix_supported logicalWidth publicFits
   intro sample member
   exact (precise sample member).mono
-    (outputPrefix_source 183 (by
+    (outputPrefix_source 184 (by
       rw [transcriptInvocationCount_eq]))
 
 structure TranscriptValuesSupported
@@ -337,11 +337,11 @@ theorem roundOutputs_outputPrefix_supported
     (offset : Nat) :
     (∀ coordinate, Horner.KSupported
         (Formal.roundPoint (Formal.atOffset interface offset) offset coordinate)
-        (Duplex.Formal.OutputPrefix External (offset + StateBinding.signCount) 183)) ∧
+        (Duplex.Formal.OutputPrefix External (offset + StateBinding.signCount) 184)) ∧
       Duplex.Formal.StateSupported
         (Formal.roundTranscriptFinalState
           (Formal.atOffset interface offset) offset)
-        (Duplex.Formal.OutputPrefix External (offset + StateBinding.signCount) 183) := by
+        (Duplex.Formal.OutputPrefix External (offset + StateBinding.signCount) 184) := by
   let shared := Formal.atOffset interface offset
   let statementInterface := Formal.statementAbsorptionInterface shared
   let statementActions := StatementAbsorption.actions statementInterface
@@ -361,17 +361,17 @@ theorem roundOutputs_outputPrefix_supported
     statementActions).2] at statementProjected
   have statementSupport : Duplex.Formal.StateSupported
       (Formal.statementFinalState shared offset)
-      (Duplex.Formal.OutputPrefix External (offset + StateBinding.signCount) 123) := by
+      (Duplex.Formal.OutputPrefix External (offset + StateBinding.signCount) 124) := by
     exact statementProjected.2
 
   let challengeInterface := Formal.challengeInterface shared offset
   let challengeStart := Formal.challengeStart shared
   have challengeIncoming : Duplex.Formal.StateSupported
       (challengeInterface.initialState challengeStart)
-      (Duplex.Formal.OutputPrefix External (offset + StateBinding.signCount) 123) := by
+      (Duplex.Formal.OutputPrefix External (offset + StateBinding.signCount) 124) := by
     simpa [challengeInterface, Formal.challengeInterface_initialState] using
       statementSupport
-  have challengeStartEq : (offset + StateBinding.signCount) + 123 * 1096 = challengeStart := by
+  have challengeStartEq : (offset + StateBinding.signCount) + 124 * 1096 = challengeStart := by
     have value := Formal.challengeOffset_eq interface offset
     rw [StateBinding.signCount_eq]
     dsimp [challengeStart, shared]
@@ -379,7 +379,7 @@ theorem roundOutputs_outputPrefix_supported
     omega
   have challengeProjected :=
     Duplex.Formal.compileWiring_outputPrefix_supported External
-      (offset + StateBinding.signCount) 123
+      (offset + StateBinding.signCount) 124
       (challengeInterface.initialState challengeStart)
       ChallengeDerivation.layoutActions challengeIncoming
   rw [challengeStartEq] at challengeProjected
@@ -389,7 +389,7 @@ theorem roundOutputs_outputPrefix_supported
   rw [challengeCount] at challengeProjected
   have challengeFinalSupport : Duplex.Formal.StateSupported
       (ChallengeDerivation.finalState challengeInterface challengeStart)
-      (Duplex.Formal.OutputPrefix External (offset + StateBinding.signCount) 127) := by
+      (Duplex.Formal.OutputPrefix External (offset + StateBinding.signCount) 128) := by
     rw [ChallengeDerivation.finalState_eq_finalStateFast_pointwise]
     exact challengeProjected.2
 
@@ -397,11 +397,11 @@ theorem roundOutputs_outputPrefix_supported
   let roundStart := Formal.roundTranscriptStart shared
   have roundIncoming : Duplex.Formal.StateSupported
       (roundInterface.initialState roundStart)
-      (Duplex.Formal.OutputPrefix External (offset + StateBinding.signCount) 127) := by
+      (Duplex.Formal.OutputPrefix External (offset + StateBinding.signCount) 128) := by
     simpa [roundInterface, Formal.roundTranscriptInterface,
       Formal.challengeFinalState, challengeInterface, shared, Formal.atOffset]
       using! challengeFinalSupport
-  have roundStartEq : (offset + StateBinding.signCount) + 127 * 1096 = roundStart := by
+  have roundStartEq : (offset + StateBinding.signCount) + 128 * 1096 = roundStart := by
     have value := Formal.challengeOffset_eq interface offset
     rw [StateBinding.signCount_eq]
     dsimp [roundStart, shared]
@@ -409,7 +409,7 @@ theorem roundOutputs_outputPrefix_supported
     omega
   have roundProjected :=
     Duplex.Formal.compileWiring_outputPrefix_supported External
-      (offset + StateBinding.signCount) 127
+      (offset + StateBinding.signCount) 128
       (roundInterface.initialState roundStart)
       (RoundTranscript.layoutActions roundInterface roundStart) roundIncoming
   rw [roundStartEq] at roundProjected
@@ -428,7 +428,7 @@ theorem roundOutputs_outputPrefix_supported
       exact coordinate.isLt
   · change Duplex.Formal.StateSupported
       (RoundTranscript.finalState roundInterface roundStart)
-      (Duplex.Formal.OutputPrefix External (offset + StateBinding.signCount) 183)
+      (Duplex.Formal.OutputPrefix External (offset + StateBinding.signCount) 184)
     rw [RoundTranscript.finalState_eq_finalStateFast_pointwise]
     exact roundProjected.2
 
@@ -440,7 +440,7 @@ theorem roundPoint_outputPrefix_supported
     (offset : Nat) (coordinate : Fin productionShape.cubeVariables) :
     Horner.KSupported
       (Formal.roundPoint (Formal.atOffset interface offset) offset coordinate)
-      (Duplex.Formal.OutputPrefix External (offset + StateBinding.signCount) 183) :=
+      (Duplex.Formal.OutputPrefix External (offset + StateBinding.signCount) 184) :=
   (roundOutputs_outputPrefix_supported interface offset).1 coordinate
 
 private theorem cubePoint_ext
@@ -458,7 +458,7 @@ theorem evalRoundPoint_eq_of_agree_outputPrefix
     (interface : Formal.Interface logicalWidth 8 publicFits)
     (offset : Nat) (left right : Env)
     (agrees : ∀ index,
-      Duplex.Formal.OutputPrefix External (offset + StateBinding.signCount) 183 index →
+      Duplex.Formal.OutputPrefix External (offset + StateBinding.signCount) 184 index →
         left index = right index) :
     RoundTranscript.evalRoundPoint
         (Formal.roundTranscriptInterface (Formal.atOffset interface offset))
@@ -498,7 +498,7 @@ theorem roundFinalState_outputPrefix_supported
     Duplex.Formal.StateSupported
       (Formal.roundTranscriptFinalState
         (Formal.atOffset interface offset) offset)
-      (Duplex.Formal.OutputPrefix External (offset + StateBinding.signCount) 183) :=
+      (Duplex.Formal.OutputPrefix External (offset + StateBinding.signCount) 184) :=
   (roundOutputs_outputPrefix_supported interface offset).2
 
 end NightstreamFPrime.Layout.Stage1.PiCCSOrdinarySourceSupport

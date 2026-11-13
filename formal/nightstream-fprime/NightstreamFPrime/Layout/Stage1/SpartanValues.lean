@@ -3,19 +3,19 @@ import NightstreamFPrime.Layout.Stage1.Spartan
 namespace NightstreamFPrime.Layout.Stage1.Spartan
 
 theorem appendedPrivateColumnCount_eq :
-    appendedPrivateColumnCount = 6323110 := by
+    appendedPrivateColumnCount = 6071918 := by
   rfl
 
-theorem sourceColumnCount_eq : SourceColumnCount = 11464874 := by
+theorem sourceColumnCount_eq : SourceColumnCount = 11415252 := by
   rfl
 
-theorem privateColumnCount_eq : privateColumnCount = 11464596 := by
+theorem privateColumnCount_eq : privateColumnCount = 11414924 := by
   rfl
 
-theorem constantColumn_eq : constantColumn = 11464596 := by
+theorem constantColumn_eq : constantColumn = 11414924 := by
   exact privateColumnCount_eq
 
-theorem spartanColumnCount_eq : spartanColumnCount = 11464875 := by
+theorem spartanColumnCount_eq : spartanColumnCount = 11415253 := by
   rfl
 
 theorem privateColumnCount_bound : privateColumnCount ≤ domainSize := by

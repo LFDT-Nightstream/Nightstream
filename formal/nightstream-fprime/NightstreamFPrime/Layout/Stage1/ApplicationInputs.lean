@@ -7,7 +7,7 @@ open NightstreamFPrime.Circuit
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Layout
 
-def currentWordStart : Nat := 27815
+def currentWordStart : Nat := 28909
 
 def inputSourceColumn
     (index : Lifecycle.Stage1.Application.StateIndex) : Nat :=
@@ -43,7 +43,7 @@ theorem inputColumn_value
     inputColumn index = currentWordStart + index.val := by
   have bound := index.isLt
   simp only [Lifecycle.Stage1.Application.stateWordCount] at bound
-  change Spartan.sourceToSpartan (27815 + index.val) = 27815 + index.val
+  change Spartan.sourceToSpartan (28909 + index.val) = 28909 + index.val
   unfold Spartan.sourceToSpartan
   rw [ite_eq_left (by
     norm_num [Spartan.pilotSourceColumnCount]
@@ -57,10 +57,10 @@ theorem inputColumn_value
 
 theorem outputColumn_value
     (index : Lifecycle.Stage1.Application.StateIndex) :
-    outputColumn index = 55634 + index.val := by
+    outputColumn index = 57822 + index.val := by
   have bound := index.isLt
   simp only [Lifecycle.Stage1.Application.stateWordCount] at bound
-  change Spartan.sourceToSpartan (55904 + index.val) = 55634 + index.val
+  change Spartan.sourceToSpartan (58142 + index.val) = 57822 + index.val
   unfold Spartan.sourceToSpartan
   rw [ite_eq_left (by
     norm_num [Spartan.pilotSourceColumnCount]
@@ -71,7 +71,7 @@ theorem outputColumn_value
   rw [ite_eq_left (by rw [PilotSpartan.outputDigestStart_value]; omega)]
   rw [PilotSpartan.secondPrivateStart_value,
     PilotSpartan.outputPreimageStart_value]
-  have difference : 55904 + index.val - 28089 = 27815 + index.val := by omega
+  have difference : 58142 + index.val - 29233 = 28909 + index.val := by omega
   rw [difference]
   unfold Spartan.liftPilotColumn
   rw [ite_eq_left (by

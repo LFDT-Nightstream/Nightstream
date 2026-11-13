@@ -191,7 +191,7 @@ def running
   evaluations := fun source => evaluations state source.val
 
 theorem unpackParent_packedColumn (packed : Fin packedParentWords → F)
-    (word : Fin packedParentWords) (lane : Fin 3) :
+    (word : Fin packedParentWords) (lane : Fin 2) :
     unpackParent (logicalWidth := logicalWidth) (publicFits := publicFits) packed
         (packedColumn word lane) =
       unpackWord (packed word) lane := by
@@ -214,37 +214,37 @@ theorem serializeParentPublic_running (state : Nat → F) :
   rw [List.ofFn_eq_map]
   apply List.map_congr_left
   intro word _member
-  rw [parentPublic_running, parentPublic_running, parentPublic_running,
+  rw [parentPublic_running, parentPublic_running,
     unpackParent_packedColumn, unpackParent_packedColumn,
-    unpackParent_packedColumn, StateEncoding.packWord_unpackWord]
+    StateEncoding.packWord_unpackWord]
   rfl
 
 theorem serializeRunning_running (state : Nat → F) :
     serializeRunning (publicFits := publicFits)
         (running logicalWidth publicFits state) =
-      slice state PiCCSInputs.priorRunningStart 27794 := by
+      slice state PiCCSInputs.priorRunningStart 28888 := by
   have commitments :
       serializeCommitments (running logicalWidth publicFits state) =
-        slice state 12 19008 := by
+        slice state 12 18432 := by
     unfold serializeCommitments
     calc
       _ = (List.finRange productionShape.runningCount).flatMap
-          (fun source => slice state (12 + source.val * 1188) 1188) := by
+          (fun source => slice state (12 + source.val * 1152) 1152) := by
         apply List.flatMap_congr
         intro source _member
         change serializeCommitment
             (commitment state (PiCCSInputs.runningCommitmentStart source.val)) = _
         rw [serializeCommitment_commitment]
         rfl
-      _ = slice state 12 (productionShape.runningCount * 1188) :=
-        (slice_mul state 12 productionShape.runningCount 1188).symm
+      _ = slice state 12 (productionShape.runningCount * 1152) :=
+        (slice_mul state 12 productionShape.runningCount 1152).symm
   have evalKs :
       serializeEvalKs (running logicalWidth publicFits state) =
-        slice state 19020 1728 := by
+        slice state 18444 2048 := by
     unfold serializeEvalKs
     calc
       _ = (List.finRange productionShape.runningCount).flatMap
-          (fun source => slice state (19020 + source.val * 108) 108) := by
+          (fun source => slice state (18444 + source.val * 128) 128) := by
         apply List.flatMap_congr
         intro source _member
         change (List.finRange productionShape.coefficientCount).flatMap
@@ -252,15 +252,15 @@ theorem serializeRunning_running (state : Nat → F) :
               (PiCCSInputs.runningEvalKStart source.val + coefficient.val * 2))) = _
         rw [serializePairs]
         rfl
-      _ = slice state 19020 (productionShape.runningCount * 108) :=
-        (slice_mul state 19020 productionShape.runningCount 108).symm
+      _ = slice state 18444 (productionShape.runningCount * 128) :=
+        (slice_mul state 18444 productionShape.runningCount 128).symm
   have evalAs :
       serializeEvalAs (running logicalWidth publicFits state) =
-        slice state 20748 6912 := by
+        slice state 20492 8192 := by
     unfold serializeEvalAs
     calc
       _ = (List.finRange productionShape.runningCount).flatMap
-          (fun source => slice state (20748 + source.val * 432) 432) := by
+          (fun source => slice state (20492 + source.val * 512) 512) := by
         apply List.flatMap_congr
         intro source _member
         change (List.finRange productionShape.matrixCount).flatMap (fun matrix =>
@@ -271,27 +271,27 @@ theorem serializeRunning_running (state : Nat → F) :
                   coefficient.val * 2)))) = _
         rw [serializePairRows]
         rfl
-      _ = slice state 20748 (productionShape.runningCount * 432) :=
-        (slice_mul state 20748 productionShape.runningCount 432).symm
+      _ = slice state 20492 (productionShape.runningCount * 512) :=
+        (slice_mul state 20492 productionShape.runningCount 512).symm
   have parent := serializeParentPublic_running (logicalWidth := logicalWidth)
     (publicFits := publicFits) state
   have pointWords : serializePoint (running logicalWidth publicFits state).point =
-      slice state 27660 56 :=
+      slice state 28684 56 :=
     serializePoint_point state PiCCSInputs.runningPointStart
   unfold serializeRunning serializeRunningFields
   rw [commitments, evalKs, evalAs, pointWords, parent]
   rw [show PiCCSInputs.priorRunningStart = 12 from rfl,
-    show (27794 : Nat) = 19008 + 1728 + 6912 + 56 + 90 from rfl,
-    slice_add state 12 (19008 + 1728 + 6912 + 56) 90,
-    slice_add state 12 (19008 + 1728 + 6912) 56,
-    slice_add state 12 (19008 + 1728) 6912,
-    slice_add state 12 19008 1728]
+    show (28888 : Nat) = 18432 + 2048 + 8192 + 56 + 160 from rfl,
+    slice_add state 12 (18432 + 2048 + 8192 + 56) 160,
+    slice_add state 12 (18432 + 2048 + 8192) 56,
+    slice_add state 12 (18432 + 2048) 8192,
+    slice_add state 12 18432 2048]
   rfl
 
 theorem running_eq_of_serialized {state : Nat → F}
     {value : Running (logicalWidth := logicalWidth) (publicFits := publicFits)}
     (canonical : Lifecycle.ChildrenCanonical value)
-    (words : slice state PiCCSInputs.priorRunningStart 27794 =
+    (words : slice state PiCCSInputs.priorRunningStart 28888 =
       serializeRunning (publicFits := publicFits) value) :
     running logicalWidth publicFits state = value := by
   have encoded := (serializeRunning_running (logicalWidth := logicalWidth)
@@ -306,8 +306,7 @@ theorem running_eq_of_serialized {state : Nat → F}
   rcases StateEncoding.packedColumn_cover column with ⟨word, lane, rfl⟩
   have packedValue : packedWords state word =
       packWord (parentPublic value (packedColumn word 0))
-        (parentPublic value (packedColumn word 1))
-        (parentPublic value (packedColumn word 2)) := by
+        (parentPublic value (packedColumn word 1)) := by
     have wordsEq := (serializeParentPublic_running (logicalWidth := logicalWidth)
       (publicFits := publicFits) state).symm.trans parentEqual
     have selected := congrArg (fun words => words.getD word.val 0) wordsEq
@@ -316,19 +315,17 @@ theorem running_eq_of_serialized {state : Nat → F}
       slice_getD state _ _ _ word.isLt
     have right : (serializeParentPublic value).getD word.val 0 =
         packWord (parentPublic value (packedColumn word 0))
-          (parentPublic value (packedColumn word 1))
-          (parentPublic value (packedColumn word 2)) :=
+          (parentPublic value (packedColumn word 1)) :=
       finRange_map_getD _ word
     exact left.symm.trans (selected.trans right)
-  have bounded (lane : Fin 3) := canonical.parentBounded (packedColumn word lane)
-  rcases StateEncoding.unpackWord_packWord (bounded 0) (bounded 1) (bounded 2) with
-    ⟨low, middle, high⟩
+  have bounded (lane : Fin 2) := canonical.parentBounded (packedColumn word lane)
+  rcases StateEncoding.unpackWord_packWord (bounded 0) (bounded 1) with
+    ⟨low, high⟩
   have unpacked : unpackWord (packedWords state word) lane =
       parentPublic value (packedColumn word lane) := by
     rw [packedValue]
     fin_cases lane
     · exact low
-    · exact middle
     · exact high
   change Radix.splitScalar (unpackParent (packedWords state) (packedColumn word lane))
       (Fin.cast runningCount_eq_radixChildCount source) =
@@ -389,7 +386,7 @@ theorem natWord_val_add_one (value : F) :
 theorem serializeTail_preimage (state : Nat → F) :
     serializeTail (preimage logicalWidth publicFits state) =
       slice state StateBinding.contextWordStart 13 := by
-  have iterationWord : [natWord (iteration state)] = slice state 27810 1 := by
+  have iterationWord : [natWord (iteration state)] = slice state 28904 1 := by
     simp [iteration, RunningTransitionInputs.iterationWordIndex, slice, natWord_val]
   unfold serializeTail
   change keyDigest state ++ [natWord (iteration state)] ++ initialState state ++
@@ -415,9 +412,9 @@ theorem serializePreimage_preimage
       serializeTail (preimage logicalWidth publicFits state) = _
   rw [stateDomainChunk_eq_slice canonical, serializeRunning_running,
     serializeTail_preimage]
-  have joined : slice state 0 12 ++ slice state PiCCSInputs.priorRunningStart 27794 ++
-      slice state StateBinding.contextWordStart 13 = slice state 0 (12 + 27794 + 13) := by
-    rw [slice_add state 0 (12 + 27794) 13, slice_add state 0 12 27794]
+  have joined : slice state 0 12 ++ slice state PiCCSInputs.priorRunningStart 28888 ++
+      slice state StateBinding.contextWordStart 13 = slice state 0 (12 + 28888 + 13) := by
+    rw [slice_add state 0 (12 + 28888) 13, slice_add state 0 12 28888]
     rfl
   rw [joined]
   unfold slice
@@ -508,7 +505,7 @@ private theorem evaluationFamily_ext
 theorem running_congr {left right : Nat → F}
     (agree : ∀ word, word < StateBinding.contextWordStart → left word = right word) :
     running logicalWidth publicFits left = running logicalWidth publicFits right := by
-  have bound : StateBinding.contextWordStart = 27806 := rfl
+  have bound : StateBinding.contextWordStart = 28900 := rfl
   apply StateEncoding.running_ext
   · apply cubePoint_ext
     change List.ofFn (fun coordinate : Fin cubeVariables =>
@@ -522,18 +519,18 @@ theorem running_congr {left right : Nat → F}
     rw [agree _ (by omega), agree _ (by omega)]
   · funext source row coefficient
     have sourceBound : source.val < 16 := source.isLt
-    have rowBound : row.val < 22 := row.isLt
-    have coefficientBound : coefficient.val < 54 := coefficient.isLt
-    change left (PiCCSInputs.runningCommitmentStart source.val + row.val * 54 +
+    have rowBound : row.val < 18 := row.isLt
+    have coefficientBound : coefficient.val < 64 := coefficient.isLt
+    change left (PiCCSInputs.runningCommitmentStart source.val + row.val * 64 +
         coefficient.val) =
-      right (PiCCSInputs.runningCommitmentStart source.val + row.val * 54 +
+      right (PiCCSInputs.runningCommitmentStart source.val + row.val * 64 +
         coefficient.val)
     unfold PiCCSInputs.runningCommitmentStart PiCCSInputs.priorRunningStart
       PiCCSInputs.runningCommitmentWords
     exact agree _ (by omega)
   · have packed : packedWords left = packedWords right := by
       funext word
-      have wordBound : word.val < 90 := word.isLt
+      have wordBound : word.val < 160 := word.isLt
       unfold packedWords StateBinding.packedWordStart
       exact agree _ (by omega)
     funext source column
@@ -544,7 +541,7 @@ theorem running_congr {left right : Nat → F}
     have sourceBound : source.val < 16 := source.isLt
     apply evaluationFamily_ext
     · funext coefficient
-      have coefficientBound : coefficient.val < 54 := coefficient.isLt
+      have coefficientBound : coefficient.val < 64 := coefficient.isLt
       change pair left (PiCCSInputs.runningEvalKStart source.val + coefficient.val * 2) =
         pair right (PiCCSInputs.runningEvalKStart source.val + coefficient.val * 2)
       unfold pair PiCCSInputs.runningEvalKStart PiCCSInputs.priorRunningStart
@@ -552,12 +549,12 @@ theorem running_congr {left right : Nat → F}
       rw [agree _ (by omega), agree _ (by omega)]
     · funext matrix coefficient
       have matrixBound : matrix.val < 4 := matrix.isLt
-      have coefficientBound : coefficient.val < 54 := coefficient.isLt
+      have coefficientBound : coefficient.val < 64 := coefficient.isLt
       change pair left (PiCCSInputs.runningEvalAStart source.val +
           matrix.val * (productionShape.coefficientCount * 2) + coefficient.val * 2) =
         pair right (PiCCSInputs.runningEvalAStart source.val +
           matrix.val * (productionShape.coefficientCount * 2) + coefficient.val * 2)
-      have width : productionShape.coefficientCount * 2 = 108 := rfl
+      have width : productionShape.coefficientCount * 2 = 128 := rfl
       rw [width]
       unfold pair PiCCSInputs.runningEvalAStart PiCCSInputs.priorRunningStart
         PiCCSInputs.runningEvalAWords
@@ -594,27 +591,26 @@ theorem evalRunning_eq_running (env : Env)
         (Formal.atOffset (PiCCSInputs.interface logicalWidth publicFits)
           PiCCSInputs.phaseOffset)).state
       PiCCSInputs.phaseOffset env word
-    have accepted (lane : Fin 3) : ∃ sign, Radix.UniformSignedDigits.Accepted
+    have accepted (lane : Fin 2) : ∃ sign, Radix.UniformSignedDigits.Accepted
         (Radix.recomposeScalar (digits lane)) sign (digits lane) := by
       obtain ⟨sign, constraint⟩ := split.digits word lane
       exact ⟨sign, constraint, rfl⟩
-    have bounded (lane : Fin 3) :
+    have bounded (lane : Fin 2) :
         centeredMagnitude (Radix.recomposeScalar (digits lane)) < 2 ^ 16 := by
       obtain ⟨_, accepted⟩ := accepted lane
       have parentBound := accepted.parentBounded
       rw [Radix.production_parameters.2.2] at parentBound
       exact parentBound
-    rcases StateEncoding.unpackWord_packWord (bounded 0) (bounded 1) (bounded 2) with
-      ⟨low, middle, high⟩
+    rcases StateEncoding.unpackWord_packWord (bounded 0) (bounded 1) with
+      ⟨low, high⟩
     have unpacked : unpackWord
         (packedWords (fun word => env (PilotProduction.priorPreimageStart + word)) word)
         lane = Radix.recomposeScalar (digits lane) := by
       rw [show packedWords (fun word => env (PilotProduction.priorPreimageStart + word)) word =
           packWord (Radix.recomposeScalar (digits 0)) (Radix.recomposeScalar (digits 1))
-            (Radix.recomposeScalar (digits 2)) from split.packed word]
+            from split.packed word]
       fin_cases lane
       · exact low
-      · exact middle
       · exact high
     show env (PiCCSInputs.runningPublicStart source.val + (packedColumn word lane).val) =
       Radix.splitScalar (unpackParent
@@ -655,7 +651,7 @@ theorem outputWords_eq_slice (env : Env) :
     Lifecycle.Stage1.RunningTransition.outputWords (RunningTransitionInputs.interface logicalWidth publicFits)
         RunningTransitionInputs.phaseOffset env =
       slice (fun word => env (PilotProduction.outputPreimageStart + word))
-        PiCCSInputs.priorRunningStart 27794 := by
+        PiCCSInputs.priorRunningStart 28888 := by
   unfold Lifecycle.Stage1.RunningTransition.outputWords slice
   apply congrArg List.ofFn
   funext index

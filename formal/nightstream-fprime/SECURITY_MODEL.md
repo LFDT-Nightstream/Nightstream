@@ -4,7 +4,9 @@ This page states which adversaries the Nightstream F′ Lean results protect
 against: what each adversary controls, when it wins, the Lean result that
 bounds it, and what you must trust. It does not restate proofs; read the cited
 declaration. `SPEC.md` describes the protocol: two step circuits, a light
-circuit and a refresh circuit, that fold into two slots.
+circuit and a refresh circuit, that fold into two slots. Adversary 6, the
+adversary of the compressed proof, has no Lean result. Its entry states the
+aim and the premises only.
 
 Names omit the common `NightstreamFPrime` namespace.
 `tests/EndpointCensus.lean` checks that every name on this page that starts
@@ -294,6 +296,52 @@ item 5).
   round (`Lifecycle.Nebula.EtaRound.unbalancedIn_deployed`), but no result
   bounds it there.
 
+### 6. Final-proof adversary
+
+- **Controls:** the statement and each byte of a final proof (`SPEC.md`
+  section 4.5), against the verifier's own circuits and security minimum.
+  It can evaluate the Poseidon2 sponge and the Keccak functions of Akita.
+- **Wins:** the final verifier accepts (`SPEC.md` Algorithm 10), but no
+  proof with witnesses exists that the verifier of `SPEC.md` Algorithm 6
+  accepts for the statement
+  (`Export.BoundedDepth.RunCompleteness.Verifies`).
+- **Result:** none. Lean has no definition of the final verifier, of its
+  argument, or of a Π_CCS run with one source, and no theorem bounds this
+  adversary. Rust implements the final verifier, and the tests check it on
+  fixed inputs (`SPEC.md` lifecycle rules 2 and 3, trust item 5).
+  `decisions/akita-compression.md` gives the reason for each step.
+- **Aim:** under the premises of trust item 7, an accepted final proof
+  gives three witnesses. The two Akita openings give the polynomials `W`
+  and `V`. The sum-check and the last check of `SPEC.md` Algorithm 10 give,
+  for each of the three claims, a witness in `W` that opens the claim's
+  commitment, has its public input and gives its evaluations
+  (`Spec.CE.Holds` without the norm). The lookup gives each slot witness
+  the bound of its depth. The Π_CCS run gives the fresh witness the rows of
+  its relation and coefficients in `{−1, 0, 1}` (`Spec.CCS.Holds`). The
+  verifier computes the state hash in the fresh public input from the
+  proof's slot claims, so no digest that the proof carries is authority.
+  These are the checks of `SPEC.md` Algorithm 6, with one difference. The
+  argument does not prove that the fresh witness is zero from the
+  relation's width to the end of its last ring column.
+  `Lifecycle.BoundedDepth.BlockSupport.Supported` does not require these
+  zeros.
+- **With the other adversaries:** the verifier of Algorithm 6 accepts only
+  what the terminal relation accepts
+  (`Export.BoundedDepth.RunCompleteness.holds_of_verifies`). So, if the aim
+  holds, the results of adversaries 2, 4 and 5 apply to a statement that
+  the final verifier accepts. No Lean result joins them, and no result
+  shows that an extractor of the three witnesses is efficient.
+- **Error:** Rust computes a sum of five terms for one interactive run of
+  the argument (`SPEC.md` section 3): about `2^−116.7` for the reference
+  application at 3 lookup challenges. This sum is not a bound on a win. It
+  does not include the knowledge error of the Akita openings, the error of
+  the Π_CCS run, or the loss of Fiat–Shamir over the adversary's queries.
+- **Gaps:** the final proof is not zero-knowledge. No test uses a slot
+  depth near the cap, so no test uses the largest lookup table. The
+  verifier takes each Akita schedule row from its own layout and the
+  embedded catalog, and no check compares the catalog file with a pinned
+  digest.
+
 ## What you trust
 
 1. **SHAKE128 as a random oracle (premise P1).** Each key coefficient is one
@@ -481,6 +529,53 @@ item 5).
    oracle to be independent of the oracle of the folds (trust item 3). Their
    domain tags differ, but no Lean result separates them. The record chains
    need only Poseidon2 collision resistance.
+7. **The compressed proof.** Adversary 6 has these premises. Lean states
+   none of them.
+   - *Akita knowledge soundness.* The two openings use Akita (ePrint
+     2026/1983) at git revision `d50f700f`, crate version 0.1.0, with the
+     configuration `fp64::Dense` and the embedded catalog
+     (`SPEC.md` Algorithm 9). The premise is that an accepted opening gives
+     a polynomial with the claimed value, in the classical random-oracle
+     model. Akita states a target of a 128-bit Fiat–Shamir rate for each
+     random-oracle query. Its documentation says that this target is not an
+     end-to-end bound and that it declares no query budget, no bound on the
+     size of the extraction tree and no reduction loss. Akita has no audit
+     and no analysis in the quantum random-oracle model.
+   - *Keccak as a random oracle.* Akita makes its challenges with a
+     Keccak-f duplex sponge, its digests with SHA3-256, its session
+     identifier with SHAKE128 and its setup with SHAKE256. No step circuit
+     computes these functions. The owner accepted this hash family for
+     Akita on 2026-11-13 (`decisions/akita-compression.md`).
+   - *Module-SIS for the Akita commitments.* Akita prices each of its
+     Module-SIS instances at 169 bits or more in the ADPS16 quantum cost
+     model (policy `Quantum169BitADPS16`). Akita states that this price is
+     for one attack family on a scalar instance, that it does not price
+     attacks on the ring or module structure, and that it does not include
+     the loss of the reduction. The Ajtai commitments of the three claims
+     keep the lower estimate of trust item 2.
+   - *Poseidon2 as a random oracle for the argument.* The Poseidon2 sponge
+     makes each challenge of the Π_CCS run and of the argument (`SPEC.md`
+     section 5.4). Each error term of `SPEC.md` section 3 is for one
+     interactive run. A bound for the non-interactive argument needs
+     Poseidon2 as a random oracle and a count of the adversary's queries.
+     No result gives one.
+   - *Separation of the two transcripts.* The session bytes of each Akita
+     opening are a label and lanes 0 to 3 of the Poseidon2 sponge state
+     after the last message of the argument, so they bind the opening to
+     each earlier message unless these four lanes collide. The two
+     openings have different labels. The Π_CCS run and the argument have
+     their own domain blocks, which differ from the fold domains. The
+     premise is that the Poseidon2 sponge and the Keccak functions are
+     independent oracles, and that these domains separate the compression
+     transcript from the fold transcripts. No Lean result states either.
+   - *The error of the argument.* For one interactive run it is the sum of
+     `SPEC.md` section 3, about `2^−116.7` for the reference application
+     at 3 lookup challenges, plus the error of a Π_CCS run with one source,
+     which Rust does not compute. Rust holds the Π_CCS test error for 17
+     sources to the caller's security minimum (`SPEC.md` section 3).
+   - *The Rust code.* Trust item 5 applies. The tests check fixed inputs.
+     The verifier expands the Ajtai key with SHAKE128, so premise P1
+     applies to it as it does to `SPEC.md` Algorithm 6.
 ## Out of scope
 
 - Completeness does not follow from a knowledge bound: a bound on the
@@ -515,6 +610,8 @@ item 5).
 - The error is not one security level. Lean bounds no fold error in a
   Fiat–Shamir game (adversary 3), and the other terms depend on MSIS at the
   solver's work and on Poseidon2 collisions.
+- The compressed proof has no Lean result (adversary 6). Its error sum is
+  not a security level, and the final proof is not zero-knowledge.
 - Concrete attacks on Poseidon2 as a random oracle, or on the additive duplex,
   are outside the model. Attacks that use the hash inside the circuit (KRS)
   are outside every random-oracle model; the verifier's packages fix the
@@ -533,8 +630,6 @@ item 5).
 - The step relation that `Circuit::compile` builds with a Rust application
   other than the reference hash chain, whose rows replace Lean's application
   region (`SPEC.md` Algorithm 2, step 3). Lean exports only its own packages.
-  `runsCheck`, `setupCheck`, `coverCheck` and the final-program check read
-  files that Rust builds from those packages.
 - The Rust-built memory relation of an application or geometry that no Lean
   package fixes, the binding rows of the Rust catalog backend, the rows of
   `nebula::R1csApplication` that link the rows of a batched step, and the

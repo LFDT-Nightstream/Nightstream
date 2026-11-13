@@ -345,9 +345,10 @@ item 5).
   the Π_CCS run, or the loss of Fiat–Shamir over the adversary's queries.
 - **Gaps:** the final proof is not zero-knowledge. No test uses a slot
   depth near the cap, so no test uses the largest lookup table. The tests
-  that compress a step of the reference application are ignored, so CI
-  checks the argument only on small claims, with a key polynomial of
-  `2^9` blocks. The verifier takes each Akita schedule row from its key,
+  that compress a step of the reference application are ignored. CI runs
+  one of them alone, `hash_chain_compresses_and_verifies_without_the_ajtai_key`,
+  and the others run by hand. So CI checks the edits of the argument only
+  on small claims, with a key polynomial of `2^9` blocks. The verifier takes each Akita schedule row from its key,
   its own layout and the embedded schedule files, whose SHA-256 a test
   pins (`each_schedule_file_has_its_pinned_digest_and_its_rows`).
 

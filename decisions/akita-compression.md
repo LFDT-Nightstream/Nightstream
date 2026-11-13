@@ -143,7 +143,7 @@ argument over Akita. It has no witness and cannot be extended.
     of the larger relation up to a power of two. It is a function of the
     public seeds and of that power of two only. So each circuit of one size
     has the same verification key, and a prover and a verifier of one
-    circuit compute the same key.
+    circuit agree on the key.
 13. **One Akita proof.** One proof opens the key polynomial, `W` and `V`.
     Each schedule row fixes the commitment profile of the three polynomials.
     Each row of one file has the same profile for the key polynomial, so one
@@ -263,7 +263,11 @@ fails again. The prover can extend one step and then compress.
   28. A circuit of another size needs new rows from
   `scripts/akita_schedules.sh`.
 - The tests that compress a step of the reference application hold the
-  prover's key and are ignored. CI runs the argument on small claims only.
+  prover's key and are ignored. CI runs the public test
+  `hash_chain_compresses_and_verifies_without_the_ajtai_key` and the test
+  of the large pin alone (`scripts/ci_rust_tests.sh`). The other tests at
+  the production size run by hand. CI runs the edits of the argument on
+  small claims only.
 - The project depends on Akita at one git revision. Akita is version 0.1.0,
   has no audit, has no proof in the quantum random-oracle model, and gives
   no compatibility between versions. A change of the revision can change the

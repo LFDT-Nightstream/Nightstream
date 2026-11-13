@@ -91,4 +91,5 @@ one thread, with a peak of 6 GB of resident memory. A verifier does not make
 this computation. The
 process of the test that compresses both circuits has a peak of 30 GB of
 resident memory (one run), so the tests that compress a step of the hash
-chain are ignored ([testing](../development/testing.md)).
+chain are ignored. CI runs the public test alone, and the other tests run
+by hand ([testing](../development/testing.md)).

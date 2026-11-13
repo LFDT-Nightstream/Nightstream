@@ -92,14 +92,8 @@ def rawExpr (challenge value : Fin ringDegree → Expr)
 
 def mulExpr (challenge value : Fin ringDegree → Expr)
     (lane : Fin ringDegree) : Expr :=
-  let folded := if lane.val < ringMiddleDegree then
-      rawExpr challenge value (lane.val + ringDegree)
-    else
-      rawExpr challenge value (lane.val + ringMiddleDegree)
-  let twice := if lane.val + 81 ≤ 106 then
-      rawExpr challenge value (lane.val + 81)
-    else 0
-  rawExpr challenge value lane.val - folded + twice
+  rawExpr challenge value lane.val -
+    rawExpr challenge value (lane.val + ringDegree)
 
 def recipe {blockCount cellCount : Nat} [NeZero cellCount]
     (interface : Interface blockCount cellCount) (offset : Nat)
@@ -192,20 +186,7 @@ theorem mulExpr_eval (env : Env)
     (mulExpr challenge value lane).eval env =
       ringFMul (evalRing env challenge) (evalRing env value) lane := by
   unfold mulExpr ringFMul
-  simp only [show ringDegree + ringMiddleDegree = 81 from rfl, show 2 * (ringDegree - 1) = 106 from rfl]
-  by_cases foldedLow : lane.val < ringMiddleDegree
-  · by_cases hasTwice : lane.val + 81 ≤ 106
-    · simp only [ite_eq_left foldedLow, ite_eq_left hasTwice, Expr.eval_hadd,
-        Expr.eval_sub, rawExpr_eval]
-    · simp only [ite_eq_left foldedLow, ite_eq_right hasTwice, Expr.eval_hadd,
-        Expr.eval_sub, rawExpr_eval]
-      rfl
-  · by_cases hasTwice : lane.val + 81 ≤ 106
-    · simp only [ite_eq_right foldedLow, ite_eq_left hasTwice, Expr.eval_hadd,
-        Expr.eval_sub, rawExpr_eval]
-    · simp only [ite_eq_right foldedLow, ite_eq_right hasTwice, Expr.eval_hadd,
-        Expr.eval_sub, rawExpr_eval]
-      rfl
+  simp only [Expr.eval_sub, rawExpr_eval]
 
 theorem recipe_eval
     {blockCount cellCount : Nat} [NeZero cellCount]
@@ -278,19 +259,11 @@ theorem mulExpr_varsBelow
     (valueBelow : ∀ current, (value current).VarsBelow bound) :
     (mulExpr challenge value lane).VarsBelow bound := by
   unfold mulExpr
-  apply Expr.VarsBelow.add
-  · apply Expr.VarsBelow.sub
-    · exact rawExpr_varsBelow challenge value lane.val bound
-        challengeBelow valueBelow
-    · split
-      · exact rawExpr_varsBelow challenge value
-          (lane.val + ringDegree) bound challengeBelow valueBelow
-      · exact rawExpr_varsBelow challenge value
-          (lane.val + ringMiddleDegree) bound challengeBelow valueBelow
-  · split
-    · exact rawExpr_varsBelow challenge value (lane.val + 81) bound
-        challengeBelow valueBelow
-    · trivial
+  apply Expr.VarsBelow.sub
+  · exact rawExpr_varsBelow challenge value lane.val bound
+      challengeBelow valueBelow
+  · exact rawExpr_varsBelow challenge value
+      (lane.val + ringDegree) bound challengeBelow valueBelow
 
 private theorem recipe_varsBelow
     {blockCount cellCount : Nat} [NeZero cellCount]

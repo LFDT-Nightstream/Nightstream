@@ -145,18 +145,18 @@ theorem ChildrenCanonical.childDigits_eq
 
 def packRadix : F := Poseidon2.ofNat (2 ^ 17)
 
-def packWord (low middle high : F) : F :=
-  low + packRadix * middle + packRadix * packRadix * high
+def packWord (low high : F) : F :=
+  low + packRadix * high
 
-def packedParentWords : Nat := 90
+def packedParentWords : Nat := 160
 
 theorem publicWidth_eq :
-    (FullShape logicalWidth publicFits).publicWidth = 3 * packedParentWords := by
+    (FullShape logicalWidth publicFits).publicWidth = 2 * packedParentWords := by
   rfl
 
-def packedColumn (word : Fin packedParentWords) (lane : Fin 3) :
+def packedColumn (word : Fin packedParentWords) (lane : Fin 2) :
     Fin (FullShape logicalWidth publicFits).publicWidth :=
-  ⟨3 * word.val + lane.val, by
+  ⟨2 * word.val + lane.val, by
     rw [publicWidth_eq]
     have wordBound := word.isLt
     have laneBound := lane.isLt
@@ -167,7 +167,6 @@ def serializeParentPublic
   (List.finRange packedParentWords).map fun word =>
     packWord (parentPublic u (packedColumn word 0))
       (parentPublic u (packedColumn word 1))
-      (parentPublic u (packedColumn word 2))
 
 def serializeRunningFields
     (u : Running (logicalWidth := logicalWidth) (publicFits := publicFits)) : List F :=
@@ -301,25 +300,25 @@ theorem serializeEvaluations_injective : Function.Injective serializeEvaluations
 
 theorem serializeCommitments_length
     (value : Running (logicalWidth := logicalWidth) (publicFits := publicFits)) :
-    (serializeCommitments value).length = 19008 := by
+    (serializeCommitments value).length = 18432 := by
   simp [serializeCommitments, productionShape, productionProfile, ringDegree,
     RingMatrixSource.ringShape]
 
 theorem serializeEvalKs_length
     (value : Running (logicalWidth := logicalWidth) (publicFits := publicFits)) :
-    (serializeEvalKs value).length = 1728 := by
+    (serializeEvalKs value).length = 2048 := by
   simp [serializeEvalKs, productionShape, productionProfile, ringDegree,
     RingMatrixSource.ringShape]
 
 theorem serializeEvalAs_length
     (value : Running (logicalWidth := logicalWidth) (publicFits := publicFits)) :
-    (serializeEvalAs value).length = 6912 := by
+    (serializeEvalAs value).length = 8192 := by
   simp [serializeEvalAs, productionShape, productionProfile, ringDegree,
     RingMatrixSource.ringShape]
 
 theorem serializeChildPublicInputs_length
     (value : Running (logicalWidth := logicalWidth) (publicFits := publicFits)) :
-    (serializeChildPublicInputs (publicFits := publicFits) value).length = 4320 := by
+    (serializeChildPublicInputs (publicFits := publicFits) value).length = 5120 := by
   simp [serializeChildPublicInputs, productionShape, productionProfile, FullShape,
     fullShape, RingRelation.Shape.publicWidth, publicRingColumns, ringDegree,
     RingMatrixSource.ringShape]
@@ -331,14 +330,14 @@ theorem serializeParentPublic_length
 
 theorem serializeRunningFields_length
     (value : Running (logicalWidth := logicalWidth) (publicFits := publicFits)) :
-    (serializeRunningFields value).length = 27704 := by
+    (serializeRunningFields value).length = 28728 := by
   simp only [serializeRunningFields, List.length_append, serializeCommitments_length,
     serializeEvalKs_length, serializeEvalAs_length, serializePoint_length]
   norm_num [cubeVariables, RingMatrixSource.ringShape]
 
 theorem serializeRunning_length
     (value : Running (logicalWidth := logicalWidth) (publicFits := publicFits)) :
-    (serializeRunning (publicFits := publicFits) value).length = 27794 := by
+    (serializeRunning (publicFits := publicFits) value).length = 28888 := by
   simp only [serializeRunning, List.length_append, serializeRunningFields_length,
     serializeParentPublic_length]
   norm_num [packedParentWords]
@@ -354,7 +353,7 @@ theorem serializeTail_length
 theorem serializePreimage_length
     (value : HashPreimage (logicalWidth := logicalWidth) (publicFits := publicFits)) :
     (serializePreimage (publicFits := publicFits) value).length =
-      27807 + (value.verifierKeys functionIndex).length +
+      28901 + (value.verifierKeys functionIndex).length +
         value.z0.length + value.current.length := by
   simp only [serializePreimage, List.length_append, stateDomainChunk_length,
     serializeRunning_length, serializeTail_length]
@@ -411,9 +410,9 @@ theorem serializeChildPublicInputs_getD
     (child : Fin productionShape.runningCount)
     (column : Fin (FullShape logicalWidth publicFits).publicWidth) :
     (serializeChildPublicInputs (publicFits := publicFits) u).getD
-        (child.val * 270 + column.val) 0 =
+        (child.val * 320 + column.val) 0 =
       u.publicInputs child column := by
-  rw [show child.val * 270 + column.val =
+  rw [show child.val * 320 + column.val =
       child.val * (FullShape logicalWidth publicFits).publicWidth + column.val by rfl]
   unfold serializeChildPublicInputs
   rw [finRange_flatMap_getD _ (fun _ => serializePublicInput_length _) child
@@ -422,22 +421,21 @@ theorem serializeChildPublicInputs_getD
 
 def packOffset : F := Poseidon2.ofNat (2 ^ 16)
 
-def packShift : F := packWord packOffset packOffset packOffset
+def packShift : F := packWord packOffset packOffset
 
-def unpackWord (word : F) (lane : Fin 3) : F :=
+def unpackWord (word : F) (lane : Fin 2) : F :=
   let shifted := (word + packShift).val
   match lane with
   | 0 => Poseidon2.ofNat (shifted % 2 ^ 17) - packOffset
-  | 1 => Poseidon2.ofNat (shifted / 2 ^ 17 % 2 ^ 17) - packOffset
-  | 2 => Poseidon2.ofNat (shifted / 2 ^ 34) - packOffset
+  | 1 => Poseidon2.ofNat (shifted / 2 ^ 17) - packOffset
 
 def unpackParent (packed : Fin packedParentWords → F)
     (column : Fin (FullShape logicalWidth publicFits).publicWidth) : F :=
-  unpackWord (packed ⟨column.val / 3, by
-      have bound : column.val < 3 * packedParentWords :=
+  unpackWord (packed ⟨column.val / 2, by
+      have bound : column.val < 2 * packedParentWords :=
         lt_of_lt_of_eq column.isLt publicWidth_eq
       omega⟩)
-    ⟨column.val % 3, Nat.mod_lt _ (by decide)⟩
+    ⟨column.val % 2, Nat.mod_lt _ (by decide)⟩
 
 def stateHash (p : HashPreimage (logicalWidth := logicalWidth) (publicFits := publicFits)) : Digest :=
   Poseidon2.hash (serializePreimage (publicFits := publicFits) p)

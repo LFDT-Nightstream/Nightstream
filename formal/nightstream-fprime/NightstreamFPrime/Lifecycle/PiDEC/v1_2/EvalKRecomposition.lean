@@ -5,7 +5,7 @@ import NightstreamFPrime.Lifecycle.Types
 Paper authority: SuperNeo v1.2, Section 7.5, verifier equation
 `y = sum_i b^i y_i` for the separate Pad evaluation family.
 
-Obligation: enforce fixed-radix recomposition of the one 54-coefficient
+Obligation: enforce fixed-radix recomposition of the one 64-coefficient
 `Eval_K` ring. `Eval_K` is not matrix zero and is not merged with `Eval_A`.
 
 Inputs:
@@ -15,7 +15,7 @@ Inputs:
 Outputs: none.
 
 Constraint group:
-- K1: 54 coefficients × 2 extension-field cells = 108 affine rows.
+- K1: 64 coefficients × 2 extension-field cells = 128 affine rows.
 
 Parent coverage:
 - the Pad field of `PiDEC.PaperVerifier.Accepted.evaluationEquation`.
@@ -99,7 +99,7 @@ theorem specHolds_of_parentCoverage
     RingKRecomposition.evalChildren, ringInterface, block] using! equation
 
 theorem coordinateCount_eq :
-    RingKRecomposition.coordinateCount blockCount = 108 := by
+    RingKRecomposition.coordinateCount blockCount = 128 := by
   norm_num [RingKRecomposition.coordinateCount,
     RingKRecomposition.cellCount, blockCount, ringDegree]
 
@@ -112,11 +112,11 @@ theorem localLength_eq (interface : Interface) (offset : Nat) :
 
 theorem flatConstraints_length (interface : Interface) (offset : Nat) :
     (flatConstraints (Circuit.ops (circuit interface).main offset)).length =
-      108 := by
+      128 := by
   calc
     _ = RingKRecomposition.coordinateCount blockCount :=
       (circuit interface).rowCount_eq offset
-    _ = 108 := coordinateCount_eq
+    _ = 128 := coordinateCount_eq
 
 theorem flatConstraints_varsBelow (interface : Interface) (offset : Nat)
     (env : Env) (assumptions : Assumptions interface offset env) :

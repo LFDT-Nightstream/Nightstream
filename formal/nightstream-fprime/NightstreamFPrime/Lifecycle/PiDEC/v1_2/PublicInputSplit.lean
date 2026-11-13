@@ -7,12 +7,12 @@ import NightstreamFPrime.Spec.RingRelation.PiDECAlgebra.PublicInput
 Paper authority: SuperNeo v1.2, Section 7.5, verifier Step 2.
 
 Obligation: reject a parent public input with any coordinate outside
-`B = 2^16`, and constrain the exact signed-binary split of all 270 production
+`B = 2^16`, and constrain the exact signed-binary split of all 320 production
 public coordinates into sixteen children.
 
 Inputs:
-- one 270-field parent public input;
-- one 270-field public input for each of the 16 child claims.
+- one 320-field parent public input;
+- one 320-field public input for each of the 16 child claims.
 
 Outputs:
 - 16 child public inputs proved equal to verifier-owned `split_b(parent)`.
@@ -59,7 +59,7 @@ theorem coordinateCount_eq
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       RingCarrierLayout.carrierWidth logicalWidth) :
-    coordinateCount logicalWidth publicFits = 270 := by
+    coordinateCount logicalWidth publicFits = 320 := by
   norm_num [coordinateCount, FullShape, fullShape,
     RingRelation.Shape.publicWidth, publicRingColumns, ringDegree]
 

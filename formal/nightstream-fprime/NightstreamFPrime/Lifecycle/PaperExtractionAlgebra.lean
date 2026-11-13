@@ -192,9 +192,8 @@ private theorem ringKMul_embedLeft_component0
         (ringKMul (RingKAction.embedChallenge left) right) =
       ringFMul left (ringKComponent0 right) := by
   funext lane
-  simp only [ringKComponent0, ringKMul, ringFMul]
-  split_ifs <;>
-    simp [K.add, K.sub, K.zero, rawMulCoeffK_embedLeft_component0]
+  simp [ringKComponent0, ringKMul, ringFMul, K.sub,
+    rawMulCoeffK_embedLeft_component0]
 
 private theorem ringKMul_embedLeft_component1
     (left : RingF) (right : RingK) :
@@ -202,9 +201,8 @@ private theorem ringKMul_embedLeft_component1
         (ringKMul (RingKAction.embedChallenge left) right) =
       ringFMul left (ringKComponent1 right) := by
   funext lane
-  simp only [ringKComponent1, ringKMul, ringFMul]
-  split_ifs <;>
-    simp [K.add, K.sub, K.zero, rawMulCoeffK_embedLeft_component1]
+  simp [ringKComponent1, ringKMul, ringFMul, K.sub,
+    rawMulCoeffK_embedLeft_component1]
 
 private theorem ringK_ext {left right : RingK}
     (component0 : ringKComponent0 left = ringKComponent0 right)

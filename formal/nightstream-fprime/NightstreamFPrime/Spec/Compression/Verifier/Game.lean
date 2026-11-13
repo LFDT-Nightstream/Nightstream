@@ -15,7 +15,7 @@ What this model assumes:
   prover named before the later challenges, has the opened value at the point (`Accepts`, the last
   three conditions). Akita's own knowledge error is not in the bound.
 - The key polynomial is the honest key of `Params.key` (the verification key is the honest Akita
-  commitment of it; Rust pins the digest of the key).
+  commitment of it; Rust pins the bytes of the key).
 - The matrix part of the weights is abstract: `VerifierData.matrixPart` equals the matrix part that the
   honest weights give (`MatrixSpec`).
 

@@ -183,7 +183,7 @@ impl BoundedDepth {
 
     /// The Π_CCS profile of the fresh instance: it binds `commitment`, the
     /// Akita commitment of the witnesses, after the statement.
-    fn compression_profile(commitment: &[F]) -> FoldProfile<'_> {
+    pub(super) fn compression_profile(commitment: &[F]) -> FoldProfile<'_> {
         FoldProfile {
             domain: domain_chunk_v1_2(PI_CCS_DOMAIN),
             children: commitment,
@@ -191,7 +191,7 @@ impl BoundedDepth {
         }
     }
 
-    fn compression_statements<'a>(
+    pub(super) fn compression_statements<'a>(
         &'a self,
         pc: u64,
         slots: [(&'a CeClaim, u64); 2],

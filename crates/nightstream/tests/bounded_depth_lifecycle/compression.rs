@@ -2,14 +2,19 @@
 //! cap 2: the proof of each circuit verifies from its bytes, and a changed
 //! statement, a changed proof and a proof from a bad witness do not.
 
-use super::super::compression::FinalProof;
-use super::super::{BoundedDepth, Envelope};
-use super::prover;
-use super::support::{hash_chain_step, words};
+use super::super::compression::{FinalProof, Fresh, Steps};
+use super::super::{BoundedDepth, BoundedDepthError, Envelope};
+use super::support::{hash_chain_step, packages, words};
+use super::{addition, prover, MINIMUM_SECURITY_BITS};
+use crate::folding::transcript::Transcript;
+use crate::folding::{pi_ccs, CcsClaim, RunningInstance};
+use neo_ajtai::nightstream_fprime_setup::{
+    coefficient_block, commit_production_signed_unit_prefix_matrix, PRODUCTION_SEED,
+};
 use neo_ajtai::Commitment;
 use neo_ccs::Mat;
 use neo_math::{D, F, K};
-use nightstream_fprime::PUBLIC_WORDS;
+use nightstream_fprime::{PI_CCS_V1_2_MATRIX_COUNT, PUBLIC_WORDS};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 const STEPS: u64 = 5;
@@ -72,6 +77,8 @@ fn a_compressed_proof_verifies_and_a_changed_one_does_not() {
             .verify_final(envelope.iteration, envelope.z0, envelope.current, &decoded)
             .unwrap_or_else(|error| panic!("the proof of circuit {} verifies: {error}", envelope.pc));
         let argument = &decoded.steps.as_ref().expect("steps").argument;
+        let error_bits = neo_compress::error_bits(&layout, PUBLIC_WORDS, PI_CCS_V1_2_MATRIX_COUNT);
+        assert!(error_bits > 119.0, "the argument's own error is 2^-{error_bits:.2}");
         println!(
             "compressed proof, circuit {}: {} witness cells, W has {} variables, V has {} variables, {} bytes \
              (Akita commitments {} and {}, openings {} and {})",
@@ -85,6 +92,7 @@ fn a_compressed_proof_verifies_and_a_changed_one_does_not() {
             argument.witness_opening.len(),
             argument.inverse_opening.len(),
         );
+        println!("  argument error without PiCCS and the Akita openings: 2^-{error_bits:.2}");
         println!("  compress {:.0} ms: {times}", compress.as_secs_f64() * 1e3);
         println!(
             "  verify_final {:.0} ms: {verify_times}",
@@ -220,12 +228,66 @@ fn a_compressed_proof_verifies_and_a_changed_one_does_not() {
                     .unwrap() ^= 1
             }),
         ),
+        (
+            "witness opening with one more byte",
+            Box::new(|proof| {
+                proof
+                    .steps
+                    .as_mut()
+                    .unwrap()
+                    .argument
+                    .witness_opening
+                    .push(0)
+            }),
+        ),
+        (
+            "the slot claims in the other order",
+            Box::new(|proof| proof.steps.as_mut().unwrap().slots.swap(0, 1)),
+        ),
     ];
     for (name, change) in changes {
         let mut changed = proof.clone();
         change(&mut changed);
         let decoded = through_bytes(&changed).unwrap_or_else(|| panic!("{name}: the changed proof decodes"));
         assert!(!accepts(&prover, envelope, &decoded), "{name}");
+    }
+
+    // A depth above the light fold cap of 64 has no accumulator bound.
+    let mut deep = proof.clone();
+    deep.steps.as_mut().unwrap().slots[0].1 = 65;
+    let deep = through_bytes(&deep).expect("depth 65 decodes");
+    assert!(matches!(
+        prover.verify_final(envelope.iteration, envelope.z0, envelope.current, &deep),
+        Err(BoundedDepthError::Slot { slot: 0, .. })
+    ));
+    // The circuits are 1 and 2.
+    let mut third = proof.clone();
+    third.steps.as_mut().unwrap().pc = 3;
+    assert!(matches!(
+        prover.verify_final(envelope.iteration, envelope.z0, envelope.current, &third),
+        Err(BoundedDepthError::Statement(_))
+    ));
+    assert!(through_bytes(&third).is_none(), "circuit 3 decodes");
+
+    // A length above the bytes that follow it decodes nothing.
+    let argument = &proof.steps.as_ref().unwrap().argument;
+    let commitment = &argument.witness_commitment[..];
+    let length_at = bytes
+        .windows(commitment.len())
+        .position(|window| window == commitment)
+        .expect("the witness commitment")
+        - 8;
+    let rounds_at = length_at + 16 + commitment.len() + argument.inverse_commitment.len();
+    for (name, at, honest) in [
+        ("witness commitment length", length_at, commitment.len()),
+        ("sum-check round count", rounds_at, argument.rounds.len()),
+    ] {
+        assert_eq!(bytes[at..at + 8], (honest as u64).to_le_bytes(), "{name}");
+        for huge in [u64::MAX, 1 << 40, bytes.len() as u64] {
+            let mut changed = bytes.clone();
+            changed[at..at + 8].copy_from_slice(&huge.to_le_bytes());
+            assert!(FinalProof::from_bytes(&changed).is_err(), "{name} {huge}");
+        }
     }
 
     // A proof has one encoding.
@@ -288,9 +350,169 @@ fn a_bad_witness_gives_no_accepted_proof() {
     cells[3 * blocks + PUBLIC_WORDS / D + 100] = F::TWO;
     fresh.witness.Z = Mat::from_row_major(D, blocks, cells);
     invalid("fresh entry 2", &two);
-    if let Ok((proof, _)) = prover.compress(&two) {
-        assert!(!accepts(&prover, &two, &proof), "fresh entry 2");
+    assert!(prover.compress(&two).is_err(), "fresh entry 2");
+}
+
+/// The proof of a prover that commits `committed` as the fresh witness in
+/// `W`, and makes PiCCS for the fresh witness of `envelope` under the
+/// commitment `c`. With the witness and the commitment of `envelope` it is
+/// the proof of `compress`.
+fn compress_committing(prover: &BoundedDepth, envelope: &Envelope, committed: &Mat<F>, c: &Commitment) -> FinalProof {
+    let fresh = envelope.fresh.as_ref().expect("fresh instance");
+    let (pc, slots) = (envelope.pc, envelope.slots.each_ref());
+    let layout = prover
+        .compression_layout(pc, slots.map(|slot| slot.depth))
+        .expect("layout");
+    let witnesses = [&slots[0].accumulator.witness, &slots[1].accumulator.witness, committed];
+    let committed = neo_compress::commit(layout, &witnesses).expect("commitment of W");
+    let commitment = neo_compress::byte_words(committed.commitment());
+    let mut transcript = Transcript::session();
+    let claim = CcsClaim {
+        c: c.clone(),
+        ..fresh.claim.clone()
+    };
+    let mut ccs = pi_ccs::prove_from_parts_with_rows(
+        &mut transcript,
+        &prover.backend,
+        prover.relations[(pc - 1) as usize].context(),
+        &BoundedDepth::compression_profile(&commitment),
+        &claim,
+        &fresh.witness,
+        &RunningInstance::default(),
+    )
+    .expect("PiCCS proof");
+    let output = ccs.outputs.swap_remove(0);
+    let statements =
+        prover.compression_statements(pc, slots.map(|slot| (&slot.accumulator.claim, slot.depth)), &output);
+    let (argument, _) = committed
+        .prove(transcript.inner_mut(), &statements)
+        .expect("the prover does not check its witness");
+    FinalProof {
+        iteration: envelope.iteration,
+        z0: envelope.z0,
+        current: envelope.current,
+        steps: Some(Steps {
+            pc,
+            slots: slots.map(|slot| (slot.accumulator.claim.clone(), slot.depth)),
+            fresh: Fresh {
+                c: output.c,
+                r: output.r,
+                eval_k: output.eval_k,
+                eval_a: output.eval_a,
+                fold_digest: output.fold_digest,
+            },
+            pi_ccs: ccs.sumcheck,
+            argument,
+        }),
     }
+}
+
+/// The commitment of the witness of `c` with `delta` added in block `block`,
+/// lane `lane`: each row gets `delta · X^lane` times its key element.
+fn moved_commitment(c: &Commitment, block: usize, lane: usize, delta: F) -> Commitment {
+    let mut data = c.data().to_vec();
+    for (row, coefficients) in data.chunks_exact_mut(D).enumerate() {
+        let key = coefficient_block(&PRODUCTION_SEED, row as u32, block as u64);
+        for (index, key) in key.into_iter().enumerate() {
+            let term = delta * F::new(key);
+            if index + lane < D {
+                coefficients[index + lane] += term;
+            } else {
+                coefficients[index + lane - D] -= term;
+            }
+        }
+    }
+    Commitment::new(c.kappa(), data).expect("commitment")
+}
+
+/// PiCCS proves the rows and the entries {-1, 0, 1} of a witness, and the
+/// argument proves that `W` holds that witness: the evaluations of the PiCCS
+/// claim are at a point that follows the commitment of `W`. So a prover that
+/// commits another fresh witness gets no accepted proof. It makes PiCCS for
+/// the honest witness, under the honest Ajtai commitment or under the Ajtai
+/// commitment of the witness in `W`, and the argument rejects each.
+#[test]
+fn a_committed_fresh_witness_that_piccs_did_not_judge_is_rejected() {
+    let prover = prover(2);
+    let envelope = envelopes(&prover).pop().expect("the last proof");
+    let fresh = envelope.fresh.as_ref().expect("fresh instance");
+    let (honest, c) = (&fresh.witness.Z, &fresh.claim.c);
+    let proof = compress_committing(&prover, &envelope, honest, c);
+    prover
+        .verify_final(envelope.iteration, envelope.z0, envelope.current, &proof)
+        .expect("the prover of this test makes an accepted proof");
+
+    let blocks = honest.cols();
+    let (lane, block) = (3, PUBLIC_WORDS / D + 100);
+    let cells = honest.to_dense_vec();
+    let old = cells[lane * blocks + block];
+    let with = |value: F| {
+        let mut cells = cells.clone();
+        cells[lane * blocks + block] = value;
+        Mat::from_row_major(D, blocks, cells)
+    };
+    let unit = if old == F::ZERO { F::ONE } else { F::ZERO };
+    assert_eq!(
+        moved_commitment(c, block, lane, unit - old),
+        commit_production_signed_unit_prefix_matrix(&with(unit)).expect("native commitment")
+    );
+    let cases = [
+        ("another unit under the honest commitment", unit, c.clone()),
+        (
+            "another unit under its own commitment",
+            unit,
+            moved_commitment(c, block, lane, unit - old),
+        ),
+        ("the entry 2 under the honest commitment", F::TWO, c.clone()),
+        (
+            "the entry 2 under its own commitment",
+            F::TWO,
+            moved_commitment(c, block, lane, F::TWO - old),
+        ),
+    ];
+    for (name, value, c) in cases {
+        let proof = compress_committing(&prover, &envelope, &with(value), &c);
+        let proof = through_bytes(&proof).unwrap_or_else(|| panic!("{name}: the proof decodes"));
+        let result = prover.verify_final(envelope.iteration, envelope.z0, envelope.current, &proof);
+        assert!(
+            matches!(
+                result,
+                Err(BoundedDepthError::Compression(neo_compress::Error::Rejected(_)))
+            ),
+            "{name}: {result:?}"
+        );
+    }
+}
+
+/// The state hash holds the key of each circuit, so a verifier of other keys
+/// rejects the proof: with the same relations and one other key word, and
+/// with the addition application in place of the hash chain.
+#[test]
+fn a_verifier_of_other_keys_rejects_the_proof() {
+    let prover = prover(2);
+    let envelope = envelopes(&prover).pop().expect("the last proof");
+    let (proof, _) = prover.compress(&envelope).expect("compressed proof");
+    assert!(accepts(&prover, &envelope, &proof));
+
+    let mut other_key = super::prover(2);
+    other_key.keys[0][0] += F::ONE;
+    assert!(matches!(
+        other_key.verify_final(envelope.iteration, envelope.z0, envelope.current, &proof),
+        Err(BoundedDepthError::Fresh(_))
+    ));
+
+    let application = addition();
+    let packages = packages()
+        .with_application(
+            application.records().clone(),
+            application.private_input_count(),
+            application.shape(),
+        )
+        .expect("packages with the application");
+    let other_circuit = BoundedDepth::new(packages, MINIMUM_SECURITY_BITS, crate::engine::Backend::Optimized)
+        .expect("bounded-depth verifier");
+    assert_ne!(other_circuit.keys, prover.keys);
+    assert!(!accepts(&other_circuit, &envelope, &proof));
 }
 
 /// Zero steps: the proof has no argument, and it verifies exactly for

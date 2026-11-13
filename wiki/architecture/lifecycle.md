@@ -30,21 +30,20 @@ commits them as one polynomial with the Akita commitment scheme.
 final proof has no witness, and `extend` cannot use it.
 `FinalProof::to_bytes` and `FinalProof::from_bytes` are its byte form.
 
-`Verifier::compression_key` makes the `CompressionKey` once from the
-verifier's circuit and the public seeds. `Verifier::verify_final` checks a
-final proof against the expected state under that key. The key holds the
+`Verifier::compression_key` gives the `CompressionKey` of the verifier's
+circuit. `Verifier::verify_final` checks a final proof against the expected
+state under that key. The key holds the
 commitment of the key polynomial and Akita's commitments of a prefix of its
 own setup, in about 1 KB. No proof carries it, and the prover's setup gives
 it to no one. It is a function of the seeds and of the size of the circuit,
 so a prover and a verifier of one circuit agree, and each circuit of one
-size has the same key.
+size has the same key. The library pins the key of each size, and a test
+computes each pinned key again from the seeds.
 
 `CompressionKey::to_bytes` and `Verifier::decode_compression_key` are the
-byte form of the key, for a verifier that cannot make the computation. The
-decoder checks the form and the size of the key only. Loaded bytes are
-trusted input, as the compiled circuit is: under a key that does not hold
-the commitment of the Ajtai key, `verify_final` accepts false statements.
-Any party computes the bytes again with `Verifier::compression_key`.
+byte form of the key. Under a key that does not hold the commitment of the
+Ajtai key, `verify_final` can accept false statements. So the decoder
+accepts only the bytes of the pinned key of the circuit size.
 `nebula::Prover` and `nebula::Verifier` have the same functions for a
 memory proof.
 
@@ -57,9 +56,9 @@ the norm bound of each slot. A second sum-check reduces the part of the
 public weights that the Ajtai key gives to one value of the key polynomial.
 One Akita proof opens the key polynomial, `W` and `V`. See the module
 comment of `crates/neo-compress/src/lib.rs` for the transcript and the
-error. [SPEC.md](../../SPEC.md) Algorithms 9 and 10 and the
+error. [SPEC.md](../../SPEC.md) Algorithms 9, 10 and 11 and the
 [decision record](../../decisions/akita-compression.md) describe the proof
-of commit `b155966de`, before the compression key.
+and the key.
 
 `compress` does not verify its input or its result. `verify_final` computes
 the hash of the state from the slot claims of the proof, as `verify` does.
@@ -86,8 +85,10 @@ Of the proof bytes, the Akita opening is 75.7 KB and the claims are about
 one thread. The other time is the pass over the rows of the matrices.
 
 The compression setup takes 1.0 s and holds about 10 GB: the key rows and
-the copy that Akita opens. `Verifier::compression_key` takes 1.0 s on 30
-threads and 19 s on one thread, with a peak of 6 GB of resident memory. The
+the copy that Akita opens. To compute the compression key again from the
+seeds, as the test of the pin does, takes 1.0 s on 30 threads and 19 s on
+one thread, with a peak of 6 GB of resident memory. A verifier does not make
+this computation. The
 process of the test that compresses both circuits has a peak of 30 GB of
 resident memory (one run), so the tests that compress a step of the hash
 chain are ignored ([testing](../development/testing.md)).

@@ -14,8 +14,7 @@ The compressed proof needs these items
 the proposed design, a Lean statement of the argument, a verifier that reads
 a commitment to the matrices as it reads the commitment to the Ajtai key, a
 run with slot depths near the cap 64, a WASM build of the verifier, and an
-audit of Akita. SPEC.md section 6 and the decision record do not yet
-describe the compression key.
+audit of Akita.
 
 Device engines for the steps (Metal and CUDA) require separate implementation
 and validation. Removed legacy consumers are not

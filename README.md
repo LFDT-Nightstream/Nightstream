@@ -36,20 +36,20 @@ explicit Fiat–Shamir and MSIS assumptions in the security argument.
 
 `Prover::compress` proves that witnesses exist for both slot claims and for
 the fresh instance. `Verifier::verify_final` checks the final proof against
-the expected state. [SPEC.md](SPEC.md) Algorithms 9 and 10 give the
+the expected state. [SPEC.md](SPEC.md) Algorithms 9, 10 and 11 give the
 protocol, and [the decision record](decisions/akita-compression.md) gives
-the design choices and their status. Those two files describe the proof of
-commit `b155966de`, before the compression key.
+the design choices and their status.
 
-The verifier does not read the Ajtai key. It computes a `CompressionKey` of
-about 1 KB from its circuit and the public seeds, once
-(`Verifier::compression_key`): the commitment of the key rows that the
-circuit reads, as one polynomial, with Akita. The prover makes its own
-`CompressionSetup` from its circuit (`Prover::compression_setup`). No proof
-carries the key. `Verifier::decode_compression_key` loads the bytes of the
-key for a verifier that cannot make the computation, and those bytes are
-trusted input, as the compiled circuit is. One Akita proof opens the key
-polynomial and the two polynomials of the prover.
+The verifier does not read the Ajtai key. It reads a `CompressionKey` of
+about 1 KB (`Verifier::compression_key`), which holds the Akita commitment
+of the key rows that the circuit reads, as one polynomial. The key is a
+function of the public seeds and of the circuit size, so the library pins
+the key of each size, and a test computes each pinned key again from the
+seeds. The prover makes its own `CompressionSetup` from its circuit
+(`Prover::compression_setup`). No proof carries the key.
+`Verifier::decode_compression_key` accepts only the bytes of the pinned key
+of the circuit size, so a loaded key is checked, not trusted. One Akita
+proof opens the key polynomial and the two polynomials of the prover.
 
 These numbers are from runs of
 `cargo test -p nightstream --release a_compressed_proof_verifies -- --ignored --nocapture`
@@ -66,8 +66,10 @@ benchmark.
 | `verify_final`, 1 thread | 0.9 to 1.1 s | 1.5 to 1.7 s |
 | Final proof | 133.3 KB | 133.4 KB |
 
-The compression setup takes 1.0 s and holds about 10 GB. The compression
-key takes 1.0 s on 30 threads and 19 s on one thread, with a peak of 6 GB.
+The compression setup takes 1.0 s and holds about 10 GB. To compute the
+compression key again from the seeds, as the test of the pin does, takes
+1.0 s on 30 threads and 19 s on one thread, with a peak of 6 GB. A verifier
+does not make this computation.
 The test process has a peak of 30 GB. Of the proof bytes, the Akita opening is 75.7 KB and
 the claims are about 54 KB. Of the `verify_final` time, Akita is 9 ms on 30
 threads and 31 ms on one thread, and the rest is one pass over the rows of

@@ -27,13 +27,15 @@ in Rust. They are not proved. Lean has no statement for them.
   the argument, for the reference application at 4 lookup challenges. This
   number does not include the knowledge error of the Akita opening, the
   error of the PiCCS run of the fresh instance, or the loss of Fiat–Shamir.
-- `verify_final` does not read the Ajtai key. It trusts a compression key,
+- `verify_final` does not read the Ajtai key. It reads a compression key,
   which holds the Akita commitment of the key rows and Akita's commitments
-  of a prefix of its own setup. The verifier computes the key from its
-  circuit and the public seeds (`Verifier::compression_key`). No proof and
-  no prover value carries it. The argument is sound only when the key holds
-  the commitments of those public tables, so key bytes that a verifier
-  loads are trusted input, as its compiled circuit is.
+  of a prefix of its own setup. The library pins the key of each circuit
+  size, and a test computes each pinned key again from the public seeds.
+  The verifier takes the pinned key of its circuit
+  (`Verifier::compression_key`). No proof and no prover value carries it.
+  The argument is sound only when the key holds the commitments of those
+  public tables. So `Verifier::decode_compression_key` accepts loaded bytes
+  only when they equal the pinned key of the circuit size.
 - Akita states a target of a 128-bit Fiat–Shamir rate for each query in the
   classical random-oracle model, and a price of 169 bits of quantum
   Core-SVP cost for its Module-SIS instances. It states that these are not

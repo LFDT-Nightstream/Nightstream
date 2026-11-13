@@ -1,8 +1,6 @@
-use neo_ccs::crypto::poseidon2_goldilocks as p2;
+use neo_ccs::crypto::poseidon2 as p2;
 use neo_math::F;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
-use p3_goldilocks::{Goldilocks, Poseidon2Goldilocks};
-use p3_symmetric::Permutation;
 
 const FOLD_DOMAIN: &[u8] = b"Nightstream/SuperNeo/fold/v2";
 
@@ -11,7 +9,8 @@ pub fn fold_domain_chunk_v1_2() -> [F; p2::RATE] {
 }
 
 /// One rate chunk that names a protocol: `label`, eight little-endian bytes
-/// per word, then zero words. The label fits in one chunk.
+/// per word, then zero words. The label fits in one chunk, and each word is
+/// below `q`, so two labels with different words give different chunks.
 pub fn domain_chunk_v1_2(label: &[u8]) -> [F; p2::RATE] {
     assert!(label.len() <= 8 * p2::RATE, "domain label exceeds one rate chunk");
     std::array::from_fn(|word| {
@@ -19,7 +18,9 @@ pub fn domain_chunk_v1_2(label: &[u8]) -> [F; p2::RATE] {
         let mut packed = [0u8; 8];
         let length = bytes.len().min(8);
         packed[..length].copy_from_slice(&bytes[..length]);
-        F::from_u64(u64::from_le_bytes(packed))
+        let value = u64::from_le_bytes(packed);
+        assert!(value < F::ORDER_U64, "domain label word is not below q");
+        F::from_u64(value)
     })
 }
 
@@ -30,21 +31,18 @@ pub struct FoldCoin {
 
 #[derive(Clone)]
 pub struct Poseidon2Transcript {
-    st: [Goldilocks; p2::WIDTH],
+    st: [F; p2::WIDTH],
     absorbed: usize,
     coins_read: usize,
-    perm: &'static Poseidon2Goldilocks<{ p2::WIDTH }>,
 }
 
 impl Poseidon2Transcript {
     pub fn new_v1_2() -> Self {
-        Self::empty()
+        Self::from_state_and_absorbed([F::ZERO; p2::WIDTH], 0)
     }
 
     pub fn reset_v1_2(&mut self) {
-        self.st = [Goldilocks::ZERO; p2::WIDTH];
-        self.absorbed = 0;
-        self.coins_read = 0;
+        *self = Self::new_v1_2();
     }
 
     pub fn absorb_v1_2(&mut self, fields: &[F]) {
@@ -76,7 +74,7 @@ impl Poseidon2Transcript {
 
     pub fn squeeze_digest_v1_2(&mut self) -> [F; p2::DIGEST_LEN] {
         assert_eq!(self.absorbed, 0, "v1_2 transcript cannot inherit an absorb cursor");
-        let digest = std::array::from_fn(|lane| F::from_u64(self.st[lane].as_canonical_u64()));
+        let digest = std::array::from_fn(|lane| self.st[lane]);
         self.permute();
         digest
     }
@@ -90,23 +88,13 @@ impl Poseidon2Transcript {
     }
 
     #[inline]
-    fn empty() -> Self {
-        Self {
-            st: [Goldilocks::ZERO; p2::WIDTH],
-            absorbed: 0,
-            coins_read: 0,
-            perm: p2::permutation(),
-        }
-    }
-
-    #[inline]
     fn permute(&mut self) {
-        self.st = self.perm.permute(self.st);
+        self.st = p2::permute_state(self.st);
         self.absorbed = 0;
         self.coins_read = 0;
     }
 
-    pub fn state(&self) -> [Goldilocks; p2::WIDTH] {
+    pub fn state(&self) -> [F; p2::WIDTH] {
         self.st
     }
 
@@ -114,13 +102,12 @@ impl Poseidon2Transcript {
         self.absorbed
     }
 
-    pub fn from_state_and_absorbed(state: [Goldilocks; p2::WIDTH], absorbed: usize) -> Self {
+    pub fn from_state_and_absorbed(state: [F; p2::WIDTH], absorbed: usize) -> Self {
         assert!(absorbed <= p2::RATE, "transcript absorbed cursor out of range");
         Self {
             st: state,
             absorbed,
             coins_read: 0,
-            perm: p2::permutation(),
         }
     }
 }

@@ -12,16 +12,16 @@ workspace = true
 
 [dependencies]
 neo-params = { path = "../neo-params" }
+num-bigint = { workspace = true }
 p3-field = { workspace = true }
-p3-goldilocks = { workspace = true }
 p3-matrix = { workspace = true }
 rand = { workspace = true }
+serde = { workspace = true }
 
 [dev-dependencies]
 proptest = { workspace = true }
 rand = { workspace = true }
 rand_chacha = { workspace = true }
-serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 
 [package.metadata.docs.rs]

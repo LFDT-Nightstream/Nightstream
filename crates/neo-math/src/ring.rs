@@ -1,15 +1,15 @@
-//! Ring layer: R_q = F_q\[X\]/(Phi_eta) with eta=81, Phi_eta = X^54 + X^27 + 1.
+//! Ring layer: `R_q = F_q[X]/(X^64 + 1)`, the 128th cyclotomic ring.
 
 use crate::balanced::to_balanced_i128;
 use crate::Fq;
-use neo_params::goldilocks_paper_b2;
-use p3_field::{Field, PrimeCharacteristicRing};
+use neo_params::nightstream_p64_k16;
+use p3_field::PrimeCharacteristicRing;
+use std::array;
 use std::ops::{Add, Mul, Sub};
 use std::sync::OnceLock;
 
-pub const ETA: usize = goldilocks_paper_b2::ETA;
-pub const D: usize = goldilocks_paper_b2::D;
-pub const PHI_MID_DEGREE: usize = goldilocks_paper_b2::PHI_MID_DEGREE;
+pub const ETA: usize = nightstream_p64_k16::ETA;
+pub const D: usize = nightstream_p64_k16::D;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Rq(pub [Fq; D]);
@@ -45,20 +45,24 @@ impl Rq {
     }
 
     pub fn mul(&self, rhs: &Self) -> Self {
-        let mut tmp = mul_3way_karatsuba_54(&self.0, &rhs.0);
-        reduce_mod_phi_81(&mut tmp);
-        let mut out = [Fq::ZERO; D];
-        out.copy_from_slice(&tmp[0..D]);
-        Self(out)
+        let (a, b) = (&self.0, &rhs.0);
+        let products = |a: &[Fq], b: &[Fq]| Fq::sum_of_products(a.iter().copied().zip(b.iter().rev().copied()));
+        // X^D = −1: the products with i + j = k + D enter coefficient k with a minus sign.
+        Self(array::from_fn(|k| {
+            products(&a[..=k], &b[..=k]) - products(&a[k + 1..], &b[k + 1..])
+        }))
     }
 
+    /// The product with `X^j`. `X^D = −1`, so `X^ETA = 1`.
     pub fn mul_by_monomial(&self, j: usize) -> Self {
-        let mut out = self.0;
-        for _ in 0..j % ETA {
-            let top = out[D - 1];
-            out.copy_within(0..D - 1, 1);
-            out[0] = -top;
-            out[PHI_MID_DEGREE] -= top;
+        let mut out = [Fq::ZERO; D];
+        for (i, &coefficient) in self.0.iter().enumerate() {
+            let degree = i + j % ETA;
+            out[degree % D] = if (degree / D).is_multiple_of(2) {
+                coefficient
+            } else {
+                -coefficient
+            };
         }
         Self(out)
     }
@@ -121,56 +125,28 @@ pub fn ct(a: &Rq) -> Fq {
     a.0[0]
 }
 
+/// The matrix of `superneo_bar_block`.
 pub fn superneo_bar_matrix() -> &'static [[Fq; D]; D] {
     static M: OnceLock<[[Fq; D]; D]> = OnceLock::new();
-    M.get_or_init(build_superneo_bar_matrix)
-}
-
-struct BarRow {
-    len: usize,
-    terms: [(usize, bool); 2],
-}
-
-fn superneo_bar_rows() -> &'static [BarRow; D] {
-    static ROWS: OnceLock<[BarRow; D]> = OnceLock::new();
-    ROWS.get_or_init(|| {
-        let m = superneo_bar_matrix();
-        let neg_one = Fq::ZERO - Fq::ONE;
-        std::array::from_fn(|row| {
-            let mut out = BarRow {
-                len: 0,
-                terms: [(0, false); 2],
-            };
-            for (column, &entry) in m[row].iter().enumerate() {
-                if entry == Fq::ZERO {
-                    continue;
-                }
-                assert!(entry == Fq::ONE || entry == neg_one, "SuperNeo bar entry is not ±1");
-                assert!(out.len < 2, "SuperNeo bar row has more than two entries");
-                out.terms[out.len] = (column, entry == neg_one);
-                out.len += 1;
+    M.get_or_init(|| {
+        let mut matrix = [[Fq::ZERO; D]; D];
+        for column in 0..D {
+            let mut basis = [Fq::ZERO; D];
+            basis[column] = Fq::ONE;
+            for (row, entry) in superneo_bar_block(basis).into_iter().enumerate() {
+                matrix[row][column] = entry;
             }
-            out
-        })
+        }
+        matrix
     })
 }
 
+/// The transform of SuperNeo v1.2 Section 5 with `ct(a · bar(b)) = ⟨a, b⟩`.
+/// In `F_q[X]/(X^D + 1)`, `ct(X^i · X^j)` is 1 for `i + j = 0`, −1 for
+/// `i + j = D`, and 0 otherwise. So `bar(b) = b_0 − Σ_{j ≥ 1} b_{D−j} X^j`.
 #[inline]
 pub fn superneo_bar_block(v: [Fq; D]) -> [Fq; D] {
-    let rows = superneo_bar_rows();
-    std::array::from_fn(|row| {
-        let row = &rows[row];
-        row.terms[..row.len].iter().fold(
-            Fq::ZERO,
-            |acc, &(column, negative)| {
-                if negative {
-                    acc - v[column]
-                } else {
-                    acc + v[column]
-                }
-            },
-        )
-    })
+    array::from_fn(|j| if j == 0 { v[0] } else { -v[D - j] })
 }
 
 pub fn superneo_bar_vec(v: &[Fq]) -> Vec<Fq> {
@@ -187,107 +163,6 @@ pub fn superneo_bar_vec(v: &[Fq]) -> Vec<Fq> {
         dst.copy_from_slice(&transformed);
     }
     out
-}
-
-pub(crate) fn reduce_mod_phi_81(coeffs: &mut [Fq; 2 * D - 1]) {
-    for i in (D..(2 * D - 1)).rev() {
-        let t = coeffs[i];
-        coeffs[i] = Fq::ZERO;
-        coeffs[i - D] -= t;
-        let idx_27 = i - PHI_MID_DEGREE;
-        if idx_27 < D {
-            coeffs[idx_27] -= t;
-        } else {
-            coeffs[idx_27 - D] += t;
-            if idx_27 - PHI_MID_DEGREE < D {
-                coeffs[idx_27 - PHI_MID_DEGREE] += t;
-            }
-        }
-    }
-}
-
-fn build_superneo_bar_matrix() -> [[Fq; D]; D] {
-    let g = build_ct_gram_matrix();
-    let m = invert_matrix(g).expect("ct Gram matrix must be invertible");
-
-    let mut mtg = [[Fq::ZERO; D]; D];
-    for i in 0..D {
-        for j in 0..D {
-            let mut acc = Fq::ZERO;
-            for r in 0..D {
-                acc += m[r][i] * g[r][j];
-            }
-            mtg[i][j] = acc;
-        }
-    }
-    for (i, row) in mtg.iter().enumerate() {
-        for (j, entry) in row.iter().enumerate() {
-            let want = if i == j { Fq::ONE } else { Fq::ZERO };
-            assert_eq!(*entry, want, "SuperNeo bar matrix sanity check failed at ({i},{j})");
-        }
-    }
-
-    m
-}
-
-fn build_ct_gram_matrix() -> [[Fq; D]; D] {
-    let mut g = [[Fq::ZERO; D]; D];
-    let neg_one = Fq::ZERO - Fq::ONE;
-    for i in 0..D {
-        for j in 0..D {
-            g[i][j] = match i + j {
-                0 => Fq::ONE,
-                D => neg_one,
-                ETA => Fq::ONE,
-                _ => Fq::ZERO,
-            };
-        }
-    }
-    g
-}
-
-fn invert_matrix(mut a: [[Fq; D]; D]) -> Option<[[Fq; D]; D]> {
-    let mut inv = [[Fq::ZERO; D]; D];
-    for (i, row) in inv.iter_mut().enumerate() {
-        row[i] = Fq::ONE;
-    }
-
-    for col in 0..D {
-        let mut pivot = None;
-        for (r, row) in a.iter().enumerate().skip(col) {
-            if row[col] != Fq::ZERO {
-                pivot = Some(r);
-                break;
-            }
-        }
-        let pivot = pivot?;
-        if pivot != col {
-            a.swap(pivot, col);
-            inv.swap(pivot, col);
-        }
-
-        let piv_inv = a[col][col].inverse();
-        for c in 0..D {
-            a[col][c] *= piv_inv;
-            inv[col][c] *= piv_inv;
-        }
-
-        for r in 0..D {
-            if r == col {
-                continue;
-            }
-            let factor = a[r][col];
-            if factor == Fq::ZERO {
-                continue;
-            }
-            for c in 0..D {
-                a[r][c] -= factor * a[col][c];
-                inv[r][c] -= factor * inv[col][c];
-            }
-        }
-    }
-
-    Some(inv)
 }
 
 #[inline]
@@ -332,144 +207,4 @@ impl Mul for Rq {
     fn mul(self, rhs: Self) -> Self::Output {
         Self::mul(&self, &rhs)
     }
-}
-
-const KARATSUBA_SPLIT: usize = D / 3;
-const KARATSUBA_CHUNK_OUT: usize = 2 * KARATSUBA_SPLIT - 1;
-const KARATSUBA_TWO: Fq = Fq::TWO;
-const KARATSUBA_FOUR: Fq = Fq::new(4);
-const KARATSUBA_SIXTEEN: Fq = Fq::new(16);
-
-#[inline]
-fn inv_two() -> Fq {
-    static INV_TWO: OnceLock<Fq> = OnceLock::new();
-    *INV_TWO.get_or_init(|| Fq::from_u64(2).inverse())
-}
-
-#[inline]
-fn inv_six() -> Fq {
-    static INV_SIX: OnceLock<Fq> = OnceLock::new();
-    *INV_SIX.get_or_init(|| Fq::from_u64(6).inverse())
-}
-
-#[inline]
-fn add_chunk<const N: usize>(lhs: &[Fq; N], rhs: &[Fq; N]) -> [Fq; N] {
-    let mut out = [Fq::ZERO; N];
-    for i in 0..N {
-        out[i] = lhs[i] + rhs[i];
-    }
-    out
-}
-
-#[inline]
-fn sub_chunk<const N: usize>(lhs: &[Fq; N], rhs: &[Fq; N]) -> [Fq; N] {
-    let mut out = [Fq::ZERO; N];
-    for i in 0..N {
-        out[i] = lhs[i] - rhs[i];
-    }
-    out
-}
-
-#[inline]
-fn scale_chunk<const N: usize>(lhs: &[Fq; N], scale: Fq) -> [Fq; N] {
-    let mut out = [Fq::ZERO; N];
-    for i in 0..N {
-        out[i] = lhs[i] * scale;
-    }
-    out
-}
-
-#[inline]
-fn add_scaled_chunk<const N: usize>(lhs: &[Fq; N], rhs: &[Fq; N], scale: Fq) -> [Fq; N] {
-    let mut out = [Fq::ZERO; N];
-    for i in 0..N {
-        out[i] = lhs[i] + rhs[i] * scale;
-    }
-    out
-}
-
-#[inline]
-fn sub_assign_chunk<const N: usize>(dst: &mut [Fq; N], src: &[Fq; N]) {
-    for i in 0..N {
-        dst[i] -= src[i];
-    }
-}
-
-#[inline]
-fn add_assign_chunk_at<const N: usize>(dst: &mut [Fq; 2 * D - 1], offset: usize, src: &[Fq; N]) {
-    for i in 0..N {
-        dst[offset + i] += src[i];
-    }
-}
-
-#[inline]
-fn mul_schoolbook_chunk(lhs: &[Fq; KARATSUBA_SPLIT], rhs: &[Fq; KARATSUBA_SPLIT]) -> [Fq; KARATSUBA_CHUNK_OUT] {
-    let mut out = [Fq::ZERO; KARATSUBA_CHUNK_OUT];
-    for i in 0..KARATSUBA_SPLIT {
-        let ai = lhs[i];
-        for j in 0..KARATSUBA_SPLIT {
-            out[i + j] += ai * rhs[j];
-        }
-    }
-    out
-}
-
-#[inline]
-fn mul_3way_karatsuba_54(lhs: &[Fq; D], rhs: &[Fq; D]) -> [Fq; 2 * D - 1] {
-    let mut a0 = [Fq::ZERO; KARATSUBA_SPLIT];
-    let mut a1 = [Fq::ZERO; KARATSUBA_SPLIT];
-    let mut a2 = [Fq::ZERO; KARATSUBA_SPLIT];
-    let mut b0 = [Fq::ZERO; KARATSUBA_SPLIT];
-    let mut b1 = [Fq::ZERO; KARATSUBA_SPLIT];
-    let mut b2 = [Fq::ZERO; KARATSUBA_SPLIT];
-    a0.copy_from_slice(&lhs[0..KARATSUBA_SPLIT]);
-    a1.copy_from_slice(&lhs[KARATSUBA_SPLIT..2 * KARATSUBA_SPLIT]);
-    a2.copy_from_slice(&lhs[2 * KARATSUBA_SPLIT..3 * KARATSUBA_SPLIT]);
-    b0.copy_from_slice(&rhs[0..KARATSUBA_SPLIT]);
-    b1.copy_from_slice(&rhs[KARATSUBA_SPLIT..2 * KARATSUBA_SPLIT]);
-    b2.copy_from_slice(&rhs[2 * KARATSUBA_SPLIT..3 * KARATSUBA_SPLIT]);
-
-    let half = inv_two();
-    let sixth = inv_six();
-
-    let a01 = add_chunk(&a0, &a1);
-    let b01 = add_chunk(&b0, &b1);
-    let a012 = add_chunk(&a01, &a2);
-    let b012 = add_chunk(&b01, &b2);
-    let am1 = add_chunk(&sub_chunk(&a0, &a1), &a2);
-    let bm1 = add_chunk(&sub_chunk(&b0, &b1), &b2);
-    let a2eval = add_scaled_chunk(&add_scaled_chunk(&a0, &a1, KARATSUBA_TWO), &a2, KARATSUBA_FOUR);
-    let b2eval = add_scaled_chunk(&add_scaled_chunk(&b0, &b1, KARATSUBA_TWO), &b2, KARATSUBA_FOUR);
-    let p0 = mul_schoolbook_chunk(&a0, &b0);
-    let p1 = mul_schoolbook_chunk(&a012, &b012);
-    let pm1 = mul_schoolbook_chunk(&am1, &bm1);
-    let p2 = mul_schoolbook_chunk(&a2eval, &b2eval);
-    let p4 = mul_schoolbook_chunk(&a2, &b2);
-
-    let c0 = p0;
-    let c4 = p4;
-    let mut c2 = scale_chunk(&add_chunk(&p1, &pm1), half);
-    sub_assign_chunk(&mut c2, &c0);
-    sub_assign_chunk(&mut c2, &c4);
-
-    let s = scale_chunk(&sub_chunk(&p1, &pm1), half);
-
-    let mut c3 = p2;
-    sub_assign_chunk(&mut c3, &c0);
-    for i in 0..KARATSUBA_CHUNK_OUT {
-        c3[i] -= c2[i] * KARATSUBA_FOUR;
-        c3[i] -= c4[i] * KARATSUBA_SIXTEEN;
-    }
-    c3 = scale_chunk(&sub_chunk(&c3, &scale_chunk(&s, KARATSUBA_TWO)), sixth);
-
-    let mut c1 = s;
-    sub_assign_chunk(&mut c1, &c3);
-
-    let mut out = [Fq::ZERO; 2 * D - 1];
-    add_assign_chunk_at(&mut out, 0, &c0);
-    add_assign_chunk_at(&mut out, KARATSUBA_SPLIT, &c1);
-    add_assign_chunk_at(&mut out, 2 * KARATSUBA_SPLIT, &c2);
-    add_assign_chunk_at(&mut out, 3 * KARATSUBA_SPLIT, &c3);
-    add_assign_chunk_at(&mut out, 4 * KARATSUBA_SPLIT, &c4);
-    out
 }

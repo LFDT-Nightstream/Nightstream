@@ -1,27 +1,27 @@
 use neo_ccs::{CcsWitness, Mat};
+use neo_math::Fq;
 use p3_field::PrimeCharacteristicRing;
-use p3_goldilocks::Goldilocks;
 
 #[test]
 fn packed_clones_share_storage_and_mutation_keeps_the_source() {
-    let source = Mat::<Goldilocks>::compact_signed_unit_from_column_masks(4, 2, &[1, 2], &[4, 8]).unwrap();
+    let source = Mat::<Fq>::compact_signed_unit_from_column_masks(4, 2, &[1, 2], &[4, 8]).unwrap();
     let mut copy = source.clone();
     let (a, b) = source.packed_signed_unit_column_masks().unwrap();
     let (x, y) = copy.packed_signed_unit_column_masks().unwrap();
     assert_eq!(a.as_ptr(), x.as_ptr());
     assert_eq!(b.as_ptr(), y.as_ptr());
     let encoded = serde_json::to_vec(&source).unwrap();
-    copy[(0, 0)] = Goldilocks::ZERO;
-    assert_eq!(source[(0, 0)], Goldilocks::ONE);
-    assert_eq!(copy[(0, 0)], Goldilocks::ZERO);
+    copy[(0, 0)] = Fq::ZERO;
+    assert_eq!(source[(0, 0)], Fq::ONE);
+    assert_eq!(copy[(0, 0)], Fq::ZERO);
     assert_eq!(serde_json::to_vec(&source).unwrap(), encoded);
-    assert_eq!(serde_json::from_slice::<Mat<Goldilocks>>(&encoded).unwrap(), source);
+    assert_eq!(serde_json::from_slice::<Mat<Fq>>(&encoded).unwrap(), source);
 }
 
 #[test]
 fn packed_witness_reconstructs_private_suffix_without_flat_copy() {
-    let assignment = (0..11).map(Goldilocks::from_u64).collect::<Vec<_>>();
-    let mut packed = Mat::zero(3, 4, Goldilocks::ZERO);
+    let assignment = (0..11).map(Fq::from_u64).collect::<Vec<_>>();
+    let mut packed = Mat::zero(3, 4, Fq::ZERO);
     for (column, &value) in assignment.iter().enumerate() {
         packed[(column % 3, column / 3)] = value;
     }
@@ -37,18 +37,18 @@ fn packed_witness_reconstructs_private_suffix_without_flat_copy() {
 
 #[test]
 fn signed_unit_column_masks_reconstruct_exact_row_major_values() {
-    let positive = [1 << 0 | 1 << 53, 1 << 7, 0, 1 << 31];
-    let negative = [1 << 11, 1 << 1 | 1 << 42, 1 << 52, 0];
-    let packed = Mat::<Goldilocks>::compact_signed_unit_from_column_masks(54, 4, &positive, &negative)
-        .expect("valid column masks");
-    let mut dense = Mat::zero(54, 4, Goldilocks::ZERO);
+    let positive = [1 << 0 | 1 << 63, 1 << 7, 0, 1 << 31];
+    let negative = [1 << 11, 1 << 1 | 1 << 42, 1 << 62, 0];
+    let packed =
+        Mat::<Fq>::compact_signed_unit_from_column_masks(64, 4, &positive, &negative).expect("valid column masks");
+    let mut dense = Mat::zero(64, 4, Fq::ZERO);
     for column in 0..4 {
-        for row in 0..54 {
+        for row in 0..64 {
             let bit = 1u64 << row;
             if positive[column] & bit != 0 {
-                dense[(row, column)] = Goldilocks::ONE;
+                dense[(row, column)] = Fq::ONE;
             } else if negative[column] & bit != 0 {
-                dense[(row, column)] = Goldilocks::ZERO - Goldilocks::ONE;
+                dense[(row, column)] = Fq::ZERO - Fq::ONE;
             }
         }
     }
@@ -64,33 +64,29 @@ fn signed_unit_column_masks_reconstruct_exact_row_major_values() {
 
 #[test]
 fn signed_unit_column_masks_reject_noncanonical_shapes() {
-    assert!(Mat::<Goldilocks>::compact_signed_unit_from_column_masks(65, 1, &[0], &[0]).is_err());
-    assert!(Mat::<Goldilocks>::compact_signed_unit_from_column_masks(4, 2, &[0], &[0, 0]).is_err());
-    assert!(Mat::<Goldilocks>::compact_signed_unit_from_column_masks(4, 1, &[1 << 4], &[0]).is_err());
-    assert!(Mat::<Goldilocks>::compact_signed_unit_from_column_masks(4, 1, &[1 << 2], &[1 << 2]).is_err());
+    assert!(Mat::<Fq>::compact_signed_unit_from_column_masks(65, 1, &[0], &[0]).is_err());
+    assert!(Mat::<Fq>::compact_signed_unit_from_column_masks(4, 2, &[0], &[0, 0]).is_err());
+    assert!(Mat::<Fq>::compact_signed_unit_from_column_masks(4, 1, &[1 << 4], &[0]).is_err());
+    assert!(Mat::<Fq>::compact_signed_unit_from_column_masks(4, 1, &[1 << 2], &[1 << 2]).is_err());
 
-    let high_row = Mat::<Goldilocks>::compact_signed_unit_from_column_masks(64, 1, &[1 << 63], &[0])
+    let high_row = Mat::<Fq>::compact_signed_unit_from_column_masks(64, 1, &[1 << 63], &[0])
         .expect("row 63 is canonical for a 64-row matrix");
-    assert_eq!(high_row[(63, 0)], Goldilocks::ONE);
+    assert_eq!(high_row[(63, 0)], Fq::ONE);
 }
 
 #[test]
 fn balanced_columns_pack_like_column_masks_and_reject_other_values() {
     let values = [1i8, 0, -1, 0, -1, 1, 1, 1];
-    let packed = Mat::<Goldilocks>::compact_signed_unit_from_column_major_prefix(3, 4, &values).unwrap();
-    let expected = Mat::<Goldilocks>::compact_signed_unit_from_column_masks(
-        3,
-        4,
-        &[0b001, 0b100, 0b011, 0],
-        &[0b100, 0b010, 0, 0],
-    )
-    .unwrap();
+    let packed = Mat::<Fq>::compact_signed_unit_from_column_major_prefix(3, 4, &values).unwrap();
+    let expected =
+        Mat::<Fq>::compact_signed_unit_from_column_masks(3, 4, &[0b001, 0b100, 0b011, 0], &[0b100, 0b010, 0, 0])
+            .unwrap();
     assert_eq!(
         packed.packed_signed_unit_column_masks(),
         expected.packed_signed_unit_column_masks()
     );
     assert_eq!(packed, expected);
-    assert!(Mat::<Goldilocks>::compact_signed_unit_from_column_major_prefix(3, 4, &[0, 2]).is_err());
-    assert!(Mat::<Goldilocks>::compact_signed_unit_from_column_major_prefix(3, 4, &[0, 0, -2]).is_err());
-    assert!(Mat::<Goldilocks>::compact_signed_unit_from_column_major_prefix(3, 4, &[0; 13]).is_err());
+    assert!(Mat::<Fq>::compact_signed_unit_from_column_major_prefix(3, 4, &[0, 2]).is_err());
+    assert!(Mat::<Fq>::compact_signed_unit_from_column_major_prefix(3, 4, &[0, 0, -2]).is_err());
+    assert!(Mat::<Fq>::compact_signed_unit_from_column_major_prefix(3, 4, &[0; 13]).is_err());
 }

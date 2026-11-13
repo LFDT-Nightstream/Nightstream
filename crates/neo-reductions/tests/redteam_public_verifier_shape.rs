@@ -121,14 +121,14 @@ fn build_me_from_z(
 
 #[test]
 fn rlc_public_matches_rejects_common_short_row_point() {
-    let params = NeoParams::goldilocks_paper_b2();
+    let params = NeoParams::nightstream_p64_k16();
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let structure = build_structure(D, D);
     let m_in = D;
     let r = vec![k(5); structure.n().next_power_of_two().max(2).trailing_zeros() as usize];
 
-    let z0 = make_z(91_000, structure.m());
-    let z1 = make_z(92_000, structure.m());
+    let z0 = make_z(1_000, structure.m());
+    let z1 = make_z(2_000, structure.m());
     let mut inputs = vec![
         build_me_from_z(
             &params,
@@ -187,7 +187,7 @@ fn rlc_public_matches_rejects_common_short_row_point() {
 
 #[test]
 fn verify_dec_public_rejects_common_short_row_point() {
-    let params = NeoParams::goldilocks_paper_b2();
+    let params = NeoParams::nightstream_p64_k16();
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let structure = build_structure(D, D);
     let m_in = D;
@@ -256,7 +256,7 @@ fn verify_dec_public_rejects_common_short_row_point() {
 
 #[test]
 fn verify_dec_public_rejects_child_count_different_from_k_rho() {
-    let params = NeoParams::goldilocks_paper_b2();
+    let params = NeoParams::nightstream_p64_k16();
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let structure = build_structure(D, D);
     let r = vec![k(17); structure.n().next_power_of_two().max(2).trailing_zeros() as usize];
@@ -265,7 +265,7 @@ fn verify_dec_public_rejects_child_count_different_from_k_rho() {
     let child = build_me_from_z(&params, &structure, &z, &r, ell_d, D, make_commitment(120_001), 120_002);
     let parent = child.clone();
 
-    assert_eq!(params.k_rho(), 14);
+    assert_eq!(params.k_rho(), 16);
     assert!(
         verify_dec_public(
             &structure,
@@ -282,7 +282,7 @@ fn verify_dec_public_rejects_child_count_different_from_k_rho() {
 
 #[test]
 fn verify_dec_public_rejects_out_of_range_child_x_at_correct_arity() {
-    let params = NeoParams::goldilocks_paper_b2();
+    let params = NeoParams::nightstream_p64_k16();
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let structure = build_structure(D, D);
     let r = vec![k(19); structure.n().next_power_of_two().max(2).trailing_zeros() as usize];
@@ -356,7 +356,7 @@ fn verify_dec_public_rejects_out_of_range_child_x_at_correct_arity() {
 #[cfg(target_pointer_width = "64")]
 #[test]
 fn rlc_public_rejects_ell_d_that_cannot_describe_a_usize_domain() {
-    let params = NeoParams::goldilocks_paper_b2();
+    let params = NeoParams::nightstream_p64_k16();
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let d_pad = 1usize << ell_d;
     let structure =
@@ -394,9 +394,9 @@ fn rlc_public_rejects_ell_d_that_cannot_describe_a_usize_domain() {
 
 #[test]
 fn rlc_public_rejects_instance_count_above_parameter_guard() {
-    const INPUT_COUNT: usize = 76;
+    const INPUT_COUNT: usize = 512;
 
-    let params = NeoParams::goldilocks_paper_b2();
+    let params = NeoParams::nightstream_p64_k16();
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let structure = build_structure(D, D);
     let r = vec![k(23); structure.n().next_power_of_two().max(2).trailing_zeros() as usize];
@@ -406,8 +406,8 @@ fn rlc_public_rejects_instance_count_above_parameter_guard() {
 
     let mut transcript = Poseidon2Transcript::new_v1_2();
     assert!(
-        sample_rot_rhos_n_typed(&mut transcript, &params, &RotRing::goldilocks(), INPUT_COUNT,).is_err(),
-        "control: the parameter guard must reject sampling 76 challenges"
+        sample_rot_rhos_n_typed(&mut transcript, &params, &RotRing::profile(), INPUT_COUNT,).is_err(),
+        "control: the parameter guard must reject sampling 512 challenges"
     );
     let rho_mats = vec![Mat::identity(D); INPUT_COUNT];
     let rhos = typed_rhos(&params, &rho_mats);
@@ -421,7 +421,7 @@ fn rlc_public_rejects_instance_count_above_parameter_guard() {
 
 #[test]
 fn rlc_public_rejects_inputs_from_different_fold_transcripts() {
-    let params = NeoParams::goldilocks_paper_b2();
+    let params = NeoParams::nightstream_p64_k16();
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let structure = build_structure(D, D);
     let r = vec![k(29); structure.n().next_power_of_two().max(2).trailing_zeros() as usize];
@@ -443,7 +443,7 @@ fn rlc_public_rejects_inputs_from_different_fold_transcripts() {
 
 #[test]
 fn verify_dec_public_rejects_children_from_different_fold_transcript() {
-    let params = NeoParams::goldilocks_paper_b2();
+    let params = NeoParams::nightstream_p64_k16();
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let structure = build_structure(D, D);
     let r = vec![k(31); structure.n().next_power_of_two().max(2).trailing_zeros() as usize];
@@ -468,7 +468,7 @@ fn verify_dec_public_rejects_children_from_different_fold_transcript() {
 
 #[test]
 fn reduction_policy_rejects_parameter_modulus_different_from_field() {
-    let actual_field_params = NeoParams::goldilocks_paper_b2()
+    let actual_field_params = NeoParams::nightstream_p64_k16()
         .with_lambda(100)
         .expect("lambda");
     let p = actual_field_params;
@@ -489,19 +489,19 @@ fn reduction_policy_rejects_parameter_modulus_different_from_field() {
         CcsStructure::new(vec![Mat::identity(1)], SparsePoly::new(1, Vec::new())).expect("minimal CCS structure");
 
     let actual = neo_reductions::engines::pi_ccs_joint::build_joint_dims(&actual_field_params, &structure, 1, 0);
-    assert!(actual.is_ok(), "control: the real Goldilocks profile must pass");
+    assert!(actual.is_ok(), "control: the real profile must pass");
     let claimed =
         neo_reductions::engines::pi_ccs_joint::build_joint_dims(&claimed_larger_field_params, &structure, 1, 0);
 
     assert!(
         claimed.is_err(),
-        "Goldilocks reduction accepted a policy justified only by params.q=u64::MAX"
+        "the reduction accepted a policy justified only by params.q=u64::MAX"
     );
 }
 
 #[test]
 fn rlc_with_commit_rejects_mixed_public_widths_without_panicking() {
-    let params = NeoParams::goldilocks_paper_b2();
+    let params = NeoParams::nightstream_p64_k16();
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let structure = build_structure(D, D);
     let r = vec![K::ZERO; structure.n().next_power_of_two().max(2).trailing_zeros() as usize];

@@ -1,6 +1,6 @@
 use neo_ccs::{CcsMatrix, CcsStructure, SparsePoly};
+use neo_math::Fq as F;
 use p3_field::PrimeCharacteristicRing;
-use p3_goldilocks::Goldilocks as F;
 
 #[test]
 fn verifier_artifact_header_is_shape_only_and_cannot_enter_sparse_constructor() {

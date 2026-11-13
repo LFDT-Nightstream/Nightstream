@@ -1,6 +1,6 @@
-//! Typed parameter sets for Neo (Nguyen–Setty 2025).
+//! The Nightstream parameter set and its checks.
 //!
-//! Exposes field/cyclotomic/commitment/folding parameters and enforces:
+//! Enforces:
 //!  1) (k+1)·T·(b−1) < B where B=b^k  [Π_RLC bound]
 //!  2) extension policy v1 for field-space soundness factors; and
 //!  3) the production padded-row Π_CCS statistical census, which combines
@@ -10,16 +10,13 @@
 //! Symbols match the paper: q, η, d=φ(η), κ (kappa), m, b, k, B, T, s.
 //!
 //! References: SuperNeo v1.2 Section 4 (Ajtai, strong set), Section 7.4 and
-//! Definition 22 (Π_RLC bound), Section 8.2 (Goldilocks preset).
+//! Definition 22 (Π_RLC bound), and `decisions/field-2p64-59-ring-x64.md`.
 
 use core::fmt;
 use num_bigint::BigUint;
 use thiserror::Error;
 
-pub mod poseidon2_goldilocks;
-
-const R1CS_MATRIX_COUNT: usize = 3;
-const R1CS_POLY_DEGREE: u32 = 2;
+pub mod poseidon2;
 
 /// A validated parameter set. The fields are private, so no code can change
 /// `b`, `k_rho` or `B` after `new` checks them.
@@ -39,44 +36,35 @@ pub struct NeoParams {
     lambda: u32,
 }
 
-/// Single source of truth for the SuperNeo v1.2 Section 8.2 Goldilocks profile.
-pub mod goldilocks_paper_b2 {
-    pub const Q: u64 = 0xFFFF_FFFF_0000_0001;
-    pub const ETA: usize = 81;
-    pub const D: usize = 54;
-    pub const PHI_MID_DEGREE: usize = 27;
+/// The only profile, "Nightstream P64, k_rho = 16": `q = 2^64 − 59` and the
+/// ring `F_q[X]/(X^64 + 1)` (`decisions/field-2p64-59-ring-x64.md`).
+pub mod nightstream_p64_k16 {
+    pub const NAME: &str = "Nightstream P64, k_rho = 16";
+    pub const Q: u64 = 0u64.wrapping_sub(59);
+    pub const ETA: usize = 128;
+    pub const D: usize = 64;
     pub const KAPPA: u32 = 18;
     pub const M: u64 = 1u64 << 30;
     pub const B_BASE: u32 = 2;
-    pub const K_RHO: u32 = 14;
+    pub const K_RHO: u32 = 16;
     pub const B: u64 = 1u64 << K_RHO;
-    pub const T: u32 = 216;
+    /// SuperNeo v1.2 Theorem 5 for a power-of-two cyclotomic ring: `T = 2·φ(η)`.
+    pub const T: u32 = 128;
     pub const EXTENSION_DEGREE: u32 = 2;
     pub const LAMBDA: u32 = 125;
-    pub const B_INV_FLOOR: u64 = 2_500_000_000;
-    pub const CHALLENGE_SET_CARDINALITY: u128 = 55_511_151_231_257_827_021_181_583_404_541_015_625;
+    /// SuperNeo v1.2 Theorem 4: `floor(q^(1/2)/√2)`. A nonzero ring element
+    /// with infinity norm at most this value is invertible.
+    pub const B_INV_FLOOR: u64 = 3_037_000_499;
+    /// `floor(log2(5^64))`. The challenge set has `5^64` elements, more than a `u128` holds.
+    pub const CHALLENGE_SET_LOG2_FLOOR: u32 = 148;
+    /// The coefficients of `X^64 + 1` below degree `D`.
     pub static PHI_COEFFS: [i32; D] = {
         let mut coeffs = [0i32; D];
         coeffs[0] = 1;
-        coeffs[PHI_MID_DEGREE] = 1;
         coeffs
     };
 
     pub static CHALLENGE_ALPHABET: [i8; 5] = [-2, -1, 0, 1, 2];
-}
-
-pub mod nightstream_goldilocks_k16 {
-    pub const Q: u64 = super::goldilocks_paper_b2::Q;
-    pub const ETA: usize = super::goldilocks_paper_b2::ETA;
-    pub const D: usize = super::goldilocks_paper_b2::D;
-    pub const KAPPA: u32 = 22;
-    pub const M: u64 = super::goldilocks_paper_b2::M;
-    pub const B_BASE: u32 = 2;
-    pub const K_RHO: u32 = 16;
-    pub const B: u64 = 1u64 << K_RHO;
-    pub const T: u32 = super::goldilocks_paper_b2::T;
-    pub const EXTENSION_DEGREE: u32 = super::goldilocks_paper_b2::EXTENSION_DEGREE;
-    pub const LAMBDA: u32 = super::goldilocks_paper_b2::LAMBDA;
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -86,7 +74,7 @@ pub struct ExtensionSummary {
     pub slack_bits: i32,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PaddedRowSecuritySummary {
     pub s_supported: u32,
     pub cube_variables: u32,
@@ -95,7 +83,7 @@ pub struct PaddedRowSecuritySummary {
     pub mixing_factor: u128,
     pub field_factor: u128,
     pub fork_factor: u128,
-    pub challenge_set_cardinality: u128,
+    pub challenge_set_cardinality: BigUint,
     pub security_bits: u32,
     pub slack_bits: i32,
 }
@@ -242,193 +230,20 @@ impl NeoParams {
         Ok(Self { lambda, ..self })
     }
 
-    pub fn goldilocks_paper_b2() -> Self {
+    pub fn nightstream_p64_k16() -> Self {
         Self::new(
-            goldilocks_paper_b2::Q,
-            goldilocks_paper_b2::ETA as u32,
-            goldilocks_paper_b2::D as u32,
-            goldilocks_paper_b2::KAPPA,
-            goldilocks_paper_b2::M,
-            goldilocks_paper_b2::B_BASE,
-            goldilocks_paper_b2::K_RHO,
-            goldilocks_paper_b2::T,
-            goldilocks_paper_b2::EXTENSION_DEGREE,
-            goldilocks_paper_b2::LAMBDA,
+            nightstream_p64_k16::Q,
+            nightstream_p64_k16::ETA as u32,
+            nightstream_p64_k16::D as u32,
+            nightstream_p64_k16::KAPPA,
+            nightstream_p64_k16::M,
+            nightstream_p64_k16::B_BASE,
+            nightstream_p64_k16::K_RHO,
+            nightstream_p64_k16::T,
+            nightstream_p64_k16::EXTENSION_DEGREE,
+            nightstream_p64_k16::LAMBDA,
         )
-        .unwrap()
-    }
-
-    pub fn nightstream_goldilocks_k16() -> Self {
-        Self::new(
-            nightstream_goldilocks_k16::Q,
-            nightstream_goldilocks_k16::ETA as u32,
-            nightstream_goldilocks_k16::D as u32,
-            nightstream_goldilocks_k16::KAPPA,
-            nightstream_goldilocks_k16::M,
-            nightstream_goldilocks_k16::B_BASE,
-            nightstream_goldilocks_k16::K_RHO,
-            nightstream_goldilocks_k16::T,
-            nightstream_goldilocks_k16::EXTENSION_DEGREE,
-            nightstream_goldilocks_k16::LAMBDA,
-        )
-        .expect("Nightstream Goldilocks k_rho=16 parameters")
-    }
-
-    pub fn is_nightstream_goldilocks_k16(&self) -> bool {
-        self.has_nightstream_goldilocks_k16_core() && self.lambda == nightstream_goldilocks_k16::LAMBDA
-    }
-
-    pub fn has_nightstream_goldilocks_k16_core(&self) -> bool {
-        self.q == nightstream_goldilocks_k16::Q
-            && self.eta == nightstream_goldilocks_k16::ETA as u32
-            && self.d == nightstream_goldilocks_k16::D as u32
-            && self.kappa == nightstream_goldilocks_k16::KAPPA
-            && self.m == nightstream_goldilocks_k16::M
-            && self.b == nightstream_goldilocks_k16::B_BASE
-            && self.k_rho == nightstream_goldilocks_k16::K_RHO
-            && self.B == nightstream_goldilocks_k16::B
-            && self.T == nightstream_goldilocks_k16::T
-            && self.s == nightstream_goldilocks_k16::EXTENSION_DEGREE
-    }
-
-    pub fn is_goldilocks_paper_b2(&self) -> bool {
-        self.has_goldilocks_paper_b2_core() && self.lambda == goldilocks_paper_b2::LAMBDA
-    }
-
-    pub fn has_goldilocks_paper_b2_core(&self) -> bool {
-        self.q == goldilocks_paper_b2::Q
-            && self.eta == goldilocks_paper_b2::ETA as u32
-            && self.d == goldilocks_paper_b2::D as u32
-            && self.kappa == goldilocks_paper_b2::KAPPA
-            && self.m == goldilocks_paper_b2::M
-            && self.b == goldilocks_paper_b2::B_BASE
-            && self.k_rho == goldilocks_paper_b2::K_RHO
-            && self.B == goldilocks_paper_b2::B
-            && self.T == goldilocks_paper_b2::T
-            && self.s == goldilocks_paper_b2::EXTENSION_DEGREE
-    }
-
-    pub fn goldilocks_auto_rectangular_r1cs_ccs(row_count: usize, column_count: usize) -> Result<Self, ParamsError> {
-        Self::goldilocks_auto_rectangular_ccs(row_count, column_count, R1CS_MATRIX_COUNT, R1CS_POLY_DEGREE)
-    }
-
-    pub fn goldilocks_auto_rectangular_ccs(
-        row_count: usize,
-        column_count: usize,
-        matrix_count: usize,
-        poly_degree: u32,
-    ) -> Result<Self, ParamsError> {
-        let mut params = Self::goldilocks_paper_b2();
-        let summary = params.padded_row_security_summary_for_shape(
-            row_count,
-            column_count,
-            matrix_count,
-            poly_degree,
-            goldilocks_paper_b2::CHALLENGE_ALPHABET.len() as u32,
-        )?;
-        params.lambda = params.lambda.min(summary.security_bits);
-        if params.lambda == 0 {
-            return Err(ParamsError::InsufficientStatisticalSecurity {
-                required: 1,
-                available: 0,
-            });
-        }
-        Ok(params)
-    }
-
-    pub fn goldilocks_auto_r1cs_ccs_with(
-        shape_size: usize,
-        min_lambda: u32,
-        safety_margin: u32,
-    ) -> Result<Self, ParamsError> {
-        Self::goldilocks_auto_rectangular_r1cs_ccs_with(shape_size, shape_size, min_lambda, safety_margin)
-    }
-
-    pub fn goldilocks_auto_ccs_with(
-        shape_size: usize,
-        matrix_count: usize,
-        poly_degree: u32,
-        min_lambda: u32,
-        safety_margin: u32,
-    ) -> Result<Self, ParamsError> {
-        Self::goldilocks_auto_rectangular_ccs_with(
-            shape_size,
-            shape_size,
-            matrix_count,
-            poly_degree,
-            min_lambda,
-            safety_margin,
-        )
-    }
-
-    pub fn goldilocks_auto_rectangular_r1cs_ccs_with(
-        row_count: usize,
-        column_count: usize,
-        min_lambda: u32,
-        safety_margin: u32,
-    ) -> Result<Self, ParamsError> {
-        Self::goldilocks_auto_rectangular_ccs_with(
-            row_count,
-            column_count,
-            R1CS_MATRIX_COUNT,
-            R1CS_POLY_DEGREE,
-            min_lambda,
-            safety_margin,
-        )
-    }
-
-    /// The selected `lambda` charges the exact sum of:
-    ///
-    /// - the one joint SumCheck degree budget;
-    /// - the paper's total gamma and alpha mixing degree; and
-    /// - SuperNeo v1.2 Appendix B.3's conservative coordinate-fork loss over `5^54`.
-    pub fn goldilocks_auto_rectangular_ccs_with(
-        row_count: usize,
-        column_count: usize,
-        matrix_count: usize,
-        poly_degree: u32,
-        min_lambda: u32,
-        safety_margin: u32,
-    ) -> Result<Self, ParamsError> {
-        if matrix_count == 0 {
-            return Err(ParamsError::Invalid("matrix_count must be > 0"));
-        }
-        if min_lambda == 0 {
-            return Err(ParamsError::Invalid("min_lambda must be > 0"));
-        }
-
-        let mut p = Self::goldilocks_paper_b2();
-
-        let mut lam = p.lambda.max(min_lambda);
-        while lam >= min_lambda {
-            p.lambda = lam;
-            let summary = p.padded_row_security_summary_for_shape(
-                row_count,
-                column_count,
-                matrix_count,
-                poly_degree,
-                goldilocks_paper_b2::CHALLENGE_ALPHABET.len() as u32,
-            )?;
-            if summary.slack_bits >= 0 && summary.slack_bits as u32 >= safety_margin {
-                return Ok(p);
-            }
-            lam = lam.saturating_sub(1);
-        }
-
-        let required = min_lambda.saturating_add(safety_margin);
-        let mut probe = p;
-        probe.lambda = min_lambda;
-        let summary = probe.padded_row_security_summary_for_shape(
-            row_count,
-            column_count,
-            matrix_count,
-            poly_degree,
-            goldilocks_paper_b2::CHALLENGE_ALPHABET.len() as u32,
-        )?;
-        Err(ParamsError::InsufficientStatisticalSecurity {
-            required,
-            available: summary.security_bits,
-        })
+        .expect("Nightstream P64 k_rho=16 parameters")
     }
 
     #[inline]
@@ -547,16 +362,15 @@ impl NeoParams {
             .checked_add(self.k_rho as u128)
             .and_then(|value| value.checked_add(1))
             .ok_or(ParamsError::ArithmeticOverflow("coordinate-fork numerator"))?;
-        let challenge_set_cardinality =
-            pow_u128_checked(challenge_alphabet_size as u128, self.d, "challenge-set cardinality")?;
-        if challenge_set_cardinality == 0 {
+        if challenge_alphabet_size == 0 {
             return Err(ParamsError::Invalid("challenge set must be nonempty"));
         }
 
         let field_size = BigUint::from(self.q).pow(self.s);
-        let challenge_size = BigUint::from(challenge_set_cardinality);
-        let total_numerator = BigUint::from(field_factor) * &challenge_size + BigUint::from(fork_factor) * &field_size;
-        let total_denominator = &field_size * &challenge_size;
+        let challenge_set_cardinality = BigUint::from(challenge_alphabet_size).pow(self.d);
+        let total_numerator =
+            BigUint::from(field_factor) * &challenge_set_cardinality + BigUint::from(fork_factor) * &field_size;
+        let total_denominator = &field_size * &challenge_set_cardinality;
         let security_bits = floor_log2_ratio(&total_denominator, &total_numerator);
         let slack_bits = signed_difference(security_bits, self.lambda);
 
@@ -729,25 +543,6 @@ fn padded_cube_variables(size: usize, zero_error: &'static str) -> Result<u32, P
         .checked_next_power_of_two()
         .ok_or(ParamsError::ArithmeticOverflow("padded rectangular dimension"))?;
     Ok(padded.trailing_zeros())
-}
-
-fn pow_u128_checked(base: u128, mut exp: u32, label: &'static str) -> Result<u128, ParamsError> {
-    let mut result = 1u128;
-    let mut power = base;
-    while exp > 0 {
-        if exp & 1 == 1 {
-            result = result
-                .checked_mul(power)
-                .ok_or(ParamsError::ArithmeticOverflow(label))?;
-        }
-        exp >>= 1;
-        if exp > 0 {
-            power = power
-                .checked_mul(power)
-                .ok_or(ParamsError::ArithmeticOverflow(label))?;
-        }
-    }
-    Ok(result)
 }
 
 fn floor_log2_ratio(denominator: &BigUint, numerator: &BigUint) -> u32 {

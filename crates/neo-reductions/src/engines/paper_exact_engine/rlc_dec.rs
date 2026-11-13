@@ -39,7 +39,6 @@ where
         let mut next = [Fq::ZERO; D];
         next[0] = -last;
         next[1..].copy_from_slice(&column[..D - 1]);
-        next[27] -= last;
         column = next;
     }
     coefficients

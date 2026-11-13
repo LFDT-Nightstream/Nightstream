@@ -16,7 +16,7 @@ use serde::Deserialize;
 
 use super::{norm_coefficients, prefix, Assignment, EqualityWeights};
 
-const SOURCES: usize = 1 + neo_params::nightstream_goldilocks_k16::K_RHO as usize;
+const SOURCES: usize = 1 + neo_params::nightstream_p64_k16::K_RHO as usize;
 const ROUNDS: usize = 28;
 const BLOCKS: usize = PRODUCTION_MESSAGE_COLUMNS as usize;
 
@@ -88,7 +88,7 @@ fn source_range(mut reader: impl BufRead, first: usize, end: usize) -> Result<Ve
                 return Err("source indices must be unique and increasing".into());
             }
             next_source = source + 1;
-            if (positive | negative) >> D != 0 || (positive & negative) != 0 || (positive | negative) == 0 {
+            if (positive & negative) != 0 || (positive | negative) == 0 {
                 return Err("invalid signed-unit source masks".into());
             }
             if first <= block && block < end {
@@ -289,7 +289,7 @@ fn source_capture_rejects_malformed_records_even_outside_the_range() {
         "[0,[]]\n".to_owned(),
         "[0,[[0,0,0]]]\n".to_owned(),
         "[0,[[0,1,1]]]\n".to_owned(),
-        format!("[0,[[0,{},0]]]\n", 1u64 << D),
+        format!("[0,[[0,{},0]]]\n", 1u128 << D),
         format!("[0,[[{SOURCES},1,0]]]\n"),
         "[0,[[0,1,0],[0,2,0]]]\n".to_owned(),
         "[0,[[1,1,0],[0,2,0]]]\n".to_owned(),

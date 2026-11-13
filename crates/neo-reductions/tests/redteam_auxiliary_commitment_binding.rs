@@ -44,7 +44,7 @@ fn claim(
 #[test]
 fn rlc_and_dec_reject_auxiliary_lane_commitments() {
     let structure = CcsStructure::new(vec![Mat::identity(D)], SparsePoly::new(1, Vec::new())).unwrap();
-    let params = NeoParams::nightstream_goldilocks_k16();
+    let params = NeoParams::nightstream_p64_k16();
     let kappa = params.kappa() as usize;
     let rho = RotRho::new_checked(&params, Mat::identity(D)).unwrap();
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;

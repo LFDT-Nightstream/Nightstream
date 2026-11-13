@@ -17,7 +17,7 @@ use crate::sumcheck::RoundOracle;
 const ALPHA_TAG: u64 = 1;
 const GAMMA_TAG: u64 = 2;
 const ROUND_CHALLENGE_TAG: u64 = 3;
-const RATE: usize = neo_ccs::crypto::poseidon2_goldilocks::RATE;
+const RATE: usize = neo_ccs::crypto::poseidon2::RATE;
 
 fn k_fields(output: &mut Vec<F>, value: K) {
     output.extend_from_slice(&value.as_coeffs());
@@ -55,7 +55,7 @@ fn read_coin(transcript: &mut Poseidon2Transcript, trace: &mut ProtocolTrace, la
 }
 
 fn check_commitment(commitment: &Cmt) -> Result<(), PiCcsError> {
-    let kappa = neo_params::nightstream_goldilocks_k16::KAPPA as usize;
+    let kappa = neo_params::nightstream_p64_k16::KAPPA as usize;
     if commitment.d() != D || commitment.kappa() != kappa || commitment.data().len() != D * kappa {
         return Err(PiCcsError::InvalidInput(
             "PaperExact v1_2 commitment does not have the fixed Ajtai shape".into(),

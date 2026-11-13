@@ -43,7 +43,7 @@ fn dec_mix(commitments: &[Commitment], base: u32) -> Commitment {
 
 #[test]
 fn rlc_rejects_mixed_commitment_widths() {
-    let params = NeoParams::nightstream_goldilocks_k16();
+    let params = NeoParams::nightstream_p64_k16();
     let structure = CcsStructure::new(vec![Mat::identity(D)], SparsePoly::new(1, Vec::new())).unwrap();
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let inputs = vec![zero_claim(&params); 2];
@@ -97,7 +97,7 @@ fn rlc_rejects_mixed_commitment_widths() {
 
 #[test]
 fn dec_verifier_rejects_mixed_commitment_widths() {
-    let params = NeoParams::nightstream_goldilocks_k16();
+    let params = NeoParams::nightstream_p64_k16();
     let structure = CcsStructure::new(vec![Mat::identity(D)], SparsePoly::new(1, Vec::new())).unwrap();
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let parent = zero_claim(&params);
@@ -120,7 +120,7 @@ fn dec_verifier_rejects_mixed_commitment_widths() {
 
 #[test]
 fn dec_constructors_reject_malformed_child_commitments() {
-    let params = NeoParams::nightstream_goldilocks_k16();
+    let params = NeoParams::nightstream_p64_k16();
     let structure = CcsStructure::new(vec![Mat::identity(D)], SparsePoly::new(1, Vec::new())).unwrap();
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let parent = zero_claim(&params);

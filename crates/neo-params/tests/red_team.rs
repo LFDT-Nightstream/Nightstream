@@ -1,51 +1,52 @@
 #![allow(clippy::uninlined_format_args)]
-use neo_params::{goldilocks_paper_b2, NeoParams, ParamsError};
+use neo_params::{nightstream_p64_k16 as profile, NeoParams, ParamsError};
+use num_bigint::BigUint;
 
 #[test]
 fn params_reject_lambda_above_strong_set_entropy() {
-    let challenge_set_size = 5u128.pow(goldilocks_paper_b2::D as u32);
-    let max_whole_bits = challenge_set_size.ilog2();
+    let challenge_set_size = BigUint::from(5u8).pow(profile::D as u32);
+    let max_whole_bits = challenge_set_size.bits() as u32 - 1;
     let claimed_lambda = max_whole_bits + 1;
 
     let params = NeoParams::new(
-        goldilocks_paper_b2::Q,
-        goldilocks_paper_b2::ETA as u32,
-        goldilocks_paper_b2::D as u32,
-        goldilocks_paper_b2::KAPPA,
-        goldilocks_paper_b2::M,
-        goldilocks_paper_b2::B_BASE,
-        goldilocks_paper_b2::K_RHO,
-        goldilocks_paper_b2::T,
-        goldilocks_paper_b2::EXTENSION_DEGREE,
+        profile::Q,
+        profile::ETA as u32,
+        profile::D as u32,
+        profile::KAPPA,
+        profile::M,
+        profile::B_BASE,
+        profile::K_RHO,
+        profile::T,
+        profile::EXTENSION_DEGREE,
         claimed_lambda,
     )
     .expect("raw field parameters");
     let statistical_policy =
-        params.padded_row_security_check_for_shape(1, 1, 1, 0, goldilocks_paper_b2::CHALLENGE_ALPHABET.len() as u32);
+        params.padded_row_security_check_for_shape(1, 1, 1, 0, profile::CHALLENGE_ALPHABET.len() as u32);
 
     assert!(
         matches!(
             statistical_policy,
             Err(ParamsError::InsufficientStatisticalSecurity { .. })
         ),
-        "soundness-policy failure: accepted lambda={claimed_lambda} above floor(log2(5^54))={max_whole_bits}: {statistical_policy:?}"
+        "soundness-policy failure: accepted lambda={claimed_lambda} above floor(log2(5^64))={max_whole_bits}: {statistical_policy:?}"
     );
 }
 
 #[test]
 fn guard_rejects_tight_or_overflowing_profiles() {
     let (b, k, d, eta, kappa, m, s, lambda) = (
-        goldilocks_paper_b2::B_BASE,
-        goldilocks_paper_b2::K_RHO,
-        goldilocks_paper_b2::D as u32,
-        goldilocks_paper_b2::ETA as u32,
-        goldilocks_paper_b2::KAPPA,
-        goldilocks_paper_b2::M,
-        goldilocks_paper_b2::EXTENSION_DEGREE,
-        goldilocks_paper_b2::LAMBDA,
+        profile::B_BASE,
+        profile::K_RHO,
+        profile::D as u32,
+        profile::ETA as u32,
+        profile::KAPPA,
+        profile::M,
+        profile::EXTENSION_DEGREE,
+        profile::LAMBDA,
     );
-    let q = goldilocks_paper_b2::Q;
-    let t = (goldilocks_paper_b2::B / (goldilocks_paper_b2::K_RHO as u64 + 1) + 1) as u32;
+    let q = profile::Q;
+    let t = (profile::B / (profile::K_RHO as u64 + 1) + 1) as u32;
     let err = NeoParams::new(q, eta, d, kappa, m, b, k, t, s, lambda).unwrap_err();
     assert!(matches!(err, ParamsError::GuardInequality));
     println!("✅ RED TEAM: Guard correctly rejects tight inequality");
@@ -68,7 +69,7 @@ fn params_reject_when_combined_bound_reaches_half_the_field() {
 
 #[test]
 fn extension_policy_rejects_when_s_min_gt_2() {
-    let p = NeoParams::goldilocks_paper_b2();
+    let p = NeoParams::nightstream_p64_k16();
     let mut p2 = p;
     p2 = p2.with_lambda(320).unwrap();
     let (ell, d_sc) = (64u32, 16u32);
@@ -84,7 +85,7 @@ fn extension_policy_rejects_when_s_min_gt_2() {
 
 #[test]
 fn s_min_and_slack_bits_behave() {
-    let p = NeoParams::goldilocks_paper_b2();
+    let p = NeoParams::nightstream_p64_k16();
 
     let s_min1 = p.s_min(1, 1);
     let s_min2 = p.s_min(8, 8);
@@ -106,16 +107,16 @@ fn s_min_and_slack_bits_behave() {
 #[test]
 fn parameter_boundary_conditions() {
     let base_params = (
-        goldilocks_paper_b2::Q,
-        goldilocks_paper_b2::ETA as u32,
-        goldilocks_paper_b2::D as u32,
-        goldilocks_paper_b2::KAPPA,
-        goldilocks_paper_b2::M,
-        goldilocks_paper_b2::B_BASE,
-        goldilocks_paper_b2::K_RHO,
-        goldilocks_paper_b2::T,
-        goldilocks_paper_b2::EXTENSION_DEGREE,
-        goldilocks_paper_b2::LAMBDA,
+        profile::Q,
+        profile::ETA as u32,
+        profile::D as u32,
+        profile::KAPPA,
+        profile::M,
+        profile::B_BASE,
+        profile::K_RHO,
+        profile::T,
+        profile::EXTENSION_DEGREE,
+        profile::LAMBDA,
     );
     let (q, eta, d, kappa, m, b, k, t, s, lambda) = base_params;
 
@@ -164,8 +165,8 @@ fn parameter_boundary_conditions() {
 }
 
 #[test]
-fn goldilocks_preset_security_invariants() {
-    let p = NeoParams::goldilocks_paper_b2();
+fn profile_security_invariants() {
+    let p = NeoParams::nightstream_p64_k16();
 
     let lhs = (p.k_rho() as u128 + 1) * (p.T() as u128) * ((p.b() as u128) - 1);
     let rhs = p.B() as u128;
@@ -174,12 +175,11 @@ fn goldilocks_preset_security_invariants() {
     let margin = rhs - lhs;
     let margin_ratio = (margin as f64) / (rhs as f64);
 
-    assert!(p.is_goldilocks_paper_b2());
-    assert_eq!(p.q(), goldilocks_paper_b2::Q);
-    assert_eq!(p.s(), goldilocks_paper_b2::EXTENSION_DEGREE);
-    assert_eq!(p.lambda(), goldilocks_paper_b2::LAMBDA);
+    assert_eq!(p.q(), profile::Q);
+    assert_eq!(p.s(), profile::EXTENSION_DEGREE);
+    assert_eq!(p.lambda(), profile::LAMBDA);
 
-    println!("✅ RED TEAM: Goldilocks preset satisfies all security invariants");
+    println!("✅ RED TEAM: The profile satisfies all security invariants");
     println!(
         "   Guard margin: {:.1}% ({} out of {})",
         margin_ratio * 100.0,
@@ -192,7 +192,7 @@ fn goldilocks_preset_security_invariants() {
 fn parameter_overflow_boundary_test() {
     use neo_params::{NeoParams, ParamsError};
 
-    let high_lambda_params = NeoParams::goldilocks_paper_b2()
+    let high_lambda_params = NeoParams::nightstream_p64_k16()
         .with_lambda(128)
         .expect("lambda");
 
@@ -206,7 +206,7 @@ fn parameter_overflow_boundary_test() {
         Err(e) => panic!("Unexpected error type: {e:?}"),
     }
 
-    let boundary_params = NeoParams::goldilocks_paper_b2()
+    let boundary_params = NeoParams::nightstream_p64_k16()
         .with_lambda(127)
         .expect("lambda");
 

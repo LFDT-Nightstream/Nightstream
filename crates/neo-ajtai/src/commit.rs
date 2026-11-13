@@ -1,16 +1,13 @@
 use crate::error::{AjtaiError, AjtaiResult};
 use crate::types::{Commitment, PP};
 use neo_ccs::Mat;
+use neo_math::Fq;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
-use p3_goldilocks::Goldilocks as Fq;
 use rand::{CryptoRng, RngCore};
 #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
 use rayon::prelude::*;
 
-use neo_math::ring::{cf, cf_inv as cf_unmap, Rq as RqEl, D, ETA};
-
-const _: () = assert!(ETA == 81, "rot_step is specialized for η=81 (D=54)");
-const _: () = assert!(D == 54, "D must be 54 when η=81");
+use neo_math::ring::{cf, cf_inv as cf_unmap, Rq as RqEl, D};
 
 #[inline]
 fn sample_uniform_fq<R: RngCore + CryptoRng>(rng: &mut R) -> Fq {
@@ -46,18 +43,11 @@ pub(crate) fn sample_uniform_rq_coeffs<R: RngCore + CryptoRng>(rng: &mut R) -> [
     })
 }
 
-#[inline(always)]
-fn rot_step_phi_81(cur: &[Fq; D], next: &mut [Fq; D]) {
-    let last = cur[D - 1];
-    next[0] = Fq::ZERO;
-    next[1..D].copy_from_slice(&cur[..(D - 1)]);
-    next[0] -= last;
-    next[27] -= last;
-}
-
+/// `next = X · cur` in `F_q[X]/(X^D + 1)`, where `X^D = −1`.
 #[inline(always)]
 pub fn rot_step(cur: &[Fq; D], next: &mut [Fq; D]) {
-    rot_step_phi_81(cur, next)
+    next[0] = -cur[D - 1];
+    next[1..D].copy_from_slice(&cur[..(D - 1)]);
 }
 
 #[inline(always)]

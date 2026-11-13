@@ -57,14 +57,16 @@ fn batched_pad_openings_match_dense_ring_products_for_every_witness_storage() {
 
 #[test]
 fn tensor_pad_matches_ring_products_across_phases_tasks_and_boolean_points() {
-    for (blocks, variables) in [(1, 6), (33, 11), (TASK_BLOCKS + 3, 18)] {
+    for (blocks, variables) in [(1, 6), (33, 12), (TASK_BLOCKS + 3, 19)] {
         let positive: Vec<_> = (0..blocks)
-            .map(|block| (block as u64 * 0x1234_5678_9abc + 1) & ((1 << D) - 1))
+            .map(|block| (block as u64 * 0x1234_5678_9abc + 1) & (u64::MAX >> (u64::BITS as usize - D)))
             .collect();
         let negative: Vec<_> = positive
             .iter()
             .enumerate()
-            .map(|(block, positive)| (!(block as u64 * 0x0fed_cba9_8765) & !positive) & ((1 << D) - 1))
+            .map(|(block, positive)| {
+                (!(block as u64 * 0x0fed_cba9_8765) & !positive) & (u64::MAX >> (u64::BITS as usize - D))
+            })
             .collect();
         let packed = Mat::compact_signed_unit_from_column_masks(D, blocks, &positive, &negative).unwrap();
         let witness = SuperneoZBlocks::from_witness_mat(&packed, blocks * D).unwrap();

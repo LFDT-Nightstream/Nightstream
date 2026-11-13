@@ -6,9 +6,9 @@ use neo_ajtai::{
     AjtaiError, Commitment,
 };
 use neo_ccs::Mat;
+use neo_math::Fq;
 use neo_math::{Rq, D};
 use p3_field::PrimeCharacteristicRing;
-use p3_goldilocks::Goldilocks;
 
 #[test]
 fn production_matrix_commitment_matches_sparse_endpoint_key_products() {
@@ -35,11 +35,11 @@ fn production_matrix_commitment_matches_sparse_endpoint_key_products() {
     for row in 0..PRODUCTION_VERIFIER_ROWS as usize {
         for (block, entries) in support {
             let key = Rq(std::array::from_fn(|lane| {
-                Goldilocks::from_u64(coefficient(&PRODUCTION_SEED, row as u32, block as u64, lane as u32))
+                Fq::from_u64(coefficient(&PRODUCTION_SEED, row as u32, block as u64, lane as u32))
             }));
-            let mut value = [Goldilocks::ZERO; D];
+            let mut value = [Fq::ZERO; D];
             for (lane, sign) in entries {
-                value[lane] = if sign > 0 { Goldilocks::ONE } else { -Goldilocks::ONE };
+                value[lane] = if sign > 0 { Fq::ONE } else { -Fq::ONE };
             }
             let product = key.mul(&Rq(value));
             for lane in 0..D {
@@ -51,7 +51,7 @@ fn production_matrix_commitment_matches_sparse_endpoint_key_products() {
     assert_eq!(actual, expected);
     assert_ne!(actual, Commitment::zeros(PRODUCTION_VERIFIER_ROWS as usize));
     assert_eq!(
-        commit_production_signed_unit_matrix(&Mat::virtual_constant(D, columns, Goldilocks::ZERO)).unwrap(),
+        commit_production_signed_unit_matrix(&Mat::virtual_constant(D, columns, Fq::ZERO)).unwrap(),
         Commitment::zeros(PRODUCTION_VERIFIER_ROWS as usize)
     );
 }
@@ -60,14 +60,14 @@ fn production_matrix_commitment_matches_sparse_endpoint_key_products() {
 fn production_matrix_commitment_rejects_shape_and_nonunit() {
     let columns = PRODUCTION_MESSAGE_COLUMNS as usize;
     for (rows, width) in [(D - 1, columns), (D, columns - 1), (D, columns + 1), (1, D * columns)] {
-        let wrong = Mat::virtual_constant(rows, width, Goldilocks::ZERO);
+        let wrong = Mat::virtual_constant(rows, width, Fq::ZERO);
         assert!(matches!(
             commit_production_signed_unit_matrix(&wrong),
             Err(AjtaiError::InvalidDimensions(_))
         ));
     }
     for value in [2i128, -2] {
-        let magnitude = Goldilocks::from_u64(value.unsigned_abs() as u64);
+        let magnitude = Fq::from_u64(value.unsigned_abs() as u64);
         let field = if value > 0 { magnitude } else { -magnitude };
         let wrong = Mat::virtual_constant(D, columns, field);
         assert_eq!(

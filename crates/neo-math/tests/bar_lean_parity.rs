@@ -1,4 +1,6 @@
 //! Compare the runtime transform with every entry emitted by active Lean.
+//! The test needs Lean vectors for `X^64 + 1` over `q = 2^64 − 59`: a header
+//! `[q, D]`, then the `D` rows of the bar matrix.
 
 use std::io::{BufRead, BufReader};
 

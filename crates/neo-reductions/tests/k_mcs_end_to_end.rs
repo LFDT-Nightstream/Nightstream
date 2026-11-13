@@ -72,7 +72,9 @@ fn build_mcs_step_packed_digits(
 
 fn run_case_with_n(n: usize, k_mcs: usize) {
     let ccs = identity_ccs(n);
-    let params = NeoParams::goldilocks_auto_rectangular_r1cs_ccs(n, n).expect("params");
+    let params = NeoParams::nightstream_p64_k16()
+        .with_lambda(115)
+        .expect("params");
     let l = setup_ajtai_committer(&params, ccs.m());
 
     let mut mcs_list = Vec::with_capacity(k_mcs);
@@ -131,7 +133,9 @@ fn pi_ccs_prove_verify_superneo_shape_k_mcs_2() {
 fn pi_ccs_prove_verify_superneo_shape_nonzero_digits_k_mcs_2() {
     let n = D;
     let ccs = identity_ccs(n);
-    let params = NeoParams::goldilocks_auto_rectangular_r1cs_ccs(n, n).expect("params");
+    let params = NeoParams::nightstream_p64_k16()
+        .with_lambda(115)
+        .expect("params");
     let l = setup_ajtai_committer(&params, ccs.m());
 
     let mut mcs_list = Vec::with_capacity(2);
@@ -156,7 +160,9 @@ fn pi_ccs_prove_verify_superneo_shape_nonzero_digits_k_mcs_2() {
 fn pi_ccs_prove_rejects_non_shared_me_r() {
     let n = D;
     let ccs = identity_ccs(n);
-    let params = NeoParams::goldilocks_auto_rectangular_r1cs_ccs(n, n).expect("params");
+    let params = NeoParams::nightstream_p64_k16()
+        .with_lambda(115)
+        .expect("params");
     let l = setup_ajtai_committer(&params, ccs.m());
     let (mcs_inst, mcs_wit) = build_mcs_step(&params, &l, ccs.m(), D, 71);
 
@@ -190,7 +196,9 @@ fn pi_ccs_prove_rejects_non_shared_me_r() {
 fn pi_ccs_verify_rejects_tampered_mcs_output_x_recomposition() {
     let n = D;
     let ccs = identity_ccs(n);
-    let params = NeoParams::goldilocks_auto_rectangular_r1cs_ccs(n, n).expect("params");
+    let params = NeoParams::nightstream_p64_k16()
+        .with_lambda(115)
+        .expect("params");
     let l = setup_ajtai_committer(&params, ccs.m());
 
     let mut mcs_list = Vec::with_capacity(2);
@@ -223,7 +231,9 @@ fn pi_ccs_verify_rejects_tampered_mcs_output_x_recomposition() {
 fn pi_ccs_verify_rejects_noncanonical_extra_x_column() {
     let n = D;
     let ccs = identity_ccs(n);
-    let params = NeoParams::goldilocks_auto_rectangular_r1cs_ccs(n, n).expect("params");
+    let params = NeoParams::nightstream_p64_k16()
+        .with_lambda(115)
+        .expect("params");
     let l = setup_ajtai_committer(&params, ccs.m());
 
     let mut mcs_list = Vec::with_capacity(1);

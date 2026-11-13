@@ -36,7 +36,6 @@ pub(super) fn accumulate_by_digit_block(out: &mut [F; D], form: &Rq, digits: &Rq
 
 #[inline]
 pub(super) fn accumulate_by_signed_unit_masks(out: &mut [F; D], form: &Rq, mut positive: u64, mut negative: u64) {
-    debug_assert_eq!((positive | negative) >> D, 0, "signed-unit mask exceeds ring dimension");
     debug_assert_eq!(positive & negative, 0, "signed-unit masks overlap");
     while positive != 0 {
         let index = positive.trailing_zeros() as usize;
@@ -85,7 +84,6 @@ pub(super) fn accumulate_pair_by_signed_unit_masks(
     mut positive: u64,
     mut negative: u64,
 ) {
-    debug_assert_eq!((positive | negative) >> D, 0, "signed-unit mask exceeds ring dimension");
     debug_assert_eq!(positive & negative, 0, "signed-unit masks overlap");
     while positive != 0 {
         let index = positive.trailing_zeros() as usize;
@@ -174,25 +172,13 @@ fn apply_monomial_in_place<const SUB: bool>(out: &mut [F; D], form: &Rq, j: usiz
         return;
     }
 
+    // X^D = −1, so the coefficients that pass degree D return with the opposite sign.
     let first_reduced = D - j;
-    let first_wrap = (D + D / 2).saturating_sub(j).min(D);
-
     for i in 0..first_reduced {
         add_or_sub::<SUB>(&mut out[i + j], form.0[i]);
     }
-
-    for i in first_reduced..first_wrap {
-        let coeff = form.0[i];
-        let reduced = i + j - D;
-        add_or_sub_opposite::<SUB>(&mut out[reduced], coeff);
-        add_or_sub_opposite::<SUB>(&mut out[reduced + D / 2], coeff);
-    }
-
-    // Since Phi_81(X) = X^54 + X^27 + 1, X^81 = 1 in this ring.
-    // The generic two-step reduction for degrees 81..106 cancels the
-    // intermediate X^(deg-54) terms, leaving a single wrapped monomial.
-    for i in first_wrap..D {
-        add_or_sub::<SUB>(&mut out[i + j - D - D / 2], form.0[i]);
+    for i in first_reduced..D {
+        add_or_sub_opposite::<SUB>(&mut out[i + j - D], form.0[i]);
     }
 }
 
@@ -214,27 +200,14 @@ fn apply_monomial_pair_in_place<const SUB: bool>(
     }
 
     let first_reduced = D - j;
-    let first_wrap = (D + D / 2).saturating_sub(j).min(D);
-
     for i in 0..first_reduced {
         let idx = i + j;
         add_or_sub::<SUB>(&mut out_a[idx], form_a.0[i]);
         add_or_sub::<SUB>(&mut out_b[idx], form_b.0[i]);
     }
-
-    for i in first_reduced..first_wrap {
-        let reduced = i + j - D;
-        let coeff_a = form_a.0[i];
-        let coeff_b = form_b.0[i];
-        add_or_sub_opposite::<SUB>(&mut out_a[reduced], coeff_a);
-        add_or_sub_opposite::<SUB>(&mut out_a[reduced + D / 2], coeff_a);
-        add_or_sub_opposite::<SUB>(&mut out_b[reduced], coeff_b);
-        add_or_sub_opposite::<SUB>(&mut out_b[reduced + D / 2], coeff_b);
-    }
-
-    for i in first_wrap..D {
-        let idx = i + j - D - D / 2;
-        add_or_sub::<SUB>(&mut out_a[idx], form_a.0[i]);
-        add_or_sub::<SUB>(&mut out_b[idx], form_b.0[i]);
+    for i in first_reduced..D {
+        let idx = i + j - D;
+        add_or_sub_opposite::<SUB>(&mut out_a[idx], form_a.0[i]);
+        add_or_sub_opposite::<SUB>(&mut out_b[idx], form_b.0[i]);
     }
 }

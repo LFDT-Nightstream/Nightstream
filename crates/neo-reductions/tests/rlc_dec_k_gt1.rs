@@ -24,7 +24,7 @@ fn k(v: u64) -> K {
 
 #[test]
 fn packed_signed_unit_range_validation_matches_dense_semantics() {
-    let params = NeoParams::goldilocks_paper_b2();
+    let params = NeoParams::nightstream_p64_k16();
     let neg_one = F::ZERO - F::ONE;
     let values = (0..D)
         .map(|index| match index % 3 {
@@ -73,7 +73,7 @@ fn build_structure(n: usize, m: usize) -> CcsStructure<F> {
 
 #[test]
 fn dense_range_validation_reports_the_first_failing_column() {
-    let params = NeoParams::goldilocks_paper_b2();
+    let params = NeoParams::nightstream_p64_k16();
     let cols = 4096;
     let mut witness = Mat::zero(D, cols, F::ZERO);
     for col in [150_003, 70_001] {
@@ -204,7 +204,7 @@ fn sampled_rhos(params: &NeoParams, count: usize, alternate: bool) -> (Vec<neo_r
         b"rlc_dec_k_gt1/primary"
     };
     let mut transcript = v1_2_test_transcript(domain);
-    let typed = sample_rot_rhos_n_typed(&mut transcript, params, &RotRing::goldilocks(), count)
+    let typed = sample_rot_rhos_n_typed(&mut transcript, params, &RotRing::profile(), count)
         .expect("sample selected strong-set rhos");
     let matrices = rot_rhos_to_mats(&typed);
     (typed, matrices)
@@ -250,7 +250,7 @@ fn build_me_from_z(
 
 #[test]
 fn rlc_with_commit_k4_matches_public_recompute_and_detects_rho_tamper() {
-    let params = NeoParams::goldilocks_paper_b2();
+    let params = NeoParams::nightstream_p64_k16();
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let s = build_structure(D, D);
     let m_in = D;
@@ -326,7 +326,7 @@ fn rlc_with_commit_k4_matches_public_recompute_and_detects_rho_tamper() {
 
 #[test]
 fn rlc_with_commit_sampled_rotation_rhos_matches_public_z_mix() {
-    let params = NeoParams::goldilocks_paper_b2();
+    let params = NeoParams::nightstream_p64_k16();
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let s = build_structure(D, D);
     let m_in = D;
@@ -352,7 +352,7 @@ fn rlc_with_commit_sampled_rotation_rhos_matches_public_z_mix() {
 
     let mut transcript = v1_2_test_transcript(b"rlc sampled rotation rho test");
     let rhos_typed =
-        sample_rot_rhos_n_typed(&mut transcript, &params, &RotRing::goldilocks(), Zs.len()).expect("sample rhos");
+        sample_rot_rhos_n_typed(&mut transcript, &params, &RotRing::profile(), Zs.len()).expect("sample rhos");
     let rho_mats = rot_rhos_to_mats(&rhos_typed);
 
     let (parent, Z_mix) = rlc_with_commit(
@@ -380,7 +380,7 @@ fn rlc_with_commit_sampled_rotation_rhos_matches_public_z_mix() {
 
 #[test]
 fn rlc_with_commit_sparse_rotation_rhs_matches_public_z_mix() {
-    let params = NeoParams::goldilocks_paper_b2();
+    let params = NeoParams::nightstream_p64_k16();
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let s = build_wide_structure(D, D * 512);
     let m_in = D;
@@ -406,7 +406,7 @@ fn rlc_with_commit_sparse_rotation_rhs_matches_public_z_mix() {
 
     let mut transcript = v1_2_test_transcript(b"rlc sparse rotation rhs test");
     let rhos_typed =
-        sample_rot_rhos_n_typed(&mut transcript, &params, &RotRing::goldilocks(), Zs.len()).expect("sample rhos");
+        sample_rot_rhos_n_typed(&mut transcript, &params, &RotRing::profile(), Zs.len()).expect("sample rhos");
     let rho_mats = rot_rhos_to_mats(&rhos_typed);
 
     let (parent, Z_mix) = rlc_with_commit(
@@ -434,7 +434,7 @@ fn rlc_with_commit_sparse_rotation_rhs_matches_public_z_mix() {
 
 #[test]
 fn rlc_x_projection_tracks_mixed_witness_under_rotation_rhos() {
-    let params = NeoParams::goldilocks_paper_b2();
+    let params = NeoParams::nightstream_p64_k16();
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let s = build_structure(D, D);
     let m_in = D;
@@ -460,7 +460,7 @@ fn rlc_x_projection_tracks_mixed_witness_under_rotation_rhos() {
 
     let mut transcript = v1_2_test_transcript(b"rlc_x_projection_tracks_mixed_witness_under_rotation_rhos");
     let rhos = rot_rhos_to_mats(
-        &sample_rot_rhos_n_typed(&mut transcript, &params, &RotRing::goldilocks(), 2).expect("sample rhos"),
+        &sample_rot_rhos_n_typed(&mut transcript, &params, &RotRing::profile(), 2).expect("sample rhos"),
     );
     assert!(
         rhos.iter()
@@ -490,7 +490,7 @@ fn rlc_x_projection_tracks_mixed_witness_under_rotation_rhos() {
 
 #[test]
 fn rlc_public_matches_accepts_valid_inputs_and_rejects_tampered_rhos() {
-    let params = NeoParams::goldilocks_paper_b2();
+    let params = NeoParams::nightstream_p64_k16();
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let s = build_structure(D, D);
     let m_in = D;
@@ -556,7 +556,7 @@ fn rlc_public_matches_accepts_valid_inputs_and_rejects_tampered_rhos() {
 #[cfg(feature = "paper-exact")]
 #[test]
 fn rlc_with_commit_k4_optimized_matches_paper_exact() {
-    let params = NeoParams::goldilocks_paper_b2();
+    let params = NeoParams::nightstream_p64_k16();
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let s = build_structure(D, D);
     let m_in = D;
@@ -612,7 +612,7 @@ fn rlc_with_commit_k4_optimized_matches_paper_exact() {
 
 #[test]
 fn dec_children_with_commit_fixed_arity_public_and_tamper_checks() {
-    let params = NeoParams::goldilocks_paper_b2();
+    let params = NeoParams::nightstream_p64_k16();
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let s = build_structure(D, D);
     let m_in = D;
@@ -653,7 +653,7 @@ fn dec_children_with_commit_fixed_arity_public_and_tamper_checks() {
 
 #[test]
 fn dec_children_trusted_split_digits_matches_checked_path() {
-    let params = NeoParams::nightstream_goldilocks_k16();
+    let params = NeoParams::nightstream_p64_k16();
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let s = build_structure(D, D);
     let m_in = D;
@@ -747,7 +747,7 @@ fn dec_children_trusted_split_digits_matches_checked_path() {
 #[cfg(feature = "paper-exact")]
 #[test]
 fn dec_children_with_commit_optimized_matches_paper_exact() {
-    let params = NeoParams::goldilocks_paper_b2();
+    let params = NeoParams::nightstream_p64_k16();
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let s = build_structure(D, D);
     let m_in = D;
@@ -800,7 +800,7 @@ fn dec_children_with_commit_optimized_matches_paper_exact() {
 
 #[test]
 fn rlc_with_commit_k61_boundary_smoke() {
-    let params = NeoParams::goldilocks_paper_b2();
+    let params = NeoParams::nightstream_p64_k16();
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let s = build_structure(D, D);
     let m_in = D;

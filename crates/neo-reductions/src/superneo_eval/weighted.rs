@@ -113,30 +113,12 @@ fn coeff_dot_mul_by_monomial(lhs: &Rq, weights: &Rq, basis: usize) -> F {
             continue;
         }
 
+        // X^D = −1 in the ring of SPEC.md section 2.2.
         let new_deg = i + basis;
         if new_deg < D {
             acc += weights.0[new_deg] * coeff;
-        } else if new_deg < D + D / 2 {
-            let reduced_deg = new_deg - D;
-            acc -= weights.0[reduced_deg] * coeff;
-            acc -= weights.0[reduced_deg + D / 2] * coeff;
         } else {
-            let deg1 = new_deg - D / 2;
-            let deg2 = new_deg - D;
-            if deg2 < D {
-                acc -= weights.0[deg2] * coeff;
-            }
-            if deg1 >= D {
-                let deg1_red = deg1 - D;
-                if deg1_red < D {
-                    acc += weights.0[deg1_red] * coeff;
-                    if deg1_red + D / 2 < D {
-                        acc += weights.0[deg1_red + D / 2] * coeff;
-                    }
-                }
-            } else {
-                acc -= weights.0[deg1] * coeff;
-            }
+            acc -= weights.0[new_deg - D] * coeff;
         }
     }
     acc

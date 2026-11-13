@@ -6,7 +6,7 @@ use p3_field::PrimeCharacteristicRing;
 use rand::{rngs::StdRng, SeedableRng};
 
 #[test]
-fn rot_step_phi81_matches_ring_mul_by_x() {
+fn rot_step_matches_ring_mul_by_x() {
     let mut rng = StdRng::seed_from_u64(1234);
 
     for _ in 0..50 {
@@ -44,17 +44,10 @@ fn rot_step_cyclotomic_identity() {
     let mut col = cf(x);
     let mut nxt = [Fq::ZERO; D];
 
-    for _ in 0..53 {
+    for _ in 1..D {
         rot_step(&col, &mut nxt);
         core::mem::swap(&mut col, &mut nxt);
     }
 
-    let x27 = {
-        let mut coeffs = vec![Fq::ZERO; D];
-        coeffs[27] = Fq::ONE;
-        Rq::from_field_coeffs(&coeffs)
-    };
-    let neg_x27_minus_1 = cf(Rq::zero() - x27 - Rq::one());
-
-    assert_eq!(col, neg_x27_minus_1, "X^54 should equal -X^27 - 1 under Φ₈₁ reduction");
+    assert_eq!(col, cf(Rq::zero() - Rq::one()), "X^D must equal -1");
 }

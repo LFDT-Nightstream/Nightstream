@@ -56,7 +56,7 @@ fn verify(params: &NeoParams, parent: &CeClaim<Commitment, F, K>, children: &[Ce
 
 #[test]
 fn verifier_rejects_recomposing_signed_alias_and_accepts_honest_split() {
-    let params = NeoParams::goldilocks_paper_b2();
+    let params = NeoParams::nightstream_p64_k16();
     let parent = claim(F::ONE);
 
     let mut honest_digits = vec![0; params.k_rho() as usize];
@@ -71,7 +71,7 @@ fn verifier_rejects_recomposing_signed_alias_and_accepts_honest_split() {
 
 #[test]
 fn verifier_rejects_parent_outside_fixed_split_range() {
-    let params = NeoParams::goldilocks_paper_b2();
+    let params = NeoParams::nightstream_p64_k16();
     let parent = claim(F::from_u64(params.B()));
     let children = children_for_digits(&vec![0; params.k_rho() as usize]);
 
@@ -80,7 +80,7 @@ fn verifier_rejects_parent_outside_fixed_split_range() {
 
 #[test]
 fn verifier_rejects_wrong_nonzero_child_count() {
-    let params = NeoParams::goldilocks_paper_b2();
+    let params = NeoParams::nightstream_p64_k16();
     let parent = claim(F::ONE);
     let children = children_for_digits(&[1]);
 

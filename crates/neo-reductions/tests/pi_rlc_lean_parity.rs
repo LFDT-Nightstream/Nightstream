@@ -1,12 +1,12 @@
 use neo_math::{D, F};
 use neo_params::NeoParams;
-use neo_reductions::common::decode_pi_rlc_coefficients;
+use neo_reductions::common::{decode_pi_rlc_coefficients, read_pi_rlc_draw, PI_RLC_DRAW_LANES};
 use neo_reductions::{sample_rot_rhos_n_typed, RotRing};
 use neo_transcript::Poseidon2Transcript;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use serde::Deserialize;
 
-const MODULUS: u64 = 0xffff_ffff_0000_0001;
+const MODULUS: u64 = F::ORDER_U64;
 
 #[derive(Deserialize)]
 struct Fixture {
@@ -20,7 +20,7 @@ struct Fixture {
 #[derive(Deserialize)]
 struct Boundary {
     integer: String,
-    draw: [u64; 4],
+    draw: [u64; PI_RLC_DRAW_LANES],
     coefficients: Vec<i8>,
 }
 
@@ -35,7 +35,7 @@ struct Transcript {
 struct Step {
     source: u64,
     entered: [u64; 16],
-    draw: [u64; 4],
+    draw: [u64; PI_RLC_DRAW_LANES],
     coefficients: Vec<i8>,
     outgoing: [u64; 16],
 }
@@ -73,7 +73,7 @@ fn one_window_schedule_matches_lean_transcript_states() {
             assert_eq!(step.source, index as u64);
             transcript.absorb_v1_2(&[F::from_u64(4), F::from_u64(step.source)]);
             assert_eq!(transcript.state().map(|value| value.as_canonical_u64()), step.entered);
-            let draw = transcript.squeeze_digest_v1_2();
+            let draw = read_pi_rlc_draw(&mut transcript);
             assert_eq!(draw.map(|value| value.as_canonical_u64()), step.draw);
             assert_eq!(decode_pi_rlc_coefficients(&draw).as_slice(), step.coefficients);
             assert_eq!(transcript.state().map(|value| value.as_canonical_u64()), step.outgoing);
@@ -85,8 +85,8 @@ fn one_window_schedule_matches_lean_transcript_states() {
 
 #[test]
 fn production_sampler_matches_lean_coefficients_and_final_state() {
-    let params = NeoParams::nightstream_goldilocks_k16();
-    let ring = RotRing::goldilocks();
+    let params = NeoParams::nightstream_p64_k16();
+    let ring = RotRing::profile();
     for case in fixture().transcripts {
         let mut transcript = Poseidon2Transcript::from_state_and_absorbed(case.initial.map(field), 0);
         let rhos = sample_rot_rhos_n_typed(&mut transcript, &params, &ring, case.steps.len())

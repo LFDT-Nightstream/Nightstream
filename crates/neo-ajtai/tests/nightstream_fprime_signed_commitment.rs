@@ -8,8 +8,8 @@ use neo_ajtai::{
     try_commit, AjtaiError, Commitment, PP,
 };
 use neo_math::ring::{Rq, D};
+use neo_math::Fq;
 use p3_field::PrimeCharacteristicRing;
-use p3_goldilocks::Goldilocks;
 use proptest::prelude::*;
 
 proptest! {
@@ -29,7 +29,7 @@ fn streamed_key_blocks_match_all_lanes_of_authoritative_setup_cases() {
     for (row, block) in [
         (0, 0),
         (1, 32_768),
-        (21, PRODUCTION_MESSAGE_COLUMNS - 1),
+        (PRODUCTION_VERIFIER_ROWS as u32 - 1, PRODUCTION_MESSAGE_COLUMNS - 1),
         (u32::MAX, u64::MAX),
     ] {
         let streamed = coefficient_block(&PRODUCTION_SEED, row, block);
@@ -55,7 +55,7 @@ fn streamed_key_blocks_match_all_lanes_of_authoritative_setup_cases() {
 fn signed_commitment_matches_the_ordinary_sum_under_the_same_key() {
     let selected = [0, 32_768, PRODUCTION_MESSAGE_COLUMNS - 1];
     let mut carrier = vec![0_i8; PRODUCTION_CARRIER_WIDTH];
-    for ((block, lane), value) in selected.into_iter().zip([0, 27, 53]).zip([1, -1, 1]) {
+    for ((block, lane), value) in selected.into_iter().zip([0, D / 2, D - 1]).zip([1, -1, 1]) {
         carrier[block as usize * D + lane] = value;
     }
     let key = PP::new(
@@ -69,7 +69,7 @@ fn signed_commitment_matches_the_ordinary_sum_under_the_same_key() {
                     .copied()
                     .map(|block| {
                         Rq(core::array::from_fn(|lane| {
-                            Goldilocks::from_u64(coefficient(&PRODUCTION_SEED, row as u32, block, lane as u32))
+                            Fq::from_u64(coefficient(&PRODUCTION_SEED, row as u32, block, lane as u32))
                         }))
                     })
                     .collect()
@@ -84,9 +84,9 @@ fn signed_commitment_matches_the_ordinary_sum_under_the_same_key() {
             carrier[block as usize * D..(block as usize + 1) * D]
                 .iter()
                 .map(|value| match value {
-                    -1 => -Goldilocks::ONE,
-                    0 => Goldilocks::ZERO,
-                    1 => Goldilocks::ONE,
+                    -1 => -Fq::ONE,
+                    0 => Fq::ZERO,
+                    1 => Fq::ONE,
                     _ => unreachable!("test signed unit"),
                 })
         })

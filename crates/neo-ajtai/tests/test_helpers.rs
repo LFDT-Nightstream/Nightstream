@@ -1,17 +1,14 @@
 use neo_ajtai::{AjtaiError, AjtaiResult, Commitment, PP};
 use neo_math::ring::{cf, Rq as RqEl, D};
 use neo_math::s_action::SAction;
+use neo_math::Fq;
 use p3_field::PrimeCharacteristicRing;
-use p3_goldilocks::Goldilocks as Fq;
 
 #[inline]
 #[allow(dead_code)]
 pub(crate) fn rot_step(cur: &[Fq; D], next: &mut [Fq; D]) {
-    let last = cur[D - 1];
-    next[0] = Fq::ZERO;
+    next[0] = -cur[D - 1];
     next[1..D].copy_from_slice(&cur[..(D - 1)]);
-    next[0] -= last;
-    next[27] -= last;
 }
 
 #[allow(dead_code)]

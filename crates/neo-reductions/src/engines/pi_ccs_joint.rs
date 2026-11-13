@@ -3,7 +3,7 @@
 //! This module owns dimensions, tags, and audit-trace types. It does not own
 //! transcript execution, polynomial evaluation, SumCheck, or proof assembly.
 
-use neo_ccs::crypto::poseidon2_goldilocks::WIDTH;
+use neo_ccs::crypto::poseidon2::WIDTH;
 use neo_ccs::CcsStructure;
 use neo_math::{F, K};
 use neo_params::NeoParams;
@@ -69,7 +69,7 @@ fn build_joint_dims_for_shape(
 ) -> Result<JointDims, PiCcsError> {
     if params.q() != F::ORDER_U64 {
         return Err(PiCcsError::InvalidInput(format!(
-            "PaddedRowIdentity parameter modulus {} does not match the Goldilocks field modulus {}",
+            "PaddedRowIdentity parameter modulus {} does not match the field modulus {}",
             params.q(),
             F::ORDER_U64,
         )));
@@ -121,7 +121,7 @@ fn build_joint_dims_for_shape(
             columns,
             matrix_count_without_identity,
             max_degree,
-            neo_params::goldilocks_paper_b2::CHALLENGE_ALPHABET.len() as u32,
+            neo_params::nightstream_p64_k16::CHALLENGE_ALPHABET.len() as u32,
         )
         .map_err(|error| PiCcsError::ExtensionPolicyFailed(error.to_string()))?;
 

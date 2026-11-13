@@ -4,6 +4,7 @@ use neo_ajtai::nightstream_fprime_setup::{
     authority_words, coefficient, element_bytes, element_input, production_authority_words, PRODUCTION_MESSAGE_COLUMNS,
     PRODUCTION_SEED, PRODUCTION_VERIFIER_ROWS, SETUP_ID,
 };
+use neo_math::D;
 use serde_json::Value;
 use sha3::{
     digest::{ExtendableOutput, XofReader},
@@ -83,9 +84,13 @@ fn check_lean_setup_fixture(bytes: &[u8]) {
     assert_eq!(nat_list(&root[4]), PRODUCTION_SEED.map(u64::from));
     let cases = [
         (0_u32, 0_u64, 0_u32),
-        (0, 0, 53),
+        (0, 0, D as u32 - 1),
         (1, 32_768, 17),
-        (21, PRODUCTION_MESSAGE_COLUMNS - 1, 53),
+        (
+            PRODUCTION_VERIFIER_ROWS as u32 - 1,
+            PRODUCTION_MESSAGE_COLUMNS - 1,
+            D as u32 - 1,
+        ),
     ];
     let expected = array(&root[5]);
     assert_eq!(expected.len(), cases.len());

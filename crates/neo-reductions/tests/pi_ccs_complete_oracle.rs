@@ -22,7 +22,7 @@ use rand_chacha::{rand_core::SeedableRng, ChaCha8Rng};
 type Output = CeClaim<Commitment, F, K>;
 
 fn transcript() -> Poseidon2Transcript {
-    Poseidon2Transcript::from_state_and_absorbed([F::ZERO; neo_ccs::crypto::poseidon2_goldilocks::WIDTH], 0)
+    Poseidon2Transcript::from_state_and_absorbed([F::ZERO; neo_ccs::crypto::poseidon2::WIDTH], 0)
 }
 
 struct Case {
@@ -59,7 +59,7 @@ impl Case {
             ),
         )
         .unwrap();
-        let params = NeoParams::goldilocks_auto_rectangular_r1cs_ccs(columns, columns).unwrap();
+        let params = NeoParams::nightstream_p64_k16().with_lambda(115).unwrap();
         let mut rng = ChaCha8Rng::seed_from_u64(0x636f6d706c657465);
         let commitment = setup(&mut rng, D, params.kappa() as usize, columns.div_ceil(D)).unwrap();
         let mut assignment = Mat::zero(D, columns.div_ceil(D), F::ZERO);

@@ -104,7 +104,17 @@ pub(super) fn memory_circuit_phases<A: Application>(
     let digest = plan_digest(geometry);
     let (ops_header, mem_header) = (header(Lane::Ops, &digest), header(Lane::Mem, &digest));
     let headers = std::array::from_fn(|i| if i < 4 { ops_header[i] } else { mem_header[i % 4] });
-    let sym = Sym::new(geometry, layout, &wires, headers);
+    if app.derived_read_stamps() && geometry.w_ts > 30 {
+        return Err(crate::Error::Circuit("derived read stamps need W_ts ≤ 30"));
+    }
+    let sym = Sym::new(
+        geometry,
+        layout,
+        &wires,
+        headers,
+        !app.ignores_idle_slots(),
+        app.derived_read_stamps(),
+    );
     let constants = round_constants();
     let run = |count: usize, index: &dyn Fn(usize) -> usize| (0..count).map(|k| sym.word(index(k))).collect::<Vec<_>>();
 

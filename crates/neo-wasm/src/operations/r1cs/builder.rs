@@ -168,6 +168,12 @@ impl CircuitBuilder {
             .tagged(self.tag.clone())
             .push_row(left.terms, right.terms, output.terms);
     }
+    /// The host-event absorb block that a group of trace rows shares, after
+    /// every operation column, so that it ends the one-row witness.
+    pub(super) fn shared_absorb(&mut self) -> Result<(), String> {
+        crate::ccs::host_event_chain::push_shared_absorb(&mut self.allocation, &mut self.rows)
+    }
+
     pub(super) fn finish(self) -> Result<(OperationRelation, AuxiliaryLayout), String> {
         let layout = self.allocation.finish().map_err(|e| e.to_string())?;
         let relation = self

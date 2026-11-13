@@ -2,7 +2,9 @@
 //! 7.6): `nightstream::nebula::R1csApplication` of the one-row WASM relation
 //! with its operation-table rows, its continuity links, and its memory
 //! catalog. One Nebula step proves `rows` consecutive trace rows. Its private
-//! words are the witnesses `z` of its rows (`build_batched_witness`). Its
+//! words are the witnesses `z` of its rows (`build_batched_witness`) without
+//! the host-event absorb block, then one absorb block for each group of
+//! `shared(rows).rows` rows (`SPEC.md` section 7.6, "Shared columns"). Its
 //! state is a `WasmStepState`, whose words are the continuity words
 //! (`state_words`), so a verifier reads the last state of a proof as a typed
 //! value. Every field has words (test `every_state_field_changes_the_state_words`),
@@ -17,12 +19,13 @@ use neo_ccs::CcsMatrix;
 use neo_math::F;
 use nightstream::nebula::{
     batched_slots, pack_regions, Application, CatalogBindingError, Expr, Geometry, Memory, Program, R1csApplication,
-    R1csApplicationError, R1csStepError, Region, RowRelation, Size, Terms, Transition, View,
+    R1csApplicationError, R1csStepError, Region, RowRelation, Shared, Size, Terms, Transition, View,
 };
 use nightstream::relation::MemoryPortActivation;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 use crate::batch::{build_batched_witness, single_wasm_relation, BatchError};
+use crate::ccs::host_event_chain::{absorbs, SHARED_ABSORB_COLUMNS};
 use crate::ir::{WasmStepState, WasmVmStep};
 use crate::layout::COL_ONE;
 use crate::{build_wasm_relation_layout, plan_ordered_wasm_memory_slots, WasmMemoryId, WasmMemoryPreload};
@@ -110,7 +113,7 @@ impl WasmApplication {
             slots: slots.to_vec(),
         };
         Ok(Self(R1csApplication::new(
-            relation()?,
+            relation(rows)?,
             &layout.auxiliary.continuity,
             &layout.auxiliary.memory,
             size,
@@ -126,6 +129,12 @@ impl WasmApplication {
     /// then the continuity rows between neighbor rows.
     pub fn relation_rows(&self) -> usize {
         self.0.relation_rows()
+    }
+
+    /// Whether the step witness `z` holds each rank-one row of one step's
+    /// relation (`R1csApplication::check`).
+    pub fn check(&self, z: &[F]) -> Result<(), R1csStepError> {
+        self.0.check(z)
     }
 
     /// The state words that step input `z` ends in: the `_AFTER` columns of
@@ -166,6 +175,10 @@ impl Application for WasmApplication {
         self.0.rows(view)
     }
 
+    fn ignores_idle_slots(&self) -> bool {
+        self.0.ignores_idle_slots()
+    }
+
     fn step(
         &self,
         state: &WasmStepState,
@@ -184,9 +197,28 @@ impl Application for WasmApplication {
     }
 }
 
+/// The most rows of a group that shares one absorb block: two absorbs are at
+/// least eight trace rows apart, so eight consecutive rows hold at most one
+/// absorb (Lean `Lifecycle.Nebula.SharedAbsorb.absorbs_unique`).
+const ABSORB_GROUP_ROWS: usize = 8;
+
+/// The absorb block that each group of a step of `rows` rows shares: groups
+/// of `gcd(rows, 8)` rows, so that whole groups fill a step and a group has
+/// at most eight rows (Lean `Lifecycle.Nebula.SharedAbsorb.group_complete`).
+pub fn shared(rows: NonZeroUsize) -> Shared {
+    let (mut a, mut b) = (rows.get(), ABSORB_GROUP_ROWS);
+    while b != 0 {
+        (a, b) = (b, a % b);
+    }
+    Shared {
+        columns: SHARED_ABSORB_COLUMNS,
+        rows: NonZeroUsize::new(a).expect("a divisor of a nonzero row count"),
+    }
+}
+
 /// The one-row WASM relation with its operation-table rows
-/// (`build_batched_wasm_ccs(1)` without the batch).
-fn relation() -> Result<RowRelation, WasmApplicationError> {
+/// (`build_batched_wasm_ccs(1)` without the batch), in steps of `rows` rows.
+fn relation(rows: NonZeroUsize) -> Result<RowRelation, WasmApplicationError> {
     let r1cs = single_wasm_relation()?.relation;
     let mut terms = vec![[Terms::new(), Terms::new(), Terms::new()]; r1cs.n];
     for (k, matrix) in [&r1cs.a, &r1cs.b, &r1cs.c].into_iter().enumerate() {
@@ -203,6 +235,7 @@ fn relation() -> Result<RowRelation, WasmApplicationError> {
         rows: terms,
         width: r1cs.m,
         one: COL_ONE,
+        shared: shared(rows),
     })
 }
 
@@ -217,9 +250,11 @@ pub fn state_words(state: WasmStepState) -> Vec<u64> {
 
 /// The step inputs of a run of `steps` steps of `rows` trace rows each: the
 /// witnesses of the rows of `trace`, then of padding rows, which activate no
-/// port and keep the state, cut into `steps` inputs of `rows` rows each. The
-/// next state of a step is the state after its last trace row. `rows = 1`
-/// gives the one-row witnesses that `WasmLimits::of` takes.
+/// port and keep the state, cut into `steps` inputs of `rows` rows each. Each
+/// group of `shared(rows)` takes the absorb block of its absorbing row, or of
+/// its first row when no row absorbs (`Shared::step_witness`). The next state
+/// of a step is the state after its last trace row. `rows = 1` gives the
+/// one-row witnesses that `WasmLimits::of` takes.
 pub fn step_inputs(
     trace: &[WasmVmStep],
     steps: usize,
@@ -237,11 +272,16 @@ pub fn step_inputs(
             rows,
         })?;
     let batch = build_batched_witness(trace, capacity, 0)?;
-    Ok(batch
-        .chunks(batch.len() / steps)
+    let width = batch.len() / capacity;
+    let witnesses: Vec<&[F]> = batch.chunks(width).collect();
+    let shared = shared(rows);
+    Ok(witnesses
+        .chunks(rows.get())
         .enumerate()
-        .map(|(step, z)| WasmStep {
-            z: z.to_vec(),
+        .map(|(step, step_rows)| WasmStep {
+            z: shared.step_witness(width, step_rows, |group| {
+                group.iter().position(|z| absorbs(z)).unwrap_or(0)
+            }),
             next: trace[((step + 1) * rows.get()).min(trace.len()) - 1].state_after,
         })
         .collect())

@@ -49,6 +49,25 @@ pub trait Application {
     /// means the application has no rows for the view's geometry.
     fn rows(&self, view: &View) -> Result<Vec<Expr>, crate::Error>;
 
+    /// Whether the application's soundness never uses a field of an
+    /// inactive slot: each of its rows that reads a field of slot `j` is
+    /// gated by a port of slot `j` or itself forces the field. Then the
+    /// memory rows do not zero the fields of an inactive slot (row O7 of
+    /// SPEC.md section 7.3), because the gated fingerprints (O8, O9), the
+    /// counter (O2) and the stamp row (O4) ignore them too. Not in Lean.
+    fn ignores_idle_slots(&self) -> bool {
+        false
+    }
+
+    /// Whether the lane carries `diff` in place of `rt`, with the read stamp
+    /// `rt = wt − 1 − diff` (scratch prototype, not in Lean or SPEC.md).
+    /// Row O4 then holds by construction. With `W_ts ≤ 30`, a read tuple
+    /// whose packed word equals a tuple of `IS ∪ WS` has that tuple's
+    /// stamp, a natural below `2^W_ts`, so `rt < wt` as O4 gave.
+    fn derived_read_stamps(&self) -> bool {
+        false
+    }
+
     /// One native step from `state`. `memory` holds the cells before the
     /// step's accesses. The runner applies the active ports in slot order and
     /// rejects a port that is not valid or that reads another value than its

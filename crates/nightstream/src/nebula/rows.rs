@@ -21,6 +21,9 @@ pub(super) struct Sym<'a> {
     layout: Layout,
     wires: &'a [Variable],
     headers: [F; 12],
+    /// Row O7: zero each field of an inactive slot.
+    zero_idle: bool,
+    derived: bool,
 }
 
 fn c(value: u64) -> Expr {
@@ -52,12 +55,21 @@ pub(super) fn pack(bits: Vec<Expr>) -> Vec<Expr> {
 }
 
 impl<'a> Sym<'a> {
-    pub(super) fn new(geometry: &'a Geometry, layout: Layout, wires: &'a [Variable], headers: [F; 12]) -> Self {
+    pub(super) fn new(
+        geometry: &'a Geometry,
+        layout: Layout,
+        wires: &'a [Variable],
+        headers: [F; 12],
+        zero_idle: bool,
+        derived: bool,
+    ) -> Self {
         Self {
             geometry,
             layout,
             wires,
             headers,
+            zero_idle,
+            derived,
         }
     }
 
@@ -130,8 +142,19 @@ impl<'a> Sym<'a> {
         self.bits(j, Layout::op_vw, 32)
     }
 
+    /// The lane's stamp field of slot `j`: `rt`, or `diff` when read
+    /// stamps are derived.
     fn rt_bits(&self, j: usize) -> Vec<Expr> {
         self.bits(j, Layout::op_rt, self.geometry.w_ts)
+    }
+
+    /// The read stamp of slot `j`: the lane's `rt`, or `wt − 1 − diff`.
+    fn read_stamp(&self, j: usize) -> Expr {
+        if self.derived {
+            self.wt(j) - c(1) - chunk(self.rt_bits(j))
+        } else {
+            chunk(self.rt_bits(j))
+        }
     }
 
     fn diff_bits(&self, j: usize) -> Vec<Expr> {
@@ -321,7 +344,9 @@ impl<'a> Sym<'a> {
     fn bit_words(&self) -> Vec<Expr> {
         let geometry = self.geometry;
         let mut words: Vec<Expr> = (0..geometry.b_ops).flat_map(|j| self.op_lane(j)).collect();
-        words.extend((0..geometry.b_ops).flat_map(|j| self.diff_bits(j)));
+        if !self.derived {
+            words.extend((0..geometry.b_ops).flat_map(|j| self.diff_bits(j)));
+        }
         words.extend((0..geometry.b_scan).flat_map(|j| self.scan_lane(self.initial(j))));
         words.extend((0..geometry.b_scan).flat_map(|j| self.scan_lane(self.final_(j))));
         words.extend((0..geometry.w_ts).map(|k| self.word(self.layout.ts_bits(k))));
@@ -369,9 +394,11 @@ impl<'a> Sym<'a> {
         let mut rows = vec![
             self.cnt(j) - (self.cnt_before(j) + (c(1) - pad.clone())),
             (c(1) - is_write.clone()) * (vw.clone() - vr.clone()),
-            (c(1) - pad.clone()) * (self.wt(j) - chunk(self.rt_bits(j)) - c(1) - chunk(self.diff_bits(j))),
-            is_write * (c(1) - is_ram.clone()),
         ];
+        if !self.derived {
+            rows.push((c(1) - pad.clone()) * (self.wt(j) - chunk(self.rt_bits(j)) - c(1) - chunk(self.diff_bits(j))));
+        }
+        rows.push(is_write * (c(1) - is_ram.clone()));
         rows.extend(
             self.addr_bits(j)
                 .into_iter()
@@ -386,8 +413,10 @@ impl<'a> Sym<'a> {
                 .filter(|(k, _)| geometry.mu <= *k)
                 .map(|(_, bit)| is_ram.clone() * bit),
         );
-        rows.extend(self.op_lane(j).into_iter().skip(1).map(|x| pad.clone() * x));
-        for (pair, stamp, value) in [(0, chunk(self.rt_bits(j)), vr), (1, self.wt(j), vw)] {
+        if self.zero_idle {
+            rows.extend(self.op_lane(j).into_iter().skip(1).map(|x| pad.clone() * x));
+        }
+        for (pair, stamp, value) in [(0, self.read_stamp(j), vr), (1, self.wt(j), vw)] {
             rows.extend(self.gated_rows(
                 |k| self.word(self.layout.ops_factor(j, pair, k)),
                 pad.clone(),
@@ -541,3 +570,11 @@ impl<'a> View<'a> {
         chunk(self.slot_bits(j, Layout::op_vw, 32))
     }
 }
+
+#[cfg(test)]
+#[path = "../../tests/nebula/idle_slots.rs"]
+mod tests;
+
+#[cfg(test)]
+#[path = "../../tests/nebula/derived_stamps.rs"]
+mod derived_stamps;

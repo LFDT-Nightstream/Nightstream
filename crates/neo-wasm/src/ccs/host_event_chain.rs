@@ -4,23 +4,27 @@
 //! commitment gadget live in `neo-application`, so the circuit and native
 //! commitment share one protocol definition.
 //!
-//! Absorb: a non-advice gather row at slot seven (`ABSORB`) computes
+//! Absorb: a non-advice gather row at slot seven (`ABSORB`) sets
 //! `chain_after = commit_block(previous, [evbuf_before[0..7] | staged word])`
-//! with one width-12 permutation, and clears the buffer. `previous` is the
-//! chain before the row, or the restored outer chain when the same row copies
-//! the final object-root lane. The commitment gadget is unconditional: every
-//! row holds the permutation of its own inputs, and only `ABSORB` reads the
-//! output. Opaque Enter saves and zeros the active chain; the final root-copy
-//! slot restores the saved outer chain. Both contexts use the same hash path.
+//! and clears the buffer. `previous` is the chain before the row, or the
+//! restored outer chain when the same row copies the final object-root lane.
+//! The width-12 permutation is in the shared absorb block, which ends the
+//! one-row witness and which each group of consecutive trace rows of a step
+//! shares (`push_shared_absorb`, SPEC.md section 7.6, "Shared columns"). An
+//! `ABSORB` row requires that the block's input is its own input and lands on
+//! the block's output. Opaque Enter saves and zeros the active chain; the
+//! final root-copy slot restores the saved outer chain. Both contexts use the
+//! same hash path.
 //!
 //! Column ownership: the gadget's shared interface lives in
 //! `host_event_layout` — the carried absorb state (buffer, pending flag,
 //! object context) that continuity links,
 //! the semantic digest, and `ccs/call.rs` refer to. The gadget-internal
-//! witness columns (position one-hot, S-box powers, and gather decoding) are
-//! allocated here in a private block right after
+//! witness columns (position one-hot, absorb flag and previous chain, and
+//! gather decoding) are allocated here in a private block right after
 //! `NAMED_COLUMN_COUNT`. Their raw indices remain private; the witness-layout
 //! registry exposes only their width metadata to generic range enforcement.
+//! The shared absorb block follows every other column.
 
 use super::super::layout::{
     COL_COMM_CHAIN_AFTER, COL_COMM_CHAIN_BEFORE, COL_EVBUF_AFTER, COL_EVBUF_BEFORE, COL_GATHER_ACTIVE,
@@ -36,8 +40,13 @@ use super::host_event;
 use crate::gadgets::push_gated_linear_zero;
 use crate::ir::{WasmHostEventSlotKind, WasmVmStep};
 use crate::layout::{COL_HOST_CLEAR_ACTIVATION_FINISHED, COL_HOST_RESUME, COL_HOST_SPLIT_CALL};
-use neo_application::event_commitment::{commit_block, EventCommitment, EVENT_COMMITMENT_AUX_COLUMNS};
-use neo_application::{define_column_region, ZeroTest};
+use crate::tagged_r1cs_builder::WasmR1csBuilder;
+use neo_application::event_commitment::{
+    commit_block, commitment_auxiliaries, EventCommitment, EVENT_COMMITMENT_AUX_COLUMNS, EVENT_COMMITMENT_BLOCK_WIDTH,
+    EVENT_COMMITMENT_STATE_WIDTH,
+};
+use neo_application::poseidon2::POSEIDON2_WIDTH;
+use neo_application::{define_column_region, AuxiliaryBuilder, ColumnWidth, ZeroTest};
 use neo_math::F;
 use p3_field::{Field, PrimeCharacteristicRing};
 
@@ -60,8 +69,6 @@ define_column_region! {
     columns: [
         ABSORB: Boolean => "gather row that fills an absorbing block and folds it into the chain",
         ABSORB_PREVIOUS: [Field; 4] => "chain the block folds into (the outer chain on an object exit)",
-        ABSORB_OUTPUT: [Field; 4] => "event commitment of the previous chain and the filled block",
-        ABSORB_PERMUTATION: [Field; EVENT_COMMITMENT_AUX_COLUMNS] => "width-12 permutation witnesses of the absorb",
         GATHER_WORD_POSITION: [Boolean; 8] => "gather block-word one-hot flags",
         GATHER_KIND: [Boolean; GKINDS] => "gather slot-kind one-hot flags",
         GARG_VAL: Field => "limb-selected stack argument value",
@@ -129,15 +136,127 @@ pub(super) const fn host_call_params_col() -> usize {
     GHC_PARAMS
 }
 
-/// The block absorb: the first seven words are already in the buffer, and the
-/// row stages the eighth.
-fn absorb_commitment() -> EventCommitment {
-    EventCommitment {
-        previous: ABSORB_PREVIOUS,
-        block: core::array::from_fn(|word| if word < 7 { COL_EVBUF_BEFORE[word] } else { GSLOT_VALUE }),
-        output: ABSORB_OUTPUT,
-        auxiliary_start: ABSORB_PERMUTATION[0],
+/// The region of the shared absorb block.
+pub const SHARED_ABSORB_REGION: &str = "host_event_shared";
+
+/// The columns of the shared absorb block: the 12 input lanes, the
+/// permutation words, and the 4 output lanes, in this order.
+pub const SHARED_ABSORB_COLUMNS: usize = POSEIDON2_WIDTH + EVENT_COMMITMENT_AUX_COLUMNS + EVENT_COMMITMENT_STATE_WIDTH;
+
+/// The column of input lane `lane` of a row's absorb: the chain the block
+/// folds into, the first seven words from the buffer, then the staged word.
+fn absorb_input_column(lane: usize) -> usize {
+    if lane < EVENT_COMMITMENT_STATE_WIDTH {
+        ABSORB_PREVIOUS[lane]
+    } else if lane < POSEIDON2_WIDTH - 1 {
+        COL_EVBUF_BEFORE[lane - EVENT_COMMITMENT_STATE_WIDTH]
+    } else {
+        GSLOT_VALUE
     }
+}
+
+/// Whether the one-row witness `z` absorbs a block.
+pub(crate) fn absorbs(z: &[F]) -> bool {
+    z[ABSORB] == F::ONE
+}
+
+/// The absorb block that each group of trace rows shares (SPEC.md section
+/// 7.6, "Shared columns"; Lean `Lifecycle.Nebula.SharedAbsorb`), allocated
+/// after every other column so that it ends the one-row witness. Its rows are
+/// the width-12 permutation of the input lanes `W` with the feed-forward to
+/// the output lanes `O`, which read only the block, and for each row
+/// `ABSORB · (W − input) = 0` and `ABSORB · (chain_after − O) = 0`. A row's
+/// own witness fills the block from the row's own input, so each one-row
+/// witness holds its own block.
+pub(crate) fn push_shared_absorb(allocation: &mut AuxiliaryBuilder, rows: &mut WasmR1csBuilder) -> Result<(), String> {
+    let start = allocation.column_count();
+    let lanes = move |z: &[F]| -> ([F; EVENT_COMMITMENT_STATE_WIDTH], [F; EVENT_COMMITMENT_BLOCK_WIDTH]) {
+        (
+            core::array::from_fn(|lane| z[start + lane]),
+            core::array::from_fn(|word| z[start + EVENT_COMMITMENT_STATE_WIDTH + word]),
+        )
+    };
+    let input = allocate_shared(
+        allocation,
+        "ABSORB_INPUT",
+        "absorb input lanes of the group: previous chain, buffered words, staged word",
+        POSEIDON2_WIDTH,
+        |z, out| {
+            for (lane, word) in out.iter_mut().enumerate() {
+                *word = z[absorb_input_column(lane)];
+            }
+        },
+    )?;
+    let permutation = allocate_shared(
+        allocation,
+        "ABSORB_PERMUTATION",
+        "width-12 permutation words of the group's absorb",
+        EVENT_COMMITMENT_AUX_COLUMNS,
+        move |z, out| {
+            let (previous, block) = lanes(z);
+            out.copy_from_slice(&commitment_auxiliaries(previous, block));
+        },
+    )?;
+    let output = allocate_shared(
+        allocation,
+        "ABSORB_OUTPUT",
+        "event commitment of the group's absorb input",
+        EVENT_COMMITMENT_STATE_WIDTH,
+        move |z, out| {
+            let (previous, block) = lanes(z);
+            out.copy_from_slice(&commit_block(previous, block));
+        },
+    )?;
+    if input.start != start || output.end != start + SHARED_ABSORB_COLUMNS {
+        return Err("the shared absorb block is not contiguous".into());
+    }
+    let commitment = EventCommitment {
+        previous: core::array::from_fn(|lane| input.start + lane),
+        block: core::array::from_fn(|word| input.start + EVENT_COMMITMENT_STATE_WIDTH + word),
+        output: core::array::from_fn(|lane| output.start + lane),
+        auxiliary_start: permutation.start,
+    };
+    rows.with_tag(host_event("host event shared absorb"), |b| {
+        for lane in 0..POSEIDON2_WIDTH {
+            b.push_row(
+                [(ABSORB, F::ONE)],
+                [(input.start + lane, F::ONE), (absorb_input_column(lane), -F::ONE)],
+                [],
+            );
+        }
+        commitment.push_constraints(b);
+        for lane in 0..EVENT_COMMITMENT_STATE_WIDTH {
+            b.push_row(
+                [(ABSORB, F::ONE)],
+                [(COL_COMM_CHAIN_AFTER[lane], F::ONE), (output.start + lane, -F::ONE)],
+                [],
+            );
+        }
+    });
+    Ok(())
+}
+
+/// Allocate one field family of the shared absorb block.
+fn allocate_shared(
+    allocation: &mut AuxiliaryBuilder,
+    name: &'static str,
+    role: &'static str,
+    len: usize,
+    assign: impl Fn(&[F], &mut [F]) + Send + Sync + 'static,
+) -> Result<std::ops::Range<usize>, String> {
+    allocation
+        .allocate(
+            SHARED_ABSORB_REGION,
+            name,
+            role,
+            ColumnWidth::Field,
+            len,
+            move |z, out| {
+                assign(z, out);
+                Ok(())
+            },
+        )
+        .map_err(|error| error.to_string())
 }
 
 pub(super) fn push_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
@@ -913,7 +1032,6 @@ fn push_absorb_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
                 [(ABSORB_PREVIOUS[lane], F::ONE), (COL_COMM_CHAIN_BEFORE[lane], -F::ONE)],
             );
         }
-        absorb_commitment().push_constraints(b);
     });
 }
 
@@ -940,17 +1058,13 @@ fn push_buffer_write_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
 }
 
 /// One active chain for every absorb. Enter zeros it after saving the outer
-/// chain; the absorb row lands on the commitment; every other row carries the
-/// previous chain, which the final root-copy sets to the saved outer chain.
+/// chain; the absorb row lands on the commitment (`push_shared_absorb`);
+/// every other row carries the previous chain, which the final root-copy sets
+/// to the saved outer chain.
 fn push_chain_update_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     b.with_tag(host_event("host event chain update"), |b| {
         for limb in 0..4 {
             b.push_row([(GK_ENTER, F::ONE)], [(COL_COMM_CHAIN_AFTER[limb], F::ONE)], []);
-            b.push_row(
-                [(ABSORB, F::ONE)],
-                [(COL_COMM_CHAIN_AFTER[limb], F::ONE), (ABSORB_OUTPUT[limb], -F::ONE)],
-                [],
-            );
             b.push_row(
                 [(COL_ONE, F::ONE), (ABSORB, -F::ONE), (GK_ENTER, -F::ONE)],
                 [(COL_COMM_CHAIN_AFTER[limb], F::ONE), (ABSORB_PREVIOUS[limb], -F::ONE)],
@@ -1015,27 +1129,14 @@ pub(crate) fn fill_witness(wit: &mut [F], trace: &WasmVmStep) {
             }
         }
     }
-    // The absorb runs on every row; only `ABSORB` rows read its output.
+    // The shared block holds the absorb; only `ABSORB` rows read it.
     wit[ABSORB] = wit[GATHER_WORD_POSITION[7]] * (F::ONE - wit[G_ADVICE]);
     let exit = wit[OBJECT_ROOT_LANE[3]];
-    let previous: [F; 4] = core::array::from_fn(|lane| {
+    for lane in 0..4 {
         let chain = F::from_u64(trace.state_before.comm_chain[lane]);
         let outer = F::from_u64(trace.state_before.event_absorb.outer_chain[lane]);
-        chain + exit * (outer - chain)
-    });
-    let block: [F; 8] = core::array::from_fn(|word| {
-        if word < 7 {
-            F::from_u64(trace.state_before.event_absorb.evbuf[word])
-        } else {
-            wit[GSLOT_VALUE]
-        }
-    });
-    let output = commit_block(previous, block);
-    for lane in 0..4 {
-        wit[ABSORB_PREVIOUS[lane]] = previous[lane];
-        wit[ABSORB_OUTPUT[lane]] = output[lane];
+        wit[ABSORB_PREVIOUS[lane]] = chain + exit * (outer - chain);
     }
-    absorb_commitment().assign_auxiliaries(wit);
     // Atomic host-call arg pops; split calls defer them until resume.
     wit[GHC_PARAMS] = (wit[super::super::layout::COL_HOST_CALL_ACTIVE] - wit[COL_HOST_SPLIT_CALL])
         * wit[super::super::layout::COL_CALL_PARAM_COUNT];

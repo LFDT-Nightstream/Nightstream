@@ -14,7 +14,7 @@ define_column_region! {
     families: pub HOST_EVENT_COLUMN_FAMILIES,
     indices: pub,
     columns: [
-        COL_HOST_FRAME_DEPTH_BEFORE: U32 => "innermost suspended host-frame boundary before",
+        COL_HOST_FRAME_DEPTH_BEFORE: Field => "innermost suspended host-frame boundary before",
         COL_HOST_FRAME_DEPTH_AFTER: U32 => "innermost suspended host-frame boundary after",
         COL_HOST_FRAME_DEPTH_IS_ZERO: Boolean => "no suspended host frame before",
         COL_HOST_FRAME_DEPTH_INV: Field => "inverse witness for host-frame depth",
@@ -30,9 +30,9 @@ define_column_region! {
         COL_HOST_NESTED_ENTRY: Boolean => "export entry above a suspended host frame",
         COL_HOST_NESTED_EXIT: Boolean => "export exit above a suspended host frame",
         COL_HOST_CONTEXT_READ: Boolean => "read suspended context at nested entry or resume",
-        COL_HOST_CONTEXT_ADDR: U32 => "suspended context call-stack address",
-        COL_HOST_CONTEXT: [U32; 8] => "saved pc, fbp, stack base, export, import, args base, parent host depth, sp",
-        COL_HOST_IMPORT_SCHEDULE_COUNTS: U32 => "packed import call/return biased counts",
+        COL_HOST_CONTEXT_ADDR: Field => "suspended context call-stack address",
+        COL_HOST_CONTEXT: [Field; 8] => "saved pc, fbp, stack base, export, import, args base, parent host depth, sp",
+        COL_HOST_IMPORT_SCHEDULE_COUNTS: Field => "packed import call/return biased counts",
         COL_HOST_INITIAL_COUNT: (Bits(IMPORT_SCHEDULE_COUNT_BITS)) => "import call-block count plus one",
         COL_HOST_RETURN_COUNT: (Bits(IMPORT_SCHEDULE_COUNT_BITS)) => "zero for atomic, otherwise one plus the import return-schedule length",
         COL_HOST_RETURN_COUNT_IS_ZERO: Boolean => "selected import is atomic",
@@ -46,11 +46,11 @@ define_column_region! {
         COL_OUTER_CHAIN_AFTER: [Field; 4] => "suspended outer chain after this row",
         COL_OUTER_PREFIX_BEFORE: [Field; 4] => "suspended outer block prefix before this row",
         COL_OUTER_PREFIX_AFTER: [Field; 4] => "suspended outer block prefix after this row",
-        COL_HOST_CALLEE_FREF_BEFORE: U32 =>
+        COL_HOST_CALLEE_FREF_BEFORE: Field =>
             "callee function ref of the most recent host call before this row (event attribution carry)",
         COL_HOST_CALLEE_FREF_AFTER: U32 =>
             "callee function ref of the most recent host call after this row (event attribution carry)",
-        COL_TURN_EXPORT_FREF_BEFORE: U32 => "export function ref owning the current host-event turn before this row",
+        COL_TURN_EXPORT_FREF_BEFORE: Field => "export function ref owning the current host-event turn before this row",
         COL_TURN_EXPORT_FREF_AFTER: U32 => "export function ref owning the current host-event turn after this row",
         COL_COMM_CHAIN_BEFORE: [Field; 4] => "active commitment chain before this row",
         COL_COMM_CHAIN_AFTER: [Field; 4] => "active commitment chain after this row",

@@ -8,6 +8,7 @@ import NightstreamFPrime.Lifecycle.Nebula.EndToEnd
 import NightstreamFPrime.Lifecycle.Nebula.HonestRun
 import NightstreamFPrime.Lifecycle.Nebula.FreeApp
 import NightstreamFPrime.Lifecycle.Nebula.FixedColumn
+import NightstreamFPrime.Lifecycle.Nebula.SharedRows
 import NightstreamFPrime.Export.Stage1.NebulaMemoryV1Package
 import NightstreamFPrime.Export.Stage1.NebulaMemoryN1Package
 import NightstreamFPrime.Export.Stage1.NebulaMemoryTerminal
@@ -637,6 +638,14 @@ packages' bounds. -/
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.holds_fix_iff
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.PortApp.fixColumn
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.PortApp.fixColumn_model
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.SharedAbsorb.groupRows_iff_forall
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.SharedAbsorb.eq_of_gated
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.SharedAbsorb.groupRows_sound
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.SharedAbsorb.groupRows_complete
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.SharedAbsorb.cursor_le
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.SharedAbsorb.absorbs_apart
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.SharedAbsorb.absorbs_unique
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.SharedAbsorb.group_complete
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.StepWitness.PolyRows.wellFormed
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.Rows.appRows_iff
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.StepWitness.invocation_ports

@@ -43,7 +43,9 @@ pub use geometry::Geometry;
 pub(crate) use machine::{Machine, MachineError, MachineState, Step};
 use neo_application::MemoryPreload;
 pub use proving::{FinalProof, Proof, ProveError, Prover, Proving, Verified, Verifier, VerifyError};
-pub use r1cs::{batched_slots, R1csApplication, R1csApplicationError, R1csStepError, RowRelation, Size, Terms};
+pub use r1cs::{
+    batched_slots, R1csApplication, R1csApplicationError, R1csOptions, R1csStepError, RowRelation, Shared, Size, Terms,
+};
 pub use records::PortAccess;
 pub use rows::View;
 use segment::Cell;
@@ -249,6 +251,120 @@ pub fn size_parts<A: Application>(geometry: &Geometry, app: &A) -> Result<Vec<Si
             size: size(words, 0, 0),
         }))
         .collect())
+}
+
+pub struct ZzPart {
+    pub name: String,
+    pub rows: usize,
+    pub field: usize,
+    pub bit: usize,
+    pub blocks: usize,
+}
+
+pub struct ZzCensus {
+    pub parts: Vec<ZzPart>,
+    pub private: Vec<u8>,
+    pub width: usize,
+    pub blocks: usize,
+    pub rows: usize,
+    pub sbox_rows: usize,
+}
+
+pub fn zz_census<A: Application>(geometry: &Geometry, app: A, refresh: bool) -> Result<ZzCensus, crate::Error> {
+    let (_, phases) = circuit::memory_circuit_phases(geometry, &app)?;
+    let words = words::Layout::new(geometry, app.width(), app.aux());
+    let regions: Vec<(&'static str, usize)> = words
+        .memory_regions()
+        .into_iter()
+        .chain([
+            ("Application state words", 2 * app.width()),
+            ("Application private words", app.aux()),
+        ])
+        .collect();
+    let witness_words: usize = regions.iter().map(|region| region.1).sum();
+    let compiled = Circuit::compile(*geometry, app)?;
+    let packages = compiled.circuit.zz_packages();
+    let package = if refresh { packages.refresh() } else { packages.light() };
+    let layout = package
+        .layout()
+        .map_err(|_| crate::Error::Circuit("layout"))?;
+    let width = |variable: usize| {
+        package
+            .zz_variable_column(variable)
+            .and_then(|column| layout.slot(column))
+            .map_or(0, |(_, kind)| kind.width())
+    };
+    let count = |range: std::ops::Range<usize>| {
+        range.fold((0, 0), |(field, bit), variable| match width(variable) {
+            0 => (field, bit),
+            1 => (field, bit + 1),
+            _ => (field + 1, bit),
+        })
+    };
+    let mut parts = Vec::new();
+    let mut private = Vec::new();
+    let mut start = 4;
+    for (name, len) in regions {
+        let (field, bit) = count(start..start + len);
+        if name == "Application private words" {
+            private = (start..start + len)
+                .map(|variable| width(variable) as u8)
+                .collect();
+        }
+        parts.push(ZzPart {
+            name: format!("words: {name}"),
+            rows: 0,
+            field,
+            bit,
+            blocks: 0,
+        });
+        start += len;
+    }
+    assert_eq!(start, 4 + witness_words);
+    let first_local = 8 + witness_words;
+    let local_column = package.zz_variable_column(first_local);
+    let locals: usize = phases.iter().map(|phase| phase.local_words).sum();
+    let mut owners = vec![0usize; phases.len() + 1];
+    for block in package.blocks() {
+        let owner = local_column
+            .filter(|&first| block.start() >= first && block.start() < first + locals)
+            .map(|first| {
+                let local = block.start() - first;
+                let mut end = 0;
+                phases
+                    .iter()
+                    .position(|phase| {
+                        end += phase.local_words;
+                        local < end
+                    })
+                    .unwrap()
+            })
+            .unwrap_or(phases.len());
+        owners[owner] += 1;
+    }
+    let mut local = first_local;
+    for (index, phase) in phases.iter().enumerate() {
+        let (field, bit) = count(local..local + phase.local_words);
+        parts.push(ZzPart {
+            name: format!("phase: {}", phase.name),
+            rows: phase.rows,
+            field,
+            bit,
+            blocks: owners[index],
+        });
+        local += phase.local_words;
+    }
+    let rows = package
+        .plan_rows()
+        .map_err(|_| crate::Error::Circuit("rows"))?;
+    Ok(ZzCensus {
+        parts,
+        private,
+        width: layout.width(),
+        blocks: package.block_count(),
+        rows: rows.row_count(),
+        sbox_rows: rows.sbox_rows().len(),
+    })
 }
 
 /// The circuit of a memory relation: its geometry, its application, and the

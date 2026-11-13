@@ -1,6 +1,6 @@
 use std::num::NonZeroUsize;
 
-use nightstream::nebula::{Geometry, R1csApplication, R1csApplicationError, RowRelation, Size};
+use nightstream::nebula::{Geometry, R1csApplication, R1csApplicationError, RowRelation, Shared, Size};
 use nightstream::relation::{
     ColumnFamilySpec, ColumnRegistry, ColumnWidth, ContinuityCatalog, ContinuityGroup, ContinuityLink, MemoryCatalog,
 };
@@ -46,6 +46,7 @@ fn app(
             rows: vec![],
             width,
             one,
+            shared: Shared::NONE,
         },
         &continuity,
         &catalog,

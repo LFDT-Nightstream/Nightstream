@@ -162,12 +162,16 @@ fn opcode_lc(operation: WasmOpcode) -> Lc {
 
 type OperationRelation = ApplicationRelation<WasmConstraintScope>;
 
-/// Frozen operation layout and the complete base-plus-operation relation.
+/// Frozen operation layout and the complete one-row relation: the base
+/// relation, the operation sections, then the shared host-event absorb block,
+/// whose columns end the one-row witness (SPEC.md section 7.6, "Shared
+/// columns").
 pub struct OperationCircuit {
     relation: OperationRelation,
     assignment: AuxiliaryLayout,
     base_rows: usize,
     groups: Vec<OperationGroup>,
+    shared: OperationGroup,
 }
 
 /// Named construction groups retain exact column and row ranges for export.
@@ -182,12 +186,18 @@ impl OperationCircuit {
     pub fn groups(&self) -> &[OperationGroup] {
         &self.groups
     }
+    /// The columns and rows of the shared host-event absorb block.
+    pub fn shared(&self) -> &OperationGroup {
+        &self.shared
+    }
     pub fn relation(&self) -> &OperationRelation {
         &self.relation
     }
     pub fn base_columns(&self) -> usize {
         self.assignment.base_columns()
     }
+    /// The rows after the base relation: the operation sections and the
+    /// shared absorb block.
     pub fn operation_rows(&self) -> std::ops::Range<usize> {
         self.base_rows..self.relation.r1cs().catalog().len()
     }
@@ -221,12 +231,21 @@ pub fn operation_circuit() -> Result<&'static OperationCircuit, OperationCircuit
                     rows: row_start..row_end,
                 });
             }
+            let (column_start, row_start) = builder.position();
+            builder.shared_absorb()?;
+            let (column_end, row_end) = builder.position();
+            let shared = OperationGroup {
+                name: crate::ccs::host_event_chain::SHARED_ABSORB_REGION,
+                columns: column_start..column_end,
+                rows: row_start..row_end,
+            };
             let (relation, assignment) = builder.finish()?;
             Ok(OperationCircuit {
                 relation,
                 assignment,
                 base_rows,
                 groups,
+                shared,
             })
         })
         .as_ref()

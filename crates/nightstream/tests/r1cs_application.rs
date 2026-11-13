@@ -2,13 +2,14 @@
 //! proved through `nebula::R1csApplication` as the Starstream interleaving
 //! relation is (SPEC.md section 7.6). It is a counter: each row reads
 //! `table[count]` from a ROM, writes it to a RAM at `count`, and adds one to
-//! `count`. A step holds one row or two.
+//! `count`. A step holds one row or two. A second form of the counter has a
+//! flag and two columns that each group of two rows shares.
 
 use std::num::NonZeroUsize;
 
 use nightstream::nebula::{
-    batched_slots, pack_regions, CatalogBindingError, Circuit, Geometry, R1csApplication, R1csApplicationError,
-    RowRelation, Run, SegmentError, Size, VerifyError,
+    batched_slots, pack_regions, Application, CatalogBindingError, Circuit, Geometry, R1csApplication,
+    R1csApplicationError, R1csStepError, RowRelation, Run, SegmentError, Shared, Size, VerifyError,
 };
 use nightstream::relation::{
     ColumnFamilySpec, ColumnRegistry, ColumnWidth, ConstraintTag, ContinuityCatalog, ContinuityGroup, ContinuityLink,
@@ -96,6 +97,11 @@ fn continuity() -> ContinuityCatalog {
 }
 
 fn application(rows: usize) -> R1csApplication<u32> {
+    application_of(RowRelation::of(&relation()).unwrap(), rows).unwrap()
+}
+
+/// The application of `relation` with the counter's continuity and catalog.
+fn application_of(relation: RowRelation, rows: usize) -> Result<R1csApplication<u32>, R1csApplicationError> {
     let rows = NonZeroUsize::new(rows).unwrap();
     let catalog = catalog();
     let (regions, used) = pack_regions(
@@ -112,7 +118,7 @@ fn application(rows: usize) -> R1csApplication<u32> {
         regions,
         slots: batched_slots(&catalog, &[vec![0], vec![1]], rows).unwrap(),
     };
-    R1csApplication::new(RowRelation::of(&relation()).unwrap(), &continuity(), &catalog, size).unwrap()
+    R1csApplication::new(relation, &continuity(), &catalog, size)
 }
 
 fn preload(table: [u32; 4]) -> MemoryPreload<u32> {
@@ -434,4 +440,134 @@ fn a_relation_of_the_builders_proves_and_verifies_on_cpu() {
         verifier.verify(&other, &vec![0], &last, &proof),
         Err(VerifyError::Proof(_))
     ));
+}
+
+/// The flag and the two shared columns of the second counter.
+const FLAG: usize = 4;
+const S0: usize = 5;
+const S1: usize = 6;
+const SHARED_WIDTH: usize = 7;
+
+/// The counter with `S1 = S0 + 1`, which reads only shared columns, and
+/// `FLAG · (S0 − VALUE) = 0` for each row. Each group of two rows shares
+/// `S0` and `S1`.
+fn shared_relation() -> RowRelation {
+    let registry = ColumnRegistry::new([ColumnFamilySpec {
+        region: "counter",
+        start: 0,
+        len: SHARED_WIDTH,
+        name: "words".into(),
+        role: "test",
+        width: ColumnWidth::U32,
+    }])
+    .unwrap();
+    let mut builder = R1csBuilder::new(1, ONE).unwrap();
+    builder.with_tag(ConstraintTag::new("count", "counter"), |rows| {
+        rows.push_linear_zero([(AFTER, F::ONE), (BEFORE, -F::ONE), (ONE, -F::ONE)]);
+        rows.push_linear_zero([(S1, F::ONE), (S0, -F::ONE), (ONE, -F::ONE)]);
+        rows.push_row([(FLAG, F::ONE)], [(S0, F::ONE), (VALUE, -F::ONE)], []);
+    });
+    let mut relation = RowRelation::of(&builder.build(&registry).unwrap()).unwrap();
+    relation.shared = Shared {
+        columns: 2,
+        rows: NonZeroUsize::new(2).unwrap(),
+    };
+    relation
+}
+
+/// The honest one-row witnesses of the second counter: the odd rows are
+/// flagged, and each row's own shared columns hold its own value.
+fn shared_rows() -> Vec<Vec<F>> {
+    (0..4u64)
+        .map(|count| {
+            let value = F::from_u32(TABLE[count as usize]);
+            vec![
+                F::ONE,
+                F::from_u64(count),
+                F::from_u64(count + 1),
+                value,
+                F::from_u64(count % 2),
+                value,
+                value + F::ONE,
+            ]
+        })
+        .collect()
+}
+
+/// The step witnesses of `rows` one-row witnesses each, every group taking
+/// the shared columns of its row `source`.
+fn shared_inputs(rows: &[Vec<F>], per_step: usize, source: impl Fn(&[&[F]]) -> usize + Copy) -> Vec<Vec<F>> {
+    let shared = shared_relation().shared;
+    rows.chunks(per_step)
+        .map(|step| {
+            let step: Vec<&[F]> = step.iter().map(Vec::as_slice).collect();
+            shared.step_witness(SHARED_WIDTH, &step, source)
+        })
+        .collect()
+}
+
+fn flagged(group: &[&[F]]) -> usize {
+    group.iter().position(|z| z[FLAG] == F::ONE).unwrap_or(0)
+}
+
+/// A step holds each row without its shared columns, then one block for
+/// each group, and keeps the row that reads only shared columns once for each
+/// group. The honest run holds every row and runs through Nebula. A changed
+/// shared word, or the block of the group's row that is not flagged, breaks a
+/// row. Two flagged rows of one group with different values have no block:
+/// their gated rows require `S0 = 5` and `S0 = 6`.
+#[test]
+fn a_group_of_rows_shares_one_block_of_shared_columns() {
+    let block = SHARED_WIDTH - 2;
+    for per_step in [2, 4] {
+        let groups = per_step / 2;
+        let app = application_of(shared_relation(), per_step).unwrap();
+        assert_eq!(app.aux(), per_step * block + groups * 2);
+        assert_eq!(app.relation_rows(), per_step * 2 + groups + (per_step - 1));
+        let inputs = shared_inputs(&shared_rows(), per_step, flagged);
+        for z in &inputs {
+            assert!(app.check(z).is_ok(), "{per_step} rows per step");
+        }
+        let program = app.program(&preload(TABLE)).unwrap();
+        let mut run = Run::new(app.clone(), &program, vec![0]);
+        run.segment(&inputs).unwrap();
+        assert_eq!(run.state(), &vec![4]);
+
+        let mut wrong = inputs[0].clone();
+        wrong[per_step * block] += F::ONE;
+        assert!(matches!(app.check(&wrong), Err(R1csStepError::Relation { .. })));
+        assert!(matches!(
+            app.check(&wrong[1..]),
+            Err(R1csStepError::Width { words, expected }) if words + 1 == expected
+        ));
+        for z in shared_inputs(&shared_rows(), per_step, |_| 0) {
+            assert!(matches!(app.check(&z), Err(R1csStepError::Relation { .. })));
+        }
+    }
+    let app = application_of(shared_relation(), 2).unwrap();
+    let mut both = shared_rows();
+    both[0][FLAG] = F::ONE;
+    for source in [0, 1] {
+        let z = &shared_inputs(&both, 2, move |_| source)[0];
+        assert!(matches!(app.check(z), Err(R1csStepError::Relation { .. })));
+    }
+}
+
+/// A step must hold whole groups, and the constant-one, continuity and
+/// memory columns must not be shared.
+#[test]
+fn shared_columns_are_whole_groups_without_an_interface_column() {
+    assert!(matches!(
+        application_of(shared_relation(), 1),
+        Err(R1csApplicationError::Group)
+    ));
+    for columns in [4, 5, SHARED_WIDTH, SHARED_WIDTH + 1] {
+        let mut relation = shared_relation();
+        relation.shared.columns = columns;
+        assert!(
+            matches!(application_of(relation, 2), Err(R1csApplicationError::Column)),
+            "{columns} shared columns"
+        );
+    }
+    assert!(application_of(shared_relation(), 2).is_ok());
 }

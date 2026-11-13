@@ -13,10 +13,13 @@ fn complete_catalog_preserves_base_and_names_every_auxiliary() {
         &relation.r1cs().catalog().rows()[..circuit.operation_rows().start],
         base.r1cs().catalog().rows()
     );
-    assert_eq!(
-        relation.r1cs().catalog().gadget_occurrences(),
-        base.r1cs().catalog().gadget_occurrences()
-    );
+    let occurrences = relation.r1cs().catalog().gadget_occurrences();
+    let base_occurrences = base.r1cs().catalog().gadget_occurrences();
+    assert_eq!(&occurrences[..base_occurrences.len()], base_occurrences);
+    let [absorb] = &occurrences[base_occurrences.len()..] else {
+        panic!("the shared absorb block adds one gadget");
+    };
+    assert!(circuit.shared().rows.contains(&absorb.row_range().start));
     let mut next_column = circuit.base_columns();
     let mut next_row = circuit.operation_rows().start;
     for group in circuit.groups() {
@@ -34,8 +37,62 @@ fn complete_catalog_preserves_base_and_names_every_auxiliary() {
         next_column = group.columns.end;
         next_row = group.rows.end;
     }
-    assert_eq!(next_column, relation.r1cs().column_count());
-    assert_eq!(next_row, relation.r1cs().catalog().len());
+    // The shared host-event absorb block ends the one-row witness.
+    let shared = circuit.shared();
+    assert_eq!(shared.columns.start, next_column);
+    assert_eq!(shared.rows.start, next_row);
+    assert_eq!(
+        shared.columns.len(),
+        neo_wasm::ccs::host_event_chain::SHARED_ABSORB_COLUMNS
+    );
+    for column in shared.columns.clone() {
+        let family = relation.columns().family_for_column(column).unwrap();
+        assert_eq!(family.region, shared.name);
+    }
+    for row in &relation.r1cs().catalog().rows()[shared.rows.clone()] {
+        assert_eq!(row.tag().label(), "host event shared absorb");
+    }
+    assert_eq!(shared.columns.end, relation.r1cs().column_count());
+    assert_eq!(shared.rows.end, relation.r1cs().catalog().len());
+
+    // The rows are the instance of Lean `Lifecycle.Nebula.SharedAbsorb`: no
+    // row before the block reads a shared column, and in the block only the
+    // 16 gated rows `ABSORB · (…) = 0` read a column of the row other than the
+    // constant-one column. Every other block row reads only the block.
+    let rows = relation.r1cs().catalog().rows();
+    let columns = |index: usize| {
+        let row = rows[index].row();
+        row.a_terms()
+            .iter()
+            .chain(row.b_terms())
+            .chain(row.c_terms())
+            .map(|(column, _)| *column)
+            .collect::<Vec<_>>()
+    };
+    for index in 0..shared.rows.start {
+        assert!(columns(index)
+            .iter()
+            .all(|column| *column < shared.columns.start));
+    }
+    let gated: Vec<usize> = shared
+        .rows
+        .clone()
+        .filter(|&index| {
+            columns(index)
+                .iter()
+                .any(|column| *column != neo_wasm::layout::COL_ONE && *column < shared.columns.start)
+        })
+        .collect();
+    assert_eq!(gated.len(), 16);
+    for index in gated {
+        let row = rows[index].row();
+        let [(flag, one)] = row.a_terms() else {
+            panic!("a gated row has one flag term");
+        };
+        assert_eq!(relation.columns().family_for_column(*flag).unwrap().name, "ABSORB");
+        assert_eq!(*one, F::ONE);
+        assert!(row.c_terms().is_empty());
+    }
 }
 
 #[test]

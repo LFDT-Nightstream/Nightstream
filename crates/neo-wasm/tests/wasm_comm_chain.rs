@@ -12,6 +12,7 @@ use neo_wasm::comm_chain::{
     self, commit_event, fold_event_blocks, CommChainState, COMM_CHAIN_EVENT_ARGS, COMM_CHAIN_STATE_LEN,
 };
 use neo_wasm::layout::{COL_COMM_CHAIN_AFTER, COL_EVBUF_AFTER, COL_EVBUF_BEFORE};
+use neo_wasm::operations::r1cs::operation_circuit;
 use neo_wasm::witness_builder::build_witness_vector;
 use neo_wasm::WasmVmStep;
 use p3_field::PrimeCharacteristicRing;
@@ -157,6 +158,73 @@ fn ccs_rejects_absorb_row_keeping_a_buffer_word() {
     let mut witness = build_witness_vector(absorb_rows(&trace)[0]).unwrap();
     witness[COL_EVBUF_AFTER[3]] += neo_math::F::ONE;
     common::assert_rejected(&witness, "absorb row keeping a buffer word");
+}
+
+/// The complete one-row witness of `row` with the shared absorb block
+/// `block` in place of its own (Lean
+/// `Lifecycle.Nebula.SharedAbsorb.groupRows_iff_forall`: a group holds
+/// exactly when each of its rows holds on the group's block).
+fn with_block(row: &WasmVmStep, block: &[neo_math::F]) -> Vec<neo_math::F> {
+    let shared = operation_circuit().unwrap().shared().columns.clone();
+    let mut witness = common::complete_witness(&build_witness_vector(row).unwrap()).unwrap();
+    witness[shared].copy_from_slice(block);
+    witness
+}
+
+/// The shared absorb block of `row`'s own witness: its input lanes are the
+/// row's absorb input, its output lanes the commitment of that input.
+fn own_block(row: &WasmVmStep) -> Vec<neo_math::F> {
+    let shared = operation_circuit().unwrap().shared().columns.clone();
+    common::complete_witness(&build_witness_vector(row).unwrap()).unwrap()[shared].to_vec()
+}
+
+/// An absorb row lands on the output lanes of its block, which hold the
+/// commitment of its own input. A changed output lane, or the block of a
+/// row with another input, is rejected. A row that does not absorb reads no
+/// word of the block, so it holds with any block whose rows hold.
+#[test]
+fn an_absorb_row_reads_the_output_of_its_own_input_in_the_shared_block() {
+    let trace = two_event_trace();
+    let absorb = absorb_rows(&trace)[0];
+    let block = own_block(absorb);
+    let output = &block[block.len() - COMM_CHAIN_STATE_LEN..];
+    assert_eq!(output, absorb.state_after.comm_chain.map(f));
+    assert_eq!(common::complete_holds(&with_block(absorb, &block)), Ok(()));
+    for lane in block.len() - COMM_CHAIN_STATE_LEN..block.len() {
+        let mut wrong = block.clone();
+        wrong[lane] += neo_math::F::ONE;
+        assert!(common::complete_holds(&with_block(absorb, &wrong)).is_err());
+    }
+    let index = trace
+        .iter()
+        .position(|row| std::ptr::eq(row, absorb))
+        .unwrap();
+    let other = trace[..index]
+        .iter()
+        .rev()
+        .find(|row| own_block(row)[..12] != block[..12])
+        .expect("an earlier row with another absorb input");
+    assert!(absorb_rows(std::slice::from_ref(other)).is_empty());
+    assert!(common::complete_holds(&with_block(absorb, &own_block(other))).is_err());
+    assert_eq!(common::complete_holds(&with_block(other, &block)), Ok(()));
+}
+
+/// Two absorb rows with different inputs have no common block: with either
+/// row's block the other row fails, as the gated input rows require the
+/// block's input lanes to equal each row's input (Lean
+/// `Lifecycle.Nebula.SharedAbsorb.eq_of_gated`). An honest group never holds
+/// two absorbs (`SharedAbsorb.absorbs_unique`).
+#[test]
+fn two_absorbs_with_different_inputs_share_no_block() {
+    let trace = two_event_trace();
+    let rows = absorb_rows(&trace);
+    let (first, second) = (rows[0], rows[1]);
+    let blocks = [own_block(first), own_block(second)];
+    assert_ne!(blocks[0][..12], blocks[1][..12], "the two inputs differ");
+    for block in &blocks {
+        let holds = [first, second].map(|row| common::complete_holds(&with_block(row, block)).is_ok());
+        assert_eq!(holds.iter().filter(|holds| **holds).count(), 1);
+    }
 }
 
 /// Only absorb rows move the chain: a gather row before slot seven that

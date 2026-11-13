@@ -605,12 +605,16 @@ item 5).
   files that Rust builds from those packages.
 - The Rust-built memory relation of an application or geometry that no Lean
   package fixes, the binding rows of the Rust catalog backend, the rows of
-  `nebula::R1csApplication` that link the rows of a batched step, and the
+  `nebula::R1csApplication` that link the rows of a batched step or that a
+  group of rows shares, and the
   WASM relation itself (`SPEC.md` sections 7.6 to 7.8). Lean proves what the slot plan conditions give
-  (`Spec.Nebula.MemoryTrace.reorders_of_slotOrder`) and that batched steps
+  (`Spec.Nebula.MemoryTrace.reorders_of_slotOrder`), that batched steps
   are memory consistent exactly when their rows are
-  (`Spec.Nebula.MemoryTrace.memoryConsistent_batchCatalog_iff`), but not
-  that the Rust rows enforce those conditions. Tests check the rows on fixed
+  (`Spec.Nebula.MemoryTrace.memoryConsistent_batchCatalog_iff`), and that a
+  group that shares one gated absorb block is sound and complete
+  (`Lifecycle.Nebula.SharedAbsorb.groupRows_sound`,
+  `Lifecycle.Nebula.SharedAbsorb.group_complete`), but not
+  that the Rust rows enforce those conditions or are that instance. Tests check the rows on fixed
   inputs (trust item 5). Rust tests also check that each field of the
   typed WASM state changes its words (`every_state_field_changes_the_state_words`
   in `crates/neo-wasm/tests/wasm_nebula.rs`), and that a field of `q` or more

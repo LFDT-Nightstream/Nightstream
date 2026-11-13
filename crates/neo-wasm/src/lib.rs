@@ -17,6 +17,7 @@ mod memory_routing;
 pub mod memory_semantics;
 pub mod nebula;
 pub mod operations;
+pub mod port_range;
 #[doc(hidden)]
 pub mod preprocess;
 pub mod range_check;

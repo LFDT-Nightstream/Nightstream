@@ -229,6 +229,10 @@ impl Circuit {
         })
     }
 
+    pub(crate) fn zz_packages(&self) -> &BoundedDepthPackages {
+        &self.packages
+    }
+
     /// This circuit as a memory relation (`nebula::Circuit`).
     pub(crate) fn into_memory(self) -> Self {
         Self { memory: true, ..self }

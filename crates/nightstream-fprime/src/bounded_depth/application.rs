@@ -11,23 +11,18 @@
 use std::ops::ControlFlow;
 use std::sync::Arc;
 
-use neo_ccs::crypto::poseidon2_goldilocks as poseidon2;
+use neo_ccs::crypto::poseidon2;
+use neo_math::Fq;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
-use p3_goldilocks::Goldilocks;
 
-use super::words::PUBLIC_WORDS;
 use super::{BoundedDepthPackages, Linear, Piece, Region, Row, StepPackage};
 use crate::application_records::ApplicationRecords;
-use crate::package::PackageError;
+use crate::package::{PackageError, BLOCK_LOCALS, BLOCK_OUTPUTS, PUBLIC_WORDS, RING_DEGREE, SBOX_ROWS as SBOX_COLUMNS};
 
 /// The shared words before the states: the encoded digest, the five counter
 /// words and the two key digests (`StepWords::columns`).
 const STATES_START: usize = PUBLIC_WORDS + 5 + 8;
 const WITNESS_START: usize = STATES_START + 12;
-const BLOCK_LOCALS: usize = 1096;
-const BLOCK_OUTPUTS: usize = 1080;
-const SBOX_COLUMNS: usize = 150;
-const RING_DEGREE: usize = 54;
 const IDENTITY_DOMAIN: &[u8] = b"Nightstream/OptionB/application/v1";
 
 fn moved(column: usize, by: i128) -> Option<usize> {
@@ -152,7 +147,7 @@ impl StepPackage {
     pub(super) fn fill_application(
         &self,
         records: &ApplicationRecords,
-        columns: &mut [Goldilocks],
+        columns: &mut [Fq],
     ) -> Result<(), PackageError> {
         let mut walk = records.walk();
         for recipe in 0..records.recipe_count() {
@@ -160,7 +155,7 @@ impl StepPackage {
             let [a, b, _] = walk.evaluate_row(row, |variable| {
                 Ok::<_, PackageError>(columns[self.variable_column(variable)?].as_canonical_u64())
             })?;
-            columns[self.application.local_start + recipe] = Goldilocks::from_u64(a) * Goldilocks::from_u64(b);
+            columns[self.application.local_start + recipe] = Fq::from_u64(a) * Fq::from_u64(b);
         }
         Ok(())
     }
@@ -328,7 +323,7 @@ impl StepPackage {
             .map(|row| {
                 let header = records.row_header(row)?;
                 let mut sides = header.constants.map(|constant| Linear {
-                    constant: Goldilocks::from_u64(constant),
+                    constant: Fq::from_u64(constant),
                     terms: Vec::new(),
                 });
                 let _: ControlFlow<()> = records.visit_terms(row, |term| {
@@ -337,10 +332,9 @@ impl StepPackage {
                             "bounded-depth application row reads a dead local",
                         ));
                     }
-                    sides[term.form.index()].terms.push((
-                        self.variable_column(term.variable)?,
-                        Goldilocks::from_u64(term.coefficient),
-                    ));
+                    sides[term.form.index()]
+                        .terms
+                        .push((self.variable_column(term.variable)?, Fq::from_u64(term.coefficient)));
                     Ok(ControlFlow::Continue(()))
                 })?;
                 let [a, b, c] = sides;
@@ -383,7 +377,7 @@ impl BoundedDepthPackages {
         shape: &NativeShape,
     ) -> Result<Self, PackageError> {
         let mut input = poseidon2::Poseidon2Hasher::default();
-        let mut update = |word: u64| input.update(&[Goldilocks::from_u64(word)]);
+        let mut update = |word: u64| input.update(&[Fq::from_u64(word)]);
         IDENTITY_DOMAIN
             .iter()
             .for_each(|&byte| update(u64::from(byte)));

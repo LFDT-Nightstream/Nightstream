@@ -1,37 +1,31 @@
 //! The light step's shared columns (Lean `LightAssembler.interface`,
 //! `LightAssemblerSource.env`) and the two-slot hashes they carry (Lean
-//! `Lifecycle/BoundedDepth/State`). Columns 0 to 269 are the public input `x`, the
+//! `Lifecycle/BoundedDepth/State`). Columns 0 to 319 are the public input `x`, the
 //! encoding of the output digest (`encHash`); the step's words follow from
-//! column 270 in the assembler's groups.
+//! column 320 in the assembler's groups.
 
-use neo_ccs::crypto::poseidon2_goldilocks::poseidon2_hash;
+use neo_ccs::crypto::poseidon2::poseidon2_hash;
 
-use crate::package::PackageError;
+use crate::package::{PackageError, COMMITMENT_WORDS, EVALUATIONS, EVALUATIONS as SOURCE_OUTPUTS, PUBLIC_WORDS};
+use neo_math::Fq;
 use neo_transcript::domain_chunk_v1_2;
 use p3_field::{Field, PrimeCharacteristicRing};
-use p3_goldilocks::Goldilocks;
-
-type G = Goldilocks;
 
 /// A K value as its two base-field coefficients.
-pub type KWords = [G; 2];
+pub type KWords = [Fq; 2];
 
-pub const PUBLIC_WORDS: usize = 270;
-pub const COMMITMENT_WORDS: usize = 1188;
-const EVALUATIONS: usize = 270;
-const POINT_COORDINATES: usize = 28;
-const ROUND_COEFFICIENTS: usize = 9;
-const SOURCE_OUTPUTS: usize = 270;
+const POINT_COORDINATES: usize = crate::package::PI_CCS_V1_2_ROUND_COUNT;
+const ROUND_COEFFICIENTS: usize = crate::package::PI_CCS_V1_2_ROUND_COEFFICIENT_COUNT;
 const CHILDREN: usize = 16;
 
 /// A slot: its claim and its depth (`State.SlotData`). The evaluations are
-/// `Eval_K` (54) then `Eval_A` (four matrices of 54).
+/// `Eval_K` (64) then `Eval_A` (four matrices of 64).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Slot {
-    pub commitment: Vec<G>,
+    pub commitment: Vec<Fq>,
     pub evaluations: Vec<KWords>,
     pub point: Vec<KWords>,
-    pub public_input: Vec<G>,
+    pub public_input: Vec<Fq>,
     pub depth: u64,
 }
 
@@ -40,26 +34,26 @@ impl Slot {
     /// (`Step.defaultSlot`): every word is 0.
     pub fn default_slot() -> Self {
         Self {
-            commitment: vec![G::ZERO; COMMITMENT_WORDS],
-            evaluations: vec![[G::ZERO; 2]; EVALUATIONS],
-            point: vec![[G::ZERO; 2]; POINT_COORDINATES],
-            public_input: vec![G::ZERO; PUBLIC_WORDS],
+            commitment: vec![Fq::ZERO; COMMITMENT_WORDS],
+            evaluations: vec![[Fq::ZERO; 2]; EVALUATIONS],
+            point: vec![[Fq::ZERO; 2]; POINT_COORDINATES],
+            public_input: vec![Fq::ZERO; PUBLIC_WORDS],
             depth: 0,
         }
     }
 
     /// `State.serializeSlot`, in the order of `SlotExpr.words`.
-    pub fn words(&self) -> Vec<G> {
+    pub fn words(&self) -> Vec<Fq> {
         let mut words = self.commitment.clone();
         words.extend(self.evaluations.iter().flatten());
         words.extend(self.point.iter().flatten());
         words.extend(&self.public_input);
-        words.push(G::from_u64(self.depth));
+        words.push(Fq::from_u64(self.depth));
         words
     }
 
     /// `State.slotDigest`.
-    pub fn digest(&self) -> [G; 4] {
+    pub fn digest(&self) -> [Fq; 4] {
         let mut input = domain_chunk_v1_2(b"HyperNova/NIVC/slot/v3").to_vec();
         input.extend(self.words());
         poseidon2_hash(&input)
@@ -69,23 +63,23 @@ impl Slot {
 /// What the state hash binds (`State.State`).
 #[derive(Clone, Debug)]
 pub struct State {
-    pub keys: [[G; 4]; 2],
+    pub keys: [[Fq; 4]; 2],
     pub iteration: u64,
-    pub z0: [G; 4],
-    pub current: [G; 4],
+    pub z0: [Fq; 4],
+    pub current: [Fq; 4],
     pub pc: u64,
     pub slots: [Slot; 2],
 }
 
 impl State {
     /// `State.stateHash`.
-    pub fn hash(&self) -> [G; 4] {
+    pub fn hash(&self) -> [Fq; 4] {
         let mut input = domain_chunk_v1_2(b"HyperNova/NIVC/state/v3").to_vec();
         input.extend(self.keys.iter().flatten());
-        input.push(G::from_u64(self.iteration));
+        input.push(Fq::from_u64(self.iteration));
         input.extend(self.z0);
         input.extend(self.current);
-        input.push(G::from_u64(self.pc));
+        input.push(Fq::from_u64(self.pc));
         input.extend(self.slots[0].digest());
         input.extend(self.slots[1].digest());
         poseidon2_hash(&input)
@@ -93,13 +87,13 @@ impl State {
 }
 
 /// `encHash`: the marker 1, the digest's 256 little-endian bits, then zeros.
-pub fn encode_digest(digest: [G; 4]) -> Vec<G> {
-    let mut words = vec![G::ZERO; PUBLIC_WORDS];
-    words[0] = G::ONE;
+pub fn encode_digest(digest: [Fq; 4]) -> Vec<Fq> {
+    let mut words = vec![Fq::ZERO; PUBLIC_WORDS];
+    words[0] = Fq::ONE;
     for (word, value) in digest.iter().enumerate() {
         let value = p3_field::PrimeField64::as_canonical_u64(value);
         for bit in 0..64 {
-            words[1 + 64 * word + bit] = G::from_u64((value >> bit) & 1);
+            words[1 + 64 * word + bit] = Fq::from_u64((value >> bit) & 1);
         }
     }
     words
@@ -109,9 +103,9 @@ pub fn encode_digest(digest: [G; 4]) -> Vec<G> {
 /// and its digit words (`Refresh.Split`, `publicInputSplit`).
 #[derive(Clone, Debug)]
 pub struct Child {
-    pub commitment: Vec<G>,
+    pub commitment: Vec<Fq>,
     pub evaluations: Vec<KWords>,
-    pub digits: Vec<G>,
+    pub digits: Vec<Fq>,
 }
 
 /// The words of the step's fold after the fresh instance: the light fold's
@@ -140,20 +134,20 @@ pub struct StepWords {
     pub iteration: u64,
     pub prior_pc: u64,
     pub selected: u64,
-    pub keys: [[G; 4]; 2],
-    pub states: [[G; 4]; 3],
-    pub witness: Vec<G>,
+    pub keys: [[Fq; 4]; 2],
+    pub states: [[Fq; 4]; 3],
+    pub witness: Vec<Fq>,
     pub slots: [Slot; 7],
-    pub digests: [[G; 4]; 5],
-    pub fresh_commitment: Vec<G>,
-    pub fresh_public_input: Vec<G>,
+    pub digests: [[Fq; 4]; 5],
+    pub fresh_commitment: Vec<Fq>,
+    pub fresh_public_input: Vec<Fq>,
     pub rounds: Vec<[KWords; ROUND_COEFFICIENTS]>,
     pub fold: FoldWords,
 }
 
 impl StepWords {
     /// The shared columns below the step's `sharedEnd`.
-    pub fn columns(&self) -> Result<Vec<G>, PackageError> {
+    pub fn columns(&self) -> Result<Vec<Fq>, PackageError> {
         let slots_fit = self.slots.iter().all(|slot| {
             slot.commitment.len() == COMMITMENT_WORDS
                 && slot.evaluations.len() == EVALUATIONS
@@ -184,14 +178,14 @@ impl StepWords {
         {
             return Err(PackageError::Input("step word shapes"));
         }
-        let iteration = G::from_u64(self.iteration);
+        let iteration = Fq::from_u64(self.iteration);
         let mut columns = encode_digest(self.digests[4]);
         columns.extend([
             iteration,
-            iteration.try_inverse().unwrap_or(G::ZERO),
-            G::from_bool(self.iteration != 0),
-            G::from_u64(self.prior_pc),
-            G::from_u64(self.selected),
+            iteration.try_inverse().unwrap_or(Fq::ZERO),
+            Fq::from_bool(self.iteration != 0),
+            Fq::from_u64(self.prior_pc),
+            Fq::from_u64(self.selected),
         ]);
         columns.extend(self.keys.iter().flatten());
         columns.extend(self.states.iter().flatten());

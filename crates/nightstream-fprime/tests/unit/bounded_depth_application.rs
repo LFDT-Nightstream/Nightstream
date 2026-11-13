@@ -6,8 +6,8 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use neo_math::Fq;
 use p3_field::PrimeCharacteristicRing;
-use p3_goldilocks::Goldilocks;
 
 use crate::application_records::{
     ApplicationForm, ApplicationRecipeNode, ApplicationRecords, ApplicationRecordsWriter, ApplicationRowHeader,
@@ -152,8 +152,8 @@ fn block(first_local: usize, lane: usize) -> NativeBlock {
     NativeBlock {
         first_local,
         lanes: std::array::from_fn(|_| Linear {
-            constant: Goldilocks::ZERO,
-            terms: vec![(lane, Goldilocks::ONE)],
+            constant: Fq::ZERO,
+            terms: vec![(lane, Fq::ONE)],
         }),
     }
 }

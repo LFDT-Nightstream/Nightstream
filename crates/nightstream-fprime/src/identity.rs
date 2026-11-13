@@ -1,17 +1,17 @@
 //! Poseidon2 identity binding for the canonical Lean-emitted package.
 
-use neo_ccs::crypto::poseidon2_goldilocks as poseidon2;
+use neo_ccs::crypto::poseidon2;
+use neo_math::Fq;
 use p3_field::PrimeCharacteristicRing;
-use p3_goldilocks::Goldilocks;
 use serde_json::Value;
 
 use crate::package::PackageError;
 
 fn update_words(input: &mut poseidon2::Poseidon2Hasher, words: &[u64]) {
-    let mut fields = [Goldilocks::ZERO; poseidon2::RATE];
+    let mut fields = [Fq::ZERO; poseidon2::RATE];
     for chunk in words.chunks(poseidon2::RATE) {
         for (field, &word) in fields.iter_mut().zip(chunk) {
-            *field = Goldilocks::from_u64(word);
+            *field = Fq::from_u64(word);
         }
         input.update(&fields[..chunk.len()]);
     }

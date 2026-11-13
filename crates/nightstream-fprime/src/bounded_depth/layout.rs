@@ -1,5 +1,5 @@
 //! A step package's logical columns (Lean `Export/Generic/SlotLayout`,
-//! `ProductionAssignment.logicalAssignment`): the 270 public columns, then
+//! `ProductionAssignment.logicalAssignment`): the 320 public columns, then
 //! one low-norm slot for each source column in the package's runs. A field
 //! slot holds the 41 balanced-ternary digits of its value; a bit or centered
 //! slot holds the value itself. A source column without a slot is not a
@@ -7,22 +7,20 @@
 //! only for a column that a row reads and that is no output local of a block,
 //! a bit slot only for a column that a row forces to 0 or 1.
 
+use neo_math::Fq;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
-use p3_goldilocks::Goldilocks;
 use rayon::prelude::*;
 
 use super::expand::mix;
 use super::{Linear, Piece, Row, StepPackage};
-use crate::package::{encode_field, PackageError};
+use crate::package::{
+    encode_field, PackageError, BLOCK_LOCALS, BLOCK_OUTPUTS, PUBLIC_WORDS as PUBLIC, RING_DEGREE,
+    SBOX_ROWS as SBOX_COLUMNS,
+};
 
-const PUBLIC: usize = 270;
 const FIELD_DIGITS: usize = 41;
 const FIELD_RATIO: u64 = 3;
 const NO_SLOT: u32 = u32::MAX;
-const RING_DEGREE: usize = 54;
-const SBOX_COLUMNS: usize = 150;
-const BLOCK_OUTPUTS: usize = 1080;
-const BLOCK_LOCALS: usize = 1096;
 
 /// A slot's kind (`LowNormSlot.Kind`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -62,7 +60,7 @@ pub struct SlotSpans {
     /// 0 for a source column without a slot.
     pub widths: Vec<u8>,
     /// The ratio of a field slot's digits.
-    pub ratio: Goldilocks,
+    pub ratio: Fq,
 }
 
 impl LogicalLayout {
@@ -92,16 +90,16 @@ impl LogicalLayout {
         SlotSpans {
             starts,
             widths,
-            ratio: Goldilocks::from_u64(FIELD_RATIO),
+            ratio: Fq::from_u64(FIELD_RATIO),
         }
     }
 
     /// The honest logical assignment of the source columns `columns`.
-    pub fn assignment(&self, columns: &[Goldilocks]) -> Result<Vec<Goldilocks>, PackageError> {
+    pub fn assignment(&self, columns: &[Fq]) -> Result<Vec<Fq>, PackageError> {
         if columns.len() < PUBLIC {
             return Err(PackageError::Input("bounded-depth source columns"));
         }
-        let mut logical = vec![Goldilocks::ZERO; self.width];
+        let mut logical = vec![Fq::ZERO; self.width];
         let (public, mut rest) = logical.split_at_mut(PUBLIC);
         public.copy_from_slice(&columns[..PUBLIC]);
         // The slots are in logical order, so each range of slots owns one
@@ -131,7 +129,7 @@ impl LogicalLayout {
                     Kind::Field => {
                         encode_field(value.as_canonical_u64(), &mut digits);
                         for (target, &digit) in part[offset..offset + FIELD_DIGITS].iter_mut().zip(&digits) {
-                            *target = Goldilocks::from_i64(i64::from(digit));
+                            *target = Fq::from_i64(i64::from(digit));
                         }
                     }
                 }
@@ -144,10 +142,8 @@ impl LogicalLayout {
 
     /// Lean `Parity.logicalSum`: the public columns and the digits of each
     /// slot below `limit`, each times `mix(1, logical column)`.
-    pub fn checksum(&self, logical: &[Goldilocks], limit: usize) -> u64 {
-        let mut total = (0..PUBLIC).fold(Goldilocks::ZERO, |sum, column| {
-            sum + logical[column] * mix(1, column as u64)
-        });
+    pub fn checksum(&self, logical: &[Fq], limit: usize) -> u64 {
+        let mut total = (0..PUBLIC).fold(Fq::ZERO, |sum, column| sum + logical[column] * mix(1, column as u64));
         for &column in self.slots.iter().filter(|&&column| column < limit) {
             let offset = self.offsets[column] as usize;
             for index in offset..offset + self.kinds[column].width() {
@@ -175,13 +171,11 @@ fn forced_column(row: &Row) -> Option<usize> {
         side.terms
             .iter()
             .filter(|&&(other, _)| other == target)
-            .fold(Goldilocks::ZERO, |sum, &(_, coefficient)| sum + coefficient)
+            .fold(Fq::ZERO, |sum, &(_, coefficient)| sum + coefficient)
     };
     let [low_a, low_b, low_c] = sides.map(|side| side.constant + at(side, 0));
     let [high_a, high_b, high_c] = sides.map(|side| at(side, column));
-    (high_a * high_b != Goldilocks::ZERO
-        && low_a * low_b == low_c
-        && (low_a + high_a) * (low_b + high_b) == low_c + high_c)
+    (high_a * high_b != Fq::ZERO && low_a * low_b == low_c && (low_a + high_a) * (low_b + high_b) == low_c + high_c)
         .then_some(column)
 }
 
@@ -314,8 +308,8 @@ impl StepPackage {
 pub struct Run {
     pub column: usize,
     pub count: usize,
-    pub coefficient: Goldilocks,
-    pub ratio: Goldilocks,
+    pub coefficient: Fq,
+    pub ratio: Fq,
 }
 
 impl LogicalLayout {
@@ -338,9 +332,9 @@ impl LogicalLayout {
                 count: kind.width(),
                 coefficient,
                 ratio: if kind == Kind::Field {
-                    Goldilocks::from_u64(FIELD_RATIO)
+                    Fq::from_u64(FIELD_RATIO)
                 } else {
-                    Goldilocks::ONE
+                    Fq::ONE
                 },
             });
         }
@@ -353,9 +347,9 @@ impl LogicalLayout {
         rows: &super::PlanRows,
         row: usize,
         port: usize,
-        logical: &[Goldilocks],
-    ) -> Result<Goldilocks, PackageError> {
-        let mut total = Goldilocks::ZERO;
+        logical: &[Fq],
+    ) -> Result<Fq, PackageError> {
+        let mut total = Fq::ZERO;
         self.visit_runs(rows, row, port, |run| {
             let mut coefficient = run.coefficient;
             for value in &logical[run.column..run.column + run.count] {

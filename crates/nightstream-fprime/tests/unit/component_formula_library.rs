@@ -7,7 +7,7 @@ fn library() -> Value {
     json!({
         "format": "nightstream.matrix-templates",
         "version": 1,
-        "profile": [18446744069414584321u64, 2, 16, 65536, 54, 28, 4, 4],
+        "profile": [18446744073709551557u64, 2, 16, 65536, 64, 28, 4, 4],
         "components": [{
             "id": "linear-example", "input_count": 2,
             "ports": [
@@ -26,9 +26,9 @@ fn decode(value: &Value) -> Result<FormulaLibrary, nightstream_fprime::component
 
 #[test]
 fn normalizes_equal_columns_and_field_cancellation() {
-    let form = SparseForm::new([(4, 1), (1, 7), (4, 18446744069414584320), (1, 3)]).unwrap();
+    let form = SparseForm::new([(4, 1), (1, 7), (4, 18446744073709551556), (1, 3)]).unwrap();
     assert_eq!(form.entries().collect::<Vec<_>>(), vec![(1, 10)]);
-    assert!(SparseForm::new([(0, 18446744069414584321)]).is_err());
+    assert!(SparseForm::new([(0, 18446744073709551557)]).is_err());
 }
 
 #[test]
@@ -64,7 +64,7 @@ fn rejects_incomplete_or_ambiguous_component_contracts() {
     let mut unknown = library();
     unknown["components"][0]["rowz"] = json!([]);
     let mut coefficient = library();
-    coefficient["components"][0]["variants"][0]["linear_forms"][0][0][1] = json!(18446744069414584321u64);
+    coefficient["components"][0]["variants"][0]["linear_forms"][0][0][1] = json!(18446744073709551557u64);
     let mut row_width = library();
     row_width["components"][0]["variants"][0]["rows"][0]
         .as_array_mut()

@@ -2,18 +2,14 @@
 //! columns, the circuit's locals in column order (the witness batches and the
 //! native ranges), then the fresh columns of the relation piece by piece.
 
-use neo_ccs::crypto::poseidon2_goldilocks::permute_state;
+use neo_ccs::crypto::poseidon2::permute_state;
+use neo_math::Fq;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
-use p3_goldilocks::Goldilocks;
 
 use super::expand::{mix, PlanRows};
 use super::{Linear, Piece, StepPackage};
-use crate::package::PackageError;
+use crate::package::{PackageError, BLOCK_LOCALS, BLOCK_OUTPUTS, RING_DEGREE, RING_NODES, SBOX_ROWS};
 use crate::witness::{execute_witness_batch, WitnessBatch};
-
-const RING_DEGREE: usize = 54;
-const BLOCK_LOCALS: usize = 1096;
-const BLOCK_OUTPUTS: usize = 1080;
 
 /// Something that fills columns from `start` in column order.
 enum Step<'a> {
@@ -38,7 +34,7 @@ impl Step<'_> {
     }
 }
 
-fn evaluate(linear: &Linear, columns: &[Goldilocks]) -> Goldilocks {
+fn evaluate(linear: &Linear, columns: &[Fq]) -> Fq {
     linear
         .terms
         .iter()
@@ -47,9 +43,9 @@ fn evaluate(linear: &Linear, columns: &[Goldilocks]) -> Goldilocks {
         })
 }
 
-/// The schoolbook product of two ring elements, all 107 coefficients.
-fn product(left: &[Goldilocks], right: &[Goldilocks]) -> Vec<Goldilocks> {
-    let mut full = vec![Goldilocks::ZERO; 2 * RING_DEGREE - 1];
+/// The schoolbook product of two ring elements, all `2 * RING_DEGREE - 1` coefficients.
+fn product(left: &[Fq], right: &[Fq]) -> Vec<Fq> {
+    let mut full = vec![Fq::ZERO; 2 * RING_DEGREE - 1];
     for (i, &a) in left.iter().enumerate() {
         for (j, &b) in right.iter().enumerate() {
             full[i + j] += a * b;
@@ -58,22 +54,19 @@ fn product(left: &[Goldilocks], right: &[Goldilocks]) -> Vec<Goldilocks> {
     full
 }
 
-/// Divides by Φ81 = X^54 + X^27 + 1: the quotient and the remainder.
-fn divide(mut full: Vec<Goldilocks>) -> (Vec<Goldilocks>, Vec<Goldilocks>) {
-    let mut quotient = vec![Goldilocks::ZERO; RING_DEGREE];
-    for degree in (RING_DEGREE..full.len()).rev() {
-        let lead = full[degree];
-        quotient[degree - RING_DEGREE] = lead;
-        full[degree] = Goldilocks::ZERO;
-        full[degree - RING_DEGREE + 27] -= lead;
-        full[degree - RING_DEGREE] -= lead;
+/// Divides by `X^64 + 1`: the quotient and the remainder. The quotient is
+/// the high half of `full`, and its last lane is 0 (`QuotientProduct.quotient_last_zero`).
+fn divide(mut full: Vec<Fq>) -> (Vec<Fq>, Vec<Fq>) {
+    let mut quotient = full.split_off(RING_DEGREE);
+    for (low, &high) in full.iter_mut().zip(&quotient) {
+        *low -= high;
     }
-    full.truncate(RING_DEGREE);
+    quotient.resize(RING_DEGREE, Fq::ZERO);
     (quotient, full)
 }
 
 /// A ring piece's challenge, value and prior of `cell`, as lane values.
-fn ring_operands(cells: usize, cell: usize, lanes: &[Linear], columns: &[Goldilocks]) -> [Vec<Goldilocks>; 3] {
+fn ring_operands(cells: usize, cell: usize, lanes: &[Linear], columns: &[Fq]) -> [Vec<Fq>; 3] {
     let lane = |index: usize| evaluate(&lanes[index], columns);
     [
         (0..RING_DEGREE).map(lane).collect(),
@@ -90,7 +83,7 @@ impl StepPackage {
     /// The circuit's columns below `first_fresh` from `shared`, the columns
     /// below the first local: column 0 is the constant 1. A block's 1,080 dead
     /// locals stay 0, because no row reads them (`Frame.Framed`).
-    pub fn circuit_columns(&self, shared: &[Goldilocks]) -> Result<Vec<Goldilocks>, PackageError> {
+    pub fn circuit_columns(&self, shared: &[Fq]) -> Result<Vec<Fq>, PackageError> {
         self.circuit_columns_with(shared, None)
     }
 
@@ -98,18 +91,14 @@ impl StepPackage {
     /// caller, in recipe order, when the caller has them from the
     /// application's execution. The relation's rows check them like every
     /// other column.
-    pub fn circuit_columns_with(
-        &self,
-        shared: &[Goldilocks],
-        locals: Option<&[Goldilocks]>,
-    ) -> Result<Vec<Goldilocks>, PackageError> {
-        if shared.first() != Some(&Goldilocks::ONE) || shared.len() > self.first_fresh {
+    pub fn circuit_columns_with(&self, shared: &[Fq], locals: Option<&[Fq]>) -> Result<Vec<Fq>, PackageError> {
+        if shared.first() != Some(&Fq::ONE) || shared.len() > self.first_fresh {
             return Err(PackageError::Input("bounded-depth shared columns"));
         }
         if shared.len() != self.application.local_start {
             return Err(PackageError::Input("bounded-depth shared column count"));
         }
-        let mut columns = vec![Goldilocks::ZERO; self.first_fresh];
+        let mut columns = vec![Fq::ZERO; self.first_fresh];
         columns[..shared.len()].copy_from_slice(shared);
         if let Some(records) = &self.native {
             match locals {
@@ -122,7 +111,7 @@ impl StepPackage {
                 None => self.fill_application(records, &mut columns)?,
             }
             for block in self.blocks() {
-                columns[block.start()..block.outputs()].fill(Goldilocks::ZERO);
+                columns[block.start()..block.outputs()].fill(Fq::ZERO);
             }
         }
         let mut steps: Vec<_> = self.witness.iter().map(Step::Batch).collect();
@@ -144,7 +133,7 @@ impl StepPackage {
             match step {
                 Step::Batch(batch) => execute_witness_batch(batch, &mut columns),
                 Step::Block { start, lanes } => {
-                    let state: [Goldilocks; 16] = lanes
+                    let state: [Fq; 16] = lanes
                         .iter()
                         .map(|lane| evaluate(lane, &columns))
                         .collect::<Vec<_>>()
@@ -173,13 +162,9 @@ impl StepPackage {
     /// come first, because a row can read the form of a block output, which
     /// is over S-box columns. A block's lanes read only circuit columns and
     /// outputs of blocks before it.
-    pub fn relation_columns(
-        &self,
-        mut columns: Vec<Goldilocks>,
-        rows: &PlanRows,
-    ) -> Result<Vec<Goldilocks>, PackageError> {
-        let width = self.sbox_start + 150 * self.block_count();
-        columns.resize(width, Goldilocks::ZERO);
+    pub fn relation_columns(&self, mut columns: Vec<Fq>, rows: &PlanRows) -> Result<Vec<Fq>, PackageError> {
+        let width = self.sbox_start + SBOX_ROWS * self.block_count();
+        columns.resize(width, Fq::ZERO);
         for row in rows.ordinary_row_count()..rows.row_count() {
             let [(column, _)] = rows.port(row, 2).collect::<Vec<_>>()[..] else {
                 return Err(PackageError::Malformed("bounded-depth S-box row output"));
@@ -193,7 +178,7 @@ impl StepPackage {
                 Piece::Rows(lowered) => {
                     for _ in lowered {
                         if let [(column, coefficient)] = rows.port(row, 2).collect::<Vec<_>>()[..] {
-                            if column == next && coefficient == Goldilocks::ONE {
+                            if column == next && coefficient == Fq::ONE {
                                 columns[column] = rows.evaluate(row, 0, &columns) * rows.evaluate(row, 1, &columns);
                                 next += 1;
                             }
@@ -214,7 +199,7 @@ impl StepPackage {
                         columns[target..target + RING_DEGREE].copy_from_slice(&coefficients);
                     }
                     next += RING_DEGREE * cells;
-                    row += 108 * cells;
+                    row += RING_NODES * cells;
                 }
                 Piece::Block { .. } => {}
             }
@@ -229,7 +214,7 @@ impl StepPackage {
 impl StepPackage {
     /// Lean `Parity.witnessSum`: each live column below `first_fresh` times
     /// `mix(0, column)`; a block's 1,080 dead locals are left out.
-    pub fn witness_checksum(&self, columns: &[Goldilocks]) -> u64 {
+    pub fn witness_checksum(&self, columns: &[Fq]) -> u64 {
         let mut dead = vec![false; self.first_fresh];
         for block in self.blocks() {
             dead[block.start()..block.outputs()].fill(true);
@@ -238,9 +223,7 @@ impl StepPackage {
             .iter()
             .enumerate()
             .filter(|(column, _)| !dead[*column])
-            .fold(Goldilocks::ZERO, |sum, (column, &value)| {
-                sum + value * mix(0, column as u64)
-            })
+            .fold(Fq::ZERO, |sum, (column, &value)| sum + value * mix(0, column as u64))
             .as_canonical_u64()
     }
 }

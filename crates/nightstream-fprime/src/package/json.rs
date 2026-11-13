@@ -3,8 +3,8 @@
 //! Each reader returns `PackageError` with the caller's location text. They
 //! check only shape and range; the decoders own the meaning of each value.
 
+use neo_math::Fq;
 use p3_field::PrimeField64;
-use p3_goldilocks::Goldilocks;
 use serde_json::Value;
 
 use super::PackageError;
@@ -37,7 +37,7 @@ pub(crate) fn word_to_usize(value: u64, location: &'static str) -> Result<usize,
 }
 
 pub(crate) fn canonical_field(value: u64, location: &'static str) -> Result<(), PackageError> {
-    if value >= Goldilocks::ORDER_U64 {
+    if value >= Fq::ORDER_U64 {
         Err(PackageError::NonCanonicalField { location, value })
     } else {
         Ok(())

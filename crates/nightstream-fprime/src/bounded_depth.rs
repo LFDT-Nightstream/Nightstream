@@ -17,35 +17,35 @@ pub use expand::PlanRows;
 
 use std::sync::Arc;
 
-use neo_ccs::crypto::poseidon2_goldilocks as poseidon2;
+use neo_ccs::crypto::poseidon2;
+use neo_math::Fq;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
-use p3_goldilocks::Goldilocks;
 use serde_json::Value;
 
 use crate::application_records::ApplicationRecords;
 use crate::identity::append_value_preimage;
 use crate::package::json::{array, exact_array, usize_atom};
-use crate::package::{IdentityKind, PackageError};
+use crate::package::{IdentityKind, PackageError, BLOCK_OUTPUTS};
 use crate::witness::{validate_witness_batch, validate_witness_batch_order, RawWitnessBatch, WitnessBatch};
 
 const IDENTITY_DOMAIN: &[u8] = b"Nightstream/OptionB/packages/v1";
 /// The identity of the packages in `formal/nightstream-fprime/artifacts`.
 pub const BOUNDED_DEPTH_PACKAGES_IDENTITY: [u64; 4] = [
-    9_707_591_829_227_951_822,
-    2_741_336_479_425_895_323,
-    6_230_668_085_004_830_174,
-    14_367_988_604_119_679_107,
+    1_225_095_267_916_682_295,
+    840_105_834_244_237_970,
+    10_817_163_649_670_147_368,
+    17_998_187_950_477_801_735,
 ];
 
 /// A lane or a row side as `Pieces.linear?` reads it: a constant and terms.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Linear {
-    pub constant: Goldilocks,
-    pub terms: Vec<(usize, Goldilocks)>,
+    pub constant: Fq,
+    pub terms: Vec<(usize, Fq)>,
 }
 
 impl Linear {
-    fn scale(mut self, factor: Goldilocks) -> Self {
+    fn scale(mut self, factor: Fq) -> Self {
         self.constant *= factor;
         for term in &mut self.terms {
             term.1 *= factor;
@@ -233,11 +233,11 @@ impl Block<'_> {
 
     /// The first output local.
     pub fn outputs(&self) -> usize {
-        self.start + 1080
+        self.start + BLOCK_OUTPUTS
     }
 
     /// The input lanes evaluated on `assignment`.
-    pub fn lane_values(&self, assignment: &[Goldilocks]) -> Vec<Goldilocks> {
+    pub fn lane_values(&self, assignment: &[Fq]) -> Vec<Fq> {
         self.lanes
             .iter()
             .map(|lane| {
@@ -329,7 +329,7 @@ fn decode_pair(light: &[u8], refresh: &[u8]) -> Result<(Value, StepPackage, Step
 pub fn bounded_depth_identity(pair: &Value) -> Result<[u64; 4], PackageError> {
     let mut input = poseidon2::Poseidon2Hasher::default();
     for &byte in IDENTITY_DOMAIN {
-        input.update(&[Goldilocks::from_u64(u64::from(byte))]);
+        input.update(&[Fq::from_u64(u64::from(byte))]);
     }
     append_value_preimage(pair, &mut input)?;
     Ok(input.finalize().map(|word| word.as_canonical_u64()))
@@ -385,16 +385,16 @@ pub fn parse_atoms(bytes: &[u8]) -> Result<Value, PackageError> {
     done.ok_or(PackageError::Malformed("empty package"))
 }
 
-fn field(value: &Value, location: &'static str) -> Result<Goldilocks, PackageError> {
+fn field(value: &Value, location: &'static str) -> Result<Fq, PackageError> {
     let word = value.as_u64().ok_or(PackageError::Malformed(location))?;
-    if word >= Goldilocks::ORDER_U64 {
+    if word >= Fq::ORDER_U64 {
         return Err(PackageError::NonCanonicalField { location, value: word });
     }
-    Ok(Goldilocks::from_u64(word))
+    Ok(Fq::from_u64(word))
 }
 
 /// `(column, coefficient)` pairs.
-fn decode_terms(value: &Value) -> Result<Vec<(usize, Goldilocks)>, PackageError> {
+fn decode_terms(value: &Value) -> Result<Vec<(usize, Fq)>, PackageError> {
     array(value, "bounded-depth terms")?
         .iter()
         .map(|term| {
@@ -436,8 +436,8 @@ fn decode_linear(value: &Value) -> Result<Linear, PackageError> {
         .ok_or(PackageError::Malformed("bounded-depth expression tag"))?;
     match (tag, fields) {
         (0, [_, column]) => Ok(Linear {
-            constant: Goldilocks::ZERO,
-            terms: vec![(usize_atom(column, "bounded-depth expression column")?, Goldilocks::ONE)],
+            constant: Fq::ZERO,
+            terms: vec![(usize_atom(column, "bounded-depth expression column")?, Fq::ONE)],
         }),
         (1, [_, constant]) => Ok(Linear {
             constant: field(constant, "bounded-depth expression constant")?,
@@ -453,7 +453,7 @@ fn decode_linear(value: &Value) -> Result<Linear, PackageError> {
     }
 }
 
-fn constant_node(value: &Value) -> Result<Option<Goldilocks>, PackageError> {
+fn constant_node(value: &Value) -> Result<Option<Fq>, PackageError> {
     match array(value, "bounded-depth expression")? {
         [tag, constant] if tag.as_u64() == Some(1) => Ok(Some(field(constant, "bounded-depth expression constant")?)),
         _ => Ok(None),

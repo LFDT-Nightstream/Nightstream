@@ -5,8 +5,8 @@ use std::{
     sync::OnceLock,
 };
 
+use neo_math::Fq;
 use p3_field::PrimeCharacteristicRing;
-use p3_goldilocks::Goldilocks;
 
 use crate::components::{ComponentError, FormulaLibrary, FormulaVariant, SparseForm};
 
@@ -60,7 +60,7 @@ pub(super) fn substitute_into(
     }
     for (input, coefficient) in form.entries() {
         if coefficient != 0 {
-            let scalar = Goldilocks::from_u64(coefficient);
+            let scalar = Fq::from_u64(coefficient);
             terms.extend(inputs[input].terms().iter().map(|term| term.scaled(scalar)));
         }
     }

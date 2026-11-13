@@ -6,13 +6,13 @@
 use std::fs;
 use std::path::PathBuf;
 
-use neo_ccs::crypto::poseidon2_goldilocks::permute_state;
+use neo_ccs::crypto::poseidon2::permute_state;
+use neo_math::Fq;
 use nightstream_fprime::{
     bounded_depth_identity, load_bounded_depth_packages, parse_atoms, BoundedDepthPackages, PackageError,
-    BOUNDED_DEPTH_PACKAGES_IDENTITY,
+    BOUNDED_DEPTH_PACKAGES_IDENTITY, PUBLIC_WORDS,
 };
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
-use p3_goldilocks::Goldilocks as G;
 use serde_json::Value;
 
 fn artifact(name: &str) -> Vec<u8> {
@@ -50,15 +50,15 @@ fn words(value: &Value) -> Vec<u64> {
 }
 
 /// Lean `Parity.sharedWord`.
-fn shared_word(column: usize) -> G {
+fn shared_word(column: usize) -> Fq {
     if column == 0 {
-        return G::ONE;
+        return Fq::ONE;
     }
-    let q = u128::from(G::ORDER_U64);
-    G::from_u64(((column as u128 * 6_364_136_223_846_793_005 + 1_442_695_040_888_963_407) % q) as u64)
+    let q = u128::from(Fq::ORDER_U64);
+    Fq::from_u64(((column as u128 * 6_364_136_223_846_793_005 + 1_442_695_040_888_963_407) % q) as u64)
 }
 
-fn shared_columns(summary: &Value) -> Vec<G> {
+fn shared_columns(summary: &Value) -> Vec<Fq> {
     (0..words(summary)[3] as usize).map(shared_word).collect()
 }
 
@@ -74,8 +74,8 @@ fn relation_rows_match_the_lean_checksum() {
     let fields = parity();
     let packages = packages();
     for (package, summary, logical_rows) in [
-        (packages.light(), &fields[1], 106_595),
-        (packages.refresh(), &fields[2], 698_303),
+        (packages.light(), &fields[1], 112_458),
+        (packages.refresh(), &fields[2], 747_357),
     ] {
         let [ordinary, sbox, checksum, _, _, _] = words(summary)[..] else {
             panic!("a summary has six words");
@@ -120,24 +120,24 @@ fn block_rows_compute_the_native_permutation() {
     let rows = light.plan_rows().expect("plan rows");
     let width = light.sbox_start() + 150 * light.block_count();
     let mut state = 0x9e37_79b9_7f4a_7c15u64;
-    let mut assignment: Vec<G> = (0..width)
+    let mut assignment: Vec<Fq> = (0..width)
         .map(|_| {
             state = state
                 .wrapping_mul(6_364_136_223_846_793_005)
                 .wrapping_add(1_442_695_040_888_963_407);
-            G::from_u64(state >> 1)
+            Fq::from_u64(state >> 1)
         })
         .collect();
-    assignment[0] = G::ONE;
+    assignment[0] = Fq::ONE;
     for block in light.blocks() {
-        let lanes: [G; 16] = block.lane_values(&assignment).try_into().expect("16 lanes");
+        let lanes: [Fq; 16] = block.lane_values(&assignment).try_into().expect("16 lanes");
         assignment[block.outputs()..block.outputs() + 16].copy_from_slice(&permute_state(lanes));
     }
     for row in rows.ordinary_row_count()..rows.row_count() {
         let [(column, coefficient)] = rows.port(row, 2).collect::<Vec<_>>()[..] else {
             panic!("an S-box row's C port is one S-box column");
         };
-        assert_eq!(coefficient, G::ONE);
+        assert_eq!(coefficient, Fq::ONE);
         assignment[column] = rows.evaluate(row, 3, &assignment).exp_u64(7);
     }
     for row in rows.sbox_rows() {
@@ -227,13 +227,13 @@ fn logical_assignment_matches_the_lean_layout() {
             "logical assignment of circuit {}",
             package.circuit()
         );
-        let unit = |value: &G| matches!(value.as_canonical_u64(), 0 | 1) || *value == -G::ONE;
-        assert!(logical[270..].iter().all(unit), "a digit outside {{-1, 0, 1}}");
-        for (column, value) in columns.iter().enumerate().skip(270) {
+        let unit = |value: &Fq| matches!(value.as_canonical_u64(), 0 | 1) || *value == -Fq::ONE;
+        assert!(logical[PUBLIC_WORDS..].iter().all(unit), "a digit outside {{-1, 0, 1}}");
+        for (column, value) in columns.iter().enumerate().skip(PUBLIC_WORDS) {
             if let Some((offset, kind)) = layout.slot(column) {
                 let recomposed = (0..kind.width())
                     .rev()
-                    .fold(G::ZERO, |sum, digit| sum * G::from_u64(3) + logical[offset + digit]);
+                    .fold(Fq::ZERO, |sum, digit| sum * Fq::from_u64(3) + logical[offset + digit]);
                 assert_eq!(recomposed, *value, "column {column} recomposes");
             }
         }

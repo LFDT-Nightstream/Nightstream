@@ -1030,9 +1030,10 @@ version = "0.1.0"
 dependencies = [
  "neo-ajtai",
  "neo-ccs",
+ "neo-math",
+ "neo-params",
  "neo-transcript",
  "p3-field",
- "p3-goldilocks",
  "rayon",
  "serde",
  "serde_json",

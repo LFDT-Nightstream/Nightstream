@@ -10,6 +10,9 @@
 
 mod common;
 
+#[path = "wasm_nebula/packed_range.rs"]
+mod packed_range;
+
 #[path = "redteam/table_bounds.rs"]
 mod table_bounds_redteam;
 
@@ -30,7 +33,6 @@ use std::num::NonZeroUsize;
 use std::rc::Rc;
 
 use neo_math::F;
-use neo_wasm::batch::build_batched_wasm_ccs;
 use neo_wasm::host_event_bindings::HostEventBindings;
 use neo_wasm::memory_semantics::preload_host_event_tables;
 use neo_wasm::nebula::{
@@ -133,7 +135,6 @@ struct Traced {
     /// The one-row witness of each trace row, then of each padding row, one
     /// segment in all.
     rows: Vec<Vec<F>>,
-    /// The state after each row of `rows`; a padding row keeps the state.
     states: Vec<WasmStepState>,
     /// The step inputs of the segment: `per_step` rows each.
     inputs: Vec<WasmStep>,
@@ -275,9 +276,9 @@ impl Setup {
 
     /// The step input and the column in it of column `column` of trace row
     /// `row`: each step input is `per_step` one-row witnesses in trace order.
-    fn position(&self, traced: &Traced, row: usize, column: usize) -> (usize, usize) {
+    fn position(&self, app: &WasmApplication, row: usize, column: usize) -> (usize, usize) {
         let per_step = self.per_step.get();
-        (row / per_step, row % per_step * traced.rows[0].len() + column)
+        (row / per_step, app.witness_column(row % per_step, column).unwrap())
     }
 }
 
@@ -436,9 +437,9 @@ fn a_load_reads_a_store_of_an_earlier_row_of_its_step() {
         let (store, _) = access(traced, true);
         let (load, column) = access(traced, false);
         assert!(store < load, "the store comes first");
-        let (step, position) = setup.position(traced, load, column);
+        let (step, position) = setup.position(&app, load, column);
         assert_eq!(
-            setup.position(traced, store, 0).0,
+            setup.position(&app, store, 0).0,
             step,
             "the store and the load share a step"
         );
@@ -471,25 +472,19 @@ fn a_step_of_rows_that_are_not_neighbors_fails_only_its_link_rows() {
     let relation = application_rows(&app, &geometry);
     let traced = &setup.programs[0];
     assert!(traced.real < traced.rows.len(), "the last row is a padding row");
-    let mut rows: Vec<(&[F], WasmStepState)> = traced
-        .rows
-        .iter()
-        .map(Vec::as_slice)
-        .zip(traced.states.iter().copied())
-        .collect();
-    rows.remove(1);
-    rows.push(rows[rows.len() - 1]);
-    let inputs: Vec<WasmStep> = rows
-        .chunks(2)
-        .map(|pair| WasmStep {
-            z: pair.iter().flat_map(|(z, _)| z.iter().copied()).collect(),
-            next: pair[1].1,
-        })
-        .collect();
+    let mut trace = common::checked_main(NOPS).trace;
+    trace.remove(1);
+    let inputs = step_inputs(&trace, setup.n, per_step(2)).unwrap();
+    assert_eq!(inputs[0].next, traced.states[2]);
 
     let (_, mut run) = setup.run(&app, traced);
     let invocations = run.segment(&inputs).expect("the runner accepts the steps");
-    let links = 2 * build_batched_wasm_ccs(1).unwrap().sparse_r1cs.n..app.relation_rows();
+    let link_count = build_wasm_relation_layout()
+        .auxiliary
+        .continuity
+        .links()
+        .count();
+    let links = app.relation_rows() - link_count..app.relation_rows();
     let failed = failing(&relation, &invocations[0].words);
     assert!(!failed.is_empty(), "the skipped row breaks a link");
     assert!(
@@ -580,16 +575,16 @@ fn step_inputs_reject_a_trace_longer_than_the_run() {
     );
     let inputs = step_inputs(&checked.trace, rows.div_ceil(2), per_step(2)).unwrap();
     let one_row = step_inputs(&checked.trace, 2 * rows.div_ceil(2), NonZeroUsize::MIN).unwrap();
-    assert_eq!(
-        inputs,
-        one_row
-            .chunks(2)
-            .map(|pair| WasmStep {
-                z: pair.iter().flat_map(|row| row.z.iter().copied()).collect(),
-                next: pair[1].next,
-            })
-            .collect::<Vec<_>>()
-    );
+    let (app, _) = setup_of(LINEAR_MEMORY, per_step(2), false).complete();
+    for (input, pair) in inputs.iter().zip(one_row.chunks(2)) {
+        assert_eq!(input.next, pair[1].next);
+        app.check(&input.z).unwrap();
+        for (row, original) in pair.iter().enumerate() {
+            for column in 0..neo_wasm::layout::NAMED_COLUMN_COUNT {
+                assert_eq!(input.z[app.witness_column(row, column).unwrap()], original.z[column]);
+            }
+        }
+    }
 }
 
 /// Every field of `WasmStepState` changes its words, so a verifier that reads
@@ -947,7 +942,7 @@ fn proof_verifies_and_rejects_a_changed_load_on_cpu(per_step: NonZeroUsize) {
     eprintln!("wasm verify elapsed={:?}", verifying.elapsed());
 
     let (row, column) = access(traced, false);
-    let (step, position) = setup.position(traced, row, column);
+    let (step, position) = setup.position(&app, row, column);
     let mut inputs = traced.inputs.clone();
     inputs[step].z[position] += F::ONE;
     let mut changed_run = prover.start(&program, traced.initial).unwrap();

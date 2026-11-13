@@ -313,12 +313,34 @@ fn keys_derive_reopen_and_bind() {
     let key = Key::derive(&rows).unwrap();
     assert_eq!(&key, setup.key());
     assert_eq!(Key::from_bytes(&key.to_bytes()).unwrap(), key);
+    drop(setup);
     assert!(Setup::open(&rows, &scratch.0, &key).is_ok());
-    let (other, other_setup, _other_scratch) = setup_toy(6, 4, 6);
+    let (other, other_setup, other_scratch) = setup_toy(6, 4, 6);
     assert_ne!(other_setup.key(), &key);
     assert!(Setup::open(&rows, &scratch.0, other_setup.key()).is_err());
     let other_rows = CachedMatrixRows::new(&other.cache).unwrap();
     assert!(Setup::open(&other_rows, &scratch.0, &key).is_err());
+    let other_shape = Toy::new(5, 4, 7, 4, BOUND);
+    let other_shape = CachedMatrixRows::new(&other_shape.cache).unwrap();
+    assert!(Setup::open(&other_shape, &scratch.0, &key).is_err());
+    let mut wrong_root = key.clone();
+    wrong_root.root[0] += Gl::ONE;
+    assert!(Setup::open(&rows, &scratch.0, &wrong_root).is_err());
+    let bytes = [&scratch, &other_scratch]
+        .into_iter()
+        .flat_map(|dir| std::fs::read_dir(dir.0.join("setup")).unwrap())
+        .map(|file| file.unwrap().metadata().unwrap().len())
+        .sum::<u64>();
+    assert!(bytes < 32 * 1024 * 1024);
+    eprintln!("reopen_toy_setup_bytes\t{bytes}");
+    let tree = scratch.0.join("setup/tree.bin");
+    let mut bytes = std::fs::read(&tree).unwrap();
+    let root = bytes.len() - 32;
+    bytes[root] ^= 1;
+    std::fs::write(&tree, &bytes).unwrap();
+    assert!(Setup::open(&rows, &scratch.0, &key).is_err());
+    std::fs::write(&tree, &bytes[..bytes.len() - 1]).unwrap();
+    assert!(Setup::open(&rows, &scratch.0, &key).is_err());
 }
 
 /// A pinned key is decoded, not trusted: a key whose structure the verifier

@@ -1,0 +1,9 @@
+import tests.AxiomAudit
+import NightstreamFPrime.Lifecycle.Nebula.PaddingZero
+
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.PaddingZero.sum_zero_iff
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.PaddingZero.gated_sum_zero_iff
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.PaddingZero.rows_hold_iff
+
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.PaddingZero.paddingRows_hold_iff
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.PaddingZero.paddingRows_of_valid

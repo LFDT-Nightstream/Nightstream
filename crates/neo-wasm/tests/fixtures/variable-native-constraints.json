@@ -1,0 +1,1046 @@
+{
+  "scope": "Complete existing WASM step relation, all 116 opcodes, memory, control, program binding, and host events",
+  "metric": "Native Relation/FactoredRows constraints",
+  "counter": "C(N+1)-C(N) at fixed geometry",
+  "fixed_cost_amortization": false,
+  "profile": {
+    "engine": "Optimized",
+    "minimum_security_bits": 109,
+    "b": 2,
+    "k_rho": 16
+  },
+  "command": "cargo run --release -p neo-wasm --example native_constraint_census -- NEW_OUTPUT_DIRECTORY - - 1,2,3,7,8,9",
+  "samples": [
+    {
+      "added_trace_row_constraints": null,
+      "application_witness_words": 251307,
+      "auxiliary_coordinates": 223847,
+      "circuits": [
+        {
+          "compressed_entries_per_matrix": [
+            759434,
+            708629,
+            850702,
+            6664753
+          ],
+          "expanded_entries_per_matrix": [
+            12211394,
+            10622229,
+            34607702,
+            127268713
+          ],
+          "field_slots": 186722,
+          "fresh_norm_bound": 2,
+          "k_rho": 16,
+          "kind": "light",
+          "live_source_slots": 635443,
+          "logical_coordinates": 8104323,
+          "matrix_count": 4,
+          "matrix_kind": "A*B-C+S^7",
+          "native_power7_rows": 118,
+          "original_source_rows": 408629,
+          "rows": 191060,
+          "source_columns": 1710983,
+          "unit_slots": 448721
+        },
+        {
+          "compressed_entries_per_matrix": [
+            4788128,
+            4244944,
+            11442355,
+            17247934
+          ],
+          "expanded_entries_per_matrix": [
+            171879968,
+            154108704,
+            468865475,
+            542069134
+          ],
+          "field_slots": 803320,
+          "fresh_norm_bound": 2,
+          "k_rho": 16,
+          "kind": "refresh",
+          "live_source_slots": 1261991,
+          "logical_coordinates": 33394791,
+          "matrix_count": 4,
+          "matrix_kind": "A*B-C+S^7",
+          "native_power7_rows": 118,
+          "original_source_rows": 1000337,
+          "rows": 782768,
+          "source_columns": 5846645,
+          "unit_slots": 458671
+        }
+      ],
+      "compiled_light_rows": 191060,
+      "compiled_source_entries": 8983518,
+      "fixed_cost_divided_by_trace_rows": false,
+      "geometry": {
+        "b_scan": 2176,
+        "mu": 10,
+        "n": 8,
+        "r": 14,
+        "s_max": 32,
+        "w_ts": 18
+      },
+      "identity": [
+        17550605624437211972,
+        9235260258527946566,
+        12055553501360025250,
+        13544409575694014505
+      ],
+      "logical_coordinates": 8104323,
+      "lowered_products": 76,
+      "lowered_zero_products": 105,
+      "matrix_logical_entries": [
+        12211394,
+        10622229,
+        34607702,
+        127268713
+      ],
+      "matrix_source_entries": [
+        759434,
+        708629,
+        850702,
+        6664753
+      ],
+      "new_input_gate_rows": 0,
+      "opcodes": 116,
+      "packed_boolean_rows": 7216,
+      "packed_product_rows": 4,
+      "packed_zero_rows": 4,
+      "paired_bits": 223666,
+      "preserved_output_gate_rows": 4,
+      "raw_application_rows": 619698,
+      "refresh": {
+        "added_trace_row_constraints": null,
+        "compiled_rows": 782768,
+        "logical_coordinates": 33394791,
+        "matrix_logical_entries": [
+          171879968,
+          154108704,
+          468865475,
+          542069134
+        ],
+        "matrix_source_entries": [
+          4788128,
+          4244944,
+          11442355,
+          17247934
+        ],
+        "source_columns": 5846645,
+        "unpacked_source_rows": 1000337
+      },
+      "shared_absorb_groups": 1,
+      "shared_host": false,
+      "shared_source_columns_per_group": 0,
+      "slots_per_trace_row": 15,
+      "source_columns": 1710983,
+      "source_minus_plan_rows": 217569,
+      "trace_rows": 1,
+      "unpacked_source_rows": 408629,
+      "native_memory_hash_blocks": 335,
+      "trace_rows_since_previous_sample": null,
+      "constraint_difference_from_previous_sample": null
+    },
+    {
+      "added_trace_row_constraints": 1846,
+      "application_witness_words": 257965,
+      "auxiliary_coordinates": 230068,
+      "circuits": [
+        {
+          "compressed_entries_per_matrix": [
+            778915,
+            725202,
+            854228,
+            6693375
+          ],
+          "expanded_entries_per_matrix": [
+            12238515,
+            10682922,
+            34647428,
+            127541255
+          ],
+          "field_slots": 187468,
+          "fresh_norm_bound": 2,
+          "k_rho": 16,
+          "kind": "light",
+          "live_source_slots": 648439,
+          "logical_coordinates": 8147159,
+          "matrix_count": 4,
+          "matrix_kind": "A*B-C+S^7",
+          "native_power7_rows": 118,
+          "original_source_rows": 416746,
+          "rows": 192906,
+          "source_columns": 1726354,
+          "unit_slots": 460971
+        },
+        {
+          "compressed_entries_per_matrix": [
+            4807609,
+            4261517,
+            11445881,
+            17276556
+          ],
+          "expanded_entries_per_matrix": [
+            171907089,
+            154169397,
+            468905201,
+            542341676
+          ],
+          "field_slots": 804066,
+          "fresh_norm_bound": 2,
+          "k_rho": 16,
+          "kind": "refresh",
+          "live_source_slots": 1274987,
+          "logical_coordinates": 33437627,
+          "matrix_count": 4,
+          "matrix_kind": "A*B-C+S^7",
+          "native_power7_rows": 118,
+          "original_source_rows": 1008454,
+          "rows": 784614,
+          "source_columns": 5862016,
+          "unit_slots": 470921
+        }
+      ],
+      "compiled_light_rows": 192906,
+      "compiled_source_entries": 9051720,
+      "fixed_cost_divided_by_trace_rows": false,
+      "geometry": {
+        "b_scan": 2176,
+        "mu": 10,
+        "n": 8,
+        "r": 14,
+        "s_max": 32,
+        "w_ts": 18
+      },
+      "identity": [
+        1327949852708044258,
+        17832896423355765673,
+        4054374734789493615,
+        3319163241819366705
+      ],
+      "logical_coordinates": 8147159,
+      "lowered_products": 152,
+      "lowered_zero_products": 210,
+      "matrix_logical_entries": [
+        12238515,
+        10682922,
+        34647428,
+        127541255
+      ],
+      "matrix_source_entries": [
+        778915,
+        725202,
+        854228,
+        6693375
+      ],
+      "new_input_gate_rows": 24,
+      "opcodes": 116,
+      "packed_boolean_rows": 7410,
+      "packed_product_rows": 7,
+      "packed_zero_rows": 7,
+      "paired_bits": 229706,
+      "preserved_output_gate_rows": 8,
+      "raw_application_rows": 629707,
+      "refresh": {
+        "added_trace_row_constraints": 1846,
+        "compiled_rows": 784614,
+        "logical_coordinates": 33437627,
+        "matrix_logical_entries": [
+          171907089,
+          154169397,
+          468905201,
+          542341676
+        ],
+        "matrix_source_entries": [
+          4807609,
+          4261517,
+          11445881,
+          17276556
+        ],
+        "source_columns": 5862016,
+        "unpacked_source_rows": 1008454
+      },
+      "shared_absorb_groups": 1,
+      "shared_host": true,
+      "shared_source_columns_per_group": 728,
+      "slots_per_trace_row": 15,
+      "source_columns": 1726354,
+      "source_minus_plan_rows": 223840,
+      "trace_rows": 2,
+      "unpacked_source_rows": 416746,
+      "native_memory_hash_blocks": 337,
+      "trace_rows_since_previous_sample": 1,
+      "constraint_difference_from_previous_sample": 1846
+    },
+    {
+      "added_trace_row_constraints": 1701,
+      "application_witness_words": 264611,
+      "auxiliary_coordinates": 236289,
+      "circuits": [
+        {
+          "compressed_entries_per_matrix": [
+            798568,
+            742679,
+            857829,
+            6718732
+          ],
+          "expanded_entries_per_matrix": [
+            12273208,
+            10752999,
+            34681229,
+            127685932
+          ],
+          "field_slots": 188067,
+          "fresh_norm_bound": 2,
+          "k_rho": 16,
+          "kind": "light",
+          "live_source_slots": 661288,
+          "logical_coordinates": 8183968,
+          "matrix_count": 4,
+          "matrix_kind": "A*B-C+S^7",
+          "native_power7_rows": 118,
+          "original_source_rows": 424701,
+          "rows": 194607,
+          "source_columns": 1740467,
+          "unit_slots": 473221
+        },
+        {
+          "compressed_entries_per_matrix": [
+            4827262,
+            4278994,
+            11449482,
+            17301913
+          ],
+          "expanded_entries_per_matrix": [
+            171941782,
+            154239474,
+            468939002,
+            542486353
+          ],
+          "field_slots": 804665,
+          "fresh_norm_bound": 2,
+          "k_rho": 16,
+          "kind": "refresh",
+          "live_source_slots": 1287836,
+          "logical_coordinates": 33474436,
+          "matrix_count": 4,
+          "matrix_kind": "A*B-C+S^7",
+          "native_power7_rows": 118,
+          "original_source_rows": 1016409,
+          "rows": 786315,
+          "source_columns": 5876129,
+          "unit_slots": 483171
+        }
+      ],
+      "compiled_light_rows": 194607,
+      "compiled_source_entries": 9117808,
+      "fixed_cost_divided_by_trace_rows": false,
+      "geometry": {
+        "b_scan": 2176,
+        "mu": 10,
+        "n": 8,
+        "r": 14,
+        "s_max": 32,
+        "w_ts": 18
+      },
+      "identity": [
+        6915999779491716242,
+        14595800244102756379,
+        13457344756451875768,
+        249531489583008819
+      ],
+      "logical_coordinates": 8183968,
+      "lowered_products": 228,
+      "lowered_zero_products": 315,
+      "matrix_logical_entries": [
+        12273208,
+        10752999,
+        34681229,
+        127685932
+      ],
+      "matrix_source_entries": [
+        798568,
+        742679,
+        857829,
+        6718732
+      ],
+      "new_input_gate_rows": 36,
+      "opcodes": 116,
+      "packed_boolean_rows": 7605,
+      "packed_product_rows": 10,
+      "packed_zero_rows": 11,
+      "paired_bits": 235746,
+      "preserved_output_gate_rows": 12,
+      "raw_application_rows": 638608,
+      "refresh": {
+        "added_trace_row_constraints": 1701,
+        "compiled_rows": 786315,
+        "logical_coordinates": 33474436,
+        "matrix_logical_entries": [
+          171941782,
+          154239474,
+          468939002,
+          542486353
+        ],
+        "matrix_source_entries": [
+          4827262,
+          4278994,
+          11449482,
+          17301913
+        ],
+        "source_columns": 5876129,
+        "unpacked_source_rows": 1016409
+      },
+      "shared_absorb_groups": 1,
+      "shared_host": true,
+      "shared_source_columns_per_group": 728,
+      "slots_per_trace_row": 15,
+      "source_columns": 1740467,
+      "source_minus_plan_rows": 230094,
+      "trace_rows": 3,
+      "unpacked_source_rows": 424701,
+      "native_memory_hash_blocks": 338,
+      "trace_rows_since_previous_sample": 1,
+      "constraint_difference_from_previous_sample": 1701
+    },
+    {
+      "added_trace_row_constraints": null,
+      "application_witness_words": 291195,
+      "auxiliary_coordinates": 261173,
+      "circuits": [
+        {
+          "compressed_entries_per_matrix": [
+            877191,
+            819335,
+            875083,
+            6832692
+          ],
+          "expanded_entries_per_matrix": [
+            12411991,
+            11040055,
+            34843283,
+            128754452
+          ],
+          "field_slots": 191063,
+          "fresh_norm_bound": 2,
+          "k_rho": 16,
+          "kind": "light",
+          "live_source_slots": 713284,
+          "logical_coordinates": 8355804,
+          "matrix_count": 4,
+          "matrix_kind": "A*B-C+S^7",
+          "native_power7_rows": 118,
+          "original_source_rows": 457121,
+          "rows": 202009,
+          "source_columns": 1801903,
+          "unit_slots": 522221
+        },
+        {
+          "compressed_entries_per_matrix": [
+            4905885,
+            4355650,
+            11466736,
+            17415873
+          ],
+          "expanded_entries_per_matrix": [
+            172080565,
+            154526530,
+            469101056,
+            543554873
+          ],
+          "field_slots": 807661,
+          "fresh_norm_bound": 2,
+          "k_rho": 16,
+          "kind": "refresh",
+          "live_source_slots": 1339832,
+          "logical_coordinates": 33646272,
+          "matrix_count": 4,
+          "matrix_kind": "A*B-C+S^7",
+          "native_power7_rows": 118,
+          "original_source_rows": 1048829,
+          "rows": 793717,
+          "source_columns": 5937565,
+          "unit_slots": 532171
+        }
+      ],
+      "compiled_light_rows": 202009,
+      "compiled_source_entries": 9404301,
+      "fixed_cost_divided_by_trace_rows": false,
+      "geometry": {
+        "b_scan": 2176,
+        "mu": 10,
+        "n": 8,
+        "r": 14,
+        "s_max": 32,
+        "w_ts": 18
+      },
+      "identity": [
+        16308772876012066736,
+        15643907815683929562,
+        6910297347225579590,
+        3257657084760391661
+      ],
+      "logical_coordinates": 8355804,
+      "lowered_products": 532,
+      "lowered_zero_products": 735,
+      "matrix_logical_entries": [
+        12411991,
+        11040055,
+        34843283,
+        128754452
+      ],
+      "matrix_source_entries": [
+        877191,
+        819335,
+        875083,
+        6832692
+      ],
+      "new_input_gate_rows": 84,
+      "opcodes": 116,
+      "packed_boolean_rows": 8385,
+      "packed_product_rows": 23,
+      "packed_zero_rows": 24,
+      "paired_bits": 259906,
+      "preserved_output_gate_rows": 28,
+      "raw_application_rows": 678596,
+      "refresh": {
+        "added_trace_row_constraints": null,
+        "compiled_rows": 793717,
+        "logical_coordinates": 33646272,
+        "matrix_logical_entries": [
+          172080565,
+          154526530,
+          469101056,
+          543554873
+        ],
+        "matrix_source_entries": [
+          4905885,
+          4355650,
+          11466736,
+          17415873
+        ],
+        "source_columns": 5937565,
+        "unpacked_source_rows": 1048829
+      },
+      "shared_absorb_groups": 1,
+      "shared_host": true,
+      "shared_source_columns_per_group": 728,
+      "slots_per_trace_row": 15,
+      "source_columns": 1801903,
+      "source_minus_plan_rows": 255112,
+      "trace_rows": 7,
+      "unpacked_source_rows": 457121,
+      "native_memory_hash_blocks": 346,
+      "trace_rows_since_previous_sample": 4,
+      "constraint_difference_from_previous_sample": 7402
+    },
+    {
+      "added_trace_row_constraints": 1850,
+      "application_witness_words": 297841,
+      "auxiliary_coordinates": 267394,
+      "circuits": [
+        {
+          "compressed_entries_per_matrix": [
+            896846,
+            840186,
+            879959,
+            6861182
+          ],
+          "expanded_entries_per_matrix": [
+            12446686,
+            11113506,
+            34884359,
+            129021582
+          ],
+          "field_slots": 191812,
+          "fresh_norm_bound": 2,
+          "k_rho": 16,
+          "kind": "light",
+          "live_source_slots": 726283,
+          "logical_coordinates": 8398763,
+          "matrix_count": 4,
+          "matrix_kind": "A*B-C+S^7",
+          "native_power7_rows": 118,
+          "original_source_rows": 465226,
+          "rows": 203859,
+          "source_columns": 1817262,
+          "unit_slots": 534471
+        },
+        {
+          "compressed_entries_per_matrix": [
+            4925540,
+            4376501,
+            11471612,
+            17444363
+          ],
+          "expanded_entries_per_matrix": [
+            172115260,
+            154599981,
+            469142132,
+            543822003
+          ],
+          "field_slots": 808410,
+          "fresh_norm_bound": 2,
+          "k_rho": 16,
+          "kind": "refresh",
+          "live_source_slots": 1352831,
+          "logical_coordinates": 33689231,
+          "matrix_count": 4,
+          "matrix_kind": "A*B-C+S^7",
+          "native_power7_rows": 118,
+          "original_source_rows": 1056934,
+          "rows": 795567,
+          "source_columns": 5952924,
+          "unit_slots": 544421
+        }
+      ],
+      "compiled_light_rows": 203859,
+      "compiled_source_entries": 9478173,
+      "fixed_cost_divided_by_trace_rows": false,
+      "geometry": {
+        "b_scan": 2176,
+        "mu": 10,
+        "n": 8,
+        "r": 14,
+        "s_max": 32,
+        "w_ts": 18
+      },
+      "identity": [
+        3884088525374053802,
+        2262543064179949436,
+        13637033027336528017,
+        14976175398719474734
+      ],
+      "logical_coordinates": 8398763,
+      "lowered_products": 608,
+      "lowered_zero_products": 840,
+      "matrix_logical_entries": [
+        12446686,
+        11113506,
+        34884359,
+        129021582
+      ],
+      "matrix_source_entries": [
+        896846,
+        840186,
+        879959,
+        6861182
+      ],
+      "new_input_gate_rows": 96,
+      "opcodes": 116,
+      "packed_boolean_rows": 8579,
+      "packed_product_rows": 26,
+      "packed_zero_rows": 28,
+      "paired_bits": 265946,
+      "preserved_output_gate_rows": 32,
+      "raw_application_rows": 688593,
+      "refresh": {
+        "added_trace_row_constraints": 1850,
+        "compiled_rows": 795567,
+        "logical_coordinates": 33689231,
+        "matrix_logical_entries": [
+          172115260,
+          154599981,
+          469142132,
+          543822003
+        ],
+        "matrix_source_entries": [
+          4925540,
+          4376501,
+          11471612,
+          17444363
+        ],
+        "source_columns": 5952924,
+        "unpacked_source_rows": 1056934
+      },
+      "shared_absorb_groups": 1,
+      "shared_host": true,
+      "shared_source_columns_per_group": 728,
+      "slots_per_trace_row": 15,
+      "source_columns": 1817262,
+      "source_minus_plan_rows": 261367,
+      "trace_rows": 8,
+      "unpacked_source_rows": 465226,
+      "native_memory_hash_blocks": 348,
+      "trace_rows_since_previous_sample": 1,
+      "constraint_difference_from_previous_sample": 1850
+    },
+    {
+      "added_trace_row_constraints": 1969,
+      "application_witness_words": 305215,
+      "auxiliary_coordinates": 273615,
+      "circuits": [
+        {
+          "compressed_entries_per_matrix": [
+            916503,
+            859022,
+            884282,
+            6891701
+          ],
+          "expanded_entries_per_matrix": [
+            12481423,
+            11185782,
+            34929922,
+            129367181
+          ],
+          "field_slots": 192692,
+          "fresh_norm_bound": 2,
+          "k_rho": 16,
+          "kind": "light",
+          "live_source_slots": 739413,
+          "logical_coordinates": 8447093,
+          "matrix_count": 4,
+          "matrix_kind": "A*B-C+S^7",
+          "native_power7_rows": 236,
+          "original_source_rows": 474047,
+          "rows": 205828,
+          "source_columns": 1833349,
+          "unit_slots": 546721
+        },
+        {
+          "compressed_entries_per_matrix": [
+            4945197,
+            4395337,
+            11475935,
+            17474882
+          ],
+          "expanded_entries_per_matrix": [
+            172149997,
+            154672257,
+            469187695,
+            544167602
+          ],
+          "field_slots": 809290,
+          "fresh_norm_bound": 2,
+          "k_rho": 16,
+          "kind": "refresh",
+          "live_source_slots": 1365961,
+          "logical_coordinates": 33737561,
+          "matrix_count": 4,
+          "matrix_kind": "A*B-C+S^7",
+          "native_power7_rows": 236,
+          "original_source_rows": 1065755,
+          "rows": 797536,
+          "source_columns": 5969011,
+          "unit_slots": 556671
+        }
+      ],
+      "compiled_light_rows": 205828,
+      "compiled_source_entries": 9551508,
+      "fixed_cost_divided_by_trace_rows": false,
+      "geometry": {
+        "b_scan": 2176,
+        "mu": 10,
+        "n": 8,
+        "r": 14,
+        "s_max": 32,
+        "w_ts": 18
+      },
+      "identity": [
+        83381582393460837,
+        12534604196070624371,
+        179446497795135448,
+        9812693138922265
+      ],
+      "logical_coordinates": 8447093,
+      "lowered_products": 684,
+      "lowered_zero_products": 945,
+      "matrix_logical_entries": [
+        12481423,
+        11185782,
+        34929922,
+        129367181
+      ],
+      "matrix_source_entries": [
+        916503,
+        859022,
+        884282,
+        6891701
+      ],
+      "new_input_gate_rows": 108,
+      "opcodes": 116,
+      "packed_boolean_rows": 8774,
+      "packed_product_rows": 29,
+      "packed_zero_rows": 31,
+      "paired_bits": 271986,
+      "preserved_output_gate_rows": 36,
+      "raw_application_rows": 699306,
+      "refresh": {
+        "added_trace_row_constraints": 1969,
+        "compiled_rows": 797536,
+        "logical_coordinates": 33737561,
+        "matrix_logical_entries": [
+          172149997,
+          154672257,
+          469187695,
+          544167602
+        ],
+        "matrix_source_entries": [
+          4945197,
+          4395337,
+          11475935,
+          17474882
+        ],
+        "source_columns": 5969011,
+        "unpacked_source_rows": 1065755
+      },
+      "shared_absorb_groups": 2,
+      "shared_host": true,
+      "shared_source_columns_per_group": 728,
+      "slots_per_trace_row": 15,
+      "source_columns": 1833349,
+      "source_minus_plan_rows": 268219,
+      "trace_rows": 9,
+      "unpacked_source_rows": 474047,
+      "native_memory_hash_blocks": 350,
+      "trace_rows_since_previous_sample": 1,
+      "constraint_difference_from_previous_sample": 1969
+    }
+  ],
+  "unshared_control_command": "cargo run --release -p neo-wasm --example native_constraint_census -- NEW_OUTPUT_DIRECTORY - - 1,2,3,7,8,9 unshared-host",
+  "construction": "N=1 retains the source relation. N>1 uses groups of at most8 rows. C2-C1 includes a construction change.",
+  "comparison": [
+    {
+      "trace_rows": 1,
+      "unshared_native_rows": 191060,
+      "shared_native_rows": 191060,
+      "saved_native_rows": 0,
+      "native_memory_hash_blocks": 335,
+      "memory_hash_blocks_unchanged": true,
+      "unshared_application_words": 251307,
+      "shared_application_words": 251307,
+      "unshared_identity": [
+        17550605624437211972,
+        9235260258527946566,
+        12055553501360025250,
+        13544409575694014505
+      ],
+      "shared_identity": [
+        17550605624437211972,
+        9235260258527946566,
+        12055553501360025250,
+        13544409575694014505
+      ],
+      "saved_power_rows": 0,
+      "saved_other_native_rows": 0,
+      "saved_logical_coordinates": 0,
+      "shared_matrix_source_entries": [
+        759434,
+        708629,
+        850702,
+        6664753
+      ],
+      "unshared_matrix_source_entries": [
+        759434,
+        708629,
+        850702,
+        6664753
+      ]
+    },
+    {
+      "trace_rows": 2,
+      "unshared_native_rows": 193030,
+      "shared_native_rows": 192906,
+      "saved_native_rows": 124,
+      "native_memory_hash_blocks": 337,
+      "memory_hash_blocks_unchanged": true,
+      "unshared_application_words": 258669,
+      "shared_application_words": 257965,
+      "unshared_identity": [
+        10161726758844506890,
+        15755356751276491084,
+        16961281370259341706,
+        1789863543040333234
+      ],
+      "shared_identity": [
+        1327949852708044258,
+        17832896423355765673,
+        4054374734789493615,
+        3319163241819366705
+      ],
+      "saved_power_rows": 118,
+      "saved_other_native_rows": 6,
+      "saved_logical_coordinates": 5576,
+      "shared_matrix_source_entries": [
+        778915,
+        725202,
+        854228,
+        6693375
+      ],
+      "unshared_matrix_source_entries": [
+        779261,
+        725660,
+        854346,
+        6695140
+      ]
+    },
+    {
+      "trace_rows": 3,
+      "unshared_native_rows": 194852,
+      "shared_native_rows": 194607,
+      "saved_native_rows": 245,
+      "native_memory_hash_blocks": 338,
+      "memory_hash_blocks_unchanged": true,
+      "unshared_application_words": 266031,
+      "shared_application_words": 264611,
+      "unshared_identity": [
+        3666151268849752890,
+        9142062378253353378,
+        2057829415552377071,
+        2598995651839447147
+      ],
+      "shared_identity": [
+        6915999779491716242,
+        14595800244102756379,
+        13457344756451875768,
+        249531489583008819
+      ],
+      "saved_power_rows": 236,
+      "saved_other_native_rows": 9,
+      "saved_logical_coordinates": 11029,
+      "shared_matrix_source_entries": [
+        798568,
+        742679,
+        857829,
+        6718732
+      ],
+      "unshared_matrix_source_entries": [
+        799087,
+        743366,
+        858065,
+        6722394
+      ]
+    },
+    {
+      "trace_rows": 7,
+      "unshared_native_rows": 202738,
+      "shared_native_rows": 202009,
+      "saved_native_rows": 729,
+      "native_memory_hash_blocks": 346,
+      "memory_hash_blocks_unchanged": true,
+      "unshared_application_words": 295479,
+      "shared_application_words": 291195,
+      "unshared_identity": [
+        9642604570223844346,
+        12868828494040576158,
+        3223526133702071400,
+        5408265209235866660
+      ],
+      "shared_identity": [
+        16308772876012066736,
+        15643907815683929562,
+        6910297347225579590,
+        3257657084760391661
+      ],
+      "saved_power_rows": 708,
+      "saved_other_native_rows": 21,
+      "saved_logical_coordinates": 32841,
+      "shared_matrix_source_entries": [
+        877191,
+        819335,
+        875083,
+        6832692
+      ],
+      "unshared_matrix_source_entries": [
+        878402,
+        820938,
+        875791,
+        6843942
+      ]
+    },
+    {
+      "trace_rows": 8,
+      "unshared_native_rows": 204709,
+      "shared_native_rows": 203859,
+      "saved_native_rows": 850,
+      "native_memory_hash_blocks": 348,
+      "memory_hash_blocks_unchanged": true,
+      "unshared_application_words": 302841,
+      "shared_application_words": 297841,
+      "unshared_identity": [
+        3865895843327678359,
+        7965184526004364969,
+        1892972813488216647,
+        4776215845387082176
+      ],
+      "shared_identity": [
+        3884088525374053802,
+        2262543064179949436,
+        13637033027336528017,
+        14976175398719474734
+      ],
+      "saved_power_rows": 826,
+      "saved_other_native_rows": 24,
+      "saved_logical_coordinates": 38294,
+      "shared_matrix_source_entries": [
+        896846,
+        840186,
+        879959,
+        6861182
+      ],
+      "unshared_matrix_source_entries": [
+        898230,
+        842018,
+        880785,
+        6874329
+      ]
+    },
+    {
+      "trace_rows": 9,
+      "unshared_native_rows": 206681,
+      "shared_native_rows": 205828,
+      "saved_native_rows": 853,
+      "native_memory_hash_blocks": 350,
+      "memory_hash_blocks_unchanged": true,
+      "unshared_application_words": 310203,
+      "shared_application_words": 305215,
+      "unshared_identity": [
+        6907798755819719766,
+        585484831596813760,
+        5625915539620205869,
+        10900206246051441606
+      ],
+      "shared_identity": [
+        83381582393460837,
+        12534604196070624371,
+        179446497795135448,
+        9812693138922265
+      ],
+      "saved_power_rows": 826,
+      "saved_other_native_rows": 27,
+      "saved_logical_coordinates": 38417,
+      "shared_matrix_source_entries": [
+        916503,
+        859022,
+        884282,
+        6891701
+      ],
+      "unshared_matrix_source_entries": [
+        918060,
+        861083,
+        885108,
+        6904716
+      ]
+    }
+  ],
+  "host_absorb_source": {
+    "source_rows_per_block": 716,
+    "nonlinear_rows_per_block": 472,
+    "linear_rows_per_block": 244,
+    "source_entries_per_block": 5641,
+    "shared_columns_per_group": 728,
+    "shared_input_lanes": 12,
+    "permutation_auxiliary_columns": 712,
+    "shared_output_lanes": 4,
+    "new_input_gate_rows_per_trace_row": 12,
+    "new_input_gate_entries_per_trace_row": 36,
+    "preserved_output_gate_rows_per_trace_row": 4,
+    "preserved_output_gate_entries_per_trace_row": 12,
+    "native_power_rows_per_group": 118,
+    "source_row_saving_for_N_greater_than_1": "716*(N-ceil(N/8))-12*N",
+    "source_entry_saving_for_N_greater_than_1": "5641*(N-ceil(N/8))-36*N",
+    "witness_word_saving_for_N_greater_than_1": "716*N-728*ceil(N/8)"
+  },
+  "measurement_note": "Counts come from actual Relation/FactoredRows. Delta fields are per trace row only for adjacent samples. N1 uses the original construction. No fixed cost is divided by N."
+}

@@ -233,11 +233,13 @@ fn coordinator_utxo_effect_handler_preserves_each_instances_event_order() {
             &captured.artifacts().host_event_bindings,
         );
         common::ccs_check_trace(&trace);
+        common::shared_host::check(&trace);
         let events: Vec<_> = common::absorbed_blocks(&trace)
             .into_iter()
             .map(|block| (block[0], block[1]))
             .collect();
         assert_eq!(events, expected);
+        common::shared_host::prove(&trace, captured.artifacts());
     }
 }
 
@@ -410,6 +412,7 @@ fn split_import_preserves_caller_arguments_across_callbacks() {
             &captured.artifacts().host_event_bindings,
         );
         common::ccs_check_trace(&trace);
+        common::shared_host::check(&trace);
         use neo_application::MemoryPortActivation;
         use p3_field::PrimeCharacteristicRing;
         let memories = neo_wasm::build_wasm_relation_layout()

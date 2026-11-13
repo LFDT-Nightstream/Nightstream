@@ -12,6 +12,7 @@ mod final_program;
 mod relation;
 mod words;
 
+use crate::engine::{Backend, CommitError, EngineError};
 use crate::folding::bounded_depth::{prove, Kind};
 use crate::folding::{pi_dec, pi_rlc, CcsInstance, RunningInstance};
 pub(crate) use compression::{FinalProof, Keys, Setups};
@@ -23,8 +24,8 @@ use nightstream_fprime::{
     encode_digest, BoundedDepthPackages, BoundedDepthState, PackageError, StepPackage, PUBLIC_WORDS,
 };
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
-pub(crate) use relation::Relation;
 pub use relation::RelationError;
+pub(crate) use relation::{Holds, Relation};
 
 /// `Schedule.productionLightFoldCap`: the light circuit's depth guard admits
 /// depths below 64.
@@ -47,6 +48,33 @@ pub enum BoundedDepthError {
     Slot { slot: usize, reason: String },
     #[error(transparent)]
     Layer1(#[from] neo_spartan::Error),
+    #[error(transparent)]
+    Engine(#[from] EngineError),
+}
+
+impl BoundedDepthError {
+    /// The engine failure inside this error, if the engine failed: a device
+    /// failure judged nothing.
+    pub(crate) fn engine_failure(&self) -> Option<&EngineError> {
+        use crate::folding::{kernels, pi_ccs, pi_dec, pi_rlc, Error as Fold};
+        match self {
+            Self::Engine(error)
+            | Self::Relation(RelationError::Commitment(CommitError::Engine(error)))
+            | Self::Fold(Fold::Ccs(pi_ccs::Error::Engine(kernels::Error::Engine(error))))
+            | Self::Fold(Fold::Rlc(pi_rlc::Error::Engine(kernels::Error::Engine(error))))
+            | Self::Fold(Fold::Dec(pi_dec::Error::Engine(kernels::Error::Engine(error)))) => Some(error),
+            _ => None,
+        }
+    }
+}
+
+impl From<Holds> for BoundedDepthError {
+    fn from(holds: Holds) -> Self {
+        match holds {
+            Holds::Fails(reason) => Self::Fresh(reason),
+            Holds::Engine(error) => Self::Engine(error),
+        }
+    }
 }
 
 /// One slot: the accumulator of its circuit's instances and its depth.
@@ -76,14 +104,26 @@ impl Envelope {
 }
 
 pub(crate) struct BoundedDepth {
+    backend: Backend,
     packages: BoundedDepthPackages,
     relations: [Relation; 2],
     keys: [[F; 4]; 2],
     cap: u64,
 }
 
+/// `BoundedDepth::fold`'s result.
+pub(crate) struct Folded {
+    kind: Kind,
+    accumulator: pi_rlc::Output,
+    proof: crate::folding::bounded_depth::Proof,
+}
+
 impl BoundedDepth {
-    pub(crate) fn new(packages: BoundedDepthPackages, minimum_security_bits: u32) -> Result<Self, BoundedDepthError> {
+    pub(crate) fn new(
+        packages: BoundedDepthPackages,
+        minimum_security_bits: u32,
+        backend: Backend,
+    ) -> Result<Self, BoundedDepthError> {
         let relations = [
             Relation::new(packages.light(), minimum_security_bits)?,
             Relation::new(packages.refresh(), minimum_security_bits)?,
@@ -96,6 +136,7 @@ impl BoundedDepth {
             poseidon2_hash(&input)
         });
         Ok(Self {
+            backend,
             packages,
             relations,
             keys,
@@ -194,50 +235,91 @@ impl BoundedDepth {
         envelope: &Envelope,
         witness: &[F],
         next: [F; 4],
+        locals: Option<&[F]>,
+    ) -> Result<Envelope, BoundedDepthError> {
+        let folded = self.fold(envelope)?;
+        self.step(envelope, folded, witness, next, locals)
+    }
+
+    /// The fold of `envelope`'s fresh instance into its selected slot, the
+    /// part of `extend` that needs neither the step's witness nor its output
+    /// state. `None` at iteration 0, which has no fresh instance.
+    pub(crate) fn fold(&self, envelope: &Envelope) -> Result<Option<Folded>, BoundedDepthError> {
+        let Some(fresh) = &envelope.fresh else {
+            return Ok(None);
+        };
+        let selected = (envelope.pc - 1) as usize;
+        let slot = &envelope.slots[selected];
+        let kind = if slot.depth < self.cap {
+            Kind::Light
+        } else {
+            Kind::Refresh
+        };
+        let (accumulator, proof) = prove(
+            kind,
+            &self.backend,
+            self.relations[selected].context(),
+            fresh.clone(),
+            slot.accumulator.clone(),
+        )?;
+        Ok(Some(Folded {
+            kind,
+            accumulator,
+            proof,
+        }))
+    }
+
+    /// `extend` after `fold`: `folded` is `fold`'s result on `envelope`.
+    pub(crate) fn step(
+        &self,
+        envelope: &Envelope,
+        folded: Option<Folded>,
+        witness: &[F],
+        next: [F; 4],
+        locals: Option<&[F]>,
     ) -> Result<Envelope, BoundedDepthError> {
         let prior = self.state(envelope);
         let mut slots = envelope.slots.clone();
-        let (kind, step) = match &envelope.fresh {
-            None => (Kind::Light, words::base_step(&prior, next, witness)?.0),
-            Some(fresh) => {
+        let (kind, step) = match (&envelope.fresh, folded) {
+            (Some(fresh), Some(folded)) => {
                 let selected = (envelope.pc - 1) as usize;
-                let slot = &envelope.slots[selected];
-                let kind = if slot.depth < self.cap {
-                    Kind::Light
-                } else {
-                    Kind::Refresh
-                };
-                let (folded, proof) = prove(
+                let kind = folded.kind;
+                let (step, _) = words::fold_step(
+                    &prior,
+                    next,
+                    witness,
                     kind,
-                    self.relations[selected].context(),
-                    fresh.clone(),
-                    slot.accumulator.clone(),
-                )?;
-                let (step, _) =
-                    words::fold_step(&prior, next, witness, kind, &folded.claim, fresh.claim.c.data(), &proof);
+                    &folded.accumulator.claim,
+                    fresh.claim.c.data(),
+                    &folded.proof,
+                );
                 slots[selected] = Slot {
-                    accumulator: folded,
-                    depth: words::next_depth(kind, slot.depth),
+                    accumulator: folded.accumulator,
+                    depth: words::next_depth(kind, envelope.slots[selected].depth),
                 };
                 (kind, step)
             }
+            _ => (Kind::Light, words::base_step(&prior, next, witness)?.0),
         };
         let relation = &self.relations[words::pc(kind) as usize - 1];
-        let logical = relation.assignment(self.package(kind), &step)?;
+        let logical = relation.assignment(self.package(kind), &step, locals)?;
         #[cfg(test)]
         if CHECK_ROWS.get() {
             FAILED_ROW.set(relation.first_failing_row(self.package(kind), &step)?);
         }
-        let instance = relation.instance(&logical)?;
         #[cfg(test)]
         let keeps_faulty = CHECK_ROWS.get();
         #[cfg(not(test))]
         let keeps_faulty = false;
-        if !keeps_faulty {
-            relation
-                .rows_hold(&logical)
-                .map_err(BoundedDepthError::Fresh)?;
-        }
+        // The row check runs while the engine commits the witness.
+        let (instance, held) = std::thread::scope(|scope| {
+            let check = (!keeps_faulty).then(|| scope.spawn(|| relation.rows_hold(&logical)));
+            let instance = relation.instance(&self.backend, &logical);
+            let held = check.map_or(Ok(()), |check| check.join().unwrap_or(Err("row check panicked")));
+            (instance, held)
+        });
+        let instance = instance?;
+        held.map_err(BoundedDepthError::Fresh)?;
         Ok(Envelope {
             iteration: envelope.iteration + 1,
             z0: envelope.z0,
@@ -300,13 +382,19 @@ impl BoundedDepth {
             // The verifier splits the witness itself: PiDEC's recomposition
             // reproduces the claim's commitment, evaluations and public input.
             pi_dec::prove_with_production_key(
+                &self.backend,
                 relation.context(),
                 &slot.accumulator.claim,
                 slot.accumulator.witness.clone(),
             )
-            .map_err(|error| BoundedDepthError::Slot {
-                slot: index,
-                reason: error.to_string(),
+            .map_err(|error| match error {
+                pi_dec::Error::Engine(crate::folding::kernels::Error::Engine(error)) => {
+                    BoundedDepthError::Engine(error)
+                }
+                error => BoundedDepthError::Slot {
+                    slot: index,
+                    reason: error.to_string(),
+                },
             })?;
         }
         if fresh.claim.x != encode_digest(self.state(envelope).hash()) {
@@ -314,9 +402,7 @@ impl BoundedDepth {
                 "public input differs from the hash of the state",
             ));
         }
-        self.relations[(envelope.pc - 1) as usize]
-            .holds(fresh)
-            .map_err(BoundedDepthError::Fresh)
+        Ok(self.relations[(envelope.pc - 1) as usize].holds(&self.backend, fresh)?)
     }
 }
 

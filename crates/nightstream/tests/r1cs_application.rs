@@ -435,3 +435,6 @@ fn a_relation_of_the_builders_proves_and_verifies_on_cpu() {
         Err(VerifyError::Proof(_))
     ));
 }
+
+#[path = "r1cs_application/shared.rs"]
+mod shared;

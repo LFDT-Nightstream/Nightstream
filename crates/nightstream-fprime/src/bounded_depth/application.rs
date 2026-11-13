@@ -15,6 +15,7 @@ use neo_ccs::crypto::poseidon2_goldilocks as poseidon2;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks;
 
+use super::packed_boolean::PackedBooleans;
 use super::words::PUBLIC_WORDS;
 use super::{BoundedDepthPackages, Linear, Piece, Region, Row, StepPackage};
 use crate::application_records::ApplicationRecords;
@@ -23,18 +24,18 @@ use crate::package::PackageError;
 /// The shared words before the states: the encoded digest, the five counter
 /// words and the two key digests (`StepWords::columns`).
 const STATES_START: usize = PUBLIC_WORDS + 5 + 8;
-const WITNESS_START: usize = STATES_START + 12;
+pub(super) const WITNESS_START: usize = STATES_START + 12;
 const BLOCK_LOCALS: usize = 1096;
 const BLOCK_OUTPUTS: usize = 1080;
 const SBOX_COLUMNS: usize = 150;
 const RING_DEGREE: usize = 54;
-const IDENTITY_DOMAIN: &[u8] = b"Nightstream/OptionB/application/v1";
+const IDENTITY_DOMAIN: &[u8] = b"Nightstream/OptionB/application/combined-native-experiment/v1";
 
 fn moved(column: usize, by: i128) -> Option<usize> {
     usize::try_from(column as i128 + by).ok()
 }
 
-fn piece_columns(piece: &Piece) -> Vec<usize> {
+pub(super) fn piece_columns(piece: &Piece) -> Vec<usize> {
     let linear = |linear: &Linear| {
         linear
             .terms
@@ -154,9 +155,10 @@ impl StepPackage {
         records: &ApplicationRecords,
         columns: &mut [Goldilocks],
     ) -> Result<(), PackageError> {
+        let mut walk = records.walk();
         for recipe in 0..records.recipe_count() {
-            let row = records.recipe_row(recipe)?;
-            let [a, b, _] = records.evaluate_row(row, |variable| {
+            let row = walk.recipe_row(recipe)?;
+            let [a, b, _] = walk.evaluate_row(row, |variable| {
                 Ok::<_, PackageError>(columns[self.variable_column(variable)?].as_canonical_u64())
             })?;
             columns[self.application.local_start + recipe] = Goldilocks::from_u64(a) * Goldilocks::from_u64(b);
@@ -169,7 +171,8 @@ impl StepPackage {
     /// the region keep their order; a dropped piece may read only the shared
     /// words and the region, and a kept piece or batch may not read the
     /// region. The application's blocks lead the S-box columns. The slots
-    /// follow Lean's rule on the new pieces (`native_slots`).
+    /// keep the existing read coverage and the checked Boolean closure
+    /// (`Export.Generic.BooleanInference.derived_valid`).
     fn with_application(
         &self,
         records: &Arc<ApplicationRecords>,
@@ -203,7 +206,10 @@ impl StepPackage {
             c => moved(c, sbox),
         };
         let inside = |column: usize| {
-            column < old.local_start || region_locals.contains(&column) || region_fresh.contains(&column)
+            column < old.local_start
+                || region_locals.contains(&column)
+                || region_fresh.contains(&column)
+                || (self.packed_booleans.start..self.packed_booleans.end()).contains(&column)
         };
         if !self.pieces[..old.pieces]
             .iter()
@@ -224,6 +230,10 @@ impl StepPackage {
                 fresh: 0,
             },
             native: Some(Arc::clone(records)),
+            packed_booleans: PackedBooleans::default(),
+            field_lowering: super::field_lowering::FieldLowering::default(),
+            guard_fusion: super::guard_fusion::GuardFusion::default(),
+            word_packing: super::word_packing::WordPacking::default(),
             pieces: Vec::new(),
             witness: Vec::new(),
             slots: Vec::new(),
@@ -246,8 +256,38 @@ impl StepPackage {
                 ))
             })
             .collect::<Result<_, _>>()?;
-        package.slots = package.native_slots();
+        package.slots = package.native_slots()?;
+        package.pack_native_booleans()?;
+        package.field_lowering = super::field_lowering::FieldLowering::checked(&package)?;
+        package.slots = package.native_slots()?;
+        package.guard_fusion = super::guard_fusion::GuardFusion::checked(&package)?;
+        package.word_packing = super::word_packing::WordPacking::checked(&package)?;
         Ok(package)
+    }
+
+    fn pack_native_booleans(&mut self) -> Result<(), PackageError> {
+        let layout = self.layout()?;
+        let region = self.application;
+        let blocks = self
+            .blocks()
+            .map(|block| block.start()..block.start() + BLOCK_LOCALS)
+            .collect::<Vec<_>>();
+        let eligible = |column| {
+            ((WITNESS_START..WITNESS_START + region.witness_words).contains(&column)
+                || (region.local_start..region.local_start + region.locals).contains(&column))
+                && !blocks.iter().any(|block| block.contains(&column))
+                && layout
+                    .slot(column)
+                    .is_some_and(|(_, kind)| kind == super::layout::Kind::Bit)
+        };
+        let start = self.sbox_start + SBOX_COLUMNS * self.block_count();
+        let Some(Piece::Rows(rows)) = self.pieces.first_mut() else {
+            return Err(PackageError::Malformed("bounded-depth native application rows"));
+        };
+        self.packed_booleans = PackedBooleans::lower(rows, start, eligible);
+        self.packed_booleans.validate(rows, start, self.width)?;
+        self.slots = self.native_slots()?;
+        Ok(())
     }
 
     /// The application's pieces: one piece of every row outside the blocks,
@@ -348,12 +388,7 @@ impl StepPackage {
             .collect()
     }
 
-    /// The slot runs of this package by Lean's rule (`StepPackage.runsOf`).
-    /// The bit candidates are its `bit` hints and every live column of the
-    /// application: its witness words and its locals that are not a block's
-    /// dead locals. A candidate gets a bit slot only if a row forces it to 0
-    /// or 1.
-    fn native_slots(&self) -> Vec<(usize, usize, u8)> {
+    fn native_slots(&self) -> Result<Vec<(usize, usize, u8)>, PackageError> {
         let region = self.application;
         let dead: Vec<_> = self
             .blocks()
@@ -366,7 +401,34 @@ impl StepPackage {
             (region.local_start..region.local_start + region.locals)
                 .filter(|column| !dead.iter().any(|locals| locals.contains(column))),
         );
-        self.rule_slots(&bits)
+        bits.extend(self.packed_booleans.start..self.packed_booleans.end());
+        let mut eligible = vec![false; self.source_end()];
+        for column in (WITNESS_START..WITNESS_START + region.witness_words)
+            .chain(region.local_start..region.local_start + region.locals)
+        {
+            if !dead.iter().any(|locals| locals.contains(&column)) {
+                eligible[column] = true;
+            }
+        }
+        let seeds = self
+            .packed_booleans
+            .sources
+            .iter()
+            .copied()
+            .chain(self.packed_booleans.start..self.packed_booleans.end())
+            .collect::<Vec<_>>();
+        let mut inferred = match self.pieces.first() {
+            Some(Piece::Rows(rows)) => {
+                super::boolean::inferred_from_rows(self.packed_booleans.original_rows(rows)?, &eligible, &seeds)
+            }
+            _ => Vec::new(),
+        };
+        inferred.extend(seeds);
+        Ok(if inferred.is_empty() {
+            self.rule_slots(&bits)
+        } else {
+            self.rule_slots_with_inferred(&bits, &inferred)
+        })
     }
 }
 
@@ -383,8 +445,9 @@ impl StepPackage {
 impl BoundedDepthPackages {
     /// Both packages with a native application in place of Lean's. The
     /// identity binds the packages' identity, the witness word count, the
-    /// application's rows and recipe rows, then the shape: each block's first
-    /// local and lanes.
+    /// application's rows and recipe rows, the shape, and the realized light
+    /// and refresh companion, product, zero-product, guard, word equality, and slot maps.
+    /// Power and affine maps derive from these inputs (`Export.Generic.NativePower`).
     pub fn with_application(
         &self,
         records: Arc<ApplicationRecords>,
@@ -427,13 +490,54 @@ impl BoundedDepthPackages {
                 }
             }
         }
+        let light = self
+            .light
+            .with_application(&records, witness_words, shape)?;
+        let refresh = self
+            .refresh
+            .with_application(&records, witness_words, shape)?;
+        for package in [&light, &refresh] {
+            if let Some(Piece::Rows(rows)) = package.pieces.first() {
+                package.guard_fusion.bind(rows, &mut update);
+                package.word_packing.bind(rows, &mut update);
+            }
+            update(package.packed_booleans.start as u64);
+            update(package.packed_booleans.sources.len() as u64);
+            for &column in &package.packed_booleans.sources {
+                update(column as u64);
+            }
+            update(package.packed_booleans.removed.len() as u64);
+            for &(row, _) in &package.packed_booleans.removed {
+                update(row as u64);
+            }
+            update(package.packed_booleans.products.len() as u64);
+            for product in &package.packed_booleans.products {
+                for column in [product.row, product.left, product.right, product.output] {
+                    update(column as u64);
+                }
+            }
+            update(package.packed_booleans.zeros.len() as u64);
+            for zero in &package.packed_booleans.zeros {
+                for word in [
+                    zero.row,
+                    zero.left.column,
+                    usize::from(zero.left.complement),
+                    zero.right.column,
+                    usize::from(zero.right.complement),
+                ] {
+                    update(word as u64);
+                }
+            }
+            update(package.slots.len() as u64);
+            for &(start, count, kind) in &package.slots {
+                update(start as u64);
+                update(count as u64);
+                update(u64::from(kind));
+            }
+        }
         Ok(Self {
-            light: self
-                .light
-                .with_application(&records, witness_words, shape)?,
-            refresh: self
-                .refresh
-                .with_application(&records, witness_words, shape)?,
+            light,
+            refresh,
             identity: input.finalize().map(|word| word.as_canonical_u64()),
         })
     }

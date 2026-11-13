@@ -15,7 +15,7 @@ use nightstream_fprime::{BoundedDepthPackages, Linear, NativeBlock, NativeShape,
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 use crate::application::{ApplicationCircuit, ApplicationError};
-use crate::engine::{Engine, EngineError};
+use crate::engine::{Backend, Engine, EngineError};
 use crate::lifecycle::bounded_depth::{self as lifecycle, Finish};
 
 #[derive(Debug, thiserror::Error)]
@@ -36,7 +36,17 @@ pub enum Error {
     #[error(transparent)]
     Parameters(#[from] neo_params::ParamsError),
     #[error(transparent)]
-    BoundedDepth(#[from] crate::lifecycle::bounded_depth::BoundedDepthError),
+    BoundedDepth(crate::lifecycle::bounded_depth::BoundedDepthError),
+}
+
+impl From<lifecycle::BoundedDepthError> for Error {
+    /// A device failure judged nothing, so it is an engine failure.
+    fn from(error: lifecycle::BoundedDepthError) -> Self {
+        match error.engine_failure() {
+            Some(engine) => Self::Engine(engine.clone()),
+            None => Self::BoundedDepth(error),
+        }
+    }
 }
 
 /// The size of an application: its witness words, its local words and its
@@ -146,17 +156,6 @@ fn encode_application(application: &ApplicationCircuit) -> Result<Vec<u8>, Error
     let mut bytes = Vec::new();
     write_application(application, &mut bytes)?;
     Ok(bytes)
-}
-
-fn cpu_only(engine: Engine) -> Result<(), Error> {
-    if engine != Engine::Optimized {
-        return Err(EngineError::Unavailable {
-            engine,
-            reason: "steps prove and verify on the CPU path",
-        }
-        .into());
-    }
-    Ok(())
 }
 
 /// The three Lean-emitted packages: the light and refresh step circuits and
@@ -305,12 +304,14 @@ impl Circuit {
 
     /// Require one fold of the selected profile to meet the caller's positive
     /// local minimum. This is not an end-to-end bound over recursive depth or
-    /// multiple attempts. The bounded-depth scheme proves and verifies on the CPU path
-    /// (`Engine::Optimized`).
+    /// multiple attempts.
     pub fn prover(&self, engine: Engine, minimum_security_bits: u32) -> Result<Prover, Error> {
-        cpu_only(engine)?;
+        self.prover_on(Backend::new(engine)?, minimum_security_bits)
+    }
+
+    fn prover_on(&self, backend: Backend, minimum_security_bits: u32) -> Result<Prover, Error> {
         Ok(Prover {
-            lifecycle: lifecycle::BoundedDepth::new(self.packages.clone(), minimum_security_bits)?,
+            lifecycle: lifecycle::BoundedDepth::new(self.packages.clone(), minimum_security_bits, backend)?,
             finish: Finish::new(self.finish.clone())?,
             application: self.application.clone(),
         })
@@ -330,9 +331,12 @@ impl Circuit {
 
     /// The step verifier inside `nebula::Verifier`.
     pub(crate) fn stage1_verifier(&self, engine: Engine, minimum_security_bits: u32) -> Result<Verifier, Error> {
-        cpu_only(engine)?;
         Ok(Verifier {
-            lifecycle: lifecycle::BoundedDepth::new(self.packages.clone(), minimum_security_bits)?,
+            lifecycle: lifecycle::BoundedDepth::new(
+                self.packages.clone(),
+                minimum_security_bits,
+                Backend::new(engine)?,
+            )?,
             finish: Finish::new(self.finish.clone())?,
         })
     }
@@ -369,11 +373,13 @@ pub struct Prover {
 
 impl Prover {
     /// Load the prover of a circuit that `Circuit::write` saved. A verifier
-    /// compiles its own circuit and never loads this file.
+    /// compiles its own circuit and never loads this file. An unavailable
+    /// engine fails before the circuit loads.
     /// `minimum_security_bits` gates one fold, not the cumulative error of a
     /// recursive proof or multiple attempts.
     pub fn load(path: impl AsRef<Path>, engine: Engine, minimum_security_bits: u32) -> Result<Self, Error> {
-        Circuit::load(path)?.prover(engine, minimum_security_bits)
+        let backend = Backend::new(engine)?;
+        Circuit::load(path)?.prover_on(backend, minimum_security_bits)
     }
 
     pub fn prove(&self, initial_state: [F; 4], private_inputs: &[F]) -> Result<Proof, Error> {
@@ -383,13 +389,29 @@ impl Prover {
     /// The next proof; `proof` does not change. The Rust application
     /// computes the output state.
     pub fn extend(&self, proof: &Proof, private_inputs: &[F]) -> Result<Proof, Error> {
-        let next = self
+        let application = self
             .application
             .as_ref()
-            .ok_or(ApplicationError::NoApplication)?
-            .execute(proof.state().current(), private_inputs)?
-            .output_state();
-        self.extend_with_output(proof, private_inputs, next)
+            .ok_or(ApplicationError::NoApplication)?;
+        // The application runs on the CPU while the engine folds the last
+        // step; neither needs the other's result.
+        let (witness, folded) = std::thread::scope(|scope| {
+            let run = scope.spawn(|| application.execute(proof.state().current(), private_inputs));
+            let folded = self.lifecycle.fold(&proof.0);
+            (
+                run.join()
+                    .unwrap_or_else(|panic| std::panic::resume_unwind(panic)),
+                folded,
+            )
+        });
+        let witness = witness?;
+        Ok(Proof(self.lifecycle.step(
+            &proof.0,
+            folded?,
+            private_inputs,
+            witness.output_state(),
+            Some(witness.locals()),
+        )?))
     }
 
     /// The proof of no step from `z0`, which a memory run extends.
@@ -416,7 +438,10 @@ impl Prover {
         private_inputs: &[F],
         output: [F; 4],
     ) -> Result<Proof, Error> {
-        Ok(Proof(self.lifecycle.extend(&proof.0, private_inputs, output)?))
+        Ok(Proof(
+            self.lifecycle
+                .extend(&proof.0, private_inputs, output, None)?,
+        ))
     }
 
     /// The next proof of a memory invocation whose native output state is
@@ -446,6 +471,12 @@ impl Prover {
     /// Write both layer-1 setups into the existing directory `dir`.
     pub fn compression_setup(&self, dir: impl AsRef<Path>) -> Result<CompressionSetup, Error> {
         Ok(CompressionSetup(self.lifecycle.compression_setups(dir.as_ref())?))
+    }
+
+    /// Reopen both layer-1 setups with keys derived from this circuit's
+    /// relations (SPEC.md Algorithm 7). Stored roots have no authority.
+    pub fn open_compression_setup(&self, dir: impl AsRef<Path>) -> Result<CompressionSetup, Error> {
+        Ok(CompressionSetup(self.lifecycle.open_compression_setups(dir.as_ref())?))
     }
 
     /// Compress `proof`; `proof` does not change.
@@ -502,3 +533,7 @@ impl Verifier {
         )?)
     }
 }
+
+#[cfg(test)]
+#[path = "../tests/bounded_depth_lifecycle/native_field_census.rs"]
+mod native_field_census;

@@ -10,13 +10,17 @@ use std::sync::OnceLock;
 
 use neo_ccs::crypto::poseidon2_goldilocks::{DIGEST_LEN, RATE, SEED, WIDTH};
 use neo_transcript::{domain_chunk_v1_2, Poseidon2Transcript};
-use p3_challenger_v08::{CanObserve, DuplexChallenger};
-use p3_field_v08::Field;
+use p3_challenger_v08::{
+    CanObserve, CanSample, CanSampleBits, CanSampleUniformBits, DuplexChallenger, FieldChallenger, GrindingChallenger,
+    ResamplingError,
+};
+use p3_field_v08::{Field, PrimeField64};
 use p3_merkle_tree_v08::MerkleTreeMmcs;
 use p3_symmetric_v08::{
     CryptographicHasher, PaddingFreeSponge, Permutation, PseudoCompressionFunction, TruncatedPermutation,
 };
 use rand_chacha_p3::{rand_core::SeedableRng, ChaCha8Rng};
+use rayon::prelude::*;
 
 use crate::field::{gl, Gl};
 
@@ -26,7 +30,80 @@ pub(crate) const DOMAIN: &[u8] = b"Nightstream/SuperNeo/compress/v1";
 /// The workspace permutation: the same seed and draw order as
 /// `neo_ccs::crypto::poseidon2_goldilocks::PERM`. A test pins equal outputs.
 pub(crate) type Perm = p3_goldilocks_v08::Poseidon2Goldilocks<WIDTH>;
-pub(crate) type Challenger = DuplexChallenger<Gl, Perm, WIDTH, RATE>;
+
+/// The candidates of one parallel pass of `Challenger::grind`.
+const GRIND_PASS: u64 = 1 << 18;
+
+/// Plonky3's duplex challenger with one change: `grind` returns the smallest
+/// proof-of-work witness. Plonky3 returns the first witness that a parallel
+/// search finds, so two runs of one prover gave different proof bytes. A
+/// verifier accepts each witness that passes `check_witness`, and the
+/// smallest is one of them.
+#[derive(Clone)]
+pub(crate) struct Challenger(DuplexChallenger<Gl, Perm, WIDTH, RATE>);
+
+impl Challenger {
+    pub(crate) fn new(permutation: Perm) -> Self {
+        Self(DuplexChallenger::new(permutation))
+    }
+}
+
+impl<T> CanObserve<T> for Challenger
+where
+    DuplexChallenger<Gl, Perm, WIDTH, RATE>: CanObserve<T>,
+{
+    fn observe(&mut self, value: T) {
+        self.0.observe(value);
+    }
+}
+
+impl<T> CanSample<T> for Challenger
+where
+    DuplexChallenger<Gl, Perm, WIDTH, RATE>: CanSample<T>,
+{
+    fn sample(&mut self) -> T {
+        self.0.sample()
+    }
+}
+
+impl CanSampleBits<usize> for Challenger {
+    fn sample_bits(&mut self, bits: usize) -> usize {
+        self.0.sample_bits(bits)
+    }
+}
+
+impl CanSampleUniformBits<Gl> for Challenger {
+    fn sample_uniform_bits<const RESAMPLE: bool>(&mut self, bits: usize) -> Result<usize, ResamplingError> {
+        self.0.sample_uniform_bits::<RESAMPLE>(bits)
+    }
+}
+
+impl FieldChallenger<Gl> for Challenger {}
+
+impl GrindingChallenger for Challenger {
+    type Witness = Gl;
+
+    fn grind(&mut self, bits: usize) -> Gl {
+        assert!(
+            bits < 64 && (1u64 << bits) < Gl::ORDER_U64,
+            "bit count must fit the field"
+        );
+        if bits == 0 {
+            return Gl::new(0);
+        }
+        let passes = |candidate: u64| self.0.clone().check_witness(bits, Gl::new(candidate));
+        let witness = (0..Gl::ORDER_U64.div_ceil(GRIND_PASS))
+            .find_map(|pass| {
+                let end = ((pass + 1) * GRIND_PASS).min(Gl::ORDER_U64);
+                (pass * GRIND_PASS..end)
+                    .into_par_iter()
+                    .find_first(|&candidate| passes(candidate))
+            })
+            .expect("a proof-of-work witness exists");
+        assert!(self.0.check_witness(bits, Gl::new(witness)));
+        Gl::new(witness)
+    }
+}
 
 pub(crate) type Packed = <Gl as Field>::Packing;
 /// The Merkle leaf hash: an overwrite-mode sponge.

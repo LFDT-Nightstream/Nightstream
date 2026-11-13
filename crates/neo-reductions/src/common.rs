@@ -9,6 +9,8 @@ use neo_math::{
 use neo_params::{goldilocks_paper_b2, NeoParams};
 use neo_transcript::Poseidon2Transcript;
 use p3_field::{Field, PrimeCharacteristicRing, PrimeField64};
+#[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
+use rayon::prelude::*;
 
 use crate::error::PiCcsError;
 
@@ -779,16 +781,28 @@ where
             x,
         )));
     }
-    for col in 0..superneo_carrier_width(expected_m) {
-        let off = col % D;
-        let v = Z[(off, col / D)];
-        if !is_representable_balanced_fixed_d_digits(v, params.b())? {
-            let x = to_balanced_i128(v);
-            return Err(PiCcsError::InvalidInput(format!(
-                "{label}: witness carrier_col={col} is not representable in D={} balanced base-{} digits (centered value {})",
-                D, params.b(), x,
-            )));
-        }
+    let entry = |col: usize| Z[(col % D, col / D)];
+    let fails = |&col: &usize| {
+        !matches!(
+            is_representable_balanced_fixed_d_digits(entry(col), params.b()),
+            Ok(true)
+        )
+    };
+    let width = superneo_carrier_width(expected_m);
+    #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
+    let first = (0..width).into_par_iter().find_first(fails);
+    #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
+    let first = (0..width).find(fails);
+    if let Some(col) = first {
+        let v = entry(col);
+        is_representable_balanced_fixed_d_digits(v, params.b())?;
+        let x = to_balanced_i128(v);
+        return Err(PiCcsError::InvalidInput(format!(
+            "{label}: witness carrier_col={col} is not representable in D={} balanced base-{} digits (centered value {})",
+            D,
+            params.b(),
+            x,
+        )));
     }
     Ok(())
 }

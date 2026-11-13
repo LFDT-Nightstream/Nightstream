@@ -133,6 +133,11 @@ impl<A: Application + Clone> Prover<A> {
         self.stage1.compression_setup(dir)
     }
 
+    /// Reopen this circuit's layer-1 setups (SPEC.md Algorithm 7).
+    pub fn open_compression_setup(&self, dir: impl AsRef<Path>) -> Result<crate::CompressionSetup, crate::Error> {
+        self.stage1.open_compression_setup(dir)
+    }
+
     /// Compress `proof` (`crate::Prover::compress`). The carry
     /// does not change.
     pub fn compress(&self, proof: &Proof, setup: &crate::CompressionSetup) -> Result<FinalProof, crate::Error> {

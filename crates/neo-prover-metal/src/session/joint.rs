@@ -13,13 +13,17 @@ use objc2_metal::{MTLBuffer, MTLCommandBuffer, MTLCommandEncoder};
 use p3_field::PrimeCharacteristicRing;
 #[cfg(test)]
 use p3_field::PrimeField64;
+use rayon::prelude::*;
 
 use super::{Arg, Buffer, Grid, MetalSession, MetalWitnessMasks};
 use crate::MetalError;
 
 mod application;
 mod assignments;
+mod dense;
 mod matrix_window;
+pub(super) use matrix_window::Resident;
+pub(super) use opening::ResidentOpening;
 mod opening;
 mod relation;
 mod support;
@@ -27,8 +31,9 @@ mod support;
 use crate::oracle_error;
 use application::ApplicationTables;
 use assignments::AssignmentTables;
+use dense::{JointSources, MetalDenseWitnesses};
 use support::{
-    equality_round_affine, equality_suffix_chunk_words, joint_term_metadata, k_power, k_words, nonempty,
+    equality_round_affine, equality_suffix_chunk_words, joint_term_metadata, k_power, k_words, nonempty, nonempty_u32,
     restrict_equality_prefix, ring_words,
 };
 
@@ -49,7 +54,7 @@ const EQUALITY_CHUNK_VALUES: usize = 1 << EQUALITY_CHUNK_BITS;
 const MAX_COEFFICIENTS: usize = 10;
 const ZERO_FAMILY_LEN: usize = 1;
 
-struct MetalCompactMatrix {
+pub(super) struct MetalCompactMatrix {
     row_offsets: Buffer,
     row_offset_width: u64,
     row_blocks: Buffer,
@@ -62,6 +67,13 @@ struct MetalCompactMatrix {
     geometric_runs: Buffer,
     identity: bool,
 }
+
+// SAFETY: the fields are Metal buffers and plain words. Apple documents a
+// buffer as safe to retain, release and bind from any thread, and no code
+// writes these buffers after their upload.
+unsafe impl Send for MetalCompactMatrix {}
+// SAFETY: as for `Send`; shared use only binds the buffers.
+unsafe impl Sync for MetalCompactMatrix {}
 
 pub(crate) struct MetalJointMatrixPlan<'a> {
     source: &'a dyn MatrixRows,
@@ -85,6 +97,7 @@ pub(crate) struct MetalPaperJointOracle<'a> {
     session: &'a MetalSession,
     plan: MetalJointMatrixPlan<'a>,
     masks: MetalWitnessMasks,
+    dense: Option<MetalDenseWitnesses>,
     application: Option<ApplicationTables>,
     application_peak_bytes: usize,
     assignments: Option<AssignmentTables>,
@@ -219,11 +232,11 @@ impl MetalSession {
         })
     }
 
-    fn build_joint_common_tables(
+    fn build_joint_common_tables<'a>(
         &self,
         plan: &MetalJointMatrixPlan,
         input: &PaperJointOracleInput<'_>,
-        masks: &MetalWitnessMasks,
+        sources: impl Into<JointSources<'a>>,
         has_carried: bool,
     ) -> Result<(Buffer, usize), MetalError> {
         if !has_carried {
@@ -234,7 +247,7 @@ impl MetalSession {
             .checked_mul(2)
             .ok_or(MetalError::Shape("one-joint common table size overflow"))?;
         let first = self.buffer(first_words * size_of::<u64>())?;
-        self.build_joint_carried_table(plan, input, masks, &first, common_len)?;
+        self.build_joint_carried_table(plan, input, sources.into(), &first, common_len)?;
         Ok((first, common_len))
     }
 
@@ -282,10 +295,11 @@ impl MetalSession {
         &self,
         plan: &MetalJointMatrixPlan,
         input: &PaperJointOracleInput<'_>,
-        masks: &MetalWitnessMasks,
+        sources: JointSources<'_>,
         output: &Buffer,
         table_len: usize,
     ) -> Result<(), MetalError> {
+        let masks = sources.masks;
         let width = plan.blocks * D;
         let rows = input.structure.n();
         if input.dims.assignment_width != width
@@ -297,10 +311,26 @@ impl MetalSession {
         }
         let running_count = input.running_witnesses.len();
         let fresh_count = input.fresh_witnesses.len();
-        let stored_running = masks
-            .stored_witnesses()
-            .saturating_sub(fresh_count)
-            .min(running_count);
+        let stored_running = match sources.dense {
+            Some(dense) => dense.count(),
+            None => masks
+                .stored_witnesses()
+                .saturating_sub(fresh_count)
+                .min(running_count),
+        };
+        // The running sources' values: their masks after the fresh sources',
+        // or their dense values.
+        let (projection, running_values) = match sources.dense {
+            Some(dense) => (&self.joint_carried_projection_dense, Arg::Buffer(0, dense.words())),
+            None => (
+                &self.joint_carried_projection,
+                Arg::BufferAt(
+                    0,
+                    masks.words(),
+                    fresh_count * plan.blocks * 2 * masks.magnitudes() * size_of::<u64>(),
+                ),
+            ),
+        };
         if stored_running == 0 {
             return Err(MetalError::Shape("carried projection has no stored running witness"));
         }
@@ -353,13 +383,9 @@ impl MetalSession {
         encoder.setLabel(Some(&NSString::from_str("nightstream.pi_ccs.joint.carried.combine")));
         self.launch(
             &encoder,
-            &self.joint_carried_projection,
+            projection,
             &[
-                Arg::BufferAt(
-                    0,
-                    masks.words(),
-                    fresh_count * plan.blocks * 2 * masks.magnitudes() * size_of::<u64>(),
-                ),
+                running_values,
                 Arg::Buffer(1, &coeffs),
                 Arg::Buffer(2, &shape),
                 Arg::Buffer(3, &basis_re),
@@ -443,13 +469,9 @@ impl MetalSession {
         let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
         self.launch(
             &encoder,
-            &self.joint_carried_projection,
+            projection,
             &[
-                Arg::BufferAt(
-                    0,
-                    masks.words(),
-                    fresh_count * plan.blocks * 2 * masks.magnitudes() * size_of::<u64>(),
-                ),
+                running_values,
                 Arg::Buffer(1, &coeffs),
                 Arg::Buffer(2, &final_shape),
                 Arg::Buffer(3, &pad_re),
@@ -505,22 +527,38 @@ impl<'a> MetalPaperJointOracle<'a> {
             )));
         }
         let fresh_count = input.fresh_witnesses.len();
-        let opening_assignment_count = fresh_count + input.running_witnesses.len();
+        let running_count = input.running_witnesses.len();
+        let opening_assignment_count = fresh_count + running_count;
         if input.prior_point.is_some() == input.running_witnesses.is_empty() {
             return Err(oracle_error(MetalError::Shape(
                 "one-joint prior point and running witnesses disagree",
             )));
         }
+        // Option B's light fold checks the fresh sources' norms only; its
+        // running sources have no masks and stay dense.
+        let dense_running = match input.norm_sources {
+            sources if sources == fresh_count + running_count => false,
+            sources if sources == fresh_count => true,
+            _ => {
+                return Err(oracle_error(MetalError::Shape(
+                    "norm terms cover neither every source nor the fresh sources",
+                )))
+            }
+        };
         let witness_mats = input
             .fresh_witnesses
             .iter()
             .map(|witness| &witness.Z)
             .chain(input.running_witnesses.iter())
             .collect::<Vec<_>>();
-        let source_blocks = witness_mats
+        let mut source_blocks = witness_mats
             .iter()
             .map(|witness| SuperneoZBlocks::from_witness_mat(witness, input.structure.m()))
             .collect::<Result<Vec<_>, _>>()?;
+        let dense = dense_running
+            .then(|| session.prepare_dense_witnesses(&source_blocks.split_off(fresh_count)))
+            .transpose()
+            .map_err(oracle_error)?;
         let masks = session
             .prepare_joint_witness_masks(&source_blocks, input.params.b(), input.structure.m())
             .map_err(oracle_error)?;
@@ -532,10 +570,17 @@ impl<'a> MetalPaperJointOracle<'a> {
         let assignment_count = assignment_source_indices.len();
         let has_carried = assignment_source_indices
             .iter()
-            .any(|&source| source >= fresh_count);
+            .any(|&source| source >= fresh_count)
+            || dense
+                .as_ref()
+                .is_some_and(|dense| !dense.active().is_empty());
         drop(source_blocks);
+        let sources = JointSources {
+            masks: &masks,
+            dense: dense.as_ref(),
+        };
         let (common, common_len) = session
-            .build_joint_common_tables(&plan, &input, &masks, has_carried)
+            .build_joint_common_tables(&plan, &input, sources, has_carried)
             .map_err(oracle_error)?;
 
         let application_len = input.structure.n();
@@ -603,6 +648,7 @@ impl<'a> MetalPaperJointOracle<'a> {
         Ok(Self {
             session,
             masks,
+            dense,
             application_peak_bytes: application.peak_bytes(),
             application: Some(application),
             assignments: Some(assignments),
@@ -753,9 +799,6 @@ impl<'a> MetalPaperJointOracle<'a> {
         let partials = self
             .session
             .buffer(groups * self.coefficient_count * size_of::<K>())?;
-        let reduction_shape = self
-            .session
-            .buffer_from_slice(&[groups as u64, self.coefficient_count as u64])?;
         let command = self
             .session
             .command_buffer("nightstream.pi_ccs.joint.round")?;
@@ -787,25 +830,33 @@ impl<'a> MetalPaperJointOracle<'a> {
         );
         encoder.endEncoding();
 
-        let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
-        self.session.launch(
-            &encoder,
-            &self.session.sumcheck_reduce_partials,
-            &[
-                Arg::Buffer(0, &partials),
-                Arg::Buffer(1, &reduction_shape),
-                Arg::Buffer(2, &self.output),
-            ],
-            Grid::Threads(self.coefficient_count),
-        );
-        encoder.endEncoding();
         self.session.finish(&command)?;
-        Ok(self
-            .session
-            .read_buffer::<u64>(&self.output, self.coefficient_count * 2)
-            .chunks_exact(2)
-            .map(|words| K::from_coeffs([F::from_u64(words[0]), F::from_u64(words[1])]))
-            .collect())
+        // One GPU thread for each coefficient would add the partials in
+        // series; the host cores add them from the shared buffer.
+        let count = self.coefficient_count;
+        let width = 2 * count;
+        let partials = self.session.host_words(&partials, groups * width);
+        let sums = partials
+            .par_chunks(width << 10)
+            .map(|chunk| {
+                let mut sums = vec![K::ZERO; count];
+                for group in chunk.chunks_exact(width) {
+                    for (sum, words) in sums.iter_mut().zip(group.chunks_exact(2)) {
+                        *sum += K::from_coeffs([F::from_u64(words[0]), F::from_u64(words[1])]);
+                    }
+                }
+                sums
+            })
+            .reduce(
+                || vec![K::ZERO; count],
+                |mut left, right| {
+                    left.iter_mut()
+                        .zip(right)
+                        .for_each(|(sum, value)| *sum += value);
+                    left
+                },
+            );
+        Ok(sums)
     }
 
     fn fold_tables(&mut self, challenge: K) -> Result<(), MetalError> {
@@ -825,19 +876,21 @@ impl<'a> MetalPaperJointOracle<'a> {
             .as_ref()
             .expect("assignment prefixes exist")
             .fold_allocation_bytes()?;
+        // One command for the three folds of the round.
+        let command = self
+            .session
+            .command_buffer("nightstream.pi_ccs.joint.fold")?;
         let application = self
             .application
             .as_mut()
             .expect("application prefixes exist");
         application.fold(
             self.session,
+            &command,
             challenge,
-            common_scratch.max(assignment_scratch) + 4 * size_of::<u64>(),
+            common_scratch + assignment_scratch + 4 * size_of::<u64>(),
         )?;
         self.application_peak_bytes = self.application_peak_bytes.max(application.peak_bytes());
-        let command = self
-            .session
-            .command_buffer("nightstream.pi_ccs.joint.fold")?;
         let next_common = if self.prior_point.is_some() {
             let next_len = self.common_len.div_ceil(2).max(1);
             let output = self.session.buffer(next_len * size_of::<K>())?;
@@ -854,16 +907,15 @@ impl<'a> MetalPaperJointOracle<'a> {
         } else {
             None
         };
+        self.assignments
+            .as_mut()
+            .expect("assignment prefixes exist during SumCheck")
+            .fold(self.session, &command, &self.masks, challenge)?;
         self.session.finish(&command)?;
         if let Some(common) = next_common {
             self.common = Some(common);
             self.common_len = self.common_len.div_ceil(2).max(1);
         }
-        drop(command);
-        self.assignments
-            .as_mut()
-            .expect("assignment prefixes exist during SumCheck")
-            .fold(self.session, &self.masks, challenge)?;
         self.alpha_prefix = restrict_equality_prefix(self.alpha_prefix, self.alpha_point[self.round], challenge);
         if let Some(prior_point) = &self.prior_point {
             self.prior_prefix = restrict_equality_prefix(self.prior_prefix, prior_point[self.round], challenge);
@@ -934,10 +986,14 @@ impl PaperJointRoundOracle for MetalPaperJointOracle<'_> {
         self.application = None;
         self.assignments = None;
         self.common = None;
+        let sources = JointSources {
+            masks: &self.masks,
+            dense: self.dense.as_ref(),
+        };
         self.session
             .eval_streamed_joint_openings(
                 &self.plan,
-                &self.masks,
+                sources,
                 point,
                 self.opening_assignment_count,
                 self.assignment_width,

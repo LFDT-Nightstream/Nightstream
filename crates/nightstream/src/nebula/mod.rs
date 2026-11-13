@@ -18,8 +18,10 @@ mod expr;
 mod geometry;
 #[cfg(test)]
 mod machine;
+mod poseidon;
 mod proving;
 mod r1cs;
+mod readonly;
 mod records;
 mod rows;
 mod segment;
@@ -42,8 +44,11 @@ pub use geometry::Geometry;
 #[cfg(test)]
 pub(crate) use machine::{Machine, MachineError, MachineState, Step};
 use neo_application::MemoryPreload;
+pub use poseidon::Poseidon2Hint;
 pub use proving::{FinalProof, Proof, ProveError, Prover, Proving, Verified, Verifier, VerifyError};
-pub use r1cs::{batched_slots, R1csApplication, R1csApplicationError, R1csStepError, RowRelation, Size, Terms};
+pub use r1cs::{
+    batched_slots, R1csApplication, R1csApplicationError, R1csStepError, RowRelation, SharedColumns, Size, Terms,
+};
 pub use records::PortAccess;
 pub use rows::View;
 use segment::Cell;
@@ -99,16 +104,16 @@ impl Package {
     fn bounded_depth_identity(self) -> [u64; 4] {
         match self {
             Package::V1 => [
-                10_580_663_078_496_778_702,
-                8_449_976_309_352_830_555,
-                14_914_573_426_256_382_237,
-                6_543_820_444_622_926_209,
+                3_180_419_269_317_939_345,
+                12_753_092_109_696_569_961,
+                17_146_916_458_370_844_357,
+                13_202_109_808_588_181_401,
             ],
             Package::N1 => [
-                17_093_560_491_186_526_472,
-                12_610_771_002_949_472_946,
-                8_264_993_901_726_864_929,
-                10_805_292_089_218_158_339,
+                15_961_784_185_370_198_869,
+                9_045_685_272_713_122_869,
+                44_199_573_957_760_331,
+                15_634_264_822_030_694_132,
             ],
         }
     }
@@ -116,7 +121,7 @@ impl Package {
     /// The package's relation built in Rust, row for row as Lean builds it
     /// (`tests/nebula/parity.rs`).
     pub(crate) fn application(self) -> Result<crate::application::ApplicationCircuit, crate::Error> {
-        circuit::memory_circuit(&self.geometry(), &Machine)
+        circuit::memory_circuit_unshared(&self.geometry(), &Machine)
     }
 }
 

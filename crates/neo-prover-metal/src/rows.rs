@@ -107,6 +107,14 @@ impl MetalRowProver {
             .map_err(oracle_error)
     }
 
+    /// Π_RLC's parent witness `Σ ρ_i·Z_i`; see
+    /// `MetalSession::mix_rlc_witnesses`.
+    pub fn mix_rlc_witnesses(&self, rhos: &[Mat<F>], witnesses: &[&Mat<F>]) -> Result<Mat<F>, PiCcsError> {
+        self.session
+            .mix_rlc_witnesses(rhos, witnesses)
+            .map_err(oracle_error)
+    }
+
     pub fn split_rlc_witnesses(
         &self,
         rhos: &[Mat<F>],
@@ -139,6 +147,24 @@ impl MetalRowProver {
                     "device child openings are unavailable for this shape",
                 ))
             })
+    }
+
+    /// The first row of `structure` over `rows` that the signed-unit
+    /// `witness` fails, or `None` when every row holds.
+    pub fn first_unsatisfied_row(
+        &self,
+        rows: &dyn MatrixRows,
+        workspace_bytes: usize,
+        structure: &CcsStructure<F>,
+        witness: &Mat<F>,
+    ) -> Result<Option<usize>, PiCcsError> {
+        let plan = self
+            .session
+            .prepare_joint_matrix_plan(rows, workspace_bytes)
+            .map_err(oracle_error)?;
+        self.session
+            .first_unsatisfied_row(&plan, structure, witness)
+            .map_err(oracle_error)
     }
 
     pub fn evaluate_terminal_rows(

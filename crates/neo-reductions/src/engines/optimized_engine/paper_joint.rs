@@ -12,7 +12,7 @@ use crate::engines::pi_ccs_joint::{
     equality, eval_a_gamma_exponent, eval_k_gamma_exponent, gamma_power, range_product, JointDims, ProtocolTrace,
     TerminalComponents,
 };
-use crate::engines::pi_ccs_joint_protocol::{self, FoldProfile, NormSources, PaperJointRoundOracle, V1_2OutputOpening};
+use crate::engines::pi_ccs_joint_protocol::{self, FoldProfile, PaperJointRoundOracle, V1_2OutputOpening};
 use crate::engines::pi_ccs_protocol::{Challenges, PiCcsProof};
 use crate::error::PiCcsError;
 use crate::superneo_eval::{CachedMatrixRows, MatrixRows, MatrixWindow};
@@ -214,6 +214,9 @@ pub struct PaperJointOracleInput<'a> {
     pub dims: JointDims,
     pub rows: &'a dyn MatrixRows,
     pub workspace_bytes: usize,
+    /// The sources with norm terms: the first `norm_sources` of the fresh
+    /// sources, then the running sources (`FoldProfile::norm`).
+    pub norm_sources: usize,
 }
 
 pub trait PaperJointOracleBackend {
@@ -351,15 +354,6 @@ fn prove_with_trace_inner(
     source: OracleSource<'_>,
     profile: &FoldProfile<'_>,
 ) -> Result<(Vec<CeClaim<Cmt, F, K>>, PiCcsProof, ProtocolTrace), PiCcsError> {
-    let device_oracle = match &source {
-        OracleSource::Cached { backend, .. } | OracleSource::Rows { backend, .. } => backend.is_some(),
-        OracleSource::Complete { .. } => true,
-    };
-    if device_oracle && profile.norm != NormSources::All {
-        return Err(PiCcsError::InvalidInput(
-            "a device PiCCS oracle checks every source's norm".into(),
-        ));
-    }
     let norm_sources = profile.norm.count(fresh_claims.len(), running_claims.len());
     let cache = match &source {
         OracleSource::Cached { cache, .. } => {
@@ -430,6 +424,7 @@ fn prove_with_trace_inner(
                 dims,
                 rows,
                 workspace_bytes,
+                norm_sources,
             };
             built_oracle = Some(match backend {
                 Some(backend) => backend.create(input)?,
@@ -463,6 +458,7 @@ fn prove_with_trace_inner(
                 dims,
                 rows,
                 workspace_bytes,
+                norm_sources,
             };
             built_oracle = Some(match backend {
                 Some(backend) => backend.create(input)?,

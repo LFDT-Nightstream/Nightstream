@@ -1,5 +1,7 @@
 //! A step package's plan rows (`CircuitRelation.plan`): one row for each row
 //! of `Package.relationRows`, then 150 S-box rows for each block, block-major.
+//! Native applications use the experimental `NativePower` rewrite.
+//! The source view retains the original application rows.
 //! A row has four port forms over the logical columns: A, B, C and the S-box
 //! input. An R1CS row fills A, B and C, and its constant reads column 0. A
 //! port reads, in place of an output local of a block, the local's form over
@@ -29,6 +31,7 @@ const FINAL_SBOX: usize = 134;
 /// stored.
 pub struct PlanRows {
     ordinary: usize,
+    piece_ranges: Vec<Range<usize>>,
     rings: Vec<Range<usize>>,
     offsets: Vec<usize>,
     columns: Vec<u32>,
@@ -36,11 +39,15 @@ pub struct PlanRows {
 }
 
 impl PlanRows {
+    pub fn piece_ranges(&self) -> &[Range<usize>] {
+        &self.piece_ranges
+    }
+
     pub fn row_count(&self) -> usize {
         (self.offsets.len() - 1) / PORTS
     }
 
-    /// The rows of `Package.relationRows`, before the S-box rows.
+    /// The source-piece rows before the native block S-box rows.
     pub fn ordinary_row_count(&self) -> usize {
         self.ordinary
     }
@@ -169,6 +176,14 @@ impl Builder {
         Ok(())
     }
 
+    fn push_power(&mut self, input: &Linear, output: usize) -> Result<(), PackageError> {
+        self.end_port();
+        self.end_port();
+        self.push(output, Goldilocks::ONE)?;
+        self.end_port();
+        self.push_linear(input)
+    }
+
     /// `PieceRows.ringRows`: for each cell and each of the 108 nodes,
     /// `challenge * value = output - prior + Φ81 * quotient` at the node.
     fn push_ring(&mut self, cells: usize, start: usize, quotient: usize, lanes: &[Linear]) -> Result<(), PackageError> {
@@ -215,23 +230,89 @@ impl Builder {
 }
 
 impl StepPackage {
+    pub(super) fn output_forms(&self) -> Result<HashMap<usize, Entries>, PackageError> {
+        let mut forms = HashMap::new();
+        for (index, block) in self.blocks().enumerate() {
+            let sbox = self.sbox_start + index * SBOX_ROWS;
+            let finals = (0..BLOCK_LANES)
+                .map(|lane| sbox + FINAL_SBOX + lane)
+                .collect::<Vec<_>>();
+            for (lane, form) in external_outputs(&finals, self.width)?
+                .into_iter()
+                .enumerate()
+            {
+                forms.insert(block.start() + BLOCK_OUTPUTS + lane, form);
+            }
+        }
+        Ok(forms)
+    }
+
+    pub(super) fn resolved_forms(&self) -> Result<HashMap<usize, Entries>, PackageError> {
+        let mut forms = self.output_forms()?;
+        for (&column, (_, linear)) in &self.field_lowering.affine {
+            let mut entries = vec![(0, linear.constant)];
+            for &(input, coefficient) in &linear.terms {
+                if let Some(form) = forms.get(&input) {
+                    entries.extend(
+                        form.iter()
+                            .map(|&(source, value)| (source, value * coefficient)),
+                    );
+                } else {
+                    entries.push((input, coefficient));
+                }
+            }
+            forms.insert(column, entries);
+        }
+        Ok(forms)
+    }
+
     /// Expands the package into its circuit's plan rows
     /// (`Package.relationRows`): the pieces' rows in order (a block
     /// contributes none), then the blocks' S-box rows from the shared formula
-    /// library. Each port reads the form of an output local in place of the
-    /// local.
+    /// library. Native applications use the experimental `NativePower`
+    /// rewrite. Each port substitutes native output and affine forms.
     pub fn plan_rows(&self) -> Result<PlanRows, PackageError> {
         self.rows(true)
     }
 
-    /// The same rows on the source columns, where a port reads an output
-    /// local itself. The final program checks these rows and each block as a
-    /// permutation (`FinishRelation.package_finish`).
+    /// The original source rows before the native rewrites, where
+    /// a port reads an output local itself. The final program checks these
+    /// rows and each block as a permutation (`FinishRelation.package_finish`).
     pub fn source_rows(&self) -> Result<PlanRows, PackageError> {
         self.rows(false)
     }
 
     fn rows(&self, with_forms: bool) -> Result<PlanRows, PackageError> {
+        if self.native.is_some() {
+            let Some(Piece::Rows(rows)) = self.pieces.first() else {
+                return Err(PackageError::Malformed("bounded-depth native application rows"));
+            };
+            self.packed_booleans
+                .validate(rows, self.sbox_start + SBOX_ROWS * self.block_count(), self.width)?;
+            self.guard_fusion.validate(self)?;
+            self.word_packing.validate(self)?;
+            let layout = self.layout()?;
+            for column in self
+                .packed_booleans
+                .products
+                .iter()
+                .flat_map(|product| [product.left, product.right, product.output])
+                .chain(
+                    self.packed_booleans
+                        .zeros
+                        .iter()
+                        .flat_map(|zero| [zero.left.column, zero.right.column]),
+                )
+                .chain(self.packed_booleans.start..self.packed_booleans.end())
+            {
+                if layout
+                    .slot(column)
+                    .is_none_or(|(_, kind)| kind != super::layout::Kind::Bit)
+                {
+                    return Err(PackageError::Malformed("bounded-depth packed product slot"));
+                }
+            }
+        }
         let mut blocks = Vec::new();
         for piece in &self.pieces {
             if let Piece::Block { start, lanes } = piece {
@@ -241,38 +322,61 @@ impl StepPackage {
                 blocks.push((*start, lanes.as_slice()));
             }
         }
-        let mut forms = HashMap::new();
-        if with_forms {
-            for (index, &(start, _)) in blocks.iter().enumerate() {
-                let sbox = self.sbox_start + index * SBOX_ROWS;
-                let finals: Vec<usize> = (0..BLOCK_LANES)
-                    .map(|lane| sbox + FINAL_SBOX + lane)
-                    .collect();
-                for (lane, form) in external_outputs(&finals, self.width)?
-                    .into_iter()
-                    .enumerate()
-                {
-                    forms.insert(start + BLOCK_OUTPUTS + lane, form);
-                }
-            }
-        }
+        let forms = if with_forms {
+            self.resolved_forms()?
+        } else {
+            HashMap::new()
+        };
         let mut builder = Builder {
             width: self.width,
             forms,
             port: Vec::new(),
             rows: PlanRows {
                 ordinary: 0,
+                piece_ranges: Vec::new(),
                 rings: Vec::new(),
                 offsets: vec![0],
                 columns: Vec::new(),
                 coefficients: Vec::new(),
             },
         };
-        for piece in &self.pieces {
+        let word_edits = self.word_packing.edits();
+        for (index, piece) in self.pieces.iter().enumerate() {
+            let first = builder.rows.row_count();
             match piece {
                 Piece::Rows(rows) => {
-                    for row in rows {
-                        builder.push_row(row)?;
+                    if index == 0 && !with_forms && self.native.is_some() {
+                        for row in self.packed_booleans.original_rows(rows)? {
+                            builder.push_row(row)?;
+                        }
+                    } else {
+                        for (row_index, row) in rows.iter().enumerate() {
+                            if index == 0 && with_forms {
+                                if let Some(replacements) = word_edits.get(&row_index) {
+                                    for replacement in replacements {
+                                        builder.push_row(replacement)?;
+                                    }
+                                    continue;
+                                }
+                                if let Some(power) = self.field_lowering.powers.get(&row_index) {
+                                    builder.push_power(&power.input, power.powers[3])?;
+                                }
+                                if self.field_lowering.removed.contains(&row_index)
+                                    || self.guard_fusion.removed.contains(&row_index)
+                                {
+                                    continue;
+                                }
+                            }
+                            let row = if index == 0 && with_forms {
+                                self.guard_fusion
+                                    .replacements
+                                    .get(&row_index)
+                                    .unwrap_or(row)
+                            } else {
+                                row
+                            };
+                            builder.push_row(row)?;
+                        }
                     }
                 }
                 Piece::Ring {
@@ -287,6 +391,10 @@ impl StepPackage {
                 }
                 Piece::Block { .. } => {}
             }
+            builder
+                .rows
+                .piece_ranges
+                .push(first..builder.rows.row_count());
         }
         builder.rows.ordinary = builder.rows.row_count();
         for (index, &(_, lanes)) in blocks.iter().enumerate() {

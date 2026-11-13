@@ -1,0 +1,19 @@
+import tests.AxiomAudit
+import NightstreamFPrime.Export.Generic.PackedProduct
+
+#audit_axioms NightstreamFPrime.Export.Generic.PackedProduct.complementDigit_le
+#audit_axioms NightstreamFPrime.Export.Generic.PackedProduct.complementDigit_field
+#audit_axioms NightstreamFPrime.Export.Generic.PackedProduct.negative_unitDigit_field
+#audit_axioms NightstreamFPrime.Export.Generic.PackedProduct.Values.digit_le
+#audit_axioms NightstreamFPrime.Export.Generic.PackedProduct.Values.digit_field
+#audit_axioms NightstreamFPrime.Export.Generic.PackedProduct.target_mono
+#audit_axioms NightstreamFPrime.Export.Generic.PackedProduct.packNat_bound
+#audit_axioms NightstreamFPrime.Export.Generic.PackedProduct.target_capacity_lt_modulus
+#audit_axioms NightstreamFPrime.Export.Generic.PackedProduct.packNat_eq_target
+#audit_axioms NightstreamFPrime.Export.Generic.PackedProduct.pack_field
+#audit_axioms NightstreamFPrime.Export.Generic.PackedProduct.packed_implies_residuals
+#audit_axioms NightstreamFPrime.Export.Generic.PackedProduct.residuals_imply_packed
+#audit_axioms NightstreamFPrime.Export.Generic.PackedProduct.half_adder
+#audit_axioms NightstreamFPrime.Export.Generic.PackedProduct.honest_parity
+#audit_axioms NightstreamFPrime.Export.Generic.PackedProduct.restore_rows
+#audit_axioms NightstreamFPrime.Export.Generic.PackedProduct.honest_values

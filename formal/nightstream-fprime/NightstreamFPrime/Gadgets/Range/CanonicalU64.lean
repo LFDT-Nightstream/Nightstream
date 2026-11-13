@@ -10,11 +10,12 @@ Inputs:
 
 Outputs:
 - 64 little-endian Boolean bits;
-- one inverse hint and one derived high-word flag.
+- one inverse hint, one derived high-word flag and one derived low-bit product.
 
 Invariants:
 - the bits recompose to the input as one integer below the modulus;
-- `0xffffffff : high32` forces `low32 = 0`, so `x + p` is rejected;
+- `fieldModulus = 2 ^ 6 * (2 ^ 58 - 1) + 5`: when bits 6 to 63 are all one, the six low bits
+  encode a value below 5, so `x + p` is rejected;
 - hints are witness computations only. Every accepted value is bound by rows.
 -/
 
@@ -25,10 +26,14 @@ open NightstreamFPrime.Spec.FieldPrime
 open NightstreamFPrime.Circuit
 
 def bitCount : Nat := 64
-def halfBitCount : Nat := 32
-def auxiliaryCount : Nat := 66
-def exactRowCount : Nat := 67
-def highMax : Nat := 4294967295
+def lowBitCount : Nat := 6
+def highBitCount : Nat := 58
+def auxiliaryCount : Nat := 67
+def exactRowCount : Nat := 68
+def highMax : Nat := 2 ^ highBitCount - 1
+def lowLimit : Nat := 5
+
+theorem fieldModulus_eq : fieldModulus = 2 ^ lowBitCount * highMax + lowLimit := by decide
 
 structure Interface where
   source : Nat → Expr
@@ -42,6 +47,9 @@ def inverseExpr (offset : Nat) : Expr :=
 def highFlagExpr (offset : Nat) : Expr :=
   Expr.var (offset + bitCount + 1)
 
+def lowProductExpr (offset : Nat) : Expr :=
+  Expr.var (offset + bitCount + 2)
+
 def fieldOfNat (value : Nat) : F :=
   ⟨value % fieldModulus, Nat.mod_lt _ (by decide)⟩
 
@@ -51,19 +59,33 @@ def weightedExpr (offset bitStart count : Nat) : Expr :=
       bitExpr offset (bitStart + index)) 0
 
 def lowExpr (offset : Nat) : Expr :=
-  weightedExpr offset 0 halfBitCount
+  weightedExpr offset 0 lowBitCount
 
 def highExpr (offset : Nat) : Expr :=
-  weightedExpr offset halfBitCount halfBitCount
+  weightedExpr offset lowBitCount highBitCount
 
 def wordExpr (offset : Nat) : Expr :=
-  lowExpr offset + Expr.const (fieldOfNat (2 ^ halfBitCount)) * highExpr offset
+  lowExpr offset + Expr.const (fieldOfNat (2 ^ lowBitCount)) * highExpr offset
 
 def highDifferenceExpr (offset : Nat) : Expr :=
   highExpr offset - Expr.const (fieldOfNat highMax)
 
+/-- `1 - highDifference * inverse`, written as one product plus a constant. -/
 def flagRecipe (offset : Nat) : Expr :=
-  1 - highDifferenceExpr offset * inverseExpr offset
+  Expr.const (-1) * highDifferenceExpr offset * inverseExpr offset + 1
+
+def lowFirstExpr (offset : Nat) : Expr :=
+  bitExpr offset 2 + bitExpr offset 3 + bitExpr offset 4 + bitExpr offset 5
+
+def lowSecondExpr (offset : Nat) : Expr :=
+  bitExpr offset 0 + bitExpr offset 1 + bitExpr offset 3 + bitExpr offset 4 + bitExpr offset 5
+
+/-- Zero exactly when the six low bits encode a value below `lowLimit`. -/
+def lowProductRecipe (offset : Nat) : Expr :=
+  lowFirstExpr offset * lowSecondExpr offset
+
+def recipes (offset : Nat) : List Expr :=
+  [flagRecipe offset, lowProductRecipe offset]
 
 def bitHints (interface : Interface) (offset : Nat) : List Hint :=
   (List.range bitCount).map fun index =>
@@ -86,7 +108,7 @@ def recompositionConstraint (interface : Interface) (offset : Nat) : Expr :=
   interface.source offset - wordExpr offset
 
 def canonicalityConstraint (offset : Nat) : Expr :=
-  highFlagExpr offset * lowExpr offset
+  highFlagExpr offset * lowProductExpr offset
 
 private theorem booleanConstraint_eval (env : Env) (offset index : Nat) :
     (booleanConstraint offset index).eval env =
@@ -103,7 +125,7 @@ private theorem booleanConstraint_eval (env : Env) (offset index : Nat) :
 
 private theorem canonicalityConstraint_eval (env : Env) (offset : Nat) :
     (canonicalityConstraint offset).eval env =
-      (highFlagExpr offset).eval env * (lowExpr offset).eval env := by
+      (highFlagExpr offset).eval env * (lowProductExpr offset).eval env := by
   unfold canonicalityConstraint
   exact Expr.eval_mul env _ _
 
@@ -111,25 +133,15 @@ private theorem flagRecipe_eval (env : Env) (offset : Nat) :
     (flagRecipe offset).eval env =
       (1 : F) - (highDifferenceExpr offset).eval env *
         (inverseExpr offset).eval env := by
-  unfold flagRecipe
-  calc
-    (1 - highDifferenceExpr offset * inverseExpr offset : Expr).eval env =
-        (1 : Expr).eval env -
-          (highDifferenceExpr offset * inverseExpr offset).eval env :=
-      Expr.eval_sub env _ _
-    _ = (1 : F) -
-        (highDifferenceExpr offset * inverseExpr offset).eval env := by
-      rfl
-    _ = (1 : F) - (highDifferenceExpr offset).eval env *
-        (inverseExpr offset).eval env :=
-      congrArg (fun product => (1 : F) - product)
-        (Expr.eval_mul env _ _)
+  change (-1 : F) * (highDifferenceExpr offset).eval env *
+    (inverseExpr offset).eval env + (1 : F) = _
+  rw [neg_one_mul, neg_mul, neg_add_eq_sub]
 
 def operations (interface : Interface) (offset : Nat) : List Op :=
   [ .witness (WitnessBatch.hinted offset (bitHints interface offset)),
     .witness (WitnessBatch.hinted (offset + bitCount) [inverseHint offset]),
     .witness (WitnessBatch.arithmetic (offset + bitCount + 1)
-      [flagRecipe offset]) ] ++
+      (recipes offset)) ] ++
     booleanOps offset ++
     [ .assertZero (recompositionConstraint interface offset),
       .assertZero (canonicalityConstraint offset) ]
@@ -145,13 +157,13 @@ private theorem flatConstraints_booleanOps (offset : Nat) :
 
 theorem flatConstraints_operations (interface : Interface) (offset : Nat) :
     flatConstraints (operations interface offset) =
-      recipeConstraints (offset + bitCount + 1) [flagRecipe offset] ++
+      recipeConstraints (offset + bitCount + 1) (recipes offset) ++
         (booleanConstraints offset ++
           [recompositionConstraint interface offset,
             canonicalityConstraint offset]) := by
   change recipeConstraints offset [] ++
       (recipeConstraints (offset + bitCount) [] ++
-        (recipeConstraints (offset + bitCount + 1) [flagRecipe offset] ++
+        (recipeConstraints (offset + bitCount + 1) (recipes offset) ++
           (flatConstraints (booleanOps offset) ++
             [recompositionConstraint interface offset,
               canonicalityConstraint offset]))) = _
@@ -173,12 +185,12 @@ theorem localLength_eq (interface : Interface) (offset : Nat) :
   unfold operations
   rw [localLength_append', localLength_append', localLength_booleanOps]
   simp [localLength, Op.localLength, WitnessBatch.outputLength,
-    bitHints, auxiliaryCount, bitCount]
+    bitHints, recipes, auxiliaryCount, bitCount]
 
 theorem flatConstraints_length_eq (interface : Interface) (offset : Nat) :
     (flatConstraints (operations interface offset)).length = exactRowCount := by
   rw [flatConstraints_operations]
-  simp [booleanConstraints, recipeConstraints, exactRowCount, bitCount]
+  simp [booleanConstraints, recipes, recipeConstraints, exactRowCount, bitCount]
 
 def main (interface : Interface) : Circuit Unit := fun offset =>
   ((), offset + auxiliaryCount, operations interface offset)
@@ -191,13 +203,13 @@ def weightedValue (env : Env) (offset bitStart count : Nat) : Nat :=
     value + 2 ^ index * bitValue env offset (bitStart + index)) 0
 
 def lowValue (env : Env) (offset : Nat) : Nat :=
-  weightedValue env offset 0 halfBitCount
+  weightedValue env offset 0 lowBitCount
 
 def highValue (env : Env) (offset : Nat) : Nat :=
-  weightedValue env offset halfBitCount halfBitCount
+  weightedValue env offset lowBitCount highBitCount
 
 def wordValue (env : Env) (offset : Nat) : Nat :=
-  lowValue env offset + 2 ^ halfBitCount * highValue env offset
+  lowValue env offset + 2 ^ lowBitCount * highValue env offset
 
 def Assumptions (interface : Interface) (offset : Nat) (_env : Env) : Prop :=
   (interface.source offset).VarsBelow offset
@@ -246,7 +258,7 @@ theorem mul_hintInverse_eq_one (value : F) (nonzero : value ≠ 0) :
     Nat.coprime_iff_gcd_eq_one.mp coprime
   unfold F fieldModulus at value gcdOne ⊢
   have law := ZMod.mul_inv_eq_gcd
-    (n := 18446744069414584321) value
+    (n := 18446744073709551557) value
   dsimp [ZMod, ZMod.val] at law
   rw [gcdOne] at law
   exact law
@@ -295,11 +307,11 @@ private theorem weightedValue_lt_twoPow
 
 private theorem wordExpr_eval (env : Env) (offset : Nat) :
     (wordExpr offset).eval env = fieldOfNat (wordValue env offset) := by
-  change (weightedExpr offset 0 halfBitCount).eval env +
-      fieldOfNat (2 ^ halfBitCount) *
-        (weightedExpr offset halfBitCount halfBitCount).eval env = _
-  rw [weightedExpr_eval env offset 0 halfBitCount,
-    weightedExpr_eval env offset halfBitCount halfBitCount]
+  change (weightedExpr offset 0 lowBitCount).eval env +
+      fieldOfNat (2 ^ lowBitCount) *
+        (weightedExpr offset lowBitCount highBitCount).eval env = _
+  rw [weightedExpr_eval env offset 0 lowBitCount,
+    weightedExpr_eval env offset lowBitCount highBitCount]
   rw [fieldOfNat_mul, fieldOfNat_add]
   rfl
 
@@ -326,16 +338,26 @@ private theorem highDifference_varsBelow (offset : Nat) :
     (highDifferenceExpr offset).VarsBelow (offset + bitCount) := by
   apply Expr.VarsBelow.sub
   · apply weightedExpr_varsBelow
-    simp [halfBitCount, bitCount]
+    simp [lowBitCount, highBitCount, bitCount]
   · exact trivial
 
 private theorem flagRecipe_varsBelow (offset : Nat) :
     (flagRecipe offset).VarsBelow (offset + bitCount + 1) := by
-  apply Expr.VarsBelow.sub
-  · exact trivial
+  apply Expr.VarsBelow.add
   · apply Expr.VarsBelow.mul
-    · exact Expr.VarsBelow.mono _ (highDifference_varsBelow offset) (by omega)
+    · exact Expr.VarsBelow.mul _ _ _ trivial
+        (Expr.VarsBelow.mono _ (highDifference_varsBelow offset) (by omega))
     · simp [inverseExpr, Expr.VarsBelow]
+  · exact trivial
+
+private theorem lowProductRecipe_varsBelow (offset : Nat) :
+    (lowProductRecipe offset).VarsBelow (offset + bitCount) := by
+  simp [lowProductRecipe, lowFirstExpr, lowSecondExpr, bitExpr, Expr.VarsBelow, bitCount]
+
+private theorem recipes_causal (offset : Nat) :
+    RecipesCausal (offset + bitCount + 1) (recipes offset) :=
+  ⟨flagRecipe_varsBelow offset,
+    Expr.VarsBelow.mono _ (lowProductRecipe_varsBelow offset) (by omega), trivial⟩
 
 theorem flatConstraints_varsBelow
     (interface : Interface) (offset : Nat)
@@ -345,12 +367,17 @@ theorem flatConstraints_varsBelow
   intro expression member
   rw [flatConstraints_operations] at member
   rcases List.mem_append.mp member with recipeMember | assertionMember
-  · simp only [recipeConstraints, List.mem_singleton] at recipeMember
-    subst expression
-    apply Expr.VarsBelow.sub
-    · simp [Expr.VarsBelow, bitCount, auxiliaryCount]
-    · exact Expr.VarsBelow.mono _ (flagRecipe_varsBelow offset) (by
-        simp [bitCount, auxiliaryCount])
+  · simp only [recipes, recipeConstraints, List.mem_cons, List.not_mem_nil, or_false]
+      at recipeMember
+    rcases recipeMember with rfl | rfl
+    · apply Expr.VarsBelow.sub
+      · simp [Expr.VarsBelow, bitCount, auxiliaryCount]
+      · exact Expr.VarsBelow.mono _ (flagRecipe_varsBelow offset) (by
+          simp [bitCount, auxiliaryCount])
+    · apply Expr.VarsBelow.sub
+      · simp [Expr.VarsBelow, bitCount, auxiliaryCount]
+      · exact Expr.VarsBelow.mono _ (lowProductRecipe_varsBelow offset) (by
+          simp [bitCount, auxiliaryCount])
   · rcases List.mem_append.mp assertionMember with booleanMember | finalMember
     · rcases List.mem_map.mp booleanMember with ⟨index, indexMember, rfl⟩
       have bounded := List.mem_range.mp indexMember
@@ -372,16 +399,15 @@ theorem flatConstraints_varsBelow
         · unfold wordExpr lowExpr highExpr
           apply Expr.VarsBelow.add
           · apply weightedExpr_varsBelow
-            simp [halfBitCount, auxiliaryCount]
+            simp [lowBitCount, auxiliaryCount]
           · apply Expr.VarsBelow.mul
             · exact trivial
             · apply weightedExpr_varsBelow
-              simp [halfBitCount, auxiliaryCount]
-      · unfold canonicalityConstraint highFlagExpr lowExpr
+              simp [lowBitCount, highBitCount, auxiliaryCount]
+      · unfold canonicalityConstraint highFlagExpr lowProductExpr
         apply Expr.VarsBelow.mul
         · simp [Expr.VarsBelow, bitCount, auxiliaryCount]
-        · apply weightedExpr_varsBelow
-          simp [halfBitCount, auxiliaryCount]
+        · simp [Expr.VarsBelow, bitCount, auxiliaryCount]
 
 theorem bitExpr_varsSatisfy (offset index : Nat) (allowed : Nat → Prop)
     (supported : allowed (offset + index)) :
@@ -410,11 +436,11 @@ theorem highDifference_varsSatisfy (offset : Nat)
   unfold highDifferenceExpr highExpr
   apply Expr.VarsSatisfy.sub
   · simpa [Nat.add_assoc] using
-      weightedExpr_varsSatisfy offset halfBitCount halfBitCount allowed (by
+      weightedExpr_varsSatisfy offset lowBitCount highBitCount allowed (by
         intro index bounded
         simpa [Nat.add_assoc] using
-          localSupported (halfBitCount + index) (by
-            norm_num [halfBitCount, auxiliaryCount] at bounded ⊢
+          localSupported (lowBitCount + index) (by
+            norm_num [lowBitCount, highBitCount, auxiliaryCount] at bounded ⊢
             omega))
   · trivial
 
@@ -424,11 +450,27 @@ theorem flagRecipe_varsSatisfy (offset : Nat)
       allowed (offset + index)) :
     (flagRecipe offset).VarsSatisfy allowed := by
   unfold flagRecipe
-  apply Expr.VarsSatisfy.sub
-  · trivial
+  apply Expr.VarsSatisfy.add
   · apply Expr.VarsSatisfy.mul
-    · exact highDifference_varsSatisfy offset allowed localSupported
+    · exact Expr.VarsSatisfy.mul _ _ allowed trivial
+        (highDifference_varsSatisfy offset allowed localSupported)
     · exact localSupported bitCount (by norm_num [bitCount, auxiliaryCount])
+  · trivial
+
+theorem lowProductRecipe_varsSatisfy (offset : Nat)
+    (allowed : Nat → Prop)
+    (localSupported : ∀ index, index < auxiliaryCount →
+      allowed (offset + index)) :
+    (lowProductRecipe offset).VarsSatisfy allowed := by
+  have bit : ∀ index, index < lowBitCount →
+      (bitExpr offset index).VarsSatisfy allowed := fun index bounded =>
+    localSupported index (by
+      norm_num [lowBitCount, auxiliaryCount] at bounded ⊢
+      omega)
+  unfold lowProductRecipe lowFirstExpr lowSecondExpr
+  exact ⟨⟨⟨⟨bit 2 (by decide), bit 3 (by decide)⟩, bit 4 (by decide)⟩, bit 5 (by decide)⟩,
+    ⟨⟨⟨bit 0 (by decide), bit 1 (by decide)⟩, bit 3 (by decide)⟩, bit 4 (by decide)⟩,
+      bit 5 (by decide)⟩
 
 theorem flatConstraints_varsSatisfy
     (interface : Interface) (offset : Nat) (allowed : Nat → Prop)
@@ -440,12 +482,17 @@ theorem flatConstraints_varsSatisfy
   intro expression member
   rw [flatConstraints_operations] at member
   rcases List.mem_append.mp member with recipeMember | assertionMember
-  · simp only [recipeConstraints, List.mem_singleton] at recipeMember
-    subst expression
-    apply Expr.VarsSatisfy.sub
-    · exact localSupported (bitCount + 1) (by
-        norm_num [bitCount, auxiliaryCount])
-    · exact flagRecipe_varsSatisfy offset allowed localSupported
+  · simp only [recipes, recipeConstraints, List.mem_cons, List.not_mem_nil, or_false]
+      at recipeMember
+    rcases recipeMember with rfl | rfl
+    · apply Expr.VarsSatisfy.sub
+      · exact localSupported (bitCount + 1) (by
+          norm_num [bitCount, auxiliaryCount])
+      · exact flagRecipe_varsSatisfy offset allowed localSupported
+    · apply Expr.VarsSatisfy.sub
+      · exact localSupported (bitCount + 2) (by
+          norm_num [bitCount, auxiliaryCount])
+      · exact lowProductRecipe_varsSatisfy offset allowed localSupported
   · rcases List.mem_append.mp assertionMember with booleanMember | finalMember
     · rcases List.mem_map.mp booleanMember with ⟨index, indexMember, rfl⟩
       have bounded := List.mem_range.mp indexMember
@@ -462,29 +509,26 @@ theorem flatConstraints_varsSatisfy
         apply Expr.VarsSatisfy.sub
         · exact sourceSupported
         · apply Expr.VarsSatisfy.add
-          · exact weightedExpr_varsSatisfy offset 0 halfBitCount allowed (by
+          · exact weightedExpr_varsSatisfy offset 0 lowBitCount allowed (by
               intro index bounded
               exact localSupported index (by
-                norm_num [halfBitCount, auxiliaryCount] at bounded ⊢
+                norm_num [lowBitCount, auxiliaryCount] at bounded ⊢
                 omega))
           · apply Expr.VarsSatisfy.mul
             · trivial
             · simpa [Nat.add_assoc] using
-                weightedExpr_varsSatisfy offset halfBitCount halfBitCount allowed (by
+                weightedExpr_varsSatisfy offset lowBitCount highBitCount allowed (by
                   intro index bounded
                   simpa [Nat.add_assoc] using
-                    localSupported (halfBitCount + index) (by
-                      norm_num [halfBitCount, auxiliaryCount] at bounded ⊢
+                    localSupported (lowBitCount + index) (by
+                      norm_num [lowBitCount, highBitCount, auxiliaryCount] at bounded ⊢
                       omega))
-      · unfold canonicalityConstraint highFlagExpr lowExpr
+      · unfold canonicalityConstraint highFlagExpr lowProductExpr
         apply Expr.VarsSatisfy.mul
         · exact localSupported (bitCount + 1) (by
             norm_num [bitCount, auxiliaryCount])
-        · exact weightedExpr_varsSatisfy offset 0 halfBitCount allowed (by
-            intro index bounded
-            exact localSupported index (by
-              norm_num [halfBitCount, auxiliaryCount] at bounded ⊢
-              omega))
+        · exact localSupported (bitCount + 2) (by
+            norm_num [bitCount, auxiliaryCount])
 
 private theorem bitHints_length (interface : Interface) (offset : Nat) :
     (bitHints interface offset).length = bitCount := by
@@ -514,21 +558,29 @@ private theorem boolean_of_constraint
     rw [valueOne]
     decide
 
-private theorem flag_recipe_equation
+private theorem recipe_rows
     (interface : Interface) (env : Env) (offset : Nat)
     (rows : holds env (operations interface offset)) :
-    (highFlagExpr offset).eval env = (flagRecipe offset).eval env := by
-  have operationHolds := rows
-    (.witness (WitnessBatch.arithmetic (offset + bitCount + 1)
-      [flagRecipe offset])) (by simp [operations])
-  change ConstraintsHold env
-    (recipeConstraints (offset + bitCount + 1) [flagRecipe offset]) at operationHolds
-  have row := operationHolds
-    (Expr.var (offset + bitCount + 1) - flagRecipe offset) (by
-      simp [recipeConstraints])
-  simp only [Expr.eval_sub, Expr.eval_var] at row
-  change (highFlagExpr offset).eval env - (flagRecipe offset).eval env = 0 at row
-  exact sub_eq_zero.mp row
+    ConstraintsHold env
+      (recipeConstraints (offset + bitCount + 1) (recipes offset)) :=
+  rows (.witness (WitnessBatch.arithmetic (offset + bitCount + 1)
+    (recipes offset))) (by simp [operations])
+
+private theorem recipe_equations (env : Env) (offset : Nat)
+    (rows : ConstraintsHold env
+      (recipeConstraints (offset + bitCount + 1) (recipes offset))) :
+    (highFlagExpr offset).eval env = (flagRecipe offset).eval env ∧
+      (lowProductExpr offset).eval env = (lowProductRecipe offset).eval env := by
+  constructor
+  · have row := rows (Expr.var (offset + bitCount + 1) - flagRecipe offset) (by
+      simp [recipes, recipeConstraints])
+    rw [Expr.eval_sub] at row
+    exact sub_eq_zero.mp row
+  · have row := rows
+      (Expr.var (offset + bitCount + 1 + 1) - lowProductRecipe offset) (by
+        simp [recipes, recipeConstraints])
+    rw [Expr.eval_sub] at row
+    exact sub_eq_zero.mp row
 
 private theorem boolean_rows
     (interface : Interface) (env : Env) (offset : Nat)
@@ -568,7 +620,7 @@ private theorem recomposition_row
 private theorem canonicality_row
     (interface : Interface) (env : Env) (offset : Nat)
     (rows : holds env (operations interface offset)) :
-    (highFlagExpr offset).eval env * (lowExpr offset).eval env = 0 := by
+    (highFlagExpr offset).eval env * (lowProductExpr offset).eval env = 0 := by
   have operationMember : .assertZero (canonicalityConstraint offset) ∈
       operations interface offset := by
     unfold operations
@@ -585,70 +637,115 @@ private theorem fieldOfNat_eq_zero_of_lt
   have values := congrArg Fin.val zero
   simpa [fieldOfNat, Nat.mod_eq_of_lt less] using values
 
+private theorem highDifference_eq_zero_iff (env : Env) (offset : Nat)
+    (binary : ∀ index, index < bitCount → bitValue env offset index ≤ 1) :
+    (highDifferenceExpr offset).eval env = 0 ↔ highValue env offset = highMax := by
+  have highBound : highValue env offset < 2 ^ highBitCount :=
+    weightedValue_lt_twoPow env offset lowBitCount binary highBitCount (by
+      simp [lowBitCount, highBitCount, bitCount])
+  have evaluated : (highDifferenceExpr offset).eval env =
+      fieldOfNat (highValue env offset) - fieldOfNat highMax := by
+    unfold highDifferenceExpr highExpr
+    rw [Expr.eval_sub, weightedExpr_eval env offset lowBitCount highBitCount]
+    rfl
+  rw [evaluated, sub_eq_zero]
+  constructor
+  · intro equal
+    have values := congrArg Fin.val equal
+    rw [fieldOfNat_val, fieldOfNat_val,
+      Nat.mod_eq_of_lt (lt_trans highBound (by norm_num [highBitCount, fieldModulus])),
+      Nat.mod_eq_of_lt (by norm_num [highMax, highBitCount, fieldModulus])] at values
+    exact values
+  · intro equal
+    rw [equal]
+
+private theorem lowProduct_eq_zero_iff (env : Env) (offset : Nat)
+    (binary : ∀ index, index < bitCount → bitValue env offset index ≤ 1) :
+    (lowProductRecipe offset).eval env = 0 ↔ lowValue env offset < lowLimit := by
+  have bit : ∀ index, env (offset + index) = fieldOfNat (bitValue env offset index) :=
+    fun index => (fieldOfNat_val_self _).symm
+  have bit0 := binary 0 (by decide)
+  have bit1 := binary 1 (by decide)
+  have bit2 := binary 2 (by decide)
+  have bit3 := binary 3 (by decide)
+  have bit4 := binary 4 (by decide)
+  have bit5 := binary 5 (by decide)
+  have first : (lowFirstExpr offset).eval env =
+      fieldOfNat (bitValue env offset 2 + bitValue env offset 3 +
+        bitValue env offset 4 + bitValue env offset 5) := by
+    change env (offset + 2) + env (offset + 3) + env (offset + 4) + env (offset + 5) = _
+    rw [bit 2, bit 3, bit 4, bit 5, fieldOfNat_add, fieldOfNat_add, fieldOfNat_add]
+  have second : (lowSecondExpr offset).eval env =
+      fieldOfNat (bitValue env offset 0 + bitValue env offset 1 +
+        bitValue env offset 3 + bitValue env offset 4 + bitValue env offset 5) := by
+    change env (offset + 0) + env (offset + 1) + env (offset + 3) + env (offset + 4) +
+      env (offset + 5) = _
+    rw [bit 0, bit 1, bit 3, bit 4, bit 5, fieldOfNat_add, fieldOfNat_add,
+      fieldOfNat_add, fieldOfNat_add]
+  have low : lowValue env offset =
+      bitValue env offset 0 + 2 * bitValue env offset 1 + 4 * bitValue env offset 2 +
+        8 * bitValue env offset 3 + 16 * bitValue env offset 4 +
+        32 * bitValue env offset 5 := by
+    simp [lowValue, weightedValue, lowBitCount, List.range_succ]
+  change (lowFirstExpr offset).eval env * (lowSecondExpr offset).eval env = 0 ↔ _
+  rw [first, second, low]
+  simp only [lowLimit]
+  constructor
+  · intro product
+    rcases baseFieldNoZeroDivisors _ _ product with zero | zero
+    · have sum := fieldOfNat_eq_zero_of_lt (by norm_num [fieldModulus]; omega) zero
+      omega
+    · have sum := fieldOfNat_eq_zero_of_lt (by norm_num [fieldModulus]; omega) zero
+      omega
+  · intro small
+    have sums : bitValue env offset 2 + bitValue env offset 3 +
+          bitValue env offset 4 + bitValue env offset 5 = 0 ∨
+        bitValue env offset 0 + bitValue env offset 1 +
+          bitValue env offset 3 + bitValue env offset 4 + bitValue env offset 5 = 0 := by
+      omega
+    rcases sums with zero | zero
+    · rw [zero]
+      exact zero_mul _
+    · rw [zero]
+      exact mul_zero _
+
 theorem soundness
     (interface : Interface) (env : Env) (offset : Nat)
     (_assumptions : Assumptions interface offset env)
     (rows : holds env (operations interface offset)) :
     SpecHolds interface offset env := by
   have binary := boolean_rows interface env offset rows
-  have lowBound : lowValue env offset < 2 ^ halfBitCount :=
-    weightedValue_lt_twoPow env offset 0 binary halfBitCount (by
-      simp [halfBitCount, bitCount])
-  have highBound : highValue env offset < 2 ^ halfBitCount :=
-    weightedValue_lt_twoPow env offset halfBitCount binary halfBitCount (by
-      simp [halfBitCount, bitCount])
-  have flagEquation := flag_recipe_equation interface env offset rows
-  have canonicality := canonicality_row interface env offset rows
-  rcases baseFieldNoZeroDivisors _ _ canonicality with flagZero | lowFieldZero
-  · have highNotMax : highValue env offset ≠ highMax := by
-      intro highEqual
-      have highEval := weightedExpr_eval env offset halfBitCount halfBitCount
-      have differenceZero : (highDifferenceExpr offset).eval env = 0 := by
-        unfold highDifferenceExpr highExpr
-        simp only [Expr.eval_sub, Expr.eval_const]
-        rw [highEval]
-        change fieldOfNat (highValue env offset) - fieldOfNat highMax = 0
-        rw [highEqual]
-        exact sub_self _
-      have flagOne : (highFlagExpr offset).eval env = 1 := by
-        rw [flagEquation, flagRecipe_eval, differenceZero, zero_mul, sub_zero]
-      have impossible : (0 : F) = 1 := flagZero.symm.trans flagOne
-      exact (by decide : (0 : F) ≠ 1) impossible
-    have highStrict : highValue env offset < highMax := by
-      have highAtMost : highValue env offset ≤ highMax := by
-        simp only [halfBitCount, highMax] at highBound ⊢
-        omega
+  have lowBound : lowValue env offset < 2 ^ lowBitCount :=
+    weightedValue_lt_twoPow env offset 0 binary lowBitCount (by
+      simp [lowBitCount, bitCount])
+  have highBound : highValue env offset < 2 ^ highBitCount :=
+    weightedValue_lt_twoPow env offset lowBitCount binary highBitCount (by
+      simp [lowBitCount, highBitCount, bitCount])
+  have equations := recipe_equations env offset (recipe_rows interface env offset rows)
+  have wordBound : wordValue env offset < fieldModulus := by
+    rw [fieldModulus_eq]
+    rcases baseFieldNoZeroDivisors _ _ (canonicality_row interface env offset rows) with
+      flagZero | productZero
+    · have highNotMax : highValue env offset ≠ highMax := by
+        intro highEqual
+        have flagOne : (highFlagExpr offset).eval env = 1 := by
+          rw [equations.1, flagRecipe_eval,
+            (highDifference_eq_zero_iff env offset binary).mpr highEqual, zero_mul,
+            sub_zero]
+        exact (by decide : (0 : F) ≠ 1) (flagZero.symm.trans flagOne)
+      simp only [wordValue, lowBitCount, highBitCount, highMax, lowLimit] at *
       omega
-    have wordBound : wordValue env offset < fieldModulus := by
-      simp only [wordValue, halfBitCount, highMax, fieldModulus] at *
+    · have lowSmall : lowValue env offset < lowLimit :=
+        (lowProduct_eq_zero_iff env offset binary).mp (equations.2 ▸ productZero)
+      simp only [wordValue, lowBitCount, highBitCount, highMax, lowLimit] at *
       omega
-    have recomposed := recomposition_row interface env offset rows
-    rw [wordExpr_eval env offset] at recomposed
-    have values := congrArg Fin.val recomposed
-    refine ⟨?_, wordBound, ?_⟩
-    · simpa [fieldOfNat, Nat.mod_eq_of_lt wordBound] using values
-    · intro index bounded
-      exact Nat.lt_succ_iff.mpr (binary index bounded)
-  · have lowZero : lowValue env offset = 0 := by
-      change (weightedExpr offset 0 halfBitCount).eval env = 0 at lowFieldZero
-      rw [weightedExpr_eval env offset 0 halfBitCount] at lowFieldZero
-      exact fieldOfNat_eq_zero_of_lt
-        (lt_trans lowBound (by
-          simp [halfBitCount, fieldModulus])) lowFieldZero
-    have wordBound : wordValue env offset < fieldModulus := by
-      have highAtMost : highValue env offset ≤ highMax := by
-        simp only [halfBitCount, highMax] at highBound ⊢
-        omega
-      simp only [wordValue, lowZero, Nat.zero_add, halfBitCount,
-        highMax, fieldModulus] at *
-      omega
-    have recomposed := recomposition_row interface env offset rows
-    rw [wordExpr_eval env offset] at recomposed
-    have values := congrArg Fin.val recomposed
-    refine ⟨?_, wordBound, ?_⟩
-    · simpa [fieldOfNat, Nat.mod_eq_of_lt wordBound] using values
-    · intro index bounded
-      exact Nat.lt_succ_iff.mpr (binary index bounded)
+  have recomposed := recomposition_row interface env offset rows
+  rw [wordExpr_eval env offset] at recomposed
+  have values := congrArg Fin.val recomposed
+  refine ⟨?_, wordBound, ?_⟩
+  · simpa [fieldOfNat, Nat.mod_eq_of_lt wordBound] using values
+  · intro index bounded
+    exact Nat.lt_succ_iff.mpr (binary index bounded)
 
 private theorem weightedValue_split (env : Env) (offset start count : Nat) :
     weightedValue env offset 0 (start + count) =
@@ -683,8 +780,9 @@ private theorem weightedValue_split (env : Env) (offset start count : Nat) :
 
 private theorem wordValue_eq_fullWeighted (env : Env) (offset : Nat) :
     wordValue env offset = weightedValue env offset 0 bitCount := by
-  have split := weightedValue_split env offset halfBitCount halfBitCount
-  simpa [wordValue, lowValue, highValue, halfBitCount, bitCount] using split.symm
+  have split := weightedValue_split env offset lowBitCount highBitCount
+  simpa [wordValue, lowValue, highValue, lowBitCount, highBitCount, bitCount] using
+    split.symm
 
 theorem windowValue_eq (interface : Interface) (env : Env) (offset start count : Nat)
     (refines : Refines interface offset env)
@@ -800,7 +898,7 @@ def completeInverse (interface : Interface) (env : Env) (offset : Nat) : Env :=
 
 def completeEnv (interface : Interface) (env : Env) (offset : Nat) : Env :=
   executeRecipes (completeInverse interface env offset)
-    (offset + bitCount + 1) [flagRecipe offset]
+    (offset + bitCount + 1) (recipes offset)
 
 private theorem completeBits_value
     (interface : Interface) (env : Env) (offset index : Nat)
@@ -837,7 +935,7 @@ private theorem completeEnv_bitValue
   have bitIndexBelowRecipe : offset + index < offset + bitCount + 1 := by omega
   have afterRecipe := executeRecipes_agrees_below
     (completeInverse interface env offset) (offset + bitCount + 1)
-    [flagRecipe offset] (offset + index) bitIndexBelowRecipe
+    (recipes offset) (offset + index) bitIndexBelowRecipe
   have afterInverse := executeHints_agrees_below
     (completeBits interface env offset) (offset + bitCount)
     [inverseHint offset] (offset + index) bitIndexBelowInverse
@@ -883,28 +981,28 @@ private theorem completeEnv_wordValue
     wordValue (completeEnv interface env offset) offset =
       ((interface.source offset).eval env).val := by
   let sourceValue := ((interface.source offset).eval env).val
-  have low := completeEnv_weightedValue interface env offset 0 halfBitCount
-    assumptions (by simp [halfBitCount, bitCount])
-  have high := completeEnv_weightedValue interface env offset halfBitCount
-    halfBitCount assumptions (by simp [halfBitCount, bitCount])
+  have low := completeEnv_weightedValue interface env offset 0 lowBitCount
+    assumptions (by simp [lowBitCount, bitCount])
+  have high := completeEnv_weightedValue interface env offset lowBitCount
+    highBitCount assumptions (by simp [lowBitCount, highBitCount, bitCount])
   rw [bitWindowValue_eq] at low high
   simp only [pow_zero, Nat.div_one] at low
   change lowValue (completeEnv interface env offset) offset =
-    sourceValue % 2 ^ halfBitCount at low
+    sourceValue % 2 ^ lowBitCount at low
   change highValue (completeEnv interface env offset) offset =
-    (sourceValue / 2 ^ halfBitCount) % 2 ^ halfBitCount at high
+    (sourceValue / 2 ^ lowBitCount) % 2 ^ highBitCount at high
   have sourceCapacity : sourceValue < 2 ^ bitCount := by
     exact lt_trans ((interface.source offset).eval env).isLt (by
       norm_num [fieldModulus, bitCount])
-  have highLt : sourceValue / 2 ^ halfBitCount < 2 ^ halfBitCount := by
-    rw [Nat.div_lt_iff_lt_mul (by positivity)]
-    simpa [bitCount, halfBitCount, pow_add, Nat.mul_comm] using sourceCapacity
+  have highLt : sourceValue / 2 ^ lowBitCount < 2 ^ highBitCount := by
+    simp only [bitCount, lowBitCount, highBitCount] at sourceCapacity ⊢
+    omega
   have highMod :
-      (sourceValue / 2 ^ halfBitCount) % 2 ^ halfBitCount =
-        sourceValue / 2 ^ halfBitCount := Nat.mod_eq_of_lt highLt
-  have split := Nat.mod_add_div sourceValue (2 ^ halfBitCount)
+      (sourceValue / 2 ^ lowBitCount) % 2 ^ highBitCount =
+        sourceValue / 2 ^ lowBitCount := Nat.mod_eq_of_lt highLt
+  have split := Nat.mod_add_div sourceValue (2 ^ lowBitCount)
   change lowValue (completeEnv interface env offset) offset +
-    2 ^ halfBitCount * highValue (completeEnv interface env offset) offset =
+    2 ^ lowBitCount * highValue (completeEnv interface env offset) offset =
       sourceValue
   rw [low, high, highMod]
   exact split
@@ -918,10 +1016,38 @@ private theorem completeEnv_source
   intro index below
   unfold completeEnv completeInverse completeBits
   rw [executeRecipes_agrees_below _ (offset + bitCount + 1)
-      [flagRecipe offset] index (by omega),
+      (recipes offset) index (by omega),
     executeHints_agrees_below _ (offset + bitCount)
       [inverseHint offset] index (by omega),
     executeHints_agrees_below env offset (bitHints interface offset) index below]
+
+private theorem completeEnv_inverse
+    (interface : Interface) (env : Env) (offset : Nat) :
+    (inverseExpr offset).eval (completeEnv interface env offset) =
+      Hint.inverse
+        ((highDifferenceExpr offset).eval (completeEnv interface env offset)) := by
+  have value := executeHints_value_of_readBelow
+    (completeBits interface env offset) (offset + bitCount)
+    [inverseHint offset] (by
+      intro hint member
+      simp only [List.mem_singleton] at member
+      subst hint
+      exact highDifference_varsBelow offset)
+    0 (by simp)
+  have preserved :
+      (highDifferenceExpr offset).eval (completeEnv interface env offset) =
+        (highDifferenceExpr offset).eval (completeBits interface env offset) := by
+    apply Expr.eval_eq_of_agree_below _ (offset + bitCount) _ _
+      (highDifference_varsBelow offset)
+    intro index below
+    unfold completeEnv completeInverse
+    rw [executeRecipes_agrees_below _ _ _ index (by omega),
+      executeHints_agrees_below _ _ _ index below]
+  rw [preserved]
+  change completeEnv interface env offset (offset + bitCount) = _
+  unfold completeEnv
+  rw [executeRecipes_agrees_below _ _ _ (offset + bitCount) (by omega)]
+  simpa [completeInverse, inverseHint] using! value
 
 private theorem completeEnv_spec
     (interface : Interface) (env : Env) (offset : Nat)
@@ -945,11 +1071,11 @@ private theorem completeEnv_agreesOutside
   have bits := executeHints_agreesOutside env offset (bitHints interface offset)
   have inverse := executeHints_agreesOutside (completeBits interface env offset)
     (offset + bitCount) [inverseHint offset]
-  have flag := executeRecipes_agreesOutside (completeInverse interface env offset)
-    (offset + bitCount + 1) [flagRecipe offset]
+  have derived := executeRecipes_agreesOutside (completeInverse interface env offset)
+    (offset + bitCount + 1) (recipes offset)
   have first := bits.append inverse
-  have all := first.append flag
-  simpa [completeEnv, completeInverse, completeBits, bitHints_length,
+  have all := first.append derived
+  simpa [completeEnv, completeInverse, completeBits, bitHints_length, recipes,
     auxiliaryCount, bitCount] using all
 
 private theorem completeEnv_holdsFlat
@@ -992,136 +1118,43 @@ private theorem completeEnv_holdsFlat
       simpa [fieldOfNat, Nat.mod_eq_of_lt wordBound] using sourceEq
     rw [fieldEq]
     exact sub_self _
+  have derived : ConstraintsHold (completeEnv interface env offset)
+      (recipeConstraints (offset + bitCount + 1) (recipes offset)) :=
+    executeRecipes_holds_recipeConstraints
+      (completeInverse interface env offset) (offset + bitCount + 1)
+      (recipes offset) (recipes_causal offset)
   have canonicality :
       (canonicalityConstraint offset).eval
         (completeEnv interface env offset) = 0 := by
     let completed := completeEnv interface env offset
-    let sourceValue := ((interface.source offset).eval env).val
-    let honestLow := bitWindowValue sourceValue 0 halfBitCount
-    let honestHigh := bitWindowValue sourceValue halfBitCount halfBitCount
-    have low := completeEnv_weightedValue interface env offset 0 halfBitCount
-      assumptions (by simp [halfBitCount, bitCount])
-    have high := completeEnv_weightedValue interface env offset halfBitCount
-      halfBitCount assumptions (by simp [halfBitCount, bitCount])
-    have sourceWord := completeEnv_wordValue interface env offset assumptions
-    have flagValue :
-        (highFlagExpr offset).eval completed =
-          (flagRecipe offset).eval (completeInverse interface env offset) := by
-      simp [completed, completeEnv, highFlagExpr, executeRecipes, Env.set]
-    by_cases highEqual : honestHigh = highMax
-    · have lowZero : honestLow = 0 := by
-        have sourceLt := ((interface.source offset).eval env).isLt
-        change lowValue completed offset +
-            2 ^ halfBitCount * highValue completed offset = sourceValue at sourceWord
-        change lowValue completed offset = honestLow at low
-        change highValue completed offset = honestHigh at high
-        rw [low, high] at sourceWord
-        change honestLow + 2 ^ halfBitCount * honestHigh = sourceValue at sourceWord
-        simp only [highEqual, halfBitCount, highMax, fieldModulus] at sourceWord sourceLt
+    have equations := recipe_equations completed offset derived
+    have binaryCompleted : ∀ index, index < bitCount →
+        bitValue completed offset index ≤ 1 := fun index bounded =>
+      Nat.le_of_lt_succ (specification.bit_lt_two index bounded)
+    rw [canonicalityConstraint_eval]
+    by_cases highEqual : highValue completed offset = highMax
+    · have lowSmall : lowValue completed offset < lowLimit := by
+        have bound := specification.canonical
+        rw [fieldModulus_eq] at bound
+        change lowValue completed offset + 2 ^ lowBitCount * highValue completed offset <
+          2 ^ lowBitCount * highMax + lowLimit at bound
+        rw [highEqual] at bound
         omega
-      have lowFieldZero : (lowExpr offset).eval completed = 0 := by
-        change (weightedExpr offset 0 halfBitCount).eval completed = 0
-        rw [weightedExpr_eval completed offset 0 halfBitCount]
-        change fieldOfNat (lowValue completed offset) = 0
-        change lowValue completed offset = honestLow at low
-        rw [low]
-        rw [lowZero]
-        rfl
-      rw [canonicalityConstraint_eval, lowFieldZero]
+      rw [equations.2, (lowProduct_eq_zero_iff completed offset binaryCompleted).mpr lowSmall]
       exact mul_zero _
-    · have highBits := completeBits_weightedValue interface env offset
-        halfBitCount halfBitCount assumptions (by
-          simp [halfBitCount, bitCount])
-      have highDifferenceNonzero :
-          (highDifferenceExpr offset).eval
-            (completeBits interface env offset) ≠ 0 := by
-        intro differenceZero
-        have highBound : honestHigh < fieldModulus := by
-          have bound : weightedValue (completeBits interface env offset) offset
-              halfBitCount halfBitCount < 2 ^ halfBitCount :=
-            weightedValue_lt_twoPow
-              (completeBits interface env offset) offset halfBitCount
-              (fun index bounded => by
-                have bit := completeBits_bitValue interface env offset index
-                  assumptions bounded
-                rw [bit]
-                have ltTwo :
-                    bitNat ((interface.source offset).eval env).val index < 2 := by
-                  unfold bitNat
-                  exact Nat.mod_lt _ (by decide : 0 < 2)
-                omega)
-              halfBitCount (by simp [halfBitCount, bitCount])
-          rw [highBits] at bound
-          exact lt_trans bound (by
-            norm_num [halfBitCount, fieldModulus])
-        have highEval := weightedExpr_eval
-          (completeBits interface env offset) offset halfBitCount halfBitCount
-        rw [highBits] at highEval
-        have differenceEq : fieldOfNat honestHigh = fieldOfNat highMax := by
-          apply sub_eq_zero.mp
-          simpa [highDifferenceExpr, highExpr, highEval] using differenceZero
-        have values := congrArg Fin.val differenceEq
-        have highMaxBound : highMax < fieldModulus := by
-          norm_num [highMax, fieldModulus]
-        change honestHigh % fieldModulus =
-          highMax % fieldModulus at values
-        rw [Nat.mod_eq_of_lt highBound,
-          Nat.mod_eq_of_lt highMaxBound] at values
-        exact highEqual values
-      have inverseValue :
-          (inverseExpr offset).eval (completeInverse interface env offset) =
-            Hint.inverse
-              ((highDifferenceExpr offset).eval
-                (completeBits interface env offset)) := by
-        have value := executeHints_value_of_readBelow
-          (completeBits interface env offset) (offset + bitCount)
-          [inverseHint offset] (by
-            intro hint member
-            simp only [List.mem_singleton] at member
-            subst hint
-            exact highDifference_varsBelow offset)
-          0 (by simp)
-        simpa [completeInverse, inverseHint, inverseExpr] using! value
-      have differencePreserved :
-          (highDifferenceExpr offset).eval (completeBits interface env offset) =
-            (highDifferenceExpr offset).eval
-              (completeInverse interface env offset) := by
-        apply Expr.eval_eq_of_agree_below _ (offset + bitCount) _ _
-          (highDifference_varsBelow offset)
-        intro index below
-        exact (executeHints_agrees_below (completeBits interface env offset)
-          (offset + bitCount) [inverseHint offset] index below).symm
-      have differenceNonzeroAfter :
-          (highDifferenceExpr offset).eval
-            (completeInverse interface env offset) ≠ 0 := by
-        rw [← differencePreserved]
-        exact highDifferenceNonzero
-      have inverseLaw :
-          (highDifferenceExpr offset).eval
-              (completeInverse interface env offset) *
-            (inverseExpr offset).eval (completeInverse interface env offset) = 1 := by
-        let difference := (highDifferenceExpr offset).eval
-          (completeInverse interface env offset)
-        have inverseValue' :
-            (inverseExpr offset).eval (completeInverse interface env offset) =
-              Hint.inverse difference := by
-          rw [inverseValue, differencePreserved]
-        change difference *
-          (inverseExpr offset).eval (completeInverse interface env offset) = 1
-        rw [inverseValue']
-        exact mul_hintInverse_eq_one difference differenceNonzeroAfter
-      have flagZero :
-          (highFlagExpr offset).eval completed = 0 := by
-        rw [flagValue, flagRecipe_eval, inverseLaw]
+    · have differenceNonzero : (highDifferenceExpr offset).eval completed ≠ 0 :=
+        fun zero => highEqual
+          ((highDifference_eq_zero_iff completed offset binaryCompleted).mp zero)
+      have flagZero : (highFlagExpr offset).eval completed = 0 := by
+        rw [equations.1, flagRecipe_eval, completeEnv_inverse interface env offset,
+          mul_hintInverse_eq_one _ differenceNonzero]
         exact sub_self _
-      rw [canonicalityConstraint_eval, flagZero]
+      rw [flagZero]
       exact zero_mul _
   unfold holdsFlat
   rw [flatConstraints_operations, constraintsHold_append]
   constructor
-  · exact executeRecipes_holds_recipeConstraints
-      (completeInverse interface env offset) (offset + bitCount + 1)
-      [flagRecipe offset] (by exact ⟨flagRecipe_varsBelow offset, trivial⟩)
+  · exact derived
   · rw [constraintsHold_append]
     constructor
     · intro expression member

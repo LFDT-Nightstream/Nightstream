@@ -11,15 +11,15 @@ kernel void ccs_first_unsatisfied_row(
     }
     ulong sum = 0;
     for (ulong term = 0; term < shape[1]; ++term) {
-        ulong value = gl_from_word(term_headers[3 * term]);
+        ulong value = fq_from_word(term_headers[3 * term]);
         ulong start = term_headers[3 * term + 1];
         ulong end = start + term_headers[3 * term + 2];
         for (ulong variable = start; variable < end; ++variable) {
             ulong matrix = term_variables[2 * variable];
             ulong exponent = term_variables[2 * variable + 1];
-            value = gl_mul(value, dec_pow(gl_from_word(tables[matrix * rows + local_row]), exponent));
+            value = fq_mul(value, dec_pow(fq_from_word(tables[matrix * rows + local_row]), exponent));
         }
-        sum = gl_add(sum, value);
+        sum = fq_add(sum, value);
     }
     if (sum != 0) {
         uint row = (uint)(shape[2] + (ulong)local_row);

@@ -20,9 +20,9 @@ kernel void dec_split_base2_masks(
         negative[local] = 0;
     }
     for (ulong coefficient = 0; coefficient < RING_DEGREE; ++coefficient) {
-        ulong word = gl_from_word(parent[coefficient * cols + column]);
-        bool is_negative = word > (GOLDILOCKS_MODULUS - 1) / 2;
-        ulong magnitude = is_negative ? GOLDILOCKS_MODULUS - word : word;
+        ulong word = fq_from_word(parent[coefficient * cols + column]);
+        bool is_negative = word > (FQ_MODULUS - 1) / 2;
+        ulong magnitude = is_negative ? FQ_MODULUS - word : word;
         if (first_child == 0 && (magnitude >> child_count) != 0) {
             atomic_fetch_or_explicit(status, 1u, memory_order_relaxed);
         }
@@ -52,6 +52,11 @@ kernel void dec_split_base2_masks(
         }
     }
 }
+
+// A product lane of one chunk adds at most one term for each column and
+// lane, in one exact sum.
+static_assert(DEC_CHUNK_COLUMNS * RING_DEGREE <= PRODUCT_SUM_TERMS, "a dense product lane is one exact sum");
+static_assert(DEC_CHUNK_COLUMNS * RING_DEGREE <= (1ul << 32), "a signed-unit product lane is one exact sum");
 
 [[max_total_threads_per_threadgroup(128)]]
 kernel void dec_sparse_ring_partials(
@@ -93,11 +98,9 @@ kernel void dec_sparse_ring_partials(
     ulong end = min(start + DEC_CHUNK_COLUMNS, (ulong)matrix_active_offsets[matrix + 1]);
     ulong term_start = coefficient >= RING_DEGREE ? coefficient - (RING_DEGREE - 1) : 0;
     ulong term_end = coefficient < RING_DEGREE ? coefficient : RING_DEGREE - 1;
-    ulong valid = (~0ul << term_start) & ((1ul << (term_end + 1)) - 1);
-    ulong positive_lo = 0;
-    ulong positive_hi = 0;
-    ulong negative_lo = 0;
-    ulong negative_hi = 0;
+    ulong valid = (~0ul << term_start) & (~0ul >> (63 - term_end));
+    HalfSums positive_sum = HalfSums{0, 0};
+    HalfSums negative_sum = HalfSums{0, 0};
     for (ulong active = start; active < end; ++active) {
         ulong block = (ulong)active_blocks[active] % blocks;
         ulong mask_base = 2 * magnitudes * (child * blocks + block);
@@ -108,11 +111,9 @@ kernel void dec_sparse_ring_partials(
                 positive &= positive - 1;
                 ulong value = forms[((active - shape[7]) * 2 + component) * RING_DEGREE + coefficient - term];
                 if (magnitude != 1) {
-                    value = gl_mul(value, magnitude);
+                    value = fq_mul(value, magnitude);
                 }
-                ulong next = positive_lo + value;
-                positive_hi += next < positive_lo;
-                positive_lo = next;
+                half_sums_add(positive_sum, value);
             }
             ulong negative = masks[mask_base + 2 * (magnitude - 1) + 1] & valid;
             while (negative != 0) {
@@ -120,43 +121,20 @@ kernel void dec_sparse_ring_partials(
                 negative &= negative - 1;
                 ulong value = forms[((active - shape[7]) * 2 + component) * RING_DEGREE + coefficient - term];
                 if (magnitude != 1) {
-                    value = gl_mul(value, magnitude);
+                    value = fq_mul(value, magnitude);
                 }
-                ulong next = negative_lo + value;
-                negative_hi += next < negative_lo;
-                negative_lo = next;
+                half_sums_add(negative_sum, value);
             }
         }
     }
-    partials[index] = gl_sub(gl_reduce_sum(positive_lo, positive_hi), gl_reduce_sum(negative_lo, negative_hi));
-}
-
-// A 64-bit word that is congruent to the sum of two 64-bit words.
-inline ulong word_add(ulong lhs, ulong rhs) {
-    ulong sum = lhs + rhs;
-    ulong folded = sum + (sum < lhs ? GOLDILOCKS_EPSILON : 0);
-    return folded + (folded < sum ? GOLDILOCKS_EPSILON : 0);
-}
-
-// Lane `j` of output element `e` is a word congruent to the sum of lanes `j`
-// and `j + 27` of input element `e`: the middle operand of a Karatsuba split.
-kernel void dec_ring_half_sums(
-    device const ulong *elements [[buffer(0)]],
-    device ulong *sums [[buffer(1)]],
-    uint index [[thread_position_in_grid]]) {
-    const ulong split = RING_DEGREE / 2;
-    device const ulong *lane = elements + (index / split) * RING_DEGREE + index % split;
-    sums[index] = word_add(lane[0], lane[split]);
+    partials[index] = fq_sub(half_sums_reduce(positive_sum), half_sums_reduce(negative_sum));
 }
 
 // `dec_sparse_ring_partials` over running sources without norm terms, whose
 // field values are stored source by source, block by block and lane by lane.
-// Source `s` writes the partials of opening `shape[8] + s`. One threadgroup
-// makes the product of one source, chunk and component with one Karatsuba
-// split at lane 27: thread `53 * part + lane` adds one coefficient of the
-// low, high or middle 27 by 27 product, and then the group joins them. The
-// middle operands come from `dec_ring_half_sums`.
-[[max_total_threads_per_threadgroup(160)]]
+// Source `s` writes the partials of opening `shape[8] + s`. A thread adds
+// one coefficient of the product of one source, chunk and component, with
+// one reduction.
 kernel void dec_dense_ring_partials(
     device const ulong *forms [[buffer(0)]],
     device const ulong *values [[buffer(1)]],
@@ -167,15 +145,11 @@ kernel void dec_dense_ring_partials(
     device const uint *active_chunk_bases [[buffer(6)]],
     device const uint *active_chunk_matrices [[buffer(7)]],
     device const uint *matrix_active_offsets [[buffer(8)]],
-    device const ulong *form_sums [[buffer(9)]],
-    device const ulong *value_sums [[buffer(10)]],
-    threadgroup ulong *products [[threadgroup(0)]],
-    uint group [[threadgroup_position_in_grid]],
-    uint slot [[thread_index_in_threadgroup]]) {
-    const ulong split = RING_DEGREE / 2;
-    const ulong lanes_per_product = 2 * split - 1;
+    uint index [[thread_position_in_grid]]) {
     ulong blocks = shape[3];
     ulong chunk_count = shape[4];
+    ulong coefficient = index % RING_PRODUCT_COEFFICIENTS;
+    ulong group = index / RING_PRODUCT_COEFFICIENTS;
     ulong component = group % 2;
     ulong chunk = (group / 2) % chunk_count;
     ulong dense = (group / 2) / chunk_count;
@@ -183,47 +157,22 @@ kernel void dec_dense_ring_partials(
     if (2 * matrix + component >= shape[2]) {
         return;
     }
-    ulong part = slot / lanes_per_product;
-    if (part < 3) {
-        ulong source = sources[dense];
-        ulong start = active_chunk_bases[chunk];
-        ulong end = min(start + DEC_CHUNK_COLUMNS, (ulong)matrix_active_offsets[matrix + 1]);
-        ulong lane = slot % lanes_per_product;
-        ulong term_start = lane >= split ? lane - (split - 1) : 0;
-        ulong term_end = lane < split ? lane : split - 1;
-        ulong stride = part == 2 ? split : RING_DEGREE;
-        ulong shift = part == 1 ? split : 0;
-        device const ulong *form_lanes = (part == 2 ? form_sums : forms) + shift + lane;
-        device const ulong *value_lanes = (part == 2 ? value_sums : values) + shift;
-        WideSum sum = WideSum{0, 0, 0};
-        for (ulong active = start; active < end; ++active) {
-            ulong block = (ulong)active_blocks[active] % blocks;
-            device const ulong *value = value_lanes + (source * blocks + block) * stride;
-            device const ulong *form = form_lanes + ((active - shape[7]) * 2 + component) * stride;
-            for (ulong term = term_start; term <= term_end; ++term) {
-                wide_sum_add(sum, *(form - term), value[term]);
-            }
+    ulong source = sources[dense];
+    ulong start = active_chunk_bases[chunk];
+    ulong end = min(start + DEC_CHUNK_COLUMNS, (ulong)matrix_active_offsets[matrix + 1]);
+    ulong term_start = coefficient >= RING_DEGREE ? coefficient - (RING_DEGREE - 1) : 0;
+    ulong term_end = coefficient < RING_DEGREE ? coefficient : RING_DEGREE - 1;
+    ProductSum sum = ProductSum{0, 0, 0, 0};
+    for (ulong active = start; active < end; ++active) {
+        ulong block = (ulong)active_blocks[active] % blocks;
+        device const ulong *value = values + (source * blocks + block) * RING_DEGREE;
+        device const ulong *form = forms + ((active - shape[7]) * 2 + component) * RING_DEGREE + coefficient;
+        for (ulong term = term_start; term <= term_end; ++term) {
+            product_sum_add(sum, *(form - term), value[term]);
         }
-        products[slot] = wide_sum_reduce(sum);
-    }
-    threadgroup_barrier(mem_flags::mem_threadgroup);
-    if (slot >= RING_PRODUCT_COEFFICIENTS) {
-        return;
-    }
-    threadgroup ulong *low = products;
-    threadgroup ulong *high = products + lanes_per_product;
-    threadgroup ulong *middle = high + lanes_per_product;
-    ulong sum = slot < lanes_per_product ? gl_from_word(low[slot]) : 0;
-    if (slot >= split && slot < split + lanes_per_product) {
-        ulong lane = slot - split;
-        ulong outer = gl_add(gl_from_word(low[lane]), gl_from_word(high[lane]));
-        sum = gl_add(sum, gl_sub(gl_from_word(middle[lane]), outer));
-    }
-    if (slot >= RING_DEGREE) {
-        sum = gl_add(sum, gl_from_word(high[slot - RING_DEGREE]));
     }
     ulong partial = ((shape[8] + dense) * chunk_count + chunk) * 2 + component;
-    partials[partial * RING_PRODUCT_COEFFICIENTS + slot] = sum;
+    partials[partial * RING_PRODUCT_COEFFICIENTS + coefficient] = product_sum_reduce(sum);
 }
 
 kernel void dec_sparse_ring_sum_chunks(
@@ -245,12 +194,12 @@ kernel void dec_sparse_ring_sum_chunks(
     ulong end = matrix_chunk_offsets[matrix + 1];
     for (ulong chunk = start; chunk < end; ++chunk) {
         ulong partial = ((child * chunk_count + chunk) * 2 + component) * RING_PRODUCT_COEFFICIENTS + coefficient;
-        value = gl_add(value, partials[partial]);
+        value = fq_add(value, partials[partial]);
     }
     sums[index] = value;
 }
 
-kernel void dec_ring_reduce_phi81(
+kernel void dec_ring_reduce(
     device const ulong *sums [[buffer(0)]],
     device const ulong *shape [[buffer(1)]],
     device ulong *output [[buffer(2)]],
@@ -262,15 +211,10 @@ kernel void dec_ring_reduce_phi81(
         return;
     }
     ulong base = group * RING_PRODUCT_COEFFICIENTS;
-    ulong value = gl_from_word(sums[base + coefficient]);
-    if (coefficient <= 26) {
-        value = gl_sub(value, gl_from_word(sums[base + coefficient + 54]));
-        if (coefficient <= 25) {
-            value = gl_add(value, gl_from_word(sums[base + coefficient + 81]));
-        }
-    } else {
-        value = gl_sub(value, gl_from_word(sums[base + coefficient + 27]));
+    ulong value = fq_from_word(sums[base + coefficient]);
+    // X^RING_DEGREE = -1.
+    if (coefficient + RING_DEGREE < RING_PRODUCT_COEFFICIENTS) {
+        value = fq_sub(value, fq_from_word(sums[base + coefficient + RING_DEGREE]));
     }
     output[index] = value;
 }
-

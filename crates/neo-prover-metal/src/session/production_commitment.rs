@@ -14,14 +14,14 @@ use neo_ajtai::{
 use neo_ccs::Mat;
 use neo_math::{D, F};
 use objc2_foundation::NSString;
-use objc2_metal::{MTLCommandBuffer, MTLCommandEncoder, MTLComputePipelineState, MTLDevice};
+use objc2_metal::{MTLCommandBuffer, MTLCommandEncoder, MTLComputePipelineState};
 use p3_field::PrimeCharacteristicRing;
 
 use super::{Arg, Buffer, Grid, MetalSession};
 use crate::MetalError;
 
-/// Measured on an M5 Max with 16 dense witnesses at production width: 128,
-/// 512 and 2,048 columns took 5.01 s, 4.91 s and 5.12 s.
+/// Measured on an M5 Ultra with 16 dense witnesses at production width and a
+/// kept key: 128, 512 and 2,048 columns took 1.13 s, 1.15 s and 1.27 s.
 const COLUMNS_PER_GROUP: usize = 512;
 
 /// The production key rows over columns `0..columns`, kept on the device by a
@@ -156,12 +156,11 @@ impl MetalSession {
         let accumulate = &self.production_ajtai_accumulate;
         let witnesses_per_group = active
             .len()
-            .min(accumulate.maxTotalThreadsPerThreadgroup() / 64);
-        let scratch_bytes = (witnesses_per_group * (2 * D - 1) * size_of::<u64>()).next_multiple_of(16);
-        if witnesses_per_group == 0
-            || scratch_bytes + accumulate.staticThreadgroupMemoryLength() > self.device.maxThreadgroupMemoryLength()
-        {
-            return Err(MetalError::Shape("device cannot hold production commitment scratch"));
+            .min(accumulate.maxTotalThreadsPerThreadgroup() / D);
+        if witnesses_per_group == 0 {
+            return Err(MetalError::Shape(
+                "device cannot hold one production commitment witness",
+            ));
         }
         let groups = count.div_ceil(COLUMNS_PER_GROUP);
         let witness_blocks = active.len().div_ceil(witnesses_per_group);
@@ -246,11 +245,10 @@ impl MetalSession {
                     Arg::BufferAt(2, &shapes, shape_offset),
                     Arg::Buffer(3, &partials),
                     Arg::Buffer(4, &key_columns),
-                    Arg::Threadgroup(0, scratch_bytes),
                 ],
                 Grid::Groups {
                     groups: groups * witness_blocks,
-                    threads: 64 * witnesses_per_group,
+                    threads: D * witnesses_per_group,
                 },
             );
             encoder.endEncoding();

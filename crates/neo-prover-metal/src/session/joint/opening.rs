@@ -27,9 +27,6 @@ const PARALLEL_FORM_LIST_THRESHOLD: usize = 128;
 const FORM_TILE_ENTRIES: usize = 16 * 1024;
 const CHUNK_BLOCKS: usize = 512;
 const PRODUCT_COEFFICIENTS: usize = 2 * D - 1;
-/// The threadgroup width of `dec_dense_ring_partials`: three products of
-/// `D - 1` coefficients each, rounded up to the SIMD width.
-const DENSE_PRODUCT_THREADS: usize = 160;
 
 pub(super) struct MetalJointOpeningPlan {
     active_offsets: Buffer,
@@ -726,26 +723,6 @@ impl MetalSession {
             &[max_blocks, 2, D, size_of::<u64>()],
             "opening form size overflow",
         )?)?;
-        // The middle Karatsuba operands of `dec_dense_ring_partials`.
-        let form_sums = self.buffer(max_blocks.max(1) * D * size_of::<u64>())?;
-        let value_sums = match sources.dense.filter(|_| !dense_ids.is_empty()) {
-            Some(dense) => {
-                let words = objc2_metal::MTLBuffer::length(&**dense.words()) / size_of::<u64>() / 2;
-                let value_sums = self.buffer(words * size_of::<u64>())?;
-                let command = self.command_buffer("nightstream.pi_ccs.joint.openings.dense")?;
-                let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
-                self.launch(
-                    &encoder,
-                    &self.dec_ring_half_sums,
-                    &[Arg::Buffer(0, dense.words()), Arg::Buffer(1, &value_sums)],
-                    Grid::Threads(words),
-                );
-                encoder.endEncoding();
-                self.finish(&command)?;
-                Some(value_sums)
-            }
-            None => None,
-        };
         let partials = self.buffer(checked_product(
             &[active_count, max_chunks, 2, PRODUCT_COEFFICIENTS, size_of::<u64>()],
             "opening partial size overflow",
@@ -935,7 +912,7 @@ impl MetalSession {
                 &encoder,
                 &self.dec_bar_ring_forms_in_place,
                 &[Arg::Buffer(0, &forms)],
-                Grid::Threads((active_end - active_start) * 2 * 14),
+                Grid::Threads((active_end - active_start) * D),
             );
             encoder.endEncoding();
 
@@ -961,15 +938,7 @@ impl MetalSession {
                 );
                 encoder.endEncoding();
             }
-            if let Some((dense, value_sums)) = sources.dense.zip(value_sums.as_ref()) {
-                let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
-                self.launch(
-                    &encoder,
-                    &self.dec_ring_half_sums,
-                    &[Arg::Buffer(0, &forms), Arg::Buffer(1, &form_sums)],
-                    Grid::Threads((active_end - active_start) * D),
-                );
-                encoder.endEncoding();
+            if let Some(dense) = sources.dense.filter(|_| !dense_ids.is_empty()) {
                 let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
                 encoder.setLabel(Some(&NSString::from_str("dec_dense_ring_partials")));
                 self.launch(
@@ -985,14 +954,8 @@ impl MetalSession {
                         Arg::BufferAt(6, &plan.active_chunk_bases, chunk_start * size_of::<u32>()),
                         Arg::Buffer(7, &chunk_matrices),
                         Arg::BufferAt(8, &plan.matrix_active_offsets, matrix * size_of::<u32>()),
-                        Arg::Buffer(9, &form_sums),
-                        Arg::Buffer(10, value_sums),
-                        Arg::Threadgroup(0, DENSE_PRODUCT_THREADS * size_of::<u64>()),
                     ],
-                    Grid::Groups {
-                        groups: dense_ids.len() * chunk_count * 2,
-                        threads: DENSE_PRODUCT_THREADS,
-                    },
+                    Grid::Threads(dense_ids.len() * chunk_count * 2 * PRODUCT_COEFFICIENTS),
                 );
                 encoder.endEncoding();
             }
@@ -1013,10 +976,10 @@ impl MetalSession {
             encoder.endEncoding();
 
             let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
-            encoder.setLabel(Some(&NSString::from_str("dec_ring_reduce_phi81")));
+            encoder.setLabel(Some(&NSString::from_str("dec_ring_reduce")));
             self.launch(
                 &encoder,
-                &self.dec_ring_reduce_phi81,
+                &self.dec_ring_reduce,
                 &[
                     Arg::Buffer(0, &sums),
                     Arg::Buffer(1, &tail_shape),

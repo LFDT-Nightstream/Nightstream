@@ -32,8 +32,7 @@ type Pipeline = Retained<ProtocolObject<dyn MTLComputePipelineState>>;
 
 static BUFFER_ALLOCATION: Mutex<()> = Mutex::new(());
 
-/// Entries in a Metal kernel's buffer table, and in its threadgroup memory
-/// table (Apple's Metal feature set tables).
+/// Entries in a Metal kernel's buffer table (Apple's Metal feature set tables).
 const ARGUMENT_SLOTS: usize = 31;
 
 /// One kernel argument, at the index that the shader signature gives it.
@@ -43,8 +42,6 @@ enum Arg<'a> {
     Buffer(usize, &'a ProtocolObject<dyn MTLBuffer>),
     /// `[[buffer(index)]]` from a byte offset.
     BufferAt(usize, &'a ProtocolObject<dyn MTLBuffer>, usize),
-    /// `[[threadgroup(index)]]` memory of a byte length.
-    Threadgroup(usize, usize),
 }
 
 /// The threads of one dispatch.
@@ -95,12 +92,11 @@ pub struct MetalSession {
     dec_split_base2_masks: Pipeline,
     dec_sparse_ring_partials: Pipeline,
     dec_dense_ring_partials: Pipeline,
-    dec_ring_half_sums: Pipeline,
     dec_sparse_ring_sum_chunks: Pipeline,
     joint_carried_projection: Pipeline,
     joint_carried_projection_dense: Pipeline,
     fe_weighted_row_table: Pipeline,
-    dec_ring_reduce_phi81: Pipeline,
+    dec_ring_reduce: Pipeline,
     // A prover keeps the production key rows after their first commitment;
     // `None` expands the needed rows in every call.
     production_key: Option<Mutex<production_commitment::ResidentKeyRows>>,
@@ -153,12 +149,11 @@ impl MetalSession {
         let dec_split_base2_masks = pipeline(&device, &library, "dec_split_base2_masks")?;
         let dec_sparse_ring_partials = pipeline(&device, &library, "dec_sparse_ring_partials")?;
         let dec_dense_ring_partials = pipeline(&device, &library, "dec_dense_ring_partials")?;
-        let dec_ring_half_sums = pipeline(&device, &library, "dec_ring_half_sums")?;
         let dec_sparse_ring_sum_chunks = pipeline(&device, &library, "dec_sparse_ring_sum_chunks")?;
         let joint_carried_projection = pipeline(&device, &library, "joint_carried_projection")?;
         let joint_carried_projection_dense = pipeline(&device, &library, "joint_carried_projection_dense")?;
         let fe_weighted_row_table = pipeline(&device, &library, "fe_weighted_row_table")?;
-        let dec_ring_reduce_phi81 = pipeline(&device, &library, "dec_ring_reduce_phi81")?;
+        let dec_ring_reduce = pipeline(&device, &library, "dec_ring_reduce")?;
         Ok(Self {
             device,
             queue,
@@ -187,12 +182,11 @@ impl MetalSession {
             dec_split_base2_masks,
             dec_sparse_ring_partials,
             dec_dense_ring_partials,
-            dec_ring_half_sums,
             dec_sparse_ring_sum_chunks,
             joint_carried_projection,
             joint_carried_projection_dense,
             fe_weighted_row_table,
-            dec_ring_reduce_phi81,
+            dec_ring_reduce,
             production_key: None,
             resident_matrices: Default::default(),
             resident_openings: Default::default(),
@@ -298,9 +292,7 @@ impl MetalSession {
             // inside the bound buffers (from their offsets) and inside the
             // buffers that the caller made resident with `useResource`. The
             // kernel reads each slot as the element type that the caller
-            // stored there, at an offset aligned to that type. A `Threadgroup`
-            // length is a multiple of 16 bytes that fits beside the
-            // pipeline's static threadgroup memory.
+            // stored there, at an offset aligned to that type.
             unsafe {
                 match arg {
                     Arg::Buffer(index, buffer) => encoder.setBuffer_offset_atIndex(Some(buffer), 0, slot(index)),
@@ -311,7 +303,6 @@ impl MetalSession {
                         );
                         encoder.setBuffer_offset_atIndex(Some(buffer), offset, slot(index));
                     }
-                    Arg::Threadgroup(index, bytes) => encoder.setThreadgroupMemoryLength_atIndex(bytes, slot(index)),
                 }
             }
         }

@@ -7,7 +7,7 @@ inline ulong joint_assignment_code(
     if (encoding == 1) return ((device const uchar *)data)[position];
     if (encoding == 2) return ((device const ushort *)data)[position];
     ulong value = joint_mask_value(data, blocks, sources[source], index, magnitudes);
-    return value <= magnitudes ? zero + value : zero - gl_sub(0, value);
+    return value <= magnitudes ? zero + value : zero - fq_neg(value);
 }
 
 inline Kx joint_assignment_value(

@@ -7,6 +7,13 @@ namespace NightstreamFPrime.Spec.FieldExtension
 open NightstreamFPrime.Spec
 open Folding.PiCCS.PaperJoint.ConcreteCarrier
 
+set_option maxRecDepth 100000 in -- fixed-size: 64-bit Euler criterion, not artifact data
+/-- Euler's criterion for 7: `7 ^ ((q − 1) / 2) = q − 1`. -/
+theorem seven_euler_residue :
+    FieldPrime.powMod fieldModulus FieldPrime.certificateFuel 7 ((fieldModulus - 1) / 2)
+      = 18446744073709551556 := by
+  decide
+
 private theorem seven_not_square : ¬ IsSquare (7 : ZMod fieldModulus) := by
   let : Fact (Nat.Prime fieldModulus) := ⟨FieldPrime.fieldModulus_natPrime⟩
   rintro ⟨root, square⟩
@@ -14,7 +21,9 @@ private theorem seven_not_square : ¬ IsSquare (7 : ZMod fieldModulus) := by
     intro zero
     have sevenNonzero : (7 : ZMod fieldModulus) ≠ 0 := by decide
     exact sevenNonzero (by simpa [zero] using square)
-  apply FieldPrime.order_not_halved_zmod
+  have halfPower : ((7 : Nat) : ZMod fieldModulus) ^ ((fieldModulus - 1) / 2) ≠ 1 :=
+    FieldPrime.pow_ne_one_of_powMod (by decide) seven_euler_residue (by decide) (by decide)
+  apply halfPower
   change (7 : ZMod fieldModulus) ^ ((fieldModulus - 1) / 2) = 1
   rw [square, ← pow_two, ← pow_mul]
   have exponent : 2 * ((fieldModulus - 1) / 2) = fieldModulus - 1 := by

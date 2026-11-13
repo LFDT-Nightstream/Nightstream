@@ -3,6 +3,10 @@ import Mathlib.Tactic.NormNum.Prime
 import NightstreamFPrime.Spec.Algebra
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.NormRange
 
+/-! The field modulus `2^64 − 59` is prime: a Lucas certificate with generator 2 over
+`q − 1 = 2² · 11 · 137 · 547 · 5594472617641`, and a Lucas certificate with generator 13 for
+the factor `5594472617641`. -/
+
 namespace NightstreamFPrime.Spec.FieldPrime
 
 open NightstreamFPrime.Spec
@@ -16,66 +20,6 @@ def powMod (modulus : Nat) : Nat → Nat → Nat → Nat
 
 def certificateFuel : Nat := 70
 
-def generator : Nat := 7
-
-set_option maxRecDepth 100000 in -- fixed-size: 64-bit Lucas certificate, not artifact data
-theorem order_factorisation :
-    fieldModulus - 1 = 2 ^ 32 * 3 * 5 * 17 * 257 * 65537 := by
-  decide
-
-set_option maxRecDepth 100000 in -- fixed-size: 64-bit Lucas certificate, not artifact data
-theorem fermat :
-    powMod fieldModulus certificateFuel generator (fieldModulus - 1) = 1 := by
-  decide
-
-set_option maxRecDepth 100000 in -- fixed-size: 64-bit Lucas certificate, not artifact data
-theorem order_not_halved :
-    powMod fieldModulus certificateFuel generator ((fieldModulus - 1) / 2)
-      = 18446744069414584320 := by
-  decide
-
-set_option maxRecDepth 100000 in -- fixed-size: 64-bit Lucas certificate, not artifact data
-theorem order_not_thirded :
-    powMod fieldModulus certificateFuel generator ((fieldModulus - 1) / 3)
-      = 18446744065119617025 := by
-  decide
-
-set_option maxRecDepth 100000 in -- fixed-size: 64-bit Lucas certificate, not artifact data
-theorem order_not_fifthed :
-    powMod fieldModulus certificateFuel generator ((fieldModulus - 1) / 5)
-      = 1373043270956696022 := by
-  decide
-
-set_option maxRecDepth 100000 in -- fixed-size: 64-bit Lucas certificate, not artifact data
-theorem order_not_seventeenthed :
-    powMod fieldModulus certificateFuel generator ((fieldModulus - 1) / 17)
-      = 16301593560560007290 := by
-  decide
-
-set_option maxRecDepth 100000 in -- fixed-size: 64-bit Lucas certificate, not artifact data
-theorem order_not_two_five_seventhed :
-    powMod fieldModulus certificateFuel generator ((fieldModulus - 1) / 257)
-      = 995085315851368103 := by
-  decide
-
-set_option maxRecDepth 100000 in -- fixed-size: 64-bit Lucas certificate, not artifact data
-theorem order_not_sixtyfive_five_three_seventhed :
-    powMod fieldModulus certificateFuel generator ((fieldModulus - 1) / 65537)
-      = 8478886009461009681 := by
-  decide
-
-set_option maxRecDepth 100000 in -- fixed-size: 64-bit Lucas certificate, not artifact data
-theorem certificate_residues_ne_one :
-    (18446744069414584320 : Nat) ≠ 1
-      ∧ (18446744065119617025 : Nat) ≠ 1
-      ∧ (1373043270956696022 : Nat) ≠ 1
-      ∧ (16301593560560007290 : Nat) ≠ 1
-      ∧ (995085315851368103 : Nat) ≠ 1
-      ∧ (8478886009461009681 : Nat) ≠ 1 := by
-  decide
-
-
-set_option maxRecDepth 100000 in -- fixed-size: 64-bit Lucas certificate, not artifact data
 theorem powMod_cast
     (modulus fuel base exponent : Nat)
     (hexponent : exponent < 2 ^ fuel) :
@@ -113,157 +57,167 @@ theorem powMod_cast
           congr
           omega
 
+/-- A `powMod` certificate with the value 1 gives the power in `ZMod`. -/
+theorem pow_eq_one_of_powMod
+    {modulus base exponent : Nat}
+    (exponentLt : exponent < 2 ^ (certificateFuel - 1))
+    (certificate : powMod modulus certificateFuel base exponent = 1) :
+    (base : ZMod modulus) ^ exponent = 1 := by
+  rw [← powMod_cast modulus (certificateFuel - 1) base exponent exponentLt]
+  change ((powMod modulus certificateFuel base exponent : Nat) : ZMod modulus) = 1
+  rw [certificate, Nat.cast_one]
+
+/-- A `powMod` certificate with a value above 1 gives a power that is not 1 in `ZMod`. -/
+theorem pow_ne_one_of_powMod
+    {modulus base exponent residue : Nat}
+    (exponentLt : exponent < 2 ^ (certificateFuel - 1))
+    (certificate : powMod modulus certificateFuel base exponent = residue)
+    (residueLt : residue < modulus) (residueGt : 1 < residue) :
+    (base : ZMod modulus) ^ exponent ≠ 1 := by
+  have : Fact (1 < modulus) := ⟨by omega⟩
+  rw [← powMod_cast modulus (certificateFuel - 1) base exponent exponentLt]
+  change ((powMod modulus certificateFuel base exponent : Nat) : ZMod modulus) ≠ 1
+  rw [certificate]
+  intro equal
+  have values := congrArg ZMod.val equal
+  rw [ZMod.val_natCast_of_lt residueLt, ZMod.val_one] at values
+  omega
+
+private theorem dvd_mul_prime {divisor left prime : Nat}
+    (divisorPrime : divisor.Prime) (primePrime : prime.Prime) (divides : divisor ∣ left * prime) :
+    divisor ∣ left ∨ divisor = prime :=
+  (divisorPrime.dvd_mul.mp divides).imp id (Nat.prime_dvd_prime_iff_eq divisorPrime primePrime).mp
+
+private theorem eq_two_of_dvd_two_pow {divisor exponent : Nat}
+    (divisorPrime : divisor.Prime) (divides : divisor ∣ 2 ^ exponent) : divisor = 2 :=
+  (Nat.prime_dvd_prime_iff_eq divisorPrime Nat.prime_two).mp (divisorPrime.dvd_of_dvd_pow divides)
+
+/-! ### The factor `5594472617641` of `q − 1` -/
+
+def largeOrderFactor : Nat := 5594472617641
+
+def largeOrderFactorGenerator : Nat := 13
+
+theorem largeOrderFactor_order_factorisation :
+    largeOrderFactor - 1 = 2 ^ 3 * 3 * 5 * 1427 * 2131 * 15331 := by
+  decide
+
+set_option maxRecDepth 100000 in -- fixed-size: 43-bit Lucas certificate, not artifact data
+theorem largeOrderFactor_fermat :
+    powMod largeOrderFactor certificateFuel largeOrderFactorGenerator (largeOrderFactor - 1) = 1 := by
+  decide
+
+set_option maxRecDepth 100000 in -- fixed-size: 43-bit Lucas certificate, not artifact data
+theorem largeOrderFactor_order_residues :
+    powMod largeOrderFactor certificateFuel largeOrderFactorGenerator ((largeOrderFactor - 1) / 2)
+        = 5594472617640
+      ∧ powMod largeOrderFactor certificateFuel largeOrderFactorGenerator
+          ((largeOrderFactor - 1) / 3) = 633520002390
+      ∧ powMod largeOrderFactor certificateFuel largeOrderFactorGenerator
+          ((largeOrderFactor - 1) / 5) = 5539104407118
+      ∧ powMod largeOrderFactor certificateFuel largeOrderFactorGenerator
+          ((largeOrderFactor - 1) / 1427) = 693744849281
+      ∧ powMod largeOrderFactor certificateFuel largeOrderFactorGenerator
+          ((largeOrderFactor - 1) / 2131) = 2614630137118
+      ∧ powMod largeOrderFactor certificateFuel largeOrderFactorGenerator
+          ((largeOrderFactor - 1) / 15331) = 4170830691369 := by
+  decide
+
+theorem largeOrderFactor_prime_divisor
+    {divisor : Nat} (divisorPrime : divisor.Prime) (divides : divisor ∣ largeOrderFactor - 1) :
+    divisor = 2 ∨ divisor = 3 ∨ divisor = 5 ∨ divisor = 1427 ∨ divisor = 2131 ∨
+      divisor = 15331 := by
+  rw [largeOrderFactor_order_factorisation] at divides
+  rcases dvd_mul_prime divisorPrime (by norm_num) divides with divides | equal
+  · rcases dvd_mul_prime divisorPrime (by norm_num) divides with divides | equal
+    · rcases dvd_mul_prime divisorPrime (by norm_num) divides with divides | equal
+      · rcases dvd_mul_prime divisorPrime (by norm_num) divides with divides | equal
+        · rcases dvd_mul_prime divisorPrime (by norm_num) divides with divides | equal
+          · exact Or.inl (eq_two_of_dvd_two_pow divisorPrime divides)
+          · exact Or.inr (Or.inl equal)
+        · exact Or.inr (Or.inr (Or.inl equal))
+      · exact Or.inr (Or.inr (Or.inr (Or.inl equal)))
+    · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inl equal))))
+  · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr equal))))
+
+theorem largeOrderFactor_natPrime : Nat.Prime largeOrderFactor := by
+  apply lucas_primality largeOrderFactor (largeOrderFactorGenerator : ZMod largeOrderFactor)
+    (pow_eq_one_of_powMod (by decide) largeOrderFactor_fermat)
+  intro divisor divisorPrime divides
+  obtain ⟨half, third, fifth, first, second, last⟩ := largeOrderFactor_order_residues
+  rcases largeOrderFactor_prime_divisor divisorPrime divides with
+    rfl | rfl | rfl | rfl | rfl | rfl
+  · exact pow_ne_one_of_powMod (by decide) half (by decide) (by decide)
+  · exact pow_ne_one_of_powMod (by decide) third (by decide) (by decide)
+  · exact pow_ne_one_of_powMod (by decide) fifth (by decide) (by decide)
+  · exact pow_ne_one_of_powMod (by decide) first (by decide) (by decide)
+  · exact pow_ne_one_of_powMod (by decide) second (by decide) (by decide)
+  · exact pow_ne_one_of_powMod (by decide) last (by decide) (by decide)
+
+/-! ### The field modulus -/
+
+def generator : Nat := 2
+
+theorem order_factorisation :
+    fieldModulus - 1 = 2 ^ 2 * 11 * 137 * 547 * largeOrderFactor := by
+  decide
+
 set_option maxRecDepth 100000 in -- fixed-size: 64-bit Lucas certificate, not artifact data
+theorem fermat :
+    powMod fieldModulus certificateFuel generator (fieldModulus - 1) = 1 := by
+  decide
+
+set_option maxRecDepth 100000 in -- fixed-size: 64-bit Lucas certificate, not artifact data
+theorem order_not_halved :
+    powMod fieldModulus certificateFuel generator ((fieldModulus - 1) / 2)
+      = 18446744073709551556 := by
+  decide
+
+set_option maxRecDepth 100000 in -- fixed-size: 64-bit Lucas certificate, not artifact data
+theorem order_residues :
+    powMod fieldModulus certificateFuel generator ((fieldModulus - 1) / 11)
+        = 7233656613878036887
+      ∧ powMod fieldModulus certificateFuel generator ((fieldModulus - 1) / 137)
+        = 808296807897363856
+      ∧ powMod fieldModulus certificateFuel generator ((fieldModulus - 1) / 547)
+        = 16285151747536493802
+      ∧ powMod fieldModulus certificateFuel generator ((fieldModulus - 1) / largeOrderFactor)
+        = 11493017446059487016 := by
+  decide
+
 theorem fermat_zmod :
-    ((generator : ZMod fieldModulus) ^ (fieldModulus - 1)) = 1 := by
-  rw [← powMod_cast fieldModulus 69 generator (fieldModulus - 1) (by decide)]
-  norm_num only [Nat.reduceAdd]
-  have hcertificate :
-      powMod fieldModulus 70 generator (fieldModulus - 1) = 1 := by
-    simpa [certificateFuel] using fermat
-  rw [hcertificate]
-  simp
+    ((generator : ZMod fieldModulus) ^ (fieldModulus - 1)) = 1 :=
+  pow_eq_one_of_powMod (by decide) fermat
 
-set_option maxRecDepth 100000 in -- fixed-size: 64-bit Lucas certificate, not artifact data
-private theorem zmod_natCast_ne_one
-    {value : Nat} (hvalue : value < fieldModulus) (hne : value ≠ 1) :
-    (value : ZMod fieldModulus) ≠ 1 := by
-  let : Fact (1 < fieldModulus) := ⟨by decide⟩
-  intro hequal
-  have hvalues := congrArg ZMod.val hequal
-  rw [ZMod.val_natCast_of_lt hvalue] at hvalues
-  have hone : (1 : ZMod fieldModulus).val = 1 := by
-    exact ZMod.val_one fieldModulus
-  rw [hone] at hvalues
-  exact hne hvalues
-
-set_option maxRecDepth 100000 in -- fixed-size: 64-bit Lucas certificate, not artifact data
 theorem order_not_halved_zmod :
-    ((generator : ZMod fieldModulus) ^ ((fieldModulus - 1) / 2)) ≠ 1 := by
-  rw [← powMod_cast fieldModulus 69 generator ((fieldModulus - 1) / 2) (by decide)]
-  norm_num only [Nat.reduceAdd]
-  have hcertificate :
-      powMod fieldModulus 70 generator ((fieldModulus - 1) / 2) =
-        18446744069414584320 := by
-    simpa [certificateFuel] using order_not_halved
-  rw [hcertificate]
-  exact zmod_natCast_ne_one (by decide) (by decide)
+    ((generator : ZMod fieldModulus) ^ ((fieldModulus - 1) / 2)) ≠ 1 :=
+  pow_ne_one_of_powMod (by decide) order_not_halved (by decide) (by decide)
 
-set_option maxRecDepth 100000 in -- fixed-size: 64-bit Lucas certificate, not artifact data
-theorem order_not_thirded_zmod :
-    ((generator : ZMod fieldModulus) ^ ((fieldModulus - 1) / 3)) ≠ 1 := by
-  rw [← powMod_cast fieldModulus 69 generator ((fieldModulus - 1) / 3) (by decide)]
-  norm_num only [Nat.reduceAdd]
-  have hcertificate :
-      powMod fieldModulus 70 generator ((fieldModulus - 1) / 3) =
-        18446744065119617025 := by
-    simpa [certificateFuel] using order_not_thirded
-  rw [hcertificate]
-  exact zmod_natCast_ne_one (by decide) (by decide)
-
-set_option maxRecDepth 100000 in -- fixed-size: 64-bit Lucas certificate, not artifact data
-theorem order_not_fifthed_zmod :
-    ((generator : ZMod fieldModulus) ^ ((fieldModulus - 1) / 5)) ≠ 1 := by
-  rw [← powMod_cast fieldModulus 69 generator ((fieldModulus - 1) / 5) (by decide)]
-  norm_num only [Nat.reduceAdd]
-  have hcertificate :
-      powMod fieldModulus 70 generator ((fieldModulus - 1) / 5) =
-        1373043270956696022 := by
-    simpa [certificateFuel] using order_not_fifthed
-  rw [hcertificate]
-  exact zmod_natCast_ne_one (by decide) (by decide)
-
-set_option maxRecDepth 100000 in -- fixed-size: 64-bit Lucas certificate, not artifact data
-theorem order_not_seventeenthed_zmod :
-    ((generator : ZMod fieldModulus) ^ ((fieldModulus - 1) / 17)) ≠ 1 := by
-  rw [← powMod_cast fieldModulus 69 generator ((fieldModulus - 1) / 17) (by decide)]
-  norm_num only [Nat.reduceAdd]
-  have hcertificate :
-      powMod fieldModulus 70 generator ((fieldModulus - 1) / 17) =
-        16301593560560007290 := by
-    simpa [certificateFuel] using order_not_seventeenthed
-  rw [hcertificate]
-  exact zmod_natCast_ne_one (by decide) (by decide)
-
-set_option maxRecDepth 100000 in -- fixed-size: 64-bit Lucas certificate, not artifact data
-theorem order_not_two_five_seventhed_zmod :
-    ((generator : ZMod fieldModulus) ^ ((fieldModulus - 1) / 257)) ≠ 1 := by
-  rw [← powMod_cast fieldModulus 69 generator ((fieldModulus - 1) / 257) (by decide)]
-  norm_num only [Nat.reduceAdd]
-  have hcertificate :
-      powMod fieldModulus 70 generator ((fieldModulus - 1) / 257) =
-        995085315851368103 := by
-    simpa [certificateFuel] using order_not_two_five_seventhed
-  rw [hcertificate]
-  exact zmod_natCast_ne_one (by decide) (by decide)
-
-set_option maxRecDepth 100000 in -- fixed-size: 64-bit Lucas certificate, not artifact data
-theorem order_not_sixtyfive_five_three_seventhed_zmod :
-    ((generator : ZMod fieldModulus) ^ ((fieldModulus - 1) / 65537)) ≠ 1 := by
-  rw [← powMod_cast fieldModulus 69 generator ((fieldModulus - 1) / 65537) (by decide)]
-  norm_num only [Nat.reduceAdd]
-  have hcertificate :
-      powMod fieldModulus 70 generator ((fieldModulus - 1) / 65537) =
-        8478886009461009681 := by
-    simpa [certificateFuel] using order_not_sixtyfive_five_three_seventhed
-  rw [hcertificate]
-  exact zmod_natCast_ne_one (by decide) (by decide)
-
-set_option maxRecDepth 100000 in -- fixed-size: 64-bit Lucas certificate, not artifact data
 theorem prime_divisor_order
-    {q : Nat} (hq : q.Prime) (hdivides : q ∣ fieldModulus - 1) :
-    q = 2 ∨ q = 3 ∨ q = 5 ∨ q = 17 ∨ q = 257 ∨ q = 65537 := by
-  rw [order_factorisation] at hdivides
-  rcases hq.dvd_mul.mp hdivides with hleft | h65537
-  · rcases hq.dvd_mul.mp hleft with hleft | h257
-    · rcases hq.dvd_mul.mp hleft with hleft | h17
-      · rcases hq.dvd_mul.mp hleft with hleft | h5
-        · rcases hq.dvd_mul.mp hleft with h2pow | h3
-          · have h2 : q ∣ 2 := hq.dvd_of_dvd_pow h2pow
-            rcases (Nat.dvd_prime Nat.prime_two).mp h2 with hq_one | hq_two
-            · exact (hq.ne_one hq_one).elim
-            · exact Or.inl hq_two
-          · rcases (Nat.dvd_prime (by norm_num : Nat.Prime 3)).mp h3 with
-              hq_one | hq_three
-            · exact (hq.ne_one hq_one).elim
-            · exact Or.inr (Or.inl hq_three)
-        · rcases (Nat.dvd_prime (by norm_num : Nat.Prime 5)).mp h5 with
-            hq_one | hq_five
-          · exact (hq.ne_one hq_one).elim
-          · exact Or.inr (Or.inr (Or.inl hq_five))
-      · rcases (Nat.dvd_prime (by norm_num : Nat.Prime 17)).mp h17 with
-          hq_one | hq_seventeen
-        · exact (hq.ne_one hq_one).elim
-        · exact Or.inr (Or.inr (Or.inr (Or.inl hq_seventeen)))
-    · rcases (Nat.dvd_prime (by norm_num : Nat.Prime 257)).mp h257 with
-        hq_one | hq_257
-      · exact (hq.ne_one hq_one).elim
-      · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inl hq_257))))
-  · rcases (Nat.dvd_prime (by norm_num : Nat.Prime 65537)).mp h65537 with
-      hq_one | hq_65537
-    · exact (hq.ne_one hq_one).elim
-    · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr hq_65537))))
+    {divisor : Nat} (divisorPrime : divisor.Prime) (divides : divisor ∣ fieldModulus - 1) :
+    divisor = 2 ∨ divisor = 11 ∨ divisor = 137 ∨ divisor = 547 ∨ divisor = largeOrderFactor := by
+  rw [order_factorisation] at divides
+  rcases dvd_mul_prime divisorPrime largeOrderFactor_natPrime divides with divides | equal
+  · rcases dvd_mul_prime divisorPrime (by norm_num) divides with divides | equal
+    · rcases dvd_mul_prime divisorPrime (by norm_num) divides with divides | equal
+      · rcases dvd_mul_prime divisorPrime (by norm_num) divides with divides | equal
+        · exact Or.inl (eq_two_of_dvd_two_pow divisorPrime divides)
+        · exact Or.inr (Or.inl equal)
+      · exact Or.inr (Or.inr (Or.inl equal))
+    · exact Or.inr (Or.inr (Or.inr (Or.inl equal)))
+  · exact Or.inr (Or.inr (Or.inr (Or.inr equal)))
 
-set_option maxRecDepth 100000 in -- fixed-size: 64-bit Lucas certificate, not artifact data
 theorem fieldModulus_natPrime : Nat.Prime fieldModulus := by
   apply lucas_primality fieldModulus (generator : ZMod fieldModulus) fermat_zmod
-  intro q hq hdivides
-  rcases prime_divisor_order hq hdivides with
-      hq_two | hq_three | hq_five | hq_seventeen | hq_257 | hq_65537
-  · subst q
-    exact order_not_halved_zmod
-  · subst q
-    exact order_not_thirded_zmod
-  · subst q
-    exact order_not_fifthed_zmod
-  · subst q
-    exact order_not_seventeenthed_zmod
-  · subst q
-    exact order_not_two_five_seventhed_zmod
-  · subst q
-    exact order_not_sixtyfive_five_three_seventhed_zmod
+  intro divisor divisorPrime divides
+  obtain ⟨eleventh, first, second, last⟩ := order_residues
+  rcases prime_divisor_order divisorPrime divides with rfl | rfl | rfl | rfl | rfl
+  · exact order_not_halved_zmod
+  · exact pow_ne_one_of_powMod (by decide) eleventh (by decide) (by decide)
+  · exact pow_ne_one_of_powMod (by decide) first (by decide) (by decide)
+  · exact pow_ne_one_of_powMod (by decide) second (by decide) (by decide)
+  · exact pow_ne_one_of_powMod (by decide) last (by decide) (by decide)
 
-set_option maxRecDepth 100000 in -- fixed-size: 64-bit Lucas certificate, not artifact data
 theorem fieldModulus_euclidPrime : Folding.PiCCS.PaperJoint.NormRange.FieldModulusEuclid := by
   intro a b hproduct
   have hdivides : fieldModulus ∣ a * b := Nat.dvd_of_mod_eq_zero hproduct
@@ -271,8 +225,6 @@ theorem fieldModulus_euclidPrime : Folding.PiCCS.PaperJoint.NormRange.FieldModul
   · exact Or.inl (Nat.mod_eq_zero_of_dvd ha)
   · exact Or.inr (Nat.mod_eq_zero_of_dvd hb)
 
-
-set_option maxRecDepth 100000 in -- fixed-size: 64-bit Lucas certificate, not artifact data
 theorem baseFieldNoZeroDivisors : Folding.PiCCS.PaperJoint.NormRange.BaseFieldNoZeroDivisors :=
   Folding.PiCCS.PaperJoint.NormRange.baseFieldNoZeroDivisors_of_modulusEuclid fieldModulus_euclidPrime
 

@@ -1,6 +1,6 @@
 namespace NightstreamFPrime.Spec
 
-def fieldModulus : Nat := 18446744069414584321
+def fieldModulus : Nat := 18446744073709551557
 
 instance : NeZero fieldModulus := ⟨by decide⟩
 

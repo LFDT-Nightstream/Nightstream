@@ -20,7 +20,7 @@ impl CensusBudget {
 
     fn reserve(&self, bytes: usize) -> bool {
         self.0
-            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |left| left.checked_sub(bytes))
+            .try_update(Ordering::Relaxed, Ordering::Relaxed, |left| left.checked_sub(bytes))
             .is_ok()
     }
 }

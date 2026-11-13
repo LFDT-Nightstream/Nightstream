@@ -35,7 +35,12 @@ fn packed_products_restore_both_sources_and_reject_recommitted_signed_units() {
         assert_eq!(package.packed_boolean_count(), 4);
         assert_eq!(package.packed_zero_count(), 1);
     }
-    let mut prover = BoundedDepth::new(packages.clone(), MINIMUM_SECURITY_BITS).unwrap();
+    let mut prover = BoundedDepth::new(
+        packages.clone(),
+        MINIMUM_SECURITY_BITS,
+        crate::engine::Backend::Optimized,
+    )
+    .unwrap();
     prover.cap = 1;
     let initial = [F::ZERO; 4];
     let mut envelope = prover.initial(initial).unwrap();
@@ -43,7 +48,7 @@ fn packed_products_restore_both_sources_and_reject_recommitted_signed_units() {
     for iteration in 1..=4 {
         let current = [F::from_u64(iteration), F::ZERO, F::ZERO, F::ZERO];
         envelope = prover
-            .extend(&envelope, &[F::ONE, F::ONE], current)
+            .extend(&envelope, &[F::ONE, F::ONE], current, None)
             .unwrap();
         prover
             .verify(iteration, initial, current, &envelope)

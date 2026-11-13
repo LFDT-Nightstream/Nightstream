@@ -88,7 +88,6 @@ pub struct MetalSession {
     production_ajtai_accumulate: Pipeline,
     production_ajtai_sum_groups: Pipeline,
     tensor_point_expand_k: Pipeline,
-    sumcheck_reduce_partials: Pipeline,
     joint_build_application_tables: Pipeline,
     ccs_first_unsatisfied_row: Pipeline,
     joint_zero_words: Pipeline,
@@ -109,13 +108,19 @@ pub struct MetalSession {
     rlc_witness_mix_signed_masks: Pipeline,
     dec_split_base2_masks: Pipeline,
     dec_sparse_ring_partials: Pipeline,
+    dec_dense_ring_partials: Pipeline,
+    dec_ring_half_sums: Pipeline,
     dec_sparse_ring_sum_chunks: Pipeline,
     joint_carried_projection: Pipeline,
+    joint_carried_projection_dense: Pipeline,
     fe_weighted_row_table: Pipeline,
     dec_ring_reduce_phi81: Pipeline,
     // A prover keeps the production key rows after their first commitment;
     // `None` expands the needed rows in every call.
     production_key: Option<Mutex<production_commitment::ResidentKeyRows>>,
+    // Device data of each matrix cache that the host still holds.
+    resident_matrices: joint::Resident<(), Vec<joint::MetalCompactMatrix>>,
+    resident_openings: joint::Resident<(usize, usize, bool), joint::ResidentOpening>,
     activity: ActivityCounters,
 }
 
@@ -147,7 +152,6 @@ impl MetalSession {
         let production_ajtai_accumulate = pipeline(&device, &library, "production_ajtai_accumulate")?;
         let production_ajtai_sum_groups = pipeline(&device, &library, "production_ajtai_sum_groups")?;
         let tensor_point_expand_k = pipeline(&device, &library, "tensor_point_expand_k")?;
-        let sumcheck_reduce_partials = pipeline(&device, &library, "sumcheck_reduce_partials")?;
         let joint_build_application_tables = pipeline(&device, &library, "joint_build_application_tables")?;
         let ccs_first_unsatisfied_row = pipeline(&device, &library, "ccs_first_unsatisfied_row")?;
         let joint_zero_words = pipeline(&device, &library, "joint_zero_words")?;
@@ -170,8 +174,11 @@ impl MetalSession {
         let rlc_witness_mix_signed_masks = pipeline(&device, &library, "rlc_witness_mix_signed_masks")?;
         let dec_split_base2_masks = pipeline(&device, &library, "dec_split_base2_masks")?;
         let dec_sparse_ring_partials = pipeline(&device, &library, "dec_sparse_ring_partials")?;
+        let dec_dense_ring_partials = pipeline(&device, &library, "dec_dense_ring_partials")?;
+        let dec_ring_half_sums = pipeline(&device, &library, "dec_ring_half_sums")?;
         let dec_sparse_ring_sum_chunks = pipeline(&device, &library, "dec_sparse_ring_sum_chunks")?;
         let joint_carried_projection = pipeline(&device, &library, "joint_carried_projection")?;
+        let joint_carried_projection_dense = pipeline(&device, &library, "joint_carried_projection_dense")?;
         let fe_weighted_row_table = pipeline(&device, &library, "fe_weighted_row_table")?;
         let dec_ring_reduce_phi81 = pipeline(&device, &library, "dec_ring_reduce_phi81")?;
         Ok(Self {
@@ -189,7 +196,6 @@ impl MetalSession {
             production_ajtai_accumulate,
             production_ajtai_sum_groups,
             tensor_point_expand_k,
-            sumcheck_reduce_partials,
             joint_build_application_tables,
             ccs_first_unsatisfied_row,
             joint_zero_words,
@@ -210,11 +216,16 @@ impl MetalSession {
             rlc_witness_mix_signed_masks,
             dec_split_base2_masks,
             dec_sparse_ring_partials,
+            dec_dense_ring_partials,
+            dec_ring_half_sums,
             dec_sparse_ring_sum_chunks,
             joint_carried_projection,
+            joint_carried_projection_dense,
             fe_weighted_row_table,
             dec_ring_reduce_phi81,
             production_key: None,
+            resident_matrices: Default::default(),
+            resident_openings: Default::default(),
             activity: ActivityCounters::default(),
         })
     }
@@ -309,8 +320,8 @@ impl MetalSession {
             // its buffer. `words` is a live slice of `size_of_val(words)`
             // bytes, and Metal copies it before `setBytes` returns. A bound
             // buffer lives until its command completes: the command buffer
-            // (from `commandBuffer`) retains it, and every caller commits and
-            // waits (`finish`) before it returns. The session is not `Sync`,
+            // (from `commandBuffer`) retains it. A command runs only inside
+            // `finish`, which commits it and waits. The session is not `Sync`,
             // so no host code reads or writes `contents()` while a kernel
             // runs, and Metal's default hazard tracking orders the dispatches
             // that share a buffer. Each caller owns the rest. For `grid` and
@@ -388,6 +399,15 @@ impl MetalSession {
         values.to_vec()
     }
 
+    /// The first `len` words of a buffer, in place, after its commands
+    /// finished.
+    fn host_words<'a>(&self, buffer: &'a ProtocolObject<dyn MTLBuffer>, len: usize) -> &'a [u64] {
+        self.activity
+            .downloaded_bytes
+            .fetch_add((len * size_of::<u64>()) as u64, Ordering::Relaxed);
+        host_view(buffer, len)
+    }
+
     pub fn activity(&self) -> MetalActivity {
         MetalActivity {
             command_buffers: self.activity.command_buffers.load(Ordering::Relaxed),
@@ -431,9 +451,8 @@ fn upload<T: Copy>(buffer: &ProtocolObject<dyn MTLBuffer>, values: &[T]) -> Resu
     // at least `bytes` bytes (checked above) and lives as long as `buffer`.
     // The copy is untyped, so it needs no alignment. The ranges do not
     // overlap, because callers upload only into buffers that Metal
-    // allocated, never into a wrapped one. No command uses the buffer during
-    // the copy: every command finishes inside the call that encodes it (see
-    // `launch`).
+    // allocated, never into a wrapped one. No kernel uses the buffer during
+    // the copy: a command runs only inside `finish` (see `launch`).
     unsafe {
         std::ptr::copy_nonoverlapping(
             values.as_ptr().cast::<u8>(),
@@ -515,9 +534,9 @@ fn host_view<T: Pod>(buffer: &ProtocolObject<dyn MTLBuffer>, len: usize) -> &[T]
     // lives as long as the `buffer` borrow. Metal zero-fills a new buffer,
     // so every byte is initialized, and every bit pattern is a `T` (`Pod`).
     // No Rust reference aliases it, because callers view only buffers that
-    // Metal allocated, never a wrapped one. Every command finishes inside
-    // the call that encodes it (see `launch`), and callers take a view only
-    // after `finish`, so no kernel writes the memory while the view lives.
+    // Metal allocated, never a wrapped one. A command runs only inside
+    // `finish` (see `launch`), and callers take a view only after it, so
+    // no kernel writes the memory while the view lives.
     unsafe { std::slice::from_raw_parts(contents, len) }
 }
 

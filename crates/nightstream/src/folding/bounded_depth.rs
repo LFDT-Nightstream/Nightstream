@@ -9,6 +9,7 @@ use super::{
     ajtai_rlc_mixer, pi_ccs, pi_dec, pi_rlc, transcript::Transcript, CcsInstance, CeClaim, Error, FoldContext,
     RunningInstance,
 };
+use crate::engine::Backend;
 use neo_math::{KExtensions, D, F};
 use neo_reductions::{FoldProfile, NormSources};
 use neo_transcript::domain_chunk_v1_2;
@@ -56,6 +57,7 @@ pub(crate) struct Proof {
 
 pub(crate) fn prove(
     kind: Kind,
+    backend: &Backend,
     context: FoldContext<'_>,
     fresh: CcsInstance,
     accumulator: pi_rlc::Output,
@@ -66,7 +68,8 @@ pub(crate) fn prove(
             Vec::new(),
         ),
         Kind::Refresh => {
-            let (split, proof) = pi_dec::prove_with_production_key(context, &accumulator.claim, accumulator.witness)?;
+            let (split, proof) =
+                pi_dec::prove_with_production_key(backend, context, &accumulator.claim, accumulator.witness)?;
             (RunningInstance::new(split.claims, split.witnesses), proof.children)
         }
     };
@@ -74,12 +77,13 @@ pub(crate) fn prove(
     let (profile, weights) = kind.profile(&words);
     let mut tr = Transcript::session();
     let CcsInstance { claim, witness } = fresh;
-    let pi_ccs = pi_ccs::prove_from_parts_with_rows(&mut tr, context, &profile, &claim, &witness, &running)?;
+    let pi_ccs = pi_ccs::prove_from_parts_with_rows(&mut tr, backend, context, &profile, &claim, &witness, &running)?;
     let sources: Vec<_> = std::iter::once(&witness.Z)
         .chain(running.witnesses.iter())
         .collect();
     let (next, _) = pi_rlc::prove_refs(
         &mut tr,
+        backend,
         context.params,
         context.structure,
         ajtai_rlc_mixer,

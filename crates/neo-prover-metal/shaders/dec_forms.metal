@@ -1,5 +1,5 @@
 constant ulong DEC_PARALLEL_FORM_LIST_THRESHOLD = 128;
-constant uint DEC_FORM_REDUCTION_THREADS = 256;
+constant uint DEC_FORM_REDUCTION_THREADS = 64;
 
 inline ulong dec_pow(ulong base, ulong exponent) {
     ulong value = 1;

@@ -64,14 +64,19 @@ fn guarded_rows_reject_fresh_recommitted_changes_in_both_relations() {
     let packages = packages()
         .with_application(application.records().clone(), 7, application.shape())
         .unwrap();
-    let mut prover = BoundedDepth::new(packages.clone(), MINIMUM_SECURITY_BITS).unwrap();
+    let mut prover = BoundedDepth::new(
+        packages.clone(),
+        MINIMUM_SECURITY_BITS,
+        crate::engine::Backend::Optimized,
+    )
+    .unwrap();
     prover.cap = 1;
     let initial = [F::ZERO; 4];
     let message = [1, 0, 0, 1, 5, 17, 9].map(F::from_u64);
     let mut envelope = prover.initial(initial).unwrap();
     let mut kinds = Vec::new();
     for iteration in 1..=4 {
-        envelope = prover.extend(&envelope, &message, initial).unwrap();
+        envelope = prover.extend(&envelope, &message, initial, None).unwrap();
         prover
             .verify(iteration, initial, initial, &envelope)
             .unwrap();

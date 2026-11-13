@@ -10,6 +10,8 @@ mod support;
 mod factored_rows;
 mod final_ir;
 mod guard_fusion;
+#[cfg(feature = "metal")]
+mod metal_parity;
 mod packed_boolean;
 mod packed_product;
 mod setup_runs;
@@ -26,7 +28,8 @@ use support::{hash_chain_step, packages, words};
 const MINIMUM_SECURITY_BITS: u32 = 109;
 
 fn prover(cap: u64) -> BoundedDepth {
-    let mut prover = BoundedDepth::new(packages(), MINIMUM_SECURITY_BITS).expect("bounded-depth prover");
+    let mut prover = BoundedDepth::new(packages(), MINIMUM_SECURITY_BITS, crate::engine::Backend::Optimized)
+        .expect("bounded-depth prover");
     prover.cap = cap;
     prover
 }
@@ -43,7 +46,9 @@ fn run(prover: &BoundedDepth, steps: u64) -> (Envelope, Vec<u64>) {
     for step in 0..steps {
         let message = words([20 + step, 21 + step, 22 + step, 23 + step]);
         let next = hash_chain_step(envelope.current, message);
-        envelope = prover.extend(&envelope, &message, next).expect("step");
+        envelope = prover
+            .extend(&envelope, &message, next, None)
+            .expect("step");
         circuits.push(envelope.pc);
         prover
             .verify(step + 1, z0, next, &envelope)
@@ -183,7 +188,8 @@ fn native_application_verifies(application: ApplicationCircuit) {
             application.shape(),
         )
         .expect("packages with the application");
-    let mut prover = BoundedDepth::new(packages, MINIMUM_SECURITY_BITS).expect("bounded-depth prover");
+    let mut prover = BoundedDepth::new(packages, MINIMUM_SECURITY_BITS, crate::engine::Backend::Optimized)
+        .expect("bounded-depth prover");
     prover.cap = 1;
     let z0 = words([10, 11, 12, 13]);
     let mut envelope = prover.initial(z0).expect("initial proof");
@@ -197,12 +203,12 @@ fn native_application_verifies(application: ApplicationCircuit) {
         let wrong = [next[0] + F::ONE, next[1], next[2], next[3]];
         assert!(
             matches!(
-                prover.extend(&envelope, message, wrong),
+                prover.extend(&envelope, message, wrong, None),
                 Err(BoundedDepthError::Fresh("a relation row fails"))
             ),
             "step {step} with a wrong next state"
         );
-        envelope = prover.extend(&envelope, message, next).expect("step");
+        envelope = prover.extend(&envelope, message, next, None).expect("step");
         circuits.push(envelope.pc);
         prover
             .verify(step + 1, z0, next, &envelope)
@@ -304,7 +310,9 @@ fn bounded_depth_step_times() {
         let message = words([20 + step, 21 + step, 22 + step, 23 + step]);
         let next = hash_chain_step(envelope.current, message);
         let proving = std::time::Instant::now();
-        envelope = prover.extend(&envelope, &message, next).expect("step");
+        envelope = prover
+            .extend(&envelope, &message, next, None)
+            .expect("step");
         let proved = proving.elapsed();
         let verifying = std::time::Instant::now();
         prover
@@ -339,7 +347,8 @@ fn final_proof_verifies() {
     let started = std::time::Instant::now();
     // Keys for a minimum below the production one have fewer layer bits, so
     // a production verifier must refuse them (the end of this test).
-    let mut prover = BoundedDepth::new(packages(), 105).expect("bounded-depth prover");
+    let mut prover =
+        BoundedDepth::new(packages(), 105, crate::engine::Backend::Optimized).expect("bounded-depth prover");
     prover.cap = 2;
     let finish = Finish::new(
         nightstream_fprime::load_bounded_depth_finish(
@@ -354,7 +363,9 @@ fn final_proof_verifies() {
     for step in 0..3 {
         let message = words([20 + step, 21 + step, 22 + step, 23 + step]);
         let next = hash_chain_step(envelope.current, message);
-        envelope = prover.extend(&envelope, &message, next).expect("step");
+        envelope = prover
+            .extend(&envelope, &message, next, None)
+            .expect("step");
     }
     let dir = SetupDir(std::env::temp_dir().join(format!("bounded-depth-final-{}", std::process::id())));
     let (witness, keys) = {
@@ -425,6 +436,13 @@ fn final_proof_verifies() {
         .expect("final proof");
     eprintln!("final proof elapsed={:?}", proving.elapsed());
     eprintln!("final proof bytes: {}", proof.shrink.to_bytes().len());
+    let again = prover
+        .prove_final(&keys, &finish, statement, &witness)
+        .expect("second final proof");
+    assert!(
+        proof.shrink.to_bytes() == again.shrink.to_bytes(),
+        "two runs of the final prover give the same bytes"
+    );
     let verifying = std::time::Instant::now();
     prover
         .verify_final(&keys, &finish, iteration, z0, current, &proof)

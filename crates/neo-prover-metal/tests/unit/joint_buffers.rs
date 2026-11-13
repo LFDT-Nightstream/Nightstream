@@ -115,6 +115,7 @@ fn zero_carried_tables_fit_their_advertised_length() {
         dims,
         rows: &source,
         workspace_bytes: workspace,
+        norm_sources: fresh.len() + running.len(),
     };
     let count = fresh.len() + running.len();
     let masks = session
@@ -185,6 +186,7 @@ fn application_storage_does_not_reserve_future_rounds() {
             dims,
             rows: &source,
             workspace_bytes: workspace,
+            norm_sources: fresh.len() + running.len(),
         };
         let before = session.activity().allocated_bytes;
         let _oracle = MetalPaperJointOracle::new(&session, plan, input).unwrap();
@@ -241,7 +243,7 @@ fn zero_witness_suffix_does_not_allocate_device_masks() {
     let masks = session
         .prepare_witness_digit_masks(&words, count, blocks, 1, D + 1)
         .unwrap();
-    assert!(masks.matches_joint(count, blocks));
+    assert_eq!((masks.witness_count(), masks.blocks()), (count, blocks));
     assert_eq!(masks.active_witnesses(), &[0]);
     assert_eq!(
         session.read_buffer::<u64>(masks.words(), 2 * blocks),

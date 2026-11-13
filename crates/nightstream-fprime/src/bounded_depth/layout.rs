@@ -8,6 +8,7 @@
 
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks;
+use rayon::prelude::*;
 
 use super::expand::mix;
 use super::{Linear, Piece, Row, StepPackage};
@@ -100,26 +101,43 @@ impl LogicalLayout {
             return Err(PackageError::Input("bounded-depth source columns"));
         }
         let mut logical = vec![Goldilocks::ZERO; self.width];
-        logical[..PUBLIC].copy_from_slice(&columns[..PUBLIC]);
-        let mut digits = [0i8; FIELD_DIGITS];
-        for &column in &self.slots {
-            let offset = self.offsets[column] as usize;
-            let value = *columns
-                .get(column)
-                .ok_or(PackageError::Input("bounded-depth source columns"))?;
-            match self.kinds[column] {
-                Kind::Bit | Kind::Centered => logical[offset] = value,
-                Kind::Field => {
-                    encode_field(value.as_canonical_u64(), &mut digits);
-                    for (target, &digit) in logical[offset..offset + FIELD_DIGITS]
-                        .iter_mut()
-                        .zip(&digits)
-                    {
-                        *target = Goldilocks::from_i64(i64::from(digit));
+        let (public, mut rest) = logical.split_at_mut(PUBLIC);
+        public.copy_from_slice(&columns[..PUBLIC]);
+        // The slots are in logical order, so each range of slots owns one
+        // range of logical columns, and the ranges fill on all cores.
+        let range = self
+            .slots
+            .len()
+            .div_ceil(4 * rayon::current_num_threads())
+            .max(1);
+        let mut parts = Vec::new();
+        for slots in self.slots.chunks(range) {
+            let width: usize = slots.iter().map(|&column| self.kinds[column].width()).sum();
+            let (part, tail) = rest.split_at_mut(width);
+            parts.push((slots, part));
+            rest = tail;
+        }
+        parts.into_par_iter().try_for_each(|(slots, part)| {
+            let mut digits = [0i8; FIELD_DIGITS];
+            let mut offset = 0;
+            for &column in slots {
+                let value = *columns
+                    .get(column)
+                    .ok_or(PackageError::Input("bounded-depth source columns"))?;
+                let kind = self.kinds[column];
+                match kind {
+                    Kind::Bit | Kind::Centered => part[offset] = value,
+                    Kind::Field => {
+                        encode_field(value.as_canonical_u64(), &mut digits);
+                        for (target, &digit) in part[offset..offset + FIELD_DIGITS].iter_mut().zip(&digits) {
+                            *target = Goldilocks::from_i64(i64::from(digit));
+                        }
                     }
                 }
+                offset += kind.width();
             }
-        }
+            Ok::<_, PackageError>(())
+        })?;
         Ok(logical)
     }
 

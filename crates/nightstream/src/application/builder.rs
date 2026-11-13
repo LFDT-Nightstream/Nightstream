@@ -440,7 +440,11 @@ impl ApplicationCircuit {
         }
         values[self.generated_start - 4..self.generated_start].copy_from_slice(&output_state);
         self.check(&values)?;
-        Ok(ApplicationWitness { values, output_state })
+        Ok(ApplicationWitness {
+            values,
+            generated_start: self.generated_start,
+            output_state,
+        })
     }
 
     pub fn check(&self, values: &[Goldilocks]) -> Result<(), ApplicationError> {
@@ -493,6 +497,7 @@ fn lookup(values: &[Goldilocks]) -> impl Fn(usize) -> Result<u64, ApplicationErr
 #[derive(Clone, Debug)]
 pub struct ApplicationWitness {
     values: Vec<Goldilocks>,
+    generated_start: usize,
     output_state: [Goldilocks; 4],
 }
 
@@ -502,5 +507,9 @@ impl ApplicationWitness {
     }
     pub fn output_state(&self) -> [Goldilocks; 4] {
         self.output_state
+    }
+    /// The value of each recipe, in recipe order.
+    pub(crate) fn locals(&self) -> &[Goldilocks] {
+        &self.values[self.generated_start..]
     }
 }

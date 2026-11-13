@@ -1,7 +1,8 @@
 # AGENTS.md
 
-Nightstream is a lattice-based folding prover over Goldilocks. Users call only
-the `nightstream` crate and its WASM frontend, `neo-wasm`.
+Nightstream is a lattice-based folding prover over the prime field
+`q = 2^64 − 59`. Users call only the `nightstream` crate and its WASM
+frontend, `neo-wasm`.
 
 ## Design
 
@@ -10,7 +11,9 @@ the `nightstream` crate and its WASM frontend, `neo-wasm`.
 - HyperNova is the recursion. The F′ circuit (R1CS) checks the previous fold
   inside each step.
 - Nebula is the memory layer (`nightstream::nebula`, `SPEC.md` section 7).
-- Spartan over WHIR compresses the final proof (`neo-spartan`).
+- Akita (ePrint 2026/1983) is the polynomial commitment scheme for the
+  compression of the final proof. The Spartan, WHIR, and shrink path was
+  removed. The compression layer over Akita is not written yet.
 - The papers are in `docs/` (local only, not in git): `superneo-paper-v1_2`,
   `hypernova-paper`, and `nebula-paper`.
 
@@ -22,9 +25,6 @@ value.
 
 - `formal/nightstream-fprime` models SuperNeo v1.2, defines and proves the F′
   circuit, and emits the F′ artifacts. Read its `AGENTS.md` before work there.
-- `formal/compression-lean` builds the compression terminal circuit from the
-  F′ circuits. It proves the layer-1 verifier sound. That proof assumes WHIR
-  and treats Poseidon2 as a random oracle.
 
 ## Specs
 
@@ -63,17 +63,23 @@ value.
 ## Protocol
 
 - Cite SuperNeo only by its v1.2 numbers.
+- The field is `F_q` with `q = 2^64 − 59`. The ring is `F_q[X]/(X^64 + 1)`.
+  The main commitment rank is `κ = 18`
+  (`decisions/field-2p64-59-ring-x64.md`). Do not add code for Goldilocks or
+  for a second field or ring.
 - Use only Poseidon2 and the Ajtai commitment of the scheme as hashes in
-  proof, transcript, and public-digest paths. Poseidon2 makes each
-  Fiat–Shamir challenge. The Ajtai commitment can be a digest where collision
-  resistance is sufficient. Do not add other hash families there, for example
-  BLAKE3, without approval.
+  proof, transcript, and public-digest paths of the folding scheme and the
+  step circuits. Poseidon2 makes each of their Fiat–Shamir challenges. The
+  Ajtai commitment can be a digest where collision resistance is sufficient.
+- SHAKE128 expands the Ajtai setup. The Akita commitment scheme can use SHAKE
+  for its challenges. Do not add other hash families, for example BLAKE3,
+  without approval.
 - Decomposition uses `b = 2` and `B = 2^k_rho`. Use `k_rho = 16` by default.
   Use `k_rho = 18` only when a requirement or a measurement shows that 16 is
   not sufficient. Each profile binds exactly one of these two values. Any
-  other value, including the paper's `k_rho = 14`, needs approval in the
+  other value, including a value from the paper, needs approval in the
   current task.
-- Call such a profile "Nightstream Goldilocks, k_rho = N", never "paper exact".
+- Call such a profile "Nightstream P64, k_rho = N", never "paper exact".
 
 ## Security
 

@@ -52,17 +52,17 @@ use super::layout::{
     COL_MEMORY_PAGES_BEFORE, COL_MEM_LOAD_LIVE, COL_MEM_OOB, COL_MEM_STORE_LIVE, COL_ONE, COL_OPCODE_CODE,
     COL_OUTPUT_CAPTURED, COL_OUTPUT_ENABLED_AFTER, COL_OUTPUT_ENABLED_BEFORE, COL_OUTPUT_VALUE_HI_AFTER,
     COL_OUTPUT_VALUE_HI_BEFORE, COL_OUTPUT_VALUE_LO_AFTER, COL_OUTPUT_VALUE_LO_BEFORE, COL_PADDING_ACTIVE,
-    COL_PC_AFTER, COL_PC_BEFORE, COL_PC_EDGE_KIND, COL_PC_ROM_ACTIVE, COL_PROGRAM_CALL_INDIRECT_IMMEDIATES_ACTIVE,
-    COL_PROGRAM_GLOBAL_INDEX_ACTIVE, COL_PROGRAM_LOCAL_INDEX_ACTIVE, COL_PROGRAM_TABLE_ID_ACTIVE, COL_SIGN_EXT_BIT,
-    COL_SIGN_EXT_LOW7, COL_SP_AFTER, COL_SP_BEFORE, COL_STACK_FRAME_BASE_AFTER, COL_STACK_FRAME_BASE_BEFORE,
-    COL_STACK_READS, COL_STACK_READ_ACTIVE, COL_STACK_READ_ADDR_HI, COL_STACK_READ_ADDR_LO, COL_STACK_READ_VALUE_HI,
-    COL_STACK_READ_VALUE_LO, COL_STACK_WRITE0_ACTIVE, COL_STACK_WRITE0_ADDR_HI, COL_STACK_WRITE0_ADDR_LO,
-    COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO, COL_STACK_WRITES, COL_TABLE_ID, COL_TABLE_INDEX,
-    COL_TABLE_OOB, COL_TABLE_READ_ENABLED, COL_TABLE_SET_LIVE, COL_TABLE_SIZE, COL_TABLE_SIZE_READ_ENABLED,
-    COL_TABLE_VALUE, COL_TARGET_FUNCTION_IS_GUEST, COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE, COL_TURN_EXPORT_FREF_AFTER,
-    COL_TURN_EXPORT_FREF_BEFORE, COL_WIDE_AUX0, COL_WIDE_AUX1, COL_WIDE_VALUES_ENABLED,
+    COL_PC_AFTER, COL_PC_BEFORE, COL_PC_EDGE_KIND, COL_PC_ROM_ACTIVE, COL_PROGRAM_GLOBAL_INDEX_ACTIVE,
+    COL_PROGRAM_LOCAL_INDEX_ACTIVE, COL_PROGRAM_TABLE_ID_ACTIVE, COL_SIGN_EXT_BIT, COL_SIGN_EXT_LOW7, COL_SP_AFTER,
+    COL_SP_BEFORE, COL_STACK_FRAME_BASE_AFTER, COL_STACK_FRAME_BASE_BEFORE, COL_STACK_READS, COL_STACK_READ_ACTIVE,
+    COL_STACK_READ_ADDR_HI, COL_STACK_READ_ADDR_LO, COL_STACK_READ_VALUE_HI, COL_STACK_READ_VALUE_LO,
+    COL_STACK_WRITE0_ACTIVE, COL_STACK_WRITE0_ADDR_HI, COL_STACK_WRITE0_ADDR_LO, COL_STACK_WRITE0_VALUE_HI,
+    COL_STACK_WRITE0_VALUE_LO, COL_STACK_WRITES, COL_TABLE_ID, COL_TABLE_INDEX, COL_TABLE_OOB, COL_TABLE_READ_ENABLED,
+    COL_TABLE_SET_LIVE, COL_TABLE_SIZE, COL_TABLE_SIZE_READ_ENABLED, COL_TABLE_VALUE, COL_TARGET_FUNCTION_IS_GUEST,
+    COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE, COL_TURN_EXPORT_FREF_AFTER, COL_TURN_EXPORT_FREF_BEFORE, COL_WIDE_AUX0,
+    COL_WIDE_AUX1, COL_WIDE_VALUES_ENABLED,
 };
-use crate::host_event_layout::{HOST_CONTEXT_REF_BITS, HOST_CONTEXT_REF_FACTOR};
+use crate::host_event_layout::{HOST_CONTEXT_HALF_BITS, HOST_CONTEXT_HALF_FACTOR};
 use crate::layout::{
     COL_CMP_AND, COL_ZERO_TEST_HI_INPUT, COL_ZERO_TEST_HI_IS_ZERO, COL_ZERO_TEST_LO_INPUT, COL_ZERO_TEST_LO_IS_ZERO,
 };
@@ -73,11 +73,16 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Result<Vec<F>, super::ir::Was
     use super::ir::WasmBuildError;
 
     if let Some(context) = trace.host_context {
-        for (kind, reference) in [("export", context.export_fref), ("import", context.import_fref)] {
-            if reference >= HOST_CONTEXT_REF_FACTOR {
+        for (field, value) in [
+            ("export reference", u64::from(context.export_fref)),
+            ("import reference", u64::from(context.import_fref)),
+            ("argument base", context.args_base),
+            ("parent host depth", context.parent_host_frame_depth),
+        ] {
+            if value >= u64::from(HOST_CONTEXT_HALF_FACTOR) {
                 return Err(WasmBuildError::Trace(format!(
-                    "saved host-context {kind} reference {reference} exceeds the {HOST_CONTEXT_REF_BITS}-bit limit {}",
-                    HOST_CONTEXT_REF_FACTOR - 1,
+                    "saved host-context {field} {value} exceeds the {HOST_CONTEXT_HALF_BITS}-bit limit {}",
+                    HOST_CONTEXT_HALF_FACTOR - 1,
                 )));
             }
         }
@@ -347,8 +352,6 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Result<Vec<F>, super::ir::Was
     wit[COL_PROGRAM_LOCAL_INDEX_ACTIVE] = program_immediate_gate(trace.opcode.uses_local_index_immediate());
     wit[COL_PROGRAM_GLOBAL_INDEX_ACTIVE] = program_immediate_gate(trace.opcode.uses_global_index_immediate());
     wit[COL_PROGRAM_TABLE_ID_ACTIVE] = program_immediate_gate(trace.opcode.uses_table_id_immediate());
-    wit[COL_PROGRAM_CALL_INDIRECT_IMMEDIATES_ACTIVE] =
-        program_immediate_gate(trace.opcode.uses_call_indirect_immediates());
     if let Some(read) = trace.stack_read0 {
         wit[COL_STACK_READ_ADDR_LO[0]] = F::from_u64(read.addr_lo);
         wit[COL_STACK_READ_ADDR_HI[0]] = F::from_u64(read.addr_lo + 1);
@@ -822,6 +825,14 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Result<Vec<F>, super::ir::Was
         wit[COL_EXPECTED_TYPE_ID] = F::from_u64(u64::from(expected_type_id));
     }
 
+    wit[crate::layout::COL_TABLE_DESCRIPTOR] = F::from_u32(
+        crate::table_descriptor::pack_table_descriptor(
+            trace.table_id.unwrap_or(0),
+            trace.expected_type_id.unwrap_or(0),
+        )
+        .map_err(WasmBuildError::Trace)?,
+    );
+
     // Mirror the CCS resolve-step trap gates (OOB index / null table entry /
     // callee type mismatch) and the derived read-activation gates. Placed
     // after the table/type columns above, which the comparison and zero tests
@@ -996,6 +1007,12 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Result<Vec<F>, super::ir::Was
     ]) {
         wit[separate] = wit[original] - wit[crate::layout::COL_STACK_RMW];
     }
+    wit[crate::layout::COL_STACK_READ0_HI_ACTIVE] = wit[crate::layout::COL_STACK_SEPARATE[0]]
+        - super::isa::WasmOpcode::supported()
+            .into_iter()
+            .filter(|op| op.omits_stack_read0_hi())
+            .map(|op| wit[selector_col(op).unwrap()])
+            .sum::<F>();
     crate::range_check::write_range_check_bits(&mut wit);
     Ok(wit)
 }

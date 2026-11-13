@@ -310,9 +310,8 @@ fn dimensions(id: WasmMemoryId) -> &'static [Dimension] {
         | M::ProgramBrTableLen
         | M::ProgramLocalIndex
         | M::ProgramGlobalIndex
-        | M::ProgramTableId
+        | M::ProgramTableDescriptor
         | M::ProgramMemoryOffset
-        | M::ProgramCallIndirectExpectedTypeId
         | M::ProgramI32ConstValue
         | M::ProgramI64ConstValueLo
         | M::ProgramI64ConstValueHi
@@ -335,7 +334,7 @@ fn dimensions(id: WasmMemoryId) -> &'static [Dimension] {
         M::LinearMemory => &[D::LinearMemory],
         M::GlobalLo | M::GlobalHi => &[D::Global],
         M::CallStackReturnPc | M::CallStackCallerFbp | M::CallStackCallerSpBase => &[D::CallDepth],
-        M::HostContextRefs | M::HostContextArgsBase | M::HostContextParentDepth | M::HostContextSp => &[D::HostDepth],
+        M::HostContextRefs | M::HostContextArgsDepth | M::HostContextSp => &[D::HostDepth],
         M::TableSize => &[D::Table],
         M::TableElement => &[D::Table, D::TableIndex],
     }

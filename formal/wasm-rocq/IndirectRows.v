@@ -1,3 +1,4 @@
+Require Import TableDescriptor.
 (* The rows of an indirect call. Its resolve row checks the table entry and
    steps SpecTec to CALL_ADDR, leaving the reference on top; its invocation row
    enters the callee like a direct call. *)
@@ -76,11 +77,11 @@ Proof.
   (* The table and type the instruction names. *)
   destruct (nth_error (TABLES (guestModule f)) (N.to_nat (x :> N))) as [ta | ] eqn:Hta;
     [ | apply nth_error_None in Hta; lia].
-  destruct (encoded_path_resolve _ _ _ _ Hloaded Hf _ _ _ _ _ Hpath Hi) as [Himage [HtableRom HtypeRom]].
-  rewrite Hta in HtableRom. rewrite Htype in HtypeRom. cbn [option_map romValue] in HtableRom, HtypeRom.
-  unfold pathPC in Himage, HtableRom, HtypeRom.
+  destruct (encoded_path_resolve _ _ _ _ Hloaded Hf _ _ _ _ _ Hpath Hi) as [Himage HdescriptorRom].
+  rewrite Hta, Htype in HdescriptorRom. cbn [option_map romValue] in HdescriptorRom.
+  unfold pathPC in Himage, HdescriptorRom.
   change (row COL_PC_BEFORE = guestEntry f + Z.of_nat (pathOffset (guestBody f) labels offset)) in Hpc.
-  rewrite <- Hpc in Himage, HtableRom, HtypeRom.
+  rewrite <- Hpc in Himage, HdescriptorRom.
   destruct (BlockTrace.control_row _ _ row _ CODE_CALL_INDIRECT_RESOLVE COL_SEL_CALL_INDIRECT_RESOLVE _ Hprime Hfull
     Hprogram Hreplay Logic.eq_refl ltac:(vm_compute; reflexivity) ltac:(vm_compute; intuition discriminate) Himage)
     as [Hresolve Hnext].
@@ -102,8 +103,8 @@ Proof.
     rewrite app_assoc, nth_error_app2, Nat.sub_diag by lia. reflexivity. }
   rewrite (replace_read_address _ Hshape), Htop in Hread. injection Hread as HindexValue.
   (* The row continues, so it does not trap: every check passed. *)
-  destruct (full_resolve_checks row Hprime Hfull Hresolve) as [HidActive [HimmActive [HsizeActive [HindexCol
-    [Hoob [HreadActive [Hnull [Heq [Hgate [HrefIs [Htrap HwriteRef]]]]]]]]]]].
+  destruct (full_resolve_checks row Hprime Hfull Hresolve) as [HidActive [HsizeActive [HindexCol
+    [Hoob [HreadActive [Hnull [Heq [Hgate [HrefIs [Htrap HwriteRef]]]]]]]]]].
   assert (Hnotrap : row COL_CALL_INDIRECT_IS_TRAP = 0).
   { destruct (Z.eq_dec (row COL_CALL_INDIRECT_IS_TRAP) 1) as [Hone1 | Hone1];
       [pose proof (full_resolve_trap_finishes row Hprime Hfull Hresolve Hone1); lia | ].
@@ -118,9 +119,10 @@ Proof.
   assert (HnullZero : row COL_CI_ENTRY_IS_NULL = 0) by (cbn in Hnull; exact Hnull).
   assert (HgateOne : row COL_FUNCTION_CALL_TYPE_LOOKUP_GATE = 1) by (rewrite Hgate, HoobZero, HnullZero; reflexivity).
   (* The table: its address from the ROM, its size and entry from the store. *)
-  destruct (resolve_rom_reads _ _ _ Hreplay HidActive HimmActive HsizeActive) as [HidRead [HexpRead HsizeRead]].
-  rewrite HtableRom in HidRead. injection HidRead as HtableId.
-  rewrite HtypeRom in HexpRead. injection HexpRead as Hexpected.
+  destruct (resolve_rom_reads _ _ _ Hreplay HidActive HsizeActive) as [HdescriptorRead HsizeRead].
+  rewrite HdescriptorRom in HdescriptorRead. injection HdescriptorRead as Hdescriptor.
+  destruct (table_descriptor_fields row _ _ Hprime Hfull (eq_sym Hdescriptor)) as [HtableId Hexpected].
+  symmetry in HtableId, Hexpected.
   destruct (function_module_ok _ _ Hf) as [C HC].
   pose proof (module_table_in_store _ _ _ _ _ HC Hta) as HtaStore.
   destruct (nth_error (store_TABLES s) (N.to_nat ta)) as [t | ] eqn:Ht; [ | apply nth_error_None in Ht; lia].

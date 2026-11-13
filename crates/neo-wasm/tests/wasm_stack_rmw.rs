@@ -105,7 +105,7 @@ fn resolve_binds_both_prior_limbs_on_success_and_traps() {
             }
         )));
         if !run.trace[i].state_after.trapped {
-            assert_eq!(active.len(), 9);
+            assert_eq!(active.len(), 8);
         }
         rejects_forged_replacement(&run, i);
     }

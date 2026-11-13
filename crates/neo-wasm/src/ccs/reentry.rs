@@ -3,7 +3,7 @@
 
 use crate::gadgets::push_gated_linear_zero;
 use crate::host_event_bindings::IMPORT_SCHEDULE_COUNT_FACTOR;
-use crate::host_event_layout::HOST_CONTEXT_REF_FACTOR;
+use crate::host_event_layout::HOST_CONTEXT_HALF_FACTOR;
 use crate::ir::WasmVmStep;
 use crate::layout::*;
 use crate::tagged_r1cs_builder::WasmTaggedR1csBuilder;
@@ -129,7 +129,7 @@ pub(super) fn push_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
             COL_HOST_RESUME,
             [
                 (COL_HOST_FRAME_DEPTH_AFTER, F::ONE),
-                (COL_HOST_CONTEXT_STACK[1], -F::ONE),
+                (COL_HOST_CONTEXT_PARENT_DEPTH, -F::ONE),
             ],
         );
         b.push_row(
@@ -165,12 +165,17 @@ pub(super) fn push_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
                 (COL_ONE, F::ONE),
             ],
         );
-        // Rocq `ProgramBinding.full_host_context_refs`: one RAM cell binds
-        // both bounded references.
+        // Rocq `ProgramBinding.full_host_context_refs` and `full_host_context_args_depth`:
+        // each RAM word binds two bounded fields.
         b.push_linear_zero([
             (COL_HOST_CONTEXT_REFS, F::ONE),
             (COL_HOST_CONTEXT_EXPORT, -F::ONE),
-            (COL_HOST_CONTEXT_IMPORT, -F::from_u32(HOST_CONTEXT_REF_FACTOR)),
+            (COL_HOST_CONTEXT_IMPORT, -F::from_u32(HOST_CONTEXT_HALF_FACTOR)),
+        ]);
+        b.push_linear_zero([
+            (COL_HOST_CONTEXT_ARGS_DEPTH, F::ONE),
+            (COL_HOST_CONTEXT_ARGS_BASE, -F::ONE),
+            (COL_HOST_CONTEXT_PARENT_DEPTH, -F::from_u32(HOST_CONTEXT_HALF_FACTOR)),
         ]);
         for (field, source) in [
             (COL_HOST_CONTEXT_FRAME[0], COL_PC_AFTER),
@@ -178,16 +183,16 @@ pub(super) fn push_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
             (COL_HOST_CONTEXT_FRAME[2], COL_STACK_FRAME_BASE_BEFORE),
             (COL_HOST_CONTEXT_EXPORT, COL_TURN_EXPORT_FREF_BEFORE),
             (COL_HOST_CONTEXT_IMPORT, COL_HOST_CALLEE_FREF_BEFORE),
-            (COL_HOST_CONTEXT_STACK[0], COL_HOST_EVENT_ARGS_BASE_AFTER),
-            (COL_HOST_CONTEXT_STACK[1], COL_HOST_FRAME_DEPTH_BEFORE),
-            (COL_HOST_CONTEXT_STACK[2], COL_SP_AFTER),
+            (COL_HOST_CONTEXT_ARGS_BASE, COL_HOST_EVENT_ARGS_BASE_AFTER),
+            (COL_HOST_CONTEXT_PARENT_DEPTH, COL_HOST_FRAME_DEPTH_BEFORE),
+            (COL_HOST_CONTEXT_SP, COL_SP_AFTER),
         ] {
             push_gated_linear_zero(b, COL_HOST_SUSPEND, [(field, F::ONE), (source, -F::ONE)]);
         }
         // Entry starts its frame above every suspended cell, including args.
         for (target, source) in [
-            (COL_LOCALS_FBP_AFTER, COL_HOST_CONTEXT_STACK[2]),
-            (COL_SP_BEFORE, COL_HOST_CONTEXT_STACK[2]),
+            (COL_LOCALS_FBP_AFTER, COL_HOST_CONTEXT_SP),
+            (COL_SP_BEFORE, COL_HOST_CONTEXT_SP),
         ] {
             push_gated_linear_zero(b, COL_HOST_NESTED_ENTRY, [(target, F::ONE), (source, -F::ONE)]);
         }
@@ -197,9 +202,9 @@ pub(super) fn push_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
             (COL_STACK_FRAME_BASE_AFTER, COL_HOST_CONTEXT_FRAME[2]),
             (COL_TURN_EXPORT_FREF_AFTER, COL_HOST_CONTEXT_EXPORT),
             (COL_HOST_CALLEE_FREF_AFTER, COL_HOST_CONTEXT_IMPORT),
-            (COL_HOST_EVENT_ARGS_BASE_AFTER, COL_HOST_CONTEXT_STACK[0]),
-            (COL_SP_AFTER, COL_HOST_CONTEXT_STACK[0]),
-            (COL_SP_BEFORE, COL_HOST_CONTEXT_STACK[2]),
+            (COL_HOST_EVENT_ARGS_BASE_AFTER, COL_HOST_CONTEXT_ARGS_BASE),
+            (COL_SP_AFTER, COL_HOST_CONTEXT_ARGS_BASE),
+            (COL_SP_BEFORE, COL_HOST_CONTEXT_SP),
         ] {
             push_gated_linear_zero(b, COL_HOST_RESUME, [(target, F::ONE), (source, -F::ONE)]);
         }
@@ -296,10 +301,12 @@ pub(crate) fn fill_witness(wit: &mut [F], trace: &WasmVmStep) {
         wit[COL_HOST_CONTEXT_FRAME[1]] = F::from_u64(context.locals_fbp);
         wit[COL_HOST_CONTEXT_FRAME[2]] = F::from_u64(context.stack_frame_base);
         wit[COL_HOST_CONTEXT_REFS] =
-            wit[COL_HOST_CONTEXT_EXPORT] + F::from_u32(HOST_CONTEXT_REF_FACTOR) * wit[COL_HOST_CONTEXT_IMPORT];
-        wit[COL_HOST_CONTEXT_STACK[0]] = F::from_u64(context.args_base);
-        wit[COL_HOST_CONTEXT_STACK[1]] = F::from_u64(context.parent_host_frame_depth);
-        wit[COL_HOST_CONTEXT_STACK[2]] = F::from_u64(context.retained_sp);
+            wit[COL_HOST_CONTEXT_EXPORT] + F::from_u32(HOST_CONTEXT_HALF_FACTOR) * wit[COL_HOST_CONTEXT_IMPORT];
+        wit[COL_HOST_CONTEXT_ARGS_BASE] = F::from_u64(context.args_base);
+        wit[COL_HOST_CONTEXT_PARENT_DEPTH] = F::from_u64(context.parent_host_frame_depth);
+        wit[COL_HOST_CONTEXT_ARGS_DEPTH] = wit[COL_HOST_CONTEXT_ARGS_BASE]
+            + F::from_u32(HOST_CONTEXT_HALF_FACTOR) * wit[COL_HOST_CONTEXT_PARENT_DEPTH];
+        wit[COL_HOST_CONTEXT_SP] = F::from_u64(context.retained_sp);
         wit[COL_HOST_CONTEXT_ADDR] = if wit[COL_HOST_SUSPEND] == F::ONE {
             F::from_u64(before.call_stack_depth)
         } else {

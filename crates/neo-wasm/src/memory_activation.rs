@@ -10,10 +10,9 @@ use crate::layout::{
     COL_GATHER_LOCAL_WRITE, COL_GATHER_LOCAL_WRITE_LO, COL_GUEST_ENTRY_ACTIVE, COL_HOST_CALL_ACTIVE,
     COL_HOST_EVENT_EXIT_LATCH, COL_IS_PROGRAM_ROW, COL_LINEAR_MEM_LANE_LOAD_ACTIVE, COL_LINEAR_MEM_LANE_STORE_ACTIVE,
     COL_LINEAR_MEM_USE_LANE0, COL_LOCAL_WRITE_ENABLED, COL_LOCAL_ZERO_ACTIVE_BEFORE, COL_OUTPUT_CAPTURED,
-    COL_PC_ROM_ACTIVE, COL_PROGRAM_CALL_INDIRECT_IMMEDIATES_ACTIVE, COL_PROGRAM_GLOBAL_INDEX_ACTIVE,
-    COL_PROGRAM_LOCAL_INDEX_ACTIVE, COL_PROGRAM_TABLE_ID_ACTIVE, COL_STACK_READ_ACTIVE, COL_STACK_WRITE0_ACTIVE,
-    COL_STACK_WRITE0_HI_ACTIVE, COL_TABLE_READ_ENABLED, COL_TABLE_SET_LIVE, COL_TABLE_SIZE_READ_ENABLED,
-    COL_TURN_BOUNDARY, SELECTOR_COLS,
+    COL_PC_ROM_ACTIVE, COL_PROGRAM_GLOBAL_INDEX_ACTIVE, COL_PROGRAM_LOCAL_INDEX_ACTIVE, COL_PROGRAM_TABLE_ID_ACTIVE,
+    COL_STACK_READ_ACTIVE, COL_STACK_WRITE0_ACTIVE, COL_STACK_WRITE0_HI_ACTIVE, COL_TABLE_READ_ENABLED,
+    COL_TABLE_SET_LIVE, COL_TABLE_SIZE_READ_ENABLED, COL_TURN_BOUNDARY, SELECTOR_COLS,
 };
 
 /// Auxiliary row-kind columns that are pairwise disjoint with each other and
@@ -69,7 +68,7 @@ pub(crate) fn activation_supports() -> BTreeMap<usize, BTreeSet<usize>> {
         [selector_col(WasmOpcode::TableSet).unwrap()],
     );
 
-    let immediate_gates: [(&str, usize, fn(WasmOpcode) -> bool); 5] = [
+    let immediate_gates: [(&str, usize, fn(WasmOpcode) -> bool); 4] = [
         (
             "program local-index immediates",
             COL_PROGRAM_LOCAL_INDEX_ACTIVE,
@@ -84,11 +83,6 @@ pub(crate) fn activation_supports() -> BTreeMap<usize, BTreeSet<usize>> {
             "program table-id immediates",
             COL_PROGRAM_TABLE_ID_ACTIVE,
             WasmOpcode::uses_table_id_immediate,
-        ),
-        (
-            "program call-indirect immediates",
-            COL_PROGRAM_CALL_INDIRECT_IMMEDIATES_ACTIVE,
-            WasmOpcode::uses_call_indirect_immediates,
         ),
         (
             "program linear-memory offsets",
@@ -327,6 +321,20 @@ pub(crate) fn activation_supports() -> BTreeMap<usize, BTreeSet<usize>> {
             .collect();
         supports.insert(separate, atoms);
     }
+    let low_only = opcode_selectors(
+        WasmOpcode::supported()
+            .into_iter()
+            .filter(|op| op.omits_stack_read0_hi()),
+    )
+    .into_iter()
+    .collect();
+    supports.insert(
+        crate::layout::COL_STACK_READ0_HI_ACTIVE,
+        supports[&crate::layout::COL_STACK_SEPARATE[0]]
+            .difference(&low_only)
+            .copied()
+            .collect(),
+    );
     supports
 }
 
@@ -403,6 +411,7 @@ pub(crate) fn gate_exclusions() -> Vec<(usize, usize)> {
     use crate::layout::*;
     let mut pairs = vec![
         (COL_PC_ROM_ACTIVE, COL_HOST_EVENT_EXIT_LATCH),
+        (COL_PC_ROM_ACTIVE, COL_CALL_STACK_POP_PRESENT),
         (COL_CALL_STACK_POP_PRESENT, COL_HOST_EVENT_EXIT_LATCH),
         (COL_CALL_STACK_PUSH_PRESENT, COL_HOST_CALL_ACTIVE),
         (COL_CALL_STACK_PUSH_PRESENT, COL_CI_HOST_CALL),
@@ -420,11 +429,15 @@ pub(crate) fn gate_exclusions() -> Vec<(usize, usize)> {
         (COL_GATHER_LOCAL_WRITE_LO, gather_memory_local_base_col()),
         (gather_memory_read_kind_col(), gather_memory_write_kind_col()),
     ];
-    for (separate, original) in COL_STACK_SEPARATE.into_iter().zip([
-        COL_STACK_READ_ACTIVE[0],
-        COL_STACK_WRITE0_ACTIVE,
-        COL_STACK_WRITE0_HI_ACTIVE,
-    ]) {
+    for (separate, original) in COL_STACK_SEPARATE
+        .into_iter()
+        .zip([
+            COL_STACK_READ_ACTIVE[0],
+            COL_STACK_WRITE0_ACTIVE,
+            COL_STACK_WRITE0_HI_ACTIVE,
+        ])
+        .chain([(COL_STACK_READ0_HI_ACTIVE, COL_STACK_SEPARATE[0])])
+    {
         let extra: Vec<_> = pairs
             .iter()
             .filter_map(|&(a, b)| {

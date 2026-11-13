@@ -328,8 +328,6 @@ impl WasmOpcode {
                 | Self::Br
                 | Self::BrIf
                 | Self::BrTable
-                | Self::Call
-                | Self::ReturnCall
                 | Self::CallIndirectResolve
         )
     }
@@ -339,6 +337,8 @@ impl WasmOpcode {
             && !matches!(
                 self,
                 Self::Return
+                    | Self::Call
+                    | Self::ReturnCall
                     | Self::Unreachable
                     | Self::CallIndirect
                     | Self::ReturnCallIndirect
@@ -603,6 +603,15 @@ impl WasmOpcode {
         (1..=3).contains(&info.stack_reads) && info.stack_writes == 1
     }
 
+    /// Rocq `StackPorts.full_stack_read0_hi_bound`: stores use a wasm32 address; indirect invocations
+    /// use the resolved u32 function reference. Neither consumes the high limb.
+    pub(crate) fn omits_stack_read0_hi(self) -> bool {
+        matches!(self, Self::CallIndirect | Self::ReturnCallIndirect)
+            || self
+                .memory_access_info()
+                .is_some_and(|access| access.kind == WasmMemoryAccessKind::Store)
+    }
+
     /// True when the instruction consumes the PC-indexed local immediate.
     pub fn uses_local_index_immediate(self) -> bool {
         matches!(self, Self::LocalGet | Self::LocalSet | Self::LocalTee)
@@ -619,11 +628,6 @@ impl WasmOpcode {
             self,
             Self::TableSize | Self::TableGet | Self::TableSet | Self::CallIndirectResolve
         )
-    }
-
-    /// True when the instruction consumes the call-indirect type immediates.
-    pub fn uses_call_indirect_immediates(self) -> bool {
-        matches!(self, Self::CallIndirectResolve)
     }
 
     /// True for opcodes whose row carries a meaningful `wide_values_enabled`

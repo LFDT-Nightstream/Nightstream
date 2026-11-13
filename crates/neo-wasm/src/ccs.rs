@@ -35,14 +35,13 @@ use crate::layout::{
     COL_ACTIVATION_FINISHED_AFTER, COL_ACTIVATION_FINISHED_BEFORE, COL_CALL_INDIRECT_IS_TRAP,
     COL_CALL_STACK_POP_PRESENT, COL_CMP_AND, COL_DIV_TRAP, COL_FRAME_MOVE_ACTIVE_BEFORE, COL_GATHER_ACTIVE,
     COL_GLOBAL_VALUE_HI, COL_IS_PROGRAM_ROW, COL_LOCAL_VALUE_HI, COL_MEM_OOB, COL_OPCODE_CODE, COL_OUTPUT_CAPTURED,
-    COL_PC_EDGE_KIND_INV, COL_PC_EDGE_KIND_IS_STATIC, COL_PC_ROM_ACTIVE, COL_PROGRAM_CALL_INDIRECT_IMMEDIATES_ACTIVE,
-    COL_PROGRAM_GLOBAL_INDEX_ACTIVE, COL_PROGRAM_LOCAL_INDEX_ACTIVE, COL_PROGRAM_TABLE_ID_ACTIVE,
-    COL_SELECT_COND_IS_ZERO, COL_SELECT_SCRATCH_INV, COL_SEL_SELECT, COL_SP_AFTER, COL_SP_BEFORE, COL_STACK_READS,
-    COL_STACK_READ_ACTIVE, COL_STACK_READ_ADDR_HI, COL_STACK_READ_ADDR_LO, COL_STACK_READ_VALUE_HI,
-    COL_STACK_READ_VALUE_LO, COL_STACK_WRITE0_ACTIVE, COL_STACK_WRITE0_ADDR_HI, COL_STACK_WRITE0_ADDR_LO,
-    COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO, COL_STACK_WRITES, COL_TABLE_OOB, COL_WIDE_VALUES_ENABLED,
-    COL_ZERO_TEST_HI_INPUT, COL_ZERO_TEST_HI_INV, COL_ZERO_TEST_HI_IS_ZERO, COL_ZERO_TEST_LO_INPUT,
-    COL_ZERO_TEST_LO_INV, COL_ZERO_TEST_LO_IS_ZERO,
+    COL_PC_EDGE_KIND_INV, COL_PC_EDGE_KIND_IS_STATIC, COL_PC_ROM_ACTIVE, COL_PROGRAM_GLOBAL_INDEX_ACTIVE,
+    COL_PROGRAM_LOCAL_INDEX_ACTIVE, COL_PROGRAM_TABLE_ID_ACTIVE, COL_SELECT_COND_IS_ZERO, COL_SELECT_SCRATCH_INV,
+    COL_SEL_SELECT, COL_SP_AFTER, COL_SP_BEFORE, COL_STACK_READS, COL_STACK_READ_ACTIVE, COL_STACK_READ_ADDR_HI,
+    COL_STACK_READ_ADDR_LO, COL_STACK_READ_VALUE_HI, COL_STACK_READ_VALUE_LO, COL_STACK_WRITE0_ACTIVE,
+    COL_STACK_WRITE0_ADDR_HI, COL_STACK_WRITE0_ADDR_LO, COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO,
+    COL_STACK_WRITES, COL_TABLE_OOB, COL_WIDE_VALUES_ENABLED, COL_ZERO_TEST_HI_INPUT, COL_ZERO_TEST_HI_INV,
+    COL_ZERO_TEST_HI_IS_ZERO, COL_ZERO_TEST_LO_INPUT, COL_ZERO_TEST_LO_INV, COL_ZERO_TEST_LO_IS_ZERO,
 };
 use neo_application::{ApplicationRelation, ConditionalSelect, ZeroTest};
 use neo_math::F;
@@ -293,15 +292,22 @@ pub fn build_wasm_relation() -> Result<ApplicationRelation<WasmConstraintScope>,
         );
     });
 
+    b.with_tag(always("table descriptor packing"), |b| {
+        b.push_linear_zero([
+            (crate::layout::COL_TABLE_DESCRIPTOR, F::ONE),
+            (crate::layout::COL_TABLE_ID, -F::ONE),
+            (
+                crate::layout::COL_EXPECTED_TYPE_ID,
+                -F::from_u32(crate::table_descriptor::TABLE_TYPE_FACTOR),
+            ),
+        ]);
+    });
+
     b.with_tag(always("program immediate gates"), |b| {
-        let gates: [(usize, fn(WasmOpcode) -> bool); 4] = [
+        let gates: [(usize, fn(WasmOpcode) -> bool); 3] = [
             (COL_PROGRAM_LOCAL_INDEX_ACTIVE, WasmOpcode::uses_local_index_immediate),
             (COL_PROGRAM_GLOBAL_INDEX_ACTIVE, WasmOpcode::uses_global_index_immediate),
             (COL_PROGRAM_TABLE_ID_ACTIVE, WasmOpcode::uses_table_id_immediate),
-            (
-                COL_PROGRAM_CALL_INDIRECT_IMMEDIATES_ACTIVE,
-                WasmOpcode::uses_call_indirect_immediates,
-            ),
         ];
         for (gate, uses_immediate) in gates {
             b.push_linear_zero(
@@ -478,7 +484,11 @@ pub fn build_wasm_relation() -> Result<ApplicationRelation<WasmConstraintScope>,
     b.with_tag(always("pc rom active gate"), |b| {
         PC_EDGE_KIND_ZERO_TEST.push_constraints(b);
         b.push_row(
-            [(COL_IS_PROGRAM_ROW, F::ONE)],
+            [
+                (COL_IS_PROGRAM_ROW, F::ONE),
+                (selector_col(WasmOpcode::Call).unwrap(), -F::ONE),
+                (selector_col(WasmOpcode::ReturnCall).unwrap(), -F::ONE),
+            ],
             [(COL_PC_EDGE_KIND_IS_STATIC, F::ONE)],
             [(COL_PC_ROM_ACTIVE, F::ONE), (crate::layout::COL_PC_FALLTHROUGH, F::ONE)],
         );
@@ -708,6 +718,21 @@ pub fn build_wasm_relation() -> Result<ApplicationRelation<WasmConstraintScope>,
             b,
             rmw,
             [(COL_STACK_READ_ADDR_LO[0], F::ONE), (COL_STACK_WRITE0_ADDR_LO, -F::ONE)],
+        );
+    });
+    b.with_tag(always("stack read0 high gate"), |b| {
+        b.push_linear_zero(
+            [
+                (super::layout::COL_STACK_READ0_HI_ACTIVE, F::ONE),
+                (super::layout::COL_STACK_SEPARATE[0], -F::ONE),
+            ]
+            .into_iter()
+            .chain(
+                WasmOpcode::supported()
+                    .into_iter()
+                    .filter(|op| op.omits_stack_read0_hi())
+                    .map(|op| (selector_col(op).unwrap(), F::ONE)),
+            ),
         );
     });
     let columns = crate::witness_layout::range_checked_column_registry();

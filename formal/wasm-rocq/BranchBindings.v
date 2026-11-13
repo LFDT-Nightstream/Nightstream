@@ -251,7 +251,7 @@ Proof.
   pose proof (circuit_row_edge_kind_fetch _ _ _ Hprime Hfull Hreplay Hprogram) as HkindFetch.
   rewrite Hpc, Hkind in HkindFetch. injection HkindFetch as HkindValue.
   pose proof (full_fallthrough_flag w COL_SEL_IF CODE_IF Hprime Hfull ltac:(vm_compute; tauto) Hchosen) as Hfall.
-  pose proof (full_static_pc_rom_active w Hprime Hfull Hprogram ltac:(congruence) Hfall) as Hgate.
+  pose proof (full_static_pc_rom_active w COL_SEL_IF Hprime Hfull ltac:(vm_compute; tauto) ltac:(vm_compute; intuition discriminate) Hchosen Hprogram ltac:(congruence) Hfall) as Hgate.
   pose proof (circuit_row_next_pc_fetch _ _ _ Hprime Hfull Hreplay Hgate) as Hnext.
   rewrite Hpc, (full_if_choice w Hprime Hfull Hchosen) in Hnext.
   split; [exact Hchosen | ]. destruct (Z.eqb (w (nth 0%nat COL_STACK_READ_VALUE_LO 0%nat)) 0);
@@ -272,7 +272,7 @@ Proof.
   pose proof (circuit_row_edge_kind_fetch _ _ _ Hprime Hfull Hreplay Hprogram) as HkindFetch.
   rewrite Hpc, Hkind in HkindFetch. injection HkindFetch as HkindValue.
   pose proof (full_fallthrough_flag w COL_SEL_BR_IF_EQZ CODE_BR_IF Hprime Hfull ltac:(vm_compute; tauto) Hchosen) as Hfall.
-  pose proof (full_static_pc_rom_active w Hprime Hfull Hprogram ltac:(congruence) Hfall) as Hgate.
+  pose proof (full_static_pc_rom_active w COL_SEL_BR_IF_EQZ Hprime Hfull ltac:(vm_compute; tauto) ltac:(vm_compute; intuition discriminate) Hchosen Hprogram ltac:(congruence) Hfall) as Hgate.
   pose proof (circuit_row_next_pc_fetch _ _ _ Hprime Hfull Hreplay Hgate) as Hnext.
   rewrite Hpc, (full_br_if_choice w Hprime Hfull Hchosen) in Hnext.
   split; [exact Hchosen | ]. destruct (Z.eqb (w (nth 0%nat COL_STACK_READ_VALUE_LO 0%nat)) 0);

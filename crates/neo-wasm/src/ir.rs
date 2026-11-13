@@ -298,7 +298,9 @@ pub struct WasmStepState {
 
 /// Suspended import caller state, authenticated through context RAM.
 /// The export and import references each fit 16 bits and share one 32-bit
-/// RAM word (Rocq `ProgramBinding.full_host_context_refs`).
+/// RAM word (Rocq `ProgramBinding.full_host_context_refs`). The argument base
+/// and parent host depth also fit 16 bits and share a word
+/// (`ProgramBinding.full_host_context_args_depth`).
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct WasmHostContext {
     pub continuation_pc: u64,

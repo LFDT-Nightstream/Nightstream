@@ -25,7 +25,8 @@ Example source_program_layout :
   functionEntry sourceProgram 0 = 0 /\ functionEntry sourceProgram 1 = 2 /\
   opcodeAt (encodeProgram sourceProgram) [3] = Some CODE_CALL /\
   encodeProgram sourceProgram callTargetId [3] = Some 1 /\
-  encodeProgram sourceProgram pcRomId [3] = Some 0 /\
+  encodeProgram sourceProgram pcRomId [3] = None /\
+  encodeProgram sourceProgram functionEntryId [1] = Some 0 /\
   encodeProgram sourceProgram programLocalIndexId [4] = Some 0 /\
   encodeProgram sourceProgram functionLocalCountId [2] = Some 1 /\
   opcodeAt (encodeProgram sourceProgram) [5] = Some CODE_END /\
@@ -135,8 +136,7 @@ Example indirect_call_layout :
     [Some CODE_CALL_INDIRECT_RESOLVE; Some CODE_CALL_INDIRECT; Some CODE_NOP] /\
   map (fun pc => edgeKindAt (encodeProgram indirectProgram) [pc]) [3; 4] = [Some 0; Some 2] /\
   map (encodeProgram indirectProgram pcRomId) [[3]; [4]] = [Some 4; None] /\
-  encodeProgram indirectProgram programTableId [3] = Some 3 /\
-  encodeProgram indirectProgram expectedTypeId [3] = Some 1 /\
+  encodeProgram indirectProgram programTableDescriptorId [3] = Some 259 /\
   map (fun reference => encodeProgram indirectProgram functionTypeId [reference]) [1; 2] = [Some 1; Some 2].
 Proof. vm_compute. repeat split. Qed.
 

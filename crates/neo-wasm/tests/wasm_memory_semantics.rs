@@ -3,7 +3,7 @@ use neo_wasm::host_event_bindings::HostEventBindings;
 use neo_wasm::layout::{
     COL_CALL_STACK_RETURN_PC_VALUE, COL_CALL_TARGET_METADATA, COL_ENTERED_FUNCTION_NUM_LOCALS, COL_EXPECTED_TYPE_ID,
     COL_FUNCTION_TYPE_ID, COL_LINEAR_MEM_IMM_OFFSET, COL_LOCAL_INDEX, COL_PROGRAM_HEADER, COL_STACK_READ_VALUE_HI,
-    COL_STACK_WRITE0_VALUE_HI, COL_TABLE_INDEX, COL_TABLE_SIZE, COL_TABLE_VALUE,
+    COL_STACK_WRITE0_VALUE_HI, COL_TABLE_DESCRIPTOR, COL_TABLE_INDEX, COL_TABLE_SIZE, COL_TABLE_VALUE,
 };
 use neo_wasm::{
     build_wasm_relation_layout, collect_wasmtime_steps, extract_wasm_program_artifacts, preload_from_program_artifacts,
@@ -102,7 +102,7 @@ fn memory_semantics_rejects_tampered_i64_stack_high_limb() {
 }
 
 #[test]
-fn memory_semantics_reject_missing_pc_rom_edge() {
+fn memory_semantics_rejects_missing_direct_call_entry() {
     let (trace, witnesses, mut preload) = witness_run(
         r#"(module
             (func $add_one (param i32) (result i32)
@@ -118,13 +118,10 @@ fn memory_semantics_reject_missing_pc_rom_edge() {
         .iter()
         .find(|row| matches!(row.opcode, WasmOpcode::Call))
         .expect("call row");
-    preload.remove(
-        WasmMemoryId::PcRom,
-        &[call_row.state_before.pc as u32 + call_row.control_choice],
-    );
+    preload.remove(WasmMemoryId::FunctionEntry, &[call_row.function_ref.unwrap()]);
     let layout = build_wasm_relation_layout();
-    let err = sanity_check_memory_rows(layout, &witnesses, &preload).expect_err("missing edge must fail");
-    assert!(err.contains("memory `pc_rom` ROM read before initialization"));
+    let err = sanity_check_memory_rows(layout, &witnesses, &preload).expect_err("missing entry must fail");
+    assert!(err.contains("memory `function_entry` ROM read before initialization"));
 }
 
 #[test]
@@ -225,11 +222,12 @@ fn memory_semantics_rejects_wrong_program_call_indirect_expected_type() {
         .position(|row| row.opcode == WasmOpcode::CallIndirectResolve)
         .expect("call_indirect resolve row");
     witnesses[row_index][COL_EXPECTED_TYPE_ID] += F::ONE;
+    witnesses[row_index][COL_TABLE_DESCRIPTOR] += F::from_u32(256);
 
     let layout = build_wasm_relation_layout();
     let err = sanity_check_memory_rows(layout, &witnesses, &preload)
         .expect_err("wrong call_indirect expected type must fail");
-    assert!(err.contains("memory `program_immediate_hi` ROM mismatch"));
+    assert!(err.contains("memory `program_immediate` ROM mismatch"));
 }
 
 #[test]

@@ -18,10 +18,10 @@ Ltac gate_bound column name :=
     assert (name : 0 <= w column <= 1) by lia; clear Hbit
   end.
 
-Lemma pc_exit_exclusive : forall (w : Witness), fieldPrime -> FullRelation.satFull w ->
-  w COL_PC_ROM_ACTIVE = 1 -> w COL_HOST_EVENT_EXIT_LATCH <> 1.
+Lemma pc_excludes_return : forall (w : Witness), fieldPrime -> FullRelation.satFull w ->
+  w COL_PC_ROM_ACTIVE = 1 -> w COL_HOST_EVENT_EXIT_LATCH = 0 /\ w COL_CALL_STACK_POP_PRESENT = 0.
 Proof.
-  intros w Hprime Hfull Ha Hb.
+  intros w Hprime Hfull Ha.
   pose proof (proj1 Hfull) as Hone.
   circuit_range COL_PC_EDGE_KIND B11.
   gate_bound COL_ACTIVATION_FINISHED_AFTER B18.
@@ -31,6 +31,8 @@ Proof.
   gate_bound COL_PC_EDGE_KIND_IS_STATIC B23.
   gate_bound COL_CALL_STACK_POP_PRESENT B43.
   gate_bound COL_SEL_UNREACHABLE B91.
+  gate_bound COL_SEL_CALL Bcall.
+  gate_bound COL_SEL_RETURN_CALL Btail.
   gate_bound COL_SEL_CALL_INDIRECT B128.
   gate_bound COL_SEL_RETURN_CALL_INDIRECT B323.
   gate_bound COL_TRAPPED_BEFORE B325.
@@ -62,13 +64,21 @@ Proof.
   assert (equation_21 : ((1 * w COL_PC_EDGE_KIND)) * ((1 * w COL_PC_EDGE_KIND_IS_STATIC)) - (0) = 0).
   { normalize_columns. clear - modular_21 Hone B11 B23. apply Z.mod_divide in modular_21; [destruct modular_21 as [k Hk]; unfold modulus in *; nia | unfold modulus; lia]. }
   clear modular_21.
-  circuit_row ([(COL_IS_PROGRAM_ROW, 1)], [(COL_PC_EDGE_KIND_IS_STATIC, 1)], [(COL_PC_ROM_ACTIVE, 1); (COL_PC_FALLTHROUGH, 1)]) modular_22.
+  circuit_row ([(COL_IS_PROGRAM_ROW, 1); (COL_SEL_CALL, -1); (COL_SEL_RETURN_CALL, -1)], [(COL_PC_EDGE_KIND_IS_STATIC, 1)], [(COL_PC_ROM_ACTIVE, 1); (COL_PC_FALLTHROUGH, 1)]) modular_22.
   expand_row modular_22.
-  assert (equation_22 : ((1 * w COL_IS_PROGRAM_ROW)) * ((1 * w COL_PC_EDGE_KIND_IS_STATIC)) - ((1 * w COL_PC_ROM_ACTIVE) + (1 * w COL_PC_FALLTHROUGH)) = 0).
-  { normalize_columns. clear - modular_22 Hone B19 B20 B23 Bfall. apply Z.mod_divide in modular_22; [destruct modular_22 as [k Hk]; unfold modulus in *; nia | unfold modulus; lia]. }
+  assert (equation_22 : ((1 * w COL_IS_PROGRAM_ROW) - w COL_SEL_CALL - w COL_SEL_RETURN_CALL) * ((1 * w COL_PC_EDGE_KIND_IS_STATIC)) - ((1 * w COL_PC_ROM_ACTIVE) + (1 * w COL_PC_FALLTHROUGH)) = 0).
+  { normalize_columns. clear - modular_22 Hone B19 B20 B23 Bfall Bcall Btail. apply Z.mod_divide in modular_22; [destruct modular_22 as [k Hk]; unfold modulus in *; nia | unfold modulus; lia]. }
   clear modular_22.
-  normalize_columns. nia.
+  normalize_columns. split; nia.
 Qed.
+
+Lemma pc_exit_exclusive : forall (w : Witness), fieldPrime -> FullRelation.satFull w ->
+  w COL_PC_ROM_ACTIVE = 1 -> w COL_HOST_EVENT_EXIT_LATCH <> 1.
+Proof. intros w Hprime Hfull Hpc. destruct (pc_excludes_return w Hprime Hfull Hpc); lia. Qed.
+
+Lemma pc_pop_exclusive : forall (w : Witness), fieldPrime -> FullRelation.satFull w ->
+  w COL_PC_ROM_ACTIVE = 1 -> w COL_CALL_STACK_POP_PRESENT <> 1.
+Proof. intros w Hprime Hfull Hpc. destruct (pc_excludes_return w Hprime Hfull Hpc); lia. Qed.
 
 (* A clean activation exit is at the host boundary. A guest pop would
    put the next depth below that boundary, which the u32 decomposition forbids. *)
@@ -772,6 +782,7 @@ Proof.
   pose proof (separate_write_lo _ Hports) as Hwrite.
   pose proof (separate_write_hi _ Hports) as Hwritehi.
   pose proof (rmw_nonnegative _ Hports) as Hrmw.
+  pose proof (separate_read_hi_bound _ Hports) as Hreadhi.
   gate_bound (List.nth 0%nat COL_STACK_READ_ACTIVE 0%nat) Bread.
   gate_bound COL_STACK_WRITE0_ACTIVE Bwrite.
   gate_bound COL_STACK_WRITE0_HI_ACTIVE Bwritehi.
@@ -781,10 +792,13 @@ Proof.
     w COL_STACK_WRITE0_ACTIVE = 1) by (normalize_columns; lia).
   assert (WH : w (List.nth 2%nat COL_STACK_SEPARATE 0%nat) = 1 ->
     w COL_STACK_WRITE0_HI_ACTIVE = 1) by (normalize_columns; lia).
+  assert (RH : w COL_STACK_READ0_HI_ACTIVE = 1 ->
+    w (List.nth 0%nat COL_STACK_READ_ACTIVE 0%nat) = 1) by (normalize_columns; lia).
   cbn [gateExclusions] in Hin.
   repeat destruct Hin as [Hin | Hin]; try contradiction; inversion Hin; subst; intro Ha; normalize_columns;
-    first [apply R in Ha | apply W in Ha | apply WH in Ha | idtac];
+    first [apply R in Ha | apply W in Ha | apply WH in Ha | apply RH in Ha | idtac];
     first [eapply pc_exit_exclusive; eassumption
+         | eapply pc_pop_exclusive; eassumption
          | eapply pop_exit_exclusive; eassumption
          | eapply push_host_exclusive; eassumption
          | eapply push_indirect_host_exclusive; eassumption

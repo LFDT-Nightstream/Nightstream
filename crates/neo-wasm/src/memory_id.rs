@@ -5,8 +5,7 @@ pub enum WasmMemoryId {
     CallStackCallerSpBase,
     CallStackReturnPc,
     HostContextRefs,
-    HostContextArgsBase,
-    HostContextParentDepth,
+    HostContextArgsDepth,
     HostContextSp,
     CallTarget,
     FunctionCallMetadata,
@@ -25,7 +24,6 @@ pub enum WasmMemoryId {
     HostEventSlotDescriptor,
     LinearMemory,
     PcRom,
-    ProgramCallIndirectExpectedTypeId,
     ProgramGlobalIndex,
     ProgramI32ConstValue,
     ProgramI64ConstValueHi,
@@ -39,7 +37,7 @@ pub enum WasmMemoryId {
     ProgramHeader,
     ProgramBrTableLen,
     ProgramRefFuncRef,
-    ProgramTableId,
+    ProgramTableDescriptor,
     Stack,
     TableSize,
     TableElement,
@@ -54,14 +52,14 @@ impl WasmMemoryId {
         match self {
             Self::ProgramLocalIndex
             | Self::ProgramGlobalIndex
-            | Self::ProgramTableId
+            | Self::ProgramTableDescriptor
             | Self::ProgramMemoryOffset
             | Self::ProgramI32ConstValue
             | Self::ProgramI64ConstValueLo
             | Self::ProgramRefFuncRef
             | Self::ProgramBrTableLen
             | Self::CallTarget => Self::ProgramImmediate,
-            Self::ProgramCallIndirectExpectedTypeId | Self::ProgramI64ConstValueHi => Self::ProgramImmediateHi,
+            Self::ProgramI64ConstValueHi => Self::ProgramImmediateHi,
             memory => memory,
         }
     }
@@ -72,8 +70,7 @@ impl WasmMemoryId {
             Self::CallStackCallerSpBase => "call_stack_caller_sp_base",
             Self::CallStackReturnPc => "call_stack_return_pc",
             Self::HostContextRefs => "host_context_refs",
-            Self::HostContextArgsBase => "host_context_argsbase",
-            Self::HostContextParentDepth => "host_context_parentdepth",
+            Self::HostContextArgsDepth => "host_context_args_depth",
             Self::HostContextSp => "host_context_sp",
             Self::CallTarget => "call_target",
             Self::FunctionCallMetadata => "function_call_metadata",
@@ -92,7 +89,6 @@ impl WasmMemoryId {
             Self::HostEventSlotDescriptor => "host_event_slot_descriptor",
             Self::LinearMemory => "linear_memory",
             Self::PcRom => "pc_rom",
-            Self::ProgramCallIndirectExpectedTypeId => "program_call_indirect_expected_type_id",
             Self::ProgramGlobalIndex => "program_global_index",
             Self::ProgramI32ConstValue => "program_i32_const_value",
             Self::ProgramI64ConstValueHi => "program_i64_const_value_hi",
@@ -104,7 +100,7 @@ impl WasmMemoryId {
             Self::ProgramHeader => "program_header",
             Self::ProgramBrTableLen => "program_br_table_len",
             Self::ProgramRefFuncRef => "program_ref_func_ref",
-            Self::ProgramTableId => "program_table_id",
+            Self::ProgramTableDescriptor => "program_table_descriptor",
             Self::Stack => "stack",
             Self::TableSize => "table_size",
             Self::TableElement => "table_element",

@@ -723,7 +723,7 @@ Proof.
   pose proof (circuit_row_edge_kind_fetch _ _ _ Hprime Hfull Hreplay Hprogram) as HkindFetch.
   rewrite Hkind in HkindFetch. injection HkindFetch as HkindValue.
   pose proof (full_fallthrough_flag row COL_SEL_BR_TABLE CODE_BR_TABLE Hprime Hfull ltac:(vm_compute; tauto) Hchosen) as Hfall.
-  pose proof (full_static_pc_rom_active row Hprime Hfull Hprogram ltac:(congruence) Hfall) as Hgate.
+  pose proof (full_static_pc_rom_active row COL_SEL_BR_TABLE Hprime Hfull ltac:(vm_compute; tauto) ltac:(vm_compute; intuition discriminate) Hchosen Hprogram ltac:(congruence) Hfall) as Hgate.
   pose proof (circuit_row_next_pc_fetch _ _ _ Hprime Hfull Hreplay Hgate) as Hnext.
   destruct (full_selected_no_host_switch row COL_SEL_BR_TABLE Hprime Hfull ltac:(vm_compute; tauto) Hchosen)
     as [Hsuspend [_ [_ [_ HcontextRead]]]].

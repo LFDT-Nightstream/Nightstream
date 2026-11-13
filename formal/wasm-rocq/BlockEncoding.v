@@ -1,7 +1,7 @@
 (* The flattened program ROM at a code path: structured instructions' heads, the
    last slot of each arm, and the instructions and branches of any body, at any
    depth of nesting. *)
-Require Import InstructionHeader.
+Require Import InstructionHeader TableDescriptor.
 From Stdlib Require Import List ZArith Lia.
 Require Import Wasm2 R1CS MemoryTrace MemoryCatalog OpcodeCatalog StraightLineSpec CallSpec CallerSpec
   CodeLayout ProgramSpec ProgramEncoding BlockSpec BranchBindings StraightLineInstructions StackSimulation Fragment.
@@ -78,7 +78,7 @@ Ltac pc_cell Hpc :=
   first [reflexivity | program_cell Hloaded; try unfold encodeProgram;
     cbn [Nat.eqb pcRomId functionEntryId functionTypeId functionLocalCountId functionCallMetadataId
       frameSlideRemainingId frameSlideDistanceId programHeaderId programLocalIndexId programBrTableLenId
-      callTargetId programTableId expectedTypeId orb];
+      callTargetId programTableDescriptorId orb];
     unfold instructionRom, instructionOpcode, instructionEdgeKind; rewrite Hpc;
     cbn [slotOpcode slotEdgeKind Nat.eqb pcRomId programHeaderId programLocalIndexId programBrTableLenId callTargetId]].
 
@@ -338,16 +338,15 @@ Qed.
 Lemma encoded_path_resolve : forall labels inner offset x y,
   pathCode (guestBody f) labels = Some inner -> nth_error inner offset = Some (CALL_INDIRECT x y) ->
   controlImage memory (pathPC labels offset) CODE_CALL_INDIRECT_RESOLVE (pathPC labels offset + 1) /\
-  memory programTableId [pathPC labels offset] =
-    Some (romValue (option_map Z.of_N (nth_error (TABLES (guestModule f)) (N.to_nat (x :> N))))) /\
-  memory expectedTypeId [pathPC labels offset] =
-    Some (romValue (option_map (typeId (guestModule f)) (nth_error (TYPES (guestModule f)) (N.to_nat (y :> N))))).
+  memory programTableDescriptorId [pathPC labels offset] =
+    Some (tableDescriptor
+      (romValue (option_map Z.of_N (nth_error (TABLES (guestModule f)) (N.to_nat (x :> N)))))
+      (romValue (option_map (typeId (guestModule f)) (nth_error (TYPES (guestModule f)) (N.to_nat (y :> N)))))).
 Proof.
   intros labels inner offset x y Hpath Hi.
   pose proof (encoded_path_head _ _ _ _ Hpath Hi) as Hpc. cbn [slotTargets] in Hpc.
-  split; [ | split].
+  split.
   - unfold controlImage; repeat split; pc_cell Hpc; reflexivity.
-  - pc_cell Hpc. reflexivity.
   - pc_cell Hpc. reflexivity.
 Qed.
 

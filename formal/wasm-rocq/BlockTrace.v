@@ -10,7 +10,7 @@ Lemma control_row : forall initial final row pc opcode chosen next,
   fieldPrime -> FullRelation.satFull row -> row COL_IS_PROGRAM_ROW = 1 ->
   Replay initial (eventsForRow memories row) final -> row COL_PC_BEFORE = pc ->
   filter (fun entry => Z.eqb (snd entry) opcode) selectorCodes = [(chosen, opcode)] ->
-  ~ In chosen [COL_SEL_BR_IF_EQZ; COL_SEL_IF; COL_SEL_BR_TABLE] ->
+  ~ In chosen [COL_SEL_BR_IF_EQZ; COL_SEL_IF; COL_SEL_BR_TABLE; COL_SEL_CALL; COL_SEL_RETURN_CALL] ->
   controlImage initial pc opcode next -> row chosen = 1 /\ row COL_PC_AFTER = next.
 Proof.
   intros initial final row pc opcode chosen next Hprime Hfull Hprogram Hreplay Hpc Hunique Hstatic [Hop [Hkind Hnext]].
@@ -28,9 +28,9 @@ Proof.
   split; [exact Hchosen | ].
   destruct (existsb (Z.eqb opcode) fallthroughCodes) eqn:Hmode in Hfall, Hnext.
   - pose proof (full_fallthrough_pc row Hprime Hfull Hfall). lia.
-  - pose proof (full_static_pc_rom_active row Hprime Hfull Hprogram ltac:(congruence) Hfall) as Hactive.
+  - pose proof (full_static_pc_rom_active row chosen Hprime Hfull Hin ltac:(cbn in Hstatic; cbn; tauto) Hchosen Hprogram ltac:(congruence) Hfall) as Hactive.
     pose proof (circuit_row_next_pc_fetch _ _ _ Hprime Hfull Hreplay Hactive) as Htarget.
-    rewrite (full_selected_choice_pinned row chosen Hprime Hfull Hin Hchosen Hstatic), Z.add_0_r, Hpc, Hnext in Htarget. congruence.
+    rewrite (full_selected_choice_pinned row chosen Hprime Hfull Hin Hchosen ltac:(cbn in Hstatic; cbn; tauto)), Z.add_0_r, Hpc, Hnext in Htarget. congruence.
 Qed.
 
 Lemma control_row_static_edge : forall initial final (row : Witness) pc opcode next,

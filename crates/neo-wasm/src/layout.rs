@@ -169,7 +169,6 @@ define_column_region! {
         COL_PROGRAM_LOCAL_INDEX_ACTIVE: Boolean => "PC-indexed local immediate ROM gate",
         COL_PROGRAM_GLOBAL_INDEX_ACTIVE: Boolean => "PC-indexed global immediate ROM gate",
         COL_PROGRAM_TABLE_ID_ACTIVE: Boolean => "PC-indexed table-id immediate ROM gate",
-        COL_PROGRAM_CALL_INDIRECT_IMMEDIATES_ACTIVE: Boolean => "PC-indexed call-indirect immediate ROM gate",
         COL_TABLE_READ_ENABLED: Boolean => "table memory read gate for table.get and indirect calls",
         COL_LOCALS_FBP_BEFORE: U32 => "current frame's base cell before this row",
         COL_LOCALS_FBP_AFTER: U32 => "current frame's base cell after this row",
@@ -181,7 +180,7 @@ define_column_region! {
         COL_GLOBAL_INDEX: U32 => "globals memory index",
         COL_GLOBAL_VALUE: U32 => "globals memory value",
         COL_GLOBAL_VALUE_HI: U32 => "globals memory high limb for future i64 support",
-        COL_TABLE_ID: U32 => "table state namespace selector",
+        COL_TABLE_ID: (Bits(crate::table_descriptor::TABLE_ID_BITS)) => "table state namespace selector",
         COL_TABLE_INDEX: U32 => "table element index",
         COL_TABLE_VALUE: U32 => "normalized table element value observed by this step",
         COL_TABLE_SIZE: U32 => "size of the referenced table observed by this step",
@@ -192,7 +191,8 @@ define_column_region! {
         COL_CALL_TARGET_METADATA: Field =>
             "packed call-target arity and guest flag; range follows from unpacking",
         COL_FUNCTION_TYPE_ID: U32 => "normalized deduplicated type id for the observed function reference",
-        COL_EXPECTED_TYPE_ID: U32 => "normalized deduplicated type id expected by the current opcode",
+        COL_EXPECTED_TYPE_ID: (Bits(crate::table_descriptor::EXPECTED_TYPE_ID_BITS)) => "normalized deduplicated type id expected by the current opcode",
+        COL_TABLE_DESCRIPTOR: Field => "table id + 256 * expected type id",
         COL_MEMORY_PAGES_BEFORE: U32 => "linear memory page count before this step",
         COL_MEMORY_PAGES_AFTER: U32 => "linear memory page count after this step",
         COL_MAX_MEMORY_PAGES_BEFORE: U32 =>
@@ -411,6 +411,7 @@ define_column_region! {
         COL_BR_TABLE_IN_BOUNDS: Boolean => "br_table row with an index below its arm count",
         COL_STACK_SEPARATE: [Boolean; 3] => "read0, write0 low and write0 high outside in-place replacement",
         COL_STACK_RMW: Boolean => "fixed-arity in-place stack replacement",
+        COL_STACK_READ0_HI_ACTIVE: Boolean => "separate read0 high limb, excluding wasm32 store addresses",
     ]
 }
 

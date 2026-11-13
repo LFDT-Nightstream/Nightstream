@@ -227,7 +227,6 @@ struct ParsedWasmArtifactsBuilder {
     frame_slides: Vec<(u64, u64, u32, u32)>,
     program_decode: Vec<WasmProgramDecodeEntry>,
     pc_edge_kinds: Vec<(u64, u64)>,
-    unresolved_call_edges: Vec<(u64, u32)>,
     /// Invocation pcs of indirect calls; only their own resolve step may reach them.
     indirect_invocations: Vec<u64>,
     function_entries: Vec<(u64, u64)>,
@@ -261,7 +260,6 @@ impl Default for ParsedWasmArtifactsBuilder {
             frame_slides: Vec::new(),
             program_decode: Vec::new(),
             pc_edge_kinds: Vec::new(),
-            unresolved_call_edges: Vec::new(),
             indirect_invocations: Vec::new(),
             function_entries: Vec::new(),
             call_targets: Vec::new(),
@@ -313,18 +311,9 @@ impl ParsedWasmArtifactsBuilder {
     }
 
     fn finish(mut self) -> Result<WasmProgramArtifacts, WasmProgramError> {
-        let unresolved_call_edges = std::mem::take(&mut self.unresolved_call_edges);
-        for (pc_before, function_ref) in unresolved_call_edges {
-            let entry_pc = self
-                .function_metas
-                .get(&function_ref)
-                .and_then(|meta| meta.entry_pc)
-                .ok_or_else(|| {
-                    WasmProgramError::Invalid(format!(
-                        "missing entry pc for direct call target function ref {function_ref}"
-                    ))
-                })?;
-            self.push_pc_rom_edge(pc_before, 0, entry_pc);
+        for entry in &self.program_decode {
+            crate::table_descriptor::pack_table_descriptor(entry.table_id, entry.call_indirect_expected_type_id)
+                .map_err(WasmProgramError::Unsupported)?;
         }
         self.pc_rom.sort_unstable();
         self.pc_rom.dedup();
@@ -959,18 +948,6 @@ impl ParsedWasmArtifactsBuilder {
                         | wasmparser::Operator::ReturnCall { function_index } => {
                             let function_ref = function_index.saturating_add(1);
                             self.call_targets.push((pc_before, u64::from(function_ref)));
-                            if function_ref <= self.imported_function_count {
-                                self.push_pc_rom_edge(pc_before, 0, pc_after);
-                            } else {
-                                match self
-                                    .function_metas
-                                    .get(&function_ref)
-                                    .and_then(|meta| meta.entry_pc)
-                                {
-                                    Some(entry_pc) => self.push_pc_rom_edge(pc_before, 0, entry_pc),
-                                    None => self.unresolved_call_edges.push((pc_before, function_ref)),
-                                }
-                            }
                         }
                         _ => {}
                     }
@@ -1016,6 +993,8 @@ impl ParsedWasmArtifactsBuilder {
                         ));
                     }
                     let table_id = self.table_sizes_init.len() as u32;
+                    crate::table_descriptor::pack_table_descriptor(table_id, 0)
+                        .map_err(WasmProgramError::Unsupported)?;
                     let initial = Self::narrow_u32(table.ty.initial, "table.initial")?;
                     self.table_sizes_init.push((table_id, initial));
                 }

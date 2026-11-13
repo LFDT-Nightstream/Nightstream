@@ -2,7 +2,7 @@
    top with the checked function reference, or traps; the invocation row pops that
    reference and enters a guest callee. *)
 From Stdlib Require Import List ZArith Lia.
-Require Import StackPorts R1CS Columns FullRelation Range Selectors CircuitFacts MemoryTrace MemoryCatalog
+Require Import TableDescriptor StackPorts R1CS Columns FullRelation Range Selectors CircuitFacts MemoryTrace MemoryCatalog
   LocalBindings CallInitialization CallBindings CallMemory CallContext StackBindings TrapFacts.
 Import ListNotations.
 Open Scope Z_scope.
@@ -197,6 +197,10 @@ Lemma replace_stack_event_prefix : forall w,
 Proof.
   intros w Hshape.
   destruct Hshape as [Hr0 Hr1 Hr2 Hw Hwh Hcap Ha0 Haw Hawh Hsp Hbase Hget Hset Hgmem Hglo Hg Hports Hrmw].
+  assert (HreadHiGate : w COL_STACK_READ0_HI_ACTIVE = 0).
+  { pose proof (separate_read_hi_bound _ Hports).
+    pose proof (separate_read _ Hports).
+    pose proof (value_bound w COL_STACK_READ0_HI_ACTIVE). normalize_columns. lia. }
   change (flat_map (fun p => match portEvent MemoryCatalog.stackId w p with
       Some event => [event] | None => [] end)
     (ports (hd (mkMemory 0%nat Ram []) MemoryCatalog.memories)) ++
@@ -205,7 +209,7 @@ Proof.
   cbn [hd MemoryCatalog.memories ports flat_map portEvent active activation
     addressColumns valueColumn portKind map option_map].
   unfold portEvent, active. cbn [activation addressColumns valueColumn portKind map option_map].
-  normalize_columns. rewrite_stack_ports Hports.
+  normalize_columns. rewrite HreadHiGate. rewrite_stack_ports Hports.
   rewrite Hr0, Hr1, Hr2, Hw, Hwh, Hcap, Hget, Hset, Hgmem, Hglo, Hg, Hrmw. reflexivity.
 Qed.
 
@@ -239,7 +243,7 @@ Qed.
    one. It traps unless all three pass, and otherwise writes the reference. *)
 Lemma full_resolve_checks : forall (w : Witness),
   fieldPrime -> FullRelation.satFull w -> w COL_SEL_CALL_INDIRECT_RESOLVE = 1 ->
-  w COL_PROGRAM_TABLE_ID_ACTIVE = 1 /\ w COL_PROGRAM_CALL_INDIRECT_IMMEDIATES_ACTIVE = 1 /\
+  w COL_PROGRAM_TABLE_ID_ACTIVE = 1 /\
   w COL_TABLE_SIZE_READ_ENABLED = 1 /\
   w COL_TABLE_INDEX = w (List.nth 0%nat COL_STACK_READ_VALUE_LO 0%nat) /\
   w COL_CI_OOB = (if w COL_TABLE_INDEX <? w COL_TABLE_SIZE then 0 else 1) /\
@@ -268,10 +272,8 @@ Proof.
   pose proof (value_bound w COL_CI_OOB). pose proof (value_bound w COL_FUNCTION_CALL_TYPE_LOOKUP_GATE).
   pose proof (value_bound w COL_TABLE_READ_ENABLED). pose proof (value_bound w COL_TABLE_SIZE_READ_ENABLED).
   pose proof (value_bound w COL_PROGRAM_TABLE_ID_ACTIVE).
-  pose proof (value_bound w COL_PROGRAM_CALL_INDIRECT_IMMEDIATES_ACTIVE).
   pose proof (value_bound w COL_CALL_INDIRECT_IS_NOT_TRAP).
   circuit_row ([(COL_PROGRAM_TABLE_ID_ACTIVE, 1); (COL_SEL_TABLE_SIZE, -1); (COL_SEL_TABLE_GET, -1); (COL_SEL_TABLE_SET, -1); (COL_SEL_CALL_INDIRECT_RESOLVE, -1)], [(COL_ONE, 1)], ([] : SparseRow)) Hid. expand_row Hid.
-  circuit_row ([(COL_PROGRAM_CALL_INDIRECT_IMMEDIATES_ACTIVE, 1); (COL_SEL_CALL_INDIRECT_RESOLVE, -1)], [(COL_ONE, 1)], ([] : SparseRow)) Himm. expand_row Himm.
   circuit_row ([(COL_TABLE_SIZE_READ_ENABLED, 1); (COL_SEL_TABLE_SIZE, -1); (COL_SEL_TABLE_GET, -1); (COL_SEL_TABLE_SET, -1); (COL_SEL_CALL_INDIRECT_RESOLVE, -1)], [(COL_ONE, 1)], ([] : SparseRow)) HsizeRead. expand_row HsizeRead.
   circuit_row ([(COL_SEL_TABLE_GET, 1)], [(COL_TABLE_OOB, 1)], [(COL_SEL_TABLE_GET, 1); (COL_SEL_CALL_INDIRECT_RESOLVE, 1); (COL_CI_OOB, -1); (COL_TABLE_READ_ENABLED, -1)]) Hread'. expand_row Hread'.
   circuit_row ([(COL_SEL_CALL_INDIRECT_RESOLVE, 1)], [(COL_TABLE_INDEX, 1); (List.nth 0%nat COL_STACK_READ_VALUE_LO 0%nat, -1)], ([] : SparseRow)) Hindex. expand_row Hindex.
@@ -313,7 +315,7 @@ Proof.
       1 - w COL_FUNCTION_CALL_TYPE_LOOKUP_GATE * w COL_CI_TYPE_EQ).
   { normalize_columns. rewrite Hgatev, Heqv in Htrapped |- *. rewrite Hoobv, Hnullv in Htrapped |- *.
     destruct (_ <? _), (_ =? 0), (_ =? _); field_linear Htrapped. }
-  split; [field_linear Hid | ]. split; [field_linear Himm | ]. split; [field_linear HsizeRead | ].
+  split; [field_linear Hid | ]. split; [field_linear HsizeRead | ].
   split; [exact HindexEq | ]. split; [exact Hoobv | ].
   split; [assert (0 <= w COL_CI_OOB <= 1) by (rewrite Hoobv; destruct (_ <? _); lia);
     normalize_columns; field_linear Hread' | ].
@@ -326,15 +328,12 @@ Qed.
 
 Lemma resolve_rom_reads : forall initial final (w : Witness),
   Replay initial (eventsForRow MemoryCatalog.memories w) final ->
-  w COL_PROGRAM_TABLE_ID_ACTIVE = 1 -> w COL_PROGRAM_CALL_INDIRECT_IMMEDIATES_ACTIVE = 1 ->
-  w COL_TABLE_SIZE_READ_ENABLED = 1 ->
-  initial programTableId [w COL_PC_BEFORE] = Some (w COL_TABLE_ID) /\
-  initial expectedTypeId [w COL_PC_BEFORE] = Some (w COL_EXPECTED_TYPE_ID) /\
+  w COL_PROGRAM_TABLE_ID_ACTIVE = 1 -> w COL_TABLE_SIZE_READ_ENABLED = 1 ->
+  initial programTableDescriptorId [w COL_PC_BEFORE] = Some (w COL_TABLE_DESCRIPTOR) /\
   initial tableSizeId [w COL_TABLE_ID] = Some (w COL_TABLE_SIZE).
 Proof.
-  intros initial final w Hreplay Hid Himm Hsize. split; [ | split].
-  - exported_read programTableId [COL_PC_BEFORE] COL_TABLE_ID COL_PROGRAM_TABLE_ID_ACTIVE.
-  - exported_read expectedTypeId [COL_PC_BEFORE] COL_EXPECTED_TYPE_ID COL_PROGRAM_CALL_INDIRECT_IMMEDIATES_ACTIVE.
+  intros initial final w Hreplay Hid Hsize. split.
+  - exported_read programTableDescriptorId [COL_PC_BEFORE] COL_TABLE_DESCRIPTOR COL_PROGRAM_TABLE_ID_ACTIVE.
   - exported_read tableSizeId [COL_TABLE_ID] COL_TABLE_SIZE COL_TABLE_SIZE_READ_ENABLED.
 Qed.
 

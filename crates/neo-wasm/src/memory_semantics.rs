@@ -57,18 +57,14 @@ pub fn preload_from_program_artifacts(artifacts: &WasmProgramArtifacts) -> WasmM
             ),
             (
                 opcode.uses_table_id_immediate(),
-                WasmMemoryId::ProgramTableId,
-                entry.table_id,
+                WasmMemoryId::ProgramTableDescriptor,
+                crate::table_descriptor::pack_table_descriptor(entry.table_id, entry.call_indirect_expected_type_id)
+                    .expect("program table descriptor fits its declared bounds"),
             ),
             (
                 opcode.uses_linear_memory(),
                 WasmMemoryId::ProgramMemoryOffset,
                 entry.memory_offset,
-            ),
-            (
-                opcode.uses_call_indirect_immediates(),
-                WasmMemoryId::ProgramCallIndirectExpectedTypeId,
-                entry.call_indirect_expected_type_id,
             ),
             (
                 opcode == Op::I32Const,
@@ -466,8 +462,7 @@ fn wasm_memory_check_policy(layout: &WasmRelationLayout) -> Result<MemoryCheckPo
 fn memory_init_mode(memory: WasmMemoryId) -> Option<RamInitialization> {
     match memory {
         WasmMemoryId::HostContextRefs
-        | WasmMemoryId::HostContextArgsBase
-        | WasmMemoryId::HostContextParentDepth
+        | WasmMemoryId::HostContextArgsDepth
         | WasmMemoryId::HostContextSp
         | WasmMemoryId::CallStackReturnPc
         | WasmMemoryId::CallStackCallerFbp

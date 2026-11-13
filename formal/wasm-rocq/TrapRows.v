@@ -1,3 +1,4 @@
+Require Import TableDescriptor.
 (* An UNREACHABLE row traps through every active label and suspended call. *)
 From Stdlib Require Import List ZArith Lia.
 Require Import R1CS Columns FullRelation Range MemoryTrace MemoryCatalog Wasm2 WasmIntegers
@@ -116,11 +117,11 @@ Proof.
     eq_refl eq_refl) as [tableIndexRaw [HindexRange ->]].
   destruct (nth_error (TABLES (guestModule f)) (N.to_nat (x :> N))) as [ta | ] eqn:Hta;
     [ | apply nth_error_None in Hta; lia].
-  destruct (encoded_path_resolve _ _ _ _ Hloaded Hf _ _ _ _ _ Hpath Hi) as [Himage [HtableRom HtypeRom]].
-  rewrite Hta in HtableRom. rewrite Htype in HtypeRom. cbn [option_map romValue] in HtableRom, HtypeRom.
-  unfold pathPC in Himage, HtableRom, HtypeRom.
+  destruct (encoded_path_resolve _ _ _ _ Hloaded Hf _ _ _ _ _ Hpath Hi) as [Himage HdescriptorRom].
+  rewrite Hta, Htype in HdescriptorRom. cbn [option_map romValue] in HdescriptorRom.
+  unfold pathPC in Himage, HdescriptorRom.
   change (row COL_PC_BEFORE = guestEntry f + Z.of_nat (pathOffset (guestBody f) labels offset)) in Hpc.
-  rewrite <- Hpc in Himage, HtableRom, HtypeRom.
+  rewrite <- Hpc in Himage, HdescriptorRom.
   pose proof (control_row_static_edge _ _ row _ _ _ Hprime Hfull Hprogram Hreplay Logic.eq_refl Himage) as Hedge.
   destruct (BlockTrace.control_row _ _ row _ CODE_CALL_INDIRECT_RESOLVE COL_SEL_CALL_INDIRECT_RESOLVE _ Hprime Hfull
     Hprogram Hreplay Logic.eq_refl ltac:(vm_compute; reflexivity) ltac:(vm_compute; intuition discriminate) Himage)
@@ -146,11 +147,12 @@ Proof.
     apply Hcells. unfold viewOperands. cbn [viewSegments viewValues].
     rewrite app_assoc, nth_error_app2, Nat.sub_diag by lia. reflexivity. }
   rewrite (replace_read_address _ Hshape), Htop in Hread. injection Hread as HindexValue.
-  destruct (full_resolve_checks row Hprime Hfull Hresolve) as [HidActive [HimmActive [HsizeActive [HindexCol
-    [Hoob [HreadActive [Hnull [Heq [Hgate [HrefIs [Htrap _]]]]]]]]]]].
-  destruct (resolve_rom_reads _ _ _ Hreplay HidActive HimmActive HsizeActive) as [HidRead [HexpRead HsizeRead]].
-  rewrite HtableRom in HidRead. injection HidRead as HtableId.
-  rewrite HtypeRom in HexpRead. injection HexpRead as Hexpected.
+  destruct (full_resolve_checks row Hprime Hfull Hresolve) as [HidActive [HsizeActive [HindexCol
+    [Hoob [HreadActive [Hnull [Heq [Hgate [HrefIs [Htrap _]]]]]]]]]].
+  destruct (resolve_rom_reads _ _ _ Hreplay HidActive HsizeActive) as [HdescriptorRead HsizeRead].
+  rewrite HdescriptorRom in HdescriptorRead. injection HdescriptorRead as Hdescriptor.
+  destruct (table_descriptor_fields row _ _ Hprime Hfull (eq_sym Hdescriptor)) as [HtableId Hexpected].
+  symmetry in HtableId, Hexpected.
   assert (Hindex : row COL_TABLE_INDEX = tableIndexRaw) by (rewrite HindexCol; symmetry; exact HindexValue).
   assert (Hu32 : 0 <= tableIndexRaw < i32Modulus).
   { pose proof (full_read0_u32 row Hprime Hfull). normalize_columns. unfold i32Modulus. lia. }

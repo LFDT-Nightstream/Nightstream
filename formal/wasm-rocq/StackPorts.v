@@ -4,6 +4,56 @@ Require Import R1CS Columns FullRelation Range Selectors CircuitFacts MemoryTrac
 Import ListNotations.
 Open Scope Z_scope.
 
+Definition stackRead0HiGateRow : nat := Eval vm_compute in
+  match findRow (fun row => match row with
+    | ((column, _) :: _, [(one, 1)], []) => Nat.eqb column COL_STACK_READ0_HI_ACTIVE && Nat.eqb one COL_ONE
+    | _ => false end) FullRelation.rows with Some i => i | None => 0%nat end.
+
+Lemma full_stack_read0_hi_bound : forall w,
+  fieldPrime -> FullRelation.satFull w ->
+  w COL_STACK_READ0_HI_ACTIVE <= w (List.nth 0%nat COL_STACK_SEPARATE 0%nat).
+Proof.
+  intros w Hprime Hfull.
+  pose proof (proj1 Hfull) as Hone.
+  full_row stackRead0HiGateRow Hrow.
+  circuit_boolean COL_STACK_READ0_HI_ACTIVE Hhi.
+  circuit_boolean (List.nth 0%nat COL_STACK_SEPARATE 0%nat) Hlo.
+  circuit_boolean COL_SEL_I32_STORE Hs0.
+  circuit_boolean COL_SEL_I32_STORE8 Hs1.
+  circuit_boolean COL_SEL_I32_STORE16 Hs2.
+  circuit_boolean COL_SEL_I64_STORE Hs3.
+  circuit_boolean COL_SEL_I64_STORE8 Hs4.
+  circuit_boolean COL_SEL_I64_STORE16 Hs5.
+  circuit_boolean COL_SEL_I64_STORE32 Hs6.
+  circuit_boolean COL_SEL_CALL_INDIRECT Hcall.
+  circuit_boolean COL_SEL_RETURN_CALL_INDIRECT Htail.
+  normalize_columns. rewrite Hone in Hrow. field_linear Hrow.
+Qed.
+
+Ltac selected_stack_read0_hi chosen :=
+  let Hrow := fresh "HreadHiRow" in
+  selected_row chosen stackRead0HiGateRow Hrow;
+  match goal with Hfull : FullRelation.satFull ?w |- _ =>
+    let Hone := fresh "Hunit" in
+    let Hhi := fresh "HreadHi" in let Hlo := fresh "HreadLo" in
+    pose proof (proj1 Hfull) as Hone;
+    circuit_boolean COL_STACK_READ0_HI_ACTIVE Hhi;
+    circuit_boolean (List.nth 0%nat COL_STACK_SEPARATE 0%nat) Hlo;
+    normalize_columns; rewrite Hone in Hrow; field_linear Hrow
+  end.
+
+Lemma full_aux_stack_read0_hi : forall w,
+  fieldPrime -> FullRelation.satFull w -> w COL_IS_PROGRAM_ROW = 0 ->
+  w COL_STACK_READ0_HI_ACTIVE = w (List.nth 0%nat COL_STACK_SEPARATE 0%nat).
+Proof.
+  intros w Hprime Hfull Hprogram.
+  pose proof (proj1 Hfull) as Hone.
+  auxiliary_row stackRead0HiGateRow Hrow.
+  circuit_boolean COL_STACK_READ0_HI_ACTIVE Hhi.
+  circuit_boolean (List.nth 0%nat COL_STACK_SEPARATE 0%nat) Hlo.
+  normalize_columns. rewrite Hone in Hrow. field_linear Hrow.
+Qed.
+
 Record StackPortGates (w : Witness) : Prop := {
   separate_read : w (List.nth 0%nat COL_STACK_SEPARATE 0%nat) =
     w (List.nth 0%nat COL_STACK_READ_ACTIVE 0%nat) - w COL_STACK_RMW;
@@ -13,7 +63,9 @@ Record StackPortGates (w : Witness) : Prop := {
     w COL_STACK_WRITE0_HI_ACTIVE - w COL_STACK_RMW;
   rmw_nonnegative : 0 <= w COL_STACK_RMW;
   separate_nonnegative : forall i, (i < 3)%nat ->
-    0 <= w (List.nth i COL_STACK_SEPARATE 0%nat)
+    0 <= w (List.nth i COL_STACK_SEPARATE 0%nat);
+  separate_read_hi_bound :
+    w COL_STACK_READ0_HI_ACTIVE <= w (List.nth 0%nat COL_STACK_SEPARATE 0%nat)
 }.
 
 Lemma full_stack_port_gates : forall w,
@@ -22,6 +74,7 @@ Proof.
   intros w Hprime Hfull.
   assert (Hone : w COL_ONE = 1) by exact (proj1 Hfull).
   constructor; try (intros; apply (proj1 (value_bound _ _)));
+    try (exact (full_stack_read0_hi_bound w Hprime Hfull));
     match goal with |- value w ?s = value w ?o - value w COL_STACK_RMW =>
       circuit_row ([(s, 1); (o, -1); (COL_STACK_RMW, 1)], [(COL_ONE, 1)], ([] : SparseRow)) Hrow;
       circuit_boolean s Hs; circuit_boolean o Ho; circuit_boolean COL_STACK_RMW Hr;

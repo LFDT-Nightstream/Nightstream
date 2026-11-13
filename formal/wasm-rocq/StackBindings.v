@@ -161,6 +161,10 @@ Lemma binary_stack_event_prefix : forall w,
 Proof.
   intros w Hshape.
   destruct Hshape as [Hr0 Hr1 Hr2 Hw Hwh Hcap Ha0 Ha1 Haw Hawh Hsp Hbase Hget Hset Hgmem Hglo Hg Hports Hrmw].
+  assert (HreadHiGate : w COL_STACK_READ0_HI_ACTIVE = 0).
+  { pose proof (separate_read_hi_bound _ Hports).
+    pose proof (separate_read _ Hports).
+    pose proof (value_bound w COL_STACK_READ0_HI_ACTIVE). normalize_columns. lia. }
   change (flat_map (fun p => match portEvent MemoryCatalog.stackId w p with
       Some event => [event] | None => [] end)
     (ports (hd (mkMemory 0%nat Ram []) MemoryCatalog.memories)) ++
@@ -169,7 +173,7 @@ Proof.
   cbn [hd MemoryCatalog.memories ports flat_map portEvent active activation
     addressColumns valueColumn portKind map option_map].
   unfold portEvent, active. cbn [activation addressColumns valueColumn portKind map option_map].
-  normalize_columns. rewrite_stack_ports Hports.
+  normalize_columns. rewrite HreadHiGate. rewrite_stack_ports Hports.
   rewrite Hr0, Hr1, Hr2, Hw, Hwh, Hcap, Hget, Hset, Hgmem, Hglo, Hg, Hrmw. reflexivity.
 Qed.
 
@@ -227,7 +231,8 @@ Record UnaryStackShape (w : Witness) (isSet local : bool) : Prop := {
   local_gmem_inactive : w GMEM_LOCAL = 0;
   local_gather_lo_inactive : w COL_GATHER_LOCAL_WRITE_LO = 0;
   local_gather_inactive : w COL_GATHER_LOCAL_WRITE = 0;
-  local_port_gates : StackPortGates w
+  local_port_gates : StackPortGates w;
+  local_read_hi_gate : w COL_STACK_READ0_HI_ACTIVE = w (List.nth 0%nat COL_STACK_SEPARATE 0%nat)
 }.
 
 Ltac unary_stack_facts chosen reads writes localWrite :=
@@ -236,6 +241,8 @@ Ltac unary_stack_facts chosen reads writes localWrite :=
   pose proof (full_stack_port_gates w Hprime Hfull) as Hports;
   assert (Hin : In chosen selectorColumns) by
     (vm_compute; tauto);
+  assert (HreadHiGate : w COL_STACK_READ0_HI_ACTIVE = w (List.nth 0%nat COL_STACK_SEPARATE 0%nat)) by
+    (selected_stack_read0_hi chosen);
   assert (Hone : w COL_ONE = 1) by exact (proj1 Hfull);
   pose proof (full_opcode_aux_gates_zero w chosen Hprime Hfull Hin Hchosen)
     as [Hparam [Hzero Hgather]];
@@ -355,7 +362,7 @@ Lemma local_stack_event_prefix : forall w isSet local,
     localStackEvents w isSet local ++ eventsForRow (tl MemoryCatalog.memories) w.
 Proof.
   intros w isSet local Hshape.
-  destruct Hshape as [Hr0 Hr1 Hr2 Hw Hwh Hcap Ha0 Haw Hawh Hsp Hbase Hget Hset Hgmem Hglo Hg Hports].
+  destruct Hshape as [Hr0 Hr1 Hr2 Hw Hwh Hcap Ha0 Haw Hawh Hsp Hbase Hget Hset Hgmem Hglo Hg Hports HreadHiGate].
   change (flat_map (fun p => match portEvent MemoryCatalog.stackId w p with
       Some event => [event] | None => [] end)
     (ports (hd (mkMemory 0%nat Ram []) MemoryCatalog.memories)) ++
@@ -369,7 +376,7 @@ Proof.
     pose proof (rmw_nonnegative _ Hports).
     pose proof (separate_nonnegative _ Hports 0%nat ltac:(lia)).
     pose proof (separate_nonnegative _ Hports 1%nat ltac:(lia)). destruct isSet; cbn in *; lia. }
-  normalize_columns. rewrite_stack_ports Hports.
+  normalize_columns. rewrite HreadHiGate. rewrite_stack_ports Hports.
   rewrite Hr0, Hr1, Hr2, Hw, Hwh, Hcap, Hget, Hset, Hgmem, Hglo, Hg, Hrmw, !Z.sub_0_r.
   destruct isSet, local; reflexivity.
 Qed.

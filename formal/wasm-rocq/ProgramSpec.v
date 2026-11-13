@@ -2,7 +2,7 @@
    This encoder covers i32/i64 guest functions without imports. Blocks occupy
    flattened instruction addresses; each function also has one trailing END. *)
 From Stdlib Require Import List ZArith Bool.
-Require Import R1CS Columns Wasm2 MemoryTrace MemoryCatalog OpcodeCatalog StraightLineSpec CallerSpec FunctionValidation SpecTecCalls CodeLayout Fragment.
+Require Import TableDescriptor R1CS Columns Wasm2 MemoryTrace MemoryCatalog OpcodeCatalog StraightLineSpec CallerSpec FunctionValidation SpecTecCalls CodeLayout Fragment.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -138,14 +138,14 @@ Definition instructionEdgeKind (program : Program) (pc : Z) : option Z :=
    an instruction's own address and each later edge at its edge slot, so the key
    of an edge is the instruction's address plus its choice. A call's return
    address is not here: the circuit pins it to the next address. *)
+Definition romValue (entry : option Z) : Z := match entry with Some v => v | None => 0 end.
+
 Definition instructionRom (program : Program) (memory : nat) (pc : Z) : option Z :=
   match instructionAtPC program pc with
   | None => None
   | Some (f, slot) =>
       if Nat.eqb memory pcRomId then
         match slot with
-        | Some (flatInstruction (opInstr (CALL index)) _) =>
-            option_map (fun address => functionEntry program (N.to_nat address)) (callAddress f index)
         | Some (flatInstruction (opInstr (BR_IF _)) _) => Some (pc + 2)
         | Some (flatInstruction (opInstr (IFELSE _ _ _ | BR _ | BR_TABLE _ _)) targets)
         | Some (flatInstruction (opElse | opEdge _) targets) =>
@@ -155,7 +155,7 @@ Definition instructionRom (program : Program) (memory : nat) (pc : Z) : option Z
             end
         | Some (flatInstruction (opInstr (RETURN | UNREACHABLE)) _) => None
         (* The callee's entry comes from the function-entry ROM, not from here. *)
-        | Some (flatInstruction opInvoke _) => None
+        | Some (flatInstruction (opInstr (CALL _)) _) | Some (flatInstruction opInvoke _) => None
         | Some (flatInstruction (opInstr (BLOCK _ _ | LOOP _ _ | CALL_INDIRECT _ _)) _)
         | Some (flatInstruction opEnd _) => Some (pc + 1)
         | _ => None end
@@ -170,13 +170,12 @@ Definition instructionRom (program : Program) (memory : nat) (pc : Z) : option Z
         | _ => Some 0 end
       else if Nat.eqb memory programBrTableLenId then
         match slot with Some (flatInstruction (opInstr (BR_TABLE ls _)) _) => Some (Z.of_nat (length ls)) | _ => None end
-      (* A resolve slot's table, by store address, and its expected type's id. *)
-      else if Nat.eqb memory programTableId then
-        match slot with Some (flatInstruction (opInstr (CALL_INDIRECT x _)) _) =>
-          option_map Z.of_N (nth_error (TABLES (funcinst_MODULE f)) (N.to_nat (x :> N))) | _ => None end
-      else if Nat.eqb memory expectedTypeId then
-        match slot with Some (flatInstruction (opInstr (CALL_INDIRECT _ y)) _) =>
-          option_map (typeId (funcinst_MODULE f)) (nth_error (TYPES (funcinst_MODULE f)) (N.to_nat (y :> N)))
+      (* The table store address and expected type share one checked descriptor. *)
+      else if Nat.eqb memory programTableDescriptorId then
+        match slot with Some (flatInstruction (opInstr (CALL_INDIRECT x y)) _) =>
+          Some (tableDescriptor
+            (romValue (option_map Z.of_N (nth_error (TABLES (funcinst_MODULE f)) (N.to_nat (x :> N)))))
+            (romValue (option_map (typeId (funcinst_MODULE f)) (nth_error (TYPES (funcinst_MODULE f)) (N.to_nat (y :> N))))))
         | _ => None end
       else if Nat.eqb memory callTargetId then
         match slot with Some (flatInstruction (opInstr (CALL x)) _) =>
@@ -302,7 +301,7 @@ Definition slideRom (program : Program) (memory : nat) (pc : Z) : option Z :=
       end
   end.
 
-Definition programRomIds := [programHeaderId; programLocalIndexId; programTableId; expectedTypeId; pcRomId;
+Definition programRomIds := [programHeaderId; programLocalIndexId; programTableDescriptorId; pcRomId;
   callTargetId; functionEntryId; functionTypeId; functionLocalCountId; functionCallMetadataId;
   frameSlideRemainingId; frameSlideDistanceId; programBrTableLenId].
 
@@ -320,7 +319,6 @@ Definition encodeProgram (program : Program) : MemoryState := fun memory address
 
 (* The ROMs are dense: every key holds a word, and keys the encoder does not list
    hold 0, so a read alone never shows that a key belongs to the program. *)
-Definition romValue (entry : option Z) : Z := match entry with Some v => v | None => 0 end.
 
 (* Only the program's ROMs are fixed; RAM and unrelated tables remain independent. *)
 Definition programLoaded (program : Program) (memory : MemoryState) : Prop :=

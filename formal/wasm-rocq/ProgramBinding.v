@@ -102,6 +102,29 @@ Proof.
   rewrite Hpacking. split; [apply packed_low16 | apply packed_high16]; lia.
 Qed.
 
+Lemma full_host_context_args_depth : forall w,
+  fieldPrime -> FullRelation.satFull w ->
+  w COL_HOST_CONTEXT_ARGS_DEPTH = w COL_HOST_CONTEXT_ARGS_BASE + 65536 * w COL_HOST_CONTEXT_PARENT_DEPTH /\
+  0 <= w COL_HOST_CONTEXT_ARGS_BASE < 65536 /\
+  0 <= w COL_HOST_CONTEXT_PARENT_DEPTH < 65536 /\
+  0 <= w COL_HOST_CONTEXT_ARGS_DEPTH < 4294967296 /\
+  w COL_HOST_CONTEXT_ARGS_DEPTH mod 65536 = w COL_HOST_CONTEXT_ARGS_BASE /\
+  w COL_HOST_CONTEXT_ARGS_DEPTH / 65536 = w COL_HOST_CONTEXT_PARENT_DEPTH.
+Proof.
+  intros w Hprime Hfull. pose proof (proj1 Hfull) as Hone.
+  pose proof (value_bound w COL_HOST_CONTEXT_ARGS_DEPTH) as Hpacked.
+  circuit_range COL_HOST_CONTEXT_ARGS_BASE Hargs.
+  circuit_range COL_HOST_CONTEXT_PARENT_DEPTH Hdepth.
+  assert (Hpacking : w COL_HOST_CONTEXT_ARGS_DEPTH =
+    w COL_HOST_CONTEXT_ARGS_BASE + 65536 * w COL_HOST_CONTEXT_PARENT_DEPTH).
+  { circuit_row ([(COL_HOST_CONTEXT_ARGS_DEPTH, 1); (COL_HOST_CONTEXT_ARGS_BASE, -1);
+      (COL_HOST_CONTEXT_PARENT_DEPTH, -65536)], [(COL_ONE, 1)], ([] : SparseRow)) Hrow.
+    expand_row Hrow. normalize_columns. rewrite Hone in Hrow. field_linear Hrow. }
+  split; [exact Hpacking | ].
+  split; [lia | ]. split; [lia | ]. split; [lia | ].
+  rewrite Hpacking. split; [apply packed_low16 | apply packed_high16]; lia.
+Qed.
+
 Lemma full_opcode_u16 : forall w,
   fieldPrime -> FullRelation.satFull w -> w COL_IS_PROGRAM_ROW = 1 -> 0 <= w COL_OPCODE_CODE < 65536.
 Proof.
@@ -256,14 +279,22 @@ Qed.
 Lemma static_pc_gate_rows :
   Range.inFull (ZeroTest.inverseRow COL_PC_EDGE_KIND COL_PC_EDGE_KIND_INV COL_PC_EDGE_KIND_IS_STATIC) = true /\
   Range.inFull (ZeroTest.zeroRow COL_PC_EDGE_KIND COL_PC_EDGE_KIND_IS_STATIC) = true /\
-  Range.inFull ([(COL_IS_PROGRAM_ROW, 1)], [(COL_PC_EDGE_KIND_IS_STATIC, 1)], [(COL_PC_ROM_ACTIVE, 1); (COL_PC_FALLTHROUGH, 1)]) = true.
+  Range.inFull ([(COL_IS_PROGRAM_ROW, 1); (COL_SEL_CALL, -1); (COL_SEL_RETURN_CALL, -1)], [(COL_PC_EDGE_KIND_IS_STATIC, 1)], [(COL_PC_ROM_ACTIVE, 1); (COL_PC_FALLTHROUGH, 1)]) = true.
 Proof. vm_compute. repeat split; reflexivity. Qed.
 
-Lemma full_static_pc_rom_active : forall (w : Witness),
+Lemma full_static_pc_rom_active : forall (w : Witness) chosen,
   Range.fieldPrime -> FullRelation.satFull w ->
+  In chosen selectorColumns -> ~ In chosen [COL_SEL_CALL; COL_SEL_RETURN_CALL] -> w chosen = 1 ->
   w COL_IS_PROGRAM_ROW = 1 -> w COL_PC_EDGE_KIND = 0 -> w COL_PC_FALLTHROUGH = 0 -> w COL_PC_ROM_ACTIVE = 1.
 Proof.
-  intros w Hprime [Hone Hall] Hprogram Hkind Hfall.
+  intros w chosen Hprime Hfull Hin HnotCall Hchosen Hprogram Hkind Hfall.
+  assert (Hcall : w COL_SEL_CALL = 0).
+  { eapply (full_opcode_selector_exclusive w chosen COL_SEL_CALL); try eassumption;
+      [vm_compute; tauto | cbn in HnotCall; intuition congruence]. }
+  assert (Htail : w COL_SEL_RETURN_CALL = 0).
+  { eapply (full_opcode_selector_exclusive w chosen COL_SEL_RETURN_CALL); try eassumption;
+      [vm_compute; tauto | cbn in HnotCall; intuition congruence]. }
+  destruct Hfull as [Hone Hall].
   destruct static_pc_gate_rows as [Hinv [Hzero Hgate]].
   pose proof (ZeroTest.zero_test_value w COL_PC_EDGE_KIND COL_PC_EDGE_KIND_INV
     COL_PC_EDGE_KIND_IS_STATIC Hprime Hone
@@ -271,7 +302,7 @@ Proof.
   rewrite Hkind in Hstatic. cbn in Hstatic.
   pose proof (Range.in_full_sat w _ Hall Hgate) as Hsat.
   unfold sat in Hsat. cbn [eval fold_right] in Hsat.
-  rewrite Hprogram, Hstatic, Hfall in Hsat.
+  rewrite Hprogram, Hstatic, Hfall, Hcall, Htail in Hsat.
   pose proof (value_bound w COL_PC_ROM_ACTIVE) as Hbound.
   apply Z.mod_divide in Hsat; [ | unfold modulus; lia].
   destruct Hsat as [k Hk]. unfold modulus in *; lia.

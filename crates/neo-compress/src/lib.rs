@@ -79,8 +79,9 @@ pub enum Error {
     Statement(&'static str),
     #[error("compression proof: {0}")]
     Rejected(&'static str),
-    /// A lookup challenge is a table value, with probability about `2^-47`
-    /// for each proof. No proof exists for this transcript.
+    /// A lookup challenge is a table value, with probability about `2^-46.7`
+    /// for each proof of the Poseidon2 hash chain. No proof exists for this
+    /// transcript.
     #[error("compression: a lookup challenge is a table value")]
     Challenge,
     #[error("Akita: {0}")]

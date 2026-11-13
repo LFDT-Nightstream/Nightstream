@@ -8,8 +8,7 @@ checks (steps 3 and 4, `MemoryApp.history_of_execution`), and the bounded-depth 
 honest prover's recursive proof of it (step 5, `memory_complete`). The proof is recursive because
 `T = S · N ≥ 1`. The join is generic: a step history is a valid run (`validFrom_of_history`), so
 `RunCompleteness.run_complete` accepts it (`accepts_of_history`), and `S · N < q` follows from the
-geometry rules (`steps_lt`). The step-proof branch of step 5 is covered; the final-proof branch
-needs the completeness of the finish step and compression. -/
+geometry rules (`steps_lt`). -/
 
 set_option autoImplicit false
 

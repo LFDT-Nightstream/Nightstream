@@ -5,8 +5,8 @@ import NightstreamFPrime.Export.BoundedDepth.IvcWalk
 (`Verifies`, SPEC.md Algorithm 6) requires the terminal relation and, for a recursive proof, the
 slot checks `StepExtend.Honest`: the depth of each slot is at most the light cap, and its witness
 is within the accumulator bound of its depth (Cyclo, ePrint 2026/359, Theorem 3 item 1). The
-terminal relation alone admits each slot witness below `B`. It is the relation that extraction
-reaches (`FinishWalk.holdsFor_of_extracted`), and the verifier implies it (`holds_of_verifies`).
+terminal relation alone admits each slot witness below `B`. The verifier implies it
+(`holds_of_verifies`).
 
 One valid step extends each proof that the verifier accepts (`verifies_step`, HyperNova
 Definition 11 (i)): the bottom proof by `StepExtend.base_extend`, and a recursive proof by

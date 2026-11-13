@@ -612,15 +612,6 @@ theorem honest_prior_slot (slot : Fin 2) :
   simp only [honestValues, show slot.val < 2 from bound, ↓reduceIte]
   exact congrArg input.running (finAt_eq _ slot _ (Nat.mod_eq_of_lt bound))
 
-omit agree in
-theorem honest_next_slot (slot : Fin 2) :
-    (honestValues ajtai circuitKeys input output proof selected folded).slots
-        ⟨5 + slot.val, by omega⟩ = output.runningNext slot := by
-  have bound := slot.isLt
-  simp only [honestValues, show ¬5 + slot.val < 2 by omega, show ¬5 + slot.val = 2 by omega,
-    show ¬5 + slot.val < 5 by omega, ↓reduceIte, Nat.add_sub_cancel_left]
-  exact congrArg output.runningNext (finAt_eq _ slot _ (Nat.mod_eq_of_lt bound))
-
 private theorem state_eval (block : Fin 3) (lengths : ∀ block,
       ((honestValues ajtai circuitKeys input output proof selected folded).states block).length =
         4) :
@@ -751,23 +742,6 @@ theorem stepRepresents (program : Stage1.Application.Program) (circuit : Fin 2)
   · exact outputMatrix_eval target proof.nifs.piCcsOutput (fun word bound => target_output ajtai
       circuitKeys input output proof selected folded base program.witnessWordCount target agree
       word bound)
-
-omit agree in
-/-- On columns that agree with the honest values below `sharedEnd`, the next slots' words carry
-the step's next slots. The finish circuit reads them. -/
-theorem nextWords (program : Stage1.Application.Program)
-    (agree : ∀ column, column < sharedEnd base program.witnessWordCount →
-      target column = honestEnv ajtai circuitKeys input output proof selected folded base
-        program.witnessWordCount column)
-    (nextDepth : ∀ slot, (output.runningNext slot).2 < fieldModulus) (slot : Fin 2) :
-    Hash.evalList target ((interface (logicalWidth := logicalWidth) (publicFits := publicFits)
-      base program.witnessWordCount).next slot).words = serializeSlot (output.runningNext slot) := by
-  have words := target_slot_words ajtai circuitKeys input output proof selected folded base
-    program.witnessWordCount target agree ⟨5 + slot.val, by omega⟩ (by
-      rw [honest_next_slot ajtai circuitKeys input output proof selected folded]
-      exact nextDepth slot)
-  rw [honest_next_slot ajtai circuitKeys input output proof selected folded] at words
-  exact words
 
 end Honest
 

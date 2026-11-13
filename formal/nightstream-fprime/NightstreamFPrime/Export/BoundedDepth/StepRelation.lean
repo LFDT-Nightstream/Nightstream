@@ -11,8 +11,7 @@ from the shared words, with the next slots that the digest select fixes; `lightR
 its decoder takes the other slot from outside (`lightInput`): the terminal bridge gives the
 terminal's slot. The light step relation then needs the other slot's prior digest word to be that
 slot's digest (`OtherDigest`); `light_freshWords` gives, from the rows alone, the words that the
-bridge reads to show it. The finish circuit's decoder (`finishStepOutput`) reads the next slots'
-words instead. With
+bridge reads to show it. With
 `CircuitRelation.rowsZero_implies_spec` this gives each circuit's case of the bounded-depth step
 relation (`light_stepHolds`, `refresh_stepHolds`) and the output digest that `x` encodes, in the
 environment that the assignment decodes to (`lightEnv`, `refreshEnv`): the assignment with the
@@ -405,16 +404,6 @@ theorem refreshOutput_runningNext
           (refreshInterface (logicalWidth := logicalWidth) (publicFits := publicFits) program)
           (RefreshAssembler.sharedEnd base program.witnessWordCount)).value env) :=
   rfl
-
-/-- The finish circuit's output: its next slots are the next slots' words, which the finish
-circuit's slot select fixes and its final program reads. -/
-def finishStepOutput (circuit : Fin 2) (env : Env) : StepOutput logicalWidth publicFits :=
-  let interface :=
-    refreshInterface (logicalWidth := logicalWidth) (publicFits := publicFits) program
-  { zNext := List.ofFn fun lane => (interface.nextState lane).eval env
-    runningNext := fun slot => (interface.next slot).value env
-    pcNext := circuit
-    x := List.ofFn fun lane => (interface.outputDigest lane).eval env }
 
 theorem refreshRepresents (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))

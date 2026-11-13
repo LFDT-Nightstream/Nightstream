@@ -7,8 +7,7 @@ import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Completeness.Core
 layout's offset, the application step holds on them, and the digest words and the fresh
 instance's public input carry the hashes of their preimages, the five gadgets before Π_DEC can
 be filled one after another (`completeGadgetsFrom`). The three prior hashes among them fill from
-the first prior slot hash's offset (`completePriorHashesFrom`), as the finish step places them
-without the application. Today's Π_DEC and Π_RLC phases fill their own rows from a prefix that
+the first prior slot hash's offset (`completePriorHashesFrom`). Today's Π_DEC and Π_RLC phases fill their own rows from a prefix that
 ends at their offset (`PiDEC.v1_2.Formal.completePrefix`,
 `PiRLC.v1_2.Formal.completePrefix_with_phase`); `appendPrefix` joins such a phase to the step's
 prefix. -/

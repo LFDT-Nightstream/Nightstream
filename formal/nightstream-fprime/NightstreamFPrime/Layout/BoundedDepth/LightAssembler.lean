@@ -8,7 +8,7 @@ witness, seven slots (7 × 2,055, each in the order of `SlotExpr.words`: the pri
 and next slots), the slot and output digests (20), the fresh instance (1,458), the round messages
 (504), the Π_CCS output of both sources (1,080), and the new, inner and active digests (16). The
 light rows read the active slot's words only; the prior, inner and next slots keep the shared-word
-prefix equal to the refresh step's, whose finish circuit reads them. The step's gadgets start at
+prefix equal to the refresh step's. The step's gadgets start at
 `sharedEnd`. -/
 
 namespace NightstreamFPrime.Layout.BoundedDepth.LightAssembler

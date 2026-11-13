@@ -46,7 +46,6 @@ import NightstreamFPrime.Export.Generic.PieceRowsCompleteness
 import NightstreamFPrime.Layout.BoundedDepth.RefreshAssemblerCompleteness
 import NightstreamFPrime.Export.BoundedDepth.TerminalBridge
 import NightstreamFPrime.Export.BoundedDepth.IvcSecurity
-import NightstreamFPrime.Export.BoundedDepth.FinishWalk
 import NightstreamFPrime.Export.BoundedDepth.StepCompleteness
 import NightstreamFPrime.Export.Generic.RowReads
 import NightstreamFPrime.Export.Generic.RelationCompleteness
@@ -60,9 +59,6 @@ import NightstreamFPrime.Export.BoundedDepth.StepExtend
 import NightstreamFPrime.Export.BoundedDepth.RunCompleteness
 import NightstreamFPrime.Export.BoundedDepth.NebulaSecurity
 import NightstreamFPrime.Export.BoundedDepth.NebulaCompleteness
-import NightstreamFPrime.Export.BoundedDepth.FinishRelation
-import NightstreamFPrime.Layout.BoundedDepth.FinishAssemblerCompleteness
-import NightstreamFPrime.Export.BoundedDepth.FinishCompleteness
 import NightstreamFPrime.Lifecycle.BoundedDepth.Terminal
 import NightstreamFPrime.Lifecycle.BoundedDepth.FreshInstance
 import NightstreamFPrime.Spec.Folding.Light.RlcModule
@@ -271,9 +267,7 @@ open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 #audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.SlotWords.SlotExpr.value_eq_of_words
 #audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.SlotWords.selectRows_eval
 #audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.DepthGuard.highBitsCircuit
-#audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.SlotSelect.circuit
 #audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.SlotSelect.flag_facts
-#audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.SlotSelect.rows_implies_select
 #audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.DigestSelect.nextSlots_depth
 #audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.DigestSelect.circuit
 #audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.DigestSelect.selected_eq
@@ -305,7 +299,6 @@ open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 #audit_axioms NightstreamFPrime.Layout.BoundedDepth.LightPiCCSCompleteness.completeFrom
 #audit_axioms NightstreamFPrime.Layout.BoundedDepth.LightRlcCompleteness.completeFrom
 #audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.SlotWords.selectRows_holds
-#audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.SlotSelect.rows_of_select
 #audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.DigestSelect.rows_of_select
 #audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.DepthGuard.highBitsZero_of_lt
 #audit_axioms NightstreamFPrime.Layout.BoundedDepth.LightStepCompleteness.completeGadgetsFrom
@@ -323,7 +316,6 @@ open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 #audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.DigestSelect.controlRows_holds
 #audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.DigestSelect.digestRows_holds
 #audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.SlotWords.selectRows_congr
-#audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.SlotSelect.rows_congr
 #audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.DigestSelect.rows_congr
 #audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.LightSelect.rows_congr
 #audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.DigestSelect.controlRows_congr
@@ -374,11 +366,9 @@ open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 #audit_axioms NightstreamFPrime.Layout.BoundedDepth.RefreshAssemblerSource.childEvaluation_eval
 #audit_axioms NightstreamFPrime.Layout.BoundedDepth.RefreshAssemblerSource.digit_eval
 #audit_axioms NightstreamFPrime.Layout.BoundedDepth.RefreshAssemblerSource.stepRepresents
-#audit_axioms NightstreamFPrime.Layout.BoundedDepth.RefreshAssemblerSource.nextWords
 #audit_axioms NightstreamFPrime.Layout.BoundedDepth.RefreshAssemblerCompleteness.priorSlot_spec
 #audit_axioms NightstreamFPrime.Layout.BoundedDepth.RefreshAssemblerCompleteness.priorState_spec
 #audit_axioms NightstreamFPrime.Layout.BoundedDepth.RefreshAssemblerCompleteness.completePhasesFrom
-#audit_axioms NightstreamFPrime.Layout.BoundedDepth.RefreshAssemblerCompleteness.completeFoldFrom
 #audit_axioms NightstreamFPrime.Layout.BoundedDepth.RefreshAssemblerCompleteness.complete
 #audit_axioms NightstreamFPrime.Layout.BoundedDepth.RefreshAssemblerCircuit.decWired
 #audit_axioms NightstreamFPrime.Layout.BoundedDepth.RefreshAssemblerCircuit.rlcWired
@@ -514,12 +504,6 @@ open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 follows the refresh circuit and is never refreshed. -/
 example : (runDepths 2 (fun _ => 0) 1 (List.replicate 3 [0, 0, 1]).flatten).isNone = true := by
   decide
-#audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.FinishStep.rows_implies_finish
-#audit_axioms NightstreamFPrime.Layout.BoundedDepth.FinishAssembler.rows_implies_finish
-#audit_axioms NightstreamFPrime.Layout.BoundedDepth.FinishAssemblerCompleteness.complete
-#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinishRelation.finish_holds
-#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinishRelation.checks_finish
-#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinishRelation.package_finish
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.StepPackage.pieceRows_packageOf
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.StepPackage.blocks_packageOf
 #audit_axioms NightstreamFPrime.Export.Generic.SlotLayout.publicFits
@@ -582,13 +566,6 @@ example : (runDepths 2 (fun _ => 0) 1 (List.replicate 3 [0, 0, 1]).flatten).isNo
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.IvcWalk.covered
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.IvcSecurity.extraction_bound
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.IvcSecurity.probability_bound
-#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinishWalk.attempt_succeeds
-#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinishWalk.holdsFor_of_extracted
-#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinishWalk.finish_relaxed
-#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinishWalk.finish_covered
-#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinishWalk.finish_walk_covered
-#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinishWalk.refresh_wellFormed
-#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinishWalk.refresh_valid
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.NebulaSecurity.leads_length
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.NebulaSecurity.history_of_leads
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.NebulaSecurity.stage1Extraction
@@ -733,9 +710,3 @@ example : (runDepths 2 (fun _ => 0) 1 (List.replicate 3 [0, 0, 1]).flatten).isNo
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.RunCompleteness.verifies_step
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.RunCompleteness.accepts_step
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.RunCompleteness.run_complete
-#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinishCompleteness.package_complete
-#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinishCompleteness.natWord_val_of_lt
-#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinishCompleteness.accumulatorBound_mono
-#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinishCompleteness.slotAt_evalList
-#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinishCompleteness.finish_complete
-#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinishCompleteness.run_finish_complete

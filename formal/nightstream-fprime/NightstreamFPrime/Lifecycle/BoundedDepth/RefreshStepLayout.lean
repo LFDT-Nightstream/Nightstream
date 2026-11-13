@@ -11,8 +11,7 @@ gadget, the prior state hash with its two slot hashes, the next state hash, toda
 active slot, the refresh Π_CCS layout on the children, today's Π_RLC, the new slot's hash and the
 digest select. There is no depth guard, and the new slot's depth word is 0. `soundness` gives
 `RefreshStep.SpecHolds` for the relation of any circuit key, and the digest-select rows. The
-inner and next slots' words are for the finish circuit (`FinishStep`), whose slot select reads
-them; the refresh step's rows do not. -/
+refresh step's rows do not read the inner and next slots' words. -/
 
 namespace NightstreamFPrime.Lifecycle.BoundedDepth.RefreshStepLayout
 

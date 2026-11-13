@@ -27,7 +27,6 @@ column counts into a document.
 |---|---|---|
 | Light | `Lifecycle/BoundedDepth/LightStepLayout.lean` | The application, the depth guard on the depth word of the active slot, the prior state hash with its two slot hashes, the next state hash with its two slot hashes, the light Π_CCS and Π_RLC on the active slot, and the slot select. |
 | Refresh | `Lifecycle/BoundedDepth/RefreshStepLayout.lean` | The application, the prior state hash with its two slot hashes, the next state hash with its two slot hashes, Π_DEC on the active slot, the refresh Π_CCS on the 16 children, Π_RLC, and the slot select. There is no depth guard, and the new depth of the slot is 0. |
-| Finish | `Lifecycle/BoundedDepth/FinishStep.lean` | The last fold of a compressed proof. It is the refresh step circuit without the application and without the hashes of the next slots and the next state. |
 
 `Lifecycle/BoundedDepth/Step.lean` states the step relation (`stepHolds_iff`).
 `LightStep.lean` and `RefreshStep.lean` give its two cases from the rows of
@@ -44,12 +43,11 @@ are the authority for the departures from SuperNeo v1.2.
 `lake exe emitBoundedDepth` (`Export/BoundedDepth/EmitMain.lean`) writes the light and
 refresh packages, `artifacts/nightstream-fprime-bounded-depth-light-v1.json` and
 `artifacts/nightstream-fprime-bounded-depth-refresh-v1.json`.
-`lake exe emitBoundedDepth --finish` writes
-`artifacts/nightstream-fprime-bounded-depth-finish-v1.json`. Before it writes a
-package, the emitter runs the package's completeness checks and stops when one
-fails. With `--checks`, it runs only these checks and writes nothing. Rust pins the
-identity of the light and refresh packages (`BOUNDED_DEPTH_PACKAGES_IDENTITY` in
-`crates/nightstream-fprime/src/bounded_depth.rs`) and does not load the finish package.
+Before it writes a package, the emitter runs the package's completeness checks
+and stops when one fails. With `--checks`, it runs only these checks and writes
+nothing. Rust pins the identity of the light and refresh packages
+(`BOUNDED_DEPTH_PACKAGES_IDENTITY` in
+`crates/nightstream-fprime/src/bounded_depth.rs`).
 
 ## Credits
 

@@ -109,7 +109,6 @@ import NightstreamFPrime.Layout.BoundedDepth.RefreshStepCompleteness
 import NightstreamFPrime.Layout.BoundedDepth.RefreshAssemblerSource
 import NightstreamFPrime.Layout.BoundedDepth.RefreshAssemblerCompleteness
 import NightstreamFPrime.Layout.BoundedDepth.RefreshAssemblerCircuit
-import NightstreamFPrime.Layout.BoundedDepth.FinishAssemblerCompleteness
 import NightstreamFPrime.Layout.BoundedDepth.StepCircuits
 import NightstreamFPrime.Export.Generic.Pieces
 import NightstreamFPrime.Export.Generic.PieceRows
@@ -128,7 +127,6 @@ import NightstreamFPrime.Export.BoundedDepth.IvcWalk
 import NightstreamFPrime.Export.BoundedDepth.RomWalk
 import NightstreamFPrime.Export.BoundedDepth.RandomOracleSetup
 import NightstreamFPrime.Export.BoundedDepth.IvcSecurity
-import NightstreamFPrime.Export.BoundedDepth.FinishWalk
 import NightstreamFPrime.Export.BoundedDepth.StepCompleteness
 import NightstreamFPrime.Export.BoundedDepth.NativeCompleteness
 import NightstreamFPrime.Lifecycle.BoundedDepth.BlockSupport
@@ -139,7 +137,5 @@ import NightstreamFPrime.Lifecycle.Nebula.EtaOracle
 import NightstreamFPrime.Lifecycle.Nebula.EtaRound
 import NightstreamFPrime.Export.BoundedDepth.NebulaSecurity
 import NightstreamFPrime.Export.BoundedDepth.NebulaCompleteness
-import NightstreamFPrime.Export.BoundedDepth.FinishRelation
-import NightstreamFPrime.Export.BoundedDepth.FinishCompleteness
 import NightstreamFPrime.Export.BoundedDepth.Parity
 import NightstreamFPrime.Spec.RingRelation.PiRLCAlgebra.ChainBinding

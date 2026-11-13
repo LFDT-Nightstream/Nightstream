@@ -235,7 +235,6 @@ fn lean_packages_follow_the_slot_rule() {
     for name in [
         "light",
         "refresh",
-        "finish",
         "nebula-v1-light",
         "nebula-v1-refresh",
         "nebula-n1-light",

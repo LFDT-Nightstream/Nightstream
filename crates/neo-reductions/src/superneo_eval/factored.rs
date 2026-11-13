@@ -32,6 +32,8 @@ pub struct FactoredSlots<'a> {
     pub ratio: F,
 }
 
+const SLOT_WEIGHT_PARTS: usize = 8;
+
 #[derive(Clone, Copy)]
 pub struct FactoredRows<'a> {
     shape: MatrixShape,
@@ -148,6 +150,59 @@ impl<'a> FactoredRows<'a> {
                 .fold(K::ZERO, |value, &digit| value.scale_base(self.slots.ratio) + digit)
         });
         slot_values
+    }
+
+    /// `Lᵀ` of the row weights: slot `s` gets the sum of
+    /// `row_weight(row) · matrix_coefficients[j] · coefficient` over the
+    /// entries of `L_j` that read `s`. With `column_weights` this is the
+    /// transpose of `weighted_row`.
+    pub fn slot_weights(&self, row_weight: &(dyn Fn(usize) -> K + Sync), matrix_coefficients: &[K]) -> Vec<K> {
+        let part = |rows: Range<usize>| {
+            let mut weights = vec![K::ZERO; self.slot_count()];
+            for row in rows {
+                let row_weight = row_weight(row);
+                for (matrix, &coefficient) in matrix_coefficients.iter().enumerate() {
+                    let weight = row_weight * coefficient;
+                    for entry in self.range(row, matrix) {
+                        weights[self.entries.slots[entry] as usize] +=
+                            weight.scale_base(self.entries.coefficients[entry]);
+                    }
+                }
+            }
+            weights
+        };
+        // Each part owns one vector of slots, so the parts stay few.
+        let parts = SLOT_WEIGHT_PARTS.min(self.shape.rows);
+        let rows = |part: usize| part * self.shape.rows / parts..(part + 1) * self.shape.rows / parts;
+        let add = |mut left: Vec<K>, right: Vec<K>| {
+            for (left, right) in left.iter_mut().zip(right) {
+                *left += right;
+            }
+            left
+        };
+        #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
+        return (0..parts)
+            .into_par_iter()
+            .map(|index| part(rows(index)))
+            .reduce(|| vec![K::ZERO; self.slot_count()], add);
+        #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
+        return (0..parts)
+            .map(|index| part(rows(index)))
+            .fold(vec![K::ZERO; self.slot_count()], add);
+    }
+
+    /// `Gᵀ` of `slot_weights`: column `k` of slot `s` gets
+    /// `slot_weights[s] · ratio^k`.
+    pub fn column_weights(&self, slot_weights: &[K]) -> Vec<K> {
+        let mut columns = vec![K::ZERO; self.shape.columns];
+        for (slot, &weight) in slot_weights.iter().enumerate() {
+            let mut term = weight;
+            for column in &mut columns[self.columns(slot)] {
+                *column += term;
+                term = term.scale_base(self.slots.ratio);
+            }
+        }
+        columns
     }
 
     pub fn weighted_row(&self, row: usize, matrix_coefficients: &[K], slot_values: &[K]) -> K {

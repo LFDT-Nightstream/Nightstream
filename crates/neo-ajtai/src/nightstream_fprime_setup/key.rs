@@ -15,7 +15,6 @@ pub(super) fn split_pair(seed: &[u8; 32], row: u32, columns: [u64; 2]) -> [Split
     word_pair(seed, row, columns).map(SplitRing::from_wide256)
 }
 
-#[cfg(test)]
 pub(super) fn coefficient_pair(seed: &[u8; 32], row: u32, columns: [u64; 2]) -> [[u64; D]; 2] {
     word_pair(seed, row, columns).map(|words| words.map(super::reduce_words))
 }

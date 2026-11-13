@@ -78,6 +78,12 @@ pub fn coefficient(seed: &[u8; 32], row: u32, block: u64, lane: u32) -> u64 {
     }) as u64
 }
 
+/// Key elements `(row, columns[0])` and `(row, columns[1])` of the production key. Each is
+/// `coefficient_block` of its column; the pair shares the CPU's parallel permutation.
+pub fn production_key_pair(row: u32, columns: [u64; 2]) -> [[u64; D]; 2] {
+    key::coefficient_pair(&PRODUCTION_SEED, row, columns)
+}
+
 pub fn coefficient_block(seed: &[u8; 32], row: u32, block: u64) -> [u64; D] {
     let bytes = element_bytes(seed, row, block);
     core::array::from_fn(|lane| {

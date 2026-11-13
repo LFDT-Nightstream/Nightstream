@@ -2,46 +2,62 @@
 //! the CPU's parallel permutation; scalar backends keep the same framing.
 
 use keccak::{Backend, BackendClosure, Keccak, ParState1600};
-use neo_math::signed_sums::SplitRing;
+use neo_math::{field::Q, signed_sums::SplitRing, Fq};
+use p3_field::PrimeField64;
 
 use super::{element_input, D, ELEMENT_INPUT_BYTES};
 
-const RATE: usize = 168;
-const OUTPUT_BYTES: usize = 32 * D;
-const _: () = assert!(ELEMENT_INPUT_BYTES < RATE);
+/// The SHAKE128 rate of 168 bytes, and the 32 bytes of each lane, in 64-bit words.
+const RATE_WORDS: usize = 21;
+const OUTPUT_WORDS: usize = 4 * D;
+const _: () = assert!(ELEMENT_INPUT_BYTES < 8 * RATE_WORDS);
+
+/// `2^64 mod q`, and `2^(64·i) mod q` for the four words of a coefficient.
+const FOLD: u64 = Q.wrapping_neg();
+const WORD_WEIGHTS: [u64; 4] = [1, FOLD, FOLD * FOLD, FOLD * FOLD * FOLD];
+/// The weighted sum of four words is below `2^64` times this sum.
+const _: () = assert!(WORD_WEIGHTS[0] + WORD_WEIGHTS[1] + WORD_WEIGHTS[2] + WORD_WEIGHTS[3] < 1 << 32);
 
 // ARM SHA3 processes two independent 64-bit lanes in each vector register.
 pub(super) fn split_pair(seed: &[u8; 32], row: u32, columns: [u64; 2]) -> [SplitRing; 2] {
-    word_pair(seed, row, columns).map(SplitRing::from_wide256)
+    word_pair(seed, row, columns).map(|words| {
+        SplitRing::from_wide256(core::array::from_fn(|lane| {
+            core::array::from_fn(|half| (words[4 * lane + half / 2] >> (32 * (half % 2))) as u32)
+        }))
+    })
 }
 
 pub(super) fn coefficient_pair(seed: &[u8; 32], row: u32, columns: [u64; 2]) -> [[u64; D]; 2] {
-    word_pair(seed, row, columns).map(|words| words.map(super::reduce_words))
+    word_pair(seed, row, columns).map(|words| {
+        core::array::from_fn(|lane| {
+            let wide: u128 = words[4 * lane..][..4]
+                .iter()
+                .zip(WORD_WEIGHTS)
+                .map(|(&word, weight)| u128::from(word) * u128::from(weight))
+                .sum();
+            (Fq::new(wide as u64) + Fq::new((wide >> 64) as u64 * FOLD)).as_canonical_u64()
+        })
+    })
 }
 
-fn word_pair(seed: &[u8; 32], row: u32, columns: [u64; 2]) -> [[[u32; 8]; D]; 2] {
-    let mut bytes = [[0u8; OUTPUT_BYTES]; 2];
+/// The output of each element as the sponge's 64-bit words: lane `L` is the
+/// little-endian integer of words `4L..4L + 4`.
+fn word_pair(seed: &[u8; 32], row: u32, columns: [u64; 2]) -> [[u64; OUTPUT_WORDS]; 2] {
+    let mut words = [[0u64; OUTPUT_WORDS]; 2];
     Keccak::new().with_backend(KeyPair {
         seed,
         row,
         columns,
-        output: &mut bytes,
+        output: &mut words,
     });
-    bytes.map(|bytes| {
-        core::array::from_fn(|lane| {
-            core::array::from_fn(|word| {
-                let start = 32 * lane + 4 * word;
-                u32::from_le_bytes(bytes[start..start + 4].try_into().expect("four-byte word"))
-            })
-        })
-    })
+    words
 }
 
 struct KeyPair<'a> {
     seed: &'a [u8; 32],
     row: u32,
     columns: [u64; 2],
-    output: &'a mut [[u8; OUTPUT_BYTES]; 2],
+    output: &'a mut [[u64; OUTPUT_WORDS]; 2],
 }
 
 impl BackendClosure for KeyPair<'_> {
@@ -62,15 +78,13 @@ impl BackendClosure for KeyPair<'_> {
                 }
                 // SHAKE domain suffix and multi-rate padding, unchanged from sha3::Shake128.
                 state[ELEMENT_INPUT_BYTES / 8] ^= 0x1f << (8 * (ELEMENT_INPUT_BYTES % 8));
-                state[RATE / 8 - 1] ^= 0x80 << 56;
+                state[RATE_WORDS - 1] ^= 0x80 << 56;
             }
-            for start in (0..OUTPUT_BYTES).step_by(RATE) {
+            for start in (0..OUTPUT_WORDS).step_by(RATE_WORDS) {
                 permute(&mut states);
-                let length = RATE.min(OUTPUT_BYTES - start);
+                let length = RATE_WORDS.min(OUTPUT_WORDS - start);
                 for (state, output) in states.iter().zip(outputs.iter_mut()) {
-                    for (bytes, word) in output[start..start + length].chunks_exact_mut(8).zip(state) {
-                        bytes.copy_from_slice(&word.to_le_bytes());
-                    }
+                    output[start..start + length].copy_from_slice(&state[..length]);
                 }
             }
         }

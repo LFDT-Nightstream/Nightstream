@@ -92,11 +92,6 @@ impl CircuitBuilder {
         self.product(left, right, ColumnWidth::Boolean)
     }
 
-    #[cfg(test)]
-    pub(super) fn alloc_limb_product(&mut self, left: &Lc, right: &Lc) -> ColumnId {
-        self.product(left, right, ColumnWidth::U32)
-    }
-
     fn product(&mut self, left: &Lc, right: &Lc, width: ColumnWidth) -> ColumnId {
         let (l, r) = (left.clone(), right.clone());
         let column = self.allocate("product", width, 1, move |z, output| {
@@ -105,29 +100,6 @@ impl CircuitBuilder {
         })[0];
         self.push_row(left.clone(), right.clone(), Lc::var(column));
         column
-    }
-
-    #[cfg(test)]
-    pub(super) fn alloc_select(&mut self, select: &Lc, when_true: &Lc, when_false: &Lc) -> ColumnId {
-        let (s, t, f) = (select.clone(), when_true.clone(), when_false.clone());
-        let column = self.allocate("select", ColumnWidth::Boolean, 1, move |z, output| {
-            output[0] = f.evaluate(z) + s.evaluate(z) * (t.evaluate(z) - f.evaluate(z));
-            Ok(())
-        })[0];
-        self.push_row(
-            select.clone(),
-            when_true.clone().minus(when_false),
-            Lc::var(column).minus(when_false),
-        );
-        column
-    }
-
-    #[cfg(test)]
-    pub(super) fn alloc_and(&mut self, left: &Lc, right: &Lc) -> Result<ColumnId, String> {
-        let (l, r) = (left.clone(), right.clone());
-        let column = self.alloc_bit("and", move |z| Ok(eval_bit(z, &l)? & eval_bit(z, &r)?));
-        self.push_row(left.clone(), right.clone(), Lc::var(column));
-        Ok(column)
     }
 
     pub(super) fn alloc_xor(&mut self, left: &Lc, right: &Lc) -> Result<ColumnId, String> {
@@ -142,14 +114,6 @@ impl CircuitBuilder {
                 .scaled(F::from_u64(2).inverse()),
         );
         Ok(column)
-    }
-
-    #[cfg(test)]
-    pub(super) fn enforce_bits_equal_when(&mut self, gate: &Lc, left: &[ColumnId], right: &[ColumnId]) {
-        assert_eq!(left.len(), right.len());
-        for (left, right) in left.chunks(32).zip(right.chunks(32)) {
-            self.enforce_equal_when(gate, &Lc::from_bits(left), &Lc::from_bits(right));
-        }
     }
 
     pub(super) fn enforce_bits_zero_when(&mut self, gate: &Lc, bits: &[ColumnId]) {

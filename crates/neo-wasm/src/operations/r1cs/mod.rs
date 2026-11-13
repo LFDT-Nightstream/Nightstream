@@ -1,19 +1,8 @@
 //! Fixed R1CS implementation of the WASM operation relations.
-#[cfg(test)]
-mod bitwise;
 mod builder;
 mod compare;
 mod counts;
-#[cfg(test)]
-mod mul_div;
 mod shared;
-
-#[cfg(test)]
-mod shift;
-
-#[cfg(test)]
-#[path = "../../../tests/operations/shared_legacy.rs"]
-mod shared_legacy;
 
 use crate::sparse_r1cs::SparseR1cs;
 use crate::tagged_r1cs_builder::WasmConstraintScope;
@@ -31,12 +20,6 @@ use crate::range_check::range_checked_bit_columns;
 use builder::{selector_lc, CircuitBuilder, ColumnId, Lc};
 use compare::enforce_comparisons;
 use counts::enforce_popcount;
-#[cfg(test)]
-use counts::enforce_zero_counts;
-#[cfg(test)]
-const LIMB_BITS: usize = 16;
-#[cfg(test)]
-const CARRY_BITS: usize = 18;
 struct Inputs {
     left32: Vec<ColumnId>,
     right32: Vec<ColumnId>,
@@ -101,11 +84,6 @@ impl Inputs {
             output64,
         })
     }
-}
-
-#[cfg(test)]
-fn limb(bits: &[ColumnId], index: usize) -> &[ColumnId] {
-    &bits[index * LIMB_BITS..(index + 1) * LIMB_BITS]
 }
 
 fn column_bits(column: usize) -> Result<Vec<ColumnId>, String> {

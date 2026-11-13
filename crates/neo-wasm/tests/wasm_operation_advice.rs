@@ -1,108 +1,15 @@
-use super::bitwise::enforce_bitwise;
-use super::mul_div::{enforce_div_rem, enforce_mul};
-use super::shift::enforce_shifts;
-use super::*;
-use p3_field::PrimeField64;
+//! Forged advice and non-canonical results against the shared operation
+//! circuit (`neo_wasm::operations::r1cs`).
 
-const LEGACY_SECTIONS: &[Section] = {
-    use WasmOpcode::*;
-    &[
-        Section {
-            name: "bitwise",
-            opcodes: || vec![I32And, I32Or, I32Xor, I64And, I64Or, I64Xor],
-            constrain: enforce_bitwise,
-        },
-        Section {
-            name: "compare",
-            opcodes: || {
-                compare::comparison_operations(false)
-                    .iter()
-                    .chain(compare::comparison_operations(true).iter())
-                    .map(|entry| entry.0)
-                    .collect()
-            },
-            constrain: enforce_comparisons,
-        },
-        Section {
-            name: "shift",
-            opcodes: || {
-                vec![
-                    I32Shl, I32ShrU, I32ShrS, I32Rotl, I32Rotr, I64Shl, I64ShrU, I64ShrS, I64Rotl, I64Rotr,
-                ]
-            },
-            constrain: enforce_shifts,
-        },
-        Section {
-            name: "mul",
-            opcodes: || vec![I32Mul, I64Mul],
-            constrain: enforce_mul,
-        },
-        Section {
-            name: "zcount32",
-            opcodes: || vec![I32Clz, I32Ctz],
-            constrain: |b, i| enforce_zero_counts(b, &i.left32, &i.output32, false),
-        },
-        Section {
-            name: "zcount64",
-            opcodes: || vec![I64Clz, I64Ctz],
-            constrain: |b, i| enforce_zero_counts(b, &i.left64, &i.output64, true),
-        },
-        Section {
-            name: "popcnt32",
-            opcodes: || vec![I32Popcnt],
-            constrain: |b, i| enforce_popcount(b, &i.left32, &i.output32, I32Popcnt),
-        },
-        Section {
-            name: "popcnt64",
-            opcodes: || vec![I64Popcnt],
-            constrain: |b, i| enforce_popcount(b, &i.left64, &i.output64, I64Popcnt),
-        },
-        Section {
-            name: "divrem32",
-            opcodes: || vec![I32DivU, I32DivS, I32RemU, I32RemS],
-            constrain: |b, i| enforce_div_rem(b, &i.left32, &i.right32, &i.output32, false),
-        },
-        Section {
-            name: "divrem64",
-            opcodes: || vec![I64DivU, I64DivS, I64RemU, I64RemS],
-            constrain: |b, i| enforce_div_rem(b, &i.left64, &i.right64, &i.output64, true),
-        },
-    ]
-};
+use neo_math::F;
+use neo_wasm::operations::r1cs::{operation_circuit, OperationCircuit};
+use neo_wasm::WasmOpcode;
+use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
-fn reference() -> OperationCircuit {
-    let base = crate::build_wasm_relation().unwrap();
-    let base_rows = base.r1cs().catalog().len();
-    let inputs = Inputs::new().unwrap();
-    let mut builder = CircuitBuilder::new(&base);
-    let mut groups = Vec::new();
-    for section in LEGACY_SECTIONS {
-        let (column_start, row_start) = builder.position();
-        builder.section(section.name, (section.opcodes)());
-        (section.constrain)(&mut builder, &inputs).unwrap();
-        let (column_end, row_end) = builder.position();
-        groups.push(OperationGroup {
-            name: section.name,
-            columns: column_start..column_end,
-            rows: row_start..row_end,
-        });
-    }
-    let (relation, assignment) = builder.finish().unwrap();
-    OperationCircuit {
-        relation,
-        assignment,
-        base_rows,
-        groups,
-    }
-}
-
-fn accepted(circuit: &OperationCircuit, base: &[F]) -> bool {
-    let mut witness = base.to_vec();
-    witness.resize(circuit.relation().r1cs().column_count(), F::ZERO);
-    if circuit.assign(&mut witness).is_err() {
-        return false;
-    }
-    satisfied(circuit, &witness)
+fn evaluate(terms: &[(usize, F)], z: &[F]) -> F {
+    terms
+        .iter()
+        .fold(F::ZERO, |sum, &(column, coefficient)| sum + z[column] * coefficient)
 }
 
 fn satisfied(circuit: &OperationCircuit, witness: &[F]) -> bool {
@@ -131,89 +38,13 @@ fn refresh_products(circuit: &OperationCircuit, witness: &mut [F]) {
 
 fn refresh_ranges(circuit: &OperationCircuit, witness: &mut [F]) {
     let mut base = witness[..circuit.base_columns()].to_vec();
-    crate::write_range_check_bits(&mut base);
+    neo_wasm::write_range_check_bits(&mut base);
     witness[..circuit.base_columns()].copy_from_slice(&base);
 }
 
 #[test]
-fn shared_and_original_operation_relations_agree_on_dynamic_dispatch() {
-    let old = reference();
-    let new = operation_circuit().unwrap();
-    assert_eq!(old.operation_rows().len(), 2213);
-    assert!(new.operation_rows().len() < old.operation_rows().len());
-    let mut body = String::new();
-    for ty in ["i32", "i64"] {
-        for op in [
-            "and", "or", "xor", "mul", "shl", "shr_u", "shr_s", "rotl", "rotr", "div_u", "div_s", "rem_u", "rem_s",
-            "lt_s", "lt_u", "gt_s", "gt_u", "le_s", "le_u", "ge_s", "ge_u",
-        ] {
-            body.push_str(&format!("{ty}.const -17 {ty}.const 5 {ty}.{op} drop\n"));
-        }
-        for op in ["clz", "ctz", "popcnt"] {
-            body.push_str(&format!("{ty}.const -17 {ty}.{op} drop\n"));
-        }
-    }
-    let source = format!("(module (func (export \"main\") (result i32) {body} i32.const 7))");
-    let wasm = wat::parse_str(source).unwrap();
-    let trace = crate::traces_from_wasmtime_wasm_bytes(&wasm, "main").unwrap();
-    let mut seen = std::collections::HashSet::new();
-    for step in &trace {
-        let base = crate::build_witness_vector(step).unwrap();
-        assert!(accepted(&old, &base), "original {:?}", step.opcode);
-        assert!(accepted(new, &base), "shared {:?}", step.opcode);
-        if step.info.operation.is_none() {
-            continue;
-        }
-        seen.insert(step.opcode);
-        for bit in [0, 1, 15, 31] {
-            let mut wrong = base.clone();
-            let column = crate::layout::COL_STACK_WRITE0_VALUE_LO;
-            wrong[column] = F::from_u64(wrong[column].as_canonical_u64() ^ (1 << bit));
-            crate::write_range_check_bits(&mut wrong);
-            assert!(!accepted(&old, &wrong), "original accepts {:?} bit {bit}", step.opcode);
-            assert!(!accepted(new, &wrong), "shared accepts {:?} bit {bit}", step.opcode);
-        }
-    }
-    assert_eq!(seen.len(), 48);
-    eprintln!(
-        "operation_rows original={} shared={} complete={}",
-        old.operation_rows().len(),
-        new.operation_rows().len(),
-        new.relation().r1cs().catalog().len()
-    );
-}
-
-#[test]
-fn shared_and_original_operation_relations_accept_the_same_traps() {
-    let old = reference();
-    let new = operation_circuit().unwrap();
-    for ty in ["i32", "i64"] {
-        let minimum = if ty == "i32" { i32::MIN as i64 } else { i64::MIN };
-        for (a, b, op, trap) in [
-            (7, 0, "div_u", true),
-            (7, 0, "rem_u", true),
-            (7, 0, "div_s", true),
-            (7, 0, "rem_s", true),
-            (minimum, -1, "div_s", true),
-            (minimum, -1, "rem_s", false),
-        ] {
-            let source =
-                format!("(module (func (export \"main\") (result {ty}) {ty}.const {a} {ty}.const {b} {ty}.{op}))");
-            let wasm = wat::parse_str(source).unwrap();
-            let trace = crate::traces_from_wasmtime_wasm_bytes(&wasm, "main").unwrap();
-            assert_eq!(trace.last().unwrap().state_after.trapped, trap);
-            for step in &trace {
-                let base = crate::build_witness_vector(step).unwrap();
-                assert!(accepted(&old, &base), "original {ty}.{op} {a} {b}");
-                assert!(accepted(new, &base), "shared {ty}.{op} {a} {b}");
-            }
-        }
-    }
-}
-
-#[test]
 fn shared_advice_rejects_forgery_after_dependent_products_are_recomputed() {
-    use crate::layout::COL_STACK_WRITE0_VALUE_LO;
+    use neo_wasm::layout::COL_STACK_WRITE0_VALUE_LO;
     let circuit = operation_circuit().unwrap();
     let advice_columns = circuit
         .relation()
@@ -258,12 +89,12 @@ fn shared_advice_rejects_forgery_after_dependent_products_are_recomputed() {
     let mut traps = 0;
     for program in programs {
         let wasm = wat::parse_str(program).unwrap();
-        let trace = crate::traces_from_wasmtime_wasm_bytes(&wasm, "main").unwrap();
+        let trace = neo_wasm::traces_from_wasmtime_wasm_bytes(&wasm, "main").unwrap();
         for step in trace {
             if step.info.operation.is_none() && step.opcode != WasmOpcode::I32Const {
                 continue;
             }
-            let mut honest = crate::build_witness_vector(&step).unwrap();
+            let mut honest = neo_wasm::build_witness_vector(&step).unwrap();
             honest.resize(circuit.relation().r1cs().column_count(), F::ZERO);
             circuit.assign(&mut honest).unwrap();
             assert!(satisfied(circuit, &honest));
@@ -349,12 +180,12 @@ fn coordinated_integer_roles_reject_noncanonical_results() {
     ];
     for (body, result, roles, amount) in cases {
         let wasm = wat::parse_str(format!("(module (func (export \"main\") (result i64) {body}))")).unwrap();
-        let trace = crate::traces_from_wasmtime_wasm_bytes(&wasm, "main").unwrap();
+        let trace = neo_wasm::traces_from_wasmtime_wasm_bytes(&wasm, "main").unwrap();
         let step = trace
             .iter()
             .find(|step| step.info.operation.is_some())
             .unwrap();
-        let mut wrong = crate::build_witness_vector(step).unwrap();
+        let mut wrong = neo_wasm::build_witness_vector(step).unwrap();
         wrong.resize(circuit.relation().r1cs().column_count(), F::ZERO);
         circuit.assign(&mut wrong).unwrap();
         assert!(satisfied(circuit, &wrong));
@@ -384,7 +215,7 @@ fn coordinated_integer_roles_reject_noncanonical_results() {
             carry = total >> 22;
             set_bits(&mut wrong, carry_starts[column], 24, carry);
         }
-        wrong[crate::layout::COL_STACK_WRITE0_VALUE_LO] = F::from_u64(result);
+        wrong[neo_wasm::layout::COL_STACK_WRITE0_VALUE_LO] = F::from_u64(result);
         refresh_ranges(circuit, &mut wrong);
         refresh_products(circuit, &mut wrong);
         assert!(

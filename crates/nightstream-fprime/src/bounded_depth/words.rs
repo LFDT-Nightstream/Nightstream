@@ -6,7 +6,7 @@
 
 use neo_ccs::crypto::poseidon2::poseidon2_hash;
 
-use crate::package::{PackageError, COMMITMENT_WORDS, EVALUATIONS, EVALUATIONS as SOURCE_OUTPUTS, PUBLIC_WORDS};
+use crate::package::{PackageError, COMMITMENT_WORDS, EVALUATIONS, PUBLIC_WORDS};
 use neo_math::Fq;
 use neo_transcript::domain_chunk_v1_2;
 use p3_field::{Field, PrimeCharacteristicRing};
@@ -155,7 +155,7 @@ impl StepWords {
                 && slot.public_input.len() == PUBLIC_WORDS
         });
         let outputs_fit = |outputs: &[Vec<KWords>], count| {
-            outputs.len() == count && outputs.iter().all(|output| output.len() == SOURCE_OUTPUTS)
+            outputs.len() == count && outputs.iter().all(|output| output.len() == EVALUATIONS)
         };
         let fold_fits = match &self.fold {
             FoldWords::Light { outputs } => outputs_fit(outputs, 2),

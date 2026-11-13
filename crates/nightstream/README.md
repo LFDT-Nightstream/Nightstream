@@ -48,8 +48,9 @@ The caller sets `minimum_security_bits` from its own security policy. The
 value must be positive. Prover and verifier creation fail when the
 statistical security of a step relation is below this minimum. That
 security is the zero-query error of a refresh fold in Lean's
-random-oracle result, about `2^-109.4`, so the selected profile accepts
-a minimum of at most 109 bits.
+random-oracle result. Rust computes it with the census numerator of
+`neo-params` as about `2^-109.15` (`SPEC.md` section 3), so the selected
+profile accepts a minimum of at most 109 bits.
 
 `minimum_security_bits` is not an end-to-end security claim. It gates the
 selected one-fold error. A Nebula circuit also compares it with one memory

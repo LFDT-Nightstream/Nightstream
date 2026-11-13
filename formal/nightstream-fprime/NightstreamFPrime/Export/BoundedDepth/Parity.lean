@@ -82,7 +82,7 @@ its logical column (`ProductionAssignment.logicalAssignment`), each value times
 `mix 1 column`. Only slots below `limit` add, because the parity witness stops at the first
 fresh column; every slot moves the logical column. -/
 def logicalSum (values : Array F) (runs : List (Nat × Nat × Nat)) (limit : Nat) : F :=
-  let publicPart := (List.range 270).foldl (fun sum column =>
+  let publicPart := (List.range CircuitRelation.publicColumns).foldl (fun sum column =>
     sum + values.getD column 0 * mix 1 column) 0
   (runs.foldl (fun (sum, offset) (start, count, kind) =>
       (List.range count).foldl (fun (sum, offset) index =>
@@ -93,7 +93,7 @@ def logicalSum (values : Array F) (runs : List (Nat × Nat × Nat)) (limit : Nat
               (sum, offset)
           else (sum, offset + digits.length))
         (sum, offset))
-    (publicPart, 270)).1
+    (publicPart, CircuitRelation.publicColumns)).1
 
 /-- A circuit whose blocks pack: its relation rows, its S-box rows, the checksum of its relation
 rows, the end of its shared columns, the checksum of its witness, and the checksum of its logical
@@ -112,13 +112,13 @@ def summary (width : Nat) (pieces : List Pieces.Piece) (next sharedEnd : Nat)
 /-- Two small packages whose identity Lean computes (`StepPackage.identityFast`): a probe for
 Rust's identity code. -/
 def probeLight : StepPackage.Package :=
-  ⟨0, 270, 16, 300, 400,
+  ⟨0, 320, 16, 350, 450,
     [.rows [⟨⟨5, [(1, 7)]⟩, .one, .zero⟩], .block 2 [.var 3, .const 9]],
-    [⟨301, [.add (.var 1) (.const 2)], [.inverseOrZero (.var 4)]⟩], [(270, 3, 2), (273, 1, 0)],
-    (4, 300, 2, 1, 0)⟩
+    [⟨351, [.add (.var 1) (.const 2)], [.inverseOrZero (.var 4)]⟩], [(320, 3, 2), (323, 1, 0)],
+    (4, 350, 2, 1, 0)⟩
 
 def probeRefresh : StepPackage.Package :=
-  ⟨1, 270, 32, 10, 20, [.ring 1 4 30 [.mul (.const 3) (.var 8)]], [], [], (0, 10, 0, 0, 0)⟩
+  ⟨1, 320, 32, 10, 20, [.ring 1 4 30 [.mul (.const 3) (.var 8)]], [], [], (0, 10, 0, 0, 0)⟩
 
 /-- The parity file: its version, both circuits' summaries, and the probe packages with their
 identity. -/

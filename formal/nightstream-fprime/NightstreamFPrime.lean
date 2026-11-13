@@ -1,5 +1,6 @@
 import NightstreamFPrime.Spec
 import NightstreamFPrime.Spec.Nebula
+import NightstreamFPrime.Spec.Compression
 import NightstreamFPrime.Spec.Folding.PiRLC.CoordinateForkLaw
 import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
 import NightstreamFPrime.Spec.Folding.PiDEC.OutputWitnessConsumer

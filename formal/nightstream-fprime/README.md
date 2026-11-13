@@ -62,8 +62,8 @@ The code is a fresh implementation. The headers of `Circuit/Basic.lean` and
 Prove the soundness and completeness of the concrete checks, exact transcript
 and public-input binding, parameter bounds, and the links consumed by the
 selected verifier. Keep Pad and the matrix-evaluation families separate.
-The selected profile is Nightstream Goldilocks, k_rho = 16, with `b = 2` and
-`B = 65536`. A light fold has two sources, the fresh instance and the
+The selected profile is Nightstream P64, k_rho = 16, with `q = 2^64 − 59`, the
+ring `X^64 + 1`, `b = 2` and `B = 65536`. A light fold has two sources, the fresh instance and the
 accumulator. A refresh fold has 17 ordered sources, the fresh instance and the
 16 Π_DEC children of the accumulator. Protocol binding uses Poseidon2.
 

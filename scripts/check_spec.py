@@ -75,13 +75,13 @@ DEFINITIONS = [
 # Each value's symbol and meaning. A key is the left side of a theorem's equation or a field
 # path of the package header. `over_q2` shows the value as a probability `value / q^2`.
 LABELS = {
-    "productionProfile.global.q": ("q", "The field modulus, the Goldilocks prime."),
+    "productionProfile.global.q": ("q", "The field modulus, `2^64 − 59`."),
     "productionProfile.global.b": ("b", "The decomposition base and the fresh norm bound."),
     "productionProfile.global.k": ("k_rho", "The decomposition digits, and the Π_DEC children."),
     "productionProfile.global.maxFresh": ("—", "The largest fresh count with `(maxFresh + k_rho)·T·(b − 1) < B` (SuperNeo v1.2 Definition 22)."),
     "productionProfile.global.expansionT": ("T", "The expansion factor of the challenge set."),
     "productionProfile.global.bigB": ("B", "The combined norm bound, `b^k_rho`."),
-    "productionProfile.eta": ("η", "The cyclotomic index: `R_q = F_q[X]/Φ_η`."),
+    "productionProfile.eta": ("η", "The cyclotomic index: `R_q = F_q[X]/Φ_η`, and `Φ_128 = X^64 + 1`."),
     "productionProfile.ringDegree": ("d", "The ring degree, `φ(η)`."),
     "productionProfile.commitmentWidth": ("κ", "The rows of the Ajtai key."),
     "productionProfile.extensionDegree": ("—", "The degree of `K` over `F_q`."),

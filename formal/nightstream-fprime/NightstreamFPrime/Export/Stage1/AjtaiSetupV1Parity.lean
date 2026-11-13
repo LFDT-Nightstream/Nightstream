@@ -37,11 +37,12 @@ def parityValue : Value :=
     natListValue Poseidon2HashChainV1SetupAuthority.productionSeed.bytes,
     .array [
       coordinateValue Poseidon2HashChainV1SetupAuthority.productionSeed 0 0 0,
-      coordinateValue Poseidon2HashChainV1SetupAuthority.productionSeed 0 0 53,
+      coordinateValue Poseidon2HashChainV1SetupAuthority.productionSeed 0 0 (ringDegree - 1),
       coordinateValue Poseidon2HashChainV1SetupAuthority.productionSeed
         1 32768 17,
       coordinateValue Poseidon2HashChainV1SetupAuthority.productionSeed
-        21 (Poseidon2HashChainV1SetupAuthority.messageColumns - 1) 53],
+        (Poseidon2HashChainV1SetupAuthority.verifierRows - 1)
+        (Poseidon2HashChainV1SetupAuthority.messageColumns - 1) (ringDegree - 1)],
     natListValue Poseidon2HashChainV1SetupAuthority.authorityNats,
     natListValue (Shake128.bytes
       (elementInput Poseidon2HashChainV1SetupAuthority.productionSeed.bytes 1 32768)

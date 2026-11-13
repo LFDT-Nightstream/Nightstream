@@ -154,8 +154,8 @@ item 5).
   witnesses is at most a statistical term, a state-collision term and a
   kernel term (`Lifecycle.BoundedDepth.RandomOracle.LightKnowledge.knowledge_error_le`,
   `Lifecycle.BoundedDepth.RandomOracle.RefreshKnowledge.knowledge_error_le`). The
-  statistical term is at most `(Q + 58) · 531/2^128` for light and
-  `(Q + 74) · 50/(87 · 2^115)` for refresh
+  statistical term is at most `(Q + 58) · 575/2^128` for light and
+  `(Q + 74) · 5390/2^128` for refresh
   (`Lifecycle.BoundedDepth.RandomOracle.LightKnowledge.statisticalError_le`,
   `Lifecycle.BoundedDepth.RandomOracle.RefreshKnowledge.statisticalError_le`).
   The kernel term is the probability that the binding reduction returns a
@@ -300,7 +300,7 @@ item 5).
    SHAKE128 output chunk reduced modulo `q`
    (`Spec.AjtaiSetupV1.Programming.verifierKey_eq`). With uniform chunks, an
    event has at most its probability under a uniform matrix, plus
-   `2 · (2^32 − 1)/2^256` for each coefficient
+   `2 · 59^4/2^256` for each coefficient
    (`Spec.AjtaiSetupV1.Programming.expect_le_programmed`), so MSIS for a
    uniform matrix applies (`decisions/fprime-ajtai-shake128-setup.md`,
    `decisions/fprime-ajtai-shake128-security-argument.md`). The seed is
@@ -308,13 +308,13 @@ item 5).
    outside this premise. Lean does not join this step to the results above.
 2. **Two hardness terms.**
    - *MSIS at the chain norm.* Binding needs MSIS for a uniform matrix of
-     `κ = 22` rows of elements of `F_q[X]/Φ₈₁` (degree 54) at the chain norm
-     `msisChainBound = 8 · T · (B + cap · T · (b − 1)) = 137,134,080`, about
-     `2^27.03` (`Spec.Folding.Schedule.production_msisChainBound`). It is the
+     `κ = 18` rows of elements of `F_q[X]/(X^64 + 1)` (degree 64) at the chain norm
+     `msisChainBound = 8 · T · (B + cap · T · (b − 1)) = 75,497,472`, about
+     `2^26.17` (`Spec.Folding.Schedule.production_msisChainBound`). It is the
      SuperNeo v1.2 Section 8 norm `8TB` with `B` replaced by the largest
      recovered bound (`Spec.Folding.Schedule.msisChainBound_zero`). The
      terminal verifier checks each slot at the bound of its depth. By Cyclo
-     Theorem 3, this bound is at most `accumulatorBound cap = 17,496`
+     Theorem 3, this bound is at most `accumulatorBound cap = 10,368`
      (`Spec.GlobalParams.accumulatorBound`, `SPEC.md` Algorithm 6), and Lean
      proves that an honest run stays within it
      (`Export.BoundedDepth.StepExtend.Honest`). A refresh fold recovers its input
@@ -323,14 +323,15 @@ item 5).
      bound, and so the chain norm, comes from `B`, not from the bound of the
      depth.
    - *The κ estimate.* A lattice-estimator run outside Lean (commit 38618db),
-     with the method and the matrix of 22 × 4,708,530 ring elements of the
-     baseline in `decisions/fprime-ajtai-public-seed-msis-assumption.md`,
-     gives these costs at the chain norm: Core-SVP 123.22 bits classical and
-     111.83 bits quantum (block size 422), and MATZOV 150.69 bits classical.
-     At `8TB` the same method gives 125.85, 114.22 and 153.20. The owner kept
-     `κ = 22` on 2026-10-31. The models are heuristic generic lattice attacks.
-     They are not a proof for structured Module-SIS or for the fixed public
-     seed, and the run's files are not in the repository.
+     in the model of `decisions/fprime-stage1-main-ajtai-setup.md` (a width of
+     `2^28` coefficients, the norm `8TB = 67,108,864`, the ADPS16 quantum
+     cost), gives 114.745 bits at rank 18 (block size 433). After the
+     allowance of 3 bits for eight targets, this is 111.7 bits. The owner
+     selected `κ = 18` on 2026-11-13
+     (`decisions/field-2p64-59-ring-x64.md`). The estimate at the chain norm
+     was not run for this profile. The models are heuristic generic lattice
+     attacks. They are not a proof for structured Module-SIS or for the fixed
+     public seed, and the run's files are not in the repository.
    - *Poseidon2 collisions.* The state hash, the slot digests, the package
      identity, the Nebula record chains and the state digests of a memory
      application need Poseidon2 collision resistance. Each hash is fixed and

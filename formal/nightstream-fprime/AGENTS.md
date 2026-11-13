@@ -69,7 +69,7 @@ tests      axiom gate (explicit imports, `#audit_axioms` per theorem)
   in `lakefile.toml`, one profile (`b = 2`, `k_rho = 16`).
 - No `maxRecDepth`/`maxHeartbeats` override, except a per-declaration
   `set_option … in -- fixed-size: …` whose cost axis is a protocol constant
-  (ring degree 54, Poseidon2 width) and never emitted data. Each such site is
+  (ring degree 64, Poseidon2 width) and never emitted data. Each such site is
   a recorded debt to replace by a structural proof. The boundary script
   rejects every other form.
 - Subcircuits are opaque to parents: a parent proof that unfolds a child's

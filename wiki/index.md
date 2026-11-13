@@ -2,7 +2,7 @@
 
 The current prover API and benchmark are in [`nightstream`](../crates/nightstream/README.md).
 Nightstream combines SuperNeo folding with HyperNova-style recursion over
-Goldilocks, Ajtai commitments, and Poseidon2 transcripts. The active formal
+the prime field of `2^64 − 59`, Ajtai commitments, and Poseidon2 transcripts. The active formal
 authority is `formal/nightstream-fprime`.
 
 Lean emits a light and a refresh step circuit. The Rust application takes

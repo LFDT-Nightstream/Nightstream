@@ -10,15 +10,12 @@ workspace dependencies — this is the root crate.
   - Π_RLC bound: `(k+1)·T·(b−1) < B` where `B = b^k`.
   - Extension policy v1: `s_min = ceil((λ + log₂(soundness_factor)) / log₂(q))`;
     only `s = 2` supported; `s_min > 2` is a configuration error; slack recorded.
-- **`goldilocks_paper_b2`** — the SuperNeo Appendix B.2 preset constants (single
-  source of truth; values in [SPEC.md](../../SPEC.md), section 3), including
-  `PHI_COEFFS`, `CHALLENGE_ALPHABET = {−2…2}`, `MAX_FRESH_K = 61`.
-- **Shape-aware constructors** — `goldilocks_auto_r1cs_ccs_with` /
-  `goldilocks_auto_ccs_with`: keep the B.2 core, derive the effective λ a concrete
-  shape can support under `s = 2`. The selected production profile is in
-  [SPEC.md](../../SPEC.md), section 3.
-- **`poseidon2_goldilocks`** — the production Poseidon2 instance every transcript and
-  digest in the workspace must use.
+- **`nightstream_p64_k16`** — the constants of the one profile, "Nightstream P64,
+  k_rho = 16" (single source of truth; values in [SPEC.md](../../SPEC.md),
+  section 3), including `CHALLENGE_ALPHABET = {−2…2}`.
+  `NeoParams::nightstream_p64_k16()` builds the validated parameter set.
+- **`poseidon2`** — the sizes of the production Poseidon2 instance that every
+  transcript and digest in the workspace must use.
 
 ## Does not own
 

@@ -8,7 +8,7 @@ The formal argument keeps these boundaries explicit:
 - Binding for the selected fixed-seed Ajtai key requires its same-key MSIS assumption.
 - Concrete Poseidon2 requires the stated collision and Fiat–Shamir transfer assumptions.
 - The wide sampler's bias bound assumes uniform field draws; it is not itself a random-oracle theorem for the sponge.
-- The low-norm Phi81 invertibility fact is proved for the selected strong set.
+- The low-norm invertibility fact for the ring `X^64 + 1` is proved for the selected strong set.
 - Completeness and soundness are separate obligations.
 
 The verifier checks actual relation rows, commitments, norms, public values,

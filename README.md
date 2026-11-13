@@ -2,7 +2,7 @@
 
 Nightstream is a research proving system that combines SuperNeo folding for
 CCS with HyperNova-style recursion. The active field
-is Goldilocks with a degree-two extension. Ajtai commitments bind witnesses,
+is the prime field of `2^64 − 59` with a degree-two extension. Ajtai commitments bind witnesses,
 and protocol transcripts use Poseidon2 only.
 
 Nightstream is not production-ready and has not had an independent audit.
@@ -35,7 +35,7 @@ explicit Fiat–Shamir and MSIS assumptions in the security argument.
 | `neo-reductions` | Optimized and PaperExact SuperNeo reductions |
 | `neo-ccs` | CCS and committed-evaluation relation types |
 | `neo-ajtai` | Ajtai setup, commitments, and openings |
-| `neo-math` | Goldilocks, extension-field, and ring arithmetic |
+| `neo-math` | Field, extension-field, and ring arithmetic |
 | `neo-transcript` | Poseidon2 Fiat-Shamir transcript |
 | `neo-prover-metal` | Apple Metal prover kernels; `nightstream` does not use them now |
 | `neo-prover-cuda` | Required CUDA backend target |

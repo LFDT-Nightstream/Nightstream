@@ -9,10 +9,10 @@
 | PiDEC | In a refresh fold, decompose the accumulator into 16 low-norm claims | `nightstream/src/folding/pi_dec.rs` |
 | NIFS | The light fold and the refresh fold | `nightstream/src/folding/bounded_depth.rs` |
 | F′ | Application execution plus recursive fold verification and state binding, in a light and a refresh step circuit | `formal/nightstream-fprime/NightstreamFPrime/Lifecycle/BoundedDepth` |
-| Strong set | Degree-54 ring vectors with coefficients in `{−2,…,2}` | `PiRlcSampler` specification and `neo-reductions/src/common/pi_rlc_sampler.rs` |
-| Wide reduction | Four field draws interpreted in base p and reduced modulo `5^54` | The single production PiRLC sampler |
+| Strong set | Degree-64 ring vectors with coefficients in `{−2,…,2}` | `PiRlcSampler` specification and `neo-reductions/src/common/pi_rlc_sampler.rs` |
+| Wide reduction | Five field draws interpreted in base q and reduced modulo `5^64` | The single production PiRLC sampler |
 | Ajtai commitment | Low-norm, ring-linear commitment under the fixed key | `neo-ajtai` |
-| Phi81 | `X^54 + X^27 + 1`, defining the commitment ring | `neo-math` |
+| Ring | `F_q[X]/(X^64 + 1)`, the commitment ring | `neo-math` |
 | Pad / Eval_K | Evaluation of the padded witness | The slot check of `BoundedDepth::verify`, by PiDEC recomposition |
 | Matrix / Eval_A | Evaluation of a matrix applied to the witness, in four families | The slot check of `BoundedDepth::verify`, by PiDEC recomposition |
 | Terminal verification | Check the fresh instance and the claims of both slots against the expected final state | `nightstream/src/lifecycle/bounded_depth/mod.rs` |

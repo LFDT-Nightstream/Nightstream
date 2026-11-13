@@ -11,7 +11,7 @@ paths. `#![forbid(unsafe_code)]`.
 - **`TranscriptProtocol`** — typed absorbs for protocol objects: CCS headers, sparse
   polynomials, commitment coordinates, public fields.
 - **`Poseidon2Transcript`** — the production implementation, built on
-  `neo_params::poseidon2_goldilocks`.
+  `neo_ccs::crypto::poseidon2`.
 - **`labels`** — the static label namespace. Every absorb/challenge call carries a
   `&'static [u8]` label; transcript audits grep this module.
 - **`TranscriptRng` / `TranscriptRngBuilder`** — transcript-bound RNG for prover-side

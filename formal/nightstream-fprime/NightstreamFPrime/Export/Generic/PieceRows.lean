@@ -5,7 +5,7 @@ import NightstreamFPrime.Spec.RingRelation.QuotientProduct
 block of the Π_RLC combinations: for each cell, `output = prior + challenge * value` in the ring.
 It becomes 128 rows per cell, row `r` checking at node `r`
 
-  `challenge(r) * value(r) = output(r) - prior(r) + Φ81(r) * quotient(r)`,
+  `challenge(r) * value(r) = output(r) - prior(r) + (r^64 + 1) * quotient(r)`,
 
 where each term is the evaluation of a ring element and the quotient is fresh, as
 `RingProductPlan` (SuperNeo v1.2 Section 7.4). `QuotientProduct.sound_add` turns the rows back
@@ -108,7 +108,7 @@ def outputColumn (cells start : Nat) (lane : Fin ringDegree) (cell : Nat) : Nat 
 def quotientColumn (quotient : Nat) (lane : Fin ringDegree) (cell : Nat) : Nat :=
   quotient + (cell * ringDegree + lane.val)
 
-/-- The row of `cell` at `node`: `challenge * value = output - prior + Φ81 * quotient`, each side
+/-- The row of `cell` at `node`: `challenge * value = output - prior + (X^64 + 1) * quotient`, each side
 evaluated at the node. -/
 def ringRow (cells start quotient : Nat) (lanes : List Expr) (cell : Nat) (node : Fin 128) :
     R1CS.Row :=

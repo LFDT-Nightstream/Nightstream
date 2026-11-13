@@ -1,4 +1,4 @@
-(* The Rust-emitted i32.add row, interpreted over Goldilocks, computes Wasm addition. *)
+(* The Rust-emitted i32.add row, interpreted over the field with q = 2^64 - 59, computes Wasm addition. *)
 From Stdlib Require Import List ZArith Lia Bool.
 From mathcomp Require Import eqtype ssrbool seq.
 Require Import R1CS Columns FullRelation Range Wasm2 WasmIntegers.
@@ -38,7 +38,7 @@ Proof.
   unfold i32Modulus in *.
   pose proof (Z.mod_eq
     (w addRead0 + w addRead1 - w addWrite - 4294967296 * w addCarry)
-    18446744069414584321) as Hdiv.
+    18446744073709551557) as Hdiv.
   specialize (Hdiv ltac:(lia)).
   rewrite Hsat in Hdiv.
   assert (Hcarry_bound : 0 <= w addCarry <= 1) by lia.

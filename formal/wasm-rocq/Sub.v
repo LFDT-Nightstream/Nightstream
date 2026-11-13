@@ -39,7 +39,7 @@ Proof.
   unfold i32Modulus in *.
   pose proof (Z.mod_eq
     (w subRead0 - w subRead1 - w subWrite + 4294967296 * w subBorrow)
-    18446744069414584321) as Hdiv.
+    18446744073709551557) as Hdiv.
   specialize (Hdiv ltac:(lia)).
   rewrite Hsat in Hdiv.
   assert (Hborrow_bound : 0 <= w subBorrow <= 1) by lia.

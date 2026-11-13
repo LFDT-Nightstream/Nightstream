@@ -1,9 +1,9 @@
-(* Integer representatives of the Goldilocks R1CS relation. *)
+(* Integer representatives of the R1CS relation over the field with q = 2^64 - 59. *)
 From Stdlib Require Import List ZArith.
 Import ListNotations.
 Open Scope Z_scope.
 
-Definition modulus : Z := 18446744069414584321.
+Definition modulus : Z := 18446744073709551557.
 Definition Column := nat.
 Definition SparseRow := list (Column * Z).
 Definition Row := (SparseRow * SparseRow * SparseRow)%type.

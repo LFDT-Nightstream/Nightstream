@@ -185,25 +185,25 @@ def laterBlock : LowNormBlock.Block basePackage.layout.constantColumn :=
     Layout.ProductionRelation.PoseidonRetainedBlock.block_slotCount,
     outputInvocationCount_eq]
 
-@[simp] theorem laterBlock_slotCount : laterBlock.slotCount = 147300 := by
+@[simp] theorem laterBlock_slotCount : laterBlock.slotCount = 168750 := by
   rw [laterBlock,
     Layout.ProductionRelation.PoseidonRetainedBlock.block_slotCount,
     laterInvocationCount_eq]
 
 @[simp] theorem priorBlock_coordinateCount :
-    priorBlock.coordinateCount = 14268000 := by
+    priorBlock.coordinateCount = 14827650 := by
   rw [priorBlock,
     Layout.ProductionRelation.PoseidonRetainedBlock.block_coordinateCount,
     priorInvocationCount_eq]
 
 @[simp] theorem outputBlock_coordinateCount :
-    outputBlock.coordinateCount = 14268000 := by
+    outputBlock.coordinateCount = 14827650 := by
   rw [outputBlock,
     Layout.ProductionRelation.PoseidonRetainedBlock.block_coordinateCount,
     outputInvocationCount_eq]
 
 @[simp] theorem laterBlock_coordinateCount :
-    laterBlock.coordinateCount = 6039300 := by
+    laterBlock.coordinateCount = 6918750 := by
   rw [laterBlock,
     Layout.ProductionRelation.PoseidonRetainedBlock.block_coordinateCount,
     laterInvocationCount_eq]

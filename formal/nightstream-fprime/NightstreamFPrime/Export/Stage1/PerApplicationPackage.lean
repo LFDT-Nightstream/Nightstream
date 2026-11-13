@@ -608,7 +608,7 @@ theorem packageRows_imply_nextPreimageSpec
 theorem package_rowCount_le_twoPow28_iff
     (program : Lifecycle.Stage1.Application.Program) :
     (package program).layout.rowCount ≤ 2 ^ Lifecycle.cubeVariables ↔
-      (applicationPlan program).rowCount ≤ 257057539 := by
+      (applicationPlan program).rowCount ≤ 257118103 := by
   rw [package_rowCount, basePackage_rowCount_eq]
   norm_num [Lifecycle.cubeVariables]
   omega
@@ -616,7 +616,7 @@ theorem package_rowCount_le_twoPow28_iff
 theorem package_totalColumnCount_le_twoPow28_iff
     (program : Lifecycle.Stage1.Application.Program) :
     (package program).layout.totalColumnCount ≤ 2 ^ Lifecycle.cubeVariables ↔
-      addedPrivateColumnCount program ≤ 256970581 := by
+      addedPrivateColumnCount program ≤ 257020203 := by
   rw [package_totalColumnCount, basePackage_totalColumnCount_eq]
   norm_num [Lifecycle.cubeVariables]
   omega
@@ -628,8 +628,8 @@ structure FitsTwoPow28 (program : Lifecycle.Stage1.Application.Program) : Prop w
 
 theorem fitsTwoPow28OfApplicationBounds
     (program : Lifecycle.Stage1.Application.Program)
-    (rows : (applicationPlan program).rowCount ≤ 257057539)
-    (columns : addedPrivateColumnCount program ≤ 256970581) :
+    (rows : (applicationPlan program).rowCount ≤ 257118103)
+    (columns : addedPrivateColumnCount program ≤ 257020203) :
     FitsTwoPow28 program where
   rows := (package_rowCount_le_twoPow28_iff program).2 rows
   columns := (package_totalColumnCount_le_twoPow28_iff program).2 columns
@@ -646,7 +646,7 @@ theorem jointDomain_le_twoPow28
 
 theorem recursivePublicWidth_fixed
     (program : Lifecycle.Stage1.Application.Program) :
-    (package program).layout.publicColumnCount = 278 := by
+    (package program).layout.publicColumnCount = 328 := by
   rw [package_publicColumnCount]
   rfl
 

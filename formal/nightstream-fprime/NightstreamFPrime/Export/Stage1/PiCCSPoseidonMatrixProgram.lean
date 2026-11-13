@@ -9,7 +9,7 @@ open NightstreamFPrime.Layout.ProductionRelation
 abbrev Program := Lifecycle.Stage1.Application.Program
 
 def previousRule (program : Program) : PoseidonInput.Rule where
-  region := ⟨1, 947, 0, 16⟩
+  region := ⟨1, 1090, 0, 16⟩
   term := .external
     (RetainedBlock.ofSemantic (PiCCSPoseidonPlan.retainedBlock program)
       (PiCCSPoseidonPlan.retainedStart program)) 134 150

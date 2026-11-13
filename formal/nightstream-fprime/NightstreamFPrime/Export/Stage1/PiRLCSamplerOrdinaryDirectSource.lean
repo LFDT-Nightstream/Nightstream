@@ -23,13 +23,13 @@ def sourceRows : List R1CS.Row :=
   rw [sourceRows, List.length_map]
   exact PiRLCSamplerOrdinaryRows.rows_length
 
-def poseidonSource (source : Nat) (lane : Fin 4) : Nat :=
+def poseidonSource (source : Nat) (lane : Fin 5) : Nat :=
   PiRLCStarts.samplerSourceLogicalStart source + 1080 + lane.val
 
 def coreStart (source : Nat) : Nat :=
   WideReduction.Program.coreOffset (PiRLCStarts.rangeLogicalStart source)
 
-theorem rangeSource_eq_var (source : Nat) (lane : Fin 4) (offset : Nat) :
+theorem rangeSource_eq_var (source : Nat) (lane : Fin 5) (offset : Nat) :
     (PiRLCSamplerOrdinaryRows.rangeInterface
       (logicalWidth := logicalWidth) (publicFits := publicFits) source).source lane offset =
       Expr.var (poseidonSource source lane) := by
@@ -38,12 +38,10 @@ theorem rangeSource_eq_var (source : Nat) (lane : Fin 4) (offset : Nat) :
   rfl
 
 inductive Source : Nat → Prop where
-  | poseidon (source : Nat) (lane : Fin 4) (sourceLt : source < 17) :
+  | poseidon (source : Nat) (lane : Fin 5) (sourceLt : source < 17) :
       Source (poseidonSource source lane)
-  | logical (source position : Nat) (sourceLt : source < 17) (positionLt : position < 617) :
+  | logical (source position : Nat) (sourceLt : source < 17) (positionLt : position < 769) :
       Source (coreStart source + position)
-  | fresh (source position : Nat) (sourceLt : source < 17) (positionLt : position < 144) :
-      Source (PiRLCStarts.rangeFreshStart source + position)
   | word (source position : Nat) (sourceLt : source < 17) (positionLt : position < 64) :
       Source (PiRLCStarts.challengeWordStart source + position)
 
@@ -55,9 +53,7 @@ theorem Source.bounded {column : Nat} (supported : Source column) :
   rw [Spartan.sourceColumnCount_eq]
   cases supported <;>
     simp only [poseidonSource, coreStart, WideReduction.Program.coreOffset,
-      PiRLCStarts.rangeLogicalStart, PiRLCStarts.rangeFreshStart,
-      PiRLCStarts.samplerSourceFreshStart, PiRLCStarts.samplerFreshStart,
-      PiRLCStarts.phaseFreshStart, PiRLCStarts.samplerSourceLogicalStart,
+      PiRLCStarts.rangeLogicalStart, PiRLCStarts.samplerSourceLogicalStart,
       PiRLCStarts.challengeWordStart, PiRLCStarts.samplerLogicalStart,
       SamplerChain.sourceOffset, Sampler.rangeOffset, Sampler.wordsOffset,
       Sampler.advanceOffset, Sampler.counts.1, WideReduction.Program.privateCount_eq,
@@ -75,8 +71,8 @@ private theorem rangeConstraints_supported (source : Nat) (sourceLt : source < 1
     exact Source.poseidon source lane sourceLt
   · intro column lower upper
     change coreStart source ≤ column at lower
-    change column < coreStart source + 617 at upper
-    have positionLt : column - coreStart source < 617 := by omega
+    change column < coreStart source + 769 at upper
+    have positionLt : column - coreStart source < 769 := by omega
     have eq : coreStart source + (column - coreStart source) = column := by omega
     rw [← eq]
     exact Source.logical source _ sourceLt positionLt
@@ -87,8 +83,8 @@ private theorem wordConstraints_supported (source : Nat) (sourceLt : source < 17
   apply SamplerWords.flatConstraints_varsSatisfy
   · intro column lower upper
     change coreStart source ≤ column at lower
-    change column < coreStart source + 617 at upper
-    have positionLt : column - coreStart source < 617 := by omega
+    change column < coreStart source + 769 at upper
+    have positionLt : column - coreStart source < 769 := by omega
     have eq : coreStart source + (column - coreStart source) = column := by omega
     rw [← eq]
     exact Source.logical source _ sourceLt positionLt
@@ -97,13 +93,13 @@ private theorem wordConstraints_supported (source : Nat) (sourceLt : source < 17
 
 private theorem range_fresh (source : Nat) :
     R1CS.totalFreshCount (PiRLCSamplerOrdinaryRows.rangeConstraints
-      (logicalWidth := logicalWidth) (publicFits := publicFits) source) = 144 := by
+      (logicalWidth := logicalWidth) (publicFits := publicFits) source) = 0 := by
   have total := PiRLCSamplerOrdinaryRows.rangeRows_length
     (logicalWidth := logicalWidth) (publicFits := publicFits) source
   rw [PiRLCSamplerOrdinaryRows.rangeRows, PiCCSArithmetic.compilePacket_length,
     R1CS.totalRowCount_eq_fresh_add_length] at total
   have length : (PiRLCSamplerOrdinaryRows.rangeConstraints
-      (logicalWidth := logicalWidth) (publicFits := publicFits) source).length = 681 :=
+      (logicalWidth := logicalWidth) (publicFits := publicFits) source).length = 845 :=
     WideReduction.Program.rowCount_eq _ _
   rw [length] at total
   omega
@@ -122,18 +118,14 @@ private theorem rangeLowered_supported (source : Nat) (sourceLt : source < 17) :
   intro column support
   rcases support with supported | fresh
   · exact supported
-  · have positionLt : column - PiRLCStarts.rangeFreshStart source < 144 := by omega
-    have eq : PiRLCStarts.rangeFreshStart source +
-        (column - PiRLCStarts.rangeFreshStart source) = column := by omega
-    rw [← eq]
-    exact Source.fresh source _ sourceLt positionLt
+  · omega
 
 private theorem wordLowered_supported (source : Nat) (sourceLt : source < 17) :
     ∀ row ∈ (R1CS.lowerConstraints (PiRLCSamplerOrdinaryRows.wordConstraints source)
-        (PiRLCStarts.rangeFreshStart source + 144)).rows,
+        (PiRLCStarts.rangeFreshStart source)).rows,
       row.VarsSatisfy Source := by
   have lowered := R1CS.lowerConstraints_rows_varsSatisfy _
-    (PiRLCStarts.rangeFreshStart source + 144) Source
+    (PiRLCStarts.rangeFreshStart source) Source
     (wordConstraints_supported source sourceLt)
   have fresh := Layout.PiRLC.v1_2.Sampler.words_fresh
     (PiRLCSamplerInvocations.sourceLogicalStart source)

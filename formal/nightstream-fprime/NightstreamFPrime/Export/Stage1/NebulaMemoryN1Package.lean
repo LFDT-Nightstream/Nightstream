@@ -26,11 +26,11 @@ theorem polyRows_length : (Rows.polyRows SecondPlan.geometry SecondPlan.app).len
   decide +kernel
 
 theorem rows_le :
-    (PerApplicationPackage.applicationPlan (MemoryApp.program SecondPlan.geometry SecondPlan.app)).rowCount ≤ 257057539 :=
+    (PerApplicationPackage.applicationPlan (MemoryApp.program SecondPlan.geometry SecondPlan.app)).rowCount ≤ 257118103 :=
   NebulaMemoryPackage.rows_le SecondPlan.geometry SecondPlan.app polyRows_mulCount polyRows_length (by decide +kernel)
 
 theorem columns_le :
-    PerApplicationPackage.addedPrivateColumnCount (MemoryApp.program SecondPlan.geometry SecondPlan.app) ≤ 256970581 :=
+    PerApplicationPackage.addedPrivateColumnCount (MemoryApp.program SecondPlan.geometry SecondPlan.app) ≤ 257020203 :=
   NebulaMemoryPackage.columns_le SecondPlan.geometry SecondPlan.app polyRows_mulCount (by decide +kernel)
 
 theorem carrier_le :

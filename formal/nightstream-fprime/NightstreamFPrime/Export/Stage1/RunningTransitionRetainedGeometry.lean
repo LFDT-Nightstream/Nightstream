@@ -33,7 +33,7 @@ def completeLogicalWidth
 
 @[simp] theorem completeLogicalWidth_eq
     (program : Lifecycle.Stage1.Application.Program) :
-    completeLogicalWidth program = 40990348 := by
+    completeLogicalWidth program = 43319526 := by
   have retained := retainedCoordinateCount_eq program
   simp only [retainedCoordinateCount] at retained
   unfold completeLogicalWidth freshStart piDecStart
@@ -83,7 +83,7 @@ theorem stateFits {program : Lifecycle.Stage1.Application.Program}
     stateStart program + (stateBlock program).coordinateCount ≤ logicalWidth := by
   have parent := PiRLCPoseidonGeometry.priorInputFits (pilotGeometry geometry)
   have width : (PiRLCPoseidonGeometry.priorInputBlock program).coordinateCount =
-      1140579 := by simp [PiRLCPoseidonGeometry.priorInputBlock]
+      1185433 := by simp [PiRLCPoseidonGeometry.priorInputBlock]
   rw [width] at parent
   change PiRLCPoseidonGeometry.priorInputStart program + 28904 * 41 + 9 * 41 ≤
     logicalWidth

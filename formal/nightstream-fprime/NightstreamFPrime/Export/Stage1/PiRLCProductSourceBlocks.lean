@@ -48,8 +48,8 @@ def challengeBlock (program : Lifecycle.Stage1.Application.Program) :
 
 @[simp] theorem challengeBlock_coordinateCount
     (program : Lifecycle.Stage1.Application.Program) :
-    (challengeBlock program).coordinateCount = 37638 := by
-  change PiRLCCombinationInvocations.sourceCount * ringDegree * 41 = 37638
+    (challengeBlock program).coordinateCount = 44608 := by
+  change PiRLCCombinationInvocations.sourceCount * ringDegree * 41 = 44608
   rfl
 
 theorem challengeBlock_source (program : Lifecycle.Stage1.Application.Program)
@@ -88,7 +88,7 @@ def retainedCoordinateCount
 
 @[simp] theorem retainedCoordinateCount_eq
     (program : Lifecycle.Stage1.Application.Program) :
-    retainedCoordinateCount program = 1430244 := by
+    retainedCoordinateCount program = 1516672 := by
   simp [retainedCoordinateCount]
 
 end NightstreamFPrime.Export.Stage1.PiRLCProductSourceBlocks

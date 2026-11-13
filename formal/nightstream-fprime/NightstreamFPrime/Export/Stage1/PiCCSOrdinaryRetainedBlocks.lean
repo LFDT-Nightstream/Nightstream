@@ -142,7 +142,7 @@ def proofLogicalCount : Nat :=
 @[simp] theorem ordinaryLogicalCount_eq : ordinaryLogicalCount = 34871 := by
   exact PiCCSOrdinarySourceSupport.ordinaryLogicalCount_eq
 
-@[simp] theorem proofLogicalCount_eq : proofLogicalCount = 47981 := by
+@[simp] theorem proofLogicalCount_eq : proofLogicalCount = 55791 := by
   norm_num [proofLogicalCount, proofInputCount_eq, transcriptOutputCount_eq,
     ordinaryLogicalCount_eq]
 
@@ -209,10 +209,10 @@ theorem proofLogicalSource_support (index : Fin proofLogicalCount) :
       apply PiCCSOrdinarySourceSupport.ordinary_logical_source
       unfold PiCCSOrdinarySourceSupport.OrdinaryLogical
         PiCCSOrdinarySourceSupport.InRange
-      have indexBound : index.val < 47981 := by
+      have indexBound : index.val < 55791 := by
         simpa only [proofLogicalCount_eq] using index.isLt
       rw [PiCCSOrdinarySourceSupport.ordinaryLogicalCount_eq]
-      have notTranscriptNumeric : ¬index.val < 18390 := by
+      have notTranscriptNumeric : ¬index.val < 20920 := by
         simpa only [proofInputCount_eq, transcriptOutputCount_eq] using
           notTranscript
       simp only [proofInputCount_eq, transcriptOutputCount_eq]
@@ -316,7 +316,7 @@ def freshBlock (program : Lifecycle.Stage1.Application.Program) :
       (expectedContextBlock program).slotCount +
       (proofLogicalBlock program).slotCount +
       (outputEndpointBlock program).slotCount +
-      (freshBlock program).slotCount = 53419 := by
+      (freshBlock program).slotCount = 61279 := by
   norm_num [freshPublicInputBlock,
     priorLastBlock, outputLastBlock, expectedContextBlock, proofLogicalBlock,
     outputEndpointBlock, freshBlock, packageFieldBlock, sourceFieldBlock,
@@ -338,7 +338,7 @@ def retainedCoordinateCount (program : Lifecycle.Stage1.Application.Program) :
 
 @[simp] theorem retainedCoordinateCount_eq
     (program : Lifecycle.Stage1.Application.Program) :
-    retainedCoordinateCount program = 2190179 := by
+    retainedCoordinateCount program = 2512439 := by
   simp only [retainedCoordinateCount, LowNormBlock.Block.coordinateCount,
     freshPublicInputBlock, priorLastBlock,
     outputLastBlock, expectedContextBlock, proofLogicalBlock, freshBlock,

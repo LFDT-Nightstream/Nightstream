@@ -13,13 +13,9 @@ def prefixLogicalWidth (program : Lifecycle.Stage1.Application.Program) : Nat :=
 def canonicalLocalStart (program : Lifecycle.Stage1.Application.Program) : Nat :=
   prefixLogicalWidth program
 
-def canonicalFreshStart (program : Lifecycle.Stage1.Application.Program) : Nat :=
+def outputDigestStart (program : Lifecycle.Stage1.Application.Program) : Nat :=
   canonicalLocalStart program +
     (PilotOrdinaryRetainedBlocks.canonicalLocalBlock program).coordinateCount
-
-def outputDigestStart (program : Lifecycle.Stage1.Application.Program) : Nat :=
-  canonicalFreshStart program +
-    (PilotOrdinaryRetainedBlocks.canonicalFreshBlock program).coordinateCount
 
 def completeLogicalWidth (program : Lifecycle.Stage1.Application.Program) : Nat :=
   outputDigestStart program +
@@ -27,8 +23,8 @@ def completeLogicalWidth (program : Lifecycle.Stage1.Application.Program) : Nat 
 
 @[simp] theorem completeLogicalWidth_eq
     (program : Lifecycle.Stage1.Application.Program) :
-    completeLogicalWidth program = 43197419 := by
-  unfold completeLogicalWidth outputDigestStart canonicalFreshStart
+    completeLogicalWidth program = 45843117 := by
+  unfold completeLogicalWidth outputDigestStart
     canonicalLocalStart prefixLogicalWidth
   rw [PiCCSOrdinaryRetainedGeometry.completeLogicalWidth_eq]
   have count := PilotOrdinaryRetainedBlocks.retainedCoordinateCount_eq program
@@ -50,7 +46,7 @@ theorem prefixGeometry {program : Lifecycle.Stage1.Application.Program}
     PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth where
   completeFits := by
     apply Nat.le_trans _ geometry.completeFits
-    unfold completeLogicalWidth outputDigestStart canonicalFreshStart
+    unfold completeLogicalWidth outputDigestStart
       canonicalLocalStart prefixLogicalWidth
     omega
 
@@ -63,15 +59,6 @@ theorem canonicalLocalFits {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
     canonicalLocalStart program +
         (PilotOrdinaryRetainedBlocks.canonicalLocalBlock program).coordinateCount ≤
-      logicalWidth := by
-  apply Nat.le_trans _ geometry.completeFits
-  unfold completeLogicalWidth outputDigestStart canonicalFreshStart
-  omega
-
-theorem canonicalFreshFits {program : Lifecycle.Stage1.Application.Program}
-    {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
-    canonicalFreshStart program +
-        (PilotOrdinaryRetainedBlocks.canonicalFreshBlock program).coordinateCount ≤
       logicalWidth := by
   apply Nat.le_trans _ geometry.completeFits
   unfold completeLogicalWidth outputDigestStart
@@ -92,9 +79,6 @@ structure Encodes {program : Lifecycle.Stage1.Application.Program}
   canonicalLocal :
     (PilotOrdinaryRetainedBlocks.canonicalLocalBlock program).EncodesAt
       (canonicalLocalStart program) (canonicalLocalFits geometry) assignment source
-  canonicalFresh :
-    (PilotOrdinaryRetainedBlocks.canonicalFreshBlock program).EncodesAt
-      (canonicalFreshStart program) (canonicalFreshFits geometry) assignment source
   outputDigest :
     (PilotOrdinaryRetainedBlocks.outputDigestBlock program).EncodesAt
       (outputDigestStart program) (outputDigestFits geometry) assignment source

@@ -84,14 +84,14 @@ theorem outputBlock_source (slot : Fin Data.outputChain.inputLength) :
   rfl
 
 @[simp] theorem priorBlock_coordinateCount :
-    priorBlock.coordinateCount = 1140579 := by
+    priorBlock.coordinateCount = 1185433 := by
   norm_num [priorBlock, block, LowNormBlock.Block.coordinateCount,
     LowNormSlot.Kind.width, BalancedTernary.width, Data.priorChain,
     Data.liftPilotChain, PilotData.priorChain, PilotValues.stateHashWords,
     PilotValues.stateHashBaseWords]
 
 @[simp] theorem outputBlock_coordinateCount :
-    outputBlock.coordinateCount = 1140579 := by
+    outputBlock.coordinateCount = 1185433 := by
   norm_num [outputBlock, block, LowNormBlock.Block.coordinateCount,
     LowNormSlot.Kind.width, BalancedTernary.width, Data.outputChain,
     Data.liftPilotChain, PilotData.outputChain, PilotValues.stateHashWords,
@@ -101,7 +101,7 @@ def retainedCoordinateCount : Nat :=
   priorBlock.coordinateCount + outputBlock.coordinateCount
 
 @[simp] theorem retainedCoordinateCount_eq :
-    retainedCoordinateCount = 2281158 := by
+    retainedCoordinateCount = 2370866 := by
   simp [retainedCoordinateCount]
 
 end NightstreamFPrime.Export.Stage1.PoseidonInputRetainedBlock

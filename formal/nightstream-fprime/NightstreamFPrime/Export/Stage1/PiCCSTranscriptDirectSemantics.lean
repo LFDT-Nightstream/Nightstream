@@ -180,13 +180,13 @@ theorem outputKindAt_materializes :
 def statementLast : Fin PiCCSActionPayloadBlock.invocationCount := ⟨123, by
   norm_num [PiCCSActionPayloadBlock.invocationCount]⟩
 
-def challengeLast : Fin PiCCSActionPayloadBlock.invocationCount := ⟨126, by
+def challengeLast : Fin PiCCSActionPayloadBlock.invocationCount := ⟨127, by
   norm_num [PiCCSActionPayloadBlock.invocationCount]⟩
 
-def roundLast : Fin PiCCSActionPayloadBlock.invocationCount := ⟨182, by
+def roundLast : Fin PiCCSActionPayloadBlock.invocationCount := ⟨183, by
   norm_num [PiCCSActionPayloadBlock.invocationCount]⟩
 
-def outputLast : Fin PiCCSActionPayloadBlock.invocationCount := ⟨947, by
+def outputLast : Fin PiCCSActionPayloadBlock.invocationCount := ⟨1090, by
   norm_num [PiCCSActionPayloadBlock.invocationCount]⟩
 
 def sliceState {program : Lifecycle.Stage1.Application.Program}

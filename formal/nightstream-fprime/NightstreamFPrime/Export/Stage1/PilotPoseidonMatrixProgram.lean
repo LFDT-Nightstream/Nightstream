@@ -33,7 +33,7 @@ def fullInputRule {sourceWidth : Nat}
 def tailInputRule {sourceWidth : Nat}
     (inputBlock : LowNormBlock.Block sourceWidth) (inputStart : Nat) :
     PoseidonInput.Rule where
-  region := ⟨2409, 1, 0, 3⟩
+  region := ⟨2409, 1, 0, 5⟩
   term := .retained (RetainedBlock.ofSemantic inputBlock inputStart)
     28908 0 1
 

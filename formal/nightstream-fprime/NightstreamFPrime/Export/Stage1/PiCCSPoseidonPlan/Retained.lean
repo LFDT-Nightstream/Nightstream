@@ -40,7 +40,7 @@ def retainedBlock (program : Lifecycle.Stage1.Application.Program) :
 
 @[simp] theorem retainedBlock_coordinateCount
     (program : Lifecycle.Stage1.Application.Program) :
-    (retainedBlock program).coordinateCount = 5830200 := by
+    (retainedBlock program).coordinateCount = 6709650 := by
   erw [retainedBlock, LowNormBlock.Block.lift_coordinateCount,
     LaterPoseidonRetainedBlocks.piCcsBlock_coordinateCount]
 

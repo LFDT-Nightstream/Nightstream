@@ -174,10 +174,10 @@ theorem circuitPackage_permutation_invocations :
 theorem proofInputStart_eq : Data.proofInputStart = 57826 := by
   rfl
 
-theorem witnessStart_eq : Data.witnessStart = 70830 := by
+theorem witnessStart_eq : Data.witnessStart = 75482 := by
   rfl
 
-theorem witnessLength_eq : Data.witnessLength = 11361526 := by
+theorem witnessLength_eq : Data.witnessLength = 11305328 := by
   rfl
 
 theorem circuitPackage_layout_values :
@@ -185,7 +185,7 @@ theorem circuitPackage_layout_values :
     layout.rowCount = 11317348 ∧
       layout.privateColumnCount = 11414924 ∧
       layout.constantColumn = 11414924 ∧
-      layout.publicColumnCount = 278 ∧
+      layout.publicColumnCount = 328 ∧
       layout.totalColumnCount = 11415253 := by
   rw [Data.circuitPackage_layout]
   dsimp [Data.physicalLayout]

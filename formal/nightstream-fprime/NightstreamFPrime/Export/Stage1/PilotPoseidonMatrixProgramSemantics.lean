@@ -163,15 +163,15 @@ private theorem tailInputRule_result
     (invocation : Fin 2411) (lane : Fin 16) :
     (tailInputRule inputBlock inputStart).form? logicalWidth oneColumn
         invocation.val lane.val =
-      some (if selected : invocation.val = 2409 ∧ lane.val < 3 then
+      some (if selected : invocation.val = 2409 ∧ lane.val < 5 then
         some (inputBlock.form inputStart fits ⟨28908 + lane.val, by
           rw [slotCount]
           omega⟩)
       else none) := by
-  by_cases selected : invocation.val = 2409 ∧ lane.val < 3
+  by_cases selected : invocation.val = 2409 ∧ lane.val < 5
   · rw [dite_eq_left selected]
     have ruleSelected := PoseidonInput.Rule.retained_form?_ofSemantic
-      (region := PoseidonInput.Region.mk 2409 1 0 3)
+      (region := PoseidonInput.Region.mk 2409 1 0 5)
       (0 : Fin 1) ⟨lane.val, selected.2⟩ inputBlock inputStart fits oneColumn
       28908 0 1 (by
         change 28908 + 0 * 0 + lane.val * 1 < inputBlock.slotCount
@@ -180,7 +180,7 @@ private theorem tailInputRule_result
     simpa [tailInputRule, selected.1] using ruleSelected
   · rw [dite_eq_right selected]
     apply PoseidonInput.Rule.form?_eq_some_none
-    show PoseidonInput.Region.offsets? ⟨2409, 1, 0, 3⟩ invocation.val lane.val = none
+    show PoseidonInput.Region.offsets? ⟨2409, 1, 0, 5⟩ invocation.val lane.val = none
     unfold PoseidonInput.Region.offsets?
     dsimp only
     split_ifs <;> first | rfl | omega
@@ -270,7 +270,7 @@ private theorem chainInputProgram_form?
         omega
       rcases last with tail | padding
       · have absorbing : invocation.val < 2410 := by omega
-        by_cases tailLane : lane.val < 3
+        by_cases tailLane : lane.val < 5
         · have rateLane : lane.val < 12 := by omega
           have present : invocation.val * 12 + lane.val < 28913 := by omega
           have tailPresent : 28908 + lane.val < 28913 := by omega

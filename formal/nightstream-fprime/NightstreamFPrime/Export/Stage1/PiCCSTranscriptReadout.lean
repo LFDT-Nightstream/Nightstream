@@ -18,7 +18,7 @@ abbrev Index := Fin PiCCSOrdinarySourceSupport.transcriptInvocationCount
 
 def transcriptStart : Nat := Spartan.sourceToSpartan PiCCSStarts.statementWitnessStart
 
-theorem transcriptStart_eq : transcriptStart = 5156948 := by
+theorem transcriptStart_eq : transcriptStart = 5360982 := by
   unfold transcriptStart
   rw [PiCCSStarts.statementWitnessStart_eq]
   rfl

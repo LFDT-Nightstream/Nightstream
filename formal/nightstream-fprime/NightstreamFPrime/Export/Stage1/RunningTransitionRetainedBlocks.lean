@@ -126,7 +126,7 @@ def retainedSlotCount (program : Lifecycle.Stage1.Application.Program) : Nat :=
 
 @[simp] theorem retainedSlotCount_eq
     (program : Lifecycle.Stage1.Application.Program) :
-    retainedSlotCount program = 31970 := by
+    retainedSlotCount program = 33794 := by
   simp [retainedSlotCount]
 
 def retainedCoordinateCount
@@ -136,7 +136,7 @@ def retainedCoordinateCount
 
 @[simp] theorem retainedCoordinateCount_eq
     (program : Lifecycle.Stage1.Application.Program) :
-    retainedCoordinateCount program = 1310770 := by
+    retainedCoordinateCount program = 1385554 := by
   simp only [retainedCoordinateCount, piDecBlock,
     freshBlock, fieldBlock_coordinateCount,
     RunningTransitionSourceSupport.piDecCount_eq, freshCount_eq]

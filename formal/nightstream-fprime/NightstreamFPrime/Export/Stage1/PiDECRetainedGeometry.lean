@@ -107,7 +107,7 @@ theorem parentPublicInputFits {program : Lifecycle.Stage1.Application.Program}
   have fits := PiRLCRetainedGeometry.productOutputFits (piRlcGeometry geometry)
   change PiRLCRetainedGeometry.productOutputStart program + 35904 * 41 ≤
     logicalWidth at fits
-  change PiRLCRetainedGeometry.productOutputStart program + 24516 * 41 +
+  change PiRLCRetainedGeometry.productOutputStart program + 24704 * 41 +
     320 * 41 ≤ logicalWidth
   omega
 
@@ -119,7 +119,7 @@ theorem parentEvalKFits {program : Lifecycle.Stage1.Application.Program}
   have fits := PiRLCRetainedGeometry.productOutputFits (piRlcGeometry geometry)
   change PiRLCRetainedGeometry.productOutputStart program + 35904 * 41 ≤
     logicalWidth at fits
-  change PiRLCRetainedGeometry.productOutputStart program + 26514 * 41 +
+  change PiRLCRetainedGeometry.productOutputStart program + 27072 * 41 +
     128 * 41 ≤ logicalWidth
   omega
 
@@ -140,7 +140,7 @@ theorem parentEvalAFits {program : Lifecycle.Stage1.Application.Program}
   rw [matrices, ccs, degree] at evalACount
   have startEq : parentEvalAStart program =
       PiRLCRetainedGeometry.productOutputStart program + parentEvalASlot * 41 := rfl
-  have slotEq : parentEvalASlot = 33534 := rfl
+  have slotEq : parentEvalASlot = 35392 := rfl
   omega
 
 theorem proofFits {program : Lifecycle.Stage1.Application.Program}

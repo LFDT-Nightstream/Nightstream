@@ -32,9 +32,9 @@ structure FitsTwoPow28
 theorem fitsTwoPow28OfApplicationBounds
     (application : Lifecycle.Stage1.Application.Program)
     (rows : (PerApplicationPackage.applicationPlan application).rowCount ≤
-      257057539)
+      257118103)
     (columns : PerApplicationPackage.addedPrivateColumnCount application ≤
-      256970581)
+      257020203)
     (carrierWords : application.witnessWordCount +
       ApplicationRetainedBlocks.localCount application ≤ 5480402) :
     FitsTwoPow28 application where
@@ -90,7 +90,7 @@ theorem plan_fixedPoint (application : Lifecycle.Stage1.Application.Program)
     (application : Lifecycle.Stage1.Application.Program)
     (fits : FitsTwoPow28 application) :
     (structuralPlan application fits).rowCount =
-      998638 + (PerApplicationPackage.applicationPlan application).rowCount +
+      1059942 + (PerApplicationPackage.applicationPlan application).rowCount +
         9 := by
   unfold structuralPlan
   exact DirectApplicationPrefixPlan.plan_rowCount _ fits.package

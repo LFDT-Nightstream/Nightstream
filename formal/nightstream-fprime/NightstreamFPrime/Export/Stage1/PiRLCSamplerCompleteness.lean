@@ -37,7 +37,7 @@ private theorem sourceFreshCount
     R1CS.totalFreshCount
         (SamplerChain.childConstraints chainInterface
           PiRLCStarts.samplerLogicalStart source.val) =
-      144 := by
+      0 := by
   exact Sampler.totalFreshCount_eq
     (SamplerChain.Logical.childInterface chainInterface
       PiRLCStarts.samplerLogicalStart source.val)
@@ -60,19 +60,19 @@ private theorem sourceFreshPrefix
       R1CS.totalFreshCount
         (SamplerChain.childConstraints chainInterface
           PiRLCStarts.samplerLogicalStart current.val)).take source.val).sum =
-      source.val * 144 := by
+      source.val * 0 := by
   have countsEq :
       (List.ofFn fun current : Fin SamplerChain.Logical.sourceCount =>
         R1CS.totalFreshCount
           (SamplerChain.childConstraints chainInterface
             PiRLCStarts.samplerLogicalStart current.val)) =
         List.ofFn
-          (fun _ : Fin SamplerChain.Logical.sourceCount => 144) := by
+          (fun _ : Fin SamplerChain.Logical.sourceCount => 0) := by
     apply congrArg List.ofFn
     funext current
     exact sourceFreshCount current
   rw [countsEq]
-  exact sum_take_ofFn_const 144 source
+  exact sum_take_ofFn_const 0 source
 
 theorem remappedPacket_implies_sourceRows (env : Env)
     (packets : PiRLCPackageCompleteness.RemappedPacketRowsHold env)
@@ -81,7 +81,7 @@ theorem remappedPacket_implies_sourceRows (env : Env)
       (R1CS.lowerConstraints
         (SamplerChain.childConstraints chainInterface
           PiRLCStarts.samplerLogicalStart source.val)
-        (PiRLCStarts.samplerFreshStart + source.val * 144)).rows := by
+        (PiRLCStarts.samplerFreshStart + source.val * 0)).rows := by
   have samplerRows := (Spartan.remapRows_hold env _).mp packets.sampler
   change R1CS.RowsHold (Spartan.pullback env)
     (R1CS.lowerConstraints
@@ -115,7 +115,7 @@ theorem remappedPacket_implies_sourceChildren (env : Env)
     (packets : PiRLCPackageCompleteness.RemappedPacketRowsHold env)
     (source : Fin SamplerChain.Logical.sourceCount) :
     Sampler.ChildRows (sourceInterface source.val) source.val (sourceOffset source.val)
-      (Spartan.pullback env) (PiRLCStarts.samplerFreshStart + source.val * 144) :=
+      (Spartan.pullback env) (PiRLCStarts.samplerFreshStart + source.val * 0) :=
   Sampler.rowsHold_implies_childRows _ _ _ _ _ (sourceInputs source.val)
     (remappedPacket_implies_sourceRows env packets source)
 

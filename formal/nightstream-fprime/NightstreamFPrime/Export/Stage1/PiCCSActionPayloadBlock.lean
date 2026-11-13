@@ -121,7 +121,7 @@ def invocationCount : Nat := 1091
 
 def payloadCount : Nat := invocationCount * Spec.Poseidon2.rate
 
-@[simp] theorem payloadCount_eq : payloadCount = 11376 := by
+@[simp] theorem payloadCount_eq : payloadCount = 13092 := by
   rw [payloadCount, invocationCount_eq]
   rfl
 

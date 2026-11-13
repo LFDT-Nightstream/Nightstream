@@ -248,9 +248,9 @@ def endpointTranscriptInvocation (family : Fin familyCount) :
   if family.val = 0 then
     ⟨123, by rw [PiCCSOrdinaryRetainedBlocks.transcriptInvocationCount_eq]; omega⟩
   else if family.val = 1 then
-    ⟨126, by rw [PiCCSOrdinaryRetainedBlocks.transcriptInvocationCount_eq]; omega⟩
+    ⟨127, by rw [PiCCSOrdinaryRetainedBlocks.transcriptInvocationCount_eq]; omega⟩
   else
-    ⟨182, by rw [PiCCSOrdinaryRetainedBlocks.transcriptInvocationCount_eq]; omega⟩
+    ⟨183, by rw [PiCCSOrdinaryRetainedBlocks.transcriptInvocationCount_eq]; omega⟩
 
 def endpointTranscriptIndex (family : Fin familyCount) (lane : Fin laneCount) :
     Fin PiCCSOrdinaryRetainedBlocks.transcriptOutputCount :=
@@ -1296,14 +1296,14 @@ theorem reads_of_outputs {program : Lifecycle.Stage1.Application.Program}
       have state : ChallengeDerivation.finalState
           (PiCCSInvocations.challengeInterface Data.logicalWidth Data.publicFits)
           PiCCSInvocations.challengeWitnessStart =
-            Invocations.permutationOutput (PiCCSStarts.statementWitnessStart + 126 * 1096) := by
+            Invocations.permutationOutput (PiCCSStarts.statementWitnessStart + 127 * 1096) := by
         rw [← endpoint_permutationOutput challengeFamily _ (by
           change PiCCSStarts.roundTranscriptWitnessStart - 16 = _
           omega)]
         funext lane
         exact challengeFinalState_endpoint_of_shape Data.logicalWidth
           Data.publicFits lane
-      rw [state, outputs 126 (by
+      rw [state, outputs 127 (by
         rw [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq]; omega)]
       simp [PiCCSTranscriptDirectSemantics.sliceState,
         PoseidonActionSemantics.stateAfter, PoseidonActionSemantics.sliceInitial,

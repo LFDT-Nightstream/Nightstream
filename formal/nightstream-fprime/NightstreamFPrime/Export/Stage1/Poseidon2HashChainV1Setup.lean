@@ -24,12 +24,12 @@ def messageColumns : Nat :=
     RingCarrierLayout.carrierWidth
         (PerApplicationFixedPoint.logicalWidth
           Poseidon2HashChainV1Package.application) =
-      43963776 := by
+      46617088 := by
   rw [Poseidon2HashChainV1Package.logicalWidth]
   norm_num [RingCarrierLayout.carrierWidth, ConcreteRingColumnLayout.blockCount,
     ringDegree]
 
-@[simp] theorem messageColumns_eq : messageColumns = 814144 := by
+@[simp] theorem messageColumns_eq : messageColumns = 728392 := by
   unfold messageColumns
   rw [carrierWidth_eq]
   norm_num [ConcreteRingColumnLayout.blockCount, ringDegree]

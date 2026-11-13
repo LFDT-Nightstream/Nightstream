@@ -52,7 +52,7 @@ def baseSuffixRange (program : Program) : SourceProjectionRange :=
       PerApplicationPackage.basePackage.layout.constantColumn⟩
 
 def directBaseSuffixRange (program : Program) : SourceProjectionRange :=
-  ⟨directFinalConstant program, 11414924, 279⟩
+  ⟨directFinalConstant program, 11414924, 329⟩
 
 theorem directBaseSuffixRange_eq_baseSuffixRange (program : Program) :
     directBaseSuffixRange program = baseSuffixRange program := by
@@ -263,7 +263,7 @@ private theorem pilot_column_suffix (program : Program) (column : Nat)
     rw [ite_eq_right notInput, ite_eq_right notPrivate]
     rfl
   let offset := column - Spartan.pilotPrivateColumnCount
-  have offsetBound : offset < 275 := by
+  have offsetBound : offset < 325 := by
     norm_num [offset, Spartan.pilotPrivateColumnCount,
       PilotSpartan.spartanColumnCount_value] at privateLe bound ⊢
     omega

@@ -227,7 +227,7 @@ theorem matrixProgram_blocks (application : ApplicationProgram) :
 
 @[simp] theorem matrixProgram_rowCount (application : ApplicationProgram) :
     (matrixProgram application).rowCount =
-      998638 + (PerApplicationPackage.applicationPlan application).rowCount +
+      1059942 + (PerApplicationPackage.applicationPlan application).rowCount +
         9 := by
   simp [matrixProgram, throughNextPreimageProgram, applicationCompleteProgram,
     runningCompleteProgram,

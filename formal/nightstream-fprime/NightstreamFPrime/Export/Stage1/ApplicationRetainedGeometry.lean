@@ -29,7 +29,7 @@ def completeLogicalWidth
 theorem completeLogicalWidth_eq
     (application : Lifecycle.Stage1.Application.Program) :
     completeLogicalWidth application =
-      43738906 + retainedCoordinateCount application := by
+      46392230 + retainedCoordinateCount application := by
   unfold completeLogicalWidth localStart witnessStart
   rw [PiRLCSamplerOrdinaryRetainedGeometry.completeLogicalWidth_eq]
   unfold retainedCoordinateCount
@@ -38,7 +38,7 @@ theorem completeLogicalWidth_eq
 theorem completeLogicalWidth_eq_applicationCounts
     (application : Lifecycle.Stage1.Application.Program) :
     completeLogicalWidth application =
-      43738906 +
+      46392230 +
         (application.witnessWordCount + localCount application) * 41 := by
   rw [completeLogicalWidth_eq, retainedCoordinateCount_eq,
     retainedSlotCount_eq]
@@ -116,7 +116,7 @@ theorem inputFits {application : Lifecycle.Stage1.Application.Program}
       logicalWidth := by
   have pilot := PiRLCPoseidonGeometry.priorInputFits (pilotGeometry geometry)
   have full : (PiRLCPoseidonGeometry.priorInputBlock application).coordinateCount =
-      1140579 := by simp [PiRLCPoseidonGeometry.priorInputBlock]
+      1185433 := by simp [PiRLCPoseidonGeometry.priorInputBlock]
   rw [full] at pilot
   change PiRLCPoseidonGeometry.priorInputStart application + 28909 * 41 + 4 * 41 ≤
     logicalWidth
@@ -136,7 +136,7 @@ theorem outputFits {application : Lifecycle.Stage1.Application.Program}
       logicalWidth := by
   have pilot := PiRLCPoseidonGeometry.outputInputFits (pilotGeometry geometry)
   have full : (PiRLCPoseidonGeometry.outputInputBlock application).coordinateCount =
-      1140579 := by simp [PiRLCPoseidonGeometry.outputInputBlock]
+      1185433 := by simp [PiRLCPoseidonGeometry.outputInputBlock]
   rw [full] at pilot
   change PiRLCPoseidonGeometry.outputInputStart application + 28909 * 41 + 4 * 41 ≤
     logicalWidth

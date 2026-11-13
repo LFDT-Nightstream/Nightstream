@@ -35,7 +35,6 @@ inductive Location where
   | priorPublic (index : Fin 320)
   | canonicalLocal (index : Fin 268)
   | outputState (lane : Fin 4)
-  | canonicalFresh (index : Fin 144)
   | outputDigest (lane : Fin 4)
 
 namespace Location
@@ -48,7 +47,6 @@ def sourceColumn : Location → Nat
         PilotProduction.witnessOffset + index.val
   | .outputState lane => PilotProduction.lifecycleOutputOffset +
       PilotValues.absorbCount * 1096 + 1080 + lane.val
-  | .canonicalFresh index => PilotValues.logicalColumnCount + index.val
   | .outputDigest lane => PilotProduction.outputDigestStart + lane.val
 
 theorem physicalSupport (location : Location) :
@@ -92,26 +90,6 @@ theorem physicalSupport (location : Location) :
       unfold InRange
       have bound := lane.isLt
       omega
-  | canonicalFresh index =>
-      apply Or.inr
-      constructor
-      · change PilotValues.logicalColumnCount ≤
-          PilotValues.logicalColumnCount + index.val
-        omega
-      · have bound := index.isLt
-        change index.val < 144 at bound
-        change PilotValues.logicalColumnCount + index.val <
-          PilotValues.sourceColumnCount
-        norm_num [PilotValues.logicalColumnCount,
-          PilotValues.sourceColumnCount, PilotValues.externalColumnCount,
-          PilotValues.outputDigestStart, PilotValues.outputPreimageStart,
-          PilotValues.priorPublicInputStart, PilotValues.priorPreimageStart,
-          PilotValues.stateHashWords, PilotValues.stateHashBaseWords,
-          PilotValues.hashWitnessCount, PilotValues.absorbCount,
-          PilotValues.permutationRecipeCount, Spec.Poseidon2.rate,
-          PilotValues.priorCanonicalPrivateCount,
-          PilotValues.priorCanonicalFreshCount] at bound ⊢
-        omega
   | outputDigest lane =>
       apply Or.inl
       apply LogicalSource.outputDigest
@@ -163,10 +141,6 @@ def form {program : Lifecycle.Stage1.Application.Program}
         (PiCCSOrdinaryRetainedGeometry.outputLastStart program)
         (PiCCSOrdinaryRetainedGeometry.outputLastFits (piCcsGeometry geometry))
         (finalSlot lane)
-  | .canonicalFresh index =>
-      (PilotOrdinaryRetainedBlocks.canonicalFreshBlock program).form
-        (PilotOrdinaryRetainedGeometry.canonicalFreshStart program)
-        (PilotOrdinaryRetainedGeometry.canonicalFreshFits geometry) index
   | .outputDigest lane =>
       (PilotOrdinaryRetainedBlocks.outputDigestBlock program).form
         (PilotOrdinaryRetainedGeometry.outputDigestStart program)
@@ -209,22 +183,10 @@ def classifySource (source : Nat) : Option (Located source) :=
         PilotValues.absorbCount * 1096 + 1080) 4 source then
     some ⟨.outputState (rangeIndex outputState), by
       rw [Location.sourceColumn, rangeIndex_source outputState]⟩
-  else if canonicalFresh : InRange PilotValues.logicalColumnCount 144 source then
-    some ⟨.canonicalFresh (rangeIndex canonicalFresh), by
-      rw [Location.sourceColumn, rangeIndex_source canonicalFresh]⟩
   else if outputDigest : InRange PilotProduction.outputDigestStart 4 source then
     some ⟨.outputDigest (rangeIndex outputDigest), by
       rw [Location.sourceColumn, rangeIndex_source outputDigest]⟩
   else none
-
-private theorem fresh_inRange {source : Nat}
-    (fresh : PilotValues.logicalColumnCount ≤ source ∧
-      source < PilotValues.sourceColumnCount) :
-    InRange PilotValues.logicalColumnCount 144 source := by
-  unfold InRange
-  have endEq : PilotValues.sourceColumnCount =
-      PilotValues.logicalColumnCount + 144 := by rfl
-  omega
 
 theorem classifySource_complete {source : Nat}
     (support : PhysicalSource source) : (classifySource source).isSome := by
@@ -239,10 +201,8 @@ theorem classifySource_complete {source : Nat}
   · rfl
   split
   · rfl
-  split
-  · rfl
   · rename_i noPriorDigest noPriorPublic noCanonicalLocal noOutputState
-      noCanonicalFresh noOutputDigest
+      noOutputDigest
     exfalso
     rcases support with logical | fresh
     · rcases logical with priorDigest | priorPublic | canonicalLocal |
@@ -252,7 +212,9 @@ theorem classifySource_complete {source : Nat}
       · exact noCanonicalLocal canonicalLocal
       · exact noOutputState outputState
       · exact noOutputDigest outputDigest
-    · exact noCanonicalFresh (fresh_inRange fresh)
+    · have endEq : PilotValues.sourceColumnCount =
+          PilotValues.logicalColumnCount := by rfl
+      omega
 
 structure Decoded where
   source : Nat
@@ -339,14 +301,14 @@ theorem sourceAssignment_at
 
 private theorem priorLastWitnessStart_eq :
     PoseidonRetainedBlock.priorWitnessStart
-      PiCCSOrdinaryRetainedBlocks.priorLastInvocation = 2612454 := by rfl
+      PiCCSOrdinaryRetainedBlocks.priorLastInvocation = 2716842 := by rfl
 
 private theorem outputLastWitnessStart_eq :
     PoseidonRetainedBlock.outputWitnessStart
-      PiCCSOrdinaryRetainedBlocks.outputLastInvocation = 5155438 := by rfl
+      PiCCSOrdinaryRetainedBlocks.outputLastInvocation = 5359566 := by rfl
 
 private theorem liftPriorDigestTarget (lane : Fin 4) :
-    Spartan.liftPilotColumn (2700266 + lane.val) = 2613534 + lane.val := by
+    Spartan.liftPilotColumn (2700266 + lane.val) = 2717922 + lane.val := by
   have laneBound := lane.isLt
   unfold Spartan.liftPilotColumn
   rw [ite_eq_right (by norm_num [Spartan.pilotInputPrivateColumnCount]; omega)]
@@ -355,7 +317,7 @@ private theorem liftPriorDigestTarget (lane : Fin 4) :
   omega
 
 private theorem liftOutputStateTarget (lane : Fin 4) :
-    Spartan.liftPilotColumn (5342990 + lane.val) = 5156518 + lane.val := by
+    Spartan.liftPilotColumn (5342990 + lane.val) = 5360646 + lane.val := by
   have laneBound := lane.isLt
   unfold Spartan.liftPilotColumn
   rw [ite_eq_right (by norm_num [Spartan.pilotInputPrivateColumnCount]; omega)]
@@ -380,7 +342,7 @@ private theorem priorFinalColumn_eq (lane : Fin 4) :
       (PilotProduction.priorDigestStart + lane.val))
   rw [PilotOrdinaryDirectSource.priorDigest_targetColumn,
     liftPriorDigestTarget, priorLastWitnessStart_eq]
-  change 2612454 + (1080 + lane.val) = 2613534 + lane.val
+  change 2716842 + (1080 + lane.val) = 2717922 + lane.val
   omega
 
 private theorem outputFinalColumn_eq (lane : Fin 4) :
@@ -401,7 +363,7 @@ private theorem outputFinalColumn_eq (lane : Fin 4) :
         PilotValues.absorbCount * 1096 + 1080 + lane.val))
   rw [PilotOrdinaryDirectSource.outputState_targetColumn,
     liftOutputStateTarget, outputLastWitnessStart_eq]
-  change 5155438 + (1080 + lane.val) = 5156518 + lane.val
+  change 5359566 + (1080 + lane.val) = 5360646 + lane.val
   omega
 
 private theorem priorFinalColumn_bound (lane : Fin 4) :
@@ -413,7 +375,7 @@ private theorem priorFinalColumn_bound (lane : Fin 4) :
   have total : PerApplicationPackage.basePackage.layout.totalColumnCount =
       11415253 := Package.circuitPackage_layout_values.2.2.2.2
   rw [priorLastWitnessStart_eq, total]
-  change 2612454 + (1080 + lane.val) < 11415253
+  change 2716842 + (1080 + lane.val) < 11415253
   omega
 
 private theorem outputFinalColumn_bound (lane : Fin 4) :
@@ -425,7 +387,7 @@ private theorem outputFinalColumn_bound (lane : Fin 4) :
   have total : PerApplicationPackage.basePackage.layout.totalColumnCount =
       11415253 := Package.circuitPackage_layout_values.2.2.2.2
   rw [outputLastWitnessStart_eq, total]
-  change 5155438 + (1080 + lane.val) < 11415253
+  change 5359566 + (1080 + lane.val) < 11415253
   omega
 
 private theorem priorLastBlock_source
@@ -531,19 +493,6 @@ theorem Location.form_eval
         (finalSlot lane)]
       rw [outputLastBlock_source program lane]
       exact sourceAssignment_at base groupValue (.outputState lane)
-  | canonicalFresh index =>
-      rw [form, LowNormBlock.Block.form_eval
-        (PilotOrdinaryRetainedBlocks.canonicalFreshBlock program)
-        (PilotOrdinaryRetainedGeometry.canonicalFreshStart program)
-        (PilotOrdinaryRetainedGeometry.canonicalFreshFits geometry) assignment
-        (PiRLCRetainedPreservation.sourceAssignment
-          program base groupValue) encodes.added.canonicalFresh index]
-      change PiRLCRetainedPreservation.sourceAssignment
-          program base groupValue
-          (RunningTransitionRetainedBlocks.packageSourceColumn program
-            (Location.canonicalFresh index).sourceColumn
-            (Location.canonicalFresh index).stage1SourceColumn_lt) = _
-      exact sourceAssignment_at base groupValue (.canonicalFresh index)
   | outputDigest lane =>
       rw [form, LowNormBlock.Block.form_eval
         (PilotOrdinaryRetainedBlocks.outputDigestBlock program)

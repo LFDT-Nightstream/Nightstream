@@ -42,7 +42,7 @@ theorem transcriptForm_eq_outputState
 
 def pointInvocation (coordinate : Fin Lifecycle.productionShape.cubeVariables) :
     TranscriptIndex :=
-  ⟨128 + coordinate.val * 2, by
+  ⟨129 + coordinate.val * 2, by
     have coordinateBound := coordinate.isLt
     change coordinate.val < 28 at coordinateBound
     rw [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq]
@@ -126,7 +126,7 @@ def pointGrid (program : ApplicationProgram) : SourceGrid :=
     (PiCCSPoseidonPlan.retainedStart program)
     (Spartan.sourceToSpartan pointSourceStart)
     Lifecycle.productionShape.cubeVariables RunningTransitionInputs.roundStride
-    1 2 2 19334 300 0
+    1 2 2 19484 300 0
 
 theorem transcriptGrid_form?
     {program : ApplicationProgram} {logicalWidth : Nat}
@@ -223,7 +223,7 @@ theorem pointGrid_form?
     (PiCCSPoseidonPlan.retainedStart program)
     (Spartan.sourceToSpartan pointSourceStart)
     Lifecycle.productionShape.cubeVariables RunningTransitionInputs.roundStride
-    1 2 2 19334 300 0
+    1 2 2 19484 300 0
     (PiCCSPoseidonPlan.retainedFits geometry)
     (by norm_num [RunningTransitionInputs.roundStride]) (by omega)
     coordinate minor offset
@@ -238,7 +238,7 @@ theorem pointGrid_form?
         (PiCCSPoseidonPlan.retainedBlock program).form
           (PiCCSPoseidonPlan.retainedStart program)
           (PiCCSPoseidonPlan.retainedFits geometry)
-          ⟨19334 + coordinate.val * 300 + minor.val * 0 + selected.val, by
+          ⟨19484 + coordinate.val * 300 + minor.val * 0 + selected.val, by
             have selectedBound := selected.isLt
             rw [PiCCSPoseidonPlan.retainedBlock_slotCount]
             omega⟩) ⟨offset.val, by simp only [offset]; omega⟩ =

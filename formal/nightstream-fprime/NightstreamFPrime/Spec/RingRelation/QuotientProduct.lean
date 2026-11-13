@@ -25,15 +25,15 @@ def evaluate (value : RingF) (point : F) : F :=
   (List.ofFn fun index : Fin ringDegree =>
     value index * point ^ index.val).sum
 
-def node (index : Fin 108) : F :=
+def node (index : Fin 128) : F :=
   ⟨index.val, Nat.lt_trans index.isLt (by decide)⟩
 
 def modulusValue (point : F) : F :=
   let base : Base := point
-  show F from (base ^ ringDegree + (base ^ ringMiddleDegree + 1) : Base)
+  show F from (base ^ ringDegree + 1 : Base)
 
 def Equations (left right output quotient : RingF) : Prop :=
-  ∀ index : Fin 108,
+  ∀ index : Fin 128,
     evaluate left (node index) * evaluate right (node index) =
       evaluate output (node index) +
         modulusValue (node index) * evaluate quotient (node index)
@@ -63,23 +63,23 @@ private theorem node_injective : Function.Injective node := by
   exact congrArg (fun value : F => value.val) equal
 
 private theorem polynomial_degree (value : RingF) :
-    (toPolynomial value).degree < (54 : WithBot Nat) := by
+    (toPolynomial value).degree < (64 : WithBot Nat) := by
   exact degree_sum_fin_lt (R := Base) value
 
 private theorem polynomial_natDegree (value : RingF) :
-    (toPolynomial value).natDegree ≤ 53 := by
+    (toPolynomial value).natDegree ≤ 63 := by
   by_cases zero : toPolynomial value = 0
   · simp [zero]
-  · have bound : (toPolynomial value).natDegree < 54 :=
+  · have bound : (toPolynomial value).natDegree < 64 :=
       (natDegree_lt_iff_degree_lt zero).mpr
       (polynomial_degree value)
     omega
 
-private theorem modulus_natDegree : modulus.natDegree = 54 := by
+private theorem modulus_natDegree : modulus.natDegree = 64 := by
   exact natDegree_eq_of_degree_eq_some degree_modulus
 
 private theorem product_natDegree (left right : RingF) :
-    (toPolynomial left * toPolynomial right).natDegree ≤ 106 := by
+    (toPolynomial left * toPolynomial right).natDegree ≤ 126 := by
   have bound : (toPolynomial left * toPolynomial right).natDegree ≤
       (toPolynomial left).natDegree + (toPolynomial right).natDegree :=
     natDegree_mul_le
@@ -94,7 +94,7 @@ theorem equations_iff_identity (left right output quotient : RingF) :
   constructor
   · intro equations
     apply Polynomial.eq_of_degrees_lt_of_eval_index_eq
-      (Finset.univ : Finset (Fin 108))
+      (Finset.univ : Finset (Fin 128))
       (v := fun index => (node index : Base))
       (fun left _ right _ equal => node_injective equal)
     · simp only [Finset.card_univ, Fintype.card_fin]
@@ -109,7 +109,7 @@ theorem equations_iff_identity (left right output quotient : RingF) :
       have quotientBound := polynomial_natDegree quotient
       rw [modulus_natDegree] at multiplied
       have bounded :
-          (toPolynomial output + modulus * toPolynomial quotient).natDegree ≤ 107 := by
+          (toPolynomial output + modulus * toPolynomial quotient).natDegree ≤ 127 := by
         apply summed.trans
         apply max_le <;> omega
       exact (degree_le_of_natDegree_le bounded).trans_lt (by norm_num)
@@ -139,7 +139,7 @@ theorem sound (left right output quotient : RingF)
   exact remainder.symm.trans (toPolynomial_ringFMul_mod left right).symm
 
 theorem sound_add (left right prior output quotient : RingF)
-    (equations : ∀ index : Fin 108,
+    (equations : ∀ index : Fin 128,
       evaluate left (node index) * evaluate right (node index) =
         evaluate output (node index) - evaluate prior (node index) +
           modulusValue (node index) * evaluate quotient (node index)) :
@@ -161,7 +161,7 @@ noncomputable def quotient (left right : RingF) : RingF :=
   fun index => ((toPolynomial left * toPolynomial right) /ₘ modulus).coeff index.val
 
 private theorem quotient_natDegree (left right : RingF) :
-    ((toPolynomial left * toPolynomial right) /ₘ modulus).natDegree ≤ 52 := by
+    ((toPolynomial left * toPolynomial right) /ₘ modulus).natDegree ≤ 62 := by
   rw [natDegree_divByMonic _ modulus_monic, modulus_natDegree]
   have bound := product_natDegree left right
   omega
@@ -173,7 +173,7 @@ theorem quotient_toPolynomial (left right : RingF) :
   by_cases inside : index < ringDegree
   · rw [coeff_toPolynomial (quotient left right) ⟨index, inside⟩]
     rfl
-  · have outside : 54 ≤ index := Nat.le_of_not_gt inside
+  · have outside : 64 ≤ index := Nat.le_of_not_gt inside
     rw [coeff_eq_zero_of_degree_lt
       ((polynomial_degree (quotient left right)).trans_le (by exact_mod_cast outside))]
     symm
@@ -182,15 +182,14 @@ theorem quotient_toPolynomial (left right : RingF) :
     omega
 
 theorem quotient_last_zero (left right : RingF) :
-    quotient left right ⟨53, by decide⟩ = 0 := by
-  change ((toPolynomial left * toPolynomial right) /ₘ modulus).coeff 53 = 0
+    quotient left right ⟨63, by decide⟩ = 0 := by
+  change ((toPolynomial left * toPolynomial right) /ₘ modulus).coeff 63 = 0
   apply coeff_eq_zero_of_natDegree_lt
   have bound := quotient_natDegree left right
   omega
 
 def quotientCoeff (left right : RingF) (lane : Fin ringDegree) : F :=
-  rawMulCoeffF left right (lane.val + 54) -
-    rawMulCoeffF left right (lane.val + 81)
+  rawMulCoeffF left right (lane.val + ringDegree)
 
 private theorem polynomial_coeff (value : RingF) (index : Nat) :
     (toPolynomial value).coeff index = ringFCoeff value index := by
@@ -233,10 +232,9 @@ private theorem raw_eq_coefficient (left right : RingF) (degree : Nat) :
   all_goals simp [below, supported, ringFCoeff, inside]
 
 private theorem high_coefficient (left right : RingF) (index : Nat)
-    (high : 54 ≤ index) :
+    (high : ringDegree ≤ index) :
     (toPolynomial left * toPolynomial right).coeff index =
-      ((toPolynomial left * toPolynomial right) /ₘ modulus).coeff (index - 54) +
-      ((toPolynomial left * toPolynomial right) /ₘ modulus).coeff (index - 27) := by
+      ((toPolynomial left * toPolynomial right) /ₘ modulus).coeff (index - ringDegree) := by
   let product := toPolynomial left * toPolynomial right
   have identity := congrArg (fun polynomial : Polynomial Base => polynomial.coeff index)
     (modByMonic_add_div product modulus)
@@ -248,36 +246,21 @@ private theorem high_coefficient (left right : RingF) (index : Nat)
   have quotientZero : (product /ₘ modulus).coeff index = 0 := by
     apply coeff_eq_zero_of_natDegree_lt
     have bounded := quotient_natDegree left right
+    have literal : 64 ≤ index := high
     dsimp only [product]
     omega
-  have middle : 27 ≤ index := by omega
   simp only [coeff_add, remainderZero, zero_add] at identity
   nth_rw 1 [modulus] at identity
-  simp only [add_mul, one_mul, coeff_add, coeff_X_pow_mul',
-    show ringDegree ≤ index from high, show ringMiddleDegree ≤ index from middle,
-    ite_true, quotientZero, add_zero] at identity
+  simp only [add_mul, one_mul, coeff_add, coeff_X_pow_mul', high, ite_true, quotientZero,
+    add_zero] at identity
   exact identity.symm
 
 theorem quotientCoeff_eq_quotient (left right : RingF) (lane : Fin ringDegree) :
     quotientCoeff left right lane = quotient left right lane := by
-  rw [quotientCoeff, raw_eq_coefficient, raw_eq_coefficient,
-    high_coefficient left right (lane.val + 54) (by omega),
-    high_coefficient left right (lane.val + 81) (by omega)]
-  have zero :
-      ((toPolynomial left * toPolynomial right) /ₘ modulus).coeff (lane.val + 54) = 0 := by
-    apply coeff_eq_zero_of_natDegree_lt
-    have bounded := quotient_natDegree left right
-    omega
-  have low : lane.val + 54 - 54 = lane.val := by omega
-  have middle : lane.val + 54 - 27 = lane.val + 27 := by omega
-  have high : lane.val + 81 - 54 = lane.val + 27 := by omega
-  have highest : lane.val + 81 - 27 = lane.val + 54 := by omega
-  rw [low, middle, high, highest, zero, add_zero]
-  change ((toPolynomial left * toPolynomial right) /ₘ modulus).coeff lane.val +
-      ((toPolynomial left * toPolynomial right) /ₘ modulus).coeff (lane.val + 27) -
-      ((toPolynomial left * toPolynomial right) /ₘ modulus).coeff (lane.val + 27) =
-    ((toPolynomial left * toPolynomial right) /ₘ modulus).coeff lane.val
-  exact add_sub_cancel_right _ _
+  rw [quotientCoeff, raw_eq_coefficient,
+    high_coefficient left right (lane.val + ringDegree) (Nat.le_add_left _ _),
+    Nat.add_sub_cancel]
+  rfl
 
 theorem complete (left right : RingF) :
     Equations left right (ringFMul left right) (quotient left right) := by
@@ -285,7 +268,7 @@ theorem complete (left right : RingF) :
   rw [quotient_toPolynomial, toPolynomial_ringFMul_mod]
   exact (modByMonic_add_div (toPolynomial left * toPolynomial right) modulus).symm
 
-theorem complete_add (left right prior : RingF) (index : Fin 108) :
+theorem complete_add (left right prior : RingF) (index : Fin 128) :
     evaluate left (node index) * evaluate right (node index) =
       evaluate (ringFAdd prior (ringFMul left right)) (node index) -
         evaluate prior (node index) +

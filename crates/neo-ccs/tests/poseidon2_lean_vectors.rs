@@ -1,6 +1,7 @@
 //! Primitive conformance: the Rust Poseidon2 permutations must equal each known answer of
 //! `scripts/poseidon2/vectors.json`, and the sponge hash must equal the Lean reference
-//! `NightstreamFPrime.Spec.Poseidon2` on fixed vectors.
+//! `NightstreamFPrime.Spec.Poseidon2.hash` on the vectors that Lean checks in
+//! `formal/nightstream-fprime/tests/Poseidon2Vectors.lean`.
 
 use neo_ccs::crypto::poseidon2 as p2;
 use neo_math::Fq;
@@ -57,38 +58,38 @@ fn sponge_hash_matches_lean_reference() {
     assert_eq!(
         u64s(&p2::poseidon2_hash(&[1u64, 2, 3].map(Fq::from_u64))),
         [
-            10174139661590874945,
-            682071588285257240,
-            2146088507292232401,
-            7825976598430147546,
+            7952027621332927413,
+            9213421264810627226,
+            623495900639085789,
+            9467555370543695039,
         ]
     );
     assert_eq!(
         u64s(&p2::poseidon2_hash(&[Fq::from_u64(42); 10])),
         [
-            14573620483189275490,
-            47946682125460792,
-            1809112248114747742,
-            2910711220625124551,
+            2656735232155600267,
+            9823656000846225850,
+            3299150451117335507,
+            10682430385665004754,
         ]
     );
     assert_eq!(
         u64s(&p2::poseidon2_hash(&[])),
         [
-            8278139043587206520,
-            10537167997139471771,
-            12238973609469370520,
-            4874705429328367957,
+            5720237852712464303,
+            824292497264698302,
+            520357743679308628,
+            12930268376689415027,
         ]
     );
     let input: Vec<Fq> = (0..25).map(Fq::from_u64).collect();
     assert_eq!(
         u64s(&p2::poseidon2_hash(&input)),
         [
-            12330712987123350331,
-            8313004511586635200,
-            624835263297322767,
-            13941719899968475042,
+            12273299475131208254,
+            5711874076847198927,
+            1399208977636903231,
+            17383775066828091843,
         ]
     );
 }

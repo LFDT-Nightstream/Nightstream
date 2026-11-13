@@ -69,7 +69,7 @@ impl TerminalRowCheck<'_> {
 }
 
 impl MetalSession {
-    #[cfg(test)]
+    /// The first row of `structure` that the signed-unit `witness` fails.
     pub(crate) fn first_unsatisfied_row(
         &self,
         plan: &MetalJointMatrixPlan,
@@ -90,7 +90,6 @@ impl MetalSession {
         self.check_relation_windows(plan, structure, witness, Some(workspace_bytes))
     }
 
-    #[cfg(test)]
     fn check_relation_windows(
         &self,
         plan: &MetalJointMatrixPlan,

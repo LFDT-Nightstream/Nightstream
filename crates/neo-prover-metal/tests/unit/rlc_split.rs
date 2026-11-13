@@ -80,6 +80,43 @@ fn device_rlc_split_matches_host_mix_and_split() {
     );
 }
 
+/// A signed-unit source in compact and in dense storage, and a dense source
+/// with weight 1 (option B's light accumulator), mix as on the host under
+/// sampled rotation matrices; the host's dense path reads a rotation as its
+/// ring element. A dense source with another weight is refused.
+#[test]
+fn device_rlc_mix_matches_host_mix() {
+    use neo_reductions::common::{sample_rot_rhos_n_typed, RotRho, RotRing};
+    let columns = 1000;
+    let session = MetalSession::new().unwrap();
+    let signed = witness(1, columns);
+    let stored = Mat::from_row_major(D, columns, witness(2, columns).to_dense_vec());
+    let dense = Mat::from_row_major(
+        D,
+        columns,
+        (0..D * columns)
+            .map(|index| F::from_usize(31 * index + 7) - F::from_u64(20_000))
+            .collect(),
+    );
+    let zero = Mat::virtual_constant(D, columns, F::ZERO);
+    let witnesses = [&signed, &stored, &zero, &dense];
+    let mut rhos: Vec<_> = sample_rot_rhos_n_typed(
+        &mut neo_transcript::Poseidon2Transcript::new_v1_2(),
+        &neo_params::NeoParams::nightstream_goldilocks_k16(),
+        &RotRing::goldilocks(),
+        4,
+    )
+    .unwrap()
+    .iter()
+    .map(|rho| rho.as_mat().clone())
+    .collect();
+    let sampled = std::mem::replace(&mut rhos[3], RotRho::identity().as_mat().clone());
+    let expected = rlc_mix_witnesses(D * columns, &rhos, &witnesses);
+    assert_eq!(session.mix_rlc_witnesses(&rhos, &witnesses).unwrap(), expected);
+    rhos[3] = sampled;
+    assert!(session.mix_rlc_witnesses(&rhos, &witnesses).is_err());
+}
+
 #[test]
 fn children_per_thread_matches_decomposition_shader() {
     let shader = include_str!("../../shaders/decomposition.metal");

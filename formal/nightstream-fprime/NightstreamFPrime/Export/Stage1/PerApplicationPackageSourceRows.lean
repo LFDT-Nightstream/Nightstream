@@ -375,7 +375,7 @@ private theorem arithmeticIndexRanges_nodup :
       omega
     · have runningLower := runningIndex_lower later runningMember
       have runningStart :
-          RunningTransitionArithmetic.rowStart = 11350112 := rfl
+          RunningTransitionArithmetic.rowStart = 11288454 := rfl
       rw [runningStart] at runningLower
       omega
 
@@ -417,7 +417,7 @@ theorem arithmeticRows_rowIndex_ge (index : Nat)
         rw [phaseStart] at lower
         omega
       · have lower := runningIndex_lower index runningMember
-        have phaseStart : RunningTransitionArithmetic.rowStart = 11350112 := rfl
+        have phaseStart : RunningTransitionArithmetic.rowStart = 11288454 := rfl
         rw [phaseStart] at lower
         omega
 
@@ -457,11 +457,11 @@ theorem arithmeticRows_rowIndex_lt_base (index : Nat)
     · rw [List.mem_append] at member
       rcases member with piDecMember | runningMember
       · have upper := (piDecIndex_bounds index piDecMember).2
-        have phaseStart : RunningTransitionArithmetic.rowStart = 11350112 := rfl
+        have phaseStart : RunningTransitionArithmetic.rowStart = 11288454 := rfl
         rw [phaseStart] at upper
         omega
       · have bounds := List.mem_range'_1.mp runningMember
-        have phaseStart : RunningTransitionArithmetic.rowStart = 11350112 := rfl
+        have phaseStart : RunningTransitionArithmetic.rowStart = 11288454 := rfl
         rw [phaseStart] at bounds
         omega
 

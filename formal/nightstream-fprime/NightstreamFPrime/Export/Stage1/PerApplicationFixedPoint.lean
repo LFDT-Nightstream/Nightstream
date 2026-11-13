@@ -36,7 +36,7 @@ theorem fitsTwoPow28OfApplicationBounds
     (columns : PerApplicationPackage.addedPrivateColumnCount application ≤
       257020203)
     (carrierWords : application.witnessWordCount +
-      ApplicationRetainedBlocks.localCount application ≤ 5480402) :
+      ApplicationRetainedBlocks.localCount application ≤ 5415688) :
     FitsTwoPow28 application where
   package := PerApplicationPackage.fitsTwoPow28OfApplicationBounds application
     rows columns

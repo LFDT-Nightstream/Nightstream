@@ -13,21 +13,16 @@ def prefixLogicalWidth (program : Lifecycle.Stage1.Application.Program) : Nat :=
 def logicalStart (program : Lifecycle.Stage1.Application.Program) : Nat :=
   prefixLogicalWidth program
 
-def freshStart (program : Lifecycle.Stage1.Application.Program) : Nat :=
+def completeLogicalWidth (program : Lifecycle.Stage1.Application.Program) : Nat :=
   logicalStart program +
     (PiRLCSamplerOrdinaryRetainedBlocks.logicalBlock program).coordinateCount
-
-def completeLogicalWidth (program : Lifecycle.Stage1.Application.Program) : Nat :=
-  freshStart program +
-    (PiRLCSamplerOrdinaryRetainedBlocks.freshBlock program).coordinateCount
 
 @[simp] theorem completeLogicalWidth_eq
     (program : Lifecycle.Stage1.Application.Program) :
     completeLogicalWidth program = 46392230 := by
-  unfold completeLogicalWidth freshStart logicalStart prefixLogicalWidth
+  unfold completeLogicalWidth logicalStart prefixLogicalWidth
   rw [PiDECRetainedGeometry.completeLogicalWidth_eq,
     PiRLCSamplerOrdinaryRetainedBlocks.logicalBlock_coordinateCount,
-    PiRLCSamplerOrdinaryRetainedBlocks.freshBlock_coordinateCount,
     PiDECRetainedGeometry.prefixLogicalWidth,
     PilotOrdinaryRetainedGeometry.completeLogicalWidth_eq,
     PiDECRetainedBlocks.retainedCoordinateCount_eq]
@@ -48,7 +43,7 @@ theorem prefixGeometry {program : Lifecycle.Stage1.Application.Program}
     PiDECRetainedGeometry.Geometry program logicalWidth where
   completeFits := by
     apply Nat.le_trans _ geometry.completeFits
-    unfold completeLogicalWidth freshStart logicalStart prefixLogicalWidth
+    unfold completeLogicalWidth logicalStart prefixLogicalWidth
     omega
 
 def oneColumn {program : Lifecycle.Stage1.Application.Program}
@@ -60,15 +55,6 @@ theorem logicalFits {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
     logicalStart program +
         (PiRLCSamplerOrdinaryRetainedBlocks.logicalBlock program).coordinateCount ≤
-      logicalWidth := by
-  apply Nat.le_trans _ geometry.completeFits
-  unfold completeLogicalWidth freshStart
-  omega
-
-theorem freshFits {program : Lifecycle.Stage1.Application.Program}
-    {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
-    freshStart program +
-        (PiRLCSamplerOrdinaryRetainedBlocks.freshBlock program).coordinateCount ≤
       logicalWidth :=
   geometry.completeFits
 
@@ -84,8 +70,6 @@ structure Encodes {program : Lifecycle.Stage1.Application.Program}
       NightstreamFPrime.Spec.F) : Prop where
   logical : (PiRLCSamplerOrdinaryRetainedBlocks.logicalBlock program).EncodesAt
     (logicalStart program) (logicalFits geometry) assignment source
-  fresh : (PiRLCSamplerOrdinaryRetainedBlocks.freshBlock program).EncodesAt
-    (freshStart program) (freshFits geometry) assignment source
   challenge : (PiRLCRetainedGeometry.challengeBlock program).EncodesAt
     (PiRLCRetainedGeometry.challengeStart program)
     (PiRLCRetainedGeometry.challengeFits (piRlcGeometry geometry)) assignment source

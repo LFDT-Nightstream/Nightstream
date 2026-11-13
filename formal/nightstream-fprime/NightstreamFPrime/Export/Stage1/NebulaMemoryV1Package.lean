@@ -34,7 +34,7 @@ theorem columns_le :
 
 theorem carrier_le :
     (MemoryApp.program FirstPlan.geometry FirstPlan.app).witnessWordCount +
-      ApplicationRetainedBlocks.localCount (MemoryApp.program FirstPlan.geometry FirstPlan.app) ≤ 5480402 :=
+      ApplicationRetainedBlocks.localCount (MemoryApp.program FirstPlan.geometry FirstPlan.app) ≤ 5415688 :=
   NebulaMemoryPackage.carrier_le FirstPlan.geometry FirstPlan.app polyRows_mulCount (by decide +kernel)
 
 /-- All physical-package, retained-carrier, and recursive-plan bounds for the

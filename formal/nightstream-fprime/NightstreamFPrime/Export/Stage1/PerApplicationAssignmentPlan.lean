@@ -30,12 +30,10 @@ inductive BlockKind where
   | piCcsOutputEndpoint
   | piCcsFresh
   | pilotCanonicalLocal
-  | pilotCanonicalFresh
   | pilotOutputDigest
   | piDecLogical
   | piDecFresh
   | samplerLogical
-  | samplerFresh
   | applicationWitness
   | applicationLocal
 deriving Repr, DecidableEq
@@ -60,14 +58,12 @@ def BlockKind.format : Format BlockKind where
     | .piCcsOutputEndpoint => .atom 15
     | .piCcsFresh => .atom 16
     | .pilotCanonicalLocal => .atom 17
-    | .pilotCanonicalFresh => .atom 18
-    | .pilotOutputDigest => .atom 19
-    | .piDecLogical => .atom 20
-    | .piDecFresh => .atom 21
-    | .samplerLogical => .atom 22
-    | .samplerFresh => .atom 23
-    | .applicationWitness => .atom 24
-    | .applicationLocal => .atom 25
+    | .pilotOutputDigest => .atom 18
+    | .piDecLogical => .atom 19
+    | .piDecFresh => .atom 20
+    | .samplerLogical => .atom 21
+    | .applicationWitness => .atom 22
+    | .applicationLocal => .atom 23
   decode
     | .atom 0 => .ok .priorPoseidon
     | .atom 1 => .ok .outputPoseidon
@@ -87,14 +83,12 @@ def BlockKind.format : Format BlockKind where
     | .atom 15 => .ok .piCcsOutputEndpoint
     | .atom 16 => .ok .piCcsFresh
     | .atom 17 => .ok .pilotCanonicalLocal
-    | .atom 18 => .ok .pilotCanonicalFresh
-    | .atom 19 => .ok .pilotOutputDigest
-    | .atom 20 => .ok .piDecLogical
-    | .atom 21 => .ok .piDecFresh
-    | .atom 22 => .ok .samplerLogical
-    | .atom 23 => .ok .samplerFresh
-    | .atom 24 => .ok .applicationWitness
-    | .atom 25 => .ok .applicationLocal
+    | .atom 18 => .ok .pilotOutputDigest
+    | .atom 19 => .ok .piDecLogical
+    | .atom 20 => .ok .piDecFresh
+    | .atom 21 => .ok .samplerLogical
+    | .atom 22 => .ok .applicationWitness
+    | .atom 23 => .ok .applicationLocal
     | _ => .error "invalid per-application assignment block kind"
   decode_encode := by
     intro kind
@@ -107,11 +101,11 @@ def canonicalKinds : List BlockKind :=
     .piCcsFreshPublicInput,
     .piCcsPriorLast, .piCcsOutputLast, .piCcsExpectedContext,
     .piCcsProofLogical, .piCcsOutputEndpoint, .piCcsFresh,
-    .pilotCanonicalLocal, .pilotCanonicalFresh, .pilotOutputDigest,
+    .pilotCanonicalLocal, .pilotOutputDigest,
     .piDecLogical, .piDecFresh,
-    .samplerLogical, .samplerFresh, .applicationWitness, .applicationLocal]
+    .samplerLogical, .applicationWitness, .applicationLocal]
 
-@[simp] theorem canonicalKinds_length : canonicalKinds.length = 26 := by
+@[simp] theorem canonicalKinds_length : canonicalKinds.length = 24 := by
   rfl
 
 structure BlockTemplate (application : ProgramApplication) where
@@ -176,9 +170,6 @@ def BlockKind.template (application : ProgramApplication) :
   | .pilotCanonicalLocal =>
       ⟨_, PilotOrdinaryRetainedBlocks.canonicalLocalBlock application,
         fun raw => raw.retainedSource⟩
-  | .pilotCanonicalFresh =>
-      ⟨_, PilotOrdinaryRetainedBlocks.canonicalFreshBlock application,
-        fun raw => raw.retainedSource⟩
   | .pilotOutputDigest =>
       ⟨_, PilotOrdinaryRetainedBlocks.outputDigestBlock application,
         fun raw => raw.retainedSource⟩
@@ -190,9 +181,6 @@ def BlockKind.template (application : ProgramApplication) :
         fun raw => raw.retainedSource⟩
   | .samplerLogical =>
       ⟨_, PiRLCSamplerOrdinaryRetainedBlocks.logicalBlock application,
-        fun raw => raw.retainedSource⟩
-  | .samplerFresh =>
-      ⟨_, PiRLCSamplerOrdinaryRetainedBlocks.freshBlock application,
         fun raw => raw.retainedSource⟩
   | .applicationWitness =>
       ⟨_, ApplicationRetainedBlocks.witnessBlock application,

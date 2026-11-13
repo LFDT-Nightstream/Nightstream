@@ -6,7 +6,7 @@ open NightstreamFPrime.Spec
 
 def verifierRows : Nat := 18
 
-def messageColumns : Nat := 814144
+def messageColumns : Nat := 728392
 
 def productionSeedBytes : List Nat :=
   [252, 64, 73, 132, 212, 76, 27, 135, 141, 104, 166, 168, 0, 146,

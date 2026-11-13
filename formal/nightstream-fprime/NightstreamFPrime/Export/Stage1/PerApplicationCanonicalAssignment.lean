@@ -111,9 +111,6 @@ def schedule {application : Program} (raw : RawValues application) :
   , Canonical.ofBlock
       (PilotOrdinaryRetainedBlocks.canonicalLocalBlock application)
       raw.retainedSource
-  , Canonical.ofBlock
-      (PilotOrdinaryRetainedBlocks.canonicalFreshBlock application)
-      raw.retainedSource
   , Canonical.ofBlock (PilotOrdinaryRetainedBlocks.outputDigestBlock application)
       raw.retainedSource
   , Canonical.ofBlock (PiDECRetainedBlocks.logicalBlock application)
@@ -123,9 +120,6 @@ def schedule {application : Program} (raw : RawValues application) :
   , Canonical.ofBlock
       (PiRLCSamplerOrdinaryRetainedBlocks.logicalBlock application)
       raw.retainedSource
-  , Canonical.ofBlock
-      (PiRLCSamplerOrdinaryRetainedBlocks.freshBlock application)
-      raw.retainedSource
   , Canonical.ofBlock (ApplicationRetainedBlocks.witnessBlock application)
       raw.applicationSource
   , Canonical.ofBlock (ApplicationRetainedBlocks.localBlock application)
@@ -134,7 +128,7 @@ def schedule {application : Program} (raw : RawValues application) :
 end RawValues
 
 @[simp] theorem schedule_length {application : Program}
-    (raw : RawValues application) : raw.schedule.length = 26 := by
+    (raw : RawValues application) : raw.schedule.length = 24 := by
   rfl
 
 theorem schedule_width {application : Program} (raw : RawValues application) :
@@ -150,7 +144,6 @@ theorem schedule_width {application : Program} (raw : RawValues application) :
     ApplicationRetainedGeometry.localStart
     ApplicationRetainedGeometry.witnessStart
     PiRLCSamplerOrdinaryRetainedGeometry.completeLogicalWidth
-    PiRLCSamplerOrdinaryRetainedGeometry.freshStart
     PiRLCSamplerOrdinaryRetainedGeometry.logicalStart
     PiRLCSamplerOrdinaryRetainedGeometry.prefixLogicalWidth
     PiDECRetainedGeometry.completeLogicalWidth PiDECRetainedGeometry.freshStart
@@ -158,7 +151,6 @@ theorem schedule_width {application : Program} (raw : RawValues application) :
     PiDECRetainedGeometry.prefixLogicalWidth
     PilotOrdinaryRetainedGeometry.completeLogicalWidth
     PilotOrdinaryRetainedGeometry.outputDigestStart
-    PilotOrdinaryRetainedGeometry.canonicalFreshStart
     PilotOrdinaryRetainedGeometry.canonicalLocalStart
     PilotOrdinaryRetainedGeometry.prefixLogicalWidth
     PiCCSOrdinaryRetainedGeometry.completeLogicalWidth

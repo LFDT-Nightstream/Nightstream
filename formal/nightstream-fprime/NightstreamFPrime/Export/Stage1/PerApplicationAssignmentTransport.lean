@@ -185,7 +185,7 @@ def canonical (program : Program) : Plan where
   outputDigestExpressions := outputDigestExpressions program
 
 @[simp] theorem canonical_blocks_length (program : Program) :
-    (canonical program).blocks.length = 26 := by
+    (canonical program).blocks.length = 24 := by
   exact PerApplicationAssignmentBlocks.canonical_length program
 
 @[simp] theorem canonical_outputDigestExpressions_length (program : Program) :

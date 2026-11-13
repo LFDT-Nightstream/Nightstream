@@ -1,6 +1,6 @@
 //! The boundary to the Akita commitment scheme (ePrint 2026/1983): its
-//! fields, its schedule catalog and its commitment bytes. `prover` holds the
-//! calls that need Akita's prover crates, and `verifier` the calls that do not.
+//! fields, its schedule catalog and its commitment bytes. `prover` holds each
+//! call that needs Akita's prover crates. `verifier` and this module need none.
 
 pub(crate) mod prover;
 pub(crate) mod verifier;
@@ -43,7 +43,7 @@ pub(crate) fn extension(value: K) -> Extension {
     Extension::new(base(real), base(imaginary * F::from_u64(BRIDGE)))
 }
 
-pub(crate) fn failed(error: akita_pcs::AkitaError) -> Error {
+pub(crate) fn failed(error: impl std::fmt::Display) -> Error {
     Error::Akita(error.to_string())
 }
 
@@ -55,7 +55,7 @@ pub(crate) fn commitment_bytes(commitment: &CommittedGroup<Base>) -> Result<Vec<
     let mut bytes = Vec::new();
     commitment
         .serialize_compressed(&mut bytes)
-        .map_err(|error| Error::Akita(error.to_string()))?;
+        .map_err(failed)?;
     Ok(bytes)
 }
 
@@ -69,3 +69,7 @@ pub(crate) fn commitment(bytes: &[u8]) -> Result<CommittedGroup<Base>, Error> {
     }
     Ok(commitment)
 }
+
+#[cfg(test)]
+#[path = "../tests/unit/akita.rs"]
+mod tests;

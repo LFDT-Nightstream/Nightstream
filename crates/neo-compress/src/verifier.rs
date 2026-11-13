@@ -6,10 +6,7 @@ use neo_math::K;
 use neo_transcript::Poseidon2Transcript;
 use p3_field::PrimeCharacteristicRing;
 
-use crate::akita::{
-    prover::verifier_setup,
-    verifier::{Opening, Verifier},
-};
+use crate::akita::verifier::{Opening, Verifier};
 use crate::layout::{LOOKUPS, LOOKUP_VARS};
 use crate::transcript::{absorb_bytes, absorb_extension, challenges as draw, session};
 use crate::weights;
@@ -54,7 +51,7 @@ pub fn verify(
         .zip(&proof.inverse_values)
         .map(|(&weight, &value)| weight * value)
         .sum();
-    let akita = Verifier::new(verifier_setup(layout.witness_vars.max(layout.inverse_vars))?)?;
+    let akita = Verifier::new(&[layout.witness_vars, layout.inverse_vars])?;
     akita.verify(&Opening {
         commitment: &proof.witness_commitment,
         point: &rho,

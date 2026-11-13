@@ -143,6 +143,7 @@ import NightstreamFPrime.Export.Generic.GuardFusion
 import NightstreamFPrime.Export.Generic.WordPacking
 import NightstreamFPrime.Export.Generic.IntegerProduct
 import NightstreamFPrime.Export.BoundedDepth.PackedBooleanCompleteness
+import NightstreamFPrime.Export.BoundedDepth.PackedBudget
 import NightstreamFPrime.Lifecycle.BoundedDepth.BlockSupport
 import NightstreamFPrime.Lifecycle.BoundedDepth.FoldCompleteness
 import NightstreamFPrime.Export.BoundedDepth.StepExtend

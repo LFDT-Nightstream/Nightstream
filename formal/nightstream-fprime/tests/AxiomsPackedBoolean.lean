@@ -1,6 +1,7 @@
 import tests.AxiomAudit
 import NightstreamFPrime.Export.Generic.PackedBoolean
 import NightstreamFPrime.Export.BoundedDepth.PackedBooleanCompleteness
+import NightstreamFPrime.Export.BoundedDepth.PackedBudget
 
 #audit_axioms NightstreamFPrime.Export.Generic.PackedBoolean.target_mono
 #audit_axioms NightstreamFPrime.Export.Generic.PackedBoolean.packNat_bound
@@ -52,6 +53,23 @@ import NightstreamFPrime.Export.BoundedDepth.PackedBooleanCompleteness
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.PackedBooleanCompleteness.original_rows_hold
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.PackedBooleanCompleteness.extended_slots_valid
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.PackedBooleanCompleteness.native_complete
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.PackedBudget.choose_lengths
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.PackedBudget.choose_fits
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.PackedBudget.choose_end
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.PackedBudget.choose_prefix
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.PackedBudget.choose_of_fits
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.PackedBudget.pairs_columns
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.PackedBudget.chosen_inside
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.PackedBudget.row_vars_below
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.PackedBudget.groups_inside
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.PackedBudget.rowsMax_lt
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.PackedBudget.keep_sublist
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.PackedBudget.mem_keep
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.PackedBudget.keep_nil
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.PackedBudget.covers_keep
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.PackedBudget.prefix_products
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.PackedBudget.restore_chosen_rows
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.PackedBudget.native_premises
 
 namespace NightstreamFPrime.Tests.PackedBoolean
 
@@ -149,5 +167,24 @@ example (env : Env) (holds : R1CS.RowsHold env nativeRows) (one : env 0 = 1) :
     rcases member with rfl | rfl | rfl <;> decide
 
 end NativeOutputCopy
+
+namespace Budget
+
+open NightstreamFPrime.Export.BoundedDepth.PackedBudget
+
+/-- The rows of `packing_stops_at_the_package_width`: ten sources, two zero products and one
+product, for each room. -/
+private def counts (room : Nat) : Nat × Nat × Nat :=
+  let choice := choose room (List.range 10) (List.replicate 2 ()) [()]
+  (choice.sources.length, choice.zeros.length, choice.products.length)
+
+example : counts 14 = (10, 2, 1) := by decide
+example : counts 13 = (10, 2, 0) := by decide
+example : counts 11 = (10, 1, 0) := by decide
+example : counts 10 = (10, 0, 0) := by decide
+example : counts 4 = (4, 0, 0) := by decide
+example : counts 0 = (0, 0, 0) := by decide
+
+end Budget
 
 end NightstreamFPrime.Tests.PackedBoolean

@@ -47,7 +47,7 @@ SOURCE_ROWS = [
     ("fold.superneo.pi_ccs.sumcheck.fe.row_download", "reduce/ccs/fe.rs", ""),
     ("fold.superneo.pi_ccs.sumcheck.fe.row_decode", "reduce/ccs/fe.rs", ""),
     ("fold.superneo.pi_ccs.sumcheck.nc", "reduce/ccs/nc.rs", "pi_ccs_nc.rs"),
-    ("fold.superneo.pi_rlc", "reduce/rlc.rs", "goldilocks.rs"),
+    ("fold.superneo.pi_rlc", "reduce/rlc.rs", ""),
     ("fold.superneo.pi_rlc.commit_mix", "adapter.rs", ""),
     ("fold.superneo.pi_rlc.claim_shell", "reduce/rlc.rs", ""),
     ("fold.superneo.pi_rlc.output.X", "reduce/rlc.rs", "pi_rlc.rs"),

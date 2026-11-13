@@ -13,20 +13,22 @@ fn joint_row_domain_uses_the_complete_packed_carrier() {
         SparsePoly::new(1, Vec::new()),
     )
     .expect("valid rectangular structure");
-    let params = NeoParams::goldilocks_auto_rectangular_r1cs_ccs(logical_width, logical_width).expect("parameters");
+    let params = NeoParams::nightstream_p64_k16()
+        .with_lambda(115)
+        .expect("parameters");
     let dimensions = build_joint_dims(&params, &structure, 1, 0).expect("dimensions");
 
-    assert_eq!(logical_width, 55);
-    assert_eq!(logical_width.div_ceil(D) * D, 108);
+    assert_eq!(logical_width, 65);
+    assert_eq!(logical_width.div_ceil(D) * D, 128);
     assert_eq!(
         dimensions.variables, 7,
-        "the joint row cube must cover all 108 carrier coordinates"
+        "the joint row cube must cover all 128 carrier coordinates"
     );
 }
 
 #[test]
 fn norm_check_covers_the_first_completed_carrier_coordinate() {
-    let params = NeoParams::goldilocks_paper_b2();
+    let params = NeoParams::nightstream_p64_k16();
     let logical_width: usize = 257;
     let carrier_width = logical_width.div_ceil(D) * D;
     let mut witness = Mat::zero(D, logical_width.div_ceil(D), F::ZERO);
@@ -43,7 +45,7 @@ fn norm_check_covers_the_first_completed_carrier_coordinate() {
     assert!(error
         .to_string()
         .contains(&format!("carrier_col={logical_width}")));
-    assert_eq!(carrier_width, 270);
+    assert_eq!(carrier_width, 320);
 }
 
 #[test]

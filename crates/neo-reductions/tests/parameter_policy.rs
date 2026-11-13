@@ -9,7 +9,19 @@ fn engine_rejects_parameters_selected_for_fewer_matrices() {
     const ACTUAL_MATRIX_COUNT: usize = 100_000;
     const DEGREE: u32 = 8;
 
-    let params = NeoParams::goldilocks_auto_ccs_with(SHAPE, 1, DEGREE, 96, 2).expect("one-matrix parameter profile");
+    let base = NeoParams::nightstream_p64_k16();
+    let one_matrix = base
+        .padded_row_security_summary_for_shape(
+            SHAPE,
+            SHAPE,
+            1,
+            DEGREE,
+            neo_params::nightstream_p64_k16::CHALLENGE_ALPHABET.len() as u32,
+        )
+        .expect("one-matrix census");
+    let params = base
+        .with_lambda(one_matrix.security_bits)
+        .expect("one-matrix parameter profile");
     let mut exps = vec![0; ACTUAL_MATRIX_COUNT];
     exps[0] = DEGREE;
     let structure = CcsStructure::new_sparse(

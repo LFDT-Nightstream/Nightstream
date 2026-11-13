@@ -4,9 +4,9 @@
 
 use neo_ccs::{CcsStructure, Mat};
 use neo_math::{
-    balanced::to_balanced_i128, balanced::within_nc_bound, superneo_bar_block, Fq, KExtensions, Rq, D, F, K,
+    balanced::to_balanced_i128, balanced::within_nc_bound, superneo_bar_block, Fq, KExtensions, Rq, D, ETA, F, K,
 };
-use neo_params::{goldilocks_paper_b2, NeoParams};
+use neo_params::{nightstream_p64_k16 as profile, NeoParams};
 use neo_transcript::Poseidon2Transcript;
 use p3_field::{Field, PrimeCharacteristicRing, PrimeField64};
 #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
@@ -17,7 +17,7 @@ use crate::error::PiCcsError;
 #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
 mod packed_split;
 mod pi_rlc_sampler;
-pub use pi_rlc_sampler::decode_pi_rlc_coefficients;
+pub use pi_rlc_sampler::{decode_pi_rlc_coefficients, PI_RLC_DRAW_LANES};
 
 #[inline]
 fn signed_divrem_base2(v: i64) -> (i64, i64) {
@@ -221,8 +221,6 @@ pub fn split_b_matrix_k(Z: &Mat<F>, k: usize, b: u32) -> Result<Vec<Mat<F>>, PiC
 }
 
 pub struct RotRing {
-    pub phi_low_coeffs: &'static [i32; D],
-
     pub alphabet: &'static [i8],
 
     /// Optional: lower bound on b_inv from SuperNeo v1.2 Theorem 4 (invertibility threshold).
@@ -231,18 +229,16 @@ pub struct RotRing {
 }
 
 impl RotRing {
-    /// SuperNeo v1.2 Section 8.2 ring and challenge set.
-    pub const fn goldilocks() -> Self {
+    /// The challenge set of SPEC.md section 2.2 over `F_q[X]/(X^D + 1)`.
+    pub const fn profile() -> Self {
         Self {
-            phi_low_coeffs: &goldilocks_paper_b2::PHI_COEFFS,
-            alphabet: &goldilocks_paper_b2::CHALLENGE_ALPHABET,
-            binv_floor: Some(goldilocks_paper_b2::B_INV_FLOOR),
+            alphabet: &profile::CHALLENGE_ALPHABET,
+            binv_floor: Some(profile::B_INV_FLOOR),
         }
     }
 }
 
-/// Compute expansion factor T per SuperNeo v1.2 Theorem 5: T ≤ 2·φ(η)·max|coeff|.
-/// For prime-power cyclotomics, φ(η) = d (the degree).
+/// SuperNeo v1.2 Theorem 5 for a power-of-two cyclotomic ring: `T = φ(η)·max|coeff|`.
 #[inline]
 fn expansion_factor_T(alphabet: &[i8]) -> u128 {
     let c_max = alphabet
@@ -250,7 +246,7 @@ fn expansion_factor_T(alphabet: &[i8]) -> u128 {
         .map(|&x| (x as i64).unsigned_abs())
         .max()
         .unwrap_or(0) as u128;
-    2u128 * (D as u128) * c_max
+    (D as u128) * c_max
 }
 
 #[inline]
@@ -267,13 +263,9 @@ fn f_from_i64(x: i64) -> F {
     ff_from_i64::<F>(x)
 }
 
-fn rot_from_coeffs(a_coeffs: &[F], phi_low_coeffs: &[i32; D]) -> Mat<F> {
+/// Column `j` is the coefficients of `a · X^j` in `F_q[X]/(X^D + 1)`.
+fn rot_from_coeffs(a_coeffs: &[F]) -> Mat<F> {
     debug_assert_eq!(a_coeffs.len(), D);
-
-    let neg_c: Vec<F> = phi_low_coeffs
-        .iter()
-        .map(|&cr| f_from_i64(-(cr as i64)))
-        .collect();
 
     let mut rho = Mat::zero(D, D, F::ZERO);
     let mut col = a_coeffs.to_vec();
@@ -282,44 +274,25 @@ fn rot_from_coeffs(a_coeffs: &[F], phi_low_coeffs: &[i32; D]) -> Mat<F> {
         for r in 0..D {
             rho[(r, j)] = col[r];
         }
-
-        let last = col[D - 1];
-        let mut next = vec![F::ZERO; D];
-        next[0] = last * neg_c[0];
-        for r in 1..D {
-            next[r] = col[r - 1] + last * neg_c[r];
-        }
-        col = next;
+        col.rotate_right(1);
+        col[0] = -col[0];
     }
 
     rho
 }
 
-pub fn phi_low_coeffs_from_params(params: &NeoParams) -> Result<&'static [i32; D], PiCcsError> {
-    if params.d() as usize != D {
+fn validate_ring_facts(params: &NeoParams) -> Result<(), PiCcsError> {
+    if params.d() as usize != D || params.eta() as usize != ETA {
         return Err(PiCcsError::InvalidInput(format!(
-            "Π_RLC: params.d={} must equal D={}",
+            "Π_RLC: params.d={} and params.eta={} must equal D={D} and ETA={ETA}",
             params.d(),
-            D
+            params.eta(),
         )));
     }
-    match params.eta() {
-        eta if eta as usize == goldilocks_paper_b2::ETA => Ok(&goldilocks_paper_b2::PHI_COEFFS),
-        128 => Err(PiCcsError::InvalidInput(
-            "Π_RLC: eta=128 (Almost-Goldilocks) is disabled while D=54; enable only with a full D=64 migration".into(),
-        )),
-        _ => Err(PiCcsError::InvalidInput(format!(
-            "Π_RLC: unsupported cyclotomic eta={} for strict rotation-matrix validation",
-            params.eta()
-        ))),
-    }
+    Ok(())
 }
 
-pub fn validate_rho_is_rotation_matrix<Ff>(
-    rho: &Mat<Ff>,
-    phi_low_coeffs: &[i32; D],
-    label: &str,
-) -> Result<(), PiCcsError>
+pub fn validate_rho_is_rotation_matrix<Ff>(rho: &Mat<Ff>, label: &str) -> Result<(), PiCcsError>
 where
     Ff: Field + PrimeCharacteristicRing + Copy,
 {
@@ -332,23 +305,9 @@ where
             D
         )));
     }
-    let neg_c: Vec<Ff> = phi_low_coeffs
-        .iter()
-        .map(|&cr| ff_from_i64::<Ff>(-(cr as i64)))
-        .collect();
-
     for j in 0..(D - 1) {
-        let last = rho[(D - 1, j)];
-
-        let want0 = last * neg_c[0];
-        if rho[(0, j + 1)] != want0 {
-            return Err(PiCcsError::InvalidInput(format!(
-                "{label}: rho fails rotation recurrence at col={}, row=0",
-                j + 1
-            )));
-        }
-        for r in 1..D {
-            let want = rho[(r - 1, j)] + last * neg_c[r];
+        for r in 0..D {
+            let want = if r == 0 { -rho[(D - 1, j)] } else { rho[(r - 1, j)] };
             if rho[(r, j + 1)] != want {
                 return Err(PiCcsError::InvalidInput(format!(
                     "{label}: rho fails rotation recurrence at col={}, row={}",
@@ -370,9 +329,9 @@ pub fn validate_rhos_are_rotation_matrices<Ff>(
 where
     Ff: Field + PrimeCharacteristicRing + Copy,
 {
-    let phi = phi_low_coeffs_from_params(params)?;
+    validate_ring_facts(params)?;
     for (idx, rho) in rhos.iter().enumerate() {
-        validate_rho_is_rotation_matrix(rho, phi, &format!("{label}[{idx}]"))?;
+        validate_rho_is_rotation_matrix(rho, &format!("{label}[{idx}]"))?;
     }
     Ok(())
 }
@@ -382,8 +341,8 @@ pub struct RotRho(pub(crate) Mat<F>);
 
 impl RotRho {
     pub fn new_checked(params: &NeoParams, rho: Mat<F>) -> Result<Self, PiCcsError> {
-        let phi = phi_low_coeffs_from_params(params)?;
-        validate_rho_is_rotation_matrix(&rho, phi, "RotRho::new_checked")?;
+        validate_ring_facts(params)?;
+        validate_rho_is_rotation_matrix(&rho, "RotRho::new_checked")?;
         validate_rho_is_in_selected_strong_set(params, &rho, "RotRho::new_checked")?;
         Ok(Self(rho))
     }
@@ -412,7 +371,7 @@ impl<'de> serde::Deserialize<'de> for RotRho {
         DeserializerT: serde::Deserializer<'de>,
     {
         let rho = <Mat<F> as serde::Deserialize>::deserialize(deserializer)?;
-        Self::new_checked(&NeoParams::goldilocks_paper_b2(), rho).map_err(serde::de::Error::custom)
+        Self::new_checked(&NeoParams::nightstream_p64_k16(), rho).map_err(serde::de::Error::custom)
     }
 }
 
@@ -428,9 +387,9 @@ pub fn rot_rhos_from_mats(params: &NeoParams, rhos: &[Mat<F>], label: &str) -> R
         .cloned()
         .enumerate()
         .map(|(index, rho)| {
-            let phi = phi_low_coeffs_from_params(params)?;
+            validate_ring_facts(params)?;
             let item_label = format!("{label}[{index}]");
-            validate_rho_is_rotation_matrix(&rho, phi, &item_label)?;
+            validate_rho_is_rotation_matrix(&rho, &item_label)?;
             validate_rho_is_in_selected_strong_set(params, &rho, &item_label)?;
             Ok(RotRho::new_unchecked(rho))
         })
@@ -458,7 +417,7 @@ fn validate_sampling_alphabet(alphabet: &[i8]) -> Result<(), PiCcsError> {
 }
 
 fn validate_rho_is_in_selected_strong_set(params: &NeoParams, rho: &Mat<F>, label: &str) -> Result<(), PiCcsError> {
-    let alphabet = &goldilocks_paper_b2::CHALLENGE_ALPHABET;
+    let alphabet = &profile::CHALLENGE_ALPHABET;
     let required_expansion = expansion_factor_T(alphabet);
     if (params.T() as u128) < required_expansion {
         return Err(PiCcsError::InvalidInput(format!(
@@ -478,6 +437,14 @@ fn validate_rho_is_in_selected_strong_set(params: &NeoParams, rho: &Mat<F>, labe
         }
     }
     Ok(())
+}
+
+/// SPEC.md section 5.3: the draw is the first lanes of the state `E_s`, and the next state is
+/// `permute(E_s)` (`Spec.Folding.Nifs.NonInteractive.PiRlcSampler.Transcript.drawAt`).
+pub fn read_pi_rlc_draw(tr: &mut Poseidon2Transcript) -> [F; PI_RLC_DRAW_LANES] {
+    let state = tr.state();
+    tr.squeeze_digest_v1_2();
+    core::array::from_fn(|lane| state[lane])
 }
 
 fn sample_rot_rhos_n(
@@ -507,7 +474,7 @@ fn sample_rot_rhos_n(
             )));
         }
     }
-    if ring.alphabet != goldilocks_paper_b2::CHALLENGE_ALPHABET.as_slice() {
+    if ring.alphabet != profile::CHALLENGE_ALPHABET.as_slice() {
         return Err(PiCcsError::InvalidInput(
             "PiRLC sampler requires the fixed alphabet [-2, -1, 0, 1, 2]".into(),
         ));
@@ -552,12 +519,11 @@ fn sample_rot_rhos_n(
         let coordinate =
             u64::try_from(i).map_err(|_| PiCcsError::InvalidInput("PiRLC challenge coordinate exceeds u64".into()))?;
         tr.absorb_v1_2(&[F::from_u64(4), F::from_u64(coordinate)]);
-        let digest = tr.squeeze_digest_v1_2();
-        let coeffs_i8 = decode_pi_rlc_coefficients(&digest);
+        let coeffs_i8 = decode_pi_rlc_coefficients(&read_pi_rlc_draw(tr));
 
         let a_coeffs_f: Vec<F> = coeffs_i8.iter().map(|&c| f_from_i64(c as i64)).collect();
 
-        let rho = rot_from_coeffs(&a_coeffs_f, ring.phi_low_coeffs);
+        let rho = rot_from_coeffs(&a_coeffs_f);
         out.push(rho);
     }
 
@@ -711,42 +677,14 @@ where
     Ok(z)
 }
 
+/// A value has `k_rho` balanced digits in base 2 exactly when its centered magnitude is below
+/// `B = 2^k_rho`, the norm bound of an accumulator (SPEC.md section 2.5).
 #[inline]
-fn is_representable_balanced_fixed_d_digits<Ff>(val: Ff, b: u32) -> Result<bool, PiCcsError>
+fn is_dec_representable<Ff>(params: &NeoParams, val: Ff) -> bool
 where
     Ff: PrimeField64 + PrimeCharacteristicRing + Copy,
 {
-    if b < 2 {
-        return Err(PiCcsError::InvalidInput(format!(
-            "is_representable_balanced_fixed_d_digits: invalid base b={b}"
-        )));
-    }
-
-    let b_i = b as i128;
-    let mut rem = to_balanced_i128(val);
-    if rem >= i64::MIN as i128 && rem <= i64::MAX as i128 {
-        let mut rem64 = rem as i64;
-        let b_i64 = b as i64;
-        for _ in 0..D {
-            if rem64 == 0 {
-                return Ok(true);
-            }
-            rem64 = if b == 2 {
-                signed_divrem_base2(rem64).1
-            } else {
-                rem64 / b_i64
-            };
-        }
-        return Ok(rem64 == 0);
-    }
-
-    for _ in 0..D {
-        if rem == 0 {
-            return Ok(true);
-        }
-        rem /= b_i;
-    }
-    Ok(rem == 0)
+    to_balanced_i128(val).unsigned_abs() < u128::from(params.B())
 }
 
 pub fn validate_packed_witness_dec_representable<Ff>(
@@ -770,38 +708,29 @@ where
         return Ok(());
     }
     if let Some(&value) = Z.virtual_constant_value() {
-        if is_representable_balanced_fixed_d_digits(value, params.b())? {
+        if is_dec_representable(params, value) {
             return Ok(());
         }
-        let x = to_balanced_i128(value);
         return Err(PiCcsError::InvalidInput(format!(
-            "{label}: constant witness is not representable in D={} balanced base-{} digits (centered value {})",
-            D,
+            "{label}: constant witness is not representable in k_rho={} balanced base-{} digits (centered value {})",
+            params.k_rho(),
             params.b(),
-            x,
+            to_balanced_i128(value),
         )));
     }
     let entry = |col: usize| Z[(col % D, col / D)];
-    let fails = |&col: &usize| {
-        !matches!(
-            is_representable_balanced_fixed_d_digits(entry(col), params.b()),
-            Ok(true)
-        )
-    };
+    let fails = |&col: &usize| !is_dec_representable(params, entry(col));
     let width = superneo_carrier_width(expected_m);
     #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
     let first = (0..width).into_par_iter().find_first(fails);
     #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
     let first = (0..width).find(fails);
     if let Some(col) = first {
-        let v = entry(col);
-        is_representable_balanced_fixed_d_digits(v, params.b())?;
-        let x = to_balanced_i128(v);
         return Err(PiCcsError::InvalidInput(format!(
-            "{label}: witness carrier_col={col} is not representable in D={} balanced base-{} digits (centered value {})",
-            D,
+            "{label}: witness carrier_col={col} is not representable in k_rho={} balanced base-{} digits (centered value {})",
+            params.k_rho(),
             params.b(),
-            x,
+            to_balanced_i128(entry(col)),
         )));
     }
     Ok(())

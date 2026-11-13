@@ -867,7 +867,7 @@ dependencies = [
  "p3-field",
  "proptest",
  "rand 0.9.5",
- "rand_chacha 0.9.0",
+ "rand_chacha",
  "rayon",
  "serde",
  "serde_json",
@@ -914,7 +914,7 @@ dependencies = [
  "p3-matrix",
  "proptest",
  "rand 0.9.5",
- "rand_chacha 0.9.0",
+ "rand_chacha",
  "serde",
  "serde_json",
 ]
@@ -965,11 +965,9 @@ dependencies = [
  "neo-math",
  "neo-params",
  "neo-transcript",
+ "num-bigint",
  "p3-field",
- "p3-goldilocks",
- "p3-symmetric",
- "rand_chacha 0.10.0",
- "rand_chacha 0.9.0",
+ "rand_chacha",
  "rayon",
  "serde",
  "serde_json",
@@ -1387,7 +1385,7 @@ dependencies = [
  "bitflags",
  "num-traits",
  "rand 0.9.5",
- "rand_chacha 0.9.0",
+ "rand_chacha",
  "rand_xorshift",
  "regex-syntax",
  "rusty-fork",
@@ -1451,7 +1449,7 @@ version = "0.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b9ef1d0d795eb7d84685bca4f72f3649f064e6641543d3a8c415898726a57b41"
 dependencies = [
- "rand_chacha 0.9.0",
+ "rand_chacha",
  "rand_core 0.9.5",
 ]
 
@@ -1472,16 +1470,6 @@ checksum = "d3022b5f1df60f26e1ffddd6c66e8aa15de382ae63b3a0c1bfc0e4d3e3f325cb"
 dependencies = [
  "ppv-lite86",
  "rand_core 0.9.5",
-]
-
-[[package]]
-name = "rand_chacha"
-version = "0.10.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3e6af7f3e25ded52c41df4e0b1af2d047e45896c2f3281792ed68a1c243daedb"
-dependencies = [
- "ppv-lite86",
- "rand_core 0.10.1",
 ]
 
 [[package]]

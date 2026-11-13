@@ -1,10 +1,10 @@
 use neo_ccs::Mat;
-use neo_math::D;
-use neo_math::F;
-use neo_params::{goldilocks_paper_b2, NeoParams};
+use neo_math::{Rq, D, ETA, F};
+use neo_params::{nightstream_p64_k16 as profile, NeoParams};
 use neo_reductions::PiCcsError;
 use neo_reductions::{rot_rhos_to_mats, sample_rot_rhos_n_typed, RotRing};
 use neo_transcript::Poseidon2Transcript;
+use p3_field::PrimeCharacteristicRing;
 
 fn sample_rot_rhos_n(
     transcript: &mut Poseidon2Transcript,
@@ -17,8 +17,8 @@ fn sample_rot_rhos_n(
 
 #[test]
 #[allow(non_snake_case)]
-fn test_goldilocks_ring_expansion_factor() {
-    let ring = RotRing::goldilocks();
+fn test_profile_ring_expansion_factor() {
+    let ring = RotRing::profile();
 
     let max_coeff = ring
         .alphabet
@@ -26,25 +26,25 @@ fn test_goldilocks_ring_expansion_factor() {
         .map(|&x| (x as i64).unsigned_abs())
         .max()
         .unwrap();
-    let T_computed = 2u128 * (D as u128) * (max_coeff as u128);
+    let T_computed = (D as u128) * (max_coeff as u128);
     assert_eq!(
         T_computed,
-        goldilocks_paper_b2::T as u128,
-        "Goldilocks expansion factor should match Section 8.2"
+        profile::T as u128,
+        "the expansion factor is that of SuperNeo v1.2 Theorem 5 for X^D + 1"
     );
 
-    let params = NeoParams::goldilocks_paper_b2();
+    let params = NeoParams::nightstream_p64_k16();
     assert_eq!(
         params.T(),
-        goldilocks_paper_b2::T,
-        "Goldilocks preset T should match Section 8.2"
+        profile::T,
+        "the profile T is that of SuperNeo v1.2 Theorem 5 for X^D + 1"
     );
 }
 
 #[test]
 fn test_sample_rot_rhos_succeeds_with_valid_params() {
-    let params = NeoParams::goldilocks_paper_b2();
-    let ring = RotRing::goldilocks();
+    let params = NeoParams::nightstream_p64_k16();
+    let ring = RotRing::profile();
     let mut tr = Poseidon2Transcript::new_v1_2();
 
     let result = sample_rot_rhos_n(&mut tr, &params, &ring, (params.k_rho() as usize) + 1);
@@ -67,8 +67,8 @@ fn test_sample_rot_rhos_succeeds_with_valid_params() {
 
 #[test]
 fn test_sample_rot_rhos_rejects_nonzero_absorb_cursor() {
-    let params = NeoParams::goldilocks_paper_b2();
-    let ring = RotRing::goldilocks();
+    let params = NeoParams::nightstream_p64_k16();
+    let ring = RotRing::profile();
     let state = Poseidon2Transcript::new_v1_2().state();
     let mut transcript = Poseidon2Transcript::from_state_and_absorbed(state, 1);
 
@@ -79,8 +79,8 @@ fn test_sample_rot_rhos_rejects_nonzero_absorb_cursor() {
 
 #[test]
 fn test_rot_rhos_k1_matches_first_sampled_rho() {
-    let params = NeoParams::goldilocks_paper_b2();
-    let ring = RotRing::goldilocks();
+    let params = NeoParams::nightstream_p64_k16();
+    let ring = RotRing::profile();
     let mut tr_single = Poseidon2Transcript::new_v1_2();
     let mut tr_pair = Poseidon2Transcript::new_v1_2();
 
@@ -97,8 +97,8 @@ fn test_rot_rhos_k1_matches_first_sampled_rho() {
 
 #[test]
 fn test_rot_rhos_are_different() {
-    let params = NeoParams::goldilocks_paper_b2();
-    let ring = RotRing::goldilocks();
+    let params = NeoParams::nightstream_p64_k16();
+    let ring = RotRing::profile();
     let mut tr = Poseidon2Transcript::new_v1_2();
 
     let rhos = sample_rot_rhos_n(&mut tr, &params, &ring, (params.k_rho() as usize) + 1).unwrap();
@@ -114,8 +114,8 @@ fn test_rot_rhos_are_different() {
 
 #[test]
 fn test_rot_rhos_deterministic() {
-    let params = NeoParams::goldilocks_paper_b2();
-    let ring = RotRing::goldilocks();
+    let params = NeoParams::nightstream_p64_k16();
+    let ring = RotRing::profile();
 
     let mut tr1 = Poseidon2Transcript::new_v1_2();
     let rhos1 = sample_rot_rhos_n(&mut tr1, &params, &ring, (params.k_rho() as usize) + 1).unwrap();
@@ -142,15 +142,12 @@ fn test_rot_rhos_deterministic() {
 
 #[test]
 fn test_rlc_bound_violation_detected() {
-    let params = NeoParams::goldilocks_paper_b2();
-    let ring = RotRing::goldilocks();
+    let params = NeoParams::nightstream_p64_k16();
+    let ring = RotRing::profile();
     let mut tr = Poseidon2Transcript::new_v1_2();
 
     let result = sample_rot_rhos_n(&mut tr, &params, &ring, (params.k_rho() as usize) + 1);
-    assert!(
-        result.is_ok(),
-        "Section 8.2 Goldilocks params should satisfy the ΠRLC bound"
-    );
+    assert!(result.is_ok(), "the profile satisfies the ΠRLC bound");
 }
 
 #[test]
@@ -161,14 +158,13 @@ fn test_strong_sampling_set_check() {
             const BAD_A: &[i8] = &[-127, 0, 127];
 
             RotRing {
-                phi_low_coeffs: &goldilocks_paper_b2::PHI_COEFFS,
                 alphabet: BAD_A,
                 binv_floor: Some(200),
             }
         }
     }
 
-    let params = NeoParams::goldilocks_paper_b2();
+    let params = NeoParams::nightstream_p64_k16();
     let ring = TestRing::bad_alphabet();
     let mut tr = Poseidon2Transcript::new_v1_2();
 
@@ -188,8 +184,8 @@ fn test_strong_sampling_set_check() {
 #[test]
 #[allow(non_snake_case)]
 fn test_parameter_t_consistency() {
-    let params = NeoParams::goldilocks_paper_b2();
-    let ring = RotRing::goldilocks();
+    let params = NeoParams::nightstream_p64_k16();
+    let ring = RotRing::profile();
 
     let c_max = ring
         .alphabet
@@ -197,7 +193,7 @@ fn test_parameter_t_consistency() {
         .map(|&x| (x as i64).unsigned_abs())
         .max()
         .unwrap();
-    let T_computed = 2 * (D as u64) * c_max;
+    let T_computed = (D as u64) * c_max;
 
     assert_eq!(
         params.T() as u64,
@@ -207,17 +203,42 @@ fn test_parameter_t_consistency() {
 }
 
 #[test]
-fn public_sampler_rejects_a_ring_without_the_strong_set_property() {
-    const NILPOTENT_PHI: [i32; D] = [0; D];
-    let ring = RotRing {
-        phi_low_coeffs: &NILPOTENT_PHI,
-        alphabet: &goldilocks_paper_b2::CHALLENGE_ALPHABET,
-        binv_floor: Some(goldilocks_paper_b2::B_INV_FLOOR),
-    };
-    let params = NeoParams::goldilocks_paper_b2();
+fn sampled_rho_is_multiplication_in_the_negacyclic_ring() {
+    let params = NeoParams::nightstream_p64_k16();
+    assert_eq!((params.d() as usize, params.eta() as usize), (D, ETA));
     let mut transcript = Poseidon2Transcript::new_v1_2();
-    assert!(
-        sample_rot_rhos_n(&mut transcript, &params, &ring, 6).is_err(),
-        "the only public sampler must reject a quotient ring other than Phi81"
-    );
+    let rhos = sample_rot_rhos_n(&mut transcript, &params, &RotRing::profile(), 3).unwrap();
+    for (index, rho) in rhos.iter().enumerate() {
+        let challenge = Rq(core::array::from_fn(|row| rho[(row, 0)]));
+        let operand = Rq(core::array::from_fn(|row| {
+            F::from_u64((7 * index + 3 * row + 1) as u64)
+        }));
+        let product = challenge.mul(&operand);
+        for row in 0..D {
+            let by_matrix: F = (0..D)
+                .map(|column| rho[(row, column)] * operand.0[column])
+                .sum();
+            assert_eq!(by_matrix, product.0[row], "rho {index}, row {row}");
+        }
+        // X^D = −1: the last column times X is minus the first column.
+        assert_eq!(rho[(0, 1)], -rho[(D - 1, 0)]);
+    }
+}
+
+#[test]
+fn checked_rho_rejects_the_cyclic_rotation() {
+    let params = NeoParams::nightstream_p64_k16();
+    let mut transcript = Poseidon2Transcript::new_v1_2();
+    let rho = sample_rot_rhos_n(&mut transcript, &params, &RotRing::profile(), 1)
+        .unwrap()
+        .remove(0);
+    let mut cyclic = rho.clone();
+    for column in 1..D {
+        for row in 0..D {
+            cyclic[(row, column)] = cyclic[((row + D - 1) % D, column - 1)];
+        }
+    }
+    assert_ne!(cyclic, rho, "the sampled challenge has a nonzero wrapped coefficient");
+    assert!(neo_reductions::rot_rhos_from_mats(&params, &[rho], "rho").is_ok());
+    assert!(neo_reductions::rot_rhos_from_mats(&params, &[cyclic], "rho").is_err());
 }

@@ -31,7 +31,9 @@ fn build_fixture(
     CcsWitness<F>,
     Poseidon2Transcript,
 ) {
-    let params = NeoParams::goldilocks_auto_rectangular_r1cs_ccs(n, n).expect("params");
+    let params = NeoParams::nightstream_p64_k16()
+        .with_lambda(115)
+        .expect("params");
     let s = CcsStructure::new(vec![identity_left(n, m)], zero_poly(1)).expect("ccs");
 
     let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(123);

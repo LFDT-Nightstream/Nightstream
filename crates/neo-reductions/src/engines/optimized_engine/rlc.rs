@@ -12,9 +12,6 @@ use p3_field::{Field, PrimeCharacteristicRing, PrimeField64};
 #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
 use rayon::prelude::*;
 
-const RLC_RING_SPLIT: usize = D / 3;
-const RLC_RING_CHUNK_OUT: usize = 2 * RLC_RING_SPLIT - 1;
-
 fn add_signed_unit_columns<Ff>(acc: &mut Mat<Ff>, rho_data: &[Ff], positive: &[u64], negative: &[u64])
 where
     Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync,
@@ -123,7 +120,7 @@ where
                     for row in 0..D {
                         rhs[row] = a_data[row * cols + col];
                     }
-                    mul_phi_81_toom3(&rho_coeffs, &rhs)
+                    mul_negacyclic(&rho_coeffs, &rhs)
                 })
                 .collect();
 
@@ -143,195 +140,33 @@ where
         for row in 0..D {
             rhs[row] = a_data[row * cols + col];
         }
-        let product = mul_phi_81_toom3(&rho_coeffs, &rhs);
+        let product = mul_negacyclic(&rho_coeffs, &rhs);
         for row in 0..D {
             acc_data[row * cols + col] += product[row];
         }
     }
 }
 
+/// The product in `F[X]/(X^D + 1)`: `X^D = −1`.
 #[inline]
-fn mul_phi_81_toom3<Ff>(lhs: &[Ff; D], rhs: &[Ff; D]) -> [Ff; D]
+fn mul_negacyclic<Ff>(lhs: &[Ff; D], rhs: &[Ff; D]) -> [Ff; D]
 where
     Ff: Field + PrimeCharacteristicRing + Copy,
 {
-    let mut tmp = mul_3way_karatsuba_54(lhs, rhs);
-    reduce_mod_phi_81(&mut tmp);
     let mut out = [Ff::ZERO; D];
-    out.copy_from_slice(&tmp[..D]);
-    out
-}
-
-#[inline]
-fn mul_schoolbook_chunk<Ff>(lhs: &[Ff; RLC_RING_SPLIT], rhs: &[Ff; RLC_RING_SPLIT]) -> [Ff; RLC_RING_CHUNK_OUT]
-where
-    Ff: Field + PrimeCharacteristicRing + Copy,
-{
-    let mut out = [Ff::ZERO; RLC_RING_CHUNK_OUT];
-    for i in 0..RLC_RING_SPLIT {
-        let ai = lhs[i];
-        for j in 0..RLC_RING_SPLIT {
-            out[i + j] += ai * rhs[j];
+    for (i, &left) in lhs.iter().enumerate() {
+        if left == Ff::ZERO {
+            continue;
         }
-    }
-    out
-}
-
-#[inline]
-fn mul_3way_karatsuba_54<Ff>(lhs: &[Ff; D], rhs: &[Ff; D]) -> [Ff; 2 * D - 1]
-where
-    Ff: Field + PrimeCharacteristicRing + Copy,
-{
-    let mut a0 = [Ff::ZERO; RLC_RING_SPLIT];
-    let mut a1 = [Ff::ZERO; RLC_RING_SPLIT];
-    let mut a2 = [Ff::ZERO; RLC_RING_SPLIT];
-    let mut b0 = [Ff::ZERO; RLC_RING_SPLIT];
-    let mut b1 = [Ff::ZERO; RLC_RING_SPLIT];
-    let mut b2 = [Ff::ZERO; RLC_RING_SPLIT];
-    a0.copy_from_slice(&lhs[..RLC_RING_SPLIT]);
-    a1.copy_from_slice(&lhs[RLC_RING_SPLIT..2 * RLC_RING_SPLIT]);
-    a2.copy_from_slice(&lhs[2 * RLC_RING_SPLIT..3 * RLC_RING_SPLIT]);
-    b0.copy_from_slice(&rhs[..RLC_RING_SPLIT]);
-    b1.copy_from_slice(&rhs[RLC_RING_SPLIT..2 * RLC_RING_SPLIT]);
-    b2.copy_from_slice(&rhs[2 * RLC_RING_SPLIT..3 * RLC_RING_SPLIT]);
-
-    let two = Ff::from_u64(2);
-    let four = Ff::from_u64(4);
-    let six = Ff::from_u64(6);
-    let sixteen = Ff::from_u64(16);
-    let half = two.inverse();
-    let sixth = six.inverse();
-
-    let a01 = add_chunk(&a0, &a1);
-    let b01 = add_chunk(&b0, &b1);
-    let a012 = add_chunk(&a01, &a2);
-    let b012 = add_chunk(&b01, &b2);
-    let am1 = add_chunk(&sub_chunk(&a0, &a1), &a2);
-    let bm1 = add_chunk(&sub_chunk(&b0, &b1), &b2);
-    let a2eval = add_scaled_chunk(&add_scaled_chunk(&a0, &a1, two), &a2, four);
-    let b2eval = add_scaled_chunk(&add_scaled_chunk(&b0, &b1, two), &b2, four);
-
-    let p0 = mul_schoolbook_chunk(&a0, &b0);
-    let p1 = mul_schoolbook_chunk(&a012, &b012);
-    let pm1 = mul_schoolbook_chunk(&am1, &bm1);
-    let p2 = mul_schoolbook_chunk(&a2eval, &b2eval);
-    let p4 = mul_schoolbook_chunk(&a2, &b2);
-
-    let c0 = p0;
-    let c4 = p4;
-    let mut c2 = scale_chunk(&add_chunk(&p1, &pm1), half);
-    sub_assign_chunk(&mut c2, &c0);
-    sub_assign_chunk(&mut c2, &c4);
-
-    let s = scale_chunk(&sub_chunk(&p1, &pm1), half);
-
-    let mut c3 = p2;
-    sub_assign_chunk(&mut c3, &c0);
-    for i in 0..RLC_RING_CHUNK_OUT {
-        c3[i] -= c2[i] * four;
-        c3[i] -= c4[i] * sixteen;
-    }
-    c3 = scale_chunk(&sub_chunk(&c3, &scale_chunk(&s, two)), sixth);
-
-    let mut c1 = s;
-    sub_assign_chunk(&mut c1, &c3);
-
-    let mut out = [Ff::ZERO; 2 * D - 1];
-    add_assign_chunk_at(&mut out, 0, &c0);
-    add_assign_chunk_at(&mut out, RLC_RING_SPLIT, &c1);
-    add_assign_chunk_at(&mut out, 2 * RLC_RING_SPLIT, &c2);
-    add_assign_chunk_at(&mut out, 3 * RLC_RING_SPLIT, &c3);
-    add_assign_chunk_at(&mut out, 4 * RLC_RING_SPLIT, &c4);
-    out
-}
-
-#[inline]
-fn reduce_mod_phi_81<Ff>(coeffs: &mut [Ff; 2 * D - 1])
-where
-    Ff: Field + PrimeCharacteristicRing + Copy,
-{
-    for i in (D..(2 * D - 1)).rev() {
-        let t = coeffs[i];
-        coeffs[i] = Ff::ZERO;
-        coeffs[i - D] -= t;
-        let idx_27 = i - (D / 2);
-        if idx_27 < D {
-            coeffs[idx_27] -= t;
-        } else {
-            coeffs[idx_27 - D] += t;
-            if idx_27 - (D / 2) < D {
-                coeffs[idx_27 - (D / 2)] += t;
+        for (j, &right) in rhs.iter().enumerate() {
+            if i + j < D {
+                out[i + j] += left * right;
+            } else {
+                out[i + j - D] -= left * right;
             }
         }
     }
-}
-
-#[inline]
-fn add_chunk<Ff, const N: usize>(lhs: &[Ff; N], rhs: &[Ff; N]) -> [Ff; N]
-where
-    Ff: Field + PrimeCharacteristicRing + Copy,
-{
-    let mut out = [Ff::ZERO; N];
-    for i in 0..N {
-        out[i] = lhs[i] + rhs[i];
-    }
     out
-}
-
-#[inline]
-fn sub_chunk<Ff, const N: usize>(lhs: &[Ff; N], rhs: &[Ff; N]) -> [Ff; N]
-where
-    Ff: Field + PrimeCharacteristicRing + Copy,
-{
-    let mut out = [Ff::ZERO; N];
-    for i in 0..N {
-        out[i] = lhs[i] - rhs[i];
-    }
-    out
-}
-
-#[inline]
-fn scale_chunk<Ff, const N: usize>(lhs: &[Ff; N], scale: Ff) -> [Ff; N]
-where
-    Ff: Field + PrimeCharacteristicRing + Copy,
-{
-    let mut out = [Ff::ZERO; N];
-    for i in 0..N {
-        out[i] = lhs[i] * scale;
-    }
-    out
-}
-
-#[inline]
-fn add_scaled_chunk<Ff, const N: usize>(lhs: &[Ff; N], rhs: &[Ff; N], scale: Ff) -> [Ff; N]
-where
-    Ff: Field + PrimeCharacteristicRing + Copy,
-{
-    let mut out = [Ff::ZERO; N];
-    for i in 0..N {
-        out[i] = lhs[i] + rhs[i] * scale;
-    }
-    out
-}
-
-#[inline]
-fn sub_assign_chunk<Ff, const N: usize>(dst: &mut [Ff; N], src: &[Ff; N])
-where
-    Ff: Field + PrimeCharacteristicRing + Copy,
-{
-    for i in 0..N {
-        dst[i] -= src[i];
-    }
-}
-
-#[inline]
-fn add_assign_chunk_at<Ff, const N: usize>(dst: &mut [Ff; 2 * D - 1], offset: usize, src: &[Ff; N])
-where
-    Ff: Field + PrimeCharacteristicRing + Copy,
-{
-    for i in 0..N {
-        dst[offset + i] += src[i];
-    }
 }
 
 #[inline]

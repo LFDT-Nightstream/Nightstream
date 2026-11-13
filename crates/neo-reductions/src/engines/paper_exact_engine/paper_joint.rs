@@ -64,7 +64,7 @@ where
             structure.m(),
             structure.t(),
             structure.max_degree(),
-            neo_params::goldilocks_paper_b2::CHALLENGE_ALPHABET.len() as u32,
+            neo_params::nightstream_p64_k16::CHALLENGE_ALPHABET.len() as u32,
         )
         .map_err(|error| PiCcsError::ExtensionPolicyFailed(error.to_string()))?;
 

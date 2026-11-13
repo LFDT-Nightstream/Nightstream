@@ -32,7 +32,9 @@ struct HonestProof {
 }
 
 fn honest_proof() -> HonestProof {
-    let params = NeoParams::goldilocks_auto_rectangular_r1cs_ccs(4, 4).expect("params");
+    let params = NeoParams::nightstream_p64_k16()
+        .with_lambda(115)
+        .expect("params");
     let structure = CcsStructure::new(
         vec![identity_left(4, D)],
         SparsePoly::new(
@@ -96,15 +98,19 @@ fn raw_accepts(fixture: &HonestProof, outputs: &[OutputClaim], proof: &PiCcsProo
 }
 
 #[test]
-fn raw_pi_ccs_rejects_nonzero_fresh_output_eval_k_padding() {
+fn raw_pi_ccs_rejects_a_fresh_output_eval_k_lane_past_the_ring_degree() {
     let fixture = honest_proof();
     let mut malformed = fixture.outputs.clone();
-    assert!(D < malformed[0].eval_k.len(), "fixture must expose Eval_K padding");
-    malformed[0].eval_k[D] = K::ONE;
+    assert_eq!(
+        malformed[0].eval_k.len(),
+        D,
+        "the ring degree is a power of two, so Eval_K has no padding"
+    );
+    malformed[0].eval_k.push(K::ONE);
 
     assert!(
         !raw_accepts(&fixture, &malformed, &fixture.proof),
-        "raw PiCCS accepted a nonzero fresh-output Eval_K padding lane"
+        "raw PiCCS accepted a fresh-output Eval_K lane past the ring degree"
     );
 }
 

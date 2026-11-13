@@ -135,11 +135,11 @@ fn coin(rng: &mut ChaCha8Rng) -> K {
 fn signed_unit(rng: &mut ChaCha8Rng) -> Mat<F> {
     let blocks = COLUMNS / D;
     let positive: Vec<u64> = (0..blocks)
-        .map(|_| rng.next_u64() & ((1 << D) - 1))
+        .map(|_| rng.next_u64() & (u64::MAX >> (u64::BITS as usize - D)))
         .collect();
     let negative: Vec<u64> = positive
         .iter()
-        .map(|&mask| rng.next_u64() & !mask & ((1 << D) - 1))
+        .map(|&mask| rng.next_u64() & !mask & (u64::MAX >> (u64::BITS as usize - D)))
         .collect();
     Mat::compact_signed_unit_from_column_masks(D, blocks, &positive, &negative).unwrap()
 }
@@ -181,7 +181,7 @@ fn prove(source: &dyn MatrixRows, relation: &Relation, seed: u64) -> Run {
         ],
     );
     let structure = CcsStructure::new_verifier_artifact_header(ROWS, COLUMNS, MATRICES, gate).unwrap();
-    let params = neo_params::NeoParams::nightstream_goldilocks_k16();
+    let params = neo_params::NeoParams::nightstream_p64_k16();
     let fresh = vec![CcsWitness {
         Z: signed_unit(&mut rng),
     }];

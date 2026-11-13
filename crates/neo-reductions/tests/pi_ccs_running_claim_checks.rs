@@ -30,7 +30,7 @@ fn transcript() -> Poseidon2Transcript {
 
 fn fixture() -> Fixture {
     let structure = CcsStructure::new(vec![Mat::identity(D)], SparsePoly::new(1, Vec::new())).unwrap();
-    let params = NeoParams::goldilocks_auto_rectangular_r1cs_ccs(D, D).unwrap();
+    let params = NeoParams::nightstream_p64_k16().with_lambda(115).unwrap();
     let mut rng = ChaCha8Rng::seed_from_u64(0x0072_756e_6e69_6e67);
     let committer = setup(&mut rng, D, params.kappa() as usize, 1).unwrap();
     let zero = Mat::zero(D, 1, F::ZERO);

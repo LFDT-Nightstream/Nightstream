@@ -30,7 +30,7 @@ fn selected_claim(structure: &CcsStructure<F>, params: &NeoParams) -> CeClaim<Co
 
 #[test]
 fn public_rlc_accepts_the_selected_shape_and_rejects_a_partial_ring() {
-    let params = NeoParams::goldilocks_paper_b2();
+    let params = NeoParams::nightstream_p64_k16();
     let structure = CcsStructure::new(vec![Mat::identity(D)], SparsePoly::new(1, Vec::new())).expect("test CCS");
     let rho = Mat::identity(D);
     let rhos = rot_rhos_from_mats(&params, &[rho], "selected public RLC").expect("identity rho");

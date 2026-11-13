@@ -44,7 +44,7 @@ where
     Ok((run_optimized(), run_reference()))
 }
 
-fn checkpoint(transcript: &Poseidon2Transcript) -> ([F; neo_ccs::crypto::poseidon2_goldilocks::WIDTH], usize) {
+fn checkpoint(transcript: &Poseidon2Transcript) -> ([F; neo_ccs::crypto::poseidon2::WIDTH], usize) {
     (transcript.state(), transcript.absorbed())
 }
 

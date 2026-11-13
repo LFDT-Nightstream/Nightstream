@@ -145,7 +145,7 @@ fn real_witness_openings_match_direct_ring_rows() {
     assert_eq!(dense_zero[0].eval_k, evaluated[2].eval_k);
     assert_eq!(dense_zero[0].eval_a, evaluated[2].eval_a);
 
-    let params = NeoParams::nightstream_goldilocks_k16();
+    let params = NeoParams::nightstream_p64_k16();
     let parent_opening = direct(&matrices, &parent_values, &point);
     let pad = |mut values: Vec<K>| {
         values.resize(D.next_power_of_two(), K::ZERO);

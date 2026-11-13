@@ -4,14 +4,12 @@
 //! construction of the paper's one-sided bar transform. It does not use the
 //! production ring multiplier, the global bar cache, or rotation matrices.
 
-use neo_math::{Fq, D, ETA};
+use neo_math::{Fq, D};
 use p3_field::{Field, PrimeCharacteristicRing};
 
 use neo_math::K;
 
-const PHI_MID_DEGREE: usize = 27;
-
-/// Concrete arithmetic data for `R_K = K[X]/(X^54 + X^27 + 1)`.
+/// Concrete arithmetic data for `R_K = K[X]/(X^D + 1)`.
 pub(super) struct PaperRing {
     bar: [[Fq; D]; D],
 }
@@ -39,7 +37,7 @@ impl PaperRing {
     }
 
     pub(super) fn multiply_extension(&self, left: [K; D], right: [K; D]) -> [K; D] {
-        multiply_mod_phi81(left, right)
+        multiply_negacyclic(left, right)
     }
 
     pub(super) fn multiply_base(&self, left: [Fq; D], right: [Fq; D]) -> [Fq; D] {
@@ -53,13 +51,12 @@ impl PaperRing {
             let coefficient = product[degree];
             product[degree] = Fq::ZERO;
             product[degree - D] -= coefficient;
-            product[degree - PHI_MID_DEGREE] -= coefficient;
         }
         core::array::from_fn(|degree| product[degree])
     }
 }
 
-fn multiply_mod_phi81(left: [K; D], right: [K; D]) -> [K; D] {
+fn multiply_negacyclic(left: [K; D], right: [K; D]) -> [K; D] {
     let mut product = [K::ZERO; 2 * D - 1];
     for (left_degree, &left_coefficient) in left.iter().enumerate() {
         for (right_degree, &right_coefficient) in right.iter().enumerate() {
@@ -71,7 +68,6 @@ fn multiply_mod_phi81(left: [K; D], right: [K; D]) -> [K; D] {
         let coefficient = product[degree];
         product[degree] = K::ZERO;
         product[degree - D] -= coefficient;
-        product[degree - PHI_MID_DEGREE] -= coefficient;
     }
 
     core::array::from_fn(|degree| product[degree])
@@ -84,7 +80,6 @@ fn build_bar_matrix() -> [[Fq; D]; D] {
             *value = match row + column {
                 0 => Fq::ONE,
                 D => -Fq::ONE,
-                ETA => Fq::ONE,
                 _ => Fq::ZERO,
             };
         }

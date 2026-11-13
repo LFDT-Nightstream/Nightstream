@@ -10,7 +10,6 @@ use crate::error::PiCcsError;
 use crate::superneo_eval::{build_superneo_eval_cache, SuperneoEvalCache};
 use neo_ccs::CcsStructure;
 use neo_math::F;
-use p3_goldilocks::Goldilocks;
 use std::sync::Arc;
 
 mod common;
@@ -45,7 +44,7 @@ pub mod canonical_audit {
 #[derive(Clone)]
 pub struct OptimizedStructureCache {
     superneo: Arc<SuperneoEvalCache>,
-    matrix_digest: [Goldilocks; 4],
+    matrix_digest: [F; 4],
     shape: (usize, usize, usize),
 }
 
@@ -76,14 +75,12 @@ impl OptimizedStructureCache {
                 || {
                     #[cfg(feature = "perf-timers")]
                     let t_digest = std::time::Instant::now();
-                    let out = digest_ccs_matrices(s)
-                        .try_into()
-                        .map_err(|digest: Vec<Goldilocks>| {
-                            PiCcsError::ProtocolError(format!(
-                                "optimized cache expected 4 CCS digest limbs, got {}",
-                                digest.len()
-                            ))
-                        });
+                    let out = digest_ccs_matrices(s).try_into().map_err(|digest: Vec<F>| {
+                        PiCcsError::ProtocolError(format!(
+                            "optimized cache expected 4 CCS digest limbs, got {}",
+                            digest.len()
+                        ))
+                    });
                     #[cfg(feature = "perf-timers")]
                     eprintln!(
                         "OptimizedStructureCache::build: matrix digest      {:.2?}",
@@ -112,15 +109,14 @@ impl OptimizedStructureCache {
             );
             #[cfg(feature = "perf-timers")]
             let t_digest = std::time::Instant::now();
-            let matrix_digest: [Goldilocks; 4] =
-                digest_ccs_matrices(s)
-                    .try_into()
-                    .map_err(|digest: Vec<Goldilocks>| {
-                        PiCcsError::ProtocolError(format!(
-                            "optimized cache expected 4 CCS digest limbs, got {}",
-                            digest.len()
-                        ))
-                    })?;
+            let matrix_digest: [F; 4] = digest_ccs_matrices(s)
+                .try_into()
+                .map_err(|digest: Vec<F>| {
+                    PiCcsError::ProtocolError(format!(
+                        "optimized cache expected 4 CCS digest limbs, got {}",
+                        digest.len()
+                    ))
+                })?;
             #[cfg(feature = "perf-timers")]
             eprintln!(
                 "OptimizedStructureCache::build: matrix digest      {:.2?}",
@@ -144,7 +140,7 @@ impl OptimizedStructureCache {
         self.superneo.as_ref()
     }
 
-    pub fn matrix_digest(&self) -> &[Goldilocks; 4] {
+    pub fn matrix_digest(&self) -> &[F; 4] {
         &self.matrix_digest
     }
 
@@ -154,15 +150,14 @@ impl OptimizedStructureCache {
                 "optimized structure cache shape does not match the selected CCS structure".into(),
             ));
         }
-        let digest: [Goldilocks; 4] =
-            digest_ccs_matrices(structure)
-                .try_into()
-                .map_err(|digest: Vec<Goldilocks>| {
-                    PiCcsError::ProtocolError(format!(
-                        "optimized cache expected 4 CCS digest limbs, got {}",
-                        digest.len()
-                    ))
-                })?;
+        let digest: [F; 4] = digest_ccs_matrices(structure)
+            .try_into()
+            .map_err(|digest: Vec<F>| {
+                PiCcsError::ProtocolError(format!(
+                    "optimized cache expected 4 CCS digest limbs, got {}",
+                    digest.len()
+                ))
+            })?;
         if digest != self.matrix_digest {
             return Err(PiCcsError::InvalidInput(
                 "optimized structure cache matrix digest does not match the selected CCS structure".into(),

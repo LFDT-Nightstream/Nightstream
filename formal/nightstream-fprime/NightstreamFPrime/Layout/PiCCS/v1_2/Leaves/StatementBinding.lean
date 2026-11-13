@@ -15,7 +15,7 @@ Constraint groups:
 - the twelve domain-chunk words of each state;
 - four prior-context and four output-context equalities to the expected
   verifier-owned public value;
-- for each of the 90 packed prior words: three lanes of one sign row and
+- for each of the 160 packed prior words: two lanes of one sign row and
   sixteen rank-one digit rows over one hinted sign column, then one affine
   packing row.
 

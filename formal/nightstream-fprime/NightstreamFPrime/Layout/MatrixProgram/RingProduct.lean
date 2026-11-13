@@ -144,7 +144,13 @@ theorem ringDescriptorFrom?_tail (family : Family) (rest : List Family)
   rw [ite_eq_right (by omega), Nat.add_sub_cancel_left]
 
 def Block.rowCount (block : Block) : Nat :=
-  ringCount block.families * 108
+  ringCount block.families * 128
+
+private theorem Block.rowCount_eq_plan (block : Block) {logicalWidth : Nat}
+    (interface : RingProductPlan.Interface logicalWidth) :
+    block.rowCount = ringCount block.families * (RingProductPlan.rows interface).length := by
+  rw [RingProductPlan.rows_length]
+  rfl
 
 def loadFin? {Alpha : Type} :
     (count : Nat) → (Fin count → Option Alpha) →
@@ -233,20 +239,20 @@ def Block.interface? (block : Block) (logicalWidth : Nat)
 def Block.row? (block : Block) (logicalWidth ordinal : Nat) :
     Option (RowForms logicalWidth) :=
   if ordinal < block.rowCount then do
-    let descriptor ← ringDescriptor? block.families (ordinal / 108)
+    let descriptor ← ringDescriptor? block.families (ordinal / 128)
     let interface ← block.interface? logicalWidth descriptor
-    let row ← (RingProductPlan.rows interface)[ordinal % 108]?
+    let row ← (RingProductPlan.rows interface)[ordinal % 128]?
     pure row.meaningfulForm
   else none
 
 theorem Block.row?_of_loaded (block : Block) (logicalWidth ordinal : Nat)
     (bound : ordinal < block.rowCount)
     (descriptor : Descriptor)
-    (selected : ringDescriptor? block.families (ordinal / 108) = some descriptor)
+    (selected : ringDescriptor? block.families (ordinal / 128) = some descriptor)
     (interface : RingProductPlan.Interface logicalWidth)
     (loaded : block.interface? logicalWidth descriptor = some interface)
     (row : OrdinaryRow.Forms logicalWidth)
-    (rowSelected : (RingProductPlan.rows interface)[ordinal % 108]? = some row) :
+    (rowSelected : (RingProductPlan.rows interface)[ordinal % 128]? = some row) :
     block.row? logicalWidth ordinal = some row.meaningfulForm := by
   simp [Block.row?, bound, selected, loaded, rowSelected]
 

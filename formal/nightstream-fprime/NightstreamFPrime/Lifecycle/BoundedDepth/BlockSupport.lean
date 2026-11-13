@@ -3,7 +3,7 @@ import NightstreamFPrime.Spec.Folding.Refresh.Bound
 import NightstreamFPrime.Spec.RingRelation.PiDECAlgebra.Radix
 
 /-! Block support of a witness (CW-10.6). A witness packs into ring elements of `ringDegree`
-coordinates, block `j` holding coordinates `54j` to `54j + 53` (SPEC.md section 2.3). A witness is
+coordinates, block `j` holding coordinates `64j` to `64j + 63` (SPEC.md section 2.3). A witness is
 supported below `width` when it is zero on every block that starts at or past `width`
 (`Supported`). A circuit's witness is zero past its package's logical width (SPEC.md section
 2.4), so it is supported below that width (`supported_of_tail`).

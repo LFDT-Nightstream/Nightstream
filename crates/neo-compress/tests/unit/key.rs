@@ -234,3 +234,42 @@ fn a_proof_under_the_key_of_another_seed_does_not_verify() {
     // The claims do not hold under the production key.
     assert!(matches!(accepts(key(), &prove(key())), Err(Error::Rejected(_))));
 }
+
+/// A prover that holds witnesses for claims under the key of another seed,
+/// with the honest commitment of the key polynomial: it folds the rows of
+/// the other key, so each message of both sum-checks agrees with the claims,
+/// and only the value of the key polynomial is false. Akita's prover makes
+/// no opening to a false value. Bytes from another prover are an opening
+/// that the verifier must reject.
+#[test]
+fn the_rows_of_another_key_under_the_honest_commitment_do_not_verify() {
+    let seed = [7u8; 32];
+    let other = ProverKey::of_elements(&SCHEDULES[0], |row, pair| {
+        [2 * pair, 2 * pair + 1].map(|block| coefficient_block(&seed, row, block))
+    })
+    .expect("key");
+    let mut forged = ProverKey::new(key().verification_key().blocks()).expect("key");
+    assert_eq!(forged.verification_key(), key().verification_key());
+    forged.table = other.table.clone();
+
+    let mut instances = instances();
+    for instance in &mut instances {
+        instance.claim = claim_of_seed(&seed, &instance.rows, &instance.witness, &instance.claim.r.clone());
+    }
+    let witnesses: Vec<_> = instances.iter().map(|instance| &instance.witness).collect();
+    let proof = commit(&forged, layout(&instances), &witnesses)
+        .expect("commitment")
+        .prove(&mut Poseidon2Transcript::new_v1_2(), &statements(&instances));
+    match proof {
+        Ok((proof, _)) => {
+            let result = verify(
+                &mut Poseidon2Transcript::new_v1_2(),
+                key().verification_key(),
+                &statements(&instances),
+                &proof,
+            );
+            assert!(matches!(result, Err(Error::Rejected(_))), "{result:?}");
+        }
+        Err(error) => assert!(matches!(error, Error::Akita(_)), "{error}"),
+    }
+}

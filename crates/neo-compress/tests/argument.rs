@@ -156,10 +156,9 @@ fn a_changed_proof_does_not_verify() {
 }
 
 /// The key sum-check has one round for each lane variable and each block
-/// variable of the key polynomial of 512 blocks, and the weights at its end
-/// are the prover's claim: a prover that adds `e` to the key's part of the
-/// weights and to the first key round gets a proof that fails only at the
-/// end of the key sum-check.
+/// variable of the key polynomial of 512 blocks. A false value of the key's
+/// part of the weights with a first round that agrees with it does not
+/// verify: the second round does not agree with the first.
 #[test]
 fn a_false_key_weight_with_a_consistent_first_round_does_not_verify() {
     let (instances, proof) = honest();

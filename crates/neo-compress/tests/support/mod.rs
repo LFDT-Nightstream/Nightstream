@@ -4,11 +4,12 @@
 #![allow(dead_code)]
 
 use std::ops::Range;
+use std::sync::OnceLock;
 
 use neo_ajtai::nightstream_fprime_setup::{coefficient_block, PRODUCTION_SEED};
 use neo_ajtai::Commitment;
 use neo_ccs::Mat;
-use neo_compress::{CeClaim, Norm, Statement};
+use neo_compress::{CeClaim, Layout, Norm, ProverKey, Statement};
 use neo_math::{from_complex, D, F, K};
 use neo_reductions::superneo_eval::{
     FactoredEntries, FactoredRows, FactoredSlots, MatrixRowSink, MatrixRows, MatrixShape,
@@ -22,6 +23,12 @@ pub const KAPPA: usize = 18;
 pub const MATRICES: usize = 4;
 pub const POINT_VARS: usize = 14;
 pub const PUBLIC_BLOCKS: usize = 2;
+
+/// The key of these tests: the smallest key polynomial, of 512 blocks.
+pub fn key() -> &'static ProverKey {
+    static KEY: OnceLock<ProverKey> = OnceLock::new();
+    KEY.get_or_init(|| ProverKey::new(100).expect("key"))
+}
 
 pub fn random_extension(rng: &mut ChaCha8Rng) -> K {
     from_complex(F::new(rng.next_u64()), F::new(rng.next_u64()))
@@ -172,13 +179,18 @@ pub fn random_witness(rng: &mut ChaCha8Rng, blocks: usize, range: u64) -> Mat<F>
 
 /// The claim that `witness` satisfies at `point` under `rows`.
 pub fn claim_of(rows: &Rows, witness: &Mat<F>, point: &[K]) -> CeClaim {
+    claim_of_seed(&PRODUCTION_SEED, rows, witness, point)
+}
+
+/// The claim that `witness` satisfies under the Ajtai key of `seed`.
+pub fn claim_of_seed(seed: &[u8; 32], rows: &Rows, witness: &Mat<F>, point: &[K]) -> CeClaim {
     let blocks = witness.cols();
     let block = |block: usize| -> Vec<K> { (0..D).map(|lane| K::from(witness[(lane, block)])).collect() };
     let mut commitment = Vec::with_capacity(KAPPA * D);
     for row in 0..KAPPA {
         let mut sum = [K::ZERO; D];
         for index in 0..blocks {
-            let key = coefficient_block(&PRODUCTION_SEED, row as u32, index as u64).map(|value| K::from(F::new(value)));
+            let key = coefficient_block(seed, row as u32, index as u64).map(|value| K::from(F::new(value)));
             for (sum, term) in sum.iter_mut().zip(ring_product(&key, &block(index))) {
                 *sum += term;
             }
@@ -255,6 +267,19 @@ impl Instance {
             norm: self.norm,
         }
     }
+}
+
+pub fn statements(instances: &[Instance]) -> Vec<Statement<'_>> {
+    instances.iter().map(Instance::statement).collect()
+}
+
+/// The layout of `instances` under `key()`.
+pub fn layout(instances: &[Instance]) -> Layout {
+    let claims: Vec<_> = instances
+        .iter()
+        .map(|instance| (instance.witness.cols(), instance.norm))
+        .collect();
+    Layout::new(&claims, key().verification_key().blocks()).expect("layout")
 }
 
 /// Two claims with a table and one without, of three sizes.

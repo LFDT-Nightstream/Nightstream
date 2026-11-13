@@ -6,18 +6,19 @@ use neo_ccs::Mat;
 use neo_math::{D, F, K};
 use neo_reductions::superneo_eval::EqualityWeights;
 use neo_transcript::Poseidon2Transcript;
-use p3_field::PrimeCharacteristicRing;
+use p3_field::{Field, PrimeCharacteristicRing};
 use rayon::prelude::*;
 
-use crate::akita::{self, prover::Prover};
-use crate::layout::{Layout, Slice, LOOKUPS, LOOKUP_VARS};
+use crate::akita::{self, Polynomial};
+use crate::key::{self, ProverKey};
+use crate::layout::{Layout, Slice, LANE_VARS, LOOKUPS, LOOKUP_VARS};
 use crate::lookup::{code, Inverses, OUTSIDE};
 use crate::sumcheck::{self, Tables};
 use crate::transcript::{absorb_bytes, absorb_extension, challenges as draw, session};
-use crate::weights::{self, Challenges};
+use crate::weights::{self, Challenges, Uses};
 use crate::{
     absorb_statements, challenges, claimed_sum, inverse_point, layout, lookup_challenges, Error, Proof, Statement,
-    INVERSE_SESSION, WITNESS_SESSION,
+    SESSION,
 };
 
 const CELLS_PER_TASK: usize = 1 << 16;
@@ -30,14 +31,16 @@ pub struct ProverTimes {
     /// The public weights and the other tables of the sum-check.
     pub weights: Duration,
     pub sumcheck: Duration,
-    pub openings: Duration,
+    /// The key's part of the weights and its sum-check.
+    pub key: Duration,
+    pub opening: Duration,
 }
 
 /// `W` and its commitment, before the claims are complete: a caller that
 /// proves a norm itself binds `commitment` first (`Norm::Caller`).
-pub struct Committed {
+pub struct Committed<'k> {
+    key: &'k ProverKey,
     layout: Layout,
-    akita: Prover,
     witness: Vec<F>,
     /// The table code of each cell of the witnesses that have a table.
     codes: Vec<u16>,
@@ -74,8 +77,12 @@ fn write_cells(cells: &mut [F], witness: &Mat<F>) {
 
 /// Commit `W` for `layout`: each witness, the table code of each cell with a
 /// table, and each table's counts. A cell outside its table gets no count.
-pub fn commit(layout: Layout, witnesses: &[&Mat<F>]) -> Result<Committed, Error> {
+/// `key` is the key that `layout` names.
+pub fn commit<'k>(key: &'k ProverKey, layout: Layout, witnesses: &[&Mat<F>]) -> Result<Committed<'k>, Error> {
     let start = Instant::now();
+    if layout.key_block_vars() != key.verification_key().blocks().trailing_zeros() as usize {
+        return Err(Error::Statement("the layout names another key"));
+    }
     if witnesses.len() != layout.cells.len()
         || witnesses
             .iter()
@@ -120,14 +127,14 @@ pub fn commit(layout: Layout, witnesses: &[&Mat<F>]) -> Result<Committed, Error>
             *cell = F::from_u64(count);
         }
     }
-    let akita = Prover::new(layout.witness_vars.max(layout.inverse_vars))?;
-    let committed = akita.commit(
-        layout.witness_vars,
+    let committed = key.akita.commit(
+        layout.shape(),
+        Polynomial::Witness,
         witness.par_iter().copied().map(akita::base).collect(),
     )?;
     Ok(Committed {
+        key,
         layout,
-        akita,
         witness,
         codes,
         committed,
@@ -143,7 +150,7 @@ fn table_inverses(layout: &Layout, taus: &[F; LOOKUPS]) -> Result<Vec<(Slice, In
         .collect()
 }
 
-impl Committed {
+impl Committed<'_> {
     /// The bytes of the commitment of `W`.
     pub fn commitment(&self) -> &[u8] {
         &self.committed.bytes
@@ -236,14 +243,15 @@ impl Committed {
         transcript: &mut Poseidon2Transcript,
         statements: &[Statement<'_>],
     ) -> Result<(Proof, ProverTimes), Error> {
-        if layout(statements)? != self.layout {
+        let verification = self.key.verification_key();
+        if layout(statements, verification.blocks())? != self.layout {
             return Err(Error::Statement("the claims differ from the committed layout"));
         }
         let mut times = ProverTimes {
             commit_witness: self.commit_witness,
             ..ProverTimes::default()
         };
-        absorb_statements(transcript, statements);
+        absorb_statements(transcript, verification, statements);
         absorb_bytes(transcript, self.commitment());
         let taus = lookup_challenges(transcript);
 
@@ -254,15 +262,19 @@ impl Committed {
             let column = &mut inverse[k << self.layout.span_vars..][..self.layout.span_len];
             self.write_inverse_column(&tables, k, column);
         }
-        let inverse = self.akita.commit(self.layout.inverse_vars, inverse)?;
+        let inverse = self
+            .key
+            .akita
+            .commit(self.layout.shape(), Polynomial::Inverse, inverse)?;
         times.commit_inverse = start.elapsed();
         absorb_bytes(transcript, &inverse.bytes);
         let challenges = challenges(transcript, &self.layout, taus);
+        let (row_point, scale) = key::row_point(challenges.omega)?;
 
         let start = Instant::now();
-        // The lookup tables are ready before the pass over the Ajtai key ends.
+        let folded = self.key.fold(challenges.omega);
         let (weights, (witness, [check, sum, combined, scaled])) = rayon::join(
-            || weights::table(statements, &self.layout, &challenges),
+            || weights::table(statements, &self.layout, &challenges, &folded),
             || {
                 let witness = self.witness.par_iter().map(|&cell| K::from(cell)).collect();
                 (witness, self.lookup_tables(&tables, &challenges))
@@ -287,9 +299,25 @@ impl Committed {
         );
         let inverse_values = self.inverse_values(&tables, &rho);
         times.sumcheck = start.elapsed();
+
+        let start = Instant::now();
+        let uses = Uses::new(&self.layout, &challenges, &rho);
+        let key_weight = weights::key_part(&uses, &folded);
         absorb_extension(transcript, &[witness_value]);
         absorb_extension(transcript, &inverse_values);
+        absorb_extension(transcript, &[key_weight]);
         let column = draw(transcript, LOOKUP_VARS);
+        let (key_rounds, mut key_point, folded_value) = sumcheck::prove_product(
+            transcript,
+            folded,
+            key::weight_table(&uses),
+            key_weight,
+            LANE_VARS + self.layout.key_block_vars(),
+        );
+        key_point.extend(row_point);
+        let key_value = folded_value * scale.inverse();
+        absorb_extension(transcript, &[key_value]);
+        times.key = start.elapsed();
 
         let start = Instant::now();
         let inverse_value = weights::equality(&column, inverse_values.len())
@@ -299,20 +327,15 @@ impl Committed {
             .sum();
         let witness_commitment = self.committed.bytes.clone();
         let inverse_commitment = inverse.bytes.clone();
-        let (akita, layout, committed) = (&self.akita, &self.layout, self.committed);
-        let (witness_opening, inverse_opening) = rayon::join(
-            || akita.open(committed, &rho, witness_value, &session(transcript, WITNESS_SESSION)),
-            || {
-                akita.open(
-                    inverse,
-                    &inverse_point(layout, &rho, &column),
-                    inverse_value,
-                    &session(transcript, INVERSE_SESSION),
-                )
-            },
-        );
-        let (witness_opening, inverse_opening) = (witness_opening?, inverse_opening?);
-        times.openings = start.elapsed();
+        let opening = self.key.akita.open(
+            [
+                (self.key.committed.clone(), &key_point, key_value),
+                (self.committed, &rho, witness_value),
+                (inverse, &inverse_point(&self.layout, &rho, &column), inverse_value),
+            ],
+            &session(transcript, SESSION),
+        )?;
+        times.opening = start.elapsed();
         Ok((
             Proof {
                 witness_commitment,
@@ -320,8 +343,10 @@ impl Committed {
                 rounds,
                 witness_value,
                 inverse_values,
-                witness_opening,
-                inverse_opening,
+                key_weight,
+                key_rounds,
+                key_value,
+                opening,
             },
             times,
         ))

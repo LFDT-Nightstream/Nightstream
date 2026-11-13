@@ -20,6 +20,7 @@ rayon = { workspace = true }
 thiserror = { workspace = true }
 # Akita, ePrint 2026/1983. `akita-pcs` holds the prover, and only
 # `src/akita/prover.rs` reads it. The Jolt revision is Akita's own pin.
+# `scripts/akita_schedules.sh` makes the schedule files of `artifacts/`.
 akita-pcs = { git = "https://github.com/LayerZero-Labs/akita.git", rev = "d50f700fb1a292395a717cef0e6f437c7ce2cdb1" }
 akita-config = { git = "https://github.com/LayerZero-Labs/akita.git", rev = "d50f700fb1a292395a717cef0e6f437c7ce2cdb1" }
 akita-params = { git = "https://github.com/LayerZero-Labs/akita.git", rev = "d50f700fb1a292395a717cef0e6f437c7ce2cdb1" }
@@ -31,3 +32,5 @@ jolt-field = { git = "https://github.com/a16z/jolt", rev = "25d87ba68bde9f4a85ac
 [dev-dependencies]
 rand = { workspace = true }
 rand_chacha = { workspace = true }
+# The digests of the schedule files of `artifacts/`.
+sha2 = "0.10.9"

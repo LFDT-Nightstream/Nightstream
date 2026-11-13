@@ -11,6 +11,13 @@
 //! challenges, so the committed fresh witness is the one that it judges.
 //! `neo-compress` proves the three claims.
 //!
+//! The verifier does not expand the Ajtai key. `compression_setup` commits
+//! the key rows once as one polynomial, for the blocks of the larger
+//! relation up to a power of two, and `verify_final` reads the commitment
+//! from its verification key. The key is a function of the public seeds and
+//! of that power of two only, so each circuit of one size has the same key,
+//! and `compression_key` computes it again.
+//!
 //! The soundness error is the sum of three parts. The caller's
 //! `minimum_security_bits` gates the first two, each alone and never their
 //! sum. The public API has no default for it, and no fold reaches 110 bits.
@@ -19,16 +26,17 @@
 //!    `Params::for_ccs_shape` gates the larger error of a fold with 17
 //!    sources, about `2^-109.15` for the Poseidon2 hash chain.
 //! 2. The argument has the error of `neo_compress::error_bits`: its batches,
-//!    its lookups, its sum-check and the point of `V`, `2^-119.15` for the
-//!    Poseidon2 hash chain. `compression_layout` gates it.
-//! 3. The two Akita openings have the knowledge error of Akita's
-//!    `fp64_dense` schedules. No gate here computes or bounds it.
+//!    its lookups, its two sum-checks and the point of `V`, `2^-119.02` for
+//!    the Poseidon2 hash chain. `compression_layout` gates it.
+//! 3. The Akita opening has the knowledge error of Akita's schedule row. No
+//!    gate here computes or bounds it. The argument also needs the
+//!    verification key to hold the commitment of the Ajtai key.
 
 use std::time::{Duration, Instant};
 
 use neo_ajtai::Commitment;
 use neo_ccs::Mat;
-use neo_compress::{Layout, Norm, Statement};
+use neo_compress::{Layout, Norm, ProverKey, Statement, VerificationKey};
 use neo_math::{KExtensions, D, F, K};
 use neo_reductions::optimized_engine::optimized_verify_with_profile;
 use neo_reductions::{FoldProfile, NormSources};
@@ -129,13 +137,15 @@ impl std::fmt::Display for CompressTimes {
         let times = &self.argument;
         write!(
             f,
-            "commit W {:.0} ms, PiCCS {:.0} ms, commit V {:.0} ms, weights {:.0} ms, sum-check {:.0} ms, openings {:.0} ms",
+            "commit W {:.0} ms, PiCCS {:.0} ms, commit V {:.0} ms, weights {:.0} ms, sum-check {:.0} ms, \
+             key sum-check {:.0} ms, opening {:.0} ms",
             milliseconds(times.commit_witness),
             milliseconds(self.pi_ccs),
             milliseconds(times.commit_inverse),
             milliseconds(times.weights),
             milliseconds(times.sumcheck),
-            milliseconds(times.openings),
+            milliseconds(times.key),
+            milliseconds(times.opening),
         )
     }
 }
@@ -144,10 +154,13 @@ impl std::fmt::Display for VerifyTimes {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "PiCCS {:.0} ms, Akita {:.0} ms, public weights {:.0} ms",
+            "PiCCS {:.1} ms, matrix pass {:.1} ms, sum-checks and other weights {:.1} ms, Akita setup {:.1} ms, \
+             Akita opening {:.1} ms",
             milliseconds(self.pi_ccs),
+            milliseconds(self.argument.matrices),
+            milliseconds(self.argument.rest),
+            milliseconds(self.argument.akita_setup),
             milliseconds(self.argument.akita),
-            milliseconds(self.argument.weights),
         )
     }
 }
@@ -167,12 +180,34 @@ impl BoundedDepth {
         ]
     }
 
-    /// The layout of the claims, when `neo_compress::error_bits` of it is
-    /// within the security minimum. That number is the error of the batches,
-    /// the lookups, the sum-check and the point of `V`. It has no term for
-    /// the Π_CCS run or for the Akita openings.
-    pub(crate) fn compression_layout(&self, pc: u64, depths: [u64; 2]) -> Result<Layout, BoundedDepthError> {
-        let layout = Layout::new(&self.compression_claims(pc, depths))?;
+    /// The prover's key of the compression: the commitment of the Ajtai key
+    /// rows that the relations read, with the rows.
+    pub(crate) fn compression_setup(&self) -> Result<ProverKey, BoundedDepthError> {
+        Ok(ProverKey::new(self.key_blocks())?)
+    }
+
+    /// The verification key of `compression_setup`, without the rows.
+    pub(crate) fn compression_key(&self) -> Result<VerificationKey, BoundedDepthError> {
+        Ok(VerificationKey::derive(self.key_blocks())?)
+    }
+
+    /// The blocks that the key of the compression must hold.
+    pub(super) fn key_blocks(&self) -> usize {
+        self.relations[0].blocks().max(self.relations[1].blocks())
+    }
+
+    /// The layout of the claims under a key of `key_blocks` blocks, when
+    /// `neo_compress::error_bits` of it is within the security minimum. That
+    /// number is the error of the batches, the lookups, the sum-checks and
+    /// the point of `V`. It has no term for the Π_CCS run or for the Akita
+    /// opening.
+    pub(crate) fn compression_layout(
+        &self,
+        key_blocks: usize,
+        pc: u64,
+        depths: [u64; 2],
+    ) -> Result<Layout, BoundedDepthError> {
+        let layout = Layout::new(&self.compression_claims(pc, depths), key_blocks)?;
         if neo_compress::error_bits(&layout, PUBLIC_WORDS, MATRICES) < f64::from(self.minimum_security_bits) {
             return Err(BoundedDepthError::Statement(
                 "the batch, lookup and sum-check error of the compression argument is above the security minimum",
@@ -218,7 +253,11 @@ impl BoundedDepth {
     /// Compress `envelope`, which does not change. The proof is not checked
     /// here: an envelope that `verify` rejects gives an error or a proof that
     /// `verify_final` rejects.
-    pub(crate) fn compress(&self, envelope: &Envelope) -> Result<(FinalProof, CompressTimes), BoundedDepthError> {
+    pub(crate) fn compress(
+        &self,
+        setup: &ProverKey,
+        envelope: &Envelope,
+    ) -> Result<(FinalProof, CompressTimes), BoundedDepthError> {
         let Envelope {
             iteration,
             z0,
@@ -245,8 +284,9 @@ impl BoundedDepth {
             ));
         }
         let slots = envelope.slots.each_ref();
-        let layout = self.compression_layout(pc, slots.map(|slot| slot.depth))?;
+        let layout = self.compression_layout(setup.verification_key().blocks(), pc, slots.map(|slot| slot.depth))?;
         let committed = neo_compress::commit(
+            setup,
             layout,
             &[
                 &slots[0].accumulator.witness,
@@ -302,9 +342,11 @@ impl BoundedDepth {
     /// Accept `proof` for the expected statement exactly when `verify`
     /// accepts some proof with witnesses for it (Lean
     /// `RunCompleteness.Verifies`), up to the soundness error of the
-    /// argument.
+    /// argument. `key` is authority: it must hold the commitment of the
+    /// Ajtai key (`compression_key`).
     pub(crate) fn verify_final(
         &self,
+        key: &VerificationKey,
         iteration: u64,
         z0: [F; 4],
         current: [F; 4],
@@ -343,7 +385,7 @@ impl BoundedDepth {
             }
         }
         let slots = steps.slots.each_ref();
-        self.compression_layout(steps.pc, slots.map(|slot| slot.1))?;
+        self.compression_layout(key.blocks(), steps.pc, slots.map(|slot| slot.1))?;
         let state = BoundedDepthState {
             keys: self.keys,
             iteration,
@@ -381,18 +423,18 @@ impl BoundedDepth {
         let pi_ccs = start.elapsed();
 
         let statements = self.compression_statements(steps.pc, slots.map(|(claim, depth)| (claim, *depth)), &output);
-        let argument = neo_compress::verify(&mut transcript, &statements, &steps.argument)?;
+        let argument = neo_compress::verify(&mut transcript, key, &statements, &steps.argument)?;
         Ok(VerifyTimes { pi_ccs, argument })
     }
 }
 
-const MAGIC: &[u8; 16] = b"NS-OPTIONB-FIN-1";
+const MAGIC: &[u8; 16] = b"NS-OPTIONB-FIN-2";
 const SHAPE: Shape = Shape {
     public_width: PUBLIC_WORDS,
     witness_columns: 0,
     matrices: MATRICES,
 };
-/// No layout has more variables than the largest Akita schedule.
+/// No polynomial of a proof has more variables than this.
 const MAX_ROUNDS: u64 = 30;
 
 /// A byte string after its length.
@@ -416,11 +458,27 @@ fn read_extension(input: &mut Reader<'_>, count: usize) -> Result<Vec<K>, ProofC
     (0..count).map(|_| input.extension()).collect()
 }
 
+/// The rounds of one sum-check of the argument after their count.
+fn read_rounds<const COEFFICIENTS: usize>(input: &mut Reader<'_>) -> Result<Vec<[K; COEFFICIENTS]>, ProofCodecError> {
+    let rounds = input.word()?;
+    if rounds > MAX_ROUNDS {
+        return Err(ProofCodecError("argument round count"));
+    }
+    (0..rounds)
+        .map(|_| {
+            Ok(read_extension(input, COEFFICIENTS)?
+                .try_into()
+                .expect("the coefficients of one round"))
+        })
+        .collect()
+}
+
 impl FinalProof {
     /// The strict bytes of the proof: the statement, then for one or more
     /// steps each slot's depth and claim, the fresh claim without its public
     /// input, the Π_CCS rounds and the argument. Field words are below the
-    /// modulus, and each byte string of Akita follows its length.
+    /// modulus, and each byte string of Akita and the rounds of each
+    /// sum-check follow their count.
     pub(crate) fn to_bytes(&self) -> Result<Vec<u8>, ProofCodecError> {
         let mut output = Writer(MAGIC.to_vec());
         output.word(self.steps.as_ref().map_or(0, |steps| steps.pc));
@@ -461,8 +519,13 @@ impl FinalProof {
         }
         write_extension(&mut output, &[argument.witness_value]);
         write_extension(&mut output, &argument.inverse_values);
-        write_bytes(&mut output, &argument.witness_opening);
-        write_bytes(&mut output, &argument.inverse_opening);
+        write_extension(&mut output, &[argument.key_weight]);
+        output.word(argument.key_rounds.len() as u64);
+        for round in &argument.key_rounds {
+            write_extension(&mut output, round);
+        }
+        write_extension(&mut output, &[argument.key_value]);
+        write_bytes(&mut output, &argument.opening);
         Ok(output.0)
     }
 
@@ -499,21 +562,14 @@ impl FinalProof {
                     .collect::<Result<Vec<_>, _>>()?;
                 let witness_commitment = read_bytes(&mut input)?;
                 let inverse_commitment = read_bytes(&mut input)?;
-                let rounds = input.word()?;
-                if rounds > MAX_ROUNDS {
-                    return Err(ProofCodecError("argument round count"));
-                }
-                let rounds = (0..rounds)
-                    .map(|_| {
-                        Ok(read_extension(&mut input, 4)?
-                            .try_into()
-                            .expect("four coefficients"))
-                    })
-                    .collect::<Result<Vec<_>, ProofCodecError>>()?;
+                let rounds = read_rounds(&mut input)?;
                 let witness_value = input.extension()?;
                 let inverse_values = read_extension(&mut input, 4)?
                     .try_into()
                     .expect("four values");
+                let key_weight = input.extension()?;
+                let key_rounds = read_rounds(&mut input)?;
+                let key_value = input.extension()?;
                 Some(Steps {
                     pc,
                     slots,
@@ -531,8 +587,10 @@ impl FinalProof {
                         rounds,
                         witness_value,
                         inverse_values,
-                        witness_opening: read_bytes(&mut input)?,
-                        inverse_opening: read_bytes(&mut input)?,
+                        key_weight,
+                        key_rounds,
+                        key_value,
+                        opening: read_bytes(&mut input)?,
                     },
                 })
             }

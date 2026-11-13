@@ -128,11 +128,16 @@ impl<A: Application + Clone> Prover<A> {
         Ok(bytes)
     }
 
+    /// The prover's key of the compression (`crate::Prover::compression_setup`).
+    pub fn compression_setup(&self) -> Result<crate::CompressionSetup, crate::Error> {
+        self.stage1.compression_setup()
+    }
+
     /// Compress `proof` (`crate::Prover::compress`). The carry does not
     /// change.
-    pub fn compress(&self, proof: &Proof) -> Result<FinalProof, crate::Error> {
+    pub fn compress(&self, proof: &Proof, setup: &crate::CompressionSetup) -> Result<FinalProof, crate::Error> {
         Ok(FinalProof {
-            stage1: self.stage1.compress(&proof.stage1)?,
+            stage1: self.stage1.compress(&proof.stage1, setup)?,
             carry: proof.carry,
         })
     }
@@ -228,17 +233,23 @@ impl<A: Application> Verifier<A> {
         Ok(verified(&proof.carry, &program.geometry))
     }
 
+    /// The compression key of the circuit (`crate::Verifier::compression_key`).
+    pub fn compression_key(&self) -> Result<crate::CompressionKey, crate::Error> {
+        self.stage1.compression_key()
+    }
+
     /// Verify a compressed memory proof as `verify` does: the terminal
-    /// checks, then `crate::Verifier::verify_final`.
+    /// checks, then `crate::Verifier::verify_final` with the trusted `key`.
     pub fn verify_final(
         &self,
         program: &Program,
         initial: &A::State,
         last: &A::State,
+        key: &crate::CompressionKey,
         proof: &FinalProof,
     ) -> Result<Verified, VerifyError> {
         let state = self.terminal(program, initial, last, &proof.carry)?;
-        self.stage1.verify_final(&state, &proof.stage1)?;
+        self.stage1.verify_final(&state, key, &proof.stage1)?;
         Ok(verified(&proof.carry, &program.geometry))
     }
 

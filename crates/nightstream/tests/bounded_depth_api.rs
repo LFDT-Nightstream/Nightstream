@@ -6,7 +6,7 @@ use std::fs;
 
 use neo_math::F;
 use nightstream::application::{poseidon2_hash_chain_step, poseidon2_hash_chain_v1};
-use nightstream::{Circuit, FinalProof, Prover};
+use nightstream::{Circuit, Prover};
 use nightstream::{Engine, PrimeCharacteristicRing, PrimeField64, State};
 
 fn circuit() -> Circuit {
@@ -77,56 +77,6 @@ fn hash_chain_proves_and_verifies() {
         .encode_proof(&prover.prove(initial, &message).expect("first step"))
         .expect("bytes");
     assert!(verifier.decode_proof(&initial_proof).is_ok());
-}
-
-/// A proof compresses to a proof without witnesses (SPEC.md section 6). It
-/// verifies from its bytes for the expected state, and not for another state
-/// or after a changed byte. After the first step both slots hold the zero
-/// accumulator.
-#[test]
-fn hash_chain_compresses_and_verifies() {
-    let compiled = circuit();
-    let prover = compiled.prover(Engine::Optimized, 109).expect("prover");
-    let verifier = compiled.verifier(Engine::Optimized, 109).expect("verifier");
-    let initial = words([1, 2, 3, 4]);
-    let message = words([5, 6, 7, 8]);
-    let mut proof = prover.prove(initial, &message).expect("first step");
-    let mut current = poseidon2_hash_chain_step(initial, message);
-    let first = prover.compress(&proof).expect("compressed first step");
-    verifier
-        .verify_final(&State::new(1, initial, current), &first)
-        .expect("the compressed first step verifies");
-    for _ in 2..=3 {
-        proof = prover.extend(&proof, &message).expect("next step");
-        current = poseidon2_hash_chain_step(current, message);
-    }
-    let state = State::new(3, initial, current);
-    let compressed = prover.compress(&proof).expect("compressed proof");
-    assert_eq!(compressed.state(), state);
-    let bytes = compressed.to_bytes().expect("proof bytes");
-    assert!(40 * bytes.len() < prover.encode_proof(&proof).expect("bytes").len());
-    let decoded = FinalProof::from_bytes(&bytes).expect("decoded proof");
-    verifier
-        .verify_final(&state, &decoded)
-        .expect("the decoded proof verifies");
-    assert!(verifier.verify_final(&state, &first).is_err(), "another proof");
-
-    let mut other = current;
-    other[0] += F::ONE;
-    assert!(verifier
-        .verify_final(&State::new(3, initial, other), &decoded)
-        .is_err());
-    assert!(verifier
-        .verify_final(&State::new(4, initial, current), &decoded)
-        .is_err());
-    assert!(FinalProof::from_bytes(&bytes[..bytes.len() - 1]).is_err(), "truncated");
-    for at in [200, bytes.len() / 2, bytes.len() - 9] {
-        let mut changed = bytes.clone();
-        changed[at] ^= 1;
-        if let Ok(proof) = FinalProof::from_bytes(&changed) {
-            assert!(verifier.verify_final(&state, &proof).is_err(), "changed byte {at}");
-        }
-    }
 }
 
 /// The iteration word and a slot depth have one encoding: `d + q` hashes like

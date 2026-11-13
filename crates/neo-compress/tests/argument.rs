@@ -1,6 +1,6 @@
 //! The argument end to end on small claims whose values come from the
 //! definitions (`support`): an honest proof verifies, and a changed proof, a
-//! false claim and a witness outside its claim do not.
+//! false claim, a witness outside its claim and another key do not.
 
 mod support;
 
@@ -8,27 +8,17 @@ use std::sync::OnceLock;
 
 use neo_ajtai::nightstream_fprime_setup::commit_production_signed_unit_prefix_matrix;
 use neo_ccs::Mat;
-use neo_compress::{commit, verify, Error, Layout, Norm, Proof, Statement};
+use neo_compress::{commit, verify, Error, Layout, Norm, Proof, VerificationKey};
 use neo_math::{D, F, K};
 use neo_transcript::Poseidon2Transcript;
 use p3_field::PrimeCharacteristicRing;
-use support::{claim_of, instances, Instance};
-
-fn statements(instances: &[Instance]) -> Vec<Statement<'_>> {
-    instances.iter().map(Instance::statement).collect()
-}
-
-fn layout(instances: &[Instance]) -> Layout {
-    let claims: Vec<_> = instances
-        .iter()
-        .map(|instance| (instance.witness.cols(), instance.norm))
-        .collect();
-    Layout::new(&claims).expect("layout")
-}
+use rand::SeedableRng;
+use rand_chacha::ChaCha8Rng;
+use support::{claim_of, instances, key, layout, statements, Instance};
 
 /// Prove `instances` with the witnesses `witnesses`.
 fn prove_with(instances: &[Instance], witnesses: &[&Mat<F>]) -> Result<Proof, Error> {
-    let committed = commit(layout(instances), witnesses)?;
+    let committed = commit(key(), layout(instances), witnesses)?;
     let mut transcript = Poseidon2Transcript::new_v1_2();
     Ok(committed.prove(&mut transcript, &statements(instances))?.0)
 }
@@ -38,9 +28,13 @@ fn prove(instances: &[Instance]) -> Result<Proof, Error> {
     prove_with(instances, &witnesses)
 }
 
-fn accepts(instances: &[Instance], proof: &Proof) -> Result<(), Error> {
+fn accepts_under(key: &VerificationKey, instances: &[Instance], proof: &Proof) -> Result<(), Error> {
     let mut transcript = Poseidon2Transcript::new_v1_2();
-    verify(&mut transcript, &statements(instances), proof).map(|_| ())
+    verify(&mut transcript, key, &statements(instances), proof).map(|_| ())
+}
+
+fn accepts(instances: &[Instance], proof: &Proof) -> Result<(), Error> {
+    accepts_under(key().verification_key(), instances, proof)
 }
 
 /// The honest instances and their proof.
@@ -66,7 +60,7 @@ fn a_proof_for_another_transcript_does_not_verify() {
     let (instances, proof) = honest();
     let mut transcript = Poseidon2Transcript::new_v1_2();
     transcript.absorb_v1_2(&[F::ONE]);
-    assert!(verify(&mut transcript, &statements(instances), proof).is_err());
+    assert!(verify(&mut transcript, key().verification_key(), &statements(instances), proof).is_err());
 }
 
 #[test]
@@ -77,12 +71,36 @@ fn a_changed_proof_does_not_verify() {
     let mut changes: Vec<(String, Box<dyn Fn(&mut Proof)>)> = vec![
         ("witness value".into(), Box::new(|proof| proof.witness_value += K::ONE)),
         ("fewer rounds".into(), Box::new(|proof| proof.rounds.truncate(1))),
+        (
+            "the key's part of the weights".into(),
+            Box::new(|proof| proof.key_weight += K::ONE),
+        ),
+        (
+            "the value of the key polynomial".into(),
+            Box::new(|proof| proof.key_value += K::ONE),
+        ),
+        (
+            "fewer key rounds".into(),
+            Box::new(|proof| proof.key_rounds.truncate(14)),
+        ),
+        (
+            "one more key round".into(),
+            Box::new(|proof| proof.key_rounds.push([K::ZERO; 3])),
+        ),
     ];
     for round in [0, rounds / 2, rounds - 1] {
         for coefficient in 0..4 {
             changes.push((
                 format!("round {round} coefficient {coefficient}"),
                 Box::new(move |proof| proof.rounds[round][coefficient] += K::ONE),
+            ));
+        }
+    }
+    for round in 0..proof.key_rounds.len() {
+        for coefficient in 0..3 {
+            changes.push((
+                format!("key round {round} coefficient {coefficient}"),
+                Box::new(move |proof| proof.key_rounds[round][coefficient] += K::ONE),
             ));
         }
     }
@@ -95,8 +113,7 @@ fn a_changed_proof_does_not_verify() {
     for (name, length) in [
         ("witness commitment", proof.witness_commitment.len()),
         ("inverse commitment", proof.inverse_commitment.len()),
-        ("witness opening", proof.witness_opening.len()),
-        ("inverse opening", proof.inverse_opening.len()),
+        ("opening", proof.opening.len()),
     ] {
         for at in [0, length / 2, length - 1] {
             changes.push((
@@ -106,8 +123,7 @@ fn a_changed_proof_does_not_verify() {
                         match name {
                             "witness commitment" => &mut proof.witness_commitment,
                             "inverse commitment" => &mut proof.inverse_commitment,
-                            "witness opening" => &mut proof.witness_opening,
-                            _ => &mut proof.inverse_opening,
+                            _ => &mut proof.opening,
                         },
                         at,
                     )
@@ -125,20 +141,12 @@ fn a_changed_proof_does_not_verify() {
         Box::new(|proof| proof.inverse_commitment.push(0)),
     ));
     changes.push((
-        "witness opening with one more byte".into(),
-        Box::new(|proof| proof.witness_opening.push(0)),
-    ));
-    changes.push((
-        "inverse opening with one more byte".into(),
-        Box::new(|proof| proof.inverse_opening.push(0)),
+        "opening with one more byte".into(),
+        Box::new(|proof| proof.opening.push(0)),
     ));
     changes.push((
         "the two commitments in the other order".into(),
         Box::new(|proof| std::mem::swap(&mut proof.witness_commitment, &mut proof.inverse_commitment)),
-    ));
-    changes.push((
-        "the two openings in the other order".into(),
-        Box::new(|proof| std::mem::swap(&mut proof.witness_opening, &mut proof.inverse_opening)),
     ));
     for (name, change) in changes {
         let mut changed = proof.clone();
@@ -147,16 +155,116 @@ fn a_changed_proof_does_not_verify() {
     }
 }
 
+/// The key sum-check has one round for each lane variable and each block
+/// variable of the key polynomial of 512 blocks, and the weights at its end
+/// are the prover's claim: a prover that adds `e` to the key's part of the
+/// weights and to the first key round gets a proof that fails only at the
+/// end of the key sum-check.
+#[test]
+fn a_false_key_weight_with_a_consistent_first_round_does_not_verify() {
+    let (instances, proof) = honest();
+    assert_eq!(proof.key_rounds.len(), 6 + 9);
+    let mut changed = proof.clone();
+    changed.key_weight += K::ONE;
+    // p(0) + p(1) = 2·c0 + c1 + c2 moves by one with c1.
+    changed.key_rounds[0][1] += K::ONE;
+    assert!(matches!(accepts(instances, &changed), Err(Error::Rejected(_))));
+}
+
+/// A verification key is authority. A key with one changed byte is another
+/// key or no key, and the honest proof does not verify under it. The bytes
+/// of a key decode to that key only.
+#[test]
+fn another_verification_key_does_not_verify() {
+    let (instances, proof) = honest();
+    let honest_key = key().verification_key();
+    let bytes = honest_key.to_bytes();
+    assert_eq!(&VerificationKey::from_bytes(&bytes).expect("key"), honest_key);
+    assert_eq!(honest_key.blocks(), 512);
+    for at in 0..bytes.len() {
+        let mut changed = bytes.clone();
+        changed[at] ^= 1;
+        match VerificationKey::from_bytes(&changed) {
+            Ok(other) => {
+                assert_ne!(&other, honest_key, "byte {at}");
+                assert!(accepts_under(&other, instances, proof).is_err(), "byte {at}");
+            }
+            Err(error) => assert!(
+                matches!(error, Error::Key(_) | Error::Rejected(_)),
+                "byte {at}: {error}"
+            ),
+        }
+    }
+    assert!(matches!(
+        VerificationKey::from_bytes(&bytes[..bytes.len() - 1]),
+        Err(Error::Key(_))
+    ));
+    let mut longer = bytes.clone();
+    longer.push(0);
+    assert!(matches!(VerificationKey::from_bytes(&longer), Err(Error::Key(_))));
+    // The block count is a field of the key: 1024 blocks have no schedule
+    // row, and 2^19 blocks have another commitment profile.
+    for blocks in [0u64, 511, 1024, 1 << 19, u64::MAX] {
+        let mut changed = bytes.clone();
+        changed[16..24].copy_from_slice(&blocks.to_le_bytes());
+        assert!(
+            matches!(VerificationKey::from_bytes(&changed), Err(Error::Key(_))),
+            "{blocks} blocks"
+        );
+    }
+    // A length above the bytes that follow it decodes nothing.
+    for huge in [u64::MAX, 1 << 40, bytes.len() as u64] {
+        let mut changed = bytes.clone();
+        changed[24..32].copy_from_slice(&huge.to_le_bytes());
+        assert!(
+            matches!(VerificationKey::from_bytes(&changed), Err(Error::Key(_))),
+            "length {huge}"
+        );
+    }
+}
+
+/// Anyone derives the verification key from the public seeds, without the
+/// prover's key.
+#[test]
+fn the_derived_verification_key_is_the_key_of_the_prover() {
+    assert_eq!(&VerificationKey::derive(512).expect("key"), key().verification_key());
+    assert_eq!(&VerificationKey::derive(1).expect("key"), key().verification_key());
+    assert!(matches!(VerificationKey::derive((1 << 19) + 1), Err(Error::Layout(_))));
+}
+
+/// A claim of 513 blocks reads a key element that the key polynomial of 512
+/// blocks does not hold: it has no layout, so no proof and no acceptance.
+/// A key size without schedule rows has no layout.
+#[test]
+fn a_claim_with_more_blocks_than_the_key_has_no_layout() {
+    let blocks = key().verification_key().blocks();
+    let table = Norm::Table { bound: 1 };
+    assert!(Layout::new(&[(blocks / 2, table)], blocks).is_ok());
+    assert!(matches!(
+        Layout::new(&[(blocks + 1, table)], blocks),
+        Err(Error::Layout(_))
+    ));
+    assert!(matches!(
+        Layout::new(&[(61, table), (blocks + 1, Norm::Caller)], blocks),
+        Err(Error::Layout(_))
+    ));
+    assert!(matches!(Layout::new(&[(61, table)], 2 * blocks), Err(Error::Layout(_))));
+    let mut rng = ChaCha8Rng::seed_from_u64(7);
+    let large = vec![Instance::random(&mut rng, blocks + 1, table)];
+    let (_, proof) = honest();
+    assert!(accepts(&large, proof).is_err());
+}
+
 /// `V` holds the inverses of the claims with a table, so claims without a
 /// table have no layout, and no proof for them verifies.
 #[test]
 fn claims_without_a_table_have_no_layout() {
-    assert!(matches!(Layout::new(&[]), Err(Error::Layout(_))));
+    assert!(matches!(Layout::new(&[], 512), Err(Error::Layout(_))));
     assert!(matches!(
-        Layout::new(&[(90, Norm::Caller), (61, Norm::Caller)]),
+        Layout::new(&[(90, Norm::Caller), (61, Norm::Caller)], 512),
         Err(Error::Layout(_))
     ));
-    assert!(Layout::new(&[(90, Norm::Caller), (61, Norm::Table { bound: 1 })]).is_ok());
+    assert!(Layout::new(&[(90, Norm::Caller), (61, Norm::Table { bound: 1 })], 512).is_ok());
     let (instances, proof) = honest();
     assert!(matches!(accepts(&instances[2..], proof), Err(Error::Layout(_))));
 }

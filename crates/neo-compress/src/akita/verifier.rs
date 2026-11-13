@@ -1,21 +1,20 @@
 //! Akita opening verification. It reads no prover crate: the setup is a
-//! prefix of Akita's public field stream, and the catalog fixes each
+//! prefix of Akita's public field stream and the commitments of longer
+//! prefixes that the verification key carries, and the row fixes each
 //! commitment profile.
 
 use std::sync::Arc;
 
-use akita_config::{ResolvedScheduleRow, TrustedScheduleCatalog};
-use akita_params::{
-    verifier_setup_matrix_capacity_for_schedule, BasisMode, PolynomialGroupLayout, ScheduleLookupKey, SetupMode,
-};
+use akita_config::ResolvedScheduleRow;
+use akita_params::{verifier_setup_matrix_capacity_for_schedule, BasisMode, SetupMode};
 use akita_types::{
     derive_public_matrix_prefix, sample_akita_setup_seed, AkitaExpandedSetup, AkitaSetupDescriptor, AkitaVerifierSetup,
-    GroupBatchStatement, OpeningClaims, PolynomialGroupClaims, SetupPrefixVerifierRegistry,
+    GroupBatchStatement, OpeningClaims, PolynomialGroupClaims,
 };
 use akita_verifier::{AkitaVerifier, SetupPolicy};
 use neo_math::K;
 
-use super::{catalog, commitment, extension, failed, Config};
+use super::{commitment, extension, failed, profile, row, setup_prefixes, Config, Polynomial, Shape, SCHEDULES};
 use crate::Error;
 
 /// The claim that the polynomial of `commitment` is `value` at `point`.
@@ -23,44 +22,33 @@ pub(crate) struct Opening<'a> {
     pub(crate) commitment: &'a [u8],
     pub(crate) point: &'a [K],
     pub(crate) value: K,
-    pub(crate) proof: &'a [u8],
-    pub(crate) session: &'a [u8],
 }
 
+/// The verifier of the proofs of one schedule row.
 pub(crate) struct Verifier {
-    catalog: TrustedScheduleCatalog<Config>,
+    row: ResolvedScheduleRow,
     verifier: AkitaVerifier<Config>,
 }
 
-/// The catalog row of one polynomial of `vars` variables, with no earlier
-/// commitment. It fixes the commitment profile and the schedule.
-fn row(catalog: &TrustedScheduleCatalog<Config>, vars: usize) -> Result<&ResolvedScheduleRow, Error> {
-    catalog
-        .resolve_key(&ScheduleLookupKey {
-            root_accumulated_setup_prefix_len: 0,
-            final_group: PolynomialGroupLayout::singleton(vars),
-            precommitteds: Vec::new(),
-        })
-        .map_err(failed)
-}
-
 impl Verifier {
-    /// The verifier of openings of polynomials of each of `vars` variables.
-    /// Its setup is the public matrix that their schedules read. `Config`
-    /// plans no setup-prefix commitment, so the registry is empty.
-    pub(crate) fn new(vars: &[usize]) -> Result<Self, Error> {
-        let catalog = catalog()?;
-        let mut elements = 0;
-        for &vars in vars {
-            let row = row(&catalog, vars)?;
-            let layout = row.profiles().opening_layout().map_err(failed)?;
-            let capacity = verifier_setup_matrix_capacity_for_schedule(row.schedule(), &layout, SetupMode::Check);
-            elements = elements.max(capacity.map_err(failed)?.num_field_elements);
-        }
+    /// The verifier of proofs with `shape`. Its setup is the prefix of
+    /// Akita's public matrix that the row reads, and `prefixes` holds the
+    /// commitments of the longer prefixes that the row offloads.
+    pub(crate) fn new(shape: Shape, prefixes: &[u8]) -> Result<Self, Error> {
+        let catalog = SCHEDULES
+            .iter()
+            .find(|schedules| schedules.key_vars == shape.key)
+            .ok_or(Error::Layout("no Akita schedule row has a key of this size"))?
+            .catalog()?;
+        let row = row(&catalog, shape)?.clone();
+        let layout = row.profiles().opening_layout().map_err(failed)?;
+        let elements = verifier_setup_matrix_capacity_for_schedule(row.schedule(), &layout, SetupMode::Check)
+            .map_err(failed)?
+            .num_field_elements;
         let seed = sample_akita_setup_seed();
         let descriptor = AkitaSetupDescriptor {
-            max_num_vars: vars.iter().copied().max().unwrap_or(0),
-            max_num_batched_polys: 1,
+            max_num_vars: shape.key.max(shape.witness).max(shape.inverse),
+            max_num_batched_polys: 3,
             num_field_elements: elements,
             setup_seed: seed.clone(),
         };
@@ -68,38 +56,38 @@ impl Verifier {
             descriptor,
             derive_public_matrix_prefix(elements, &seed),
         );
-        let setup = AkitaVerifierSetup::from_parts(Arc::new(expanded), SetupPrefixVerifierRegistry::new(seed))
-            .map_err(failed)?;
-        let verifier = AkitaVerifier::new(setup, catalog.clone()).map_err(failed)?;
-        Ok(Self { catalog, verifier })
+        let setup = AkitaVerifierSetup::from_parts(Arc::new(expanded), setup_prefixes(prefixes)?).map_err(failed)?;
+        let verifier =
+            AkitaVerifier::for_selection(setup, catalog, row.selection(), None, akita_verifier::SetupMode::Check)
+                .map_err(failed)?;
+        Ok(Self { row, verifier })
     }
 
-    /// Accept exactly an opening of a commitment with the profile that the
-    /// catalog gives a polynomial of `point.len()` variables. The prover
-    /// chooses no field of the profile.
-    pub(crate) fn verify(&self, opening: &Opening<'_>) -> Result<(), Error> {
-        let commitment = commitment(opening.commitment)?;
-        let row = row(&self.catalog, opening.point.len())?;
-        if *commitment.profile() != row.profiles().final_group {
-            return Err(Error::Rejected("an Akita commitment has another profile"));
+    /// Accept exactly a proof that each commitment, with the profile of the
+    /// row, opens to its value at its point. The openings are in the order
+    /// of `Polynomial`. The prover chooses no field of a profile.
+    pub(crate) fn verify(&self, openings: [Opening<'_>; 3], proof: &[u8], session: &[u8]) -> Result<(), Error> {
+        let order = [Polynomial::Key, Polynomial::Witness, Polynomial::Inverse];
+        let mut commitments = Vec::with_capacity(openings.len());
+        for (opening, polynomial) in openings.iter().zip(order) {
+            let commitment = commitment(opening.commitment)?;
+            if commitment.profile() != profile(&self.row, polynomial) {
+                return Err(Error::Rejected("an Akita commitment has another profile"));
+            }
+            commitments.push(commitment);
         }
-        let point: Vec<_> = opening.point.iter().copied().map(extension).collect();
-        let claims = OpeningClaims::from_groups(vec![PolynomialGroupClaims::new(
-            point,
-            vec![extension(opening.value)],
-            &commitment,
-        )
-        .map_err(failed)?])
-        .map_err(failed)?;
-        let statement = GroupBatchStatement::new(row.selection(), claims).map_err(failed)?;
+        let groups = openings
+            .iter()
+            .zip(&commitments)
+            .map(|(opening, commitment)| {
+                let point: Vec<_> = opening.point.iter().copied().map(extension).collect();
+                PolynomialGroupClaims::new(point, vec![extension(opening.value)], commitment).map_err(failed)
+            })
+            .collect::<Result<Vec<_>, Error>>()?;
+        let claims = OpeningClaims::from_groups(groups).map_err(failed)?;
+        let statement = GroupBatchStatement::new(self.row.selection(), claims).map_err(failed)?;
         self.verifier
-            .batched_verify(
-                opening.proof,
-                opening.session,
-                statement,
-                BasisMode::Lagrange,
-                SetupPolicy::Check(None),
-            )
-            .map_err(|_| Error::Rejected("an Akita opening fails"))
+            .batched_verify(proof, session, statement, BasisMode::Lagrange, SetupPolicy::Check(None))
+            .map_err(|_| Error::Rejected("the Akita opening fails"))
     }
 }

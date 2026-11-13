@@ -1,11 +1,13 @@
-//! The sum-check of SPEC.md section 6 over the cells `x` of `W`:
+//! The sum-checks of SPEC.md section 6. The first is over the cells `x` of
+//! `W`:
 //!
 //! `Σ_x W·(G − E·A) + E·B + S·A`,
 //!
 //! where `G` is the public weights, `A = Σ_k ψ_k I_k` and `B = Σ_k ψ_k τ_k I_k`
 //! combine the committed inverses `I_k`, `E` is the weight of the inverse
-//! check and `S` the weight of the lookup sum. Each table is a prefix of its
-//! evaluations, then zeros.
+//! check and `S` the weight of the lookup sum. The second is the product
+//! `Σ_y F·w` of the key rows with their weights (`key`). Each table is a
+//! prefix of its evaluations, then zeros.
 
 use neo_math::K;
 use neo_reductions::sumcheck::poly_eval_k;
@@ -18,6 +20,9 @@ use crate::Error;
 
 /// The coefficients of one round's polynomial, of degree 3.
 pub type Round = [K; 4];
+/// The coefficients of one round's polynomial of the key sum-check, of
+/// degree 2.
+pub type KeyRound = [K; 3];
 
 const PAIRS_PER_TASK: usize = 1 << 12;
 
@@ -156,11 +161,47 @@ pub(crate) fn prove(
     (messages, point, witness)
 }
 
+/// Prove that `Σ_y values(y) · weights(y)` is `claim`, in `rounds` rounds.
+/// Returns the rounds, the point and `values` at the point.
+pub(crate) fn prove_product(
+    transcript: &mut Poseidon2Transcript,
+    mut values: Vec<K>,
+    mut weights: Vec<K>,
+    mut claim: K,
+    rounds: usize,
+) -> (Vec<KeyRound>, Vec<K>, K) {
+    let mut messages = Vec::with_capacity(rounds);
+    let mut point = Vec::with_capacity(rounds);
+    for _ in 0..rounds {
+        let pairs = values.len().min(weights.len()).div_ceil(2);
+        let [zero, two] = (0..pairs)
+            .into_par_iter()
+            .with_min_len(PAIRS_PER_TASK)
+            .map(|pair| {
+                let (value, weight) = (line(&values, pair), line(&weights, pair));
+                [value.zero * weight.zero, value.two * weight.two]
+            })
+            .reduce(|| [K::ZERO; 2], |left, right| [left[0] + right[0], left[1] + right[1]]);
+        // c1 + c2 = one − zero, and 2·c1 + 4·c2 = two − zero.
+        let sum = claim - zero.double();
+        let quadratic = (two - zero - sum.double()).halve();
+        let coefficients = [zero, sum - quadratic, quadratic];
+        absorb_extension(transcript, &coefficients);
+        let challenge = challenge(transcript);
+        claim = poly_eval_k(&coefficients, challenge);
+        bind(&mut values, challenge);
+        bind(&mut weights, challenge);
+        messages.push(coefficients);
+        point.push(challenge);
+    }
+    (messages, point, values.first().copied().unwrap_or(K::ZERO))
+}
+
 /// Check the rounds against `claim`. Returns the point and the value that
 /// the summand must have at the point.
-pub(crate) fn verify(
+pub(crate) fn verify<const COEFFICIENTS: usize>(
     transcript: &mut Poseidon2Transcript,
-    rounds: &[Round],
+    rounds: &[[K; COEFFICIENTS]],
     mut claim: K,
 ) -> Result<(Vec<K>, K), Error> {
     let mut point = Vec::with_capacity(rounds.len());

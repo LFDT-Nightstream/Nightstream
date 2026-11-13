@@ -17,33 +17,87 @@
 //! batches them and item 4, a point `δ` turns the batch into an inner product
 //! of `W` with public weights (`ring`, `weights`), and one sum-check proves
 //! it together with the lookup of item 5 (`lookup`, `sumcheck`). The
-//! sum-check ends in one evaluation of `W` and one of `V`, which Akita opens.
-//! The transcript is the caller's Poseidon2 transcript. Akita derives its own
-//! challenges, and its session is the state of that transcript.
+//! sum-check ends in one evaluation of `W`, one of `V` and the public weights
+//! at its point `ρ`.
+//!
+//! The verifier does not read the Ajtai key. Preprocessing commits the key as
+//! one polynomial, and the verifier holds that commitment (`key`, ePrint
+//! 2026/1983 section 9). The proof carries the part of the weights at `ρ`
+//! that the key gives. A second sum-check reduces that part to one
+//! evaluation of the key polynomial. One Akita proof opens the key
+//! polynomial, `W` and `V`. The verifier computes the part of the weights
+//! that the matrices give in one pass over the rows of each claim
+//! (`weights::matrix_part`).
+//!
+//! # Transcript
+//!
+//! The transcript is the caller's Poseidon2 transcript, after the caller's
+//! messages. Akita derives its own challenges, and its session is the state
+//! of this transcript. The prover and the verifier absorb and draw in this
+//! order:
+//!
+//! 1. absorb the domain, then the bytes of the verification key,
+//! 2. absorb each claim: its sizes, then its words,
+//! 3. absorb the commitment of `W`,
+//! 4. draw `τ_0` to `τ_3`,
+//! 5. absorb the commitment of `V`,
+//! 6. draw `ω`, `δ`, `γ`, `μ`, each `ψ_k`, `ξ` and `λ` of each table, and
+//!    the point `β` of the inverse check,
+//! 7. for each round of the first sum-check, absorb its four coefficients
+//!    and draw one coordinate of `ρ`,
+//! 8. absorb `W(ρ)`, the four values of `V` and the key's part of the
+//!    weights,
+//! 9. draw the point of the columns of `V`,
+//! 10. for each round of the key sum-check, absorb its three coefficients
+//!     and draw one coordinate of `(λ, β′)`,
+//! 11. absorb the value of the key polynomial,
+//! 12. give Akita the label of the opening and lanes 0 to 3 of the sponge
+//!     state as its session.
+//!
+//! # Soundness
 //!
 //! Soundness error, with `|K| = q²`, `q = 2^64 − 59`, `n` variables of `W`,
 //! `N` cells of the slice of a witness with a table, `T` values of its
-//! table, `m` public cells, `t` matrices and `s` claims:
+//! table, `m` public cells, `t` matrices, `s` claims and `b` variables of
+//! the blocks of the key polynomial:
 //!
 //! - batch of the equations at `(ω, δ, γ, μ)`:
 //!   `(κ + 1 + t + max(63, m − 1) + s − 1) / |K|`,
 //! - lookup: `((N + T) / q)^4` for each table,
 //! - batch of the inverse checks and the sums at `(ψ, ξ, λ, β)`: `(2 + n) / |K|`,
-//! - sum-check: `3n / |K|`,
+//! - first sum-check: `3n / |K|`,
 //! - one point for the columns of `V`: `2 / |K|`,
-//! - the two Akita openings: the knowledge error of Akita's `fp64_dense`
-//!   schedules, which this crate does not compute.
+//! - key sum-check, degree 2 over 6 lane variables and the block variables:
+//!   `2 · (6 + b) / |K|`,
+//! - the Akita opening: the knowledge error of Akita's
+//!   `fp64_dense_recursive` schedule row, which this crate does not compute.
+//!
+//! The key sum-check proves the exact sum that the first sum-check needs, so
+//! the claims need no new batch. The identity `ω^i = scale · eq(s, i)` of the
+//! rows is exact, so the row point adds no error. No proof exists when `ω`
+//! has no row point, with probability at most `31 / |K|`.
 //!
 //! `error_bits` gives the sum without the Akita term. For the two step
 //! circuits of the Poseidon2 hash chain (`N = 2^25` and `2^23`, `T ≤ 20737`,
-//! `n ≤ 28`, `m = 320`, `t = 4`, `s = 3`) the lookups give `2^-155.99`, the
-//! other terms `2^-119.15`, and the sum is `2^-119.15`.
+//! `n ≤ 27`, `m = 320`, `t = 4`, `s = 3`, `b = 19`) the lookups give
+//! `2^-155.99`, the other terms `2^-119.02`, and the sum is `2^-119.02`.
+//!
+//! The argument assumes that the commitment of the verification key is the
+//! Akita commitment of the key polynomial, and that Akita is binding and
+//! knowledge sound for it: the value that Akita opens is the value of that
+//! polynomial. The verifier never sees the polynomial. A third party checks
+//! a verification key with `VerificationKey::derive`, which computes it
+//! again from the public seeds.
 
 // The claims of `tests/support` name this crate as an integration test does.
 #[cfg(test)]
 extern crate self as neo_compress;
+#[cfg(test)]
+#[path = "../tests/support/mod.rs"]
+mod support;
 
 mod akita;
+mod key;
 mod layout;
 mod lookup;
 mod prover;
@@ -59,17 +113,17 @@ use neo_reductions::superneo_eval::MatrixRows;
 use neo_transcript::{domain_chunk_v1_2, Poseidon2Transcript};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
+pub use key::{ProverKey, VerificationKey};
 pub use layout::Layout;
 pub use prover::{commit, Committed, ProverTimes};
-pub use sumcheck::Round;
+pub use sumcheck::{KeyRound, Round};
 pub use transcript::byte_words;
 pub use verifier::{verify, VerifierTimes};
 
 pub type CeClaim = neo_ccs::CeClaim<Commitment, F, K>;
 
-const DOMAIN: &[u8] = b"Nightstream/compress/akita/v1";
-const WITNESS_SESSION: &[u8] = b"Nightstream/compress/akita/v1/witness";
-const INVERSE_SESSION: &[u8] = b"Nightstream/compress/akita/v1/inverse";
+const DOMAIN: &[u8] = b"Nightstream/compress/akita/v2";
+const SESSION: &[u8] = b"Nightstream/compress/akita/v2/opening";
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -79,10 +133,12 @@ pub enum Error {
     Statement(&'static str),
     #[error("compression proof: {0}")]
     Rejected(&'static str),
+    #[error("compression key: {0}")]
+    Key(&'static str),
     /// A lookup challenge is a table value, with probability about `2^-46.7`
-    /// for each proof of the Poseidon2 hash chain. No proof exists for this
-    /// transcript.
-    #[error("compression: a lookup challenge is a table value")]
+    /// for each proof of the Poseidon2 hash chain, or `ω` has no row point
+    /// (`key::row_point`). No proof exists for this transcript.
+    #[error("compression: a challenge has no proof")]
     Challenge,
     #[error("Akita: {0}")]
     Akita(String),
@@ -115,8 +171,8 @@ impl Statement<'_> {
     }
 }
 
-/// The argument: both commitments, the sum-check, the evaluations at its
-/// point and their Akita openings.
+/// The argument: the commitments of `W` and of `V`, both sum-checks, the
+/// values at their points and one Akita opening.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Proof {
     pub witness_commitment: Vec<u8>,
@@ -126,14 +182,21 @@ pub struct Proof {
     pub witness_value: K,
     /// Each column of `V` at the point of the sum-check.
     pub inverse_values: [K; 1 << layout::LOOKUP_VARS],
-    pub witness_opening: Vec<u8>,
-    pub inverse_opening: Vec<u8>,
+    /// The part of the public weights at the point of the sum-check that
+    /// the Ajtai key gives (`weights::key_part`).
+    pub key_weight: K,
+    pub key_rounds: Vec<KeyRound>,
+    /// The key polynomial at the point of the key sum-check and the row
+    /// point.
+    pub key_value: K,
+    /// The Akita proof of the values of the key polynomial, `W` and `V`.
+    pub opening: Vec<u8>,
 }
 
-/// The layout of `statements`, after the shape checks that each later step
-/// relies on.
-fn layout(statements: &[Statement<'_>]) -> Result<Layout, Error> {
-    let lane_vars = D.trailing_zeros() as usize;
+/// The layout of `statements` under a key polynomial of `key_blocks`
+/// blocks, after the shape checks that each later step relies on.
+fn layout(statements: &[Statement<'_>], key_blocks: usize) -> Result<Layout, Error> {
+    let lane_vars = layout::LANE_VARS;
     for statement in statements {
         let (claim, shape) = (statement.claim, statement.rows.shape());
         let blocks = statement.blocks();
@@ -161,12 +224,14 @@ fn layout(statements: &[Statement<'_>]) -> Result<Layout, Error> {
         .iter()
         .map(|statement| (statement.blocks(), statement.norm))
         .collect();
-    Layout::new(&claims)
+    Layout::new(&claims, key_blocks)
 }
 
-/// Bind the statements: for each claim its sizes, then its words.
-fn absorb_statements(transcript: &mut Poseidon2Transcript, statements: &[Statement<'_>]) {
+/// Bind the verification key and the statements: the bytes of the key,
+/// then for each claim its sizes and its words.
+fn absorb_statements(transcript: &mut Poseidon2Transcript, key: &VerificationKey, statements: &[Statement<'_>]) {
     transcript.absorb_v1_2(&domain_chunk_v1_2(DOMAIN));
+    transcript::absorb_bytes(transcript, &key.to_bytes());
     for statement in statements {
         let claim = statement.claim;
         let bound = match statement.norm {
@@ -250,6 +315,7 @@ pub fn error_bits(layout: &Layout, public_cells: usize, matrices: usize) -> f64 
         })
         .sum();
     let batch = weights::KAPPA + 1 + matrices + 63.max(public_cells.saturating_sub(1)) + layout.cells.len() - 1;
-    let rest = (batch + 2 + layout.witness_vars + 3 * layout.witness_vars + 2) as f64;
+    let key = 2 * (layout::LANE_VARS + layout.key_block_vars());
+    let rest = (batch + 2 + layout.witness_vars + 3 * layout.witness_vars + 2 + key) as f64;
     -(lookups + rest * (-extension).exp2()).log2()
 }

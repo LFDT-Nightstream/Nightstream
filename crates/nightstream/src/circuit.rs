@@ -364,6 +364,43 @@ impl FinalProof {
     }
 }
 
+/// The prover's key of the compression: the rows of the Ajtai key that the
+/// circuit reads, their commitment and the `CompressionKey`. It holds about
+/// 10 GB for the Poseidon2 hash chain. `Prover::compression_setup` makes it
+/// once, and each `Prover::compress` reads it.
+pub struct CompressionSetup(neo_compress::ProverKey);
+
+impl CompressionSetup {
+    /// The verification key of the proofs that this setup makes.
+    pub fn key(&self) -> CompressionKey {
+        CompressionKey(self.0.verification_key().clone())
+    }
+}
+
+/// The verifier's key of the compression: the commitment of the rows of the
+/// Ajtai key, in place of the rows (SPEC.md section 6). It is a function of
+/// the public seeds and of the size of the circuit. `Verifier::verify_final`
+/// trusts it, so take it from `Verifier::compression_key`, or compare its
+/// bytes with a copy that you computed.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CompressionKey(neo_compress::VerificationKey);
+
+impl CompressionKey {
+    /// The key's strict bytes, for `CompressionKey::from_bytes`.
+    pub fn to_bytes(&self) -> Vec<u8> {
+        self.0.to_bytes()
+    }
+
+    /// Decode untrusted bytes. A key has one encoding, and no byte follows
+    /// it. The bytes do not show that the key holds the commitment of the
+    /// Ajtai key.
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, Error> {
+        Ok(Self(
+            neo_compress::VerificationKey::from_bytes(bytes).map_err(lifecycle::BoundedDepthError::from)?,
+        ))
+    }
+}
+
 pub struct Prover {
     lifecycle: lifecycle::BoundedDepth,
     application: Option<ApplicationCircuit>,
@@ -466,10 +503,17 @@ impl Prover {
         Ok(self.lifecycle.encode_proof(&proof.0)?)
     }
 
-    /// Compress `proof`, which does not change, for `Verifier::verify_final`.
-    /// The result is not checked here: it verifies when `proof` does.
-    pub fn compress(&self, proof: &Proof) -> Result<FinalProof, Error> {
-        Ok(FinalProof(self.lifecycle.compress(&proof.0)?.0))
+    /// Expand the rows of the Ajtai key that the circuit reads and commit
+    /// them, once for each prover.
+    pub fn compression_setup(&self) -> Result<CompressionSetup, Error> {
+        Ok(CompressionSetup(self.lifecycle.compression_setup()?))
+    }
+
+    /// Compress `proof`, which does not change, for `Verifier::verify_final`
+    /// with the key of `setup`. The result is not checked here: it verifies
+    /// when `proof` does.
+    pub fn compress(&self, proof: &Proof, setup: &CompressionSetup) -> Result<FinalProof, Error> {
+        Ok(FinalProof(self.lifecycle.compress(&setup.0, &proof.0)?.0))
     }
 }
 
@@ -492,12 +536,24 @@ impl Verifier {
             .verify(expected.iteration(), expected.z0(), expected.current(), &proof.0)?)
     }
 
-    /// Check a finished proof against the expected state. The verifier
-    /// derives each key from its circuit, and nothing that the proof carries
-    /// is authority.
-    pub fn verify_final(&self, expected: &State, proof: &FinalProof) -> Result<(), Error> {
-        self.lifecycle
-            .verify_final(expected.iteration(), expected.z0(), expected.current(), &proof.0)?;
+    /// Compute the compression key from the public seeds: expand the rows
+    /// of the Ajtai key that the circuit reads and commit them. The result
+    /// is the key of `Prover::compression_setup` for this circuit.
+    pub fn compression_key(&self) -> Result<CompressionKey, Error> {
+        Ok(CompressionKey(self.lifecycle.compression_key()?))
+    }
+
+    /// Check a finished proof against the expected state and a trusted key.
+    /// The verifier derives the relations from its circuit and reads no row
+    /// of the Ajtai key. Nothing that the proof carries is authority.
+    pub fn verify_final(&self, expected: &State, key: &CompressionKey, proof: &FinalProof) -> Result<(), Error> {
+        self.lifecycle.verify_final(
+            &key.0,
+            expected.iteration(),
+            expected.z0(),
+            expected.current(),
+            &proof.0,
+        )?;
         Ok(())
     }
 }

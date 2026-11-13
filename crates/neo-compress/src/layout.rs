@@ -1,15 +1,16 @@
-//! Where each claim's cells are in the two committed polynomials (SPEC.md
-//! section 6). `W` holds every witness and every table's counts. `V` holds the
-//! lookup inverses of the witnesses that have a table.
+//! Where each claim's cells are in the two polynomials that a proof commits
+//! (SPEC.md section 6). `W` holds every witness and every table's counts. `V`
+//! holds the lookup inverses of the witnesses that have a table.
 
 use neo_math::{D, K};
 use p3_field::PrimeCharacteristicRing;
 
+use crate::akita::{Schedules, Shape};
+use crate::key::ROW_VARS;
 use crate::{Error, Norm};
 
-/// The variable counts that Akita's `fp64_dense` catalog has a row for with
-/// one polynomial. The row of 14 variables has a known fault.
-const SHIPPED_VARS: [usize; 6] = [16, 20, 26, 28, 29, 30];
+/// The variables of the lanes of one ring block.
+pub(crate) const LANE_VARS: usize = D.trailing_zeros() as usize;
 
 /// The lookup runs once for each of this many base-field challenges. Four
 /// fill the columns of `V` and put the lookup error below the other terms
@@ -68,6 +69,8 @@ pub(crate) struct Cells {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Layout {
     pub(crate) cells: Vec<Cells>,
+    /// The variables of the key polynomial that the claims are proved with.
+    pub(crate) key_vars: usize,
     /// The variables of `W`, and the length of its prefix that holds cells.
     pub(crate) witness_vars: usize,
     pub(crate) witness_len: usize,
@@ -79,25 +82,25 @@ pub struct Layout {
     pub(crate) inverse_vars: usize,
 }
 
-fn shipped(vars: usize) -> Result<usize, Error> {
-    SHIPPED_VARS
-        .into_iter()
-        .find(|&shipped| shipped >= vars)
-        .ok_or(Error::Layout("the cells exceed the largest Akita schedule"))
-}
-
 fn vars_for(cells: usize) -> usize {
     cells.next_power_of_two().trailing_zeros() as usize
 }
 
 impl Layout {
     /// The layout of claims with `blocks` ring blocks and the norm proof
-    /// `norm` each. The witnesses with a table come first, the larger first,
-    /// then the other witnesses, then the counts. One claim or more has a
-    /// table, so `V` has cells.
-    pub fn new(claims: &[(usize, Norm)]) -> Result<Self, Error> {
+    /// `norm` each, under a key polynomial of `key_blocks` blocks. The
+    /// witnesses with a table come first, the larger first, then the other
+    /// witnesses, then the counts. One claim or more has a table, so `V` has
+    /// cells. `W` and `V` get the variables of the first schedule row of the
+    /// key that holds them.
+    pub fn new(claims: &[(usize, Norm)], key_blocks: usize) -> Result<Self, Error> {
+        let schedules =
+            Schedules::of_blocks(key_blocks).ok_or(Error::Layout("no Akita schedule row has a key of this size"))?;
         if claims.iter().any(|&(blocks, _)| blocks == 0) {
             return Err(Error::Layout("a claim has no block"));
+        }
+        if claims.iter().any(|&(blocks, _)| blocks > key_blocks) {
+            return Err(Error::Layout("a claim has more blocks than the key"));
         }
         if !claims
             .iter()
@@ -120,7 +123,7 @@ impl Layout {
         let mut span_len = 0;
         for claim in order {
             let (blocks, norm) = claims[claim];
-            let slice = place(vars_for(blocks) + D.trailing_zeros() as usize);
+            let slice = place(vars_for(blocks) + LANE_VARS);
             witnesses[claim] = Some(slice);
             if matches!(norm, Norm::Table { .. }) {
                 span_len = slice.range().end;
@@ -149,14 +152,34 @@ impl Layout {
             })
             .collect::<Result<Vec<_>, Error>>()?;
         let span_vars = vars_for(span_len);
+        let &(witness_vars, inverse_vars) = schedules
+            .rows
+            .iter()
+            .find(|&&(witness, inverse)| witness >= vars_for(cursor) && inverse >= span_vars + LOOKUP_VARS)
+            .ok_or(Error::Layout("no Akita schedule row holds the cells"))?;
         Ok(Self {
             cells,
-            witness_vars: shipped(vars_for(cursor))?,
+            key_vars: schedules.key_vars,
+            witness_vars,
             witness_len: cursor,
             span_vars,
             span_len,
-            inverse_vars: shipped(span_vars + LOOKUP_VARS)?,
+            inverse_vars,
         })
+    }
+
+    /// The schedule row of Akita that a proof of this layout uses.
+    pub(crate) fn shape(&self) -> Shape {
+        Shape {
+            key: self.key_vars,
+            witness: self.witness_vars,
+            inverse: self.inverse_vars,
+        }
+    }
+
+    /// The variables of the blocks of the key polynomial.
+    pub(crate) fn key_block_vars(&self) -> usize {
+        self.key_vars - LANE_VARS - ROW_VARS
     }
 
     /// The length of the prefix of `V` that holds inverses.

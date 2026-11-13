@@ -23,6 +23,12 @@ groups=(
   '-p neo-wasm'
 )
 
+# Each of these needs up to 25 GB, so each runs alone after the groups.
+alone=(
+  '-p nightstream --test compression -- --ignored'
+  '-p neo-compress --lib -- --ignored key::tests::the_large_pinned_key_is_the_key_of_the_public_seeds'
+)
+
 common=(
   --release --locked
   --config 'profile.release.lto="off"'
@@ -31,7 +37,7 @@ common=(
 
 case "${1:-}" in
   build)
-    for group in "${groups[@]}"; do
+    for group in "${groups[@]}" "${alone[@]}"; do
       read -r -a selected <<< "$group"
       printf 'Building selected tests: %s\n' "$group"
       cargo test "${common[@]}" --no-run "${selected[@]}"
@@ -40,6 +46,9 @@ case "${1:-}" in
   test)
     printf '%s\0' "${groups[@]}" |
       xargs -0 -P 4 -n 1 bash "$0" run
+    for group in "${alone[@]}"; do
+      bash "$0" run "$group"
+    done
     ;;
   run)
     read -r -a selected <<< "${2:?missing test group}"

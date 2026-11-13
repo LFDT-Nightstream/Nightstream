@@ -1,5 +1,4 @@
-//! Recursive proving of an application's steps over circuits that Lean emits,
-//! and compression of the final proof.
+//! Recursive proving of an application's steps over circuits that Lean emits.
 
 pub mod application;
 pub mod error;
@@ -14,9 +13,7 @@ pub mod relation;
 
 #[cfg(test)]
 pub(crate) use circuit::References;
-pub use circuit::{
-    ApplicationSize, Circuit, CompressionKey, CompressionSetup, Error, FinalProof, Proof, Prover, State, Verifier,
-};
+pub use circuit::{ApplicationSize, Circuit, Error, Proof, Prover, State, Verifier};
 pub use engine::{Engine, EngineError};
 /// The Goldilocks field of every state, input and output word, and the
 /// Plonky3 traits that build and read its elements.

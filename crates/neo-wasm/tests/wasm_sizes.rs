@@ -248,64 +248,6 @@ fn a_small_proof_verifies() {
     eprintln!("total elapsed={:?}", started.elapsed());
 }
 
-/// Fibonacci proved in Small and compressed to the final proof (`SPEC.md`
-/// Algorithms 7 and 8). The final proof verifies with the verifier's own key,
-/// and a last state with another `pc` does not verify.
-#[test]
-#[ignore = "Full proof and compression at a fixed size; run it alone, only with approval for a run longer than 300 seconds."]
-fn a_small_proof_compresses() {
-    use nightstream::nebula::{Circuit, VerifyError};
-    use std::time::Instant;
-    let started = Instant::now();
-    let (preload, initial, trace) = run_of(FIB);
-    let size = WasmSize::for_run(&preload, &trace).unwrap();
-    let app = size.application().unwrap();
-    let program = app.program(&preload).unwrap();
-    let circuit = Circuit::compile(size.geometry(), app).unwrap();
-    let engine = nightstream::Engine::Optimized;
-    let prover = circuit.prover(engine, 109).unwrap();
-    let verifier = circuit.verifier(engine, 109).unwrap();
-    eprintln!("compile and setup elapsed={:?}", started.elapsed());
-
-    let proving = Instant::now();
-    let mut run = prover.start(&program, initial).unwrap();
-    for segment in size.segments(&trace).unwrap() {
-        run.segment(&segment.unwrap()).unwrap();
-    }
-    let last = *run.state();
-    let proof = run.finish().unwrap();
-    eprintln!("prove steps elapsed={:?}", proving.elapsed());
-    eprintln!("proof bytes={}", prover.encode_proof(&proof).unwrap().len());
-
-    let dir = std::env::temp_dir().join(format!("wasm-small-compression-{}", std::process::id()));
-    std::fs::create_dir_all(&dir).unwrap();
-    let setting = Instant::now();
-    let setup = prover.compression_setup(&dir);
-    eprintln!("compression setup elapsed={:?}", setting.elapsed());
-    let compressing = Instant::now();
-    let final_proof = setup.and_then(|setup| prover.compress(&proof, &setup));
-    eprintln!("compress elapsed={:?}", compressing.elapsed());
-    std::fs::remove_dir_all(&dir).unwrap();
-    let final_proof = final_proof.unwrap();
-
-    let keying = Instant::now();
-    let key = verifier.compression_key().unwrap();
-    eprintln!("compression key elapsed={:?}", keying.elapsed());
-    let verifying = Instant::now();
-    let verified = verifier
-        .verify_final(&program, &initial, &last, &key, &final_proof)
-        .unwrap();
-    eprintln!("verify final elapsed={:?}", verifying.elapsed());
-    assert_eq!(verified.steps, 8);
-    let mut other = last;
-    other.pc += 1;
-    assert!(matches!(
-        verifier.verify_final(&program, &initial, &other, &key, &final_proof),
-        Err(VerifyError::Proof(_))
-    ));
-    eprintln!("total elapsed={:?}", started.elapsed());
-}
-
 /// Fibonacci proved in Small on the CPU and on Metal. The two proofs have the
 /// same bytes, and each verifier accepts the Metal proof.
 #[test]

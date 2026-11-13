@@ -1,7 +1,7 @@
 # Lifecycle
 
-`crates/nightstream/src/lifecycle/bounded_depth/` owns proving, extension,
-verification and the final proof. A caller compiles or loads a `Circuit`,
+`crates/nightstream/src/lifecycle/bounded_depth/` owns proving, extension and
+verification. A caller compiles or loads a `Circuit`,
 selects a prover and verifier with an explicit security minimum, calls
 `prove` and `extend`, then checks the expected final state with
 `Verifier::verify`.
@@ -19,8 +19,3 @@ compares it with the public input of the fresh instance. It checks the claim
 of each slot under the relation of its circuit, with a norm below `B`, and the
 fresh instance under the relation of the circuit that ran last. Matching
 digests do not replace these checks.
-
-`Prover::compress` makes a final proof. The last fold is a refresh fold. Then
-`neo-spartan` proves the claim of each slot (layer 1), and a shrink proof
-shows that the final program accepts. `Verifier::verify_final` checks the
-final proof with a key that the verifier derives.

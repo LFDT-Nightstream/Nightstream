@@ -9,7 +9,6 @@ groups=(
   '-p nightstream lifecycle::'
   '-p nightstream -- --skip lifecycle::'
   '-p nightstream-fprime'
-  '-p neo-spartan'
   '-p neo-ccs --test packed_witness --test red_team --test poseidon2_round_constants'
   '-p neo-params --test red_team'
   '-p neo-math --test signed_sums'

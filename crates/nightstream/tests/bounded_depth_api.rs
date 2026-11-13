@@ -1,6 +1,6 @@
 //! The bounded-depth public API end to end on the Rust Poseidon2 hash chain:
-//! compile against the three embedded Lean packages, prove and extend, verify
-//! against the expected state, and compress and verify the final proof.
+//! compile against the two embedded Lean packages, prove and extend, and
+//! verify against the expected state.
 
 use std::fs;
 
@@ -118,44 +118,4 @@ fn the_reference_hash_chain_keeps_lean_packages() {
         circuit().identity(),
         nightstream_fprime::BOUNDED_DEPTH_PACKAGES_IDENTITY
     );
-}
-
-/// Removes a setup folder when it drops, so a failed run frees its disk too.
-struct SetupDir(std::path::PathBuf);
-
-impl Drop for SetupDir {
-    fn drop(&mut self) {
-        let _ = std::fs::remove_dir_all(&self.0);
-    }
-}
-
-/// The final proof of two steps verifies with the verifier's own key, and
-/// not for another state.
-#[test]
-fn hash_chain_final_proof_verifies() {
-    let circuit = circuit();
-    let prover = circuit.prover(Engine::Optimized, 109).expect("prover");
-    let initial = words([1, 2, 3, 4]);
-    let message = words([5, 6, 7, 8]);
-    let proof = prover
-        .extend(&prover.prove(initial, &message).expect("first step"), &message)
-        .expect("second step");
-    let dir = SetupDir(std::env::temp_dir().join(format!("bounded-depth-api-{}", std::process::id())));
-    fs::create_dir_all(&dir.0).expect("setup directory");
-    let final_proof = {
-        let setup = prover.compression_setup(&dir.0).expect("setup");
-        prover.compress(&proof, &setup).expect("final proof")
-    };
-    drop(dir);
-    let verifier = circuit.verifier(Engine::Optimized, 109).expect("verifier");
-    let key = verifier.compression_key().expect("key");
-    let state = proof.state();
-    verifier
-        .verify_final(&state, &key, &final_proof)
-        .expect("the final proof verifies");
-    let mut other = state.current();
-    other[0] += F::ONE;
-    assert!(verifier
-        .verify_final(&State::new(state.iteration(), state.z0(), other), &key, &final_proof)
-        .is_err());
 }

@@ -1,14 +1,12 @@
 //! `Engine::Metal` against `Engine::Optimized` on the bounded-depth scheme: after each step
-//! the proof bytes are equal, and so are the final witness and the final
-//! proof. Every Metal session of a process shares one
+//! the proof bytes are equal. Every Metal session of a process shares one
 //! device budget (`neo_prover_metal::BUFFER_LIMIT_BYTES`), so run these tests
 //! one at a time (`--test-threads=1`). The printed times are of one run.
 
 use std::time::Instant;
 
-use super::super::final_program::Finish;
-use super::super::{BoundedDepth, BoundedDepthError, Envelope, Setups};
-use super::{hash_chain_step, packages, support, words, SetupDir, MINIMUM_SECURITY_BITS};
+use super::super::{BoundedDepth, BoundedDepthError};
+use super::{hash_chain_step, packages, words, MINIMUM_SECURITY_BITS};
 use crate::engine::{Backend, Engine};
 use neo_math::{D, F};
 use p3_field::PrimeCharacteristicRing;
@@ -84,94 +82,4 @@ fn metal_steps_equal_cpu_steps() {
             other => panic!("tampered fresh witness: {:?}", other.err()),
         }
     }
-}
-
-/// Three Metal steps, the finish rows and the layer-1 setups of both
-/// relations, which take no engine.
-fn three_steps(prover: &BoundedDepth) -> (Envelope, Finish, SetupDir, Setups) {
-    let finish = Finish::new(
-        nightstream_fprime::load_bounded_depth_finish(
-            &support::artifact("nightstream-fprime-bounded-depth-finish-v1.json"),
-            nightstream_fprime::BOUNDED_DEPTH_FINISH_IDENTITY,
-        )
-        .expect("finish package"),
-    )
-    .expect("finish rows");
-    let mut envelope = prover.initial(words([10, 11, 12, 13])).expect("initial");
-    for step in 0..3 {
-        let message = words([20 + step, 21 + step, 22 + step, 23 + step]);
-        envelope = prover
-            .extend(&envelope, &message, hash_chain_step(envelope.current, message), None)
-            .expect("step");
-    }
-    let dir = SetupDir(std::env::temp_dir().join(format!("option-b-metal-final-{}", std::process::id())));
-    let started = Instant::now();
-    let setups = prover.compression_setups(&dir.0).expect("layer-1 setups");
-    eprintln!("layer-1 setups: {:.2} s", started.elapsed().as_secs_f64());
-    (envelope, finish, dir, setups)
-}
-
-/// What the final program reads of three steps is equal on both engines:
-/// the finish package's columns on the last refresh fold's words, and both
-/// layer-1 proofs.
-#[test]
-#[ignore = "about 250 s with the CPU layer-1 setups; run alone with --ignored --test-threads=1"]
-fn metal_final_witness_equals_cpu_final_witness() {
-    let [cpu, metal] = provers(2);
-    let (envelope, finish, _dir, setups) = three_steps(&metal);
-    let [on_cpu, on_metal] = [&cpu, &metal].map(|prover| {
-        let started = Instant::now();
-        let witness = prover
-            .final_witness(&envelope, &setups, &finish)
-            .expect("final witness");
-        eprintln!(
-            "final witness on {:?}: {:.2} s",
-            prover.backend.engine(),
-            started.elapsed().as_secs_f64()
-        );
-        witness
-    });
-    assert_eq!(on_cpu.columns, on_metal.columns, "finish columns");
-    for (cpu, metal) in on_cpu.layer1.iter().zip(&on_metal.layer1) {
-        assert_eq!(cpu.to_bytes(), metal.to_bytes(), "layer-1 proofs");
-    }
-}
-
-/// The Metal final proof of three steps has the bytes of the CPU final proof.
-/// It verifies on both engines, and not for another current state.
-#[test]
-#[ignore = "about 200 s with the CPU layer-1 setups; run alone with --ignored --test-threads=1"]
-fn metal_final_proof_equals_cpu_final_proof() {
-    let [cpu, metal] = provers(2);
-    let (envelope, finish, _dir, setups) = three_steps(&metal);
-    let statement = (envelope.iteration, envelope.z0, envelope.current);
-    let started = Instant::now();
-    let witness = metal
-        .final_witness(&envelope, &setups, &finish)
-        .expect("final witness");
-    let witnessed = started.elapsed().as_secs_f64();
-    let proof = metal
-        .prove_final(setups.keys(), &finish, statement, &witness)
-        .expect("final proof");
-    eprintln!(
-        "final proof on Metal: witness {witnessed:.2} s, shrink {:.2} s",
-        started.elapsed().as_secs_f64() - witnessed
-    );
-    let on_cpu = cpu
-        .prove_final(setups.keys(), &finish, statement, &witness)
-        .expect("CPU final proof");
-    assert!(
-        proof.shrink.to_bytes() == on_cpu.shrink.to_bytes(),
-        "the Metal final proof differs from the CPU final proof"
-    );
-    let (iteration, z0, current) = statement;
-    for prover in [&cpu, &metal] {
-        prover
-            .verify_final(setups.keys(), &finish, iteration, z0, current, &proof)
-            .expect("the final proof verifies");
-    }
-    let wrong = [current[0] + F::ONE, current[1], current[2], current[3]];
-    assert!(metal
-        .verify_final(setups.keys(), &finish, iteration, z0, wrong, &proof)
-        .is_err());
 }

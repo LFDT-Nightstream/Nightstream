@@ -1,4 +1,4 @@
-//! The three Lean packages that every circuit needs, embedded as zstd copies
+//! The two Lean packages that every circuit needs, embedded as zstd copies
 //! of the Lean outputs (`artifacts/README.md`), so that a dependency needs no
 //! file of the repository. They are decoded once per process. Their
 //! identities are the pins without a hash at run time, because the bytes are
@@ -8,43 +8,35 @@
 use std::io::Read;
 use std::sync::OnceLock;
 
-use nightstream_fprime::{
-    load_pinned_bounded_depth_finish, load_pinned_bounded_depth_packages, BoundedDepthPackages, StepPackage,
-    BOUNDED_DEPTH_PACKAGES_IDENTITY,
-};
+use nightstream_fprime::{load_pinned_bounded_depth_packages, BoundedDepthPackages, BOUNDED_DEPTH_PACKAGES_IDENTITY};
 
 /// The decoded light and refresh packages of the reference application, whose
-/// application every `Circuit::compile` replaces, and the finish package.
+/// application every `Circuit::compile` replaces.
 pub(crate) struct Embedded {
     pub(crate) packages: BoundedDepthPackages,
-    pub(crate) finish: StepPackage,
 }
 
 /// The embedded packages, decoded on first use.
 pub(crate) fn embedded() -> &'static Embedded {
     static EMBEDDED: OnceLock<Embedded> = OnceLock::new();
     EMBEDDED.get_or_init(|| {
-        let [light, refresh, finish] = copies();
+        let [light, refresh] = copies();
         Embedded {
             packages: load_pinned_bounded_depth_packages(&light, &refresh, BOUNDED_DEPTH_PACKAGES_IDENTITY)
                 .expect("the embedded step packages decode"),
-            finish: load_pinned_bounded_depth_finish(&finish).expect("the embedded finish package decodes"),
         }
     })
 }
 
-/// The unpacked light, refresh and finish packages
-/// (`nightstream-fprime-bounded-depth-{light,refresh,finish}-v1.json`).
-fn copies() -> [Vec<u8>; 3] {
+/// The unpacked light and refresh packages
+/// (`nightstream-fprime-bounded-depth-{light,refresh}-v1.json`).
+fn copies() -> [Vec<u8>; 2] {
     [
         unpack(include_bytes!(
             "../artifacts/nightstream-fprime-bounded-depth-light-v1.json.zst"
         )),
         unpack(include_bytes!(
             "../artifacts/nightstream-fprime-bounded-depth-refresh-v1.json.zst"
-        )),
-        unpack(include_bytes!(
-            "../artifacts/nightstream-fprime-bounded-depth-finish-v1.json.zst"
         )),
     ]
 }

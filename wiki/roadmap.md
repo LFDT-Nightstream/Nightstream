@@ -1,8 +1,8 @@
 # Remaining work
 
 The maintained path is the `nightstream` application compiler, SuperNeo
-folding with a light and a refresh step circuit, the exported HyperNova-style
-recursive verifier, and the final proof. Steps prove only on the CPU path.
+folding with a light and a refresh step circuit, and the exported
+HyperNova-style recursive verifier. Steps prove only on the CPU path.
 
 Keep the active Lean proofs, exact exported rows, Rust witness execution,
 and saved conformance fixtures aligned. Complete the concrete Fiat–Shamir

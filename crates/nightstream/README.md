@@ -1,10 +1,9 @@
 # Nightstream
 
-The `nightstream` crate proves the steps of an application recursively,
-verifies the proofs, and compresses a proof into a final proof. Lean emits
-three circuit packages in `formal/nightstream-fprime/artifacts`. They are the
-light step circuit, the refresh step circuit and the finish circuit. The
-crate embeds them as zstd copies (`artifacts/README.md`). Builds and proofs do
+The `nightstream` crate proves the steps of an application recursively and
+verifies the proofs. Lean emits the light step circuit and the refresh step
+circuit as packages in `formal/nightstream-fprime/artifacts`. The crate
+embeds them as zstd copies (`artifacts/README.md`). Builds and proofs do
 not run Lean.
 
 ## Compile an application
@@ -17,14 +16,13 @@ circuit.write("app.nsc")?;
 ```
 
 `Circuit::compile` puts the Rust application in place of the Lean application
-in both step circuits of the three embedded packages. The reference hash chain
+in both embedded step circuits. The reference hash chain
 (`poseidon2_hash_chain_v1`) keeps Lean's packages, because it computes the step
 of Lean's application region, so its circuit is the one that the Lean checks
 read. The crate decodes the
-packages once per process, and their identities are their pins
-(`BOUNDED_DEPTH_PACKAGES_IDENTITY` and `BOUNDED_DEPTH_FINISH_IDENTITY` in
-`nightstream-fprime`). A test checks that each embedded copy hashes to its
-pin (`artifacts/README.md`). `Circuit::identity` returns the identity of
+packages once per process, and their identity is its pin
+(`BOUNDED_DEPTH_PACKAGES_IDENTITY` in `nightstream-fprime`). A test checks
+that the embedded copies hash to the pin (`artifacts/README.md`). `Circuit::identity` returns the identity of
 the packages with this application.
 
 `Circuit::write` saves only the application. The destination must not exist.
@@ -73,7 +71,7 @@ public input of the fresh instance must be the hash of the state with both
 slots. The claim of each slot must hold under the relation of its circuit.
 The depth of the slot must be at most 64, and the norm of its witness must be
 at most `(17 + depth) · 216`, the bound of an honest slot at that depth. So
-`extend` and `finish` work on each proof that `verify` accepts. The fresh
+`extend` works on each proof that `verify` accepts. The fresh
 instance must hold under the relation of the circuit that ran last.
 
 `Prover::encode_proof` returns the strict bytes of a proof with its
@@ -104,25 +102,6 @@ that instance. There are two kinds of fold.
 No fold ends with Π_DEC. With `cap = 64`, the first period of steps is
 `(L^(cap+1) R)^(cap+1) R`, and each later period is `(L^(cap+1) R)^cap R`
 (`src/lifecycle/bounded_depth/mod.rs`, `src/folding/bounded_depth.rs`).
-
-## Final proof
-
-`Prover::compression_setup(dir)` writes the two layer-1 setups into the
-existing directory `dir`, and returns them with their key.
-`Prover::compress(&proof, &setup)` compresses a proof. The proof does not
-change. The last fold is a refresh fold of the last fresh instance into its
-slot. Then one layer-1 proof (`neo-spartan`) for each slot proves the claim of
-that slot under the relation of its circuit. Last, a shrink proof shows that
-the final program accepts. The final program is the rows of the finish
-package and the two layer-1 verifiers. The final proof has no witness, and you
-cannot extend it.
-
-`Verifier::compression_key` derives the key from the relations, without
-files. Use this key, or a copy that you pinned, as the authority for
-`Verifier::verify_final`. Do not take the key from a prover.
-`Verifier::verify_final(expected, key, final_proof)` checks a final proof
-against the expected state. `formal/compression-lean` proves a soundness bound
-for this final verifier under the assumptions in its `TRUST.md`.
 
 ## Applications
 

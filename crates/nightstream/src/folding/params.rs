@@ -3,17 +3,11 @@ use neo_params::NeoParams;
 #[derive(Clone, Debug)]
 pub(crate) struct Params {
     inner: NeoParams,
-    /// The caller's local minimum for one fold, in bits.
-    minimum_security_bits: u32,
-    /// `-log2` of one fold's zero-query statistical error (not floored).
-    fold_error_bits: f64,
 }
 impl Params {
     pub(crate) fn production() -> Self {
         Self {
             inner: NeoParams::nightstream_goldilocks_k16(),
-            minimum_security_bits: 0,
-            fold_error_bits: f64::INFINITY,
         }
     }
     pub(crate) fn for_ccs_shape(
@@ -56,17 +50,7 @@ impl Params {
             });
         }
         let inner = inner.with_lambda(available)?;
-        Ok(Self {
-            inner,
-            minimum_security_bits,
-            fold_error_bits,
-        })
-    }
-    /// `-log2` of the error the compression argument may add after a final
-    /// fold, so that the total stays within the caller's minimum.
-    pub(crate) fn compression_security_bits(&self) -> Option<f64> {
-        let remaining = (-f64::from(self.minimum_security_bits)).exp2() - (-self.fold_error_bits).exp2();
-        (remaining > 0.0).then(|| -remaining.log2())
+        Ok(Self { inner })
     }
     pub(crate) fn b(&self) -> u32 {
         self.inner.b()

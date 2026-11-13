@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Validation enforces the project cap and reports every requested target.
-#   validate.sh static            boundary checks here and in ../compression-lean (no Lean)
+#   validate.sh static            boundary checks (no Lean)
 #   validate.sh build [target...] lake build (default: the production library)
 #   validate.sh axioms            lake build NightstreamFPrimeTests
 #   validate.sh executables       lake build of every lean_exe target
@@ -10,10 +10,7 @@
 #   validate.sh pi-rlc-sampler-parity <path>
 #   validate.sh ajtai-setup-v1-parity <path>
 #   validate.sh foundation-parity <directory>
-#   validate.sh compression       boundary checks, libraries and executables of
-#                                 ../compression-lean, which imports this package
-#   validate.sh all               static, both libraries, executables, census
-#                                 and compression
+#   validate.sh all               static, both libraries, executables and census
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -45,28 +42,6 @@ lean_file() {
 
 boundaries() {
   bash scripts/check-boundaries.sh
-  bash scripts/check-boundaries.sh ../compression-lean
-}
-
-compression() {
-  # A missing cache, or one at another Mathlib revision than the manifest,
-  # makes Lake fetch Mathlib and rebuild it under the cap.
-  local want
-  want="$(awk '/"rev":/ { rev = $2 } /"name": "mathlib"/ { gsub(/[",]/, "", rev); print rev }' \
-    ../compression-lean/lake-manifest.json)"
-  if [[ -z "$want" || "$(git -C ../compression-lean/.lake/packages/mathlib rev-parse HEAD 2>/dev/null)" != "$want" ]]; then
-    echo "../compression-lean has no Mathlib cache at revision ${want:-?} of its lake-manifest.json. Replace it with the F′ cache first:" >&2
-    echo "  (cd ../compression-lean && rm -rf .lake/packages && mkdir -p .lake && cp -cR ../nightstream-fprime/.lake/packages .lake/)" >&2
-    return 2
-  fi
-  # No target names: Lake builds the package's own defaultTargets.
-  # Lake does not track the files that the ports gate and the census read
-  # (Lean and Rust sources, STATUS.md's tests, SPEC.md); rerun both.
-  (cd ../compression-lean &&
-    capped lake build --wfail &&
-    capped lake build --wfail $(executables) &&
-    lean_file CompressionLeanTests/Ports.lean &&
-    lean_file CompressionLeanTests/SpecCensus.lean)
 }
 
 executables() {
@@ -122,16 +97,11 @@ case "$phase" in
     if (( $# != 2 )); then echo "usage: validate.sh ajtai-setup-v1-parity <path>" >&2; exit 2; fi
     capped lake exe emitAjtaiSetupV1Parity -- "$2"
     ;;
-  compression)
-    bash scripts/check-boundaries.sh ../compression-lean
-    compression
-    ;;
   all)
     boundaries
     capped lake build --wfail NightstreamFPrime NightstreamFPrimeTests
     capped lake build --wfail $(executables)
     lean_file tests/EndpointCensus.lean
-    compression
     ;;
   *) echo "unknown phase: $phase" >&2; exit 2 ;;
 esac

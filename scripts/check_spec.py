@@ -35,13 +35,12 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 SPEC = ROOT / "SPEC.md"
 FPRIME = ROOT / "formal/nightstream-fprime/NightstreamFPrime"
-COMPRESSION = ROOT / "formal/compression-lean/CompressionLean"
-BASES = [ROOT, FPRIME, COMPRESSION]
+BASES = [ROOT, FPRIME]
 ARTIFACTS = ROOT / "formal/nightstream-fprime/artifacts"
-# The bounded-depth packages of the reference application: the light and refresh step circuits and
-# the finish circuit (`Export/BoundedDepth/EmitMain.lean`).
+# The bounded-depth packages of the reference application: the light and refresh step circuits
+# (`Export/BoundedDepth/EmitMain.lean`).
 PACKAGES = [(name, ARTIFACTS / f"nightstream-fprime-bounded-depth-{name}-v1.json")
-            for name in ("light", "refresh", "finish")]
+            for name in ("light", "refresh")]
 PARITY = ARTIFACTS / "nightstream-fprime-bounded-depth-parity-v1.json"
 FORMATS = FPRIME / "Export/BoundedDepth/StepPackage.lean"
 PARITY_SOURCE = FPRIME / "Export/BoundedDepth/Parity.lean"
@@ -51,7 +50,7 @@ BEGIN, END = "<!-- params -->", "<!-- /params -->"
 SPEC_FILES = {"SPEC.md", "scripts/gpuscope/SPEC.md"}
 OLD_CITATION = re.compile(r"[Ss]pec §")
 
-PIN = re.compile(r"`((?:Export|Layout|Lifecycle|Spec|CompressionLean)\.[^`\s]*)` \(`([^`\s.]*)`\)")
+PIN = re.compile(r"`((?:Export|Layout|Lifecycle|Spec)\.[^`\s]*)` \(`([^`\s.]*)`\)")
 FINGERPRINT = re.compile(r"[0-9a-f]{16}")
 TICKED = re.compile(r"`([^`\n]+)`")
 PATH = re.compile(r"[^/\s`]\S*/(\S*\.[A-Za-z][A-Za-z0-9]*)?")
@@ -106,7 +105,7 @@ LABELS = {
 # The header fields of a step package (`StepPackage.Package.format`) and the row counts of the
 # parity file, for each circuit.
 HEADER_LABELS = {
-    "circuit": "The circuit index: 0 light, 1 refresh, 2 finish.",
+    "circuit": "The circuit index: 0 light, 1 refresh.",
     "publicColumns": "The public input columns, five ring elements.",
     "width": "The source width. Every source column is below it.",
     "firstFresh": "The first fresh lowering column.",
@@ -124,7 +123,7 @@ PARITY_LABELS = {
     "relationRows": "R1CS rows of the {} relation, from the pieces and the ring products.",
     "sboxRows": "S-box rows of the {} relation, 150 for each Poseidon2 block.",
 }
-for circuit in ("light", "refresh", "finish"):
+for circuit in ("light", "refresh"):
     LABELS.update({f"{circuit}.{field}": ("—", meaning) for field, meaning in HEADER_LABELS.items()})
 for circuit in ("light", "refresh"):
     LABELS.update({f"{circuit}.{field}": ("—", meaning.format(circuit))

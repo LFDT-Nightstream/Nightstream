@@ -1,16 +1,15 @@
-The `nightstream` Rust build embeds three Lean packages as zstd copies:
+The `nightstream` Rust build embeds two Lean packages as zstd copies:
 
 | Copy | Lean output | Use |
 | --- | --- | --- |
 | `nightstream-fprime-bounded-depth-light-v1.json.zst` | `formal/nightstream-fprime/artifacts/nightstream-fprime-bounded-depth-light-v1.json` | The light step circuit. |
 | `nightstream-fprime-bounded-depth-refresh-v1.json.zst` | `formal/nightstream-fprime/artifacts/nightstream-fprime-bounded-depth-refresh-v1.json` | The refresh step circuit. |
-| `nightstream-fprime-bounded-depth-finish-v1.json.zst` | `formal/nightstream-fprime/artifacts/nightstream-fprime-bounded-depth-finish-v1.json` | The finish circuit of the final proof. |
 
-The crate decodes the copies once per process. Their identities are their pins
-(`BOUNDED_DEPTH_PACKAGES_IDENTITY` and `BOUNDED_DEPTH_FINISH_IDENTITY` in
-`nightstream-fprime`) without a hash at run time, because the bytes are part of
-the binary. `embedded_packages_have_their_pinned_identities` checks that each
-copy hashes to its pin. Every `Circuit::compile` then puts the Rust
+The crate decodes the copies once per process. Their identity is its pin
+(`BOUNDED_DEPTH_PACKAGES_IDENTITY` in `nightstream-fprime`) without a hash at
+run time, because the bytes are part of the binary.
+`embedded_packages_have_their_pinned_identities` checks that the copies hash
+to the pin. Every `Circuit::compile` then puts the Rust
 application in place of Lean's.
 Proving, verification and Rust builds do not run Lean.
 
@@ -24,7 +23,6 @@ each copy is the Lean output and hashes to its pin:
 ```sh
 zstd -19 -q -f -o nightstream-fprime-bounded-depth-light-v1.json.zst < ../../../formal/nightstream-fprime/artifacts/nightstream-fprime-bounded-depth-light-v1.json
 zstd -19 -q -f -o nightstream-fprime-bounded-depth-refresh-v1.json.zst < ../../../formal/nightstream-fprime/artifacts/nightstream-fprime-bounded-depth-refresh-v1.json
-zstd -19 -q -f -o nightstream-fprime-bounded-depth-finish-v1.json.zst < ../../../formal/nightstream-fprime/artifacts/nightstream-fprime-bounded-depth-finish-v1.json
 ```
 
 The Nebula memory packages of Lean

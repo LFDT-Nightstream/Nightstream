@@ -8,8 +8,7 @@ and protocol transcripts use Poseidon2 only.
 Nightstream is not production-ready and has not had an independent audit.
 
 Application integrations use [`nightstream`](crates/nightstream/README.md).
-Lean emits two step circuits, light and refresh, and a finish circuit. The
-Rust application takes the place of the Lean application in both step
+Lean emits two step circuits, light and refresh. The Rust application takes the place of the Lean application in both step
 circuits. Rust CI checks the runtime. Local Lean validation checks the active
 `formal/nightstream-fprime` package.
 
@@ -20,8 +19,6 @@ circuits. Rust CI checks the runtime. Local Lean validation checks the active
 - HyperNova-style recursive R1CS F' induction with two accumulator slots, a
   light fold below the depth cap and a refresh fold at the cap
 - Verification of the fresh instance and the claims of both slots
-- Compression of the final proof with `neo-spartan`, with one layer-1 proof
-  for each slot and a shrink proof
 - A required CUDA backend target that fails explicitly until its canonical
   device kernel is implemented
 
@@ -34,7 +31,7 @@ explicit Fiat–Shamir and MSIS assumptions in the security argument.
 
 | Crate | Ownership |
 |---|---|
-| `nightstream` | Application circuits, CPU proving, verification and compression |
+| `nightstream` | Application circuits, CPU proving and verification |
 | `neo-reductions` | Optimized and PaperExact SuperNeo reductions |
 | `neo-ccs` | CCS and committed-evaluation relation types |
 | `neo-ajtai` | Ajtai setup, commitments, and openings |
@@ -69,8 +66,6 @@ five-minute cap. See [AGENTS.md](AGENTS.md) for the full project rules.
 
 For Lean proof work, use `formal/nightstream-fprime/scripts/validate.sh` and
 read [the project instructions](formal/nightstream-fprime/AGENTS.md).
-`formal/compression-lean/scripts/crosschecks.sh` runs the Rust tests that
-compare Rust with Lean.
 
 ## Papers and implementation notes
 

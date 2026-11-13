@@ -11,11 +11,18 @@
 //! challenges, so the committed fresh witness is the one that it judges.
 //! `neo-compress` proves the three claims.
 //!
-//! The soundness error is the sum of two parts. The Π_CCS run has the test
-//! error of one fold with one source, which the gate of
-//! `Params::for_ccs_shape` bounds for 17 sources. The argument has the error
-//! of `neo_compress::error_bits`, which `compression_layout` holds to the
-//! security minimum. Neither bounds the Akita openings.
+//! The soundness error is the sum of three parts. The caller's
+//! `minimum_security_bits` gates the first two, each alone and never their
+//! sum. The public API has no default for it, and no fold reaches 110 bits.
+//!
+//! 1. The Π_CCS run has the test error of one fold with one source.
+//!    `Params::for_ccs_shape` gates the larger error of a fold with 17
+//!    sources, about `2^-109.15` for the Poseidon2 hash chain.
+//! 2. The argument has the error of `neo_compress::error_bits`: its batches,
+//!    its lookups, its sum-check and the point of `V`, `2^-119.15` for the
+//!    Poseidon2 hash chain. `compression_layout` gates it.
+//! 3. The two Akita openings have the knowledge error of Akita's
+//!    `fp64_dense` schedules. No gate here computes or bounds it.
 
 use std::time::{Duration, Instant};
 
@@ -160,13 +167,15 @@ impl BoundedDepth {
         ]
     }
 
-    /// The layout of the claims, when the error of its argument is within
-    /// the security minimum.
+    /// The layout of the claims, when `neo_compress::error_bits` of it is
+    /// within the security minimum. That number is the error of the batches,
+    /// the lookups, the sum-check and the point of `V`. It has no term for
+    /// the Π_CCS run or for the Akita openings.
     pub(crate) fn compression_layout(&self, pc: u64, depths: [u64; 2]) -> Result<Layout, BoundedDepthError> {
         let layout = Layout::new(&self.compression_claims(pc, depths))?;
         if neo_compress::error_bits(&layout, PUBLIC_WORDS, MATRICES) < f64::from(self.minimum_security_bits) {
             return Err(BoundedDepthError::Statement(
-                "the compression error is above the security minimum",
+                "the batch, lookup and sum-check error of the compression argument is above the security minimum",
             ));
         }
         Ok(layout)

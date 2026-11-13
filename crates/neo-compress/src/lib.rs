@@ -22,10 +22,11 @@
 //! challenges, and its session is the state of that transcript.
 //!
 //! Soundness error, with `|K| = q²`, `q = 2^64 − 59`, `n` variables of `W`,
-//! `N` cells of the largest witness with a table, `T` values of its table,
-//! `m` public cells and `s` claims:
+//! `N` cells of the slice of a witness with a table, `T` values of its
+//! table, `m` public cells, `t` matrices and `s` claims:
 //!
-//! - batch of the equations at `(ω, δ, γ, μ)`: `(κ + 1 + t + max(63, m − 1) + s − 1) / |K|`,
+//! - batch of the equations at `(ω, δ, γ, μ)`:
+//!   `(κ + 1 + t + max(63, m − 1) + s − 1) / |K|`,
 //! - lookup: `((N + T) / q)^3` for each table,
 //! - batch of the inverse checks and the sums at `(ψ, ξ, λ, β)`: `(2 + n) / |K|`,
 //! - sum-check: `3n / |K|`,
@@ -34,8 +35,9 @@
 //!   schedules, which this crate does not compute.
 //!
 //! `error_bits` gives the sum without the Akita term. For the two step
-//! circuits of the Poseidon2 hash chain (`N = 2^25`, `T ≤ 20737`, `n ≤ 28`,
-//! `m = 320`, `s = 3`) it is `2^-116.9`, and the lookup is the largest term.
+//! circuits of the Poseidon2 hash chain (`N = 2^25` and `2^23`, `T ≤ 20737`,
+//! `n ≤ 28`, `m = 320`, `t = 4`, `s = 3`) the lookups give `2^-116.97`, the
+//! other terms `2^-119.2`, and the sum is `2^-116.7`.
 
 mod akita;
 mod layout;
@@ -56,7 +58,7 @@ use p3_field::{PrimeCharacteristicRing, PrimeField64};
 pub use layout::Layout;
 pub use prover::{commit, Committed, ProverTimes};
 pub use sumcheck::Round;
-pub use transcript::absorb_bytes;
+pub use transcript::byte_words;
 pub use verifier::{verify, VerifierTimes};
 
 pub type CeClaim = neo_ccs::CeClaim<Commitment, F, K>;
@@ -73,7 +75,7 @@ pub enum Error {
     Statement(&'static str),
     #[error("compression proof: {0}")]
     Rejected(&'static str),
-    /// A lookup challenge is a table value, with probability below `2^-47`
+    /// A lookup challenge is a table value, with probability about `2^-47`
     /// for each proof. No proof exists for this transcript.
     #[error("compression: a lookup challenge is a table value")]
     Challenge,

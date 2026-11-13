@@ -20,17 +20,21 @@ pub(crate) fn absorb_extension(transcript: &mut Poseidon2Transcript, values: &[K
     transcript.absorb_v1_2(&words);
 }
 
-/// Absorb `bytes` as field words: the byte count, then each seven bytes as
-/// one little-endian word. A word is below `2^56`, so it is canonical, and
-/// the count fixes the bytes of the last word.
-pub fn absorb_bytes(transcript: &mut Poseidon2Transcript, bytes: &[u8]) {
+/// `bytes` as field words: the byte count, then each seven bytes as one
+/// little-endian word. A word is below `2^56`, so it is canonical, and the
+/// count fixes the bytes of the last word.
+pub fn byte_words(bytes: &[u8]) -> Vec<F> {
     let mut words = vec![F::from_u64(bytes.len() as u64)];
     words.extend(bytes.chunks(7).map(|chunk| {
         let mut word = [0u8; 8];
         word[..chunk.len()].copy_from_slice(chunk);
         F::from_u64(u64::from_le_bytes(word))
     }));
-    transcript.absorb_v1_2(&words);
+    words
+}
+
+pub(crate) fn absorb_bytes(transcript: &mut Poseidon2Transcript, bytes: &[u8]) {
+    transcript.absorb_v1_2(&byte_words(bytes));
 }
 
 /// The transcript's state as the session bytes of an Akita opening, after

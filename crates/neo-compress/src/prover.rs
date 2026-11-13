@@ -10,10 +10,10 @@ use p3_field::PrimeCharacteristicRing;
 use rayon::prelude::*;
 
 use crate::akita::{self, prover::Prover};
-use crate::layout::{Layout, Slice, LOOKUPS};
+use crate::layout::{Layout, Slice, LOOKUPS, LOOKUP_VARS};
 use crate::lookup::{code, Inverses, OUTSIDE};
 use crate::sumcheck::{self, Tables};
-use crate::transcript::{absorb_bytes, absorb_extension, session};
+use crate::transcript::{absorb_bytes, absorb_extension, challenges as draw, session};
 use crate::weights::{self, Challenges};
 use crate::{
     absorb_statements, challenges, claimed_sum, inverse_point, layout, lookup_challenges, Error, Proof, Statement,
@@ -27,6 +27,7 @@ const CELLS_PER_TASK: usize = 1 << 16;
 pub struct ProverTimes {
     pub commit_witness: Duration,
     pub commit_inverse: Duration,
+    /// The public weights and the other tables of the sum-check.
     pub weights: Duration,
     pub sumcheck: Duration,
     pub openings: Duration,
@@ -148,10 +149,6 @@ impl Committed {
         &self.committed.bytes
     }
 
-    pub fn layout(&self) -> &Layout {
-        &self.layout
-    }
-
     /// Column `k` of `V`: on each cell with a table, the inverse of
     /// challenge `k`.
     fn write_inverse_column(&self, tables: &[(Slice, Inverses)], k: usize, column: &mut [akita::Base]) {
@@ -195,7 +192,7 @@ impl Committed {
 
     /// Each column of `V` at `rho`, from the codes: the cells of one code
     /// share one inverse, so the sum of their `eq` weights is sufficient.
-    fn inverse_values(&self, tables: &[(Slice, Inverses)], rho: &[K]) -> [K; 1 << crate::layout::LOOKUP_VARS] {
+    fn inverse_values(&self, tables: &[(Slice, Inverses)], rho: &[K]) -> [K; 1 << LOOKUP_VARS] {
         let mut values = [K::ZERO; 1 << crate::layout::LOOKUP_VARS];
         for (slice, inverses) in tables {
             let equality = EqualityWeights::new(&rho[..slice.vars]);
@@ -263,19 +260,25 @@ impl Committed {
         let challenges = challenges(transcript, &self.layout, taus);
 
         let start = Instant::now();
-        let weights = weights::table(statements, &self.layout, &challenges)?;
-        times.weights = start.elapsed();
-
-        let start = Instant::now();
-        let [check, sum, combined, scaled] = self.lookup_tables(&tables, &challenges);
+        // The lookup tables are ready before the pass over the Ajtai key ends.
+        let (weights, (witness, [check, sum, combined, scaled])) = rayon::join(
+            || weights::table(statements, &self.layout, &challenges),
+            || {
+                let witness = self.witness.par_iter().map(|&cell| K::from(cell)).collect();
+                (witness, self.lookup_tables(&tables, &challenges))
+            },
+        );
         let sum_tables = Tables {
-            witness: self.witness.par_iter().map(|&cell| K::from(cell)).collect(),
-            weights,
+            witness,
+            weights: weights?,
             check,
             sum,
             inverse: combined,
             scaled_inverse: scaled,
         };
+        times.weights = start.elapsed();
+
+        let start = Instant::now();
         let (rounds, rho, witness_value) = sumcheck::prove(
             transcript,
             sum_tables,
@@ -286,7 +289,7 @@ impl Committed {
         times.sumcheck = start.elapsed();
         absorb_extension(transcript, &[witness_value]);
         absorb_extension(transcript, &inverse_values);
-        let column = crate::transcript::challenges(transcript, crate::layout::LOOKUP_VARS);
+        let column = draw(transcript, LOOKUP_VARS);
 
         let start = Instant::now();
         let inverse_value = weights::equality(&column, inverse_values.len())
@@ -296,18 +299,19 @@ impl Committed {
             .sum();
         let witness_commitment = self.committed.bytes.clone();
         let inverse_commitment = inverse.bytes.clone();
-        let witness_opening = self.akita.open(
-            self.committed,
-            &rho,
-            witness_value,
-            &session(transcript, WITNESS_SESSION),
-        )?;
-        let inverse_opening = self.akita.open(
-            inverse,
-            &inverse_point(&self.layout, &rho, &column),
-            inverse_value,
-            &session(transcript, INVERSE_SESSION),
-        )?;
+        let (akita, layout, committed) = (&self.akita, &self.layout, self.committed);
+        let (witness_opening, inverse_opening) = rayon::join(
+            || akita.open(committed, &rho, witness_value, &session(transcript, WITNESS_SESSION)),
+            || {
+                akita.open(
+                    inverse,
+                    &inverse_point(layout, &rho, &column),
+                    inverse_value,
+                    &session(transcript, INVERSE_SESSION),
+                )
+            },
+        );
+        let (witness_opening, inverse_opening) = (witness_opening?, inverse_opening?);
         times.openings = start.elapsed();
         Ok((
             Proof {

@@ -11,7 +11,7 @@ use crate::akita::{
     verifier::{Opening, Verifier},
 };
 use crate::layout::{LOOKUPS, LOOKUP_VARS};
-use crate::transcript::{absorb_bytes, absorb_extension, session};
+use crate::transcript::{absorb_bytes, absorb_extension, challenges as draw, session};
 use crate::weights;
 use crate::{
     absorb_statements, challenges, claimed_sum, inverse_point, layout, lookup_challenges, sumcheck, Error, Proof,
@@ -46,7 +46,7 @@ pub fn verify(
     let (rho, value) = sumcheck::verify(transcript, &proof.rounds, claimed_sum(statements, &challenges))?;
     absorb_extension(transcript, &[proof.witness_value]);
     absorb_extension(transcript, &proof.inverse_values);
-    let column = crate::transcript::challenges(transcript, LOOKUP_VARS);
+    let column = draw(transcript, LOOKUP_VARS);
 
     let start = Instant::now();
     let inverse_value = weights::equality(&column, proof.inverse_values.len())

@@ -82,7 +82,7 @@ struct Evaluations<'a> {
 }
 
 impl<'a> Evaluations<'a> {
-    fn new(statement: &'a Statement<'a>, cells: &Cells, omega: &[K]) -> Result<Self, Error> {
+    fn new(statement: &'a Statement<'a>, cells: &Cells, omega: K) -> Result<Self, Error> {
         let claim = statement.claim;
         let rows = statement
             .rows
@@ -92,6 +92,7 @@ impl<'a> Evaluations<'a> {
         let low: [K; D] = equality(low, D).try_into().expect("D lane weights");
         let row_weights = EqualityWeights::new(&claim.r);
         let matrices = claim.eval_a.len();
+        let omega = powers(omega, KAPPA + 2 + matrices);
         Ok(Self {
             rows,
             lanes: conjugate(&low).map(|weight| weight * omega[KAPPA]),
@@ -100,6 +101,34 @@ impl<'a> Evaluations<'a> {
             public: omega[KAPPA + 1 + matrices],
         })
     }
+}
+
+/// `prepare` of each claim's `Evaluations`, on other threads than the pass
+/// over the Ajtai key that `key` makes.
+fn with_key_pass<'a, T: Send>(
+    statements: &'a [Statement<'a>],
+    layout: &Layout,
+    challenges: &Challenges,
+    key: impl FnOnce(usize) -> Vec<K> + Send,
+    prepare: impl Fn(Evaluations<'a>, &Cells) -> T + Sync,
+) -> Result<(Vec<K>, Vec<T>), Error> {
+    let max_blocks = layout
+        .cells
+        .iter()
+        .map(|cells| cells.blocks)
+        .max()
+        .unwrap_or(0);
+    let (ajtai, prepared) = rayon::join(
+        || key(max_blocks),
+        || {
+            statements
+                .par_iter()
+                .zip(&layout.cells)
+                .map(|(statement, cells)| Ok(prepare(Evaluations::new(statement, cells, challenges.omega)?, cells)))
+                .collect::<Result<Vec<_>, Error>>()
+        },
+    );
+    Ok((ajtai, prepared?))
 }
 
 /// The value that the weights of claim `statement` give on its witness: its
@@ -189,28 +218,31 @@ fn count_weights(bound: u64, lambda: K, challenges: &Challenges) -> Result<Vec<K
 /// The prover's `G`, on the prefix of `W` that holds cells.
 pub(crate) fn table(statements: &[Statement<'_>], layout: &Layout, challenges: &Challenges) -> Result<Vec<K>, Error> {
     let point = Point::new(challenges.delta);
-    let max_blocks = layout
-        .cells
-        .iter()
-        .map(|cells| cells.blocks)
-        .max()
-        .unwrap_or(0);
     let omega = split(&powers(challenges.omega, KAPPA));
-    // Block j, lane h: (X^h · Σ_i ω^i A_ij)(δ), the same for each claim.
-    let ajtai = key_pass(max_blocks, D, |keys, output| {
-        let batched: [K; D] = std::array::from_fn(|lane| combine(&omega, keys.iter().map(|key| key[lane])));
-        output.copy_from_slice(&point.lanes(&batched));
-    });
+    let (ajtai, prepared) = with_key_pass(
+        statements,
+        layout,
+        challenges,
+        // Block j, lane h: (X^h · Σ_i ω^i A_ij)(δ), the same for each claim.
+        |blocks| {
+            key_pass(blocks, D, |keys, output| {
+                let batched: [K; D] = std::array::from_fn(|lane| combine(&omega, keys.iter().map(|key| key[lane])));
+                output.copy_from_slice(&point.lanes(&batched));
+            })
+        },
+        |evaluations, _| {
+            let columns = evaluations.rows.column_weights(&evaluations.slots);
+            (evaluations, columns)
+        },
+    )?;
     let mut table = vec![K::ZERO; layout.witness_len];
     let mut tables = 0;
-    for ((statement, cells), mu) in statements
+    for (((statement, cells), (evaluations, columns)), mu) in statements
         .iter()
         .zip(&layout.cells)
+        .zip(prepared)
         .zip(powers(challenges.mu, statements.len()))
     {
-        let omega = powers(challenges.omega, KAPPA + 2 + statement.claim.eval_a.len());
-        let evaluations = Evaluations::new(statement, cells, &omega)?;
-        let columns = evaluations.rows.column_weights(&evaluations.slots);
         let witness = &mut table[cells.witness.range()][..cells.blocks * D];
         witness
             .par_chunks_mut(D)
@@ -253,50 +285,53 @@ pub(crate) fn evaluate(
         .try_into()
         .expect("D lane weights");
     let form = point.lanes(&lane_weights);
-    let max_blocks = layout
-        .cells
-        .iter()
-        .map(|cells| cells.blocks)
-        .max()
-        .unwrap_or(0);
+    let conjugate_form = conjugate(&form);
     let omega = powers(challenges.omega, KAPPA);
     let split_form = split(&form);
-    let ajtai = key_pass(max_blocks, 1, |keys, output| {
-        output[0] = keys
-            .iter()
-            .zip(&omega)
-            .map(|(key, &omega)| omega * combine(&split_form, key.iter().copied()))
-            .sum();
-    });
-    let conjugate_form = conjugate(&form);
+    let (ajtai, prepared) = with_key_pass(
+        statements,
+        layout,
+        challenges,
+        |blocks| {
+            key_pass(blocks, 1, |keys, output| {
+                output[0] = keys
+                    .iter()
+                    .zip(&omega)
+                    .map(|(key, &omega)| omega * combine(&split_form, key.iter().copied()))
+                    .sum();
+            })
+        },
+        // The matrices and `Eval_K` of the claim, and `eq(ρ_hi, j)` of each block.
+        |evaluations, cells| {
+            let blocks = equality(&rho[LANE_VARS..cells.witness.vars], cells.blocks);
+            let mut projection = vec![K::ZERO; cells.blocks * D];
+            projection
+                .par_chunks_mut(D)
+                .zip(&blocks)
+                .for_each(|(output, &block)| {
+                    for (output, &weight) in output.iter_mut().zip(&conjugate_form) {
+                        *output = block * weight;
+                    }
+                });
+            let matrices = dot(&evaluations.slots, &evaluations.rows.projected_slot_values(&projection));
+            let pad = dot(&form, &evaluations.lanes) * dot(&blocks, &evaluations.blocks);
+            (matrices + pad, evaluations.public, blocks)
+        },
+    )?;
     let mut total = K::ZERO;
     let mut tables = 0;
-    for ((statement, cells), mu) in statements
+    for (((statement, cells), (evaluations, public, blocks)), mu) in statements
         .iter()
         .zip(&layout.cells)
+        .zip(prepared)
         .zip(powers(challenges.mu, statements.len()))
     {
-        let omega = powers(challenges.omega, KAPPA + 2 + statement.claim.eval_a.len());
-        let evaluations = Evaluations::new(statement, cells, &omega)?;
-        let low = &rho[..cells.witness.vars];
-        let blocks = equality(&low[LANE_VARS..], cells.blocks);
-        let mut projection = vec![K::ZERO; cells.blocks * D];
-        projection
-            .par_chunks_mut(D)
-            .zip(&blocks)
-            .for_each(|(output, &block)| {
-                for (output, &weight) in output.iter_mut().zip(&conjugate_form) {
-                    *output = block * weight;
-                }
-            });
-        let matrices = dot(&evaluations.slots, &evaluations.rows.projected_slot_values(&projection));
-        let pad = dot(&form, &evaluations.lanes) * dot(&blocks, &evaluations.blocks);
-        let public = evaluations.public
-            * equality(low, statement.claim.m_in)
+        let public = public
+            * equality(&rho[..cells.witness.vars], statement.claim.m_in)
                 .iter()
                 .rev()
                 .fold(K::ZERO, |value, &weight| value * challenges.gamma + weight);
-        let witness = dot(&blocks, &ajtai[..cells.blocks]) + pad + matrices + public;
+        let witness = dot(&blocks, &ajtai[..cells.blocks]) + evaluations + public;
         total += mu * cells.witness.selector(rho) * witness;
         if let Some((bound, counts)) = cells.table {
             let weights = count_weights(bound, challenges.lambda[tables], challenges)?;

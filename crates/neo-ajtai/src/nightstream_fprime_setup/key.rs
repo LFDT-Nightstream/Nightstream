@@ -1,6 +1,8 @@
 //! Exact indexed SHAKE128 expansion. Two independent key elements share
 //! the CPU's parallel permutation; scalar backends keep the same framing.
 
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+
 use keccak::{Backend, BackendClosure, Keccak, ParState1600};
 use neo_math::{field::Q, signed_sums::SplitRing, Fq};
 use p3_field::PrimeField64;
@@ -40,9 +42,37 @@ pub(super) fn coefficient_pair(seed: &[u8; 32], row: u32, columns: [u64; 2]) -> 
     })
 }
 
+/// One counter for each thread, on its own cache lines: a thread that expands
+/// key elements writes no line that another thread reads.
+#[repr(align(128))]
+struct Count(AtomicU64);
+
+static COUNTS: [Count; 64] = [const { Count(AtomicU64::new(0)) }; 64];
+static THREADS: AtomicUsize = AtomicUsize::new(0);
+
+thread_local! {
+    static COUNT: usize = THREADS.fetch_add(1, Ordering::Relaxed) % COUNTS.len();
+}
+
+/// Each expansion of key elements records its SHAKE128 output bytes here.
+pub(super) fn count_expanded(bytes: usize) {
+    COUNT.with(|&count| COUNTS[count].0.fetch_add(bytes as u64, Ordering::Relaxed));
+}
+
+/// The SHAKE128 output bytes of the key elements that this process expanded.
+/// A test reads it before and after a call to show that the call expands no
+/// key element.
+pub fn expanded_key_bytes() -> u64 {
+    COUNTS
+        .iter()
+        .map(|count| count.0.load(Ordering::Relaxed))
+        .sum()
+}
+
 /// The output of each element as the sponge's 64-bit words: lane `L` is the
 /// little-endian integer of words `4L..4L + 4`.
 fn word_pair(seed: &[u8; 32], row: u32, columns: [u64; 2]) -> [[u64; OUTPUT_WORDS]; 2] {
+    count_expanded(2 * 8 * OUTPUT_WORDS);
     let mut words = [[0u64; OUTPUT_WORDS]; 2];
     Keccak::new().with_backend(KeyPair {
         seed,

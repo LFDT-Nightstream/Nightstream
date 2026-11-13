@@ -10,6 +10,9 @@ use std::{borrow::Borrow, ops::Range};
 
 mod key;
 
+#[doc(hidden)]
+pub use key::expanded_key_bytes;
+
 use neo_ccs::Mat;
 use neo_math::{
     balanced::to_balanced_i128,
@@ -66,6 +69,7 @@ pub fn element_bytes(seed: &[u8; 32], row: u32, block: u64) -> [u8; 32 * D] {
     let mut xof = Shake128::default();
     xof.update(&element_input(seed, row, block));
     let mut bytes = [0_u8; 32 * D];
+    key::count_expanded(bytes.len());
     xof.finalize_xof().read(&mut bytes);
     bytes
 }

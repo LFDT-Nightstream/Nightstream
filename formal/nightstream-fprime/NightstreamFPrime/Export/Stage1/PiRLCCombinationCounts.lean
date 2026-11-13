@@ -41,7 +41,7 @@ private theorem indexedLaneRowCountSum
     (blockCount cellCount : Nat) [NeZero cellCount] :
     (List.ofFn fun index : Fin (CombinationStep.privateCount blockCount cellCount) =>
       laneFreshCount (CombinationStep.laneOf index) + 1).sum =
-        blockCount * cellCount * 8154 := by
+        blockCount * cellCount * 8384 := by
   rw [listSumOfFn]
   let outerEquiv :
       Fin (CombinationStep.privateCount blockCount cellCount) ≃
@@ -86,10 +86,10 @@ private theorem indexedLaneRowCountSum
               apply Finset.sum_congr rfl
               intro lane _
               simp
-    _ = blockCount * cellCount * 8154 := by
+    _ = blockCount * cellCount * 8384 := by
       have laneSum :
           ∑ lane : Fin ringDegree,
-              (laneFreshCount lane + 1) = 8154 := by
+              (laneFreshCount lane + 1) = 8384 := by
         rw [← listSumOfFn]
         exact PiRLCCombinationTemplates.laneRowCount_sum
       rw [laneSum]
@@ -109,7 +109,7 @@ private theorem sourceCompactRowCountFor
           invocation logicalStart rowStart freshStart blockCount cellCount
             valueStride source coordinates.1.val coordinates.2.1.val
               coordinates.2.2.val valueSourceStart) =
-      blockCount * cellCount * 8154 := by
+      blockCount * cellCount * 8384 := by
   unfold compactRowCountFor
   rw [List.map_ofFn]
   calc
@@ -132,7 +132,7 @@ private theorem sourceCompactRowCountFor
               source (CombinationStep.coordinates index).1.val
               (CombinationStep.coordinates index).2.2.val
               (CombinationStep.coordinates index).2.1 valueSourceStart
-    _ = blockCount * cellCount * 8154 :=
+    _ = blockCount * cellCount * 8384 :=
       indexedLaneRowCountSum blockCount cellCount
 
 private theorem compactRowCountFor_flatMap {Index : Type}
@@ -166,7 +166,7 @@ theorem familyCompactRowCountFor
     compactRowCountFor templates
         (familyInvocations logicalStart rowStart freshStart blockCount cellCount
           valueStride valueSourceStart) =
-      sourceCount * blockCount * cellCount * 8154 := by
+      sourceCount * blockCount * cellCount * 8384 := by
   unfold familyInvocations
   rw [compactRowCountFor_flatMap]
   simp_rw [sourceCompactRowCountFor templates selection logicalStart rowStart
@@ -179,7 +179,7 @@ theorem invocationsCompactRowCountFor
     (selection : ∀ source : Nat, ∀ lane : Fin ringDegree,
       templates[PiRLCCombinationTemplates.templateIndex source lane.val]? =
         some (PiRLCCombinationTemplates.template (firstSource source) lane)) :
-    compactRowCountFor templates invocations = 5128866 := by
+    compactRowCountFor templates invocations = 4703424 := by
   rw [invocations, compactRowCountFor_append, compactRowCountFor_append,
     compactRowCountFor_append]
   rw [commitmentInvocations, familyCompactRowCountFor templates selection,

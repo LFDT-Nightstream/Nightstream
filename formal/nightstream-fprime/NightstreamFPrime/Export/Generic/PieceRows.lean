@@ -3,7 +3,7 @@ import NightstreamFPrime.Spec.RingRelation.QuotientProduct
 
 /-! The R1CS rows of a circuit's pieces (CW-5.7). A ring-product piece is one `CombinationStep`
 block of the Π_RLC combinations: for each cell, `output = prior + challenge * value` in the ring.
-It becomes 108 rows per cell, row `r` checking at node `r`
+It becomes 128 rows per cell, row `r` checking at node `r`
 
   `challenge(r) * value(r) = output(r) - prior(r) + Φ81(r) * quotient(r)`,
 
@@ -110,7 +110,7 @@ def quotientColumn (quotient : Nat) (lane : Fin ringDegree) (cell : Nat) : Nat :
 
 /-- The row of `cell` at `node`: `challenge * value = output - prior + Φ81 * quotient`, each side
 evaluated at the node. -/
-def ringRow (cells start quotient : Nat) (lanes : List Expr) (cell : Nat) (node : Fin 108) :
+def ringRow (cells start quotient : Nat) (lanes : List Expr) (cell : Nat) (node : Fin 128) :
     R1CS.Row :=
   let point := QuotientProduct.node node
   { a := evaluation point fun lane => laneCombination (lanes.getD lane.val 0)
@@ -121,19 +121,19 @@ def ringRow (cells start quotient : Nat) (lanes : List Expr) (cell : Nat) (node 
         (.scale (QuotientProduct.modulusValue point)
           (evaluation point fun lane => .ofVar (quotientColumn quotient lane cell)))) }
 
-/-- 108 rows per cell, with the quotients of the block in `ringDegree * cells` fresh columns
+/-- 128 rows per cell, with the quotients of the block in `ringDegree * cells` fresh columns
 from `quotient`. -/
 def ringRows (cells start quotient : Nat) (lanes : List Expr) : List R1CS.Row :=
   (List.range cells).flatMap fun cell => List.ofFn (ringRow cells start quotient lanes cell)
 
 theorem ringRow_mem {cells start quotient cell : Nat} {lanes : List Expr} (inside : cell < cells)
-    (node : Fin 108) :
+    (node : Fin 128) :
     ringRow cells start quotient lanes cell node ∈ ringRows cells start quotient lanes :=
   List.mem_flatMap.mpr ⟨cell, List.mem_range.mpr inside, List.mem_ofFn.mpr ⟨node, rfl⟩⟩
 
-/-- The 108 equations, as the rows state them, give the ring identity. -/
+/-- The 128 equations, as the rows state them, give the ring identity. -/
 theorem ring_of_equations (left right prior output quotient : RingF)
-    (equations : ∀ index : Fin 108,
+    (equations : ∀ index : Fin 128,
       QuotientProduct.evaluate left (QuotientProduct.node index) *
           QuotientProduct.evaluate right (QuotientProduct.node index) =
         QuotientProduct.evaluate output (QuotientProduct.node index) +

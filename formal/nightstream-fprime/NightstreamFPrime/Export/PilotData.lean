@@ -202,23 +202,6 @@ def priorExtraRows (_unit : Unit) : List Stage1.Rows.CompiledRow :=
     (Stage1.Rows.lowerConstraintsTR (priorExtraConstraints ())
       PilotValues.logicalColumnCount).rows).map remapCompiledRow
 
-def priorFixedRowStart : Nat :=
-  priorBindingRowStart + PilotValues.priorCanonicalRowCount
-
-def markerBindingRow : SparseRow :=
-  ⟨priorFixedRowStart,
-    ⟨(-1 : F).val, [⟨PilotValues.firstPublicStart, 1⟩]⟩,
-    oneCombination, zeroCombination⟩
-
-def tailBindingRows : List SparseRow :=
-  List.ofFn fun lane : Fin 13 =>
-    ⟨priorFixedRowStart + 1 + lane.val,
-      ⟨0, [⟨PilotValues.firstPublicStart + 257 + lane.val, 1⟩]⟩,
-      oneCombination, zeroCombination⟩
-
-def bindingRows (_unit : Unit) : List SparseRow :=
-  markerBindingRow :: tailBindingRows
-
 def assertionRows (_unit : Unit) : List SparseRow :=
   Stage1.Rows.assertionRowsTR (priorExtraRows ()) ++ digestRows outputChain
 

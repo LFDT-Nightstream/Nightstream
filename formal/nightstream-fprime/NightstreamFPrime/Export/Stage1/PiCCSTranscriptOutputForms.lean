@@ -20,7 +20,7 @@ abbrev TranscriptIndex := Fin PiCCSOrdinarySourceSupport.transcriptInvocationCou
 
 def invocation (index : TranscriptIndex) : Fin PiCCSPoseidonPlan.invocationCount :=
   ⟨index.val, by
-    have bound : index.val < 183 := by
+    have bound : index.val < 184 := by
       simpa only [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq]
         using index.isLt
     rw [PiCCSPoseidonPlan.invocationCount_eq]
@@ -135,7 +135,7 @@ theorem transcriptGrid_form?
     (transcriptGrid program).form? logicalWidth
         (Spartan.sourceToSpartan (transcriptSource index lane)) =
       some (transcriptForm geometry index lane) := by
-  have indexBound : index.val < 183 := by
+  have indexBound : index.val < 184 := by
     simpa only [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq]
       using index.isLt
   have laneBound := lane.isLt

@@ -89,14 +89,14 @@ def transitionPlan
       relationPublicFits)
     (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry application
       logicalWidth) :
-    (samplerOrdinaryPlan relation geometry).rowCount = 14943 := by
+    (samplerOrdinaryPlan relation geometry).rowCount = 15453 := by
   exact PiRLCSamplerOrdinaryDirectPlan.plan_rowCount relation geometry
 
 @[simp] theorem piRlcPlan_rowCount
     {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry application
       logicalWidth) :
-    (piRlcPlan geometry).rowCount = 67932 := by
+    (piRlcPlan geometry).rowCount = 71808 := by
   exact DirectPiDECPrefixPlan.piRlcPlan_rowCount _
 
 private theorem samplerCompleteRowCount_le

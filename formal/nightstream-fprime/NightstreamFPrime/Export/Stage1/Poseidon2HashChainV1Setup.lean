@@ -17,7 +17,7 @@ def messageColumns : Nat :=
       (PerApplicationFixedPoint.logicalWidth
         Poseidon2HashChainV1Package.application))
 
-@[simp] theorem verifierRows_eq : verifierRows = 22 := by
+@[simp] theorem verifierRows_eq : verifierRows = 18 := by
   rfl
 
 @[simp] theorem carrierWidth_eq :

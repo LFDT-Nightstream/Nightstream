@@ -766,7 +766,7 @@ theorem statementBindingRows_length
     (publicFits : ringDegree * publicRingColumns ≤
       RingCarrierLayout.carrierWidth logicalWidth)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    (statementBindingRows logicalWidth publicFits).length = 4712 := by
+    (statementBindingRows logicalWidth publicFits).length = 5632 := by
   rw [statementBindingRows, compilePacket_length]
   unfold statementBindingConstraints
   exact
@@ -784,7 +784,7 @@ theorem initialClaimRows_length
     (publicFits : ringDegree * publicRingColumns ≤
       RingCarrierLayout.carrierWidth logicalWidth)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    (initialClaimRows logicalWidth publicFits).length = 12957 := by
+    (initialClaimRows logicalWidth publicFits).length = 15357 := by
   rw [initialClaimRows, compilePacket_length]
   unfold initialClaimConstraints
   rw [initialClaimLogicalStart_matches logicalWidth publicFits]
@@ -814,7 +814,7 @@ theorem evalKRows_length
     (publicFits : ringDegree * publicRingColumns ≤
       RingCarrierLayout.carrierWidth logicalWidth)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    (evalKRows logicalWidth publicFits).length = 3364 := by
+    (evalKRows logicalWidth publicFits).length = 3844 := by
   rw [evalKRows, compilePacket_length]
   unfold evalKConstraints
   rw [evalKLogicalStart_matches logicalWidth publicFits]
@@ -829,7 +829,7 @@ theorem evalARows_length
     (publicFits : ringDegree * publicRingColumns ≤
       RingCarrierLayout.carrierWidth logicalWidth)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    (evalARows logicalWidth publicFits).length = 11140 := by
+    (evalARows logicalWidth publicFits).length = 13060 := by
   rw [evalARows, compilePacket_length]
   unfold evalAConstraints
   rw [evalALogicalStart_matches logicalWidth publicFits]
@@ -881,7 +881,7 @@ theorem finalIdentityRows_length
     (publicFits : ringDegree * publicRingColumns ≤
       RingCarrierLayout.carrierWidth logicalWidth)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    (finalIdentityRows logicalWidth publicFits).length = 3593 := by
+    (finalIdentityRows logicalWidth publicFits).length = 4073 := by
   rw [finalIdentityRows, compilePacket_length]
   unfold finalIdentityConstraints mainConstraints
   rw [finalIdentityLogicalStart_matches logicalWidth publicFits]
@@ -918,7 +918,7 @@ theorem arithmeticRows_length
     (publicFits : ringDegree * publicRingColumns ≤
       RingCarrierLayout.carrierWidth logicalWidth)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    (arithmeticRows logicalWidth publicFits).length = 37317 := by
+    (arithmeticRows logicalWidth publicFits).length = 43517 := by
   unfold arithmeticRows
   rw [List.length_append, List.length_append, List.length_append,
     List.length_append, List.length_append, List.length_append,

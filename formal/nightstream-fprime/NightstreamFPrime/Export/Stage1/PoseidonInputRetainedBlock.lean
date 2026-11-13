@@ -55,12 +55,12 @@ def outputBlock : LowNormBlock.Block basePackage.layout.constantColumn :=
 @[simp] theorem outputBlock_kind : outputBlock.kind = .field := by
   rfl
 
-@[simp] theorem priorBlock_slotCount : priorBlock.slotCount = 27819 := by
+@[simp] theorem priorBlock_slotCount : priorBlock.slotCount = 28913 := by
   norm_num [priorBlock, block, Data.priorChain, Data.liftPilotChain,
     PilotData.priorChain, PilotValues.stateHashWords,
     PilotValues.stateHashBaseWords]
 
-@[simp] theorem outputBlock_slotCount : outputBlock.slotCount = 27819 := by
+@[simp] theorem outputBlock_slotCount : outputBlock.slotCount = 28913 := by
   norm_num [outputBlock, block, Data.outputChain, Data.liftPilotChain,
     PilotData.outputChain, PilotValues.stateHashWords,
     PilotValues.stateHashBaseWords]

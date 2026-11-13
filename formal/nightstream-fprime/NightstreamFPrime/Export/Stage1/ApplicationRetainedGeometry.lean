@@ -118,7 +118,7 @@ theorem inputFits {application : Lifecycle.Stage1.Application.Program}
   have full : (PiRLCPoseidonGeometry.priorInputBlock application).coordinateCount =
       1140579 := by simp [PiRLCPoseidonGeometry.priorInputBlock]
   rw [full] at pilot
-  change PiRLCPoseidonGeometry.priorInputStart application + 27815 * 41 + 4 * 41 ≤
+  change PiRLCPoseidonGeometry.priorInputStart application + 28909 * 41 + 4 * 41 ≤
     logicalWidth
   omega
 
@@ -138,7 +138,7 @@ theorem outputFits {application : Lifecycle.Stage1.Application.Program}
   have full : (PiRLCPoseidonGeometry.outputInputBlock application).coordinateCount =
       1140579 := by simp [PiRLCPoseidonGeometry.outputInputBlock]
   rw [full] at pilot
-  change PiRLCPoseidonGeometry.outputInputStart application + 27815 * 41 + 4 * 41 ≤
+  change PiRLCPoseidonGeometry.outputInputStart application + 28909 * 41 + 4 * 41 ≤
     logicalWidth
   omega
 

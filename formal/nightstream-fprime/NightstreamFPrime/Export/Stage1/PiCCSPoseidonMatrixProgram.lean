@@ -15,7 +15,7 @@ def previousRule (program : Program) : PoseidonInput.Rule where
       (PiCCSPoseidonPlan.retainedStart program)) 134 150
 
 def payloadRule (program : Program) : PoseidonInput.Rule where
-  region := ⟨0, 948, 0, 12⟩
+  region := ⟨0, 1091, 0, 12⟩
   term := .affine (PiCCSPayloadMatrix.table ())
     (PiCCSOrdinaryMatrixProgram.substitution program) 12
 
@@ -37,7 +37,7 @@ def matrixProgram {program : Program} {logicalWidth : Nat}
 @[simp] theorem poseidonBlock_rowCount
     {program : Program} {logicalWidth : Nat}
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth) :
-    (poseidonBlock geometry).rowCount = 142200 := by
+    (poseidonBlock geometry).rowCount = 163650 := by
   calc
     (poseidonBlock geometry).rowCount =
         PiCCSPoseidonPlan.invocationCount * 150 := by
@@ -45,13 +45,13 @@ def matrixProgram {program : Program} {logicalWidth : Nat}
         (PiCCSPoseidonPlan.schedule program)
         (PiCCSPoseidonPlan.retainedStart program)
         (PiCCSOrdinaryRetainedGeometry.oneColumn geometry) (inputProgram program)
-    _ = 142200 := by
+    _ = 163650 := by
       norm_num [PiCCSPoseidonPlan.invocationCount_eq]
 
 @[simp] theorem matrixProgram_rowCount
     {program : Program} {logicalWidth : Nat}
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth) :
-    (matrixProgram geometry).rowCount = 142200 := by
+    (matrixProgram geometry).rowCount = 163650 := by
   rw [show matrixProgram geometry = MatrixProgram.Program.mk
       [.poseidon (poseidonBlock geometry)] by rfl]
   rw [MatrixProgram.Program.singleton_rowCount]

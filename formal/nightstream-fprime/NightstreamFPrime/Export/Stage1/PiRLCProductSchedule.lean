@@ -20,7 +20,7 @@ deriving Repr, DecidableEq
 namespace Family
 
 def blockCount : Family → Nat
-  | .commitment => 22
+  | .commitment => 18
   | .publicInput => 5
   | .evalK => 1
   | .evalA => 4
@@ -50,20 +50,20 @@ def invocationCount (family : Family) : Nat :=
   sourceCount * family.privateCount
 
 @[simp] theorem commitment_invocationCount :
-    invocationCount .commitment = 20196 := by
+    invocationCount .commitment = 19584 := by
   norm_num [invocationCount, privateCount, blockCount, cellCount,
     CombinationStep.privateCount, sourceCount, ringDegree]
 
 @[simp] theorem publicInput_invocationCount :
-    invocationCount .publicInput = 4590 := by
+    invocationCount .publicInput = 5440 := by
   norm_num [invocationCount, privateCount, blockCount, cellCount,
     CombinationStep.privateCount, sourceCount, ringDegree]
 
-@[simp] theorem evalK_invocationCount : invocationCount .evalK = 1836 := by
+@[simp] theorem evalK_invocationCount : invocationCount .evalK = 2176 := by
   norm_num [invocationCount, privateCount, blockCount, cellCount,
     CombinationStep.privateCount, sourceCount, ringDegree]
 
-@[simp] theorem evalA_invocationCount : invocationCount .evalA = 7344 := by
+@[simp] theorem evalA_invocationCount : invocationCount .evalA = 8704 := by
   norm_num [invocationCount, privateCount, blockCount, cellCount,
     CombinationStep.privateCount, sourceCount, ringDegree]
 
@@ -192,7 +192,7 @@ def sourceConstraint (descriptor : Descriptor) :
   match descriptor with
   | ⟨.commitment, source, block, lane, cell⟩ =>
       PiRLCCombinationInvocations.sourceConstraint
-        PiRLCStarts.commitmentLogicalStart 22 1 1 source.val block.val cell.val
+        PiRLCStarts.commitmentLogicalStart 18 1 1 source.val block.val cell.val
           commitmentValueSourceStart lane
   | ⟨.publicInput, source, block, lane, cell⟩ =>
       PiRLCCombinationInvocations.sourceConstraint
@@ -242,7 +242,7 @@ def Descriptor.compactInvocation (descriptor : Descriptor) :
   | ⟨.commitment, source, block, lane, cell⟩ =>
       invocation PiRLCStarts.commitmentLogicalStart
         PiRLCStarts.commitmentRowStart PiRLCStarts.commitmentFreshStart
-          22 1 1 source.val block.val lane.val cell.val
+          18 1 1 source.val block.val lane.val cell.val
             commitmentValueSourceStart
   | ⟨.publicInput, source, block, lane, cell⟩ =>
       invocation PiRLCStarts.publicInputLogicalStart
@@ -309,12 +309,12 @@ theorem commitmentCompactInvocations_eq :
   simp only [familyDescriptor, Descriptor.compactInvocation]
   simpa only using!
     (ofFn_decodeProd_eq_range_flatMap sourceCount
-      (CombinationStep.privateCount 22 1)
+      (CombinationStep.privateCount 18 1)
       (fun source index =>
         let coordinates := CombinationStep.coordinates index
         invocation PiRLCStarts.commitmentLogicalStart
           PiRLCStarts.commitmentRowStart PiRLCStarts.commitmentFreshStart
-            22 1 1 source coordinates.1.val coordinates.2.1.val
+            18 1 1 source coordinates.1.val coordinates.2.1.val
               coordinates.2.2.val commitmentValueSourceStart))
 
 theorem publicInputCompactInvocations_eq :
@@ -371,7 +371,7 @@ def invocationCount : Nat :=
     (Family.invocationCount .publicInput +
       (Family.invocationCount .evalK + Family.invocationCount .evalA))
 
-@[simp] theorem invocationCount_eq : invocationCount = 33966 := by
+@[simp] theorem invocationCount_eq : invocationCount = 35904 := by
   norm_num [invocationCount]
 
 def descriptor : Fin invocationCount → Descriptor :=
@@ -498,9 +498,9 @@ attribute [local implicit_reducible] Family.invocationCount Family.privateCount 
 theorem Descriptor.invocation_val (descriptor : PiRLCProductSchedule.Descriptor) :
     descriptor.invocation.val =
       (match descriptor.family with
-        | .commitment => 0 | .publicInput => 20196 | .evalK => 24786 | .evalA => 26622) +
-      descriptor.source.val * (descriptor.family.blockCount * 54 * descriptor.family.cellCount) +
-      descriptor.block.val * (54 * descriptor.family.cellCount) +
+        | .commitment => 0 | .publicInput => 19584 | .evalK => 25024 | .evalA => 27200) +
+      descriptor.source.val * (descriptor.family.blockCount * 64 * descriptor.family.cellCount) +
+      descriptor.block.val * (64 * descriptor.family.cellCount) +
       descriptor.lane.val * descriptor.family.cellCount + descriptor.cell.val := by
   rcases descriptor with ⟨family, source, block, lane, cell⟩
   cases family <;>

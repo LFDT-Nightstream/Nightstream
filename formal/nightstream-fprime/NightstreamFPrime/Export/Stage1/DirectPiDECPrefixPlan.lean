@@ -145,13 +145,13 @@ def transitionPlan
 @[simp] theorem pilotPlan_rowCount
     {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiDECRetainedGeometry.Geometry application logicalWidth) :
-    (pilotPlan geometry).rowCount = 696000 := by
+    (pilotPlan geometry).rowCount = 723300 := by
   simp [pilotPlan, DirectPrefixPlan.pilotPlan]
 
 @[simp] theorem piCcsPoseidonPlan_rowCount
     {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiDECRetainedGeometry.Geometry application logicalWidth) :
-    (piCcsPoseidonPlan geometry).rowCount = 142200 := by
+    (piCcsPoseidonPlan geometry).rowCount = 163650 := by
   simp [piCcsPoseidonPlan, DirectPrefixPlan.piCcsPlan]
 
 @[simp] theorem piCcsEndpointPlan_rowCount
@@ -163,7 +163,7 @@ def transitionPlan
 @[simp] theorem pilotOrdinaryPlan_rowCount
     {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiDECRetainedGeometry.Geometry application logicalWidth) :
-    (pilotOrdinaryPlan geometry).rowCount = 686 := by
+    (pilotOrdinaryPlan geometry).rowCount = 596 := by
   simp [pilotOrdinaryPlan]
 
 @[simp] theorem pilotBindingPlan_rowCount
@@ -181,7 +181,7 @@ def transitionPlan
 @[simp] theorem piRlcPlan_rowCount
     {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiDECRetainedGeometry.Geometry application logicalWidth) :
-    (piRlcPlan geometry).rowCount = 67932 := by
+    (piRlcPlan geometry).rowCount = 71808 := by
   simp [piRlcPlan, DirectPrefixPlan.piRlcPlan]
 
 private theorem piCcsPoseidonRowCount_le

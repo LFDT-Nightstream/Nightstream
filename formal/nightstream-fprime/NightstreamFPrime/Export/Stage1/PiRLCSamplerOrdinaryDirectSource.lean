@@ -19,7 +19,7 @@ def sourceRows : List R1CS.Row :=
     (publicFits := publicFits)).map Rows.CompiledRow.toR1CS
 
 @[simp] theorem sourceRows_length :
-    (sourceRows (logicalWidth := logicalWidth) (publicFits := publicFits)).length = 14943 := by
+    (sourceRows (logicalWidth := logicalWidth) (publicFits := publicFits)).length = 15453 := by
   rw [sourceRows, List.length_map]
   exact PiRLCSamplerOrdinaryRows.rows_length
 
@@ -44,7 +44,7 @@ inductive Source : Nat → Prop where
       Source (coreStart source + position)
   | fresh (source position : Nat) (sourceLt : source < 17) (positionLt : position < 144) :
       Source (PiRLCStarts.rangeFreshStart source + position)
-  | word (source position : Nat) (sourceLt : source < 17) (positionLt : position < 54) :
+  | word (source position : Nat) (sourceLt : source < 17) (positionLt : position < 64) :
       Source (PiRLCStarts.challengeWordStart source + position)
 
 def Target (column : Nat) : Prop :=
@@ -184,12 +184,12 @@ theorem sourceRows_rowCount_le :
   rw [sourceRows_length]
   norm_num [Lifecycle.cubeVariables]
 
-def sourceListIndex (index : Fin 14943) :
+def sourceListIndex (index : Fin 15453) :
     Fin (sourceRows (logicalWidth := logicalWidth)
       (publicFits := publicFits)).length :=
   Fin.cast sourceRows_length.symm index
 
-def programRow (index : Fin 14943) : R1CS.Row :=
+def programRow (index : Fin 15453) : R1CS.Row :=
   (sourceRows (logicalWidth := logicalWidth)
     (publicFits := publicFits)).get (sourceListIndex index)
 
@@ -224,7 +224,7 @@ def SupportedProgram.toProgram {rows : List R1CS.Row}
 
 def supportedProgram : SupportedProgram
     (sourceRows (logicalWidth := logicalWidth) (publicFits := publicFits)) where
-  rowCount := 14943
+  rowCount := 15453
   rowCount_le := by norm_num [Lifecycle.cubeVariables]
   row := programRow (logicalWidth := logicalWidth) (publicFits := publicFits)
   exactRows := programRows_eq
@@ -242,10 +242,10 @@ def program : OrdinarySourcePlan.Program Spartan.spartanColumnCount :=
 
 @[simp] theorem program_rowCount :
     (program (logicalWidth := logicalWidth)
-      (publicFits := publicFits)).rowCount = 14943 := by
+      (publicFits := publicFits)).rowCount = 15453 := by
   rfl
 
-theorem programRow_bounded (index : Fin 14943) :
+theorem programRow_bounded (index : Fin 15453) :
     (programRow (logicalWidth := logicalWidth)
       (publicFits := publicFits) index).VarsBelow
         Spartan.spartanColumnCount := by
@@ -269,7 +269,7 @@ private theorem predicate_iff_of_eq {Alpha : Type} (predicate : Alpha → Prop)
   rfl
 
 theorem programRows_hold_iff_rowsHold (env : Env) :
-    (∀ index : Fin 14943,
+    (∀ index : Fin 15453,
       (programRow (logicalWidth := logicalWidth)
         (publicFits := publicFits) index).Holds env) ↔
       R1CS.RowsHold env

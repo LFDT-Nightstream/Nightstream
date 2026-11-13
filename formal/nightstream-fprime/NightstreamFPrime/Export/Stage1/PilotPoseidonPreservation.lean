@@ -37,9 +37,9 @@ private theorem constant_le_total :
     PiRLCProductPlan.basePackage.layout.constantColumn ≤
       PiRLCProductPlan.basePackage.layout.totalColumnCount := by
   have constant : PiRLCProductPlan.basePackage.layout.constantColumn =
-      11464596 := Package.circuitPackage_layout_values.2.2.1
+      11414924 := Package.circuitPackage_layout_values.2.2.1
   have total : PiRLCProductPlan.basePackage.layout.totalColumnCount =
-      11464875 := Package.circuitPackage_layout_values.2.2.2.2
+      11415253 := Package.circuitPackage_layout_values.2.2.2.2
   rw [constant, total]
   omega
 
@@ -99,10 +99,10 @@ private theorem priorInputLift (index : Fin Data.priorChain.inputLength) :
       Spartan.liftPilotColumn
         (PilotData.priorChain.inputStart + index.val) := by
   have indexBound := index.isLt
-  change index.val < 27819 at indexBound
+  change index.val < 28913 at indexBound
   have lifted := Spartan.liftPilotColumn_add_of_input
     PilotData.priorChain.inputStart index.val (by
-      change 0 + index.val < 55638
+      change 0 + index.val < 57826
       omega)
   unfold Data.priorChain Data.liftPilotChain
   exact lifted.symm
@@ -112,10 +112,10 @@ private theorem outputInputLift (index : Fin Data.outputChain.inputLength) :
       Spartan.liftPilotColumn
         (PilotData.outputChain.inputStart + index.val) := by
   have indexBound := index.isLt
-  change index.val < 27819 at indexBound
+  change index.val < 28913 at indexBound
   have lifted := Spartan.liftPilotColumn_add_of_input
     PilotData.outputChain.inputStart index.val (by
-      change 27819 + index.val < 55638
+      change 28913 + index.val < 57826
       omega)
   unfold Data.outputChain Data.liftPilotChain
   exact lifted.symm
@@ -137,7 +137,7 @@ theorem priorInputForm_eval
   rw [sourceAssignment_privatePhysical program base groupValue
     _ (Data.priorChain.inputStart + index.val) (by rfl)
     (priorInputPrivate index) (by
-      have bound : index.val < 27819 := index.isLt
+      have bound : index.val < 28913 := index.isLt
       change 0 + index.val < PiCCSTranscriptReadout.transcriptStart + 1080
       rw [PiCCSTranscriptReadout.transcriptStart_eq]
       omega)]
@@ -161,8 +161,8 @@ theorem outputInputForm_eval
   rw [sourceAssignment_privatePhysical program base groupValue
     _ (Data.outputChain.inputStart + index.val) (by rfl)
     (outputInputPrivate index) (by
-      have bound : index.val < 27819 := index.isLt
-      change 27819 + index.val < PiCCSTranscriptReadout.transcriptStart + 1080
+      have bound : index.val < 28913 := index.isLt
+      change 28913 + index.val < PiCCSTranscriptReadout.transcriptStart + 1080
       rw [PiCCSTranscriptReadout.transcriptStart_eq]
       omega)]
   unfold PilotOrdinaryDirectPlan.pilotEnv
@@ -715,27 +715,27 @@ theorem directDigest_eq_hash
 theorem priorInvocationCount_eq :
     PilotData.priorChain.absorbCount + 1 =
       PilotPoseidonPlan.invocationCount := by
-  change 2319 + 1 = 2320
+  change 2410 + 1 = 2411
   decide
 
 theorem outputInvocationCount_eq :
     PilotData.outputChain.absorbCount + 1 =
       PilotPoseidonPlan.invocationCount := by
-  change 2319 + 1 = 2320
+  change 2410 + 1 = 2411
   decide
 
 private theorem priorChunkCount_eq :
     PilotData.priorChain.absorbCount =
       (PilotData.priorChain.inputLength + Spec.Poseidon2.rate - 1) /
         Spec.Poseidon2.rate := by
-  change 2319 = (27819 + 12 - 1) / 12
+  change 2410 = (28913 + 12 - 1) / 12
   decide
 
 private theorem outputChunkCount_eq :
     PilotData.outputChain.absorbCount =
       (PilotData.outputChain.inputLength + Spec.Poseidon2.rate - 1) /
         Spec.Poseidon2.rate := by
-  change 2319 = (27819 + 12 - 1) / 12
+  change 2410 = (28913 + 12 - 1) / 12
   decide
 
 structure HashFacts {program : Lifecycle.Stage1.Application.Program}

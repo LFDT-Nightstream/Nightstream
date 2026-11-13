@@ -4,7 +4,7 @@ import NightstreamFPrime.Layout.BoundedDepth.RefreshAssemblerCircuit
 import NightstreamFPrime.Layout.ProductionRelation.AcceptedOpening
 
 /-! The bounded-depth step relations (CW-5.3). Each step circuit is exported with its shared words at
-`base = 270`, after the public input `x` (`LogicalPlan`). From a satisfying assignment of a
+`base = 320`, after the public input `x` (`LogicalPlan`). From a satisfying assignment of a
 circuit's logical relation, the decoders read the step's input, output, key digests and fold proof
 from the shared words, with the next slots that the digest select fixes; `lightRepresents` and
 `refreshRepresents` hold by construction. The light circuit reads only the active slot's words, so
@@ -40,7 +40,7 @@ variable {logicalWidth : Nat}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
     RingCarrierLayout.carrierWidth logicalWidth}
 
-/-- The public input occupies source columns 0 to 269; the shared words start after it. -/
+/-- The public input occupies source columns 0 to 319; the shared words start after it. -/
 def base : Nat := ringDegree * PaperAlgebra.publicRingColumns
 
 /-- The logical width that both circuit keys share. It is at least each step circuit's logical

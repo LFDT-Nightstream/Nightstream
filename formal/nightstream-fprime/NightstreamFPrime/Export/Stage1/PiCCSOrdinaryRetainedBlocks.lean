@@ -78,17 +78,17 @@ def outputInputBlock (program : Lifecycle.Stage1.Application.Program) :
 
 def freshPublicInputBlock (program : Lifecycle.Stage1.Application.Program) :
     LowNormBlock.Block (sourceWidth program) :=
-  sourceFieldBlock program 270 PilotProduction.priorPublicInputStart (by
+  sourceFieldBlock program 320 PilotProduction.priorPublicInputStart (by
     rw [Spartan.sourceColumnCount_eq]
     norm_num [PilotProduction.priorPublicInputStart,
       PilotProduction.priorPreimageStart,
       PilotProduction.stateHashWords_eq])
 
 def priorLastInvocation : Fin PoseidonRetainedBlock.priorInvocationCount :=
-  ⟨2319, by rw [PoseidonRetainedBlock.priorInvocationCount_eq]; omega⟩
+  ⟨2410, by rw [PoseidonRetainedBlock.priorInvocationCount_eq]; omega⟩
 
 def outputLastInvocation : Fin PoseidonRetainedBlock.outputInvocationCount :=
-  ⟨2319, by rw [PoseidonRetainedBlock.outputInvocationCount_eq]; omega⟩
+  ⟨2410, by rw [PoseidonRetainedBlock.outputInvocationCount_eq]; omega⟩
 
 def priorLastBlock (program : Lifecycle.Stage1.Application.Program) :
     LowNormBlock.Block (sourceWidth program) :=
@@ -129,17 +129,17 @@ def ordinaryLogicalCount : Nat :=
 def proofLogicalCount : Nat :=
   proofInputCount + transcriptOutputCount + ordinaryLogicalCount
 
-@[simp] theorem proofInputCount_eq : proofInputCount = 15462 := by
+@[simp] theorem proofInputCount_eq : proofInputCount = 17976 := by
   exact PiCCSOrdinarySourceSupport.proofInputCount_eq
 
 @[simp] theorem transcriptInvocationCount_eq :
-    transcriptInvocationCount = 183 := by
+    transcriptInvocationCount = 184 := by
   exact PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq
 
-@[simp] theorem transcriptOutputCount_eq : transcriptOutputCount = 2928 := by
+@[simp] theorem transcriptOutputCount_eq : transcriptOutputCount = 2944 := by
   exact PiCCSOrdinarySourceSupport.transcriptOutputCount_eq
 
-@[simp] theorem ordinaryLogicalCount_eq : ordinaryLogicalCount = 29591 := by
+@[simp] theorem ordinaryLogicalCount_eq : ordinaryLogicalCount = 34871 := by
   exact PiCCSOrdinarySourceSupport.ordinaryLogicalCount_eq
 
 @[simp] theorem proofLogicalCount_eq : proofLogicalCount = 47981 := by
@@ -190,9 +190,9 @@ theorem proofLogicalSource_support (index : Fin proofLogicalCount) :
   unfold proofLogicalSource
   split
   · rename_i proof
-    have proofBound : index.val < 15462 := by
+    have proofBound : index.val < 17976 := by
       simpa only [proofInputCount_eq] using proof
-    by_cases caller : index.val < 15192
+    by_cases caller : index.val < 17656
     · apply PiCCSOrdinarySourceSupport.external_source
       apply PiCCSOrdinarySourceSupport.external_proof
       unfold PiCCSOrdinarySourceSupport.InRange
@@ -225,7 +225,7 @@ theorem proofLogicalSource_lt (index : Fin proofLogicalCount) :
 
 def proofInputSlot (index : Fin proofInputCount) : Fin proofLogicalCount :=
   ⟨index.val, by
-    have bound : index.val < 15462 := by
+    have bound : index.val < 17976 := by
       simpa only [proofInputCount_eq] using index.isLt
     rw [proofLogicalCount_eq]
     omega⟩
@@ -233,7 +233,7 @@ def proofInputSlot (index : Fin proofInputCount) : Fin proofLogicalCount :=
 def transcriptOutputSlot (index : Fin transcriptOutputCount) :
     Fin proofLogicalCount :=
   ⟨proofInputCount + index.val, by
-    have bound : index.val < 2928 := by
+    have bound : index.val < 2944 := by
       simpa only [transcriptOutputCount_eq] using index.isLt
     rw [proofLogicalCount_eq, proofInputCount_eq]
     omega⟩
@@ -241,7 +241,7 @@ def transcriptOutputSlot (index : Fin transcriptOutputCount) :
 def ordinaryLogicalSlot (index : Fin ordinaryLogicalCount) :
     Fin proofLogicalCount :=
   ⟨proofInputCount + transcriptOutputCount + index.val, by
-    have bound : index.val < 29591 := by
+    have bound : index.val < 34871 := by
       simpa only [ordinaryLogicalCount_eq] using index.isLt
     rw [proofLogicalCount_eq, proofInputCount_eq, transcriptOutputCount_eq]
     omega⟩

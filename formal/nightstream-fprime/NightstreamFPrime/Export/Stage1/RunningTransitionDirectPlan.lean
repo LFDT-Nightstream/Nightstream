@@ -52,7 +52,7 @@ theorem sourceColumn_lt (location : Location) :
       omega
   | output index =>
       have bound := index.isLt
-      change index.val < 27819 at bound
+      change index.val < 28913 at bound
       rw [sourceColumn, RunningTransitionSourceSupport.outputStart_eq,
         Spartan.sourceColumnCount_eq]
       omega
@@ -74,7 +74,7 @@ theorem sourceColumn_lt (location : Location) :
       omega
   | piDec index =>
       have bound := index.isLt
-      change index.val < 31968 at bound
+      change index.val < 33792 at bound
       rw [sourceColumn, RunningTransitionSourceSupport.piDecStart_eq,
         Spartan.sourceColumnCount_eq]
       omega
@@ -104,16 +104,16 @@ def form {program : Lifecycle.Stage1.Application.Program}
 
 def statePreimageWord (index : Fin RunningTransitionSourceSupport.stateCount) :
     Fin PilotValues.stateHashWords :=
-  ⟨27810 + index.val, by
+  ⟨28904 + index.val, by
     have bound := index.isLt
     change index.val < 9 at bound
-    change 27810 + index.val < 27819
+    change 28904 + index.val < 28913
     omega⟩
 
 def outputPreimageWord (index : Fin RunningTransitionSourceSupport.outputCount) :
     Fin PilotValues.stateHashWords :=
   ⟨index.val, by
-    change index.val < 27819
+    change index.val < 28913
     simpa only [RunningTransitionSourceSupport.outputCount_eq] using index.isLt⟩
 
 theorem state_form_eq_pilot
@@ -128,9 +128,9 @@ theorem state_form_eq_pilot
   unfold form
   apply LowNormBlock.Block.form_eq_of_coordinates
   · rfl
-  · change PiRLCPoseidonGeometry.priorInputStart program + 27810 * 41 +
+  · change PiRLCPoseidonGeometry.priorInputStart program + 28904 * 41 +
         index.val * 41 =
-      PiRLCPoseidonGeometry.priorInputStart program + (27810 + index.val) * 41
+      PiRLCPoseidonGeometry.priorInputStart program + (28904 + index.val) * 41
     omega
 
 theorem output_form_eq_pilot
@@ -381,7 +381,7 @@ private theorem mapped_lt_basePackage (source : Nat)
     Spartan.sourceToSpartan source <
       PiRLCProductPlan.basePackage.layout.totalColumnCount := by
   have mapped := Spartan.sourceToSpartan_lt source bound
-  have total : PiRLCProductPlan.basePackage.layout.totalColumnCount = 11464875 :=
+  have total : PiRLCProductPlan.basePackage.layout.totalColumnCount = 11415253 :=
     NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.2.2
   rw [total]
   simpa [Spartan.spartanColumnCount] using mapped
@@ -458,12 +458,12 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
       apply transitionEnv_of_notTranscript program base _ (Location.state index).sourceColumn_lt
       rintro ⟨invocation, lane, same⟩
       have indexBound : index.val < 9 := index.isLt
-      have invocationBound : invocation.val < 183 := by
+      have invocationBound : invocation.val < 184 := by
         simpa only [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq]
           using invocation.isLt
       have laneBound : lane.val < 16 := lane.isLt
-      have address : 27810 + index.val =
-          5157226 + invocation.val * 1096 + 1080 + lane.val := by
+      have address : 28904 + index.val =
+          5361310 + invocation.val * 1096 + 1080 + lane.val := by
         simpa only [sourceColumn, RunningTransitionSourceSupport.stateStart_eq,
           PiCCSStarts.statementWitnessStart_eq] using same
       omega
@@ -478,13 +478,13 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
       apply Eq.symm
       apply transitionEnv_of_notTranscript program base _ (Location.output index).sourceColumn_lt
       rintro ⟨invocation, lane, same⟩
-      have indexBound : index.val < 27819 := index.isLt
-      have invocationBound : invocation.val < 183 := by
+      have indexBound : index.val < 28913 := index.isLt
+      have invocationBound : invocation.val < 184 := by
         simpa only [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq]
           using invocation.isLt
       have laneBound : lane.val < 16 := lane.isLt
-      have address : 28089 + index.val =
-          5157226 + invocation.val * 1096 + 1080 + lane.val := by
+      have address : 29233 + index.val =
+          5361310 + invocation.val * 1096 + 1080 + lane.val := by
         simpa only [sourceColumn, RunningTransitionSourceSupport.outputStart_eq,
           PiCCSStarts.statementWitnessStart_eq] using same
       omega
@@ -499,13 +499,13 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
       apply Eq.symm
       apply transitionEnv_of_notTranscript program base _ (Location.piDec index).sourceColumn_lt
       rintro ⟨invocation, lane, same⟩
-      have indexBound : index.val < 31968 := index.isLt
-      have invocationBound : invocation.val < 183 := by
+      have indexBound : index.val < 33792 := index.isLt
+      have invocationBound : invocation.val < 184 := by
         simpa only [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq]
           using invocation.isLt
       have laneBound : lane.val < 16 := lane.isLt
-      have address : 11432634 + index.val =
-          5157226 + invocation.val * 1096 + 1080 + lane.val := by
+      have address : 11381138 + index.val =
+          5361310 + invocation.val * 1096 + 1080 + lane.val := by
         simpa only [sourceColumn, RunningTransitionSourceSupport.piDecStart_eq,
           PiCCSStarts.statementWitnessStart_eq] using same
       omega
@@ -641,8 +641,8 @@ def plan
       RingCarrierLayout.carrierWidth sourceLogicalWidth}
     (relation : ProductionKey.LogicalRelation sourceLogicalWidth publicFits)
     (geometry : Geometry program targetLogicalWidth) :
-    (plan relation geometry).rowCount = 27800 := by
-  change (RunningTransitionDirectSource.program relation).rowCount = 27800
+    (plan relation geometry).rowCount = 28894 := by
+  change (RunningTransitionDirectSource.program relation).rowCount = 28894
   exact RunningTransitionDirectSource.program_rowCount relation
 
 theorem plan_eq_of_same_shape

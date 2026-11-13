@@ -54,18 +54,18 @@ theorem Exact.append {logicalWidth : Nat}
 structure SourceCustody (application : ApplicationProgram)
     (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
     (sourceRow : Nat → Option R1CS.Row) : Prop where
-  piCcsOrdinary : ∀ index : Fin 37317, ∀ sourceIndex,
+  piCcsOrdinary : ∀ index : Fin 43517, ∀ sourceIndex,
     PiCCSOrdinaryMatrixProgram.rowSchedule.index? index.val =
         some sourceIndex →
       sourceRow sourceIndex = some
         (PerApplicationSourceProjection.basePackageRow application
           (PiCCSOrdinaryDirectSource.programRow (relation application fits)
             index))
-  pilotOrdinary : ∀ index : Fin 686,
+  pilotOrdinary : ∀ index : Fin 596,
     sourceRow (PilotOrdinaryMatrixProgram.rowIndexAt index) =
       some (PerApplicationSourceProjection.pilotPackageRow application
         (PilotOrdinaryDirectSource.programRow index))
-  samplerOrdinary : ∀ index : Fin 14943, ∀ sourceIndex,
+  samplerOrdinary : ∀ index : Fin 15453, ∀ sourceIndex,
     PiRLCSamplerOrdinaryMatrixSchedule.rowSchedule.index? index.val =
         some sourceIndex →
       sourceRow sourceIndex = some
@@ -74,22 +74,22 @@ structure SourceCustody (application : ApplicationProgram)
             (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
             (publicFits := PerApplicationFixedPoint.publicFits application)
             index))
-  piDecPublic : ∀ index : Fin 4860,
+  piDecPublic : ∀ index : Fin 5760,
     sourceRow (PiDECStarts.publicInputRowStart + index.val) =
       some (PerApplicationSourceProjection.basePackageRow application
         (PiDECOrdinaryDirectSource.publicProgramRow
           (relation application fits) index))
-  piDecCommitment : ∀ index : Fin 1188,
+  piDecCommitment : ∀ index : Fin 1152,
     sourceRow (PiDECStarts.commitmentRowStart + index.val) =
       some (PerApplicationSourceProjection.basePackageRow application
         (PiDECOrdinaryDirectSource.commitmentProgramRow
           (relation application fits) index))
-  piDecEvalK : ∀ index : Fin 108,
+  piDecEvalK : ∀ index : Fin 128,
     sourceRow (PiDECStarts.evalKRowStart + index.val) =
       some (PerApplicationSourceProjection.basePackageRow application
         (PiDECOrdinaryDirectSource.evalKProgramRow
           (relation application fits) index))
-  piDecEvalA : ∀ index : Fin 432,
+  piDecEvalA : ∀ index : Fin 512,
     sourceRow (PiDECStarts.evalARowStart + index.val) =
       some (PerApplicationSourceProjection.basePackageRow application
         (PiDECOrdinaryDirectSource.evalAProgramRow

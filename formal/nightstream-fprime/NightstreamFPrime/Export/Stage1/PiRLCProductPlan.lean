@@ -24,7 +24,7 @@ def baseSourceWidth (program : Lifecycle.Stage1.Application.Program) : Nat :=
   (PerApplicationPackage.package program).layout.totalColumnCount
 
 def directBaseSourceWidth (program : Lifecycle.Stage1.Application.Program) : Nat :=
-  11464875 + PerApplicationPackage.directAddedPrivateColumnCount program
+  11415253 + PerApplicationPackage.directAddedPrivateColumnCount program
 
 theorem directBaseSourceWidth_eq_baseSourceWidth
     (program : Lifecycle.Stage1.Application.Program) :
@@ -45,23 +45,23 @@ def sourceWidth (program : Lifecycle.Stage1.Application.Program) : Nat :=
     PiRLCProductSchedule.invocationCount
 
 private theorem basePackage_constantColumn :
-    basePackage.layout.constantColumn = 11464596 := by
+    basePackage.layout.constantColumn = 11414924 := by
   exact NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.1
 
 private theorem commitmentLogicalStart_eq :
-    PiRLCStarts.commitmentLogicalStart = 6301320 := by
+    PiRLCStarts.commitmentLogicalStart = 6677714 := by
   rfl
 
 private theorem publicInputLogicalStart_eq :
-    PiRLCStarts.publicInputLogicalStart = 6321516 := by
+    PiRLCStarts.publicInputLogicalStart = 6697298 := by
   rfl
 
 private theorem evalKLogicalStart_eq :
-    PiRLCStarts.evalKLogicalStart = 6326106 := by
+    PiRLCStarts.evalKLogicalStart = 6702738 := by
   rfl
 
 private theorem evalALogicalStart_eq :
-    PiRLCStarts.evalALogicalStart = 6327942 := by
+    PiRLCStarts.evalALogicalStart = 6704914 := by
   rfl
 
 theorem basePackage_fits (program : Lifecycle.Stage1.Application.Program) :
@@ -71,10 +71,10 @@ theorem basePackage_fits (program : Lifecycle.Stage1.Application.Program) :
     PerApplicationPackage.basePackage.layout.totalColumnCount +
       PerApplicationPackage.addedPrivateColumnCount program
   have constant :
-      PerApplicationPackage.basePackage.layout.constantColumn = 11464596 :=
+      PerApplicationPackage.basePackage.layout.constantColumn = 11414924 :=
     NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.1
   have total :
-      PerApplicationPackage.basePackage.layout.totalColumnCount = 11464875 :=
+      PerApplicationPackage.basePackage.layout.totalColumnCount = 11415253 :=
     NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.2.2
   rw [constant, total]
   omega
@@ -86,7 +86,7 @@ theorem shiftColumn_lt_baseSourceWidth
   rw [baseSourceWidth, PerApplicationPackage.package_totalColumnCount]
   change column < PerApplicationPackage.basePackage.layout.totalColumnCount at bound
   have total :
-      PerApplicationPackage.basePackage.layout.totalColumnCount = 11464875 :=
+      PerApplicationPackage.basePackage.layout.totalColumnCount = 11415253 :=
     NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.2.2
   rw [total] at bound ⊢
   unfold PerApplicationPackage.shiftColumn
@@ -107,7 +107,7 @@ theorem sourceToSpartan_lt_basePackage (column : Nat)
     rw [Spartan.sourceColumnCount_eq]
     omega
   have mapped := Spartan.sourceToSpartan_lt column sourceBound
-  have total : basePackage.layout.totalColumnCount = 11464875 := by
+  have total : basePackage.layout.totalColumnCount = 11415253 := by
     exact NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.2.2
   simpa only [total, Spartan.spartanColumnCount_eq] using mapped
 
@@ -401,7 +401,7 @@ def interface {program : Lifecycle.Stage1.Application.Program}
     output := fun ring lane => outputForm inputs
       (PiRLCProductRingSchedule.laneInvocation ring lane) }
 
-theorem rowCount_le : PiRLCProductRingSchedule.invocationCount * 108 ≤
+theorem rowCount_le : PiRLCProductRingSchedule.invocationCount * 128 ≤
     2 ^ NightstreamFPrime.Lifecycle.cubeVariables := by
   rw [PiRLCProductRingSchedule.invocationCount_eq]
   norm_num [NightstreamFPrime.Lifecycle.cubeVariables]
@@ -413,7 +413,7 @@ def plan {program : Lifecycle.Stage1.Application.Program}
 
 @[simp] theorem plan_rowCount {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (inputs : Inputs program logicalWidth) :
-    (plan inputs).rowCount = 67932 := by
+    (plan inputs).rowCount = 71808 := by
   rw [plan, RingProductFamilyPlan.plan_rowCount,
     PiRLCProductRingSchedule.invocationCount_eq]
 

@@ -93,7 +93,7 @@ theorem rowCount_le
   have packageRows := fits.rows
   rw [PerApplicationPackage.package_rowCount] at packageRows
   have baseRows : PerApplicationPackage.basePackage.layout.rowCount =
-      11377912 := by
+      11317348 := by
     simpa [PerApplicationPackage.basePackage] using
       NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.1
   rw [baseRows] at packageRows
@@ -228,29 +228,29 @@ theorem applicationSourceWidth_le_baseSourceWidth
   rw [PerApplicationPackage.package_totalColumnCount]
   unfold PerApplicationPackage.addedPrivateColumnCount
   have baseTotal : PerApplicationPackage.basePackage.layout.totalColumnCount =
-      11464875 := by
+      11415253 := by
     exact Package.circuitPackage_layout_values.2.2.2.2
-  have privateCount : Layout.Stage1.Spartan.privateColumnCount = 11464596 := by
+  have privateCount : Layout.Stage1.Spartan.privateColumnCount = 11414924 := by
     exact Layout.Stage1.Spartan.privateColumnCount_eq
   rw [baseTotal, privateCount]
-  change 11464596 + application.witnessWordCount +
+  change 11414924 + application.witnessWordCount +
         localLength (ApplicationPackage.operations application
           (ApplicationPackage.productionColumns application)
-          (11464596 + application.witnessWordCount)) +
+          (11414924 + application.witnessWordCount)) +
         R1CS.totalFreshCount
           (ApplicationPackage.constraints application
             (ApplicationPackage.productionColumns application)
-            (11464596 + application.witnessWordCount)) ≤
-      11464875 + (application.witnessWordCount +
+            (11414924 + application.witnessWordCount)) ≤
+      11415253 + (application.witnessWordCount +
         (PerApplicationPackage.applicationPlan application).privateCount)
-  change _ ≤ 11464875 + (application.witnessWordCount +
+  change _ ≤ 11415253 + (application.witnessWordCount +
     (localLength (ApplicationPackage.operations application
       (ApplicationPackage.productionColumns application)
-      (11464596 + application.witnessWordCount)) +
+      (11414924 + application.witnessWordCount)) +
     R1CS.totalFreshCount
       (ApplicationPackage.constraints application
         (ApplicationPackage.productionColumns application)
-        (11464596 + application.witnessWordCount))))
+        (11414924 + application.witnessWordCount))))
   omega
 
 def applicationSource

@@ -93,7 +93,7 @@ private theorem previousRule_result
   · rw [ite_eq_right first]
     let invocationOffset : Fin 947 :=
       ⟨invocation.val - 1, by
-        have bound : invocation.val < 948 := by
+        have bound : invocation.val < 1091 := by
           simpa only [PiCCSPoseidonPlan.invocationCount_eq] using
             invocation.isLt
         omega⟩
@@ -133,7 +133,7 @@ private theorem payloadRule_lane
       some (invocation.val, lane.val) := by
     simpa only [payloadRule, Nat.zero_add] using
       (PoseidonInput.Region.offsets?_of_offsets
-        (PoseidonInput.Region.mk 0 948 0 12) invocation lane)
+        (PoseidonInput.Region.mk 0 1091 0 12) invocation lane)
   unfold PoseidonInput.Rule.form?
   rw [offsets]
   simp only

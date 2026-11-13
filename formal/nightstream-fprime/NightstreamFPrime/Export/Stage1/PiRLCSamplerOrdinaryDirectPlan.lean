@@ -44,8 +44,8 @@ theorem sourceColumn_lt (location : Location) : location.sourceColumn < Spartan.
 
 end Location
 
-private def logicalIndex (column : Nat) : Nat := (column - PiRLCStarts.samplerLogicalStart) / 4267
-private def logicalOffset (column : Nat) : Nat := (column - PiRLCStarts.samplerLogicalStart) % 4267
+private def logicalIndex (column : Nat) : Nat := (column - PiRLCStarts.samplerLogicalStart) / 4873
+private def logicalOffset (column : Nat) : Nat := (column - PiRLCStarts.samplerLogicalStart) % 4873
 
 private def poseidonCandidate (column : Nat) : Location :=
   .poseidon ⟨logicalIndex column % sourceCount, Nat.mod_lt _ (by decide)⟩
@@ -61,7 +61,7 @@ private def freshCandidate (column : Nat) : Location :=
 
 private def wordCandidate (column : Nat) : Location :=
   .word ⟨logicalIndex column % sourceCount, Nat.mod_lt _ (by decide)⟩
-    ⟨(logicalOffset column - 4213) % ringDegree, Nat.mod_lt _ (by decide)⟩
+    ⟨(logicalOffset column - 4809) % ringDegree, Nat.mod_lt _ (by decide)⟩
 
 private def exactCandidate (column : Nat) (candidate : Location) : Option Location :=
   if candidate.sourceColumn = column then some candidate else none
@@ -93,23 +93,23 @@ theorem classifySource_sound {column : Nat} {location : Location}
     · exact exactCandidate_sound found
     · split at found <;> exact exactCandidate_sound found
 
-private theorem scalarIndex (source offset : Nat) (bound : offset < 4267) :
-    logicalIndex (PiRLCStarts.samplerLogicalStart + source * 4267 + offset) = source := by
+private theorem scalarIndex (source offset : Nat) (bound : offset < 4873) :
+    logicalIndex (PiRLCStarts.samplerLogicalStart + source * 4873 + offset) = source := by
   unfold logicalIndex
-  rw [show PiRLCStarts.samplerLogicalStart + source * 4267 + offset -
-      PiRLCStarts.samplerLogicalStart = source * 4267 + offset by omega]
-  rw [Nat.mul_comm source 4267, Nat.mul_add_div (by decide : 0 < 4267),
+  rw [show PiRLCStarts.samplerLogicalStart + source * 4873 + offset -
+      PiRLCStarts.samplerLogicalStart = source * 4873 + offset by omega]
+  rw [Nat.mul_comm source 4873, Nat.mul_add_div (by decide : 0 < 4873),
     Nat.div_eq_of_lt bound, Nat.add_zero]
 
-private theorem scalarOffset (source offset : Nat) (bound : offset < 4267) :
-    logicalOffset (PiRLCStarts.samplerLogicalStart + source * 4267 + offset) = offset := by
+private theorem scalarOffset (source offset : Nat) (bound : offset < 4873) :
+    logicalOffset (PiRLCStarts.samplerLogicalStart + source * 4873 + offset) = offset := by
   unfold logicalOffset
-  rw [show PiRLCStarts.samplerLogicalStart + source * 4267 + offset -
-      PiRLCStarts.samplerLogicalStart = source * 4267 + offset by omega]
+  rw [show PiRLCStarts.samplerLogicalStart + source * 4873 + offset -
+      PiRLCStarts.samplerLogicalStart = source * 4873 + offset by omega]
   exact Nat.mul_add_mod_of_lt bound
 
-private theorem scalarBeforeFresh (source : Fin sourceCount) (offset : Nat) (bound : offset < 4267) :
-    PiRLCStarts.samplerLogicalStart + source.val * 4267 + offset < PiRLCStarts.samplerFreshStart := by
+private theorem scalarBeforeFresh (source : Fin sourceCount) (offset : Nat) (bound : offset < 4873) :
+    PiRLCStarts.samplerLogicalStart + source.val * 4873 + offset < PiRLCStarts.samplerFreshStart := by
   have sourceLt : source.val < 17 := source.isLt
   simp only [PiRLCStarts.samplerFreshStart, PiRLCStarts.phaseFreshStart,
     PiRLCStarts.samplerLogicalStart, Formal.samplerOffset, Formal.logicalPrivateCount_eq]
@@ -117,14 +117,14 @@ private theorem scalarBeforeFresh (source : Fin sourceCount) (offset : Nat) (bou
 
 theorem poseidonColumn (source : Fin sourceCount) (lane : Fin 4) :
     (Location.poseidon source lane).sourceColumn =
-      PiRLCStarts.samplerLogicalStart + source.val * 4267 + (1080 + lane.val) := by
+      PiRLCStarts.samplerLogicalStart + source.val * 4873 + (1080 + lane.val) := by
   simp only [Location.sourceColumn, PiRLCSamplerOrdinaryDirectSource.poseidonSource,
     PiRLCStarts.samplerSourceLogicalStart, SamplerChain.sourceOffset, Sampler.counts.1]
   omega
 
 theorem logicalColumn (source : Fin sourceCount) (position : Fin logicalCountPerSource) :
     (Location.logical source position).sourceColumn =
-      PiRLCStarts.samplerLogicalStart + source.val * 4267 + (2500 + position.val) := by
+      PiRLCStarts.samplerLogicalStart + source.val * 4873 + (2500 + position.val) := by
   simp only [Location.sourceColumn, logicalSource, PiRLCSamplerOrdinaryDirectSource.coreStart,
     Gadgets.Sampling.WideReduction.Program.coreOffset, PiRLCStarts.rangeLogicalStart,
     PiRLCStarts.samplerSourceLogicalStart, SamplerChain.sourceOffset, Sampler.rangeOffset,
@@ -133,21 +133,21 @@ theorem logicalColumn (source : Fin sourceCount) (position : Fin logicalCountPer
 
 theorem wordColumn (source : Fin sourceCount) (position : Fin ringDegree) :
     (Location.word source position).sourceColumn =
-      PiRLCStarts.samplerLogicalStart + source.val * 4267 + (4213 + position.val) := by
+      PiRLCStarts.samplerLogicalStart + source.val * 4873 + (4809 + position.val) := by
   simp only [Location.sourceColumn, PiRLCStarts.challengeWordStart_eq,
     PiRLCStarts.samplerLogicalStart, Formal.samplerOffset]
   omega
 
 theorem classifySource_poseidonEntry (source : Fin sourceCount) (lane : Fin 4) :
     classifySource (Location.poseidon source lane).sourceColumn = some (.poseidon source lane) := by
-  have bound : 1080 + lane.val < 4267 := by omega
+  have bound : 1080 + lane.val < 4873 := by omega
   have offset := scalarOffset source.val (1080 + lane.val) bound
   have index := scalarIndex source.val (1080 + lane.val) bound
   rw [poseidonColumn]
   unfold classifySource
   rw [ite_eq_right (Nat.not_le_of_lt (scalarBeforeFresh source _ bound)), offset,
     ite_eq_left (by omega)]
-  have candidate : poseidonCandidate (PiRLCStarts.samplerLogicalStart + source.val * 4267 + (1080 + lane.val)) =
+  have candidate : poseidonCandidate (PiRLCStarts.samplerLogicalStart + source.val * 4873 + (1080 + lane.val)) =
       .poseidon source lane := by
     unfold poseidonCandidate
     apply congrArg₂ Location.poseidon
@@ -164,7 +164,7 @@ theorem classifySource_poseidonEntry (source : Fin sourceCount) (lane : Fin 4) :
 theorem classifySource_logical (source : Fin sourceCount) (position : Fin logicalCountPerSource) :
     classifySource (logicalSource source position) = some (.logical source position) := by
   have positionLt : position.val < 617 := position.isLt
-  have bound : 2500 + position.val < 4267 := by omega
+  have bound : 2500 + position.val < 4873 := by omega
   have offset := scalarOffset source.val (2500 + position.val) bound
   have index := scalarIndex source.val (2500 + position.val) bound
   change classifySource (Location.logical source position).sourceColumn = _
@@ -172,7 +172,7 @@ theorem classifySource_logical (source : Fin sourceCount) (position : Fin logica
   unfold classifySource
   rw [ite_eq_right (Nat.not_le_of_lt (scalarBeforeFresh source _ bound)), offset,
     ite_eq_right (by omega), ite_eq_left (by omega)]
-  have candidate : logicalCandidate (PiRLCStarts.samplerLogicalStart + source.val * 4267 + (2500 + position.val)) =
+  have candidate : logicalCandidate (PiRLCStarts.samplerLogicalStart + source.val * 4873 + (2500 + position.val)) =
       .logical source position := by
     unfold logicalCandidate
     apply congrArg₂ Location.logical
@@ -188,16 +188,16 @@ theorem classifySource_logical (source : Fin sourceCount) (position : Fin logica
 
 theorem classifySource_word (source : Fin sourceCount) (position : Fin ringDegree) :
     classifySource (PiRLCStarts.challengeWordStart source.val + position.val) = some (.word source position) := by
-  have positionLt : position.val < 54 := position.isLt
-  have bound : 4213 + position.val < 4267 := by omega
-  have offset := scalarOffset source.val (4213 + position.val) bound
-  have index := scalarIndex source.val (4213 + position.val) bound
+  have positionLt : position.val < 64 := position.isLt
+  have bound : 4809 + position.val < 4873 := by omega
+  have offset := scalarOffset source.val (4809 + position.val) bound
+  have index := scalarIndex source.val (4809 + position.val) bound
   change classifySource (Location.word source position).sourceColumn = _
   rw [wordColumn]
   unfold classifySource
   rw [ite_eq_right (Nat.not_le_of_lt (scalarBeforeFresh source _ bound)), offset,
     ite_eq_right (by omega), ite_eq_right (by omega)]
-  have candidate : wordCandidate (PiRLCStarts.samplerLogicalStart + source.val * 4267 + (4213 + position.val)) =
+  have candidate : wordCandidate (PiRLCStarts.samplerLogicalStart + source.val * 4873 + (4809 + position.val)) =
       .word source position := by
     unfold wordCandidate
     apply congrArg₂ Location.word
@@ -205,7 +205,7 @@ theorem classifySource_word (source : Fin sourceCount) (position : Fin ringDegre
       change logicalIndex _ % sourceCount = source.val
       rw [index, Nat.mod_eq_of_lt source.isLt]
     · apply Fin.ext
-      change (logicalOffset _ - 4213) % ringDegree = position.val
+      change (logicalOffset _ - 4809) % ringDegree = position.val
       rw [offset, Nat.add_sub_cancel_left, Nat.mod_eq_of_lt position.isLt]
   rw [candidate]
   unfold exactCandidate
@@ -415,7 +415,7 @@ theorem programRow_preserve
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry program
       logicalWidth) (assignment : Assignment F logicalWidth)
-    (index : Fin 14943) :
+    (index : Fin 15453) :
     OrdinarySourcePlan.SourceMap.PreservesRow (sourceMap geometry) assignment
       (resolvedEnv geometry assignment)
       (PiRLCSamplerOrdinaryDirectSource.programRow
@@ -434,7 +434,7 @@ def rowForms
     (_relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry program
-      logicalWidth) (index : Fin 14943) : OrdinaryRow.Forms logicalWidth :=
+      logicalWidth) (index : Fin 15453) : OrdinaryRow.Forms logicalWidth :=
   SourceCompiler.compileRow (sourceMap geometry)
     (PiRLCSamplerOrdinaryRetainedGeometry.oneColumn geometry)
     (PiRLCSamplerOrdinaryDirectSource.programRow

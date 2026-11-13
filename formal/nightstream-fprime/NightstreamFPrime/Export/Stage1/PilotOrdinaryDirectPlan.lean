@@ -32,8 +32,8 @@ def finalSlot (lane : Fin 4) : Fin 1096 :=
 
 inductive Location where
   | priorDigest (lane : Fin 4)
-  | priorPublic (index : Fin 270)
-  | canonicalLocal (index : Fin 264)
+  | priorPublic (index : Fin 320)
+  | canonicalLocal (index : Fin 268)
   | outputState (lane : Fin 4)
   | canonicalFresh (index : Fin 144)
   | outputDigest (lane : Fin 4)
@@ -65,7 +65,7 @@ theorem physicalSupport (location : Location) :
   | priorPublic index =>
       apply Or.inl
       apply LogicalSource.priorPublic
-      change InRange PilotProduction.priorPublicInputStart 270
+      change InRange PilotProduction.priorPublicInputStart 320
         (PilotProduction.priorPublicInputStart + index.val)
       unfold InRange
       have bound := index.isLt
@@ -75,7 +75,7 @@ theorem physicalSupport (location : Location) :
       apply LogicalSource.canonicalLocal
       change InRange
         (PriorStateHash.hashEnd PilotProduction.priorInterface
-          PilotProduction.witnessOffset) 264
+          PilotProduction.witnessOffset) 268
         (PriorStateHash.hashEnd PilotProduction.priorInterface
           PilotProduction.witnessOffset + index.val)
       unfold InRange
@@ -196,12 +196,12 @@ def classifySource (source : Nat) : Option (Located source) :=
   if priorDigest : InRange PilotProduction.priorDigestStart 4 source then
     some ⟨.priorDigest (rangeIndex priorDigest), by
       rw [Location.sourceColumn, rangeIndex_source priorDigest]⟩
-  else if priorPublic : InRange PilotProduction.priorPublicInputStart 270 source then
+  else if priorPublic : InRange PilotProduction.priorPublicInputStart 320 source then
     some ⟨.priorPublic (rangeIndex priorPublic), by
       rw [Location.sourceColumn, rangeIndex_source priorPublic]⟩
   else if canonicalLocal : InRange
       (PriorStateHash.hashEnd PilotProduction.priorInterface
-        PilotProduction.witnessOffset) 264 source then
+        PilotProduction.witnessOffset) 268 source then
     some ⟨.canonicalLocal (rangeIndex canonicalLocal), by
       rw [Location.sourceColumn, rangeIndex_source canonicalLocal]⟩
   else if outputState : InRange
@@ -346,7 +346,7 @@ private theorem outputLastWitnessStart_eq :
       PiCCSOrdinaryRetainedBlocks.outputLastInvocation = 5155438 := by rfl
 
 private theorem liftPriorDigestTarget (lane : Fin 4) :
-    Spartan.liftPilotColumn (2598342 + lane.val) = 2613534 + lane.val := by
+    Spartan.liftPilotColumn (2700266 + lane.val) = 2613534 + lane.val := by
   have laneBound := lane.isLt
   unfold Spartan.liftPilotColumn
   rw [ite_eq_right (by norm_num [Spartan.pilotInputPrivateColumnCount]; omega)]
@@ -355,7 +355,7 @@ private theorem liftPriorDigestTarget (lane : Fin 4) :
   omega
 
 private theorem liftOutputStateTarget (lane : Fin 4) :
-    Spartan.liftPilotColumn (5141326 + lane.val) = 5156518 + lane.val := by
+    Spartan.liftPilotColumn (5342990 + lane.val) = 5156518 + lane.val := by
   have laneBound := lane.isLt
   unfold Spartan.liftPilotColumn
   rw [ite_eq_right (by norm_num [Spartan.pilotInputPrivateColumnCount]; omega)]
@@ -411,9 +411,9 @@ private theorem priorFinalColumn_bound (lane : Fin 4) :
       PerApplicationPackage.basePackage.layout.totalColumnCount := by
   have laneBound := (finalSlot lane).isLt
   have total : PerApplicationPackage.basePackage.layout.totalColumnCount =
-      11464875 := Package.circuitPackage_layout_values.2.2.2.2
+      11415253 := Package.circuitPackage_layout_values.2.2.2.2
   rw [priorLastWitnessStart_eq, total]
-  change 2612454 + (1080 + lane.val) < 11464875
+  change 2612454 + (1080 + lane.val) < 11415253
   omega
 
 private theorem outputFinalColumn_bound (lane : Fin 4) :
@@ -423,9 +423,9 @@ private theorem outputFinalColumn_bound (lane : Fin 4) :
       PerApplicationPackage.basePackage.layout.totalColumnCount := by
   have laneBound := (finalSlot lane).isLt
   have total : PerApplicationPackage.basePackage.layout.totalColumnCount =
-      11464875 := Package.circuitPackage_layout_values.2.2.2.2
+      11415253 := Package.circuitPackage_layout_values.2.2.2.2
   rw [outputLastWitnessStart_eq, total]
-  change 5155438 + (1080 + lane.val) < 11464875
+  change 5155438 + (1080 + lane.val) < 11415253
   omega
 
 private theorem priorLastBlock_source
@@ -647,7 +647,7 @@ private theorem preservesCombination
   exact sourceMap_form_eval_of_target geometry assignment base groupValue encodes ⟨term.1, bounded term member⟩ (scope term member)
 
 private theorem programRow_support
-    (index : Fin 686) :
+    (index : Fin 596) :
     (PilotOrdinaryDirectSource.programRow index).VarsSatisfy Target := by
   exact sourceRows_varsSatisfy _
     (List.get_mem _ (Fin.cast sourceRows_length.symm index))
@@ -692,7 +692,7 @@ theorem programRow_preserve
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (encodes : Encodes geometry assignment base groupValue)
-    (index : Fin 686) :
+    (index : Fin 596) :
     OrdinarySourcePlan.SourceMap.PreservesRow (sourceMap geometry) assignment
       (pilotEnv program base) (PilotOrdinaryDirectSource.programRow index)
       (PilotOrdinaryDirectSource.programRow_bounded index) := by
@@ -708,7 +708,7 @@ theorem programRow_preserve
 def rowForms
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PilotOrdinaryRetainedGeometry.Geometry program logicalWidth)
-    (index : Fin 686) : OrdinaryRow.Forms logicalWidth :=
+    (index : Fin 596) : OrdinaryRow.Forms logicalWidth :=
   SourceCompiler.compileRow (sourceMap geometry) (oneColumn geometry)
     (PilotOrdinaryDirectSource.programRow index)
     (PilotOrdinaryDirectSource.programRow_bounded index)
@@ -723,7 +723,7 @@ def plan
 @[simp] theorem plan_rowCount
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PilotOrdinaryRetainedGeometry.Geometry program logicalWidth) :
-    (plan geometry).rowCount = 686 := by
+    (plan geometry).rowCount = 596 := by
   rfl
 
 theorem rowsZero_iff_rowsHold

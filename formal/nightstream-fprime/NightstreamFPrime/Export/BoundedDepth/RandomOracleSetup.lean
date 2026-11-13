@@ -16,7 +16,7 @@ kernel chance of each fold (`LightUniqueness.kernelChance`, `RefreshUniqueness.k
 at most 1, so `expect_le_programmed` replaces the chunk average of the kernel chance by the
 average over a uniform key matrix, with the chunks a uniform preimage of the matrix
 (`lightMsisAdvantage`, `refreshMsisAdvantage`), plus the programming error
-`|SetupIndex| · 2 · (2^32 − 1) / 2^256`.
+`|SetupIndex| · 2 · 59^4 / 2^256`, where `59^4 = 12117361`.
 
 * `light_knowledge_error_le_setup`, `refresh_knowledge_error_le_setup`: the average success is
   at most the average extraction and prior-state collision chances, the fold's statistical
@@ -26,7 +26,7 @@ average over a uniform key matrix, with the chunks a uniform preimage of the mat
   uniform key matrix at `msisChainBound p cap`, plus `(3Q + 61)/budget` (light) or
   `(35Q + 653)/budget` (refresh).
 * `programmingError_lt`: at the bounded-depth scheme's key width `2^26` (`StepRelation.keyWidth`), the setup has
-  `22 · 1,242,757 · 54` chunks and the programming error is below `2^-192`.
+  `18 · 1,048,576 · 64` chunks and the programming error is below `2^-192`.
 * `light_production_knowledge_error_lt`, `refresh_production_knowledge_error_lt`: at the key
   width, the average success is below the average extraction and collision chances, the
   statistical error, the MSIS advantage and `2^-192`. With `Q = 2^64` the statistical error is
@@ -78,7 +78,7 @@ def setupKey (chunks : SetupIndex logicalWidth publicFits → Chunk) :
 noncomputable def programmingError (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth) :
     ℝ :=
-  Fintype.card (SetupIndex logicalWidth publicFits) * (2 * 4294967295 / 2 ^ 256 : ℝ)
+  Fintype.card (SetupIndex logicalWidth publicFits) * (2 * 12117361 / 2 ^ 256 : ℝ)
 
 /-- A chance in `[0, 1]` that depends on the Ajtai key: its chunk average is at most its
 average over a uniform matrix and a uniform preimage, plus the programming error. -/
@@ -356,9 +356,9 @@ section Production
 local notation "Width" => StepRelation.keyWidth
 local notation "Fits" => StepRelation.keyPublicFits
 
-/-- At the bounded-depth scheme's key width the setup has `22 · 1,242,757 · 54` chunks. -/
+/-- At the bounded-depth scheme's key width the setup has `18 · 1,048,576 · 64` chunks. -/
 theorem setupIndex_card :
-    Fintype.card (SetupIndex Width Fits) = 22 * 1242757 * 54 := by
+    Fintype.card (SetupIndex Width Fits) = 18 * 1048576 * 64 := by
   show Fintype.card (KeyIndex productionProfile.commitmentWidth
     (ConcreteRingColumnLayout.blockCount (RingCarrierLayout.carrierWidth StepRelation.keyWidth))) = _
   rw [Fintype.card_prod, Fintype.card_prod, Fintype.card_fin, Fintype.card_fin, Fintype.card_fin]

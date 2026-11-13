@@ -10,7 +10,7 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 open RunningTransitionRetainedBlocks
 
 def stateStart (program : Lifecycle.Stage1.Application.Program) : Nat :=
-  PiRLCPoseidonGeometry.priorInputStart program + 27810 * 41
+  PiRLCPoseidonGeometry.priorInputStart program + 28904 * 41
 
 theorem retainedPrefix_le_stateStart
     (program : Lifecycle.Stage1.Application.Program) :
@@ -85,7 +85,7 @@ theorem stateFits {program : Lifecycle.Stage1.Application.Program}
   have width : (PiRLCPoseidonGeometry.priorInputBlock program).coordinateCount =
       1140579 := by simp [PiRLCPoseidonGeometry.priorInputBlock]
   rw [width] at parent
-  change PiRLCPoseidonGeometry.priorInputStart program + 27810 * 41 + 9 * 41 ≤
+  change PiRLCPoseidonGeometry.priorInputStart program + 28904 * 41 + 9 * 41 ≤
     logicalWidth
   omega
 

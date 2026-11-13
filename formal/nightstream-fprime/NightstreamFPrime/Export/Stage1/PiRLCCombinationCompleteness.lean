@@ -125,7 +125,7 @@ private theorem blockConstraints_totalFreshCount
     R1CS.totalFreshCount
         (blockConstraints logicalStart blockCount cellCount valueStride source
           valueSourceStart block) =
-      cellCount * 8100 := by
+      cellCount * 8320 := by
   unfold blockConstraints
   rw [totalFreshCount_flatten, List.map_ofFn]
   change (List.ofFn fun lane : Fin ringDegree =>
@@ -154,7 +154,7 @@ private theorem blockConstraints_totalFreshCount
         (List.ofFn fun lane : Fin ringDegree => laneFreshCost lane.val).sum :=
       sum_map_mul_left cellCount _
     _ = cellCount * laneFreshCosts.sum := by rw [laneFreshCosts_ofFn]
-    _ = cellCount * 8100 := by rw [laneFreshCosts_sum]
+    _ = cellCount * 8320 := by rw [laneFreshCosts_sum]
 
 private theorem sum_take_ofFn_const {count : Nat} (value : Nat)
     (index : Fin count) :
@@ -204,19 +204,19 @@ private theorem blockFreshPrefix
       R1CS.totalFreshCount
         (blockConstraints logicalStart blockCount cellCount valueStride source
           valueSourceStart current)).take block.val).sum =
-      block.val * (cellCount * 8100) := by
+      block.val * (cellCount * 8320) := by
   have countsEq :
       (List.ofFn fun current : Fin blockCount =>
         R1CS.totalFreshCount
           (blockConstraints logicalStart blockCount cellCount valueStride source
             valueSourceStart current)) =
-        List.ofFn (fun _ : Fin blockCount => cellCount * 8100) := by
+        List.ofFn (fun _ : Fin blockCount => cellCount * 8320) := by
     apply congrArg List.ofFn
     funext current
     exact blockConstraints_totalFreshCount logicalStart blockCount cellCount
       valueStride source valueSourceStart freshCount current
   rw [countsEq]
-  exact sum_take_ofFn_const (cellCount * 8100) block
+  exact sum_take_ofFn_const (cellCount * 8320) block
 
 private theorem laneFreshPrefix_total
     (logicalStart blockCount cellCount valueStride source : Nat)
@@ -338,7 +338,7 @@ private theorem sourceConstraints_totalFreshCount
         R1CS.totalFreshCount
           (blockConstraints logicalStart blockCount cellCount valueStride source
             valueSourceStart block)) =
-        List.ofFn (fun _ : Fin blockCount => cellCount * 8100) := by
+        List.ofFn (fun _ : Fin blockCount => cellCount * 8320) := by
     apply congrArg List.ofFn
     funext block
     exact blockConstraints_totalFreshCount logicalStart blockCount cellCount
@@ -433,7 +433,7 @@ theorem sourcePhysicalRows_imply_invocationRows
         laneConstraints logicalStart blockCount cellCount valueStride source
           valueSourceStart block current)
       ((freshStart + source * sourceFreshCount blockCount cellCount) +
-        block.val * (cellCount * 8100)) := by
+        block.val * (cellCount * 8320)) := by
     apply (R1CS.rowsHold_flatten_iff _ _ _).mp
     simpa [blockConstraints] using blockRows
   have laneRows := R1CS.segmentsHold_ofFn_get (Spartan.pullback env)
@@ -441,7 +441,7 @@ theorem sourcePhysicalRows_imply_invocationRows
       laneConstraints logicalStart blockCount cellCount valueStride source
         valueSourceStart block current)
     ((freshStart + source * sourceFreshCount blockCount cellCount) +
-      block.val * (cellCount * 8100)) laneSegments lane
+      block.val * (cellCount * 8320)) laneSegments lane
   rw [laneFreshPrefix_total logicalStart blockCount cellCount valueStride source
     valueSourceStart freshCount block lane] at laneRows
   have cellRows := R1CS.rowsHold_lowerConstraints_ofFn_get
@@ -450,14 +450,14 @@ theorem sourcePhysicalRows_imply_invocationRows
       sourceConstraint logicalStart blockCount cellCount valueStride source
         block.val current.val valueSourceStart lane)
     (((freshStart + source * sourceFreshCount blockCount cellCount) +
-      block.val * (cellCount * 8100)) +
+      block.val * (cellCount * 8320)) +
         cellCount * laneFreshPrefix lane.val)
     (by simpa [laneConstraints] using laneRows) cell
   rw [cellFreshPrefix logicalStart blockCount cellCount valueStride source
     valueSourceStart freshCount block lane cell] at cellRows
   have startEq :
       ((((freshStart + source * sourceFreshCount blockCount cellCount) +
-          block.val * (cellCount * 8100)) +
+          block.val * (cellCount * 8320)) +
         cellCount * laneFreshPrefix lane.val) +
           cell.val * laneFreshCost lane.val) =
         invocationFreshSource freshStart blockCount cellCount source block.val
@@ -564,10 +564,10 @@ private theorem sourceConstraint_freshCount_of_production
       lane cell constraintEq
 
 private theorem commitmentSourceFreshCount
-    (source : Fin sourceCount) (block : Fin 22) (lane : Fin ringDegree)
+    (source : Fin sourceCount) (block : Fin 18) (lane : Fin ringDegree)
     (cell : Fin 1) :
     R1CS.constraintFreshCount
-        (sourceConstraint PiRLCStarts.commitmentLogicalStart 22 1 1 source.val
+        (sourceConstraint PiRLCStarts.commitmentLogicalStart 18 1 1 source.val
           block.val cell.val commitmentValueSourceStart lane) =
       laneFreshCost lane.val := by
   let canonicalSource : Fin CombinationFamily.sourceCount :=
@@ -665,7 +665,7 @@ private theorem evalASourceFreshCount
 
 structure ProductionFamilyInvocationRowsHold (env : Env) : Prop where
   commitment : FamilyInvocationRowsHold PiRLCStarts.commitmentLogicalStart
-    PiRLCStarts.commitmentRowStart PiRLCStarts.commitmentFreshStart 22 1 1
+    PiRLCStarts.commitmentRowStart PiRLCStarts.commitmentFreshStart 18 1 1
     commitmentValueSourceStart env
   publicInput : FamilyInvocationRowsHold PiRLCStarts.publicInputLogicalStart
     PiRLCStarts.publicInputRowStart PiRLCStarts.publicInputFreshStart 5 1 1
@@ -717,7 +717,7 @@ theorem remappedPackets_imply_familyInvocationRows
   rw [← evalAFamilyConstraints_eq_parent] at evalARows
   refine ⟨?_, ?_, ?_, ?_⟩
   · refine familyPhysicalRows_imply_invocationRows
-      (blockCount := 22) (cellCount := 1)
+      (blockCount := 18) (cellCount := 1)
       PiRLCStarts.commitmentLogicalStart PiRLCStarts.commitmentRowStart
       PiRLCStarts.commitmentFreshStart 1 commitmentValueSourceStart
       commitmentFreshStart_local commitmentSourceFreshCount ?_ env

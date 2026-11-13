@@ -26,7 +26,7 @@ theorem sourceRows_length
     {publicFits : ringDegree * publicRingColumns ≤
       RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    (sourceRows logicalWidth publicFits).length = 27800 := by
+    (sourceRows logicalWidth publicFits).length = 28894 := by
   rw [sourceRows, Spartan.remapRows, List.length_map,
     RunningTransitionLayout.physicalRows_length,
     RunningTransitionLayout.physicalRowCount_eq relation]
@@ -73,7 +73,7 @@ def program
     {publicFits : ringDegree * publicRingColumns ≤
       RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    (program relation).rowCount = 27800 := by
+    (program relation).rowCount = 28894 := by
   exact sourceRows_length relation
 
 theorem program_eq_of_same_shape

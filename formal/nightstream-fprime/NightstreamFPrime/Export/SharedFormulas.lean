@@ -132,46 +132,46 @@ def externalComponent (_ : Unit) : Component where
   definitions := ["NightstreamFPrime.Layout.ProductionRelation.SparseLayer.external"]
   contracts := ["NightstreamFPrime.Layout.ProductionRelation.SparseLayer.eval_external"]
 
-private def ringProductInterface : RingProductPlan.Interface 271 :=
-  let oneColumn : Fin 271 := 0
-  let challenge : RingProductPlan.State 271 := fun index =>
+private def ringProductInterface : RingProductPlan.Interface 321 :=
+  let oneColumn : Fin 321 := 0
+  let challenge : RingProductPlan.State 321 := fun index =>
     SparseForm.add (SparseForm.singleton
-      ⟨1 + index.val, by have bound : index.val < 54 := index.isLt; omega⟩ 1)
+      ⟨1 + index.val, by have bound : index.val < 64 := index.isLt; omega⟩ 1)
       (SparseForm.singleton oneColumn (-2))
   { left := challenge
     right := fun index => SparseForm.singleton
-      ⟨55 + index.val, by have bound : index.val < 54 := index.isLt; omega⟩ 1
+      ⟨65 + index.val, by have bound : index.val < 64 := index.isLt; omega⟩ 1
     quotient := fun index => SparseForm.singleton
-      ⟨109 + index.val, by have bound : index.val < 54 := index.isLt; omega⟩ 1
+      ⟨129 + index.val, by have bound : index.val < 64 := index.isLt; omega⟩ 1
     prior := fun index => SparseForm.singleton
-      ⟨163 + index.val, by have bound : index.val < 54 := index.isLt; omega⟩ 1
+      ⟨193 + index.val, by have bound : index.val < 64 := index.isLt; omega⟩ 1
     output := fun index => SparseForm.singleton
-      ⟨217 + index.val, by have bound : index.val < 54 := index.isLt; omega⟩ 1 }
+      ⟨257 + index.val, by have bound : index.val < 64 := index.isLt; omega⟩ 1 }
 
 def ringProductVariant (_ : Fin 1) : Variant where
   linearForms := []
   rows := (RingProductPlan.rows ringProductInterface).map
     (fun row => wireRow row.meaningfulForm)
-  outputRegisters := (List.range ringDegree).map (217 + ·)
+  outputRegisters := (List.range ringDegree).map (257 + ·)
 
 def ringProductComponent (_ : Unit) : Component where
-  id := "phi81-product-v1"
-  inputCount := 271
+  id := "ring-product-v1"
+  inputCount := 321
   ports := [⟨"one", "constant", 0, 1⟩,
     ⟨"challenge", "input", 1, ringDegree⟩,
-    ⟨"input", "input", 55, ringDegree⟩,
-    ⟨"quotient", "witness", 109, ringDegree⟩,
-    ⟨"prior", "input", 163, ringDegree⟩,
-    ⟨"output", "output", 217, ringDegree⟩]
+    ⟨"input", "input", 65, ringDegree⟩,
+    ⟨"quotient", "witness", 129, ringDegree⟩,
+    ⟨"prior", "input", 193, ringDegree⟩,
+    ⟨"output", "output", 257, ringDegree⟩]
   variantCount := 1
   variant := ringProductVariant
   definitions := [
-    "NightstreamFPrime.Layout.ProductionRelation.Phi81ProductPlan.rows",
-    "NightstreamFPrime.Layout.MatrixProgram.Phi81Product.Block.interface?"]
+    "NightstreamFPrime.Layout.ProductionRelation.RingProductPlan.rows",
+    "NightstreamFPrime.Layout.MatrixProgram.RingProduct.Block.interface?"]
   contracts := [
-    "NightstreamFPrime.Layout.ProductionRelation.Phi81ProductPlan.rowsZero_implies_ringProduct",
-    "NightstreamFPrime.Spec.Phi81Relation.QuotientProduct.complete",
-    "NightstreamFPrime.Layout.MatrixProgram.Phi81Product.Block.row?_of_loaded"]
+    "NightstreamFPrime.Layout.ProductionRelation.RingProductPlan.rowsZero_implies_ringProduct",
+    "NightstreamFPrime.Spec.RingRelation.QuotientProduct.complete",
+    "NightstreamFPrime.Layout.MatrixProgram.RingProduct.Block.row?_of_loaded"]
 
 def Variant.validate (inputCount : Nat) (variant : Variant) : Except String Unit := do
   let mut available := inputCount

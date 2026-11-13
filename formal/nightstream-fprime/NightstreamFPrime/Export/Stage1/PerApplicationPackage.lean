@@ -26,7 +26,7 @@ def applicationPlan (program : Lifecycle.Stage1.Application.Program) :
 
 def directApplicationPlan (program : Lifecycle.Stage1.Application.Program) :
     ApplicationPackage.Plan :=
-  ApplicationPackage.productionPlan program 11377912
+  ApplicationPackage.productionPlan program 11317348
 
 theorem directApplicationPlan_eq_applicationPlan
     (program : Lifecycle.Stage1.Application.Program) :
@@ -79,7 +79,7 @@ def nextPreimageRowStart
 
 def directNextPreimageRowStart
     (program : Lifecycle.Stage1.Application.Program) : Nat :=
-  11377912 + directApplicationRowCount program
+  11317348 + directApplicationRowCount program
 
 theorem directNextPreimageRowStart_eq_nextPreimageRowStart
     (program : Lifecycle.Stage1.Application.Program) :
@@ -596,12 +596,12 @@ theorem packageRows_imply_nextPreimageSpec
       sourceSpec.initialState index
 
 @[simp] theorem basePackage_rowCount_eq :
-    basePackage.layout.rowCount = 11377912 := by
+    basePackage.layout.rowCount = 11317348 := by
   rw [basePackage, Data.circuitPackage_layout]
   rfl
 
 @[simp] theorem basePackage_totalColumnCount_eq :
-    basePackage.layout.totalColumnCount = 11464875 := by
+    basePackage.layout.totalColumnCount = 11415253 := by
   rw [basePackage, Data.circuitPackage_layout]
   rfl
 

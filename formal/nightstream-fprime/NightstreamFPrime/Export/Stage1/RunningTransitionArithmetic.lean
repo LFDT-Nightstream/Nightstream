@@ -116,7 +116,7 @@ theorem canonicalPlan_rowCount
       RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     R1CS.totalRowCount (canonicalPlan logicalWidth publicFits).constraints =
-      27800 := by
+      28894 := by
   change R1CS.totalRowCount
       (NightstreamFPrime.Lifecycle.Stage1.RunningTransition.flagConstraint
           (NightstreamFPrime.Layout.Stage1.RunningTransitionInputs.interface
@@ -126,7 +126,7 @@ theorem canonicalPlan_rowCount
           (NightstreamFPrime.Layout.Stage1.RunningTransitionInputs.interface
             logicalWidth publicFits)
           NightstreamFPrime.Layout.Stage1.RunningTransitionInputs.phaseOffset) =
-    27800
+    28894
   rw [NightstreamFPrime.Lifecycle.Stage1.RunningTransition.constraintsFast_eq_constraints,
     ← logicalConstraints_eq]
   exact NightstreamFPrime.Layout.Stage1.RunningTransitionLayout.totalRowCount_eq

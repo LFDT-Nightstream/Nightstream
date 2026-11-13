@@ -247,7 +247,7 @@ theorem nextPreimageRange_endsAtPackageEnd (program : Program)
 
 def logicalPublicInputCount : Nat := ProductionAssignment.publicWidth
 
-@[simp] theorem logicalPublicInputCount_eq : logicalPublicInputCount = 270 :=
+@[simp] theorem logicalPublicInputCount_eq : logicalPublicInputCount = 320 :=
   ProductionAssignment.publicWidth_eq
 
 def sealedPackageSchema : Nat := 6

@@ -810,14 +810,14 @@ theorem statementInvocations_length
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       RingCarrierLayout.carrierWidth logicalWidth) :
-    (statementTrace logicalWidth publicFits).invocations.length = 123 := by
+    (statementTrace logicalWidth publicFits).invocations.length = 124 := by
   rw [statementTrace, compileActions_invocations_length]
   have compiled := recipeCount_eq_invocationCount_mul
     (statementActions logicalWidth publicFits)
   have fixed := StatementAbsorption.recipeCount_eq
     (statementInterface logicalWidth publicFits) statementWitnessStart
   change Formal.recipeCount (statementActions logicalWidth publicFits) =
-    134808 at fixed
+    135904 at fixed
   rw [fixed] at compiled
   omega
 
@@ -875,14 +875,14 @@ theorem outputInvocations_length
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       RingCarrierLayout.carrierWidth logicalWidth) :
-    (outputTrace logicalWidth publicFits).invocations.length = 765 := by
+    (outputTrace logicalWidth publicFits).invocations.length = 907 := by
   rw [outputTrace, compileActions_invocations_length]
   have compiled := recipeCount_eq_invocationCount_mul
     (outputActions logicalWidth publicFits)
   have fixed := OutputBinding.recipeCount_eq
     (outputInterface logicalWidth publicFits) outputWitnessStart
   change Formal.recipeCount (outputActions logicalWidth publicFits) =
-    838440 at fixed
+    994072 at fixed
   rw [fixed] at compiled
   omega
 
@@ -890,7 +890,7 @@ theorem invocations_length
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       RingCarrierLayout.carrierWidth logicalWidth) :
-    (invocations logicalWidth publicFits).length = 948 := by
+    (invocations logicalWidth publicFits).length = 1091 := by
   unfold invocations
   rw [List.length_append, List.length_append, List.length_append,
     statementInvocations_length, challengeInvocations_length,
@@ -899,7 +899,7 @@ theorem invocations_length
 def invocationCeiling : Nat :=
   NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
     NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase
-theorem invocationCeiling_eq : invocationCeiling = 6225547 := by
+theorem invocationCeiling_eq : invocationCeiling = 6591589 := by
   unfold invocationCeiling NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase
   rw [NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq]
   norm_num [NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan,
@@ -916,7 +916,7 @@ theorem invocationCeiling_le_private :
 theorem statementInvocationCount_eq (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       RingCarrierLayout.carrierWidth logicalWidth) :
-    invocationCount (statementActions logicalWidth publicFits) = 123 := by
+    invocationCount (statementActions logicalWidth publicFits) = 124 := by
   have count := statementInvocations_length logicalWidth publicFits
   rw [statementTrace, compileActions_invocations_length] at count
   exact count
@@ -937,7 +937,7 @@ theorem roundInvocationCount_eq (logicalWidth : Nat)
 theorem outputInvocationCount_eq (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       RingCarrierLayout.carrierWidth logicalWidth) :
-    invocationCount (outputActions logicalWidth publicFits) = 765 := by
+    invocationCount (outputActions logicalWidth publicFits) = 907 := by
   have count := outputInvocations_length logicalWidth publicFits
   rw [outputTrace, compileActions_invocations_length] at count
   exact count
@@ -1009,10 +1009,10 @@ theorem outputFinalState_varsBelow_samplerStart
   have startMatch := outputWitnessStart_matches logicalWidth publicFits relation
   rw [← startMatch] at finalBelow
   rw [OutputBinding.localLength_eq] at finalBelow
-  have endMatch : outputWitnessStart + 838440 =
+  have endMatch : outputWitnessStart + 994072 =
       NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase := by
     calc
-      outputWitnessStart + 838440 =
+      outputWitnessStart + 994072 =
           outputWitnessStart +
             invocationCount (outputActions logicalWidth publicFits) * 1096 := by
         rw [outputInvocationCount_eq]

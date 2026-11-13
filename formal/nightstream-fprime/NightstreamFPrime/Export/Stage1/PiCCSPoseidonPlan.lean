@@ -52,8 +52,8 @@ def plan {program : Lifecycle.Stage1.Application.Program}
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (payload : Payload logicalWidth)
     (geometry : Geometry program logicalWidth) :
-    (plan payload geometry).rowCount = 142200 := by
-  change invocationCount * 150 = 142200
+    (plan payload geometry).rowCount = 163650 := by
+  change invocationCount * 150 = 163650
   rw [invocationCount_eq]
 
 theorem rowsZero_iff

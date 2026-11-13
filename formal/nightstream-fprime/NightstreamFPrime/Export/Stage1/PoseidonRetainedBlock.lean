@@ -19,19 +19,19 @@ def outputInvocationCount : Nat := Data.outputChain.absorbCount + 1
 def pilotInvocationCount : Nat := priorInvocationCount + outputInvocationCount
 def laterInvocationCountReference (_delay : Unit := ()) : Nat :=
   basePackage.permutationInvocations.length
-def laterInvocationCount : Nat := 982
+def laterInvocationCount : Nat := 1125
 def totalInvocationCount : Nat := pilotInvocationCount + laterInvocationCount
 
-@[simp] theorem priorInvocationCount_eq : priorInvocationCount = 2320 := by
+@[simp] theorem priorInvocationCount_eq : priorInvocationCount = 2411 := by
   rfl
 
-@[simp] theorem outputInvocationCount_eq : outputInvocationCount = 2320 := by
+@[simp] theorem outputInvocationCount_eq : outputInvocationCount = 2411 := by
   rfl
 
-@[simp] theorem pilotInvocationCount_eq : pilotInvocationCount = 4640 := by
+@[simp] theorem pilotInvocationCount_eq : pilotInvocationCount = 4822 := by
   simp [pilotInvocationCount]
 
-@[simp] theorem laterInvocationCount_eq : laterInvocationCount = 982 := by
+@[simp] theorem laterInvocationCount_eq : laterInvocationCount = 1125 := by
   rfl
 
 @[simp] theorem basePackage_permutationInvocations_length :
@@ -68,7 +68,7 @@ theorem laterInvocationCount_eq_reference :
   unfold laterInvocationCountReference
   exact basePackage_permutationInvocations_length.symm
 
-@[simp] theorem totalInvocationCount_eq : totalInvocationCount = 5622 := by
+@[simp] theorem totalInvocationCount_eq : totalInvocationCount = 5947 := by
   simp [totalInvocationCount]
 
 private theorem priorChain_mem :
@@ -175,12 +175,12 @@ def laterBlock : LowNormBlock.Block basePackage.layout.constantColumn :=
 @[simp] theorem laterBlock_kind : laterBlock.kind = .field := by
   rfl
 
-@[simp] theorem priorBlock_slotCount : priorBlock.slotCount = 348000 := by
+@[simp] theorem priorBlock_slotCount : priorBlock.slotCount = 361650 := by
   rw [priorBlock,
     Layout.ProductionRelation.PoseidonRetainedBlock.block_slotCount,
     priorInvocationCount_eq]
 
-@[simp] theorem outputBlock_slotCount : outputBlock.slotCount = 348000 := by
+@[simp] theorem outputBlock_slotCount : outputBlock.slotCount = 361650 := by
   rw [outputBlock,
     Layout.ProductionRelation.PoseidonRetainedBlock.block_slotCount,
     outputInvocationCount_eq]
@@ -218,14 +218,14 @@ def retainedSlotCount : Nat :=
 def retainedCoordinateCount : Nat :=
   (retainedBlocks.map fun block => block.coordinateCount).sum
 
-@[simp] theorem retainedSlotCount_eq : retainedSlotCount = 843300 := by
+@[simp] theorem retainedSlotCount_eq : retainedSlotCount = 892050 := by
   simp [retainedSlotCount, retainedBlocks, priorBlock, outputBlock, laterBlock,
     Layout.ProductionRelation.PoseidonRetainedBlock.block_slotCount,
     priorInvocationCount_eq, outputInvocationCount_eq,
     laterInvocationCount_eq]
 
 @[simp] theorem retainedCoordinateCount_eq :
-    retainedCoordinateCount = 34575300 := by
+    retainedCoordinateCount = 36574050 := by
   simp [retainedCoordinateCount, retainedBlocks, priorBlock, outputBlock,
     laterBlock,
     Layout.ProductionRelation.PoseidonRetainedBlock.block_coordinateCount,

@@ -12,7 +12,7 @@ open NightstreamFPrime.Layout.ProductionRelation
 def sourceWidth (program : Lifecycle.Stage1.Application.Program) : Nat :=
   PiRLCRetainedGeometry.sourceWidth program
 
-def piCcsInvocationCount : Nat := 948
+def piCcsInvocationCount : Nat := 1091
 def samplerInvocationCount : Nat := 34
 
 def piCcsSlotCount : Nat :=
@@ -57,13 +57,13 @@ def samplerStart (program : Lifecycle.Stage1.Application.Program) : Nat :=
 
 @[simp] theorem piCcsBlock_slotCount
     (program : Lifecycle.Stage1.Application.Program) :
-    (piCcsBlock program).slotCount = 142200 := by
+    (piCcsBlock program).slotCount = 163650 := by
   calc
     (piCcsBlock program).slotCount = piCcsSlotCount :=
       LowNormBlock.Block.slice_slotCount
         (PiRLCRetainedGeometry.laterPoseidonBlock program)
         0 piCcsSlotCount (piCcsFits program)
-    _ = 142200 := by simp [piCcsSlotCount, piCcsInvocationCount, PoseidonRetainedSlots.rows_length]
+    _ = 163650 := by simp [piCcsSlotCount, piCcsInvocationCount, PoseidonRetainedSlots.rows_length]
 
 @[simp] theorem samplerBlock_slotCount
     (program : Lifecycle.Stage1.Application.Program) :

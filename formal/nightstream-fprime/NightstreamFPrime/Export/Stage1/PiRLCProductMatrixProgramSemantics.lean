@@ -237,27 +237,27 @@ theorem previousInvocation_eq
   have sourceNonzero : source.val ≠ 0 := notFirst
   cases family
   · rw [wireDescriptor_invocation, wireDescriptor_privateCount]
-    change (1188 * source.val +
-        (CombinationStep.indexOf block lane cell).val) - 1188 =
-      1188 * (source.val - 1) +
+    change (1152 * source.val +
+        (CombinationStep.indexOf block lane cell).val) - 1152 =
+      1152 * (source.val - 1) +
         (CombinationStep.indexOf block lane cell).val
     omega
   · rw [wireDescriptor_invocation, wireDescriptor_privateCount]
-    change 20196 + (270 * source.val +
-        (CombinationStep.indexOf block lane cell).val) - 270 =
-      20196 + (270 * (source.val - 1) +
+    change 19584 + (320 * source.val +
+        (CombinationStep.indexOf block lane cell).val) - 320 =
+      19584 + (320 * (source.val - 1) +
         (CombinationStep.indexOf block lane cell).val)
     omega
   · rw [wireDescriptor_invocation, wireDescriptor_privateCount]
-    change 20196 + (4590 + (108 * source.val +
-        (CombinationStep.indexOf block lane cell).val)) - 108 =
-      20196 + (4590 + (108 * (source.val - 1) +
+    change 19584 + (5440 + (128 * source.val +
+        (CombinationStep.indexOf block lane cell).val)) - 128 =
+      19584 + (5440 + (128 * (source.val - 1) +
         (CombinationStep.indexOf block lane cell).val))
     omega
   · rw [wireDescriptor_invocation, wireDescriptor_privateCount]
-    change 20196 + (4590 + (1836 + (432 * source.val +
-        (CombinationStep.indexOf block lane cell).val))) - 432 =
-      20196 + (4590 + (1836 + (432 * (source.val - 1) +
+    change 19584 + (5440 + (2176 + (512 * source.val +
+        (CombinationStep.indexOf block lane cell).val))) - 512 =
+      19584 + (5440 + (2176 + (512 * (source.val - 1) +
         (CombinationStep.indexOf block lane cell).val)))
     omega
 
@@ -430,32 +430,32 @@ theorem block_interface?
 theorem block_row?
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
-    (descriptor : PiRLCProductRingSchedule.Descriptor) (localRow : Fin 108) :
+    (descriptor : PiRLCProductRingSchedule.Descriptor) (localRow : Fin 128) :
     (block geometry).row? logicalWidth
-        (descriptor.invocation.val * 108 + localRow.val) =
+        (descriptor.invocation.val * 128 + localRow.val) =
       some (RingProductFamilyPlan.rowForms
         (PiRLCProductPlan.interface (inputs geometry))
         descriptor.invocation localRow) := by
-  let ordinal := descriptor.invocation.val * 108 + localRow.val
+  let ordinal := descriptor.invocation.val * 128 + localRow.val
   have bound : ordinal < (block geometry).rowCount := by
     rw [block_rowCount]
     dsimp only [ordinal]
-    have invocationBound : descriptor.invocation.val < 629 := descriptor.invocation.isLt
+    have invocationBound : descriptor.invocation.val < 561 := descriptor.invocation.isLt
     omega
-  have quotient : ordinal / 108 = descriptor.invocation.val := by
+  have quotient : ordinal / 128 = descriptor.invocation.val := by
     dsimp only [ordinal]
     omega
-  have remainder : ordinal % 108 = localRow.val := by
+  have remainder : ordinal % 128 = localRow.val := by
     dsimp only [ordinal]
     omega
   have selected : MatrixProgram.RingProduct.ringDescriptor? families
-      (ordinal / 108) = some (wireRingDescriptor descriptor) := by
+      (ordinal / 128) = some (wireRingDescriptor descriptor) := by
     rw [quotient]
     exact ringDescriptor?_wireRingDescriptor descriptor
   let semanticRow := RingProductFamilyPlan.rowAt
     (PiRLCProductPlan.interface (inputs geometry)) descriptor.invocation localRow
   have rowSelected :
-      (RingProductPlan.rows (semanticInterface geometry descriptor))[ordinal % 108]? =
+      (RingProductPlan.rows (semanticInterface geometry descriptor))[ordinal % 128]? =
         some semanticRow := by
     rw [remainder]
     simp only [RingProductPlan.rows, List.getElem?_ofFn, localRow.isLt,
@@ -471,19 +471,19 @@ theorem matrixProgram_invocation_row?
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (sourceRow : Nat → Option R1CS.Row)
     (invocation : Fin PiRLCProductRingSchedule.invocationCount)
-    (localRow : Fin 108) :
+    (localRow : Fin 128) :
     (matrixProgram geometry).row? logicalWidth sourceRow
-        (invocation.val * 108 + localRow.val) =
+        (invocation.val * 128 + localRow.val) =
       some (RingProductFamilyPlan.rowForms
         (PiRLCProductPlan.interface (inputs geometry)) invocation localRow) := by
   let descriptor := PiRLCProductRingSchedule.descriptor invocation
   have exactRow := block_row? geometry descriptor localRow
   rw [PiRLCProductRingSchedule.invocation_descriptor] at exactRow
-  have bound : invocation.val * 108 + localRow.val <
+  have bound : invocation.val * 128 + localRow.val <
       (MatrixProgram.Block.ringProduct (block geometry)).rowCount := by
-    change invocation.val * 108 + localRow.val < (block geometry).rowCount
+    change invocation.val * 128 + localRow.val < (block geometry).rowCount
     rw [block_rowCount]
-    have invocationBound : invocation.val < 629 := invocation.isLt
+    have invocationBound : invocation.val < 561 := invocation.isLt
     omega
   rw [show matrixProgram geometry = MatrixProgram.Program.mk
       [.ringProduct (block geometry)] by rfl]
@@ -494,16 +494,16 @@ theorem matrixProgram_row?
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (sourceRow : Nat → Option R1CS.Row)
-    (global : Fin (PiRLCProductRingSchedule.invocationCount * 108)) :
+    (global : Fin (PiRLCProductRingSchedule.invocationCount * 128)) :
     (matrixProgram geometry).row? logicalWidth sourceRow global.val =
-      let decoded : Fin PiRLCProductRingSchedule.invocationCount × Fin 108 :=
+      let decoded : Fin PiRLCProductRingSchedule.invocationCount × Fin 128 :=
         Fin.decodeProd global
       some (RingProductFamilyPlan.rowForms
         (PiRLCProductPlan.interface (inputs geometry)) decoded.1 decoded.2) := by
-  let decoded : Fin PiRLCProductRingSchedule.invocationCount × Fin 108 :=
+  let decoded : Fin PiRLCProductRingSchedule.invocationCount × Fin 128 :=
     Fin.decodeProd global
   have exactRow := matrixProgram_invocation_row? geometry sourceRow decoded.1 decoded.2
-  have encoded : decoded.1.val * 108 + decoded.2.val = global.val := by
+  have encoded : decoded.1.val * 128 + decoded.2.val = global.val := by
     have inverse := congrArg Fin.val (Fin.encodeProd_decodeProd global)
     simpa [decoded, Fin.encodeProd, Nat.mul_comm] using inverse
   rw [encoded] at exactRow

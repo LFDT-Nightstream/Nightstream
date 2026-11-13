@@ -9,7 +9,7 @@ open NightstreamFPrime.Layout.ProductionRelation
 
 def row? {columns : Nat} (interface : RingProductPlan.Interface columns)
     (ordinal : Nat) : Option (OrdinaryRow.Forms columns) :=
-  if within : ordinal < 108 then
+  if within : ordinal < 128 then
     some (RingProductPlan.rowAt interface ⟨ordinal, within⟩)
   else none
 
@@ -21,9 +21,9 @@ theorem row?_value {columns : Nat} (interface : RingProductPlan.Interface column
 def blockRow? (block : MatrixProgram.RingProduct.Block) (columns ordinal : Nat) :
     Option (MatrixProgram.RowForms columns) :=
   if ordinal < block.rowCount then do
-    let descriptor ← MatrixProgram.RingProduct.ringDescriptor? block.families (ordinal / 108)
+    let descriptor ← MatrixProgram.RingProduct.ringDescriptor? block.families (ordinal / 128)
     let interface ← PiDECProductInterface.interface? block columns descriptor
-    let selected ← row? interface (ordinal % 108)
+    let selected ← row? interface (ordinal % 128)
     pure selected.meaningfulForm
   else none
 
@@ -35,20 +35,20 @@ theorem blockRow?_value (block : MatrixProgram.RingProduct.Block)
 
 theorem blockRow?_of_grouped_loaded (block : MatrixProgram.RingProduct.Block)
     (columns firstRow index : Nat)
-    (aligned : firstRow % 108 = 0)
+    (aligned : firstRow % 128 = 0)
     (bound : firstRow + index < block.rowCount)
     (descriptor : MatrixProgram.RingProduct.Descriptor)
     (descriptorSelected : MatrixProgram.RingProduct.ringDescriptor? block.families
-      (firstRow / 108 + index / 108) = some descriptor)
+      (firstRow / 128 + index / 128) = some descriptor)
     (interface : RingProductPlan.Interface columns)
     (interfaceLoaded : PiDECProductInterface.interface? block columns descriptor =
       some interface)
     (row : OrdinaryRow.Forms columns)
-    (rowLoaded : row? interface (index % 108) = some row) :
+    (rowLoaded : row? interface (index % 128) = some row) :
     block.row? columns (firstRow + index) = some row.meaningfulForm := by
-  have quotient : (firstRow + index) / 108 = firstRow / 108 + index / 108 := by
+  have quotient : (firstRow + index) / 128 = firstRow / 128 + index / 128 := by
     omega
-  have remainder : (firstRow + index) % 108 = index % 108 := by
+  have remainder : (firstRow + index) % 128 = index % 128 := by
     omega
   refine MatrixProgram.RingProduct.Block.row?_of_loaded block columns
     (firstRow + index) bound descriptor ?_ interface ?_ row ?_

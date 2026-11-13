@@ -14,7 +14,7 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 abbrev ProductFamily := MatrixProgram.RingProduct.Family
 
 def commitmentFamily : ProductFamily :=
-  { sourceCount := 17, blockCount := 22, cellCount := 1 }
+  { sourceCount := 17, blockCount := 18, cellCount := 1 }
 
 def publicInputFamily : ProductFamily :=
   { sourceCount := 17, blockCount := 5, cellCount := 1 }
@@ -29,7 +29,7 @@ def families : List ProductFamily :=
   [commitmentFamily, publicInputFamily, evalKFamily, evalAFamily]
 
 @[simp] theorem families_invocationCount :
-    MatrixProgram.RingProduct.invocationCount families = 33966 := by
+    MatrixProgram.RingProduct.invocationCount families = 35904 := by
   norm_num [families, MatrixProgram.RingProduct.invocationCount,
     commitmentFamily, publicInputFamily, evalKFamily, evalAFamily,
     MatrixProgram.RingProduct.Family.invocationCount,
@@ -37,14 +37,14 @@ def families : List ProductFamily :=
     CombinationStep.privateCount, ringDegree, productionProfile]
 
 @[simp] theorem families_ringCount :
-    MatrixProgram.RingProduct.ringCount families = 629 := by
+    MatrixProgram.RingProduct.ringCount families = 561 := by
   norm_num [families, MatrixProgram.RingProduct.ringCount,
     MatrixProgram.RingProduct.Family.ringCount,
     commitmentFamily, publicInputFamily, evalKFamily, evalAFamily, productionProfile]
 
 def challengeSlotStart : Nat := 0
 
-def challengeSourceStride : Nat := 54
+def challengeSourceStride : Nat := 64
 
 theorem prefixGeometry {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
@@ -83,7 +83,7 @@ def block {program : Lifecycle.Stage1.Application.Program}
 @[simp] theorem block_rowCount
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth) :
-    (block geometry).rowCount = 67932 := by
+    (block geometry).rowCount = 71808 := by
   norm_num [block, MatrixProgram.RingProduct.Block.rowCount]
 
 def matrixProgram {program : Lifecycle.Stage1.Application.Program}
@@ -95,7 +95,7 @@ def matrixProgram {program : Lifecycle.Stage1.Application.Program}
 @[simp] theorem matrixProgram_rowCount
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth) :
-    (matrixProgram geometry).rowCount = 67932 := by
+    (matrixProgram geometry).rowCount = 71808 := by
   rw [show matrixProgram geometry =
       MatrixProgram.Program.mk [.ringProduct (block geometry)] by rfl]
   rw [MatrixProgram.Program.singleton_rowCount]

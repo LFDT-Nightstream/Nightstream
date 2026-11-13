@@ -109,19 +109,19 @@ structure RunningTransitionRowsHold (env : Env) : Prop where
 private theorem piCcsArithmeticLogicalEnds :
     NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset + StateBinding.signCount ≤
         PiCCSArithmetic.initialClaimFreshStart ∧
-      PiCCSArithmetic.initialClaimLogicalStart + 12957 ≤
+      PiCCSArithmetic.initialClaimLogicalStart + 15357 ≤
         PiCCSArithmetic.initialClaimFreshStart ∧
       PiCCSArithmetic.sumcheckLogicalStart + 672 ≤
         PiCCSArithmetic.initialClaimFreshStart ∧
-      PiCCSArithmetic.evalKLogicalStart + 2699 ≤
+      PiCCSArithmetic.evalKLogicalStart + 3179 ≤
         PiCCSArithmetic.initialClaimFreshStart ∧
-      PiCCSArithmetic.evalALogicalStart + 10475 ≤
+      PiCCSArithmetic.evalALogicalStart + 12395 ≤
         PiCCSArithmetic.initialClaimFreshStart ∧
       PiCCSArithmetic.ccsLogicalStart + 23 ≤
         PiCCSArithmetic.initialClaimFreshStart ∧
       PiCCSArithmetic.normLogicalStart + 48 ≤
         PiCCSArithmetic.initialClaimFreshStart ∧
-      PiCCSArithmetic.finalIdentityLogicalStart + 2717 ≤
+      PiCCSArithmetic.finalIdentityLogicalStart + 3197 ≤
         PiCCSArithmetic.initialClaimFreshStart := by
   unfold PiCCSArithmetic.initialClaimFreshStart
     PiCCSArithmetic.initialClaimLogicalStart
@@ -955,7 +955,7 @@ theorem complete_piRlcRows
     ∃ completed,
       AgreesOutside env completed
           (NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
-            NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset) 5203853 ∧
+            NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset) 4786265 ∧
         PiRLCRowsHold completed := by
   rcases PiRLCPackageCompleteness.completePackets relation ajtai env assumptions
       phase with ⟨completed, agrees, packets⟩

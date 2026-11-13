@@ -7,7 +7,7 @@ circuits (CW-5). A block of constraints that is the canonical Poseidon2 permutat
 (`PilotData.canonicalConstraints`) under a substitution is one permutation piece. The package
 exports it as an invocation of today's permutation template, which Rust packs into 150 CCS rows.
 A block that is one `CombinationStep` block of the Π_RLC combinations (`ringTemplate`, one or two
-cells) is one ring-product piece, which `PieceRows` checks with 108 rows per cell. Every other
+cells) is one ring-product piece, which `PieceRows` checks with 128 rows per cell. Every other
 constraint is its own piece and is lowered to R1CS rows. `split` makes a block piece only after a
 prefix check, so the pieces give back the constraints (`flatMap_split`), and recognition changes
 only the row count. -/

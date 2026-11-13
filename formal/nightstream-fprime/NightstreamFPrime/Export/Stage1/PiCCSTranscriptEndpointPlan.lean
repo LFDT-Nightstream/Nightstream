@@ -45,7 +45,7 @@ private theorem statementActions_positive :
   have count := PiCCSInvocations.statementInvocationCount_eq
     Data.logicalWidth Data.publicFits
   change Invocations.invocationCount
-    PiCCSActionPayloadBlock.statementActions = 123 at count
+    PiCCSActionPayloadBlock.statementActions = 124 at count
   omega
 
 private theorem challengeActions_positive :
@@ -63,7 +63,7 @@ private theorem outputActions_positive :
   have count := PiCCSInvocations.outputInvocationCount_eq
     Data.logicalWidth Data.publicFits
   change Invocations.invocationCount
-    PiCCSActionPayloadBlock.outputActions = 765 at count
+    PiCCSActionPayloadBlock.outputActions = 907 at count
   omega
 
 def endpointInvocation (family : Fin familyCount) :
@@ -106,7 +106,7 @@ private theorem statementTrace_state_endpoint (lane : Fin laneCount) :
           (Invocations.invocationCount
             PiCCSActionPayloadBlock.statementActions - 1) * 1096) at compiled
   have count : Invocations.invocationCount
-      PiCCSActionPayloadBlock.statementActions = 123 := by
+      PiCCSActionPayloadBlock.statementActions = 124 := by
     exact PiCCSInvocations.statementInvocationCount_eq
       Data.logicalWidth Data.publicFits
   have endEq := PiCCSInvocations.statementEnd_eq_challengeStart
@@ -114,7 +114,7 @@ private theorem statementTrace_state_endpoint (lane : Fin laneCount) :
   rw [count] at compiled
   rw [PiCCSInvocations.statementInvocationCount_eq] at endEq
   have startEq :
-      PiCCSInvocations.statementWitnessStart + (123 - 1) * 1096 + 1080 =
+      PiCCSInvocations.statementWitnessStart + (124 - 1) * 1096 + 1080 =
         PiCCSInvocations.challengeWitnessStart - 16 := by
     rw [← endEq]
     generalize PiCCSInvocations.statementWitnessStart = start
@@ -205,7 +205,7 @@ private theorem outputTrace_state_endpoint (lane : Fin laneCount) :
           (Invocations.invocationCount PiCCSActionPayloadBlock.outputActions - 1) *
             1096) at compiled
   have count : Invocations.invocationCount
-      PiCCSActionPayloadBlock.outputActions = 765 := by
+      PiCCSActionPayloadBlock.outputActions = 907 := by
     exact PiCCSInvocations.outputInvocationCount_eq
       Data.logicalWidth Data.publicFits
   have endEq := PiCCSInvocations.outputEnd_eq_logicalFreshBase
@@ -213,7 +213,7 @@ private theorem outputTrace_state_endpoint (lane : Fin laneCount) :
   rw [count] at compiled
   rw [PiCCSInvocations.outputInvocationCount_eq] at endEq
   have startEq :
-      PiCCSInvocations.outputWitnessStart + (765 - 1) * 1096 + 1080 =
+      PiCCSInvocations.outputWitnessStart + (907 - 1) * 1096 + 1080 =
         PiCCSStarts.logicalFreshBase - 16 := by
     rw [← endEq]
     generalize PiCCSInvocations.outputWitnessStart = start
@@ -246,7 +246,7 @@ theorem endpointColumn_lt_source (family : Fin familyCount)
 def endpointTranscriptInvocation (family : Fin familyCount) :
     Fin PiCCSOrdinaryRetainedBlocks.transcriptInvocationCount :=
   if family.val = 0 then
-    ⟨122, by rw [PiCCSOrdinaryRetainedBlocks.transcriptInvocationCount_eq]; omega⟩
+    ⟨123, by rw [PiCCSOrdinaryRetainedBlocks.transcriptInvocationCount_eq]; omega⟩
   else if family.val = 1 then
     ⟨126, by rw [PiCCSOrdinaryRetainedBlocks.transcriptInvocationCount_eq]; omega⟩
   else
@@ -785,7 +785,7 @@ private theorem statementTrace_state_endpoint_of_shape
     relationLogicalWidth relationPublicFits
   rw [count] at compiled endEq
   have startEq :
-      PiCCSInvocations.statementWitnessStart + (123 - 1) * 1096 + 1080 =
+      PiCCSInvocations.statementWitnessStart + (124 - 1) * 1096 + 1080 =
         PiCCSInvocations.challengeWitnessStart - 16 := by
     rw [← endEq]
     generalize PiCCSInvocations.statementWitnessStart = start
@@ -1023,7 +1023,7 @@ private theorem outputTrace_state_endpoint_of_shape
     relationLogicalWidth relationPublicFits
   rw [count] at compiled endEq
   have startEq :
-      PiCCSInvocations.outputWitnessStart + (765 - 1) * 1096 + 1080 =
+      PiCCSInvocations.outputWitnessStart + (907 - 1) * 1096 + 1080 =
         PiCCSStarts.logicalFreshBase - 16 := by
     rw [← endEq]
     generalize PiCCSInvocations.outputWitnessStart = start
@@ -1258,14 +1258,14 @@ theorem reads_of_outputs {program : Lifecycle.Stage1.Application.Program}
       have state : StatementAbsorption.finalState
           (PiCCSInvocations.statementInterface Data.logicalWidth Data.publicFits)
           PiCCSInvocations.statementWitnessStart =
-            Invocations.permutationOutput (PiCCSStarts.statementWitnessStart + 122 * 1096) := by
+            Invocations.permutationOutput (PiCCSStarts.statementWitnessStart + 123 * 1096) := by
         rw [← endpoint_permutationOutput statementFamily _ (by
           change PiCCSStarts.challengeWitnessStart - 16 = _
           omega)]
         funext lane
         exact statementFinalState_endpoint_of_shape Data.logicalWidth
           Data.publicFits lane
-      rw [state, outputs 122 (by
+      rw [state, outputs 123 (by
         rw [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq]; omega)]
       simp [PiCCSTranscriptDirectSemantics.sliceState,
         PoseidonActionSemantics.stateAfter, PoseidonActionSemantics.sliceInitial,
@@ -1273,10 +1273,10 @@ theorem reads_of_outputs {program : Lifecycle.Stage1.Application.Program}
     · intro index bound
       rw [PiCCSActionPayloadBlock.challengeInvocationCount_eq] at bound
       have position : PiCCSInvocations.challengeWitnessStart + index * 1096 =
-          PiCCSStarts.statementWitnessStart + (123 + index) * 1096 := by
+          PiCCSStarts.statementWitnessStart + (124 + index) * 1096 := by
         change PiCCSStarts.challengeWitnessStart + index * 1096 = _
         omega
-      rw [position, outputs (123 + index) (by
+      rw [position, outputs (124 + index) (by
         rw [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq]; omega)]
       simp [PiCCSTranscriptDirectSemantics.sliceState,
         PoseidonActionSemantics.stateAfter, PoseidonActionSemantics.sliceOutput,
@@ -1311,10 +1311,10 @@ theorem reads_of_outputs {program : Lifecycle.Stage1.Application.Program}
     · intro index bound
       rw [PiCCSActionPayloadBlock.roundInvocationCount_eq] at bound
       have position : PiCCSInvocations.roundWitnessStart + index * 1096 =
-          PiCCSStarts.statementWitnessStart + (127 + index) * 1096 := by
+          PiCCSStarts.statementWitnessStart + (128 + index) * 1096 := by
         change PiCCSStarts.roundTranscriptWitnessStart + index * 1096 = _
         omega
-      rw [position, outputs (127 + index) (by
+      rw [position, outputs (128 + index) (by
         rw [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq]; omega)]
       simp [PiCCSTranscriptDirectSemantics.sliceState,
         PoseidonActionSemantics.stateAfter, PoseidonActionSemantics.sliceOutput,

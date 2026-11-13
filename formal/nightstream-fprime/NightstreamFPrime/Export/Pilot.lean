@@ -982,10 +982,10 @@ private theorem sourceToSpartan_outputPreimage
     PilotSpartan.sourceToSpartan
         (PilotProduction.outputPreimageStart + index.val) =
       PilotSpartan.secondPrivateStart + index.val := by
-  have indexBound : index.val < 27819 := by
+  have indexBound : index.val < 28913 := by
     calc
       index.val < PilotProduction.stateHashWords := index.isLt
-      _ = 27819 := PilotProduction.stateHashWords_eq
+      _ = 28913 := PilotProduction.stateHashWords_eq
   unfold PilotSpartan.sourceToSpartan
   all_goals try split
   all_goals try split
@@ -1022,7 +1022,7 @@ private theorem sourceToSpartan_priorPublic
     PilotSpartan.sourceToSpartan
         (PilotProduction.priorPublicInputStart + column.val) =
       PilotSpartan.firstPublicStart + column.val := by
-  have columnBound : column.val < 270 := by
+  have columnBound : column.val < 320 := by
     rw [← PriorStateHash.publicWidth_eq]
     exact column.isLt
   unfold PilotSpartan.sourceToSpartan
@@ -1108,8 +1108,8 @@ private theorem priorDigestWire_eval (env : Env) (lane : Fin 4) :
     PilotData.circuitPackageOf_permutation]
   simp only [PilotData.permutationTemplate, PilotData.priorChain,
     PilotData.priorWitnessStart]
-  rw [show PilotProduction.witnessOffset + 2319 * 1096 + 1080 + lane.val =
-      PilotProduction.witnessOffset + (2319 * 1096 + 1080 + lane.val) by
+  rw [show PilotProduction.witnessOffset + 2410 * 1096 + 1080 + lane.val =
+      PilotProduction.witnessOffset + (2410 * 1096 + 1080 + lane.val) by
     omega,
     PilotSpartan.sourceToSpartan_pilotWitness]
   norm_num [PilotValues.absorbCount, PilotValues.stateHashWords,
@@ -1362,16 +1362,8 @@ theorem templateRows_length :
     (PilotData.digestRows chain).length = 4 := by
   simp [PilotData.digestRows]
 
-theorem tailBindingRows_length :
-    PilotData.tailBindingRows.length = 13 := by
-  simp [PilotData.tailBindingRows]
-
-theorem bindingRows_length :
-    (PilotData.bindingRows ()).length = 14 := by
-  simp [PilotData.bindingRows, tailBindingRows_length]
-
 theorem priorExtraRows_length :
-    (PilotData.priorExtraRows ()).length = 682 := by
+    (PilotData.priorExtraRows ()).length = 592 := by
   rw [PilotData.priorExtraRows, List.length_map,
     Stage1.Rows.compileRowsTR_length]
   rw [Stage1.Rows.lowerConstraintsTR_eq,
@@ -1383,7 +1375,7 @@ theorem priorExtraRows_length :
 
 theorem ordinaryRows_length :
     (PilotData.circuitPackage ()).witnessInstructions.length +
-      (PilotData.circuitPackage ()).assertionRows.length = 686 := by
+      (PilotData.circuitPackage ()).assertionRows.length = 596 := by
   rw [PilotData.circuitPackage,
     PilotData.circuitPackageOf_witnessInstructions,
     PilotData.circuitPackageOf_assertionRows]

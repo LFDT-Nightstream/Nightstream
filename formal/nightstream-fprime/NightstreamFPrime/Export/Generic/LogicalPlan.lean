@@ -95,7 +95,7 @@ def program (rows : List R1CS.Row) (width : Nat) (fits : Fits rows width) :
   bounded := fun index => fits.rowBounded (List.getElem_mem index.isLt)
 
 /-- Where the source columns live among the logical columns (CW-5.11). The source map gives each
-source column's form; the public source columns `0` to `269` are the logical public columns, and
+source column's form; the public source columns `0` to `319` are the logical public columns, and
 logical column `0`, the `encHash` marker, is the constant column. The concrete layout gives every
 other live source column a low-norm slot (`Layout/LowNormAssignment`), because SuperNeo's Π_CCS
 checks that each fresh witness coordinate lies in `{-1, 0, 1}`. -/

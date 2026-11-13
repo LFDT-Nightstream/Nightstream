@@ -40,9 +40,9 @@ def substitution (program : ApplicationProgram) : SourceSubstitution where
   grids := [PiCCSTranscriptOutputForms.pointGrid program]
 
 def rowSchedule : IndexSchedule :=
-  .rangeList [⟨RunningTransitionArithmetic.rowStart, 27800⟩]
+  .rangeList [⟨RunningTransitionArithmetic.rowStart, 28894⟩]
 
-@[simp] theorem rowSchedule_count : rowSchedule.count = 27800 := by
+@[simp] theorem rowSchedule_count : rowSchedule.count = 28894 := by
   rfl
 
 def ordinaryBlock {program : ApplicationProgram} {logicalWidth : Nat}
@@ -59,7 +59,7 @@ def matrixProgram {program : ApplicationProgram} {logicalWidth : Nat}
 @[simp] theorem matrixProgram_rowCount
     {program : ApplicationProgram} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth) :
-    (matrixProgram geometry).rowCount = 27800 := by
+    (matrixProgram geometry).rowCount = 28894 := by
   rfl
 
 end NightstreamFPrime.Export.Stage1.RunningTransitionMatrixProgram

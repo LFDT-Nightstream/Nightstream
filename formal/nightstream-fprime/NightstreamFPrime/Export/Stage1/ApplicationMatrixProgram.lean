@@ -28,7 +28,7 @@ def witnessRange (application : ApplicationProgram) : SourceRange :=
 def outputRange (application : ApplicationProgram) : SourceRange :=
   SourceRange.ofSemantic (PiRLCPoseidonGeometry.outputInputBlock application)
     (PiRLCPoseidonGeometry.outputInputStart application)
-    55634 Lifecycle.Stage1.Application.stateWordCount
+    57822 Lifecycle.Stage1.Application.stateWordCount
     ApplicationInputs.currentWordStart
 
 def localRange (application : ApplicationProgram) : SourceRange :=
@@ -44,7 +44,7 @@ def rowSchedule (application : ApplicationProgram) : IndexSchedule :=
     (PerApplicationPackage.applicationPlan application).rowCount⟩]
 
 def directRowSchedule (application : ApplicationProgram) : IndexSchedule :=
-  .rangeList [⟨11377912,
+  .rangeList [⟨11317348,
     (PerApplicationPackage.directApplicationPlan application).rowCount⟩]
 
 theorem directRowSchedule_eq_rowSchedule (application : ApplicationProgram) :

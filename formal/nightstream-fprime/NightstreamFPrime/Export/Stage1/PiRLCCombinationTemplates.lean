@@ -11,11 +11,11 @@ open NightstreamFPrime.Lifecycle.PiRLC.v1_2
 open NightstreamFPrime.Layout
 open NightstreamFPrime.Layout.PiRLC.v1_2
 
-def inputCount : Nat := 110
+def inputCount : Nat := 130
 def challengeInputStart : Nat := 0
-def valueInputStart : Nat := 54
-def priorInput : Nat := 108
-def outputInput : Nat := 109
+def valueInputStart : Nat := 64
+def priorInput : Nat := 128
+def outputInput : Nat := 129
 
 def challenge (lane : Fin ringDegree) : Expr :=
   Expr.var (challengeInputStart + lane.val) - 2
@@ -93,9 +93,7 @@ theorem renameExpr_mulExpr (column : Nat → Nat)
         (fun current => CompactRows.renameExpr column (left current))
         (fun current => CompactRows.renameExpr column (right current)) lane := by
   unfold CombinationStep.mulExpr
-  split <;> split <;>
-    simp [CompactRows.renameExpr, CompactRows.renameExpr_sub,
-      renameExpr_rawExpr] <;> rfl
+  rw [CompactRows.renameExpr_sub, renameExpr_rawExpr, renameExpr_rawExpr]
 
 def template (firstSource : Bool) (lane : Fin ringDegree) :
     CompactRowTemplate :=
@@ -132,14 +130,14 @@ theorem constraint_varsBelow (firstSource : Bool)
         unfold challenge
         apply Expr.VarsBelow.sub
         · change challengeInputStart + current.val < inputCount
-          have currentBound : current.val < 54 := current.isLt
+          have currentBound : current.val < 64 := current.isLt
           norm_num [challengeInputStart, inputCount]
           omega
         · trivial
       · intro current
         unfold value
         change valueInputStart + current.val < inputCount
-        have currentBound : current.val < 54 := current.isLt
+        have currentBound : current.val < 64 := current.isLt
         norm_num [valueInputStart, inputCount]
         omega
 
@@ -163,20 +161,20 @@ theorem template_rows_length (firstSource : Bool)
     simp
   rw [generic, template_localColumnCount]
 
-@[simp] theorem firstTemplates_length : firstTemplates.length = 54 := by
+@[simp] theorem firstTemplates_length : firstTemplates.length = 64 := by
   simp only [firstTemplates, List.length_map, List.length_finRange]
   rfl
 
-@[simp] theorem laterTemplates_length : laterTemplates.length = 54 := by
+@[simp] theorem laterTemplates_length : laterTemplates.length = 64 := by
   simp only [laterTemplates, List.length_map, List.length_finRange]
   rfl
 
-@[simp] theorem templates_length : templates.length = 108 := by
+@[simp] theorem templates_length : templates.length = 128 := by
   simp [templates]
 
 theorem templateIndex_lt (source : Nat) (lane : Fin ringDegree) :
     templateIndex source lane.val < templates.length := by
-  have laneLt : lane.val < 54 := lane.isLt
+  have laneLt : lane.val < 64 := lane.isLt
   rw [templates_length]
   unfold templateIndex
   split <;> norm_num [ringDegree] <;> omega
@@ -199,18 +197,18 @@ theorem template_getElem? (source : Nat) (lane : Fin ringDegree) :
       rw [firstTemplates_length]
       simp [ringDegree])]
     rw [firstTemplates_length]
-    have shifted : ringDegree + lane.val - 54 = lane.val := by
+    have shifted : ringDegree + lane.val - 64 = lane.val := by
       norm_num [ringDegree]
     rw [shifted]
     simp [laterTemplates, notFirst]
 
 theorem laneFreshCount_sum :
-    (List.ofFn CombinationStep.laneFreshCount).sum = 8100 := by
+    (List.ofFn CombinationStep.laneFreshCount).sum = 8320 := by
   decide +kernel
 
 theorem laneRowCount_sum :
     (List.ofFn fun lane : Fin ringDegree =>
-      CombinationStep.laneFreshCount lane + 1).sum = 8154 := by
+      CombinationStep.laneFreshCount lane + 1).sum = 8384 := by
   decide +kernel
 
 end NightstreamFPrime.Export.Stage1.PiRLCCombinationTemplates

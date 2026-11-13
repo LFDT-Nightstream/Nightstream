@@ -2,24 +2,24 @@ import NightstreamFPrime.Lifecycle.Types
 
 namespace NightstreamFPrime.Export.Stage1.DirectPiRLCProductFootprint
 
-def invocationCount : Nat := 33966
+def invocationCount : Nat := 35904
 def rowCount : Nat := invocationCount * 2
 def retainedFieldCount : Nat := invocationCount * 1
 def retainedCoordinateCount : Nat := retainedFieldCount * 41
 
-@[simp] theorem invocationCount_eq : invocationCount = 33966 := by
+@[simp] theorem invocationCount_eq : invocationCount = 35904 := by
   rfl
 
-@[simp] theorem rowCount_eq : rowCount = 67932 := by
+@[simp] theorem rowCount_eq : rowCount = 71808 := by
   unfold rowCount
   rw [invocationCount_eq]
 
-@[simp] theorem retainedFieldCount_eq : retainedFieldCount = 33966 := by
+@[simp] theorem retainedFieldCount_eq : retainedFieldCount = 35904 := by
   unfold retainedFieldCount
   rw [invocationCount_eq]
 
 @[simp] theorem retainedCoordinateCount_eq :
-    retainedCoordinateCount = 1392606 := by
+    retainedCoordinateCount = 1472064 := by
   unfold retainedCoordinateCount
   rw [retainedFieldCount_eq]
 

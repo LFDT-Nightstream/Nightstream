@@ -4,7 +4,7 @@ namespace NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1SetupAuthority
 
 open NightstreamFPrime.Spec
 
-def verifierRows : Nat := 22
+def verifierRows : Nat := 18
 
 def messageColumns : Nat := 814144
 

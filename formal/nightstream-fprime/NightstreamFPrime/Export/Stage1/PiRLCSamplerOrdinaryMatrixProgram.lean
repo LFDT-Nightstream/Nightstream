@@ -26,7 +26,7 @@ def block {program : Program} {logicalWidth : Nat}
 @[simp] theorem block_rowCount
     {program : Program} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth) :
-    (block geometry).rowCount = 14943 := by
+    (block geometry).rowCount = 15453 := by
   exact rowSchedule_count
 
 def matrixProgram {program : Program} {logicalWidth : Nat}
@@ -36,7 +36,7 @@ def matrixProgram {program : Program} {logicalWidth : Nat}
 @[simp] theorem matrixProgram_rowCount
     {program : Program} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth) :
-    (matrixProgram geometry).rowCount = 14943 := by
+    (matrixProgram geometry).rowCount = 15453 := by
   rw [show matrixProgram geometry =
       MatrixProgram.Program.mk [.ordinary (block geometry)] by rfl]
   rw [MatrixProgram.Program.singleton_rowCount]

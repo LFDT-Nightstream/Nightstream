@@ -14,7 +14,7 @@ def matrixProgram {program : Lifecycle.Stage1.Application.Program} {logicalWidth
 @[simp] theorem matrixProgram_rowCount
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth) :
-    (matrixProgram geometry).rowCount = 67932 :=
+    (matrixProgram geometry).rowCount = 71808 :=
   PiRLCProductMatrixProgram.matrixProgram_rowCount geometry
 
 theorem matrixProgram_row?

@@ -38,8 +38,6 @@ def RingFamilyShape.format : Format RingFamilyShape where
 
 structure RingQuotientRecipe where
   ringDegree : Nat
-  middleDegree : Nat
-  foldOffset : Nat
   quotientCount : Nat
   familyShapes : List RingFamilyShape
   challengeBlock : BlockKind
@@ -53,8 +51,6 @@ deriving Repr, DecidableEq
 def RingQuotientRecipe.format : Format RingQuotientRecipe where
   encode := fun recipe => .array [
     .atom recipe.ringDegree,
-    .atom recipe.middleDegree,
-    .atom recipe.foldOffset,
     .atom recipe.quotientCount,
     (Codec.list RingFamilyShape.format).encode recipe.familyShapes,
     BlockKind.format.encode recipe.challengeBlock,
@@ -64,12 +60,11 @@ def RingQuotientRecipe.format : Format RingQuotientRecipe where
     AffineRuns.format.encode recipe.valueSources,
     BlockKind.format.encode recipe.quotientOutputBlock]
   decode
-    | .array [.atom ringDegree, .atom middleDegree, .atom foldOffset,
-        .atom quotientCount, familyShapes, challengeBlock,
+    | .array [.atom ringDegree, .atom quotientCount, familyShapes, challengeBlock,
         .atom challengeSlotBase, .atom challengeSourceStride,
         .atom challengeShift, valueSources, quotientOutputBlock] => do
       pure {
-        ringDegree, middleDegree, foldOffset, quotientCount,
+        ringDegree, quotientCount,
         familyShapes := ← (Codec.list RingFamilyShape.format).decode familyShapes,
         challengeBlock := ← BlockKind.format.decode challengeBlock,
         challengeSlotBase, challengeSourceStride, challengeShift,
@@ -84,7 +79,7 @@ def RingQuotientRecipe.format : Format RingQuotientRecipe where
     rfl
 
 def ringFamilyShapes : List RingFamilyShape :=
-  [ ⟨17, 22, 1⟩
+  [ ⟨17, 18, 1⟩
   , ⟨17, 5, 1⟩
   , ⟨17, 1, 2⟩
   , ⟨17, 4, 2⟩ ]
@@ -117,14 +112,12 @@ theorem ringValueSources_at (program : Program)
   exact Lifecycle.PriorStateHash.ofFn_getD _ invocation 0
 
 def ringQuotientRecipe (program : Program) : RingQuotientRecipe where
-  ringDegree := 54
-  middleDegree := 27
-  foldOffset := 81
-  quotientCount := 54
+  ringDegree := Spec.ringDegree
+  quotientCount := Spec.ringDegree
   familyShapes := ringFamilyShapes
   challengeBlock := .challengeWords
   challengeSlotBase := 0
-  challengeSourceStride := 54
+  challengeSourceStride := Spec.ringDegree
   challengeShift := 2
   valueSources := ringValueSources program
   quotientOutputBlock := .productGroup
@@ -148,7 +141,7 @@ def outputDigestExpressions (program : Program) : List Expr :=
     (outputDigestExpressions program).length = 4 := by
   simp [outputDigestExpressions]
 
-def schema : Nat := 3
+def schema : Nat := 4
 
 structure Plan where
   blocks : List PerApplicationAssignmentBlocks.BlockPlan
@@ -166,7 +159,7 @@ def Plan.format : Format Plan where
     (Codec.list NightstreamFPrime.Export.Package.exprFormat).encode
       plan.outputDigestExpressions]
   decode
-    | .array [.atom 3, blocks, ringQuotient,
+    | .array [.atom 4, blocks, ringQuotient,
         outputDigestBlock, outputDigestExpressions] => do
       pure {
         blocks := ← PerApplicationAssignmentBlocks.format.decode blocks,

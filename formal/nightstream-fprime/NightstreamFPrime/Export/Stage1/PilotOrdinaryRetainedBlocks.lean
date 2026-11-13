@@ -13,7 +13,7 @@ def sourceWidth (program : Lifecycle.Stage1.Application.Program) : Nat :=
 
 def canonicalLocalBlock (program : Lifecycle.Stage1.Application.Program) :
     LowNormBlock.Block (sourceWidth program) :=
-  PiCCSOrdinaryRetainedBlocks.sourceFieldBlock program 264
+  PiCCSOrdinaryRetainedBlocks.sourceFieldBlock program 268
     (PriorStateHash.hashEnd PilotProduction.priorInterface
       PilotProduction.witnessOffset) (by
         rw [Spartan.sourceColumnCount_eq]
@@ -48,7 +48,7 @@ def outputDigestBlock (program : Lifecycle.Stage1.Application.Program) :
 
 @[simp] theorem canonicalLocalBlock_slotCount
     (program : Lifecycle.Stage1.Application.Program) :
-    (canonicalLocalBlock program).slotCount = 264 := by rfl
+    (canonicalLocalBlock program).slotCount = 268 := by rfl
 
 @[simp] theorem canonicalFreshBlock_slotCount
     (program : Lifecycle.Stage1.Application.Program) :
@@ -77,7 +77,7 @@ def retainedCoordinateCount
 @[simp] theorem retainedCoordinateCount_eq
     (program : Lifecycle.Stage1.Application.Program) :
     retainedCoordinateCount program = 16892 := by
-  change 264 * 41 + 144 * 41 + 4 * 41 = 16892
+  change 268 * 41 + 144 * 41 + 4 * 41 = 16892
   norm_num
 
 end NightstreamFPrime.Export.Stage1.PilotOrdinaryRetainedBlocks

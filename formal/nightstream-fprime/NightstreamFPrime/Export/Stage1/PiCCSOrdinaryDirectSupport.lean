@@ -117,11 +117,11 @@ private theorem fixedLocal_source (start length : Nat)
 
 private theorem initialProgramLength
     (interface : InitialClaim.Interface) (offset : Nat) :
-    (InitialClaim.program interface offset).recipes.length = 12957 := by
+    (InitialClaim.program interface offset).recipes.length = 15357 := by
   unfold InitialClaim.program Horner.Owned.program
   rw [Horner.compile_recipes_length]
   change 3 * ((InitialClaim.coefficientExprs interface offset).length - 1) =
-    12957
+    15357
   rw [InitialClaim.coefficientExprs_length]
 
 private theorem normProgramLength
@@ -139,7 +139,7 @@ private theorem initial_le_initial :
   Nat.le_refl _
 
 private theorem initial_finish_le :
-    PiCCSArithmetic.initialClaimLogicalStart + 12957 ≤
+    PiCCSArithmetic.initialClaimLogicalStart + 15357 ≤
       PiCCSStarts.outputBindingWitnessStart := by
   rw [PiCCSStarts.outputBindingWitnessStart_eq]
   unfold PiCCSArithmetic.initialClaimLogicalStart
@@ -174,7 +174,7 @@ private theorem initial_le_evalK :
   norm_num
 
 private theorem evalK_finish_le :
-    PiCCSArithmetic.evalKLogicalStart + 2699 ≤
+    PiCCSArithmetic.evalKLogicalStart + 3179 ≤
       PiCCSStarts.outputBindingWitnessStart := by
   rw [PiCCSStarts.outputBindingWitnessStart_eq]
   unfold PiCCSArithmetic.evalKLogicalStart
@@ -197,7 +197,7 @@ private theorem initial_le_evalA :
   norm_num
 
 private theorem evalA_finish_le :
-    PiCCSArithmetic.evalALogicalStart + 10475 ≤
+    PiCCSArithmetic.evalALogicalStart + 12395 ≤
       PiCCSStarts.outputBindingWitnessStart := by
   rw [PiCCSStarts.outputBindingWitnessStart_eq]
   unfold PiCCSArithmetic.evalALogicalStart
@@ -396,7 +396,7 @@ theorem emittedConstraints_varsSatisfy
           PiCCSArithmetic.evalKLogicalStart) → Source index := by
     intro index lower upper
     rw [EvalKTerminal.localLength_eq] at upper
-    apply fixedLocal_source PiCCSArithmetic.evalKLogicalStart 2699
+    apply fixedLocal_source PiCCSArithmetic.evalKLogicalStart 3179
       initial_le_evalK evalK_finish_le index lower upper
   have evalKRoundSupport : ∀ coordinate,
       Horner.KSupported
@@ -435,7 +435,7 @@ theorem emittedConstraints_varsSatisfy
           PiCCSArithmetic.evalALogicalStart) → Source index := by
     intro index lower upper
     rw [EvalATerminal.localLength_eq] at upper
-    apply fixedLocal_source PiCCSArithmetic.evalALogicalStart 10475
+    apply fixedLocal_source PiCCSArithmetic.evalALogicalStart 12395
       initial_le_evalA evalA_finish_le index lower upper
   have evalARoundSupport : ∀ coordinate,
       Horner.KSupported

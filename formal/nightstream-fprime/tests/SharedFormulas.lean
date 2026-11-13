@@ -96,8 +96,8 @@ def check : IO Unit := do
     ensure ((← expanded 16 external) == ([], expected))
       "external-layer template differs from its Lean owner"
     let variant := ringProductVariant 0
-    variant.validate 271
-    ensure (variant.rows.length == 108) "ring product row footprint changed"
+    variant.validate 321
+    ensure (variant.rows.length == 128) "ring product row footprint changed"
     ensure (variant.linearForms.isEmpty) "ring product has unexpected registers"
     let forward : Variant :=
       { linearForms := [⟨[⟨1, 1⟩]⟩], rows := [], outputRegisters := [] }

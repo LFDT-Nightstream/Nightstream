@@ -162,8 +162,8 @@ theorem Plan.rows_length (plan : Plan) :
 theorem canonicalPlan_rowCount
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     R1CS.totalRowCount (canonicalPlan logicalWidth publicFits).constraints =
-      6588 := by
-  change R1CS.totalRowCount (constraints logicalWidth publicFits) = 6588
+      7552 := by
+  change R1CS.totalRowCount (constraints logicalWidth publicFits) = 7552
   rw [constraints_eq_logical relation]
   exact NightstreamFPrime.Layout.PiDEC.v1_2.totalRowCount_eq relation
     (phaseInterface logicalWidth publicFits)

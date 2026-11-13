@@ -11,14 +11,14 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 
 def statementOffset : Nat := 0
-def challengeOffset : Nat := 123
-def roundOffset : Nat := 127
-def outputOffset : Nat := 183
+def challengeOffset : Nat := 124
+def roundOffset : Nat := 128
+def outputOffset : Nat := 184
 
-def statementCount : Nat := 123
+def statementCount : Nat := 124
 def challengeCount : Nat := 4
 def roundCount : Nat := 56
-def outputCount : Nat := 765
+def outputCount : Nat := 907
 
 theorem statementFits : statementOffset + statementCount ≤
     PiCCSActionPayloadBlock.invocationCount := by
@@ -82,8 +82,8 @@ theorem statementKindAt_eq (current : Fin statementCount) :
     statementOffset statementCount PiCCSActionPayloadBlock.kindAt
     PiCCSActionPayloadBlock.invocationCount
   rw [show
-      (⟨0 + current.val, by omega⟩ : Fin 948) =
-        Fin.castAdd (4 + (56 + 765)) current by
+      (⟨0 + current.val, by omega⟩ : Fin 1091) =
+        Fin.castAdd (4 + (56 + 907)) current by
     apply Fin.ext
     change 0 + current.val = current.val
     omega]
@@ -97,10 +97,10 @@ theorem challengeKindAt_eq (current : Fin challengeCount) :
     challengeCount PiCCSActionPayloadBlock.kindAt
     PiCCSActionPayloadBlock.invocationCount
   rw [show
-      (⟨123 + current.val, by omega⟩ : Fin 948) =
-        Fin.natAdd 123 (Fin.castAdd (56 + 765) current) by
+      (⟨124 + current.val, by omega⟩ : Fin 1091) =
+        Fin.natAdd 124 (Fin.castAdd (56 + 907) current) by
     apply Fin.ext
-    change 123 + current.val = 123 + current.val
+    change 124 + current.val = 124 + current.val
     rfl]
   exact (Fin.append_right _ _ _).trans (Fin.append_left _ _ current)
 
@@ -111,11 +111,11 @@ theorem roundKindAt_eq (current : Fin roundCount) :
   unfold roundKindAt PoseidonActionSemantics.sliceIndex roundOffset roundCount
     PiCCSActionPayloadBlock.kindAt PiCCSActionPayloadBlock.invocationCount
   rw [show
-      (⟨127 + current.val, by omega⟩ : Fin 948) =
-        Fin.natAdd 123
-          (Fin.natAdd 4 (Fin.castAdd 765 current)) by
+      (⟨128 + current.val, by omega⟩ : Fin 1091) =
+        Fin.natAdd 124
+          (Fin.natAdd 4 (Fin.castAdd 907 current)) by
     apply Fin.ext
-    change 127 + current.val = 123 + (4 + current.val)
+    change 128 + current.val = 124 + (4 + current.val)
     omega]
   exact (Fin.append_right _ _ _).trans <| (Fin.append_right _ _ _).trans (Fin.append_left _ _ current)
 
@@ -126,10 +126,10 @@ theorem outputKindAt_eq (current : Fin outputCount) :
   unfold outputKindAt PoseidonActionSemantics.sliceIndex outputOffset outputCount
     PiCCSActionPayloadBlock.kindAt PiCCSActionPayloadBlock.invocationCount
   rw [show
-      (⟨183 + current.val, by omega⟩ : Fin 948) =
-        Fin.natAdd 123 (Fin.natAdd 4 (Fin.natAdd 56 current)) by
+      (⟨184 + current.val, by omega⟩ : Fin 1091) =
+        Fin.natAdd 124 (Fin.natAdd 4 (Fin.natAdd 56 current)) by
     apply Fin.ext
-    change 183 + current.val = 123 + (4 + (56 + current.val))
+    change 184 + current.val = 124 + (4 + (56 + current.val))
     omega]
   exact (Fin.append_right _ _ _).trans <| (Fin.append_right _ _ _).trans (Fin.append_right _ _ current)
 
@@ -177,7 +177,7 @@ theorem outputKindAt_materializes :
       exact outputKindAt_eq current
     _ = _ := PiCCSActionPayloadBlock.outputKindAt_materializes
 
-def statementLast : Fin PiCCSActionPayloadBlock.invocationCount := ⟨122, by
+def statementLast : Fin PiCCSActionPayloadBlock.invocationCount := ⟨123, by
   norm_num [PiCCSActionPayloadBlock.invocationCount]⟩
 
 def challengeLast : Fin PiCCSActionPayloadBlock.invocationCount := ⟨126, by

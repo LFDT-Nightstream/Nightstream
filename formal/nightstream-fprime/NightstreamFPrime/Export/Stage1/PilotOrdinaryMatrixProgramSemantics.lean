@@ -10,7 +10,7 @@ open PilotOrdinaryRetainedGeometry
 
 def directForms
     {program : Program} {logicalWidth : Nat}
-    (geometry : Geometry program logicalWidth) (index : Fin 686) :
+    (geometry : Geometry program logicalWidth) (index : Fin 596) :
     OrdinaryRow.Forms logicalWidth :=
   SourceCompiler.compileRow
     (PilotOrdinaryDirectPlan.sourceMap geometry) (oneColumn geometry)
@@ -19,14 +19,14 @@ def directForms
 
 theorem plan_forms
     {program : Program} {logicalWidth : Nat}
-    (geometry : Geometry program logicalWidth) (index : Fin 686) :
+    (geometry : Geometry program logicalWidth) (index : Fin 596) :
     (PilotOrdinaryDirectPlan.plan geometry).forms index =
       (directForms geometry index).meaningfulForm := by
   rfl
 
 theorem compile_programRow?
     {program : Program} {logicalWidth : Nat}
-    (geometry : Geometry program logicalWidth) (index : Fin 686) :
+    (geometry : Geometry program logicalWidth) (index : Fin 596) :
     Ordinary.compileRow? (substitution program) logicalWidth
         (oneColumn geometry).val
         (PilotOrdinaryDirectSource.programRow index) =
@@ -42,7 +42,7 @@ theorem compile_programRow?
 theorem block_row?
     {program : Program} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth)
-    (sourceRow : Nat → Option R1CS.Row) (index : Fin 686)
+    (sourceRow : Nat → Option R1CS.Row) (index : Fin 596)
     (loaded : sourceRow (rowIndexAt index) =
       some (PerApplicationSourceProjection.pilotPackageRow program
         (PilotOrdinaryDirectSource.programRow index))) :
@@ -68,14 +68,14 @@ theorem matrixProgram_row?
     {program : Program} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth)
     (sourceRow : Nat → Option R1CS.Row)
-    (loaded : ∀ index : Fin 686,
+    (loaded : ∀ index : Fin 596,
       sourceRow (rowIndexAt index) =
         some (PerApplicationSourceProjection.pilotPackageRow program
           (PilotOrdinaryDirectSource.programRow index)))
     (global : Fin (PilotOrdinaryDirectPlan.plan geometry).rowCount) :
     (matrixProgram geometry).row? logicalWidth sourceRow global.val =
       some ((PilotOrdinaryDirectPlan.plan geometry).forms global) := by
-  change Fin 686 at global
+  change Fin 596 at global
   have blockBound : global.val <
       (MatrixProgram.Block.ordinary (block geometry)).rowCount := by
     change global.val < (block geometry).rowCount

@@ -92,8 +92,8 @@ theorem represents_of_runs (room : slotEnd pieces next ≤ width)
       (honestAssignment (SlotLayout.runSlots width
         (runsOf publicColumns (sboxStart pieces next) packageList bits)) env) column =
       env column := by
-  have publicEq : publicColumns = 270 := rfl
-  have countEq : LogicalPlan.publicCount = 270 := rfl
+  have publicEq : publicColumns = 320 := rfl
+  have countEq : LogicalPlan.publicCount = 320 := rfl
   have sizeEq : SlotRuns.runsSize (sboxStart pieces next) packageList = slotEnd pieces next := by
     unfold SlotRuns.runsSize slotEnd
     rw [blocks, Nat.mul_comm]

@@ -46,8 +46,8 @@ theorem retainedPrefix_baseEnv
         (SourceCompiler.sourceEnv (PiRLCRetainedPreservation.sourceAssignment
           program base groupValue)) column =
       PerApplicationPackage.baseEnv program (SourceCompiler.sourceEnv base) column := by
-  have packageTotal : PiRLCProductPlan.basePackage.layout.totalColumnCount = 11464875 := by
-    change PerApplicationPackage.basePackage.layout.totalColumnCount = 11464875
+  have packageTotal : PiRLCProductPlan.basePackage.layout.totalColumnCount = 11415253 := by
+    change PerApplicationPackage.basePackage.layout.totalColumnCount = 11415253
     exact Package.circuitPackage_layout_values.2.2.2.2
   have packageBound : column < PiRLCProductPlan.basePackage.layout.totalColumnCount := by
     rw [packageTotal]
@@ -105,7 +105,7 @@ abbrev InvocationIndex := Fin PiCCSPoseidonPlan.invocationCount
 
 def laterIndex (index : InvocationIndex) : Fin PoseidonRetainedBlock.laterInvocationCount :=
   ⟨index.val, by
-    have bound : index.val < 948 := by
+    have bound : index.val < 1091 := by
       simpa only [PiCCSPoseidonPlan.invocationCount_eq] using index.isLt
     rw [PoseidonRetainedBlock.laterInvocationCount_eq]
     omega⟩

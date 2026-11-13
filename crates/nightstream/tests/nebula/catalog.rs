@@ -980,16 +980,25 @@ fn catalog_proof_verifies_and_rejects_a_broken_row_on_cpu() {
 
     let mut words = invocations[3].words.clone();
     *aux_word(&mut words, COLUMNS, PUSH_VALUE) = F::from_u64(6);
-    // The bounded-depth prover checks no row: the broken step proves, and the
-    // verifier rejects it at a row of the fresh instance's relation.
-    let bad = prover
-        .extend_with_output(&proofs[2], &words, invocations[3].output)
-        .expect("the prover checks no row");
-    let bad = Proof::from_parts(bad, *run.carry());
+    // The prover refuses the broken step at its row check. Without that
+    // check, the broken step proves, and the verifier rejects it at a row of
+    // the fresh instance's relation.
+    use crate::lifecycle::bounded_depth::{BoundedDepthError, CHECK_ROWS};
+    let broken = || prover.extend_with_output(&proofs[2], &words, invocations[3].output);
+    assert!(matches!(
+        broken(),
+        Err(crate::Error::BoundedDepth(BoundedDepthError::Fresh(
+            "a relation row fails"
+        )))
+    ));
+    CHECK_ROWS.set(true);
+    let bad = broken();
+    CHECK_ROWS.set(false);
+    let bad = Proof::from_parts(bad.expect("the row check is off"), *run.carry());
     assert!(matches!(
         verifier.verify(&setup.program, &statement.initial, &statement.final_, &bad),
         Err(VerifyError::Proof(crate::Error::BoundedDepth(
-            crate::lifecycle::bounded_depth::BoundedDepthError::Fresh("a relation row fails")
+            BoundedDepthError::Fresh("a relation row fails")
         )))
     ));
     eprintln!("catalog elapsed={:?}", started.elapsed());

@@ -196,7 +196,7 @@ fn conformance() {
         (layout.start(0, 0), "arm start products"),
         (layout.cnt(0), "O2 slot 0"),
         (layout.ops_factor(0, 1, 2), "O9 slot 0"),
-        (layout.scan_factor(0, 0, 4), "S2 slot 0"),
+        (layout.scan_factor(0, 0, 3), "S2 slot 0"),
     ] {
         let mut changed = honest.invocations[0].clone();
         changed.words[word] += F::ONE;
